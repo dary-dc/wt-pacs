@@ -293,11 +293,14 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   tells the store its want and the store sends the downloader the misses. On the page it runs beside the painter;
   under `worker` it runs in the view worker (`view/view-worker.js`) with the paint worker's code as a module, the
   decoders post to it, and the page (`view/view.js`) sends intents and hears `shown`, `progress` and `failed`, never a
-  frame ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §3, *Built*). The status line names the view.
+  frame ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §3, *Built*). The status line names the view. Under
+  `worker` the store looks in an OPFS cache before it asks (`view/cache.js`): a series with digests is written there
+  after each frame's paint, by the store worker (`viewer/store.js`) unless the lab's `?writer=` names the decoders or
+  the view worker, and read back checked on a later open.
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact.
 * **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the decoder per path, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name.
-* **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=` and `?origin=` let a lab harness drive the
+* **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=`, `?origin=` and `?writer=` let a lab harness drive the
   same page. They load from `lab/viewer/levers.js`, which only the dev host serves: on the web image a link carrying
   any of them is refused, by name on the status line, before the page fetches, imports or dials anything.
   `viewer/crafted.mjs`, run by the gate, opens each on a host shaped like the image and fails if one is fetched or
@@ -312,7 +315,9 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
 the page with `?check=1` in headless Chromium, or in a stock Firefox (`--engine firefox`, `FIREFOX_PATH`), and the
 page itself runs the protocol after the fill: an ask of a delivered frame, a fill cancelled at once, then an ask
 after the cancel. With `--fill 0` it first steps the page itself: to the middle frame, the last and the middle again
-at once, then to the last twice. `--view worker` opens it with `?view=worker`. `--client wasm` names the WASM client in the transport file it serves; with `--url`, the one the host's file names.
+at once, then to the last twice. `--view worker` opens it with `?view=worker`, and `--writer` adds `?writer=`; with
+`--tabs` (Chromium) it opens the page in one profile four times: a first tab, a second beside it, a reopen, and a
+reopen after a byte of the middle frame's cache entry is flipped. `--client wasm` names the WASM client in the transport file it serves; with `--url`, the one the host's file names.
 With `--url … --fill 0 --restart CMD` it instead opens `?fill=0`, runs CMD (which
 restarts the host's server and prints its `transport=` line) after frame 0 is exact, and fails unless the next step
 arrives exact with no error within 20 s (docs/ARCHITECTURE.md §An open page follows a server restart). It passes no lab parameter, so it runs the same against the web image: the result is
@@ -333,6 +338,10 @@ read off the page in Chromium and off Firefox's stdout (`devtools.console.stdout
 * a step to a held frame that paints other than once or sends the downloader anything; a window change likewise, or
   one that uploads the frame;
 * under `--view worker`, any pixel, `SharedArrayBuffer` or port reaching the page, or any message from the downloader;
+  a frame held and not on disk once the writes settle, a write asked before its frame's paint, or a cache write on the
+  view worker's own thread unless the writer is `view`;
+* with `--tabs`, a second tab not told another holds the cache; a reopen that asks the downloader for a frame on disk
+  or reads any frame but from the cache; after the corruption, the frame not asked again alone, or any readback off;
 * with `--pair`, the same series in the other codec painting a different readback;
 * with `--cine`, a cine that did not move.
 

@@ -69,9 +69,10 @@ export class ViewWorker {
 
   /**
    * `emit(type, event)` hears renderer, progress, shown and failed `{scope: frame | series | cache | worker, reason}`;
-   * `watch(data, from)`, when given, every message the page receives; `settlePaint`, the lab's flag that a paint waits for the GPU.
+   * `watch(data, from)`, when given, every message the page receives; `settlePaint`, the lab's flag that a paint waits for the GPU;
+   * `watchWrites`, the viewer check's, that the view worker count the cache writes on its own thread.
    */
-  constructor(canvas, { meta, fillMode, size, emit, watch, settlePaint = false }) {
+  constructor(canvas, { meta, fillMode, size, emit, watch, settlePaint = false, watchWrites = false }) {
     this.#worker = new Worker(new URL("./view-worker.js", import.meta.url), { type: "module" });
     this.#worker.onerror = (e) => this.#end(this.#started ? `the view worker failed: ${e.message}` : `the view worker did not start: ${e.message || "its script did not load"}`);
     this.#worker.onmessageerror = () => this.#end("a message from the view worker could not be read");
@@ -85,7 +86,7 @@ export class ViewWorker {
       else r.resolve(data.value);
     };
     const offscreen = canvas.transferControlToOffscreen();
-    this.#worker.postMessage({ kind: "start", canvas: offscreen, meta, fillMode, size, settlePaint }, [offscreen]);
+    this.#worker.postMessage({ kind: "start", canvas: offscreen, meta, fillMode, size, settlePaint, watchWrites }, [offscreen]);
     this.#emit = emit;
     this.#watch = watch;
   }

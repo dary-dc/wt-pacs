@@ -11,7 +11,7 @@ FILES=(
   transport/consumer.js transport/downloader.js transport/wasm/session-adapter.js
   decode/*.js decode/wasm/build/manifest.sha256 decode/wasm/built
   paint/painter.js paint/paint-worker.js paint/voi.js paint/reference.js
-  view/controller.js view/store.js view/view.js view/view-worker.js view/check.js
+  view/controller.js view/store.js view/view.js view/view-worker.js view/check.js view/cache.js view/frame-file.js viewer/store.js
 )
 for f in "${FILES[@]}"; do
   mkdir -p "$DEST/$(dirname "$f")"
