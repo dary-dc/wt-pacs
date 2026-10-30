@@ -120,9 +120,11 @@ export class FrameStore {
     this.#waiting.delete(i);
   }
 
+  /** The frame the want ranks last: the farthest, and at equal distance the earlier. */
   #farthest() {
+    const rank = (i) => 2 * Math.abs(i - this.near) + (i < this.near);
     let far = null;
-    for (const i of this.#frames.keys()) if (far === null || Math.abs(i - this.near) > Math.abs(far - this.near)) far = i;
+    for (const i of this.#frames.keys()) if (far === null || rank(i) > rank(far)) far = i;
     return far;
   }
 }

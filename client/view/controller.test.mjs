@@ -100,6 +100,14 @@ test("the memory window lets the farthest frame go", async () => {
   assert.deepEqual([...c.store.keys()].sort(), [1, 3]);
 });
 
+/** At equal distance from the current frame the earlier one goes, as the want ranks it last; the frame the want ranks first stays. */
+test("the memory window lets go what the want ranks last", () => {
+  const { c } = rig({ frames: 4, budget: 2 });
+  c.store.near = 1;
+  for (const i of [1, 2, 0]) c.take(frame(i));
+  assert.deepEqual([...c.store.keys()].sort(), [1, 2]);
+});
+
 /** Under the worker view a frame that arrived and was let go is no longer owed: a step to it asks the downloader again, and is owed no longer once here. */
 test("worker view: a frame let go past the budget is asked again", async () => {
   const wants = [];
