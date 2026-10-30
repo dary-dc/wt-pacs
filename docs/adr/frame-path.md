@@ -2868,17 +2868,20 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 
 **Settings.** Each is printed with the arm it ran in; a default changes only when its rule says so.
 
-| setting | default (today's) | other values | decided by | status 2026-10-30 |
+| setting | default (today's) | other values | decided by | status 2026-10-30, 03:00 UTC |
 | --- | --- | --- | --- | --- |
-| `?view=` | `page` | `worker` | §7's rule (B′), #229 | built, not run |
+| `?view=` | `page` | `worker` | §7's rule (B′), #229 | built, not run; **nothing times the core against main yet** (equal by counts only) |
 | `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | built and its rig, not run |
-| `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | built, not run |
-| `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | built, not run |
-| frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241 | arms in `lab/opfs-cache` only; run in progress |
-| `?writer=`, who writes the OPFS cache | `none`: no cache, as main | `store`, `decoders`, `view` | OPFS arms, #227/#242; #244 | arms in `lab/opfs-arms`, core built; run in progress |
-| frame clock | the page's timer | worker rAF, timer to a schedule, `MessageChannel`, `Atomics.wait` | #225 | loaded only on a lab's play intent |
-| receive loop, the downloader in the view worker | its own worker | merged | #237 | rig in `lab/recv-loop` only |
-| native `--paint-thread`; `--credits`, `--budget` | `ui` | `view`, `core`; `K` 4, 64 MiB | NATIVERUN, #247 | built, not run |
+| `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | built and reviewed, not run |
+| `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | answered by M5: `transfer` misses its memory bar on Chromium |
+| frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241 | Chromium: the rule picks the **ring** (from the rows, not yet the run's verdict); Firefox VOID; a merge candidate the owner will study first |
+| `?writer=`, who writes the OPFS cache | `none`: no cache, as main | `store`, `decoders`, `view` | OPFS arms, #227/#242; #244 | Chromium 4 of 7 cells: `decoders` (D) leads, no verdict; Firefox not run |
+| frame clock | the page's timer | worker rAF, timer to a schedule, `MessageChannel`, `Atomics.wait` | #225 | harness built (#249), not run |
+| receive loop, the downloader in the view worker | its own worker | merged | #237 | rig in `lab/recv-loop` only; needs a GPU host |
+| native `--paint-thread`; `--credits`, `--budget` | `ui` | `view`, `core`; `K` 4, 64 MiB | NATIVERUN, #247 | built and reviewed (#253); the run's own pieces not built |
+
+The figures behind each status, and what is scheduled to settle them, are in
+[`../handoff-2026-10-30.md`](../handoff-2026-10-30.md) §2–§3; each run writes its verdict in its own section.
 
 *The cache's default.* The owner decided an OPFS client cache on 2026-10-10 (§1), but main has none, so `none` keeps
 main's behaviour; turning it on is the owner's call, not this branch's. The cache is the frame store's alone: #212's
