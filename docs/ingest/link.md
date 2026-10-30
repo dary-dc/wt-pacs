@@ -4,6 +4,12 @@
 owner's of 2026-10-11 — **the hospital→PACS link is TCP** (HTTPS) — and this document writes down its reasons and what
 QUIC would have to show before it returns. Every choice left open is the owner's (§8).*
 
+*Corrected 2026-10-26* ([`pacs-receive-design.md`](pacs-receive-design.md) §1–§2): the sender is the **PCS** (the
+hospital-side component, another team's), and what it sends is a **submission package**, one file per series; this
+file's "site" is the PCS's host. The package's proof is its **XXH3** (in its name), not a bundle SHA-256. The owner
+accepts different transports per link (10-25/26): one application handler, a TCP or a QUIC listener chosen by config
+(§11, proposed).
+
 **The link in question.** The site's ingest uploads coded bundles and their metadata, files of ~0.1–50 MB, a few to a
 hundred GB a day, from a wired host in a hospital network to the server, over a WAN of ~10 Mbit/s–1 Gbit/s at 10–150 ms
 RTT. It is the reverse of the viewer's fill: **the site sends, the server receives**, and nothing on it is interactive.
@@ -22,6 +28,7 @@ here.
 8. [What would have to be true for QUIC to win](#8-what-would-have-to-be-true-for-quic-to-win)
 9. [The owner's decisions](#9-the-owners-decisions)
 10. [Sources](#10-sources)
+11. [The carrier for the PCS's packages](#11-the-carrier-for-the-pcss-packages)
 
 ## 1. The answer in plain words
 
@@ -51,7 +58,7 @@ here.
 * **Resume and integrity are the application's, on either transport.** S3-style multipart (client-chosen parts,
   per-part checksum, idempotent part retry), tus (server-held offset, per-chunk checksum), the IETF resumable-upload
   draft (server-held offset, **no** integrity in -13) and rsync (whole-file checksum, partial files) each give a
-  different mix (§7). The bundle's own SHA-256 and per-frame digests are the end-to-end proof whichever is chosen.
+  different mix (§7). The package's own XXH3 (this said the bundle's SHA-256) and per-frame digests are the end-to-end proof whichever is chosen.
 
 ## 2. CPU per byte
 
@@ -225,8 +232,8 @@ Microsoft says SMB over QUIC "is slower than" encrypted SMB over TCP, citing enc
 
 ## 7. Resumable upload over HTTPS
 
-Who holds the offset, what proves the bytes, and what a retry does. The bundle's SHA-256 (and the per-frame digests
-inside it) remain the end-to-end proof in every case; what follows is what the transfer itself adds.
+Who holds the offset, what proves the bytes, and what a retry does. The package's XXH3 (this said the bundle's SHA-256) and the per-frame
+digests inside the bundle remain the end-to-end proof in every case; what follows is what the transfer itself adds.
 
 | option | resume: who holds what | integrity | a retried request | an abandoned upload | Rust |
 | --- | --- | --- | --- | --- | --- |
@@ -238,7 +245,7 @@ inside it) remain the end-to-end proof in every case; what follows is what the t
 
 **For this link:** files are 0.1–50 MB, so a multipart part (≥ 5 MiB) splits a file into at most ~10 pieces and
 most files go in one request; resume matters less than **an idempotent publish per file** — write, verify the
-SHA-256, then rename — which the server already does for a bundle in the plan ([`../FIXTURES.md`](../FIXTURES.md)
+hash (XXH3 since 2026-10-24/25), then rename — which the server already does for a bundle in the plan ([`../FIXTURES.md`](../FIXTURES.md)
 §A compiled ingest at the site). A designed upload endpoint is row 153's subject (INGESTDESIGN).
 
 ## 8. What would have to be true for QUIC to win
@@ -264,8 +271,8 @@ uplinks; and the upload-direction bulk comparison no paper has run.
 
 Listed, not taken.
 
-1. **The resumable upload's shape:** S3-style multipart against an object store, tus, the IETF draft, a plain
-   per-file PUT with publish-by-rename, or rsync — with row 153's design.
+1. **The resumable upload's shape** (compared in §11): S3-style multipart against an object store, tus, the IETF
+   draft, a plain per-file PUT with publish-by-rename, or rsync — with row 153's design.
 2. **The site host's tuning:** whether the ingest's installer sets the §4 sysctls, documents them, or leaves them.
 3. **The server's kernel:** ≥ 6.16 for the 32 MiB receive default, or `tcp_rmem` set by deployment.
 4. **The controller on the site host:** Cubic (default), BBRv1 (mainline), or v3 (out of tree).
@@ -324,3 +331,234 @@ committed.
 TCP-BBR in long-haul science data transfers" (403); "Beyond the Handshake: Eliminating Fallback Latency from
 QUIC-to-TCP Transitions", ACM 2025 (403); Cisco Umbrella's and Check Point's QUIC articles (403, title only); Sophos'
 first-party text.
+
+## 11. The carrier for the PCS's packages
+
+*2026-10-25. Proposed, not accepted; theory only: read from sources and from the crates' code, nothing built, nothing timed. It stacks on
+[`../adr/pcs-transfer.md`](../adr/pcs-transfer.md) (the ADR below), which fixed the unit (one package per series, or a
+small update package), the reply (received, committed, refused: its §7) and recommended a resumable HTTPS upload (its
+§3); this section compares the carriers for that package and says what the comparison changes there (§11.4). Labels as
+in the ADR: **source** (read, pinned in §11.8), **estimated** (arithmetic from stated assumptions), **inference**. No
+proof of concept: every doubt below is settled by reading a crate or a draft, or is a measurement on real links (§11.5)
+that loopback cannot stand in for ([`../rig-limits.md`](../rig-limits.md) §3).*
+
+**What the carrier must do.** Move one file of a few KB (an update) to ~1 GB (a long series); ~107 MB for the ADR's
+CT. Carry the PACS's three replies back to the PCS on connections the PCS opens. Survive a drop, a stall, and a site
+whose address changes. Reach every site over 443/TCP (§3) and some over QUIC, with as few mechanisms to build as
+possible, since the owner weighs development and maintenance heavily. The PCS side is C and shell today
+([DECK_WebTransport](https://github.com/opendicom/DECK_WebTransport) at `a65abe282b6d`: a parser in C, vendored
+openjpeg and sqlite, no network code yet).
+
+### 11.1 On one screen
+
+| | option | the reply | after a drop | TCP and QUIC | the PCS builds | we build and maintain | fits |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| a | **IETF resumable upload**, draft-14, the "careful" mode (§11.3a), HTTP/1.1 | the final response is *received*; `GET` on the package is *committed* or *refused* | `HEAD` gives the offset, `PATCH` sends the rest: ~3 RTT plus the stall timeout | **one handler**; QUIC is a second listener (h3 0.0.8) | a script around stock curl, ~60–100 lines (*estimated*) | ~300–450 lines on hyper 1.12 (*estimated*), 3 crates | **yes: recommended** |
+| b | tus 1.0 | the last `PATCH`'s 204, then the same `GET` | the same as (a) | the same as (a) | the same | the same, by hand; the crates are 0.x and months old | yes, equal to (a); a header rename apart |
+| c | plain `POST`, whole package retried | the response, then the same `GET` | from byte 0 | the same as (a) | ~20 lines | (a) without `HEAD`/`PATCH`, ~100 lines fewer (*estimated*) | where a package's send time is under a tenth of the time between drops (§11.2): fiber yes, a CT on a dropping 1–2 Mbit/s link no |
+| d | rsync over ssh, status files pulled back over ssh | a status file per package | `--partial-dir`: ssh handshake, then checksums of the partial | TCP only: no QUIC path | ~30 lines | sshd with a restricted key per PCS, a watcher, a status writer, ~150 lines (*estimated*) | fiber sites with 22/TCP out; not proxy-only sites, never QUIC |
+| e | an upload protocol on our WebTransport server | a bidirectional stream | ours to design | QUIC, plus the WebSocket mapping for TCP: one protocol of ours on two transports | a WebTransport client in C (none known mature, *inference*) and a WebSocket one | the protocol, its fallback, on the viewer's patched crates | no |
+| f | S3-compatible multipart, an event hook | none: a status object the PCS polls | `ListParts`, re-send parts ≥ 5 MiB | TCP; QUIC only if the store speaks HTTP/3 | SigV4 and multipart XML in shell, ~100–150 lines (*estimated*), or a CLI | a store to run (or s3s 0.17, an S3 subset of ours) and an event consumer | only if the PACS keeps packages in an object store anyway |
+| g | anything simpler | — | — | — | — | — | none found that covers the dropping links; (c) *is* (a)'s endpoint used without resume (§11.3c) |
+
+**Recommendation: (a), as the ADR says, made smaller.** One HTTPS endpoint on 443/TCP, HTTP/1.1 only, on hyper; the
+draft's careful creation (§17.2): an empty `POST` creates the upload, `HEAD` returns the offset, `PATCH` appends,
+`DELETE` cancels; the final `PATCH` answers *received* and `GET` on the package answers *committed* or *refused*. The
+same endpoint takes a one-shot upload (`Upload-Complete: ?1` on the `POST`), so a fiber site's script may skip resume.
+Pinned to interop version 10, since we own both ends. **HTTP/3 is not built**; when §11.5 and the ADR's M5 call for it,
+it is the same handler behind a second listener on its own UDP port.
+
+**The deciding reason.** In HTTP the reply and the resume are the application's, not the transport's: written once,
+they work the same over TCP and QUIC (RFC 9110 defines the semantics "shared by all versions"; tus 1.0 "does not depend
+on specific versions of HTTP"). So TCP-or-QUIC stops being a design and becomes a listener chosen per site, and the PCS
+needs nothing beyond curl.
+
+**What would change it.** (1) The PACS keeps packages in an object store: then (f) costs us no endpoint. (2) Every site
+opens 22/TCP and QUIC is dropped for good: then (d) is the least code on both sides. (3) §11.5 shows HTTP/3 ahead by
+more than 20 % on a link class a real site has, with UDP open there: build the second listener, on a crate that is
+still 0.0.x today. (4) The draft breaks compatibility before it is an RFC and a third-party client must interoperate:
+follow it, or switch to tus 1.0, frozen since 2016 (a header rename on both ends).
+
+### 11.2 When retrying the whole package is enough
+
+Drops arrive at random, on average one every M; a package takes T to send. Restarting from byte 0 costs an
+expected M (e^(T/M) − 1); resuming costs T plus, per drop, the stall timeout and a reconnect (*estimated*: the
+standard result for restart under Poisson failures, applied here). The ratio of the first to T, with the ADR's §5 packages and link rates:
+
+| package, link | T | M = 5 min | M = 15 min | M = 60 min |
+| --- | --- | --- | --- | --- |
+| CT 500 (107 MB), 10 Mbit/s | 86 s | 1.16× | 1.05× | 1.01× |
+| CT 500, 2 Mbit/s | 428 s | 2.22× | 1.28× | 1.06× |
+| CT 500, 1 Mbit/s | 855 s | 5.72× | 1.67× | 1.13× |
+| MR 200 (11.7 MB), 1 Mbit/s | 94 s | 1.17× | 1.05× | 1.01× |
+| DX 1 (9 MB), 1 Mbit/s | 72 s | 1.13× | 1.04× | 1.01× |
+| the ADR's packages, 100 Mbit/s | ≤ 9 s | ≤ 1.02× | ≤ 1.01× | 1.00× |
+
+(*Estimated*; nobody has measured M at a site.) **Whole retry costs ≤ 5 % while T ≤ M / 10.** Fiber sites and small
+packages stay under it; a large series on a slow link that drops, the very site QUIC is meant for, does not, and a
+1 GB series fails it at 10 Mbit/s with M = 15 min (1.6×). Resume is ~100 lines on top of (c) (*estimated*), so the
+endpoint has it and each site's script chooses.
+
+**A drop is mostly detection.** A TCP connection whose path changes or dies does not fail at once: the PCS notices
+only through a stall timeout (curl's `--speed-limit`/`--speed-time`), tens of seconds, against a reconnect of ~3 RTT
+(TCP, TLS 1.3, `HEAD`) (*inference*). QUIC's migration would save the reconnect, not the detection, and only if the
+client's QUIC stack migrates (not read for curl's).
+
+### 11.3 Each option
+
+**(a) The IETF resumable upload, draft-ietf-httpbis-resumable-upload-14.** A working-group document
+(datatracker: "WG Document", IESG state "I-D Exists"; expires 2027-04-21), interop version **10**, "bumped for
+breaking changes" (App. B).
+
+* *Reply.* The final response to the completing request "comes from the target resource" (§6.1), so it carries
+  *received* (202 and the status address, ADR §7); *committed* and *refused* are a `GET` on the package's resource. A
+  refusal is a 4xx with `Upload-Complete: ?1`, which "resuming the upload would not resolve" (§6.1): the draft's own
+  split between resend and resume matches the ADR's.
+* *Resume.* The server holds the offset (§4.1); 409 carries the right one (§11). The **careful** creation (§17.2): an
+  empty `POST` first, then `PATCH`es — chosen because the optimistic mode needs a 104 interim response to learn the
+  upload's address, and **hyper's HTTP/1 server cannot send one** (`role.rs`: "response with 1xx status code not
+  supported"), nor can a shell script read one easily. The draft allows it: 104 is sent "unless the server is not
+  capable of sending interim responses" (§6.2).
+* *Concurrency.* A resumed `PATCH` may meet a stale one still open from the server's side; the server "MUST take
+  measures" and should end the earlier request (§10): a lock per upload, the newer request winning (*inference*:
+  ~20 lines).
+* *Both transports, one handler.* The handler is written against `http::Request` parts and a stream of body chunks.
+  hyper 1.12.0 (2026-10-06; a release every one to two months) hands it an `Incoming` body over TCP; HTTP/2 adds
+  nothing to one sequential upload, so HTTP/1.1 alone (no h2 crate). Over QUIC, h3 0.0.8 and h3-quinn 0.0.10 (both
+  2025-05-06, the latest; h3-quinn needs quinn ^0.11.7, which our patched 0.11.11 meets) hand it `recv_data()` chunks;
+  each front end is ~30 lines of adapter, the h3 listener ~100–150 with its accept loop (*estimated*). h3's README:
+  "still very experimental … the API could change"; the lab already builds its client against our server
+  (`lab/other-clients/h3/`). **The viewer's QUIC endpoint cannot carry it:** wtransport 0.7.2
+  stops any request stream whose method is not CONNECT (`driver/mod.rs`, `MethodNotConnect` → `RequestRejected`),
+  so HTTP/3 needs its own endpoint, or a fifth patch.
+* *Lossy and high-RTT links.* On TCP, the kernel's controller (BBR by sysctl, §4) and any satellite TCP-splitting
+  proxy act on it; on HTTP/3 neither the proxy (ADR §3, RFC 3135, RFC 9065) nor the kernel does, and quinn's controller
+  decides. So a satellite site that splits TCP stays on TCP even if UDP is open (*inference*, §11.5 tests it).
+* *The PCS builds:* with curl, `POST` (`Upload-Draft-Interop-Version: 10`, `Upload-Complete: ?0`, `Upload-Length`), read
+  `Location`; on each attempt `HEAD` for `Upload-Offset`, then stream the file's tail from it (`tail -c +N` into
+  `curl -X PATCH -T -`, since `curl -C` refuses: "HTTP uploads using POST or PUT cannot be resumed"); `--cert`/`--key`
+  for mutual TLS; a stall timeout; then poll `GET` until committed or refused (*estimated* 60–100 lines; libcurl in C
+  is the same calls). Ubuntu 24.04's curl 8.5.0 has no HTTP/3 (its Features line, read in this container); HTTP/3 at
+  a site needs a curl built on ngtcp2, the one backend curl does not call experimental.
+* *We build:* the five verbs, partial files with expiry, the length and package-hash checks, `Upload-Limit`, per-PCS
+  limits, the status store, mutual TLS through rustls' client verifier (rustls and tokio-rustls are already in the
+  server). New crates: hyper, hyper-util, http-body-util (*inference*: no router, four routes). Security surface:
+  hyper's HTTP/1 parser and rustls.
+* *Operations.* 443/TCP inbound on its own address: the viewer's WebSocket mapping already listens on TCP at the
+  viewer's port number ([`../WIRE.md`](../WIRE.md) §The WebSocket mapping). Hospitals: 443/TCP out and a proxy bypass
+  for mutual TLS (ADR §10). Monitoring: response codes, the age of the oldest uncommitted package (ADR §7). HTTP/3,
+  later: one UDP port inbound, UDP out per site.
+
+**(b) tus 1.0.** The same model: the server holds the offset, `HEAD` returns it, `PATCH` appends and gets 409 on a
+mismatch (Core Protocol). It differs in names (`Tus-Resumable: 1.0.0`, `application/offset+octet-stream`), in a
+successful `PATCH` that "MUST" answer 204 No Content (so *received* is the 204 of the last one and every status is a
+`GET`), and in a per-chunk checksum extension the package hash makes redundant. Stable since 2016, where the draft
+still moves. Rust: fileloft-axum 0.3.0 (2026-04-27), tus-protocol and tus-axum 0.1.0 (2026-07-14), salvo-tus 1.0.1
+for another framework — young, and each pulls a framework; by hand it is (a)'s code with other header names. **Equal
+to (a) on merits**; (a) keeps the ADR's choice and lets the final response carry the reply. §11.6 asks.
+
+**(c) A plain `POST`, retried whole.** The reply is the response and the `GET`; no resume, so its cost follows
+§11.2. It is not a separate mechanism: the draft lets a server answer a `POST` with `Upload-Complete: ?1` as a one-shot
+upload (§17.1.1: "falls back to a non-resumable upload without additional cost"), so (a)'s endpoint serves (c) and
+a site's script can start there and add resume later.
+
+**(d) rsync over ssh, with the reply over ssh.** The ADR's §3 found no reply channel in rsync; one exists without
+HTTPS if the PACS writes a status file per package into the PCS's directory and the PCS fetches it with the same ssh
+key (*inference*). Resume: `--partial-dir`, at the cost of an ssh handshake and checksums of the partial (ADR §3).
+Received is rsync's exit status after its whole-file checksum. QUIC: none, ever. The PACS runs sshd for every
+hospital, each key restricted to one directory (rsync's `rrsync`, not read), plus a watcher that ignores rsync's
+temporary names. The least code on both sides (*estimated*), and the wrong reachability: 22/TCP out is opened per
+site, if at all, and a proxy-only site cannot use it (ADR §3, *inference*).
+
+**(e) An upload protocol on our WebTransport server.** QUIC is the viewer's transport, so the server is there; the
+upload is not: offsets, completion, the reply and limits are ours to specify. TCP needs the WebSocket mapping, as for
+viewers: one protocol, two transports, both ours. The PCS would need a WebTransport client in C (draft-ietf-webtrans-
+http3, not an RFC) and a WebSocket one. It inherits the viewer's four patches to three crates (`patches/`). The largest
+cost here and the least reachable (§3). Rejected.
+
+**(f) An S3-compatible object store, multipart, with an event hook.** Resume by parts (≥ 5 MiB, `ListParts`), per-part
+checksums (§7). No reply: the store says "stored", never "committed"; the PACS's consumer of the store's events would
+write a status object the PCS polls (*inference*). The PCS signs every request (curl's `--aws-sigv4`, not read) and
+drives initiate, parts and the XML of Complete in shell, or installs a vendor CLI. We would run and patch a store, or
+implement an S3 subset on s3s 0.17.0 (2026-09-24; 0.15, 0.16, 0.17 in five weeks), plus the consumer. Per-PCS
+identity is an access key, not a certificate. It fits only if the PACS keeps packages in an object store for its own
+reasons; then the store's endpoint replaces ours.
+
+**(g) Simpler.** A hand-made chunked `PUT` (fixed chunks, each idempotent, then "complete") resumes without offsets
+but is (f)'s multipart without a standard, and no shorter than (a)'s `HEAD` and `PATCH` (*inference*). SFTP is (d)
+with less checking. DICOMweb's STOW-RS carries instances, not a package, and resumes nothing
+([`design.md`](design.md) §9). Nothing simpler covers a dropping slow link.
+
+### 11.4 What this confirms or changes in the ADR
+
+* **Confirms** §3's recommendation: the draft's offset model on HTTPS over 443/TCP, the commitment polled by `GET`
+  (§7), HTTP/3 off until link.md §8's conditions hold (§12 owner question 5), tus as the alternative, rsync without a
+  reply channel of its own.
+* **Changes** "HTTP/3 on the same endpoint costs no protocol work": true of the protocol, not of the code. The viewer's
+  QUIC endpoint rejects non-CONNECT requests, so HTTP/3 is a second QUIC listener on h3/h3-quinn 0.0.x ("very
+  experimental", no release since 2025-05-06), on its own UDP port.
+* **Narrows** the subset: careful creation only, no 104 interim responses (hyper cannot send them), HTTP/1.1 only,
+  interop version 10 pinned. The one-shot `POST` on the same endpoint is plain upload (c), for sites that need no
+  resume.
+* **Adds** what the PCS builds: a curl script, not a Rust or C HTTP stack, and an HTTP/3-capable curl only where QUIC
+  is enabled; and a stall timeout, since detection, not reconnection, is most of a drop's cost.
+* **Adds** a bound for "resume is needed": T ≤ M / 10 (§11.2), and a fair reading of rsync: a reply over ssh is
+  possible; reachability and the absent QUIC path are what rule it out.
+* The ADR's §3 and M3 cite draft -14; this file's §7 read -13. -14's change log removed integrity digests; the
+  package hash in the name covers it either way (ADR §6).
+
+### 11.5 Pre-registered: does resume or HTTP/3 pay on a real link class
+
+Extends the ADR's M3 (the carrier on emulated links) and M5 (reachability) rather than repeating them; the same rules
+apply: variants interleaved each round, each new test mutated, **seconds from the first byte to "committed" seen by
+the PCS** (latency per package, not throughput), the testbed's ceiling reported first.
+
+* **D1 — the drop rate.** At each pilot site, the PCS logs every failed transfer and stall for ≥ 2 weeks: M per
+  link class. *Decides:* which rows of §11.2 are real.
+* **C1 — drops.** Variants: (c) one-shot, (a) over HTTP/1.1, (a) over HTTP/3. Links: the ADR's §5 classes by `netem`.
+  Drops: Poisson at M = 5, 15, 60 min, of two kinds, a 20 s black hole and an address change (the client's namespace
+  moved to a new address). A GEO class with an open-source TCP-splitting proxy in the path. Packages: the CT and MR of
+  ADR §5 and a 1 GB series; 20 a variant. *Mutation:* a server that always answers offset 0 must turn (a) into (c)'s
+  numbers. *Decides:* the HTTP/3 listener is built only if (a) over HTTP/3 beats (a) over HTTP/1.1 by > 20 % in median
+  on a class where D1 and M5 place a real site with UDP open; otherwise not, and this section's recommendation stands.
+
+### 11.6 Questions only the owner can answer, each with a default
+
+1. The draft, pinned to interop version 10, or tus 1.0? *Default: the draft* (the ADR's choice; the final response
+   carries the reply).
+2. Where the endpoint runs: its own process on its own address, or inside `series-server`? *Default: its own
+   process* — it unpacks untrusted input, and the viewer's server and its patched QUIC stack stay as they are.
+3. The HTTP/3 listener: *default: not built* until C1, D1 and M5 call for it.
+4. Will the PACS keep packages in an object store? *Default: no* (local disk, as [`../adr/disk-access.md`](../adr/disk-access.md)
+   assumes), so (f) stays out.
+5. The largest package a PCS may send (`Upload-Limit` max-size): *default: 8 GiB*, a placeholder until sites report
+   their largest series.
+
+### 11.7 What the PCS team builds
+
+The sender of (a): create, then loop {`HEAD`, `PATCH` from the offset, with a stall timeout and backoff} until the final
+response, then poll `GET` until committed or refused, acting on refusals as the ADR's §7 says. Stock curl with a
+client certificate; libcurl if they prefer C. An HTTP/3 build of curl only at a site where QUIC is enabled. Nothing
+else changes in DECK.
+
+### 11.8 Sources
+
+Fetched or read 2026-10-25; the first 12 hex of the fetched file's sha256. Raw copies are not committed.
+
+* **IETF:** draft-ietf-httpbis-resumable-upload-14, 2026-10-18 (`6bfbf01573b9`, the file the ADR read): §4.1, §6.1,
+  §6.2, §8.1, §10, §11, §12, §17.1, §17.1.1, §17.2, App. B; its datatracker record ("WG Document", "I-D
+  Exists", expires 2027-04-21). RFC 9110 (`21c1cdce6ab0`) abstract; RFC 3135 and RFC 9065 through the ADR §3.
+* **tus** 1.0.0 (`dfc82027d295`, the file §7 read): Abstract, Core Protocol (`PATCH`).
+* **curl** at `master`: `docs/HTTP3.md` (`8b17925ac5c8`) §Experimental; `docs/cmdline-opts/continue-at.md`
+  (`a97239d69b9f`); curl 8.5.0's `--version` in this container (Ubuntu 8.5.0-2ubuntu10.16).
+* **Crates**, source read from the crates.io archives: hyper 1.12.0 (`2c3e324da4c9`) `src/proto/h1/role.rs`
+  (`ee27600c6d7a`); h3 0.0.8 (`10872b55cfb0`) `README.md` (`ffd5e71698c9`) §Status; wtransport 0.7.2 (`b4273ce3157a`)
+  `src/driver/mod.rs` (`8a91e8e1a449`). crates.io records (versions, dates, dependencies): hyper 1.12.0, h3 0.0.8,
+  h3-quinn 0.0.10, quinn 0.11.12, axum 0.8.9, tokio-rustls 0.26.6, s3s 0.17.0, fileloft-axum 0.3.0, tus-protocol
+  0.1.0, tus-axum 0.1.0, salvo-tus 1.0.1, tus_async_client 0.2.1.
+* **The PCS:** opendicom/DECK_WebTransport at `a65abe282b6d` (2026-10-22), `README.md` (`4fce01b625c8`) and its tree.
+* **This repository:** the ADR §3, §5, §6, §7, §10–§12; this file §3, §4, §7, §8; [`../WIRE.md`](../WIRE.md) §The
+  WebSocket mapping; `patches/`.
+
+**Not read**, so not cited as read: rsync's `rrsync`; curl's `--aws-sigv4` and `--speed-time` pages; whether curl's
+ngtcp2 backend migrates a connection; the tus reference server; draft-ietf-webtrans-http3's current version.

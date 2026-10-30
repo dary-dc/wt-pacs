@@ -1,15 +1,16 @@
 # ADR: where a viewer's display metadata lives, and how it is served
 
-**Status:** proposed 2026-10-25, **theory only: nothing built or timed here.** Scope starts at the PACS; the
-hospital-side component is another team's (the owner, 2026-10-24). *(M)* a number measured in this repository, with
+**Status:** proposed 2026-10-25, **theory only: nothing built or timed here; not accepted.** Where viewer metadata
+lives is **open**, to discuss next; every choice in §8 is the owner's. Scope starts at the PACS; the PCS (the
+hospital-side component) is another team's (the owner, 2026-10-24). *(M)* a number measured in this repository, with
 where; *(E)* an estimate, its arithmetic shown; *(I)* this record's own inference; *(S)* a primary source in §9. Every
 option was judged on the same rows before one was picked; none was preferred going in.
 
 **Builds on, read-only and unmerged:** #118 (`claude/page-open-metadata` at `6e8eaab`, `docs/ingest/metadata-draft.md` §1: carriers
 A1, A2, B and the codec placements), #119 (`claude/pacs-receiver-design`, `docs/ingest/design.md` §12: the series
 digest pairing metadata with frames), #120 and #126 (`claude/metadata-pair-bench` at `392c0ce`, `docs/ingest/metadata-draft.md` §2:
-the page document's read and update, measured), #144 (`claude/metadata-update-cost` at `ebc1207`, `lab/metadata-store` README:
-an update patched in place), #142 ([`serving-by-uid.md`](https://github.com/dary-dc/wt-pacs/blob/claude/serve-by-uid-design/docs/adr/serving-by-uid.md):
+the display metadata's read and update, measured), #144 (`claude/metadata-update-cost` at `ebc1207`, `lab/metadata-store` README:
+an update patched in place), #142 ([`serving-by-uid.md`](serving-by-uid.md):
 one server, many series, `?digest=` and the refusal codes).
 
 **Decided by the owner, taken as given (2026-10-24/25).** Per series the PACS receives one submission package: the
@@ -17,6 +18,14 @@ one server, many series, `?digest=` and the refusal codes).
 per group, updated in place by one writer, the receiver. A separate **study index**, likely MySQL and perhaps on
 another server, lists studies and series for list, browse and search screens. Pixels go frame by frame over
 WebTransport from `series-server`.
+
+**Against the design state (2026-10-26,** [`../ingest/pacs-receive-design.md`](../ingest/pacs-receive-design.md) **§6).**
+*Corrected in place:* the decoder rule of 10-19 that §5 cited was replaced on 2026-10-24 (the codec may come from the
+study index; without it the page loads every decoder; prefetch while browsing is to evaluate); "page document" is now
+*display metadata*, and the study DB's row is its source, not a "truth". **Left open, not resolved here:** the owner's
+current view (10-25/26) is to read a series' metadata from the study DB when it is opened, with no derived file or
+index column — closest to 2a below, which this record ranks behind 1 — and
+[`viewer-metadata.md`](viewer-metadata.md) (#153) ranks its split G first. The three are the design state's §6 Open item.
 
 ## 1 · One screen
 
@@ -35,7 +44,7 @@ study DB.
 | 4 a cache (e.g. Redis) at the index | ≈ 2 rt from the page (another origin) (E) | as (i) | the cache's filler | — | a third copy to invalidate across a network | a server, a protocol, invalidation |
 | 5 display metadata in the index | as 4 | as 4; the index down, no study opens | no one; the index holds it | — | a two-host write per update | ≈ 96 KB a CT series in MySQL (M: #126) |
 
-**Recommended: 1 with 3.** The receiver, which already writes the series' page document into the study DB in the
+**Recommended: 1 with 3.** The receiver, which already writes the series' display metadata into the study DB in the
 update's transaction (#126's V1 row), exports it after the commit as one file per series; nginx serves it on the
 page's origin with `no-cache` and its `ETag`, as it serves today's metadata. The study index carries the list fields
 and each series' codec, so the list prefetches only the decoders its series use. The page puts the document's digest
@@ -213,11 +222,12 @@ none is measured on our path.
 
 ### 4.1 · The second copy
 
-Option 1 writes the document twice: the page row in the study DB (the truth for it, #126's V1) and the file. The file
+Option 1 writes the document twice: the page row in the study DB (its one source, #126's V1) and the file. The file
 is derived, rebuilt from the row by one function, carries the row's revision and the bundle's digest, and is never
 read back by the PACS. target.md's rule was written for the metadata itself, against a sidecar that could disagree with
-the DB (#118); a derived file with its revision is the page document's cache, not a second truth (I). Whether that
-reading is acceptable is the owner's (§8, 1).
+the DB (#118); a derived file with its revision is the display metadata's cache, not a second source (I). Whether that
+reading is acceptable is the owner's (§8, 2). *Updated 2026-10-26:* target.md now states the rule this way (the study
+DB the one source; a derived file only if it can be regenerated from it), so option 1's file is within it.
 
 ## 5 · Not chosen, and why, in a line each
 
@@ -225,8 +235,10 @@ reading is acceptable is the owner's (§8, 1).
   so the values would go stale; the samples hash travels with its frame because it never changes (I).
 * **Columns read at request time** (#126's B, 2.6 ms at 2 000 held, M) instead of a precomputed document: 100× the
   document's read for the same bytes; nothing gained once the document exists.
-* **Loading every decoder at the HTML on a direct link** (#118's d): the client loads only what it needs (decided,
-  2026-10-19), and on a slow link it competes with frame 0 (§3, 3).
+* **Loading every decoder at the HTML on a direct link** (#118's d): rejected here under the 10-19 rule "the client
+  loads only what it needs". *Corrected 2026-10-26:* the owner replaced that rule on 2026-10-24 — without the codec
+  (from the study index or `?codec=`) the page loads every decoder — so this is now the fallback, not a rejected option;
+  on a slow link it still competes with frame 0 (§3, 3), which M2 (§7) and the prefetch evaluation measure.
 
 ## 6 · Switching later
 
@@ -269,7 +281,8 @@ is named first and nothing is claimed past it ([`../rig-limits.md`](../rig-limit
 2. **The derived file against target.md's one copy** (§4.1). Default: allowed, as a derived file carrying revision
    and digest.
 3. **The codec in the study index**, for a prefetch of what the list uses. Default: yes.
-4. **Prefetch every decoder from the list, or only the listed codecs.** Default: the listed codecs.
+4. **Prefetch every decoder from the list, or only the listed codecs.** Default: the listed codecs; prefetch while
+   browsing is to evaluate (decided 2026-10-24, design state §6).
 5. **A direct link carries `?codec=`?** Default: no, until M2 says the document's preload costs a round trip.
 6. **A correction read stale for one export's length** (§4): acceptable? Default: yes; frames are never mispaired.
 7. **Full metadata (a tag panel)**: not now; when built, a second export or 2b. Default: decide with the panel.

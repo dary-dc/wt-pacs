@@ -1,17 +1,20 @@
 # ADR: how updates to a study's metadata are received and applied at the PACS
 
-**Status:** proposed 2026-10-25, **theory only: nothing built, nothing timed.** Every choice is the owner's (§10).
+**Status:** proposed 2026-10-25, **theory only: nothing built, nothing timed; not accepted.** Every choice in §10 is
+the owner's; whether client-application updates go through the receiver's queue or a standard update endpoint
+coordinated with it is **open**, for the team and the product owner
+([`../ingest/pacs-receive-design.md`](../ingest/pacs-receive-design.md) §5).
 Scope is the PACS side; the PCS is another team's. *(S)* a primary source in §12, *(M)* a number measured in this
 repository, with where, *(E)* an estimate with its arithmetic, *(I)* this record's own inference.
 
 **Builds on, read-only and unmerged:** #119 (`claude/pacs-receiver-design`, `docs/ingest/design.md` §12: the checks,
 the series digest pairing, the owner's items 8 and 11), #142
-([`serving-by-uid.md`](https://github.com/dary-dc/wt-pacs/blob/claude/serve-by-uid-design/docs/adr/serving-by-uid.md):
+([`serving-by-uid.md`](serving-by-uid.md):
 `?digest=` and the refusal codes), #144 (`claude/metadata-update-cost` at `ebc1207`, `lab/metadata-store` README: one update
 patched in place, measured), #145
-([`display-metadata.md`](https://github.com/dary-dc/wt-pacs/blob/claude/display-metadata-design/docs/adr/display-metadata.md):
-the display document exported per series after the commit), #146
-([`study-index.md`](https://github.com/dary-dc/wt-pacs/blob/claude/study-index-design/docs/adr/study-index.md): the
+([`display-metadata.md`](display-metadata.md):
+the display metadata exported per series after the commit), #146
+([`study-index.md`](study-index.md): the
 outbox that publishes a study to the index).
 
 **Decided by the owner, taken as given (2026-10-24/25).** Per study one SQLite-format **study DB**: one row per DICOM
@@ -26,6 +29,16 @@ leaves an audit record (who, when, what changed). An update carries metadata onl
 metadata only; its **base hash** is the XXH3 of the group row it was written against; a **withdrawal** is a package
 that hides a series or a study.
 
+**Against the design state (2026-10-26).** *Corrected in place:* "display document" is now *display metadata*.
+**Conflicts left open, not resolved here:**
+
+* **The update's format.** This record recommends differences by DECK key (§1, row 2); [`pcs-transfer.md`](pcs-transfer.md)
+  (#149) §1 row 7 recommends whole changed group files. The owner decided updates carry metadata only, down to the
+  level that changed, *likely* as differences; the format is not decided (design state §2, §5).
+* **Propagation** (§1 row 5, §7) assumes #145's derived per-series display metadata file; where viewer metadata lives
+  is the design state's §6 Open item, and under the owner's current view (read from the study DB at open) there is no
+  derived file to rewrite.
+
 ## 1 · On one screen
 
 | question | recommendation | what decides it | cost of switching later |
@@ -35,7 +48,7 @@ that hides a series or a study.
 | **2 Format** | **differences**: `set` / `remove` by DECK key, **a sequence replaced whole**; a whole group accepted and turned into differences on arrival. UIDs and the frame description refused | the audit's "what changed"; sequence item indices that shift | for every sender once they exist: medium |
 | **3 Lost updates** | **every group touched names its base hash**; stale → refused, permanently. Over HTTP, `If-Match` required, `412` stale, `428` absent | a viewer and the PCS correcting the same group | required from day one costs nothing; added later breaks every client that omits it |
 | **4 Audit** | one row per package, **applied or refused**, holding the operations **and the prior values**, in the study DB, **in the same transaction**; DICOM's Original Attributes fields as its vocabulary; kept past the study's deletion | atomicity with the change; the retention law that applies (the owner's) | forwarding to a central audit repository later is additive |
-| **5 Propagation** | derived copies written **before "stored"** (display document; the index's outbox intent). Open pages **revalidate** their display document; no push | a metadata-only update leaves the bundle, so #142's digest does not change | revalidation → push: a wire message, medium |
+| **5 Propagation** | derived copies written **before "stored"** (display metadata; the index's outbox intent). Open pages **revalidate** their display metadata; no push | a metadata-only update leaves the bundle, so #142's digest does not change | revalidation → push: a wire message, medium |
 | **6 Withdrawal** | a withdrawal package: series or study, a reason from CID 7010's four rejection titles, an author. **Hide, then purge later**; refuse the same UIDs again until reinstated | IOCM's expected actions for patient safety and worklist errors | hide → delete is a purge job; delete → hide is impossible for what is gone |
 | **7 Authorization** | **now**: two authenticated sender kinds, and `sender` and `on_behalf_of` in every package and audit row. **Later**: users, roles, per-key rules | what the format must carry, not who may do what | in the format now: cheap; added later: a format change and an audit history without authors |
 
@@ -114,7 +127,7 @@ outcome and does no work, which is #119 §12.6's rule for series.
 | | guaranteed | limitation, to state |
 | --- | --- | --- |
 | order | per study: packages are applied in the order the intake made them durable | none across studies; none between senders beyond that, so concurrent writers are refused (§5), not ordered |
-| read your writes | after `200`, a fetch of that series' display document on that host returns the new values (§7) | the study index is published after "stored" (#146's outbox); a list may lag by its publish (milliseconds, more if the index is down) |
+| read your writes | after `200`, a fetch of that series' display metadata on that host returns the new values (§7) | the study index is published after "stored" (#146's outbox); a list may lag by its publish (milliseconds, more if the index is down) |
 | delay | none as a hard bound: a disk stall, a restart or a pixel package of the same study delays it | the target is a measured p99 (§11), not a promise; `202` is the honest answer past *T* |
 | durability | `200` and `202` mean the package is on disk at the PACS | a lost disk loses it, as any package |
 | one patient across studies | each study's update is its own package | no atomicity across studies: a name changed in three studies can be seen changed in two (#146 §7) |
@@ -126,7 +139,7 @@ Nothing here is measured as a whole; the arithmetic is shown so that §11 can ch
 * **The update's own work at 2 000 instances (E).** The queue file written and `fsync`ed: ≈ 1–3 ms (I: one small
   write and a directory `fsync` on an SSD, not measured here). The transaction, rows and page row: **2.30–2.86 ms**
   (M: #144 at `ebc1207`, `lab/metadata-store --mode update-cost`, "patched, latency to visible", one update at a time on one
-  study; 1.08–1.59 ms at 200 instances, 7.6–8.2 ms at 10 000). The display document exported, written, `fsync`ed and
+  study; 1.08–1.59 ms at 200 instances, 7.6–8.2 ms at 10 000). The display metadata exported, written, `fsync`ed and
   renamed: ≈ 1–5 ms (I, ≈ 96 KB, #145 §3). The outbox intent: one small commit, ≈ 1 ms (I). **Total ≈ 5–15 ms.**
 * **Behind its own study's pixel package (E).** Placing a 152 MB series at the 550–620 MB/s that #144 measured for a
   16 MB write and `fsync` is ≈ 0.25–0.28 s; check 3 adds ≈ 5 ms (#119 §12.3); the transaction inserting 2 000 instance
@@ -238,7 +251,7 @@ history" still loses nothing that an audit must show: they are the history of ea
 | survives the study's deletion | **no, unless copied out first** | yes | yes |
 | what it adds now | a table | a file and its recovery | a network service, its outage |
 
-**Recommended: the study DB, as #146 §7 already says ("the audit record lives with the truth"); before a study is
+**Recommended: the study DB, as #146 §7 already says ("the audit record lives with the source"); before a study is
 purged (§8), its audit rows copied to a per-host archive of purged studies.** A central repository, if the owner's
 sites run one, is fed later through the same kind of outbox as the index, in PS3.15's audit message format: "DICOM
 Instances Accessed" with EventActionCode `U` (Update) (PS3.15 §A.5.3.6) (S). Its rows carry identifiers and prior
@@ -255,7 +268,7 @@ then the archive's period after a purge.** The size is not a limit: hundreds of 
 
 | copy | how it follows | when it shows the update |
 | --- | --- | --- |
-| the series' display document (#145, option 1) | re-exported for every series whose groups the update touched: the file written, `fsync`ed and renamed | before the `200`: read your writes holds for it on this host |
+| the series' display metadata (#145, option 1) | re-exported for every series whose groups the update touched: the file written, `fsync`ed and renamed | before the `200`: read your writes holds for it on this host |
 | the study index's rows (#146) | the outbox intent written; the publisher replaces the study's rows | after the `200`, by the publish: eventual |
 
 Re-exporting every touched series, rather than only when a display attribute changed, keeps one rule and costs
@@ -265,7 +278,7 @@ milliseconds (§3).
 page keeps the display values it fetched. Most such changes are harmless while a page is open (a description); some
 are not: a corrected laterality or patient name on a screen being read is the case #119's item 8 names. The options:
 
-| | (a) nothing; seen at the next open | (b) the page revalidates its display document (recommended) | (c) the server tells the session |
+| | (a) nothing; seen at the next open | (b) the page revalidates its display metadata (recommended) | (c) the server tells the session |
 | --- | --- | --- | --- |
 | how | — | `If-None-Match` with the document's `ETag`, at focus and every *P* seconds; `304` when unchanged (RFC 9110 §13.1.2, §15.4.5) (S) | a new FoD message; the server must learn of the change, so a signal from the receiver or a `stat` per open series |
 | stale for | the page's life, hours with keep-alives | at most *P* | milliseconds |
@@ -310,7 +323,7 @@ TF-2 §4.12.4.1.3) (S).
 titles above, the sender and author. Its effect, through the same steps and the same audit:
 
 1. the series' (or each series') row marked withdrawn with the reason, in the study DB's transaction;
-2. its display document removed, and the index's rows removed or flagged by the publish;
+2. its display metadata removed, and the index's rows removed or flagged by the publish;
 3. new sessions refused "not found" (the server does what #142 §4 says for an unlinked series, once the bundle is
    moved aside); open pages learn by §7's revalidation;
 4. a later package with the same series UID refused `final` "withdrawn", as RAD TF-2 §4.66.4.2.3.1 requires, until a

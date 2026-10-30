@@ -2,7 +2,19 @@
 
 **Status:** proposed 2026-10-25, **theory only: nothing built, nothing measured.** Every choice is the owner's, and
 those that touch the PCS are the PCS team's too (§12). The record is the basis of the discussion with the PCS team, so
-it lists every trade-off found; summaries come later.
+it lists every trade-off found; summaries come later. Not accepted. A *package* here is a **submission package**
+(glossary).
+
+**Against the design state (2026-10-26,** [`../ingest/pacs-receive-design.md`](../ingest/pacs-receive-design.md)
+**§2–§3).** Since this record: the owner decided one package per series with its XXH3 in its name and no manifest
+until something needs one (10-25); frames are never compressed again (10-25); metadata compression is to be
+**configurable per site**, the receiver detecting a zstd frame by its magic number and accepting both, so the switch
+lives in the sender alone (10-26; row 4 below is its default "on"); one application handler with a TCP and a QUIC
+listener chosen by config is acceptable (10-25/26; the carrier is [`../ingest/link.md`](../ingest/link.md) §11, #155).
+"Study database" is now *study DB*. **Conflict left open, not resolved here:** row 7 recommends whole changed group
+files; [`metadata-updates.md`](metadata-updates.md) (#148) recommends differences by DECK key; the owner's decision
+says *likely* differences and leaves the format open (design state §2, §5). The two replies of row 6 (received,
+committed) against the receiver's "stored"/"refused" are the design state's §3 proposal, not decided.
 
 **Labels.** *Source*: read in a document pinned in §14, with its section. *Estimated*: arithmetic from assumptions
 stated beside it. *Inference*: reasoned from sources, not stated by them. Nothing here is *measured*; §11 says what
@@ -411,7 +423,7 @@ exam group is applied by the PACS to the study, not re-sent per series.
 **What the `.sbnd` must not hold.** The bundle carries a metadata JSON (FIXTURES.md §SBND series bundle), and
 contract.md §What the ingest reads says modality, rescale, window and frame time are "passed through in phase 2". If
 those enter the `.sbnd`, a metadata-only correction to them forces the PACS to rewrite a bundle of up to hundreds of
-megabytes; if they stay in the study database, it does not (*inference*). §12 asks which.
+megabytes; if they stay in the study DB, it does not (*inference*). §12 asks which.
 
 ## 9 · What changes in the PDF's design, and what stays
 
@@ -425,7 +437,7 @@ megabytes; if they stay in the study database, it does not (*inference*). §12 a
 | P3: "The system, which grows over time (all the files in their corresponding directory) need to be copied to the cloud to be processed." | not the tree: **each complete series' subtree, packed as one file** (§4); growth travels as new series or revision packages (§8) | the cloud processes what arrives |
 | P3: "we are thinking to use some kind of rsync" | rsync can carry the one file (§3), but without a commitment channel; the recommended carrier is HTTPS | — |
 | P3: "which triggers server side a script processing of the data for each file copied" | the PACS processes **per package**: verify, unpack, check, publish, index, then commit (§7) | a server-side step triggered by arrival |
-| P3: "which updates the study sqlite database and the mysql master index" | — (the PACS's indexing is its own: design.md §5) | a per-study database updated on arrival |
+| P3: "which updates the study sqlite database and the mysql master index" | — (the PACS's indexing is its own: design.md §5) | a per-study DB updated on arrival |
 | the tree's construction folders `c/` and `b/` | **not sent**: the `.sbnd` replaces them | kept at the PCS while (2) runs |
 | names with a 64-hex BLAKE3 | XXH3 (§1); width §12 | **content-hash names** |
 | P4: "[date], [exam], [series], and [instance] are placeholder for the corresponding UIDs." | — | the coded-UID folders, which the package keeps as member paths; `[date]`'s meaning to reconcile (§1) |
@@ -490,8 +502,8 @@ it relies on and watch it fail.
 
 1. The package's hash width: XXH3-64 or XXH3-128? *Default: XXH3-64*, like the frame digests.
 2. A late instance: full resend as revision n+1, or an addition package? *Default: full resend*, until M4.
-3. Do changeable attributes (window, rescale, modality) enter the `.sbnd`'s metadata, or stay in the study database?
-   *Default: the study database*, so corrections never rewrite a bundle.
+3. Do changeable attributes (window, rescale, modality) enter the `.sbnd`'s metadata, or stay in the study DB?
+   *Default: the study DB*, so corrections never rewrite a bundle.
 4. When is a package "committed": published and indexed, or also replicated? *Default: published, fsynced and indexed*;
    replication documented as J.3.6.2.1 asks.
 5. HTTP/3 on the upload endpoint now, off by default, or not at all? *Default: not built* until M5 finds UDP open at a
@@ -515,7 +527,10 @@ it relies on and watch it fail.
 
 ## 13 · What acceptance changes in other documents
 
-Corrected in place when the owner accepts, not before:
+Corrected in place when the owner accepts, not before. *Updated 2026-10-26:* what the owner has since decided is
+applied — XXH3 for group hashes and the package, the PCS's side relabelled, "archive" → "package", "generation" →
+"revision", "catalog" → "study index" (design state §11); the key of design.md §8 and the outbox's wait for
+"committed" still wait for acceptance:
 
 * [`../ingest/design.md`](../ingest/design.md) §8: the key becomes (unit UID, revision), the digest a check (§4);
   "archive" becomes "package"; "generation" becomes "revision" (the glossary's generation is a request's).

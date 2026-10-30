@@ -1,7 +1,12 @@
 # ADR: one server serves many series, each named by its UIDs
 
-**Status:** proposed 2026-10-24, **theory only: nothing built or timed.** The decisions are the owner's (§9). Scope is
-the PACS side: the server and the files it reads; the hospital side is another team's (the owner, 2026-10-24).
+**Status:** proposed 2026-10-24, **theory only: nothing built or timed; not accepted.** The seven decisions in §9 are
+the owner's and unanswered. Scope is the PACS side: the server and the files it reads; the PCS (the hospital side) is
+another team's (the owner, 2026-10-24). *Corrected 2026-10-26* against
+[`../ingest/pacs-receive-design.md`](../ingest/pacs-receive-design.md) §9: the PACS sees UIDs as the PCS codes them,
+not as PS3.5 writes them, so §2's grammar is the coding's ([`../ingest/contract.md`](../ingest/contract.md) §The
+layout); the digest is XXH3, as every hash the PACS checks. Where `<Study>/` sits under the root is open
+([`pacs-disk-layout.md`](pacs-disk-layout.md)).
 Sources are pinned in §10. *(I)* marks this record's own inference; a figure not marked *measured* is not one.
 
 **Why an ADR and not a section of [`../disk-layout/target.md`](../disk-layout/target.md).** The target owns the file:
@@ -22,12 +27,13 @@ depends on one, it says so.
 `Arc<FrameStore>` and hands that to every session. The session URL's path is ignored; its query is read only for
 `?ask=` (`parse_opening_ask`). A deployment of many series is many processes, one port each.
 
-The question: one process, many series, stored as `<root>/<StudyUID>/<SeriesUID>.sbnd`.
+The question: one process, many series, stored as `<root>/<Study>/<Series>.sbnd`, each name the PCS's coding of the
+UID (`contract.md` §The layout; `<E>` and `<S>` there).
 
 ```text
- CONNECT https://host:4433/<StudyUID>/<SeriesUID>?digest=<hex>&ask=fill:0-63
+ CONNECT https://host:4433/<Study>/<Series>?digest=<hex>&ask=fill:0-63
    │
-   ├─ 1 parse: two UIDs by PS3.5 §9.1's grammar, else refuse ── no file is touched
+   ├─ 1 parse: two PCS-coded UIDs by the coding's grammar, else refuse ── no file is touched
    ├─ 2 look up (Study, Series) in the open-series map
    │      hit:  stat(path) is the held file's (st_dev, st_ino)?  no → open again
    │      miss: open, read header and index, check them (§3)        ← blocking pool, not the executor
@@ -38,26 +44,32 @@ The question: one process, many series, stored as `<root>/<StudyUID>/<SeriesUID>
 
 ## 2 · How the session URL names a series
 
-| | (a) path `/<StudyUID>/<SeriesUID>` (recommended) | (b) query `?study=…&series=…` | (c) an opaque handle the catalog issues | (d) the digest alone |
+| | (a) path `/<Study>/<Series>` (recommended) | (b) query `?study=…&series=…` | (c) an opaque handle the study index issues | (d) the digest alone |
 | --- | --- | --- | --- | --- |
-| maps to the disk | one-to-one, the target's name | the same, with parsing | needs the catalog (deferred, #119 §5) | needs a digest → file index |
+| maps to the disk | one-to-one, the target's name | the same, with parsing | needs the study index (#119 §5's catalog) | needs a digest → file index |
 | per-series HTTP routing later | a path prefix | a query match | yes | no |
 | switching later | a route | a route | a lookup service now | a new index |
 
-**The grammar decides safety, not the filesystem.** A UID is "composed of numeric components separated by `.`", each
-component of the digits 0–9 with no leading zero unless it is the single digit 0, at most 64 characters in all
-(PS3.5 §9.1). The server accepts a segment only if it matches `^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))*$` and is at most
-64 bytes. Every traversal spelling fails it: `.` and `..` (an empty component), `/`, `%2e` and any percent escape,
-NUL, non-ASCII digits. The path is joined only after both segments pass, so no file outside `<root>` is named *(I:
-holds because the alphabet has no separator; it does not defend against a symlink placed inside `<root>`, which only
-the receiver writes)*. Digits and `.` are RFC 3986 unreserved characters, so a correct client never escapes them and
-the server never unescapes. `openat2`'s `RESOLVE_BENEATH` would add a kernel check (openat2(2), Linux 5.6); not
+**The grammar decides safety, not the filesystem.** A DICOM UID is at most 64 characters of digits and `.` (PS3.5
+§9.1), but the PACS never sees it so: the PCS names each level by a reversible coding of it, three characters to two
+of the alphabet `0-9 A-Z _ a-z ~` (`0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~`), a remainder of
+one or two characters to two more, the UID's NUL pad coded with it ([`../ingest/contract.md`](../ingest/contract.md)
+§The layout). So a coded UID is an even number of alphabet characters, at most 44 (64 characters: 21 triples and one
+left over). The server accepts a segment only if it matches `^([0-9A-Z_a-z~]{2}){1,22}$`. Every traversal spelling
+fails it: `.` and `..` (the alphabet has no `.`), `/`, `%2e` and any percent escape (no `%`), NUL, non-ASCII
+characters. The path is joined only after both segments pass, so no file outside `<root>` is named *(I: holds because
+the alphabet has no separator and no `.`; it does not defend against a symlink placed inside `<root>`, which only the
+receiver writes)*. The alphabet's characters are all RFC 3986 unreserved (ALPHA, DIGIT, `_`, `~`), so a correct client
+never escapes them and the server never unescapes. Decoding a segment and checking PS3.5's grammar on the result
+(digits and `.`, no leading zero, at most 64) is stricter, and catches a well-formed name that is no UID; it adds no
+safety the alphabet does not already give *(I)*. `openat2`'s `RESOLVE_BENEATH` would add a kernel check (openat2(2), Linux 5.6); not
 recommended now, since the grammar already closes it, and adding it later is one call.
 
-**The digest is #119's choice 7: BLAKE3-256 over the bundle's coded-frame hashes, in entry order, as 64 hex
-characters in `?digest=`.** It pairs the page's metadata with the bundle it was built from. Optional on the wire: a
+**The digest is #119's choice 7, over the bundle's coded-frame hashes, in entry order, in `?digest=` as hex.**
+*Corrected 2026-10-26:* #119 chose BLAKE3-256 (64 hex characters); the PACS's hashes are XXH3 (decided 2026-10-24/25),
+so the digest is XXH3 over the same input; its width, 64 or 128 bits, is not decided. It pairs the page's metadata with the bundle it was built from. Optional on the wire: a
 session without it is served whatever the name holds now. A revision number does not belong in the URL: a revision is
-the metadata store's (`CURRENT`), and the server serves the bundle, whose identity is the digest. `?codec=` is the
+the study DB's (#119's `CURRENT` file is dropped: design state §11), and the server serves the bundle, whose identity is the digest. `?codec=` is the
 page's address (#118's hint), not the session's; the server ignores every query key but `ask` and `digest`, as it
 ignores every key but `ask` today. `--series` stays, path ignored, for the lab, the tests and the smoke deploy; `--root`
 is its alternative and the two are exclusive.
@@ -75,7 +87,7 @@ is its alternative and the two are exclusive.
 `Arc`. Look up under the lock; on a miss release it, open on the blocking pool, lock again and keep whichever store
 is already there (two opens of one series race rarely and cost one extra open). The index stays 16 B a frame in
 memory (`disk-access.md` §7); v2's entry adds two hashes on disk, but the read path needs only offset and length, so
-only the digest, 32 B a series, is kept *(I)*. (c) is for a measured open cost (§8); switching to it is the eviction
+only the digest, at most 32 B a series, is kept *(I)*. (c) is for a measured open cost (§8); switching to it is the eviction
 policy alone.
 
 **Descriptors.** One per open series, plus what sessions hold today: a ring each once a tile read misses
@@ -165,7 +177,7 @@ close with a code**. Over a WebSocket the same refusal is a Close with 4000 + th
 | `EMFILE` / `ENFILE`; out of memory reading the index | 5 | `server busy` | retry with backoff | WARN |
 | `EACCES`, `EIO` at open | 4 | `series unreadable` | as 4 | WARN |
 
-A `.partial` is never opened because its name is never formed: the server joins `<SeriesUID>.sbnd` and nothing
+A `.partial` is never opened because its name is never formed: the server joins `<Series>.sbnd` and nothing
 else. A read error after the session started stays what it is today, the session's own failure
 ([`../WIRE.md`](../WIRE.md) §FoD messages). **Not designed here:** who may open which series. A UID is not a secret
 *(I)*; authorization is the owner's (§9).
@@ -177,7 +189,7 @@ break is reverted.
 
 | claim | test | mutation that must fail it |
 | --- | --- | --- |
-| the grammar accepts PS3.5 UIDs and nothing else | a table: `1.2.840.10008`, `0`, a 64-char UID; refused `..`, `.`, `1..2`, `01.2`, `1.2.`, 65 chars, `%2e%2e`, `1/2`, `١.٢`, empty | drop the leading-zero rule; drop the length check |
+| the grammar accepts PCS-coded UIDs and nothing else | a table: `TOMG` (`1.2.3` padded, `contract.md`), the coding of a 64-char UID (44 characters), every alphabet character; refused `..`, `.`, `1.2`, an odd length, 46 characters, `%2e%2e`, `a/b`, `a-b`, `٠١`, empty | drop the even-length rule; drop the length check; admit `.` |
 | no name outside `<root>` is opened | a counting open hook; `<root>/../x.sbnd` exists; every refused URL above → zero opens | join before validating |
 | sessions on one series share a store | extend `sessions_share_one_store_rather_than_opening_their_own` (`server/src/transport/pipeline.rs`): two sessions, `Arc::ptr_eq`; two series, not | open per session |
 | the last session out closes the file | after both close, the `Weak` does not upgrade; the process's fd count is back | the map holds an `Arc` |
@@ -207,7 +219,7 @@ Nothing here is measured. What a measurement must settle, each pre-registered be
 
 ## 9 · The owner's decisions
 
-1. **The URL** (§2): the path `/<StudyUID>/<SeriesUID>` (recommended), or the query.
+1. **The URL** (§2): the path `/<Study>/<Series>`, PCS-coded (recommended), or the query.
 2. **The digest** (§2, §4): optional on the wire (recommended), or required under `--root` once v2 is built.
 3. **The open-series map** (§3): `Weak` only (recommended), or an LRU now.
 4. **Build on v1 first** (§5): yes, behind `--root`, the UID checks arriving with v2 (recommended); or wait for v2.
@@ -220,6 +232,7 @@ Nothing here is measured. What a measurement must settle, each pre-registered be
 ## 10 · Sources
 
 * DICOM PS3.5, §9.1 *UID Encoding Rules*: dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_9.1
+* The PCS's UID coding, as read from its public source: [`../ingest/contract.md`](../ingest/contract.md) §The layout
 * POSIX.1-2024 (The Open Group Base Specifications Issue 8), `rename()` and `unlink()`:
   pubs.opengroup.org/onlinepubs/9799919799/functions/rename.html, …/unlink.html
 * Linux man-pages: rename(2), open(2) (`EMFILE`, `ENFILE`), openat2(2) (`RESOLVE_BENEATH`), getrlimit(2)
