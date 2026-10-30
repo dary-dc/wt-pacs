@@ -76,3 +76,4 @@ lab/.traces/
 lab/recv-cost/target/
 lab/frame-clock/runs/
 lab/.perf-nightly-*/
+lab/native-window/*.server.log
