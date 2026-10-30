@@ -32,14 +32,19 @@ bool neutral(const Dav1dPicture& pic) {
   return true;
 }
 
+int threads = 1;
+
 }  // namespace
+
+// dav1d's thread count for every later av1_decode; 0 is one per core. The ingest check keeps 1.
+extern "C" void av1_threads(int n) { threads = n; }
 
 // 0, -1 if dav1d gave no picture, -2 if `out` holds fewer than its samples, -3 for a layout that
 // is neither 4:0:0, 4:4:4, nor 4:2:0 with every chroma sample mid-grey (grey, one plane out).
 extern "C" int av1_decode(const uint8_t* unit, size_t len, int32_t* out, size_t cap, Shape* shape) {
   Dav1dSettings settings;
   dav1d_default_settings(&settings);
-  settings.n_threads = 1;
+  settings.n_threads = threads;
   settings.max_frame_delay = 1;
   Dav1dContext* ctx = nullptr;
   if (dav1d_open(&ctx, &settings)) return -1;

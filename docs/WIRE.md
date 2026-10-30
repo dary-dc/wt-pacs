@@ -2,7 +2,8 @@
 
 What a session carries, byte for byte. Over WebTransport: one bidirectional **control** stream,
 which the client opens, carrying FoD messages; and the server's unidirectional **media** streams,
-carrying one envelope per frame. Over a WebSocket, the same bytes (§The WebSocket mapping).
+carrying one envelope per frame. Over a WebSocket, the same bytes (§The WebSocket mapping); over
+raw QUIC, for the native client, the same streams (§The raw QUIC mapping).
 
 **Media-complete:** a frame is complete when its envelope's last byte arrives; there is no
 acknowledgement message. The server's banner prints what a client dials: `wt_url=`,
@@ -278,3 +279,29 @@ One ordered byte stream gives up what QUIC's streams give: a slow or lost frame 
 behind it, and a retransmit stalls everything. The contract suite reports the independent-
 delivery clauses as not applicable rather than passing
 ([`CLIENTS.md`](CLIENTS.md#the-contract-suite)).
+
+## The raw QUIC mapping
+
+Always on. The server's one QUIC endpoint offers two ALPNs, `h3` first and `wt-pacs/1`, and routes each connection
+by the one TLS chose ([`native/README.md`](native/README.md) §8.1): a browser offers only `h3` and is answered as
+before, and a client offering neither is refused in the handshake with `no_application_protocol`, 0x178. From the
+first FoD message on, a raw session is served by the WebTransport path's code: the planner, the store, the send path,
+the transport configuration and the lab levers. The native client, `client/native`, speaks it; its `native-fill`
+prints each frame's last-byte time and checks each frame against the bundle.
+
+| | WebTransport | `wt-pacs/1` |
+| --- | --- | --- |
+| session open | HTTP/3 SETTINGS on a control uni, QPACK streams, an extended CONNECT on a request bidi and its 200 | the QUIC handshake alone |
+| session id | the CONNECT stream's id, written into every stream's header | none: one connection, one session |
+| control stream | client bidi, prefixed `0x41` + session id (`wtransport-proto` `frame.rs:464`) | client bidi, from byte 0 |
+| media streams | server uni, prefixed `0x54` + session id (`stream_header.rs:331`) | server uni, from byte 0 |
+| FoD, envelope, stream modes, priorities | above | the same bytes, the same rules |
+| the opening ask | `?ask=` in the CONNECT's path | dropped: the client's first FoD message rides its first 1-RTT flight, the flight a WebTransport client's CONNECT rides, so it reaches the server when `?ask=` does (read, not measured: the lab check of [`native/README.md`](native/README.md) §8.5 has not run) |
+| datagrams | negotiated, unused by the server | the same: both sides' quinn defaults offer them (read from quinn-proto 0.11.18, not observed). *Corrected 2026-10-27:* the design said not negotiated |
+| goodbye | `CLOSE_WEBTRANSPORT_SESSION` capsule, or the connection's close | the connection's application close; the server's stop is `STOPPING`, 0x100, defined by this ALPN |
+| certificate | pinned by SHA-256, ≤ 14 days (the browser's rule) | the same pin and rule, through wtransport's `ServerHashVerification` (`tls.rs:785–795`), so one certificate serves both |
+
+Tests: `the_native_client_gets_webtransports_bytes` (in both stream modes, a fill and asks reach the native client
+exactly as they reach a WebTransport client of the same server, each frame the bundle's) and
+`an_unknown_alpn_is_refused_in_the_handshake`, both in `client/native`; `a_raw_session_closed_before_its_control_stream_ends_cleanly`
+(`server.rs`), a goodbye on this path too.
