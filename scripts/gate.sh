@@ -174,8 +174,8 @@ step "server: compiles without io_uring (the pool path alone)"
 run 1 cargo check -p series-server --no-default-features --all-targets --quiet
 step "server: compiles with cert-compression"
 run 1 cargo check -p series-server --features cert-compression --all-targets --quiet
-step "common, ingest and tools: wire, envelope, reads from disk, series bundle, pack-series and check-fastpath"
-run 1 cargo test -p fod -p frame-envelope -p from-disk -p series-bundle -p pack-series -p check-fastpath --quiet
+step "common, ingest and tools: wire, envelope, reads from disk, series bundle, study DB, pack-series, check-fastpath and pacs-verify"
+run 1 cargo test -p fod -p frame-envelope -p from-disk -p series-bundle -p study-db -p pack-series -p check-fastpath -p pacs-verify --quiet
 step "ingest: the PACS receiver — every step, refusal and crash point (docs/adr/pacs-receiver.md)"
 run 1 cargo test -p pacs-receiver --quiet -- --nocapture
 step "tools: pack-series packs the smoke bundle again to the same bytes"

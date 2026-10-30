@@ -137,7 +137,11 @@ Each step is in the product unless it says otherwise; its numbers are in its que
    lab sets, HTJ2K only. The gate keeps the two equal. The raw-frame check moved to XXH3-64.
 6. **DICOM to `.sbnd` in the gate** (row 226, 2026-10-14): a synthetic CT and RGB series through `from_dicom.py`, every
    frame read back out of the bundle and compared with the samples it was written from.
+7. **The verify tool** (2026-10-26): [`tools/pacs-verify`](../../tools/pacs-verify/README.md) checks every `.sbnd` and
+   study DB under a path, read from disk, for an operator or a cron scrub; the study DB's schema it reads is
+   `common/study-db`, for the receiver to write. A version-1 bundle has no coded hash, so frame bytes are checked only
+   once a version-2 reader exists.
 
 **Not built.** Phase 2 of the Rust ingest (AV1, several instances a series, the parser's own output instead of the
 mirror), and everything after the ingest in §1: the outbox and the upload (the PCS's side), the PACS's receiver, the
-study DBs and the study index. None of it is queued yet; when a series is complete (§4) has to be decided before the outbox can be.
+study DBs (their schema aside) and the study index. None of it is queued yet; when a series is complete (§4) has to be decided before the outbox can be.

@@ -12,6 +12,8 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | series refusal | a session accepted and closed before its first frame, with a code and a reason: 1 bad name, 2 not found, 3 changed, 4 unreadable, 5 busy ([`WIRE.md`](WIRE.md) §Refusing a series); not a frame's refusal, which is a FoD message |
 | series bundle | the store's file (`.sbnd`, magic `SBND`): header, frame table, metadata JSON, the coded frames ([`FIXTURES.md`](FIXTURES.md) §SBND series bundle) |
 | frame | one image of a series, addressed by its display index |
+| study DB | one SQLite file per study at the PACS, `study.db` beside the study's `.sbnd` files, never served (`common/study-db`) |
+| metadata group | one level's attributes for one UID — exam, series, instance or private — a row of the study DB, its bytes and their XXH3-64; not a frame **group**, nor a DICOM tag group |
 | coded frame | one frame's coded data as stored and sent, whatever the codec; an HTJ2K codestream, or an AV1 payload |
 | AV1 payload | one DICOM frame's AV1 data: a 16-byte header and its temporal units, the top and the low stream's when split ([`av1/payload-format.md`](av1/payload-format.md)); never an "AV1 frame", which is the AV1 specification's own term |
 | FoD | the control messages on the session's bidirectional stream: the client's asks, the server's refusals ([`WIRE.md`](WIRE.md) §FoD messages) |
