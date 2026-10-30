@@ -274,7 +274,7 @@ ignored (`lab/viewer/levers.js`).
   view's `fill` always does. Once the session is up nothing changes: a short want is asks, so on-demand steps stay
   asks, and `waitAhead`, which acts only while a run is in flight, is untouched.
 * **`cache.js` imported lazily** is decided by §7's step timing: built only if its import is a visible share of the
-  view worker's boot.
+  view worker's boot. *Decided 2026-10-30: not built* — 6–8 ms of the boot, probed (§7, *The view worker's start, timed*).
 
 **Pre-registered for the re-run, before its data:** A (`page`), its A/A (`pageaa`), B′ (`worker`) and B′ with the fix
 (`workerfix`: `pageDials`, `viewWorkerFirst`, `shortRuns`), §7's start timing's cells, rounds, guards and corrected
@@ -807,6 +807,46 @@ the bars loosened, the fill from navigation, a one-frame fill judged, the VOID a
 inexact visit kept — each fails it) and `client/transport/downloader.test.mjs` *theFirstFrameCarriesTheStart*
 (mutants: no stamp carried, every frame carrying it, the dial or the session's open unstamped, `firstIn` wrong — each
 fails it).
+
+**Measured 2026-10-30, 1×** (rows `lab/viewer/rows/start-quiet.jsonl`, run from `ba90ef5` by `THROTTLES=1 NAME=start
+KINDS=quiet lab/viewer/view_run.sh`, rounds 0–15; read by `node lab/viewer/start-summary.mjs`). Headless Chromium 153
+and Firefox 155 headed under Xvfb, as §7. 384 visits; every cell has 12 rounds with every arm kept after the whole
+extra rounds 12–15 (the relay's VOID drops). Every frame exact. **No cell is VOID and none saturated:** the browser
+cores' busy share is 0.45–0.66 over the start and 0.28–0.43 over the fill, A's median, so the fill here is the link's,
+not the CPU's. Paired medians over the 12 rounds, B′ − A, ms, at each step from navigation:
+
+| cell | page's `connect` | `downloaderStart` | `sessionOpen` | `firstIn` | first drawn: Δ, bar | fill after it | view worker: created → evaluated; `connect` → its `connect` |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Chromium CT | −20 | +4 | 0 | −2 | −8, tie | ×1.000 | 47; 36 |
+| Chromium US | 0 | +18 | +26 | +26 | **+35, later** | ×1.001 | 48; 38 |
+| Chromium tomo | −5 | +16 | +9 | +11 | −6, tie | ×1.003 | 49; 44 |
+| Chromium mammo | −1 | +22 | +25 | **+67** | **+85, later** | — | 48; 38 |
+| Firefox CT | −39 | +4 | −13 | −15 | −24, sooner | ×1.000 | 81; 57 |
+| Firefox US | −17 | +29 | +18 | +18 | **+29, later** | ×0.999 | 134; 61 |
+| Firefox tomo | +20 | +77 | +61 | +74 | **+73, later** | ×0.996 | 167; 69 |
+| Firefox mammo | +50 | +72 | +84 | **+132** | **+131, later** | — | 176; 70 |
+
+**The verdict, by the corrected bars: B′ is behind A** on latency in five cells (US in both engines, the mammogram in
+both, Firefox tomosynthesis), and ties it on throughput in all six multi-frame cells.
+
+**Where B′'s delay goes**, as predicted: the step Δ grows between the page's `connect` and the downloader's `start` by
+20–60 ms — the view worker's `connect` arrives 36–44 ms (Chromium) and 57–70 ms (Firefox) after the page's, because
+it is still booting: its module graph takes 47–49 ms from creation to evaluation in Chromium and 81–176 ms in Firefox,
+and it is created only once the metadata is in. From `start` on the downloader's steps move together; the WebGL2
+context (9–12 ms in Chromium, 23–33 ms in Firefox) sits between the view worker's `start` and its `connect`, so on
+that path too. **The mammogram adds one round trip** at `firstIn`: +42 ms over `sessionOpen` in Chromium and +48 ms in
+Firefox, against the link's 40 ms, the ask after the dial. Nothing after `firstIn` adds a delay of its own; CT's
+cells tie because their B′ pages reached `connect` sooner, by chance of the navigation (the page's `connect` Δ, −20 and
+−39 ms), not because the boot was shorter. The fill after the first frame is the same in every arm: the delay is all
+before the first byte, and §7's fill ratios were that one delay read as a ratio.
+
+*`cache.js` imported lazily, probed (indicative, not a pre-registered cell):* the view worker's module graph from
+`new Worker` to evaluation, with `cache.js` and with it imported on use, 20 visits each interleaved, a fresh context
+each: Chromium 33.8 → 27.6 ms, Firefox 80.2 → 72.3 ms, medians. 6–8 ms, under the bar and off the path once the page
+dials (§3, *Proposed: the page dials*), so **not built**.
+
+**4×** was not run at this step: the guard leaves every 1× start unsaturated, so it is allowed, but the re-run's four
+arms (§3) include these three at their defaults, and its 4× cells, if the usage window allows, stand for both.
 
 ### A frame clock in the view worker (2026-10-28)
 
