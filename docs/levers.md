@@ -76,7 +76,7 @@ Owner: [`transport/transport-conclusions.md`](transport/transport-conclusions.md
 | --- | --- | --- | --- |
 | Pooled hand-off, one copy fewer | TC §4: −3 to −8 % CPU, 6/6; row 51 confirms | held | TC §4 |
 | mmap, `sendfile`, the per-send copy | row 51: CPU per byte flat 1.5–2.6 µs/kB from 250 kB to 16 MB | held — no per-frame cost is left, so row 162's ×5 falls on CPU per byte | disk-access §Frames past 250 kB |
-| PGO | TC §4: −13 to −20 % CPU per ask, no cell against | premise (link band: server CPU ×5); opt-in | TC §4 |
+| PGO | TC §4: −13 to −20 % CPU per ask, no cell against; PGOSHIP (2026-10-22): −13 % CPU per MB through the relay at 103 and 18 Mbit/s, A/A ±1 % | held; opt-in, not in the image (the owner's) | [`lab/pgo-relay/`](../lab/pgo-relay/README.md) |
 | LTO fat | TC §4: −3.7 to −8.4 % CPU, +7 % p50 at 32 KB depth 1 | held | TC §4 |
 | mimalloc; `aws-lc-rs` | TC §3, §4 | held | TC §3, §4 |
 | One endpoint per core; `yield_now` | TC §6: −39 to −64 % CPU, but 12 of 16 rebinds kill the session; `yield_now` +7 % p50 | held (parked until connection-ID steering) | TC §6 |
@@ -233,7 +233,11 @@ row for the writer (hits and fill −24–32 %, [`disk-layout/README.md`](disk-l
    a fixed ≤ ×0.95 bar? *Basis:* row 134: memory −5 to −25 MB, RGB ×0.866 at 4×, grey a tie.
 3. **PGOSHIP** — does the deploy image built through `scripts/pgo_build.sh` keep −13 to −20 % server CPU per MB on
    fills paced at 103 Mbit/s, with no cell worse? *Basis:* TC §4; at row 162's rates server CPU sets fills per core
-   (~31 a core at 103 Mbit/s against ~160 at 20, D from row 81).
+   (~31 a core at 103 Mbit/s against ~160 at 20, D from row 81). *Measured 2026-10-22, on `feeb162`'s build through
+   the script, not the image:* **held** — CPU per MB ×0.867 at 103 Mbit/s and ×0.873 at 18, A/A ×0.989 and ×0.994,
+   better in both halves of 24 interleaved rounds, the server on 2 of 4 vCPUs and never past 0.16 of a core
+   ([`lab/pgo-relay/`](../lab/pgo-relay/README.md)). One paced fill cost ~0.13 core, ~4× the derived share; whether
+   that adds up across fills is SCALECORE's.
 4. **STARTAA** — does `startOnNeed` stay inside an A/A arm's spread on every fill and cold ask at 100 and 300 Mbit/s
    and a 0.7 s loaded RTT? *Basis:* row 142: decoder CPU −4 to −14 % and wake-ups −56 to −82 % in every cell; the
    misses were against a fixed bar with no A/A arm; an unused decoder is ~6 MB resident.
