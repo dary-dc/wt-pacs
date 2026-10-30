@@ -149,10 +149,159 @@ file, reading it back from disk against its coded hashes, `rename` into `<Study>
 ([`../ingest/pacs-receive-design.md`](../ingest/pacs-receive-design.md) §3, steps 6–6c, proposed). A reader never
 opens a staged file.
 
+## A late instance: merging without the rewrite (decided: the rewrite)
+
+*Proposed 2026-10-26; decided by the owner 2026-10-26 (§Decision below); corrected 2026-10-27 by a measurement.* **Decided by the owner, 2026-10-26:** a late instance (one
+arriving after its series was sent) comes as an addition package and is merged at the PACS into the series' one
+`.sbnd`; several files per series is refused. The question here is only whether a change of format lets that merge
+avoid rewriting the file, without another trade-off that matters.
+
+**The fixed points it must respect.** The receiver stages in `incoming/<f>.work/`, never the serving tree, reads the
+staged file back from disk, and changes the serving tree by one `rename` (owner, 10-26;
+`docs/ingest/pacs-receive-design.md` §3, `40fdbfd` on branch `claude/pacs-design-state`). A published
+name is never written in place, and a new session tells a replaced file by `(st_dev, st_ino)`
+(`docs/adr/serving-by-uid.md` §4, `51b4f9f` on branch `claude/serve-by-uid-impl`). An open session keeps the
+version it opened (serving-by-uid §9 choice 7, the receive design's D10). The fill's read-ahead needs frames in display order on disk
+([`README.md`](README.md) §The reader). The series digest is BLAKE3 over the entries' coded hashes in entry order
+(serving-by-uid §2), so it depends on the index alone, never on where the bytes sit.
+
+### The options
+
+Notation: S the series' bytes, s the late frames' bytes, k late frames, N frames, E = 28 B an entry (layout 0).
+
+* **(a) Today's layout, rewrite and rename.** The receiver merges old and new frames in display order into a staged
+  file and publishes it by the steps of §Packing and publishing. Nothing in the format changes.
+* **(b) Index at the end, fixed trailer.** Header (without N), frames in arrival order, index in display order, a
+  fixed-size trailer at EOF giving the index's offset and N. A merge writes the new frames over the old index, then
+  the new index and trailer: the file is changed in place.
+* **(c) Append-only.** As (b), but a merge only appends: new frames, a new index, a new trailer. Readers take the last
+  trailer; each old index becomes dead bytes.
+* **(d) An extension segment per merge.** The first version as today; each merge appends a segment: its frames and
+  an index of only them, each entry naming the display position it is inserted at. A reader replays the segments.
+
+| | (a) rewrite | (b) trailer, in place | (c) append-only | (d) segments |
+| --- | --- | --- | --- | --- |
+| written per merge | S + s + N·E, plus `fsync`s | s + (N + k)·E + trailer | s + (N + k)·E + trailer | s + k·E + segment header |
+| read per merge | S (the old file) + S + s (the read-back) | the trailer | the trailer | the last segment's header |
+| read back from disk | the whole file: every old frame was copied, so every one may be wrong | the new bytes | the new bytes | the new bytes |
+| a frame in the middle | in place in display order | at the end on disk; the index puts it in order | the same | the same, by a position the file must now store |
+| crash between writes | nothing: the name holds the old file until `rename` | the old index is overwritten before the new one is complete: **no valid version** | a torn tail; the previous trailer is intact but has to be found | the same as (c) |
+| an open session | keeps the old inode, whole (POSIX unlink) | keeps its in-memory index; frame bytes untouched | keeps the old version: its bytes are never written | the same as (c) |
+| a new session | a new inode: §4's `stat` sees it | **the same inode**: §4's check must add the size or the trailer | the same as (b) | the same as (b) |
+| an opener during a merge | sees old or new, never neither (rename(2)) | can read a trailer whose index is being overwritten | finds no trailer at EOF: refused, or scans back | the same as (c) |
+| open, `pread`s | 2, as today | `stat`, trailer, header, index: 3–4 | 3–4 | 2 + one per segment |
+| read-ahead | unchanged | one miss per late frame | the same | the same |
+| layout 1 | unchanged | formula kept (the index is rewritten whole); the late frames' bands lie outside each band's run | the same as (b) | **breaks** the formula: entries are no longer at b·N·T + f·T + t |
+| dead space | none; the old file lives until its last session ends | none | (N + k)·E per merge, the indexes | none, but open cost grows per merge |
+| compaction | not needed | not needed | needed; it is (a) | needed; it is (a) |
+| staging rule | kept | **broken**: written in the serving tree | broken | broken |
+| new code | the merge only: today's reader and writer | trailer, reader, in-place writer, a `stat` change | (b)'s, plus recovery and compaction | (c)'s, plus replay and stored positions |
+
+### Each, in a line
+
+**(a)** costs I/O proportional to the series, every merge, and nothing else: it is the only option that keeps every
+fixed point above. Its cost is two reads and one write of S (the owner's "one read and one write" plus the read-back
+of 6b, which must cover every copied frame), and a second copy of S on disk while the merge runs and while an old
+session holds the old file. ~~Extent sharing (`FICLONE`, `copy_file_range`) does not help: the index grows by k·E and
+shifts every frame off its old offset.~~ **Corrected 2026-10-27:** that holds only for an index at the front with no
+slack. With the index at the end (or slack reserved at the front) and a reflink clone (XFS), only the frames from the
+insertion point on are written: at N = 2 000 a late frame at the end costs 342 kB and 3–7 ms instead of 529 MB and
+2–4 s, in the middle 264 MB, and at the start more than the full rewrite (every block pays copy-on-write); ext4, without
+reflinks, gains nothing; layout 1's band-major entries still rewrite ≥ 93 % of S (`docs/disk-layout/containers.md`
+§Measured: rewriting only the tail, `6a85202` on branch `claude/sbnd-tail-rewrite`, #185).
+
+**(b)** is not crash-safe and cannot be made so without writing somewhere else first, which is (c). Out.
+
+**(c)** writes only what is new and is safe if the barriers are ordered: append the frames and the index,
+`fdatasync`, append the trailer, `fdatasync`, then the study-DB transaction (step 7). One `fsync` for all of it is not
+enough: a file system may persist the trailer before the frames it points to (Pillai et al. 2014 found appends that
+are not content-atomic on common configurations). It then pays for that in five places: it writes the serving tree
+outside a `rename`, against the owner's staging rule, and a refusal (R) or a crash must truncate a published file
+back; §4's inode check stops telling a new version, so a new session can be handed the old in-memory index unless
+the lookup also compares the size; an opener mid-merge finds no trailer at EOF; each late frame is a read-ahead miss
+and, in layout 1, a hole in the band runs whose grouping is the layout's measured gain (17.6× when the cache cannot
+hold the cycle, above); and the file's bytes now depend on its arrival history, so the site's pack and the PACS's
+merged file of the same series differ byte for byte.
+
+**(d)** has (c)'s costs and adds its own: the file must store each entry's display position, which v2 deliberately
+leaves to the entry's place in the index; the arithmetic index of layout 1 is gone; and every open replays every
+segment. It suits a series that only grows at its end in display order (fragmented MP4's case), which a late
+instance is not.
+
+### Prior art, and what it says here
+
+* **ZIP** (PKWARE APPNOTE 6.3.10): "Files MAY be added or replaced within a ZIP file, or deleted" (§4.3.1); the
+  central directory follows the file data and the end-of-central-directory record comes last (§4.3.6), and the
+  directory's entries "MAY NOT necessarily be in the same order that files appear" (§4.4.1.3) — (c) exactly. Its
+  trailer is not fixed: it ends in a comment of variable length (§4.3.16), so a reader scans back for it.
+* **ISO BMFF** (ISO/IEC 14496-12): the `moov` index may follow the media data, and "fast start" tools exist to rewrite
+  the file with it in front, which is what a streaming reader needs — (b)'s layout and the rewrite that undoes it.
+  Movie fragments (§8.8) append in presentation order, and the Movie Fragment Random Access Offset box (`mfro`) is a
+  fixed box at the end giving the size of the random-access index before it: (d), and (b)'s trailer.
+* **MXF** (SMPTE ST 377-1): header, body and footer partitions; the index table segments and the closed, complete
+  header metadata may sit in the footer, and the optional Random Index Pack ends the file with its own length so a
+  reader finds every partition from the end — (b) and (d), for a recording that is written once while it grows.
+* **SQLite WAL** (sqlite.org/wal.html): a reader "remembers the location of the last valid commit record in the WAL
+  … the end mark", and the end mark "is unchanged for the duration of the transaction" (§2.2) — the open session of
+  (c). The WAL needs a checkpoint to fold it back, and "if there is always at least one active reader, then no
+  checkpoints will be able to complete and hence the WAL file will grow without bound" (§6): (c)'s compaction, and its
+  dead space under sessions that never end ([`../adr/transport-idle-sessions.md`](../adr/transport-idle-sessions.md)).
+* **LMDB** (Chu, LDAPCon 2011): copy-on-write pages, never overwritten while a reader holds them, and two meta pages
+  at the head written alternately in place, so the newest valid root is found without a scan. It is the answer to
+  (c)'s "opener finds no trailer", and it is an in-place write, which §4 forbids for a published name.
+* **Log-structured file systems** (Rosenblum and Ousterhout, ACM TOCS 10(1), 1992): writes only append, and the cost
+  moves to the segment cleaner, the compaction (c) and (d) owe.
+
+Every design that appends in place pays with a pointer that must be found (a scan, or a fixed slot written in place)
+and a compaction that is the rewrite, deferred. The rewrite-and-rename is what each of them falls back to.
+
+### The deciding unknown: how often, and how big
+
+(a)'s cost is per merge: the I/O is 3·S, so it matters only as (late merges per day) × (bytes of the series they hit).
+Neither factor is known for this PACS. Measured by:
+
+1. **Frequency.** From a site's own DICOM receive log (each instance's series UID and arrival time), replay the
+   completeness rule the receiver will use (the quiet period *Q*, [`../ingest/design.md`](../ingest/design.md) §11.4)
+   and count the series with at least one instance after "complete", per modality, over a month.
+2. **Amplification.** For those series, Σ S over merges ÷ Σ bytes ingested: the share of the receiver's disk traffic
+   (a) adds. The same replay at several *Q* shows how much a longer quiet period removes, since it calls fewer series
+   complete too early.
+3. **Cost on the host.** One merge of a 500 MB and a 4 GB series, timed, read-back included, the host's saturation
+   stated, interleaved with an ingest of new series so its effect on them is seen.
+
+### Recommendation
+
+**Keep (a): today's layout, merged by rewrite and rename. Change nothing in the format for late instances.** It is
+the only option that keeps the staging rule, the publish-by-rename, §4's "in place is never" and its inode check, the
+fill's read-ahead, layout 1's band runs and a file whose bytes depend only on its content, and it adds no code to the
+format. (c) is the only alternative that holds up; it would be a new `version`, so v2 needs no hedge for it now.
+
+**What would change it:** step 2 showing (a) adding a material share of the receiver's disk traffic (a threshold
+for the owner; a few percent would not move it), or step 3 showing a merge of the largest series delaying new
+ingests beyond what the sending site tolerates. Then (c), with its compaction done by (a), the size added to §4's lookup, and
+the staging rule revisited by the owner. A longer *Q* is tried first: it costs no format.
+
+### Decision (owner, 2026-10-26)
+
+**Stay with the current format and the full rewrite**: rewrite in staging, read back, `rename`. Publishing by rename
+is needed for crash safety and for readers that already have the file open, as it is for MXF and MP4; modifications
+are uncommon, so the full copy is acceptable. Frames stay contiguous in display order: layouts that store frames in
+arrival order are rejected. Several bundle files per series are rejected: they complicate serving and archiving. The
+tail rewrite measured above is not taken up. **Reopen** only if late merges prove frequent, measured by §The deciding
+unknown.
+
+Sources: PKWARE, APPNOTE.TXT 6.3.10 (§4.3.1, §4.3.6, §4.3.16, §4.4.1.3); ISO/IEC 14496-12 (§8.8, movie fragments and
+`mfra`/`mfro`); SMPTE ST 377-1 (partitions, index tables, Random Index Pack); SQLite, *Write-Ahead Logging*
+(sqlite.org/wal.html, §2.2, §6); H. Chu, *MDB: A Memory-Mapped Database and Backend for OpenLDAP*, LDAPCon 2011;
+M. Rosenblum and J. Ousterhout, *The Design and Implementation of a Log-Structured File System*, ACM TOCS 10(1),
+1992; T. S. Pillai et al., *All File Systems Are Not Created Equal*, OSDI 2014; POSIX `rename()` and `unlink()`;
+rename(2), fsync(2).
+
 ## Open
 
 * **Streaming the pack** while frames are still coded: the index needs every length first (queue row 163).
 * **Standard containers** in place of the `.sbnd` (rows 159–160).
-* **When a series is complete**, and what a late instance does ([`../ingest/design.md`](../ingest/design.md)).
+* **When a series is complete** ([`../ingest/design.md`](../ingest/design.md)); a late instance's merge is
+  §A late instance above, decided: the full rewrite.
 * **Where `<Study>/` sits under the root** (flat, a date folder, a hashed level): the options and a recommendation
   in [`../adr/pacs-disk-layout.md`](../adr/pacs-disk-layout.md), for the meeting with the PCS team.
