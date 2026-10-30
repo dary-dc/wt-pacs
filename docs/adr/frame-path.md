@@ -3255,7 +3255,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 
 | setting | default (today's) | other values | decided by | status 2026-10-30, 03:00 UTC |
 | --- | --- | --- | --- | --- |
-| `?view=` | `page` | `worker` | §7's rule (B′), #229 | **run 2026-10-30: `page` stays** — B′'s quiet first frame later, its asks' median not sooner; its cine on time through long tasks in Chromium, not in Firefox (§7) |
+| `?view=` | `page` | `worker` | §7's rule (B′), #229 | **run 2026-10-30: `page` stays** — B′'s quiet first frame later, its asks' median not sooner; its cine on time through long tasks in Chromium, not in Firefox (§7); against main on a quiet page (§*The core against main, timed*): not judged (VOID), and in both runs later — first frame +40 ms at 1×, fill ×1.04–1.15 |
 | `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | built and its rig, not run |
 | `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | built and reviewed, not run |
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | answered by M5: `transfer` misses its memory bar on Chromium |
@@ -3309,3 +3309,114 @@ defect has a test that fails on the assembled code, a fix, and the mutants the t
 Checked and found as both sides meant: each merge resolution recorded on #250; the defaults under `?view=page`
 against main's viewer (cine period, steps, window drag, ledger shape); `span` 0 reproduces main's run; the downloader
 link's ordering; the cache's paint-first write, its re-ask of a failed read and its lock.
+
+### The core against main, timed (2026-10-30)
+
+Until now the core equals `main` by counts only (the gate's *perf: counts, not clocks*). The owner expects **throughput
+no worse and latency the same or better.** Written before any data; the rows and the reading follow below it.
+
+**Arms.** `scripts/perf_nightly.mjs`: BASE a worktree of `origin/main` (`0cf5424`), HEAD a worktree of
+`origin/claude/core` (`2e6fa5b`), and BASE again as the A/A arm; `lab/order.mjs`'s order over cells, and over the three
+arms inside each cell; every visit its own server, relay and Chromium. Both trees carry the decoders built on
+`claude/decoders-committed` (each checked against its `manifest.sha256`) and fetch the nightly's pinned OpenJPH and XXH3.
+The gate's grey codestream × 48, every frame hashed against its truth.
+
+* **Campaign 1, the core at its defaults:** the nightly's own page (`lab/av1/delivery/total-time/page.js`, the
+  downloader driven directly, timed from the fill's issue).
+* **Campaign 2, the core under `?view=worker`:** `--view worker` puts every arm on the product's viewer, timed from
+  navigation (the only origin the two trees' viewers share), and the head's under `?view=worker`. Not §7's protocol:
+  one engine, one synthetic series, a quiet page.
+
+**Cells.** `r50000` clean, and `r50000 l1` (row LOSSLINK's 1 % iid loss each way, the harness's lossy link); 1× and
+4× (`lab/scripts/cpu_throttle.mjs`); 12 rounds and 12 confirming.
+
+**One measure a claim.**
+
+| claim | measure | quoted as |
+| --- | --- | --- |
+| throughput | **fill**: issue (campaign 2: navigation) → the 48th exact frame on the page | head ÷ base, the fill's time |
+| latency | **first**: the first exact frame (campaign 2: on screen) | head ÷ base |
+| latency | **asked**: frame 0 shown, then frames 1–4 asked one at a time, each ask → its exact frame on the page; a visit's median | head ÷ base |
+
+A fill's visit gives fill and first; the asked cell is a visit of its own, campaign 1 only (`--asks 4`: the page
+`--fill 1 --asks-after 4`). *Amended before any campaign's data, from a one-round smoke:* main's viewer has no step
+hook for the harness (its `lab/viewer/levers.js` predates them; it showed frame 0 and stepped no further, 1 of 4), so
+campaign 2 judges fill and first only, and an asked frame → screen under `?view=worker` is not timed against main.
+
+**Predictions, from §2.** Fill ×0.98–1.02 in every cell: neither the downloader's changes nor the view worker sits on
+the decoders' path. On a quiet page, the first frame and an asked frame within a display period (16.7 ms) of main's:
+the page's hops the view worker removes cost under 1 ms. At 4× a quiet page is still quiet; nothing predicts a
+difference there either.
+
+**Rule, fixed before data.** `lab/scripts/aa_rule.py` on each cell with `--confirm`: a cell is *worse* or *better*
+only when both campaigns flag it. **"No worse" holds when no cell is flagged worse**; it then claims only to each
+cell's detectable loss (the rule's *catches*), and a cell *not conclusive* (that loss over 5 %) is said so, not counted
+as a tie. *Better* is reported, and claimed only where the rule flags it. **VOID:** a visit whose relay's self-timing
+is late is dropped with its round's other two arms (the strict reading); a cell with fewer than 9 of 12 rounds kept in
+either campaign is not judged. **Saturation guard:** on this 4-core container (browser on cores 0–2, relay on 3) the
+fill at `r50000` 1× follows the link up to 200 Mbit/s (row PERFNIGHTLY, [`../../README.md`](../../README.md) *What the nightly times*), so 1× is
+link-bound; 4× is CPU-bound by design. A cell whose A/A median departs from 1 by more than 2 % says the rig drifted
+and is not judged. Nothing is claimed for another host, series, engine or a busy page.
+
+**Run 1 (2026-10-30, the harness unpinned as the nightly runs it).** Rows and each campaign's verdict:
+[`lab/av1/delivery/total-time/rows-core-against-main/`](../../lab/av1/delivery/total-time/rows-core-against-main/)
+`page/` and `worker/`; series-server `f36f907e…` (main) and `be058172…` (core). Every kept visit exact (48 of 48, or
+5 of 5 asked); no visit failed. Campaign 1 stopped once at round 8 on a dev-server that did not start (a port taken)
+and resumed from its kept rows; `perf_nightly.mjs` now retries such a visit.
+
+| campaign · cell | head ÷ base | A/A | rounds kept | `aa_rule` | by the rule |
+| --- | --- | --- | --- | --- | --- |
+| 1 · clean 1× fill | ×1.004 | ×0.996 | 9 + 10 | tie, catches 1.3 % | **no worse** |
+| 1 · clean 4× fill | ×0.998 | ×0.994 | 10 + 9 | tie, catches 2.7 % | **no worse** |
+| 1 · clean 1× first | ×1.029 | ×1.029 | 9 + 10 | tie | not judged: A/A off 1 by 2.9 % |
+| 1 · clean 4× first | ×1.013 | ×0.921 | 10 + 9 | not conclusive | not judged: A/A off 1 by 7.9 % |
+| 1 · clean 4× asked | ×0.989 | ×1.014 | 9 + 8 | not conclusive | not judged: 8 of 12 |
+| 1 · the other seven | ×0.905–1.019 | ×0.974–1.037 | 5–10 + 6–9 | none flagged | not judged: under 9 of 12 |
+| 2 · clean 1× first | ×1.126 | ×1.011 | 9 + 7 | **worse** | not judged: 7 of 12 |
+| 2 · clean 4× fill | ×1.074 | ×0.979 | 8 + 7 | **worse** | not judged: 7 of 12, A/A off 2.1 % |
+| 2 · the other six | ×1.011–1.104 | ×0.956–1.027 | 3–9 + 5–7 | not conclusive | not judged: under 9 of 12 |
+
+*Reading.* **Campaign 1 (the core at its defaults): throughput no worse** at `r50000` clean, 1× and 4×, to a loss of
+1.3 % and 2.7 %; no cell flagged worse. Latency is not established by the rule in any cell. The medians of kept
+rounds stay within a display period: the first frame 139 → 140 ms at 1× and 184 → 190 ms at 4× (A/A 141, 174), an
+asked frame 85.5 → 86 ms. **Campaign 2 (`?view=worker`): nothing judged.** 54 of 288 visits were VOID, and no cell kept 9 of 12 in
+both halves. The unjudged direction is **against the prediction**, though. From navigation, the first exact frame on
+screen took 509.5 → 549.5 ms at 1× clean (A/A 504.5) and 794 → 956 ms at 4×, more than a display period. The fill
+at 4× took 876 → 993 ms. The page's view-worker start before its first frame is the likely cost (not measured
+apart). VOID ran 14 % (campaign 1) and 19 % (campaign 2) of visits, worst under `l1`.
+
+**Run 2, pre-registered before its data: the harness pinned.** The nightly runs `node` and the dev-server on any
+core, the relay's included; row TOTAL4 runs the harness under `taskset -c 0-2`. Run 2 repeats run 1's two campaigns
+unchanged but for `taskset -c 0-2 node scripts/perf_nightly.mjs …`, with rows in `page-pinned/` and `worker-pinned/`.
+The rule, VOID threshold and guards are the same. Run 2 is read on its own, never pooled with run 1. If its VOID rate
+is no lower, the harness was not the cause, and that is said.
+
+**Run 2 (2026-10-30, the harness pinned).** Rows in `page-pinned/` and `worker-pinned/`, the same two binaries. VOID
+rose instead: 121 of 576 visits (21 %) and 73 of 288 (25 %), so the harness was not the cause. The relay's p99 ran
+late by up to 40 ms on a core 90 % idle, with steal time on it (the VM's own scheduling, sampled once, 1 %).
+
+| campaign · cell | head ÷ base | A/A | rounds kept | `aa_rule` | by the rule |
+| --- | --- | --- | --- | --- | --- |
+| 1 · clean 1× fill | ×1.000 | ×0.998 | 5 + 9 | tie, catches 4.0 % | not judged: 5 of 12 |
+| 1 · clean 4× fill | ×0.999 | ×0.996 | 8 + 9 | tie, catches 3.2 % | not judged: 8 of 12 |
+| 1 · the other ten | ×0.859–1.077 | ×0.810–1.138 | 3–9 + 3–9 | none flagged | not judged |
+| 2 · clean 1× fill | ×1.044 | ×0.968 | 6 + 9 | **worse** | not judged: 6 of 12, A/A off 3.2 % |
+| 2 · clean 4× fill | ×1.146 | ×0.966 | 6 + 10 | **worse** | not judged: 6 of 12, A/A off 3.4 % |
+| 2 · clean 1× and 4× first | ×1.055, ×1.076 | ×0.922, ×0.952 | 6 + 9, 6 + 10 | not conclusive | not judged |
+| 2 · `l1` | — | — | 1–2 + 3–6 | undecided | not judged |
+
+**What the two runs establish.**
+
+* **The core at its defaults: throughput no worse,** by the rule, at `r50000` clean, 1× and 4× (run 1; run 2 the same
+  ties, short of the round threshold). **Latency the same is not established by the rule.** The VOID threshold or the
+  A/A guard stopped every latency cell. The medians agree with the prediction in both runs: first frame 139 → 140 and
+  145 → 145.5 ms at 1×, asked frame 85.5 → 86 ms in both. No cell of either run was flagged worse.
+* **`?view=worker`: not judged; both runs point the other way.** From navigation, the first exact frame on screen took
+  509.5 → 549.5 and 551 → 592 ms at 1× clean, over a display period later in each run. The fill took ×1.04–1.15 as long,
+  and `aa_rule` flagged it worse, confirmed, three times across the two runs, each below the round threshold. §2's
+  prediction (within a display period, fill ×0.98–1.02) is not borne out on this rig. The likely cost is the view
+  worker's start before its first frame; that start is not timed on its own here, and timing it is the next
+  measurement. The owner's expectation of latency the same or better under `worker` is **not met by these rows**.
+* **Where the host saturates:** not by load. The rule is capped by the VM's scheduling noise on the relay's core, and
+  `l1` cells, the longest visits, lose the most rounds. Nothing is claimed for `l1`, another host, series or engine,
+  or a busy page.

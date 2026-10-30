@@ -1,0 +1,12 @@
+base /tmp/claude-0/-home-user-wt-pacs/2d260824-6161-54b1-8342-2ee3a80fa892/scratchpad/base series-server f36f907ecec0748aa9503f380a7c3599b916cb5fab7185125ff76699ce9709e9
+head /tmp/claude-0/-home-user-wt-pacs/2d260824-6161-54b1-8342-2ee3a80fa892/scratchpad/head series-server be05817201ae98fda7ec778455382bf2ca2d3b39fe73ad43ab4cc5049f00e274
+the gate's grey codestream × 48 on r50000 clean, l1 at 1×, 4×, every arm on the viewer from navigation, the head's under ?view=worker, 12 rounds and 12 confirming; dropped 54 VOID and 0 failed of 288 visits; ×: head ÷ base, base again ÷ base, median of rounds
+clean.1x.fill: not conclusive — head ×1.0739, A/A ×1.0052, n 9, A/A sd 0.061, catches 12.2 %
+clean.1x.first: worse — head ×1.1255, A/A ×1.0106, n 9, A/A sd 0.0982, catches 20.4 %
+clean.4x.fill: worse — head ×1.0743, A/A ×0.9786, n 8, A/A sd 0.0494, catches 10.6 %
+clean.4x.first: not conclusive — head ×1.0629, A/A ×0.9918, n 8, A/A sd 0.1199, catches 28.5 %
+l1.1x.fill: not conclusive — head ×1.034, A/A ×1.0131, n 3, A/A sd 0.0234, catches 10.2 %
+l1.1x.first: not conclusive — head ×1.0648, A/A ×0.9562, n 3, A/A sd 0.0345, catches 15.2 %
+l1.4x.fill: not conclusive — head ×1.0112, A/A ×1.0207, n 6, A/A sd 0.3777, catches 64.9 %
+l1.4x.first: not conclusive — head ×1.1041, A/A ×1.0266, n 6, A/A sd 0.0466, catches 12.1 %
+exit 1
