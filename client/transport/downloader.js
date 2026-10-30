@@ -13,8 +13,8 @@ let consumer = null;
 const toConsumer = (m, transfer = []) => (consumer ?? globalThis).postMessage(m, transfer);
 
 let session = null;
-/** A third decoder helps on four cores, not on two: docs/ARCHITECTURE.md §Resources */
-let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true, refill: "head" };
+/** A third decoder helps on four cores, not on two: docs/ARCHITECTURE.md §Resources. `askDepth`, a want's D_min: docs/adr/client-window-depth.md */
+let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true, refill: "head", askDepth: 4 };
 /** ms, and how many re-dials. `cfg.survival` as an object overrides them; `false` turns all but `decodeMs` off. */
 const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000, decodeMs: 10_000 };
 /** A frame lost with its decoder this many times fails by name. docs/ARCHITECTURE.md §The downloader */
@@ -53,13 +53,19 @@ const records = new Map();
 const queue = { ask: [], fill: [] };
 /** Fill frames the consumer wants and the wire has not delivered; never one an ask carries, which the ask settles. */
 const wanted = new Set();
+/** The consumer's want, in its order, each frame until its bytes are here. docs/adr/frame-path.md §3, *Built* */
+let order = new Set();
+/** A run the want's head left, owed until an ask lands behind it: what the run wrote is here by then. docs/WIRE.md §An ask during a fill */
+const ended = new Set();
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function fail(index, reason) {
   records.delete(index);
   wanted.delete(index);
+  order.delete(index);
   toConsumer({ kind: "failed", index, gen: generation, reason });
+  serveWant();
 }
 
 /** Asks come before fill frames; a frame already in hand moves up rather than being re-asked. */
@@ -181,7 +187,7 @@ function lose(d, reason) {
   pump();
 }
 
-function want(indices, askMs) {
+function addToFill(indices, askMs) {
   for (const i of wholeGroups(indices)) {
     if (records.has(i)) continue;
     record(i, "fill", askMs);
@@ -198,22 +204,65 @@ function record(index, priority, askMs) {
 function arrived(index, frame) {
   redials = 0;
   wanted.delete(index);
+  order.delete(index);
   watch();
   sessionBytes += frame.bytes.length + 8;
   if (cfg.recycleAtBytes && sessionBytes >= 0.75 * cfg.recycleAtBytes) recycling ??= recycle().finally(() => { recycling = null; });
   const rec = records.get(index);
   if (!rec) return;
+  if (rec.priority === "ask") forgetEnded();
   rec.stamps.lastByte = abs();
   rec.stamps.mediaReads = session?.stats().mediaReads;
   if (!cfg.decode) {
     records.delete(index);
     toConsumer({ kind: "frame", index, gen: generation, pixels: frame.bytes, wireBytes: frame.bytes.length, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
-    return;
+    return void serveWant();
   }
   rec.bytes = frame.bytes;
   rec.state = "queued";
   queue[rec.priority].push(index);
   pump();
+  serveWant();
+}
+
+/** A want replaces the order and nothing else: what is owed stays owed, and no generation steps. */
+function setWant(indices) {
+  order = new Set(indices.flatMap((i) => wholeGroups([i])));
+  serveWant();
+}
+
+/** The want's head first: one run while it ascends D_min frames or more and nothing else is owed, else up to D_min asks. */
+function serveWant() {
+  for (const i of order) if (records.has(i) && records.get(i).state !== "wire") order.delete(i);
+  const [head] = order;
+  if (head === undefined) return;
+  const owed = owedAsks().length;
+  if (owed === 0) forgetEnded();
+  if (wanted.size) {
+    if (head === Math.min(...wanted)) return;
+    // The run no longer serves the head: the next ask ends it on the server.
+    for (const i of wanted) ended.add(i);
+    wanted.clear();
+  }
+  // The head is asked at once, so a head the ended run had in flight crosses twice.
+  if (ended.delete(head)) records.delete(head);
+  const unsent = [...order].filter((i) => !records.has(i));
+  let to = head;
+  while (unsent[to - head + 1] === to + 1) to += 1;
+  if (owed === 0 && ended.size === 0 && unsent[0] === head && to - head + 1 >= cfg.askDepth) {
+    addToFill(unsent.slice(0, to - head + 1), abs());
+    return void issueFill();
+  }
+  if (!session || session.stats().closed) return;
+  for (const i of unsent.slice(0, Math.max(0, cfg.askDepth - owed))) {
+    record(i, "ask", abs());
+    ask(i, session);
+  }
+}
+
+function forgetEnded() {
+  for (const i of ended) if (records.get(i)?.state === "wire") records.delete(i);
+  ended.clear();
 }
 
 /**
@@ -461,7 +510,8 @@ async function start(m) {
   quietMs = deadlines.stallMs;
   // The decoders come up without the session URL, which arrives in `dial`; `decodersUp` gates
   // dispatch alone — docs/ARCHITECTURE.md §The downloader.
-  if (cfg.fill) want(cfg.fill, abs());
+  if (cfg.fill) addToFill(cfg.fill, abs());
+  if (cfg.want) setWant(cfg.want);
   if (cfg.decode) await Promise.all(ready);
   decodersUp = true;
   pump();
@@ -558,6 +608,7 @@ async function command(e) {
     if (m.kind === "dial") {
       dial = { url: m.url, certHash: m.certHash };
       await firstDial();
+      serveWant();
       return void toConsumer({ kind: "started" });
     }
     if (m.kind === "ask") {
@@ -569,8 +620,13 @@ async function command(e) {
     if (m.kind === "fill") {
       await live();
       if (gen !== generation) return;
-      want(m.indices, abs());
+      addToFill(m.indices, abs());
       return void issueFill();
+    }
+    if (m.kind === "want") {
+      await live();
+      if (gen !== generation) return;
+      return void setWant(m.indices);
     }
     if (m.kind === "check") return void watch();
     // A decoded frame is forgotten only once the page has it. docs/ARCHITECTURE.md §The downloader
@@ -586,6 +642,8 @@ async function command(e) {
       queue.fill.length = 0;
       records.clear();
       wanted.clear();
+      order.clear();
+      ended.clear();
       for (const d of decoders) d.next = null;
       asksInFlight = 0;
       try {
@@ -604,8 +662,8 @@ async function command(e) {
     }
   } catch (err) {
     const reason = String(err?.message ?? err);
-    // Index -1 is the start failing; an ask or a fill names its own frames, in its own generation.
-    if (m.kind !== "ask" && m.kind !== "fill") return void toConsumer({ kind: "failed", index: -1, reason });
+    // Index -1 is the start failing; an ask, a fill or a want names its own frames, in its own generation.
+    if (!["ask", "fill", "want"].includes(m.kind)) return void toConsumer({ kind: "failed", index: -1, reason });
     if (gen === generation) for (const index of m.indices ?? [m.index]) fail(index, reason);
   }
 }

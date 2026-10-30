@@ -394,5 +394,110 @@ async function portsOutliveCollection() {
 }
 await portsOutliveCollection();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held: ok");
+/** A transport that serves asks in the order they were sent, as the server does, when the test says so; fills are only recorded. */
+function servedInOrder() {
+  const w = { fills: [], asks: [], owed: [], onFill: null };
+  globalThis.fakeTransport = {
+    connect: async () => ({
+      requestExactFrame: (i) => new Promise((resolve) => (w.asks.push(i), w.owed.push(() => resolve(frame(i))))),
+      stats: () => ({ closed: null, lastByteAt: performance.now() }),
+      fillFrames: (from, to, onFrame) => (w.fills.push([from, to]), (w.onFill = onFrame)),
+      endStream: async () => {},
+      releaseWireBuffer() {},
+      close() {},
+    }),
+  };
+  w.serveOne = async () => (w.owed.shift()(), await settle());
+  return w;
+}
+
+async function wantWorld(name, config) {
+  const w = servedInOrder();
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // ${name}`;
+  await import(`./downloader.js?${name}`);
+  await onmessage({ data: { kind: "start", config: { transport, survival: false, ...config } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  posted.length = 0;
+  return w;
+}
+
+/** A want nearest-first from frame 40: its first D_min misses go out as asks in its order, topped up as each lands, and arrive in its order. */
+async function aWantArrivesInItsOrder() {
+  const w = await wantWorld("want-order", { decode: false, decoders: 0 });
+  const want = [40];
+  for (let d = 1; want.length < 76; d++) for (const i of [40 + d, 40 - d]) if (i >= 0 && i < 76) want.push(i);
+  await onmessage({ data: { kind: "want", indices: want } });
+  check(w.asks.join() === want.slice(0, 4).join() && w.fills.length === 0, `the first asks are the want's first 4 (${w.asks}, runs ${JSON.stringify(w.fills)})`);
+  let deepest = 0;
+  while (w.owed.length) {
+    deepest = Math.max(deepest, w.owed.length);
+    await w.serveOne();
+  }
+  const order = posted.filter((m) => m.kind === "frame").map((m) => m.index);
+  check(order.join() === want.join(), `frames arrive in the want's order (${order.slice(0, 8)} …)`);
+  check(deepest === 4, `at most D_min asks owed at once, and D_min reached (${deepest})`);
+  w.asks.length = 0;
+  await onmessage({ data: { kind: "want", indices: [10, 11, 12, 13, 14, 15] } });
+  check(JSON.stringify(w.fills) === "[[10,15]]" && w.asks.length === 0, `an ascending want is one run (${JSON.stringify(w.fills)}, asks ${w.asks})`);
+  w.onFill(frame(10));
+  await onmessage({ data: { kind: "want", indices: [30, 31, 32] } });
+  check(w.fills.length === 1, `a want ascending fewer than D_min frames, or behind a run, is no new run (${JSON.stringify(w.fills)})`);
+}
+await aWantArrivesInItsOrder();
+
+/**
+ * A want replaced while its run is decoding and in flight: no index is dispatched to a decoder twice or in a new
+ * generation, no frame the run delivered is asked again, and nothing is cancelled or failed.
+ */
+async function aReplacedWantKeepsWhatIsOwed() {
+  const dispatched = new Map();
+  const decoders = [];
+  globalThis.Worker = class {
+    constructor() {
+      this.decoding = [];
+      decoders.push(this);
+    }
+    postMessage(m) {
+      if (m.kind === "init") queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      if (m.kind === "decode") {
+        this.decoding.push(m);
+        dispatched.set(m.index, [...(dispatched.get(m.index) ?? []), m.gen]);
+      }
+    }
+    terminate() {}
+  };
+  const w = await wantWorld("want-replaced", { decoders: 2, perDecoder: 2, decoderWorker: "x" });
+  const ten = [...Array(10).keys()];
+  await onmessage({ data: { kind: "want", indices: ten } });
+  for (const i of [0, 1, 2, 3]) w.onFill(frame(i));
+  await settle();
+  // The view moves to frame 7 and wants 10 next: 0–3 are decoding, 4 and 5 already in flight.
+  await onmessage({ data: { kind: "want", indices: [7, 10, 6, 8, 5, 9, 4, 3, 2, 1, 0] } });
+  check(w.asks.join() === "7,10", `the head and what the old run did not hold are asked, while that run may still be in flight (${w.asks})`);
+  w.onFill(frame(4));
+  w.onFill(frame(5));
+  await settle();
+  await w.serveOne();
+  check(w.asks.join() === "7,10,6,8,9", `once the head lands, the run's unsent frames are asked in the want's order (${w.asks})`);
+  while (w.owed.length) await w.serveOne();
+  await onmessage({ data: { kind: "want", indices: [3, 2, 1, 0] } });
+  for (let busy = true; busy; ) {
+    busy = false;
+    for (const d of decoders) {
+      const m = d.decoding.shift();
+      if (!m) continue;
+      busy = true;
+      d.onmessage({ data: { kind: "done", index: m.index, gen: m.gen } });
+      await onmessage({ data: { kind: "ack", index: m.index, gen: m.gen } });
+    }
+    await settle();
+  }
+  const once = [...ten, 10].every((i) => dispatched.get(i)?.join() === "0");
+  check(once, `each index dispatched once, in generation 0 (${JSON.stringify(Object.fromEntries(dispatched))})`);
+  check(JSON.stringify(w.fills) === "[[0,9]]" && w.asks.every((i) => i > 5), `the run once, and no frame it delivered asked again (runs ${JSON.stringify(w.fills)}, asks ${w.asks})`);
+  check(!posted.some((m) => m.kind === "cancelled" || m.kind === "failed"), `nothing cancelled or failed (${posted.map((m) => m.kind)})`);
+}
+await aReplacedWantKeepsWhatIsOwed();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement: ok");
 process.exit(failed ? 1 : 0);

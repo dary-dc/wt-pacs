@@ -1,4 +1,4 @@
-/** The view's controller: the current frame, what to want of the downloader, and its paint. docs/adr/frame-path.md §3, *Built* */
+/** The view's controller: the current frame, what it wants and in what order, and its paint. docs/adr/frame-path.md §3, *Built* */
 import { FrameStore } from "./store.js";
 
 const at = () => performance.timeOrigin + performance.now();
@@ -95,7 +95,7 @@ export class Controller {
           if (this.firstShownMs === null && f.info.exact === true) this.firstShownMs = at() - this.issuedAt;
           this.#emit("shown", { i, exact: f.info.exact, reason: f.info.reason, window: d.voi, firstShownMs: this.firstShownMs });
         } catch (e) {
-          this.#emit("failed", { i: null, reason: `paint: ${e.message}` });
+          this.#emit("failed", { scope: "worker", reason: `paint: ${e.message}` });
         }
       }
       this.#painting = null;
@@ -108,6 +108,10 @@ export class Controller {
     const n = this.#n;
     this.current = (i + n) % n;
     this.store.near = this.current;
+    if (this.store.downloader) {
+      this.store.want(this.want());
+      return this.store.has(this.current) ? this.repaint() : this.store.arrival(this.current);
+    }
     if (this.store.has(this.current)) return this.repaint();
     // A frame not here is asked of the downloader; the OPFS store would be asked first: docs/adr/frame-path.md §3.
     const want = this.current;
@@ -122,10 +126,26 @@ export class Controller {
     try {
       this.take(await this.client.requestExactFrame(want));
     } catch (e) {
-      if (this.#asks.get(want) === step) this.#emit("failed", { i: want, reason: e.message });
+      if (this.#asks.get(want) === step) this.#emit("failed", { scope: "frame", i: want, reason: e.message });
     } finally {
       if (this.#asks.get(want) === step) this.#asks.delete(want);
     }
+  }
+
+  /** What this view wants, the current frame first: when filling, the series nearest first; on demand, that frame alone. */
+  want() {
+    const [c, n] = [this.current, this.#n];
+    if (!this.#fillMode) return [c];
+    const order = [c];
+    for (let d = 1; order.length < n; d++) for (const i of [c + d, c - d]) if (i >= 0 && i < n) order.push(i);
+    return order;
+  }
+
+  /** A frame the downloader could not deliver; index -1 is the series. */
+  refused(i, reason) {
+    if (i < 0) return this.#emit("failed", { scope: "series", reason });
+    this.store.failed(i);
+    this.#emit("failed", { scope: "frame", i, reason });
   }
 
   /** Any of `window` (null: the metadata's), `invert`, `pose`; the current frame painted again. */

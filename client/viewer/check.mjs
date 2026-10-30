@@ -131,8 +131,12 @@ function judge(name, r, requests, codec, decoder) {
   const want = onDemand ? r.asked : r.n;
   say(r.received === want && !r.errors.length, `the ${onDemand ? "asks" : "fill"} did not complete: ${r.received} of ${want} frames, errors ${JSON.stringify(r.errors)}`);
   say(r.exact === want, `not every frame exact: ${r.exact} exact, ${r.inexact} not, ${r.unchecked} unchecked of ${want}`);
-  if (onDemand) say(r.raced === "newest alone", `three quick steps did not keep the newest ask alone: ${r.raced}`);
-  if (onDemand) say(r.twice === String(r.n - 1), `two steps to frame ${r.n - 1} sent ${r.twice}, not its one ask`);
+  // The page asks and cancels; the view worker wants, and a replaced want keeps what it asked. docs/adr/frame-path.md §3, *Built*
+  const [a, b] = [r.n >> 1, r.n - 1];
+  if (onDemand && VIEW === "page") say(r.raced === "newest alone", `three quick steps did not keep the newest ask alone: ${r.raced}`);
+  if (onDemand && VIEW === "page") say(r.twice === String(b), `two steps to frame ${b} sent ${r.twice}, not its one ask`);
+  if (onDemand && VIEW === "worker") say(r.raced === "both kept", `a replaced want did not keep the frame it asked: ${r.raced}`);
+  if (onDemand && VIEW === "worker") say(r.twice === `want ${a}, want ${b}`, `steps to ${a}, ${a}, ${b} sent ${r.twice}, not one want each`);
   say(r.askDelivered === true, `an ask of a delivered frame: ${JSON.stringify(r.askDelivered)}`);
   say(r.cancelledFill === "cancelled", `a fill cancelled at once: ${JSON.stringify(r.cancelledFill)}`);
   say(r.askAfterCancel === true, `an ask after the cancel: ${JSON.stringify(r.askAfterCancel)}`);

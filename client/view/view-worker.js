@@ -14,6 +14,8 @@ let downloader = null;
 let lastPainted = null;
 let progress = null;
 let latest = null;
+/** The lab's flag: a paint waits for the GPU before it reports, which here would block the store. */
+let settle = false;
 
 function emit(type, event) {
   if (type !== "progress") return void postMessage({ kind: "event", type, ...event });
@@ -33,29 +35,34 @@ function paint(frame, display, { read = false } = {}) {
   const same = frame === lastPainted;
   lastPainted = frame;
   const { width, height, dpr } = controller.size;
-  return painter.paint({ frame: asPainted(frame.info), same, display, width: Math.round(width * dpr), height: Math.round(height * dpr), dpr, read });
+  return painter.paint({ frame: asPainted(frame.info), same, display, width: Math.round(width * dpr), height: Math.round(height * dpr), dpr, read, settle });
 }
 
-function start({ canvas, meta, fillMode, size }) {
+function start({ canvas, meta, fillMode, size, settlePaint }) {
   controller = new Controller({ meta, fillMode, paint, emit, size });
+  settle = settlePaint;
   try {
-    emit("renderer", { renderer: painter.start(canvas, (why) => emit("failed", { i: null, reason: `painter: ${why}` })) });
+    emit("renderer", { renderer: painter.start(canvas, (why) => emit("failed", { scope: "worker", reason: `painter: ${why}` })) });
   } catch (e) {
     emit("renderer", { error: e.message });
-    emit("failed", { i: null, reason: `painter: ${e.message}` });
+    emit("failed", { scope: "worker", reason: `painter: ${e.message}` });
   }
 }
 
-/** The store's intake is the consumer, which acks each frame to the downloader as it does on the page. */
+/** The store's intake is the consumer, which acks each frame; the store holds it, and the first want rides the start in place of the fill. */
 async function connect({ port, url, certHash, opts, issuedAt }) {
   downloader = port;
   controller.issuedAt = issuedAt;
+  const want = controller.store.want(controller.want());
   controller.client = await DownloaderClient.connect(url, certHash, {
     ...opts,
+    fill: undefined,
+    want,
     port,
     onFrame: (f) => controller.take(f),
-    onError: ({ frameIndex, reason }) => emit("failed", { i: frameIndex, reason }),
+    onError: ({ frameIndex, reason }) => controller.refused(frameIndex, reason),
   });
+  controller.store.downloader = controller.client;
 }
 
 const INTENTS = {
@@ -77,7 +84,9 @@ const CALLS = {
 
 // Set after the paint module's own handler, which its import installed.
 onmessage = async ({ data: m }) => {
-  if (m.id === undefined) return void INTENTS[m.kind](m);
+  if (m.id === undefined) {
+    return void (async () => INTENTS[m.kind](m))().catch((e) => emit("failed", { scope: "worker", reason: `${m.kind}: ${e?.message ?? e}` }));
+  }
   try {
     postMessage({ kind: "reply", id: m.id, value: await CALLS[m.kind](m) });
   } catch (e) {
