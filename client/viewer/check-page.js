@@ -29,6 +29,21 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
       out[name] = { error: String(e?.message ?? e) };
     }
   };
+  const press = (...keys) => keys.forEach((key) => dispatchEvent(new KeyboardEvent("keydown", { key })));
+  await step("keys", async () => {
+    press("End", "ArrowRight");
+    const last = current();
+    press("Home", "ArrowLeft");
+    const ends = `${current()} ${last}`;
+    const looks = () => display(current(), frames.get(current()).info);
+    press("r", "h", "v");
+    const { rotate, flipH, flipV } = looks().view;
+    press("I");
+    const inverted = looks().invert;
+    press("i");
+    const { modality } = await globalThis.viewerMetadata;
+    return { ends, modality, turned: `${rotate} ${flipH} ${flipV}`, cased: `${inverted} ${looks().invert}` };
+  });
   // The protocol: an ask of a delivered frame, a fill cancelled at once, an ask after the cancel.
   await step("askDelivered", async () => (await client.requestExactFrame(n >> 1)).info.exact);
   await step("cancelledFill", async () => {
@@ -40,6 +55,7 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
 
   if (q.get("cine")) {
     const shown = new Set();
+    await show(n - 1);
     toggleCine();
     const t0 = performance.now();
     while (performance.now() - t0 < 1500) {

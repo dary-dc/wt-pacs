@@ -126,6 +126,11 @@ function judge(name, r, requests, codec, decoder) {
   say(r.exact === want, `not every frame exact: ${r.exact} exact, ${r.inexact} not, ${r.unchecked} unchecked of ${want}`);
   if (onDemand) say(r.raced === "newest alone", `three quick steps did not keep the newest ask alone: ${r.raced}`);
   if (onDemand) say(r.twice === String(r.n - 1), `two steps to frame ${r.n - 1} sent ${r.twice}, not its one ask`);
+  const { ends, modality, turned, cased, error } = r.keys;
+  say(ends === `0 ${r.n - 1}`, `a step past either end moved to frame (first, last) ${error ?? ends}, not 0 ${r.n - 1}`);
+  const view = ["DX", "CR"].includes(modality) ? "90 true true" : "0 false false";
+  say(turned === view, `r, h and v on modality ${modality} left rotate, flipH, flipV ${turned}, not ${view}`);
+  say(cased === "true false", `I then i left invert ${cased}, not true then false`);
   say(r.askDelivered === true, `an ask of a delivered frame: ${JSON.stringify(r.askDelivered)}`);
   say(r.cancelledFill === "cancelled", `a fill cancelled at once: ${JSON.stringify(r.cancelledFill)}`);
   say(r.askAfterCancel === true, `an ask after the cancel: ${JSON.stringify(r.askAfterCancel)}`);
@@ -143,7 +148,7 @@ function judge(name, r, requests, codec, decoder) {
     if (CLIENT === "ts") say(wasm.length === 0, `a ts page fetched the WASM client's code: ${wasm.join(", ")}`);
   }
   for (const b of r.readbacks ?? []) say(!b.error && b.worst === 0, `frame ${b.i} at zoom 1 differs from the CPU reference: ${b.error ?? `worst |Δ| ${b.worst}`}`);
-  if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine showed ${r.cine} frames in 1.5 s`);
+  if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine from the last frame showed ${r.cine} frames in 1.5 s`);
 }
 
 const summary = (name, r) => `${name}, client ${CLIENT}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +
