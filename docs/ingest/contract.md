@@ -28,7 +28,8 @@ character becomes `alphabet[n0 << 2]` then `0`; of two, `alphabet[(n0 << 2) + (n
 
 Named `<marker>.<h>`, `<h>` the hash of the file's bytes, as hex. *Corrected 2026-10-26:* the parser read on 10-11
 wrote 64 hex characters of BLAKE3-256; the PCS is to name them by **XXH3** (decided 2026-10-24/25: what the PACS
-checks needs no cryptographic hash, and XXH3 is faster; its width, 64 or 128 bits, is not decided). The levels: the exam group `<D>/<E>/--.<h>`, the series group
+checks needs no cryptographic hash, and XXH3 is faster; its width, 64 or 128 bits, is not decided). *Corrected 2026-10-28:* this said the PCS is to name them by XXH3; XXH3 is
+wt-pacs's, the PCS keeps BLAKE3 by its team's choice, a known difference by design (`pacs-receive-design.md`). The levels: the exam group `<D>/<E>/--.<h>`, the series group
 `<D>/<E>/<S>/---.<h>`, the instance group `<D>/<E>/<S>/<I>/----.<h>`, the private group `<D>/<E>/<S>/<I>/priv.<h>`
 (only when the instance has private attributes, or group 0002). An existing exam or series group file is not
 rewritten.

@@ -242,7 +242,7 @@ Read 2026-10-25 unless stated.
 
 * **pcs.pdf**, not in this repository, as the owner quotes it: "[date], [exam], [series], and [instance] are
   placeholder for the corresponding UIDs."
-* **DECK_WebTransport** (github.com/opendicom/DECK_WebTransport, `a65abe28`), `DICMele2deck/README.md`: "eDA and
+* **DECK_WebTransport** (the PCS repository, public; `a65abe28`), `DICMele2deck/README.md`: "eDA and
   eDAlength (study date aammdd compressed uib64)".
 * [`../ingest/contract.md`](../ingest/contract.md) §The layout, §The coding; [`../ingest/design.md`](../ingest/design.md)
   §5 (study DB, study index, WAL); [`../disk-layout/target.md`](../disk-layout/target.md) §Packing and publishing.
