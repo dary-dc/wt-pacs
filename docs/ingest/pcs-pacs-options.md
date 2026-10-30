@@ -185,8 +185,8 @@ serving tree's deletions come from the item list, never from rsync (*inference*)
 **Late instances and corrections under rsync** turn on what rsync compares against at the PACS: P1 our script sends
 only what is new (a sent record at the PCS); P2 a mirror of the received metadata at the PACS and `--compare-dest` into
 an empty `incoming/`; P3 negotiated (the item list over ssh, the PACS answers what it lacks, `--files-from`, then the
-trigger); P4 the full metadata each time (E), frames only for instances the PACS lacks. Leaning P3 or P4, by reasoning;
-row RSYNC-2 (`claude/rsync-updates`) works them through, crossed with §2.9.
+trigger); P4 the full metadata each time (E), frames only for instances the PACS lacks. Leaning P3 or P4, by reasoning.
+The four patterns worked through and ranked, crossed with §2.9: [`rsync-updates.md`](rsync-updates.md).
 
 ### 2.6 The PCS's copy
 
