@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Before pushing, fail-fast. What it needs: README.md §Prerequisites.
-#   scripts/gate.sh [--quick] [--no-browser]   --quick skips the two absence checks
+#   scripts/gate.sh [--quick] [--no-browser]   --quick skips the decoders' rebuild and the two absence checks; no docker skips the rebuild by name
 # CARGO_TARGET_DIR is respected; the server absence check builds a default-feature release.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -38,19 +38,16 @@ PYTHON="${PYTHON:-python3}"
 numpy=0
 "$PYTHON" -c "import numpy" 2>/dev/null && numpy=1
 
-step "prerequisites: built clients newer than their sources; playwright, Chromium and the decoder vendor"
+step "prerequisites: the committed builds are their pins; the WASM client newer than its sources; playwright, Chromium and the decoder vendor"
 source client/contract/browser_env.sh
 require_transport_wasm
 built=client/decode/wasm/built
-if [[ -f "$built/THIRD_PARTY_NOTICES" ]]; then
-  stale="$(find client/decode/wasm/build client/decode/wasm/openjph client/decode/wasm/dav1d/dav1d_wrap.c client/decode/wasm/xxh3 -newer "$built/THIRD_PARTY_NOTICES" \
-    -type f ! -path '*/.cache/*' ! -name manifest.sha256 ! -name README.md -print -quit)"
-  [[ -z "$stale" ]] || { echo "stale $built: $stale is newer; client/decode/wasm/build/build.sh" >&2; exit 2; }
-  (cd "$built" && sha256sum -c --quiet ../build/manifest.sha256) \
-    || { echo "$built is not the build client/decode/wasm/build/manifest.sha256 pins; client/decode/wasm/build/build.sh" >&2; exit 2; }
-else
-  skip "the decoder builds and their manifest check — no $built (client/decode/wasm/build/build.sh, docker)"
-fi
+# The committed builds are the deploy (deploy/README.md §Run it): their bytes, every file and no other, are the pins'.
+(cd "$built" && sha256sum -c --quiet ../build/manifest.sha256 \
+  && diff <(cut -d' ' -f3- ../build/manifest.sha256) <(find . -type f ! -path './.work/*' | sed 's#^\./##' | LC_ALL=C sort)) \
+  || { echo "$built is not what client/decode/wasm/build/manifest.sha256 pins" >&2; exit 2; }
+(cd client/transport/ts && sha256sum -c --quiet manifest.sha256) \
+  || { echo "client/transport/ts/dist/session.js is not what client/transport/ts/manifest.sha256 pins" >&2; exit 2; }
 if [[ $quick -eq 0 ]]; then
   for tool in nm strings; do
     command -v "$tool" >/dev/null || { echo "missing $tool (binutils): the absence checks read the built artifacts" >&2; exit 2; }
@@ -81,6 +78,8 @@ run 1 bash deploy/seccomp-uring.sh --check
 
 step "client: build bundles + unit tests"
 run 1 bash client/transport/ts/build.sh
+run 1 bash -c 'cd client/transport/ts && sha256sum -c --quiet manifest.sha256 && echo "session.js rebuilt to its pin" \
+  || { echo "the rebuilt dist/session.js is not its pin: commit it and sha256sum dist/session.js >manifest.sha256"; exit 1; }'
 run 1 node client/transport/ts/test/run.mjs
 run 1 bash lab/client-telemetry/build.sh
 run 1 node lab/client-telemetry/test/run.mjs
@@ -97,6 +96,7 @@ run 1 python3 server/dev-server.test.py
 run 1 node client/paint/voi.test.mjs
 run 1 node client/view/controller.test.mjs
 run 1 node client/view/view.test.mjs
+run 1 node client/view/view-worker.test.mjs
 run 1 node client/view/cache.test.mjs
 run 1 node client/viewer/store.test.mjs
 run 1 node client/view/clock.test.mjs
@@ -250,19 +250,24 @@ fi
 step "deploy: the web host's nginx answers as dev-server.py, and serves the page's files alone"
 if ! command -v nginx >/dev/null; then
   skip "the web host's check (deploy/check_equivalence.sh --local) — no nginx"
-elif [[ ! -f "$built/THIRD_PARTY_NOTICES" ]]; then
-  skip "the web host's check (deploy/check_equivalence.sh --local) — no decoder builds (deploy/README.md §Run it)"
 else
   run 1 bash deploy/check_equivalence.sh --local
 fi
 
 if [[ $quick -eq 0 ]]; then
+  step "client: the decoders rebuilt from their pins are the committed bytes (docker, ~3 min)"
+  if ! command -v docker >/dev/null; then
+    skip "the decoders' rebuild — no docker: the committed builds were checked against their manifests alone"
+  else
+    run 1 bash -c 'out=client/decode/wasm/build/.rebuilt && rm -rf "$out" && OUT="$PWD/$out" bash client/decode/wasm/build/build.sh \
+      && diff -r --exclude=.work "$out" '"$built"' && rm -rf "$out" && echo "rebuilt to the committed bytes"'
+  fi
   step "client: absence check (default bundle carries no telemetry)"
   run 1 bash client/scripts/check_telemetry_absent.sh
   step "server: absence check (default release binary carries no Tap and no lab controller)"
   run 1 bash server/scripts/check_telemetry_absent.sh
 else
-  skip "the two absence checks (--quick)"
+  skip "the decoders' rebuild and the two absence checks (--quick): the committed builds were checked against their manifests alone"
 fi
 [[ $browser -eq 1 ]] || skip "every browser step (--no-browser)"
 

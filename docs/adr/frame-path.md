@@ -2892,3 +2892,32 @@ sessions as they are pushed. `claude/cine-no-skip` (the simple cine's skip fix) 
 built on #210 and the page's viewer before #229, so it carries the viewer product's #210 with it. Each conflict and its resolution is recorded in the PR. **Superseded** once this lands
 (the owner closes them): every PR above. **Out:** the viewer product (#193, #210, #214, #215), the ask-during-fill
 lever (#135), ingest.
+
+### Independent review of the assembled core (2026-10-30)
+
+A read of the merged result, not of its parts (`claude/core-review`, PR #262; the review itself is on #250). Each
+defect has a test that fails on the assembled code, a fix, and the mutants the test kills.
+
+* **The frame store, under a budget.** A frame that arrived and was then evicted still counted as asked, so a want
+  with the same misses was never sent and a step to that frame waited for good. The store now drops a frame from what
+  it has asked once the frame arrives. At equal distance it let go the frame inserted first; it now lets go the
+  earlier frame, which the want ranks last (#253's fix to the native store). The view worker still passes no budget
+  (§Experiment 3), so neither defect could be reached on this branch. The budget is how the store is meant to run.
+* **Settings the page view took and ignored.** `writer`, `waitAhead` and `holdEveryOther` act only in the view
+  worker, and `pixels: "transfer"` there copies each paint. Under `?view=page` all four are now refused by name, so
+  a run cannot label an arm it never ran. The writer's own two refusals moved beside them into
+  `lab/viewer/levers.js`, where they got their first test.
+* **The view worker's lab cine.** A `pause` sent while `play` still loaded the clock was lost, and two plays left the
+  first cine running with nothing to stop it. Each play and pause now steps a cue.
+* **The native downloader.** A frame read from the cache that failed its check was put first in the want, even when
+  the view had replaced that want since. It was then asked ahead of the frame on screen. The frame now goes first only
+  under the want it was read for.
+
+* **The viewer check in Firefox.** Firefox 155 quotes a Latin-1 character in `console.log` as `\xNN`, which
+  `JSON.parse` refuses. Every Firefox run therefore died on the status line's middle dot, though the page had passed.
+  With the reader fixed, the gate's grey series passes in Firefox under both views, with a cine and on demand
+  (headed, `xvfb-run`). This is outside the gate, whose Firefox arm needs the DICOM bundles.
+
+Checked and found as both sides meant: each merge resolution recorded on #250; the defaults under `?view=page`
+against main's viewer (cine period, steps, window drag, ledger shape); `span` 0 reproduces main's run; the downloader
+link's ordering; the cache's paint-first write, its re-ask of a failed read and its lock.
