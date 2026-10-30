@@ -104,14 +104,14 @@ const CINE = ["--cine-hz", 30, "--stamp-painted", ...BUSY];
 // The lab's end (§Built for NATIVERUN): the window closes by itself once the series is exact and its last step painted,
 // and its visit line times the series from the dial.
 const END = ["--exit", "--steps", 2, "--step-every-ms", 300, "--stamp-painted"];
-const ended = (out) => {
+const ended = (steps) => (out) => {
   const v = Object.fromEntries([...(out.match(/^visit (.*)$/m)?.[1] ?? "").matchAll(/(\w+)=(\S+)/g)].map((m) => [m[1], m[2]]));
   const [first, shown, last, p99, arrivals] = ["first_exact_ms", "first_shown_ms", "last_exact_ms", "inter_arrival_p99_ms", "arrivals"].map((k) => Number(v[k]));
   console.log(`  visit: first exact ${first} ms, first shown ${shown} ms, last exact ${last} ms, inter-arrival p99 ${p99} ms, ${arrivals} arrivals, exact ${v.exact}`);
   if (v.exact !== "12/12") return `exact ${v.exact}`;
   if (!(first > 0 && first <= shown && first <= last) || !(p99 >= 0) || !(arrivals >= 12)) return "the visit's times are not from its dial";
   const l = lags(out);
-  return l.length === 2 && !l.some(Number.isNaN) ? null : "the window closed before its last step painted";
+  return l.length === steps && !l.some(Number.isNaN) ? null : "the window closed before its last step painted";
 };
 const PAINTER = ["intent", "decoded", "job", "done", "stream", "shown"];
 const LAB = [
@@ -122,9 +122,12 @@ const LAB = [
   ["ui, busy, a 30 Hz cine", CINE, cine(false), false],
   ["view, busy, a 30 Hz cine", ["--paint-thread", "view", ...CINE], cine(true), false],
   ["core, busy, a 30 Hz cine", ["--paint-thread", "core", ...CINE], cine(true), false],
-  ["ui, the lab's end", END, ended, false],
-  ["view, the lab's end", ["--paint-thread", "view", ...END], ended, false],
-  ["core, the lab's end", ["--paint-thread", "core", ...END], ended, false],
+  ["ui, the lab's end", END, ended(2), false],
+  ["view, the lab's end", ["--paint-thread", "view", ...END], ended(2), false],
+  ["core, the lab's end", ["--paint-thread", "core", ...END], ended(2), false],
+  // The cache's write delay spaces the frames 50 ms apart, so an end before the last frame shows.
+  ["ui, the lab's end with no steps", ["--exit", "--cache", `${T}/cache-end`, "--series", "s", "--version", "v1", "--cache-write-delay-ms", 50], ended(0), false],
+  ["view, the lab's end with no steps", ["--paint-thread", "view", "--exit"], ended(0), false],
 ];
 
 let bad = 0;
