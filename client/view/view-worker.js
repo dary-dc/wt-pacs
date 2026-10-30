@@ -17,6 +17,7 @@ let progress = null;
 let latest = null;
 /** The lab's flag: a paint waits for the GPU before it reports, which here would block the store. */
 let settle = false;
+let cine = null;
 
 function emit(type, event) {
   if (type !== "progress") return void postMessage({ kind: "event", type, ...event });
@@ -86,8 +87,18 @@ async function fillAround(held) {
   controller.store.want(controller.want());
 }
 
+/** A lab's cine on a clock it names; the product's cine is the page's: lab/frame-clock. */
+async function play({ fps, t0, source }) {
+  cine?.stop();
+  const { Cine } = await import("./clock.js");
+  cine = new Cine({ fps, t0, source, show: (i) => controller.show(i) });
+}
+
 const INTENTS = {
   start,
+  play,
+  tick: ({ t, vsync }) => cine?.tick(t, vsync),
+  pause: () => cine?.stop(),
   show: ({ i }) => controller.show(i),
   display: ({ display }) => controller.setDisplay(display),
   size: ({ size }) => controller.resize(size),
@@ -99,6 +110,7 @@ const CALLS = {
   repaint: () => controller.repaint(),
   valueAt: ({ x, y }) => controller.valueAt(x, y),
   ledger: () => controller.ledger(),
+  cine: () => cine?.log ?? [],
   check: async ({ phase, args }) => (await import("./check.js"))[phase]({ controller, port: downloader, ...args }),
   close: () => controller.client.close(),
 };

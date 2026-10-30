@@ -153,6 +153,24 @@ export class ViewWorker {
     return this.#call("ledger");
   }
 
+  /** Cine on the view worker's own `source`, or on the page's `tick`s with `posted`, frame 0 due at `t0`: lab/frame-clock. */
+  play(fps, t0, source) {
+    this.#worker.postMessage({ kind: "play", fps, t0, source });
+  }
+
+  tick(t, vsync) {
+    this.#worker.postMessage({ kind: "tick", t, vsync });
+  }
+
+  pause() {
+    this.#worker.postMessage({ kind: "pause" });
+  }
+
+  /** Each paint of the cine since `play`: client/view/clock.js. */
+  cine() {
+    return this.#call("cine");
+  }
+
   /** The viewer check's in-worker half, phase by phase: client/view/check.js. */
   check(phase, args) {
     return this.#call("check", { phase, args });

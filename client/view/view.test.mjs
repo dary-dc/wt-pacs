@@ -13,7 +13,7 @@ globalThis.Worker = class {
     made.push(this);
   }
   postMessage(m) {
-    this.sent.push(m.kind);
+    this.sent.push(m);
   }
   terminate() {
     this.terminated = true;
@@ -82,6 +82,19 @@ test("a downloader that does not load fails connect", async () => {
   made.find((w) => /downloader/.test(w.url)).onerror({ message: "" });
   const hung = new Promise((resolve) => setTimeout(() => resolve("still waiting"), 50));
   await assert.rejects(Promise.race([connecting, hung]).then((v) => assert.fail(v)), /the downloader did not start: its script did not load/);
+});
+
+/** A lab's cine reaches the view worker as intents: its clock and schedule, the page's ticks, the pause. */
+test("play, tick and pause are the view worker's intents", () => {
+  const { view, worker } = rig();
+  view.play(30, 1234.5, "raf");
+  view.tick(1240, 1239);
+  view.pause();
+  assert.deepEqual(worker.sent.slice(-3), [
+    { kind: "play", fps: 30, t0: 1234.5, source: "raf" },
+    { kind: "tick", t: 1240, vsync: 1239 },
+    { kind: "pause" },
+  ]);
 });
 
 let failed = 0;
