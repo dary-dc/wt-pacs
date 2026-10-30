@@ -265,6 +265,10 @@ on the downlink, and the merge's logic at the PCS.
 
 **1. P3 · 2. P4 · 3. P1 · 4. P2**, with K (§2) the same for all.
 
+*Not ranked, added 2026-10-29:* a kept mirror synced with `--delete` (`pcs-pacs-options.md` §4.4). Every pattern here
+sends into a cleared `incoming/`, so none carries deletions or changes by itself; the mirror does, if the PCS keeps its
+tree as the record, shows its current state (Q-U1) and syncs a consistent tree.
+
 | pair | the winner | the deciding factor |
 | --- | --- | --- |
 | P3 vs P4 | P3 | over rsync P4 pays rsync's own listing on top of #223's snapshot, and its frames' `need` arrives a round later; P3's list is the compressed item list. A tie if M-R2 and M-R3 show the listing compressed and `-z` keeping context; then P4 by simplicity, as #223 chose E |
