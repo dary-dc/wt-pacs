@@ -2729,7 +2729,7 @@ is a setting inside the core whose default is today's behaviour**, until its pre
 | --- | --- | --- | --- | --- |
 | downloader | session, a record per owed frame, survival, the wire; sends the want's misses as asks or runs | its worker | its worker | the UI's runtime / its own thread / the core thread |
 | controller + want | the current frame, what is wanted in what order, the cine clock | the page | the view worker | UI thread / view thread / core thread |
-| frame store (+ OPFS cache) | memory → cache → downloader; acks a frame once held; evicts farthest-first, only once written | the page's `Map`, store worker behind it | the view worker, the cache's writer per `writer` | UI thread / view thread / core thread; a file per frame |
+| frame store (+ OPFS cache) | memory → cache → downloader; acks a frame once held; evicts farthest-first, only once written | the page, no cache (main's) | the view worker; the cache under a lab `writer` | UI thread / view thread / core thread; a file per frame |
 | decoders | decode, XXH3 against the ingest's digest, hand on the samples | nested workers of the downloader | the same | `N` decoder threads |
 | paint | WebGL2 / wgpu, the VOI table, display state | the paint worker | a module of the view worker | UI thread / view thread / core thread |
 
@@ -2751,11 +2751,14 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 | native `--paint-thread`; `--credits`, `--budget` | `ui` | `view`, `core`; `K` 4, 64 MiB | NATIVERUN, #247 | built, not run |
 
 *The cache's default.* The owner decided an OPFS client cache on 2026-10-10 (§1), but main has none, so `none` keeps
-main's behaviour; turning it on is the owner's call, not this branch's.
+main's behaviour; turning it on is the owner's call, not this branch's. The cache is the frame store's alone: #212's
+wiring into the page's old viewer is not carried, so `lab/opfs-cache`'s M1–M4 cells, which drive `?view=page`, have no
+cache to measure on this branch until they name `?view=worker&writer=store`; their rows stand as run on #212.
 
 **Folded in,** with `git merge --no-ff`, bases first: the unified branch (for the native line); #228, #231, #232,
 #235, #239, #237; #229, #238, #243 (+#248), #246, #245, #244; #225; #212's client-cache line, then #226 → #241 and
-#227 → #242; #247 with #189 → #198 → #201 → #206/#209 → #216 → #218 → #236 → #240; and the follow-ups of their
-sessions as they are pushed. Each conflict and its resolution is recorded in the PR. **Superseded** once this lands
+#227 → #242 with the M5 and OPFS-arms runs; #247 with #189 → #198 → #201 → #206/#209 → #216 → #218 → #236 → #240; and the follow-ups of their
+sessions as they are pushed. `claude/cine-no-skip` (the simple cine's skip fix) is not folded in: it is
+built on #210 and the page's viewer before #229, so it carries the viewer product's #210 with it. Each conflict and its resolution is recorded in the PR. **Superseded** once this lands
 (the owner closes them): every PR above. **Out:** the viewer product (#193, #210, #214, #215), the ask-during-fill
 lever (#135), ingest.
