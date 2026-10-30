@@ -5,8 +5,9 @@ by a row of its own. Theory only; nothing here is built or timed for it. **Decid
 as the design state records them (#168, §7 below). A quoted claim is **source**; **inference** is this document's own
 reasoning, read nowhere.*
 
-**Why it exists.** The team meeting of 2026-10-28 reopened rsync for the PCS → PACS path, after the meeting of
-2026-10-24 had agreed one package per transfer. Meetings change such choices, so the path is laid out as parts, each
+**Why it exists.** The team meeting of 2026-10-28 proposed rsync for the PCS → PACS path, where we had chosen one
+package per transfer (*corrected 2026-10-29:* this said a meeting of 2026-10-24 had agreed the package; the team never
+did: it was our own search for good options, approved by the owner). Meetings change such choices, so the path is laid out as parts, each
 with a few options, how each works, what it costs and a favoured default. Every option offered combines into a complete
 configuration (§4), so a meeting can move between options and still leave with one that works. *Corrected 2026-10-28:*
 not yet: the rsync profile is incomplete until the hash bridge (§1) is chosen.
