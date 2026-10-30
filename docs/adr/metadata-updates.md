@@ -30,7 +30,8 @@ metadata only; its **base hash** is the XXH3 of the group row it was written aga
 that hides a series or a study.
 
 **Against the design state (2026-10-26).** *Corrected in place:* "display document" is now *display metadata*.
-**Conflicts left open, not resolved here:**
+**Conflicts left open, not resolved here** (§13, for the team meeting, proposes how the PCS's updates travel and
+would settle the first):
 
 * **The update's format.** This record recommends differences by DECK key (§1, row 2); [`pcs-transfer.md`](pcs-transfer.md)
   (#149) §1 row 7 recommends whole changed group files. The owner decided updates carry metadata only, down to the
@@ -418,4 +419,189 @@ committed.
 **Not verified:** IHE ITI's audit trail profile (ATNA) and its authorization profiles, named and not read; a change
 proposal to RAD-66 listed on IHE's 2026-01-08 radiology minutes (CP-RAD-556), not read, which may change §8's
 wording; the time of a small `fsync` and of placing a series on the PACS's disk (§3), both estimated; whether a PCS
-re-run of the parser can name the base hashes it needs (§5).
+re-run of the parser can name the base hashes it needs (§5; §13.3 proposes the sender's sent list as their source).
+
+## 13 · How a change travels from its origin to the study DB — for the team meeting
+
+**Status: Proposed, not decided; written for the team meeting of the PCS team, the team and the owner.** Theory only:
+nothing built, nothing timed. It answers the owner's open question of 2026-10-26 (below) and leaves §1–§11 as they
+are, except where a line says *(changes §n)*.
+
+**Decided by the owner, 2026-10-26, taken as given.** Our PCS-side **sender** builds each package and sends it (the
+PCS document's process (3), "forwarding to cloud"); it takes the study's **exam directory** as the package root;
+updates carry metadata only, down to the level that changed. Left open by the owner: how the parser (processes (1)
+and (2)) and the sender interact on a change, what the package carries, and how the receiver reads it.
+
+### 13.1 · Where corrections come from, and which reach the PCS
+
+| origin | how it travels in established practice | reaches the PCS? | reaches the study DB through |
+| --- | --- | --- | --- |
+| **a modality or workstation re-sends an instance**, same SOP Instance UID, changed attributes (a corrected description, a patient name fixed at the console, a QC step at the hospital's own archive) | C-STORE again; the standard leaves what a Storage SCP does with a UID it already holds to the SCP and its conformance statement (S: PS3.4 §B.4 lets an SCP coerce attributes, "implementation dependent"; nothing read in PS3.4 prescribes the duplicate case) | **yes**: the PCS is a Storage SCP; the parser runs again on the instance | the sender, as an update package |
+| **a patient update or merge** at the RIS/HIS: HL7 v2 ADT A08 (update patient information), A40 (merge patient identifier list) | IHE Patient Information Reconciliation: the Image Manager receives Patient Update [RAD-12] and must return the corrected values when objects are retrieved (S: RAD TF-1 §4; RAD TF-2 §4.12.4.1.3); the images are **not** re-sent | **no**: the PCS has no HL7 interface (README and `DICMele2deck/README.md` at `a65abe2`: a Store SCP only) | only if the hospital's archive re-sends the objects (row 1), or a feed reaches our update API (§2); neither exists — question for the product owner (Q-U5) |
+| **a rejection** (wrong patient, wrong worklist entry, quality, retention) | IHE IOCM: a Key Object Selection document with a CID 7010 title, stored by [RAD-66]; corrected objects come back with **new** UIDs [RAD-74] (S: RAD TF-1 §28, RAD TF-2 §4.66; §8 above) | **yes, as an instance**: a KOS is a C-STORE like any other, of a non-image SOP class | a document series package; the receiver reads its title (§13.4) |
+| **manual QC at the PACS** (a person corrects a value in our viewer) | — (this is our product) | no: it starts at the PACS | the update API, §2: differences with a base hash |
+| **MPPS** (Modality Performed Procedure Step, [RAD-6]/[RAD-7]): what the modality made, or that a step was discontinued | N-CREATE/N-SET to an MPPS SCP; it lists instances, it does not correct them (S: PS3.4 Annex F; `pcs-transfer.md` §2 cites it for completeness) | **no**: the PCS is not an MPPS SCP | nothing; at most a fourth completeness test for process (2) (`pcs-transfer.md` §2) |
+
+**What this says about the unit (I).** Everything that reaches the PCS arrives as **a whole object again**: DICOM has no
+"change these attributes" message over C-STORE, and IOCM replaces rather than edits. So at the PCS the natural unit
+of a change is **the whole group** the parser writes from that object; attribute-level differences originate only
+where a person edits a value, at the PACS. Two forms, each where it is natural, and the receiver turns the first into
+the second (§4 already says so). This settles §17 A8 of the design state *(changes the "update's format" conflict in
+this record's header)*: **whole changed groups on the PCS's wire, differences on the update API's, differences in the
+audit.**
+
+### 13.2 · What the parser does today on a re-sent instance
+
+Read in `DICMele2deck/src/capi/ESIPFfiled/capi.c` at `a65abe2` (S); not run for this section.
+
+* **One run per instance.** Each group file is named by the hash of its bytes and written **only if no file of that
+  name exists** (`access(…, F_OK)`, lines 201, 260, 339, 383), with `fopen`/`fwrite`/`fclose`: no temporary name, no
+  rename, no `fsync`. Nothing is ever deleted (no `unlink` in the file).
+* **So a correction adds a name beside the old one.** A re-sent instance with a corrected patient name leaves
+  `<E>/--.<old>` and `<E>/--.<new>` in the exam directory, and two `----.<h>` in the instance directory. Frame files
+  are not rewritten (they exist), which is right: changed pixels mean a new SOP Instance UID (I).
+* **A reverted correction is invisible.** A → B → A: the third run finds `--.<A>` present and writes nothing. No name
+  appears, nothing in the tree says A is current again.
+* **A corrected study date moves the study.** The tree starts at `<D>/`, the coded study date (line 153); a corrected
+  (0008,0020) writes a second whole tree under another `<D>/`, frames included.
+* **Already owed (§10 of the design state, §15 there):** nested keys carry memory-address bytes, so parsing the same
+  instance twice can give a different name; series, instance and private groups are hashed before UTF-8 conversion, so
+  a name with a non-ASCII value is not its hash. **Both make every option below report changes that did not happen**,
+  so both are preconditions, not options. *Corrected 2026-10-28:* both are fixed upstream at `e105214` (`348aa99`,
+  `e21160f`), so neither is a precondition now ([`../ingest/pacs-receive-design.md`](../ingest/pacs-receive-design.md)).
+
+### 13.3 · The options
+
+Common to all: the receiver applies per study in arrival order, checks each touched group's **base hash** (§5),
+writes rows and the audit in one transaction (§6), answers `stored` or a refusal with its class (§2). Package
+identity is its name, its XXH3 (design state §2), so a resend of the same bytes is answered with the first outcome.
+
+| | **(a)** the parser rewrites groups and **notifies** the sender | **(b)** the parser writes a separate **difference file** | **(c)** the sender **diffs the tree's names** against what it last sent | **(d)** the sender sends the study's **name list**; the receiver asks for what it lacks |
+| --- | --- | --- | --- | --- |
+| the parser must | write the new group, then send a message (a queue file, a socket) naming it | read the previous group, compute `set`/`remove` (and `replace-sequence`, §4) and write an update file beside the tree; and still update the tree | keep **one name per marker** per directory: write a temporary file, rename it to its hash name, delete the other names of that marker | as (c) |
+| the sender does | reads the queue; builds and sends | collects difference files in order; sends; deletes them after `stored` | scans the exam directory, compares with its **sent list**, builds a package of the groups whose names are new, each with its old name as base hash; records the list after `stored` | sends a manifest (all names), receives the missing ones' list, sends those |
+| the package carries | whole changed groups | attribute differences | whole changed groups | whole changed groups |
+| the receiver | whole group → differences (§4), base hash, audit | applies differences; but their base is the **parser's** previous file, which may not be what the PACS holds | as (a) | as (a), plus a manifest endpoint and a second request |
+| ordering | the notification order; a lost one is a lost update | a chain: one lost or reordered file breaks every later one | the base hash is the order: an update applies only on the group it names; one package in flight per study | the receiver's own rows are the base: no ordering by the sender |
+| crash between writing and telling | the change is in the tree, the notice lost: **needs (c)'s scan to recover** | the difference file and the tree can disagree | nothing to lose: the tree is the state, the sent list moves only after `stored` | nothing to lose, no state at the sender |
+| A → B → A | sent if the parser notifies on every write | a difference B → A, if the parser computed it | the A file is written again (the B one was deleted), so its name differs from the sent list's B: sent | sent |
+| new protocol between parser and sender | **yes** | **yes** (a file format) | **no** | no |
+| new code at the PCS team | a notifier | a differ for nested sequences, a format, a lifecycle | a rename and an unlink per group written | as (c) |
+| cost on the link | one request | one request | one request | **two round trips**: ≈ 1.2 s more on a 600 ms GEO link (E) |
+| verdict | (c) plus a channel that can lose messages, still needing (c) to recover | the most code on the side with the least domain bandwidth; duplicates what the receiver already does | **simplest that is robust**: the tree is the only state, content names are the change signal | robust and stateless, but a round trip and an endpoint for a sender state of a few KB a study |
+
+**(c) in detail, the recommendation.**
+
+* **The sent list.** Per study, one small file at the sender: the exam group's name, and per series the names of its
+  series, instance and private groups, as last confirmed `stored` (≈ 70 bytes a name, ≈ 140 KB at 2 000 instances,
+  E). Written by temporary file and rename after each `stored`; never before.
+* **The scan.** For each study the sender has sent (they grow "until the report is authenticated", design state §1),
+  list the exam directory's group names and compare. A name in the tree and not the list is a change; its marker's
+  name in the list is the base hash. A level whose name did not change is not sent: **down to the level that changed**
+  falls out of the comparison. Listing 2 000 instance directories is milliseconds to tens of milliseconds warm (E, not
+  measured); when it runs (every *N* seconds, or on filesystem events) is a sender setting, not a protocol.
+* **Before a group is sent, its bytes are hashed and compared with its name.** A mismatch is a file still being
+  written (or the hash bug above): skipped until the next scan. The temporary-name rename makes it rare; the check
+  makes it harmless.
+* **One update package per study in flight**; the next waits for `stored`. With §2's per-study order this makes the
+  receiver's order the tree's order.
+* **Crash safety.** Crash before `stored`: the list is unchanged, the scan builds the same package, same bytes, same
+  name, and the receiver answers the first outcome. One rule to add at the receiver *(adds to §5)*: **an update whose
+  new hash already equals the current row is answered `stored`, with no audit row**, so a package rebuilt after a
+  crash with other bytes (another compression level) is not refused as stale.
+* **Stale.** A viewer corrected the same group since: the receiver refuses `final`, the sender stops on that study and
+  raises it to an operator (§5, Q3).
+* **A series not yet sent** has no list entry: a re-sent instance just changes the tree, and the series package, when
+  built, carries the current state. Updates exist only after a series is `stored`.
+* **A study date corrected:** the sender keys the list by the coded **study UID**, not the path, so a second `<D>/`
+  holding the same `<E>/` is the same study and only its changed names are sent. The duplicated frames on the PCS's
+  disk are the PCS's to clean (Q-U3).
+* **Two instances that disagree on the exam group** (an old instance of the study parsed after the corrected one): the
+  rename keeps the last parsed, which may be the old value. The receiver's audit shows it; whether such a change is
+  applied or held for review is §17 A7 of the design state, not settled here.
+
+**What it asks of the parser, in full:** one name per marker per directory (write, rename, delete the others), plus
+the two fixes already owed. No new file, no message, no knowledge of the sender.
+
+### 13.4 · Withdrawal through the same path
+
+A KOS rejection note reaches the PCS as an instance, so the parser writes it as a series (a document series, no
+`.sbnd`), and the sender sends it as any **series package**: no withdrawal logic at the PCS. The **receiver** reads
+its concept name: a CID 7010 title makes it a withdrawal of the instances it references (§8's steps), 131360 a
+reinstatement. This keeps the domain rule in one place, ours, and needs from the parser only that a KOS is written
+(its nested references deterministic, the owed fix). §8's "withdrawal package" remains for the update API.
+
+### 13.5 · Recommendation
+
+**(c)**, with whole changed groups on the PCS's wire and differences everywhere after intake. It is the only option in
+which the PCS writes no new kind of file and sends no message, the tree stays the one source of truth, and a crash at
+any point is recovered by scanning again. (d) is the fallback if the sender must hold no state. Not decided: the
+owner's, after the team meeting.
+
+### 13.6 · Questions for the PCS team
+
+* **Q-U1:** Can the parser keep **one group file per marker** per directory (temporary name, rename, delete the
+  others)? Without it a reverted correction is invisible and "current" is ambiguous.
+* **Q-U2:** When are nested keys deterministic and every name the hash of the bytes written (design state §15)? Until
+  then every option reports false changes. *Corrected 2026-10-28:* answered: fixed upstream at `e105214`.
+* **Q-U3:** A corrected study date writes a second tree under another `<D>/`: is `<D>/` needed on your side, and who
+  removes the old tree?
+* **Q-U4:** What does your Store SCP do with a SOP Instance UID it already holds: overwrite the file and run the parser
+  again (assumed here), or keep the first?
+* **Q-U5:** Do patient updates and merges (A08, A40) reach any system you run, or only the hospital's archive? If the
+  archive does not re-send the objects, the corrections never reach us (for the product owner too).
+* **Q-U6:** Does your Store SCP accept Key Object Selection documents, and does the parser write them as a series?
+* **Q-U7:** Does any instance arrive with exam attributes that differ from its study's other instances in normal work
+  (an old instance after a correction)? It decides how often A7 fires.
+
+**Sources added for this section.** DICOM PS3.4 2026d §B.4 (coercion, "implementation dependent"), §B.2.3 (C-STORE
+statuses: no "duplicate" status), Annex F (MPPS), fetched 2026-10-26; IHE RAD TF-1 §4 (PIR), RAD-12 Patient Update and
+HL7 v2 ADT A08/A40 (**named, not re-read** for this section); the PCS repository at `a65abe2`: `README.md`,
+`DICMele2deck/README.md`, `DICMele2deck/src/capi/ESIPFfiled/capi.c` lines 140–390. Not verified: what PS3.4 says, if
+anything, about a duplicate SOP Instance UID at a Storage SCP; the scan's time, estimated.
+
+## 14 · Applying a package item by item
+
+**Status: Proposed, awaiting the owner's confirmation; not decided.** Theory only: nothing built, nothing timed. The
+rule is the owner's (2026-10-26, night); points (1)–(5) are a proposed completion of it. The sender's side is
+[`pcs-transfer.md`](pcs-transfer.md) §15.13 on `claude/sender-package-build` (#177); the receiver's is
+`docs/adr/pacs-receiver.md` §5, commit `5d0ae2c` on `claude/pacs-receiver-impl` (#163).
+
+**The rule.** A package carries only what changed, down to the level that changed. The receiver applies it item by
+item, an item being the exam group, the series group or one instance's group (its private group with it):
+
+| the item at the PACS | the receiver |
+| --- | --- |
+| absent (no study, series or instance) | creates it |
+| present, hash differs | replaces it, with an audit line (§6) |
+| present, hash equal | does nothing |
+
+New instances' frames are merged into the series' `.sbnd` by rewrite (decided, 10-26). Items not in the package are
+untouched.
+
+**The proposed completion.**
+
+1. **Absence means unchanged.** A deletion (a withdrawn instance) is listed explicitly, as a removal.
+2. **Idempotent.** Applied item by item, a resend changes nothing and is answered `stored`, so duplicates need no
+   counter (§13.3's crash rule, generalised).
+3. **Each changed item carries the hash it replaces**, taken from the sender's sent list (§13.3 (c)). Current equal
+   to that hash: applied. Current equal to the new hash: a duplicate. Anything else: stale, the whole package refused
+   `final` (§5).
+4. **One package per series at a time**, in order: the sender waits for `stored` before the next, so a stale package
+   cannot arrive later. *(Narrows §13.3's "one per study in flight" to one per series.)*
+5. **The revision counter leaves the correctness logic**; it may stay as a label in the name.
+
+**Consequence.** The package needs a small **manifest** beside the header: the removals and the previous hashes. The
+owner's 10-25 rule, "no manifest until something needs one", is met: this needs one.
+
+| case | what the package carries |
+| --- | --- |
+| first send of a series | everything: exam, series and instance groups, the bundle; no previous hashes |
+| late images (an addition) | only the new instances' groups and their frames |
+| a patient-name fix | only the exam group, with the hash it replaces |
+| a series-description fix | only the series group, with the hash it replaces |
+| a withdrawn instance | a removal in the manifest, nothing else |
+
+**Open, for the PCS team** (Q-U1 restated): the parser writes a corrected group beside the old file and never deletes
+the old one (§13.2), so the sender cannot tell which is current. The parser should replace the file, or mark the
+current one.
