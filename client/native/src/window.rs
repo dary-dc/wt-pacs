@@ -214,7 +214,7 @@ impl Gpu {
             self.surface.configure(&self.painter.device, &self.config);
             return Ok(());
         };
-        let display = look.display(s);
+        let display = look.display(s, &frame);
         let dpr = self.window.scale_factor();
         self.painter.draw(&texture.texture, &frame, &display, dpr)?;
         count::paint();
@@ -228,7 +228,8 @@ impl Gpu {
             std::fs::write(dir.join(format!("{n:03}.raw")), pixels)?;
             let (width, height) = (self.config.width, self.config.height);
             let exact = format!("{:?}", exact(pixels, self.digests.as_ref().and_then(|d| d.get(look.current).copied()))).to_lowercase();
-            let cell = json!({ "frame": look.current, "exact": exact, "center": look.center, "windowWidth": look.width, "fit": look.fit, "width": width, "height": height, "dpr": dpr });
+            let voi = display.voi.as_ref().map_or((f64::NAN, f64::NAN), |v| (v.center, v.width));
+            let cell = json!({ "frame": look.current, "exact": exact, "center": voi.0, "windowWidth": voi.1, "fit": look.fit, "width": width, "height": height, "dpr": dpr });
             std::fs::write(dir.join(format!("{n:03}.json")), cell.to_string())?;
         }
         self.painted += 1;
@@ -276,13 +277,15 @@ impl Look {
         }
     }
 
-    fn display(&self, s: &Series) -> Display {
+    /// The window set, else the frame's range where the metadata has none.
+    fn display(&self, s: &Series, frame: &Frame) -> Display {
+        let set = self.center.is_finite() && self.width.is_finite();
         Display {
             photometric: s.photometric,
             invert: false,
             slope: s.slope,
             intercept: s.intercept,
-            voi: Some(Voi { center: self.center, width: self.width, function: s.function }),
+            voi: Some(if set { Voi { center: self.center, width: self.width, function: s.function } } else { Voi::of_range(frame, s.slope, s.intercept) }),
             view: View { fit: self.fit, zoom: 1.0, pan_x: 0.0, pan_y: 0.0, rotate: 0, flip_h: false, flip_v: false },
         }
     }
