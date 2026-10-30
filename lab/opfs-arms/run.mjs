@@ -58,16 +58,17 @@ async function browser(profile) {
 
 async function once(origin, p) {
   const dir = mkdtempSync(path.join(WORK, "profile-"));
-  const b = await browser(dir);
+  const b = await browser(dir).catch((e) => ({ error: `did not start: ${e.message}` }));
+  if (b.error) return (rmSync(dir, { recursive: true, force: true }), b);
   const unthrottle = throttleTree(b.pid, THROTTLE);
   const baseline = treePss(b.pid);
   let peak = baseline;
   const sampler = setInterval(() => (peak = Math.max(peak, treePss(b.pid))), 1000);
   try {
-    await b.page.goto(`${origin}/lab/opfs-arms/index.html?${new URLSearchParams(p)}`);
-    const result = Promise.race([b.page.evaluate(() => globalThis.result),
+    const loaded = b.page.goto(`${origin}/lab/opfs-arms/index.html?${new URLSearchParams(p)}`);
+    const result = Promise.race([loaded.then(() => b.page.evaluate(() => globalThis.result)).catch((e) => ({ error: e.message })),
       new Promise((res) => setTimeout(() => res({ error: "timed out" }), 300000))]);
-    const dragging = p.cell === "drag" ? drag(b.page, result) : null;
+    const dragging = p.cell === "drag" ? loaded.then(() => drag(b.page, result)).catch(() => {}) : null;
     const r = await result;
     await Promise.race([dragging, new Promise((res) => setTimeout(res, 5000))]);
     return { ...r, peakGrowthMiB: peak - baseline };

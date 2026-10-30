@@ -61,9 +61,10 @@ export async function firefoxAt(profile, prefs = {}) {
   writeFileSync(path.join(profile, "user.js"), Object.entries(lines).map(([k, v]) => `user_pref("${k}", ${JSON.stringify(v)});`).join("\n") + "\n");
   const ff = own(process.env.FIREFOX_PATH, ["--no-remote", "--profile", profile, "--remote-debugging-port", "0", "about:blank"],
     { stdio: ["ignore", "ignore", "pipe"], env: { ...process.env, DISPLAY: process.env.DISPLAY ?? ":99" } });
+  const startup = setTimeout(() => process.kill(-ff.pid, "SIGKILL"), 60000);
   const [, ws] = await started(ff, "stderr", /WebDriver BiDi listening on (ws:\/\/\S+)/);
   const sock = new WebSocket(`${ws}/session`);
-  await new Promise((resolve, reject) => { sock.onopen = resolve; sock.onerror = reject; });
+  await new Promise((resolve, reject) => { sock.onopen = resolve; sock.onerror = reject; sock.onclose = reject; });
   let id = 0;
   const waiting = new Map();
   sock.onmessage = (m) => {
@@ -72,6 +73,7 @@ export async function firefoxAt(profile, prefs = {}) {
     waiting.delete(r.id);
     if (w) r.type === "error" ? w.reject(new Error(`${r.error}: ${r.message}`)) : w.resolve(r.result);
   };
+  sock.onclose = () => { for (const w of waiting.values()) w.reject(new Error("Firefox closed")); waiting.clear(); };
   const send = (method, params) => new Promise((resolve, reject) => (waiting.set(++id, { resolve, reject }), sock.send(JSON.stringify({ id, method, params }))));
   await send("session.new", { capabilities: {} });
   const tab = (context) => {
@@ -94,6 +96,7 @@ export async function firefoxAt(profile, prefs = {}) {
     };
   };
   const first = (await send("browsingContext.getTree", {})).contexts[0].context;
+  clearTimeout(startup);
   return {
     pid: ff.pid, page: tab(first),
     context: {
