@@ -54,10 +54,11 @@ function settingsTheViewCannotHonourAreRefused() {
     [{ writer: "store" }, "refused: writer under view page — the view worker's; name view=worker"],
     [{ opts: JSON.stringify({ waitAhead: 4 }) }, "refused: waitAhead under view page — the view worker's; name view=worker"],
     [{ view: "page", opts: JSON.stringify({ holdEveryOther: true }) }, "refused: holdEveryOther under view page — the view worker's; name view=worker"],
+    [{ opts: JSON.stringify({ pixels: "transfer" }) }, "refused: pixels under view page — the view worker's; name view=worker"],
     [{ view: "worker", writer: "disk" }, 'refused: writer "disk" — store, decoders or view'],
     [{ view: "worker", writer: "decoders", opts: JSON.stringify({ pixels: "transfer" }) }, "refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred"],
   ]) check(refusal(query) === said, `${JSON.stringify(query)}: ${refusal(query)}`);
-  for (const query of [{ opts: JSON.stringify({ span: 2, waitAhead: 0 }) }, { view: "worker", writer: "view", opts: JSON.stringify({ waitAhead: 4, holdEveryOther: true, pixels: "transfer" }) }]) {
+  for (const query of [{ opts: JSON.stringify({ span: 2, waitAhead: 0, pixels: "shared" }) }, { view: "worker", writer: "view", opts: JSON.stringify({ waitAhead: 4, holdEveryOther: true, pixels: "transfer" }) }]) {
     check(refusal(query) === null, `${JSON.stringify(query)} taken`);
   }
 }

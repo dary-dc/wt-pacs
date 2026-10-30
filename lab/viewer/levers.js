@@ -1,14 +1,15 @@
 /** The viewer's lab parameters, honoured only on a host that serves this file: client/README.md §The viewer */
 import { sawtooth, STEP_MS, waits } from "./trace.js";
 
-/** Settings the page view would take and ignore: docs/adr/frame-path.md §The core, assembled. */
-const WORKER_ONLY = ["writer", "waitAhead", "holdEveryOther"];
+/** Settings the page view would ignore, or under `pixels` copy each paint: docs/adr/frame-path.md §The core, assembled. */
+const WORKER_ONLY = ["writer", "waitAhead", "holdEveryOther", "pixels"];
 
 export function levers(q) {
   if (q.get("trace") && q.get("trace") !== "sawtooth") throw new Error(`refused: trace ${JSON.stringify(q.get("trace"))} — sawtooth`);
   const opts = q.get("opts") ? JSON.parse(q.get("opts")) : {};
   const writer = q.get("writer") ?? undefined;
-  const ignored = (q.get("view") ?? "page") === "page" && WORKER_ONLY.find((k) => ({ ...opts, writer })[k]);
+  const set = { ...opts, writer, pixels: opts.pixels === "transfer" };
+  const ignored = (q.get("view") ?? "page") === "page" && WORKER_ONLY.find((k) => set[k]);
   if (ignored) throw new Error(`refused: ${ignored} under view page — the view worker's; name view=worker`);
   if (writer !== undefined && !["store", "decoders", "view"].includes(writer)) throw new Error(`refused: writer ${JSON.stringify(writer)} — store, decoders or view`);
   if (writer === "decoders" && opts.pixels === "transfer") throw new Error("refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred");
