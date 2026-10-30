@@ -4,7 +4,7 @@ import { busyPage } from "../frame-clock/busy.js";
 import { sawtooth, STEP_MS, waits } from "./trace.js";
 
 /** Settings the page view would ignore, or under `pixels` copy each paint: docs/adr/frame-path.md §The core, assembled. */
-const WORKER_ONLY = ["writer", "waitAhead", "holdEveryOther", "pixels"];
+const WORKER_ONLY = ["writer", "waitAhead", "holdEveryOther", "pixels", "pageDials", "viewWorkerFirst", "glAfterDial", "shortRuns"];
 
 export function levers(q) {
   if (q.get("trace") && q.get("trace") !== "sawtooth") throw new Error(`refused: trace ${JSON.stringify(q.get("trace"))} — sawtooth`);
@@ -14,6 +14,7 @@ export function levers(q) {
   const ignored = (q.get("view") ?? "page") === "page" && WORKER_ONLY.find((k) => set[k]);
   if (ignored) throw new Error(`refused: ${ignored} under view page — the view worker's; name view=worker`);
   if (writer !== undefined && !["store", "decoders", "view"].includes(writer)) throw new Error(`refused: writer ${JSON.stringify(writer)} — store, decoders or view`);
+  if (writer === "decoders" && opts.pageDials) throw new Error("refused: writer decoders with pageDials — the decoders are told to keep frames only once the cache is open");
   if (writer === "decoders" && opts.pixels === "transfer") throw new Error("refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred");
   // docs/adr/frame-path.md §7: the page busy from here, and after the fill a cine of `cine` seconds.
   const tasks = q.get("busy") === "1" ? busyPage() : [];

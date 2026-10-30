@@ -2,7 +2,7 @@
 import { DownloaderClient } from "/client/transport/consumer.js";
 import { built } from "/client/decode/wasm-glue.js";
 import { Painter } from "/client/paint/painter.js";
-import { asPainted, Controller, FIT } from "/client/view/controller.js";
+import { asPainted, Controller, FIT, wantFrom } from "/client/view/controller.js";
 import { View, ViewWorker } from "/client/view/view.js";
 
 const q = new URLSearchParams(location.search);
@@ -23,6 +23,7 @@ if (lab.refused) {
   report({ error: lab.refused });
   throw new Error(lab.refused);
 }
+const booted = where === "worker" && lab.opts.viewWorkerFirst ? ViewWorker.boot() : undefined;
 const meta = await globalThis.viewerMetadata;
 /** Epoch ms of the page's start, for the lab's ledger: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
 const boot = { metadata: at() };
@@ -87,7 +88,8 @@ if (where === "page") {
   controller = new Controller({ meta, fillMode, emit, size: size(), paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
 } else {
   boot.viewWorker = at();
-  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settlePaint: Boolean(lab.settlePaint), watchWrites: Boolean(q.get("check")) });
+  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settlePaint: Boolean(lab.settlePaint), watchWrites: Boolean(q.get("check")),
+    booted, glAfterDial: Boolean(lab.opts.glAfterDial) });
 }
 
 function status() {
@@ -124,7 +126,9 @@ const connectOpts = {
   decoder,
 };
 try {
-  if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer }, issuedAt);
+  // What the page dials with, under the lab's `pageDials`: the view worker's first want, unless a cache or a half-held store shapes it.
+  const firstWant = options.pageDials && !writer && !options.holdEveryOther ? wantFrom(0, n, fillMode, Boolean(options.waitAhead)) : undefined;
+  if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer, firstWant }, issuedAt);
   else {
     controller.issuedAt = issuedAt;
     controller.client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {

@@ -21,6 +21,8 @@ let latest = null;
 /** The lab's flag: a paint waits for the GPU before it reports, which here would block the store. */
 let settle = false;
 let cine = null;
+/** Resolves once the paint module holds its WebGL2 context: at `start`, or under the lab's `glAfterDial` once the dial has gone. */
+const gl = Promise.withResolvers();
 /** Steps on each play and pause, so a play whose clock is still loading starts no cine once overtaken. */
 let cues = 0;
 
@@ -42,15 +44,21 @@ function paint(frame, display, { read = false } = {}) {
   const same = frame === lastPainted;
   lastPainted = frame;
   const { width, height, dpr } = controller.size;
-  return painter.paint({ frame: asPainted(frame.info), same, display, width: Math.round(width * dpr), height: Math.round(height * dpr), dpr, read, settle });
+  const draw = () => painter.paint({ frame: asPainted(frame.info), same, display, width: Math.round(width * dpr), height: Math.round(height * dpr), dpr, read, settle });
+  return gl.ready ? draw() : gl.promise.then(draw);
 }
 
 /** `watchWrites`, the viewer check's: every cache write on this thread is counted from the start. */
-function start({ canvas, meta, fillMode, size, settlePaint, watchWrites }) {
+function start({ canvas, meta, fillMode, size, settlePaint, watchWrites, glAfterDial }) {
   boot.viewStart = at();
   controller = new Controller({ meta, fillMode, paint, emit, size });
   settle = settlePaint;
   if (watchWrites) import("./check.js").then((m) => m.watchWrites());
+  if (glAfterDial) gl.canvas = canvas;
+  else startPainter(canvas);
+}
+
+function startPainter(canvas) {
   try {
     emit("renderer", { renderer: painter.start(canvas, (why) => emit("failed", { scope: "worker", reason: `painter: ${why}` })) });
   } catch (e) {
@@ -58,13 +66,17 @@ function start({ canvas, meta, fillMode, size, settlePaint, watchWrites }) {
     emit("failed", { scope: "worker", reason: `painter: ${e.message}` });
   }
   boot.viewGl = at();
+  gl.ready = true;
+  gl.resolve();
 }
 
 /**
  * The cache opens first, so the first want asks the downloader for what it lacks alone; that want rides the start in
- * place of the fill. The store acks each frame the consumer hands it. `writer`: client/view/cache.js
+ * place of the fill. Under the lab's `pageDials` the page started and dialled the downloader already, `sent` riding its
+ * start, and the store sends its want once linked if it differs. The store acks each frame the consumer hands it.
+ * `writer`: client/view/cache.js
  */
-async function connect({ port, url, certHash, opts: { writer, holdEveryOther, ...opts }, issuedAt }) {
+async function connect({ port, url, certHash, opts: { writer, holdEveryOther, ...opts }, issuedAt, dialled = false, sent }) {
   boot.viewConnect = at();
   downloader = port;
   controller.issuedAt = issuedAt;
@@ -74,17 +86,21 @@ async function connect({ port, url, certHash, opts: { writer, holdEveryOther, ..
   // Descending, so the held frames are asked alike whatever the downloader's `span`.
   const held = holdEveryOther && controller.want().filter((i) => i % 2 === 0).reverse();
   const want = store.want(held || controller.want());
-  controller.client = await DownloaderClient.connect(url, certHash, {
+  const connecting = DownloaderClient.connect(url, certHash, {
     ...opts,
     fill: undefined,
     want,
     port,
     heldAcks: true,
+    dialled,
     cache: writer === "decoders" && store.cache ? { key: url } : undefined,
     onFrame: (f) => controller.take(f),
     onError: ({ frameIndex, reason }) => controller.refused(frameIndex, reason),
   });
-  store.link(controller.client, want);
+  // A task later, so the dial has been posted: connect posts it after a microtask.
+  if (gl.canvas) setTimeout(() => startPainter(gl.canvas));
+  controller.client = await connecting;
+  store.link(controller.client, dialled ? sent : want);
   if (held) fillAround(held);
 }
 

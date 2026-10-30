@@ -260,7 +260,9 @@ function serveWant() {
   const unsent = [...order].filter((i) => !records.has(i));
   let inRun = 1;
   runEnd(head, (i) => i === unsent[inRun] && ++inRun);
-  if (owed === 0 && ended.size === 0 && unsent[0] === head && inRun >= cfg.askDepth) {
+  // Lab setting `shortRuns`: before the session opens, a want the run covers whole rides the dial however short: docs/adr/frame-path.md §3
+  const whole = cfg.shortRuns && !session && inRun === unsent.length;
+  if (owed === 0 && ended.size === 0 && unsent[0] === head && (inRun >= cfg.askDepth || whole)) {
     addToFill(unsent.slice(0, inRun), abs());
     return void issueFill();
   }
