@@ -32,6 +32,22 @@ pub struct Voi {
     pub function: Function,
 }
 
+impl Voi {
+    /// The viewer's window where the metadata has none: the frame's decoded range through its rescale.
+    /// `client/view/controller.js` `display`.
+    pub fn of_range(frame: &Frame, slope: f64, intercept: f64) -> Self {
+        let samples: Box<dyn Iterator<Item = f64>> = match (frame.bits > 8, frame.signed) {
+            (true, true) => Box::new(frame.pixels.chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]]) as f64)),
+            (true, false) => Box::new(frame.pixels.chunks_exact(2).map(|b| u16::from_le_bytes([b[0], b[1]]) as f64)),
+            (false, true) => Box::new(frame.pixels.iter().map(|&b| b as i8 as f64)),
+            (false, false) => Box::new(frame.pixels.iter().map(|&b| b as f64)),
+        };
+        let (lo, hi) = samples.fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| (lo.min(v), hi.max(v)));
+        let (lo, hi) = (lo * slope + intercept, hi * slope + intercept);
+        Self { center: (lo + hi) / 2.0, width: ((hi - lo).abs() + 1.0).max(1.0), function: Function::Linear }
+    }
+}
+
 /// `voi` is required for grey and ignored for RGB.
 pub struct Display {
     pub photometric: Photometric,
@@ -296,6 +312,19 @@ mod tests {
         let t = table(0.0, 1.0).unwrap();
         assert_eq!((t[32768 - 1], t[32768]), (0, 255));
         assert!(table(0.0, 0.99).is_err());
+    }
+
+    /// **With no window in the metadata, the window is the frame's range through its rescale,** as the browser's:
+    /// signed 16-bit samples −100 and 300 at slope 2, intercept 10 give −190 … 610, centre 210, width 801; a flat
+    /// 8-bit frame gets width 1, the least LINEAR takes.
+    #[test]
+    fn a_frame_without_a_window_is_windowed_by_its_range() {
+        let words: Vec<u8> = [-100i16, 300, 7].iter().flat_map(|v| v.to_le_bytes()).collect();
+        let frame = Frame { pixels: &words, width: 3, height: 1, bits: 16, components: 1, signed: true };
+        let voi = Voi::of_range(&frame, 2.0, 10.0);
+        assert_eq!((voi.center, voi.width), (210.0, 801.0));
+        let flat = Frame { pixels: &[9, 9], width: 2, height: 1, bits: 8, components: 1, signed: false };
+        assert_eq!(Voi::of_range(&flat, 1.0, 0.0).width, 1.0);
     }
 
     /// An RGB frame wider than wgpu's default 8192 texels a row (three a pixel) paints as stored; one over the

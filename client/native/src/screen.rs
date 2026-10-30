@@ -77,22 +77,9 @@ impl Screen {
 
 fn paint(painter: &Painter, s: &Shape, pixels: &[u8], width: u32, height: u32) -> Result<Vec<u8>> {
     let frame = Frame { pixels, width: s.width, height: s.height, bits: s.bits, components: s.components, signed: s.signed };
-    let (center, window) = s.window.unwrap_or_else(|| {
-        let (lo, hi) = range(&frame);
-        ((lo + hi) / 2.0, (hi - lo).abs() + 1.0)
-    });
-    let voi = Some(Voi { center, width: window.max(1.0), function: Function::Linear });
+    let voi = s.window.map_or_else(|| Voi::of_range(&frame, 1.0, 0.0), |(center, width)| Voi { center, width: width.max(1.0), function: Function::Linear });
+    let voi = Some(voi);
     let view = View { fit: true, zoom: 1.0, pan_x: 0.0, pan_y: 0.0, rotate: 0, flip_h: false, flip_v: false };
     let display = Display { photometric: s.photometric, invert: false, slope: 1.0, intercept: 0.0, voi, view };
     painter.paint(&frame, &display, width, height, 1.0)
-}
-
-fn range(f: &Frame) -> (f64, f64) {
-    let samples: Box<dyn Iterator<Item = f64>> = match (f.bits > 8, f.signed) {
-        (true, true) => Box::new(f.pixels.chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]]) as f64)),
-        (true, false) => Box::new(f.pixels.chunks_exact(2).map(|b| u16::from_le_bytes([b[0], b[1]]) as f64)),
-        (false, true) => Box::new(f.pixels.iter().map(|&b| b as i8 as f64)),
-        (false, false) => Box::new(f.pixels.iter().map(|&b| b as f64)),
-    };
-    samples.fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| (lo.min(v), hi.max(v)))
 }

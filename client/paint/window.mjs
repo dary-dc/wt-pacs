@@ -219,6 +219,17 @@ try {
     for (const [thread, flags] of PAINT_THREADS) await visit(name, frames, thread, flags(name), steps);
   }
 
+  // The grey series with no window in its metadata: each paint thread windows each frame by its range, as the browser does.
+  const bare = path.join(T, "window_grey16_bare");
+  const unset = JSON.parse(fs.readFileSync(path.join(ROOT, "lab/fixtures/window_grey16/metadata.json"), "utf8"));
+  delete unset.window;
+  fs.writeFileSync(`${bare}.json`, JSON.stringify(unset));
+  fs.mkdirSync(bare);
+  SERIES[0][1].forEach((p, i) => fs.symlinkSync(path.join(PLAIN, `${p}.av1`), path.join(bare, `${String(i).padStart(3, "0")}.av1`)));
+  run(`${BIN}/pack-series`, ["--metadata", `${bare}.json`, "--frames", bare, "--output", `${bare}/series.sbnd`]);
+  const unwindowed = () => [["open, no window in the metadata", [], { frame: 0 }], ["Right", [["key", "Right"]], { frame: 1 }]];
+  for (const [thread, flags] of PAINT_THREADS.slice(0, 3)) await visit("window_grey16", bare, `${thread}, no window`, flags(), unwindowed);
+
   // The grey frames three times over, so seven steps never reach the last.
   const long = path.join(T, "window_grey16_12");
   const meta = JSON.parse(fs.readFileSync(path.join(ROOT, "lab/fixtures/window_grey16/metadata.json"), "utf8"));

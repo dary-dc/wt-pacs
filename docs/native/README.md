@@ -1041,6 +1041,13 @@ cache's write delay.
 * **Not symmetric, stated:** under `ui` the dial starts as the window opens, so its first frame waits on the UI thread's
   surface and adapter set-up; under `view` and `core` the dial follows them; the browser dials after its page's load.
   Both clients render in software (lavapipe, SwiftShader): nothing here is a GPU, vblank or on-screen-on-time claim.
+* *Corrected after its first four visits, before any was counted (2026-10-30):* the window refused the 61 MB series
+  at its first paint ("LINEAR needs a window width ≥ 1, got NaN"): the series has no window in its metadata, and the
+  window, unlike the browser and `native-fill`, had no fallback. It now windows such a frame by its decoded range
+  through its rescale, as `client/view/controller.js` does (`Voi::of_range`; a drag on such a series is ignored, not
+  fixed). `paint::tests` and a windowless run in `client/paint/window.mjs` hold it, |Δ| 0 at 1:1 on every paint thread;
+  three mutants of the range and one dropping the fallback each fail them. The four visits, three failed and one the
+  browser's, are kept in `rows-aborted.jsonl`, not counted, and the run restarted at round 0. Nothing else changed.
 
 **The series**, made by `lab/native-fill/run.py --make-series DIR` (`lab/scripts/gen_frame_pnm.py`, OpenJPH 0.31.0's
 `ojph_compress` in the served profile, `pack-series`; digests from the generated samples). The generator is seeded by
