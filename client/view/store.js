@@ -11,8 +11,10 @@ export class FrameStore {
   /** The frames on disk already read under the current want; one evicted since is read again only by the next want. */
   #read = new Set();
   #reading = false;
-  /** The misses last sent, in their order, less those that have arrived since: only these are owed. */
+  /** The misses last sent, in their order. */
   asked = [];
+  /** Of those, the ones not yet arrived or failed: a want whose misses equal these is not sent again. */
+  #owed = [];
   /** The index the memory window is centred on; past the budget, the frame farthest from it goes first. */
   near = 0;
   /** Under the worker view, the downloader's client the misses go to; under the page view, none, and the controller asks. */
@@ -46,7 +48,7 @@ export class FrameStore {
   put(i, frame, ack = () => {}) {
     if (this.#frames.has(i)) return void ack();
     this.#frames.set(i, frame);
-    this.asked = this.asked.filter((k) => k !== i);
+    this.#owed = this.#owed.filter((k) => k !== i);
     while (this.#frames.size > this.#budget) this.#frames.delete(this.#farthest());
     this.#settle(i);
     this.#arrived(i, frame);
@@ -61,8 +63,8 @@ export class FrameStore {
     this.#read.clear();
     this.#readCache();
     const misses = order.filter((i) => !this.#frames.has(i) && !this.cache?.present.has(i));
-    if (same(misses, this.asked)) return misses;
-    this.asked = misses;
+    if (same(misses, this.#owed)) return misses;
+    this.asked = this.#owed = misses;
     this.downloader?.want(misses);
     return misses;
   }
@@ -70,7 +72,7 @@ export class FrameStore {
   /** The downloader from now on; `sent`, the want that rode its start, followed by any miss found since. */
   link(downloader, sent) {
     this.downloader = downloader;
-    if (!same(this.asked, sent)) downloader.want(this.asked);
+    if (!same(this.#owed, sent)) downloader.want(this.#owed);
   }
 
   /** Resolves once frame `i` is here or has failed. */
@@ -83,6 +85,7 @@ export class FrameStore {
   /** A frame the downloader could not deliver: no longer owed, so a later want sends it again. */
   failed(i) {
     this.asked = this.asked.filter((k) => k !== i);
+    this.#owed = this.#owed.filter((k) => k !== i);
     this.#settle(i);
   }
 

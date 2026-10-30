@@ -117,8 +117,12 @@ test("worker view: a frame let go past the budget is asked again", async () => {
   assert.deepEqual([...c.store.keys()].sort(), [0, 1]);
   c.show(2);
   assert.deepEqual(wants, ["0,1,2", "2"]);
-  c.take(frame(2));
-  assert.deepEqual(c.store.asked, []);
+  const sent = [];
+  const all = rig({ frames: 3, wants: sent }).c;
+  all.show(0);
+  for (const i of [0, 1, 2]) all.take(frame(i));
+  all.show(1);
+  assert.deepEqual(sent, ["0,1,2"]);
 });
 
 /** Under the worker view a step to a held frame paints it and sends the downloader nothing, on demand and filling. */
