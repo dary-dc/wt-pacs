@@ -768,6 +768,31 @@ reads a pixel to settle; and §7's busy cine re-measured with the old read and t
 that woke early let the loop call twice in one 20 ms slot (800 calls in a 500-slot visit). The loop now counts its
 slots; those 8 rows are discarded, not read for the hypothesis, and the run restarted from round 0.
 
+**§7's cine cell again, pre-registered 2026-10-30 before any of its data.** §7's cell 2 cine visits as §7 ran them
+(its series `ct_nlst`, `us_liver`, `dbt12_ea1141`; `r50000` behind the relay on core 3, the browsers on cores 0–2;
+§7's busy page from navigation, the fill, then 10 s of cine at the series' rate, frame 0 due mid display interval;
+late and gap p99 from the draw log against the vsync log), on the code of this branch, with five arms, each a
+`lab/viewer/view_frames.py` variant: `page` and `worker` settling by the fence, `pageaa` (A again, the A/A pair), and
+`page-read` and `worker-read` settling by the one-pixel read as §7's run did (the rig's `?settle=`; §7's arms all
+settled by the read). Chromium (Playwright's, headless, SwiftShader) and Firefox (Playwright's 155, headed under Xvfb,
+llvmpipe); `lab/order.mjs` interleaves the cells and the arms in each round; **12 rounds kept, 1×**, then 4× only for
+an engine and series whose 1× cell the saturation guard leaves unsaturated, with nothing claimed from a 4× cell the
+guard saturates. Rows: `lab/viewer/rows/settle-cine.jsonl`, §7's row format. Read by
+`node lab/viewer/settle-summary.mjs lab/viewer/rows/settle-cine.jsonl`, written and tested before data.
+
+* **Guards, §7's:** a visit is dropped if the relay's timing is VOID, it errs, it holds a frame not exact or its
+  shortest long task is under 200 ms; dropped visits are re-run as whole extra rounds; a cell counts its first 12
+  rounds with every arm kept. **VOID** when `pageaa` and `page` differ, median over paired rounds, by more than 2
+  points of late frames or 16.7 ms of gap p99; **saturated** when `page`'s draw p99, median over rounds, passes half
+  the period. A cell decides only when every frame is exact and it is neither short, VOID nor saturated.
+* **Rule (a), the wait was the read**, per engine: in every decided cell `worker-read`'s draw p99 is ≥ 150 ms and
+  `worker`'s ≤ half the period; "not the read" when no decided cell has it, "mixed" otherwise.
+* **Rule (b), §7's cine rule on the fence arms**, per engine: where `page` is late by more than 2 points, `worker` is
+  late by at most 2 with a gap p99 ≤ 2 periods ("B′ keeps cine on time where A misses"), in every such decided cell.
+* **Prediction.** Firefox: (a) holds; under (b) B′ keeps cine on time, as in Chromium; `page-read` and `worker-read`
+  late as §7 found (20–40 %). Chromium: (a) does not hold (neither settle waits); (b) holds as in §7. If (a) fails in
+  Firefox, §7's sentence is kept and what the probe found is added beside it.
+
 ### A frame clock in the view worker (2026-10-28)
 
 *Theory and a pre-registered protocol; the harness built 2026-10-30 ([`../../lab/frame-clock/`](../../lab/frame-clock/README.md)) and smoke-run, nothing timed as a result.* The owner's next client shape: the page holds no
