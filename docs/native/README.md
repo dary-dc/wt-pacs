@@ -157,6 +157,23 @@ run on a simulator or device in this project's CI.
 
 ## 6. The measurement plan
 
+**Running the native steps in a stock cloud container** (2026-10-30). Without this, `scripts/gate.sh` skips the native
+decode, painter and window steps by name. As root, from the repository:
+
+```bash
+apt-get update      # the stock lists have neither libxkbcommon-x11-0 nor meson
+apt-get install -y mesa-vulkan-drivers xvfb xdotool libxkbcommon-x11-0 meson
+ingest/tools.sh     # 186 s on 4 cores; writes ingest/.build, the gate's default INGEST_BUILD
+python3 -m venv .venv && .venv/bin/pip install --require-hashes -r ingest/requirements.txt
+PYTHON=.venv/bin/python scripts/gate.sh
+```
+
+`ingest/tools.sh` writes to `BUILD`, and the gate reads `INGEST_BUILD`; both default to `ingest/.build`, so set both or
+neither (`BUILD=/x ingest/tools.sh`, then `INGEST_BUILD=/x scripts/gate.sh`). The gate finds lavapipe itself
+(`/usr/share/vulkan/icd.d/lvp_icd*.json`); a lab run passes it as `VK_ICD_FILENAMES`. With these, `cargo test -p
+native-client` (with `--features decode` too), the painter's, decode and view tests and `client/paint/window.mjs` pass
+on lavapipe.
+
 Order: **desktop in cloud containers first**, so each row runs unattended; **then a desktop with a GPU** (the owner's);
 **then phones**. Every timed row interleaves its arms, prints each arm's full settings (server build, controller and
 initial window, relay profile, decoder build) and differs in the lever alone; every frame is checked bit-exact against
