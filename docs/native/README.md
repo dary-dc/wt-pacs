@@ -1000,6 +1000,8 @@ native side. A row reading *not yet* is open.
 | status: the frame, its check, the last failure | the status line and the NOT EXACT mark | the window's title: `wt-pacs · frame i of n · exact` / `unchecked` / `NOT EXACT…` / `refused: …`, then `· error: frame j: …` | `look::tests::the_title_says_the_frame_its_check_and_the_last_failure`; `window.mjs` *open*, *End*, *Home* read the title |
 | cine: Space starts and stops it; one frame forward each period, looping; a late tick not made up | `View.play`, `setInterval` at `1000 / cineFps` | `clock::Play` on the thread that paints, under every paint thread | `clock::tests::the_product_cine_steps_once_a_period_and_does_not_make_up_a_late_tick`; `window.mjs` *Space, a second of cine*: frames forward, wrapping, stopped once paused |
 | the cine's period: the series' `frameTimeMs`, else `1000 / cineRate`, else 100 ms | `cineFps` | `Play::period`, from the bundle's metadata | the same unit test |
+| the series' metadata from the deployment | `/series/metadata` from the web host | *not yet*: a local `--bundle`; §Proposed: the series' metadata from the server | — |
+| held to `client/contract`'s clauses | every client, `scripts/gate.sh` | *not yet*: §Proposed: `client/contract`'s clauses against native | `transport::tests::the_native_client_gets_webtransports_bytes` holds the bytes only |
 
 ### Where it departs
 
@@ -1028,3 +1030,72 @@ native side. A row reading *not yet* is open.
 * **No recycle.** The browser's recycle before a byte budget (`recycleAtBytes`) is a lab setting there, off by
   default; not built.
 
+### Proposed: the series' metadata from the server (2026-10-30)
+
+*A proposal for review; nothing built. Structural: it changes what `wt-pacs/1` carries.*
+
+**Today.** `native-window` and `native-fill` read the metadata (shape, display, frame digests, version) from a local
+`.sbnd` named by `--bundle`. The browser fetches `/series/metadata` over HTTP from the web host (`server/dev-server.py`,
+`deploy/nginx`), not from the QUIC server; both read the same bundle the server serves.
+
+**Options.**
+
+1. **Fetch `/series/metadata` from the web host**, as the page does. Same source and bytes as the browser. Costs an
+   HTTPS client in the crate (hyper and rustls, or reqwest), a second origin to name and trust (web PKI there, a pinned
+   hash on QUIC), and a second round trip before the first ask.
+2. **A FoD op, `{"op":"metadata"}`, answered on the control stream.** No new origin. `MAX_FOD_LEN` is 64 KiB; at about
+   20 bytes of digest a frame, a series past ~3 000 frames does not fit, so the answer needs its own framing anyway.
+3. **On `wt-pacs/1` only, the server sends the metadata at accept, on the first uni stream it opens, before any
+   frame:** a 4-byte length and the JSON. The client reads that stream before it reads media. No new op, no round trip,
+   no second origin, and the WebTransport path is untouched (§8.5's rule). Every dial pays the bytes, a resume included.
+   That is also a gain: a resumed session whose metadata `version` differs from the one held has met a restarted server
+   on another series, which the page learns only from its transport file.
+
+**Recommendation: 3.** The server already holds the metadata (`series_bundle::read_layout`); the change is one stream
+at accept in `serve_raw`, a reader in `transport::connect`, `WIRE.md` §The raw QUIC mapping and §8.2's table, and
+`--bundle` kept as a lab setting for `native-fill`'s byte comparison. *Not measured:* the time to the first frame with
+the metadata ahead of it; a `wt-pacs/1` dial today has nothing ahead of it.
+
+**Trust is unchanged.** The digests come from the deployment that serves the frames, under the same pinned
+certificate; the browser takes them from the same deployment's web host. A check against digests from the same source
+proves the decode, not the source (`../adr/exactness-in-production.md`).
+
+### Proposed: `client/contract`'s clauses against native (2026-10-30)
+
+*A proposal for review; nothing built. Structural: a second rig and a fake server.*
+
+**Today.** The clauses (`client/contract/clauses.ts`) drive a `ConformantSession` — `requestExactFrame`,
+`fillFrames`, `endStream`, `stats`, `close` — over a fake WebTransport or WebSocket installed in the Node process, and
+steer the fake through a `FakeHandle` (`pushFrame`, `pushOnOneStream`, `pushTruncatedFrame`, `trickleFrame`,
+`serverClose`, `controlMessages`, `didClose`, dials counted). Native is Rust over raw QUIC: neither the JS surface nor
+the fakes reach it. What holds native to the browser today is
+`transport::tests::the_native_client_gets_webtransports_bytes`, against the real server.
+
+**The adapter.**
+
+* **`native-session`**, a test binary: `transport::Session` behind a line protocol on stdin and stdout — each call a
+  JSON line, each frame and refusal an event line (the body as a file path, not inline). The Node adapter in
+  `adapters.ts` turns it into a `ConformantSession`, as `sessionImpl` does for a bundle.
+* **A fake server on `wt-pacs/1`**, Rust, steered over the same kind of line protocol: the `FakeHandle`'s eight
+  operations on real QUIC streams, so a truncated envelope, a trickle and a server close are what quinn delivers, not a
+  JS model of them.
+* **Two rigs.** The session's (`closure: "fail"`) wraps `transport::Session`; the downloader's (`closure: "redial"`)
+  wraps `ResumingSession` with `Asking`, which is native's downloader.
+
+**What maps, and what does not.** Mapped: `noticesClose`, `bothStreamModes`, `reportsStats` (`inFlight`; `mediaReads`
+is optional), `oneDialServesLaterAsks`, `pushedFill`, `aTruncatedFrameIsAFailure`, `aDeadSessionNamesWhatItOwed`,
+`aLaterFailureIsNotTheFillsOne`, `redialsAfterClosure` (downloader rig), `aSlowFrameHoldsNoOther`,
+`aFrameIsLateOnlyWhenTheSessionGoesQuiet`, `endStreamIsAPromise`, `cancellable`, `anAskIsOnTheWireBeforeItReturns`,
+`aDialThatNeverSettlesIsClosedAtItsDeadline`. Not mapped, each reported by name as the WebSocket's `oneStream` reports
+its own: `workerSafe` and `transferable` (a JS worker and `ArrayBuffer` transfer), `onHeadRunsBeforeTheBody` and
+`anOnHeadThatThrowsFailsItsAsk` (native has no head callback), the ring (`releaseWireBuffer`),
+`anOpeningFillRidesTheUrl` (raw QUIC has no URL; an opening ask would be a FoD message after the handshake) and
+`anEmptyHashDialsUnpinned` (native always pins).
+
+**Cost and risk.** Estimated, not counted from a build: ~250 lines for the fake, ~150 for `native-session`, ~100 for
+the adapter. A second fake to keep in step with `fake-transport.ts` whenever a clause adds a `FakeHandle` operation.
+The clauses that time silence (`aFrameIsLateOnlyWhenTheSessionGoesQuiet`, the 16 s trickle) cross two processes; their
+margins were set for one.
+
+**Recommendation.** Build it, the failure clauses first — truncation, a dead session, a slow frame, silence — since
+those are what native's survival (§Parity) rests on and what the current byte-equivalence test does not touch.
