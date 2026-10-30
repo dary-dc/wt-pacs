@@ -685,12 +685,10 @@ One line per PR: what it delivers · state · supersedes / superseded by. "Theor
 | #222 | `sync-protocol/shapes.md`: shapes A–G against every event (theory) | draft, Proposed | A with F on top, G once F exists; E + F with no second writer (§5, D12) |
 | #223 | the metadata-store lab, §Synchronization: B's bytes against E's, measured, into `claude/update-compression` | draft | B 3.1–3.5× smaller, E at most 0.81 s slower for the median series; the rule's verdict E (§5, D12) |
 | #230 | `pcs-pacs-options.md`: the PCS → PACS path as parts and options (theory) | draft, Proposed | three profiles; the generic design (§20, D15) |
+| #233 | `rsync-delivery.md`: rsync's options, the triggers, what it verifies (theory) | draft | row RSYNC-1 (§20) |
+| #234 | `rsync-updates.md`: late instances, corrections and withdrawals under P1–P4 (theory) | draft | row RSYNC-2 (§20, D14) |
 
-In flight (2026-10-28 night, theory, draft PRs into `claude/pcs-pacs-options`): **RSYNC-1 OPTIONS**
-(`claude/rsync-options`, docs/ingest/rsync-delivery.md): rsync's options, what it verifies (and whether it retries a
-failed file), the trigger, two command lines; **RSYNC-2 UPDATES** (`claude/rsync-updates`,
-docs/ingest/rsync-updates.md): late instances, corrections and withdrawals under P1–P4, crossed with who builds the
-`.sbnd` (§20).
+*Corrected 2026-10-30:* rows RSYNC-1 and RSYNC-2, in flight here on 10-28, are #233 and #234 (the table above).
 
 Older stack (before #142): #113 ← #120 ← #126 (stores, format survey, pair bench), carried by #159: close; #118
 page-open carriers (`metadata-turso` base), not carried, evidence only; #119 receiver design, superseded by #163's ADR
@@ -809,6 +807,13 @@ is not marked merged unless its base is `claude/av1-unified-mainbase`. Retarget 
 (on #146), #166 (on #153), #167 (on #152), #173 (on #166), #174 (on #165), #178 (on #161), #185 (on #179); and, when
 their turn comes, #164 (on #155), #169 (on #163), #170, #171, #177, #181 (on #164), #172, #176 (on #158), #180 (on
 #170), #182 (on #171). Then close the superseded ones above.
+
+**Assembled 2026-10-30** on `claude/line-pacs`, one draft PR into `main` that the owner asked for in place of the
+line's drafts: `main`, then `claude/av1-unified-mainbase`, then every open PR of §12 from #113 to #234 but #143 (outside
+PACS), bases first, one `--no-ff` merge each, this file last. The order is this plan's with the ADRs (#142–#153)
+before #158, the older stack (#113–#156) before #159, #155 before #164, and #220–#234 after #177. Each conflict was
+resolved as the table above says where it names one; the others, and every deviation, are in that PR's body. It
+decides nothing: the waiting PRs stay waiting (D11), the draft is not merged.
 
 ## 14 · Decisions waiting for the owner
 
@@ -1025,4 +1030,4 @@ reasoning: P1 fails when the PCS forgets, P2 keeps every group twice at the PACS
 our script at the PCS) ties this to the layout question (§14, D14).
 
 The options of each part, how they work and what decides them: docs/ingest/pcs-pacs-options.md, on branch
-`claude/pcs-pacs-options` (#230, 2026-10-28; not on this branch).
+`claude/pcs-pacs-options` (#230, 2026-10-28).
