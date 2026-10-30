@@ -40,6 +40,7 @@ pub fn run(fixture: &Path, root: &Path, studies: usize, journal: &str) -> Result
         let tx = conn.transaction()?;
         for name in doc::series_names(&tx)? {
             doc::ready_row(&tx, &name)?;
+            doc::compressed_row(&tx, &name)?;
         }
         tx.commit()?;
         for name in doc::series_names(&conn)? {

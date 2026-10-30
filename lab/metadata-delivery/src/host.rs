@@ -8,7 +8,7 @@ use serde_json::json;
 
 use crate::doc::{self, Source};
 use crate::prepare::{study_dir, study_name};
-use crate::serve::open_and_read;
+use crate::serve::{open_and_answer, open_and_read, Delivery};
 
 pub fn thread_cpu_ns() -> u64 {
     let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
@@ -28,10 +28,19 @@ fn percentile(sorted: &[u64], p: f64) -> u64 {
     sorted[((sorted.len() - 1) as f64 * p).round() as usize]
 }
 
-/// One open's metadata work in this thread, every variant interleaved, the order rotated each round.
+/// A revalidation that is answered with a body is not a revalidation: the variant fails rather than measure it.
+fn not_modified((_, body): (String, Option<Vec<u8>>)) -> Result<usize> {
+    anyhow::ensure!(body.is_none(), "revalidation answered with a body");
+    Ok(0)
+}
+
+/// One open's metadata work in this thread, every variant interleaved, the order rotated each round; the receiver's
+/// writes go to a second study so the reads see one state.
 pub fn cost(root: &Path, rounds: usize) -> Result<()> {
     let dir = study_dir(root, &study_name(0));
     let kept = RefCell::new(doc::open_read(&dir)?);
+    let writer = RefCell::new(doc::open_write(&study_dir(root, &study_name(1)))?);
+    let writer = &writer;
     let text: Vec<String> = ["ct", "ct2000"]
         .iter()
         .map(|n| doc::read(&mut kept.borrow_mut(), n, Source::Instances).map(|p| doc::document(&p)))
@@ -49,10 +58,46 @@ pub fn cost(root: &Path, rounds: usize) -> Result<()> {
                 Box::new(move || Ok(doc::gzip(&doc::document(&doc::read(&mut kept.borrow_mut(), name, source)?)).len())),
             ));
         }
+        let ready_tag = open_and_answer(root, "s000", name, Delivery::Built(Source::Ready), None)?.0;
+        let stored_tag = open_and_answer(root, "s000", name, Delivery::Stored, None)?.0;
+        variants.push((
+            format!("a-ready-304/{name}"),
+            Box::new(move || not_modified(open_and_answer(root, "s000", name, Delivery::Built(Source::Ready), Some(&ready_tag))?)),
+        ));
+        variants.push((
+            format!("a-gz/{name}"),
+            Box::new(move || Ok(open_and_answer(root, "s000", name, Delivery::Stored, None)?.1.map_or(0, |b| b.len()))),
+        ));
+        variants.push((
+            format!("a-gz-304/{name}"),
+            Box::new(move || not_modified(open_and_answer(root, "s000", name, Delivery::Stored, Some(&stored_tag))?)),
+        ));
+        variants.push((format!("a-gz-kept/{name}"), Box::new(move || Ok(doc::compressed(&kept.borrow(), name)?.1.len()))));
+        for (label, write) in [("ready", doc::ready_row as fn(&rusqlite::Connection, &str) -> Result<()>), ("gz", doc::compressed_row)] {
+            variants.push((
+                format!("write-{label}/{name}"),
+                Box::new(move || {
+                    let mut w = writer.borrow_mut();
+                    let tx = w.transaction()?;
+                    write(&tx, name)?;
+                    tx.commit()?;
+                    Ok(0)
+                }),
+            ));
+        }
         let t = &text[i];
         variants.push((format!("gzip-only/{name}"), Box::new(move || Ok(doc::gzip(t).len()))));
         let [b, c_paint, c_study] = doc::derived_files(&dir, name);
+        let b_tag = fs::metadata(&b)?.modified()?;
+        let b_seen = b.clone();
         variants.push((format!("b/{name}"), Box::new(move || Ok(fs::read(&b)?.len()))));
+        variants.push((
+            format!("b-304/{name}"),
+            Box::new(move || {
+                anyhow::ensure!(fs::metadata(&b_seen)?.modified()? == b_tag, "B's file changed");
+                Ok(0)
+            }),
+        ));
         variants.push((format!("c/{name}"), Box::new(move || Ok(fs::read(&c_paint)?.len() + fs::read(&c_study)?.len()))));
     }
     variants.push(("open-only".into(), Box::new(|| Ok(doc::open_read(&dir)?.is_autocommit() as usize))));

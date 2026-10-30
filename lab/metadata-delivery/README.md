@@ -17,6 +17,7 @@ frames over the same WebTransport session from the same serving process.
 | --- | --- | --- |
 | **A1-instances** | the serving process opens the study DB at the request (rusqlite in `spawn_blocking`), reads the paint values from every instance row of the series and the study fields from the exam row, in one read transaction, and builds the document | HTTPS: an endpoint of the serving process behind nginx, same origin as the page |
 | **A1-ready** | the same, but the paint metadata from a **ready per-series row** the receiver writes in the same transaction as the instances | HTTPS, the same endpoint |
+| **A1-gz-row** (amendment below) | the same endpoint, from a **compressed ready row**: the document gzipped by the receiver in the same transaction, with the series' revision as the ETag | HTTPS, the same endpoint |
 | **A2-instances**, **A2-ready** | as A1's two, read when the session is accepted | the session's **first message**, on the server's first stream, ahead of frame 0 |
 | **B** | one file per series derived by the receiver after its commit (`.partial` → `fsync` → `rename`) | nginx, `gzip_static`, `no-cache` + `ETag` (#145's option 1) |
 | **B′** | B again: the A/A arm, whose spread against B is the noise band | as B |
@@ -96,6 +97,31 @@ it is the owner's.
 link (no delay, rate or loss) is run in every round; no difference below its spread is claimed, and H2's rates are
 reported only up to the concurrency at which requests a second stop growing.
 
+### Amendment, 2026-10-26, after the results below and before A1-gz-row was built or run
+
+**The arm.** **A1-gz-row** is A1 with a **compressed ready row**: the receiver writes, in the same transaction as the
+instance rows, the whole document (paint metadata and study fields) gzipped at level 6, and the series' **revision**,
+which it increments on every write of the row. The serving process answers with the row's bytes and the revision as
+the ETag; with `If-None-Match`, it reads the revision alone first and answers 304 if it matches. Since the study fields
+are in the row, a study-field correction rewrites one row per series of the study.
+
+**The cells.** H1 and H2 as above, warm page cache, ct and ct2000, with A1-ready and B interleaved beside it, each
+measured twice: an **open** (no validator) and a **revalidation** (`If-None-Match` holding the current ETag: A1-ready
+builds and gzips the document and compares, as built; B is nginx's or, in H1, a `stat`). H2 at 1, 100 and 1 000
+viewers, 1 and 100 studies. Plus, in H1, the receiver's write of one series' row in a committed transaction, the
+compressed row against the uncompressed one, interleaved with the reads; and the row's stored size.
+
+| # | Prediction | Contradicted if |
+| --- | --- | --- |
+| G1 | In process, connection opened per read: A1-gz-row ≤ 0.3 ms CPU an open at 262 instances and ≤ 0.4 ms at 2 000 (the open, 0.09 ms, and one row of 2.2 or 12.8 KB); its revalidation ≤ 0.2 ms at either (the open and the revision); A1-ready's revalidation within 10 % of its open (0.8 and 4.0 ms) | outside |
+| G2 | The receiver's write of the compressed row costs the uncompressed row's write plus the gzip: + 0.2–0.5 ms at 262 instances, + 2.5–4.5 ms at 2 000 | outside |
+| G3 | The row's gzip bytes are B's file byte for byte: 2 220 and 12 838 B | otherwise |
+| G4 | Serving process + nginx at 1 viewer: A1-gz-row ≤ 1.0 ms CPU an open and ≤ 1.0 ms a revalidation at both sizes (G1 plus the 0.3–0.9 ms the serving process added to A1-ready); B's revalidation ≤ 0.2 ms; A1-ready's revalidation within 0.5 ms of its open | otherwise |
+| G5 | By the host rule above, A1-gz-row's open costs ≤ 2 ms of CPU at 2 000 instances, in process and served at 1 viewer | otherwise |
+
+**Where the host saturates**, for these cells: requests a second at 1, 100 and 1 000 viewers are recorded, and the
+cell where they stop growing is named; h2load shares the 4 vCPU, so CPU per open is quoted only below it.
+
 ## Run
 
 As root, with nginx, `h2load` (nghttp2-client), `certutil` (libnss3-tools), `ip` (iproute2), Playwright's Chromium,
@@ -116,6 +142,9 @@ python3 host_load.py h2 ROOT RUN2 > h2.ndjson           # H2, nothing else runni
 python3 host_load.py hold ROOT > hold.ndjson            # H3; again on ROOT-delete with --journal delete
 python3 consistency.py run ROOT wal && python3 consistency.py run ROOT-delete delete
 python3 consistency.py summary wal delete
+# the amendment: H1 on its own ROOT (its receiver writes move s001's revisions), H2 with revalidation cells
+$B prepare FIX ROOT-H1 --studies 2 && $B cost ROOT-H1 --rounds 300 > cost-gz.ndjson
+python3 host_load.py h2 ROOT RUN3 --arms a1-ready,a1-gz,b --studies 1,100 --revalidate > h2-gz.ndjson
 ```
 
 ## Measured, 2026-10-26
@@ -350,3 +379,83 @@ more, which moves A-instances' read time with them. Frame 0 is the real slice's 
 groups (*synthetic*). The serving process here is minimal: no authorization, no cache of connections, no
 `prepare_cached` across opens beyond SQLite's own; A2 sends the whole document ahead of frame 0 (#153 §12 would put
 the per-frame part after it).
+
+## Measured, 2026-10-26: A1-gz-row, against the amendment
+
+*Against the amendment above, committed before A1-gz-row was built (`b4bf246`).* The same host and versions as above;
+the study DB in the page cache. A1-ready and B were re-measured in the same interleaved rounds, so compare arms within
+this section: this run's A1-ready costs 5–12 % more in process than the run above. Raw rows: [`results/cost-gz.ndjson`](results/cost-gz.ndjson),
+[`results/cost-gz-again.ndjson`](results/cost-gz-again.ndjson) (H1 run twice), [`results/h2-gz.ndjson`](results/h2-gz.ndjson).
+
+**Stored.** The compressed ready row holds B's file byte for byte (a test asserts it): **2 220 B** for ct and
+**12 840 B** for ct2000, plus the revision, against 19 155 and 145 746 B for the uncompressed ready row (paint only).
+B's ct2000 file is 12 840 B in this build, 2 B more than the 12 838 B recorded above, not explained.
+
+**H1, in process** (`cost`, 300 rounds, every variant interleaved, rotated round by round; µs of thread CPU, median
+(p90), first run; the second run's medians are within 7 %):
+
+| | ct, 262 frames | ct2000, 2 000 frames |
+| --- | ---: | ---: |
+| A1-ready, open | 924 (1 436) | 4 219 (5 893) |
+| A1-ready, revalidation (builds, gzips, compares) | 796 (1 235) | 4 268 (5 874) |
+| **A1-gz-row, open** (open, one row) | **252** (390) | **382** (577) |
+| **A1-gz-row, revalidation** (open, the revision) | **198** (318) | **212** (359) |
+| A1-gz-row, the connection already open | 38 (72) | 58 (100) |
+| the open alone | 104 (149) | 104 (149) |
+| B, read the file | 24 (35) | 36 (47) |
+| B, revalidation (a `stat`) | 3 (4) | 4 (5) |
+| receiver: write the uncompressed ready row, commit | 1 053 (1 473) | 5 577 (8 229) |
+| receiver: write the compressed ready row, commit | 1 218 (1 875) | 8 638 (12 380) |
+| gzip at level 6 alone | 412 (602) | 3 362 (4 630) |
+
+The receiver pays **+0.17 ms** a series write at 262 instances and **+3.1 ms** at 2 000 to compress at write (both
+runs). At 262 the increment is under the gzip alone; the compressed row writes 2.2 KB where the other writes 19 KB
+(*inference*). A study-field correction rewrites every series' row of the study, so it pays this once a series.
+
+**H2, through nginx over HTTPS** (h2load, 1 000 / 3 000 / 5 000 opens at 1 / 100 / 1 000 viewers, 1 and 100 studies,
+3 rounds, the six arm × kind variants rotated; every revalidation came back 304 and every open 200, 0 failed; µs of
+CPU an open, serving process + nginx, median over the 2 study counts × 3 rounds):
+
+| arm | series | 1 viewer: open | 1 viewer: revalidation | 100 viewers: open | 100 viewers: revalidation |
+| --- | --- | ---: | ---: | ---: | ---: |
+| a1-ready | ct | 1 290 + 300 | 1 250 + 265 | 1 808 + 203 | 1 793 + 172 |
+| a1-ready | ct2000 | 5 190 + 445 | 5 000 + 385 | 5 048 + 220 | 4 938 + 183 |
+| **a1-gz** | ct | **665 + 255** | **670 + 250** | **2 227 + 178** | **2 278 + 162** |
+| **a1-gz** | ct2000 | **695 + 275** | **670 + 245** | **2 347 + 195** | **2 407 + 167** |
+| b | ct | 0 + 90 | 0 + 80 | 0 + 78 | 0 + 75 |
+| b | ct2000 | 0 + 90 | 0 + 100 | 0 + 83 | 0 + 65 |
+
+* **Where the host saturates.** Requests a second grow from 1 to 100 viewers and fall at 1 000 for every arm (h2load's
+  TLS handshakes and the 4 vCPU shared by h2load, nginx and the serving process): at 100 viewers A1-gz-row peaks at
+  1 250–1 600 opens/s at either size, A1-ready at 1 480–1 850 (ct) and 620–710 (ct2000), B at 9 400–16 800. The
+  1 000-viewer cells are past it and are in `results/` only.
+* **At 100 viewers A1-gz-row's serving process costs 2.0–2.6 ms an open, over three times its 1-viewer figure, and more
+  than A1-ready's at ct** (1.6–2.0 ms), though it does a fraction of the work: on one 100-viewer ct cell outside the
+  rounds, its system time exceeded its user time (1.4–1.5 against 1.0 ms an open) and `strace -c -f` counted ≈ 40
+  `futex` calls an open, 90 % of syscall time. Contention, not the row read; which lock is *not measured* (no `perf`
+  here). Its rate there is 15 % under A1-ready's at ct (medians).
+
+### Against the amendment
+
+| # | Outcome |
+| --- | --- |
+| G1 | open holds (0.25 ms ≤ 0.3, 0.38 ms ≤ 0.4); revalidation holds at 262 (0.19–0.20 ms); **at 2 000 contradicted by 12 µs in the first run** (0.212 ms against 0.2), at the bound in the second (0.200); **A1-ready's revalidation is not within 10 % of its open at 262**: 14–15 % *cheaper* (0.78–0.80 against 0.91–0.92 ms) though it does the open's work plus a hash, unexplained (every variant follows the same one in the rotation: *inference*); at 2 000 within 1 % |
+| G2 | **contradicted at 262**: + 0.17 ms, under 0.2–0.5; holds at 2 000 (+ 3.1 ms) |
+| G3 | holds: B's file byte for byte; 12 840 B at ct2000, not the 12 838 B predicted from the run above |
+| G4 | holds but one cell: A1-gz-row 0.91–1.01 ms an open and 0.91–0.93 ms a revalidation (1.01 ms at ct, 1 study); B's revalidation 0.06–0.13 ms; A1-ready's revalidation within 0.34 ms of its open |
+| G5 | holds: 0.38 ms in process, 0.9–1.0 ms served at 1 viewer, at 2 000 instances |
+
+### By #166's 2 ms rule
+
+* **A1-gz-row is under the rule's 2 ms an open at 2 000 instances** in process (0.38 ms) and served at 1 viewer
+  (0.97 ms with nginx's share), where A1-ready is at 4.2 and 5.6 ms. A revalidation costs it 0.21 ms in process
+  against A1-ready's 4.3 ms; B's is a `stat`, and 0.1 ms of nginx served.
+* **At 100 viewers, where the host saturates, its serving process is over 2 ms** (2.0–2.6 ms an open, contention
+  above), as is A1-ready's (4.7–5.2 ms at 2 000); B costs nginx 0.07–0.09 ms. The rule did not say at which
+  concurrency it applies; both readings are here.
+* **What it costs elsewhere:** the receiver compresses at write, + 3.1 ms a series write at 2 000 instances, once a
+  series of the study for a study-field correction; the row is 12.8 KB where the uncompressed one is 146 KB.
+* **Not run for this arm:** the user's path (A1-ready already ties B on every link, and this arm sends the same bytes
+  sooner) and consistency (the row is written in the instances' transaction, as A1-ready's, so it reads as A1-ready
+  does: *not measured*). The weighing is the owner's.
+
