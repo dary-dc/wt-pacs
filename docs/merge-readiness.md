@@ -863,6 +863,63 @@ changes an ask, a read or a byte. Each touched path gets one mutation (CLAUDE.md
 need `lab/scripts/read_path_ab.sh` with the variants interleaved, and the fill cells must tie. U12 also needs its
 clause moved to the dispatch rig and mutated there, and the ASKDEADLINE cells re-run with the variants interleaved.
 
+**U9–U12, audited.** *2026-10-22, read at `efd5f1c8`; nothing built or run. Every holder found by grep over
+`server/`, `client/`, `lab/`, `deploy/`, `scripts/`, `.github/` and `docs/`.*
+
+* **U9, one WASM type.** *Held by:* [`CLIENTS.md`](CLIENTS.md):39-40 (the handle is exported as
+  `TransportSessionHandle`, the adapter re-exports it); no test holds the name. *Callers of the name:*
+  `session-adapter.js:6,14`, `client/contract/adapters.ts:69` (Node, which loads `pkg/` itself because it inits
+  from bytes, not a URL), `client/contract/refusals.html:34-37`, `lab/dial-deadline/index.html:28`. Every other
+  consumer (the viewer, `deploy/web-files.sh`, `check_equivalence.sh`, the lab pages) loads the adapter, whose
+  surface does not change. *Lost:* nothing; `session.rs` is never used as an rlib, and the adapter keeps the
+  one-time `init()`. The three direct callers are renamed in the same diff. *Proof:* the contract suite on the
+  WASM rig plus `refusals.html` and `check.mjs --client wasm` in the gate; mutation: keep the old `js_name` and
+  watch `adapters.ts` fail to connect. `named()` moves onto the merged type's two promise paths, so the
+  `FrameTimeoutError`/`DialTimeoutError` clauses must still pass by name. *Back:* one revert, no data.
+  **Verdict: safe with that proof.**
+* **U10, drop `uring`.** *Held by:* [`adr/disk-access.md`](adr/disk-access.md):51 and :1152-1154 (the pool path is
+  `--no-default-features`), `server/Cargo.toml:16,25-27,40`, `scripts/gate.sh:173-174` (`cargo check` only, no test
+  runs that build). *Who builds without it:* nobody: `deploy/Containerfile:42`, [`deploy/README.md`](../deploy/README.md):70
+  and CI (via the gate) build the default; the two arm patches in `lab/disk-access-bench/arms/` name `uring` as
+  context but are pinned to their own commit. *Lost:* a binary that makes no io_uring syscall. Under errno
+  seccomp (Docker's default, `kernel.io_uring_disabled`) that costs nothing: the probe and the ring are refused
+  and the pool serves ([`deploy/README.md`](../deploy/README.md):392-397). Under a filter that **kills** on a denied
+  call (systemd's `SystemCallFilter=` without `SystemCallErrorNumber=`) the default binary dies at the banner's
+  probe (`banner.rs:20`, `read_path.rs:225`) even under `WTPACS_READ_PATH=pool`; no deploy here uses one. So the
+  loss is for nobody today, and becomes nothing if the probe is skipped under `pool` (`read_ring=off (pool)`).
+  *Proof:* that skip plus a gate step running the default binary with `WTPACS_READ_PATH=pool` under
+  `strace -f -e trace=io_uring_setup` and asserting zero calls; mutation: probe regardless, the step fails. Plus
+  `read_path_ab.sh` interleaved, as above. *Back:* re-adding ~33 `cfg` lines from git. **Verdict: safe with
+  the probe skipped under `pool`, shown by the strace step; without it, loses the no-io_uring binary,
+  owner's call.**
+* **U11, one control-stream path.** *Held by:* [`ARCHITECTURE.md`](ARCHITECTURE.md):849 ("a session with no URL
+  ask behaves as before") and `an_opening_ask_is_served_behind_the_accept`'s second case (`server.rs:1164-1166`:
+  an ignored ask opens **no media stream**), which the merged path breaks, since `Link::quic` opens the shared
+  stream before control is accepted. *Who reads the order:* no client. Both browser clients and every Rust
+  harness (`window-harness`, `disk-access-bench`, `recv-cost`, `server/tests/gso_cap.rs`) open control, then accept
+  uni streams independently; the downloader dials with no URL ask when nothing is owed (`downloader.js:508`), so
+  the product does take the `None` path, and is indifferent to it. *Lost:* the doc claim, the test's "no stream"
+  assertion, and the `accept control bidi` error context; and a dial that never opens control now holds an
+  opened shared stream. *Proof:* rewrite that case as "no frame arrives" and add "a session with no URL ask is
+  served its first control ask"; mutation: drop the reader's `Failed` on a failed `accept_bi`, a session whose
+  client closes without control must still end. *Back:* one revert. **Verdict: not worth it**: −11 lines for a
+  rewritten test, a retracted doc line and a risk-3 change, gaining no capability.
+* **U12, one silence clock.** *Held by:* [`CLIENTS.md`](CLIENTS.md):251-253 ("`FRAME_TIMEOUT_MS` keeps its own job"),
+  [`client/README.md`](../client/README.md):181-187, [`ARCHITECTURE.md`](ARCHITECTURE.md):1045-1048; tests
+  `aFrameIsLateOnlyWhenTheSessionGoesQuiet` (`client/contract/clauses.ts:493`, both rigs) and `aTimedOutAskIsResumed`
+  (`client/transport/downloader.test.mjs:44`); `lib.rs`'s `named()`. *Callers that drive a session without the
+  downloader:* `lab/stream-shape/index.html`, `lab/idle-sessions/idle-hold.html`, `lab/telemetry-cost/cost.ts`,
+  `lab/client-telemetry/`, `client/contract/refusals.html` and `ask-during-fill.html`; on a silent session their
+  ask now hangs instead of failing at 15 s. *Product:* the viewer goes through the downloader with `survival` on;
+  a 15 s cap on the doubling stall is what `FRAME_TIMEOUT_MS` does there today (`client/README.md`:184-187), so
+  nothing is lost. `survival: false` (tests, `lab/session-survival`'s `today`) changes: owed **fills** would
+  fail at 15 s too, where today only asks do. *Proof:* the clause moved to the dispatch rig and mutated there (a
+  clock counted from the ask fails the 16 s trickle; no cap leaves the silent ask waiting), plus the ASKDEADLINE
+  cells interleaved. *Back:* ~40 lines in two clients, a contract clause and three doc passages. **Verdict:
+  loses the transport's own bound on a silent ask for lab pages and rigs that use `TransportSession` alone, and
+  changes `survival: false` for fills; owner's call.**
+
 **Order.** `claude/test-separation` rewrites `server.rs`, `link.rs`, `pipeline.rs`, `read_path.rs`, `format.rs`
-and `fod`, so U1–U7 land after it merges, as one draft pull request. U8 stands alone and can start today. U9–U12
-wait on the owner's word.
+and `fod`, so U1–U7 land after it merges, as one draft pull request. U8 stands alone and can start today. U9 can
+join U1–U7 with its proof. U10 needs the probe skip first. U11 is dropped unless the owner wants it, and U12
+waits on the owner's word.
