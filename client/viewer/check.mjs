@@ -151,9 +151,10 @@ function judge(name, r, requests, codec, decoder) {
   if (process.argv.includes("--cine")) {
     const c = r.cine ?? {};
     say(c.skipped === 0 && c.inOrder, `one cine sweep from the last frame showed ${r.n - c.skipped} of ${r.n} frames${c.inOrder ? "" : ", not in order"}: ${c.error ?? c.order}`);
-    // Its rate is the series', or the page's frame rate where that is slower.
+    // Filled, its rate is the series', or the page's frame rate where that is slower; on demand it waits on each ask.
     const due = Math.max(c.statedMs, c.frameMs);
-    say(c.stepMs >= 0.95 * c.statedMs && c.stepMs <= 1.25 * due, `the cine stepped every ${c.stepMs?.toFixed(1)} ms, not the ${due?.toFixed(1)} it is due`);
+    const ok = c.stepMs >= 0.95 * c.statedMs && (onDemand || c.stepMs <= 1.25 * due);
+    say(ok, `the cine stepped every ${c.stepMs?.toFixed(1)} ms, not the ${due?.toFixed(1)} it is due`);
   }
 }
 
