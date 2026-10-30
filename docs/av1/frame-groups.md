@@ -354,8 +354,9 @@ unmeasured.
   it nothing checks, so a parse in the client can take its place (*derived*). The parse walks the OBUs to the first
   frame header, each a 1–2-byte header and a size of at most 8 bytes ([S1] §5.3.2, §4.10.5; always present, §5.2),
   requires a sequence header OBU before it, and reads the frame header's first 4 bits: `show_existing_frame` 0,
-  `frame_type` `KEY_FRAME`, `show_frame` 1 ([S1] §5.9.2, §7.6.2; [S25] §4). Where the sequence header's
-  `reduced_still_picture_header` (its fifth bit) is 1, those are implied ([S1] §5.5.1, §5.9.2). `refresh_frame_flags`
+  `frame_type` `KEY_FRAME`, `show_frame` 1 ([S1] §5.9.2, §7.6.2; [S25] §4), and *corrected 2026-10-30:* no OBU
+  extension, else an operating point may drop that header ([S1] §5.3.1; [`../decode/README.md`](../decode/README.md)
+  §WebCodecs without a flush). Where the sequence header's `reduced_still_picture_header` (its fifth bit) is 1, those are implied ([S1] §5.5.1, §5.9.2). `refresh_frame_flags`
   is not read: a shown key frame does not code it and refreshes all eight slots ([S1] §5.9.2). That is one byte of
   each of two OBUs and the headers before them, a few tens of bytes whatever the frame's size (*derived*), and the
   client already walks these OBUs for its codec string (`client/decode/av1-payload.js:60`); dav1d-WASM's `dav1d_flush` a frame
@@ -563,4 +564,7 @@ were not re-read.
 
 Read 2026-10-27 for §5a–§5d: [S1] §3, §5.9.2, §6.8.2, §7.5 and §7.6.2–7.6.3 at `5e04f3f`; [S23]–[S26] at the sections
 cited. The hash is the SHA-256 prefix of the copy read. Read 2026-10-30 for §5d: [S1] §4.10.5, §5.2, §5.3.2, §5.5.1
-and §5.9.2 at `5e04f3f`; [S24] §1, §4.5 and §7.6 and [S25] §4, the same copies by hash.
+and §5.9.2 at `5e04f3f`; [S24] §1, §4.5 and §7.6 and [S25] §4, the same copies by hash. Read 2026-10-30 for
+[`../decode/README.md`](../decode/README.md) §WebCodecs without a flush: [S1] §5.2, §5.3.1, §5.9.2, §5.9.30, §6.8.2, §7.2, §7.5
+and §7.6.3 from `aomediacodec.github.io/av1-spec/` (`acf58a3fdb82`, its commit not checked against `5e04f3f`); [S24]
+§1, §4.5, §4.6 and §7.6 and [S25] §4, the same copies by hash.
