@@ -247,6 +247,39 @@ whether the store holds a downloader: two paths in one class while the page view
 so the opening run rides the session URL; to keep that, the store makes its first want before it has a client, and
 it rides `start` too.
 
+**Proposed (2026-10-30): the page dials, beside the view worker's boot** (§7, *The view worker's start, timed*, found
+why B′'s first frame is later). It changes "the first want rides `start`", so it is proposed here first and built
+behind lab settings in `?opts=` whose defaults are today's; each is refused under `?view=page`, where it would be
+ignored (`lab/viewer/levers.js`).
+
+* **`pageDials`.** At connect the page, which already creates the downloader and links it to the view worker, also
+  posts it `start` and `dial`, as the page view does, so the session opens while the view worker boots. The view worker
+  joins that downloader (`DownloaderClient.connect` with `dialled`: it waits for `started` and posts neither) and links
+  its store with what rode the start; a want of its own that differs goes over the port as `want`, as any later want
+  does. **What rides the start:** with no cache and no half-held store, the controller's want from frame 0
+  (`wantFrom`, the one definition both threads use) — the same frames in the same order the view worker would have
+  sent, so the opening run still rides the session URL. **With the cache on** (`?writer=`) the want depends on what is
+  on disk, which only the view worker learns once the cache opens: the page sends no want, the dial carries no run, and
+  the view worker's misses go once it is linked. That stays correct — a frame on disk is never asked — but the opening
+  run no longer rides the URL (not timed). `writer=decoders` is refused with it: the decoders learn at spawn whether to
+  keep frames for the cache, which only the open cache can say. Costs: two messages more on the page, once; nothing a
+  frame.
+* **`viewWorkerFirst`.** The view worker is created before the metadata is awaited (`ViewWorker.boot`), so its module
+  graph loads beside the metadata's fetch; the canvas and `start` still wait for the metadata. A script that fails
+  before then is said as the worker not starting, as now.
+* **`glAfterDial`.** The WebGL2 context is made a task after the view worker has posted the dial, not in `start`; a
+  paint waits for it. Under `pageDials` the dial is the page's, so this buys nothing there.
+* **`shortRuns`.** Before the session opens, a want the run covers whole — it ascends, and every unsent frame of it is
+  in the one run, `span` crossing held frames as it would for a long one — rides the dial however short, as the page
+  view's `fill` always does. Once the session is up nothing changes: a short want is asks, so on-demand steps stay
+  asks, and `waitAhead`, which acts only while a run is in flight, is untouched.
+* **`cache.js` imported lazily** is decided by §7's step timing: built only if its import is a visible share of the
+  view worker's boot.
+
+**Pre-registered for the re-run, before its data:** A (`page`), its A/A (`pageaa`), B′ (`worker`) and B′ with the fix
+(`workerfix`: `pageDials`, `viewWorkerFirst`, `shortRuns`), §7's start timing's cells, rounds, guards and corrected
+bars, read by `lab/viewer/start-summary.mjs`; **B′ with the fix ties A** when its verdict there is "ties A".
+
 #### Experiment 2: the want ascending, and no ask across the running fill (2026-10-29)
 
 *Rank 2 of the experiments beside the target (`claude/vw-experiments`, frame-path.md §Experiments beside the target).
