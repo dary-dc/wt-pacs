@@ -127,15 +127,38 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
 * **The paint's GPU wait.** The 1-pixel `readPixels` that makes a paint return once drawn runs in the view worker only
   behind the lab's flag (`settlePaint`, set by the total-time rig's hooks in `lab/viewer/levers.js`); the paint worker
   of the page view keeps it, as before.
-* **Not built:** credits and eviction by byte budget (with the cache arm), the OPFS store (a miss goes to the
-  downloader where the store worker would be asked first; it lives on `claude/opfs-cache-fixes`), so nothing emits
-  `failed` with scope `cache` yet; the cine's clock in the worker; a second viewport; a series or metadata-version
-  change, the only step of the generation under a want. A downloader whose script does not load is reported on the
+* **The cache (2026-10-29), under `worker` alone.** The store resolves each frame of a want from memory, then OPFS,
+  then sends the downloader the misses: a frame on disk is no miss. It reads the want's frames on disk one at a time
+  in its order, each checked against its frame digest (§5) wherever it is read; a read that fails its check or throws
+  drops the entry and the frame joins the misses at its own place in the want. The cache opens before the first want,
+  so a reopen's `start` carries only what is not on disk, and frames on disk are read and painted while the downloader
+  still dials; a miss found before the downloader is linked goes out once it is. Only a series with digests is cached,
+  and only frames checked `true`. **Paint first:** a frame is written only once the paint in flight has drawn, and
+  a frame read from disk is not written again. The store acks a frame once it holds it within its memory budget, or
+  else once its write settles (the consumer's `heldAcks`; asked frames are acked by the consumer, as before). The
+  cache says `failed {scope: cache}` once when it stops (a write refused) and once when it cannot open; a second tab on
+  the same series is told *another tab holds this series' cache* and fills from the downloader alone. **The writer is
+  one setting**, the lab's `?writer=` (`lab/viewer/levers.js`; the product's page always uses the default):
+  * `store` (**the default**): `client/viewer/store.js` from `claude/opfs-cache-fixes`, unchanged but for its
+    pointers: one packed file a series, its lock the tab's, evicting least recently opened series. The view worker
+    starts it as a nested worker and hands it a copy of each frame, transferred (a `SharedArrayBuffer` sent to it is
+    never collected there); it reads back through it.
+  * `decoders`: a file per frame (`client/view/frame-file.js`: the samples, then min, max and the shape), written by
+    the decoder that decoded it, from the shared buffer it already holds. The decoder keeps each exact frame until the
+    view worker, after the paint, posts `write` on the frame's pixel port; it answers `written`. Read back in the view
+    worker with a sync handle. A Web Lock per series stands for the packed file's lock.
+  * `view`: the same file per frame, written in the view worker with a sync handle after the paint. Lab only.
+* **Not built:** credits, eviction by byte budget and any eviction change (the memory budget stays every frame), frame
+  memory options; the cine's clock in the worker; a second viewport; a series or metadata-version
+  change, the only step of the generation under a want. Under `decoders` a frame the store never asks to write (an
+  ask's frame, or every frame once the cache has stopped) stays kept in its decoder: today the same shared memory the
+  store holds, but it would pin a frame the store let go. Nested workers and OPFS were run in Chromium alone (§4). A downloader whose script does not load is reported on the
   page as the series' and fails `connect` at once (*corrected in review*, 2026-10-29: this read that `connect` waited on
   the check's deadline, which it did until the page raced it against that error).
 
-**Held by** the viewer check, run by the gate under both views on both clients, filled with a cine and on demand
-(`client/viewer/run_check.sh`), and by `client/view/controller.test.mjs`, `client/view/view.test.mjs` and
+**Held by** the viewer check, run by the gate under both views on both clients, filled with a cine and on demand, and
+under `worker` across tabs for each writer (`client/viewer/run_check.sh`), and by `client/view/controller.test.mjs`,
+`client/view/view.test.mjs`, `client/view/cache.test.mjs`, `client/viewer/store.test.mjs` and
 `client/transport/downloader.test.mjs`. Each check was mutated and its mutant failed:
 
 | claim | check | mutant |
@@ -153,6 +176,16 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
 | every frame painted is exact | the check's exactness and readbacks | a sample altered in `htj2k.js` |
 | a window change paints again with no frame moving: no upload, nothing sent | the check's `windowStep` and its readback under another window; the node test | every paint uploads; a window change paints nothing |
 | a downloader whose script does not load fails `connect` at once | `view.test.mjs` | the page's error not rejecting `connect` |
+| a frame on disk is painted with no downloader message, and is read once a want | the node tests; the check's reopen | the want asking frames on disk; reads not marked |
+| a corrupted entry is asked again at its place in the want and painted exact | the node test; the check's reopen after a byte of frame 1's entry is flipped, under each writer | the failed read not asked again |
+| the write lands after the paint, under every writer | the node test; the check's first tab, under each writer: no frame's write asked before its paint, one painted then written | the paint not awaited |
+| no cache write on the view worker's thread under `store` and `decoders`; some under `view` | the check, counting `write` and `createWritable` on that thread from its start | the files written on that thread under `decoders`; under `store` |
+| a reopen asks the downloader nothing for frames on disk | the check's reopen: no miss sent, no frame delivered, every frame from the cache | the want asking frames on disk |
+| a miss found before the downloader is linked is sent on link | the node test | not sent |
+| a frame is acked once held within the budget, or once written | the node test | acked only once written |
+| a second tab without the lock is told, as the cache's | `cache.test.mjs`; the check's second tab, under each writer | the open's failure not said; the Web Lock not taken |
+| the cache stops once and says so once | `cache.test.mjs`, two writes refused in flight | said per write |
+| the store worker gets a copy, never the shared buffer | `cache.test.mjs` | the buffer sent |
 | `page` behaves as before | the viewer check and every other suite, green | — |
 
 **What each variant costs, counted from the code** (a frame decoded and acknowledged; the defaults' three decoders):
@@ -171,6 +204,11 @@ included): `page` 5 frames in, 5 acks out, 12 paints out and 12 back; `worker` 0
 the want (2026-10-29), every message the page received over the whole run, replies included: 29 filled with a cine
 and 16–17 on demand, on both clients, none carrying a pixel or a port and none from the downloader.
 
+**The cache's cost a frame, counted from the code.** Written: `store`, 2 more messages (the write and its reply) and
+one more copy, in the view worker, out of the shared buffer; `decoders`, 2 more (`write` and `written`) on the frame's
+pixel port and no copy in script beyond the write; `view`, none, and the write on the view worker's thread. Read back:
+`store`, 2 messages; `decoders` and `view`, none. Nothing reaches the page either way.
+
 **What fought the shape.** The paint worker posted to its own global, so its `start` and `paint` now return and the
 entry posts; imported, its handler is replaced by the view worker's. The consumer made its own worker: it takes a
 `port`, ends a port by closing it, and the page triggers it forwarded are `watchPage`, exported. The downloader posted
@@ -179,6 +217,15 @@ CPU reference, a spy on the client — so its half that needs frames runs beside
 and the total-time harness's frame hashes are the controller's `ledger()`. A drag starts from the frame's default
 window and only the frame knows it, so `shown` carries it; the canvas's CSS size is the page's, so a resize is an
 intent.
+
+*The cache (2026-10-29).* Arm D as `claude/opfs-arms-d` describes it writes in the decoder *before* it posts, which
+puts every write ahead of its paint; paint first under every writer made the decoder keep the frame and write on the
+view worker's word, two messages a frame more than D's four (`write`, `written`), the same as `store`'s (a write and
+its reply), against none under `view`. Nothing in the view worker knew when its own paint had drawn, so the store
+waits on the controller's paint in flight. The consumer acked every frame on delivery, so the ack moved to the
+store behind a flag. The first want rode `start` before anything could know what was on disk, so the cache now opens
+before it: on a cold cache the opening run waits for the store worker to start and open (not timed). A packed file is
+locked by its handle, a file per frame only while written, so the second-tab rule needed a Web Lock for those two.
 
 *The want (2026-10-29).* The downloader held no order: a fill is a `Set` sent lowest run first, asks went before fill
 frames, and the only generation was the cancel's, which every message carries and every stale one drops. The want

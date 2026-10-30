@@ -187,6 +187,113 @@ test("the ledger carries the fill's time and each frame's media reads", async ()
   assert.deepEqual(frames.map((f) => f.mediaReads), [7, 8]);
 });
 
+/** A cache holding `present`, whose reads answer `read(i)` (null: the check failed) and whose writes are logged in `log`. */
+function cacheOf(present, log, read = (i) => frame(i).info) {
+  return {
+    present: new Set(present),
+    read: async (i) => (log.push(`read ${i}`), read(i) && { ...read(i), path: "cache" }),
+    write: async (i) => (log.push(`write ${i}`), true),
+  };
+}
+const settled = () => new Promise(setImmediate);
+
+/** A frame on disk is read and painted when stepped to, and the downloader hears nothing: it is no miss. */
+test("cache: a frame on disk is painted with no downloader message", async () => {
+  const wants = [];
+  const log = [];
+  const { c, painted } = rig({ held: [0], fillMode: false, wants });
+  c.store.cache = cacheOf([2], log);
+  await c.show(2);
+  await c.repaint();
+  assert.deepEqual(wants, []);
+  assert.deepEqual(log, ["read 2"]);
+  assert.equal(painted.at(-1).f, c.store.get(2));
+  assert.equal(c.store.get(2).info.path, "cache");
+});
+
+/** A read-back that fails its check is asked of the downloader at its own place in the want, and painted when it comes. */
+test("cache: a corrupted entry is asked again at its want position", async () => {
+  const wants = [];
+  const { c, painted } = rig({ frames: 5, held: [0], wants });
+  c.store.cache = cacheOf([1, 3], [], (i) => i !== 1 && frame(i).info);
+  c.show(2);
+  await settled();
+  assert.deepEqual(wants, ["2,4", "2,1,4"]);
+  assert.equal(c.store.reasked, 1);
+  c.take(frame(1));
+  c.show(1);
+  await c.repaint();
+  assert.equal(painted.at(-1).f.info.path, undefined);
+  assert.equal(painted.at(-1).f, c.store.get(1));
+});
+
+/** The frame on screen is painted before its write is asked, and a frame read from the cache is not written again. */
+test("cache: the write lands after the paint", async () => {
+  const log = [];
+  const draw = Promise.withResolvers();
+  const { c } = rig({ held: [], paint: async (f) => (await draw.promise, log.push(`painted ${f.info.path ?? "wire"}`)), wants: [] });
+  c.store.cache = cacheOf([1], log);
+  c.store.want(c.want());
+  c.take(frame(0));
+  await settled();
+  draw.resolve();
+  await c.store.painted();
+  await settled();
+  assert.deepEqual(log, ["read 1", "painted wire", "write 0"]);
+});
+
+/** A reopen whose frames are all on disk sends the downloader no miss, at the start or after it, and reads them in the want's order. */
+test("cache: a reopen asks nothing for stored frames", async () => {
+  const wants = [];
+  const log = [];
+  const { c } = rig({ frames: 4, held: [], wants: null });
+  c.store.cache = cacheOf([0, 1, 2, 3], log);
+  c.current = 2;
+  const sent = c.store.want(c.want());
+  c.store.link({ want: (m) => wants.push(m.join()) }, sent);
+  await settled();
+  assert.deepEqual([sent, wants], [[], []]);
+  assert.deepEqual(log, ["read 2", "read 3", "read 1", "read 0"]);
+  assert.equal(c.received, 4);
+});
+
+/** Past the memory budget, a frame read from disk and let go is not read again under the same want. */
+test("cache: a frame on disk is read once a want", async () => {
+  const log = [];
+  const { c } = rig({ frames: 4, budget: 2, held: [], wants: [] });
+  c.store.cache = cacheOf([0, 1, 2, 3], log);
+  c.store.want(c.want());
+  await settled();
+  assert.deepEqual(log, ["read 0", "read 1", "read 2", "read 3"]);
+  assert.deepEqual([...c.store.keys()].sort(), [0, 1]);
+});
+
+/** A miss found while the downloader connects reaches it once linked, beside the want that rode its start. */
+test("cache: a miss found before the downloader is linked is sent on link", async () => {
+  const wants = [];
+  const { c } = rig({ frames: 3, held: [], wants: null });
+  c.store.cache = cacheOf([0, 1], [], (i) => i !== 0 && frame(i).info);
+  const sent = c.store.want(c.want());
+  await settled();
+  c.store.link({ want: (m) => wants.push(m.join()) }, sent);
+  assert.deepEqual([sent, wants], [[2], ["0,2"]]);
+});
+
+/** The store acks a frame it holds at once, and one past its budget only once the frame is written. */
+test("cache: a frame is acked once held within the budget or written", async () => {
+  const acks = [];
+  const write = Promise.withResolvers();
+  const { c } = rig({ frames: 4, budget: 1, held: [] });
+  c.store.cache = { present: new Set(), read: async () => null, write: () => write.promise };
+  c.take({ ...frame(0), ack: () => acks.push(0) });
+  c.take({ ...frame(3), ack: () => acks.push(3) });
+  await settled();
+  assert.deepEqual(acks, [0]);
+  write.resolve(true);
+  await settled();
+  assert.deepEqual(acks, [0, 3]);
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try {

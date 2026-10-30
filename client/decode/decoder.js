@@ -4,6 +4,7 @@
  */
 import { transferOf, transferFrames } from "./frame-buffer.js";
 import { hasher } from "./xxh3.js";
+import { seriesDir, writeEntry } from "../view/frame-file.js";
 
 let codec = null;
 let toConsumer = null;
@@ -11,6 +12,8 @@ let queue = Promise.resolve();
 /** The series' XXH3-64 per frame, 16 hex digits, and the hasher; absent, every frame is unchecked. docs/FIXTURES.md §Frame digests */
 let digests = null;
 let xxh3 = null;
+/** Under the cache writer `decoders`: the series' directory, and each exact frame kept until the view asks its write. */
+let cache = null;
 
 const abs = () => performance.timeOrigin + performance.now();
 
@@ -22,6 +25,16 @@ async function init(m) {
   await codec.init({ ...m.decoder, groupLength: m.groupLength });
   digests = m.digests ?? null;
   if (digests) xxh3 = await hasher();
+  // Without OPFS the decoder still decodes: the view's cache stops at the first write it asks for.
+  if (m.cache && digests) cache = await seriesDir(m.cache.key).then((dir) => ({ dir, kept: new Map() }), () => null);
+}
+
+/** Paint first: the view asks once the frame has drawn, on the port the frame went out on. docs/adr/frame-path.md §3, *Built* */
+async function write(index) {
+  const f = cache.kept.get(index);
+  cache.kept.delete(index);
+  const ok = await writeEntry(cache.dir, index, f).then(() => true, () => false);
+  toConsumer.postMessage({ kind: "written", index, ok });
 }
 
 const hash = (sab) => xxh3.init().update(new Uint8Array(sab)).digest("hex");
@@ -49,6 +62,7 @@ onmessage = async (e) => {
     toConsumer = m.toConsumer;
     try {
       await init(m);
+      if (cache) toConsumer.onmessage = ({ data }) => data.kind === "write" && write(data.index);
       postMessage({ kind: "ready" });
     } catch (err) {
       postMessage({ kind: "init-failed", reason: String(err?.message ?? err) });
@@ -65,7 +79,9 @@ async function decode(m) {
   try {
     const r = await checked(m, await codec.decodeFrame(m.bytes, m, preview));
     stamps.decodeEnd = abs();
-    toConsumer.postMessage(picture(m, r, stamps), transferOf(r.sab));
+    const p = picture(m, r, stamps);
+    if (cache && p.exact === true) cache.kept.set(m.index, Object.assign(p, { writable: true }));
+    toConsumer.postMessage(p, transferOf(r.sab));
     // The wire buffer goes back to the transport's ring, where the next frame is read into it.
     postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount: r.byteCount, buffer: m.bytes.buffer }, [m.bytes.buffer]);
   } catch (err) {

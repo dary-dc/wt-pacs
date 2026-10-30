@@ -121,3 +121,30 @@ export async function readbacks({ controller, n }) {
   }
   return { readbacks: out, stats: controller.client.stats().exact };
 }
+
+/** Counts every OPFS write made on this thread from now on: under the writers `store` and `decoders` there is none. */
+export function watchWrites() {
+  globalThis.writesHere = 0;
+  for (const [proto, k] of [[globalThis.FileSystemSyncAccessHandle?.prototype, "write"], [globalThis.FileSystemFileHandle?.prototype, "createWritable"]]) {
+    const own = proto?.[k];
+    if (own) proto[k] = function (...a) { globalThis.writesHere += 1; return own.apply(this, a); };
+  }
+}
+
+/** The cache once its writes have landed: what was asked and delivered, and any frame whose write was asked before its paint. */
+export async function cache({ controller }) {
+  const { store } = controller;
+  const frames = () => [...store.keys()].map((i) => [i, store.get(i)]);
+  const settled = () => frames().every(([, f]) => f.written || f.info.path === "cache" || f.info.exact !== true);
+  for (const t = performance.now(); store.cache && !settled() && performance.now() - t < 10_000; ) await new Promise((r) => setTimeout(r, 20));
+  return {
+    held: frames().length,
+    present: store.cache && [...store.cache.present].sort((a, b) => a - b),
+    asked: store.asked,
+    reasked: store.reasked,
+    delivered: controller.client.stats().exact,
+    paintedThenWritten: frames().filter(([, f]) => f.painted && f.writeAsked >= f.painted).length,
+    writtenBeforePaint: frames().filter(([, f]) => f.painted && f.writeAsked < f.painted).map(([i]) => i),
+    writesHere: globalThis.writesHere ?? null,
+  };
+}

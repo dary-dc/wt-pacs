@@ -41,6 +41,7 @@ export class Controller {
   /** `paint(frame, display, { read })` draws a held frame; `emit(type, event)` tells the page; `size` is the canvas's CSS size and DPR. */
   constructor({ meta, fillMode, paint, emit, size, budget }) {
     this.store = new FrameStore({ arrived: (i, frame) => this.#arrived(i, frame), budget });
+    this.store.painted = () => this.#painting;
     this.#meta = meta;
     this.#n = meta.frameCount;
     this.#fillMode = fillMode;
@@ -49,8 +50,9 @@ export class Controller {
     this.size = size;
   }
 
+  /** `f.ack`, when the consumer leaves the ack to the store; `f.write`, when its decoder writes the cache. */
   take(f) {
-    this.store.put(f.frameIndex, { info: f.info, arrived: at() });
+    this.store.put(f.frameIndex, { info: f.info, arrived: at(), write: f.write }, f.ack);
   }
 
   #arrived(i, { info }) {
@@ -93,6 +95,7 @@ export class Controller {
         try {
           const d = this.display(i, f.info);
           this.lastPaint = await this.paint(f, d);
+          f.painted ??= at();
           this.paints += 1;
           if (this.firstShownMs === null && f.info.exact === true) this.firstShownMs = at() - this.issuedAt;
           this.#emit("shown", { i, exact: f.info.exact, reason: f.info.reason, window: d.voi, firstShownMs: this.firstShownMs });
@@ -185,8 +188,9 @@ export class Controller {
     const { sha256Hex } = await import("../decode/wasm-glue.js");
     const frames = [];
     for (const i of this.store.keys()) {
-      const { info, arrived } = this.store.get(i);
-      frames.push({ i, page: arrived, lastByte: info.stamps.lastByte, mediaReads: info.stamps.mediaReads, exact: info.exact, sha: await sha256Hex(new Uint8Array(info.pixels).slice()) });
+      const { info, arrived, painted, writeAsked, written } = this.store.get(i);
+      const sha = await sha256Hex(new Uint8Array(info.pixels).slice());
+      frames.push({ i, page: arrived, lastByte: info.stamps?.lastByte, mediaReads: info.stamps?.mediaReads, exact: info.exact, path: info.path, painted, writeAsked, written, sha });
     }
     return { frames, firstShownMs: this.firstShownMs, fillMs: this.fillMs, stats: this.client.stats() };
   }
