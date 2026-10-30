@@ -9,6 +9,9 @@ import { asPainted, Controller } from "./controller.js";
 
 /** ms: progress reaches the page at most this often, and at once when the last frame arrives. */
 const PROGRESS_MS = 100;
+const at = () => performance.timeOrigin + performance.now();
+/** Epoch ms of this worker's start, for the lab's ledger: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
+const boot = { viewEvaluated: at() };
 
 let controller = null;
 let downloader = null;
@@ -44,6 +47,7 @@ function paint(frame, display, { read = false } = {}) {
 
 /** `watchWrites`, the viewer check's: every cache write on this thread is counted from the start. */
 function start({ canvas, meta, fillMode, size, settlePaint, watchWrites }) {
+  boot.viewStart = at();
   controller = new Controller({ meta, fillMode, paint, emit, size });
   settle = settlePaint;
   if (watchWrites) import("./check.js").then((m) => m.watchWrites());
@@ -53,6 +57,7 @@ function start({ canvas, meta, fillMode, size, settlePaint, watchWrites }) {
     emit("renderer", { error: e.message });
     emit("failed", { scope: "worker", reason: `painter: ${e.message}` });
   }
+  boot.viewGl = at();
 }
 
 /**
@@ -60,6 +65,7 @@ function start({ canvas, meta, fillMode, size, settlePaint, watchWrites }) {
  * place of the fill. The store acks each frame the consumer hands it. `writer`: client/view/cache.js
  */
 async function connect({ port, url, certHash, opts: { writer, holdEveryOther, ...opts }, issuedAt }) {
+  boot.viewConnect = at();
   downloader = port;
   controller.issuedAt = issuedAt;
   controller.ascending = Boolean(opts.waitAhead);
@@ -116,7 +122,10 @@ const CALLS = {
   connect,
   repaint: () => controller.repaint(),
   valueAt: ({ x, y }) => controller.valueAt(x, y),
-  ledger: ({ flip }) => controller.ledger({ flip }),
+  ledger: async ({ flip }) => {
+    const l = await controller.ledger({ flip });
+    return { ...l, boot: { ...boot, ...l.boot } };
+  },
   cine: () => cine?.log ?? [],
   check: async ({ phase, args }) => (await import("./check.js"))[phase]({ controller, port: downloader, ...args }),
   close: () => controller.client.close(),

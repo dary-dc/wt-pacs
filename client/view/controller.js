@@ -188,12 +188,14 @@ export class Controller {
   async ledger({ flip = false } = {}) {
     const { sha256Hex } = await import("../decode/wasm-glue.js");
     const frames = [];
+    let boot;
     for (const i of this.store.keys()) {
       const { info, arrived, painted, writeAsked, written } = this.store.get(i);
+      boot ??= info.stamps?.boot;
       const samples = new Uint8Array(info.pixels).slice();
       if (flip) samples[samples.length >> 1] ^= 1;
       frames.push({ i, page: arrived, lastByte: info.stamps?.lastByte, decoded: info.stamps?.decodeEnd, mediaReads: info.stamps?.mediaReads, exact: info.exact, path: info.path, painted, writeAsked, written, sha: await sha256Hex(samples) });
     }
-    return { frames, firstShownMs: this.firstShownMs, fillMs: this.fillMs, stats: this.client.stats() };
+    return { frames, firstShownMs: this.firstShownMs, fillMs: this.fillMs, stats: this.client.stats(), boot };
   }
 }

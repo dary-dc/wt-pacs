@@ -22,6 +22,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { score } from "../../../frame-clock/measure.js";
 import { order } from "../../../order.mjs";
+import { busyShare } from "../../../viewer/start-summary.mjs";
 import { throttleTree } from "../../../scripts/cpu_throttle.mjs";
 
 const { chromium } = createRequire(import.meta.url)("playwright");
@@ -186,9 +187,41 @@ const FIREFOX_PREFS = [["browser.shell.checkDefaultBrowser", false], ["browser.a
   ["datareporting.policy.dataSubmissionEnabled", false], ["browser.startup.homepage_override.mstone", "ignore"],
   ["app.update.disabledForTesting", true], ["toolkit.telemetry.reportingpolicy.firstRun", false]];
 
-/** Chromium through Playwright, Firefox as the stock build; the slow CPU on the browser's whole tree from the page's hello. */
+/** One visit, the browser cores' ticks sampled through it for the start timing's guard. */
 async function inBrowser(engine, url, throttle, errors, threads = {}) {
   url += `&post=${encodeURIComponent(`http://127.0.0.1:${collector.address().port}/`)}`;
+  threads.cores = [coreTicks()];
+  const sampler = setInterval(() => threads.cores.push(coreTicks()), CORE_SAMPLE_MS);
+  try {
+    return await launched(engine, url, throttle, errors, threads);
+  } finally {
+    clearInterval(sampler);
+  }
+}
+
+/** ms between samples of the browser cores' ticks: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
+const CORE_SAMPLE_MS = 20;
+const BROWSER_CPUS = BROWSER_CORES.split(",").flatMap((r) => {
+  const [a, b = a] = r.split("-").map(Number);
+  return Array.from({ length: b - a + 1 }, (_, k) => a + k);
+});
+
+/** [epoch ms, busy ticks, all ticks] over the browser's cores, from /proc/stat. */
+function coreTicks() {
+  let busy = 0, all = 0;
+  for (const line of readFileSync("/proc/stat", "utf8").split("\n")) {
+    const m = /^cpu(\d+) (.*)/.exec(line);
+    if (!m || !BROWSER_CPUS.includes(Number(m[1]))) continue;
+    const f = m[2].trim().split(/\s+/).slice(0, 8).map(Number);
+    const sum = f.reduce((x, y) => x + y, 0);
+    busy += sum - f[3] - f[4];
+    all += sum;
+  }
+  return [Date.now(), busy, all];
+}
+
+/** Chromium through Playwright, Firefox as the stock build; the slow CPU on the browser's whole tree from the page's hello. */
+async function launched(engine, url, throttle, errors, threads) {
   let stop = () => {};
   let pid = null;
   const result = new Promise((resolve, reject) => {
@@ -403,6 +436,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     survived: r.quiet?.filter((q) => q.survived).map((q) => Math.round(q.survived)),
     closedAfter: r.quiet?.filter((q) => q.closedAfter).map((q) => Math.round(q.closedAfter)),
     firstMs: Math.round(r.firstShown ? r.firstShown - r.issuedAt : t("page", Math.min)),
+    ...(r.boot && startFigures(r, threads.cores)),
     receivedMs: Math.round(t("lastByte", Math.max)),
     decodedMs: Math.round(t("page", Math.max)),
     ...(r.fillMs != null && { fillMs: Math.round(r.fillMs), mediaReads: r.mediaReads, fillReads: r.fillReads }),
@@ -447,6 +481,22 @@ function pageFigures(r, { pageBefore, pageAfter }) {
     ...(r.after?.some((f) => f.screen !== undefined) && { screenMs: r.after.map((f) => +f.screen.toFixed(1)) }),
     ...(page !== undefined && { pageCpuMs: Math.round(page) }),
     ...(r.cine && { cine: { draws: r.cine.draws.length, vsyncs: r.cine.vsyncs.length, period: r.cine.period, ...score(r.cine) } }),
+  };
+}
+
+/**
+ * docs/adr/frame-path.md §7, *The view worker's start, timed*: each stamp from navigation, the first and last exact
+ * frame held, and the browser cores' busy share over the start and over the fill after the first frame.
+ */
+function startFigures(r, cores) {
+  const held = r.frames.filter((f) => f.exact === true).map((f) => f.page);
+  const [first, last] = [Math.min(...held), Math.max(...held)];
+  const from = (v) => +(v - r.issuedAt).toFixed(1);
+  return {
+    boot: Object.fromEntries(Object.entries(r.boot).filter(([, v]) => typeof v === "number").map(([k, v]) => [k, from(v)])),
+    firstHeldMs: from(first),
+    lastHeldMs: from(last),
+    cores: { start: busyShare(cores, r.issuedAt, r.firstShown), fill: held.length > 1 ? busyShare(cores, first, last) : null },
   };
 }
 

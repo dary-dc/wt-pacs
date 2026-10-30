@@ -710,6 +710,71 @@ vsyncs, as §A frame clock's *What a container can and cannot claim* says; a GPU
 measured. **Cell 4 (OPFS)** was not run: the core's cache is off by default, and who writes it is the OPFS-arms run's
 question (§The cache I/O in the view worker).
 
+### The view worker's start, timed (pre-registered 2026-10-30, before any data)
+
+**Why.** B′'s quiet first frame is later than A's in 15 of §7's 16 cells. Read from `view-quiet.jsonl` paired by round
+(rows measured; the cause below is inferred from code, not measured): B′ − A is already there at the last byte, the
+same mid-fill as at the end, and last byte → frame held moves by ±4 ms. So it is a fixed delay before the first byte,
+not a cost a frame. In B′ the downloader hears `start` and `dial` from the view worker, over the port, only once that
+worker has booted: the page creates it once the metadata is in (`client/viewer/viewer.js`), it loads its module graph
+(the consumer, the paint module, `cache.js` with the cache off, the controller), builds the controller and the WebGL2
+context in `start`, and only in `connect` posts `start` and `dial`. In A the page posts both at connect. §2 counted
+hops a frame in the steady state and left the start out. A short series loses one more round trip: a want shorter than
+`askDepth` is not a run (§3, *The want*), so the dial carries no opening run and frame 0 is asked once it is up; A's
+`fill` always rides the dial. The fill bar is a ratio, so one fixed delay reads ×1.01 on CT's 3.5 s fill and ×1.07–1.23
+on the mammogram's one frame: one cause failing two criteria.
+
+**Stamps** (lab only in use: each is one clock read, taken once a page; only the lab's ledger reads them). Epoch ms,
+`performance.timeOrigin + performance.now()` in whichever thread takes it, reported from navigation:
+
+| stamp | taken in | arm |
+| --- | --- | --- |
+| `metadata`: the metadata in | the page | both |
+| `viewWorker`: the view worker created | the page | B′ |
+| `viewEvaluated`: its module graph loaded and evaluated | the view worker, its top level | B′ |
+| `viewStart`, `viewGl`, `viewConnect`: `start` received, the WebGL2 context made, `connect` received | the view worker | B′ |
+| `gl`: the paint worker's context, as heard on the page | the page | A |
+| `connect`: the page's connect, the fill's issue | the page | both |
+| `downloaderEvaluated`, `downloaderStart`, `dialReceived`: its script run, `start` received, `dial` received | the downloader | both |
+| `decodersReady`, `dial`, `sessionOpen`: every decoder up; the transport's connect called, and resolved | the downloader | both |
+| `firstIn`: the first frame's last byte (the transport reports no first byte; this stands for it) | the downloader | both |
+| `firstHeld`, `firstDrawn`: the first exact frame held, and drawn | the store; the paint | both |
+
+The downloader's stamps ride the first frame it dispatches; the view worker's ride its ledger.
+
+**Run.** A (`page`), its A/A (`pageaa`) and B′ (`worker`); the quiet page; Chromium and Firefox; §7's four series;
+`r50000`; **1×**; 12 rounds, cells and arms interleaved by `run.mjs` (`lab/order.mjs`); kept as §7 keeps a visit
+(relay VOID, an error or an inexact frame drops it; a cell counts the first 12 rounds in which every arm was kept).
+**4×** only after every 1× cell, only in a cell whose 1× start was unsaturated by the guard, and only if the usage
+window allows; otherwise not run, and said. Rows: `lab/viewer/rows/start-quiet.jsonl`.
+
+**Guards.** *Saturation:* the browser's three cores' busy share from `/proc/stat`, sampled every 20 ms by the rig,
+over the start (navigation → first drawn) and over the fill after it (first → last exact frame held); A's median at or
+past 0.95 saturates that window, and its bar claims nothing in that cell. *VOID:* `pageaa` − `page`, median over paired
+rounds, 16.7 ms or more apart on the first frame, or the fill after it outside ×0.98–1.02.
+
+**The bars, corrected** — a new pre-registration, not a re-reading of §7's rows; read by
+`node lab/viewer/start-summary.mjs`:
+
+* **Latency is the first exact frame drawn**, from navigation: an arm's median paired Δ against A of +16.7 ms or more
+  is *later*, −16.7 ms or less *sooner*, else a tie.
+* **Throughput is the fill after the first frame**: the last exact frame held less the first, paired ratio against A;
+  above ×1.02 *slower*, below ×0.98 *faster*, else a tie. **A one-frame series has no throughput bar.**
+* **An arm ties A** when no decided bar of any cell finds it later or slower, and each engine has a cell whose latency
+  is decided. Otherwise it is behind A, by name, or undecided.
+
+**Reported:** each stamp's median per arm and cell, and B′ − A step by step: where the delay goes.
+
+**Predicted from the code**, before data: B′'s `downloaderStart` later than A's by what remains of the view worker's
+boot at connect plus two message hops; the dial and the decoders follow it by the same; the mammogram later again by
+one round trip (≈ 40 ms) at `firstIn`; nothing after `firstIn` apart.
+
+**Held by** `lab/viewer/start-summary.test.mjs` (each guard and bar on made-up rows; mutants: the busy share's sample,
+the bars loosened, the fill from navigation, a one-frame fill judged, the VOID and saturation guards ignored, an
+inexact visit kept — each fails it) and `client/transport/downloader.test.mjs` *theFirstFrameCarriesTheStart*
+(mutants: no stamp carried, every frame carrying it, the dial or the session's open unstamped, `firstIn` wrong — each
+fails it).
+
 ### A frame clock in the view worker (2026-10-28)
 
 *Theory and a pre-registered protocol; the harness built 2026-10-30 ([`../../lab/frame-clock/`](../../lab/frame-clock/README.md)) and smoke-run, nothing timed as a result.* The owner's next client shape: the page holds no

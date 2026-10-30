@@ -24,6 +24,8 @@ if (lab.refused) {
   throw new Error(lab.refused);
 }
 const meta = await globalThis.viewerMetadata;
+/** Epoch ms of the page's start, for the lab's ledger: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
+const boot = { metadata: at() };
 const n = meta.frameCount;
 const fillMode = q.get("fill") !== "0";
 const transport = lab.transport;
@@ -81,9 +83,10 @@ let controller = null;
 let worker = null;
 if (where === "page") {
   const painter = new Painter(canvas, { onLost: (why) => fail(`painter: ${why}`) });
-  painter.renderer.then((r) => emit("renderer", { renderer: r }), (e) => emit("renderer", { error: e.message }));
+  painter.renderer.then((r) => ((boot.gl = at()), emit("renderer", { renderer: r })), (e) => emit("renderer", { error: e.message }));
   controller = new Controller({ meta, fillMode, emit, size: size(), paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
 } else {
+  boot.viewWorker = at();
   worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settlePaint: Boolean(lab.settlePaint), watchWrites: Boolean(q.get("check")) });
 }
 
@@ -110,6 +113,7 @@ const all = [...Array(n).keys()];
 // A lab harness slows the CPU from here: lab/viewer/levers.js.
 await lab.started?.();
 issuedAt = at();
+boot.connect = issuedAt;
 const connectOpts = {
   transport: transport.module,
   ...(fillMode && { fill: all }),
@@ -255,7 +259,7 @@ if (q.get("check") || lab.finished) {
       await until(() => shown?.i === i || errors.length);
     }
     const cine = await lab.cine?.({ worker, controller, fps: cineFps });
-    const { frames, firstShownMs, fillMs, stats } = await (worker ?? controller).ledger({ flip: q.get("mutate") === "sample" });
-    lab.finished({ issuedAt, firstShownMs, fillMs, frames, errors, stats, stepped, cine });
+    const ledger = await (worker ?? controller).ledger({ flip: q.get("mutate") === "sample" });
+    lab.finished({ ...ledger, boot: { ...boot, ...ledger.boot }, issuedAt, errors, stepped, cine });
   }
 }

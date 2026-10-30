@@ -587,5 +587,28 @@ async function aLateFrameOfAnEndedRunIsStillWanted() {
 }
 await aLateFrameOfAnEndedRunIsStillWanted();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted: ok");
+/** The first frame dispatched carries the start's stamps, each taken, in the order the start passed them; no later frame carries them. */
+async function theFirstFrameCarriesTheStart() {
+  const decoding = [];
+  globalThis.Worker = class {
+    postMessage(m) {
+      if (m.kind === "init") queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      if (m.kind === "decode") decoding.push(m);
+    }
+    terminate() {}
+  };
+  const w = await wantWorld("boot-stamps", { decoders: 1, perDecoder: 2, decoderWorker: "x" });
+  await onmessage({ data: { kind: "want", indices: [0, 1, 2, 3] } });
+  w.onFill(frame(0));
+  w.onFill(frame(1));
+  await settle();
+  const b = decoding[0]?.stamps.boot ?? {};
+  const order = ["downloaderEvaluated", "downloaderStart", "dialReceived", "dial", "sessionOpen", "firstIn"];
+  const inOrder = order.every((k, j) => typeof b[k] === "number" && (j === 0 || b[order[j - 1]] <= b[k]));
+  check(inOrder && b.decodersReady >= b.downloaderStart, `the first frame's start stamps, in order (${JSON.stringify(b)})`);
+  check(decoding.length === 2 && decoding[1].stamps.boot === undefined, `the second frame carries none (${decoding.length} dispatched)`);
+}
+await theFirstFrameCarriesTheStart();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted, the start's stamps on the first frame: ok");
 process.exit(failed ? 1 : 0);
