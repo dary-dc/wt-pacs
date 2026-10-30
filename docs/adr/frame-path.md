@@ -695,6 +695,8 @@ standard volume capacity; how often a phone's free disk binds before its quota.
 
 **Status:** theory and a pre-registered protocol; the harness is built (`lab/opfs-arms/`) and smoke-run once per arm,
 **no cell is run**: nothing below is measured unless it says *run once*, and the smoke's numbers are not results.
+*Corrected 2026-10-30:* the protocol as amended is run on Chromium and Firefox; **no arm passes on either engine**, so
+the result goes to the owner as measured (§Arm D, Results). The predictions above stand as written, judged there.
 
 **The shape** (the owner, 2026-10-28): the page holds no frame and sends intents only. One **view worker**, started by
 the page, owns the frame store, the cache I/O, the asking (its own port to the downloader) and the paint (WebGL2 on the
@@ -954,3 +956,74 @@ Williams period of its arms (`lab/order.mjs`), so every arm follows every other 
 8 and 16 are equally near 12, 8 taken for the host's time), **W 14** (7 arms), **R 10** and **G 10** (5 arms). The
 rule's "≥ 9 of 12" reads as ≥ 75 % of a cell's rounds, as `summary.mjs` counts it: ≥ 6 of 8, 11 of 14, 8 of 10.
 *Credits:* three feeders take ⌈8 / 3⌉ = 3 credits each, so W keeps 9 frames ahead in total, not 8.
+
+#### Arm D, Results (run 2026-10-29 to 2026-10-30)
+
+**What ran.** The amended protocol as written, on the 4-vCPU, 15.7 GiB agent container: Chrome for Testing
+153.0.8010.12 (Playwright's) and Firefox 159.0 (WebDriver BiDi, Xvfb), decoder builds from `claude/decoders-committed`
+checked against `manifest.sha256`. Every cell L, W, R at S1, S2, S3 × 1×, 4×, and G at S2 × 1×, 4×, one Williams period
+each (L 8 rounds, W 14, R and G 10), the three mutants once each; a fresh profile per run. Raw rows:
+`lab/opfs-arms/rows/{chromium,firefox}/`, one file per cell. **WebKit not run** (no build here), so the WebKit cell with
+a busy page stays owed. Twice the container restarted mid-cell; the cell's partial rows were discarded and the cell run
+whole again. The harness was fixed during the Firefox run, each fix checked by a mutation and the cut-short cells
+rerun whole: a run's 300 s deadline now covers the navigation and the drag, and a browser that does not start is killed
+at 60 s; Node 22's built-in `WebSocket` closed Firefox's BiDi socket abnormally (1006) once in 5–8 drag runs, with
+Firefox still alive, so `lab/opfs-cache/browser.mjs` uses Playwright's bundled `ws` (44 of 44 runs then completed).
+
+**The mutants.** *drop-writes* caught on A on arrival, B on arrival, C and D, and *late-input* on `none` and D, in both
+engines. *write-before-paint* caught on B paint first in both and on A paint first in Firefox; **not caught on A paint
+first in Chromium**: it missed 94.9 % of ticks against ~55 % unmutated, but 761 ticks under the Σ ⌊block / period⌋
+bar's 868, the marginal bar the Protocol's correction names. Its cell, S3 4×, is saturated in both engines, so no
+claim leans on it.
+
+**Where the host saturates** (`none` misses > 5 % of ticks in L's median round; nothing is claimed for any cell at that
+engine, size and throttle): Chromium S2 4× (7.8 %) and S3 4× (13.1 %); Firefox S2 4× (28.3 %), S3 1× (6.9 %) and S3 4×
+(44.8 %). **VOID** (A/A): Chromium L S1 4× (|C′ − C| 8.9 % of ticks), W S2 1× (C′ / C 1.11) and W S3 1× (1.19);
+Firefox L S1 4× (1.2 %), L S2 1× (4.4 %), R S2 1× (0.89) and G S2 4× (56 ms). Counted: Chromium 10 cells of 20, Firefox
+7 of 20.
+
+**Counted cells.** L: median missed share of ticks, then (rounds on time, rounds bounded) of 8; W: median MB/s (rounds
+≥ 125) of 14; R: miss p50 ms, every arm on every counted cell 10 of 10; G: input → painted p99 ms (rounds on time) of 10.
+
+| | none | A on arrival | A paint first | B on arrival | B paint first | C | C′ | D |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Chromium L S1 1× | 0.0 | 0.0 (6, 8) | 0.0 (8, 7) | 0.3 (3, 0) | 0.5 (4, 0) | 0.2 (8, 7) | 0.3 (7, 6) | 0.0 (8, 8) |
+| Chromium L S2 1× | 0.7 | 36.3 (0, 8) | 1.0 (6, 8) | 3.6 (0, 8) | 3.9 (1, 8) | 2.0 (3, 8) | 2.5 (0, 8) | 0.5 (8, 8) |
+| Chromium L S3 1× | 0.3 | 45.8 (0, 8) | **17.0 (0, 0)** | 8.9 (0, 8) | 10.2 (0, 8) | 6.1 (0, 8) | 6.2 (0, 8) | 0.5 (6, 8) |
+| Firefox L S1 1× | 0.0 | 0.3 (7, 8) | 0.2 (8, **3**) | 6.5 (0, 0) | 7.0 (0, 0) | 0.8 (2, 6) | 0.7 (1, 5) | 0.1 (8, **4**) |
+| Chromium W S1 1× | | 816 (14) | 238 (14) | 139 (14) | 123 (6) | 505 (14) | 521 (14) | 264 (14) |
+| Chromium W S1 4× | | 194 (14) | 175 (13) | 43 (0) | 44 (0) | 110 (3) | 111 (3) | 190 (14) |
+| Firefox W S1 1× (C, C′: 3 runs past the deadline) | | 360 (14) | 223 (14) | 29 (0) | 29 (0) | 158 (12) | 160 (13) | **30 (0)** |
+| Firefox W S1 4× | | 352 (14) | 194 (14) | 17 (0) | 17 (0) | 98 (0) | 97 (0) | **21 (0)** |
+| Firefox W S2 1× | | 1178 (14) | 569 (14) | 316 (14) | 303 (14) | 306 (14) | 304 (14) | 314 (14) |
+| Chromium R S1 1×, 4× | | 16.4, 16.4 | | 16.4, 31.9 | | 16.4, 16.4 | 16.4, 16.4 | 16.4, 16.5 |
+| Chromium R S2 1× | | 28.8 | | 52.0 | | 33.1 | 33.1 | 35.3 |
+| Chromium R S3 1× | | 40.1 | | 83.4 | | 49.7 | 49.6 | 47.6 |
+| Firefox R S1 1×, 4× | | 15.6, 15.7 | | 16.1, 15.8 | | 15.9, 15.9 | 15.8, 16.0 | 16.1, 16.0 |
+| Chromium G S2 1× | 33.8 | | 33.9 (10) | | | 36.5 (6) | 38.1 (4) | 33.7 (10) |
+| Firefox G S2 1× | 17.7 | | 17.6 (10) | | | **47.4 (0)** | 49.1 (0) | 17.8 (10) |
+
+The view thread's block a frame in L at 1×, median of the rounds' p50 (Chromium / Firefox): C's copy S2 9.1 / 32.6 ms,
+S3 14.4 / 47.6, against the 2–4 and 3.4–6.8 ms predicted; A paint first S3 4.6 / 6.3; A on arrival S2 70.6 / 11.8, S3
+128.5 / 162.9, against 4–17 and 7–27 predicted. D's write on a decoder (the rows' feeder clock, median of the rounds'
+p50): Chromium S1 4× the handle calls 4.1 ms and write and close 2.2 ms; Firefox S1 1× 26.9 and 22.6 ms, S2 1× 26.7
+and 145 ms.
+
+**The verdict, per rule, per engine.**
+
+| | Chromium 153 | Firefox 159 |
+| --- | --- | --- |
+| **D** | rules 1 and 2 pass on every counted cell; **rule 3 fails**: 2.12 ms against S1 4×'s 14.6 ms decode, 0.145 > 0.10 | **rule 2 fails**: W at S1 30 and 21 MB/s, L at S1 1× bounded 4 of 8 (the decoders fall behind, the cell ends unwritten); **rule 3 fails**: 58.3 ms against 14.6 |
+| **A paint first** | **rules 1 and 2 fail** at L S3 1×: 17 % of ticks missed, the drain behind the fill in every round | rule 1 passes; **rule 2 fails** at L S1 1×: bounded 3 of 8 |
+| **C** | **rule 1 fails** at L S2 1× (3 of 8) and S3 1× (0 of 8); W S1 4× 110 MB/s (3 of 14) fails rule 2 | **rule 1 fails** at L S1 1× (2 of 8) and G S2 1× (0 of 10); W S1 4× 98 MB/s (0 of 14) fails rule 2 |
+| **rule 4** | no arm passes: **to the owner as measured** | no arm passes: **to the owner as measured** |
+
+**Against the prediction.** Chromium's D fails only its decoders' clock at S1, 4×, as predicted (2.12 ms where ~3 was
+predicted; the ratio 0.145 where ~0.20), so by (1) **one writer the decoders post to** is the arm to add there. C's copy
+blocks the view thread 2–4× longer than predicted on Chromium and ~8× on Firefox and makes C late already at 1×, at S2 and S3 in Chromium and at S1 in
+Firefox, not only at 4×. A paint first was predicted on time everywhere and is not on Chromium at S3 1×: its blocks are
+inside the 8 ms, but its drain falls behind a 125 MB/s fill of S3 frames. On Firefox a file per frame costs the decoder
+~50 ms a frame at S1 (handle and write), so D falls short of 125 MB/s at S1 whatever the throttle; the source's
+per-frame quota round trips ((3) above) predicted a cost, not its size. A on arrival and B are late where predicted, and B on
+Firefox at S1 too. Nothing past the saturated cells is claimed, so the 4× parts of rule 1 are judged at S1
+alone, and Chromium's S1 4× L is VOID.
