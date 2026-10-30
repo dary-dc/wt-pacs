@@ -2913,6 +2913,11 @@ defect has a test that fails on the assembled code, a fix, and the mutants the t
   the view had replaced that want since. It was then asked ahead of the frame on screen. The frame now goes first only
   under the want it was read for.
 
+* **The viewer check in Firefox.** Firefox 155 quotes a Latin-1 character in `console.log` as `\xNN`, which
+  `JSON.parse` refuses. Every Firefox run therefore died on the status line's middle dot, though the page had passed.
+  With the reader fixed, the gate's grey series passes in Firefox under both views, with a cine and on demand
+  (headed, `xvfb-run`). This is outside the gate, whose Firefox arm needs the DICOM bundles.
+
 Checked and found as both sides meant: each merge resolution recorded on #250; the defaults under `?view=page`
 against main's viewer (cine period, steps, window drag, ledger shape); `span` 0 reproduces main's run; the downloader
 link's ordering; the cache's paint-first write, its re-ask of a failed read and its lock.
