@@ -2,7 +2,8 @@
 """docs/native/README.md §6 M2 NATIVEFILL: the browser's viewer against the native core, fill and ask, one server build,
 every unit twice a round (the A/A), Williams-ordered. §6 holds the predictions, the rule and the reading.
 
-    run.py --make-series DIR                 # DIR/large.sbnd (37 × 1024², ~61 MB) and DIR/small.sbnd (102 × 512² RGB, ~4.4 MB)
+    run.py --make-series DIR                 # DIR/large.sbnd (37 × 1024², ~61 MB), DIR/small.sbnd (102 × 512² RGB, ~4.4 MB),
+                                             # DIR/mammo.sbnd (16 × 3328×4096, 12 of 16 bits)
     run.py --series DIR --rounds 7 --out rows.jsonl
     run.py --summary --out rows.jsonl
 """
@@ -28,6 +29,8 @@ SERVER_PORT, RELAY_PORT = 4600, 5555
 DELAY_MS = 40  # one way
 ASK_RATE_KBIT = 50000
 SERIES = {"large": (1024, 1024, 1, 65535, "field", 37), "small": (512, 512, 3, 255, "cine", 102)}
+# NATIVERUN's memory and step cells' series: §The comparison, pre-registered.
+MADE = {**SERIES, "mammo": (3328, 4096, 1, 4095, "ct", 16)}
 ASKS = {"large": 12, "small": 30}
 # (rate kbit or None for loopback, loss %); the ask cell is its own.
 FILL_LINKS = [(None, 0), (20000, 0), (20000, 2), (50000, 0), (50000, 2)]
@@ -78,7 +81,7 @@ def make_series(d):
     """Synthetic HTJ2K in the served profile, digests from the generated samples, never from a decoder."""
     ojph = os.path.join(ROOT, "ingest", ".build", "openjph")
     env = {**os.environ, "LD_LIBRARY_PATH": os.path.join(ojph, "lib")}
-    for name, (w, h, ch, maxval, mode, n) in SERIES.items():
+    for name, (w, h, ch, maxval, mode, n) in MADE.items():
         frames = os.path.join(d, name)
         os.makedirs(frames, exist_ok=True)
         digests = []
@@ -94,7 +97,7 @@ def make_series(d):
             digests.append(xxhash.xxh3_64_hexdigest(samples))
             os.remove(pnm)
             os.remove(pnm + ".sha256")
-        meta = {"frameCount": n, "codec": "htj2k", "width": w, "height": h, "channels": ch, "bitsStored": 16 if maxval > 255 else 8,
+        meta = {"frameCount": n, "codec": "htj2k", "width": w, "height": h, "channels": ch, "bitsStored": maxval.bit_length(),
                 "signed": False, "photometric": "RGB" if ch == 3 else "MONOCHROME2", "seriesLabel": f"lab_native_fill_{name}",
                 "digests": {"algorithm": "xxh3-64", "frames": digests}}
         json.dump(meta, open(os.path.join(d, f"{name}.json"), "w"))

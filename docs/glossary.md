@@ -60,5 +60,6 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | golden payload | an AV1 payload the writer made from a synthetic source with a known checksum, kept in `client/contract/av1/payloads/` |
 | cell | one configuration a lab run measures: a link, a CPU throttle, a series, a schedule |
 | variant | one condition of a timed comparison, interleaved with the others in every round (`CLAUDE.md` §Measurement) |
+| visit | one run of one variant in one cell, from the client's dial to its end; the native window prints its times in a `visit` line (`client/native/src/count.rs`) |
 | busy-UI loop | the lab's block of the UI thread: it spins for a set time on a fixed schedule, so what waits on that thread slips (`client/native/src/clock.rs`; [`native/README.md`](native/README.md) §The comparison, pre-registered, metric 4) |
 | hop | one message between two threads; its **hop stamp** is its send → receive time (`client/native/src/count.rs`) |

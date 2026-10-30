@@ -79,6 +79,18 @@ struct Args {
     step_every_ms: u64,
     #[arg(long, value_enum, default_value_t = StepsVia::Paint)]
     steps_via: StepsVia,
+    /// The lab's end: close once every frame has been exact on the thread that paints, and a step's interval after
+    /// the last step. Under `view` and `core` the budget must hold the series.
+    #[arg(long)]
+    exit: bool,
+    /// The window's inner size, WIDTHxHEIGHT.
+    #[arg(long, value_parser = size, default_value = "512x384")]
+    size: (u32, u32),
+}
+
+fn size(s: &str) -> Result<(u32, u32), String> {
+    let parsed = s.split_once('x').and_then(|(w, h)| Some((w.parse().ok()?, h.parse().ok()?)));
+    parsed.ok_or_else(|| format!("{s} is not WIDTHxHEIGHT"))
 }
 
 /// Where the lab's steps enter.
@@ -107,6 +119,10 @@ enum Note {
     Shown(u32),
     Failed(String),
     Step,
+    /// Every frame has been exact on the paint thread, under `view` and `core`.
+    Filled,
+    /// A step's interval has passed since the lab's last step.
+    StepsDone,
 }
 
 /// The user's input as the thread that paints applies it.
@@ -198,7 +214,7 @@ impl Gpu {
             self.surface.configure(&self.painter.device, &self.config);
             return Ok(());
         };
-        let display = look.display(s);
+        let display = look.display(s, &frame);
         let dpr = self.window.scale_factor();
         self.painter.draw(&texture.texture, &frame, &display, dpr)?;
         count::paint();
@@ -212,7 +228,8 @@ impl Gpu {
             std::fs::write(dir.join(format!("{n:03}.raw")), pixels)?;
             let (width, height) = (self.config.width, self.config.height);
             let exact = format!("{:?}", exact(pixels, self.digests.as_ref().and_then(|d| d.get(look.current).copied()))).to_lowercase();
-            let cell = json!({ "frame": look.current, "exact": exact, "center": look.center, "windowWidth": look.width, "fit": look.fit, "width": width, "height": height, "dpr": dpr });
+            let voi = display.voi.as_ref().map_or((f64::NAN, f64::NAN), |v| (v.center, v.width));
+            let cell = json!({ "frame": look.current, "exact": exact, "center": voi.0, "windowWidth": voi.1, "fit": look.fit, "width": width, "height": height, "dpr": dpr });
             std::fs::write(dir.join(format!("{n:03}.json")), cell.to_string())?;
         }
         self.painted += 1;
@@ -224,6 +241,7 @@ impl Gpu {
             wait.recv()?;
             println!("painted frame={} at_ms={:.3}", look.current, since_start());
         }
+        count::shown();
         Ok(())
     }
 }
@@ -259,13 +277,15 @@ impl Look {
         }
     }
 
-    fn display(&self, s: &Series) -> Display {
+    /// The window set, else the frame's range where the metadata has none.
+    fn display(&self, s: &Series, frame: &Frame) -> Display {
+        let set = self.center.is_finite() && self.width.is_finite();
         Display {
             photometric: s.photometric,
             invert: false,
             slope: s.slope,
             intercept: s.intercept,
-            voi: Some(Voi { center: self.center, width: self.width, function: s.function }),
+            voi: Some(if set { Voi { center: self.center, width: self.width, function: s.function } } else { Voi::of_range(frame, s.slope, s.intercept) }),
             view: View { fit: self.fit, zoom: 1.0, pan_x: 0.0, pan_y: 0.0, rotate: 0, flip_h: false, flip_v: false },
         }
     }
@@ -285,6 +305,8 @@ struct App {
     view: Option<mpsc::UnboundedSender<Sent<Intent>>>,
     busy: Option<Busy>,
     cine: Option<Cine>,
+    filled: bool,
+    steps_done: bool,
 }
 
 impl App {
@@ -350,18 +372,24 @@ impl App {
             }
         };
         let (n, every, stamp) = (a.steps, Duration::from_millis(a.step_every_ms), a.stamp_painted);
+        let done = a.exit.then(|| self.proxy.clone());
         std::thread::Builder::new().name("steps".into()).spawn(move || {
             for _ in 0..n {
                 std::thread::sleep(every);
                 stamp_step(stamp);
                 step();
             }
+            if let Some(done) = done {
+                std::thread::sleep(every);
+                let _ = done.send_event(Sent::now(Note::StepsDone));
+            }
         })?;
         Ok(())
     }
 
     fn open(&mut self, event_loop: &ActiveEventLoop) -> Result<Gpu> {
-        let attributes = Window::default_attributes().with_title("wt-pacs").with_inner_size(winit::dpi::LogicalSize::new(512, 384));
+        let attributes = Window::default_attributes().with_title("wt-pacs");
+        let attributes = attributes.with_inner_size(winit::dpi::PhysicalSize::new(self.args.size.0, self.args.size.1));
         let window = Arc::new(event_loop.create_window(attributes)?);
         let surface = self.instance.create_surface(window.clone())?;
         let options = wgpu::RequestAdapterOptions { compatible_surface: Some(&surface), ..Default::default() };
@@ -410,9 +438,10 @@ impl App {
         let s = &self.series;
         let frame_bytes = (s.width * s.height * s.components) as usize * if s.bits > 8 { 2 } else { 1 };
         let cine = a.cine_hz.map(|hz| Cine::new(hz, s.count, Instant::now()));
-        let view = Viewer { gpu, series: s.clone(), look: self.look, store: Store::new(a.budget), frame_bytes, want, notes: self.proxy.clone(), cine };
-        let (url, hash, asks) = (a.url.clone(), cert_hash(&a.cert_sha256)?, a.asks);
+        let view = Viewer { gpu, series: s.clone(), look: self.look, store: Store::new(a.budget), frame_bytes, want, notes: self.proxy.clone(), cine, exit: a.exit };
+        let (url, hash, asks, s_count) = (a.url.clone(), cert_hash(&a.cert_sha256)?, a.asks, s.count);
         let downloading = async move {
+            count::dialed(s_count);
             let session = dial_bounded(&url, hash, &Windows::default(), 1).await?;
             download(session, wanted, jobs, finished, cache, asks).await
         };
@@ -451,6 +480,7 @@ struct Viewer {
     want: watch::Sender<Vec<u32>>,
     notes: EventLoopProxy<Sent<Note>>,
     cine: Option<Cine>,
+    exit: bool,
 }
 
 impl Viewer {
@@ -476,6 +506,9 @@ impl Viewer {
                     match samples {
                         Ok(samples) if exact != Exact::False => {
                             self.store.put(index, samples, written, self.look.current as u32);
+                            if count::exact(index) && self.exit {
+                                let _ = self.notes.send_event(Sent::now(Note::Filled));
+                            }
                             if index as usize == self.look.current {
                                 self.paint()?;
                             }
@@ -550,16 +583,18 @@ impl ApplicationHandler<Sent<Note>> for App {
         event_loop.set_control_flow(next.map_or(ControlFlow::Wait, ControlFlow::WaitUntil));
     }
 
-    fn user_event(&mut self, _: &ActiveEventLoop, note: Sent<Note>) {
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, note: Sent<Note>) {
         let hop = match *note {
             Note::Frame(..) => "frame",
             Note::Shown(_) => "shown",
             Note::Failed(_) => "failed",
             Note::Step => "step",
+            Note::Filled | Note::StepsDone => "lab",
         };
         match note.received(hop) {
             Note::Frame(index, samples) => {
                 count::hop(index);
+                self.filled |= count::exact(index);
                 self.frames[index as usize] = Some(samples);
                 if index as usize == self.look.current {
                     self.redraw();
@@ -576,6 +611,11 @@ impl ApplicationHandler<Sent<Note>> for App {
                 println!("failed {reason}");
             }
             Note::Step => self.input(Intent::Step(1)),
+            Note::Filled => self.filled = true,
+            Note::StepsDone => self.steps_done = true,
+        }
+        if self.args.exit && self.filled && (self.steps_done || self.args.steps == 0) {
+            event_loop.exit();
         }
     }
 
@@ -628,6 +668,7 @@ async fn load(args: Args, metadata: String, count: usize, proxy: EventLoopProxy<
         }
         None => None,
     };
+    count::dialed(count);
     let mut session = dial(&args.url, cert_hash(&args.cert_sha256)?, &Windows::default()).await?;
     session.fill(0, count as u32 - 1).await?;
     for _ in 0..count {
@@ -676,6 +717,8 @@ fn main() -> Result<()> {
         view: None,
         busy: None,
         cine: None,
+        filled: false,
+        steps_done: false,
     };
     let runtime = tokio::runtime::Runtime::new()?;
     if args.paint_thread == PaintThread::Ui {
