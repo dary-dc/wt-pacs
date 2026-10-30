@@ -174,13 +174,24 @@ if (!fillMode) show(0);
 
 let cine = null;
 const cineEl = document.getElementById("cine");
+/** Steps on the page's frames, each once its slice is held and painted and its time is due; never skips. client/README.md §The viewer */
 function toggleCine() {
   if (cine) {
-    clearInterval(cine);
+    cancelAnimationFrame(cine.frame);
     cine = null;
   } else {
     const ms = meta.frameTimeMs ?? (meta.cineRate ? 1000 / meta.cineRate : 100);
-    cine = setInterval(() => show((current + 1) % n), ms);
+    const tick = (t) => {
+      // A step goes on the page frame nearest its due time; a late one restarts the schedule.
+      if (t + (t - cine.last) / 2 >= cine.due && frames.has(current) && !painting) {
+        cine.due = cine.due + ms < t ? t + ms : cine.due + ms;
+        show((current + 1) % n);
+      }
+      cine.last = t;
+      cine.frame = requestAnimationFrame(tick);
+    };
+    const now = performance.now();
+    cine = { due: now + ms, last: now, frame: requestAnimationFrame(tick) };
   }
   cineEl.textContent = cine ? "❚❚ cine" : "▶ cine";
 }

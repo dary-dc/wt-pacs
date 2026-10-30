@@ -148,12 +148,20 @@ function judge(name, r, requests, codec, decoder) {
     if (CLIENT === "ts") say(wasm.length === 0, `a ts page fetched the WASM client's code: ${wasm.join(", ")}`);
   }
   for (const b of r.readbacks ?? []) say(!b.error && b.worst === 0, `frame ${b.i} at zoom 1 differs from the CPU reference: ${b.error ?? `worst |Δ| ${b.worst}`}`);
-  if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine from the last frame showed ${r.cine} frames in 1.5 s`);
+  for (const c of process.argv.includes("--cine") ? r.cine ?? [{ error: "no cine ran" }] : []) {
+    const lever = c.askMs ? `, each ask held ${c.askMs} ms` : c.paintMs ? `, each paint held ${c.paintMs} ms` : "";
+    say(c.skipped === 0 && c.inOrder, `a cine sweep from the last frame${lever} showed ${r.n - c.skipped} of ${r.n} frames${c.inOrder ? "" : ", not in order"}: ${c.error ?? c.order}`);
+    // Never faster than the series' rate; at it, or at the page's frame rate where that is slower, when nothing is held.
+    const due = Math.max(c.statedMs, c.frameMs);
+    const ok = c.stepMs >= 0.95 * c.statedMs && (lever !== "" || c.stepMs <= 1.25 * due);
+    say(ok, `a cine${lever} stepped every ${c.stepMs?.toFixed(1)} ms against the series' ${c.statedMs} and the page's ${c.frameMs?.toFixed(1)}`);
+  }
 }
 
 const summary = (name, r) => `${name}, client ${CLIENT}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +
   `${r.fillMs === null ? "on demand" : `fill ${Math.round(r.fillMs)} ms`}, first exact on screen ${Math.round(r.firstShownMs)} ms, readbacks ${(r.readbacks ?? []).map((b) => `${b.i}:${b.worst}`).join(" ")}` +
-  `${r.cine !== undefined ? `, cine ${r.cine} frames` : ""}`;
+  (r.cine ?? []).map((c) => `, cine${c.askMs ? ` (asks held ${c.askMs} ms)` : c.paintMs ? ` (paints held ${c.paintMs} ms)` : ""} showed ${r.n - c.skipped} of ${r.n}` +
+    `${c.inOrder ? " in order" : ""}, ${c.stepMs?.toFixed(1)} ms a step against ${c.statedMs}, page frames ${c.frameMs?.toFixed(1)} ms`).join("");
 
 /** A page open on demand across a server restart: its step after the restart must arrive exact. docs/ARCHITECTURE.md §An open page follows a server restart */
 async function acrossARestart(url, cmd) {
