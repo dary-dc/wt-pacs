@@ -921,6 +921,84 @@ files as fetched.
 **Not traced:** WebKit's and Gecko's release of the lock when a worker dies; WebKit's nested workers' sync handles at
 run time (the IDL exposes them; the probe ran Chromium only).
 
+### Experiments beside the target (2026-10-29)
+
+*Which changes to the Target are worth an experiment each, ranked by expected gain over cost. Gathered from the
+Target's open table, both reviews, [`../ARCHITECTURE.md`](../ARCHITECTURE.md), the branches cited as in §Review (FM,
+ARMS, WC, MAP, VW) and a reading of `client/transport`, `client/decode`, `client/paint` and `VW:client/view/view-worker.js`.
+**Nothing here is built or run**; a figure is a measurement cited where it is, or marked a guess. Each experiment
+changes one lever against the Target as built on VW, interleaved (`lab/order.mjs`), ≥ 12 rounds, Chromium and
+Firefox, every frame checked against the encoder input's `.sha256`, and states its rule before any data.*
+
+**Screened out**, against what is decided or what is already measured:
+
+* *Hashing the decoder's output before the copy into shared memory* (the hasher copies the frame into its own memory
+  in 16 KB chunks, `client/decode/xxh3.js:21–25`): the copy would then be painted unchecked. Exactness first.
+* *The range folded into the copy*: measured slower, 1.06–1.17× ([`../decode/README.md`](../decode/README.md) §The
+  range pass). *Reading frames whole by default (`readMin`)*, which skips a copy on receive: frame 0 ties
+  ([`../cloud-queue.md`](../cloud-queue.md), RMD4).
+* *Merging `done` and the ack, or batching frames per message*: 0.1 ms a message at 1×, 0.4 at 4×
+  ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The hand-off), spent in workers nobody waits on.
+* *Reusing the paint's textures and its VOI table across frames* (`client/paint/paint-worker.js:104–120`): the whole
+  paint is 0.34 ms at 512², and at 12.6 Mpx the upload is 5.70 of 5.74 ms (§Paint). Nothing anyone sees is left to
+  remove.
+* *Already pre-registered elsewhere, run as written against the view worker*: the values of `D_min`
+  ([`client-window-depth.md`](client-window-depth.md) T1), the clock (WC), a disk-only store and the slot ring (FM's
+  M5), who writes the cache (OPFSARMS), the 1-pixel `readPixels` (the Target keeps it behind the lab's flag).
+
+| rank | experiment | metric it moves, and by how much | code | risk to exactness | decided by |
+| ---: | --- | --- | --- | --- | --- |
+| 1 | span small gaps in the misses (red 5) | a fill from a half-held cache: 1.7 s at 46 ms RTT, 3.4 s at 92 ms of idle round trips removed (the probe's model), against ~1.1 s of transfer for 38 CT frames at 20 Mbit (M1's 29 ms a frame) | `nextRun` takes a gap ≤ g; duplicates dropped before decode: ~20 lines | none: held frames are not decoded again | half-held against empty cache, 46 and 92 ms, 0 and 1 % loss, g ∈ {0, 1, 2, 4, 8} and all-misses-as-asks |
+| 2 | the want ascending from `current + 1`, and no ask for a frame the running run delivers within k | forward steps during a fill: about one RTT (46–92 ms) per step that ends the fill today; **a guess** from WIRE §An ask during a fill | the controller's order and one test in the downloader: ~15 lines | none | MAP's sawtooth trace at 25 slices/s, step → screen; k = 1…8 |
+| 3 | a transferred `ArrayBuffer` per frame, (a′), not a `SharedArrayBuffer` | peak memory of an 80 × 3328×4096 fill: 600–800 MiB against 2.6–3.2 GiB on Chromium (FM's M5 prediction); no slot table | the decoders' allocation and a transfer list: ~10 lines, against (c)'s ring | a detached buffer reaches no one; a store worker (arm C) needs it transferred back or copied | M5's `transfer` arm, read as the default and (c) as the alternative |
+| 4 | the credit count K | the same peak memory against the fill's time; below `decoders × perDecoder` = 6 the decoders starve (**a guess**) | a constant | none | M5 with writes slowed, K ∈ {3, 6, 9, 12} |
+| 5 | decoders on a phone, with the view worker's thread added (red 13) | fill time: 3 decoders on 2 cores at 4× were 7 % slower than 2 (5 329 against 4 999 ms, §Resources); one more thread moves the crossover, **a guess** | a setting | none | `resources.mjs` with the view worker, 2 and 4 cores, 1× and 4×, then D5 on a device |
+| 6 | one WebGL2 context for every viewport (red 7) | a fifth canvas no longer loses a context; paint time unknown | a scissored canvas or a presentation per canvas: a few hundred lines | a viewport bleeding into its neighbour | contexts lost and paint p95 at 1, 2, 4, 5 viewports, Chromium and WebKit |
+| 7 | the decoders write and post only frames near the want (arm D with independent concession 1) | one 17 MB copy a fill frame off the decoder's clock, ~4 ms (the probe's write) of a 47–72 ms decode: ≤ 8 % of a decode-bound fill, **a guess** | the decoder learns the window; the store learns "on disk, not held" | none new: every read is checked (§5) | OPFSARMS's W cell with arm D, posting all against posting the window |
+| 8 | the AV1 group as the store's unit, previews never posted (red 9, 11) | nothing today: the viewer sets `groupLength` 1 and decodes no scalable payload | the store's eviction by group | a preview stored in a frame's place | deferred until either ships; then decodes per index at G = 8 |
+
+**1 · Span small gaps.** The store sends only misses, and the downloader issues each run after the last one's final
+frame lands (`client/transport/downloader.js:290`), so a cache holding every other frame costs a round trip a frame:
+the probe counted 38 runs for 76 frames. Asking for g held frames to keep a run whole spends wire bytes, not decodes.
+The third arm sends every scattered miss as pipelined asks, which the Target's `D_min` prefix already does for the
+want's head. **Rule:** adopt the smallest g whose fill from the half-held cache is ≤ 0.6× of g = 0's in ≥ 9 of 12
+rounds at both RTTs, with wire bytes ≤ the empty cache's fill; else keep g = 0. Lossy wireless makes an idle round
+trip longer, so the 1 % cells matter most.
+
+**2 · Do not ask across the running fill.** An ask ends the fill the server is reciting, and the fill is re-issued at
+the asked frame's head ([`../WIRE.md`](../WIRE.md) §An ask during a fill): a reader stepping forward into what the
+fill delivers next pays a round trip for a frame that was coming anyway. A want that starts at `current + 1` is
+ascending, so it rides one run (MAP's G1), and the independent design's rule 3 is its downloader half. **Rule:** k is
+the largest step ahead at which waiting is no later than asking in ≥ 9 of 12 rounds; adopt the ordering if the
+sawtooth's median step → screen improves by ≥ 16.7 ms with the fill within ×0.98–1.02.
+
+**3 · (a′) by default.** V8 counts a shared buffer as 0 bytes (FM:fp:639–645), so M2's window bounded nothing; a
+transferred buffer is charged to its holder and collected. FM recommends the slot ring (c) and names (a′) the
+turn-over (FM:fp:730); the ring costs a slot table, a `compareExchange` per frame and its own backpressure. If
+`transfer` meets M5's 608 MiB bar the ring is not built, and the page no longer needs cross-origin isolation for its
+frames. This ranks above K because it decides what K is protecting.
+
+**4 · K.** The Target dispatches only while fewer than K frames are unacked; ARMS's W cell keeps its feeder 8 ahead
+(ARMS:fp:784). Too small starves three decoders of two frames each; too large is M2 again. **Rule:** the smallest K
+whose fill is within ×1.02 of K = 12, then check its growth against M5's bar.
+
+**5 · Decoders on a phone.** The count is `min(3, hardwareConcurrency)`, and WebKit reports 4 below 8 cores, so a
+phone with two fast cores runs three decoders beside the downloader, the view worker and the page. **Rule:** per core
+count, the decoder count with the shortest fill whose cold ask is no later by 16.7 ms; a device setting where the
+engine clamps.
+
+**6 · One context.** A four-view mammogram already sits at the 4 contexts a worker gets in Chromium and WebKit. This
+is a correctness fix with a cost to measure, not a speed-up. **Rule:** adopt if 5 viewports lose none and the paint
+p95 at 4 is within 1 ms of four contexts; the check reads every viewport.
+
+**7 · Decoders write, post the window.** A fill frame nobody looks at then never leaves the decoder but to disk, as in
+the independent design, while asked frames ride a transferred buffer (its concession 1). Worth it only where the fill
+is decode-bound and frames are large. **Rule:** adopt if the fill improves by ≥ 2 % on the mammogram in ≥ 9 of 12
+rounds on both engines and no set is slower.
+
+**8 · Groups and previews.** Both bite only with a payload the viewer does not use today; the experiment waits for
+one.
+
 ## The core, assembled (2026-10-30)
 
 **Decided by the owner, 2026-10-30:** *"We won't build visualizers for now. We build the new architecture (core)
