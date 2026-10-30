@@ -567,5 +567,25 @@ async function aHeadTheRunDeliversWithinKIsWaitedFor() {
 }
 await aHeadTheRunDeliversWithinKIsWaitedFor();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for: ok");
+/**
+ * A frame the ended run delivers after its record was forgotten stays wanted: it is asked in its turn, so every frame
+ * of the want reaches the consumer though no new want is sent.
+ */
+async function aLateFrameOfAnEndedRunIsStillWanted() {
+  const w = await wantWorld("late-ended", { decode: false, decoders: 0 });
+  await onmessage({ data: { kind: "want", indices: [...Array(10).keys()] } });
+  const run = w.onFill;
+  run(frame(0));
+  await settle();
+  await onmessage({ data: { kind: "want", indices: [9, 8, 7, 6, 5, 4, 3, 2, 1] } });
+  await w.serveOne();
+  run(frame(1));
+  await settle();
+  while (w.owed.length) await w.serveOne();
+  const got = new Set(posted.filter((m) => m.kind === "frame").map((m) => m.index));
+  check(got.size === 10, `every frame of the want reaches the consumer (${[...got].sort((a, b) => a - b)})`);
+}
+await aLateFrameOfAnEndedRunIsStillWanted();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted: ok");
 process.exit(failed ? 1 : 0);
