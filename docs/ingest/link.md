@@ -336,6 +336,8 @@ first-party text.
 
 ## 11. The carrier for the PCS's packages
 
+*How each option works, step by step and sourced, for learning rather than choosing: [`carriers-explained.md`](carriers-explained.md).*
+
 *2026-10-25. Proposed, not accepted; theory only: read from sources and from the crates' code, nothing built, nothing timed. It stacks on
 [`../adr/pcs-transfer.md`](../adr/pcs-transfer.md) (the ADR below), which fixed the unit (one package per series, or a
 small update package), the reply (received, committed, refused: its §7) and recommended a resumable HTTPS upload (its
