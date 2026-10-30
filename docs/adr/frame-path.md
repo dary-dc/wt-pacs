@@ -2761,6 +2761,17 @@ trees. So the leak predates `span`, which the dispatch rig leaves at 0. It is no
 rig's run before it, or the page beside it. 3 of 15 against 1 of 20 is no measured difference. This is the stranding
 race of [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Closing a client, with the decoders left alone. Not fixed here.
 
+#### Experiment 1: not run (2026-10-30)
+
+*The run's session (`claude/core-exp1`), on the core with the review above merged. No visit was made; there are no rows.*
+
+The run was to go ahead only if the review left a rule that could be met and advised the run. It does neither. On
+the model the rule cannot be met in any cell, S at 1.90–1.96× A against the rule's ≤ 0.6×, and its verdict is *not
+worth running as pre-registered*. So the 12-round protocol was not started. **Verdict: not run; `span` stays 0.** The
+review's recommendation, to remove `span` and `holdEveryOther`, is a removal from the core and the owner's to take. So
+is its one-cell check of the model's sign (`us_liver`, `r20000`, 46 ms, clean, Chromium, A and S half-held, 3 rounds).
+Neither is done here. Until then both settings stay in the core at their defaults, which are today's behaviour.
+
 ### The receive loop beside the paint (2026-10-29)
 
 *Theory and a harness; nothing measured. The question is difference 2 above: does a WebTransport receive loop keep
@@ -2882,7 +2893,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 | setting | default (today's) | other values | decided by | status 2026-10-30 |
 | --- | --- | --- | --- | --- |
 | `?view=` | `page` | `worker` | §7's rule (B′), #229 | built, not run |
-| `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | built and its rig, not run |
+| `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | not run: the review finds the rule unmeetable on the model (S ≈ 1.9× A) and advises against the run; stays `0`, removal the owner's (§Experiment 1: not run) |
 | `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | built, not run |
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | built, not run |
 | frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241 | arms in `lab/opfs-cache` only; run in progress |
