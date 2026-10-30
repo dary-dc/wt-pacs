@@ -230,7 +230,8 @@ pub fn decoders(
     Ok(())
 }
 
-/// Frames held in memory by byte budget. Over it, the frame farthest from `near` goes first, and only once written.
+/// Frames held in memory by byte budget. Over it, the frame farthest from `near` goes first, the earlier at equal
+/// distance as `want` ranks it last, and only once written.
 pub struct Store {
     budget: usize,
     bytes: usize,
@@ -251,7 +252,7 @@ impl Store {
         self.frames.insert(index, (samples, written));
         while self.bytes > self.budget {
             let evictable = self.frames.iter().filter(|(&i, (_, w))| i != near && w.load(Ordering::Acquire));
-            let Some(&far) = evictable.map(|(i, _)| i).max_by_key(|&&i| i.abs_diff(near)) else { break };
+            let Some(&far) = evictable.map(|(i, _)| i).max_by_key(|&&i| (i.abs_diff(near), i < near)) else { break };
             self.bytes -= self.frames.remove(&far).expect("held").0.len();
         }
         true
@@ -383,6 +384,27 @@ mod tests {
         assert_eq!(store.want(4, 10, 10), Vec::<u32>::new());
         assert_eq!(store.want(8, 10, 10), [8, 9, 7]);
         assert_eq!(store.want(0, 10, 10), [0, 1, 2]);
+    }
+
+    /// **The store keeps what its want asks for.** At equal distance from the frame shown the earlier frame goes, since
+    /// the want takes the later one first: a frame fetched for the want is not the one evicted on arrival. The frame
+    /// shown stays though nothing else can go.
+    #[test]
+    fn the_store_evicts_what_its_want_ranks_last_and_never_the_frame_shown() {
+        let flag = |w: bool| Arc::new(AtomicBool::new(w));
+        let mut store = Store::new(2 * 10);
+        for i in [0, 1] {
+            store.put(i, vec![i as u8; 10], flag(true), 1);
+        }
+        assert_eq!(store.want(1, 10, 10), [2]);
+        store.put(2, vec![2; 10], flag(true), 1);
+        assert!(store.get(2).is_some() && store.get(0).is_none(), "the frame the want asked for was evicted on arrival");
+        assert_eq!(store.want(1, 10, 10), Vec::<u32>::new());
+
+        let mut store = Store::new(10);
+        store.put(5, vec![5; 10], flag(true), 5);
+        store.put(6, vec![6; 10], flag(false), 5);
+        assert!(store.get(5).is_some(), "the frame shown was evicted");
     }
 
     /// **Credits bound the frames the view has not received.** With the view receiving nothing, two decoders and
