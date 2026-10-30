@@ -78,9 +78,11 @@ up() {
       docker run -d --name wtp-$name --restart unless-stopped -p $port:$port/udp -v \$PWD/studies:/studies:ro \
         -v \$PWD/wt/$name:/run/wt-pacs \$supplied -e SERIES=$D2_SET.htj2k -e WT_URL=https://$PUBLIC_NAME:$port/ \
         wt-pacs-server --port $port $flags >/dev/null
-      for i in \$(seq 50); do [ -s wt/$name/dev-transport.json ] && docker logs wtp-$name 2>/dev/null | grep -q '^transport=' && break; sleep 0.2; done
+      for i in \$(seq 50); do docker logs wtp-$name 2>/dev/null | grep -q '^transport=' && break; sleep 0.2; done
       docker logs wtp-$name > wt/$name/banner.txt 2>&1
-      grep -q '^transport=' wt/$name/banner.txt || { cat wt/$name/banner.txt; exit 1; }" </dev/null
+      grep -q '^transport=' wt/$name/banner.txt || { cat wt/$name/banner.txt; exit 1; }
+      # A supplied certificate gets no transport file from the server: the kit names the arm's URL itself.
+      [ -z \"\$supplied\" ] || printf '{\"wt_url\": \"https://$PUBLIC_NAME:$port/\", \"cert_sha256\": \"\"}\\n' > wt/$name/dev-transport.json" </dev/null
     echo "arm $name: UDP $port, flags: ${flags:-none}"
   done <<<"$ARMS"
   "${SSH[@]}" "cd $REMOTE_DIR; read -r DEVICES_TOKEN; export DEVICES_TOKEN

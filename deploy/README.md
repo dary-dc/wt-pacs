@@ -17,6 +17,10 @@ there), so the headers and the paths are tested in the thing that ships.
                                  └─ /studies (ro) ─ /certs ─ /run/wt-pacs ┘
 ```
 
+That is the shape without `TLS_DIR`, where the server mints a certificate the browser cannot verify and the page pins
+it through the transport file. With `TLS_DIR` the server serves the page's certificate (`/supplied`), writes no file,
+and the page dials its own host on 4433: nothing crosses the volume (§Run it).
+
 **nginx is not in the transport's path and cannot be.** The server speaks WebTransport over QUIC on UDP 4433
 and nginx has no QUIC upstream, so the browser dials it directly, as in development. No data-path number can
 move because of anything here. TCP 4433 is published for the WebSocket fallback, but `server-start.sh` passes no
@@ -38,20 +42,27 @@ images is served, whose frames are placeholders that do not decode. Open `http:/
 the page needs TLS:
 
 ```bash
-PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/tls \
+PUBLISH_ADDR=203.0.113.7 TLS_DIR=/etc/wt-pacs/tls \
   STUDIES=... SERIES=... docker compose -f deploy/compose.yml up -d     # https://203.0.113.7/
 ```
+
+The transport serves the same certificate, so `key.pem` must be readable by the server's uid 10001 as well as by
+nginx. Web renders the page to dial `https://` its own host on 4433, pinning nothing and reading no transport file,
+and its policy connects there; a server restart keeps the certificate and the address, so an open page has nothing to
+follow ([`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §A page with nothing to follow). *Corrected 2026-10-19:*
+before, the server minted its own certificate here too, `WT_URL` named it, and the page pinned it through the
+transport file, written into a volume web served and fetched again before every re-dial.
 
 | variable | default | what |
 | --- | --- | --- |
 | `STUDIES` | `../fixtures/us_cine_smoke` | the host directory mounted read-only at `/studies` in both containers |
 | `SERIES` | `us_cine_smoke` | the series served: `$STUDIES/$SERIES.sbnd` and `$SERIES.metadata.json` |
 | `PUBLISH_ADDR` | `127.0.0.1` | the address 8765, 443 and 4433 (UDP and TCP) are published on |
-| `WT_URL` | `https://127.0.0.1:4433/` | the address the transport file tells the browser to dial, and the one origin besides the page's that web's policy lets it connect to |
-| `TLS_DIR` | `./no-tls` (none) | `cert.pem` (the chain) and `key.pem` for the page; absent, web speaks HTTP on 8765 alone |
+| `WT_URL` | `https://127.0.0.1:4433/` | without `TLS_DIR`: the address the transport file tells the browser to dial, and the one origin besides the page's that web's policy lets it connect to; with it, unused |
+| `TLS_DIR` | `./no-tls` (none) | `cert.pem` (the chain) and `key.pem` for the page and the transport; absent, web speaks HTTP on 8765 alone and the server mints its own |
 | `TLS_PORT` | `443` | the host port published for web's 443 |
 | `RESTART_AFTER` | `9d` | the server exits after this and is restarted with a new certificate |
-| `CLIENT` | `ts` | the client the page loads, `ts` or `wasm`, named in the transport file; a restart switches it ([`../docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client) |
+| `CLIENT` | `ts` | the client the page loads, `ts` or `wasm`, rendered into the page with its preloads when web starts; a restart of web switches it ([`../docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client). *Corrected 2026-10-19:* it was the server's, named in the transport file |
 | `REGISTRY` | `docker.io/library` | where the pinned base images are pulled from: a mirror serves the same digests |
 | `MEMLOCK` | `67108864` (64 MiB) | the server's locked-memory limit, soft and hard, which its rings are charged to (§Container settings) |
 | `NOFILE` | `65535` | the server's open-file limit, soft and hard; a ring holds one (two until row 250) |
@@ -111,8 +122,8 @@ A container test of a deployment of this shape found each one (the deployment te
    `CLOSE_WEBTRANSPORT_SESSION` capsule, so the rule's "closed with the server's code" cannot be observed from a
    page. The page does see the session end 195–299 ms after the stop began with the close (20 of 20; a session the
    page opens beside the fill), against about 14.9 s without it (36 of 40; 4 at 217–289 ms).
-3. **The certificate's lifetime.** A certificate pinned by hash (`serverCertificateHashes`) must be valid for at
-   most 14 days. So `server-start.sh` makes a new one (ECDSA P-256, 10 days) at every start, and runs the server
+3. **The certificate's lifetime.** Without `TLS_DIR`, a certificate pinned by hash (`serverCertificateHashes`) must be
+   valid for at most 14 days. So `server-start.sh` makes a new one (ECDSA P-256, 10 days) at every start, and runs the server
    under `timeout $RESTART_AFTER` (9 days). The exit restarts the container, with a new certificate, before
    the browser refuses the old one. `server_start_test.sh`, in the gate, runs its two starts against a stub server.
 4. **gzip** on every compressible type the page fetches, the series' metadata included: `check_equivalence.sh`
@@ -132,7 +143,7 @@ A container test of a deployment of this shape found each one (the deployment te
 7. **The start order.**
    * The start script removes the previous transport file (the volume outlives the container) and writes the
      new one whole, through a temporary file and a rename.
-   * The server is healthy once the file exists, and web once `/` answers 200.
+   * The server is healthy once the file exists, or at once given a certificate, and web once `/` answers 200.
    * Web waits on `service_healthy`, so it never serves a transport file that names a dead certificate.
 8. **Non-root.** The server runs as uid 10001 and owns `/certs` (0700) and `/run/wt-pacs`. Both are made in the
    image, as is web's mount point for the same volume. A fresh named volume takes its owner from whichever
@@ -150,12 +161,13 @@ page and its modules, the page check's two (`?check=`), and row DECODERBUILD's d
 (`client/decode/wasm/built/`, the frame check's hasher among them), checked against `build/manifest.sha256` at build
 time; the TS bundles (`build.sh --product`); and the WASM client, its adapter copied and its glue and `.wasm` built
 in the `wasm` stage (row 277's `CLIENT` picks it): the `wasm32-unknown-unknown` target, `wasm-pack` 0.15.0 by
-`cargo install --locked` as CI installs it, and `build.sh`'s binaryen `version_117` by checksum. No test, TypeScript
-source or build script. Of the
-studies, only the smoke series.
+`cargo install --locked` as CI installs it, and `build.sh`'s binaryen `version_117` by checksum. The page is rendered
+at start by `client/viewer/page.sh` from a copy kept outside the root, for `CLIENT` and for `TLS_DIR`. No test,
+TypeScript source or build script. Of the studies, only the smoke series.
 
 **Only what the page loads is reachable**: `/`, those files under `/client/`, `/series/metadata` and
-`/wt/dev-transport.json`. Everything else is a 404, the studies' bundles included.
+`/wt/dev-transport.json`, which is a 404 when the server was given a certificate and wrote none. Everything else is a
+404, the studies' bundles included.
 
 **What must be preserved exactly.** Three headers on every response, error pages included:
 
@@ -177,7 +189,8 @@ default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-in
 connect-src 'self' ${WT_ORIGIN}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'
 ```
 
-`WT_ORIGIN` is `WT_URL`'s scheme, host and port, which the page dials over WebTransport.
+`WT_ORIGIN` is `WT_URL`'s scheme, host and port, which the page dials over WebTransport; with `TLS_DIR`,
+`https://$host:4433`, the page's own host as nginx reads it from the request.
 `'unsafe-eval'` is the decoders' glue, evaluated through `new Function` (`client/decode/wasm-glue.js`), and lets
 WebAssembly compile; the inline `<style>` is the page's. `dev-server.py` sends the same policy on the viewer's page
 alone, connecting anywhere on loopback, where the lab's relays and collectors listen; the lab's pages, which share
@@ -187,7 +200,8 @@ the viewer's workers and run inline scripts, carry none. The page's lab paramete
 ## The checks
 
 `check_equivalence.sh [STUDIES SERIES]` runs `dev-server.py` and the web image side by side, given the same studies
-and the same transport file. It checks five things:
+and the same transport file, the page rendered on both as without `TLS_DIR` (`server_start_test.sh` checks the render
+with it). It checks five things:
 
 * status, the three isolation headers, content type, `Cache-Control` and body bytes are equal on every path the
   viewer loads (11);
@@ -210,7 +224,7 @@ SKIPPED otherwise. Mutated: a root of all of `client/`, as the image carried bef
 `client/` paths answer 200), and `viewer.js` left out of the list (its path differs and loses gzip); each fails it.
 
 **A stale image is refused** (exit 2) before anything is compared: every file the image carries from `client/`
-(what `web-files.sh` copies) and `deploy/nginx/` is hashed in the image and in the tree, and any that differs, is
+(what `web-files.sh` copies), `deploy/nginx/` and `client/viewer/page.sh` is hashed in the image and in the tree, and any that differs, is
 missing or is extra is named. It compares content, not time: a cached rebuild keeps the image's
 creation time, so a touched file would otherwise be refused after every rebuild. Mutated: a changed module, template
 and decoder build, a file added and one removed (each named, exit 2); a touched file, a changed `*.md` and
@@ -260,7 +274,7 @@ HTJ2K): 76/76 exact, and the first, middle and last readback equal the CPU refer
 The check now reads its result off the page as well as from the page's POST. Chrome 141's Local Network Access
 refuses a page on a public address a request to `127.0.0.1`, where the check's collector listens.
 
-**Restart.** `restart server` wrote a new certificate (hash `4ab2c24e…` became `8f39cd57…`) and transport file,
+**Restart** (without `TLS_DIR`). `restart server` wrote a new certificate (hash `4ab2c24e…` became `8f39cd57…`) and transport file,
 and the next page open connected and passed.
 
 **Row WASMIMAGE (2026-10-16), the WASM client in the image.** Both images built once from the branch, dockerd and
