@@ -3,8 +3,8 @@
 
 use std::time::{Duration, Instant};
 
-/// A timer cine: slot `n` shows frame `n % count`, due at `start + n × period`. Each tick shows the slot due now,
-/// so a late tick passes slots over rather than falling behind.
+/// A timer cine: its `n`th frame due, unwrapped, is frame `n % count` at `start + n × period`. Each tick shows the
+/// frame due now, so a late tick passes frames over rather than falling behind.
 pub struct Cine {
     start: Instant,
     period: Duration,
@@ -17,29 +17,29 @@ impl Cine {
         Self { start, period: Duration::from_secs_f64(1.0 / hz), count: count.max(1), last: None }
     }
 
-    /// The slot due at `now`, its frame, and how many slots before it were passed over; `None` if already shown.
+    /// `n` of the frame due at `now`, its index, and how many due before it were passed over; `None` if already shown.
     pub fn tick(&mut self, now: Instant) -> Option<(u64, usize, u64)> {
-        let slot = (now.saturating_duration_since(self.start).as_secs_f64() / self.period.as_secs_f64()) as u64;
+        let n = (now.saturating_duration_since(self.start).as_secs_f64() / self.period.as_secs_f64()) as u64;
         let first = self.last.map_or(0, |l| l + 1);
-        if slot < first {
+        if n < first {
             return None;
         }
-        self.last = Some(slot);
-        Some((slot, (slot % self.count as u64) as usize, slot - first))
+        self.last = Some(n);
+        Some((n, (n % self.count as u64) as usize, n - first))
     }
 
-    /// True when a paint of `slot` that ended at `painted` ended inside its slot.
-    pub fn on_time(&self, slot: u64, painted: Instant) -> bool {
-        painted < self.due(slot + 1)
+    /// True when the `n`th frame's paint, ended at `painted`, ended before the next was due.
+    pub fn on_time(&self, n: u64, painted: Instant) -> bool {
+        painted < self.due(n + 1)
     }
 
-    /// When the next slot not yet shown is due.
+    /// When the next frame not yet shown is due.
     pub fn next(&self) -> Instant {
         self.due(self.last.map_or(0, |l| l + 1))
     }
 
-    fn due(&self, slot: u64) -> Instant {
-        self.start + self.period.mul_f64(slot as f64)
+    fn due(&self, n: u64) -> Instant {
+        self.start + self.period.mul_f64(n as f64)
     }
 }
 
@@ -80,25 +80,25 @@ mod tests {
 
     const MS: Duration = Duration::from_millis(1);
 
-    /// **The cine shows the frame due by the clock, not the next in line.** At 10 Hz, a tick 250 ms in shows slot 2
-    /// and frame 2; a tick inside the same slot shows nothing; a tick at 730 ms shows slot 7 — frame 1 of a
-    /// three-frame series — and passes over slots 3 to 6.
+    /// **The cine shows the frame due by the clock, not the next in line.** At 10 Hz, a tick 250 ms in shows `n` = 2,
+    /// frame 2, passing over `n` = 1; a tick at 290 ms shows nothing; a tick at 730 ms shows `n` = 7 — frame 1 of a
+    /// three-frame series — passing over `n` = 3 to 6.
     #[test]
-    fn the_cine_shows_the_slot_due_and_counts_those_passed_over() {
+    fn the_cine_shows_the_frame_due_and_counts_those_passed_over() {
         let t0 = Instant::now();
         let mut cine = Cine::new(10.0, 3, t0);
         assert_eq!(cine.tick(t0), Some((0, 0, 0)));
         assert_eq!(cine.tick(t0 + 250 * MS), Some((2, 2, 1)));
-        assert_eq!(cine.tick(t0 + 290 * MS), None, "a slot was shown twice");
+        assert_eq!(cine.tick(t0 + 290 * MS), None, "a frame due was shown twice");
         assert_eq!(cine.next(), t0 + 300 * MS);
         assert_eq!(cine.tick(t0 + 730 * MS), Some((7, 1, 4)));
         assert_eq!(cine.tick(t0 + 800 * MS), Some((8, 2, 0)));
     }
 
-    /// **A slot is on time only if its paint ends inside it.** At 10 Hz, slot 2's paint ending at 299 ms is on time,
-    /// at 300 ms late.
+    /// **A frame is on time only if its paint ends before the next is due.** At 10 Hz, `n` = 2's paint ending at
+    /// 299 ms is on time, at 300 ms late.
     #[test]
-    fn a_paint_is_on_time_only_inside_its_slot() {
+    fn a_paint_is_on_time_only_before_the_next_is_due() {
         let t0 = Instant::now();
         let cine = Cine::new(10.0, 3, t0);
         assert!(cine.on_time(2, t0 + 299 * MS));

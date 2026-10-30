@@ -91,7 +91,7 @@ pub fn stamp(hop: &'static str, sent: Instant) {
     HOPS.lock().unwrap_or_else(|e| e.into_inner()).entry(hop).or_default().push(us);
 }
 
-/// Cine slots whose frame was painted inside them, and those that were not.
+/// Cine frames painted before the next was due, and those that were not: passed over, not held, or painted late.
 pub fn cine(on_time: u64, late: u64) {
     CINE_ON_TIME.fetch_add(on_time, Relaxed);
     CINE_LATE.fetch_add(late, Relaxed);
@@ -114,7 +114,7 @@ fn hops() -> String {
 }
 
 /// Per frame delivered, the means of its threads, messages and copies; then the totals of paints and of the
-/// messages between the UI thread and the one that paints; the cine's slots; a line per hop.
+/// messages between the UI thread and the one that paints; the cine's frames on time and late; a line per hop.
 pub fn report() -> String {
     let frames = FRAMES.lock().unwrap_or_else(|e| e.into_inner());
     let frames: Vec<&Frame> = frames.iter().flat_map(|m| m.values()).collect();

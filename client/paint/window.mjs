@@ -69,9 +69,10 @@ const PAINT_THREADS = [
 const counts = [];
 
 // The lab's settings (docs/native/README.md §The comparison, pre-registered, metrics 4 and 7) smoked on each paint thread,
-// the UI thread blocked 400 ms of every 500: a step injected off it, and the cine, paint through the block wherever it does not paint.
-const BUSY = ["--busy-ui-ms", 400, "--busy-every-ms", 500];
-const STEPS = ["--steps", 3, "--step-every-ms", 700, "--stamp-painted"];
+// the UI thread blocked 450 ms of every 500: a step injected off it, and the cine, paint through the block wherever it does
+// not paint. Steps 700 ms apart meet the blocks at five phases 100 ms apart, so through it three in five wait 100 ms or more.
+const BUSY = ["--busy-ui-ms", 450, "--busy-every-ms", 500];
+const STEPS = ["--steps", 7, "--step-every-ms", 700, "--stamp-painted"];
 const lags = (out) => {
   const at = (l) => Number(l.match(/at_ms=([\d.]+)/)[1]);
   const lines = out.split("\n");
@@ -84,27 +85,28 @@ const hops = (out, names) => names.filter((n) => !new RegExp(`^hop ${n} n=[1-9]`
 const stepped = (within, names) => (out) => {
   const l = lags(out);
   console.log(`  steps painted after ${l.map((ms) => ms.toFixed(1)).join(", ")} ms`);
-  if (l.length !== 3 || l.some(Number.isNaN)) return `${l.length} of 3 steps painted`;
-  if (within && l.some((ms) => ms >= 400)) return "a step waited on the busy UI thread";
+  if (l.length !== 7 || l.some(Number.isNaN)) return `${l.length} of 7 steps painted`;
+  if (within && l.some((ms) => ms >= 100)) return "a step waited on the busy UI thread";
+  if (!within && l.every((ms) => ms < 100)) return "no step waited on the busy UI thread";
   return hops(out, names).map((n) => `no hop ${n}`).join(", ") || null;
 };
-// The cine runs without the read-back, which outlasts a 33 ms slot on lavapipe; where the UI thread paints, the block
+// These run without the read-back, which outlasts a 33 ms frame on lavapipe; where the UI thread paints, the block
 // makes most slots late, elsewhere few.
 const cine = (within) => (out) => {
   const [on, late] = (out.match(/cine_on_time=(\d+) cine_late=(\d+)/) ?? []).slice(1).map(Number);
   const shown = new Set([...out.matchAll(/^painted frame=(\d+)/gm)].map((m) => m[1]));
   console.log(`  cine slots on time ${on}, late ${late}; frames painted ${[...shown].sort()}`);
-  if (!(on + late >= 60) || shown.size !== 4) return "the cine did not show the series in turn";
+  if (!(on + late >= 60) || shown.size < 4) return "the cine did not show the series in turn";
   if (within) return late >= on ? "the cine waited on the busy UI thread" : null;
   return late <= on ? "the busy loop did not block the UI thread" : null;
 };
 const CINE = ["--cine-hz", 30, "--stamp-painted", ...BUSY];
 const PAINTER = ["intent", "decoded", "job", "done", "stream", "shown"];
 const LAB = [
-  ["ui, busy, steps", [...BUSY, ...STEPS], stepped(false, ["stream", "frame", "step"])],
-  ["view, busy, steps", ["--paint-thread", "view", ...BUSY, ...STEPS], stepped(true, PAINTER)],
-  ["core, busy, steps", ["--paint-thread", "core", ...BUSY, ...STEPS], stepped(true, PAINTER)],
-  ["view, busy, steps through the UI thread", ["--paint-thread", "view", ...BUSY, ...STEPS, "--steps-via", "ui"], stepped(false, [...PAINTER, "step"])],
+  ["ui, busy, steps", [...BUSY, ...STEPS], stepped(false, ["stream", "frame", "step"]), false],
+  ["view, busy, steps", ["--paint-thread", "view", ...BUSY, ...STEPS], stepped(true, PAINTER), false],
+  ["core, busy, steps", ["--paint-thread", "core", ...BUSY, ...STEPS], stepped(true, PAINTER), false],
+  ["view, busy, steps through the UI thread", ["--paint-thread", "view", ...BUSY, ...STEPS, "--steps-via", "ui"], stepped(false, [...PAINTER, "step"]), false],
   ["ui, busy, a 30 Hz cine", CINE, cine(false), false],
   ["view, busy, a 30 Hz cine", ["--paint-thread", "view", ...CINE], cine(true), false],
   ["core, busy, a 30 Hz cine", ["--paint-thread", "core", ...CINE], cine(true), false],
@@ -184,18 +186,25 @@ try {
     return stdout;
   }
 
-  const bundles = {};
   for (const [name, payloads, steps] of SERIES) {
     const frames = path.join(T, name);
-    bundles[name] = frames;
     fs.mkdirSync(frames, { recursive: true });
     payloads.forEach((p, i) => fs.symlinkSync(path.join(PLAIN, `${p}.av1`), path.join(frames, `${String(i).padStart(3, "0")}.av1`)));
     run(`${BIN}/pack-series`, ["--metadata", path.join(ROOT, "lab/fixtures", name, "metadata.json"), "--frames", frames, "--output", `${frames}/series.sbnd`]);
     for (const [thread, flags] of PAINT_THREADS) await visit(name, frames, thread, flags(name), steps);
   }
 
+  // The grey frames three times over, so seven steps never reach the last.
+  const long = path.join(T, "window_grey16_12");
+  const meta = JSON.parse(fs.readFileSync(path.join(ROOT, "lab/fixtures/window_grey16/metadata.json"), "utf8"));
+  meta.frameCount = 12;
+  meta.digests.frames = Array.from({ length: 12 }, (_, i) => meta.digests.frames[i % 4]);
+  fs.writeFileSync(`${long}.json`, JSON.stringify(meta));
+  fs.mkdirSync(long);
+  for (let i = 0; i < 12; i++) fs.symlinkSync(path.join(PLAIN, `${SERIES[0][1][i % 4]}.av1`), path.join(long, `${String(i).padStart(3, "0")}.av1`));
+  run(`${BIN}/pack-series`, ["--metadata", `${long}.json`, "--frames", long, "--output", `${long}/series.sbnd`]);
   for (const [thread, flags, check, read] of LAB) {
-    const stdout = await visit("window_grey16", bundles.window_grey16, `lab: ${thread}`, flags, () => [["the lab's run", 3000, null]], read);
+    const stdout = await visit("window_grey16", long, `lab: ${thread}`, flags, () => [["the lab's run", 5500, null]], read);
     const failed = check(stdout);
     bad += failed ? 1 : 0;
     console.log(`  ${failed ? `FAIL ${failed}` : "ok  "} lab: ${thread}`);
