@@ -998,6 +998,8 @@ native side. A row reading *not yet* is open.
 | rotate a quarter turn (`r`), flip (`h`, `v`), invert (`i`) | `pose`, `invert` | `View::rotate`, `flip_h`, `flip_v`, `Display::invert` | the same unit test; `window.mjs`, each paint held to the CPU reference with its pose |
 | reset (`0`) | `0`, Escape: fitted, the series' window | `0`: the opening display — 1:1, the series' window — on the same frame | `look::tests::reset_returns_to_the_opening_display_and_keeps_the_frame`; `window.mjs` *0, reset* |
 | status: the frame, its check, the last failure | the status line and the NOT EXACT mark | the window's title: `wt-pacs · frame i of n · exact` / `unchecked` / `NOT EXACT…` / `refused: …`, then `· error: frame j: …` | `look::tests::the_title_says_the_frame_its_check_and_the_last_failure`; `window.mjs` *open*, *End*, *Home* read the title |
+| cine: Space starts and stops it; one frame forward each period, looping; a late tick not made up | `View.play`, `setInterval` at `1000 / cineFps` | `clock::Play` on the thread that paints, under every paint thread | `clock::tests::the_product_cine_steps_once_a_period_and_does_not_make_up_a_late_tick`; `window.mjs` *Space, a second of cine*: frames forward, wrapping, stopped once paused |
+| the cine's period: the series' `frameTimeMs`, else `1000 / cineRate`, else 100 ms | `cineFps` | `Play::period`, from the bundle's metadata | the same unit test |
 
 ### Where it departs
 
@@ -1021,6 +1023,8 @@ native side. A row reading *not yet* is open.
   the last frame painted. Under `view` and `core` the title changes with each paint or failure, which carries it: a step
   to a frame not yet held shows the new number once that frame is painted. A failed cache write under `view` and
   `core` is printed, not put in the title.
+* **Two cines.** The product's (Space) steps from the frame shown, as the browser's does; the lab's `--cine-hz` shows
+  the frame due by the clock from the window's opening and counts late frames, for NATIVERUN. Neither drives the other.
 * **No recycle.** The browser's recycle before a byte budget (`recycleAtBytes`) is a lab setting there, off by
   default; not built.
 

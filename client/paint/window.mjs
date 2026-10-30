@@ -63,6 +63,7 @@ const grey = (id) => [
   ["a secondary drag pans", [["mousemove", "--window", id, 100, 100], ["mousedown", 3], ["mousemove", "--window", id, 130, 110], ["mouseup", 3]],
     { frame: 0, panX: 30, panY: 10 }],
   ["0, reset", [["key", "0"]], { frame: 0, ...OPENED }],
+  ["Space, a second of cine at the default 100 ms, Space", [["key", "space"], 1000, ["key", "space"]], { cine: true }],
 ];
 const SERIES = [
   ["window_grey16", ["g9", "g10", "g12", "g14"], grey],
@@ -143,6 +144,19 @@ try {
     }
   };
 
+  const cells = (out) => fs.readdirSync(out).filter((f) => f.endsWith(".json")).sort();
+  /** Null when the paints since `before` step forward and wrap round the series, and stop once it is paused. */
+  async function cined(out, before) {
+    await sleep(300);
+    const shown = cells(out).slice(before).map((f) => JSON.parse(fs.readFileSync(path.join(out, f), "utf8")).frame);
+    await sleep(400);
+    console.log(`  cine painted frames ${shown.join(" ")}`);
+    if (shown.length < 4) return `${shown.length} paints in a second of cine`;
+    if (!shown.some((f, i) => i > 0 && f < shown[i - 1])) return "the cine did not wrap round the series";
+    if (shown.some((f, i) => i > 0 && f === shown[i - 1])) return "the cine painted a frame twice in a row";
+    return cells(out).length === before + shown.length ? null : "the cine went on once paused";
+  }
+
   /** True once the window's title is `want`, within 5 s. */
   async function titled(id, want) {
     for (let i = 0; i < 100; i++, await sleep(50)) if (x("getwindowname", id) === want) return true;
@@ -171,9 +185,18 @@ try {
     if (!id) throw new Error("the window did not open");
     x("windowfocus", "--sync", id);
     for (const [step, input, want] of steps(id)) {
+      const before = cells(out).length;
       if (typeof input === "number") await sleep(input);
-      else for (const args of input) x(...args);
-      const { title, ...cell } = want ?? {};
+      else for (const args of input) typeof args === "number" ? await sleep(args) : x(...args);
+      const { title, cine, ...cell } = want ?? {};
+      if (cine) {
+        const failed = await cined(out, before);
+        if (failed) {
+          bad++;
+          console.log(`FAIL ${name} ${thread} ${step}: ${failed}`);
+        }
+        continue;
+      }
       if (want && !(await painted(out, cell))) {
         bad++;
         console.log(`FAIL ${name} ${thread} ${step}: no paint shows ${JSON.stringify(cell)}`);

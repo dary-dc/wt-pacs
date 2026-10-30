@@ -6,7 +6,7 @@
 use anyhow::{bail, Context, Result};
 use clap::{Parser, ValueEnum};
 use native_client::cache::Cache;
-use native_client::clock::{Busy, Cine};
+use native_client::clock::{Busy, Cine, Play};
 use native_client::count::{self, Sent};
 use native_client::decode::Decoder;
 use native_client::look::{Intent, Look, Status};
@@ -138,6 +138,7 @@ struct Series {
     slope: f64,
     intercept: f64,
     function: Function,
+    frame_time: Duration,
 }
 
 fn series(m: &Value) -> Result<(Series, f64, f64)> {
@@ -166,6 +167,7 @@ fn series(m: &Value) -> Result<(Series, f64, f64)> {
         slope: m["rescale"]["slope"].as_f64().unwrap_or(1.0),
         intercept: m["rescale"]["intercept"].as_f64().unwrap_or(0.0),
         function,
+        frame_time: Play::period(m["frameTimeMs"].as_f64(), m["cineRate"].as_f64()),
     };
     let first = |k: &str| w[k][0].as_f64().unwrap_or(f64::NAN);
     Ok((s, first("center"), first("width")))
@@ -246,6 +248,15 @@ struct App {
     view: Option<mpsc::UnboundedSender<Sent<Intent>>>,
     busy: Option<Busy>,
     cine: Option<Cine>,
+    play: Option<Play>,
+}
+
+/// Space: the product cine started from now, or stopped.
+fn toggle(play: &mut Option<Play>, period: Duration) {
+    *play = match play {
+        Some(_) => None,
+        None => Some(Play::new(period, Instant::now())),
+    };
 }
 
 impl App {
@@ -268,6 +279,9 @@ impl App {
         }
         if let (Intent::Resize(width, height), Some(gpu)) = (&intent, &mut self.gpu) {
             gpu.resize(*width, *height);
+        }
+        if let Intent::Cine = intent {
+            toggle(&mut self.play, self.series.frame_time);
         }
         if self.look.apply(&intent, self.series.count) {
             self.redraw();
@@ -379,7 +393,7 @@ impl App {
         let frame_bytes = (s.width * s.height * s.components) as usize * if s.bits > 8 { 2 } else { 1 };
         let cine = a.cine_hz.map(|hz| Cine::new(hz, s.count, Instant::now()));
         let status = Status::new(s.count);
-        let view = Viewer { gpu, series: s.clone(), look: self.look, store: Store::new(a.budget), frame_bytes, want, notes: self.proxy.clone(), cine, status };
+        let view = Viewer { gpu, series: s.clone(), look: self.look, store: Store::new(a.budget), frame_bytes, want, notes: self.proxy.clone(), cine, play: None, status };
         let (refused, refusals) = mpsc::unbounded_channel();
         let (url, hash, asks) = (a.url.clone(), cert_hash(&a.cert_sha256)?, a.asks);
         let downloading = async move {
@@ -421,6 +435,7 @@ struct Viewer {
     want: watch::Sender<Vec<u32>>,
     notes: EventLoopProxy<Sent<Note>>,
     cine: Option<Cine>,
+    play: Option<Play>,
     status: Status,
 }
 
@@ -440,6 +455,9 @@ impl Viewer {
                     count::intent();
                     if let Intent::Resize(width, height) = intent {
                         self.gpu.resize(width, height);
+                    }
+                    if let Intent::Cine = intent {
+                        toggle(&mut self.play, self.series.frame_time);
                     }
                     if self.look.apply(&intent, self.series.count) {
                         self.ask();
@@ -463,6 +481,14 @@ impl Viewer {
                 }
                 Some((index, reason)) = refusals.recv() => self.fail(index, reason),
                 _ = tokio::time::sleep_until(self.cine.as_ref().map_or_else(Instant::now, Cine::next).into()), if self.cine.is_some() => self.cine()?,
+                _ = tokio::time::sleep_until(self.play.as_ref().map_or_else(Instant::now, Play::next).into()), if self.play.is_some() => {
+                    if self.play.as_mut().is_some_and(|p| p.tick(Instant::now()))
+                        && self.look.apply(&Intent::To((self.look.current + 1) % self.series.count), self.series.count)
+                    {
+                        self.ask();
+                        self.paint()?;
+                    }
+                }
             }
         }
     }
@@ -527,11 +553,15 @@ impl ApplicationHandler<Sent<Note>> for App {
         if let Some(busy) = &mut self.busy {
             busy.run(Instant::now());
         }
+        if self.play.as_mut().is_some_and(|p| p.tick(Instant::now())) {
+            self.input(Intent::To((self.look.current + 1) % self.series.count));
+        }
         if let Err(e) = self.cine() {
             eprintln!("{e:#}");
             event_loop.exit();
         }
-        let next = [self.busy.as_ref().map(Busy::next), self.cine.as_ref().map(Cine::next)].into_iter().flatten().min();
+        let next = [self.busy.as_ref().map(Busy::next), self.cine.as_ref().map(Cine::next), self.play.as_ref().map(Play::next)];
+        let next = next.into_iter().flatten().min();
         event_loop.set_control_flow(next.map_or(ControlFlow::Wait, ControlFlow::WaitUntil));
     }
 
@@ -590,6 +620,7 @@ impl ApplicationHandler<Sent<Note>> for App {
                 Key::Named(NamedKey::Home) => self.input(Intent::To(0)),
                 Key::Named(NamedKey::End) => self.input(Intent::To(last)),
                 Key::Named(NamedKey::Escape) => event_loop.exit(),
+                Key::Named(NamedKey::Space) => self.input(Intent::Cine),
                 Key::Character(c) => match c.to_lowercase().as_str() {
                     "+" | "=" => self.input(Intent::Zoom(1.25)),
                     "-" => self.input(Intent::Zoom(0.8)),
@@ -678,6 +709,7 @@ fn main() -> Result<()> {
         view: None,
         busy: None,
         cine: None,
+        play: None,
     };
     let runtime = tokio::runtime::Runtime::new()?;
     if args.paint_thread == PaintThread::Ui {
