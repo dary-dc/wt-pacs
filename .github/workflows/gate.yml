@@ -1,5 +1,5 @@
-# scripts/gate.sh in full on a runner with every prerequisite of README.md §Prerequisites, and the deploy image
-# checked; no timed measurement runs here (CLAUDE.md §Measurement).
+# scripts/gate.sh in full on a runner with every prerequisite of README.md §Prerequisites (its decoders' rebuild
+# included), and the deploy image checked; no timed measurement runs here (CLAUDE.md §Measurement).
 name: gate
 
 on:
@@ -26,28 +26,7 @@ env:
   CARGO_TERM_COLOR: never
 
 jobs:
-  decoders:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    outputs:
-      key: ${{ steps.key.outputs.key }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      # The inputs the gate's staleness check names, by content.
-      - id: key
-        run: echo "key=decoders-${{ hashFiles('client/decode/wasm/build/**', 'client/decode/wasm/openjph/**', 'client/decode/wasm/dav1d/dav1d_wrap.c', 'client/decode/wasm/xxh3/**') }}" >>"$GITHUB_OUTPUT"
-      - id: cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: client/decode/wasm/built
-          key: ${{ steps.key.outputs.key }}
-      - if: steps.cache.outputs.cache-hit != 'true'
-        run: bash client/decode/wasm/build/build.sh
-
   gate:
-    needs: decoders
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
@@ -113,13 +92,6 @@ jobs:
             ingest/.build/openjph
           key: coders-${{ hashFiles('ingest/tools.sh') }}
       - run: ingest/tools.sh
-      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: client/decode/wasm/built
-          key: ${{ needs.decoders.outputs.key }}
-          fail-on-cache-miss: true
-      # The key is the sources' content; the gate's staleness check reads time, which a checkout resets.
-      - run: find client/decode/wasm/built -type f -exec touch {} +
       - name: Client builds and the fetched decoder and hasher
         run: |
           (cd client/transport/ts && npm ci --no-audit --no-fund)
@@ -137,7 +109,6 @@ jobs:
           [[ -z "$unlisted" ]] || { echo "::error::the gate skipped what this workflow does not allow:"; echo "$unlisted"; exit 1; }
 
   deploy:
-    needs: decoders
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -153,11 +124,6 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22.22.0
-      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: client/decode/wasm/built
-          key: ${{ needs.decoders.outputs.key }}
-          fail-on-cache-miss: true
       - run: bash client/decode/wasm/fetch_xxh3.sh
       - run: docker compose -f deploy/compose.yml build
       - run: bash deploy/check_equivalence.sh
