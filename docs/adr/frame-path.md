@@ -1193,7 +1193,7 @@ ring.
 ### Who owns a frame's memory (2026-10-28)
 
 **Status:** theory and a reading of the engines' sources; nothing built, nothing run. *Corrected 2026-10-30:* M5 has
-run, on Chromium and Firefox; its results are below (*M5, run 2026-10-30*). The shape it assumes is the
+run, on Chromium and Firefox; its results are below (*M5, run 2026-10-30*), and Firefox again with the rig's driver fixed (*Firefox, run again*). The shape it assumes is the
 owner's of 2026-10-28, written nowhere else yet: one dedicated **view worker** holds the frame store (the memory window,
 OPFS behind it), the controller and the paint; the decoders, nested in the downloader worker, post each checked frame
 straight to it. The question: who owns a decoded frame's memory, so that the window bounds peak memory during a fill on
@@ -1461,6 +1461,9 @@ Firefox 159.0 on Xvfb. The decoders are the pinned builds of `claude/decoders-co
   a run that never received a frame (*Firefox's fills that never start*, below). A VOID cell decides nothing on Firefox.
 * **M5 as a whole cannot be applied.** The rule wants the simplest arm that qualifies on both engines, and Firefox
   gives no verdict. Lever 2 returns to the owner with Chromium's verdict and the numbers below.
+  *Corrected 2026-10-30:* Firefox, run again with the driver fixed, is not VOID and qualifies no arm (`ring` misses
+  only the fill bar), so the rule now applies on both engines and says the same: lever 2 returns to the owner
+  (*Firefox, run again*, below).
 
 | arm | Chromium growth, median [range] | fill / `today` | in hand, ask / step (ms) | Chromium | Firefox growth, median [range] | fill / `today` | in hand, ask / step (ms) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -1626,7 +1629,38 @@ buffer, the copy and the range pass. Hashing is 0.6–0.9 s in every fill; posti
   frame on disk, the ring is not slower than `today` in these four fills. That is the gap *M5, run* already named;
   closing it is a change to the protocol, and so a new pre-registration.
 
-<!-- RERUN -->
+**Firefox, run again 2026-10-30, with the driver fixed.** The same protocol, rule and bars, run from the M5 run's
+own code (its arms, its `today` with #212's store, its server build) with only the driver swapped to Marionette, so
+both engines' rows come from the same build. Rows: [`rows/m5-rerun/`](../../lab/opfs-cache/rows/m5-rerun/), beside
+a copy of Chromium's, so `python3 lab/opfs-cache/summary.py lab/opfs-cache/rows/m5-rerun` applies the rule over both
+engines. The first run's VOID rows in `rows/m5/` stand as run.
+
+* **Not VOID now.** All 42 runs of `m5` and all 28 of `m5-busy` filled, every frame exact by both checks: no start
+  hang, and `ring′`'s stall at 46 frames did not recur (so it was most likely the same fault; not shown). The A/A is
+  22 MiB and 1.01 (`m5`), 24 MiB and 1.00 (`m5-busy`).
+
+| arm | Firefox growth, median [range] | fill / `today` | in hand, ask / step (ms) | Firefox |
+| --- | --- | --- | --- | --- |
+| bar | `disk` + 320 = **862 MiB** | ≤ 1.10 | `ring`'s + 16.7 | |
+| `ring` | 828 [790–850] | **1.30** | 0.04 / 0.04 | memory, checks and time bars met; **misses the fill bar** |
+| `ring′` | 810 [756–841] | 1.33 | 0.02 / 0.02 | A/A |
+| `transfer` | 1 061 [982–1 175] | 1.50 | 0.02 / 0.00 | misses the memory and fill bars |
+| `transfer-k` | 1 078 [957–1 168] | 1.57 | 0.02 / 0.00 | misses the memory and fill bars |
+| `disk` | 542 [528–584] | 1.27 | **29.1** / 16.1 | misses the fill bar and the time bar on asks |
+| `today` | 2 351 [2 202–2 646] | 1 | — | reported |
+
+* **`m5-busy` on Firefox:** `transfer` 1 588 MiB with up to 36 waiting, `transfer-k` 986 MiB with at most 5 (K = 6):
+  credits *not shown needed*, as on Chromium; `ring` 823, `ring′` 790.
+* **The verdict, by the rule as written: none qualifies on Firefox, so none on both engines: lever 2 returns to the
+  owner.** Chromium's verdict stands: `ring`. On Firefox `ring` meets every bar but the fill time, and the fill bar
+  is the one *M5, run* and the profile above show comparing different ends: `today`'s fill ended with 42–52 of 80
+  frames on disk, its page cache up 1 202 MiB against ~2 070 for the arms.
+* **Every Firefox fill was slower than in the first run** (`ring` 9.8 s against 8.4, `today` 7.5 against 5.8,
+  medians); the two runs were not interleaved, so the driver and the host are not told apart, and nothing here rests
+  on the absolute times. The ratio to `today`, which is interleaved, fell from 1.41 to 1.30.
+* **What would let the rule choose:** the fill bar measured to the last frame on disk in every arm, `today` included.
+  That is a change to the protocol after data, and so a new pre-registration; read that way, the four profiled fills
+  put `ring` at or under `today` on Firefox.
 
 **How the ring works**, in plain words, as M5 built it in the lab: [`arms-slots.js`](../../lab/opfs-cache/arms-slots.js)
 (the table), [`arms-decoder.js`](../../lab/opfs-cache/arms-decoder.js) (who takes a slot),
@@ -3106,7 +3140,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 | `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | built and its rig, not run |
 | `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | built, not run |
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | built, not run |
-| frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241 | arms in `lab/opfs-cache` only; run in progress |
+| frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241; Firefox re-run, #264 | arms in `lab/opfs-cache` only; run on both engines: Chromium `ring`, Firefox none (`ring` misses only the fill bar), so by the rule lever 2 returns to the owner; credits not shown needed |
 | `?writer=`, who writes the OPFS cache | `none`: no cache, as main | `store`, `decoders`, `view` | OPFS arms, #227/#242; #244 | arms in `lab/opfs-arms`, core built; run in progress |
 | frame clock | the page's timer | worker rAF, timer to a schedule, `MessageChannel`, `Atomics.wait` | #225 | loaded only on a lab's play intent |
 | receive loop, the downloader in the view worker | its own worker | merged | #237 | rig in `lab/recv-loop` only |
