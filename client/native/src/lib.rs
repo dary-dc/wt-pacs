@@ -6,6 +6,8 @@ pub mod count;
 #[cfg(feature = "decode")]
 pub mod load;
 #[cfg(feature = "paint")]
+pub mod look;
+#[cfg(feature = "paint")]
 pub mod paint;
 pub mod resume;
 pub mod transport;

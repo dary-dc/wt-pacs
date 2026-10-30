@@ -157,7 +157,7 @@ impl Asking {
     }
 }
 
-/// Runs until the view drops `want` and nothing is owed. `jobs` holds `K` coded frames; while it is full the session
+/// Runs until the view drops `want` and nothing is owed; a frame refused or lost goes to `refused` with its reason. `jobs` holds `K` coded frames; while it is full the session
 /// is not read, so its stream readers stop and QUIC's windows reach the server.
 pub async fn download(
     mut session: ResumingSession,
@@ -166,6 +166,7 @@ pub async fn download(
     mut done: mpsc::UnboundedReceiver<Sent<Done>>,
     cache: Option<Arc<Cache>>,
     depth: usize,
+    refused: impl Fn(u32, String),
 ) -> Result<()> {
     let mut asking = Asking::new(depth);
     asking.want(want.borrow_and_update().clone());
@@ -206,13 +207,13 @@ pub async fn download(
                     pending = Some(Job { index, coded: Some(body) });
                 }
                 Heard::Event(Event::Refused { frame, reason }) => {
-                    println!("failed scope=frame frame={frame} reason={reason:?}");
                     asking.refused(frame);
+                    refused(frame, format!("refused: {reason}"));
                 }
                 Heard::Resumed => asking.resumed(),
                 Heard::Lost(reason) => {
                     for frame in asking.lost() {
-                        println!("failed scope=frame frame={frame} reason={reason:?}");
+                        refused(frame, reason.clone());
                     }
                 }
             },
@@ -603,7 +604,7 @@ pub(crate) mod tests {
         let (done, finished) = mpsc::unbounded_channel();
         decoders(3, &metadata, digests(&metadata), None, queued, decoded, done).unwrap();
         let (want, wanted) = watch::channel((0..12).collect());
-        let downloader = tokio::spawn(download(session, wanted, jobs, finished, None, 4));
+        let downloader = tokio::spawn(download(session, wanted, jobs, finished, None, 4, |_, _| ()));
         let mut store = Store::new(usize::MAX);
         for _ in 0..12 {
             let f = tokio::time::timeout(Duration::from_secs(10), received.recv()).await.expect("a frame stalled").unwrap().received("decoded");
@@ -635,7 +636,7 @@ pub(crate) mod tests {
         let (done, finished) = mpsc::unbounded_channel();
         decoders(3, &metadata, digests(&metadata), None, queued, decoded, done).unwrap();
         let (want, wanted) = watch::channel((0..12).collect());
-        let downloader = tokio::spawn(download(session, wanted, jobs, finished, None, 4));
+        let downloader = tokio::spawn(download(session, wanted, jobs, finished, None, 4, |_, _| ()));
         let mut store = Store::new(usize::MAX);
         for _ in 0..12 {
             let f = tokio::time::timeout(Duration::from_secs(10), received.recv()).await.expect("a frame stalled").unwrap().received("decoded");
@@ -664,7 +665,7 @@ pub(crate) mod tests {
         let (jobs, _queued) = mpsc::channel(2);
         let (_done, finished) = mpsc::unbounded_channel();
         let (want, wanted) = watch::channel((0..12).collect());
-        let downloader = tokio::spawn(download(session, wanted, jobs, finished, None, 4));
+        let downloader = tokio::spawn(download(session, wanted, jobs, finished, None, 4, |_, _| ()));
         tokio::time::sleep(Duration::from_millis(50)).await;
         drop(want);
         tokio::time::timeout(quick().stall, downloader).await.expect("the closed view's fill was still owed").unwrap().unwrap();

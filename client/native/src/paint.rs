@@ -43,6 +43,7 @@ pub struct Display {
 }
 
 /// Zoom and pan in CSS px, turned clockwise by `rotate` degrees, then flipped.
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct View {
     pub fit: bool,
     pub zoom: f64,
