@@ -31,6 +31,7 @@ here.
 11. [The carrier for the PCS's packages](#11-the-carrier-for-the-pcss-packages)
 12. [The carrier, built](#12-the-carrier-built)
 13. [Which QUIC carries the upload](#13-which-quic-carries-the-upload)
+14. [The transport seam, now that the sender is ours](#14-the-transport-seam-now-that-the-sender-is-ours)
 
 ## 1. The answer in plain words
 
@@ -1266,3 +1267,211 @@ Fetched or read 2026-10-26; repositories at the commit or tag named, read from g
 **Not read**, so not cited as read: whether curl's ngtcp2 backend uploads a `PATCH` from standard input over HTTP/3
 as it does over HTTP/1.1; distribution builds of nghttpx; any published receive-side CPU per byte for an upload, for
 any stack; msquic's and lsquic's advisory texts beyond quic.md §2.
+
+## 14. The transport seam, now that the sender is ours
+
+*2026-10-26. Theory only: read from sources and from the crates' code, nothing built, nothing timed, no product code
+changed. The owner's decisions of 2026-10-26: **the sender at the PCS is ours** (it builds and sends the package,
+[`../adr/pcs-transfer.md`](../adr/pcs-transfer.md) §15 on #177); **a deployment profile picks the transport at build
+time**, TCP or QUIC for limited or lossy links, because a site's link is known when it is deployed; **the PACS accepts
+either**. The owner's question: is a "generic interface" between the two transports needed, which TCP and which QUIC
+implementations are the best candidates, and do they have to be paired, or does every good sender work with every
+good listener. Labels as in §11: **source** (pinned in §14.7), **estimated** (D: arithmetic from stated inputs),
+**inference**. It stacks on §11–§13 and on `carriers-explained.md` (#181, `ef48067`); where it changes
+§13.5, §14.6 says so.*
+
+### 14.1 What both transports already give the application
+
+* **The same abstraction.** RFC 9000 §2: QUIC "Streams are an ordered byte-stream abstraction with no other structure
+  visible to QUIC"; TCP with TLS is the same thing, one per connection. Our upload needs nothing more: draft-14's
+  create, offset, append and status are requests and replies in order on one stream (§12.1).
+* **The same Rust type, already.** quinn 0.11.11 implements `tokio::io::AsyncWrite for SendStream` and
+  `tokio::io::AsyncRead for RecvStream` (`send_stream.rs:326`, `recv_stream.rs:498`); tokio 1.53.1's `io::join`
+  "Join[s] two values implementing `AsyncRead` and `AsyncWrite` into a single handle" (`io/join.rs:11`); tokio-rustls'
+  stream over a `TcpStream` is one such handle already. hyper 1.12.0 asks nothing more of a connection:
+  `serve_connection` and the client's `handshake` take any `I: Read + Write + Unpin` (the server's `http1.rs:470–476`,
+  the client's `http1.rs:150–152`), which `hyper_util`'s `TokioIo` makes of either.
+* **The handler is already transport-free.** `Carrier::handle(site, http::request::Parts, impl Content)`
+  (`carrier/src/upload.rs` on #164) is called by both listeners; each listener is an adapter of ~90 lines
+  (`tcp.rs` 90, `quic.rs` 88, counted with `wc -l`).
+* **What differs is under the stream, not in it:** who picks the congestion controller (the sender, RFC 9002 §7,
+  §13.1), the windows (the receiver's, RFC 9000 §4), whether the connection survives an address change (QUIC: "The use
+  of a connection ID allows connections to survive changes to endpoint addresses", RFC 9000 §9), and reachability
+  (§3). None of it is visible to the upload protocol.
+
+### 14.2 Is a seam needed, and the smallest one
+
+| | seam | on TCP · on QUIC | the carrier (PACS) | our sender | tests | pairing |
+| --- | --- | --- | --- | --- | --- | --- |
+| S0 | **none: TCP only** | HTTP/1.1 · — | as built minus `quic.rs` and the `quic` feature: 29 crates fewer (§13.1) | one hyper client over tokio-rustls | as now | none |
+| S1 | **the stream type, chosen at build** | HTTP/1.1 · **the same HTTP/1.1 on one bidirectional QUIC stream**, an ALPN of ours | `tcp.rs`'s per-connection half shared; `quic.rs` becomes accept, `accept_bi`, `io::join`, the same `serve_connection`: ~40 lines (*estimated*); h3 and h3-quinn dropped, 13 crates (§13.1) | one hyper client; a `connect()` per transport, ~20–30 lines each (*estimated*), chosen by `cfg` | the existing suite, its harness's `connect` made generic over the stream (*inference*: `tests/common` already writes raw HTTP/1.1 onto a `TlsStream<TcpStream>`) | **by transport only**: the profile's address names it |
+| S2 | our own small framing (create · offset · append · status) on both | ours · ours | a codec, ~200–300 lines (*estimated*), in place of hyper's parser | the codec's other half | the codec's own, mutated; the 15 tests of §12.7 re-pointed | by transport only |
+| S3 | HTTP/1.1 on TCP, HTTP/3 on QUIC (as built, §12.4) | HTTP/1.1 · HTTP/3 | as built: two adapters, h3 0.0.8 "still very experimental" (§13.3) | two clients: hyper and an h3 client | two suites | protocol and transport |
+| S4 | HTTP/1.1 on TCP, our framing on QUIC (§13's b1 as written) | HTTP/1.1 · ours | an adapter and a codec | two clients | two suites | protocol and transport |
+
+**Answer: a seam is needed only if QUIC is built at all, and its smallest form is S1** (*inference*, from the rows):
+
+* **S1 is not an interface of ours.** It is the type parameter hyper already has; the sender's build chooses which
+  stream fills it (`#[cfg(feature = "quic")]`, as the carrier's own feature is chosen now). There is no trait to design,
+  no framing to version, and **the protocol is draft-14 as built**, so §12.7's tests stand. The owner's "generic
+  interface that uses at compile time either a TCP based approach or a quic based approach" is, in Rust, a
+  `connect()` that returns one of two stream types.
+* **S2 buys nothing S1 lacks.** HTTP/1.1 *is* a small framing over a byte stream, with a parser both ends already ship
+  (hyper's) and a client every site already has for debugging (curl, on TCP). Our own costs a codec and its tests to
+  save a few hundred header bytes per request (*inference*). §13.3 rejected b2 for costing every site curl; S1 keeps
+  curl on TCP and needs no new framing on QUIC.
+* **S3 and S4 pair protocol with transport**: two clients, two suites, and a protocol choice made twice. S3 also keeps
+  h3, the young layer §13.5 wanted out.
+* **S0 is the simplest of all** and is what §14.5's measurement falls back to: if QUIC wins on no real site's link,
+  the `quic` feature is deleted and the seam with it.
+* **What S1 gives up.** HTTP/1.1 on one QUIC stream uses none of QUIC's stream multiplexing; a sequential upload has
+  nothing to multiplex (§5). It needs a client of ours at QUIC sites, which the owner's decision now provides. The ALPN
+  is ours: RFC 9308 §8, "Applications using QUIC are required to register an ALPN token"; between our own two ends an
+  unregistered token works, and registering one is the owner's call (§14.6, *inference*). No standard maps HTTP/1.1 onto
+  a QUIC stream, so a third-party sender could not speak it (*inference*: none found).
+
+**Does pairing disappear?** Above the stream, yes: both ends speak one protocol, so any sender build talks to the
+listener of its transport. Below it, the only pairing left is the transport, and that is the profile's one setting.
+Within TCP there is nothing to pair: kernel to kernel, the sender's controller acts alone (RFC 9002 §7's rule holds for
+TCP too, §4). Within QUIC, any two RFC 9000 stacks interoperate by the standard; keeping **quinn at both ends** is a
+simplicity choice, one stack and one TLS (rustls, with §12.3's pins), not an interoperability need (*inference*).
+
+### 14.3 Candidates on each side, best only
+
+**TCP: the kernel's, tuned by the sender per socket and by the host.** Nothing in user space is worth naming for a WAN
+bulk upload (*inference*: user-space TCP stacks serve embedded or kernel-bypass uses, not this one; none read).
+
+| lever | where it is set | source | for this link |
+| --- | --- | --- | --- |
+| the controller, per socket | `setsockopt(TCP_CONGESTION)`; socket2 0.6.5 `set_tcp_congestion` (Linux, FreeBSD) | tcp(7): "allows the caller to set the TCP congestion control algorithm to be used, on a per-socket basis. Unprivileged processes are restricted to choosing one of the algorithms in tcp_allowed_congestion_control"; ip-sysctl.rst: that list's "Default is "reno" and the default setting" | **BBR (v1 in mainline, §4) needs one install step**: `bbr` loaded and added to `tcp_allowed_congestion_control`, or the sender run with `CAP_NET_ADMIN`; then the profile picks it per socket |
+| buffers | `tcp_wmem` at the PCS, `tcp_rmem` at the PACS (sysctls) | §4 | host-wide, at install; **never `SO_SNDBUF`** (§4: it turns autotuning off) |
+| pacing | `net.core.default_qdisc = fq` | §4, ESnet | host-wide, at install |
+| unsent data in the socket | `TCP_NOTSENT_LOWAT`; socket2 `set_tcp_notsent_lowat` (Linux) | ip-sysctl.rst: "sendmsg() will also not add new buffers if the limit is hit" | bounds memory and latency of what is queued; one bulk stream gains nothing from it (*inference*): leave it |
+| detecting a dead path | `TCP_USER_TIMEOUT` | tcp(7): "the maximum amount of time in milliseconds that transmitted data may remain unacknowledged … before TCP will forcibly close the connection" | the stall detection §11.2 says is most of a drop's cost, set by the profile instead of curl's `--speed-time` |
+| surviving an address change | Multipath TCP: a socket of protocol `IPPROTO_MPTCP` (socket2 `Protocol::MPTCP`), at both ends | the kernel's `mptcp.rst`: "a fail-over if one path is down"; a middlebox that strips its options makes it "downgraded" to plain TCP | the one TCP answer to QUIC's migration; named, not recommended: unmeasured here and silently TCP behind such middleboxes |
+
+**QUIC: five stacks, from §13's table.** The sender's column decides throughput (the controller is the sender's); the
+receiver's decides only windows, ACK cost and receive CPU.
+
+| | controller (the sender's) | windows, pacing, ACKs | receive path | migration | in our Rust | maturity |
+| --- | --- | --- | --- | --- | --- | --- |
+| **quinn** 0.11 | CUBIC default; NewReno; BBR: "Experimental! Use at your own risk", after Google's BBR (`congestion/bbr/mod.rs:19`); a public `Controller` trait for our own | `stream_receive_window`, `receive_window`, `send_window`, `ack_frequency_config`, `keep_alive_interval`, all per `TransportConfig`; a built-in pacer (`connection/pacing.rs`) | quinn-udp: `UDP_GRO`, `recvmmsg`, `UDP_SEGMENT` on Linux | server: "Whether to allow clients to migrate … NAT rebinding. Enabled by default"; client: `Endpoint::rebind` | **already in the workspace** (the viewer's, patched); rustls, so §12.3's pins as they are | releases monthly; 8 RustSec advisories in 2026, all patched at our pin (§13.2) |
+| quiche | `CongestionControlAlgorithm`: Reno, **CUBIC (default)**, `Bbr2Gcongestion` (BBRv2) | `set_max_stream_window`, `set_max_connection_window`, `enable_pacing` | sans-I/O: the application's, or tokio-quiche's GRO | `Connection::migrate` | a second stack, BoringSSL by cmake (§13.3) | Cloudflare's edge |
+| msquic | `QUIC_CONGESTION_CONTROL_ALGORITHM_CUBIC`; `…_BBR` only `#ifdef QUIC_API_ENABLE_PREVIEW_FEATURES` (`msquic.h`) | settable; sends and obeys ACK_FREQUENCY (§13.2) | GRO on Linux (§13.2) | not read here | FFI, its own threads | 18-month support |
+| lsquic | BBRv1 default, CUBIC (§13.2) | settable, auto-tune off by default | the application's | not read here | FFI and BoringSSL built by hand | LiteSpeed's servers |
+| s2n-quic | `Cubic` default; `Bbr` exported (`provider/congestion_controller.rs`); custom ones behind `unstable-congestion-controller` | settable | GRO on Linux only (§13.2) | not read here | Rust; a second stack | releases every 2–4 weeks |
+
+**Read against the owner's criteria** (*inference* throughout):
+
+* **Throughput tunability.** Kernel TCP's controller is per socket, its buffers and pacing host-wide sysctls: the
+  profile sets the first, the installer the rest, with root. Every QUIC lever is in the process, set by the profile
+  with no root, except the UDP socket buffer maximum (`net.core.rmem_max` at the receiver, §4's Jaeger finding). The
+  controllers differ in what BBR is on offer: kernel BBRv1, quinn's experimental BBR, quiche's BBRv2, lsquic's BBRv1,
+  msquic's preview.
+* **Resilience.** Resume and the reply are the application's on every row (draft-14, §12.1), so a drop costs both
+  transports a stall timeout plus a reconnect (§11.2). QUIC adds migration: an address change (NAT rebinding, a
+  failover uplink) continues the same connection instead of reconnecting, which saves ~3 RTT and, more, the stall
+  before it is noticed. MPTCP is TCP's equivalent, fragile through middleboxes.
+* **Simplicity.** For the sender and the listener both: kernel TCP (nothing new) and quinn (in the workspace, one
+  TLS) cost least; every other QUIC row is a second stack, a second TLS or FFI.
+* **Maturity.** Kernel TCP above all; quinn's advisories are already the viewer's to track.
+
+**Best only: kernel TCP for the TCP profile, quinn at both ends for the QUIC profile.**
+
+### 14.4 Combinations, and the recommendation
+
+| sender transport | PACS listener | the protocol | works | worth it |
+| --- | --- | --- | --- | --- |
+| kernel TCP + rustls, CUBIC | hyper over tokio-rustls (as built) | draft-14, HTTP/1.1 | yes, and curl too | **the default profile** |
+| kernel TCP + rustls, BBR per socket | the same | the same | yes | **the first candidate for a lossy link**: no QUIC at all |
+| quinn, one stream, HTTP/1.1 (S1) | quinn, `accept_bi` → the same hyper service | the same | yes (*inference*: the types fit, §14.1; not built) | **the second candidate for a lossy link** |
+| quinn, HTTP/3 (an h3 client) | h3 over quinn (as built) | draft-14, HTTP/3 | yes (built, tested on loopback with h3's client, §12.7) | no: h3 at both ends for nothing S1 lacks |
+| quiche, msquic, lsquic or s2n-quic, HTTP/1.1 on a stream | quinn | the same | by RFC 9000, untested | only if §14.5 shows quinn's controllers are the limit and another stack's BBR is not |
+| QUIC, any | the TCP listener | — | no: the profile must name the transport | — |
+
+**Recommended.** One protocol (draft-14 over HTTP/1.1, as built) on a stream chosen at build (S1). The default profile:
+kernel TCP, CUBIC, to the TCP listener. The limited-link profile: **kernel TCP with BBR per socket** until §14.5 shows
+quinn ahead; quinn at both ends if it does, with the controller and windows in the profile and the PACS's
+`stream_receive_window` and `receive_window` at the site's BDP (§13.1: the build's 1.25 MB default caps an upload at
+~67 Mbit/s at 150 ms and ~17 at 600 ms, D: 1.25 × 10⁶ × 8 ÷ RTT). The quinn sender's `send_window` default (8 × 1.25
+MB, `config/transport.rs:378`) caps it at ~533 Mbit/s at 150 ms and ~133 at 600 ms (D), above any limited link. The
+h3 listener goes when the S1 listener lands; the carrier keeps one QUIC stack, the viewer's.
+
+**What would change it.**
+
+* T-bbr within 20 % of the best quinn variant on every real limited class (§14.5): S0, the `quic` feature and the
+  seam deleted.
+* UDP closed at the sites with the limited links (the ADR's M5): S0, whatever §14.5 says.
+* A site whose kernel cannot load BBR (a PCS host we do not administer, or not Linux): QUIC's in-process controller is
+  then the only BBR there, and quinn moves ahead without a measurement on that site's class.
+* quinn's BBR losing to its CUBIC on lossy classes while another stack's BBR wins: that stack as the **sender** only,
+  quinn left as the listener, since pairing is by standard (§14.2).
+* A third-party sender that must interoperate over QUIC: HTTP/3 (§13's a or d2), since S1's mapping is ours alone.
+
+### 14.5 Pre-registered: TCP with BBR against quinn, on emulated limited links
+
+Narrows §13.6 to the two candidates left; its rules hold: variants interleaved in a fresh random order each round,
+each new test mutated, **seconds from the first byte to "committed" seen by the PCS** (latency per package; no
+throughput quoted beside it), the testbed's ceiling first and nothing claimed past it.
+
+* **Variants,** all through our sender and the carrier, the protocol unchanged: T (kernel TCP, CUBIC), **T-bbr** (BBR
+  by `TCP_CONGESTION`, fq at the PCS), Q (quinn, S1, CUBIC, windows at the BDP at both ends, the sender's ACK frequency
+  off), **Q-bbr** (Q with quinn's BBR), Q-ack (Q-bbr with `ack_frequency_config` set). The top two are T-bbr and the
+  best Q. S1 is built first, as a proposal accepted.
+* **Links,** by `netem` at the PCS: the limited classes, 1, 2, 10 and 50 Mbit/s × 80, 150 and 600 ms RTT × random
+  loss 0, 0.5, 1 and 3 %; drops of three kinds, a 20 s black hole, an address change (the PCS's namespace moved to a
+  new address mid-package), Poisson at M = 5, 15 and 60 min (§11.5); the GEO class also with an open-source
+  TCP-splitting proxy for T and T-bbr.
+* **Packages:** ADR §5's CT and MR, and a 1 GB series; 20 per variant per class.
+* **Recorded apart, never mixed with the latency:** the carrier's CPU seconds per GB received (`getrusage`), and the
+  sender's.
+* **Ceiling first:** each variant at 0 ms and no loss on the testbed; a class the host cannot reach is reported as not
+  run.
+* **Mutations, each must move the numbers or the lever is dead:** T-bbr with `cubic` set must reproduce T; Q-bbr with
+  CUBIC must reproduce Q; the receiver's stream window at half the BDP must cap Q near window ÷ RTT; Q with
+  `ServerConfig::migration(false)` must turn the address-change drop into T's reconnect numbers; the carrier answering
+  offset 0 must turn every variant into §11.5's one-shot numbers.
+* **Decides,** by median, only on classes where §11.5's D1 and the ADR's M5 place a real site with UDP open:
+  * the QUIC profile is kept only if the best Q beats T-bbr by > 20 % on at least one such class and loses by no
+    more than 10 % on none; otherwise S0;
+  * Q-bbr is the QUIC profile's controller only if it beats Q and its gain vanishes in the CUBIC mutation;
+  * a variant whose CPU per GB caps the class's rate on one PACS core is excluded at that class.
+
+### 14.6 What this changes in §13, and the owner's questions
+
+* **§13.5 point 2** (b1, "raw QUIC on quinn with our minimal framing") stands, with the framing named: **HTTP/1.1
+  itself**, so no codec is written and `Carrier::handle` is not touched. **§13.5 point 3** (stock curl over HTTP/3,
+  nghttpx in front) falls away: the sender is ours at every site. §13.6 is narrowed by §14.5.
+* **Not built here.** The S1 listener and the sender's `connect()` are structural: a proposal for review.
+
+Questions, each with a default:
+
+1. S1, HTTP/1.1 on one QUIC stream with our ALPN? *Default: yes*, when §14.5 keeps a QUIC profile; until then the h3
+   listener stays as built, off by default (§12.8 question 8).
+2. Register the ALPN token (RFC 9308 §8)? *Default: no* while only our two ends speak it; a versioned token
+   (`<name>/1`), pinned like the interop version.
+3. BBR at TCP sites: the installer adds `bbr` to `tcp_allowed_congestion_control`, or the sender runs with
+   `CAP_NET_ADMIN`? *Default: the installer*, the narrower privilege.
+4. MPTCP at the TCP listener (it accepts plain TCP too)? *Default: no*, until a site has two uplinks.
+
+### 14.7 Sources
+
+Fetched or read 2026-10-26; the first 12 hex of the fetched file's sha256. Raw copies are not committed.
+
+* **IETF:** RFC 9000 (`f88aae47f8b1`) §2, §4, §9; RFC 9002 §7 and RFC 9308 (`ebe07ab0c29b`) §4, §8, as §13.7.
+* **Linux** at `master`, 2026-10-26: `Documentation/networking/ip-sysctl.rst` (`b4bc2c766168`;
+  `tcp_allowed_congestion_control`, `tcp_notsent_lowat`), `Documentation/networking/mptcp.rst` (`da803bd4ea02`);
+  tcp(7) at man7.org (`074bc1016ad0`; `TCP_CONGESTION`, `TCP_USER_TIMEOUT`).
+* **Crates,** source read from the crates.io archives at the workspace's locked versions: quinn 0.11.11
+  (`send_stream.rs`, `recv_stream.rs`, `endpoint.rs`), quinn-proto 0.11.18 (`config/transport.rs`, `config/mod.rs`,
+  `congestion/`, `connection/pacing.rs`), quinn-udp 0.5.15 (`unix.rs`), tokio 1.53.1 (`io/join.rs`, `io/mod.rs`),
+  hyper 1.12.0 (`server/conn/http1.rs`, `client/conn/http1.rs`), socket2 0.6.5 (`sys/unix.rs`, `lib.rs`).
+* **Other stacks** at their default branch, 2026-10-26: quiche `quiche/src/lib.rs` (`1933094c1213`) and
+  `quiche/src/recovery/mod.rs` (`becb5524aa20`); msquic `src/inc/msquic.h` (`3ebde22085df`) and `docs/Settings.md`
+  (`88c26f413f94`); s2n-quic `quic/s2n-quic/src/provider/congestion_controller.rs` (`898f69495cac`); lsquic as §13.7.
+* **This repository:** `carrier/` on #164 (`9bb1c53`): `src/tcp.rs`, `src/quic.rs`, `src/upload.rs`, `src/main.rs`,
+  `Cargo.toml`, `tests/common/mod.rs`; [`../adr/pcs-transfer.md`](../adr/pcs-transfer.md) §15 on #177 (`a2f8fc1`);
+  `docs/ingest/carriers-explained.md` on #181 (`ef48067`); this file §3–§5, §11–§13.
+
+**Not read**, so not cited as read: migration in msquic, lsquic and s2n-quic; whether Windows' TCP offers a BBR to a
+per-socket call; any user-space TCP stack; any published comparison of quinn's BBR against kernel BBR.
