@@ -1,5 +1,6 @@
 /** The page check's in-page half: the protocol after the fill, and each readback against the CPU reference. client/viewer/check.mjs */
 import { sha256Hex } from "/client/decode/wasm-glue.js";
+import { Painter } from "/client/paint/painter.js";
 import { paintReference } from "/client/paint/reference.js";
 
 /** On demand, the page's own steps: three quick ones keep the newest ask alone, and a frame stepped to twice is asked once. */
@@ -54,16 +55,32 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
   await step("askAfterCancel", async () => (await client.requestExactFrame(n - 1)).info.exact);
 
   if (q.get("cine")) {
-    const shown = new Set();
+    // The frame each completed paint drew, read off the painter: a slice the cine stepped past unpainted is missing here.
+    const which = new Map([...frames].map(([i, f]) => [f.info.pixels, i]));
+    const painted = [];
+    painter.paint = (frame, ...rest) => Painter.prototype.paint.call(painter, frame, ...rest)
+      .then((r) => (painted.push({ i: which.get(frame.pixels), at: performance.now() }), r));
     await show(n - 1);
+    painted.length = 0;
+    // The page's frames: of the paints that complete between two, the screen shows the last.
+    const vsync = [];
+    const tick = (t) => watching && (vsync.push(t), requestAnimationFrame(tick));
+    let watching = true;
+    requestAnimationFrame(tick);
     toggleCine();
     const t0 = performance.now();
-    while (performance.now() - t0 < 1500) {
-      shown.add(current());
-      await new Promise((r) => setTimeout(r, 5));
-    }
+    const swept = () => painted.findIndex((p) => p.i === n - 1);
+    while (swept() < 0 && performance.now() - t0 < 30_000) await new Promise((r) => setTimeout(r, 5));
     toggleCine();
-    out.cine = shown.size;
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    watching = false;
+    delete painter.paint;
+    const sweep = painted.slice(0, swept() + 1);
+    const shown = sweep.filter((p, k) => !(sweep[k + 1] && vsync.find((f) => f > p.at) > sweep[k + 1].at)).map((p) => p.i);
+    const { frameTimeMs, cineRate } = await globalThis.viewerMetadata;
+    out.cine = { painted: sweep.map((p) => p.i).join(" "), order: shown.join(" "), skipped: n - new Set(shown).size,
+      inOrder: shown.every((i, k) => i === k), stepMs: (sweep.at(-1).at - sweep[0].at) / Math.max(1, sweep.length - 1),
+      statedMs: frameTimeMs ?? (cineRate ? 1000 / cineRate : 100), frameMs: (vsync.at(-1) - vsync[0]) / (vsync.length - 1) };
   }
 
   // First, middle and last frame at zoom 1, read back and painted again on the CPU.
