@@ -211,7 +211,8 @@ async function listed(page) {
 const profile = (tag) => mkdtempSync(path.join(WORK, `profile-${tag}-`));
 const drop = (dir) => rmSync(dir, { recursive: true, force: true });
 const write = (row) => { appendFileSync(OUT, JSON.stringify(row) + "\n"); console.log(JSON.stringify(row).slice(0, 400)); };
-const settings = (more) => write({ settings: true, cell: CELL, at: new Date().toISOString(), host: hostInfo(), mutant: MUTANT || null, ...more });
+const settings = (more) => write({ settings: true, cell: CELL, at: new Date().toISOString(), host: hostInfo(), mutant: MUTANT || null, ...more,
+  ...(more.series && { series: { ...more.series, sbnd: path.relative(ROOT, more.series.sbnd) } }) });
 function hostInfo() {
   const chrome = execFileSync(ENGINE === "firefox" ? process.env.FIREFOX_PATH : chromiumPath(), ["--version"]).toString().trim();
   const mem = /MemTotal:\s+(\d+)/.exec(readFileSync("/proc/meminfo", "utf8"))[1];
