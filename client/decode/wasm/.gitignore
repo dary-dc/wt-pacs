@@ -1,3 +1,4 @@
 vendor/
-built/
+built/.work/
 build/.cache/
+build/.rebuilt/
