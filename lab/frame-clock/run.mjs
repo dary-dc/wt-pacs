@@ -25,6 +25,8 @@ const flag = (name, fallback) => {
 export const CELLS = ["s512", "mammo"].flatMap((series) => [30, 60].flatMap((fps) => ["quiet", "busy"].flatMap((page) =>
   [1, 4].map((rate) => ({ name: `${series}/${fps}/${page}/${rate}`, series, fps, busy: page === "busy", rate })))));
 
+/** The pre-registered rounds: `order()`'s period for seven units. */
+const PROTOCOL_ROUNDS = 14;
 const fmt = (x, d = 1) => (Number.isFinite(x) ? x.toFixed(d) : "n/a");
 
 function summarise(rows) {
@@ -45,6 +47,7 @@ function summarise(rows) {
         v.arms[arm] ? `  ${v.arms[arm].passes ? "passes" : "fails"}` : ""}`);
     }
   }
+  if (cells.some((c) => c.rounds < PROTOCOL_ROUNDS)) return void console.log(`\nrule: no verdict under ${PROTOCOL_ROUNDS} rounds a cell`);
   const r = rule(cells);
   console.log(`\nrule: ${r.clock ?? "no verdict"}${r.why ? ` (${r.why})` : ""}${r.reversed ? `; reversed in ${r.reversed.join(", ")}` : ""}`);
 }
