@@ -764,6 +764,10 @@ excess within ±20 ms); `fence`, `finish` and `none` do not. Chromium: no varian
 the draw to execute without the page's thread, proved on SwiftShader and on Firefox's llvmpipe; no product paint that
 reads a pixel to settle; and §7's busy cine re-measured with the old read and the new settle.
 
+*Amended before any kept data (2026-10-30).* The first Firefox run was stopped after 8 visits of round 0: a timer
+that woke early let the loop call twice in one 20 ms slot (800 calls in a 500-slot visit). The loop now counts its
+slots; those 8 rows are discarded, not read for the hypothesis, and the run restarted from round 0.
+
 ### A frame clock in the view worker (2026-10-28)
 
 *Theory and a pre-registered protocol; the harness built 2026-10-30 ([`../../lab/frame-clock/`](../../lab/frame-clock/README.md)) and smoke-run, nothing timed as a result.* The owner's next client shape: the page holds no

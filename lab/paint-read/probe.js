@@ -69,10 +69,12 @@ const SETTLE = {
 async function loop(variant, t0, ms) {
   const calls = [];
   const settle = SETTLE[variant.replace("′", "")];
-  for (let k = 0; ; k++) {
-    const due = t0 + Math.ceil(Math.max(0, now() - t0) / PERIOD_MS) * PERIOD_MS;
+  for (let k = 0, slot = 0; ; k++, slot++) {
+    // A timer may wake a little early, so the next slot is counted, not read back from the clock.
+    slot = Math.max(slot, Math.ceil((now() - t0) / PERIOD_MS));
+    const due = t0 + slot * PERIOD_MS;
     if (due >= t0 + ms) return calls;
-    await new Promise((r) => setTimeout(r, due - now()));
+    while (now() < due) await new Promise((r) => setTimeout(r, due - now()));
     const start = now();
     draw(k);
     const ok = await settle();
