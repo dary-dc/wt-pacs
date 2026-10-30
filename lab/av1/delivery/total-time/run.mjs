@@ -10,7 +10,7 @@
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs [--rounds 10] [--first-round 0]
  *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--engines chromium,firefox] [--sets a,b] [--variants a,b]
  *     [--fill N --asks-after K] [--frames lab/.av1-work/total] [--orders seq,prio] [--mutate sample|truth|digest] [--out rows.jsonl]
- *     [--cc-trace DIR] [--one-way-ms 20] [--trace sawtooth] [--summary [--ref htj2k]] [--bin DIR --serve TREE]
+ *     [--cc-trace DIR] [--one-way-ms 20] [--trace sawtooth] [--summary [--ref htj2k]] [--bin DIR --serve TREE] [--headed]
  *   A fixed-rate link `r<kbit>rtt<ms>` carries its own round trip; `--trace` steps a viewer variant: lab/viewer/trace.js.
  */
 import { spawn, execFileSync } from "node:child_process";
@@ -54,6 +54,8 @@ const TRACE = arg("--trace", null);
 /** An arm built elsewhere (perf_nightly.mjs): its series-server and pack-series, and the tree whose client the page loads. */
 const BIN = arg("--bin", null);
 const SERVE = arg("--serve", ROOT);
+/** Firefox headed, the run under `xvfb-run`: headless Firefox has no WebGL2 in a worker, where `?view=worker` paints. */
+const HEADED = process.argv.includes("--headed");
 
 /** Mahimahi's trace, fetched for local use only (GPL-3.0); its hash as PROF recorded it. */
 const LTE = { file: "TMobile-LTE-short.down", sha256: "4f33dce8dd811b5702272af64aaf64d3913719919abd776edf1e0f7c0965da43" };
@@ -210,7 +212,7 @@ async function inBrowser(engine, url, throttle, errors, threads = {}) {
   if (engine !== "firefox") throw new Error(`unknown engine ${engine}`);
   const dir = mkdtempSync(path.join(T, "ff-"));
   writeFileSync(path.join(dir, "user.js"), FIREFOX_PREFS.map(([k, v]) => `user_pref(${JSON.stringify(k)}, ${JSON.stringify(v)});`).join("\n"));
-  const proc = spawn("taskset", ["-c", BROWSER_CORES, process.env.FIREFOX_PATH, "--headless", "--no-remote", "--profile", dir, url],
+  const proc = spawn("taskset", ["-c", BROWSER_CORES, process.env.FIREFOX_PATH, ...(HEADED ? [] : ["--headless"]), "--no-remote", "--profile", dir, url],
     { env: { ...process.env, MOZ_CRASHREPORTER_DISABLE: "1" }, stdio: ["ignore", "ignore", "pipe"], detached: true });
   pid = proc.pid;
   let stderr = "";
@@ -287,8 +289,8 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   const a = variantOf(set, variantName);
   const fill = Number(FILL ?? a.entries);
   if (fill + AFTER > a.entries || (AFTER && (a.opts.groupLength || a.opts.decoder.layers))) throw new Error(`${set.name} ${variantName}: ${fill} + ${AFTER} asks`);
-  // The viewer fills the whole series, or shows frame 0 on demand and steps to 1 … AFTER: lab/viewer/levers.js.
-  if (a.viewer && (AFTER ? fill !== 0 || AFTER >= a.entries : fill !== a.entries)) throw new Error(`${set.name} ${variantName}: a viewer takes --fill 0 --asks-after K < ${a.entries}, or neither`);
+  // The viewer fills the whole series, or shows frame 0 on demand and steps to 1 … AFTER, or the trace's: lab/viewer/levers.js.
+  if (a.viewer && (AFTER ? fill !== 0 || AFTER >= a.entries : fill !== a.entries && !(TRACE && fill === 0))) throw new Error(`${set.name} ${variantName}: a viewer takes --fill 0 --asks-after K < ${a.entries}, --fill 0 --trace, or neither`);
   const need = useful(set);
   const flip = (t) => (MUTATE === "truth" ? t.replace(/^./, (c) => (c === "0" ? "1" : "0")) : t);
   const truth = (a.truth ?? set.truth).map(flip);

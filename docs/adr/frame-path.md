@@ -245,7 +245,7 @@ it rides `start` too.
 #### Experiment 2: the want ascending, and no ask across the running fill (2026-10-29)
 
 *Rank 2 of the experiments beside the target (`claude/vw-experiments`, frame-path.md §Experiments beside the target).
-Pre-registered: written, built and smoked before any data; **not run**. Its run is a row of its own, after a
+Pre-registered: written, built and smoked before any data; ~~**not run**~~ run 2026-10-30, *Run* at the end. Its run is a row of its own, after a
 methodology review of this text.* Reviewed 2026-10-30, before any data: corrections are marked *Review* where they
 stand, the old text kept, and the findings are under *Review* at the end.
 
@@ -441,6 +441,76 @@ for r in $(seq 0 11); do NODE_PATH=$(npm root -g) node lab/av1/delivery/total-ti
   --trace sawtooth --out rows.jsonl; done        # and --fill 0 --sets ct_lidc --links r20000rtt92 for the on-demand cells
 node lab/viewer/wait-ahead-summary.mjs rows.jsonl rows-on-demand.jsonl
 ```
+
+**Run** (2026-10-30, `claude/core-exp2`, #265). **Verdict: k\* = 8, adopt k = 8**, by the rule as fixed; the
+code's default is not flipped here (*The default*, below). Rows: `lab/viewer/rows-wait-ahead.jsonl`,
+`rows-wait-ahead-on-demand.jsonl`, `rows-wait-ahead-mutate.jsonl`; the driver `lab/viewer/wait-ahead-run.sh`.
+
+*Before round 0.*
+
+* `--mutate sample` turned all six arms to 0 exact on both engines, fill and on demand (24 rows).
+* At 5 Mbit/s every visit stalled at 92–93 of 100 frames and timed out. A frame of a run the want's head had left
+  arrived after its record was forgotten. It was dropped and also deleted from the downloader's want, and the store
+  re-sends a want only when its misses change, so the frame was never asked again. Now it is dropped but stays
+  wanted (`downloader.js` `arrived`; `downloader.test.mjs` *aLateFrameOfAnEndedRunIsStillWanted*, which fails on the
+  old code). Every row below ran on the fix.
+* Rig: Firefox 155 (Playwright's) runs headed under `xvfb-run` (`run.mjs --headed`), as headless Firefox has no
+  WebGL2 in a worker. The relay runs on core 3 at `chrt -f 50`, browser and server on cores 0–2. `--fill 0` is
+  accepted under `--trace`. The fixtures were made with `VARIANTS=check make_frames.py` and the arms written per *To
+  run*; `viewer.json` carries the frame count, `htj2k` and the digests.
+
+*Where the host saturates.* The relay went `VOID` on 418 of 1 570 fill attempts and 75 of 219 on demand. Rounds 0–3
+lost 37–52 % of their fill attempts; rounds 4–11 lost 2–19 %. The cause is not measured. Each `VOID` visit was re-run at
+its round's end, and the 37 visits still missing after three passes were re-run once more after round 11. That
+breaks the interleave for those visits only. Every arm of every cell ended with 12 kept visits: none saturated, no
+failed or short fill, and every frame exact.
+
+*Results*, the forward wait's paired median change against `off`, in ms, with `off`'s median (the backward change
+after the slash). `—` marks a cell the guards leave out.
+
+| cell | engine | guards | `off` fwd | k = 1 | k = 2 | k = 4 | k = 8 | fill at k = 8 |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `ct_lidc` 5 Mbit/s, 46 / 92 ms | Chromium | A/A 74 / 88 ms — | 8 921 / 8 729 | +13 / +89 | −516 / −251 | −3 551 / −3 128 | −2 728 / −2 566 | ×0.955 |
+| `ct_lidc` 5 Mbit/s, 46 / 92 ms | Firefox | decided | 3 170 / 3 189 | +83 / +82 | −144 / −212 | −612 / −601 | −983 / −1 044 | ×0.950 / 0.949 |
+| `ct_lidc` 20 Mbit/s, 46 ms | Chromium | A/A 11 ms — | 518 | +25 | +16 | −141 | −315/−166 | ×0.881 |
+| `ct_lidc` 20 Mbit/s, 92 ms | Chromium | decided | 571 | +12 | −29 | −120 | −248/−124 | ×0.921 |
+| `ct_lidc` 20 Mbit/s, 46 / 92 ms | Firefox | decided | 230 / 258 | +9 / +16 | 0 / −22 | −28 / −32 | −88 / −96 | ×0.946 / 0.947 |
+| `dbt10_ea1141` 5 Mbit/s, 46 / 92 ms | Chromium | decided | 5 037 / 5 020 | +17 / +12 | +1 689 / +1 739 | +5 167 / +5 183 | no vote | ×0.688 / 0.690 |
+| `dbt10_ea1141` 5 Mbit/s, 46 / 92 ms | Firefox | decided | 5 023 / 5 038 | −3 / +10 | +109 / +133 | +110 / +1 005 | no vote | ×0.924 / 0.925 |
+| `dbt10_ea1141` 20 Mbit/s, 46 / 92 ms | Chromium | A/A 11 / 10 ms — | 349 / 367 | −5 / +9 | −7 / +344 | +768 / +1 230 | no vote | ×0.718 / 0.728 |
+| `dbt10_ea1141` 20 Mbit/s, 46 ms | Firefox | A/A 12 ms — | 616 | +2 | −132 | −72 | no vote | ×0.935 |
+| `dbt10_ea1141` 20 Mbit/s, 92 ms | Firefox | decided | 621 | −1 | −122 | +39 | no vote | ×0.929 |
+| on demand, `ct_lidc` 20 Mbit/s, 92 ms | both | decided | 10 | 0 | 0 | 0 | 0 | — |
+
+The rule over the ten decided fill cells:
+
+* *k\**: k = 2 and 4 are no later than k = 1 in at most 1 of 12 rounds on the decided DBT 5 Mbit/s cells. k = 8 votes only on the
+  five decided CT cells, and is no later than k = 1 in 12 of 12 rounds in each. So k\* = 8.
+* *Adoption at k = 8*:
+  * It beats `off` by ≥ 16.7 ms in 12 of 12 rounds on every decided CT cell, which covers both engines.
+  * It is later than `off` in 0 rounds, forward and backward.
+  * The fill's paired median is ×0.92–0.95, within ×1.02.
+  * The on-demand change is 0.0 ms against an A/A of 0.1 ms.
+  * Every frame is exact.
+
+The model read the full relay queue as k\* = 8. The relay holds 200 packets, so the queue was full here, and the run
+agrees. The model predicted a win of 23–28 ms at 20 Mbit/s and 163 ms at 5 Mbit/s; the run measured 88–315 ms and
+about 1 s respectively. It also predicted a 15–16 ms backward cost, which did not appear.
+
+*What the verdict does not cover.*
+
+* Chromium decides on one fill cell. Its CT 5 Mbit/s A/A is 74–88 ms, about 1 % of an 8.7–8.9 s wait, over the
+  fixed ±8 ms.
+* k = 8 has no vote on a stack whose trace climbs ⌊n/3⌋ ≤ 8, so DBT is undecided at k = 8. There it never asks
+  within the trace; the fill's ×0.69 on Chromium comes from that, not from waiting.
+* k = 2 and 4 cost +0.1 to +5.2 s against `off` on DBT at 5 Mbit/s, in 12 of 12 rounds. A smaller k is not a safe
+  substitute for k = 8.
+* Only CPU 1× and these links were run. Nothing is claimed for a `VOID` visit.
+
+*The default.* The rule makes k = 8 the default. This branch records the verdict and leaves the code's default
+absent, for two reasons. The setting acts only under `?view=worker`, whose own rule is not run. And the other
+experiments (Exp. 1's `span`, Exp. 3) run against `waitAhead` absent; per *Experiment 1's `span`* above, flipping it
+now changes their baseline mid-run. Flipping the default is the owner's merge.
 
 #### Experiment 3: a transferred `ArrayBuffer` per frame (2026-10-29)
 
@@ -2872,7 +2942,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 | --- | --- | --- | --- | --- |
 | `?view=` | `page` | `worker` | §7's rule (B′), #229 | built, not run |
 | `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | built and its rig, not run |
-| `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | built, not run |
+| `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | run (#265): adopt k = 8, 12 of 12 rounds on every decided CT cell, both engines; DBT undecided at k = 8; default not yet flipped, the owner's |
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | built, not run |
 | frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241 | arms in `lab/opfs-cache` only; run in progress |
 | `?writer=`, who writes the OPFS cache | `none`: no cache, as main | `store`, `decoders`, `view` | OPFS arms, #227/#242; #244 | arms in `lab/opfs-arms`, core built; run in progress |
