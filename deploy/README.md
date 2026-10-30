@@ -73,10 +73,12 @@ transport file, written into a volume web served and fetched again before every 
 `docker build` runs in the daemon, so the compile cannot be pinned to chosen cores there; `docker run --cpuset-cpus`
 can. A deploy host that must keep the compile off its other cores compiles in the pinned rust image of `Containerfile`
 and packages the binary with `Containerfile.prebuilt`, which cannot compile and yields the `server` target's image
-(`deploy/server_start_test.sh` fails if the two `server` stages part):
+(`deploy/server_start_test.sh` fails if the two `server` stages part). `CPUS` names the cores the host's other work
+does not need: a host whose data plane or other services are pinned to cores leaves the rest (read each one's
+pinning with `taskset -cp <pid>`, or in its own configuration):
 
 ```bash
-docker run --rm --cpuset-cpus 0 --memory 8g -v "$PWD":/src -v "$HOME/.cache/wt-pacs-cargo":/usr/local/cargo/registry -w /src \
+docker run --rm --cpuset-cpus "$CPUS" --memory 8g -v "$PWD":/src -v "$HOME/.cache/wt-pacs-cargo":/usr/local/cargo/registry -w /src \
   docker.io/library/rust:1.97-bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97 \
   sh -c 'cargo build --release --locked -p series-server && cp "$(rustc --print sysroot)/share/doc/rust/COPYRIGHT-library.html" target/release/'
 STAGE=$(mktemp -d)
@@ -86,6 +88,101 @@ docker build -f deploy/Containerfile.prebuilt -t wt-pacs-server "$STAGE"   # the
 
 A flag on `Containerfile` to skip its compile stage would not do: only BuildKit skips an unused stage, and a daemon on
 the legacy builder would compile anyway, unpinned. The binary links glibc, so it must come from that bookworm image.
+
+Where the daemon's bridge network cannot resolve names, the compile and the image build fail fetching crates and
+packages; `--network host` on that `docker run` and that `docker build` is the fallback, not the default.
+
+## Serving the page from an nginx already on the host
+
+A host whose nginx already holds 443 cannot give the port to the web image, so the page is added to that nginx by
+hand, and the transport runs beside it as above. Below, the page's name is `www.example.org`, its root `/srv/wt-pacs`,
+the transport's folder `/var/lib/wt-pacs/transport`, and `$SERIES` the series served from `$STUDIES`.
+
+**1. The sources, one commit.** `git archive` packs that commit's tracked files and nothing else (no `.git`,
+`target/` or `node_modules/`), in one file:
+
+```bash
+git archive -o wt-pacs.tar HEAD && git get-tar-commit-id < wt-pacs.tar    # on a clone: the commit packed
+scp wt-pacs.tar www.example.org:
+mkdir wt-pacs && tar -xf wt-pacs.tar -C wt-pacs                           # on the host; sha256sum matches both ends
+```
+
+**2. What the page needs beside the sources.**
+
+* `deploy/web-files.sh`'s list, the files of `client/` the viewer loads, and nothing else;
+* the TS client's bundle, `client/transport/ts/build.sh --product` after `npm ci` there (the image's node 22);
+* the decoders, `client/decode/wasm/build/build.sh`, which fails unless they match `manifest.sha256`. Its
+  toolchains are pinned for x86-64 today: elsewhere, build them on an x86-64 machine, copy `built/`, and check it
+  with `sha256sum -c ../build/manifest.sha256` from inside `built/`, as the image does;
+* the series' `$SERIES.metadata.json`, from the DICOM ingest beside its `.sbnd`;
+* `/wt/dev-transport.json`, which the server writes at start (step 6). With the host's CA-signed certificate it reads
+  `{"wt_url": "https://www.example.org:4433/", "cert_sha256": "", "client": "ts"}`: no hash, so the browser
+  verifies the chain. PR #114 would drop the file for such a deployment.
+
+With `CLIENT=wasm`, the WASM client's `pkg/` too (`client/transport/wasm/build.sh`), which the image builds itself.
+
+**3. A root the host's nginx can read.** Its workers run as the `user` in `nginx.conf`; a `0700` directory on the
+path answers 403. An nginx inside a container sees only its own mounts, so the root and the transport's folder must
+be mounted into it at the paths the site file names.
+
+```bash
+deploy/web-files.sh /srv/wt-pacs                                   # /srv/wt-pacs/client
+mkdir -p /srv/wt-pacs/client/transport/ts && cp -r client/transport/ts/dist /srv/wt-pacs/client/transport/ts/
+install -D -m 0644 "$STUDIES/$SERIES.metadata.json" "/srv/wt-pacs/series/$SERIES.metadata.json"
+chmod -R a+rX /srv/wt-pacs
+```
+
+**4. The site file.** Copy `deploy/nginx/wt-pacs.conf.template` into the directory the host's `http {}` includes
+(`conf.d/*.conf` or `sites-enabled/`; `nginx -T` shows which), as `wt-pacs.conf`, and edit it line by line:
+
+| line in the template | becomes | why |
+| --- | --- | --- |
+| `listen 8765;` | removed | the image's plain-HTTP port; the host serves on 443 |
+| `${TLS_LISTEN}` | `listen 443 ssl;` `ssl_certificate /path/to/chain.pem;` `ssl_certificate_key /path/to/key.pem;` | the host's certificate, its chain included (§The checks, *The transport's PEM*) |
+| (same place) | `http2 on;` only if `nginx -V` shows `--with-http_v2_module` | without the module the directive is unknown and `nginx -t` fails |
+| `server_name _;` | `server_name www.example.org;` | `_` would claim the host's default; a name another 443 block holds draws `conflicting server name` and one is ignored |
+| `root /srv/wt-pacs;` | the root of step 3 | |
+| `alias /studies/${SERIES}.metadata.json;` | `alias /srv/wt-pacs/series/<series>.metadata.json;` | `${SERIES}` is the image's start-time substitution; nothing substitutes it here |
+| `alias /srv/wt-pacs/wt/dev-transport.json;` | `alias /var/lib/wt-pacs/transport/dev-transport.json;` | the file the server writes (step 6) |
+| `include /etc/nginx/mime.types;` | the host's `mime.types` (beside `nginx -V`'s `--conf-path`) | |
+| `connect-src 'self' ${WT_ORIGIN};`, in the policy's `add_header` | `connect-src 'self' https://www.example.org:4433;` | the policy must let the page dial the transport, scheme, host and port |
+
+`nginx -t` then warns `duplicate extension "js"`: the template's `types { text/javascript js mjs; }` follows the
+include and redefines `.js`, and the later line wins, as intended: that is what the block is for.
+
+**5. The checks, then the reload.** Nothing reloads until the file has no `${` left and `nginx -t` passes:
+
+```bash
+grep -n '\${' /etc/nginx/conf.d/wt-pacs.conf          # prints nothing
+nginx -t && nginx -s reload                            # or: kill -HUP <the master's pid>
+curl -sI https://www.example.org/client/viewer/head.js # 200, text/javascript, Cross-Origin-Embedder-Policy: require-corp
+curl -sI https://www.example.org/client/transport/ts/dist/session.js   # 200: the bundle where the page loads it
+```
+
+**6. The transport.** The image of §A server compiled outside the image, run from the unpacked tree, with the
+host's certificate at `/supplied` and the transport's folder a host directory, both owned by uid 10001:
+
+```bash
+install -d -o 10001 -g 10001 -m 0700 /etc/wt-pacs/supplied
+install -o 10001 -g 10001 -m 0600 /path/to/chain.pem /etc/wt-pacs/supplied/cert.pem
+install -o 10001 -g 10001 -m 0600 /path/to/key.pem   /etc/wt-pacs/supplied/key.pem
+install -d -o 10001 -g 10001 -m 0755 /var/lib/wt-pacs/transport
+docker run -d --name wt-pacs-server --restart unless-stopped \
+  --security-opt seccomp=deploy/seccomp-uring.json --ulimit memlock=67108864 --ulimit nofile=65535 \
+  -e SERIES="$SERIES" -e WT_URL=https://www.example.org:4433/ -p 4433:4433/udp \
+  -v "$STUDIES":/studies:ro,z -v /etc/wt-pacs/supplied:/supplied:ro,z -v /var/lib/wt-pacs/transport:/run/wt-pacs:z \
+  wt-pacs-server
+curl -s https://www.example.org/wt/dev-transport.json  # the file of step 2
+```
+
+The server reads the key as uid 10001, so a copy for that uid, not the root-only original; copy it again and
+restart the container when the host's certificate renews. The folder is a host directory because the host's nginx
+must read it, and because a tmpfs is mounted root-owned: Docker 29.9.1 here mounts `--tmpfs` at mode 1777 and the
+start writes, but at `mode=0755` the start fails `cannot create /run/wt-pacs/.dev-transport.json: Permission
+denied`. Which Docker versions mount it that way was not checked. The host's firewall must pass UDP 4433.
+
+**7. Undo.** `rm /etc/nginx/conf.d/wt-pacs.conf && nginx -t && nginx -s reload` gives the host back its nginx as it
+was; `docker rm -f wt-pacs-server` and removing `/srv/wt-pacs`, `/var/lib/wt-pacs` and `/etc/wt-pacs` remove the rest.
 
 ## The ten fixes, and why
 
