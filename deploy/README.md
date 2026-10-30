@@ -67,9 +67,9 @@ and packages the binary with `Containerfile.prebuilt`, which cannot compile and 
 ```bash
 docker run --rm --cpuset-cpus 0 --memory 8g -v "$PWD":/src -v "$HOME/.cache/wt-pacs-cargo":/usr/local/cargo/registry -w /src \
   docker.io/library/rust:1.97-bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97 \
-  cargo build --release --locked -p series-server
+  sh -c 'cargo build --release --locked -p series-server && cp "$(rustc --print sysroot)/share/doc/rust/COPYRIGHT-library.html" target/release/'
 STAGE=$(mktemp -d)
-cp target/release/series-server deploy/server-start.sh "$STAGE"/ && cp -r fixtures/us_cine_smoke "$STAGE"/
+cp target/release/series-server target/release/COPYRIGHT-library.html deploy/THIRD_PARTY_NOTICES deploy/server-start.sh "$STAGE"/ && cp -r fixtures/us_cine_smoke "$STAGE"/
 docker build -f deploy/Containerfile.prebuilt -t wt-pacs-server "$STAGE"   # the image `compose up` runs, given no `--build`
 ```
 
