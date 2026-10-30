@@ -1606,6 +1606,12 @@ container; XXH3 stood in by a JS hash, the decoder builds absent; not results): 
 MB/s in three rounds, write and close 1.6–5.7 ms on the feeder against the probe's 0.74, so W's ≥ 125 is the cell to
 watch; in one G round at S2, 1×, `none` missed 9.7 % of ticks, over the 5 % saturation line.
 
+**Amended before any data, 2026-10-29 (the independent review's open points).** *Rounds:* each cell runs one whole
+Williams period of its arms (`lab/order.mjs`), so every arm follows every other equally often: **L 8 rounds** (8 arms;
+8 and 16 are equally near 12, 8 taken for the host's time), **W 14** (7 arms), **R 10** and **G 10** (5 arms). The
+rule's "≥ 9 of 12" reads as ≥ 75 % of a cell's rounds, as `summary.mjs` counts it: ≥ 6 of 8, 11 of 14, 8 of 10.
+*Credits:* three feeders take ⌈8 / 3⌉ = 3 credits each, so W keeps 9 frames ahead in total, not 8.
+
 ## Target: the view worker · 2026-10-28
 
 **Status:** the owner's next target design for the client, 2026-10-28, revised 2026-10-29 with the red team's
@@ -2672,12 +2678,6 @@ binary is in this container.
 
 **Not traced:** Network.framework's receive window; Blink's high-water mark past the spec's default; the receive
 cost per MB in a Gecko or WebKit worker.
-
-**Amended before any data, 2026-10-29 (the independent review's open points).** *Rounds:* each cell runs one whole
-Williams period of its arms (`lab/order.mjs`), so every arm follows every other equally often: **L 8 rounds** (8 arms;
-8 and 16 are equally near 12, 8 taken for the host's time), **W 14** (7 arms), **R 10** and **G 10** (5 arms). The
-rule's "≥ 9 of 12" reads as ≥ 75 % of a cell's rounds, as `summary.mjs` counts it: ≥ 6 of 8, 11 of 14, 8 of 10.
-*Credits:* three feeders take ⌈8 / 3⌉ = 3 credits each, so W keeps 9 frames ahead in total, not 8.
 
 ## The core, assembled (2026-10-30)
 
