@@ -2870,7 +2870,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 
 | setting | default (today's) | other values | decided by | status 2026-10-30 |
 | --- | --- | --- | --- | --- |
-| `?view=` | `page` | `worker` | §7's rule (B′), #229 | built; timed against main, quiet page only: §*The core against main, timed* (pre-registered, running) |
+| `?view=` | `page` | `worker` | §7's rule (B′), #229 | built; against main on a quiet page (§*The core against main, timed*): not judged (VOID), and in both runs later — first frame +40 ms at 1×, fill ×1.04–1.15 |
 | `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | built and its rig, not run |
 | `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | built, not run |
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | built, not run |
@@ -2973,3 +2973,33 @@ core, the relay's included; row TOTAL4 runs the harness under `taskset -c 0-2`. 
 unchanged but for `taskset -c 0-2 node scripts/perf_nightly.mjs …`, with rows in `page-pinned/` and `worker-pinned/`.
 The rule, VOID threshold and guards are the same. Run 2 is read on its own, never pooled with run 1. If its VOID rate
 is no lower, the harness was not the cause, and that is said.
+
+**Run 2 (2026-10-30, the harness pinned).** Rows in `page-pinned/` and `worker-pinned/`, the same two binaries. VOID
+rose instead: 121 of 576 visits (21 %) and 73 of 288 (25 %), so the harness was not the cause. The relay's p99 ran
+late by up to 40 ms on a core 90 % idle, with steal time on it (the VM's own scheduling, sampled once, 1 %).
+
+| campaign · cell | head ÷ base | A/A | rounds kept | `aa_rule` | by the rule |
+| --- | --- | --- | --- | --- | --- |
+| 1 · clean 1× fill | ×1.000 | ×0.998 | 5 + 9 | tie, catches 4.0 % | not judged: 5 of 12 |
+| 1 · clean 4× fill | ×0.999 | ×0.996 | 8 + 9 | tie, catches 3.2 % | not judged: 8 of 12 |
+| 1 · the other ten | ×0.859–1.077 | ×0.810–1.138 | 3–9 + 3–9 | none flagged | not judged |
+| 2 · clean 1× fill | ×1.044 | ×0.968 | 6 + 9 | **worse** | not judged: 6 of 12, A/A off 3.2 % |
+| 2 · clean 4× fill | ×1.146 | ×0.966 | 6 + 10 | **worse** | not judged: 6 of 12, A/A off 3.4 % |
+| 2 · clean 1× and 4× first | ×1.055, ×1.076 | ×0.922, ×0.952 | 6 + 9, 6 + 10 | not conclusive | not judged |
+| 2 · `l1` | — | — | 1–2 + 3–6 | undecided | not judged |
+
+**What the two runs establish.**
+
+* **The core at its defaults: throughput no worse,** by the rule, at `r50000` clean, 1× and 4× (run 1; run 2 the same
+  ties, short of the round threshold). **Latency the same is not established by the rule.** The VOID threshold or the
+  A/A guard stopped every latency cell. The medians agree with the prediction in both runs: first frame 139 → 140 and
+  145 → 145.5 ms at 1×, asked frame 85.5 → 86 ms in both. No cell of either run was flagged worse.
+* **`?view=worker`: not judged; both runs point the other way.** From navigation, the first exact frame on screen took
+  509.5 → 549.5 and 551 → 592 ms at 1× clean, over a display period later in each run. The fill took ×1.04–1.15 as long,
+  and `aa_rule` flagged it worse, confirmed, three times across the two runs, each below the round threshold. §2's
+  prediction (within a display period, fill ×0.98–1.02) is not borne out on this rig. The likely cost is the view
+  worker's start before its first frame; that start is not timed on its own here, and timing it is the next
+  measurement. The owner's expectation of latency the same or better under `worker` is **not met by these rows**.
+* **Where the host saturates:** not by load. The rule is capped by the VM's scheduling noise on the relay's core, and
+  `l1` cells, the longest visits, lose the most rounds. Nothing is claimed for `l1`, another host, series or engine,
+  or a busy page.
