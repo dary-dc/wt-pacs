@@ -78,3 +78,6 @@ lab/.av1-work/
 lab/.traces/
 lab/recv-cost/target/
 lab/sqlite-engine/target/
+# The late-frame cells: frames, containers and rows (lab/late-frame)
+lab/.late-frame-work/
+lab/late-frame/sbnd-late/target/
