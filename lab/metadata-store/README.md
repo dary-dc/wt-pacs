@@ -745,3 +745,215 @@ Against the pre-registration:
   takes 2 segments of TCP's first flight from both variants alike. TCIA's de-identified headers; a hospital's may
   weigh more, which moves resends further toward compression and leaves corrections in one flight up to ~8 KB of
   group bytes (*estimated*). The PCS's own CPU is not measured.
+
+## The study DB: a row per group, shared + per-frame, or a blob per series
+
+[`src/study_db/`](src/study_db) asks, inside the study DB
+([`docs/ingest/metadata-draft.md`](../../docs/ingest/metadata-draft.md) §2), how three layouts of a series' instance
+metadata compare on the parser's real output for the five series above: **a row per group** (T1, the proposed one),
+**shared + per-frame** (the series as one Legacy Converted Enhanced instance, DICOM's Shared and Per-frame Functional
+Groups, PS3.3 C.7.6.16, kept as its shared row and a row per frame), and **a blob per series** (every instance's groups
+in one zstd value). It is a cargo feature, out of the gate's build.
+
+```bash
+.venv/bin/python -I lab/metadata-store/study-db/package.py DATA BUILD/build/ESIPFfiled PKG   # the parser, then packages
+cargo test -p metadata-store --features study-db --release
+cargo run -p metadata-store --features study-db --release -- --mode study-db --packages PKG \
+  --builds 30 --rounds 200 --updates 60 > study-db.jsonl
+```
+
+**The packages.** `package.py` runs the parser as §The parser's own output does (the same build, `MALLOC_PERTURB_`,
+us rewritten Explicit first) and writes, per series, a deterministic pax tar of every group file at its path in the
+tree, `<D>/<exam>/<series>/<instance>/<kind>.<hash>`: the package the PCS sends (#149, one per series). Two inputs:
+**as written**, and **masked**, the instance and private groups with that section's key mask (a repeat numbered),
+standing for the parser once its nested keys are deterministic. A package with several series or exam group files (pt,
+us) keeps the first by path. The directory names are the UIDs.
+
+**The layouts**, each one SQLite file in WAL at `synchronous=FULL` (rusqlite 0.40, bundled SQLite), every row with
+the XXH3-64 of its bytes. All three keep the exam group and the series group a row each (`exam`, `series`) and an
+`audit` table (who, when, the scope, the tag, the prior value, the new one: the record decided on 10-24/25).
+
+* **Row per group:** `instance (uid PRIMARY KEY, series, bytes, xxh3)` indexed on `(series, uid)`, and `private
+  (uid PRIMARY KEY, bytes, xxh3)` where the instance has one. The bytes are the group files as received.
+* **Shared + per-frame:** the records of §The parser's own output's simulated converted-enhanced instance, ported to
+  Rust (`shared.rs`) and checked byte for byte against that Python on every package before anything is timed; its
+  top level and Shared Functional Groups item in `shared (series PRIMARY KEY, bytes, xxh3)`, each Per-Frame item in
+  `frame (uid PRIMARY KEY, series, number, bytes, xxh3)` indexed on `(series, number)`. Only CT, MR and PET have a
+  Legacy Converted class, so **mg and us have no shared + per-frame store**, and no correction is measured on them.
+  The conversion keeps group 0002 and the top-level image attributes of the first instance only and re-encodes the
+  SOP class, SOP instance UID, acquisition date, time and number; the received groups cannot be given back byte for
+  byte.
+* **Blob per series:** `blob (series PRIMARY KEY, bytes, xxh3)`, per instance its UID, its instance group and its
+  private group, length-prefixed, compressed by zstd 0.13 (libzstd) at level 3.
+
+**What is timed**, per series and input, each a median of its rounds, ms of wall and of the thread's CPU:
+
+* **build:** read the package file, unpack it, create the file, insert, commit;
+* **size:** the file after its last connection closes (WAL checkpointed and removed), and the bytes of every row;
+* **paint:** open the file read-only and read every instance's paint values (`group::PAGE_TAGS`, top level; in shared
+  + per-frame the frame's value over the shared one over the top level);
+* **full:** open and parse every stored record of the series (exam, series, every row);
+* **integrity:** open and check every row's bytes against its XXH3;
+* **corrections**, ct, pt and mr, each in one transaction with its audit row, on a held read-write connection: **exam**,
+  the patient name (the exam group, the same code in every layout); **instance, varying**, the middle instance's image
+  position (per frame already); **instance, shared**, the middle instance's slice thickness (in every instance with
+  one value, so in the shared row: the correction splits its Pixel Measures group into every frame, the others
+  keeping the old value); **series, shared**, the slice thickness of every instance (in shared + per-frame it stays
+  in the shared row). Each correction is undone untimed (instance, shared by a series correction back, which joins
+  the shared row again), and the store must then hold exactly the bytes it was built with. A correction's rows
+  written, whether the attribute ends shared, and the bytes after it are reported once.
+* **owned lines:** the code lines (not blank, not `//`) of `mod.rs` (the package, the exam and audit, the checks,
+  shared by all three) and of each layout's file.
+
+**Arms**, interleaved round by round with the order rotated: each layout and its A/A twin on its own file (six arms,
+four for mg and us); 30 builds, 200 rounds of each read and of the check, 60 of each correction; two runs. Before any
+timing every store must give the same paint values as the row per group, the blob every received record, and shared +
+per-frame every received record in its frame's view (but group 0002 and the re-encoded five).
+
+*Known before the pre-registration:* the code above, its six tests (each mutated: the placement made always shared,
+the split ignoring its frame, the join never taken, the frame's value not read, the check skipped, the blob's private
+group dropped, a series correction made to touch one row, the audit dropped; each failed a test) and one pass of the
+run with one round of everything and its output discarded, to see the checks hold; nothing timed or sized was read.
+The owned lines are fixed by the code: 228 common, 67 row per group, 341 shared + per-frame, 69 blob per series.
+The masked references differ from §The parser's own output's masked conversion only in numbering a repeated key
+(mr, 115 103 B either way).
+
+*Pre-registered, 2026-10-26, before any timing.*
+
+| Prediction | Contradicted if |
+| --- | --- |
+| shared + per-frame's file is ≤ 0.35× the row per group's for ct, pt and mr masked, ≤ 0.6× as written | larger |
+| the blob's file is ≤ 0.1× the row per group's, every series | larger |
+| every layout builds within 2× the row per group's median, every series; shared + per-frame the slowest for ct, pt, mr | otherwise |
+| paint: shared + per-frame below the row per group by more than the larger A/A gap and by ≥ 25 %, ct, pt, mr, both inputs | otherwise |
+| paint: the blob within ± 25 % of the row per group, every series | outside |
+| full: shared + per-frame ≥ 2× faster than the row per group for ct, pt and mr masked; the blob within ± 25 % | otherwise |
+| exam: the three layouts tie (within the larger A/A gap) | one does not |
+| instance, varying: the row per group and shared + per-frame tie, one row each; the blob ≥ 1.5× the row per group | otherwise |
+| instance, shared: shared + per-frame writes N + 1 rows, ends per-frame, and takes ≥ 3× the row per group | otherwise |
+| series, shared: shared + per-frame writes one row, stays shared, and takes ≤ 0.5× the row per group (N rows) | otherwise |
+| every correction's median ≤ 50 ms, every layout | over |
+| integrity: blob < shared + per-frame < row per group at the median, ct, pt, mr | another order |
+| every correction undone leaves the store as built; every check above holds | one does not |
+
+**The rule.** A layout is faster or slower than another in a cell when their medians differ by more than the larger
+of their A/A gaps (|X − X′|) in both runs; otherwise the cell is a tie. Shared + per-frame or the blob replaces the
+row per group only if, for each of ct, pt and mr, in both runs: (1) its paint read is faster and at least 25 % below;
+(2) its file is ≤ 0.5× the row per group's; (3) its build median ≤ 2× the row per group's; (4) every correction's
+median ≤ 50 ms. If both qualify, the one with fewer owned lines; if neither, the row per group, which owns the fewest
+(at equal function the simpler code wins). The rule is applied to each input; if they disagree, the masked input's
+choice holds once the parser's keys are deterministic and the as-written one's until then. Full, integrity and the
+lines are reported, not decided on.
+
+The host: one thread, every file in the page cache; a commit's `fsync` goes to the VM's virtual disk. Whether a
+correction or a build saturates its core is its CPU time against its wall time; nothing is claimed for many studies,
+concurrent writers, a cold disk or another host.
+
+*Measured, 2026-10-26, two runs* of the packages below (pt's change from parse to parse, §The parser's own output),
+the 2.10 GHz host of §The parser's own output. A range is the two runs' medians, both A/A arms included. The largest
+A/A gap of a cell: 0.10 ms in paint, 0.09 ms in integrity, 0.77 ms in full, 2.0 ms in a build, 0.3–0.5 ms in a
+correction (up to 0.6× its median: a commit waits on `fsync`). Every check
+held in both runs: the Rust conversion equalled the Python one on all six references, every store painted the same
+values, the row and blob layouts gave back every received record (19 912 for ct), shared + per-frame every one in its
+frame's view (17 292 for ct), and every correction undone left its store as built (8 640 times per run).
+
+| masked: rows \| shared + per-frame \| blob | ct | pt | mr |
+| --- | ---: | ---: | ---: |
+| file, KiB | 1200 \| 212 \| 48 | 1200 \| 228 \| 48 | 1236 \| 216 \| 44 |
+| row bytes, KB | 618 \| 109 \| 20 | 617 \| 128 \| 20 | 881 \| 116 \| 15 |
+| build, ms | 22.7–23.9 \| 22.8–25.4 \| 11.7–12.3 | 22.2–24.2 \| 20.8–22.6 \| 10.5–12.0 | 20.7–23.8 \| 26.5–29.0 \| 9.7–11.0 |
+| paint, ms | 2.13–3.20 \| 0.60–0.93 \| 1.63–2.52 | 2.09–2.17 \| 0.64–0.74 \| 1.60–1.68 | 1.65–1.75 \| 0.66–0.71 \| 1.76–1.82 |
+| full, ms | 3.02–3.62 \| 0.63–0.68 \| 2.66–3.06 | 2.87–3.14 \| 0.73–1.22 \| 2.66–3.09 | 3.95–4.66 \| 0.67–0.71 \| 3.77–4.46 |
+| integrity, ms | 0.55–0.63 \| 0.23–0.29 \| 0.13–0.15 | 0.64–0.71 \| 0.28–0.34 \| 0.16–0.18 | 0.55–0.72 \| 0.22–0.33 \| 0.12–0.16 |
+| exam, ms | 0.39–0.70 \| 0.44–0.75 \| 0.40–0.61 | 0.42–0.60 \| 0.52–0.61 \| 0.42–0.51 | 0.41–0.65 \| 0.46–0.86 \| 0.39–0.51 |
+| instance, varying, ms | 0.60–0.71 \| 0.53–0.70 \| 1.80–2.06 | 0.61–0.75 \| 0.56–0.72 \| 1.82–1.96 | 0.50–0.63 \| 0.54–0.93 \| 1.75–1.94 |
+| instance, shared, ms | 0.70–0.77 \| 2.50–2.65 \| 1.78–2.08 | 0.65–1.00 \| 2.47–3.05 \| 1.78–2.28 | 0.61–0.76 \| 1.79–2.11 \| 1.50–2.95 |
+| series, shared, ms | 8.23–8.69 \| 0.49–0.82 \| 3.11–3.88 | 8.18–9.50 \| 0.47–0.85 \| 3.30–4.25 | 3.82–4.02 \| 0.51–0.76 \| 2.90–4.57 |
+| instance, varying: rows written; ends shared | 1 \| 1; no \| 1 | 1 \| 1; no \| 1 | 1 \| 1; no \| 1 |
+| instance, shared: rows written; ends shared | 1 \| 263; no \| 1 | 1 \| 263; no \| 1 | 1 \| 146; no \| 1 |
+| series, shared: rows written; ends shared | 262 \| 1; yes \| 1 | 262 \| 1; yes \| 1 | 145 \| 1; yes \| 1 |
+
+| as written: rows \| shared + per-frame \| blob | ct | pt | mr |
+| --- | ---: | ---: | ---: |
+| file, KiB | 1200 \| 212 \| 48 | 1200 \| 428 \| 52 | 1236 \| 644 \| 44 |
+| row bytes, KB | 618 \| 109 \| 20 | 617 \| 258 \| 25 | 881 \| 377 \| 16 |
+| build, ms | 21.0–22.4 \| 19.2–21.7 \| 9.8–10.4 | 20.2–25.0 \| 21.1–25.4 \| 10.7–14.4 | 18.9–22.0 \| 30.3–34.4 \| 8.7–11.4 |
+| paint, ms | 1.99–2.05 \| 0.55–0.61 \| 1.52–1.63 | 2.10–2.20 \| 1.06–1.11 \| 1.68–1.80 | 1.65–1.74 \| 1.30–1.46 \| 1.76–1.87 |
+| full, ms | 2.81–3.36 \| 0.62–0.76 \| 2.50–2.88 | 2.92–3.23 \| 1.09–1.63 \| 2.62–3.27 | 3.95–4.72 \| 1.24–1.44 \| 4.07–4.50 |
+| integrity, ms | 0.61–0.73 \| 0.25–0.36 \| 0.14–0.20 | 0.60–0.70 \| 0.35–0.40 \| 0.15–0.20 | 0.55–0.62 \| 0.37–0.43 \| 0.13–0.19 |
+| exam, ms | 0.36–0.63 \| 0.42–0.69 \| 0.35–0.54 | 0.40–0.70 \| 0.53–0.70 \| 0.42–0.64 | 0.39–0.64 \| 0.51–0.67 \| 0.40–0.62 |
+| instance, varying, ms | 0.58–0.61 \| 0.53–0.62 \| 1.69–1.83 | 0.63–0.74 \| 0.63–0.77 \| 1.63–1.92 | 0.56–0.82 \| 0.66–0.85 \| 2.60–3.45 |
+| instance, shared, ms | 0.74–0.89 \| 2.41–2.70 \| 2.43–2.88 | 0.80–0.86 \| 3.30–3.58 \| 1.75–2.18 | 0.79–0.88 \| 4.14–4.75 \| 2.86–3.31 |
+| series, shared, ms | 8.22–8.89 \| 0.44–0.75 \| 3.68–4.40 | 8.09–8.56 \| 0.54–0.76 \| 3.90–4.31 | 3.96–4.51 \| 0.60–0.85 \| 3.72–4.46 |
+| instance, varying: rows written; ends shared | 1 \| 1; no \| 1 | 1 \| 1; no \| 1 | 1 \| 1; no \| 1 |
+| instance, shared: rows written; ends shared | 1 \| 263; no \| 1 | 1 \| 263; no \| 1 | 1 \| 146; no \| 1 |
+| series, shared: rows written; ends shared | 262 \| 1; yes \| 1 | 262 \| 1; yes \| 1 | 145 \| 1; yes \| 1 |
+
+| mg, us: rows \| blob | mg | us |
+| --- | ---: | ---: |
+| file, KiB | 60 \| 32 | 92 \| 32 |
+| build, ms | 6.65–7.88 \| 5.88–6.22 | 7.71–8.71 \| 5.78–6.97 |
+| paint, ms | 0.17–0.23 \| 0.19–0.24 | 0.26–0.35 \| 0.27–0.36 |
+| full, ms | 0.24–0.32 \| 0.27–0.38 | 0.29–0.34 \| 0.36–0.41 |
+| integrity, ms | 0.13–0.15 \| 0.11–0.13 | 0.14–0.15 \| 0.12 |
+
+Owned lines: 228 common, and 67 row per group, 341 shared + per-frame, 69 blob per series (with zstd, a C library).
+
+Against the pre-registration:
+
+| Prediction | Outcome |
+| --- | --- |
+| shared + per-frame's file ≤ 0.35× the rows' masked, ≤ 0.6× as written | holds: 0.18–0.19× masked; 0.18, 0.36 and 0.52× as written |
+| the blob's file ≤ 0.1× the rows', every series | **contradicted for mg and us** (0.53×, 0.35×: SQLite's eight pages are most of their file); holds for ct, pt, mr (0.04×) |
+| every layout builds within 2× the rows'; shared + per-frame the slowest for ct, pt, mr | 2× holds (≤ 1.64×); **slowest contradicted for ct and pt** (a tie with the rows, 0.93–1.08×); mr holds (1.22–1.64×). The blob builds in half the time |
+| paint: shared + per-frame faster and ≥ 25 % below, ct, pt, mr, both inputs | **contradicted for mr as written** (0.78–0.84×); holds for the rest (0.29–0.50×) |
+| paint: the blob within ± 25 % | **contradicted for ct masked in run 2** (0.746×); holds for the rest (0.75–1.10×) |
+| full: shared + per-frame ≥ 2× faster masked; the blob within ± 25 % | 2× holds (0.15–0.40×); **the blob contradicted for ct** (0.744–0.745× in one run of each input); holds for the rest |
+| exam: the three tie | **contradicted**: shared + per-frame is 1.4–1.6× the rows beyond the A/A gap for ct and pt, both inputs, and mr as written; the same code on the same tables, not explained here. The blob ties |
+| instance, varying: rows and shared + per-frame tie; the blob ≥ 1.5× | **tie contradicted for mr masked** (1.29–1.53×); holds for the rest; the blob holds (2.6–4.6×) |
+| instance, shared: N + 1 rows, ends per-frame, ≥ 3× the rows | rows and ending hold; **3× contradicted for ct as written in run 1 (2.94×) and mr masked (2.81–2.82×)**; holds for the rest (3.0–5.4×) |
+| series, shared: one row, stays shared, ≤ 0.5× the rows | holds: 0.08–0.20×, against the rows' N rows in 3.8–9.5 ms |
+| every correction ≤ 50 ms | holds: at most 9.5 ms |
+| integrity: blob < shared + per-frame < rows | holds in every cell |
+| every undo leaves the store as built; every check holds | holds |
+
+**By the rule:** as written, **neither qualifies**: shared + per-frame fails (1) and (2) on mr (paint 0.78–0.84×,
+file 0.52×) and the blob fails (1) everywhere (0.75–1.10×). Masked, **shared + per-frame qualifies** on ct, pt and mr
+in both runs (paint 0.29–0.41×, file 0.18–0.19×, build ≤ 1.30×, corrections ≤ 3.1 ms); the blob does not. The inputs
+disagree, so: **a row per group while the parser's nested keys hold address bytes; shared + per-frame once they are
+deterministic.**
+
+* **What decides it is the key defect.** Where the keys repeat (ct, and pt and mr masked) the converted instance's
+  rows weigh 109–128 KB against the groups' 617–881 KB, and reading a series' paint values parses that instead of
+  every group: 0.55–0.93 ms against 1.65–3.2 ms opened. As written, mr's vendor private records carry a different key
+  in every instance, so they are per frame (377 KB) and the gain shrinks to 16–22 %.
+* **Corrections go as the standard's structure says.** An attribute shared by the series, corrected in every
+  instance, stays shared: one row, 0.4–0.9 ms, against 262 rewritten rows and 8–9.5 ms (3.8–4.5 ms for mr's 145). The
+  same attribute corrected in one instance splits its functional group into every frame: 263 rows, 1.8–4.8 ms against
+  0.6–1.0 ms, and the rows' bytes grow by 17–23 KB until it is corrected back. An attribute already per frame costs one
+  row in both. Every correction is under 10 ms in every layout; a commit is mostly `fsync` (CPU 0.25–0.45 of the wall
+  for a one-row correction).
+* **The blob** is the smallest (15–25 KB of rows, 44–52 KiB of file), builds in half the time and checks fastest, but
+  every instance correction decompresses and recompresses the series (1.5–3.5 ms, 2.3–4.6× the rows) and its reads
+  parse every group as the rows do (0.75–1.10×).
+* **Integrity** checks only what each layout stores: shared + per-frame's rows are its own, so a received group's hash
+  cannot be checked after the conversion; the rows and the blob keep the received bytes.
+* **Where the host saturates:** reads are one core's CPU (CPU ÷ wall 0.98–1.00); builds and corrections wait on the
+  commit's `fsync` (0.25–0.88). Nothing is claimed for many studies at once, concurrent writers or a cold disk. The
+  converted instance is simulated (§The parser's own output), and mg and us, which have no Legacy Converted class,
+  were measured for the rows and the blob only.
+
+The packages, SHA-256:
+
+```text
+84fca6de60bd1f82189dff09878f3554e82dd7c9a55cfb5bc52d9fe08a3dfc06  ct.masked.tar
+726696b01200fb1781a4686e17875082623058646fe30ca7a54061a1f9f2dfb6  ct.tar
+b38dd53c32c6e7e98d82ae3a290c30c36dc49a9f1dec6249c7220d2d65e18fa2  mg.masked.tar
+a49cc1493f00a0ea2921e452c7e23bc7f08fcb94c9c7de262a635e28806357a5  mg.tar
+1510503a4cb777313920ef3d1c24d50da8fb9c9ca0a23b6f3827ddd3ef05e52e  mr.masked.tar
+87404b3fc08712f9dc26742e8f143ef53ba689590b115ef29180bb61fb9831be  mr.tar
+dc06e4f82bc2eb4ba34b25b431b74b50ae61180f2a7d4c45ba5e78cb1540517b  pt.masked.tar
+43d6f59d0f9f5ee8ce7b8e0009d6cd36c9e92e124c864931c78aea16bb40cd26  pt.tar
+008c9da742e0bcd6588d91cea519eb3354ee805f83a0c8e06b9ad46bbbcd371e  us.masked.tar
+c5604f1c4384b340216b7369b98940a3db91e0261060ce5a84f1d541d3a29f97  us.tar
+```

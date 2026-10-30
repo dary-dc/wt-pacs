@@ -479,6 +479,14 @@ link gains, the receiver telling a zstd frame by its magic number and accepting 
 slower" argues for on. For a series package compressing the metadata saves at most 3.45 % with HTJ2K pixels
 (§Repetition there), and frames are never compressed again (2026-10-25).
 
+Inside the study DB, on the parser's packages of the same series ([`../../lab/metadata-store`](../../lab/metadata-store)
+§The study DB, 2026-10-26): shared + per-frame (the series as a simulated converted-enhanced instance, a shared row
+and a row per frame) weighs 0.18–0.19× a row per group's file and reads a series' paint values in 0.29–0.41× its time
+once the nested keys are masked, but only 0.52× and 0.78–0.84× for mr as written, whose private keys differ per
+instance. By the pre-registered rule (a recommendation; adopting it is the owner's, still open): a row per group while the parser's keys hold address bytes, shared + per-frame
+once they are deterministic. A correction of a shared attribute in one instance splits it into every frame (263 rows,
+≤ 4.8 ms); in every instance it stays one shared row (≤ 0.9 ms, against 262 rows and ≤ 9.5 ms).
+
 **Integrity under C and D.** The parser's BLAKE3 covers a whole group. C and D keep it checkable: the group's bytes are
 its records in key order, so the PACS writes them back to back and hashes them on arrival — the same bytes, the same
 BLAKE3 — then stores the rows. That proves the content equals what the parser wrote. A hash of the whole database
