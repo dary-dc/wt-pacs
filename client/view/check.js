@@ -110,3 +110,14 @@ export async function readbacks({ controller, n }) {
   }
   return { readbacks: out, stats: controller.client.stats().exact };
 }
+
+/** `n` frames of `width`×`height` 16-bit samples made here, in place of the downloader's, each unlike the next: lab/frame-clock. */
+export function hold({ controller, n, width, height }) {
+  for (let i = 0; i < n; i++) {
+    const pixels = new SharedArrayBuffer(width * height * 2);
+    const s = new Uint16Array(pixels);
+    for (let k = 0; k < s.length; k++) s[k] = (k + 4099 * i) & 0xffff;
+    controller.take({ frameIndex: i, info: { pixels, width, height, bits: 16, components: 1, signed: false, min: 0, max: 65535, exact: true, stamps: {} } });
+  }
+  return controller.received;
+}
