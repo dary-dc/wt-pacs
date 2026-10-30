@@ -2919,10 +2919,12 @@ The gate's grey codestream × 48, every frame hashed against its truth.
 | --- | --- | --- |
 | throughput | **fill**: issue (campaign 2: navigation) → the 48th exact frame on the page | head ÷ base, the fill's time |
 | latency | **first**: the first exact frame (campaign 2: on screen) | head ÷ base |
-| latency | **asked**: frame 0 shown, then frames 1–4 asked one at a time, each ask → its exact frame (campaign 2: on screen); a visit's median | head ÷ base |
+| latency | **asked**: frame 0 shown, then frames 1–4 asked one at a time, each ask → its exact frame on the page; a visit's median | head ÷ base |
 
-A fill's visit gives fill and first; the asked cell is a visit of its own (`--asks 4`: the page `--fill 1
---asks-after 4`, the viewer `--fill 0 --asks-after 4`).
+A fill's visit gives fill and first; the asked cell is a visit of its own, campaign 1 only (`--asks 4`: the page
+`--fill 1 --asks-after 4`). *Amended before any campaign's data, from a one-round smoke:* main's viewer has no step
+hook for the harness (its `lab/viewer/levers.js` predates them; it showed frame 0 and stepped no further, 1 of 4), so
+campaign 2 judges fill and first only, and an asked frame → screen under `?view=worker` is not timed against main.
 
 **Predictions, from §2.** Fill ×0.98–1.02 in every cell: neither the downloader's changes nor the view worker sits on
 the decoders' path. On a quiet page, the first frame and an asked frame within a display period (16.7 ms) of main's:
