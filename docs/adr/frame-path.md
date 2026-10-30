@@ -2870,7 +2870,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 
 | setting | default (today's) | other values | decided by | status 2026-10-30 |
 | --- | --- | --- | --- | --- |
-| `?view=` | `page` | `worker` | §7's rule (B′), #229 | built, not run |
+| `?view=` | `page` | `worker` | §7's rule (B′), #229 | built; timed against main, quiet page only: §*The core against main, timed* (pre-registered, running) |
 | `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | built and its rig, not run |
 | `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | built, not run |
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | built, not run |
@@ -2892,3 +2892,49 @@ sessions as they are pushed. `claude/cine-no-skip` (the simple cine's skip fix) 
 built on #210 and the page's viewer before #229, so it carries the viewer product's #210 with it. Each conflict and its resolution is recorded in the PR. **Superseded** once this lands
 (the owner closes them): every PR above. **Out:** the viewer product (#193, #210, #214, #215), the ask-during-fill
 lever (#135), ingest.
+
+### The core against main, timed (2026-10-30)
+
+Until now the core equals `main` by counts only (the gate's *perf: counts, not clocks*). The owner expects **throughput
+no worse and latency the same or better.** Written before any data; the rows and the reading follow below it.
+
+**Arms.** `scripts/perf_nightly.mjs`: BASE a worktree of `origin/main` (`0cf5424`), HEAD a worktree of
+`origin/claude/core` (`2e6fa5b`), and BASE again as the A/A arm; `lab/order.mjs`'s order over cells, and over the three
+arms inside each cell; every visit its own server, relay and Chromium. Both trees carry the decoders built on
+`claude/decoders-committed` (each checked against its `manifest.sha256`) and fetch the nightly's pinned OpenJPH and XXH3.
+The gate's grey codestream × 48, every frame hashed against its truth.
+
+* **Campaign 1, the core at its defaults:** the nightly's own page (`lab/av1/delivery/total-time/page.js`, the
+  downloader driven directly, timed from the fill's issue).
+* **Campaign 2, the core under `?view=worker`:** `--view worker` puts every arm on the product's viewer, timed from
+  navigation (the only origin the two trees' viewers share), and the head's under `?view=worker`. Not §7's protocol:
+  one engine, one synthetic series, a quiet page.
+
+**Cells.** `r50000` clean, and `r50000 l1` (row LOSSLINK's 1 % iid loss each way, the harness's lossy link); 1× and
+4× (`lab/scripts/cpu_throttle.mjs`); 12 rounds and 12 confirming.
+
+**One measure a claim.**
+
+| claim | measure | quoted as |
+| --- | --- | --- |
+| throughput | **fill**: issue (campaign 2: navigation) → the 48th exact frame on the page | head ÷ base, the fill's time |
+| latency | **first**: the first exact frame (campaign 2: on screen) | head ÷ base |
+| latency | **asked**: frame 0 shown, then frames 1–4 asked one at a time, each ask → its exact frame (campaign 2: on screen); a visit's median | head ÷ base |
+
+A fill's visit gives fill and first; the asked cell is a visit of its own (`--asks 4`: the page `--fill 1
+--asks-after 4`, the viewer `--fill 0 --asks-after 4`).
+
+**Predictions, from §2.** Fill ×0.98–1.02 in every cell: neither the downloader's changes nor the view worker sits on
+the decoders' path. On a quiet page, the first frame and an asked frame within a display period (16.7 ms) of main's:
+the page's hops the view worker removes cost under 1 ms. At 4× a quiet page is still quiet; nothing predicts a
+difference there either.
+
+**Rule, fixed before data.** `lab/scripts/aa_rule.py` on each cell with `--confirm`: a cell is *worse* or *better*
+only when both campaigns flag it. **"No worse" holds when no cell is flagged worse**; it then claims only to each
+cell's detectable loss (the rule's *catches*), and a cell *not conclusive* (that loss over 5 %) is said so, not counted
+as a tie. *Better* is reported, and claimed only where the rule flags it. **VOID:** a visit whose relay's self-timing
+is late is dropped with its round's other two arms (the strict reading); a cell with fewer than 9 of 12 rounds kept in
+either campaign is not judged. **Saturation guard:** on this 4-core container (browser on cores 0–2, relay on 3) the
+fill at `r50000` 1× follows the link up to 200 Mbit/s (row PERFNIGHTLY, [`../../README.md`](../../README.md) *What the nightly times*), so 1× is
+link-bound; 4× is CPU-bound by design. A cell whose A/A median departs from 1 by more than 2 % says the rig drifted
+and is not judged. Nothing is claimed for another host, series, engine or a busy page.

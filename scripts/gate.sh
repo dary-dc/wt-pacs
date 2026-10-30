@@ -175,6 +175,9 @@ fi
 step "lab: the variant order and its predecessor split"
 run 1 node lab/order.test.mjs
 
+step "perf: each arm of the nightly's campaign, and the value a round it judges"
+run 1 node scripts/perf_campaign.test.mjs
+
 step "lab: the viewer's levers — a fill's time and reads, steps on demand, the sawtooth trace, Experiment 2's rule over rows"
 run 1 node lab/viewer/levers.test.mjs
 run 1 node lab/viewer/trace.test.mjs
