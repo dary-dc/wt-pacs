@@ -884,7 +884,7 @@ Two copies because AV1 merges into `out` first; HTJ2K makes one. With the two-fr
   decode, not measured.
 * **The cache's read-back** runs on a decoder (coded bytes need decoding); the downloader stats the file per miss.
 * **Not built:** the re-ask when a decoder thread dies (its record stays); the cine and its frame clock (the window
-  has none); a phone, a display's vblank, macOS's off-UI-thread present.
+  has none; *built 2026-10-30*, §Built for NATIVERUN); a phone, a display's vblank, macOS's off-UI-thread present.
 * **The check's Xvfb** runs `-noreset`: without it the display was gone after the `view` window's close.
 
 ### Independent review (2026-10-30)
@@ -904,6 +904,63 @@ Two copies because AV1 merges into `out` first; HTJ2K makes one. With the two-fr
   steps injected off the UI thread (metric 4), a hop's send → receive stamp (metric 7), metric 6's drive through the
   series, and B's 1-pixel read behind a lab flag (`paint-worker.js` on `claude/view-worker` still reads on every
   paint). Both rules turn on metrics 4 and 5, so NATIVERUN is not run: no verdict is possible from the rest.
+  (*Built 2026-10-30*, §Built for NATIVERUN, except B's flag, *corrected there*: it was already on `claude/core`.)
 * **Seen, not changed.** The view re-asks only on an intent, so a frame evicted from inside the want, or refused, is
   asked again at the next step, not at once; a cache write that fails still marks the frame written, so it is
   evictable and comes back from the wire.
+
+### Built for NATIVERUN (2026-10-30)
+
+*On `claude/core-native`, from the list above, in the shape the owner chose on 2026-10-29 (§7, decision 2): winit and
+M1's painter, no toolkit. Each is a lab setting of `native-window`, off by default, on every `--paint-thread`.
+NATIVERUN is not run and nothing here is timed.*
+
+* **The cine** (`--cine-hz`): a timer on the thread that paints — the UI thread under `ui`, the view thread under
+  `view`, the core thread under `core` — that shows the frame due by the time since the window opened, as
+  `client/view/clock.js` does, looping the series (`client/native/src/clock.rs`). A frame due is **late** when it
+  was passed over, was not held at its tick, or its paint — with `--stamp-painted`, the GPU's drain too — had not
+  ended when the next was due; the report prints `cine_on_time` and `cine_late`. Under `view` and `core` the frame
+  shown moves with the cine and the want follows it: that is metric 6's drive through the series.
+* **The busy-UI loop** (`--busy-ui-ms`, `--busy-every-ms`, default 500): the UI thread spins for the block on a
+  fixed schedule from the window's opening, under every paint thread.
+* **Steps off the UI thread** (`--steps`, `--step-every-ms`, `--steps-via paint|ui`): a thread of their own steps
+  one frame forward. `paint` sends each straight to the thread that paints, which under `ui` is the UI thread; `ui`
+  sends it through the UI thread, metric 4's extra cell. With `--stamp-painted` each prints `step at_ms` at its send.
+* **Hop stamps** (metric 7): every message between threads carries the instant of its send (`count::Sent`) and the
+  receiver stamps the hop; the report adds one line a hop, its count and its median and p99 in µs. The hops:
+  `stream` (a stream's reader to the session's, from the envelope's last byte), `frame` (`ui`'s `load` to the UI
+  thread), `job`, `decoded`, `done`, `intent`, `shown`, `failed`, `step`. Always on, as the counters are: a lock and a
+  push a message.
+* **B's 1-pixel read** was already behind a lab flag on `claude/core`: `settlePaint` in `client/view/view-worker.js`,
+  off by default, set by `lab/viewer/levers.js` ([`../adr/frame-path.md`](../adr/frame-path.md) §3). *Corrected
+  (2026-10-30)*: the independent review read `paint-worker.js` alone, which the page view keeps reading on. Nothing
+  built.
+
+**Proved.** `clock::tests` and `count::tests`: the cine shows the frame due and counts those passed over; a frame is
+on time only if its paint ends before the next is due; the busy loop blocks for its length and keeps its schedule;
+a hop stamps its send → receive; the quantiles are nearest-rank. Ten mutants, each failing them.
+`client/paint/window.mjs` now also runs each paint thread on a twelve-frame grey series with the UI thread blocked
+450 ms of every 500. Seven steps 700 ms apart meet the blocks at five phases 100 ms apart: sent off the UI thread
+they must all paint within 100 ms under `view` and `core`; through it (`ui`, and `view` with `--steps-via ui`) some
+must wait 100 ms or more. Every hop on the paint thread's path must be stamped. A 30 Hz cine must show at least four
+frames, with fewer late than on time under `view` and `core` and more under `ui`. Four mutants against it, each
+failing it: steps sent off the UI thread routed through it; the view's cine not moving the frame shown; the busy
+loop not run; the intent hop stamped under another name. The last two ran before the steps' part of the check took
+its final form, which they do not touch.
+
+**Smoked, not measured.** One run of each, Xvfb on lavapipe, four cores, 64 × 48 frames in a 512 × 384 window,
+from the check above: a step sent off the UI thread painted 4–7 ms after its send under `view` and `core`, one sent
+through it 54–455 ms, as the block's phase fell; the cine had 178 frames on time and 1 late under `view` and `core`,
+22 on time and 157 late under `ui`. A container's Xvfb has no vblank, so this says the wiring holds; prediction (b)
+on X11 is near-true by construction.
+
+**Seen, not changed.** In one `view` cine run with `--check`, whose read-back outlasts a 33 ms frame, each of the four
+frames was decoded twice: the likely path, not traced, is a want sent while a frame is between its decoder and the
+view, which lists it again once its `done` has cleared the downloader's record — §Built's "may be asked again",
+frequent under a want that changes 30 times a second.
+
+**What NATIVERUN still needs, none of it the window's:** the runner — the arms in a Williams square with A and A2, the
+relay cells, the 1-core pinning, the saturation guard from `/proc`, peak RSS (`VmHWM`), B's rig; a visit's end (the
+window runs until closed, so the runner sends Escape or ends it after its last step); the times metrics 1 and 5 read
+— dial to the last frame exact, and the inter-arrival p99 — which the window does not print (`Event::Frame`'s `at`
+holds the arrival); the synthetic 3328 × 4096 16-frame series, and the 1024² and 512² HTJ2K series packed for it.

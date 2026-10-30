@@ -1,6 +1,7 @@
 #[cfg(feature = "decode")]
 pub mod decode;
 pub mod cache;
+pub mod clock;
 pub mod count;
 #[cfg(feature = "paint")]
 pub mod paint;
