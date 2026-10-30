@@ -344,24 +344,15 @@ struct Args {
 
     // ---- miss-ratio campaign (`--mix`) ----
     /// Fraction of a cell's frames that must **miss** the page cache, verified with
-    /// `mincore` before the cell runs. Repeatable to sweep.
-    ///
-    /// The first campaign had only warm (every ask hits) and cold (read-ahead decides).
-    /// Neither answers "what happens at 60% misses", and cold-forward is not even
-    /// miss-dominated: 6 of 320 asks paid a hop. Passing this switches the harness to the
-    /// mix campaign — `--temp` and the single-primary multi-session cell do not apply.
+    /// `mincore` before the cell runs. Repeatable to sweep. Switches to the mix campaign:
+    /// `--temp` and the single-primary multi-session cell do not apply.
     #[arg(long = "mix")]
     mixes: Option<Vec<f64>>,
-    /// Sessions run **together**, all on the variant under test, all measured. The first
-    /// campaign's `--sessions` had warm background sessions around one cold primary, so no
-    /// cell ever had more than one session on the miss path. Repeatable to sweep.
+    /// Sessions run **together**, all on the variant under test, all measured. Repeatable to sweep.
     #[arg(long = "concurrency")]
     concurrencies: Option<Vec<u32>>,
-    /// Frames per mix cell, split evenly across the sessions.
-    ///
-    /// Each cell takes the **next** region of the series so the hypervisor's cache cannot
-    /// follow one variant around: an 80 MB series re-read runs 10x faster on the second pass
-    /// here, which is the effect that made the first campaign's cold cells unreadable.
+    /// Frames per mix cell, split evenly across the sessions; each cell takes the **next**
+    /// region of the series, so the host's cache cannot follow one variant (disk-access §12).
     #[arg(long, default_value_t = 256)]
     region_frames: u32,
     /// Pin every mix cell to the same region instead of rotating — the control that says

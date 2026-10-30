@@ -422,9 +422,9 @@ finding).
 Figures taken before the balanced order (`abc55e6`) used each driver's former order (a fixed cycle, a rotation,
 or two variants reversed every other round) and are left as written; a cell re-run now takes the square. Which driver had which order, and where each doc quotes it, is
 in `git show 6e9c126:docs/rig-limits.md` §6. **Not converted**, outside the row's three groups
-(page-open, the link campaigns, the decode benches): `lab/downloader-cost/`, `decoder-memory/`,
+(page-open, the link campaigns, the decode benches): `lab/downloader-cost/`,
 `session-survival/`, `early-messages/`, `stream-shape/`, `tcp-fallback/`,
-`worker-leak/`, `telemetry-cost/`, `other-clients/cells.sh`, and the two-variant scripts
+`telemetry-cost/`, `other-clients/cells.sh`, and the two-variant scripts
 that reverse every other round (already the square, with no split printed).
 
 **`serve_us` is not a speed, and it is not the server's alone.** It covers the read plus
@@ -461,7 +461,7 @@ across runs.
   each variant, and keep a control that is *expected* to fail, so a rig that cannot observe the failure
   is caught rather than believed.
 * **The clock floor.** `performance.now()` is 5 µs under cross-origin isolation (headless Chromium,
-  2026-08-30, `lab/clock-resolution/measure_clock_resolution.py`; the row is
+  2026-08-30, `lab/clock-resolution/measure_clock_resolution.py` at `ea581aca`; the row is
   `git show 5567355:docs/measurements/clock-resolution-local.json`), so a one-tick
   difference is not a finding; each context has its own `timeOrigin`, and only
   `timeOrigin + now()` compares across threads.

@@ -45,7 +45,7 @@ enum Variant {
     HybridLazyRingFd,
     /// One `tokio::fs::File` cursor per stream — no positional read, so it is meaningful
     /// only on the sweep shape, and depth splits the plan into that many cursors rather than
-    /// reads in flight. Under `--cfg tokio_unstable` it reports as `tokio_fs_uring`.
+    /// reads in flight.
     /// Sequential cursor only; rejected as a product reader. `docs/adr/disk-access.md` §5.
     TokioFs,
     /// **The shipped fill reader itself** — `server`'s `FillReader`, not a model of it.
@@ -84,7 +84,6 @@ impl Variant {
             Self::HybridLazyRing => "hybrid_lazyring",
             Self::UringRingFd => "uring_ringfd",
             Self::HybridLazyRingFd => "hybrid_lazyring_ringfd",
-            Self::TokioFs if cfg!(tokio_unstable) => "tokio_fs_uring",
             Self::TokioFs => "tokio_fs",
             Self::ProductFill => "product_fill",
             Self::ProductTile => "product_tile",
