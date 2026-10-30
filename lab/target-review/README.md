@@ -1,4 +1,9 @@
-# Target review probes — the view worker (docs/adr/frame-path.md §Target: the view worker)
+# target-review
+
+Throwaway probes behind the two reviews of [`docs/adr/frame-path.md`](../../docs/adr/frame-path.md) §Target: the view worker.
+Their numbers come from a shared container and are indicative only, not claims.
+
+## The red team's probes
 
 Throwaway probes for a red-team review. **Every output below is indicative only, from a shared container, not a claim.**
 
@@ -8,7 +13,7 @@ Throwaway probes for a red-team review. **Every output below is indicative only,
 | `want-replaced.mjs` | `node lab/target-review/want-replaced.mjs` | `decode:true`, 2 stand-in decoders × 2: fill 0..9, `cancel`, fill 0..9 again; then `ack` with the old and the new gen |
 | `busy-worker.cjs` (+ `busy.html`, `busy-view.js`, `busy-writer.js`, `busy-io.js`) | `node lab/target-review/busy-worker.cjs` | headless Chromium; `show` posted every 16 ms, delay measured in the worker; 17 MB `FileSystemSyncAccessHandle.write`+`flush` every 100 ms in the same worker, in a second worker, or in the same worker plus a 17 MB read-back and a JS `Uint32Array` sum (a stand-in for XXH3, not XXH3); arms interleaved, order reversed on odd rounds, 6 rounds × 3 s |
 
-## Output (this container, 2026-10-28)
+### Output (this container, 2026-10-28)
 
 ```
 $ node lab/target-review/want-order.mjs
@@ -43,3 +48,17 @@ run 2: idle       n=1128 median=0.10 p95=0.20 max=1.30
 
 The `same+hash` arm spends ~97 ms of every 100 ms on I/O and the sum: that worker is saturated, and nothing past it is
 claimed. OPFS sync handles worked in headless Chromium here; the write time is this container's disk, not a device's.
+
+## The independent design's probes
+
+Throwaway probes behind the independent design in [`docs/adr/frame-path.md`](../../docs/adr/frame-path.md)
+§An independent design (2026-10-28). Each runs in this container's headless engines, so its numbers are
+indicative only: a 4-core container with software GL is not a phone. A decisive measurement is one of the
+design's protocol items, pre-registered there before any data.
+
+| probe | claim it checks |
+| --- | --- |
+| `opfs/` | what a file per frame costs through `FileSystemSyncAccessHandle` from a dedicated worker and from a nested one: the two handle calls, a write and a read of one frame, three writers at once, a listing of 1 000 entries, `navigator.storage.estimate()` in a worker |
+| `one-worker/` | one dedicated worker holding WebGL2 on a transferred canvas, OPFS sync handles, `requestAnimationFrame` and `WebTransport`; a step from disk (open, read, upload, draw) against a step from memory; frames painted while the page's thread is blocked |
+
+Each folder's `README.md` says what ran, on which engine and version, and how to run it again.
