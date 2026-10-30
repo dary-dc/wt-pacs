@@ -87,12 +87,20 @@ Results, as they land (what each recommended; the owner's decision when taken):
   display values. Thirteen decisions listed in §12.10. It renames "generation" to "revision" across the ingest docs
   (the glossary already uses "generation" for a request). Undecided.
 
-## The pair's benchmark (2026-10-21)
+## The pair's benchmark (2026-10-21, asked by the owner through the orchestrator)
 
-Run on the owner's request through the orchestrator: draft PR #126 (`claude/metadata-pair-bench`, stacked on #120).
-Pre-registered, then measured; its result and this handoff's full entry are on that branch. In short, at 2 000
-instances: page open 18–29 µs held, one update about 10 ms (mostly the page row's rebuild), no mixed read in 253 949.
+Branch `claude/metadata-pair-bench`, draft PR #126, stacked on #120 (into `claude/metadata-format-survey`). Pre-registered
+in `metadata-draft.md` §2 before it ran (`11e92db`), then measured, two runs. At 2 000 instances, one thread, warm:
+the page open is one lookup, 18–29 µs held (D's scan 440–456 µs), +52–88 µs if the file is opened per read; one update
+9.4–9.5 ms (T1) and 10.2–10.4 ms (T2), almost all of it the rebuild of the page row, the commit about 0.6 ms on this
+disk (the pre-registered "fsync a large share" was wrong); integrity holds in both, T2's check 9× T1's; a second
+process never read a mixed document (253 949 reads); "no read waits on a commit" is not shown (one 2.9 ms read).
 No decision is folded in.
+
+Follow-up, 2026-10-22 (same branch, pre-registered first): patching only the changed instance's entry makes an
+update at 2 000 instances 1.4–1.7 ms instead of 8.6–10.2 ms, the patched row equal to a rebuild every time. A reader on
+another core than the writer keeps its p99.9 (92–98 µs, alone 70–119 µs), but one read in about 220 000 took 22.8 ms
+during a commit; on one shared core the p99.9 is 3.7 ms, so part 5's 2.9 ms read was CPU sharing.
 
 ## Next, once the runs report
 
