@@ -69,17 +69,24 @@ impl WsWriter {
     }
 }
 
-/// Binds TCP on the QUIC endpoint's port number, so a client derives one URL from the other.
+/// Binds TCP on the QUIC endpoint's port number, so a client derives one URL from the other,
+/// unless a listener is `held` already.
 pub(crate) async fn bind(
     ip: Option<IpAddr>,
     port: u16,
+    held: Option<&std::net::TcpListener>,
     cert_pem: &Path,
     key_pem: &Path,
 ) -> Result<(TcpListener, TlsAcceptor)> {
     let any = SocketAddr::new(ip.unwrap_or(IpAddr::V6(Ipv6Addr::UNSPECIFIED)), port);
-    let listener = match TcpListener::bind(any).await {
-        Err(_) if ip.is_none() => TcpListener::bind(("0.0.0.0", port)).await,
-        bound => bound,
+    let listener = match held {
+        Some(held) => held
+            .try_clone()
+            .and_then(|l| l.set_nonblocking(true).and_then(|()| TcpListener::from_std(l))),
+        None => match TcpListener::bind(any).await {
+            Err(_) if ip.is_none() => TcpListener::bind(("0.0.0.0", port)).await,
+            bound => bound,
+        },
     }
     .with_context(|| format!("WebSocket listener on TCP port {port}"))?;
     Ok((listener, tls_acceptor(cert_pem, key_pem)?))
@@ -188,30 +195,4 @@ async fn next_fod(stream: &mut SplitStream<Socket>) -> Result<Option<FodMsg>> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// A Close the client sent, or its echo of the server's, excuses a failed write to the socket
-    /// but not a failed read from disk, which stays the session's error.
-    #[test]
-    fn only_a_failure_on_the_socket_is_the_clients_close() {
-        let write = anyhow::Error::new(tungstenite::Error::ConnectionClosed).context("write frame");
-        let read = anyhow::anyhow!("io_uring read hit EOF").context("read frame 1");
-        assert!(on_the_socket(&write), "a write to a closed socket was not the client's close");
-        assert!(!on_the_socket(&read), "a failed read from disk was taken for the client's close");
-    }
-
-    /// Every accepted socket probes a silent peer on `KEEPALIVE`'s schedule, with Nagle off.
-    #[tokio::test]
-    async fn an_accepted_socket_probes_a_silent_peer() {
-        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
-        let _client = TcpStream::connect(listener.local_addr().expect("addr")).await.expect("connect");
-        let tcp = accept(&listener).await.expect("accept");
-        let socket = SockRef::from(&tcp);
-        assert!(socket.keepalive().expect("SO_KEEPALIVE"), "keep-alive is off");
-        assert_eq!(socket.tcp_keepalive_time().expect("TCP_KEEPIDLE"), Duration::from_secs(20));
-        assert_eq!(socket.tcp_keepalive_interval().expect("TCP_KEEPINTVL"), Duration::from_secs(5));
-        assert_eq!(socket.tcp_keepalive_retries().expect("TCP_KEEPCNT"), 4);
-        assert!(tcp.nodelay().expect("TCP_NODELAY"), "Nagle is on");
-    }
-}
+mod tests;

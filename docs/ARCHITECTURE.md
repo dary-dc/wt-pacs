@@ -60,30 +60,12 @@ boundary is the API, and `stats()` is async because it cannot be truthful and sy
 
 ## Messages
 
-| to the downloader | fields |
-| --- | --- |
-| `start` | config — and, optionally, `fill`: the first fill's frame indices |
-| `dial` | url, cert hash |
-| `fill` | frame indices |
-| `ask` | one frame index |
-| `cancel` | — |
-| `close` | — |
-
-| to the consumer | fields |
-| --- | --- |
-| `frame` | index, generation, pixels, width, height, bits, components, signed, min, max, byte count, wire bytes, stamps |
-| `failed` | index, generation, reason |
-| `cancelled` | generation |
-| `closed` | reason |
-
-Stamps are epoch milliseconds (`timeOrigin + now`; each context has its own `timeOrigin`), converted
-once by the consumer: ask, first byte, last byte, dispatched, decode start, decode end, and
-`decoder`, the index of the decoder it went to. `wire bytes` is the codestream length the envelope
-declared, beside the decoded byte count; a consumer reporting traffic quotes that one
-(`client/README.md` §What a frame reports).
+The messages are the branches of `downloader.js`'s `onmessage` and `consumer.js`'s `#fromDownloader`. Stamps are
+epoch milliseconds (`timeOrigin + now`); a frame's `wireBytes` is described in `client/README.md` §What a frame
+reports.
 
 **A request's identity is its generation, not its frame index.** `cancel` bumps a counter the
-downloader owns; every record, decode, decoder reply and delivery carries the generation it was made
+downloader owns; every record, decode, refusal and delivery carries the generation it was made
 under, and anything older is dropped where it lands. Without it a frame decoded for a cancelled
 request reached the consumer under the *new* request's index — the right key, the wrong pixels — and
 a late `done` deleted the new request's record. The page's drop of a stale `failed` has no clause (no
@@ -269,21 +251,26 @@ to a frame it did not hold. A filled page keeps what it holds; a `/supplied` cer
   That is the restart window itself — the file is gone while the new server mints, and before that it still names
   the old certificate.
 * The viewer passes `new URL("/wt/dev-transport.json", location).href` — absolute, since a worker resolves a relative
-  URL against its own script — unless the lab named `?wt=`, whose pair stays pinned.
+  URL against its own script — unless the lab named `?wt=`, whose pair stays pinned. *Corrected 2026-10-19:* only a
+  page whose HTML names a transport file passes it — the dev host's, and a deployment's that mints its own certificate
+  (§A page with nothing to follow, below).
 
 Nothing else moved: `tries`, `redialMs`, `dialMs` and the epoch are as §Re-dial and re-issue says. The cost is one
 same-origin GET per re-dial; the only re-dial a healthy session makes is a recycle, whose old session still delivers
-meanwhile. Not measured.
+meanwhile. Not measured. A page dialling its own host pays none of it.
 
 **Each client.** The read is the downloader's, above the seam, so neither product client changed: both take the pair
 per `connect` and pin it on that dial alone, which [`CLIENTS.md`](CLIENTS.md) §The seam now requires as its fourth
 clause, *a dial pins what it is given*. The WebSocket ignores the hash and follows a changed URL. A `client` field in
 the file (row 263's WASMSELECT, not built) would not be followed mid-page: the module is imported once per worker.
+(*Corrected 2026-10-19:* row 277 built that field and this change took it out again; the page's HTML names the client,
+[`CLIENTS.md`](CLIENTS.md) §Choosing the client.)
 
 **Why the file, and not the page.** The downloader is a worker: it cannot call into the page, and a callback option
 does not survive the clone. Asking would be a new message pair answered by a main thread that may be frozen, and the
 page would answer by fetching this same file — already the deployment's one statement of where the server is and what
-it pins, written whole after the certificate, same-origin under `connect-src 'self'`. *Dropped:* keeping the
+it pins, written whole after the certificate, same-origin under `connect-src 'self'`. (*Corrected 2026-10-19:* the
+statement of a deployment that pins; one whose certificate the browser trusts has none, below.) *Dropped:* keeping the
 certificate across `compose restart` in a volume, which covers the manual restart and the upgrade but not the timed
 exit, which must mint.
 
@@ -314,6 +301,36 @@ limits), the ports moved off 8765/4433, and apt pointed at HTTPS through the bui
 `Containerfile`; nothing in the images' contents differs. A fill across a restart rides `tries` × `redialMs`, about 5 s
 if each stale dial is refused at once, up to about 30 s if each waits out `dialMs`; whether that outlasts a `compose
 restart` is not measured.
+
+**A page with nothing to follow (2026-10-19).** Every job the transport file does comes from a certificate the browser
+cannot verify or a transport on another host: `cert_sha256` pins the first, `wt_url` names the second, and the re-read
+exists because a restarted server mints a new certificate. A deployment whose certificate the browser trusts, with the
+transport on the page's own host, needs none of it, yet its page fetched the file, the server's container wrote it into
+a volume the web container served (a runtime coupling between the two), and every re-dial fetched it uncached. So the
+page now names its transport in its HTML, rendered when the host starts (`client/viewer/page.sh`):
+
+* **`data-wt-port`**, the product's default, 4433: the page dials `https://` its own `location.hostname` on that port,
+  pinning nothing. `viewer/head.js` fetches nothing for it and the viewer passes no `transportFile`, so a re-dial reads
+  nothing: the server restarts on the same certificate, at the same address. The web image renders it when `/tls`
+  holds a certificate, which compose hands the server as `/supplied` too; `server-start.sh` then writes no file, and
+  the policy's `connect-src` names `https://$host:4433` ([`../deploy/README.md`](../deploy/README.md)).
+* **`data-transport-file`**, with the file preloaded beside the metadata: the page reads `wt_url` and `cert_sha256`
+  from it and follows it across a restart, as above. The dev host serves this one (`dev-server.py`, whose
+  `--wt-port` renders the other), and so does the web image without TLS, where the server mints and pins.
+
+*Weighed.* **The file made optional, a 404 meaning "dial your own host"**: no rendering, but every open still asks, every
+re-dial too, and a 404 cannot tell a deployment without a file from one whose server is mid-restart with the file
+removed — the window §What changed reads through. **The deploy renders the whole URL into the HTML**: as cheap, but
+`WT_URL` must then name the host the page is reached by, and a page reached under a second name dials the first.
+**The page derives it** needs one fact a deployment can vary, the port, and the origin it was loaded from already says
+the rest; so it was taken, and the file kept where pinning needs it. The client is the same kind of fact and is
+rendered beside it ([`CLIENTS.md`](CLIENTS.md) §Choosing the client). Held by `client/viewer/run_check.sh`: filled,
+the page pins through the file (Chromium given no trust, so only the pin dials) and must have read it; on demand, it
+dials its own host (Chromium trusting the certificate by its key, as a CA's would be) and must not have.
+`crafted.mjs` fails a plain link that fetches the file or dials anywhere but the HTML's port; `server_start_test.sh` a
+server that writes a file beside a supplied certificate, or a web start that renders the wrong page for its TLS. The
+open with and without the file is *not measured*: this host's relay voided most visits in two runs
+([`../lab/page-open/README.md`](../lab/page-open/README.md) §The page without the transport file).
 
 ### The first fill
 
@@ -1297,13 +1314,7 @@ Each item below is the owner's to decide, and is tracked here.
   not measured.
 * **The opening ask beyond a contiguous first fill and this box's relay**, and **the TCP fallback** (the device
   check before enabling, the recycling cost, the shaped A/B).
-* **Known defects** — each found by reading the code (2026-10-16 review), not reproduced as first written here. *Corrected
-  2026-10-18:* one fixed, one shown not reachable:
-  * *Fixed 2026-10-18.* `refill: "ask"` on the WASM client: the async `requestExactFrame` reached the wire after the
-    sync `fillFrames`, so the server ended the fill it had just started and nothing re-asked the rest until the stall
-    timer (`client/transport/downloader.js:235–236`). The WASM ask is now on the wire before `requestExactFrame`
-    returns, as the TypeScript one is: `anAskIsOnTheWireBeforeItReturns` ([`CLIENTS.md`](CLIENTS.md) §The contract
-    suite), which read `stream_frames,request_frame` on WASM before. Seen at the session, not through the downloader.
+* **Known defects** — one found by reading the code (2026-10-16 review), shown not reachable:
   * *Not reachable, 2026-10-18 (row 286).* A `set_nodelay` or keep-alive failure on one accepted socket counts as an
     accept failure and sleeps the loop 100 ms, so repeated connect-and-reset could hold the WebSocket to ~10 accepts/s
     (`server/src/transport/websocket.rs:123–124`). On Linux the options do not fail that way: 50 peers that reset with

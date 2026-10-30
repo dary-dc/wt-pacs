@@ -124,13 +124,17 @@ impl UringReader {
                 ring.submitter()
                     .register_eventfd(owned.as_raw_fd())
                     .context("register_eventfd")?;
-                Parker::Eventfd(AsyncFd::new(owned).context("AsyncFd(eventfd)")?)
+                // SAFETY: the `AsyncFd` owns the eventfd, so it stays open for its lifetime.
+                Parker::Eventfd(unsafe { AsyncFd::register(owned) }.context("AsyncFd(eventfd)")?)
             }
             // Readable interest only: a ring is also "writable" whenever its SQ has room,
             // which is always here, and registering that would wake the reactor for nothing.
+            // SAFETY: `parker` is declared before `ring`, so it leaves the reactor before the fd closes.
             Completion::RingFd => Parker::RingFd(
-                AsyncFd::with_interest(RingFd(ring.as_raw_fd()), Interest::READABLE)
-                    .context("AsyncFd(ring)")?,
+                unsafe {
+                    AsyncFd::register_with_interest(RingFd(ring.as_raw_fd()), Interest::READABLE)
+                }
+                .context("AsyncFd(ring)")?,
             ),
         };
 

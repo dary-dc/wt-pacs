@@ -25,7 +25,7 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | record | the downloader's state of one frame: `wire`, `queued`, `decoding` |
 | generation | a request's identity, moved by `cancel`; **epoch**, a session's, moved by a resume |
 | resume, recycle | a dead session replaced, owing what the records owe; a live one replaced before a byte budget |
-| transport file | `dev-transport.json`, served at `/wt/`: the server's `wt_url` and the `cert_sha256` it pins, rewritten at each start; the consumer's `transportFile` ([`ARCHITECTURE.md`](ARCHITECTURE.md) §An open page follows a server restart) |
+| transport file | `dev-transport.json`, served at `/wt/` where the server mints its certificate: its `wt_url` and the `cert_sha256` it pins, rewritten at each start; read by a page whose HTML names it, and the consumer's `transportFile`. A page with a trusted certificate reads none and dials its own host ([`ARCHITECTURE.md`](ARCHITECTURE.md) §An open page follows a server restart) |
 | decoder | a worker that decodes; **codec module**, the code it loads per codec (`htj2k.js`, `av1.js`) |
 | group | G frames from a keyframe, decoded in order on one decoder; **unit**, one AV1 temporal unit |
 | split | a sample as a top stream (v ≫ k) and a low one (v & (2^k − 1)), each coded losslessly |
@@ -45,3 +45,5 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | golden payload | an AV1 payload the writer made from a synthetic source with a known checksum, kept in `client/contract/av1/payloads/` |
 | cell | one configuration a lab run measures: a link, a CPU throttle, a series, a schedule |
 | variant | one condition of a timed comparison, interleaved with the others in every round (`CLAUDE.md` §Measurement) |
+| test hook | a line in product code, compiled only for tests, that lets a test force a path or see it taken (`CLAUDE.md` §Code); a type's hooks share one `TestHooks` |
+| lab lever | a server flag only a `lab-levers` build has ([`../server/README.md`](../server/README.md) §Lab only); what a session carries of them is its `SessionLevers` |

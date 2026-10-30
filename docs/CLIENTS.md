@@ -93,22 +93,27 @@ wins on loopback and on a link: [`ARCHITECTURE.md`](ARCHITECTURE.md) §The TCP f
 
 ### Choosing the client
 
-The product's page loads one client, the one the transport file's `client` names: `"ts"`, which absent means, or
-`"wasm"` (row 277). A deployment sets it with `CLIENT` ([`../deploy/README.md`](../deploy/README.md)), the dev host
-in `client/dev-transport.json`, whose `client` `gen_dev_cert.sh` keeps when it renews the file. `viewer/head.js` maps
-the name to files on the page's own origin, so a link picks no code. TS, the default, keeps the HTML's preload of
-`dist/session.js`, which starts as the page is parsed, ahead of the transport file; WASM's adapter, glue and `.wasm`
-are preloaded once the file arrives, and only for `"wasm"` (*corrected 2026-10-17*: row 277 had moved TS's preload
-there too, a round trip later for every default page; the owner ruled it back). A name it does not know stops the
-page, by name on the status line, before the WASM client's code is fetched or anything dialled (TS's module, preloaded
-by the HTML, is fetched, and nothing dials); a client that fails to load fails the start, with no
-fallback to the other. The status line names the client, and the page check runs on each (`--client`).
+The product's page loads one client, the one its HTML names beside that client's preloads: `data-client` on the
+script tag of `viewer/head.js`, `"ts"` or `"wasm"`. `viewer/page.sh` renders the page for a host: `--client wasm`
+swaps TS's preload of `dist/session.js` for WASM's adapter, glue and `.wasm`, and any other name is refused there. A
+deployment sets it with `CLIENT` on the web service, rendered when the container starts
+([`../deploy/README.md`](../deploy/README.md)); the dev host with `dev-server.py --client`. `viewer/head.js` maps the
+name to a module on the page's own origin, so a link picks no code. Either client's files start as the page is
+parsed. A name it does not know, in an HTML edited by hand, stops the page, by name on the status line, before the WASM
+client's code is fetched or anything dialled; a client that fails to load fails the start, with no fallback to the
+other. The status line names the client, and the page check runs on each (`--client`), failing a page that does not
+run, name and preload the client it was rendered with.
 
-*Not measured:* the WASM preload, which starts once the transport file has arrived, not as the page is parsed (row
-279 measured the WASM client preloaded from the HTML, and with nothing preloaded, not this point between them); and
-the viewer reads the file before it starts the downloader (the head start that saves measured −0.06 round trips, inside the noise:
-[`../lab/page-open/README.md`](../lab/page-open/README.md) §The first byte on a fill). Row 5 below measures the page
-on each client.
+*Corrected 2026-10-19:* row 277 put the name in the transport file's `client`, which `server-start.sh` wrote from
+`CLIENT`, and preloaded WASM's files only once the file had arrived. The owner judged that which code the page runs is
+a fact about the page, decided when it is rendered, not by the transport server at runtime. The file carries no
+`client` now, `gen_dev_cert.sh` keeps none, and `CLIENT` moved from the server's environment to web's.
+
+*Not measured:* the WASM client preloaded from the product page's HTML, the shape the page has since 2026-10-19 (row
+279 measured those preloads on the lab's downloader page: no round trip, +42 ms); and, on a host that pins its
+certificate, the viewer reads the transport file before it starts the downloader (the head start that saves measured
+−0.06 round trips, inside the noise: [`../lab/page-open/README.md`](../lab/page-open/README.md) §The first byte on a
+fill). Row 5 below measures the page on each client.
 
 ## The contract suite
 
@@ -270,7 +275,7 @@ was removed on 2026-10-03, and a pushed fill has no waiters to leave.
 ## Fills are pushed
 
 ```
-fillFrames(from, to, onFrame, onError?)   → askMs
+fillFrames(from, to, onFrame, onError?)
 ```
 
 On the wire it is `stream_frames {from, to}`, a fill the server recites and **drops the moment an
@@ -507,6 +512,7 @@ whatever of theirs has landed.
    Mode), so no browser the page serves tells them apart. *Not by fallback:* a WASM client that failed to load would
    hide behind the TS one, which is what the checks below exist to see; a failed load fails the start by name (index
    −1), as a decoder's does. The owner may want the fallback anyway: ~5 lines, at that cost.
+   *Corrected 2026-10-19:* the page's HTML names the client now, not the transport file (§Choosing the client).
 2. **The image ships it and the page loads it** as it does the TS client: built in the image, preloaded once the
    transport file names it, served under the same headers.
 3. **Every product check runs on both, or names why not**, as the WebSocket's inapplicable clauses are: the session
@@ -553,8 +559,8 @@ page is WebTransport only. A race whose QUIC arm is the WASM session is structur
 ([`ARCHITECTURE.md`](ARCHITECTURE.md) §Open). CI already builds the WASM client (`.github/workflows/gate.yml:78-126`)
 and gains only the steps below.
 
-**The shape.** TS the default; WASM chosen by the transport file's `client`; the same surface, the same checks, built
-into the image. No capability test, no fallback, no WASM race.
+**The shape.** TS the default; WASM chosen by ~~the transport file's `client`~~ the page's HTML (*corrected
+2026-10-19*); the same surface, the same checks, built into the image. No capability test, no fallback, no WASM race.
 
 **The rows, in order.**
 
@@ -610,7 +616,7 @@ into the image. No capability test, no fallback, no WASM race.
    +42 ms to the first frame (1×, cold, 9/9); on the product page today, with nothing preloaded or gzipped, 5.9 round
    trips cold (over 80 and 160 ms: the 40 ms cells voided below the rule's 8 pairs), none warm. So row 3's preload is
    what makes the WASM client affordable, and the product's WASM preload, which starts at the transport file, is not
-   yet measured (TS keeps the HTML's).
+   yet measured (TS keeps the HTML's). (*Corrected 2026-10-19:* it starts at the HTML now, §Choosing the client.)
    `console_error` stays: 1.1 KB gzipped, 3 % of the compile.
 6. **By hand** — W12: the rigs in Firefox with `client=wasm`, and the devices' D0 with `client: "wasm"`.
 
@@ -645,16 +651,3 @@ Each item below is the owner's to decide, and is tracked here.
 
 * **`readMin` at 16 KB by default** — frame 0 ties; the cost is re-dials below 44 kbit/s, and the `readMin` path's
   defect is fixed first (§Reading a frame whole).
-* **The WASM client as a product client** — the shape (selected by configuration, no fallback) and rows 3–4 of
-  §Proposed: the WASM client as a second product client; and whether row 228's dav1d half moves.
-* **Known defects** — each found by reading the code (2026-10-16 review); *corrected 2026-10-18:*
-  * *Not a defect.* The WASM opening fill is armed on `?ask=fill:` in the URL alone, so against `--opening-ask false`
-    nothing is asked until the stall timer. The TypeScript client does exactly the same (`session.ts`, `ws-session.ts`:
-    the fill is armed, never sent), and `anOpeningFillRidesTheUrl` and the dispatch rig's *open ask* hold both clients
-    to it. A server run with `--opening-ask false` needs `openingAsk: false` from the consumer, as
-    [`client/README.md`](../client/README.md) says. Shown by reading and by those checks, not against a real server.
-  * *Fixed 2026-10-18.* TS: an `onHead` that throws ended that media stream's reads silently at the bare `catch {}`,
-    the asked frame waiting out its timeout and every frame behind it on the stream lost (over a WebSocket the whole
-    session closed); the WASM client ignored the error and delivered the frame. Now both fail that ask with
-    `frame N unavailable: onHead threw: …` and read on: `anOnHeadThatThrowsFailsItsAsk`, which failed on TS, WASM and
-    the WebSocket before.

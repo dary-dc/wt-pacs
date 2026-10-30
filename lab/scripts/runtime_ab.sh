@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Interleaved A/B of two server binaries on one warm cell, both servers up for the whole run,
-# variant order reversed every repeat. `docs/transport/transport-conclusions.md` §6.
+# variants in a Williams order (`order.py`). `docs/transport/transport-conclusions.md` §6.
 #   lab/scripts/runtime_ab.sh <fixture> <on-demand|fill> <depth> <asks> <sessions> <repeats> \
 #     <label-a> <bin-a> [server args...] -- <label-b> <bin-b> [server args...] [-- ...]
 # One row per run: `server_ab`'s columns, the server's context switches per ask, the client socket's
@@ -70,6 +70,5 @@ run() {
 printf 'label\tvariant\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\tasks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed\tctx_per_ask\trcvbuf_drops\tserver_lost\tdatagrams_per_sendmsg\trss_after_kib\n'
 for i in "${!variants[@]}"; do run "$i" 0 >/dev/null; done
 for r in $(seq 1 "$reps"); do
-  if (( r % 2 )); then order=$(seq 0 $((${#variants[@]}-1))); else order=$(seq $((${#variants[@]}-1)) -1 0); fi
-  for i in $order; do run "$i" "$r"; done
+  for i in $(python3 "$ROOT/lab/scripts/order.py" row "${#variants[@]}" "$r"); do run "$i" "$r"; done
 done

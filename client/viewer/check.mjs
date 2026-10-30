@@ -2,9 +2,9 @@
 // exact, drawn page failed by name. client/README.md §The viewer
 //
 //   NODE_PATH=$(npm root -g) node client/viewer/check.mjs --series X.sbnd --decoder htj2k [--pair Y.sbnd --pair-decoder D]
-//     [--engine chromium|firefox] [--cine] [--fill 0] [--client ts|wasm]
-//   ... --url http://host/ --decoder htj2k [--client C]   (a host already running, such as the deploy image, whose transport
-//     file names C; no request log, so no code check)
+//     [--engine chromium|firefox] [--cine] [--fill 0] [--client ts|wasm] [--trusted]
+//   ... --url http://host/ --decoder htj2k [--client C] [--trusted]   (a host already running, such as the deploy image,
+//     whose page names C; no request log, so no code check)
 //   ... --url http://host/ --fill 0 --restart CMD   (CMD restarts the host's server and prints its `transport=` line)
 import { execFileSync, spawn } from "node:child_process";
 import { createSocket } from "node:dgram";
@@ -17,6 +17,11 @@ const ROOT = new URL("../..", import.meta.url).pathname;
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ENGINE = arg("--engine", "chromium");
 const CLIENT = arg("--client", "ts");
+// The page a deployment with a trusted certificate serves: it dials its own host, and reads no transport file.
+const TRUSTED = process.argv.includes("--trusted");
+const FILE = "/wt/dev-transport.json";
+/** The browser flags that trust the served certificate, set once it is made. */
+let trust = [];
 const CLIENTS = {
   ts: ["/client/transport/ts/dist/session.js"],
   wasm: ["/client/transport/wasm/session-adapter.js", "/client/transport/wasm/pkg/transport_wasm.js", "/client/transport/wasm/pkg/transport_wasm_bg.wasm"],
@@ -48,7 +53,7 @@ function metadataOf(sbnd) {
   return JSON.parse(b.subarray(16 + 12 * b.readUInt32LE(12), 16 + 12 * b.readUInt32LE(12) + b.readUInt32LE(8)).toString());
 }
 
-/** A series served: the server on a fresh cert, the static host told its metadata and transport, every request logged. */
+/** A series served: the server on a fresh cert, pinned through the transport file or trusted by the browser, every request logged. */
 async function host(sbnd, name) {
   const key = `${T}/${name}-key.pem`;
   const cert = `${T}/${name}-cert.pem`;
@@ -62,13 +67,21 @@ async function host(sbnd, name) {
   children.push(server);
   await started(server, /transport=/);
   writeFileSync(`${T}/${name}.json`, JSON.stringify(metadataOf(sbnd)));
-  writeFileSync(`${T}/${name}-transport.json`, JSON.stringify({ wt_url: `https://127.0.0.1:${port}/`, cert_sha256: hash, client: CLIENT }));
-  const http = spawn("python3", [path.join(ROOT, "server/dev-server.py"), "--port", "0", "--metadata", `${T}/${name}.json`,
-    "--transport", `${T}/${name}-transport.json`, "--log-requests"], { stdio: ["ignore", "pipe", "inherit"] });
+  writeFileSync(`${T}/${name}-transport.json`, JSON.stringify({ wt_url: `https://127.0.0.1:${port}/`, cert_sha256: hash }));
+  const spki = execFileSync("sh", ["-c", `openssl x509 -in ${cert} -pubkey -noout | openssl pkey -pubin -outform DER | openssl dgst -sha256 -binary | base64`]).toString().trim();
+  trust = [`--ignore-certificate-errors-spki-list=${spki}`, `--origin-to-force-quic-on=127.0.0.1:${port}`];
+  // Served either way: a trusted page that read it would dial, so only the request log tells.
+  const http = spawn("python3", [path.join(ROOT, "server/dev-server.py"), "--port", "0", "--metadata", `${T}/${name}.json`, "--client", CLIENT,
+    "--transport", `${T}/${name}-transport.json`, ...(TRUSTED ? ["--wt-port", String(port)] : []), "--log-requests"], { stdio: ["ignore", "pipe", "inherit"] });
   children.push(http);
   const [, p] = await started(http, /port=(\d+)/);
   const requests = [];
-  http.stdout.on("data", (d) => requests.push(...String(d).split("\n").filter((l) => l.startsWith("GET "))));
+  let partial = "";
+  http.stdout.on("data", (d) => {
+    const lines = (partial + d).split("\n");
+    partial = lines.pop();
+    requests.push(...lines.filter((l) => l.startsWith("GET ")));
+  });
   return { url: `http://127.0.0.1:${p}/`, requests };
 }
 
@@ -103,7 +116,9 @@ async function open(url) {
     }
   }
   const { chromium } = createRequire(import.meta.url)("playwright");
-  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
+  // Trusted as a CA's certificate is (QUIC takes no other root but a forced origin's), not pinned: the dev arm has no
+  // such flag, so only its pin lets it dial.
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined, args: TRUSTED ? trust : [] });
   const tab = await browser.newPage({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 });
   tab.on("pageerror", (e) => fail(`page error: ${e.message}`));
   await tab.goto(page);
@@ -133,20 +148,22 @@ function judge(name, r, requests, codec, decoder) {
   if (decoder) say(paths.length === 1 && paths[0] === decoder, `decoded by ${paths.join(", ") || "none"}, not ${decoder} alone`);
   if (codec === "av1") say(paths.length > 0 && paths.every((p) => p.startsWith("av1-")), `an AV1 page whose frames were decoded by ${paths.join(", ")}`);
   say(r.status.includes(`client ${CLIENT}`), `the status line does not name client ${CLIENT}: ${r.status}`);
+  const read = r.fetched.includes(FILE) || Boolean(requests?.includes(`GET ${FILE}`));
+  if (TRUSTED) say(!read, `a page dialling its own host fetched the transport file`);
+  else say(read, `the page did not read the transport file, which pins its certificate`);
   for (const f of CLIENTS[CLIENT]) say(r.preloaded.includes(f), `the ${CLIENT} client's ${f} was not preloaded`);
   if (requests) {
     const av1 = requests.filter((l) => /\/av1[^/]*\.js|dav1d/.test(l));
     if (codec !== "av1") say(av1.length === 0, `an HTJ2K page fetched AV1 code: ${av1.join(", ")}`);
     for (const f of CLIENTS[CLIENT]) say(requests.includes(`GET ${f}`), `the ${CLIENT} client's ${f} is not in the request log`);
-    // Every page fetches TS's module: the HTML preloads it.
-    const wasm = CLIENTS.wasm.filter((f) => requests.includes(`GET ${f}`));
-    if (CLIENT === "ts") say(wasm.length === 0, `a ts page fetched the WASM client's code: ${wasm.join(", ")}`);
+    const other = CLIENTS[CLIENT === "ts" ? "wasm" : "ts"].filter((f) => requests.includes(`GET ${f}`));
+    say(other.length === 0, `a ${CLIENT} page fetched the other client's code: ${other.join(", ")}`);
   }
   for (const b of r.readbacks ?? []) say(!b.error && b.worst === 0, `frame ${b.i} at zoom 1 differs from the CPU reference: ${b.error ?? `worst |Δ| ${b.worst}`}`);
   if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine showed ${r.cine} frames in 1.5 s`);
 }
 
-const summary = (name, r) => `${name}, client ${CLIENT}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +
+const summary = (name, r) => `${name}, client ${CLIENT}${TRUSTED ? ", trusted" : ", pinned"}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +
   `${r.fillMs === null ? "on demand" : `fill ${Math.round(r.fillMs)} ms`}, first exact on screen ${Math.round(r.firstShownMs)} ms, readbacks ${(r.readbacks ?? []).map((b) => `${b.i}:${b.worst}`).join(" ")}` +
   `${r.cine !== undefined ? `, cine ${r.cine} frames` : ""}`;
 

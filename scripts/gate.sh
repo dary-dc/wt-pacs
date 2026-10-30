@@ -79,6 +79,9 @@ run 1 bash -c 'for p in lab/disk-access-bench/arms/*.patch; do git apply --check
 step "deploy: the server's seccomp profile is Docker's pinned default plus io_uring, nothing else"
 run 1 bash deploy/seccomp-uring.sh --check
 
+step "deploy: the server's THIRD_PARTY_NOTICES, written again from Cargo.lock, is the one committed"
+run 1 "$PYTHON" deploy/server_notices.py --check
+
 step "client: build bundles + unit tests"
 run 1 bash client/transport/ts/build.sh
 run 1 node client/transport/ts/test/run.mjs
@@ -97,7 +100,7 @@ run 1 node client/paint/voi.test.mjs
 step "client: worker-safe (no artifact reaches for window)"
 run 1 bash client/scripts/check_worker_safe.sh
 
-step "client: the page's HTML preloads the TS client, ahead of the transport file (docs/CLIENTS.md §Choosing the client)"
+step "client: the page's HTML names the TS client and preloads it (docs/CLIENTS.md §Choosing the client)"
 run 1 grep -F '<link rel="preload" href="/client/transport/ts/dist/session.js" as="script" crossorigin>' client/viewer/index.html
 
 step "client: transport contract (every implementation, and the race)"
@@ -119,7 +122,7 @@ if [[ $browser -eq 1 ]]; then
 fi
 
 step "client: type-check (product, the lab's recorder and its tests, contract and transport-ts tests)"
-run 1 bash -c "cd client/transport/ts && npx tsc -p tsconfig.check.json && npx tsc -p ../../../lab/client-telemetry/tsconfig.json && npx tsc -p ../../../lab/client-telemetry/test/tsconfig.json && npx tsc -p ../../contract/tsconfig.json && echo typed"
+run 1 bash -c "cd client/transport/ts && npx tsc -p tsconfig.json && npx tsc -p ../../../lab/client-telemetry/tsconfig.json && npx tsc -p ../../../lab/client-telemetry/test/tsconfig.json && npx tsc -p ../../contract/tsconfig.json && echo typed"
 
 step "ingest: the split and its merge, every depth, sign and k"
 if [[ $numpy -eq 1 ]]; then
@@ -188,10 +191,10 @@ else
   skip "the lab's Go clients (lab/other-clients/go, lab/page-open/h3-host) — no go"
 fi
 run 1 cargo check --locked --quiet --manifest-path lab/other-clients/h3/Cargo.toml
-step "lab: the server's lab features — the frame cache compiles, cubic-classify's and the lab levers' wiring holds"
+step "lab: the server's lab features — the frame cache compiles, cubic-classify's wiring holds, the lab levers' tests pass"
 run 1 cargo check -p series-server --features lab-frame-cache --all-targets --quiet
 run 1 cargo test -p series-server --features lab-classify --quiet -- classify
-run 1 cargo test -p series-server --features lab-levers --quiet -- held stalled lab_lever
+run 1 cargo test -p series-server --features lab-levers --quiet
 
 step "perf: counts, not clocks — the client's asks, the server's disk reads and the bytes, against scripts/perf_counts.baseline"
 if command -v strace >/dev/null; then

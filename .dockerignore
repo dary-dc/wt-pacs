@@ -1,4 +1,3 @@
-# docker reads this file, podman ../.containerignore: keep the two equal.
 target/
 **/node_modules
 .git
@@ -27,5 +26,4 @@ client/decode/wasm/build/.cache
 client/decode/wasm/vendor/openjph
 client/decode/wasm/dav1d/
 fixtures/*
-!fixtures/us_cine_smoke
 deploy/no-tls

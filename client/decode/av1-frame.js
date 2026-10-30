@@ -4,10 +4,7 @@
  * coded planes for colour. The payload's split, colour transform and offset are undone here.
  * docs/av1/payload-format.md
  */
-
-const refuse = (why) => {
-  throw new Error(`undecodable: av1 payload: ${why}`);
-};
+import { refuse } from "./av1-payload.js";
 
 /** Whether every sample of `planes` is `mid`: a grey stream's chroma when it is coded 4:2:0. */
 export function neutral(planes, width, height, mid) {
@@ -48,7 +45,7 @@ export function end(f, low) {
   }
   const { width, height } = f.pic;
   const info = { width, height, bitsPerSample: f.bits, componentCount: f.components, isSigned: f.signed };
-  // As decoder.js's unranged(): an 8-bit colour frame's window is its sample type's.
+  // As htj2k.js's unranged(): an 8-bit colour frame's window is its sample type's.
   const range = f.components === 3 && f.bits === 8 && !f.signed ? { min: 0, max: 255 } : f.range;
   return { info, sab: f.sab, byteCount: f.sab.byteLength, range };
 }

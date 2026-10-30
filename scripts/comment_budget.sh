@@ -4,8 +4,8 @@
 #   scripts/comment_budget.sh --list   every file, worst first, always exit 0
 # A file that needs more is doing too much or explaining in the wrong place: CLAUDE.md#comments.
 # Exempt: `SAFETY:` / `# Safety` blocks, contracts no budget should argue away; shellcheck directives;
-# tests, whose doc comments state their claims — from `mod tests {` to the end of the file (clippy's
-# `items_after_test_module` keeps it last), `client/contract/`, `*/test/`, `*.test.mjs`, `*_test.py`.
+# tests, whose doc comments state their claims — `*/tests.rs`, from `mod tests {` to the end of a file that keeps its
+# tests inline (clippy's `items_after_test_module` keeps it last), `client/contract/`, `*/test/`, `*.test.mjs`, `*_test.py`.
 set -euo pipefail
 cd "$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -15,7 +15,7 @@ list=0
 [[ "${1:-}" == "--list" ]] && list=1
 
 files=$(git ls-files '*.rs' '*.ts' '*.js' '*.mjs' '*.sh' '*.py' \
-  | grep -v -e '/node_modules/' -e '^target/' -e '^client/contract/' -e '/test/' -e '\.test\.mjs$' -e '_test\.py$')
+  | grep -v -e '/node_modules/' -e '^target/' -e '^client/contract/' -e '/test/' -e '/tests\.rs$' -e '\.test\.mjs$' -e '_test\.py$')
 
 # shellcheck disable=SC2086
 awk -v ratio="$RATIO" -v floor="$FLOOR" -v list="$list" '
