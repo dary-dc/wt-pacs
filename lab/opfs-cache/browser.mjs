@@ -98,7 +98,13 @@ export async function firefoxAt(profile, prefs = {}) {
     pid: ff.pid, page: tab(first),
     context: {
       newPage: async () => tab((await send("browsingContext.create", { type: "tab" })).context),
-      close: async () => { await send("browser.close", {}).catch(() => {}); await new Promise((r) => (ff.exitCode !== null ? r() : ff.once("exit", r))); },
+      close: async () => {
+        const exited = new Promise((r) => (ff.exitCode !== null ? r() : ff.once("exit", r)));
+        const killer = setTimeout(() => process.kill(-ff.pid, "SIGKILL"), 10000);
+        send("browser.close", {}).catch(() => {});
+        await exited;
+        clearTimeout(killer);
+      },
     },
   };
 }

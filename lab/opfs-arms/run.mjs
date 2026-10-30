@@ -65,10 +65,11 @@ async function once(origin, p) {
   const sampler = setInterval(() => (peak = Math.max(peak, treePss(b.pid))), 1000);
   try {
     await b.page.goto(`${origin}/lab/opfs-arms/index.html?${new URLSearchParams(p)}`);
-    const result = b.page.evaluate(() => globalThis.result);
+    const result = Promise.race([b.page.evaluate(() => globalThis.result),
+      new Promise((res) => setTimeout(() => res({ error: "timed out" }), 300000))]);
     const dragging = p.cell === "drag" ? drag(b.page, result) : null;
-    const r = await Promise.race([result, new Promise((res) => setTimeout(() => res({ error: "timed out" }), 300000))]);
-    await dragging;
+    const r = await result;
+    await Promise.race([dragging, new Promise((res) => setTimeout(res, 5000))]);
     return { ...r, peakGrowthMiB: peak - baseline };
   } finally {
     clearInterval(sampler);
