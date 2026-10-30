@@ -983,3 +983,73 @@ relay cells, the 1-core pinning, the saturation guard from `/proc`, peak RSS (`V
 window runs until closed, so the runner sends Escape or ends it after its last step); the times metrics 1 and 5 read
 — dial to the last frame exact, and the inter-arrival p99 — which the window does not print (`Event::Frame`'s `at`
 holds the arrival); the synthetic 3328 × 4096 16-frame series, and the 1024² and 512² HTJ2K series packed for it.
+
+*Built 2026-10-30, on `claude/native-metrics`:* the visit's end (`--exit`) and its times, and the series (§The
+interim run, below). The runner is still to build.
+
+### The interim run, pre-registered (2026-10-30)
+
+*Written before any data, with its runner [`lab/native-window/run.py`](../../lab/native-window/run.py) and the rule's
+test on made-up rows, `run_test.py` there, each of its nine mutants failing it. A one-round smoke of the 4.4 MB
+loopback cell, run under the series' generation to check the wiring, is not kept.*
+
+**The question.** M2 (§6) timed the native client with `native-fill`, a CLI; the window has never been timed. Does the
+window, on each paint thread, keep M2's reading against the browser? It is not NATIVERUN: one design question, no busy
+UI, no cine.
+
+**What the window adds for it** (lab settings, defaults unchanged): `--exit` closes the window once every frame has been
+exact on the thread that paints and, with `--steps`, a step's interval after the last; `--size` sets its inner size.
+At its end it prints a `visit` line: dial → first frame exact on the thread that paints, → first painted (after the
+GPU's queue drained, with `--stamp-painted`), → last frame of the series exact, and the p99 of the gaps between frames'
+arrivals off the wire (`Event::Frame`'s `at`, sorted). `count::tests` hold the times (five mutants, each failing them), `client/paint/window.mjs` the
+end on each paint thread (seven). One survived the first form of the check — the `ui`
+window ending at frame 0, unseen while its frames arrived in one burst — and the check now spaces them with the
+cache's write delay.
+
+**Protocol: M2's**, with these changes and nothing else.
+
+* **Native arms**, one per paint thread: `native-window --paint-thread ui|view|core --exit --stamp-painted --size
+  1280x691 --budget 268435456`, on one Xvfb (`-noreset`, on the client cores) and lavapipe. The budget holds either
+  series decoded, so the want of `view` and `core` is the whole series and the fill runs to its end. Decoders
+  `min(3, cores)` = 2 under the pinning, printed with every setting in each row.
+* **Browser arm**: M2's `browser.mjs`, the viewer at the core's default, `?view=page` (its status line prints `view
+  page`), Chrome for Testing 153.0.8010.12 headless, SwiftShader, canvas 1280×691.
+* **Cells**: the fill only; loopback and 20 Mbit clean (`link_impair.py`, 40 ms each way, its 50-packet queue,
+  `--self-timing`); the 61 MB and the 4.4 MB series (below). 4 cells × 4 arms × A and A2 = 32 visits a round, in
+  `lab/scripts/order.py`'s Williams order (`lab/order.mjs` for Python), 7 rounds, 224 visits. A fresh server per visit,
+  warmed by one unrecorded `native-fill` fill. Pinning M2's: server on core 0, relay on 1, every client process
+  (Chromium's, the window, Xvfb) on 2–3.
+* **Metrics, one per cell.** *Latency*: dial to the first exact frame on screen — the window's `first_shown_ms`, the
+  browser's `firstShown` with its paint settled (`settlePaint`, `lab/viewer/levers.js`). *Throughput*: the fill after
+  the first frame, dial to the last frame exact less dial to the first; the window counts a frame exact on the thread
+  that paints, the browser on the page. It is quoted as a time over a fixed series, not as a rate. Printed, not judged:
+  the window's inter-arrival p99 and every core's busy share.
+* **Predictions**, from M2's `native-fill` (§6): (i) the first exact frame on screen is earlier — native ÷ browser
+  ≤ 0.9 *and* ≥ 16.7 ms earlier, round-paired medians — in every cell (M2: 0.30–0.33 on loopback, 0.76–0.90 on the
+  relay); (ii) on loopback the fill after the first frame is ≤ 0.6 × the browser's (M2's P1); (iii) at 20 Mbit it is
+  within ±3 % (M2's P2).
+* **`VOID`**: a visit whose relay p99 is over 1 ms; a cell, for a paint thread, where its or the browser's A2/A median
+  strays past half its band — fill ±20 % on loopback and ±1.5 % at 20 Mbit (M2's), first frame ±5 % (new). Under 3
+  round pairs a cell is undecided.
+* **Saturation guard**: per visit, the client cores' busy share from `/proc/stat` (steal counts as busy), and the relay
+  core's in the relay cells. A cell is saturated for a paint thread where its arm or the browser runs the client cores
+  ≥ 0.9 busy at the median, or the relay core ≥ 0.8: its ratio is printed and nothing is claimed. M2's browser ran its
+  two cores at 0.96 on loopback, so the loopback cells are expected to claim nothing.
+* **Rule.** For each paint thread: **"M2's reading holds for the window"** if every decided cell — not `VOID`, not
+  saturated — holds its prediction and at least one is decided; **"does not hold"**, naming the cells, if any decided
+  cell fails; else **undecided**. A visit with any frame not exact is failed and not counted.
+* **Not symmetric, stated:** under `ui` the dial starts as the window opens, so its first frame waits on the UI thread's
+  surface and adapter set-up; under `view` and `core` the dial follows them; the browser dials after its page's load.
+  Both clients render in software (lavapipe, SwiftShader): nothing here is a GPU, vblank or on-screen-on-time claim.
+
+**The series**, made by `lab/native-fill/run.py --make-series DIR` (`lab/scripts/gen_frame_pnm.py`, OpenJPH 0.31.0's
+`ojph_compress` in the served profile, `pack-series`; digests from the generated samples). The generator is seeded by
+the frame's index, so the bundles are the same bytes on every run; they are not committed, and their SHA-256 is here
+to check a rebuild against.
+
+| series | frames | size, bits | content | coded | `.sbnd` SHA-256 |
+| --- | ---: | --- | --- | ---: | --- |
+| `large` | 37 | 1024 × 1024, 16 | `field` | 60.69 MB | `48fecc5a920dbf30fab1b779b67a16311a52fb5a1bf2b777f1bddf56d927ffca` |
+| `small` | 102 | 512 × 512 RGB, 8 | `cine` | 4.42 MB | `e9116f5ba90940574d022b189904bfe1b9f03e843f318b2122742e179fa4f5c0` |
+
+M2's two series came out at the same coded sizes; its bundles were not kept, so byte identity with them is not shown.

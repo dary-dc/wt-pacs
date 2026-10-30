@@ -43,6 +43,7 @@ try {
     frames: frames.length,
     exact: frames.filter((f) => f.exact === true).length,
     from_dial_ms: Math.max(...frames.map((f) => f.page)) - r.issuedAt,
+    first_exact_ms: Math.min(...frames.map((f) => f.page)) - r.issuedAt,
     shown_ms: r.firstShown - r.issuedAt,
     canvas: await page.evaluate(() => `${document.getElementById("view").width}x${document.getElementById("view").height}`),
   });
