@@ -42,16 +42,28 @@ async function painted(out, want) {
 
 // Each step's input, then the paint it must end on; at the ends a step that wrapped would end elsewhere.
 // winit 0.30 on X11 makes an XTEST wheel click's press and release two wheel events, so a click steps twice.
+// A `title` in what a step must end on is the window's title; the rest is the last paint's cell.
+const OPENED = { fit: false, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false, invert: false, center: 1024, windowWidth: 2048 };
 const grey = (id) => [
-  ["open", [], { frame: 0, fit: false }],
+  ["open", [], { frame: 0, fit: false, title: "wt-pacs · frame 1 of 4 · exact" }],
   ["Left at the first frame, then Right", [["key", "Left"], ["key", "Right"]], { frame: 1 }],
   ["the wheel down", [["click", 5]], { frame: 3 }],
   ["Right at the last frame, then Left", [["key", "Right"], ["key", "Left"]], { frame: 2 }],
   ["the wheel up", [["click", 4]], { frame: 0 }],
-  ["a drag 40 px right, 24 down", [["mousemove", "--window", id, 100, 100], ["mousedown", 1], ["mousemove", "--window", id, 140, 124], ["mouseup", 1]],
-    { frame: 0, center: 1048, windowWidth: 2088 }],
+  ["a drag 40 px right, 24 down, a window's width per 256 px", [["mousemove", "--window", id, 100, 100], ["mousedown", 1],
+    ["mousemove", "--window", id, 140, 124], ["mouseup", 1]], { frame: 0, center: 1216, windowWidth: 2368 }],
   ["F, fitted", [["key", "f"]], { frame: 0, fit: true }],
   ["F, 1:1 again", [["key", "f"]], { frame: 0, fit: false }],
+  ["End", [["key", "End"]], { frame: 3, title: "wt-pacs · frame 4 of 4 · exact" }],
+  ["Home", [["key", "Home"]], { frame: 0, title: "wt-pacs · frame 1 of 4 · exact" }],
+  ["+, zoomed", [["key", "plus"]], { frame: 0, zoom: 1.25 }],
+  ["R, a quarter turn", [["key", "r"]], { frame: 0, rotate: 90 }],
+  ["H and V, flipped", [["key", "h"], ["key", "v"]], { frame: 0, flipH: true, flipV: true }],
+  ["I, inverted", [["key", "i"]], { frame: 0, invert: true }],
+  ["a secondary drag pans", [["mousemove", "--window", id, 100, 100], ["mousedown", 3], ["mousemove", "--window", id, 130, 110], ["mouseup", 3]],
+    { frame: 0, panX: 30, panY: 10 }],
+  ["0, reset", [["key", "0"]], { frame: 0, ...OPENED }],
+  ["Space, a second of cine at the default 100 ms, Space", [["key", "space"], 1000, ["key", "space"]], { cine: true }],
 ];
 const SERIES = [
   ["window_grey16", ["g9", "g10", "g12", "g14"], grey],
@@ -132,6 +144,25 @@ try {
     }
   };
 
+  const cells = (out) => fs.readdirSync(out).filter((f) => f.endsWith(".json")).sort();
+  /** Null when the paints since `before` step forward and wrap round the series, and stop once it is paused. */
+  async function cined(out, before) {
+    await sleep(300);
+    const shown = cells(out).slice(before).map((f) => JSON.parse(fs.readFileSync(path.join(out, f), "utf8")).frame);
+    await sleep(400);
+    console.log(`  cine painted frames ${shown.join(" ")}`);
+    if (shown.length < 4) return `${shown.length} paints in a second of cine`;
+    if (!shown.some((f, i) => i > 0 && f < shown[i - 1])) return "the cine did not wrap round the series";
+    if (shown.some((f, i) => i > 0 && f === shown[i - 1])) return "the cine painted a frame twice in a row";
+    return cells(out).length === before + shown.length ? null : "the cine went on once paused";
+  }
+
+  /** True once the window's title is `want`, within 5 s. */
+  async function titled(id, want) {
+    for (let i = 0; i < 100; i++, await sleep(50)) if (x("getwindowname", id) === want) return true;
+    return false;
+  }
+
   /** One window over `frames`' series, driven by `steps`, each paint then held to the reference unless `read` is false; its stdout. */
   async function visit(name, frames, thread, flags, steps, read = true) {
     const fixture = path.join(ROOT, "lab/fixtures", name);
@@ -154,11 +185,25 @@ try {
     if (!id) throw new Error("the window did not open");
     x("windowfocus", "--sync", id);
     for (const [step, input, want] of steps(id)) {
+      const before = cells(out).length;
       if (typeof input === "number") await sleep(input);
-      else for (const args of input) x(...args);
-      if (want && !(await painted(out, want))) {
+      else for (const args of input) typeof args === "number" ? await sleep(args) : x(...args);
+      const { title, cine, ...cell } = want ?? {};
+      if (cine) {
+        const failed = await cined(out, before);
+        if (failed) {
+          bad++;
+          console.log(`FAIL ${name} ${thread} ${step}: ${failed}`);
+        }
+        continue;
+      }
+      if (want && !(await painted(out, cell))) {
         bad++;
-        console.log(`FAIL ${name} ${thread} ${step}: no paint shows ${JSON.stringify(want)}`);
+        console.log(`FAIL ${name} ${thread} ${step}: no paint shows ${JSON.stringify(cell)}`);
+      }
+      if (title && !(await titled(id, title))) {
+        bad++;
+        console.log(`FAIL ${name} ${thread} ${step}: the title is ${JSON.stringify(x("getwindowname", id))}, not ${JSON.stringify(title)}`);
       }
     }
     x("key", "Escape");
@@ -172,16 +217,18 @@ try {
     const View = spec.components === 3 || spec.bits <= 8 ? Uint8Array : spec.signed ? Int16Array : Uint16Array;
     for (const f of fs.readdirSync(out).filter((f) => f.endsWith(".json")).sort()) {
       const c = JSON.parse(fs.readFileSync(path.join(out, f), "utf8"));
-      const display = { photometric: m.photometric, voi: { center: c.center, width: c.windowWidth, function: m.window?.function }, view: { fit: c.fit } };
+      const view = { fit: c.fit, zoom: c.zoom, panX: c.panX, panY: c.panY, rotate: c.rotate, flipH: c.flipH, flipV: c.flipV };
+      const display = { photometric: m.photometric, invert: c.invert, voi: { center: c.center, width: c.windowWidth, function: m.window?.function }, view };
       const samples = new View(new Uint8Array(fs.readFileSync(path.join(out, f.replace(".json", ".raw")))).buffer);
       const ref = paintReference({ ...spec, samples }, display, c.width, c.height, c.dpr);
       const got = fs.readFileSync(path.join(out, f.replace(".json", ".rgba")));
       let worst = got.length === ref.length ? 0 : 255;
       for (let k = 0; k < ref.length; k++) worst = Math.max(worst, Math.abs(ref[k] - got[k]));
-      const failed = worst > (c.fit ? 1 : 0) || c.exact !== "true";
+      const failed = worst > (c.fit || c.zoom !== 1 ? 1 : 0) || c.exact !== "true";
       bad += failed ? 1 : 0;
       console.log(`  ${failed ? "FAIL" : "ok  "} ${name} ${thread} paint ${f.slice(0, 3)} frame ${c.frame} exact=${c.exact} ${c.fit ? "fitted" : "1:1"} ` +
-        `${c.width}×${c.height} center ${c.center} width ${c.windowWidth}: max |Δ| ${worst}`);
+        `${c.width}×${c.height} center ${c.center} width ${c.windowWidth} zoom ${c.zoom} pan ${c.panX},${c.panY} rotate ${c.rotate}` +
+        `${c.flipH ? " flipH" : ""}${c.flipV ? " flipV" : ""}${c.invert ? " inverted" : ""}: max |Δ| ${worst}`);
     }
     return stdout;
   }

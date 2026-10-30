@@ -43,6 +43,38 @@ impl Cine {
     }
 }
 
+/// The product cine: the next frame every `period`, as `client/view/view.js`'s `setInterval`; a late tick is not made up.
+pub struct Play {
+    period: Duration,
+    next: Instant,
+}
+
+impl Play {
+    /// The series' `frameTimeMs`, else `1000 / cineRate`, else 100 ms: `client/viewer/viewer.js`'s `cineFps`.
+    pub fn period(frame_time_ms: Option<f64>, cine_rate: Option<f64>) -> Duration {
+        Duration::from_secs_f64(frame_time_ms.or(cine_rate.map(|r| 1000.0 / r)).unwrap_or(100.0) / 1e3)
+    }
+
+    pub fn new(period: Duration, now: Instant) -> Self {
+        Self { period, next: now + period }
+    }
+
+    pub fn tick(&mut self, now: Instant) -> bool {
+        if now < self.next {
+            return false;
+        }
+        self.next += self.period;
+        if self.next <= now {
+            self.next = now + self.period;
+        }
+        true
+    }
+
+    pub fn next(&self) -> Instant {
+        self.next
+    }
+}
+
 /// The busy-UI loop: from `start`, every `every`, the thread spins for `block`.
 pub struct Busy {
     next: Instant,
@@ -104,6 +136,26 @@ mod tests {
         assert!(cine.on_time(2, t0 + 299 * MS));
         assert!(!cine.on_time(2, t0 + 300 * MS));
         assert!(!cine.on_time(2, t0 + 450 * MS));
+    }
+
+    /// **The product cine steps once a period and does not make up a late tick.** At 100 ms: nothing before 100 ms,
+    /// one step at it, the next due at 200; a tick at 450 steps once and the next is due at 550, not 300. The period is
+    /// the frame time, else the cine rate's, else 100 ms.
+    #[test]
+    fn the_product_cine_steps_once_a_period_and_does_not_make_up_a_late_tick() {
+        let t0 = Instant::now();
+        let mut play = Play::new(100 * MS, t0);
+        assert!(!play.tick(t0 + 99 * MS));
+        assert!(play.tick(t0 + 100 * MS));
+        assert!(!play.tick(t0 + 150 * MS));
+        assert_eq!(play.next(), t0 + 200 * MS);
+        assert!(play.tick(t0 + 450 * MS));
+        assert!(!play.tick(t0 + 460 * MS), "a late tick was made up");
+        assert_eq!(play.next(), t0 + 550 * MS);
+        assert_eq!(Play::period(Some(40.0), Some(10.0)), 40 * MS);
+        assert_eq!(Play::period(None, Some(10.0)), 100 * MS);
+        assert_eq!(Play::period(None, Some(25.0)), 40 * MS);
+        assert_eq!(Play::period(None, None), 100 * MS);
     }
 
     /// **The busy loop blocks for its length and keeps its schedule.** Every 50 ms it spins 20: not before it is due,

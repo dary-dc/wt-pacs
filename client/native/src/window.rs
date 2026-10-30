@@ -1,16 +1,20 @@
 //! A minimal desktop window on the core: a series over `wt-pacs/1`, each frame decoded and checked, painted by `paint`.
-//! Wheel and arrows step frames, a drag sets the window, F toggles 1:1 and fitted, Escape closes. `docs/native/README.md` §4.
+//! The browser core's controls (`look.rs`), F toggles 1:1 and fitted, Escape closes; the title is the status line.
+//! `docs/native/README.md` §4 and §Parity.
 //! `--paint-thread` picks the thread that holds the frames and paints: §The view-worker design, native.
 
 use anyhow::{bail, Context, Result};
 use clap::{Parser, ValueEnum};
 use native_client::cache::Cache;
-use native_client::clock::{Busy, Cine};
+use native_client::clock::{Busy, Cine, Play};
 use native_client::count::{self, Sent};
 use native_client::decode::Decoder;
-use native_client::paint::{Display, Frame, Function, Painter, Photometric, View, Voi};
-use native_client::transport::{cert_hash, dial, dial_bounded, Event, Windows};
+use native_client::look::{Intent, Look, Status};
+use native_client::paint::{Frame, Function, Painter, Photometric};
+use native_client::resume::{Deadlines, ResumingSession};
+use native_client::transport::{cert_hash, Windows};
 use native_client::verify::{digests, exact, Exact};
+use native_client::load::{load, Loaded};
 use native_client::view::{decoders, download, Decoded, Store};
 use serde_json::{json, Value};
 use std::future::Future;
@@ -20,6 +24,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::keyboard::ModifiersState;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
@@ -100,22 +105,13 @@ enum PaintThread {
     Core,
 }
 
-/// What the UI thread is told: a frame (with the UI as paint thread), or the paint's events.
+/// What the UI thread is told: a frame (with the UI as paint thread), or the paint's events with the title they leave.
 #[derive(Debug)]
 enum Note {
-    Frame(u32, Vec<u8>),
-    Shown(u32),
-    Failed(String),
+    Frame(u32, Vec<u8>, Exact),
+    Shown(u32, String),
+    Failed(u32, String, Option<String>),
     Step,
-}
-
-/// The user's input as the thread that paints applies it.
-enum Intent {
-    Step(i64),
-    Drag(f64, f64),
-    Fit,
-    Resize(u32, u32),
-    Redraw,
 }
 
 fn stamp_step(stamp: bool) {
@@ -142,6 +138,7 @@ struct Series {
     slope: f64,
     intercept: f64,
     function: Function,
+    frame_time: Duration,
 }
 
 fn series(m: &Value) -> Result<(Series, f64, f64)> {
@@ -170,6 +167,7 @@ fn series(m: &Value) -> Result<(Series, f64, f64)> {
         slope: m["rescale"]["slope"].as_f64().unwrap_or(1.0),
         intercept: m["rescale"]["intercept"].as_f64().unwrap_or(0.0),
         function,
+        frame_time: Play::period(m["frameTimeMs"].as_f64(), m["cineRate"].as_f64()),
     };
     let first = |k: &str| w[k][0].as_f64().unwrap_or(f64::NAN);
     Ok((s, first("center"), first("width")))
@@ -198,7 +196,7 @@ impl Gpu {
             self.surface.configure(&self.painter.device, &self.config);
             return Ok(());
         };
-        let display = look.display(s);
+        let display = look.display(s.photometric, s.slope, s.intercept, s.function);
         let dpr = self.window.scale_factor();
         self.painter.draw(&texture.texture, &frame, &display, dpr)?;
         count::paint();
@@ -212,7 +210,10 @@ impl Gpu {
             std::fs::write(dir.join(format!("{n:03}.raw")), pixels)?;
             let (width, height) = (self.config.width, self.config.height);
             let exact = format!("{:?}", exact(pixels, self.digests.as_ref().and_then(|d| d.get(look.current).copied()))).to_lowercase();
-            let cell = json!({ "frame": look.current, "exact": exact, "center": look.center, "windowWidth": look.width, "fit": look.fit, "width": width, "height": height, "dpr": dpr });
+            let v = &look.view;
+            let cell = json!({ "frame": look.current, "exact": exact, "center": look.center, "windowWidth": look.width, "fit": v.fit, "zoom": v.zoom,
+                "panX": v.pan_x, "panY": v.pan_y, "rotate": v.rotate, "flipH": v.flip_h, "flipV": v.flip_v, "invert": look.invert,
+                "width": width, "height": height, "dpr": dpr });
             std::fs::write(dir.join(format!("{n:03}.json")), cell.to_string())?;
         }
         self.painted += 1;
@@ -228,63 +229,34 @@ impl Gpu {
     }
 }
 
-/// What the user has set: the frame shown and its display.
-#[derive(Clone, Copy)]
-struct Look {
-    current: usize,
-    center: f64,
-    width: f64,
-    fit: bool,
-}
-
-impl Look {
-    /// True when the change needs a paint.
-    fn apply(&mut self, intent: &Intent, count: usize) -> bool {
-        match *intent {
-            Intent::Step(by) => {
-                let next = (self.current as i64 + by).clamp(0, count as i64 - 1) as usize;
-                std::mem::replace(&mut self.current, next) != next
-            }
-            Intent::Drag(dx, dy) => {
-                self.width = (self.width + dx).max(1.0);
-                self.center += dy;
-                println!("window center={} width={}", self.center, self.width);
-                true
-            }
-            Intent::Fit => {
-                self.fit = !self.fit;
-                true
-            }
-            Intent::Resize(..) | Intent::Redraw => true,
-        }
-    }
-
-    fn display(&self, s: &Series) -> Display {
-        Display {
-            photometric: s.photometric,
-            invert: false,
-            slope: s.slope,
-            intercept: s.intercept,
-            voi: Some(Voi { center: self.center, width: self.width, function: s.function }),
-            view: View { fit: self.fit, zoom: 1.0, pan_x: 0.0, pan_y: 0.0, rotate: 0, flip_h: false, flip_v: false },
-        }
-    }
-}
-
 struct App {
     instance: wgpu::Instance,
     series: Series,
     frames: Vec<Option<Vec<u8>>>,
     look: Look,
+    status: Status,
     cursor: Option<(f64, f64)>,
-    held: bool,
+    /// Where a drag began, and whether it pans.
+    grab: Option<(f64, f64, bool)>,
+    modifiers: ModifiersState,
     gpu: Option<Gpu>,
+    /// The window on every paint thread, for its title and its scale.
+    window: Option<Arc<Window>>,
     args: Args,
     metadata: String,
     proxy: EventLoopProxy<Sent<Note>>,
     view: Option<mpsc::UnboundedSender<Sent<Intent>>>,
     busy: Option<Busy>,
     cine: Option<Cine>,
+    play: Option<Play>,
+}
+
+/// Space: the product cine started from now, or stopped.
+fn toggle(play: &mut Option<Play>, period: Duration) {
+    *play = match play {
+        Some(_) => None,
+        None => Some(Play::new(period, Instant::now())),
+    };
 }
 
 impl App {
@@ -308,8 +280,18 @@ impl App {
         if let (Intent::Resize(width, height), Some(gpu)) = (&intent, &mut self.gpu) {
             gpu.resize(*width, *height);
         }
+        if let Intent::Cine = intent {
+            toggle(&mut self.play, self.series.frame_time);
+        }
         if self.look.apply(&intent, self.series.count) {
             self.redraw();
+        }
+        self.retitle(self.status.title(self.look.current));
+    }
+
+    fn retitle(&self, title: String) {
+        if let Some(window) = self.window.as_ref().filter(|w| w.title() != title) {
+            window.set_title(&title);
         }
     }
 
@@ -410,13 +392,15 @@ impl App {
         let s = &self.series;
         let frame_bytes = (s.width * s.height * s.components) as usize * if s.bits > 8 { 2 } else { 1 };
         let cine = a.cine_hz.map(|hz| Cine::new(hz, s.count, Instant::now()));
-        let view = Viewer { gpu, series: s.clone(), look: self.look, store: Store::new(a.budget), frame_bytes, want, notes: self.proxy.clone(), cine };
+        let status = Status::new(s.count);
+        let view = Viewer { gpu, series: s.clone(), look: self.look, store: Store::new(a.budget), frame_bytes, want, notes: self.proxy.clone(), cine, play: None, status };
+        let (refused, refusals) = mpsc::unbounded_channel();
         let (url, hash, asks) = (a.url.clone(), cert_hash(&a.cert_sha256)?, a.asks);
         let downloading = async move {
-            let session = dial_bounded(&url, hash, &Windows::default(), 1).await?;
-            download(session, wanted, jobs, finished, cache, asks).await
+            let session = ResumingSession::open(&url, hash, Windows::default(), 1, Deadlines::default()).await?;
+            download(session, wanted, jobs, finished, cache, asks, move |index, reason| drop(refused.send((index, reason)))).await
         };
-        let viewing = view.run(inbox, frames);
+        let viewing = view.run(inbox, frames, refusals);
         match a.paint_thread {
             PaintThread::Core => on_thread("core", async { tokio::try_join!(downloading, viewing).map(|_| ()) })?,
             _ => {
@@ -451,10 +435,17 @@ struct Viewer {
     want: watch::Sender<Vec<u32>>,
     notes: EventLoopProxy<Sent<Note>>,
     cine: Option<Cine>,
+    play: Option<Play>,
+    status: Status,
 }
 
 impl Viewer {
-    async fn run(mut self, mut inbox: mpsc::UnboundedReceiver<Sent<Intent>>, mut frames: mpsc::Receiver<Sent<Decoded>>) -> Result<()> {
+    async fn run(
+        mut self,
+        mut inbox: mpsc::UnboundedReceiver<Sent<Intent>>,
+        mut frames: mpsc::Receiver<Sent<Decoded>>,
+        mut refusals: mpsc::UnboundedReceiver<(u32, String)>,
+    ) -> Result<()> {
         self.ask();
         loop {
             tokio::select! {
@@ -464,6 +455,9 @@ impl Viewer {
                     count::intent();
                     if let Intent::Resize(width, height) = intent {
                         self.gpu.resize(width, height);
+                    }
+                    if let Intent::Cine = intent {
+                        toggle(&mut self.play, self.series.frame_time);
                     }
                     if self.look.apply(&intent, self.series.count) {
                         self.ask();
@@ -475,16 +469,26 @@ impl Viewer {
                     count::hop(index);
                     match samples {
                         Ok(samples) if exact != Exact::False => {
+                            self.status.held(index, exact);
                             self.store.put(index, samples, written, self.look.current as u32);
                             if index as usize == self.look.current {
                                 self.paint()?;
                             }
                         }
-                        Ok(_) => self.fail(format!("scope=frame frame={index} reason=\"exact=false\"")),
-                        Err(reason) => self.fail(format!("scope=frame frame={index} reason={reason:?}")),
+                        Ok(_) => self.fail(index, "NOT EXACT".into()),
+                        Err(reason) => self.fail(index, format!("NOT EXACT: {reason}")),
                     }
                 }
+                Some((index, reason)) = refusals.recv() => self.fail(index, reason),
                 _ = tokio::time::sleep_until(self.cine.as_ref().map_or_else(Instant::now, Cine::next).into()), if self.cine.is_some() => self.cine()?,
+                _ = tokio::time::sleep_until(self.play.as_ref().map_or_else(Instant::now, Play::next).into()), if self.play.is_some() => {
+                    if self.play.as_mut().is_some_and(|p| p.tick(Instant::now()))
+                        && self.look.apply(&Intent::To((self.look.current + 1) % self.series.count), self.series.count)
+                    {
+                        self.ask();
+                        self.paint()?;
+                    }
+                }
             }
         }
     }
@@ -502,7 +506,8 @@ impl Viewer {
     fn paint(&mut self) -> Result<bool> {
         let Some(pixels) = self.store.get(self.look.current as u32) else { return Ok(false) };
         self.gpu.paint(&self.series, &self.look, pixels)?;
-        let _ = self.notes.send_event(Sent::now(Note::Shown(self.look.current as u32)));
+        let title = self.status.title(self.look.current);
+        let _ = self.notes.send_event(Sent::now(Note::Shown(self.look.current as u32, title)));
         Ok(true)
     }
 
@@ -515,8 +520,10 @@ impl Viewer {
         Ok(())
     }
 
-    fn fail(&self, reason: String) {
-        let _ = self.notes.send_event(Sent::now(Note::Failed(reason)));
+    fn fail(&mut self, index: u32, reason: String) {
+        self.status.failed(index, &reason);
+        let title = self.status.title(self.look.current);
+        let _ = self.notes.send_event(Sent::now(Note::Failed(index, reason, Some(title))));
     }
 }
 
@@ -525,7 +532,11 @@ impl ApplicationHandler<Sent<Note>> for App {
         if self.gpu.is_some() || self.view.is_some() {
             return;
         }
-        let opened = self.open(event_loop).and_then(|gpu| match self.args.paint_thread {
+        let opened = self.open(event_loop).and_then(|gpu| {
+            self.window = Some(gpu.window.clone());
+            Ok(gpu)
+        });
+        let opened = opened.and_then(|gpu| match self.args.paint_thread {
             PaintThread::Ui => {
                 self.gpu = Some(gpu);
                 Ok(())
@@ -542,44 +553,56 @@ impl ApplicationHandler<Sent<Note>> for App {
         if let Some(busy) = &mut self.busy {
             busy.run(Instant::now());
         }
+        if self.play.as_mut().is_some_and(|p| p.tick(Instant::now())) {
+            self.input(Intent::To((self.look.current + 1) % self.series.count));
+        }
         if let Err(e) = self.cine() {
             eprintln!("{e:#}");
             event_loop.exit();
         }
-        let next = [self.busy.as_ref().map(Busy::next), self.cine.as_ref().map(Cine::next)].into_iter().flatten().min();
+        let next = [self.busy.as_ref().map(Busy::next), self.cine.as_ref().map(Cine::next), self.play.as_ref().map(Play::next)];
+        let next = next.into_iter().flatten().min();
         event_loop.set_control_flow(next.map_or(ControlFlow::Wait, ControlFlow::WaitUntil));
     }
 
     fn user_event(&mut self, _: &ActiveEventLoop, note: Sent<Note>) {
         let hop = match *note {
             Note::Frame(..) => "frame",
-            Note::Shown(_) => "shown",
-            Note::Failed(_) => "failed",
+            Note::Shown(..) => "shown",
+            Note::Failed(..) => "failed",
             Note::Step => "step",
         };
         match note.received(hop) {
-            Note::Frame(index, samples) => {
+            Note::Frame(index, samples, exact) => {
                 count::hop(index);
                 self.frames[index as usize] = Some(samples);
+                self.status.held(index, exact);
                 if index as usize == self.look.current {
                     self.redraw();
+                    self.retitle(self.status.title(self.look.current));
                 }
             }
-            Note::Shown(index) => {
+            Note::Shown(index, title) => {
                 count::note();
+                self.retitle(title);
                 if self.args.check.is_some() {
                     println!("shown frame={index}");
                 }
             }
-            Note::Failed(reason) => {
+            Note::Failed(index, reason, title) => {
                 count::note();
-                println!("failed {reason}");
+                println!("failed scope=frame frame={index} reason={reason:?}");
+                if title.is_none() {
+                    self.status.failed(index, &reason);
+                }
+                self.retitle(title.unwrap_or_else(|| self.status.title(self.look.current)));
             }
             Note::Step => self.input(Intent::Step(1)),
         }
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
+        let last = self.series.count.saturating_sub(1);
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => self.input(Intent::Resize(size.width, size.height)),
@@ -590,11 +613,25 @@ impl ApplicationHandler<Sent<Note>> for App {
                     event_loop.exit();
                 }
             }
+            WindowEvent::ModifiersChanged(m) => self.modifiers = m.state(),
             WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => match event.logical_key {
-                Key::Named(NamedKey::ArrowRight | NamedKey::ArrowDown) => self.step(1),
-                Key::Named(NamedKey::ArrowLeft | NamedKey::ArrowUp) => self.step(-1),
-                Key::Character(c) if c.eq_ignore_ascii_case("f") => self.input(Intent::Fit),
+                Key::Named(NamedKey::ArrowRight | NamedKey::ArrowDown | NamedKey::PageDown) => self.step(1),
+                Key::Named(NamedKey::ArrowLeft | NamedKey::ArrowUp | NamedKey::PageUp) => self.step(-1),
+                Key::Named(NamedKey::Home) => self.input(Intent::To(0)),
+                Key::Named(NamedKey::End) => self.input(Intent::To(last)),
                 Key::Named(NamedKey::Escape) => event_loop.exit(),
+                Key::Named(NamedKey::Space) => self.input(Intent::Cine),
+                Key::Character(c) => match c.to_lowercase().as_str() {
+                    "+" | "=" => self.input(Intent::Zoom(1.25)),
+                    "-" => self.input(Intent::Zoom(0.8)),
+                    "r" => self.input(Intent::Rotate),
+                    "h" => self.input(Intent::FlipH),
+                    "v" => self.input(Intent::FlipV),
+                    "i" => self.input(Intent::Invert),
+                    "f" => self.input(Intent::Fit),
+                    "0" => self.input(Intent::Reset),
+                    _ => {}
+                },
                 _ => {}
             },
             WindowEvent::MouseWheel { delta, .. } => {
@@ -602,12 +639,23 @@ impl ApplicationHandler<Sent<Note>> for App {
                     MouseScrollDelta::LineDelta(_, y) => y as f64,
                     MouseScrollDelta::PixelDelta(p) => p.y,
                 };
-                self.step(if y < 0.0 { 1 } else if y > 0.0 { -1 } else { 0 });
+                if self.modifiers.control_key() {
+                    self.input(Intent::Zoom(if y > 0.0 { 1.1 } else { 1.0 / 1.1 }));
+                } else {
+                    self.step(if y < 0.0 { 1 } else if y > 0.0 { -1 } else { 0 });
+                }
             }
-            WindowEvent::MouseInput { state, button: MouseButton::Left, .. } => self.held = state == ElementState::Pressed,
+            WindowEvent::MouseInput { state: ElementState::Pressed, button: button @ (MouseButton::Left | MouseButton::Right), .. } => {
+                if let Some((x, y)) = self.cursor {
+                    self.grab = Some((x, y, button == MouseButton::Right || self.modifiers.shift_key()));
+                    self.input(Intent::Grab);
+                }
+            }
+            WindowEvent::MouseInput { state: ElementState::Released, .. } => self.grab = None,
             WindowEvent::CursorMoved { position, .. } => {
-                if let (true, Some((x, y))) = (self.held, self.cursor) {
-                    self.input(Intent::Drag(position.x - x, position.y - y));
+                if let (Some((x, y, pan)), Some(window)) = (self.grab, &self.window) {
+                    let css = window.scale_factor();
+                    self.input(Intent::Drag { dx: (position.x - x) / css, dy: (position.y - y) / css, pan });
                 }
                 self.cursor = Some((position.x, position.y));
             }
@@ -616,11 +664,7 @@ impl ApplicationHandler<Sent<Note>> for App {
     }
 }
 
-/// Fills the series and hands each frame on once decoded; a frame that is not exact is never painted.
-/// With a cache, each frame's write and both fsyncs run before its hand-off, as the branches merged it.
-async fn load(args: Args, metadata: String, count: usize, proxy: EventLoopProxy<Sent<Note>>) -> Result<()> {
-    let digests = digests(&metadata)?;
-    let mut decoder = Decoder::new(&metadata)?;
+async fn load_ui(args: Args, metadata: String, count: usize, proxy: EventLoopProxy<Sent<Note>>) -> Result<()> {
     let cache = match &args.cache {
         Some(root) => {
             let cache = Cache::open(root, args.series.as_deref().unwrap_or_default(), args.version.as_deref().unwrap_or_default())?;
@@ -628,30 +672,16 @@ async fn load(args: Args, metadata: String, count: usize, proxy: EventLoopProxy<
         }
         None => None,
     };
-    let mut session = dial(&args.url, cert_hash(&args.cert_sha256)?, &Windows::default()).await?;
-    session.fill(0, count as u32 - 1).await?;
-    for _ in 0..count {
-        match session.next().await.context("the session ended with frames owed")?? {
-            Event::Frame { index, body, .. } => {
-                count::copy(index, decoder.copies());
-                let checked = decoder.decode(&body).map(|s| (exact(&s, digests.as_ref().and_then(|d| d.get(index as usize).copied())), s));
-                match checked {
-                    Ok((Exact::False, _)) => println!("frame={index} exact=false"),
-                    Ok((e, samples)) => {
-                        println!("frame={index} exact={}", format!("{e:?}").to_lowercase());
-                        if let Some(cache) = &cache {
-                            cache.put(index, &body, &e)?;
-                        }
-                        proxy.send_event(Sent::now(Note::Frame(index, samples)))?;
-                    }
-                    Err(e) => println!("frame={index} exact=false reason={e:#}"),
-                }
-            }
-            Event::Refused { frame, reason } => println!("frame={frame} refused={reason:?}"),
-        }
-    }
-    session.close();
-    Ok(())
+    let held = tokio::sync::Semaphore::MAX_PERMITS;
+    let session = ResumingSession::open(&args.url, cert_hash(&args.cert_sha256)?, Windows::default(), held, Deadlines::default()).await?;
+    let hand = |loaded| {
+        let note = match loaded {
+            Loaded::Frame { index, samples, exact } => Note::Frame(index, samples, exact),
+            Loaded::Failed { index, reason } => Note::Failed(index, reason, None),
+        };
+        Ok(proxy.send_event(Sent::now(note))?)
+    };
+    load(session, Decoder::new(&metadata)?, digests(&metadata)?, count as u32, cache, args.asks, hand).await
 }
 
 fn main() -> Result<()> {
@@ -665,23 +695,27 @@ fn main() -> Result<()> {
     let mut app = App {
         instance,
         frames: vec![None; series.count],
+        status: Status::new(series.count),
         series,
-        look: Look { current: 0, center, width, fit: false },
+        look: Look::new(center, width),
         cursor: None,
-        held: false,
+        grab: None,
+        modifiers: ModifiersState::empty(),
         gpu: None,
+        window: None,
         args: args.clone(),
         metadata: metadata.clone(),
         proxy: proxy.clone(),
         view: None,
         busy: None,
         cine: None,
+        play: None,
     };
     let runtime = tokio::runtime::Runtime::new()?;
     if args.paint_thread == PaintThread::Ui {
         let count = app.series.count;
         runtime.spawn(async move {
-            if let Err(e) = load(args, metadata, count, proxy).await {
+            if let Err(e) = load_ui(args, metadata, count, proxy).await {
                 eprintln!("{e:#}");
                 std::process::exit(1);
             }
