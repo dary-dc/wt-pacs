@@ -250,9 +250,9 @@ row for the writer (hits and fill −24–32 %, [`disk-layout/README.md`](disk-l
    lost. Row 139's own rule asked for it.
 8. **ASKORDER** — at loaded RTTs of 0.2–0.8 s, does `reject-server-ordering.md`'s flip condition (RTT above ~100 ms)
    now hold, and what would last-ask-first save over FIFO? *Basis:* the ADR's own §6.
-9. **TAILPING** — does one ack-eliciting PING after an isolated frame cut an ask's p99 by PTO − 9/8·RTT for ~40 B a
+9. **TAILPING** — does one ack-eliciting PING after an isolated frame cut an ask's p99 by PTO − 9/8·RTT for 21–41 B a
    frame? *Basis:* under a loaded queue the variance term grows the saving (20–80 ms derived at the lab links);
-   the third arm row 131 proposed and never ran; row 167 item 8 keeps the tail copy dropped.
+   the third arm row 131 proposed and never ran; row 167 item 8 keeps the tail copy dropped. Mechanism, saving and protocol: `transport/transport-conclusions.md` §9 item 7.
 10. **INLINECAP** — what does the whole-frame inline `RWF_NOWAIT` copy cost co-tenant tasks at 2.8–16 MB frames, and
     does sending frames above a size to the pool remove it at no fill cost? *Basis:* a 4.0 ms gap at 250 kB (RP); a
     pool hop is 24–34 µs.
