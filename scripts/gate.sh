@@ -188,6 +188,9 @@ run 1 sh deploy/server_start_test.sh
 step "lab: M5's rule on made-up rows: each in-hand path barred on its own, the busy cell's A/A"
 run 1 python3 lab/opfs-cache/summary_test.py
 
+step "lab: the rigs' Firefox driver reads Marionette's framing; with FIREFOX_PATH, a worker starts 300 workers under it"
+run 1 env NODE_PATH="$(npm root -g)" node lab/opfs-cache/browser.test.mjs
+
 step "lab: the AV1 fetch refuses a lossy source its set does not mark"
 run 1 python3 lab/av1/provenance_test.py
 
