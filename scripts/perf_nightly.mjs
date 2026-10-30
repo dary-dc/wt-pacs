@@ -113,7 +113,8 @@ const campaign = (first) => Object.fromEntries(cells.flatMap((cell) => metrics[c
   const values = (arm) => Array.from({ length: ROUNDS }, (_, k) => value(rowOf(rows.filter((r) => r.arm === arm && r.mode === cell.mode), cell, first + k), metric));
   return [`${cell.impairment}.${cell.throttle}x.${metric}`, { ref: values("base"), aa: values("aa"), arm: values("head") }];
 })));
-const complete = (c) => c.ref.some((v, k) => v !== null && c.aa[k] !== null && c.arm[k] !== null);
+const keptRounds = (c) => c.ref.filter((v, k) => v !== null && c.aa[k] !== null && c.arm[k] !== null).length;
+const complete = (c) => keptRounds(c) > 0;
 const [firsts, confirms] = [campaign(0), campaign(ROUNDS)];
 const unjudged = Object.keys(firsts).filter((name) => !complete(firsts[name]) || !complete(confirms[name]));
 for (const name of unjudged) {
@@ -131,5 +132,5 @@ console.log(`head ${HEAD} series-server ${sha(path.join(headBin, "series-server"
 console.log(`the gate's grey codestream × ${N} on ${LINK} ${IMPAIRS.join(", ")} at ${THROTTLES.join("×, ")}×${VIEW ? `, every arm on the viewer from navigation, the head's under ?view=${VIEW}` : ""}, ` +
   `${ROUNDS} rounds and ${ROUNDS} confirming; dropped ${rows.filter((r) => r.void).length} VOID and ${failed.length} failed of ${rows.length} visits; ×: head ÷ base, base again ÷ base, median of rounds`);
 if (failed.length) console.log(`failed: ${failed.map((r) => `${r.arm} ${r.mode} ${r.impairment} ${r.throttle}x round ${r.round} ${r.errors[0]?.slice(0, 80) ?? r.failure}`).join("; ")}`);
-for (const [cell, v] of verdicts) console.log(`${cell}: ${v.verdict} — head ×${v.arm}, A/A ×${v.aa}, n ${v.n}, A/A sd ${v.sd}, catches ${(v.mdl * 100).toFixed(1)} %`);
+for (const [cell, v] of verdicts) console.log(`${cell}: ${v.verdict} — head ×${v.arm}, A/A ×${v.aa}, rounds kept ${keptRounds(firsts[cell])} + ${keptRounds(confirms[cell])} of ${ROUNDS} each, A/A sd ${v.sd}, catches ${(v.mdl * 100).toFixed(1)} %`);
 process.exit(verdicts.some(([, v]) => v.verdict === "worse") ? 1 : 0);

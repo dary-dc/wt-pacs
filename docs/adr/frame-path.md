@@ -2940,3 +2940,36 @@ either campaign is not judged. **Saturation guard:** on this 4-core container (b
 fill at `r50000` 1× follows the link up to 200 Mbit/s (row PERFNIGHTLY, [`../../README.md`](../../README.md) *What the nightly times*), so 1× is
 link-bound; 4× is CPU-bound by design. A cell whose A/A median departs from 1 by more than 2 % says the rig drifted
 and is not judged. Nothing is claimed for another host, series, engine or a busy page.
+
+**Run 1 (2026-10-30, the harness unpinned as the nightly runs it).** Rows and each campaign's verdict:
+[`lab/av1/delivery/total-time/rows-core-against-main/`](../../lab/av1/delivery/total-time/rows-core-against-main/)
+`page/` and `worker/`; series-server `f36f907e…` (main) and `be058172…` (core). Every kept visit exact (48 of 48, or
+5 of 5 asked); no visit failed. Campaign 1 stopped once at round 8 on a dev-server that did not start (a port taken)
+and resumed from its kept rows; `perf_nightly.mjs` now retries such a visit.
+
+| campaign · cell | head ÷ base | A/A | rounds kept | `aa_rule` | by the rule |
+| --- | --- | --- | --- | --- | --- |
+| 1 · clean 1× fill | ×1.004 | ×0.996 | 9 + 10 | tie, catches 1.3 % | **no worse** |
+| 1 · clean 4× fill | ×0.998 | ×0.994 | 10 + 9 | tie, catches 2.7 % | **no worse** |
+| 1 · clean 1× first | ×1.029 | ×1.029 | 9 + 10 | tie | not judged: A/A off 1 by 2.9 % |
+| 1 · clean 4× first | ×1.013 | ×0.921 | 10 + 9 | not conclusive | not judged: A/A off 1 by 7.9 % |
+| 1 · clean 4× asked | ×0.989 | ×1.014 | 9 + 8 | not conclusive | not judged: 8 of 12 |
+| 1 · the other seven | ×0.905–1.019 | ×0.974–1.037 | 5–10 + 6–9 | none flagged | not judged: under 9 of 12 |
+| 2 · clean 1× first | ×1.126 | ×1.011 | 9 + 7 | **worse** | not judged: 7 of 12 |
+| 2 · clean 4× fill | ×1.074 | ×0.979 | 8 + 7 | **worse** | not judged: 7 of 12, A/A off 2.1 % |
+| 2 · the other six | ×1.011–1.104 | ×0.956–1.027 | 3–9 + 5–7 | not conclusive | not judged: under 9 of 12 |
+
+*Reading.* **Campaign 1 (the core at its defaults): throughput no worse** at `r50000` clean, 1× and 4×, to a loss of
+1.3 % and 2.7 %; no cell flagged worse. Latency is not established by the rule in any cell. The medians of kept
+rounds stay within a display period: the first frame 139 → 140 ms at 1× and 184 → 190 ms at 4× (A/A 141, 174), an
+asked frame 85.5 → 86 ms. **Campaign 2 (`?view=worker`): nothing judged.** 54 of 288 visits were VOID, and no cell kept 9 of 12 in
+both halves. The unjudged direction is **against the prediction**, though. From navigation, the first exact frame on
+screen took 509.5 → 549.5 ms at 1× clean (A/A 504.5) and 794 → 956 ms at 4×, more than a display period. The fill
+at 4× took 876 → 993 ms. The page's view-worker start before its first frame is the likely cost (not measured
+apart). VOID ran 14 % (campaign 1) and 19 % (campaign 2) of visits, worst under `l1`.
+
+**Run 2, pre-registered before its data: the harness pinned.** The nightly runs `node` and the dev-server on any
+core, the relay's included; row TOTAL4 runs the harness under `taskset -c 0-2`. Run 2 repeats run 1's two campaigns
+unchanged but for `taskset -c 0-2 node scripts/perf_nightly.mjs …`, with rows in `page-pinned/` and `worker-pinned/`.
+The rule, VOID threshold and guards are the same. Run 2 is read on its own, never pooled with run 1. If its VOID rate
+is no lower, the harness was not the cause, and that is said.
