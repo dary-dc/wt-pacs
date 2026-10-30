@@ -47,17 +47,20 @@ pub struct Asking {
     asked: Vec<u32>,
     fill: Option<(u32, u32)>,
     decoding: BTreeSet<u32>,
+    /// Frames sent to a decoder from the cache under the current want.
+    read: BTreeSet<u32>,
     depth: usize,
 }
 
 impl Asking {
     /// At most `depth` asks on the wire at once.
     pub fn new(depth: usize) -> Self {
-        Self { want: Vec::new(), asked: Vec::new(), fill: None, decoding: BTreeSet::new(), depth: depth.max(1) }
+        Self { want: Vec::new(), asked: Vec::new(), fill: None, decoding: BTreeSet::new(), read: BTreeSet::new(), depth: depth.max(1) }
     }
 
     pub fn want(&mut self, want: Vec<u32>) {
         self.want = want;
+        self.read.clear();
     }
 
     /// What to send next, in the want's order: one fill where the misses are ascending and nothing is owed, else asks
@@ -68,6 +71,7 @@ impl Asking {
         let (&first, &last) = (misses.first()?, misses.last()?);
         if on_disk(first) {
             self.dispatched(first);
+            self.read.insert(first);
             return Some(Wire::Cached(first));
         }
         if let Some((from, to)) = self.fill.take() {
@@ -102,9 +106,10 @@ impl Asking {
         self.decoding.insert(index);
     }
 
+    /// A refetch goes first only under the want it was read for; a newer want has already placed the frame, or dropped it.
     pub fn done(&mut self, index: u32, refetch: bool) {
         self.decoding.remove(&index);
-        if refetch {
+        if self.read.remove(&index) && refetch {
             self.want.insert(0, index);
         }
     }
@@ -362,6 +367,34 @@ mod tests {
         assert!(matches!(asking.next(|_| false), Some(Wire::Ask(7))));
         assert!(matches!(asking.next(|_| false), Some(Wire::Ask(2))));
         assert!(!asking.arrived(3), "a frame of an ended fill was still owed");
+    }
+
+    /// A frame read from the cache that fails its check is asked of the wire first while the want it was read for
+    /// stands; once the view has replaced that want, the frame keeps the place the new want gives it, or none.
+    #[test]
+    fn a_refetch_follows_the_want_it_was_read_for() {
+        let mut asking = Asking::new(4);
+        asking.want(vec![1, 3]);
+        assert!(matches!(asking.next(|i| i == 1), Some(Wire::Cached(1))));
+        asking.done(1, true);
+        assert!(matches!(asking.next(|_| false), Some(Wire::Ask(1))));
+
+        let mut asking = Asking::new(4);
+        asking.want(vec![1, 3]);
+        assert!(matches!(asking.next(|i| i == 1), Some(Wire::Cached(1))));
+        asking.want(vec![9, 8]);
+        asking.done(1, true);
+        assert!(matches!(asking.next(|_| false), Some(Wire::Ask(9))));
+        assert!(matches!(asking.next(|_| false), Some(Wire::Ask(8))));
+        assert!(asking.next(|_| false).is_none(), "a frame the view no longer wants was asked");
+
+        let mut asking = Asking::new(4);
+        asking.want(vec![1, 3]);
+        assert!(matches!(asking.next(|i| i == 1), Some(Wire::Cached(1))));
+        asking.want(vec![9, 1]);
+        asking.done(1, true);
+        assert!(matches!(asking.next(|_| false), Some(Wire::Ask(9))));
+        assert!(matches!(asking.next(|_| false), Some(Wire::Ask(1))));
     }
 
     /// Over the budget the store drops the frame farthest from the one shown, never that one, and never a frame
