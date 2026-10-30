@@ -2,6 +2,7 @@
 # deploy/server-start.sh's two starts, its paths moved under a temp root and the server a stub that prints its
 # arguments: with no certificate supplied it mints one and names its hash; with one, it writes no transport file and
 # uses it. Then the web image's two starts, nginx a stub: the page rendered for each, and the policy naming the transport.
+# With no series, it and web's start refuse by name; compose and the images supply none.
 set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 T="$(mktemp -d)"
@@ -15,21 +16,21 @@ failed=0
 check() { if [ "$1" = "$2" ]; then echo "ok: $3"; else echo "FAIL: $3 (got '$1', want '$2')"; failed=1; fi; }
 field() { sed -n "s/.*\"$1\": \"\([^\"]*\)\".*/\1/p" "$T/run/dev-transport.json"; }
 
-args="$(PATH="$T/bin:$PATH" WT_URL=https://h:4435/ sh "$T/start.sh" --port 4435)"
+args="$(PATH="$T/bin:$PATH" SERIES=ct WT_URL=https://h:4435/ sh "$T/start.sh" --port 4435)"
 minted="$(openssl x509 -in "$T/certs/cert.pem" -outform DER | openssl dgst -sha256 | awk '{print $2}')"
 check "$(field cert_sha256)" "$minted" "no certificate supplied: the minted one's hash is named"
 check "$(field wt_url)" "https://h:4435/" "the transport file names the arm's URL"
 check "$(grep -c client "$T/run/dev-transport.json")" "0" "the transport file names no client: the page does"
-check "$args" "--series /studies/us_cine_smoke.sbnd --cert-pem $T/certs/cert.pem --key-pem $T/certs/key.pem --port 4435" \
+check "$args" "--series /studies/ct.sbnd --cert-pem $T/certs/cert.pem --key-pem $T/certs/key.pem --port 4435" \
   "the server takes the minted certificate and the arm's flags"
 
 rm -f "$T/certs/cert.pem" "$T/certs/key.pem"
 mkdir -p "$T/supplied"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/supplied/key.pem" \
   -out "$T/supplied/cert.pem" -days 1 -nodes -subj /CN=h 2>/dev/null
-args="$(PATH="$T/bin:$PATH" sh "$T/start.sh")"
+args="$(PATH="$T/bin:$PATH" SERIES=ct sh "$T/start.sh")"
 check "$(ls "$T/run")" "" "a certificate supplied: no transport file, the last start's removed, so the browser verifies its chain"
-check "$args" "--series /studies/us_cine_smoke.sbnd --cert-pem $T/supplied/cert.pem --key-pem $T/supplied/key.pem" \
+check "$args" "--series /studies/ct.sbnd --cert-pem $T/supplied/cert.pem --key-pem $T/supplied/key.pem" \
   "the server takes the supplied certificate"
 check "$(ls "$T/certs")" "" "nothing minted"
 
@@ -45,17 +46,26 @@ sed -e "s#\${SERIES}#$SERIES#g" -e "s#\${TLS_LISTEN}#$TLS_LISTEN#g" -e "s#\${WT_
 SH
 chmod +x "$T/bin/nginx" "$T/bin/envsubst"
 csp() { sed -n "s/.*connect-src 'self' \([^;]*\);.*/\1/p" "$T/nginx/conf.d/default.conf"; }
-PATH="$T/bin:$PATH" WT_URL=https://h:4435/ sh "$T/web.sh"
+PATH="$T/bin:$PATH" SERIES=ct WT_URL=https://h:4435/ sh "$T/web.sh"
 check "$(grep -o 'data-[a-z-]*="[^"]*"' "$T/index.html" | tr '\n' ' ')" 'data-client="ts" data-transport-file="/wt/dev-transport.json" ' \
   "no TLS: the page reads the transport file, which pins the minted certificate"
 check "$(csp)" "https://h:4435" "no TLS: the policy connects to WT_URL"
 cp "$T/supplied/cert.pem" "$T/supplied/key.pem" "$T/tls/"
-PATH="$T/bin:$PATH" CLIENT=wasm sh "$T/web.sh"
+PATH="$T/bin:$PATH" SERIES=ct CLIENT=wasm sh "$T/web.sh"
 check "$(grep -o 'data-[a-z-]*="[^"]*"' "$T/index.html" | tr '\n' ' ')" 'data-client="wasm" data-wt-port="4433" ' \
   "TLS and CLIENT=wasm: the page names the WASM client and dials its own host"
 check "$(grep -c 'dev-transport\|ts/dist/session.js' "$T/index.html")" "0" "TLS: the page neither preloads a transport file nor TS's client"
 check "$(grep -c 'transport_wasm_bg.wasm" as="fetch"' "$T/index.html")" "1" "CLIENT=wasm: the HTML preloads the WASM client"
 check "$(csp)" 'https://$host:4433' "TLS: the policy connects to the page's own host"
+
+# No study is a default: each start that names no series refuses with SERIES' name, before anything runs.
+refusal() { if out="$(env -u SERIES PATH="$T/bin:$PATH" sh "$1" 2>&1)"; then echo "started: $out"; else echo "${out#*: SERIES: }"; fi; }
+check "$(refusal "$T/start.sh")" "name the series served: deploy/README.md" "no SERIES: the server's start refuses, naming it"
+check "$(refusal "$T/web.sh")" "name the series served: deploy/README.md" "no SERIES: web's start refuses, naming it"
+required="$(grep -oE '\$\{(SERIES|STUDIES)[^}]*\}' "$ROOT/deploy/compose.yml" | sed -E 's/^\$\{([A-Z]+)(:\?)?.*/\1\2/' | sort -u | tr '\n' ' ')"
+check "$required" "SERIES:? STUDIES:? " "compose requires SERIES and STUDIES wherever it names them"
+check "$(grep -hE '^COPY .* /studies/?$' "$ROOT/deploy/Containerfile" "$ROOT/deploy/Containerfile.prebuilt")" "" \
+  "neither image carries a study: /studies is always a mount"
 
 # REGISTRY's default and the `server` stage from its FROM down, comments dropped, each COPY's source cut to its last element.
 server_stage() {

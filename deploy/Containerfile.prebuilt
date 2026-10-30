@@ -9,7 +9,6 @@ COPY series-server /usr/local/bin/series-server
 COPY THIRD_PARTY_NOTICES /usr/local/bin/THIRD_PARTY_NOTICES
 COPY COPYRIGHT-library.html /usr/local/bin/COPYRIGHT-library.html
 COPY server-start.sh /usr/local/bin/server-start.sh
-COPY us_cine_smoke /studies
 USER 10001
 EXPOSE 4433/udp 4433/tcp
 ENTRYPOINT ["/usr/local/bin/server-start.sh"]

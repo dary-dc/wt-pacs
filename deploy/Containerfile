@@ -54,7 +54,6 @@ COPY --from=build /usr/local/bin/series-server /usr/local/bin/series-server
 COPY deploy/THIRD_PARTY_NOTICES /usr/local/bin/THIRD_PARTY_NOTICES
 COPY --from=build /usr/local/bin/COPYRIGHT-library.html /usr/local/bin/COPYRIGHT-library.html
 COPY deploy/server-start.sh /usr/local/bin/server-start.sh
-COPY fixtures/us_cine_smoke /studies
 USER 10001
 EXPOSE 4433/udp 4433/tcp
 ENTRYPOINT ["/usr/local/bin/server-start.sh"]
@@ -93,7 +92,6 @@ COPY --from=bundles /web/client /srv/wt-pacs/client
 COPY --from=bundles /src/client/transport/ts/dist /srv/wt-pacs/client/transport/ts/dist
 COPY --from=wasm /src/client/transport/wasm/pkg/transport_wasm.js /src/client/transport/wasm/pkg/transport_wasm_bg.wasm \
      /srv/wt-pacs/client/transport/wasm/pkg/
-COPY fixtures/us_cine_smoke /studies
 # The decoders and the frame check's hasher the page loads are built on the host from this tree
 # (client/decode/wasm/build/build.sh) and must be the ones its manifest pins. The page is rendered at start, from a copy.
 RUN cd /srv/wt-pacs/client/decode/wasm/built && sha256sum -c -s ../build/manifest.sha256 && \

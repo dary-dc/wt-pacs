@@ -27,7 +27,7 @@ PAGE = Path(__file__).resolve().parents[1] / "client" / "viewer" / "page.sh"
 
 
 class Handler(SimpleHTTPRequestHandler):
-    series_name: str = "us_cine_smoke"
+    series_name: str | None = None
     metadata: Path | None = None
     transport: Path | None = None
     client = "ts"
@@ -41,7 +41,7 @@ class Handler(SimpleHTTPRequestHandler):
         path = unquote(path.split("?", 1)[0])
         if path == "/":
             return super().translate_path("/client/viewer/index.html")
-        if path.startswith("/series/metadata"):
+        if path.startswith("/series/metadata") and (self.metadata or self.series_name):
             return str(self.metadata or ROOT / "fixtures" / self.series_name / "metadata.json")
         if path.startswith("/wt/dev-transport.json"):
             return str(self.transport or ROOT / "client" / "dev-transport.json")
@@ -98,7 +98,7 @@ class Handler(SimpleHTTPRequestHandler):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8765, help="0 picks a free one")
-    parser.add_argument("--series", default="us_cine_smoke")
+    parser.add_argument("--series", help="serve fixtures/SERIES/metadata.json as /series/metadata; with neither this nor --metadata, nothing is")
     parser.add_argument("--metadata", type=Path, help="serve this file as /series/metadata, in place of the series'")
     parser.add_argument("--transport", type=Path, help="serve this file as /wt/dev-transport.json")
     parser.add_argument("--client", choices=["ts", "wasm"], default="ts", help="the client the page loads")
@@ -116,7 +116,7 @@ def main():
     Handler.log_requests = args.log_requests
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     port = server.server_address[1]
-    print(f"port={port} http://127.0.0.1:{port}/ series={args.series}", flush=True)
+    print(f"port={port} http://127.0.0.1:{port}/ series={args.series or args.metadata}", flush=True)
     server.serve_forever()
 
 
