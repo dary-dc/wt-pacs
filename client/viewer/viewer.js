@@ -16,10 +16,8 @@ const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport]
 // Where the frames are held and painted: on the page, or in the view worker. docs/adr/frame-path.md §3, *Built*
 const where = q.get("view") ?? "page";
 if (!lab.refused && !["page", "worker"].includes(where)) lab.refused = `refused: view ${JSON.stringify(where)} — page or worker`;
-// Who writes the OPFS cache under `worker`, a lab lever; none by default, as main: docs/adr/frame-path.md §The core, assembled
+// Who writes the OPFS cache under `worker`, a lab lever refused where it cannot hold; none by default, as main: lab/viewer/levers.js
 const writer = lab.writer;
-if (!lab.refused && writer !== undefined && !["store", "decoders", "view"].includes(writer)) lab.refused = `refused: writer ${JSON.stringify(writer)} — store, decoders or view`;
-if (!lab.refused && writer === "decoders" && lab.opts?.pixels === "transfer") lab.refused = "refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred";
 if (lab.refused) {
   statusEl.textContent = `error: ${lab.refused}`;
   report({ error: lab.refused });
@@ -164,9 +162,10 @@ const traced = lab.trace && (async () => {
 })();
 
 const cineEl = document.getElementById("cine");
+const cineFps = 1000 / (meta.frameTimeMs ?? (meta.cineRate ? 1000 / meta.cineRate : 100));
 function toggleCine() {
   if (view.playing) view.pause();
-  else view.play(1000 / (meta.frameTimeMs ?? (meta.cineRate ? 1000 / meta.cineRate : 100)));
+  else view.play(cineFps);
   cineEl.textContent = view.playing ? "❚❚ cine" : "▶ cine";
 }
 cineEl.onclick = toggleCine;
@@ -242,6 +241,7 @@ if (q.get("check") || lab.finished) {
       }
     }, 20);
   });
+  await lab.filled?.();
   await view.repaint();
   const check = worker ? (phase, args) => worker.check(phase, args)
     : async (phase, args) => (await import("/client/view/check.js"))[phase]({ controller, ...args });
@@ -254,7 +254,8 @@ if (q.get("check") || lab.finished) {
       show(i);
       await until(() => shown?.i === i || errors.length);
     }
+    const cine = await lab.cine?.({ worker, controller, fps: cineFps });
     const { frames, firstShownMs, fillMs, stats } = await (worker ?? controller).ledger({ flip: q.get("mutate") === "sample" });
-    lab.finished({ issuedAt, firstShownMs, fillMs, frames, errors, stats, stepped });
+    lab.finished({ issuedAt, firstShownMs, fillMs, frames, errors, stats, stepped, cine });
   }
 }

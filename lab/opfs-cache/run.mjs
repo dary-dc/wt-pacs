@@ -17,6 +17,8 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const CELL = arg("--cell");
 const OUT = path.resolve(arg("--out", path.join(WORK, `${CELL}.jsonl`)));
 const ROUNDS = Number(arg("--rounds", 7));
+/** The round a cell resumes at, its interleaved order unchanged: rows already written for earlier rounds stand. */
+const FIRST_ROUND = Number(arg("--first-round", 0));
 const MUTANT = arg("--mutant", "");
 const ENGINE = arg("--engine", "chromium");
 // MiB the store may hold in Firefox: its per-site limit is a fifth of this pref, in KiB (ActorsParent.cpp 1413–1416). M5's series is 2.03 GiB.
@@ -168,8 +170,12 @@ const statusOf = (text) => ({
 async function fill(b, s, wt, { deadlineS = 1800, until, url = viewerUrl(s, wt) } = {}) {
   const t0 = Date.now();
   const cached0 = cached();
-  await b.page.goto(url);
   let st = statusOf(""), peak = 0, lastSample = 0, cachedPeak = 0;
+  try {
+    await b.page.goto(url);
+  } catch (e) {
+    return { ...st, peakPssMiB: treePss(b.pid), stoppedBy: `rig: ${e.message}` };
+  }
   while (Date.now() - t0 < deadlineS * 1000) {
     await sleep(100);
     if (Date.now() - lastSample >= 1000) { peak = Math.max(peak, treePss(b.pid)); cachedPeak = Math.max(cachedPeak, cached() - cached0); lastSample = Date.now(); }
@@ -427,22 +433,31 @@ async function m5(busy) {
   const server = await serve(s);
   const names = MUTANT ? [arg("--arm")] : busy ? ["ring", "ring2", "transfer", "transfer-k"] : Object.keys(M5_ARMS);
   const arms = Object.fromEntries(names.map((k) => [k, busy ? { ...M5_ARMS[k], query: { ...M5_ARMS[k].query, holdMs: BUSY_MS } } : M5_ARMS[k]]));
-  settings({ series: s, decodedMiB: (s.n * s.frameBytes) / 2 ** 20, window: "256 MiB", link: "loopback, no relay", K, arms });
-  for (let round = 0; round < ROUNDS; round++) {
+  settings({ series: { ...s, sbnd: path.relative(ROOT, s.sbnd) }, decodedMiB: (s.n * s.frameBytes) / 2 ** 20, window: "256 MiB", link: "loopback, no relay", K, arms, firstRound: FIRST_ROUND });
+  for (let round = FIRST_ROUND; round < ROUNDS; round++) {
     for (const arm of order(names, round)) {
       const a = arms[arm];
       const dir = profile(`m5-${arm}`);
       // A mutant of a file the arm already stands in for takes its place.
       const own = (a.standIns ?? []).filter((x) => !MUTANT || STAND_INS[x].file !== STAND_INS[MUTANT].file);
-      const b = await browser(dir, [...own, ...(MUTANT ? [MUTANT] : [])]);
+      // A browser that does not start has measured nothing: started once more, then recorded as such.
+      const launch = () => browser(dir, [...own, ...(MUTANT ? [MUTANT] : [])]).catch((e) => (putBack(), { failed: e.message }));
+      let b = await launch();
+      if (b.failed) b = await launch();
+      if (b.failed) {
+        drop(dir);
+        write({ cell: busy ? "m5-busy" : "m5", engine: ENGINE, round, arm, mutant: MUTANT || null, stoppedBy: `rig: the browser did not start twice: ${b.failed}`,
+          fillMs: null, received: 0, exact: 0, inexact: 0, growthMiB: 0, view: null, second: null });
+        continue;
+      }
       await sleep(1000);
       const baseline = treePss(b.pid);
       const before = cpuBusy();
       const f = await fill(b, s, server.url, { deadlineS: 120, ...(!a.today && { url: armsUrl(s, server.url, a) }) });
       const cpu = busyShare(before, cpuBusy());
       const settled = (p) => Promise.race([b.page.evaluate(p), sleep(10000).then(() => ({ error: "no answer in 10 s" }))]);
-      const view = a.today ? null : await settled(() => globalThis.armsResult);
-      const second = a.today || f.exact !== s.n ? null : await settled(() => globalThis.verify());
+      const view = a.today ? null : await settled(() => globalThis.armsResult).catch((e) => ({ error: e.message }));
+      const second = a.today || f.exact !== s.n ? null : await settled(() => globalThis.verify()).catch((e) => ({ error: e.message }));
       await b.context.close();
       putBack();
       drop(dir);

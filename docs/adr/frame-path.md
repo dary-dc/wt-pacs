@@ -3,7 +3,8 @@
 **Status:** proposed 2026-10-11 (queue row 148, FRAMEPATH, of [`../av1/queue.md`](../av1/queue.md)); the cache's design
 reviewed 2026-10-20 and **built 2026-10-27, not timed** (§Proposed: the client cache in OPFS); the owner's target
 shape, a B′ without the store worker, **built 2026-10-28 as a variant beside today's path and not timed** (§3, *Built*);
-both assembled on one branch 2026-10-30 (§The core, assembled). The decisions are the owner's; they are listed in §8 and under the queue's
+both assembled on one branch 2026-10-30 (§The core, assembled); **§7 run on the core 2026-10-30: `?view=page` (A)
+stays the default by its rule** (§7, *Measured*). The decisions are the owner's; they are listed in §8 and under the queue's
 `## Blocked`. Sources are pinned in §9; every figure not marked *measured* is a prediction or a reading of source.
 
 ## 1 · Today, and the question
@@ -49,13 +50,17 @@ change the design.**
 * **Presenting needs no page thread** in any engine, by source: Chromium submits the worker's frames to viz over the
   worker's own `CompositorFrameSink`; Gecko pushes them into an asynchronous `ImageContainer`; WebKit copies them to
   the layer from the worker and tells the main thread only to update the element. The spec encourages exactly this
-  when the window's event loop is busy (HTML, OffscreenCanvas). **Not run:** that frames appear while the page is
-  blocked is what the code shows, and the protocol in §7 checks it.
+  when the window's event loop is busy (HTML, OffscreenCanvas). ~~**Not run:** that frames appear while the page is
+  blocked is what the code shows, and the protocol in §7 checks it.~~ *Measured 2026-10-30 (§7): in Chromium they do;
+  in Firefox 155 the view worker's WebGL2 draw waits for the busy page (draw p99 ≈ the 200 ms task), so its cine is as
+  late as the page's. The Gecko reading above is of presentation; what holds the draw is not traced.*
 
 **Prediction.** On a quiet page, B moves the first exact frame on screen **by under 1 ms** (the two page hops), which
 no 60 Hz display shows. Under a page held by long tasks, B gains up to the task's length per waited frame and keeps
 cine running; A does not. The difference is real only where long tasks are; whether the viewer has them on a phone is
-not measured.
+not measured. *Measured 2026-10-30 (§7), corrected in place: on a quiet page B′'s first exact frame came later, not
+under 1 ms sooner — by 12–276 ms, median of rounds, in 15 of 16 cells; under long tasks the gain and the running cine
+held in Chromium and not in Firefox. The rule kept A.*
 
 ## 3 · Who owns the frame store
 
@@ -590,7 +595,7 @@ a mammogram on the decoder's clock, which is the fill's when decode-bound; writi
 front of the next paint (B's flaw). B′ costs one more thread; on a host whose cores the decoders already saturate (3 on
 4, [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Resources), the writes compete for the fourth core with the page. Measured by §7's protocol, not assumed.
 
-## 7 · Protocol (proposed, not queued)
+## 7 · Protocol (proposed 2026-10-11; run 2026-10-30 on the core, amended before data)
 
 Arms differ in the lever alone: **A** (today's path, plus the store worker) and **B′**, same decoders, painter code,
 store worker and transport, each arm's settings printed. Chromium and Firefox; the viewer's three series and a
@@ -608,6 +613,102 @@ frame checked against the encoder input's `.sha256`.
 in ≥ 9 of 12 rounds in both browsers and keeps cine on time where A misses, while (1)'s fill is within ×0.98–1.02 and
 its first frame no later by 16.7 ms or more. Otherwise keep A with the store worker. Store decoded samples if, in (4),
 reopen is faster than a decode of the same frame on every set; otherwise the owner reopens the coded-bytes question.
+
+**Amended before any data (2026-10-30), for the run on the core.** The text above is kept; each change is forced by
+the rig or by what the core is, and says why.
+
+* **The arms are the core's `?view=page` (A) and `?view=worker` (B′)**, with `pageaa`, A again, as the A/A pair. The
+  store worker is in neither: the core's cache is off by default (`?writer=` unset, §The core, assembled), so A is
+  today's path without it. **Cell 4 is out of this run:** with no cache on by default there is nothing to time, and
+  who writes it is the OPFS-arms run's to decide (§The cache I/O in the view worker).
+* **Series:** row INGEST's three, through the product's ingest as HTJ2K (`lab/viewer/view_frames.py`) — `ct_nlst` (76 ×
+  512², signed), `us_liver` (70, RGB), `dbt12_ea1141` (29 × 614×1359) — and `ffdm_a`'s first view (one 2560×3328
+  frame). One frame has no asks and no cine, so the mammogram is in cells 1, 3 and (2)'s first frame alone.
+* **Link:** §7 named none; `r50000` (50 Mbit/s, 40 ms round trip, total-time's), behind the relay. Rig core 3,
+  browser cores 0–2.
+* **(2) is three visits a round:** the fill on the busy page (its first exact frame from navigation), then 10 s of
+  cine; and, on demand, frame 0 then ten asks (frames 1–10) one at a time. **Arrival → screen is the decoder's
+  hand-off to the frame's first draw** (`decodeEnd` to the paint's own end, both on the epoch clock): an ask's issue
+  and its round trip are the page's in both arms, so only this span differs between them. A paint's end is the
+  draw's, stamped in the thread that drew it, so a reply waiting on the busy page is not counted against A.
+* **Cine runs on the thread that holds the frames, on the same kind of clock:** A on a page timer to a schedule, B′ on
+  the view worker's (`client/view/clock.js`, `timeout`), each showing the frame due at its tick (§A frame clock,
+  *amended*), frame 0 due mid display interval, at the series' rate as the viewer's cine (10/s where the metadata has
+  none). Worker rAF is that section's question, not this one. **Late** is that section's score from the draw log
+  against a second worker's vsync log (`lab/frame-clock/measure.js`); claims are from draws, not presentation.
+* **(3) is the page's content process's main thread CPU time** over the quiet fill (`/proc`, the process that moved
+  most), ÷ frames: Firefox has no trace this rig reads, so both engines are read alike. Its resolution is 10 ms a
+  visit.
+* **Guards.** A visit is dropped if the relay's timing is VOID, it errs, or on a busy page its shortest long task is
+  under 200 ms; dropped visits are re-run as whole extra rounds, and a cell counts the first 12 rounds in which all three
+arms were kept (*added after round 0, before any cell had 12 rounds: three relay-VOID asks visits made top-ups
+certain, and extra rounds would otherwise loosen "9 of 12"*); a cell with fewer decides nothing. A cell is
+  **VOID** when `pageaa` and `page` differ, median over paired rounds, by more than: the fill ×0.98–1.02 or the first
+  frame by 16.7 ms (quiet); arrival → screen by 8 ms (asks); 2 points of late frames or 16.7 ms of gap p99 (cine).
+  A cine cell is **saturated** when `page`'s draw p99, median over rounds, passes half the period.
+* **The rule, read before any data** (`lab/viewer/view-summary.mjs`): B′ is adopted if every frame is exact, and in
+  every decided cell of both engines at 1× and 4×: quiet, B′'s fill ÷ A's median in ×0.98–1.02 and its first frame
+  less than 16.7 ms later; asks, B′'s median arrival → screen ≥ 16.7 ms below A's in ≥ 9 of 12 rounds; cine, where
+  A's median late exceeds 2 points, B′'s is at most 2 with a median gap p99 ≤ 2 periods; and each engine has an asks
+  cell decided. Otherwise A stays. The mean arrival → screen is printed beside the median: §2 predicts A's *mean*
+  (half the task, for the asks that land in one), which the median of ten asks need not move.
+
+**Measured 2026-10-30, on the core** (`claude/core-s7`; rows in [`../../lab/viewer/rows/`](../../lab/viewer/rows/),
+read by `node lab/viewer/view-summary.mjs lab/viewer/rows/view-{quiet,cine,busy,asks}.jsonl`). Headless Chromium 153
+(SwiftShader) and Playwright's Firefox 155 headed under Xvfb (llvmpipe), 4 cores, no GPU, no display; rounds 0–11,
+then whole extra rounds of a kind (to 26 for the asks) until every cell had 12 rounds with all three arms kept. 2 880
+visits, 302 dropped (the relay's timing guard: a quarter of the short asks visits, 5 % of the rest; no long task
+under 200 ms, no error). **92 124 of 92 124 frames exact**; `--mutate sample` turned every frame of every arm in both
+engines inexact. Medians over the 12 rounds; *Δ* is B′ − A paired by round.
+
+| cell | Chromium 1× | Chromium 4× | Firefox 1× | Firefox 4× |
+| --- | --- | --- | --- | --- |
+| (1) quiet, first exact frame Δ, ms: CT / US / tomo / mammo | +16 / −1 / +12 / **+84** | **+38** / **+22** / *+90* / *+80* | *+61* / **+32** / *+77* / *+106* | *+83* / *+94* / **+175** / *+276* |
+| (1) quiet, fill B′ ÷ A: CT / US / tomo / mammo | 1.008 / 1.006 / 1.009 / **1.086** | 1.014 / 1.011 / *1.026* / *1.072* | *1.015* / 1.013 / *1.019* / *1.134* | *1.022* / *1.029* / **1.058** / *1.228* |
+| (2) asks, arrival → screen median A / B′, ms: CT / US / tomo | 11.6/10.9 · 16.5/15.6 · 89/17 | 21.8/17.7 · *83/33* · *82/34* | 12.7/11.4 · 15.8/13.3 · 82/71 | 24.4/23.2 · 98/63 · 74/74 |
+| (2) asks, mean A / B′, ms: CT / US / tomo | 63/12 · 59/16 · 107/18 | 75/19 · *110/32* · *89/34* | 59/58 · 63/53 · 106/101 | 68/63 · 114/103 · 87/84 |
+| (2) asks, rounds B′ ≥ 16.7 ms sooner of 12: CT / US / tomo | 0 / 0 / 7 | 0 / *9* / *12* | 0 / 0 / 6 | 0 / 7 / 4 |
+| (2) cine late A / B′, %: CT / US / tomo | 20 / 0 · 20 / 0 · 20 / 0 | 20 / 0 · *24 / 0*ˢ · *24 / 0*ˢ | *20 / 26* · 23 / 20ˢ · *22 / 27*ˢ | *33 / 40*ˢ · 30 / 34ˢ · *35 / 40*ˢ |
+| (2) cine gap p99 A / B′, ms (period 100) | 283 / 117 · 317 / 133 · 275 / 117 | 283 / 117 · *383 / 150* · *392 / 150* | *288 / 297* · 339 / 323 · *322 / 323* | *356 / 356* · 407 / 424 · *373 / 390* |
+| (2) busy, first exact frame Δ (A/A), ms: CT / US / tomo / mammo | +53 (7) / −8 (−8) / +7 (5) / +85 (15) | +61 (−44) / −169 (−1) / −80 (−2) / +19 (12) | −11 (−13) / −41 (45) / −54 (15) / −10 (−54) | 0 (−7) / +222 (101) / +262 (236) / +86 (−2) |
+| (3) page thread CPU, ms a frame, A / B′: CT / US / tomo | 1.45/1.05 · 1.57/1.36 · 2.76/3.10 | 1.64/1.05 · 1.57/1.00 · 2.41/2.24 | 1.97/1.18 · 2.14/1.14 · 3.10/2.76 | 2.11/1.18 · 2.29/1.29 · 3.45/2.76 |
+
+*Italic*: the cell is VOID (its A/A pair apart by more than the bar); ˢ: saturated by the guard (A's draw p99 over half
+the period); **bold**: a decided cell that fails the rule. (2)'s busy first frame is from the cine visits and decides
+nothing, its A/A pair as wide as its Δ (whether a task stands in the way is a coin toss); the mammogram's is from its
+own busy visit. (3)'s mammogram is one frame at 10 ms resolution, 40–70 ms
+both arms, and is left out.
+
+**The rule's verdict: A stays** — `?view=page` remains the core's default. It fails on two counts, each alone enough:
+
+* **(1), the quiet page:** B′'s first exact frame is later by ≥ 16.7 ms in five decided cells (Chromium CT and US at
+  4×, the mammogram at 1×; Firefox US at 1×, tomosynthesis at 4×, there with the fill ×1.058). It is later in 15 of
+  16 cells, VOID or not. Why is not measured; the view worker's start (its module graph, its WebGL context, its
+  consumer) lies on B′'s path to the first frame and not on A's.
+* **(2), the asks:** no decided cell has B′'s median arrival → screen 16.7 ms sooner in 9 of 12 rounds. On the CT and
+  US series most asks land outside a long task, so A's median is the quiet path (11–25 ms) in both engines.
+
+**What §2 predicted, against this.**
+
+* *Chromium, the prediction holds.* A's *mean* arrival → screen is 59–110 ms against B′'s 12–34 ms (§2: half the task
+  for the asks that land in one); B′'s cine stays on time through the long tasks (0 % late, gap p99 117–150 ms) where
+  A's misses 20–24 % (gap p99 ≈ 283 ms, the task plus an interval). The worker's frames reach the screen while the
+  page is blocked, as §2's last bullet read from source.
+* *Firefox, it does not.* B′'s cine is as late as A's or later (20–40 %), and the view worker's draw p99 is
+  **≈ 200 ms at 1× and 220 ms at 4×, the long task's length**, against Chromium's 23 and 44 ms: in Firefox 155 a
+  worker's WebGL2 draw, ending in the one-pixel `readPixels` the lab's paint waits on, waits for the busy page. A's
+  paint worker shows the same in some rounds (draw p99 57–300 ms). Whether presentation without that read also waits
+  is not measured, and nor is the Gecko path that makes it wait. The saturation guard marks these cells, but it is
+  reading the engine, not the host: the draw p99 is the task's length at 1× as at 4×.
+* *The page thread* (3): B′ takes 1.0–1.4 ms a frame of the page's main thread against A's 1.45–2.3 on CT and US, the
+  rest of the page's own work (its status line, the downloader's port, the lab's polls) staying. Neither is a reason
+  to change the design by itself (§2's first paragraph).
+
+**Where the host saturates:** the 4× Chromium cine cells on US and tomosynthesis, and every Firefox cine cell by the
+guard (above). Nothing is claimed from them. Everything is from software rasterisers and the containers' synthetic
+vsyncs, as §A frame clock's *What a container can and cannot claim* says; a GPU, a display and a phone are not
+measured. **Cell 4 (OPFS)** was not run: the core's cache is off by default, and who writes it is the OPFS-arms run's
+question (§The cache I/O in the view worker).
 
 ### A frame clock in the view worker (2026-10-28)
 
@@ -728,6 +829,13 @@ SwiftShader with headless Chromium's own BeginFrame source, Firefox on llvmpipe 
 * **every presented-on-time claim needs a real display** for its vsync: Xvfb's and headless Chromium's are timers, and
   neither shows a dropped frame. A container's cells can rank the arms against each other only where they do not
   saturate, and say so; the 4× cells there slow the software rasteriser with the CPU, which a GPU would not be.
+
+**Smoke (2026-10-30), not data.** One round per arm and cell, 10 s each, to prove the harness end to end: Chromium 153
+on all 16 cells, Firefox 155 (Xvfb) on the eight 512² cells and one 2560×3328 cell; every run painted with no failure,
+and the 4× lever held on the page thread and a worker alike. **By the protocol's own guard this container saturates
+in every cell but 512² at 30/s on a quiet page at 1×**, in both engines, and in Chromium also on a busy page at 1×. Every 60/s cell, every 4× cell and every
+2560×3328 cell is past the host's limit here: nothing is claimed in them, and no other figure from the smoke is a
+result.
 
 **Rule, stated before any data.** Per engine: **the clock moves into the worker** with `worker-raf` if, in every
 non-VOID busy-page cell of the 512² series at 1× and 4×, it has ≥ 20 points fewer frames late than `page-raf` in ≥ 11
@@ -1192,7 +1300,8 @@ ring.
 
 ### Who owns a frame's memory (2026-10-28)
 
-**Status:** theory and a reading of the engines' sources; nothing built, nothing run. The shape it assumes is the
+**Status:** theory and a reading of the engines' sources; nothing built, nothing run. *Corrected 2026-10-30:* M5 has
+run, on Chromium and Firefox; its results are below (*M5, run 2026-10-30*), and Firefox again with the rig's driver fixed (*Firefox, run again*). The shape it assumes is the
 owner's of 2026-10-28, written nowhere else yet: one dedicated **view worker** holds the frame store (the memory window,
 OPFS behind it), the controller and the paint; the decoders, nested in the downloader worker, post each checked frame
 straight to it. The question: who owns a decoded frame's memory, so that the window bounds peak memory during a fill on
@@ -1434,6 +1543,7 @@ put back after each browser, in both engines, M2's included. M5's series (2.03 G
 the rig set for M3, where Gecko's write comes back short without throwing (above), so M5's cells set 4 096 MiB and the
 decoder counts a short write as not stored. Firefox now runs any cell (the pre-registration's "rig change, made in the
 later row"). Not run: M5 itself, WebKit, and the 13 GiB follow-up, which keeps its condition on `ring` being chosen.
+*Corrected 2026-10-30:* M5 has run (below); WebKit and the 13 GiB follow-up have not.
 
 | claim, 2026-10-29 | source |
 | --- | --- |
@@ -1444,6 +1554,270 @@ later row"). Not run: M5 itself, WebKit, and the 13 GiB follow-up, which keeps i
 | JSC: a transferred buffer's contents detached from the sender; a wrapper's estimate is its contents | `Source/JavaScriptCore/runtime/ArrayBuffer.cpp` 498–522; `runtime/JSArrayBuffer.cpp` 81–86; `runtime/ArrayBuffer.h` 379–383 (added in review) |
 | JSC: the heap's growth factors (added in review) | `Source/JavaScriptCore/runtime/OptionsList.h` 219–226 |
 | HTML: a port's message queue, with no bound given | `source` 134810–134816 |
+
+**M5, run 2026-10-30.** The rows are [`lab/opfs-cache/rows/m5/`](../../lab/opfs-cache/rows/m5/), with the smoke
+rows beside them in `m5-smoke/`; `python3 lab/opfs-cache/summary.py lab/opfs-cache/rows/m5` prints every number
+below. The host is the 4-vCPU, 16 GiB container. The browsers are Chrome for Testing 153.0.8010.12 headless, and
+Firefox 159.0 on Xvfb. The decoders are the pinned builds of `claude/decoders-committed`, each file checked against
+`manifest.sha256`. Each cell ran 7 rounds in `lab/order.mjs`'s order. WebKit did not run.
+
+**The verdict, by the rule as written:**
+
+* **Chromium: `ring`.** It is the only arm that qualifies. The cell is not VOID: the A/A differs by a median 4 MiB,
+  and `ring′` fills in 1.05 × `ring`'s time.
+* **Firefox: VOID.** The A/A differs by a median 92 MiB, over the 64 MiB limit, because three of its seven pairs hold
+  a run that never received a frame (*Firefox's fills that never start*, below). A VOID cell decides nothing on Firefox.
+* **M5 as a whole cannot be applied.** The rule wants the simplest arm that qualifies on both engines, and Firefox
+  gives no verdict. Lever 2 returns to the owner with Chromium's verdict and the numbers below.
+  *Corrected 2026-10-30:* Firefox, run again with the driver fixed, is not VOID and qualifies no arm (`ring` misses
+  only the fill bar), so the rule now applies on both engines and says the same: lever 2 returns to the owner
+  (*Firefox, run again*, below).
+
+| arm | Chromium growth, median [range] | fill / `today` | in hand, ask / step (ms) | Chromium | Firefox growth, median [range] | fill / `today` | in hand, ask / step (ms) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| bar | `disk` + 320 = **684 MiB** | ≤ 1.10 | `ring`'s + 16.7 | | `disk` + 320 = **881 MiB** | ≤ 1.10 | `ring`'s + 16.7 |
+| `ring` | 580 [572–581] | 1.01 | 0.03 / 0.03 | **qualifies** | 810 [158–877] | 1.41 | 0.02 / 0.03 |
+| `ring′` | 576 [562–580] | 0.98 | 0.03 / 0.03 | A/A | 815 [166–851] | 1.37 | 0.02 / 0.02 |
+| `transfer` | 957 [828–1 021] | 1.02 | 0.02 / 0.01 | misses the memory bar | 1 037 [957–1 191] | 1.72 | 0.02 / 0.00 |
+| `transfer-k` | 885 [767–1 007] | 0.99 | 0.02 / 0.01 | misses the memory bar | 1 078 [902–1 176] | 1.75 | 0.02 / 0.00 |
+| `disk` | 364 [357–369] | 0.93 | **19.5** / 10.1 | misses the time bar on asks | 561 [178–608] | 1.39 | **26.1** / 13.4 |
+| `today` | 2 748 [2 687–2 866] | 1 | — | reported | 2 226 [155–2 288] | 1 | — |
+
+Every round of every arm on Chromium filled, and every frame was exact by both checks. On Firefox, `transfer` and
+`transfer-k` have six rounds, not seven (below). Both engines' `transfer` arms qualify on the time bar and
+miss only on memory.
+
+* **`disk` misses only because the time bar holds on each path**, amended before any data, above. Its asks during
+  the fill take a median 19.5 ms (10.2–29.5) against a bar of 16.7. Its steps after the fill take 10.1. Pooled, the
+  six times have a median of 11.1 ms, which would have passed, so the reading is said here. The doc's own words, "an
+  arm's median asked-frame time", give a miss too. The asks run while three decoders hold the CPU; the steps run on a
+  quiet host. M1's 22.3 ms (R / n) and this cell's 19.5 sit 13 % apart.
+* **`ring` waits for a slot 71 times a fill**, every frame past the ring's nine, against "slot waits near zero with
+  OPFS" (predicted, pre-registration). That prediction was wrong for this build: the lab's window is the whole ring, so a
+  slot frees only when the ring runs dry. It costs no fill time (1.01 × `today`).
+* **Firefox does not bound `today`**: 2 226 MiB against the 0.6–1.2 GiB predicted from the sources' collection
+  triggers. The source reading in *What each engine's collector sees* does not hold for this page on Firefox 159;
+  why is not traced.
+* **The other predictions:** `ring` on Chromium, 530–600, holds at 580. `disk` on Chromium holds at 364 inside the
+  pre-registered 300–370, but not the corrected 301–329. `transfer` misses on both engines, the case the rule had
+  left open.
+
+**Firefox's fills that never start.** Five of the 40 runs in Firefox's `m5` stopped at the start and received no frame
+in 120 s, with the CPU idle: `ring` and `disk` in round 1, `ring′` in round 4, `today` and `ring′` in round 5. The
+same happened to one run in `m5-busy`. `today` is the product's own page, which said "decoders: none yet": so the
+fault sits beneath the lab's arms, in the downloader with its nested decoders or in Firefox's WebTransport dial.
+~~Which, is not traced: the page logs nothing before its first frame.~~ Chromium never did this, in its 70 timed runs.
+*Corrected 2026-10-30: traced, and it was the rig's driver* (*Firefox's start fault, found*, below).
+
+Firefox also twice failed to start a WebDriver BiDi session in 60 s, which killed the cell. *Rig changes during the
+run, which change no measurement:* each BiDi call fails in 60 s instead of hanging, a browser that does not start
+is started once more, and `--first-round` resumes a cell in its order. Firefox's `m5` resumed at round 3, after the
+first hang held for 52 min, and at round 6. `m5-busy` resumed at round 5. Rounds 5 of `m5` and 4 of `m5-busy` kept
+the arms run before the cell died, so `transfer` and `transfer-k` have six Firefox rounds, not seven.
+
+**Firefox, with the runs that never received a frame set aside.** This is descriptive, not the rule:
+`summary.py --set-aside-start-hangs`. The A/A becomes 39 MiB and 1.02, not VOID. The bar becomes 882 MiB, from
+`disk`'s 562. Still no arm qualifies on Firefox:
+
+* Every arm misses the fill-time bar, at 1.37–1.75 × `today`.
+* `ring` meets the memory bar (822 [798–877] against 882) and the time bar.
+* `disk` also misses the time bar on asks (26.1 ms).
+
+Read that way, the rule says *none: lever 2 returns to the owner*.
+
+The fill bar compares different ends. `today`'s fill ends at its last frame delivered, ahead of its store's writes,
+while each arm writes a frame before posting it. When `today`'s fill ended, 68–75 of 80 frames were on disk on
+Chromium and 50–54 on Firefox. Firefox's page cache had grown 1 394 MiB for `today` against ~2 000 for the arms.
+The rig's wall time to `today`'s last write on Firefox, page load included, was 9.5–10.9 s, about the arms'
+fills (8.0–9.9 s). On Chromium the writes keep
+up and the bar compares like with like; on Firefox they do not. The bar is pre-registered, so it is reported as run;
+how much of Firefox's miss is that gap is not measured.
+
+**`m5-busy`**, the view held 200 ms a frame:
+
+| arm | Chromium growth | most waiting | Firefox growth | most waiting |
+| --- | --- | --- | --- | --- |
+| `ring`, `ring′` (A/A) | 571, 577: 4 MiB apart, fill 1.00 | 5–6 | 778, 808: 30 MiB apart, fill 0.99 | 5–6 |
+| `transfer` | 1 722 | 40 | 1 835 | 46.5 |
+| `transfer-k` | 854 | 6 = K | 1 030 | 6 = K |
+
+Neither engine's busy cell is VOID. Credits hold the port at K exactly, and halve `transfer`'s growth on Chromium and
+cut it 44 % on Firefox. Still, `transfer-k` misses the memory bar on both engines (854 against 684; 1 030 against
+881). By the rule credits are *not shown needed*: credits are not enough to qualify `transfer`, and neither
+`transfer` arm qualifies anyway. K = 6 stands: at full speed `transfer-k` fills in 0.98 × `transfer`'s time on
+Chromium, inside 0.90–1.10, so `m5-busy` did not run again at 12.
+
+On Firefox, `ring′` in round 4 stopped at 46 of 80 frames, every one exact and stored, with no error and the CPU idle.
+That is either a slot deadlock that only Firefox's timing reaches, or the start fault met mid-stream; which is not
+traced. `ring` never stopped on Chromium, in 28 runs. *Corrected 2026-10-30:* still not traced; the re-run below
+says whether it recurs without the BiDi driver.
+
+**The host.** Nothing stopped on the 1 536 MiB floor of available memory. The CPU is 0.66–0.80 busy through the main
+cell's fills on both engines, and 0.34–0.45 in `m5-busy`. Three decoders on four vCPUs set the main cell's pace, so
+its fill times say nothing of a faster decode; the busy cell is paced by the view's hold.
+
+**The harness, checked live.** The review's mutants ran on stub decoders; here each ran once on the live rig (rows in
+`m5-smoke/`), and every one was caught:
+
+* `slots-never-freed` stalled at 9 frames on both engines, as predicted.
+* `fresh-when-dry` took 28 frames outside the ring on Chromium and 29 on Firefox. Firefox's first run of it never
+  started (the fault above) and was run again.
+* `disk-keeps-frames` held 293 MiB on both engines.
+* `credits-ignored`, in `m5-busy` on Chromium, had 34 frames waiting against K = 6.
+
+The fixture `throws-after-slot` held on both engines, with 0 slots lost. Its mutant `throws-slot-kept` was caught on
+Chromium, with 1 slot lost; it was not run on Firefox.
+
+**What this decides.** On Chromium, transferred buffers miss the memory bar at full speed, credits or not, and the
+ring meets every bar: for the view-worker target, the ring on Chromium. On Firefox nothing is decided, by the rule
+or out of it: the cell is VOID, and set aside it qualifies no arm. So the owner decides:
+
+* **Lever 2** (ring or transferred buffers).
+* **K.** Credits bound the port exactly; on `transfer` they do not bring memory under the bar.
+* **The fix for M2 (#204):** `ring` holds Chromium's fill at 580 MiB, against 2 748 for `today`.
+
+Two things would let the rule decide on Firefox: the start fault found and fixed, and the fill bar's two ends made
+the same. Both are changes to the protocol after data, and so a new pre-registration.
+
+**Firefox's start fault, found (2026-10-30).** It was the rig's driver, not the product and not the lab's arms.
+
+* **Where it stops.** Stage marks logged to Firefox's stdout, in four hung starts on the live pages (BiDi-driven, as the
+  M5 rig drove), all show the same thing: the downloader's worker entered its second or third `new Worker(...)` for a
+  decoder and never returned. Its thread so never took the `dial` message the consumer had already posted, and no
+  session reached the server; the decoders already made came up and idled. The marks are in
+  [`rows/m5-start/hung-stages.txt`](../../lab/opfs-cache/rows/m5-start/hung-stages.txt).
+* **Why, from Gecko's source (Firefox 159, a reading, not stepped through):**
+  * A WebDriver BiDi session registers a worker-debugger listener in every content process
+    (`remote/shared/messagehandler/RootMessageHandler.sys.mjs`, its constructor; `WebDriverWorkerListenerChild.sys.mjs`).
+  * With any listener present, a worker that creates a worker blocks in `WaitForIsDebuggerRegistered` until the main
+    thread registers the child (`dom/workers/WorkerDebuggerManager.cpp` 227–250).
+  * The main thread ends that wait with `mCondVar.Notify()`, which wakes one waiter (`dom/workers/WorkerPrivate.h`
+    303–312, 340–353). The child's own thread is already started by then (`WorkerPrivate.cpp` 3278–3298) and waits on
+    the same condition variable for its events (4824–4832). When the one wake-up goes to the child, the parent sleeps
+    forever, with the CPU idle.
+  * The product never meets this outside automation or a debugger: without a listener the parent does not wait.
+    Firefox's DevTools register listeners too, so a developer with them open might. Not tested.
+* **Measured.** On a page whose worker starts 300 workers one after another
+  ([`test/nested-workers.html`](../../lab/opfs-cache/test/nested-workers.html)), 10 rounds interleaved: under BiDi every
+  round hung, after 3–273 starts; under Marionette every round reached 300, in 1.8–3.6 s
+  ([`rows/m5-start/nested-workers.jsonl`](../../lab/opfs-cache/rows/m5-start/nested-workers.jsonl)). The rule, fixed
+  before the rows: Marionette cleared if all its rounds reach 300 and BiDi hangs in ≥ 8 of 10. A first such run was
+  discarded whole: a mutant test put the BiDi driver in place under it for a moment, and one of its Marionette rounds
+  stopped at 83 ([`nested-workers-discarded.jsonl`](../../lab/opfs-cache/rows/m5-start/nested-workers-discarded.jsonl)).
+  On the live pages themselves, 50 starts each, BiDi hung 2 and a browser with no driver at all 0
+  ([`live-pages.jsonl`](../../lab/opfs-cache/rows/m5-start/live-pages.jsonl)); the rule set for those (BiDi ≥ 3)
+  was not met, so they alone decide nothing.
+* **The fix.** The rigs drive Firefox over Marionette, which registers no listener
+  ([`browser.mjs`](../../lab/opfs-cache/browser.mjs)); `lab/opfs-arms` shares the driver.
+  [`browser.test.mjs`](../../lab/opfs-cache/browser.test.mjs) checks its framing and, with `FIREFOX_PATH`, the 300 nested
+  workers; the gate runs it. Both mutants were caught: framing that counts characters, not bytes, and the driver put
+  back on BiDi (stopped at 3 of 300).
+
+**Firefox's fill, ×1.41 of `today`: where the time goes.** One `ring` and one `today` fill per engine, twice, on the
+M5 run's code with per-frame stage marks added and no driver at all (the browser opened on the page's URL, its console
+read). The marks, the patch and the reader are in [`rows/m5-profile/`](../../lab/opfs-cache/rows/m5-profile/). Two
+fills an arm: indicative, not a measurement by the protocol.
+
+| fill | decoders' first decode → last post | decode | samples into place¹ | OPFS write in the decoder | the store's writes |
+| --- | --- | --- | --- | --- | --- |
+| Firefox `ring` | 12.0 s, 9.1 s | 13.7 s, 14.8 s | 2.4 s, 2.6 s | **18.6 s, 8.9 s** (median 186, 38 ms a frame) | — |
+| Firefox `today` | 7.9 s, 9.2 s | 17.3 s, 18.3 s | 5.1 s, 7.9 s | — | 10.8 s, 11.8 s; the last ends 11.9 s, 13.4 s after the first decode |
+| Chromium `ring` | 9.9 s, 8.2 s | 14.4 s, 13.9 s | 4.6 s, 4.7 s | 9.4 s, 5.0 s (median 127, 31 ms) | — |
+| Chromium `today` | 8.3 s, 8.6 s | 17.6 s, 16.8 s | 6.4 s, 7.5 s | — | 8.7 s, 7.7 s; the last ends 10.8 s, 9.7 s after |
+
+Sums are over the three decoders' frames. ¹ `ring`: the slot taken, the copy and the range pass; `today`: the new
+buffer, the copy and the range pass. Hashing is 0.6–0.9 s in every fill; posting nothing.
+
+* **It is the rig, not the ring.** The ring's own work, a slot taken and the samples copied in, is 0.7 s over a whole
+  Firefox fill, less than `today`'s own allocation and copy. What `today`'s decoders never do is the arms' OPFS write
+  before posting, which every arm does (`disk`, with no ring, reads ×1.39 too). On Firefox that write is the slowest
+  and most variable step: 38–186 ms a frame, against 31–127 on Chromium.
+* **And the bar compares different ends.** `today` defers the same writes to its store worker, which on Firefox
+  finishes them 11.9–13.4 s after the first decode: after the ring's last post (9.1–12.0 s). Measured to the last
+  frame on disk, the ring is not slower than `today` in these four fills. That is the gap *M5, run* already named;
+  closing it is a change to the protocol, and so a new pre-registration.
+
+**Firefox, run again 2026-10-30, with the driver fixed.** The same protocol, rule and bars, run from the M5 run's
+own code (its arms, its `today` with #212's store, its server build) with only the driver swapped to Marionette, so
+both engines' rows come from the same build. Rows: [`rows/m5-rerun/`](../../lab/opfs-cache/rows/m5-rerun/), beside
+a copy of Chromium's, so `python3 lab/opfs-cache/summary.py lab/opfs-cache/rows/m5-rerun` applies the rule over both
+engines. The first run's VOID rows in `rows/m5/` stand as run.
+
+* **Not VOID now.** All 42 runs of `m5` and all 28 of `m5-busy` filled, every frame exact by both checks: no start
+  hang, and `ring′`'s stall at 46 frames did not recur (so it was most likely the same fault; not shown). The A/A is
+  22 MiB and 1.01 (`m5`), 24 MiB and 1.00 (`m5-busy`).
+
+| arm | Firefox growth, median [range] | fill / `today` | in hand, ask / step (ms) | Firefox |
+| --- | --- | --- | --- | --- |
+| bar | `disk` + 320 = **862 MiB** | ≤ 1.10 | `ring`'s + 16.7 | |
+| `ring` | 828 [790–850] | **1.30** | 0.04 / 0.04 | memory, checks and time bars met; **misses the fill bar** |
+| `ring′` | 810 [756–841] | 1.33 | 0.02 / 0.02 | A/A |
+| `transfer` | 1 061 [982–1 175] | 1.50 | 0.02 / 0.00 | misses the memory and fill bars |
+| `transfer-k` | 1 078 [957–1 168] | 1.57 | 0.02 / 0.00 | misses the memory and fill bars |
+| `disk` | 542 [528–584] | 1.27 | **29.1** / 16.1 | misses the fill bar and the time bar on asks |
+| `today` | 2 351 [2 202–2 646] | 1 | — | reported |
+
+* **`m5-busy` on Firefox:** `transfer` 1 588 MiB with up to 36 waiting, `transfer-k` 986 MiB with at most 5 (K = 6):
+  credits *not shown needed*, as on Chromium; `ring` 823, `ring′` 790.
+* **The verdict, by the rule as written: none qualifies on Firefox, so none on both engines: lever 2 returns to the
+  owner.** Chromium's verdict stands: `ring`. On Firefox `ring` meets every bar but the fill time, and the fill bar
+  is the one *M5, run* and the profile above show comparing different ends: `today`'s fill ended with 42–52 of 80
+  frames on disk, its page cache up 1 202 MiB against ~2 070 for the arms.
+* **Every Firefox fill was slower than in the first run** (`ring` 9.8 s against 8.4, `today` 7.5 against 5.8,
+  medians); the two runs were not interleaved, so the driver and the host are not told apart, and nothing here rests
+  on the absolute times. The ratio to `today`, which is interleaved, fell from 1.41 to 1.30.
+* **What would let the rule choose:** the fill bar measured to the last frame on disk in every arm, `today` included.
+  That is a change to the protocol after data, and so a new pre-registration; read that way, the four profiled fills
+  put `ring` at or under `today` on Firefox.
+
+**How the ring works**, in plain words, as M5 built it in the lab: [`arms-slots.js`](../../lab/opfs-cache/arms-slots.js)
+(the table), [`arms-decoder.js`](../../lab/opfs-cache/arms-decoder.js) (who takes a slot),
+[`arms-view.js`](../../lab/opfs-cache/arms-view.js) (who frees one).
+
+* **The slots.** At the fill's start the view worker carves one `SharedArrayBuffer` into as many frame-sized slots as
+  the 256 MiB budget holds: 9 for a 3328×4096 frame (234 MiB). Beside it sits a small table, shared too: per slot a
+  state (*free*, *decoding*, *held*) and a take count, and one count of frees. The view and the three decoders all see
+  both. No other memory is ever allocated for samples.
+* **Who takes a slot.** A decoder, once its decode ends: it walks the table and claims the first free slot with one
+  `compareExchange` (*free* → *decoding*), so two decoders cannot claim the same one. It copies the samples in, checks
+  them, writes the frame to OPFS, and posts the view the slot's number, not the samples. The view marks the slot
+  *held*. The view also takes a slot to read a frame back from disk when it wants one it no longer holds.
+* **Who frees one.** Only the view, when it lets a frame go: the one farthest from the frame being looked at. It sets
+  the slot *free*, adds one to the free count and wakes any decoder waiting on it. A decoder that fails after taking a
+  slot frees it itself (the `throws-after-slot` fixture checks this). Each take adds one to the slot's take count, so
+  the view can tell that a slot under a frame it holds was reused since, and read that frame from disk instead.
+* **What bounds memory.** The ring is all there is. The samples can never exceed the 234 MiB carved at the start,
+  however fast the wire or the decoders, and however slow the view. A message carries a slot number, so nothing grows
+  in the ports between threads. That is what M5 measured: 580 MiB on Chromium against 2 748 MiB for `today`, which
+  holds a fresh shared buffer per frame that V8 counts as 0 bytes, so it never collects them in time (M2).
+* **When the slots run dry.** A decoder that finds no free slot tells the view (a `BroadcastChannel` message, "dry"),
+  then sleeps on the free count (`Atomics.wait`, a second at a time). The view lets its farthest frame go, which frees a
+  slot and wakes the decoder. So a slow view slows the decoders, and they stop taking frames off the wire: the ring
+  is its own backpressure. In M5 it ran dry for every frame past the ninth, about 71 times a fill, because the lab's
+  window is the whole ring. That cost no fill time on Chromium (1.01 × `today`). A view that never frees stalls the
+  fill at 9 frames: the `slots-never-freed` mutant.
+* **What credits K add.** Credits belong to the downloader. It hands a decoder a frame only while fewer than K frames
+  are decoded but not yet taken by the view; K = 6 here (3 decoders × 2). With the ring they add nothing: a dry ring
+  already stops the decoders, and no message carries samples. In `m5-busy` (the view held 200 ms a frame) the ring's
+  port never held more than 5–6 frames, with no credits at all. Credits matter only where each message carries a
+  frame's samples, as with `transfer`: there K held the port at exactly 6 and roughly halved the growth, still over
+  the bar.
+* **What building it into the core would change.** The core's frame store (`client/view/store.js`) keeps frames in a
+  `Map` and lets a frame go by dropping it, leaving the memory to the collector. Its decoders allocate a fresh buffer
+  per frame (`client/decode/frame-buffer.js`). With a ring:
+  * The store would own the slots and the table, sized from its budget. Letting a frame go would mean freeing its slot.
+  * The decoders would take their table at `init` and claim a slot instead of allocating.
+  * The store's eviction would also answer a dry ring.
+  * Every holder of a frame's samples, the paint above all, would check the slot's take count, or copy, before using
+    it. A slot is only valid until it is reused.
+  * The decoder's wait on a dry ring would block its thread. The lab accepts that (the decoder has nothing else to
+    do), the Target says no thread blocks, so the product would need an `Atomics.waitAsync` or a message instead.
+  * A series whose frames differ in size, or a second viewport, would need the ring re-carved or a ring each.
+  * Cross-origin isolation stays required: the ring is a `SharedArrayBuffer`. `transfer` would not need it.
+  * Credits K would stay off on this path.
+
+  None of this is built. M5 decides only which frame memory bounds a fill. Building the ring in is a change to the
+  core's frame store and decoders, proposed for review first.
 
 ### Options, and what each costs
 
@@ -2750,6 +3124,28 @@ empty fill of 76, while the relay counted half the packets: a frame on its own s
 than a frame in a run. The wire is the relay's `s2c` count, already in every row; the run reports it, and `fillReads`
 only beside it.
 
+**The gate's "1 workers outlived their closed clients", reproduced, and not this experiment's.** The gate's four browser
+rigs (`client/contract/run_browser.sh`) were repeated as the gate runs them, two pages at a time, in this container. On
+this branch, 1 of 15 runs failed the check unloaded and 3 of 15 with four busy loops on the cores. Each time it was the
+`dispatch` page, and the worker left was a downloader whose client had called `close()`, so terminating it had not ended
+it. A scratch copy of `drive_page.cjs`, not committed, tagged each worker with the clause that made it. It named
+*a decoder that fails its init leaves the pool* on this branch. On the pre-span parent, `ede1cff`, 1 of 20 loaded runs
+leaked, from *a cancel releases the group a decoder held*. The first clause run alone leaked 0 of 100, loaded, on both
+trees. So the leak predates `span`, which the dispatch rig leaves at 0. It is not one clause's either: it needs the
+rig's run before it, or the page beside it. 3 of 15 against 1 of 20 is no measured difference. This is the stranding
+race of [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Closing a client, with the decoders left alone. Not fixed here.
+
+#### Experiment 1: not run (2026-10-30)
+
+*The run's session (`claude/core-exp1`), on the core with the review above merged. No visit was made; there are no rows.*
+
+The run was to go ahead only if the review left a rule that could be met and advised the run. It does neither. On
+the model the rule cannot be met in any cell, S at 1.90–1.96× A against the rule's ≤ 0.6×, and its verdict is *not
+worth running as pre-registered*. So the 12-round protocol was not started. **Verdict: not run; `span` stays 0.** The
+review's recommendation, to remove `span` and `holdEveryOther`, is a removal from the core and the owner's to take. So
+is its one-cell check of the model's sign (`us_liver`, `r20000`, 46 ms, clean, Chromium, A and S half-held, 3 rounds).
+Neither is done here. Until then both settings stay in the core at their defaults, which are today's behaviour.
+
 ### The receive loop beside the paint (2026-10-29)
 
 *Theory and a harness; nothing measured. The question is difference 2 above: does a WebTransport receive loop keep
@@ -2868,17 +3264,20 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 
 **Settings.** Each is printed with the arm it ran in; a default changes only when its rule says so.
 
-| setting | default (today's) | other values | decided by | status 2026-10-30 |
+| setting | default (today's) | other values | decided by | status 2026-10-30, the fold at 15:15 UTC |
 | --- | --- | --- | --- | --- |
-| `?view=` | `page` | `worker` | §7's rule (B′), #229 | built, not run |
-| `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | built and its rig, not run |
-| `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | built, not run |
-| `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | built, not run |
-| frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241 | arms in `lab/opfs-cache` only; run in progress |
-| `?writer=`, who writes the OPFS cache | `none`: no cache, as main | `store`, `decoders`, `view` | OPFS arms, #227/#242; #244 | arms in `lab/opfs-arms`, core built; run in progress |
-| frame clock | the page's timer | worker rAF, timer to a schedule, `MessageChannel`, `Atomics.wait` | #225 | loaded only on a lab's play intent |
-| receive loop, the downloader in the view worker | its own worker | merged | #237 | rig in `lab/recv-loop` only |
-| native `--paint-thread`; `--credits`, `--budget` | `ui` | `view`, `core`; `K` 4, 64 MiB | NATIVERUN, #247 | built, not run |
+| `?view=` | `page` | `worker` | §7's rule (B′), #229 | **run (#263): "A stays — `?view=page` remains the core's default"**; B′'s quiet first frame later by ≥ 16.7 ms in five decided cells, no decided cell with its asks sooner (§7). Against main (#261): "`?view=worker`: not judged; both runs point the other way" (§*The core against main, timed*) |
+| `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | **not run (#266): "Verdict: not run; `span` stays 0"** — the review finds the rule unmeetable on the model (S 1.90–1.96× A against ≤ 0.6×); removing `span` and `holdEveryOther` is the owner's (§Experiment 1: not run) |
+| `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | **running (#265), 2 of 12 rounds pushed; no verdict recorded.** From the rows, not the run's verdict: `wait-ahead-summary.mjs` over rounds 0–1 gives "undecided: no live, decided cell" — every cell under its 10 kept visits an arm |
+| `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | answered by M5: `transfer` misses the memory bar on both engines (Firefox: "misses the memory and fill bars") |
+| frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241; Firefox re-run, #264 | **run on both engines (#264): "none qualifies on Firefox, so none on both engines: lever 2 returns to the owner. Chromium's verdict stands: `ring`."** Credits not shown needed; *How the ring works* written for the owner |
+| `?writer=`, who writes the OPFS cache | `none`: no cache, as main | `store`, `decoders`, `view` | OPFS arms, #227/#242; #244 | **running (`claude/opfs-arms-run`, its Firefox cells); no verdict recorded.** From the rows, not the run's verdict: `summary.mjs` gives Chromium "no arm passes: to the owner as measured (10 of 20 cells counted)" — D fails only rule 3, its clock at 512² 4× (2.12 ms against a 14.6 ms decode); A paint first unbounded at 3328 1×; C late in four cells. Firefox 4 cells so far (2 counted), none passes; the mutant *write-before-paint* not caught on Chromium's A paint first |
+| frame clock | the page's timer | worker rAF, timer to a schedule, `MessageChannel`, `Atomics.wait` | #225 | harness built (#249) and smoked: the guard saturates every cell but 512² at 30/s, quiet, 1×; the run not started (`claude/core-clock` held back for the usage limit) |
+| receive loop, the downloader in the view worker | its own worker | merged | #237 | rig in `lab/recv-loop` only; needs a GPU host |
+| native `--paint-thread`; `--credits`, `--budget` | `ui` | `view`, `core`; `K` 4, 64 MiB | NATIVERUN, #247 | NATIVERUN's window pieces built (#267: cine, busy UI, off-UI steps, hop stamps; mutants fail them) and smoked on lavapipe; the runner not built, not run |
+
+The figures behind each status, and what runs next, are in [`../handoff-2026-10-31.md`](../handoff-2026-10-31.md);
+each run writes its verdict in its own section.
 
 *The cache's default.* The owner decided an OPFS client cache on 2026-10-10 (§1), but main has none, so `none` keeps
 main's behaviour; turning it on is the owner's call, not this branch's. The cache is the frame store's alone: #212's
@@ -2892,3 +3291,143 @@ sessions as they are pushed. `claude/cine-no-skip` (the simple cine's skip fix) 
 built on #210 and the page's viewer before #229, so it carries the viewer product's #210 with it. Each conflict and its resolution is recorded in the PR. **Superseded** once this lands
 (the owner closes them): every PR above. **Out:** the viewer product (#193, #210, #214, #215), the ask-during-fill
 lever (#135), ingest.
+
+### Independent review of the assembled core (2026-10-30)
+
+A read of the merged result, not of its parts (`claude/core-review`, PR #262; the review itself is on #250). Each
+defect has a test that fails on the assembled code, a fix, and the mutants the test kills.
+
+* **The frame store, under a budget.** A frame that arrived and was then evicted still counted as asked, so a want
+  with the same misses was never sent and a step to that frame waited for good. The store now drops a frame from what
+  it has asked once the frame arrives. At equal distance it let go the frame inserted first; it now lets go the
+  earlier frame, which the want ranks last (#253's fix to the native store). The view worker still passes no budget
+  (§Experiment 3), so neither defect could be reached on this branch. The budget is how the store is meant to run.
+* **Settings the page view took and ignored.** `writer`, `waitAhead` and `holdEveryOther` act only in the view
+  worker, and `pixels: "transfer"` there copies each paint. Under `?view=page` all four are now refused by name, so
+  a run cannot label an arm it never ran. The writer's own two refusals moved beside them into
+  `lab/viewer/levers.js`, where they got their first test.
+* **The view worker's lab cine.** A `pause` sent while `play` still loaded the clock was lost, and two plays left the
+  first cine running with nothing to stop it. Each play and pause now steps a cue.
+* **The native downloader.** A frame read from the cache that failed its check was put first in the want, even when
+  the view had replaced that want since. It was then asked ahead of the frame on screen. The frame now goes first only
+  under the want it was read for.
+
+* **The viewer check in Firefox.** Firefox 155 quotes a Latin-1 character in `console.log` as `\xNN`, which
+  `JSON.parse` refuses. Every Firefox run therefore died on the status line's middle dot, though the page had passed.
+  With the reader fixed, the gate's grey series passes in Firefox under both views, with a cine and on demand
+  (headed, `xvfb-run`). This is outside the gate, whose Firefox arm needs the DICOM bundles.
+
+Checked and found as both sides meant: each merge resolution recorded on #250; the defaults under `?view=page`
+against main's viewer (cine period, steps, window drag, ledger shape); `span` 0 reproduces main's run; the downloader
+link's ordering; the cache's paint-first write, its re-ask of a failed read and its lock.
+
+### The core against main, timed (2026-10-30)
+
+Until now the core equals `main` by counts only (the gate's *perf: counts, not clocks*). The owner expects **throughput
+no worse and latency the same or better.** Written before any data; the rows and the reading follow below it.
+
+**Arms.** `scripts/perf_nightly.mjs`: BASE a worktree of `origin/main` (`0cf5424`), HEAD a worktree of
+`origin/claude/core` (`2e6fa5b`), and BASE again as the A/A arm; `lab/order.mjs`'s order over cells, and over the three
+arms inside each cell; every visit its own server, relay and Chromium. Both trees carry the decoders built on
+`claude/decoders-committed` (each checked against its `manifest.sha256`) and fetch the nightly's pinned OpenJPH and XXH3.
+The gate's grey codestream × 48, every frame hashed against its truth.
+
+* **Campaign 1, the core at its defaults:** the nightly's own page (`lab/av1/delivery/total-time/page.js`, the
+  downloader driven directly, timed from the fill's issue).
+* **Campaign 2, the core under `?view=worker`:** `--view worker` puts every arm on the product's viewer, timed from
+  navigation (the only origin the two trees' viewers share), and the head's under `?view=worker`. Not §7's protocol:
+  one engine, one synthetic series, a quiet page.
+
+**Cells.** `r50000` clean, and `r50000 l1` (row LOSSLINK's 1 % iid loss each way, the harness's lossy link); 1× and
+4× (`lab/scripts/cpu_throttle.mjs`); 12 rounds and 12 confirming.
+
+**One measure a claim.**
+
+| claim | measure | quoted as |
+| --- | --- | --- |
+| throughput | **fill**: issue (campaign 2: navigation) → the 48th exact frame on the page | head ÷ base, the fill's time |
+| latency | **first**: the first exact frame (campaign 2: on screen) | head ÷ base |
+| latency | **asked**: frame 0 shown, then frames 1–4 asked one at a time, each ask → its exact frame on the page; a visit's median | head ÷ base |
+
+A fill's visit gives fill and first; the asked cell is a visit of its own, campaign 1 only (`--asks 4`: the page
+`--fill 1 --asks-after 4`). *Amended before any campaign's data, from a one-round smoke:* main's viewer has no step
+hook for the harness (its `lab/viewer/levers.js` predates them; it showed frame 0 and stepped no further, 1 of 4), so
+campaign 2 judges fill and first only, and an asked frame → screen under `?view=worker` is not timed against main.
+
+**Predictions, from §2.** Fill ×0.98–1.02 in every cell: neither the downloader's changes nor the view worker sits on
+the decoders' path. On a quiet page, the first frame and an asked frame within a display period (16.7 ms) of main's:
+the page's hops the view worker removes cost under 1 ms. At 4× a quiet page is still quiet; nothing predicts a
+difference there either.
+
+**Rule, fixed before data.** `lab/scripts/aa_rule.py` on each cell with `--confirm`: a cell is *worse* or *better*
+only when both campaigns flag it. **"No worse" holds when no cell is flagged worse**; it then claims only to each
+cell's detectable loss (the rule's *catches*), and a cell *not conclusive* (that loss over 5 %) is said so, not counted
+as a tie. *Better* is reported, and claimed only where the rule flags it. **VOID:** a visit whose relay's self-timing
+is late is dropped with its round's other two arms (the strict reading); a cell with fewer than 9 of 12 rounds kept in
+either campaign is not judged. **Saturation guard:** on this 4-core container (browser on cores 0–2, relay on 3) the
+fill at `r50000` 1× follows the link up to 200 Mbit/s (row PERFNIGHTLY, [`../../README.md`](../../README.md) *What the nightly times*), so 1× is
+link-bound; 4× is CPU-bound by design. A cell whose A/A median departs from 1 by more than 2 % says the rig drifted
+and is not judged. Nothing is claimed for another host, series, engine or a busy page.
+
+**Run 1 (2026-10-30, the harness unpinned as the nightly runs it).** Rows and each campaign's verdict:
+[`lab/av1/delivery/total-time/rows-core-against-main/`](../../lab/av1/delivery/total-time/rows-core-against-main/)
+`page/` and `worker/`; series-server `f36f907e…` (main) and `be058172…` (core). Every kept visit exact (48 of 48, or
+5 of 5 asked); no visit failed. Campaign 1 stopped once at round 8 on a dev-server that did not start (a port taken)
+and resumed from its kept rows; `perf_nightly.mjs` now retries such a visit.
+
+| campaign · cell | head ÷ base | A/A | rounds kept | `aa_rule` | by the rule |
+| --- | --- | --- | --- | --- | --- |
+| 1 · clean 1× fill | ×1.004 | ×0.996 | 9 + 10 | tie, catches 1.3 % | **no worse** |
+| 1 · clean 4× fill | ×0.998 | ×0.994 | 10 + 9 | tie, catches 2.7 % | **no worse** |
+| 1 · clean 1× first | ×1.029 | ×1.029 | 9 + 10 | tie | not judged: A/A off 1 by 2.9 % |
+| 1 · clean 4× first | ×1.013 | ×0.921 | 10 + 9 | not conclusive | not judged: A/A off 1 by 7.9 % |
+| 1 · clean 4× asked | ×0.989 | ×1.014 | 9 + 8 | not conclusive | not judged: 8 of 12 |
+| 1 · the other seven | ×0.905–1.019 | ×0.974–1.037 | 5–10 + 6–9 | none flagged | not judged: under 9 of 12 |
+| 2 · clean 1× first | ×1.126 | ×1.011 | 9 + 7 | **worse** | not judged: 7 of 12 |
+| 2 · clean 4× fill | ×1.074 | ×0.979 | 8 + 7 | **worse** | not judged: 7 of 12, A/A off 2.1 % |
+| 2 · the other six | ×1.011–1.104 | ×0.956–1.027 | 3–9 + 5–7 | not conclusive | not judged: under 9 of 12 |
+
+*Reading.* **Campaign 1 (the core at its defaults): throughput no worse** at `r50000` clean, 1× and 4×, to a loss of
+1.3 % and 2.7 %; no cell flagged worse. Latency is not established by the rule in any cell. The medians of kept
+rounds stay within a display period: the first frame 139 → 140 ms at 1× and 184 → 190 ms at 4× (A/A 141, 174), an
+asked frame 85.5 → 86 ms. **Campaign 2 (`?view=worker`): nothing judged.** 54 of 288 visits were VOID, and no cell kept 9 of 12 in
+both halves. The unjudged direction is **against the prediction**, though. From navigation, the first exact frame on
+screen took 509.5 → 549.5 ms at 1× clean (A/A 504.5) and 794 → 956 ms at 4×, more than a display period. The fill
+at 4× took 876 → 993 ms. The page's view-worker start before its first frame is the likely cost (not measured
+apart). VOID ran 14 % (campaign 1) and 19 % (campaign 2) of visits, worst under `l1`.
+
+**Run 2, pre-registered before its data: the harness pinned.** The nightly runs `node` and the dev-server on any
+core, the relay's included; row TOTAL4 runs the harness under `taskset -c 0-2`. Run 2 repeats run 1's two campaigns
+unchanged but for `taskset -c 0-2 node scripts/perf_nightly.mjs …`, with rows in `page-pinned/` and `worker-pinned/`.
+The rule, VOID threshold and guards are the same. Run 2 is read on its own, never pooled with run 1. If its VOID rate
+is no lower, the harness was not the cause, and that is said.
+
+**Run 2 (2026-10-30, the harness pinned).** Rows in `page-pinned/` and `worker-pinned/`, the same two binaries. VOID
+rose instead: 121 of 576 visits (21 %) and 73 of 288 (25 %), so the harness was not the cause. The relay's p99 ran
+late by up to 40 ms on a core 90 % idle, with steal time on it (the VM's own scheduling, sampled once, 1 %).
+
+| campaign · cell | head ÷ base | A/A | rounds kept | `aa_rule` | by the rule |
+| --- | --- | --- | --- | --- | --- |
+| 1 · clean 1× fill | ×1.000 | ×0.998 | 5 + 9 | tie, catches 4.0 % | not judged: 5 of 12 |
+| 1 · clean 4× fill | ×0.999 | ×0.996 | 8 + 9 | tie, catches 3.2 % | not judged: 8 of 12 |
+| 1 · the other ten | ×0.859–1.077 | ×0.810–1.138 | 3–9 + 3–9 | none flagged | not judged |
+| 2 · clean 1× fill | ×1.044 | ×0.968 | 6 + 9 | **worse** | not judged: 6 of 12, A/A off 3.2 % |
+| 2 · clean 4× fill | ×1.146 | ×0.966 | 6 + 10 | **worse** | not judged: 6 of 12, A/A off 3.4 % |
+| 2 · clean 1× and 4× first | ×1.055, ×1.076 | ×0.922, ×0.952 | 6 + 9, 6 + 10 | not conclusive | not judged |
+| 2 · `l1` | — | — | 1–2 + 3–6 | undecided | not judged |
+
+**What the two runs establish.**
+
+* **The core at its defaults: throughput no worse,** by the rule, at `r50000` clean, 1× and 4× (run 1; run 2 the same
+  ties, short of the round threshold). **Latency the same is not established by the rule.** The VOID threshold or the
+  A/A guard stopped every latency cell. The medians agree with the prediction in both runs: first frame 139 → 140 and
+  145 → 145.5 ms at 1×, asked frame 85.5 → 86 ms in both. No cell of either run was flagged worse.
+* **`?view=worker`: not judged; both runs point the other way.** From navigation, the first exact frame on screen took
+  509.5 → 549.5 and 551 → 592 ms at 1× clean, over a display period later in each run. The fill took ×1.04–1.15 as long,
+  and `aa_rule` flagged it worse, confirmed, three times across the two runs, each below the round threshold. §2's
+  prediction (within a display period, fill ×0.98–1.02) is not borne out on this rig. The likely cost is the view
+  worker's start before its first frame; that start is not timed on its own here, and timing it is the next
+  measurement. The owner's expectation of latency the same or better under `worker` is **not met by these rows**.
+* **Where the host saturates:** not by load. The rule is capped by the VM's scheduling noise on the relay's core, and
+  `l1` cells, the longest visits, lose the most rounds. Nothing is claimed for `l1`, another host, series or engine,
+  or a busy page.
