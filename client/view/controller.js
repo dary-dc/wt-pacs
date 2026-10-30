@@ -183,8 +183,8 @@ export class Controller {
     const frames = [];
     for (const i of this.store.keys()) {
       const { info, arrived } = this.store.get(i);
-      frames.push({ i, page: arrived, lastByte: info.stamps.lastByte, exact: info.exact, sha: await sha256Hex(new Uint8Array(info.pixels).slice()) });
+      frames.push({ i, page: arrived, lastByte: info.stamps.lastByte, mediaReads: info.stamps.mediaReads, exact: info.exact, sha: await sha256Hex(new Uint8Array(info.pixels).slice()) });
     }
-    return { frames, firstShownMs: this.firstShownMs, stats: this.client.stats() };
+    return { frames, firstShownMs: this.firstShownMs, fillMs: this.fillMs, stats: this.client.stats() };
   }
 }

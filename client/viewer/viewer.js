@@ -227,7 +227,15 @@ if (q.get("check") || lab.finished) {
   if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, check, errors, report, rendererName, toggleCine,
     current: () => view.current, seen, close: () => (worker ?? controller.client).close() });
   else {
-    const { frames, firstShownMs, stats } = await (worker ?? controller).ledger();
-    lab.finished({ issuedAt, firstShownMs, frames, errors, stats });
+    const stepped = [];
+    for (const i of lab.steps ?? []) {
+      stepped.push({ i, at: at() });
+      show(i);
+      await new Promise((resolve) => {
+        const poll = setInterval(() => (shown?.i === i || errors.length) && (clearInterval(poll), resolve()), 5);
+      });
+    }
+    const { frames, firstShownMs, fillMs, stats } = await (worker ?? controller).ledger();
+    lab.finished({ issuedAt, firstShownMs, fillMs, frames, errors, stats, stepped });
   }
 }

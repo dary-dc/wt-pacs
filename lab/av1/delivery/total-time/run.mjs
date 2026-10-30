@@ -108,7 +108,9 @@ function variantOf(set, name) {
         // A `downloader` variant runs that revision of the downloader.
         ...(a.downloader && { worker: a.downloader, decoderWorker: a.decoder }),
         // Frame check: the series' digests, so each decoder worker checks every frame.
-        ...(a.digests && { digests: MUTATE === "digest" ? a.digests.map((d) => d.replace(/^./, (c) => (c === "0" ? "1" : "0"))) : a.digests }) } };
+        ...(a.digests && { digests: MUTATE === "digest" ? a.digests.map((d) => d.replace(/^./, (c) => (c === "0" ? "1" : "0"))) : a.digests }),
+        // A variant's own settings, last: docs/adr/frame-path.md §Experiment 1's `span` and `holdEveryOther`.
+        ...a.opts } };
   }
   const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
     ...(a.rct && { rct: true }), ...(a.mixed && { mixed: true }), ...(a.layers && { layers: a.layers, frames: set.frames }) };
@@ -280,6 +282,8 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   const a = variantOf(set, variantName);
   const fill = Number(FILL ?? a.entries);
   if (fill + AFTER > a.entries || (AFTER && (a.opts.groupLength || a.opts.decoder.layers))) throw new Error(`${set.name} ${variantName}: ${fill} + ${AFTER} asks`);
+  // The viewer fills the whole series, or shows frame 0 on demand and steps to 1 … AFTER: lab/viewer/levers.js.
+  if (a.viewer && (AFTER ? fill !== 0 || AFTER >= a.entries : fill !== a.entries)) throw new Error(`${set.name} ${variantName}: a viewer takes --fill 0 --asks-after K < ${a.entries}, or neither`);
   const need = useful(set);
   const flip = (t) => (MUTATE === "truth" ? t.replace(/^./, (c) => (c === "0" ? "1" : "0")) : t);
   const truth = (a.truth ?? set.truth).map(flip);
@@ -337,7 +341,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     void: !late || /VOID/.test(relayLog) };
   if (!r?.frames.length && r?.after.length) {
     const exact = r.after.filter((f) => r.sha[f.i] === truth[f.i]).length;
-    return { ...row, frames: 0, failures: r.failures.length, failure: r.failures[0]?.reason, exact, afterMs: r.after.map((f) => Math.round(f.ms)) };
+    return { ...row, frames: 0, failures: r.failures.length, failure: r.failures[0]?.reason, exact, afterMs: r.after.map((f) => Math.round(f.ms)), mediaReads: r.mediaReads };
   }
   if (!r?.frames.length) return { ...row, frames: 0, exact: 0, failure: r?.failures[0]?.reason };
   const t = (k, f) => f(...r.frames.map((x) => x[k])) - r.issuedAt;
@@ -369,6 +373,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     firstMs: Math.round(r.firstShown ? r.firstShown - r.issuedAt : t("page", Math.min)),
     receivedMs: Math.round(t("lastByte", Math.max)),
     decodedMs: Math.round(t("page", Math.max)),
+    ...(r.fillMs != null && { fillMs: Math.round(r.fillMs), mediaReads: r.mediaReads, fillReads: r.fillReads }),
     centreMs: Math.round(shown.get(need[0]) - r.issuedAt),
     ...pool(r.frames, threads),
     usefulMs: Math.round(Math.max(...need.map((i) => shown.get(i) ?? Infinity)) - r.issuedAt),
@@ -418,7 +423,7 @@ for (let round = FIRST; round < FIRST + ROUNDS && !process.argv.includes("--summ
       rows.push(row);
       if (OUT) appendFileSync(OUT, JSON.stringify(row) + "\n");
       console.error(`round ${round} ${engine} ${name} ${l} ${impairment} ${throttle}x ${a}: first ${row.firstMs} useful ${row.usefulMs} received ${row.receivedMs} decoded ${row.decodedMs} ms,` +
-        ` exact ${row.exact}/${row.owed}${row.paths && Object.keys(row.paths).length ? ` checked ${row.checked} ${JSON.stringify(row.paths)}` : ""}${row.afterMs?.length ? `, asks after ${row.afterMs.join(" ")} ms` : ""}${row.previews !== undefined ? `, every frame shown ${row.shownMs} ms, previews ${row.previewExact}/${set.frames} as native, ${row.late} late, ${row.strays} stray` : ""}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
+        `${row.fillMs !== undefined ? ` fill ${row.fillMs} ms over ${row.fillReads} reads` : ""} exact ${row.exact}/${row.owed}${row.paths && Object.keys(row.paths).length ? ` checked ${row.checked} ${JSON.stringify(row.paths)}` : ""}${row.afterMs?.length ? `, asks after ${row.afterMs.join(" ")} ms` : ""}${row.previews !== undefined ? `, every frame shown ${row.shownMs} ms, previews ${row.previewExact}/${set.frames} as native, ${row.late} late, ${row.strays} stray` : ""}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
     }
   }
 }
