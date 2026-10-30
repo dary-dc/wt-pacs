@@ -9,8 +9,13 @@ from pathlib import Path
 DECODE_MS = {"512x512": 3.0, "3328x4096": 69.0}
 
 
+SET_ASIDE = "--set-aside-start-hangs" in sys.argv
+
+
 def rows(path):
-    return [r for r in map(json.loads, path.read_text().splitlines()) if not r.get("settings")] if path.exists() else []
+    """A cell's rows; with --set-aside-start-hangs, not the pre-registered rule, M5's runs that never received a frame dropped."""
+    rs = [r for r in map(json.loads, path.read_text().splitlines()) if not r.get("settings")] if path.exists() else []
+    return [r for r in rs if not (SET_ASIDE and r.get("cell", "").startswith("m5") and r.get("received") == 0)]
 
 
 def m1(rs):
@@ -85,7 +90,9 @@ CAUGHT = {
     "fresh-when-dry": lambda r: (r["view"] or {}).get("offRing", 0) > 0,
     "credits-ignored": lambda r: (r["view"] or {}).get("backlogPeak", 0) > K,
     "disk-keeps-frames": lambda r: (r["view"] or {}).get("heldPeakMiB", 0) > 0,
+    "throws-slot-kept": lambda r: (r["view"] or {}).get("slotsDecoding", 0) > 0,
 }
+TESTS = {"throws-after-slot": lambda r: (r["view"] or {}).get("slotsDecoding") == 0 and bool((r["view"] or {}).get("errors"))}
 
 
 def med(xs):
@@ -101,9 +108,20 @@ def complete(r):
         r["arm"] == "today" or (second.get("read") == n and not second.get("wrong") and view.get("readMismatch") == 0 and view.get("stored") == n))
 
 
-def in_hand(r):
-    v = r.get("view") or {}
-    return [a["inHandMs"] for a in v.get("asks", [])] + [s["ms"] for s in v.get("steps", [])]
+PATHS = {"ask": lambda v: [a["inHandMs"] for a in v.get("asks", [])], "step": lambda v: [s["ms"] for s in v.get("steps", [])]}
+
+
+def in_hand(sel, path):
+    """The median ms from a frame at the view to its samples checked in hand, over an arm's rounds, on one path."""
+    return med([x for r in sel for x in PATHS[path](r.get("view") or {})])
+
+
+def aa(by):
+    """ring' against ring in the same rounds: the median |growth| difference and fill-time ratio, and whether they VOID the cell."""
+    pairs = [a for a in by.values() if "ring" in a and "ring2" in a]
+    mib = med([abs(a["ring2"]["growthMiB"] - a["ring"]["growthMiB"]) for a in pairs])
+    time = med([a["ring2"]["fillMs"] / a["ring"]["fillMs"] for a in pairs if a["ring"]["fillMs"] and a["ring2"]["fillMs"]])
+    return mib, time, mib is None or time is None or mib > 64 or not 0.90 <= time <= 1.10
 
 
 def m5(rs, name):
@@ -112,12 +130,9 @@ def m5(rs, name):
     for r in rs:
         if not r.get("mutant"):
             by[r["round"]][r["arm"]] = r
-    pairs = [a for a in by.values() if "ring" in a and "ring2" in a]
-    aa_mib = med([abs(a["ring2"]["growthMiB"] - a["ring"]["growthMiB"]) for a in pairs])
-    aa_time = med([a["ring2"]["fillMs"] / a["ring"]["fillMs"] for a in pairs if a["ring"]["fillMs"] and a["ring2"]["fillMs"]])
-    void = aa_mib is None or aa_time is None or aa_mib > 64 or not 0.90 <= aa_time <= 1.10
+    aa_mib, aa_time, void = aa(by)
     today = {k: a["today"]["fillMs"] for k, a in by.items() if "today" in a and a["today"]["fillMs"]}
-    ring_hand = med([x for a in by.values() if "ring" in a for x in in_hand(a["ring"])])
+    ring_hand = {p: in_hand([a["ring"] for a in by.values() if "ring" in a], p) for p in PATHS}
     floor = med([a["disk"]["growthMiB"] for a in by.values() if "disk" in a])
     bar_mib = None if floor is None else floor + ABOVE_FLOOR_MIB
     print(f"{name}: A/A |ring'-ring| median {aa_mib} MiB, ring'/ring fill {aa_time}" + (" VOID" if void else "") + f"; memory bar {bar_mib} MiB")
@@ -128,26 +143,34 @@ def m5(rs, name):
             continue
         g = [r["growthMiB"] for r in sel]
         ratio = med([r["fillMs"] / today[r["round"]] for r in sel if r["fillMs"] and r["round"] in today])
-        hand = med([x for r in sel for x in in_hand(r)])
+        hand = {p: in_hand(sel, p) for p in PATHS}
         own = {"ring": all((r["view"] or {}).get("offRing", 1) == 0 for r in sel), "disk": all((r["view"] or {}).get("heldPeakMiB", 1) == 0 for r in sel),
                "transfer-k": all((r["view"] or {}).get("backlogPeak", K + 1) <= K for r in sel)}.get(arm, True)
         checks = bar_mib is not None and all(complete(r) and r["growthMiB"] <= bar_mib for r in sel) and ratio is not None and ratio <= 1.10 and own
-        second = hand is not None and ring_hand is not None and hand <= ring_hand + DISPLAY_PERIOD_MS
+        second = all(hand[p] is not None and ring_hand[p] is not None and hand[p] <= ring_hand[p] + DISPLAY_PERIOD_MS for p in PATHS)
         print(f"{name} {arm}: growth median {med(g):.0f} MiB [{min(g):.0f}–{max(g):.0f}], n {len(sel)}; complete {sum(map(complete, sel))}/{len(sel)}; "
-              f"fill/today {ratio}; in hand median {hand} ms; " + ("reported, not ruled" if arm in ("today", "ring2") else
+              f"fill/today {ratio}; in hand median, ask {hand['ask']} ms, step {hand['step']} ms; " + ("reported, not ruled" if arm in ("today", "ring2") else
               f"memory bar and checks {'met' if checks else 'missed'}, time bar {'met' if second else 'missed'}"))
         if checks and second and arm in SIMPLEST_FIRST and not void:
             eligible.append(arm)
     chosen = next((a for a in SIMPLEST_FIRST if a in eligible), None)
     print(f"{name}: {'VOID' if void else f'qualify {eligible}; chosen {chosen}' if chosen else 'none qualifies: lever 2 returns to the owner'}")
-    for r in rs:
-        if r.get("mutant"):
-            print(f"{name} mutant {r['mutant']} on {r['arm']}: {'caught' if CAUGHT[r['mutant']](r) else 'SURVIVED'}")
+    mutants(rs, name)
     return (set(eligible) if not void else None), bar_mib
 
 
 def m5_busy(rs, name, bar_mib):
     """Credits on a view held past the frames' arrival: needed for transfer if it misses the bar and transfer-k meets it, never over K waiting."""
+    by = defaultdict(dict)
+    for r in rs:
+        if not r.get("mutant"):
+            by[r["round"]][r["arm"]] = r
+    aa_mib, aa_time, void = aa(by)
+    print(f"{name}: A/A |ring'-ring| median {aa_mib} MiB, ring'/ring fill {aa_time}" + (" VOID" if void else ""))
+    for arm in ("ring", "ring2"):
+        sel = [a[arm] for a in by.values() if arm in a]
+        if sel:
+            print(f"{name} {arm}: growth median {med([r['growthMiB'] for r in sel]):.0f} MiB, complete {sum(map(complete, sel))}/{len(sel)}, reported, not ruled")
     over = {}
     for arm in ("transfer", "transfer-k"):
         sel = [r for r in rs if r["arm"] == arm and not r.get("mutant")]
@@ -156,15 +179,23 @@ def m5_busy(rs, name, bar_mib):
             print(f"{name} {arm}: growth median {med([r['growthMiB'] for r in sel]):.0f} MiB, backlog peak median {med([(r['view'] or {}).get('backlogPeak') for r in sel])}, "
                   f"over the bar or K in {'some' if over[arm] else 'no'} round")
     if len(over) == 2:
-        print(f"{name}: credits {'needed for transfer' if over['transfer'] and not over['transfer-k'] else 'not shown needed'}")
+        print(f"{name}: credits {'VOID' if void else 'needed for transfer' if over['transfer'] and not over['transfer-k'] else 'not shown needed'}")
     elif not bar_mib:
         print(f"{name}: no memory bar without m5 disk rows on this engine")
+    mutants(rs, name)
+
+
+def mutants(rs, name):
     for r in rs:
-        if r.get("mutant"):
-            print(f"{name} mutant {r['mutant']}: {'caught' if CAUGHT[r['mutant']](r) else 'SURVIVED'}")
+        if r.get("mutant") in CAUGHT:
+            print(f"{name} mutant {r['mutant']} on {r['arm']}: {'caught' if CAUGHT[r['mutant']](r) else 'SURVIVED'}")
+        elif r.get("mutant") in TESTS:
+            print(f"{name} test {r['mutant']} on {r['arm']}: {'holds' if TESTS[r['mutant']](r) else 'FAILS'}")
 
 
 d = Path(sys.argv[1])
+if SET_ASIDE:
+    print("M5 with the runs that never received a frame set aside: descriptive, not the pre-registered rule")
 m1(rows(d / "m1.jsonl"))
 for f, name in (("m2.jsonl", "M2 2 GiB"), ("m2-13g.jsonl", "M2 13 GiB")):
     if rows(d / f):
