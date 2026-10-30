@@ -1200,7 +1200,7 @@ ring.
 ### Who owns a frame's memory (2026-10-28)
 
 **Status:** theory and a reading of the engines' sources; nothing built, nothing run. *Corrected 2026-10-30:* M5 has
-run, on Chromium and Firefox; its results are below (*M5, run 2026-10-30*). The shape it assumes is the
+run, on Chromium and Firefox; its results are below (*M5, run 2026-10-30*), and Firefox again with the rig's driver fixed (*Firefox, run again*). The shape it assumes is the
 owner's of 2026-10-28, written nowhere else yet: one dedicated **view worker** holds the frame store (the memory window,
 OPFS behind it), the controller and the paint; the decoders, nested in the downloader worker, post each checked frame
 straight to it. The question: who owns a decoded frame's memory, so that the window bounds peak memory during a fill on
@@ -1468,6 +1468,9 @@ Firefox 159.0 on Xvfb. The decoders are the pinned builds of `claude/decoders-co
   a run that never received a frame (*Firefox's fills that never start*, below). A VOID cell decides nothing on Firefox.
 * **M5 as a whole cannot be applied.** The rule wants the simplest arm that qualifies on both engines, and Firefox
   gives no verdict. Lever 2 returns to the owner with Chromium's verdict and the numbers below.
+  *Corrected 2026-10-30:* Firefox, run again with the driver fixed, is not VOID and qualifies no arm (`ring` misses
+  only the fill bar), so the rule now applies on both engines and says the same: lever 2 returns to the owner
+  (*Firefox, run again*, below).
 
 | arm | Chromium growth, median [range] | fill / `today` | in hand, ask / step (ms) | Chromium | Firefox growth, median [range] | fill / `today` | in hand, ask / step (ms) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -1502,7 +1505,8 @@ miss only on memory.
 in 120 s, with the CPU idle: `ring` and `disk` in round 1, `ring′` in round 4, `today` and `ring′` in round 5. The
 same happened to one run in `m5-busy`. `today` is the product's own page, which said "decoders: none yet": so the
 fault sits beneath the lab's arms, in the downloader with its nested decoders or in Firefox's WebTransport dial.
-Which, is not traced: the page logs nothing before its first frame. Chromium never did this, in its 70 timed runs.
+~~Which, is not traced: the page logs nothing before its first frame.~~ Chromium never did this, in its 70 timed runs.
+*Corrected 2026-10-30: traced, and it was the rig's driver* (*Firefox's start fault, found*, below).
 
 Firefox also twice failed to start a WebDriver BiDi session in 60 s, which killed the cell. *Rig changes during the
 run, which change no measurement:* each BiDi call fails in 60 s instead of hanging, a browser that does not start
@@ -1544,7 +1548,8 @@ Chromium, inside 0.90–1.10, so `m5-busy` did not run again at 12.
 
 On Firefox, `ring′` in round 4 stopped at 46 of 80 frames, every one exact and stored, with no error and the CPU idle.
 That is either a slot deadlock that only Firefox's timing reaches, or the start fault met mid-stream; which is not
-traced. `ring` never stopped on Chromium, in 28 runs.
+traced. `ring` never stopped on Chromium, in 28 runs. *Corrected 2026-10-30:* still not traced; the re-run below
+says whether it recurs without the BiDi driver.
 
 **The host.** Nothing stopped on the 1 536 MiB floor of available memory. The CPU is 0.66–0.80 busy through the main
 cell's fills on both engines, and 0.34–0.45 in `m5-busy`. Three decoders on four vCPUs set the main cell's pace, so
@@ -1572,6 +1577,146 @@ or out of it: the cell is VOID, and set aside it qualifies no arm. So the owner 
 
 Two things would let the rule decide on Firefox: the start fault found and fixed, and the fill bar's two ends made
 the same. Both are changes to the protocol after data, and so a new pre-registration.
+
+**Firefox's start fault, found (2026-10-30).** It was the rig's driver, not the product and not the lab's arms.
+
+* **Where it stops.** Stage marks logged to Firefox's stdout, in four hung starts on the live pages (BiDi-driven, as the
+  M5 rig drove), all show the same thing: the downloader's worker entered its second or third `new Worker(...)` for a
+  decoder and never returned. Its thread so never took the `dial` message the consumer had already posted, and no
+  session reached the server; the decoders already made came up and idled. The marks are in
+  [`rows/m5-start/hung-stages.txt`](../../lab/opfs-cache/rows/m5-start/hung-stages.txt).
+* **Why, from Gecko's source (Firefox 159, a reading, not stepped through):**
+  * A WebDriver BiDi session registers a worker-debugger listener in every content process
+    (`remote/shared/messagehandler/RootMessageHandler.sys.mjs`, its constructor; `WebDriverWorkerListenerChild.sys.mjs`).
+  * With any listener present, a worker that creates a worker blocks in `WaitForIsDebuggerRegistered` until the main
+    thread registers the child (`dom/workers/WorkerDebuggerManager.cpp` 227–250).
+  * The main thread ends that wait with `mCondVar.Notify()`, which wakes one waiter (`dom/workers/WorkerPrivate.h`
+    303–312, 340–353). The child's own thread is already started by then (`WorkerPrivate.cpp` 3278–3298) and waits on
+    the same condition variable for its events (4824–4832). When the one wake-up goes to the child, the parent sleeps
+    forever, with the CPU idle.
+  * The product never meets this outside automation or a debugger: without a listener the parent does not wait.
+    Firefox's DevTools register listeners too, so a developer with them open might. Not tested.
+* **Measured.** On a page whose worker starts 300 workers one after another
+  ([`test/nested-workers.html`](../../lab/opfs-cache/test/nested-workers.html)), 10 rounds interleaved: under BiDi every
+  round hung, after 3–273 starts; under Marionette every round reached 300, in 1.8–3.6 s
+  ([`rows/m5-start/nested-workers.jsonl`](../../lab/opfs-cache/rows/m5-start/nested-workers.jsonl)). The rule, fixed
+  before the rows: Marionette cleared if all its rounds reach 300 and BiDi hangs in ≥ 8 of 10. A first such run was
+  discarded whole: a mutant test put the BiDi driver in place under it for a moment, and one of its Marionette rounds
+  stopped at 83 ([`nested-workers-discarded.jsonl`](../../lab/opfs-cache/rows/m5-start/nested-workers-discarded.jsonl)).
+  On the live pages themselves, 50 starts each, BiDi hung 2 and a browser with no driver at all 0
+  ([`live-pages.jsonl`](../../lab/opfs-cache/rows/m5-start/live-pages.jsonl)); the rule set for those (BiDi ≥ 3)
+  was not met, so they alone decide nothing.
+* **The fix.** The rigs drive Firefox over Marionette, which registers no listener
+  ([`browser.mjs`](../../lab/opfs-cache/browser.mjs)); `lab/opfs-arms` shares the driver.
+  [`browser.test.mjs`](../../lab/opfs-cache/browser.test.mjs) checks its framing and, with `FIREFOX_PATH`, the 300 nested
+  workers; the gate runs it. Both mutants were caught: framing that counts characters, not bytes, and the driver put
+  back on BiDi (stopped at 3 of 300).
+
+**Firefox's fill, ×1.41 of `today`: where the time goes.** One `ring` and one `today` fill per engine, twice, on the
+M5 run's code with per-frame stage marks added and no driver at all (the browser opened on the page's URL, its console
+read). The marks, the patch and the reader are in [`rows/m5-profile/`](../../lab/opfs-cache/rows/m5-profile/). Two
+fills an arm: indicative, not a measurement by the protocol.
+
+| fill | decoders' first decode → last post | decode | samples into place¹ | OPFS write in the decoder | the store's writes |
+| --- | --- | --- | --- | --- | --- |
+| Firefox `ring` | 12.0 s, 9.1 s | 13.7 s, 14.8 s | 2.4 s, 2.6 s | **18.6 s, 8.9 s** (median 186, 38 ms a frame) | — |
+| Firefox `today` | 7.9 s, 9.2 s | 17.3 s, 18.3 s | 5.1 s, 7.9 s | — | 10.8 s, 11.8 s; the last ends 11.9 s, 13.4 s after the first decode |
+| Chromium `ring` | 9.9 s, 8.2 s | 14.4 s, 13.9 s | 4.6 s, 4.7 s | 9.4 s, 5.0 s (median 127, 31 ms) | — |
+| Chromium `today` | 8.3 s, 8.6 s | 17.6 s, 16.8 s | 6.4 s, 7.5 s | — | 8.7 s, 7.7 s; the last ends 10.8 s, 9.7 s after |
+
+Sums are over the three decoders' frames. ¹ `ring`: the slot taken, the copy and the range pass; `today`: the new
+buffer, the copy and the range pass. Hashing is 0.6–0.9 s in every fill; posting nothing.
+
+* **It is the rig, not the ring.** The ring's own work, a slot taken and the samples copied in, is 0.7 s over a whole
+  Firefox fill, less than `today`'s own allocation and copy. What `today`'s decoders never do is the arms' OPFS write
+  before posting, which every arm does (`disk`, with no ring, reads ×1.39 too). On Firefox that write is the slowest
+  and most variable step: 38–186 ms a frame, against 31–127 on Chromium.
+* **And the bar compares different ends.** `today` defers the same writes to its store worker, which on Firefox
+  finishes them 11.9–13.4 s after the first decode: after the ring's last post (9.1–12.0 s). Measured to the last
+  frame on disk, the ring is not slower than `today` in these four fills. That is the gap *M5, run* already named;
+  closing it is a change to the protocol, and so a new pre-registration.
+
+**Firefox, run again 2026-10-30, with the driver fixed.** The same protocol, rule and bars, run from the M5 run's
+own code (its arms, its `today` with #212's store, its server build) with only the driver swapped to Marionette, so
+both engines' rows come from the same build. Rows: [`rows/m5-rerun/`](../../lab/opfs-cache/rows/m5-rerun/), beside
+a copy of Chromium's, so `python3 lab/opfs-cache/summary.py lab/opfs-cache/rows/m5-rerun` applies the rule over both
+engines. The first run's VOID rows in `rows/m5/` stand as run.
+
+* **Not VOID now.** All 42 runs of `m5` and all 28 of `m5-busy` filled, every frame exact by both checks: no start
+  hang, and `ring′`'s stall at 46 frames did not recur (so it was most likely the same fault; not shown). The A/A is
+  22 MiB and 1.01 (`m5`), 24 MiB and 1.00 (`m5-busy`).
+
+| arm | Firefox growth, median [range] | fill / `today` | in hand, ask / step (ms) | Firefox |
+| --- | --- | --- | --- | --- |
+| bar | `disk` + 320 = **862 MiB** | ≤ 1.10 | `ring`'s + 16.7 | |
+| `ring` | 828 [790–850] | **1.30** | 0.04 / 0.04 | memory, checks and time bars met; **misses the fill bar** |
+| `ring′` | 810 [756–841] | 1.33 | 0.02 / 0.02 | A/A |
+| `transfer` | 1 061 [982–1 175] | 1.50 | 0.02 / 0.00 | misses the memory and fill bars |
+| `transfer-k` | 1 078 [957–1 168] | 1.57 | 0.02 / 0.00 | misses the memory and fill bars |
+| `disk` | 542 [528–584] | 1.27 | **29.1** / 16.1 | misses the fill bar and the time bar on asks |
+| `today` | 2 351 [2 202–2 646] | 1 | — | reported |
+
+* **`m5-busy` on Firefox:** `transfer` 1 588 MiB with up to 36 waiting, `transfer-k` 986 MiB with at most 5 (K = 6):
+  credits *not shown needed*, as on Chromium; `ring` 823, `ring′` 790.
+* **The verdict, by the rule as written: none qualifies on Firefox, so none on both engines: lever 2 returns to the
+  owner.** Chromium's verdict stands: `ring`. On Firefox `ring` meets every bar but the fill time, and the fill bar
+  is the one *M5, run* and the profile above show comparing different ends: `today`'s fill ended with 42–52 of 80
+  frames on disk, its page cache up 1 202 MiB against ~2 070 for the arms.
+* **Every Firefox fill was slower than in the first run** (`ring` 9.8 s against 8.4, `today` 7.5 against 5.8,
+  medians); the two runs were not interleaved, so the driver and the host are not told apart, and nothing here rests
+  on the absolute times. The ratio to `today`, which is interleaved, fell from 1.41 to 1.30.
+* **What would let the rule choose:** the fill bar measured to the last frame on disk in every arm, `today` included.
+  That is a change to the protocol after data, and so a new pre-registration; read that way, the four profiled fills
+  put `ring` at or under `today` on Firefox.
+
+**How the ring works**, in plain words, as M5 built it in the lab: [`arms-slots.js`](../../lab/opfs-cache/arms-slots.js)
+(the table), [`arms-decoder.js`](../../lab/opfs-cache/arms-decoder.js) (who takes a slot),
+[`arms-view.js`](../../lab/opfs-cache/arms-view.js) (who frees one).
+
+* **The slots.** At the fill's start the view worker carves one `SharedArrayBuffer` into as many frame-sized slots as
+  the 256 MiB budget holds: 9 for a 3328×4096 frame (234 MiB). Beside it sits a small table, shared too: per slot a
+  state (*free*, *decoding*, *held*) and a take count, and one count of frees. The view and the three decoders all see
+  both. No other memory is ever allocated for samples.
+* **Who takes a slot.** A decoder, once its decode ends: it walks the table and claims the first free slot with one
+  `compareExchange` (*free* → *decoding*), so two decoders cannot claim the same one. It copies the samples in, checks
+  them, writes the frame to OPFS, and posts the view the slot's number, not the samples. The view marks the slot
+  *held*. The view also takes a slot to read a frame back from disk when it wants one it no longer holds.
+* **Who frees one.** Only the view, when it lets a frame go: the one farthest from the frame being looked at. It sets
+  the slot *free*, adds one to the free count and wakes any decoder waiting on it. A decoder that fails after taking a
+  slot frees it itself (the `throws-after-slot` fixture checks this). Each take adds one to the slot's take count, so
+  the view can tell that a slot under a frame it holds was reused since, and read that frame from disk instead.
+* **What bounds memory.** The ring is all there is. The samples can never exceed the 234 MiB carved at the start,
+  however fast the wire or the decoders, and however slow the view. A message carries a slot number, so nothing grows
+  in the ports between threads. That is what M5 measured: 580 MiB on Chromium against 2 748 MiB for `today`, which
+  holds a fresh shared buffer per frame that V8 counts as 0 bytes, so it never collects them in time (M2).
+* **When the slots run dry.** A decoder that finds no free slot tells the view (a `BroadcastChannel` message, "dry"),
+  then sleeps on the free count (`Atomics.wait`, a second at a time). The view lets its farthest frame go, which frees a
+  slot and wakes the decoder. So a slow view slows the decoders, and they stop taking frames off the wire: the ring
+  is its own backpressure. In M5 it ran dry for every frame past the ninth, about 71 times a fill, because the lab's
+  window is the whole ring. That cost no fill time on Chromium (1.01 × `today`). A view that never frees stalls the
+  fill at 9 frames: the `slots-never-freed` mutant.
+* **What credits K add.** Credits belong to the downloader. It hands a decoder a frame only while fewer than K frames
+  are decoded but not yet taken by the view; K = 6 here (3 decoders × 2). With the ring they add nothing: a dry ring
+  already stops the decoders, and no message carries samples. In `m5-busy` (the view held 200 ms a frame) the ring's
+  port never held more than 5–6 frames, with no credits at all. Credits matter only where each message carries a
+  frame's samples, as with `transfer`: there K held the port at exactly 6 and roughly halved the growth, still over
+  the bar.
+* **What building it into the core would change.** The core's frame store (`client/view/store.js`) keeps frames in a
+  `Map` and lets a frame go by dropping it, leaving the memory to the collector. Its decoders allocate a fresh buffer
+  per frame (`client/decode/frame-buffer.js`). With a ring:
+  * The store would own the slots and the table, sized from its budget. Letting a frame go would mean freeing its slot.
+  * The decoders would take their table at `init` and claim a slot instead of allocating.
+  * The store's eviction would also answer a dry ring.
+  * Every holder of a frame's samples, the paint above all, would check the slot's take count, or copy, before using
+    it. A slot is only valid until it is reused.
+  * The decoder's wait on a dry ring would block its thread. The lab accepts that (the decoder has nothing else to
+    do), the Target says no thread blocks, so the product would need an `Atomics.waitAsync` or a message instead.
+  * A series whose frames differ in size, or a second viewport, would need the ring re-carved or a ring each.
+  * Cross-origin isolation stays required: the ring is a `SharedArrayBuffer`. `transfer` would not need it.
+  * Credits K would stay off on this path.
+
+  None of this is built. M5 decides only which frame memory bounds a fill. Building the ring in is a change to the
+  core's frame store and decoders, proposed for review first.
 
 ### Options, and what each costs
 
@@ -3013,7 +3158,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 | `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | built and its rig, not run |
 | `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | built and reviewed, not run |
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | answered by M5: `transfer` misses its memory bar on Chromium |
-| frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241 | Chromium: the rule picks the **ring** (from the rows, not yet the run's verdict); Firefox VOID; a merge candidate the owner will study first |
+| frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241; Firefox re-run, #264 | arms in `lab/opfs-cache` only; run on both engines: Chromium `ring`, Firefox none (`ring` misses only the fill bar), so by the rule lever 2 returns to the owner; credits not shown needed |
 | `?writer=`, who writes the OPFS cache | `none`: no cache, as main | `store`, `decoders`, `view` | OPFS arms, #227/#242; #244 | Chromium 4 of 7 cells: `decoders` (D) leads, no verdict; Firefox not run |
 | frame clock | the page's timer | worker rAF, timer to a schedule, `MessageChannel`, `Atomics.wait` | #225 | harness built (#249), not run |
 | receive loop, the downloader in the view worker | its own worker | merged | #237 | rig in `lab/recv-loop` only; needs a GPU host |

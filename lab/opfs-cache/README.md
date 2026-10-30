@@ -6,8 +6,10 @@ pre-registers them; the numbers and verdicts are there. The browser is the produ
 (`client/viewer/store.js`), every frame read back and then hashed again (SHA-256) against the encoder input.
 
 Needs the release server and `pack-series`, the decoder builds, the clients, the venv (`PYTHON`) and OpenJPH's encoder
-under `ingest/.build` (README §Prerequisites); M1 uses `lab/scripts/link_impair.py`. Firefox is driven over WebDriver
-BiDi on an Xvfb display (`DISPLAY`, `FIREFOX_PATH`), for any cell with `--engine firefox`.
+under `ingest/.build` (README §Prerequisites); M1 uses `lab/scripts/link_impair.py`. Firefox is driven over Marionette
+on an Xvfb display (`DISPLAY`, `FIREFOX_PATH`), for any cell with `--engine firefox`; not over WebDriver BiDi, whose
+session hangs a worker that starts a worker ([`frame-path.md`](../../docs/adr/frame-path.md), *Firefox's fills that
+never start*). `browser.test.mjs` checks the driver, live with `FIREFOX_PATH`.
 
 ```bash
 NODE_PATH=$(npm root -g) PYTHON=.venv/bin/python node lab/opfs-cache/run.mjs --cell m1|m2|m2-13g|m2-trace|m3|m4|m5|m5-busy --out rows.jsonl \

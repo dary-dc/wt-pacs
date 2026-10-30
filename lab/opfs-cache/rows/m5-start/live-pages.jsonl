@@ -1,0 +1,100 @@
+{"round":0,"mode":"bidi","arm":"ring","sessionMs":1097,"firstMs":2768,"status":"arm ring · received 2, exact 2, not exact 0 · on disk 2 · filling","started":true}
+{"round":0,"mode":"bidi","arm":"today","sessionMs":1077,"firstMs":2536,"status":"frame 1 of 80 · client ts · view page · received 1, exact 1, not exact 0, unchecked 0 · decoders: htj2k 1 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":0,"mode":"bare","arm":"today","firstMs":1709,"made":3,"dialled":true,"started":true}
+{"round":0,"mode":"bare","arm":"ring","firstMs":1910,"made":3,"dialled":true,"started":true}
+{"round":1,"mode":"bidi","arm":"today","sessionMs":1035,"firstMs":40006,"status":"frame 1 of 80 · client ts · view page · received 0, exact 0, not exact 0, unchecked 0 · decoders: none yet · codec htj2k · renderer llvmpipe, or similar (softwa","started":false}
+{"round":1,"mode":"bare","arm":"ring","firstMs":1806,"made":3,"dialled":true,"started":true}
+{"round":1,"mode":"bidi","arm":"ring","sessionMs":1170,"firstMs":2923,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":1,"mode":"bare","arm":"today","firstMs":1907,"made":3,"dialled":true,"started":true}
+{"round":2,"mode":"bare","arm":"ring","firstMs":1910,"made":3,"dialled":true,"started":true}
+{"round":2,"mode":"bare","arm":"today","firstMs":1810,"made":3,"dialled":true,"started":true}
+{"round":2,"mode":"bidi","arm":"today","sessionMs":1059,"firstMs":2709,"status":"frame 1 of 80 · client ts · view page · received 3, exact 3, not exact 0, unchecked 0 · decoders: htj2k 3 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":2,"mode":"bidi","arm":"ring","sessionMs":1212,"firstMs":2705,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":3,"mode":"bare","arm":"today","firstMs":1909,"made":3,"dialled":true,"started":true}
+{"round":3,"mode":"bidi","arm":"ring","sessionMs":1075,"firstMs":2737,"status":"arm ring · received 2, exact 2, not exact 0 · on disk 2 · filling","started":true}
+{"round":3,"mode":"bare","arm":"ring","firstMs":1904,"made":3,"dialled":true,"started":true}
+{"round":3,"mode":"bidi","arm":"today","sessionMs":1066,"firstMs":2640,"status":"frame 1 of 80 · client ts · view page · received 3, exact 3, not exact 0, unchecked 0 · decoders: htj2k 3 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":4,"mode":"bidi","arm":"ring","sessionMs":1127,"firstMs":2849,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":4,"mode":"bidi","arm":"today","sessionMs":1061,"firstMs":2687,"status":"frame 1 of 80 · client ts · view page · received 2, exact 2, not exact 0, unchecked 0 · decoders: htj2k 2 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":4,"mode":"bare","arm":"today","firstMs":1806,"made":3,"dialled":true,"started":true}
+{"round":4,"mode":"bare","arm":"ring","firstMs":1810,"made":3,"dialled":true,"started":true}
+{"round":5,"mode":"bidi","arm":"today","sessionMs":1018,"firstMs":2472,"status":"frame 1 of 80 · client ts · view page · received 1, exact 1, not exact 0, unchecked 0 · decoders: htj2k 1 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":5,"mode":"bare","arm":"ring","firstMs":1811,"made":3,"dialled":true,"started":true}
+{"round":5,"mode":"bidi","arm":"ring","sessionMs":1143,"firstMs":2744,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":5,"mode":"bare","arm":"today","firstMs":1706,"made":3,"dialled":true,"started":true}
+{"round":6,"mode":"bare","arm":"ring","firstMs":1705,"made":3,"dialled":true,"started":true}
+{"round":6,"mode":"bare","arm":"today","firstMs":1802,"made":3,"dialled":true,"started":true}
+{"round":6,"mode":"bidi","arm":"today","sessionMs":1068,"firstMs":2731,"status":"frame 1 of 80 · client ts · view page · received 2, exact 2, not exact 0, unchecked 0 · decoders: htj2k 2 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":6,"mode":"bidi","arm":"ring","sessionMs":1169,"firstMs":2814,"status":"arm ring · received 2, exact 2, not exact 0 · on disk 2 · filling","started":true}
+{"round":7,"mode":"bare","arm":"today","firstMs":1805,"made":3,"dialled":true,"started":true}
+{"round":7,"mode":"bidi","arm":"ring","sessionMs":1018,"firstMs":2663,"status":"arm ring · received 2, exact 2, not exact 0 · on disk 2 · filling","started":true}
+{"round":7,"mode":"bare","arm":"ring","firstMs":1704,"made":3,"dialled":true,"started":true}
+{"round":7,"mode":"bidi","arm":"today","sessionMs":1073,"firstMs":2571,"status":"frame 1 of 80 · client ts · view page · received 1, exact 1, not exact 0, unchecked 0 · decoders: htj2k 1 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":8,"mode":"bidi","arm":"ring","sessionMs":1140,"firstMs":2770,"status":"arm ring · received 2, exact 2, not exact 0 · on disk 2 · filling","started":true}
+{"round":8,"mode":"bidi","arm":"today","sessionMs":1063,"firstMs":2746,"status":"frame 1 of 80 · client ts · view page · received 3, exact 3, not exact 0, unchecked 0 · decoders: htj2k 3 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":8,"mode":"bare","arm":"today","firstMs":1807,"made":3,"dialled":true,"started":true}
+{"round":8,"mode":"bare","arm":"ring","firstMs":1909,"made":3,"dialled":true,"started":true}
+{"round":9,"mode":"bidi","arm":"today","sessionMs":1065,"firstMs":2670,"status":"frame 1 of 80 · client ts · view page · received 2, exact 2, not exact 0, unchecked 0 · decoders: htj2k 2 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":9,"mode":"bare","arm":"ring","firstMs":1805,"made":3,"dialled":true,"started":true}
+{"round":9,"mode":"bidi","arm":"ring","sessionMs":1101,"firstMs":2790,"status":"arm ring · received 2, exact 2, not exact 0 · on disk 2 · filling","started":true}
+{"round":9,"mode":"bare","arm":"today","firstMs":1812,"made":3,"dialled":true,"started":true}
+{"round":10,"mode":"bare","arm":"ring","firstMs":1809,"made":3,"dialled":true,"started":true}
+{"round":10,"mode":"bare","arm":"today","firstMs":1807,"made":3,"dialled":true,"started":true}
+{"round":10,"mode":"bidi","arm":"today","sessionMs":1048,"firstMs":2698,"status":"frame 1 of 80 · client ts · view page · received 1, exact 1, not exact 0, unchecked 0 · decoders: htj2k 1 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":10,"mode":"bidi","arm":"ring","sessionMs":1153,"firstMs":2706,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":11,"mode":"bare","arm":"today","firstMs":1808,"made":3,"dialled":true,"started":true}
+{"round":11,"mode":"bidi","arm":"ring","sessionMs":1111,"firstMs":2825,"status":"arm ring · received 2, exact 2, not exact 0 · on disk 2 · filling","started":true}
+{"round":11,"mode":"bare","arm":"ring","firstMs":1804,"made":3,"dialled":true,"started":true}
+{"round":11,"mode":"bidi","arm":"today","sessionMs":1128,"firstMs":2773,"status":"frame 1 of 80 · client ts · view page · received 3, exact 3, not exact 0, unchecked 0 · decoders: htj2k 3 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":12,"mode":"bidi","arm":"ring","sessionMs":1071,"firstMs":2800,"status":"arm ring · received 2, exact 2, not exact 0 · on disk 2 · filling","started":true}
+{"round":12,"mode":"bidi","arm":"today","sessionMs":1152,"firstMs":2853,"status":"frame 1 of 80 · client ts · view page · received 2, exact 2, not exact 0, unchecked 0 · decoders: htj2k 2 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":12,"mode":"bare","arm":"today","firstMs":1805,"made":3,"dialled":true,"started":true}
+{"round":12,"mode":"bare","arm":"ring","firstMs":1804,"made":3,"dialled":true,"started":true}
+{"round":13,"mode":"bidi","arm":"today","sessionMs":1068,"firstMs":2602,"status":"frame 1 of 80 · client ts · view page · received 3, exact 3, not exact 0, unchecked 0 · decoders: htj2k 3 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":13,"mode":"bare","arm":"ring","firstMs":1908,"made":3,"dialled":true,"started":true}
+{"round":13,"mode":"bidi","arm":"ring","sessionMs":1161,"firstMs":2853,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":13,"mode":"bare","arm":"today","firstMs":1912,"made":3,"dialled":true,"started":true}
+{"round":14,"mode":"bare","arm":"ring","firstMs":2009,"made":3,"dialled":true,"started":true}
+{"round":14,"mode":"bare","arm":"today","firstMs":1906,"made":3,"dialled":true,"started":true}
+{"round":14,"mode":"bidi","arm":"today","sessionMs":1137,"firstMs":2808,"status":"frame 1 of 80 · client ts · view page · received 3, exact 3, not exact 0, unchecked 0 · decoders: htj2k 3 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":14,"mode":"bidi","arm":"ring","sessionMs":1143,"firstMs":2800,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":15,"mode":"bare","arm":"today","firstMs":1907,"made":3,"dialled":true,"started":true}
+{"round":15,"mode":"bidi","arm":"ring","sessionMs":1128,"firstMs":2783,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":15,"mode":"bare","arm":"ring","firstMs":1809,"made":3,"dialled":true,"started":true}
+{"round":15,"mode":"bidi","arm":"today","sessionMs":1078,"firstMs":2606,"status":"frame 1 of 80 · client ts · view page · received 2, exact 2, not exact 0, unchecked 0 · decoders: htj2k 2 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":16,"mode":"bidi","arm":"ring","sessionMs":1185,"firstMs":2836,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":16,"mode":"bidi","arm":"today","sessionMs":1107,"firstMs":2820,"status":"frame 1 of 80 · client ts · view page · received 2, exact 2, not exact 0, unchecked 0 · decoders: htj2k 2 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":16,"mode":"bare","arm":"today","firstMs":1710,"made":3,"dialled":true,"started":true}
+{"round":16,"mode":"bare","arm":"ring","firstMs":1706,"made":3,"dialled":true,"started":true}
+{"round":17,"mode":"bidi","arm":"today","sessionMs":1052,"firstMs":2668,"status":"frame 1 of 80 · client ts · view page · received 3, exact 3, not exact 0, unchecked 0 · decoders: htj2k 3 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":17,"mode":"bare","arm":"ring","firstMs":1805,"made":3,"dialled":true,"started":true}
+{"round":17,"mode":"bidi","arm":"ring","sessionMs":1051,"firstMs":2671,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":17,"mode":"bare","arm":"today","firstMs":1906,"made":3,"dialled":true,"started":true}
+{"round":18,"mode":"bare","arm":"ring","firstMs":2514,"made":3,"dialled":true,"started":true}
+{"round":18,"mode":"bare","arm":"today","firstMs":1805,"made":3,"dialled":true,"started":true}
+{"round":18,"mode":"bidi","arm":"today","sessionMs":1074,"firstMs":2640,"status":"frame 1 of 80 · client ts · view page · received 1, exact 1, not exact 0, unchecked 0 · decoders: htj2k 1 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":18,"mode":"bidi","arm":"ring","sessionMs":1354,"firstMs":3263,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":19,"mode":"bare","arm":"today","firstMs":1806,"made":3,"dialled":true,"started":true}
+{"round":19,"mode":"bidi","arm":"ring","sessionMs":1175,"firstMs":2805,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":19,"mode":"bare","arm":"ring","firstMs":1708,"made":3,"dialled":true,"started":true}
+{"round":19,"mode":"bidi","arm":"today","sessionMs":1077,"firstMs":2730,"status":"frame 1 of 80 · client ts · view page · received 3, exact 3, not exact 0, unchecked 0 · decoders: htj2k 3 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":20,"mode":"bidi","arm":"ring","sessionMs":1105,"firstMs":2860,"status":"arm ring · received 2, exact 2, not exact 0 · on disk 2 · filling","started":true}
+{"round":20,"mode":"bidi","arm":"today","sessionMs":1130,"firstMs":2769,"status":"frame 1 of 80 · client ts · view page · received 3, exact 3, not exact 0, unchecked 0 · decoders: htj2k 3 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":20,"mode":"bare","arm":"today","firstMs":1906,"made":3,"dialled":true,"started":true}
+{"round":20,"mode":"bare","arm":"ring","firstMs":2511,"made":3,"dialled":true,"started":true}
+{"round":21,"mode":"bidi","arm":"today","sessionMs":1284,"firstMs":3707,"status":"frame 1 of 80 · client ts · view page · received 3, exact 3, not exact 0, unchecked 0 · decoders: htj2k 3 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":21,"mode":"bare","arm":"ring","firstMs":1809,"made":3,"dialled":true,"started":true}
+{"round":21,"mode":"bidi","arm":"ring","sessionMs":1231,"firstMs":3200,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":21,"mode":"bare","arm":"today","firstMs":2115,"made":3,"dialled":true,"started":true}
+{"round":22,"mode":"bare","arm":"ring","firstMs":1908,"made":3,"dialled":true,"started":true}
+{"round":22,"mode":"bare","arm":"today","firstMs":1804,"made":3,"dialled":true,"started":true}
+{"round":22,"mode":"bidi","arm":"today","sessionMs":1130,"firstMs":2630,"status":"frame 1 of 80 · client ts · view page · received 2, exact 2, not exact 0, unchecked 0 · decoders: htj2k 2 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":22,"mode":"bidi","arm":"ring","sessionMs":1167,"firstMs":2981,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":23,"mode":"bare","arm":"today","firstMs":2330,"made":3,"dialled":true,"started":true}
+{"round":23,"mode":"bidi","arm":"ring","sessionMs":1145,"firstMs":3028,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":23,"mode":"bare","arm":"ring","firstMs":1910,"made":3,"dialled":true,"started":true}
+{"round":23,"mode":"bidi","arm":"today","sessionMs":1190,"firstMs":40078,"status":"frame 1 of 80 · client ts · view page · received 0, exact 0, not exact 0, unchecked 0 · decoders: none yet · codec htj2k · renderer llvmpipe, or similar (softwa","started":false}
+{"round":24,"mode":"bidi","arm":"ring","sessionMs":1118,"firstMs":3062,"status":"arm ring · received 1, exact 1, not exact 0 · on disk 1 · filling","started":true}
+{"round":24,"mode":"bidi","arm":"today","sessionMs":1510,"firstMs":4726,"status":"frame 1 of 80 · client ts · view page · received 1, exact 1, not exact 0, unchecked 0 · decoders: htj2k 1 · codec htj2k · renderer llvmpipe, or similar (softwar","started":true}
+{"round":24,"mode":"bare","arm":"today","firstMs":2209,"made":3,"dialled":true,"started":true}
+{"round":24,"mode":"bare","arm":"ring","firstMs":1906,"made":3,"dialled":true,"started":true}
