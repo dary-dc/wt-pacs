@@ -24,6 +24,7 @@ cites; the doc holds the number, the directory holds how to get it. Variants are
 | `clock-resolution/`, `idle-sessions/` | the browser's clock floor and what an idle session survives — `docs/rig-limits.md` §6, `docs/adr/transport-idle-sessions.md` |
 | `av1/` | AV1, the second codec: tools, exactness, bytes, decode and delivery — `av1/README.md` §The folders, by what they measure, `docs/av1/README.md` |
 | `opfs-cache/` | the client cache's owed cells, M1–M4 — `docs/adr/frame-path.md` §Proposed, *Measurement owed* |
+| `paint-read/` | whether a paint's settle waits for a busy page, per engine — `docs/adr/frame-path.md` §7, *The pixel read under a busy page* |
 | `viewer/` | the viewer's lab parameters, honoured only where `lab/` is served — `client/README.md` §The viewer |
 | `native-fill/` | the native core against the browser's viewer, fill and ask, one machine — `docs/native/README.md` §6 M2 |
 | `fixtures/`, `traces/` | series and link traces the cells use |

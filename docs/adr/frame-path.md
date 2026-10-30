@@ -710,6 +710,60 @@ vsyncs, as §A frame clock's *What a container can and cannot claim* says; a GPU
 measured. **Cell 4 (OPFS)** was not run: the core's cache is off by default, and who writes it is the OPFS-arms run's
 question (§The cache I/O in the view worker).
 
+### The pixel read under a busy page (2026-10-30)
+
+*Pre-registered 2026-10-30, before any data; the probe is [`../../lab/paint-read/`](../../lab/paint-read/README.md).*
+
+**Why, read from source and not yet measured.** Since Firefox 145, `ClientWebGLContext::ReadPixels` asks
+`GetCanvasExtractDataPermission` after every read (`dom/canvas/ClientWebGLContext.cpp` near line 5451 at
+`FIREFOX_155_0_RELEASE`; absent at `FIREFOX_140` and `FIREFOX_144`). From a worker that is
+`OffscreenCanvasPermissionRunnable`, a `WorkerMainThreadRunnable` (`dom/canvas/CanvasUtils.cpp` near lines 70–125): the
+worker blocks in a sync loop until the page's main thread has run it (`dom/workers/WorkerRunnable.cpp`). Presenting
+does not need the main thread (`OffscreenCanvasDisplayHelper::CommitFrameToCompositor`). Our paint reads one pixel
+after every draw when `settle` is set (`client/paint/paint-worker.js`), which is its default, and the page view's
+`Painter` never unsets it; §7's lab run set it for the view worker too (`lab/viewer/levers.js`). **Hypothesis:** §7's
+Firefox draw p99 ≈ the 200 ms task, in both arms, is that read waiting out the page's long task — our code, not
+Gecko's presentation.
+
+**The probe.** A worker holds a 512² OffscreenCanvas's WebGL2 context (the paint's attributes) and, every 20 ms, in a
+task of its own, draws one full-canvas triangle and settles it by one of five variants, each call timed from the draw
+to the settle's return:
+
+* `read`, and `read′` (the A/A pair): `readPixels` of one pixel, as the paint does;
+* `fence`: `fenceSync`, `flush`, then `clientWaitSync(sync, 0, 0)` polled once a task (a `MessageChannel` turn) until
+  it is not `TIMEOUT_EXPIRED`, capped at 1 s (a call past the cap is counted timed out); a sync object's status changes
+  only between tasks, so the poll must yield;
+* `finish`: `gl.finish()`;
+* `none`: the draw alone.
+
+The page is quiet, or busy with §7's load from navigation (`lab/frame-clock/busy.js`: a 200 ms task every 500 ms, each
+task's start and end kept). A visit is one variant on one page for 10 s, starting 1 s after navigation, in a fresh
+navigation. A round is the ten units (5 variants × quiet, busy) in `lab/order.mjs`'s order; **12 rounds**; Chromium
+(Playwright's, headless, SwiftShader) and Firefox (Playwright's build, headed under Xvfb, llvmpipe, driven over
+Marionette), its version recorded from the user agent; 1× only, no CPU pinning: this probe asks whether a call waits
+for another thread, not how fast it is. Rows: `lab/paint-read/rows/<engine>.jsonl`, every call's start and time.
+
+**Scored** by `lab/paint-read/measure.js`, written and tested before data:
+
+* A call is **in a task** when it starts inside one of the page's long tasks; what is **left** is that task's end less
+  the call's start. A visit's call **waits** when the median in-task call lasts ≥ 0.5 × the median left.
+* **Guards.** A busy visit whose shortest task is under 200 ms is dropped; a cell (engine × quiet/busy) counts its
+  first 12 rounds with every variant kept, and with fewer it decides nothing. A cell is **VOID** when `read` and
+  `read′` differ, median over paired rounds, by more than max(2 ms, 20 % of the larger median) — in-task medians on the
+  busy page, all calls on the quiet one. A cell is **saturated** when `none`'s p99, median over rounds, passes half the
+  20 ms period: the draw alone does not keep up, and nothing is claimed from the cell.
+* **The rule.** In a busy cell, a variant **waits for the page** when its calls wait in ≥ 10 of 12 rounds, **does not**
+  in ≤ 2, and is **mixed** between.
+
+**Prediction.** Firefox: `read` waits for the page, its in-task calls lasting about what is left of the task (median
+excess within ±20 ms); `fence`, `finish` and `none` do not. Chromium: no variant waits; `read`'s in-task median under
+5 ms. `fence`'s in-task median under 5 ms on both. Quiet pages: every variant's median under 5 ms on both. If Firefox's
+`read` does not wait, the hypothesis is refuted and §7's Firefox sentence stands as written.
+
+**What follows from the probe** (steps 2–4 of this work, each written here before its data): a settle that waits for
+the draw to execute without the page's thread, proved on SwiftShader and on Firefox's llvmpipe; no product paint that
+reads a pixel to settle; and §7's busy cine re-measured with the old read and the new settle.
+
 ### A frame clock in the view worker (2026-10-28)
 
 *Theory and a pre-registered protocol; the harness built 2026-10-30 ([`../../lab/frame-clock/`](../../lab/frame-clock/README.md)) and smoke-run, nothing timed as a result.* The owner's next client shape: the page holds no
