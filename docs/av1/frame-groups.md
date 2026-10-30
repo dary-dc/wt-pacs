@@ -38,7 +38,8 @@ source confirms is marked *unverified*.
   **Alt-ref off** (`--auto-alt-ref=0`) at every G, because with it on libaom's inter is not lossless at 10 and 12
   bits: on synthetic frames (row 1) and on every 10-bit DBT top (row 100: 2–5 of 16 frames exact, `aomdec` and dav1d
   agreeing, so the stream is wrong, not the decoder). Alt-ref on was coded at G ∈ {8, 16} and counted only where every
-  frame was exact, which is system B's 8-bit top and low.
+  frame was exact, which is system B's 8-bit top and low. Known upstream and open, and why alt-ref matters:
+  [`README.md`](README.md) §Exactness and the decoders.
 * **SVT-AV1 v4.2.0** (`9292ec8`): `--lossless 1 --lp 1 --keyint G --irefresh-type 2 --scd 0`, presets 0 and 8, grey
   as 4:2:0 at mid-grey chroma (it has no 4:0:0). Its inter is exact on `dbts_b1` alone (an 8-bit top and low) and not
   lossless on the 10-bit tops (row 100).
@@ -202,7 +203,10 @@ frames exact (row 100).
    variants gain: libaom with alt-ref on, at best +3.19 % over intra, and SVT-AV1 preset 0, +2.43 % (row 100).
    * libaom 3.15.1 temporally filters its alt-ref frame even in lossless: only key-frame filtering tests for lossless
      ([S2] `encode_strategy.c:746-757`). It codes the filtered frame, never shown, and then the real frame as an
-     overlay predicted from it (`encode_strategy.c:78-99`). A denoised reference adds almost no noise of its own, so
+     overlay predicted from it (`encode_strategy.c:78-99`). libaom's documentation says it denoises "only on key
+     frame and ARF frames" and codes overlays for filtered alt-refs [S27]; that lossless changes neither rests on
+     the source alone. The filter does not make the output inexact; skip mode does (*derived*, [`README.md`](README.md)
+     §Exactness and the decoders). A denoised reference adds almost no noise of its own, so
      inter from it can at best tie intra on noise, and it follows structure better than intra's neighbours do. The
      gain is all in the top stream (+2.5 to +6.5 %); on the low stream, which is noise, the same coding is 2.6–20.6 %
      larger (row 100).
@@ -309,12 +313,14 @@ unmeasured.
   order. That decode order is display order is *inferred* (an ask's cost grows with (G + 1)/2, row 100), not read in
   libaom's source.
 * **Hierarchical coding** (alt-ref on, pyramids) codes a future frame first, hidden (`show_frame` 0), and shows it
-  later through an overlay or `show_existing_frame` ([S1] §6.8.2). Every temporal unit still shows one frame, so the
-  store's entry per frame and in-order dispatch hold ([`adr-unit.md`](adr-unit.md) §3). What changes (*derived*):
+  later through an overlay or `show_existing_frame` ([S1] §6.8.2 has the hidden frame and `show_existing_frame`;
+  "overlay" is libaom's word, not the spec's [S27]; *corrected 2026-10-30*: this cited [S1] for the overlay).
+  Every temporal unit still shows one frame, so the store's entry per frame and in-order dispatch hold ([`adr-unit.md`](adr-unit.md) §3). What changes (*derived*):
   a hidden frame rides in an earlier unit than the frame it shows, so some entries carry two or three frames' coding,
   and an ask at N decodes N − k + 1 shown frames plus every hidden frame coded before N. At the same G an
   ask never costs less than low-delay's. In lossless libaom filters the alt-ref (§4 point 7), so its frame is shown by
-  a coded overlay, not by `show_existing_frame` (*inferred* from `encode_strategy.c:78-99`).
+  a coded overlay, not by `show_existing_frame`: libaom documents that for a filtered alt-ref [S27]; that lossless
+  filters it rests on [S2] alone.
 * **`show_existing_frame`** outputs a stored frame with nothing coded: a unit of a frame header, a few bytes
   ([S1] §6.8.2). Chromium's WebCodecs stalls on a delimiter-only unit ([`../decode/README.md`](../decode/README.md)
   §WebCodecs without a flush). **Prediction:** it returns the frame for a `show_existing_frame` unit, which the spec
@@ -373,8 +379,8 @@ as recorded; a later correction is marked in place with its date.
   masks, distance weights and reference scaling all stay available ([S1] §5.9.2, §5.9.24, §5.11.27, §7.11.3).
   Lossless changes only how the residual is coded. Intra and inter blocks code that residual the same way, so
   **lossless inter against lossless intra is purely a contest of predictors.**
-* **libaom 3.15.1 still temporally filters its alt-ref in lossless mode.** Only key-frame filtering checks for
-  lossless ([S2] `encode_strategy.c:746-757`). The filtered alt-ref is coded and never shown; the real frame follows
+* **libaom 3.15.1 still temporally filters its alt-ref in lossless mode** (source code alone). Only key-frame
+  filtering checks for lossless ([S2] `encode_strategy.c:746-757`). The filtered alt-ref is coded and never shown; the real frame follows
   as an overlay (`encode_strategy.c:78-99`). Lossless costs one hidden frame per group, and no rule of the
   encoder makes the hidden frame pay for itself. The lab found inter inexact at 10 and 12 bits with alt-ref on and
   exact with it off ([`README.md`](README.md) §Exactness and the decoders), so every exact inter coding here so far had alt-ref off.
@@ -545,6 +551,8 @@ largest claim, P8, is untested.
 * [S24] W3C WebCodecs, Working Draft 26 October 2026 (`2960ce936587`), §4.5, `decode()` and `[[key chunk required]]`.
 * [S25] W3C AV1 WebCodecs Registration, Group Note Draft 13 October 2026 (`58b18e65c972`), §2, §4.
 * [S26] dav1d 1.5.4, `src/decode.c` (`3ff801271cb7`), `:3671-3677`, references refreshed by reference count.
+* [S27] libaom v3.15.1 documentation: `aom/aomcx.h` `AV1E_SET_ENABLE_OVERLAY` ("overlay frames for filtered ALTREF
+  frames"), `doc/dev_guide/av1_encoder.dox` §Temporal Filtering, `aomedia.googlesource.com/aom/+/refs/tags/v3.15.1`.
 
 Re-read 2026-10-24: [S1]'s section numbers, counted from its headings at `5e04f3f`, and the `Lossless` tests cited in
 §4; [S2] `encode_strategy.c:78-99, 746-757` at `v3.15.1`; [S3] `enc_handle.c:3256` and the v3.1.1 entry of its
