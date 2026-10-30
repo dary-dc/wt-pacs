@@ -1065,3 +1065,47 @@ to check a rebuild against.
 M2's two series came out at the same coded sizes; its bundles were not kept, so byte identity with them is not shown.
 `mammo` is the memory and step cells' series (436 MB decoded), 12 bits stored as the real 3328 × 4096 mammograms are
 (`docs/FIXTURES.md`); the generator writes `bitsStored` from the largest sample. The three took 4 min 22 s on 4 cores.
+
+### The interim run: results (2026-10-30)
+
+*Run on `claude/native-metrics` from the section above, 7 rounds, 224 visits, rows in
+[`lab/native-window/rows.jsonl`](../../lab/native-window/rows.jsonl); `python3 lab/native-window/run.py --summary --out
+lab/native-window/rows.jsonl` prints all of what follows. 0 visits failed: every frame of every visit exact. 37 visits
+voided by the relay's p99, all at 20 Mbit.*
+
+**Verdict, by the rule:**
+
+* **`view`: "M2's reading holds for the window"**, in its 2 decided cells.
+* **`ui`: "M2's reading does not hold"**, in the 4.4 MB series' fill at 20 Mbit.
+* **`core`: "M2's reading does not hold"**, in both fills at 20 Mbit.
+
+| cell | metric | `ui` ÷ browser | `view` ÷ browser | `core` ÷ browser | label |
+| --- | --- | --- | --- | --- | --- |
+| 61 MB, loopback | first frame | 0.298 | 0.249 | 0.212 | `VOID` (browser's A/A 0.924; `core`'s 0.853) and saturated |
+| 61 MB, loopback | fill after it | 0.645 | 0.486 | 0.480 | saturated |
+| 61 MB, 20 Mbit | first frame | 0.862, 206 ms earlier | 0.871, 187 ms | 0.880, 174 ms | holds, n = 7 |
+| 61 MB, 20 Mbit | fill after it | 1.005 | 1.005 | **1.073** | holds · holds · **fails**, n = 7 |
+| 4.4 MB, loopback | first frame | 0.258 | 0.159 | 0.147 | saturated; `view`, `core` `VOID` |
+| 4.4 MB, loopback | fill after it | 0.740 | 0.488 | 0.482 | saturated |
+| 4.4 MB, 20 Mbit | first frame | 0.722, 161 ms earlier | 0.689 | 0.709, 167 ms | holds · undecided (n = 2) · holds |
+| 4.4 MB, 20 Mbit | fill after it | **1.051** | 1.028 | **1.036** | **fails** · undecided · **fails** |
+
+Round-paired medians; A/A within half the band unless labelled. The browser's arm runs at its default, `?view=page`.
+
+* **Where the host saturates.** On loopback the browser holds its two client cores at 0.98 (max 0.99) in both series,
+  as M2 found and the protocol expected, so no loopback cell claims anything. There the window ran 0.61–0.70 of two
+  cores under `ui` and 0.84–0.89 under `view` and `core`; their ratios are printed above and claimed for nothing. At
+  20 Mbit nothing is busy: clients ≤ 0.63 of two, server ≤ 0.14, relay core ≤ 0.33.
+* **The first frame on screen is earlier on the relay under every paint thread**: 174–206 ms on the 61 MB series, 161–167 ms
+  on the 4.4 MB, at 0.69–0.88 of the browser's — M2's 0.76–0.90 for `native-fill`.
+* **The fill after the first frame at 20 Mbit is where the window departs.** `core`'s 61 MB fill is 7 % slower, and its
+  inter-arrival p99 is 1 027 ms against 722–724 ms under `ui` and `view`: the receive shares the core thread with the
+  paint, which is what NATIVERUN's prediction (d) names; here it costs fill on the relay, not only at loopback.
+* *A reading labelled post hoc, not the rule's:* on the 4.4 MB series the two fails are 3.6–5.1 % *after the first
+  frame*, and the window's first frame is 160–180 ms earlier. Measured from the dial, the whole fill is a tie: medians
+  2 345 (`ui`), 2 298 (`view`), 2 329 (`core`) against the browser's 2 320 ms. The metric moves the window's earlier
+  start into a longer remainder. On the 61 MB series, from the dial, `core` is 27 115 ms against 25 463–25 583 for
+  the others and the browser's 25 525: its loss is real by either measure.
+* **What it says for NATIVERUN.** The window under `view` reproduces M2's `native-fill` on the relay; `core`'s slower
+  relay fill is a first sign against N2 replacing N1 on metric 5, which NATIVERUN decides. Not GPU, not vblank: both
+  arms render in software.
