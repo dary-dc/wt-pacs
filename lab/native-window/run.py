@@ -90,7 +90,7 @@ def run(a):
                         server.wait()
                     row.update(round=rnd, pos=pos)
                     if pos == 0:
-                        row["server_banner"] = [line.strip() for line in open(log_path) if re.match(r"^[a-z_]+=", line)]
+                        row["server_banner"] = [line.strip().replace(m2.ROOT + "/", "") for line in open(log_path) if re.match(r"^[a-z_]+=", line)]
                     out.write(json.dumps(row) + "\n")
                     out.flush()
                     print(rnd, pos, unit, row.get("shown_ms"), row.get("from_dial_ms"), f"{row.get('exact')}/{row.get('frames')}",

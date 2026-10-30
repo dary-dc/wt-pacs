@@ -1051,5 +1051,8 @@ to check a rebuild against.
 | --- | ---: | --- | --- | ---: | --- |
 | `large` | 37 | 1024 × 1024, 16 | `field` | 60.69 MB | `48fecc5a920dbf30fab1b779b67a16311a52fb5a1bf2b777f1bddf56d927ffca` |
 | `small` | 102 | 512 × 512 RGB, 8 | `cine` | 4.42 MB | `e9116f5ba90940574d022b189904bfe1b9f03e843f318b2122742e179fa4f5c0` |
+| `mammo` | 16 | 3328 × 4096, 12 of 16 | `ct` | 211.96 MB | `d0463adef52d7f7957c9c49bfe2f52d05386a2c7a416e092d9e911ff0c1cb464` |
 
 M2's two series came out at the same coded sizes; its bundles were not kept, so byte identity with them is not shown.
+`mammo` is the memory and step cells' series (436 MB decoded), 12 bits stored as the real 3328 × 4096 mammograms are
+(`docs/FIXTURES.md`); the generator writes `bitsStored` from the largest sample. The three took 4 min 22 s on 4 cores.
