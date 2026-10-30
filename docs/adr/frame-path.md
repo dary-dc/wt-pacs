@@ -139,7 +139,8 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
   cache says `failed {scope: cache}` once when it stops (a write refused) and once when it cannot open; a second tab on
   the same series is told *another tab holds this series' cache* and fills from the downloader alone. **The writer is
   one setting**, the lab's `?writer=` (`lab/viewer/levers.js`; the product's page always uses the default):
-  * `store` (**the default**): `client/viewer/store.js` from `claude/opfs-cache-fixes`, unchanged but for its
+  * `store` (**the default**; *changed 2026-10-30:* no writer, so no cache, is the default until the owner turns the
+    cache on, §The core, assembled): `client/viewer/store.js` from `claude/opfs-cache-fixes`, unchanged but for its
     pointers: one packed file a series, its lock the tab's, evicting least recently opened series. The view worker
     starts it as a nested worker and hands it a copy of each frame, transferred (a `SharedArrayBuffer` sent to it is
     never collected there); it reads back through it.

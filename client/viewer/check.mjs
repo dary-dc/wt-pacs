@@ -19,7 +19,7 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const ENGINE = arg("--engine", "chromium");
 const CLIENT = arg("--client", "ts");
 const VIEW = arg("--view", "page");
-const WRITER = arg("--writer", "store");
+const WRITER = arg("--writer");
 const CLIENTS = {
   ts: ["/client/transport/ts/dist/session.js"],
   wasm: ["/client/transport/wasm/session-adapter.js", "/client/transport/wasm/pkg/transport_wasm.js", "/client/transport/wasm/pkg/transport_wasm_bg.wasm"],
@@ -214,7 +214,7 @@ function judge(name, r, requests, codec, decoder, cached = 0) {
   if (decoder && cached < want) say(paths.length === 1 && paths[0] === decoder, `decoded by ${paths.join(", ") || "none"}, not ${decoder} alone`);
   say((r.paths.cache ?? 0) === cached, `${r.paths.cache ?? 0} frames read from the cache, not ${cached}`);
   // The cache: docs/adr/frame-path.md §3, *Built*. A frame on disk reaches the store with no message to the downloader.
-  if (VIEW === "worker") {
+  if (VIEW === "worker" && WRITER) {
     const c = r.cache;
     const delivered = Object.values(c.delivered).reduce((a, k) => a + k.true + k.false + k.unchecked, 0);
     say(c.present?.length === c.held, `${c.present?.length} frames on disk, not the ${c.held} held`);
@@ -282,7 +282,9 @@ async function acrossARestart(url, cmd) {
 }
 
 const runs = [];
-if (process.argv.includes("--tabs")) {
+if (process.argv.includes("--tabs") && !WRITER) {
+  fail("--tabs needs --writer: with no writer there is no cache");
+} else if (process.argv.includes("--tabs")) {
   const sbnd = path.resolve(arg("--series"));
   const codec = metadataOf(sbnd).codec ?? "htj2k";
   const { url, requests, key } = await host(sbnd, "series");
@@ -308,6 +310,6 @@ if (process.argv.includes("--tabs")) {
 }
 for (const [name, r] of runs) if (!r.error) console.log(summary(name, r));
 for (const f of failures) console.log(`FAIL: ${f}`);
-const said = `${ENGINE}, ${CLIENT}, view ${VIEW}${VIEW === "worker" ? `, writer ${WRITER}` : ""}`;
+const said = `${ENGINE}, ${CLIENT}, view ${VIEW}${VIEW === "worker" ? `, writer ${WRITER ?? "none"}` : ""}`;
 console.log(failures.length ? `viewer check: ${failures.length} failing (${said})` : `viewer check: every frame complete, exact and drawn (${said})`);
 process.exit(failures.length ? 1 : 0);

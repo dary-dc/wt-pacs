@@ -301,9 +301,10 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   under `worker` it runs in the view worker (`view/view-worker.js`) with the paint worker's code as a module, the
   decoders post to it, and the page (`view/view.js`) sends intents and hears `shown`, `progress` and `failed`, never a
   frame ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §3, *Built*). The status line names the view. Under
-  `worker` the store looks in an OPFS cache before it asks (`view/cache.js`): a series with digests is written there
-  after each frame's paint, by the store worker (`viewer/store.js`) unless the lab's `?writer=` names the decoders or
-  the view worker, and read back checked on a later open.
+  `worker` the store looks in an OPFS cache before it asks (`view/cache.js`): when the lab's `?writer=` names who writes it — the
+  store worker (`viewer/store.js`), the decoders or the view worker — a series with digests is written there after each
+  frame's paint, and read back checked on a later open. With no writer, the default, there is no cache, as on main
+  ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §The core, assembled).
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact.
 * **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the decoder per path, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name.
@@ -345,7 +346,7 @@ read off the page in Chromium and off Firefox's stdout (`devtools.console.stdout
 * a step to a held frame that paints other than once or sends the downloader anything; a window change likewise, or
   one that uploads the frame;
 * under `--view worker`, any pixel, `SharedArrayBuffer` or port reaching the page, or any message from the downloader;
-  a frame held and not on disk once the writes settle, a write asked before its frame's paint, or a cache write on the
+  with `--writer`, a frame held and not on disk once the writes settle, a write asked before its frame's paint, or a cache write on the
   view worker's own thread unless the writer is `view`;
 * with `--tabs`, a second tab not told another holds the cache; a reopen that asks the downloader for a frame on disk
   or reads any frame but from the cache; after the corruption, the frame not asked again alone, or any readback off;
