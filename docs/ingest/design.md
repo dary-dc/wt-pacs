@@ -160,6 +160,13 @@ is the owner's (§10, 1).
 
 ## 5. (d) Where the layout, the study DBs and the study index are built
 
+*Corrected 2026-10-20 (the owner): the study DB is built at the PACS, as below. On 2026-10-19 it had moved to
+the PCS, the machine that parses and packs; it moved back because the metadata will inevitably be updated after the
+PACS has received it. So the PACS owns the study DB's creation and its updates, its table design, and whatever it
+keeps on its filesystem. The PCS sends the parser's groups; the PACS checks everything that arrives. When a series or
+a study is complete stays the PCS's question (2026-10-19). Whether SQLite is the store at all is open:
+[`metadata-draft.md`](metadata-draft.md).*
+
 **The image layout and the study DB: at the PACS, from the groups** (the owner's decision of 2026-10-11, one
 SQLite file per study so that bad data in one study never forces a shared database to be rebuilt). Building at the
 PCS and shipping the database is the alternative. It moves CPU to the PCS, but the PACS would trust a database it
