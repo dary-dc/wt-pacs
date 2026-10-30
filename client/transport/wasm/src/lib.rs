@@ -42,7 +42,7 @@ impl TransportSessionHandle {
         to: u32,
         on_frame: js_sys::Function,
         on_error: Option<js_sys::Function>,
-    ) -> Result<f64, JsValue> {
+    ) -> Result<(), JsValue> {
         self.inner
             .fill_frames(from, to, on_frame, on_error)
             .map_err(|e| JsValue::from_str(&e))

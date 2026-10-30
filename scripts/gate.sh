@@ -119,7 +119,7 @@ if [[ $browser -eq 1 ]]; then
 fi
 
 step "client: type-check (product, the lab's recorder and its tests, contract and transport-ts tests)"
-run 1 bash -c "cd client/transport/ts && npx tsc -p tsconfig.check.json && npx tsc -p ../../../lab/client-telemetry/tsconfig.json && npx tsc -p ../../../lab/client-telemetry/test/tsconfig.json && npx tsc -p ../../contract/tsconfig.json && echo typed"
+run 1 bash -c "cd client/transport/ts && npx tsc -p tsconfig.json && npx tsc -p ../../../lab/client-telemetry/tsconfig.json && npx tsc -p ../../../lab/client-telemetry/test/tsconfig.json && npx tsc -p ../../contract/tsconfig.json && echo typed"
 
 step "ingest: the split and its merge, every depth, sign and k"
 if [[ $numpy -eq 1 ]]; then

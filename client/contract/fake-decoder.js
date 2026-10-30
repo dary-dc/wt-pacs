@@ -89,6 +89,6 @@ onmessage = async (e) => {
     decodeSeq: seq,
     maxInFlight,
   });
-  postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount: bytes.length });
+  postMessage({ kind: "done" });
   inFlight -= 1;
 };

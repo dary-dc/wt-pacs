@@ -270,7 +270,7 @@ was removed on 2026-10-03, and a pushed fill has no waiters to leave.
 ## Fills are pushed
 
 ```
-fillFrames(from, to, onFrame, onError?)   → askMs
+fillFrames(from, to, onFrame, onError?)
 ```
 
 On the wire it is `stream_frames {from, to}`, a fill the server recites and **drops the moment an
@@ -645,16 +645,3 @@ Each item below is the owner's to decide, and is tracked here.
 
 * **`readMin` at 16 KB by default** — frame 0 ties; the cost is re-dials below 44 kbit/s, and the `readMin` path's
   defect is fixed first (§Reading a frame whole).
-* **The WASM client as a product client** — the shape (selected by configuration, no fallback) and rows 3–4 of
-  §Proposed: the WASM client as a second product client; and whether row 228's dav1d half moves.
-* **Known defects** — each found by reading the code (2026-10-16 review); *corrected 2026-10-18:*
-  * *Not a defect.* The WASM opening fill is armed on `?ask=fill:` in the URL alone, so against `--opening-ask false`
-    nothing is asked until the stall timer. The TypeScript client does exactly the same (`session.ts`, `ws-session.ts`:
-    the fill is armed, never sent), and `anOpeningFillRidesTheUrl` and the dispatch rig's *open ask* hold both clients
-    to it. A server run with `--opening-ask false` needs `openingAsk: false` from the consumer, as
-    [`client/README.md`](../client/README.md) says. Shown by reading and by those checks, not against a real server.
-  * *Fixed 2026-10-18.* TS: an `onHead` that throws ended that media stream's reads silently at the bare `catch {}`,
-    the asked frame waiting out its timeout and every frame behind it on the stream lost (over a WebSocket the whole
-    session closed); the WASM client ignored the error and delivered the frame. Now both fail that ask with
-    `frame N unavailable: onHead threw: …` and read on: `anOnHeadThatThrowsFailsItsAsk`, which failed on TS, WASM and
-    the WebSocket before.

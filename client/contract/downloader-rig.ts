@@ -35,7 +35,6 @@ function adapt(c: Downloader, route: Route): ConformantSession {
       route.onFrame = onFrame;
       route.onError = onError ?? (() => {});
       c.fill(range(from, to));
-      return performance.now();
     },
     endStream: async () => c.cancel(),
     stats: () => c.stats(),
