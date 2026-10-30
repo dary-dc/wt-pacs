@@ -30,7 +30,7 @@ export class Painter {
         const p = this.#pending.get(data.id);
         this.#pending.delete(data.id);
         if (data.error) p.reject(new Error(data.error));
-        else p.resolve({ ms: data.ms, uploaded: data.uploaded, pixels: data.pixels });
+        else p.resolve({ ms: data.ms, uploaded: data.uploaded, pixels: data.pixels, drawn: data.drawn });
       };
     });
     this.#worker.postMessage({ kind: "start", canvas: offscreen }, [offscreen]);

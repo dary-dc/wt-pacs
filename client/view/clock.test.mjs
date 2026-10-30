@@ -28,6 +28,16 @@ function pumped() {
   return { posted, task: () => channel.port1.onmessage(), restore: () => (globalThis.MessageChannel = Channel) };
 }
 
+/** A paint that returns its draw's end is logged with that end, not when its reply came back; one returning nothing, with now. */
+test("a paint's own end is logged where it gives one", async () => {
+  const c = new Cine({ fps: 50, t0: 1000, source: "posted", show: async (i) => (i === 0 ? 1003 : undefined) });
+  await c.tick(1000);
+  const before = now();
+  await c.tick(1020);
+  assert.equal(c.log[0].end, 1003);
+  assert.ok(c.log[1].end >= before);
+});
+
 /** A tick paints the frame due at its time, a second tick in the same period paints nothing, and a late tick skips ahead. */
 test("a tick paints the frame due at its time, once", async () => {
   const shown = [];
