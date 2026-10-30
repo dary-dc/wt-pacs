@@ -1693,13 +1693,22 @@ Queue row WCLAT ([`lab/av1/decode/latency`](../../lab/av1/decode/latency/README.
 With `optimizeForLatency: true` **each unit gives its frame before the next is sent, exact**. That
 held on every depth and layout WebCodecs takes (8 and 10 bits; 4:0:0, 4:2:0, 4:2:2, 4:4:4), intra
 and G = 8, and on 1, 2 and 4 tile columns: 784 of 784 frames against the encoder's input. With
-neither the option nor a flush, no unit gave its frame. Those are the frames held until `flush()` (§WebCodecs, what it decodes exactly). A flush per unit
-cannot carry a group: after a flush the next unit must be a keyframe.
+neither the option nor a flush, no unit gave its frame. WebCodecs allows both: a decoder "MAY emit new outputs only
+when new inputs are provided" and "MUST emit all outputs in response to a flush" ([S24] §1, *Internal Pending
+Output*), and `optimizeForLatency` is a hint that the decoder "SHOULD be configured to minimize the number of
+EncodedVideoChunks that have to be decoded before a VideoFrame is output" ([S24] §7.6). A frame per unit without a
+flush is therefore Chromium 141's behaviour, not a promise; inside a group the client already relies on it, and a
+decoder that held each frame would reach the 2 s stall guard below on every unit but the group's last (*derived*).
+A flush per unit cannot carry a group: `flush()` sets `[[key chunk required]]`, and `decode()` then throws a
+`DataError` for a chunk whose type is not `key` ([S24] §4.5). Sources: [`../av1/frame-groups.md`](../av1/frame-groups.md) §6.
 
 Skipping the flush makes a frame 7–20 % faster at 1× and 3–28 % at 4×, intra, 10 interleaved rounds
 (every frame exact). A keyframe still needs one, though, or a unit labelled key that is not a
 keyframe decodes against the frame before it. That is how `inter.av1` passed as pixels in the first
-build. Flushing before every keyframe costs what flushing after did, and 5–15 % more at 4× on tiled
+build. The specification checks a key only while `[[key chunk required]]` is true, after construction,
+`configure`, `flush` or `reset`: then "Implementers SHOULD inspect the chunk’s [[internal data]] to verify that it
+is truly a key chunk" ([S24] §4.5). Otherwise the chunk's type is not checked, and what a decoder does with a
+mislabelled key is not found in official sources. A parse in the client could check it instead (frame-groups.md §5d). Flushing before every keyframe costs what flushing after did, and 5–15 % more at 4× on tiled
 frames. So **the decoder flushes at a group's end**, which at G = 1 is every frame, as before. It
 flushes before a keyframe only when a cut group is still held, and never inside a group. Tiles help
 here too: Chromium gives dav1d 2–4 threads by coded height, and 4 tile columns take a frame from 33

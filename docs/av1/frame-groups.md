@@ -347,15 +347,25 @@ unmeasured.
 * **Decoder setup: the flush.** WebCodecs is configured once per codec string ([`payload-format.md`](payload-format.md)
   §Decoder choice, per payload) and demands a key chunk only after `configure`, `flush` or `reset` ([S24] §4.5,
   `[[key chunk required]]`); a shown key frame refreshes all eight reference slots ([S1] §5.9.2), so a key chunk inside
-  a stream needs no flush by the codec. The client flushes at every group's end, so at G = 1 before every frame, to
+  a stream needs no flush by the codec. The client flushes at every group's end, so at G = 1 after every frame, to
   guard against a unit labelled key that is not one, and skipping a flush was 7–20 % faster a frame at 1× and 3–28 % at
-  4× (row WCLAT, [`../decode/README.md`](../decode/README.md) §WebCodecs without a flush). *Inferred:* at G = 1 a
-  parse of the unit's first frame header against the three conditions of [S25] §4 can be that guard instead, and
-  the client already parses each key unit's sequence header for its codec string; dav1d-WASM's `dav1d_flush` a frame
+  4× (row WCLAT, [`../decode/README.md`](../decode/README.md) §WebCodecs without a flush). The flush guards only
+  because it sets `[[key chunk required]]`, after which a decoder "SHOULD" inspect the chunk ([S24] §4.5); without
+  it nothing checks, so a parse in the client can take its place (*derived*). The parse walks the OBUs to the first
+  frame header, each a 1–2-byte header and a size of at most 8 bytes ([S1] §5.3.2, §4.10.5; always present, §5.2),
+  requires a sequence header OBU before it, and reads the frame header's first 4 bits: `show_existing_frame` 0,
+  `frame_type` `KEY_FRAME`, `show_frame` 1 ([S1] §5.9.2, §7.6.2; [S25] §4). Where the sequence header's
+  `reduced_still_picture_header` (its fifth bit) is 1, those are implied ([S1] §5.5.1, §5.9.2). `refresh_frame_flags`
+  is not read: a shown key frame does not code it and refreshes all eight slots ([S1] §5.9.2). That is one byte of
+  each of two OBUs and the headers before them, a few tens of bytes whatever the frame's size (*derived*), and the
+  client already walks these OBUs for its codec string (`client/decode/av1-payload.js:60`); dav1d-WASM's `dav1d_flush` a frame
   ([`adr-unit.md`](adr-unit.md) §2) plays the same role, its cost unmeasured. **Prediction:** a G = 1 series decoded
   through WebCodecs with no flush between key units, the key checked by parse, is exact and about 0.72–0.97 of today's
   time a frame at 4×, less the parse; row WCLAT's harness, interleaved, decides. That is the one setup cost a single stream would save,
-  and G = 1 can save it.
+  and G = 1 can save it. *Corrected 2026-10-30:* the prediction also assumes each unit's frame comes out without a
+  flush, which the sources do not give: a decoder may hold outputs until more input or a flush, and
+  `optimizeForLatency` is a "SHOULD" hint ([S24] §1, §7.6). The flush buys a released frame and a checked key; the
+  parse replaces only the second, so the prediction holds for Chromium 141 as measured, not by specification.
 
 ## The record before the data
 
@@ -542,8 +552,8 @@ largest claim, P8, is untested.
 * [S21] DICOM PS3.3 2026d, A.27.3, the Digital Mammography X-Ray Image IOD's modules (`dicom.nema.org`, read 2026-10-24).
 * [S22] Weinberger, Seroussi & Sapiro, "The LOCO-I lossless image compression algorithm", IEEE Trans Image Process 9(8):1309-1324, 2000, doi:10.1109/83.855427.
 * [S23] AV1 Codec ISO Media File Format Binding v1.3.0, `aomediacodec.github.io/av1-isobmff/v1.3.0.html` (`ff70a1add286`), §2.3.4, §2.4.
-* [S24] W3C WebCodecs, Working Draft 26 October 2026 (`2960ce936587`), §4.5, `decode()` and `[[key chunk required]]`.
-* [S25] W3C AV1 WebCodecs Registration, Group Note Draft 13 October 2026 (`58b18e65c972`), §2, §4.
+* [S24] W3C WebCodecs, Working Draft 26 October 2026 (`2960ce936587`), `w3.org/TR/webcodecs/`: §1 *Internal Pending Output*; §4.5, `decode()`, `flush()` and `[[key chunk required]]`; §7.6 `optimizeForLatency`.
+* [S25] W3C AV1 WebCodecs Registration, Group Note Draft 13 October 2026 (`58b18e65c972`), `w3.org/TR/webcodecs-av1-codec-registration/`, §2, §4.
 * [S26] dav1d 1.5.4, `src/decode.c` (`3ff801271cb7`), `:3671-3677`, references refreshed by reference count.
 
 Re-read 2026-10-24: [S1]'s section numbers, counted from its headings at `5e04f3f`, and the `Lossless` tests cited in
@@ -552,4 +562,5 @@ CHANGELOG at `v4.2.0`; the abstracts of [S8], [S9], [S16] and [S18], and the met
 were not re-read.
 
 Read 2026-10-27 for §5a–§5d: [S1] §3, §5.9.2, §6.8.2, §7.5 and §7.6.2–7.6.3 at `5e04f3f`; [S23]–[S26] at the sections
-cited. The hash is the SHA-256 prefix of the copy read.
+cited. The hash is the SHA-256 prefix of the copy read. Read 2026-10-30 for §5d: [S1] §4.10.5, §5.2, §5.3.2, §5.5.1
+and §5.9.2 at `5e04f3f`; [S24] §1, §4.5 and §7.6 and [S25] §4, the same copies by hash.
