@@ -1,7 +1,8 @@
 //! A QIDO-RS Search query string, as SQL for the index and as a filter over the generator's studies.
 
 use crate::gen::{dicom_date, Study};
-use mysql_async::Value;
+use crate::engine::{Engine, P};
+use crate::lite::{pn_glob, pn_key};
 
 pub const MAX_LIMIT: u64 = 200;
 
@@ -108,18 +109,17 @@ impl Search {
 
     /// The statement and its parameters; `keys` are the caller's access keys, never the client's. `tuned` is
     /// README §Arms' shape: the page's UIDs from the covering index first, then only their rows.
-    pub fn sql(&self, keys: &[String], tuned: bool) -> (String, Vec<Value>) {
-        let columns = if tuned { "st.study_uid, st.study_date, st.study_time" } else { STUDY_COLUMNS };
+    pub fn sql(&self, keys: &[String], tuned: bool, engine: Engine) -> (String, Vec<P>) {
+        let all = match engine {
+            Engine::My => STUDY_COLUMNS,
+            Engine::Pg => PG_STUDY_COLUMNS,
+            Engine::Lite => LITE_STUDY_COLUMNS,
+        };
+        let columns = if tuned { "st.study_uid, st.study_date, st.study_time" } else { all };
         let mut sql = format!("SELECT {columns} FROM study st WHERE st.access_key IN ({})", vec!["?"; keys.len()].join(","));
-        let mut params: Vec<Value> = keys.iter().map(|k| k.as_str().into()).collect();
+        let mut params: Vec<P> = keys.iter().map(|k| k.as_str().into()).collect();
         if let Some(name) = &self.patient_name {
-            if name.contains(['*', '?']) {
-                sql += " AND st.patient_name LIKE ?";
-                params.push(like_pattern(name).into());
-            } else {
-                sql += " AND st.patient_name = ?";
-                params.push(name.as_str().into());
-            }
+            name_filter(engine, name, &mut sql, &mut params);
         }
         for (column, v) in [
             ("patient_id", &self.patient_id),
@@ -133,20 +133,22 @@ impl Search {
             }
         }
         if let Some((a, b)) = &self.date {
+            let bound = if engine == Engine::Pg { "CAST(? AS date)" } else { "?" };
             if let Some(a) = a {
-                sql += " AND st.study_date >= ?";
+                sql += &format!(" AND st.study_date >= {bound}");
                 params.push(a.as_str().into());
             }
             if let Some(b) = b {
-                sql += " AND st.study_date <= ?";
+                sql += &format!(" AND st.study_date <= {bound}");
                 params.push(b.as_str().into());
             }
         }
         if let Some(m) = &self.modality {
-            sql += if tuned {
-                " AND FIND_IN_SET(?, REPLACE(st.modalities_in_study, '\\\\', ','))"
-            } else {
-                " AND EXISTS (SELECT 1 FROM series se WHERE se.study_uid = st.study_uid AND se.modality = ?)"
+            sql += match (tuned, engine) {
+                (false, _) => " AND EXISTS (SELECT 1 FROM series se WHERE se.study_uid = st.study_uid AND se.modality = ?)",
+                (true, Engine::My) => " AND FIND_IN_SET(?, REPLACE(st.modalities_in_study, '\\\\', ','))",
+                (true, Engine::Pg) => " AND ? = ANY (string_to_array(st.modalities_in_study, '\\'))",
+                (true, Engine::Lite) => " AND instr('\\' || st.modalities_in_study || '\\', '\\' || ? || '\\') > 0",
             };
             params.push(m.as_str().into());
         }
@@ -156,7 +158,7 @@ impl Search {
         params.push(self.limit.into());
         params.push(self.offset.into());
         if tuned {
-            sql = format!("SELECT {STUDY_COLUMNS} FROM study st JOIN ({sql}) page USING (study_uid){order}");
+            sql = format!("SELECT {all} FROM study st JOIN ({sql}) page USING (study_uid){order}");
         }
         (sql, params)
     }
@@ -182,6 +184,59 @@ pub const STUDY_COLUMNS: &str = "st.study_uid, st.host, st.patient_name, st.pati
     DATE_FORMAT(st.patient_birth_date, '%Y%m%d'), st.patient_sex, DATE_FORMAT(st.study_date, '%Y%m%d'), \
     TIME_FORMAT(st.study_time, '%H%i%s'), st.accession_number, st.study_id, st.referring_physician_name, \
     st.modalities_in_study, st.study_description, st.number_of_series, st.number_of_instances";
+
+pub const PG_STUDY_COLUMNS: &str = "st.study_uid, st.host, st.patient_name, st.patient_id, st.issuer_of_patient_id, \
+    to_char(st.patient_birth_date, 'YYYYMMDD'), st.patient_sex, to_char(st.study_date, 'YYYYMMDD'), \
+    to_char(st.study_time, 'HH24MISS'), st.accession_number, st.study_id, st.referring_physician_name, \
+    st.modalities_in_study, st.study_description, st.number_of_series, st.number_of_instances";
+
+pub const LITE_STUDY_COLUMNS: &str = "st.study_uid, st.host, st.patient_name, st.patient_id, st.issuer_of_patient_id, \
+    st.patient_birth_date, st.patient_sex, st.study_date, st.study_time, st.accession_number, st.study_id, \
+    st.referring_physician_name, st.modalities_in_study, st.study_description, st.number_of_series, \
+    st.number_of_instances";
+
+/// MySQL compares under the column's `_ai_ci` collation; the others compare the folded `name_key`, a wild-card
+/// pattern by its literal prefix as an index range, so that a generic plan keeps the range. PostgreSQL folds the
+/// pattern once in a sub-select, not once per row.
+fn name_filter(engine: Engine, name: &str, sql: &mut String, params: &mut Vec<P>) {
+    let wild = name.contains(['*', '?']);
+    match engine {
+        Engine::My if wild => {
+            *sql += " AND st.patient_name LIKE ?";
+            params.push(like_pattern(name).as_str().into());
+        }
+        Engine::My => {
+            *sql += " AND st.patient_name = ?";
+            params.push(name.into());
+        }
+        Engine::Pg if wild => {
+            let literal: String = name.chars().take_while(|c| !matches!(c, '*' | '?')).collect();
+            if !literal.is_empty() {
+                *sql += " AND st.name_key >= pn_fold(?) AND st.name_key < pn_fold(?) || chr(1114111)";
+                params.extend([literal.as_str().into(), literal.as_str().into()]);
+            }
+            *sql += " AND st.name_key LIKE (SELECT pn_fold(?))";
+            params.push(like_pattern(name).as_str().into());
+        }
+        Engine::Pg => {
+            *sql += " AND st.name_key = pn_fold(?)";
+            params.push(name.into());
+        }
+        Engine::Lite if wild => {
+            let (literal, glob) = pn_glob(name);
+            if !literal.is_empty() {
+                *sql += " AND st.name_key >= ? AND st.name_key < ?";
+                params.extend([literal.as_str().into(), format!("{literal}\u{10FFFF}").as_str().into()]);
+            }
+            *sql += " AND st.name_key GLOB ?";
+            params.push(glob.as_str().into());
+        }
+        Engine::Lite => {
+            *sql += " AND st.name_key = ?";
+            params.push(pn_key(name).as_str().into());
+        }
+    }
+}
 
 /// PS3.4 §C.2.2.2.4 wild cards as `LIKE`: `*` any run, `?` one character; `%`, `_` and `\` literal.
 pub fn like_pattern(pn: &str) -> String {

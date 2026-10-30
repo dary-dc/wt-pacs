@@ -332,6 +332,11 @@ without slowing the frame reads.
   the modalities, `by_name` covers the date, the page is a deferred join, and the modality is matched on the study
   row. Sync lag p95 is 10–26 ms. The prototype says *revision* for §7's *generation*, which the glossary already
   uses, and keeps the outbox inside the study DB, so a restarted publisher scans every study DB (0.29 ms each).
+* **Engines measured 2026-10-26** ([`../../lab/study-index/README.md`](../../lab/study-index/README.md) §Engines):
+  the amendment's "MySQL 8.4 alone" rested on a choice wrongly attributed to the owner (corrected there).
+  PostgreSQL 18 and SQLite, on the same harness and data in the tuned shape, both meet §11 at 10⁶ beside MySQL:
+  worst p95 query 3.4 ms MySQL, 2.9 ms PostgreSQL, 1.9 ms SQLite locally, 5.7 and 5.9 ms across 2 ms. Most cells tie
+  within 1 ms; sync idle p95 8–12 ms locally. Reported, not decided.
 
 ## 12 · Sources
 

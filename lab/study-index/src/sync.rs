@@ -2,12 +2,10 @@
 
 use crate::bench::{uids, Client};
 use crate::gen::{self, Study};
-use crate::index;
+use crate::engine::{num, Index, P};
 use crate::query::encode;
 use crate::receiver::{self, Published};
 use crate::Args;
-use mysql_async::prelude::Queryable;
-use mysql_async::Pool;
 use serde_json::json;
 use std::collections::HashMap;
 use std::io::Write;
@@ -22,14 +20,14 @@ const BACKOFF_CAP: Duration = Duration::from_secs(1);
 struct Arm {
     name: String,
     url: String,
-    pool: Pool,
+    pool: Index,
     api: String,
     notify: UnboundedSender<PathBuf>,
     done: UnboundedReceiver<Published>,
     task: tokio::task::JoinHandle<()>,
 }
 
-fn start_publisher(pool: &Pool) -> (UnboundedSender<PathBuf>, UnboundedReceiver<Published>, tokio::task::JoinHandle<()>) {
+fn start_publisher(pool: &Index) -> (UnboundedSender<PathBuf>, UnboundedReceiver<Published>, tokio::task::JoinHandle<()>) {
     let (tx, rx) = unbounded_channel();
     let (dtx, drx) = unbounded_channel();
     let task = tokio::spawn(receiver::publisher(pool.clone(), rx, dtx, BACKOFF_CAP));
@@ -72,9 +70,7 @@ fn shell(cmd: &str) {
 
 async fn up(url: &str) -> Instant {
     loop {
-        let pool = Pool::from_url(url).expect("url");
-        let ok = async { pool.get_conn().await?.query_drop("DO 1").await }.await.is_ok();
-        let _ = pool.disconnect().await;
+        let ok = Index::open(url).expect("url").ping().await.is_ok();
         if ok {
             return Instant::now();
         }
@@ -90,7 +86,7 @@ pub async fn run(a: &Args) -> anyhow::Result<()> {
     let mut arms: Vec<Arm> = Vec::new();
     for (name, v) in a.pairs("arms") {
         let (url, api) = v.split_once('|').expect("dburl|api");
-        let pool = index::pool(url)?;
+        let pool = Index::open(url)?;
         let (notify, done, task) = start_publisher(&pool);
         arms.push(Arm { name, url: url.to_string(), pool, api: api.to_string(), notify, done, task });
     }
@@ -105,10 +101,7 @@ pub async fn run(a: &Args) -> anyhow::Result<()> {
         log(json!({"scenario": "seed", "studies": seeded.len(), "ms": t.elapsed().as_millis()}))?;
     }
     for arm in &arms {
-        let mut c = arm.pool.get_conn().await?;
-        c.exec_drop("DELETE se FROM series se JOIN study st USING (study_uid) WHERE st.host = ?", (HOST,)).await?;
-        c.exec_drop("DELETE FROM study WHERE host = ?", (HOST,)).await?;
-        drop(c);
+        arm.pool.clear_host(HOST).await?;
         for pass in ["rebuild", "rescan"] {
             let t = Instant::now();
             let r = receiver::reconcile(&arm.pool, HOST, &dir).await?;
@@ -169,7 +162,7 @@ pub async fn run(a: &Args) -> anyhow::Result<()> {
             if !a.0.get("recovery-arms").is_none_or(|l| l.split(',').any(|n| n == arms[i].name)) {
                 continue;
             }
-            shell(a.get("stop"));
+            shell(&a.get("stop").replace("{arm}", &arms[i].name));
             let down = Instant::now();
             if restart_publisher {
                 arms[i].task.abort();
@@ -182,7 +175,7 @@ pub async fn run(a: &Args) -> anyhow::Result<()> {
                 }
                 pending.insert(path, ());
             }
-            shell(a.get("start"));
+            shell(&a.get("start").replace("{arm}", &arms[i].name));
             let t_up = up(&arms[i].url).await;
             let mut first = None;
             let (scanned, drained) = if restart_publisher {
@@ -218,16 +211,17 @@ async fn correction(
     round: usize,
     log: &mut impl FnMut(serde_json::Value) -> anyhow::Result<()>,
 ) -> anyhow::Result<()> {
-    let mut c = arm.pool.get_conn().await?;
-    let (pid, issuer, n): (String, String, usize) = c
-        .exec_first(
-            "SELECT patient_id, issuer_of_patient_id, COUNT(*) n FROM study WHERE host = ? \
-             GROUP BY patient_id, issuer_of_patient_id HAVING n >= 3 ORDER BY patient_id LIMIT 1 OFFSET ?",
-            (HOST, round * 7 + arm.name.len()),
+    let rows = arm
+        .pool
+        .rows(
+            "SELECT patient_id, issuer_of_patient_id, COUNT(*) FROM study WHERE host = ? \
+             GROUP BY patient_id, issuer_of_patient_id HAVING COUNT(*) >= 3 ORDER BY patient_id LIMIT 1 OFFSET ?"
+                .to_string(),
+            vec![HOST.into(), P::Int((round * 7 + arm.name.len()) as i64)],
         )
-        .await?
-        .expect("a patient with three studies");
-    drop(c);
+        .await?;
+    let row = rows.first().expect("a patient with three studies");
+    let (pid, issuer, n) = (row[0].clone().unwrap_or_default(), row[1].clone().unwrap_or_default(), num(&row[2]) as usize);
     let name = format!("Corrección^R{round} {}", arm.name);
     let t0 = Instant::now();
     let (api, tok, q) = (arm.api.clone(), token.to_string(), format!("PatientID={}&IssuerOfPatientID={}&limit=200", encode(&pid), encode(&issuer)));

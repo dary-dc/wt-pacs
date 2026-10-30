@@ -1,0 +1,26 @@
+series	1173356544	1928314880
+study	380600320	502202368
+study|281395200|410812416
+series|764387328|898039808
+sqlite file 2121326592
+sqlite_version 3.54.1
+journal_mode wal
+synchronous 2
+mmap_size 17179869184
+cache_size -65536
+page_size 4096
+temp_store 2
+page_count 517952
+dbstat by_accession 69193728
+dbstat by_host 55799808
+dbstat by_name 98369536
+dbstat by_patient_id 73277440
+dbstat newest 102367232
+dbstat of_study 267911168
+dbstat series 599764992
+dbstat sqlite_autoindex_series_1 285954048
+dbstat sqlite_schema 4096
+dbstat sqlite_stat1 4096
+dbstat sqlite_stat4 32768
+dbstat study 295518208
+dbstat study_modality 273330176
