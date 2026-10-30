@@ -43,6 +43,7 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | paint thread | the thread that holds the native window's frames and paints them: `ui`, the UI thread (today's); `view`, a view thread with the store beside a downloader thread; `core`, the view's loop and the downloader's on one thread ([`native/README.md`](native/README.md) §The view-worker design, native) |
 | credit | room for one decoded frame the view has not yet received; a decoder takes one before a job, `K` in all |
 | `wt-pacs/1` | the native client's ALPN: the session's streams on raw QUIC, without HTTP/3 or WebTransport ([`WIRE.md`](WIRE.md) §The raw QUIC mapping) |
+| span | the frames a consumer holds that one run may cross so the misses around them stay one run; a lab setting, default 0 ([`adr/frame-path.md`](adr/frame-path.md) §Experiment 1) |
 | Tap | the client's telemetry recorder, outside the product build ([`adr/telemetry-instrument-clients-from-outside.md`](adr/telemetry-instrument-clients-from-outside.md)) |
 
 ## Testing and measuring

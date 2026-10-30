@@ -13,8 +13,11 @@ let consumer = null;
 const toConsumer = (m, transfer = []) => (consumer ?? globalThis).postMessage(m, transfer);
 
 let session = null;
-/** A third decoder helps on four cores, not on two: docs/ARCHITECTURE.md §Resources. `askDepth`, a want's D_min: docs/adr/client-window-depth.md */
-let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true, refill: "head", askDepth: 4 };
+/**
+ * A third decoder helps on four cores, not on two: docs/ARCHITECTURE.md §Resources. `askDepth`, a want's D_min:
+ * docs/adr/client-window-depth.md. `span`, the held frames a run may cross: docs/adr/frame-path.md §Experiment 1
+ */
+let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true, refill: "head", askDepth: 4, span: 0 };
 /** ms, and how many re-dials. `cfg.survival` as an object overrides them; `false` turns all but `decodeMs` off. */
 const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000, decodeMs: 10_000 };
 /** A frame lost with its decoder this many times fails by name. docs/ARCHITECTURE.md §The downloader */
@@ -247,10 +250,10 @@ function serveWant() {
   // The head is asked at once, so a head the ended run had in flight crosses twice.
   if (ended.delete(head)) records.delete(head);
   const unsent = [...order].filter((i) => !records.has(i));
-  let to = head;
-  while (unsent[to - head + 1] === to + 1) to += 1;
-  if (owed === 0 && ended.size === 0 && unsent[0] === head && to - head + 1 >= cfg.askDepth) {
-    addToFill(unsent.slice(0, to - head + 1), abs());
+  let inRun = 1;
+  runEnd(head, (i) => i === unsent[inRun] && ++inRun);
+  if (owed === 0 && ended.size === 0 && unsent[0] === head && inRun >= cfg.askDepth) {
+    addToFill(unsent.slice(0, inRun), abs());
     return void issueFill();
   }
   if (!session || session.stats().closed) return;
@@ -327,9 +330,17 @@ function askFor(s, index) {
 function nextRun() {
   if (wanted.size === 0) return null;
   const from = Math.min(...wanted);
+  return { from, to: runEnd(from, (i) => wanted.has(i)) };
+}
+
+/** The run from `from` over the frames `next` admits, crossing up to `cfg.span` the consumer holds; those arrive with no record and are dropped. */
+function runEnd(from, next) {
   let to = from;
-  while (wanted.has(to + 1)) to += 1;
-  return { from, to };
+  for (let i = from + 1; i - to <= cfg.span + 1; i++) {
+    if (next(i)) to = i;
+    else if (records.has(i) || order.has(i)) break;
+  }
+  return to;
 }
 
 function fillHandlers(from, to) {
