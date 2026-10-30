@@ -71,6 +71,12 @@ The group files are already named by their hashes, so the list's work is to say 
 or an old group the parser leaves beside a corrected one, #176, does not slip in) and to carry the bundle's hash. In
 the package profile the package is that record: its members' names, its header, and its own XXH3 in its name.
 
+*Added 2026-10-29 (owner):* the receiver reads what is what from the tree itself (coded-UID folders, group names); it
+must know the PCS's layout either way, so the list adds nothing there. Its remaining work comes from three PCS
+behaviours, each changeable: (1) a corrected group beside the old one (#176 Q-U1), so the tree holds both; (2) rsync
+copies file by file, so a tree changed during a sync arrives mixed; (3) frame files carry no hash. If the PCS fixes (1),
+syncs a quiet or snapshotted tree, and names frames by hash, the list shrinks to the trigger's "ready" (§4.4).
+
 **The hash bridge** (open, 2026-10-28; for the owner, none decided). rsync copies the PCS's tree as is, so group files
 arrive named by BLAKE3 (64 hex), while our sender (`carrier/sender/src/tree.rs`, #177) and receiver (#163) check 16-hex
 XXH3 names. Options: **(a)** the receiver verifies the PCS's BLAKE3 names, and the study DB keeps XXH3 as decided;
@@ -114,7 +120,7 @@ closer to atomic" (rsync(1)).
 | option | how it works | good at | costs |
 | --- | --- | --- | --- |
 | **cleared** (default if rsync) | the sender names the unit's files: `--files-from` reads "the exact list of files to transfer from FILE" (rsync(1)), from the records #177 keeps of what each revision carried | no second copy at the PACS | the sender keeps a sent list (it does already) |
-| **a mirror** of the PCS's tree | rsync's quick check finds what changed by itself | the sender keeps nothing | the PACS holds every group and bundle twice |
+| **a mirror** of the PCS's tree | rsync's quick check finds what changed by itself; with `--delete`, deletions too (§4.4) | the sender keeps nothing; no item list once the PCS's tree shows its current state | metadata twice at the PACS (≈ 3 % of coded frames, #234); frames twice unless hard-linked or excluded |
 
 ### 2.2 Transport
 
@@ -180,8 +186,10 @@ slower; by the pre-registered rule, the verdict is E. Reported, not decided.
 
 The trigger's item list is B's and E's list: with it, the trigger and the shape become one message (*inference*). rsync
 itself behaves like C: it exchanges a file list and compares, and `--delete` deletes by absence, "extraneous files from
-the receiving side (those that don't exist on the sending side)" (rsync(1)). But that reaches only `incoming/`: the
-serving tree's deletions come from the item list, never from rsync (*inference*).
+the receiving side (those that don't exist on the sending side)" (rsync(1)). *Corrected 2026-10-29 (owner):* this said
+that reaches only `incoming/`, so deletions must come from the item list. That holds only for a cleared `incoming/`;
+into a kept mirror, rsync carries deletions itself and `-i` names each one, which the receiver applies to the study DB
+and the serving tree (§4.4).
 
 **Late instances and corrections under rsync** turn on what rsync compares against at the PACS: P1 our script sends
 only what is new (a sent record at the PCS); P2 a mirror of the received metadata at the PACS and `--compare-dest` into
@@ -303,6 +311,57 @@ PCS: sender --profile P EXAM_DIR S           PACS: carrier                      
 **Built code:** all of it. Owed before it fits (design state §14): one reply vocabulary and place (D3), the audit
 row's "who", one study-DB schema (D1).
 
+### 4.4 A kept mirror of the PCS's tree
+
+*Proposed 2026-10-29, the owner's model; theory only.* rsync as it is meant: a directory kept in step with the PCS's
+exam directory. Neither #233 nor #234 compared it: both send into a cleared `incoming/` (#234's P2 keeps a mirror but
+sends changes into an empty `incoming/` with `--compare-dest`, so deletions do not travel).
+
+| part | option |
+| --- | --- |
+| delivery | `rsync -a --delete --max-delete=N -ii EXAM_DIR/ pacs:mirror/<E>/`, the mirror kept between units |
+| where | `mirror/` on the serving root's filesystem, outside the serving tree: rsync never writes where the server reads |
+| trigger | still needed: "the tree is consistent now" (§3); a forced command or a marker (§2.3) |
+| what changed | the receiver compares the mirror with what it applied, or reads the `-ii` lines the script forwards with the trigger |
+| reply, PCS copy, compression, identity | as §4.1 |
+
+```text
+PCS: our script (exam quiet or snapshotted)              PACS
+ |-- rsync -a --delete --max-delete=N -ii EXAM_DIR/ ---->| mirror/<E>/…   new, changed, deleted
+ |-- receive <unit> ------------------------------------>| reconcile: the study DB and the serving tree made to
+ |                                                        |   match mirror/<E>/ (steps 3–12, item by item)
+ |<-- stored | refused | pending -------------------------|
+```
+
+rsync(1), 3.5.1: `--delete` removes "extraneous files from the receiving side (those that don't exist on the sending
+side), but only for the directories that are being synchronized"; with `-i`, "the "%i" will output the string
+"*deleting" for each item that is being removed"; `--max-delete=NUM`: past NUM "all further deletions are skipped
+through the end of the transfer", exit code 25.
+
+**What it removes** (*inference*): the sent list (P1), the negotiation call (P3), the full metadata resend (P4), and
+most of the item list (§1): after a completed sync the mirror is the PCS's state. A crash, a lost sent list or a PACS
+restored from backup heals by reconciling again or by the next sync, which sends only what differs, as long as the
+mirror is restored with the study DB.
+
+**What it needs from the PCS** (§6):
+
+1. **Its exam tree stays the record** while updates can come. `--delete` turns "absent at the PCS" into "deleted at
+   the PACS": a PCS that clears its tree after "stored" (§2.6 allows it) deletes the PACS's copy at the next sync.
+   `--max-delete` limits the damage, not the risk.
+2. **The tree shows the current state.** Today a corrected group stays beside the old one (#176 Q-U1), and a
+   withdrawal arrives as an IOCM rejection note, a KOS, which adds files and removes none. Until that changes the
+   mirror holds both versions and only a list (§1) says which is current.
+3. **A consistent tree during the sync:** the PCS leaves the exam alone while it syncs, or syncs a snapshot; the
+   trigger then says when. The receiver never applies a half-synced mirror.
+4. **Hashes for frame files** (§1, the gap); without them frames rest on rsync's wire check and our read-back.
+
+**What it costs at the PACS** (*estimate*, #234 P2): the metadata twice, ≈ 3 % of the coded frames in 4 KiB blocks,
+plus an inode per file. Frames: a `.sbnd` that crosses as a file (§2.9, first row) can be hard-linked into the serving
+tree (one filesystem, no blocks); if the PACS builds the `.sbnd` from frame files, the mirror holds them twice or
+excludes them (`--exclude`, which also keeps them from `--delete`) and they travel by `--files-from` as in §4.1. The
+mirror and the study DB are backed up and restored together. Comparing the mirror (BLAKE3 names) with the study DB
+(XXH3) needs the PCS's name per row, or the bridge's option (a) (§1).
+
 ### 4.3 Package over rsync (a bridge)
 
 The tar package delivered by rsync over ssh, the reply a status file pulled back. rsync writes a temporary name and
@@ -319,17 +378,21 @@ only the carrier and `send-package.sh`, and keeps one file to keep and resend wh
 * **Arrival by rename** as the trigger needs a package; a tree needs a marker, a command or a call.
 * **QUIC** is for HTTPS only; rsync is TCP only.
 * **`--remove-source-files`** contradicts "kept until stored" (**Decided** 10-24).
-* **`--delete`** gives no deletion semantics at the serving tree (§2.5); in a cleared `incoming/` it removes nothing
-  useful.
+* **`--delete`** in a cleared `incoming/` removes nothing useful (*corrected 2026-10-29:* this said it gives no
+  deletion semantics at the serving tree; into a kept mirror it does, §4.4).
+* **A kept mirror** (§4.4) with a PCS that clears its tree after "stored": the next sync deletes the PACS's copy.
 * **`-z` on the bundle** compresses frames again, against **Decided** 10-26.
 * **The PCS's tree under our checks** (*corrected 2026-10-28*): rsync delivers BLAKE3-named groups, while our sender and
   receiver check XXH3 names; the rsync profile does not combine until the hash bridge (§1) is chosen.
 
 ## 6 · Open with the team
 
-1. **Delivery:** the package (agreed 10-24) or rsync of the tree (10-28)? §4.3 keeps both sides' built code.
+1. **Delivery:** the package (our choice, approved by the owner on 10-24; *corrected 2026-10-29:* this said "agreed")
+   or rsync of the tree (the team's proposal, 10-28)? §4.3 keeps both sides' built code.
 2. **The trigger's form and the item list's format**; who writes the list (our sender, or the PCS's process 2).
-3. **`incoming/` cleared or a mirror** (§2.1): bytes on the link against disk at the PACS.
+3. **`incoming/` cleared or a kept mirror** (§2.1, §4.4): decided by the PCS's answers: is its exam tree kept as the
+   record, does it show the current state (Q-U1, withdrawals), can it sync a quiet or snapshotted tree, will frames
+   carry hashes.
 4. **The reply's words and place** (D3) and the poll interval; who deletes the status file.
 5. **ssh or a daemon**, and one login per PCS for the audit's "who".
 6. **Compression restated for rsync** (§2.7): the 10-26 decision was written for the package.
