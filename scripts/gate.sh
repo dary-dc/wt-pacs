@@ -174,6 +174,10 @@ step "server: compiles without io_uring (the pool path alone)"
 run 1 cargo check -p series-server --no-default-features --all-targets --quiet
 step "server: compiles with cert-compression"
 run 1 cargo check -p series-server --features cert-compression --all-targets --quiet
+step "carrier: the resumable upload, mutual TLS, refusals, and the PCS's script through a proxy that cuts and stalls"
+run 1 cargo test -p carrier --quiet
+step "carrier: the same upload over the experimental HTTP/3 listener"
+run 1 cargo test -p carrier --features quic --quiet
 step "common, ingest and tools: wire, envelope, reads from disk, series bundle, study DB, pack-series, check-fastpath and pacs-verify"
 run 1 cargo test -p fod -p frame-envelope -p from-disk -p series-bundle -p study-db -p pack-series -p check-fastpath -p pacs-verify --quiet
 step "ingest: the PACS receiver — every step, refusal and crash point (docs/adr/pacs-receiver.md)"
