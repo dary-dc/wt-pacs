@@ -46,6 +46,9 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | credit | room for one decoded frame the view has not yet taken: a decoder takes one before a job, `K` in all, so a full store reaches the wire as a pause; in the browser's M5 arms, a frame dispatched and not yet acknowledged ([`adr/frame-path.md`](adr/frame-path.md) §Proposed, *M5 amended*; [`native/README.md`](native/README.md) §Built) |
 | `wt-pacs/1` | the native client's ALPN: the session's streams on raw QUIC, without HTTP/3 or WebTransport ([`WIRE.md`](WIRE.md) §The raw QUIC mapping) |
 | span | the frames a consumer holds that one run may cross so the misses around them stay one run; a lab setting, default 0 ([`adr/frame-path.md`](adr/frame-path.md) §Experiment 1) |
+| paint worker | under `?view=page`, the worker the page posts each frame's handle to, which paints it with WebGL2 on the transferred canvas (`client/paint/paint-worker.js`); in the view worker, the same module is its paint |
+| cine | the frames shown one after another at a rate; the product's is ticked by a page `setInterval` (`client/view/view.js`) |
+| cine clock | what ticks cine, on the page or in the view worker; each of the lab's clocks shows the frame due at its tick (`client/view/clock.js`, [`adr/frame-path.md`](adr/frame-path.md) §A frame clock in the view worker) |
 | Tap | the client's telemetry recorder, outside the product build ([`adr/telemetry-instrument-clients-from-outside.md`](adr/telemetry-instrument-clients-from-outside.md)) |
 
 ## Testing and measuring

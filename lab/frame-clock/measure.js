@@ -1,13 +1,11 @@
 /** A run's score and a cell's verdict, as pre-registered: docs/adr/frame-path.md §A frame clock in the view worker. */
 
-/** ms: one display interval at 60 Hz, the bound used where no vsync phase is logged. */
+/** ms: one display interval at 60 Hz, for a run with no vsync log. */
 export const DISPLAY_MS = 1000 / 60;
-/** ms: §7's long task; a busy run with a shorter one is void. */
+/** ms; the rest are points of frames due, ms of gap p99, and a share of rounds. */
 export const LONG_TASK_MS = 200;
-/** The A/A pair's bounds: points of frames due, and ms of gap p99. */
 const AA_POINTS = 2;
 const AA_GAP_MS = 16.7;
-/** In the rule's busy cells, a worker arm must beat `page-raf` by this many points of frames due, in this share of rounds. */
 const LEAD_POINTS = 20;
 const LEAD_ROUNDS = 11 / 14;
 
@@ -20,7 +18,6 @@ export const p99 = (v) => {
   return s.length ? s[Math.ceil(0.99 * s.length) - 1] : NaN;
 };
 
-/** The first vsync at or after `t`, or undefined past the log's end. */
 function nextVsync(vsyncs, t) {
   let [lo, hi] = [0, vsyncs.length];
   while (lo < hi) {
@@ -31,10 +28,7 @@ function nextVsync(vsyncs, t) {
   return vsyncs[lo];
 }
 
-/**
- * Frame i is due at t0 + i·period; it is on its tick if its draw ends in [due, due + period) and no later draw ends
- * before the vsync that would show it. Without a vsync log, a draw is superseded by one ending within DISPLAY_MS.
- */
+/** Frames not on their tick, the gap p99 and the draw p99: lab/frame-clock/README.md §Scoring. */
 export function score({ draws, vsyncs = [], t0, period, ms }) {
   // Frames due before t0 + ms; the epsilon keeps 1000 / (1000 / 60) from rounding to 59.
   const due = Math.ceil(ms / period - 1e-9);
@@ -54,13 +48,9 @@ export function score({ draws, vsyncs = [], t0, period, ms }) {
   return { due, late: due - shown.length, latePct: (100 * (due - shown.length)) / due, gapP99: p99(gaps), drawP99: p99(drawMs) };
 }
 
-/** A busy run whose shortest long task fell short is void; a quiet run has none. */
 export const voidRun = (run) => run.busy && (!run.tasks.length || Math.min(...run.tasks) < LONG_TASK_MS);
 
-/**
- * One cell's verdict from its runs' scores, `{ round, arm, latePct, gapP99, drawP99 }`, void runs already dropped:
- * VOID by the A/A pair, saturated where the reference's draw p99 passes period/2, and each worker arm against `page-raf`.
- */
+/** A cell's VOID, saturation and each worker arm's bar, from rows `{ round, arm, latePct, gapP99, drawP99 }` of runs not void. */
 export function verdict(rows, { period, busy }) {
   const by = (arm) => new Map(rows.filter((r) => r.arm === arm).map((r) => [r.round, r]));
   const ref = by("page-raf");
@@ -88,10 +78,7 @@ export function verdict(rows, { period, busy }) {
   return out;
 }
 
-/**
- * The engine's clock from its cells' verdicts, `{ series, busy, ...verdict }`: the first worker arm, `worker-raf` before the
- * fallbacks by fewest late frames, that passes in every 512² cell neither VOID nor saturated; else the page's.
- */
+/** The engine's clock from its cells' verdicts, `{ series, busy, ...verdict }`: lab/frame-clock/README.md §The rule. */
 export function rule(cells) {
   const decide = cells.filter((c) => c.series === "s512" && !c.void && !c.saturated);
   if (!decide.length) return { clock: null, why: "no 512² cell is neither VOID nor saturated" };

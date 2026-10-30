@@ -48,9 +48,9 @@ test("page-raf posts its rAF times as ticks", () => {
 /** page-interval is a page setInterval at the frame period, each firing a tick with no vsync; its stop clears it. */
 test("page-interval ticks from a page interval", () => {
   const { calls, view, page } = rig();
-  const stop = start("page-interval", view, 60, 500);
+  const stop = start("page-interval", view, 30, 500);
   assert.equal(page.intervals.length, 1);
-  assert.equal(page.intervals[0][1], 1000 / 60);
+  assert.equal(page.intervals[0][1], 1000 / 30);
   page.intervals[0][0]();
   assert.equal(calls[1][0], "tick");
   assert.ok(Math.abs(calls[1][1] - (performance.timeOrigin + performance.now())) < 50);

@@ -31,9 +31,9 @@ test("a frame not drawn is late", () => {
 
 /** A draw that ends past its period is late, though drawn. */
 test("a draw ending after its period is late", () => {
-  const r = run();
-  r.draws[5].end = 6 * T + 0.1;
-  assert.equal(score(r).late, 1);
+  const one = (end) => score({ t0: 0, period: T, ms: T, vsyncs: [T / 2, 1.5 * T, 2.5 * T], draws: [{ i: 0, start: 0, end }] }).late;
+  assert.equal(one(T - 0.1), 0);
+  assert.equal(one(T + 0.1), 1);
 });
 
 /** A draw followed by another before the vsync that would show it is superseded, so late. */
