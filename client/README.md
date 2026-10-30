@@ -80,7 +80,7 @@ the exact frame and no preview. [`docs/av1/adr-unit.md`](../docs/av1/adr-unit.md
 dispatch rig checks `client/contract/av1/scalable/`.
 
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
-in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` at `ea581aca` prices it.
+in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
 
 **Only the dial needs the URL.** `url` and `certHash` may each be a promise: the worker, the
 decoders and the transport import start at once and the dial waits alone. The opening fill rides

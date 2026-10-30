@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>clock resolution</title>
+</head>
+<body>
+  <pre id="out">measuring…</pre>
+  <script type="module">
+    const samples = [];
+    let prev = performance.now();
+    for (let i = 0; i < 200_000; i++) {
+      const t = performance.now();
+      const d = t - prev;
+      if (d > 0) samples.push(d);
+      prev = t;
+    }
+    samples.sort((a, b) => a - b);
+    const minMs = samples[0] ?? null;
+    const result = {
+      crossOriginIsolated: globalThis.crossOriginIsolated === true,
+      min_nonzero_delta_ms: minMs,
+      clock_resolution_us: minMs == null ? null : Math.round(minMs * 1000),
+      nonzero_samples: samples.length,
+      performance_timeOrigin: performance.timeOrigin,
+    };
+    document.getElementById("out").textContent = JSON.stringify(result, null, 2);
+    globalThis.__clockResolution = result;
+  </script>
+</body>
+</html>

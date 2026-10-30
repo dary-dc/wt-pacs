@@ -40,7 +40,7 @@ the product's worker to keep each memory it instantiates; the page's
 `performance.measureUserAgentSpecificMemory()` (which collects first; the workers' JS+WASM); and the
 renderer's RSS from `/proc`, which `run.mjs` reads before resuming the page. The peak is the renderer's
 `VmHWM`. A worker is a thread in the renderer, so its resident cost is the RSS slope in D, paired inside
-a round, as `lab/decoder-memory` at `ea581aca`. Pixels are hashed and dropped, not held.
+a round, as `lab/decoder-memory`. Pixels are hashed and dropped, not held.
 
 **First use** (`--mode first`): each (throttle, set, variant) is a fresh browser context visited three times:
 *cold*, then *cached* and *cached2*, new pages in the same context, so with the browser's HTTP and code
