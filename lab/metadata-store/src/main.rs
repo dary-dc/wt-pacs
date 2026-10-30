@@ -51,7 +51,7 @@ fn args() -> Result<Args> {
             "--packages" => a.packages = value.into(),
             "--builds" => a.builds = value.parse()?,
             _ => anyhow::bail!(
-                "unknown flag {flag}: --dir, --instances, --rounds, --mode pair|pair-followup|update-cost|study-db, \
+                "unknown flag {flag}: --dir, --instances, --rounds, --mode pair|pair-followup|update-cost|study-db|ce-ratio, \
                  --updates, --packages, --builds"
             ),
         }
@@ -154,6 +154,8 @@ fn main() -> Result<()> {
         "update-cost" => return update_cost::run(&a.dir, &series, &template, &a.instances, a.updates),
         #[cfg(feature = "study-db")]
         "study-db" => return study_db::run::run(&a.packages, &a.dir, a.rounds, a.builds, a.updates),
+        #[cfg(feature = "study-db")]
+        "ce-ratio" => return study_db::ratio::run(&a.packages, a.rounds),
         _ => {}
     }
     for &n in &a.instances {
