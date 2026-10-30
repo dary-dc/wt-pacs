@@ -322,6 +322,16 @@ without slowing the frame reads.
   ≤ 10 ms warm and the API's ≤ 50 ms, and the frame-read p95 under list load is within the A/A spread. If MySQL misses
   and another arm meets it, that arm is recommended instead. If the frame reads slow beyond the A/A spread, the index
   moves to its own server.
+* **Amended 2026-10-26, before running** ([`../../lab/study-index/README.md`](../../lab/study-index/README.md)
+  §Pre-registration): MySQL 8.4 alone, at 10⁵ and 10⁶; arms across an emulated network hop and a tuned shape;
+  the frame-read interference not run; sync lag, recovery and a correction added.
+* **Measured 2026-10-26** ([`../../lab/study-index/README.md`](../../lab/study-index/README.md) §Results). As
+  designed, `date7_modality` misses the 10 ms query budget at 10⁶ (p95 14–19 ms). The tuned shape meets every one of §11's
+  cells locally and across a 2 ms round trip, at p95 ≤ 5.0 ms query and ≤ 5.8 ms API (the added `name_family` @ 1000
+  still misses the query budget, 17–20 ms): `newest` also covers the name and
+  the modalities, `by_name` covers the date, the page is a deferred join, and the modality is matched on the study
+  row. Sync lag p95 is 10–26 ms. The prototype says *revision* for §7's *generation*, which the glossary already
+  uses, and keeps the outbox inside the study DB, so a restarted publisher scans every study DB (0.29 ms each).
 
 ## 12 · Sources
 
