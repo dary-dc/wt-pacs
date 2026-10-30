@@ -1475,7 +1475,24 @@ libaom fault of §Prior evidence reproduces, and **3.15.1 has it too**: with def
 at 10 and 12 bits came back wrong on 1–8 of 16 frames (|Δ| ≤ 2 at 10 bits, ≤ 11 at 12), never on a
 keyframe, identically from dav1d and aomdec. It goes with the alt-ref frames: with
 `--auto-alt-ref=0` every cell — grey 8/10/12 as 4:0:0 and RGB 8 as 4:4:4, intra and inter, both
-versions, two presets — is exact. libaom 3.15.1 is pinned. SVT-AV1 v4.2.0 codes 4:2:0 at 8 and 10
+versions, two presets — is exact. libaom 3.15.1 is pinned.
+
+**It is known upstream, and open:** AOM issue [387472912](https://aomedia.issues.chromium.org/issues/387472912),
+"Output differs from 10-bit input when --lossless=1" (Assigned, P3; "Still happens with aom v3.13.2", comment #9,
+2026-03-24). It is bisected there to "Skip_mode improvement" (`21d45ae5`, 2023-06-13), and partly reverting that
+commit's high-bit-depth SSE makes the test pass (comment #6). Why that fits every one of our cells (*derived*):
+* a skip-mode block codes no residual (`if ( skip_mode ) skip = 1`, AV1 spec §5.11.18), yet the frame stays
+  `CodedLossless`, which tests only the quantiser (§5.9.2): the block is exact only if its prediction is;
+* libaom shifts a skip-mode block's SSE right by (bit depth − 8)·2 bits, rounding (`rdopt.c:1850`), so an SSE ≤ 7
+  at 10 bits and ≤ 127 at 12 costs as exact: |Δ| ≤ 2 and ≤ 11, the maxima measured; no shift at 8 bits;
+* libaom turns skip mode off when every reference is in the past and it looks ahead (`encodeframe.c:1688`): every
+  inter frame with alt-ref off.
+
+The last two rest on libaom 3.15.1's source alone. The issue has neither 12 bits nor the alt-ref switch; a comment
+adding them is drafted in the pull request that added this paragraph, not posted. libaom's own lossless tests code
+8-bit sources only (`test/lossless_test.cc:104-157`, source).
+
+SVT-AV1 v4.2.0 codes 4:2:0 at 8 and 10
 bits only, and its 10-bit inter stays inexact under every setting tried; rav1e 0.7.1 has no lossless
 mode. 12-bit 4:4:4 behaves alike on 3.8.2; 3.15.1's `aomenc` cannot encode it at all. Every lossless-bytes
 encode of the public series (queue rows SIZE, DATA) re-checks exactness on real content.
