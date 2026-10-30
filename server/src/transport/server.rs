@@ -57,6 +57,11 @@ pub struct ServeConfig {
     /// Also serve the same envelopes over a WebSocket, TCP on `--port`. docs/WIRE.md §The WebSocket mapping
     #[arg(long, default_value_t = false)]
     pub websocket: bool,
+    /// Bound already: served in place of binding `--port`, so the port is never released.
+    #[arg(skip)]
+    pub(crate) udp: Option<std::net::UdpSocket>,
+    #[arg(skip)]
+    pub(crate) tcp: Option<std::net::TcpListener>,
     #[cfg(feature = "lab-levers")]
     #[command(flatten)]
     pub lab: LabLevers,
@@ -76,7 +81,8 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
 
     let (endpoint, bound) = build_endpoint(&config, &identity)?;
     let websocket = if config.websocket {
-        Some(websocket::bind(config.bind, config.wt_port, &config.cert_pem, &config.key_pem).await?)
+        let held = config.tcp.as_ref();
+        Some(websocket::bind(config.bind, config.wt_port, held, &config.cert_pem, &config.key_pem).await?)
     } else {
         None
     };
@@ -209,9 +215,12 @@ fn build_endpoint(
     identity: &Identity,
 ) -> Result<(Endpoint<endpoint_side::Server>, String)> {
     let port = config.wt_port;
-    let binds = match config.bind {
-        Some(ip) => vec![(ServerConfig::builder().with_bind_address(SocketAddr::new(ip, port)), ip.to_string())],
-        None => vec![
+    let binds = match (&config.udp, config.bind) {
+        (Some(udp), _) => {
+            vec![(ServerConfig::builder().with_bind_socket(udp.try_clone()?), udp.local_addr()?.to_string())]
+        }
+        (None, Some(ip)) => vec![(ServerConfig::builder().with_bind_address(SocketAddr::new(ip, port)), ip.to_string())],
+        (None, None) => vec![
             (ServerConfig::builder().with_bind_default(port), "[::] dual-stack".to_string()),
             (
                 ServerConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4, port),

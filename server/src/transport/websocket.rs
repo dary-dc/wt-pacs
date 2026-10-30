@@ -69,17 +69,24 @@ impl WsWriter {
     }
 }
 
-/// Binds TCP on the QUIC endpoint's port number, so a client derives one URL from the other.
+/// Binds TCP on the QUIC endpoint's port number, so a client derives one URL from the other,
+/// unless a listener is `held` already.
 pub(crate) async fn bind(
     ip: Option<IpAddr>,
     port: u16,
+    held: Option<&std::net::TcpListener>,
     cert_pem: &Path,
     key_pem: &Path,
 ) -> Result<(TcpListener, TlsAcceptor)> {
     let any = SocketAddr::new(ip.unwrap_or(IpAddr::V6(Ipv6Addr::UNSPECIFIED)), port);
-    let listener = match TcpListener::bind(any).await {
-        Err(_) if ip.is_none() => TcpListener::bind(("0.0.0.0", port)).await,
-        bound => bound,
+    let listener = match held {
+        Some(held) => held
+            .try_clone()
+            .and_then(|l| l.set_nonblocking(true).and_then(|()| TcpListener::from_std(l))),
+        None => match TcpListener::bind(any).await {
+            Err(_) if ip.is_none() => TcpListener::bind(("0.0.0.0", port)).await,
+            bound => bound,
+        },
     }
     .with_context(|| format!("WebSocket listener on TCP port {port}"))?;
     Ok((listener, tls_acceptor(cert_pem, key_pem)?))
