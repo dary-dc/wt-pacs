@@ -9,8 +9,11 @@ export function slotsOf(table) {
   const t = new Int32Array(table);
   const count = (t.length - 1) / 2;
   const freed = 2 * count;
+  const inState = (state) => [...Array(count).keys()].filter((s) => Atomics.load(t, s) === state).length;
   return {
     count,
+    inState,
+    anyFree: () => inState(FREE) > 0,
     claim: (s, as) => Atomics.compareExchange(t, s, FREE, as) === FREE,
     /** The take count after this take: a holder compares it before and after a read, a double free showing as a change. */
     taken: (s) => Atomics.add(t, count + s, 1) + 1,
@@ -21,7 +24,6 @@ export function slotsOf(table) {
       Atomics.add(t, freed, 1);
       Atomics.notify(t, freed);
     },
-    anyFree: () => [...Array(count).keys()].some((s) => Atomics.load(t, s) === FREE),
     freedCount: () => Atomics.load(t, freed),
     waitFree: (seen) => Atomics.wait(t, freed, seen, 1000),
   };

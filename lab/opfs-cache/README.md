@@ -13,6 +13,7 @@ BiDi on an Xvfb display (`DISPLAY`, `FIREFOX_PATH`), for any cell with `--engine
 NODE_PATH=$(npm root -g) PYTHON=.venv/bin/python node lab/opfs-cache/run.mjs --cell m1|m2|m2-13g|m2-trace|m3|m4|m5|m5-busy --out rows.jsonl \
   [--rounds 7] [--engine chromium|firefox] [--mutant NAME [--arm ARM]]
 python3 lab/opfs-cache/summary.py DIR   # each cell's numbers and verdict from DIR/m1.jsonl, m2.jsonl, m2-13g.jsonl, m3*.jsonl, m4.jsonl, m5*.jsonl
+python3 lab/opfs-cache/summary_test.py  # M5's rule on made-up rows
 ```
 
 M5's arms are `arms.html`: a stand-in view worker (`arms-view.js`) running the product's downloader with lab decoders

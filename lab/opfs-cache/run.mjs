@@ -1,7 +1,7 @@
 // The client cache's owed cells, M1–M5, in headless Chromium: docs/adr/frame-path.md §Proposed, *Pre-registered 2026-10-27*.
 //
 //   NODE_PATH=$(npm root -g) PYTHON=.venv/bin/python node lab/opfs-cache/run.mjs --cell m1|m2|m2-13g|m2-trace|m3|m4|m5|m5-busy --out rows.jsonl
-//     [--rounds 7] [--mutant name]
+//     [--rounds 7] [--engine chromium|firefox] [--mutant NAME [--arm ARM]]
 import { execFileSync, spawn } from "node:child_process";
 import { createSocket } from "node:dgram";
 import { appendFileSync, closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
@@ -118,6 +118,9 @@ const CREDIT_GATE = ["decoders.some((d) => d.outstanding < cfg.perDecoder); ) {"
   `decoders.some((d) => d.outstanding < cfg.perDecoder) && [...records.values()].filter((r) => r.state === "decoding").length < cfg.credits; ) {`];
 const ACK_PUMPS = ["return void (m.gen === generation && records.delete(m.index));", "return void (m.gen === generation && records.delete(m.index), pump());"];
 
+/** The fill's last frame fails once its decoder holds a slot: a test of the release, not a mutant. */
+const THROWS_AFTER_SLOT = ["    if (exact) {", `    if (m.index === 78) throw new Error("throws-after-slot");\n    if (exact) {`];
+
 /** The rig's stand-ins for the product's files, served in their place: the store switched off, and the mutants. */
 const STAND_INS = {
   off: { file: "client/viewer/store.js", body: () => `onmessage = ({ data }) => postMessage({ id: data.id, error: "off" });` },
@@ -132,6 +135,8 @@ const STAND_INS = {
   "fresh-when-dry": { file: "lab/opfs-cache/arms-decoder.js", from: `dry.postMessage("dry");\n    ring.waitFree(seen);`,
     to: "return { bytes: new Uint8Array(new SharedArrayBuffer(ring.slotBytes)), waits, waitedMs: 0 };" },
   "disk-keeps-frames": { file: "lab/opfs-cache/arms-decoder.js", from: `into.slot === undefined && arm !== "disk" ?`, to: "into.slot === undefined ?" },
+  "throws-after-slot": { file: "lab/opfs-cache/arms-decoder.js", edits: [THROWS_AFTER_SLOT] },
+  "throws-slot-kept": { file: "lab/opfs-cache/arms-decoder.js", edits: [THROWS_AFTER_SLOT, ["if (into?.slot !== undefined) ring.free(into.slot);", ""]] },
 };
 const editsOf = (s) => s.edits ?? (s.from === undefined ? [] : [[s.from, s.to]]);
 function edited(name, body) {
@@ -501,7 +506,7 @@ async function m5(busy) {
   await staticHost();
   const s = series(3328, 4096, 80);
   const server = await serve(s);
-  const names = MUTANT ? [arg("--arm")] : busy ? ["transfer", "transfer-k"] : Object.keys(M5_ARMS);
+  const names = MUTANT ? [arg("--arm")] : busy ? ["ring", "ring2", "transfer", "transfer-k"] : Object.keys(M5_ARMS);
   const arms = Object.fromEntries(names.map((k) => [k, busy ? { ...M5_ARMS[k], query: { ...M5_ARMS[k].query, holdMs: BUSY_MS } } : M5_ARMS[k]]));
   settings({ series: s, decodedMiB: (s.n * s.frameBytes) / 2 ** 20, window: "256 MiB", link: "loopback, no relay", K, arms });
   for (let round = 0; round < ROUNDS; round++) {
@@ -528,5 +533,9 @@ async function m5(busy) {
 }
 
 const cells = { m1, m2: () => m2(false), "m2-13g": () => m2(true), "m2-trace": m2Trace, m3, m4, m5: () => m5(false), "m5-busy": () => m5(true) };
+if (CELL?.startsWith("m5") && MUTANT && !Object.hasOwn(M5_ARMS, arg("--arm") ?? "")) {
+  console.error(`--mutant on ${CELL} names the arm it runs on: --arm ${Object.keys(M5_ARMS).join("|")}`);
+  process.exit(2);
+}
 await cells[CELL]();
 process.exit(0);

@@ -57,13 +57,14 @@ const destination = {
 
 async function decode(m) {
   const stamps = { ...m.stamps, decodeStart: abs() };
+  let into = null;
   try {
     dec.getEncodedBuffer(m.bytes.length).set(m.bytes);
     dec.readHeader();
     const info = dec.getFrameInfo();
     dec.decode();
     const out = dec.getDecodedBuffer();
-    const into = destination[arm](out);
+    into = destination[arm](out);
     const bytes = into.bytes.subarray(0, out.length);
     if (bytes !== out) bytes.set(out);
     const range = finish(new (info.isSigned ? Int16Array : Uint16Array)(bytes.buffer, bytes.byteOffset, bytes.length / 2), info.bitsPerSample, info.isSigned);
@@ -81,6 +82,7 @@ async function decode(m) {
       byteCount: out.length, path: `htj2k-${arm}`, exact, stored, stamps }, arm === "transfer" ? [bytes.buffer] : []);
     postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount: out.length, buffer: m.bytes.buffer }, [m.bytes.buffer]);
   } catch (err) {
+    if (into?.slot !== undefined) ring.free(into.slot);
     postMessage({ kind: "failed", index: m.index, gen: m.gen, reason: String(err?.message ?? err), buffer: m.bytes.buffer }, [m.bytes.buffer]);
   }
 }

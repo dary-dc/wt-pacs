@@ -3,7 +3,7 @@
 import { DownloaderClient } from "/client/transport/consumer.js";
 import { built } from "/client/decode/wasm-glue.js";
 import { hasher } from "/client/decode/xxh3.js";
-import { HELD, slotsOf, tableBytes } from "./arms-slots.js";
+import { DECODING, HELD, slotsOf, tableBytes } from "./arms-slots.js";
 
 const BUDGET = 256 * 2 ** 20;
 /** Asked mid-fill once this many frames are in, each the farthest not yet asked. */
@@ -156,10 +156,13 @@ async function run(q) {
     await inHand(i);
     steps.push({ i, ms: abs() - t });
   }
+  // A failed frame ends the wait early: the decoders' frames in flight finish first, so a slot still decoding was lost.
+  if (errors.length) await new Promise((r) => setTimeout(r, 2000));
+  const slotsDecoding = ring?.inState(DECODING) ?? null;
   client.close();
   // A frame decoded at decodeEnd and taken at processed waits in the view's port meanwhile: the most at once.
   const backlogPeak = Math.max(0, ...arrivals.map((a) => arrivals.filter((b) => b.decodeEnd <= a.processed && b.processed > a.processed).length));
-  say({ result: { arm, holdMs, credits: q.credits ? Number(q.credits) : null, fillMs, ...seen, slots: ring?.count ?? null, heldPeakMiB: heldPeak / 2 ** 20, backlogPeak, asks, steps, errors } });
+  say({ result: { arm, holdMs, credits: q.credits ? Number(q.credits) : null, fillMs, ...seen, slots: ring?.count ?? null, slotsDecoding, heldPeakMiB: heldPeak / 2 ** 20, backlogPeak, asks, steps, errors } });
 }
 
 /** The rig's second check: every frame read back from disk and its SHA-256 compared with the encoder input's. */
