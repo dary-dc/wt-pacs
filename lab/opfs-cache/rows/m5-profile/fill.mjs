@@ -1,10 +1,11 @@
-// node prof.mjs ENGINE ARM OUT — one fill with the per-frame stage marks on, no driver: the browser opened on the URL, its console read.
+// M5_ROOT=<a checkout of the M5 run, marks.py applied> CHROME_PATH=... FIREFOX_PATH=... node fill.mjs ENGINE ARM OUT
+// One fill with the per-frame stage marks on, no driver: the browser opened on the URL, its console read.
 import { spawn, execFileSync } from "node:child_process";
 import { createSocket } from "node:dgram";
 import { mkdtempSync, rmSync, writeFileSync, createWriteStream } from "node:fs";
 import path from "node:path";
-const ROOT = "/home/user/m5run";
-const { own, started } = await import("/home/user/m5run/lab/opfs-cache/browser.mjs");
+const ROOT = process.env.M5_ROOT;
+const { own, started } = await import(`${ROOT}/lab/opfs-cache/browser.mjs`);
 const [ENGINE, ARM, OUT] = process.argv.slice(2);
 const WORK = `${ROOT}/lab/opfs-cache/work`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -14,7 +15,7 @@ const [key, pem] = [`${certDir}/key.pem`, `${certDir}/cert.pem`];
 execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-keyout", key, "-out", pem, "-days", "2", "-nodes", "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"], { stdio: "ignore" });
 const hash = execFileSync("openssl", ["dgst", "-sha256", "-r"], { input: execFileSync("openssl", ["x509", "-in", pem, "-outform", "DER"]) }).toString().split(" ")[0];
 const s = createSocket("udp4"); await new Promise((r) => s.bind(0, "127.0.0.1", r)); const port = s.address().port; await new Promise((r) => s.close(r));
-const server = own("/home/user/m5run/target/release/series-server", ["--port", String(port), "--bind", "127.0.0.1", "--series", `${WORK}/${name}.sbnd`, "--cert-pem", pem, "--key-pem", key]);
+const server = own(`${ROOT}/target/release/series-server`, ["--port", String(port), "--bind", "127.0.0.1", "--series", `${WORK}/${name}.sbnd`, "--cert-pem", pem, "--key-pem", key]);
 await started(server, "stdout", /transport=/);
 const http = own("python3", [`${ROOT}/server/dev-server.py`, "--port", "0"]);
 const [, hp] = await started(http, "stdout", /port=(\d+)/);
@@ -28,7 +29,7 @@ if (ENGINE === "firefox") {
     .map(([k, v]) => `user_pref("${k}", ${JSON.stringify(v)});`).join("\n") + "\n");
   child = own(process.env.FIREFOX_PATH, ["--no-remote", "--profile", dir, url], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, DISPLAY: ":99" } });
 } else {
-  child = own("/opt/pw-browsers/chromium-1243/chrome-linux64/chrome", ["--headless=new", "--no-sandbox", "--no-first-run", `--user-data-dir=${dir}`, "--window-size=1024,768",
+  child = own(process.env.CHROME_PATH, ["--headless=new", "--no-sandbox", "--no-first-run", `--user-data-dir=${dir}`, "--window-size=1024,768",
     "--enable-logging=stderr", "--v=0", url], { stdio: ["ignore", "pipe", "pipe"] });
 }
 let out = "";
