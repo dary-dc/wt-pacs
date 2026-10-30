@@ -272,7 +272,9 @@ more.
   repetition across instances without a dictionary. Each group is no longer readable alone, which the PACS does not
   need: it reads the whole series to build the database.
 
-**Recommended: one stream per series**, matching §4's package. No published ratio on DICOM headers was found. A
+**Recommended: one stream per series**, matching §4's package. No published ratio on DICOM headers was found;
+measured since on five TCIA series ([`../../lab/metadata-store`](../../lab/metadata-store) §Repetition): one stream
+3–27×, each group alone 1.6–3.2×, level 1 as good as 19, saving at most 3.5 % of a package with HTJ2K pixels. A
 gzip-style compressor halves "a typical instance" in Orthanc's words, pixels included. DICOM's own deflated syntax is
 "particularly useful" for objects without pixels. Against frames of hundreds of kilobytes to tens of megabytes, metadata
 compression moves the link's bytes little. Its value is storage at the PACS, if the groups are kept.
