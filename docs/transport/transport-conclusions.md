@@ -2710,3 +2710,183 @@ endpoints until §6's conditions (§6). The persistent-congestion and reordering
 (§3). The bounded BBR, the slow-start exit and the idle restart, retired (§1, §3). `aws-lc-rs`,
 mimalloc (§3, §4). Window equalisation
 ([`../adr/transport-quic-stream-receive-window-defaults.md`](../adr/transport-quic-stream-receive-window-defaults.md)).
+
+---
+
+## Proposed: the congestion controller, on real links
+
+*2026-10-20, a design review for the owner. Theory and this file's own rows: nothing built or timed. A figure marked
+(D) is derived, not measured; every other figure names the row it comes from.*
+
+**The question.** The server ships one controller by default and four by flag; three proposals (#37, #40, #41) wait
+for phone runs. What does each controller do with its window, what has been measured and under which link, what can
+the lab not show, and what must the real-link run carry so that it decides them?
+
+### Background: what a controller decides
+
+QUIC sends only while *bytes in flight* (sent, not yet acknowledged) are under the **congestion window**. The
+controller is the code that moves the window: up as acknowledgements arrive, down when a loss says "too much". It
+decides nothing else; quinn picks what to send and paces it.
+
+```
+ server                                                       phone
+ ┌──────────────┐  frames  ┌───────────┐  ≤ window in flight   ┌────────────┐
+ │ fill / asks  ├─────────►│ quinn     ├──── paced at ────────►│ radio link │──► browser
+ └──────────────┘          │ send loop │  1.25 × window / srtt │ + its queue│      │
+                           └─────▲─────┘                       └────────────┘      │
+                                 │ window                                          │
+                           ┌─────┴──────┐  on_ack (bytes, rtt sample)               │
+                           │ controller │◄──────────────────────────────────────────┘
+                           └────────────┘  on_congestion_event (a loss, or a CE mark)
+```
+
+Two signals reach it, and the whole question is what each means on a phone's link:
+
+* **a round-trip sample per acknowledgement**: its rise over the minimum is the queue in front of the phone;
+* **a loss**: either the queue overflowed (*congestive*, sending less helps) or the radio dropped a packet
+  (*random*, sending less does not help, §1 *Controller: two answers*).
+
+### The mechanism today, controller by controller
+
+| `--congestion` | how the window moves | on a loss | what it costs |
+| --- | --- | --- | --- |
+| `cubic` | slow start doubles it each round trip from 12 000 B; then grows along a cubic curve back to the window of the last loss and past it | ×0.7 on every loss event, whatever the cause | random loss holds the fill to its loss bound: 5.7 of 103 Mbit/s at 1 % (D, *Beyond Cubic and BBR*) |
+| **`cubic-restart`, the default** | as `cubic` | as `cubic`; but a loss whose packets all predate a silence of four round trips replaces the inner Cubic with a fresh one, back in slow start (`server/src/transport/restart.rs`) | nothing measured: a tie off the blink (row LOSSCC, *Under 1–5 % loss*) |
+| `bbr` | quinn's BBRv1: window = 2 × the highest delivery rate ever seen × the lowest round trip ever seen; starts at 240 000 B | ignored | stands its own queue: 43–77 ms behind 200 packets, 294 behind 1 500 (row CC1, *Priced in a browser*); 94–99 % from a TCP neighbour behind a shallow FIFO (rows NBR, FQC) |
+| `bbr-bound` | `bbr` capped by v3's loss bound, at a round's loss rate (`server/src/transport/loss_bound.rs`) | over 2 % in a round cuts the cap | failed its rule (rows 103–107, *The bound, reviewed*) |
+| `cubic-classify` (lab build) | as `cubic-restart` | skipped when the last acknowledged packet's round trip was under min RTT + q\*, q\* = max(4 ms, min RTT ÷ 8); CE and persistent congestion always cut (`lab/cc-classify/src/lib.rs`) | blind behind a deep queue its own fill built (*Measured: CLASSIFY*) |
+
+```
+window   cubic / cubic-restart          bbr                    cubic-classify
+  ▲      /\    /\    /\                ┌──────────────          /\        ← cut only when the
+  │     /  \  /  \  /  \     loss      │  2 × bw × min RTT     /  \  /‾‾    loss met ≥ q* of queue
+  │    /    \/    \/         ×0.7      │  (loss ignored)      /    \/      (random losses pass)
+  └──────────────────────► time        └──────────────►      └──────────────►
+```
+
+**Which build runs which.** The default build runs `cubic-restart` at quinn's 12 000 B initial window and 333 ms
+initial RTT, quinn's pacer and send window, every flow-control window at quinn's default (*The tree as it builds*).
+`cubic-classify` exists only with `--features lab-classify`; the controller trace (`lab/server-telemetry/src/cc_trace.rs`,
+the window per batch of ACKs and every congestion event) only with `--features telemetry`. **Why `cubic-restart`:**
+it is Cubic, the safer error when the loss mix is unknown (63 % worse if wrong against 48 %, §1), plus −4.6 to −6.6 s
+a fill after a dropped blink and a tie elsewhere (row W3, *After a blink*). BBR is not the default because it
+regresses clean cells (+2–3 % at 5 Mbit, +12–13 % at 50 Mbit with ±20 ms jitter, row LOSSCC) and because of its queue
+and neighbour cost; whether loss's 4–25× outweighs that is open, §9 item 2.
+
+### What the repository has measured, and through what
+
+All through `lab/scripts/link_impair.py` (iid or Gilbert–Elliott loss, a FIFO or CoDel, rate traces), mostly headless
+Chromium 141 in a container; fill time, so throughput is not also quoted.
+
+| claim | number | source |
+| --- | --- | --- |
+| under random loss BBR is the larger lever | 0.04–0.76 of `cubic-restart`'s fill at 1–5 %, both codecs | row LOSSCC, §1 *Through the whole product* |
+| the classifier gives most of it back where the queue is shallow | 0.08–0.30 at 1–2 % on 20 and 50 Mbit; **0.68–0.86 at 5 Mbit** | row CCMEASURE, *Measured: CLASSIFY* |
+| … and keeps a neighbour's share | 77.1 % against 75.5 % shallow, 17.6 against 16.0 deep; **43.4 against 50.5 on LTE-loaded** | the same |
+| it ties clean cells within the rig's spread, not to 1 % | 0.979–1.030, two of sixteen cells over 1.01 | the same |
+| most of BBR's clean gain is its 240 kB initial window | Cubic at 240 kB: 0.72–0.91 of the fill; BBR at 12 kB: 0.94–1.16, 1.44–1.76 with ±20 ms | row CCATTRIB, *The way out, surveyed* R1 |
+| a 38 400 B initial window speeds a fresh ask | −26 to −38 %; +12 to +25 % on a 250 KB ask behind a 10-packet queue | row 181, [`link-conditions.md`](link-conditions.md) §Re-measured, *IWDEEP* |
+| … and adds nothing after the opening ask | −5.6 to +1.0 % on the push-opened control | the same |
+| a 100 ms initial RTT saves a lost first flight's wait | +695 to +701 ms in Chromium and Firefox; rule failed on `cold_open` with the chain and on LTE-loaded's congestion events (both arms) | row 139, §3 *Measured: IRTTMEASURE* |
+| BBR ties or beats Cubic on picked phone-like profiles | 1.0–2.3× the fill (7.3× on uniform loss) | row PROF, *Link profiles close to a phone* |
+
+**Where the host saturates.** The relay delivers 17.6, 98.9 and 181.6 Mbit/s at 18, 103 and 309 (row 181): nothing
+above ~180 Mbit/s is claimed. The browser's receive path costs ~9.8 ms of CPU a MB on the workstation, near 100 MB/s
+([`../rig-limits.md`](../rig-limits.md) §1). Row CCMEASURE's host voided most visits (605 of 840 grid visits), so its
+strict pairs are 0–7 a cell.
+
+### What loopback and emulation cannot show
+
+* **The receiver bound.** On loopback the browser's receive thread is the clock, so no sender lever moves a fill there
+  (BBR was 8.5× *slower*, [`../rig-limits.md`](../rig-limits.md) §1). A phone's receive path is slower again,
+  unmeasured. Where the phone, not the link, binds, every controller ties by construction.
+* **Real radio loss is not the relay's random loss.** The relay drops independently of rate and delay. A radio
+  retransmits at its own layer, which by report leaves ~10⁻⁵ residual loss and turns the rest into **delay**
+  (§1 *Why two answers*: unverified); it fades and hands over in bursts; it swings its rate; and on cellular each user
+  has a deep queue of their own (Sprout §2, *Beyond Cubic and BBR*). A delay spike reads as queue to the classifier,
+  which then cuts: the safe error, today's Cubic. Whether real losses meet a queue under q\* is the deciding fact,
+  and no emulated row can supply it.
+* **The phone's own ACKs.** Chromium builds ACKs in user space and yields every 32 packets or 2 ms
+  ([`../rig-limits.md`](../rig-limits.md) §1), and does not advertise `min_ack_delay`, so the server cannot ask it to
+  ACK sooner ([`../CLIENTS.md`](../CLIENTS.md) §ACK frequency, by browser; headless 141 only). A phone under load, or
+  a Wi-Fi link that aggregates frames, ACKs in bursts: BBR's bandwidth sample (the lesser of two send and two ACK
+  rates) and the classifier's latest round trip then read the phone's CPU or the air's scheduling, not the queue. Not
+  measured anywhere.
+* **Blink: hold or drop.** The restart's win is the dropping model's; held, an outage costs only its length (row N2,
+  *After a blink*). Which a radio does is a device's (§9 item 4).
+
+### The levers, and what decides each across the band
+
+The band is the direction's: Wi-Fi to cellular, RTT 10–200 ms, loss 0–5 %. Every lever below is a flag today
+(configuration, not structure) except `cubic-classify`, which is a lab feature.
+
+| lever | today | if the link is… | then | decided by |
+| --- | --- | --- | --- | --- |
+| **controller** | `cubic-restart` | clean, or loss mostly congestive | `cubic-restart` (the classifier is the same code path) | the queue at each real loss, and its trend in the second before |
+| | | random loss behind a shallow queue (the queue at the loss under q\*) | `cubic-classify`: 0.08–0.30 of the fill, no neighbour cost (CCMEASURE) | the same |
+| | | random loss behind a deep queue its own fill built (cellular's 725 ms buffer, (D)) | only `bbr` gains, paying its own 27–294 ms queue in front of the asks | the same, plus whether that queue is the phone's own (a second flow on the phone) |
+| **initial window** | 12 000 B | an ask-only session, buffer ≥ 20 packets | 38 400 B: −26 to −38 % (#37) | how shallow the shallowest real buffer is (10 packets loses) |
+| | | a session opened by a fill | either: the push already skips slow start | — |
+| **initial RTT** | 333 ms | a first flight lost (≈ the downlink's loss rate of opens) | 100 ms: −700 ms on those opens (#41) | how often a real open loses its first flight; handshake RTT over ~300 ms costs one spurious probe |
+| **pacing** | 1.25 × window ÷ srtt, every controller | — | nothing alone: a prototype pacing at BBR's own rate overflowed as much (57.6 % against 47.8 %, 3 rounds, row CC1) | only a BBRv3 port would need it |
+| **ACK frequency** | not requested | — | unreachable: no browser measured advertises `min_ack_delay` | a browser that does (Chromium 148 unchecked) |
+| **send window** | quinn's 10 MB | any | does not bind one session: Chromium's 6 MiB stream credit binds first above ~69 Mbit/s (D); a stalled client costs 180 kB | a smaller window would cap the queue by capping what is sent, which the direction excludes (no server caps) |
+
+`cubic-classify`'s q\* drops RFC 9406's upper clamp: the RFC's threshold is max(4 ms, min(min RTT ÷ 8, 16 ms)), the
+lab crate's has no 16 ms ceiling, so it differs above a 128 ms minimum RTT (25 ms at 200). Inside the band's top end
+only; it is the code CCMEASURE measured.
+
+### What a real-link run needs
+
+[`../devices.md`](../devices.md) D2 (the phone's own links) has no controller arm; D3 (the controlled grid) has
+`cubic-restart` and `bbr`, at their own initial windows. Neither carries the controller trace or `cubic-classify`.
+What a controller block needs:
+
+* **Devices:** the Samsung on Android 16, Chrome and Firefox (D0 records the versions); the Oracle machine as the
+  server (two burstable cores: no server-CPU claim, medians only, [`../rig-limits.md`](../rig-limits.md) §9); the
+  local machine's Chrome on the same Wi-Fi as the control that separates the phone's receive path from the wire.
+* **Build:** one `series-server` with `--features telemetry,lab-classify`, every arm on its own port, each printing
+  its banner, and the trace written per arm. A lab-featured build on the Oracle machine is a choice (question 2).
+* **Links**, recorded, never chosen for the result: home Wi-Fi; cellular at rest; cellular with a video playing in
+  another app (whether the phone's queue is its own). Pre-flight per block: idle RTT and a clean fill's rate; an arm
+  at the phone's receive ceiling ties by construction and says so.
+* **Arms, each differing from `cubic-restart` in one lever:** `cubic-restart`; `cubic-classify`; `bbr` at
+  `--initial-window-bytes 12000` (CCATTRIB: as shipped, `bbr` mostly measures its window). The window and RTT levers
+  stay D2's and D4's own arms, not crossed with these.
+* **Protocol:** Williams-ordered, interleaved inside every round, n ≥ 10; the product's downloader; a fill with an ask
+  during it, then a fresh ask; every frame exact or the pair is void; both readings where voids exceed the bar.
+* **Read from the trace, per session:** the queue (srtt less min RTT) at each loss and over the second before it; the
+  standing queue a fill builds; CE marks; the delivery rate per 100 ms. These are *Beyond Cubic and BBR*'s
+  measurements 1, 2, 4 and 5; 3 is the video arm.
+
+### The options
+
+| # | option | what it changes | what it costs |
+| --- | --- | --- | --- |
+| A | **observe first**: D2's `cubic-restart` arm on the telemetry build, nothing else | reads the queue at each real loss: whether the classifier could fire on these links at all | a feature flag on the field build; one more trace file per session; no new arm |
+| B | **a controller block in D2** (the arms above) | the paired fill and ask per link class; decides #40 on a real link | an evening per link class; the `lab-classify` build in the field |
+| C | **`cubic-classify` into the product** (#40, rebuilt) | the default on lossy shallow-queue links, 0.08–0.30 of the fill | ~105 lines of code and 70 of tests from `lab/cc-classify/src/lib.rs` into `server/`; a flag back to `cubic-restart`; LTE-loaded's −7 points |
+| D | **retire `bbr-bound`** | 261 lines fewer, one flag fewer; nobody should pick it (*The bound, reviewed*) | a retired idea's code goes to history, as the bounded BBR's did |
+| E | status quo | nothing | the 4–25× under random loss stays unclaimed until a run |
+
+**Not proposed again:** BBRv3 in full (~2 000 lines and a pacer), a controller switch mid-connection (closed by row
+LOSSCLASS), FEC, several connections, a pacer patch alone, the bounded BBR. The delay cut (DELAYCUT) waits on a
+classifier that passes; option A's queue-at-loss is the new evidence that would reopen it, if it shows real losses
+behind the phone's own deep queue.
+
+**State of the three proposals.** #37 (`543afcd2`, 38 400 B by default), #40 (`d7c6fe59`, `cubic-classify` by
+default) and #41 (`3054d01b`, 100 ms by default, the repeated-Initial reply removed) each conflict with
+`claude/av1-unified-mainbase` today: #40 predates the classifier's move to `lab/cc-classify` (row 264). Each is a
+default and a test, so each is cheaper rebuilt on the base the phone run uses than merged.
+
+### Questions for the owner
+
+1. **Observe before comparing?** Option A answers whether the classifier can matter on your links before an evening
+   of arms (B). Run A first, or A and B together in one evening?
+2. **The field build.** The controller block needs `telemetry` and `lab-classify` on the Oracle machine. Acceptable
+   for D2, or only on the local machine in D3?
+3. **`bbr` in the block at 12 000 B, or as shipped at 240 000?** At 12 000 it differs in the controller alone; as
+   shipped it is what `--congestion bbr` gives a user. One of them, or both (a fourth arm)?
+4. **`bbr-bound`: retire it?** It failed its rule (row 107) and nothing builds on it.
+5. **The q\* ceiling.** Align `cubic-classify` with RFC 9406's 16 ms clamp before the phone run (the run then
+   measures a slightly different arm from CCMEASURE), or keep it as measured?
