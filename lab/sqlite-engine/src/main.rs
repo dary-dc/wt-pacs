@@ -2,6 +2,7 @@
 
 mod blocking;
 mod files;
+mod lock;
 mod study;
 mod two;
 
@@ -27,7 +28,7 @@ impl Args {
 
 fn main() -> Result<()> {
     let mut it = std::env::args().skip(1);
-    let mode = it.next().context("usage: sqlite-engine blocking|files|two [--flag value]...")?;
+    let mode = it.next().context("usage: sqlite-engine blocking|files|two|lock [--flag value]...")?;
     let mut flags = HashMap::new();
     while let Some(flag) = it.next() {
         let key = flag.strip_prefix("--").with_context(|| format!("{flag}: flags start with --"))?;
@@ -40,6 +41,8 @@ fn main() -> Result<()> {
         "files-child" => files::child(&args),
         "two" => two::run(&args),
         "two-child" => two::child(&args),
+        "lock" => lock::run(&args),
+        "lock-child" => lock::child(&args),
         _ => bail!("unknown mode {mode}"),
     }
 }

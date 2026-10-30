@@ -25,10 +25,12 @@ server holding no study open would; *held* reuses one open handle. A always open
 no claim about a cold disk or about many sessions at once. D's fixed 16-byte keys hold top-level attributes only; a
 group with a sequence makes the build refuse.
 
-**`--mode pair`** times the recommended pair and its runner-up, each one SQLite file in WAL at `synchronous=FULL`: T1, the
-truth as a row per received group, and T2, a row per attribute, each with V1, one page row per series holding the
-page's document. Pre-registered and recorded in the draft's §2: the page open (held and opened, D's held scan as the
-reference), one update (a new revision of one instance's rescale intercept, the page row rebuilt, one commit), the
+**`--mode pair`** times the recommended pair and its runner-up, each one SQLite file in WAL at `synchronous=FULL`: T1, a
+row per received group, and T2, a row per attribute, each with V1, one display metadata row per series (table `page`
+in the code) holding the series' display metadata. *Renamed 2026-10-26:* this README called that row the "page row"
+and its bytes the "page document" or "page view"; the term is display metadata
+([`docs/ingest/metadata-draft.md`](../../docs/ingest/metadata-draft.md) §2). Pre-registered and recorded in the draft's §2: the page open (held and opened, D's held scan as the
+reference), one update (a new revision of one instance's rescale intercept, the display metadata row rebuilt, one commit), the
 rebuild alone, every received group's BLAKE3, a reader in a second process during updates (`--reader`, started by the
 run), and size.
 
@@ -37,13 +39,13 @@ cargo run -p metadata-store --release -- --mode pair --instances 4,200,2000 --ro
 ```
 
 **`--mode pair-followup`** measures the pair's two open items, pre-registered in the draft's §2: an update that patches
-only the changed instance's entry in the page row against one that rebuilds it (each patched row checked against a
+only the changed instance's entry in the display metadata row against one that rebuilds it (each patched row checked against a
 full rebuild), and a reader's tail alone, beside commits on another core, and on the same core (`sched_setaffinity`;
 each read's interval on `CLOCK_MONOTONIC`, classified against the writer's commit windows).
 
 **`--mode update-cost`** asks what one update of metadata already stored costs under the two proposed update models,
 at 200, 2 000 and 10 000 instances: **patched in place**, #126's patch arm unchanged (T1 + V1 in one SQLite file in WAL
-at `synchronous=FULL`, a new revision row and the page row's one entry rewritten, one commit), against **a new revision
+at `synchronous=FULL`, a new revision row and the display metadata row's one entry rewritten, one commit), against **a new revision
 directory** (the receiver draft's `design.md` §12.5 (a)): the correction kept as a new input file (`fsync` it and
 `inputs/`), the whole study's T1 + V1 file rebuilt from every kept input into `store/N.partial/`, `fsync` the file and
 the directory, rename to `store/N`, `fsync` `store/`, then `CURRENT.lock` written, `fsync`ed and renamed to `CURRENT`,
@@ -53,7 +55,7 @@ the directory, rename to `store/N`, `fsync` `store/`, then `CURRENT.lock` writte
 *Pre-registered, 2026-10-24, before any timing.* Arms, interleaved round by round with the order rotated: patched,
 patched′ (the A/A arm), revision, revision′ (its A/A arm), each on its own store, 100 updates each per cell; two
 runs. The writer is pinned to core 0, the reader to core 2. Per update: **latency to visible**, from the update's start
-until a reader opened after it has read the new page row (checked byte for byte); bytes written (`/proc/self/io`
+until a reader opened after it has read the new display metadata row (checked byte for byte); bytes written (`/proc/self/io`
 wchar); the writer thread's CPU time; and `fsync`s per update, counted apart by `strace` over 20 updates per model
 (untimed). Then a **reader in a second process**, six arms interleaved over 6 repetitions of 30 updates: each store
 read by a reader opened per read, alone and beside its updates, and each read by a reader holding one open handle
@@ -105,8 +107,8 @@ ext4 on the VM's virtual disk, files in the page cache. Latency to visible inclu
 | revision, held, beside updates | 2.3 \| 51; 2.3 \| 45 | 47 \| 282; 46 \| 207 | 428 \| 1 712; 417 \| 1 932 |
 
 * **Holds: patched is cheaper in every cell**, by 5.7–6.5× at 200, 13× at 2 000 and 17× at 10 000, each far past the
-  A/A gap in both runs. The revision's cost grows with the study (it rebuilds all of it); the patch's with the page
-  document it parses and rewrites.
+  A/A gap in both runs. The revision's cost grows with the study (it rebuilds all of it); the patch's with the display
+  metadata it parses and rewrites.
 * **Holds: bytes and `fsync`s.** A revision writes its whole file and about 20 KB more; a patch writes four to seven
   4 KiB pages. The patch's 1.2 `fsync`s is a mean over 20 updates, each with at least the commit's one,
   so at most 4 in 20 took more (a checkpoint); the median is 1.
