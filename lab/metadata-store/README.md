@@ -1095,3 +1095,165 @@ Against the pre-registration:
   (above). The send times are bytes over the uplink: no round trips, slow start or loss, no tar headers, no TLS; #156
   measured those on emulated links for corrections and resends of the groups, not for these streams. One thread on one
   host; nothing is claimed for parallel compression.
+
+## Synchronization: a full snapshot, or the group list and the changed groups
+
+[`sync/`](sync) asks which of two shapes of the PCS-to-PACS synchronization costs fewer bytes per event, and whether
+the difference is felt on a slow uplink. Both use the receiver rule of `docs/ingest/pacs-receive-design.md` at
+`f8b0bb2` §5 (#168): each group's XXH3-64 is compared with its row, absent → create, different → replace and audit,
+same → nothing, and a row whose group is not listed is deleted. Pixels are never resent in either: the
+series bundle is referenced by its hash, and a late instance's frames weigh the same in both.
+
+* **E, snapshot.** Every event resends the series' whole metadata, every group the parser wrote for it plus the exam
+  group, as one zstd stream. The sender keeps no record of what it sent.
+* **B, list and changed groups.** Every package carries the complete list of the series' groups (level, coded UID,
+  XXH3-64) and the bytes of only the groups that changed. A listed hash the PACS lacks is answered `need`; the sender
+  keeps the list it sent last.
+
+**Summary** (*measured* bytes, deterministic; times *estimated* by §Updates on the link's arithmetic, 2026-10-28).
+zstd-1 packages in bytes; E − B over TCP, one-group event (exam, series or instance fix), at the slow end of the two
+profiles; round trips more for E in brackets.
+
+| Series (groups) | E, every event | B's list, raw → zstd-1 | B, one-group event | E ÷ B | B, fan-out | E − B: satellite 700 ms, 1 Mbit/s · ADSL 60 ms, 0.5 Mbit/s |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| **ct (526), the median** | **35 328** | 28 404 → 6 958 | **10 240–11 264** | **3.1–3.5×** | 38 912 | **0.80–0.81 s (1) · 0.40–0.42 s (1)** |
+| pt (530) | 39 936–40 448 | 28 620 → 7 009 | 10 752–11 264 | 3.6–3.8× | 42 496 | 0.85 s (1) · 0.49–0.50 s (1) |
+| mr (292) | 31 232–31 744 | 15 768 → 5 480 | 8 704–9 728 | 3.3–3.6× | 24 064 | 0.78 s (1) · 0.37 s (1) |
+| mg (10), us (27) | 5 120, 6 656 | 540 → 255, 1 458 → 528 | 3 584–4 608 | 1.2–1.9× | 4 608, 6 144 | ≤ 0.03 s (0) · ≤ 0.05 s (0) |
+| **synthetic 2 000 (4 002), the largest** | **115 712–116 224** | 224 072 → 25 405 | **29 184–29 696** | 3.9–4.0× | 125 440 | **1.46 s (2) · 1.44 s (2)** |
+
+* **B is 3–4× smaller per event, not 8–10×,** and E costs one more round trip than B for the real series (two for the
+  synthetic 2 000), not two. The list has two entries per instance (its instance and its private group), 54 B each,
+  so ct's is 28 KB raw and 7 KB compressed, and B's package adds the framing E pays too (≈ 3 KB: the header member,
+  two tar layers). A late instance or a withdrawal costs B what a one-group event does; a fan-out costs B as much as E
+  (0.9–1.3×), and on TCP for pt one round trip *more* (0.48 s on satellite).
+* **The receiver's work**: E hashes every group at every event (ct 526 groups, 618 KB; the synthetic 2 000, 4.7 MB),
+  B only the ones it carries (1–2, ≈ 2 KB; a fan-out every instance group); both compare every entry with its row.
+* **Predictions**: P1 holds (35.3 KB); P2 holds (54.0 B, 56.0 for the synthetic); **P3 contradicted** (7.0 KB at
+  zstd-1, 7.1 at zstd-3: 526 entries, not 262); **P4 contradicted** (3.1–3.5×); **P5 contradicted** (1 round trip);
+  **P6 contradicted** (0.76–0.81 s).
+* **The rule's verdict: E.** Over every event, both ends of both profiles, TCP, E is slower than B by at most 0.81 s
+  for the median series (< 1 s) and 1.47 s for the largest (< 5 s), so B's `need` reply and sent list do not pay for
+  themselves on these series.
+* **Where it stops being claimable.** Times are arithmetic, not timed (§Updates on the link found TCP's within 25 % of
+  its measurement on GEO and ADSL). The synthetic 2 000 is more repetitive than a scanner's series (58 B of E per
+  instance against ct's 135). *Estimated*, ct's bytes scaled linearly with the instance count: a ct-like series of
+  1 000 instances would cross the 1 s mark (1.5 s at 0.5 Mbit/s, 1.05 s at satellite's 1 Mbit/s), of 2 000 reach
+  3.1 s, and cross 5 s near 3 300 instances at 0.5 Mbit/s; the rule names the median series, but a site whose series
+  are that large is where B starts to pay. TCIA's de-identified headers: a hospital's weigh more, and E grows with
+  them while B's one-group event does not.
+
+```bash
+lab/metadata-store/parser-output/build.sh BUILD                    # §The parser's own output, unchanged
+.venv/bin/pip install --require-hashes -r lab/metadata-store/sync/requirements.txt
+.venv/bin/python -I lab/metadata-store/repetition/fetch.py DATA
+.venv/bin/python -B -I lab/metadata-store/sync/sync_test.py
+.venv/bin/python -I lab/metadata-store/sync/sync.py DATA BUILD/build/ESIPFfiled OUT > sync.jsonl
+```
+
+**The groups** are the parser's own (§The parser's own output, its harness and five series, re-parsed here), as
+written: every group file in the series' tree is one entry, so pt's five series group files and us's two exam group
+files are five and two entries. A **large series** of 2 000 instances is synthesized by the method `group.rs` uses for
+its synthetic series: ct's median instance group (and its private group) copied 2 000 times, each with its own SOP
+instance UID (both copies), instance number and image position; every other record is constant, so it is more
+repetitive than a scanner's series and its E is a lower bound.
+
+**The packages**, both in §Updates on the link's container (`update-link/packages.py`'s `package()`, reused): a pax
+tar, the header member, then the metadata as one tar of members, raw or as one zstd stream at level 1 or 3. E's
+metadata is every group file; B's is a member `list` (one entry per group: 1 byte level, 1 byte length, the coded UID,
+the 8-byte XXH3-64), then the changed group files.
+
+**The cells**, per series (ct, pt, mr, mg, us, and the synthetic 2 000), each raw, zstd-1 and zstd-3:
+
+| Cell | Change from the series as parsed |
+| --- | --- |
+| E's snapshot | none (E weighs this, ± the changed bytes, at every event) |
+| B's list alone | none |
+| exam fix | patient name set in the exam group |
+| series fix | series description set in the series group |
+| instance fix | image comments set in the median-sized instance group |
+| fan-out | image comments set in every instance group |
+| late instance | the series parsed without its last instance, then the last instance added (instance and private group) |
+| withdrawal | the median-sized instance removed (both its groups) |
+
+**The wire, by arithmetic only**: `update-link/wire.py`'s `transfer()`, unchanged (a fresh connection, mutual TLS 1.3,
+TCP with a 10-segment initial window and slow start doubling, QUIC with RFC 9002's 12 000 bytes; each round
+max(RTT, its serialisation), a final RTT for the reply, a lost packet 1.5 RTT with probability 1 − (1 − p)^packets). The
+profiles: §Updates on the link's four classes, and the two the question names at both ends of their uplink:
+satellite 700 ms RTT at 1 and 2 Mbit/s, rural ADSL 60 ms at 0.5 and 1 Mbit/s, 0.1 % loss as §Updates on the link
+assumed for both. Nothing is timed on an emulated link; a `need` round trip is not in B's time (it costs B one
+request more when the PACS lost a group, which none of these events causes).
+
+**The receiver's work**, counted: groups hashed (and their bytes), and list entries compared with rows.
+
+*Pre-registered, 2026-10-28, before any package was built.* The predictions are the question's own arithmetic.
+
+| Prediction | Contradicted if |
+| --- | --- |
+| P1: E for ct weighs ~45 KB per event at zstd-1 | outside 30–60 KB |
+| P2: B's list weighs ~60 B per entry raw | outside 45–75 B |
+| P3: ct's list compressed weighs 4–6 KB (the 8-byte hashes do not compress) | outside 4–6 KB at zstd-1 or zstd-3 |
+| P4: for a one-group event (exam, series, instance fix) on ct, B is 8–10× smaller than E | outside 8–10× |
+| P5: on TCP with a 10-segment initial window, E takes 2 round trips more than B for ct's one-group events | not 2 |
+| P6: hence E is ~1.4 s slower than B on the satellite profile (700 ms) for ct's one-group events | outside 1.2–1.6 s |
+
+**The rule, fixed now.** B is worth its extra machinery (the `need` reply, the sender's sent list) only if, on the
+satellite or the rural ADSL profile, at either end of its uplink, over TCP, E is slower than B by more than 1 s for
+some event of the median series (ct, the median of the five by metadata bytes), or by more than 5 s for some event of
+the largest (the synthetic 2 000). Otherwise E. QUIC is reported beside it, not used by the rule.
+
+*Measured, 2026-10-28, two runs*: the five series parsed again by `ESIPFfiled` at `a65abe2` (CMake 4.4.4, gcc 13.3),
+python-zstandard 0.25.0 (libzstd 1.5.7), xxhash 3.6.0. Every size is identical in both runs but pt's, whose keys
+hold an address (§The parser's own output): its packages move by one 512-byte tar block (E 39 936–40 448); the
+tables give the first run. One departure from the cells above: the late instance is taken from the parsed tree
+without its last instance's two groups (by coded UID), not from a second parse, so the exam and series groups are
+the same before and after; and every event of every series was checked to bring a receiver holding the series before
+it to exactly the rows after it, in both shapes, with nothing needed.
+
+| Cell, bytes raw · zstd-1 · zstd-3 | ct | pt | mr | mg | us | synthetic 2 000 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| groups (entries in the list) | 526 | 530 | 292 | 10 | 27 | 4 002 |
+| E's snapshot | 1 616 384 · 35 328 · 36 864 | 1 627 136 · 40 448 · 42 496 | 1 417 216 · 31 232 · 33 280 | 30 720 · 5 120 · 5 120 | 86 016 · 6 656 · 6 656 | 12 294 656 · 115 712 · 117 760 |
+| B's list alone, the member · zstd-1 · zstd-3 | 28 404 · 6 958 · 7 121 | 28 620 · 7 009 · 7 009 | 15 768 · 5 480 · 5 512 | 540 · 255 · 255 | 1 458 · 528 · 528 | 224 072 · 25 405 · 25 495 |
+| B's list alone, as a package | 31 232 · 9 728 · 10 240 | 31 232 · 9 728 · 9 728 | 18 432 · 8 192 · 8 192 | 3 584 · 3 072 · 3 072 | 4 096 · 3 584 · 3 584 | 226 816 · 28 160 · 28 160 |
+| B, exam fix | 33 792 · 10 752 · 10 752 | 33 792 · 10 752 · 10 752 | 20 480 · 9 216 · 9 216 | 5 632 · 3 584 · 3 584 | 6 144 · 4 096 · 3 584 | 229 376 · 29 184 · 29 184 |
+| B, series fix | 33 280 · 10 240 · 10 752 | 33 792 · 10 752 · 10 752 | 20 480 · 8 704 · 8 704 | 5 632 · 3 584 · 3 584 | 6 144 · 3 584 · 3 584 | 228 864 · 29 184 · 29 184 |
+| B, instance fix | 35 328 · 11 264 · 11 776 | 35 328 · 11 264 · 11 264 | 23 040 · 9 728 · 9 728 | 7 680 · 4 096 · 4 096 | 8 192 · 4 608 · 4 608 | 230 912 · 29 696 · 30 208 |
+| B, fan-out | 1 104 384 · 38 912 · 37 376 | 1 104 384 · 42 496 · 42 496 | 686 592 · 24 064 · 23 040 | 19 968 · 4 608 · 4 608 | 57 344 · 6 144 · 6 144 | 8 418 816 · 125 440 · 137 216 |
+| B, late instance | 37 376 · 11 776 · 11 776 | 37 376 · 11 776 · 11 776 | 28 160 · 11 264 · 11 264 | 9 728 · 4 608 · 4 096 | 10 240 · 4 608 · 4 608 | 232 960 · 30 208 · 30 208 |
+| B, withdrawal | 31 232 · 9 728 · 10 240 | 31 232 · 9 728 · 9 728 | 18 432 · 8 192 · 8 192 | 3 072 · 3 072 · 3 072 | 4 096 · 3 584 · 3 584 | 226 816 · 28 160 · 28 160 |
+| E, withdrawal (the smallest E) | 1 610 240 · 35 328 · 36 352 | 1 620 992 · 39 936 · 41 984 | 1 407 488 · 31 232 · 33 280 | 24 576 · 5 120 · 4 608 | 79 872 · 6 656 · 6 656 | 12 288 512 · 115 712 · 117 760 |
+
+| E − B, seconds (round trips), TCP · QUIC | ct | pt | mr | mg | us | synthetic 2 000 |
+| --- | --- | --- | --- | --- | --- | --- |
+| instance fix, satellite 700 ms, 1 Mbit/s | +0.80 (+1) · +0.72 (+1) | +0.85 (+1) · +0.77 (+1) | +0.78 (+1) · +0.81 (+1) | +0.01 (+0) · +0.01 (+0) | +0.02 (+0) · +0.02 (+0) | +1.46 (+2) · +1.62 (+2) |
+| instance fix, satellite 700 ms, 2 Mbit/s | +0.76 (+1) · +0.72 (+1) | +0.78 (+1) · +0.75 (+1) | +0.75 (+1) · +0.76 (+1) | +0.00 (+0) · +0.01 (+0) | +0.01 (+0) · +0.01 (+0) | +1.46 (+2) · +1.55 (+2) |
+| instance fix, ADSL 60 ms, 0.5 Mbit/s | +0.40 (+1) · +0.41 (+1) | +0.49 (+1) · +0.49 (+1) | +0.37 (+1) · +0.37 (+1) | +0.02 (+0) · +0.02 (+0) | +0.03 (+0) · +0.03 (+0) | +1.44 (+2) · +1.47 (+2) |
+| instance fix, ADSL 60 ms, 1 Mbit/s | +0.20 (+1) · +0.20 (+1) | +0.24 (+1) · +0.25 (+1) | +0.18 (+1) · +0.19 (+1) | +0.01 (+0) · +0.01 (+0) | +0.02 (+0) · +0.02 (+0) | +0.72 (+2) · +0.74 (+2) |
+| instance fix, §Updates' GEO, 600 ms, 2 Mbit/s | +0.65 (+1) · +0.62 (+1) | +0.68 (+1) · +0.65 (+1) | +0.65 (+1) · +0.66 (+1) | +0.00 (+0) · +0.01 (+0) | +0.01 (+0) · +0.01 (+0) | +1.25 (+2) · +1.34 (+2) |
+| instance fix, §Updates' ADSL, 50 ms, 1 Mbit/s | +0.20 (+1) · +0.20 (+1) | +0.24 (+1) · +0.25 (+1) | +0.18 (+1) · +0.19 (+1) | +0.01 (+0) · +0.01 (+0) | +0.02 (+0) · +0.02 (+0) | +0.72 (+2) · +0.74 (+2) |
+| fan-out, satellite 700 ms, 1 Mbit/s | -0.03 (+0) · -0.02 (+0) | -0.48 (-1) · -0.01 (+0) | +0.07 (+0) · +0.07 (+0) | +0.00 (+0) · +0.00 (+0) | +0.00 (+0) · +0.01 (+0) | -0.08 (+0) · -0.09 (+0) |
+| fan-out, satellite 700 ms, 2 Mbit/s | -0.01 (+0) · -0.01 (+0) | -0.59 (-1) · -0.01 (+0) | +0.04 (+0) · +0.04 (+0) | +0.00 (+0) · +0.00 (+0) | +0.00 (+0) · +0.00 (+0) | -0.04 (+0) · -0.05 (+0) |
+| fan-out, ADSL 60 ms, 0.5 Mbit/s | -0.05 (+0) · -0.05 (+0) | -0.03 (-1) · -0.03 (+0) | +0.13 (+0) · +0.13 (+0) | +0.01 (+0) · +0.01 (+0) | +0.01 (+0) · +0.01 (+0) | -0.16 (+0) · -0.17 (+0) |
+| fan-out, ADSL 60 ms, 1 Mbit/s | -0.03 (+0) · -0.03 (+0) | -0.02 (-1) · -0.02 (+0) | +0.06 (+0) · +0.07 (+0) | +0.00 (+0) · +0.00 (+0) | +0.00 (+0) · +0.00 (+0) | -0.08 (+0) · -0.08 (+0) |
+
+| Receiver, per event: groups (bytes) hashed, E · B; entries compared, both | ct | pt | mr | mg | us | synthetic 2 000 |
+| --- | --- | --- | --- | --- | --- | --- |
+| instance fix | 526 (618 410) · 1 (2 266); 526 | 530 (620 353) · 1 (2 261); 530 | 292 (880 767) · 1 (2 608); 292 | 10 (9 209) · 1 (2 130); 10 | 27 (32 489) · 1 (2 492); 27 | 4 002 (4 748 452) · 1 (2 286); 4 002 |
+| fan-out | 526 (624 413) · 262 (593 714); 526 | 530 (626 356) · 262 (592 404); 530 | 292 (882 207) · 145 (378 372); 292 | 10 (9 278) · 4 (8 504); 10 | 27 (32 742) · 12 (30 712); 27 | 4 002 (4 794 429) · 2 000 (4 567 336); 4 002 |
+| late instance | 526 (618 387) · 2 (2 356); 526 | 530 (620 330) · 2 (2 351); 530 | 292 (880 757) · 2 (6 066); 292 | 10 (9 186) · 2 (2 154); 10 | 27 (32 466) · 2 (2 542); 27 | 4 002 (4 748 429) · 2 (2 372); 4 002 |
+| withdrawal | 524 (616 031) · 0 (0); 524 | 528 (617 979) · 0 (0); 528 | 290 (874 691) · 0 (0); 290 | 8 (7 024) · 0 (0); 8 | 25 (29 924) · 0 (0); 25 | 4 000 (4 746 053) · 0 (0); 4 000 |
+
+* **Why B is 3–4×, not 8–10×.** The prediction counted one entry per instance; the parser writes two groups per
+  instance, so ct's list has 526 entries and 4.2 KB of hashes that do not compress, and the coded UIDs share only the
+  series' prefix: 6.96 KB at zstd-1, 13 B an entry. E, meanwhile, compresses better than #156's split (35 KB, not 45),
+  since the parser repeats more (§The parser's own output). Both pay ≈ 3 KB of the container (the header member and
+  the tar layers): B's one-group package is the list plus that plus one group.
+* **Why one round trip, not two.** TCP's first data flights after the handshake carry 10, 20, 40 segments (≈ 14, 43,
+  101 KB cumulative); ct's E (35 KB) needs two flights and B (10–11 KB) one. The synthetic's E (116 KB) needs four,
+  B (29 KB) two.
+* **Fan-out is the event where B has nothing to drop**: every instance group changes, so B carries them all and its
+  list besides; for pt the extra 2 KB crosses a TCP flight boundary (one round trip, 0.48 s at 700 ms).
+* **What it does not say.** Nothing is timed on an emulated link; a fresh connection per package, as §Updates on the
+  link assumed; the `need` round trip (B's recovery when the PACS lacks a group) is not counted. The synthetic varies
+  only four records per instance. The receiver's work is counted, not timed.
