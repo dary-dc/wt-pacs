@@ -536,23 +536,22 @@ async function aSpanCrossesHeldFrames() {
 await aSpanCrossesHeldFrames();
 
 /**
- * A run delivering 2–9 next. By default a want headed by 3, the run's second frame, ends it with an ask. Under
- * `waitAhead` 4, 3 is waited for; 0, behind the run, is asked; 6, the run's 5th, is asked.
+ * A run delivering 2–9 next, and a want headed by its 2nd frame (3), its 4th (5), its 5th (6) or one behind it (0).
+ * By default each is asked, which ends the run; under `waitAhead` 4 the 2nd and 4th are waited for, the rest asked.
  */
 async function aHeadTheRunDeliversWithinKIsWaitedFor() {
-  const steps = [[3, 4, 5, 6, 7, 8, 9, 2], [0, 3, 4, 5, 6, 7, 8, 9, 2], [6, 7, 8, 9, 2, 3, 4, 5, 0]];
   const asked = {};
   for (const waitAhead of [undefined, 4]) {
-    const w = await wantWorld(`wait-ahead-${waitAhead}`, { decode: false, decoders: 0, waitAhead });
-    await onmessage({ data: { kind: "want", indices: [2, 3, 4, 5, 6, 7, 8, 9] } });
     asked[waitAhead] = [];
-    for (const want of steps) {
-      await onmessage({ data: { kind: "want", indices: want } });
-      asked[waitAhead].push(w.asks.join());
+    for (const head of [3, 5, 6, 0]) {
+      const w = await wantWorld(`wait-ahead-${waitAhead}-${head}`, { decode: false, decoders: 0, waitAhead });
+      await onmessage({ data: { kind: "want", indices: [2, 3, 4, 5, 6, 7, 8, 9] } });
+      await onmessage({ data: { kind: "want", indices: [head, ...[2, 3, 4, 5, 6, 7, 8, 9].filter((i) => i !== head)] } });
+      if (w.asks.includes(head)) asked[waitAhead].push(head);
     }
   }
-  check(asked.undefined.join("|") === "3|3,0|3,0,6", `by default each head is asked at once (${asked.undefined.join(" | ")})`);
-  check(asked[4].join("|") === "|0|0,6", `under waitAhead 4, 3 is waited for, then 0 and 6 asked (${asked[4].join(" | ")})`);
+  check(asked.undefined.join() === "3,5,6,0", `by default each head is asked (${asked.undefined})`);
+  check(asked[4].join() === "6,0", `under waitAhead 4, the run's 2nd and 4th are waited for, its 5th and one behind it asked (${asked[4]})`);
 }
 await aHeadTheRunDeliversWithinKIsWaitedFor();
 
