@@ -86,11 +86,18 @@ for (let round = 0; round < 2 * ROUNDS; round++) {
       if (rowOf(read(arm, cell.mode), cell, round)) continue;
       const [bin, tree] = trees[arm];
       process.stderr.write(`${round} ${cell.impairment} ${cell.throttle}x ${cell.mode} ${arm}\n`);
-      execFileSync("node", ["lab/av1/delivery/total-time/run.mjs", "--rounds", "1", "--first-round", String(round), "--links", LINK,
-        "--impairs", cell.impairment, "--throttles", cell.throttle, "--frames", SET, "--variants", names[arm],
-        ...(cell.mode === "ask" ? ["--fill", VIEW ? "0" : "1", "--asks-after", String(ASKS)] : []), ...(VIEW ? ["--origin", "navigation"] : []),
-        "--bin", bin, "--serve", tree, "--out", file(arm, cell.mode)],
-      { cwd: ROOT, stdio: ["ignore", "ignore", "inherit"], env: { ...process.env, TMPDIR: T } });
+      // The harness writes the product's failures as rows; it exits non-zero only on the rig's own (a port taken), retried.
+      for (let tries = 3; !rowOf(read(arm, cell.mode), cell, round); tries--) {
+        try {
+          execFileSync("node", ["lab/av1/delivery/total-time/run.mjs", "--rounds", "1", "--first-round", String(round), "--links", LINK,
+            "--impairs", cell.impairment, "--throttles", cell.throttle, "--frames", SET, "--variants", names[arm],
+            ...(cell.mode === "ask" ? ["--fill", VIEW ? "0" : "1", "--asks-after", String(ASKS)] : []), ...(VIEW ? ["--origin", "navigation"] : []),
+            "--bin", bin, "--serve", tree, "--out", file(arm, cell.mode)],
+          { cwd: ROOT, stdio: ["ignore", "ignore", "inherit"], env: { ...process.env, TMPDIR: T } });
+        } catch (e) {
+          if (tries === 1) throw e;
+        }
+      }
     }
   }
 }
