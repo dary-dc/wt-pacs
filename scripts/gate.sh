@@ -174,13 +174,21 @@ step "server: compiles without io_uring (the pool path alone)"
 run 1 cargo check -p series-server --no-default-features --all-targets --quiet
 step "server: compiles with cert-compression"
 run 1 cargo check -p series-server --features cert-compression --all-targets --quiet
-step "common, ingest and tools: wire, envelope, series bundle, pack-series and check-fastpath"
-run 1 cargo test -p fod -p frame-envelope -p series-bundle -p pack-series -p check-fastpath --quiet
+step "carrier: the resumable upload, mutual TLS, refusals, and the PCS's script through a proxy that cuts and stalls"
+run 1 cargo test -p carrier --quiet
+step "sender: the package build from an exam tree, and the sender through the carrier and the PCS's script"
+run 1 cargo test -p sender --quiet
+step "carrier: the same upload over the experimental HTTP/3 listener"
+run 1 cargo test -p carrier --features quic --quiet
+step "common, ingest and tools: wire, envelope, reads from disk, series bundle, study DB, pack-series, check-fastpath and pacs-verify"
+run 1 cargo test -p fod -p frame-envelope -p from-disk -p series-bundle -p study-db -p pack-series -p check-fastpath -p pacs-verify --quiet
+step "ingest: the PACS receiver — every step, refusal and crash point (docs/adr/pacs-receiver.md)"
+run 1 cargo test -p pacs-receiver --quiet -- --nocapture
 step "tools: pack-series packs the smoke bundle again to the same bytes"
 run 1 bash -c 'd="$(mktemp -d)" && trap "rm -rf $d" EXIT && cargo run --quiet -p pack-series -- --metadata fixtures/us_cine_smoke/metadata.json \
   --frames fixtures/us_cine_smoke/frames --output "$d/x.sbnd" >/dev/null && cmp "$d/x.sbnd" fixtures/us_cine_smoke/us_cine_smoke.sbnd && echo "same bytes"'
-step "lab: the six lab crates' tests (their variants are part of the API)"
-run 1 cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench -p cc-classify -p server-telemetry --quiet
+step "lab: the seven lab crates' tests (their variants are part of the API)"
+run 1 cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench -p cc-classify -p server-telemetry -p metadata-store --quiet
 step "lab: the Go and h3 clients compile"
 if command -v go >/dev/null; then
   run 1 bash -c "(cd lab/other-clients/go && go build -o /dev/null .) && (cd lab/page-open/h3-host && go build -o /dev/null .)"

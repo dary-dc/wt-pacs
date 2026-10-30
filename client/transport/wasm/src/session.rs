@@ -530,10 +530,17 @@ impl TransportSession {
         let dial_ms = options.as_ref().and_then(ConnectOptions::dial_ms).filter(|&ms| ms > 0);
         let transport = dial(&url, &cert_sha256, dial_ms).await?;
 
-        let bi = JsFuture::from(transport.create_bidirectional_stream())
-            .await
-            .map_err(|e| format!("create bidi: {e:?}"))?
-            .dyn_into::<web_sys::WebTransportBidirectionalStream>()
+        // A series refused at open is closed right behind `ready`: its code, not the stream's error. docs/WIRE.md §Refusing a series
+        let bi = match JsFuture::from(transport.create_bidirectional_stream()).await {
+            Ok(bi) => bi,
+            Err(e) => {
+                return Err(match JsFuture::from(transport.closed()).await {
+                    Ok(info) => closed_reason_of(&info),
+                    Err(_) => format!("create bidi: {e:?}"),
+                })
+            }
+        }
+        .dyn_into::<web_sys::WebTransportBidirectionalStream>()
             .map_err(|e| format!("bidi cast: {e:?}"))?;
 
         let control_writer = bi

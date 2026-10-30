@@ -1,0 +1,9 @@
+[package]
+name = "study-db"
+version = "0.1.0"
+edition = "2021"
+description = "The study DB's schema, shared by the receiver that writes it and the verifier that reads it"
+
+[dependencies]
+rusqlite = { version = "0.41", features = ["bundled"] }
+xxhash-rust = { version = "0.8", features = ["xxh3"] }

@@ -45,6 +45,8 @@ export class FakeTransport {
   static pin = "";
   /** Every transport dialled, oldest first: a replaced one still open is a session left sending. */
   static all: FakeTransport[] = [];
+  /** Set, the next dial is accepted and closed with it before the client opens a stream: a series refused at open. */
+  static refuseNext: { closeCode: number; reason: string } | null = null;
   readonly ready: Promise<void>;
   readonly closed: Promise<{ closeCode: number; reason: string }>;
   readonly sent: Uint8Array[] = [];
@@ -73,6 +75,9 @@ export class FakeTransport {
           ? new Promise((resolve) => setTimeout(resolve, FakeTransport.openAfterMs))
           : Promise.resolve();
     this.ready.catch(() => {});
+    const refusal = FakeTransport.refuseNext;
+    FakeTransport.refuseNext = null;
+    if (refusal) void this.ready.then(() => this.serverClose(refusal.closeCode, refusal.reason));
     this.closed = new Promise((resolve) => {
       this.settleClosed = resolve;
     });
@@ -102,6 +107,7 @@ export class FakeTransport {
   }
 
   async createBidirectionalStream() {
+    if (this.didClose) throw new Error("Connection lost.");
     return new WebTransportBidirectionalStream(
       new ReadableStream({ start: (c) => void (this.control = c) }),
       new WritableStream({ write: (chunk) => void this.sent.push(chunk) }),

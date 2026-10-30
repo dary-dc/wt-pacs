@@ -2,27 +2,40 @@
 members = [
     "common/fod",
     "common/frame-envelope",
+    "common/from-disk",
     "common/series-bundle",
+    "common/study-db",
     "server",
+    "carrier",
+    "carrier/sender",
     "client/transport/wasm",
     "tools/pack-series",
     "ingest/from-parser",
+    "ingest/receiver",
     "tools/check-fastpath",
+    "tools/pacs-verify",
     "lab/disk-access-bench",
     "lab/container-bench",
     "lab/window-harness",
     "lab/telemetry-bench",
     "lab/cc-classify",
     "lab/server-telemetry",
+    "lab/metadata-store",
 ]
 # A bare `cargo build` or `cargo test`: from-parser links ingest/tools.sh's build, the WASM client is wasm-pack's.
 default-members = [
     "common/fod",
     "common/frame-envelope",
     "common/series-bundle",
+    "common/from-disk",
     "server",
+    "carrier",
+    "carrier/sender",
     "tools/pack-series",
     "tools/check-fastpath",
+    "ingest/receiver",
+    "common/study-db",
+    "tools/pacs-verify",
 ]
 resolver = "2"
 
