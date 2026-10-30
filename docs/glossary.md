@@ -33,6 +33,10 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | frame digest | a frame's XXH3-64 in the series' metadata, which the decoder worker checks the frame against; the frame says `exact` ([`FIXTURES.md`](FIXTURES.md) §Frame digests) |
 | representation | how an AV1 payload holds its samples: **plain**, as an encoder codes them out of the box (the control), or **optimized**, split by depth and RGB through the RCT ([`av1/payload-format.md`](av1/payload-format.md)) |
 | preview | a lossy picture shown before its frame's exact one, and replaced by it |
+| view | where the viewer holds and paints its frames: `page` (the default) or `worker`, the page's `?view=` ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) |
+| view worker | under `?view=worker`, the worker that holds the controller, the frame store and the paint module; the page sends it intents and hears events, never a frame |
+| controller | the view's current frame, what it asks of the downloader and its paint (`client/view/controller.js`) |
+| frame store | the frames held, by index: has, get, put, a memory window; it decides nothing (`client/view/store.js`) |
 | client | an implementation of the transport (`transport-ts`, `transport-wasm`, the WebSocket one, the native one in `client/native`) |
 | native cache | the native core's frames whose check was `true`, their coded bytes, a file per frame under the series and its metadata's version, re-checked on read ([`native/README.md`](native/README.md) §8.4) |
 | paint thread | the thread that holds the native window's frames and paints them: `ui`, the UI thread (today's); `view`, a view thread with the store beside a downloader thread; `core`, the view's loop and the downloader's on one thread ([`native/README.md`](native/README.md) §The view-worker design, native) |

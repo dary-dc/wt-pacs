@@ -6,9 +6,9 @@ grayscale pipeline, with fit, zoom, pan, quarter turns and flips. One module, tw
 | file | runs in | does |
 | --- | --- | --- |
 | `painter.js` | the page | places nothing itself: transfers the canvas (`transferControlToOffscreen`) to the worker and answers each `paint()` with one promise |
-| `paint-worker.js` | the paint worker | WebGL2: uploads the frame, windows it, places it |
+| `paint-worker.js` | the paint worker, or the view worker as a module (`start`, `paint`) | WebGL2: uploads the frame, windows it, places it |
 | `voi.js` | both | the window table, from PS3.3 |
-| `reference.js` | the check | the same contract a second time on the CPU |
+| `reference.js` | the check, and a view's `valueAt` (`toSource`) | the same contract a second time on the CPU |
 | `cells.mjs` | the check | the frames and cells, shared with the native painter's check (`native.mjs`) |
 
 ```js
