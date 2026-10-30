@@ -8,6 +8,9 @@ mod two;
 use anyhow::{bail, Context, Result};
 use std::collections::HashMap;
 
+/// `default`: Turso's default features (mimalloc as the allocator, tantivy); `lean`: neither.
+pub const BUILD: &str = if cfg!(feature = "turso-defaults") { "default" } else { "lean" };
+
 pub struct Args(HashMap<String, String>);
 
 impl Args {

@@ -1,6 +1,6 @@
 use crate::study::{self, percentile, SCAN};
 use crate::Args;
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use serde_json::json;
 use std::collections::BTreeSet;
 use std::future::Future;
@@ -11,9 +11,20 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
-const ARMS: [&str; 6] = ["idle", "turso", "turso-uring", "rusqlite", "rusqlite-blocking", "rusqlite-selfwake"];
+const ARMS: [&str; 9] = [
+    "idle",
+    "turso",
+    "turso-uring",
+    "rusqlite",
+    "rusqlite-blocking",
+    "rusqlite-selfwake",
+    "turso-blocking",
+    "turso-uring-blocking",
+    "rusqlite-blocking-tuned",
+];
 const READERS: usize = 4;
 const PERIOD: Duration = Duration::from_millis(1);
+const MMAP_BYTES: i64 = 256 << 20;
 
 fn tid() -> i64 {
     unsafe { libc::syscall(libc::SYS_gettid) }
@@ -45,6 +56,7 @@ struct Seen {
 
 enum Reader {
     Turso(turso::Statement),
+    TursoBlocking(Arc<Mutex<turso::Statement>>),
     Direct(rusqlite::Connection),
     Blocking(Arc<Mutex<rusqlite::Connection>>),
 }
@@ -59,46 +71,73 @@ fn scan_rusqlite(c: &rusqlite::Connection, series: &str) -> Result<usize> {
     Ok(bytes)
 }
 
-fn rusqlite_open(path: &Path, cache_pages: i64) -> Result<rusqlite::Connection> {
-    let c = rusqlite::Connection::open(path)?;
+async fn scan_turso(stmt: &mut turso::Statement, series: &str, seen: &Seen) -> Result<usize> {
+    let mut rows = stmt.query([series]).await?;
+    let mut bytes = 0;
+    loop {
+        let next = CountPending { inner: Box::pin(rows.next()), pending: &seen.pending };
+        match next.await? {
+            Some(row) => bytes += row.get_value(1)?.as_blob().map_or(0, Vec::len),
+            None => return Ok(bytes),
+        }
+    }
+}
+
+async fn turso_open(path: &Path, uring: bool, cache_pages: i64) -> Result<(turso::Connection, i64)> {
+    let mut b = turso::Builder::new_local(path.to_str().unwrap());
+    if uring {
+        b = b.with_io("io_uring");
+    }
+    let conn = b.build().await?.connect()?;
+    if cache_pages > 0 {
+        conn.execute(format!("PRAGMA cache_size = {cache_pages}"), ()).await?;
+    }
+    let mut rows = conn.query("PRAGMA cache_size", ()).await?;
+    let held = *rows.next().await?.context("cache_size")?.get_value(0)?.as_integer().context("cache_size")?;
+    Ok((conn, held))
+}
+
+pub fn rusqlite_open(path: &Path, tuned: bool, cache_pages: i64) -> Result<rusqlite::Connection> {
+    let c = if tuned {
+        use rusqlite::OpenFlags as F;
+        let c =
+            rusqlite::Connection::open_with_flags(path, F::SQLITE_OPEN_READ_ONLY | F::SQLITE_OPEN_NO_MUTEX | F::SQLITE_OPEN_URI)?;
+        c.pragma_update(None, "mmap_size", MMAP_BYTES)?;
+        c
+    } else {
+        rusqlite::Connection::open(path)?
+    };
     if cache_pages > 0 {
         c.pragma_update(None, "cache_size", cache_pages)?;
     }
     Ok(c)
 }
 
-async fn open(arm: &str, path: &Path, cache_pages: i64) -> Result<Reader> {
-    Ok(match arm {
-        "turso" | "turso-uring" => {
-            let mut b = turso::Builder::new_local(path.to_str().unwrap());
-            if arm == "turso-uring" {
-                b = b.with_io("io_uring");
-            }
-            let db = b.build().await?;
-            let conn = db.connect()?;
-            if cache_pages > 0 {
-                conn.execute(format!("PRAGMA cache_size = {cache_pages}"), ()).await?;
-            }
-            let stmt = conn.prepare(SCAN).await?;
-            Reader::Turso(stmt)
-        }
-        "rusqlite" | "rusqlite-selfwake" => Reader::Direct(rusqlite_open(path, cache_pages)?),
-        _ => Reader::Blocking(Arc::new(Mutex::new(rusqlite_open(path, cache_pages)?))),
-    })
+/// The reader and the engine cache it holds, as `PRAGMA cache_size` reads it back.
+async fn open(arm: &str, path: &Path, cache_pages: i64) -> Result<(Reader, i64)> {
+    if arm.starts_with("turso") {
+        let (conn, held) = turso_open(path, arm.contains("uring"), cache_pages).await?;
+        let stmt = conn.prepare(SCAN).await?;
+        let reader =
+            if arm.ends_with("blocking") { Reader::TursoBlocking(Arc::new(Mutex::new(stmt))) } else { Reader::Turso(stmt) };
+        return Ok((reader, held));
+    }
+    let c = rusqlite_open(path, arm.ends_with("tuned"), cache_pages)?;
+    let held = c.pragma_query_value(None, "cache_size", |r| r.get(0))?;
+    Ok((if arm.contains("blocking") { Reader::Blocking(Arc::new(Mutex::new(c))) } else { Reader::Direct(c) }, held))
 }
 
-async fn read(reader: &mut Reader, series: &str, seen: &Seen) -> Result<usize> {
+async fn read(reader: &mut Reader, series: &str, seen: &Arc<Seen>) -> Result<usize> {
     match reader {
-        Reader::Turso(stmt) => {
-            let mut rows = stmt.query([series]).await?;
-            let mut bytes = 0;
-            loop {
-                let next = CountPending { inner: Box::pin(rows.next()), pending: &seen.pending };
-                match next.await? {
-                    Some(row) => bytes += row.get_value(1)?.as_blob().map_or(0, Vec::len),
-                    None => return Ok(bytes),
-                }
-            }
+        Reader::Turso(stmt) => scan_turso(stmt, series, seen).await,
+        Reader::TursoBlocking(stmt) => {
+            let (stmt, series, counts, rt) = (stmt.clone(), series.to_owned(), seen.clone(), tokio::runtime::Handle::current());
+            let (bytes, t) = tokio::task::spawn_blocking(move || {
+                (rt.block_on(scan_turso(&mut stmt.lock().unwrap(), &series, &counts)), tid())
+            })
+            .await?;
+            seen.blocking_tids.lock().unwrap().insert(t);
+            bytes
         }
         Reader::Direct(c) => scan_rusqlite(c, series),
         Reader::Blocking(c) => {
@@ -114,15 +153,18 @@ struct Round {
     lateness_us: Vec<f64>,
     scan_ms: Vec<f64>,
     seen: Arc<Seen>,
+    cache_held: Option<i64>,
 }
 
 async fn round(arm: &'static str, files: &[PathBuf], secs: f64, cache_pages: i64) -> Result<Round> {
     let seen = Arc::new(Seen::default());
     let stop = Arc::new(AtomicBool::new(false));
     let mut readers = Vec::new();
+    let mut cache_held = None;
     if arm != "idle" {
         for (i, path) in files.iter().enumerate() {
-            let mut reader = open(arm, path, cache_pages).await?;
+            let (mut reader, held) = open(arm, path, cache_pages).await?;
+            cache_held = Some(held);
             read(&mut reader, &study::series_uid(i), &seen).await?;
             let (seen, stop) = (seen.clone(), stop.clone());
             readers.push(tokio::spawn(async move {
@@ -164,7 +206,7 @@ async fn round(arm: &'static str, files: &[PathBuf], secs: f64, cache_pages: i64
     for r in readers {
         scan_ms.extend(r.await??);
     }
-    Ok(Round { lateness_us: heartbeat.await?, scan_ms, seen })
+    Ok(Round { lateness_us: heartbeat.await?, scan_ms, seen, cache_held })
 }
 
 fn stats(mut v: Vec<f64>) -> serde_json::Value {
@@ -183,7 +225,9 @@ pub fn run(args: &Args) -> Result<()> {
     std::fs::create_dir_all(&dir)?;
     let files: Vec<PathBuf> = (0..READERS).map(|i| dir.join(format!("s{i}.db"))).collect();
     for (i, f) in files.iter().enumerate() {
-        study::build(f, i, instances)?;
+        if !args.has("keep") || !f.exists() {
+            study::build(f, i, instances)?;
+        }
     }
     let arms: Vec<&'static str> = match only.as_str() {
         "" => ARMS[..5].to_vec(),
@@ -208,7 +252,9 @@ pub fn run(args: &Args) -> Result<()> {
                 "{}",
                 json!({"arm": arms[a], "round": r, "workers": workers, "cache_pages": cache_pages, "pid": std::process::id(),
                        "lateness_us": stats(res.lateness_us.clone()), "scan_ms": stats(res.scan_ms.clone()),
-                       "next_pending": pending, "reader_tids": reader_tids, "blocking_tids": blocking_tids})
+                       "next_pending": pending, "reader_tids": reader_tids, "blocking_tids": blocking_tids,
+                       "cache_held": res.cache_held, "build": crate::BUILD,
+                       "raw": args.has("raw").then(|| json!({"lateness_us": &res.lateness_us, "scan_ms": &res.scan_ms}))})
             );
             let cell = &mut all[a];
             cell.0.extend(res.lateness_us);
@@ -255,15 +301,49 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("s.db");
         study::build(&path, 7, 300).unwrap();
-        let seen = Seen::default();
+        let seen = Arc::new(Seen::default());
         let rows = 2 + 300 + 30;
-        for arm in ["turso", "rusqlite", "rusqlite-blocking"] {
+        for arm in ARMS[1..].iter().filter(|a| !a.contains("uring") || uring_allowed()) {
             for cache_pages in [0, 64] {
-                let mut reader = open(arm, &path, cache_pages).await.unwrap();
+                let (mut reader, _) = open(arm, &path, cache_pages).await.unwrap();
                 let bytes = read(&mut reader, &study::series_uid(7), &seen).await.unwrap();
                 assert_eq!(bytes, rows * study::BODY, "{arm}, {cache_pages} pages");
             }
         }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    fn uring_allowed() -> bool {
+        turso::core::UringIO::new().is_ok()
+    }
+
+    /// `PRAGMA cache_size = 64` holds 64 pages in SQLite and 200 in Turso, its floor; the default is -2000 (KiB) in both.
+    #[tokio::test]
+    async fn the_64_page_cache_is_200_pages_in_turso() {
+        let dir = std::env::temp_dir().join(format!("sqlite-engine-cache-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("s.db");
+        study::build(&path, 1, 10).unwrap();
+        let held = |arm: &'static str, pages| {
+            let path = path.clone();
+            async move { open(arm, &path, pages).await.unwrap().1 }
+        };
+        assert_eq!((held("rusqlite", 64).await, held("rusqlite-blocking-tuned", 64).await), (64, 64));
+        assert_eq!((held("turso", 64).await, held("turso-blocking", 64).await), (200, 200));
+        assert_eq!((held("rusqlite", 0).await, held("turso", 0).await), (-2000, -2000));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// The tuned rusqlite reader is read-only and maps up to 256 MiB of the file.
+    #[test]
+    fn the_tuned_rusqlite_reader_is_read_only_and_mapped() {
+        let dir = std::env::temp_dir().join(format!("sqlite-engine-tuned-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("s.db");
+        study::build(&path, 1, 10).unwrap();
+        let c = rusqlite_open(&path, true, 0).unwrap();
+        assert_eq!(c.pragma_query_value(None, "mmap_size", |r| r.get::<_, i64>(0)).unwrap(), MMAP_BYTES);
+        assert!(c.execute("DELETE FROM groups", []).is_err());
         std::fs::remove_dir_all(dir).unwrap();
     }
 }
