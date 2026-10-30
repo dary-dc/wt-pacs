@@ -729,6 +729,13 @@ SwiftShader with headless Chromium's own BeginFrame source, Firefox on llvmpipe 
   neither shows a dropped frame. A container's cells can rank the arms against each other only where they do not
   saturate, and say so; the 4× cells there slow the software rasteriser with the CPU, which a GPU would not be.
 
+**Smoke (2026-10-30), not data.** One round per arm and cell, 10 s each, to prove the harness end to end: Chromium 153
+on all 16 cells, Firefox 155 (Xvfb) on the eight 512² cells and one 2560×3328 cell; every run painted with no failure,
+and the 4× lever held on the page thread and a worker alike. **By the protocol's own guard this container saturates
+in every cell but 512² at 30/s on a quiet page at 1×**, in both engines, and in Chromium also on a busy page at 1×. Every 60/s cell, every 4× cell and every
+2560×3328 cell is past the host's limit here: nothing is claimed in them, and no other figure from the smoke is a
+result.
+
 **Rule, stated before any data.** Per engine: **the clock moves into the worker** with `worker-raf` if, in every
 non-VOID busy-page cell of the 512² series at 1× and 4×, it has ≥ 20 points fewer frames late than `page-raf` in ≥ 11
 of 14 rounds and a gap p99 ≤ 2 T, and in every quiet-page cell it is not worse than `page-raf` by more than the A/A
