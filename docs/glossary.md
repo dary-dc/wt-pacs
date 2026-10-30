@@ -32,8 +32,23 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | RCT | JPEG 2000's reversible colour transform, applied to RGB before AV1 codes it |
 | frame digest | a frame's XXH3-64 in the series' metadata, which the decoder worker checks the frame against; the frame says `exact` ([`FIXTURES.md`](FIXTURES.md) §Frame digests) |
 | representation | how an AV1 payload holds its samples: **plain**, as an encoder codes them out of the box (the control), or **optimized**, split by depth and RGB through the RCT ([`av1/payload-format.md`](av1/payload-format.md)) |
+| client cache | the page's frames in OPFS, decoded and checked, one file per series kept by a **store worker**; the **memory window** is the frames held in memory around the current index, within a byte budget (built, [`adr/frame-path.md`](adr/frame-path.md) §Proposed: the client cache in OPFS). Proposed 2026-10-28: the **view worker** holds the store, the controller and the paint; a **slot** is a frame-sized span of one shared buffer the store lends a decoder for one frame (§Proposed, *Who owns a frame's memory*) (§Proposed, *M5 amended*, for its **credits**) |
 | preview | a lossy picture shown before its frame's exact one, and replaced by it |
-| client | an implementation of the transport (`transport-ts`, `transport-wasm`, the WebSocket one) |
+| view | where the viewer holds and paints its frames: `page` (the default) or `worker`, the page's `?view=` ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) |
+| view worker | under `?view=worker`, the worker that holds the controller, the frame store and the paint module; the page sends it intents and hears events, never a frame |
+| controller | the view's current frame, what it wants and in what order, and its paint (`client/view/controller.js`) |
+| frame store | the frames held, by index: has, get, put, a memory window; under `worker`, where a frame comes from: it sends the downloader the misses of each want (`client/view/store.js`) |
+| cache | under `worker`, a series' decoded frames in OPFS behind the frame store, each checked against its frame digest when read back; its **cache writer** (`?writer=`, a lab lever; none by default, so no cache) is the **store worker** (`client/viewer/store.js`, one packed file a series), the `decoders` or the `view` worker, those two a file per frame ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) |
+| want | the frames a view wants, in its order; the misses reach the downloader as one `want` message that replaces the last, and change its order alone; natively it rides a `watch` channel ([`native/README.md`](native/README.md) §Built; [`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) |
+| client | an implementation of the transport (`transport-ts`, `transport-wasm`, the WebSocket one, the native one in `client/native`) |
+| native cache | the native core's frames whose check was `true`, their coded bytes, a file per frame under the series and its metadata's version, re-checked on read ([`native/README.md`](native/README.md) §8.4) |
+| paint thread | the thread that holds the native window's frames and paints them: `ui`, the UI thread (today's); `view`, a view thread with the store beside a downloader thread; `core`, the view's loop and the downloader's on one thread ([`native/README.md`](native/README.md) §The view-worker design, native) |
+| credit | room for one decoded frame the view has not yet taken: a decoder takes one before a job, `K` in all, so a full store reaches the wire as a pause; in the browser's M5 arms, a frame dispatched and not yet acknowledged ([`adr/frame-path.md`](adr/frame-path.md) §Proposed, *M5 amended*; [`native/README.md`](native/README.md) §Built) |
+| `wt-pacs/1` | the native client's ALPN: the session's streams on raw QUIC, without HTTP/3 or WebTransport ([`WIRE.md`](WIRE.md) §The raw QUIC mapping) |
+| span | the frames a consumer holds that one run may cross so the misses around them stay one run; a lab setting, default 0 ([`adr/frame-path.md`](adr/frame-path.md) §Experiment 1) |
+| paint worker | under `?view=page`, the worker the page posts each frame's handle to, which paints it with WebGL2 on the transferred canvas (`client/paint/paint-worker.js`); in the view worker, the same module is its paint |
+| cine | the frames shown one after another at a rate; the product's is ticked by a page `setInterval` (`client/view/view.js`) |
+| cine clock | what ticks cine, on the page or in the view worker; each of the lab's clocks shows the frame due at its tick (`client/view/clock.js`, [`adr/frame-path.md`](adr/frame-path.md) §A frame clock in the view worker) |
 | Tap | the client's telemetry recorder, outside the product build ([`adr/telemetry-instrument-clients-from-outside.md`](adr/telemetry-instrument-clients-from-outside.md)) |
 
 ## Testing and measuring

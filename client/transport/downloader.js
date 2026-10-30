@@ -8,10 +8,16 @@ const DEFAULT_TRANSPORT = "/client/transport/ts/dist/session.js";
 let TransportSession = null;
 
 const abs = () => performance.timeOrigin + performance.now();
+/** The page, or the view worker over the port the page links it to: docs/adr/frame-path.md §3, *Built*. */
+let consumer = null;
+const toConsumer = (m, transfer = []) => (consumer ?? globalThis).postMessage(m, transfer);
 
 let session = null;
-/** A third decoder helps on four cores, not on two: docs/ARCHITECTURE.md §Resources */
-let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true, refill: "head" };
+/**
+ * A third decoder helps on four cores, not on two: docs/ARCHITECTURE.md §Resources. `askDepth`, a want's D_min:
+ * docs/adr/client-window-depth.md. `span`, the held frames a run may cross: docs/adr/frame-path.md §Experiment 1
+ */
+let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true, refill: "head", askDepth: 4, span: 0 };
 /** ms, and how many re-dials. `cfg.survival` as an object overrides them; `false` turns all but `decodeMs` off. */
 const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000, decodeMs: 10_000 };
 /** A frame lost with its decoder this many times fails by name. docs/ARCHITECTURE.md §The downloader */
@@ -50,13 +56,19 @@ const records = new Map();
 const queue = { ask: [], fill: [] };
 /** Fill frames the consumer wants and the wire has not delivered; never one an ask carries, which the ask settles. */
 const wanted = new Set();
+/** The consumer's want, in its order, each frame until its bytes are here. docs/adr/frame-path.md §3, *Built* */
+let order = new Set();
+/** A run the want's head left, owed until an ask lands behind it: what the run wrote is here by then. docs/WIRE.md §An ask during a fill */
+const ended = new Set();
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function fail(index, reason) {
   records.delete(index);
   wanted.delete(index);
-  postMessage({ kind: "failed", index, gen: generation, reason });
+  order.delete(index);
+  toConsumer({ kind: "failed", index, gen: generation, reason });
+  serveWant();
 }
 
 /** Asks come before fill frames; a frame already in hand moves up rather than being re-asked. */
@@ -174,11 +186,11 @@ function lose(d, reason) {
   decoders.splice(decoders.indexOf(d), 1);
   if (decoders.length > 0) return;
   decoderLoss = reason;
-  postMessage({ kind: "failed", index: -1, reason });
+  toConsumer({ kind: "failed", index: -1, reason });
   pump();
 }
 
-function want(indices, askMs) {
+function addToFill(indices, askMs) {
   for (const i of wholeGroups(indices)) {
     if (records.has(i)) continue;
     record(i, "fill", askMs);
@@ -195,22 +207,66 @@ function record(index, priority, askMs) {
 function arrived(index, frame) {
   redials = 0;
   wanted.delete(index);
+  order.delete(index);
   watch();
   sessionBytes += frame.bytes.length + 8;
   if (cfg.recycleAtBytes && sessionBytes >= 0.75 * cfg.recycleAtBytes) recycling ??= recycle().finally(() => { recycling = null; });
   const rec = records.get(index);
   if (!rec) return;
+  if (rec.priority === "ask") forgetEnded();
   rec.stamps.lastByte = abs();
   rec.stamps.mediaReads = session?.stats().mediaReads;
   if (!cfg.decode) {
     records.delete(index);
-    postMessage({ kind: "frame", index, gen: generation, pixels: frame.bytes, wireBytes: frame.bytes.length, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
-    return;
+    toConsumer({ kind: "frame", index, gen: generation, pixels: frame.bytes, wireBytes: frame.bytes.length, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
+    return void serveWant();
   }
   rec.bytes = frame.bytes;
   rec.state = "queued";
   queue[rec.priority].push(index);
   pump();
+  serveWant();
+}
+
+/** A want replaces the order and nothing else: what is owed stays owed, and no generation steps. */
+function setWant(indices) {
+  order = new Set(indices.flatMap((i) => wholeGroups([i])));
+  serveWant();
+}
+
+/** The want's head first: one run while it ascends D_min frames or more and nothing else is owed, else up to D_min asks. */
+function serveWant() {
+  for (const i of order) if (records.has(i) && records.get(i).state !== "wire") order.delete(i);
+  const [head] = order;
+  if (head === undefined) return;
+  const owed = owedAsks().length;
+  if (owed === 0) forgetEnded();
+  if (wanted.size) {
+    // The run's next frame is waited for; under the lab's `waitAhead`, any of its next k: docs/adr/frame-path.md §3, *Experiment 2*.
+    if (wanted.has(head) && head - Math.min(...wanted) < (cfg.waitAhead || 1)) return;
+    // The run no longer serves the head: the next ask ends it on the server.
+    for (const i of wanted) ended.add(i);
+    wanted.clear();
+  }
+  // The head is asked at once, so a head the ended run had in flight crosses twice.
+  if (ended.delete(head)) records.delete(head);
+  const unsent = [...order].filter((i) => !records.has(i));
+  let inRun = 1;
+  runEnd(head, (i) => i === unsent[inRun] && ++inRun);
+  if (owed === 0 && ended.size === 0 && unsent[0] === head && inRun >= cfg.askDepth) {
+    addToFill(unsent.slice(0, inRun), abs());
+    return void issueFill();
+  }
+  if (!session || session.stats().closed) return;
+  for (const i of unsent.slice(0, Math.max(0, cfg.askDepth - owed))) {
+    record(i, "ask", abs());
+    ask(i, session);
+  }
+}
+
+function forgetEnded() {
+  for (const i of ended) if (records.get(i)?.state === "wire") records.delete(i);
+  ended.clear();
 }
 
 /**
@@ -275,9 +331,17 @@ function askFor(s, index) {
 function nextRun() {
   if (wanted.size === 0) return null;
   const from = Math.min(...wanted);
+  return { from, to: runEnd(from, (i) => wanted.has(i)) };
+}
+
+/** The run from `from` over the frames `next` admits, crossing up to `cfg.span` the consumer holds; those arrive with no record and are dropped. */
+function runEnd(from, next) {
   let to = from;
-  while (wanted.has(to + 1)) to += 1;
-  return { from, to };
+  for (let i = from + 1; i - to <= cfg.span + 1; i++) {
+    if (next(i)) to = i;
+    else if (records.has(i) || order.has(i)) break;
+  }
+  return to;
 }
 
 function fillHandlers(from, to) {
@@ -351,7 +415,7 @@ async function recycle() {
   adopt(next);
   reaskOwed();
   issueFill();
-  postMessage({ kind: "recycled" });
+  toConsumer({ kind: "recycled" });
 }
 
 /** A new session, then exactly what the records still owe: nothing that arrived is asked twice. */
@@ -366,7 +430,7 @@ async function resume() {
     try {
       await connect();
       reaskOwed();
-      return void postMessage({ kind: "resumed" });
+      return void toConsumer({ kind: "resumed" });
     } catch {
       await sleep(deadlines.redialMs);
     }
@@ -424,7 +488,7 @@ function spawn() {
   const ch = new MessageChannel();
   // Firefox drops frames in flight once this object is collected: ARCHITECTURE.md §The downloader.
   d.port = ch.port1;
-  worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder, groupLength: cfg.groupLength, digests: cfg.digests }, [ch.port1]);
+  worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder, groupLength: cfg.groupLength, digests: cfg.digests, pixels: cfg.pixels, cache: cfg.cache }, [ch.port1]);
   worker.onerror = (e) => {
     e.preventDefault();
     replace(d, `decoder ${d.id} crashed: ${e.message}`);
@@ -444,7 +508,7 @@ function spawn() {
       onDone(d);
     }
   };
-  postMessage({ kind: "pixel-port", port: ch.port2, decoder: d.id }, [ch.port2]);
+  toConsumer({ kind: "pixel-port", port: ch.port2, decoder: d.id }, [ch.port2]);
   return d;
 }
 
@@ -458,7 +522,8 @@ async function start(m) {
   quietMs = deadlines.stallMs;
   // The decoders come up without the session URL, which arrives in `dial`; `decodersUp` gates
   // dispatch alone — docs/ARCHITECTURE.md §The downloader.
-  if (cfg.fill) want(cfg.fill, abs());
+  if (cfg.fill) addToFill(cfg.fill, abs());
+  if (cfg.want) setWant(cfg.want);
   if (cfg.decode) await Promise.all(ready);
   decodersUp = true;
   pump();
@@ -545,7 +610,9 @@ async function live() {
 for (const ev of ["online", "offline"]) addEventListener(ev, watch);
 navigator.connection?.addEventListener?.("change", watch);
 
-onmessage = async (e) => {
+onmessage = (e) => (e.data.kind === "link" ? ((consumer = e.data.port).onmessage = command) : command(e));
+
+async function command(e) {
   const m = e.data;
   const gen = generation;
   try {
@@ -553,7 +620,8 @@ onmessage = async (e) => {
     if (m.kind === "dial") {
       dial = { url: m.url, certHash: m.certHash };
       await firstDial();
-      return void postMessage({ kind: "started" });
+      serveWant();
+      return void toConsumer({ kind: "started" });
     }
     if (m.kind === "ask") {
       const s = await live();
@@ -564,8 +632,13 @@ onmessage = async (e) => {
     if (m.kind === "fill") {
       await live();
       if (gen !== generation) return;
-      want(m.indices, abs());
+      addToFill(m.indices, abs());
       return void issueFill();
+    }
+    if (m.kind === "want") {
+      await live();
+      if (gen !== generation) return;
+      return void setWant(m.indices);
     }
     if (m.kind === "check") return void watch();
     // A decoded frame is forgotten only once the page has it. docs/ARCHITECTURE.md §The downloader
@@ -581,6 +654,8 @@ onmessage = async (e) => {
       queue.fill.length = 0;
       records.clear();
       wanted.clear();
+      order.clear();
+      ended.clear();
       for (const d of decoders) d.next = null;
       asksInFlight = 0;
       try {
@@ -588,19 +663,19 @@ onmessage = async (e) => {
       } catch {
         /* a dead session has no stream to end */
       }
-      return void postMessage({ kind: "cancelled", gen: generation });
+      return void toConsumer({ kind: "cancelled", gen: generation });
     }
     if (m.kind === "close") {
       closed = true;
       clearTimeout(stall);
       session?.close();
       // The decoders end with this worker; ending them here first can strand it. docs/ARCHITECTURE.md §Closing a client
-      return void postMessage({ kind: "closed", reason: "closed by the consumer" });
+      return void toConsumer({ kind: "closed", reason: "closed by the consumer" });
     }
   } catch (err) {
     const reason = String(err?.message ?? err);
-    // Index -1 is the start failing; an ask or a fill names its own frames, in its own generation.
-    if (m.kind !== "ask" && m.kind !== "fill") return void postMessage({ kind: "failed", index: -1, reason });
+    // Index -1 is the start failing; an ask, a fill or a want names its own frames, in its own generation.
+    if (!["ask", "fill", "want"].includes(m.kind)) return void toConsumer({ kind: "failed", index: -1, reason });
     if (gen === generation) for (const index of m.indices ?? [m.index]) fail(index, reason);
   }
-};
+}

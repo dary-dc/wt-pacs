@@ -56,15 +56,16 @@ boundary is the API, and `stats()` is async because it cannot be truthful and sy
   when the viewer mounts, minutes later; only the server can keep a browser's session open
   ([`adr/transport-idle-sessions.md`](adr/transport-idle-sessions.md)).
 * **A cache seam and a paint sink** — the viewer paints from a cache filled ahead of it. The paint sink
-  is built ([`../client/paint/`](../client/paint/README.md), §Paint); **the cache seam is not** (§Open).
+  is built ([`../client/paint/`](../client/paint/README.md), §Paint); **the cache seam is built only behind `?view=worker` and a lab `?writer=`**, not timed (§Open).
 
 ## Messages
 
 | to the downloader | fields |
 | --- | --- |
-| `start` | config — and, optionally, `fill`: the first fill's frame indices |
+| `start` | config — and, optionally, `fill`: the first fill's frame indices, or `want`: the first want's |
 | `dial` | url, cert hash |
 | `fill` | frame indices |
+| `want` | frame indices, in the order wanted; replaces the last want |
 | `ask` | one frame index |
 | `cancel` | — |
 | `close` | — |
@@ -147,6 +148,11 @@ port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 m
   next fill) and answers `cancelled`. An ask already on the wire stays owed: the server still sends its frame, and
   the session refuses a second ask of it, so the same frame asked again after the cancel takes that ask over
   rather than asking twice (row 219, VIEWERASKS; `downloader.test.mjs` *anAskAgainAfterACancelIsServed*).
+* **A want** (the view worker's store, [`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) is an ordered list that
+  replaces the last one and changes nothing else: no generation steps, and what is owed stays owed. Its head goes out
+  as one run where it ascends `askDepth` (4) frames or more with nothing else owed, otherwise as up to `askDepth`
+  asks, topped up as each lands. A want whose head a running run does not serve next ends the run with the head's
+  ask; the run's frames not yet here are asked again once an ask lands behind it.
 * **Closure**: a session that dies is resumed (§Session survival); a command after a closure re-dials.
 * **Memory.** The wire buffer is a ring of `decoders × perDecoder + 2`: **−19.2 MB of renderer peak on
   an 87-frame 16-bit fill, 8 of 8 rounds**, the fill's clock unmoved ([`decode/README.md`](decode/README.md)
@@ -454,10 +460,12 @@ Frames that were asked for are taken at once, fill frames at background priority
 waits behind a fill. The harness's consumer checks each frame against the fixture's `.sha256`.
 
 **Where a frame should go next** — the page out of the pixel path, the frame store in the paint worker, an OPFS cache
-behind it — is proposed, theory only, in [`adr/frame-path.md`](adr/frame-path.md).
+behind it — is proposed in [`adr/frame-path.md`](adr/frame-path.md); the page out of the pixel path is built as a
+variant, `?view=worker`, not timed and not the default (its §3, *Built*). There the consumer runs in the view worker,
+given the `port` the page linked to the downloader, and the page forwards its triggers to it.
 
 `DownloaderClient.connect(url, certHash, { onFrame, onError, fill, openingAsk, survival, … })` →
-`requestExactFrame(index)`, `fill(indices)`, `cancel()`, `stats()`, `close()`. Every delivered frame
+`requestExactFrame(index)`, `fill(indices)`, `want(indices)`, `cancel()`, `stats()`, `close()`. Every delivered frame
 carries its `generation`; `cancel()` resolves once the downloader has ended the stream and dropped
 that request's work. A refused **fill** frame has no waiter, so it reaches the consumer through
 `onError({ frameIndex, reason, generation })`; a refused *asked* frame rejects its own promise. The
@@ -733,7 +741,8 @@ to one ask moves the median only when it crosses a 16.7 ms line.
 
 The product's page (queue row VIEWER), built on the downloader, the decoders, the frame check and the painter
 together ([`../client/README.md`](../client/README.md) §The viewer). It opens with the whole series as the opening
-fill and paints each frame as it arrives. Frames stay in memory, because the cache seam is still open (§Open).
+fill and paints each frame as it arrives. Frames stay in memory on the page by default; in the view worker under
+`?view=worker`, with an OPFS cache behind them under a lab `?writer=`, not timed ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*).
 
 **The page check holds it** on the three series the DICOM-to-bundle ingest (queue row 89, INGEST) made from the lab's sets, each as HTJ2K and as AV1:
 `ct_nlst` (a windowed, signed CT, 76 frames), `us_liver` (an RGB cine, 70 frames, cine run) and `dbt12_ea1141`
@@ -1276,8 +1285,13 @@ Each item below is the owner's to decide, and is tracked here.
   adopted by a fixed bar ([`decode/README.md`](decode/README.md) §Not yet tried, P-COPY; *Net protocols*, COPYRGB).
 * **The cache seam** (an interface, in-memory and OPFS behind it; whether it holds compressed or
   decoded frames is to be evaluated — and "all frames decoded" cannot mean all resident on a phone) and
-  the paint sink — the sink is built (§Paint), the cache seam is not. An OPFS cache must be evictable on WebKit ([`CLIENTS.md`](CLIENTS.md)
-  §On WebKit). A design for both is proposed in [`adr/frame-path.md`](adr/frame-path.md).
+  the paint sink — the sink is built (§Paint), the cache seam only behind `?view=worker` and a lab `?writer=`, not timed. An OPFS cache must be evictable on WebKit ([`CLIENTS.md`](CLIENTS.md)
+  §On WebKit). A design for both is proposed in [`adr/frame-path.md`](adr/frame-path.md); the cache itself (window, layout,
+  quotas, failure modes) in its §Proposed: the client cache in OPFS, **built 2026-10-27** behind the page
+  (`client/viewer/store.js`), and since 2026-10-30 behind the view worker's frame store alone (its §The core, assembled):
+  decoded frames checked `true`, re-checked on read, no frame of a series on disk decoded again. Measured 2026-10-27
+  on the page: a reopen beats a fetch and Chromium evicts by the rule; the memory window bounds nothing and Gecko evicts
+  nothing. Fixed 2026-10-28: Gecko evicts by the rule; the window still bounds nothing, the decoder workers holding each frame. Its questions 2 and 6 stay open.
   *Where the page fails without it* (queue row 273, 2026-10-16): not on the dev host. Headless Chromium 141 and
   Firefox 157.0.1 each filled 8 GiB of decoded frames (1 024 × 2048², 16-bit, 3 of 3), ten times `dbts_b1`, the
   largest series [`FIXTURES.md`](FIXTURES.md) names (812.5 MiB decoded). So by the row's rule nothing is built.

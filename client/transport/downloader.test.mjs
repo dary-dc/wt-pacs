@@ -94,6 +94,7 @@ function handDecoders() {
     }
     postMessage(m) {
       if (m.kind === "init") {
+        this.init = m;
         this.toConsumer = m.toConsumer;
         queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
       }
@@ -155,6 +156,17 @@ async function startOnNeed() {
   check(made.length === 3 && busy().every((n) => n === 1), `idle decoders stay in the pool: three frames on three (${busy()})`);
 }
 await startOnNeed();
+
+/** The lab's `pixels` reaches every decoder the downloader starts. */
+async function pixelsReachTheDecoders() {
+  handFed();
+  const made = handDecoders();
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // pixels`;
+  await import("./downloader.js?pixels");
+  await onmessage({ data: { kind: "start", config: { decoders: 2, transport, decoderWorker: "x", survival: false, pixels: "transfer" } } });
+  check(made.length === 2 && made.every((w) => w.init.pixels === "transfer"), `pixels reaches ${made.filter((w) => w.init.pixels === "transfer").length} of ${made.length} decoders`);
+}
+await pixelsReachTheDecoders();
 
 /** A downloader on hand-fed transport and decoders, filling frames 0–3, one decoder taking two frames at a time. */
 async function lossWorld(name, survival = false) {
@@ -394,5 +406,166 @@ async function portsOutliveCollection() {
 }
 await portsOutliveCollection();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held: ok");
+/** A transport that serves asks in the order they were sent, as the server does, when the test says so; fills are only recorded. */
+function servedInOrder() {
+  const w = { fills: [], asks: [], owed: [], onFill: null };
+  globalThis.fakeTransport = {
+    connect: async () => ({
+      requestExactFrame: (i) => new Promise((resolve) => (w.asks.push(i), w.owed.push(() => resolve(frame(i))))),
+      stats: () => ({ closed: null, lastByteAt: performance.now() }),
+      fillFrames: (from, to, onFrame) => (w.fills.push([from, to]), (w.onFill = onFrame)),
+      endStream: async () => {},
+      releaseWireBuffer() {},
+      close() {},
+    }),
+  };
+  w.serveOne = async () => (w.owed.shift()(), await settle());
+  return w;
+}
+
+async function wantWorld(name, config) {
+  const w = servedInOrder();
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // ${name}`;
+  await import(`./downloader.js?${name}`);
+  await onmessage({ data: { kind: "start", config: { transport, survival: false, ...config } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  posted.length = 0;
+  return w;
+}
+
+/** A want nearest-first from frame 40: its first D_min misses go out as asks in its order, topped up as each lands, and arrive in its order. */
+async function aWantArrivesInItsOrder() {
+  const w = await wantWorld("want-order", { decode: false, decoders: 0 });
+  const want = [40];
+  for (let d = 1; want.length < 76; d++) for (const i of [40 + d, 40 - d]) if (i >= 0 && i < 76) want.push(i);
+  await onmessage({ data: { kind: "want", indices: want } });
+  check(w.asks.join() === want.slice(0, 4).join() && w.fills.length === 0, `the first asks are the want's first 4 (${w.asks}, runs ${JSON.stringify(w.fills)})`);
+  let deepest = 0;
+  while (w.owed.length) {
+    deepest = Math.max(deepest, w.owed.length);
+    await w.serveOne();
+  }
+  const order = posted.filter((m) => m.kind === "frame").map((m) => m.index);
+  check(order.join() === want.join(), `frames arrive in the want's order (${order.slice(0, 8)} …)`);
+  check(deepest === 4, `at most D_min asks owed at once, and D_min reached (${deepest})`);
+  w.asks.length = 0;
+  await onmessage({ data: { kind: "want", indices: [10, 11, 12, 13, 14, 15] } });
+  check(JSON.stringify(w.fills) === "[[10,15]]" && w.asks.length === 0, `an ascending want is one run (${JSON.stringify(w.fills)}, asks ${w.asks})`);
+  w.onFill(frame(10));
+  await onmessage({ data: { kind: "want", indices: [30, 31, 32] } });
+  check(w.fills.length === 1, `a want ascending fewer than D_min frames, or behind a run, is no new run (${JSON.stringify(w.fills)})`);
+}
+await aWantArrivesInItsOrder();
+
+/**
+ * A want replaced while its run is decoding and in flight: no index is dispatched to a decoder twice or in a new
+ * generation, no frame the run delivered is asked again, and nothing is cancelled or failed.
+ */
+async function aReplacedWantKeepsWhatIsOwed() {
+  const dispatched = new Map();
+  const decoders = [];
+  globalThis.Worker = class {
+    constructor() {
+      this.decoding = [];
+      decoders.push(this);
+    }
+    postMessage(m) {
+      if (m.kind === "init") queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      if (m.kind === "decode") {
+        this.decoding.push(m);
+        dispatched.set(m.index, [...(dispatched.get(m.index) ?? []), m.gen]);
+      }
+    }
+    terminate() {}
+  };
+  const w = await wantWorld("want-replaced", { decoders: 2, perDecoder: 2, decoderWorker: "x" });
+  const ten = [...Array(10).keys()];
+  await onmessage({ data: { kind: "want", indices: ten } });
+  for (const i of [0, 1, 2, 3]) w.onFill(frame(i));
+  await settle();
+  // The view moves to frame 7 and wants 10 next: 0–3 are decoding, 4 and 5 already in flight.
+  await onmessage({ data: { kind: "want", indices: [7, 10, 6, 8, 5, 9, 4, 3, 2, 1, 0] } });
+  check(w.asks.join() === "7,10", `the head and what the old run did not hold are asked, while that run may still be in flight (${w.asks})`);
+  w.onFill(frame(4));
+  w.onFill(frame(5));
+  await settle();
+  await w.serveOne();
+  check(w.asks.join() === "7,10,6,8,9", `once the head lands, the run's unsent frames are asked in the want's order (${w.asks})`);
+  while (w.owed.length) await w.serveOne();
+  await onmessage({ data: { kind: "want", indices: [3, 2, 1, 0] } });
+  for (let busy = true; busy; ) {
+    busy = false;
+    for (const d of decoders) {
+      const m = d.decoding.shift();
+      if (!m) continue;
+      busy = true;
+      d.onmessage({ data: { kind: "done", index: m.index, gen: m.gen } });
+      await onmessage({ data: { kind: "ack", index: m.index, gen: m.gen } });
+    }
+    await settle();
+  }
+  const once = [...ten, 10].every((i) => dispatched.get(i)?.join() === "0");
+  check(once, `each index dispatched once, in generation 0 (${JSON.stringify(Object.fromEntries(dispatched))})`);
+  check(JSON.stringify(w.fills) === "[[0,9]]" && w.asks.every((i) => i > 5), `the run once, and no frame it delivered asked again (runs ${JSON.stringify(w.fills)}, asks ${w.asks})`);
+  check(!posted.some((m) => m.kind === "cancelled" || m.kind === "failed"), `nothing cancelled or failed (${posted.map((m) => m.kind)})`);
+}
+await aReplacedWantKeepsWhatIsOwed();
+
+/**
+ * `span: g` makes the misses around held frames one run when no gap is wider than g, and the held frames it carries
+ * reach no one; a wider gap, or a frame still wanted later in the order, ends the run. Off, they are asks.
+ */
+async function aSpanCrossesHeldFrames() {
+  const odd = [1, 3, 5, 7, 9, 11, 13, 15];
+  const off = await wantWorld("span-off", { decode: false, decoders: 0 });
+  await onmessage({ data: { kind: "want", indices: odd } });
+  check(off.fills.length === 0 && off.asks.join() === "1,3,5,7", `span 0: the misses are asks (${off.asks}, runs ${JSON.stringify(off.fills)})`);
+
+  const on = await wantWorld("span-on", { decode: false, decoders: 0, span: 1 });
+  await onmessage({ data: { kind: "want", indices: odd } });
+  check(JSON.stringify(on.fills) === "[[1,15]]" && on.asks.length === 0, `span 1: one run over the held frames (${JSON.stringify(on.fills)}, asks ${on.asks})`);
+  for (let i = 1; i <= 15; i++) on.onFill(frame(i));
+  await settle();
+  const got = posted.filter((m) => m.kind === "frame").map((m) => m.index);
+  check(got.join() === odd.join(), `only the misses reach the consumer, once each (${got})`);
+
+  const wide = await wantWorld("span-wide", { decode: false, decoders: 0, span: 1 });
+  await onmessage({ data: { kind: "want", indices: [1, 3, 5, 7, 10, 12] } });
+  check(JSON.stringify(wide.fills) === "[[1,7]]", `a gap of 2 under span 1 ends the run (${JSON.stringify(wide.fills)})`);
+
+  const later = await wantWorld("span-later", { decode: false, decoders: 0, span: 1 });
+  await onmessage({ data: { kind: "want", indices: [1, 3, 5, 7, 2] } });
+  check(later.fills.length === 0 && later.asks.join() === "1,3,5,7", `a frame wanted later is not crossed (${later.asks}, runs ${JSON.stringify(later.fills)})`);
+
+  // The decoder never finishes: frame 2 stays here, unacknowledged, so the consumer does not hold it yet.
+  const queued = await wantWorld("span-queued", { decoders: 1, decoderWorker: "x", span: 1 });
+  await onmessage({ data: { kind: "want", indices: [2] } });
+  await queued.serveOne();
+  queued.asks.length = 0;
+  await onmessage({ data: { kind: "want", indices: [1, 3, 5, 7] } });
+  check(queued.fills.length === 0 && queued.asks.join() === "1,3,5,7", `a frame in hand and unacknowledged is not crossed (${queued.asks}, runs ${JSON.stringify(queued.fills)})`);
+}
+await aSpanCrossesHeldFrames();
+
+/**
+ * A run delivering 2–9 next, and a want headed by its 2nd frame (3), its 4th (5), its 5th (6) or one behind it (0).
+ * By default each is asked, which ends the run; under `waitAhead` 4 the 2nd and 4th are waited for, the rest asked.
+ */
+async function aHeadTheRunDeliversWithinKIsWaitedFor() {
+  const asked = {};
+  for (const waitAhead of [undefined, 4]) {
+    asked[waitAhead] = [];
+    for (const head of [3, 5, 6, 0]) {
+      const w = await wantWorld(`wait-ahead-${waitAhead}-${head}`, { decode: false, decoders: 0, waitAhead });
+      await onmessage({ data: { kind: "want", indices: [2, 3, 4, 5, 6, 7, 8, 9] } });
+      await onmessage({ data: { kind: "want", indices: [head, ...[2, 3, 4, 5, 6, 7, 8, 9].filter((i) => i !== head)] } });
+      if (w.asks.includes(head)) asked[waitAhead].push(head);
+    }
+  }
+  check(asked.undefined.join() === "3,5,6,0", `by default each head is asked (${asked.undefined})`);
+  check(asked[4].join() === "6,0", `under waitAhead 4, the run's 2nd and 4th are waited for, its 5th and one behind it asked (${asked[4]})`);
+}
+await aHeadTheRunDeliversWithinKIsWaitedFor();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for: ok");
 process.exit(failed ? 1 : 0);

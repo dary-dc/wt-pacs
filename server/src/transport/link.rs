@@ -3,7 +3,7 @@
 
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::websocket::WsWriter;
-use crate::transport::wire::write_fod_msg;
+use crate::transport::wire::{write_fod_msg, QuicStream};
 use anyhow::{anyhow, Context, Result};
 use bytes::Bytes;
 use fod::FodMsg;
@@ -12,6 +12,7 @@ use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::task::JoinSet;
 use tracing::{debug, warn, Level};
+use wtransport::quinn;
 use wtransport::stream::SendStream;
 use wtransport::Connection;
 
@@ -19,7 +20,7 @@ pub(crate) enum Link {
     Quic {
         media: Media,
         control: ControlStream,
-        connection: Connection,
+        connection: QuicSession,
         /// Lab only: envelope bytes left before the session stalls. `--stall-after-bytes`, under `lab-levers`.
         stall_left: Option<u64>,
         /// Lab only: the send window is set to cwnd + this before each frame. `--send-window-follows-cwnd`.
@@ -32,36 +33,40 @@ pub(crate) enum Link {
     Detached,
 }
 
+/// A session's connection: a browser's WebTransport session, or the native client's raw QUIC. `docs/WIRE.md` §The raw QUIC mapping.
+pub(crate) enum QuicSession {
+    WebTransport(Connection),
+    Raw(quinn::Connection),
+}
+
+pub(crate) enum QuicSend {
+    WebTransport(SendStream),
+    Raw(quinn::SendStream),
+}
+
 pub(crate) enum Media {
-    Shared(SendStream),
+    Shared(QuicSend),
     /// `asks` counts the asks served when they rank above every fill (`per-frame-asks-first`).
     PerFrame { acks: JoinSet<()>, seq: u32, asks: Option<u32> },
 }
 
 /// The opening ask is served before the client opens control, so its stream may still be coming.
 pub(crate) enum ControlStream {
-    Open(SendStream),
-    Coming(oneshot::Receiver<SendStream>),
+    Open(QuicSend),
+    Coming(oneshot::Receiver<QuicSend>),
     Gone,
 }
 
 impl Link {
     pub(crate) async fn quic(
         mode: StreamMode,
-        connection: Connection,
+        connection: QuicSession,
         control: ControlStream,
         stall_left: Option<u64>,
         cwnd_ahead: Option<u64>,
     ) -> Result<Self> {
         let media = match mode {
-            StreamMode::Shared => Media::Shared(
-                connection
-                    .open_uni()
-                    .await
-                    .context("open shared uni")?
-                    .await
-                    .context("shared uni ready")?,
-            ),
+            StreamMode::Shared => Media::Shared(connection.open_uni().await?),
             StreamMode::PerFrame => Media::PerFrame { acks: JoinSet::new(), seq: 0, asks: None },
             StreamMode::PerFrameAsksFirst => Media::PerFrame { acks: JoinSet::new(), seq: 0, asks: Some(0) },
         };
@@ -75,11 +80,11 @@ impl Link {
         match self {
             Self::Quic { media, connection, stall_left, cwnd_ahead, .. } => {
                 if ask && tracing::enabled!(Level::DEBUG) {
-                    let path = connection.quic_connection().stats().path;
+                    let path = connection.quic().stats().path;
                     debug!(frame = idx, cwnd = path.cwnd, rtt_us = path.rtt.as_micros() as u64, "ask written");
                 }
                 if let Some(ahead) = cwnd_ahead {
-                    let quic = connection.quic_connection();
+                    let quic = connection.quic();
                     quic.set_send_window(quic.stats().path.cwnd + *ahead);
                 }
                 let whole = (FRAME_HEAD_LEN + body.len()) as u64;
@@ -87,7 +92,7 @@ impl Link {
                     Some(left) if whole > *left => {
                         let (head, body, whole) = within(head, body, *left as usize);
                         media.send(connection, head, body, whole, ask).await?;
-                        connection.closed().await;
+                        connection.quic().closed().await;
                         Err(anyhow!("the session stalled after its byte budget"))
                     }
                     _ => {
@@ -132,26 +137,22 @@ impl Link {
 
 impl Media {
     /// `whole` false is the lab stall's cut frame, whose stream must never finish.
-    async fn send(&mut self, connection: &Connection, head: Bytes, body: Bytes, whole: bool, ask: bool) -> Result<()> {
+    async fn send(&mut self, connection: &QuicSession, head: Bytes, body: Bytes, whole: bool, ask: bool) -> Result<()> {
         match self {
-            Self::Shared(uni) => write_frame(uni, head, body).await,
+            Self::Shared(uni) => write_frame(uni.quic(), head, body).await,
             Self::PerFrame { acks, seq, asks } => {
-                let mut uni = connection
-                    .open_uni()
-                    .await
-                    .context("open uni")?
-                    .await
-                    .context("open uni ready")?;
+                let mut uni = connection.open_uni().await?;
                 let priority = match asks {
                     Some(asks) if ask => take_ask_priority(asks),
                     _ => take_priority(seq),
                 };
-                let _ = uni.set_priority(priority);
-                write_frame(&mut uni, head, body).await?;
+                let _ = uni.quic().set_priority(priority);
+                write_frame(uni.quic(), head, body).await?;
                 // A dropped stream is finished, so a cut one is held open instead.
                 acks.spawn(async move {
                     if whole {
-                        let _ = uni.finish().await;
+                        let _ = uni.quic().finish();
+                        let _ = uni.quic().stopped().await;
                     } else {
                         std::future::pending::<()>().await;
                     }
@@ -159,6 +160,33 @@ impl Media {
                 while acks.try_join_next().is_some() {}
                 Ok(())
             }
+        }
+    }
+}
+
+impl QuicSession {
+    pub(crate) fn quic(&self) -> &quinn::Connection {
+        match self {
+            Self::WebTransport(connection) => connection.quic_connection(),
+            Self::Raw(connection) => connection,
+        }
+    }
+
+    async fn open_uni(&self) -> Result<QuicSend> {
+        Ok(match self {
+            Self::WebTransport(connection) => {
+                QuicSend::WebTransport(connection.open_uni().await.context("open uni")?.await.context("uni ready")?)
+            }
+            Self::Raw(connection) => QuicSend::Raw(connection.open_uni().await.context("open uni")?),
+        })
+    }
+}
+
+impl QuicStream<quinn::SendStream> for QuicSend {
+    fn quic(&mut self) -> &mut quinn::SendStream {
+        match self {
+            Self::WebTransport(send) => send.quic_stream_mut(),
+            Self::Raw(send) => send,
         }
     }
 }
@@ -203,9 +231,8 @@ fn take_ask_priority(asks: &mut u32) -> i32 {
     p
 }
 
-async fn write_frame(uni: &mut SendStream, head: Bytes, body: Bytes) -> Result<()> {
-    uni.quic_stream_mut()
-        .write_all_chunks(&mut [head, body])
+async fn write_frame(uni: &mut quinn::SendStream, head: Bytes, body: Bytes) -> Result<()> {
+    uni.write_all_chunks(&mut [head, body])
         .await
         .context("write frame")
 }

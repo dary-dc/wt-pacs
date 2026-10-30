@@ -27,11 +27,13 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 | `av1-probe.js` | a 16×16 unit per layout WebCodecs may take, and its checksum (made by `ingest/coded-frames/make_golden.py`) |
 | `wasm-glue.js` | an Emscripten module from its classic glue in a module worker, for OpenJPH and dav1d alike; a build under `wasm/built/` with its manifest digests |
 | `xxh3.js` | the frame check's XXH3-64, over the built xxHash |
-| `htj2k.test.mjs`, `av1.test.mjs`, `wasm-glue.test.mjs`, `xxh3.test.mjs` | node: the range pass; the AV1 payload reader; a build refused unless the manifest pins it; the hash against a reference |
+| `frame-buffer.js` | a decoded frame's memory: a `SharedArrayBuffer`, or under the lab's `pixels: "transfer"` an `ArrayBuffer` the decoder transfers |
+| `htj2k.test.mjs`, `av1.test.mjs`, `wasm-glue.test.mjs`, `xxh3.test.mjs`, `decoder.test.mjs` | node: the range pass; the AV1 payload reader; a build refused unless the manifest pins it; the hash against a reference; a frame's buffer and transfer list under `pixels` |
 | `wasm/` | `build/` builds the three decoders the page loads (OpenJPH from `openjph/`, dav1d, xxHash from `xxh3/`) into `built/`, checked against `build/manifest.sha256`, with every licence in `built/THIRD_PARTY_NOTICES`; `dav1d/` the lab's dav1d-WASM tooling and its exactness check; `fetch_openjph.sh` fetches OpenJPH's npm build and `fetch_xxh3.sh` hash-wasm's XXH3, `xxh3.test.mjs`'s reference, into `vendor/` |
 
-The rest: [`viewer/`](viewer/) the product's page (§The viewer), [`contract/`](contract/) the transport's clauses
-and the rigs, [`paint/`](paint/README.md) the painter. The lab's pages are in [`lab/harness/`](../lab/harness/),
+The rest: [`viewer/`](viewer/) the product's page (§The viewer), [`view/`](view/) what holds and paints its frames
+(§The viewer, *Where the frames are*), [`contract/`](contract/) the transport's clauses and the rigs,
+[`paint/`](paint/README.md) the painter. The lab's pages are in [`lab/harness/`](../lab/harness/),
 and the telemetry recorder in [`lab/client-telemetry/`](../lab/client-telemetry/).
 
 **An AV1 series.** `opts.decoder.codec` names the series' codec: `"htj2k"` (or absent) is today's
@@ -207,6 +209,12 @@ ready the old one is closed and the records' remainder is issued on the new one,
 issues it, and the page is told as `stats().recycledAt`. It is for WebKit's session that stalls after
 16 MB; what it costs, and against what, is `docs/ARCHITECTURE.md` §Recycling before the stall.
 
+**A frame can be transferred instead of shared** — `pixels: "transfer"`, a lab setting, off by default.
+Each decoder then writes a frame into an `ArrayBuffer` and transfers it to the consumer, which holds
+the only reference; the page stays cross-origin isolated either way. It exists to be measured under
+`?view=worker` ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §3, *Experiment 3*); under
+`page` the page's paint then copies the frame to the paint worker at each paint.
+
 **Every decision is held by a test** (2026-10-07). A sweep of 76 mutants over
 `downloader.js` and `consumer.js` — each branch, guard and threshold broken in turn, the node tests
 and both browser rigs run against it — left 32 alive. Each of the 21 that were decisions no test
@@ -283,21 +291,33 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   `/wt/dev-transport.json` without `client` means; the script reads that file, also preloaded, and preloads the WASM
   client's files when it names `"wasm"`, any other name refused by name ([`docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client). The module dials at once, with the whole series as the opening fill, while the
   painter starts in parallel.
-* **Frames.** Frames are kept in memory by index; the cache seam stays open ([`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)
-  §Open). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
+* **Frames.** Frames are kept in memory by index. With digests, each frame checked `true` is also written to OPFS by
+  a store worker (`viewer/store.js`); a reopened series fills only what is not there, a frame on disk is read back
+  re-checked and asked again if it fails, and past 256 MiB the frames on disk farthest from the current one leave memory
+  ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §Proposed: the client cache in OPFS). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
   there is no fill, and each step asks its frame, the newest ask alone kept: a step superseded while it waits on
   its cancel asks nothing.
+* **Where the frames are.** `?view=page` (the default) or `?view=worker`. Either way `view/controller.js` holds the
+  current frame and paints over `view/store.js`'s frames; on the page it asks what is missing, in the view worker it
+  tells the store its want and the store sends the downloader the misses. On the page it runs beside the painter;
+  under `worker` it runs in the view worker (`view/view-worker.js`) with the paint worker's code as a module, the
+  decoders post to it, and the page (`view/view.js`) sends intents and hears `shown`, `progress` and `failed`, never a
+  frame ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §3, *Built*). The status line names the view. Under
+  `worker` the store looks in an OPFS cache before it asks (`view/cache.js`): when the lab's `?writer=` names who writes it — the
+  store worker (`viewer/store.js`), the decoders or the view worker — a series with digests is written there after each
+  frame's paint, and read back checked on a later open. With no writer, the default, there is no cache, as on main
+  ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §The core, assembled).
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact.
 * **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the decoder per path, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name.
-* **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=` and `?origin=` let a lab harness drive the
+* **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=`, `?origin=` and `?writer=` let a lab harness drive the
   same page. They load from `lab/viewer/levers.js`, which only the dev host serves: on the web image a link carrying
   any of them is refused, by name on the status line, before the page fetches, imports or dials anything.
   `viewer/crafted.mjs`, run by the gate, opens each on a host shaped like the image and fails if one is fetched or
   dialled, and on a host serving `lab/` shows `?wt=` and `?metadata=` honoured; it fails too if a transport file
   naming an unknown client is not refused by name with no WASM code fetched and nothing dialled. `?post=` (with `?origin=`) gives the
   page the total-time harness's protocol as two hooks, `started()` and `finished(result)`, which it calls only when
-  present; the page watches for the fill's end only for that hook or `?check=`. `?check=`, `?cine=`, `?fill=` and `?deadline=` are the page's own.
+  present; the page watches for the fill's end only for that hook or `?check=`. `?check=`, `?cine=`, `?fill=`, `?view=` and `?deadline=` are the page's own.
 * **Its policy.** The page and every script it loads carry a Content-Security-Policy ([`deploy/README.md`](../deploy/README.md)
   §What must be preserved exactly): scripts from the page's origin alone, connections to it and the transport.
 
@@ -305,7 +325,9 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
 the page with `?check=1` in headless Chromium, or in a stock Firefox (`--engine firefox`, `FIREFOX_PATH`), and the
 page itself runs the protocol after the fill: an ask of a delivered frame, a fill cancelled at once, then an ask
 after the cancel. With `--fill 0` it first steps the page itself: to the middle frame, the last and the middle again
-at once, then to the last twice. `--client wasm` names the WASM client in the transport file it serves; with `--url`, the one the host's file names.
+at once, then to the last twice. `--view worker` opens it with `?view=worker`, and `--writer` adds `?writer=`; with
+`--tabs` (Chromium) it opens the page in one profile four times: a first tab, a second beside it, a reopen, and a
+reopen after a byte of the middle frame's cache entry is flipped. `--client wasm` names the WASM client in the transport file it serves; with `--url`, the one the host's file names.
 With `--url … --fill 0 --restart CMD` it instead opens `?fill=0`, runs CMD (which
 restarts the host's server and prints its `transport=` line) after frame 0 is exact, and fails unless the next step
 arrives exact with no error within 20 s (docs/ARCHITECTURE.md §An open page follows a server restart). It passes no lab parameter, so it runs the same against the web image: the result is
@@ -314,13 +336,22 @@ read off the page in Chromium and off Firefox's stdout (`devtools.console.stdout
 * a fill that did not complete, or a frame lost or refused; on demand, a frame the page asked;
 * any frame not exact;
 * on demand, three quick steps that kept any ask but the newest, or two steps to one frame that sent more than its
-  one ask;
+  one ask; under `--view worker`, where it steps to the middle frame twice and then the last, at once, steps that
+  did not keep both frames or sent other than one `want` for each;
 * a decoder other than `--decoder`;
 * a status line not naming `--client`, or that client's files not preloaded; from the static host's log, its files
   not fetched or, on a TS page, the WASM client's fetched (every page fetches TS's: the HTML preloads it);
 * an HTJ2K page whose requests include AV1 code, from the static host's log;
 * an AV1 page whose frames were not decoded as AV1;
-* the first, middle and last frame's readback at zoom 1 differing from the painter's CPU reference by any byte;
+* the first, middle and last frame's readback at zoom 1 differing from the painter's CPU reference by any byte, or the
+  last's again under another window, or that one uploading the frame again;
+* a step to a held frame that paints other than once or sends the downloader anything; a window change likewise, or
+  one that uploads the frame;
+* under `--view worker`, any pixel, `SharedArrayBuffer` or port reaching the page, or any message from the downloader;
+  with `--writer`, a frame held and not on disk once the writes settle, a write asked before its frame's paint, or a cache write on the
+  view worker's own thread unless the writer is `view`;
+* with `--tabs`, a second tab not told another holds the cache; a reopen that asks the downloader for a frame on disk
+  or reads any frame but from the cache; after the corruption, the frame not asked again alone, or any readback off;
 * with `--pair`, the same series in the other codec painting a different readback;
 * with `--cine`, a cine that did not move.
 
@@ -328,5 +359,5 @@ Headless Firefox has no WebGL: on a host without a display, run the check under 
 (Mesa's llvmpipe), and it runs Firefox windowed. The run here used conda-forge's `firefox-157.0.1-hee9eb32_0` and
 `mesalib-26.2.3-he59ec28_0` (SHA-256 `e94b9a63c490809eb615d0c18d1ae4e7d60a6f7756c7ec7b2a6b6a2032a26b53`), with
 `LD_LIBRARY_PATH`, `__EGL_VENDOR_LIBRARY_DIRS` and `LIBGL_DRIVERS_PATH` pointing into that environment. The gate runs `viewer/run_check.sh`: a three-frame HTJ2K series of
-the contract's frame, in Chromium, on each client once filled with `--cine` and once with `--fill 0`. It names as skipped the cross-codec arm and Firefox, which need the DICOM ingest's
+the contract's frame, in Chromium, on each client once filled with `--cine` and once with `--fill 0`, under each view. It names as skipped the cross-codec arm and Firefox, which need the DICOM ingest's
 bundles and a GL display. What it measured: `docs/ARCHITECTURE.md` §The viewer.

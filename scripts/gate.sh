@@ -86,13 +86,22 @@ run 1 bash lab/client-telemetry/build.sh
 run 1 node lab/client-telemetry/test/run.mjs
 run 1 node lab/client-telemetry/test/session.mjs
 run 1 node client/decode/htj2k.test.mjs
+run 1 node client/decode/decoder.test.mjs
 run 1 node client/decode/wasm-glue.test.mjs
 run 1 node client/decode/xxh3.test.mjs
 run 1 node client/transport/downloader.test.mjs
 run 1 node client/transport/consumer.test.mjs
+run 1 node client/viewer/store.test.mjs
 run 2 node client/decode/av1.test.mjs
 run 1 python3 server/dev-server.test.py
 run 1 node client/paint/voi.test.mjs
+run 1 node client/view/controller.test.mjs
+run 1 node client/view/view.test.mjs
+run 1 node client/view/cache.test.mjs
+run 1 node client/viewer/store.test.mjs
+run 1 node client/view/clock.test.mjs
+run 1 node lab/frame-clock/arms.test.mjs
+run 1 node lab/frame-clock/measure.test.mjs
 
 step "client: worker-safe (no artifact reaches for window)"
 run 1 bash client/scripts/check_worker_safe.sh
@@ -106,8 +115,10 @@ run 2 node client/contract/run.mjs
 if [[ $browser -eq 1 ]]; then
   step "client: the downloader in headless Chromium, over each client — the clauses through it, and its dispatch order and per-decoder bound"
   run 12 bash client/contract/run_browser.sh
-  step "client: the viewer's page check — a complete, exact, drawn page (headless Chromium)"
-  run 9 bash client/viewer/run_check.sh
+  step "client: the viewer's page check — a complete, exact, drawn page, and the view worker's cache across tabs (headless Chromium)"
+  run 20 bash client/viewer/run_check.sh
+  step "lab: the frame clock's seven arms wired end to end in the view worker, a second each (headless Chromium, nothing timed)"
+  run 1 node lab/frame-clock/check.mjs
   step "client: a crafted link to the viewer refused where lab/ is not served (headless Chromium)"
   run 1 node client/viewer/crafted.mjs
   step "client: the painter at 1:1 against its CPU reference (SwiftShader, ~3 s)"
@@ -155,13 +166,28 @@ else
   skip "DICOM to .sbnd needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
 fi
 
+step "client: the native core's decode — every committed frame digest, through ingest/tools.sh's dav1d and OpenJPH — and its view module's want, store, credits and hand-over"
+if [[ -f "$INGEST_BUILD/payload/libdecode.so" ]]; then
+  run 1 cargo test -p native-client --features decode --quiet -- decode:: view::
+else
+  skip "the native decode needs ingest/tools.sh's build (INGEST_BUILD=...)"
+fi
+
 step "lab: the variant order and its predecessor split"
 run 1 node lab/order.test.mjs
+
+step "lab: the viewer's levers — a fill's time and reads, steps on demand, the sawtooth trace, Experiment 2's rule over rows"
+run 1 node lab/viewer/levers.test.mjs
+run 1 node lab/viewer/trace.test.mjs
+run 1 node lab/viewer/wait-ahead-summary.test.mjs
 
 step "lab: the device kit's plan, bundle reader, collector and server start; the prebuilt recipe's server stage is the Containerfile's"
 run 1 node lab/devices/plan.test.mjs
 run 1 python3 lab/devices/collector_test.py
 run 1 sh deploy/server_start_test.sh
+
+step "lab: M5's rule on made-up rows: each in-hand path barred on its own, the busy cell's A/A"
+run 1 python3 lab/opfs-cache/summary_test.py
 
 step "lab: the AV1 fetch refuses a lossy source its set does not mark"
 run 1 python3 lab/av1/provenance_test.py
@@ -170,6 +196,22 @@ step "server: tests, default features"
 run 1 cargo test -p series-server --quiet -- --nocapture
 step "server: tests, telemetry feature"
 run 1 cargo test -p series-server --features telemetry --quiet -- --nocapture
+step "client: the native core over raw QUIC, against the server and a WebTransport client"
+run 1 cargo test -p native-client --quiet
+step "client: the native painter's tests, and its 1:1 cells against the browser suite's CPU reference (wgpu on Mesa lavapipe)"
+lvp="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json 2>/dev/null | head -1 || true)"
+if [[ $numpy -eq 1 && -n "$lvp" ]]; then
+  run 1 env VK_ICD_FILENAMES="$lvp" cargo test -p native-client --features paint --lib --quiet paint::
+  run 1 env PYTHON="$PYTHON" VK_ICD_FILENAMES="$lvp" node client/paint/native.mjs --zoom1
+else
+  skip "the native painter check needs numpy (PYTHON=...) and Mesa lavapipe (mesa-vulkan-drivers)"
+fi
+step "client: the native window under Xvfb with every paint thread, each paint read back from its surface against the CPU reference"
+if [[ -n "$lvp" && -f "$INGEST_BUILD/payload/libdecode.so" ]] && command -v Xvfb >/dev/null && command -v xdotool >/dev/null; then
+  run 1 env VK_ICD_FILENAMES="$lvp" node client/paint/window.mjs
+else
+  skip "the native window check needs Mesa lavapipe, ingest/tools.sh's build, Xvfb and xdotool"
+fi
 step "server: compiles without io_uring (the pool path alone)"
 run 1 cargo check -p series-server --no-default-features --all-targets --quiet
 step "server: compiles with cert-compression"

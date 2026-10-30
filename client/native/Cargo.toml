@@ -1,0 +1,46 @@
+[package]
+name = "native-client"
+version = "0.1.0"
+edition = "2021"
+description = "The native client's headless core: the series' frames over raw QUIC, each checked. docs/native/README.md §8"
+
+[[bin]]
+name = "native-fill"
+path = "src/main.rs"
+
+[[bin]]
+name = "native-window"
+path = "src/window.rs"
+required-features = ["window"]
+
+[features]
+# The frame check's decode, linked against ingest/tools.sh's build; off, the crate builds no C.
+decode = []
+# The painter on wgpu: docs/native/README.md §2 Paint.
+paint = ["dep:wgpu", "dep:pollster"]
+# The minimal desktop window: docs/native/README.md §4.
+window = ["paint", "decode", "dep:winit"]
+
+[dependencies]
+anyhow = { workspace = true }
+bytes = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+fod = { path = "../../common/fod" }
+frame-envelope = { path = "../../common/frame-envelope" }
+serde_json = { workspace = true }
+series-bundle = { path = "../../common/series-bundle" }
+tokio = { workspace = true }
+# For its quinn and certificate pin only, so the version and the `[patch]` are the server's.
+wtransport = { version = "0.7", default-features = false, features = ["quinn", "ring"] }
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+wgpu = { version = "30.0.1", optional = true }
+pollster = { version = "0.4", optional = true }
+winit = { version = "0.30", optional = true, default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen"] }
+
+[[example]]
+name = "paint-check"
+required-features = ["paint"]
+
+[dev-dependencies]
+series-server = { path = "../../server" }
+wtransport = { version = "0.7", default-features = false, features = ["quinn", "ring", "self-signed"] }
