@@ -1118,15 +1118,26 @@ one.
 run is a row of its own, after a methodology review.*
 
 **What the want-path build already does, corrected against row 1.** Row 1 counts one round trip per one-frame run,
-which is VW's fill fed from the page (`downloader.js:290` there). On the want-path build a scattered want is not a
+which is the fill fed from the page (`client/transport/downloader.js:290` on `main`, red 5's "today's client"; *corrected
+by the review below: this read "VW's … (`downloader.js:290` there)"; at VW's head, `9c90104`, the line is :293*). On
+the want-path build a scattered want is not a
 chain of runs: a want that does not ascend D_min frames from its head goes out as up to D_min asks in flight, topped up
 as each lands (`serveWant`, `client/transport/downloader.js`; *a want arrives in its order*,
 `client/transport/downloader.test.mjs`). So on this build the table's g = 0 and *all misses as asks* are one variant,
 and the idle time to remove is at most one round trip per D_min misses, not per miss: 38 misses at D_min = 4 are ~10
-round trips, 0.4 s at 46 ms and 0.9 s at 92 ms on the probe's model, **a guess**. Against that, a span re-sends every
+round trips, 0.4 s at 46 ms and 0.9 s at 92 ms on the probe's model, **a guess**. *Corrected by the review below: asks
+topped up as each lands are a sliding window, not waves of four, so an idle round trip recurs only while D_min frames
+take less than a round trip to send, t < RTT / (D_min − 1): 15 ms (38 kB at 20 Mbit) at 46 ms, 31 ms (77 kB) at 92.
+Neither cell's series is that small, so A's idle time is the first round trip alone. The 38 misses are the probe's
+76-frame series, not a cell's (35 for `us_liver`, 14 for `dbt12_ea1141`), and 10 round trips at 46 ms are 0.46 s.*
+Against that, a span re-sends every
 held frame it crosses: on a store holding every other frame the wire carries the whole series, twice the misses'
 bytes. Where four frames in flight already fill a round trip — at 20 Mbit, row 1's 29 ms a frame is 116 ms per four,
-against 46 or 92 — the asks keep the link busy and the span is predicted **slower**, towards 2×. That prediction is
+against 46 or 92 — the asks keep the link busy and the span is predicted **slower**, towards 2×. *Corrected by the
+review below: 29 ms is M1's 512² frame (7.49 s / 256, OPFSARMS), not a cell's; `us_liver` is 257 kB a frame (18.02 MB /
+70, [`../../lab/av1/README.md`](../../lab/av1/README.md) §SIZE) and `dbt12_ea1141` 499 kB
+([`disk-access.md`](disk-access.md)), 103 and 200 ms at 20 Mbit, 412 and 798 ms per four. The direction holds and
+sharpens: S at 1.90–1.96× A in every cell.* That prediction is
 the model's; the run decides.
 
 **The change.** `span: g` in the downloader's config, from the viewer's `?opts=`, default 0 (today's behaviour): a run
@@ -1155,8 +1166,13 @@ impairments `clean` and `l1`; Chromium and Firefox; CPU 1×. Two store states:
 * must not regress: the empty fill, which has no gap to cross, so S is A there by construction and the cell checks it;
   the first exact frame on screen; on-demand latency, `?fill=0` with ten steps across the series, step → frame held,
   which S cannot move since a want of one frame is never a run; exactness, every frame's digest against the encoder
-  input's `.sha256`, each decoded once, none failed;
+  input's `.sha256`, each decoded once, none failed; *corrected by the review below: the rig's on-demand cell,
+  `--fill 0 --asks-after 10`, shows frame 0 and steps to frames 1 … 10, not across the series; on demand a step is an
+  ask (`askFor`), which never reaches `runEnd`, so this cell is a tie by construction;*
 * recorded: frames on the wire (the session's `mediaReads` at the last frame) and the decoders' CPU the rig reads.
+  *Corrected by the review below: `mediaReads` counts reads of the media streams, one per chunk, not frames
+  (`client/contract/clauses.ts:615`), and at the last frame it includes the held frames' reads; the rig records it and
+  `fillReads`, the reads from the last held frame on; the wire is the relay's `s2c` packet count.*
 
 **Interleaving and rounds.** `lab/order.mjs`: the variants in a Williams order inside each cell, the cells in one each
 round; 12 rounds. The RTT is a process argument, so even rounds run 23 then 46 and odd rounds 46 then 23. A visit the
@@ -1165,19 +1181,27 @@ relay marks `VOID` is dropped and its cell topped up in rounds 13 on, to n = 12.
 **A/A.** Per cell, A′'s median moved metric within ×0.95–1.05 of A's; a cell outside it claims nothing.
 
 **Saturation guard.** The host: the relay on a core of its own (`--rig-core`), the browser on the other three, 1×
-only, `VOID` visits dropped. The link: where A's half-held goodput, misses' bytes over its fill, is ≥ 0.9 of 20 Mbit,
-the asks already fill the link; the cell is reported saturated and claims nothing for or against S. The decoders: where
+only, `VOID` visits dropped. ~~The link: where A's half-held goodput, misses' bytes over its fill, is ≥ 0.9 of 20 Mbit,
+the asks already fill the link; the cell is reported saturated and claims nothing for or against S.~~ *Retracted by the
+review below: the link is the cell's condition, not the rig's limit. A full link is how S loses, and on the model A's
+goodput is 0.97–0.99 of the link in every cell, so this guard would have voided every half-held cell and the run with
+it. A cell's link-bound share is recorded, not excluded.* The decoders: where
 A's decoder CPU is ≥ 0.9 of three decoders over the fill, the cell is decode-bound, treated alike.
 
 **Rule, stated before any data.** Adopt `span: 1` as the default if, in every unsaturated half-held cell, S's fill is
 ≤ 0.6× A's in ≥ 9 of 12 rounds, at both RTTs and on both engines, with frames on the wire no more than the empty fill's
 (the series once); and S's empty fill is within ×0.98–1.02 of A's, its first frame and its on-demand median no later
 by 16.7 ms, every frame exact and decoded once. Otherwise `span` stays 0 and the setting is removed, this subsection
-kept as the record. If every half-held cell is saturated, the experiment says so and claims nothing.
+kept as the record. If every half-held cell is saturated, the experiment says so and claims nothing. *Corrected by the
+review below: "every unsaturated cell" is true of no cell, so as written the rule adopted S if every cell saturated, and
+the last sentence contradicted it; adoption needs at least one cell the host did not saturate, and every such cell to
+pass. The wire bound decides nothing on this store: measured at the last frame it fails S by construction, since the
+held frames' reads are in it; measured from the last held frame (`fillReads`) it passes S by construction, since S's run is
+frames 1 … n − 1. It bites only on a held pattern with wider gaps.*
 
 **What the run row adds to the rig first**, reviewed with this protocol, not built here: a variant field carrying
 `span` and `holdEveryOther` into `opts`; the levers' result carrying the controller's `fillMs` and the session's
-`mediaReads`; an on-demand cell for a viewer variant, if `--asks-after` does not drive one.
+`mediaReads`; an on-demand cell for a viewer variant, if `--asks-after` does not drive one. *Built by the review below.*
 
 **Built and checked.** *A span crosses held frames* (`client/transport/downloader.test.mjs`): span 0 asks; span 1 is
 one run and only the misses reach the consumer, once each; a gap of 2 ends it; a frame wanted later, or here and
@@ -1277,6 +1301,96 @@ binary is in this container.
 
 **Not traced:** Network.framework's receive window; Blink's high-water mark past the spec's default; the receive
 cost per MB in a Gecko or WebKit worker.
+
+#### Experiment 1: independent review (2026-10-29)
+
+*A methodology review before any run, by a session that wrote none of the protocol. Corrections are made in place
+above, the old text kept or struck. Nothing here is a result: the smoke and the gate below ran in a shared 4-core
+container.*
+
+**Sources.** Experiment 1 and row 1 cite no file of [`frame-path-sources.txt`](frame-path-sources.txt), so there is no
+pinned source to re-fetch. Every citation they do make is in-repo or `branch:path:line`, and each was read:
+
+| claim | where | verdict |
+| --- | --- | --- |
+| a run is issued when the last one's final frame lands | `client/transport/downloader.js:290` on `main` | holds; VW's head has it at :293 (corrected) |
+| 38 runs for 76 frames; 1.7 and 3.4 s idle | [`../../lab/target-review/README.md`](../../lab/target-review/README.md), `want-order.mjs` (b) | holds: 1702 = 37 × 46 ms, the first run not idle |
+| M1's 29 ms a frame | OPFSARMS's M1, F 7.49 s for 256 × 512² over 20 Mbit | holds as 7.49 s / 256; a 512² frame, not a cell's (corrected) |
+| a scattered want is up to D_min asks, topped up as each lands | `serveWant`, called from `arrived` on each frame's last byte | holds |
+| *a want arrives in its order* | `client/transport/downloader.test.mjs:425` | holds |
+| a run crosses ≤ g held frames, counts misses alone toward D_min; a frame wanted later or unacknowledged ends it | `runEnd`, `serveWant`, `nextRun` | holds; the PR's six mutants re-run, each fails the test (the span ignored by a throw before its check) |
+| g = 2, 4, 8 send S's schedule on this store; the empty fill is A's under S | `runEnd` traced on alternating and contiguous wants | holds |
+| on demand S cannot move a step | a step is `askFor`, which never calls `runEnd` | holds, by construction (corrected: the cell is a tie, not a check) |
+| `us_liver` 70 × 760×421 RGB 8-bit; `dbt12_ea1141` 29 × 614×1359 12-bit | `lab/av1/fetch_data.sh` against `data.json`'s SHA-256s, re-fetched | holds |
+| `mediaReads` is frames on the wire | `client/contract/clauses.ts:615`: reads of the media streams, one per chunk | wrong (corrected) |
+
+**The model, recomputed per cell.** t is a frame's bytes over 20 Mbit; m the misses; r the frames S's run carries,
+from frame 1 to the last odd frame; D_min = 4. A, D_min asks topped up on each arrival, is RTT + m · max(t, (RTT + t) /
+D_min); S is RTT + r · t. Loss and decode are left out: `us_liver` decodes in 7.9 ms at 1× (SPEED), on three decoders,
+against 103 ms on the wire.
+
+| series | t | m | r | A at 46 · 92 ms | S at 46 · 92 ms | S / A | A's goodput |
+| --- | ---: | ---: | ---: | --- | --- | ---: | --- |
+| `us_liver`, 257 kB | 103 ms | 35 | 69 | 3.65 · 3.70 s | 7.15 · 7.20 s | 1.95–1.96 | 0.975–0.987 |
+| `dbt12_ea1141`, 499 kB | 200 ms | 14 | 27 | 2.84 · 2.89 s | 5.44 · 5.48 s | 1.90–1.91 | 0.968–0.984 |
+
+On a link-bound cell S's half-held fill is about the empty fill (r ≈ n), so under S a half-held cache saves nothing
+and under A it saves half. The span is ≤ 0.6× A only where 2t ≤ 0.6 (RTT + t) / D_min, t ≤ 0.6 RTT / (2 D_min − 0.6):
+3.7 ms at 46 ms and 7.5 ms at 92, frames of 9.3 and 18.6 kB at 20 Mbit. No series in [`../FIXTURES.md`](../FIXTURES.md)
+is that small: `pt15_cptac`, 31 kB a frame, gives S / A 1.68 at 46 ms and 0.95 at 92. A at 1 % loss is not modelled; loss
+lengthens both, and puts S's run on one stream against A's four, which is no reason to expect the sign to turn.
+
+**The protocol against the measurement rules.**
+
+* *Interleaving.* `holdEveryOther` is an `opts` setting, so in `run.mjs` a store state is a variant, not a cell: six
+  units (A, A′, S × half-held, empty) in a Williams order per cell, a period of six rounds, 12 rounds two periods —
+  balanced. The RTT alternates by process each round; it is never a compared lever, so that holds.
+* *A/A and VOID.* A′/A within ×0.95–1.05 on the medians, visits the relay's `--self-timing` marks `VOID` dropped and
+  topped up: as the PR wrote them.
+* *Saturation.* The host and decoder guards hold. The link guard is retracted above: it would have voided every
+  half-held cell on the model.
+* *A rule fixed before data.* Yes, with two faults corrected above: vacuous adoption when every cell is excluded, and a
+  wire bound that, on this store, passes or fails S by construction.
+* *Can the rule be met?* Not on the model in any cell: it needs S at ≤ 0.6× where S is predicted at 1.90–1.96×. It
+  can fail, so it is a test, but one whose outcome the model gives with a threefold margin.
+
+**Worth running? Not as pre-registered.** 2 series × 2 RTTs × 2 impairments × 2 engines are 16 cells; six variants
+over 12 rounds make 1 152 visits, each a 3–7 s fill plus a browser's start, to confirm a prediction with a threefold
+margin. Its decision, `span` 0 and the setting removed, is the one the model gives already. The want path's D_min
+asks took red 5's gain; what is left of it, the first round trip, is D_min's to win
+([`client-window-depth.md`](client-window-depth.md) T1), not a span's. The review's recommendation: remove `span` and
+`holdEveryOther`, this subsection the record. If the owner wants the model's sign checked first, the cheapest cell is
+one: `us_liver`, `r20000`, 46 ms, clean, Chromium, A and S half-held, 3 rounds. S / A in 1.7–2.1 keeps the model; S / A
+≤ 1.2 would retract it, and with it this recommendation. The rig below runs that cell.
+
+**The rig, built** (`lab/av1/delivery/total-time/run.mjs`, `lab/viewer/levers.js`, `client/viewer/viewer.js`,
+`client/view/controller.js`):
+
+* a variant's `"opts"` in `variants.json` is merged last into connect's, so `{"span": 1, "holdEveryOther": true}`
+  reaches the downloader and the view worker; a store state is a variant;
+* the levers' result carries the controller's `fillMs`, the session's `mediaReads` at the last frame and `fillReads`
+  from the last held frame on, and a row records all three;
+* a viewer variant runs on demand with `--fill 0 --asks-after K`: frame 0 shown, then frames 1 … K stepped to one at a
+  time, each timed from its step to its frame held (the ledger's arrival), in the row's `afterMs`. Any other
+  `--fill` for a viewer is refused.
+
+`lab/viewer/levers.test.mjs` (gated) catches 8 of 8 mutants: `fillMs` dropped, the fill's reads not from the last held
+frame, the held frames taken as the odd ones, reads at the first frame, steps from 0, steps timed from the fill's
+issue, steps taken in a fill, fill frames reported on demand. The controller's new ledger test catches both of its:
+`fillMs` and `mediaReads` left out.
+
+**The smoke, one round, Chromium, `r20000` at 23 ms one way, clean, 1×** — no number from it is a result. The set is a
+synthetic 76 frames, the gate's `grey-16` codestream (38 kB) repeated, since no HTJ2K encoder could be built in the
+container; its truth is the vendored decoder's SHA-256. The six variants each held 76 of 76 frames exact, the decoder's
+check `true` on every one, with `fillMs` in each row. That the span arrived through `opts` shows on the relay: S
+half-held put about half a series more packets on the wire than A, the 37 frames it crossed; with the `opts` merge
+removed, S half-held sent an empty fill's packets — the mutant caught. On demand, A, A′ and S each took 10 steps, each
+timed, 10 of 10 exact, none failed.
+
+**`mediaReads` is not a wire measure.** In the smoke A's half-held fill, 38 asked frames, read about as often as an
+empty fill of 76, while the relay counted half the packets: a frame on its own stream is read in more, smaller pieces
+than a frame in a run. The wire is the relay's `s2c` count, already in every row; the run reports it, and `fillReads`
+only beside it.
 
 ## The core, assembled (2026-10-30)
 

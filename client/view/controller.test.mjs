@@ -163,6 +163,17 @@ test("each failure is said with its scope", async () => {
   assert.deepEqual(wants, ["3", "3"]);
 });
 
+/** The ledger hands a lab harness the fill's time, from the want it was timed from, and the session's reads at each frame. */
+test("the ledger carries the fill's time and each frame's media reads", async () => {
+  const { c } = rig({ frames: 2 });
+  c.client.stats = () => ({ resumedAt: [] });
+  c.issuedAt = performance.timeOrigin + performance.now() - 40;
+  for (const i of [0, 1]) c.take({ ...frame(i), info: { ...frame(i).info, stamps: { lastByte: 1, mediaReads: 7 + i } } });
+  const { fillMs, frames } = await c.ledger();
+  assert.ok(fillMs >= 40 && fillMs < 1000, `fill ${fillMs} ms`);
+  assert.deepEqual(frames.map((f) => f.mediaReads), [7, 8]);
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try {
