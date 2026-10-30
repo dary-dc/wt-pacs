@@ -191,7 +191,7 @@ async function firefox(profile) {
     waiting.set(at, { resolve: (r) => (clearTimeout(timer), resolve(r)), reject: (e) => (clearTimeout(timer), reject(e)) });
     sock.send(JSON.stringify({ id: at, method, params }));
   });
-  await send("session.new", { capabilities: {} });
+  await send("session.new", { capabilities: {} }).catch((e) => { process.kill(-ff.pid, "SIGKILL"); throw e; });
   const tab = (context) => {
     let at = "about:blank";
     return {
@@ -533,7 +533,16 @@ async function m5(busy) {
       const dir = profile(`m5-${arm}`);
       // A mutant of a file the arm already stands in for takes its place.
       const own = (a.standIns ?? []).filter((x) => !MUTANT || STAND_INS[x].file !== STAND_INS[MUTANT].file);
-      const b = await browser(dir, [...own, ...(MUTANT ? [MUTANT] : [])]);
+      // A browser that does not start has measured nothing: started once more, then recorded as such.
+      const launch = () => browser(dir, [...own, ...(MUTANT ? [MUTANT] : [])]).catch((e) => (putBack(), { failed: e.message }));
+      let b = await launch();
+      if (b.failed) b = await launch();
+      if (b.failed) {
+        drop(dir);
+        write({ cell: busy ? "m5-busy" : "m5", engine: ENGINE, round, arm, mutant: MUTANT || null, stoppedBy: `rig: the browser did not start twice: ${b.failed}`,
+          fillMs: null, received: 0, exact: 0, inexact: 0, growthMiB: 0, view: null, second: null });
+        continue;
+      }
       await sleep(1000);
       const baseline = treePss(b.pid);
       const before = cpuBusy();
