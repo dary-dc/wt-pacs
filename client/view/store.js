@@ -11,7 +11,7 @@ export class FrameStore {
   /** The frames on disk already read under the current want; one evicted since is read again only by the next want. */
   #read = new Set();
   #reading = false;
-  /** The misses last sent, in their order. */
+  /** The misses last sent, in their order, less those that have arrived since: only these are owed. */
   asked = [];
   /** The index the memory window is centred on; past the budget, the frame farthest from it goes first. */
   near = 0;
@@ -46,6 +46,7 @@ export class FrameStore {
   put(i, frame, ack = () => {}) {
     if (this.#frames.has(i)) return void ack();
     this.#frames.set(i, frame);
+    this.asked = this.asked.filter((k) => k !== i);
     while (this.#frames.size > this.#budget) this.#frames.delete(this.#farthest());
     this.#settle(i);
     this.#arrived(i, frame);
@@ -60,8 +61,7 @@ export class FrameStore {
     this.#read.clear();
     this.#readCache();
     const misses = order.filter((i) => !this.#frames.has(i) && !this.cache?.present.has(i));
-    const owed = this.asked.filter((i) => !this.#frames.has(i));
-    if (same(misses, owed)) return misses;
+    if (same(misses, this.asked)) return misses;
     this.asked = misses;
     this.downloader?.want(misses);
     return misses;

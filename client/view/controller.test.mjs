@@ -100,6 +100,19 @@ test("the memory window lets the farthest frame go", async () => {
   assert.deepEqual([...c.store.keys()].sort(), [1, 3]);
 });
 
+/** Under the worker view a frame that arrived and was let go is no longer owed: a step to it asks the downloader again, and is owed no longer once here. */
+test("worker view: a frame let go past the budget is asked again", async () => {
+  const wants = [];
+  const { c } = rig({ frames: 3, budget: 2, wants });
+  c.show(0);
+  for (const i of [0, 1, 2]) c.take(frame(i));
+  assert.deepEqual([...c.store.keys()].sort(), [0, 1]);
+  c.show(2);
+  assert.deepEqual(wants, ["0,1,2", "2"]);
+  c.take(frame(2));
+  assert.deepEqual(c.store.asked, []);
+});
+
 /** Under the worker view a step to a held frame paints it and sends the downloader nothing, on demand and filling. */
 test("worker view: a held frame is painted with no downloader message", async () => {
   for (const fillMode of [false, true]) {
