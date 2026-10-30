@@ -1,0 +1,19 @@
+node:fs:1200
+  binding.rmdir(path);
+          ^
+
+Error: ENOTEMPTY: directory not empty, rmdir '/home/user/wt-pacs/lab/opfs-arms/work/profile-VCfl1K'
+    at Object.rmdirSync (node:fs:1200:11)
+    at _rmdirSync (node:internal/fs/rimraf:261:21)
+    at rimrafSync (node:internal/fs/rimraf:194:7)
+    at rmSync (node:fs:1246:10)
+    at once (file:///home/user/wt-pacs/lab/opfs-arms/run.mjs:62:24)
+    at async file:///home/user/wt-pacs/lab/opfs-arms/run.mjs:123:15 {
+  errno: -39,
+  code: 'ENOTEMPTY',
+  syscall: 'rmdir',
+  path: '/home/user/wt-pacs/lab/opfs-arms/work/profile-VCfl1K'
+}
+
+Node.js v22.22.0
+exit 1 lab/opfs-arms/rows/firefox/drag-2560-1x.jsonl
