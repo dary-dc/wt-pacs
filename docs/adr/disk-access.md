@@ -896,7 +896,7 @@ first (CLAUDE.md); **M** needs a measurement first. Lines are product lines by a
 | 5 | **The tile reader repeats itself.** `Slot.at` and `.len` copy its `key` (`read_path.rs:255–264`, set at `:366–368`); a `#[derive(Default)]` slot replaces the 9-line literal (`:297–306`). The unread tail is submitted at two `unsafe` sites (`:387–395`, `:437–444`): one `Slot` method that submits it *and* sets `read` establishes the invariant in one place, one `unsafe` block fewer. Two `spawn_blocking` tails (`:79–86`, `:399–408`) are one helper; hits and misses are counted twice (`:195–201`, `:332–336`). `ReadStats::miss_rate` is `#[cfg(test)]` (`:57–63`) while the session line computes its own (`pipeline.rs:144–151`), so `read_stats_report_the_session_miss_rate` pins arithmetic the product never runs: the line should call it. Names: the fill reader is `seq` (`pipeline.rs:45`, `:115`, `:121`, `:138`); `escalate` has `slots` the count beside `slots: s` the vector (`:383–384`); `if i == 0 { span } else { upcoming[i - 1] }` (`:319`) is `once(span).chain(upcoming)`. `:111–112` gives as the fill's reason for no ring "a sequential walk is read-ahead's best case", the claim §2 retracts; the reason is one read in flight under `FILL_WINDOW`. `READ_WINDOW` (`frame_store.rs:15–17`) is a test constant named for a product concept gone since 2026-09-23 | **do**, after row 250 · −30, one `unsafe` block fewer | R · 257 |
 | 6 | **Two waits on the executor, never timed where they bite.** The fill's `WILLNEED` runs inline (`read_path.rs:153` → `:181–193` → `frame_store.rs:135–147`); it copies nothing but allocates the folios and submits their reads in the caller (`force_page_cache_ra`, §*Read-ahead and folios*), so it can wait on reclaim and on the block layer's request tags (not traced at a pinned kernel) — the owners' regime of series past RAM and thousands of sessions. Its one timing is a 64 KiB hint on a guest-cold cache (224 against 178 µs co-tenant gap, 2026-09-05). `TileReader::drop` (`:487–500`) drains in `io_uring_enter` on the executor (`uring_reader.rs:114–131`): one device read, ~1–5 ms on cloud block storage (§11, L7), for each session that ends mid-batch (a closed tab). Candidates: the advice detached on the pool (+3; a 24–34 µs hop per MiB walked, awaited by no one); the drain moved to `spawn_blocking` inside a guard whose own `Drop` drains, so a pool that drops the task still never frees a live buffer (+15, one `SAFETY`). The third executor stall, the whole-frame inline copy at 2.8–16 MB, is levers.md's INLINECAP (#10): same rig | **measure** | M · 258 |
 | 7 | **Tile names past the slots wait for a slot.** The planner holds `ASKS_AHEAD` = 8 (`planner.rs:7`) and names every frame ask behind the served one (`:96–103`); `TileReader` starts `slots − 1` = 3 (`read_path.rs:316`). One `WILLNEED` per further name puts it on the device with no buffer, ring entry or thread. **Reopens §5's ahead-N row with new evidence:** its 4.6–4.9× (2026-09-05) was one read in flight against no look-ahead, which `TILE_SLOTS` has since delivered (look-ahead *is* depth, §11, *Line 221*), so within the slots it stays closed; past them it is untried. It bites only when a client keeps more than four asks out; its sweep loss (misses 7 → 56) and finding 6's executor cost carry over | **measured 2026-10-16: not adopted** — misses fall, the wall ties ([below](#measured-row-259-tile-names-past-the-slots-are-not-advised)) · +6 | M · 259 |
-| 8 | **`FILL_WINDOW` is 4 MiB at every frame size** (`read_path.rs:26`). At `ffdm_d`'s 4.8 MB it covers less than the frame after the named one, at 16 MB a quarter of it, and the extension rule (`:184–190`) re-advises every frame. A window of `max(4 MiB, 2 × the named frame)` (D). Row 197 ran `ffdm_d` cold under W0 but varied the advice, not its size | **measure** · +1 | M · 260 |
+| 8 | **`FILL_WINDOW` is 4 MiB at every frame size** (`read_path.rs:26`). At `ffdm_d`'s 4.8 MB it covers less than the frame after the named one, at 16 MB a quarter of it, and the extension rule (`:184–190`) re-advises every frame. A window of `max(4 MiB, 2 × the named frame)` (D). Row 197 ran `ffdm_d` cold under W0 but varied the advice, not its size | **measured 2026-10-16: not adopted** — a tie on the cold fill ([below](#measured-row-260-the-fill-window-stays-4-mib)) · +1 | M · 260 |
 | 9 | **A ring completion waits for its submitter's thread.** `COOP_TASKRUN` (`uring_reader.rs:32`) posts a completion as task work on the submitting thread without an IPI: a sleeping thread is woken, a running one runs it at its next syscall or tick. A reader parked on another worker waits that long while the submitter seals a large frame in user space. From the kernel's task-work notification (`TWA_SIGNAL_NO_IPI`), not traced at a pinned kernel and not timed; without the flag, an IPI a completion | **closed** by row 261: without the flag the ring is faster in no cell, [below](#finding-9-measured-coop_taskrun-row-261) | M · 261 |
 
 **Kept**, with the reason:
@@ -982,7 +982,7 @@ which each row reports.
 | 257 | **READERTIDY** — finding 5's cuts, no behaviour change: the server's suite green, `read_path_ab.sh` ties every cell (§12), and the merged `Slot` submit mutated (drop the `read = Some`) fails a test | review row | rows 250, 254 |
 | 258 | **EXECGAP** — do the fill's inline `WILLNEED` and the tile drain stall co-tenants on a device-bound volume? (finding 6; INLINECAP joins it) | measure | a device-bound host |
 | 259 | **TILEWILLNEED** — does advising tile names past the slots buy depth without memory? (finding 7) | measured: not adopted | — |
-| 260 | **FILLWINDOW** — does a window of two frames beat 4 MiB on frames past 1 MiB? (finding 8) | measure | — |
+| 260 | **FILLWINDOW** — does a window of two frames beat 4 MiB on frames past 1 MiB? (finding 8) | measured: not adopted | — |
 | 261 | **RINGCOOP** — does `COOP_TASKRUN` delay ring completions beside busy workers? (finding 9) | measure | row 250 |
 
 **Row 257, built (2026-10-16): finding 5's cuts, no behaviour change.** `Slot` lost `at` and `len`, both read from its
@@ -1190,6 +1190,50 @@ before rows 255–257 merged gave the same verdict (misses ×0.63–0.90, walls 
 The arm, `series-server --advise-tile-names`, and its tests are on the server line as a lab lever (a `lab-levers`
 build, off by default; a default build refuses the flag): the flag is the owner's to drop or keep for a re-run on a
 quieter host (P0's).
+
+### Measured (row 260): the fill window stays 4 MiB
+
+*2026-10-16, on the protocol above, built and run by row 260.* **Verdict: not adopted.** Wf's cold fill ties W0's in
+both large cells on both filesystems, alone and four at once, on every metric the rule names; nothing is worse beyond
+the resolution, and the 164 kB control ties on all of them, so the run stands. What Wf changes is the cache it
+leaves: ×0.74–0.94 the folios a frame at 16 MB, beyond the resolution in three of four cells — not a rule metric.
+
+| filesystem, set, fills | W0 cold fill | Wf ×W0 frames/s · resolution | misses W0 → Wf | first frame ×W0 | CPU a GB ×W0 |
+| --- | --: | --- | --- | --- | --- |
+| host ext4, 4.8 MB, 1 | 120 frames/s | ×1.049 · 68 % | 3 → 3 of 4 | ×0.931 | ×0.949 |
+| host ext4, 4.8 MB, 4 | 383 | ×1.113 · 41 % (81 %) | 4.5 → 4 of 16 | ×0.801 | ×1.020 |
+| host ext4, 16 MB, 1 | 41.9 | ×1.036 · 60 % | 20 → 20 of 20 | ×0.800 | ×0.992 |
+| host ext4, 16 MB, 4 | 144 | ×0.987 · 70 % | 20 → 20 of 80 | ×1.119 | ×0.996 |
+| loop ext4, 4.8 MB, 1 | 153 | ×0.973 · 52 % | 3 → 4 | ×0.941 | ×0.968 |
+| loop ext4, 4.8 MB, 4 | 455 | ×1.070 · 26 % | 4 → 4 | ×0.846 (81 %) | ×0.937 |
+| loop ext4, 16 MB, 1 | 59.3 | ×0.954 · 15 % | 20 → 20 | ×0.952 | ×1.022 |
+| loop ext4, 16 MB, 4 | 118 | ×0.892 · 149 % | 20 → 20 | ×0.856 | ×1.002 |
+| control, 164 kB, both, 1 and 4 | 5 070–14 500 | ×0.922–1.042 | 4–14, ±1 | ×0.929–1.085 | ×0.960–1.033 |
+
+Medians over 16 rounds, Wf's paired by round against W0; the resolution is the p90 of \|W0aa/W0 − 1\| per cell and
+metric, and no Wf cell is beyond it with ≥ 80 % of rounds agreeing on any cold-fill metric. The hits, the fill on the
+cache and the forced miss the rig also times tie too. The 16 MB fill misses every frame under both windows: its
+named frame's read starts with the advice, so a wider window lands only frames the walk has not reached.
+
+* *A window of two frames beats 4 MiB past 1 MiB (D):* **not borne out**. At 4.8 MB, W0 restarts a 4 MiB window at
+  every frame (a test pins it) and still misses no more than Wf; at 16 MB both miss every frame.
+* *The control Wf ≡ W0 at 164 kB:* **held**, by construction (a test pins the advice equal) and on every metric.
+
+The rig: row 197's, [`lab/container-bench/readahead.py`](../../lab/container-bench/README.md) with `ROW=260`, rows in
+`rows-window.jsonl`. `ffdm_d` (4 × 4 808 kB) and `ct_lidc` (100 × 164 kB) as ingest coded them, and 20 random 16 MB
+frames; every measure on its own fresh `writer_bench direct` copy (0 pages cached after any), so cold without
+eviction; W0, W0aa and Wf in `order.py`'s order in each cell; 702 336 frames checked by XXH3-64, none inexact;
+`--mutate shift|short` failed every arm. The host: kernel 6.18.44, ext4 on `/dev/vda` (`read_ahead_kb` 128), 4 vCPU,
+16 GB, THP `madvise`, glibc 2.39, other rows' builds at nice 19 on CPU 3. **Deviation:** the protocol's loop XFS was
+not run — `mkfs.xfs` is not installed and the rules forbid installing it — and a loop ext4 (2 GiB image on the host
+disk, `read_ahead_kb` 2 560) stands in, a second read-ahead regime rather than a second filesystem; XFS stays
+unmeasured. The run is on unified with rows 256–257; row 255 merged after it and changes how `FillReader` holds
+its buffers, not `advise` or its window. A first run before rows 256–257 was cut at round 13 by a container restart;
+its 13 rounds showed the same ties and are not used. **Saturation**, not swept: four 16 MB fills on the host deliver ~2.3 GB/s, three
+quarters of it frames another fill had already read; nothing is claimed past these cells.
+
+The arm, `FillReader::windowing_two_frames` (lab), and its tests are on the server line; only `readahead_bench` calls
+it, so the server's fill window is 4 MiB as before. It is the owner's to drop.
 
 ## 10 · How it is built
 
