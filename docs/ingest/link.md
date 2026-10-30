@@ -570,6 +570,113 @@ Fetched or read 2026-10-25; the first 12 hex of the fetched file's sha256. Raw c
 **Not read**, so not cited as read: rsync's `rrsync`; curl's `--aws-sigv4` and `--speed-time` pages; whether curl's
 ngtcp2 backend migrates a connection; the tus reference server; draft-ietf-webtrans-http3's current version.
 
+### 11.9 How the PCS learns a package's verdict
+
+*2026-10-26, the owner's question: why poll instead of a reply? Theory only: read from sources and from
+`carrier/src/upload.rs` and `carrier/pcs/send-package.sh` as built (§12), nothing built, nothing timed. Labels as in
+§11. The ADR's §7 weighed three ways: the reply in the upload's own response (processing can outlast the connection,
+and a drop loses it), the PACS calling the PCS (an inbound path into every hospital), and polling, built with a hybrid
+proposed (the upload's response says *committed* when it is quick). This adds the three not weighed: a long-poll,
+`Prefer: wait` on the completing request, and a stream (Server-Sent Events or WebSocket) on a connection the PCS
+opens.*
+
+**The answer.** Keep the poll as the contract, and do not build a push yet. Every option below still needs the
+package's status resource, because a held request or a stream can drop and only a `GET` on a state that persists
+recovers (*inference*). So the alternatives are not replacements; they are ways to shorten the wait for the first
+answer. The one worth its code, if the measurement below asks for any, is **`Prefer: wait=20` on the completing
+request**. It is a standard header that a server may ignore, and the script already reads a *committed* final
+response. It falls back to the poll by itself.
+
+**What the hospital's path allows.** HHS's HICP, Technical Volume 2 (2023), tells medium and large organizations
+that "at the perimeter, inbound and outbound rules must be configured with a default-deny ruleset" (6.M.A, p. 63),
+that DMZ servers "should access the internet through outbound proxy services" limited to "only allowlisted sites"
+(p. 65), and that "web proxies can inspect TLS traffic" (6.M.D, p. 67). It gives no timeout figures. So the carrier
+is one allowlisted destination, reached through a proxy, on the inspection bypass list, since mutual TLS cannot pass
+an inspecting proxy (§12.3). Through such a proxy the PCS's connection is a `CONNECT` tunnel. The proxy sees an idle
+tunnel, not an HTTP response that is slow to come, so its idle timer is what a held request must beat (*inference*).
+The timers documented for common open-source proxies:
+
+| intermediary | timer | default | its documentation |
+| --- | --- | --- | --- |
+| Squid (forward) | `read_timeout` | 15 min | "If no data is read again after this amount of time, the request is aborted" |
+| Squid | `request_timeout` | 5 min | "How long to wait for complete HTTP request headers" |
+| Squid | `client_lifetime` | 1 day | "The maximum amount of time a client (browser) is allowed to remain connected" |
+| nginx `stream` (a TCP relay) | `proxy_timeout` | 10 min | "If no data is transmitted within this time, the connection is closed" |
+| nginx `http` (a reverse proxy, if one is put in front of the carrier) | `proxy_read_timeout` | 60 s | "set only between two successive read operations" |
+| a NAT, RFC 5382 REQ-5 | established idle | ≥ 2 h 4 min | "MUST NOT be less than 2 hours 4 minutes" |
+
+Which Squid timer governs a `CONNECT` tunnel was not read in its source. Commercial proxies' and firewalls' defaults
+were not read from vendor documentation, so none is cited. RFC 6202 (§5.5), written about long polling: "Several
+experiments have shown success with timeouts as high as 120 seconds, but generally 30 seconds is a safer value." The
+WHATWG's Server-Sent Events notes say that "legacy proxy servers are known to … drop HTTP connections after a short
+timeout" and suggest a comment line "every 15 seconds or so". **A further limit sits in our own client:**
+`send-package.sh` runs curl with `--speed-limit 1 --speed-time $STALL_SECS` (30 s). That is the stall detector §11.2
+relies on, and a response the server holds silently longer than 30 s would trip it (*inference*: curl's
+`--speed-time` page not read, §11.8). **So a held request is bounded at 20 s:** under the script's stall timeout, under
+RFC 6202's safer value, and under every documented default above.
+
+**Each option.** P is the poll interval (10 s), W the server's hold bound, RTT 10–150 ms (this file's link). "A
+request" is one curl run. The script reuses no connection between runs, so each request costs one TCP and one full
+TLS 1.3 handshake with a client certificate, about 3 RTT before the answer (*estimated*).
+
+| | reachable through default-deny and a proxy | commit → the PCS knows (*estimated*) | the server, per pending package | after a drop or a carrier restart | the PCS with sh and curl 8.5.0 | HTTP and the draft | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **poll** `GET /packages/<name>` (built) | yes: short requests, PCS-initiated | uniform over 0–P plus 3 RTT: mean ≈ 5 s, at most ≈ 10.5 s | 1 request and handshake per P (8,640 a day for a package pending 24 h); nothing held | nothing lost: the status lives in `status/<name>` and the upload's files, and the next `GET` reads it | built (§12.5) | RFC 9110 §15.3.3: 202 should "point to (or embed) a status monitor"; the draft's §6.1 target resource | **keep: the contract** |
+| reply in the upload's response only | yes | ½ RTT, if the connection lives | the connection held for the whole processing | the reply is lost with the connection; the PCS must poll anyway | yes | the draft's §6.1 allows it | not alone (ADR §7) |
+| the PACS calls the PCS | **no**: HICP's default-deny inbound, at every site | ½ RTT | an outbound call per verdict, retries | the PACS must retry into the hospital | a listener at the PCS | outside both | rejected (ADR §7) |
+| **`Prefer: wait=W`** on the completing `PATCH` or one-shot `POST`: answer *committed* or *refused* if the verdict lands within W, else `202 received` | yes, with W = 20 s under every timer above | ½ RTT when the verdict lands within W; else the poll's | the upload's connection held ≤ W more; a wake-up when `status/<name>` appears | a drop during the hold: the bytes are already in, `HEAD` says `?1`, the poll follows (the script does this today) | one `-H 'Prefer: wait=20'`: `send()` already ends on a `committed` or `refused` final response | RFC 7240 §4.3 describes this case ("the server … can choose to utilize an asynchronous processing model by returning … a 202"), and a server may ignore it; the draft's §8.2 lets the server "replay the final response"; the draft says nothing of `Prefer` (searched) | **the hybrid, standard and client-bounded: build first, if the measurement asks** |
+| **long-poll**: `GET` with `If-None-Match` set to the last state's tag, held ≤ W, `304` at the bound | yes, with W = 20 s | ≈ ½ RTT, plus 3 RTT in each W when the request is renewed | one held connection and 1 request per W (0.05/s at W = 20, half the poll's); a wake-up | level-triggered: a lost answer is re-asked with the old tag and returned at once; a held request cut silently is ended by curl's own bound | a tag kept in a variable, two headers, `--max-time`: about 5 lines (*estimated*) | a conditional `GET` and `304` (RFC 9110 §13.1.2, §15.4.5) are standard; holding one until the state changes is our convention, not HTTP's (*inference*) | worth it only if slow commits must be seen at once |
+| Server-Sent Events, per package | yes, with a comment every 15 s | ½ RTT | one held stream; a heartbeat writer | `Last-Event-ID`, or simply a new `GET` | `curl -N` and `while read`: ~15 lines | `text/event-stream`, outside the draft | a long-poll with framing: no gain |
+| Server-Sent Events, one stream per PCS | yes | ½ RTT | one stream per PCS, not per package | a durable event sequence for `Last-Event-ID` across restarts: new state at the carrier | a resident process at the PCS; the script runs once per package (§12.5) | as above | no: new state at both ends |
+| WebSocket | through the bypass `CONNECT` tunnel, yes (RFC 6455 §4.1) | ½ RTT | one held connection | its own: a WebSocket has no resume; a new `GET` | **no**: curl 8.5.0's Protocols line lists no `ws`/`wss` (read in this container) | leaves HTTP semantics after the upgrade | rejected |
+
+**Why the poll is cheaper than it looks, and where it is not.** A verdict waits on the receiver's processing, not on
+the link. The poll adds a mean of P/2 = 5 s to the moment the PCS deletes its copy and to the operator's view (ADR
+§7). Against a CT sent in 86 s at 10 Mbit/s (§11.2) that is small. Against a 9 s package at 100 Mbit/s it is
+half again the send time (*estimated*). What the PCS does with a verdict sooner is free its disk earlier. The cost
+grows only for a package that stays pending: a receiver that is down for a day costs 8,640 handshakes per pending
+package. A longer interval once the package has been *received* for a while would bound that with no protocol change
+(*inference*). And §11.5 measures "seconds from the first byte to *committed* seen by the PCS", which today includes up
+to P of poll delay, so that metric has to log the verdict's own time as well.
+
+**What the push options would need at the carrier.** Today the carrier learns a verdict only when it is asked: it
+reads `status/<name>` on each request (§12.2). Holding a request needs a wake-up when the receiver's rename lands.
+That is either a filesystem watch on `status/` (a new crate) or a per-held-request check every second (a second of
+delay, no crate) (*inference*). That is the structural change, and it is the owner's to approve before any code
+(CLAUDE.md).
+
+**Pre-registered: does a faster verdict pay.** The rules of §11.5 hold: variants interleaved each round, each new
+test mutated, the testbed's ceiling reported first, latency per package (not throughput).
+
+* **R1 — the receiver's time.** The seconds from `incoming/<name>` to `status/<name>`, per package class (ADR §5's CT,
+  MR and DX, and a 1 GB series), from the receiver on the PACS's host, ≥ 200 packages a class. *Decides:* the share
+  of verdicts that land within W = 20 s.
+* **R2 — a held request through each site's real path.** From each pilot site's PCS host, through its own egress and
+  proxy, a `GET` the carrier holds for H ∈ {10, 20, 30, 45, 60, 120} s, the values interleaved in each round, 20
+  rounds. Record the outcome: an answer, curl's exit code (28, 52, 56), or a 504. *Mutation:* in the lab, an nginx
+  `stream` relay with `proxy_timeout 30s` must fail every H ≥ 30 and pass every H ≤ 20; a carrier that never answers
+  must fail every H at curl's `--max-time`. *Decides:* whether W = 20 s survives every site, and the largest that
+  does.
+* **R3 — delay and cost, in the lab.** Variants: the poll (P = 10 s), `Prefer: wait=20` and then the poll, and a
+  long-poll with W = 20 s. The receiver stand-in of `carrier/tests/pcs.rs` delays its verdict by R1's distribution.
+  Metric: the seconds from the verdict's rename to the script's exit. Separately, the carrier's CPU and open
+  connections at 10, 100 and 1,000 pending packages, with the host's saturation point stated first and nothing
+  claimed past it. *Mutation:* a carrier that ignores `Prefer` must reproduce the poll's numbers.
+* **Decision rule, fixed now.** Build `Prefer: wait=20` on the completing request only if R2 shows 20 s survives at
+  every pilot site and R1 shows at least half of the verdicts within 20 s. Build the long-poll only if, in addition,
+  the owner needs slow verdicts seen in under P, or R3 shows the poll costing more than 5 % of a core at the expected
+  number of pending packages. Otherwise the poll stays as built.
+
+**Sources** (fetched or read 2026-10-26; the first 12 hex of each file's sha256; raw copies not committed):
+RFC 7240 (`2cde510338ba`) §2, §4.3; RFC 6202 (`281ae32d4746`) §5.5; RFC 9110
+(`21c1cdce6ab0`) §13.1.2, §15.3.3, §15.4.5; RFC 6455 (`765775326aee`) §4.1; RFC 5382 (`c67083f71f70`) REQ-5;
+draft-ietf-httpbis-resumable-upload-14 (`6bfbf01573b9`, §11.8's file) §6.1, §8.2; WHATWG HTML
+§9.2 Server-sent events (`8956dcbcf245`), §9.2.4, §9.2.7; HHS 405(d) HICP Technical Volume 2, 2023 edition
+(`df694271f6bd`), 6.M.A pp. 63–65 and 6.M.D p. 67; Squid's configuration reference for `read_timeout`,
+`request_timeout`, `client_lifetime`; nginx's `ngx_http_proxy_module` (`proxy_read_timeout`) and
+`ngx_stream_proxy_module` (`proxy_timeout`); curl 8.5.0's `--version` in this container. **Not read:** Squid's
+source for `CONNECT` tunnels, commercial proxies' and firewalls' timeout documentation, curl's `--speed-time` page.
+
 ## 12. The carrier, built
 
 *2026-10-26. §11's recommendation, built, with the owner's direction (2026-10-25/26): one application handler, its
