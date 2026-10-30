@@ -17,6 +17,8 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const CELL = arg("--cell");
 const OUT = path.resolve(arg("--out", path.join(WORK, `${CELL}.jsonl`)));
 const ROUNDS = Number(arg("--rounds", 7));
+/** The round a cell resumes at, its interleaved order unchanged: rows already written for earlier rounds stand. */
+const FIRST_ROUND = Number(arg("--first-round", 0));
 const MUTANT = arg("--mutant", "");
 const ENGINE = arg("--engine", "chromium");
 // MiB the store may hold in Firefox: its per-site limit is a fifth of this pref, in KiB (ActorsParent.cpp 1413–1416). M5's series is 2.03 GiB.
@@ -182,7 +184,13 @@ async function firefox(profile) {
     waiting.delete(r.id);
     if (w) r.type === "error" ? w.reject(new Error(`${r.error}: ${r.message}`)) : w.resolve(r.result);
   };
-  const send = (method, params) => new Promise((resolve, reject) => (waiting.set(++id, { resolve, reject }), sock.send(JSON.stringify({ id, method, params }))));
+  // A call Firefox never answers fails after BIDI_MS instead of hanging the cell.
+  const send = (method, params) => new Promise((resolve, reject) => {
+    const at = ++id;
+    const timer = setTimeout(() => (waiting.delete(at), reject(new Error(`${method}: no answer in ${BIDI_MS} ms`))), BIDI_MS);
+    waiting.set(at, { resolve: (r) => (clearTimeout(timer), resolve(r)), reject: (e) => (clearTimeout(timer), reject(e)) });
+    sock.send(JSON.stringify({ id: at, method, params }));
+  });
   await send("session.new", { capabilities: {} });
   const tab = (context) => {
     let at = "about:blank";
@@ -202,10 +210,16 @@ async function firefox(profile) {
     pid: ff.pid, page: tab(first),
     context: {
       newPage: async () => tab((await send("browsingContext.create", { type: "tab" })).context),
-      close: async () => { await send("browser.close", {}).catch(() => {}); await new Promise((r) => (ff.exitCode !== null ? r() : ff.once("exit", r))); },
+      close: async () => {
+        await send("browser.close", {}).catch(() => {});
+        const exited = new Promise((r) => (ff.exitCode !== null ? r() : ff.once("exit", r)));
+        await Promise.race([exited, sleep(10000).then(() => process.kill(-ff.pid, "SIGKILL"))]);
+        await exited;
+      },
     },
   };
 }
+const BIDI_MS = 60000;
 const restore = [];
 process.on("exit", putBack);
 for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => process.exit(1));
@@ -250,8 +264,12 @@ const statusOf = (text) => ({
 async function fill(b, s, wt, { deadlineS = 1800, until, url = viewerUrl(s, wt) } = {}) {
   const t0 = Date.now();
   const cached0 = cached();
-  await b.page.goto(url);
   let st = statusOf(""), peak = 0, lastSample = 0, cachedPeak = 0;
+  try {
+    await b.page.goto(url);
+  } catch (e) {
+    return { ...st, peakPssMiB: treePss(b.pid), stoppedBy: `rig: ${e.message}` };
+  }
   while (Date.now() - t0 < deadlineS * 1000) {
     await sleep(100);
     if (Date.now() - lastSample >= 1000) { peak = Math.max(peak, treePss(b.pid)); cachedPeak = Math.max(cachedPeak, cached() - cached0); lastSample = Date.now(); }
@@ -508,8 +526,8 @@ async function m5(busy) {
   const server = await serve(s);
   const names = MUTANT ? [arg("--arm")] : busy ? ["ring", "ring2", "transfer", "transfer-k"] : Object.keys(M5_ARMS);
   const arms = Object.fromEntries(names.map((k) => [k, busy ? { ...M5_ARMS[k], query: { ...M5_ARMS[k].query, holdMs: BUSY_MS } } : M5_ARMS[k]]));
-  settings({ series: s, decodedMiB: (s.n * s.frameBytes) / 2 ** 20, window: "256 MiB", link: "loopback, no relay", K, arms });
-  for (let round = 0; round < ROUNDS; round++) {
+  settings({ series: s, decodedMiB: (s.n * s.frameBytes) / 2 ** 20, window: "256 MiB", link: "loopback, no relay", K, arms, firstRound: FIRST_ROUND });
+  for (let round = FIRST_ROUND; round < ROUNDS; round++) {
     for (const arm of order(names, round)) {
       const a = arms[arm];
       const dir = profile(`m5-${arm}`);
@@ -522,8 +540,8 @@ async function m5(busy) {
       const f = await fill(b, s, server.url, { deadlineS: 120, ...(!a.today && { url: armsUrl(s, server.url, a) }) });
       const cpu = busyShare(before, cpuBusy());
       const settled = (p) => Promise.race([b.page.evaluate(p), sleep(10000).then(() => ({ error: "no answer in 10 s" }))]);
-      const view = a.today ? null : await settled(() => globalThis.armsResult);
-      const second = a.today || f.exact !== s.n ? null : await settled(() => globalThis.verify());
+      const view = a.today ? null : await settled(() => globalThis.armsResult).catch((e) => ({ error: e.message }));
+      const second = a.today || f.exact !== s.n ? null : await settled(() => globalThis.verify()).catch((e) => ({ error: e.message }));
       await b.context.close();
       putBack();
       drop(dir);
