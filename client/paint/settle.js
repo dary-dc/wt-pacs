@@ -1,10 +1,8 @@
 /** A paint's settle that needs no other thread: client/paint/README.md §When a paint has executed */
 
-const turn = () => new Promise((r) => {
-  const { port1, port2 } = new MessageChannel();
-  port1.onmessage = () => (port1.close(), r());
-  port2.postMessage(0);
-});
+/** ms between polls; a poll every task would spin this thread, which a software renderer's draw needs. */
+const POLL_MS = 1;
+const turn = () => new Promise((r) => setTimeout(r, POLL_MS));
 
 /** Resolves once every command issued on `gl` before the call has executed; a sync's status changes only between tasks. */
 export async function settled(gl) {

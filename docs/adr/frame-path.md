@@ -770,6 +770,33 @@ reads a pixel to settle; and §7's busy cine re-measured with the old read and t
 that woke early let the loop call twice in one 20 ms slot (800 calls in a 500-slot visit). The loop now counts its
 slots; those 8 rows are discarded, not read for the hypothesis, and the run restarted from round 0.
 
+**Measured 2026-10-30** (rows [`../../lab/paint-read/rows/`](../../lab/paint-read/rows/), read by
+`node lab/paint-read/run.mjs --summary lab/paint-read/rows/<engine>.jsonl`). Firefox 155.0 (Playwright's build 1543,
+llvmpipe) and Chromium 153 (SwiftShader); 12 rounds a cell, every visit kept, no cell VOID (A/A 0.0–2.0 ms) and none
+saturated (`none`'s p99 0.14–0.17 ms). Medians over rounds, ms:
+
+| variant | Firefox quiet | Firefox busy, in a task (left) | waited | Chromium quiet | Chromium busy, in a task (left) | waited |
+| --- | --- | --- | --- | --- | --- | --- |
+| `read` | 1.80 | **196.0** (195.3) | **12 / 12** | 1.71 | 1.90 (115.0) | 0 / 12 |
+| `read′` | 1.81 | **198.6** (198.0) | **12 / 12** | 1.73 | 1.89 (113.8) | 0 / 12 |
+| `fence` | 2.54 | 4.10 (100.2) | 0 / 12 | 2.35 | 3.11 (114.5) | 0 / 12 |
+| `finish` | 1.35 | 1.39 (100.1) | 0 / 12 | 0.07 | 0.07 (114.5) | 0 / 12 |
+| `none` | 0.06 | 0.06 (100.4) | 0 / 12 | 0.05 | 0.05 (115.0) | 0 / 12 |
+
+**The prediction holds.** In Firefox 155 a one-pixel `readPixels` from a worker that starts inside the page's long
+task lasts what is left of the task (median excess +0.6 ms; busy p99 200.8 ms against 4.2 ms quiet): the read waits
+for the page's main thread. The fence, `finish` and the draw alone do not. In Chromium no variant waits (busy p99
+3.7 ms). Every in-task median is under 5 ms except Firefox's read; the fence's quiet medians, 2.35–2.54 ms, are a
+poll's turn past the read's. The read's figure in a task is one call a task: the call that waits out the task is the
+only one of its 20 ms slots that starts inside it. Nothing here says why Firefox asks the page; the source reading
+above is the reason given, unmeasured.
+
+**A settle that needs no other thread** (step 2, `client/paint/settle.js`, `settle-check.mjs`): the fence, polled on
+a 1 ms timer, waits for a draw to execute on both engines; `gl.finish()` returns early on SwiftShader and waits on
+llvmpipe, so it is no settle for both. Proved with a draw of 145–250 ms: [`../../client/paint/README.md`](../../client/paint/README.md)
+§When a paint has executed, with its mutants. The probe's own fence polled once a task, the shape its protocol named;
+the settle polls on a timer because a poll every task spun its thread and slowed SwiftShader's draw by a third.
+
 **§7's cine cell again, pre-registered 2026-10-30 before any of its data.** §7's cell 2 cine visits as §7 ran them
 (its series `ct_nlst`, `us_liver`, `dbt12_ea1141`; `r50000` behind the relay on core 3, the browsers on cores 0–2;
 §7's busy page from navigation, the fill, then 10 s of cine at the series' rate, frame 0 due mid display interval;

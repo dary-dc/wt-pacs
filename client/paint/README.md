@@ -147,16 +147,22 @@ executed and before it is presented. A lab that times a paint names a **settle**
 the view worker's start, the rig's `?settle=`), and the paint returns, and stamps `drawn`, only once the draw has
 executed:
 
-* `fence` (`settle.js`), the lab's default: `fenceSync`, `flush`, then `clientWaitSync(sync, 0, 0)` polled once a
-  task until signalled. A sync's status changes only between tasks, so the stamp is up to one task turn late; the
-  paint's thread is free while it waits.
+* `fence` (`settle.js`), the lab's default: `fenceSync`, `flush`, then `clientWaitSync(sync, 0, 0)` polled on a 1 ms
+  timer until signalled. A sync's status changes only between tasks, so the stamp is a poll late; the paint's thread
+  is free while it waits. A poll every task (a `MessageChannel` turn) spun the thread and slowed SwiftShader's draw
+  by a third; on the timer the fence returns 10 ms after the read on an 85 ms draw and 36 ms after it on a 620 ms one
+  (SwiftShader, median of 5), 11 ms after it on a 144 ms draw on llvmpipe.
 * `read`: a one-pixel `readPixels`, which blocks the paint's thread until the draw has executed. **In Firefox ≥ 145 it
   also waits for the page's main thread** (each read asks the page for permission to extract the canvas), so on a busy
   page it waits out the page's long task: [`../../docs/adr/frame-path.md`](../../docs/adr/frame-path.md) §7, *The pixel
   read under a busy page*. Kept to reproduce §7's run and `check.mjs bench`'s figures.
 
-`gl.finish()` is not a settle: it returned early on SwiftShader. `settle-check.mjs` proves the fence waits, on
-SwiftShader and on llvmpipe:
+`gl.finish()` is not a settle: it returns early on SwiftShader (0.1 ms, the draw then left to the next read), though
+it waits on Firefox's llvmpipe. `settle-check.mjs` proves the fence waits on both: a draw heavy enough to take 145–250
+ms, the draw alone returning in 0.1 ms with the whole draw left to a read after it, and the fence returning at ≥ 0.8 ×
+the read's time with a read after it under 0.2 × (2 ms). Its mutants (one poll and no loop, no wait, `gl.finish()` in
+place of the fence) are each caught on SwiftShader; on llvmpipe the `finish` mutant survives, as it should, since
+`finish` waits there:
 
 ```bash
 NODE_PATH=$(npm root -g) node client/paint/settle-check.mjs [mutants]

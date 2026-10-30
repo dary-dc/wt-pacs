@@ -2,7 +2,7 @@
  * Proves the paint's settle waits for its draw: a draw heavy enough to take hundreds of ms on a software renderer,
  * then each settle timed against the read. README §When a paint has executed
  *
- *   NODE_PATH=$(npm root -g) node client/paint/settle-check.mjs [--n 400] [--trials 5]        # Chromium, SwiftShader
+ *   NODE_PATH=$(npm root -g) node client/paint/settle-check.mjs [--n 150] [--trials 5]        # Chromium, SwiftShader
  *   FIREFOX_PATH=… xvfb-run -a node client/paint/settle-check.mjs --browser firefox            # Firefox, llvmpipe
  *   … settle-check.mjs mutants                                                                 # each mutant of settle.js
  */
@@ -18,7 +18,7 @@ const flag = (name, fallback) => {
   return i < 0 ? fallback : argv[i + 1];
 };
 const engine = flag("browser", "chromium");
-const N = Number(flag("n", 400));
+const N = Number(flag("n", 150));
 const TRIALS = Number(flag("trials", 5));
 const SETTLES = ["read", "fence", "finish", "none"];
 /** A settle waits when it takes at least WAITS of the read's time and leaves a read after it under LEFT of it. */
