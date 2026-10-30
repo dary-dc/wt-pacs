@@ -17,6 +17,7 @@ cites; the doc holds the number, the directory holds how to get it. Variants are
 | `decode-bench/`, `decode-first-frame/`, `decode-tail/`, `decoder-memory/`, `paint-floor/` | the decoder and the paint — `docs/decode/README.md` |
 | `stream-shape/`, `tcp-fallback/` | the stream shape under loss, the WebSocket and the race — `docs/adr/stream-shape.md`, `docs/transport/transport-conclusions.md` |
 | `disk-access-bench/` | the server's read path — `docs/adr/disk-access.md` |
+| `disk-tree/` | where a study sits under the PACS's root: lookup, scan, publication, deletion, date correction, the ext4 ceiling — `docs/adr/pacs-disk-layout.md` §5 |
 | `cc-classify/` | `--congestion cubic-classify`'s controller (series-server `--features lab-classify`) and its rig — `docs/transport/transport-conclusions.md` §1, *Measured: CLASSIFY* |
 | `server-telemetry/`, `client-telemetry/` | the recorders: the server's crate (series-server `--features telemetry`) and the client's Tap and its bundle (`client-telemetry/build.sh`) — `docs/adr/telemetry-*.md` |
 | `telemetry-bench/`, `telemetry-cost/` | what telemetry costs — `docs/adr/telemetry-*.md` |
