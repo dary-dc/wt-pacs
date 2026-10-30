@@ -114,6 +114,8 @@ parser's author.
 
 * [`design.md`](design.md) — each part of this pipeline against its alternatives, with the prior art.
 * [`link.md`](link.md) — why the link is TCP, and what QUIC would have to show.
+* [`pcs-pacs-options.md`](pcs-pacs-options.md) — the PCS → PACS path as parts, each with its options and a default
+  (Proposed, 2026-10-28).
 * [`contract.md`](contract.md) — the parser's directory output as the ingest reads it, and what phase 1 reads of it.
 * [`sync-protocol/prior-art.md`](sync-protocol/prior-art.md) — how established systems keep a receiver in step with a
   source, against the PACS's synchronization events.
