@@ -132,7 +132,9 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
   the copy that lands second is dropped by the transport, decoded never.
 * **The paint's GPU wait.** The 1-pixel `readPixels` that makes a paint return once drawn runs in the view worker only
   behind the lab's flag (`settlePaint`, set by the total-time rig's hooks in `lab/viewer/levers.js`); the paint worker
-  of the page view keeps it, as before.
+  of the page view keeps it, as before. *Corrected 2026-10-30:* neither view's product paint waits for its draw now;
+  a lab names a **settle**, the fence by default, the read only to reproduce §7 (§7, *The pixel read under a busy
+  page*; [`../../client/paint/README.md`](../../client/paint/README.md) §When a paint has executed).
 * **The cache (2026-10-29), under `worker` alone.** The store resolves each frame of a want from memory, then OPFS,
   then sends the downloader the misses: a frame on disk is no miss. It reads the want's frames on disk one at a time
   in its order, each checked against its frame digest (§5) wherever it is read; a read that fails its check or throws

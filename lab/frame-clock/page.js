@@ -27,6 +27,7 @@ async function run() {
     meta: { frameCount: s.n, window: { center: [32768], width: [65536] } },
     fillMode: true,
     size: { width: s.css[0], height: s.css[1], dpr: 1 },
+    settle: "fence",
     emit: (type, e) => {
       if (type === "renderer") renderer = e.renderer ?? e.error;
       if (type === "failed") failures.push(e.reason);
