@@ -8,11 +8,10 @@ async function run() {
     cell: q.get("cell"), arm: q.get("arm"), order: q.get("order") ?? "arrival", mutant: q.get("mutant") ?? "",
     w: num("w", 512), h: num("h", 512), n: num("n", 64), held: num("held", 4), rateMBps: num("rate", 125),
     seconds: num("seconds", 10), cineEvery: num("cineEvery", 1), budgetMs: num("budgetMs", 8), chunkBytes: num("chunkBytes", 1 << 20),
-    misses: num("misses", 16),
+    misses: num("misses", 16), decoders: num("decoders", 3),
   };
   const view = new Worker("view.js", { type: "module" });
-  const feeder = new Worker("feeder.js", { type: "module" });
-  const toFeeder = new MessageChannel();
+  const toFeeders = [...Array(c.decoders)].map(() => new MessageChannel());
   const toPage = new MessageChannel();
   let store = null;
   if (c.arm === "C") {
@@ -20,9 +19,12 @@ async function run() {
     new Worker("store-port.js", { type: "module" }).postMessage({ port: s.port1 }, [s.port1]);
     store = s.port2;
   }
-  feeder.postMessage({ port: toFeeder.port1, config: c }, [toFeeder.port1]);
-  const canvas = document.getElementById("view").transferControlToOffscreen();
-  view.postMessage({ config: c, canvas, feeder: toFeeder.port2, page: toPage.port1, store }, [canvas, toFeeder.port2, toPage.port1, ...(store ? [store] : [])]);
+  for (const ch of toFeeders) new Worker("feeder.js", { type: "module" }).postMessage({ port: ch.port1, config: c }, [ch.port1]);
+  const el = document.getElementById("view");
+  const canvas = el.transferControlToOffscreen();
+  const feeders = toFeeders.map((ch) => ch.port2);
+  view.postMessage({ config: c, canvas, feeders, page: toPage.port1, store }, [canvas, ...feeders, toPage.port1, ...(store ? [store] : [])]);
+  el.onpointermove = (e) => e.buttons && view.postMessage({ kind: "window", level: e.offsetX / el.clientWidth, inputAt: performance.timeOrigin + e.timeStamp });
   const intents = toPage.port2;
   const painted = [];
   return new Promise((resolve) => {
