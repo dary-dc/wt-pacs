@@ -95,6 +95,7 @@ The client's checks stay on by default.
 | The parser hashes the bytes it writes | open | §5 below |
 | Streaming the pack: code on arrival; frames as records only under a quiet period | recommended | [`design.md`](design.md) §11 |
 | The study index's engine | MySQL proposed; "MySQL fits" (owner, 2026-10-25), its placement to evaluate | [`../adr/study-index.md`](../adr/study-index.md) §5 |
+| The PACS receiver and builder: one program beside the server, the inputs kept, revisions named by `CURRENT` | recommended 2026-10-21; superseded by the receiver ADR (`docs/adr/pacs-receiver.md`, #163) | [`design.md`](design.md) §12 |
 
 ## 5. Parser findings
 

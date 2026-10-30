@@ -1,6 +1,6 @@
 # Ingest design — from the parser to the PACS
 
-*Queue row 153 INGESTDESIGN, 2026-10-11. Theory only: read from sources (§12), nothing built, nothing timed. It
+*Queue row 153 INGESTDESIGN, 2026-10-11. Theory only: read from sources (§13), nothing built, nothing timed. It
 compares options and recommends; every choice is the owner's (§10).*
 
 **Corrected 2026-10-26**, against [`pacs-receive-design.md`](pacs-receive-design.md), which holds the decisions since:
@@ -41,7 +41,8 @@ output and an HTJ2K output on the grok encoder is from this row's brief, not rea
 9. [(h) Prior art](#9-h-prior-art)
 10. [The owner's decisions](#10-the-owners-decisions)
 11. [Streaming the pack](#11-streaming-the-pack)
-12. [Sources](#12-sources)
+12. [The PACS receiver and builder](#12-the-pacs-receiver-and-builder)
+13. [Sources](#13-sources)
 
 ## 1. The answer in plain words
 
@@ -85,7 +86,7 @@ output and an HTJ2K output on the grok encoder is from this row's brief, not rea
 
 | | at the PCS, by the Rust ingest (proposed) | inside the parser, in C | in the cloud |
 | --- | --- | --- | --- |
-| encoder | OpenJPH, pinned, the bytes today's ingest writes (row 155's parity) | grok, AGPL v3 (§12); a second HTJ2K encoder | any, paid per CPU-second |
+| encoder | OpenJPH, pinned, the bytes today's ingest writes (row 155's parity) | grok, AGPL v3 (§13); a second HTJ2K encoder | any, paid per CPU-second |
 | bytes on the link | HTJ2K's | HTJ2K's | raw + zstd: 1.0–1.8× HTJ2K's (below) |
 | CPU | the PCS's (the owner: free) | the PCS's | the PACS operator's |
 | exactness check | decode-back at the PCS, before anything leaves | needs a decoder in the parser, or the ingest re-decodes | decode-back in the cloud; end to end only if the PCS hashed the raw samples first |
@@ -155,8 +156,8 @@ already built and checked.
 **What none of the three settles: when a series is complete.** DICOM sends instances, and nothing marks the last one.
 The choices are the end of the modality's association (the AWS Greengrass edge in §9), a quiet period with no new
 instance, or a count from the modality (Number of Series Related Instances is a query attribute, not sent with the
-images). An instance that arrives after its series was sent makes a new revision of that series' bundle (§8). This
-is the owner's (§10, 1).
+images). An instance that arrives after its series was sent makes a new bundle for that series and a new revision
+of its study DB (§8, §12). This is the owner's (§10, 1).
 
 ## 5. (d) Where the layout, the study DBs and the study index are built
 
@@ -338,6 +339,7 @@ is decided (XXH3-64, 10-12); 1 and 6 have proposals in [`../adr/pcs-transfer.md`
 9. **Metadata compression** (§7): per series (recommended), or per group with a shipped dictionary.
 10. **Streaming the pack** (§11): code on arrival first; stream frames as records only under a quiet-period rule for
     completeness; no index at the end (recommended).
+11. **The PACS receiver and builder** (§12): its own decisions are listed in §12.10.
 
 Gaps theory cannot close, one line each: HTJ2K against zstd on the lab's own sets (no published side-by-side beyond
 seven images); DICOM header sizes per modality (no source); P-STAGE's share (proposed in
@@ -345,7 +347,7 @@ seven images); DICOM header sizes per modality (no source); P-STAGE's share (pro
 
 ## 11. Streaming the pack
 
-*Queue row 163 STREAMPACK, 2026-10-13. Theory only: nothing built, nothing timed. (S) a source in §12, (D) derived
+*Queue row 163 STREAMPACK, 2026-10-13. Theory only: nothing built, nothing timed. (S) a source in §13, (D) derived
 here, (M) measured in this repository, with its row. The uplink rates are the assumed 10 Mbit/s–1 Gbit/s of
 [`link.md`](link.md) until row 162 (LINKREAL) replaces them.*
 
@@ -528,7 +530,401 @@ Proposed; the owner decides (§10, 10).
 Gaps theory cannot close: the Rust ingest's coding rate; real site uplinks (row 162); how long real series take to
 arrive (*W*); whether libaom codes the same bytes on a re-run.
 
-## 12. Sources
+## 12. The PACS receiver and builder
+
+*2026-10-20. Theory only: nothing built, nothing timed. (S) a source in §13, (D) derived here, (M) measured in this
+repository, with where. It builds on what the owner has decided: the PACS builds and updates each study's store
+(§5); the PCS sends the parser's groups and the packed series, and decides when a series or a study is complete; the
+PACS checks everything that arrives; the link is TCP; metadata and pixels live on the host of the server that serves
+them; bad data in one study never forces a shared rebuild. The store's format is open
+([`metadata-draft.md`](metadata-draft.md) §2) and is left open here (§12.9).*
+
+**Named here.** A study's store changes by **revisions**: revision 1 is its first publish, and each later one replaces
+it whole. §5, §8, §10 and §11 called this a generation until today; the glossary gives that word to a request's
+identity, so it is renamed there in place.
+
+**The question.** What does the program at the PACS that receives a series from the PCS, checks it, places it and
+builds its study's store look like, as a process of its own beside the WebTransport server, able to run on another
+machine when scaling needs it?
+
+**The answer in plain words.**
+
+* **One program, two jobs, and only files between it and the server.** The *receiver* takes uploads, checks them and
+  places them; the *builder* turns a study's accepted inputs into a new revision of its store. The server never
+  talks to either: it reads the files they publish. The same binary can run the two jobs on two machines later.
+* **What arrives, per series:** the `.sbnd`, the series group, every instance's groups and a copy of the exam group.
+  Also, rarely, a "study complete" notice and corrections. A series is accepted or refused whole.
+* **Every check is cheap except decoding.** The coded-frame hashes prove that the bytes on the PACS's disk are the
+  bytes the site checked, at ≈ 5 ms for a 152 MB series (D). The parser's BLAKE3 proves each group's content. The UIDs
+  and the frame count, compared across the bundle and the groups, prove that the pixels and the metadata belong
+  together. Decoding every frame again would prove more, and the client already does it for every frame it shows.
+* **Everything that arrived is kept, and the store is derived from it.** A study's accepted inputs are an
+  append-only list. Every revision is built whole from that list, so a builder bug, a new page view or a new format
+  is a rebuild of one study at a time, never lost data.
+* **A revision is a directory that never changes, and one small file, `CURRENT`, names the live one.** The builder
+  writes the new directory, makes it durable, then replaces `CURRENT` by rename. A reader sees the old revision whole
+  or the new one whole. This works for any format, on local disk and on network storage, without locks.
+* **One new invariant: a page's metadata and the frames it asks must describe the same bundle.** A late instance can
+  sort into the middle of a series, so the page sends its series' digest when it opens a session, and the server
+  refuses a mismatch. Then the server needs no message when a study changes.
+* **Crash recovery is a list of studies with work.** Each step leaves a state on disk that a restart finishes or
+  undoes, and receiving the same series again changes nothing.
+* **On another machine:** the bundles have to land on the PACS host, so the receiver stays there. The builder can move
+  and send each revision back. At the band's volumes neither job saturates a host on its own (D); what would justify
+  moving them is not measured.
+
+### 12.1 The shape
+
+```text
+ PCS (the site)                    PACS host
+ ──────────────                    ──────────────────────────────────────────────────────────────────────
+                                   ┌─ receiver ──────────┐
+ outbox ── HTTPS over TCP ───────▶ │ resume, check,      │──▶ <StudyUID>/<SeriesUID>.sbnd ◀── server reads frames
+           (link.md)        ◀───── │ place, answer       │──▶ <StudyUID>/inputs/…  (what was accepted)
+           accepted / refused      └─────────────────────┘──▶ pending/<StudyUID>   (this study has work)
+                                                                      │
+                                   ┌─ builder ───────────┐            │
+                                   │ build a revision,   │◀───────────┘
+                                   │ publish it          │──▶ <StudyUID>/store/<N>/ and CURRENT ◀── the store's reader
+                                   └─────────────────────┘
+```
+
+| | inside `server/` | one process, two jobs (recommended) | two processes |
+| --- | --- | --- | --- |
+| a builder fault or CPU burst | reaches the sessions | stays out of the server | the same |
+| moving the builder to another machine | a rewrite | the same binary, the builder job only | as built |
+| cost now | — | the `pending/` list between the jobs | a second service to deploy |
+| switching later | — | to two processes: configuration | — |
+
+What the server and the program share is code, not a process: the `.sbnd` reader (`common/series-bundle`) and the
+store format's reader (§12.9).
+
+### 12.2 What arrives
+
+| input | carries | sent by | when |
+| --- | --- | --- | --- |
+| **series archive** | the `.sbnd`; the series group; each instance's instance group and private group; a copy of the study's exam group | the PCS | the PCS calls the series complete |
+| **study-complete notice** | the study UID; each series UID with its archive's identity | the PCS | the PCS calls the study complete |
+| **correction** | replacement groups, each naming what it replaces (the exam, a series, an instance), a reason and an author | the PCS, or an edit made at the PACS | any time |
+
+**Two identities, both computed by the PACS from what arrived.**
+
+* **The series digest:** BLAKE3-256 over the bundle's coded-frame hashes in entry order (§11.5's hash, its algorithm
+  fixed here). It changes when any frame changes or moves. It is compared only with digests of the same series UID,
+  never used as a key across series.
+* **The archive's identity:** BLAKE3-256 over the series digest and then each group's BLAKE3, in name order. It does
+  not change if the PCS packs the same content again, which a hash of the archive's bytes would.
+
+**On the wire.** §4 sends a series as one archive. Two ways to carry it:
+
+| | one tar, the bundle inside (§4) | two files and a commit (recommended) |
+| --- | --- | --- |
+| what is sent | `series.tar` | the bundle; the metadata (the groups in one zstd stream, §7); then a short commit naming the study, the series and both identities |
+| resume after a cut | by the tar's offset; the receiver must rebuild where it was inside which member | each file by its own offset (link.md §7) |
+| the bundle's bytes at the PACS | written once in `incoming/`, then once more when unpacked | written once, as the final file's `.partial` beside where it will live |
+| precedent | — | tus concatenation and S3 multipart: parts, then one request that completes them (§11.2) (S) |
+| cost now | one request a series | three; nothing against megabytes |
+
+The unit of acceptance is the series in both: nothing is placed until the commit is checked. Switching is the PCS's
+sender and the receiver's front, not the rest.
+
+**Not carried yet:** the encapsulated documents (PDF, CDA, STL) the parser writes since `f36230b`; the contract of
+2026-10-11 stays ([`contract.md`](contract.md)), so they wait for it. A withdrawal (deleting a series or a study sent
+to the wrong patient) is not designed: §12.10, 11.
+
+### 12.3 The checks on arrival
+
+In order; a later check runs only if every earlier one passed.
+
+| # | check | proves | cost | on failure |
+| --- | --- | --- | --- | --- |
+| 1 | the upload's own checksum, per chunk, if the shape has one ([`link.md`](link.md) §7) | the link | per chunk | that chunk is asked again |
+| 2 | the bundle's structure: magic, version 2, a known codec and layout, the entry count, entries back to back, the last one ending at the file's end ([`../disk-layout/target.md`](../disk-layout/target.md)) | it is a whole `.sbnd` the server can read | microseconds | refuse the series |
+| 3 | every entry's coded bytes against its XXH3-64 | the bytes on the PACS's disk are the ones the site wrote after its decode-back check: the link, the receiver's write and the disk | 152 MB at 31.5 GB/s ≈ 5 ms (D, §6's speed) | refuse |
+| 4 | every group: its records well formed (key lengths a multiple of 8, every length inside the file) and its BLAKE3-256 recomputed against its name | its content is what the parser wrote, across compression, the link and the PCS's disk | kilobytes at GB/s: microseconds (§6) | refuse, but see the parser's fault below |
+| 5 | the UIDs agree: the commit's study and series UIDs, the exam group's (0020,000D), the series group's (0020,000E), the bundle header's two UIDs; each instance's SOP Instance UID once | the pixels and the metadata are of the same series, in the study they claim | microseconds | refuse |
+| 6 | the frame count: the bundle's N against the sum over instances of Number of Frames (0028,0008), 1 when absent | no instance is missing on either side | microseconds | refuse |
+| 7 | optional: each coded frame's own header (HTJ2K's SIZ, AV1's sequence header) against the instance's rows, columns, bits and samples | the frames have the size the metadata says | tens of bytes read a frame | refuse |
+| 8 | optional: decode every frame and compare its samples with the entry's samples XXH3-64 | the coded frame decodes to the site's input, here | a decode of every frame, the site's decode-back again; not measured at the PACS | refuse, or run later as a scrub |
+
+**What the frames' samples hash proves at the PACS: nothing, without check 8.** It travels with its frame, and the
+client checks it on every frame it shows
+([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md)). The PACS's cheap proof is the coded hash.
+
+**The parser's known fault.** Three of its four group hashes cover a length taken before the UTF-8 conversion (§6).
+A group with no converted record (every charset index 0) has no conversion, so its hash must match, and a mismatch
+refuses. A group with a converted record that mismatches cannot be told apart from damage. Until the parser hashes
+the bytes it writes (§10, 8), such a group is accepted and marked *unverified* in the store, or refused, which would
+refuse many studies with non-ASCII names. The owner's (§12.10, 3).
+
+**What a refusal does.** The whole series archive is refused. Nothing is placed, the study's store is not touched,
+and no other series or study is. The files move to `refused/<identity>/` with a line saying which check failed, kept
+for diagnosis. The PCS's commit is answered `refused: <check>`. A content failure (checks 2 to 8) means the PCS's own
+copy is bad, so sending the same bytes again is refused again without work; the PCS packs the series again from the
+parser's directory.
+
+**An exam group that differs** from the one the study already holds is not damage: the patient's or the study's
+attributes changed at the modality or the site. It is a correction in disguise, and patient identity is in it. The
+owner's (§12.10, 10).
+
+### 12.4 The disk
+
+```text
+<root>/
+  incoming/<upload>.partial              metadata uploads in progress; gone once accepted, refused or expired
+  refused/<identity>/                    a refused archive and the check it failed
+  pending/<StudyUID>                     an empty file: this study has inputs its store does not hold yet
+  <StudyUID>/
+    <SeriesUID>.sbnd                     the published bundle (target.md)
+    <SeriesUID>.<upload>.sbnd.partial    a bundle still arriving or being checked; never opened by a reader
+    inputs/
+      000001.<identity>.series           an accepted series archive's metadata, as it arrived
+      000002.<identity>.correction
+      000003.<identity>.complete
+    store/
+      CURRENT                            the one name that changes: the live revision, its format, its last input
+      7/                                 revision 7, never changed after it is published
+      8/
+```
+
+A UID is digits and dots (PS3.5 §9.1, as the target cites it), so no study can be named `incoming`, `refused` or
+`pending`. A study is one directory holding everything of it: moving a study to another host is copying that
+directory.
+
+**The received groups: keep them (recommended), or keep only the store.**
+
+| | keep the inputs | keep only the store |
+| --- | --- | --- |
+| a builder bug found later | rebuild the studies it touched | the bad revisions are all there is |
+| a new format or page view | built from what arrived | converted from the old store |
+| what it costs | the groups again: 2.15 MB for 2 000 instances of the parser's CT group uncompressed (M, [`metadata-draft.md`](metadata-draft.md) §2), against ≈ 330 MB of coded CT frames at 164 kB a frame (§11.2): under 1 % (D) | nothing |
+| switching later | to "store only": delete the inputs | to "keep": impossible for what already arrived |
+
+The bundles are not in `inputs/`: the pixels are kept once. A series sent again replaces its bundle, so the inputs
+can rebuild every revision's metadata but only the live bundles; keeping old bundles is §10, 6.
+
+### 12.5 Building a study's store, and updating it while it is read
+
+**Three ways to update.**
+
+| | (a) a new revision directory, named by `CURRENT` (recommended) | (b) SQLite changed in place under WAL | (c) one new file renamed over the old |
+| --- | --- | --- | --- |
+| what a reader sees | the old revision whole, or the new one | a consistent snapshot | the old file, or the new |
+| formats | any, with any number of files | SQLite only | formats of one file; not SQLite, where renaming over an open database is "undefined" (S, SQLite's corruption page §2.5) |
+| network storage | yes: no locks, no shared memory | no: "WAL does not work over a network filesystem" (S) | yes |
+| a builder on another machine | yes | no: "all processes using a database must be on the same host computer" (S) | yes |
+| code | one path: build | two: build and update | one |
+| an update writes | the whole study: 7 KB at 4 instances, 2.9–3.4 MB at 2 000 (M, on-disk sizes, [`metadata-draft.md`](metadata-draft.md) §2); ≈ 3 ms at an assumed 1 GB/s, ≈ 30 ms at 100 MB/s (D) | the changed rows | as (a) |
+
+Updates are infrequent (the owner, 2026-10-20), so rewriting a study costs little against the code it saves. A study
+of many large series rewrites more: twenty series of 2 000 is ≈ 60 MB, under a second at either rate (D). If that is
+ever too slow, a format with one file per series lets the next revision hard-link the files of every series that did
+not change, so (a) stays and only changed series are written (§12.9).
+
+**Building revision N**, one study at a time:
+
+1. **Resolve** the study's inputs in order: for each series its latest accepted archive (or §10, 6's policy), the
+   corrections applied in order, the study-complete notice if any.
+2. **Read each live bundle's header and index:** the codec, N, and the series digest (N × 8 B: microseconds).
+3. **Build** into the empty directory `store/N.partial/`: the truth and the page view, both from the same resolved
+   inputs, so they never disagree. The format does this step alone (§12.9).
+4. **Make it durable:** `fsync` each file and the directory, rename `N.partial` to `N`, `fsync` `store/`.
+5. **Publish:** create `CURRENT.lock` with `O_CREAT|O_EXCL` (it fails if another writer holds the study), write
+   `N`, the format and the last input's number, `fsync` it, rename it to `CURRENT`, `fsync` `store/`. This is git's
+   lockfile: "readers do not block, but they are guaranteed to see either the old contents of the file or the new
+   contents" (S).
+6. **Close the work:** remove `pending/<StudyUID>`, unless an input arrived during the build, in which case go to 1.
+7. **Tidy:** remove revisions older than N − 1 that are older than a grace period.
+
+A failed `fsync` stops the program, as §8 says. A new bundle is renamed into place when its series is accepted
+(§12.6), before the revision that describes it is built, so a revision never names a bundle that is not there.
+
+```text
+ time ────────────────────────────────────────────────────────────────────────────────────▶
+ builder   writes store/8.partial/ ── fsync ── rename to 8 ── CURRENT.lock ── rename to CURRENT
+ CURRENT   "7" ─────────────────────────────────────────────────────────────┤ "8" ──────────
+ reader A  reads CURRENT: 7 → opens store/7/ → reads ……… closes         sees 7 whole
+ reader B                                                                    reads CURRENT: 8 → opens store/8/ …
+```
+
+**Readers during an update.**
+
+* **The store's reader** (the server, or a reader beside the web host: [`metadata-draft.md`](metadata-draft.md) §1,
+  open) reads `CURRENT`, opens revision N's files, reads, and closes. A reader still in N when N is removed keeps
+  reading it: an unlinked file "will remain in existence until the last file descriptor referring to it is closed"
+  (S, unlink(2)). One that read `CURRENT` but finds N already gone, two publishes inside its microseconds, reads
+  `CURRENT` again. The grace period in step 7 is for that race, and for SQLite, whose corruption page calls unlinking
+  an open database undefined as well (S, §2.5): a revision is removed only after its readers have closed it.
+* **The bundle.** The server opens a series' file once (`FrameStore`, `server/src/media/frame_store.rs:26`). A rename
+  over `<SeriesUID>.sbnd` leaves that descriptor on the old file, still whole: rename(2) replaces the name "so that
+  there is no point at which another process attempting to access newpath will find it missing" (S), and the old
+  file lives until it is closed. Sessions already open keep being served the bundle they started with.
+
+**The pairing, the one new invariant.** A late instance can sort into the middle of a series, so frame *i* of the new
+bundle need not be frame *i* of the old. Each frame still passes its own samples check, since that hash travels with
+it, so a page holding the old metadata would paint a frame with another frame's rescale and window, and nothing would
+fail. So:
+
+* the page view carries each series' digest (§12.2), and the page puts it in the session URL beside the opening ask
+  ([`../WIRE.md`](../WIRE.md) §The opening ask);
+* the server compares it with the digest of the bundle it holds open. Equal: serve. Different: open the path again,
+  once. Still different: refuse the session with "series changed", and the page fetches its metadata again.
+
+| | the digest in the session URL (recommended) | bundles named by content, `<SeriesUID>.<digest>.sbnd`, the store naming the file |
+| --- | --- | --- |
+| a mismatch | detected, refused, fetched again | cannot happen |
+| what changes | a field in the session URL, both clients and a contract-suite clause | the target's file name; the server finds a bundle through the store |
+| the old bundle | freed when its last session closes | removed after a grace period, when no revision names it |
+| cost now | the field | the target's change |
+
+**When the page view's shape changes** (the owner: it will), the new shape is a new format version. `CURRENT` names
+the version, so a rebuild goes study by study, resumable, and the reader reads both versions until it ends. No
+rebuild is shared: each study is its own.
+
+### 12.6 Idempotence, resume and crash recovery
+
+**Accepting a series archive, step by step.**
+
+1. The two files arrive: `incoming/<upload>.partial` and `<StudyUID>/<SeriesUID>.<upload>.sbnd.partial`, each
+   `fsync`ed when complete.
+2. The checks of §12.3 run.
+3. **The commit point.** The metadata file is renamed to `inputs/<number>.<identity>.series`, `inputs/` is
+   `fsync`ed, then `pending/<StudyUID>` is created and `pending/` `fsync`ed.
+4. The bundle is renamed to `<SeriesUID>.sbnd`; the study's directory is `fsync`ed.
+5. The PCS is answered `accepted <identity>` and deletes its outbox copy (§8).
+6. The builder publishes a revision (§12.5).
+
+**After a crash, the disk says where it stopped.**
+
+| it stopped after | on disk | at restart |
+| --- | --- | --- |
+| part of 1 | partial files | the PCS asks the offset and resumes; partials past their expiry are deleted |
+| 2 | complete partials, no input | the checks run again: they change nothing |
+| 3 | the input, the bundle still `.partial` | the input names its upload: finish step 4 |
+| 4 | the bundle in place, the PCS not answered | the PCS sends again; its identity is in `inputs/`: answered `accepted`, no work |
+| part of 6 | `store/N.partial/` or `CURRENT.lock` | remove them; build again |
+| 6's rename, before `CURRENT` | `store/N/` newer than `CURRENT` | remove it; build again |
+
+**A restart reads `pending/`, not every study:** its work is the studies with work, whatever the archive's size.
+`pending/` is Maildir's discipline: one name per item, made by rename, read and removed with "no locks", "reliable
+even over NFS" (S).
+
+**Idempotent.** The same identity again is answered `accepted` with no work. The same series UID with a new identity
+is a new input, and what the build does with the old one is §10, 6. A study's revision built twice from the same
+inputs has the same content (a test to write when it is built: build twice, compare). The bytes need not be equal:
+SQLite's file bytes vary with its version ([`metadata-draft.md`](metadata-draft.md) §2).
+
+**One writer per study, by construction.** One builder per host; if there are several, a study goes to the one its
+UID's hash names. `CURRENT.lock` catches a breach: the second writer fails and says so, and never removes a lock it
+did not make. On network storage `O_EXCL` holds only "when using NFSv3 or later" (S, open(2)).
+
+### 12.7 Telling the server
+
+**The server does not need to be told for correctness.** It reads `CURRENT` at each page open (one small file:
+microseconds on local disk, one round trip on network storage) and compares the series digest at each session open
+(memory only, §12.5).
+
+| | (a) nothing; the server checks on use (recommended) | (b) a datagram on a local socket | (c) inotify | (d) the catalog's row (§5) |
+| --- | --- | --- | --- | --- |
+| how | §12.5's reads | the builder sends "study, revision" after step 5 | the server watches every study's `store/` | the builder upserts the study's row with its revision |
+| a builder on another machine | yes; on a network filesystem another client's rename may show only after the directory attribute cache, 30–60 s by default (S, nfs(5)) | a TCP message instead | no: inotify "does not catch remote events that occur on network filesystems" (S) | yes |
+| a lost message | nothing to lose | harmless with (a) beneath it | — | the start-up scan of §5 |
+| cost now | the pairing field | a socket and its protocol | one watch per study, thousands of them | the catalog, deferred |
+
+A push is worth adding when a feature needs one: a worklist that shows new studies (d), or an open page told that its
+series changed (b). What an open page does then is the owner's (§12.10, 8).
+
+### 12.8 Running it on another machine
+
+**What has to stay on the PACS host.** The bundles: pixels live on the host of the server that serves them (decided).
+So the receiver, which writes them, stays where they live; sending them to another machine and back would cross a
+network twice for nothing. What can move is the builder, and check 8, the only heavy CPU here.
+
+**What the jobs cost, across the band** (D, nothing measured): receiving over TLS ≈ 1.3 ms of a core per MB
+([`link.md`](link.md) §2), so 100 GB a day is ≈ 130 core-seconds; check 3 adds ≈ 0.03 ms per MB; a build is
+milliseconds per study (§12.5). At these volumes the program does not saturate a host on its own. What could justify
+moving it is its effect on the server's latency at thousands of sessions, which is not measured; nothing here claims
+past that.
+
+| | (a) on the PACS host | (b) the builder elsewhere, writing over a network filesystem | (c) the builder elsewhere, sending each revision back | (d) more PACS hosts, each with its own program |
+| --- | --- | --- | --- | --- |
+| shared | nothing | the PACS host's study tree, exported, and `pending/` | the inputs reach the builder (kilobytes per instance); each revision comes back (megabytes) | where each study lives: StudyUID → host, the catalog's job (§5) |
+| costs | the host's CPU | each `fsync` a round trip; `O_EXCL` only on NFSv3+; `flock` emulated as whole-file `fcntl` locks (S, flock(2)); a second machine that can write every study | a small publisher on the PACS host, which is §12.5's steps 4–5, the same code | moving a study is copying its directory, then changing the map |
+| switching from (a) | the root's path | the publish step behind one function | a router in front of the receivers |
+
+**The queue.** On one host it is `pending/`. Under (c) the remote builder asks the PACS host's publisher for its
+`pending/` list over the same kind of link, and sends each revision back to it; no queue service is needed until a
+measurement asks for one.
+
+### 12.9 Where the store's format plugs in
+
+**Two functions and one field.**
+
+* **build** takes a study's resolved inputs (§12.5, step 1) and an empty directory, and writes one revision's files:
+  the truth and the page view.
+* **open** takes a revision's directory and returns the reader that answers the page view.
+* `CURRENT`'s **format** field says which open reads a revision, so two formats live side by side while studies are
+  rebuilt from one to the other.
+
+Nothing else in the program reads a store file: receiving, checking, the inputs, revisions, `CURRENT`, recovery and
+telling the server are the same for every format. What a format must do to fit:
+
+* write only into the directory it is given, and never change a file after it is published. SQLite fits when its
+  readers open with `immutable=1`, which "skips all file locking and change detection" (S), and its files are never
+  renamed over while open;
+* give the same content from the same inputs;
+* if it can, keep one file per series, so that an update hard-links what did not change (§12.5).
+
+**Switching format** is a rebuild of every study from its inputs, one study at a time, resumable through `CURRENT`.
+
+### 12.10 The owner's decisions
+
+Listed, not taken.
+
+1. **The shape** (§12.1): one program with two jobs (recommended), or two processes.
+2. **A series on the wire** (§12.2): the bundle and the metadata as two files and a commit (recommended), or one tar
+   (§4). The unit of acceptance stays the series either way.
+3. **Groups the parser's fault leaves uncheckable** (§12.3): accepted and marked unverified (recommended), or refused.
+4. **The optional checks** (§12.3): the frames' own headers, check 7 (recommended on); decoding every frame, check 8
+   (recommended off on arrival, since the client checks every frame it shows; perhaps a scrub later).
+5. **The received groups** (§12.4): kept (recommended), or the store only.
+6. **The update** (§12.5): a revision directory named by `CURRENT` (recommended), SQLite in place, or one file
+   renamed over.
+7. **The pairing** (§12.5): the series digest in the session URL (recommended; a wire change), or bundles named by
+   content (a change to the target's file name).
+8. **An open page whose series changed:** refused and refetched without a word, or the user told. A clinical
+   question as much as a technical one.
+9. **When a study's store is first published:** at each accepted series (recommended, as §4 argues for the link), or
+   only at the study-complete notice.
+10. **An exam group that differs** between series of one study (§12.3): keep the held one and flag the study for
+    review (recommended), or apply it as a correction.
+11. **Corrections and withdrawals:** who may author a correction at the PACS; whether and how a series or a study is
+    withdrawn. Neither is designed.
+12. **Telling the server** (§12.7): nothing (recommended), a local socket, or the catalog.
+13. **Another machine** (§12.8): on the PACS host now (recommended), with (c) and (d) kept as configuration; (b) not
+    recommended.
+
+### 12.11 Recommended
+
+**One program beside the server, receiving and building, whose only interface to the server is the files it
+publishes.** Per series it receives two files and a commit, checks the structure, the coded-frame hashes, the group
+hashes, the UIDs and the frame count, and refuses the series whole on any failure. It logs what it accepted in the
+study's `inputs/`, places the bundle by rename, and answers the PCS. The builder then builds the study's store whole
+into a new revision directory and publishes it by replacing `CURRENT`. Pages name their series' digest when they open
+a session, so the server serves only the bundle their metadata describes.
+
+**Why.** Every choice in it is the switchable one. Kept inputs make every store, format and page view rebuildable.
+An immutable revision with one pointer works for any format, on local disk and network storage, with a builder on
+this host or another, and with one code path. The digest check makes the server correct without being told, so a
+notification can be added when a feature needs it rather than now. What it costs now: the whole study rewritten at
+each update (megabytes, infrequent), the groups stored twice (under 1 % of the pixels), and one field on the wire.
+
+**Gaps theory cannot close:** the build's and an update's time at 4, 200 and 2 000 images on local and network
+storage (the handoff's benchmark, read and update); the restart's time with many pending studies; the program's
+effect on the server's latency at thousands of sessions; how late another NFS client sees a rename of `CURRENT` under
+the mount options a PACS uses.
+
+## 13. Sources
 
 Fetched 2026-10-11, pinned by tag or commit and the first 12 hex of the fetched file's sha256. Raw copies are not
 committed.
@@ -574,3 +970,9 @@ committed.
 * **Streaming the pack** (§11), fetched 2026-10-13: PKWARE APPNOTE.TXT 6.3.10 (`0b993022a7d3`); RFC 9112
   (`e4f426bac620`); DICOM PS3.4 2026d Annex J (`41c056d20052`); S3 multipart overview (`69c3cbba7a97`); tus 1.0,
   draft-13 and S3 limits as above, re-fetched to the same hashes.
+* **The PACS receiver and builder** (§12), fetched 2026-10-20: Linux man-pages 6.19 (2026-02-08) rename(2)
+  (`8772946a809a`), unlink(2) (`54342d11f277`), open(2) (`d665489cadb8`), flock(2) (`f46b6eb4cb7c`), inotify(7)
+  (`79f5ab18e2fc`), nfs(5) (`2b9d9223f2fa`), from man7.org; the version control system git at tag v2.51.0,
+  `lockfile.h` (`11169c5369e7`); D. J. Bernstein, "Using maildir format", cr.yp.to/proto/maildir.html, undated
+  (`8cc7fa200494`); SQLite's corruption page (`e00709e3f37e`), URI filenames (`9fba2ee18bc6`) and WAL
+  (`f3467b530b88`), re-fetched to the hashes [`metadata-draft.md`](metadata-draft.md) and the SQLite line above pin.

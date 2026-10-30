@@ -461,7 +461,7 @@ The principle is decided: only what the page needs now. What remains open:
 * **Its size across the band:** with `digests` moved into the `.sbnd` entry ([`../disk-layout/target.md`](../disk-layout/target.md)
   §The two hashes), a series whose display does not vary per frame is a few hundred bytes at any frame count; per-frame
   rescale or window grows with frames. **Measured:** PORD's ~120 KB cost the connection +7 / +29 ms at 80 / 160 ms.
-* **Caching:** today it is `no-cache`; a generation number in the study database lets a reopened page check its copy
+* **Caching:** today it is `no-cache`; a revision number in the study database lets a reopened page check its copy
   in one round trip.
 
 ### 5. Moving fixtures, the dev host and the gate off the JSON file
@@ -489,16 +489,16 @@ The principle is decided: only what the page needs now. What remains open:
 
 Fetched 2026-10-19, first 12 hex of the fetched file's sha256.
 
-* **SQLite**: "35% Faster Than The Filesystem" (`2cba6be472d2`, the same as design.md §12); "How To Corrupt An SQLite Database File" (`e00709e3f37e`), §1.3 and §2.5; URI filenames, `immutable`
-  and `mode=ro` (`9fba2ee18bc6`); WAL (`f3467b530b88`, the same as design.md §12).
+* **SQLite**: "35% Faster Than The Filesystem" (`2cba6be472d2`, the same as design.md §13); "How To Corrupt An SQLite Database File" (`e00709e3f37e`), §1.3 and §2.5; URI filenames, `immutable`
+  and `mode=ro` (`9fba2ee18bc6`); WAL (`f3467b530b88`, the same as design.md §13).
 * **The parser**: `github.com/opendicom/DECK_WebTransport` at `f36230b3f46c` (2026-10-16), read and run as
   [`contract.md`](contract.md) §The parser at `f36230b` records.
 * **rusqlite** 0.40.2 on crates.io (`43b0cec6bd46`), its bundled `sqlite3.h` (`9e69a1353a42`), LICENSE
   (`c10c1f273375`).
-* **libSQL** at `d8bc862d20be` (2026-10-13): README (`5a7d05bd5b34`, the same as design.md §12), `libsql/Cargo.toml`
+* **libSQL** at `d8bc862d20be` (2026-10-13): README (`5a7d05bd5b34`, the same as design.md §13), `libsql/Cargo.toml`
   (`c9393a164fca`), `docs/ADMIN_API.md` (`a45a5003fa4a`); `libsql` on crates.io (`2c4b345f6b82`); Turso's docs,
   `libsql.md` (`ea0bd1401325`). sqld's last tag and commit from the repository's git history.
-* **Turso** at `f9c3d9045c71` (2026-10-19): README (`fe932831cf8d`, the same as design.md §12), COMPAT.md
+* **Turso** at `f9c3d9045c71` (2026-10-19): README (`fe932831cf8d`, the same as design.md §13), COMPAT.md
   (`28a771b01162`), `docs/manual.md`, `bindings/rust/src/lib.rs` lines 284–342; `turso` (`99f8bf2b2551`),
   `turso_core` (`cc08a07a0f95`) and `limbo` (`b365420bb9c7`) on crates.io. Turso Cloud: `turso-cloud.md`
   (`6f75c718aecf`), usage and billing (`b975c2fcfd32`); the pricing page could not be fetched.
