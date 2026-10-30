@@ -1,7 +1,8 @@
 # ADR: where a decoded frame goes — the page in or out of the pixel path, and who owns the frame store
 
-**Status:** proposed 2026-10-11, **theory only: nothing built or timed** (queue row 148, FRAMEPATH, of
-[`../av1/queue.md`](../av1/queue.md)). The decisions are the owner's; they are listed in §8 and under the queue's
+**Status:** proposed 2026-10-11 (queue row 148, FRAMEPATH, of [`../av1/queue.md`](../av1/queue.md)); the owner's
+target shape, a B′ without the store worker, **built 2026-10-28 as a variant beside today's path and not timed**
+(§3, *Built*). The decisions are the owner's; they are listed in §8 and under the queue's
 `## Blocked`. Sources are pinned in §9; every figure not marked *measured* is a prediction or a reading of source.
 
 ## 1 · Today, and the question
@@ -82,6 +83,66 @@ paint worker, every viewport**. Its cost is that two viewports' paints share one
 frame's receiver is the paint worker, so the ack must come from it: the page hands it a port to the downloader at
 start, or the ack is the page's, relayed from the paint worker's ~100-byte note. Either keeps row 147's rule; the first
 keeps the page out of it.
+
+**Built** (2026-10-28), **not timed; §7 decides adoption, and its runs are a row of their own.** The owner's target
+shape, beside today's path and chosen by one setting, the page's own `?view=page|worker` (default `page`):
+
+* **One view worker** the page starts (`client/view/view-worker.js`) holds three modules: the **controller**
+  (`controller.js`: the current frame, what to ask, the paint), the **frame store** (`store.js`: has, get, put, a
+  memory window by distance from the current frame, every frame by default as today; it decides nothing), and the
+  **paint module** (`paint/paint-worker.js`, imported, not a nested worker; it keeps the uploaded frame and the window
+  table). Under `page` the same controller and store run on the page with the paint worker behind them, so the two
+  variants differ in where they run alone.
+* **The page holds no frame.** It transfers the canvas to the view worker, starts the downloader itself and links the
+  two with one `MessageChannel` (the downloader's `link` message); after that it never posts to the downloader. The
+  decoders' pixel ports go to the view worker, where the consumer (`consumer.js`, given the port) runs and acks each
+  frame as it does on the page: row 147's rule holds unchanged, and the frame changes owner at the ack.
+* **The page's API** (`client/view/view.js`): `show(i)`, `setDisplay({window, invert, pose})`, `play(fps)` and
+  `pause()`, `valueAt(x, y)` → a promise of the sample under that canvas point; events `shown {i, exact}`,
+  `progress {have, total}` (at most every 100 ms, and at once at the last frame) and `failed {i, reason}`. `shown`
+  also carries the window painted, which a drag starts from, and `progress` the exact counts the status line shows.
+  The cine is still paced from the page, behind `play`.
+* **Wants are today's**: a held frame is painted with no message to the downloader; a miss is the exact ask, sent by
+  the controller over the port; the fill is `connect`'s. Transport, decoders and both clients are unchanged.
+* **Not built:** the OPFS store (a miss goes to the downloader where the store worker would be asked first; it lives on
+  `claude/opfs-cache-fixes`), the cine's clock in the worker, a want protocol, a second viewport. A downloader whose
+  script does not load is reported on the page by name and fails `connect` at once (*corrected in review*, 2026-10-29:
+  this read that `connect` waited on the check's deadline, which it did until the page raced it against that error).
+
+**Held by** the viewer check, run by the gate under both views on both clients, filled with a cine and on demand
+(`client/viewer/run_check.sh`), by `client/view/controller.test.mjs`, and by `client/view/view.test.mjs` for the page half's failures. Each check was mutated and its mutant failed:
+
+| claim | check | mutant |
+| --- | --- | --- |
+| under `worker` no pixel, `SharedArrayBuffer` or port reaches the page, and the downloader posts it nothing | the check's count of the page's messages | the frame's pixels in `shown`; the downloader not linked |
+| a step to a held frame paints it and sends the downloader nothing | the check's `heldStep` at the port; the node test | a held frame asked anyway; a held step sending `check` |
+| a miss is asked of the downloader, from the view worker | the on-demand steps, heard at the port; the node test | a miss not asked |
+| every frame painted is exact | the check's exactness and readbacks | a sample altered in `htj2k.js` |
+| a window change paints again with no frame moving: no upload, nothing sent | the check's `windowStep` and its readback under another window; the node test | every paint uploads; a window change paints nothing |
+| a downloader whose script does not load fails `connect` at once | `view.test.mjs` | the page's error not rejecting `connect` |
+| `page` behaves as before | the viewer check and every other suite, green | — |
+
+**What each variant costs, counted from the code** (a frame decoded and acknowledged; the defaults' three decoders):
+
+| | `page` | `worker` |
+| --- | --- | --- |
+| messages a frame, whole graph | 4: decode, done, frame (decoder → page), ack | 4: decode, done, frame (decoder → view worker), ack |
+| … of them on the page's thread | 2: the frame in, the ack out | 0; a `progress` at most every 100 ms |
+| messages a paint | 2, both the page's: `paint`, `painted` | 1: `shown`, view worker → page |
+| a step | the paint's 2, plus the ask on a miss | `show` and `shown`; the ask, on a miss, leaves the view worker |
+| threads | 6: page, downloader, 3 decoders, paint worker | 6: page, downloader, 3 decoders, view worker |
+
+The gate's three-frame check, counted on the page's thread over its whole run (protocol, cine and readbacks
+included): `page` 5 frames in, 5 acks out, 12 paints out and 12 back; `worker` 0 frames, 1 `progress`, 8 `shown`.
+
+**What fought the shape.** The paint worker posted to its own global, so its `start` and `paint` now return and the
+entry posts; imported, its handler is replaced by the view worker's. The consumer made its own worker: it takes a
+`port`, ends a port by closing it, and the page triggers it forwarded are `watchPage`, exported. The downloader posted
+to its global; it now posts to whatever `link` names. The check read pixels on the page — the readbacks against the
+CPU reference, a spy on the client — so its half that needs frames runs beside the controller (`client/view/check.js`),
+and the total-time harness's frame hashes are the controller's `ledger()`. A drag starts from the frame's default
+window and only the frame knows it, so `shown` carries it; the canvas's CSS size is the page's, so a resize is an
+intent.
 
 ## 4 · OPFS, from the specs and the engines' sources
 
@@ -175,7 +236,7 @@ reopen is faster than a decode of the same frame on every set; otherwise the own
 
 ### A frame clock in the view worker (2026-10-28)
 
-*Theory and a pre-registered protocol; nothing built or timed.* The owner's next client shape: the page holds no
+*Theory and a pre-registered protocol; the harness built 2026-10-30 ([`../../lab/frame-clock/`](../../lab/frame-clock/README.md)) and smoke-run, nothing timed as a result.* The owner's next client shape: the page holds no
 frame; one dedicated **view worker**, started by the page, holds the frame store, a controller and the WebGL2 paint on a
 transferred `OffscreenCanvas`. How its frames reach the screen without the page is §2's last bullet; this section asks
 only **which clock** the worker can run cine on. Sources are pinned as in §9, plus MDN's compat data and page, all in
@@ -235,20 +296,21 @@ after its draw; Gecko and WebKit present it after the task (row (c)).
 At 4× the worker's own per-tick work counts: a 512² paint is 0.34 ms on a GPU (§3), but a 2560×3328 16-bit frame is 17 MB a
 `texImage2D`, not measured; if it passes the interval, every arm misses alike and the cell is the host's limit.
 
-**Protocol (pre-registered, not queued; nothing built).** Frames are in the view worker's memory before the clock
+**Protocol (pre-registered, not queued; built, not run).** Frames are in the view worker's memory before the clock
 starts: no network, no decode. Each frame is uploaded on its tick, as the paint worker does today.
 
 * **Cells:** {a 512×512 16-bit series of 76 frames, 12 frames of 2560×3328 16-bit} × {30, 60 frames/s} × {quiet page,
   §7's busy page} × {1×, 4× (`lab/scripts/cpu_throttle.mjs`, every thread)} × {Chromium, Firefox} = 32. WebKit only if
   its container has one: **this container has none, and no Firefox either** (only Chromium under `/opt/pw-browsers`);
-  the run row installs Firefox.
+  the run row installs Firefox. *Amended before any data (2026-10-30): Playwright's own Firefox 155 is installed beside
+  Chromium 153, and runs headed under `xvfb-run`; headless Firefox gives a worker no WebGL2 context.*
 * **Arms, interleaved by `lab/order.mjs`:** `page-raf` (the reference: the page's rAF posts each tick to the worker),
   `page-raf′` (its A/A copy), `page-interval` (today's cine, a page `setInterval`), `worker-raf` (Chromium, Firefox,
   WebKit when present), `worker-timeout`, `worker-channel`, `worker-wait`. Seven units: `order()`'s period is 14
   rounds, so **14 rounds**, 10 s of cine each (20 busy periods); each arm's settings printed.
-* **Measure, per run:** frame *i* is due at t₀ + *i*·T. It is **presented on its tick** if it is drawn in
+* **Measure, per run:** frame *i* is due at t₀ + *i*·T (*t₀ amended below*). It is **presented on its tick** if it is drawn in
   [due, due + T) and is not superseded before the display shows it. Chromium: presentation read from a CDP trace of
-  the worker's frame sink. Firefox and WebKit: the worker's draw log alone (tick time, index, draw end), a frame
+  the worker's frame sink. *Amended below, before any data: from the draw log in every engine.* Firefox and WebKit: the worker's draw log alone (tick time, index, draw end), a frame
   counted superseded when the next draw falls in the same display interval; **claims there are from draws, not
   presentation**, and say so. *Independent review (2026-10-29): only `worker-raf` logs a vsync time there; for the other
   arms the display interval's phase is not in the draw log, so it must be logged or the count bounded above by draws
@@ -260,6 +322,44 @@ starts: no network, no decode. Each frame is uploaded on its tick, as the paint 
 * **VOID:** a cell is VOID when `page-raf` and `page-raf′` differ by more than **2 % of frames due** (median of the
   per-round differences) or by **≥ 16.7 ms in gap p99**. A VOID cell is a design error, not one to re-run with more
   rounds (`../rig-limits.md`).
+
+**Amended before any data (2026-10-30), while building the harness.** The smoke rounds below are not data; each
+change is forced by the harness or by the review, and the original text above is kept.
+
+* **Every arm shows the frame due at its tick,** `floor((tick − t₀) / T)`, once, `page-interval` included. Today's cine
+  steps one frame a tick (`client/view/view.js`); after a 200 ms task that counts every later frame late, so the arms
+  would differ in stepping, not in clock, and the 40 % above already assumes frames skipped, not delayed.
+* **t₀ sits half a display interval before a vsync,** projected from a second worker's `requestAnimationFrame` that
+  paints nothing (`lab/frame-clock/phase.js`). With t₀ at an arbitrary phase, a vsync-locked clock whose paint is
+  longer than the rest of the interval is late on every frame: the first smoke round's A/A pair differed by tens of
+  points from the phase alone. With t₀ on a vsync, a display a hair off 60 Hz moved a vsync across the due times
+  within one run. Mid-interval leaves half an interval of drift.
+* **Presentation is scored from the draw log against that worker's vsync log in Chromium and Firefox alike,** not from a
+  CDP trace: no trace event of the worker's frame sink was named (independent review), and the second worker gives the
+  vsync phase every arm needs (the review's gap above). A frame is superseded when a later paint ends before the first
+  vsync after its own. **The claims are from draws, not presentation, in every engine,** and say so. In WebKit the
+  worker's rAF is a timer (row (a)), so it gives no phase there; the bound by paints closer than one interval applies.
+* **The guards read medians over rounds:** a cell is saturated when `page-raf`'s draw p99, median over rounds, exceeds
+  T/2; the rule's gap p99 ≤ 2T is the median over rounds. The text did not say which.
+
+**What a container can and cannot claim.** This container has 4 cores, no display and no GPU: Chromium paints on
+SwiftShader with headless Chromium's own BeginFrame source, Firefox on llvmpipe under Xvfb's vsync. So:
+
+* **every WebKit cell needs a WebKit**, and its claim is for Safari only from a Mac or an iPhone; a Linux WebKitGTK or
+  WPE build would run the code (its worker rAF is on by default there, row (a)) but not Safari's display path;
+* **the 2560×3328 cells need a GPU and a real display**: their per-tick cost is a 17 MB `texImage2D`, which on a
+  software rasteriser measures the rasteriser, and where the host saturates nothing is claimed by the protocol's own
+  guard;
+* **every presented-on-time claim needs a real display** for its vsync: Xvfb's and headless Chromium's are timers, and
+  neither shows a dropped frame. A container's cells can rank the arms against each other only where they do not
+  saturate, and say so; the 4× cells there slow the software rasteriser with the CPU, which a GPU would not be.
+
+**Smoke (2026-10-30), not data.** One round per arm and cell, 10 s each, to prove the harness end to end: Chromium 153
+on all 16 cells, Firefox 155 (Xvfb) on the eight 512² cells and one 2560×3328 cell; every run painted with no failure,
+and the 4× lever held on the page thread and a worker alike. **By the protocol's own guard this container saturates
+in every cell but 512² at 30/s on a quiet page at 1×**, in both engines, and in Chromium also on a busy page at 1×. Every 60/s cell, every 4× cell and every
+2560×3328 cell is past the host's limit here: nothing is claimed in them, and no other figure from the smoke is a
+result.
 
 **Rule, stated before any data.** Per engine: **the clock moves into the worker** with `worker-raf` if, in every
 non-VOID busy-page cell of the 512² series at 1× and 4×, it has ≥ 20 points fewer frames late than `page-raf` in ≥ 11

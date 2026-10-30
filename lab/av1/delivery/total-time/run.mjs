@@ -99,7 +99,7 @@ function variantOf(set, name) {
   if (name === "htj2k" || a.codec === "htj2k" || a.downloader) {
     // A layered HTJ2K series (lab/av1/decode/resolution-level): F prefixes, then F rests.
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
-    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion, initialWindow: a.initialWindow, viewer: a.viewer,
+    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion, initialWindow: a.initialWindow, viewer: a.viewer, view: a.view,
       opts: { decoder: { ...(a.openjph === "delivered" ? DELIVERED : a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // Decode pacing: the downloader's lab flag.
         ...(a.startOnNeed && { startOnNeed: true }),
@@ -115,7 +115,7 @@ function variantOf(set, name) {
   const entries = set.frames * (a.layers ?? 1);
   // A layer-major series decodes in lab/av1/delivery/bases-first' worker: the product's has no base entry.
   const worker = a.layers ? { decoderWorker: "/lab/av1/delivery/bases-first/decoder.js" } : a.worker && { decoderWorker: a.worker };
-  return { ext, entries, viewer: a.viewer, opts: { decoder, ...worker, ...(a.group && { groupLength: a.group, frameCount: entries }), ...(a.digests && { digests: a.digests }) },
+  return { ext, entries, viewer: a.viewer, view: a.view, opts: { decoder, ...worker, ...(a.group && { groupLength: a.group, frameCount: entries }), ...(a.digests && { digests: a.digests }) },
     truth: a.truth, previewTruth: a.previewTruth, congestion: a.congestion };
 }
 
@@ -125,7 +125,8 @@ const sets = readdirSync(path.join(ROOT, FRAMES)).filter((d) => existsSync(path.
 const VARIANTS = arg("--variants", null)?.split(",");
 for (const s of sets) s.variantNames = Object.keys(s.variants).filter((a) => !VARIANTS || VARIANTS.includes(a));
 for (const s of sets) for (const name of s.variantNames) {
-  const { viewer, codec } = s.variants[name];
+  const { viewer, codec, view } = s.variants[name];
+  if (view && !viewer) throw new Error(`${s.name} ${name}: "view" picks where the viewer holds its frames, so it needs "viewer"`);
   if (viewer && !["htj2k", "av1"].includes(codec)) throw new Error(`${s.name} ${name}: a viewer variant needs "codec": "htj2k" or "av1", not ${JSON.stringify(codec) ?? "none"}`);
 }
 
@@ -313,7 +314,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   const q = new URLSearchParams({ opts: JSON.stringify(a.opts), fill, after: AFTER, wt: `https://127.0.0.1:${relayPort}/`, hash: HASH,
     ...(orderName === "prio" ? { asks: need.join(",") } : {}), ...(MUTATE === "sample" ? { mutate: "sample" } : {}),
     // The viewer: the product's page on the variant's metadata, and both pages timed from navigation.
-    ...(a.viewer && { metadata: `/${FRAMES}/${set.name}/${a.viewer}` }), ...(arg("--origin") && { origin: arg("--origin") }) });
+    ...(a.viewer && { metadata: `/${FRAMES}/${set.name}/${a.viewer}` }), ...(a.view && { view: a.view }), ...(arg("--origin") && { origin: arg("--origin") }) });
   let r = null;
   const threads = {};
   try {

@@ -308,7 +308,10 @@ same decoders (`?opts=`), and `--origin navigation` times both pages from naviga
 harness's protocol (`hello`, the result's shape, each frame's SHA-256) through `lab/viewer/levers.js`, not its own code:
 `run.mjs --frames lab/.av1-work/from-dicom --sets ct_nlst --variants htj2k,viewer,av1,av1viewer --rounds 12
 --origin navigation`. A row's first frame is the viewer's first exact frame on screen. The reading is in
-[`docs/ARCHITECTURE.md`](../../../../docs/ARCHITECTURE.md) §The viewer.
+[`docs/ARCHITECTURE.md`](../../../../docs/ARCHITECTURE.md) §The viewer. A viewer variant with `"view": "worker"` opens
+the page with `?view=worker`, its frames held and painted in the view worker; two viewer variants that differ in
+`view` alone are interleaved like any others, which is how [`docs/adr/frame-path.md`](../../../../docs/adr/frame-path.md)
+§7 runs. Each frame's SHA-256 is then taken in the view worker, where the frame is.
 
 
 **Row DECODEPACE** sets the downloader's `followQueue` lab flag against today's pool on the delivered OpenJPH

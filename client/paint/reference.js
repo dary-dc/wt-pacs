@@ -4,10 +4,10 @@
  */
 import { tableShape, windowTable } from "./voi.js";
 
-/** RGBA, rows top-down, `width` × `height` device pixels; opaque black outside the image. */
-export function paintReference(frame, display, width, height, dpr = 1) {
-  const { width: w, height: h, components } = frame;
-  const v = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false, ...display.view };
+/** Device pixel (X, Y)'s centre as a source coordinate, or null outside the image. */
+export function toSource(frame, view, width, height, dpr = 1) {
+  const { width: w, height: h } = frame;
+  const v = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false, ...view };
   const quarter = ((v.rotate / 90) % 4 + 4) % 4;
   const turned = quarter % 2 === 1;
   const dw = turned ? h : w;
@@ -15,6 +15,21 @@ export function paintReference(frame, display, width, height, dpr = 1) {
   const s = (v.fit ? Math.min(width / dw, height / dh) : 1) * v.zoom;
   const ox = Math.floor((width - s * dw) / 2) + v.panX * dpr;
   const oy = Math.floor((height - s * dh) / 2) + v.panY * dpr;
+  return (X, Y) => {
+    let a = (X + 0.5 - ox) / s;
+    let b = (Y + 0.5 - oy) / s;
+    if (!(a >= 0 && a < dw && b >= 0 && b < dh)) return null;
+    if (v.flipH) a = dw - a;
+    if (v.flipV) b = dh - b;
+    // The display is the image turned clockwise by `quarter` quarter turns; undo it.
+    return [[a, b], [b, h - a], [w - a, h - b], [w - b, a]][quarter];
+  };
+}
+
+/** RGBA, rows top-down, `width` × `height` device pixels; opaque black outside the image. */
+export function paintReference(frame, display, width, height, dpr = 1) {
+  const { width: w, height: h, components } = frame;
+  const source = toSource(frame, display.view, width, height, dpr);
 
   const table = windowTable(frame, display);
   const { offset } = tableShape(frame);
@@ -27,13 +42,9 @@ export function paintReference(frame, display, width, height, dpr = 1) {
     for (let X = 0; X < width; X++) {
       const o = (Y * width + X) * 4;
       out[o + 3] = 255;
-      let a = (X + 0.5 - ox) / s;
-      let b = (Y + 0.5 - oy) / s;
-      if (!(a >= 0 && a < dw && b >= 0 && b < dh)) continue;
-      if (v.flipH) a = dw - a;
-      if (v.flipV) b = dh - b;
-      // The display is the image turned clockwise by `quarter` quarter turns; undo it.
-      const [x, y] = [[a, b], [b, h - a], [w - a, h - b], [w - b, a]][quarter];
+      const p = source(X, Y);
+      if (!p) continue;
+      const [x, y] = p;
       const tx = x - 0.5;
       const ty = y - 0.5;
       const x0 = Math.floor(tx);

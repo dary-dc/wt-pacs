@@ -8,6 +8,9 @@ const DEFAULT_TRANSPORT = "/client/transport/ts/dist/session.js";
 let TransportSession = null;
 
 const abs = () => performance.timeOrigin + performance.now();
+/** The page, or the view worker over the port the page links it to: docs/adr/frame-path.md §3, *Built*. */
+let consumer = null;
+const toConsumer = (m, transfer = []) => (consumer ?? globalThis).postMessage(m, transfer);
 
 let session = null;
 /** A third decoder helps on four cores, not on two: docs/ARCHITECTURE.md §Resources */
@@ -56,7 +59,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function fail(index, reason) {
   records.delete(index);
   wanted.delete(index);
-  postMessage({ kind: "failed", index, gen: generation, reason });
+  toConsumer({ kind: "failed", index, gen: generation, reason });
 }
 
 /** Asks come before fill frames; a frame already in hand moves up rather than being re-asked. */
@@ -174,7 +177,7 @@ function lose(d, reason) {
   decoders.splice(decoders.indexOf(d), 1);
   if (decoders.length > 0) return;
   decoderLoss = reason;
-  postMessage({ kind: "failed", index: -1, reason });
+  toConsumer({ kind: "failed", index: -1, reason });
   pump();
 }
 
@@ -204,7 +207,7 @@ function arrived(index, frame) {
   rec.stamps.mediaReads = session?.stats().mediaReads;
   if (!cfg.decode) {
     records.delete(index);
-    postMessage({ kind: "frame", index, gen: generation, pixels: frame.bytes, wireBytes: frame.bytes.length, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
+    toConsumer({ kind: "frame", index, gen: generation, pixels: frame.bytes, wireBytes: frame.bytes.length, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
     return;
   }
   rec.bytes = frame.bytes;
@@ -351,7 +354,7 @@ async function recycle() {
   adopt(next);
   reaskOwed();
   issueFill();
-  postMessage({ kind: "recycled" });
+  toConsumer({ kind: "recycled" });
 }
 
 /** A new session, then exactly what the records still owe: nothing that arrived is asked twice. */
@@ -366,7 +369,7 @@ async function resume() {
     try {
       await connect();
       reaskOwed();
-      return void postMessage({ kind: "resumed" });
+      return void toConsumer({ kind: "resumed" });
     } catch {
       await sleep(deadlines.redialMs);
     }
@@ -444,7 +447,7 @@ function spawn() {
       onDone(d);
     }
   };
-  postMessage({ kind: "pixel-port", port: ch.port2, decoder: d.id }, [ch.port2]);
+  toConsumer({ kind: "pixel-port", port: ch.port2, decoder: d.id }, [ch.port2]);
   return d;
 }
 
@@ -545,7 +548,9 @@ async function live() {
 for (const ev of ["online", "offline"]) addEventListener(ev, watch);
 navigator.connection?.addEventListener?.("change", watch);
 
-onmessage = async (e) => {
+onmessage = (e) => (e.data.kind === "link" ? ((consumer = e.data.port).onmessage = command) : command(e));
+
+async function command(e) {
   const m = e.data;
   const gen = generation;
   try {
@@ -553,7 +558,7 @@ onmessage = async (e) => {
     if (m.kind === "dial") {
       dial = { url: m.url, certHash: m.certHash };
       await firstDial();
-      return void postMessage({ kind: "started" });
+      return void toConsumer({ kind: "started" });
     }
     if (m.kind === "ask") {
       const s = await live();
@@ -588,19 +593,19 @@ onmessage = async (e) => {
       } catch {
         /* a dead session has no stream to end */
       }
-      return void postMessage({ kind: "cancelled", gen: generation });
+      return void toConsumer({ kind: "cancelled", gen: generation });
     }
     if (m.kind === "close") {
       closed = true;
       clearTimeout(stall);
       session?.close();
       // The decoders end with this worker; ending them here first can strand it. docs/ARCHITECTURE.md §Closing a client
-      return void postMessage({ kind: "closed", reason: "closed by the consumer" });
+      return void toConsumer({ kind: "closed", reason: "closed by the consumer" });
     }
   } catch (err) {
     const reason = String(err?.message ?? err);
     // Index -1 is the start failing; an ask or a fill names its own frames, in its own generation.
-    if (m.kind !== "ask" && m.kind !== "fill") return void postMessage({ kind: "failed", index: -1, reason });
+    if (m.kind !== "ask" && m.kind !== "fill") return void toConsumer({ kind: "failed", index: -1, reason });
     if (gen === generation) for (const index of m.indices ?? [m.index]) fail(index, reason);
   }
-};
+}
