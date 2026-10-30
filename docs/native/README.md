@@ -19,6 +19,7 @@ because it is easier to start there; phones are the goal (the owner, 2026-10-10)
 8. [The headless core on raw QUIC: the design](#8-the-headless-core-on-raw-quic-the-design)
 9. [Sources](#9-sources)
 10. [The view-worker design, native (2026-10-29)](#the-view-worker-design-native-2026-10-29)
+11. [Parity with the browser core (2026-10-30)](#parity-with-the-browser-core-2026-10-30)
 
 ## 1. The plan in plain words
 
@@ -966,3 +967,38 @@ relay cells, the 1-core pinning, the saturation guard from `/proc`, peak RSS (`V
 window runs until closed, so the runner sends Escape or ends it after its last step); the times metrics 1 and 5 read
 — dial to the last frame exact, and the inter-arrival p99 — which the window does not print (`Event::Frame`'s `at`
 holds the arrival); the synthetic 3328 × 4096 16-frame series, and the 1024² and 512² HTJ2K series packed for it.
+
+## Parity with the browser core (2026-10-30)
+
+*On `claude/native-parity`. The owner's scope: the "basic" shape (§7, decision 2) and the simple cine
+([`../adr/frame-path.md`](../adr/frame-path.md) §The core, assembled) — parity means the browser core's functions, not
+a richer viewer. The browser client is unchanged. Nothing here is timed.*
+
+### The table
+
+One row a capability; "browser" is the core as `client/viewer/` and `client/view/` build it, "native" is
+`native-window` on every paint thread unless the row says otherwise; the last column is the test that proves the
+native side. A row reading *not yet* is open.
+
+| capability | browser | native | proved by |
+| --- | --- | --- | --- |
+| survive a dead path: no stream byte for `stallMs` while frames are owed, the wait doubled by each stall | `downloader.js` `watch`, 3 s | `resume.rs`, 3 s, on the count of STREAM frames received | `resume::tests::a_slow_frame_is_not_a_stall_and_idle_is_not_silence`, `view::tests::a_silent_path_is_resumed_and_the_fill_completes` |
+| re-dial: `tries` 5, `redialMs` 1 s apart, each dial within `dialMs` 5 s; the count reset by a frame | `resume` | `ResumingSession::resume` | `resume::tests::a_session_that_cannot_be_redialled_is_lost_then_dialled_afresh` |
+| re-ask what is owed, nothing that arrived | `reaskOwed` | `Asking::resumed`: the owed frames back at the want's head, in the order asked | `view::tests::a_resume_asks_again_for_what_was_owed` |
+| every re-dial failed: what is owed fails by name; the next ask dials afresh | `resume`, `live` | `Heard::Lost`, `Asking::lost` | `view::tests::a_lost_session_fails_what_it_owed`, the resume test above |
+| end a fill no longer wanted | `cancel` sends `end_stream` | `Wire::End` once the want holds none of the fill's owed frames, and when the view closes | `view::tests::a_fill_the_want_has_left_is_ended`, `view::tests::a_view_that_closes_mid_fill_ends_the_fill` |
+
+### Where it departs
+
+* **Silence is counted in STREAM frames, not bytes.** quinn's `ConnectionStats::frame_rx.stream` moves whenever a
+  stream frame of any envelope arrives, which is the browser's `lastByteAt` at frame granularity; a 256 KiB frame over
+  a relay passing a packet each 10 ms takes several stalls' length and is not condemned.
+* **The clock also restarts at each event handed on**, since a full credit window stops the session's readers and
+  with them the wire: the downloader's own back-pressure is not silence.
+* **`native-fill` stays single-session.** It measures one session's timing; a re-dial would fold two into one row.
+  Its loss stays fatal.
+* **Under `--paint-thread ui`** the loader resumes by the same records (`Asking`) and `ResumingSession`; no test drives
+  that loop through a dead path — the view and core paint threads' downloader is the one tested.
+* **No recycle.** The browser's recycle before a byte budget (`recycleAtBytes`) is a lab setting there, off by
+  default; not built.
+

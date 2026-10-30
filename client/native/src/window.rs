@@ -9,9 +9,10 @@ use native_client::clock::{Busy, Cine};
 use native_client::count::{self, Sent};
 use native_client::decode::Decoder;
 use native_client::paint::{Display, Frame, Function, Painter, Photometric, View, Voi};
-use native_client::transport::{cert_hash, dial, dial_bounded, Event, Windows};
+use native_client::resume::{Deadlines, Heard, ResumingSession};
+use native_client::transport::{cert_hash, Event, Windows};
 use native_client::verify::{digests, exact, Exact};
-use native_client::view::{decoders, download, Decoded, Store};
+use native_client::view::{decoders, download, Asking, Decoded, Store, Wire};
 use serde_json::{json, Value};
 use std::future::Future;
 use std::path::PathBuf;
@@ -413,7 +414,7 @@ impl App {
         let view = Viewer { gpu, series: s.clone(), look: self.look, store: Store::new(a.budget), frame_bytes, want, notes: self.proxy.clone(), cine };
         let (url, hash, asks) = (a.url.clone(), cert_hash(&a.cert_sha256)?, a.asks);
         let downloading = async move {
-            let session = dial_bounded(&url, hash, &Windows::default(), 1).await?;
+            let session = ResumingSession::open(&url, hash, Windows::default(), 1, Deadlines::default()).await?;
             download(session, wanted, jobs, finished, cache, asks).await
         };
         let viewing = view.run(inbox, frames);
@@ -628,11 +629,25 @@ async fn load(args: Args, metadata: String, count: usize, proxy: EventLoopProxy<
         }
         None => None,
     };
-    let mut session = dial(&args.url, cert_hash(&args.cert_sha256)?, &Windows::default()).await?;
-    session.fill(0, count as u32 - 1).await?;
-    for _ in 0..count {
-        match session.next().await.context("the session ended with frames owed")?? {
-            Event::Frame { index, body, .. } => {
+    let held = tokio::sync::Semaphore::MAX_PERMITS;
+    let mut session = ResumingSession::open(&args.url, cert_hash(&args.cert_sha256)?, Windows::default(), held, Deadlines::default()).await?;
+    let mut asking = Asking::new(args.asks);
+    asking.want((0..count as u32).collect());
+    loop {
+        while let Some(wire) = asking.next(|_| false) {
+            match wire {
+                Wire::Fill(from, to) => session.fill(from, to).await?,
+                Wire::Ask(index) => session.ask(index).await?,
+                Wire::End => session.end_stream().await?,
+                Wire::Cached(_) => unreachable!("nothing is on disk"),
+            }
+        }
+        if asking.finished() {
+            break;
+        }
+        match session.next(asking.owed()).await? {
+            Heard::Event(Event::Frame { index, body, .. }) => {
+                asking.arrived(index);
                 count::copy(index, decoder.copies());
                 let checked = decoder.decode(&body).map(|s| (exact(&s, digests.as_ref().and_then(|d| d.get(index as usize).copied())), s));
                 match checked {
@@ -646,8 +661,18 @@ async fn load(args: Args, metadata: String, count: usize, proxy: EventLoopProxy<
                     }
                     Err(e) => println!("frame={index} exact=false reason={e:#}"),
                 }
+                asking.done(index, false);
             }
-            Event::Refused { frame, reason } => println!("frame={frame} refused={reason:?}"),
+            Heard::Event(Event::Refused { frame, reason }) => {
+                println!("frame={frame} refused={reason:?}");
+                asking.refused(frame);
+            }
+            Heard::Resumed => asking.resumed(),
+            Heard::Lost(reason) => {
+                for frame in asking.lost() {
+                    println!("frame={frame} exact=false reason={reason:?}");
+                }
+            }
         }
     }
     session.close();

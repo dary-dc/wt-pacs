@@ -98,8 +98,22 @@ impl Session {
         event
     }
 
+    /// Ends a running fill. `docs/WIRE.md` §FoD messages.
+    pub async fn end_stream(&mut self) -> Result<()> {
+        self.send(&FodMsg::EndStream).await
+    }
+
     pub fn close(&self) {
         self.connection.close(0u32.into(), b"done");
+    }
+
+    pub fn closed(&self) -> bool {
+        self.connection.close_reason().is_some()
+    }
+
+    /// STREAM frames received so far: it moves while any frame's bytes arrive, however slowly.
+    pub fn stream_frames(&self) -> u64 {
+        self.connection.stats().frame_rx.stream
     }
 
     async fn send(&mut self, msg: &FodMsg) -> Result<()> {

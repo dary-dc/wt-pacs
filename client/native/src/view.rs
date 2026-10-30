@@ -5,9 +5,10 @@
 use crate::cache::Cache;
 use crate::count::{self, Sent};
 use crate::decode::Decoder;
-use crate::transport::{Event, Session};
+use crate::resume::{Heard, ResumingSession};
+use crate::transport::Event;
 use crate::verify::{exact, Exact};
-use anyhow::{bail, Result};
+use anyhow::Result;
 use bytes::Bytes;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -39,6 +40,8 @@ pub enum Wire {
     Fill(u32, u32),
     Ask(u32),
     Cached(u32),
+    /// `end_stream`: the running fill owes nothing the want still has.
+    End,
 }
 
 /// The downloader's records: the want, newest first replacing the last, and what is owed against it.
@@ -67,6 +70,11 @@ impl Asking {
     /// up to `depth`; a frame `on_disk` goes to a decoder instead. Any message ends a running fill on the server, so
     /// its frames not yet here stop being owed. `docs/WIRE.md` §An ask during a fill.
     pub fn next(&mut self, on_disk: impl Fn(u32) -> bool) -> Option<Wire> {
+        if let Some((from, to)) = self.fill.filter(|&(from, to)| !self.want.iter().any(|i| (from..=to).contains(i))) {
+            self.fill = None;
+            self.asked.retain(|i| !(from..=to).contains(i));
+            return Some(Wire::End);
+        }
         let misses: Vec<u32> = self.want.iter().copied().filter(|i| !self.asked.contains(i) && !self.decoding.contains(i)).collect();
         let (&first, &last) = (misses.first()?, misses.last()?);
         if on_disk(first) {
@@ -122,12 +130,37 @@ impl Asking {
     pub fn idle(&self) -> bool {
         self.asked.is_empty() && self.decoding.is_empty()
     }
+
+    pub fn owed(&self) -> bool {
+        !self.asked.is_empty()
+    }
+
+    /// A new session owes nothing: what the old one owed goes back to the head of the want, in the order asked.
+    pub fn resumed(&mut self) {
+        self.fill = None;
+        let owed = std::mem::take(&mut self.asked);
+        self.want.retain(|i| !owed.contains(i));
+        self.want.splice(0..0, owed);
+    }
+
+    /// The session is lost for good: what it owed fails, by index.
+    pub fn lost(&mut self) -> Vec<u32> {
+        self.fill = None;
+        let owed = std::mem::take(&mut self.asked);
+        self.want.retain(|i| !owed.contains(i));
+        owed
+    }
+
+    /// Nothing wanted and nothing owed or decoding.
+    pub fn finished(&self) -> bool {
+        self.want.is_empty() && self.idle()
+    }
 }
 
 /// Runs until the view drops `want` and nothing is owed. `jobs` holds `K` coded frames; while it is full the session
 /// is not read, so its stream readers stop and QUIC's windows reach the server.
 pub async fn download(
-    mut session: Session,
+    mut session: ResumingSession,
     mut want: watch::Receiver<Vec<u32>>,
     jobs: mpsc::Sender<Sent<Job>>,
     mut done: mpsc::UnboundedReceiver<Sent<Done>>,
@@ -143,6 +176,7 @@ pub async fn download(
                 Some(Wire::Fill(from, to)) => session.fill(from, to).await?,
                 Some(Wire::Ask(index)) => session.ask(index).await?,
                 Some(Wire::Cached(index)) => pending = Some(Job { index, coded: None }),
+                Some(Wire::End) => session.end_stream().await?,
                 None => break,
             }
         }
@@ -151,10 +185,14 @@ pub async fn download(
             session.close();
             return Ok(());
         }
+        let owed = asking.owed();
         tokio::select! {
             changed = want.changed(), if viewing => match changed {
                 Ok(()) => asking.want(want.borrow_and_update().clone()),
-                Err(_) => viewing = false,
+                Err(_) => {
+                    viewing = false;
+                    asking.want(Vec::new());
+                }
             },
             permit = jobs.reserve(), if pending.is_some() => permit?.send(Sent::now(pending.take().expect("pending"))),
             Some(d) = done.recv() => {
@@ -162,17 +200,21 @@ pub async fn download(
                 count::hop(d.index);
                 asking.done(d.index, d.refetch);
             }
-            event = session.next(), if pending.is_none() => match event {
-                Some(Ok(Event::Frame { index, body, .. })) => {
+            heard = session.next(owed), if pending.is_none() => match heard? {
+                Heard::Event(Event::Frame { index, body, .. }) => {
                     late += usize::from(!asking.arrived(index));
                     pending = Some(Job { index, coded: Some(body) });
                 }
-                Some(Ok(Event::Refused { frame, reason })) => {
+                Heard::Event(Event::Refused { frame, reason }) => {
                     println!("failed scope=frame frame={frame} reason={reason:?}");
                     asking.refused(frame);
                 }
-                Some(Err(e)) => return Err(e),
-                None => bail!("the session ended with frames owed"),
+                Heard::Resumed => asking.resumed(),
+                Heard::Lost(reason) => {
+                    for frame in asking.lost() {
+                        println!("failed scope=frame frame={frame} reason={reason:?}");
+                    }
+                }
             },
         }
     }
@@ -286,7 +328,9 @@ impl Store {
 mod tests {
     use super::*;
     use crate::transport::tests::{serve, temp_dir, until_up};
-    use crate::transport::{dial_bounded, Windows};
+    use crate::resume::tests::{quick, Relay};
+    use crate::resume::Deadlines;
+    use crate::transport::Windows;
     use std::path::Path;
     use std::time::Duration;
 
@@ -399,6 +443,59 @@ mod tests {
         assert!(matches!(asking.next(|_| false), Some(Wire::Ask(1))));
     }
 
+    /// **A resume owes again what the lost session owed.** The fill's frames not yet here and the asks on the wire go
+    /// back to the head of the want, in the order asked, and are sent again on the new session; a frame that arrived
+    /// is not asked twice.
+    #[test]
+    fn a_resume_asks_again_for_what_was_owed() {
+        let mut asking = Asking::new(4);
+        asking.want(vec![0, 1, 2, 3]);
+        assert!(matches!(asking.next(|_| false), Some(Wire::Fill(0, 3))));
+        assert!(asking.arrived(0));
+        asking.done(0, false);
+        asking.resumed();
+        assert!(!asking.owed(), "the new session was taken to owe the old one's frames");
+        assert!(matches!(asking.next(|_| false), Some(Wire::Fill(1, 3))));
+
+        let mut asking = Asking::new(2);
+        asking.want(vec![5, 2, 7]);
+        assert!(matches!(asking.next(|_| false), Some(Wire::Ask(5))));
+        assert!(matches!(asking.next(|_| false), Some(Wire::Ask(2))));
+        asking.resumed();
+        let mut sent = Vec::new();
+        while let Some(Wire::Ask(i)) = asking.next(|_| false) {
+            sent.push(i);
+        }
+        assert_eq!(sent, [5, 2], "the owed asks were not sent again first, in their order");
+    }
+
+    /// **A fill the want has left is ended.** Once the want holds none of the running fill's frames still owed, the
+    /// next message is `end_stream` and those frames are owed no longer; a want that keeps one of them keeps the fill.
+    /// Dropping the want, as a closing view does, ends it too.
+    #[test]
+    fn a_fill_the_want_has_left_is_ended() {
+        let mut asking = Asking::new(4);
+        asking.want(vec![0, 1, 2, 3]);
+        assert!(matches!(asking.next(|_| false), Some(Wire::Fill(0, 3))));
+        asking.want(vec![3]);
+        assert!(asking.next(|_| false).is_none(), "a fill that still serves the want was ended");
+        asking.want(vec![]);
+        assert!(matches!(asking.next(|_| false), Some(Wire::End)));
+        assert!(!asking.owed() && asking.next(|_| false).is_none());
+        assert!(!asking.arrived(2), "a frame of the ended fill was still owed");
+    }
+
+    /// A session lost for good fails what it owed, each by index, and owes nothing after.
+    #[test]
+    fn a_lost_session_fails_what_it_owed() {
+        let mut asking = Asking::new(4);
+        asking.want(vec![4, 6]);
+        assert!(matches!(asking.next(|_| false), Some(Wire::Ask(4))));
+        assert!(matches!(asking.next(|_| false), Some(Wire::Ask(6))));
+        assert_eq!(asking.lost(), [4, 6]);
+        assert!(asking.finished());
+    }
+
     /// Over the budget the store drops the frame farthest from the one shown, never that one, and never a frame
     /// not yet written; a frame it already holds is not taken twice; its want is the nearest frames it has room for.
     #[test]
@@ -500,8 +597,7 @@ mod tests {
         let frames: Vec<&[u8]> = coded.iter().map(|c| &c[..]).collect();
         series_bundle::write_bundle(&bundle, metadata.as_bytes(), &frames).unwrap();
         let (url, hash) = serve(&dir, &bundle, "per-frame").await;
-        let windows = Windows::default();
-        let session = until_up(|| dial_bounded(&url, hash, &windows, 1)).await;
+        let session = until_up(|| ResumingSession::open(&url, hash, Windows::default(), 1, Deadlines::default())).await;
         let (jobs, queued) = mpsc::channel(2);
         let (decoded, mut received) = mpsc::channel(2);
         let (done, finished) = mpsc::unbounded_channel();
@@ -517,6 +613,62 @@ mod tests {
         drop(want);
         tokio::time::timeout(Duration::from_secs(10), downloader).await.expect("the downloader still owes frames").unwrap().unwrap();
         assert!((0..12).all(|i| store.get(i).is_some()));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **A silent path is resumed and the fill completes.** The relay goes silent for every path open once the fill
+    /// is asked; after `stall` with frames owed and no stream frame received, the downloader re-dials through the
+    /// relay and asks again for what is owed: each of the twelve frames reaches the store once and exact.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_silent_path_is_resumed_and_the_fill_completes() {
+        let (metadata, coded) = series(12);
+        let dir = temp_dir("view-resume");
+        let bundle = dir.join("series.sbnd");
+        let frames: Vec<&[u8]> = coded.iter().map(|c| &c[..]).collect();
+        series_bundle::write_bundle(&bundle, metadata.as_bytes(), &frames).unwrap();
+        let (url, hash) = serve(&dir, &bundle, "per-frame").await;
+        let relay = Relay::to(&url).await;
+        let session = until_up(|| ResumingSession::open(&relay.url, hash, Windows::default(), 1, quick())).await;
+        relay.cut();
+        let (jobs, queued) = mpsc::channel(2);
+        let (decoded, mut received) = mpsc::channel(2);
+        let (done, finished) = mpsc::unbounded_channel();
+        decoders(3, &metadata, digests(&metadata), None, queued, decoded, done).unwrap();
+        let (want, wanted) = watch::channel((0..12).collect());
+        let downloader = tokio::spawn(download(session, wanted, jobs, finished, None, 4));
+        let mut store = Store::new(usize::MAX);
+        for _ in 0..12 {
+            let f = tokio::time::timeout(Duration::from_secs(10), received.recv()).await.expect("a frame stalled").unwrap().received("decoded");
+            assert_eq!(f.exact, Exact::True, "frame {}", f.index);
+            assert!(store.put(f.index, f.samples.unwrap(), f.written, 0), "frame {} taken twice", f.index);
+        }
+        drop(want);
+        tokio::time::timeout(Duration::from_secs(10), downloader).await.expect("the downloader still owes frames").unwrap().unwrap();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **A view that closes mid-fill ends the fill.** With the path gone silent under a running fill, dropping the want
+    /// sends `end_stream` and the downloader ends at once, owing nothing: it neither waits out the stall nor re-dials.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_view_that_closes_mid_fill_ends_the_fill() {
+        let (metadata, coded) = series(12);
+        let dir = temp_dir("view-end");
+        let bundle = dir.join("series.sbnd");
+        let frames: Vec<&[u8]> = coded.iter().map(|c| &c[..]).collect();
+        series_bundle::write_bundle(&bundle, metadata.as_bytes(), &frames).unwrap();
+        let (url, hash) = serve(&dir, &bundle, "per-frame").await;
+        let relay = Relay::to(&url).await;
+        let session = until_up(|| ResumingSession::open(&relay.url, hash, Windows::default(), 1, quick())).await;
+        let dialled = relay.paths();
+        relay.cut();
+        let (jobs, _queued) = mpsc::channel(2);
+        let (_done, finished) = mpsc::unbounded_channel();
+        let (want, wanted) = watch::channel((0..12).collect());
+        let downloader = tokio::spawn(download(session, wanted, jobs, finished, None, 4));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        drop(want);
+        tokio::time::timeout(quick().stall, downloader).await.expect("the closed view's fill was still owed").unwrap().unwrap();
+        assert_eq!(relay.paths(), dialled, "the closed view's session was re-dialled");
         std::fs::remove_dir_all(&dir).ok();
     }
 }
