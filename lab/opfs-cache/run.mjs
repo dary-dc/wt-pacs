@@ -526,7 +526,7 @@ async function m5(busy) {
   const server = await serve(s);
   const names = MUTANT ? [arg("--arm")] : busy ? ["ring", "ring2", "transfer", "transfer-k"] : Object.keys(M5_ARMS);
   const arms = Object.fromEntries(names.map((k) => [k, busy ? { ...M5_ARMS[k], query: { ...M5_ARMS[k].query, holdMs: BUSY_MS } } : M5_ARMS[k]]));
-  settings({ series: s, decodedMiB: (s.n * s.frameBytes) / 2 ** 20, window: "256 MiB", link: "loopback, no relay", K, arms, firstRound: FIRST_ROUND });
+  settings({ series: { ...s, sbnd: path.relative(ROOT, s.sbnd) }, decodedMiB: (s.n * s.frameBytes) / 2 ** 20, window: "256 MiB", link: "loopback, no relay", K, arms, firstRound: FIRST_ROUND });
   for (let round = FIRST_ROUND; round < ROUNDS; round++) {
     for (const arm of order(names, round)) {
       const a = arms[arm];
