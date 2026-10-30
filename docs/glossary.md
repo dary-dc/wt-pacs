@@ -47,6 +47,20 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | client | an implementation of the transport (`transport-ts`, `transport-wasm`, the WebSocket one) |
 | Tap | the client's telemetry recorder, outside the product build ([`adr/telemetry-instrument-clients-from-outside.md`](adr/telemetry-instrument-clients-from-outside.md)) |
 
+## Ingest and the PACS
+
+| name | is |
+| --- | --- |
+| PCS | the hospital-side component, another team's: it receives DICOM, parses, encodes and sends packages to the PACS |
+| package | one file the PCS sends: a series, an addition or an update, as a pax tar named `<unit>.<revision>.<xxh3-64>.tar` ([`adr/pacs-receiver.md`](adr/pacs-receiver.md) §2) |
+| addition | a package of a stored series' late instances, merged at the PACS into the series' one bundle ([`adr/pacs-receiver.md`](adr/pacs-receiver.md) §5) |
+| group file | the parser's file of one level's attributes: exam, series, instance or private ([`ingest/contract.md`](ingest/contract.md#group-files)); never the decoder's group above |
+| revision | the n of a package's (unit, revision): a unit's packages are applied in order, each the next; never *generation*, which is a request's |
+| study DB | one SQLite file per study at the PACS, a table per level holding its group files, and an audit table; never served to a client |
+| receiver | the PACS's program that takes a package from `incoming/` to the serving tree and writes its status ([`adr/pacs-receiver.md`](adr/pacs-receiver.md) §3) |
+| status | the receiver's one-line answer for the carrier: `stored`, `refused <why>` or `quarantined <why>` |
+| quarantine | where a package goes that failed twice with the same content, or conflicts with a stored revision: an operator's, never resent |
+
 ## Testing and measuring
 
 | name | is |

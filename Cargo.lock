@@ -554,6 +554,13 @@ name = "frame-envelope"
 version = "0.1.0"
 
 [[package]]
+name = "from-disk"
+version = "0.1.0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "from-parser"
 version = "0.1.0"
 dependencies = [
@@ -1133,6 +1140,21 @@ dependencies = [
  "clap",
  "serde_json",
  "series-bundle",
+]
+
+[[package]]
+name = "pacs-receiver"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "from-disk",
+ "libc",
+ "rusqlite",
+ "serde_json",
+ "series-bundle",
+ "tar",
+ "xxhash-rust",
+ "zstd",
 ]
 
 [[package]]

@@ -2,11 +2,13 @@
 members = [
     "common/fod",
     "common/frame-envelope",
+    "common/from-disk",
     "common/series-bundle",
     "server",
     "client/transport/wasm",
     "tools/pack-series",
     "ingest/from-parser",
+    "ingest/receiver",
     "tools/check-fastpath",
     "lab/disk-access-bench",
     "lab/container-bench",
@@ -21,9 +23,11 @@ default-members = [
     "common/fod",
     "common/frame-envelope",
     "common/series-bundle",
+    "common/from-disk",
     "server",
     "tools/pack-series",
     "tools/check-fastpath",
+    "ingest/receiver",
 ]
 resolver = "2"
 
