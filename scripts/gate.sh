@@ -176,6 +176,8 @@ step "server: compiles with cert-compression"
 run 1 cargo check -p series-server --features cert-compression --all-targets --quiet
 step "carrier: the resumable upload, mutual TLS, refusals, and the PCS's script through a proxy that cuts and stalls"
 run 1 cargo test -p carrier --quiet
+step "sender: the package build from an exam tree, and the sender through the carrier and the PCS's script"
+run 1 cargo test -p sender --quiet
 step "carrier: the same upload over the experimental HTTP/3 listener"
 run 1 cargo test -p carrier --features quic --quiet
 step "common, ingest and tools: wire, envelope, reads from disk, series bundle, study DB, pack-series, check-fastpath and pacs-verify"

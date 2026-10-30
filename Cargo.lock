@@ -1712,6 +1712,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sender"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "carrier",
+ "clap",
+ "rcgen 0.13.2",
+ "rustls",
+ "tar",
+ "tokio",
+ "tokio-rustls",
+ "xxhash-rust",
+ "zstd",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.229"
 source = "registry+https://github.com/rust-lang/crates.io-index"
