@@ -735,7 +735,10 @@ every frame checks bit-exact against the bundle and its digest, and one frame no
   saturating cell, which claims only which arm degrades least (below). Windows 6 MiB stream, 15 MiB connection, in
   every arm.
 * **Metrics, one per cell** (latency or throughput, not both):
-  1. *Fill*: dial to the last frame exact (N0–N2, B).
+  1. *Fill*: dial to the last frame exact (N0–N2, B). N1 and N2 run it with a `--budget` that holds the decoded
+     series: their want is the frames the budget holds around the one shown, and the default 64 MiB holds 32 of the
+     1024² series' 37 (*corrected in independent review (2026-10-30)*: no budget was named, and at 64 MiB the fill
+     never reaches its last frame).
   2. *First exact frame on screen*: dial to frame 0 at metric 3's endpoint (N0–N2, B).
   3. *Ask, painted*: step to the GPU queue drained (`on_submitted_work_done`, new code in every native arm; the
      browser's 1-pixel read, which `paint-worker.js` runs on every paint today, moved behind the lab flag on
@@ -754,9 +757,13 @@ every frame checks bit-exact against the bundle and its digest, and one frame no
      (N0, N1 and N2; B for reference) (*corrected in methodology review (2026-10-29)*).
   6. *Memory*: peak RSS of the 3328 × 4096 fill with the cache's writes slowed by a lever `NATIVEBUILD` adds to
      `cache.rs` in every arm, budget 64 MiB, K = 4 (this section's choices). The bound N1 and N2 are held to is
-     budget + K decoded frames + K coded frames + `N` decoders' `i32` scratch (4 bytes a sample) + the 15 MiB
-     connection window; N0 holds the series, 436 MB (*corrected in methodology review (2026-10-29)*: "budget + K
-     frames" alone is below what the decoders hold).
+     budget + K decoded frames + K coded frames + `N` decoded frames sent and not yet written + `N` decoders'
+     `i32` scratch (4 bytes a sample) + the 15 MiB connection window; N0 holds the series, 436 MB (*corrected in
+     methodology review (2026-10-29)*: "budget + K frames" alone is below what the decoders hold; *corrected in
+     independent review (2026-10-30)*: a decoder writes after its send holding no credit, and the store evicts only
+     once written, so up to `N` frames sit in the store past the budget — derived from the code, not measured).
+     *Open, found in independent review (2026-10-30)*: at 64 MiB N1's and N2's want is two of these frames, so
+     they fetch two and stop; "the fill" needs a drive through the series (steps or the cine), fixed before data.
   7. *Counts*: messages and copies per frame from counters in each arm, against the table above; a hop's send →
      receive stamp, median and p99.
 * **Interleaving and A/A.** Per cell, the four arms in a Williams square (4 sequences, each 3 times = 12 rounds),
@@ -834,7 +841,9 @@ native branches are merged in (#206 painter, #209 cache, #216 window, #218 fill 
   `current_thread` runtime holding quinn and the records, `N` decoders, the view thread — `N + 3`. The want is a
   `watch`; coded frames wait in a channel of `K`, and the session's readers stop at one unread event; a decoder takes
   a credit (room in the view's channel of `K`) before it takes a job, sends the frame, then writes, then sends
-  `done {i, refetch}`. The store is a byte budget (`--budget`, 64 MiB) evicting farthest-first, only once written.
+  `done {i, refetch}`. The store is a byte budget (`--budget`, 64 MiB) evicting farthest-first, only once written; at equal distance the
+  earlier frame, as the want ranks it last (*corrected in independent review (2026-10-30)*: the tie went to the later
+  frame, so the frame the want had just fetched was the one evicted on arrival).
 * **`core`** (N2): the same two loops as two futures on one `current_thread` runtime on the core thread — `N + 2`.
   Its present is `Mailbox` or `Immediate`; a surface with neither refuses to start.
 
@@ -847,7 +856,8 @@ paint thread the lab's two levers this section asked for: `--cache-write-delay-m
 two-frame budget over a cold and then a warm cache: every paint read back equals the CPU reference (0 at 1:1, ≤ 1
 fitted) and every painted frame's samples hash to their digest — a check the reference alone misses, since a mutant
 storing each frame under the next index paints at |Δ| 0. `view::tests`, each mutated and the mutant failing: the
-ordered want reaches the wire in order; an ascending want is one fill and an ask ends it; the store's eviction; credits
+ordered want reaches the wire in order; an ascending want is one fill and an ask ends it; the store's eviction, and
+at equal distance what the want ranks last, never the frame shown (added in independent review (2026-10-30)); credits
 bound the frames the view has not received; the cache write lands after the view has the frame; twelve frames over
 raw QUIC reach the store once each and the downloader ends owing none.
 
@@ -876,3 +886,24 @@ Two copies because AV1 merges into `out` first; HTJ2K makes one. With the two-fr
 * **Not built:** the re-ask when a decoder thread dies (its record stays); the cine and its frame clock (the window
   has none); a phone, a display's vblank, macOS's off-UI-thread present.
 * **The check's Xvfb** runs `-noreset`: without it the display was gone after the `view` window's close.
+
+### Independent review (2026-10-30)
+
+*Of `claude/native-view` (#247) at `141f66e`, against §The mapping as reviewed; on `claude/native-view-review`.*
+
+* **Checked, holds.** The ordered want goes out as one fill only when ascending with nothing owed, else asks in the
+  want's order up to `--asks`; a decoder takes its credit before its job, so decoded frames the view has not received
+  never pass K; the frame reaches the view before the write, `written` turns true after it, and the store evicts only
+  written frames and never the one shown; the four departures above are what the code does. `view::tests` pass
+  (`--features decode`, which the gate's decode step sets and plain `cargo test -p native-client` skips); 10 of 11
+  mutants failed them — the survivor, evicting the frame shown, now fails the test added for it — and
+  `client/paint/window.mjs` passes on every paint thread.
+* **Fixed.** The store's tie-break (above), with a test whose mutant fails.
+* **Corrected before data.** Metric 6's bound omitted the `N` unwritten frames; metric 1 named no budget.
+* **Not built, and NATIVERUN needs it.** The cine and its frame clock (metrics 4 and 5), the busy-UI loop and the
+  steps injected off the UI thread (metric 4), a hop's send → receive stamp (metric 7), metric 6's drive through the
+  series, and B's 1-pixel read behind a lab flag (`paint-worker.js` on `claude/view-worker` still reads on every
+  paint). Both rules turn on metrics 4 and 5, so NATIVERUN is not run: no verdict is possible from the rest.
+* **Seen, not changed.** The view re-asks only on an intent, so a frame evicted from inside the want, or refused, is
+  asked again at the next step, not at once; a cache write that fails still marks the frame written, so it is
+  evictable and comes back from the wire.
