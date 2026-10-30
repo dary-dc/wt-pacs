@@ -197,6 +197,8 @@ an empty `incoming/`; P3 negotiated (the item list over ssh, the PACS answers wh
 trigger); P4 the full metadata each time (E), frames only for instances the PACS lacks. Leaning P3 or P4, by reasoning;
 row RSYNC-2 (`claude/rsync-updates`) works them through, crossed with §2.9.
 
+How a late instance, a correction and a withdrawal travel over rsync, four patterns ranked: [`rsync-updates.md`](rsync-updates.md).
+
 ### 2.6 The PCS's copy
 
 **Decided 10-24:** the PCS keeps each unit until "stored" and resends on "refused". The sender deletes its copy after
