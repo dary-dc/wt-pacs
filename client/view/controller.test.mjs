@@ -173,6 +173,29 @@ test("each failure is said with its scope", async () => {
   assert.deepEqual(wants, ["3", "3"]);
 });
 
+/** The ledger hands a lab harness the fill's time once every frame is here, and none before. */
+test("the ledger carries the fill's time", async () => {
+  const { c } = rig({ frames: 2 });
+  c.client.stats = () => ({ resumedAt: [] });
+  c.issuedAt = performance.timeOrigin + performance.now() - 40;
+  c.take(frame(0));
+  assert.equal((await c.ledger()).fillMs, null);
+  c.take(frame(1));
+  const { fillMs } = await c.ledger();
+  assert.ok(fillMs >= 40 && fillMs < 1000, `fill ${fillMs} ms`);
+});
+
+/** A lab's `flip` changes one sample before the digest, so a check that compares digests must fail; the frame held is untouched. */
+test("the ledger's flip changes the digest, not the frame", async () => {
+  const { c } = rig({ frames: 1, held: [0] });
+  c.client.stats = () => ({ resumedAt: [] });
+  const [plain] = (await c.ledger()).frames;
+  const [flipped] = (await c.ledger({ flip: true })).frames;
+  const [again] = (await c.ledger()).frames;
+  assert.notEqual(flipped.sha, plain.sha);
+  assert.equal(again.sha, plain.sha);
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try {

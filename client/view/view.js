@@ -148,8 +148,8 @@ export class ViewWorker {
     return this.#call("valueAt", { x, y });
   }
 
-  ledger() {
-    return this.#call("ledger");
+  ledger(lab) {
+    return this.#call("ledger", lab);
   }
 
   /** The viewer check's in-worker half, phase by phase: client/view/check.js. */

@@ -160,6 +160,10 @@ fi
 step "lab: the variant order and its predecessor split"
 run 1 node lab/order.test.mjs
 
+step "lab: the viewer's sawtooth trace, its waits, and Experiment 2's rule over rows"
+run 1 node lab/viewer/trace.test.mjs
+run 1 node lab/viewer/wait-ahead-summary.test.mjs
+
 step "lab: the device kit's plan, bundle reader, collector and server start; the prebuilt recipe's server stage is the Containerfile's"
 run 1 node lab/devices/plan.test.mjs
 run 1 python3 lab/devices/collector_test.py
