@@ -214,3 +214,52 @@ Every file was fetched on 2026-10-11 and is listed with its URL and sha256 in
 
 **Not verified:** nested-worker sync handles per engine; Gecko's `flush()` at the OS; how Chromium's `mode` values lock;
 shipping Safari's ITP window; any frame on screen while the page is blocked.
+
+## The core, assembled (2026-10-30)
+
+**Decided by the owner, 2026-10-30:** *"We won't build visualizers for now. We build the new architecture (core)
+while investigating, testing and improving the diff options. And ideally land in a single PR, that even if big it
+will be easier to localize. Native client can have similar module architecture, threads might be different. In any
+case, we build the architecture now, but modules like the view worker's for a complex viewer will be too much and
+isn't even designed, so we stick with the simple cine for now."*
+
+So the core is the Target above, built once on one branch (`claude/core`), with only the simple cine on top: no
+viewport layout, hanging protocols or tools, and no ingest change. **Every design option still under investigation
+is a setting inside the core whose default is today's behaviour**, until its pre-registered rule decides it.
+
+**Modules, and the thread each runs on.**
+
+| module | does | browser, `?view=page` (default) | browser, `?view=worker` (the Target) | native, `--paint-thread` `ui` (default) / `view` / `core` |
+| --- | --- | --- | --- | --- |
+| downloader | session, a record per owed frame, survival, the wire; sends the want's misses as asks or runs | its worker | its worker | the UI's runtime / its own thread / the core thread |
+| controller + want | the current frame, what is wanted in what order, the cine clock | the page | the view worker | UI thread / view thread / core thread |
+| frame store (+ OPFS cache) | memory → cache → downloader; acks a frame once held; evicts farthest-first, only once written | the page's `Map`, store worker behind it | the view worker, the cache's writer per `writer` | UI thread / view thread / core thread; a file per frame |
+| decoders | decode, XXH3 against the ingest's digest, hand on the samples | nested workers of the downloader | the same | `N` decoder threads |
+| paint | WebGL2 / wgpu, the VOI table, display state | the paint worker | a module of the view worker | UI thread / view thread / core thread |
+
+The page holds intents and events only under `worker`; under `page` it is today's viewer. Native has the same modules;
+only the threads differ ([`../native/README.md`](../native/README.md) §Built, #247).
+
+**Settings.** Each is printed with the arm it ran in; a default changes only when its rule says so.
+
+| setting | default (today's) | other values | decided by | status 2026-10-30 |
+| --- | --- | --- | --- | --- |
+| `?view=` | `page` | `worker` | §7's rule (B′), #229 | built, not run |
+| `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | built and its rig, not run |
+| `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | built, not run |
+| `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | built, not run |
+| frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241 | arms in `lab/opfs-cache` only; run in progress |
+| `?writer=`, who writes the OPFS cache | `none`: no cache, as main | `store`, `decoders`, `view` | OPFS arms, #227/#242; #244 | arms in `lab/opfs-arms`, core built; run in progress |
+| frame clock | the page's timer | worker rAF, timer to a schedule, `MessageChannel`, `Atomics.wait` | #225 | loaded only on a lab's play intent |
+| receive loop, the downloader in the view worker | its own worker | merged | #237 | rig in `lab/recv-loop` only |
+| native `--paint-thread`; `--credits`, `--budget` | `ui` | `view`, `core`; `K` 4, 64 MiB | NATIVERUN, #247 | built, not run |
+
+*The cache's default.* The owner decided an OPFS client cache on 2026-10-10 (§1), but main has none, so `none` keeps
+main's behaviour; turning it on is the owner's call, not this branch's.
+
+**Folded in,** with `git merge --no-ff`, bases first: the unified branch (for the native line); #228, #231, #232,
+#235, #239, #237; #229, #238, #243 (+#248), #246, #245, #244; #225; #212's client-cache line, then #226 → #241 and
+#227 → #242; #247 with #189 → #198 → #201 → #206/#209 → #216 → #218 → #236 → #240; and the follow-ups of their
+sessions as they are pushed. Each conflict and its resolution is recorded in the PR. **Superseded** once this lands
+(the owner closes them): every PR above. **Out:** the viewer product (#193, #210, #214, #215), the ask-during-fill
+lever (#135), ingest.
