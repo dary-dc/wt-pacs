@@ -24,8 +24,9 @@ export function cells(rows) {
     byCell.get(key).rows.push(r);
   }
   return [...byCell.values()].map((c) => {
-    const exact = c.rows.every((r) => r.exact === r.owed && !r.failures);
-    const kept = (arm) => new Map(c.rows.filter((r) => r.variant === arm && !r.void && r.trace).map((r) => [r.round, r]));
+    const exact = c.rows.every((r) => r.exact === r.frames);
+    // A visit that failed, or whose fill stopped short, is re-run like a VOID one rather than counted.
+    const kept = (arm) => new Map(c.rows.filter((r) => r.variant === arm && !r.void && r.trace && !r.failures && (!c.fill || r.frames === r.owed)).map((r) => [r.round, r]));
     const arms = Object.fromEntries(Object.keys(ARMS).map((a) => [a, kept(a)]));
     const figure = (r) => (c.fill ? r.trace.forwardMs : r.trace.missingMs);
     const paired = (a, b, f) => [...arms[a].keys()].filter((k) => arms[b].has(k)).map((k) => f(arms[a].get(k), arms[b].get(k)));
@@ -52,6 +53,8 @@ export function cells(rows) {
 export function decide(rows) {
   const all = cells(rows);
   const decided = all.filter((c) => c.fill && !c.saturated && !c.dead && !c.noisy);
+  if (!all.every((c) => c.exact)) return { cells: all, star: null, verdict: "rejected: a frame not exact" };
+  if (!decided.length) return { cells: all, star: null, verdict: "undecided: no live, decided cell" };
   const ks = Object.keys(ARMS).filter((a) => ARMS[a]);
   const star = ks.filter((a) => a === "k1" || decided.filter((c) => c.vs[a].votes).every((c) => c.vs[a].noLaterThanK1 >= ROUNDS_NEEDED)).at(-1);
   const at = decided.filter((c) => c.vs[star].votes);
@@ -62,8 +65,7 @@ export function decide(rows) {
   const fillHolds = at.every((c) => c.vs[star].fill <= 1.02);
   const onDemand = all.filter((c) => !c.fill);
   const onDemandHolds = onDemand.length > 0 && onDemand.every((c) => c.aa !== null && Math.abs(c.vs[star].onDemandMs) <= Math.max(AA_MS, Math.abs(c.aa)));
-  const exact = all.every((c) => c.exact);
-  const verdict = !exact ? "rejected: a frame not exact" : !at.length ? "undecided: no live, decided cell"
+  const verdict = !at.length ? `undecided: no live, decided cell where ${star} can vote`
     : faster && !slowerForward && !slowerBackward && fillHolds && onDemandHolds ? `adopt ${star}`
     : faster && slowerBackward && !slowerForward && fillHolds && onDemandHolds ? `trade-off at ${star}: the owner's` : "off stays";
   return { cells: all, star, verdict };
@@ -78,5 +80,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       (c.fill ? ` fill ×${v.fill?.toFixed(3)}` : ` Δ ${v.onDemandMs?.toFixed(1)} ms`)).join(" · ");
     console.log(`${c.key}: ${guards}; live ${(c.live * 100).toFixed(0)} %, A/A ${c.aa?.toFixed(1)} ms; ${arms}`);
   }
-  console.log(`k* ${star}: ${verdict}`);
+  console.log(star ? `k* ${star}: ${verdict}` : verdict);
 }

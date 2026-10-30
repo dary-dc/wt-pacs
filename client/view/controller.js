@@ -180,13 +180,15 @@ export class Controller {
     return { i, x: col, y: row, stored, modality: stored.map((s) => s * slope + intercept) };
   }
 
-  /** Each frame here, its digest taken where it is held, for a lab harness. lab/viewer/levers.js */
-  async ledger() {
+  /** Each frame here, its digest taken where it is held, for a lab harness; `flip`, one sample bit flipped first. lab/viewer/levers.js */
+  async ledger({ flip = false } = {}) {
     const { sha256Hex } = await import("../decode/wasm-glue.js");
     const frames = [];
     for (const i of this.store.keys()) {
       const { info, arrived } = this.store.get(i);
-      frames.push({ i, page: arrived, lastByte: info.stamps.lastByte, exact: info.exact, sha: await sha256Hex(new Uint8Array(info.pixels).slice()) });
+      const samples = new Uint8Array(info.pixels).slice();
+      if (flip) samples[samples.length >> 1] ^= 1;
+      frames.push({ i, page: arrived, lastByte: info.stamps.lastByte, exact: info.exact, sha: await sha256Hex(samples) });
     }
     return { frames, firstShownMs: this.firstShownMs, fillMs: this.fillMs, stats: this.client.stats() };
   }

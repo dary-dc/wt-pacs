@@ -8,11 +8,12 @@ const check = (ok, what) => {
 };
 
 /** 12 rounds of every arm in one cell; `up(arm, round)` is the forward wait, or on demand the missing time, where a frame left may never come. */
-function cell({ engine = "chromium", set = "ct", frames = 100, fill = true, up, down = () => 50, fillMs = () => 5000, exact = () => true, voids = () => false, live = 0.5 }) {
+function cell({ engine = "chromium", set = "ct", frames = 100, fill = true, up, down = () => 50, fillMs = () => 5000, exact = () => true, voids = () => false, failures = () => 0, live = 0.5 }) {
   return Object.keys(ARMS).flatMap((arm) => Array.from({ length: 12 }, (_, round) => {
     const figure = up(arm, round);
-    return { engine, set, link: "r5000rtt92", throttle: 1, round, variant: arm, owed: fill ? frames : 0, exact: exact(arm, round) ? (fill ? frames : 0) : frames - 1,
-      failures: 0, void: voids(arm, round), fillMs: fill ? fillMs(arm, round) : null,
+    const held = fill ? frames : 11;
+    return { engine, set, link: "r5000rtt92", throttle: 1, round, variant: arm, owed: fill ? frames : 0, frames: held, exact: exact(arm, round) ? held : held - 1,
+      failures: failures(arm, round), void: voids(arm, round), fillMs: fill ? fillMs(arm, round) : null,
       trace: { forwardMs: fill ? figure : null, backwardMs: down(arm, round), live, missingMs: fill ? 20 : figure } };
   }));
 }
@@ -29,13 +30,20 @@ check(adopted.star === "k2" && adopted.verdict === "adopt k2", `k* and the verdi
 /** One frame not exact in any arm rejects it, whatever the timings. */
 check(decide(both({ exact: (arm, round) => !(arm === "offaa" && round === 3) })).verdict.startsWith("rejected"), "one inexact frame rejects");
 
+/** On demand, every frame held is owed exact, though the visit owed none up front; one not exact there rejects too. */
+check(decide([...both(), ...cell({ fill: false, up: () => 30, exact: (arm, round) => !(arm === "k8" && round === 0) })]).verdict.startsWith("rejected"), "an inexact frame on demand rejects");
+
+/** A visit that failed is re-run, not counted: three failed visits of an arm leave it saturated, not rejected. */
+const failing = decide(both({ failures: (arm, round) => (arm === "k2" && round < 3 ? 1 : 0) }));
+check(failing.verdict.startsWith("undecided") && failing.cells.some((c) => c.saturated), `failed visits are not kept (${failing.verdict})`);
+
 /** Better forward and later backward by the bar is the owner's trade-off; a fill ×1.03 keeps `off`. */
 check(decide(both({ down: (arm) => (arm === "k2" ? 80 : 50) })).verdict.startsWith("trade-off"), "later backward is a trade-off");
 check(decide(both({ fillMs: (arm) => (arm === "k2" ? 5150 : 5000) })).verdict === "off stays", "a fill ×1.03 keeps off");
 
 /** An A/A pair 10 ms apart, or a cell left under 10 visits an arm, decides nothing. */
 const aa = decide(both({ up: (arm, round) => better(arm, round) + (arm === "offaa" ? 10 : 0) }));
-check(aa.verdict.startsWith("undecided") && aa.cells.every((c) => !c.fill || c.noisy), `A/A beyond 8 ms: no cell decided (${aa.verdict})`);
+check(aa.verdict.startsWith("undecided") && aa.star === null && aa.cells.every((c) => !c.fill || c.noisy), `A/A beyond 8 ms: no cell decided, no k* (${aa.verdict})`);
 const short = decide(both({ voids: (arm, round) => arm === "k4" && round < 3 }));
 check(short.verdict.startsWith("undecided") && short.cells.some((c) => c.saturated), `9 visits of an arm: saturated (${short.verdict})`);
 

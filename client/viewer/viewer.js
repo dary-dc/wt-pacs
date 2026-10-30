@@ -245,7 +245,7 @@ if (q.get("check") || lab.finished) {
     current: () => view.current, seen, close: () => (worker ?? controller.client).close() });
   else {
     await traced;
-    const { frames, firstShownMs, fillMs, stats } = await (worker ?? controller).ledger();
+    const { frames, firstShownMs, fillMs, stats } = await (worker ?? controller).ledger({ flip: q.get("mutate") === "sample" });
     lab.finished({ issuedAt, firstShownMs, fillMs, frames, errors, stats, ...(traced && { stepped }) });
   }
 }
