@@ -1297,3 +1297,14 @@ timed, 10 of 10 exact, none failed.
 empty fill of 76, while the relay counted half the packets: a frame on its own stream is read in more, smaller pieces
 than a frame in a run. The wire is the relay's `s2c` count, already in every row; the run reports it, and `fillReads`
 only beside it.
+
+**The gate's "1 workers outlived their closed clients", reproduced, and not this experiment's.** The gate's four browser
+rigs (`client/contract/run_browser.sh`) were repeated as the gate runs them, two pages at a time, in this container. On
+this branch, 1 of 15 runs failed the check unloaded and 3 of 15 with four busy loops on the cores. Each time it was the
+`dispatch` page, and the worker left was a downloader whose client had called `close()`, so terminating it had not ended
+it. A scratch copy of `drive_page.cjs`, not committed, tagged each worker with the clause that made it. It named
+*a decoder that fails its init leaves the pool* on this branch. On the pre-span parent, `ede1cff`, 1 of 20 loaded runs
+leaked, from *a cancel releases the group a decoder held*. The first clause run alone leaked 0 of 100, loaded, on both
+trees. So the leak predates `span`, which the dispatch rig leaves at 0. It is not one clause's either: it needs the
+rig's run before it, or the page beside it. 3 of 15 against 1 of 20 is no measured difference. This is the stranding
+race of [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Closing a client, with the decoders left alone. Not fixed here.
