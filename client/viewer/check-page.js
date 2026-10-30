@@ -18,6 +18,41 @@ async function stepsOnDemand(n, frames, show, client) {
   return { raced, twice: sent.join(", "), asked: new Set([0, a, b]).size };
 }
 
+/**
+ * One cine sweep from the last frame round to it again, as the screen saw it: each paint's frame read off the painter,
+ * and of the paints that complete between two page frames only the last counted shown. `askMs` holds back each ask,
+ * `paintMs` each paint's completion.
+ */
+async function cineSweep({ n, frames, painter, client, show, toggleCine }, { askMs = 0, paintMs = 0 }) {
+  const which = (pixels) => [...frames].find(([, f]) => f.info.pixels === pixels)[0];
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const painted = [];
+  painter.paint = (frame, ...rest) => Painter.prototype.paint.call(painter, frame, ...rest)
+    .then(async (r) => (painted.push({ i: which(frame.pixels), at: performance.now() }), await wait(paintMs), r));
+  await show(n - 1);
+  painted.length = 0;
+  if (askMs) client.requestExactFrame = (i) => wait(askMs).then(() => Object.getPrototypeOf(client).requestExactFrame.call(client, i));
+  const vsync = [];
+  let watching = true;
+  const tick = (t) => watching && (vsync.push(t), requestAnimationFrame(tick));
+  requestAnimationFrame(tick);
+  toggleCine();
+  const t0 = performance.now();
+  const swept = () => painted.findIndex((p) => p.i === n - 1);
+  while (swept() < 0 && performance.now() - t0 < 30_000) await wait(5);
+  toggleCine();
+  await wait(paintMs + 50);
+  watching = false;
+  delete painter.paint;
+  delete client.requestExactFrame;
+  const sweep = painted.slice(0, swept() + 1);
+  const shown = sweep.filter((p, k) => !(sweep[k + 1] && vsync.find((f) => f > p.at) > sweep[k + 1].at)).map((p) => p.i);
+  const { frameTimeMs, cineRate } = await globalThis.viewerMetadata;
+  return { askMs, paintMs, order: shown.join(" "), skipped: n - new Set(shown).size, inOrder: shown.every((i, k) => i === k),
+    stepMs: (sweep.at(-1).at - sweep[0].at) / Math.max(1, sweep.length - 1),
+    statedMs: frameTimeMs ?? (cineRate ? 1000 / cineRate : 100), frameMs: (vsync.at(-1) - vsync[0]) / (vsync.length - 1) };
+}
+
 export async function run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName, setView, current, toggleCine, show }) {
   const onDemand = q.get("fill") === "0" ? await stepsOnDemand(n, frames, show, client) : {};
   const out = { n, ...onDemand, received: frames.size, exact: seen.exact, inexact: seen.inexact, unchecked: seen.unchecked, paths: seen.paths,
@@ -55,36 +90,9 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
   await step("askAfterCancel", async () => (await client.requestExactFrame(n - 1)).info.exact);
 
   if (q.get("cine")) {
-    // The frame each completed paint drew, read off the painter: a slice the cine stepped past unpainted is missing here.
-    const which = (pixels) => [...frames].find(([, f]) => f.info.pixels === pixels)[0];
-    const painted = [];
-    painter.paint = (frame, ...rest) => Painter.prototype.paint.call(painter, frame, ...rest)
-      .then((r) => (painted.push({ i: which(frame.pixels), at: performance.now() }), r));
-    await show(n - 1);
-    painted.length = 0;
-    // On demand each ask is held back three page frames, so the cine meets slices not yet here.
-    if (q.get("fill") === "0") client.requestExactFrame = (i) => new Promise((r) => setTimeout(r, 50))
-      .then(() => Object.getPrototypeOf(client).requestExactFrame.call(client, i));
-    // The page's frames: of the paints that complete between two, the screen shows the last.
-    const vsync = [];
-    const tick = (t) => watching && (vsync.push(t), requestAnimationFrame(tick));
-    let watching = true;
-    requestAnimationFrame(tick);
-    toggleCine();
-    const t0 = performance.now();
-    const swept = () => painted.findIndex((p) => p.i === n - 1);
-    while (swept() < 0 && performance.now() - t0 < 30_000) await new Promise((r) => setTimeout(r, 5));
-    toggleCine();
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    watching = false;
-    delete painter.paint;
-    delete client.requestExactFrame;
-    const sweep = painted.slice(0, swept() + 1);
-    const shown = sweep.filter((p, k) => !(sweep[k + 1] && vsync.find((f) => f > p.at) > sweep[k + 1].at)).map((p) => p.i);
-    const { frameTimeMs, cineRate } = await globalThis.viewerMetadata;
-    out.cine = { painted: sweep.map((p) => p.i).join(" "), order: shown.join(" "), skipped: n - new Set(shown).size,
-      inOrder: shown.every((i, k) => i === k), stepMs: (sweep.at(-1).at - sweep[0].at) / Math.max(1, sweep.length - 1),
-      statedMs: frameTimeMs ?? (cineRate ? 1000 / cineRate : 100), frameMs: (vsync.at(-1) - vsync[0]) / (vsync.length - 1) };
+    const page = { n, frames, painter, client, show, toggleCine };
+    // Filled: once as the host paints, once with each paint held a step and more, as a large frame on a slow host would.
+    out.cine = q.get("fill") === "0" ? [await cineSweep(page, { askMs: 50 })] : [await cineSweep(page, {}), await cineSweep(page, { paintMs: 50 })];
   }
 
   // First, middle and last frame at zoom 1, read back and painted again on the CPU.

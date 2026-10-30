@@ -288,6 +288,10 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   there is no fill, and each step asks its frame, the newest ask alone kept: a step superseded while it waits on
   its cancel asks nothing.
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact.
+* **Cine.** At the series' `frameTimeMs` (or `cineRate`, else 10 a second), stepped on the page's animation frames,
+  each step only once the slice before it is held and painted: a slice not yet here or still painting is waited for,
+  never skipped (IHE BIR, DBT: "shall not skip slices during manual or automatic scrolling"). A late step restarts the
+  schedule rather than catching up. Why: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §The viewer.
 * **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the decoder per path, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name.
 * **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=` and `?origin=` let a lab harness drive the
@@ -324,11 +328,16 @@ read off the page in Chromium and off Firefox's stdout (`devtools.console.stdout
 * an AV1 page whose frames were not decoded as AV1;
 * the first, middle and last frame's readback at zoom 1 differing from the painter's CPU reference by any byte;
 * with `--pair`, the same series in the other codec painting a different readback;
-* with `--cine`, a cine started on the last frame that did not loop to the first.
+* with `--cine`, a cine sweep from the last frame round to it again that did not show every slice once, in order,
+  counted off the painter's completed paints, of which only the last between two page frames counts as shown; or,
+  with nothing held back, one that stepped faster than the series' rate or more than 1.25× slower than it (or than
+  the page's frames). Filled, it sweeps twice: as painted, and with each paint's completion held 50 ms; on demand,
+  once, with each ask held 50 ms.
 
 Headless Firefox has no WebGL: on a host without a display, run the check under `xvfb-run` with a software GL
 (Mesa's llvmpipe), and it runs Firefox windowed. The run here used conda-forge's `firefox-157.0.1-hee9eb32_0` and
 `mesalib-26.2.3-he59ec28_0` (SHA-256 `e94b9a63c490809eb615d0c18d1ae4e7d60a6f7756c7ec7b2a6b6a2032a26b53`), with
-`LD_LIBRARY_PATH`, `__EGL_VENDOR_LIBRARY_DIRS` and `LIBGL_DRIVERS_PATH` pointing into that environment. The gate runs `viewer/run_check.sh`: a three-frame HTJ2K series of
-the contract's frame, in Chromium, on each client once filled with `--cine` and once with `--fill 0`. It names as skipped the cross-codec arm and Firefox, which need the DICOM ingest's
+`LD_LIBRARY_PATH`, `__EGL_VENDOR_LIBRARY_DIRS` and `LIBGL_DRIVERS_PATH` pointing into that environment. The gate runs `viewer/run_check.sh`: a 50-frame HTJ2K series of
+the contract's frame, in Chromium, on each client once filled with `--cine` at 30 frames a second (OT) and once with
+`--fill 0 --cine` at 60 (DX). It names as skipped the cross-codec arm and Firefox, which need the DICOM ingest's
 bundles and a GL display. What it measured: `docs/ARCHITECTURE.md` §The viewer.

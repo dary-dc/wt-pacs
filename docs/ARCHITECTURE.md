@@ -755,6 +755,18 @@ Five mutants each fail the check by name:
 * the AV1 modules preloaded on an HTJ2K page: AV1 code fetched;
 * the paint placed one row low: worst |Δ| 220–242 against the reference.
 
+**Its cine skipped slices, and no longer does.** It was a 100 ms timer stepping `current`, the paint coalescing
+behind it, so a step that came while a paint was in flight was never painted. The viewer spike found it (#214,
+`docs/viewer/architecture.md` at 4133958, never merged): 18 of 50 DBT slices skipped at 100 ms, on SwiftShader, where
+those frames paint slower than a step. The page check now counts the slices shown (`client/viewer/check-page.js` `cineSweep`), and
+on the old timer, in headless Chromium on SwiftShader with the gate's 160² frames that paint in a few ms, it failed
+three ways: at 60 frames a second, 47–48 of 50 shown, the timer's 16 ms against the page's 16.7 putting two paints
+in one frame; with each paint held 50 ms at 30 a second, 30 of 50; with each ask held 50 ms on demand at 60, 3 of 50.
+At 100 ms it skipped none on those frames. The cine now steps on the page's frames, once the slice is held and
+painted and its time is due, and shows 50 of 50 in order in every arm: 33.3 ms a step at 30 a second, slower when a
+paint or an ask is held. Each of the three conditions, taken out, fails an arm (`client/README.md` §The viewer). Not
+measured on a GPU; past the page's frame rate, 60 here, it claims nothing.
+
 **It adds nothing to the fill.** Measured on the CT series: the viewer against total-time's page (the same
 downloader and decoders, no paint), both timed from navigation. The baseline is not `lab/harness/cell.html`: it
 does not decode, so measured against it the viewer would be charged for decoding, not for itself. The

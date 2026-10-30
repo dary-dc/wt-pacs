@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The viewer's page check in headless Chromium on a series the gate can make, filled and on demand, each with a cine, on
-# each client: the contract's 16-bit grey codestream 50 times at 60 frames a second, with its digest, as OT and as DX.
+# each client: the contract's 16-bit grey codestream 50 times, with its digest, as OT and as DX.
 # The cross-codec arm and Firefox need the DICOM ingest's bundles: client/README.md §The viewer.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -17,9 +17,11 @@ n=50
 digests="$(for _ in $(seq "$n"); do printf '"%s", ' "$d"; done)"
 mkdir "$T/frames"
 for i in $(seq 0 $((n - 1))); do cp client/contract/frames/grey-16.j2c "$T/frames/$(printf %03d "$i").htj2k"; done
-for modality in OT DX; do
+# OT steps at 30 a second, slower than the page's frames and faster than a held paint; DX at 60, faster than a held ask.
+for series in "OT 33.33" "DX 16.67"; do
+  read -r modality ms <<<"$series"
   cat >"$T/$modality.json" <<JSON
-{"frameCount": $n, "frameTimeMs": 16.67, "codec": "htj2k", "photometric": "MONOCHROME2", "modality": "$modality",
+{"frameCount": $n, "frameTimeMs": $ms, "codec": "htj2k", "photometric": "MONOCHROME2", "modality": "$modality",
  "window": {"center": [30000], "width": [60000], "function": "LINEAR"},
  "digests": {"algorithm": "xxh3-64", "frames": [${digests%, }]}}
 JSON
