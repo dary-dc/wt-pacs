@@ -45,19 +45,22 @@ pub(crate) struct ProductPipeline {
     fill: Option<FillReader>,
     tile: Option<TileReader>,
     mode: ReadMode,
+    /// Row 259's lab arm T1: `--advise-tile-names`.
+    advise_past_slots: bool,
     fills: u64,
     #[cfg(feature = "lab-frame-cache")]
     lab_session: u64,
 }
 
 impl ProductPipeline {
-    pub(crate) fn new(store: Arc<FrameStore>, link: Link, mode: ReadMode) -> Self {
+    pub(crate) fn new(store: Arc<FrameStore>, link: Link, mode: ReadMode, advise_past_slots: bool) -> Self {
         Self {
             store,
             link,
             fill: None,
             tile: None,
             mode,
+            advise_past_slots,
             fills: 0,
             #[cfg(feature = "lab-frame-cache")]
             lab_session: crate::media::lab_frame_cache::session(),
@@ -116,7 +119,7 @@ impl FramePipeline for ProductPipeline {
 
 impl ProductPipeline {
     async fn read_store(&mut self, frame: u32, next: &Next) -> Result<Bytes> {
-        let Self { store, fill, tile, mode: read_mode, fills, .. } = self;
+        let Self { store, fill, tile, mode: read_mode, advise_past_slots, fills, .. } = self;
         let span = store.frame_span(frame);
         let ahead = ahead(store, next);
         match next {
@@ -127,9 +130,12 @@ impl ProductPipeline {
                     .await
             }
             Next::Tiles(_) => {
-                tile.get_or_insert_with(|| TileReader::new(*read_mode, Arc::clone(store), TILE_SLOTS))
-                    .read(span, &ahead)
-                    .await
+                tile.get_or_insert_with(|| {
+                    let reader = TileReader::new(*read_mode, Arc::clone(store), TILE_SLOTS);
+                    if *advise_past_slots { reader.advising_past_slots() } else { reader }
+                })
+                .read(span, &ahead)
+                .await
             }
         }
     }
@@ -349,6 +355,26 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// `--advise-tile-names` reaches the tile reader: past its slots the planner's names are
+    /// advised with the flag and not without it. Row 259.
+    #[test]
+    fn the_tile_advice_flag_reaches_the_tile_reader() {
+        let path = std::env::temp_dir().join(format!("wtpacs-advise-names-{}.sbnd", std::process::id()));
+        series(&path, 8);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("rt");
+        let past: Vec<(u64, u64)> = (TILE_SLOTS as u32..8)
+            .map(|f| store.frame_span(f))
+            .map(|s| (s.offset, u64::from(s.len)))
+            .collect();
+        for (flag, want) in [(false, vec![]), (true, past)] {
+            let mut pipeline = ProductPipeline::new(Arc::clone(&store), Link::Detached, ReadMode::Auto, flag);
+            rt.block_on(pipeline.read(0, &Next::Tiles((1..8).collect()))).expect("read");
+            assert_eq!(store.take_advice(), want, "advise_tile_names={flag}");
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// **One index per series, never per session** — nothing in the type system prevents a
     /// session opening its own store, so this pins the shape it actually gets.
     /// `docs/adr/disk-access.md` §Invariants.
@@ -360,7 +386,7 @@ mod tests {
 
         let sessions = 8;
         let pipelines: Vec<ProductPipeline> = (0..sessions)
-            .map(|_| ProductPipeline::new(Arc::clone(&store), Link::Detached, ReadMode::Auto))
+            .map(|_| ProductPipeline::new(Arc::clone(&store), Link::Detached, ReadMode::Auto, false))
             .collect();
 
         for (n, pipeline) in pipelines.iter().enumerate() {

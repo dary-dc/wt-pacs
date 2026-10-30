@@ -166,6 +166,9 @@ run 1 sh deploy/server_start_test.sh
 step "lab: the AV1 fetch refuses a lossy source its set does not mark"
 run 1 python3 lab/av1/provenance_test.py
 
+step "lab: row 258's verdict rule"
+run 1 python3 lab/scripts/exec_gap_summary_test.py
+
 step "server: tests, default features"
 run 1 cargo test -p series-server --quiet -- --nocapture
 step "server: tests, telemetry feature"

@@ -131,6 +131,7 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
 pub(super) struct Sessions {
     pub(super) store: Arc<FrameStore>,
     read_mode: ReadMode,
+    advise_tile_names: bool,
     mode: StreamMode,
     pub(super) opening_ask: bool,
     stall: Option<u64>,
@@ -157,6 +158,10 @@ impl Sessions {
         Sessions {
             store,
             read_mode,
+            #[cfg(feature = "lab-levers")]
+            advise_tile_names: config.lab.advise_tile_names,
+            #[cfg(not(feature = "lab-levers"))]
+            advise_tile_names: false,
             mode: config.mode,
             opening_ask: config.opening_ask,
             #[cfg(feature = "lab-levers")]
@@ -170,7 +175,7 @@ impl Sessions {
     }
 
     pub(super) fn pipeline(&self, link: Link) -> ProductPipeline {
-        ProductPipeline::new(Arc::clone(&self.store), link, self.read_mode)
+        ProductPipeline::new(Arc::clone(&self.store), link, self.read_mode, self.advise_tile_names)
     }
 
     /// One session, whatever carries it: `opening` first, then each ask `read` forwards, until
@@ -628,6 +633,7 @@ mod tests {
         Sessions {
             store: Arc::new(FrameStore::open(series).expect("open store")),
             read_mode: ReadMode::Auto,
+            advise_tile_names: false,
             mode: StreamMode::Shared,
             opening_ask: false,
             stall: None,
@@ -1283,6 +1289,7 @@ mod tests {
         let sessions = Sessions {
             store: Arc::new(FrameStore::open(&fx.series).expect("open store")),
             read_mode: ReadMode::Auto,
+            advise_tile_names: false,
             mode: StreamMode::Shared,
             opening_ask: true,
             stall: None,
