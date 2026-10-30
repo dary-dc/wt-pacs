@@ -106,6 +106,8 @@ function variantOf(set, name) {
       opts: { decoder: { ...(a.openjph === "delivered" ? DELIVERED : a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // Decode pacing: the downloader's lab flag.
         ...(a.startOnNeed && { startOnNeed: true }),
+        // A frame's memory: docs/adr/frame-path.md §3, *Experiment 3*.
+        ...(a.pixels && { pixels: a.pixels }),
         // Ask deadlines: the downloader's survival deadlines, and a transport that reports its silences.
         ...(a.survival !== undefined && { survival: a.survival }), ...(a.transport && { transport: a.transport }),
         // A `downloader` variant runs that revision of the downloader.

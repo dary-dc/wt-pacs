@@ -86,6 +86,7 @@ run 1 bash lab/client-telemetry/build.sh
 run 1 node lab/client-telemetry/test/run.mjs
 run 1 node lab/client-telemetry/test/session.mjs
 run 1 node client/decode/htj2k.test.mjs
+run 1 node client/decode/decoder.test.mjs
 run 1 node client/decode/wasm-glue.test.mjs
 run 1 node client/decode/xxh3.test.mjs
 run 1 node client/transport/downloader.test.mjs

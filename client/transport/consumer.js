@@ -108,7 +108,7 @@ export class DownloaderClient {
     // A frame of a cancelled request under the index a new one is using: wrong pixels, right key.
     if (m.gen !== this.#gen) return;
     const w = this.#waiters.get(m.index);
-    const bytes = m.pixels instanceof SharedArrayBuffer ? new Uint8Array(m.pixels) : m.pixels;
+    const bytes = ArrayBuffer.isView(m.pixels) ? m.pixels : new Uint8Array(m.pixels);
     const frame = {
       frameIndex: m.index,
       generation: m.gen,

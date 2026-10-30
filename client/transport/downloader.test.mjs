@@ -94,6 +94,7 @@ function handDecoders() {
     }
     postMessage(m) {
       if (m.kind === "init") {
+        this.init = m;
         this.toConsumer = m.toConsumer;
         queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
       }
@@ -155,6 +156,17 @@ async function startOnNeed() {
   check(made.length === 3 && busy().every((n) => n === 1), `idle decoders stay in the pool: three frames on three (${busy()})`);
 }
 await startOnNeed();
+
+/** The lab's `pixels` reaches every decoder the downloader starts. */
+async function pixelsReachTheDecoders() {
+  handFed();
+  const made = handDecoders();
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // pixels`;
+  await import("./downloader.js?pixels");
+  await onmessage({ data: { kind: "start", config: { decoders: 2, transport, decoderWorker: "x", survival: false, pixels: "transfer" } } });
+  check(made.length === 2 && made.every((w) => w.init.pixels === "transfer"), `pixels reaches ${made.filter((w) => w.init.pixels === "transfer").length} of ${made.length} decoders`);
+}
+await pixelsReachTheDecoders();
 
 /** A downloader on hand-fed transport and decoders, filling frames 0–3, one decoder taking two frames at a time. */
 async function lossWorld(name, survival = false) {
