@@ -31,9 +31,12 @@ export function cells(rows) {
   return [...byCell.values()].map((c) => {
     // Every frame a visit held is owed exact; a visit that failed short is re-run, not counted.
     const exact = c.rows.every((r) => r.exact === (c.kind === "asks" ? r.afterMs?.length ?? 0 : r.frames));
-    const arms = Object.fromEntries(ARMS.map((a) => [a, new Map(c.rows.filter((r) => r.variant === a && kept(r)).map((r) => [r.round, r]))]));
+    const all = Object.fromEntries(ARMS.map((a) => [a, new Map(c.rows.filter((r) => r.variant === a && kept(r)).map((r) => [r.round, r]))]));
+    // The first 12 rounds every arm kept: a round re-run for a dropped visit does not lengthen the cell.
+    const rounds = [...all.page.keys()].filter((k) => ARMS.every((a) => all[a].has(k))).sort((x, y) => x - y).slice(0, ROUNDS);
+    const arms = Object.fromEntries(ARMS.map((a) => [a, new Map(rounds.map((k) => [k, all[a].get(k)]))]));
     const paired = (a, f) => [...arms[a].keys()].filter((k) => arms.page.has(k)).map((k) => f(arms[a].get(k), arms.page.get(k)));
-    const out = { ...c, exact, rounds: Math.min(...ARMS.map((a) => arms[a].size)) };
+    const out = { ...c, exact, rounds: rounds.length };
     const of = (a, f) => (arms[a].size ? median([...arms[a].values()].map(f)) : null);
     out.cpuPerFrame = Object.fromEntries(ARMS.map((a) => [a, of(a, (r) => r.pageCpuMs / r.owed)]));
     out.firstMs = Object.fromEntries(ARMS.map((a) => [a, of(a, (r) => r.firstMs)]));

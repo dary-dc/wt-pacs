@@ -635,7 +635,9 @@ the rig or by what the core is, and says why.
   most), ÷ frames: Firefox has no trace this rig reads, so both engines are read alike. Its resolution is 10 ms a
   visit.
 * **Guards.** A visit is dropped if the relay's timing is VOID, it errs, or on a busy page its shortest long task is
-  under 200 ms; dropped visits are re-run, and a cell with fewer than 12 kept rounds decides nothing. A cell is
+  under 200 ms; dropped visits are re-run as whole extra rounds, and a cell counts the first 12 rounds in which all three
+arms were kept (*added after round 0, before any cell had 12 rounds: three relay-VOID asks visits made top-ups
+certain, and extra rounds would otherwise loosen "9 of 12"*); a cell with fewer decides nothing. A cell is
   **VOID** when `pageaa` and `page` differ, median over paired rounds, by more than: the fill ×0.98–1.02 or the first
   frame by 16.7 ms (quiet); arrival → screen by 8 ms (asks); 2 points of late frames or 16.7 ms of gap p99 (cine).
   A cine cell is **saturated** when `page`'s draw p99, median over rounds, passes half the period.

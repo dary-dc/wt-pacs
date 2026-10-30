@@ -62,5 +62,9 @@ check(s.cells.some((c) => c.short && c.engine === "firefox" && c.kind === "asks"
 const saturated = (arm) => ({ cine: { period: 100, latePct: 40, gapP99: 300, drawP99: 60 } });
 check(decide(both({ busy: saturated })).verdict === "adopt B′", "a saturated cine cell decides nothing");
 
+/** Rounds past the first 12 kept, run to replace dropped visits, are not counted: 8 wins in 12, then two more, still fail. */
+const topUp = [...engine("chromium", { asks: eight }), ...engine("firefox"), ...cell("chromium", "asks", (arm, round) => ({ round: round + 12, ...sooner(arm, round) })).filter((r) => r.round < 14)];
+check(decide(topUp).verdict.startsWith("A stays"), `rounds past 12 are not counted (${decide(topUp).verdict})`);
+
 console.log(`view summary: ${failed ? `${failed} FAILED` : "all passed"}`);
 process.exit(failed ? 1 : 0);
