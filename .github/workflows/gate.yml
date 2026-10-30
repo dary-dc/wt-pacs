@@ -136,6 +136,16 @@ jobs:
           unlisted=$(sed -n '/^GATE OK/,$p' "$RUNNER_TEMP/gate.log" | grep SKIPPED | grep -vF -f <(printf '%s\n' "${allowed[@]}") || true)
           [[ -z "$unlisted" ]] || { echo "::error::the gate skipped what this workflow does not allow:"; echo "$unlisted"; exit 1; }
 
+  # deploy/README.md §An aarch64 server, built on another machine: about 2 minutes on 4 cores.
+  arm64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: deploy/build-arm64.sh
+
   deploy:
     needs: decoders
     runs-on: ubuntu-24.04
