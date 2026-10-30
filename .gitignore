@@ -81,3 +81,4 @@ lab/sqlite-engine/target/
 # The late-frame cells: frames, containers and rows (lab/late-frame)
 lab/.late-frame-work/
 lab/late-frame/sbnd-late/target/
+lab/tail-rewrite/merge/target/
