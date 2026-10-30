@@ -1,7 +1,7 @@
 //! Per frame, what the lab counts rather than times: the threads that touch it, the messages that carry it between
 //! two of them, and the copies of its samples. `docs/native/README.md` §The view-worker design, native.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 use std::sync::Mutex;
 use std::thread::ThreadId;
@@ -21,6 +21,7 @@ static NOTES: AtomicU64 = AtomicU64::new(0);
 static HOPS: Mutex<BTreeMap<&str, Vec<f64>>> = Mutex::new(BTreeMap::new());
 static CINE_ON_TIME: AtomicU64 = AtomicU64::new(0);
 static CINE_LATE: AtomicU64 = AtomicU64::new(0);
+static VISIT: Mutex<Visit> = Mutex::new(Visit::new());
 
 fn on(index: u32, f: impl FnOnce(&mut Frame)) {
     let mut frames = FRAMES.lock().unwrap_or_else(|e| e.into_inner());
@@ -97,6 +98,81 @@ pub fn cine(on_time: u64, late: u64) {
     CINE_LATE.fetch_add(late, Relaxed);
 }
 
+/// A visit's times from its dial: the first frame exact on the thread that paints, the first painted, the series
+/// complete there, and the gaps between the frames' arrivals off the wire.
+struct Visit {
+    dial: Option<Instant>,
+    count: usize,
+    exact: BTreeSet<u32>,
+    first_exact: Option<Instant>,
+    first_shown: Option<Instant>,
+    last_exact: Option<Instant>,
+    arrivals: Vec<Instant>,
+}
+
+impl Visit {
+    const fn new() -> Self {
+        Self { dial: None, count: 0, exact: BTreeSet::new(), first_exact: None, first_shown: None, last_exact: None, arrivals: Vec::new() }
+    }
+
+    /// True on the call that completes the series: every frame exact once.
+    fn exact(&mut self, index: u32, at: Instant) -> bool {
+        self.first_exact.get_or_insert(at);
+        let completes = self.exact.insert(index) && self.exact.len() == self.count;
+        if completes {
+            self.last_exact = Some(at);
+        }
+        completes
+    }
+
+    fn report(&self) -> String {
+        let ms = |t: Option<Instant>| match (self.dial, t) {
+            (Some(dial), Some(t)) => format!("{:.3}", t.saturating_duration_since(dial).as_secs_f64() * 1e3),
+            _ => "-".into(),
+        };
+        let mut arrivals = self.arrivals.clone();
+        arrivals.sort();
+        let mut gaps: Vec<f64> = arrivals.windows(2).map(|w| (w[1] - w[0]).as_secs_f64() * 1e3).collect();
+        gaps.sort_by(f64::total_cmp);
+        let p99 = if gaps.is_empty() { "-".into() } else { format!("{:.3}", quantile(&gaps, 0.99)) };
+        format!(
+            "visit first_exact_ms={} first_shown_ms={} last_exact_ms={} inter_arrival_p99_ms={p99} arrivals={} exact={}/{}",
+            ms(self.first_exact),
+            ms(self.first_shown),
+            ms(self.last_exact),
+            arrivals.len(),
+            self.exact.len(),
+            self.count
+        )
+    }
+}
+
+fn visit<T>(f: impl FnOnce(&mut Visit) -> T) -> T {
+    f(&mut VISIT.lock().unwrap_or_else(|e| e.into_inner()))
+}
+
+/// The visit's clock starts: just before the dial, for a series of `count` frames.
+pub fn dialed(count: usize) {
+    visit(|v| (v.dial, v.count) = (Some(Instant::now()), count));
+}
+
+/// A frame off the wire, its envelope's last byte read at `at`.
+pub fn arrived(at: Instant) {
+    visit(|v| v.arrivals.push(at));
+}
+
+/// A frame exact, now, on the thread that paints; true on the call that completes the series.
+pub fn exact(index: u32) -> bool {
+    visit(|v| v.exact(index, Instant::now()))
+}
+
+/// A frame painted, now; only the first counts.
+pub fn shown() {
+    visit(|v| {
+        v.first_shown.get_or_insert(Instant::now());
+    });
+}
+
 /// The nearest-rank quantile `q` of `sorted`.
 fn quantile(sorted: &[f64], q: f64) -> f64 {
     sorted[((q * sorted.len() as f64).ceil() as usize).clamp(1, sorted.len()) - 1]
@@ -114,7 +190,7 @@ fn hops() -> String {
 }
 
 /// Per frame delivered, the means of its threads, messages and copies; then the totals of paints and of the
-/// messages between the UI thread and the one that paints; the cine's frames on time and late; a line per hop.
+/// messages between the UI thread and the one that paints; the cine's frames on time and late; a line per hop; the visit.
 pub fn report() -> String {
     let frames = FRAMES.lock().unwrap_or_else(|e| e.into_inner());
     let frames: Vec<&Frame> = frames.iter().flat_map(|m| m.values()).collect();
@@ -132,7 +208,7 @@ pub fn report() -> String {
         CINE_ON_TIME.load(Relaxed),
         CINE_LATE.load(Relaxed),
         hops()
-    )
+    ) + "\n" + &visit(|v| v.report())
 }
 
 #[cfg(test)]
@@ -158,5 +234,44 @@ mod tests {
         let v: Vec<f64> = (1..=100).map(f64::from).collect();
         assert_eq!((quantile(&v, 0.5), quantile(&v, 0.99)), (50.0, 99.0));
         assert_eq!((quantile(&[3.0], 0.5), quantile(&[3.0], 0.99)), (3.0, 3.0));
+    }
+
+    fn at(dial: Instant, ms: u64) -> Instant {
+        dial + Duration::from_millis(ms)
+    }
+
+    /// **A visit's times are from its dial, and the series completes once.** Of three frames, the first exact at
+    /// 10 ms, frame 1 again at 40 ms (a frame decoded twice), the last new one at 50 ms: first exact 10, last exact 50,
+    /// and only the call at 50 ms completes the series; a later repeat neither completes it again nor moves it.
+    #[test]
+    fn a_visit_completes_on_its_last_new_frame() {
+        let dial = Instant::now();
+        let mut v = Visit { dial: Some(dial), count: 3, ..Visit::new() };
+        assert!(!v.exact(1, at(dial, 10)));
+        assert!(!v.exact(0, at(dial, 20)));
+        assert!(!v.exact(1, at(dial, 40)));
+        assert!(v.exact(2, at(dial, 50)));
+        assert!(!v.exact(2, at(dial, 70)));
+        let line = v.report();
+        assert!(line.contains("first_exact_ms=10.000 ") && line.contains("last_exact_ms=50.000 ") && line.contains("exact=3/3"), "{line}");
+    }
+
+    /// **The inter-arrival p99 is of the gaps between arrivals in time order,** whatever order they were recorded in:
+    /// arrivals at 0, 10, 30 and 31 ms recorded out of order give gaps 1, 10, 20 and a p99 of 20 ms.
+    #[test]
+    fn inter_arrival_is_between_arrivals_in_time_order() {
+        let dial = Instant::now();
+        let arrivals = [30, 0, 31, 10].map(|ms| at(dial, ms)).to_vec();
+        let v = Visit { dial: Some(dial), arrivals, ..Visit::new() };
+        assert!(v.report().contains("inter_arrival_p99_ms=20.000 arrivals=4 "), "{}", v.report());
+    }
+
+    /// An unfinished visit prints `-` for what did not happen, never a time from another origin.
+    #[test]
+    fn an_unfinished_visit_prints_dashes() {
+        let dial = Instant::now();
+        let mut v = Visit { dial: Some(dial), count: 2, ..Visit::new() };
+        v.exact(0, at(dial, 5));
+        assert!(v.report().contains("first_shown_ms=- last_exact_ms=- inter_arrival_p99_ms=- "), "{}", v.report());
     }
 }

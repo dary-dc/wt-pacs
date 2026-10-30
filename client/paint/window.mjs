@@ -1,7 +1,7 @@
 /**
  * The native window (client/native/src/window.rs) driven under Xvfb by real input over two committed series, grey and
  * RGB, with every `--paint-thread`, each paint's surface read back and held to the CPU reference: |Δ| = 0 at 1:1, ≤ 1 fitted;
- * each painted frame's samples `exact`; each run's counts printed. Then the lab's settings on each paint thread. docs/native/README.md §4, §The view-worker design
+ * each painted frame's samples `exact`; each run's counts printed. Then the lab's settings on each paint thread, its end included. docs/native/README.md §4, §The view-worker design
  *
  *   VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json node client/paint/window.mjs
  *
@@ -101,6 +101,18 @@ const cine = (within) => (out) => {
   return late <= on ? "the busy loop did not block the UI thread" : null;
 };
 const CINE = ["--cine-hz", 30, "--stamp-painted", ...BUSY];
+// The lab's end (§Built for NATIVERUN): the window closes by itself once the series is exact and its last step painted,
+// and its visit line times the series from the dial.
+const END = ["--exit", "--steps", 2, "--step-every-ms", 300, "--stamp-painted"];
+const ended = (out) => {
+  const v = Object.fromEntries([...(out.match(/^visit (.*)$/m)?.[1] ?? "").matchAll(/(\w+)=(\S+)/g)].map((m) => [m[1], m[2]]));
+  const [first, shown, last, p99, arrivals] = ["first_exact_ms", "first_shown_ms", "last_exact_ms", "inter_arrival_p99_ms", "arrivals"].map((k) => Number(v[k]));
+  console.log(`  visit: first exact ${first} ms, first shown ${shown} ms, last exact ${last} ms, inter-arrival p99 ${p99} ms, ${arrivals} arrivals, exact ${v.exact}`);
+  if (v.exact !== "12/12") return `exact ${v.exact}`;
+  if (!(first > 0 && first <= shown && first <= last) || !(p99 >= 0) || !(arrivals >= 12)) return "the visit's times are not from its dial";
+  const l = lags(out);
+  return l.length === 2 && !l.some(Number.isNaN) ? null : "the window closed before its last step painted";
+};
 const PAINTER = ["intent", "decoded", "job", "done", "stream", "shown"];
 const LAB = [
   ["ui, busy, steps", [...BUSY, ...STEPS], stepped(false, ["stream", "frame", "step"]), false],
@@ -110,6 +122,9 @@ const LAB = [
   ["ui, busy, a 30 Hz cine", CINE, cine(false), false],
   ["view, busy, a 30 Hz cine", ["--paint-thread", "view", ...CINE], cine(true), false],
   ["core, busy, a 30 Hz cine", ["--paint-thread", "core", ...CINE], cine(true), false],
+  ["ui, the lab's end", END, ended, false],
+  ["view, the lab's end", ["--paint-thread", "view", ...END], ended, false],
+  ["core, the lab's end", ["--paint-thread", "core", ...END], ended, false],
 ];
 
 let bad = 0;
@@ -151,7 +166,7 @@ try {
     console.log(`-- ${name}, ${thread}`);
     let id = "";
     for (let i = 0; i < 100 && !id && window.exitCode === null; i++, await sleep(100)) id = x("search", "--pid", window.pid).split("\n")[0];
-    if (!id) throw new Error("the window did not open");
+    if (!id && !flags.includes("--exit")) throw new Error("the window did not open");
     x("windowfocus", "--sync", id);
     for (const [step, input, want] of steps(id)) {
       if (typeof input === "number") await sleep(input);
@@ -159,6 +174,13 @@ try {
       if (want && !(await painted(out, want))) {
         bad++;
         console.log(`FAIL ${name} ${thread} ${step}: no paint shows ${JSON.stringify(want)}`);
+      }
+    }
+    if (flags.includes("--exit")) {
+      for (let i = 0; i < 100 && window.exitCode === null; i++) await sleep(100);
+      if (window.exitCode !== 0) {
+        bad++;
+        console.log(`FAIL ${name} ${thread}: the window did not close by itself`);
       }
     }
     x("key", "Escape");
@@ -204,7 +226,8 @@ try {
   for (let i = 0; i < 12; i++) fs.symlinkSync(path.join(PLAIN, `${SERIES[0][1][i % 4]}.av1`), path.join(long, `${String(i).padStart(3, "0")}.av1`));
   run(`${BIN}/pack-series`, ["--metadata", `${long}.json`, "--frames", long, "--output", `${long}/series.sbnd`]);
   for (const [thread, flags, check, read] of LAB) {
-    const stdout = await visit("window_grey16", long, `lab: ${thread}`, flags, () => [["the lab's run", 5500, null]], read);
+    const run = flags.includes("--exit") ? [] : [["the lab's run", 5500, null]];
+    const stdout = await visit("window_grey16", long, `lab: ${thread}`, flags, () => run, read);
     const failed = check(stdout);
     bad += failed ? 1 : 0;
     console.log(`  ${failed ? `FAIL ${failed}` : "ok  "} lab: ${thread}`);

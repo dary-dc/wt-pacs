@@ -94,6 +94,7 @@ impl Session {
         if let Some(Ok(Event::Frame { index, at, .. })) = &event {
             crate::count::hop(*index);
             crate::count::stamp("stream", *at);
+            crate::count::arrived(*at);
         }
         event
     }
