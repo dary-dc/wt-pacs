@@ -535,5 +535,26 @@ async function aSpanCrossesHeldFrames() {
 }
 await aSpanCrossesHeldFrames();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames: ok");
+/**
+ * A run delivering 2–9 next. By default a want headed by 3, the run's second frame, ends it with an ask. Under
+ * `waitAhead` 4, 3 is waited for; 0, behind the run, is asked; 6, the run's 5th, is asked.
+ */
+async function aHeadTheRunDeliversWithinKIsWaitedFor() {
+  const steps = [[3, 4, 5, 6, 7, 8, 9, 2], [0, 3, 4, 5, 6, 7, 8, 9, 2], [6, 7, 8, 9, 2, 3, 4, 5, 0]];
+  const asked = {};
+  for (const waitAhead of [undefined, 4]) {
+    const w = await wantWorld(`wait-ahead-${waitAhead}`, { decode: false, decoders: 0, waitAhead });
+    await onmessage({ data: { kind: "want", indices: [2, 3, 4, 5, 6, 7, 8, 9] } });
+    asked[waitAhead] = [];
+    for (const want of steps) {
+      await onmessage({ data: { kind: "want", indices: want } });
+      asked[waitAhead].push(w.asks.join());
+    }
+  }
+  check(asked.undefined.join("|") === "3|3,0|3,0,6", `by default each head is asked at once (${asked.undefined.join(" | ")})`);
+  check(asked[4].join("|") === "|0|0,6", `under waitAhead 4, 3 is waited for, then 0 and 6 asked (${asked[4].join(" | ")})`);
+}
+await aHeadTheRunDeliversWithinKIsWaitedFor();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for: ok");
 process.exit(failed ? 1 : 0);

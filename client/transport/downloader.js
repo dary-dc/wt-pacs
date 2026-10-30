@@ -242,7 +242,8 @@ function serveWant() {
   const owed = owedAsks().length;
   if (owed === 0) forgetEnded();
   if (wanted.size) {
-    if (head === Math.min(...wanted)) return;
+    // The run's next frame is waited for; under the lab's `waitAhead`, any of its next k: docs/adr/frame-path.md §3, *Experiment 2*.
+    if (wanted.has(head) && head - Math.min(...wanted) < (cfg.waitAhead || 1)) return;
     // The run no longer serves the head: the next ask ends it on the server.
     for (const i of wanted) ended.add(i);
     wanted.clear();

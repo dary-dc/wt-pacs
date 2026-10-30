@@ -53,6 +53,7 @@ function start({ canvas, meta, fillMode, size, settlePaint }) {
 async function connect({ port, url, certHash, opts: { holdEveryOther, ...opts }, issuedAt }) {
   downloader = port;
   controller.issuedAt = issuedAt;
+  controller.ascending = Boolean(opts.waitAhead);
   // Descending, so the held frames are asked alike whatever the downloader's `span`.
   const held = holdEveryOther && controller.want().filter((i) => i % 2 === 0).reverse();
   const want = controller.store.want(held || controller.want());
