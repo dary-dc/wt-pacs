@@ -109,7 +109,7 @@ const CALLS = {
   connect,
   repaint: () => controller.repaint(),
   valueAt: ({ x, y }) => controller.valueAt(x, y),
-  ledger: () => controller.ledger(),
+  ledger: ({ flip }) => controller.ledger({ flip }),
   cine: () => cine?.log ?? [],
   check: async ({ phase, args }) => (await import("./check.js"))[phase]({ controller, port: downloader, ...args }),
   close: () => controller.client.close(),

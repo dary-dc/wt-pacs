@@ -294,6 +294,17 @@ test("cache: a frame is acked once held within the budget or written", async () 
   assert.deepEqual(acks, [0, 3]);
 });
 
+/** A lab's `flip` changes one sample before the digest, so a check that compares digests must fail; the frame held is untouched. */
+test("the ledger's flip changes the digest, not the frame", async () => {
+  const { c } = rig({ frames: 1, held: [0] });
+  c.client.stats = () => ({ resumedAt: [] });
+  const [plain] = (await c.ledger()).frames;
+  const [flipped] = (await c.ledger({ flip: true })).frames;
+  const [again] = (await c.ledger()).frames;
+  assert.notEqual(flipped.sha, plain.sha);
+  assert.equal(again.sha, plain.sha);
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try {

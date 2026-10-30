@@ -149,8 +149,8 @@ export class ViewWorker {
     return this.#call("valueAt", { x, y });
   }
 
-  ledger() {
-    return this.#call("ledger");
+  ledger(lab) {
+    return this.#call("ledger", lab);
   }
 
   /** Cine on the view worker's own `source`, or on the page's `tick`s with `posted`, frame 0 due at `t0`: lab/frame-clock. */

@@ -254,7 +254,7 @@ if (q.get("check") || lab.finished) {
       show(i);
       await until(() => shown?.i === i || errors.length);
     }
-    const { frames, firstShownMs, fillMs, stats } = await (worker ?? controller).ledger();
+    const { frames, firstShownMs, fillMs, stats } = await (worker ?? controller).ledger({ flip: q.get("mutate") === "sample" });
     lab.finished({ issuedAt, firstShownMs, fillMs, frames, errors, stats, stepped });
   }
 }
