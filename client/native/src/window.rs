@@ -9,10 +9,11 @@ use native_client::clock::{Busy, Cine};
 use native_client::count::{self, Sent};
 use native_client::decode::Decoder;
 use native_client::paint::{Display, Frame, Function, Painter, Photometric, View, Voi};
-use native_client::resume::{Deadlines, Heard, ResumingSession};
-use native_client::transport::{cert_hash, Event, Windows};
+use native_client::resume::{Deadlines, ResumingSession};
+use native_client::transport::{cert_hash, Windows};
 use native_client::verify::{digests, exact, Exact};
-use native_client::view::{decoders, download, Asking, Decoded, Store, Wire};
+use native_client::load::{load, Loaded};
+use native_client::view::{decoders, download, Decoded, Store};
 use serde_json::{json, Value};
 use std::future::Future;
 use std::path::PathBuf;
@@ -617,11 +618,7 @@ impl ApplicationHandler<Sent<Note>> for App {
     }
 }
 
-/// Fills the series and hands each frame on once decoded; a frame that is not exact is never painted.
-/// With a cache, each frame's write and both fsyncs run before its hand-off, as the branches merged it.
-async fn load(args: Args, metadata: String, count: usize, proxy: EventLoopProxy<Sent<Note>>) -> Result<()> {
-    let digests = digests(&metadata)?;
-    let mut decoder = Decoder::new(&metadata)?;
+async fn load_ui(args: Args, metadata: String, count: usize, proxy: EventLoopProxy<Sent<Note>>) -> Result<()> {
     let cache = match &args.cache {
         Some(root) => {
             let cache = Cache::open(root, args.series.as_deref().unwrap_or_default(), args.version.as_deref().unwrap_or_default())?;
@@ -630,53 +627,15 @@ async fn load(args: Args, metadata: String, count: usize, proxy: EventLoopProxy<
         None => None,
     };
     let held = tokio::sync::Semaphore::MAX_PERMITS;
-    let mut session = ResumingSession::open(&args.url, cert_hash(&args.cert_sha256)?, Windows::default(), held, Deadlines::default()).await?;
-    let mut asking = Asking::new(args.asks);
-    asking.want((0..count as u32).collect());
-    loop {
-        while let Some(wire) = asking.next(|_| false) {
-            match wire {
-                Wire::Fill(from, to) => session.fill(from, to).await?,
-                Wire::Ask(index) => session.ask(index).await?,
-                Wire::End => session.end_stream().await?,
-                Wire::Cached(_) => unreachable!("nothing is on disk"),
-            }
-        }
-        if asking.finished() {
-            break;
-        }
-        match session.next(asking.owed()).await? {
-            Heard::Event(Event::Frame { index, body, .. }) => {
-                asking.arrived(index);
-                count::copy(index, decoder.copies());
-                let checked = decoder.decode(&body).map(|s| (exact(&s, digests.as_ref().and_then(|d| d.get(index as usize).copied())), s));
-                match checked {
-                    Ok((Exact::False, _)) => println!("frame={index} exact=false"),
-                    Ok((e, samples)) => {
-                        println!("frame={index} exact={}", format!("{e:?}").to_lowercase());
-                        if let Some(cache) = &cache {
-                            cache.put(index, &body, &e)?;
-                        }
-                        proxy.send_event(Sent::now(Note::Frame(index, samples)))?;
-                    }
-                    Err(e) => println!("frame={index} exact=false reason={e:#}"),
-                }
-                asking.done(index, false);
-            }
-            Heard::Event(Event::Refused { frame, reason }) => {
-                println!("frame={frame} refused={reason:?}");
-                asking.refused(frame);
-            }
-            Heard::Resumed => asking.resumed(),
-            Heard::Lost(reason) => {
-                for frame in asking.lost() {
-                    println!("frame={frame} exact=false reason={reason:?}");
-                }
-            }
-        }
-    }
-    session.close();
-    Ok(())
+    let session = ResumingSession::open(&args.url, cert_hash(&args.cert_sha256)?, Windows::default(), held, Deadlines::default()).await?;
+    let hand = |loaded| {
+        let note = match loaded {
+            Loaded::Frame { index, samples, .. } => Note::Frame(index, samples),
+            Loaded::Failed { index, reason } => Note::Failed(format!("scope=frame frame={index} reason={reason:?}")),
+        };
+        Ok(proxy.send_event(Sent::now(note))?)
+    };
+    load(session, Decoder::new(&metadata)?, digests(&metadata)?, count as u32, cache, args.asks, hand).await
 }
 
 fn main() -> Result<()> {
@@ -706,7 +665,7 @@ fn main() -> Result<()> {
     if args.paint_thread == PaintThread::Ui {
         let count = app.series.count;
         runtime.spawn(async move {
-            if let Err(e) = load(args, metadata, count, proxy).await {
+            if let Err(e) = load_ui(args, metadata, count, proxy).await {
                 eprintln!("{e:#}");
                 std::process::exit(1);
             }

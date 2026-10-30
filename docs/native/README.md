@@ -838,7 +838,8 @@ native branches are merged in (#206 painter, #209 cache, #216 window, #218 fill 
 #209's `--cache` and #218's `--in-turn --paint`. The window takes `--paint-thread`, the thread that holds the frames and paints them:
 
 * **`ui`** (the default, N0): today's, unchanged in design. With `--cache` it writes each frame, both fsyncs, before
-  the hand-off, as the merge would; it never reads the cache, which no branch had the window do. Its present is now
+  the hand-off, as the merge would; it never reads the cache, which no branch had the window do. (*Corrected
+  2026-10-30*, §Parity: it now reads the cache first, as `view` and `core` do, and a failed write no longer aborts it.) Its present is now
   pinned to `Fifo` and printed.
 * **`view`** (N1): `client/native/src/view.rs` and the window's `Viewer`. Threads: UI, a downloader on a
   `current_thread` runtime holding quinn and the records, `N` decoders, the view thread — `N + 3`. The want is a
@@ -987,6 +988,8 @@ native side. A row reading *not yet* is open.
 | re-ask what is owed, nothing that arrived | `reaskOwed` | `Asking::resumed`: the owed frames back at the want's head, in the order asked | `view::tests::a_resume_asks_again_for_what_was_owed` |
 | every re-dial failed: what is owed fails by name; the next ask dials afresh | `resume`, `live` | `Heard::Lost`, `Asking::lost` | `view::tests::a_lost_session_fails_what_it_owed`, the resume test above |
 | end a fill no longer wanted | `cancel` sends `end_stream` | `Wire::End` once the want holds none of the fill's owed frames, and when the view closes | `view::tests::a_fill_the_want_has_left_is_ended`, `view::tests::a_view_that_closes_mid_fill_ends_the_fill` |
+| a cache write that fails: the frame is still painted, the failure reported | the cache is a lab lever there (`?writer=`), off by default | `--cache`, every paint thread: `failed scope=cache` printed and in the status; `native-fill` too (#209) | `load::tests::a_cache_that_cannot_write_does_not_stop_the_load` |
+| the cache read before the wire, a copy failing its check removed and fetched again | `client/view/cache.js` under `?view=worker` | every paint thread; under `ui` since this branch (`load.rs`) | `load::tests::the_cache_is_read_and_a_flipped_entry_comes_from_the_wire` |
 
 ### Where it departs
 
@@ -997,8 +1000,10 @@ native side. A row reading *not yet* is open.
   with them the wire: the downloader's own back-pressure is not silence.
 * **`native-fill` stays single-session.** It measures one session's timing; a re-dial would fold two into one row.
   Its loss stays fatal.
-* **Under `--paint-thread ui`** the loader resumes by the same records (`Asking`) and `ResumingSession`; no test drives
-  that loop through a dead path — the view and core paint threads' downloader is the one tested.
+* **Under `--paint-thread ui`** the loader (`load.rs`, moved out of the binary to be tested) resumes by the same records
+  (`Asking`) and `ResumingSession`: `load::tests::the_ui_loader_survives_a_silent_path`.
+* **The `ui` arm changed under `--cache`.** NATIVERUN's N0 wrote the cache and never read it; it now reads it first. Its
+  write still comes before the hand-off, as N0's design has it.
 * **No recycle.** The browser's recycle before a byte budget (`recycleAtBytes`) is a lab setting there, off by
   default; not built.
 

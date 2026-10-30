@@ -115,7 +115,11 @@ async fn main() -> Result<()> {
             let hit = cache.get(index, |coded| {
                 let (checked, exact, samples) = check(&mut decoder, coded, digest(index));
                 (exact == Exact::True).then(|| (index, coded.to_vec().into(), Instant::now(), "cache", checked, exact, samples))
-            })?;
+            });
+            let hit = hit.unwrap_or_else(|e| {
+                println!("failed scope=cache frame={index} reason={e:#}");
+                None
+            });
             frames.extend(hit);
         }
     }
@@ -145,8 +149,8 @@ async fn main() -> Result<()> {
             None => match session.as_mut().context("frames owed and no session")?.next().await.context("the session ended with frames owed")?? {
                 Event::Frame { index, body, at } => {
                     let (checked, exact, samples) = check(&mut decoder, &body, digest(index));
-                    if let Some(cache) = &cache {
-                        cache.put(index, &body, &exact)?;
+                    if let Some(Err(e)) = cache.as_ref().map(|c| c.put(index, &body, &exact)) {
+                        println!("failed scope=cache frame={index} reason={e:#}");
                     }
                     (index, body, at, "server", checked, exact, samples)
                 }

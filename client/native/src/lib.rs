@@ -3,6 +3,8 @@ pub mod decode;
 pub mod cache;
 pub mod clock;
 pub mod count;
+#[cfg(feature = "decode")]
+pub mod load;
 #[cfg(feature = "paint")]
 pub mod paint;
 pub mod resume;

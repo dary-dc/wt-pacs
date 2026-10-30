@@ -325,7 +325,7 @@ impl Store {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::transport::tests::{serve, temp_dir, until_up};
     use crate::resume::tests::{quick, Relay};
@@ -337,7 +337,7 @@ mod tests {
     const PAYLOADS: [&str; 4] = ["g9", "g10", "g12", "g14"];
 
     /// The window check's grey series, its four AV1 payloads repeated to `count` frames, with each frame's digest.
-    fn series(count: usize) -> (String, Vec<Bytes>) {
+    pub(crate) fn series(count: usize) -> (String, Vec<Bytes>) {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let metadata = std::fs::read_to_string(root.join("lab/fixtures/window_grey16/metadata.json")).unwrap();
         let mut metadata: serde_json::Value = serde_json::from_str(&metadata).unwrap();
