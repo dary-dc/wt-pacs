@@ -223,7 +223,8 @@ export function paint({ frame, same, display, width, height, dpr, read, settle =
   const pixels = read ? readback(width, height) : null;
   // A one-pixel read waits for the draw to execute; gl.finish() alone did not on SwiftShader.
   if (!read && settle) gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
-  return { ms: performance.now() - t0, uploaded: fresh, pixels };
+  // `drawn`: ms since the epoch, so a thread that waits for the reply can still time the draw.
+  return { ms: performance.now() - t0, uploaded: fresh, pixels, drawn: performance.timeOrigin + performance.now() };
 }
 
 // As its own worker, the painter's; imported by the view worker, which replaces this handler with its own.

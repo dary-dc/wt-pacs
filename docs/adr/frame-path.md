@@ -3,7 +3,8 @@
 **Status:** proposed 2026-10-11 (queue row 148, FRAMEPATH, of [`../av1/queue.md`](../av1/queue.md)); the cache's design
 reviewed 2026-10-20 and **built 2026-10-27, not timed** (§Proposed: the client cache in OPFS); the owner's target
 shape, a B′ without the store worker, **built 2026-10-28 as a variant beside today's path and not timed** (§3, *Built*);
-both assembled on one branch 2026-10-30 (§The core, assembled). The decisions are the owner's; they are listed in §8 and under the queue's
+both assembled on one branch 2026-10-30 (§The core, assembled); **§7 run on the core 2026-10-30: `?view=page` (A)
+stays the default by its rule** (§7, *Measured*). The decisions are the owner's; they are listed in §8 and under the queue's
 `## Blocked`. Sources are pinned in §9; every figure not marked *measured* is a prediction or a reading of source.
 
 ## 1 · Today, and the question
@@ -49,13 +50,17 @@ change the design.**
 * **Presenting needs no page thread** in any engine, by source: Chromium submits the worker's frames to viz over the
   worker's own `CompositorFrameSink`; Gecko pushes them into an asynchronous `ImageContainer`; WebKit copies them to
   the layer from the worker and tells the main thread only to update the element. The spec encourages exactly this
-  when the window's event loop is busy (HTML, OffscreenCanvas). **Not run:** that frames appear while the page is
-  blocked is what the code shows, and the protocol in §7 checks it.
+  when the window's event loop is busy (HTML, OffscreenCanvas). ~~**Not run:** that frames appear while the page is
+  blocked is what the code shows, and the protocol in §7 checks it.~~ *Measured 2026-10-30 (§7): in Chromium they do;
+  in Firefox 155 the view worker's WebGL2 draw waits for the busy page (draw p99 ≈ the 200 ms task), so its cine is as
+  late as the page's. The Gecko reading above is of presentation; what holds the draw is not traced.*
 
 **Prediction.** On a quiet page, B moves the first exact frame on screen **by under 1 ms** (the two page hops), which
 no 60 Hz display shows. Under a page held by long tasks, B gains up to the task's length per waited frame and keeps
 cine running; A does not. The difference is real only where long tasks are; whether the viewer has them on a phone is
-not measured.
+not measured. *Measured 2026-10-30 (§7), corrected in place: on a quiet page B′'s first exact frame came later, not
+under 1 ms sooner — by 12–276 ms, median of rounds, in 15 of 16 cells; under long tasks the gain and the running cine
+held in Chromium and not in Firefox. The rule kept A.*
 
 ## 3 · Who owns the frame store
 
@@ -590,7 +595,7 @@ a mammogram on the decoder's clock, which is the fill's when decode-bound; writi
 front of the next paint (B's flaw). B′ costs one more thread; on a host whose cores the decoders already saturate (3 on
 4, [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Resources), the writes compete for the fourth core with the page. Measured by §7's protocol, not assumed.
 
-## 7 · Protocol (proposed, not queued)
+## 7 · Protocol (proposed 2026-10-11; run 2026-10-30 on the core, amended before data)
 
 Arms differ in the lever alone: **A** (today's path, plus the store worker) and **B′**, same decoders, painter code,
 store worker and transport, each arm's settings printed. Chromium and Firefox; the viewer's three series and a
@@ -608,6 +613,102 @@ frame checked against the encoder input's `.sha256`.
 in ≥ 9 of 12 rounds in both browsers and keeps cine on time where A misses, while (1)'s fill is within ×0.98–1.02 and
 its first frame no later by 16.7 ms or more. Otherwise keep A with the store worker. Store decoded samples if, in (4),
 reopen is faster than a decode of the same frame on every set; otherwise the owner reopens the coded-bytes question.
+
+**Amended before any data (2026-10-30), for the run on the core.** The text above is kept; each change is forced by
+the rig or by what the core is, and says why.
+
+* **The arms are the core's `?view=page` (A) and `?view=worker` (B′)**, with `pageaa`, A again, as the A/A pair. The
+  store worker is in neither: the core's cache is off by default (`?writer=` unset, §The core, assembled), so A is
+  today's path without it. **Cell 4 is out of this run:** with no cache on by default there is nothing to time, and
+  who writes it is the OPFS-arms run's to decide (§The cache I/O in the view worker).
+* **Series:** row INGEST's three, through the product's ingest as HTJ2K (`lab/viewer/view_frames.py`) — `ct_nlst` (76 ×
+  512², signed), `us_liver` (70, RGB), `dbt12_ea1141` (29 × 614×1359) — and `ffdm_a`'s first view (one 2560×3328
+  frame). One frame has no asks and no cine, so the mammogram is in cells 1, 3 and (2)'s first frame alone.
+* **Link:** §7 named none; `r50000` (50 Mbit/s, 40 ms round trip, total-time's), behind the relay. Rig core 3,
+  browser cores 0–2.
+* **(2) is three visits a round:** the fill on the busy page (its first exact frame from navigation), then 10 s of
+  cine; and, on demand, frame 0 then ten asks (frames 1–10) one at a time. **Arrival → screen is the decoder's
+  hand-off to the frame's first draw** (`decodeEnd` to the paint's own end, both on the epoch clock): an ask's issue
+  and its round trip are the page's in both arms, so only this span differs between them. A paint's end is the
+  draw's, stamped in the thread that drew it, so a reply waiting on the busy page is not counted against A.
+* **Cine runs on the thread that holds the frames, on the same kind of clock:** A on a page timer to a schedule, B′ on
+  the view worker's (`client/view/clock.js`, `timeout`), each showing the frame due at its tick (§A frame clock,
+  *amended*), frame 0 due mid display interval, at the series' rate as the viewer's cine (10/s where the metadata has
+  none). Worker rAF is that section's question, not this one. **Late** is that section's score from the draw log
+  against a second worker's vsync log (`lab/frame-clock/measure.js`); claims are from draws, not presentation.
+* **(3) is the page's content process's main thread CPU time** over the quiet fill (`/proc`, the process that moved
+  most), ÷ frames: Firefox has no trace this rig reads, so both engines are read alike. Its resolution is 10 ms a
+  visit.
+* **Guards.** A visit is dropped if the relay's timing is VOID, it errs, or on a busy page its shortest long task is
+  under 200 ms; dropped visits are re-run as whole extra rounds, and a cell counts the first 12 rounds in which all three
+arms were kept (*added after round 0, before any cell had 12 rounds: three relay-VOID asks visits made top-ups
+certain, and extra rounds would otherwise loosen "9 of 12"*); a cell with fewer decides nothing. A cell is
+  **VOID** when `pageaa` and `page` differ, median over paired rounds, by more than: the fill ×0.98–1.02 or the first
+  frame by 16.7 ms (quiet); arrival → screen by 8 ms (asks); 2 points of late frames or 16.7 ms of gap p99 (cine).
+  A cine cell is **saturated** when `page`'s draw p99, median over rounds, passes half the period.
+* **The rule, read before any data** (`lab/viewer/view-summary.mjs`): B′ is adopted if every frame is exact, and in
+  every decided cell of both engines at 1× and 4×: quiet, B′'s fill ÷ A's median in ×0.98–1.02 and its first frame
+  less than 16.7 ms later; asks, B′'s median arrival → screen ≥ 16.7 ms below A's in ≥ 9 of 12 rounds; cine, where
+  A's median late exceeds 2 points, B′'s is at most 2 with a median gap p99 ≤ 2 periods; and each engine has an asks
+  cell decided. Otherwise A stays. The mean arrival → screen is printed beside the median: §2 predicts A's *mean*
+  (half the task, for the asks that land in one), which the median of ten asks need not move.
+
+**Measured 2026-10-30, on the core** (`claude/core-s7`; rows in [`../../lab/viewer/rows/`](../../lab/viewer/rows/),
+read by `node lab/viewer/view-summary.mjs lab/viewer/rows/view-{quiet,cine,busy,asks}.jsonl`). Headless Chromium 153
+(SwiftShader) and Playwright's Firefox 155 headed under Xvfb (llvmpipe), 4 cores, no GPU, no display; rounds 0–11,
+then whole extra rounds of a kind (to 26 for the asks) until every cell had 12 rounds with all three arms kept. 2 880
+visits, 302 dropped (the relay's timing guard: a quarter of the short asks visits, 5 % of the rest; no long task
+under 200 ms, no error). **92 124 of 92 124 frames exact**; `--mutate sample` turned every frame of every arm in both
+engines inexact. Medians over the 12 rounds; *Δ* is B′ − A paired by round.
+
+| cell | Chromium 1× | Chromium 4× | Firefox 1× | Firefox 4× |
+| --- | --- | --- | --- | --- |
+| (1) quiet, first exact frame Δ, ms: CT / US / tomo / mammo | +16 / −1 / +12 / **+84** | **+38** / **+22** / *+90* / *+80* | *+61* / **+32** / *+77* / *+106* | *+83* / *+94* / **+175** / *+276* |
+| (1) quiet, fill B′ ÷ A: CT / US / tomo / mammo | 1.008 / 1.006 / 1.009 / **1.086** | 1.014 / 1.011 / *1.026* / *1.072* | *1.015* / 1.013 / *1.019* / *1.134* | *1.022* / *1.029* / **1.058** / *1.228* |
+| (2) asks, arrival → screen median A / B′, ms: CT / US / tomo | 11.6/10.9 · 16.5/15.6 · 89/17 | 21.8/17.7 · *83/33* · *82/34* | 12.7/11.4 · 15.8/13.3 · 82/71 | 24.4/23.2 · 98/63 · 74/74 |
+| (2) asks, mean A / B′, ms: CT / US / tomo | 63/12 · 59/16 · 107/18 | 75/19 · *110/32* · *89/34* | 59/58 · 63/53 · 106/101 | 68/63 · 114/103 · 87/84 |
+| (2) asks, rounds B′ ≥ 16.7 ms sooner of 12: CT / US / tomo | 0 / 0 / 7 | 0 / *9* / *12* | 0 / 0 / 6 | 0 / 7 / 4 |
+| (2) cine late A / B′, %: CT / US / tomo | 20 / 0 · 20 / 0 · 20 / 0 | 20 / 0 · *24 / 0*ˢ · *24 / 0*ˢ | *20 / 26* · 23 / 20ˢ · *22 / 27*ˢ | *33 / 40*ˢ · 30 / 34ˢ · *35 / 40*ˢ |
+| (2) cine gap p99 A / B′, ms (period 100) | 283 / 117 · 317 / 133 · 275 / 117 | 283 / 117 · *383 / 150* · *392 / 150* | *288 / 297* · 339 / 323 · *322 / 323* | *356 / 356* · 407 / 424 · *373 / 390* |
+| (2) busy, first exact frame Δ (A/A), ms: CT / US / tomo / mammo | +53 (7) / −8 (−8) / +7 (5) / +85 (15) | +61 (−44) / −169 (−1) / −80 (−2) / +19 (12) | −11 (−13) / −41 (45) / −54 (15) / −10 (−54) | 0 (−7) / +222 (101) / +262 (236) / +86 (−2) |
+| (3) page thread CPU, ms a frame, A / B′: CT / US / tomo | 1.45/1.05 · 1.57/1.36 · 2.76/3.10 | 1.64/1.05 · 1.57/1.00 · 2.41/2.24 | 1.97/1.18 · 2.14/1.14 · 3.10/2.76 | 2.11/1.18 · 2.29/1.29 · 3.45/2.76 |
+
+*Italic*: the cell is VOID (its A/A pair apart by more than the bar); ˢ: saturated by the guard (A's draw p99 over half
+the period); **bold**: a decided cell that fails the rule. (2)'s busy first frame is from the cine visits and decides
+nothing, its A/A pair as wide as its Δ (whether a task stands in the way is a coin toss); the mammogram's is from its
+own busy visit. (3)'s mammogram is one frame at 10 ms resolution, 40–70 ms
+both arms, and is left out.
+
+**The rule's verdict: A stays** — `?view=page` remains the core's default. It fails on two counts, each alone enough:
+
+* **(1), the quiet page:** B′'s first exact frame is later by ≥ 16.7 ms in five decided cells (Chromium CT and US at
+  4×, the mammogram at 1×; Firefox US at 1×, tomosynthesis at 4×, there with the fill ×1.058). It is later in 15 of
+  16 cells, VOID or not. Why is not measured; the view worker's start (its module graph, its WebGL context, its
+  consumer) lies on B′'s path to the first frame and not on A's.
+* **(2), the asks:** no decided cell has B′'s median arrival → screen 16.7 ms sooner in 9 of 12 rounds. On the CT and
+  US series most asks land outside a long task, so A's median is the quiet path (11–25 ms) in both engines.
+
+**What §2 predicted, against this.**
+
+* *Chromium, the prediction holds.* A's *mean* arrival → screen is 59–110 ms against B′'s 12–34 ms (§2: half the task
+  for the asks that land in one); B′'s cine stays on time through the long tasks (0 % late, gap p99 117–150 ms) where
+  A's misses 20–24 % (gap p99 ≈ 283 ms, the task plus an interval). The worker's frames reach the screen while the
+  page is blocked, as §2's last bullet read from source.
+* *Firefox, it does not.* B′'s cine is as late as A's or later (20–40 %), and the view worker's draw p99 is
+  **≈ 200 ms at 1× and 220 ms at 4×, the long task's length**, against Chromium's 23 and 44 ms: in Firefox 155 a
+  worker's WebGL2 draw, ending in the one-pixel `readPixels` the lab's paint waits on, waits for the busy page. A's
+  paint worker shows the same in some rounds (draw p99 57–300 ms). Whether presentation without that read also waits
+  is not measured, and nor is the Gecko path that makes it wait. The saturation guard marks these cells, but it is
+  reading the engine, not the host: the draw p99 is the task's length at 1× as at 4×.
+* *The page thread* (3): B′ takes 1.0–1.4 ms a frame of the page's main thread against A's 1.45–2.3 on CT and US, the
+  rest of the page's own work (its status line, the downloader's port, the lab's polls) staying. Neither is a reason
+  to change the design by itself (§2's first paragraph).
+
+**Where the host saturates:** the 4× Chromium cine cells on US and tomosynthesis, and every Firefox cine cell by the
+guard (above). Nothing is claimed from them. Everything is from software rasterisers and the containers' synthetic
+vsyncs, as §A frame clock's *What a container can and cannot claim* says; a GPU, a display and a phone are not
+measured. **Cell 4 (OPFS)** was not run: the core's cache is off by default, and who writes it is the OPFS-arms run's
+question (§The cache I/O in the view worker).
 
 ### A frame clock in the view worker (2026-10-28)
 
@@ -3154,7 +3255,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 
 | setting | default (today's) | other values | decided by | status 2026-10-30, 03:00 UTC |
 | --- | --- | --- | --- | --- |
-| `?view=` | `page` | `worker` | §7's rule (B′), #229 | built, not run; **nothing times the core against main yet** (equal by counts only) |
+| `?view=` | `page` | `worker` | §7's rule (B′), #229 | **run 2026-10-30: `page` stays** — B′'s quiet first frame later, its asks' median not sooner; its cine on time through long tasks in Chromium, not in Firefox (§7) |
 | `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | built and its rig, not run |
 | `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | built and reviewed, not run |
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | answered by M5: `transfer` misses its memory bar on Chromium |

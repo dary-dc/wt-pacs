@@ -162,9 +162,10 @@ const traced = lab.trace && (async () => {
 })();
 
 const cineEl = document.getElementById("cine");
+const cineFps = 1000 / (meta.frameTimeMs ?? (meta.cineRate ? 1000 / meta.cineRate : 100));
 function toggleCine() {
   if (view.playing) view.pause();
-  else view.play(1000 / (meta.frameTimeMs ?? (meta.cineRate ? 1000 / meta.cineRate : 100)));
+  else view.play(cineFps);
   cineEl.textContent = view.playing ? "❚❚ cine" : "▶ cine";
 }
 cineEl.onclick = toggleCine;
@@ -240,6 +241,7 @@ if (q.get("check") || lab.finished) {
       }
     }, 20);
   });
+  await lab.filled?.();
   await view.repaint();
   const check = worker ? (phase, args) => worker.check(phase, args)
     : async (phase, args) => (await import("/client/view/check.js"))[phase]({ controller, ...args });
@@ -252,7 +254,8 @@ if (q.get("check") || lab.finished) {
       show(i);
       await until(() => shown?.i === i || errors.length);
     }
+    const cine = await lab.cine?.({ worker, controller, fps: cineFps });
     const { frames, firstShownMs, fillMs, stats } = await (worker ?? controller).ledger({ flip: q.get("mutate") === "sample" });
-    lab.finished({ issuedAt, firstShownMs, fillMs, frames, errors, stats, stepped });
+    lab.finished({ issuedAt, firstShownMs, fillMs, frames, errors, stats, stepped, cine });
   }
 }

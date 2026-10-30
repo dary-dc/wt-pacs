@@ -2,10 +2,8 @@
 import { now } from "../../client/view/clock.js";
 import { ViewWorker } from "../../client/view/view.js";
 import { start } from "./arms.js";
+import { busyPage } from "./busy.js";
 
-/** ms: §7's busy page, a task this long every period. */
-const LONG_TASK_MS = 200;
-const BUSY_PERIOD_MS = 500;
 /** ms: frame 0 is due this long after the arm starts, so a worker's clock module has loaded. */
 const LEAD_MS = 500;
 
@@ -15,14 +13,7 @@ export const SERIES = {
 };
 
 const q = new URLSearchParams(location.search);
-const tasks = [];
-if (q.get("busy") === "1") {
-  setInterval(() => {
-    const a = now();
-    while (now() - a < LONG_TASK_MS);
-    tasks.push(now() - a);
-  }, BUSY_PERIOD_MS);
-}
+const tasks = q.get("busy") === "1" ? busyPage() : [];
 
 async function run() {
   const s = SERIES[q.get("series")];
