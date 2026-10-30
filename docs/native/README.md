@@ -172,7 +172,9 @@ PYTHON=.venv/bin/python scripts/gate.sh
 neither (`BUILD=/x ingest/tools.sh`, then `INGEST_BUILD=/x scripts/gate.sh`). The gate finds lavapipe itself
 (`/usr/share/vulkan/icd.d/lvp_icd*.json`); a lab run passes it as `VK_ICD_FILENAMES`. With these, `cargo test -p
 native-client` (with `--features decode` too), the painter's, decode and view tests and `client/paint/window.mjs` pass
-on lavapipe.
+on lavapipe. The gate's browser steps also need README.md §Prerequisites' first block (the wasm target, `wasm-pack`,
+the two fetches and `client/transport/wasm/build.sh`). The stock container has a docker client and no daemon, so the
+full gate fails at the decoders' rebuild; `scripts/gate.sh --quick` runs every native step and skips that one by name.
 
 Order: **desktop in cloud containers first**, so each row runs unattended; **then a desktop with a GPU** (the owner's);
 **then phones**. Every timed row interleaves its arms, prints each arm's full settings (server build, controller and
