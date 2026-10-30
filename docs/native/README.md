@@ -1046,9 +1046,10 @@ cache's write delay.
   window, unlike the browser and `native-fill`, had no fallback. It now windows such a frame by its decoded range
   through its rescale, as `client/view/controller.js` does (`Voi::of_range`; a drag on such a series is ignored, not
   fixed). `paint::tests` and a windowless run in `client/paint/window.mjs` hold it, |Δ| 0 at 1:1 on every paint thread;
-  three mutants of the range and one dropping the fallback each fail them. That round's 32 visits — the window's 12 on
-  the 61 MB series failed, the other 20 ran — are kept in `rows-aborted.jsonl`, not counted, and the run restarted at
-  round 0. Nothing else changed.
+  three mutants of the range and one dropping the fallback each fail them. Two starts are kept in `rows-aborted.jsonl`,
+  not counted: a first round of 32 visits, and a restart of 29 that I stopped by mistake, which ran a build that had
+  lost the fix's `window.rs` half to a mutant's restore — in each, the window's visits of the 61 MB series failed. The
+  run then restarted at round 0 on the fixed build. Nothing else changed.
 
 **The series**, made by `lab/native-fill/run.py --make-series DIR` (`lab/scripts/gen_frame_pnm.py`, OpenJPH 0.31.0's
 `ojph_compress` in the served profile, `pack-series`; digests from the generated samples). The generator is seeded by
