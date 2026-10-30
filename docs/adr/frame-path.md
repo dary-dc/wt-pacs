@@ -979,9 +979,17 @@ traced. `ring` never stopped on Chromium, in 28 runs.
 cell's fills on both engines, and 0.34–0.45 in `m5-busy`. Three decoders on four vCPUs set the main cell's pace, so
 its fill times say nothing of a faster decode; the busy cell is paced by the view's hold.
 
-**The harness, checked live.** The review's mutants ran on stub decoders; here `credits-ignored` ran on the live
-transport in `m5-busy` and was caught, with 34 frames waiting against K = 6. `throws-after-slot` held on both
-engines, with 0 slots lost. `throws-slot-kept` was caught on Chromium, with 1 slot lost.
+**The harness, checked live.** The review's mutants ran on stub decoders; here each ran once on the live rig (rows in
+`m5-smoke/`), and every one was caught:
+
+* `slots-never-freed` stalled at 9 frames on both engines, as predicted.
+* `fresh-when-dry` took 28 frames outside the ring on Chromium and 29 on Firefox. Firefox's first run of it never
+  started (the fault above) and was run again.
+* `disk-keeps-frames` held 293 MiB on both engines.
+* `credits-ignored`, in `m5-busy` on Chromium, had 34 frames waiting against K = 6.
+
+The fixture `throws-after-slot` held on both engines, with 0 slots lost. Its mutant `throws-slot-kept` was caught on
+Chromium, with 1 slot lost; it was not run on Firefox.
 
 **What this decides.** On Chromium, transferred buffers miss the memory bar at full speed, credits or not, and the
 ring meets every bar: for the view-worker target, the ring on Chromium. On Firefox nothing is decided, by the rule
