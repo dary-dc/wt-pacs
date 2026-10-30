@@ -36,6 +36,9 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | view | where the viewer holds and paints its frames: `page` (the default) or `worker`, the page's `?view=` ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) |
 | view worker | under `?view=worker`, the worker that holds the controller, the frame store and the paint module; the page sends it intents and hears events, never a frame |
 | controller | the view's current frame, what it asks of the downloader and its paint (`client/view/controller.js`) |
+| paint worker | under `?view=page`, the worker the page posts each frame's handle to, which paints it with WebGL2 on the transferred canvas (`client/paint/paint-worker.js`); in the view worker, the same module is its paint |
+| cine | the frames shown one after another at a rate; the product's is ticked by a page `setInterval` (`client/view/view.js`) |
+| cine clock | what ticks cine, on the page or in the view worker; each of the lab's clocks shows the frame due at its tick (`client/view/clock.js`, [`adr/frame-path.md`](adr/frame-path.md) §A frame clock in the view worker) |
 | frame store | the frames held, by index: has, get, put, a memory window; it decides nothing (`client/view/store.js`) |
 | client | an implementation of the transport (`transport-ts`, `transport-wasm`, the WebSocket one) |
 | Tap | the client's telemetry recorder, outside the product build ([`adr/telemetry-instrument-clients-from-outside.md`](adr/telemetry-instrument-clients-from-outside.md)) |

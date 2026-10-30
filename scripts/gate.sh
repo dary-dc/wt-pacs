@@ -95,6 +95,9 @@ run 1 python3 server/dev-server.test.py
 run 1 node client/paint/voi.test.mjs
 run 1 node client/view/controller.test.mjs
 run 1 node client/view/view.test.mjs
+run 1 node client/view/clock.test.mjs
+run 1 node lab/frame-clock/arms.test.mjs
+run 1 node lab/frame-clock/measure.test.mjs
 
 step "client: worker-safe (no artifact reaches for window)"
 run 1 bash client/scripts/check_worker_safe.sh
@@ -110,6 +113,8 @@ if [[ $browser -eq 1 ]]; then
   run 12 bash client/contract/run_browser.sh
   step "client: the viewer's page check — a complete, exact, drawn page (headless Chromium)"
   run 17 bash client/viewer/run_check.sh
+  step "lab: the frame clock's seven arms wired end to end in the view worker, a second each (headless Chromium, nothing timed)"
+  run 1 node lab/frame-clock/check.mjs
   step "client: a crafted link to the viewer refused where lab/ is not served (headless Chromium)"
   run 1 node client/viewer/crafted.mjs
   step "client: the painter at 1:1 against its CPU reference (SwiftShader, ~3 s)"
