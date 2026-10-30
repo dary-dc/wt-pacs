@@ -677,6 +677,164 @@ draft-ietf-httpbis-resumable-upload-14 (`6bfbf01573b9`, §11.8's file) §6.1, §
 `ngx_stream_proxy_module` (`proxy_timeout`); curl 8.5.0's `--version` in this container. **Not read:** Squid's
 source for `CONNECT` tunnels, commercial proxies' and firewalls' timeout documentation, curl's `--speed-time` page.
 
+### 11.10 Is a reply needed at all: a second opinion
+
+*2026-10-26. The owner asked for "another point of view" on whether replies and retries "are necessary", or whether
+"rsync and similar approaches" could be enough. Theory only: read from sources and from this repository, nothing built,
+nothing timed. Labels as in §11. The owner's decisions it must keep: the PCS keeps each package until `stored` and
+resends on `refused`; a second failure goes to an operator (quarantine); two checks read back from disk (design state
+§3). The words are the receiver's (`stored`, `refused`, `quarantined`; ADR pacs-receiver §10.7, D3); §12.2's
+`committed`, `refused retry`, `refused final` are the same three states under the carrier's names.*
+
+**The answer.** One fact must come back from the PACS, and only one: **"this package is on my disk, checked, and I
+answer for it"**, because it is what lets the PCS delete, and deleting is the only step that cannot be undone. Nothing
+below the receiver can say it. A reconciliation can carry that fact instead of a per-package reply. But a reconciliation
+that carries it is the same verdict read in bulk, not a simpler mechanism. Fire-and-forget gives up the fact, and what
+it loses is not data, since the hospital keeps the originals (design state §3). What it loses is the automatic
+recovery: the owner's resend-once and quarantine rules then become an operator's work at the PACS. So the reply is
+necessary *for the owner's decisions as stated*. What is needed is small: one durable, re-askable verdict per package,
+which is what §12 built. Nothing more is needed: no push, no acknowledgement of the reply, no retry protocol beyond one
+resend.
+
+**The principle, from 1984.** Saltzer, Reed and Clark's "careful file transfer" is this design, step for step. Their
+end-to-end check: host B "reads the transferred file copy back from its disk storage system into its own memory,
+recalculates the checksum, and sends this value back to host A … Only if the two checksums agree does the file
+transfer application declare the transaction committed. If the comparison fails … a retry from the beginning might be
+attempted." On delivery acknowledgements: "knowing for sure that the message was delivered to the target host is not
+very important. What the application wants to know is whether or not the target host acted on the message … The
+acknowledgement that is really desired is an end-to-end one, which can be originated only by the target application
+– 'I did it', or 'I didn't.'" Their one way out is to have the receiver accept responsibility on delivery. They close
+it for this case: "if the target application may either fail or refuse to do the requested action, and thus a negative
+acknowledgement is a possible outcome, an end-to-end acknowledgement may still be a requirement." The receiver
+refuses by design (steps 3–8, R), so the way out does not apply (*inference*). The owner's two read-backs from disk
+(6b, 8) are worth something to the PCS only if their result reaches it.
+
+**Each failure mode, and the guarantee it needs.** "Reply" is the per-package verdict as built. "Reconciliation" is the
+alternative under test: fire-and-forget, then a periodic list from the PACS of what it holds, with the PCS deleting
+what is listed and resending what is missing. "rsync" is `--remove-source-files` alone.
+
+| failure | the guarantee it needs | who can detect it | rsync alone | reconciliation | reply (built) |
+| --- | --- | --- | --- | --- | --- |
+| a drop mid-transfer | the sender learns the copy is incomplete and tries again | the sender's transport | yes: a non-zero exit, the source kept | the same transport | the same: `HEAD` and resume, or a whole resend (§11.2) |
+| silent corruption in transit | an end-to-end hash over the bytes as received | the receiver (step 3); TLS's record integrity covers the wire itself | yes: rsync's "whole-file checksum that is generated as the file is transferred" | yes, once the receiver has checked | yes: `refused`, one resend |
+| corruption on a disk, either side, or a bad resume splice | a hash over the bytes **as read back** | only the receiver (3, 6b, 8) | **no**: the checksum is computed on the stream, not read back; `--fsync` flushes but does not re-read | yes, if the list holds only packages past step 8 | yes |
+| PACS disk full | the PCS keeps its copy and tries later, without an operator | the receiver, at staging | no if the disk fills at staging (an unpack needs room beyond the package), after rsync has deleted the source | partly: "missing" looks the same as "not yet processed" | yes: `refused`, resource limitation, with backoff (ADR §7) |
+| a receiver bug (a check fails that should pass, or a write is wrong) | no deletion, no endless resends, an operator alerted | the receiver's checks; a bug that also fools them only the verify tool's scrub (design state §3) | no: the source is gone; the package sits in `incoming/refused/` until someone looks | a loop: the package stays missing, so it is resent forever unless the list also says "quarantined" | `quarantined`, and the PCS stops |
+| a duplicate | storing twice does no harm | the receiver | n/a | must be idempotent | the receiver is idempotent (pacs-receiver §3), so at-least-once is safe |
+| a PCS crash | the PCS's own state survives, and it can ask again | the PCS | rsync reruns; a file deleted before the crash is gone | the next list | the next `GET` reads the persisted verdict |
+| a lost reply | the answer can be asked for again: a state, not an event | the PCS, by a timeout | n/a | the next list | the next `GET`, provided the verdict outlives the PCS's wait (pacs-receiver §10.5) |
+
+(*Inference*, from the sources below and §3 of the receiver's ADR.) Three rows need something only the receiver knows:
+corruption at rest, a full disk at staging, and a receiver bug. Those are the rows where rsync alone deletes too early.
+Two rows need idempotence and nothing else (a duplicate, a crash), and the receiver already has it. The drop and the
+transit corruption are the transport's job.
+
+**What DICOM concluded.** The Storage service alone "does not specify that the SCP explicitly take responsibility for
+the safekeeping of data … there is no commitment that the SCP will do more than accept the transmitted SOP Instances"
+(PS3.4 J.1.1). So DICOM added a second exchange whose subject is this responsibility, kept "for an implementation
+specific period of time". Its first response says only that the provider "has successfully received the request"
+(J.3.2.1.3). The verdict comes asynchronously, and what the user does next — "re-send the failed SOP Instances" — is
+"beyond the scope of this Standard" (J.3.3.1.3). It is the received / stored split of ADR §7, which reads Annex J in
+full. Two features matter here (*inference*). The commitment covers a *set* of instances under one Transaction UID,
+so DICOM's unit is a batch, which is what a package is. And a provider may answer it by looking up what it holds:
+
+* **Orthanc's core SCP** "simply checks for the presence of the requested DICOM instances in the Orthanc database, and
+  makes sure that their SOP class UIDs do match", and its book frames the purpose as deletion: "'A' could decide to
+  remove the images from its local database. If 'B' answers that there was an error, 'A' could decide to send the images
+  again." That is a reconciliation answered per request.
+* **Orthanc's transfers plugin** (peer to peer over HTTPS) "implements storage commitment, i.e. the peer that initiates
+  the transfer is informed whether *all* the DICOM instances have been properly received … individually validated using
+  their MD5 checksum … partial transfers are prevented". Its `MaxHttpRetries` defaults to 0, and a commit phase has its
+  own timeout (`PeerCommitTimeout`, 600 s). So the reply is per transfer, and retrying is left to the job (*inference*).
+* **dcm4chee-arc** names the purpose "a formal release of storage responsibility to the system storing the objects". It
+  can "trigger storage commitment of objects once they have been exported", and a failed commitment task is rescheduled
+  by an operator in its queue view. The wiki pages read say nothing of automatic retry.
+* **A cloud DICOM gateway** (Google's open-source `healthcare-dicom-dicomweb-adapter`) keeps a temporary copy and
+  deletes it "after a successful upload"; "error codes >= 500 will be retried", with zero persistent retries by default.
+  Its storage commitment is implemented as "Storage commitment service to QIDO-RS": a query of what the store holds.
+
+So the field confirms both sides. A sender deletes only on an end-to-end "I hold it", which is a reply. But the reply is
+often produced by a lookup of state, which is what a reconciliation does. And automatic resend is the exception: these
+systems retry the transport and leave the rest to an operator. SMTP takes the other path, Saltzer's way out: a "250 OK"
+to DATA means the receiver "is accepting responsibility … It MUST NOT lose the message for frivolous reasons, such as
+because the host later crashes" (RFC 5321 §6.1). That works because a mail relay does not refuse after accepting, and
+this receiver does.
+
+**Arguing for the simpler side, fairly.** Fire-and-forget plus the PACS's own alerting loses less than it seems.
+rsync checks the transfer end to end on the stream. The receiver keeps every refused package in `incoming/refused/` or
+`incoming/quarantine/`, not deleting it. The hospital keeps the originals. So a package that fails after the PCS
+deleted it is not lost: an operator re-exports it from the hospital. What is lost (*inference*): (1) the automatic
+resend, so every refusal becomes a ticket; (2) any view of a stuck package at the PCS (the ADR's "age of the oldest
+uncommitted package") — the PCS shows an empty queue while the PACS holds a backlog; (3) the read-backs' value to
+the sender; (4) the cover the originals give, which lasts only as long as the hospital keeps them. That retention
+period is not known here and is the owner's to state. If refusals turn out rare, and an operator at the PACS is the
+plan anyway, this trade is defensible. It contradicts the owner's decisions as stated, though, so it is recorded, not
+recommended.
+
+**Reconciliation instead of per-package replies.** With rsync `--remove-source-files` the PCS's copy is gone before any
+list arrives. So for a reconciliation to keep "keep until stored", rsync must run *without* that option, and deletion
+moves to the list. The list must then hold:
+
+1. only names past step 8, with their hash, because the package's name carries it, so a list entry is a verdict on
+   exactly those bytes;
+2. `refused` and `quarantined` as well as `stored` — without them "missing" covers "slow", "refused" and "a bug", and
+   the PCS's only choice is to resend forever or to resend after a timeout and then stop, which turns the owner's
+   rule into a guess about the receiver's time (§11.9's R1 measures it);
+3. a lifetime that covers the PCS's wait (pacs-receiver §10.5).
+
+That is the status store read in bulk: the same three states, the same writer, the same durability. It is not a
+simpler mechanism; it is a cheaper way to read the same one. It is worth having for one reason: §11.9 counts 8,640
+handshakes a day per pending package while the receiver is down, and one list per site per interval replaces them
+(*estimated*). It needs one more route on the carrier (*inference*), and the per-package `GET` stays as the
+contract, as §11.9 concluded for push. rsync as the carrier is ruled out by §11.3d on reachability, not by this
+section. *Corrected 2026-10-28:* rsync is open again with the team (§11.3d).
+
+**At-least-once with idempotent storing** is what the built design already is. The PCS sends until it has a verdict;
+the receiver runs a repeat as a no-op and answers `stored` (pacs-receiver §3, Idempotent). The reply is what stops the
+"at least": without it, at-least-once means sending for ever or sending once and hoping (*inference*).
+
+**Which guarantees need what.**
+
+| guarantee | needs a reply | a reconciliation can give it | the transport gives it |
+| --- | --- | --- | --- |
+| the copy arrived whole | no | — | yes (offset, exit status, rsync's checksum) |
+| the PCS may delete: on disk, read back, checked | **yes, an end-to-end positive** | yes, if it lists only past step 8, by hash | no |
+| resend on a fault a resend can fix | a negative with its class | only with `refused` in the list; otherwise a timeout | no |
+| stop and alert on the same content failing twice | a terminal state | only with `quarantined` in the list | no |
+| a duplicate is harmless | no | — | no: the receiver's idempotence |
+| a crash or a lost answer is recovered | a verdict that persists and can be asked again | yes, by construction | no |
+
+**The minimum mechanism that keeps the owner's decisions.** Each item is already built or decided; nothing is added.
+
+1. **One verdict per package**, `stored`, `refused <why>` or `quarantined <why>`. The receiver writes it durably
+   after step 8 and never before (step 11). It names the package by its hash.
+2. **Read on connections the PCS opens**, as state rather than an event, so a crash or a lost answer is recovered by
+   asking again (§11.9's poll). It is kept at least as long as the PCS waits (pacs-receiver §10.5's lifetime).
+3. **At-least-once from the PCS, idempotent at the receiver.** The PCS resends on a drop (the transport) and once on
+   `refused` (the same name). On `quarantined` it stops and alerts. It deletes only on `stored`.
+4. **Nothing else.** No push (§11.9), no acknowledgement of the reply, no ordering protocol beyond the receiver's
+   "next revision only". Resume is per site (§11.2). A per-site list is optional, as a cheaper read of item 1, not a
+   second source of truth.
+
+One doubt this leaves, for the owner and not a change: an automatic resend of the *same bytes* fixes only a fault in
+transit or in a stored copy. TLS already protects the wire, so the one resend mostly covers disk faults and resume
+bugs (*inference*). It costs one branch in the script. Its real worth is that the *second* failure is then known to be
+content, which is what makes quarantine a safe call.
+
+**Sources** (fetched or read 2026-10-26; the first 12 hex of each file's sha256; raw copies not committed): Saltzer,
+Reed, Clark, "End-to-End Arguments in System Design", ACM TOCS 2(4), 1984, pp. 277–288 (MIT copy, `3204a1a562d9`),
+§"careful file transfer" and §"Delivery guarantees"; DICOM PS3.4 2026d Annex J: J.1 (`41c056d20052`), J.3.2
+(`65ef51ed1196`) J.3.2.1.3, J.3.3 (`ba77f31b83be`) J.3.3.1.3; RFC 5321 (`7d560eddff1b`) §6.1; rsync(1) from
+rsync.samba.org (`9160de49f8f5`), `--remove-source-files`, `--checksum` (the after-transfer verification note),
+`--fsync`; the Orthanc Book's sources at its Mercurial tip: `users/storage-commitment.rst` (`79cda816ba4c`) and
+`plugins/transfers.rst` (`5496fd2d83f4`); dcm4chee-arc-light wiki, *Storage Commitment* and *Export Triggered Storage
+Commitment* (read as rendered pages, not hashed); GoogleCloudPlatform/healthcare-dicom-dicomweb-adapter `README.md`
+(`740d8a9ed760`) and its wiki page *C-STORE Backup and Retries* (rendered, not hashed). This repository: the ADR
+pcs-transfer §7; pacs-receiver §3, §10.5, §10.7; the design state §2–§3; this file §11.2, §11.3d, §11.9, §12.2, §12.5.
+**Not read:** dcm4chee-arc's source for how its SCP decides a commitment, and its *Storage Verification* page; Orthanc's
+transfers plugin source for what a commit checks beyond MD5; the adapter's behaviour after its last retry (its page does
+not say); how long hospitals keep the originals.
+
 ## 12. The carrier, built
 
 *2026-10-26. §11's recommendation, built, with the owner's direction (2026-10-25/26): one application handler, its
