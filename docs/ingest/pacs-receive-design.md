@@ -43,8 +43,8 @@ generation is a request's identity).
 * **Decided 10-24/25, where we differ from the PDF:** the PACS receives our `.sbnd` (the role MXF/MP4/JXL play in the
   PDF); no MXF/MP4 reading in the server, the PACS does no repacking (*corrected 2026-10-26 evening:* the 10-24 "no
   repacking" did not consider late instances; an addition is merged at the PACS, §3); wt-pacs names group files with
-  **XXH3** (the owner's, 10-24: no cryptographic need, faster); **one file per transfer**, as agreed in a meeting (the
-  PDF does not say so yet; *reopened 2026-10-28*, §2). *Corrected 2026-10-28:* this said "so the PCS must name files
+  **XXH3** (the owner's, 10-24: no cryptographic need, faster); **one file per transfer**, our choice, approved by the owner (*corrected 2026-10-29:*
+  this said "as agreed in a meeting"; the team never agreed it) (the PDF does not say so yet; *reopened 2026-10-28*, §2). *Corrected 2026-10-28:* this said "so the PCS must name files
   with XXH3 … These go to the PCS team (§15)". The PCS names them with BLAKE3-256, its own team's choice, which may never
   change: a known difference by design, not drift and not a request to the PCS team. Our input contract is the PCS's
   layout with XXH3 names; `contract.md` on the base still describes BLAKE3-256 names (the PCS's), to be reconciled when
@@ -123,7 +123,8 @@ PDF, which at this point should agree"; they do not, so:
 * **Why one file (corrected 10-25):** not the wire — rsync pipelines files ("pipelining of file transfers to minimize
   latency costs", rsync(1)) and QUIC streams do not block each other — but the two ends: the completeness signal, one
   hash, one atomic placement, one thing to process and confirm. *Corrected 2026-10-28:* the team meeting of 10-28
-  reopened rsync for PCS → PACS (the 10-24 meeting had agreed one compressed file per transfer). Completeness is no
+  proposed rsync for PCS → PACS (we had chosen one compressed file per transfer; *corrected 2026-10-29:* this said the
+  10-24 meeting had agreed it, which the team never did). Completeness is no
   argument against rsync: the PCS decides it (Decided 10-26), and the trigger it sends after its rsync is the signal.
   With the item list (coded UID → hash; *corrected 2026-10-28:* this said XXH3; which hash is open, see the hash bridge
   below) in the trigger, the PACS checks every listed file before processing, and an
