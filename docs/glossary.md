@@ -7,7 +7,9 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 
 | name | is |
 | --- | --- |
-| series | what one server process serves: one series' frames in display order, from one series bundle |
+| series | one series' frames in display order, from one series bundle: what a session reads, and what one server process serves under `--series` |
+| coded UID | a DICOM UID in the PCS's coding, two characters of `0-9 A-Z _ a-z ~` per three of the UID ([`ingest/contract.md`](ingest/contract.md) §The layout); under `--root` a session names its series by two, the study's and the series' ([`WIRE.md`](WIRE.md) §Naming the series) |
+| series refusal | a session accepted and closed before its first frame, with a code and a reason: 1 bad name, 2 not found, 3 changed, 4 unreadable, 5 busy ([`WIRE.md`](WIRE.md) §Refusing a series); not a frame's refusal, which is a FoD message |
 | series bundle | the store's file (`.sbnd`, magic `SBND`): header, frame table, metadata JSON, the coded frames ([`FIXTURES.md`](FIXTURES.md) §SBND series bundle) |
 | frame | one image of a series, addressed by its display index |
 | coded frame | one frame's coded data as stored and sent, whatever the codec; an HTJ2K codestream, or an AV1 payload |

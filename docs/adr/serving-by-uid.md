@@ -1,12 +1,13 @@
 # ADR: one server serves many series, each named by its UIDs
 
-**Status:** proposed 2026-10-24, **theory only: nothing built or timed; not accepted.** The seven decisions in §9 are
-the owner's and unanswered. Scope is the PACS side: the server and the files it reads; the PCS (the hospital side) is
-another team's (the owner, 2026-10-24). *Corrected 2026-10-26* against
-[`../ingest/pacs-receive-design.md`](../ingest/pacs-receive-design.md) §9: the PACS sees UIDs as the PCS codes them,
-not as PS3.5 writes them, so §2's grammar is the coding's ([`../ingest/contract.md`](../ingest/contract.md) §The
-layout); the digest is XXH3, as every hash the PACS checks. Where `<Study>/` sits under the root is open
-([`pacs-disk-layout.md`](pacs-disk-layout.md)).
+**Status:** proposed 2026-10-24. **Built 2026-10-26 on v1 with §9's recommended defaults, each still the owner's to
+confirm** (`server/src/media/series_tree.rs`, [`../WIRE.md`](../WIRE.md) §Naming the series); nothing timed. Two
+corrections, made in place below: the grammar (§2) and what a page reads of a close (§6). The decisions are the owner's (§9). Scope is
+the PACS side: the server and the files it reads; the PCS (the hospital side) is another team's (the owner, 2026-10-24).
+*Corrected 2026-10-26* against [`../ingest/pacs-receive-design.md`](../ingest/pacs-receive-design.md) §9: the PACS
+sees UIDs as the PCS codes them, not as PS3.5 writes them, so §2's grammar is the coding's
+([`../ingest/contract.md`](../ingest/contract.md) §The layout); the digest is XXH3, as every hash the PACS checks.
+Where `<Study>/` sits under the root is open ([`pacs-disk-layout.md`](pacs-disk-layout.md)).
 Sources are pinned in §10. *(I)* marks this record's own inference; a figure not marked *measured* is not one.
 
 **Why an ADR and not a section of [`../disk-layout/target.md`](../disk-layout/target.md).** The target owns the file:
@@ -62,7 +63,9 @@ the alphabet has no separator and no `.`; it does not defend against a symlink p
 receiver writes)*. The alphabet's characters are all RFC 3986 unreserved (ALPHA, DIGIT, `_`, `~`), so a correct client
 never escapes them and the server never unescapes. Decoding a segment and checking PS3.5's grammar on the result
 (digits and `.`, no leading zero, at most 64) is stricter, and catches a well-formed name that is no UID; it adds no
-safety the alphabet does not already give *(I)*. `openat2`'s `RESOLVE_BENEATH` would add a kernel check (openat2(2), Linux 5.6); not
+safety the alphabet does not already give *(I)*. The layout under `<root>` is one function, `series_path`; `<Study>/<Series>.sbnd` is
+provisional, since the disk layout is not decided (#152, for the team), and #152's hashed folders, if chosen, change
+that function alone. `openat2`'s `RESOLVE_BENEATH` would add a kernel check (openat2(2), Linux 5.6); not
 recommended now, since the grammar already closes it, and adding it later is one call.
 
 **The digest is #119's choice 7, over the bundle's coded-frame hashes, in entry order, in `?digest=` as hex.**
@@ -165,7 +168,13 @@ readable by a page: a non-2xx answer to the CONNECT rejects `ready` with a `WebT
 (WebTransport §6.5). An accepted session closed by the server reaches the page as `closed`'s
 `WebTransportCloseInfo { closeCode, reason }` (WebTransport §6.3, §6.6, §6.10), which both clients already read
 (`closedReasonOf`, `client/transport/ts/frame-session.ts`; `client/transport/wasm/src/session.rs`). So: **accept, then
-close with a code**. Over a WebSocket the same refusal is a Close with 4000 + the code, the private range
+close with a code**. *Corrected 2026-10-26, measured in headless Chromium 153:* only when the close is a
+`CLOSE_WEBTRANSPORT_SESSION` capsule on the CONNECT stream. wtransport 0.7's `Connection::close` closes the QUIC
+connection instead, and the page's `closed` rejects "Connection lost." with no code; the WebSocket's Close carried
+4001–4003 and their reasons to the same page. So over WebTransport the codes reach a native client (the server's own
+test reads them) and not a browser, until a crate patch sends the capsule: a channel from `Connection::close` to the
+driver's `ConnectStream`, which writes the capsule and finishes the stream. Proposed, not built: it is a third patch
+on `wtransport` (`patches/`), the owner's call. Over a WebSocket the same refusal is a Close with 4000 + the code, the private range
 (RFC 6455 §7.4.2), as `ws-session.ts` already reads. The codes are new, defined in `WIRE.md` when built:
 
 | case | code | reason | the client should | logged |
@@ -200,6 +209,22 @@ break is reverted.
 | running out of descriptors refuses, never stops | `prlimit --nofile` low, more distinct series than fit → code 5; a series already open still serves | `?` the error out of the accept loop |
 | racing opens of one series converge | 32 concurrent sessions, one cold series → one store left in the map, all served | insert without re-checking |
 | both clients surface the codes | a contract-suite clause on every implementation (TS over WebTransport and WebSocket, WASM) | map every close to code 0 |
+
+*Built 2026-10-26*, each mutation above applied and seen to fail its test, then reverted. In
+`server/src/media/series_tree.rs`: `a_name_is_two_coded_uids_and_nothing_else` (the corrected grammar; mutations: drop
+the length bound, the even length, allow `.`), `a_series_lives_at_its_study_folder_and_its_own_name`,
+`sessions_on_one_series_share_its_store`, `the_last_session_out_closes_the_file` (the `Weak` alone; the fd count is
+not read, since parallel tests open files), `a_renamed_in_series_reaches_new_sessions_only`,
+`a_withdrawn_series_refuses_new_sessions_only`, `a_digest_against_a_v1_bundle_is_refused_after_one_reopen`,
+`a_partial_is_never_served`, `a_file_that_is_no_bundle_is_unreadable`,
+`running_out_of_descriptors_is_busy_and_an_open_series_still_serves` (an open lever failing `EMFILE`/`ENFILE` in place
+of `prlimit`, which is process-wide in a test binary that runs in parallel; mutation: `EMFILE` not busy),
+`racing_opens_of_one_series_converge`. In `server/src/transport/server.rs`: `a_refused_name_opens_nothing`, and the
+codes end to end, `under_root_a_session_gets_its_named_series_or_a_close_saying_why` and
+`under_root_a_websocket_refusal_is_a_close_with_its_code`. The clause is `aRefusedSeriesIsNamedByItsCode`
+(`client/contract/clauses.ts`; mutations: every close code 0, in TS and in WASM; no 4000 offset off; the dial's own
+error in place of the close's). **Not built, v2's:** a right digest served, "compare the wrong bytes", and the
+misplaced v2 file, since a v1 bundle carries neither digest nor UIDs.
 
 ## 8 · Performance, a protocol and no number
 

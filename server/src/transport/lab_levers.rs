@@ -8,7 +8,7 @@ use wtransport::endpoint::IncomingSession;
 #[derive(clap::Args, Clone, Debug, PartialEq)]
 pub struct LabLevers {
     /// Lab only: serve every frame as a miss, for measuring a series nobody has read. docs/adr/disk-access.md
-    #[arg(long, default_value_t = false)]
+    #[arg(long, default_value_t = false, conflicts_with = "root")]
     pub force_pool_reads: bool,
     /// Lab only: take each CONNECT and never answer it. docs/ARCHITECTURE.md §A dial that never settles
     #[arg(long, default_value_t = false)]
