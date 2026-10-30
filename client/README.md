@@ -288,8 +288,10 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   there is no fill, and each step asks its frame, the newest ask alone kept: a step superseded while it waits on
   its cancel asks nothing.
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact.
+* **1:1.** The `1` key shows one stored pixel on one device pixel, centred, with only the grey transform: the mode the
+  painter's exactness is proved in (`paint/README.md` §What is proved). Zoom leaves it, `0` or Escape returns to fit.
 * **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the decoder per path, the
-  codec, the renderer (marked software when it is), the fill's time, and the last error by name.
+  codec, the renderer (marked software when it is), `1:1` in that mode, the fill's time, and the last error by name.
 * **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=` and `?origin=` let a lab harness drive the
   same page. They load from `lab/viewer/levers.js`, which only the dev host serves: on the web image a link carrying
   any of them is refused, by name on the status line, before the page fetches, imports or dials anything.
@@ -322,7 +324,10 @@ read off the page in Chromium and off Firefox's stdout (`devtools.console.stdout
   not fetched or, on a TS page, the WASM client's fetched (every page fetches TS's: the HTML preloads it);
 * an HTJ2K page whose requests include AV1 code, from the static host's log;
 * an AV1 page whose frames were not decoded as AV1;
-* the first, middle and last frame's readback at zoom 1 differing from the painter's CPU reference by any byte;
+* the `0` then `1` keys not leaving the page in its 1:1 mode, or the status line saying `1:1` other than in it;
+* the first, middle and last frame's readback in that mode differing from the painter's CPU reference by any byte;
+* in Chromium, a screenshot of the canvas in that mode differing by any byte from the readback it shows, at `--dpr`
+  (the device pixel ratio, 1 by default);
 * with `--pair`, the same series in the other codec painting a different readback;
 * with `--cine`, a cine started on the last frame that did not loop to the first.
 
@@ -330,5 +335,5 @@ Headless Firefox has no WebGL: on a host without a display, run the check under 
 (Mesa's llvmpipe), and it runs Firefox windowed. The run here used conda-forge's `firefox-157.0.1-hee9eb32_0` and
 `mesalib-26.2.3-he59ec28_0` (SHA-256 `e94b9a63c490809eb615d0c18d1ae4e7d60a6f7756c7ec7b2a6b6a2032a26b53`), with
 `LD_LIBRARY_PATH`, `__EGL_VENDOR_LIBRARY_DIRS` and `LIBGL_DRIVERS_PATH` pointing into that environment. The gate runs `viewer/run_check.sh`: a three-frame HTJ2K series of
-the contract's frame, in Chromium, on each client once filled with `--cine` and once with `--fill 0`. It names as skipped the cross-codec arm and Firefox, which need the DICOM ingest's
+the contract's frame, in Chromium, on each client once filled with `--cine` and once with `--fill 0 --dpr 1.5`. It names as skipped the cross-codec arm and Firefox, which need the DICOM ingest's
 bundles and a GL display. What it measured: `docs/ARCHITECTURE.md` §The viewer.
