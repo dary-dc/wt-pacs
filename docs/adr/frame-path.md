@@ -1192,7 +1192,8 @@ ring.
 
 ### Who owns a frame's memory (2026-10-28)
 
-**Status:** theory and a reading of the engines' sources; nothing built, nothing run. The shape it assumes is the
+**Status:** theory and a reading of the engines' sources; nothing built, nothing run. *Corrected 2026-10-30:* M5 has
+run, on Chromium and Firefox; its results are below (*M5, run 2026-10-30*). The shape it assumes is the
 owner's of 2026-10-28, written nowhere else yet: one dedicated **view worker** holds the frame store (the memory window,
 OPFS behind it), the controller and the paint; the decoders, nested in the downloader worker, post each checked frame
 straight to it. The question: who owns a decoded frame's memory, so that the window bounds peak memory during a fill on
@@ -1434,6 +1435,7 @@ put back after each browser, in both engines, M2's included. M5's series (2.03 G
 the rig set for M3, where Gecko's write comes back short without throwing (above), so M5's cells set 4 096 MiB and the
 decoder counts a short write as not stored. Firefox now runs any cell (the pre-registration's "rig change, made in the
 later row"). Not run: M5 itself, WebKit, and the 13 GiB follow-up, which keeps its condition on `ring` being chosen.
+*Corrected 2026-10-30:* M5 has run (below); WebKit and the 13 GiB follow-up have not.
 
 | claim, 2026-10-29 | source |
 | --- | --- |
@@ -1444,6 +1446,125 @@ later row"). Not run: M5 itself, WebKit, and the 13 GiB follow-up, which keeps i
 | JSC: a transferred buffer's contents detached from the sender; a wrapper's estimate is its contents | `Source/JavaScriptCore/runtime/ArrayBuffer.cpp` 498–522; `runtime/JSArrayBuffer.cpp` 81–86; `runtime/ArrayBuffer.h` 379–383 (added in review) |
 | JSC: the heap's growth factors (added in review) | `Source/JavaScriptCore/runtime/OptionsList.h` 219–226 |
 | HTML: a port's message queue, with no bound given | `source` 134810–134816 |
+
+**M5, run 2026-10-30.** The rows are [`lab/opfs-cache/rows/m5/`](../../lab/opfs-cache/rows/m5/), with the smoke
+rows beside them in `m5-smoke/`; `python3 lab/opfs-cache/summary.py lab/opfs-cache/rows/m5` prints every number
+below. The host is the 4-vCPU, 16 GiB container. The browsers are Chrome for Testing 153.0.8010.12 headless, and
+Firefox 159.0 on Xvfb. The decoders are the pinned builds of `claude/decoders-committed`, each file checked against
+`manifest.sha256`. Each cell ran 7 rounds in `lab/order.mjs`'s order. WebKit did not run.
+
+**The verdict, by the rule as written:**
+
+* **Chromium: `ring`.** It is the only arm that qualifies. The cell is not VOID: the A/A differs by a median 4 MiB,
+  and `ring′` fills in 1.05 × `ring`'s time.
+* **Firefox: VOID.** The A/A differs by a median 92 MiB, over the 64 MiB limit, because three of its seven pairs hold
+  a run that never received a frame (*Firefox's fills that never start*, below). A VOID cell decides nothing on Firefox.
+* **M5 as a whole cannot be applied.** The rule wants the simplest arm that qualifies on both engines, and Firefox
+  gives no verdict. Lever 2 returns to the owner with Chromium's verdict and the numbers below.
+
+| arm | Chromium growth, median [range] | fill / `today` | in hand, ask / step (ms) | Chromium | Firefox growth, median [range] | fill / `today` | in hand, ask / step (ms) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| bar | `disk` + 320 = **684 MiB** | ≤ 1.10 | `ring`'s + 16.7 | | `disk` + 320 = **881 MiB** | ≤ 1.10 | `ring`'s + 16.7 |
+| `ring` | 580 [572–581] | 1.01 | 0.03 / 0.03 | **qualifies** | 810 [158–877] | 1.41 | 0.02 / 0.03 |
+| `ring′` | 576 [562–580] | 0.98 | 0.03 / 0.03 | A/A | 815 [166–851] | 1.37 | 0.02 / 0.02 |
+| `transfer` | 957 [828–1 021] | 1.02 | 0.02 / 0.01 | misses the memory bar | 1 037 [957–1 191] | 1.72 | 0.02 / 0.00 |
+| `transfer-k` | 885 [767–1 007] | 0.99 | 0.02 / 0.01 | misses the memory bar | 1 078 [902–1 176] | 1.75 | 0.02 / 0.00 |
+| `disk` | 364 [357–369] | 0.93 | **19.5** / 10.1 | misses the time bar on asks | 561 [178–608] | 1.39 | **26.1** / 13.4 |
+| `today` | 2 748 [2 687–2 866] | 1 | — | reported | 2 226 [155–2 288] | 1 | — |
+
+Every round of every arm on Chromium filled, and every frame was exact by both checks. On Firefox, `transfer` and
+`transfer-k` have six rounds, not seven (below). Both engines' `transfer` arms qualify on the time bar and
+miss only on memory.
+
+* **`disk` misses only because the time bar holds on each path**, amended before any data, above. Its asks during
+  the fill take a median 19.5 ms (10.2–29.5) against a bar of 16.7. Its steps after the fill take 10.1. Pooled, the
+  six times have a median of 11.1 ms, which would have passed, so the reading is said here. The doc's own words, "an
+  arm's median asked-frame time", give a miss too. The asks run while three decoders hold the CPU; the steps run on a
+  quiet host. M1's 22.3 ms (R / n) and this cell's 19.5 sit 13 % apart.
+* **`ring` waits for a slot 71 times a fill**, every frame past the ring's nine, against "slot waits near zero with
+  OPFS" (predicted, pre-registration). That prediction was wrong for this build: the lab's window is the whole ring, so a
+  slot frees only when the ring runs dry. It costs no fill time (1.01 × `today`).
+* **Firefox does not bound `today`**: 2 226 MiB against the 0.6–1.2 GiB predicted from the sources' collection
+  triggers. The source reading in *What each engine's collector sees* does not hold for this page on Firefox 159;
+  why is not traced.
+* **The other predictions:** `ring` on Chromium, 530–600, holds at 580. `disk` on Chromium holds at 364 inside the
+  pre-registered 300–370, but not the corrected 301–329. `transfer` misses on both engines, the case the rule had
+  left open.
+
+**Firefox's fills that never start.** Five of the 40 runs in Firefox's `m5` stopped at the start and received no frame
+in 120 s, with the CPU idle: `ring` and `disk` in round 1, `ring′` in round 4, `today` and `ring′` in round 5. The
+same happened to one run in `m5-busy`. `today` is the product's own page, which said "decoders: none yet": so the
+fault sits beneath the lab's arms, in the downloader with its nested decoders or in Firefox's WebTransport dial.
+Which, is not traced: the page logs nothing before its first frame. Chromium never did this, in its 70 timed runs.
+
+Firefox also twice failed to start a WebDriver BiDi session in 60 s, which killed the cell. *Rig changes during the
+run, which change no measurement:* each BiDi call fails in 60 s instead of hanging, a browser that does not start
+is started once more, and `--first-round` resumes a cell in its order. Firefox's `m5` resumed at round 3, after the
+first hang held for 52 min, and at round 6. `m5-busy` resumed at round 5. Rounds 5 of `m5` and 4 of `m5-busy` kept
+the arms run before the cell died, so `transfer` and `transfer-k` have six Firefox rounds, not seven.
+
+**Firefox, with the runs that never received a frame set aside.** This is descriptive, not the rule:
+`summary.py --set-aside-start-hangs`. The A/A becomes 39 MiB and 1.02, not VOID. The bar becomes 882 MiB, from
+`disk`'s 562. Still no arm qualifies on Firefox:
+
+* Every arm misses the fill-time bar, at 1.37–1.75 × `today`.
+* `ring` meets the memory bar (822 [798–877] against 882) and the time bar.
+* `disk` also misses the time bar on asks (26.1 ms).
+
+Read that way, the rule says *none: lever 2 returns to the owner*.
+
+The fill bar compares different ends. `today`'s fill ends at its last frame delivered, ahead of its store's writes,
+while each arm writes a frame before posting it. When `today`'s fill ended, 68–75 of 80 frames were on disk on
+Chromium and 50–54 on Firefox. Firefox's page cache had grown 1 394 MiB for `today` against ~2 000 for the arms.
+The rig's wall time to `today`'s last write on Firefox, page load included, was 9.5–10.9 s, about the arms'
+fills (8.0–9.9 s). On Chromium the writes keep
+up and the bar compares like with like; on Firefox they do not. The bar is pre-registered, so it is reported as run;
+how much of Firefox's miss is that gap is not measured.
+
+**`m5-busy`**, the view held 200 ms a frame:
+
+| arm | Chromium growth | most waiting | Firefox growth | most waiting |
+| --- | --- | --- | --- | --- |
+| `ring`, `ring′` (A/A) | 571, 577: 4 MiB apart, fill 1.00 | 5–6 | 778, 808: 30 MiB apart, fill 0.99 | 5–6 |
+| `transfer` | 1 722 | 40 | 1 835 | 46.5 |
+| `transfer-k` | 854 | 6 = K | 1 030 | 6 = K |
+
+Neither engine's busy cell is VOID. Credits hold the port at K exactly, and halve `transfer`'s growth on Chromium and
+cut it 44 % on Firefox. Still, `transfer-k` misses the memory bar on both engines (854 against 684; 1 030 against
+881). By the rule credits are *not shown needed*: credits are not enough to qualify `transfer`, and neither
+`transfer` arm qualifies anyway. K = 6 stands: at full speed `transfer-k` fills in 0.98 × `transfer`'s time on
+Chromium, inside 0.90–1.10, so `m5-busy` did not run again at 12.
+
+On Firefox, `ring′` in round 4 stopped at 46 of 80 frames, every one exact and stored, with no error and the CPU idle.
+That is either a slot deadlock that only Firefox's timing reaches, or the start fault met mid-stream; which is not
+traced. `ring` never stopped on Chromium, in 28 runs.
+
+**The host.** Nothing stopped on the 1 536 MiB floor of available memory. The CPU is 0.66–0.80 busy through the main
+cell's fills on both engines, and 0.34–0.45 in `m5-busy`. Three decoders on four vCPUs set the main cell's pace, so
+its fill times say nothing of a faster decode; the busy cell is paced by the view's hold.
+
+**The harness, checked live.** The review's mutants ran on stub decoders; here each ran once on the live rig (rows in
+`m5-smoke/`), and every one was caught:
+
+* `slots-never-freed` stalled at 9 frames on both engines, as predicted.
+* `fresh-when-dry` took 28 frames outside the ring on Chromium and 29 on Firefox. Firefox's first run of it never
+  started (the fault above) and was run again.
+* `disk-keeps-frames` held 293 MiB on both engines.
+* `credits-ignored`, in `m5-busy` on Chromium, had 34 frames waiting against K = 6.
+
+The fixture `throws-after-slot` held on both engines, with 0 slots lost. Its mutant `throws-slot-kept` was caught on
+Chromium, with 1 slot lost; it was not run on Firefox.
+
+**What this decides.** On Chromium, transferred buffers miss the memory bar at full speed, credits or not, and the
+ring meets every bar: for the view-worker target, the ring on Chromium. On Firefox nothing is decided, by the rule
+or out of it: the cell is VOID, and set aside it qualifies no arm. So the owner decides:
+
+* **Lever 2** (ring or transferred buffers).
+* **K.** Credits bound the port exactly; on `transfer` they do not bring memory under the bar.
+* **The fix for M2 (#204):** `ring` holds Chromium's fill at 580 MiB, against 2 748 for `today`.
+
+Two things would let the rule decide on Firefox: the start fault found and fixed, and the fill bar's two ends made
+the same. Both are changes to the protocol after data, and so a new pre-registration.
 
 ### Options, and what each costs
 

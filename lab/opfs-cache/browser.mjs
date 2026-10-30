@@ -53,6 +53,7 @@ export async function chromiumAt(profile, args = []) {
   const pid = Number(readdirSync("/proc").find((p) => !before.has(p) && /^\d+$/.test(p) && parent(p) === String(process.pid)));
   return { context, pid, page: context.pages()[0] ?? (await context.newPage()) };
 }
+const BIDI_MS = 60000;
 export const chromiumPath = () => chromium.executablePath();
 
 /** Firefox over WebDriver BiDi on an Xvfb display (headless it has no WebGL), with `prefs` in its user.js. */
@@ -72,8 +73,14 @@ export async function firefoxAt(profile, prefs = {}) {
     waiting.delete(r.id);
     if (w) r.type === "error" ? w.reject(new Error(`${r.error}: ${r.message}`)) : w.resolve(r.result);
   };
-  const send = (method, params) => new Promise((resolve, reject) => (waiting.set(++id, { resolve, reject }), sock.send(JSON.stringify({ id, method, params }))));
-  await send("session.new", { capabilities: {} });
+  // A call Firefox never answers fails after BIDI_MS instead of hanging the caller.
+  const send = (method, params) => new Promise((resolve, reject) => {
+    const at = ++id;
+    const timer = setTimeout(() => (waiting.delete(at), reject(new Error(`${method}: no answer in ${BIDI_MS} ms`))), BIDI_MS);
+    waiting.set(at, { resolve: (r) => (clearTimeout(timer), resolve(r)), reject: (e) => (clearTimeout(timer), reject(e)) });
+    sock.send(JSON.stringify({ id: at, method, params }));
+  });
+  await send("session.new", { capabilities: {} }).catch((e) => { process.kill(-ff.pid, "SIGKILL"); throw e; });
   const tab = (context) => {
     let at = "about:blank";
     const pointer = (...actions) => send("input.performActions", { context, actions: [{ type: "pointer", id: "mouse", actions }] });
@@ -98,7 +105,12 @@ export async function firefoxAt(profile, prefs = {}) {
     pid: ff.pid, page: tab(first),
     context: {
       newPage: async () => tab((await send("browsingContext.create", { type: "tab" })).context),
-      close: async () => { await send("browser.close", {}).catch(() => {}); await new Promise((r) => (ff.exitCode !== null ? r() : ff.once("exit", r))); },
+      close: async () => {
+        await send("browser.close", {}).catch(() => {});
+        const exited = new Promise((r) => (ff.exitCode !== null ? r() : ff.once("exit", r)));
+        await Promise.race([exited, new Promise((r) => setTimeout(r, 10000)).then(() => process.kill(-ff.pid, "SIGKILL"))]);
+        await exited;
+      },
     },
   };
 }
