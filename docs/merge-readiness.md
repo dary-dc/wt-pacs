@@ -1000,3 +1000,123 @@ code −44 +7 (V4, V5, V7–V13) and docs −62 +6. Before pushing: `scripts/gat
 mutation each for V5 (a type error), V8 (`#rejectAll` dropped from `#end`: a closed client's ask must still reject)
 and V10 (the imported `refuse` changed: `av1.test.mjs` fails by message). V9 and V4 need the WASM build first
 (`client/transport/wasm/build.sh`).
+
+## Fifth round: server, tools and lab
+
+*2026-10-27, at `ea581aca`. An audit: nothing was changed but this section. Two removals were built and checked
+with `cargo check` (V7), and then reverted. Apart from that, nothing was built, run or timed beyond
+`scripts/comment_budget.sh` (it passes everywhere, lab included) and searches. The scope was `server/`, `common/`,
+`tools/`, `ingest/from-parser`, `scripts/`, `deploy/` and `lab/`. Not re-reported: rounds 1–4 above, U1–U12, and
+`--segmentation-offload` stored twice. The open pull requests' new code was not audited: #112, #130, #131, #133,
+#136, #139, #160, #162, #163.*
+
+**The answer, in short.** The product side has little left to cut. The product code in `server/`, `common/`, `tools/` and
+`ingest/from-parser` was read for this round. It holds no dead public item, no unused
+feature, no queue label in code and no comment over the budget; the open items are rounds 1–4's, and three new
+small ones are below. The deploy directory carries one file twice. The lab is where the lines are:
+
+* **Twelve directories** answer a question whose result a doc already records, and nothing else uses them:
+  ~3 120 lines.
+* **One script** duplicates another: −141 lines.
+* **Copies of about six helpers**, spread over 40-odd files, are a lab-helpers proposal for the owner.
+
+**Safe now: ~2 290 lines. Once the PRs named in V2 and V8 merge: ~3 080. With the owner's word: ~3 590.**
+
+Verdicts:
+
+* **safe now**: touches no file that #112 (`git diff --name-only origin/main...origin/claude/test-separation`)
+  or another open PR changes;
+* **after #N**: it waits on that PR;
+* **owner**: it needs the owner's decision.
+
+Risk follows rounds 2–4. 1 means the gate covers it, or the change is lab-only with no caller. 2 means the
+check is one the gate does not run. 3 means it is structural.
+
+### Findings, ranked by lines removed per unit of risk
+
+| # | finding · evidence | change | lines − / + | proof no capability is lost | risk | verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| V1 | **Seven lab directories whose question is answered and recorded, with no live user.** `ask-behind` (159 lines; [decode/README](decode/README.md) §An ask behind the decoders; owner: "not pursued now", queue.md:4306) · `clock-resolution` (96; [rig-limits](rig-limits.md) §6 *The clock floor*) · `decode-first-frame` (396; decode/README §The first frame, §Instantiating by streaming; levers.md "held") · `decode-tail` (678; decode/README §The decode tail, §The package, throttled, §The range pass; ARCHITECTURE §The downloader variant during a fill; levers.md "held") · `decoder-memory` (551; decode/README §What a decoder worker costs, resident, §The wire buffer ring; "held") · `fill-at-start` (230; ARCHITECTURE §The first fill; "held") · `worker-leak` (120; ARCHITECTURE §Closing a client; "held (fixed)"). None holds raw rows. | `git rm -r` the seven. Repoint each citation by replacing the link or path with `` `lab/<dir>/<file>` at `ea581aca` `` so `scripts/check_links.py` accepts it (a commit hash within 2 lines): decode/README.md:350, 502, 547, 672, 697, 938, 1000, 1025, 1063, 1110; ARCHITECTURE.md:324, 479, 670; rig-limits.md:464 (add the hash), and :425–427 (drop the two names from the list); client/README.md:83; lab/av1/decode/memory/README.md:43. Point `lab/scripts/gen_htj2k_fixtures.sh:5` to `docs/FIXTURES.md` instead of `lab/decoder-memory/README.md`. Update `lab/README.md`'s table at lines 16, 17 and 24 (see V11). | −2 230 / +0 (16 lines edited) | `git grep -n 'lab/<dir>'` outside each directory finds only the citations above. No gate step, product script or other lab directory names them (checked for each). Each verdict stays in its doc, and the code stays in git. `scripts/check_links.py` passes after the repoints. | 1 | **safe now** |
+| V2 | **`lab/scripts/read_path_split.py` repeats `pair_variants.py`.** `read_path_split.py:36-105` and `pair_variants.py:38-97` hold the same `KEY`, `DRIFT`, `MIN_N`, `regime`, `load`, `deltas` and `verdict`; `pair_variants` is the general form. Only `--phases` and its warning (`read_path_split.py:44-46,89-102`) are extra. `pair_variants.py:2-28` also retells the "42 % win, twice" story that [`adr/disk-access.md`](adr/disk-access.md) tells at :1248-1251. | Move `phase_of`, the phase filter in `load`, `--phases` and the warning into `pair_variants.py`. Delete `read_path_split.py`. Cut `pair_variants.py`'s docstring to its purpose line, its usage lines and a pointer to disk-access §11. Repoint disk-access.md:1247 to `pair_variants.py --pairs pool_ringloop:pool,hybrid:pool_ringloop,hybrid:pool,hybrid_lazyring:pool`. | −153 / +12 | Same metric (`cpu_ns_per_ask`), drift 28.5 and 0.8n sign rule, so the old output is the new command's on the archived TSV; diff the two outputs once. Its only caller is that docs line (`git grep read_path_split`). | 1 | after #130, #162 (both edit disk-access.md) |
+| V3 | **The image's ignore file is kept twice by hand.** `.containerignore` and `deploy/Containerfile.dockerignore` are byte-identical (31 lines each), and line 1 says "keep the two equal"; nothing checks it. | `git mv .containerignore .dockerignore`; drop its line 1; `git rm deploy/Containerfile.dockerignore`. Docker reads a root `.dockerignore` when no Dockerfile-specific one exists, and Podman/Buildah reads `.dockerignore` when there is no `.containerignore`. `Containerfile.prebuilt` builds from a staged directory and is not affected. | −32 / +0 | `docker compose -f deploy/compose.yml build` and `podman build -f deploy/Containerfile .` each report the same "transferring context" size before and after. Mutate by removing the `lab/` line, and the context grows. | 1 | **safe now** |
+| V4 | **A lab helper no one calls.** `lab/scripts/cloud_common.sh:68-74` `run_cloud_harness`: `git grep -w` finds only its definition. Both files that source the script use the other helpers. | Delete it. | −7 / 0 | the grep | 1 | **safe now** |
+| V5 | **A lab feature no one sets.** `lab/disk-access-bench/Cargo.toml:19-25` `tokio-uring`, with its `tokio_unstable` lint. Its one use is `src/bin/read_campaign.rs:87`. No script passes it, and `README.md:23`'s "the gate compiles it" is false (`scripts/gate.sh:183` passes no features). tokio's driver is rejected as measured ([`adr/disk-access.md`](adr/disk-access.md):181, :1404). | Drop the feature, the `[lints.rust]` block and the `:87` arm. Correct README:22-23 to say the plain `tokio_fs` variant stays. | −7 / +0 | `cargo test -p disk-access-bench` still passes; the rejected arm's result stays in the ADR. | 1 | **safe now** |
+| V6 | **Campaign history in clap help text.** `lab/disk-access-bench/src/main.rs:349-353, 357-359, 364-367` ("The first campaign had only warm…", "…made the first campaign's cold cells unreadable"). | Keep each flag's one-line meaning; disk-access §12 already holds the history. | −10 / 0 | `--help` keeps each flag | 1 | **safe now** |
+| V7 | **Two unused dependencies.** `serde` in `server/Cargo.toml:42`: the server derives nothing, and only `serde_json` is used. `rcgen` in `lab/disk-access-bench/Cargo.toml:38`: no `rcgen` in its sources. | Delete both lines. | −2 / 0 | Checked here with both removed: `cargo check -p series-server --all-targets --features telemetry,lab-levers,lab-frame-cache,lab-classify,cert-compression` and `cargo check -p disk-access-bench --all-targets` both pass. | 1 | **safe now** (server/Cargo.toml is in no open PR's file list) |
+| V8 | **Five more answered directories, each waiting on another PR or the owner.** `early-messages` (146; ARCHITECTURE §Messages posted before anyone listens): its citation is CLIENTS.md:206. `firefox-dial` (175; transport-conclusions §Firefox's dial on a slow link): `lab/irtt/README.md:39` borrows its Firefox pin, so that line moves to `lab/av1/bytes/jpeg-xl/README.md`, which holds the same pin. `viewer-ceiling` (328; §273 above; its ceiling is the host's): its citation is merge-readiness.md:640. `ffportgc` with `frameloss` (243; ARCHITECTURE §The downloader, "A frame lost silently in Firefox", "The ack costs no fill"): the rig was never run with `startOnNeed`, which is still the owner's. | As in V1, repointing transport-conclusions.md:1624 and :1985, ARCHITECTURE.md:118, :182 and :225, CLIENTS.md:206, merge-readiness.md:640 and irtt/README.md:39. | −892 / 0 | as in V1 | 1 | `early-messages`: after #133 and #136 (CLIENTS.md). `firefox-dial`: after #112 (irtt/README.md). `viewer-ceiling`: after #136 and #139 (this file). `ffportgc`+`frameloss`: **owner** (`startOnNeed`). |
+| V9 | **Logic copied across the lab.** All are identical text (`git grep -c -F` on the line) unless noted. (a) A throwaway certificate and its SHA-256: 44 lab files (20 shell, 17 `.mjs`, 7 Python). (b) `const arg = (k, d) => …`: 58 copies; `const med = …`: 34, while `lab/order.mjs:22` holds the same median privately (*corrected 2026-10-28, review*: this said 30; six more take the upper middle, `[a.length >> 1]`, which is not that median on an even count: `downloader-cost/port.mjs:59`, `resources.mjs:106`, `scripts/cpu_throttle.mjs:160` and three in V1's `decode-tail`); `const f = (v) => v.toFixed(…)`: 18. (c) Start-a-server-and-wait-for-`wt_url=`: 7 copies (`blink_cells.sh:52`, `controller_cells.sh:42`, `first_ask_cells.sh:56`, `neighbour_cells.sh:43`, `profile_cells.sh:108`, `idle_session_cost.sh:29`, `server_ab.sh:82`). Start-the-relay-and-wait-for-`READY`: 4 copies (`blink_cells.sh:62`, `controller_cells.sh:53`, `first_ask_cells.sh:67`, `cert_chain_cells.sh:136`). | **Proposal** (structural, `CLAUDE.md`). `lab/scripts/dev_cert.sh DIR`, which writes `DIR/{cert,key}.pem` and prints the hash. `order.mjs` exports `median`, and one lab module holds `arg` and `f`. A sourced `lab/scripts/cells.sh` holds `start_server LOG SERIES ARGS…` and `start_relay LOG ARGS…`. Each call site becomes one line. | ~−330 / +60 | Each copy is the same text, so the behaviour is the same. Each touched rig runs once, smoke-sized, before and after. The gate runs none of them. | 2 | **owner**: the shape is a proposal, and V1/V8 remove some call sites first |
+
+V10–V11 are small and land with the row that next touches their files.
+
+* **V10.** `lab/window-harness/src/lib.rs:11` re-exports `reset_peak_outstanding`, which only `client.rs` calls,
+  so it becomes `pub(crate)`. ±0. Proof: `cargo check`. **Safe now.**
+* **V11.** `lab/README.md`'s table names 31 of the 47 directories (*corrected 2026-10-28, review*: this said 30,
+  and of the twelve V1/V8 remove only `ask-behind`, `ffportgc`, `firefox-dial`, `frameloss` and `viewer-ceiling`
+  are missing). Missing are `ask-ahead`, `bb3`,
+  `container-bench`, `devices`, `fastclock`, `faultbench`, `irtt`, `iwdeep`, `link-conditions`, `loss-class`,
+  `recv-cost` and those V1/V8 remove. After V1, each kept directory gets a row naming the doc it reproduces
+  (~+8). **Safe now, with V1.**
+
+### Not cuts, found on the way
+
+* **N1. The gate warns that a call is unsound, since #183.** tokio 1.53.3 deprecates
+  `AsyncFd::with_interest` as "unsound due to lack of I/O safety". The ring's park uses it at
+  `server/src/media/uring_reader.rs:41`; the lab bench uses it at `lab/disk-access-bench/src/uring_access.rs:132`
+  and uses `AsyncFd::new`, deprecated alike, at `:127`. The fix is `unsafe { AsyncFd::register_with_interest(…) }`
+  (`AsyncFd::register` at `:127`) with a one-line
+  `SAFETY` that points at the invariant already stated at `uring_reader.rs:24` (the `AsyncFd` is declared before
+  the ring, so it leaves the reactor before the fd closes). +1 line each. Proof: no warning, and the read-path
+  tests pass. The server's copy is **after #112**; the lab's is **safe now**.
+* **N2. Two interleavings are not balanced past two arms.** `lab/scripts/runtime_ab.sh:73` and
+  `lab/scripts/browser_receive.py:177` alternate forward and reverse order. That balances predecessors only for
+  two variants, against `CLAUDE.md` §Measurement. The fix is `order.py row` and `from order import order`
+  (±0). It changes the order of future runs only. **Safe now.**
+* **N3.** `lab/scripts/idle_session_cost.sh:34` waits on `listening\|ready\|serving` in the log. It matches the
+  tracing line `series-server ready`, where every other rig waits on the banner's `wt_url=`. Fix it with V9(c),
+  or alone (±0). **Safe now** alone: no open PR touches the file (*verdict added 2026-10-28, review*).
+* **N4.** `lab/scripts/read_path_cloud_summary.py` (33 lines) has no reference. It reads `read_path_cloud.sh`'s
+  TSV. The fix is one pointer line in `read_path_cloud.sh`'s header (+1). Keep the script: it is how that table
+  was summarised. **Safe now**: no open PR touches either file (*verdict added 2026-10-28, review*).
+* **N5.** `Sessions::new`'s doc says "Warns for each lab lever that is on" (`server/src/transport/server.rs:143`).
+  It warns only for `--send-window-follows-cwnd`; `lab_levers::apply` warns for the rest. The fix is to drop the
+  line (−1). **After #112.**
+
+### Kept, with the reason
+
+* **The product's own two certificate makers.** `server/scripts/gen_dev_cert.sh` writes the dev directory and the
+  transport file, and `deploy/server-start.sh` writes the container's; neither can call the other.
+* **`tools/check-fastpath`.** It shares the server's probe on purpose (`frame_store.rs:215`), and deploy/README
+  §Container settings proposes shipping it in the image.
+* **`scripts/quic_peek.py` and `wtcompat.py`.** Row 264 already ruled they are product checks, not lab code.
+* **The `--stall-after-bytes` wiring in `Link`** (`link.rs:23-27,85-99,179-184`) is compiled into the default
+  build with `None`. A `#[cfg(feature = "lab-levers")]` on each of its five sites would add lines, not remove them.
+* **Twenty lab directories.** Each has a live user or open decision: `ask-ahead`, `bb3`, `decode-bench`,
+  `dial-deadline`, `downloader-cost`, `fastclock`, `faultbench`, `idle-sessions`, `irtt`, `iwdeep`,
+  `link-conditions`, `loss-class`, `page-open`, `paint-floor`, `server-load`, `session-survival`, `stream-shape`,
+  `tcp-fallback`, `telemetry-cost` and `traces`. Each is held by a script that runs it, a doc's raw rows, or an
+  owner decision: L7's levers, row 220, device plans D1 and D4, block-or-mark, coalescing, keep-alive, the TCP
+  fallback.
+* **No lab script calls a removed flag, binary or path.** Every lab binary's `--help` was matched against every
+  invocation in `lab/` and `scripts/`, along with the features, env vars and banner lines the rigs wait on. The
+  one absent script, `exec_gap.sh` (`workstation_run.sh:348-362`), is row 258's, on its branch.
+
+### The apply row
+
+It starts from this branch and applies only the **safe now** items: V1, V3, V4, V5, V6, V7, V10, V11, N1 (the lab
+half) and N2. That is **−2 288 / +9 lines**, in one draft pull request into unified, one commit per item.
+
+* **Before pushing:** `scripts/gate.sh --quick`, `scripts/check_links.py` and `scripts/comment_budget.sh`.
+* **For V3:** the two context-size builds, with their output.
+* **For V7 and V10:** the `cargo check` lines above.
+* **For V1:** `git grep -n 'lab/\(ask-behind\|clock-resolution\|decode-first-frame\|decode-tail\|decoder-memory\|fill-at-start\|worker-leak\)'`
+  must show only lines that carry `ea581aca`.
+
+V2 and the V8 directories that wait on a PR follow once that PR merges. V9, `ffportgc`+`frameloss` and nothing
+else go to the owner.
+
+*Reviewed 2026-10-28, against `ea581aca` and the apply row's `1ddef1d1`.* All sixteen findings were re-checked,
+each grep and line as cited. V9's and V11's counts were wrong and N1, N3 and N4 incomplete; each is corrected
+above. The apply row also edits `deploy/README.md` (its "four crates" was six) and `Cargo.lock`, which #130,
+#131, #133, #160 and #163 change in other hunks: a merge, not a decision. Both `lab/disk-access-bench/arms/*.patch`
+still pass `git apply --check` there. N1's server half edits next to `ring-no-coop.patch`'s hunk
+(`uring_reader.rs:30-39`, which #162 also edits), so it runs that check again.
