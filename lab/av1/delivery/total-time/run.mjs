@@ -10,7 +10,8 @@
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs [--rounds 10] [--first-round 0]
  *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--engines chromium,firefox] [--sets a,b] [--variants a,b]
  *     [--fill N --asks-after K] [--frames lab/.av1-work/total] [--orders seq,prio] [--mutate sample|truth|digest] [--out rows.jsonl]
- *     [--cc-trace DIR] [--one-way-ms 20] [--summary [--ref htj2k]] [--bin DIR --serve TREE]
+ *     [--cc-trace DIR] [--one-way-ms 20] [--trace sawtooth] [--summary [--ref htj2k]] [--bin DIR --serve TREE]
+ *   A fixed-rate link `r<kbit>rtt<ms>` carries its own round trip; `--trace` steps a viewer variant: lab/viewer/trace.js.
  */
 import { spawn, execFileSync } from "node:child_process";
 import { appendFileSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -49,6 +50,7 @@ const TRACES = process.env.TRACES ?? path.join(ROOT, "lab/.traces");
 const CC_TRACE = arg("--cc-trace", null);
 /** A fixed-rate link's one-way delay in ms: half its round trip. */
 const ONE_WAY = Number(arg("--one-way-ms", 20));
+const TRACE = arg("--trace", null);
 /** An arm built elsewhere (perf_nightly.mjs): its series-server and pack-series, and the tree whose client the page loads. */
 const BIN = arg("--bin", null);
 const SERVE = arg("--serve", ROOT);
@@ -68,7 +70,8 @@ function link(name, impairment = "clean") {
   if (impairment !== "clean" && !loss && !jitter.length) throw new Error(`unknown impairment ${impairment}`);
   // Row NETRULES' cells: 23 ms one way and a 650 ms FIFO, so a fill that fills it sees a ~0.7 s RTT.
   if (name.startsWith("n")) return [23, ["--rate-kbit", name.slice(1), "--queue-ms", "650", ...(loss ? ["--loss", String(loss)] : []), ...jitter]];
-  if (name.startsWith("r")) return [ONE_WAY, ["--rate-kbit", name.slice(1), "--queue-pkts", "200", ...(loss ? ["--loss", String(loss)] : []), ...jitter]];
+  const fixed = /^r(\d+)(?:rtt(\d+))?$/.exec(name);
+  if (fixed) return [fixed[2] ? fixed[2] / 2 : ONE_WAY, ["--rate-kbit", fixed[1], "--queue-pkts", "200", ...(loss ? ["--loss", String(loss)] : []), ...jitter]];
   if (name === "lte-good") return [25, ["--trace", path.join(TRACES, LTE.file), ...ge(loss || 0.01), "--queue-ms", "500", ...jitter]];
   if (name === "wifi-home") return [15, ["--trace", `${T}/wifi-home.trace`, ...ge(loss || 0.5), "--queue-ms", "300", ...jitter]];
   throw new Error(`unknown link ${name}`);
@@ -108,7 +111,9 @@ function variantOf(set, name) {
         // A `downloader` variant runs that revision of the downloader.
         ...(a.downloader && { worker: a.downloader, decoderWorker: a.decoder }),
         // Frame check: the series' digests, so each decoder worker checks every frame.
-        ...(a.digests && { digests: MUTATE === "digest" ? a.digests.map((d) => d.replace(/^./, (c) => (c === "0" ? "1" : "0"))) : a.digests }) } };
+        ...(a.digests && { digests: MUTATE === "digest" ? a.digests.map((d) => d.replace(/^./, (c) => (c === "0" ? "1" : "0"))) : a.digests }),
+        // A variant's own downloader settings, last: docs/adr/frame-path.md §3, *Experiment 2*'s `waitAhead`.
+        ...a.opts } };
   }
   const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
     ...(a.rct && { rct: true }), ...(a.mixed && { mixed: true }), ...(a.layers && { layers: a.layers, frames: set.frames }) };
@@ -314,7 +319,8 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   const q = new URLSearchParams({ opts: JSON.stringify(a.opts), fill, after: AFTER, wt: `https://127.0.0.1:${relayPort}/`, hash: HASH,
     ...(orderName === "prio" ? { asks: need.join(",") } : {}), ...(MUTATE === "sample" ? { mutate: "sample" } : {}),
     // The viewer: the product's page on the variant's metadata, and both pages timed from navigation.
-    ...(a.viewer && { metadata: `/${FRAMES}/${set.name}/${a.viewer}` }), ...(a.view && { view: a.view }), ...(arg("--origin") && { origin: arg("--origin") }) });
+    ...(a.viewer && { metadata: `/${FRAMES}/${set.name}/${a.viewer}` }), ...(a.view && { view: a.view }), ...(arg("--origin") && { origin: arg("--origin") }),
+    ...(TRACE && a.viewer && { trace: TRACE }) });
   let r = null;
   const threads = {};
   try {
@@ -369,6 +375,8 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     firstMs: Math.round(r.firstShown ? r.firstShown - r.issuedAt : t("page", Math.min)),
     receivedMs: Math.round(t("lastByte", Math.max)),
     decodedMs: Math.round(t("page", Math.max)),
+    ...(r.fillMs != null && { fillMs: Math.round(r.fillMs) }),
+    ...(r.trace && { trace: r.trace }),
     centreMs: Math.round(shown.get(need[0]) - r.issuedAt),
     ...pool(r.frames, threads),
     usefulMs: Math.round(Math.max(...need.map((i) => shown.get(i) ?? Infinity)) - r.issuedAt),
@@ -418,6 +426,7 @@ for (let round = FIRST; round < FIRST + ROUNDS && !process.argv.includes("--summ
       rows.push(row);
       if (OUT) appendFileSync(OUT, JSON.stringify(row) + "\n");
       console.error(`round ${round} ${engine} ${name} ${l} ${impairment} ${throttle}x ${a}: first ${row.firstMs} useful ${row.usefulMs} received ${row.receivedMs} decoded ${row.decodedMs} ms,` +
+        `${row.trace ? ` up ${Math.round(row.trace.forwardMs)} down ${Math.round(row.trace.backwardMs)} missing ${Math.round(row.trace.missingMs)} ms, live ${Math.round(row.trace.live * 100)} %,` : ""}` +
         ` exact ${row.exact}/${row.owed}${row.paths && Object.keys(row.paths).length ? ` checked ${row.checked} ${JSON.stringify(row.paths)}` : ""}${row.afterMs?.length ? `, asks after ${row.afterMs.join(" ")} ms` : ""}${row.previews !== undefined ? `, every frame shown ${row.shownMs} ms, previews ${row.previewExact}/${set.frames} as native, ${row.late} late, ${row.strays} stray` : ""}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
     }
   }

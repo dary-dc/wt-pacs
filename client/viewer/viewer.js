@@ -142,6 +142,23 @@ function show(i) {
 }
 if (!fillMode) show(0);
 
+/** The lab's trace: from frame 0 on screen, one step every `everyMs`, each on time however the last went. lab/viewer/trace.js */
+const stepped = [];
+const until = (done) => new Promise((resolve) => {
+  const poll = setInterval(() => done() && (clearInterval(poll), resolve()), 5);
+});
+const traced = lab.trace && (async () => {
+  await until(() => shown?.i === 0 || errors.length);
+  const t0 = performance.now();
+  for (const [k, i] of lab.trace.steps(n).entries()) {
+    await new Promise((r) => setTimeout(r, t0 + (k + 1) * lab.trace.everyMs - performance.now()));
+    stepped.push({ i, at: at() });
+    show(i);
+  }
+  // On demand a frame the reader left may never be asked, so the trace ends on its last step's frame.
+  await until(() => shown?.i === stepped.at(-1)?.i || errors.length);
+})();
+
 const cineEl = document.getElementById("cine");
 function toggleCine() {
   if (view.playing) view.pause();
@@ -227,7 +244,8 @@ if (q.get("check") || lab.finished) {
   if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, check, errors, report, rendererName, toggleCine,
     current: () => view.current, seen, close: () => (worker ?? controller.client).close() });
   else {
-    const { frames, firstShownMs, stats } = await (worker ?? controller).ledger();
-    lab.finished({ issuedAt, firstShownMs, frames, errors, stats });
+    await traced;
+    const { frames, firstShownMs, fillMs, stats } = await (worker ?? controller).ledger();
+    lab.finished({ issuedAt, firstShownMs, fillMs, frames, errors, stats, ...(traced && { stepped }) });
   }
 }
