@@ -1105,7 +1105,7 @@ table, no backpressure and no new failure mode. Also: the ring losing fill time 
 slots); a hanging protocol putting series of different frame sizes on screen at once, which wants a byte allocator,
 not slots; a budget under four of a series' frames (three decoders and the frame shown), which (c) cannot serve.
 
-**Protocol, M5, pre-registered 2026-10-28, before any build or data.** M2's rig (`lab/opfs-cache/run.mjs`, cell `m2`)
+**Protocol, M5, pre-registered 2026-10-28, before any build or data** (amended 2026-10-29, *M5 amended* below). M2's rig (`lab/opfs-cache/run.mjs`, cell `m2`)
 and its rules carry over: the 4-vCPU container, the 80 × 3328×4096 series (2.03 GiB) on loopback, a 256 MiB window,
 a fresh profile an arm, the browser tree's PSS each second, peak less the value before the dial; every frame checked
 by the decoder's XXH3 and the rig's SHA-256; arms ordered per round by `lab/order.mjs`; ≥ 7 rounds; each arm's
@@ -1162,6 +1162,113 @@ V8 at `f428bb0` (Chromium `52c75e5`'s `DEPS`); Gecko and WebKit at §9's pinned 
 
 **Not traced:** Blink's own accounting of a shared buffer outside V8; whether Gecko's high-frequency mode holds during a
 fill (it picks 1.5 or 3.0); JSC's growth factor on a phone; `Atomics.waitAsync` per engine, which the design avoids.
+
+**M5 amended, 2026-10-29, before any data.** Two reviews on PR #235 bear on M5: the red team's finding 3 (no
+backpressure; the revised Target adopts credits, K open) and the independent design's *no frame memory* (the disk the
+only frame store, one reused read buffer per viewport, the OS page cache as the window, predicted there at 530–600 MiB
+like `ring`). The question stays one: which frame memory bounds a fill. The pre-registration above stands as written;
+the arms, the bar and the rule below replace its own. The arms are built in `lab/opfs-cache/` only, nothing in
+`client/` changes, and M5 is not run here: its runs are a separate row.
+
+**The build.** A stand-in view worker (`arms-view.js`, page `arms.html`) runs the product's downloader with its decoder
+seam pointed at `arms-decoder.js`: the product's OpenJPH build and frame check, then each exact frame written to an
+OPFS file of its own **before** it is posted. Every arm so writes the same bytes from the same threads (who writes is
+not this row's question), and the arms differ in one lever, what the view holds:
+
+| arm | what the view holds | build |
+| --- | --- | --- |
+| `ring`, `ring′` | (c): ⌊256 MiB / frame⌋ slots of one `SharedArrayBuffer` carved once, 9 at 3328×4096 (234 MiB), with `arms-slots.js`'s table. A decoder takes a slot by `compareExchange` as it begins a frame (*corrected 2026-10-29, independent review:* once its decode ends, before the copy into the slot, as `arms-decoder.js` does); with none free it tells the view, which evicts the frame farthest from the current one, and waits for one to free | `arms-*.js` |
+| `transfer` | (a′): a new `ArrayBuffer` a frame, transferred; past 256 MiB the farthest dropped | `arms-*.js` |
+| `transfer-k` | `transfer` under credits: the downloader dispatches only while fewer than K frames are unacknowledged, and each ack dispatches again | `downloader.js` through the rig's stand-in `credits` |
+| `disk` | nothing: no samples are posted; a frame asked or stepped to is read back into the one read buffer and checked | `arms-*.js` |
+| `today` | as pre-registered: the product page, its window, the store handed copies | the product |
+
+The lab's simplifications: a decoder waiting for a slot blocks in `Atomics.wait` (the design blocks no thread; the
+decoder has nothing else to do, and the downloader's 10 s decode deadline still guards it); the view paints nothing
+(the upload is the same in every arm); the current frame is 0 until the first ask, then the frame last asked.
+
+**What disk-only costs on the asked-frame path.** Every frame shown that is not in a buffer is a read and a check: M1
+measured 22.3 ms to read and re-check a 3328×4096 frame with the page cache warm (row *§7's rule, from M1*, above), the
+cost the independent design's comparison concedes. M5 times it on two paths, each from the frame being at the view
+to its samples checked in hand, the wire and the decode being the same in every arm: three asks during the fill
+(frames 79, 69, 59, once 10, 30 and 50 frames are in, each becoming the current frame) and three steps after it (the
+three frames before the last asked, inside the window around it). In `ring` and `transfer` both are a lookup; in
+`disk` both are a read and an XXH3. *Corrected 2026-10-29 (independent review):* the 22.3 ms is M1's R / n, a 32-frame
+reopen's time from the store worker's start divided by its frames, on Chromium only: a throughput, not one read's
+latency, and 5.6 ms over the bar. That `disk` misses the time bar is predicted, not shown; Firefox's read is not measured.
+
+**Credits, and where they matter.** The consumer acks a frame when the view takes it, and every frame is on disk
+before it is posted, so "held within budget or written" holds at receipt in every arm. What credits bound is what
+waits in the view's port before then: live frames no collector can free, in a queue HTML gives no bound. That matters
+only where a waiting message carries samples, `transfer`: in `ring` the slots are the credits (a dry ring stops the
+decoders), and in `disk` a message carries none. So credits cross `transfer` only, at two loads: the main cell, and
+**`m5-busy`**, the view held 200 ms a frame, twice M2's measured delivery period (7.87 s over 80 frames), a stand-in
+for a view busy reading, checking and painting (red team, 4). **K = decoders × `perDecoder` = 6** on this host: the
+most frames the decoders hold at once, so credits bind only once the view falls behind, and a fill under them holds at
+most the window and K frames more. K is not swept: if `transfer-k`'s median fill time at full speed falls outside
+0.90–1.10 × `transfer`'s, K was too small, and `m5-busy` runs again at 12.
+
+**Measured**, each round and arm, besides the pre-registration's: the host's page-cache growth (`Cached`, which no
+PSS counts and which holds `disk`'s window); the SHA-256 check as every OPFS file read back after the fill, outside
+the PSS sampling; the asked frame's times; and the view's own counts: peak bytes held, frames taken outside the ring,
+the most frames waiting in its port at once (from each frame's decode-end and receipt stamps), slot waits.
+
+**The bar and the rule, restated.**
+
+* **Memory bar**, per engine: every round's growth ≤ the median `disk` growth on that engine + 320 MiB (the budget
+  and the A/A's 64). It replaces 608 MiB, which rested on Chromium's floor of 2026-10-28 (531–537 MiB, a window
+  included): Firefox's floor was never measured, and `disk`, holding no frame, measures each engine's floor in the
+  same rounds. `disk` itself must hold nothing (peak bytes held 0). *The order, said plainly:* this bar was set after
+  a Firefox smoke round showed the engines' floors apart; its reason does not rest on that round.
+* **Time bar:** an arm's median asked-frame time ≤ `ring`'s + 16.7 ms, one display period: the bar the independent
+  design set for its own read-back (its protocol, 3).
+* **An arm qualifies** on an engine if, in every round not VOID, the fill is complete, every frame exact by both
+  checks, the memory bar met, its own check true (`ring`: no frame outside the ring; `transfer-k`: never more than K
+  waiting), and over the rounds the median fill time ≤ 1.10 × `today`'s and the time bar met. VOID as pre-registered.
+* **Rule.** The simplest arm that qualifies on both engines is chosen: `disk` (no frame memory), then `transfer` (no
+  table), `transfer-k`, `ring`. None: lever 2 returns to the owner with the numbers. `m5-busy` rules credits: needed for
+  `transfer` if there `transfer` misses the memory bar and `transfer-k` meets it with never more than K waiting.
+  `lab/opfs-cache/summary.py` applies both.
+
+**Predicted, from the sources** (cited above and below; *floor* is an engine's growth with no frame held, which
+`disk` measures):
+
+| arm | V8 (Chromium) | SpiderMonkey (Firefox) | JavaScriptCore (WebKit, not run) |
+| --- | --- | --- | --- |
+| `ring` | floor + the ring: the one shared buffer counts 0 and is never garbage; 530–600 MiB as pre-registered. **Qualifies** | floor + the ring: counted once per zone that holds it (the view and three decoders), which raises each zone's trigger and frees nothing. **Qualifies** | floor + the ring: each wrapper counts it, so collections come sooner, not memory larger |
+| `transfer` | floor + up to 260 MiB of window + V8's slack: a received buffer counts in the view's isolate, a sent one stops counting at detach, and 64 MiB of external memory past the last collection starts one. At the bar (floor + 324–350 against + 346): the rule decides. *Corrected 2026-10-29 (independent review, merged from §Who owns a frame's memory):* the 64 MiB is not V8's trigger; external memory starts marking past a limit that grows its low by a factor (`heap-controller.cc` 307–315, 487–490), so the slack is proportional and the + 324–350 is not sourced: the rule decides | floor + window + 1.5–3.0 × what survived the last collection: the contents count as cell memory, removed from the sender at the transfer. + 128–512 MiB over the window: **misses**. *Corrected 2026-10-29 (independent review):* the excess is (1.5–3.0 − 1) × what survived (the trigger is that × the factor; the 128–512 is already so); at 1.5 on a 234 MiB window, floor + 351 against + 346, inside the A/A's 64: the rule decides there, and misses at 3.0 | the sender's estimate falls to 0 at the transfer; the next collection proportional to the live heap: misses, as Gecko (the factor 2 under a quarter of RAM, 1.5 under a half: `runtime/OptionsList.h` 219–226, added in review) |
+| `transfer-k` | as `transfer` at full speed; in `m5-busy` the window + ≤ 6 frames (156 MiB), where `transfer` holds every frame waiting, about half of them at 200 ms against 98 | the same | the same |
+| `disk` | floor + one read buffer, 300–370 MiB (the floor's 531–537 less a window, plus 26; *corrected 2026-10-29, independent review:* that is 301–329, the 370 from `ring`'s predicted 600): the sync handle writes through the renderer's own file, so the samples sit in the page cache, outside PSS. Meets the memory bar; **misses the time bar**, ~22 ms in hand (M1) against ~0 | the write a stream copy into the content process's file, returning the bytes copied; floor + one read buffer; misses the time bar alike | the write and read through the handle's file; not run |
+| `today` | as pre-registered, 2.6–3.2 GiB | as pre-registered, 0.6–1.2 GiB | — |
+
+**Predicted outcome:** `disk` misses the time bar on both engines (22.3 > 16.7 ms), `transfer` misses the memory bar on
+Firefox, so `ring` is chosen: (c), as recommended above. *Corrected 2026-10-29 (independent review):* neither miss follows
+from the sources alone (both corrections above); `ring` is chosen only if `disk` and
+both `transfer` arms each miss on an engine. On 512² frames the read is 0.7 ms (M1) and `disk` would meet
+the time bar; M5 runs only the mammogram, where the two bars disagree, and says nothing of a CT series.
+
+**Mutants**, each a stand-in written over its file by the rig, each caught in one smoke round on both engines (no
+smoke number here is a result): `slots-never-freed`, the view never frees a slot, stalls the fill after nine frames
+(completeness, within 120 s); `fresh-when-dry`, a decoder takes a fresh `SharedArrayBuffer` when the ring is dry
+(frames outside the ring); `credits-ignored`, the ack dispatches but the gate is gone (in `m5-busy`, more than K
+waiting); `disk-keeps-frames`, the decoder posts a copy in `disk` and the view keeps a window (peak bytes held).
+
+**What smoke changed in the rig**, before this text was final: a stand-in routed by Playwright never reached a script
+loaded by a worker's own worker, so the credits build had not bound; every stand-in is now written over its file and
+put back after each browser, in both engines, M2's included. M5's series (2.03 GiB) is over the 1 300 MiB site limit
+the rig set for M3, where Gecko's write comes back short without throwing (above), so M5's cells set 4 096 MiB and the
+decoder counts a short write as not stored. Firefox now runs any cell (the pre-registration's "rig change, made in the
+later row"). Not run: M5 itself, WebKit, and the 13 GiB follow-up, which keeps its condition on `ring` being chosen.
+
+| claim, 2026-10-29 | source |
+| --- | --- |
+| Chromium: a sync handle reads and writes through a file the renderer holds | `third_party/blink/renderer/modules/file_system_access/file_system_access_regular_file_delegate.cc` 22–25, 51–61, 63–90 |
+| Gecko: a read or write is a stream copy on an I/O queue into a stream deserialized in the content process; it returns the bytes copied | `dom/fs/api/FileSystemSyncAccessHandle.cpp` 523–630, 633–642 |
+| WebKit: read and write through the handle's file | `Source/WebCore/Modules/filesystem/FileSystemSyncAccessHandle.cpp` 128–170 |
+| Gecko: a transferred buffer's contents leave the sender's count | `js/src/vm/ArrayBufferObject.cpp` 3110–3123 |
+| JSC: a transferred buffer's contents detached from the sender; a wrapper's estimate is its contents | `Source/JavaScriptCore/runtime/ArrayBuffer.cpp` 498–522; `runtime/JSArrayBuffer.cpp` 81–86; `runtime/ArrayBuffer.h` 379–383 (added in review) |
+| JSC: the heap's growth factors (added in review) | `Source/JavaScriptCore/runtime/OptionsList.h` 219–226 |
+| HTML: a port's message queue, with no bound given | `source` 134810–134816 |
 
 ### Options, and what each costs
 

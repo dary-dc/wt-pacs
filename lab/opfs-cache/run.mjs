@@ -1,6 +1,6 @@
-// The client cache's owed cells, M1–M4, in headless Chromium: docs/adr/frame-path.md §Proposed, *Pre-registered 2026-10-27*.
+// The client cache's owed cells, M1–M5, in headless Chromium: docs/adr/frame-path.md §Proposed, *Pre-registered 2026-10-27*.
 //
-//   NODE_PATH=$(npm root -g) PYTHON=.venv/bin/python node lab/opfs-cache/run.mjs --cell m1|m2|m2-13g|m2-trace|m3|m4 --out rows.jsonl
+//   NODE_PATH=$(npm root -g) PYTHON=.venv/bin/python node lab/opfs-cache/run.mjs --cell m1|m2|m2-13g|m2-trace|m3|m4|m5|m5-busy --out rows.jsonl
 //     [--rounds 7] [--mutant name]
 import { execFileSync, spawn } from "node:child_process";
 import { createSocket } from "node:dgram";
@@ -19,8 +19,8 @@ const OUT = path.resolve(arg("--out", path.join(WORK, `${CELL}.jsonl`)));
 const ROUNDS = Number(arg("--rounds", 7));
 const MUTANT = arg("--mutant", "");
 const ENGINE = arg("--engine", "chromium");
-// MiB the store may hold in Firefox: its per-site limit is a fifth of this pref, in KiB (ActorsParent.cpp 1413–1416).
-const FIREFOX_LIMIT_MIB = 1300;
+// MiB the store may hold in Firefox: its per-site limit is a fifth of this pref, in KiB (ActorsParent.cpp 1413–1416). M5's series is 2.03 GiB.
+const FIREFOX_LIMIT_MIB = CELL?.startsWith("m5") ? 4096 : 1300;
 const PYTHON = process.env.PYTHON || "python3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const { chromium } = createRequire(import.meta.url)("playwright");
@@ -110,7 +110,13 @@ async function relay(link, to) {
 }
 
 const viewerUrl = (s, wt) => `${origin}/?${new URLSearchParams({ wt, hash: cert.hash, metadata: s.metadata })}`;
+const armsUrl = (s, wt, a) => `${origin}/lab/opfs-cache/arms.html?${new URLSearchParams({ wt, hash: cert.hash, metadata: s.metadata, sha: s.sha, ...a.query })}`;
 const reopenUrl = (s, key) => `${origin}/lab/opfs-cache/reopen.html?${new URLSearchParams({ key, metadata: s.metadata, sha: s.sha })}`;
+
+/** M5's credits: dispatch only while fewer than `cfg.credits` frames are unacknowledged, and each ack dispatches again. */
+const CREDIT_GATE = ["decoders.some((d) => d.outstanding < cfg.perDecoder); ) {",
+  `decoders.some((d) => d.outstanding < cfg.perDecoder) && [...records.values()].filter((r) => r.state === "decoding").length < cfg.credits; ) {`];
+const ACK_PUMPS = ["return void (m.gen === generation && records.delete(m.index));", "return void (m.gen === generation && records.delete(m.index), pump());"];
 
 /** The rig's stand-ins for the product's files, served in their place: the store switched off, and the mutants. */
 const STAND_INS = {
@@ -120,39 +126,41 @@ const STAND_INS = {
   "evict-without-probe": { file: "client/viewer/store.js", from: "(await frames.createSyncAccessHandle()).close();\n", to: "" },
   "shared-to-store": { file: "client/viewer/viewer.js", from: `call("write", { index, info: { ...info, pixels } }, [pixels])`, to: `call("write", { index, info })` },
   "read-without-check": { file: "client/viewer/store.js", from: `if (xxh3.init().update(bytes).digest("hex") !== series.digests[index]) {`, to: "if (false) {" },
+  credits: { file: "client/transport/downloader.js", edits: [CREDIT_GATE, ACK_PUMPS] },
+  "credits-ignored": { file: "client/transport/downloader.js", edits: [ACK_PUMPS] },
+  "slots-never-freed": { file: "lab/opfs-cache/arms-view.js", from: "if (h.slot !== undefined) ring.free(h.slot);", to: "" },
+  "fresh-when-dry": { file: "lab/opfs-cache/arms-decoder.js", from: `dry.postMessage("dry");\n    ring.waitFree(seen);`,
+    to: "return { bytes: new Uint8Array(new SharedArrayBuffer(ring.slotBytes)), waits, waitedMs: 0 };" },
+  "disk-keeps-frames": { file: "lab/opfs-cache/arms-decoder.js", from: `into.slot === undefined && arm !== "disk" ?`, to: "into.slot === undefined ?" },
 };
-async function standIn(context, name) {
-  const s = STAND_INS[name];
-  if (!s) return;
-  let body = s.body?.() ?? readFileSync(path.join(ROOT, s.file), "utf8");
-  if (s.from !== undefined) {
-    if (!body.includes(s.from)) throw new Error(`stand-in ${name}: its text is not in ${s.file}`);
-    body = body.replace(s.from, s.to);
+const editsOf = (s) => s.edits ?? (s.from === undefined ? [] : [[s.from, s.to]]);
+function edited(name, body) {
+  for (const [from, to] of editsOf(STAND_INS[name])) {
+    if (!body.includes(from)) throw new Error(`stand-in ${name}: its text is not in ${STAND_INS[name].file}`);
+    body = body.replace(from, to);
   }
-  await context.route(`**/${s.file}`, (route) => route.fulfill({ status: 200, body, headers: {
-    "content-type": "text/javascript", "cross-origin-embedder-policy": "require-corp", "cross-origin-opener-policy": "same-origin",
-    "cross-origin-resource-policy": "same-origin", "cache-control": "no-store" } }));
+  return body;
 }
+/** Written over the file and put back by `putBack`: a route in Chromium misses the scripts a worker's own workers load. */
+function standIn(name) {
+  const f = path.join(ROOT, STAND_INS[name].file);
+  const was = readFileSync(f, "utf8");
+  writeFileSync(f, STAND_INS[name].body?.() ?? edited(name, was));
+  restore.push(() => writeFileSync(f, was));
+}
+const putBack = () => { for (const r of restore.splice(0).reverse()) r(); };
 
 /** Chromium on a profile of its own, and the browser process's pid, for PSS and for a kill. */
 async function browser(profile, standIns = [], args = []) {
-  if (ENGINE === "firefox") return firefox(profile, standIns);
+  for (const s of standIns) standIn(s);
+  if (ENGINE === "firefox") return firefox(profile);
   const before = new Set(readdirSync("/proc"));
   const context = await chromium.launchPersistentContext(profile, { headless: true, viewport: { width: 1024, height: 768 }, args });
   const pid = Number(readdirSync("/proc").find((p) => !before.has(p) && /^\d+$/.test(p) && parent(p) === String(process.pid)));
-  for (const s of standIns) await standIn(context, s);
   return { context, pid, page: context.pages()[0] ?? (await context.newPage()) };
 }
-/** Firefox over WebDriver BiDi on an Xvfb display (headless it has no WebGL); a stand-in is written over the file, then put back. */
-async function firefox(profile, standIns) {
-  for (const name of standIns) {
-    const f = path.join(ROOT, STAND_INS[name].file);
-    const was = readFileSync(f, "utf8");
-    const body = STAND_INS[name].body?.() ?? was.replace(STAND_INS[name].from, STAND_INS[name].to);
-    if (body === was) throw new Error(`stand-in ${name}: its text is not in ${f}`);
-    writeFileSync(f, body);
-    restore.push(() => writeFileSync(f, was));
-  }
+/** Firefox over WebDriver BiDi on an Xvfb display (headless it has no WebGL). */
+async function firefox(profile) {
   writeFileSync(path.join(profile, "user.js"), [`user_pref("browser.shell.checkDefaultBrowser", false);`,
     `user_pref("dom.quotaManager.temporaryStorage.fixedLimit", ${FIREFOX_LIMIT_MIB * 5 * 1024});`,
     `user_pref("browser.cache.disk.enable", false);`, `user_pref("browser.sessionstore.resume_from_crash", false);`].join("\n") + "\n");
@@ -194,7 +202,8 @@ async function firefox(profile, standIns) {
   };
 }
 const restore = [];
-process.on("exit", () => { for (const r of restore) r(); });
+process.on("exit", putBack);
+for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => process.exit(1));
 
 function parent(p) {
   try { return readFileSync(`/proc/${p}/stat`, "utf8").split(") ")[1].split(" ")[1]; } catch { return null; }
@@ -212,6 +221,8 @@ function treePss(root) {
   for (const p of tree(root)) try { kib += parseInt(/^Pss:\s+(\d+)/m.exec(readFileSync(`/proc/${p}/smaps_rollup`, "utf8"))[1], 10); } catch {}
   return kib / 1024;
 }
+/** MiB of the host's page cache, which OPFS files fill and no process's PSS counts. */
+const cached = () => Number(/^Cached:\s+(\d+)/m.exec(readFileSync("/proc/meminfo", "utf8"))[1]) / 1024;
 const available = () => Number(/MemAvailable:\s+(\d+)/.exec(readFileSync("/proc/meminfo", "utf8"))[1]) / 1024;
 function cpuBusy() {
   const [, ...v] = readFileSync("/proc/stat", "utf8").split("\n")[0].trim().split(/\s+/).map(Number);
@@ -231,13 +242,14 @@ const statusOf = (text) => ({
 });
 
 /** The viewer opened on a series and watched to its fill's end, sampling the browser's PSS each second. */
-async function fill(b, s, wt, { deadlineS = 1800, until } = {}) {
+async function fill(b, s, wt, { deadlineS = 1800, until, url = viewerUrl(s, wt) } = {}) {
   const t0 = Date.now();
-  await b.page.goto(viewerUrl(s, wt));
-  let st = statusOf(""), peak = 0, lastSample = 0;
+  const cached0 = cached();
+  await b.page.goto(url);
+  let st = statusOf(""), peak = 0, lastSample = 0, cachedPeak = 0;
   while (Date.now() - t0 < deadlineS * 1000) {
     await sleep(100);
-    if (Date.now() - lastSample >= 1000) { peak = Math.max(peak, treePss(b.pid)); lastSample = Date.now(); }
+    if (Date.now() - lastSample >= 1000) { peak = Math.max(peak, treePss(b.pid)); cachedPeak = Math.max(cachedPeak, cached() - cached0); lastSample = Date.now(); }
     if (available() < 1536) return { ...st, peakPssMiB: peak, stoppedBy: "host saturated: under 1536 MiB available" };
     st = statusOf(await b.page.evaluate(STATUS).catch(() => st.text));
     if (until?.(st)) return { ...st, peakPssMiB: peak, stoppedBy: "until" };
@@ -251,7 +263,7 @@ async function fill(b, s, wt, { deadlineS = 1800, until } = {}) {
     st = statusOf(await b.page.evaluate(STATUS));
     still = st.onDisk === last ? still + 1 : 0;
   }
-  return { ...st, peakPssMiB: peak, wallS: (Date.now() - t0) / 1000 };
+  return { ...st, peakPssMiB: peak, pageCacheGrowthMiB: cachedPeak, wallS: (Date.now() - t0) / 1000 };
 }
 
 /** The viewer's store worker lets go of the series' lock some time after its page is gone, so a held lock is waited out. */
@@ -342,6 +354,7 @@ async function m2(big) {
       const before = cpuBusy();
       const f = await fill(b, s, server.url);
       await b.context.close();
+      putBack();
       drop(dir);
       write({ cell: big ? "m2-13g" : "m2", round, arm, mutant: MUTANT || null, baselineMiB: baseline, growthMiB: f.peakPssMiB - baseline, cpuBusy: busyShare(before, cpuBusy()), ...f });
     }
@@ -410,7 +423,7 @@ async function m3() {
     for (const k of want.A2) final.push({ k, ...(await reopen(b, s, servers[k].url)) });
     await b.context.close();
     drop(dir);
-    for (const r of restore.splice(0)) r();
+    putBack();
     write({ cell: "m3", engine: ENGINE, round, mutant: MUTANT || null, holds: steps.every((x) => x.holds && x.inexact === 0) && final.every((x) => x.read === s.n && !x.wrong.length), steps, final });
   }
 }
@@ -459,6 +472,7 @@ async function m4() {
     const shown = statusOf(await b2.page.evaluate(STATUS));
     const end = await reopen(b2, s, server.url);
     await b2.context.close();
+    putBack();
     drop(dir);
     const asked = s.n - after.present.length;
     write({ cell: "m4", round, mutant: MUTANT || null, onDiskAtKill: atKill.onDisk, presentAfterKill: after.present.length, flipped,
@@ -469,6 +483,50 @@ async function m4() {
   }
 }
 
-const cells = { m1, m2: () => m2(false), "m2-13g": () => m2(true), "m2-trace": m2Trace, m3, m4 };
+/** Unacknowledged frames the downloader may hold under credits: its decoders × `perDecoder`, so credits bind only on a view that falls behind. */
+const K = 6;
+/** ms the busy cell holds the view per frame: twice M2's measured delivery period, 7.87 s over 80 frames. */
+const BUSY_MS = 200;
+const M5_ARMS = {
+  ring: { query: { arm: "ring" } },
+  ring2: { query: { arm: "ring" } },
+  transfer: { query: { arm: "transfer" } },
+  "transfer-k": { query: { arm: "transfer", credits: K }, standIns: ["credits"] },
+  disk: { query: { arm: "disk" } },
+  today: { today: true },
+};
+
+/** M5 as amended, before any data: docs/adr/frame-path.md §Who owns a frame's memory, M5 amended. */
+async function m5(busy) {
+  await staticHost();
+  const s = series(3328, 4096, 80);
+  const server = await serve(s);
+  const names = MUTANT ? [arg("--arm")] : busy ? ["transfer", "transfer-k"] : Object.keys(M5_ARMS);
+  const arms = Object.fromEntries(names.map((k) => [k, busy ? { ...M5_ARMS[k], query: { ...M5_ARMS[k].query, holdMs: BUSY_MS } } : M5_ARMS[k]]));
+  settings({ series: s, decodedMiB: (s.n * s.frameBytes) / 2 ** 20, window: "256 MiB", link: "loopback, no relay", K, arms });
+  for (let round = 0; round < ROUNDS; round++) {
+    for (const arm of order(names, round)) {
+      const a = arms[arm];
+      const dir = profile(`m5-${arm}`);
+      // A mutant of a file the arm already stands in for takes its place.
+      const own = (a.standIns ?? []).filter((x) => !MUTANT || STAND_INS[x].file !== STAND_INS[MUTANT].file);
+      const b = await browser(dir, [...own, ...(MUTANT ? [MUTANT] : [])]);
+      await sleep(1000);
+      const baseline = treePss(b.pid);
+      const before = cpuBusy();
+      const f = await fill(b, s, server.url, { deadlineS: 120, ...(!a.today && { url: armsUrl(s, server.url, a) }) });
+      const cpu = busyShare(before, cpuBusy());
+      const settled = (p) => Promise.race([b.page.evaluate(p), sleep(10000).then(() => ({ error: "no answer in 10 s" }))]);
+      const view = a.today ? null : await settled(() => globalThis.armsResult);
+      const second = a.today || f.exact !== s.n ? null : await settled(() => globalThis.verify());
+      await b.context.close();
+      putBack();
+      drop(dir);
+      write({ cell: busy ? "m5-busy" : "m5", engine: ENGINE, round, arm, mutant: MUTANT || null, baselineMiB: baseline, growthMiB: f.peakPssMiB - baseline, cpuBusy: cpu, ...f, view, second });
+    }
+  }
+}
+
+const cells = { m1, m2: () => m2(false), "m2-13g": () => m2(true), "m2-trace": m2Trace, m3, m4, m5: () => m5(false), "m5-busy": () => m5(true) };
 await cells[CELL]();
 process.exit(0);
