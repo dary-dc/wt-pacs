@@ -1,9 +1,10 @@
 /** A run's score and a cell's verdict, as pre-registered: docs/adr/frame-path.md §A frame clock in the view worker. */
 
+import { LONG_TASK_MS } from "./busy.js";
+
 /** ms: one display interval at 60 Hz, for a run with no vsync log. */
 export const DISPLAY_MS = 1000 / 60;
-/** ms; the rest are points of frames due, ms of gap p99, and a share of rounds. */
-export const LONG_TASK_MS = 200;
+/** Points of frames due, ms of gap p99, and a share of rounds. */
 const AA_POINTS = 2;
 const AA_GAP_MS = 16.7;
 const LEAD_POINTS = 20;

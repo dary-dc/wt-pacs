@@ -590,7 +590,7 @@ a mammogram on the decoder's clock, which is the fill's when decode-bound; writi
 front of the next paint (B's flaw). B′ costs one more thread; on a host whose cores the decoders already saturate (3 on
 4, [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Resources), the writes compete for the fourth core with the page. Measured by §7's protocol, not assumed.
 
-## 7 · Protocol (proposed, not queued)
+## 7 · Protocol (proposed 2026-10-11; run 2026-10-30 on the core, amended before data)
 
 Arms differ in the lever alone: **A** (today's path, plus the store worker) and **B′**, same decoders, painter code,
 store worker and transport, each arm's settings printed. Chromium and Firefox; the viewer's three series and a
@@ -608,6 +608,43 @@ frame checked against the encoder input's `.sha256`.
 in ≥ 9 of 12 rounds in both browsers and keeps cine on time where A misses, while (1)'s fill is within ×0.98–1.02 and
 its first frame no later by 16.7 ms or more. Otherwise keep A with the store worker. Store decoded samples if, in (4),
 reopen is faster than a decode of the same frame on every set; otherwise the owner reopens the coded-bytes question.
+
+**Amended before any data (2026-10-30), for the run on the core.** The text above is kept; each change is forced by
+the rig or by what the core is, and says why.
+
+* **The arms are the core's `?view=page` (A) and `?view=worker` (B′)**, with `pageaa`, A again, as the A/A pair. The
+  store worker is in neither: the core's cache is off by default (`?writer=` unset, §The core, assembled), so A is
+  today's path without it. **Cell 4 is out of this run:** with no cache on by default there is nothing to time, and
+  who writes it is the OPFS-arms run's to decide (§The cache I/O in the view worker).
+* **Series:** row INGEST's three, through the product's ingest as HTJ2K (`lab/viewer/view_frames.py`) — `ct_nlst` (76 ×
+  512², signed), `us_liver` (70, RGB), `dbt12_ea1141` (29 × 614×1359) — and `ffdm_a`'s first view (one 2560×3328
+  frame). One frame has no asks and no cine, so the mammogram is in cells 1, 3 and (2)'s first frame alone.
+* **Link:** §7 named none; `r50000` (50 Mbit/s, 40 ms round trip, total-time's), behind the relay. Rig core 3,
+  browser cores 0–2.
+* **(2) is three visits a round:** the fill on the busy page (its first exact frame from navigation), then 10 s of
+  cine; and, on demand, frame 0 then ten asks (frames 1–10) one at a time. **Arrival → screen is the decoder's
+  hand-off to the frame's first draw** (`decodeEnd` to the paint's own end, both on the epoch clock): an ask's issue
+  and its round trip are the page's in both arms, so only this span differs between them. A paint's end is the
+  draw's, stamped in the thread that drew it, so a reply waiting on the busy page is not counted against A.
+* **Cine runs on the thread that holds the frames, on the same kind of clock:** A on a page timer to a schedule, B′ on
+  the view worker's (`client/view/clock.js`, `timeout`), each showing the frame due at its tick (§A frame clock,
+  *amended*), frame 0 due mid display interval, at the series' rate as the viewer's cine (10/s where the metadata has
+  none). Worker rAF is that section's question, not this one. **Late** is that section's score from the draw log
+  against a second worker's vsync log (`lab/frame-clock/measure.js`); claims are from draws, not presentation.
+* **(3) is the page's content process's main thread CPU time** over the quiet fill (`/proc`, the process that moved
+  most), ÷ frames: Firefox has no trace this rig reads, so both engines are read alike. Its resolution is 10 ms a
+  visit.
+* **Guards.** A visit is dropped if the relay's timing is VOID, it errs, or on a busy page its shortest long task is
+  under 200 ms; dropped visits are re-run, and a cell with fewer than 12 kept rounds decides nothing. A cell is
+  **VOID** when `pageaa` and `page` differ, median over paired rounds, by more than: the fill ×0.98–1.02 or the first
+  frame by 16.7 ms (quiet); arrival → screen by 8 ms (asks); 2 points of late frames or 16.7 ms of gap p99 (cine).
+  A cine cell is **saturated** when `page`'s draw p99, median over rounds, passes half the period.
+* **The rule, read before any data** (`lab/viewer/view-summary.mjs`): B′ is adopted if every frame is exact, and in
+  every decided cell of both engines at 1× and 4×: quiet, B′'s fill ÷ A's median in ×0.98–1.02 and its first frame
+  less than 16.7 ms later; asks, B′'s median arrival → screen ≥ 16.7 ms below A's in ≥ 9 of 12 rounds; cine, where
+  A's median late exceeds 2 points, B′'s is at most 2 with a median gap p99 ≤ 2 periods; and each engine has an asks
+  cell decided. Otherwise A stays. The mean arrival → screen is printed beside the median: §2 predicts A's *mean*
+  (half the task, for the asks that land in one), which the median of ten asks need not move.
 
 ### A frame clock in the view worker (2026-10-28)
 

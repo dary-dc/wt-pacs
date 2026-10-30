@@ -66,6 +66,15 @@ test("a window change repaints the same frame with the new window", async () => 
   assert.deepEqual(painted.at(-1).display.voi, { center: 3, width: 6, function: "LINEAR" });
 });
 
+/** A frame's first paint and the first exact frame are timed at the draw's own end, where the paint gives one. */
+test("a paint's own end times the frame's first paint", async () => {
+  const { c } = rig({ held: [0], paint: () => ({ uploaded: true, drawn: 1234 }) });
+  c.issuedAt = 1000;
+  await c.repaint();
+  assert.equal(c.store.get(0).painted, 1234);
+  assert.equal(c.firstShownMs, 234);
+});
+
 /** A frame arriving twice is counted and painted once. */
 test("a frame already here is not taken again", async () => {
   const { c, painted, events } = rig({ held: [0] });
@@ -173,18 +182,19 @@ test("each failure is said with its scope", async () => {
   assert.deepEqual(wants, ["3", "3"]);
 });
 
-/** The ledger hands a lab harness the fill's time once every frame is here and none before, and the session's reads at each frame. */
+/** The ledger hands a lab harness the fill's time once every frame is here and none before, and each frame's reads and decode end. */
 test("the ledger carries the fill's time and each frame's media reads", async () => {
   const { c } = rig({ frames: 2 });
   c.client.stats = () => ({ resumedAt: [] });
   c.issuedAt = performance.timeOrigin + performance.now() - 40;
-  const take = (i) => c.take({ ...frame(i), info: { ...frame(i).info, stamps: { lastByte: 1, mediaReads: 7 + i } } });
+  const take = (i) => c.take({ ...frame(i), info: { ...frame(i).info, stamps: { lastByte: 1, mediaReads: 7 + i, decodeEnd: 50 + i } } });
   take(0);
   assert.equal((await c.ledger()).fillMs, null);
   take(1);
   const { fillMs, frames } = await c.ledger();
   assert.ok(fillMs >= 40 && fillMs < 1000, `fill ${fillMs} ms`);
   assert.deepEqual(frames.map((f) => f.mediaReads), [7, 8]);
+  assert.deepEqual(frames.map((f) => f.decoded), [50, 51]);
 });
 
 /** A cache holding `present`, whose reads answer `read(i)` (null: the check failed) and whose writes are logged in `log`. */
