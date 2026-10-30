@@ -7,7 +7,7 @@ DEST="$(mkdir -p "$1" && cd "$1" && pwd)/client"
 cd "$(dirname "$0")/../client"
 # check-page.js and view/check.js load on `?check=` alone, paint/reference.js on it and on a view's `valueAt`.
 FILES=(
-  viewer/index.html viewer/head.js viewer/viewer.js viewer/check-page.js
+  viewer/index.html viewer/head.js viewer/viewer.js viewer/store.js viewer/check-page.js
   transport/consumer.js transport/downloader.js transport/wasm/session-adapter.js
   decode/*.js decode/wasm/build/manifest.sha256 decode/wasm/built
   paint/painter.js paint/paint-worker.js paint/voi.js paint/reference.js

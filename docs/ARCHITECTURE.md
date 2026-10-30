@@ -56,7 +56,7 @@ boundary is the API, and `stats()` is async because it cannot be truthful and sy
   when the viewer mounts, minutes later; only the server can keep a browser's session open
   ([`adr/transport-idle-sessions.md`](adr/transport-idle-sessions.md)).
 * **A cache seam and a paint sink** — the viewer paints from a cache filled ahead of it. The paint sink
-  is built ([`../client/paint/`](../client/paint/README.md), §Paint); **the cache seam is built only behind `?view=worker`**, not timed (§Open).
+  is built ([`../client/paint/`](../client/paint/README.md), §Paint); **the cache seam is built only behind `?view=worker` and a lab `?writer=`**, not timed (§Open).
 
 ## Messages
 
@@ -742,7 +742,7 @@ to one ask moves the median only when it crosses a 16.7 ms line.
 The product's page (queue row VIEWER), built on the downloader, the decoders, the frame check and the painter
 together ([`../client/README.md`](../client/README.md) §The viewer). It opens with the whole series as the opening
 fill and paints each frame as it arrives. Frames stay in memory on the page by default; in the view worker under
-`?view=worker`, with an OPFS cache behind them, not timed ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*).
+`?view=worker`, with an OPFS cache behind them under a lab `?writer=`, not timed ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*).
 
 **The page check holds it** on the three series the DICOM-to-bundle ingest (queue row 89, INGEST) made from the lab's sets, each as HTJ2K and as AV1:
 `ct_nlst` (a windowed, signed CT, 76 frames), `us_liver` (an RGB cine, 70 frames, cine run) and `dbt12_ea1141`
@@ -1285,8 +1285,13 @@ Each item below is the owner's to decide, and is tracked here.
   adopted by a fixed bar ([`decode/README.md`](decode/README.md) §Not yet tried, P-COPY; *Net protocols*, COPYRGB).
 * **The cache seam** (an interface, in-memory and OPFS behind it; whether it holds compressed or
   decoded frames is to be evaluated — and "all frames decoded" cannot mean all resident on a phone) and
-  the paint sink — the sink is built (§Paint), the cache seam only behind `?view=worker`, not timed. An OPFS cache must be evictable on WebKit ([`CLIENTS.md`](CLIENTS.md)
-  §On WebKit). A design for both is proposed in [`adr/frame-path.md`](adr/frame-path.md).
+  the paint sink — the sink is built (§Paint), the cache seam only behind `?view=worker` and a lab `?writer=`, not timed. An OPFS cache must be evictable on WebKit ([`CLIENTS.md`](CLIENTS.md)
+  §On WebKit). A design for both is proposed in [`adr/frame-path.md`](adr/frame-path.md); the cache itself (window, layout,
+  quotas, failure modes) in its §Proposed: the client cache in OPFS, **built 2026-10-27** behind the page
+  (`client/viewer/store.js`), and since 2026-10-30 behind the view worker's frame store alone (its §The core, assembled):
+  decoded frames checked `true`, re-checked on read, no frame of a series on disk decoded again. Measured 2026-10-27
+  on the page: a reopen beats a fetch and Chromium evicts by the rule; the memory window bounds nothing and Gecko evicts
+  nothing. Fixed 2026-10-28: Gecko evicts by the rule; the window still bounds nothing, the decoder workers holding each frame. Its questions 2 and 6 stay open.
   *Where the page fails without it* (queue row 273, 2026-10-16): not on the dev host. Headless Chromium 141 and
   Firefox 157.0.1 each filled 8 GiB of decoded frames (1 024 × 2048², 16-bit, 3 of 3), ten times `dbts_b1`, the
   largest series [`FIXTURES.md`](FIXTURES.md) names (812.5 MiB decoded). So by the row's rule nothing is built.
