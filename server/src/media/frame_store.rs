@@ -7,15 +7,6 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use series_bundle::read_layout;
 
-#[cfg(test)]
-use std::sync::atomic::{AtomicUsize, Ordering};
-#[cfg(test)]
-use std::sync::Mutex;
-
-/// 64 KiB, a size tests make frames span several of. `docs/adr/disk-access.md`.
-#[cfg(test)]
-pub(crate) const TEST_CHUNK: usize = 64 * 1024;
-
 /// Where a frame's codestream lives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FrameSpan {
@@ -28,15 +19,8 @@ pub struct FrameStore {
     file: File,
     index: Vec<(u64, u32)>,
     nowait: bool,
-    /// Test-only ceiling on one `read_at_nowait`, for forcing a partial hit.
     #[cfg(test)]
-    nowait_cap: Option<usize>,
-    #[cfg(test)]
-    pool_starts: AtomicUsize,
-    #[cfg(test)]
-    advised: Mutex<Vec<(u64, u64)>>,
-    #[cfg(test)]
-    failing_reads: AtomicUsize,
+    hooks: TestHooks,
 }
 
 impl FrameStore {
@@ -56,13 +40,7 @@ impl FrameStore {
             file,
             index,
             #[cfg(test)]
-            nowait_cap: None,
-            #[cfg(test)]
-            pool_starts: AtomicUsize::new(0),
-            #[cfg(test)]
-            advised: Mutex::new(Vec::new()),
-            #[cfg(test)]
-            failing_reads: AtomicUsize::new(0),
+            hooks: TestHooks::default(),
         }
     }
 
@@ -94,10 +72,7 @@ impl FrameStore {
             return Ok(0);
         }
         #[cfg(test)]
-        let buf = {
-            let end = self.nowait_cap.unwrap_or(buf.len()).min(buf.len());
-            &mut buf[..end]
-        };
+        let buf = self.hooks.cap(buf);
         let mut done = 0usize;
         while done < buf.len() {
             match preadv2_nowait(&self.file, &mut buf[done..], offset + done as u64) {
@@ -123,7 +98,7 @@ impl FrameStore {
     /// copies nothing and never fails a read, so the result is not checked.
     pub fn advise_ahead(&self, offset: u64, len: u64) {
         #[cfg(test)]
-        self.advised.lock().unwrap().push((offset, len));
+        self.hooks.record_advice(offset, len);
         // SAFETY: `posix_fadvise` reads no user memory; a bad range is an errno, not UB.
         unsafe {
             libc::posix_fadvise(
@@ -138,53 +113,10 @@ impl FrameStore {
     /// Call from a blocking pool, never the executor.
     pub fn read_at_blocking(&self, buf: &mut [u8], offset: u64) -> Result<()> {
         #[cfg(test)]
-        {
-            let fail = |n: usize| n.checked_sub(1);
-            if self.failing_reads.fetch_update(Ordering::SeqCst, Ordering::SeqCst, fail).is_ok() {
-                anyhow::bail!("read {} bytes at {offset}: failed by the test lever", buf.len());
-            }
-        }
+        self.hooks.fail_read(buf.len(), offset)?;
         self.file
             .read_exact_at(buf, offset)
             .with_context(|| format!("read {} bytes at {offset}", buf.len()))
-    }
-
-    /// Force a partial hit: real bytes at the front, a shortfall behind them.
-    #[cfg(test)]
-    pub(crate) fn force_short_reads(&mut self, cap: usize) {
-        self.nowait_cap = Some(cap);
-    }
-
-    /// Fail the next `n` blocking reads, as a device error does.
-    #[cfg(test)]
-    pub(crate) fn fail_blocking_reads(&self, n: usize) {
-        self.failing_reads.store(n, Ordering::SeqCst);
-    }
-
-    /// Force a miss, as a filesystem refusing the flag does. Eviction is not a lever a test or
-    /// a lab run can rely on — CLAUDE.md#measurement. Reachable in a build for `--force-pool-reads`.
-    pub fn force_pool_reads(&mut self) {
-        self.nowait = false;
-    }
-
-    #[cfg(test)]
-    pub(crate) fn account_pool_start(&self) {
-        self.pool_starts.fetch_add(1, Ordering::SeqCst);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn pool_starts(&self) -> usize {
-        self.pool_starts.load(Ordering::SeqCst)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn reset_pool_starts(&self) {
-        self.pool_starts.store(0, Ordering::SeqCst);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn take_advice(&self) -> Vec<(u64, u64)> {
-        std::mem::take(&mut *self.advised.lock().unwrap())
     }
 }
 
@@ -235,148 +167,80 @@ pub fn nowait_supported_at(path: &Path) -> Result<bool> {
     answer.with_context(|| format!("write probe file in {}", path.display()))
 }
 
+#[cfg(any(test, feature = "lab-levers"))]
+impl FrameStore {
+    /// Force a miss, as a filesystem refusing the flag does. Eviction is not a lever a test or
+    /// a lab run can rely on — CLAUDE.md#measurement. `--force-pool-reads`.
+    pub fn force_pool_reads(&mut self) {
+        self.nowait = false;
+    }
+}
+
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::time::{SystemTime, UNIX_EPOCH};
-    use series_bundle::write_bundle;
+use std::sync::{atomic::{AtomicUsize, Ordering}, Mutex};
 
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let stamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        std::env::temp_dir().join(format!("{name}-{stamp}.sbnd"))
+/// 64 KiB, a size tests make frames span several of. `docs/adr/disk-access.md`.
+#[cfg(test)]
+pub(crate) const TEST_CHUNK: usize = 64 * 1024;
+
+#[cfg(test)]
+#[derive(Default)]
+struct TestHooks {
+    /// Ceiling on one `read_at_nowait`, for forcing a partial hit.
+    nowait_cap: Option<usize>,
+    pool_starts: AtomicUsize,
+    advised: Mutex<Vec<(u64, u64)>>,
+    failing_reads: AtomicUsize,
+}
+
+#[cfg(test)]
+impl TestHooks {
+    fn cap<'b>(&self, buf: &'b mut [u8]) -> &'b mut [u8] {
+        let end = self.nowait_cap.unwrap_or(buf.len()).min(buf.len());
+        &mut buf[..end]
     }
 
-    /// Two frames of different lengths — the smallest case that catches a reader computing
-    /// offsets by arithmetic instead of through the index.
-    #[test]
-    fn round_trip_from_writer() -> Result<()> {
-        let f0 = b"frame-0";
-        let f1 = b"frame-1-longer";
-        let path = scratch("frame-store");
-        write_bundle(
-            &path,
-            br#"{"frameCount":2}"#,
-            &[f0.as_slice(), f1.as_slice()],
-        )?;
+    fn record_advice(&self, offset: u64, len: u64) {
+        self.advised.lock().unwrap().push((offset, len));
+    }
 
-        let store = FrameStore::open(&path)?;
-        assert_eq!(store.frame_count(), 2);
-        for (index, want) in [(0u32, f0.as_slice()), (1, f1.as_slice())] {
-            let span = store.frame_span(index);
-            let mut buf = vec![0u8; span.len as usize];
-            store.read_at_blocking(&mut buf, span.offset)?;
-            assert_eq!(buf, want, "frame {index}");
+    fn fail_read(&self, len: usize, offset: u64) -> Result<()> {
+        let fail = |n: usize| n.checked_sub(1);
+        if self.failing_reads.fetch_update(Ordering::SeqCst, Ordering::SeqCst, fail).is_ok() {
+            anyhow::bail!("read {len} bytes at {offset}: failed by the test lever");
         }
-        let _ = std::fs::remove_file(path);
-        Ok(())
-    }
-
-    /// A series holding a frame no client would read stops the server at startup, naming the
-    /// frame. Laid out by hand, since the writer refuses it too; sparse, so nothing is written.
-    #[test]
-    fn a_study_with_an_oversized_frame_fails_to_open_naming_it() -> Result<()> {
-        let too_big = frame_envelope::MAX_CODESTREAM_LEN as u32 + 1;
-        let data_base = 16 + 12;
-        let mut bytes = b"SBND".to_vec();
-        for word in [1u32, 0, 1] {
-            bytes.extend_from_slice(&word.to_le_bytes());
-        }
-        bytes.extend_from_slice(&(data_base as u64).to_le_bytes());
-        bytes.extend_from_slice(&too_big.to_le_bytes());
-        let path = scratch("frame-store-oversized");
-        std::fs::write(&path, &bytes)?;
-        File::options().write(true).open(&path)?.set_len(data_base + u64::from(too_big))?;
-        let opened = FrameStore::open(&path);
-        let _ = std::fs::remove_file(&path);
-        let err = format!("{:#}", opened.err().expect("the oversized series opened"));
-        assert!(err.contains("frame 0 "), "the refusal does not name the frame: {err}");
-        Ok(())
-    }
-
-    /// `check-fastpath` is only worth running if it answers what the server will decide, so
-    /// this pins the agreement rather than trusting the shared `probe_nowait`.
-    #[test]
-    fn the_standalone_probe_agrees_with_the_store() -> Result<()> {
-        let path = scratch("frame-store-probe-agrees");
-        write_bundle(&path, br#"{"frameCount":1}"#, &[b"x".as_slice()])?;
-        let store = FrameStore::open(&path)?;
-
-        assert_eq!(
-            nowait_supported_at(&path)?,
-            store.nowait_supported(),
-            "check-fastpath would report a different answer than the server acts on"
-        );
-        // A directory too: that is how the tool is used, before any series is in place.
-        let dir = path.parent().expect("scratch dir");
-        assert_eq!(
-            nowait_supported_at(dir)?,
-            store.nowait_supported(),
-            "probing the directory disagrees with probing a file on the same mount"
-        );
-        let _ = std::fs::remove_file(&path);
-        Ok(())
-    }
-
-    /// Where the mount serves a warm byte under `RWF_NOWAIT`, the store's probe says yes: a
-    /// probe stuck at no passes every other test while sending every read to the pool. The
-    /// oracle is its own `preadv2`, not `probe_nowait`, so the two cannot be wrong together.
-    #[test]
-    fn the_probe_finds_nowait_where_the_mount_has_it() -> Result<()> {
-        let path = scratch("frame-store-probe-yes");
-        write_bundle(&path, br#"{"frameCount":1}"#, &[b"warm".as_slice()])?;
-        let file = File::open(&path)?;
-        let mut byte = [0u8; 1];
-        let iov = libc::iovec {
-            iov_base: byte.as_mut_ptr() as *mut libc::c_void,
-            iov_len: 1,
-        };
-        // SAFETY: `iov` describes a live, exclusively borrowed one-byte buffer.
-        let n = unsafe { libc::preadv2(file.as_raw_fd(), &iov, 1, 0, libc::RWF_NOWAIT) };
-        let refused = (n < 0).then(std::io::Error::last_os_error);
-        let store = FrameStore::open(&path)?;
-        let _ = std::fs::remove_file(&path);
-
-        if let Some(err) = refused {
-            eprintln!(
-                "SKIPPED: the_probe_finds_nowait_where_the_mount_has_it: \
-                 a warm RWF_NOWAIT read is refused on this mount ({err})"
-            );
-            return Ok(());
-        }
-        assert!(
-            store.nowait_supported(),
-            "this mount served a warm byte under RWF_NOWAIT, yet the probe says unsupported"
-        );
-        Ok(())
-    }
-
-    /// The serving path is only correct if `read_at_blocking` can complete a short
-    /// `read_at_nowait` at the offset it stopped at.
-    #[test]
-    fn nowait_and_blocking_compose_into_the_whole_frame() -> Result<()> {
-        let body: Vec<u8> = (0..200_000u32).map(|i| (i % 251) as u8).collect();
-        let path = scratch("frame-store-nowait");
-        write_bundle(&path, br#"{"frameCount":1}"#, &[body.as_slice()])?;
-        let store = FrameStore::open(&path)?;
-        let span = store.frame_span(0);
-
-        let mut out = vec![0u8; span.len as usize];
-        let mut pos = 0usize;
-        while pos < out.len() {
-            let want = TEST_CHUNK.min(out.len() - pos);
-            let at = span.offset + pos as u64;
-            let got = store.read_at_nowait(&mut out[pos..pos + want], at)?;
-            assert!(got <= want, "nowait overran the window: {got} > {want}");
-            if got < want {
-                store.read_at_blocking(&mut out[pos + got..pos + want], at + got as u64)?;
-            }
-            pos += want;
-        }
-        assert_eq!(out, body);
-        let _ = std::fs::remove_file(path);
         Ok(())
     }
 }
+
+#[cfg(test)]
+impl FrameStore {
+    /// Force a partial hit: real bytes at the front, a shortfall behind them.
+    pub(crate) fn force_short_reads(&mut self, cap: usize) {
+        self.hooks.nowait_cap = Some(cap);
+    }
+
+    /// Fail the next `n` blocking reads, as a device error does.
+    pub(crate) fn fail_blocking_reads(&self, n: usize) {
+        self.hooks.failing_reads.store(n, Ordering::SeqCst);
+    }
+
+    pub(crate) fn account_pool_start(&self) {
+        self.hooks.pool_starts.fetch_add(1, Ordering::SeqCst);
+    }
+
+    pub(crate) fn pool_starts(&self) -> usize {
+        self.hooks.pool_starts.load(Ordering::SeqCst)
+    }
+
+    pub(crate) fn reset_pool_starts(&self) {
+        self.hooks.pool_starts.store(0, Ordering::SeqCst);
+    }
+
+    pub(crate) fn take_advice(&self) -> Vec<(u64, u64)> {
+        std::mem::take(&mut *self.hooks.advised.lock().unwrap())
+    }
+}
+
+#[cfg(test)]
+mod tests;

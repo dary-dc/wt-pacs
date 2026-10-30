@@ -188,10 +188,10 @@ else
   skip "the lab's Go clients (lab/other-clients/go, lab/page-open/h3-host) — no go"
 fi
 run 1 cargo check --locked --quiet --manifest-path lab/other-clients/h3/Cargo.toml
-step "lab: the server's lab features — the frame cache compiles, cubic-classify's and the lab levers' wiring holds"
+step "lab: the server's lab features — the frame cache compiles, cubic-classify's wiring holds, the lab levers' tests pass"
 run 1 cargo check -p series-server --features lab-frame-cache --all-targets --quiet
 run 1 cargo test -p series-server --features lab-classify --quiet -- classify
-run 1 cargo test -p series-server --features lab-levers --quiet -- held stalled lab_lever
+run 1 cargo test -p series-server --features lab-levers --quiet
 
 step "perf: counts, not clocks — the client's asks, the server's disk reads and the bytes, against scripts/perf_counts.baseline"
 if command -v strace >/dev/null; then

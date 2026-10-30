@@ -1,13 +1,16 @@
 //! Everything a session writes — frames and refusals — through one owner per transport; the
 //! codestream handed to quinn whole and uncopied. `docs/adr/disk-access.md`.
 
+#[cfg(feature = "lab-levers")]
+use crate::transport::lab_levers::SessionLevers;
+use crate::transport::server::Sessions;
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::websocket::WsWriter;
 use crate::transport::wire::write_fod_msg;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use bytes::Bytes;
 use fod::FodMsg;
-use frame_envelope::{frame_head, FRAME_HEAD_LEN};
+use frame_envelope::frame_head;
 use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::task::JoinSet;
@@ -20,10 +23,8 @@ pub(crate) enum Link {
         media: Media,
         control: ControlStream,
         connection: Connection,
-        /// Lab only: envelope bytes left before the session stalls. `--stall-after-bytes`, under `lab-levers`.
-        stall_left: Option<u64>,
-        /// Lab only: the send window is set to cwnd + this before each frame. `--send-window-follows-cwnd`.
-        cwnd_ahead: Option<u64>,
+        #[cfg(feature = "lab-levers")]
+        lab: SessionLevers,
     },
     /// One ordered TCP stream carries frames and refusals alike.
     WebSocket(WsWriter),
@@ -34,8 +35,16 @@ pub(crate) enum Link {
 
 pub(crate) enum Media {
     Shared(SendStream),
-    /// `asks` counts the asks served when they rank above every fill (`per-frame-asks-first`).
-    PerFrame { acks: JoinSet<()>, seq: u32, asks: Option<u32> },
+    PerFrame(FrameStreams),
+}
+
+/// One stream per frame, each ranked below the last.
+pub(crate) struct FrameStreams {
+    acks: JoinSet<()>,
+    seq: u32,
+    /// The asks served when they rank above every fill: `per-frame-asks-first`.
+    #[cfg(feature = "lab-levers")]
+    asks: Option<u32>,
 }
 
 /// The opening ask is served before the client opens control, so its stream may still be coming.
@@ -46,14 +55,8 @@ pub(crate) enum ControlStream {
 }
 
 impl Link {
-    pub(crate) async fn quic(
-        mode: StreamMode,
-        connection: Connection,
-        control: ControlStream,
-        stall_left: Option<u64>,
-        cwnd_ahead: Option<u64>,
-    ) -> Result<Self> {
-        let media = match mode {
+    pub(super) async fn quic(sessions: &Sessions, connection: Connection, control: ControlStream) -> Result<Self> {
+        let media = match sessions.mode {
             StreamMode::Shared => Media::Shared(
                 connection
                     .open_uni()
@@ -62,10 +65,17 @@ impl Link {
                     .await
                     .context("shared uni ready")?,
             ),
-            StreamMode::PerFrame => Media::PerFrame { acks: JoinSet::new(), seq: 0, asks: None },
-            StreamMode::PerFrameAsksFirst => Media::PerFrame { acks: JoinSet::new(), seq: 0, asks: Some(0) },
+            StreamMode::PerFrame => Media::PerFrame(FrameStreams::default()),
+            #[cfg(feature = "lab-levers")]
+            StreamMode::PerFrameAsksFirst => Media::PerFrame(FrameStreams { asks: Some(0), ..FrameStreams::default() }),
         };
-        Ok(Self::Quic { media, control, connection, stall_left, cwnd_ahead })
+        Ok(Self::Quic {
+            media,
+            control,
+            connection,
+            #[cfg(feature = "lab-levers")]
+            lab: sessions.lab,
+        })
     }
 
     /// `body` is the whole codestream in the reader's own buffer; quinn keeps it until the
@@ -73,30 +83,16 @@ impl Link {
     pub(crate) async fn send_frame(&mut self, idx: u32, body: Bytes, ask: bool) -> Result<()> {
         let head = Bytes::copy_from_slice(&frame_head(idx, body.len() as u32));
         match self {
-            Self::Quic { media, connection, stall_left, cwnd_ahead, .. } => {
+            Self::Quic { media, connection, #[cfg(feature = "lab-levers")] lab, .. } => {
                 if ask && tracing::enabled!(Level::DEBUG) {
                     let path = connection.quic_connection().stats().path;
                     debug!(frame = idx, cwnd = path.cwnd, rtt_us = path.rtt.as_micros() as u64, "ask written");
                 }
-                if let Some(ahead) = cwnd_ahead {
-                    let quic = connection.quic_connection();
-                    quic.set_send_window(quic.stats().path.cwnd + *ahead);
+                #[cfg(feature = "lab-levers")]
+                if let Some(budget) = lab.before_frame(connection, (head.len() + body.len()) as u64) {
+                    return media.stall(connection, head, body, budget, ask).await;
                 }
-                let whole = (FRAME_HEAD_LEN + body.len()) as u64;
-                match stall_left {
-                    Some(left) if whole > *left => {
-                        let (head, body, whole) = within(head, body, *left as usize);
-                        media.send(connection, head, body, whole, ask).await?;
-                        connection.closed().await;
-                        Err(anyhow!("the session stalled after its byte budget"))
-                    }
-                    _ => {
-                        if let Some(left) = stall_left {
-                            *left -= whole;
-                        }
-                        media.send(connection, head, body, true, ask).await
-                    }
-                }
+                media.send(connection, head, body, ask).await
             }
             Self::WebSocket(ws) => ws.send_frame(head, body).await,
             #[cfg(test)]
@@ -118,9 +114,9 @@ impl Link {
     /// However the session ended: per-frame streams get their grace, a WebSocket its close.
     pub(crate) async fn finish(&mut self) {
         match self {
-            Self::Quic { media: Media::PerFrame { acks, .. }, .. } => {
+            Self::Quic { media: Media::PerFrame(streams), .. } => {
                 let _ = tokio::time::timeout(Duration::from_secs(2), async {
-                    while acks.join_next().await.is_some() {}
+                    while streams.acks.join_next().await.is_some() {}
                 })
                 .await;
             }
@@ -131,34 +127,50 @@ impl Link {
 }
 
 impl Media {
-    /// `whole` false is the lab stall's cut frame, whose stream must never finish.
-    async fn send(&mut self, connection: &Connection, head: Bytes, body: Bytes, whole: bool, ask: bool) -> Result<()> {
+    async fn send(&mut self, connection: &Connection, head: Bytes, body: Bytes, ask: bool) -> Result<()> {
         match self {
             Self::Shared(uni) => write_frame(uni, head, body).await,
-            Self::PerFrame { acks, seq, asks } => {
-                let mut uni = connection
-                    .open_uni()
-                    .await
-                    .context("open uni")?
-                    .await
-                    .context("open uni ready")?;
-                let priority = match asks {
-                    Some(asks) if ask => take_ask_priority(asks),
-                    _ => take_priority(seq),
-                };
-                let _ = uni.set_priority(priority);
+            Self::PerFrame(streams) => {
+                let mut uni = streams.open(connection, ask).await?;
                 write_frame(&mut uni, head, body).await?;
-                // A dropped stream is finished, so a cut one is held open instead.
-                acks.spawn(async move {
-                    if whole {
-                        let _ = uni.finish().await;
-                    } else {
-                        std::future::pending::<()>().await;
-                    }
+                streams.acks.spawn(async move {
+                    let _ = uni.finish().await;
                 });
-                while acks.try_join_next().is_some() {}
+                while streams.acks.try_join_next().is_some() {}
                 Ok(())
             }
+        }
+    }
+}
+
+impl FrameStreams {
+    async fn open(&mut self, connection: &Connection, ask: bool) -> Result<SendStream> {
+        let uni = connection
+            .open_uni()
+            .await
+            .context("open uni")?
+            .await
+            .context("open uni ready")?;
+        let _ = uni.set_priority(self.rank(ask));
+        Ok(uni)
+    }
+
+    fn rank(&mut self, #[cfg_attr(not(feature = "lab-levers"), allow(unused_variables))] ask: bool) -> i32 {
+        #[cfg(feature = "lab-levers")]
+        if let Some(asks) = self.asks.as_mut().filter(|_| ask) {
+            return take_ask_priority(asks);
+        }
+        take_priority(&mut self.seq)
+    }
+}
+
+impl Default for FrameStreams {
+    fn default() -> Self {
+        Self {
+            acks: JoinSet::new(),
+            seq: 0,
+            #[cfg(feature = "lab-levers")]
+            asks: None,
         }
     }
 }
@@ -176,13 +188,6 @@ impl ControlStream {
     }
 }
 
-/// The envelope's first `budget` bytes as head and body, and whether that is all of it.
-fn within(head: Bytes, body: Bytes, budget: usize) -> (Bytes, Bytes, bool) {
-    let whole = budget >= head.len() + body.len();
-    let body = body.slice(..budget.saturating_sub(head.len()).min(body.len()));
-    (head.slice(..budget.min(head.len())), body, whole)
-}
-
 /// Earlier asks outrank later ones, so quinn sends a lost frame's retransmit before newer
 /// frames' data instead of behind every stream already queued. `docs/adr/stream-shape.md`.
 fn ask_priority(seq: u32) -> i32 {
@@ -196,13 +201,6 @@ fn take_priority(seq: &mut u32) -> i32 {
     p
 }
 
-/// Above every fill's rank (≤ 0), earlier asks above later ones.
-fn take_ask_priority(asks: &mut u32) -> i32 {
-    let p = i32::MAX - i32::try_from(*asks).unwrap_or(i32::MAX).min(i32::MAX - 1);
-    *asks = asks.saturating_add(1);
-    p
-}
-
 async fn write_frame(uni: &mut SendStream, head: Bytes, body: Bytes) -> Result<()> {
     uni.quic_stream_mut()
         .write_all_chunks(&mut [head, body])
@@ -210,73 +208,44 @@ async fn write_frame(uni: &mut SendStream, head: Bytes, body: Bytes) -> Result<(
         .context("write frame")
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// A refusal in a session whose control stream never came returns once the session has
-    /// closed, rather than waiting for a stream that cannot arrive.
-    #[test]
-    fn a_refusal_with_no_control_stream_returns_once_the_session_closes() {
-        let (closed, coming) = oneshot::channel();
-        let mut control = ControlStream::Coming(coming);
-        drop(closed);
-        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("rt");
-        rt.block_on(async {
-            let msg = FodMsg::FrameError { frame_index: 9, reason: "out of range".into() };
-            tokio::time::timeout(Duration::from_secs(2), control.write(&msg))
-                .await
-                .expect("the refusal waited on a control stream that can no longer come")
-                .expect("refuse");
-        });
-        assert!(matches!(control, ControlStream::Gone), "a control stream that cannot come is still awaited");
-    }
-
-    /// Ask order is stream priority: every later frame ranks strictly below every earlier one,
-    /// and the sequence never wraps back above an earlier frame.
-    #[test]
-    fn later_asks_rank_strictly_below_earlier_ones() {
-        let mut last = ask_priority(0);
-        for seq in [1u32, 2, 1000, i32::MAX as u32, u32::MAX] {
-            let p = ask_priority(seq);
-            assert!(p < last, "ask {seq} ranks at {p}, not below {last}");
-            last = p;
+#[cfg(feature = "lab-levers")]
+impl Media {
+    /// The lab stall: the envelope's first `budget` bytes on a stream never finished, then
+    /// nothing until the peer closes. `--stall-after-bytes`.
+    async fn stall(&mut self, connection: &Connection, head: Bytes, body: Bytes, budget: usize, ask: bool) -> Result<()> {
+        let (head, body, _) = within(head, body, budget);
+        match self {
+            Self::Shared(uni) => write_frame(uni, head, body).await?,
+            Self::PerFrame(streams) => {
+                let mut uni = streams.open(connection, ask).await?;
+                write_frame(&mut uni, head, body).await?;
+                // A dropped stream is finished, so the cut one is held open instead.
+                streams.acks.spawn(async move {
+                    std::future::pending::<()>().await;
+                    drop(uni);
+                });
+            }
         }
-    }
-
-    /// Each per-frame stream takes a rank below the one before it, not the same one.
-    #[test]
-    fn each_stream_takes_the_next_rank_down() {
-        let mut seq = 0;
-        let ranks: Vec<i32> = (0..3).map(|_| take_priority(&mut seq)).collect();
-        assert_eq!(ranks, [0, -1, -2]);
-    }
-
-    /// With asks first, every ask ranks above every fill frame, however many of either came
-    /// before, and earlier asks above later ones.
-    #[test]
-    fn asks_first_rank_every_ask_above_every_fill() {
-        let (mut seq, mut asks) = (0, 0);
-        let fill: Vec<i32> = (0..3).map(|_| take_priority(&mut seq)).collect();
-        let ask: Vec<i32> = (0..3).map(|_| take_ask_priority(&mut asks)).collect();
-        assert!(ask.windows(2).all(|w| w[0] > w[1]), "later asks not ranked below earlier ones: {ask:?}");
-        assert!(ask.iter().all(|a| fill.iter().all(|f| a > f)), "an ask ranks at or below a fill: {ask:?} {fill:?}");
-        let (mut seq, mut asks) = (0, u32::MAX);
-        assert!(take_ask_priority(&mut asks) > take_priority(&mut seq), "the last ask ranks at or below the first fill");
-    }
-
-    /// A budget cuts the envelope where it ends, head first, and only a budget that covers the
-    /// head and the body leaves the frame whole.
-    #[test]
-    fn a_budget_cuts_the_envelope_head_first() {
-        let (head, body) = (Bytes::from_static(b"HEADHEAD"), Bytes::from_static(b"body"));
-        let cut = |budget| {
-            let (h, b, whole) = within(head.clone(), body.clone(), budget);
-            (h.len(), b.len(), whole)
-        };
-        assert_eq!(cut(usize::MAX), (8, 4, true));
-        assert_eq!(cut(12), (8, 4, true));
-        assert_eq!(cut(11), (8, 3, false));
-        assert_eq!(cut(5), (5, 0, false));
+        connection.closed().await;
+        anyhow::bail!("the session stalled after its byte budget")
     }
 }
+
+#[cfg(feature = "lab-levers")]
+/// The envelope's first `budget` bytes as head and body, and whether that is all of it.
+fn within(head: Bytes, body: Bytes, budget: usize) -> (Bytes, Bytes, bool) {
+    let whole = budget >= head.len() + body.len();
+    let body = body.slice(..budget.saturating_sub(head.len()).min(body.len()));
+    (head.slice(..budget.min(head.len())), body, whole)
+}
+
+#[cfg(feature = "lab-levers")]
+/// Above every fill's rank (≤ 0), earlier asks above later ones.
+fn take_ask_priority(asks: &mut u32) -> i32 {
+    let p = i32::MAX - i32::try_from(*asks).unwrap_or(i32::MAX).min(i32::MAX - 1);
+    *asks = asks.saturating_add(1);
+    p
+}
+
+#[cfg(test)]
+mod tests;
