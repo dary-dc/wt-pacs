@@ -892,8 +892,8 @@ cell, every arm (×0.989–1.009).
 **Verdict at 4×: B′ with the fix does not tie A** — "behind A: Firefox mammogram 4× first", +188 ms; it ties A in the
 three other decided cells, where B′ without it is behind in all three but Chromium CT.
 
-*Read from the steps, not decided by the rule:* in that cell B′+fix's page reaches `connect` 96 ms after A's, and its
-downloader's script runs 214 ms after that connect against A's 72 ms — while the view worker, created before the
+*Read from the steps, not decided by the rule:* in that cell B′+fix's page reaches `connect` 105 ms after A's (paired), and
+its downloader's script runs 214 ms after that connect against A's 72 ms (medians) — while the view worker, created before the
 metadata, is still evaluating (it finishes 41 ms after the downloader's script). So in Firefox under the 4× throttle the
 two workers' boots overlap and the downloader's is slowed, which costs more than the view worker's boot saved. Why the
 overlap slows it — Firefox loading a worker's scripts through the page's main thread is the candidate — is not
