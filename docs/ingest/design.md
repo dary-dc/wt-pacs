@@ -157,7 +157,7 @@ changesets, JSONB since 3.45. WAL does not work over a network filesystem, so a 
 PACS's local disk before it is published. SQLite's own guidance sends many networked clients to a client/server
 engine. That is the catalog's job, not the study database's.
 
-**The catalog.**
+**The catalog.** *Named, bounded and re-weighed in [`../adr/study-index.md`](../adr/study-index.md) (proposed 2026-10-25), which recommends MySQL once the catalog holds list-time fields only.*
 
 | | PostgreSQL (recommended) | MySQL | libSQL server (sqld) |
 | --- | --- | --- | --- |
