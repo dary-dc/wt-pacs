@@ -147,4 +147,5 @@ never opens a `.partial`.
 
 * **Streaming the pack** while frames are still coded: the index needs every length first (queue row 163).
 * **Standard containers** in place of the `.sbnd` (rows 159–160).
-* **When a series is complete**, and what a late instance does ([`../ingest/design.md`](../ingest/design.md)).
+* **When a series is complete**, and what a late instance does ([`../ingest/design.md`](../ingest/design.md)). What a late frame costs
+  each container, measured: [`containers.md`](containers.md) §Measured: what a late frame costs.

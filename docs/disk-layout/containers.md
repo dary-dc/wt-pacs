@@ -573,3 +573,94 @@ series with thousands of frames (the N-read opens would grow past 14 ms), DCMTK,
   ≤ 0.13 %. Not in §4: the source's per-frame groups cost DICOM ~400 B a frame (+1.1–1.2 % at 32–41 kB).
 * **FFmpeg's faststart or `cues_to_front` cost about one extra copy** — not seen at these sizes: +1 % and +2–18 % of
   wall time, within FFmpeg's start-up and the page cache; not conclusive.
+
+## Measured: what a late frame costs (2026-10-26)
+
+*One question: what does adding 1 or 10 late frames cost, at the end and in the middle
+of a series, in each container? Reported, not decided. Pre-registered, rig and reproduction:
+[`../../lab/late-frame/README.md`](../../lab/late-frame/README.md).*
+
+**The rig.** 2 000 synthetic 512² CT frames (`lab/scripts/gen_frame_pnm.py` `ct`), 12-bit samples in 16-bit words,
+plus 10 late frames, coded two ways: HTJ2K in the served profile by OpenJPH 0.31.0 (264 kB a frame), and lossless AV1
+by libaom 3.8.2 (Ubuntu's `aomenc`, `cpu-used=6`, one thread, `--auto-alt-ref=0` for GOP 30) at 344 kB a frame,
+all-intra or GOP 30. 12 bits, so AV1 is one standard track here, not [`../av1/payload-format.md`](../av1/payload-format.md)'s
+two-stream payload. Series of N = 262 and 2 000 frames:
+
+* **`.sbnd`**: `common/series-bundle` today (version 1: 16 B header, 12 B entries), merged by its own reader and
+  `BundleWriter` (`.partial`, then rename) — so every byte is written again wherever the frame lands.
+* **MXF OP1a, frame-wrapped HTJ2K**, by bmx v1.6 (with a two-line patch for a one-component codestream) in its two
+  layouts: **footer** (`--min-part`: every frame in the header partition, the whole index in the footer) and **body**
+  (`--part 30 --body-part`: each body partition opens with the previous one's index segment). At the end, an append
+  in place written byte by byte to ST 377-1: cut footer and RIP, add the frames (footer layout) or a body partition
+  carrying the moved segment and the frames (body layout), new footer and RIP, then 8 bytes for FooterPartition in
+  every partition pack and 8 for each Duration that read N. In the middle, bmx writes the file again from the
+  codestreams, renamed over the old one.
+* **MP4, one AV1 track**, muxed by FFmpeg 6.1.1, spliced byte by byte: **moov at the end** in place (the samples are
+  added to the mdat, a new moov written after them; replaced samples stay as dead bytes); **moov at the front**
+  (`+faststart`) to a new file, every sample in display order; **fragmented** (`frag_keyframe`: one fragment a frame
+  all-intra, a group at GOP 30): at the end one moof + mdat and a new mfra in place; elsewhere a new file, fragments in
+  decode order being rebuilt from the one that holds the point on.
+* **GOP 30 in the middle** decodes the group that holds the point (`aomdec`), adds the late frames and encodes the
+  group again (31 or 40 frames, one key frame); the splice replaces the group's 30 samples. At the end, the late
+  frames are a group of their own that starts with a key frame and its sequence header: nothing is re-encoded.
+
+Every output was read back once by another tool: each MP4 decoded by FFmpeg's libdav1d to the generator's samples,
+evenly timed; each MXF by bmx's `mxf2raw` with `--check-end --check-complete`, its essence the codestreams in order;
+each `.sbnd` by its index. Seven deliberate breakages, one per path, were each caught (`lab/late-frame/mutate.txt`).
+Five rounds, every round all 144 cells in a Williams order; each run copies the series, `sync`s, then times the
+operation alone, page cache warm. Medians of 5; the range is in `lab/late-frame/rows.jsonl`.
+
+**At N = 2 000, k late frames: bytes written · warm · `fsync`'d.** Measured, every cell.
+
+| container | end, k = 1 | end, k = 10 | middle, k = 1 | middle, k = 10 |
+| --- | --- | --- | --- | --- |
+| `.sbnd`, rewrite and rename | 527.5 MB · 0.63 s · 0.82 s | 529.8 MB · 0.95 s · 0.78 s | 527.5 MB · 1.02 s · 0.80 s | 529.8 MB · 0.57 s · 1.02 s |
+| MXF, index in the footer | 286 kB · 4.5 ms · 5.5 ms | 2.7 MB · 7.5 ms · 12.7 ms | 527.5 MB · 1.20 s · 1.39 s | 529.9 MB · 1.27 s · 1.60 s |
+| MXF, index in body partitions | 266 kB · 2.9 ms · 5.2 ms | 2.6 MB · 9.5 ms · 13.5 ms | 527.5 MB · 2.28 s · 2.19 s | 529.9 MB · 1.84 s · 1.44 s |
+| MP4 all-intra, moov at the end | 355 kB · 2.6 ms · 4.3 ms | 3.5 MB · 8.6 ms · 11.0 ms | 355 kB · 2.2 ms · 3.6 ms | 3.5 MB · 5.9 ms · 10.4 ms |
+| MP4 all-intra, moov at the front | 692.5 MB · 0.82 s · 1.71 s | 695.6 MB · 0.93 s · 1.41 s | 692.5 MB · 0.88 s · 1.59 s | 695.6 MB · 1.00 s · 4.45 s |
+| MP4 all-intra, fragmented | 385 kB · 19 ms · 35 ms | 3.5 MB · 29 ms · 39 ms | 692.8 MB · 3.62 s · 4.66 s | 695.9 MB · 3.70 s · 3.95 s |
+| MP4 GOP 30, moov at the end | 355 kB · 3.1 ms · 3.5 ms | 3.5 MB · 7.5 ms · 11.7 ms | 10.7 MB, 10.3 MB left dead · 37 ms · 53 ms, **+ re-encode** | 13.8 MB, 10.3 MB dead · 70 ms · 88 ms, **+ re-encode** |
+| MP4 GOP 30, moov at the front | 688.3 MB · 2.66 s · 3.30 s | 691.3 MB · 3.29 s · 2.76 s | 688.3 MB · 3.07 s · 3.14 s, **+ re-encode** | 691.3 MB · 2.28 s · 4.41 s, **+ re-encode** |
+| MP4 GOP 30, fragmented | 348 kB · 2.2 ms · 3.2 ms | 3.4 MB · 8.6 ms · 16.9 ms | 688.3 MB · 2.69 s · 4.94 s, **+ re-encode** | 691.4 MB · 1.82 s · 4.92 s, **+ re-encode** |
+
+**Bytes read.** Each rewrite reads the whole series (527–692 MB; the GOP 30 rewrites skip the 10.3 MB group they
+replace). The appends read only what they rewrite or patch: MXF 42 kB (footer layout: the 22 kB index and the 20 kB
+header metadata that holds the Durations) or 23 kB (body layout); MP4 the moov, 11–12 kB, or for fragmented the last
+moof and the mfra, 1.5 kB at GOP 30 and 38 kB all-intra, whose mfra has an entry a frame. At N = 262 the appends take
+0.6–15 ms warm and the rewrites 69–94 MB in 30–174 ms.
+
+**Re-encode, measured** (CPU seconds, one thread, median of 5; wall within 5 % of it):
+
+| step | frames | CPU s | a frame |
+| --- | ---: | ---: | ---: |
+| every cell: the late frames' own HTJ2K encode (`ojph_compress`, process start included) | 1 / 10 | 0.011 / 0.09 | 9–11 ms |
+| every AV1 cell: the late frames' own all-intra encode | 1 / 10 | 0.54 / 4.72 | 0.47–0.54 s |
+| GOP 30, middle: decode the group (`aomdec`) | 30 | 1.40–1.50 | 0.05 s |
+| GOP 30, middle: encode the group again with the late frames | 31 / 40 | 7.5–7.7 / 9.9–10.0 | 0.24–0.25 s |
+
+So a GOP 30 frame in the middle costs ~9 s of CPU for one late frame and ~11.5 s for ten, against 37–70 ms of
+container work; it is the same at N = 262, since only the group is touched. Arithmetic, not measured: ten late frames
+**scattered** through the series, rather than one run, hit up to ten groups, ~90 s.
+
+**Where the host saturates.** One core does each operation. This VM's page cache took a 1 GiB write at 1.34 GB/s
+(median of 6; 0.20–1.52), 0.59 GB/s with the `fsync`, and copied warm at 0.77 GB/s. Every rewrite ran at that rate:
+0.15–1.5 GB/s between runs of one cell, a range of up to 10×, with `fsync`'d runs sometimes faster than warm ones.
+So the rewrites' times are this host's copy of 0.5–0.7 GB, and nothing finer is claimed for them; their bytes are
+exact. The rewrites are Rust (`.sbnd`), C++ (bmx) or Python (MP4), so their times also compare implementations.
+
+**Arithmetic, not measured:**
+
+* **`.sbnd` as the target** ([`target.md`](target.md), 148 B header, 28 B entries) writes 32 KB more at N = 2 000: the
+  same rewrite.
+* **MXF or fragmented MP4, the tail rewritten in place** (truncate at the point, write what follows) would write about
+  half the series in the middle instead of all of it, and leave a broken file if it crashed midway.
+* **The appends are in place**, so a crash between the truncate and the new footer, RIP or moov leaves the file
+  without one; the rewrites publish by rename.
+* **A moov at the front with free space reserved after it** would take an append in place while the moov's growth
+  (4 B a sample in `stsz`, 4 B a chunk) fits the space; not built.
+
+**Not measured:** a cold cache; series larger than this host's page cache; HTJ2K in MP4 or AV1 in MXF; other muxers'
+layouts (FFmpeg's MXF, MP4Box); whether a reader takes bmx 1.6's coding label for these codestreams,
+`…04010202.0301017f`, for HTJ2K (ST 422:2022's label, §3.5); the late streams' sequence headers against the series'
+byte for byte (libdav1d decoded every splice exactly through the one sample entry).

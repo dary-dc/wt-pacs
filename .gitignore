@@ -73,3 +73,6 @@ lab/.av1-work/
 # Link traces a lab run fetches (lab/av1/delivery/total-time/run.mjs, lab/scripts/*_cells.sh)
 lab/.traces/
 lab/recv-cost/target/
+# The late-frame cells: frames, containers and rows (lab/late-frame)
+lab/.late-frame-work/
+lab/late-frame/sbnd-late/target/
