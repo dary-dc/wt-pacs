@@ -24,6 +24,7 @@ here.
 10. [Sources](#10-sources)
 11. [The carrier for the PCS's packages](#11-the-carrier-for-the-pcss-packages)
 12. [The carrier, built](#12-the-carrier-built)
+13. [Which QUIC carries the upload](#13-which-quic-carries-the-upload)
 
 ## 1. The answer in plain words
 
@@ -746,3 +747,249 @@ byte-equal to what was sent, so a wrong splice cannot pass as `committed`.
 7. The script always creates carefully (one request more than a one-shot): *default: yes*, a fiber site may switch
    to the one-shot `POST` with `Upload-Complete: ?1` and no resume (§11.2).
 8. The QUIC listener: *default: compiled only with `--features quic`, not started without `--quic`*, until C1.
+
+## 13. Which QUIC carries the upload
+
+*2026-10-26. Theory only: read from sources and from the libraries' code, nothing built, nothing timed. The owner's
+question: when a site's build includes QUIC, which implementation should carry the PCS→PACS upload, given that h3 0.0.8
+and h3-quinn 0.0.10 (§12.4) are "still very experimental" and unreleased since 2025-05-06. Two framings from the
+owner: QUIC is chosen at build time and per deployment, and **WebTransport has no place here** (no browser): the
+question is HTTP/3 against raw QUIC, and which stack. Labels as in §11: **source** (pinned in §13.7), **estimated**
+(D: arithmetic from stated inputs), **inference**. The native survey ([`../native/quic.md`](../native/quic.md),
+[`../native/quic-compared.md`](../native/quic-compared.md)) read 14 stacks for a client that *receives*; only
+quic.md §4 covers an upload, and its facts are reused here at their point of use.*
+
+### 13.1 What the receiver can choose, and what it cannot
+
+* **The controller is the sender's, and the PCS sends.** RFC 9002 §7: "This document specifies a sender-side
+  congestion controller … A sender can unilaterally choose a different algorithm". Our server chooses nothing about
+  how fast the PCS's stack sends into loss; the PCS's stack does.
+* **Flow control is the receiver's, and the server receives.** RFC 9000 §4: "A QUIC receiver controls the maximum
+  amount of data the sender can send on a stream as well as across all streams". Our server chooses the stream and
+  connection windows, its ACK policy (unless the sender asks otherwise with ACK_FREQUENCY), its receive path (GRO,
+  batched reads) and the mutual-TLS check.
+* **So stock curl fixes the controller.** curl's ngtcp2 backend calls `ngtcp2_settings_default` and sets windows, a
+  handshake timeout and PMTUD, never `cc_algo` (`lib/vquic/cf-ngtcp2-cmn.c` at curl `1e57baa`, lines 230–262), and
+  ngtcp2's default is CUBIC (`lib/ngtcp2_settings.c:46` at v1.25.0). curl's option pages list `--http3`,
+  `--http3-only` and `--proxy-http3`, none for a controller (*inference*: no option, from the listing). Over TCP the
+  PCS's kernel controller applies to the same curl, BBR by one sysctl (§4). **With stock curl, HTTP/3 gives a site
+  less control of the controller than TCP does** (*inference*), and §5's one lever QUIC adds on this link, "a
+  controller of our own choosing", exists only with a sender we choose.
+* **curl does not ask our server to acknowledge less.** ngtcp2 has no ACK_FREQUENCY
+  ([`../native/quic-compared.md`](../native/quic-compared.md) §4.1), so a curl upload makes quinn acknowledge every
+  second packet, the receiver's ACK cost that Zhang et al. measured (§2). A quinn sender can ask for fewer (same
+  table: quinn sends `0xFF04DE1B` when `AckFrequencyConfig` is set, and quinn obeys it).
+* **HTTP/3 or raw QUIC is a question of mapping, not transport.** RFC 9308 §4: "Mapping of application data to
+  streams is application specific and described for HTTP/3 in [QUIC-HTTP]"; §8: "Applications using QUIC are required
+  to register an ALPN token". Raw QUIC means an ALPN and a stream mapping of ours; the upload's semantics (create,
+  offset, append, status) stay what §12.1 defines.
+* **The listener as built leaves quinn's receive window at its default.** `carrier/src/quic.rs` builds
+  `quinn::ServerConfig::with_crypto` with no `TransportConfig`, so the stream window is quinn's 1.25 MB
+  ([`../native/quic-compared.md`](../native/quic-compared.md) §6): an upload is capped at 200 Mbit/s at 50 ms,
+  100 at 100 ms and 67 at 150 ms (D: 1.25 × 10⁶ × 8 ÷ RTT), where §4's TCP receiver on kernel ≥ 6.16 reaches ~895
+  at 150 ms. One setting (`stream_receive_window`) removes it on any of the stacks below; it is a finding about the
+  build, not about h3.
+* **What h3 adds on top of quinn.** `cargo tree -p carrier -e normal`: 67 crates without the feature, 96 with it;
+  16 of the 29 are quinn's (quinn, quinn-proto, quinn-udp and their dependencies), 13 come only through h3 and
+  h3-quinn (those two, `futures` and its 7 sub-crates, `fastrand`, `memchr`, `tokio-util`). h3's `master` carries
+  27 commits since 0.0.8, two of them on our path: "apply backpressure before reading more frames" (#344, "This bounds
+  FrameStream buffering to the current transport chunk under a slow consumer") and "flush data buffered by send_data
+  … before finish" (#360: "h3-quinn's `poll_finish` sent FIN without flushing that buffer, so the peer saw a truncated
+  frame"). *Inference:* in 0.0.8 a slow disk can let h3 read ahead of the carrier and release QUIC credit early, and a
+  reply's last frame can reach the client cut; the loopback test (§12.7) met neither, and no curl client has run
+  against it.
+
+### 13.2 On one screen
+
+Each cell's source is in §13.3 or the line above; **unknown** means searched and not found.
+
+| | candidate | maturity · cadence | security record | licence | the PCS installs | resume and reply written once | receive windows · ACKs (ours) | the sender's controller | receive CPU per byte | in our carrier | a QUIC build adds | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| a | **h3 0.0.8 + h3-quinn 0.0.10**, as built | "still very experimental"; last release 2025-05-06, fixes on `master` unreleased | no RustSec entry for h3 or h3-quinn; quinn-proto below | MIT | a curl built on ngtcp2 + nghttp3 | **yes**: the same `Carrier::handle` | quinn's, settable; ACKs every 2 | **CUBIC, fixed by curl** | quinn: GRO, `recvmmsg` on Linux; not published | built: ~90 lines (`quic.rs`) | 29 crates (16 quinn, 13 h3) | works; keep only behind the feature, never the default |
+| b1 | **raw QUIC on quinn, our framing, QUIC only** | quinn 0.11.12 (2026-09-14), quinn-proto monthly (0.11.19, 2026-09-30) | quinn-proto: 8 RustSec advisories dated 2026, all patched at ≤ 0.11.18, our pin | MIT OR Apache-2.0 | **our client** (a binary we ship) at QUIC sites; curl elsewhere | yes, if the framing maps one to one onto §12.1's requests (*inference*) | quinn's; our client can send ACK_FREQUENCY | **ours**: quinn's public `Controller` (CUBIC, NewReno, BBR "experimental", or the server's `bbr-bound`) | as (a) | a framing and a client: a proposal (§13.5) | 16 crates, all already in the workspace | **recommended** if QUIC is built for its controller (§13.5) |
+| b2 | the same framing **also on TCP**, curl dropped | as b1, plus TLS over TCP of ours | as b1 | as b1 | our client at **every** site | yes, one framing | — | TCP: the PCS's kernel, as now | TCP: as now | replaces hyper and the script | — | no: costs every site its stock tool and buys nothing on TCP |
+| c | **quiche 0.30.0 + its h3 module** (tokio-quiche 0.20.1) | releases every 1–2 months; behind Cloudflare's edge | 5 CVEs, one 2026 use-after-free in the C API ([`../native/quic.md`](../native/quic.md) §2) | BSD-2-Clause | a curl built on ngtcp2 (curl calls its own quiche backend "EXPERIMENTAL") | yes, through an adapter like (a)'s (*inference*) | settable, auto-tuned to 16/24 MiB; **ACKs every packet**, no timer | CUBIC, fixed by curl | GRO in tokio-quiche, Linux; not published | a second QUIC stack, BoringSSL built by cmake, mutual TLS rewritten off rustls | quiche, tokio-quiche (28 direct dependencies), BoringSSL | no: replaces one young layer with a second stack and a second TLS |
+| d1 | **ngtcp2 1.25.0 + nghttp3 1.18.0**, by FFI | monthly to 2026-07-26, `main` active (2026-10-26); curl's one non-experimental backend | 2 CVEs, both in qlog ([`../native/quic.md`](../native/quic.md) §2) | MIT | curl on the same libraries | yes, through an adapter (*inference*) | settable, auto-tune caps settable; no ACK_FREQUENCY | CUBIC, fixed by curl | the application's I/O; not published | `unsafe` FFI and our own UDP loop; the one crate named `ngtcp2` is 0.2.0, "non-standard" licence | the C libraries, a QUIC TLS (OpenSSL ≥ 3.5, aws-lc, BoringSSL …) | no: the most code of ours for the same CUBIC sender |
+| d2 | **nghttpx** (nghttp2 1.70.0) in front, HTTP/3 in, HTTP/1.1 to the carrier | its HTTP/3 is "experimental" (nghttp2 README); its mruby API "experimental and not frozen" | the ngtcp2/nghttp3 record | MIT | curl on ngtcp2 | **yes, untouched**: the carrier sees HTTP/1.1 | `--frontend-http3-window-size` 256K → `--frontend-http3-max-window-size` 6M by default, settable | CUBIC, fixed by curl (nghttpx's `--frontend-quic-congestion-controller` is its own sending side) | unknown | none in the binary; a trusted-front mode for the site's identity (§13.3) | **nothing**: the carrier stays TCP-only | the fallback if stock curl must carry QUIC (§13.5) |
+| d3 | **msquic 2.6.3** (2026-10-13) | "supported for a minimum of 18 months"; crates.io lags at 2.5.1-beta | CVE in its OpenSSL client hostname check before 2.6.1 and two more 2026 ([`../native/quic.md`](../native/quic.md) §2); a use-after-free fix on `main` 2026-10-22 | MIT | our client (no HTTP/3 of its own; HTTP/3 only through a third party's h3 adapter) | as b1 | 64 KiB stream window doubling to 16 MiB; sends and obeys ACK_FREQUENCY | ours to set, but no hook: CUBIC, BBR in preview | GRO on Linux; not published | FFI, its own worker threads | a C library and its TLS | no: b1 with FFI, and no gain the survey found |
+| d4 | **lsquic 4.11.0** (2026-10-25) | four releases since 2026-09-19 | 3 CVEs ([`../native/quic.md`](../native/quic.md) §2) | MIT | curl cannot use it; our client | as b1 | settable, auto-tune off by default | BBRv1 by default (`LSQUIC_DF_CC_ALGO 2`), CUBIC; no hook | the application's I/O | FFI, BoringSSL "not packaged; you have to build it yourself" | a C library and BoringSSL | no for the server; it is Thruflux's stack (§13.4) |
+| e | s2n-quic 1.91.0 + s2n-quic-h3 | s2n-quic every 2–4 weeks; s2n-quic-h3 is **0.0.0** on crates.io and runs on h3 | 4 GHSA ([`../native/quic.md`](../native/quic.md) §2) | Apache-2.0 | curl on ngtcp2 | yes, through h3 | ACKs every 10th, a constant | CUBIC, fixed by curl | GRO on Linux only | a second QUIC stack | — | no: still h3 |
+| f | Thruflux 0.4.2-beta | an idea only (§13.4) | — | MIT | — | — | — | — | — | — | — | not a carrier |
+
+**Read across.** Every HTTP/3 row (a, c, d1, d2, e) leaves the sender's controller at curl's CUBIC; their
+differences are on our side only (maturity, a second stack, code). The two rows that give the PCS a controller we
+choose (b1, d3) need a client of ours, and b1 does it with the stack the workspace already carries.
+
+### 13.3 Each candidate, in a few lines
+
+* **(a) h3 + h3-quinn, as built.** Works on loopback (§12.7). Its README: "The `h3` crate is still very experimental.
+  While the client and servers do work, there may still be bugs. And the API could change". No release in 17 months;
+  `master` moves (the last commit 2026-09-20) with the two fixes of §13.1 unreleased. It is the only HTTP/3 server
+  layer on quinn, so keeping HTTP/3 on quinn means keeping it.
+* **(b1) Raw QUIC on quinn.** One ALPN of ours; one bidirectional stream per request, each a header frame of our own
+  (the verb, the name, the offset, `Upload-Complete`, the length) then the content, and one reply frame carrying
+  §12.1's status code and line (*inference*: the smallest mapping that keeps §12.1's requests). Written once holds if
+  the QUIC front turns each frame into the same `http::request::Parts` the TCP front builds, so `Carrier::handle` does
+  not change (*inference*). The client is ours: quinn with its windows unused (it receives a few bytes) and its
+  controller chosen per site, so §8's condition 3 becomes testable. The cost is a binary we build and ship for each
+  PCS OS, and an ALPN and framing to version (pinned like the interop version, §12.1).
+* **(b2) The same framing on TCP too.** One framing, but every site loses curl, the IETF draft's interoperability and
+  the debugging an HTTP endpoint gives, and TCP gains nothing: its controller is the PCS's kernel either way (§4). A
+  web proxy's CONNECT still carries it (*inference*). Rejected.
+* **(c) quiche with its HTTP/3 module.** Mature in production ("quiche powers Cloudflare edge network's HTTP/3
+  support"), sans-I/O ("The application is responsible for providing I/O … as well as an event loop"), so tokio-quiche
+  or a loop of ours. It brings BoringSSL ("needs to be built and linked to quiche … requires the `cmake` command"),
+  so the site pins of §12.3 move from rustls to BoringSSL, and the workspace carries two QUIC stacks. As a receiver it
+  acknowledges every ack-eliciting packet ([`../native/quic-compared.md`](../native/quic-compared.md) §4.1), the
+  receiver's costliest ACK policy of the stacks read.
+* **(d1) ngtcp2 + nghttp3 by FFI.** The stack curl trusts: "Only the *ngtcp2* backend is not experimental" (curl's
+  `HTTP3.md`). "The libngtcp2 C library itself does not depend on any external libraries"; nghttp3 "does not
+  depend on any particular QUIC transport implementation". For us: bindings, our own UDP loop, timers and GSO/GRO,
+  all `unsafe`, for the same CUBIC sender as (a).
+* **(d2) nghttpx in front.** The same libraries as (d1) without FFI: nghttpx terminates HTTP/3 and mutual TLS
+  (`--verify-client`, `--verify-client-cacert`), and its mruby hook exposes `tls_client_fingerprint_sha256`, which
+  can be set as a request header for the carrier to read instead of its own handshake (*inference*: a trusted-front
+  mode, on loopback only, ~30 lines). Costs: a second daemon to patch, a custom build (`--enable-http3`, mruby), two
+  experimental labels, and the site's identity crossing a process boundary. Whether distribution packages ship
+  nghttpx with HTTP/3 and mruby was not read.
+* **(d3) msquic.** "MsQuic is a Microsoft implementation of the IETF QUIC protocol", transport only; Linux and Windows
+  are its supported platforms. As our client's and server's stack it is b1 behind FFI with no controller hook.
+* **(d4) lsquic.** "an open-source implementation of QUIC and HTTP/3 functionality for servers and clients", used in
+  LiteSpeed's servers; HTTP/3 server included. curl does not use it, so as an HTTP/3 server it meets the same CUBIC
+  sender; as raw QUIC it is d3 with BoringSSL to build.
+* **(e) s2n-quic-h3** is h3 on another stack: it removes nothing the owner worries about.
+* **Not candidates:** WebTransport (owner); quic-go and Google QUICHE (no Rust path; quic.md §2); picoquic (date
+  tags, no releases, quic.md §2).
+
+### 13.4 Thruflux: what it is, what it teaches
+
+**What it is.** "a cross-platform, **highly speed-focused, peer-to-peer** file transfer toolkit" in C++ on lsquic
+(`liblsquic` ≥ 4.6.0 in its `vcpkg.json`), MIT, "Open Beta", last tag 0.4.2-beta (2026-05-22), last commit
+2026-06-12. Peers meet through a signalling server with ICE, STUN and TURN; the receiver runs lsquic as the server.
+It is **raw QUIC with its own framing**: ALPN `thruflux`, and on resume the receiver writes a manifest
+acknowledgement carrying a file id and an offset (`receiver/ReceiverStream.hpp:415–419` at `a9f51b1`), the same
+receiver-held offset as the IETF draft. Not a carrier: no reply after storage, no per-site identity, a P2P session
+model.
+
+**Its lsquic settings for bulk** (`receiver/ReceiverStream.hpp:475–492`, the sender's `:431–448`, defaults in
+`ReceiverConfig.hpp:19–24`):
+
+| setting | Thruflux | lsquic 4.11.0 default | what it says |
+| --- | --- | --- | --- |
+| stream window, initial → cap | 32 MiB → 64 MiB (`es_max_sfcw` = 2 ×) | server 1 MiB; auto-tune off ("By default, this value is zero, meaning that auto-tuning is turned off") | windows far above the BDP: 32 MiB ÷ 150 ms ≈ 1.79 Gbit/s (D) |
+| connection window, initial → cap | 256 MiB → 512 MiB | server 1.5 MiB, auto-tune off | the same, for several streams |
+| controller | `es_cc_algo = 2`, BBRv1 | BBRv1 (`LSQUIC_DF_CC_ALGO 2`) | a model-based controller for a long, lossy path |
+| pacing · delayed-ACK extension | on · on (`es_delayed_acks = 1`) | — | paced sends; fewer ACKs from the receiver |
+| UDP socket buffer | 8 MiB; "Must be raised on your OS as well. Default installer raises max to 16 MiB" | the OS's | the receive buffer Jaeger et al. found dropping at 208 KiB (§4) |
+| migration · versions | off · QUIC v1 only | — | a fixed path, nothing negotiated |
+
+**What it teaches** (*inference* throughout). (1) Its levers are §4's for TCP, in user space: windows above the BDP,
+a BBR, pacing, large socket buffers; nothing in it is QUIC-only but the controller being the application's. (2) Its
+own benchmark ("not meant to be a hard proof"; Chicago → Seoul, two vCPU, median of 3) moves 10 GiB in 2 min 20 s
+against rsync's 15 min 18 s: 614 against 94 Mbit/s (D: 10 × 2³⁰ × 8 ÷ 140 s; ÷ 918 s). The README states no TCP
+tuning, so it compares tuned QUIC with stock TCP; 94 Mbit/s is within §4's untuned ceilings on a long path. (3) The
+controller and the windows are set on both ends because both ends are its own: the shape of b1, not of an HTTP/3
+endpoint behind stock curl.
+
+### 13.5 Recommendation, and what would change it
+
+**Keep TCP as it is: HTTP/1.1 on hyper, stock curl at every site.** For a site whose build includes QUIC:
+
+1. **Not h3 as the default.** (a) stays behind its feature and off unless started, as §12.4 has it; nothing more is
+   invested in it.
+2. **If QUIC is built for its controller** (§8 condition 3: a lossy path where the site's kernel cannot run BBR),
+   **b1: raw QUIC on quinn with our minimal framing, and our client at that site only.** It is the one option that
+   removes h3, gives the site a controller we choose (curl's CUBIC cannot be changed, §13.1), lets the sender ask for
+   fewer ACKs, adds no crate the workspace does not already build for the viewer, and keeps one QUIC stack and one
+   TLS in the repository. TCP keeps HTTP and curl (b2 rejected). The framing and the client are structural, so this
+   is a proposal for review, not a build.
+3. **If QUIC must be carried by stock curl** (the PCS team ships no binary of ours), the sender is CUBIC whatever we
+   run, and **d2 (nghttpx in front of the TCP carrier)** is the leanest: no QUIC code in our binary, the same
+   libraries as curl's backend. (a) remains the in-process choice there, once h3 releases #344 and #360.
+4. In every case, the QUIC receiver sets its stream and connection windows to the site's BDP (§13.1).
+
+**What would change it.**
+* §13.6 shows HTTP/3 with stock curl within 10 % of b1 on every class a real site has: the controller is not worth a
+  client; take 3.
+* The PCS team will not install a client of ours: 3.
+* h3 releases (0.1 or later, with #344 and #360) or becomes hyper's own, as its README intends ("The eventual goal is
+  to use `h3` as an internal dependency of hyper"): (a) becomes acceptable in-process for 3.
+* A third party's sender must interoperate: HTTP/3 (a or d2), since raw QUIC is ours alone.
+* quinn's advisory rate (8 dated 2026) becomes unacceptable for a medical receiver: the viewer's stack is quinn
+  anyway, so this is a workspace decision, not the carrier's.
+
+**Seen while reading, not this section's question.** The workspace's `Cargo.lock` pins rustls 0.23.44; RustSec lists
+RUSTSEC-2026-0285 ("TLS 1.3 handshake messages incorrectly accepted across encryption level boundaries", patched
+≥ 0.23.45) and RUSTSEC-2026-0346 to -0349 (2026-10-14, patched ≥ 0.23.46) against it. Both carrier listeners and the
+viewer's server use it; an update is a lockfile change, left to its own change.
+
+### 13.6 Pre-registered: which QUIC, on emulated links
+
+Extends §11.5's C1; the same rules: variants interleaved each round, each new test mutated, **seconds from the first
+byte to "committed" seen by the PCS** (latency per package), the testbed's ceiling reported first and nothing claimed
+past it.
+
+* **Variants.** T: HTTP/1.1, stock curl, the PCS's kernel CUBIC. T-bbr: the same with BBR by sysctl at the PCS. H:
+  HTTP/3, curl on ngtcp2 → the carrier's h3 listener with windows at the BDP; H-def: the same at quinn's defaults
+  (the build as it stands). N: curl on ngtcp2 → nghttpx → the carrier over HTTP/1.1. R: b1, our client, CUBIC. R-bbr:
+  b1 with quinn's BBR; R-bb: b1 with `bbr-bound`. R exists only after the proposal is accepted and built.
+* **Links,** by `netem` at the PCS's side: 10, 100 and 1 000 Mbit/s × 20, 80, 150 and 600 ms RTT × random loss 0,
+  0.1 % and 1 %; §11.5's drops (a 20 s black hole, an address change, Poisson at M = 5, 15, 60 min); the GEO class
+  with an open-source TCP-splitting proxy for T and T-bbr.
+* **Packages:** ADR §5's CT and MR and a 1 GB series; 20 per variant per class, the variants in a fresh random order
+  each round.
+* **Also recorded, not mixed with the latency:** the carrier's CPU seconds per GB received (its process's `getrusage`
+  before and after); for each build (TCP-only, `--features quic`, b1) the stripped release binary's size.
+* **Testbed ceiling first:** each variant at 0 ms and no loss, and the host's CPU at that rate; a class whose rate the
+  host cannot reach is reported as not run.
+* **Mutations.** The carrier answering offset 0 must turn every variant into §11.5's one-shot numbers. A stream
+  window set to half the BDP must cap H and R near window ÷ RTT, or the window lever is not live. R-bbr with its
+  controller swapped back to CUBIC must reproduce R, or the controller lever is not live. N with its fingerprint
+  header removed must be refused, or the trusted front trusts nothing.
+* **Decides,** by median against T and T-bbr on classes where §11.5's D1 and the ADR's M5 place a real site with UDP
+  open:
+  * QUIC is built for a site class only if its best QUIC variant beats the better of T and T-bbr by > 20 % (§11.5's
+    rule).
+  * Among QUIC variants: R (any controller) is chosen only if it beats the better of H and N by > 20 % and the gain
+    vanishes in the CUBIC mutation (the controller is the cause); otherwise N or H, N while h3 has no release with
+    #344 and #360.
+  * H-def against H says whether the build's default window is a defect to fix before anything else (expected: it
+    binds above ~100 Mbit/s at 100 ms, §13.1).
+  * A variant whose CPU per GB caps the class's rate on one server core is excluded at that class, whatever its
+    latency.
+
+### 13.7 Sources
+
+Fetched or read 2026-10-26; repositories at the commit or tag named, read from git. Raw copies are not committed.
+
+* **IETF:** RFC 9000 §4; RFC 9002 §7; RFC 9308 §4, §8; RFC 9114 (rfc-editor.org text).
+* **h3** (hyperium/h3 at `43745ad`, 2026-09-20): `README.md` §Status, §QUIC Generic; tags `h3-v0.0.8` and
+  `h3-quinn-v0.0.10` (2025-05-06); commits #344 (`c916ed5`) and #360. crates.io records of h3, h3-quinn, quinn
+  (0.11.12, 2026-09-14), quinn-proto (0.11.19, 2026-09-30), quiche (0.30.0), tokio-quiche (0.20.1, its dependency
+  list), s2n-quic (1.91.0), s2n-quic-h3 (0.0.0), msquic (2.5.1-beta), tquic, and the crate named `ngtcp2` (0.2.0).
+* **RustSec** advisory-db at `a78282a` (2026-10-26): `crates/quinn-proto/` (RUSTSEC-2023-0063, 2024-0373, 2026-0037,
+  -0185, -0338 to -0343), `crates/rustls/` (RUSTSEC-2026-0285, -0346 to -0349); no directory for h3, h3-quinn or quiche.
+* **curl** at `1e57baa` (2026-10-26): `HTTP3.md` (in its `docs/`) §QUIC libraries, §Experimental, §HTTPS eyeballing;
+  `lib/vquic/cf-ngtcp2-cmn.c` lines 230–262 and `cf-ngtcp2-cmn.h` lines 71–80; the option pages under its
+  `cmdline-opts/`.
+* **ngtcp2** at v1.25.0 (2026-07-26; `main` `c106202f`, 2026-10-26): `README.rst`, `lib/ngtcp2_settings.c:46`,
+  `lib/includes/ngtcp2/ngtcp2.h:1749–1757`, `COPYING`. **nghttp3** at v1.18.0 (2026-07-26): `README.rst`, `COPYING`.
+* **nghttp2** at `3baf956` (2026-10-23; latest tag v1.70.0): `README.rst` (HTTP/3 "experimental"),
+  `doc/nghttpx.1.rst` (`--verify-client`, `--frontend-quic-congestion-controller`, `--frontend-http3-*window-size`,
+  the mruby `tls_client_fingerprint_sha256` and its "experimental and not frozen" warning), `COPYING`.
+* **quiche** at `ae612cf` (2026-10-26; tag 0.30.0, 2026-09-17): `README.md`, `quiche/Cargo.toml` features,
+  `tokio-quiche/README.md`.
+* **msquic** at `d87b6de0` (2026-10-22; tags v2.6.3 and v2.5.12, 2026-10-13): `README.md`, `docs/Release.md`.
+* **lsquic** at v4.11.0 (2026-10-25): `README.md`, `include/lsquic.h` (`LSQUIC_DF_CC_ALGO`, `LSQUIC_DF_*FCW_SERVER`,
+  `es_cc_algo`, `es_max_sfcw`, `es_max_cfcw`, `es_delayed_acks`), `LICENSE`.
+* **Thruflux** (samsungplay/Thruflux) at `a9f51b1` (2026-06-12; tag 0.4.2-beta, 2026-05-22): `README.md`,
+  `vcpkg.json`, `LICENSE`, `receiver/ReceiverStream.hpp`, `receiver/ReceiverConfig.hpp`, `sender/SenderStream.hpp`,
+  `sender/SenderConfig.hpp`.
+* **This repository:** `carrier/Cargo.toml`, `carrier/src/quic.rs`, `carrier/src/upload.rs`; `Cargo.lock`;
+  `cargo tree -p carrier -e normal` with and without `--features quic`; [`../native/quic.md`](../native/quic.md) §2,
+  §4 and [`../native/quic-compared.md`](../native/quic-compared.md) §3.2, §4.1, §6 (read on `claude/arm64-server-build`,
+  identical here); [`../adr/pcs-transfer.md`](../adr/pcs-transfer.md) §3; this file §2, §4, §5, §8, §11, §12.
+
+**Not read**, so not cited as read: whether curl's ngtcp2 backend uploads a `PATCH` from standard input over HTTP/3
+as it does over HTTP/1.1; distribution builds of nghttpx; any published receive-side CPU per byte for an upload, for
+any stack; msquic's and lsquic's advisory texts beyond quic.md §2.
