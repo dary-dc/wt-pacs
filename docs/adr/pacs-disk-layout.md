@@ -1,6 +1,7 @@
 # ADR: where a study sits under the PACS's root
 
-**Status:** proposed 2026-10-25, **theory only: nothing built or timed.** A basis for the meeting with the PCS team,
+**Status:** proposed 2026-10-25, theory only. **§5's protocols were run 2026-10-26** (§5, *Measured*); the
+recommendation is unchanged by this record. A basis for the meeting with the PCS team,
 the product owner and the DICOM people, who decide (§6); this record recommends. Sources are pinned in §8. *(I)* marks
 this record's own inference; a figure not marked *measured* is not one, and none here is.
 
@@ -67,6 +68,8 @@ without `large_dir`, "Large directory feature is not enabled on this filesystem"
 (`fs/ext4/namei.c`). At 4 KiB blocks with `metadata_csum`, two levels address 507 × 510 = 258 570 leaf blocks. A leaf
 holds 102 entries of a 30-character name or 78 of a 44-character one, and a split leaves it half full. So the ceiling
 is **about 10–26 million entries in one directory** *(I: arithmetic on the on-disk format, not measured; §5 P2)*.
+**Measured 2026-10-26, below that range:** the index filled at 7.67 M entries of 44 characters and 9.95 M of 30,
+because leaves average 38 % full, not half (§5, *Measured*).
 Separately, a directory may hold more than `EXT4_LINK_MAX` (65 000) subdirectories only with `dir_nlink` on
 (`fs/ext4/ext4.h`, `EXT4_DIR_LINK_MAX`). A flat root passes 65 000 studies in weeks, and each of D's 256 folders
 passes it at 16.6 M studies.
@@ -152,13 +155,55 @@ only, and a cold claim waits for a lever that forces one.
   `fsync` of the parent, into one directory (A) and into D's 256. Time each publish.
 * **P4 · scan.** `readdir` plus `stat` of every entry, as a file-level backup does, over the P1 trees. Time per entry.
 
+**Amended 2026-10-26, before any run** (the run is [`lab/disk-tree/`](../../lab/disk-tree/README.md)). The reasons
+are the container's: 4 vCPUs, 15 GiB of memory and 30 GB of free disk.
+
+* **Arms:** A, B, C, D and D2 in every protocol, not only A, C and D, so the meeting sees every path option. E and
+  F are left out because they add no new directory shape.
+* **Sizes:** 10⁴, 10⁵ and 10⁶. 10⁷ is dropped because on ext4 an empty directory takes a 4 KiB block, so five arms at
+  10⁷ need about 200 GB. Each study is a directory holding one empty `x.sbnd`. Studies arrive at 1 000 a day, and one
+  in 50 has no date.
+* **Filesystems:** ext4 with the host's `mke2fs.conf` defaults (`dir_index`, `dir_nlink`, `metadata_csum`, **no
+  `large_dir`**), since every arm fits below its ceiling at 10⁶, and XFS with `mkfs.xfs` defaults. Each arm gets its
+  own image on a loop device with direct I/O, so no block is cached twice.
+* **P1:** opens are drawn from a fixed uniform sample of 10⁵ existing studies (all of them below that), warmed first.
+  This is because the five ext4 trees at 10⁶ (about 4 GiB each) exceed memory. A warm `open` resolves in the dentry
+  cache and never reaches the on-disk index, so P1 measures the path walk. A cold lookup has no lever here
+  (`drop_caches` is refused, and a remount is eviction), so it stays unmeasured.
+* **P2:** the entries are hard links, 60 000 to a file. An htree entry is the same record for a link as for a
+  subdirectory, and 10–26 M subdirectories would need 40–100 GB of blocks. The 65 000 stop is checked with
+  subdirectories, `dir_nlink` off. One `large_dir` run shows the same count passing.
+* **P3:** into the 10⁶ trees, 100 publishes per writer per round, four rounds. Every new study is dated the next day,
+  as live arrivals are. Timed: the whole publish, and the `rename` alone.
+* **P5 · deletion by age (added).** The oldest 10 days (2 at 10⁴), one day at a time, interleaved. A, D and D2 take
+  the day's studies from the catalog; the query is not timed, and the generator stands in for the catalog. B and C
+  list the day's folder. Each removes the file and the directory with no `fsync`. A `syncfs` per arm is then timed.
+* **P6 · a corrected study date (added).** 500 dated studies get another date. B and C move the study (`rename`,
+  then `fsync` of both parents), and the old path is then opened to check it is gone. A, D and D2 do nothing on
+  disk.
+
+**Amended again 2026-10-26, before re-running P3, P5 and P6.** A worker restart rebooted the container during the
+ext4 10⁶ scan. The phases after it then ran on trees read back from the device. Those rows are neither warm nor a
+controlled cold, so they are kept apart and not used. From now on, each operation first reads what it touches
+untimed: the directories a publish renames into, the study a deletion or correction removes or moves, and the
+destination folder. Every timed pass also records the bytes read from the loop devices, so a cell that read any is
+not called warm.
+
+**Measured 2026-10-26** ([`lab/disk-tree/README.md`](../../lab/disk-tree/README.md), every number and its host). The
+run used 4 vCPUs, ext4 without `large_dir` and XFS, up to 10⁶ studies, warm only. Lookup: the option costs at most a
+few µs. Scan and deletion cost about the same per study under every option. Publication is bound by the flush under
+every option, and B's and C's next-day folder takes every writer as A's root does. A corrected date moves the study
+in B and C, about 1 ms, and breaks every path that carried the date; A, D and D2 move nothing. The ext4 ceiling
+without `large_dir` is **7.67 M (44 characters) and 9.95 M (30)**, below §3's inference, and 64 998 subdirectories
+without `dir_nlink`. A cold lookup is not measured.
+
 ## 6 · Questions for the meeting, each with a default
 
 1. **Is the path a function of the UIDs alone, with no database in the read path?** Default: **yes**. That is what the
    URL of PR #142 assumes, and the rest follows from it.
 2. **The shard: none, 256, 4 096, or two levels of 256?** Default: **one level of 256** (`<hh>`, 2 lowercase hex
    characters). It holds 10–26 M directories per folder even on ext4 without `large_dir`, so 2.5 billion studies on
-   paper *(I)*. Going to 4 096 later is a rename per study (§7).
+   paper *(I)*. Measured: 7.7–10 M per folder, so about 2 billion (arithmetic; §5, *Measured*). Going to 4 096 later is a rename per study (§7).
 3. **The shard's hash.** Default: **the low byte of XXH3-64 of the study name as it is on disk**, the hash family the
    ingest already uses. The hash must spread, not just cut the name: UIDs from one organisation share their leading
    characters, so the name's first two characters are no shard *(I)*.
