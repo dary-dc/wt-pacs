@@ -1459,8 +1459,14 @@ width 1 its dequantisation is the identity and its residuals are added at 2^−f
 transform and at 12 bits with the 2×2 (256/256 offset classes; the 4×4 not proven, 36/36 patterns
 tried reachable). **At 14 bits it is not**: 128 of 256 offset classes of a 2×2 block are
 unreachable, and the decoder stops at 14, so the 13-bit CT and cone-beam cannot end exact. No trial
-is possible: **no open LCEVC encoder exists**, the web decoder draws 8-bit RGBA through WebGL with no
-samples back, and the decoder's BSD-3-Clause-Clear licence grants no patents ([`licensing.md`](licensing.md)).
+was possible then: **no open LCEVC encoder exists** — *wrong, corrected 2026-10-31:* MPEG's reference
+software (LTM 5.5, ISO/IEC 23094-3 Amd 1) carries an encoder under BSD, free from ISO, though it takes
+no AV1 base and does not choose exact residuals without a patch; its decoder uses the same fixed
+point, so the reach above holds for AV1 + LCEVC at 8–12 bits (*derived*). An offline trial is now
+possible, a product path is not: the web decoder draws 8-bit RGBA through WebGL with no samples back,
+and both codes' BSD licences grant no patents, which the licensor licenses alone for royalties
+([`licensing.md`](licensing.md); the re-check and a pre-registered protocol in
+[`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Re-checked 2026-10-31).
 
 *Parked by the owner on 2026-10-03, kept for the decision later* (the owner's focus, §Where AV1 stands): the
 preview plus an HTJ2K residual, the separate preview then exact HTJ2K, the embedded intra codecs and LCEVC — each

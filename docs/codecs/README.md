@@ -187,7 +187,7 @@ queue number.
 | JPEG-LS (CharLS) | 58, 125: 0.91–0.94 of HTJ2K by one third-party table, a DICOM syntax, a WASM build exists; decode cost unknown | **never** | [`decode`](../decode/README.md) §Not yet tried |
 | JPEG 2000 Part 1 | 22: 0.93–0.96 of HTJ2K, decode 6–12× | evidence | [`jpeg2000.md`](jpeg2000.md) |
 | AV2 (AVM) | 32: 0.937–0.964 of HTJ2K on grey to 13 bits but CT, no browser decoder | evidence | [`av2.md`](av2.md) |
-| LCEVC | 19: no open encoder, no exact samples back in the browser, not exact at 14 bits | evidence | [`../av1/README.md`](../av1/README.md) §Preview |
+| LCEVC | 19: no open encoder (*wrong, corrected 2026-10-31*: MPEG's test model LTM 5.5 is one, BSD, no AV1 base without a patch), no exact samples back in the browser, not exact at 14 bits | evidence | [`../av1/README.md`](../av1/README.md) §Preview |
 | learned coders: Tomoz, TCT | 58: Tomoz WASM on npm (`@zeroxshot/tomoz` 0.2.0, 2026-10-02), self-reported 0.73–0.85 of HTJ2K on volumes, unreviewed; TCT no code | never | [`../av1/lossless-literature.md`](../av1/lossless-literature.md) |
 
 ### Releases since the pins
@@ -206,7 +206,7 @@ Read 2026-10-13 from each project's tags (tag dates from the repositories) and i
 | emscripten | 3.1.74 (the build), 6.0.11 measured | 6.0.12 (2026-10-08) | 6.0.12 itself nothing on SIMD; since 3.1.74, `memory.copy` and BigInt by default (4.0.0), `GROWABLE_ARRAYBUFFERS` by default (6.0.2, less overhead for threads with memory growth), relaxed-SIMD FMA (6.0.3); 6.0.2 also dropped `wasmBinary` from the default module API (row 134) |
 | WebCodecs, Chromium | 141, 154, 155 measured | — | no chromestatus entry on high bit depth or 4:0:0; its dav1d path still turns 4:0:0 into I420 with made-up chroma; 12-bit refused through 155 (row 57) |
 | WebCodecs, Firefox | 157 measured | — | Bugzilla 2071132 (assigned, not landed): 10-bit frames reported as I420; 1779656 (I444 `VideoFrame`) and 2021505 (bit-depth check) still new — row 74's verdict stands |
-| LCEVC | LCEVCdec 4.2.2 | 4.2.2 (2026-09-10) | **still no open encoder** (V-Nova's encoder SDK is a proprietary trial); no lossless mode in the decoder source — row 19 stands |
+| LCEVC | LCEVCdec 4.2.2 | 4.2.2 (2026-09-10) | **still no open encoder** (V-Nova's encoder SDK is a proprietary trial); no lossless mode in the decoder source — row 19 stands. *Corrected 2026-10-31:* MPEG's reference encoder (LTM, BSD) was open throughout and was not looked for; LCEVCdec 4.3.1 (2026-10-27) changes no residual-path file ([`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Re-checked 2026-10-31) |
 | AV2 | AVM v1.0.0 (row 32) | dav2d 0.0.1 (2026-04-30, VideoLAN) | a dav1d-style AV2 decoder, 8/10-bit, AVX2 and NEON; its CI builds WASM but nothing is distributed. AV2 stays without a browser decoder |
 
 Of these, only jxl-rs 0.7 bears on a lever enough to reopen it; emscripten 6.0.12 adds nothing to row 134's 6.0.11 that
