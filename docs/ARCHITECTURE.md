@@ -1277,7 +1277,8 @@ Each item below is the owner's to decide, and is tracked here.
 * **The cache seam** (an interface, in-memory and OPFS behind it; whether it holds compressed or
   decoded frames is to be evaluated — and "all frames decoded" cannot mean all resident on a phone) and
   the paint sink — the sink is built (§Paint), the cache seam is not. An OPFS cache must be evictable on WebKit ([`CLIENTS.md`](CLIENTS.md)
-  §On WebKit). A design for both is proposed in [`adr/frame-path.md`](adr/frame-path.md).
+  §On WebKit). A design for both is proposed in [`adr/frame-path.md`](adr/frame-path.md); the cache itself (window, layout,
+  quotas, failure modes) in its §Proposed: the client cache in OPFS (2026-10-20, theory only).
   *Where the page fails without it* (queue row 273, 2026-10-16): not on the dev host. Headless Chromium 141 and
   Firefox 157.0.1 each filled 8 GiB of decoded frames (1 024 × 2048², 16-bit, 3 of 3), ten times `dbts_b1`, the
   largest series [`FIXTURES.md`](FIXTURES.md) names (812.5 MiB decoded). So by the row's rule nothing is built.
