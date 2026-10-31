@@ -400,7 +400,10 @@ unmeasured.
   risks are a series without digests, the digest's collision bound and unbounded liveness. Dropping it is a candidate
   to build and measure under the protocol pre-registered in [`../decode/README.md`](../decode/README.md) §Safety
   without the flush, from the specifications; *corrected 2026-10-31:* built behind decoder config `keyParse`, off by
-  default, and not yet measured (*ibid.*).
+  default, and *measured 2026-10-31* (*ibid.*): exact on every frame, 0.95 of the flushed time a frame at 1× and
+  0.98–0.99 at 4× through the product's worker (the prediction's 0.72–0.97 is not reached), but the registered rule
+  keeps the flush: Chromium 153 is faster in only 7 of 10 rounds at 4×, and an OBU-extension unit at G = 8 is
+  neither refused nor off its digest.
 
 ## 5e · What a frame needs before it can be decoded
 

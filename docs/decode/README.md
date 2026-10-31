@@ -1762,7 +1762,7 @@ specification bounds the release of a frame or a `flush()`: `close()` "Immediate
 pays the stall timer each frame. At G > 1 nothing new: inside a group no flush runs today, deltas rest on order
 (`continues`) and the digest, and the group-end flush's only guard is the next key, which the parse replaces.
 
-**Test protocol, pre-registered, not run.** Mutations, each at G = 1 and G = 8: a delta, an intra-only frame, a
+**Test protocol, pre-registered** (*run 2026-10-31, below*). Mutations, each at G = 1 and G = 8: a delta, an intra-only frame, a
 `show_existing_frame` unit and an unshown key frame, each labelled key; a unit cut mid-OBU, and one without its last
 tile group; a flipped tile byte; a delimiter-only unit; another series' key unit with a different sequence header;
 one with the same; two units swapped; a unit with an OBU extension. Each must be refused by name or fail its digest,
@@ -1779,7 +1779,35 @@ flushed and under `keyParse`: a delta (with and without a sequence header), an i
 and an unshown frame labelled key, a cut unit, a delimiter alone and a sequence header after the frame are refused
 or fail their digests, and under `keyParse` none reaches WebCodecs; a foreign sequence header, another series' unit
 with the same one and two swapped units fail their digests; an OBU extension decodes exactly. Removing any one check fails it. The
-G = 8 mutations, the cut tile group, the flipped tile byte and the other browsers are not run; nor is the speed.
+G = 8 mutations, the cut tile group, the flipped tile byte, the other browsers and the speed are measured below.
+
+*Measured 2026-10-31* ([`lab/av1/decode/key-parse`](../../lab/av1/decode/key-parse/README.md)), the protocol as
+written but timed through the product's decoder worker (its per-frame XXH3 check on, in both arms), not row WCLAT's
+bare `VideoDecoder`. Content: the middle 16 slices of `dbts_a1`, `dbts_b1` and `dbts_c1` at G = 1 (split, 10- or 8-bit
+top), and row WCLAT's fluoroscopy and ultrasound intra streams at 1, 2 and 4 tiles. A 4-vCPU container, which one
+frame in flight never saturates (1.2–1.9 CPUs busy at 1×, 0.7–1.1 at 4×, never all four); nothing is claimed for
+several decoders at once.
+
+* **Exact:** 24 960 of 24 960 timed frames in Chromium 141 and 153; `flush` flushed once a unit, `keyParse` never.
+* **Speed**, keyParse ÷ flush, each round's geometric mean over the nine streams, median [range] and rounds faster
+  of 10: **Chromium 141 ×0.951 [0.931–0.973] 10/10 at 1×, ×0.980 [0.969–1.002] 9/10 at 4×; Chromium 153 ×0.955
+  [0.931–0.985] 10/10 at 1×, ×0.993 [0.956–1.012] 7/10 at 4×.** Per stream ×0.92–1.02 at 1× and ×0.93–1.05 at 4×;
+  `dbts_b1` (2560×3328) was slower under `keyParse` at 4× in both (×1.02, ×1.05). §5d's 0.72–0.97 at 4×, the bare
+  decoder's, is not reached through the worker.
+* **Firefox 159 and WebKitGTK 2.52.6** decode none of the five streams tried through `VideoDecoder` (the three DBT
+  runs, the fluoroscopy and the ultrasound at one tile; one round at 1×, every frame dav1d-WASM in both arms), so
+  `keyParse` changes nothing there; the 2- and 4-tile streams were not tried.
+* **Mutations**, 26 on each DBT run (G = 1 and G = 8), at 1× and 4×, every engine: nothing escaped and nothing stalled
+  (the slowest send settled in 4.8 s at 4×). Under `keyParse`, Chromium caught every G = 1 mutation; the parse refused
+  the malformed units before `VideoDecoder`, and the dropped last tile group, which it passes, failed after the stall
+  timer. **Not caught, in both arms of both Chromiums: the OBU extension at G = 8**, which nothing parses inside a group
+  and WebCodecs decodes to exactly its source's samples, so it is neither refused nor off its digest (`flush` also
+  decodes it so at G = 1). Firefox and WebKitGTK caught all 78 in both arms, through dav1d-WASM. A unit coded alone is
+  a still picture (`reduced_still_picture_header` 1), whose frame type the parse cannot and need not read; the
+  frame-type mutations were made on G = 8's keys.
+* **The rule as registered keeps the flush in every browser:** in Chromium 141 on the mutations (the G = 8
+  extension), in Chromium 153 on the mutations and on the speed at 4× (7 of 10), in Firefox and WebKitGTK because no
+  stream tried reaches their `VideoDecoder`. `keyParse` stays off.
 
 ### A split payload through two decoders
 
