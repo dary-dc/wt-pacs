@@ -37,9 +37,12 @@ impl UringReader {
         ring.submitter()
             .register_files(&[file.as_raw_fd()])
             .context("register_files")?;
+        // SAFETY: `ring` owns this fd, is never replaced, and drops after `ring_fd` (field order).
+        let ring_fd =
+            unsafe { AsyncFd::register_with_interest(ring.as_raw_fd(), Interest::READABLE) }
+                .context("AsyncFd(ring)")?;
         Ok(Self {
-            ring_fd: AsyncFd::with_interest(ring.as_raw_fd(), Interest::READABLE)
-                .context("AsyncFd(ring)")?,
+            ring_fd,
             ring,
             in_flight: 0,
         })
