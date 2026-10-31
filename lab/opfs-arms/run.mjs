@@ -1,13 +1,13 @@
 // The cache arms in the view worker, one cell at a time: docs/adr/frame-path.md §The cache I/O in the view worker.
 //
 //   NODE_PATH=$(npm root -g) node lab/opfs-arms/run.mjs --cell late|rate|miss|drag|probe --size 512|2560|3328 [--throttle 1|4]
-//     [--engine chromium|firefox] [--rounds 12] [--arms A-arrival,C,...] [--mutant write-before-paint|drop-writes|late-input]
+//     [--engine chromium|firefox] [--rounds N] [--arms A-arrival,C,...] [--mutant write-before-paint|drop-writes|late-input]
 //     [--out rows.jsonl]
 import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { chromiumAt, chromiumPath, firefoxAt, staticHost, treePss } from "../opfs-cache/browser.mjs";
-import { order } from "../order.mjs";
+import { order, williams } from "../order.mjs";
 import { throttleTree } from "../scripts/cpu_throttle.mjs";
 
 const HERE = new URL(".", import.meta.url).pathname;
@@ -17,7 +17,6 @@ const CELL = arg("--cell");
 const ENGINE = arg("--engine", "chromium");
 const SIZE = arg("--size", "512");
 const THROTTLE = Number(arg("--throttle", 1));
-const ROUNDS = Number(arg("--rounds", 12));
 const MUTANT = arg("--mutant", "");
 const OUT = path.resolve(arg("--out", path.join(WORK, `${CELL}-${ENGINE}-${SIZE}-${THROTTLE}x.jsonl`)));
 mkdirSync(WORK, { recursive: true });
@@ -59,17 +58,19 @@ async function browser(profile) {
 
 async function once(origin, p) {
   const dir = mkdtempSync(path.join(WORK, "profile-"));
-  const b = await browser(dir);
+  const b = await browser(dir).catch((e) => ({ error: `did not start: ${e.message}` }));
+  if (b.error) return (rmSync(dir, { recursive: true, force: true }), b);
   const unthrottle = throttleTree(b.pid, THROTTLE);
   const baseline = treePss(b.pid);
   let peak = baseline;
   const sampler = setInterval(() => (peak = Math.max(peak, treePss(b.pid))), 1000);
   try {
-    await b.page.goto(`${origin}/lab/opfs-arms/index.html?${new URLSearchParams(p)}`);
-    const result = b.page.evaluate(() => globalThis.result);
-    const dragging = p.cell === "drag" ? drag(b.page, result) : null;
-    const r = await Promise.race([result, new Promise((res) => setTimeout(() => res({ error: "timed out" }), 300000))]);
-    await dragging;
+    const loaded = b.page.goto(`${origin}/lab/opfs-arms/index.html?${new URLSearchParams(p)}`);
+    const result = Promise.race([loaded.then(() => b.page.evaluate(() => globalThis.result)).catch((e) => ({ error: e.message })),
+      new Promise((res) => setTimeout(() => res({ error: "timed out" }), 300000))]);
+    const dragging = p.cell === "drag" ? loaded.then(() => drag(b.page, result)).catch(() => {}) : null;
+    const r = await result;
+    await Promise.race([dragging, new Promise((res) => setTimeout(res, 5000))]);
     return { ...r, peakGrowthMiB: peak - baseline };
   } finally {
     clearInterval(sampler);
@@ -111,6 +112,8 @@ if (CELL === "probe") {
   process.exit(0);
 }
 const arms = arg("--arms")?.split(",") ?? CELLS[CELL];
+/** One Williams period of the cell's arms unless `--rounds` says otherwise: L 8, W 14, R and G 10. */
+const ROUNDS = Number(arg("--rounds", williams(arms.length).length));
 write({ settings: true, cell: CELL, engine: ENGINE, size: SIZE, throttle: THROTTLE, mutant: MUTANT || null, at: new Date().toISOString(), host: host(),
   arms: Object.fromEntries(arms.map((a) => [a, params(a)])) });
 for (let round = 0; round < ROUNDS; round++) {

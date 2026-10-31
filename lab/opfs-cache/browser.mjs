@@ -5,7 +5,10 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 const ROOT = new URL("../..", import.meta.url).pathname;
-const { chromium } = createRequire(import.meta.url)("playwright");
+const require = createRequire(import.meta.url);
+const { chromium } = require("playwright");
+/** Playwright's `ws`: Node's own WebSocket dropped Firefox's BiDi socket mid-run (docs/adr/frame-path.md §Arm D, Results). */
+const { ws: WebSocket } = createRequire(require.resolve("playwright"))("playwright-core/lib/utilsBundle");
 const children = new Set();
 process.on("exit", () => { for (const c of children) try { process.kill(-c.pid, "SIGKILL"); } catch {} });
 
@@ -61,9 +64,13 @@ export async function firefoxAt(profile, prefs = {}) {
   writeFileSync(path.join(profile, "user.js"), Object.entries(lines).map(([k, v]) => `user_pref("${k}", ${JSON.stringify(v)});`).join("\n") + "\n");
   const ff = own(process.env.FIREFOX_PATH, ["--no-remote", "--profile", profile, "--remote-debugging-port", "0", "about:blank"],
     { stdio: ["ignore", "ignore", "pipe"], env: { ...process.env, DISPLAY: process.env.DISPLAY ?? ":99" } });
-  const [, ws] = await started(ff, "stderr", /WebDriver BiDi listening on (ws:\/\/\S+)/);
+  const exited = new Promise((r) => ff.once("exit", r));
+  const kill = () => { try { process.kill(-ff.pid, "SIGKILL"); } catch {} };
+  const failed = async (e) => { kill(); await exited; throw e; };
+  const startup = setTimeout(kill, 60000);
+  const [, ws] = await started(ff, "stderr", /WebDriver BiDi listening on (ws:\/\/\S+)/).catch(failed);
   const sock = new WebSocket(`${ws}/session`);
-  await new Promise((resolve, reject) => { sock.onopen = resolve; sock.onerror = reject; });
+  await new Promise((resolve, reject) => { sock.onopen = resolve; sock.onerror = reject; sock.onclose = reject; }).catch(failed);
   let id = 0;
   const waiting = new Map();
   sock.onmessage = (m) => {
@@ -72,8 +79,10 @@ export async function firefoxAt(profile, prefs = {}) {
     waiting.delete(r.id);
     if (w) r.type === "error" ? w.reject(new Error(`${r.error}: ${r.message}`)) : w.resolve(r.result);
   };
-  const send = (method, params) => new Promise((resolve, reject) => (waiting.set(++id, { resolve, reject }), sock.send(JSON.stringify({ id, method, params }))));
-  await send("session.new", { capabilities: {} });
+  sock.onclose = () => { for (const w of waiting.values()) w.reject(new Error("Firefox closed")); waiting.clear(); };
+  const send = (method, params) => new Promise((resolve, reject) => sock.readyState !== WebSocket.OPEN ? reject(new Error("Firefox closed"))
+    : (waiting.set(++id, { resolve, reject }), sock.send(JSON.stringify({ id, method, params }))));
+  await send("session.new", { capabilities: {} }).catch(failed);
   const tab = (context) => {
     let at = "about:blank";
     const pointer = (...actions) => send("input.performActions", { context, actions: [{ type: "pointer", id: "mouse", actions }] });
@@ -93,12 +102,18 @@ export async function firefoxAt(profile, prefs = {}) {
       close: () => send("browsingContext.close", { context }),
     };
   };
-  const first = (await send("browsingContext.getTree", {})).contexts[0].context;
+  const first = (await send("browsingContext.getTree", {}).catch(failed)).contexts[0].context;
+  clearTimeout(startup);
   return {
     pid: ff.pid, page: tab(first),
     context: {
       newPage: async () => tab((await send("browsingContext.create", { type: "tab" })).context),
-      close: async () => { await send("browser.close", {}).catch(() => {}); await new Promise((r) => (ff.exitCode !== null ? r() : ff.once("exit", r))); },
+      close: async () => {
+        const killer = setTimeout(kill, 10000);
+        send("browser.close", {}).catch(() => {});
+        await exited;
+        clearTimeout(killer);
+      },
     },
   };
 }
