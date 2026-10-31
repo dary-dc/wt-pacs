@@ -26,12 +26,13 @@ export function begin(pic, payload) {
   if (payload.rct && components !== 3) refuse(`top stream of ${components} planes under rct, not three`);
   const plainRgb = payload.bits === 8 && payload.depth === 8 && !payload.split && !payload.signed;
   if (!payload.rct && components === 3 && !plainRgb) refuse("three planes without rct");
-  const { bits, signed } = payload;
+  const { signed, offset } = payload;
+  const bits = signed && payload.bits === 8 && offset !== 128 ? 9 : payload.bits;
   const wide = bits > 8;
   const sab = new SharedArrayBuffer(pic.width * pic.height * components * (wide ? 2 : 1));
   const out = wide ? (signed ? new Int16Array(sab) : new Uint16Array(sab)) : signed ? new Int8Array(sab) : new Uint8Array(sab);
   const mask = wide ? 0xffff : 0xff;
-  const f = { pic, out, sab, components, bits, signed, mask, offset: payload.offset, range: { min: Infinity, max: -Infinity } };
+  const f = { pic, out, sab, components, bits, signed, mask, offset, range: { min: Infinity, max: -Infinity } };
   if (payload.rct) unrct(f, pic);
   else place(f, pic, payload.split, !payload.split);
   return f;

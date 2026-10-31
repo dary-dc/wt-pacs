@@ -98,6 +98,30 @@ const { parsePayload } = await import("./av1-payload.js");
 }
 
 /**
+ * A signed 16-bit source of ≤ 8 bits after its offset comes back as its own numbers, read in the type the frame
+ * reports, at k = 0 and 1 (docs/av1/payload-format.md §Is the split safe?, case 1); −128…127 is the control.
+ */
+{
+  const { begin, end } = await import("./av1-frame.js");
+  for (const [lo, hi] of [[-10, 200], [0, 200], [-200, 0], [-128, 127]]) {
+    const offset = lo < 0 ? -lo : 0;
+    const bits = Math.max(1, (hi + offset).toString(2).length);
+    const n = hi - lo + 1;
+    for (const split of [0, 1]) {
+      const top = new Uint16Array(n);
+      const low = new Uint16Array(n);
+      for (let i = 0; i < n; i++) [top[i], low[i]] = [(lo + i + offset) >> split, (lo + i + offset) & ((1 << split) - 1)];
+      const pic = (heap, b) => ({ width: n, height: 1, bits: b, planes: [{ heap, offset: 0, stride: n }] });
+      const got = end(begin(pic(top, 8), { bits, depth: 8, split, signed: true, rct: false, offset }), split ? pic(low, 8) : null);
+      const out = got.info.bitsPerSample > 8 ? new Int16Array(got.sab) : new Int8Array(got.sab);
+      let bad = got.range.min !== lo || got.range.max !== hi;
+      for (let i = 0; i < n && !bad; i++) bad = out[i] !== lo + i;
+      check(!bad, `signed range: ${lo}…${hi} at split ${split} is every value back`);
+    }
+  }
+}
+
+/**
  * The codecs string is the one ffmpeg 6.1.1's trace_headers and ffprobe read from the same sequence header
  * (lab/av1/exact/codec-string): reduced still-picture headers as ingest writes them, and full ones with timing info, a
  * decoder model, frame ids, High tier and nine operating points, the first point's level taken.
