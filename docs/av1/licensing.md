@@ -1,7 +1,7 @@
 # AV1 — licences
 
 What every AV1 component this phase may build, ship or fetch is licensed under, and what that
-obliges. Checked 2026-10-03 against each project's own files (links below); **a risk note, not legal
+obliges; what ships with the server binary is §The server. Checked 2026-10-03 against each project's own files (links below); **a risk note, not legal
 advice** — several sources were read through a summarising fetch, so re-read the linked text before
 relying on a clause. Anything not confirmed from a primary source says so.
 
@@ -75,6 +75,57 @@ it as a separate program, links nothing against it and ships nothing built from 
   LLVM exception, whose exception waives notice for what compiles into a binary). No libc++: the
   wrapper is C. The libc++ question this line used to ask is answered by that. The OpenJPH build is C++
   and links libc++ and libc++abi (Apache-2.0 with LLVM exception); their notices ship anyway.
+
+## The server
+
+**What ships.** Both server images (`deploy/Containerfile`'s `server` target and `deploy/Containerfile.prebuilt`) put two
+files beside `/usr/local/bin/series-server`:
+
+* `THIRD_PARTY_NOTICES`, committed at `deploy/THIRD_PARTY_NOTICES`: 164 crates (on 2026-10-22), each with its version, its
+  `Cargo.toml` licence expression and the licence files it ships, each distinct text once (120). No crate in the set
+  ships a `NOTICE` file, so Apache-2.0 §4(d) adds nothing; one would be picked up by name.
+* `COPYRIGHT-library.html`, the Rust standard library's notices (std and the crates it vendors), which the `rustc`
+  component installs at `$(rustc --print sysroot)/share/doc/rust/` and the rust project's
+  [COPYRIGHT](https://raw.githubusercontent.com/rust-lang/rust/master/COPYRIGHT) says ships with each release. It is
+  copied from the toolchain that compiled the binary, so it cannot drift from it; present in the pinned
+  `rust:1.97-bookworm` image (rustc 1.97.1), checked.
+
+glibc and OpenSSL come from the Debian base, whose `/etc/dpkg/dpkg.cfg.d/docker` excludes `/usr/share/doc/*` but keeps
+`/usr/share/doc/*/copyright` (read in the pinned `bookworm-slim`), so each package carries its own.
+
+**The set** is `cargo tree -p series-server -e normal --target T` for the two Linux targets the bookworm image builds,
+`x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu` (the same 168 packages on both today), less the workspace's
+own four crates (this repository's `LICENSE`). Default features: what `cargo build --release --locked -p series-server`
+builds. `-e normal` leaves out dev-dependencies and build-dependencies but keeps proc-macros
+([cargo tree](https://doc.rust-lang.org/cargo/commands/cargo-tree.html)'s `no-proc-macro` would drop them).
+
+* **Build-only crates are left out** — six today: `autocfg`, `cc`, `cfg_aliases`, `find-msvc-tools`, `shlex`,
+  `version_check`, all MIT and/or Apache-2.0. They run on the build host and none of their code is in the binary: MIT's
+  condition attaches to "copies or substantial portions of the Software", Apache-2.0 §4's to redistributing "the Work
+  or Derivative Works", and the image carries neither. (`cc` compiles ring's C; that code is ring's, and noticed.)
+* **Proc-macros are kept** (34, e.g. `serde_derive`, `syn`): what they expand to compiles into the binary, and whether
+  that output carries their licence is the open question treated as yes, as Emscripten's glue is above.
+
+**Where each text comes from.** `deploy/server_notices.py` reads `cargo metadata` and copies every file at each crate's
+root named `LICENSE*`, `LICENCE*`, `COPYING*`, `COPYRIGHT*`, `NOTICE*` or `UNLICENSE*`, byte for byte but for line
+endings and blank lines at either end. Two exceptions:
+
+* `asn1-rs-impl`, `httlib-huffman`, `wtransport` and `wtransport-proto` package no licence file. Each gets the SPDX
+  standard text of every licence its expression names, from `deploy/licence-texts/` (SPDX License List v3.29.0,
+  [`text/`](https://github.com/spdx/license-list-data/tree/v3.29.0/text)), and its manifest's authors in its row.
+  A new crate with no file and a licence there is no text for stops the script.
+* `quinn` and `quinn-proto` are built from `patched/`, so their crates' `LICENSE-APACHE` and `LICENSE-MIT` sit there,
+  copied from the checksum-pinned crates `scripts/patch_crate.sh` unpacks. The changes made to them, and to
+  `wtransport`, are `patches/`.
+
+A tool built for this, [cargo-about](https://embarkstudios.github.io/cargo-about/), was not taken: it is one more
+binary to pin on every host the gate runs on, for what Cargo's own two commands and one script do.
+
+**Kept true.** After any `Cargo.lock` change, `deploy/server_notices.py` writes the file again. `scripts/gate.sh` runs it
+with `--check`, which renders the notices afresh and fails unless they equal the committed bytes. Bumping `itoa` from
+1.0.18 to 1.0.17 (`cargo update --precise`) failed the gate at that step, and adding `hex = "0.4"` to
+`server/Cargo.toml` failed the check; restored, both passed. Both images built here on 2026-10-22 hold the two files
+beside the binary, the notices byte-identical to the committed ones.
 
 ## Data
 
