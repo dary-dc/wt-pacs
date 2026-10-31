@@ -846,7 +846,7 @@ each: Chromium 33.8 → 27.6 ms, Firefox 80.2 → 72.3 ms, medians. 6–8 ms, un
 dials (§3, *Proposed: the page dials*), so **not built**.
 
 **4×** was not run at this step: the guard leaves every 1× start unsaturated, so it is allowed, but the re-run's four
-arms (§3) include these three at their defaults, and its 4× cells, if the usage window allows, stand for both.
+arms (§3) include these three at their defaults, so its 4× cells (below) stand for both.
 
 **The fix, re-run 2026-10-30, 1×** (§3, *Proposed: the page dials*; rows `lab/viewer/rows/startfix-quiet.jsonl`, run
 from `07fd44c` by `FRAMES=lab/.av1-work/view-fix THROTTLES=1 NAME=startfix KINDS=quiet lab/viewer/view_run.sh`, the
@@ -879,7 +879,30 @@ and 107–167 ms (Firefox), now beside the dial. The mammogram's extra round tri
 (Chromium +15 against +13; Firefox +21 against +25). Chromium tomosynthesis's +21 ms is already +22 at `sessionOpen`
 and B′ without the fix ties there; nothing in the fix acts between the downloader's start and the session's opening,
 so this reads as a round's noise across four arms. That reading is not measured, and the rule says what it says.
-**Where the host saturates:** nowhere, by the guard, at 1×; nothing is claimed past 1× (4× not run, below).
+**Where the host saturates:** nowhere, by the guard, at 1× (4× below).
+
+**The fix at 4×, re-run 2026-10-31** (rows `lab/viewer/rows/startfix4-quiet.jsonl`, the same command with
+`THROTTLES=4 NAME=startfix4`, rounds 0–17; run after every 1× cell, as pre-registered, the guard having left every 1×
+start unsaturated). 576 visits, every frame exact, none saturated (start 0.33–0.55, fill 0.32–0.49). Four cells VOID
+(Chromium US and the mammogram, Firefox US and tomosynthesis). Paired medians over 12 rounds, ms, first drawn, B′ − A
+/ B′+fix − A: Chromium CT +13.5 / +4.5, tomo **+33.5** / −12, Firefox CT **+43** / −1.5, Firefox mammo **+139** /
+**+188**; the VOID cells B′ +64 to +329, B′+fix +17 to +69. The fill after the first frame ties in every multi-frame
+cell, every arm (×0.989–1.009).
+
+**Verdict at 4×: B′ with the fix does not tie A** — "behind A: Firefox mammogram 4× first", +188 ms; it ties A in the
+three other decided cells, where B′ without it is behind in all three but Chromium CT.
+
+*Read from the steps, not decided by the rule:* in that cell B′+fix's page reaches `connect` 96 ms after A's, and its
+downloader's script runs 214 ms after that connect against A's 72 ms — while the view worker, created before the
+metadata, is still evaluating (it finishes 41 ms after the downloader's script). So in Firefox under the 4× throttle the
+two workers' boots overlap and the downloader's is slowed, which costs more than the view worker's boot saved. Why the
+overlap slows it — Firefox loading a worker's scripts through the page's main thread is the candidate — is not
+measured. In the decided Chromium cells and Firefox CT, B′+fix's downloader starts as A's does and nothing apart
+follows. *The `viewWorker` stamp* is taken where the page makes the `ViewWorker`, after the metadata; under
+`viewWorkerFirst` the worker itself was created earlier, so that stamp is not its creation there.
+
+**Where the host saturates:** nowhere, by the guard, at 1× or 4×. The 4× throttle is a cgroup cap a thread
+(`lab/scripts/cpu_throttle.mjs`), so it leaves the cores idle by construction, and the guard cannot see it.
 
 ### A frame clock in the view worker (2026-10-28)
 
@@ -3437,7 +3460,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 
 | setting | default (today's) | other values | decided by | status 2026-10-30, the fold at 15:15 UTC |
 | --- | --- | --- | --- | --- |
-| `?view=` | `page` | `worker` | §7's rule (B′), #229 | **run (#263): "A stays — `?view=page` remains the core's default"**; B′'s quiet first frame later by ≥ 16.7 ms in five decided cells, no decided cell with its asks sooner (§7). Against main (#261): "`?view=worker`: not judged; both runs point the other way" (§*The core against main, timed*). **Its start, timed (#276):** B′'s quiet delay is all before the first byte — the view worker's boot ahead of the downloader's `start`, and on the mammogram one round trip more — behind A in five of eight decided 1× cells, throughput tied in all six multi-frame cells. **With the fix** (`pageDials`, `viewWorkerFirst`, `shortRuns`, lab settings, defaults off): **"does not tie A"** — behind in one decided cell, Chromium tomosynthesis by 21 ms, tied in the other three decided; four cells VOID; 4× not run (§7, *The view worker's start, timed*) |
+| `?view=` | `page` | `worker` | §7's rule (B′), #229 | **run (#263): "A stays — `?view=page` remains the core's default"**; B′'s quiet first frame later by ≥ 16.7 ms in five decided cells, no decided cell with its asks sooner (§7). Against main (#261): "`?view=worker`: not judged; both runs point the other way" (§*The core against main, timed*). **Its start, timed (#276):** B′'s quiet delay is all before the first byte — the view worker's boot ahead of the downloader's `start`, and on the mammogram one round trip more — behind A in five of eight decided 1× cells, throughput tied in all six multi-frame cells. **With the fix** (`pageDials`, `viewWorkerFirst`, `shortRuns`, lab settings, defaults off): **"does not tie A"** — behind in one decided cell, Chromium tomosynthesis by 21 ms, tied in the other three decided; four cells VOID. At 4×, again **"does not tie A"**: behind in the Firefox mammogram by 188 ms, where the two workers' boots overlap (inferred), tied in the other three decided (§7, *The view worker's start, timed*) |
 | `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | **not run (#266): "Verdict: not run; `span` stays 0"** — the review finds the rule unmeetable on the model (S 1.90–1.96× A against ≤ 0.6×); removing `span` and `holdEveryOther` is the owner's (§Experiment 1: not run) |
 | `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | **running (#265), 2 of 12 rounds pushed; no verdict recorded.** From the rows, not the run's verdict: `wait-ahead-summary.mjs` over rounds 0–1 gives "undecided: no live, decided cell" — every cell under its 10 kept visits an arm |
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | answered by M5: `transfer` misses the memory bar on both engines (Firefox: "misses the memory and fill bars") |
