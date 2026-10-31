@@ -702,6 +702,15 @@ both arms, and is left out.
   paint worker shows the same in some rounds (draw p99 57–300 ms). Whether presentation without that read also waits
   is not measured, and nor is the Gecko path that makes it wait. The saturation guard marks these cells, but it is
   reading the engine, not the host: the draw p99 is the task's length at 1× as at 4×.
+  *Corrected 2026-10-31* (§*The pixel read under a busy page*): **the wait was our code's, the one-pixel read.** In
+  Firefox 155 a worker's `readPixels` waits for the page's main thread (the probe: 12 of 12 rounds, each read in a task
+  lasting what is left of it), and nothing else in the draw does. With the paint settled by a fence instead, the view
+  worker's draw p99 is 22–37 ms and **B′'s cine is 0 % late in Firefox too** (gap p99 119–136 ms) where A's misses
+  20–21 %, in both decided 1× cells, as §2 predicted. The saturation these cells carried was the read's, not the host's.
+  The verdict above stands: (1)'s first frame is stamped by the same settle but is later under B′ in Chromium too, and
+  Chromium's decided asks cells fail (2) by themselves. Firefox's asks were settled by the read as well, so their
+  arrival → screen may carry the same wait (B′'s mean 53–103 ms there against 12–34 in Chromium); they are not
+  re-measured here.
 * *The page thread* (3): B′ takes 1.0–1.4 ms a frame of the page's main thread against A's 1.45–2.3 on CT and US, the
   rest of the page's own work (its status line, the downloader's port, the lab's polls) staying. Neither is a reason
   to change the design by itself (§2's first paragraph).
@@ -821,6 +830,38 @@ guard saturates. Rows: `lab/viewer/rows/settle-cine.jsonl`, §7's row format. Re
 * **Prediction.** Firefox: (a) holds; under (b) B′ keeps cine on time, as in Chromium; `page-read` and `worker-read`
   late as §7 found (20–40 %). Chromium: (a) does not hold (neither settle waits); (b) holds as in §7. If (a) fails in
   Firefox, §7's sentence is kept and what the probe found is added beside it.
+
+**Measured 2026-10-31, 1×** (rows [`../../lab/viewer/rows/settle-cine.jsonl`](../../lab/viewer/rows/settle-cine.jsonl),
+`node lab/viewer/settle-summary.mjs lab/viewer/rows/settle-cine.jsonl`; driven by `lab/viewer/settle_run.sh`). Headless
+Chromium 153 (SwiftShader) and Firefox 155 headed under Xvfb (llvmpipe), 4 cores, no GPU. Rounds 0–11, then whole
+extra rounds of the short series alone (12–13 of US and tomosynthesis, 14 of tomosynthesis) until each cell had 12
+with every arm kept: 410 visits, 6 dropped, every one by the relay's timing guard. **23 270 of 23 270 frames exact.**
+Medians over the 12 rounds; period 100 ms.
+
+| cell, 1× | late %, `page` / `pageaa` / `worker` / `page-read` / `worker-read` | gap p99, ms | draw p99, ms | guards |
+| --- | --- | --- | --- | --- |
+| Chromium CT | 20 / 20 / **0** / 20 / 0 | 267 / 267 / 117 / 283 / 117 | 24 / 24 / 25 / 17 / 15 | decided |
+| Chromium US | 22 / 21 / **0** / 20 / 0 | 317 / 317 / 133 / 308 / 133 | 50 / 50 / 33 / 36 / 25 | decided |
+| Chromium tomo | 20 / 20 / **0** / 20 / 0 | 267 / 267 / 117 / 267 / 117 | 32 / 32 / 33 / 21 / 23 | decided |
+| Firefox CT | 20 / 20 / **0** / 20 / 31 | 272 / 272 / 119 / 272 / 322 | 31 / 28 / 22 / 21 / **202** | decided |
+| Firefox US | 21 / 21 / **0** / 22 / 20 | 322 / 322 / 136 / 339 / 339 | 41 / 41 / 37 / **218** / **201** | decided |
+| Firefox tomo | 20 / 21 / 0 / 21 / 27 | 263 / 297 / 119 / 296 / 323 | 38 / 51 / 36 / 132 / 198 | *VOID* (A/A gap p99 34 ms apart) |
+
+* **Rule (a): Firefox, "the wait was the read"** in both decided cells: settled by the read, the view worker's draw
+  p99 is the task's length (201–202 ms); settled by the fence, 22–37 ms. **Chromium: "not the read"**: neither settle
+  waits (15–33 ms). As predicted.
+* **Rule (b): "B′ keeps cine on time where A misses", on both engines**: in every decided cell `page` is late by 20–22 %
+  and `worker` by 0 %, its gap p99 117–136 ms, under 2 periods. In Firefox this was not so in §7's run, nor here with
+  the read (`worker-read` 20–31 % late): the cine missed because its paint read a pixel.
+* `page-read`, A's paint worker reading, has its draw p99 at the task's length in Firefox's US cell (218 ms) and not in
+  CT (21 ms): a page-view read waits only when the paint worker's read lands inside a task, and A's paints, driven by
+  the page's timer, mostly run between tasks. A misses either way, since its clock is the page's.
+* Reproduced: `page-read` and `worker-read` are §7's arms, and their late frames are §7's (20–31 % here, 20–27 % there).
+* **Where the host saturates:** no 1× cell by the guard; `page`'s draw p99 is 22–50 ms against the 50 ms bar
+  (Chromium US at the bar). From a software rasteriser and Xvfb's vsync, as the rest of §7: a GPU, a display and a phone
+  are not measured.
+
+*4×: running.*
 
 ### A frame clock in the view worker (2026-10-28)
 
@@ -3378,7 +3419,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 
 | setting | default (today's) | other values | decided by | status 2026-10-30, the fold at 15:15 UTC |
 | --- | --- | --- | --- | --- |
-| `?view=` | `page` | `worker` | §7's rule (B′), #229 | **run (#263): "A stays — `?view=page` remains the core's default"**; B′'s quiet first frame later by ≥ 16.7 ms in five decided cells, no decided cell with its asks sooner (§7). Against main (#261): "`?view=worker`: not judged; both runs point the other way" (§*The core against main, timed*) |
+| `?view=` | `page` | `worker` | §7's rule (B′), #229 | **run (#263): "A stays — `?view=page` remains the core's default"**; B′'s quiet first frame later by ≥ 16.7 ms in five decided cells, no decided cell with its asks sooner (§7). Against main (#261): "`?view=worker`: not judged; both runs point the other way" (§*The core against main, timed*). *2026-10-31, the cine cell re-measured (#275):* §7's Firefox draw wait was the paint's one-pixel read; settled by a fence, B′'s busy cine is 0 % late on both engines where A's misses 20–22 % (§7, *The pixel read under a busy page*). No product paint settles now. The verdict stands |
 | `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | **not run (#266): "Verdict: not run; `span` stays 0"** — the review finds the rule unmeetable on the model (S 1.90–1.96× A against ≤ 0.6×); removing `span` and `holdEveryOther` is the owner's (§Experiment 1: not run) |
 | `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | **running (#265), 2 of 12 rounds pushed; no verdict recorded.** From the rows, not the run's verdict: `wait-ahead-summary.mjs` over rounds 0–1 gives "undecided: no live, decided cell" — every cell under its 10 kept visits an arm |
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | answered by M5: `transfer` misses the memory bar on both engines (Firefox: "misses the memory and fill bars") |
