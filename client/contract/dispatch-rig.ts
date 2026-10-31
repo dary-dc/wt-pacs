@@ -25,7 +25,7 @@ type DownloaderCtor = {
 type Wire = { op: string; from?: number; to?: number; frame?: number };
 type Log = (line: string) => void;
 type Clause = (DownloaderClient: DownloaderCtor, check: Check, log: Log) => Promise<void>;
-type RealDecoder = { glue: string; wasm: string; dir: string; codec?: string; depth?: number; split?: number; offset?: number; rct?: boolean };
+type RealDecoder = { glue: string; wasm: string; dir: string; codec?: string; depth?: number; split?: number; offset?: number; rct?: boolean; keyParse?: boolean };
 
 let world = 0;
 /** The client the downloader dials through, `ts` or `wasm`: `run`'s. */
@@ -1268,6 +1268,87 @@ async function aGroupDecodesThroughEitherDecoder(
   }
 }
 
+const join = (...parts: Uint8Array[]) => {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  parts.reduce((at, p) => (out.set(p, at), at + p.length), 0);
+  return out;
+};
+/** Where a G8 key unit's frame OBU starts: past the temporal delimiter and the sequence header, each with a one-byte size. */
+const frameObu = (unit: Uint8Array) => 4 + unit[3];
+/** `unit` with its frame header's first byte, `show_existing_frame`, `frame_type` and `show_frame` (AV1 §5.9.2), changed by `f`. */
+function frameBits(unit: Uint8Array, f: (b: number) => number) {
+  const out = unit.slice();
+  let at = frameObu(out) + 1;
+  while (out[at] & 128) at++;
+  out[at + 1] = f(out[at + 1]);
+  return out;
+}
+
+/**
+ * At G = 1, flushed after each unit or under `keyParse` not, through WebCodecs as through dav1d-WASM, each case
+ * after a clean keyframe: a delta, an intra-only, a `show_existing_frame` or an unshown frame labelled key, a cut
+ * unit, a delimiter alone and a sequence header after the frame are refused or fail their digest; a foreign
+ * sequence header, a unit of another series with the same one, and two units swapped fail their digests; a unit
+ * with an OBU extension decodes exactly, under `keyParse` by dav1d-WASM. Under `keyParse` none of these but the
+ * well-formed wrong units reaches a VideoDecoder. docs/decode/README.md §Safety without the flush
+ */
+async function aKeyUnitIsCheckedWithOrWithoutTheFlush(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 key units — no ${AV1_DIR}`);
+  if (!(await served(HASHER))) return void log(`  SKIPPED: AV1 key units — no ${HASHER}`);
+  const product = (m: string) => import(`/client/decode/${m}`);
+  const { parsePayload, units } = await product("av1-payload.js");
+  const xxh3 = await (await product("xxh3.js")).hasher();
+  const [k0, k8, k16, d9] = await Promise.all([0, 8, 16, 9].map((i) => fetched(`${G8}/${String(i).padStart(3, "0")}.av1`)));
+  const clean = await av1Through(DownloaderClient, [k0, k8, k16].map((u) => asPayload(u, 8)), "none", { groupLength: 1, frameCount: 3 });
+  const byIndex = [...clean.got].sort((a, b) => a.frameIndex - b.frameIndex);
+  check((await inexact(G8, byIndex.map((f, i) => ({ ...f, frameIndex: 8 * i })), [0, 8, 16])) === "none", "key units: the frames digested are their sources'");
+  const [D0, D8, D16] = byIndex.map((f) => xxh3.init().update(Uint8Array.from(f.bytes)).digest("hex"));
+  const b10 = `${PAYLOADS}/matrix/b10k0u`;
+  const B10 = await digestOf(b10);
+  const [other] = units(parsePayload(await fetched(`${PAYLOADS}/matrix/b10k1u.av1`)).frames[0], 1);
+  const at = frameObu(k16);
+  const g8 = (u: Uint8Array) => asPayload(u, 8);
+  // Each case: its payloads, their digests, and each one's outcome; `routed` is WebCodecs' flushed, dav1d-WASM's under keyParse.
+  const cases: [string, Uint8Array[], string[], string][] = [
+    ["a delta labelled key", [g8(d9)], [D8], "caught"],
+    ["a delta with a sequence header", [g8(join(k0.subarray(0, frameObu(k0)), d9.subarray(2)))], [D8], "caught"],
+    ["an intra-only frame", [g8(frameBits(k16, (b) => b | 0x40))], [D16], "caught"],
+    ["show_existing_frame", [g8(frameBits(k16, (b) => b | 0x80))], [D16], "caught"],
+    ["an unshown key frame", [g8(frameBits(k16, (b) => b & ~0x10))], [D16], "caught"],
+    ["a cut unit", [g8(k16.subarray(0, k16.length - 8))], [D16], "caught"],
+    ["a delimiter alone", [g8(new Uint8Array([0x12, 0]))], [D16], "caught"],
+    ["a sequence header after the frame", [g8(join(k16.subarray(0, 2), k16.subarray(at), k16.subarray(2, at)))], [D16], "caught"],
+    ["a foreign sequence header", [g8(await fetched(`${AV1_SET}/c8.av1`))], [D16], "wrong"],
+    ["another series' unit", [await fetched(`${b10}.av1`), asPayload(other, 10)], [B10, B10], "wc,wrong"],
+    ["two units swapped", [g8(k16), g8(k8)], [D8, D16], "wrong,wrong"],
+    ["an OBU extension", [g8(join(k16.subarray(0, at), new Uint8Array([k16[at] | 4, 0]), k16.subarray(at + 1)))], [D16], "routed"],
+  ];
+  for (const mode of webcodecsVariants()) {
+    for (const keyParse of mode === "spy" ? [false, true] : [false]) {
+      const what = `key units, ${mode === "spy" ? "webcodecs" : "dav1d"}, ${keyParse ? "keyParse" : "flushed"}`;
+      const off: string[] = [];
+      for (const [name, payloads, digests, want] of cases) {
+        const sent = [g8(k0), ...payloads];
+        const r = await av1Through(DownloaderClient, sent, mode, {
+          groupLength: 1, frameCount: sent.length, digests: [D0, ...digests], realDecoder: { ...AV1, keyParse },
+        });
+        const outcome = (i: number) => {
+          const f = r.got.find((g) => g.frameIndex === i);
+          if (!f) return r.failures.some((g) => g.frameIndex === i) ? "caught" : "lost";
+          if (f.info.exact === false && /gave/.test(f.info.reason ?? "")) return want.includes("caught") ? "caught" : "wrong";
+          return f.info.exact === true ? (f.info.path === "av1-webcodecs" ? "wc" : "dav1d") : String(f.info.exact);
+        };
+        const wc = mode === "spy" ? "wc" : "dav1d";
+        const expect = ["wc", ...want.split(",")].map((o) => (o === "wc" ? wc : o === "routed" ? (keyParse ? "dav1d" : wc) : o));
+        const got = range(0, sent.length - 1).map(outcome);
+        const reached = keyParse && !want.includes("wrong") && payloads.some((p) => r.units.includes(p.length - 20));
+        if (got.join() !== expect.join() || reached) off.push(`${name}: ${got.join()}${reached ? ", reached WebCodecs" : ""}`);
+      }
+      check(off.length === 0, `${what}: every malformed unit refused or off its digest, every wrong one off its digest, the rest exact (${off.join("; ") || "all"})`);
+    }
+  }
+}
+
 /**
  * An ask for a frame mid-group puts its whole group on the wire from the keyframe, the last group
  * cut at the series' end; frames that land out of order still decode in order. docs/av1/adr-unit.md §3
@@ -2378,6 +2459,7 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log, only?: str
     anUnknownCodecIsRefusedBeforeTheDial,
     aGroupDecodesOnOneDecoderInOrder,
     aGroupDecodesThroughEitherDecoder,
+    aKeyUnitIsCheckedWithOrWithoutTheFlush,
     anAskForAFrameAsksItsWholeGroup,
     anAskMidFillStartsAtItsKeyframe,
     aFailedFrameFailsTheRestOfItsGroup,

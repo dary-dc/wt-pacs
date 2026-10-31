@@ -1771,7 +1771,15 @@ with the checks, interleaved in each of 10 rounds, a fresh browser each, at 1× 
 Browsers: Chromium 141 and current, and Firefox and WebKit where their `VideoDecoder` decodes AV1 (§AV1 in WebKit
 and Firefox). Mutate each new check to fail. Decision: drop the flush if every mutation is caught in every browser
 and the no-flush arm is faster in at least 9 of 10 paired rounds at both throttles. Otherwise keep it, per browser.
-Dropping the flush is a candidate to build and measure under this protocol; nothing of it is built.
+*Built 2026-10-31, not measured:* behind decoder config `keyParse`, off by default, a WebCodecs decoder of
+one-unit groups parses each unit (`keyUnit`, `client/decode/av1-payload.js`) in place of the flush after it. A
+refused unit goes to dav1d-WASM, as any WebCodecs failure does; so does every unit with an OBU extension, a
+scalable one included. The dispatch rig sends each mutation at G = 1 after a clean keyframe, through both decoders,
+flushed and under `keyParse`: a delta (with and without a sequence header), an intra-only, a `show_existing_frame`
+and an unshown frame labelled key, a cut unit, a delimiter alone and a sequence header after the frame are refused
+or fail their digests, and under `keyParse` none reaches WebCodecs; a foreign sequence header, another series' unit
+with the same one and two swapped units fail their digests; an OBU extension decodes exactly. Removing any one check fails it. The
+G = 8 mutations, the cut tile group, the flipped tile byte and the other browsers are not run; nor is the speed.
 
 ### A split payload through two decoders
 

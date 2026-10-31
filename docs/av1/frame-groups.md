@@ -399,7 +399,8 @@ unmeasured.
   and the per-frame digest cover what the flush guards, and the flush adds no guarantee they lack. The remaining
   risks are a series without digests, the digest's collision bound and unbounded liveness. Dropping it is a candidate
   to build and measure under the protocol pre-registered in [`../decode/README.md`](../decode/README.md) §Safety
-  without the flush, from the specifications; not yet built.
+  without the flush, from the specifications; *corrected 2026-10-31:* built behind decoder config `keyParse`, off by
+  default, and not yet measured (*ibid.*).
 
 ## 5e · What a frame needs before it can be decoded
 

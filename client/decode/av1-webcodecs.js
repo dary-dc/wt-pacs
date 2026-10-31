@@ -4,15 +4,17 @@
  * docs/decode/README.md §AV1
  */
 import { neutral } from "./av1-frame.js";
-import { codecString, continues, sequence } from "./av1-payload.js";
+import { codecString, continues, keyUnit, sequence } from "./av1-payload.js";
 import { PROBES } from "./av1-probe.js";
 
 let groupLength = 1;
+let keyParse = false;
 const streams = {};
 const probed = {};
 
 export async function init(d) {
   groupLength = d.groupLength ?? 1;
+  keyParse = d.keyParse === true;
 }
 
 /** Whether a tiny unit of `layout` comes back with the samples it was coded from, once per worker. */
@@ -48,8 +50,12 @@ const STALL_MS = 2000;
 
 const stream = (which) => (streams[which] ??= decoder(which === "top" ? groupLength : 1));
 
-/** Flushed at a group's end and before a keyframe while it holds one, never inside it. lab/av1/decode/latency */
+/**
+ * Flushed at a group's end and before a keyframe while it holds one, never inside it; under `keyParse` a group
+ * of one is parsed instead. lab/av1/decode/latency, docs/decode/README.md §Safety without the flush
+ */
 function decoder(length) {
+  const parsed = keyParse && length === 1;
   let vd = null;
   let got = null;
   let wake = null;
@@ -88,6 +94,7 @@ function decoder(length) {
       let stall = 0;
       try {
         if (unit.key && held) await vd.flush();
+        if (parsed) keyUnit(bytes);
         if (unit.key) configure(bytes);
         held = true;
         stamp += 1;
@@ -102,7 +109,7 @@ function decoder(length) {
         if (length > 1 && (unit.index + 1) % length) {
           last = { gen: unit.gen, index: unit.index };
         } else {
-          await vd.flush();
+          if (!parsed) await vd.flush();
           held = false;
         }
         return p;
