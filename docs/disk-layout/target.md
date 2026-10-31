@@ -2,9 +2,12 @@
 
 **Draft**, agreed with the owner 2026-10-12; it stays a draft until the standard containers are characterized and
 measured against it (queue rows 159–160). Nothing here is built. Today's layout is [`README.md`](README.md).
+*Corrected 2026-10-26* against [`../ingest/pacs-receive-design.md`](../ingest/pacs-receive-design.md) §1–§4: scope
+starts at the PACS, which receives each `.sbnd` in a submission package from the PCS; the metadata rule is restated
+below; group files are named by XXH3.
 
 ```text
- <StudyUID>/<SeriesUID>.sbnd
+ <Study>/<Series>.sbnd
 
  offset 0                                        148            148 + E·N
  ┌──────────────────────────────────────────────┬──────────────┬─────────┬─────────┬─────┐
@@ -19,8 +22,9 @@ measured against it (queue rows 159–160). Nothing here is built. Today's layou
 
 | Today | Target | Why |
 | --- | --- | --- |
-| any path, one per server process | `<StudyUID>/<SeriesUID>.sbnd` | a server finds a series by its UIDs |
-| metadata JSON in the file and in a sidecar; the server reads neither | **none in or beside the file**: metadata only in the per-study database (Turso) | one copy, where it is queried |
+| any path, one per server process | `<Study>/<Series>.sbnd`, each the UID as the PCS codes it ([`../ingest/contract.md`](../ingest/contract.md) §The layout) | a server finds a series by its UIDs ([`../adr/serving-by-uid.md`](../adr/serving-by-uid.md), proposed); where `<Study>/` sits is open (§Open) |
+| metadata JSON in the file and in a sidecar; the server reads neither | **none in the file; the study DB is the one source of metadata.** A file beside the `.sbnd` may hold metadata only if it is derived from the study DB and can be regenerated from it (*restated 2026-10-26*: this row said "none in or beside the file", which read as forbidding derived files) | one source, where it is queried and updated; a derived copy is a cache, never read back |
+| group files named by the parser's BLAKE3-256 | named by the **XXH3** of their bytes, by the PCS (decided 2026-10-24/25); the study DB keeps each group as a row with that hash, keyed by UID (proposed) | the PACS checks them for integrity, not against an adversary: no cryptographic need, and faster |
 | header 16 B, nothing about what the file holds | 148 B: codec, layout and both UIDs | the file says what it is |
 | entry 12 B, no hash | 28 B: both hashes per frame | the coded bytes can be checked for life; the samples hash travels with its frame |
 | written in place, flushed, never synced | `.partial` → `fsync` → `rename` → `fsync` of the directory | a name only ever holds a complete, durable file |
@@ -127,7 +131,7 @@ codestream.
 2. It encodes the three tiles and cuts their bands.
 3. It publishes a layout-1 file next to the old one, by the steps of §Packing and publishing below.
 
-The old file goes once the per-study database names the new one. A series not under the rule is not touched by this
+The old file goes once the study DB names the new one. A series not under the rule is not touched by this
 migration; its move from today's version 1 to layout 0 is the target's own.
 
 ## The two hashes
@@ -139,12 +143,16 @@ migration; its move from today's version 1 to layout 0 is the target's own.
 
 ## Packing and publishing
 
-Packed at the hospital. Published at both ends — the site that packs and the PACS that receives — by writing
-`<SeriesUID>.sbnd.partial`, `fsync` of the file, `rename` to `<SeriesUID>.sbnd`, `fsync` of the directory. A reader
-never opens a `.partial`.
+Packed by the PCS, which sends it to the PACS inside a submission package (the PCS's side, out of this repository's
+scope since 2026-10-24). The PACS publishes it by staging `<Series>.sbnd` on the root's filesystem, `fsync` of the
+file, reading it back from disk against its coded hashes, `rename` into `<Study>/`, `fsync` of the directory
+([`../ingest/pacs-receive-design.md`](../ingest/pacs-receive-design.md) §3, steps 6–6c, proposed). A reader never
+opens a staged file.
 
 ## Open
 
 * **Streaming the pack** while frames are still coded: the index needs every length first (queue row 163).
 * **Standard containers** in place of the `.sbnd` (rows 159–160).
 * **When a series is complete**, and what a late instance does ([`../ingest/design.md`](../ingest/design.md)).
+* **Where `<Study>/` sits under the root** (flat, a date folder, a hashed level): the options and a recommendation
+  in [`../adr/pacs-disk-layout.md`](../adr/pacs-disk-layout.md), for the meeting with the PCS team.
