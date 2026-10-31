@@ -148,3 +148,5 @@ never opens a `.partial`.
 * **Streaming the pack** while frames are still coded: the index needs every length first (queue row 163).
 * **Standard containers** in place of the `.sbnd` (rows 159–160).
 * **When a series is complete**, and what a late instance does ([`../ingest/design.md`](../ingest/design.md)).
+* **Where `<StudyUID>/` sits under the root** (flat, a date folder, a hashed level): the options and a recommendation
+  in [`../adr/pacs-disk-layout.md`](../adr/pacs-disk-layout.md), for the meeting with the PCS team.
