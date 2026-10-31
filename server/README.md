@@ -1,7 +1,7 @@
 # server
 
-The WebTransport server: it reads a series bundle (`.sbnd`) once, and serves each session the frames
-it asks for, as envelopes, over QUIC or over a WebSocket. This file is the map — how data moves and
+The WebTransport server: it reads a series bundle (`.sbnd`) once, or under `--root` each series a
+session names while sessions read it, and serves each session the frames it asks for, as envelopes, over QUIC or over a WebSocket. This file is the map — how data moves and
 which object does what. The bytes on the wire are [`docs/WIRE.md`](../docs/WIRE.md); every number
 and every reason is in [`docs/adr/`](../docs/adr/README.md). Where this map and the code disagree,
 the code is right and this file is corrected.
@@ -14,10 +14,11 @@ main.rs            flags: ServeConfig is flattened in, its flags and defaults de
 run_server         load the TLS identity, print its SHA-256 for the client to pin
    │               bind QUIC: --bind's address, else dual-stack then IPv4 any, tried in order;
    │                 with --websocket, TCP on the same port
-   │               FrameStore::open — once per process: the bundle's index, the RWF_NOWAIT probe
-   │               banner::print (wt_url=, cert_sha256=, frames=, read_fast_path=, transport=, …);
+   │               --series: FrameStore::open — once per process: the bundle's index, the RWF_NOWAIT probe
+   │               --root:   SeriesTree::new — nothing opened until a session names a series
+   │               banner::print (wt_url=, cert_sha256=, frames= or root=, read_fast_path=, transport=, …);
    │                 wt_url and ws_url name --bind's address when it is a specific one, else 127.0.0.1
-   │               Sessions::new { store, read_mode, mode, opening_ask, stall, cwnd_ahead },
+   │               Sessions::new { series, read_mode, mode, opening_ask, stall, cwnd_ahead },
    │                 warning for each lab lever that is on
    ├─▶ WebSocket accept loop (its own task)   one task per TCP connection
    └─▶ QUIC accept loop                       one task per session
@@ -30,8 +31,9 @@ and in what `Link` writes to.
 
 ```
 QUIC: handle_incoming                            WebSocket: websocket::session
-   session request ── ?ask= read before accept      TLS + upgrade (10 s deadline) ── ?ask= read in the upgrade
-   accept                                           split the socket: sink → WsWriter, stream → asks
+   session request ── store_for(URL) before accept  TLS + upgrade (10 s deadline) ── the URL kept
+   accept; a refusal closes with its code here      store_for(URL); a refusal is a Close with 4000 + its code
+   ?ask= read against the store's frame count       ?ask= read the same; split the socket: sink → WsWriter
    Link::quic: open the shared uni now,             Link::WebSocket(WsWriter)
      or one uni per frame later (--stream-mode)
    control stream: accepted now, or — when an
@@ -116,7 +118,8 @@ task ever waits on the disk; queue row 258 (EXECGAP) is drafted to time both.
 | object | file | owns | what it is for |
 | - | - | - | - |
 | `ServeConfig` | `server/src/transport/server.rs` | the settings | everything `run_server` needs, and the command line: each field is its flag |
-| `Sessions` | `server/src/transport/server.rs` | `Arc<FrameStore>`, modes | what every session is served with; `serve` runs one |
+| `Sessions` | `server/src/transport/server.rs` | `Series`, modes | what every session is served with; `store_for` finds its store, `serve` runs one |
+| `SeriesTree` | `server/src/media/series_tree.rs` | `--root`, a `Weak<FrameStore>` per open series | the store a session's URL names, opened on a miss on the blocking pool, closed by the last session out ([`adr/serving-by-uid.md`](../docs/adr/serving-by-uid.md)) |
 | `Command`, `Step`, `Next` | `server/src/transport/planner.rs` | — | an ask in, a decision out, the reader it picks |
 | `Planner` | `server/src/transport/planner.rs` | asks in hand, the fill | the next step, decided without I/O |
 | `FramePipeline` | `server/src/transport/pipeline.rs` | — | the per-frame steps: `read`, `write`, `refuse`, `finish` |

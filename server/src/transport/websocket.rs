@@ -3,7 +3,7 @@
 //! FoD message's JSON. `docs/WIRE.md` §The WebSocket mapping.
 
 use crate::transport::link::Link;
-use crate::transport::server::{forward, parse_opening_ask, Sessions};
+use crate::transport::server::{forward, log_series_refusal, parse_opening_ask, Sessions};
 use crate::transport::wire::MAX_FOD_LEN;
 use anyhow::{bail, Context, Result};
 use bytes::Bytes;
@@ -22,7 +22,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
-use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
+use tokio_tungstenite::tungstenite::protocol::{CloseFrame, WebSocketConfig};
 use tokio_tungstenite::tungstenite::{self, Message};
 use tokio_tungstenite::WebSocketStream;
 use tracing::{info, warn};
@@ -125,12 +125,13 @@ async fn accept(listener: &TcpListener) -> std::io::Result<TcpStream> {
     Ok(tcp)
 }
 
+/// A refusal's code on a Close: the private range, `docs/WIRE.md` §Refusing a series.
+const SERIES_REFUSAL_BASE: u16 = 4000;
+
 pub(super) async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions) -> Result<()> {
-    let mut opening = None;
-    let read_ask = |request: &Request, response: Response| {
-        if sessions.opening_ask {
-            opening = parse_opening_ask(&request.uri().to_string(), sessions.store.frame_count());
-        }
+    let mut url = String::new();
+    let read_url = |request: &Request, response: Response| {
+        url = request.uri().to_string();
         Ok(response)
     };
     let handshake = async {
@@ -138,15 +139,25 @@ pub(super) async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions
         let config = WebSocketConfig::default()
             .max_message_size(Some(MAX_FOD_LEN))
             .max_frame_size(Some(MAX_FOD_LEN));
-        tokio_tungstenite::accept_hdr_async_with_config(tls, read_ask, Some(config))
+        tokio_tungstenite::accept_hdr_async_with_config(tls, read_url, Some(config))
             .await
             .context("WebSocket upgrade")
     };
     let socket = tokio::time::timeout(HANDSHAKE, handshake)
         .await
         .context("WebSocket handshake deadline")??;
-    let (sink, mut stream) = socket.split();
-    let product = sessions.pipeline(Link::WebSocket(WsWriter(sink)));
+    let (mut sink, mut stream) = socket.split();
+    let store = match sessions.store_for(&url).await {
+        Ok(store) => store,
+        Err(refusal) => {
+            log_series_refusal(refusal, &url);
+            let close = CloseFrame { code: (SERIES_REFUSAL_BASE + refusal.code() as u16).into(), reason: refusal.reason().into() };
+            let _ = sink.send(Message::Close(Some(close))).await;
+            return Ok(());
+        }
+    };
+    let opening = sessions.opening_ask.then(|| parse_opening_ask(&url, store.frame_count())).flatten();
+    let product = sessions.pipeline(store, Link::WebSocket(WsWriter(sink)));
     let closed = Arc::new(AtomicBool::new(false));
     let saw_close = Arc::clone(&closed);
     let read = |tx| async move {

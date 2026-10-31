@@ -19,7 +19,7 @@ measured against it (queue rows 159–160). Nothing here is built. Today's layou
 
 | Today | Target | Why |
 | --- | --- | --- |
-| any path, one per server process | `<StudyUID>/<SeriesUID>.sbnd` | a server finds a series by its UIDs |
+| any path, one per server process | `<StudyUID>/<SeriesUID>.sbnd` | a server finds a series by its UIDs ([`../adr/serving-by-uid.md`](../adr/serving-by-uid.md), proposed) |
 | metadata JSON in the file and in a sidecar; the server reads neither | **none in or beside the file**: metadata only in the per-study database (Turso) | one copy, where it is queried |
 | header 16 B, nothing about what the file holds | 148 B: codec, layout and both UIDs | the file says what it is |
 | entry 12 B, no hash | 28 B: both hashes per frame | the coded bytes can be checked for life; the samples hash travels with its frame |
