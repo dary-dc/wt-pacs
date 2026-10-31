@@ -1,6 +1,6 @@
 /**
  * Proves the paint's settle waits for its draw: a draw heavy enough to take hundreds of ms on a software renderer,
- * then each settle timed against the read. README §When a paint has executed
+ * then each settle timed against the read; and the paint module's own reads and fences under each settle. README §When a paint has executed
  *
  *   NODE_PATH=$(npm root -g) node client/paint/settle-check.mjs [--n 150] [--trials 5]        # Chromium, SwiftShader
  *   FIREFOX_PATH=… xvfb-run -a node client/paint/settle-check.mjs --browser firefox            # Firefox, llvmpipe
@@ -27,8 +27,8 @@ const LEFT = 0.2;
 
 const median = (v) => [...v].sort((a, b) => a - b)[v.length >> 1];
 
-async function visit(origin) {
-  const url = `${origin}/client/paint/settle-check.html?${new URLSearchParams({ n: N, trials: TRIALS, settles: SETTLES.join(",") })}`;
+async function visit(origin, page = `settle-check.html?${new URLSearchParams({ n: N, trials: TRIALS, settles: SETTLES.join(",") })}`) {
+  const url = `${origin}/client/paint/${page}`;
   if (engine === "firefox") {
     const profile = fs.mkdtempSync(path.join(process.env.TMPDIR ?? "/tmp", "settle-check-"));
     const ff = await firefoxAt(profile, { "webgl.force-enabled": true });
@@ -63,6 +63,18 @@ function judge({ renderer, out, error }) {
   return { ok: deferred && waits("fence"), lines };
 }
 
+/** The paint module itself: unsettled it neither reads nor fences; each settle does its own once. */
+const COUNTS = { none: { readPixels: 0, fenceSync: 0 }, fence: { readPixels: 0, fenceSync: 1 }, read: { readPixels: 1, fenceSync: 0 } };
+function counted({ out, error }) {
+  if (error) return { ok: false, lines: [`counts: error: ${error}`] };
+  const lines = Object.entries(COUNTS).map(([s, want]) => `  paint, settle ${s}: ${JSON.stringify(out[s])}${JSON.stringify(out[s]) === JSON.stringify(want) ? "" : `  WANTED ${JSON.stringify(want)}`}`);
+  return { ok: Object.entries(COUNTS).every(([s, want]) => JSON.stringify(out[s]) === JSON.stringify(want)), lines };
+}
+
+const PAINT_MUTANTS = {
+  "the read when no settle is named": ['if (!read && settle === "read")', 'if (!read && settle !== "fence")'],
+  "the fence settling by the read": ['if (!read && settle === "fence") await settled(gl);', 'if (!read && settle === "fence") gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));'],
+};
 const MUTANTS = {
   "one turn, no poll": ["  do await turn();\n  while (gl.clientWaitSync(sync, 0, 0) === gl.TIMEOUT_EXPIRED);", "  await turn();"],
   "no wait": ["  do await turn();\n  while (gl.clientWaitSync(sync, 0, 0) === gl.TIMEOUT_EXPIRED);", ""],
@@ -75,6 +87,17 @@ if (argv.includes("mutants")) {
   const original = fs.readFileSync(file, "utf8");
   process.on("exit", () => fs.writeFileSync(file, original));
   let survived = 0;
+  const paintFile = path.join(HERE, "paint-worker.js");
+  const paintOriginal = fs.readFileSync(paintFile, "utf8");
+  process.on("exit", () => fs.writeFileSync(paintFile, paintOriginal));
+  for (const [name, [from, to]] of Object.entries(PAINT_MUTANTS)) {
+    if (!paintOriginal.includes(from)) throw new Error(`mutant ${name}: paint-worker.js has no ${from.slice(0, 40)}`);
+    fs.writeFileSync(paintFile, paintOriginal.replace(from, to));
+    const r = counted(await visit(origin, "settle-count.html"));
+    fs.writeFileSync(paintFile, paintOriginal);
+    if (r.ok) survived += 1;
+    console.log(`mutant ${name}: ${r.ok ? "SURVIVED" : "caught"}\n${r.lines.join("\n")}`);
+  }
   for (const [name, [from, to]] of Object.entries(MUTANTS)) {
     if (!original.includes(from)) throw new Error(`mutant ${name}: settle.js has no ${from.slice(0, 40)}`);
     fs.writeFileSync(file, original.replace(from, to));
@@ -86,5 +109,6 @@ if (argv.includes("mutants")) {
   process.exit(survived ? 1 : 0);
 }
 const r = judge(await visit(origin));
-console.log(r.lines.join("\n"));
-process.exit(r.ok ? 0 : 1);
+const c = counted(await visit(origin, "settle-count.html"));
+console.log([...r.lines, ...c.lines].join("\n"));
+process.exit(r.ok && c.ok ? 0 : 1);

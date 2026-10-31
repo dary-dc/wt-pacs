@@ -162,7 +162,9 @@ it waits on Firefox's llvmpipe. `settle-check.mjs` proves the fence waits on bot
 ms, the draw alone returning in 0.1 ms with the whole draw left to a read after it, and the fence returning at ≥ 0.8 ×
 the read's time with a read after it under 0.2 × (2 ms). Its mutants (one poll and no loop, no wait, `gl.finish()` in
 place of the fence) are each caught on SwiftShader; on llvmpipe the `finish` mutant survives, as it should, since
-`finish` waits there:
+`finish` waits there. It also counts the paint module's own calls (`settle-count-worker.js`): unsettled, no
+`readPixels` and no `fenceSync`; one fence under `fence`, one read under `read`. Its two mutants (the read when no
+settle is named, the fence settling by the read) are caught:
 
 ```bash
 NODE_PATH=$(npm root -g) node client/paint/settle-check.mjs [mutants]
