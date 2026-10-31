@@ -10,7 +10,7 @@
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs [--rounds 10] [--first-round 0]
  *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--engines chromium,firefox] [--sets a,b] [--variants a,b]
  *     [--fill N --asks-after K] [--frames lab/.av1-work/total] [--orders seq,prio] [--mutate sample|truth|digest] [--out rows.jsonl]
- *     [--cc-trace DIR] [--one-way-ms 20] [--summary [--ref htj2k]] [--bin DIR --serve TREE]
+ *     [--cc-trace DIR] [--one-way-ms 20] [--summary [--ref htj2k]] [--bin DIR --serve TREE] [--per-frame]
  */
 import { spawn, execFileSync } from "node:child_process";
 import { appendFileSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -38,6 +38,8 @@ const MUTATE = arg("--mutate", "");
 const OUT = arg("--out", null);
 const REF = arg("--ref", "htj2k");
 const ORDERS = arg("--orders", "seq").split(",");
+/** Every frame's exact and preview times in each row, for a scroll read off the fill (lab/av1/delivery/scalable/tool). */
+const PER_FRAME = process.argv.includes("--per-frame");
 const ROOT = new URL("../../../..", import.meta.url).pathname;
 const T = mkdtempSync(path.join(tmpdir(), "av1-total-"));
 const port = () => 20000 + ((Math.random() * 25000) | 0);
@@ -111,11 +113,13 @@ function variantOf(set, name) {
         ...(a.digests && { digests: MUTATE === "digest" ? a.digests.map((d) => d.replace(/^./, (c) => (c === "0" ? "1" : "0"))) : a.digests }) } };
   }
   const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
-    ...(a.rct && { rct: true }), ...(a.mixed && { mixed: true }), ...(a.layers && { layers: a.layers, frames: set.frames }) };
-  const entries = set.frames * (a.layers ?? 1);
+    ...(a.rct && { rct: true }), ...(a.mixed && { mixed: true }), ...(a.layers && { layers: a.layers, frames: set.frames }),
+    ...(a.exactAt && { exactAt: a.exactAt }) };
+  // A two-layer series whose exact layer starts at entry `exactAt` > F, so its groups align; the entries between are never shown.
+  const entries = a.exactAt ? a.exactAt + set.frames : set.frames * (a.layers ?? 1);
   // A layer-major series decodes in lab/av1/delivery/bases-first' worker: the product's has no base entry.
-  const worker = a.layers ? { decoderWorker: "/lab/av1/delivery/bases-first/decoder.js" } : a.worker && { decoderWorker: a.worker };
-  return { ext, entries, viewer: a.viewer, opts: { decoder, ...worker, ...(a.group && { groupLength: a.group, frameCount: entries }), ...(a.digests && { digests: a.digests }) },
+  const worker = a.layers ? { decoderWorker: a.worker ?? "/lab/av1/delivery/bases-first/decoder.js" } : a.worker && { decoderWorker: a.worker };
+  return { ext, entries, fill: a.exactAt && 2 * set.frames, viewer: a.viewer, opts: { decoder, ...worker, ...(a.group && { groupLength: a.group, frameCount: entries }), ...(a.digests && { digests: a.digests }) },
     truth: a.truth, previewTruth: a.previewTruth, congestion: a.congestion };
 }
 
@@ -277,7 +281,7 @@ const started = (child, re) => new Promise((resolve, reject) => {
 async function visit(engine, set, variant, linkName, impairment, throttle, round) {
   const [variantName, orderName = "seq"] = variant.split("@");
   const a = variantOf(set, variantName);
-  const fill = Number(FILL ?? a.entries);
+  const fill = Number(FILL ?? a.fill ?? a.entries);
   if (fill + AFTER > a.entries || (AFTER && (a.opts.groupLength || a.opts.decoder.layers))) throw new Error(`${set.name} ${variantName}: ${fill} + ${AFTER} asks`);
   const need = useful(set);
   const flip = (t) => (MUTATE === "truth" ? t.replace(/^./, (c) => (c === "0" ? "1" : "0")) : t);
@@ -372,7 +376,16 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     ...pool(r.frames, threads),
     usefulMs: Math.round(Math.max(...need.map((i) => shown.get(i) ?? Infinity)) - r.issuedAt),
     ...previews,
+    ...(PER_FRAME && { exactMs: framesMs(r.frames.map((f) => [f.i, f.page]), r.issuedAt, set.frames),
+      previewMs: framesMs((r.previews ?? []).filter((p) => !p.late).map((p) => [p.i, p.page]), r.issuedAt, set.frames) }),
   };
+}
+
+/** Each frame's time on the page, ms from the fill's issue, by frame index; null where it never came. */
+function framesMs(pairs, issuedAt, n) {
+  const out = Array(n).fill(null);
+  for (const [i, page] of pairs) if (i >= 0 && i < n) out[i] = Math.round(page - issuedAt);
+  return out;
 }
 
 /**

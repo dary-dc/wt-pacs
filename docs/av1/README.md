@@ -1469,7 +1469,8 @@ measured above.
 ### The scalable preview as a tool — a candidate
 
 **An independent candidate (branch `claude/av1-svc-preview`, 2026-10-31): theory and a pre-registered protocol, nothing
-measured, built or run for it. It merges only if the protocol below finds it interesting.** The owner's question:
+measured, built or run for it** (*measured since, on the DBT volumes: 6*)**. It merges only if the protocol below finds it
+interesting.** The owner's question:
 which layers, which qualities, how many, for which frames, in which order. Sources are [P1]–[P3] at the end;
 measured inputs are the rows above, by file, row and commit. Arithmetic of ours is *derived*; what no source holds is
 *unverified*.
@@ -1502,7 +1503,9 @@ DBT a predicted top inherits the unsplit 12-bit stream's size — single-layer `
 `dbt12_ea1141` (row 25) against the shipped split at 0.948 on `dbts_a1` (row 95, `lab/av1/bytes/dbt-at-scale/README.md`
 §Bytes, `k = 2`) — while the base it predicts from is 0.03 % of HTJ2K's bytes. **Predicting the top saves at most
 the base's share; keeping the shipped exact payload and sending the base beside it may cost less** (*derived* across
-two sets and two encoders; the protocol decides).
+two sets and two encoders; the protocol decides). *Corrected by 6: true of a top predicted at 12 bits whole, 1.097–1.137
+of the shipped payload; split like the shipped payload, the predicted top is 0.983–0.999 of it, under the alone
+base's 1.000–1.007.*
 
 **2 · Costs and benefits, as functions of the link and the CPU** (*derived*; every input a row). F frames; H the
 series' HTJ2K bytes; s the exact payload ÷ H; β the bases ÷ H; R the link's rate; c the CPU cap; d_b(c), d_x(c),
@@ -1565,7 +1568,7 @@ three times higher.
   d_b, d_x from the warm-up and the first frames (§Warming the decoders, [`decode/README.md`](../decode/README.md));
   and the reader's v. With those it asks bases only where t_x(i) is predicted later than the reader's arrival at i.
 
-**5 · The protocol, pre-registered for a separate session.** Not run.
+**5 · The protocol, pre-registered for a separate session.** Not run (*run on the DBT volumes, 2026-10-31: 6*).
 
 * **Stage 1, offline** (`shape.py`'s method, row 25): every shape coded, every exact frame and every base checked;
   bytes, base PSNR and max |Δ| against the source (its box mean when scaled), d_b and d_x at 1× and 4×.
@@ -1599,6 +1602,43 @@ three times higher.
   bytes within 1.02× of the shipped representation's** in every cell. If only alone tops pass, the finding is a base
   stored beside the shipped payload — a second representation, structural, proposed then. If none passes the cost
   clause, the branch is not merged and this section records why.
+
+**6 · Measured, 2026-10-31: the DBT volumes** ([`lab/av1/delivery/scalable/tool`](../../lab/av1/delivery/scalable/tool/README.md)).
+`dbts_a1`, `dbts_b1` and `dbts_c1` whole, fetched and SHA-256-checked. **Not run:** the breast ultrasound cine and
+ABUS cells (their dataset arrives next week); the frame-major and viewport-first orders; the jump and the settle;
+50 Mbit/s, 2 % loss and ±20 ms jitter; ≥ 10 rounds (3 ran, n = 1–3 a cell after the relay's `VOID`s). The scroll is
+read off each fill's per-frame times, the viewer asking nothing new while scrolling (4), not scripted.
+
+* **Stage 1, every shape** (50 codings, 3 000/3 000 tops exact; decode dav1d-WASM, headless Chromium 153, 1× and 4×,
+  10 interleaved rounds, 3 680/3 680 frames exact). **Predicting the top costs nothing once it is split:** with
+  v ≫ 2 coded at 10 bits under the shipped low bits, every predicted shape is **0.983–0.999 of the shipped payload's
+  bytes** on the 12-bit volumes, and 0.996–1.024 whole on the 10-bit `dbts_b1` — against 1.097–1.137 unsplit at
+  12 bits (1's derivation held for that coding only; corrected there). An alone base adds 0.01–0.69 %. Quarter
+  bases are 0.009–0.17 % of HTJ2K's bytes at 34.9–46.4 dB and decode in 1.7–4.8 ms at 1×, 7.7–22 ms at 4×; the
+  predicted exact frame decodes 0.73–1.03× the shipped payload's through the same decoder. Fourteen shapes are
+  undominated and within 1.02 of the shipped bytes; the protocol names no ranking for its four, so the four run are
+  the quarter base, two layers, a keyframe every 8, at q 20 (the best base passing everywhere) and q 40 (the named
+  shape), alone and predicted.
+* **Stage 2, open and fill, layer-major** (the total-time rig, 5 and 20 Mbit/s, 1× and 4×, 288 visits, 29 `VOID`).
+  **Every slice has a picture 0.28–1.10 s after the fill's issue, 0.003–0.025 of HTJ2K's exact series
+  (27.8–175 s); the exact volume lands at 0.999–1.007 of the shipped payload's time alone and 0.989–1.022
+  predicted**, for 1.000–1.002 and 0.989–1.007 of its bytes. The first picture comes at 69–256 ms (HTJ2K 744–4 340,
+  its half-size prefix 306–1 250). Scrolling at 15 slices/s from the issue, 84–97 % of slices reached show a
+  picture; with HTJ2K's prefix first, none (its prefixes need 7.6–47.6 s). The A/A arm: 0.998–1.003.
+  16 794/16 800 frames exact and 10 500/10 500 bases as native dav1d over every visit; the six are one `VOID` visit
+  where a predicted group's exact frames failed to decode (the product's group-order check; failed, not wrong; not
+  diagnosed). Container numbers, not a phone's; the links run never reached the host's ceiling and nothing is
+  claimed above 20 Mbit/s.
+* **The model in 2:** it gave every quarter base 0.15–0.7 s at 1× and 0.6–2.9 s at 4× on one decoder; measured,
+  0.28–0.61 s and 0.45–1.10 s — the groups of 8 spread the bases over three decoders, and t₀ is 0.07–0.26 s.
+  Its one-decoder exact volume (10–125 s) never bound: three decoders kept every exact series link-bound.
+* **The rule:** **interesting** — all four shapes, alone and predicted, pass every clause on all three volumes in
+  every cell run (t_P ≤ 0.2 × HTJ2K's, more slices pictured than prefix-first at 15 slices/s, t_X ≤ 1.10× and bytes
+  ≤ 1.02× the shipped payload's, frames exact on every kept visit). Predicted tops pass, so the finding is not only a
+  base stored beside the shipped payload; either way the stored representation changes — structural, proposed
+  separately. The verdict stands on the cells run: the rule's "every cell" includes the 50 Mbit/s, loss and jitter
+  cells and the other orders, not run, and n is below the protocol's 10. A predicted top on an odd-sized volume
+  needs the encoder's padding cropped in the product payload; the lab checked the padded frame.
 
 *Sources, read 2026-10-31:*
 * [P1] AV1 Bitstream & Decoding Process Specification, <https://aomediacodec.github.io/av1-spec/>, source
