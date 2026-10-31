@@ -60,7 +60,7 @@ Standard-wide rules:
 | Fujifilm AWS V9.3 [S3]. Hosted as the AMULET Innovality CS, but it never names the product (UNCONFIRMED that it covers it) | FFDM; DBT; S-View | DM For Presentation / For Processing; BTO; CT; CR. The class for S-View is UNCONFIRMED | DM: MONOCHROME1, Alloc 16. Stored not fixed (UNCONFIRMED). BTO: MONOCHROME2 | see Stored | UNCONFIRMED | DBT: one file per frame or one multi-frame file, configurable | Implicit/Explicit LE, JPEG Lossless SV1, JPEG 2000 Lossless (new in V9.3). No lossy, no HTJ2K |
 | GE Senographe Pristina; Invenia ABUS 2.0 [S4] | all | **UNCONFIRMED**: every GE PDF returned HTTP 502 (maintenance page), 2026-10-05 12:40–15:56 UTC | | | | | |
 | Siemens ACUSON S2000 VA16 (with ABVS) [S5] | US still, cine, ABVS clips | US Image, US Multi-frame, SC | **8** (8) | RGB, or MONOCHROME2 if configured. **YBR_FULL_422 when JPEG lossy** | not stated | cine: Frame Time Vector | Implicit/Explicit LE, Explicit BE, **JPEG Lossy Baseline**, JPEG Lossless (Table 7). No RLE / JPEG 2000 / HTJ2K |
-| | 3D volume data (also viewed as cine) | **US Multi-frame**, not Enhanced US Volume | 8 (8) | MONOCHROME2 | **600 × 800** | one frame per slice; count not fixed | as above |
+| | 3D volume data (also viewed as cine) | **US Multi-frame**, not Enhanced US Volume | 8 (8) | MONOCHROME2 | **600 × 800** | one frame per slice; count not fixed. Frame Increment Pointer: Frame Time [S5 Table 12] | as above |
 | Philips EPIQ / Affiniti 9.0.x [S6] | US still, cine | US Image, US Multi-frame. 3D goes as US Multi-frame plus a private 3D presentation state | **8** (8) | Uncompressed: MONOCHROME2 or RGB. **Lossy: YBR_FULL_422**. Lossless: RGB | "Varies with export resolution configuration…" | cine: Frame Time in ms; Cine Rate = display rate | Still: Implicit/Explicit LE, JPEG Baseline (lossy), JPEG Lossless, RLE. **Multi-frame: Implicit/Explicit LE, JPEG Baseline, RLE (no JPEG Lossless)**. The default is UNCONFIRMED |
 
 No vendor CS read here offers HTJ2K, and none offers Enhanced US Volume for breast volumes. No CS gives a numeric cine frame rate; the CSs only carry the attribute. Rate is UNCONFIRMED by any primary source.
@@ -163,7 +163,93 @@ No vendor CS read here offers HTJ2K, and none offers Enhanced US Volume for brea
    - AV1 therefore stays a delivery format, not an archive transfer syntax.
    - No current breast-specific supplement was found. The last is Sup 165, Breast Projection X-Ray, 2012.
 
-## Sources (all fetched 2026-10-05)
+## 4. What "cine-like" could mean
+
+The owner's question, 2026-10-30: is cine-like "series that are consecutive through a single dim, like time"? This
+section gives the axes each series is ordered along, then three candidate definitions and what each implies. It does
+not choose. Read 2026-10-30: **research, not a measurement**. CT and MR stay on HTJ2K by the owner's 2026-10-05 list
+(§3), which is the owner's choice, not a team decision. *Derived* marks this file's inference.
+
+**AV1's ceiling is 12 bits** [A1 §A.2, note]: "the Professional profile extends support over the High profile to
+also bitstreams with bit depth equal to 12". §5.5.2 `color_config()` sets no other value: `BitDepth = twelve_bit ? 12 : 10`.
+
+### 4a. Axes per series type
+
+| Series | Axis | Frames | Bits Stored | Read as (*derived* from the axis) | Ordering in DICOM |
+|---|---|---|---|---|---|
+| DBT slices | depth, about 1 mm apart (§1c) | 1 per mm of breast (§1c) | 10–14 (§1b) | scrolled | BTO: per-frame Plane Position (Patient), mandatory; no dimension constraint found [D8 A.55.4] |
+| DBT projections | angle | 15 or 26 (§1b) | 14 raw, 10 processed (§1b) | single views, "not reviewed" in screening (§1c) | Positioner Primary Angle per frame [D8 C.8.31.2]; Multi-frame Dimension "U" [D8 A.74.3]. Siemens stores them as DM, one frame each (§1b) |
+| Hand-held breast US cine | time | not found in official sources | 8 (§1a) | played | Cine Module mandatory; Frame Increment Pointer to Frame Time or Frame Time Vector [D8 C.8.5.6.1.4] |
+| ABUS / ABVS | position, along the sweep | not stated in the CS read | 8 [S7] | scrolled | Siemens: US Multi-frame, "each frame represents a single slice from the 3D", yet the pointer is "Set to 0018,1063 (Frame Time" [S5 Tables 4, 12; S7 Table 13]. GE Invenia ABUS: CS still HTTP 502 on 2026-10-30, **unconfirmed** |
+| Breast DCE-MRI | position × time (§4b) | 1 pre + ≥ 2 post phases [M2]; per phase ~166–190 slices in one protocol [M5] | 12 or 16 (§4b) | scrolled through slices, compared across phases | Enhanced MR: Multi-frame Dimension "M", no dimension organisation required [D8 A.36.2.3]. Temporal Position Index: "Ordinal number (starting from 1) of the Frame in the set of Frames with different temporal positions" [D8 C.7.6.16.2.2] |
+| XA | time | not found in official sources | 8, 12, 16 [S9 Table 101] | played | Pointer: "Enumerated Values: 00181063H Frame Time … 00181065H Frame Time Vector" [D8 C.8.7.1]. Enhanced XA: a "Cine Run encoded in a single Multi-frame Image", no Cine Module [D8 A.47] |
+| RF / stored fluoroscopy | time | not found | as XA | played | as XA [D8 A.16.3]. ARTIS stores fluoroscopy as XA, "STORE FLUORO" in Image Type [S9 §9.1.2.1] |
+| Echocardiography | time | not found; 40–80 frames/s at rest, as reported by [E1], guideline not read | 8 [S8] | played | US Multi-frame, "Sequencing by Frame Time Vector (0018,1065)" [S8 §8.1.1.2] |
+| CT, MR stacks | position | not in scope | CT 12–16, MR §4b | scrolled | classic: one frame per instance, Image Position (Patient) [D8 A.3.3, C.7.6.2]; Enhanced: Multi-frame Dimension "M", no constraint [D8 A.38] |
+
+What the modules say:
+- **Frame Increment Pointer** "Contains the Data Element Tag of the Attribute that is used as the Frame increment in
+  Multi-frame pixel data"; each IOD "specializes" it [D8 C.7.6.6.1.2]. XA allows a Frame Dimension Pointer to angles or
+  table positions, but notes "many implementations will … continue to assume that Frames are temporally related" [D8 C.8.7.1.1.12].
+- **Multi-frame Dimension**: "The actual order of the Frames in the object is up to the generating application"
+  [D8 C.7.6.17]. Dimension Organization Type: "3D Spatial Multi-frame Image of equally spaced parallel planes";
+  "3D_TEMPORAL Temporal loop of equally spaced parallel-plane 3D volume sets".
+- **Enhanced US Volume** requires one of those two, "Enumerated Values: 3D 3D_TEMPORAL" [D8 C.8.24.3], with a
+  temporal index first and Image Position (Volume) second [D8 C.8.24.3.3]. No vendor read ships it for breast (§1b).
+
+### 4b. Breast DCE-MRI
+
+- **It is 4-D** (*derived*): one volume "first performed before contrast administration and is repeated multiple
+  times after contrast administration" [M3 §Technical aspects]. ACR accepts the phases "in 3 separate series, in 2
+  series … or in a single series" [M2].
+- **Phases.** ACR: "At least 2 phases of post-contrast images must be submitted: the earliest and the latest phase";
+  "The first post-contrast sequence must be completed in ≤ 4.0 minutes of completion of contrast injection" [M2].
+  EUSOBI: "at least two measurements after the contrast medium has been given, but the optimal number of
+  repetitions is unknown" [M3]. One protocol: "obtained once before and four times after injection" [M6].
+- **Temporal resolution.** EUSOBI: "in the order of 60–120 s per volume acquisition" [M3]. ACR gives only
+  "postcontrast intervals separated by 4 minutes or less" and ≤ 3 mm slices [M1 §VI].
+- **Ultrafast.** "20 ultrafast … (TWIST) acquisitions (0.9 × 1 × 2.5 mm, temporal resolution, 4.3 seconds)" [M4];
+  "15 phases of ultrafast DCE-MRI (temporal resolution of 2.7-4.6 s)" [M5]; "4 seconds per keyhole dynamic frame" [M6].
+  ACR and EUSOBI give no ultrafast numbers (not found in official sources).
+- **Bits.** Enhanced MR allows Bits Stored 8, or "16 | 12, 16" [D8 C.8.13.1.1.2, Table C.8-82]; classic MR fixes only
+  Bits Allocated 16 (§3). Philips fixes "Bits Stored … 12" on both MR objects [S11 Tables 136, 148]; Siemens
+  declares "12 or 16" for Enhanced MR [S10 §9.1.1.1]. So 12 bits is a vendor's choice, not a guarantee (*derived*).
+  The lab's breast MR measures b = 9 in 12 stored (Notes, 4), within AV1's 12.
+
+### 4c. Candidate definitions
+
+- **T — time-ordered.** The frames' order is time: a Frame Increment Pointer to Frame Time or Frame Time Vector, or a
+  temporal dimension (Temporal Position Index, or 3D_TEMPORAL's temporal index).
+- **A — one ordered axis** (the owner's). The frames vary along one axis only, time, position or angle: a single
+  pointer, one stack, or Dimension Organization Type 3D.
+- **P — predictable neighbours.** Adjacent frames share what intra coding cannot predict. Not a DICOM attribute: it is
+  decided per series type by measurement.
+
+| Series | T | A | P |
+|---|---|---|---|
+| DBT slices | out | in | **out, measured**: ρ 0.11–0.22, G = 1 adopted ([`frame-groups.md`](frame-groups.md) §1, §4) |
+| DBT projections | out | in | out, two series (frame-groups §1) |
+| Breast US cine | in | in | predicted in (speckle repeats), untested (frame-groups §4 point 8) |
+| ABUS | out by its geometry; **in by Siemens' header** (Frame Time) | in | untested; lower than cine (frame-groups §T3) |
+| Breast DCE-MRI | in, along time | **out**: two axes, unless split per phase or per slice | not found for DCE. On a 12-bit TCGA-BRCA breast MR set, HEVC with inter scores 2.03 against HEVC intra's 1.77 and JPEG-LS's 2.06 [L4 Table 6]; whether its z axis is slices or phases is not stated |
+| XA, RF | in | in | predicted under 5 % (frame-groups §4 point 10); 1.6–3.8 % over 2-D coders on 12-bit XA [L3]; "estimation of interframe motion is not advantageous" [L1] |
+| Echo | in | in | untested; no lossless inter-frame study of US or echo found |
+| CT, MR stacks | out | **in** | CT "significant", MRI "rather small" (frame-groups [S14]); 2-D "best" when "slice thickness is large compared to the pixel size" [L2] |
+
+What each implies:
+- **T** is read from headers and selects US cine, echo, XA and RF. It drops DBT slices, which the owner ruled
+  cine-like on 2026-10-12 ([`queue.md`](queue.md) §Blocked, owner rulings 2026-10-12). Siemens' ABVS label makes it put a spatial sweep in by its header.
+- **A** is the owner's wording. It **cannot separate a DBT stack from a CT or MR stack**: both are Dimension
+  Organization Type 3D, ordered along one spatial axis. Keeping CT and MR on HTJ2K then needs a second criterion, such
+  as modality or depth (CT b = 13, §3). It puts DCE-MRI out, though each phase or each slice position alone is in.
+- **P** names the property that decides whether inter-frame prediction pays: how similar neighbouring frames are in
+  what intra cannot predict, noise and speckle. Inter beats intra on noise only where its frame-to-frame correlation ρ
+  exceeds ½ (frame-groups §4 point 4). The literature agrees: "interframe coding is activated only when the
+  interframe correlation is high enough" (Miaou, frame-groups [S13]); "the optimal dimensionality … is related to
+  the magnitudes of the local correlation coefficients" [L2]. Measured, P is empty so far: G = 1 on every content type
+  (frame-groups §1). So under P, AV1's case on any series rests today on its intra bytes, not on prediction (*derived*).
+
+## Sources (all fetched 2026-10-05, except §4's)
 
 - [D1] DICOM PS3.3 2026d. Sections A.27, A.55, A.74, A.6, A.7, A.59, A.14, A.16, C.7.6.3, C.7.6.5, C.8.2.1, C.8.3.1, C.8.5.6, C.8.7.1, C.8.11.3, C.8.19.2, C.8.21.1, C.8.24.3, C.8.31.1. https://dicom.nema.org/medical/dicom/current/output/chtml/part03/PS3.3.html
 - [D2] DICOM PS3.4 2026d, Table B.5-1 (SOP class UIDs). https://dicom.nema.org/medical/dicom/current/output/chtml/part04/sect_B.5.html
@@ -176,7 +262,7 @@ No vendor CS read here offers HTJ2K, and none offers Enhanced US Volume for brea
 - [S2] Siemens Healthineers, "DICOM Conformance Statement MAMMOMAT Revelation VC20G, WHAWS VX40C", May 2024. Document number UNCONFIRMED. Tables 1, 5, 75; §8.1.1. https://marketing.webassets.siemens-healthineers.com/89d6759f9a5b66ab/49eecb3d0fae/MAMMOMAT_Revelation_VC20G_DICOM_Conformance_Statement.pdf
 - [S3] Fujifilm, "DICOM Conformance Statement FDR-3000AWS / CR-IR363AWS … (Standard)", 28th Edition, June 2020, 897N201838B, AWS V9.3. Tables 4.2-10, 4.2-15, 8.1-20, 8.1-37. https://www.fujifilm-medicalservice.de/assets/download-assets/DICOM-Conformance-Statement-Fujifilm-AMULET-Innovality.pdf
 - [S4] GE HealthCare DICOM conformance catalogue: Invenia ABUS 2.0 DOC2125962 Rev 1; LOGIQ E10–E20 R5.x DOC2968238 Rev 6; Vivid E95 v202 DOC1966328 Rev 3. Pristina was found by search only, "ZEPHYR_4.2.50". **The PDFs were not readable (HTTP 502).** https://www.gehealthcare.com/en/products/interoperability/dicom-conformance-statements
-- [S5] Siemens, "ACUSON S2000 Ultrasound System DICOM Conformance Statement", Version VA16, 2009-04-03. Tables 7, 8, 12; §11.18. https://marketing.webassets.siemens-healthineers.com/1800000000074060/f0bd0cb625bc/s2000_va16_dcs-00074060_1800000000074060.pdf
+- [S5] Siemens, "ACUSON S2000 Ultrasound System DICOM Conformance Statement", Version VA16, 2009-04-03. Tables 4, 7, 8, 11, 12. *Corrected 2026-10-30:* §11.18, cited here before, is the structured-report breast section, not storage. https://marketing.webassets.siemens-healthineers.com/1800000000074060/f0bd0cb625bc/s2000_va16_dcs-00074060_1800000000074060.pdf
 - [S6] Philips, "DICOM Conformance Statement EPIQ and Affiniti Family of Products, Release 9.0.x", 000789000000140 Rev B, 2024-06-28. Tables 4.7, 9.12–9.16. https://www.documents.philips.com/assets/DICOM%20Conformance%20Statement/20250227/0f8dddbc730e4f0188deb29100e392b8.pdf
 - [J1] ITU-T T.81 (09/1992), "Digital compression and coding of continuous-tone still images – Requirements and guidelines" (ISO/IEC 10918-1), with Corrigendum 1 (01/2004). §1 note, §4.1, §7, §A.3.3, §J.1.1.2. https://www.itu.int/rec/T-REC-T.81. ITU sells the text; the section numbers were read from the 1992 text as hosted by W3C, https://www.w3.org/Graphics/JPEG/itu-t81.pdf.
 - [J2] ITU-T T.83 (11/1994), "Digital compression and coding of continuous-tone still images: Compliance testing" (T.81's Part 2, ISO/IEC 10918-2). https://www.itu.int/rec/T-REC-T.83. Sold, not read; its tolerances are UNCONFIRMED, and the ISO/IEC number is from T.81's references to "Part 2", not from the ITU page.
@@ -185,6 +271,27 @@ No vendor CS read here offers HTJ2K, and none offers Enhanced US Volume for brea
 - [A1] AOM, "AV1 Bitstream & Decoding Process Specification", last modified 2023-05-25. Profiles; Annex A levels. https://aomediacodec.github.io/av1-spec/
 - [W1] W3C, WebCodecs, Working Draft 21 September 2026, `VideoPixelFormat`. https://www.w3.org/TR/webcodecs/. AV1 registration: Group Note Draft, 8 June 2026. https://www.w3.org/TR/webcodecs-av1-codec-registration/
 - Lab: [`FIXTURES.md`](../FIXTURES.md) §AV1 data (every set named here, and the raw mammogram behind `ffdm_a`), and [`README.md`](README.md) §Samples over 12 bits (queue rows 43–46), at `d749e63c` (2026-10-05).
+
+**Read 2026-10-30, for §4.**
+- [A1] above, §A.2 and §5.5.2.
+- [D8] DICOM PS3.3 2026d, sections A.3.3, A.16.3, A.36.2.3, A.38, A.47, A.55.4, A.74.3, C.7.6.2, C.7.6.6, C.7.6.16.2, C.7.6.17, C.8.5.6, C.8.7.1, C.8.13, C.8.24.3, C.8.24.3.3, C.8.31.2. https://dicom.nema.org/medical/dicom/current/output/chtml/part03/ (one page per section)
+- [S7] Siemens, "DICOM Conformance Statement, ACUSON S Family Ultrasound System, Release VE10", January 2017, P/N 10851863 Rev 02. Table 13. https://marketing.webassets.siemens-healthineers.com/1800000003776715/b0a01ae19ea7/sfamily_ve10_dcs_2017_01_01-03776715_1800000003776715.pdf
+- [S8] Siemens, "DICOM Conformance Statement, ACUSON SC2000 Volume Imaging Ultrasound System, Release VB10", November 2014. §8.1.1.2. https://marketing.webassets.siemens-healthineers.com/1800000001972495/15b67df071e9/sc2000_vb10_dcs-01972495_1800000001972495.pdf
+- [S9] Siemens Healthineers, "ARTIS VE50 DICOM Conformance Statement", June 2025, 11546898-ESK-001-00. Tables 1, 101, 105; §9.1.2.1. https://marketing.webassets.siemens-healthineers.com/ea68cecc442b76f6/1c364f6ad53d/ARTIS_VE50_DICOM_Conformance_Statement.pdf
+- [S10] Siemens Healthineers, "DICOM Conformance Statement syngo MR XA51A", 2024-09-11. §9.1.1.1, §9.1.1.4. https://marketing.webassets.siemens-healthineers.com/58254401f96c4f32/1879ec7117fa/MR_MAGNETOM_XA51A_DICOM_Conformance_Statement.pdf
+- [S11] Philips, "DICOM Conformance Statement MR Systems", 8001001301 Version 4.0, 2025-08-28. Tables 136, 148. https://www.documents.philips.com/assets/DICOM%20Conformance%20Statement/20260304/e3d2f80e64cd4dfda614b4030052b8fb.pdf
+- [M1] ACR, "ACR Practice Parameter for the Performance of Contrast-Enhanced Magnetic Resonance Imaging (MRI) of the Breast", revised 2023 (Resolution 8), §VI. https://gravitas.acr.org/PPTS/DownloadPreviewDocument?DocId=6
+- [M2] ACR Accreditation Support, "MRI Exam-Specific Parameters: Breast", revised 2025-03-19. https://accreditationsupport.acr.org/support/solutions/articles/11000114407
+- [M3] Mann RM et al. (EUSOBI), "Breast MRI: guidelines from the European Society of Breast Imaging", Eur Radiol 18:1307–1318, 2008, doi:10.1007/s00330-008-0863-7. Full text, https://pmc.ncbi.nlm.nih.gov/articles/PMC2441490/
+- [M4] Mann RM et al., "A novel approach to contrast-enhanced breast magnetic resonance imaging for screening: high-resolution ultrafast dynamic imaging", Invest Radiol 49(9):579–585, 2014, doi:10.1097/RLI.0000000000000057. Abstract only.
+- [M5] Onishi N et al., Breast Cancer Res 22:58, 2020, doi:10.1186/s13058-020-01292-9. Full text, abstract and Methods.
+- [M6] Bode M et al., "Intraindividual Comparison of Ultrafast versus Standard Two-dimensional Dynamic Contrast-enhanced Breast MRI", Radiology 315(2):e241371, 2025, doi:10.1148/radiol.241371. Abstract only.
+- [E1] Spahiu F et al., Am J Physiol Heart Circ Physiol 328(4):H752–H760, 2025, doi:10.1152/ajpheart.00817.2024. Abstract only; it reports the societies' recommendation second-hand.
+- [L1] Roos P, Viergever MA, "Reversible interframe compression of medical images: a comparison of decorrelation methods", IEEE TMI 10(4):538–547, 1991, doi:10.1109/42.108588. Abstract only.
+- [L2] Roos P, Viergever MA, "Reversible 3-D decorrelation of medical images", IEEE TMI 12(3):413–420, 1993, doi:10.1109/42.241868. Abstract only.
+- [L3] dos Santos RA, Scharcanski J, "Lossless and near-lossless digital angiography coding using a two-stage motion compensation approach", Comput Med Imaging Graph 32(5):379–387, 2008, doi:10.1016/j.compmedimag.2008.03.001. Abstract only.
+- [L4] Liu F et al., "The Current Role of Image Compression Standards in Medical Imaging", Information 8(4):131, 2017, doi:10.3390/info8040131. Full text, Tables 5–6. https://pmc.ncbi.nlm.nih.gov/articles/PMC8525863/
+- Not reached: GE Invenia ABUS DOC2125962 and every GE PDF (HTTP 502 again, 2026-10-30); the ASE/EACVI echo guideline text.
 
 **Still open.**
 - GE: Pristina and Invenia ABUS (retry the PDF host, or download them by hand).
