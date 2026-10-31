@@ -146,6 +146,13 @@ is the owner's (§10, 1).
 
 ## 5. (d) Where the layout, the study databases and the catalog are built
 
+*Corrected 2026-10-20 (the owner): the study database is built at the PACS, as below. On 2026-10-19 it had moved to
+the PCS, the machine that parses and packs; it moved back because the metadata will inevitably be updated after the
+PACS has received it. So the PACS owns the database's creation and its updates, its table design, and whatever it
+keeps on its filesystem. The PCS sends the parser's groups; the PACS checks everything that arrives. When a series or
+a study is complete stays the PCS's question (2026-10-19). Whether SQLite is the store at all is open:
+[`metadata-draft.md`](metadata-draft.md).*
+
 **The image layout and the study database: at the PACS, from the groups** (the owner's decision of 2026-10-11, one
 SQLite file per study so that bad data in one study never forces a shared database to be rebuilt). Building at the
 site and shipping the database is the alternative. It moves CPU to the site, but the PACS would trust a database it
@@ -246,7 +253,9 @@ more.
   repetition across instances without a dictionary. Each group is no longer readable alone, which the PACS does not
   need: it reads the whole series to build the database.
 
-**Recommended: one stream per series**, matching §4's archive. No published ratio on DICOM headers was found. A
+**Recommended: one stream per series**, matching §4's archive. No published ratio on DICOM headers was found;
+measured since on five TCIA series ([`../../lab/metadata-store`](../../lab/metadata-store) §Repetition): one stream
+3–27×, each group alone 1.6–3.2×, level 1 as good as 19, saving at most 3.5 % of a package with HTJ2K pixels. A
 gzip-style compressor halves "a typical instance" in Orthanc's words, pixels included. DICOM's own deflated syntax is
 "particularly useful" for objects without pixels. Against frames of hundreds of kilobytes to tens of megabytes, metadata
 compression moves the link's bytes little. Its value is storage at the PACS, if the groups are kept.
