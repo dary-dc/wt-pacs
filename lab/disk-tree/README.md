@@ -154,7 +154,7 @@ directory until it refuses: an htree entry is the same record for a link as for 
 
 **What it says.** The ADR inferred 10–26 M. The measured ceiling is lower, 7.7–10 M, because leaves average 38 %
 full, not half. At 1 000 studies a day, A fills one ext4 directory without `large_dir` in about 21 years; at 10 000 a
-day, in about 2. D's 256 folders put the ceiling at about 2 billion studies. B and C hold a day per folder, but
+day, in about 2. D's 256 folders put the ceiling at about 2 billion studies (arithmetic, not measured). B and C hold a day per folder, but
 their undated folder grows without bound: at one study in 50 it reaches the ceiling after about 380 M studies.
 `large_dir` lifts the limit. Without `dir_nlink`, a directory stops at 64 998 subdirectories: a flat root would
 reach that in about 65 days. XFS's ceiling (about 600–700 M inferred) is not reachable here and stays inference.
