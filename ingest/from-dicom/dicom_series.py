@@ -83,6 +83,8 @@ def samples(ds):
     signed, spp = ds.PixelRepresentation == 1, int(ds.SamplesPerPixel)
     if alloc not in (8, 16) or not 0 < stored <= alloc or high >= alloc:
         raise Refused(f"BitsAllocated {alloc}, BitsStored {stored}, HighBit {high}: 8 or 16 bits allocated only")
+    if high < stored - 1:
+        raise Refused(f"HighBit {high} under BitsStored {stored} − 1 (PS3.5 §8.1.1)")
     n, rows, cols = int(ds.get("NumberOfFrames", 1)), int(ds.Rows), int(ds.Columns)
     dtype = ("i1" if signed else "u1") if alloc == 8 else ("<i2" if signed else "<u2")
     if ts == RLE:
