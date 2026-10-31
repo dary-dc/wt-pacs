@@ -64,5 +64,20 @@ function settingsTheViewCannotHonourAreRefused() {
 }
 settingsTheViewCannotHonourAreRefused();
 
-console.log(failed ? `${failed} failed` : "levers: a fill's time and reads, steps on demand, the refusals: ok");
+/** The rig's paint settles by a fence unless a visit names the read; anything else is refused, and a page without the rig has none. */
+function theRigsSettle() {
+  check(lab({}).settle === "fence", `the rig's settle by default: ${lab({}).settle}`);
+  check(lab({ settle: "read" }).settle === "read", `settle read: ${lab({ settle: "read" }).settle}`);
+  let said = null;
+  try {
+    lab({ settle: "finish" });
+  } catch (e) {
+    said = e.message;
+  }
+  check(said === 'refused: settle "finish" — fence or read', `settle finish: ${said}`);
+  check(levers(new URLSearchParams({})).settle === undefined, "no rig, no settle");
+}
+theRigsSettle();
+
+console.log(failed ? `${failed} failed` : "levers: a fill's time and reads, steps on demand, the refusals, the settle: ok");
 process.exit(failed ? 1 : 0);

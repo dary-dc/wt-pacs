@@ -102,7 +102,9 @@ run 1 node client/viewer/store.test.mjs
 run 1 node client/view/clock.test.mjs
 run 1 node lab/frame-clock/arms.test.mjs
 run 1 node lab/frame-clock/measure.test.mjs
+run 1 node lab/paint-read/measure.test.mjs
 run 1 node lab/viewer/view-summary.test.mjs
+run 1 node lab/viewer/settle-summary.test.mjs
 
 step "client: worker-safe (no artifact reaches for window)"
 run 1 bash client/scripts/check_worker_safe.sh
@@ -122,6 +124,8 @@ if [[ $browser -eq 1 ]]; then
   run 1 node lab/frame-clock/check.mjs
   step "client: a crafted link to the viewer refused where lab/ is not served (headless Chromium)"
   run 1 node client/viewer/crafted.mjs
+  step "client: the paint's fence settle waits for a heavy draw, the read as reference (SwiftShader)"
+  run 6 node client/paint/settle-check.mjs
   step "client: the painter at 1:1 against its CPU reference (SwiftShader, ~3 s)"
   if [[ $numpy -eq 1 ]]; then
     run 1 env PYTHON="$PYTHON" node client/paint/check.mjs --zoom1

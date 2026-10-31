@@ -1,0 +1,12 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>settle check</title>
+<canvas id="c" width="1024" height="1024"></canvas>
+<script type="module">
+// Driven by client/paint/settle-check.mjs.
+const q = new URLSearchParams(location.search);
+const w = new Worker(new URL("./settle-check-worker.js", import.meta.url), { type: "module" });
+const offscreen = document.getElementById("c").transferControlToOffscreen();
+globalThis.__run = new Promise((r) => (w.onmessage = ({ data }) => r(data)));
+w.postMessage({ canvas: offscreen, n: Number(q.get("n")), trials: Number(q.get("trials")), settles: q.get("settles").split(",") }, [offscreen]);
+</script>
