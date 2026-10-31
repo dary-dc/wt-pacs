@@ -857,11 +857,15 @@ Medians over the 12 rounds; period 100 ms.
   CT (21 ms): a page-view read waits only when the paint worker's read lands inside a task, and A's paints, driven by
   the page's timer, mostly run between tasks. A misses either way, since its clock is the page's.
 * Reproduced: `page-read` and `worker-read` are §7's arms, and their late frames are §7's (20–31 % here, 20–27 % there).
-* **Where the host saturates:** no 1× cell by the guard; `page`'s draw p99 is 22–50 ms against the 50 ms bar
+* **Where the host saturates:** every 4× cell (below); no 1× cell by the guard; `page`'s draw p99 is 22–50 ms against the 50 ms bar
   (Chromium US at the bar). From a software rasteriser and Xvfb's vsync, as the rest of §7: a GPU, a display and a phone
   are not measured.
 
-*4×: running.*
+**4×, measured 2026-10-31: every cell saturated, nothing claimed.** Rounds 0–11 of all six cells (360 visits, 5
+dropped by the relay's guard; 21 000 of 21 000 frames exact): `page`'s draw p99 is 60–123 ms against the 50 ms bar
+in each, and four are VOID as well. Three cells are a round or two short; no top-up rounds were run, since a
+saturated cell decides nothing however many rounds it has. As read, not claimed: `worker` 0 % late in all six, and
+Firefox's `worker-read` draw p99 213–228 ms against `worker`'s 39–65 ms, the 1× picture again.
 
 ### A frame clock in the view worker (2026-10-28)
 
