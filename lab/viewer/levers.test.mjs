@@ -55,6 +55,11 @@ function settingsTheViewCannotHonourAreRefused() {
     [{ opts: JSON.stringify({ waitAhead: 4 }) }, "refused: waitAhead under view page — the view worker's; name view=worker"],
     [{ view: "page", opts: JSON.stringify({ holdEveryOther: true }) }, "refused: holdEveryOther under view page — the view worker's; name view=worker"],
     [{ opts: JSON.stringify({ pixels: "transfer" }) }, "refused: pixels under view page — the view worker's; name view=worker"],
+    [{ opts: JSON.stringify({ pageDials: true }) }, "refused: pageDials under view page — the view worker's; name view=worker"],
+    [{ opts: JSON.stringify({ viewWorkerFirst: true }) }, "refused: viewWorkerFirst under view page — the view worker's; name view=worker"],
+    [{ opts: JSON.stringify({ glAfterDial: true }) }, "refused: glAfterDial under view page — the view worker's; name view=worker"],
+    [{ opts: JSON.stringify({ shortRuns: true }) }, "refused: shortRuns under view page — the view worker's; name view=worker"],
+    [{ view: "worker", writer: "decoders", opts: JSON.stringify({ pageDials: true }) }, "refused: writer decoders with pageDials — the decoders are told to keep frames only once the cache is open"],
     [{ view: "worker", writer: "disk" }, 'refused: writer "disk" — store, decoders or view'],
     [{ view: "worker", writer: "decoders", opts: JSON.stringify({ pixels: "transfer" }) }, "refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred"],
   ]) check(refusal(query) === said, `${JSON.stringify(query)}: ${refusal(query)}`);

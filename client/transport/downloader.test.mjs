@@ -587,5 +587,70 @@ async function aLateFrameOfAnEndedRunIsStillWanted() {
 }
 await aLateFrameOfAnEndedRunIsStillWanted();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted: ok");
+/** The first frame dispatched carries the start's stamps, each taken, in the order the start passed them; no later frame carries them. */
+async function theFirstFrameCarriesTheStart() {
+  const decoding = [];
+  globalThis.Worker = class {
+    postMessage(m) {
+      if (m.kind === "init") queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      if (m.kind === "decode") decoding.push(m);
+    }
+    terminate() {}
+  };
+  const w = await wantWorld("boot-stamps", { decoders: 1, perDecoder: 2, decoderWorker: "x" });
+  await onmessage({ data: { kind: "want", indices: [0, 1, 2, 3] } });
+  w.onFill(frame(0));
+  w.onFill(frame(1));
+  await settle();
+  const b = decoding[0]?.stamps.boot ?? {};
+  const order = ["downloaderEvaluated", "downloaderStart", "dialReceived", "dial", "sessionOpen", "firstIn"];
+  const inOrder = order.every((k, j) => typeof b[k] === "number" && (j === 0 || b[order[j - 1]] <= b[k]));
+  check(inOrder && b.decodersReady >= b.downloaderStart, `the first frame's start stamps, in order (${JSON.stringify(b)})`);
+  check(decoding.length === 2 && decoding[1].stamps.boot === undefined, `the second frame carries none (${decoding.length} dispatched)`);
+}
+await theFirstFrameCarriesTheStart();
+
+/** The run the dial carries, if any, and the asks after it, for a want that rides `start`. */
+async function openingOf(name, config) {
+  const w = { opening: null, asks: [] };
+  globalThis.fakeTransport = {
+    connect: async (_url, _hash, options) => ((w.opening = options.fill ? [options.fill.from, options.fill.to] : null), {
+      requestExactFrame: (i) => (w.asks.push(i), new Promise(() => {})),
+      stats: () => ({ closed: null, lastByteAt: performance.now() }),
+      fillFrames() {},
+      endStream: async () => {},
+      close() {},
+    }),
+  };
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // ${name}`;
+  await import(`./downloader.js?${name}`);
+  await onmessage({ data: { kind: "start", config: { transport, survival: false, decode: false, decoders: 0, ...config } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  return w;
+}
+
+/**
+ * Under `shortRuns`, a want shorter than D_min that ascends whole rides the dial as its run, as the page's fill does;
+ * one that does not ascend, one with a gap span 0 does not cross, and any want once the session is up, stay asks.
+ */
+async function aShortWantRidesTheDial() {
+  const off = await openingOf("short-off", { want: [0] });
+  check(off.opening === null && off.asks.join() === "0", `by default one frame is asked after the dial (${off.opening}, asks ${off.asks})`);
+  const one = await openingOf("short-one", { want: [0], shortRuns: true });
+  check(one.opening?.join() === "0,0" && one.asks.length === 0, `one frame rides the dial (${one.opening}, asks ${one.asks})`);
+  const three = await openingOf("short-three", { want: [0, 1, 2], shortRuns: true });
+  check(three.opening?.join() === "0,2", `three ascending ride it (${three.opening})`);
+  const down = await openingOf("short-down", { want: [2, 1, 0], shortRuns: true });
+  check(down.opening === null && down.asks.join() === "2,1,0", `a descending want stays asks (${down.opening}, asks ${down.asks})`);
+  const gap = await openingOf("short-gap", { want: [1, 3], shortRuns: true });
+  check(gap.opening === null && gap.asks.join() === "1,3", `a gap span 0 does not cross stays asks (${gap.opening}, asks ${gap.asks})`);
+  const spanned = await openingOf("short-span", { want: [1, 3], shortRuns: true, span: 1 });
+  check(spanned.opening?.join() === "1,3", `span 1 crosses it as it would a long run (${spanned.opening})`);
+  const after = await openingOf("short-after", { shortRuns: true });
+  await onmessage({ data: { kind: "want", indices: [5] } });
+  check(after.opening === null && after.asks.join() === "5", `once the session is up a short want is an ask (${after.asks})`);
+}
+await aShortWantRidesTheDial();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted, the start's stamps on the first frame, a short want riding the dial: ok");
 process.exit(failed ? 1 : 0);

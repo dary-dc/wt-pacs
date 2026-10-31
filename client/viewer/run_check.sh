@@ -32,4 +32,9 @@ done
 for writer in store decoders view; do
   node client/viewer/check.mjs --series "$T/grey.sbnd" --decoder htj2k --view worker --cine --writer $writer --tabs
 done
+# The start's fix, every setting on, and with the cache: docs/adr/frame-path.md §3, *Proposed: the page dials*.
+fix='{"pageDials":true,"viewWorkerFirst":true,"glAfterDial":true,"shortRuns":true}'
+node client/viewer/check.mjs --series "$T/grey.sbnd" --decoder htj2k --view worker --cine --opts "$fix"
+node client/viewer/check.mjs --series "$T/grey.sbnd" --decoder htj2k --view worker --fill 0 --opts "$fix"
+node client/viewer/check.mjs --series "$T/grey.sbnd" --decoder htj2k --view worker --cine --writer store --tabs --opts "$fix"
 echo "SKIPPED: the viewer's cross-codec arm and Firefox — they need the DICOM ingest's bundles and a GL display (client/README.md §The viewer)"
