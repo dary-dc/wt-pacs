@@ -17,6 +17,8 @@ COPY client/transport/wasm/Cargo.toml ./client/transport/wasm/Cargo.toml
 COPY client/transport/wasm/src ./client/transport/wasm/src
 COPY tools ./tools
 COPY ingest/from-parser ./ingest/from-parser
+COPY ingest/receiver/Cargo.toml ./ingest/receiver/
+COPY ingest/receiver/src ./ingest/receiver/src
 COPY lab/container-bench/Cargo.toml ./lab/container-bench/
 COPY lab/container-bench/src ./lab/container-bench/src
 COPY lab/disk-access-bench/Cargo.toml ./lab/disk-access-bench/
