@@ -56,23 +56,48 @@ export function units(frame, split) {
   return [frame.subarray(4, 4 + n), frame.subarray(4 + n)];
 }
 
-/** The payload of a unit's sequence header OBU, or null. */
-function sequenceHeader(unit) {
+/** A unit's OBUs as `{ type, ext, data, end }`, up to one without a size field; the last may run past the unit. AV1 §5.3 */
+function obus(unit) {
+  const out = [];
   for (let at = 0; at < unit.length; ) {
     const header = unit[at];
-    const type = (header >> 3) & 15;
     let p = at + 1 + ((header >> 2) & 1);
-    if (!(header & 2)) return null;
+    if (!(header & 2)) break;
     let size = 0;
     for (let shift = 0; p < unit.length; shift += 7) {
       const b = unit[p++];
       size += (b & 127) * 2 ** shift;
       if (!(b & 128)) break;
     }
-    if (type === 1) return unit.subarray(p, p + size);
     at = p + size;
+    out.push({ type: (header >> 3) & 15, ext: (header >> 2) & 1, data: unit.subarray(p, at), end: at });
   }
-  return null;
+  return out;
+}
+
+const OBU_SEQUENCE_HEADER = 1;
+const OBU_FRAME_HEADER = 3;
+const OBU_FRAME = 6;
+
+const sequenceHeader = (unit) => obus(unit).find((o) => o.type === OBU_SEQUENCE_HEADER)?.data ?? null;
+
+/** Throws unless `unit` is a whole shown key frame after a sequence header: docs/decode/README.md §Safety without the flush */
+export function keyUnit(unit) {
+  const not = (why) => {
+    throw new Error(`not a key unit: ${why}`);
+  };
+  const all = obus(unit);
+  if (all.at(-1)?.end !== unit.length) not(`its OBU sizes do not sum to its ${unit.length} bytes`);
+  if (all.some((o) => o.ext)) not("an OBU extension");
+  const frame = all.findIndex((o) => o.type === OBU_FRAME_HEADER || o.type === OBU_FRAME);
+  const seq = all.slice(0, frame).find((o) => o.type === OBU_SEQUENCE_HEADER);
+  if (frame < 0 || !seq) not("no sequence header before a frame header");
+  // reduced_still_picture_header: the frame header is a shown key frame's by definition.
+  if (seq.data[0] & 8) return;
+  const bits = all[frame].data[0];
+  if (bits & 128) not("show_existing_frame");
+  if (bits & 96) not(`frame_type ${(bits >> 5) & 3}`);
+  if (!(bits & 16)) not("not shown");
 }
 
 /**

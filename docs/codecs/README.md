@@ -109,6 +109,19 @@ Keys: **A-** [`../av1/README.md`](../av1/README.md): *bytes* §Bytes; *stands* �
 **PS3.5**, **PS3.6** §Specifications below. Times are a container's, never a phone's; the ultrasound's numbers are
 provisional (a lossy-sourced set, [`../av1/README.md`](../av1/README.md)).
 
+### AV1 at G = 1 on DBT, with and without the split
+
+The middle 16 slices of one volume a system, libaom `good` 6 (row 100,
+[`lab/av1/bytes/frame-groups`](../../lab/av1/bytes/frame-groups/README.md) §Bytes and §Decode cost of an ask). ms a
+frame is the median over 10 rounds, headless Chromium 141; 4× as [`../decode/README.md`](../decode/README.md) §A slow
+CPU, emulated. Only the split was timed; the plain representation never was.
+
+| volume | bytes against HTJ2K, split · plain | ms a frame, 1× · 4×: HTJ2K | WebCodecs, split | dav1d-WASM, split |
+| --- | --: | --: | --: | --: |
+| `dbts_a1` | 0.945 · 1.052 | 35.0 · 145.4 | 115.4 · 465.9 | 216.9 · 929.3 |
+| `dbts_b1` | 0.939 · 0.973 | 111.9 · 449.4 | 243.2 · 946.9 | 486.6 · 2083.9 |
+| `dbts_c1` | 0.943 · 1.064 | 35.8 · 146.6 | 114.2 · 452.9 | 193.8 · 852.1 |
+
 ## Why HTJ2K is the default, and what would reopen it
 
 HTJ2K decodes every frame faster than any exact AV1 path, exactly, in every engine measured; it holds every target
