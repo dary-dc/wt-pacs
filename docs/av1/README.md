@@ -1480,6 +1480,40 @@ bits only, and its 10-bit inter stays inexact under every setting tried; rav1e 0
 mode. 12-bit 4:4:4 behaves alike on 3.8.2; 3.15.1's `aomenc` cannot encode it at all. Every lossless-bytes
 encode of the public series (queue rows SIZE, DATA) re-checks exactness on real content.
 
+**The pin against 3.15.2 and 3.15.3 (read 2026-10-31; nothing built or run).** 3.15.1 is tag commit `44d0a577`.
+Two releases followed, both fixes only, per the [CHANGELOG at v3.15.3](https://aomedia.googlesource.com/aom/+/refs/tags/v3.15.3/CHANGELOG):
+
+| release | CHANGELOG item, verbatim | its commits ([v3.15.1..v3.15.2](https://aomedia.googlesource.com/aom/+log/v3.15.1..v3.15.2), [v3.15.2..v3.15.3](https://aomedia.googlesource.com/aom/+log/v3.15.2..v3.15.3)) | on the product's path |
+| --- | --- | --- | --- |
+| 3.15.2, 2026-10-06 | "Bug 42302352: A larger frame is forced to be a key frame." | `b2717946` (real-time, "g_lag_in_frames == 0 and g_pass == AOM_RC_ONE_PASS", a forced maximum frame size), `d080fa23` (`GOOD_QUALITY` upscaling) | no: only when a frame grows past the last coded size; a series' frames share one size *(derived)* |
+| | "Bug 555350218: libaom encoder allows frame width/height to be different from max frame width/height when reduced_still_picture_header is 1." | `1dfb7a15`: `bitstream.c` now reports an error where it wrote a non-conforming size | no: an error where there was an invalid stream; equal sizes write as before *(derived)* |
+| | "Bug oss-fuzz:559019046: … Bad-cast to PixelLevelGradientInfo…" | `6258cbce` ("In very rare cases, the work thread data needs to be re-allocated"), `23236152` (test) | memory safety in threaded encodes; the ingest runs `--threads=1` *(derived)* |
+| | "Bug oss-fuzz:566951534: Integer-overflow in linsolve_wiener." | `ab7db409`, Wiener loop restoration in `pickrst.c` | no: the [AV1 spec](https://aomediacodec.github.io/av1-spec/) §Loop restoration params syntax: "if ( AllLossless \|\| allow_intrabc \|\| !enable_restoration ) { FrameRestorationType[0] = RESTORE_NONE" |
+| | "Bug 568044446: Fix stale search_site_config in IntraBC motion search. Fix y_stride_src in init_motion_estimation()." | `51c3d8cf`, `af52815f` ("lookahead->buf[0], which can hold a stale stride from an earlier slot") | **the one on it**: IntraBC is a screen-content intra tool and the product codes `--tune-content=screen`; but the ingest runs one `aomenc` per frame (queue row INGEST1), so no earlier slot exists *(derived)*; the bug itself is not public (*unverified*) |
+| | (none) | `fa6b080f` "Simplify ref_yv12[2] in av1_joint_motion_search()" | no: compound inter search |
+| 3.15.3, 2026-10-20 | "Bug oss-fuzz:572842743: Integer-overflow in av1_choose_var_based_partitioning." | `e803b78e` (`int64_t` sums; "I only fixed the symptom"), `da53e539`, `b141d9c4` (its test "requires 12-bit support") | not at `good` 6 or cpu0: variance partitioning is set only for `--allintra` ≥ 7 and real time (source, last resort: `av1/encoder/speed_features.c:567–571, 2014, 2134` at v3.15.2) — **it is on the `allintra` 7 projections' and row 15's 12-bit paths**, where bytes could move *(derived)* |
+
+Every changed file is under `av1/encoder/`, `av1/av1_cx_iface.c`, `test/`, `CHANGELOG` or `CMakeLists.txt`: **`aomdec` and the
+decoder are untouched**, and no commit names lossless, monochrome, alt-ref or the temporal filter (high bit depth only 3.15.3's test).
+Every 3.15.2 fix is a cherry-pick whose original is an ancestor of `4cea455c`, the head row VERSIONS found writing
+3.15.1's bytes on all 22 breast and control cells (§Encoding) — so 3.15.2 is expected to write the same bytes *(derived)*.
+
+The alt-ref fault above is [AOM issue 387472912](https://issues.chromium.org/issues/387472912), "Output differs from
+10-bit input when --lossless=1", filed 2025-01-03 against `v3.11.0-161`, last modified 2026-03-25, **assigned, not
+fixed** (status read from the tracker's public data, *derived*). Its one change is
+[Gerrit 209441](https://aomedia-review.googlesource.com/c/aom/+/209441), "Fix lossless, use full precision in
+tx_search" (2026-03-25, `tx_search.c` only), **open and unmerged**; its reviewer: "I don't think AV1_XFORM_QUANT_FP is do
+any better than AV1_XFORM_QUANT_B." Neither release touches `tx_search.c`, and main (`d55e6b33`, 2026-10-30) still calls
+`AV1_XFORM_QUANT_B` unconditionally there (source, last resort: `av1/encoder/tx_search.c:1198`). `--auto-alt-ref=0` stays required.
+
+**Not re-pinned.** Neither release changes the decoder, the lossless path or the alt-ref fault; the one fix on the
+product's path cannot arise one frame per run. A re-pin for the encoder's fuzz fixes would go straight to 3.15.3 and
+must first re-run: the client's golden payloads (`ingest/coded-frames/make_golden.py`, compared by the gate), row
+VERSIONS' 22 cells (`lab/av1/tools/newer/aom_bytes.py`) against the new pin, row TOOL's synthetic matrix
+([`lab/av1`](../../lab/av1/README.md) §The cells, the only inter cells), and, for 3.15.3, the `allintra` 7 bytes
+(the projections of rows 14 and 33, DBTSCALE) and row 15's 12-bit layers. Byte-identical there, every other byte and exactness result carries
+over unchanged; decode, transport and HTJ2K results need nothing in either case, and row ENC's times stay 3.15.1's.
+
 **Which decoder for which frame.** WebCodecs' `VideoDecoder` is native (on Chromium without an
 AV1 hardware decoder it is dav1d in the browser process) and dav1d compiled to WASM runs everywhere.
 Neither is assumed faster or exact:

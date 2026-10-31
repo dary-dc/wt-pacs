@@ -198,7 +198,7 @@ Read 2026-10-13 from each project's tags (tag dates from the repositories) and i
 | --- | --- | --- | --- |
 | OpenJPH | 0.31.0 (the build), 0.32.0 measured | 0.32.0 (2026-09-17) | nothing new since row 57: NLT markers, a CLI `raw_in` fix for > 8-bit input, POWER and AVX-512 build fixes, truncated streams decoded gracefully |
 | dav1d | 1.5.4 | 1.5.4 (2026-07-14) | none newer |
-| libaom | 3.15.1 | 3.15.2 (2026-10-09) | bug and fuzz fixes only (CHANGELOG) |
+| libaom | 3.15.1 | 3.15.3 (2026-10-20), after 3.15.2 (2026-10-06; 2026-10-09 here before, corrected from the CHANGELOG) | bug and fuzz fixes only; none reaches the decoder, lossless or the alt-ref fault, not re-pinned — [`../av1/README.md`](../av1/README.md) §Exactness and the decoders |
 | SVT-AV1 | v4.2.0 | v4.2.0 (2026-07-13); `v4.2.0-cqp-extended` 2026-08-04 | fixes; unreleased on master, high-bit-depth intra SSE4.1 and an all-intra Hadamard overflow fix — row 1's inexact 10-bit inter not addressed by name |
 | libjxl | 0.12.0 | 0.12.0 (2026-07-01) | none newer |
 | jxl-rs | 0.6 (inside Chromium 154, row 63) | 0.7.4 (2026-09-17) | **0.7.0: 16-bit modular buffers end to end (RCT, palette, squeeze, 16-bit SIMD)** — the lossless path's speed and memory; 0.7.3 smaller stack use, which a WASM stack feels. Blink's JPEG XL through jxl-rs is "Proposed" for M155 (chromestatus 5114042131808256). Reopens row JXLRS below |
@@ -210,7 +210,7 @@ Read 2026-10-13 from each project's tags (tag dates from the repositories) and i
 | AV2 | AVM v1.0.0 (row 32) | dav2d 0.0.1 (2026-04-30, VideoLAN) | a dav1d-style AV2 decoder, 8/10-bit, AVX2 and NEON; its CI builds WASM but nothing is distributed. AV2 stays without a browser decoder |
 
 Of these, only jxl-rs 0.7 bears on a lever enough to reopen it; emscripten 6.0.12 adds nothing to row 134's 6.0.11 that
-a frame would see, and libaom 3.15.2 is fixes only by its changelog.
+a frame would see, and libaom 3.15.2 and 3.15.3 are fixes only, read commit by commit (2026-10-31).
 
 ### Left, ranked
 
