@@ -1922,9 +1922,9 @@ content where it says so.
 | --- | --- | --- | --- |
 | top decode | 50–75 % *d* | ≥ 55 % of the frame is `max(top, low)` *d* | the rest, after the rows below |
 | low decode | 18–45 % *d*, after the top on one instance | in parallel with the top, on a second `VideoDecoder` | ~0.043 µs a sample at k = 2 (row MIXDEC, [`mixed`](../../lab/av1/decode/mixed/README.md)) × ~2 Mpx ≈ 86 ms over 194–487 *d* |
-| flush per frame | < 1 % *d*: `_av1_flush`, synchronous | 7–28 % *m*, as an async round trip per stream | §WebCodecs without a flush (other content) |
+| flush per frame | < 1 % *d*: `_av1_flush`, synchronous | 7–28 % *m*, as an async round trip per stream. *Refuted 2026-10-31*: 1.2–1.8 % on the 10-bit tops, 6.6–7.3 % on `b1` | §WebCodecs without a flush (other content) |
 | `copyTo` | none: it reads the WASM heap | 2–5 % *d*: three planes, ~9 MB a frame | WebCodecs §9.5, "If layout is not undefined and its length does not equal numPlanes, throw a TypeError" ([W3C WD](https://www.w3.org/TR/webcodecs/)); 9.8 MB copied in 5.6 ms (§Faster HTJ2K) |
-| chroma check + merge `(top << k) \| low` + range | 3–8 % *d* | 5–12 % *d*: `neutral()` over both streams' chroma, then two `place()` passes | `av1-frame.js`; 1–3 % merge (row MIXDEC); interleave + range 6–12 % (§Decode time against HTJ2K); ~1.6 ns a sample a pass (§The range pass) |
+| chroma check + merge `(top << k) \| low` + range | 3–8 % *d* | 5–12 % *d*: `neutral()` over both streams' chroma, then two `place()` passes. *Refuted 2026-10-31*: 17–30 % | `av1-frame.js`; 1–3 % merge (row MIXDEC); interleave + range 6–12 % (§Decode time against HTJ2K); ~1.6 ns a sample a pass (§The range pass) |
 | XXH3 digest | 0.3–1.3 % *d* | 0.5–2 % *d* | rows CHECKCOST, HASHMEASURE (×0.65), [`exactness-in-production.md`](../adr/exactness-in-production.md) §9–10 |
 | threads, SIMD | 1 thread (`threads ?? 1`), auto-vectorised only, `-Denable_asm=false` | Chromium's dav1d with its hand-written msac, 2–4 threads that a one-tile frame cannot use | [`wasm/dav1d`](../../client/decode/wasm/dav1d/README.md) §The build; §WebCodecs without a flush; `ingest.py` sets no tiles |
 
@@ -1962,7 +1962,7 @@ work over more cores helps an ask on an idle phone, never a fill.
 1×, until HTJ2K takes its own lever (code-blocks on threads, 0.70–0.84 at 2 threads). At equal parallelism the
 entropy coder keeps AV1 at ≥ ~2×.
 
-**Protocol, pre-registered for a later session (do not run here).**
+**Protocol, pre-registered for a later session (do not run here).** *Since run: Measured, below.*
 
 * **Arms**: H (HTJ2K, the package); D (dav1d-WASM); W (WebCodecs); W1 (W without the flush, with the `frame_type`
   check); W2 (W with the passes cut); W12 (W1 and W2 together); and Z_D and Z_W (D and W with the low deflated, as row
@@ -1988,6 +1988,38 @@ entropy coder keeps AV1 at ≥ ~2×.
   median on all three sets at 1× and 4×, every frame exact, with no thread added. Store levers (Z, T) go to the owner
   with their bytes and times and are not built. T is reported for an ask only. The run is one ask at a time on 4
   cores and claims nothing for fills, concurrency or phones.
+
+**Measured (2026-10-31)**, the protocol as written:
+[`lab/av1/decode/breakdown`](../../lab/av1/decode/breakdown/README.md), which has every table. It ran on 4 vCPUs of a
+container, one ask at a time, on headless Chromium 141.0.7390.37 at 1× and 4×, with 10 rounds in Williams order.
+**12 480 of 12 480 frames were exact** by the worker's XXH3 and the page's SHA-256, first time on the arm's own
+path. `--mutate` read 0 of 624 exact, and each broken lever 0 of 48. The stamps cover 99.6–100 % of every frame.
+Spinning a stage for 100 ms lands on that stage alone, and all 34 stamps moved across their work were caught.
+Saturation was not measured, and nothing is claimed for fills, concurrency or phones.
+
+* **A/A voids 7 of 18 cells.** Stamped ÷ unstamped is outside 2 % for H at 1× `a1` and `c1` and at 4× `a1`
+  (1.04–1.07), for D at 1× `a1` and 4× `b1`, `c1` (1.02–1.04), and for W at 4× `b1` (0.971). Every cell's
+  round range crosses 1. Applied per cell, the readings below hold where the A/A held. Read as the whole run, the
+  breakdown is void.
+* **The gap is the entropy coder: not refuted.** `_av1_decode`, top and low, is 87.6–93.5 % of a dav1d-WASM frame.
+  D's frame is 186–454 ms at 1×, against H's 31–92. The rest is `place()` (6–11 %) and the digest (≤ 1 %); the
+  flush, parse and heap copy are ≤ 0.1 % each.
+* **D's stage predictions all held.** Top 49–56 %, low 36–39 %, merge + range 5.9–11.3 %, digest 0.3–0.9 %; no
+  round was outside a range by > 5 points.
+* **W's flush and its JS passes: refuted.** The flush is 1.2–1.8 % on the 10-bit tops, out by > 5 points in 10 of
+  10 rounds at 1× `a1` and `c1`, 9 of 10 at 4× `c1` and 7 of 10 at 4× `a1`. On `b1`'s 8-bit top it is 6.6–7.3 %. The chroma check + merge + range is 17–30 %, out
+  in 10 of 10 rounds in every cell but 4× `a1` (6 of 10). The two `place()` passes take 12–25 points of it and
+  `neutral()` 5–7. The decode, `max(top, low)`, is 64–79 % (predicted ≥ 55, held), `copyTo` 3.0–7.6 % (held) and the
+  digest 0.9–2.1 % (held). The two streams' own times sum to 1.35–1.47× the frame.
+* **Decision rule: neither client lever is built.** W1 (no flush) ÷ W is 0.921–1.024 and is faster in 2 of 10
+  rounds at 4× `b1`. W2 (no `neutral()` on `mono_chrome`, one fused pass) is 0.901–0.950 and is faster in 8 of 10
+  at 1× `a1`; 4× `a1`'s median sits at 0.950, the line, not past it. W12, which the rule does not name, is
+  0.873–0.913, faster in 8–10 of 10, every frame exact. That leaves WebCodecs at 1.9–3.3× H's frame, against the
+  1.3–3.0× derived above.
+* **Store levers, for the owner, not built.** The low deflated (Z) costs +0.23 to +0.36 % bytes. It takes
+  dav1d-WASM to 0.63–0.71× of its time (predicted 0.55–0.82) and leaves WebCodecs at 0.99–1.06×. Four tile columns
+  (T) cost +0.04 to +0.09 % bytes and take dav1d-WASM at 3 threads to 0.40–0.58× and WebCodecs to 0.49–0.77×. T is
+  for an ask only, on idle cores.
 
 ## Hardware decode
 
