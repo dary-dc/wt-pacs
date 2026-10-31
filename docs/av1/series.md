@@ -166,8 +166,8 @@ No vendor CS read here offers HTJ2K, and none offers Enhanced US Volume for brea
 ## 4. What "cine-like" could mean
 
 The owner's question, 2026-10-30: is cine-like "series that are consecutive through a single dim, like time"? This
-section gives the axes each series is ordered along, then three candidate definitions and what each implies. It does
-not choose. Read 2026-10-30: **research, not a measurement**. CT and MR stay on HTJ2K by the owner's 2026-10-05 list
+section gives the axes each series is ordered along, then three candidate definitions and what each implies; the
+owner adopted one on 2026-10-30 (§4c). Read 2026-10-30: **research, not a measurement**. CT and MR stay on HTJ2K by the owner's 2026-10-05 list
 (§3), which is the owner's choice, not a team decision. *Derived* marks this file's inference.
 
 **AV1's ceiling is 12 bits** [A1 §A.2, note]: "the Professional profile extends support over the High profile to
@@ -248,6 +248,12 @@ What each implies:
   interframe correlation is high enough" (Miaou, frame-groups [S13]); "the optimal dimensionality … is related to
   the magnitudes of the local correlation coefficients" [L2]. Measured, P is empty so far: G = 1 on every content type
   (frame-groups §1). So under P, AV1's case on any series rests today on its intra bytes, not on prediction (*derived*).
+
+**Adopted by the owner, 2026-10-30** (the owner's decision, not the team's): cine-like means frames ordered along one
+axis (time, depth, sweep or angle), breast imaging first, at most 12 bits a sample: **A**, bounded by family and
+depth. Inside it, how much neighbouring frames share, noise and speckle included (**P**), decides whether groups are
+worth testing. The bound on family keeps CT and MR out, which A alone could not. What falls inside:
+[`frame-groups.md`](frame-groups.md) §1.
 
 ## Sources (all fetched 2026-10-05, except §4's)
 

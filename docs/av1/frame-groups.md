@@ -2,8 +2,9 @@
 
 **Should AV1 code a series' frames in groups, each frame after a group's first predicted from the frame before it
 (G > 1), or code every frame alone (G = 1)?** For lossless, bit-exact delivery the answer is **G = 1 on every
-content type.** On DBT reconstructed slices that is a conclusion, reached by a rule fixed before the data. On breast
-ultrasound cine, ABUS and angiography it is a default: no data fit to test them is open.
+content type.** On DBT reconstructed slices it rests on the numbers: the best gain is +1.51 % on 1 of 15 volumes and
+every other volume is larger at every G > 1, while a group costs what §3 lists. On breast ultrasound cine and ABUS it
+is a default: no data fit to test them is open.
 
 This file owns the question: the decision (§1), the conditions it holds under (§2), how it was reached (§3), why
 (§4), what would reopen it (§5), what else G touches (§5a–§5e) and the sources (§6). The theory, predictions and review written before and just
@@ -18,13 +19,24 @@ source confirms is marked *unverified*.
 
 ## 1 · The decision
 
+**In scope**: cine-like series as the owner adopted it on 2026-10-30, frames ordered along one axis, breast imaging
+first, at most 12 bits a sample ([`series.md`](series.md) §4c). Inside it, how much neighbouring frames share, noise
+and speckle included, decides whether groups are worth testing.
+
 | content | decision | evidence | what would reopen it |
 | --- | --- | --- | --- |
-| DBT reconstructed slices | **G = 1, adopted: conclusive by the pre-stated rule** | row 100: 15 sound volumes, five from each of three reconstruction systems; best gain +1.51 % (libaom `good` 6) and +0.13 % (cpu0) against the 20 % the rule needs; every G > 1 4.6–24.6× over the decode bound at 4×. Before the protocol, rows 10 and 46 agree (four volumes, −5.4 to +3.7 %) | a sound series of a system not yet measured gaining ≥ 20 %, or an encoder exact on 10-bit tops whose groups gain ≥ 20 % and decode inside the bound (§5) |
-| DBT projections | **G = 1 by default, not tested by the rule** | row 21: two series, one per system, best +0.29 % on one and −0.2 to −1.0 % on the other; before the protocol; FOR PROCESSING views, outside the scope row 98 set | the owner puts projections in scope; then the protocol on ≥ 2 systems × ≥ 2 series |
+| DBT reconstructed slices | **G = 1, adopted** | row 100: 15 sound volumes, five from each of three reconstruction systems; best gain +1.51 % on 1 of 15 (`dbts_b3`, libaom `good` 6, G = 16), every other volume larger at every G > 1; cpu0 at most +0.13 %; at 4× a mid-group ask took 4.6–24.6× one HTJ2K decode plus the wire time its saved bytes buy (§3). Before the protocol, rows 10 and 46 agree (four volumes, −5.4 to +3.7 %) | a sound series of a system not yet measured, or an encoder exact on 10-bit tops, whose groups gain enough to outweigh what they cost (§3, §5) |
+| DBT projections, if displayed | **G = 1 by default, untested by the protocol** | row 21: two series, one per system, best +0.29 % on one and −0.2 to −1.0 % on the other; before the protocol; FOR PROCESSING views | the protocol on ≥ 2 systems × ≥ 2 series of displayed projections |
 | breast ultrasound cine | **G = 1 by default, untested**: no native, losslessly stored, commercially licensed cine is open (rows 94, 137, 149) | the one open cine is an MPEG-4 Part 2 clip (row 46: 0.53–0.56 of intra's bytes), which enters no verdict (row 94; §4, point 9) | ≥ 2 independent sources × ≥ 2 native B-mode cine series, the probe slow or still (§5) |
 | ABUS | **G = 1 by default, untested**: no ABUS volume is open in DICOM; the one set, in NRRD, is for its challenge only (rows 21, 137, 149) | none | ≥ 2 independent sources × ≥ 2 native ABUS volumes |
+| breast DCE-MRI, per phase or per slice position | **not assessed** | none coded at G > 1; its two axes, [`series.md`](series.md) §4b | the owner asks for it |
+
+**Outside the scope**, kept as context only:
+
+| content | decision | evidence | what would reopen it |
+| --- | --- | --- | --- |
 | angiography and fluoroscopy runs | **G = 1 by default, untested**: the one open set of native runs states no licence (row 149); the rest are exports or cut runs (row 137) | off-target only: a 2 frames/s barium fluoroscopy run, G = 2 0.04 % under intra at cpu0, every other G larger (row 6) | ≥ 2 independent sources × ≥ 2 native contrast runs, or a licence for row 149's set (one source) |
+| echocardiography | **not applicable**; G = 1 | none | the owner widens the scope |
 | MR and CT stacks | **not applicable**: outside the AV1 target series ([`series.md`](series.md); row 98); G = 1 | MR: every G > 1 1.4–2.7 % larger than intra at cpu0 (row 6); CT: no AV1 group coding (13 bits, row 7); HTJ2K-side, a reversible step across slice pairs ×0.960 on CT (row 213) | the owner adds them to the target series |
 | FFDM, synthesized 2D, ultrasound stills | **not applicable**: one frame an image, nothing to predict from ([S21]; [`series.md`](series.md) §1a) | — | — |
 
@@ -57,7 +69,8 @@ source confirms is marked *unverified*.
 * **The decode bound.** The cost of an ask that lands mid-group is the serial decode of the group's frames up to it,
   on average (G + 1)/2 frames. It must be no slower than one HTJ2K frame's decode plus the wire time, at 20 Mbit/s,
   of the bytes the group saves: through WebCodecs at a 4× CPU throttle, headless Chromium 141, the product's decoder
-  worker, n = 10 interleaved rounds (row 100).
+  worker, n = 10 interleaved rounds (row 100). 4× is a cgroup cap on every thread of the browser's process tree,
+  since Chromium's own throttle refuses workers ([`../decode/README.md`](../decode/README.md) §A slow CPU, emulated).
 * **The host.** A 4-core, 15 GB container, one decode at a time; not a phone, and nothing is claimed for concurrent
   asks.
 
@@ -75,24 +88,32 @@ Four steps, each its own queue row, so that the answer could not shape the quest
    reported numbers without being told which result was expected.
 4. **The review** (row 101 GOPREVIEW): each prediction against the numbers, and the rule applied (§T4a).
 
-### The rule, and why its thresholds
+### What a group costs, and the rule registered before the data
 
-For each content type, **G > 1 is adopted only if on every sound series the best G ≤ 16 is all three of** (a) at
+The verdict is the numbers of §1 against these costs. A group is not free: an ask decodes up to G frames instead of
+one, the fill runs in parallel only across groups, and a failed frame fails the rest of its group
+([`adr-unit.md`](adr-unit.md) §3, *Invariants this breaks*). The decode trade-off is wire time saved against decode
+added; its inputs are the bytes a group saves, the link's rate, and the serial decode of (G + 1)/2 frames on average
+against one HTJ2K frame. On DBT at 20 Mbit/s and 4× a mid-group ask took 4.6–24.6× one HTJ2K decode plus the wire
+time its saved bytes buy (row 100).
+
+*What was pre-registered*, kept as history ([`gop-protocol.md`](gop-protocol.md), `e9d247a`). Its value was fixing
+the reading before the data; its thresholds are not findings. *Corrected 2026-10-30:* the owner calls the 20 % "an
+arbitrary number that we were considering to represent an impactful gains of AV1 GOP>1 above AV1 with only
+keyframes. not a number that means anything for the discussion"; the same holds for the 0.80. For each content
+type, **G > 1 is adopted only if on every sound series the best G ≤ 16 is all three of** (a) at
 least 20 % fewer bytes than G = 1 at the shipped preset, every frame exact; (b) at most 0.80 of HTJ2K's bytes; (c) a
 mid-group ask inside the decode bound (§2). The answer is **conclusive** when ≥ 2 systems (DBT) or ≥ 2 independent
 sources (the other types), each with ≥ 2 series, land on the same side of the 20 % line with libaom, and SVT-AV1
 where exact does not cross it. A type with no sound data gets no decision and stays at G = 1 (protocol §5).
 
-* **Why a fifth.** A group is not free. An ask costs up to G serial decodes instead of one, the fill runs in parallel
-  only across groups, a failed frame fails the rest of its group, and the client carries the group's machinery
-  ([`adr-unit.md`](adr-unit.md) §3, *Invariants this breaks*). The bar was proposed in `adr-unit.md` §4 before any
-  number existed and kept for the protocol. It also stands clear of what a preset alone moves: between cpu0 and `good` 6 the
-  same frames' gain moves by up to 2.7 points (row 100) and 6.9 (row 46). No document records why a fifth rather than another
-  fraction; the bar is the owner's.
+* **Why a fifth.** The bar was proposed in `adr-unit.md` §4 before any number existed and kept for the protocol.
+  Between cpu0 and `good` 6 the same frames' gain moves by up to 2.7 points (row 100) and 6.9 (row 46).
+  *Corrected 2026-10-30:* this read "no document records why a fifth"; the owner has said it was arbitrary (above).
 * **Why against HTJ2K too.** HTJ2K is what ingest serves. A group that beats AV1's own intra but not HTJ2K changes
   nothing a reader receives.
-* **Why the decode clause.** The ask is the latency a reader feels. A group may not make it slower than today's HTJ2K
-  ask, once the bytes it saves are credited.
+* **Why the decode clause.** The ask is the latency a reader feels; it is the trade-off above, registered as a
+  pass/fail bound.
 * **Why two systems, two series and SVT-AV1.** So that neither one reconstruction system's noise nor one encoder's
   predictors decides for a whole type.
 
@@ -215,7 +236,7 @@ frames exact (row 100).
      which takes 1.009 of HTJ2K's bytes to libaom's 0.939; SVT-AV1's best group is still 5 % larger than libaom's
      intra (row 100).
 
-   The structure term is real, worth up to about 3 %, and an order of magnitude under the rule's 20 %.
+   The structure term is real, worth up to about 3 %, against what a group costs (§3).
 8. **Why breast ultrasound cine was predicted to gain.** B-mode speckle is the interference of echoes from many
    scatterers inside the beam [S19]: random over tissue, but fixed for a fixed tissue and probe position, so it
    behaves as structure that the next frame repeats. It decorrelates as the probe moves out of the scan plane,
@@ -254,19 +275,18 @@ frames exact (row 100).
   to change the verdict, since G ≥ 8 adds at most 0.39 points over G = 4 at `good` 6 and 0.45 at cpu0 (row 100), but
   they were not run.
 * **Encoder variants exact on one system's 8-bit tops only.** libaom with alt-ref on and SVT-AV1 inter are not
-  lossless on a 10-bit top. A release exact there is the first thing to re-run; their structure gains (≤ 3.2 %) are
-  still far under 20 %.
+  lossless on a 10-bit top. A release exact there is the first thing to re-run; their structure gains are ≤ 3.2 %.
 * **cpu0, SVT-AV1 and the plain representation ran on one volume a system** (`dbts_a1`, `dbts_b1`, `dbts_c1`).
-* **One host's decode.** The decode clause failed by 4.6–24.6×; a faster decoder would still leave the bytes clause
-  failed.
+* **One host's decode.** At 4× an ask took 4.6–24.6× what it would break even at; a faster decoder would leave the
+  bytes as they are, +1.51 % at best.
 * **The client.** dav1d-WASM fails every split group at G > 1: the low unit, decoded as a keyframe on the top's
   instance, flushes the top's references (row 100; reported, not fixed). Adopting G > 1 anywhere would need that
   fixed first.
 * **The scan arc** is recorded on system B only, so whether a narrower arc shares more noise (P3) is untested across
   systems.
 
-For DBT, what would reopen it is a sound series, of a system not yet measured, whose median ρ is over ½, or any
-coding that gains ≥ 20 % on a sound series.
+For DBT, what would reopen it is a sound series, of a system not yet measured, whose median ρ is over ½, or a coding
+on a sound series whose gain outweighs a group's costs (§3).
 
 ## 5a · What else G touches, and where it is written
 
@@ -286,7 +306,7 @@ source read confirms,* unverified.
 | loss and corruption inside a group | a failure fails the rest of its group: [`adr-unit.md`](adr-unit.md) §3 invariant 4; a truncated frame fails: [`../CLIENTS.md`](../CLIENTS.md#a-truncated-frame-is-a-failure) | a retransmitted frame holds back, and a broken one breaks, up to G − 1 frames; error-resilient mode only lets a frame parse alone ([S1] §6.8.2), its prediction still reads the broken reference (*derived*) |
 | the per-frame exactness check inside a group | no second path for a frame inside a group: [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8 | the digest still decides frame by frame; each later mismatch starts a second decode that fails for want of references, so at G > 1 a mismatch should fail the rest of its group by name (*inferred*; nothing to build at G = 1) |
 | energy on phones | [`../devices.md`](../devices.md) D5; nothing measured on a phone | a frame costs the same decode at any G (row 100's mean ask over (G + 1)/2 frames is 0.97–1.03 of G = 1's frame at 4×, *derived*), so a fill in order is predicted a tie and a cold ask costs (G − 1)/2 extra decodes |
-| late frames in a container | PR #179 and PR #185 | re-encoding a group dominates a late frame's cost; not redone here |
+| late frames in a container | PR #179 and PR #185; the owner, 2026-10-30: appended only, "we expect this case not to ever occur. We can assume it for now." | #179's mid-series re-encode of a group (about 9 s of CPU at G = 30) is for a frame inserted mid-series, outside the assumptions; appending a group that starts with a key frame and its sequence header re-encodes nothing (*derived*, §5c) |
 
 ## 5b · Sequential cine playback
 
@@ -302,7 +322,7 @@ rate: every frame is decoded anyway, so inter saves bits and costs nothing. Here
   key frame costs (§5a, *energy*).
 * **It gains the group's bytes only where the wire is the clock**: at most 1.5 % on DBT (§1).
 
-**Prediction** (native cine, untested, §5): where P8's ≥ 20 % holds, G > 1 shortens a wire-bound first pass by about
+**Prediction** (native cine, untested, §5): where a native cine gains, G > 1 shortens a wire-bound first pass by about
 its gain and lengthens a decode-bound one up to D× at G ≥ F. Total time to the whole loop at G ∈ {1, 8, F}, on
 wire-bound and decode-bound cells, would decide. Whether one decoder keeps up with a native cine's frame rate is
 unmeasured.
@@ -375,6 +395,11 @@ unmeasured.
   flush, which the sources do not give: a decoder may hold outputs until more input or a flush, and
   `optimizeForLatency` is a "SHOULD" hint ([S24] §1, §7.6). The flush buys a released frame and a checked key; the
   parse replaces only the second, so the prediction holds for Chromium 141 as measured, not by specification.
+  **Verdict, 2026-10-30 (*derived*):** at G = 1 the key parse, the OBU-size walk, the timestamp match, the stall timer
+  and the per-frame digest cover what the flush guards, and the flush adds no guarantee they lack. The remaining
+  risks are a series without digests, the digest's collision bound and unbounded liveness. Dropping it is a candidate
+  to build and measure under the protocol pre-registered in [`../decode/README.md`](../decode/README.md) §Safety
+  without the flush, from the specifications; not yet built.
 
 ## 5e · What a frame needs before it can be decoded
 
@@ -446,8 +471,8 @@ frame asked mid-group from a cold decoder; F frames, G a group.
 * **H3.** Decoding the closure only needs every header up to N parsed and the decoder to accept the units between
   removed. *Prediction:* parsing is under 1 % of *A* (*unverified*); acceptance is open (above) and decides whether H2's
   closure counts are reachable at all.
-* **H4.** Bytes. *Prediction:* no structure gains 20 % on DBT (§4's mechanism; row 100's ≤ 1.5 %), so the structure is
-  chosen by *A*, not by bytes.
+* **H4.** Bytes. *Prediction:* no structure gains more than a few percent on DBT (§4's mechanism; row 100's ≤ 1.5 %),
+  so the structure is chosen by *A*, not by bytes.
 
 ## The record before the data
 
@@ -606,7 +631,8 @@ claimed more than the mechanism gives. ρ itself is lower than §T3's geometry a
 at 4× by 4.6–24.6×. Two limits, both inside the rule: the codings saw 16 slices of each volume, and the encoder
 variants that gain (alt-ref on, SVT-AV1) are lossless only on system B's 8-bit tops. **Not conclusive for breast
 ultrasound cine, ABUS or angiography**: there is no sound data, so they stay G = 1 by default (rule 3) and the theory's
-largest claim, P8, is untested.
+largest claim, P8, is untested. *Corrected 2026-10-30:* the 20 % line is not a finding (§3); the DBT verdict stands
+on the numbers of §1.
 
 ## 6 · Sources
 

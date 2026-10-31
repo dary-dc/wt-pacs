@@ -754,7 +754,7 @@ names a later row on sound target data that has already decided the same questio
 
 | row | decision fed | rests on | weakness | since | class |
 | --- | --- | --- | --- | --- | --- |
-| 6 SIZE, 10 CONTENT, 46 BREAST (DBT half) | AV1 frame groups | fluoroscopy, MR, `us_liver` (6); two DBT volumes (10); four at G = 8, 16 (46) | off-target or lossy; one encoder, alt-ref off, few G | 100 GOPMEASURE: 15 sound volumes, G = 1 by its pre-stated rule (best inter gain +1.51 %; decode 4.6–24.6× over the bound) | critical, settled for DBT |
+| 6 SIZE, 10 CONTENT, 46 BREAST (DBT half) | AV1 frame groups | fluoroscopy, MR, `us_liver` (6); two DBT volumes (10); four at G = 8, 16 (46) | off-target or lossy; one encoder, alt-ref off, few G | 100 GOPMEASURE: 15 sound volumes, G = 1 (best inter gain +1.51 % on 1 of 15; an ask at 4× 4.6–24.6× its break-even, [`av1/frame-groups.md`](av1/frame-groups.md) §1) | critical, settled for DBT |
 | 46 BREAST (cine half), 28 LLSIZE ("inter pays on the ultrasound") | AV1 frame groups, ultrasound | `usb_cine` (MPEG-4 clip), `us_liver` | lossy-sourced: the gain is the clip's coding | none | **critical, open** (below) |
 | 80 GREY420 | ultrasound handling: the ingest keeps 4:0:0, Firefox needs 4:2:0 | `usb_cine`, `usb_still` only | lossy-sourced and unknown; no sound 8-bit grey series | none | **critical, open** |
 | 9 SPEED, 11 FILL (WebCodecs on 8 bits) | codec choice for 8-bit grey | `us_liver` alone | lossy-sourced, off-target | none for 8-bit grey | **critical, open** |

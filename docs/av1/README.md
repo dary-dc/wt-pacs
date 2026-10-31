@@ -39,8 +39,8 @@ Here it is lossless only, one frame a payload, in this project's own format. The
   HTJ2K on five of seven series in Chromium and Firefox) and HTJ2K wherever a slow CPU meets a fast link (Firefox
   1.33–2.53 at 4× on 50 Mbit). By the whole-round total-time measurement's rule (queue row TOTAL4) — AV1 only where it fills first in both engines on every cell —
   no series qualifies, and ingest keeps HTJ2K — §Total time.
-* **Frame groups: G = 1.** Inter coding does not pay on DBT, conclusively by a rule fixed before the data (15
-  volumes, best +1.51 %); cine, ABUS and angiography have no sound data — §Frame groups.
+* **Frame groups: G = 1.** Inter coding does not pay on DBT (15 volumes, best +1.51 % on one, every other
+  larger at every G > 1); cine and ABUS have no sound data — §Frame groups, [`frame-groups.md`](frame-groups.md) §1.
 * **Preview: measured, not adopted.** Whether a lossy picture may come first is the owner's ruling — §Preview.
 
 **Focus (owner, 2026-10-03): AV1 alone**, not combined with HTJ2K — that is what the coming real-time stack is expected to
@@ -1323,8 +1323,9 @@ or angiography is open. What was measured on DBT, and no more: libaom 3.15.1 alo
 it), a keyframe at exactly every G, two presets; G = 1, 2, 4, 8, 16 and whole on two volumes coded whole (the tomosynthesis measurement),
 G = 8 and 16 only on the k = 2 split (the breast-family measurement). "Inter does not pay" in this file means *on those volumes, at those
 settings*; whether it pays on DBT is asked again, theory first (the frame-group theory, measurement and review, queue rows GOPTHEORY, GOPMEASURE, GOPREVIEW). *Answered
-(the frame-group review): on DBT it does not, conclusively by the rule fixed before the data — 15 sound volumes from three
-systems, every series under the 20 % line (best +1.51 %), because adjacent slices share little noise (median ρ
+(the frame-group review): on DBT it does not — 15 sound volumes from three systems, the best gain +1.51 % on one and
+every other larger at every G > 1 (*corrected 2026-10-30*: this read "under the 20 % line", a bar that is not a
+finding, [`frame-groups.md`](frame-groups.md) §3), because adjacent slices share little noise (median ρ
 0.11–0.22, against the ½ inter needs); the encoder variants that gain at all (alt-ref on, SVT-AV1, up to +3.2 %) are
 lossless only on one system's 8-bit tops. Cine, ABUS and angiography stay open for want of sound data (the frame-group measurement
 below; the review is [`frame-groups.md`](frame-groups.md) §T4a).*
@@ -1332,9 +1333,11 @@ below; the review is [`frame-groups.md`](frame-groups.md) §T4a).*
 **Frame groups, to a rule fixed before the data (the frame-group measurement, 2026-10-08,
 [`lab/av1/bytes/frame-groups`](../../lab/av1/bytes/frame-groups/README.md)).** On the middle 16 slices of 15 sound DBT volumes, five
 from each of systems A, B and C, libaom `good` 6 with alt-ref off makes every G ≤ 16 larger than intra on 14 series;
-the one gain is +1.51 % (cpu0 on three series: at most +0.13 %), against the 20 % the rule asks. **DBT stays at
-G = 1, conclusively by the rule.** Alt-ref on and SVT-AV1 inter are not lossless on a 10-bit top; on system B's 8-bit
-streams they gain at most +3.19 % and +2.43 %. Every G > 1 also misses the rule's decode bound at 4×, and the client's dav1d-WASM path cannot
+the one gain is +1.51 % (cpu0 on three series: at most +0.13 %). **DBT stays at G = 1**, on those numbers against
+what a group costs ([`frame-groups.md`](frame-groups.md) §3; *corrected 2026-10-30*: this read "conclusively by the
+rule", whose 20 % is not a finding). Alt-ref on and SVT-AV1 inter are not lossless on a 10-bit top; on system B's 8-bit
+streams they gain at most +3.19 % and +2.43 %. At 4× ([`../decode/README.md`](../decode/README.md) §A slow CPU, emulated) an ask at every G > 1 also takes longer than one
+HTJ2K decode plus the wire time its saved bytes buy, and the client's dav1d-WASM path cannot
 decode a split series in groups at all (its low unit flushes the top's references). Breast
 ultrasound cine, ABUS and angiography runs have no sound data here and get no decision.
 

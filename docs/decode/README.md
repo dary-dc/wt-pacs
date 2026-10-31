@@ -1753,9 +1753,9 @@ not the decoder, so any wrong picture fails it whatever the input, but a 64-bit 
 without digests is unchecked (`client/decode/decoder.js:10`). Its cost is 0–15 % of a decode-bound fill (*ibid.* §3).
 
 **Verdict (*derived*).** At G = 1 the key parse, the OBU-size walk, the timestamp match, the stall timer then a
-flush, and the digest leave no input that shows a wrong picture, at 2⁻⁶⁴. Without the digest, a non-conforming unit
-escapes, and escapes the flush too. So the trade-off is not real: the flush adds no guarantee the parse lacks.
-Remaining risks: the digest's 2⁻⁶⁴ and a series without digests. Liveness is unbounded too, since neither
+flush, and the per-frame digest cover what the flush guards: no input shows a wrong picture, at 2⁻⁶⁴. Without the
+digest, a non-conforming unit escapes, and escapes the flush too. So the flush adds no guarantee these lack.
+Remaining risks: a series without digests, the digest's 2⁻⁶⁴, and liveness, unbounded since neither
 specification bounds the release of a frame or a `flush()`: `close()` "Immediately aborts all pending work"
 ([S24] §4.5), so a second timer that closes is the bound, and the client's flush after a stall
 (`client/decode/av1-webcodecs.js:98`) has none. The speed is Chromium 141's alone: an engine that holds each frame
@@ -1771,6 +1771,7 @@ with the checks, interleaved in each of 10 rounds, a fresh browser each, at 1× 
 Browsers: Chromium 141 and current, and Firefox and WebKit where their `VideoDecoder` decodes AV1 (§AV1 in WebKit
 and Firefox). Mutate each new check to fail. Decision: drop the flush if every mutation is caught in every browser
 and the no-flush arm is faster in at least 9 of 10 paired rounds at both throttles. Otherwise keep it, per browser.
+Dropping the flush is a candidate to build and measure under this protocol; nothing of it is built.
 
 ### A split payload through two decoders
 
