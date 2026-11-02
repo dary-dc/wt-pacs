@@ -73,6 +73,7 @@ async function decode(m) {
     if (exact) {
       const h = await (await dir.getFileHandle(String(m.index), { create: true })).createSyncAccessHandle();
       stored = h.write(bytes, { at: 0 }) === bytes.length;
+      stamps.written = abs();
       h.close();
     }
     stamps.decodeEnd = abs();

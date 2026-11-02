@@ -44,7 +44,7 @@ async function run(q) {
     return { samples, table, ...slotsOf(table), view: (s) => new Uint8Array(samples, s * frameBytes, frameBytes) };
   })() : null;
   const readBuffer = arm === "disk" ? new Uint8Array(frameBytes) : null;
-  const seen = { received: 0, exact: 0, inexact: 0, stored: 0, twice: 0, offRing: 0, waits: 0, waitedMs: 0, readMismatch: 0, staleTake: 0 };
+  const seen = { received: 0, exact: 0, inexact: 0, stored: 0, lastWrittenAt: 0, twice: 0, offRing: 0, waits: 0, waitedMs: 0, readMismatch: 0, staleTake: 0 };
   const arrivals = [];
   const errors = [];
   let fillMs = null;
@@ -74,6 +74,7 @@ async function run(q) {
     seen.received++;
     seen[m.exact ? "exact" : "inexact"]++;
     seen.stored += m.stored ? 1 : 0;
+    if (m.stored) seen.lastWrittenAt = Math.max(seen.lastWrittenAt, m.stamps.written);
     seen.waits += m.waits ?? 0;
     seen.waitedMs += m.waitedMs ?? 0;
     if (arm === "ring" && m.slot !== undefined) {
@@ -112,7 +113,7 @@ async function run(q) {
 
   function status() {
     say({ status: [`arm ${arm}`, `received ${seen.received}, exact ${seen.exact}, not exact ${seen.inexact}`, `on disk ${seen.stored}`,
-      fillMs !== null ? `fill ${Math.round(fillMs)} ms` : "filling", ...errors.slice(-1).map((e) => `error: ${e}`)].join(" · ") });
+      fillMs !== null ? `fill ${Math.round(fillMs)} ms` : "filling", ...errors.slice(-1).map((e) => `error: ${e}`)].join(" · "), lastWrittenAt: seen.lastWrittenAt });
   }
 
   const decoder = { ...(await built("openjph")), arm, key: q.wt, ...(ring && { ring: { samples: ring.samples, table: ring.table, slotBytes: frameBytes } }) };

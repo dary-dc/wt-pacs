@@ -9,10 +9,11 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
-def row(rnd, arm, growth=600, fill=10000, ask=0.5, step=0.5, **view):
+def row(rnd, arm, growth=600, fill=10000, ask=0.5, step=0.5, disk=None, lag=100, **view):
     v = dict(dict(readMismatch=0, stored=80, offRing=0, heldPeakMiB=0 if arm == "disk" else 234, backlogPeak=2,
                   asks=[dict(inHandMs=ask)] * 3, steps=[dict(ms=step)] * 3), **view)
-    return dict(round=rnd, arm=arm, growthMiB=growth, fillMs=fill, inexact=0, exact=80, second=dict(read=80, wrong=[]),
+    disk = fill if disk is None else disk
+    return dict(round=rnd, arm=arm, growthMiB=growth, fillMs=fill, diskMs=disk, diskSeenMs=disk + lag, inexact=0, exact=80, second=dict(read=80, wrong=[]),
                 view=None if arm == "today" else v)
 
 
@@ -34,6 +35,14 @@ def cell(disk=None, busy_ring2=600):
     return summary(main, busy)
 
 
+def trailing(today_lag=100):
+    """Every arm but ring misses on its own bar; ring's fill is 1.3 x today's to delivery and 0.9 x today's to the last frame on disk."""
+    main = [row(k, a, growth={"disk": 350, "transfer": 900, "transfer-k": 900, "today": 2800}.get(a, 600), fill=10000 if a == "today" else 13000,
+                disk=14400 if a == "today" else 13000, lag=today_lag if a == "today" else 100, **(dict(ask=30) if a == "disk" else {}))
+            for k in range(7) for a in ("ring", "ring2", "transfer", "transfer-k", "disk", "today")]
+    return summary(main)
+
+
 def last(out, prefix):
     return [l for l in out.splitlines() if l.startswith(prefix)][-1]
 
@@ -45,6 +54,8 @@ checks = {
     "disk at ring's times is chosen": (last(cell(), "M5 chromium:").endswith("chosen disk")),
     "busy credits are needed when ring' agrees": (last(cell(), "M5 busy chromium:").endswith("credits needed for transfer")),
     "busy ring' 100 MiB apart voids the credits": (last(cell(busy_ring2=700), "M5 busy chromium:").endswith("credits VOID")),
+    "the fill bar reads the last frame on disk, not the last delivered": last(trailing(), "M5 chromium:").endswith("chosen ring"),
+    "today's stamp off the rig's poll by 2 s leaves no fill bar": last(trailing(today_lag=2000), "M5 chromium:").endswith("returns to the owner"),
 }
 for name, ok in checks.items():
     print(("ok   " if ok else "FAIL ") + name)

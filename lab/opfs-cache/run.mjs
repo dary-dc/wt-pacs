@@ -101,6 +101,11 @@ const ACK_PUMPS = ["return void (m.gen === generation && records.delete(m.index)
 /** The fill's last frame fails once its decoder holds a slot: a test of the release, not a mutant. */
 const THROWS_AFTER_SLOT = ["    if (exact) {", `    if (m.index === 78) throw new Error("throws-after-slot");\n    if (exact) {`];
 
+/** `today`'s page keeps its store's last write as `lastWrittenAt`, the arms' reading, and shows each write as it lands. */
+const PAGE_STORED = "store?.write(f.frameIndex, f.info).then((r) => r.written && (stored.add(f.frameIndex), trim()));";
+const PAGE_SHOWS_WRITES = PAGE_STORED.replace("trim()", "status(), trim()");
+const PAGE_KEEPS_WRITTEN_AT = PAGE_STORED.replace("trim()", "(globalThis.lastWrittenAt = r.writtenAt), status(), trim()");
+
 /** The rig's stand-ins for the product's files, served in their place: the store switched off, and the mutants. */
 const STAND_INS = {
   off: { file: "client/viewer/store.js", body: () => `onmessage = ({ data }) => postMessage({ id: data.id, error: "off" });` },
@@ -115,6 +120,9 @@ const STAND_INS = {
   "fresh-when-dry": { file: "lab/opfs-cache/arms-decoder.js", from: `dry.postMessage("dry");\n    ring.waitFree(seen);`,
     to: "return { bytes: new Uint8Array(new SharedArrayBuffer(ring.slotBytes)), waits, waitedMs: 0 };" },
   "disk-keeps-frames": { file: "lab/opfs-cache/arms-decoder.js", from: `into.slot === undefined && arm !== "disk" ?`, to: "into.slot === undefined ?" },
+  "written-at": { file: "client/viewer/store.js", from: "  return { written: true };", to: "  return { written: true, writtenAt: performance.timeOrigin + performance.now() };" },
+  "written-at-page": { file: "client/viewer/viewer.js", from: PAGE_STORED, to: PAGE_KEEPS_WRITTEN_AT },
+  "written-at-delivery": { file: "client/viewer/viewer.js", edits: [[PAGE_STORED, PAGE_SHOWS_WRITES], ["  delivered++;\n", "  delivered++;\n  globalThis.lastWrittenAt = at();\n"]] },
   "throws-after-slot": { file: "lab/opfs-cache/arms-decoder.js", edits: [THROWS_AFTER_SLOT] },
   "throws-slot-kept": { file: "lab/opfs-cache/arms-decoder.js", edits: [THROWS_AFTER_SLOT, ["if (into?.slot !== undefined) ring.free(into.slot);", ""]] },
 };
@@ -170,7 +178,8 @@ const statusOf = (text) => ({
 async function fill(b, s, wt, { deadlineS = 1800, until, url = viewerUrl(s, wt) } = {}) {
   const t0 = Date.now();
   const cached0 = cached();
-  let st = statusOf(""), peak = 0, lastSample = 0, cachedPeak = 0;
+  let st = statusOf(""), peak = 0, lastSample = 0, cachedPeak = 0, diskSeenMs = null;
+  const seen = () => diskSeenMs ??= st.onDisk >= s.n ? Date.now() - t0 : null;
   try {
     await b.page.goto(url);
   } catch (e) {
@@ -181,6 +190,7 @@ async function fill(b, s, wt, { deadlineS = 1800, until, url = viewerUrl(s, wt) 
     if (Date.now() - lastSample >= 1000) { peak = Math.max(peak, treePss(b.pid)); cachedPeak = Math.max(cachedPeak, cached() - cached0); lastSample = Date.now(); }
     if (available() < 1536) return { ...st, peakPssMiB: peak, stoppedBy: "host saturated: under 1536 MiB available" };
     st = statusOf(await b.page.evaluate(STATUS).catch(() => st.text));
+    seen();
     if (until?.(st)) return { ...st, peakPssMiB: peak, stoppedBy: "until" };
     if (st.fillMs !== null || /^connect/.test(st.error ?? "")) break;
   }
@@ -190,9 +200,10 @@ async function fill(b, s, wt, { deadlineS = 1800, until, url = viewerUrl(s, wt) 
     await sleep(100);
     peak = Math.max(peak, treePss(b.pid));
     st = statusOf(await b.page.evaluate(STATUS));
+    seen();
     still = st.onDisk === last ? still + 1 : 0;
   }
-  return { ...st, peakPssMiB: peak, pageCacheGrowthMiB: cachedPeak, wallS: (Date.now() - t0) / 1000 };
+  return { ...st, peakPssMiB: peak, pageCacheGrowthMiB: cachedPeak, wallS: (Date.now() - t0) / 1000, diskSeenMs };
 }
 
 /** The viewer's store worker lets go of the series' lock some time after its page is gone, so a held lock is waited out. */
@@ -423,7 +434,7 @@ const M5_ARMS = {
   transfer: { query: { arm: "transfer" } },
   "transfer-k": { query: { arm: "transfer", credits: K }, standIns: ["credits"] },
   disk: { query: { arm: "disk" } },
-  today: { today: true },
+  today: { today: true, standIns: ["written-at", "written-at-page"] },
 };
 
 /** M5 as amended, before any data: docs/adr/frame-path.md §Who owns a frame's memory, M5 amended. */
@@ -457,11 +468,13 @@ async function m5(busy) {
       const cpu = busyShare(before, cpuBusy());
       const settled = (p) => Promise.race([b.page.evaluate(p), sleep(10000).then(() => ({ error: "no answer in 10 s" }))]);
       const view = a.today ? null : await settled(() => globalThis.armsResult).catch((e) => ({ error: e.message }));
+      // The fill's time: navigation to the last frame written, as the page's writers stamped it. docs/adr/frame-path.md, M5's fill bar, amended
+      const diskMs = f.onDisk === s.n ? await settled(() => globalThis.lastWrittenAt - performance.timeOrigin || null).catch(() => null) : null;
       const second = a.today || f.exact !== s.n ? null : await settled(() => globalThis.verify()).catch((e) => ({ error: e.message }));
       await b.context.close();
       putBack();
       drop(dir);
-      write({ cell: busy ? "m5-busy" : "m5", engine: ENGINE, round, arm, mutant: MUTANT || null, baselineMiB: baseline, growthMiB: f.peakPssMiB - baseline, cpuBusy: cpu, ...f, view, second });
+      write({ cell: busy ? "m5-busy" : "m5", engine: ENGINE, round, arm, mutant: MUTANT || null, baselineMiB: baseline, growthMiB: f.peakPssMiB - baseline, cpuBusy: cpu, ...f, diskMs, view, second });
     }
   }
 }

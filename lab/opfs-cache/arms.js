@@ -6,6 +6,7 @@ const waiting = (k) => new Promise((resolve) => (settle[k] = resolve));
 globalThis.armsResult = waiting("result");
 view.onmessage = ({ data }) => {
   if (data.status) statusEl.textContent = data.status;
+  if (data.lastWrittenAt) globalThis.lastWrittenAt = data.lastWrittenAt;
   if (data.result) settle.result(data.result);
   if (data.verified) settle.verified(data.verified);
 };
