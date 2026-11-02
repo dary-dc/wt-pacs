@@ -153,6 +153,8 @@ port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 m
   as one run where it ascends `askDepth` (4) frames or more with nothing else owed, otherwise as up to `askDepth`
   asks, topped up as each lands. A want whose head a running run does not serve next ends the run with the head's
   ask; the run's frames not yet here are asked again once an ask lands behind it.
+* **What to want** — fill a series whole or hold a window around the reader, chosen by the series' decoded size
+  against the device's memory — is proposed, theory only, in [`adr/asking-policy.md`](adr/asking-policy.md).
 * **Closure**: a session that dies is resumed (§Session survival); a command after a closure re-dials.
 * **Memory.** The wire buffer is a ring of `decoders × perDecoder + 2`: **−19.2 MB of renderer peak on
   an 87-frame 16-bit fill, 8 of 8 rounds**, the fill's clock unmoved ([`decode/README.md`](decode/README.md)
