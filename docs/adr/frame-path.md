@@ -3759,19 +3759,42 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 
 **Settings.** Each is printed with the arm it ran in; a default changes only when its rule says so.
 
-| setting | default (today's) | other values | decided by | status 2026-10-30, 03:00 UTC |
+| setting | default (today's) | other values | decided by | status 2026-11-02 |
 | --- | --- | --- | --- | --- |
-| `?view=` | `page` | `worker` | §7's rule (B′), #229 | **run (#263): "A stays — `?view=page` remains the core's default"**; B′'s quiet first frame later by ≥ 16.7 ms in five decided cells, no decided cell with its asks sooner (§7). Against main (#261): "`?view=worker`: not judged; both runs point the other way" (§*The core against main, timed*). **Its start, timed (#276):** B′'s quiet delay is all before the first byte — the view worker's boot ahead of the downloader's `start`, and on the mammogram one round trip more — behind A in five of eight decided 1× cells, throughput tied in all six multi-frame cells. **With the fix** (`pageDials`, `viewWorkerFirst`, `shortRuns`, lab settings, defaults off): **"does not tie A"** — behind in one decided cell, Chromium tomosynthesis by 21 ms, tied in the other three decided; four cells VOID. At 4×, again **"does not tie A"**: behind in the Firefox mammogram by 188 ms, where the two workers' boots overlap (inferred), tied in the other three decided (§7, *The view worker's start, timed*) *2026-10-31, the cine cell re-measured (#275):* §7's Firefox draw wait was the paint's one-pixel read; settled by a fence, B′'s busy cine is 0 % late on both engines where A's misses 20–22 % (§7, *The pixel read under a busy page*). No product paint settles now. The verdict stands |
+| `?view=` | `page` | `worker` | §7's rule (B′), #229 | **run (#263): "A stays — `?view=page` remains the core's default"**; B′'s quiet first frame later by ≥ 16.7 ms in five decided cells, no decided cell with its asks sooner (§7). Against main (#261): "`?view=worker`: not judged; both runs point the other way" (§*The core against main, timed*). **Its start, timed (#276):** "B′ is behind A" on latency in five cells, tied on throughput in all six multi-frame cells; the delay is all before the first byte — the view worker's boot ahead of the downloader's `start`, and on the mammogram one round trip more. **With the fix** (`pageDials`, `viewWorkerFirst`, `shortRuns`, lab settings, defaults off): "B′ with the fix does not tie A" — "behind A: Chromium tomosynthesis 1× first", +21 ms; at 4× "behind A: Firefox mammogram 4× first", +188 ms (§7, *The view worker's start, timed*). **Corrected 2026-10-31 (#275):** §7's Firefox draw wait was our one-pixel read — "the wait was the read" in both decided Firefox cells; settled by a fence, "B′ keeps cine on time where A misses", on both engines (§7, *The pixel read under a busy page*). §7's verdict stands |
 | `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | **not run (#266): "Verdict: not run; `span` stays 0"** — the review finds the rule unmeetable on the model (S 1.90–1.96× A against ≤ 0.6×); removing `span` and `holdEveryOther` is the owner's (§Experiment 1: not run) |
-| `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | **running (#265), 2 of 12 rounds pushed; no verdict recorded.** From the rows, not the run's verdict: `wait-ahead-summary.mjs` over rounds 0–1 gives "undecided: no live, decided cell" — every cell under its 10 kept visits an arm |
+| `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | **run (#265): "Verdict: k\* = 8, adopt k = 8, by the rule as fixed"; the default left to the owner** (§Experiment 2, *The default*): 12 of 12 rounds on every decided CT cell, both engines; DBT undecided at k = 8 |
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | answered by M5: `transfer` misses the memory bar on both engines (Firefox: "misses the memory and fill bars") |
 | frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241; Firefox re-run, #264 | **run on both engines (#264): "none qualifies on Firefox, so none on both engines: lever 2 returns to the owner. Chromium's verdict stands: `ring`."** Credits not shown needed; *How the ring works* written for the owner |
-| `?writer=`, who writes the OPFS cache | `none`: no cache, as main | `store`, `decoders`, `view` | OPFS arms, #227/#242; #244 | **running (`claude/opfs-arms-run`, its Firefox cells); no verdict recorded.** From the rows, not the run's verdict: `summary.mjs` gives Chromium "no arm passes: to the owner as measured (10 of 20 cells counted)" — D fails only rule 3, its clock at 512² 4× (2.12 ms against a 14.6 ms decode); A paint first unbounded at 3328 1×; C late in four cells. Firefox 4 cells so far (2 counted), none passes; the mutant *write-before-paint* not caught on Chromium's A paint first |
-| frame clock | the page's timer | worker rAF, timer to a schedule, `MessageChannel`, `Atomics.wait` | #225 | harness built (#249) and smoked: the guard saturates every cell but 512² at 30/s, quiet, 1×; the run not started (`claude/core-clock` held back for the usage limit) |
+| `?writer=`, who writes the OPFS cache | `none`: no cache, as main | `store`, `decoders`, `view` | OPFS arms, #227/#242; #244 | **run on Chromium 153 and Firefox 159 (`claude/opfs-arms-run`): "no arm passes on either engine, so the result goes to the owner as measured"** (§Arm D, Results). Chromium's D fails only rule 3, its clock at S1 4×; Firefox's D fails rules 2 and 3 |
+| frame clock | the page's timer | worker rAF, timer to a schedule, `MessageChannel`, `Atomics.wait` | #225 | harness built (#249) and smoked: the guard saturates every cell but 512² at 30/s, quiet, 1×; the run not started |
 | receive loop, the downloader in the view worker | its own worker | merged | #237 | rig in `lab/recv-loop` only; needs a GPU host |
 | native `--paint-thread`; `--credits`, `--budget` | `ui` | `view`, `core`; `K` 4, 64 MiB | NATIVERUN, #247 | built and reviewed (#253); the run's own pieces not built |
 
 Each run writes its verdict in its own section.
+
+**Waiting on the owner** (2026-11-02; the evidence is each row's section):
+
+1. *`waitAhead`'s default:* Experiment 2's rule adopts k = 8; flipping the code's default is the owner's merge.
+2. *M5's ring:* by the rule lever 2 returns to the owner. Recommended, before building it in: pre-register the fill bar
+   measured to the last frame on disk in every arm (Firefox's compared different ends) and re-run Firefox. If `ring`
+   then qualifies on both engines, building it in is structural and proposed for review first (*What building it into
+   the core would change*).
+3. *The default view:* `page`, as §7 and #261 agree. The start's fix does not tie A, so no later `worker`-against-`page`
+   run is queued.
+4. *`span` and `holdEveryOther`:* the review advises removing both, code no rule will turn on by the model; the other
+   path is its one-cell check of the model's sign first (`us_liver`, `r20000`, 46 ms, Chromium, 3 rounds).
+5. *The cache's writer:* no arm passes on either engine. Whether rule 3's 0.10 × decode was the right bar is a new
+   pre-registration, not a re-reading. The Results do not say whether Firefox's BiDi start hang (§*Firefox's fills that
+   never start*) touched its Firefox rows, which came from the BiDi driver; not checked.
+6. *Carried:* #250's relayed scope; the cine fix (#251), to redo on the core's controller; M1–M4 re-run under
+   `?view=worker&writer=store` or recorded unbacked; the GPU runs this container cannot claim (#206, #214, #237, every
+   presented-on-time claim); native's #211 (does a tie inside the A/A close step 1) and #209 (a cache write error
+   aborts the fill).
+
+**What runs next:** the frame-clock run (#225's protocol, on a branch from `claude/core`), at a usage window's start;
+on this container only the 512² 30/s quiet 1× cells can be claimed, and the protocol is amended before data if it
+cannot decide as written.
 
 *The cache's default.* The owner decided an OPFS client cache on 2026-10-10 (§1), but main has none, so `none` keeps
 main's behaviour; turning it on is the owner's call, not this branch's. The cache is the frame store's alone: #212's
