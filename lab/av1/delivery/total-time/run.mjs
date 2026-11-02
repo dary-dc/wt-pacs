@@ -10,7 +10,8 @@
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs [--rounds 10] [--first-round 0]
  *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--engines chromium,firefox] [--sets a,b] [--variants a,b]
  *     [--fill N --asks-after K] [--frames lab/.av1-work/total] [--orders seq,prio] [--mutate sample|truth|digest] [--out rows.jsonl]
- *     [--cc-trace DIR] [--one-way-ms 20] [--summary [--ref htj2k]] [--bin DIR --serve TREE] [--per-frame]
+ *     [--cc-trace DIR] [--one-way-ms 20] [--summary [--ref htj2k]] [--bin DIR --serve TREE] [--per-frame] [--stall-ms N]
+ *   --links none: no rate limit, the relay only delaying; --mutate middle-exact|keep-base|keep-middle: the layered worker's own
  */
 import { spawn, execFileSync } from "node:child_process";
 import { appendFileSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -40,6 +41,9 @@ const REF = arg("--ref", "htj2k");
 const ORDERS = arg("--orders", "seq").split(",");
 /** Every frame's exact and preview times in each row, for a scroll read off the fill (lab/av1/delivery/scalable/tool). */
 const PER_FRAME = process.argv.includes("--per-frame");
+/** The layered worker's WebCodecs stall bound, when not its own (lab/av1/delivery/scalable/tool). */
+const STALL_MS = arg("--stall-ms", null);
+const WORKER_MUTATIONS = ["middle-exact", "keep-base", "keep-middle"];
 const ROOT = new URL("../../../..", import.meta.url).pathname;
 const T = mkdtempSync(path.join(tmpdir(), "av1-total-"));
 const port = () => 20000 + ((Math.random() * 25000) | 0);
@@ -68,6 +72,7 @@ function link(name, impairment = "clean") {
   const loss = impairment[0] === "l" ? Number(impairment.slice(1)) : 0;
   const jitter = impairment[0] === "j" ? ["--jitter-ms", impairment.slice(1), "--jitter-mode", "ordered"] : [];
   if (impairment !== "clean" && !loss && !jitter.length) throw new Error(`unknown impairment ${impairment}`);
+  if (name === "none") return [ONE_WAY, ["--rate-kbit", "0"]];
   // Row NETRULES' cells: 23 ms one way and a 650 ms FIFO, so a fill that fills it sees a ~0.7 s RTT.
   if (name.startsWith("n")) return [23, ["--rate-kbit", name.slice(1), "--queue-ms", "650", ...(loss ? ["--loss", String(loss)] : []), ...jitter]];
   if (name.startsWith("r")) return [ONE_WAY, ["--rate-kbit", name.slice(1), "--queue-pkts", "200", ...(loss ? ["--loss", String(loss)] : []), ...jitter]];
@@ -114,13 +119,15 @@ function variantOf(set, name) {
   }
   const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
     ...(a.rct && { rct: true }), ...(a.mixed && { mixed: true }), ...(a.layers && { layers: a.layers, frames: set.frames }),
-    ...(a.exactAt && { exactAt: a.exactAt }) };
+    ...(a.exactAt && { exactAt: a.exactAt }), ...(a.middleAt && { middleAt: a.middleAt }), ...(a.ranges && { ranges: a.ranges }),
+    ...(STALL_MS && { stallMs: Number(STALL_MS) }), ...(WORKER_MUTATIONS.includes(MUTATE) && { mutate: MUTATE }) };
   // A two-layer series whose exact layer starts at entry `exactAt` > F, so its groups align; the entries between are never shown.
-  const entries = a.exactAt ? a.exactAt + set.frames : set.frames * (a.layers ?? 1);
+  // A series naming its layers' entries (`ranges`) is filled over exactly those.
+  const entries = a.ranges ? Math.max(...a.ranges.map(([at, n]) => at + n)) : a.exactAt ? a.exactAt + set.frames : set.frames * (a.layers ?? 1);
   // A layer-major series decodes in lab/av1/delivery/bases-first' worker: the product's has no base entry.
   const worker = a.layers ? { decoderWorker: a.worker ?? "/lab/av1/delivery/bases-first/decoder.js" } : a.worker && { decoderWorker: a.worker };
-  return { ext, entries, fill: a.exactAt && 2 * set.frames, viewer: a.viewer, opts: { decoder, ...worker, ...(a.group && { groupLength: a.group, frameCount: entries }), ...(a.digests && { digests: a.digests }) },
-    truth: a.truth, previewTruth: a.previewTruth, congestion: a.congestion };
+  return { ext, entries, fill: a.ranges ? a.ranges.reduce((n, [, k]) => n + k, 0) : a.exactAt && 2 * set.frames, viewer: a.viewer, lossy: a.lossy, opts: { decoder, ...worker, ...(a.group && { groupLength: a.group, frameCount: entries }), ...(a.digests && { digests: a.digests }) },
+    truth: a.truth, previewTruth: a.previewTruth, middleTruth: a.middleTruth, middleAt: a.middleAt, congestion: a.congestion };
 }
 
 const sets = readdirSync(path.join(ROOT, FRAMES)).filter((d) => existsSync(path.join(ROOT, FRAMES, d, "variants.json")))
@@ -287,6 +294,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   const flip = (t) => (MUTATE === "truth" ? t.replace(/^./, (c) => (c === "0" ? "1" : "0")) : t);
   const truth = (a.truth ?? set.truth).map(flip);
   const previewTruth = a.previewTruth?.map(flip);
+  const middleTruth = a.middleTruth?.map(flip);
   const srv = port();
   const relayPort = port();
   const ccTrace = CC_TRACE && path.resolve(CC_TRACE, `${round}-${linkName}-${impairment}-${throttle}x-${variant}.jsonl`);
@@ -342,7 +350,8 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     const exact = r.after.filter((f) => r.sha[f.i] === truth[f.i]).length;
     return { ...row, frames: 0, failures: r.failures.length, failure: r.failures[0]?.reason, exact, afterMs: r.after.map((f) => Math.round(f.ms)) };
   }
-  if (!r?.frames.length) return { ...row, frames: 0, exact: 0, failure: r?.failures[0]?.reason };
+  if (!r?.frames.length && !(a.lossy && r?.previews?.length)) return { ...row, frames: 0, exact: 0, failure: r?.failures[0]?.reason };
+  if (a.lossy) return { ...row, ...lossyRow(r, set, previewTruth, middleTruth, a.middleAt), ...pool(r.previews, threads) };
   const t = (k, f) => f(...r.frames.map((x) => x[k])) - r.issuedAt;
   // A frame's first picture: its base when one came before its exact frame.
   const shown = new Map(r.frames.map((f) => [f.i, f.page]));
@@ -352,7 +361,8 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     previews: r.previews.length,
     strays: r.frames.filter((f) => !(f.i >= 0 && f.i < set.frames)).length,
     late: r.previews.filter((p) => p.late).length,
-    previewExact: r.previews.filter((p) => r.previewSha[p.i] === previewTruth?.[p.i]).length,
+    previewExact: r.previews.filter((p) => p.layer !== "middle" && r.previewSha[p.i] === previewTruth?.[p.i]).length,
+    ...(middleTruth && { middleExact: r.previews.filter((p) => p.layer === "middle" && r.previewSha[a.middleAt + p.i] === middleTruth[p.i]).length }),
     firstMs: Math.round(Math.min(...shown.values()) - r.issuedAt),
     firstExactMs: Math.round(t("page", Math.min)),
     shownMs: Math.round(Math.max(...shown.values()) - r.issuedAt),
@@ -377,7 +387,42 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     usefulMs: Math.round(Math.max(...need.map((i) => shown.get(i) ?? Infinity)) - r.issuedAt),
     ...previews,
     ...(PER_FRAME && { exactMs: framesMs(r.frames.map((f) => [f.i, f.page]), r.issuedAt, set.frames),
-      previewMs: framesMs((r.previews ?? []).filter((p) => !p.late).map((p) => [p.i, p.page]), r.issuedAt, set.frames) }),
+      previewMs: framesMs((r.previews ?? []).filter((p) => !p.late && p.layer !== "middle").map((p) => [p.i, p.page]), r.issuedAt, set.frames),
+      ...layered(r, set) }),
+  };
+}
+
+/** Per layer, each frame's time on the page and decode ms (decodeEnd − decodeStart) and the exact frames' paths. */
+function layered(r, set) {
+  const previews = (layer) => (r.previews ?? []).filter((p) => (p.layer ?? "base") === layer);
+  const ms = (list, f) => { const out = Array(set.frames).fill(null); for (const x of list) if (x.i >= 0 && x.i < set.frames) out[x.i] = f(x); return out; };
+  const out = {
+    exactDecodeMs: ms(r.frames, (f) => (f.end > f.start ? +(f.end - f.start).toFixed(2) : null)),
+    exactPath: ms(r.frames, (f) => f.path ?? null),
+    lastByteMs: Math.round(Math.max(...[...r.frames, ...(r.previews ?? [])].map((f) => f.lastByte ?? f.page)) - r.issuedAt),
+    wireBytes: [...r.frames, ...(r.previews ?? [])].reduce((n, f) => n + (f.wireBytes ?? 0), 0),
+  };
+  for (const layer of ["base", "middle"]) {
+    const list = previews(layer);
+    if (!list.length) continue;
+    out[`${layer}Ms`] = ms(list.filter((p) => !p.late), (p) => Math.round(p.page - r.issuedAt));
+    out[`${layer}DecodeMs`] = ms(list, (p) => (p.end > p.start ? +(p.end - p.start).toFixed(2) : null));
+  }
+  return out;
+}
+
+/** A lossy-only series: its previews are its pictures, checked against native dav1d; nothing is owed exact. */
+function lossyRow(r, set, previewTruth, middleTruth, middleAt) {
+  const base = r.previews.filter((p) => p.layer !== "middle");
+  const middle = r.previews.filter((p) => p.layer === "middle");
+  return {
+    frames: 0, exact: 0, owed: 0, failures: r.failures.length, failure: r.failures[0]?.reason, previews: r.previews.length,
+    strays: r.frames.length, late: 0,
+    previewExact: base.filter((p) => r.previewSha[p.i] === previewTruth[p.i]).length,
+    ...(middleTruth && { middleExact: middle.filter((p) => r.previewSha[middleAt + p.i] === middleTruth[p.i]).length }),
+    firstMs: Math.round(Math.min(...r.previews.map((p) => p.page)) - r.issuedAt),
+    shownMs: Math.round(Math.max(...base.map((p) => p.page)) - r.issuedAt),
+    ...(PER_FRAME && layered(r, set)),
   };
 }
 

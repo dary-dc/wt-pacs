@@ -6,7 +6,8 @@ payload. HTJ2K and its prefix are lab/av1/decode/resolution-level's: its make_fr
 set yet, then prefix.mjs on OUT, then this again.
 A base unit's truth is the hash of native dav1d's decode of the bases at operating point 1.
 
-usage: make_frames.py BUILD SHIPPED WORK OUT SET_DIR ... --alone SHAPE[,SHAPE] --predicted SHAPE[,SHAPE]   — lab/av1/delivery/scalable/tool/README.md
+usage: make_frames.py BUILD SHIPPED WORK OUT SET_DIR ... --alone SHAPE[=NAME],… --predicted SHAPE[=NAME],…
+       [--lossy-base SHAPE=NAME,…] [--lossy-middle SHAPE=NAME,…]   — lab/av1/delivery/scalable/tool/README.md
 """
 import argparse
 import hashlib
@@ -37,13 +38,14 @@ SCREEN = 850
 KEY = 8
 
 
-def bases(build, stream, work, n):
+def bases(build, stream, work, n, oppoint=1):
+    """A lower layer's units and the hash of native dav1d's decode of them at their operating point."""
     units = ivf_units(stream.read_bytes())
     if len(units) != n:
         sys.exit(f"{stream}: {len(units)} base units, {n} frames")
     (work / "bases.obu").write_bytes(b"".join(units))
     subprocess.run([build / "dav1d/bin/dav1d", "-q", "-i", work / "bases.obu", "-o", work / "b.y4m", "--alllayers", "0",
-                    "--oppoint", "1"], check=True, capture_output=True, env={"LD_LIBRARY_PATH": str(build / "dav1d/lib")})
+                    "--oppoint", str(oppoint)], check=True, capture_output=True, env={"LD_LIBRARY_PATH": str(build / "dav1d/lib")})
     truth = [hashlib.sha256(p[0].tobytes()).hexdigest() for p in svc.read_y4m(work / "b.y4m")]
     (work / "b.y4m").unlink()
     return units, truth
@@ -71,15 +73,27 @@ def predicted_low(build, s, dst, tmp, coding):
     return low, [hashlib.sha256(padded(s, i).tobytes()).hexdigest() for i in range(s.n)]
 
 
-def write_layer_major(dst, name, bases_, exact, exact_at):
-    """Entry i the base, entry exact_at + i the exact payload, one-byte fillers between; the bytes a fill asks."""
-    for i, unit in enumerate(bases_):
-        (dst / f"{i:03d}.{name}").write_bytes(unit)
-    for i in range(len(bases_), exact_at):
-        (dst / f"{i:03d}.{name}").write_bytes(b"\0")
-    for i, unit in enumerate(exact):
-        (dst / f"{exact_at + i:03d}.{name}").write_bytes(unit)
-    return sum(map(len, bases_)) + sum(map(len, exact))
+def write_layer_major(dst, name, bases_, exact, exact_at, middles=(), middle_at=None):
+    """Entry i the base, entry middle_at + i the middle, entry exact_at + i the exact payload, one-byte fillers
+    between; the bytes a fill asks."""
+    layers = [(0, bases_), (middle_at, middles), (exact_at, exact)]
+    entries = {at + i: unit for at, units in layers if units for i, unit in enumerate(units)}
+    for i in range(max(entries) + 1):
+        (dst / f"{i:03d}.{name}").write_bytes(entries.get(i, b"\0"))
+    return sum(map(len, entries.values()))
+
+
+def named(arg):
+    """SHAPE or SHAPE=NAME, each comma-separated: (shape, variant name or None)."""
+    return [tuple(x.split("=")) if "=" in x else (x, None) for x in arg.split(",")] if arg else []
+
+
+def prefix_check(stream, units, above, tmp, what):
+    for i, unit in enumerate(ivf_units(stream.read_bytes())):
+        (tmp / "u.obu").write_bytes(unit)
+        drop_top(tmp / "u.obu", tmp / "b.obu", above)
+        if (tmp / "b.obu").read_bytes() != units[i]:
+            sys.exit(f"{stream} {i}: the unit's prefix is not the encoder's {what} unit")
 
 
 def main():
@@ -88,8 +102,11 @@ def main():
         ap.add_argument(k, type=Path)
     ap.add_argument("sets", type=Path, nargs="+")
     ap.add_argument("--alone", default="two-quarter-q40")
-    ap.add_argument("--predicted", default="")
+    ap.add_argument("--predicted", default="", help="SHAPE[=NAME],…; three-full-* shapes are three layers")
+    ap.add_argument("--lossy-base", default="", help="SHAPE=NAME,…: a predicted shape's bases alone, nothing exact after")
+    ap.add_argument("--lossy-middle", default="", help="SHAPE=NAME,…: a three-layer shape's bases and middles alone")
     a = ap.parse_args()
+    a.lossy_base, a.lossy_middle = dict(named(a.lossy_base)), dict(named(a.lossy_middle))
     build, shipped, work, out = (p.resolve() for p in (a.build, a.shipped, a.work, a.out))
     for d in a.sets:
         s = Set(d)
@@ -108,25 +125,45 @@ def main():
         exact_at = -(-s.n // KEY) * KEY
         layout = dict(layers=2, group=KEY, exactAt=exact_at, worker="/lab/av1/delivery/scalable/tool/decoder.js")
         tmp = dst.parent / f".{s.name}-work"
-        for shape in a.alone.split(","):
+        tmp.mkdir(exist_ok=True)
+        ranges = lambda *layers: [[at, s.n, layer] for at, layer in layers]  # noqa: E731
+        for shape, name in named(a.alone):
+            name = name or f"alone-{shape}"
             units, truth = bases(build, work / s.name / f"{coding}-{shape}.ivf_0.av1", tmp, s.n)
             exact = [(dst / f"{i:03d}.k2.av1").read_bytes() for i in range(s.n)]
-            entry["bytes"][f"alone-{shape}"] = write_layer_major(dst, f"alone-{shape}", units, exact, exact_at)
-            entry["variants"][f"alone-{shape}"] = dict(layout, ext=f"alone-{shape}", previewTruth=truth)
-        for shape in a.predicted.split(",") if a.predicted else []:
+            entry["bytes"][name] = write_layer_major(dst, name, units, exact, exact_at)
+            entry["variants"][name] = dict(layout, ext=name, previewTruth=truth)
+        for shape, name in named(a.predicted):
+            name = name or f"predicted-{shape}"
             stream = work / s.name / f"{coding}-{shape}.ivf"
-            units, truth = bases(build, Path(f"{stream}_0.av1"), tmp, s.n)
-            whole = ivf_units(Path(f"{stream}_{2 if shape.startswith('three') else 1}.av1").read_bytes())
-            for i, unit in enumerate(whole):
-                (tmp / "u.obu").write_bytes(unit)
-                drop_top(tmp / "u.obu", tmp / "b.obu")
-                if (tmp / "b.obu").read_bytes() != units[i]:
-                    sys.exit(f"{s.name} {shape} {i}: the unit's prefix is not the encoder's base unit")
+            units, truth = bases(build, Path(f"{stream}_0.av1"), tmp, s.n, 2 if shape.startswith("three") else 1)
+            whole_stream = Path(f"{stream}_{2 if shape.startswith('three') else 1}.av1")
+            whole = ivf_units(whole_stream.read_bytes())
+            prefix_check(whole_stream, units, 0, tmp, "base")
             low, truth_x = predicted_low(build, s, dst, tmp, coding)
             exact = [payload(s.stored, unit, lo) for unit, lo in zip(whole, low)]
-            entry["bytes"][f"predicted-{shape}"] = write_layer_major(dst, f"predicted-{shape}", units, exact, exact_at)
-            entry["variants"][f"predicted-{shape}"] = dict(layout, ext=f"predicted-{shape}", previewTruth=truth,
-                                                           **({"truth": truth_x} if truth_x else {}))
+            extra = {"truth": truth_x} if truth_x else {}
+            if shape.startswith("three-full"):
+                middle_stream = Path(f"{stream}_1.av1")
+                middles, middle_truth = bases(build, middle_stream, tmp, s.n, 1)
+                prefix_check(whole_stream, middles, 1, tmp, "middle")
+                prefix_check(middle_stream, units, 0, tmp, "base")
+                three = dict(layout, layers=3, middleAt=exact_at, exactAt=2 * exact_at, middleTruth=middle_truth)
+                entry["bytes"][name] = write_layer_major(dst, name, units, exact, 2 * exact_at, middles, exact_at)
+                entry["variants"][name] = dict(three, ext=name, previewTruth=truth, **extra,
+                                               ranges=ranges((0, "base"), (exact_at, "middle"), (2 * exact_at, "exact")))
+                lossy = a.lossy_middle.get(shape)
+                if lossy:
+                    entry["bytes"][lossy] = write_layer_major(dst, lossy, units, [], 2 * exact_at, middles, exact_at)
+                    entry["variants"][lossy] = dict(three, ext=lossy, previewTruth=truth, lossy=True,
+                                                    ranges=ranges((0, "base"), (exact_at, "middle")))
+                continue
+            entry["bytes"][name] = write_layer_major(dst, name, units, exact, exact_at)
+            entry["variants"][name] = dict(layout, ext=name, previewTruth=truth, **extra)
+            lossy = a.lossy_base.get(shape)
+            if lossy:
+                entry["bytes"][lossy] = write_layer_major(dst, lossy, units, [], exact_at)
+                entry["variants"][lossy] = dict(layout, ext=lossy, previewTruth=truth, lossy=True, ranges=ranges((0, "base")))
         (dst / "variants.json").write_text(json.dumps(entry, indent=1))
         print(s.name, ", ".join(f"{k} {v} B" for k, v in entry["bytes"].items()), flush=True)
 

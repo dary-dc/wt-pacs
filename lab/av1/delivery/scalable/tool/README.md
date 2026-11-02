@@ -212,3 +212,69 @@ is unchanged. This tool's worker sets 10 000 ms, the downloader's own `decodeMs`
 still fails by name (last row). Not fixed, since it is the product's: at G > 1 the fixed bound loses groups on any
 CPU slow enough for one frame to take 2 s. And `av1.js` reports dav1d-WASM's refusal of a unit it never held, not
 the WebCodecs error behind it. Both are proposed in docs/av1/README.md §The scalable preview as a tool, 7.
+
+## SVC metrics
+
+*2026-11-02.* The pre-registered metrics protocol of docs/av1/README.md §The scalable preview as a tool (10), run
+by a separate session. The tables and their reading are in [`svc-results.md`](svc-results.md); this section says
+how they were made and where the run departs from the protocol.
+
+```bash
+# the tools, the volumes and the shipped payload as in stage 1 above, then:
+P=lab/av1/.venv/bin/python W=lab/.av1-work T=lab/av1/delivery/scalable/tool
+$P $T/shapes.py lab/.av1-build $W/shipped $W/preview-tool $W/svc-shapes.tsv lab/av1/data/dbts_{a1,b1,c1} \
+  --shapes two-quarter-q20,two-quarter-q40,three-full-m10,three-full-m20,three-full-m30          # ~15 min
+for s in a1 b1 c1; do $P $T/make_frames.py lab/.av1-build $W/shipped $W/preview-tool $W/preview-e2e lab/av1/data/dbts_$s \
+  --alone two-quarter-q20=a2-q20,two-quarter-q40=a2-q40 \
+  --predicted two-quarter-q20=p2-q20,two-quarter-q40=p2-q40,three-full-m10=p3-m10,three-full-m20=p3-m20,three-full-m30=p3-m30 \
+  --lossy-base two-quarter-q20=lossy-q20 --lossy-middle three-full-m20=lossy-m20; done           # after stage 2's HTJ2K and prefix
+$P $T/layer_error.py lab/.av1-build $W/preview-tool $W/svc-errors.jsonl lab/av1/data/dbts_{a1,b1,c1}   # metric 3, ~40 min
+NODE_PATH=$(npm root -g) node $T/time.mjs --protocol --rounds 10 --out $W/svc-decode.json              # metric 5 offline, ~100 min
+for r in $(seq 0 9); do                                                                             # the first sitting
+  NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames $W/preview-e2e --links none,r20000 --throttles 1,4 \
+    --variants htj2k,htj2k-aa,res,k2,a2-q20,a2-q40,p2-q20,p2-q40,p3-m10,p3-m20,p3-m30,lossy-q20,lossy-m20 \
+    --per-frame --rounds 1 --first-round $r --out $W/svc-rows.jsonl
+done
+python3 $T/svc_tables.py $W/svc-rows.jsonl $W/preview-e2e --errors $W/svc-errors.jsonl --decode $W/svc-decode.json
+```
+
+This run's outputs are committed here: [`svc-shapes.tsv`](svc-shapes.tsv), [`svc-errors.jsonl`](svc-errors.jsonl),
+[`svc-decode.json`](svc-decode.json), [`svc-rows.jsonl`](svc-rows.jsonl), [`svc-mutations.jsonl`](svc-mutations.jsonl)
+and [`svc-firefox.jsonl`](svc-firefox.jsonl).
+
+**Variants**, the protocol's names. `p3-*` codes three spatial layers with `svc_encoder_rtc` (mode 6,
+`-r 1/4,1/1,1/1`, quantizers 40, m, 0, a keyframe every 8): the example codes two full-size layers, and the top came
+back exact on every frame, so no `p3h-*` was needed. Layer-major as part 6, with a third range: entry i the base unit,
+entry M + i the unit cut after the middle (base and middle), entry 2M + i the whole unit as a split payload, M the
+next multiple of 8 after F. A predicted fill therefore carries each base three times and each middle twice; its
+bytes are the fill's. `lossy-q20` is `p2-q20`'s base units alone; `lossy-m20` is `p3-m20`'s bases then middles. The
+worker ([`decoder.js`](decoder.js)) decodes a middle unit on dav1d-WASM and posts the layer-1 picture as a preview.
+
+**Checks.** Every exact frame against the checksum written at the fetch (the page's hash, as part 6); every base and
+every middle against native dav1d's decode of the bases at their operating point and of the base-and-middle stream
+at operating point 1, hashed on the page; a preview arriving after its frame's exact picture is counted `late`, and
+anything posted unmarked under no exact frame's index is a stray. Each check was mutated first
+([`svc-mutations.jsonl`](svc-mutations.jsonl), `dbts_a1` and `dbts_b1`, `none`, 1×):
+
+| mutation | what it must do | seen |
+| --- | --- | --- |
+| a sample flipped (`--mutate sample`) | every frame, base and middle fails its hash | 0 exact, 0 bases and 0 middles as native, every variant |
+| a truth flipped (`--mutate truth`) | the same | the same |
+| a middle posted as exact (`--mutate middle-exact`) | strays | 56 strays a visit, `p3-m20` and `lossy-m20` |
+| the base taken as a chunk's frame (`--mutate keep-base`, part 8's S3) | no exact frame | 0 exact: on `dbts_a1` refused by name (`spatial layer 0 of 1 is the unit's last`), on the whole 10-bit `dbts_b1` decoded and caught by the hash |
+| the middle taken as the frame (`--mutate keep-middle`) | no exact frame | 0 exact, caught by the hash only: the full-size middle passes every other check, as part 8 said |
+| `stallMs` back to 2 000, `dbts_b1`, 4× | frames failed by name | **not seen**: 400/400 exact over `r20000` (one visit each) and `none` (two each), `p2-q20`, `p2-q40`, `p3-m20` |
+
+The stall check did not trip: no exact unit went 2 s without its frame on this host, so the 2 000 ms bound never
+fired. The worker's stamps do show units over 2 s (2.0–2.5 s), but they include the read-back and the merge after the
+frame arrives. So this run cannot show that the 10 000 ms bound matters on these volumes. Part 7's 2.8–3.2 s frames
+came from a synthetic series. A stall-flush in the fill is counted from the stamps, a unit whose decode reached the
+bound (*derived*: the bound flushes only a unit that gave nothing for that long).
+
+`time.mjs --protocol` adds HTJ2K through the OpenJPH build the fill's HTJ2K arm runs (`fetch_openjph.sh`'s); its
+check, mutated with `--mutate sample`, went 0/8 with every other checked decode. The product's own OpenJPH build
+(`client/decode/wasm/build`) needs its container and was not built here. The layer errors' two new pieces were
+checked against independent code: the SSIM against scikit-image 0.25.2's `structural_similarity` (Gaussian weights,
+σ 1.5, population covariance), equal to 1e−16 on three random pairs, and the upscaler against
+`client/paint/reference.js` at 4×, equal on every one of 1 872 device pixels (a scale of 3.9 instead differed by up
+to 66 codes).

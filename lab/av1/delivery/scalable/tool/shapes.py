@@ -6,7 +6,7 @@ Predicted: svc_encoder_rtc (shape.py's encoder) codes base and lossless top in o
 whole (12 bits) and once split (v >> 2 at 10 bits, the low bits as the shipped payload codes them). Alone: the
 predicted coding's base-layer stream beside the shipped payload (split-rule/make_frames.py --preset allintra:7 --k 2).
 
-usage: shapes.py BUILD SHIPPED WORK OUT.tsv SET_DIR ...   — lab/av1/delivery/scalable/tool/README.md
+usage: shapes.py BUILD SHIPPED WORK OUT.tsv SET_DIR ... [--shapes NAME,NAME]   — lab/av1/delivery/scalable/tool/README.md
 """
 import struct
 import sys
@@ -19,6 +19,7 @@ import shape  # noqa: E402
 
 KEY = 8
 BASE_Q = (20, 40, 60)
+MIDDLE_Q = (10, 20, 30)
 
 
 def predicted():
@@ -28,6 +29,7 @@ def predicted():
         out += [(f"two-quarter-q{q}", 5, 2, "1/4,1/1", f"{q},0", KEY, 4),
                 (f"two-half-q{q}", 5, 2, None, f"{q},0", KEY, 2),
                 (f"three-q{q}", 6, 3, None, f"{q},{q // 2},0", KEY, 4)]
+    out += [(f"three-full-m{m}", 6, 3, "1/4,1/1,1/1", f"40,{m},0", KEY, 4) for m in MIDDLE_Q]
     return out + [("two-quarter-q40-one-key", 5, 2, "1/4,1/1", "40,0", shape.WHOLE, 4)]
 
 
@@ -66,7 +68,7 @@ def codings(s):
     return out
 
 
-def run_set(build, shipped, work, path):
+def run_set(build, shipped, work, path, only=None):
     s = shape.svc.load(Path(path))
     cell = work / s.name
     cell.mkdir(parents=True, exist_ok=True)
@@ -74,10 +76,12 @@ def run_set(build, shipped, work, path):
     shipped_bytes = sum((shipped / s.name / f"{i:03d}.k2.av1").stat().st_size for i in range(s.n))
     low, low_bytes = shipped_low(build, s, shipped, cell)
     rows = []
-    for coding, p in codings(s):
+    for coding, p in codings(s)[-1:] if only else codings(s):
         y4m = cell / f"{coding}.y4m"
         shape.write_y4m(p, y4m, p.top, p.av1_bits, s.ch)
         for name, mode, sl, scale, layer_q, key, factor in predicted():
+            if only and name not in only:
+                continue
             ivf = cell / f"{coding}-{name}.ivf"
             shape.encode(build, y4m, ivf, p.av1_bits, s.ch, mode, sl, 1, scale, layer_q, key)
             top_stream = Path(f"{ivf}_{sl - 1}.av1")
@@ -91,10 +95,14 @@ def run_set(build, shipped, work, path):
                        total_bytes=top_stream.stat().st_size + (low_bytes if p.shift else 0),
                        base_bytes=base_stream.stat().st_size, base_frames=len(base),
                        base_size=f"{base[0][0].shape[1]}x{base[0][0].shape[0]}", base_psnr_db=psnr, base_max_abs_diff=max_d)
+            if name.startswith("three-full"):
+                middle_stream = Path(f"{ivf}_1.av1")
+                middle = shape.dav1d(build, middle_stream, cell / "dec.y4m")
+                row["middle_psnr_db"], row["middle_max_abs_diff"] = shape.base_quality(p, middle, 1, range(s.n))
             rows.append(row)
             print("\t".join(f"{k}={v}" for k, v in row.items()), flush=True)
             for f in Path(cell).glob(f"{ivf.name}_*.av1"):
-                if f not in (top_stream, base_stream):
+                if f not in (top_stream, base_stream) and not (name.startswith("three-full") and f.name.endswith("_1.av1")):
                     f.unlink()
             ivf.unlink()
         y4m.unlink()
@@ -103,14 +111,18 @@ def run_set(build, shipped, work, path):
 
 
 KEYS = ["set", "coding", "shape", "frames", "top_exact", "htj2k_bytes", "shipped_bytes", "total_bytes", "base_bytes",
-        "base_frames", "base_size", "base_psnr_db", "base_max_abs_diff"]
+        "base_frames", "base_size", "base_psnr_db", "base_max_abs_diff", "middle_psnr_db", "middle_max_abs_diff"]
 
 
 def main():
-    build, shipped, work, out, *sets = sys.argv[1:]
+    args = sys.argv[1:]
+    only = args.pop(args.index("--shapes") + 1).split(",") if "--shapes" in args else None
+    if only:
+        args.remove("--shapes")
+    build, shipped, work, out, *sets = args
     build, shipped, work = Path(build).resolve(), Path(shipped).resolve(), Path(work).resolve()
     with ProcessPoolExecutor(len(sets)) as pool:
-        results = list(pool.map(run_set, [build] * len(sets), [shipped] * len(sets), [work] * len(sets), sets))
+        results = list(pool.map(run_set, *zip(*[(build, shipped, work, d, only) for d in sets])))
     with open(out, "w") as fh:
         fh.write("\t".join(KEYS) + "\n")
         for rows in results:

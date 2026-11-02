@@ -4,7 +4,7 @@
  * throttles and the sets in a Williams order (lab/order.mjs), the variants rotating inside. README.md here.
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/scalable/tool/time.mjs [--rounds 10] [--throttles 1,4]
- *     [--sets a,b] [--mutate sample] [--out rows.json]
+ *     [--sets a,b] [--mutate sample] [--out rows.json] [--protocol]   (--protocol: docs/av1/README.md §…, 10's layers and HTJ2K)
  */
 import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
@@ -21,6 +21,7 @@ const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
 const NAMES = arg("--sets", SETS.join(",")).split(",");
 const MUTATE = arg("--mutate", "");
 const OUT = arg("--out", null);
+const PROTOCOL = process.argv.includes("--protocol");
 const PORT = 30000 + ((Math.random() * 10000) | 0);
 const http = spawn("python3", ["server/dev-server.py", "--port", String(PORT)], { cwd: ROOT, stdio: "ignore" });
 process.on("exit", () => http.kill());
@@ -34,7 +35,7 @@ async function inChromium(throttle, sets, r) {
   await page.goto(`http://127.0.0.1:${PORT}/lab/av1/delivery/scalable/tool/index.html`);
   await page.waitForFunction(() => globalThis.ready);
   const stop = throttleTree(server.process().pid, throttle);
-  const rows = await page.evaluate((o) => globalThis.run(o), { sets, r, mutate: MUTATE });
+  const rows = await page.evaluate((o) => globalThis.run(o), { sets, r, mutate: MUTATE, protocol: PROTOCOL });
   stop();
   await browser.close();
   await server.close();
