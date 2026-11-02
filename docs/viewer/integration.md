@@ -21,8 +21,9 @@ client "supplies its transport, decode, cache and paint"):
 1. **Our own viewer on today's client.** It keeps everything we have, the 1:1 proof included. It is the most code to
    write: the tools and the layouts that Cornerstone3D would give us.
 2. **Cornerstone3D under our page.** It is about 450 lines of glue, and gives the most for free. But its GPU
-   paint cannot be byte-exact by construction (§Cornerstone3D, *render*). It also puts the page back in the pixel
-   path.
+   paint cannot be byte-exact by construction (§Cornerstone3D, *render*). ~~It also puts the page back in the pixel
+   path.~~ *Corrected 2026-11-02 (§A seam for our painter inside Cornerstone3D): on its own viewports it does; a viewport type of ours, painted by our worker,
+   keeps the page out of the paint and keeps the proof.*
 3. **OHIF v3.** It gives everything in (2), and a study list, a hanging protocol engine and a UI on top. It also has
    everything (2) lacks, and adds a fork to keep up with.
 4. **VolView.** Its seam carries whole DICOM files. Our frames would have to be re-wrapped as files and then parsed
@@ -30,8 +31,10 @@ client "supplies its transport, decode, cache and paint"):
 
 **What would change it:**
 
-* **Cornerstone3D moves to first** if `registerRenderBackend` lets a backend own its surface. Our painter in its worker
-  would then be the backend, and the tools come with it (§Cornerstone3D, *render*). It also moves to first if the
+* **Cornerstone3D moves to first** ~~if `registerRenderBackend` lets a backend own its surface. Our painter in its worker
+  would then be the backend, and the tools come with it (§Cornerstone3D, *render*).~~ *Corrected 2026-11-02
+  (§A seam for our painter inside Cornerstone3D): no release is needed for our painter to carry the tools; a viewport type of ours does it at 5.14.0, at the
+  costs listed there. Whether that moves it up is the owner's call.* It also moves to first if the
   owner accepts a proved bound, such as one code, in place of equality on screen.
 * **OHIF moves above Cornerstone3D** if a whole application soon matters more than the page's design (the study
   list, the hanging UI, measurement tracking). B′ is then given up, as it is under (2).
@@ -95,12 +98,14 @@ that could be held to our reference, apart from rounding. Our own 2d route, of t
 **Keeping our painter.** `registerRenderBackend` is experimental. A backend draws to an existing `'vtk'` or `'cpu'`
 surface and "cannot yet register" its own
 (`packages/docs/docs/concepts/cornerstone-core/generic-viewport/render-backends.md:45-54,99-101`). Our painter owns a
-canvas transferred to its worker, so it cannot be a backend today.
+canvas transferred to its worker, so it cannot be a backend today. *Added 2026-11-02: it can be a viewport type
+instead (§A seam for our painter inside Cornerstone3D).*
 
 **The cache.** The image cache is 3 GB by default (`packages/core/src/cache/cache.ts:48`) and evicts the least recently
 used image (`cache.ts:310-345`). Ours keeps every frame, or under frame-path a window around the current frame, with
 OPFS behind it. Put together, our store is the source of truth. Cornerstone3D's cache is sized to our memory window,
-and an evicted image is reloaded through our loader from our store, never from the wire. **Frame-path's B′ is lost**:
+and an evicted image is reloaded through our loader from our store, never from the wire. **Frame-path's B′ is lost**
+*on the standard path (corrected 2026-11-02, §A seam for our painter inside Cornerstone3D: kept for the paint through a viewport type of ours)*:
 the paint runs on the page thread, so the page cannot leave the pixel path. Cine is a page timer
 (`packages/tools/src/utilities/cine/playClip.ts:201-214`). Of frame-path's designs, only A, with its store worker,
 remains.
@@ -122,7 +127,7 @@ copy at each image change. None of it is measured.
 | --- | --- |
 | **kept** | the transport, the downloader, the decoders, the digest check, the consumer; the page check's readback, pointed at its canvas |
 | **replaced** | the painter and `voi.js` on screen; the viewer page |
-| **lost** | the 1:1 proof (§*render*); zero-copy to the GPU; the page out of the pixel path (frame-path B′); cine off the page thread |
+| **lost** | on the standard path: the 1:1 proof (§*render*); zero-copy to the GPU; the page out of the pixel path (frame-path B′); cine off the page thread. *Corrected 2026-11-02 (§A seam for our painter inside Cornerstone3D): through a viewport type of ours the first three are kept, and the cine is ours to build* |
 | **glue, estimated** | a loader building `IImage` from our frame and waiting on the fill or asking, ~100 lines; a metadata provider from the series metadata, ~80; the page (engine, viewport, tool group, display area, exactness mark, status), ~200; the page check pointed at its canvas, ~50; a bundling step, ~30, and a lockfile. **~450 lines**, in a new directory beside `client/viewer/`; nothing in `client/transport/`, `client/decode/` or `client/paint/` changes |
 | **upgrade risk** | majors on 2024-10-29, 2025-02-27, 2025-08-28 and 2026-06-09. In 5.x the stack viewport is behind "a temporary migration layer" whose helpers "should be expected to be removed" (`packages/docs/docs/migration-guides/5x/2-generic-viewport.md:57-58`), and metadata moved package. The loader signature has held since 2.x. Glue written against the planar viewport is the stabler target |
 | **licence** | MIT; vtk.js BSD-3-Clause. No codec ships under our scheme |
@@ -240,6 +245,216 @@ Under every option the ingest must also carry the tags these rows read (laterali
 Compression, Image Position for DBT order). The requirements file lists them under *What the client contradicts
 today*.
 
+## A seam for our painter inside Cornerstone3D (2026-11-02)
+
+**The verdict: the claim is true for the standard path only.** "Choosing B′ commits us to building our own viewer,
+because Cornerstone3D and OHIF paint on the main thread" holds for every viewport Cornerstone3D ships, and for OHIF.
+It does not hold for Cornerstone3D in general. Cornerstone3D accepts a viewport type from outside, and a viewport of
+ours whose pixels our paint worker draws carries its tools. A spike (§4) proved this for the length, probe,
+window-level, zoom, pan and stack-scroll tools in headless Chromium, with 144 lines of glue. So B′ commits us to our
+own viewport, our own cine, and a seam that moves by majors. It does not commit us to our own tools. OHIF cannot
+take that viewport without a fork. Read at the tags in §Sources below; the spike ran once on SwiftShader, and
+nothing here is timed.
+
+### Sources
+
+| project | tag (commit) | tag date |
+| --- | --- | --- |
+| cornerstonejs/cornerstone3D | `v5.14.0` (`37d135d`), the latest; `v5.13.2` (`2adf417`); `v5.6.8` (`fe3a8e9`), OHIF's pin | 2026-10-28; 2026-10-23; 2026-07-19 |
+| OHIF/Viewers | `v3.13.13` (`1fa151f`), the latest v3 release; the `v3.14.0-beta.*` tags were not read | 2026-10-16 |
+
+Every file cited below under `packages/` is the same at 5.13.2 and 5.14.0, checked by `diff` file by file.
+
+### 1 · Where the paint runs: confirmed
+
+* **Cornerstone3D (5.14.0, 5.13.2, 5.6.8).** The engine renders the viewports flagged for render in one
+  `requestAnimationFrame` of the page (`packages/core/src/RenderingEngine/BaseRenderingEngine.ts:692`;
+  `ContextPoolRenderingEngine.ts:353-369`). This includes a viewport with its own pipeline, whose
+  `customRenderViewportToCanvas` is called there (`:376-379`). The only `OffscreenCanvas` in core is a raster cache on
+  the page (`RenderingEngine/CanvasActor/index.ts:39,128`). No source file calls `transferControlToOffscreen`. Its
+  workers decode (`packages/dicomImageLoader/src/init.ts:7`) or compute (`packages/tools/src/utilities/registerComputeWorker.ts:15`,
+  `packages/polymorphic-segmentation/src/registerPolySegWorker.ts:22`, `packages/labelmap-interpolation/src/registerWorker.ts:13`).
+  None of them paints. §Cornerstone3D, *render*, stands.
+* **OHIF v3.13.13** pins Cornerstone3D 5.6.8 (`extensions/cornerstone/package.json:57,61`). Neither `extensions/`
+  nor `platform/` creates or transfers an `OffscreenCanvas`. Its paint is Cornerstone3D's, on the page.
+
+### 2 · The unexamined seam: a viewport type of our own
+
+**How a viewport that vtk.js does not draw is built.** `registerViewportType` is exported at all three tags
+(`packages/core/src/index.ts:206,377`; the registry is `RenderingEngine/helpers/viewportTypeToViewportClass.ts:166-194`). A class whose
+static `useCustomRenderingPipeline` is true gets these three calls from the engine:
+
+* it is constructed by `addCustomViewport` (`BaseRenderingEngine.ts:571-627`);
+* it is resized through `resizeForRenderingEngine` (`:528-541`);
+* it is rendered through `customRenderViewportToCanvas`, and the engine then fires `IMAGE_RENDERED` with what that
+  returns (`ContextPoolRenderingEngine.ts:353-369`).
+
+Cornerstone3D's own viewports of this kind take two shapes:
+
+* The video viewport draws a `<video>` into Cornerstone3D's canvas with 2D `drawImage` (`VideoViewport.ts:1172-1197`).
+* The whole-slide viewport inserts a surface of its own, dicom-microscopy-viewer's element, after Cornerstone3D's
+  canvas and under the SVG layer (`WSIViewport.ts:148-159`).
+
+Ours takes the second shape.
+
+**One constraint, which decides the shape.** The engine draws on each viewport's canvas itself:
+
+* the background at enable, `getContext('2d')` (`BaseRenderingEngine.ts:155-156,443`);
+* its size (`:590-593`);
+* a clear at disable (`:735`).
+
+A canvas whose control has been transferred refuses `getContext` and refuses a size change. That is the HTML
+standard's placeholder canvas, read from memory and not re-read for this section. So the canvas our worker paints
+is a sibling, placed as the whole-slide viewport places its own, and Cornerstone3D keeps its canvas underneath.
+
+**What the tools need from a viewport**, read at 5.14.0. Each tool tests for methods, not classes, except where noted.
+
+| tool | reads from the viewport | here |
+| --- | --- | --- |
+| length, angle | `worldToCanvas`, `canvasToWorld`; the target's image data for mm (`packages/tools/src/tools/annotation/LengthTool.ts:265-266,788-802`; `AngleTool.ts:221-248`) | length **tested**; angle by reading, same calls |
+| probe, pixel value | `getImageData()`, then `imageData.worldToIndex` and `voxelManager.getAtIJKPoint`, synchronously, with k set to the current index (`ProbeTool.ts:667-724`; `packages/tools/src/tools/base/BaseTool.ts:330-351`); a target id from `getViewReferenceId` | **tested**: the samples are read on the page from the frame's `SharedArrayBuffer` |
+| window-level drag | `getProperties()` and `setProperties({ voiRange })` (`WindowLevelTool.ts:50,116`, `:358-386`) | **tested**: the window reaches the worker |
+| zoom, pan | with no camera `position`, `getPan`/`setPan` and `getZoom`/`setZoom` in canvas units (`PanTool.ts:136-150`; `ZoomTool.ts:446-462`) | **tested**, the tools' drags |
+| stack scroll | `getCurrentImageIdIndex`, `scroll`, `getImageIds` (`packages/core/src/utilities/scroll.ts:41-66`) | **tested**, the wheel |
+| annotations per slice | `getViewReference`, `isReferenceViewable` (`RenderingEngine/Viewport.ts:2154-2290`) | by reading: world z is the slice index here, so an annotation belongs to its slice. Not tested |
+| cine (`playClip`) | only stack, volume, video or Generic viewports; anything else throws `Unknown viewport type` (`packages/tools/src/utilities/cine/playClip.ts:580-619`). Its clock is a page timer (`:195-215`) | **ours**, and has to be: a page timer is what B′ moves into the view worker (frame-path §2). Not built |
+| synchronizers | VOI dispatches by class: stack, volume or Generic (`synchronizers/callbacks/voiSyncCallback.ts:54-80`). Zoom and pan need `setViewState` (`zoomPanSyncCallback.ts:23-88`). Generic means `setDisplaySets`, `setDisplaySetPresentation`, `setViewState` (`packages/core/src/utilities/viewportCapabilities.ts:119-127`) | **not reached** by this viewport. Linked VOI, zoom and pan are either ours, or glue for the Generic interface. Neither built |
+
+**What lags, or lives in the wrong place.**
+
+* **The overlay and the image are drawn by two threads.** `IMAGE_RENDERED`, on which the tools draw their SVG,
+  fires when `customRenderViewportToCanvas` returns (`ContextPoolRenderingEngine.ts:353-369`). The paint is only a
+  message to the worker at that moment. So during a drag the SVG can lead the image by a frame or more. Firing the
+  event on the painter's acknowledgement instead would make the overlay follow the image, not match it. Nothing
+  here is measured. A busy page delays the overlay and the tools' response, not the image (frame-path §2).
+* **The probe reads samples on the page.** The spike drives the paint worker with the page posting each frame's
+  handle, which is today's `?view=page` shape. Under the view worker the page holds no frame (frame-path §3,
+  *Built*). The probe would then need one of two things:
+  * the current frame's handle, sent with `shown`;
+  * or the view worker's asynchronous `valueAt`, whose answer arrives after the tool has drawn.
+
+  Neither was tried.
+* **The window.** The tools set `{ lower, upper }`. Ours is a centre, a width and a function. The glue maps the
+  range to LINEAR_EXACT. LINEAR, SIGMOID and the VOI LUT Sequence need it to carry the function: the tool reads
+  `VOILUTFunction` from `getProperties` (`WindowLevelTool.ts:116`). The table stays ours, so the painter's proof
+  holds for whatever window the tools set.
+
+**Supported, or internals?** The registration is a documented extension point. The 5.x guide registers a new type
+"only for a genuinely new data shape or render path" (`packages/docs/docs/migration-guides/5x/2-generic-viewport.md:66-87`,
+how at `:130-187`). The methods the tools read from our class are another matter: `getProperties`, `getCamera`,
+`scroll`, and the `Viewport` base class. The same guide calls this legacy surface "a temporary migration layer",
+expected to be removed in a later breaking release (`:54-58`, `:384-389`). The tools already route new code by
+`isGenericViewport` (`playClip.ts:610-617`; `voiSyncCallback.ts:61-80`). So a lasting form of this glue implements
+the Generic viewport's interface instead. That was not attempted, and the glue should be expected to change at each
+major (§Cornerstone3D, *upgrade risk*).
+
+**The `registerRenderBackend` roadmap.** At 5.14.0, a backend still draws to an existing `'vtk'` or `'cpu'` surface
+(`packages/docs/docs/concepts/cornerstone-core/generic-viewport/render-backends.md:45-54,99-101`). The project's own
+tracker, as of 2026-11-02:
+
+* Issue #2894 (open, 2026-09-02) lists "backend-owned surfaces — a backend declares and creates its own canvas". It
+  is a prerequisite landing on the timeline of PR #2796.
+* PR #2796 (open) is an experimental WebGPU backend that "blit[s] into the `cpu` surface canvas". Its frames are
+  blitted on the page.
+* PR #2904 (open) is #2796 repackaged.
+* PR #2795 (merged 2026-07-09) reshaped the API.
+
+No release and no milestone names a backend-owned surface. Nothing in these items says that such a surface could
+belong to a worker. Read from GitHub's search results (each item's title and body) only; their threads were not
+read.
+
+### 3 · Other viewers
+
+Each viewer at the tag in [`survey.md`](survey.md) §Sources: whether it renders off the page's main thread, or could
+host a canvas a worker paints.
+
+| viewer | off the main thread? |
+| --- | --- |
+| OHIF v3 | no: Cornerstone3D 5.6.8 (§1). Hosting our viewport needs a fork, because its viewport types are a closed list that throws on any other (`extensions/cornerstone/src/utils/getCornerstoneViewportType.ts:85-87`) |
+| Cornerstone3D | its own viewports, no (§1); a viewport of ours, yes (§2, §4) |
+| VolView 4.5.3 | no: vtk.js on the page. Its only `OffscreenCanvas` decodes JPEG cine frames in a worker (`src/core/cine/jpegDecode.worker.ts:22-26`), or probes the GPU (`src/utils/gpuInfo.ts:3`) |
+| dwv 0.36.4 | no: Canvas 2D on the page (`src/gui/viewLayer.js:916,1151`), Konva for drawing (`src/gui/drawLayer.js:543`); and GPL-3.0 |
+| Stone Web Viewer | not read for this section (Mercurial, not cloned); the survey reads WebGL from WASM on the page. AGPLv3+ |
+| NiiVue 0.69.0 | no: `attachToCanvas(HTMLCanvasElement)` (`packages/niivue/src/niivue/index.ts:898`), WebGL2 on it (`niivue/core/gl.ts:18-19`); no `OffscreenCanvas` in its source |
+| BlueLight 1.1.0 | no: Canvas 2D on the page (`bluelight/scripts/viewport.js:137`) |
+| dicom.ts 1.3.0 | a renderer, not a viewer. Typed for an `HTMLCanvasElement`, which it creates with `document` if not given one (`src/renderer/Renderer.ts:29-31`). It might run on an `OffscreenCanvas` in a worker, but that was not tried |
+| dcmjs-imaging 0.2.6 | a CPU renderer to RGBA, with no `document` or `window` in `src/`, so it could run in a worker. It has no viewer to host |
+| Papaya 0.8 | no: Canvas 2D on the page (`src/js/viewer/screenslice.js:25`); dormant since 2015 |
+| cornerstone (legacy) 2.6.1 | no: Canvas 2D on the page (`src/rendering/renderGrayscaleImage.js:89`); superseded |
+| any the survey missed | **not searched**. This section looked only at the survey's list |
+
+No open web viewer read here paints off the main thread. Only Cornerstone3D has a seam through which ours can.
+
+### 4 · The spike
+
+[`../../lab/viewer-spike/seam/`](../../lab/viewer-spike/seam/README.md) holds the spike, which is throwaway. It
+registers a viewport type whose paint is our `client/paint/painter.js`, unchanged. The page half transfers a canvas,
+placed beside Cornerstone3D's own, to the paint worker. The worker paints an R16UI texture with the window in the
+shader. The data is three synthetic 64×48 16-bit slices: a ramp, with 0.5 mm pixels. The browser is headless
+Chromium 153 on SwiftShader, DPR 1, at Cornerstone3D 5.14.0.
+
+Each check that compares the painted image works the same way:
+
+1. It reads back the last paint that the viewport sent to the worker.
+2. It takes the code under a canvas point.
+3. It compares that code with what `client/paint/voi.js` makes of the probe's sample at the same point, under the
+   window the tools last set.
+
+The check allows one code, because the bilinear pass mixes neighbours at 4 CSS px per image pixel.
+
+| check | result, 3 of 3 runs | its mutant, caught |
+| --- | --- | --- |
+| length, centres of pixels (10, 10) to (40, 30) | 18.028 mm, the 18.028 expected | `canvasToWorld` scaled 1.1 in x: 16.910 |
+| probe at pixel (20, 15), slice 0 | 3175, the sample | the next sample read: 3215 |
+| the painted code under the probe, at the fit | 76 against 75 | the painter panned 8 px: 70 |
+| the same after the zoom tool's drag (zoom 3.68) and the pan tool's | 112 against 112 | the painter's zoom 5 % off: 106 |
+| window-level drag | the window moves (2000–6000 → 2000–6160); 72 against 72 | the window never reaches the painter: 76 |
+| one wheel step | slice 1 shown and probed (5130); 200 against 200 | scroll paints slice 0: 9 |
+
+The rows are kept at commit `7f07555` on this branch, `lab/viewer-spike/seam/rows/run-2026-11-02.txt`.
+
+**What worked:** each row above, in each of 3 runs.
+
+**What was built only to make it work:** the canvas beside Cornerstone3D's own (the constraint in §2). Two stubs for
+Node builtins that `xmlbuilder2` imports under `@cornerstonejs/tools` (`run.mjs`). A 450 ms wait after each press,
+because the tools hold a press for 400 ms to tell a double click (`packages/tools/src/eventListeners/mouse/mouseDownListener.ts:27`).
+
+**The glue is 144 lines** (`worker-viewport.js`, non-blank and non-comment), at spike quality. The page, 64 lines,
+and the runner, 182, are not glue.
+
+**Not done:**
+
+* the angle tool, the per-slice annotation filter, cine, synchronizers;
+* the view worker in place of the paint worker (the probe's question above);
+* any VOI function but LINEAR_EXACT;
+* DPR 2;
+* a GPU;
+* Firefox, where frame-path §7 found the worker's draw waiting for a busy page;
+* any timing, of the paint or of the overlay against it.
+
+### What it changes
+
+* **B with our painter is an option today.** It no longer waits on a release. It keeps the painter and its proof,
+  zero copies to the GPU, and B′'s paint off the page. It takes Cornerstone3D's tools, annotation state and
+  measurement code. Its costs:
+  * our viewport, about 144 lines at spike quality;
+  * our cine;
+  * linked views that are ours, or more glue;
+  * an overlay drawn one thread away from its image;
+  * a seam on the legacy method set, which Cornerstone3D says it will remove.
+
+  Whether to carry it beside A is the owner's call, below.
+* **OHIF stays as integration.md has it.** It cannot take this viewport without a fork, so under OHIF the paint is
+  still Cornerstone3D's.
+
+| Retracted | What is true |
+| --- | --- |
+| "Cornerstone3D … puts the page back in the pixel path" (§The ranking, 2) | only on its standard viewports; a viewport of ours painted by our worker keeps the page out of the paint (§2, §4) |
+| "Cornerstone3D moves to first if `registerRenderBackend` lets a backend own its surface" (§The ranking) | another seam, a viewport type, does today what that release was awaited for (§2) |
+| "Frame-path's B′ is lost: the paint runs on the page thread" (§Cornerstone3D, *The cache*) | lost on the standard path; kept for the paint through a viewport of ours. Cine through `playClip` stays a page timer, so the cine is ours (§2) |
+| "lost: the 1:1 proof; zero-copy to the GPU; the page out of the pixel path; cine off the page thread" (§Cornerstone3D, table) | on the standard path. Through a viewport of ours, the first three are kept and the cine is ours to build (§4) |
+| "a backend that owns its surface would have to own a worker's `OffscreenCanvas`, and Cornerstone3D's tools draw in page coordinates" (§Open) | the tools' page coordinates did not block a worker's canvas: the overlay is one thread apart, not wrong (§2, §4) |
+
 ## Open
 
 * **Whether the bit-exactness that is decided reaches the screen.** If it does, the ranking stands. If it stops at the
@@ -247,7 +462,11 @@ today*.
   Neither the bound nor the check exists.
 * **How far Cornerstone3D's paint is from ours.** It can be measured with the page check's readback against
   `client/paint/reference.js`, which needs a run.
-* **`registerRenderBackend` with a surface of its own.** It is not on any release yet. A backend that owns its surface
-  would have to own a worker's `OffscreenCanvas`, and Cornerstone3D's tools draw in page coordinates.
+* **`registerRenderBackend` with a surface of its own.** It is not on any release yet *(still so at 5.14.0; planned in
+  issue #2894 with no release named, §A seam for our painter inside Cornerstone3D)*. ~~A backend that owns its surface would have to own a worker's
+  `OffscreenCanvas`, and Cornerstone3D's tools draw in page coordinates.~~ *Corrected 2026-11-02: the tools' page
+  coordinates did not block a worker's canvas behind a viewport type of ours; the overlay is drawn one thread apart.*
+* **A viewport type of ours, beyond the spike** (§A seam for our painter inside Cornerstone3D): the probe under the view worker, the cine, synchronizers or the
+  Generic viewport's interface, the overlay against the image in time, Firefox, a GPU. None done.
 * **The glue line counts are estimates**, as are the 1 000–1 500 lines of the own option. No shipped bundle size or
   first image was measured for any option.

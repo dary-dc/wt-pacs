@@ -20,4 +20,5 @@ viewport sent to the worker and compares the code under a canvas point with what
 sample the probe reads there, under the window the tools last set; at the fit (4 CSS px per image pixel) the bilinear
 pass mixes neighbours, so it allows one code.
 
-The run of 2026-11-02 is kept at the tag `rows/viewer-seam`, in `rows/run-2026-11-02.txt`.
+The run of 2026-11-02 is kept at commit `7f07555` of this branch, in `rows/run-2026-11-02.txt` (the tag
+`rows/viewer-seam` points at it locally; the session could not push tags).
