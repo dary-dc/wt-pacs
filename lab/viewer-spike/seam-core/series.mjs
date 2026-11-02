@@ -26,7 +26,7 @@ for (let k = 0; k < SLICES; k++) {
   digests.push(await globalThis.hashwasm.xxhash3(new Uint8Array(samples.buffer)));
 }
 const metadata = {
-  frameCount: SLICES, codec: "htj2k", photometric: "MONOCHROME2", modality: "OT", pixelSpacing: SPACING, mark: MARK,
+  frameCount: SLICES, width: W, height: H, codec: "htj2k", photometric: "MONOCHROME2", modality: "OT", pixelSpacing: SPACING, mark: MARK,
   window: { center: [16000], width: [28000], function: "LINEAR" },
   digests: { algorithm: "xxh3-64", frames: digests },
 };
