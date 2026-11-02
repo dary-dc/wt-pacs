@@ -192,6 +192,79 @@ const engines = [...new Set(rows.map((r) => r.engine))];
 const throttles = [...new Set(rows.map((r) => r.throttle))].sort((a, b) => a - b);
 for (const e of engines) console.log(`${e}: ${caps[e]?.ua} (${caps[e]?.cores} cores, isolated ${caps[e]?.isolated}, VideoDecoder ${caps[e]?.videoDecoder})`);
 
+/** Student's t quantile at 0.975 with df degrees of freedom: Simpson's rule on the density, then bisection. */
+function t975(df) {
+  const c = Math.exp(lgamma((df + 1) / 2) - lgamma(df / 2)) / Math.sqrt(df * Math.PI);
+  const pdf = (x) => c * (1 + (x * x) / df) ** (-(df + 1) / 2);
+  const cdf = (x) => { const n = 2000, h = x / n; let s = pdf(0) + pdf(x); for (let i = 1; i < n; i++) s += (i % 2 ? 4 : 2) * pdf(i * h); return 0.5 + (s * h) / 3; };
+  let [lo, hi] = [0, 50];
+  for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (cdf(m) < 0.975) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+}
+function lgamma(x) {
+  const g = [676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+  if (x < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * x)) - lgamma(1 - x);
+  let a = 0.99999999999980993;
+  const t = x + 6.5;
+  g.forEach((v, i) => (a += v / (x + i)));
+  return 0.5 * Math.log(2 * Math.PI) + (x - 0.5) * Math.log(t) - t + Math.log(a);
+}
+/** The mean of paired ratios and its 95 % paired-t interval. */
+const interval = (x) => { const h = t975(x.length - 1) * sd(x) / Math.sqrt(x.length); return [mean(x), mean(x) - h, mean(x) + h]; };
+
+/** The amended protocol's speed clause, per engine: docs/decode/README.md §Amended protocol, pre-registered. */
+function amendedSpeed() {
+  console.log("amended: keyParse ÷ flush, mean over rounds [95 % paired-t interval], n rounds; all streams is each round's geometric mean");
+  const exact = rows.every((r) => !r.error && r.exact === r.frames);
+  for (const e of engines) {
+    const clause = {};
+    for (const t of throttles) {
+      const sets = [...new Set(rows.filter((r) => r.engine === e).map((r) => r.set))];
+      const ratios = (set) => {
+        const of = (arm) => new Map(rows.filter((r) => r.engine === e && r.throttle === t && r.set === set && r.arm === arm && !r.error).map((r) => [r.round, mean(r.ms)]));
+        const [fl, kp] = [of("flush"), of("keyParse")];
+        return new Map([...kp].filter(([r]) => fl.has(r)).map(([r, x]) => [r, x / fl.get(r)]));
+      };
+      const per = new Map(sets.map((s) => [s, ratios(s)]));
+      const slower = [];
+      for (const [s, m] of per) {
+        const [x, lo, hi] = interval([...m.values()]);
+        if (lo > 1) slower.push(s);
+        console.log(`${e} ${t}x ${s}: ×${x.toFixed(3)} [${lo.toFixed(3)}–${hi.toFixed(3)}] n ${m.size}${lo > 1 ? " SLOWER" : ""}`);
+      }
+      const rounds = [...per.values()[Symbol.iterator]().next().value.keys()].filter((r) => [...per.values()].every((m) => m.has(r)));
+      const g = rounds.map((r) => Math.exp(mean([...per.values()].map((m) => Math.log(m.get(r))))));
+      const [x, lo, hi] = interval(g);
+      const faster = x <= 0.98 && hi < 1;
+      clause[t] = { faster, slower };
+      console.log(`${e} ${t}x all streams: ×${x.toFixed(4)} [${lo.toFixed(4)}–${hi.toFixed(4)}] n ${g.length}: ${faster ? "faster" : "inconclusive"}; slower on ${slower.join(", ") || "no stream"}`);
+    }
+    const all = Object.values(clause);
+    console.log(`${e} amended speed clause: ${!exact ? "NOT DECIDED (a frame not exact)" : all.every((c) => c.faster && !c.slower.length) ? "holds" : "fails"}`);
+  }
+}
+
+/** The amended mutation clause: no escape or stall, controls exact, at G = 1 every case flush catches keyParse catches, at G = 8 the same outcome. */
+function amendedMutations() {
+  const sent = (r) => r.sends.find((x) => x.index === r.at) ?? { outcome: r.error ? "error" : "unsent" };
+  const caught = (r, s) => s.outcome === "refused" || s.outcome === "off-digest" || (s.outcome === "exact" && s.path !== "av1-webcodecs");
+  for (const e of engines) {
+    for (const t of throttles) {
+      const cell = rows.filter((r) => r.engine === e && r.throttle === t);
+      const bad = cell.filter((r) => r.error || r.sends.some((x) => x.outcome === "wrong" || x.outcome === "stalled") || (r.control && sent(r).outcome !== "exact"));
+      const pair = (r) => cell.find((o) => o.arm === "flush" && o.set === r.set && o.case === r.case && o.g === r.g);
+      const kp = cell.filter((r) => r.arm === "keyParse" && !r.control);
+      const lost = kp.filter((r) => r.g === 1 && caught(pair(r), sent(pair(r))) && !caught(r, sent(r)));
+      const valid = cell.filter((r) => !r.control && sent(r).outcome === "exact" && sent(r).path === "av1-webcodecs");
+      const differ = kp.filter((r) => r.g !== 1 && sent(r).outcome !== sent(pair(r)).outcome);
+      const label = (r) => `${r.set} G${r.g} ${r.case}${r.arm ? ` ${r.arm}` : ""}`;
+      console.log(`${e} ${t}x amended: escape, stall, error or inexact control ${bad.length} ${bad.map(label).join("; ")};` +
+        ` G1 caught by flush, not keyParse ${lost.length} ${lost.map(label).join("; ")}; G8 outcome differs ${differ.length} ${differ.map(label).join("; ")};` +
+        ` exact (a valid picture) ${valid.length} ${valid.map(label).join("; ")}; clause ${bad.length + lost.length + differ.length ? "fails" : "holds"}`);
+    }
+  }
+}
+
 if (MODE === "time") {
   console.log("ms a frame in the decoder worker: median over rounds of each round's mean [range]; keyParse ÷ flush, the median of" +
     " paired round ratios [range], rounds faster; exact frames; paths; flushes and units per frame reaching VideoDecoder");
@@ -241,6 +314,7 @@ if (MODE === "time") {
     }
   }
   for (const [e, v] of Object.entries(verdict)) console.log(`${e}: faster in at least 9 of 10 paired rounds at every throttle: ${v.every(Boolean)}`);
+  amendedSpeed();
 } else if (MODE === "bare") {
   console.log("bare VideoDecoder, ms a frame (median over rounds of each round's mean): decode() to output, copy, flush; latency ÷ flush on decode() to output, paired");
   for (const e of engines) {
@@ -277,5 +351,6 @@ if (MODE === "time") {
       ` to WebCodecs ${reached}, slowest ${f(slow)} ms; ${all}; ${ok ? "caught" : "NOT CAUGHT"}${r.error ? ` ERROR ${r.error}` : ""}`);
   }
   for (const [k, v] of Object.entries(caught)) console.log(`${k}: ${v.filter(Boolean).length}/${v.length} cases caught`);
+  amendedMutations();
 }
 process.exit(0);
