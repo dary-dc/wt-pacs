@@ -111,7 +111,7 @@ and the reader take grey of 8–16 bits after the offset, unsigned and signed, a
 stream; the defaults above are unchanged until the per-depth split measurement (queue row SPLITTIME). Checked exact at every b = 8…16 and every k = max(0, b − 12) …
 max(b − 8, 4), natively, in Node and in Chromium, Firefox and WebKitGTK, synthetic to 4096×5120 and real, and the old and new
 refusals matched by message. *Corrected 2026-10-30:* its signed sets are centred on 0, so a signed source of ≤ 8
-bits after the offset whose values leave −128…127 is not shown exact (§Is the split safe?, P4). The reader's signed mask is now the output container's (0xFF, 0xFFFF): the old
+bits after the offset whose values leave −128…127 was not shown exact, and wrapped (§Is the split safe?, P4; fixed 2026-10-31). The reader's signed mask is now the output container's (0xFF, 0xFFFF): the old
 2^(depth + split) − 1 reports a wrong range for signed 8-bit with a split and for signed 16-bit at k = 5 and 7.
 **New limits:** `bits` ≤ 16, `split` ≤ 8, a top of at most 12 bits; a payload's `depth` is the smallest of 8, 10, 12
 holding its top.
@@ -161,11 +161,11 @@ layout exactly (§Built; golden `optimized/g9` and `optimized/s13`).
 
 ## Is the split safe? (audit, 2026-10-30)
 
-*Theory and audit only: nothing was run for this section. The literature is [`split-prior-art.md`](split-prior-art.md);
+*Theory and audit; only cases 1 and 2 of §5 were run (2026-10-31), on the reader's merge and the writer's digest. The literature is [`split-prior-art.md`](split-prior-art.md);
 G > 1 is [`frame-groups.md`](frame-groups.md) §2, §5.*
 
 **Verdict.** G = 1: **safe with conditions** — the arithmetic is exact for every in-range sample, each frame is shown
-exact at ingest, and the client checks every frame; one container defect (P4) is outside both checks. G > 1: **not
+exact at ingest, and the client checks every frame; one container defect (P4, now fixed) was outside both checks. G > 1: **not
 shown** — dav1d-WASM fails every split group, and a 12-bit top has no other browser path.
 
 **1 · The arithmetic** (*derived*). For integers 0 ≤ v < 2^b and 0 ≤ k, Euclidean division by 2^k gives
@@ -178,13 +178,13 @@ and k ≤ 8. The merge is the split's inverse iff each stream comes back unchang
 | P1 v ≥ 0: offset = −min when min < 0 | `ingest/from-dicom/dicom_series.py:32`; b = bit length of max + offset, `ingest/coded-frames/ingest.py:47` |
 | P2 b ≤ 16, k ≤ 8, b − k ≤ 12, depth the smallest of 8/10/12 holding it | writer `ingest.py:26-30, 58-66`; reader `client/decode/av1-payload.js:31-36` |
 | P3 the header's offset is the one added | `ingest.py:211`, and the ingest gate (`:221`) |
-| P4 the output type holds v − offset | `av1-frame.js:32` picks Int8/Uint8 for b ≤ 8, 16-bit above. **Not enforced:** a signed source whose b ≤ 8 after the offset but whose values leave −128…127 (a 16-bit signed series spanning, say, −10…200) wraps in Int8 (*derived*) |
-| P5 the stored value, not the 16-bit word: Bits Stored taken at High Bit, sign-extended | `dicom_series.py:95-99`. PS3.5 2026d §8.1.1: "High Bit (0028,0102) shall be one less than Bits Stored (0028,0101)"; the ingest checks only High Bit < Bits Allocated (`:84`), so High Bit < Bits Stored − 1 is not refused |
+| P4 the output type holds v − offset | `av1-frame.js:32` picks Int8/Uint8 for b ≤ 8, 16-bit above. *Was not enforced:* a signed source whose b ≤ 8 after the offset but whose values leave −128…127 (a 16-bit signed series spanning, say, −10…200) wrapped in Int8 (reproduced 2026-10-31). Now a signed 8-bit payload not centred on 0 (offset ≠ 128) is 9 bits, Int16, in the reader (`av1-frame.js`) and the digest (`ingest.py`'s `wide`) |
+| P5 the stored value, not the 16-bit word: Bits Stored taken at High Bit, sign-extended | `dicom_series.py:95-99`. PS3.5 2026d §8.1.1: "High Bit (0028,0102) shall be one less than Bits Stored (0028,0101)"; the ingest checked only High Bit < Bits Allocated (`:84`), so High Bit < Bits Stored − 1 was not refused (reproduced 2026-10-31); it is now refused by name. High Bit > Bits Stored − 1, the retired layout the shift reads, is still taken |
 | P6 padding values and MONOCHROME1 | nothing needed: a padding value is a sample within min…max, and MONOCHROME1's inversion is applied "after any VOI gray scale transformations" (PS3.3 2026d C.7.6.3.1.2), after the merge |
 | P7 each stream returns its samples unchanged | §2 below, and the gate per frame |
 
-P4 escapes both checks (*derived*, not run): the ingest gate compares in the source's type (`ingest.py:221`), the
-frame digest is cast to the same 8 bits (`ingest.py:119`; *unverified* that NumPy wraps there rather than raises),
+P4 escaped both checks (reproduced 2026-10-31): the ingest gate compares in the source's type (`ingest.py:221`), the
+frame digest is cast to the same 8 bits (`ingest.py:119`; NumPy 2.4.6 wraps there, 200 to −56, and does not raise),
 and the client hashes bytes (`client/decode/decoder.js:25`), which are equal; the value read as Int8 is not. The
 split exactness check's signed sets are all centred on 0 (`lab/av1/exact/split/make_sets.py:34`), so it never met
 this case. It is not split-specific: k = 0 has it too.
@@ -231,27 +231,29 @@ do break lossless: SVT-AV1 #2260 "Lossless is broken" (v3.0.2, closed;
 | --- | --- | --- | --- | --- |
 | G = 1 | every b 8–16, every k, both signs, synthetic, large and nine real series (row 43, `95b80dc`); every written frame by the gate | the same matrix in Node, Chromium, Firefox, WebKitGTK (row 43); nine series (row 37, `653f6d7`) | Chromium 141, every payload with streams ≤ 10 bits (row 43); Firefox refuses 4:0:0, WebKitGTK decodes no AV1: dav1d-WASM takes them; 12 bits refused | Chromium, Firefox, WebKitGTK (row 47, `f434b72`); off by default; the row-43 matrix not run through it |
 | G > 1 | 159/159 libaom cells, alt-ref off, 8- and 10-bit tops, k = 2 (row 100, `cbbdf06`); 12-bit tops, other k: not run; alt-ref on not lossless | **fails every split group** (row 100), not fixed | 8- and 10-bit G = 8 streams (row 30, `5e693b6`), row 100's timed frames 5 760/5 760; 12 bits refused | not run; separate instances avoid the flush (*derived*), the dav1d-WASM fallback may not |
-| every cell | not shown: P4's signed sources (§1) | | | |
+| every cell | P4's signed sources: the reader's merge in Node and the writer's digest only (§5, case 1); not through a codec or an engine | | | |
 
 The per-frame check ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §2) covers a wrong
 decoder, engine, grain or flush: the frame is decoded again or shown as failed, never as exact — but only where the
-metadata carries digests (`decoder.js:10, 29-30`), and it cannot see P4. So the real risks are P4, and at G > 1 that a 12-bit
+metadata carries digests (`decoder.js:10, 29-30`), and it could not see P4. So the real risk is that at G > 1 that a 12-bit
 top's only browser path fails (an availability loss the check turns into failed frames, not wrong ones).
 
-**5 · Protocol, for a separate session (not run).** Every frame against the SHA-256 of its source, compared as
+**5 · Protocol, for a separate session (cases 1 and 2 run 2026-10-31, the rest not).** Every frame against the SHA-256 of its source, compared as
 numbers in the source's type, not as bytes.
 
 1. *P4:* signed 16-bit sources spanning −10…200, 0…200, −200…0 and −128…127 (the control), k = 0 and 1, through every
-   path. Prediction: the first three wrong, the control exact.
-2. *P5:* a source with High Bit < Bits Stored − 1: the ingest must refuse it by name.
+   path. Prediction: the first three wrong, the control exact. *Run* on the reader's merge (`client/decode/av1.test.mjs`)
+   and the digest (`ingest/coded-frames/merge_test.py`), not through a decoder: as predicted, then all four exact.
+2. *P5:* a source with High Bit < Bits Stored − 1: the ingest must refuse it by name. *Run*: it was not; it is now
+   (`ingest/from-dicom/from_dicom_test.py`).
 3. *Mixed:* row 43's synthetic and real matrix through `mixed` in the three engines.
 4. *G > 1:* row 100's DBT payloads at G ∈ {2, 8, 16}, plus the 14-bit projections at k = 2 (12-bit tops), through
    native dav1d, dav1d-WASM (one instance a stream), WebCodecs (≤ 10 bits) and mixed.
 
 Mutations, each to be caught: the output typed 8-bit for a 9-bit source; the signed mask dropped; top and low swapped;
 one dav1d-WASM instance shared by both streams at G > 1; a group's frames reordered; one sample of a frame's digest
-flipped; a unit with film grain parameters. **Rule:** G = 1 is safe once case 1 is fixed (refused or typed by the
-source) and cases 1–3 are exact with every mutation caught. A path is a candidate at G > 1 only if every frame of case
+flipped; a unit with film grain parameters. **Rule:** G = 1 is safe once case 1 is fixed (typed by the
+source's range, 2026-10-31) and cases 1–3 are exact with every mutation caught. A path is a candidate at G > 1 only if every frame of case
 4 is exact on it at every G and every mutation is caught; a failing path is refused for groups.
 
 ## 8-bit grey as 4:2:0, not adopted

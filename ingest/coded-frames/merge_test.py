@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Every sample of 8–16 bits, unsigned and signed, split at every k of 0–8 by ingest.py's plan and
 merged back by its merge, is itself (queue row 43 SPLITOK); and the optimized representation picks
-the split-rule sweep's k at each depth 8–14 (queue row 72).
+the split-rule sweep's k at each depth 8–14 (queue row 72); a signed source of ≤ 8 bits after its offset is
+digested as its own values (docs/av1/payload-format.md §Is the split safe?, case 1).
 
 usage: merge_test.py   — exits 1 naming each wrong (bits, sign, k)
 """
@@ -10,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import xxhash
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ingest  # noqa: E402
@@ -44,6 +46,12 @@ def main():
         s = SimpleNamespace(ch=1, hi=(1 << b) - 1 - lo, offset=lo, signed=False, frame=lambda i: np.zeros((1, 1, 1), np.int32))
         if (picked := ingest.plan(s, "optimized")[0]["split"]) != want:
             wrong.append(((b, False, None), f"the optimized rule picks k = {picked}, row SPLITTIME's is {want}"))
+    for lo, hi in ((-10, 200), (0, 200), (-200, 0), (-128, 127)):
+        v = np.arange(lo, hi + 1, dtype=np.int16).reshape(1, -1, 1)
+        s = SimpleNamespace(ch=1, hi=hi, offset=max(0, -lo), signed=True, frame=lambda i: v)
+        held = v.astype("i1" if lo >= -128 and hi <= 127 else "<i2")
+        if ingest.digests(s, 1, "av1", split=0)["frames"][0] != xxhash.xxh3_64_hexdigest(held.tobytes()):
+            wrong.append(((16, True, 0), f"{lo}…{hi}: the digest is not of its values in a type that holds them"))
     for (b, sg, k), why in wrong:
         print(f"{b}-bit {'signed' if sg else 'unsigned'} k={k}: {why}")
     print(f"writer's split and merge: {len(got) - len(refused) - len(wrong)}/{len(got) - len(refused)} cells exact, "
