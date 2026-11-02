@@ -345,6 +345,8 @@ Also under §Blocked in [`../av1/queue.md`](../av1/queue.md).
 2. **The shape** (§4): Rust core + native UI per platform; a pure-Rust GUI (Slint the only one on all five, with its
    licence); Qt; Flutter. What decides it: the team's languages and how much accessibility the mobile UI needs.
    *Still open (the owner, 2026-10-26):* the headless core in §8 is built so that any of them can sit on it.
+   *Decided by the owner, 2026-10-29: "basic"* — the surface-only shape §4 built (winit and M1's painter, no toolkit);
+   a toolkit is not adopted now, and the native arms stay inside this shape.
 3. **The cache's policy**: a persistent on-device cache or none (AAPM 260's advice); its budget; on iOS, data
    protection class C (prefetch works locked) or A (cache closed ~10 s after lock).
 4. **The intended use, for a regulatory specialist**: diagnostic display (892.2050, MDR Rule 11) or display only —
