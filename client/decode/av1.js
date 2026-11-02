@@ -10,7 +10,7 @@ let cfg = null;
 let importer = (path) => import(path);
 const loaded = {};
 
-/** `d` is the series' decoder config: dav1d's `glue`, `wasm` and `dir`, `groupLength`, `mixed`: a top over 10 bits to dav1d, its low to WebCodecs (lab/av1/decode/mixed), and `onePass`: a WebCodecs split frame merged in one pass and a `mono_chrome` stream's chroma not checked (docs/decode/README.md §JS passes protocol, pre-registered). */
+/** `d` is the series' decoder config: dav1d's `glue`, `wasm` and `dir`, `groupLength`, `mixed`: a top over 10 bits to dav1d, its low to WebCodecs (lab/av1/decode/mixed), and `onePass`: a WebCodecs split frame merged in one pass and a `mono_chrome` stream's chroma not checked (docs/decode/README.md §JS passes protocol, pre-registered), `reuseCopyBuffer`: each WebCodecs stream copies every frame into one buffer (§Merge-free protocol, pre-registered). */
 export async function init(d, load) {
   cfg = d;
   if (load) importer = load;

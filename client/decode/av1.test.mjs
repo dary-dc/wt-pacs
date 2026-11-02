@@ -562,5 +562,69 @@ else {
   delete globalThis.EncodedVideoChunk;
 }
 
+/**
+ * Under `reuseCopyBuffer` a stream copies every frame into one buffer, grown when a frame needs more, and a split frame's
+ * top and low never share one; every frame reads back its own samples, as without it, through sizes and depths that change.
+ */
+{
+  const { PROBES } = await import("./av1-probe.js");
+  const unit = (layout) => Uint8Array.from(atob(PROBES[layout].unit), (c) => c.charCodeAt(0));
+  let shape = null;
+  const into = [];
+  globalThis.EncodedVideoChunk = class { constructor(c) { Object.assign(this, c); } };
+  globalThis.VideoDecoder = class {
+    constructor({ output }) { this.output = output; this.state = "unconfigured"; }
+    configure() { this.state = "configured"; }
+    async flush() {}
+    close() { this.state = "closed"; }
+    decode(chunk) {
+      const { w, h, bits, seed } = shape;
+      const bytes = bits > 8 ? 2 : 1;
+      const c = ((w + 1) >> 1) * ((h + 1) >> 1);
+      const size = (w * h + 2 * c) * bytes;
+      this.output({ format: bits > 8 ? "I420P10" : "I420", timestamp: chunk.timestamp, visibleRect: { width: w, height: h }, close() {},
+        allocationSize: () => size,
+        copyTo: async (buf) => {
+          // WebCodecs copyTo(): "If destination.byteLength is less than combinedLayout’s allocationSize, return a promise rejected with a TypeError."
+          if (buf.byteLength < size) throw new TypeError("destination too small");
+          into.push(buf);
+          const px = new (bits > 8 ? Uint16Array : Uint8Array)(buf, 0, size / bytes);
+          for (let i = 0; i < w * h; i++) px[i] = (seed + i * 7) % (1 << bits);
+          px.fill(1 << (bits - 1), w * h, w * h + 2 * c);
+          return [{ offset: 0, stride: w * bytes }, { offset: w * h * bytes, stride: ((w + 1) >> 1) * bytes }, { offset: (w * h + c) * bytes, stride: ((w + 1) >> 1) * bytes }];
+        } });
+    }
+  };
+  const samples = (p) => Array.from({ length: p.width * p.height }, (_, i) => p.planes[0].heap[p.planes[0].offset + Math.floor(i / p.width) * p.planes[0].stride + (i % p.width)]);
+  const want = ({ w, h, bits, seed }) => Array.from({ length: w * h }, (_, i) => (seed + i * 7) % (1 << bits));
+  const shapes = [{ w: 6, h: 4, bits: 8, seed: 1 }, { w: 9, h: 7, bits: 8, seed: 2 }, { w: 5, h: 3, bits: 8, seed: 3 }, { w: 4, h: 2, bits: 10, seed: 4 }, { w: 6, h: 4, bits: 10, seed: 5 }];
+  for (const reuse of [false, true]) {
+    const wc = await import(`./av1-webcodecs.js?reuse-${reuse}`);
+    await wc.init({ reuseCopyBuffer: reuse });
+    into.length = 0;
+    let gen = 0;
+    const reads = [];
+    for (const s of shapes) {
+      shape = s;
+      const layout = s.bits > 8 ? "g10" : "g8";
+      const p = await wc.picture(unit(layout), { key: true, gen: gen++, index: 0 }).then((pic) => pic, (e) => e);
+      reads.push(p instanceof Error ? p.message : JSON.stringify(samples(p)) === JSON.stringify(want(s)) && p.bits === s.bits);
+    }
+    check(reads.every((r) => r === true), `reuse ${reuse}: every frame reads back its own samples through a smaller, larger, odd-sized and 10-bit frame (${reads})`);
+    // Frame 1 is the largest (103 B, odd): the buffer grows there and is kept for every frame after it, 10-bit ones included.
+    const same = into.map((b, i) => i > 0 && b === into[i - 1]);
+    const expect = reuse ? [false, false, true, true, true] : [false, false, false, false, false];
+    check(JSON.stringify(same) === JSON.stringify(expect), `reuse ${reuse}: the copy buffer is ${reuse ? "kept from the largest frame on" : "new every frame"} (${same})`);
+    into.length = 0;
+    shape = shapes[0];
+    await Promise.all([wc.picture(unit("g8"), { key: true, gen: gen++, index: 0 }), wc.picture(unit("g8"), { key: true, gen: gen++, index: 0 }, "low")]);
+    await Promise.all([wc.picture(unit("g8"), { key: true, gen: gen++, index: 0 }), wc.picture(unit("g8"), { key: true, gen: gen++, index: 0 }, "low")]);
+    const [t1, l1, t2, l2] = into;
+    check(t1 !== l1 && t2 !== l2 && t1 !== l2 && l1 !== t2, `reuse ${reuse}: a split frame's top and low are copied into buffers of their own`);
+  }
+  delete globalThis.VideoDecoder;
+  delete globalThis.EncodedVideoChunk;
+}
+
 console.log(failed ? `${failed} of ${failed + passed} failed` : `av1 payload reader: ${passed} ok`);
 process.exit(failed ? 1 : 0);
