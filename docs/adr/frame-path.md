@@ -1061,6 +1061,122 @@ follows. *The `viewWorker` stamp* is taken where the page makes the `ViewWorker`
 **Where the host saturates:** nowhere, by the guard, at 1× or 4×. The 4× throttle is a cgroup cap a thread
 (`lab/scripts/cpu_throttle.mjs`), so it leaves the cores idle by construction, and the guard cannot see it.
 
+### The start, levers split (2026-11-02)
+
+*Theory and pre-registration written 2026-11-02, before any data.* #276's fix ties A in most cells but, by its rule, not
+in two: Chromium tomosynthesis 1× (+21 ms, already there at `sessionOpen`) and Firefox mammogram 4× (+188 ms, the
+downloader's script running 214 ms after the page's connect against A's 72 ms while the early view worker is still
+evaluating). The question: is there a start for B′ that ties A in every decided cell, both engines, 1× and 4×, or a
+reason none can.
+
+**How Gecko loads a dedicated worker's scripts** — read at `FIREFOX_155_0_RELEASE` (the Firefox major #276 ran),
+paths under `dom/workers/`; read from source, not measured:
+
+* `new Worker` builds the worker on the page's main thread and opens the top-level script's channel there, at once
+  (`WorkerPrivate.cpp`: the constructor calls `GetLoadInfo` near line 3228, which calls
+  `ChannelFromScriptURLMainThread` near line 3756).
+* Every script fetch after that, the top level's and each module's, is sent back from the worker thread to the main
+  thread: `WorkerModuleLoader::StartFetch` (`loader/WorkerModuleLoader.cpp` line 139) →
+  `WorkerScriptLoader::DispatchLoadScript` → `DispatchLoadScripts`, which `NS_DispatchToMainThread`s a
+  `ScriptLoaderRunnable` (`ScriptLoader.cpp` near lines 750–790); its `Run` asserts the main thread and opens each
+  load (near line 1460).
+* The response is read and decoded to text on the main thread: `NetworkLoadHandler::OnStreamComplete` →
+  `DataReceivedFromNetwork`, which asserts the main thread and runs the `ScriptDecoder` (`loader/NetworkLoadHandler.cpp`
+  lines 51–203). Only then is a `ScriptExecutorRunnable` dispatched to the worker (`ScriptLoader.cpp` near line 1665),
+  which compiles there (`WorkerModuleLoader::CompileFetchedModule`, line 146) and, once the graph is in, evaluates.
+* A module's imports are known only once it is parsed on the worker, so a graph costs one main-thread round per level.
+  Nothing else serialises two workers: each has its own thread, and the per-domain queue (`RuntimeService.cpp` near
+  line 1266) acts only past `dom.workers.maxPerDomain`, 512 (`modules/libpref/init/all.js` line 117).
+
+So in Firefox both workers' loading shares one queue, the page's main thread, with the page's own tasks; their
+compiling does not. The view worker's graph is 11 modules over 4 levels (`view-worker.js` → `consumer.js`,
+`paint-worker.js`, `cache.js`, `controller.js` → …, 63 KB); the downloader's is one module (27 KB). Each costs main-thread
+turns: a channel opened, and a stream completed and decoded, per module. Created before the metadata
+(`viewWorkerFirst`), the view worker's later levels fall in the window where the page reaches `connect` and the
+downloader's single load waits its turn. At 1× a turn is short and #276 saw the cost under the bar. Under the 4×
+throttle every thread gets a quarter of a CPU (`lab/scripts/cpu_throttle.mjs`), so the main thread's queue drains a
+quarter as fast, and the busy-core guard, which reads the cores, cannot see one thread at its cap. That fits #276's
+Firefox mammogram 4× steps (medians; it does not prove the mechanism): under B′+fix the page itself reaches `connect`
+96 ms after A's, its downloader's script runs 214 ms after that connect against 72 ms, and the view worker, made
+before the metadata, evaluates *later* (1088 ms) than B′'s made after it (930 ms). **`viewWorkerFirst` can therefore
+delay the downloader's boot**, in Firefox, by the main-thread turns of the view worker's graph that land ahead of it.
+
+*Chromium, not read here:* its dedicated workers fetch their scripts off the page's main thread (the top level by the
+browser process, imports by the worker's own fetch context), so this mechanism predicts no such overlap cost there.
+That is from Chromium's design as remembered, not cited to a line.
+
+**What the theory names: the view worker made once the downloader has its start** (lab setting
+`viewWorkerAfterDownloader`, in `?opts=`, default off). Under `pageDials` the page creates the downloader, posts
+`start` and `dial`, and asks the downloader (`tellPage` on `start`) to post it `running` once `start` has arrived,
+which is after its script has run; only then does the page make the view worker, post its `start` and join it to the
+downloader (`client/view/view.js`). No load of the view worker's can then be queued ahead of the downloader's. Its
+boot moves after the dial, beside the session's opening and the first frame's flight; it is off the first frame's
+path when it ends before `firstIn`. #276's steps give the room: `downloaderStart` → `firstIn` is 291–776 ms, A's medians over its 16
+cells, the view worker's boot (made → evaluated, then the WebGL2 context) 60–70 ms in Chromium at 1×, ≈ 120 ms at 4×,
+110–200 ms in Firefox at 1× and ≈ 480 ms at 4×, against 368–409 ms of room in Firefox's 4× CT, US and
+tomosynthesis. Its risks, named before data: there the boot outlasts the room; and in Firefox the boot now shares the main
+thread with the decoders' loads, which the downloader starts at `start`. Refused under `?view=page`, without
+`pageDials` (the view worker would start the downloader it waits for), and with `viewWorkerFirst`
+(`lab/viewer/levers.js`). *The `viewWorker` stamp* is now taken where the worker is made, in every arm, so under
+`viewWorkerFirst` it is its creation before the metadata, which #276's was not.
+
+**Held by** `client/view/view.test.mjs` (*after the downloader, the view worker is made once the downloader runs*; *by
+default the downloader is not asked to say it runs*; *after the downloader, a downloader that does not load fails
+connect*), `client/transport/downloader.test.mjs` (*aStartToldSaysRunning*) and `lab/viewer/levers.test.mjs` (the
+three refusals). Mutants, each fails a test: the view worker made at once; `tellPage` never or always sent; the wait
+for `running` dropped, or not ended by a downloader that does not load; the creation unstamped; `tellPage: false` sent
+by default; `running` never or always said, or said before the stamp moved; each refusal removed.
+
+**Arms**, each a `variants.json` entry from `lab/viewer/view_frames.py --split`:
+
+| arm | `?view=` | lab settings |
+| --- | --- | --- |
+| A, `page` | `page` | none |
+| A/A, `pageaa` | `page` | none |
+| B′+fix, `workerfix` | `worker` | `pageDials`, `viewWorkerFirst`, `shortRuns` (#276's) |
+| B′+dials, `workerdials` | `worker` | `pageDials`, `shortRuns` |
+| B′+after, `workerafter` | `worker` | `pageDials`, `shortRuns`, `viewWorkerAfterDownloader` |
+
+**Cells.** §7's four series, the quiet page, `r50000`, 1× and 4× (`lab/scripts/cpu_throttle.mjs`), Chromium and
+Firefox; arms and cells interleaved by `run.mjs` (`lab/order.mjs`); 12 kept rounds a cell, whole rounds topped up for
+drops as #276 did. **Guards and bars:** #276's, unchanged — the A/A VOID at 16.7 ms on the first frame (or the fill
+after it outside ×0.98–1.02), the saturation guard at a 0.95 busy share of the browser's cores, latency the first exact
+frame drawn (±16.7 ms), throughput the fill after it (×0.98–1.02), read by `lab/viewer/start-summary.mjs`. **An arm
+ties A** when the summary's verdict for it is "ties A": no decided bar later or slower, and a decided latency on each
+engine run. **The goal is met** when one arm ties A with both engines run.
+
+**Firefox cannot be run in this session**, found before any data: Playwright's Firefox download is refused by the
+environment's network policy (`cdn.playwright.dev`, `playwright.download.prss.microsoft.com`), and the session's
+permission policy refuses running a Firefox fetched from conda-forge. So only the Chromium cells are run; the Firefox
+predictions below stand unrun, and no arm can meet the goal here. The rule is applied to the Chromium rows as written,
+and its verdict is read as Chromium's alone.
+
+**Predictions**, first frame drawn, paired Δ against A (✓ a tie by the bar, ✗ later):
+
+| cell | B′+fix | B′+dials | B′+after |
+| --- | --- | --- | --- |
+| Chromium, each series, 1× | ✓ | ✓ | ✓ |
+| Chromium, each series, 4× | ✓ | ✓ | ✓ |
+| Firefox CT, US, tomo, 1× | ✓ | ✓ | ✓ |
+| Firefox mammogram, 1× | ✓ (#276: +13.5, VOID) | ✓ | ✓ |
+| Firefox CT, US, tomo, 4× | ✓ | ✓ | ✗, ≈ +50–110: the boot outlasts `downloaderStart` → `firstIn` |
+| Firefox mammogram, 4× | ✗, ≈ +150–190 (the overlap) | ✗ or ✓: the view worker made at the metadata still loads at `connect` (#276's B′: the downloader's script +99 ms after it against A's 72), so ≈ +30–80 | ✓: the downloader's script as soon after `connect` as A's (± 10 ms) |
+
+and by step: no fix arm moves `downloaderStart` − `connect` against A's by more than 10 ms in Chromium; the fill after
+the first frame ties in every multi-frame cell, every arm. **Chromium tomosynthesis 1×'s +21 ms does not reproduce**
+(B′+fix within ±16.7 ms): the fix does not act between the downloader's start and the session's opening, so it was a
+round's noise. If it does reproduce at `sessionOpen` again, that reading is wrong and is said so.
+
+**Decision, written before data.** If B′+after ties A on Chromium and B′+fix does not, B′+after is the candidate start,
+owed its Firefox cells before anything is changed. If all three tie A on Chromium, Chromium does not separate them
+and Firefox is owed. If B′+after is behind A where B′+fix is not, the boot after the dial is on the first frame's path
+and the step stamps say where.By these predictions no arm ties A in every Firefox 4× cell —
+B′+fix behind on the mammogram, B′+after on the other three, B′+dials uncertain — because the view worker's boot,
+through the throttled main thread, is longer than the room in some cells and costs the downloader in others. Should
+Firefox confirm that, the start left to try is the view worker made at `connect` just after the downloader, in the
+same task: its loads queue behind the downloader's single one and start ≈ 100 ms sooner than B′+after's. It is named
+here, not built. No default changes on this run.
+
 ### A frame clock in the view worker (2026-10-28)
 
 *Theory and a pre-registered protocol; the harness built 2026-10-30 ([`../../lab/frame-clock/`](../../lab/frame-clock/README.md)) and smoke-run, nothing timed as a result.* The owner's next client shape: the page holds no

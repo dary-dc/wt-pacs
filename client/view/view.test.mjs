@@ -148,6 +148,50 @@ test("a booted view worker that did not load is said", () => {
   assert.equal(booted.terminated, true);
 });
 
+/**
+ * Under `afterDownloader` no view worker is made until the downloader says it has its start, which the page asks it to
+ * say; then the one made gets `start` before `connect`, and its creation is stamped.
+ */
+test("after the downloader, the view worker is made once the downloader runs", async () => {
+  globalThis.crossOriginIsolated = true;
+  made.length = 0;
+  const view = new ViewWorker(canvas, { meta: { frameCount: 3 }, fillMode: true, size: {}, emit: () => {}, afterDownloader: true });
+  const connecting = view.connect("https://x.invalid/", "ab", { pageDials: true, firstWant: [0, 1, 2] }, 0);
+  await new Promise((r) => setTimeout(r));
+  assert.equal(made.length, 1, "only the downloader before it runs");
+  assert.equal(downloader().sent[1].tellPage, true);
+  assert.equal(view.created, undefined);
+  downloader().onmessage({ data: { kind: "running" } });
+  await new Promise((r) => setTimeout(r));
+  const worker = made.find((w) => /view-worker/.test(w.url));
+  assert.deepEqual(worker.sent.map((m) => m.kind), ["start", "connect"]);
+  assert.equal(typeof view.created, "number");
+  worker.onmessage({ data: { id: 0, value: null } });
+  await connecting;
+});
+
+/** By default the page does not ask the downloader to say it runs, and the view worker is made at once. */
+test("by default the downloader is not asked to say it runs", async () => {
+  globalThis.crossOriginIsolated = true;
+  const { view, worker } = rig();
+  assert.equal(typeof view.created, "number");
+  view.connect("https://x.invalid/", "ab", { pageDials: true, firstWant: [0] }, 0);
+  await new Promise((r) => setTimeout(r));
+  assert.equal("tellPage" in downloader().sent[1], false);
+  assert.equal(connectMessage(worker).dialled, true);
+});
+
+/** A downloader that does not load fails connect under `afterDownloader` too, with no view worker made. */
+test("after the downloader, a downloader that does not load fails connect", async () => {
+  globalThis.crossOriginIsolated = true;
+  made.length = 0;
+  const view = new ViewWorker(canvas, { meta: { frameCount: 3 }, fillMode: true, size: {}, emit: () => {}, afterDownloader: true });
+  const connecting = view.connect("https://x.invalid/", "ab", { pageDials: true }, 0);
+  downloader().onerror({ message: "" });
+  await assert.rejects(connecting, /the downloader did not start/);
+  assert.equal(made.length, 1);
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try {

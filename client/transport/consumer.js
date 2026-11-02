@@ -228,9 +228,9 @@ export function refuseUnstartable(opts) {
   }
 }
 
-/** Only the dial needs the URL, so the worker graph boots before it: `url` and `certHash` may be promises. docs/ARCHITECTURE.md */
-export async function startAndDial(downloader, url, certHash, config) {
-  downloader.postMessage({ kind: "start", config });
+/** `url` and `certHash` may be promises, as only the dial needs them; `tellPage`, a lab's: docs/adr/frame-path.md §7. */
+export async function startAndDial(downloader, url, certHash, config, { tellPage = false } = {}) {
+  downloader.postMessage({ kind: "start", config, ...(tellPage && { tellPage }) });
   downloader.postMessage({ kind: "dial", url: await url, certHash: await certHash });
 }
 

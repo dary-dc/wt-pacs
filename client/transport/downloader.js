@@ -523,6 +523,7 @@ function spawn() {
 
 async function start(m) {
   boot.downloaderStart = abs();
+  if (m.tellPage) globalThis.postMessage({ kind: "running" });
   // A config field the consumer left out must not clobber the default with `undefined`.
   for (const [k, v] of Object.entries(m.config ?? {})) if (v !== undefined) cfg[k] = v;
   const count = !cfg.decode ? 0 : cfg.startOnNeed ? Math.min(1, cfg.decoders) : cfg.decoders;

@@ -87,9 +87,8 @@ if (where === "page") {
   painter.renderer.then((r) => ((boot.gl = at()), emit("renderer", { renderer: r })), (e) => emit("renderer", { error: e.message }));
   controller = new Controller({ meta, fillMode, emit, size: size(), paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
 } else {
-  boot.viewWorker = at();
   worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settle: lab.settle, watchWrites: Boolean(q.get("check")),
-    booted, glAfterDial: Boolean(lab.opts.glAfterDial) });
+    booted, glAfterDial: Boolean(lab.opts.glAfterDial), afterDownloader: Boolean(lab.opts.viewWorkerAfterDownloader) });
 }
 
 function status() {
@@ -128,7 +127,10 @@ const connectOpts = {
 try {
   // What the page dials with, under the lab's `pageDials`: the view worker's first want, unless a cache or a half-held store shapes it.
   const firstWant = options.pageDials && !writer && !options.holdEveryOther ? wantFrom(0, n, fillMode, Boolean(options.waitAhead)) : undefined;
-  if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer, firstWant }, issuedAt);
+  if (worker) {
+    await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer, firstWant }, issuedAt);
+    boot.viewWorker = worker.created;
+  }
   else {
     controller.issuedAt = issuedAt;
     controller.client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {

@@ -610,6 +610,23 @@ async function theFirstFrameCarriesTheStart() {
 }
 await theFirstFrameCarriesTheStart();
 
+/** Asked by the page (`tellPage`), the downloader says `running` once it has its start, before any dial; unasked, it says nothing. */
+async function aStartToldSaysRunning() {
+  for (const tellPage of [true, false]) {
+    const said = [];
+    const before = globalThis.postMessage;
+    globalThis.postMessage = (m) => said.push(m.kind);
+    await import(`./downloader.js?running-${tellPage}`);
+    const started = onmessage({ data: { kind: "start", config: { survival: false, decode: false, decoders: 0 }, ...(tellPage && { tellPage }) } });
+    const early = said.filter((k) => k === "running").length;
+    await started;
+    globalThis.postMessage = before;
+    check(early === (tellPage ? 1 : 0) && said.filter((k) => k === "running").length === early,
+      `${tellPage ? "asked" : "unasked"}, running said ${early} times as the start arrives (${said})`);
+  }
+}
+await aStartToldSaysRunning();
+
 /** The run the dial carries, if any, and the asks after it, for a want that rides `start`. */
 async function openingOf(name, config) {
   const w = { opening: null, asks: [] };
@@ -652,5 +669,5 @@ async function aShortWantRidesTheDial() {
 }
 await aShortWantRidesTheDial();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted, the start's stamps on the first frame, a short want riding the dial: ok");
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted, the start's stamps on the first frame, a short want riding the dial, running said when asked: ok");
 process.exit(failed ? 1 : 0);

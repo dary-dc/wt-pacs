@@ -4,7 +4,8 @@ import { busyPage } from "../frame-clock/busy.js";
 import { sawtooth, STEP_MS, waits } from "./trace.js";
 
 /** Settings the page view would ignore, or under `pixels` copy each paint: docs/adr/frame-path.md §The core, assembled. */
-const WORKER_ONLY = ["writer", "waitAhead", "holdEveryOther", "pixels", "pageDials", "viewWorkerFirst", "glAfterDial", "shortRuns"];
+const WORKER_ONLY = ["writer", "waitAhead", "holdEveryOther", "pixels", "pageDials", "viewWorkerFirst", "glAfterDial", "shortRuns",
+  "viewWorkerAfterDownloader"];
 
 export function levers(q) {
   if (q.get("trace") && q.get("trace") !== "sawtooth") throw new Error(`refused: trace ${JSON.stringify(q.get("trace"))} — sawtooth`);
@@ -16,6 +17,8 @@ export function levers(q) {
   if (writer !== undefined && !["store", "decoders", "view"].includes(writer)) throw new Error(`refused: writer ${JSON.stringify(writer)} — store, decoders or view`);
   if (writer === "decoders" && opts.pageDials) throw new Error("refused: writer decoders with pageDials — the decoders are told to keep frames only once the cache is open");
   if (writer === "decoders" && opts.pixels === "transfer") throw new Error("refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred");
+  if (opts.viewWorkerAfterDownloader && !opts.pageDials) throw new Error("refused: viewWorkerAfterDownloader without pageDials — the view worker would start the downloader it waits for");
+  if (opts.viewWorkerAfterDownloader && opts.viewWorkerFirst) throw new Error("refused: viewWorkerAfterDownloader with viewWorkerFirst — the view worker made both first and last");
   const settle = q.get("settle") ?? "fence";
   if (!["fence", "read"].includes(settle)) throw new Error(`refused: settle ${JSON.stringify(settle)} — fence or read`);
   // docs/adr/frame-path.md §7: the page busy from here, and after the fill a cine of `cine` seconds.

@@ -55,6 +55,7 @@ export class View {
 }
 
 const SCRIPT = new URL("./view-worker.js", import.meta.url);
+const at = () => performance.timeOrigin + performance.now();
 
 /** The view worker's page half: the canvas and one port to the downloader go to it, events come back. */
 export class ViewWorker {
@@ -66,12 +67,15 @@ export class ViewWorker {
   #emit;
   #watch;
   #started = false;
+  /** Makes the worker and posts its start, until it has run. */
+  #open;
   /** Why the view worker ended: after its error or an unreadable message, nothing more is sent to it. */
   #dead = null;
 
   /** The worker, its script loading before the page has what `start` needs: lab setting `viewWorkerFirst`, docs/adr/frame-path.md §3. */
   static boot() {
     const worker = new Worker(SCRIPT, { type: "module" });
+    worker.created = at();
     worker.onerror = (e) => (worker.unloaded = e.message || "its script did not load");
     return worker;
   }
@@ -80,34 +84,47 @@ export class ViewWorker {
    * `emit(type, event)` hears renderer, progress, shown and failed `{scope: frame | series | cache | worker, reason}`;
    * `watch(data, from)`, when given, every message the page receives; `settle`, a lab's wait for each draw (client/paint/paint-worker.js);
    * `watchWrites`, the viewer check's, that the view worker count the cache writes on its own thread; `booted`, a worker
-   * from `boot`; `glAfterDial`, the lab's setting that the WebGL2 context waits for the dial.
+   * from `boot`; `glAfterDial`, the lab's setting that the WebGL2 context waits for the dial; `afterDownloader`, the lab's
+   * `viewWorkerAfterDownloader`, that the worker is made in `connect` once the downloader has its start.
    */
-  constructor(canvas, { meta, fillMode, size, emit, watch, settle, watchWrites = false, booted, glAfterDial = false }) {
+  constructor(canvas, { meta, fillMode, size, emit, watch, settle, watchWrites = false, booted, glAfterDial = false, afterDownloader = false }) {
+    this.#emit = emit;
+    this.#watch = watch;
+    const offscreen = canvas.transferControlToOffscreen();
+    this.#open = () => this.#make(booted, { kind: "start", canvas: offscreen, meta, fillMode, size, settle, watchWrites, glAfterDial }, offscreen);
+    if (!afterDownloader) this.#open();
+  }
+
+  /** Epoch ms the worker was made, for the lab's ledger: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
+  get created() {
+    return this.#worker?.created;
+  }
+
+  #make(booted, start, offscreen) {
+    this.#open = null;
     this.#worker = booted ?? new Worker(SCRIPT, { type: "module" });
+    this.#worker.created ??= at();
     this.#worker.onerror = (e) => this.#end(this.#started ? `the view worker failed: ${e.message}` : `the view worker did not start: ${e.message || "its script did not load"}`);
     this.#worker.onmessageerror = () => this.#end("a message from the view worker could not be read");
     this.#worker.onmessage = ({ data }) => {
       this.#started = true;
-      watch?.(data, "view");
-      if (data.kind === "event") return void emit(data.type, data);
+      this.#watch?.(data, "view");
+      if (data.kind === "event") return void this.#emit(data.type, data);
       const r = this.#replies.get(data.id);
       this.#replies.delete(data.id);
       if (data.error) r.reject(new Error(data.error));
       else r.resolve(data.value);
     };
-    const offscreen = canvas.transferControlToOffscreen();
-    this.#worker.postMessage({ kind: "start", canvas: offscreen, meta, fillMode, size, settle, watchWrites, glAfterDial }, [offscreen]);
-    this.#emit = emit;
-    this.#watch = watch;
+    this.#worker.postMessage(start, [offscreen]);
     if (booted?.unloaded) this.#end(`the view worker did not start: ${booted.unloaded}`);
   }
 
   /**
    * The downloader is the page's worker, linked to the view worker by one channel. Under the lab's `pageDials` the page
-   * also starts it and dials, `firstWant` riding the start, and the view worker joins it; otherwise, and after this, the
-   * page never talks to it.
+   * also starts it and dials, `firstWant` riding the start, and the view worker joins it; under `afterDownloader` the
+   * view worker is made once the downloader says it has the start. Otherwise, and after this, the page never talks to it.
    */
-  connect(url, certHash, opts, issuedAt) {
+  async connect(url, certHash, opts, issuedAt) {
     const { worker, firstWant, ...config } = opts;
     this.#downloader = new Worker(worker ?? new URL("../transport/downloader.js", import.meta.url), { type: "module" });
     const unstarted = Promise.withResolvers();
@@ -116,14 +133,22 @@ export class ViewWorker {
       this.#emit("failed", { scope: "series", reason });
       unstarted.reject(new Error(reason));
     };
-    if (this.#watch) this.#downloader.onmessage = ({ data }) => this.#watch(data, "downloader");
+    const running = Promise.withResolvers();
+    this.#downloader.onmessage = ({ data }) => {
+      this.#watch?.(data, "downloader");
+      if (data.kind === "running") running.resolve();
+    };
     const { port1, port2 } = new MessageChannel();
     this.#downloader.postMessage({ kind: "link", port: port1 }, [port1]);
     const dialled = Boolean(config.pageDials);
     if (dialled) {
       const { writer, holdEveryOther, ...own } = config;
       refuseUnstartable(own);
-      startAndDial(this.#downloader, url, certHash, { ...own, fill: undefined, want: firstWant });
+      startAndDial(this.#downloader, url, certHash, { ...own, fill: undefined, want: firstWant }, { tellPage: Boolean(this.#open) });
+    }
+    if (this.#open) {
+      await Promise.race([running.promise, unstarted.promise]);
+      this.#open();
     }
     watchPage(() => this.#worker.postMessage({ kind: "trigger" }), this.#triggers.signal);
     // The view worker's consumer hears nothing from a downloader that never ran, so the page ends the wait.
@@ -134,7 +159,7 @@ export class ViewWorker {
   #end(reason) {
     if (this.#dead) return;
     this.#dead = reason;
-    this.#worker.terminate();
+    this.#worker?.terminate();
     this.#downloader?.terminate();
     this.#emit("failed", { scope: "worker", reason });
     for (const r of this.#replies.values()) r.reject(new Error(reason));
