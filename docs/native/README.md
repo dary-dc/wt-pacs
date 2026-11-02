@@ -228,7 +228,7 @@ none queued; each states its predictions and rule before any data and runs in a 
   M4. Say where the container saturates.
 
   *Run 2026-10-28, this container (4 vCPU), from this protocol:* [`lab/native-fill/run.py`](../../lab/native-fill/run.py),
-  rows in `rows.jsonl` there. M1 passed, so its painter is in.
+  rows in [`rows.jsonl`](https://github.com/dary-dc/wt-pacs/tree/2e6fa5b225396a1431035f853cefaf6acbe1f428/lab/native-fill/rows.jsonl) at `claude/core@2e6fa5b2`, not in this tree. M1 passed, so its painter is in.
   * **Arms, every setting printed in each row.** *Browser:* the viewer, `client/viewer/`, in headless Chrome for
     Testing 153 with the TS client, OpenJPH-WASM from the pinned build, and the gl painter on SwiftShader. Its fill is timed
     by the page's own lab hooks (`lab/viewer/levers.js`), from just before the dial to the last frame decoded and

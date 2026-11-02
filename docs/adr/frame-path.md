@@ -1977,9 +1977,9 @@ later row"). Not run: M5 itself, WebKit, and the 13 GiB follow-up, which keeps i
 | JSC: the heap's growth factors (added in review) | `Source/JavaScriptCore/runtime/OptionsList.h` 219–226 |
 | HTML: a port's message queue, with no bound given | `source` 134810–134816 |
 
-**M5, run 2026-10-30.** The rows are [`lab/opfs-cache/rows/m5/`](../../lab/opfs-cache/rows/m5/), with the smoke
-rows beside them in `m5-smoke/`; `python3 lab/opfs-cache/summary.py lab/opfs-cache/rows/m5` prints every number
-below. The host is the 4-vCPU, 16 GiB container. The browsers are Chrome for Testing 153.0.8010.12 headless, and
+**M5, run 2026-10-30.** The rows are [`lab/opfs-cache/rows/m5/`](https://github.com/dary-dc/wt-pacs/tree/91069eb31e8816bcd4460322e38e8f719a5c0c07/lab/opfs-cache/rows/m5), with the smoke
+rows beside them in `m5-smoke/`, at `claude/core-m5@91069eb3`, not in this tree; `python3 lab/opfs-cache/summary.py
+lab/opfs-cache/rows/m5` there prints every number below. The host is the 4-vCPU, 16 GiB container. The browsers are Chrome for Testing 153.0.8010.12 headless, and
 Firefox 159.0 on Xvfb. The decoders are the pinned builds of `claude/decoders-committed`, each file checked against
 `manifest.sha256`. Each cell ran 7 rounds in `lab/order.mjs`'s order. WebKit did not run.
 
@@ -2079,7 +2079,7 @@ cell's fills on both engines, and 0.34–0.45 in `m5-busy`. Three decoders on fo
 its fill times say nothing of a faster decode; the busy cell is paced by the view's hold.
 
 **The harness, checked live.** The review's mutants ran on stub decoders; here each ran once on the live rig (rows in
-`m5-smoke/`), and every one was caught:
+`m5-smoke/`, at `claude/core-m5@91069eb3`), and every one was caught:
 
 * `slots-never-freed` stalled at 9 frames on both engines, as predicted.
 * `fresh-when-dry` took 28 frames outside the ring on Chromium and 29 on Firefox. Firefox's first run of it never

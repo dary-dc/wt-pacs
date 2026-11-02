@@ -23,4 +23,4 @@ M5's arms are `arms.html`: a stand-in view worker (`arms-view.js`) running the p
 names the arm it runs on (`--arm ring`). The arm switched off, M2's `was`, M5's credits and the mutants are the rig's
 stand-ins, named in `run.mjs`'s `STAND_INS`: written over the file and put back after each browser, in both engines,
 since a route misses a script that a worker's own worker loads. Series, profiles and rows go to `work/`, which
-is not tracked: M2's 13 GiB cell wants ~16 GB of free disk. `m2-trace` is the diagnostic after M2, not pre-registered. M5's rows are committed under `rows/m5/`, its smoke rows under `rows/m5-smoke/`.
+is not tracked: M2's 13 GiB cell wants ~16 GB of free disk. `m2-trace` is the diagnostic after M2, not pre-registered. M5's rows, under `rows/m5/`, `rows/m5-smoke/` and `rows/m5-rerun/`, are at [`claude/core-m5@91069eb3`](https://github.com/dary-dc/wt-pacs/tree/91069eb31e8816bcd4460322e38e8f719a5c0c07/lab/opfs-cache/rows), not in this tree.
