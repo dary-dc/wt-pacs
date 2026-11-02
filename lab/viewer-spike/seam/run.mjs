@@ -173,7 +173,7 @@ async function visit(browser, server, pageRef, names) {
   await page.waitForFunction(() => window.spikeReady || window.spikeError, null, { timeout: 30_000 });
   const failed = await page.evaluate(() => window.spikeError);
   if (failed) throw new Error(failed);
-  const results = {};
+  const results = { renderer: await page.evaluate(() => spike.viewport.painter.renderer) };
   for (const name of names) {
     try {
       await page.evaluate(() => spike.reset());
@@ -194,6 +194,7 @@ const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader"] })
 let bad = 0;
 try {
   const clean = await visit(browser, server, pageRef, Object.keys(CHECKS));
+  console.log(`Chromium ${browser.version()}, ${clean.renderer}`);
   for (const name of Object.keys(CHECKS)) {
     console.log(`${clean[name].ok ? "pass" : "FAIL"}  ${name}: ${clean[name].seen}`);
     if (!clean[name].ok) bad++;

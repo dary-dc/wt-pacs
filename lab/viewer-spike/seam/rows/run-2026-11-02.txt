@@ -1,0 +1,13 @@
+Chromium 153.0.8010.12, ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)
+pass  length: length 18.028 mm, want 18.028
+pass  probe: value 3175, want 3175
+pass  registration: value 3175: painted 76, expected 75
+pass  zoom and pan: zoom 3.676, pan -18.0,-11.0; value 3750: painted 112, expected 112
+pass  window drag: window 2000.0–6160.0; painted 72, expected 72
+pass  scroll: index 1; value 5130 (want 5130): painted 200, expected 200
+caught  mutant "canvasToWorld scaled 1.1 in x" by length: length 16.910 mm, want 18.028
+caught  mutant "the probe reads the next sample" by probe: value 3215, want 3175
+caught  mutant "the painter's pan 8 px off" by registration: value 3175: painted 70, expected 75
+caught  mutant "the painter's zoom 5 % off" by zoom and pan: zoom 3.676, pan -18.0,-11.0; value 3750: painted 106, expected 112
+caught  mutant "the window never reaches the painter" by window drag: window 2000.0–6160.0; painted 76, expected 72
+caught  mutant "scroll paints the first slice" by scroll: index 1; value 5130 (want 5130): painted 9, expected 200
