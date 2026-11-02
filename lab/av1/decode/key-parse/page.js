@@ -4,6 +4,7 @@
  * every mutation. run.mjs serves and drives it. lab/av1/decode/key-parse/README.md
  */
 import { order } from "/lab/order.mjs";
+import { codecString, parsePayload, sequence, units } from "/client/decode/av1-payload.js";
 
 const post = (path, body) => fetch(path, { method: "POST", body: JSON.stringify(body) });
 const ARMS = { flush: false, keyParse: true };
@@ -54,14 +55,26 @@ const decoderOf = (keyParse) => {
 const fetched = (dir, set, file) => fetch(`/${dir}/${set}/${file}`).then((x) => x.arrayBuffer()).then((b) => new Uint8Array(b));
 const tally = (paths, p) => (paths[p] = (paths[p] ?? 0) + 1);
 
-/** rows: { set, arm, ms[], exact, frames, units, flushes, paths, error? }; one warm-up frame first, as the product decodes at init. */
-async function time({ frames: dir, round, sets, flip, noDigests }) {
+/** A frame's ms on its last-output decoder: before its decode(), to its output, its copy, its flush, and the rest (the chroma check, merge, XXH3); null off WebCodecs. */
+function phases({ trace }, { stamps }) {
+  const outs = trace.filter((e) => e[0] === "output");
+  if (!outs.length) return null;
+  const [, id, out] = outs.reduce((a, b) => (b[2] > a[2] ? b : a));
+  const decode = trace.find((e) => e[0] === "decode" && e[1] === id)[2];
+  const copy = trace.find((e) => e[0] === "copy" && e[2] >= out);
+  const flush = trace.find((e) => e[0] === "flush" && e[1] === id);
+  const p = { pre: decode - stamps.decodeStart, out: out - decode, copy: copy ? copy[3] - out : 0, flush: flush ? flush[3] - flush[2] : 0 };
+  return { ...p, post: stamps.decodeEnd - stamps.decodeStart - p.pre - p.out - p.copy - p.flush };
+}
+
+/** rows: { set, arm, ms[], phases[], exact, frames, units, flushes, paths, error? }; one warm-up frame first, as the product decodes at init. */
+async function time({ frames: dir, round, sets, arms, flip, noDigests }) {
   const manifest = (await (await fetch(`/${dir}/manifest.json`)).json()).filter((s) => !sets || sets.includes(s.name));
   const rows = [];
   for (const set of order(manifest, round)) {
     const bytes = await Promise.all(set.frames.map((_, i) => fetched(dir, set.name, `${String(i).padStart(3, "0")}.g1`)));
-    for (const arm of order(Object.keys(ARMS), round)) {
-      const row = { set: set.name, arm, ms: [], exact: 0, frames: bytes.length, paths: {} };
+    for (const arm of order(arms ?? Object.keys(ARMS), round)) {
+      const row = { set: set.name, arm, ms: [], phases: [], exact: 0, frames: bytes.length, paths: {} };
       let dec = null;
       try {
         dec = await start(decoderOf(ARMS[arm]), 1, noDigests ? null : set.digests);
@@ -70,6 +83,7 @@ async function time({ frames: dir, round, sets, flip, noDigests }) {
           const { m, f } = await dec.send(bytes[i], i, true);
           if (!f) throw new Error(`frame ${i}: ${m.kind} ${m.reason ?? ""}`);
           row.ms.push(f.stamps.decodeEnd - f.stamps.decodeStart);
+          row.phases.push(phases(m, f));
           tally(row.paths, f.path);
           if (f.exact !== false && (await sha256(f.pixels, flip)) === set.frames[i].truth) row.exact++;
           row.units = m.units - before.units;
@@ -79,6 +93,57 @@ async function time({ frames: dir, round, sets, flip, noDigests }) {
         row.error = String(e?.message ?? e);
       }
       dec?.close();
+      rows.push(row);
+    }
+  }
+  return rows;
+}
+
+/** Row WCLAT's variants on the same units, bare `VideoDecoder` on the page: `flush` without and `latency` with `optimizeForLatency`, as WCLAT ran them; `latencyFlush` the product's order. */
+const BARE = {
+  flush: { config: {}, flush: "before-output" },
+  latency: { config: { optimizeForLatency: true } },
+  latencyFlush: { config: { optimizeForLatency: true }, flush: "after-copy" },
+};
+
+/** rows: { set, variant, out[], copy[], flush[], ms[] }: decode() to output, the copy, the flush, and decode() to the last of them; a split payload's top unit only. */
+async function bare({ frames: dir, round, sets }) {
+  const manifest = (await (await fetch(`/${dir}/manifest.json`)).json()).filter((s) => !sets || sets.includes(s.name));
+  const rows = [];
+  for (const set of order(manifest, round)) {
+    const tops = await Promise.all(set.frames.map(async (_, i) => {
+      const p = parsePayload(await fetched(dir, set.name, `${String(i).padStart(3, "0")}.g1`));
+      return units(p.frames[0], p.split)[0];
+    }));
+    for (const name of order(Object.keys(BARE), round)) {
+      const v = BARE[name];
+      const row = { set: set.name, variant: name, out: [], copy: [], flush: [], ms: [] };
+      let wake = null;
+      const vd = new VideoDecoder({ output: (f) => wake(f), error: (e) => (row.error = String(e)) });
+      try {
+        vd.configure({ codec: codecString(sequence(tops[0])), hardwareAcceleration: "prefer-software", ...v.config });
+        for (let i = -1; i < tops.length; i++) {
+          const got = new Promise((r) => (wake = (f) => r([performance.now(), f])));
+          const t0 = performance.now();
+          vd.decode(new EncodedVideoChunk({ type: "key", timestamp: i + 1, data: tops[Math.max(i, 0)] }));
+          if (v.flush === "before-output") await vd.flush();
+          const late = new Promise((_, no) => setTimeout(() => no(new Error(`frame ${i}: no output in ${SEND_MS} ms`)), SEND_MS));
+          const [out, f] = await Promise.race([got, late]);
+          await f.copyTo(new ArrayBuffer(f.allocationSize()));
+          const copied = performance.now();
+          f.close();
+          if (v.flush === "after-copy") await vd.flush();
+          if (i < 0) continue;
+          const end = performance.now();
+          row.out.push(out - t0);
+          row.copy.push(copied - out);
+          row.flush.push(v.flush === "after-copy" ? end - copied : 0);
+          row.ms.push(end - t0);
+        }
+      } catch (e) {
+        row.error = String(e?.message ?? e);
+      }
+      vd.close();
       rows.push(row);
     }
   }
@@ -132,7 +197,7 @@ const caps = async () => ({
 (async () => {
   const task = await (await post("/kp/hello", await caps())).json();
   try {
-    await post("/kp/done", { rows: await (task.mode === "mutate" ? mutate : time)(task) });
+    await post("/kp/done", { rows: await { mutate, time, bare }[task.mode](task) });
   } catch (e) {
     await post("/kp/done", { error: String(e?.stack ?? e) });
   }

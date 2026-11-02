@@ -26,7 +26,9 @@ decodes every stream against that truth before it is used. **All 28 streams were
 **Variants.** Each unit goes in as one chunk, `key` on keyframes, and its frame is awaited up to a
 deadline, timed from `decode()` to the output callback:
 
-* `flush`, as the product was: a flush after every unit.
+* `flush`, as the product was: a flush after every unit. *Corrected 2026-11-02:* without `optimizeForLatency`, so
+  `latency` ÷ `flush` is that option and the flush together; the flush alone is
+  [`../key-parse`](../key-parse/README.md) §Why the gain was small.
 * `latency`: `optimizeForLatency: true` and no flush.
 * `keyflush`: the same, but flushed before each keyframe.
 * `hold`: neither.

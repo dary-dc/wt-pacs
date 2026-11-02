@@ -1703,7 +1703,8 @@ A flush per unit cannot carry a group: `flush()` sets `[[key chunk required]]`, 
 `DataError` for a chunk whose type is not `key` ([S24] §4.5). Sources: [`../av1/frame-groups.md`](../av1/frame-groups.md) §6.
 
 Skipping the flush makes a frame 7–20 % faster at 1× and 3–28 % at 4×, intra, 10 interleaved rounds
-(every frame exact). A keyframe still needs one, though, or a unit labelled key that is not a
+(every frame exact). *Corrected 2026-11-02:* that compared a flush without `optimizeForLatency` against no flush
+with it, two levers at once; the flush alone costs 1.3–2.0 ms a frame at 1× (*Safety without the flush*, below). A keyframe still needs one, though, or a unit labelled key that is not a
 keyframe decodes against the frame before it. That is how `inter.av1` passed as pixels in the first
 build. The specification checks a key only while `[[key chunk required]]` is true, after construction,
 `configure`, `flush` or `reset`: then "Implementers SHOULD inspect the chunk’s [[internal data]] to verify that it
@@ -1793,7 +1794,7 @@ several decoders at once.
   of 10: **Chromium 141 ×0.951 [0.931–0.973] 10/10 at 1×, ×0.980 [0.969–1.002] 9/10 at 4×; Chromium 153 ×0.955
   [0.931–0.985] 10/10 at 1×, ×0.993 [0.956–1.012] 7/10 at 4×.** Per stream ×0.92–1.02 at 1× and ×0.93–1.05 at 4×;
   `dbts_b1` (2560×3328) was slower under `keyParse` at 4× in both (×1.02, ×1.05). §5d's 0.72–0.97 at 4×, the bare
-  decoder's, is not reached through the worker.
+  decoder's, is not reached through the worker (why: *Explained 2026-11-02*, below).
 * **Firefox 159 and WebKitGTK 2.52.6** decode none of the five streams tried through `VideoDecoder` (the three DBT
   runs, the fluoroscopy and the ultrasound at one tile; one round at 1×, every frame dav1d-WASM in both arms), so
   `keyParse` changes nothing there; the 2- and 4-tile streams were not tried.
@@ -1808,6 +1809,68 @@ several decoders at once.
 * **The rule as registered keeps the flush in every browser:** in Chromium 141 on the mutations (the G = 8
   extension), in Chromium 153 on the mutations and on the speed at 4× (7 of 10), in Firefox and WebKitGTK because no
   stream tried reaches their `VideoDecoder`. `keyParse` stays off.
+
+*Explained 2026-11-02* (exploratory runs, which decide nothing:
+[`lab/av1/decode/key-parse`](../../lab/av1/decode/key-parse/README.md) §Why the gain was small). **The gain is small**
+because the flush in the product's worker costs only 1.3–2.0 ms a frame at 1× and 2.1–5.3 ms at 4×, a fixed cost:
+Chromium re-initialises its dav1d decoder on every `flush()`. Row WCLAT's −7 to −20 % compared a flushed decoder
+*without* `optimizeForLatency` against one *with* it and no flush. The product sets the option in both arms, so only
+the flush was left to save, and WCLAT's 1× gain does not reproduce in its own harness today (×0.89–1.02).
+**`dbts_b1` is slower without the flush only at 4× in Chromium 153**, where both of its decoders take about 15 %
+longer to give a frame for the same CPU time. That is scheduling under the throttle inside Chromium, not our
+worker, so no fix was built. **The mutation clause was absolute**, so the shipped arm failed it too. **The speed
+clause** needed effects of about 5 % to pass reliably. Per-round spread is 1.1–2.2 % on the all-streams ratio and
+2.5–8 % on one stream, and the 4× throttle does not widen it.
+
+#### Amended protocol, pre-registered
+
+*Amended 2026-11-02, after the 2026-10-31 data, before any run of it; for a separate session.* Why it was amended:
+the registered mutation clause could not choose between the arms (the shipped arm fails it), and the registered
+speed clause, "faster in at least 9 of 10 paired rounds", passes a true 2 % gain 13–96 % of the time at the
+spreads measured and a true 0.7 % gain 8 % of the time. Its verdict was therefore a matter of chance at the effect
+sizes measured (×0.94–0.99). The thresholds come from the spreads already measured and from the 2 % the
+question asks about, not from data this protocol will produce.
+
+* **Arms.** `client/decode/decoder.js` as shipped, one frame in flight, one warm-up frame, the per-frame XXH3 check
+  on: `flush` (as shipped) against decoder config `keyParse`, at G = 1. No fix arm: the 2026-11-02 diagnosis found
+  no cause in the worker to fix. Timed as `decodeStart`–`decodeEnd`, with `lab/av1/decode/key-parse`'s `time` mode
+  as it stands.
+* **Content.** The middle 16 slices of `dbts_a1`, `dbts_b1` and `dbts_c1` as `gop.py` and `payloads.py` make them,
+  and row WCLAT's fluoroscopy top-10 and ultrasound cine intra streams at 1, 2 and 4 tile columns, coded as
+  `make_frames.py` codes them. The ultrasound cine (760×421 RGB, 70 frames) is the small-frame case, standing for
+  cine such as breast ultrasound (*unverified* that those are the same size). Its rows are reported and decided
+  on, not only pooled.
+* **Browsers.** Chromium 141.0.7390.37 and the current Chrome for Testing headless shell, pinned by version in the
+  write-up. Firefox and WebKitGTK as pinned in `lab/av1/decode/key-parse`. In those two, a first round at 1× records
+  per stream whether any unit reaches `VideoDecoder`. Where none does, both arms are dav1d-WASM, `keyParse` is inert,
+  and that browser's verdict is "no change" without timing. Where some do, that browser is timed like Chromium.
+* **Throttles and order.** 1× and 4× (`lab/scripts/cpu_throttle.mjs`, per thread, as before), each (browser ×
+  throttle) cell a fresh browser in a Williams order every round, streams and arms rotating inside each, the host's
+  load recorded once per stream (`--load`). Nothing is claimed past one decoder at a time.
+* **Rounds, by power.** 24 rounds. The 2026-10-31 all-streams spread was at most 1.85 % (sd of each round's ln ×),
+  and 2026-11-02's at most 3.0 % robust. At sd 3.0 % a paired *t*-test needs 21 rounds for 80 % power to tell a 2 %
+  effect from none at α = 0.05 two-sided, and 24 keeps the 95 % interval's half-width under 1.3 %. A round with an
+  error in any cell is re-run whole, under the next round number, and reported.
+* **Speed clause, by effect size.** Per browser and throttle, the estimate is the mean over rounds of each round's
+  geometric mean over streams of keyParse ÷ flush, with its 95 % paired-*t* interval; per stream the same, reported.
+  `keyParse` is **faster** at a throttle if the all-streams estimate is ≤ 0.98 and its interval's upper end is
+  < 1.00. It is **slower on a stream** if that stream's interval lies wholly above 1.00. It is **inconclusive**
+  otherwise, and the write-up says so with the interval, not as a pass or a fail.
+* **Mutation clause, relative to the shipped arm at G = 1.** The registered mutations, at G = 1 and G = 8 on each
+  DBT run, through both arms, at 1× and 4×, in every browser. Required: no send in either arm is shown with wrong
+  samples (an escape) or outlasts the 30 s bound (a stall), and every control is exact. At G = 1, every mutation
+  the `flush` arm catches (refused by name, off its digest, or exact from dav1d-WASM after WebCodecs refused it) is
+  also caught under `keyParse`. A mutated send whose decoded samples equal its truth's is reported as **exact (a
+  valid picture)** in either arm and is not a miss: the OBU extension with operating point 0 is the known case
+  (AV1 §5.3.1). At G = 8, where `keyParse` does not act, the two arms must give the same outcome on every case.
+* **Decision, per browser.** `keyParse` becomes the default for one-unit WebCodecs groups in a browser if the
+  mutation clause holds there, and it is faster at both 1× and 4×, and slower on no stream at either throttle.
+  Otherwise the flush stays, the write-up naming which clause decided. Where `keyParse` is inert the flush stays,
+  being harmless there. Every frame must be exact in both arms, or nothing is decided.
+* **Known before the run.** On 2026-11-02 `dbts_b1` was slower under `keyParse` at 4× in Chromium 153 (×1.038,
+  exploratory), at equal CPU time. If it is again, the slower-on-a-stream clause keeps the flush in that browser.
+  That is intended: 4× stands for a slow device, and that the slowdown belongs to the throttle and not to a device
+  is *unverified*.
 
 ### A split payload through two decoders
 

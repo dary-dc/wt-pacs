@@ -15,7 +15,7 @@ const V2 = !fs.existsSync(CPU);
 /** The kernel's floor for a quota, in µs; the period is `rate` of these, so a stall is never longer than a few ms. */
 const QUOTA_US = 1000;
 
-function descendants(root) {
+export function descendants(root) {
   const kids = new Map();
   for (const p of fs.readdirSync("/proc")) {
     if (!/^\d+$/.test(p)) continue;

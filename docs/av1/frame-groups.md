@@ -401,7 +401,9 @@ unmeasured.
   to build and measure under the protocol pre-registered in [`../decode/README.md`](../decode/README.md) §Safety
   without the flush, from the specifications; *corrected 2026-10-31:* built behind decoder config `keyParse`, off by
   default, and *measured 2026-10-31* (*ibid.*): exact on every frame, 0.95 of the flushed time a frame at 1× and
-  0.98–0.99 at 4× through the product's worker (the prediction's 0.72–0.97 is not reached), but the registered rule
+  0.98–0.99 at 4× through the product's worker (the prediction's 0.72–0.97 is not reached; *corrected 2026-11-02:*
+  it came from row WCLAT, whose flushed arm also lacked `optimizeForLatency`, so it measured two levers; the flush
+  alone costs 1.3–2.0 ms a frame at 1×, *ibid.* *Explained 2026-11-02*), but the registered rule
   keeps the flush: Chromium 153 is faster in only 7 of 10 rounds at 4×, and an OBU-extension unit at G = 8 is
   neither refused nor off its digest.
 

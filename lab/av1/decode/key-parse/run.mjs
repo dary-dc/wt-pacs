@@ -3,8 +3,8 @@
  * after every unit against `keyParse`, in each engine. Every (engine × throttle) cell is a fresh browser opening
  * page.js, the cells in a Williams order every round; streams and arms rotate inside it. README.md here
  *
- *   node lab/av1/decode/key-parse/run.mjs time|mutate [--rounds 10] [--throttles 1,4] [--engines chromium141,chromium,firefox,webkit]
- *     [--frames lab/.av1-work/keyparse/frames] [--sets a,b] [--flip] [--no-digests] [--load] [--out rows.json] [--summary]
+ *   node lab/av1/decode/key-parse/run.mjs time|mutate|bare [--rounds 10] [--throttles 1,4] [--engines chromium141,chromium,firefox,webkit]
+ *     [--frames lab/.av1-work/keyparse/frames] [--sets a,b] [--flip] [--no-digests] [--load] [--trace dir] [--cores n] [--arms flush,keyParse] [--out rows.json] [--summary]
  */
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -12,12 +12,12 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
 import { order } from "../../../order.mjs";
-import { throttleTree } from "../../../scripts/cpu_throttle.mjs";
+import { descendants, throttleTree } from "../../../scripts/cpu_throttle.mjs";
 
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const MODE = process.argv[2];
-if (!["time", "mutate"].includes(MODE)) throw new Error("usage: run.mjs time|mutate ...");
-const ROUNDS = Number(arg("--rounds", MODE === "time" ? 10 : 1));
+if (!["time", "mutate", "bare"].includes(MODE)) throw new Error("usage: run.mjs time|mutate|bare ...");
+const ROUNDS = Number(arg("--rounds", MODE === "mutate" ? 1 : 10));
 const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
 const ENGINE_NAMES = arg("--engines", "chromium141,chromium,firefox").split(",");
 const FRAMES = arg("--frames", "lab/.av1-work/keyparse/frames");
@@ -25,12 +25,16 @@ const SETS = arg("--sets", null)?.split(",");
 const OUT = arg("--out", null);
 const SUMMARY = process.argv.includes("--summary");
 const LOAD = process.argv.includes("--load");
-const TASK = { mode: MODE, frames: FRAMES, sets: SETS, flip: process.argv.includes("--flip"), noDigests: process.argv.includes("--no-digests") };
+const TRACE = arg("--trace", null);
+// Row WCLAT's host: the browser on n cores, and at 4x the tree as a whole on n slowed CPUs.
+const CORES = arg("--cores", null) && Number(arg("--cores"));
+const TASK = { mode: MODE, frames: FRAMES, sets: SETS, arms: arg("--arms", null)?.split(","), flip: process.argv.includes("--flip"), noDigests: process.argv.includes("--no-digests") };
 const CELL_MS = 90 * 60 * 1000;
 const ROOT = new URL("../../../..", import.meta.url).pathname;
 const BROWSERS = `${ROOT}/lab/.av1-build/browsers`;
 
-const chrome = (bin) => (url, dir) => [bin, ["--no-sandbox", "--no-first-run", `--user-data-dir=${dir}`, url]];
+const chrome = (bin) => (url, dir) => [bin, ["--no-sandbox", "--no-first-run", `--user-data-dir=${dir}`,
+  ...(TRACE ? ["--remote-debugging-port=0"] : []), url]];
 const ENGINES = {
   chromium141: chrome(process.env.CHROME141_PATH ?? `${BROWSERS}/chs141/chrome-headless-shell-linux64/chrome-headless-shell`),
   chromium: chrome(process.env.CHROMIUM_PATH ?? "/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell"),
@@ -61,7 +65,7 @@ const server = createServer((req, res) => {
       if (req.url === "/kp/hello") {
         cell.caps = m;
         // The slow CPU starts once the page has loaded, as in every other row's throttled cell.
-        cell.stop = throttleTree(cell.pid, cell.throttle);
+        cell.stop = throttleTree(cell.pid, cell.throttle, { cores: CORES ?? undefined });
         res.writeHead(200, { ...headers, "Content-Type": "application/json" });
         res.end(JSON.stringify({ ...TASK, round: cell.round }));
       } else {
@@ -82,7 +86,7 @@ const server = createServer((req, res) => {
 });
 
 /** Busy CPUs over the host, every 100 ms from /proc/stat: the cell's mean and its share of samples with every CPU busy. */
-function sampleLoad() {
+function sampleLoad(root) {
   const read = () => readFileSync("/proc/stat", "utf8").split("\n").filter((l) => /^cpu\d/.test(l))
     .map((l) => { const v = l.split(/\s+/).slice(1).map(Number); return [v[3] + v[4], v.reduce((a, b) => a + b, 0)]; });
   const busy = [];
@@ -94,7 +98,36 @@ function sampleLoad() {
   }, 100);
   return () => {
     clearInterval(timer);
-    return { cpus: last.length, mean: busy.reduce((a, b) => a + b, 0) / busy.length, full: busy.filter((b) => b > last.length - 0.25).length / busy.length };
+    const ticks = (pid) => { try { const v = readFileSync(`/proc/${pid}/stat`, "utf8").split(") ")[1].split(" "); return Number(v[11]) + Number(v[12]); } catch { return 0; } };
+    return { cpuSeconds: descendants(root).reduce((n, pid) => n + ticks(pid), 0) / 100, cpus: last.length, mean: busy.reduce((a, b) => a + b, 0) / busy.length, full: busy.filter((b) => b > last.length - 0.25).length / busy.length };
+  };
+}
+
+/** Chromium's trace of a cell over CDP, launch to result: GC, WebCodecs and the media thread. */
+async function tracer(dir) {
+  let port = [];
+  for (let i = 0; i < 100 && !port[1]; i++) {
+    try { port = readFileSync(join(dir, "DevToolsActivePort"), "utf8").split("\n"); } catch { /* not yet written */ }
+    if (!port[1]) await new Promise((r) => setTimeout(r, 50));
+  }
+  const ws = new WebSocket(`ws://127.0.0.1:${port[0]}${port[1]}`);
+  await new Promise((r) => (ws.onopen = r));
+  const events = [];
+  let done = null;
+  ws.onmessage = ({ data }) => {
+    const m = JSON.parse(data);
+    if (m.method === "Tracing.dataCollected") events.push(...m.params.value);
+    if (m.method === "Tracing.tracingComplete") done?.();
+  };
+  const call = (id, method, params) => ws.send(JSON.stringify({ id, method, params }));
+  call(1, "Tracing.start", { transferMode: "ReportEvents", traceConfig: { includedCategories:
+    ["v8", "disabled-by-default-v8.gc", "media", "blink.worker", "toplevel", "disabled-by-default-devtools.timeline"] } });
+  return async (file) => {
+    const end = new Promise((r) => (done = r));
+    call(2, "Tracing.end");
+    await end;
+    ws.close();
+    writeFileSync(file, JSON.stringify({ traceEvents: events }));
   };
 }
 
@@ -102,16 +135,19 @@ async function inEngine(engine, throttle, round, url) {
   const dir = mkdtempSync(join(tmpdir(), "kp-"));
   const [bin, args, extra] = ENGINES[engine](url, dir);
   const env = { ...process.env, WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS: "1", MOZ_CRASHREPORTER_DISABLE: "1", ...extra };
-  const proc = spawn(bin, args, { env, stdio: ["ignore", "ignore", "pipe"] });
+  const proc = CORES ? spawn("taskset", ["-c", `0-${CORES - 1}`, bin, ...args], { env, stdio: ["ignore", "ignore", "pipe"] })
+    : spawn(bin, args, { env, stdio: ["ignore", "ignore", "pipe"] });
   let stderr = "";
   proc.stderr.on("data", (c) => (stderr = (stderr + c).slice(-4000)));
-  const load = LOAD ? sampleLoad() : () => null;
+  const load = LOAD ? sampleLoad(proc.pid) : () => null;
+  const trace = TRACE && engine.startsWith("chromium") ? tracer(dir) : null;
   const r = await new Promise((resolve) => {
     cell = { pid: proc.pid, throttle, round, done: resolve, stop: () => {} };
     setTimeout(() => resolve({ error: `no result in ${CELL_MS / 60000} min; stderr: ${stderr}` }), CELL_MS);
     proc.on("exit", (code) => setTimeout(() => resolve({ error: `exited ${code}; stderr: ${stderr}` }), 2000));
   });
   cell.stop();
+  if (trace) await (await trace)(join(TRACE, `${engine}-${throttle}x-r${round}.json`));
   r.load = load();
   const caps = cell.caps;
   proc.kill("SIGKILL");
@@ -137,7 +173,7 @@ if (!SUMMARY) {
       const r = await inEngine(engine, throttle, round, url);
       caps[engine] ??= r.caps;
       if (r.error) console.error(`round ${round} ${engine} ${throttle}x: ${r.error}`);
-      if (r.load) console.log(`${engine} ${throttle}x ${SETS ?? "all"}: ${r.load.mean.toFixed(2)} of ${r.load.cpus} CPUs busy on average, all busy in ${(100 * r.load.full).toFixed(0)} % of 100 ms samples`);
+      if (r.load) console.log(`${engine} ${throttle}x ${SETS ?? "all"} ${TASK.arms ?? ""}: ${r.load.cpuSeconds.toFixed(1)} CPU s; ${r.load.mean.toFixed(2)} of ${r.load.cpus} CPUs busy on average, all busy in ${(100 * r.load.full).toFixed(0)} % of 100 ms samples`);
       for (const row of r.rows ?? []) rows.push({ round, engine, throttle, ...row });
       console.error(`round ${round} ${engine} ${throttle}x done`);
       if (OUT) writeFileSync(OUT, JSON.stringify({ caps, rows }));
@@ -149,6 +185,8 @@ if (!SUMMARY) {
 const med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
 const f = (v) => v.toFixed(v < 10 ? 2 : 1);
+const sd = (a) => Math.sqrt(a.reduce((s, x) => s + (x - mean(a)) ** 2, 0) / Math.max(1, a.length - 1));
+const PHASES = ["pre", "out", "copy", "flush", "post"];
 const span = (a, d = f) => `[${d(Math.min(...a))}–${d(Math.max(...a))}]`;
 const engines = [...new Set(rows.map((r) => r.engine))];
 const throttles = [...new Set(rows.map((r) => r.throttle))].sort((a, b) => a - b);
@@ -186,9 +224,38 @@ if (MODE === "time") {
       const fast = g.filter((v) => v < 1).length;
       console.log(`${e} ${t}x all streams: ×${g.length ? med(g).toFixed(3) : "—"} ${g.length ? span(g, (v) => v.toFixed(3)) : ""} faster ${fast}/${g.length}`);
       (verdict[e] ??= []).push(fast >= 9 && g.length >= 10);
+      const lg = g.map(Math.log);
+      console.log(`${e} ${t}x all streams: sd of ln(keyParse ÷ flush) over rounds ${(100 * sd(lg)).toFixed(2)} %`);
+    }
+  }
+  console.log("phases, ms a frame (median over rounds of each round's mean): before decode(), to output, copy, flush, after (merge, XXH3); sd of ln(×) over rounds");
+  for (const e of engines) {
+    for (const t of throttles) {
+      for (const set of [...new Set(rows.map((r) => r.set))]) {
+        const of = (arm) => rows.filter((r) => r.engine === e && r.throttle === t && r.set === set && r.arm === arm && r.phases?.length && r.phases.every(Boolean));
+        const parts = ["flush", "keyParse"].map((arm) => `${arm} ` + PHASES.map((k) => f(med(of(arm).map((r) => mean(r.phases.map((p) => p[k])))))).join(" / "));
+        const kp = new Map(of("keyParse").map((r) => [r.round, mean(r.ms)]));
+        const lr = of("flush").filter((r) => kp.has(r.round)).map((r) => Math.log(kp.get(r.round) / mean(r.ms)));
+        console.log(`${e} ${t}x ${set}: ${parts.join(" · ")} · sd ${(100 * sd(lr)).toFixed(2)} % over ${lr.length}`);
+      }
     }
   }
   for (const [e, v] of Object.entries(verdict)) console.log(`${e}: faster in at least 9 of 10 paired rounds at every throttle: ${v.every(Boolean)}`);
+} else if (MODE === "bare") {
+  console.log("bare VideoDecoder, ms a frame (median over rounds of each round's mean): decode() to output, copy, flush; latency ÷ flush on decode() to output, paired");
+  for (const e of engines) {
+    for (const t of throttles) {
+      for (const set of [...new Set(rows.map((r) => r.set))]) {
+        const of = (v) => rows.filter((r) => r.engine === e && r.throttle === t && r.set === set && r.variant === v && !r.error);
+        const m = (v, k) => med(of(v).map((r) => mean(r[k])));
+        const parts = ["flush", "latency", "latencyFlush"].map((v) => `${v} ${f(m(v, "out"))} / ${f(m(v, "copy"))} / ${f(m(v, "flush"))}`);
+        const fl = new Map(of("flush").map((r) => [r.round, mean(r.out)]));
+        const x = of("latency").filter((r) => fl.has(r.round)).map((r) => mean(r.out) / fl.get(r.round));
+        const err = rows.find((r) => r.engine === e && r.throttle === t && r.set === set && r.error)?.error;
+        console.log(`${e} ${t}x ${set}: ${parts.join(" · ")} · ×${x.length ? med(x).toFixed(3) : "—"}${err ? ` ERROR ${err}` : ""}`);
+      }
+    }
+  }
 } else {
   // Caught: no send is an escape or a stall, and the mutated send is refused or off its digest, or WebCodecs refused it
   // (its picture then dav1d's, checked); a control's mutated send is exact.
