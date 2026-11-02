@@ -95,9 +95,10 @@ export class Controller {
         try {
           const d = this.display(i, f.info);
           this.lastPaint = await this.paint(f, d);
-          f.painted ??= at();
+          const drawn = this.lastPaint?.drawn ?? at();
+          f.painted ??= drawn;
           this.paints += 1;
-          if (this.firstShownMs === null && f.info.exact === true) this.firstShownMs = at() - this.issuedAt;
+          if (this.firstShownMs === null && f.info.exact === true) this.firstShownMs = drawn - this.issuedAt;
           this.#emit("shown", { i, exact: f.info.exact, reason: f.info.reason, window: d.voi, firstShownMs: this.firstShownMs });
         } catch (e) {
           this.#emit("failed", { scope: "worker", reason: `paint: ${e.message}` });
@@ -191,7 +192,7 @@ export class Controller {
       const { info, arrived, painted, writeAsked, written } = this.store.get(i);
       const samples = new Uint8Array(info.pixels).slice();
       if (flip) samples[samples.length >> 1] ^= 1;
-      frames.push({ i, page: arrived, lastByte: info.stamps?.lastByte, mediaReads: info.stamps?.mediaReads, exact: info.exact, path: info.path, painted, writeAsked, written, sha: await sha256Hex(samples) });
+      frames.push({ i, page: arrived, lastByte: info.stamps?.lastByte, decoded: info.stamps?.decodeEnd, mediaReads: info.stamps?.mediaReads, exact: info.exact, path: info.path, painted, writeAsked, written, sha: await sha256Hex(samples) });
     }
     return { frames, firstShownMs: this.firstShownMs, fillMs: this.fillMs, stats: this.client.stats() };
   }
