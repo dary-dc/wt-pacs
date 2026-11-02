@@ -1,5 +1,5 @@
 /** The page's view: intents to the controller, here or in the view worker. docs/adr/frame-path.md §3, *Built* */
-import { watchPage } from "../transport/consumer.js";
+import { refuseUnstartable, startAndDial, watchPage } from "../transport/consumer.js";
 
 /** ms: the consumer's own close deadline, after which the page ends the downloader it started. */
 const CLOSE_DEADLINE_MS = 1_000;
@@ -54,6 +54,8 @@ export class View {
   }
 }
 
+const SCRIPT = new URL("./view-worker.js", import.meta.url);
+
 /** The view worker's page half: the canvas and one port to the downloader go to it, events come back. */
 export class ViewWorker {
   #worker;
@@ -67,13 +69,21 @@ export class ViewWorker {
   /** Why the view worker ended: after its error or an unreadable message, nothing more is sent to it. */
   #dead = null;
 
+  /** The worker, its script loading before the page has what `start` needs: lab setting `viewWorkerFirst`, docs/adr/frame-path.md §3. */
+  static boot() {
+    const worker = new Worker(SCRIPT, { type: "module" });
+    worker.onerror = (e) => (worker.unloaded = e.message || "its script did not load");
+    return worker;
+  }
+
   /**
    * `emit(type, event)` hears renderer, progress, shown and failed `{scope: frame | series | cache | worker, reason}`;
    * `watch(data, from)`, when given, every message the page receives; `settlePaint`, the lab's flag that a paint waits for the GPU;
-   * `watchWrites`, the viewer check's, that the view worker count the cache writes on its own thread.
+   * `watchWrites`, the viewer check's, that the view worker count the cache writes on its own thread; `booted`, a worker
+   * from `boot`; `glAfterDial`, the lab's setting that the WebGL2 context waits for the dial.
    */
-  constructor(canvas, { meta, fillMode, size, emit, watch, settlePaint = false, watchWrites = false }) {
-    this.#worker = new Worker(new URL("./view-worker.js", import.meta.url), { type: "module" });
+  constructor(canvas, { meta, fillMode, size, emit, watch, settlePaint = false, watchWrites = false, booted, glAfterDial = false }) {
+    this.#worker = booted ?? new Worker(SCRIPT, { type: "module" });
     this.#worker.onerror = (e) => this.#end(this.#started ? `the view worker failed: ${e.message}` : `the view worker did not start: ${e.message || "its script did not load"}`);
     this.#worker.onmessageerror = () => this.#end("a message from the view worker could not be read");
     this.#worker.onmessage = ({ data }) => {
@@ -86,14 +96,19 @@ export class ViewWorker {
       else r.resolve(data.value);
     };
     const offscreen = canvas.transferControlToOffscreen();
-    this.#worker.postMessage({ kind: "start", canvas: offscreen, meta, fillMode, size, settlePaint, watchWrites }, [offscreen]);
+    this.#worker.postMessage({ kind: "start", canvas: offscreen, meta, fillMode, size, settlePaint, watchWrites, glAfterDial }, [offscreen]);
     this.#emit = emit;
     this.#watch = watch;
+    if (booted?.unloaded) this.#end(`the view worker did not start: ${booted.unloaded}`);
   }
 
-  /** The downloader is the page's worker, linked to the view worker by one channel; after this the page never talks to it. */
+  /**
+   * The downloader is the page's worker, linked to the view worker by one channel. Under the lab's `pageDials` the page
+   * also starts it and dials, `firstWant` riding the start, and the view worker joins it; otherwise, and after this, the
+   * page never talks to it.
+   */
   connect(url, certHash, opts, issuedAt) {
-    const { worker, ...config } = opts;
+    const { worker, firstWant, ...config } = opts;
     this.#downloader = new Worker(worker ?? new URL("../transport/downloader.js", import.meta.url), { type: "module" });
     const unstarted = Promise.withResolvers();
     this.#downloader.onerror = (e) => {
@@ -104,9 +119,15 @@ export class ViewWorker {
     if (this.#watch) this.#downloader.onmessage = ({ data }) => this.#watch(data, "downloader");
     const { port1, port2 } = new MessageChannel();
     this.#downloader.postMessage({ kind: "link", port: port1 }, [port1]);
+    const dialled = Boolean(config.pageDials);
+    if (dialled) {
+      const { writer, holdEveryOther, ...own } = config;
+      refuseUnstartable(own);
+      startAndDial(this.#downloader, url, certHash, { ...own, fill: undefined, want: firstWant });
+    }
     watchPage(() => this.#worker.postMessage({ kind: "trigger" }), this.#triggers.signal);
     // The view worker's consumer hears nothing from a downloader that never ran, so the page ends the wait.
-    return Promise.race([this.#call("connect", { port: port2, url, certHash, opts: config, issuedAt }, [port2]), unstarted.promise]);
+    return Promise.race([this.#call("connect", { port: port2, url, certHash, opts: config, issuedAt, dialled, sent: firstWant ?? [] }, [port2]), unstarted.promise]);
   }
 
   /** Fatal: the view is gone, said once, and every call still waiting fails with it. */

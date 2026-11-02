@@ -4,7 +4,7 @@ import { busyPage } from "../frame-clock/busy.js";
 import { sawtooth, STEP_MS, waits } from "./trace.js";
 
 /** Settings the page view would ignore, or under `pixels` copy each paint: docs/adr/frame-path.md §The core, assembled. */
-const WORKER_ONLY = ["writer", "waitAhead", "holdEveryOther", "pixels"];
+const WORKER_ONLY = ["writer", "waitAhead", "holdEveryOther", "pixels", "pageDials", "viewWorkerFirst", "glAfterDial", "shortRuns"];
 
 export function levers(q) {
   if (q.get("trace") && q.get("trace") !== "sawtooth") throw new Error(`refused: trace ${JSON.stringify(q.get("trace"))} — sawtooth`);
@@ -14,6 +14,7 @@ export function levers(q) {
   const ignored = (q.get("view") ?? "page") === "page" && WORKER_ONLY.find((k) => set[k]);
   if (ignored) throw new Error(`refused: ${ignored} under view page — the view worker's; name view=worker`);
   if (writer !== undefined && !["store", "decoders", "view"].includes(writer)) throw new Error(`refused: writer ${JSON.stringify(writer)} — store, decoders or view`);
+  if (writer === "decoders" && opts.pageDials) throw new Error("refused: writer decoders with pageDials — the decoders are told to keep frames only once the cache is open");
   if (writer === "decoders" && opts.pixels === "transfer") throw new Error("refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred");
   // docs/adr/frame-path.md §7: the page busy from here, and after the fill a cine of `cine` seconds.
   const tasks = q.get("busy") === "1" ? busyPage() : [];
@@ -41,7 +42,7 @@ function totalTime(post, origin, opts, after, traced, tasks) {
     steps: Array.from({ length: after }, (_, k) => k + 1),
     started: () => send("hello"),
     filled: () => send("filled"),
-    async finished({ error, issuedAt, firstShownMs, fillMs, frames, errors, stats, stepped = [], cine }) {
+    async finished({ error, issuedAt, firstShownMs, fillMs, frames, errors, stats, stepped = [], cine, boot }) {
       if (error) return send("result", { error }).catch(() => {});
       // Each frame's digest is taken where the frame is held, so no pixel need reach the page: client/view/controller.js.
       const sha = Object.fromEntries(frames.map((f) => [f.i, f.sha]));
@@ -55,7 +56,7 @@ function totalTime(post, origin, opts, after, traced, tasks) {
         mediaReads, fillReads: mediaReads - (opts.holdEveryOther ? reads(frames.filter((f) => f.i % 2 === 0)) : 0),
         frames: asked.length ? [] : frames.map(({ i, page, lastByte, exact }) => ({ i, page, lastByte, exact })),
         failures: errors.map((reason) => ({ reason })), sha, previews: [], previewSha: {},
-        after: asked.map(({ i, at }) => ({ i, ms: arrived.get(i) - at, screen: byIndex.get(i).painted - byIndex.get(i).decoded })), tasks, cine, resumes: stats.resumedAt.length, checked: stats.exact,
+        after: asked.map(({ i, at }) => ({ i, ms: arrived.get(i) - at, screen: byIndex.get(i).painted - byIndex.get(i).decoded })), tasks, cine, resumes: stats.resumedAt.length, checked: stats.exact, boot,
         ...(traced && { trace: waits(stepped, arrived) }) }).catch(() => {});
     },
   };
