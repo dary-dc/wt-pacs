@@ -15,7 +15,7 @@ import { throttleTree } from "../../../scripts/cpu_throttle.mjs";
 const { chromium } = createRequire(import.meta.url)("playwright");
 const ROOT = new URL("../../../..", import.meta.url).pathname;
 /** The protocol's Chromium 141, the headless shell row 100 ran; not $CHROME_PATH, which a host may point elsewhere. */
-const CHROME = process.env.BREAKDOWN_CHROME || `${ROOT}lab/.av1-build/chrome141/chrome-headless-shell-linux64/chrome-headless-shell`;
+export const CHROME = process.env.BREAKDOWN_CHROME || `${ROOT}lab/.av1-build/chrome141/chrome-headless-shell-linux64/chrome-headless-shell`;
 
 export async function serve() {
   const port = 30000 + ((Math.random() * 10000) | 0);
