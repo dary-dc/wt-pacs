@@ -89,6 +89,8 @@ async function relay(link, to) {
   };
 }
 
+/** The static host serving the pages, set by each cell. */
+let origin = null;
 const viewerUrl = (s, wt) => `${origin}/?${new URLSearchParams({ wt, hash: cert.hash, metadata: s.metadata })}`;
 const armsUrl = (s, wt, a) => `${origin}/lab/opfs-cache/arms.html?${new URLSearchParams({ wt, hash: cert.hash, metadata: s.metadata, sha: s.sha, ...a.query })}`;
 const reopenUrl = (s, key) => `${origin}/lab/opfs-cache/reopen.html?${new URLSearchParams({ key, metadata: s.metadata, sha: s.sha })}`;
@@ -237,7 +239,7 @@ function hostInfo() {
 }
 
 async function m1() {
-  await staticHost();
+  origin = await staticHost();
   const sets = [
     { s: series(512, 512, 256), links: ["clean", "loss2"] },
     { s: series(3328, 4096, 32), links: ["clean"] },
@@ -280,7 +282,7 @@ async function m1() {
 }
 
 async function m2(big) {
-  await staticHost();
+  origin = await staticHost();
   const s = big ? series(3328, 4096, 512) : series(3328, 4096, 80);
   const server = await serve(s);
   const arms = big ? ["on"] : MUTANT ? ["on"] : ["on", "on2", "off", "was"];
@@ -304,7 +306,7 @@ async function m2(big) {
 
 /** Not pre-registered: after M2's fill, whether the dropped frames' memory comes back on its own, after a page GC, after a measurement's. */
 async function m2Trace() {
-  await staticHost();
+  origin = await staticHost();
   const s = series(3328, 4096, 80);
   const server = await serve(s);
   settings({ series: s, arm: "on", flags: "--js-flags=--expose-gc", trace: "PSS each second for 30 s after the fill, then gc() on the page, then in its workers one kind at a time: store, paint, downloader, decoders" });
@@ -334,7 +336,7 @@ async function m2Trace() {
 }
 
 async function m3() {
-  await staticHost();
+  origin = await staticHost();
   const s = series(3328, 4096, 20);
   const servers = {};
   for (const k of ["A", "B", "C", "D"]) servers[k] = await serve(s);
@@ -384,7 +386,7 @@ function framesFile(dir, s) {
 }
 
 async function m4() {
-  await staticHost();
+  origin = await staticHost();
   const s = series(3328, 4096, 64);
   const server = await serve(s);
   settings({ series: s, kill: "SIGKILL to the browser's process tree once the status shows >= 32 on disk", flip: "rounds 0, 2, 4, 6: one byte in the middle of frame 0, or the first present, XORed 0xff" });
@@ -439,7 +441,7 @@ const M5_ARMS = {
 
 /** M5 as amended, before any data: docs/adr/frame-path.md §Who owns a frame's memory, M5 amended. */
 async function m5(busy) {
-  await staticHost();
+  origin = await staticHost();
   const s = series(3328, 4096, 80);
   const server = await serve(s);
   const names = MUTANT ? [arg("--arm")] : busy ? ["ring", "ring2", "transfer", "transfer-k"] : Object.keys(M5_ARMS);
