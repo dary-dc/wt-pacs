@@ -170,7 +170,7 @@ a 10 ms sleep a frame in the server's send path worse on both cells (fill ×1.15
 frame ×1.015 worse, fill ×0.988 better). The fill there follows the link to 200 Mbit/s (0.51, 0.45, 0.38 s at 50,
 100, 200) and no further (0.37 at 400 and 800), so the host is not what bounds `r50000`. It claims a difference
 between two trees that repeats on that runner, that series and that link: no number for another host, a series that
-decodes longer, a slower CPU or another engine; a schedule fires from the default branch's copy of the workflow only.
+decodes longer, a slower CPU or another engine; a schedule fires from the default branch's copy of the workflow only. By hand it takes more cells (`--impairs`, `--throttles`), an asked-frame cell (`--asks K`), the product's viewer in every arm with the head's under a view (`--view worker`), and keeps its rows (`--out DIR`), a visit already there not run again ([`scripts/perf_campaign.mjs`](scripts/perf_campaign.mjs)).
 
 ## Docs
 
