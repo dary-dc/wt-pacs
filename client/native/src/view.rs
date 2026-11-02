@@ -3,7 +3,7 @@
 //! `docs/native/README.md` §The view-worker design, native.
 
 use crate::cache::Cache;
-use crate::count;
+use crate::count::{self, Sent};
 use crate::decode::Decoder;
 use crate::transport::{Event, Session};
 use crate::verify::{exact, Exact};
@@ -129,8 +129,8 @@ impl Asking {
 pub async fn download(
     mut session: Session,
     mut want: watch::Receiver<Vec<u32>>,
-    jobs: mpsc::Sender<Job>,
-    mut done: mpsc::UnboundedReceiver<Done>,
+    jobs: mpsc::Sender<Sent<Job>>,
+    mut done: mpsc::UnboundedReceiver<Sent<Done>>,
     cache: Option<Arc<Cache>>,
     depth: usize,
 ) -> Result<()> {
@@ -156,8 +156,9 @@ pub async fn download(
                 Ok(()) => asking.want(want.borrow_and_update().clone()),
                 Err(_) => viewing = false,
             },
-            permit = jobs.reserve(), if pending.is_some() => permit?.send(pending.take().expect("pending")),
+            permit = jobs.reserve(), if pending.is_some() => permit?.send(Sent::now(pending.take().expect("pending"))),
             Some(d) = done.recv() => {
+                let d = d.received("done");
                 count::hop(d.index);
                 asking.done(d.index, d.refetch);
             }
@@ -185,9 +186,9 @@ pub fn decoders(
     metadata: &str,
     digests: Option<Vec<u64>>,
     cache: Option<Arc<Cache>>,
-    jobs: mpsc::Receiver<Job>,
-    frames: mpsc::Sender<Decoded>,
-    done: mpsc::UnboundedSender<Done>,
+    jobs: mpsc::Receiver<Sent<Job>>,
+    frames: mpsc::Sender<Sent<Decoded>>,
+    done: mpsc::UnboundedSender<Sent<Done>>,
 ) -> Result<()> {
     let jobs = Arc::new(Mutex::new(jobs));
     let digests = Arc::new(digests);
@@ -198,7 +199,8 @@ pub fn decoders(
         std::thread::Builder::new().name("decoder".into()).spawn(move || {
             runtime.block_on(async {
                 while let Ok(credit) = frames.reserve().await {
-                    let Some(Job { index, coded }) = jobs.lock().await.recv().await else { return };
+                    let Some(job) = jobs.lock().await.recv().await else { return };
+                    let Job { index, coded } = job.received("job");
                     count::hop(index);
                     let digest = digests.as_ref().as_ref().and_then(|d| d.get(index as usize).copied());
                     let mut check = |coded: &[u8]| {
@@ -219,7 +221,7 @@ pub fn decoders(
                     let refetch = from_disk && exact != Exact::True;
                     let written = Arc::new(AtomicBool::new(cache.is_none() || from_disk || exact != Exact::True));
                     if !refetch {
-                        credit.send(Decoded { index, samples, exact, written: written.clone() });
+                        credit.send(Sent::now(Decoded { index, samples, exact, written: written.clone() }));
                     }
                     if let (Some(cache), Some(coded), false) = (&cache, &coded, written.load(Ordering::Relaxed)) {
                         if let Err(e) = cache.put(index, coded, &Exact::True) {
@@ -227,7 +229,7 @@ pub fn decoders(
                         }
                         written.store(true, Ordering::Release);
                     }
-                    let _ = done.send(Done { index, refetch });
+                    let _ = done.send(Sent::now(Done { index, refetch }));
                 }
             })
         })?;
@@ -307,7 +309,7 @@ mod tests {
         crate::verify::digests(metadata).unwrap()
     }
 
-    fn pool(n: usize, credits: usize, metadata: &str, cache: Option<Arc<Cache>>) -> (mpsc::Sender<Job>, mpsc::Receiver<Decoded>, mpsc::UnboundedReceiver<Done>) {
+    fn pool(n: usize, credits: usize, metadata: &str, cache: Option<Arc<Cache>>) -> (mpsc::Sender<Sent<Job>>, mpsc::Receiver<Sent<Decoded>>, mpsc::UnboundedReceiver<Sent<Done>>) {
         let (jobs, queued) = mpsc::channel(64);
         let (decoded, frames) = mpsc::channel(credits);
         let (done, finished) = mpsc::unbounded_channel();
@@ -448,13 +450,13 @@ mod tests {
         let (metadata, coded) = series(4);
         let (jobs, mut frames, _done) = pool(2, 1, &metadata, None);
         for (index, coded) in coded.into_iter().enumerate() {
-            jobs.send(Job { index: index as u32, coded: Some(coded) }).await.unwrap();
+            jobs.send(Sent::now(Job { index: index as u32, coded: Some(coded) })).await.unwrap();
         }
         tokio::time::sleep(Duration::from_millis(500)).await;
         assert_eq!(jobs.max_capacity() - jobs.capacity(), 3, "decoders took more jobs than credits");
         let mut got = Vec::new();
         while got.len() < 4 {
-            let f = frames.recv().await.unwrap();
+            let f = frames.recv().await.unwrap().received("decoded");
             assert_eq!(f.exact, Exact::True, "frame {}", f.index);
             got.push(f.index);
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -474,14 +476,14 @@ mod tests {
         let cache = Arc::new(Cache::open(&root, "s", "v1").unwrap().slow_writes(Duration::from_millis(300)));
         let (jobs, mut frames, mut done) = pool(2, 2, &metadata, Some(cache.clone()));
         for (index, coded) in coded.into_iter().enumerate() {
-            jobs.send(Job { index: index as u32, coded: Some(coded) }).await.unwrap();
+            jobs.send(Sent::now(Job { index: index as u32, coded: Some(coded) })).await.unwrap();
         }
         for _ in 0..2 {
-            let f = frames.recv().await.unwrap();
+            let f = frames.recv().await.unwrap().received("decoded");
             assert!(!cache.has(f.index) && !f.written.load(Ordering::Acquire), "frame {} was written before the view had it", f.index);
         }
         for _ in 0..2 {
-            let d = done.recv().await.unwrap();
+            let d = done.recv().await.unwrap().received("done");
             assert!(cache.has(d.index) && !d.refetch);
         }
         std::fs::remove_dir_all(&root).ok();
@@ -508,7 +510,7 @@ mod tests {
         let downloader = tokio::spawn(download(session, wanted, jobs, finished, None, 4));
         let mut store = Store::new(usize::MAX);
         for _ in 0..12 {
-            let f = tokio::time::timeout(Duration::from_secs(10), received.recv()).await.expect("a frame stalled").unwrap();
+            let f = tokio::time::timeout(Duration::from_secs(10), received.recv()).await.expect("a frame stalled").unwrap().received("decoded");
             assert_eq!(f.exact, Exact::True, "frame {}", f.index);
             assert!(store.put(f.index, f.samples.unwrap(), f.written, 0), "frame {} taken twice", f.index);
         }
