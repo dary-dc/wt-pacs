@@ -1585,6 +1585,215 @@ against ≤ 0.60, ×0.60 on the synthesized 2D; it is faster than today's pool o
 outside the columns, or precincts in the stored layout, would change (a); neither is measured, and the layout is the
 owner's. Container-measured; what a phone's cores do with three busy workers is not.
 
+## HTJ2K progressive, resolution and quality
+
+*The owner, 2026-11-02:* consider, beside the AV1 line, progressive decoding in HTJ2K as OpenJPH's browser demo
+shows it — one codec, the one every browser already decodes exactly through the client's OpenJPH build, ending
+exact with no second representation. The AV1 candidates it is compared with are the scalable preview
+(`claude/av1-svc-preview`, measured on DBT, [`../av1/README.md`](../av1/README.md) §Preview) and lossy AV1 plus a
+residual (`claude/av1-quality-profiles`, pre-registered). Theory, a prediction and a protocol, **nothing run for
+it**. Sources are [H1]–[H5] at the end; *derived* marks our arithmetic, *unverified* what no source here checks.
+
+**1 · What the demo does: resolution only, from one whole download.** The page fetches the codestream once,
+whole — `request.open("GET", "test.j2c", true)`, `request.responseType = "arraybuffer"` — and only then decodes it
+thirteen times from that buffer, its heading "downloaded once, decoded many ways" [H4]. No range request, no
+partial fetch. Every decode is one OpenJPH call, `restrict_input_resolution(j2c, skip_res_for_data,
+skip_res_for_recon)`, whose two arguments OpenJPH documents as "for how many fine resolutions decoding is skipped,
+i.e., reading and decoding is not performed for this number of fine resolutions" and "for how many fine resolutions
+reconstruction is skipped; the resulting image is smaller than the original" [H3]. Its first row passes (i, i): an
+image 2^−i the size. Its second row, "Image quality improves as more data arrives", passes (i, 0): the same coarse
+resolutions reconstructed at full size, the finer subbands absent (*derived* from the call: no quality layer is
+involved). So the demo's "quality" progression is its resolution progression painted full size. Each call creates a
+decoder, decodes from scratch and releases it (`create_j2c_data` … `release_j2c_data`): nothing is incremental.
+Its codestream (sha256 `fb06942e…`, the same file as OpenJPH's `subprojects/js/html/test.j2c`) is 512² RGB,
+irreversible 9/7 — lossy, 37.13 dB at its end by the page — RPCL, one layer, five levels, 64² blocks, precincts 128²
+at the lowest resolution and 256² above (read from its COD segment here). The byte counts (826 … 32 553) and PSNRs
+under each picture are fixed text in the HTML, not computed by the page; how they were obtained is *unverified*.
+This is §A prefix draws a smaller image, plus the full-size reconstruction, which the package's
+`decodeSubResolution` does not offer and the client's build (`client/decode/wasm/openjph/htj2k_decoder.cpp`)
+binds in neither form.
+
+**2 · What HTJ2K can do.**
+
+* **Resolution scalability is whole.** "Aside from the block-coding algorithm itself and the parsing of packet
+  headers, the HT block-coding algorithm preserves the syntax and semantics of other parts of the codestream" [H1,
+  Summary]. RPCL "might be useful in providing low resolution level versions of all image components at a particular
+  spatial location"; RLCP "in providing low resolution level versions of all image components"; LRCP "when low
+  sample accuracy is most desirable" [H2, B.12.1]. Precincts: "Packets provide another method for extracting a
+  spatial region independently from the codestream" [H2, 5.3]. A prefix is legal: "any number of whole packets (in
+  order) may be dropped and the final packet appearing in the tile may be partially truncated" [H2, B.11]. The
+  paper's use is ours: "storing images in resolution major order and reading from them only the number of bytes
+  available" [H5, §5.2].
+* **Quality scalability is mostly gone.** "This is achieved at the expense of some loss in coding efficiency and
+  substantial elimination of quality scalability" [H1, Summary]; "quality scalability is the only JPEG 2000 feature
+  that is sacrificed by HTJ2K, but it is readily retrievable by reversibly transcoding some or all code-blocks back
+  to the highly embedded J2K1 representation" [H5, §2.1]; "the HT block-coder does not provide an effective
+  mechanism for progressive coding" [H1, 8.6 NOTE 2]. Three mechanisms remain:
+  * **One HT set, split across layers.** A set is a cleanup pass, then optionally SigProp and MagRef [H1, B.1], and
+    "The refinement passes in each HT Set refine selected samples to the next finer bit-plane" [H5, §3]. The packet
+    with a block's first cleanup "shall include only one HT cleanup coding pass" [H1, B.3], so the refinement
+    passes may come a layer later: **two truncation points one bit-plane apart, no more.** SigProp reaches only
+    samples next to significant ones (`if (σn == 0) for each m ∈ Nn mbr = mbr | σm` … `if (mbr != 0) set zn = 1`,
+    [H1, 7.4]), so a coefficient of magnitude 1 with no significant neighbour can be coded only by a cleanup at
+    plane 0; such a block ends exact only with no second layer (*derived*).
+  * **Several HT sets (MULTIHT).** "an encoder can choose to generate and include multiple HT sets for any given
+    code-block … this mechanism can be used to provide representations of a code-block at multiple precisions,
+    which can be selectively extracted from quality layers" [H1, F.1]. But each set's cleanup starts over: "the HT
+    Cleanup pass for each bit-plane redundantly re-encodes the information found in all preceding coding passes"
+    [H5, §2.1]; "The use of multiple non-empty HT sets in a code-block results in redundancy" and "a decoder is not
+    required to decode more than one HT set" [H1, 8.3]. **Every earlier set is extra bytes; the exact frame decodes
+    only the last.**
+  * **MIXED.** "zero or more of the code-blocks within the corresponding tile-component shall be HT code-blocks …
+    and the remaining code-blocks shall conform to Rec. ITU-T T.800 | ISO/IEC 15444-1" [H1, A.4]: Part 1 blocks
+    with EBCOT's quality layers, whose decode measured 6–12× OpenJPH's ([`../codecs/jpeg2000.md`](../codecs/jpeg2000.md)
+    §Decode speed).
+* **What OpenJPH implements** (0.31.0, the version the product builds; the same lines at 0.33.0 [H3]): **resolution
+  progression, encode and decode; quality progression, neither.** The encoder writes any of "LRCP, RLCP, RPCL,
+  PCRL, CPRL" and `-precincts` (`ojph_compress`), but one cleanup pass a block — `assert(num_passes == 1);` in
+  `ojph_encode_codeblock32` — and "There is currently no implementation for rate-control-based encoding"
+  (its status page, [H3]). The decoder refuses layers — "The current implementation supports 1 quality layer only.
+  This codestream has %d quality layers" — and MIXED, since it requires `(SPcod.block_style & 0xB7) == 0x00`, bit 7
+  included. It decodes one HT set's three passes ("1 if CUP only, 2 for CUP+SPP, and 3 for CUP+SPP+MRP"; "We do
+  not support more than 3 coding passes") and folds placeholder passes into the missing MSBs. Another open encoder
+  that writes HT sets or HT quality layers: *unverified*.
+
+**3 · The shapes for the product's content.** Today's profile is reversible 5/3, five levels, 64² blocks, RPCL, one
+layer, no precincts (§The decoder). DBT slices are 10–12-bit grey at ~2:1; the breast ultrasound cine at hand is
+8-bit and lossy-sourced (`usb_cine`, `usb_cine_rgb`), and no ABUS volume is open ([`../FIXTURES.md`](../FIXTURES.md)
+§AV1 data); both are pending the owner's dataset.
+
+| shape | codestream | a prefix is | bytes against today's | decode, a prefix · prefix then exact | in OpenJPH |
+| --- | --- | --- | --- | --- | --- |
+| **ladder** | today's, unchanged | level r: exact at 2^−r size (clamped, §A frame at the level the screen needs), or full size with the finer subbands absent | **1.000**; level 1 25.8–29.0 % (measured, nine series), level 2 7.0–7.5 % (measured, the 3328×4096 mammograms); levels 3–5 ~1–2, 0.3–0.4, 0.2 % (synthetic ~2:1); on cine at 18:1 48, 17, 5.9 % | level 1 ×0.27–0.31, level 2 ×0.08 of the exact frame (measured); from scratch, a ladder 2 → 1 → 0 is ×1.35–1.39 (*derived*); incremental, keeping the unclamped low band, ×1.0–1.05 (*derived*; no decoder here keeps it) | yes, both reconstructions; the client's build binds neither |
+| **one set, two layers** | LRCP; layer 1 each block's cleanup at plane 1 where its plane-0 samples allow it (§2), layer 2 SigProp and MagRef | layer 1: the whole frame, at most one bit-plane short | 1.00–1.03 (*derived*: the same coefficients, raw refinement bits, a second layer of packet headers); layer 1 **0.80–0.93** of it (*derived*: about one bit of 4–8 a coefficient at ~2:1) | layer 1 ×0.85–0.95; from scratch ×1.8–1.95 | no encoder; the decoder refuses two layers |
+| **two sets** | LRCP; layer 1 each block's set at plane p, layer 2 its lossless set | layer 1: the whole frame at plane p | **1 + the first set's share**: 0.4–0.9 % at 37–43 dB and 7–15 % at 44–59 dB with Part 1's coder (measured, [`../codecs/jpeg2000.md`](../codecs/jpeg2000.md)), ×1.04–1.07 in HT (*derived* from Part 1's 4–7 % lead); at a visually lossless proxy on DBT, **25–70 %** (*derived*: a step of 4 under a 650–850-wide window is about one display code, two bit-planes of ~6) | layer 1 ×0.35–0.55 (*derived*: the block decoder is 55–70 % of a frame and scales with its bytes); exact ×1.0 alone, ×1.35–1.55 after layer 1 | no encoder; the decoder refuses layers and second sets |
+| **MIXED** | Part 1 blocks with layers | a quality layer | 0.93–0.96 (Part 1's measured) | exact 6–12× (measured) | refused; **excluded** on decode |
+
+Precincts add a spatial prefix (0.05–0.07 % at 128², measured) that §Region decode, measured found not worth a
+design; they are not a shape here. **A prefix is useful** where the reader's screen needs no more: the ladder's
+level fit is exact at its own scale, which is all a ≤ 1 000-pixel viewport shows of a large slice; full size at 1:1
+needs the last layer or a set near it.
+
+**4 · Prediction** (*derived*; DBT volumes on the total-time rig, 5 and 20 Mbit/s, 1× and 4×; the AV1 numbers are
+the scalable preview's measured section 6, three volumes, n = 1–3 a cell, and §Preview's residual rows).
+
+| metric | HTJ2K ladder | HTJ2K two sets | AV1 scalable preview (measured) | lossy AV1 + residual | refuted by |
+| --- | --- | --- | --- | --- | --- |
+| first picture | level 3: **0.09–0.35 s** | as the ladder (its level 3 is in layer 1) | 69–256 ms | not measured | ladder over 1.8× or under 0.7× AV1's in a cell |
+| every slice pictured, quarter size | level 2: **7.6–13 s** at 5, 1.9–3.2 s at 20 Mbit/s — **7–46×** AV1's at 5, 2–11× at 20 | — | 0.28–1.10 s (bases 0.009–0.17 % of HTJ2K's bytes) | — | ladder under 4× AV1's at 5 Mbit/s |
+| every slice at display scale, exact at its level | level fit at a 1 000-pixel long side: **0.26–0.29** of the exact series on `dbts_b1` and `dbts_c1` (level 1), 0.07 on a 3328×4096 slice (level 2), none on `dbts_a1`, whose 1 785 pixels are the fit already (§A frame at the level the screen needs measured 0.06–0.50 for every frame on screen) | — | bases 35–46 dB, not exact | — | over 0.35 on `dbts_b1` or `dbts_c1` |
+| every slice visually lossless at full size | at exact | **0.25–0.7** of the exact series, 1.5–3× later than lossy AV1 at the same proxy | not reached before exact | lossy stream at about half Part 1's bytes for the same PSNR (fluoroscopy 44 dB: 0.78 % against 1.7 %, measured) | two sets under 0.2 or over 0.8 |
+| exact series, time · bytes | **×0.99–1.04 · 1.000** (a prefix and its rest are the same bytes) | ×1.25–1.70 at the proxy, ×1.004–1.16 at 37–59 dB | 0.989–1.022 of the shipped AV1 payload's | bytes 0.947–1.002 of HTJ2K's (measured) | ladder over 1.04 in any cell |
+| decode a prefix · prefix then exact, 1× / 4× | level 2 ×0.08 (8.2 / 37 ms on 3328×4096, measured), 0.7–3× AV1's base (*derived*, scaled by pixels); ×1.08–1.39 | ×0.35–0.55; ×1.35–1.55 | base 1.7–4.8 / 7.7–22 ms; exact 0.73–1.03× the shipped payload's | 1.31–1.89× HTJ2K (WebCodecs, measured) | ladder level 2 over ×0.12 |
+
+**What HTJ2K is predicted to be:** today's codestream already is a progressive one, by resolution: a first picture
+as soon as AV1's, and every slice of a volume over 2 000 pixels long **exact at the display's scale** at under a
+third of the exact series' time, at 1.000 of the bytes and with no new code but a binding and an order. It
+**cannot** give a cheap full-size lossy picture: its quality progression spans one bit-plane (one set) or pays for every earlier set (two sets), and neither
+OpenJPH nor any open encoder known here writes it. Against AV1's scalable preview it loses ×7–46 on "every slice
+pictured" at equal size on 5 Mbit/s; against lossy AV1 it loses on full-size visually lossless bytes by ×1.5–3.
+
+### HTJ2K progressive protocol, pre-registered
+
+*For a separate session; nothing here has run. Results go under "HTJ2K progressive, measured" below this
+section, the predictions above left as written.*
+
+**Stage 0 · Tools, each check mutated first** (CLAUDE.md §Measurement: break the code, watch the check fail).
+
+* **The ladder** needs no encoder: the served profile as `ingest.py` writes it (OpenJPH 0.31.0), the codestreams'
+  sha256 equal to the ingest's.
+* **One set, two layers and two sets** need a lab writer, a new directory `htj2k-progressive` under `lab/`: the 5/3 lifting of
+  [H2] Annex F; each cleanup at plane p as OpenJPH 0.31.0's `ojph_encode_codeblock32` on magnitudes ≫ p with the
+  missing MSBs raised by p (*derived* equivalence, checked: at p = 0 the writer's block bytes equal `ojph_compress`'s
+  on every block of the fixtures); SigProp and MagRef encoders from [H1] Annex B and §7; packet headers and tag
+  trees from [H2] B.10. If the session cannot build it, the two shapes are answered by §3's derivation and marked
+  so; the ladder runs regardless.
+* **A lab decoder**: the client's wrapper rebuilt as `lab/decode-bench/wasm` builds it, binding
+  `restrict_input_resolution` as (r, r) and (r, 0), and for the layered shapes OpenJPH 0.31.0 patched to accept L
+  layers, carry a block's refinement segment across packets, and keep only its last HT set, its S_blk raised by
+  S_skip ([H1] B.3). `parity.mjs` on the full decode against the delivered build first. An independent witness for
+  every layered codestream: OpenJPEG 2.5.4 if it decodes HT layers and sets (*unverified*; checked first), else the
+  shape's exactness rests on the source digests alone and is reported as single-decoder.
+* **Mutants:** a byte flipped in layer 2 fails the exact check; S_skip dropped changes the layer-1 picture; a ladder
+  prefix one byte short fails the prefix's witness (as `prefix_levels.mjs`).
+
+**Stage 1 · Bytes and quality per prefix, offline, every frame.**
+
+* **Content.** The 15 DBT volumes `dbts_a1`…`dbts_c5`, fetched and checked as `lab/av1/fetch_data.py` does
+  (`lab/av1/fetch_data.sh`); every cine-like set in [`../FIXTURES.md`](../FIXTURES.md): `dbt12_ea1141`,
+  `dbt10_ea1141`, `dbt12_c`, `dbt10_d`, `rf_fluoro`, `mr_ispy1`, `mr9_ispy2` (sound), and `usb_cine`,
+  `usb_cine_rgb`, `us_liver` (**lossy-sourced: a table of their own, in no verdict**); `cine512` as the synthetic
+  control. `dbts_a_max`, `dbts_b_max`, `dbts_c_max`, `ustrus_1`, `ustrus_2` if their pins have reached this base;
+  breast ultrasound cine and ABUS when the owner's dataset is in `data.json` with its class.
+* **Shapes.** The ladder at levels 1–5, each at reduced size and at full size; one set, two layers; two sets with
+  the first at p = 1 … 7, one plane for every subband, and the two operating points named before stage 3 — the
+  smallest p at ≥ 40 dB and the largest p meeting the proxy below.
+* **Per prefix:** its bytes, the smallest prefix whose decode is byte-identical to the whole codestream's at that
+  level or layer (binary search, as `prefix_levels.mjs`), and its share of the frame. Quality against the source at
+  its depth b: PSNR over the series (peak 2^b − 1) and the worst frame; max |Δ|; SSIM, scikit-image's
+  `structural_similarity` with "gaussian_weights to True, sigma to 1.5, use_sample_covariance to False" and
+  `data_range` 2^b − 1, as `lab/av1/profiles` sets it (`1354e428`); PSNR and SSIM over in-window
+  samples; the windowed display error — through every header window as `client/paint/voi.js` paints it, the share of
+  in-window 8-bit codes that differ, that differ by > 1, and max |Δcode|. Each at full size and **at display scale**:
+  the prefix's picture and the exact frame each area-resampled to a 1 000-pixel long side. The half-size prefix's
+  bytes and PSNR on `rf_fluoro` and `us_liver` are §Preview's and are not reported as new.
+* **The visually lossless proxy**, not the owner's threshold: every header window's in-window codes within ±1 of
+  the exact frame's on ≥ 99 % of in-window samples; on the ultrasound, which carries no window, the samples as
+  stored. No prefix is called visually lossless.
+
+**Stage 2 · Decode per prefix and in total, in a browser.** Headless Chromium (version printed), the lab decoder,
+1× and 4× through `lab/scripts/cpu_throttle.mjs`, the first 16 frames of every set. Arms: today's whole frame (A),
+again under another name (A′), and each prefix of each shape alone, each ladder or layer sequence from scratch, and
+the exact frame after it. Every picture checked: a ladder level against the clamped independent level (OpenJPEG
+2.5.4 `-r`, as §A frame at the level the screen needs), every whole frame against its source digest.
+
+**Stage 3 · Delivery.** The total-time rig ([`../../lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md)),
+level-major or layer-major as bases-first lays it out: entry i a frame's prefix, entry F + i **its rest only** —
+the two concatenate to today's codestream, so nothing is sent twice — through a lab decoder worker on the
+downloader's `decoderWorker` seam; server and store unchanged.
+
+* **Series:** `dbts_a1`, `dbts_b1`, `dbts_c1` (the scalable preview's three) and every cine-like set of stage 1.
+* **Arms:** today's fill (A), A′, the ladder split at the level fit, the ladder split at level 2 (the AV1 base's
+  size), and two sets at both operating points if stage 1 kept them; and in the same rounds the scalable preview's
+  quarter base at q 40, predicted, from `claude/av1-svc-preview` at `301c5e24`. Lossy AV1 + residual joins only if
+  its decode harness exists by then; otherwise no measured comparison with it is claimed.
+* **Cells:** plain, no link limit; 5, 20 and 50 Mbit/s fixed; 1× and 4×. Unshaped, this host reaches 58 Mbit for a
+  5 MB fill ([`../rig-limits.md`](../rig-limits.md)): the plain cell is host-bound, and nothing is claimed above
+  what the A arm reaches there.
+* **Metrics, per frame and per series:** the first picture; every frame pictured; every frame at the proxy, full
+  size and display scale; every frame exact; wire bytes; decode per prefix and in total; scrolling at 15 slices/s
+  from the issue, the share of slices reached that showed exact, a prefix or nothing. Every exact frame against its
+  frame digest, every prefix against its stage-0 witness, no prefix drawn after its exact frame.
+* **Rounds by power:** §Net protocols' common rule — Williams order (`lab/order.mjs`), a fresh browser a cell,
+  n = 12, up to 24 for a cell it calls not conclusive, its MDL printed per cell.
+
+**Rule.**
+
+* **The ladder is a candidate beside AV1** if, on at least two of the three volumes in every cell run, beyond the
+  A/A spread: every frame exact; the first picture ≤ 1.5× the scalable preview's; every slice at display scale
+  ≤ 0.3× today's exact series at 5 and 20 Mbit/s; the exact series ≤ 1.02× today's time, at today's bytes. It then
+  goes to the owner beside the AV1 candidates with every metric above; the order and the binding are proposed
+  separately, as structural.
+* **A quality shape is interesting** if one reaches the proxy at full size with the whole ≤ 1.10× today's bytes and
+  exact series time; otherwise it is closed with its numbers.
+* **Predicted:** the ladder a candidate; one set, two layers closed (layer 1 ≥ 0.8 of the bytes); two sets closed at
+  the proxy, its 37–45 dB previews within 1.02× of the bytes but not visually lossless.
+
+**Sources** (fetched 2026-11-02):
+
+* [H1] Rec. ITU-T T.814 (06/2019) | ISO/IEC 15444-15:2019, *High-throughput JPEG 2000*, itu.int, PDF sha256
+  `3480bb5f636d9a0b…`.
+* [H2] Rec. ITU-T T.800 (06/2019) | ISO/IEC 15444-1:2019, itu.int, PDF sha256 `9932e967462cd56a…`.
+* [H3] OpenJPH, github.com/aous72/OpenJPH, tag 0.31.0 (`c68064d0e4ca`), the lines quoted re-read at 0.33.0
+  (`345a8bcd1c7a`): `src/core/codestream/ojph_codestream_local.cpp`, `ojph_params.cpp`, `ojph_precinct.cpp`,
+  `src/core/coding/ojph_block_decoder32.cpp`, `ojph_block_encoder.cpp`, `src/core/openjph/ojph_codestream.h`,
+  `src/apps/ojph_compress/ojph_compress.cpp`, `docs/status.md`.
+* [H4] openjph.org/javascript/demo.html, sha256 `1d6d30e9ad414801…`; identical to [H3]'s
+  `subprojects/js/html/index.html` but for a Firefox-version check.
+* [H5] D. Taubman, A. Naman, M. Smith, P.-A. Lemieux, H. Saadat, O. Watanabe, R. Mathew, "High Throughput JPEG 2000
+  for Video Content Production and Delivery Over IP Networks", *Frontiers in Signal Processing* 2 (2022),
+  doi:10.3389/frsip.2022.885644 (peer-reviewed).
+
 ## The BYOB read path
 
 Retired; code in history at `6e9c126`. The WASM client's BYOB reader (`byob`, `byob-min`) read each
