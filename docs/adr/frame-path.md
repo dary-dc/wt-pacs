@@ -1178,7 +1178,7 @@ same task: its loads queue behind the downloader's single one and start ≈ 100 
 here, not built. No default changes on this run.
 
 **Measured 2026-11-02, Chromium, 1× and 4×** (rows:
-[`lab/viewer/rows/split-quiet.jsonl`](https://github.com/dary-dc/wt-pacs/tree/rows/core-start2/lab/viewer/rows/split-quiet.jsonl),
+[`lab/viewer/rows/split-quiet.jsonl`](https://github.com/dary-dc/wt-pacs/blob/836b6150/lab/viewer/rows/split-quiet.jsonl), `claude/core-start2@836b6150`,
 run from `5f737209` by `FRAMES=lab/.av1-work/view-split THROTTLES=1,4 NAME=split KINDS=quiet ENGINES=chromium
 VARIANTS=page,pageaa,workerfix,workerdials,workerafter xvfb-run -a lab/viewer/view_run.sh`, the frames made by
 `view_frames.py --split`; rounds 0–24, of which 13–24 whole top-up rounds for the relay's drops; a round 17 cut
