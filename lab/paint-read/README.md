@@ -9,7 +9,7 @@ number live in the ADR.
 node lab/paint-read/measure.test.mjs                                        # the scoring
 node lab/paint-read/run.mjs                                                 # Chromium, 12 rounds × 10 visits of 10 s
 FIREFOX_PATH=… xvfb-run -a node lab/paint-read/run.mjs --browser firefox    # Firefox headed, over Marionette
-node lab/paint-read/run.mjs --summary lab/paint-read/rows/firefox.jsonl     # the verdict from rows
+node lab/paint-read/run.mjs --summary lab/paint-read/rows/firefox.jsonl     # the verdict from rows (2026-10-30's: claude/paint-read@2993d8d0, not in this tree)
 ```
 
 | file | does |

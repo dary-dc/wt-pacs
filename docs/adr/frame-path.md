@@ -483,8 +483,9 @@ node lab/viewer/wait-ahead-summary.mjs rows.jsonl rows-on-demand.jsonl
 ```
 
 **Run** (2026-10-30, `claude/core-exp2`, #265). **Verdict: k\* = 8, adopt k = 8**, by the rule as fixed; the
-code's default is not flipped here (*The default*, below). Rows: `lab/viewer/rows-wait-ahead.jsonl`,
-`rows-wait-ahead-on-demand.jsonl`, `rows-wait-ahead-mutate.jsonl`; the driver `lab/viewer/wait-ahead-run.sh`.
+code's default is not flipped here (*The default*, below). Rows, at `claude/core-exp2@1ac440b0`, not in this tree:
+[`lab/viewer/rows-wait-ahead.jsonl`](https://github.com/dary-dc/wt-pacs/tree/1ac440b0ba32d509e257cc7c7206268e7cd6bdf7/lab/viewer/rows-wait-ahead.jsonl), [`rows-wait-ahead-on-demand.jsonl`](https://github.com/dary-dc/wt-pacs/tree/1ac440b0ba32d509e257cc7c7206268e7cd6bdf7/lab/viewer/rows-wait-ahead-on-demand.jsonl),
+[`rows-wait-ahead-mutate.jsonl`](https://github.com/dary-dc/wt-pacs/tree/1ac440b0ba32d509e257cc7c7206268e7cd6bdf7/lab/viewer/rows-wait-ahead-mutate.jsonl); the driver `lab/viewer/wait-ahead-run.sh`.
 
 *Before round 0.*
 
@@ -758,8 +759,8 @@ certain, and extra rounds would otherwise loosen "9 of 12"*); a cell with fewer 
   cell decided. Otherwise A stays. The mean arrival → screen is printed beside the median: §2 predicts A's *mean*
   (half the task, for the asks that land in one), which the median of ten asks need not move.
 
-**Measured 2026-10-30, on the core** (`claude/core-s7`; rows in [`../../lab/viewer/rows/`](../../lab/viewer/rows/),
-read by `node lab/viewer/view-summary.mjs lab/viewer/rows/view-{quiet,cine,busy,asks}.jsonl`). Headless Chromium 153
+**Measured 2026-10-30, on the core** (`claude/core-s7`; rows at `claude/core-s7@3d12a46f`, not in this tree, in [`lab/viewer/rows/`](https://github.com/dary-dc/wt-pacs/tree/3d12a46f44167d9d5cf901a0db94323102c40ae2/lab/viewer/rows),
+read there by `node lab/viewer/view-summary.mjs lab/viewer/rows/view-{quiet,cine,busy,asks}.jsonl`). Headless Chromium 153
 (SwiftShader) and Playwright's Firefox 155 headed under Xvfb (llvmpipe), 4 cores, no GPU, no display; rounds 0–11,
 then whole extra rounds of a kind (to 26 for the asks) until every cell had 12 rounds with all three arms kept. 2 880
 visits, 302 dropped (the relay's timing guard: a quarter of the short asks visits, 5 % of the rest; no long task
@@ -860,7 +861,7 @@ The downloader's stamps ride the first frame it dispatches; the view worker's ri
 `r50000`; **1×**; 12 rounds, cells and arms interleaved by `run.mjs` (`lab/order.mjs`); kept as §7 keeps a visit
 (relay VOID, an error or an inexact frame drops it; a cell counts the first 12 rounds in which every arm was kept).
 **4×** only after every 1× cell, only in a cell whose 1× start was unsaturated by the guard, and only if the usage
-window allows; otherwise not run, and said. Rows: `lab/viewer/rows/start-quiet.jsonl`.
+window allows; otherwise not run, and said. Rows: [`lab/viewer/rows/start-quiet.jsonl`](https://github.com/dary-dc/wt-pacs/tree/643ce5597713523c308e62366624570fb1865345/lab/viewer/rows/start-quiet.jsonl) (at `claude/view-start@643ce559`, not in this tree).
 
 **Guards.** *Saturation:* the browser's three cores' busy share from `/proc/stat`, sampled every 20 ms by the rig,
 over the start (navigation → first drawn) and over the fill after it (first → last exact frame held); A's median at or
@@ -889,7 +890,7 @@ inexact visit kept — each fails it) and `client/transport/downloader.test.mjs`
 (mutants: no stamp carried, every frame carrying it, the dial or the session's open unstamped, `firstIn` wrong — each
 fails it).
 
-**Measured 2026-10-30, 1×** (rows `lab/viewer/rows/start-quiet.jsonl`, run from `ba90ef5` by `THROTTLES=1 NAME=start
+**Measured 2026-10-30, 1×** (rows [`lab/viewer/rows/start-quiet.jsonl`](https://github.com/dary-dc/wt-pacs/tree/643ce5597713523c308e62366624570fb1865345/lab/viewer/rows/start-quiet.jsonl), at `claude/view-start@643ce559`, run from `ba90ef5` by `THROTTLES=1 NAME=start
 KINDS=quiet lab/viewer/view_run.sh`, rounds 0–15; read by `node lab/viewer/start-summary.mjs`). Headless Chromium 153
 and Firefox 155 headed under Xvfb, as §7. 384 visits; every cell has 12 rounds with every arm kept after the whole
 extra rounds 12–15 (the relay's VOID drops). Every frame exact. **No cell is VOID and none saturated:** the browser
@@ -929,7 +930,7 @@ dials (§3, *Proposed: the page dials*), so **not built**.
 **4×** was not run at this step: the guard leaves every 1× start unsaturated, so it is allowed, but the re-run's four
 arms (§3) include these three at their defaults, so its 4× cells (below) stand for both.
 
-**The fix, re-run 2026-10-30, 1×** (§3, *Proposed: the page dials*; rows `lab/viewer/rows/startfix-quiet.jsonl`, run
+**The fix, re-run 2026-10-30, 1×** (§3, *Proposed: the page dials*; rows [`lab/viewer/rows/startfix-quiet.jsonl`](https://github.com/dary-dc/wt-pacs/tree/643ce5597713523c308e62366624570fb1865345/lab/viewer/rows/startfix-quiet.jsonl), at `claude/view-start@643ce559`, run
 from `07fd44c` by `FRAMES=lab/.av1-work/view-fix THROTTLES=1 NAME=startfix KINDS=quiet lab/viewer/view_run.sh`, the
 frames made by `view_frames.py --fix`; rounds 0–17, the last six whole extra rounds for the relay's drops). Four arms:
 A, A/A, B′ and B′ with the fix (`workerfix`: `pageDials`, `viewWorkerFirst`, `shortRuns`). 576 visits, every frame
@@ -962,7 +963,7 @@ and B′ without the fix ties there; nothing in the fix acts between the downloa
 so this reads as a round's noise across four arms. That reading is not measured, and the rule says what it says.
 **Where the host saturates:** nowhere, by the guard, at 1× (4× below).
 
-**The fix at 4×, re-run 2026-10-31** (rows `lab/viewer/rows/startfix4-quiet.jsonl`, the same command with
+**The fix at 4×, re-run 2026-10-31** (rows [`lab/viewer/rows/startfix4-quiet.jsonl`](https://github.com/dary-dc/wt-pacs/tree/643ce5597713523c308e62366624570fb1865345/lab/viewer/rows/startfix4-quiet.jsonl), at `claude/view-start@643ce559`, the same command with
 `THROTTLES=4 NAME=startfix4`, rounds 0–17; run after every 1× cell, as pre-registered, the guard having left every 1×
 start unsaturated). 576 visits, every frame exact, none saturated (start 0.33–0.55, fill 0.32–0.49). Four cells VOID
 (Chromium US and the mammogram, Firefox US and tomosynthesis). Paired medians over 12 rounds, ms, first drawn, B′ − A
@@ -1016,7 +1017,7 @@ task's start and end kept). A visit is one variant on one page for 10 s, startin
 navigation. A round is the ten units (5 variants × quiet, busy) in `lab/order.mjs`'s order; **12 rounds**; Chromium
 (Playwright's, headless, SwiftShader) and Firefox (Playwright's build, headed under Xvfb, llvmpipe, driven over
 Marionette), its version recorded from the user agent; 1× only, no CPU pinning: this probe asks whether a call waits
-for another thread, not how fast it is. Rows: `lab/paint-read/rows/<engine>.jsonl`, every call's start and time.
+for another thread, not how fast it is. Rows: `lab/paint-read/rows/<engine>.jsonl`, every call's start and time (kept at `claude/paint-read@2993d8d0`, not in this tree).
 
 **Scored** by `lab/paint-read/measure.js`, written and tested before data:
 
@@ -1043,7 +1044,7 @@ reads a pixel to settle; and §7's busy cine re-measured with the old read and t
 that woke early let the loop call twice in one 20 ms slot (800 calls in a 500-slot visit). The loop now counts its
 slots; those 8 rows are discarded, not read for the hypothesis, and the run restarted from round 0.
 
-**Measured 2026-10-30** (rows [`../../lab/paint-read/rows/`](../../lab/paint-read/rows/), read by
+**Measured 2026-10-30** (rows [`lab/paint-read/rows/`](https://github.com/dary-dc/wt-pacs/tree/2993d8d062a0db8d6ea155ccdefce60cba8b601b/lab/paint-read/rows), at `claude/paint-read@2993d8d0`, not in this tree; read there by
 `node lab/paint-read/run.mjs --summary lab/paint-read/rows/<engine>.jsonl`). Firefox 155.0 (Playwright's build 1543,
 llvmpipe) and Chromium 153 (SwiftShader); 12 rounds a cell, every visit kept, no cell VOID (A/A 0.0–2.0 ms) and none
 saturated (`none`'s p99 0.14–0.17 ms). Medians over rounds, ms:
@@ -1079,7 +1080,7 @@ late and gap p99 from the draw log against the vsync log), on the code of this b
 settled by the read). Chromium (Playwright's, headless, SwiftShader) and Firefox (Playwright's 155, headed under Xvfb,
 llvmpipe); `lab/order.mjs` interleaves the cells and the arms in each round; **12 rounds kept, 1×**, then 4× only for
 an engine and series whose 1× cell the saturation guard leaves unsaturated, with nothing claimed from a 4× cell the
-guard saturates. Rows: `lab/viewer/rows/settle-cine.jsonl`, §7's row format. Read by
+guard saturates. Rows: [`lab/viewer/rows/settle-cine.jsonl`](https://github.com/dary-dc/wt-pacs/tree/2993d8d062a0db8d6ea155ccdefce60cba8b601b/lab/viewer/rows/settle-cine.jsonl) (at `claude/paint-read@2993d8d0`, not in this tree), §7's row format. Read by
 `node lab/viewer/settle-summary.mjs lab/viewer/rows/settle-cine.jsonl`, written and tested before data.
 
 * **Guards, §7's:** a visit is dropped if the relay's timing is VOID, it errs, it holds a frame not exact or its
@@ -1095,8 +1096,8 @@ guard saturates. Rows: `lab/viewer/rows/settle-cine.jsonl`, §7's row format. Re
   late as §7 found (20–40 %). Chromium: (a) does not hold (neither settle waits); (b) holds as in §7. If (a) fails in
   Firefox, §7's sentence is kept and what the probe found is added beside it.
 
-**Measured 2026-10-31, 1×** (rows [`../../lab/viewer/rows/settle-cine.jsonl`](../../lab/viewer/rows/settle-cine.jsonl),
-`node lab/viewer/settle-summary.mjs lab/viewer/rows/settle-cine.jsonl`; driven by `lab/viewer/settle_run.sh`). Headless
+**Measured 2026-10-31, 1×** (rows [`lab/viewer/rows/settle-cine.jsonl`](https://github.com/dary-dc/wt-pacs/tree/2993d8d062a0db8d6ea155ccdefce60cba8b601b/lab/viewer/rows/settle-cine.jsonl), at `claude/paint-read@2993d8d0`, not in this tree;
+read there by `node lab/viewer/settle-summary.mjs lab/viewer/rows/settle-cine.jsonl`; driven by `lab/viewer/settle_run.sh`). Headless
 Chromium 153 (SwiftShader) and Firefox 155 headed under Xvfb (llvmpipe), 4 cores, no GPU. Rounds 0–11, then whole
 extra rounds of the short series alone (12–13 of US and tomosynthesis, 14 of tomosynthesis) until each cell had 12
 with every arm kept: 410 visits, 6 dropped, every one by the relay's timing guard. **23 270 of 23 270 frames exact.**
@@ -2106,7 +2107,7 @@ the same. Both are changes to the protocol after data, and so a new pre-registra
   M5 rig drove), all show the same thing: the downloader's worker entered its second or third `new Worker(...)` for a
   decoder and never returned. Its thread so never took the `dial` message the consumer had already posted, and no
   session reached the server; the decoders already made came up and idled. The marks are in
-  [`rows/m5-start/hung-stages.txt`](../../lab/opfs-cache/rows/m5-start/hung-stages.txt).
+  [`rows/m5-start/hung-stages.txt`](https://github.com/dary-dc/wt-pacs/tree/91069eb31e8816bcd4460322e38e8f719a5c0c07/lab/opfs-cache/rows/m5-start/hung-stages.txt) (at `claude/core-m5@91069eb3`, as are the rows below).
 * **Why, from Gecko's source (Firefox 159, a reading, not stepped through):**
   * A WebDriver BiDi session registers a worker-debugger listener in every content process
     (`remote/shared/messagehandler/RootMessageHandler.sys.mjs`, its constructor; `WebDriverWorkerListenerChild.sys.mjs`).
@@ -2121,12 +2122,12 @@ the same. Both are changes to the protocol after data, and so a new pre-registra
 * **Measured.** On a page whose worker starts 300 workers one after another
   ([`test/nested-workers.html`](../../lab/opfs-cache/test/nested-workers.html)), 10 rounds interleaved: under BiDi every
   round hung, after 3–273 starts; under Marionette every round reached 300, in 1.8–3.6 s
-  ([`rows/m5-start/nested-workers.jsonl`](../../lab/opfs-cache/rows/m5-start/nested-workers.jsonl)). The rule, fixed
+  ([`rows/m5-start/nested-workers.jsonl`](https://github.com/dary-dc/wt-pacs/tree/91069eb31e8816bcd4460322e38e8f719a5c0c07/lab/opfs-cache/rows/m5-start/nested-workers.jsonl)). The rule, fixed
   before the rows: Marionette cleared if all its rounds reach 300 and BiDi hangs in ≥ 8 of 10. A first such run was
   discarded whole: a mutant test put the BiDi driver in place under it for a moment, and one of its Marionette rounds
-  stopped at 83 ([`nested-workers-discarded.jsonl`](../../lab/opfs-cache/rows/m5-start/nested-workers-discarded.jsonl)).
+  stopped at 83 ([`nested-workers-discarded.jsonl`](https://github.com/dary-dc/wt-pacs/tree/91069eb31e8816bcd4460322e38e8f719a5c0c07/lab/opfs-cache/rows/m5-start/nested-workers-discarded.jsonl)).
   On the live pages themselves, 50 starts each, BiDi hung 2 and a browser with no driver at all 0
-  ([`live-pages.jsonl`](../../lab/opfs-cache/rows/m5-start/live-pages.jsonl)); the rule set for those (BiDi ≥ 3)
+  ([`live-pages.jsonl`](https://github.com/dary-dc/wt-pacs/tree/91069eb31e8816bcd4460322e38e8f719a5c0c07/lab/opfs-cache/rows/m5-start/live-pages.jsonl)); the rule set for those (BiDi ≥ 3)
   was not met, so they alone decide nothing.
 * **The fix.** The rigs drive Firefox over Marionette, which registers no listener
   ([`browser.mjs`](../../lab/opfs-cache/browser.mjs)); `lab/opfs-arms` shares the driver.
@@ -2136,7 +2137,7 @@ the same. Both are changes to the protocol after data, and so a new pre-registra
 
 **Firefox's fill, ×1.41 of `today`: where the time goes.** One `ring` and one `today` fill per engine, twice, on the
 M5 run's code with per-frame stage marks added and no driver at all (the browser opened on the page's URL, its console
-read). The marks, the patch and the reader are in [`rows/m5-profile/`](../../lab/opfs-cache/rows/m5-profile/). Two
+read). The marks, the patch and the reader are in [`rows/m5-profile/`](https://github.com/dary-dc/wt-pacs/tree/91069eb31e8816bcd4460322e38e8f719a5c0c07/lab/opfs-cache/rows/m5-profile), at `claude/core-m5@91069eb3`, not in this tree. Two
 fills an arm: indicative, not a measurement by the protocol.
 
 | fill | decoders' first decode → last post | decode | samples into place¹ | OPFS write in the decoder | the store's writes |
@@ -2160,8 +2161,8 @@ buffer, the copy and the range pass. Hashing is 0.6–0.9 s in every fill; posti
 
 **Firefox, run again 2026-10-30, with the driver fixed.** The same protocol, rule and bars, run from the M5 run's
 own code (its arms, its `today` with #212's store, its server build) with only the driver swapped to Marionette, so
-both engines' rows come from the same build. Rows: [`rows/m5-rerun/`](../../lab/opfs-cache/rows/m5-rerun/), beside
-a copy of Chromium's, so `python3 lab/opfs-cache/summary.py lab/opfs-cache/rows/m5-rerun` applies the rule over both
+both engines' rows come from the same build. Rows: [`rows/m5-rerun/`](https://github.com/dary-dc/wt-pacs/tree/91069eb31e8816bcd4460322e38e8f719a5c0c07/lab/opfs-cache/rows/m5-rerun), at `claude/core-m5@91069eb3`, not in this tree, beside
+a copy of Chromium's, so `python3 lab/opfs-cache/summary.py lab/opfs-cache/rows/m5-rerun` there applies the rule over both
 engines. The first run's VOID rows in `rows/m5/` stand as run.
 
 * **Not VOID now.** All 42 runs of `m5` and all 28 of `m5-busy` filled, every frame exact by both checks: no start
@@ -2576,8 +2577,8 @@ rule's "≥ 9 of 12" reads as ≥ 75 % of a cell's rounds, as `summary.mjs` coun
 **What ran.** The amended protocol as written, on the 4-vCPU, 15.7 GiB agent container: Chrome for Testing
 153.0.8010.12 (Playwright's) and Firefox 159.0 (WebDriver BiDi, Xvfb), decoder builds from `claude/decoders-committed`
 checked against `manifest.sha256`. Every cell L, W, R at S1, S2, S3 × 1×, 4×, and G at S2 × 1×, 4×, one Williams period
-each (L 8 rounds, W 14, R and G 10), the three mutants once each; a fresh profile per run. Raw rows:
-`lab/opfs-arms/rows/{chromium,firefox}/`, one file per cell. **WebKit not run** (no build here), so the WebKit cell with
+each (L 8 rounds, W 14, R and G 10), the three mutants once each; a fresh profile per run. Raw rows, at `claude/opfs-arms-run@c99ba492`, not in this tree:
+[`lab/opfs-arms/rows/`](https://github.com/dary-dc/wt-pacs/tree/c99ba4929227ab3d17365ca69dc2c9cf8a211cc1/lab/opfs-arms/rows) `{chromium,firefox}/`, one file per cell. **WebKit not run** (no build here), so the WebKit cell with
 a busy page stays owed. Twice the container restarted mid-cell; the cell's partial rows were discarded and the cell run
 whole again. The harness was fixed during the Firefox run, each fix checked by a mutation and the cut-short cells
 rerun whole: a run's 300 s deadline now covers the navigation and the drag, and a browser that does not start is killed
@@ -3863,8 +3864,8 @@ link-bound; 4× is CPU-bound by design. A cell whose A/A median departs from 1 b
 and is not judged. Nothing is claimed for another host, series, engine or a busy page.
 
 **Run 1 (2026-10-30, the harness unpinned as the nightly runs it).** Rows and each campaign's verdict:
-[`lab/av1/delivery/total-time/rows-core-against-main/`](../../lab/av1/delivery/total-time/rows-core-against-main/)
-`page/` and `worker/`; series-server `f36f907e…` (main) and `be058172…` (core). Every kept visit exact (48 of 48, or
+[`lab/av1/delivery/total-time/rows-core-against-main/`](https://github.com/dary-dc/wt-pacs/tree/811ea93f0f2913fb37c20051ec68f14041ef3579/lab/av1/delivery/total-time/rows-core-against-main)
+`page/` and `worker/`, at `claude/core-perf@811ea93f`, not in this tree; series-server `f36f907e…` (main) and `be058172…` (core). Every kept visit exact (48 of 48, or
 5 of 5 asked); no visit failed. Campaign 1 stopped once at round 8 on a dev-server that did not start (a port taken)
 and resumed from its kept rows; `perf_nightly.mjs` now retries such a visit.
 
