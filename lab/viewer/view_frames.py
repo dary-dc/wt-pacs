@@ -3,7 +3,8 @@
 its frames, its metadata and the viewer variants `page`, `pageaa` (its A/A copy) and `worker`, each settling by the
 fence, and `page-read`, `worker-read` settling by the pixel read (§7, *The pixel read under a busy page*).
 
-usage: lab/av1/.venv/bin/python lab/viewer/view_frames.py BUILD WORK SET ...   (SET@K: that file of the set alone)
+usage: lab/av1/.venv/bin/python lab/viewer/view_frames.py BUILD WORK SET ... [--fix]   (SET@K: that file of the set alone)
+--fix adds `workerfix`, the view worker with the start's fix: docs/adr/frame-path.md §3, *Proposed: the page dials*
 """
 import json
 import sys
@@ -13,8 +14,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "av1/exact/from-dic
 import check  # noqa: E402
 
 
+FIX = {"pageDials": True, "viewWorkerFirst": True, "shortRuns": True}
+
+
 def main():
-    build, work, sets = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3:]
+    fix = "--fix" in sys.argv
+    args = [a for a in sys.argv[1:] if a != "--fix"]
+    build, work, sets = Path(args[0]), Path(args[1]), args[2:]
     for name in sets:
         w = work / name.replace("@", "-")
         w.mkdir(parents=True, exist_ok=True)
@@ -30,7 +36,8 @@ def main():
         viewer = {"codec": "htj2k", "openjph": "delivered", "viewer": "metadata.json", "digests": meta["digests"]["frames"]}
         (w / "variants.json").write_text(json.dumps({"name": w.name, "frames": s.n, "truth": truth, "variants": {
             "page": viewer, "pageaa": viewer, "worker": {**viewer, "view": "worker"},
-            "page-read": {**viewer, "settle": "read"}, "worker-read": {**viewer, "view": "worker", "settle": "read"}}}))
+            "page-read": {**viewer, "settle": "read"}, "worker-read": {**viewer, "view": "worker", "settle": "read"},
+            **({"workerfix": {**viewer, "view": "worker", "opts": FIX}} if fix else {})}}))
         print(w.name, s.n, "frames", flush=True)
 
 
