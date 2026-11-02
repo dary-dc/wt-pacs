@@ -24,7 +24,8 @@ async function init(d, groupLength) {
   M = await factory({ locateFile: (f) => d.dir + "/" + f, wasmBinary: await (await fetch(d.wasm)).arrayBuffer() });
   const opened = M._av1_open(1);
   if (opened < 0) throw new Error(`dav1d_open: ${opened}`);
-  await payload.init({ ...d, groupLength });
+  // A slow exact frame flushed mid-group ends its group: waited for as long as the downloader waits (README §The failed visit).
+  await payload.init({ ...d, groupLength, stallMs: 10_000 });
 }
 
 /** Frame i's base; a non-key base only right after the one before it, on this decoder. */

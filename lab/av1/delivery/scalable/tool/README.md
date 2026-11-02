@@ -138,7 +138,7 @@ operating point 1, on the page. 288 visits, 29 `VOID` by the relay's self-timing
 a cell kept. Over every visit 16 794/16 800 frames exact and 10 500/10 500 bases as native, none late, none stray.
 The six: one `VOID` visit (round 2, `dbts_b1`, 5 Mbit, 4×, predicted q 40) in which one group's exact frames failed to
 decode — `frame 65 was not decoded before it here`, the product's group order check, no resume recorded — failed,
-not wrong; not diagnosed. **Mutated** (`dbts_a1`, 50 Mbit, 1×): `--mutate sample` and `--mutate truth` turned both
+not wrong; *diagnosed since* (§The failed visit): WebCodecs' stall guard flushed a slow exact frame mid-group. **Mutated** (`dbts_a1`, 50 Mbit, 1×): `--mutate sample` and `--mutate truth` turned both
 layouts to 0/56 exact and 0/56 bases as native; bases posted unmarked showed 0 previews and 56 strays.
 
 **Host.** 4 vCPU at 2.1 GHz, the relay on a core of its own, browser and server on three; 15 GB. The links run
@@ -171,3 +171,44 @@ Over every kept visit, t_P was 0.003–0.025 of HTJ2K's t_X; t_X 0.999–1.007 o
 first picture came 69–256 ms after the issue against HTJ2K's 744–4 340 ms and the prefix's 306–1 250. On the scroll,
 84–97 % of slices showed a picture at 15 slices/s (94–99 % at 5, 62–96 % at 30); HTJ2K and its prefix first, 0 %
 at 15 and 30 (the prefix 0–93 % at 5).
+
+## The failed visit
+
+*2026-11-02.* The six frames of round 2's `dbts_b1`, 5 Mbit, 4×, predicted q 40 visit are exact frames 10–15, entries
+66–71: the rest of the group of 8 that entries 64 and 65 began. Entry 65 (frame 9) landed 4.69 s after frame 8; in
+the cell's nine visits every other step between frames 0 and 20 took 2.4–3.8 s (`rows.jsonl`'s `exactMs`). So frame
+9's decode ran over 2 s.
+
+**The cause.** `client/decode/av1-webcodecs.js` flushes a unit that has given neither a frame nor an error after
+2 s, against a unit that never will (docs/decode/README.md §WebCodecs without a flush). A slow frame is such a unit
+too. The flush gives its frame, so frame 9 was exact, but it also ends the group: WebCodecs then takes only a key
+chunk. Frame 10's chunk throws `A key frame is required after configure() or flush()`. `av1.js` then tries
+dav1d-WASM. That decoder never held the group, so it refuses the unit by name (the message in the row) and hides the
+WebCodecs error. Each of frames 11–15 fails the same way. Frame 16 is a keyframe and decodes.
+
+**Reproduced** ([`stall`](stall/)): a 16-frame 10-bit grey series at `dbts_b1`'s 2560×3328, coded lossless by libaom
+(ffmpeg's `libaom-av1`, a keyframe every 8, no look-ahead), every unit through `av1.js` as the exact layer is.
+dav1d-WASM is not built here: `stub-dav1d.js` is its `picture()` up to the decode, so the refusal is the same.
+Headless Chromium 153, every thread capped by `lab/scripts/cpu_throttle.mjs`.
+
+```bash
+W=lab/.av1-work/stall; node lab/av1/delivery/scalable/tool/stall/make_group.mjs $W        # ~1 min
+NODE_PATH=$(npm root -g) node lab/av1/delivery/scalable/tool/stall/run.mjs $W --rate 4 [--stall-ms 10000]
+NODE_PATH=$(npm root -g) node lab/av1/delivery/scalable/tool/stall/run.mjs $W --rate 1 --hole 3 --frames 12 [--stall-ms 10000]
+```
+
+| run, 3 rounds interleaved | frames exact | failed | slowest frame |
+| --- | --- | --- | --- |
+| 1×, the 2 s bound (one run) | 16/16 | — | 0.95 s |
+| 4×, the 2 s bound | 3, 2, 2 of 16 | the rest of each group after the first frame over 2 s, by name | 2.8–3.2 s |
+| 4×, `stallMs` 10 000 | 16/16 each round | — | 4.0–4.9 s |
+| 1×, a bare delimiter at frame 3, either bound | 0–2 and 8–11 | 3–7, by name, after 2 s or 10 s | — |
+
+Through `av1-webcodecs.js` alone, the unit after the flushed one throws WebCodecs' `DataError`, as the specification
+says it must.
+
+**The fix, lab only.** `av1-webcodecs.js` takes `stallMs` from the decoder config, default 2 000 ms, so the product
+is unchanged. This tool's worker sets 10 000 ms, the downloader's own `decodeMs`. A unit that never gives a frame
+still fails by name (last row). Not fixed, since it is the product's: at G > 1 the fixed bound loses groups on any
+CPU slow enough for one frame to take 2 s. And `av1.js` reports dav1d-WASM's refusal of a unit it never held, not
+the WebCodecs error behind it. Both are proposed in docs/av1/README.md §The scalable preview as a tool, 7.
