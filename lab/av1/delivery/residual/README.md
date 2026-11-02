@@ -141,3 +141,102 @@ end of every group; dav1d-WASM and OpenJPH use one thread.
 3.1.74 (`simd.wasm`, 623 042 B); `@cornerstonejs/codec-openjph` 2.4.11 and OpenJPH 0.31.0 as
 row SPEED pins them; playwright 1.56.1's Chromium 141; Node 22; numpy 2.4.6
 (`lab/av1/requirements.txt`). Nothing built or generated is committed.
+
+## Residual apart protocol, pre-registered (row RESIDAPART, 2026-11-02)
+
+Written before any data; the session that runs it changes nothing below and reports every cell, including those that
+miss. The question ([`docs/codecs/README.md`](../../../../docs/codecs/README.md) §Beside lossless AV1, row RESIDAPART):
+**with the preview** (that table's "base") **already decoded and on screen, does the HTJ2K residual's decode plus the add
+cost more than HTJ2K's whole frame?** §Decode time above timed preview + residual + add together (1.31–1.89×) and never
+the residual apart. The use in view: a cine view scrolls a lossy AV1 stream and fetches the exact frame when a tool opens
+on one; the residual and a whole HTJ2K frame are the two ways to deliver it, so the bytes are reported beside the time.
+
+**Arms**, each in a worker of its own, the client's OpenJPH build in every HTJ2K arm:
+
+| arm | clock covers | not on the clock |
+| --- | --- | --- |
+| **H** HTJ2K whole frame | each frame's codestream decoded and its samples written | — |
+| **R** residual decode alone | each frame's residual decoded | the preview, decoded before the clock starts; the add, done after it stops |
+| **RA** residual decode + add | each frame's residual decoded and added to its preview, samples written | the preview, decoded before the clock starts |
+| **P** preview decode (reference) | the preview's units decoded, through WebCodecs and through dav1d-WASM | — |
+
+ms a frame over the timed frames, latency alone (no throughput). The add's own cost is RA − R, *derived*.
+
+**Content**, in this order, the second only once the first is reported: the DBT volumes `dbts_a1`, `dbts_b1`,
+`dbts_c1` (`lab/av1/fetch_data.sh`; systems A and C 12-bit, B 10-bit, [`../../bytes/frame-groups/README.md`](../../bytes/frame-groups/README.md)
+§Measured); then row 17's seven series. Timed frames: each series' first 16, as above.
+
+**Encodings.** Row 17's unchanged (`encode.py`: libaom 3.15.1, `--end-usage=q --cpu-used=6`, G = 8, grey 4:0:0 at
+10 bits with s = max(0, bits − 10)), at these preview qualities, every one reported with its measured PSNR and max |Δ|
+as §The preview and the residual defines them:
+
+* **row 17's**: the CRF in {8, 20, 32, 44} whose preview + HTJ2K residual is fewest bytes (`--crf auto`);
+* **higher**: CRF 8 and CRF 2, at the same 10-bit preview (a CRF already chosen above is not repeated);
+* **higher, at full depth**, `dbts_a1` and `dbts_c1` only: CRF 8 with s = 0 (a 12-bit preview), whose preview only
+  dav1d-WASM decodes (WebCodecs refuses 12 bits, [`docs/decode/README.md`](../../../../docs/decode/README.md) §AV1).
+
+No quality is called visually lossless here; that threshold is the owner's. `encode.py` takes its CRFs and s as
+arguments for this; nothing else in it changes.
+
+**Bytes.** Per series and quality, over the 16 timed frames and over the whole series: the residual's HTJ2K bytes ÷
+HTJ2K's whole frames, and the preview's bytes beside them.
+
+**Decoders.** HTJ2K: OpenJPH-WASM as the client ships it (`client/decode/wasm/built/openjph`, loaded through
+`wasm-glue.js` `built("openjph")`, checked against `wasm/build/manifest.sha256`, one thread) — not the
+`@cornerstonejs/codec-openjph` package row 17 timed, so H is re-timed here, not taken from the table above. Preview:
+WebCodecs with the client's configuration (`prefer-software`, `client/decode/av1-webcodecs.js`) where it takes the
+depth, dav1d-WASM (the client's `built("dav1d")`) otherwise; P runs both where both take it.
+
+**Order and rounds.** Headless Chromium as above, this container, 4 cores; 1× and 4× through
+`lab/scripts/cpu_throttle.mjs` (`throttleTree`), each (throttle, round) a fresh browser. Inside a round the arms of every
+(series, quality) run in a Williams order (`lab/order.mjs`), and the summary prints the paired leads by predecessor
+with its `UNBALANCED` flag ([`docs/rig-limits.md`](../../../../docs/rig-limits.md) §6). A cell whose order effect
+exceeds 10 % is not read. Rounds by power, to resolve 5 %: a 5-round pilot per throttle on `dbts_a1`, discarded, gives
+σ, the standard deviation of ln(RA ÷ H) over paired rounds; then n = max(15, ⌈((1.96 + 0.84) · σ ÷ ln 1.05)²⌉), two-sided
+5 %, power 80 % (*derived*: the normal approximation for a paired mean), rounded up to a whole Williams period, at most
+60. If n would exceed 60, the run stops at 60 and says 5 % was not resolved.
+
+**Saturation.** At 4× every thread is capped at a quarter of a CPU; WebCodecs runs its own decoder threads, so P through
+WebCodecs at 4× is not a one-core figure. Nothing is claimed past 4×, or for a host other than this one.
+
+**Checked**, every round:
+
+* every exact frame (H and RA, and R after its add) hashed against the checksum written when the series was fetched;
+* every preview frame hashed against native dav1d 1.5.4's decode of the same stream, in R, RA and P;
+* every residual decoded in R hashed against the residual `encode.py` wrote.
+
+A miss anywhere voids that (series, quality, throttle) cell; it is reported, not re-run quietly.
+
+**Mutations**, run once before the campaign and reported: the add's offset off by one must turn RA to 0/16 exact
+while R's residual checks, H and every preview check stay 16/16; `--mutate hash` must turn every exact-frame and
+preview check to 0.
+
+**Decision rule.** Per series, quality and throttle: the median over rounds of the paired ratio RA ÷ H, its range, and
+the rounds RA was slower out of n.
+
+* **More** if the median ≥ 1.05 and RA slower in ≥ 90 % of rounds; **less** if ≤ 0.95 and faster in ≥ 90 %;
+  **the same** if inside 0.95–1.05; otherwise **unresolved**, said so.
+* **Read on the three DBT sets at row 17's quality, 1× and 4×.** All six "the same" or "less": with the preview on
+  screen, the exact frame by residual costs no more decode than a whole HTJ2K frame, the preview costs the exact fill
+  only its own decode, and the choice between them is bytes and the owner's ruling on a lossy first picture. Any one
+  "more": the residual is a byte saving bought with decode, and the bytes table says how much it buys.
+* **Prediction: 0.9–1.1×** (*derived*: the residual is 0.947–1.002 of HTJ2K's bytes at row 17's quality; that
+  OpenJPH's decode time tracks its bytes is *unverified*, and the add is one integer add a sample, assumed small against
+  entropy decoding, *unverified*). Any DBT cell outside 0.9–1.1 falsifies it, and is reported as such.
+
+**Unverified: a hardware decoder's preview.** The residual is exact only against the preview the encoder reconstructed,
+bit for bit. The AV1 specification fixes that for every conforming decoder when film grain is off — [AV1 Bitstream &
+Decoding Process Specification](https://aomediacodec.github.io/av1-spec/), §7.2 General decoding process: "When
+film_grain_params_present is equal to 0, decoders shall produce output frames that are identical in all respects and have
+the same output order as those produced by the decoding process specified herein." That `encode.py`'s previews have
+film_grain_params_present = 0 is *unverified* (libaom adds grain only when asked, and it is not asked); the run reads it
+from each stream's sequence header. The 13 440/13 440 above are software decoders only (no GPU here; Chromium's
+WebCodecs then runs dav1d, [`docs/av1/README.md`](../../../../docs/av1/README.md) §Which decoder for which frame).
+**Whether a hardware AV1 decoder returns the preview bit-identical is not measured:** the clause binds the decoder's output
+frames, not a browser's read-back of a GPU frame through `copyTo`, and a browser may not use hardware when asked —
+[WebCodecs](https://www.w3.org/TR/webcodecs/), §HardwareAcceleration, `prefer-hardware`: "Indicates that the User Agent
+SHOULD prefer hardware acceleration. User Agents may ignore this value for any reason." **What would check it:** on a
+device with an AV1 hardware decoder, the same previews through WebCodecs with `prefer-hardware`, the hardware path
+confirmed in the browser's media log, every frame's `copyTo` planes hashed against native dav1d's; then RA's exact-frame
+check on that device. Until then the residual on a hardware-decoded preview is exact only where the frame check passes,
+and a failed frame falls back to the whole HTJ2K frame (*derived*).
