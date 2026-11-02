@@ -4,7 +4,7 @@
  * docs/ARCHITECTURE.md §The consumer
  */
 /** How long a closed client waits for the downloader's answer before ending it anyway. */
-const CLOSE_DEADLINE_MS = 1_000;
+export const CLOSE_DEADLINE_MS = 1_000;
 /** What `opts.decoder.codec` may name; absent is HTJ2K. docs/av1/adr-unit.md §1 */
 const CODECS = ["htj2k", "av1"];
 
