@@ -22,7 +22,7 @@ async function aFillCarriesItsTimeAndReads() {
   const frames = [frame(0, 10, 4), frame(2, 20, 9), frame(1, 30, 15), frame(3, 40, 21)];
   const empty = await finished(lab({ opts: "{}" }), { fillMs: 123.4, frames });
   check(empty.fillMs === 123.4 && empty.mediaReads === 21 && empty.fillReads === 21, `an empty store: fill ${empty.fillMs} ms, reads ${empty.mediaReads}, the fill's ${empty.fillReads}`);
-  const half = await finished(lab({ opts: JSON.stringify({ holdEveryOther: true, span: 1 }) }), { fillMs: 50, frames });
+  const half = await finished(lab({ view: "worker", opts: JSON.stringify({ holdEveryOther: true, span: 1 }) }), { fillMs: 50, frames });
   check(half.mediaReads === 21 && half.fillReads === 12, `a half-held store: the fill's reads from the last held frame (${half.fillReads}, of ${half.mediaReads})`);
   check(half.frames.length === 4 && half.after.length === 0, `a fill reports its frames, no steps (${half.frames.length}, ${half.after.length})`);
 }
@@ -40,5 +40,29 @@ async function onDemandStepsAreTimed() {
 }
 await onDemandStepsAreTimed();
 
-console.log(failed ? `${failed} failed` : "levers: a fill's time and reads, steps on demand: ok");
+/** A setting only the view worker honours is refused by name under the page view, as is a writer the cache lacks or a decoder writing a frame it transferred. */
+function settingsTheViewCannotHonourAreRefused() {
+  const refusal = (query) => {
+    try {
+      levers(new URLSearchParams(query));
+      return null;
+    } catch (e) {
+      return e.message;
+    }
+  };
+  for (const [query, said] of [
+    [{ writer: "store" }, "refused: writer under view page — the view worker's; name view=worker"],
+    [{ opts: JSON.stringify({ waitAhead: 4 }) }, "refused: waitAhead under view page — the view worker's; name view=worker"],
+    [{ view: "page", opts: JSON.stringify({ holdEveryOther: true }) }, "refused: holdEveryOther under view page — the view worker's; name view=worker"],
+    [{ opts: JSON.stringify({ pixels: "transfer" }) }, "refused: pixels under view page — the view worker's; name view=worker"],
+    [{ view: "worker", writer: "disk" }, 'refused: writer "disk" — store, decoders or view'],
+    [{ view: "worker", writer: "decoders", opts: JSON.stringify({ pixels: "transfer" }) }, "refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred"],
+  ]) check(refusal(query) === said, `${JSON.stringify(query)}: ${refusal(query)}`);
+  for (const query of [{ opts: JSON.stringify({ span: 2, waitAhead: 0, pixels: "shared" }) }, { view: "worker", writer: "view", opts: JSON.stringify({ waitAhead: 4, holdEveryOther: true, pixels: "transfer" }) }]) {
+    check(refusal(query) === null, `${JSON.stringify(query)} taken`);
+  }
+}
+settingsTheViewCannotHonourAreRefused();
+
+console.log(failed ? `${failed} failed` : "levers: a fill's time and reads, steps on demand, the refusals: ok");
 process.exit(failed ? 1 : 0);

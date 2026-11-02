@@ -1,14 +1,23 @@
 /** The viewer's lab parameters, honoured only on a host that serves this file: client/README.md §The viewer */
 import { sawtooth, STEP_MS, waits } from "./trace.js";
 
+/** Settings the page view would ignore, or under `pixels` copy each paint: docs/adr/frame-path.md §The core, assembled. */
+const WORKER_ONLY = ["writer", "waitAhead", "holdEveryOther", "pixels"];
+
 export function levers(q) {
   if (q.get("trace") && q.get("trace") !== "sawtooth") throw new Error(`refused: trace ${JSON.stringify(q.get("trace"))} — sawtooth`);
   const opts = q.get("opts") ? JSON.parse(q.get("opts")) : {};
+  const writer = q.get("writer") ?? undefined;
+  const set = { ...opts, writer, pixels: opts.pixels === "transfer" };
+  const ignored = (q.get("view") ?? "page") === "page" && WORKER_ONLY.find((k) => set[k]);
+  if (ignored) throw new Error(`refused: ${ignored} under view page — the view worker's; name view=worker`);
+  if (writer !== undefined && !["store", "decoders", "view"].includes(writer)) throw new Error(`refused: writer ${JSON.stringify(writer)} — store, decoders or view`);
+  if (writer === "decoders" && opts.pixels === "transfer") throw new Error("refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred");
   return {
     opts,
     transport: q.get("wt") ? { wt_url: q.get("wt"), cert_sha256: q.get("hash") } : undefined,
     metadata: q.get("metadata") ?? undefined,
-    writer: q.get("writer") ?? undefined,
+    writer,
     ...(q.get("post") && totalTime(q.get("post"), q.get("origin"), opts, q.get("fill") === "0" ? Number(q.get("after") ?? 0) : 0, Boolean(q.get("trace")))),
     ...(q.get("trace") && { trace: { steps: sawtooth, everyMs: STEP_MS } }),
   };

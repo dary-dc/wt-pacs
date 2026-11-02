@@ -16,10 +16,8 @@ const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport]
 // Where the frames are held and painted: on the page, or in the view worker. docs/adr/frame-path.md §3, *Built*
 const where = q.get("view") ?? "page";
 if (!lab.refused && !["page", "worker"].includes(where)) lab.refused = `refused: view ${JSON.stringify(where)} — page or worker`;
-// Who writes the OPFS cache under `worker`, a lab lever; none by default, as main: docs/adr/frame-path.md §The core, assembled
+// Who writes the OPFS cache under `worker`, a lab lever refused where it cannot hold; none by default, as main: lab/viewer/levers.js
 const writer = lab.writer;
-if (!lab.refused && writer !== undefined && !["store", "decoders", "view"].includes(writer)) lab.refused = `refused: writer ${JSON.stringify(writer)} — store, decoders or view`;
-if (!lab.refused && writer === "decoders" && lab.opts?.pixels === "transfer") lab.refused = "refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred";
 if (lab.refused) {
   statusEl.textContent = `error: ${lab.refused}`;
   report({ error: lab.refused });

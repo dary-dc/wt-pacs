@@ -18,6 +18,8 @@ let latest = null;
 /** The lab's flag: a paint waits for the GPU before it reports, which here would block the store. */
 let settle = false;
 let cine = null;
+/** Steps on each play and pause, so a play whose clock is still loading starts no cine once overtaken. */
+let cues = 0;
 
 function emit(type, event) {
   if (type !== "progress") return void postMessage({ kind: "event", type, ...event });
@@ -89,16 +91,21 @@ async function fillAround(held) {
 
 /** A lab's cine on a clock it names; the product's cine is the page's: lab/frame-clock. */
 async function play({ fps, t0, source }) {
-  cine?.stop();
+  const cue = pause();
   const { Cine } = await import("./clock.js");
-  cine = new Cine({ fps, t0, source, show: (i) => controller.show(i) });
+  if (cue === cues) cine = new Cine({ fps, t0, source, show: (i) => controller.show(i) });
+}
+
+function pause() {
+  cine?.stop();
+  return ++cues;
 }
 
 const INTENTS = {
   start,
   play,
   tick: ({ t, vsync }) => cine?.tick(t, vsync),
-  pause: () => cine?.stop(),
+  pause,
   show: ({ i }) => controller.show(i),
   display: ({ display }) => controller.setDisplay(display),
   size: ({ size }) => controller.resize(size),
