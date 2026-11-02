@@ -2013,7 +2013,7 @@ Saturation was not measured, and nothing is claimed for fills, concurrency or ph
   digest 0.9–2.1 % (held). The two streams' own times sum to 1.35–1.47× the frame.
 * **Decision rule: neither client lever is built.** W1 (no flush) ÷ W is 0.921–1.024 and is faster in 2 of 10
   rounds at 4× `b1`. W2 (no `neutral()` on `mono_chrome`, one fused pass) is 0.901–0.950 and is faster in 8 of 10
-  at 1× `a1`; 4× `a1`'s median sits at 0.950, the line, not past it. *Since built behind `onePass`, off by default, for §JS passes protocol, pre-registered.* W12, which the rule does not name, is
+  at 1× `a1`; 4× `a1`'s median sits at 0.950, the line, not past it. *Since built behind `onePass`, off by default, for §JS passes protocol, pre-registered, and on by default since that protocol's run (2026-11-02).* W12, which the rule does not name, is
   0.873–0.913, faster in 8–10 of 10, every frame exact. That leaves WebCodecs at 1.9–3.3× H's frame, against the
   1.3–3.0× derived above.
 * **Store levers, for the owner, not built.** The low deflated (Z) costs +0.23 to +0.36 % bytes. It takes
@@ -2026,7 +2026,7 @@ Saturation was not measured, and nothing is claimed for fills, concurrency or ph
 not catch the stamps. They cost about 1–30 µs a frame. Its 2 % line sat inside the noise of 10 rounds: 7.9 of 18
 cells were expected outside it with no effect at all, and 7 were. The JS passes cost 3.6–4.1 ns a sample a pass
 plus `neutral()`'s full read, not the read-only range pass's ~1.6 ns. That is the same milliseconds as on D, over
-a frame half as long. W2 is built behind `onePass`, off by default. No cheaper exact form beat it.
+a frame half as long. W2 is built behind `onePass`, off by default (on by default since 2026-11-02, §JS passes protocol, pre-registered, *Measured*). No cheaper exact form beat it.
 
 ### JS passes protocol, pre-registered
 
@@ -2069,6 +2069,32 @@ WebCodecs default. The flush (W1) is decided elsewhere and stays as the product 
 * **Host**: one ask at a time on the host's cores, two `VideoDecoder`s at most. The report says where the host
   saturates, if it measures that, and claims nothing for fills, concurrency or phones. Each cell is quoted in ms a
   frame, latency only.
+
+**Measured (2026-11-02)**, the protocol as written, by a session given the protocol alone:
+[`lab/av1/decode/passes`](../../lab/av1/decode/passes/README.md), which has every table. Headless Chromium
+141.0.7390.37 on 4 vCPUs of a container (Xeon, 2.8 GHz, one thread a core), one ask at a time, 150 rounds at 1× and
+42 at 4×. **36 864 of 36 864 frames were exact** by the worker's XXH3 and the page's SHA-256, first time on WebCodecs
+and none rescued. `--mutate` read 0 of 192 exact. With `merge()`'s shift one short, W2 read 0 of 48 on the DBT sets,
+and the ultrasound read 16 of 16, since its RCT payload never reaches `merge()`. The host was 38–40 % busy over a
+1× browser (busiest second 53 %) and 21–24 % at 4× (41 %). It did not saturate, and nothing is claimed past one ask.
+
+| throttle | set | W, ms a frame | W′ ÷ W (A/A) | W2 ÷ W |
+| --- | --- | --: | --: | --: |
+| 1× | `dbts_a1` | 132.3 | 1.004 [0.987–1.020] | 0.930 [0.920–0.940] |
+| 1× | `dbts_b1` | 291.7 | 1.001 [0.986–1.010] | 0.899 [0.887–0.905] |
+| 1× | `dbts_c1` | 131.7 | 1.007 [0.995–1.017] | 0.928 [0.915–0.941] |
+| 1× | ultrasound | 41.7 | 0.999 [0.979–1.017] | 0.998 [0.981–1.012] |
+| 4× | `dbts_a1` | 514.7 | 0.990 [0.968–1.005] | 0.923 [0.908–0.935] |
+| 4× | `dbts_b1` | 1145.0 | 0.998 [0.979–1.015] | 0.879 [0.867–0.895] |
+| 4× | `dbts_c1` | 503.4 | 0.989 [0.972–1.001] | 0.917 [0.902–0.933] |
+| 4× | ultrasound | 155.5 | 0.985 [0.957–1.015] | 0.997 [0.968–1.014] |
+
+W's ms a frame is the median over rounds. The ratios are the round-paired median with its 95 % interval. **The A/A
+held in all 8 cells.** **The rule is met.** In each DBT cell W2 ÷ W's interval lies below 1.00, with medians of
+0.879–0.930. The ultrasound's upper ends are 1.012 and 1.014. **`onePass` is the default**: `av1.js` and
+`av1-webcodecs.js` take it as on unless the config sets `onePass: false`, with tests that fail if it is off.
+These times are 17–25 % above 2026-10-31's W on the same bytes, on a different container. Only the round-paired
+ratios are compared.
 
 ## Hardware decode
 

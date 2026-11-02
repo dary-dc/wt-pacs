@@ -58,3 +58,39 @@ their median as a ratio, and the 95 % interval is the k-th and (n − k + 1)-th 
 which P(Binomial(n, ½) ≤ k − 1) ≤ 0.025 (k = 63 at n = 150, 15 at n = 42). `report.test.mjs` checks the rank, the
 interval and the rule's lines; each was broken on purpose and seen to fail (rank at 0.05, the interval one rank
 in, the 0.97 line at 0.99, the ultrasound's 1.02 at 1.05, the A/A void at 3 misses).
+
+## Measured (2026-11-02)
+
+**Host.** 4 vCPUs (Xeon, 2.8 GHz, one thread a core) of a container, 15 GB, Linux 6.18. Headless Chromium
+141.0.7390.37, playwright 1.63.0, Node 22. One ask at a time, with two `VideoDecoder`s at most. **Where it saturates:**
+it did not, in this run. Over a 1× browser the 4 CPUs were 38–40 % busy (busiest second 53 %). At 4× they were
+21–24 % busy (41 %), where every thread is capped at a quarter of a CPU ([`busy.txt`](busy.txt)). The saturation
+point was not looked for. Nothing here is claimed for fills, concurrency or phones.
+
+**Checks.** **36 864 of 36 864 frames exact** (192 browsers, 2 304 runs), by both checks, first time on WebCodecs.
+No frame came off WebCodecs or from the fallback. `--mutate`: **0 of 192 exact**, every arm and set. `merge()`'s shift
+one short (`broken.mjs`): **W2 read 0 of 48 on the DBT sets**, each one rescued on dav1d-WASM (`mismatchOn`) and
+not counted. The ultrasound read 16 of 16, as its RCT payload never reaches `merge()`.
+
+**ms a frame** (median over rounds of each round's median [range]) and **the rule** (round-paired ratio ÷ W, the
+median [95 % interval]):
+
+| throttle | set | rounds | W | W2 | W′ ÷ W (A/A) | W2 ÷ W | rule |
+| --- | --- | --: | --: | --: | --: | --: | --- |
+| 1× | `dbts_a1` | 150 | 132.3 [113.2–158.6] | 122.4 [110.5–146.7] | 1.004 [0.987–1.020] | 0.930 [0.920–0.940] | met |
+| 1× | `dbts_b1` | 150 | 291.7 [262.4–330.8] | 259.1 [239.1–295.3] | 1.001 [0.986–1.010] | 0.899 [0.887–0.905] | met |
+| 1× | `dbts_c1` | 150 | 131.7 [118.3–155.3] | 122.3 [106.1–143.5] | 1.007 [0.995–1.017] | 0.928 [0.915–0.941] | met |
+| 1× | `us_liver` | 150 | 41.7 [36.2–55.5] | 41.4 [35.9–52.2] | 0.999 [0.979–1.017] | 0.998 [0.981–1.012] | met (≤ 1.02) |
+| 4× | `dbts_a1` | 42 | 514.7 [481.4–561.5] | 478.7 [426.2–529.5] | 0.990 [0.968–1.005] | 0.923 [0.908–0.935] | met |
+| 4× | `dbts_b1` | 42 | 1145.0 [1044.3–1240.2] | 1001.2 [940.5–1092.3] | 0.998 [0.979–1.015] | 0.879 [0.867–0.895] | met |
+| 4× | `dbts_c1` | 42 | 503.4 [456.4–550.8] | 467.0 [420.2–511.9] | 0.989 [0.972–1.001] | 0.917 [0.902–0.933] | met |
+| 4× | `us_liver` | 42 | 155.5 [141.2–179.3] | 154.2 [129.9–174.5] | 0.985 [0.957–1.015] | 0.997 [0.968–1.014] | met (≤ 1.02) |
+
+The A/A missed in 0 of 8 cells. **Verdict, by the rule: `onePass` becomes the default.** It is now on unless the
+config sets `onePass: false` (`client/decode/av1.js`, `av1-webcodecs.js`). `av1.test.mjs` reads a config that does
+not name it as `onePass`. That test fails with either file's default turned off, and with `false` read as on.
+The post → consumer-port receipt is 0.7–1.0 ms a frame beyond `decodeStart`→`decodeEnd` in every cell and arm.
+W′'s ms, and the tails, are in [`report.md`](report.md).
+
+**Off the protocol.** The 4× rounds' placement among the 1× ones is this harness's choice (How, above). The W
+times are 17–25 % above 2026-10-31's on the same bytes. Only the round-paired ratios are compared across runs.

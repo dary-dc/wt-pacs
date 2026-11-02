@@ -279,7 +279,7 @@ built. *Derived*, from the table: W2 saves 9.3, 18.7 and 13.7 ms, or 8–12 % of
 
 ### What was built
 
-W2 in the product, behind the decoder config key `onePass`, off by default. `av1-frame.js`'s `merge()` is
+W2 in the product, behind the decoder config key `onePass`, off by default. *Since on by default (2026-11-02), by the rule of [`passes`](../passes/README.md).* `av1-frame.js`'s `merge()` is
 `begin()` + `end()` of a split frame in one pass. It masks the shifted top as the two passes' first write wraps it,
 so it equals them byte for byte and range for range on any decoder output, not only on in-range samples. Under
 `onePass`, `av1-webcodecs.js` skips `neutral()` when the keyframe's sequence header sets `mono_chrome`. AV1

@@ -143,7 +143,7 @@ const { parsePayload } = await import("./av1-payload.js");
   }
 }
 
-/** `onePass` takes a WebCodecs split frame through merge() and every other payload as before: same bytes and range. */
+/** `onePass`, on unless `false`, takes a WebCodecs split frame through merge() and every other payload as before: same bytes and range. */
 {
   const reads = [];
   const make = async (onePass) => {
@@ -181,17 +181,18 @@ const { parsePayload } = await import("./av1-payload.js");
     };
   };
   globalThis.VideoDecoder = class {};
-  const [before, after] = [await make(false), await make(true)];
+  const [before, after, unset] = [await make(false), await make(true), await make(undefined)];
   for (const [rep, name, what] of [
     ["optimized", "g10", "split, an 8-bit top"], ["optimized", "g12", "split, a 10-bit top"],
     ["optimized", "s11", "split and signed"], ["optimized", "s13", "split, signed, offset 2048"],
     ["optimized", "c8", "rct"], ["optimized", "g9", "unsplit"], ["plain", "g10", "unsplit, 10-bit"], ["plain", "c8", "plain colour"],
   ]) {
-    const [a, b] = [await before(rep, name), await after(rep, name)];
+    const [a, b, c] = [await before(rep, name), await after(rep, name), await unset(rep, name)];
     const split = parsePayload(golden(rep, name)).split > 0;
     const passes = (r) => r.slice(0, r.indexOf(" av1-"));
     check(a.endsWith(b.slice(b.indexOf(" av1-"))) && b.includes(" av1-webcodecs "), `one pass: ${what} (${rep} ${name}) decodes to the same bytes and range`);
     check(passes(a) === "two passes" && passes(b) === (split ? "one pass" : "two passes"), `one pass: ${what} is read ${split ? "in one pass under onePass" : "as before"} (${passes(a)}; ${passes(b)})`);
+    check(c === b, `one pass: ${what} is read as under onePass when the config does not name it`);
   }
   delete globalThis.VideoDecoder;
 }
@@ -224,7 +225,8 @@ const { parsePayload } = await import("./av1-payload.js");
     }
   };
   let gen = 0;
-  for (const onePass of [false, true]) {
+  for (const onePass of [false, true, undefined]) {
+    const on = onePass !== false;
     const wc = await import(`./av1-webcodecs.js?chroma-${onePass}`);
     await wc.init({ onePass });
     const read = (layout) => wc.picture(unit(layout), { key: true, gen: gen++, index: 0 }).then((p) => `grey ${p.planes[0].heap[w + 1]}`, (e) => e.message);
@@ -233,7 +235,7 @@ const { parsePayload } = await import("./av1-payload.js");
     tint = 129;
     check(/4:2:0 with chroma/.test(await read("g8f")), `chroma: onePass ${onePass}, mono_chrome 0 with a tinted chroma sample is refused`);
     const mono = await read("g8");
-    check(onePass ? mono === "grey 5" : /4:2:0 with chroma/.test(mono), `chroma: onePass ${onePass}, mono_chrome 1 with a tinted chroma sample is ${onePass ? "not checked" : "refused"} (${mono})`);
+    check(on ? mono === "grey 5" : /4:2:0 with chroma/.test(mono), `chroma: onePass ${onePass}, mono_chrome 1 with a tinted chroma sample is ${on ? "not checked" : "refused"} (${mono})`);
   }
   delete globalThis.VideoDecoder;
   delete globalThis.EncodedVideoChunk;

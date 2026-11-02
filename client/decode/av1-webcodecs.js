@@ -8,13 +8,13 @@ import { codecString, continues, sequence } from "./av1-payload.js";
 import { PROBES } from "./av1-probe.js";
 
 let groupLength = 1;
-let onePass = false;
+let onePass = true;
 const streams = {};
 const probed = {};
 
 export async function init(d) {
   groupLength = d.groupLength ?? 1;
-  onePass = !!d.onePass;
+  onePass = d.onePass !== false;
 }
 
 /** Whether a tiny unit of `layout` comes back with the samples it was coded from, once per worker. */
