@@ -1466,7 +1466,13 @@ point, so the reach above holds for AV1 + LCEVC at 8–12 bits (*derived*). An o
 possible, a product path is not: the web decoder draws 8-bit RGBA through WebGL with no samples back,
 and both codes' BSD licences grant no patents, which the licensor licenses alone for royalties
 ([`licensing.md`](licensing.md); the re-check and a pre-registered protocol in
-[`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Re-checked 2026-10-31).
+[`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Re-checked 2026-10-31). *Re-checked
+2026-11-02 for FFmpeg:* it encodes no LCEVC; it decodes through LCEVCdec (`--enable-liblcevc-dec`),
+and from 9.0 hands back samples at 8–14 bits, YUV and grey, with an AV1 base wired through dav1d's
+T.35 metadata (not run). That is the first native decode returning samples — a convenience for the
+offline trial, not an independent decoder for it, not an encoder, not lossless, and not a browser
+path: no FFmpeg WASM build with LCEVC was found (*unverified* that none exists)
+([`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Re-checked 2026-11-02).
 
 *Parked by the owner on 2026-10-03, kept for the decision later* (the owner's focus, §Where AV1 stands): the
 preview plus an HTJ2K residual, the separate preview then exact HTJ2K, the embedded intra codecs and LCEVC — each
