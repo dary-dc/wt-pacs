@@ -24,13 +24,17 @@ move because of anything here. TCP 4433 is published for the WebSocket fallback,
 
 ## Run it
 
-From a fresh clone, with docker (or podman; every `docker` below reads `podman` as well):
+From a fresh clone or a `git archive` of one, with docker (or podman; every `docker` below reads `podman` as well):
 
 ```bash
-bash client/decode/wasm/build/build.sh        # the decoders and the frame check's hasher, checked against their manifest
 docker compose -f deploy/compose.yml build
 STUDIES=/path/to/studies SERIES=ct docker compose -f deploy/compose.yml up -d
 ```
+
+The decoders, the frame check's hasher and their notices (`client/decode/wasm/built/`) and the page's TS client
+(`client/transport/ts/dist/session.js`) are committed, each pinned by a manifest that `scripts/gate.sh` checks and
+rebuilds them against (owner's decision D2, 2026-10-21), so the deploy host builds no decoder.
+`client/decode/wasm/build/build.sh` verifies them or makes new ones; it is not a deploy step.
 
 `STUDIES` holds what the DICOM ingest writes, `$SERIES.sbnd` and `$SERIES.metadata.json`
 ([`../docs/FIXTURES.md`](../docs/FIXTURES.md) §From DICOM); without it, the 151-byte smoke series baked into both
@@ -205,8 +209,7 @@ Each new assertion was mutated and seen to fail it: `server_tokens on`, JSON out
 that serves and lists, and a page cached otherwise than `dev-server.py`; and for the policy (row VIEWERLOCK), nginx's
 `connect-src` without the transport (both paths `MISS`) and the dev host's `script-src` allowing inline (`DIFF`).
 `--local` runs a host nginx on the template instead of the image, its root the files `web-files.sh` copies;
-`scripts/gate.sh` runs it where nginx is on PATH and the decoder builds are present, and names it
-SKIPPED otherwise. Mutated: a root of all of `client/`, as the image carried before row IMAGESLIM (the nine
+`scripts/gate.sh` runs it where nginx is on PATH, and names it SKIPPED otherwise. Mutated: a root of all of `client/`, as the image carried before row IMAGESLIM (the nine
 `client/` paths answer 200), and `viewer.js` left out of the list (its path differs and loses gzip); each fails it.
 
 **A stale image is refused** (exit 2) before anything is compared: every file the image carries from `client/`
@@ -413,7 +416,8 @@ server's (with no `ulimits` set they are the daemon's). **Proposed, not built:**
 | ~~a stale server binary~~ *closed by row BUILDCACHE, 2026-10-15* | the build stage's `target` cache mount is shared by every build on the daemon; cargo trusts mtimes, so a tree whose sources are older than the cache's last build ships the old binary, silently (row 231: its `read_ring=` line was missing until the sources were touched and the build ran with `--no-cache-filter build,server`) | closed: the build touches every source it copied before `cargo build` (§5), proved in §Verified *Row BUILDCACHE* |
 | studies by name | one server serves one series (`SERIES`) | a study index, proposed in `docs/FIXTURES.md` §From DICOM |
 | HTTP/3 for the page, and a `dns-prefetch` to the transport's origin | each takes a round trip off a cold open ([`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §What production adds) | nginx's QUIC listener; one `<link>` in the viewer |
-| the decoders are built on the host | the image checks them against the manifest but does not make them | the decoder build's container (`client/decode/wasm/build/`) as a stage, once it runs inside BuildKit |
+| the image builds its own `session.js` | the committed one is pinned and the gate's rebuild reproduces it, yet the `bundles` stage still runs `npm ci` and builds it | the web stage copying the committed file, so the stage needs no npm: proposed, not done |
+| ~~the decoders are built on the host~~ *closed by decision D2, 2026-10-21* | the image checks them against the manifest but does not make them | closed: they are committed, and the gate rebuilds them and compares (§Run it) |
 
 **A measurement flag.** Page-load timing is part of the page clock. A comparison spanning a switch from one host
 to the other is not comparable across it: take a before and after in one interleaved run.

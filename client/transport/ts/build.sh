@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the TS client's bundles and its tests (gitignored — do not commit). The recorder's are lab/client-telemetry/build.sh.
+# Build the TS client's bundles and its tests; of them only dist/session.js is committed (manifest.sha256). The recorder's: lab/client-telemetry/build.sh.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"

@@ -18,8 +18,9 @@ client/dev-transport.json
 # wasm-pack output (build with client/transport/wasm/build.sh)
 client/transport/wasm/pkg/
 
-# Generated TypeScript client bundles (build with client/transport/ts/build.sh)
-client/transport/ts/dist/
+# Generated TypeScript client bundles (build with client/transport/ts/build.sh); the page's is committed, pinned by manifest.sha256
+client/transport/ts/dist/*
+!client/transport/ts/dist/session.js
 # The client recorder's bundle and tests (build with lab/client-telemetry/build.sh)
 lab/client-telemetry/dist/
 lab/client-telemetry/test/*.mjs
