@@ -153,6 +153,8 @@ port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 m
   as one run where it ascends `askDepth` (4) frames or more with nothing else owed, otherwise as up to `askDepth`
   asks, topped up as each lands. A want whose head a running run does not serve next ends the run with the head's
   ask; the run's frames not yet here are asked again once an ask lands behind it.
+* **What to want** — fill a series whole or hold a window around the reader, chosen by the series' decoded size
+  against the device's memory — is proposed, theory only, in [`adr/asking-policy.md`](adr/asking-policy.md).
 * **Closure**: a session that dies is resumed (§Session survival); a command after a closure re-dials.
 * **Memory.** The wire buffer is a ring of `decoders × perDecoder + 2`: **−19.2 MB of renderer peak on
   an 87-frame 16-bit fill, 8 of 8 rounds**, the fill's clock unmoved ([`decode/README.md`](decode/README.md)
@@ -489,6 +491,12 @@ identical ([`../lab/worker-leak/run.mjs`](../lab/worker-leak/run.mjs), Chromium 
 10–12 of 40 downloader workers stayed alive, script dead, thread and memory held — a race
 `client/contract/drive_page.cjs` checks for by counting leftover workers after every page.
 
+**The check still trips, rarely, with the decoders left alone** (2026-10-30, the gate's four browser rigs repeated in a
+shared 4-core container): 1 of 15 runs left one downloader alive after its client closed, 3 of 15 with four busy loops
+on the cores, always in `dispatch`, from a different clause each time it was traced; 1 of 20 loaded on a tree before
+[`adr/frame-path.md`](adr/frame-path.md) §Experiment 1's `span`. The first traced clause alone: 0 of 100 loaded. Not fixed:
+[`adr/frame-path.md`](adr/frame-path.md) §Experiment 1: independent review.
+
 ## Capabilities
 
 Every row passed on the downloader before the harness's path was removed (2026-10-03); its column is the record. **contract** is
@@ -742,7 +750,7 @@ to one ask moves the median only when it crosses a 16.7 ms line.
 The product's page (queue row VIEWER), built on the downloader, the decoders, the frame check and the painter
 together ([`../client/README.md`](../client/README.md) §The viewer). It opens with the whole series as the opening
 fill and paints each frame as it arrives. Frames stay in memory on the page by default; in the view worker under
-`?view=worker`, with an OPFS cache behind them under a lab `?writer=`, not timed ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*).
+`?view=worker`, with an OPFS cache behind them under a lab `?writer=` ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*); the page stays the default by §7's run of 2026-10-30, the cache not timed.
 
 **The page check holds it** on the three series the DICOM-to-bundle ingest (queue row 89, INGEST) made from the lab's sets, each as HTJ2K and as AV1:
 `ct_nlst` (a windowed, signed CT, 76 frames), `us_liver` (an RGB cine, 70 frames, cine run) and `dbt12_ea1141`

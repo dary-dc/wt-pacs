@@ -62,6 +62,9 @@ it as a separate program, links nothing against it and ships nothing built from 
   is C++); xxHash's `LICENSE`; hash-wasm's `LICENSE`. Each build's own licence files sit beside it, and the manifest pins the notices'
   bytes with the binaries'. Nothing is copied by hand, so a tag bump carries its own text. The lab's
   `client/decode/wasm/dav1d/build.sh` still writes its `THIRD_PARTY.txt` beside its variants.
+* **The repository carries the builds** (decision D2, 2026-10-21), so a clone or an archive of it redistributes
+  them: `THIRD_PARTY_NOTICES` and each build's licence files are committed in the same directory, under the same
+  manifest, so no copy of the binaries travels without them.
 * **The frame check's hasher** is xxHash's (row 179), whose BSD-2-Clause `LICENSE` sits beside its build. hash-wasm's,
   `client/decode/xxh3.test.mjs`'s reference and loaded by no page since row 218, carries its MIT `LICENSE`, fetched
   beside its script from the pinned tarball by `client/decode/wasm/fetch_xxh3.sh`.

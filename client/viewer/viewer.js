@@ -2,7 +2,7 @@
 import { DownloaderClient } from "/client/transport/consumer.js";
 import { built } from "/client/decode/wasm-glue.js";
 import { Painter } from "/client/paint/painter.js";
-import { asPainted, Controller, FIT } from "/client/view/controller.js";
+import { asPainted, Controller, FIT, wantFrom } from "/client/view/controller.js";
 import { View, ViewWorker } from "/client/view/view.js";
 
 const q = new URLSearchParams(location.search);
@@ -16,16 +16,17 @@ const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport]
 // Where the frames are held and painted: on the page, or in the view worker. docs/adr/frame-path.md §3, *Built*
 const where = q.get("view") ?? "page";
 if (!lab.refused && !["page", "worker"].includes(where)) lab.refused = `refused: view ${JSON.stringify(where)} — page or worker`;
-// Who writes the OPFS cache under `worker`, a lab lever; none by default, as main: docs/adr/frame-path.md §The core, assembled
+// Who writes the OPFS cache under `worker`, a lab lever refused where it cannot hold; none by default, as main: lab/viewer/levers.js
 const writer = lab.writer;
-if (!lab.refused && writer !== undefined && !["store", "decoders", "view"].includes(writer)) lab.refused = `refused: writer ${JSON.stringify(writer)} — store, decoders or view`;
-if (!lab.refused && writer === "decoders" && lab.opts?.pixels === "transfer") lab.refused = "refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred";
 if (lab.refused) {
   statusEl.textContent = `error: ${lab.refused}`;
   report({ error: lab.refused });
   throw new Error(lab.refused);
 }
+const booted = where === "worker" && lab.opts.viewWorkerFirst ? ViewWorker.boot() : undefined;
 const meta = await globalThis.viewerMetadata;
+/** Epoch ms of the page's start, for the lab's ledger: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
+const boot = { metadata: at() };
 const n = meta.frameCount;
 const fillMode = q.get("fill") !== "0";
 const transport = lab.transport;
@@ -82,11 +83,13 @@ const watch = seen && ((data, from) => {
 let controller = null;
 let worker = null;
 if (where === "page") {
-  const painter = new Painter(canvas, { onLost: (why) => fail(`painter: ${why}`) });
-  painter.renderer.then((r) => emit("renderer", { renderer: r }), (e) => emit("renderer", { error: e.message }));
+  const painter = new Painter(canvas, { onLost: (why) => fail(`painter: ${why}`), settle: lab.settle });
+  painter.renderer.then((r) => ((boot.gl = at()), emit("renderer", { renderer: r })), (e) => emit("renderer", { error: e.message }));
   controller = new Controller({ meta, fillMode, emit, size: size(), paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
 } else {
-  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settlePaint: Boolean(lab.settlePaint), watchWrites: Boolean(q.get("check")) });
+  boot.viewWorker = at();
+  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settle: lab.settle, watchWrites: Boolean(q.get("check")),
+    booted, glAfterDial: Boolean(lab.opts.glAfterDial) });
 }
 
 function status() {
@@ -112,6 +115,7 @@ const all = [...Array(n).keys()];
 // A lab harness slows the CPU from here: lab/viewer/levers.js.
 await lab.started?.();
 issuedAt = at();
+boot.connect = issuedAt;
 const connectOpts = {
   transport: transport.module,
   ...(fillMode && { fill: all }),
@@ -122,7 +126,9 @@ const connectOpts = {
   decoder,
 };
 try {
-  if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer }, issuedAt);
+  // What the page dials with, under the lab's `pageDials`: the view worker's first want, unless a cache or a half-held store shapes it.
+  const firstWant = options.pageDials && !writer && !options.holdEveryOther ? wantFrom(0, n, fillMode, Boolean(options.waitAhead)) : undefined;
+  if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer, firstWant }, issuedAt);
   else {
     controller.issuedAt = issuedAt;
     controller.client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {
@@ -164,9 +170,10 @@ const traced = lab.trace && (async () => {
 })();
 
 const cineEl = document.getElementById("cine");
+const cineFps = 1000 / (meta.frameTimeMs ?? (meta.cineRate ? 1000 / meta.cineRate : 100));
 function toggleCine() {
   if (view.playing) view.pause();
-  else view.play(1000 / (meta.frameTimeMs ?? (meta.cineRate ? 1000 / meta.cineRate : 100)));
+  else view.play(cineFps);
   cineEl.textContent = view.playing ? "❚❚ cine" : "▶ cine";
 }
 cineEl.onclick = toggleCine;
@@ -242,6 +249,7 @@ if (q.get("check") || lab.finished) {
       }
     }, 20);
   });
+  await lab.filled?.();
   await view.repaint();
   const check = worker ? (phase, args) => worker.check(phase, args)
     : async (phase, args) => (await import("/client/view/check.js"))[phase]({ controller, ...args });
@@ -254,7 +262,8 @@ if (q.get("check") || lab.finished) {
       show(i);
       await until(() => shown?.i === i || errors.length);
     }
-    const { frames, firstShownMs, fillMs, stats } = await (worker ?? controller).ledger({ flip: q.get("mutate") === "sample" });
-    lab.finished({ issuedAt, firstShownMs, fillMs, frames, errors, stats, stepped });
+    const cine = await lab.cine?.({ worker, controller, fps: cineFps });
+    const ledger = await (worker ?? controller).ledger({ flip: q.get("mutate") === "sample" });
+    lab.finished({ ...ledger, boot: { ...boot, ...ledger.boot }, issuedAt, errors, stepped, cine });
   }
 }

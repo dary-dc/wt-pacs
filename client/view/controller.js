@@ -12,6 +12,15 @@ export function samplesOf(info) {
   return new View(info.pixels);
 }
 
+/** What a view on frame `c` of `n` wants, `c` first: when filling, the series nearest first or `ascending`; on demand, `c` alone. */
+export function wantFrom(c, n, fillMode, ascending) {
+  if (!fillMode) return [c];
+  if (ascending) return Array.from({ length: n }, (_, d) => (c + d) % n);
+  const order = [c];
+  for (let d = 1; order.length < n; d++) for (const i of [c + d, c - d]) if (i >= 0 && i < n) order.push(i);
+  return order;
+}
+
 export class Controller {
   /** Set once connected: what the controller asks of the downloader through. */
   client = null;
@@ -95,9 +104,10 @@ export class Controller {
         try {
           const d = this.display(i, f.info);
           this.lastPaint = await this.paint(f, d);
-          f.painted ??= at();
+          const drawn = this.lastPaint?.drawn ?? at();
+          f.painted ??= drawn;
           this.paints += 1;
-          if (this.firstShownMs === null && f.info.exact === true) this.firstShownMs = at() - this.issuedAt;
+          if (this.firstShownMs === null && f.info.exact === true) this.firstShownMs = drawn - this.issuedAt;
           this.#emit("shown", { i, exact: f.info.exact, reason: f.info.reason, window: d.voi, firstShownMs: this.firstShownMs });
         } catch (e) {
           this.#emit("failed", { scope: "worker", reason: `paint: ${e.message}` });
@@ -137,14 +147,8 @@ export class Controller {
     }
   }
 
-  /** What this view wants, the current frame first: when filling, the series nearest first or ascending; on demand, that frame alone. */
   want() {
-    const [c, n] = [this.current, this.#n];
-    if (!this.#fillMode) return [c];
-    if (this.ascending) return Array.from({ length: n }, (_, d) => (c + d) % n);
-    const order = [c];
-    for (let d = 1; order.length < n; d++) for (const i of [c + d, c - d]) if (i >= 0 && i < n) order.push(i);
-    return order;
+    return wantFrom(this.current, this.#n, this.#fillMode, this.ascending);
   }
 
   /** A frame the downloader could not deliver; index -1 is the series. */
@@ -187,12 +191,14 @@ export class Controller {
   async ledger({ flip = false } = {}) {
     const { sha256Hex } = await import("../decode/wasm-glue.js");
     const frames = [];
+    let boot;
     for (const i of this.store.keys()) {
       const { info, arrived, painted, writeAsked, written } = this.store.get(i);
+      boot ??= info.stamps?.boot;
       const samples = new Uint8Array(info.pixels).slice();
       if (flip) samples[samples.length >> 1] ^= 1;
-      frames.push({ i, page: arrived, lastByte: info.stamps?.lastByte, mediaReads: info.stamps?.mediaReads, exact: info.exact, path: info.path, painted, writeAsked, written, sha: await sha256Hex(samples) });
+      frames.push({ i, page: arrived, lastByte: info.stamps?.lastByte, decoded: info.stamps?.decodeEnd, mediaReads: info.stamps?.mediaReads, exact: info.exact, path: info.path, painted, writeAsked, written, sha: await sha256Hex(samples) });
     }
-    return { frames, firstShownMs: this.firstShownMs, fillMs: this.fillMs, stats: this.client.stats() };
+    return { frames, firstShownMs: this.firstShownMs, fillMs: this.fillMs, stats: this.client.stats(), boot };
   }
 }

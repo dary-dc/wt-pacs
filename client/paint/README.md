@@ -119,8 +119,8 @@ The native painter (`client/native`, wgpu) runs the same cells against the same 
 variants run interleaved (`lab/order.mjs`) over 10 rounds, on SwiftShader on this container's 4 cores. Every
 number is the software renderer's.
 
-ms a paint, median [min–max]. *Worker* runs from the message to the draw having executed (a one-pixel
-`readPixels` waits for it; `gl.finish()` alone returned early on SwiftShader). *Page* is the
+ms a paint, median [min–max]. *Worker* runs from the message to the draw having executed (the bench settles by the
+read, §When a paint has executed). *Page* is the
 synchronous cost of `paint()` on the main thread.
 
 | | worker | page | round trip |
@@ -138,6 +138,38 @@ synchronous cost of `paint()` on the main thread.
   §Paint). These milliseconds are not a phone's.
 * **The check in `scripts/gate.sh`** (`--zoom1`, every 1:1 cell at DPR 1 and 2) takes 2.4 s here, browser
   start included. It runs when Python has numpy, and prints SKIPPED otherwise.
+
+## When a paint has executed
+
+`paint()` returns once its commands are issued. The product stops there: nothing it does waits for the draw, so its
+`drawn` stamp (the controller's `painted`, `firstShownMs` and `shown`) is when the draw was **issued**, before it
+executed and before it is presented. A lab that times a paint names a **settle** (`settle`, the `Painter`'s option,
+the view worker's start, the rig's `?settle=`), and the paint returns, and stamps `drawn`, only once the draw has
+executed:
+
+* `fence` (`settle.js`), the lab's default: `fenceSync`, `flush`, then `clientWaitSync(sync, 0, 0)` polled on a 1 ms
+  timer until signalled. A sync's status changes only between tasks, so the stamp is a poll late; the paint's thread
+  is free while it waits. A poll every task (a `MessageChannel` turn) spun the thread and slowed SwiftShader's draw
+  by a third; on the timer the fence returns 10 ms after the read on an 85 ms draw and 36 ms after it on a 620 ms one
+  (SwiftShader, median of 5), 11 ms after it on a 144 ms draw on llvmpipe.
+* `read`: a one-pixel `readPixels`, which blocks the paint's thread until the draw has executed. **In Firefox ≥ 145 it
+  also waits for the page's main thread** (each read asks the page for permission to extract the canvas), so on a busy
+  page it waits out the page's long task: [`../../docs/adr/frame-path.md`](../../docs/adr/frame-path.md) §7, *The pixel
+  read under a busy page*. Kept to reproduce §7's run and `check.mjs bench`'s figures.
+
+`gl.finish()` is not a settle: it returns early on SwiftShader (0.1 ms, the draw then left to the next read), though
+it waits on Firefox's llvmpipe. `settle-check.mjs` proves the fence waits on both: a draw heavy enough to take 145–250
+ms, the draw alone returning in 0.1 ms with the whole draw left to a read after it, and the fence returning at ≥ 0.8 ×
+the read's time with a read after it under 0.2 × (2 ms). Its mutants (one poll and no loop, no wait, `gl.finish()` in
+place of the fence) are each caught on SwiftShader; on llvmpipe the `finish` mutant survives, as it should, since
+`finish` waits there. It also counts the paint module's own calls (`settle-count-worker.js`): unsettled, no
+`readPixels` and no `fenceSync`; one fence under `fence`, one read under `read`. Its two mutants (the read when no
+settle is named, the fence settling by the read) are caught:
+
+```bash
+NODE_PATH=$(npm root -g) node client/paint/settle-check.mjs [mutants]
+FIREFOX_PATH=… xvfb-run -a node client/paint/settle-check.mjs --browser firefox [mutants]
+```
 
 ## What reaches the screen
 
