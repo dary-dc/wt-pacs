@@ -192,3 +192,114 @@ bytes on these 16 slices.
 **Off the protocol.** The host's `$CHROME_PATH` points at a Chromium 153. A smoke run took it before `run.mjs` was
 pinned to 141, and nothing above comes from it. `simd-mt` built 635 278 B here, against the 635 174 B in
 `client/decode/wasm/dav1d/README.md`.
+
+## Why the result is not conclusive (2026-11-02)
+
+Nothing here is a new measurement of the product. Everything below is from the code, from the 2026-10-31 run's
+ranges in [`report.md`](report.md), or from *exploratory* profiles that ran outside the protocol: node 22.23.4 (V8)
+on this container, synthetic frames at each set's size (`dbts_a1` 1142×1785, `dbts_b1` 2560×3328, `dbts_c1`
+976×2513, [`FIXTURES.md`](../../../../docs/FIXTURES.md)), each form in a fresh process, 5 warm-up frames then the
+median of 15, a forced GC between frames, 5 processes a form [range]. They are not browser numbers.
+
+### The A/A failure is the rule's resolution, not the stamps' cost
+
+**What a stamp costs.** A stamp is one `performance.timeOrigin + performance.now()` and a two-element array pushed
+on a list; a stage adds a spin site that reads one property and calls `performance.now()` once. *Exploratory*, in a
+Chromium 153 worker (not row 100's 141): `performance.now()` 184–191 ns after its first run, and 16 stages' stamps
+and spins 18–26 µs a frame. H carries two stages, about 1 µs on a 31 ms frame. W carries about 15, under 0.03 % of
+a 112 ms frame. The list is posted with the picture after `decodeEnd`, so the message is outside the frame's time.
+The allocation is some 30 small arrays and strings a frame. *Derived:* the stamps' direct cost is at most a fiftieth
+of the 2 % line. Whether the stamped copy's different code shape (its own module text, the lab flags read) moves the
+JIT is *unverified*. The A/A at 10 rounds cannot see it (below).
+
+**What the A/A could resolve.** Each A/A cell is the median of 10 round-paired ratios. The ranges are 0.686–1.511
+(H 1× `b1`) down to 0.974–1.045 (D 4× `b1`). *Derived*, taking σ of the log ratio as range ÷ 3.078 (the expected
+range of 10 normal draws) and the median's standard error as 1.2533 σ ÷ √10: the standard error is 0.9–9.8 %. A cell
+with no effect at all falls outside 2 % with probability 0.03–0.84. **Summed over the 18 cells, 7.9 failures are
+expected from noise alone. 7 were seen, on both sides of 1.** Heavy tails (one 1.5 round in H) make range ÷ 3.078
+overstate σ, so 7.9 is an upper estimate. A 2 % line at 10 rounds is below what the run can resolve. It voided cells
+by chance.
+
+**Why W2 missed a rule it probably meets.** The rule asked for ≥ 9 of 10 rounds faster *and* a median ≥ 5 %
+faster. At 1× `a1` the paired W2 ÷ W ranged 0.799–1.103 (σ ≈ 0.105 *derived*). For a true effect of 0.944 the
+chance that a round is faster is about Φ(0.058 ÷ 0.105) ≈ 0.71. The chance of ≥ 9 of 10 is then ≈ 0.17. At 4× `a1`
+the median, 0.950, sat on the 5 % line, where any spread decides. A count of rounds and a hard line on a point
+estimate are both decided by the spread, not by the effect. An effect size with a confidence interval, at a number
+of rounds chosen for it, is decided by the effect: [`docs/decode/README.md`](../../../../docs/decode/README.md)
+§JS passes protocol, pre-registered.
+
+**Timing without stamps.** The decision needs one number a frame: the product's own `decodeStart`→`decodeEnd`,
+which the product already has, through the product's unmodified files, with the lever as a decoder config key
+(`onePass`, below). Each arm is a worker of the product. An A/A arm is a second worker of the same config. The
+breakdown answered *where*. *Whether* needs only end-to-end.
+
+### Why the JS passes cost 17–30 %, not 5–12 %
+
+**What runs** on a grey split frame through WebCodecs, after `copyTo` (`client/decode/av1-webcodecs.js`,
+`av1-frame.js`), with N samples a frame:
+
+| pass | reads | writes | over N = 2.04 / 8.52 / 2.45 M |
+| --- | --- | --- | --- |
+| `neutral()`, both streams' chroma | N samples, top's 16-bit (8-bit on `b1`), low's 8-bit | none | 3 / 8.5 / 3.7 MB |
+| `place()` 1, the top shifted | N top samples | N into a fresh `SharedArrayBuffer`, first touch | 8 / 25.5 / 9.8 MB |
+| `place()` 2, the low OR-ed, offset, range | N of the output back, N low samples | N, and two compares a sample | 10 / 42.6 / 12.3 MB |
+
+**Exploratory, ms a frame** (median [range] of 5 processes):
+
+| set | `neutral()` | two `place()` | one pass (W2's `fuse`) | one pass, range in locals |
+| --- | --: | --: | --: | --: |
+| `dbts_a1` | 3.5 [3.3–3.7] | 15.3 [11.3–18.6] | 9.5 [8.5–16.5] | 8.6 [8.2–15.2] |
+| `dbts_b1` | 13.8 [11.0–19.7] | 60.8 [53.1–84.2] | 55.9 [38.7–68.8] | 38.7 [35.4–56.1] |
+| `dbts_c1` | 4.1 [4.0–6.7] | 20.0 [14.0–24.3] | 10.4 [9.7–15.1] | 15.2 [9.9–19.3] |
+
+**The share follows from the per-sample cost.** Over W's 1× frame (113.3, 233.2, 111.7 ms), `neutral()` and the two
+passes in node come to 16.6, 32.0 and 21.6 %. The run measured 18.4, 29.1 and 21.7 %. *Derived:* the two passes
+cost 3.6–4.1 ns a sample a pass and `neutral()` 1.6–1.7 ns a chroma sample. The prediction took ~1.6 ns a sample a
+pass from §The range pass. That pass only reads and compares. Here the first pass writes a fresh output (touching
+`b1`'s 17 MB alone took 7–9 ms, *exploratory*), the second reads that output back, merges and ranges it, and
+`neutral()` is one more full read the prediction folded into the 5–12 %. The same passes take the same milliseconds
+on D: 12 ms on `a1` and 50 on `b1` (5.9 % of 208 ms, 11 % of 454), against W's 14–18 and 56–58. D's frame is twice
+as long, so the share is half. `b1` is the worst because its frame has 4.2× `a1`'s samples behind an 8-bit top.
+
+**What does not explain it.** *Typed-array kinds:* `place()` sees a 16- or 8-bit top, an 8-bit low and four output
+kinds. A process that ran the other set's kinds first was no slower beyond the spread (`a1` two passes 11.2,
+`b1` 54.9, `c1` 19.6 ms). The 2026-10-31 sets are all unsigned, so the signed outputs and the mask's unwrap never
+ran. The mask is one AND a sample either way. *Range tracking:* two compares a sample. In object fields or in
+locals, the results above do not separate beyond the spread. **Garbage collection** does matter in node. Without a
+forced GC between frames, `b1`'s one-pass frame took 48–152 ms against 37–39 with one reused output buffer. Every
+frame allocates its output and, through WebCodecs, one `copyTo` buffer a stream (9.2 MB a frame on `a1`, 25.6 MB on
+`b1`). How much of that Chromium's GC charges to the frame is *unverified*.
+
+**A cheaper exact form than W2: none found.** The one-pass forms above are W2's `fuse()` and the same with the range
+in locals. Neither beat the other beyond the spread. Both read each picture once and write the output once, which
+is the floor for these passes (`b1`, one pass into a reused buffer: 32–34 ms). Below that the candidates are a
+reused `copyTo` buffer, outside these passes, and a pass that is not JavaScript. Neither is measured, so neither is
+built. *Derived*, from the table: W2 saves 9.3, 18.7 and 13.7 ms, or 8–12 % of W's 1× frame, against the
+0.901–0.950 the run measured.
+
+### What was built
+
+W2 in the product, behind the decoder config key `onePass`, off by default. `av1-frame.js`'s `merge()` is
+`begin()` + `end()` of a split frame in one pass. It masks the shifted top as the two passes' first write wraps it,
+so it equals them byte for byte and range for range on any decoder output, not only on in-range samples. Under
+`onePass`, `av1-webcodecs.js` skips `neutral()` when the keyframe's sequence header sets `mono_chrome`. AV1
+§Color config semantics: "mono_chrome equal to 1 indicates that the video does not contain U and V color planes."
+([AV1 spec](https://aomediacodec.github.io/av1-spec/), read 2026-11-02). A stream with `mono_chrome` 0 is still
+checked.
+
+`client/decode/av1.test.mjs` checks the following:
+
+* `merge()` against the two passes at every 8–16 bits, signed and unsigned, split 1–8, over tops past
+  `bits − split` and padded rows (288 cells).
+* Its four refusals, each the two passes' own.
+* Each WebCodecs payload layout (split with an 8- and a 10-bit top, signed, signed with offset 2048, RCT, unsplit,
+  plain colour) to the same bytes and range under `onePass`, and only the split ones read in one pass.
+* A tinted chroma sample under `mono_chrome` 0 refused with and without `onePass`, and under `mono_chrome` 1
+  refused without it.
+
+Each was broken on purpose and seen to fail: shift one short (291 checks fail), no mask (21), the top's stride or
+the low's offset ignored (289), no range minimum (293), the low unchecked (3), the flag never or always routing (4),
+the chroma skipped without `mono_chrome` or without the flag, or the flag on by default (1 each).
+
+`stamp.mjs` edits the product's text as it stood at `fd4aad87`, and with `onePass` in it, it refuses to build from
+a later commit (its edits no longer match). To rerun the breakdown, take `client/decode` from `fd4aad87`.

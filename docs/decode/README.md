@@ -2013,13 +2013,62 @@ Saturation was not measured, and nothing is claimed for fills, concurrency or ph
   digest 0.9–2.1 % (held). The two streams' own times sum to 1.35–1.47× the frame.
 * **Decision rule: neither client lever is built.** W1 (no flush) ÷ W is 0.921–1.024 and is faster in 2 of 10
   rounds at 4× `b1`. W2 (no `neutral()` on `mono_chrome`, one fused pass) is 0.901–0.950 and is faster in 8 of 10
-  at 1× `a1`; 4× `a1`'s median sits at 0.950, the line, not past it. W12, which the rule does not name, is
+  at 1× `a1`; 4× `a1`'s median sits at 0.950, the line, not past it. *Since built behind `onePass`, off by default, for §JS passes protocol, pre-registered.* W12, which the rule does not name, is
   0.873–0.913, faster in 8–10 of 10, every frame exact. That leaves WebCodecs at 1.9–3.3× H's frame, against the
   1.3–3.0× derived above.
 * **Store levers, for the owner, not built.** The low deflated (Z) costs +0.23 to +0.36 % bytes. It takes
   dav1d-WASM to 0.63–0.71× of its time (predicted 0.55–0.82) and leaves WebCodecs at 0.99–1.06×. Four tile columns
   (T) cost +0.04 to +0.09 % bytes and take dav1d-WASM at 3 threads to 0.40–0.58× and WebCodecs to 0.49–0.77×. T is
   for an ask only, on idle cores.
+
+**Why it is not conclusive (2026-11-02)**, from the code, the run's own ranges and exploratory profiles, in
+[`lab/av1/decode/breakdown`](../../lab/av1/decode/breakdown/README.md) §Why the result is not conclusive. The A/A did
+not catch the stamps. They cost about 1–30 µs a frame. Its 2 % line sat inside the noise of 10 rounds: 7.9 of 18
+cells were expected outside it with no effect at all, and 7 were. The JS passes cost 3.6–4.1 ns a sample a pass
+plus `neutral()`'s full read, not the read-only range pass's ~1.6 ns. That is the same milliseconds as on D, over
+a frame half as long. W2 is built behind `onePass`, off by default. No cheaper exact form beat it.
+
+### JS passes protocol, pre-registered
+
+Written 2026-11-02 for a separate session. It is not run here. It decides one lever: `onePass` (W2) as the
+WebCodecs default. The flush (W1) is decided elsewhere and stays as the product has it.
+
+* **Arms**, each a worker of the product's own `client/decode/*.js`, unmodified, behind `decoder.js`. W is the
+  default config. W′ is the same config in a second worker, the A/A. W2 is `onePass: true`. There are no stage
+  stamps and no lab flags. The only difference between arms is the decoder config.
+* **Time**: a frame's time is the product's `decodeStart`→`decodeEnd`. A round's value for an arm is the median of
+  its 16 frames after one warm-up frame. The page's post → consumer-port receipt is recorded as a check and not
+  decided on.
+* **Cells**: `dbts_a1`, `dbts_b1` and `dbts_c1` use the 2026-10-31 codings: middle 16 slices, G = 1, k = 2, one
+  tile. The fourth set is a small frame: row WCLAT's ultrasound cine (760×421, RGB 8), its middle 16 frames, coded
+  as `codings.py` codes a set, at G = 1. In the optimized representation that is an RCT payload, so `onePass`
+  changes nothing on its path, and it is the control. Each set runs at 1× and 4× (`lab/scripts/cpu_throttle.mjs`).
+  That is 8 cells.
+* **Order**: a fresh headless Chromium 141.0.7390.37 per round × throttle. Inside it the sets and then the arms
+  each run in a Williams order (`lab/order.mjs`; 3 arms is odd, so the period is 6 rounds).
+* **Rounds, by power** from the 2026-10-31 spread. σ of a round-paired log ratio is taken as its 10-round range ÷
+  3.078, the largest at each throttle over W ÷ W0 and W2 ÷ W: 0.105 at 1× (W2 ÷ W, `a1`) and 0.053 at 4× (W ÷ W0,
+  `c1`). The effect is the median of rounds, whose standard error is 1.2533 σ ÷ √n. For 80 % power for a 95 %
+  interval to exclude 1 at a true 0.97, n = 1.571 × (2.8016 σ ÷ ln(1 ÷ 0.97))², which gives 147 at 1× and 38 at
+  4×. Rounded up to the order's period: **150 rounds at 1×, 42 at 4×**. That is power 0.81 and 0.84 *derived*.
+  Heavy tails make range ÷ 3.078 overstate σ, so these are upper counts. The count is fixed here and is not
+  revised from the run.
+* **Effect and interval**: per cell, each round's ln(arm ÷ W) is paired within that round's browser. The effect is
+  the median over rounds, reported as a ratio. The 95 % interval is distribution-free: the k-th and (n − k + 1)-th
+  ordered round values, with k the largest for which P(Binomial(n, ½) ≤ k − 1) ≤ 0.025.
+* **Exact**: a frame counts only when the worker's XXH3 matched the ingest's digest on the arm's own path the first
+  time, with no fallback (`mismatchOn`), and the page's SHA-256 matched the fetch checksum. Every frame of every arm
+  must be exact, or the run is void. `--mutate` flips one sample, and every arm must then read 0 exact. A copy with
+  `merge()`'s shift one short must read 0 exact on W2: this also shows `merge()` is on W2's path.
+* **A/A**: W′ ÷ W's interval contains 1 in each cell. With 8 cells at 95 %, one miss happens by chance in a third
+  of runs. The run is void if two or more cells miss (P ≈ 0.057 by chance *derived*).
+* **Decision**: `onePass` becomes the default when two conditions hold, every frame exact. In each of the 6 DBT
+  cells, W2 ÷ W's interval lies entirely below 1.00 and its median is ≤ 0.97. On the ultrasound at both
+  throttles, the interval's upper end is ≤ 1.02. Otherwise it stays off, and the report names the cell and how it
+  failed. The rule is the effect and its interval. No count of rounds and no line on a point estimate alone.
+* **Host**: one ask at a time on the host's cores, two `VideoDecoder`s at most. The report says where the host
+  saturates, if it measures that, and claims nothing for fills, concurrency or phones. Each cell is quoted in ms a
+  frame, latency only.
 
 ## Hardware decode
 
