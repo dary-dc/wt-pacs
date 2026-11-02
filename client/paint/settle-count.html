@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>settle count</title>
+<canvas id="c" width="64" height="64"></canvas>
+<script type="module">
+// Driven by client/paint/settle-check.mjs.
+const w = new Worker(new URL("./settle-count-worker.js", import.meta.url), { type: "module" });
+const offscreen = document.getElementById("c").transferControlToOffscreen();
+globalThis.__run = new Promise((r) => (w.onmessage = ({ data }) => r(data)));
+w.postMessage({ canvas: offscreen }, [offscreen]);
+</script>
