@@ -285,3 +285,214 @@ BSD-3-Clause-Clear still grants no patents (§Why no trial; [`licensing.md`](../
 FFmpeg changes the plumbing, not the conclusions: no encoder, no lossless mode, no browser path. It
 gives the first **native** LCEVC decode that returns samples (8–14 bits, YUV and grey) with an AV1
 base wired through dav1d — a convenience for the offline trial's decode side, not a product path.
+
+## Lossy viewing, 2026-11-02
+
+The owner opened lossy viewing on 2026-11-02: role-based quality profiles in which most users scroll
+cine-like series (DBT slices, breast ultrasound cine, ABUS; ≤ 12 bits) as a visually lossless lossy
+stream, the exact frame on request. The idea: an LCEVC enhancement over an AV1 base made at ingest,
+one LCEVC decoder shipped to the client, fewer bytes and less decode for more ingest compute.
+Exactness is no longer asked of LCEVC here, so the reach table above does not bear on it. Theory,
+read 2026-11-02, nothing built or run. Each claim: a source with its words, or *derived*, or
+*unverified*.
+
+Sources added (SHA-256 of the copies read):
+
+```
+b5b8958aea5fa89eabf5c34ef6f3ea9ed47e36788bb67011c113357078db649c  MPEG white paper on LCEVC, SC 29/AG 3 N0058 (lcevc.org PDF)
+78fd9eada65bdbafebb4071e8e77d4e05608417a1139029d41dadcd40b5b932b  Battista et al., "Verification Test of the LCEVC Standard", IEEE TCSVT 33(8), 2023, CC BY 4.0 (iris.univpm.it)
+```
+
+### 1. What it is, and where its gain comes from
+
+The [white paper](https://www.lcevc.org/wp-content/uploads/Whitepaper-on-Low-Complexity-Enhancement-Video-Coding-LCEVC-MPEG-meeting-137-January-2022.pdf):
+
+> LCEVC works by encoding a lower resolution (and potentially also lower bit depth) version of a
+> source video using any existing codec (the "base codec") and then coding the differences between
+> the lower resolution video and the full-resolution source, up to mathematically lossless coding if
+> needed, using a different compression method (the "enhancement").
+
+The enhancement's tools are few and small, by design: two sub-layers of residuals (L-1 at the base's
+size, L-2 at full size after a normative four-tap upscale); "two different transforms. Both operate
+with a small kernel of size 2×2 or 4×4", "chosen to have a small kernel to optimize the coding of
+sparse residuals"; a linear quantiser with a dead zone; temporal prediction that "uses a
+zero-motion vector prediction with a temporal buffer which stores residuals from the previous frame
+only"; and entropy coding of "two components: a Run Length Encoder (RLE) and a Prefix Coding
+encoder".
+
+**The gain is the base codec's, moved to a quarter of the area.** The expensive codec spends its
+tools — motion, large transforms, context-adaptive arithmetic coding — on a picture a quarter the
+size, where it is efficient, and the enhancement adds back the detail an unguided upscale misses
+with tools tuned for *sparse* residuals (*derived* from the two passages above). The published
+numbers, all from the MPEG verification test (LTM 5.1, MOS by BT.500 DSIS on a 65″ TV, UHD and HD
+natural video and game graphics, 8-bit for AVC, 10-bit otherwise) — the
+[paper](https://doi.org/10.1109/TCSVT.2023.3237907):
+
+| base | MOS BD-rate against the base alone at full size, UHD · HD |
+| --- | --- |
+| AVC (JM) | −46 % · −28 % |
+| HEVC (HM) | −31 % · −24 % |
+| EVC (ETM) | −18 % · −9 % |
+| VVC (VTM) | −16 % · −14 % |
+
+The gain shrinks as the base gets better, and on fidelity it reverses against the best base: "with
+respect to a purely statistical metric like PSNR, LCEVC performs better on average … than the full
+resolution AVC, while for the most advanced full resolution VVC it is true the contrary". The white
+paper itself did not report the EVC and VVC MOS figures, "due to several test points having
+overlapping confidence intervals". The test chose content for its high frequencies seen by "a
+non-expert viewer"; no AV1 base was tested. AV1 sits between HEVC and VVC in coding efficiency
+(*unverified* here, not re-read).
+
+### 2. Noisy 10–12-bit grey at a visually lossless point — no gain expected (*derived*)
+
+**Published medical or noisy-content results: none found** (searches for LCEVC with medical,
+radiology, mammography, tomosynthesis, ultrasound, grey, monochrome, 12-bit, noise and grain, on
+2026-10-31 and 2026-11-02). A commercial-encoder comparison against open encoders including
+SVT-AV1 exists (Universidad Miguel Hernández, `hdl.handle.net/11000/39590`); its PDF refused the
+fetch, so its numbers are *unverified* and not used.
+
+What a visually lossless profile asks, on this project's series: the distortion must stay below the
+sensor noise, which is σ = 8.8–18 (12-bit DBT) and 3.9–7.6 (10-bit DBT) at the median intensity
+([`../../../../docs/codecs/README.md`](../../../../docs/codecs/README.md) §The bound). So the stream
+must carry the noise, near-white and independent from slice to slice. *Derived* from §1:
+
+* **The base cannot carry it.** A 2×2 downscale keeps about a quarter of white noise's power; the
+  rest is detail at full size, which only sub-layer 2 can add. The noise is coded at full size
+  either way, so LCEVC moves no bits from expensive to cheap tools — the move its gain rests on.
+* **No transform gains on white noise**, so what is left between the two is coding efficiency on
+  dense, non-sparse residuals: AV1's context-adaptive arithmetic coding against run-length plus
+  prefix codes made for sparse ones. That favours AV1.
+* **The base is extra.** Base plus sub-layers code 1¼ samples per pixel; at a high rate the base's own
+  quantisation error comes back in the residual for L-1 and L-2 to repay.
+* **The temporal tool predicts nothing of the noise**: zero motion, previous residuals only, and
+  slice-to-slice noise independent.
+* **This is the regime where the verification test already measured a loss** — fidelity against the
+  best base.
+
+So at equal fidelity on DBT, **base AV1 + LCEVC is expected at about 1.0× AV1 alone's bytes or
+above; a gain like the 14–16 % against VVC is not expected**. Ultrasound cine is less noisy per
+level once scan-converted to 8 bits and closer to the test's content, so its sign is least certain
+(*derived*, *unverified*). Where the gain could return: a profile that windows to 8 bits before
+coding — DBT's σ falls to about 0.5–1.1 of an 8-bit level over the full range (σ ÷ 16) — but that
+loses the 12-bit window/level (§3).
+
+**Decode.** The requirement was only that base plus enhancement be "comparable" to the base decoder
+alone at full size (white paper, quoting MPEG's w18098); the white paper's conclusion claims a
+"significant reduction of overall processing complexity". Natively, a quarter-area AV1 decode plus
+prefix-code decoding and 2×2 transforms is plausibly cheaper than full-size AV1 at the same rate,
+by an unmeasured factor (*derived*, *unverified*). In the browser it does not matter yet: no decoder
+returns samples (§3).
+
+### 3. The browser path, and window/level
+
+The licensor's web decoder renders, it does not decode to samples. Its renderer
+([`docs/dec/renderer.md`](https://raw.githubusercontent.com/v-novaltd/LCEVCdecJS/main/docs/dec/renderer.md),
+`main` = `50e4f35`, unchanged since §Re-checked 2026-10-31):
+
+> The video texture is converted to YUV. If there is a LoQ0 texture, we merge the video texture with
+> the LoQ0 texture. Then it is upscaled horizontally and upscaled vertically […] The merged texture
+> is converted back to RBG, so it can be displayed by WebGL on the canvas.
+
+The base comes from a `<video>` element ("Only supported on browsers with Media Source Extensions
+support", its README) as an 8-bit RGBA texture (`src/queue/queue.js`, pinned above). *Derived*:
+
+* **Window/level on 10–12 bits is lost.** The viewer maps a window of the samples to 256 display
+  levels. On 12-bit samples a window 200 wide keeps 200 levels; on this path's 8-bit output, mapped
+  over the full 0–3213 range, the same window holds about 16 (200 ÷ 3214 × 256) — banding, the
+  opposite of visually lossless. Measurement statistics and the frame digest go with the samples
+  ([`../../../../docs/decode/hardware.md`](../../../../docs/decode/hardware.md) §2).
+* **It survives only as a profile rule**: scroll at one window baked in at ingest, and any
+  window/level change, measurement or zoom past the stream fetches the exact frame. Then the stream
+  is a display path, not a diagnostic one, and AV1 alone serves that rule as well.
+* **The base is ≤ 10 bits in a browser anyway**: WebCodecs refuses 12-bit AV1
+  ([`../../../../docs/av1/README.md`](../../../../docs/av1/README.md) §Where AV1 stands); LCEVC may
+  lift the depth, but this path flattens it to 8 again.
+
+**A WASM build that returns samples: none found.** LCEVCdec's WASM wrapper still reads "The WASM port
+of `enhancement` and `pixel_processing` functions is not complete yet" (4.3.1, the latest tag on
+2026-11-02); `lcevc_dec.js` on npm is the same web decoder; FFmpeg's sample-returning decode (§Re-checked
+2026-11-02) has no WASM build with LCEVC. *Unverified* that none exists privately. A samples path
+would be this project's own: dav1d-WASM or WebCodecs for the base, and LCEVCdec's enhancement core
+finished under emscripten, or written from a standard that is not freely available.
+
+### 4. An encoder at ingest, and its cost
+
+* **MPEG's LTM 5.5** — open (BSD, no patent grant), but no AV1 base without patch P1 of the protocol
+  above, and it is a test model; its speed is *unverified*. Formats `y10`, `y12` are offered, its
+  README says 8 or 10 bpp.
+* **The licensor's SDK** — commercial, terms *unverified*. Its
+  [overview](https://docs.v-nova.com/technologies/mpeg-5.lcevc/v-nova-lcevc/lcevc-sdk-overview.md)
+  lists plug-ins including "AV1 (libaom)" and "SVT-AV1" and "LCEVC-enabled builds and patches for:
+  … FFmpeg/FFplay"; grey and 12-bit input are not stated (*unverified*).
+* **FFmpeg** decodes only (§Re-checked 2026-11-02).
+
+**Cost: probably less ingest compute, not more** (*derived*): the AV1 encode runs on a quarter of the
+pixels and the enhancement's tools are 2×2 and 4×4; the licensor claims up to 4× faster AV1 encoding
+(marketing, *unverified*). The real ingest cost is a second representation beside the exact one,
+which the profile keeps for "the exact frame on request" — that cost is the same for AV1 alone.
+
+### 5. Licence
+
+Unchanged in kind ([`../../../../docs/av1/licensing.md`](../../../../docs/av1/licensing.md)): the
+code's BSD grants no patents; the licensor licenses its essential patents alone. Its
+[Video Distribution programme](https://v-nova.com/licensing-lcevc-vdlp/), read 2026-11-02:
+
+> A Video Distribution Service refers to any branded media & entertainment service that transmits
+> video content to end users over networks (e.g., the internet), primarily for viewing by
+> individuals or entities other than the content provider. This includes services offering
+> entertainment, social media, news, education, advertising, and more.
+
+Its waiver tier is $0 "Up to 1.14M" average monthly active video users, "Up to 114K" subscribers,
+"Up to $5.7M" semi-annual video distribution revenues; "Each distinct branded service is treated as
+a separate service". Whether a PACS — clinical images shown to the provider's own readers — is
+"media & entertainment" is **unverified**; the text leans against it, and nothing says what licence a
+service outside the definition needs. A hospital is far inside the $0 tier if it is covered
+(*derived*), but a licence is still a contract to sign, and this repository is public under MIT:
+shipping an LCEVC decoder ships the patented method to every user, licensed or not. The commercial
+SDK, if used, is a second fee (*unverified*).
+
+### 6. Expected against AV1 alone, at the same quality (*derived*, not measured)
+
+| | DBT 10–12-bit, visually lossless at native depth | ultrasound cine, 8-bit |
+| --- | --- | --- |
+| bytes | ≈ 1.0× or more — the noise is coded at full size by the weaker coder | unknown sign; at most the test's 14–16 % against VVC-class bases |
+| native decode | below 1.0× by an unmeasured factor | the same |
+| browser decode with samples | **none possible** today | the same |
+| browser display, 8-bit | possible, window baked in | possible |
+| ingest compute | below AV1 alone's at full size | the same |
+
+### Blockers, ranked
+
+1. **Bytes on noisy grey (decides it).** If base AV1 + LCEVC is not clearly smaller than AV1 alone at
+   equal fidelity on DBT, nothing else matters; the theory above expects it is not.
+2. **No samples in the browser.** The only web decoder draws 8-bit RGB: 10–12-bit window/level,
+   measurement and the frame digest are lost. Escapable by a profile rule (window baked in, exact
+   frame on any change) or by building a samples-returning WASM enhancement decoder, which does not
+   exist.
+3. **Licence.** Patents royalty-bearing, one licensor, a PACS's coverage unverified; a public MIT
+   repository cannot pass a grant on.
+4. **Encoder.** LTM needs the AV1-base patch; the SDK is commercial, its grey and 12-bit support
+   unverified.
+
+**The single measurement that decides it:** base AV1 + LCEVC against AV1 alone, bytes at equal
+fidelity on `dbt12_ea1141` and `dbt10_ea1141` at three distortions around the noise (RMS error σ/4,
+σ/2, σ of the series' floor estimate, `lab/av1/floor`). At ≥ 0.90× the idea is closed; below, blocker
+2 is next.
+
+### Proposed queue rows (not queued; the owner's)
+
+| name | what | after |
+| --- | --- | --- |
+| **LCEVCRATE** | Bytes at equal fidelity, offline: LTM 5.5 with patch P1 (a YUV base from a decoded AV1 file) over a libaom base at half width and height, against libaom alone at full size, on `dbt12_ea1141`, `dbt10_ea1141` and one plane of `us_liver`; RMS error σ/4, σ/2, σ and PSNR at native depth; predicted ≥ 1.0× on DBT. Mutate: a zero enhancement must lose fidelity, a doubled step width must cut bytes. Native decode time, interleaved, as a side number. Closes the idea at ≥ 0.90× | — |
+| **LCEVCWASM** | Only if LCEVCRATE is below 0.90×: LCEVCdec's enhancement core under emscripten, returning samples at the base's depth over a dav1d-WASM base; equal to native LCEVCdec's output sample for sample, decode time against dav1d-WASM AV1 alone at LCEVCRATE's points | LCEVCRATE |
+
+The licence question (blocker 3) is not a row: the owner asks the licensor whether a PACS is a Video
+Distribution Service.
+
+### Verdict, lossy viewing
+
+**Not worth building on present evidence.** LCEVC's gain comes from moving bits to a quarter-area base
+and coding sparse detail cheaply; a visually lossless DBT stream must carry dense full-size noise,
+where the published test already shows LCEVC losing fidelity to the best base, and the only browser
+decoder returns no samples, so 10–12-bit window/level is lost. One offline bytes measurement
+(LCEVCRATE) decides it.
