@@ -1693,13 +1693,22 @@ Queue row WCLAT ([`lab/av1/decode/latency`](../../lab/av1/decode/latency/README.
 With `optimizeForLatency: true` **each unit gives its frame before the next is sent, exact**. That
 held on every depth and layout WebCodecs takes (8 and 10 bits; 4:0:0, 4:2:0, 4:2:2, 4:4:4), intra
 and G = 8, and on 1, 2 and 4 tile columns: 784 of 784 frames against the encoder's input. With
-neither the option nor a flush, no unit gave its frame. Those are the frames held until `flush()` (§WebCodecs, what it decodes exactly). A flush per unit
-cannot carry a group: after a flush the next unit must be a keyframe.
+neither the option nor a flush, no unit gave its frame. WebCodecs allows both: a decoder "MAY emit new outputs only
+when new inputs are provided" and "MUST emit all outputs in response to a flush" ([S24] §1, *Internal Pending
+Output*), and `optimizeForLatency` is a hint that the decoder "SHOULD be configured to minimize the number of
+EncodedVideoChunks that have to be decoded before a VideoFrame is output" ([S24] §7.6). A frame per unit without a
+flush is therefore Chromium 141's behaviour, not a promise; inside a group the client already relies on it, and a
+decoder that held each frame would reach the 2 s stall guard below on every unit but the group's last (*derived*).
+A flush per unit cannot carry a group: `flush()` sets `[[key chunk required]]`, and `decode()` then throws a
+`DataError` for a chunk whose type is not `key` ([S24] §4.5). Sources: [`../av1/frame-groups.md`](../av1/frame-groups.md) §6.
 
 Skipping the flush makes a frame 7–20 % faster at 1× and 3–28 % at 4×, intra, 10 interleaved rounds
 (every frame exact). A keyframe still needs one, though, or a unit labelled key that is not a
 keyframe decodes against the frame before it. That is how `inter.av1` passed as pixels in the first
-build. Flushing before every keyframe costs what flushing after did, and 5–15 % more at 4× on tiled
+build. The specification checks a key only while `[[key chunk required]]` is true, after construction,
+`configure`, `flush` or `reset`: then "Implementers SHOULD inspect the chunk’s [[internal data]] to verify that it
+is truly a key chunk" ([S24] §4.5). Otherwise the chunk's type is not checked, and what a decoder does with a
+mislabelled key is not found in official sources. A parse in the client can check it instead (*Safety without the flush*, below). Flushing before every keyframe costs what flushing after did, and 5–15 % more at 4× on tiled
 frames. So **the decoder flushes at a group's end**, which at G = 1 is every frame, as before. It
 flushes before a keyframe only when a cut group is still held, and never inside a group. Tiles help
 here too: Chromium gives dav1d 2–4 threads by coded height, and 4 tile columns take a frame from 33
@@ -1719,6 +1728,50 @@ dispatch variant checks four things, each through WebCodecs and through dav1d-WA
 Taking groups away from WebCodecs, dropping the stall guard, and dropping the flush before a held
 keyframe each failed a check. Dropping the flush at a group's end failed none, and is not meant to:
 the flush before the next keyframe then covers it, at the cost measured above.
+
+#### Safety without the flush, from the specifications
+
+Theory, 2026-10-30; nothing here is measured. Sources are [S1], [S24] and [S25] of
+[`../av1/frame-groups.md`](../av1/frame-groups.md) §6. The flush does two things only: it makes the decoder "emit
+all internal pending outputs" and sets `[[key chunk required]]` ([S24] §4.5). It resets no codec state, and its key
+check is a "SHOULD" (above), so it guarantees less than its name suggests (*derived*). What a flush could guard
+against, and what the client can check in its place:
+
+| failure | check in the client | complete? | source |
+| --- | --- | --- | --- |
+| a unit labelled key that is a delta, intra-only, `show_existing_frame` or unshown key frame | walk the OBUs: a sequence header before the first frame header; that header's first bits `show_existing_frame` 0, `frame_type` `KEY_FRAME`, `show_frame` 1; no OBU extension, so no frame header is dropped by operating point | yes, for any input: it decides the definition itself | [S25] §4; [S1] §5.3.1 `drop_obu`, §5.9.2, §7.5 |
+| state of earlier frames: references, CDFs, segmentation, loop-filter deltas, film grain | none needed: such a unit sets `RefValid` to 0, `primary_ref_frame` to none, so "init_non_coeff_cdfs( ) setup_past_independence( )", refreshes all eight slots, and `update_grain` is 1 | for a conforming unit: "Starting at a key frame random access point is trivial" and its output is fixed by a "shall". A non-conforming unit has no defined output | [S1] §5.9.2, §5.9.30, §6.8.2, §7.6.3, §7.2 |
+| a changed sequence header | the same parse: the unit starts a new coded video sequence; the client reconfigures when the codec string changes | for AV1, "A new coded video sequence is required if the sequence header parameters change"; an in-band change under the same codec string is not found in [S24] | [S1] §7.5 |
+| a frame held in the decoder | wait, then flush: a codec "MUST emit all outputs in response to a flush"; match the frame by its chunk's timestamp | yes for release and matching; the wait is unbounded, `optimizeForLatency` being a "SHOULD" | [S24] §1, §4.6 *Output VideoFrames*, §7.6 |
+| a cut unit | OBU sizes summing to the unit's length ("obu_has_size_field must be equal to 1") | a cut OBU only. A dropped tile-group OBU, or a cut or corrupt tile payload, escapes: [S24] says only "If decoding results in an error", not which inputs do | [S1] §5.2; [S24] §4.5 |
+| an error surfacing on a later chunk | `EncodingError` closes the decoder; reopen, fail that unit | the specification ties an error to the chunk being decoded, not the one that caused it | [S24] §4.5, §4.6 |
+| a delimiter-only unit | G = 1: the key parse. G > 1: a shown frame header in the unit ("exactly one shown frame") | a unit with no frame header only; one with a header and no data can still stall | [S1] §7.5 |
+| a well-formed wrong unit: another series, a foreign sequence header, a reordered unit | none from a specification: it decodes exactly, to the wrong picture | no; nor does a flush catch it | — |
+
+The digest check closes every row that says no (`docs/adr/exactness-in-production.md` §2): it compares the samples,
+not the decoder, so any wrong picture fails it whatever the input, but a 64-bit hash misses one in 2⁶⁴, and a series
+without digests is unchecked (`client/decode/decoder.js:10`). Its cost is 0–15 % of a decode-bound fill (*ibid.* §3).
+
+**Verdict (*derived*).** At G = 1 the key parse, the OBU-size walk, the timestamp match, the stall timer then a
+flush, and the per-frame digest cover what the flush guards: no input shows a wrong picture, at 2⁻⁶⁴. Without the
+digest, a non-conforming unit escapes, and escapes the flush too. So the flush adds no guarantee these lack.
+Remaining risks: a series without digests, the digest's 2⁻⁶⁴, and liveness, unbounded since neither
+specification bounds the release of a frame or a `flush()`: `close()` "Immediately aborts all pending work"
+([S24] §4.5), so a second timer that closes is the bound, and the client's flush after a stall
+(`client/decode/av1-webcodecs.js:98`) has none. The speed is Chromium 141's alone: an engine that holds each frame
+pays the stall timer each frame. At G > 1 nothing new: inside a group no flush runs today, deltas rest on order
+(`continues`) and the digest, and the group-end flush's only guard is the next key, which the parse replaces.
+
+**Test protocol, pre-registered, not run.** Mutations, each at G = 1 and G = 8: a delta, an intra-only frame, a
+`show_existing_frame` unit and an unshown key frame, each labelled key; a unit cut mid-OBU, and one without its last
+tile group; a flipped tile byte; a delimiter-only unit; another series' key unit with a different sequence header;
+one with the same; two units swapped; a unit with an OBU extension. Each must be refused by name or fail its digest,
+and no stall may last past its timer. Clean frames must all be exact. Arms: today's flush per unit against no flush
+with the checks, interleaved in each of 10 rounds, a fresh browser each, at 1× and 4×, in row WCLAT's harness.
+Browsers: Chromium 141 and current, and Firefox and WebKit where their `VideoDecoder` decodes AV1 (§AV1 in WebKit
+and Firefox). Mutate each new check to fail. Decision: drop the flush if every mutation is caught in every browser
+and the no-flush arm is faster in at least 9 of 10 paired rounds at both throttles. Otherwise keep it, per browser.
+Dropping the flush is a candidate to build and measure under this protocol; nothing of it is built.
 
 ### A split payload through two decoders
 

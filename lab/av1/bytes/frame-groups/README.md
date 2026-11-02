@@ -64,6 +64,8 @@ system B 10-bit (an 8-bit top, a 2-bit low). **Scan arc**: system B records 14.3
 positioner scan arc, with a primary increment of 1.03–1.09°; systems A and C record 0.0 for the arc and the
 increment, which is no arc, so theirs is **not recorded**. **No series records a projection count.**
 
+**Reproduced 2026-10-30**, locally from the pinned data (`lab/av1/data.json`, SHA-256-checked) and tools (a 2026-10-19 build of `ingest/tools.sh`, reported byte-identical to `lab/av1/tools/tools.sh`; no committed `ingest/tools.sh` is, so *unverified*; its outputs are not committed): `dbts_a1`, `dbts_b1`, `dbts_c1`, libaom `good` 6, alt-ref off, G ∈ {1, 2, 4, 8, 16}, and HTJ2K: 15 of 15 cells equal to the tables below after rounding (worst difference +0.004 points), 240 of 240 AV1 and 48 of 48 HTJ2K frames exact, `mutate.py` caught both mutations; alt-ref on, `dbts_a1`'s 10-bit top at G = 8: 5 of 16 frames exact, `aomdec` and dav1d agreeing on every sample. Not re-run: cpu0, SVT-AV1, ρ, the plain representation, browser timing.
+
 ### ρ (§2)
 
 Median [10th–90th percentile] over blocks and pairs. **The floor is 0.059**: independent noise gives that at the best
@@ -147,7 +149,8 @@ preset 0 at G = 16, is 0.985 of HTJ2K's bytes, 5 % over libaom's intra at either
 ### Decode cost of an ask (§4)
 
 Headless Chromium 141.0.7390.37 (playwright 1.56.1, Node 22.22.0), the product's `decoder.js` worker, one ask at a
-time; the 16-slice runs of `dbts_a1`, `dbts_b1`, `dbts_c1` at `good` 6; 1× and 4× CPU throttle, each a fresh browser
+time; the 16-slice runs of `dbts_a1`, `dbts_b1`, `dbts_c1` at `good` 6; 1× and 4× CPU throttle
+(`lab/scripts/cpu_throttle.mjs`, [`docs/decode/README.md`](../../../../docs/decode/README.md) §A slow CPU, emulated), each a fresh browser
 every round, 10 rounds in a Williams order (`lab/order.mjs`), variants and sets rotating inside. **Mean ask, ms**: the
 median over rounds of each round's mean over the run's asks, [range], n = 10; every one of 5 760 frames exact.
 
@@ -185,6 +188,10 @@ numbers.
 | P8–P10 | **not testable here** | no sound breast ultrasound cine, ABUS or contrast angiography run |
 
 ### The rule (§5)
+
+*Corrected 2026-10-30:* the 20 % and 0.80 thresholds below were registered to fix the reading before the data; the
+owner rules they are not findings. The verdict as numbers and costs is
+[`docs/av1/frame-groups.md`](../../../../docs/av1/frame-groups.md) §1, §3.
 
 * **DBT: G = 1.** No sound series meets the first test — the best gain at `good` 6 is +1.51 % against the 20 % it
   needs — nor the third (every mean ask at 4× is over its bound); the second, ≤ 0.80 of HTJ2K's bytes, is met only
