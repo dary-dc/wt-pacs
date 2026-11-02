@@ -489,6 +489,12 @@ identical ([`../lab/worker-leak/run.mjs`](../lab/worker-leak/run.mjs), Chromium 
 10–12 of 40 downloader workers stayed alive, script dead, thread and memory held — a race
 `client/contract/drive_page.cjs` checks for by counting leftover workers after every page.
 
+**The check still trips, rarely, with the decoders left alone** (2026-10-30, the gate's four browser rigs repeated in a
+shared 4-core container): 1 of 15 runs left one downloader alive after its client closed, 3 of 15 with four busy loops
+on the cores, always in `dispatch`, from a different clause each time it was traced; 1 of 20 loaded on a tree before
+[`adr/frame-path.md`](adr/frame-path.md) §Experiment 1's `span`. The first traced clause alone: 0 of 100 loaded. Not fixed:
+[`adr/frame-path.md`](adr/frame-path.md) §Experiment 1: independent review.
+
 ## Capabilities
 
 Every row passed on the downloader before the harness's path was removed (2026-10-03); its column is the record. **contract** is
