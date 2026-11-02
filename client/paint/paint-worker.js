@@ -3,6 +3,7 @@
  * Pass 1 windows the frame through the table into an RGBA8 texture at source size; pass 2 draws one quad
  * that samples it bilinearly. client/paint/README.md §How it paints
  */
+import { settled } from "./settle.js";
 import { tableShape, windowTable } from "./voi.js";
 
 const VERT_FULL = `#version 300 es
@@ -204,8 +205,11 @@ export function start(offscreen, onLost) {
   return dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
 }
 
-/** One paint: upload if the frame is new, window if the frame or the window changed, place always; `settle`, it returns once drawn. */
-export function paint({ frame, same, display, width, height, dpr, read, settle = true }) {
+/**
+ * One paint: upload if the frame is new, window if the frame or the window changed, place always. A lab's `settle`
+ * returns once drawn: `fence`, or `read`, which waits on a busy page in Firefox. README §When a paint has executed
+ */
+export async function paint({ frame, same, display, width, height, dpr, read, settle }) {
   if (lost) throw new Error(lost);
   const t0 = performance.now();
   if (canvas.width !== width || canvas.height !== height) {
@@ -221,14 +225,14 @@ export function paint({ frame, same, display, width, height, dpr, read, settle =
   }
   placePass(display, width, height, dpr);
   const pixels = read ? readback(width, height) : null;
-  // A one-pixel read waits for the draw to execute; gl.finish() alone did not on SwiftShader.
-  if (!read && settle) gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
-  // `drawn`: ms since the epoch, so a thread that waits for the reply can still time the draw.
+  if (!read && settle === "fence") await settled(gl);
+  if (!read && settle === "read") gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+  // `drawn`: ms since the epoch, so a thread that waits for the reply can still time the draw; unsettled, its issue.
   return { ms: performance.now() - t0, uploaded: fresh, pixels, drawn: performance.timeOrigin + performance.now() };
 }
 
 // As its own worker, the painter's; imported by the view worker, which replaces this handler with its own.
-self.onmessage = ({ data }) => {
+self.onmessage = async ({ data }) => {
   if (data.kind === "start") {
     try {
       self.postMessage({ kind: "ready", renderer: start(data.canvas, (reason) => self.postMessage({ kind: "lost", reason })) });
@@ -238,7 +242,7 @@ self.onmessage = ({ data }) => {
     return;
   }
   try {
-    const r = paint(data);
+    const r = await paint(data);
     self.postMessage({ kind: "painted", id: data.id, ...r }, r.pixels ? [r.pixels.buffer] : []);
   } catch (e) {
     self.postMessage({ kind: "painted", id: data.id, error: e.message });

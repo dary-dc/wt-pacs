@@ -83,12 +83,12 @@ const watch = seen && ((data, from) => {
 let controller = null;
 let worker = null;
 if (where === "page") {
-  const painter = new Painter(canvas, { onLost: (why) => fail(`painter: ${why}`) });
+  const painter = new Painter(canvas, { onLost: (why) => fail(`painter: ${why}`), settle: lab.settle });
   painter.renderer.then((r) => ((boot.gl = at()), emit("renderer", { renderer: r })), (e) => emit("renderer", { error: e.message }));
   controller = new Controller({ meta, fillMode, emit, size: size(), paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
 } else {
   boot.viewWorker = at();
-  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settlePaint: Boolean(lab.settlePaint), watchWrites: Boolean(q.get("check")),
+  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settle: lab.settle, watchWrites: Boolean(q.get("check")),
     booted, glAfterDial: Boolean(lab.opts.glAfterDial) });
 }
 

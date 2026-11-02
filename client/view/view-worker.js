@@ -18,8 +18,8 @@ let downloader = null;
 let lastPainted = null;
 let progress = null;
 let latest = null;
-/** The lab's flag: a paint waits for the GPU before it reports, which here would block the store. */
-let settle = false;
+/** A lab's settle (client/paint/paint-worker.js); none in the product. */
+let settle;
 let cine = null;
 /** Resolves once the paint module holds its WebGL2 context: at `start`, or under the lab's `glAfterDial` once the dial has gone. */
 const gl = Promise.withResolvers();
@@ -49,10 +49,10 @@ function paint(frame, display, { read = false } = {}) {
 }
 
 /** `watchWrites`, the viewer check's: every cache write on this thread is counted from the start. */
-function start({ canvas, meta, fillMode, size, settlePaint, watchWrites, glAfterDial }) {
+function start({ canvas, meta, fillMode, size, settle: lab, watchWrites, glAfterDial }) {
   boot.viewStart = at();
   controller = new Controller({ meta, fillMode, paint, emit, size });
-  settle = settlePaint;
+  settle = lab;
   if (watchWrites) import("./check.js").then((m) => m.watchWrites());
   if (glAfterDial) gl.canvas = canvas;
   else startPainter(canvas);
