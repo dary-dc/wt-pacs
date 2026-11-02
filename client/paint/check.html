@@ -67,7 +67,8 @@ globalThis.time = async (set, spec, display, css, newFrame) => {
     c.style.width = `${css.w}px`;
     c.style.height = `${css.h}px`;
     document.body.append(c);
-    const p = new Painter(c);
+    // The bench's figures were taken settling by the read: README §What it costs.
+    const p = new Painter(c, { settle: "read" });
     await p.renderer;
     timed.set(key, { p, current: null });
   }

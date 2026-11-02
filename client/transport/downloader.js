@@ -8,6 +8,9 @@ const DEFAULT_TRANSPORT = "/client/transport/ts/dist/session.js";
 let TransportSession = null;
 
 const abs = () => performance.timeOrigin + performance.now();
+/** Epoch ms of this worker's start, for the lab's ledger; the first frame dispatched carries them: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
+const boot = { downloaderEvaluated: abs() };
+let bootCarried = false;
 /** The page, or the view worker over the port the page links it to: docs/adr/frame-path.md §3, *Built*. */
 let consumer = null;
 const toConsumer = (m, transfer = []) => (consumer ?? globalThis).postMessage(m, transfer);
@@ -161,6 +164,8 @@ function dispatch(d, index, rec) {
   rec.decoder = d;
   rec.stamps.dispatched = abs();
   rec.stamps.decoder = d.id;
+  if (!bootCarried) rec.stamps.boot = { ...boot };
+  bootCarried = true;
   d.outstanding += 1;
   if (d.outstanding === 1) arm(d);
   d.next = index + 1;
@@ -205,14 +210,17 @@ function record(index, priority, askMs) {
 
 /** A frame's bytes are here: straight to the consumer, or into the queue for a decoder. */
 function arrived(index, frame) {
+  boot.firstIn ??= abs();
   redials = 0;
   wanted.delete(index);
-  order.delete(index);
   watch();
   sessionBytes += frame.bytes.length + 8;
   if (cfg.recycleAtBytes && sessionBytes >= 0.75 * cfg.recycleAtBytes) recycling ??= recycle().finally(() => { recycling = null; });
   const rec = records.get(index);
-  if (!rec) return;
+  // A late frame of an ended run, its record forgotten, is dropped but stays wanted: docs/adr/frame-path.md §Experiment 2, *Run*;
+  // so is a second copy of a frame in hand, a head that crossed on the run and on its ask.
+  if (rec?.state !== "wire") return;
+  order.delete(index);
   if (rec.priority === "ask") forgetEnded();
   rec.stamps.lastByte = abs();
   rec.stamps.mediaReads = session?.stats().mediaReads;
@@ -253,7 +261,9 @@ function serveWant() {
   const unsent = [...order].filter((i) => !records.has(i));
   let inRun = 1;
   runEnd(head, (i) => i === unsent[inRun] && ++inRun);
-  if (owed === 0 && ended.size === 0 && unsent[0] === head && inRun >= cfg.askDepth) {
+  // Lab setting `shortRuns`: before the session opens, a want the run covers whole rides the dial however short: docs/adr/frame-path.md §3
+  const whole = cfg.shortRuns && !session && inRun === unsent.length;
+  if (owed === 0 && ended.size === 0 && unsent[0] === head && (inRun >= cfg.askDepth || whole)) {
     addToFill(unsent.slice(0, inRun), abs());
     return void issueFill();
   }
@@ -513,6 +523,7 @@ function spawn() {
 }
 
 async function start(m) {
+  boot.downloaderStart = abs();
   // A config field the consumer left out must not clobber the default with `undefined`.
   for (const [k, v] of Object.entries(m.config ?? {})) if (v !== undefined) cfg[k] = v;
   const count = !cfg.decode ? 0 : cfg.startOnNeed ? Math.min(1, cfg.decoders) : cfg.decoders;
@@ -525,6 +536,7 @@ async function start(m) {
   if (cfg.fill) addToFill(cfg.fill, abs());
   if (cfg.want) setWant(cfg.want);
   if (cfg.decode) await Promise.all(ready);
+  boot.decodersReady = abs();
   decodersUp = true;
   pump();
 }
@@ -550,7 +562,9 @@ async function openSession(opening) {
   if (cfg.survival) options.dialMs = deadlines.dialMs;
   if (cfg.readMin) options.readMin = cfg.readMin;
   if (opening) options.fill = opening;
+  boot.dial ??= abs();
   const next = await TransportSession.connect(dial.url, dial.certHash, options);
+  boot.sessionOpen ??= abs();
   if (closed) {
     next.close();
     throw new Error("closed by the consumer");
@@ -618,6 +632,7 @@ async function command(e) {
   try {
     if (m.kind === "start") return void (await start(m));
     if (m.kind === "dial") {
+      boot.dialReceived = abs();
       dial = { url: m.url, certHash: m.certHash };
       await firstDial();
       serveWant();

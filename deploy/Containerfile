@@ -87,8 +87,7 @@ COPY --from=bundles /src/client/transport/ts/dist /srv/wt-pacs/client/transport/
 COPY --from=wasm /src/client/transport/wasm/pkg/transport_wasm.js /src/client/transport/wasm/pkg/transport_wasm_bg.wasm \
      /srv/wt-pacs/client/transport/wasm/pkg/
 COPY fixtures/us_cine_smoke /studies
-# The decoders and the frame check's hasher the page loads are built on the host from this tree
-# (client/decode/wasm/build/build.sh) and must be the ones its manifest pins.
+# The decoders and the frame check's hasher the page loads are committed and must be the ones its manifest pins.
 RUN cd /srv/wt-pacs/client/decode/wasm/built && sha256sum -c -s ../build/manifest.sha256 && \
     install -d -o 10001 -g 10001 -m 0755 /srv/wt-pacs/wt && rm -f /etc/nginx/conf.d/default.conf
 EXPOSE 8765 443

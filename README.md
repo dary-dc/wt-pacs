@@ -6,7 +6,8 @@ WebTransport PACS — web-native medical imaging transport (MIT).
 
 Linux on x86-64 (the server's read path uses io_uring; the pinned `wasm-opt` is x86-64), Rust 1.88 or newer
 with `rustup`, Node 22 (`.nvmrc`), Python 3.11 to 3.13, and on PATH: git, curl, tar, patch, sha256sum,
-openssl, jq, and binutils' `nm` and `strings`. The first builds fetch from crates.io, npm and GitHub.
+openssl, jq, binutils' `nm` and `strings`, and docker, in which the full gate rebuilds the decoders (`--quick` skips it, and so does its absence, by name).
+The first builds fetch from crates.io, npm and GitHub.
 
 ```bash
 rustup target add wasm32-unknown-unknown
@@ -16,17 +17,14 @@ bash client/decode/wasm/fetch_openjph.sh            # the HTJ2K decoder the page
 bash client/decode/wasm/fetch_xxh3.sh               # the reference the frame check's hash is tested against
 ```
 
-Two more open what the gate otherwise skips, by name, in its log:
+One more opens what the gate otherwise skips, by name, in its log:
 
 ```bash
-client/decode/wasm/build/build.sh                  # the decoder builds the page loads: docker; fetches emscripten (~5 min)
 python3 -m venv .venv && .venv/bin/pip install --require-hashes -r ingest/requirements.txt
                                                     # numpy, pydicom, xxhash, blake3 (CPython 3.11–3.13): PYTHON=.venv/bin/python
 ```
 
-With the first, the dispatch rig runs all 782 of its checks, the real-decode ones on npm's OpenJPH and on the
-product's build alike; without it, those that need the build are skipped by name. Without the second, the painter
-checks, the split's merge and the DICOM reader do not run; the native painter's also needs Mesa's lavapipe
+Without it, the painter checks, the split's merge and the DICOM reader do not run; the native painter's also needs Mesa's lavapipe
 (`mesa-vulkan-drivers` on Debian and Ubuntu), and the native window's also `xvfb`, `xdotool` and `libxkbcommon-x11-0`. The ingest's coders — libaom 3.15.1, dav1d 1.5.4 and
 OpenJPH 0.31.0, built from source at their pins into `ingest/.build` — need cmake, ninja, meson (1.9.1 here), nasm and
 a C++ compiler: `ingest/tools.sh`. The DICOM ingest needs them, and the gate's comparison of the two ingests and its
@@ -38,7 +36,7 @@ Without Go 1.24 or newer on PATH, the lab's two Go clients are not compiled (Go 
 ## Quick start
 
 ```bash
-# 1. Build the clients (once, and after changes; dist/ and pkg/ are not tracked)
+# 1. Build the clients (once, and after changes; pkg/ is not tracked, dist/session.js is committed and pinned)
 bash client/transport/wasm/build.sh   # the WASM client; fetches binaryen's wasm-opt, pinned by checksum, on first run
 bash client/transport/ts/build.sh     # the TypeScript client and the test bundles; npm install on first run
 
@@ -59,7 +57,7 @@ cargo run --release -p series-server -- \
 #    Terminal 2 — the static host
 python3 server/dev-server.py --port 8765 --series us_cine_smoke
 
-# 5. Before pushing: the gate (about 100 s on 4 cores, warm builds); --no-browser skips the browser steps, --quick two absence checks
+# 5. Before pushing: the gate (about 330 s on 4 cores, warm builds, 150 s of it the decoders' rebuild); --no-browser skips the browser steps, --quick the rebuild and two absence checks
 scripts/gate.sh
 ```
 
@@ -172,7 +170,7 @@ a 10 ms sleep a frame in the server's send path worse on both cells (fill ×1.15
 frame ×1.015 worse, fill ×0.988 better). The fill there follows the link to 200 Mbit/s (0.51, 0.45, 0.38 s at 50,
 100, 200) and no further (0.37 at 400 and 800), so the host is not what bounds `r50000`. It claims a difference
 between two trees that repeats on that runner, that series and that link: no number for another host, a series that
-decodes longer, a slower CPU or another engine; a schedule fires from the default branch's copy of the workflow only.
+decodes longer, a slower CPU or another engine; a schedule fires from the default branch's copy of the workflow only. By hand it takes more cells (`--impairs`, `--throttles`), an asked-frame cell (`--asks K`), the product's viewer in every arm with the head's under a view (`--view worker`), and keeps its rows (`--out DIR`), a visit already there not run again ([`scripts/perf_campaign.mjs`](scripts/perf_campaign.mjs)).
 
 ## Docs
 
