@@ -1459,8 +1459,21 @@ width 1 its dequantisation is the identity and its residuals are added at 2^−f
 transform and at 12 bits with the 2×2 (256/256 offset classes; the 4×4 not proven, 36/36 patterns
 tried reachable). **At 14 bits it is not**: 128 of 256 offset classes of a 2×2 block are
 unreachable, and the decoder stops at 14, so the 13-bit CT and cone-beam cannot end exact. No trial
-is possible: **no open LCEVC encoder exists**, the web decoder draws 8-bit RGBA through WebGL with no
-samples back, and the decoder's BSD-3-Clause-Clear licence grants no patents ([`licensing.md`](licensing.md)).
+was possible then: **no open LCEVC encoder exists** — *wrong, corrected 2026-10-31:* MPEG's reference
+software (LTM 5.5, ISO/IEC 23094-3 Amd 1) carries an encoder under BSD, free from ISO, though it takes
+no AV1 base and does not choose exact residuals without a patch; its decoder uses the same fixed
+point, so the reach above holds for AV1 + LCEVC at 8–12 bits (*derived*). An offline trial is now
+possible, a product path is not: the web decoder draws 8-bit RGBA through WebGL with no samples back,
+and both codes' BSD licences grant no patents, which the licensor licenses alone for royalties
+([`licensing.md`](licensing.md); the re-check and a pre-registered protocol in
+[`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Re-checked 2026-10-31). *Re-checked
+2026-11-02 for FFmpeg:* it encodes no LCEVC; it decodes through LCEVCdec (`--enable-liblcevc-dec`),
+and from 9.0 hands back samples at 8–14 bits, YUV and grey, with an AV1 base wired through dav1d's
+T.35 metadata (not run). That is the first native decode returning samples — a convenience for the
+offline trial, not an independent decoder for it, not an encoder, not lossless, and not a browser
+path: no FFmpeg WASM build with LCEVC was found (*unverified* that none exists)
+([`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Re-checked 2026-11-02).
+*For lossy viewing (the owner, 2026-11-02; theory, no trial):* **not worth building on present evidence**. LCEVC's gain is the base codec's work moved to a quarter of the area, with sparse detail added cheaply (MPEG's verification test: −46 % to −14 % MOS BD-rate over AVC to VVC, and a PSNR loss against VVC); a visually lossless DBT stream must carry dense full-size sensor noise, so base AV1 + LCEVC is expected at about AV1 alone's bytes or above (*derived*), and the only web decoder draws 8-bit RGB, so 10–12-bit window/level is lost. No medical or noisy-content result was found. One offline bytes measurement decides it (LCEVCRATE, proposed) ([`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Lossy viewing).
 
 *Parked by the owner on 2026-10-03, kept for the decision later* (the owner's focus, §Where AV1 stands): the
 preview plus an HTJ2K residual, the separate preview then exact HTJ2K, the embedded intra codecs and LCEVC — each
