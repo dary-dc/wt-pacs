@@ -1061,6 +1061,138 @@ follows. *The `viewWorker` stamp* is taken where the page makes the `ViewWorker`
 **Where the host saturates:** nowhere, by the guard, at 1× or 4×. The 4× throttle is a cgroup cap a thread
 (`lab/scripts/cpu_throttle.mjs`), so it leaves the cores idle by construction, and the guard cannot see it.
 
+### The busy page, asks on the mean (2026-11-02)
+
+*Pre-registered 2026-11-02, before any data. Scored by `lab/viewer/busy-summary.mjs`, written and tested with its
+mutants before data; driven by `lab/viewer/busy_run.sh`.*
+
+**Why, an amendment to §7's asks rule; §7's verdict stands as run.** §7 adopts B′ only if B′'s *median* of ten asks'
+arrival → screen is ≥ 16.7 ms below A's in ≥ 9 of 12 rounds. §2 predicts a gain only for an ask handed off inside a
+long task: A waits out the rest of the task, B′ does not. An ask handed off between tasks takes the same quiet path in
+both arms. A 200 ms task every 500 ms puts about a third of the asks in a task: in §7's rows (`view-asks.jsonl`), A's
+asks over 40 ms are 28–41 % of the asks at 1× and 34–72 % at 4×. With fewer than half of its ten asks in a task, a
+visit's median is a quiet-path ask in both arms, so the bar could not show §2's prediction even where it held
+(Chromium's means: A 59–110 ms, B′ 12–34). The bar is restated here on what §2 predicts: the mean, and the asks
+handed off in a task.
+
+**Firefox, read from source first** (Gecko at `FIREFOX_155_0_RELEASE`, the tag in `mozilla-firefox/firefox`).
+These are the calls the view worker's timed paint makes (`client/paint/paint-worker.js`, `settle.js`), and where each
+one waits:
+
+* **`readPixels`, `getBufferSubData`: on the page.** After the read, `ImageExtractionResult` asks
+  `GetCanvasExtractDataPermission` (`dom/canvas/ClientWebGLContext.cpp` near lines 3677 and 5450). From a worker that
+  is a `WorkerMainThreadRunnable` (`dom/canvas/CanvasUtils.cpp` near lines 70–125): §*The pixel read under a busy
+  page*. The timed paint makes neither call since #275. The viewer check's `read` makes it (`client/view/check.js`), and
+  so does the lab's `settle=read`; neither runs here.
+* **`getParameter`, `getShaderParameter`, `getProgramParameter`, `getError`, `finish`, a `clientWaitSync` with a
+  timeout, the command queue's `SyncPing`: on the WebGL parent.** These are sync messages of `PWebGL`
+  (`dom/canvas/PWebGL.ipdl`: `GetNumber`, `GetCompileResult`, `GetLinkResult`, `GetError`, `Finish`, `ClientWaitSync`,
+  `SyncPing`) to the context's host, which is not the page's main thread. The paint calls the first three only at the
+  start and on a program's first use, and the rest never on a timed paint.
+* **Uploads, draws, uniforms: no wait.** They are queued in the command buffer and sent asynchronously
+  (`DispatchCommands`).
+* **The fence: on the worker's own thread.** `fenceSync` posts its `AvailabilityRunnable` and the deferred flush to the
+  current thread (`NS_DispatchToCurrentThread`: `dom/canvas/WebGLContext.cpp` near line 2250,
+  `ClientWebGLContext.h` near line 1137). `clientWaitSync(sync, 0, 0)` turns `ALREADY_SIGNALED` once the host's
+  `OnSyncComplete` reaches the worker's actor (`dom/canvas/WebGLChild.cpp` near line 164).
+* **Presentation, and a resize: on the worker.** `QueueCommitToCompositor` runs on the current thread
+  (`dom/canvas/OffscreenCanvas.cpp` near line 313), and `CommitFrameToCompositor` hands the frame to the ImageBridge's
+  asynchronous `ImageContainer`. Its one main-thread step, `MaybeQueueInvalidateElement`, is posted and not waited on
+  (`dom/canvas/OffscreenCanvasDisplayHelper.cpp` near lines 202–360).
+
+**So the read is the only call that waits on the page, and the fence removes it.** No probe is added. The paint-read
+probe already timed `fence`, `finish` and the draw alone inside the page's task in Firefox 155, and none waited
+(0 of 12 rounds), which covers the fence's thread and a sync message to the host. *Not read:* how the content
+process schedules a worker's thread while its main thread spins, on cores the decoders also want. That is the host's
+side, and the guards below are what see it.
+
+**Hypothesis.** Settled by the fence, B′ takes an ask handed off in a long task to the screen on its quiet path on
+both engines, while A waits out what is left of the task. §2's mean gain follows from that.
+
+**Arms.** `page` (A), `pageaa` (A again, the A/A pair), and `workerfix`: B′ (`?view=worker`) with #276's fix,
+`pageDials`, `viewWorkerFirst` and `shortRuns` (`view_frames.py --fix`). All three settle by the fence, the rig's
+default since #275. The fix changes only what comes before the first byte (§*The view worker's start, timed*), and the
+asks start once frame 0 is shown, so the fix is not predicted to move them.
+
+**Cells.** §7's busy page (`lab/frame-clock/busy.js`, a 200 ms task every 500 ms from navigation) and its three
+multi-frame series, `ct_nlst`, `us_liver` and `dbt12_ea1141`. Chromium (Playwright 1.63's headless shell, SwiftShader)
+and Firefox 155 (headed under Xvfb, llvmpipe, Marionette). `r50000` behind the relay, the rig on core 3, the browsers
+on cores 0–2. Asks (§7's: frame 0, then frames 1–10 one at a time) at 1× and 4×. Cine (§7's, 10 s at the series' rate)
+at 1×, and at 4× only for an engine and series whose 1× cell the guard leaves unsaturated. 12 kept rounds a cell.
+`lab/order.mjs` interleaves the cells and the arms in each round, and `busy_run.sh` rotates the two kinds by round.
+Rows: `busy-asks.jsonl` and `busy-cine.jsonl` under
+[`rows/core-busy2`'s `lab/viewer/rows/`](https://github.com/dary-dc/wt-pacs/tree/rows/core-busy2/lab/viewer/rows), the tag
+pushed when the run ends.
+
+**How the rows know a long task.** The page's busy loop keeps each task's start and end (`busy.js`, on the page's
+epoch clock, `performance.timeOrigin + performance.now()`). The rig now posts them as `spans`, and with each ask its
+`handoff`: the decoder's `decodeEnd`, on the decoder's epoch clock (`client/decode/decoder.js`). An ask is **in a
+task** when start ≤ hand-off < end, and what is **left** is the end less the hand-off. The two clocks agree to within
+the engines' timer resolution, which is not measured here. The hand-off happens before either arm's own path starts,
+so the same rule sorts both arms' asks.
+
+**Scored per visit:** the mean of the ten asks' arrival → screen (§7's span, the decoder's hand-off to the frame's
+first draw); the **in-task** median; the **quiet path**, the median of the other asks; and A's **excess**, the median
+over its in-task asks of the arrival → screen less what was left. §2's model makes A's excess its quiet path.
+
+**Guards.**
+
+* §7's drops: the relay's timing VOID, an error, a long task under 200 ms, or an ask without its hand-off. A dropped
+  visit is re-run as part of a whole extra round. A cell counts its first 12 rounds with every arm kept and decides
+  nothing with fewer.
+* **VOID, asks:** `pageaa` and `page` differ, median over paired rounds, by 8 ms or more (§7's asks bar), on the quiet
+  path or on the excess. The bar is not on the mean because a visit's mean mixes the two paths in a share set by where
+  the hand-offs land, which is chance in both arms and not the rig's noise. One more ask of ten in a task moves a mean
+  by 10–20 ms, so an A/A bar on the mean would VOID cells for the landing alone. The A/A pair must agree on the
+  model's two parts.
+* **Saturated, asks:** A's quiet path, median over rounds, longer than 50 ms, three 60 Hz frames. §7's quiet paths
+  were 11–34 ms. Past 50 ms the browser's cores are behind with no task in the way, and a gain could be the host's.
+* **Cine:** §7's guards. VOID when `pageaa` and `page` differ by more than 2 points of late frames or 16.7 ms of gap
+  p99; saturated when `page`'s draw p99 passes half the period.
+
+**The rule.** An asks cell passes when B′ wins both of the following in ≥ 9 of 12 paired rounds (§7's 9 of 12):
+
+* **(i) the mean:** B′'s mean arrival → screen is ≥ 16.7 ms below A's;
+* **(ii) in a task:** B′'s in-task median is ≥ 16.7 ms below A's. A round in which either arm had no in-task ask is
+  not a win.
+
+A cine cell passes as in §7: where A is late by more than 2 points, B′ is late by at most 2, with a gap p99 of at
+most 2 periods. **Per engine:** "B′ wins the busy page" when every frame is exact, every decided cell passes and an
+asks cell is decided; "B′ does not win" when a decided cell fails; "undecided" otherwise. A claim for both engines
+needs both. The bar is §7's 16.7 ms, one 60 Hz frame. On the mean, a single in-task ask with 167 ms or more left
+clears it alone.
+
+**What this decides.** §7's busy-page clause (2), re-measured on what §2 predicts. The `?view=` default does not move
+on this run whatever it finds. §7's verdict stands on its quiet-page clause (1), and B′ with the fix still does not tie
+A's start (§*The view worker's start, timed*).
+
+**Predictions**, from §2's model, with §7's rows read as the prior (A's asks over 40 ms stand in for its in-task asks).
+In ms; *won* counts the rounds of 12:
+
+| cell | A mean | B′ mean | A in task | B′ in task | won (i) / (ii) | asks in a task |
+| --- | --- | --- | --- | --- | --- | --- |
+| Chromium 1×, CT / US / tomo | 63 / 59 / 90–110 | 12 / 17 / 18 | 165–210 | B′'s quiet path ±10 (11–17) | ≥ 10 / 12 | 28–41 % |
+| Chromium 4×, CT / US / tomo | 73 / 95–110 / 90 | 18 / 33 / 35 | 140–200 | ≤ 50 | ≥ 10 / 12 | 37–57 % |
+| Firefox 1×, CT / US / tomo | 61 / 62 / 104 | 11 / 13 / 17 | 170–205 | B′'s quiet path ±10 | ≥ 10 / 12 | 29–50 % |
+| Firefox 4×, CT / US / tomo | 68 / 114 / 90 | 19 / 28 / 34 | 120–200 | ≤ 50 | ≥ 10 / 12 | 34–72 % |
+
+* A's excess is within ±10 ms of its quiet path in every cell (§2's model), and the quiet paths of A and B′ are within
+  8 ms of each other.
+* No asks cell is saturated, since A's quiet paths ran 11–34 ms in §7. Every asks cell passes, on both engines.
+* In Firefox, B′'s in-task asks in §7 (a median of 156–205 ms, the read's wait) drop to its quiet path.
+* Cine at 1×: A 20–22 % late and B′ 0 %, with B′'s gap p99 117–136 ms, as in the settle's re-run; pass on both
+  engines. At 4× every cell is saturated, as the settle's 4× run found (`page`'s draw p99 60–123 ms against 50), and
+  nothing is claimed.
+* **Refuted** for an engine if its decided asks cells fail (ii) with B′'s in-task median near A's. Then something
+  other than the read waits on the page, the source reading above is incomplete, and a probe in the style of
+  `lab/paint-read` follows.
+
+**Firefox in this container, recorded before any data.** Playwright's Firefox build cannot be fetched here: the
+environment's network policy refuses `cdn.playwright.dev` and `playwright.download.prss.microsoft.com`. Running a
+Firefox 155.0 from conda-forge, checked against its published SHA-256, was refused by this session's permissions. So the
+Firefox cells stay pre-registered and are **not run**, and Firefox's verdict is "undecided: not run". Nothing below
+claims anything for Firefox.
+
 ### A frame clock in the view worker (2026-10-28)
 
 *Theory and a pre-registered protocol; the harness built 2026-10-30 ([`../../lab/frame-clock/`](../../lab/frame-clock/README.md)) and smoke-run, nothing timed as a result.* The owner's next client shape: the page holds no

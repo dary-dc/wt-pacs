@@ -19,14 +19,15 @@ export function levers(q) {
   const settle = q.get("settle") ?? "fence";
   if (!["fence", "read"].includes(settle)) throw new Error(`refused: settle ${JSON.stringify(settle)} — fence or read`);
   // docs/adr/frame-path.md §7: the page busy from here, and after the fill a cine of `cine` seconds.
-  const tasks = q.get("busy") === "1" ? busyPage() : [];
+  const spans = [];
+  const tasks = q.get("busy") === "1" ? busyPage(spans) : [];
   const seconds = Number(q.get("cine") ?? 0);
   return {
     opts,
     transport: q.get("wt") ? { wt_url: q.get("wt"), cert_sha256: q.get("hash") } : undefined,
     metadata: q.get("metadata") ?? undefined,
     writer,
-    ...(q.get("post") && totalTime(q.get("post"), q.get("origin"), settle, opts, q.get("fill") === "0" ? Number(q.get("after") ?? 0) : 0, Boolean(q.get("trace")), tasks)),
+    ...(q.get("post") && totalTime(q.get("post"), q.get("origin"), settle, opts, q.get("fill") === "0" ? Number(q.get("after") ?? 0) : 0, Boolean(q.get("trace")), tasks, spans)),
     ...(seconds && { cine: cineOf(seconds * 1000) }),
     ...(q.get("trace") && { trace: { steps: sawtooth, everyMs: STEP_MS } }),
   };
@@ -36,7 +37,7 @@ export function levers(q) {
  * The page's hooks for lab/av1/delivery/total-time/run.mjs: `hello` before the fill, then page.js's result shape.
  * On demand, frames 1 … `after` are stepped to one at a time once frame 0 is shown; under `traced`, the steps are the trace's.
  */
-function totalTime(post, origin, settle, opts, after, traced, tasks) {
+function totalTime(post, origin, settle, opts, after, traced, tasks, spans) {
   const send = (what, body) => fetch(`${post}${what}`, { method: "POST", body: body && JSON.stringify(body) });
   return {
     // The rig times "shown", so each paint waits for its draw: client/paint/README.md §When a paint has executed.
@@ -58,7 +59,8 @@ function totalTime(post, origin, settle, opts, after, traced, tasks) {
         mediaReads, fillReads: mediaReads - (opts.holdEveryOther ? reads(frames.filter((f) => f.i % 2 === 0)) : 0),
         frames: asked.length ? [] : frames.map(({ i, page, lastByte, exact }) => ({ i, page, lastByte, exact })),
         failures: errors.map((reason) => ({ reason })), sha, previews: [], previewSha: {},
-        after: asked.map(({ i, at }) => ({ i, ms: arrived.get(i) - at, screen: byIndex.get(i).painted - byIndex.get(i).decoded })), tasks, cine, resumes: stats.resumedAt.length, checked: stats.exact, boot,
+        after: asked.map(({ i, at }) => ({ i, ms: arrived.get(i) - at, screen: byIndex.get(i).painted - byIndex.get(i).decoded, handoff: byIndex.get(i).decoded })),
+        tasks, spans, cine, resumes: stats.resumedAt.length, checked: stats.exact, boot,
         ...(traced && { trace: waits(stepped, arrived) }) }).catch(() => {});
     },
   };
