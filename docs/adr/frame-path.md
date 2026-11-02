@@ -1193,6 +1193,16 @@ Firefox 155.0 from conda-forge, checked against its published SHA-256, was refus
 Firefox cells stay pre-registered and are **not run**, and Firefox's verdict is "undecided: not run". Nothing below
 claims anything for Firefox.
 
+**Amended 2026-11-02, before any Firefox data, for the Firefox cells' run.** A later container's policy allows the
+Playwright hosts, so the cells run as written above with three changes the rig forces, none to the arms, the cells or
+the rule. (a) *The browser* is Playwright 1.63's Firefox, `firefox-1543`, which reports `Firefox 155.0`
+(build `20260902122356`): Gecko 155.0 with Playwright's driver patches, which stay inert unless the browser is started
+with `-juggler`, and it is not. The source reading above stands for it, since the pin is the same version; the
+patches are not read. (b) *No driver:* the rig starts the binary itself with the visit's URL and reads the rows back
+over HTTP (`lab/av1/delivery/total-time/run.mjs`), so "Marionette" above is struck for this subsection. (c) *The
+rows* go to this branch's tracked `lab/viewer/rows/`, appended to the same two files, and are cited by branch and
+commit: a tag push is refused here, so the `rows/core-busy2` tag named above is not made.
+
 **Measured 2026-11-02, Chromium alone** (rows
 [`busy-asks.jsonl`](https://github.com/dary-dc/wt-pacs/tree/rows/core-busy2/lab/viewer/rows/busy-asks.jsonl) and
 [`busy-cine.jsonl`](https://github.com/dary-dc/wt-pacs/tree/rows/core-busy2/lab/viewer/rows/busy-cine.jsonl), read by
