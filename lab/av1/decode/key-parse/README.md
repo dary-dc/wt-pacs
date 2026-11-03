@@ -20,6 +20,11 @@ node lab/av1/decode/key-parse/run.mjs time --rounds 1 --engines chromium --sets 
 node lab/av1/decode/key-parse/run.mjs time --rounds 10 --engines chromium141,chromium --out $W/why-time.json
 node lab/av1/decode/key-parse/run.mjs bare --rounds 3 --engines chromium141,chromium [--cores 3] --out $W/why-bare.json
 node lab/av1/decode/key-parse/run.mjs time --rounds 3 --engines chromium141,chromium --sets dbts_b1,us_liver_intra_t4 --trace $W/traces
+# 2026-11-03, the amended protocol (below); CHROMIUM_PATH the current Chrome for Testing headless shell
+node lab/av1/decode/key-parse/run.mjs time --rounds 1 --throttles 1 --engines firefox,webkit --out $W/reach.json   # units reaching VideoDecoder
+node lab/av1/decode/key-parse/run.mjs time --rounds 24 --engines chromium141,chromium,firefox --out $W/time.json    # ~4.5 h
+node lab/av1/decode/key-parse/run.mjs mutate --engines chromium141,chromium,firefox,webkit --out $W/mutate.json
+node lab/av1/decode/key-parse/run.mjs time|mutate --summary --out ...   # ends with the amended clauses and their verdicts
 node lab/av1/decode/key-parse/run.mjs time --rounds 1 --engines chromium141,chromium --sets dbts_b1 --arms flush --load   # then keyParse
 ```
 
@@ -325,3 +330,82 @@ the spread at 4× is not larger than at 1× (1.09 against 1.43 % and 1.85 agains
 run A a median of 5.1 against 4.8 %). The spread is round to round, a fresh browser each cell. Run A, the same
 protocol on 7 of the 9 streams, passed the registered speed clause in both versions (10/10 and 10/10; 9/10 and 10/10),
 which the 2026-10-31 run did not. That is the rule's coin flip at these effect sizes.
+
+## The amended protocol, measured (2026-11-03)
+
+The protocol of [`docs/decode/README.md`](../../../../docs/decode/README.md) §Amended protocol, pre-registered, run
+as written by a session given only that protocol, on 2026-11-02 and 11-03. `run.mjs --summary` now ends with the
+amended clauses: the speed estimate and its 95 % paired-*t* interval per stream and over streams, and the mutation
+clause relative to the `flush` arm.
+
+**Host and browsers.** 4 vCPUs (one thread a core), 15 GB, in a container, as on 2026-10-31. One decoder at a time
+never saturates it: over one cell per stream and engine (`--load`), 0.65–2.29 CPUs were busy on average, and at most
+2 % of 100 ms samples had all four busy (Firefox at 1×; Chromium 0 %). Nothing is claimed past one decoder at a time.
+Chrome for Testing headless shell 141.0.7390.37 and 156.0.8078.80 (the Stable channel's last known good on
+2026-11-02), Firefox 159.0 and WebKitGTK 2.52.6 as pinned above. The decoder builds matched `manifest.sha256`; their
+Debian base image was pulled by its pinned digest from `mirror.gcr.io` after Docker Hub refused with 429.
+
+**Which browsers reach `VideoDecoder`** (one round at 1×). WebKitGTK: no unit of any stream, so `keyParse` is inert
+there and its verdict is "no change" without timing. Firefox: each ultrasound unit (1, 2 and 4 tiles) reaches
+`VideoDecoder` and falls back to dav1d-WASM; no DBT or fluoroscopy unit does. Some do, so Firefox was timed like
+Chromium. In both arms every Firefox frame came from dav1d-WASM, and no flush ran.
+
+**Rounds.** 24 rounds, numbered 0–20 and 22–24. A usage limit stopped the run at 22:31 UTC on 11-02, with round 21
+at 3 of its 6 cells. Under the protocol's re-run rule its rows were dropped, and the round was run whole as 22. No
+cell errored.
+
+**Exact.** 89 856 of 89 856 timed frames (9 streams × 2 arms × 2 throttles × 3 engines × 24 rounds) came back with
+their truth's samples. In Chromium `flush` flushed once a unit, `keyParse` never.
+
+**Speed.** keyParse ÷ flush: the mean over 24 rounds of each round's ratio of mean ms a frame, [95 % paired-*t*
+interval]. "All streams" is each round's geometric mean over the nine streams.
+
+| stream | Chromium 141, 1× | 4× | Chromium 156, 1× | 4× | Firefox 159, 1× | 4× |
+| --- | --- | --- | --- | --- | --- | --- |
+| `dbts_a1` | ×0.962 [0.939–0.986] | ×0.989 [0.980–0.999] | ×0.979 [0.962–0.995] | ×0.996 [0.984–1.008] | ×1.008 [0.978–1.038] | ×1.001 [0.985–1.018] |
+| `dbts_b1` | ×0.970 [0.959–0.981] | ×0.975 [0.964–0.985] | ×0.977 [0.960–0.993] | **×1.030 [1.016–1.043]** | ×1.000 [0.974–1.025] | ×0.996 [0.983–1.009] |
+| `dbts_c1` | ×0.950 [0.930–0.969] | ×0.986 [0.969–1.003] | ×0.989 [0.967–1.010] | ×0.991 [0.976–1.007] | ×0.996 [0.969–1.022] | ×0.997 [0.977–1.017] |
+| fluoroscopy, 1 tile | ×0.951 [0.930–0.972] | ×0.978 [0.961–0.994] | ×0.961 [0.938–0.984] | ×1.014 [0.991–1.038] | ×1.023 [0.991–1.054] | ×1.000 [0.975–1.025] |
+| 2 tiles | ×0.934 [0.905–0.962] | ×0.956 [0.930–0.983] | ×0.946 [0.905–0.988] | ×0.944 [0.919–0.970] | ×0.999 [0.961–1.036] | ×0.991 [0.971–1.011] |
+| 4 tiles | ×0.918 [0.893–0.942] | ×0.915 [0.892–0.938] | ×0.925 [0.898–0.952] | ×0.920 [0.894–0.947] | ×0.984 [0.955–1.013] | ×1.013 [0.988–1.038] |
+| ultrasound, 1 tile | ×0.949 [0.935–0.962] | ×0.978 [0.963–0.994] | ×0.955 [0.936–0.974] | ×1.010 [0.998–1.022] | ×1.013 [0.988–1.038] | ×0.989 [0.972–1.005] |
+| 2 tiles | ×0.937 [0.919–0.954] | ×0.972 [0.952–0.993] | ×0.931 [0.919–0.942] | ×0.975 [0.949–1.000] | ×1.018 [0.996–1.040] | ×1.005 [0.988–1.022] |
+| 4 tiles | ×0.912 [0.897–0.927] | ×0.951 [0.928–0.973] | ×0.931 [0.909–0.954] | ×0.909 [0.891–0.928] | ×0.996 [0.972–1.021] | ×0.994 [0.970–1.018] |
+| **all streams** | **×0.941 [0.935–0.948]** | **×0.966 [0.960–0.971]** | **×0.953 [0.947–0.959]** | **×0.975 [0.969–0.981]** | ×1.002 [0.994–1.010] | ×0.998 [0.990–1.005] |
+| clause | faster, faster | | faster, faster; **slower on `dbts_b1` at 4×** | | inconclusive, inconclusive | |
+
+Medians of ms a frame under `flush`: Chromium 141 at 1× 21.2 (ultrasound, 4 tiles) to 212.8 (`dbts_b1`), at 4×
+72.5 to 826.9; Chromium 156 20.9–219.5 and 75.0–820.5; Firefox 47.3–413.7 and 196.4–1734. The flush phase was
+1.2–2.6 ms a frame at 1× and 2.0–13.5 ms at 4× in Chromium 141, and 1.6–3.3 and 3.2–10.4 ms in Chromium 156.
+`--summary` prints the medians, ranges and phases per cell. In Chromium 156 at 4×, `dbts_b1`'s decode() to output
+rose from 527.6 to 559.8 ms under `keyParse` (median over rounds), the same place as on 11-02 (§2 above).
+
+**Mutations** (one round, 1× and 4×, all four engines, 78 cases a cell on each arm). No send escaped or stalled in
+any engine, arm or throttle, and every control was exact. The slowest send took 2.5 s at 1× and 3.9 s at 4×, both in
+Chromium 156. Chromium 141 and 156: `flush` 72 of 78 and `keyParse` 75 of 78 by the 2026-10-31
+count. Each arm's misses by that count are the OBU-extension unit decoded through WebCodecs to its truth's
+samples, reported here as **exact (a valid picture)**: G = 1 and G = 8 under `flush`, G = 8 under `keyParse`. At
+G = 1 nothing the flush caught escaped `keyParse`, and at G = 8 the two arms' outcomes were the same on every
+case. Firefox and WebKitGTK caught 78 of 78 in both arms. **The mutation clause holds in all four browsers.**
+
+**Checked by breaking it.** The new clauses were run on altered rows, each alteration a copy. Speed: a tie (no
+effect) read inconclusive. A 5 % slower stream at 4× read slower on that stream, and one inexact frame read not
+decided. Mutations: a G = 1 delta made exact through WebCodecs under `keyParse` read as caught by flush and not by
+keyParse. A G = 8 outcome changed under `keyParse` read as differing, a send made `wrong` read as an escape, and a
+control made off-digest read as an inexact control. Each turned the clause to fails. The t quantile matches the
+tables (12.706, 2.262, 2.069, 1.984 at 1, 9, 23 and 100 degrees of freedom).
+
+**The decision, as registered, per browser:**
+
+* **Chromium 141.0.7390.37: `keyParse` becomes the default.** The mutation clause holds. It is faster at 1×
+  (×0.941, upper end 0.948) and at 4× (×0.966, 0.971), and slower on no stream: no stream's interval lies wholly
+  above 1.00.
+* **Chromium 156.0.8078.80: the flush stays**, by the slower-on-a-stream clause: `dbts_b1` at 4×, ×1.030
+  [1.016–1.043]. The protocol registered this outcome in advance as "intended". The speed clause is otherwise met
+  (×0.953 and ×0.975).
+* **Firefox 159.0: the flush stays**, by the speed clause: inconclusive at 1× (×1.002 [0.994–1.010]) and at 4×
+  (×0.998 [0.990–1.005]). Its units fall back to dav1d-WASM, and no flush runs in either arm.
+* **WebKitGTK 2.52.6: the flush stays.** `keyParse` is inert: no unit reaches `VideoDecoder`.
+
+Every frame was exact in both arms, so the decision stands. No product code changed: `keyParse` stays behind its
+flag, off by default. A default for one Chromium version is the owner's call to build or not.

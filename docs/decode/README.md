@@ -1872,6 +1872,26 @@ question asks about, not from data this protocol will produce.
   That is intended: 4× stands for a slow device, and that the slowdown belongs to the throttle and not to a device
   is *unverified*.
 
+*Measured 2026-11-03* ([`lab/av1/decode/key-parse`](../../lab/av1/decode/key-parse/README.md) §The amended
+protocol, measured), as written, by a separate session. Host: 4 vCPUs, which one decoder never saturates (0.65–2.29
+CPUs busy on average, all four in at most 2 % of 100 ms samples). Nothing is claimed for several decoders at once.
+Browsers: Chromium 141.0.7390.37 and 156.0.8078.80, Firefox 159.0, WebKitGTK 2.52.6. Rounds: 24, the round a usage
+limit cut re-run whole under the next number.
+
+* **Exact:** 89 856 of 89 856 timed frames, both arms, every engine.
+* **Speed**, keyParse ÷ flush over streams, mean [95 % paired-*t*]: **Chromium 141 ×0.941 [0.935–0.948] at 1×,
+  ×0.966 [0.960–0.971] at 4×**, no stream slower. **Chromium 156 ×0.953 [0.947–0.959] and ×0.975 [0.969–0.981], but
+  `dbts_b1` slower at 4×, ×1.030 [1.016–1.043].** Firefox 159 (only its ultrasound units reach `VideoDecoder`, then
+  fall back) ×1.002 [0.994–1.010] and ×0.998 [0.990–1.005], inconclusive. The small-frame case, the ultrasound cine,
+  is faster in both Chromiums at 1×. At 4× its 1-tile stream is ×1.010 [0.998–1.022] in Chromium 156, not decided
+  either way.
+* **Mutations:** the clause holds in all four browsers. No escape, no stall, every control exact. At G = 1 nothing
+  the flush catches escapes `keyParse`, and at G = 8 the arms agree on every case. The OBU extension decoded through
+  WebCodecs is exact (a valid picture) under `flush` at G = 1 and 8, and under `keyParse` at G = 8.
+* **The rule as registered:** `keyParse` becomes the default in **Chromium 141**. The flush stays in **Chromium
+  156** (slower on `dbts_b1` at 4×, the outcome registered in advance), in **Firefox 159** (speed inconclusive) and in
+  **WebKitGTK** (`keyParse` inert). No product code changed. `keyParse` stays behind its flag, off by default.
+
 ### A split payload through two decoders
 
 Behind decoder config `mixed` (queue row MIXDEC, [`lab/av1/decode/mixed`](../../lab/av1/decode/mixed/README.md)), a split payload
