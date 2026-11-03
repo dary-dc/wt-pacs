@@ -66,6 +66,15 @@ test("a window change repaints the same frame with the new window", async () => 
   assert.deepEqual(painted.at(-1).display.voi, { center: 3, width: 6, function: "LINEAR" });
 });
 
+/** A frame's first paint and the first exact frame are timed at the draw's own end, where the paint gives one. */
+test("a paint's own end times the frame's first paint", async () => {
+  const { c } = rig({ held: [0], paint: () => ({ uploaded: true, drawn: 1234 }) });
+  c.issuedAt = 1000;
+  await c.repaint();
+  assert.equal(c.store.get(0).painted, 1234);
+  assert.equal(c.firstShownMs, 234);
+});
+
 /** A frame arriving twice is counted and painted once. */
 test("a frame already here is not taken again", async () => {
   const { c, painted, events } = rig({ held: [0] });
@@ -98,6 +107,31 @@ test("the memory window lets the farthest frame go", async () => {
   await c.show(3);
   assert.deepEqual(calls, ["ask 3"]);
   assert.deepEqual([...c.store.keys()].sort(), [1, 3]);
+});
+
+/** At equal distance from the current frame the earlier one goes, as the want ranks it last; the frame the want ranks first stays. */
+test("the memory window lets go what the want ranks last", () => {
+  const { c } = rig({ frames: 4, budget: 2 });
+  c.store.near = 1;
+  for (const i of [1, 2, 0]) c.take(frame(i));
+  assert.deepEqual([...c.store.keys()].sort(), [1, 2]);
+});
+
+/** Under the worker view a frame that arrived and was let go is no longer owed: a step to it asks the downloader again, and is owed no longer once here. */
+test("worker view: a frame let go past the budget is asked again", async () => {
+  const wants = [];
+  const { c } = rig({ frames: 3, budget: 2, wants });
+  c.show(0);
+  for (const i of [0, 1, 2]) c.take(frame(i));
+  assert.deepEqual([...c.store.keys()].sort(), [0, 1]);
+  c.show(2);
+  assert.deepEqual(wants, ["0,1,2", "2"]);
+  const sent = [];
+  const all = rig({ frames: 3, wants: sent }).c;
+  all.show(0);
+  for (const i of [0, 1, 2]) all.take(frame(i));
+  all.show(1);
+  assert.deepEqual(sent, ["0,1,2"]);
 });
 
 /** Under the worker view a step to a held frame paints it and sends the downloader nothing, on demand and filling. */
@@ -173,18 +207,19 @@ test("each failure is said with its scope", async () => {
   assert.deepEqual(wants, ["3", "3"]);
 });
 
-/** The ledger hands a lab harness the fill's time once every frame is here and none before, and the session's reads at each frame. */
+/** The ledger hands a lab harness the fill's time once every frame is here and none before, and each frame's reads and decode end. */
 test("the ledger carries the fill's time and each frame's media reads", async () => {
   const { c } = rig({ frames: 2 });
   c.client.stats = () => ({ resumedAt: [] });
   c.issuedAt = performance.timeOrigin + performance.now() - 40;
-  const take = (i) => c.take({ ...frame(i), info: { ...frame(i).info, stamps: { lastByte: 1, mediaReads: 7 + i } } });
+  const take = (i) => c.take({ ...frame(i), info: { ...frame(i).info, stamps: { lastByte: 1, mediaReads: 7 + i, decodeEnd: 50 + i } } });
   take(0);
   assert.equal((await c.ledger()).fillMs, null);
   take(1);
   const { fillMs, frames } = await c.ledger();
   assert.ok(fillMs >= 40 && fillMs < 1000, `fill ${fillMs} ms`);
   assert.deepEqual(frames.map((f) => f.mediaReads), [7, 8]);
+  assert.deepEqual(frames.map((f) => f.decoded), [50, 51]);
 });
 
 /** A cache holding `present`, whose reads answer `read(i)` (null: the check failed) and whose writes are logged in `log`. */

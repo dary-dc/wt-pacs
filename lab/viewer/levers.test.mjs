@@ -22,13 +22,13 @@ async function aFillCarriesItsTimeAndReads() {
   const frames = [frame(0, 10, 4), frame(2, 20, 9), frame(1, 30, 15), frame(3, 40, 21)];
   const empty = await finished(lab({ opts: "{}" }), { fillMs: 123.4, frames });
   check(empty.fillMs === 123.4 && empty.mediaReads === 21 && empty.fillReads === 21, `an empty store: fill ${empty.fillMs} ms, reads ${empty.mediaReads}, the fill's ${empty.fillReads}`);
-  const half = await finished(lab({ opts: JSON.stringify({ holdEveryOther: true, span: 1 }) }), { fillMs: 50, frames });
+  const half = await finished(lab({ view: "worker", opts: JSON.stringify({ holdEveryOther: true, span: 1 }) }), { fillMs: 50, frames });
   check(half.mediaReads === 21 && half.fillReads === 12, `a half-held store: the fill's reads from the last held frame (${half.fillReads}, of ${half.mediaReads})`);
   check(half.frames.length === 4 && half.after.length === 0, `a fill reports its frames, no steps (${half.frames.length}, ${half.after.length})`);
 }
 await aFillCarriesItsTimeAndReads();
 
-/** On demand, the steps are frames 1 … after, each timed from its step to its frame held, and no fill frame is reported. */
+/** On demand, the steps are frames 1 … after, each timed from its step to its frame held, with its hand-off; no fill frame is reported. */
 async function onDemandStepsAreTimed() {
   const l = lab({ opts: "{}", fill: "0", after: "3" });
   check(l.steps.join() === "1,2,3", `the steps (${l.steps})`);
@@ -36,9 +36,55 @@ async function onDemandStepsAreTimed() {
   const r = await finished(l, { fillMs: null, frames, stepped: [{ i: 1, at: 100 }, { i: 2, at: 200 }, { i: 3, at: 290 }] });
   check(r.after.map((a) => `${a.i}:${a.ms}`).join() === "1:20,2:60,3:10", `each step timed from its own step (${JSON.stringify(r.after)})`);
   check(r.frames.length === 0 && r.sha[3] === "s3", `no fill frames, every digest (${r.frames.length}, ${Object.keys(r.sha)})`);
+  const timed = await finished(l, { fillMs: null, frames: frames.map((f) => ({ ...f, decoded: f.page + 2, painted: f.page + 7 })), stepped: [{ i: 2, at: 200 }] });
+  check(timed.after[0].handoff === 262 && timed.after[0].screen === 5 && Array.isArray(timed.spans), `each step's hand-off, on the spans' clock (${JSON.stringify(timed.after)}, ${timed.spans})`);
   check(lab({ opts: "{}", after: "3" }).steps.length === 0, "a fill takes no steps, whatever --asks-after says");
 }
 await onDemandStepsAreTimed();
 
-console.log(failed ? `${failed} failed` : "levers: a fill's time and reads, steps on demand: ok");
+/** A setting only the view worker honours is refused by name under the page view, as is a writer the cache lacks or a decoder writing a frame it transferred. */
+function settingsTheViewCannotHonourAreRefused() {
+  const refusal = (query) => {
+    try {
+      levers(new URLSearchParams(query));
+      return null;
+    } catch (e) {
+      return e.message;
+    }
+  };
+  for (const [query, said] of [
+    [{ writer: "store" }, "refused: writer under view page — the view worker's; name view=worker"],
+    [{ opts: JSON.stringify({ waitAhead: 4 }) }, "refused: waitAhead under view page — the view worker's; name view=worker"],
+    [{ view: "page", opts: JSON.stringify({ holdEveryOther: true }) }, "refused: holdEveryOther under view page — the view worker's; name view=worker"],
+    [{ opts: JSON.stringify({ pixels: "transfer" }) }, "refused: pixels under view page — the view worker's; name view=worker"],
+    [{ opts: JSON.stringify({ pageDials: true }) }, "refused: pageDials under view page — the view worker's; name view=worker"],
+    [{ opts: JSON.stringify({ viewWorkerFirst: true }) }, "refused: viewWorkerFirst under view page — the view worker's; name view=worker"],
+    [{ opts: JSON.stringify({ glAfterDial: true }) }, "refused: glAfterDial under view page — the view worker's; name view=worker"],
+    [{ opts: JSON.stringify({ shortRuns: true }) }, "refused: shortRuns under view page — the view worker's; name view=worker"],
+    [{ view: "worker", writer: "decoders", opts: JSON.stringify({ pageDials: true }) }, "refused: writer decoders with pageDials — the decoders are told to keep frames only once the cache is open"],
+    [{ view: "worker", writer: "disk" }, 'refused: writer "disk" — store, decoders or view'],
+    [{ view: "worker", writer: "decoders", opts: JSON.stringify({ pixels: "transfer" }) }, "refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred"],
+  ]) check(refusal(query) === said, `${JSON.stringify(query)}: ${refusal(query)}`);
+  for (const query of [{ opts: JSON.stringify({ span: 2, waitAhead: 0, pixels: "shared" }) }, { view: "worker", writer: "view", opts: JSON.stringify({ waitAhead: 4, holdEveryOther: true, pixels: "transfer" }) }]) {
+    check(refusal(query) === null, `${JSON.stringify(query)} taken`);
+  }
+}
+settingsTheViewCannotHonourAreRefused();
+
+/** The rig's paint settles by a fence unless a visit names the read; anything else is refused, and a page without the rig has none. */
+function theRigsSettle() {
+  check(lab({}).settle === "fence", `the rig's settle by default: ${lab({}).settle}`);
+  check(lab({ settle: "read" }).settle === "read", `settle read: ${lab({ settle: "read" }).settle}`);
+  let said = null;
+  try {
+    lab({ settle: "finish" });
+  } catch (e) {
+    said = e.message;
+  }
+  check(said === 'refused: settle "finish" — fence or read', `settle finish: ${said}`);
+  check(levers(new URLSearchParams({})).settle === undefined, "no rig, no settle");
+}
+theRigsSettle();
+
+console.log(failed ? `${failed} failed` : "levers: a fill's time and reads, steps on demand, the refusals, the settle: ok");
 process.exit(failed ? 1 : 0);

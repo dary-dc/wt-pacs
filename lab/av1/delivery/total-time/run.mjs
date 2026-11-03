@@ -10,7 +10,7 @@
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs [--rounds 10] [--first-round 0]
  *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--engines chromium,firefox] [--sets a,b] [--variants a,b]
  *     [--fill N --asks-after K] [--frames lab/.av1-work/total] [--orders seq,prio] [--mutate sample|truth|digest] [--out rows.jsonl]
- *     [--cc-trace DIR] [--one-way-ms 20] [--trace sawtooth] [--summary [--ref htj2k]] [--bin DIR --serve TREE]
+ *     [--cc-trace DIR] [--one-way-ms 20] [--trace sawtooth] [--busy] [--cine S] [--summary [--ref htj2k]] [--bin DIR --serve TREE] [--headed]
  *   A fixed-rate link `r<kbit>rtt<ms>` carries its own round trip; `--trace` steps a viewer variant: lab/viewer/trace.js.
  */
 import { spawn, execFileSync } from "node:child_process";
@@ -20,7 +20,9 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { score } from "../../../frame-clock/measure.js";
 import { order } from "../../../order.mjs";
+import { busyShare } from "../../../viewer/start-summary.mjs";
 import { throttleTree } from "../../../scripts/cpu_throttle.mjs";
 
 const { chromium } = createRequire(import.meta.url)("playwright");
@@ -39,6 +41,9 @@ const MUTATE = arg("--mutate", "");
 const OUT = arg("--out", null);
 const REF = arg("--ref", "htj2k");
 const ORDERS = arg("--orders", "seq").split(",");
+/** A viewer variant's page held by §7's long tasks from navigation, and its cine of CINE s after the fill: docs/adr/frame-path.md §7. */
+const BUSY = process.argv.includes("--busy");
+const CINE = Number(arg("--cine", 0));
 const ROOT = new URL("../../../..", import.meta.url).pathname;
 const T = mkdtempSync(path.join(tmpdir(), "av1-total-"));
 const port = () => 20000 + ((Math.random() * 25000) | 0);
@@ -54,6 +59,8 @@ const TRACE = arg("--trace", null);
 /** An arm built elsewhere (perf_nightly.mjs): its series-server and pack-series, and the tree whose client the page loads. */
 const BIN = arg("--bin", null);
 const SERVE = arg("--serve", ROOT);
+/** Firefox headed, the run under `xvfb-run`: headless Firefox has no WebGL2 in a worker, where `?view=worker` paints. */
+const HEADED = process.argv.includes("--headed");
 
 /** Mahimahi's trace, fetched for local use only (GPL-3.0); its hash as PROF recorded it. */
 const LTE = { file: "TMobile-LTE-short.down", sha256: "4f33dce8dd811b5702272af64aaf64d3913719919abd776edf1e0f7c0965da43" };
@@ -102,7 +109,7 @@ function variantOf(set, name) {
   if (name === "htj2k" || a.codec === "htj2k" || a.downloader) {
     // A layered HTJ2K series (lab/av1/decode/resolution-level): F prefixes, then F rests.
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
-    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion, initialWindow: a.initialWindow, viewer: a.viewer, view: a.view,
+    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion, initialWindow: a.initialWindow, viewer: a.viewer, view: a.view, settle: a.settle,
       opts: { decoder: { ...(a.openjph === "delivered" ? DELIVERED : a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // Decode pacing: the downloader's lab flag.
         ...(a.startOnNeed && { startOnNeed: true }),
@@ -180,14 +187,46 @@ const FIREFOX_PREFS = [["browser.shell.checkDefaultBrowser", false], ["browser.a
   ["datareporting.policy.dataSubmissionEnabled", false], ["browser.startup.homepage_override.mstone", "ignore"],
   ["app.update.disabledForTesting", true], ["toolkit.telemetry.reportingpolicy.firstRun", false]];
 
-/** Chromium through Playwright, Firefox as the stock build; the slow CPU on the browser's whole tree from the page's hello. */
+/** One visit, the browser cores' ticks sampled through it for the start timing's guard. */
 async function inBrowser(engine, url, throttle, errors, threads = {}) {
   url += `&post=${encodeURIComponent(`http://127.0.0.1:${collector.address().port}/`)}`;
+  threads.cores = [coreTicks()];
+  const sampler = setInterval(() => threads.cores.push(coreTicks()), CORE_SAMPLE_MS);
+  try {
+    return await launched(engine, url, throttle, errors, threads);
+  } finally {
+    clearInterval(sampler);
+  }
+}
+
+/** ms between samples of the browser cores' ticks: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
+const CORE_SAMPLE_MS = 20;
+const BROWSER_CPUS = BROWSER_CORES.split(",").flatMap((r) => {
+  const [a, b = a] = r.split("-").map(Number);
+  return Array.from({ length: b - a + 1 }, (_, k) => a + k);
+});
+
+/** [epoch ms, busy ticks, all ticks] over the browser's cores, from /proc/stat. */
+function coreTicks() {
+  let busy = 0, all = 0;
+  for (const line of readFileSync("/proc/stat", "utf8").split("\n")) {
+    const m = /^cpu(\d+) (.*)/.exec(line);
+    if (!m || !BROWSER_CPUS.includes(Number(m[1]))) continue;
+    const f = m[2].trim().split(/\s+/).slice(0, 8).map(Number);
+    const sum = f.reduce((x, y) => x + y, 0);
+    busy += sum - f[3] - f[4];
+    all += sum;
+  }
+  return [Date.now(), busy, all];
+}
+
+/** Chromium through Playwright, Firefox as the stock build; the slow CPU on the browser's whole tree from the page's hello. */
+async function launched(engine, url, throttle, errors, threads) {
   let stop = () => {};
   let pid = null;
   const result = new Promise((resolve, reject) => {
-    page = { hello: () => { stop = throttleTree(pid, throttle); threads.before = workerThreads(pid); },
-      filled: () => (threads.after = workerThreads(pid)), result: resolve };
+    page = { hello: () => { stop = throttleTree(pid, throttle); threads.before = workerThreads(pid); threads.pageBefore = pageThreads(pid); },
+      filled: () => { threads.after = workerThreads(pid); threads.pageAfter = pageThreads(pid); }, result: resolve };
     setTimeout(() => reject(new Error("no result in 600 s")), 600000);
   });
   result.catch(() => {}); // awaited below unless the page never loaded
@@ -210,7 +249,8 @@ async function inBrowser(engine, url, throttle, errors, threads = {}) {
   if (engine !== "firefox") throw new Error(`unknown engine ${engine}`);
   const dir = mkdtempSync(path.join(T, "ff-"));
   writeFileSync(path.join(dir, "user.js"), FIREFOX_PREFS.map(([k, v]) => `user_pref(${JSON.stringify(k)}, ${JSON.stringify(v)});`).join("\n"));
-  const proc = spawn("taskset", ["-c", BROWSER_CORES, process.env.FIREFOX_PATH, "--headless", "--no-remote", "--profile", dir, url],
+  // Headed under Xvfb when there is a display or --headed: headless Firefox gives a worker no WebGL2 context.
+  const proc = spawn("taskset", ["-c", BROWSER_CORES, process.env.FIREFOX_PATH, ...(HEADED || process.env.DISPLAY ? [] : ["--headless"]), "--no-remote", "--profile", dir, url],
     { env: { ...process.env, MOZ_CRASHREPORTER_DISABLE: "1" }, stdio: ["ignore", "ignore", "pipe"], detached: true });
   pid = proc.pid;
   let stderr = "";
@@ -230,24 +270,42 @@ async function inBrowser(engine, url, throttle, errors, threads = {}) {
 }
 
 const TICK_MS = 1000 / Number(execFileSync("getconf", ["CLK_TCK"]));
-/** Decode pacing: each dedicated worker thread under `root`, by tid — CPU ms (utime + stime) and voluntary switches. */
-function workerThreads(root) {
+/** Every process under `root`, by pid. */
+function tree(root) {
   const parent = new Map();
   for (const p of readdirSync("/proc").filter((d) => /^\d+$/.test(d))) {
     try { parent.set(Number(p), Number(readFileSync(`/proc/${p}/stat`, "utf8").split(") ")[1].split(" ")[1])); } catch { /* gone */ }
   }
   const under = (p) => { for (let q = p; q > 1; q = parent.get(q)) if (q === root) return true; return false; };
+  return [...parent.keys()].filter(under);
+}
+const cpuMs = (task) => { const f = readFileSync(`${task}/stat`, "utf8").split(") ")[1].split(" "); return (Number(f[11]) + Number(f[12])) * TICK_MS; };
+
+/** Each content process's main thread under `root`, by pid: CPU ms. The page's is the one that moved most over the fill. */
+function pageThreads(root) {
   const out = new Map();
-  for (const p of [...parent.keys()].filter(under)) {
+  for (const p of tree(root)) {
+    try {
+      // Chromium rewrites a renderer's argv into one string, so the arguments are matched as text.
+      const cmd = readFileSync(`/proc/${p}/cmdline`, "utf8").replaceAll("\0", " ");
+      if (/ --type=renderer /.test(cmd) || /-contentproc .* tab\b/.test(cmd)) out.set(p, cpuMs(`/proc/${p}/task/${p}`));
+    } catch { /* gone */ }
+  }
+  return out;
+}
+
+/** Decode pacing: each dedicated worker thread under `root`, by tid — CPU ms (utime + stime) and voluntary switches. */
+function workerThreads(root) {
+  const out = new Map();
+  for (const p of tree(root)) {
     let tasks = [];
     try { tasks = readdirSync(`/proc/${p}/task`); } catch { /* gone */ }
     for (const t of tasks) {
       try {
         const task = `/proc/${p}/task/${t}`;
         if (!readFileSync(`${task}/comm`, "utf8").startsWith("DedicatedWorker")) continue;
-        const f = readFileSync(`${task}/stat`, "utf8").split(") ")[1].split(" ");
         const wakes = Number(/^voluntary_ctxt_switches:\s+(\d+)/m.exec(readFileSync(`${task}/status`, "utf8"))[1]);
-        out.set(Number(t), { cpuMs: (Number(f[11]) + Number(f[12])) * TICK_MS, wakes });
+        out.set(Number(t), { cpuMs: cpuMs(task), wakes });
       } catch { /* gone */ }
     }
   }
@@ -287,8 +345,8 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   const a = variantOf(set, variantName);
   const fill = Number(FILL ?? a.entries);
   if (fill + AFTER > a.entries || (AFTER && (a.opts.groupLength || a.opts.decoder.layers))) throw new Error(`${set.name} ${variantName}: ${fill} + ${AFTER} asks`);
-  // The viewer fills the whole series, or shows frame 0 on demand and steps to 1 … AFTER: lab/viewer/levers.js.
-  if (a.viewer && (AFTER ? fill !== 0 || AFTER >= a.entries : fill !== a.entries)) throw new Error(`${set.name} ${variantName}: a viewer takes --fill 0 --asks-after K < ${a.entries}, or neither`);
+  // The viewer fills the whole series, or shows frame 0 on demand and steps to 1 … AFTER, or the trace's: lab/viewer/levers.js.
+  if (a.viewer && (AFTER ? fill !== 0 || AFTER >= a.entries : fill !== a.entries && !(TRACE && fill === 0))) throw new Error(`${set.name} ${variantName}: a viewer takes --fill 0 --asks-after K < ${a.entries}, --fill 0 --trace, or neither`);
   const need = useful(set);
   const flip = (t) => (MUTATE === "truth" ? t.replace(/^./, (c) => (c === "0" ? "1" : "0")) : t);
   const truth = (a.truth ?? set.truth).map(flip);
@@ -320,10 +378,11 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   if (!/READY/.test(relayLog)) await started(relay, /READY/);
 
   const errors = [];
-  const q = new URLSearchParams({ opts: JSON.stringify(a.opts), fill, after: AFTER, wt: `https://127.0.0.1:${relayPort}/`, hash: HASH,
+  if ((BUSY || CINE) && !a.viewer) throw new Error(`${set.name} ${variantName}: --busy and --cine are the viewer's`);
+  const q = new URLSearchParams({ opts: JSON.stringify(a.opts), fill, after: AFTER, ...(BUSY && { busy: 1 }), ...(CINE && { cine: CINE }), wt: `https://127.0.0.1:${relayPort}/`, hash: HASH,
     ...(orderName === "prio" ? { asks: need.join(",") } : {}), ...(MUTATE === "sample" ? { mutate: "sample" } : {}),
     // The viewer: the product's page on the variant's metadata, and both pages timed from navigation.
-    ...(a.viewer && { metadata: `/${FRAMES}/${set.name}/${a.viewer}` }), ...(a.view && { view: a.view }), ...(arg("--origin") && { origin: arg("--origin") }),
+    ...(a.viewer && { metadata: `/${FRAMES}/${set.name}/${a.viewer}` }), ...(a.view && { view: a.view }), ...(a.settle && { settle: a.settle }), ...(arg("--origin") && { origin: arg("--origin") }),
     ...(TRACE && a.viewer && { trace: TRACE }) });
   let r = null;
   const threads = {};
@@ -344,10 +403,10 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   const row = { round, engine, set: set.name, variant: variant, congestion: ran, initialWindow: window, transport: /transport=(.*)/.exec(serverOut)[1],
     ...(ccTrace && { ccTrace: path.relative(ROOT, ccTrace) }), link: linkName, impairment, throttle,
     oneWayMs: Number(/delay_ms=([\d.]+)/.exec(relayLog)?.[1]), rateKbit: Number(/rate_kbit=([\d.]+)/.exec(relayLog)?.[1]), owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
-    void: !late || /VOID/.test(relayLog) };
+    void: !late || /VOID/.test(relayLog), ...(BUSY && { busy: true }), ...(CINE && { cineS: CINE }), ...(AFTER && { asks: AFTER }) };
   if (!r?.frames.length && r?.after.length) {
     const exact = r.after.filter((f) => r.sha[f.i] === truth[f.i]).length;
-    return { ...row, frames: 0, failures: r.failures.length, failure: r.failures[0]?.reason, exact, afterMs: r.after.map((f) => Math.round(f.ms)), mediaReads: r.mediaReads };
+    return { ...row, frames: 0, failures: r.failures.length, failure: r.failures[0]?.reason, exact, afterMs: r.after.map((f) => Math.round(f.ms)), mediaReads: r.mediaReads, ...pageFigures(r, threads) };
   }
   if (!r?.frames.length) return { ...row, frames: 0, exact: 0, failure: r?.failures[0]?.reason };
   const t = (k, f) => f(...r.frames.map((x) => x[k])) - r.issuedAt;
@@ -377,12 +436,14 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     survived: r.quiet?.filter((q) => q.survived).map((q) => Math.round(q.survived)),
     closedAfter: r.quiet?.filter((q) => q.closedAfter).map((q) => Math.round(q.closedAfter)),
     firstMs: Math.round(r.firstShown ? r.firstShown - r.issuedAt : t("page", Math.min)),
+    ...(r.boot && startFigures(r, threads.cores)),
     receivedMs: Math.round(t("lastByte", Math.max)),
     decodedMs: Math.round(t("page", Math.max)),
     ...(r.fillMs != null && { fillMs: Math.round(r.fillMs), mediaReads: r.mediaReads, fillReads: r.fillReads }),
     ...(r.trace && { trace: r.trace }),
     centreMs: Math.round(shown.get(need[0]) - r.issuedAt),
     ...pool(r.frames, threads),
+    ...pageFigures(r, threads),
     usefulMs: Math.round(Math.max(...need.map((i) => shown.get(i) ?? Infinity)) - r.issuedAt),
     ...previews,
   };
@@ -406,6 +467,39 @@ function pool(frames, { before, after }) {
     .map(([tid, t]) => ({ cpuMs: t.cpuMs - (before?.get(tid)?.cpuMs ?? 0), wakes: t.wakes - (before?.get(tid)?.wakes ?? 0) }));
   return { ...out, threads: decoders.length, cpuMs: decoders.reduce((n, t) => n + t.cpuMs, 0), wakes: decoders.reduce((n, t) => n + t.wakes, 0),
     downloaderCpuMs: after.size ? after.get(Math.min(...after.keys())).cpuMs : null };
+}
+
+/**
+ * docs/adr/frame-path.md §7: the long tasks' lengths, each ask's decode → draw, the page thread's CPU over the fill
+ * (its content process's main thread that moved most), and the cine's score without its draw log.
+ */
+function pageFigures(r, { pageBefore, pageAfter }) {
+  const page = pageAfter && Math.max(...[...pageAfter].map(([p, ms]) => ms - (pageBefore?.get(p) ?? 0)));
+  return {
+    ...(r.tasks?.length && { tasks: { n: r.tasks.length, minMs: Math.round(Math.min(...r.tasks)) } }),
+    ...(r.tasks && !r.tasks.length && BUSY && { tasks: { n: 0, minMs: null } }),
+    ...(r.after?.some((f) => f.screen !== undefined) && { screenMs: r.after.map((f) => +f.screen.toFixed(1)) }),
+    // Epoch ms, as the long tasks' spans: which asks were handed off inside a task (docs/adr/frame-path.md §7).
+    ...(r.after?.some((f) => f.handoff !== undefined) && { handoffs: r.after.map((f) => +f.handoff.toFixed(1)), spans: r.spans.map(([a, b]) => [+a.toFixed(1), +b.toFixed(1)]) }),
+    ...(page !== undefined && { pageCpuMs: Math.round(page) }),
+    ...(r.cine && { cine: { draws: r.cine.draws.length, vsyncs: r.cine.vsyncs.length, period: r.cine.period, ...score(r.cine) } }),
+  };
+}
+
+/**
+ * docs/adr/frame-path.md §7, *The view worker's start, timed*: each stamp from navigation, the first and last exact
+ * frame held, and the browser cores' busy share over the start and over the fill after the first frame.
+ */
+function startFigures(r, cores) {
+  const held = r.frames.filter((f) => f.exact === true).map((f) => f.page);
+  const [first, last] = [Math.min(...held), Math.max(...held)];
+  const from = (v) => +(v - r.issuedAt).toFixed(1);
+  return {
+    boot: Object.fromEntries(Object.entries(r.boot).filter(([, v]) => typeof v === "number").map(([k, v]) => [k, from(v)])),
+    firstHeldMs: from(first),
+    lastHeldMs: from(last),
+    cores: { start: busyShare(cores, r.issuedAt, r.firstShown), fill: held.length > 1 ? busyShare(cores, first, last) : null },
+  };
 }
 
 /** The frames a reader needs first, most needed first. lab/av1/delivery/total-time/README.md §Row ORDER */
