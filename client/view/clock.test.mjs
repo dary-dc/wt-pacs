@@ -76,34 +76,39 @@ test("raf ticks at the callback's time, and stops", async () => {
 /** worker-timeout: each timer is set for the next frame's due time from now, so lateness does not add up. */
 test("timeout waits until the next frame is due", async () => {
   const timer = globalThis.setTimeout;
+  const clock = performance.now;
+  let ms = 1000;
+  performance.now = () => ms;
   const set = [];
-  globalThis.setTimeout = (f, ms) => set.push([f, ms]);
+  globalThis.setTimeout = (f, wait) => set.push([f, wait]);
   const { c, shown } = rig("timeout", { fps: 50, lead: 30 });
-  globalThis.setTimeout = timer;
-  assert.equal(set.length, 1);
-  assert.ok(set[0][1] > 25 && set[0][1] <= 30, `first wait ${set[0][1]} ms`);
-  while (now() < c.t0 + 7);
-  globalThis.setTimeout = (f, ms) => set.push([f, ms]);
+  const near = (a, b) => Math.abs(a - b) < 0.01;
+  assert.ok(set.length === 1 && near(set[0][1], 30), `first wait ${set[0]?.[1]} ms`);
+  ms += 30 + 7;
   set[0][0]();
   globalThis.setTimeout = timer;
+  performance.now = clock;
   await sleep(0);
   assert.deepEqual(shown, [0]);
-  assert.ok(Math.abs(set[1][1] - (c.period - 7)) < 2, `second wait ${set[1][1]} ms, for a tick 7 ms late`);
+  assert.ok(near(set[1][1], c.period - 7), `second wait ${set[1][1]} ms, for a tick 7 ms late`);
   c.stop();
 });
 
 /** worker-channel: each task posts to itself again, and paints the frame once it is due, never before. */
 test("channel paints each frame once due", async () => {
   const pump = pumped();
+  const clock = performance.now;
+  let ms = 1000;
+  performance.now = () => ms;
   const { c, shown } = rig("channel", { fps: 100, lead: 20 });
-  const until = now() + 80;
-  for (let task = 1; now() < until; task++) {
+  for (let task = 1; task <= 100; task++, ms += 1) {
     assert.equal(pump.posted.length, task, "one post a task");
     await pump.task();
   }
   c.stop();
+  performance.now = clock;
   pump.restore();
-  assert.ok(shown.length >= 5, `painted ${shown.length}`);
+  assert.equal(shown.length, 8, `painted ${shown}`);
   assert.deepEqual(shown, shown.map((_, k) => k));
   for (const e of c.log) assert.ok(e.tick >= c.t0 + e.i * c.period, `frame ${e.i} ticked early`);
 });
