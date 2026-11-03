@@ -1,0 +1,2 @@
+FAIL  frame 0 never painted: a repaint with no frame held leaves the controller's paint in flight for good
+pass  frame 0 painted after an early display change (1)

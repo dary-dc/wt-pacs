@@ -1,0 +1,7 @@
+Chromium 153.0.8010.12; pan 2 css px a frame for 60 frames; scroll one slice every 3 frames, the annotation on even slices
+round 1 pan: 62 distinct frames, lag in frames median 1.0, by count 0.0:2 1.0:59 29.0:1
+round 1 scroll: 44 distinct frames, 21 with the annotation on the wrong slice, each for a median 14.4 ms; 0+ 1+ 1 2 2+ 3+ 3 4 4+ 5+ 5 6 6+ 7+ 7 8 8+ 9+ 9 10 10+ 11+ 11 12 12+ 13+ 13 14 14+ 15+ 15 16 16+ 17+ 17 18 18+ 19+ 19 20 20+ 21+ 21 22
+round 2 pan: 62 distinct frames, lag in frames median 1.0, by count 0.0:2 1.0:59 29.0:1
+round 2 scroll: 45 distinct frames, 22 with the annotation on the wrong slice, each for a median 15.0 ms; 0+ 1+ 1 2 2+ 3+ 3 4 4+ 5+ 5 6 6+ 7+ 7 8 8+ 9+ 9 10 10+ 11+ 11 12 12+ 13+ 13 14 14+ 15+ 15 16 16+ 17+ 17 18 18+ 19+ 19 20 20+ 21+ 21 22 22+
+round 3 pan: 62 distinct frames, lag in frames median 1.0, by count 0.0:2 1.0:59 29.0:1
+round 3 scroll: 45 distinct frames, 22 with the annotation on the wrong slice, each for a median 14.7 ms; 0+ 1+ 1 2 2+ 3+ 3 4 4+ 5+ 5 6 6+ 7+ 7 8 8+ 9+ 9 10 10+ 11+ 11 12 12+ 13+ 13 14 14+ 15+ 15 16 16+ 17+ 17 18 18+ 19+ 19 20 20+ 21+ 21 22 22+

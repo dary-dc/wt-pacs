@@ -1,0 +1,10 @@
+{
+  "name": "viewer-spike-seam-core",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@cornerstonejs/core": "5.14.0",
+    "@cornerstonejs/tools": "5.14.0",
+    "esbuild": "0.28.2"
+  }
+}

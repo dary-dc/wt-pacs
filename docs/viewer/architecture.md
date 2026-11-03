@@ -21,9 +21,13 @@ condition the spike can test or the owner can set:
 **VolView is dropped.** Its seam carries whole DICOM files, so a frame would be decoded, re-wrapped and parsed again,
 and the path after the re-wrap is unchecked. Nothing in a spike would change that (integration.md §VolView).
 
-**Watched, not carried: B with our painter.** If Cornerstone3D's `registerRenderBackend` lets a backend own its
+**~~Watched~~, not carried: B with our painter.** ~~If Cornerstone3D's `registerRenderBackend` lets a backend own its
 surface, our paint worker could be that backend, and B would keep the proof. That API is experimental and cannot do
-this today (integration.md §Cornerstone3D, *Keeping our painter*). When a release can, B is re-drawn and re-spiked.
+this today (integration.md §Cornerstone3D, *Keeping our painter*). When a release can, B is re-drawn and re-spiked.~~
+*Corrected 2026-11-02 (integration.md §A seam for our painter inside Cornerstone3D): no release is needed. A viewport type of ours, painted by our paint worker,
+carries Cornerstone3D's length, probe, window-level, zoom, pan and scroll tools at 5.14.0 in a spike, keeping the
+proof and the page out of the paint. Its cine and linked views are ours, its overlay is drawn one thread from its
+image, and it sits on a method set Cornerstone3D says it will remove. Whether to carry it beside A is the owner's.*
 
 **Not carried: B on its CPU fallback.** It is the one Cornerstone3D route that could be held to our reference, apart
 from rounding (integration.md §Cornerstone3D, *render*). It paints on the page thread at the cost of our own 2d route,
@@ -266,7 +270,8 @@ fixed before any of it is written.
    * Its glue ≤ 900 lines: twice integration's estimate, past which its code advantage over A's 1 000–1 500 lines is
      gone.
 
-   A wins ties, because only A keeps B′ and the native painter.
+   A wins ties, because only A keeps B′ and the native painter. *(Of the options as drawn here: B with our painter,
+   above, would keep both; integration.md §A seam for our painter inside Cornerstone3D.)*
 4. **C beats B** only if it holds rule 3 against A, and the owner wants the application shell (the study list and the
    hanging protocol UI). The spike cannot price that, so it records C's numbers and hands the choice to the owner.
 
