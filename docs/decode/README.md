@@ -1794,6 +1794,121 @@ downloader's `decoderWorker` seam; server and store unchanged.
   for Video Content Production and Delivery Over IP Networks", *Frontiers in Signal Processing* 2 (2022),
   doi:10.3389/frsip.2022.885644 (peer-reviewed).
 
+### HTJ2K progressive, measured
+
+*2026-11-02/03, a separate session given the protocol above and nothing else; the predictions above are left as
+written. Harness, commands and every check: [`lab/htj2k-progressive`](../../lab/htj2k-progressive/README.md); every
+table in full, and the rows, in its [`rows/`](../../lab/htj2k-progressive/rows/).*
+
+**What ran: the ladder, all three stages. One set, two layers and two sets were not built.** The lab writer (5/3
+lifting, an HT cleanup at plane p, SigProp and MagRef encoders, layered packet headers and tag trees) and the patched
+layered decoder were more than this session could build and check, so as the protocol provides, both shapes are
+answered by §3's derivation alone: their rows in §3–4 stay *derived*, and nothing below measures them. MIXED stays
+excluded.
+
+**The host.** 4 vCPU (KVM, Intel Xeon @ 2.80 GHz), 15 GB, a container; headless Chromium 153.0.8010.12 (Playwright's).
+The rig as its README sets it: the relay alone on core 3 at `chrt -f 50`, browser and server on cores 0–2. **Where it
+saturates:** the unshaped `plain` cell `VOID`ed in every visit (the relay's p99 2.5–16.8 ms late, as
+[`../rig-limits.md`](../rig-limits.md) says an unshaped flight does), so it is dropped and nothing is claimed above
+50 Mbit/s. Up to 50 Mbit/s today's arm and the ladder are link-bound at 4× (exact series within 1.3 % of 1×); the AV1
+preview's exact series is decode-bound at 4× and 50 Mbit/s (×1.10–1.39 of today's), so its 4× 50 Mbit cells measure
+three slowed cores, not the link.
+
+**Stage 0, checked.** The ladder's codestreams are the ingest's: equal sha256, every frame, to a second OpenJPH 0.31.0
+build's. Every frame of every set (1 558 frames, 26 sets), every level 1–5: the whole frame exact and identical to the
+delivered build's (bytes, range, header); the smallest prefix's (r, r) and (r, 0) pictures equal to two independent
+witnesses, a T.800 5/3 written from the standard and OpenJPEG 2.5.4 decoding the prefix itself; the prefix one byte
+short fails both. `parity.mjs`: the lab decoder and the delivered build each `PARITY OK`. The delivered build was
+rebuilt outside its container (the image could not be pulled, Docker Hub 429) and matched its manifest byte for byte.
+Mutants, each caught: every cut one byte short, every truth flipped, OpenJPEG fed the short prefixes, one bit of every
+stage-2 and stage-3 picture. **Two lab-decoder bugs were caught by these checks before any number was kept**, both one
+OpenJPH behaviour: `codestream::restart()` resets `skipped_res_for_read = skipped_res_for_recon = 0;` but not the SIZ's
+`skipped_resolutions`, which `restrict_input_resolution` sets (`siz.set_skipped_resolutions(skipped_res_for_recon);`)
+and only `param_siz::init()` clears (`skipped_resolutions = 0;`; OpenJPH 0.31.0, `ojph_codestream_local.cpp`,
+`ojph_params_local.h`). A reused decoder after a level, or after a prefix that threw, read the next frame at the last
+reduced size. A product binding needs the same reset.
+
+**Stage 1, bytes** (every frame; the smallest exact prefix's share of its frame, and of the series):
+
+| content | level 1 | level 2 | level 3 | level 4 | level 5 |
+| --- | --- | --- | --- | --- | --- |
+| the 15 DBT volumes, 994 frames | 26.2–28.5 % · 26.5–28.4 % | 6.65–7.66 · 6.74–7.58 % | 1.78–2.40 · 1.82–2.33 % | 0.53–0.95 · 0.55–0.94 % | 0.19–0.56 · 0.21–0.54 % |
+| the cine-like sets, sound (series) | 26.0–30.5 % | 6.7–8.6 % | 1.8–2.9 % | 0.6–1.3 % | 0.2–0.8 % |
+| `cine512`, synthetic (series) | 49.2 % | 17.9 % | 6.3 % | 2.5 % | 1.2 % |
+| lossy-sourced: `usb_cine`, `usb_cine_rgb`, `us_liver` (series) | 31.9–34.2 % | 9.2–10.8 % | 2.6–3.5 % | 0.8–1.2 % | 0.3–0.5 % |
+
+The cine-like sound sets are `dbt12_ea1141`, `dbt10_ea1141`, `dbt12_c`, `dbt10_d`, `rf_fluoro`, `mr_ispy1`, `mr9_ispy2`.
+The level fit at a 1 000-pixel long side is level 1 on 14 of the 15 volumes, `dbt12_c` and `dbt10_d`, and level 0
+(no split) on `dbts_a1` (1 785 pixels) and every other cine-like set.
+
+**Stage 1, quality** (`rows/stage1-levels.md`; measured on the three rule volumes and the cine-like sets — the twelve
+other volumes have bytes and checks, not quality, *not run*). **No prefix of any level met the visually lossless proxy
+on any frame, at full size or at display scale.** At full size the (r, 0) picture (finer subbands absent) is 45.9–49.6 dB
+at level 1 and 43.0–45.9 dB at level 2 on the three volumes, SSIM 0.985–0.991 and 0.974–0.982, but 53–89 % of in-window
+codes differ and up to 64 % by more than one. At display scale the level-fit picture is the 5/3 low band, not an area
+average: against the area-resampled exact frame, `dbts_b1` 46.9 dB and `dbts_c1` 44.5 dB, 81–83 % of codes differing,
+51–54 % by more than one. "Exact at its level" is exact against the codestream's own reduced resolution, not against
+what a viewer's resampling of the exact frame paints.
+
+**Stage 2, decode** (4 rounds, Chromium, the lab decoder in a worker, each set's first 16 frames; × the whole frame,
+median of round-paired ratios, the range over sets; 83 200/83 200 pictures exact):
+
+| arm | the 15 volumes, 1× | 4× | cine-like and ultrasound, 1× | 4× |
+| --- | --- | --- | --- | --- |
+| A′ | ×0.98–1.04 | ×0.93–1.07 | ×0.99–1.02 | ×0.98–1.11 |
+| level 1 · 2 · 3 alone, (r, r) | ×0.28–0.32 · 0.08–0.13 · 0.03–0.07 | ×0.25–0.34 · 0.06–0.16 · 0.01–0.02 | ×0.30–0.47 · 0.10–0.26 · 0.05–0.20 | ×0.11–0.42 · 0.03–0.24 · 0.01–0.19 |
+| level 1 · 2 alone, (r, 0) full size | ×0.46–0.59 · 0.31–0.46 | ×0.44–0.55 · 0.30–0.44 | ×0.45–0.76 · 0.30–0.60 | ×0.36–0.76 · 0.10–0.62 |
+| 1 → 0 · 2 → 0 · 2 → 1 → 0 · 5 → … → 0, from scratch | ×1.29–1.33 · 1.10–1.14 · 1.37–1.45 · 1.41–1.54 | ×1.28–1.40 · 1.07–1.19 · 1.35–1.51 · 1.41–1.61 | ×1.29–1.48 · 1.11–1.26 · 1.40–1.66 · 1.45–2.08 | ×1.11–3.98 · 1.07–1.50 · 1.34–4.11 · 1.28–6.51 |
+
+Today's whole frame on the volumes: 9.9–41.8 ms at 1×, 46–212 ms at 4×. The small frames' 4× ranges (1–7 ms a frame at
+1×) are the throttle's quantum, not decode.
+
+**Stage 3, delivery** (`rows/stage3-volumes.md`; seconds from the fill's issue, medians of kept visits; ratios the
+median of round-paired ratios; every kept visit's every frame exact and every preview equal to its witness or native
+dav1d's):
+
+| volume, link, CPU | n | today exact s | ladder at fit: first s · display-scale s (÷ today) · exact ÷ today | level 2: first s · every slice s | AV1 preview: first s · every slice s · exact ÷ today | first, fit ÷ AV1 | A/A p90 |
+| --- | --: | --: | --- | --- | --- | --: | --: |
+| `dbts_a1` 5 Mbit 1× | 1 | 110.52 | no split (fit level 0) | 0.24 · 7.95 | 0.09 · 0.34 · ×0.943 | — | 0.000 |
+| `dbts_a1` 5 Mbit 4× | 1 | 110.61 | no split (fit level 0) | 0.29 · 7.96 | 0.16 · 0.64 · ×0.945 | — | 0.000 |
+| `dbts_a1` 20 Mbit 1× | 1 | 27.76 | no split (fit level 0) | — · — | 0.11 · 0.36 · ×0.946 | — | 0.000 |
+| `dbts_a1` 50 Mbit 1× | 1 | 11.26 | no split (fit level 0) | 0.19 · 0.99 | 0.09 · 0.35 · ×0.949 | — | 0.000 |
+| `dbts_a1` 50 Mbit 4× | 1 | 11.32 | no split (fit level 0) | 0.24 · 1.01 | 0.16 · 0.60 · ×1.096 | — | 0.000 |
+| `dbts_b1` 5 Mbit 1× | 1 | 175.01 | 1.06 · 47.53 (×0.272) · ×1.000 | 0.36 · 13.28 | 0.15 · 0.63 · ×0.947 | 7.19 | 0.000 |
+| `dbts_b1` 5 Mbit 4× | 1 | 175.20 | 1.18 · 47.58 (×0.272) · ×1.000 | 0.40 · 13.33 | 0.28 · 1.19 · ×0.951 | 4.21 | 0.001 |
+| `dbts_b1` 20 Mbit 1× | 1 | 43.91 | 0.43 · 12.02 (×0.274) · ×1.000 | 0.23 · 3.45 | 0.13 · 0.73 · ×0.952 | 3.23 | 0.001 |
+| `dbts_b1` 20 Mbit 4× | 1 | 44.10 | 0.56 · 12.08 (×0.274) · ×1.000 | 0.30 · 3.46 | 0.24 · 1.14 · ×0.994 | 2.35 | 0.001 |
+| `dbts_b1` 50 Mbit 1× | 1 | 17.76 | 0.38 · 5.00 (×0.281) · ×0.999 | 0.23 · 1.53 | 0.12 · 0.78 · ×0.995 | 3.10 | 0.000 |
+| `dbts_b1` 50 Mbit 4× | 1 | 17.98 | 0.47 · 5.07 (×0.282) · ×0.999 | 0.27 · 1.54 | 0.23 · 1.06 · ×1.390 | 2.03 | 0.004 |
+| `dbts_c1` 5 Mbit 1× | 1 | 115.16 | 0.60 · 31.51 (×0.274) · ×1.000 | 0.23 · 8.58 | 0.12 · 0.41 · ×0.941 | 5.17 | 0.000 |
+| `dbts_c1` 5 Mbit 4× | 1 | 115.20 | 0.67 · 31.53 (×0.274) · ×1.000 | 0.27 · 8.58 | 0.18 · 0.78 · ×0.942 | 3.61 | 0.000 |
+| `dbts_c1` 20 Mbit 1× | 1 | 28.93 | 0.29 · 8.01 (×0.277) · ×1.000 | 0.18 · 2.27 | 0.13 · 0.43 · ×0.943 | 2.30 | 0.000 |
+| `dbts_c1` 20 Mbit 4× | 1 | 28.97 | 0.36 · 8.01 (×0.276) · ×1.000 | 0.23 · 2.27 | 0.15 · 0.68 · ×0.953 | 2.36 | 0.000 |
+| `dbts_c1` 50 Mbit 1× | 1 | 11.72 | 0.28 · 3.36 (×0.286) · ×1.000 | 0.17 · 1.05 | 0.13 · 0.48 · ×0.948 | 2.05 | 0.000 |
+| `dbts_c1` 50 Mbit 4× | 1 | 11.79 | 0.39 · 3.41 (×0.289) · ×1.002 | 0.22 · 1.06 | 0.16 · 0.75 · ×1.127 | 2.44 | 0.000 |
+
+**The rule, applied** (lab README §The rule as applied, written before stage 3 ran). On `dbts_b1` and `dbts_c1` in every
+cell run: every frame exact — holds; every slice at display scale ≤ 0.3× today's exact series at 5 and 20 Mbit/s —
+holds (×0.272–0.277); the exact series ≤ 1.02× today's at today's bytes — holds (×0.999–1.002, 1.000 of the bytes);
+**the first picture ≤ 1.5× the scalable preview's — fails in every cell** (×2.0–7.2), strict and with the A/A spread
+(p90 ≤ 0.4 %). `dbts_a1` has no split at its fit level. **Verdict: the ladder is not a candidate beside AV1** by the rule
+as written. **One set, two layers and two sets: not built, so the second clause is not applied**; §3's derivation is all
+there is for them.
+
+**Against the predictions.** Bytes: level 1 26.2–28.5 % (predicted 25.8–29.0) and level 2 6.7–7.7 % (7.0–7.5) held;
+levels 3–5 1.8–2.4, 0.5–0.9, 0.2–0.6 % against ~1–2, 0.3–0.4, 0.2 — the synthetic estimate was low. Decode: level 2
+alone ×0.08–0.13 at 1× held against "over ×0.12" on 14 of 15 volumes, not on `dbts_c4` (×0.13), and at 4× ×0.06–0.16;
+2 → 1 → 0 ×1.37–1.45 (predicted 1.35–1.39). First picture: level 2 0.17–0.40 s and the fit level 0.28–1.18 s against
+AV1's 0.09–0.28 s — **refuted** ("ladder over 1.8× or under 0.7× AV1's in a cell": the fit level is 2.0–7.2×, level 2
+1.2–2.7×); the prediction "as soon as AV1's" was wrong because the fit prefix is 27 % of a frame, not a base unit of
+0.02–0.04 %. Every slice pictured at level 2 at 5 Mbit/s: 7.95–13.3 s, 21–23× the preview's 0.34–0.63 s (predicted 7–46×).
+Display scale: 0.272–0.289 of the exact series (predicted 0.26–0.29 on `dbts_b1`, `dbts_c1`; refuted over 0.35) held.
+Exact series: ×0.999–1.002 held (refuted over 1.04).
+
+**Left for the owner.** The protocol's n = 12 was not reached: one round of the volumes so far (n = 1 a cell), the cine-like sets' rounds still to come. The verdict rests on a clause every round
+failed by ×2 or more, so more rounds would move the ratios, not the verdict; stage 1 quality on twelve volumes was not
+run.
+
 ## The BYOB read path
 
 Retired; code in history at `6e9c126`. The WASM client's BYOB reader (`byob`, `byob-min`) read each

@@ -18,7 +18,7 @@ W=lab/.av1-work/hp
 for i in $(seq 0 86); do lab/av1/.venv/bin/python lab/scripts/gen_frame_pnm.py $(printf $W/sets/cine512/%03d.ppm $i) 512 512 3 255 $i 87 cine; done
 lab/htj2k-progressive/stage1.sh $W/ladder lab/av1/data/<set> …  $W/sets/cine512        # stage 1, every frame
 lab/av1/.venv/bin/python lab/htj2k-progressive/summary1.py $W/ladder <set> …
-NODE_PATH=$(npm root -g) node lab/htj2k-progressive/decode/run.mjs --rounds 6 --out $W/decode.json   # stage 2
+NODE_PATH=$(npm root -g) node lab/htj2k-progressive/decode/run.mjs --rounds 4 --out $W/decode.json   # stage 2
 node lab/htj2k-progressive/decode/summary.mjs $W/decode.json
 # stage 3: the AV1 scalable preview's frames as lab/av1/delivery/scalable/tool/README.md makes them, into lab/.av1-work/preview-e2e
 lab/av1/.venv/bin/python lab/htj2k-progressive/delivery/make_frames.py $W/ladder $W/rig <set> … --svc lab/.av1-work/preview-e2e
