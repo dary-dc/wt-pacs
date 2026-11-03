@@ -214,8 +214,7 @@ export const CHECKS = {
     await page.waitForTimeout(1500);
     const r = await page.evaluate(async () => {
       const v = spike.viewports.vp1;
-      v.pause();
-      await new Promise((res) => setTimeout(res, 200));
+      await v.pause();
       await spike.shownAll();
       await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
       const log = await v.view.cine();

@@ -79,7 +79,7 @@ async function start() {
       tools.annotation.state.removeAllAnnotations();
       SynchronizerManager.destroy();
       for (const v of Object.values(viewports)) {
-        v.pause();
+        await v.pause();
         const { center, width } = { center: meta.window.center[0], width: meta.window.width[0] };
         v.voiRange = { lower: center - width / 2, upper: center + width / 2 };
         v.index = 0;

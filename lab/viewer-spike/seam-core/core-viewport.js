@@ -176,9 +176,11 @@ export class CoreViewport extends Viewport {
     this.view.play(fps, performance.timeOrigin + performance.now() + 1000 / fps, "timeout");
   }
 
-  pause() {
-    this.playing = false;
+  /** The tools follow the cine until the view worker answers after the pause, so a frame painted meanwhile is followed too. */
+  async pause() {
     this.view.pause();
+    await this.view.repaint();
+    this.playing = false;
   }
 
   /** Our core's pose: zoom in device px per image px, the pan from where the painter centres and floors. */
