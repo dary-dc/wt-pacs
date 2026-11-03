@@ -66,6 +66,16 @@ test("a window change repaints the same frame with the new window", async () => 
   assert.deepEqual(painted.at(-1).display.voi, { center: 3, width: 6, function: "LINEAR" });
 });
 
+/** A display change before the current frame is held does not leave the paint in flight: the frame is painted when it comes. */
+test("a repaint with no frame held does not stop the next paint", async () => {
+  const { c, painted } = rig();
+  await c.setDisplay({ window: { center: 1, width: 2, function: "LINEAR" } });
+  assert.equal(painted.length, 0);
+  c.take(frame(0));
+  await c.repaint();
+  assert.equal(painted.at(-1)?.f, c.store.get(0));
+});
+
 /** A frame arriving twice is counted and painted once. */
 test("a frame already here is not taken again", async () => {
   const { c, painted, events } = rig({ held: [0] });
