@@ -106,6 +106,7 @@ run 1 node lab/paint-read/measure.test.mjs
 run 1 node lab/viewer/view-summary.test.mjs
 run 1 node lab/viewer/settle-summary.test.mjs
 run 1 node lab/viewer/start-summary.test.mjs
+run 1 node lab/viewer/rule-summary.test.mjs
 
 step "client: worker-safe (no artifact reaches for window)"
 run 1 bash client/scripts/check_worker_safe.sh

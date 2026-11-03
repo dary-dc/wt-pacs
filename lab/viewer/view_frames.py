@@ -4,7 +4,8 @@ its frames, its metadata and the viewer variants `page`, `pageaa` (its A/A copy)
 fence, and `page-read`, `worker-read` settling by the pixel read (§7, *The pixel read under a busy page*).
 
 usage: lab/av1/.venv/bin/python lab/viewer/view_frames.py BUILD WORK SET ... [--fix]   (SET@K: that file of the set alone)
---fix adds `workerfix`, the view worker with the start's fix: docs/adr/frame-path.md §3, *Proposed: the page dials*
+--fix adds `workerfix`, the view worker with the start's fix: docs/adr/frame-path.md §3, *Proposed: the page dials*;
+and `workerdials`, that fix without `viewWorkerFirst` (§7, *Again with both fixes*)
 """
 import json
 import sys
@@ -15,6 +16,7 @@ import check  # noqa: E402
 
 
 FIX = {"pageDials": True, "viewWorkerFirst": True, "shortRuns": True}
+DIALS = {"pageDials": True, "shortRuns": True}
 
 
 def main():
@@ -37,7 +39,7 @@ def main():
         (w / "variants.json").write_text(json.dumps({"name": w.name, "frames": s.n, "truth": truth, "variants": {
             "page": viewer, "pageaa": viewer, "worker": {**viewer, "view": "worker"},
             "page-read": {**viewer, "settle": "read"}, "worker-read": {**viewer, "view": "worker", "settle": "read"},
-            **({"workerfix": {**viewer, "view": "worker", "opts": FIX}} if fix else {})}}))
+            **({"workerfix": {**viewer, "view": "worker", "opts": FIX}, "workerdials": {**viewer, "view": "worker", "opts": DIALS}} if fix else {})}}))
         print(w.name, s.n, "frames", flush=True)
 
 
