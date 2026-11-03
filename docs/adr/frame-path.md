@@ -1723,7 +1723,7 @@ ring.
 ### Who owns a frame's memory (2026-10-28)
 
 **Status:** theory and a reading of the engines' sources; nothing built, nothing run. *Corrected 2026-10-30:* M5 has
-run, on Chromium and Firefox; its results are below (*M5, run 2026-10-30*), and Firefox again with the rig's driver fixed (*Firefox, run again*). The shape it assumes is the
+run, on Chromium and Firefox; its results are below (*M5, run 2026-10-30*), and Firefox again with the rig's driver fixed (*Firefox, run again*); *corrected 2026-11-03:* both engines again under a fill bar amended before data, where the rule chooses `ring` (*M5 under the amended bar*). The shape it assumes is the
 owner's of 2026-10-28, written nowhere else yet: one dedicated **view worker** holds the frame store (the memory window,
 OPFS behind it), the controller and the paint; the decoders, nested in the downloader worker, post each checked frame
 straight to it. The question: who owns a decoded frame's memory, so that the window bounds peak memory during a fill on
@@ -2248,8 +2248,8 @@ So the rule is predicted to choose **`ring` on both engines**. The prediction fa
 whether on the fill bar or on the memory bar, where its rerun range ended 12 MiB under it.
 
 **M5 under the amended bar, run 2026-11-02 to 11-03.** The rows are
-[`rows/m5-disk-bar/`](https://github.com/dary-dc/wt-pacs/tree/ROWS_COMMIT/lab/opfs-cache/rows/m5-disk-bar), with the smoke
-rows beside them in `m5-disk-bar-smoke/`, at `claude/core-m5b@ROWS_SHORT`. `python3 lab/opfs-cache/summary.py
+[`rows/m5-disk-bar/`](https://github.com/dary-dc/wt-pacs/tree/2f8f63ebcef0deab2f9d95773ed80a9930499a95/lab/opfs-cache/rows/m5-disk-bar), with the smoke
+rows beside them in `m5-disk-bar-smoke/`, at `claude/core-m5b@2f8f63eb`. `python3 lab/opfs-cache/summary.py
 lab/opfs-cache/rows/m5-disk-bar` prints every number below. Each cell ran 7 rounds per engine, and every round of
 every arm filled with all 80 frames exact by both checks. The decoders matched `manifest.sha256`.
 
@@ -2289,7 +2289,27 @@ on Firefox.
   So Chromium's fills ran close to this host's limit, above the 0.66–0.80 the amendment quoted from M5. Nothing stopped
   on the memory floor. The ratios hold for three decoders on four vCPUs, and nothing here speaks to a faster host.
 
-BUSY_RESULTS
+**`m5-busy` under the amended bar** (the view held 200 ms a frame):
+
+| arm | Chromium growth | most waiting | Firefox growth | most waiting |
+| --- | --- | --- | --- | --- |
+| `ring`, `ring′` (A/A) | 571, 577: 4 MiB apart, fill 1.01 | — | 693, 701: 17 MiB apart, fill 0.98 | — |
+| `transfer` | 1 575 | 37 (24–41) | 1 550 | 39 (24–41) |
+| `transfer-k` | 848 | 5 | 966 | 5–6 (K = 6) |
+
+Neither busy cell is VOID. Credits hold the port at K or under and roughly halve `transfer`'s growth. Still,
+`transfer-k` misses the memory bar on both engines (848 against 681; 966 against 760). So credits are **not shown
+needed** on either engine, as before. All 56 busy fills were complete and exact. The CPU was 0.36–0.62 busy, so the
+view's hold set the pace, not the host.
+
+* **In this cell the stamp's check reads the wrong thing, by construction.** The rig's poll counts frames as the view
+  receives them, and the busy view receives each frame up to K × 200 ms after its decoder wrote it. So the poll
+  trails the stamp by 0.2–0.8 s for `ring` and by 5–9 s for `transfer`, and `summary.py` counts 4 of `ring`'s 7 rounds
+  complete on each engine, and 1 of `ring′`'s on Firefox. The busy rule reads only growth and frames waiting, and the
+  A/A reads growth and the fill time, so its verdict does not touch completeness. Not foreseen in the amendment: the 0–500 ms
+  bound fits a view that takes frames as they come, which `m5-busy` is not.
+* Chromium's busy round 5 was cut by a container restart after two of its four arms. Those two rows are kept, unread,
+  in `m5-busy-interrupted.jsonl`, and the round was run again whole.
 
 **How the ring works**, in plain words, as M5 built it in the lab: [`arms-slots.js`](../../lab/opfs-cache/arms-slots.js)
 (the table), [`arms-decoder.js`](../../lab/opfs-cache/arms-decoder.js) (who takes a slot),
@@ -3891,7 +3911,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 | `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | **not run (#266): "Verdict: not run; `span` stays 0"** — the review finds the rule unmeetable on the model (S 1.90–1.96× A against ≤ 0.6×); removing `span` and `holdEveryOther` is the owner's (§Experiment 1: not run) |
 | `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | **run (#265): "Verdict: k\* = 8, adopt k = 8, by the rule as fixed"; the default left to the owner** (§Experiment 2, *The default*): 12 of 12 rounds on every decided CT cell, both engines; DBT undecided at k = 8 |
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | answered by M5: `transfer` misses the memory bar on both engines (Firefox: "misses the memory and fill bars") |
-| frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241; Firefox re-run, #264 | **run on both engines (#264): "none qualifies on Firefox, so none on both engines: lever 2 returns to the owner. Chromium's verdict stands: `ring`."** Credits not shown needed; *How the ring works* written for the owner |
+| frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241; Firefox re-run, #264; the amended fill bar, `claude/core-m5b` | **run on both engines under the amended fill bar (`claude/core-m5b`): "`ring`, on both engines"**: the only arm that qualifies on either, fill to disk 0.96 × `today` on Chromium and 0.85 on Firefox 155, every other bar unchanged. Under #264's bar the same rows say none on Firefox (1.23). Credits not shown needed. The default stays `none`: building the ring in is proposed for the owner, not built (*What building it into the core would change*) |
 | `?writer=`, who writes the OPFS cache | `none`: no cache, as main | `store`, `decoders`, `view` | OPFS arms, #227/#242; #244 | **run on Chromium 153 and Firefox 159 (`claude/opfs-arms-run`): "no arm passes on either engine, so the result goes to the owner as measured"** (§Arm D, Results). Chromium's D fails only rule 3, its clock at S1 4×; Firefox's D fails rules 2 and 3 |
 | frame clock | the page's timer | worker rAF, timer to a schedule, `MessageChannel`, `Atomics.wait` | #225 | harness built (#249) and smoked: the guard saturates every cell but 512² at 30/s, quiet, 1×; the run not started |
 | receive loop, the downloader in the view worker | its own worker | merged | #237 | rig in `lab/recv-loop` only; needs a GPU host |
@@ -3902,10 +3922,10 @@ Each run writes its verdict in its own section.
 **Waiting on the owner** (2026-11-02; the evidence is each row's section):
 
 1. *`waitAhead`'s default:* Experiment 2's rule adopts k = 8; flipping the code's default is the owner's merge.
-2. *M5's ring:* by the rule lever 2 returns to the owner. Recommended, before building it in: pre-register the fill bar
-   measured to the last frame on disk in every arm (Firefox's compared different ends) and re-run Firefox. If `ring`
-   then qualifies on both engines, building it in is structural and proposed for review first (*What building it into
-   the core would change*).
+2. *M5's ring:* with the fill bar amended before data to the last frame on disk, the rule chooses `ring` on both engines
+   (`claude/core-m5b`). Building it in is structural: the steps are proposed under *What building it into the core
+   would change*, behind `opts.pixels=ring` with `shared` the default. That needs the owner's review, and then a run of
+   the core's own fill before any default flips. Firefox here was 155.0, not 159.0.
 3. *The default view:* `page`, as §7 and #261 agree. The start's fix does not tie A, so no later `worker`-against-`page`
    run is queued.
 4. *`span` and `holdEveryOther`:* the review advises removing both, code no rule will turn on by the model; the other
