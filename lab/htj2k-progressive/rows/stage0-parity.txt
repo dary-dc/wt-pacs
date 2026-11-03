@@ -1,0 +1,28 @@
+ours:   getVersion()=0.31.0 getSIMDLevel()=1
+theirs: getVersion()=0.31.0 getSIMDLevel()=1
+
+  fixture   frames   samples            bytes vs package   bytes vs encoder   surface
+  c512         8   8-bit unsigned x3  8/8 identical      8/8 identical      identical   range vs the JS pass: 8/8 identical
+  cine512      8   8-bit unsigned x3  8/8 identical      8/8 identical      identical   range vs the JS pass: 8/8 identical
+  g512         8   16-bit unsigned x1 8/8 identical      8/8 identical      identical   range vs the JS pass: 8/8 identical
+  g8           8   8-bit unsigned x1  8/8 identical      8/8 identical      identical   range vs the JS pass: 8/8 identical
+  s12          8   12-bit signed x1   8/8 identical      8/8 identical      identical   range vs the JS pass: 8/8 identical
+  s512         8   16-bit signed x1   8/8 identical      8/8 identical      identical   range vs the JS pass: 8/8 identical
+  sat256       8   16-bit unsigned x1 8/8 identical      8/8 identical      identical   range vs the JS pass: 8/8 identical
+
+covers: 8-bit unsigned x3, 16-bit unsigned x1, 8-bit unsigned x1, 12-bit signed x1, 16-bit signed x1
+PARITY OK: same surface, same bytes, on every frame
+ours:   getVersion()=0.31.0 getSIMDLevel()=1
+theirs: getVersion()=0.31.0 getSIMDLevel()=1
+
+  fixture   frames   samples            bytes vs package   bytes vs encoder   surface
+  c512         8   8-bit unsigned x3  8/8 identical      8/8 identical      identical   range vs the JS pass: 8/8 identical
+  cine512      8   8-bit unsigned x3  8/8 identical      8/8 identical      identical   range vs the JS pass: 8/8 identical
+  g512         8   16-bit unsigned x1 8/8 identical      8/8 identical      identical   range vs the JS pass: 8/8 identical
+  g8           8   8-bit unsigned x1  8/8 identical      8/8 identical      identical   range vs the JS pass: 8/8 identical
+  s12          8   12-bit signed x1   8/8 identical      8/8 identical      identical   range vs the JS pass: 8/8 identical
+  s512         8   16-bit signed x1   8/8 identical      8/8 identical      identical   range vs the JS pass: 8/8 identical
+  sat256       8   16-bit unsigned x1 8/8 identical      8/8 identical      identical   range vs the JS pass: 8/8 identical
+
+covers: 8-bit unsigned x3, 16-bit unsigned x1, 8-bit unsigned x1, 12-bit signed x1, 16-bit signed x1
+PARITY OK: same surface, same bytes, on every frame

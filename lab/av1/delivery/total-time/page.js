@@ -14,6 +14,8 @@ const OPTS = JSON.parse(q.get("opts"));
 /** Entries a frame has: a layer-major series' exact frame N is entry F + N. */
 const LAYERS = OPTS.decoder?.layers ?? 1;
 const F = FILL / LAYERS;
+const EXACT_AT = OPTS.decoder?.exactAt ?? (LAYERS - 1) * F;
+const ENTRIES = OPTS.decoder?.exactAt ? [...Array(F).keys(), ...Array.from({ length: F }, (_, i) => EXACT_AT + i)] : [...Array(FILL).keys()];
 const at = () => performance.timeOrigin + performance.now();
 const frames = [];
 const failures = [];
@@ -71,7 +73,7 @@ if (q.get("post")) await fetch(`${q.get("post")}hello`, { method: "POST" });
 const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
   ...OPTS,
   onFrame: (f) => {
-    const i = f.frameIndex - (LAYERS - 1) * F;
+    const i = f.frameIndex - EXACT_AT;
     const { lastByte, decoder, decodeStart: start, decodeEnd: end } = f.info.stamps;
     frames.push({ i, page: at(), lastByte, decoder, start, end, exact: f.info.exact, path: f.info.path });
     pixels.set(i, f.bytes);
@@ -79,7 +81,8 @@ const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
   },
   // A base decoded after its exact frame must not replace it: it is counted, never shown.
   onPreview: (f) => {
-    previews.push({ i: f.frameIndex, page: at(), late: pixels.has(f.frameIndex) });
+    const { decodeStart: start, decodeEnd: end } = f.info.stamps ?? {};
+    previews.push({ i: f.frameIndex, page: at(), late: pixels.has(f.frameIndex), start, end });
     previewPixels.set(f.frameIndex, f.bytes);
     settled(client);
   },
@@ -96,5 +99,5 @@ issuedAt = q.get("origin") === "navigation" ? performance.timeOrigin : at();
 for (const i of q.get("asks")?.split(",").map(Number) ?? []) {
   client.requestExactFrame(i).then(exact, (e) => failures.push({ i, reason: String(e?.message ?? e) })).then(() => settled(client));
 }
-if (FILL || q.get("asks")) client.fill([...Array(FILL).keys()]);
+if (FILL || q.get("asks")) client.fill(ENTRIES);
 else finish(client);
