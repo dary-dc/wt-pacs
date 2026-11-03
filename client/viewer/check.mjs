@@ -119,7 +119,8 @@ async function open(url) {
       ff.stdout.on("data", (d) => {
         out += d;
         const m = /^console\.log: (".*viewer-result .*")\n/m.exec(out);
-        if (m) resolve(JSON.parse(JSON.parse(m[1]).slice("viewer-result ".length)));
+        // Firefox quotes a Latin-1 character as \xNN, which JSON spells \u00NN.
+        if (m) resolve(JSON.parse(JSON.parse(m[1].replace(/\\x([0-9a-fA-F]{2})/g, "\\u00$1")).slice("viewer-result ".length)));
       });
     });
     try {

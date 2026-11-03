@@ -29,8 +29,9 @@ export class Cine {
     if (i <= this.#last || this.stopped) return;
     this.#last = i;
     const start = now();
-    await this.#show(i);
-    this.log.push({ i, tick: t, vsync, start, end: now() });
+    // A `show` may return its draw's own end, where its reply waits on a busy thread.
+    const end = (await this.#show(i)) ?? now();
+    this.log.push({ i, tick: t, vsync, start, end });
   }
 
   stop() {
