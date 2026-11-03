@@ -2221,6 +2221,186 @@ per-frame quota round trips ((3) above) predicted a cost, not its size. A on arr
 Firefox at S1 too. Nothing past the saturated cells is claimed, so the 4× parts of rule 1 are judged at S1
 alone, and Chromium's S1 4× L is VOID.
 
+#### Each arm's parameters (theory, 2026-11-03)
+
+**Status:** theory, for the owner to read before deciding; **nothing was run for it**. Every number is from the run's
+rows (`lab/opfs-arms/rows/chromium/`, Chromium 153, medians over a cell's rounds of each round's value), from the
+documents it names, or marked *not measured*. Target: Chromium (the owner, 2026-10-31); Firefox has one paragraph
+at the end.
+
+**In plain words.** No arm passed, but the run tested each arm at one setting of values the protocol or the rig chose:
+a budget of 8 ms and 1 MiB pieces, 125 MB/s for 10 s, 60 Hz, three frame sizes, an upload every 6th tick at S2–S3,
+a 0.10 bar for D, a file per frame for B and D, and a copy before C's post. Most failures follow from those values by
+arithmetic, with inputs the rows already hold, which means they say more about the values than about the API. The
+part below writes each arm's region as inequalities, so the owner can see which value to move and what moving it
+costs; it then questions the rule that failed A paint first; it ends with the one measurement per arm that would most
+change the decision.
+
+**The inputs.** One symbol each; *rig* means the implementation fixed it, *protocol* the pre-registered text.
+
+| symbol | what | value in the run | fixed by | in the Chromium rows? |
+| --- | --- | --- | --- | --- |
+| R | arrival, decoded bytes a second | 125 MB/s for 10 s (§Where it saturates: 100 Mbit/s × a ratio ≤ 10) | protocol | yes, `writeMBps` of `none`: 125–128 |
+| s | a frame's bytes | S1 0.52, S2 17.0, S3 27.3 MB | protocol | — |
+| f, T | display rate, period | 60 Hz, 16.7 ms (Xvfb) | the host | yes, `periodMs`: 16.7 |
+| k | an upload every k-th tick | 1 at S1, 6 at S2–S3 (`cineEvery`) | protocol | — |
+| P₀ | the paint, no upload | 0.02 ms (S2, S3), 0.12 (S1) | — | yes, `paintMsP50` |
+| Pᵤ | the paint with an upload | **not measured**: the median hides the 1-in-6 tick. *Indicative:* 7.5 ms at S2, 12.6 at S3 (1×), 23.6 at S2 4×, from W's A on arrival rows, whose 2 ticks a round include one upload | — | no |
+| v | the sync handle's write on the writing thread | **varies 15× by cell, cause not isolated**: S3 1 MiB pieces 4.5 ms (0.23 GB/s) in L, S2's 0.32 ms (3.3 GB/s); a whole frame 69 ms at S2, 128 at S3 in L (0.21–0.25 GB/s), 8.0 ms at S3 in R's fill (3.4 GB/s) | — | indirectly, `blockMsP50` of A |
+| b | A paint first's budget | 8 ms a tick, counted from the paint's end; a piece starts while < b has passed, so a tick may run one piece over | rig (`view.js` `drain`) | — |
+| q, t_q | A's piece, its time q / v | 1 MiB; t_q at S3 1×: 4.5 ms median, 14.6 ms the median round's worst | rig | yes, `blockMsP50`, `blockMsMax` |
+| c | the copy out of a `SharedArrayBuffer` (`slice()`) | ~1.9 GB/s: 9.1 ms at S2, 14.4 at S3, 1× | rig and product (`view.js:102`, `client/view/cache.js:53`) | yes, C's `blockMsP50` |
+| N, d | decoders, a frame's decode | 3; d = 3.1 / 14.6 ms at S1, 47 / 210 at S2 (1× / 4×), **S3 not measured** | `client/README.md`; exactness §3 | no: the feeders do not decode |
+| h, w | D's handle calls, its write and close, on a decoder | h 2.1–2.8 ms; w 1.0–1.5 at S1, 49–80 at S2, 20–127 at S3 (1×), varying by cell as v does | — | yes, `decoderHandleMsP50`, `decoderWriteMsP50` |
+| H | the memory window | 256 MiB a tab in the product (lever 2); the rig holds every queued frame | product | — |
+
+Measured nowhere in these rows: Pᵤ apart, v on an idle thread, the store worker's write on its own thread, the cost of
+posting a `SharedArrayBuffer` to it, and S3's decode.
+
+**A view-thread block that lands when a frame arrives** falls at any phase of the tick. Rule 1 counts a tick missed
+when a gap rounds to two periods, and also asks the paint delay's p99 to stay within 4 ms of `none`'s. Frames arrive
+at R / s a second, 7.3 at S2 against 60 ticks, so a block x at arrival touches ~12 % of ticks and sets the p99:
+**a block at arrival is on time only if x ≲ 4 ms**, at S1–S3 alike. A block placed right after the paint delays
+nothing until it runs past the period: **P + x ≤ T**. That difference is the whole case for paint first.
+
+**A on arrival.** The view thread writes each whole frame when it arrives. It is A paint first with b = ∞ and q = s;
+nothing else is fixed. On time iff `s / v ≲ 4 ms`: v ≥ 4.3 GB/s at S2, ≥ 6.8 at S3. The fastest v in any row is 3.4,
+and in L 0.21–0.25, where the thread is blocked R / v ≈ 50–59 % of the time (missed 36 and 46 %). **No measurement
+moves it**; its only change is to become A paint first.
+
+**A paint first.** After each paint, the view thread writes pieces of the queue for up to b. Fixed: b = 8 ms, q =
+1 MiB, the drain inside the `requestAnimationFrame` tick only, the queue unbounded, k = 6 at S2–S3, T = 16.7 ms.
+
+* **Keeps up** iff `f · (1 − m) · ⌈b / t_q⌉ · q ≥ R` (m the missed share), close to `b · f · v ≥ R` when t_q ≪ b.
+  S3 1×: ⌈8 / 4.5⌉ = 2 pieces, 2.1 MB a tick, × 60 × (1 − 0.17) = 104 MB/s; **measured 104**. S2 1×: 25 pieces a
+  tick, far above R.
+* **On time** iff `Pᵤ + b + t_q ≤ T` on an upload tick and `P₀ + b + t_q ≤ T` on the others, t_q at its tail. S3 1×:
+  12.6 + 8 + 4.5 = 25 > 16.7 on every upload tick, 1 in 6: **16.7 % predicted, 17.0 % measured**. S2 1×: 7.5 + 8 +
+  0.3 = 15.8 ≤ 16.7, on time (1.0 % against `none`'s 0.7).
+
+So both of its Chromium failures are the 8 ms on the upload tick, and an S3 piece slower than S2's; neither is the
+API. **A fixed budget is one point on a spectrum.** The other end writes what is left of each tick: before each piece,
+start it only if `elapsed + t_q ≤ T − g` (g a margin for the engine's own work after the callback), so b_i = T − P_i
+− g varies by tick, and the upload tick may write nothing. Then:
+
+* on time by construction, except where a piece's tail t_q exceeds its median: the S3 worst piece of 14.6 ms misses
+  a tick whatever the policy, so **q is the lever for the tail** (smaller pieces, more calls; Gecko pays a quota round
+  trip per 1 MiB block anyway, §4, so below 1 MiB costs Firefox more);
+* keeps up iff `(f · q / k) · [(k − 1) · ⌊(T − P₀ − g) / t_q⌋ + ⌊(T − Pᵤ − g) / t_q⌋] ≥ R`. S3 1×, g = 2 ms: (5 × 3 +
+  0) / 6 × 1.05 MB × 60 = **157 MB/s ≥ 125**, on paper, with Pᵤ indicative.
+
+Between the two ends sit policies: skip the upload tick; defer writes while the queue is inside the window (below);
+drain in a task after the tick as well as in it. The last matters on its own: a hidden tab's worker gets no animation
+frames, so a drain tied to them stops. **At 120 Hz** (T = 8.3 ms) the fixed 8 ms is late on every tick, and what is
+left of the tick still writes. With k = 2, the 30 frames/s of DBT cine §Where it saturates names, half the ticks
+upload, and the S3 line becomes (f · q / 2) · [3 + 0] = 94 MB/s < 125: cine of S3 frames while filling at 125 MB/s is
+outside A paint first's region at this v.
+
+**B, on arrival and paint first.** The async API in the view thread. Fixed by the API: a copy out of shared memory
+(the chunk is not `AllowShared`), the engine's own copy inside `write()`, a file per frame (on a packed file each
+writable copies the file, *What this rules out*), a commit per frame; by the rig, no cap on writes in flight.
+
+* On time on arrival iff `s / c + s / c_e ≲ 4 ms` (c_e the engine's copy); measured blocks 9.3 ms at S2, 14.4 at S3.
+  Paint first budgets our copy only: `P + b + t_q + s / c_e ≤ T`.
+* Keeps up iff `j · s / (o_B + s / v_B) ≥ R`, j writes in flight and o_B the per-file overhead (create, close, the
+  swap's move). At S1 4×, 74–80 MB/s against 125: at least 6.5 ms a frame.
+
+The amended rule reports B and does not choose it; no single measurement brings B back for Chromium.
+
+**C as built.** A store worker owns the packed file and its sync handle; the view thread copies each frame out of
+shared memory and transfers the copy. Fixed: the copy, one store worker, the packed file. On time iff `s / c ≲ 4 ms`:
+c ≥ 4.3 GB/s at S2, 6.8 at S3, against 1.9 measured, so **C as built is outside its region by its copy**; the rows say
+so (S2 1×: paint delay p99 10.5 ms against `none`'s 5.7). Keeps up iff the store worker's `v_s ≥ R` and the round
+trip keeps j frames moving: W 505 MB/s at S1 1×, 110 at S1 4× (the copy and the round trip included; v_s alone not
+measured).
+
+**C with shared memory.** The view thread posts the `SharedArrayBuffer` itself; the store worker writes from it (the
+sync handle's `write` takes `AllowSharedBufferSource`, §4). A frame is written once and never changed after its post,
+so the shared bytes need no lock. Script copies a frame: 2, as A paint first. Its region:
+
+* on time iff the post `x_post ≲ 4 ms`: ~0.1 ms predicted (§Predicted), **not measured**; as `none` if it holds;
+* keeps up iff `v_s ≥ R` on the store worker's thread, sharing the CPU with the decoders and the paint;
+* **memory**: a frame posted to the store worker stays resident until that worker's isolate collects it, which M2
+  measured not within 30 s (§Who owns a frame's memory: 2.4 GB resident after a 2 GiB fill). That, not the API, is why
+  the copy is there (`client/view/cache.js:52`). "Written once" does not answer it. Its fixes are a fixed ring of slots
+  the decoders write into (`docs/ARCHITECTURE.md` §Open, *one preallocated shared store per fill*), which is structural,
+  or a measurement that the store worker does collect when it drops each buffer after the write.
+
+**D.** Each decoder writes its frame to its own file, then posts it. Fixed: a file per frame (the packed file's lock
+admits one writer); write before post; N = 3; the handle calls in series with the decode; the bar of rule 3.
+
+* **On time** as `none`: the view thread does nothing for the cache (measured: as `none` in every counted L and G cell).
+* **Keeps up** iff `N · s / (d + h + w) ≥ R`, that is `h + w ≤ N · s / R − d`, the decoder's slack. With h overlapped
+  with the decode, `w ≤ N · s / R − d`.
+
+  | | N · s / R | − d | slack | h + w (L) | |
+  | --- | --- | --- | --- | --- | --- |
+  | S1 1× | 12.6 ms | 3.1 | 9.5 | 3.1 | inside |
+  | S1 4× | 12.6 | 14.6 | −2.0 | 4.0 | decode-bound already: the fill slows from 108 to 84 MB/s |
+  | S2 1× | 409 | 47 | 362 | 83 | inside |
+  | S2 4× | 409 | 210 | 199 | 305 | **outside**: 3 × 17.0 MB / 515 ms = 99 MB/s (a saturated cell: no claim) |
+  | S3 | 654 | not measured | — | 130 at 1× | unknown |
+
+* **Rule 3's bar**, `w + max(0, h − d) ≤ 0.10 · d`, judged only where `N · s / d < R` (S1 4× alone here), accepts a
+  fill up to ~10 % slower where it is already decode-bound, and looks nowhere else. The slack inequality is the
+  quantity the bar stands for: it judges every cell, and finds S2 4× outside, which the bar does not see. The 0.10
+  itself is a choice of how much fill time a cache may cost, and is the owner's.
+* **Write before post** puts h + w ahead of every frame's arrival, the first one included: 3–4 ms at S1, 50–80 at S2
+  on this host. No rule times it. Posting first and writing after costs the decoder the same clock and one message more
+  (the frame no longer arrives written).
+* **A file per frame against one packed file:** a file per frame admits N writers and makes B possible, and pays per
+  frame a handle pair, a capacity request (a new file has none) and a close, and per miss a handle opened (R: D 35.3
+  ms against A's 28.8 at S2, 47.6 against 40.1 at S3). A packed file pays its handle and its capacity once (`truncate`
+  at open) and admits one writer. Chromium alone ships `mode: "readwrite-unsafe"` (§Arm D, (g)): N decoders on one
+  packed file, the handle and capacity paid once per decoder. Ruled out before as a second path for two engines of
+  three; **with Chromium first, it is admissible as Chromium's path**, not measured.
+
+**The rule itself.** Rule 2 asked that the queue of unwritten frames not grow across the fill: the largest backlog in
+the last third of L's ticks no more than 2 frames over the first third's. What a queue costs:
+
+* **Memory, only past the window.** A queued frame is a frame the store holds anyway. It costs memory only if the
+  store would have evicted it; the product's store keeps such a frame until its write settles (`client/view/store.js`
+  `put`). The rig, holding every queued frame, does not tell the two apart.
+* **No wrong frame and no miss.** A queued frame is in memory; one unwritten when the tab closes is fetched again
+  next time, and every read is re-checked (§5). A cost in network, not correctness.
+* **Frames, not bytes.** "2 frames" is 1 MB at S1 and 55 MB at S3.
+
+Writes can continue after the fill, and in the rig they already do: the cell waits up to 40 s for the queue to drain,
+and those ticks are in its last third. After a fill the view thread mostly paints without upload, so the drain runs
+faster than during it. The requirement the costs ask for is in bytes: with W the write rate during the fill, Z the
+series' bytes and M the memory a tab may spend past its window,
+
+* the queue's peak is `(1 − W / R) · Z`, and must satisfy `(1 − W / R) · Z ≤ M`, that is **`W ≥ R · (1 − M / Z)`**;
+* it drains after the fill in `(1 − W / R) · Z / W_idle`, with W_idle the rate of a tick without upload.
+
+S3 1× Chromium, A paint first: W = 104, a 1.25 GB fill: a peak of 210 MB, 8 frames (**measured 8**), drained in
+~1.1 s at the 189 MB/s of three 1 MiB pieces a tick. Over the 13 GiB series of §Writing a multi-GB series, the same
+W gives a 2.3 GB peak. So **"bounded across the fill" is right for a series larger than M and stricter than needed
+below it**; the bound that decides is `W ≥ R · (1 − M / Z)`, which needs M, an owner's number not yet set.
+
+**The measurement per arm that would most change the decision, cheapest first.**
+
+1. **A paint first:** per tick, the paint's time and each piece's, recorded apart, in one L cell at S3 1× (`none` and
+   A paint first). It fixes Pᵤ and t_q's tail, the two inputs of both its inequalities, and says whether "what is left
+   of the tick" is inside its region. A few fields in `view.js`; minutes of run.
+2. **C with shared memory:** the store worker's resident memory across and after a 1 GB fill when it is posted the
+   shared buffers, with the post's cost on the view thread. If it collects, C keeps the packed file at no view-thread
+   cost; if not, it needs the slot ring. A new arm of ~10 lines; one L cell.
+3. **D:** the product's fill time with `?writer=decoders` against `none` at S1 4× and S2 4×, in the real decoders. It
+   measures the slack inequality's two sides at once, where the run's feeders, which do not decode, could not.
+4. **B:** its per-file overhead o_B against the writes in flight, at S1. It is last: the rule does not choose B.
+5. **A on arrival, C as built:** none. Each is outside its region by arithmetic on measured inputs; each has a
+   variant above that is not.
+
+**Firefox, in one paragraph** (a separate, later goal). The inequalities are the engine's; the inputs differ
+(`lab/opfs-arms/rows/firefox/`, Firefox 159, period 17.1 ms). A file per frame costs Gecko h ≈ 26 ms and w ≈ 22 ms at
+S1, so D's slack, 12.6 − 3.1 = 9.5 ms at S1 1× (d from exactness §3, not Firefox's own), is exceeded five times over: 3 × 0.52 MB / 48 ms = 33 MB/s, measured 30.
+The copy out of shared memory is ~3.5× slower than Chromium's (C: 31.5 ms at S2), so C as built is further outside, and
+C with shared memory would gain more. A paint first's pieces are 0.54 ms at S1 and 0.7 ms at S2, so the packed file's
+sync handle is inside its region at both; its one failure, at S1 1×, is 4 rounds of 8 that left frames unwritten at
+the cell's 40 s deadline and one whose queue reached 88 frames, a stall the inequalities do not model (not traced).
+Gecko's own block is 1 MiB with a quota round trip each (§4), which is why q = 1 MiB suits it.
+
 ## Target: the view worker · 2026-10-28
 
 **Status:** the owner's next target design for the client, 2026-10-28, revised 2026-10-29 with the red team's
