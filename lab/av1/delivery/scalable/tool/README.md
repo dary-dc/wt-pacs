@@ -239,8 +239,7 @@ python3 $T/svc_tables.py $W/svc-rows.jsonl $W/preview-e2e --errors $W/svc-errors
 ```
 
 This run's outputs are committed here: [`svc-shapes.tsv`](svc-shapes.tsv), [`svc-errors.jsonl`](svc-errors.jsonl),
-[`svc-decode.json`](svc-decode.json), [`svc-rows.jsonl`](svc-rows.jsonl), [`svc-mutations.jsonl`](svc-mutations.jsonl)
-and [`svc-firefox.jsonl`](svc-firefox.jsonl).
+[`svc-decode.json`](svc-decode.json), [`svc-rows.jsonl`](svc-rows.jsonl) and [`svc-mutations.jsonl`](svc-mutations.jsonl).
 
 **Variants**, the protocol's names. `p3-*` codes three spatial layers with `svc_encoder_rtc` (mode 6,
 `-r 1/4,1/1,1/1`, quantizers 40, m, 0, a keyframe every 8): the example codes two full-size layers, and the top came
