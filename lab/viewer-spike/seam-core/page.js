@@ -67,6 +67,8 @@ async function start() {
     /** How many of the tool's annotations the SVG layer of `id` draws now. */
     drawn: (id = "vp1") => document.querySelectorAll(`#${id} svg [data-annotation-uid]`).length,
     clear: () => tools.annotation.state.removeAllAnnotations(),
+    /** A length annotation restored onto slice k, as saved annotations are, given its image. */
+    hydrate: (k) => LengthTool.hydrate("vp1", [[5, 5, k], [20, 15, k]], { referencedImageId: imageIds[k] }),
     link(kind) {
       SynchronizerManager.destroy();
       const s = LINKS[kind]();
@@ -102,6 +104,7 @@ async function start() {
     },
     meta,
   };
+  window.spikeTools = tools;
   window.spikeReady = true;
 }
 

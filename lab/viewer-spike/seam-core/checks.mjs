@@ -169,16 +169,17 @@ export const CHECKS = {
     const r = await registered(page, await centre(page, 2, 2));
     return { ok: index === 1 && r.value === sample(2, 2, 1) && r.ok, seen: `index ${index}; value ${r.value} (want ${sample(2, 2, 1)}): on screen ${r.painted}, expected ${r.expected}` };
   },
-  /** An annotation drawn on slice 0 is drawn on slice 0 only: gone on slice 1, back on slice 0. */
+  /** An annotation drawn on slice 0 shows on slice 0 only, and one restored onto slice 2 (hydrate) on slice 2 only. */
   async ["per slice"](page) {
     await lengthOn(page, [10, 10], [40, 30]);
-    const seen = [await page.evaluate(() => spike.drawn())];
-    for (const i of [1, 0]) {
+    await page.evaluate(() => spike.hydrate(2));
+    const seen = [];
+    for (const i of [0, 1, 2, 0]) {
       await page.evaluate((i) => spike.viewports.vp1.setImageIdIndex(i), i);
       await settle(page);
       seen.push(await page.evaluate(() => spike.drawn()));
     }
-    return { ok: seen[0] > 0 && seen[1] === 0 && seen[2] === seen[0], seen: `SVG elements on slice 0, 1, 0: ${seen.join(", ")}` };
+    return { ok: seen.join() === "1,0,1,1", seen: `SVG annotations on slices 0, 1, 2, 0: ${seen.join(", ")}` };
   },
   /** Cornerstone3D's own VOI synchronizer does not reach our viewport; its zoom-pan synchronizer does, through getZoom and getPan. */
   async ["stock links"](page) {
@@ -240,6 +241,7 @@ export const MUTANTS = [
   { name: "the window never reaches the view worker", check: "window drag", from: "if (key !== this.#sent.display) this.view.setDisplay(display);", to: "if (!this.#sent.display) this.view.setDisplay(display);" },
   { name: "a step never reaches the view worker", check: "scroll", from: "this.view.show(this.index);", to: "this.view.show(0);" },
   { name: "world z is not the slice", check: "per slice", from: "dest[2] = this.index;", to: "dest[2] = 0;" },
+  { name: "an image reference is viewable anywhere", check: "per slice", from: "ref.referencedImageId && !ref.planeRestriction ?", to: "false ?" },
   { name: "the viewport has no getPan", check: "stock links", from: "getPan = () => {", to: "getPanX = () => {" },
   { name: "our VOI callback does not render", check: "our VOI link", file: "page.js", from: "target.voiRange = { ...e.detail.range };\n      target.render();", to: "target.voiRange = { ...e.detail.range };" },
   { name: "the page does not follow the cine", check: "cine", from: "if (this.playing && e.i !== this.index) {", to: "if (false) {" },

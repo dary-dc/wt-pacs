@@ -143,6 +143,9 @@ export class CoreViewport extends Viewport {
   getCurrentImageId = () => this.imageIds[this.index];
   getViewReferenceId = () => `imageId:${this.getCurrentImageId()}`;
   getViewReference = (spec) => ({ ...super.getViewReference(spec), referencedImageId: this.getCurrentImageId() });
+  /** A restored annotation carries its image and no plane (LengthTool.hydrate), so an image reference is viewable on that image alone. */
+  isReferenceViewable = (ref, options) =>
+    ref.referencedImageId && !ref.planeRestriction ? ref.referencedImageId === this.getCurrentImageId() || Boolean(options?.withNavigation) : super.isReferenceViewable(ref, options);
   hasImageURI = (uri) => this.imageIds.some((id) => id.endsWith(uri));
   getProperties = () => ({ voiRange: { ...this.voiRange }, VOILUTFunction: "LINEAR", invert: false });
 
