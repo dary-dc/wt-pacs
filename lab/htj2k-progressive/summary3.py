@@ -8,10 +8,11 @@ no prefix is full size); every frame exact; decode; a reader scrolling from slic
 Ratios are against today's arm (`htj2k`) in the same round and cell, medians of rounds; the A/A spread is the p90 of
 |A′/A − 1| over the cell's rounds. lab/htj2k-progressive/README.md §Stage 3, §The rule as applied
 
-usage: summary3.py ROWS.jsonl FRAMES LADDER [--json OUT]
+usage: [WITH_VOID=1] summary3.py ROWS.jsonl FRAMES LADDER [--json OUT]   WITH_VOID keeps the relay's VOID visits
 """
 import json
 import math
+import os
 import statistics
 import sys
 from collections import defaultdict
@@ -73,7 +74,7 @@ def main():
         name = r["set"]
         sets.setdefault(name, json.loads((frames / name / "variants.json").read_text()))
         key = (name, r["link"], r["throttle"])
-        if r["void"] or not r["frames"]:
+        if (r["void"] and not os.environ.get("WITH_VOID")) or not r["frames"]:
             voids[key] += 1
             continue
         cells[key][r["variant"]][r["round"]] = visit_metrics(r, sets[name], ladder)
