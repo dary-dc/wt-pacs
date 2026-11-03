@@ -10,7 +10,8 @@ WORK="${WORK:-$HERE/../../.profiles-work}"
 RUNGS=$1; shift
 mkdir -p "$WORK"
 lossless() {
-  local codec=$1 preset=$2 set=$3 out="$WORK/lossless/$(basename "$set")-$1"
+  local codec=$1 preset=$2 set=$3
+  local out="$WORK/lossless/$(basename "$set")-$codec"
   grep -q "\"$(basename "$set")\", \"$codec\"" "$WORK/lossless.jsonl" 2>/dev/null && return
   "$PY" "$HERE/../tools/ingest_coded.py" "$BUILD" "$set" "$out" --codec "$codec" --preset "$preset" --jobs 4 >&2
   "$PY" -c "import json,sys,pathlib; p=sorted(pathlib.Path(sys.argv[1]).glob('*.$codec'));
