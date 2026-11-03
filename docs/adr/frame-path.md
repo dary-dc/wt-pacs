@@ -1149,7 +1149,8 @@ engine run. **The goal is met** when one arm ties A with both engines run.
 environment's network policy (`cdn.playwright.dev`, `playwright.download.prss.microsoft.com`), and the session's
 permission policy refuses running a Firefox fetched from conda-forge. So only the Chromium cells are run; the Firefox
 predictions below stand unrun, and no arm can meet the goal here. The rule is applied to the Chromium rows as written,
-and its verdict is read as Chromium's alone.
+and its verdict is read as Chromium's alone. *2026-11-03: Firefox run in a later session (the policy now allows
+Playwright's download), as written, nothing amended; below, after Chromium's.*
 
 **Predictions**, first frame drawn, paired Δ against A (✓ a tie by the bar, ✗ later):
 
@@ -1207,6 +1208,7 @@ not** — "behind A: chromium ffdm_a-0 1x first", +30 ms. Firefox was not run, s
 to tie A on both engines, and the Firefox mammogram 4× that #276 found behind is not re-measured here. By the decision
 written before data — B′+after and B′+fix both tie on Chromium — Chromium does not separate the two candidates, and
 **Firefox is owed**; B′+after is the one the Gecko reading favours there and B′+fix the one #276 found behind.
+*2026-11-03: Firefox has since been run; the verdict over both engines is below.*
 
 *Read from the steps, not decided by the rule:*
 
@@ -1227,6 +1229,81 @@ written before data — B′+after and B′+fix both tie on Chromium — Chromiu
   round-to-round spread the A/A shows, not as a cause.
 * **Where the host saturates:** nowhere by the guard. As said above, the 4× throttle caps each thread, which a
   busy-core guard cannot see; nothing is claimed from the 4× cells, which are VOID by the A/A in any case.
+
+**Measured 2026-11-03, Firefox, 1× and 4×** (rows:
+[`lab/viewer/rows/splitff-quiet.jsonl`](https://github.com/dary-dc/wt-pacs/blob/d49cc58/lab/viewer/rows/splitff-quiet.jsonl),
+`claude/core-start2@d49cc58`, run from `bf9d6fb` by `FRAMES=lab/.av1-work/view-split THROTTLES=1,4 NAME=splitff
+KINDS=quiet ENGINES=firefox VARIANTS=page,pageaa,workerfix,workerdials,workerafter xvfb-run -a lab/viewer/view_run.sh`,
+the same frames; a docs-only commit, `6ce06b3`, landed between rounds 3 and 4; rounds 0–16, of which 12–16 whole
+top-up rounds for the relay's drops; read by `node lab/viewer/start-summary.mjs`). Playwright's Firefox 155.0, the major
+#276 ran, headed under `xvfb-run` (headless, its worker has no WebGL2). 680 visits, 10 dropped by the relay's VOID,
+none for an error, every kept frame exact; every cell has its 12 rounds. **No cell saturated** by the guard (A's busy
+share 0.43–0.63 over the start, 0.31–0.47 over the fill). **Seven of eight cells are VOID**, the A/A pair 17.5–107.5 ms
+apart; only US 1× is decided (A/A +3). Same columns as Chromium's:
+
+| cell | A/A, first drawn | first drawn | downloader's script after `connect` (A) | `sessionOpen` | `firstIn` | B′+after's view worker: made → evaluated, → `connect`; its `connect` before `firstIn` | made → evaluated, B′+fix / B′+dials |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| CT 1× *(VOID)* | +47.5 | −3 / −0.5 / −6 | 39 / 47 / 20 (26) | 0 / +43 / +11 | 0 / +40 / +7 | 77, 33; 202 | 208 / 117 |
+| US 1× | +3 | −9 / −19.5, sooner / **−48, sooner** | 36 / 23 / 20 (21) | −13 / −12 / −38 | −14 / −15 / −34 | 81, 30; 216 | 176 / 120 |
+| tomo 1× *(VOID)* | −23.5 | +17.5 / −35 / −4 | 40 / 34 / 31 (28) | +14 / −16 / −2 | +26 / −5 / −17 | 72, 44; 234 | 177 / 170 |
+| mammo 1× *(VOID)* | +26 | −19 / +10 / −15 | 44 / 38 / 32 (23) | +6 / +35 / −1 | +3 / +36 / +5 | 74, 33; 576 | 164 / 149 |
+| CT 4× *(VOID)* | +28 | +126 / +88.5 / +100.5 | 77 / 67 / 58 (40) | +99 / +58 / +64 | +112 / +49 / +65 | 233, 70; 77 | 329 / 179 |
+| US 4× *(VOID)* | +17.5 | +18 / −6.5 / +4 | 67 / 69 / 96 (60) | 0 / +10 / +58 | −5 / 0 / +55 | 231, 85; 77 | 245 / 192 |
+| tomo 4× *(VOID)* | −89 | −17.5 / −27 / +15 | 127 / 81 / 135 (170) | −38 / −85 / −99 | −35 / −139 / −97 | 261, 84; 74 | 457 / 255 |
+| mammo 4× *(VOID)* | +107.5 | +104 / −35.5 / +193.5 | 66 / 72 / 193 (75; A/A 188) | +43 / +24 / +225 | +34 / +17 / +215 | 223, 85; 411 | 355 / 260 |
+
+The fill after the first frame ties in every multi-frame cell, every arm (×0.994–1.003). B′+fix's made → evaluated
+starts before the metadata, so it holds the metadata's fetch as well.
+
+**Verdict on Firefox, by the rule: all three arms tie A**, on its one decided cell. **Over both engines**
+(`start-summary.mjs` over both files): **B′+fix ties A; B′+after ties A; B′+dials does not** ("behind A: chromium
+ffdm_a-0 1x first"). So the goal, as written, is met twice — but on five decided cells, every one at 1×: Chromium's
+four and Firefox US. **No 4× cell is decided on either engine**, so neither arm is shown to tie A at 4×, and **the
+Firefox mammogram 4× is not re-decided**: there B′+fix is +104 ms (#276: +188), B′+after +193.5 and B′+dials −35.5,
+inside an A/A of +107.5, where the rule counts nothing. The question this section asked — a start that ties A in every
+decided cell, both engines, 1× and 4× — is answered at 1× and not at 4×, because at 4× this rig's A/A is wider than
+the bar on both engines (17.5–107.5 ms).
+
+**The predictions:** at 1× they held (every Firefox 1× cell within the bar or sooner, every arm). At 4× none of
+Firefox's can be scored by the rule; read against the A/A, the mammogram's order came out the reverse of the one
+predicted (B′+after the latest, B′+fix between, B′+dials the soonest), and B′+after's predicted +50–110 in CT, US and
+tomosynthesis showed only in CT (+100.5), where B′+fix and B′+dials are as late.
+
+**The Gecko reading of worker loading, step by step from the stamps** (Firefox 4×, each arm's median):
+
+1. *`viewWorkerFirst` delays the downloader's script after `connect`.* **Did not hold.** B′+fix's script runs 66–127 ms
+   after `connect` against A's 40–170: in the mammogram 66 against A's 75 (#276: 214 against 72). Where it is later,
+   CT (+37), it is inside the spread A/A shows in the same step (−90 to +113).
+2. *B′+after's downloader script follows `connect` as soon as A's (±10 ms) in the mammogram.* **Did not hold**: 193
+   against A's 75. Its view worker is made only after that script has run, so nothing of the view worker's is queued
+   ahead of it; and A/A's own is 188. So this step moves by ≈ 100 ms between rounds with no view worker present, and
+   #276's 214 against 72, the step the reading was written to explain, sits inside that spread.
+3. *The view worker made first is slower to evaluate, its loads sharing the main thread with the page's start.*
+   **Consistent, not shown:** made before the metadata, it evaluates later than made at the metadata in three of four
+   4× cells (CT +69, tomo +164, mammo +58 ms; US −21), as #276's 1088 against 930. That is the cost the reading names,
+   but it lands on the view worker, not on the downloader (step 1).
+4. *B′+after's boot outlasts the room at 4×* (predicted ≈ 480 ms, 368–409 ms of room). **Did not hold:** made →
+   `connect` is 303–345 ms, and it joins the downloader 74–77 ms before `firstIn` in CT, US and tomosynthesis, 411 in the
+   mammogram, so the boot itself is off the first frame's path by these medians. Where B′+after is later (CT, the
+   mammogram) it is already later at `sessionOpen`, while its boot is still running, so step 5 is not ruled out.
+5. *Its boot shares the main thread with the decoders' loads.* **Not separated:** B′+after's decoders are ready
+   +5 to +205 ms after A's at 4×, B′+fix's −23 to +160.
+
+So the source reading stands as a reading — every script load of a Firefox worker passes the page's main thread — but
+the cost it predicts for the downloader was not seen: the step it explained moves as much between A and A/A.
+
+**Recommendation, plainly: keep B′+fix** (`pageDials`, `viewWorkerFirst`, `shortRuns`), **and remove the lab setting
+`viewWorkerAfterDownloader`**, with the downloader's `tellPage` → `running` reply that only it uses and its three
+refusals (not removed in this run). Both tie A by the rule on both engines; at a tie the simpler code wins, and
+B′+fix is #276's existing levers while B′+after adds a message to the downloader and an order between the two workers.
+Neither the Gecko reading's mechanism nor its 4× prediction gives B′+after a measured reason to stay; in the one cell
+the question named, B′+after is the further behind (both VOID). B′+dials needs nothing removed — it is B′+fix without
+`viewWorkerFirst` — and is behind A once, on Chromium. **Owed before any default changes:** a 4× answer on both engines,
+which needs a rig whose A/A at 4× is under the bar (at 1× it is in five of eight cells over both engines); this rig's is
+not.
+
+**Where the host saturates:** nowhere by the guard on Firefox either; the 4× cells are VOID, so nothing is claimed
+from them past the reading above.
 
 
 ### A frame clock in the view worker (2026-10-28)
@@ -3785,7 +3862,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 
 | setting | default (today's) | other values | decided by | status 2026-10-30, the fold at 15:15 UTC |
 | --- | --- | --- | --- | --- |
-| `?view=` | `page` | `worker` | §7's rule (B′), #229 | **run (#263): "A stays — `?view=page` remains the core's default"**; B′'s quiet first frame later by ≥ 16.7 ms in five decided cells, no decided cell with its asks sooner (§7). Against main (#261): "`?view=worker`: not judged; both runs point the other way" (§*The core against main, timed*). **Its start, timed (#276):** B′'s quiet delay is all before the first byte — the view worker's boot ahead of the downloader's `start`, and on the mammogram one round trip more — behind A in five of eight decided 1× cells, throughput tied in all six multi-frame cells. **With the fix** (`pageDials`, `viewWorkerFirst`, `shortRuns`, lab settings, defaults off): **"does not tie A"** — behind in one decided cell, Chromium tomosynthesis by 21 ms, tied in the other three decided; four cells VOID. At 4×, again **"does not tie A"**: behind in the Firefox mammogram by 188 ms, where the two workers' boots overlap (inferred), tied in the other three decided (§7, *The view worker's start, timed*). *2026-10-31, the cine cell re-measured (#275):* §7's Firefox draw wait was the paint's one-pixel read; settled by a fence, B′'s busy cine is 0 % late on both engines where A's misses 20–22 % (§7, *The pixel read under a busy page*). No product paint settles now. The verdict stands. *2026-11-02, the start's levers split (Chromium only — Firefox could not run in the session):* Gecko loads every worker script through the page's main thread, which explains how `viewWorkerFirst` can delay the downloader there (read, not measured). Under #276's rule, on Chromium's four decided 1× cells (every 4× cell VOID): **B′+fix ties A** (#276's tomosynthesis +21 ms did not reproduce: +14), **B′ with the view worker made once the downloader has its start (`viewWorkerAfterDownloader`) ties A**, B′+fix without `viewWorkerFirst` is behind on the mammogram by 30 ms. Neither tie is shown on both engines: Firefox is owed, and B′+after is the candidate the Gecko reading favours there (§7, *The start, levers split*). The verdict stands |
+| `?view=` | `page` | `worker` | §7's rule (B′), #229 | **run (#263): "A stays — `?view=page` remains the core's default"**; B′'s quiet first frame later by ≥ 16.7 ms in five decided cells, no decided cell with its asks sooner (§7). Against main (#261): "`?view=worker`: not judged; both runs point the other way" (§*The core against main, timed*). **Its start, timed (#276):** B′'s quiet delay is all before the first byte — the view worker's boot ahead of the downloader's `start`, and on the mammogram one round trip more — behind A in five of eight decided 1× cells, throughput tied in all six multi-frame cells. **With the fix** (`pageDials`, `viewWorkerFirst`, `shortRuns`, lab settings, defaults off): **"does not tie A"** — behind in one decided cell, Chromium tomosynthesis by 21 ms, tied in the other three decided; four cells VOID. At 4×, again **"does not tie A"**: behind in the Firefox mammogram by 188 ms, where the two workers' boots overlap (inferred), tied in the other three decided (§7, *The view worker's start, timed*). *2026-10-31, the cine cell re-measured (#275):* §7's Firefox draw wait was the paint's one-pixel read; settled by a fence, B′'s busy cine is 0 % late on both engines where A's misses 20–22 % (§7, *The pixel read under a busy page*). No product paint settles now. The verdict stands. *2026-11-02, the start's levers split (Chromium only — Firefox could not run in the session):* Gecko loads every worker script through the page's main thread, which explains how `viewWorkerFirst` can delay the downloader there (read, not measured). Under #276's rule, on Chromium's four decided 1× cells (every 4× cell VOID): **B′+fix ties A** (#276's tomosynthesis +21 ms did not reproduce: +14), **B′ with the view worker made once the downloader has its start (`viewWorkerAfterDownloader`) ties A**, B′+fix without `viewWorkerFirst` is behind on the mammogram by 30 ms. Neither tie is shown on both engines: Firefox is owed, and B′+after is the candidate the Gecko reading favours there (§7, *The start, levers split*). *2026-11-03, Firefox run:* only US 1× decided (seven cells VOID, A/A 17.5–107.5 ms), all three arms tie there. **Over both engines: B′+fix and B′+after tie A, B′+dials does not** — on five decided cells, all at 1×; no 4× cell is decided on either engine, and the Firefox mammogram 4× is VOID (B′+fix +104, B′+after +193.5, A/A +107.5). The Gecko reading's predicted cost to the downloader was not seen (§7, *The start, levers split*). **Recommended: keep B′+fix, remove the lab setting `viewWorkerAfterDownloader`** (not removed); a 4× answer is owed on a rig whose A/A is under the bar. The verdict stands |
 | `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | **not run (#266): "Verdict: not run; `span` stays 0"** — the review finds the rule unmeetable on the model (S 1.90–1.96× A against ≤ 0.6×); removing `span` and `holdEveryOther` is the owner's (§Experiment 1: not run) |
 | `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | **running (#265), 2 of 12 rounds pushed; no verdict recorded.** From the rows, not the run's verdict: `wait-ahead-summary.mjs` over rounds 0–1 gives "undecided: no live, decided cell" — every cell under its 10 kept visits an arm |
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | answered by M5: `transfer` misses the memory bar on both engines (Firefox: "misses the memory and fill bars") |
