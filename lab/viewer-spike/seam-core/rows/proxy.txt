@@ -1,0 +1,31 @@
+Chromium 153.0.8010.12, SwiftShader; 5 rounds ABBA per rate; scroll a step every 50 ms; cine 30/s for 3000 ms
+4× round 1 A: first exact 2026 ms, open long tasks 1575 ms; scroll on time 96 % (median 16.5 ms), long tasks 0 ms; cine on time 100 % (90 painted), long tasks 0 ms; memory n/a, page JS heap 16.3 MiB
+4× round 1 B: first exact 1765 ms, open long tasks 1308 ms; scroll on time 97 % (median 4.0 ms), long tasks 0 ms; cine on time 100 % (90 painted), long tasks 0 ms; memory n/a, page JS heap 12.7 MiB
+4× round 2 B: first exact 1703 ms, open long tasks 1253 ms; scroll on time 97 % (median 3.2 ms), long tasks 0 ms; cine on time 97 % (87 painted), long tasks 0 ms; memory n/a, page JS heap 12.6 MiB
+4× round 2 A: first exact 1854 ms, open long tasks 1453 ms; scroll on time 90 % (median 13.8 ms), long tasks 0 ms; cine on time 100 % (90 painted), long tasks 0 ms; memory n/a, page JS heap 16.4 MiB
+4× round 3 A: first exact 1808 ms, open long tasks 1418 ms; scroll on time 97 % (median 17.1 ms), long tasks 0 ms; cine on time 100 % (90 painted), long tasks 0 ms; memory n/a, page JS heap 14.0 MiB
+4× round 3 B: first exact 1824 ms, open long tasks 1338 ms; scroll on time 97 % (median 3.2 ms), long tasks 0 ms; cine on time 99 % (89 painted), long tasks 0 ms; memory n/a, page JS heap 12.6 MiB
+4× round 4 B: first exact 1893 ms, open long tasks 1403 ms; scroll on time 96 % (median 4.7 ms), long tasks 0 ms; cine on time 99 % (89 painted), long tasks 0 ms; memory n/a, page JS heap 12.6 MiB
+4× round 4 A: first exact 1859 ms, open long tasks 1444 ms; scroll on time 90 % (median 22.2 ms), long tasks 0 ms; cine on time 100 % (90 painted), long tasks 0 ms; memory n/a, page JS heap 16.7 MiB
+4× round 5 A: first exact 1852 ms, open long tasks 1438 ms; scroll on time 97 % (median 17.8 ms), long tasks 0 ms; cine on time 100 % (90 painted), long tasks 0 ms; memory n/a, page JS heap 17.0 MiB
+4× round 5 B: first exact 1819 ms, open long tasks 1325 ms; scroll on time 97 % (median 3.4 ms), long tasks 0 ms; cine on time 99 % (89 painted), long tasks 0 ms; memory n/a, page JS heap 12.7 MiB
+4× median first exact, ms: A 1853.7, B 1819.4
+4× median scroll on time, %: A 95.8, B 97.2
+4× median cine on time, %: A 100.0, B 98.9
+4× median page long tasks, ms: A 1444.0, B 1325.0
+4× median page JS heap, MiB: A 16.4, B 12.6
+6× round 1 A: first exact 2598 ms, open long tasks 2109 ms; scroll on time 89 % (median 23.4 ms), long tasks 0 ms; cine on time 90 % (89 painted), long tasks 0 ms; memory n/a, page JS heap 16.5 MiB
+6× round 1 B: first exact 2271 ms, open long tasks 1759 ms; scroll on time 97 % (median 3.8 ms), long tasks 0 ms; cine on time 99 % (89 painted), long tasks 0 ms; memory n/a, page JS heap 12.6 MiB
+6× round 2 B: first exact 2266 ms, open long tasks 1773 ms; scroll on time 97 % (median 4.1 ms), long tasks 0 ms; cine on time 99 % (89 painted), long tasks 0 ms; memory n/a, page JS heap 12.6 MiB
+6× round 2 A: first exact 2631 ms, open long tasks 2168 ms; scroll on time 96 % (median 18.7 ms), long tasks 0 ms; cine on time 100 % (90 painted), long tasks 0 ms; memory n/a, page JS heap 16.4 MiB
+6× round 3 A: first exact 2389 ms, open long tasks 1967 ms; scroll on time 92 % (median 20.5 ms), long tasks 0 ms; cine on time 99 % (89 painted), long tasks 0 ms; memory n/a, page JS heap 16.0 MiB
+6× round 3 B: first exact 2202 ms, open long tasks 1718 ms; scroll on time 97 % (median 4.1 ms), long tasks 0 ms; cine on time 99 % (89 painted), long tasks 0 ms; memory n/a, page JS heap 12.6 MiB
+6× round 4 B: first exact 2282 ms, open long tasks 1817 ms; scroll on time 97 % (median 5.7 ms), long tasks 0 ms; cine on time 99 % (89 painted), long tasks 0 ms; memory n/a, page JS heap 12.6 MiB
+6× round 4 A: first exact 2483 ms, open long tasks 2037 ms; scroll on time 93 % (median 20.6 ms), long tasks 0 ms; cine on time 100 % (90 painted), long tasks 0 ms; memory n/a, page JS heap 16.6 MiB
+6× round 5 A: first exact 2312 ms, open long tasks 1900 ms; scroll on time 89 % (median 21.4 ms), long tasks 0 ms; cine on time 100 % (90 painted), long tasks 0 ms; memory n/a, page JS heap 16.5 MiB
+6× round 5 B: first exact 2081 ms, open long tasks 1619 ms; scroll on time 89 % (median 5.2 ms), long tasks 0 ms; cine on time 99 % (89 painted), long tasks 0 ms; memory n/a, page JS heap 12.6 MiB
+6× median first exact, ms: A 2482.9, B 2266.2
+6× median scroll on time, %: A 91.5, B 97.2
+6× median cine on time, %: A 100.0, B 98.9
+6× median page long tasks, ms: A 2037.0, B 1759.0
+6× median page JS heap, MiB: A 16.5, B 12.6

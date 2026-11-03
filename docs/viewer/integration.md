@@ -493,7 +493,7 @@ the code **on screen**: a one-pixel screenshot, with the worker's canvas composi
 | our VOI callback on Cornerstone3D's synchronizer | the other view painted with the new window, 43 against 43 | the callback does not render: 25 |
 | our cine, the view worker's clock, 20/s for 1.5 s | 30 frames, none started > 50 ms late; the tools follow it; the slice's annotation shows on its slice only | the page does not follow: index 0, worker at 5 |
 
-The rows are on this branch at `lab/viewer-spike/seam-core/rows/` (commit below, §*The rows*). The painter's 1:1
+The rows are at `claude/viewer-seam2@710b23f`, `lab/viewer-spike/seam-core/rows/`. The painter's 1:1
 proof through this series and the view worker is the core's own viewer check: readbacks 0:0 12:0 23:0 23:0 on this
 series (`client/viewer/check.mjs --view worker`, run here once, not kept as rows).
 
@@ -538,7 +538,7 @@ series (`client/viewer/check.mjs --view worker`, run here once, not kept as rows
 **What else the run found.**
 
 * **A defect in the core: a repaint before the frame arrives stops all painting** (`controller-freeze.test.mjs`).
-  `Controller.repaint()` (core-fold `client/view/controller.js`) with the current frame not yet held runs its async
+  `Controller.repaint()` (core-fold `0920153`, `client/view/controller.js`) with the current frame not yet held runs its async
   loop to its end synchronously, sets `#painting = null`, and only then stores the settled promise. Every later
   repaint returns that promise, and nothing is painted again. The core's own viewer reaches it with a display key, a
   ctrl-wheel zoom or a resize once connected and before frame 0 is painted (core-fold `client/viewer/viewer.js:147,
@@ -625,6 +625,32 @@ it measures the paint path and the page, not the wire. A DBT series is the next 
 4× and 6× (`Emulation.setCPUThrottlingRate`), 5 rounds per rate, the rule applied as written. A throttled desktop is
 not a phone: its GPU is software, its memory and thermals are a server's, and `measureUserAgentSpecificMemory` is not
 available in this headless build, so memory is the page heap alone.
+
+**The proxy's run (2026-11-03), indicative.** Rows at `lab/viewer-spike/seam-core/rows/proxy.txt`. Chromium 153 on
+SwiftShader, 5 rounds per rate, all kept. Medians:
+
+| | first exact, ms | scroll on time | cine on time | page long tasks, ms | page JS heap, MiB |
+| --- | --- | --- | --- | --- | --- |
+| 4×: A | 1 854 | 95.8 % | 100 % | 1 444 | 16.4 |
+| 4×: B | 1 819 | 97.2 % | 98.9 % | 1 325 | 12.6 |
+| 6×: A | 2 483 | 91.5 % | 100 % | 2 037 | 16.5 |
+| 6×: B | 2 266 | 97.2 % | 98.9 % | 1 759 | 12.6 |
+
+**By the rule as written: at 4×, a tie, and A by default.** B is no worse on all five and better on none. Its long
+tasks, 1 325 ms, miss the "better" bar of 1 263. **At 6×: "B pays for its costs".** B is no worse on all five, and
+better on scroll on time (97.2 against 91.5 %, bar 96.5) and on page long tasks (1 759 against 2 037 ms, bar 1 802).
+What this does not say:
+
+* Every long task fell in the open (Cornerstone3D's start, the dial and the first image). None fell in the scroll or
+  the cine on either option, so the page was never busy where B's paint would show its advantage.
+* A's cine was on time; B's dropped one frame in 90 most rounds, on the view worker's timer.
+* B's scroll time is `shown` heard on the page, one thread hop after its paint. A's is `IMAGE_RENDERED`, when the
+  page has issued its draw. They are not the same instant.
+* Exactness was checked for frame 0 on both, and for A's whole fill, not per frame on B in these visits (§5's checks
+  saw 24/24 every run). Page errors were not collected.
+* Memory is the page heap only, which leaves out B's view worker, so it favours B.
+
+None of this is a phone, which decides.
 
 ### 7 · The methods Cornerstone3D says it will remove (d)
 

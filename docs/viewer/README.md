@@ -46,7 +46,7 @@ the section named. *Open*: neither. A bare §*n* is [`integration.md`](integrati
 | OHIF's own viewport types are a closed list | §3, §8 | source |
 | OHIF unchanged boots cross-origin isolated under our headers; our policy refuses its two inline scripts | §5 | test, v3.14.0-beta.68 |
 | OHIF's service worker does not register in a page | §5 | source |
-| Option A against option B on a phone | §6 | open: protocol written, not run; the desktop proxy is a test, indicative |
+| Option A against option B on a phone | §6 | open: protocol written, not run. The desktop proxy, run once, indicative: a tie at 4×, B by the rule at 6× |
 | The glue: 212 lines for our viewport on the core (144 on a synthetic frame); about 450 for the standard path | §5, §4; §Cornerstone3D | counted; 450 is an estimate, open |
 | Bundle size and page-open cost of either | §Cornerstone3D, *Page open* | open |
 | Firefox, a GPU, DPR 2, any VOI function but LINEAR_EXACT, the Generic viewport's interface | §5, §Open | open |
