@@ -239,7 +239,20 @@ python3 $T/svc_tables.py $W/svc-rows.jsonl $W/preview-e2e --errors $W/svc-errors
 ```
 
 This run's outputs are committed here: [`svc-shapes.tsv`](svc-shapes.tsv), [`svc-errors.jsonl`](svc-errors.jsonl),
-[`svc-decode.json`](svc-decode.json), [`svc-rows.jsonl`](svc-rows.jsonl) and [`svc-mutations.jsonl`](svc-mutations.jsonl).
+[`svc-decode.json`](svc-decode.json), [`svc-rows.jsonl`](svc-rows.jsonl), [`svc-mutations.jsonl`](svc-mutations.jsonl)
+and [`svc-firefox.jsonl`](svc-firefox.jsonl), the one Firefox round:
+
+```bash
+FIREFOX_PATH=...      # Firefox 157.0.1, archive.mozilla.org's linux-x86_64 build, SHA-256 0d92bf39cdd1… as its SHA256SUMS
+NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --engines firefox --frames $W/preview-e2e --sets dbts_b1 \
+  --links r20000 --throttles 1 --variants a2-q20,a2-q40,p2-q20,p2-q40,p3-m10,p3-m20,p3-m30 --per-frame --rounds 1 --out $W/svc-firefox.jsonl
+```
+
+**The sitting.** Rounds 0–1 ran on 2026-11-02, rounds 2–9 on 2026-11-03 after the session was stopped for 15 h, in
+the same container and builds. Rounds 3–9 first ran into a full disk: each `run.mjs` process leaves its packed series
+(up to 2.3 GB) in a `/tmp/av1-total-*` directory, and the visits after the disk filled recorded nothing. Those runs'
+21 rows (part of round 3, one visit of round 9) were set aside and rounds 3–9 run again whole, removing the directory
+after each round. `--links none` is new here: the relay with no rate limit, 20 ms each way.
 
 **Variants**, the protocol's names. `p3-*` codes three spatial layers with `svc_encoder_rtc` (mode 6,
 `-r 1/4,1/1,1/1`, quantizers 40, m, 0, a keyframe every 8): the example codes two full-size layers, and the top came

@@ -1872,6 +1872,34 @@ resolution, `VOID`s dropped, frames exact / checked, and the host's saturation w
 goes into `lab/av1/delivery/scalable/tool/README.md` and its reading into a part 11 here. A one-page summary of the
 seven headlines is the presentation's first slide; nothing on it may be absent from a table.
 
+**11 · The SVC metrics, first sitting (2026-11-02 to 11-03), read** ([`svc-results.md`](../../lab/av1/delivery/scalable/tool/svc-results.md),
+how: [`lab/av1/delivery/scalable/tool`](../../lab/av1/delivery/scalable/tool/README.md) §SVC metrics). 10 run as written on the
+three DBT volumes, `none` and `r20000`, 1× and 4×, the 13 variants it names, 10 whole rounds (1 560 visits, 636 `VOID`),
+one Firefox round. **Pending:** the ultrasound rows, 5 and 50 Mbit/s, loss and jitter (later sittings), and the orders,
+jump and settle outside 10.
+
+* **The host saturates on `none`, at the relay**: exact fills arrive at 40–58 MB/s and the relay's self-timing breaks
+  the rig's bound on most of them, so 3–13 of 60 full fills a variant were kept. The `none` rows measure that relay,
+  and nothing past it is claimed. At 20 Mbit/s every exact fill stayed link-bound at 1× and 4×.
+* **What the preview buys, at 20 Mbit/s (1× · 4×):** a first picture at 0.07–0.10 · 0.11–0.16 s against HTJ2K's
+  0.73–1.39 s; every slice with a base at 0.24–0.78 s, 0.009–0.018 of HTJ2K's t_X (27.8–44.1 s); 86–97 % of slices
+  pictured on a 15 slices/s scroll against 0 % with HTJ2K's prefix. A full-size middle reaches every slice at 1.9–5.0 ·
+  4.4–11.0 s, too late for a scroll at 15 slices/s at 4× (0–29 %).
+* **What it costs:** the alone base and the predicted two-layer top keep t_X at 0.988–1.012× and the fill's bytes at
+  0.989–1.007× the shipped payload's. Three layers sent layer-major carry each middle twice: 1.040–1.170× the bytes and
+  t_X with `p3-m10`, up to 1.044× with `p3-m20`, the most on the 10-bit `dbts_b1`. The lossy layers' error is tabled
+  per frame (bases 38–41 dB upscaled, middles 44–50 dB; 30–66 % of pixels move a display level through each series'
+  window), and whether any is visually lossless is the reader's call.
+* **Exactness:** 77 000/77 000 exact frames; 63 000 bases and 28 000 middles as native dav1d; nothing late, no stray,
+  no stall-flush. Every check failed under its mutation except `stallMs` back to 2 000 ms, which never fired on these
+  volumes (no unit went 2 s without its frame), so this run does not show what the 10 000 ms bound protects. Firefox
+  157.0.1: predicted tops 250/250 exact through dav1d-WASM (8's S3 holds there for these streams); the alone
+  variants' split payloads 14/100, the rest failed by name, none wrong — 8's S9, now measured.
+* **The rule (5), on its cells that ran:** not decided, since t_P at 5 Mbit/s and its other cells are pending. Every
+  clause it can decide passes for `a2-q20`, `a2-q40`, `p2-q20` and `p2-q40` on all three volumes. `p3-m10` fails the
+  bytes clause on all three and so cannot pass. `p3-m20` and `p3-m30` fail it on `dbts_b1` only. Part 6's verdict
+  stands.
+
 ## Exactness risks and how they're checked
 
 ### Exactness and the decoders

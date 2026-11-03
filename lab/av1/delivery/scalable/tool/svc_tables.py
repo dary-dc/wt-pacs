@@ -301,19 +301,23 @@ def footer(C):
     return "\n".join(lines)
 
 
+# Part 5's links; `none` is the metrics protocol's own and outside the rule.
+RULE_LINKS = ("r5000", "r20000", "r50000", "r20000-l2", "r20000-j20")
+
+
 def both(a, b):
     """A clause over cells: False if any cell fails, None if none fails but one has no kept visit, else True."""
     return False if False in (a, b) else None if None in (a, b) else True
 
 
 def rule(C, sets_run):
-    """Part 5's clauses per shape and volume, layer-major (the only order here), on the cells run; a clause of a cell
-    with no kept visit is undecided, and so is the t_P clause while a 5 or 20 Mbit/s cell of it was not run."""
+    """Part 5's clauses per shape and volume, layer-major (the only order here), on its cells that were run; a clause of
+    a cell with no kept visit is undecided, and so is the t_P clause while a 5 or 20 Mbit/s cell of it was not run."""
     out = []
     for shape in SHAPES:
         per_set = {}
         for s in sets_run:
-            cells = [c for c in C.cells if c[0] == s]
+            cells = [c for c in C.cells if c[0] == s and c[1] in RULE_LINKS]
             got = dict(exact=True, tp=True, scroll=True, tx=True, bytes=True)
             notes = []
             got["exact"] = all(r.get("exact", 0) == C.owed(r) for c in cells for r in C.visits(c, shape))
