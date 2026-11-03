@@ -1,0 +1,48 @@
+<!doctype html><meta charset=utf-8><script type=module>
+import * as av1 from "/client/decode/av1.js";
+import * as wc from "/client/decode/av1-webcodecs.js";
+
+const W = 2560, H = 3328;
+const units = async () => {
+  const ivf = new Uint8Array(await (await fetch("/work/g8.ivf")).arrayBuffer());
+  const out = [];
+  for (let at = 32; at < ivf.length; at += 12 + new DataView(ivf.buffer).getUint32(at, true)) {
+    out.push(ivf.subarray(at + 12, at + 12 + new DataView(ivf.buffer).getUint32(at, true)));
+  }
+  return out;
+};
+const payload = (u) => {
+  const p = new Uint8Array(20 + u.length), v = new DataView(p.buffer);
+  p.set([1, 10, 10, 0, 0, 0, 0, 0]);
+  v.setUint32(12, 1, true);
+  v.setUint32(16, u.length, true);
+  p.set(u, 20);
+  return p;
+};
+const source = async (i) => new Uint16Array(await (await fetch("/work/src.gray10",
+  { headers: { Range: `bytes=${i * W * H * 2}-${(i + 1) * W * H * 2 - 1}` } })).arrayBuffer());
+
+/** Each unit through av1.js as the exact layer is, or (`hole`) av1-webcodecs.js alone with unit `hole` a bare delimiter. */
+window.run = async ({ n, stallMs, hole }) => {
+  const d = { groupLength: 8, ...(stallMs && { stallMs }) };
+  if (hole === undefined) await av1.init(d, (p) => import(p === "./av1-dav1d.js" ? "/stall/stub-dav1d.js" : `/client/decode/${p.slice(2)}`));
+  else await wc.init(d);
+  const all = await units(), out = [];
+  for (let i = 0; i < n; i++) {
+    const unit = { key: i % 8 === 0, gen: 0, index: i }, t = performance.now();
+    try {
+      if (hole !== undefined) {
+        await wc.picture(i === hole ? new Uint8Array([0x12, 0]) : all[i], unit);
+        out.push({ i, ms: Math.round(performance.now() - t), decoded: true });
+        continue;
+      }
+      const r = await av1.decodeFrame(payload(all[i]), unit);
+      const got = new Uint16Array(r.sab), want = await source(i);
+      out.push({ i, ms: Math.round(performance.now() - t), path: r.path, exact: got.every((v, k) => v === want[k]) });
+    } catch (e) {
+      out.push({ i, ms: Math.round(performance.now() - t), error: String(e.message) });
+    }
+  }
+  return out;
+};
+</script>

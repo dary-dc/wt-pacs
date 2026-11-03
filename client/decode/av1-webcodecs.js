@@ -8,11 +8,15 @@ import { codecString, continues, sequence } from "./av1-payload.js";
 import { PROBES } from "./av1-probe.js";
 
 let groupLength = 1;
+/** ms a unit may give neither frame nor error before it is flushed: else it holds its decoder forever; the flush ends its group. */
+const STALL_MS = 2000;
+let stallMs = STALL_MS;
 const streams = {};
 const probed = {};
 
 export async function init(d) {
   groupLength = d.groupLength ?? 1;
+  stallMs = d.stallMs ?? STALL_MS;
 }
 
 /** Whether a tiny unit of `layout` comes back with the samples it was coded from, once per worker. */
@@ -42,9 +46,6 @@ function checksum({ width, height, planes }) {
   }
   return h;
 }
-
-/** A unit with no frame and no error would hold its group's decoder forever; past this it is flushed. */
-const STALL_MS = 2000;
 
 const stream = (which) => (streams[which] ??= decoder(which === "top" ? groupLength : 1));
 
@@ -94,7 +95,7 @@ function decoder(length) {
         const out = new Promise((r) => (wake = r));
         // Throws for a keyframe that is not one, and for any other unit after a flush.
         vd.decode(new EncodedVideoChunk({ type: unit.key ? "key" : "delta", timestamp: stamp, data: bytes }));
-        await Promise.race([out, new Promise((r) => (stall = setTimeout(r, STALL_MS)))]);
+        await Promise.race([out, new Promise((r) => (stall = setTimeout(r, stallMs)))]);
         if (!got && vd.state === "configured") await vd.flush();
         if (vd.state === "closed") throw failed ?? new Error("decoder closed");
         if (!got) throw new Error("no frame");
