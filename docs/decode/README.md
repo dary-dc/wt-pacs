@@ -1808,9 +1808,11 @@ excluded.
 
 **The host.** 4 vCPU (KVM, Intel Xeon @ 2.80 GHz), 15 GB, a container; headless Chromium 153.0.8010.12 (Playwright's).
 The rig as its README sets it: the relay alone on core 3 at `chrt -f 50`, browser and server on cores 0–2. **Where it
-saturates:** the unshaped `plain` cell `VOID`ed in every visit (the relay's p99 2.5–16.8 ms late, as
+saturates:** the unshaped `plain` cell `VOID`ed in all 112 visits (the relay's p99 2.5–16.8 ms late, as
 [`../rig-limits.md`](../rig-limits.md) says an unshaped flight does), so it is dropped and nothing is claimed above
-50 Mbit/s. Up to 50 Mbit/s today's arm and the ladder are link-bound at 4× (exact series within 1.3 % of 1×); the AV1
+50 Mbit/s. The relay also `VOID`ed 32–41 % of the visits at 5 and 20 Mbit/s (0 % at 50), over the 20 % at which
+§Net protocols drops a link of its own cells; both readings are given (`VOID`s dropped, and kept), and the verdict
+is the same in both. Up to 50 Mbit/s today's arm and the ladder are link-bound at 4× (exact series within 1.3 % of 1×); the AV1
 preview's exact series is decode-bound at 4× and 50 Mbit/s (×1.10–1.39 of today's), so its 4× 50 Mbit cells measure
 three slowed cores, not the link.
 
@@ -1841,14 +1843,14 @@ The cine-like sound sets are `dbt12_ea1141`, `dbt10_ea1141`, `dbt12_c`, `dbt10_d
 The level fit at a 1 000-pixel long side is level 1 on 14 of the 15 volumes, `dbt12_c` and `dbt10_d`, and level 0
 (no split) on `dbts_a1` (1 785 pixels) and every other cine-like set.
 
-**Stage 1, quality** (`rows/stage1-levels.md`; measured on the three rule volumes and the cine-like sets — the twelve
-other volumes have bytes and checks, not quality, *not run*). **No prefix of any level met the visually lossless proxy
-on any frame, at full size or at display scale.** At full size the (r, 0) picture (finer subbands absent) is 45.9–49.6 dB
-at level 1 and 43.0–45.9 dB at level 2 on the three volumes, SSIM 0.985–0.991 and 0.974–0.982, but 53–89 % of in-window
-codes differ and up to 64 % by more than one. At display scale the level-fit picture is the 5/3 low band, not an area
-average: against the area-resampled exact frame, `dbts_b1` 46.9 dB and `dbts_c1` 44.5 dB, 81–83 % of codes differing,
-51–54 % by more than one. "Exact at its level" is exact against the codestream's own reduced resolution, not against
-what a viewer's resampling of the exact frame paints.
+**Stage 1, quality** (`rows/stage1-levels.md`, every frame of every set). **No prefix of any level met the visually
+lossless proxy on any frame of any set, at full size or at display scale.** On the 15 volumes the (r, 0) picture
+(finer subbands absent) is 43.3–49.6 dB at level 1 and 40.2–45.9 dB at level 2, SSIM 0.975–0.991 and 0.953–0.982, but
+81–93 % of in-window codes differ under the worst window and 49–80 % by more than one. At display scale the level-fit
+picture is the 5/3 low band, not an area average: against the area-resampled exact frame (PIL's box filter; that it is
+an area average is *unverified*) 41.4–46.9 dB, 81–94 % of codes differing, 51–81 % by more than one. "Exact at its
+level" is exact against the codestream's own reduced resolution, not against what a viewer's resampling of the exact
+frame paints.
 
 **Stage 2, decode** (4 rounds, Chromium, the lab decoder in a worker, each set's first 16 frames; × the whole frame,
 median of round-paired ratios, the range over sets; 83 200/83 200 pictures exact):
@@ -1864,34 +1866,36 @@ Today's whole frame on the volumes: 9.9–41.8 ms at 1×, 46–212 ms at 4×. Th
 1×) are the throttle's quantum, not decode.
 
 **Stage 3, delivery** (`rows/stage3-volumes.md`; seconds from the fill's issue, medians of kept visits; ratios the
-median of round-paired ratios; every kept visit's every frame exact and every preview equal to its witness or native
-dav1d's):
+median of round-paired ratios; four rounds, n = 1–4 kept a cell, 4 with the `VOID`s kept; 448 visits on the
+volumes and 512 on the cine-like sets, every frame exact and every preview equal to its witness or native dav1d's in
+every one, none failed):
 
 | volume, link, CPU | n | today exact s | ladder at fit: first s · display-scale s (÷ today) · exact ÷ today | level 2: first s · every slice s | AV1 preview: first s · every slice s · exact ÷ today | first, fit ÷ AV1 | A/A p90 |
 | --- | --: | --: | --- | --- | --- | --: | --: |
-| `dbts_a1` 5 Mbit 1× | 1 | 110.52 | no split (fit level 0) | 0.24 · 7.95 | 0.09 · 0.34 · ×0.943 | — | 0.000 |
-| `dbts_a1` 5 Mbit 4× | 1 | 110.61 | no split (fit level 0) | 0.29 · 7.96 | 0.16 · 0.64 · ×0.945 | — | 0.000 |
-| `dbts_a1` 20 Mbit 1× | 1 | 27.76 | no split (fit level 0) | — · — | 0.11 · 0.36 · ×0.946 | — | 0.000 |
-| `dbts_a1` 50 Mbit 1× | 1 | 11.26 | no split (fit level 0) | 0.19 · 0.99 | 0.09 · 0.35 · ×0.949 | — | 0.000 |
-| `dbts_a1` 50 Mbit 4× | 1 | 11.32 | no split (fit level 0) | 0.24 · 1.01 | 0.16 · 0.60 · ×1.096 | — | 0.000 |
-| `dbts_b1` 5 Mbit 1× | 1 | 175.01 | 1.06 · 47.53 (×0.272) · ×1.000 | 0.36 · 13.28 | 0.15 · 0.63 · ×0.947 | 7.19 | 0.000 |
-| `dbts_b1` 5 Mbit 4× | 1 | 175.20 | 1.18 · 47.58 (×0.272) · ×1.000 | 0.40 · 13.33 | 0.28 · 1.19 · ×0.951 | 4.21 | 0.001 |
-| `dbts_b1` 20 Mbit 1× | 1 | 43.91 | 0.43 · 12.02 (×0.274) · ×1.000 | 0.23 · 3.45 | 0.13 · 0.73 · ×0.952 | 3.23 | 0.001 |
-| `dbts_b1` 20 Mbit 4× | 1 | 44.10 | 0.56 · 12.08 (×0.274) · ×1.000 | 0.30 · 3.46 | 0.24 · 1.14 · ×0.994 | 2.35 | 0.001 |
-| `dbts_b1` 50 Mbit 1× | 1 | 17.76 | 0.38 · 5.00 (×0.281) · ×0.999 | 0.23 · 1.53 | 0.12 · 0.78 · ×0.995 | 3.10 | 0.000 |
-| `dbts_b1` 50 Mbit 4× | 1 | 17.98 | 0.47 · 5.07 (×0.282) · ×0.999 | 0.27 · 1.54 | 0.23 · 1.06 · ×1.390 | 2.03 | 0.004 |
-| `dbts_c1` 5 Mbit 1× | 1 | 115.16 | 0.60 · 31.51 (×0.274) · ×1.000 | 0.23 · 8.58 | 0.12 · 0.41 · ×0.941 | 5.17 | 0.000 |
-| `dbts_c1` 5 Mbit 4× | 1 | 115.20 | 0.67 · 31.53 (×0.274) · ×1.000 | 0.27 · 8.58 | 0.18 · 0.78 · ×0.942 | 3.61 | 0.000 |
-| `dbts_c1` 20 Mbit 1× | 1 | 28.93 | 0.29 · 8.01 (×0.277) · ×1.000 | 0.18 · 2.27 | 0.13 · 0.43 · ×0.943 | 2.30 | 0.000 |
-| `dbts_c1` 20 Mbit 4× | 1 | 28.97 | 0.36 · 8.01 (×0.276) · ×1.000 | 0.23 · 2.27 | 0.15 · 0.68 · ×0.953 | 2.36 | 0.000 |
-| `dbts_c1` 50 Mbit 1× | 1 | 11.72 | 0.28 · 3.36 (×0.286) · ×1.000 | 0.17 · 1.05 | 0.13 · 0.48 · ×0.948 | 2.05 | 0.000 |
-| `dbts_c1` 50 Mbit 4× | 1 | 11.79 | 0.39 · 3.41 (×0.289) · ×1.002 | 0.22 · 1.06 | 0.16 · 0.75 · ×1.127 | 2.44 | 0.000 |
+| `dbts_a1` 5 Mbit 1× | 1 | 110.52 | no split (fit level 0) | 0.24 · 7.95 | 0.09 · 0.37 · ×0.943 | — | 0.000 |
+| `dbts_a1` 5 Mbit 4× | 3 | 110.60 | no split (fit level 0) | 0.30 · 7.96 | 0.19 · 0.78 · ×0.945 | — | 0.000 |
+| `dbts_a1` 20 Mbit 1× | 1 | 27.76 | no split (fit level 0) | — · — | 0.12 · 0.42 · ×0.946 | — | 0.000 |
+| `dbts_a1` 20 Mbit 4× | 2 | 27.84 | no split (fit level 0) | 0.23 · 2.12 | 0.17 · 0.68 · ×0.954 | — | 0.001 |
+| `dbts_a1` 50 Mbit 1× | 4 | 11.28 | no split (fit level 0) | 0.19 · 0.99 | 0.12 · 0.37 · ×0.949 | — | 0.008 |
+| `dbts_a1` 50 Mbit 4× | 4 | 11.32 | no split (fit level 0) | 0.24 · 1.01 | 0.18 · 0.74 · ×1.194 | — | 0.004 |
+| `dbts_b1` 5 Mbit 1× | 3 | 175.03 | 1.06 · 47.53 (×0.272) · ×1.000 | 0.36 · 13.28 | 0.14 · 0.67 · ×0.947 | 7.75 | 0.000 |
+| `dbts_b1` 5 Mbit 4× | 3 | 175.24 | 1.17 · 47.58 (×0.272) · ×1.002 | 0.43 · 13.30 | 0.29 · 1.30 · ×0.951 | 4.06 | 0.001 |
+| `dbts_b1` 20 Mbit 1× | 3 | 43.94 | 0.44 · 12.02 (×0.274) · ×1.002 | 0.24 · 3.45 | 0.13 · 0.69 · ×0.951 | 3.30 | 0.001 |
+| `dbts_b1` 20 Mbit 4× | 3 | 44.08 | 0.58 · 12.08 (×0.274) · ×1.002 | 0.29 · 3.46 | 0.26 · 1.18 · ×1.016 | 2.33 | 0.001 |
+| `dbts_b1` 50 Mbit 1× | 4 | 17.76 | 0.36 · 4.98 (×0.280) · ×1.000 | 0.23 · 1.53 | 0.13 · 0.77 · ×0.977 | 2.77 | 0.013 |
+| `dbts_b1` 50 Mbit 4× | 4 | 17.94 | 0.52 · 5.04 (×0.281) · ×1.000 | 0.29 · 1.55 | 0.23 · 1.25 · ×1.622 | 2.17 | 0.031 |
+| `dbts_c1` 5 Mbit 1× | 3 | 115.16 | 0.60 · 31.51 (×0.274) · ×1.000 | 0.24 · 8.58 | 0.11 · 0.46 · ×0.941 | 5.25 | 0.000 |
+| `dbts_c1` 5 Mbit 4× | 3 | 115.21 | 0.67 · 31.53 (×0.274) · ×1.000 | 0.27 · 8.58 | 0.18 · 0.83 · ×0.942 | 3.61 | 0.000 |
+| `dbts_c1` 20 Mbit 1× | 3 | 28.93 | 0.30 · 8.01 (×0.277) · ×1.000 | 0.18 · 2.27 | 0.11 · 0.45 · ×0.943 | 2.55 | 0.002 |
+| `dbts_c1` 20 Mbit 4× | 4 | 28.99 | 0.37 · 8.03 (×0.277) · ×1.000 | 0.23 · 2.28 | 0.19 · 0.80 · ×0.952 | 1.98 | 0.001 |
+| `dbts_c1` 50 Mbit 1× | 4 | 11.73 | 0.28 · 3.36 (×0.286) · ×1.001 | 0.18 · 1.06 | 0.13 · 0.58 · ×0.955 | 2.08 | 0.012 |
+| `dbts_c1` 50 Mbit 4× | 4 | 11.81 | 0.37 · 3.39 (×0.287) · ×1.001 | 0.24 · 1.07 | 0.19 · 0.89 · ×1.190 | 1.93 | 0.010 |
 
 **The rule, applied** (lab README §The rule as applied, written before stage 3 ran). On `dbts_b1` and `dbts_c1` in every
 cell run: every frame exact — holds; every slice at display scale ≤ 0.3× today's exact series at 5 and 20 Mbit/s —
-holds (×0.272–0.277); the exact series ≤ 1.02× today's at today's bytes — holds (×0.999–1.002, 1.000 of the bytes);
-**the first picture ≤ 1.5× the scalable preview's — fails in every cell** (×2.0–7.2), strict and with the A/A spread
-(p90 ≤ 0.4 %). `dbts_a1` has no split at its fit level. **Verdict: the ladder is not a candidate beside AV1** by the rule
+holds (×0.272–0.277; ×0.280–0.287 at 50 Mbit/s); the exact series ≤ 1.02× today's at today's bytes — holds
+(×1.000–1.002, 1.000 of the bytes); **the first picture ≤ 1.5× the scalable preview's — fails in every cell**
+(×1.93–7.75; ×1.93–8.07 with the `VOID`s kept), strict and with the A/A spread (p90 0–3.1 %). `dbts_a1` has no split at its fit level. **Verdict: the ladder is not a candidate beside AV1** by the rule
 as written. **One set, two layers and two sets: not built, so the second clause is not applied**; §3's derivation is all
 there is for them.
 
@@ -1899,13 +1903,20 @@ there is for them.
 levels 3–5 1.8–2.4, 0.5–0.9, 0.2–0.6 % against ~1–2, 0.3–0.4, 0.2 — the synthetic estimate was low. Decode: level 2
 alone ×0.08–0.13 at 1× held against "over ×0.12" on 14 of 15 volumes, not on `dbts_c4` (×0.13), and at 4× ×0.06–0.16;
 2 → 1 → 0 ×1.37–1.45 (predicted 1.35–1.39). First picture: level 2 0.17–0.40 s and the fit level 0.28–1.18 s against
-AV1's 0.09–0.28 s — **refuted** ("ladder over 1.8× or under 0.7× AV1's in a cell": the fit level is 2.0–7.2×, level 2
-1.2–2.7×); the prediction "as soon as AV1's" was wrong because the fit prefix is 27 % of a frame, not a base unit of
-0.02–0.04 %. Every slice pictured at level 2 at 5 Mbit/s: 7.95–13.3 s, 21–23× the preview's 0.34–0.63 s (predicted 7–46×).
-Display scale: 0.272–0.289 of the exact series (predicted 0.26–0.29 on `dbts_b1`, `dbts_c1`; refuted over 0.35) held.
-Exact series: ×0.999–1.002 held (refuted over 1.04).
+AV1's 0.09–0.29 s — **refuted** ("ladder over 1.8× or under 0.7× AV1's in a cell": the fit level is 1.9–7.8×, level 2
+1.2–2.7×; the predicted level 3 was not an arm); "as soon as AV1's" was wrong because the fit prefix is 27 % of a
+frame, the preview's base 0.02–0.04 %. Every slice pictured at level 2 at 5 Mbit/s: 7.95–13.3 s, 10–22× the
+preview's 0.37–1.30 s (predicted 7–46×, refuted under 4×). Display scale: 0.272–0.287 of the exact series on
+`dbts_b1` and `dbts_c1` (predicted 0.26–0.29; refuted over 0.35) held. Exact series ×1.000–1.002 held (refuted over
+1.04).
 
-**Left for the owner.** The protocol's n = 12 was not reached: one round of the volumes so far (n = 1 a cell), the cine-like sets' rounds still to come. The verdict rests on a clause every round
+**The cine-like sets** (`rows/stage3-cine.md`, two rounds, in no verdict): on `dbt12_c` and `dbt10_d`, the two whose fit
+is level 1, every slice at display scale came at ×0.277–0.310 of today's exact series and the exact series at
+×0.999–1.003; level 2's every slice pictured, 0.19–7.95 s against today's 0.45–106 s. The exact series of the
+ladder at level 2 was within ±0.7 % of today’s on every set at 5 and 20 Mbit/s, and up to ×1.07 on `mr9_ispy2`
+(1.4 MB, 0.45 s) at 50 Mbit/s, a fill too short to read.
+
+**Left for the owner.** The protocol's n = 12 was not reached: four rounds of the volumes (n = 1–4 a cell kept after the `VOID`s), two of the cine-like sets. The verdict rests on a clause every round
 failed by ×2 or more, so more rounds would move the ratios, not the verdict; stage 1 quality on twelve volumes was not
 run.
 
