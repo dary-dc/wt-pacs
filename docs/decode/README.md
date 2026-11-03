@@ -1916,9 +1916,10 @@ is level 1, every slice at display scale came at ×0.277–0.310 of today's exac
 ladder at level 2 was within ±0.7 % of today’s on every set at 5 and 20 Mbit/s, and up to ×1.07 on `mr9_ispy2`
 (1.4 MB, 0.45 s) at 50 Mbit/s, a fill too short to read.
 
-**Left for the owner.** The protocol's n = 12 was not reached: four rounds of the volumes (n = 1–4 a cell kept after the `VOID`s), two of the cine-like sets. The verdict rests on a clause every round
-failed by ×2 or more, so more rounds would move the ratios, not the verdict; stage 1 quality on twelve volumes was not
-run.
+**Left for the owner.** The protocol's n = 12 was not reached: four rounds of the volumes (n = 1–4 a cell kept after the `VOID`s), two of the cine-like sets. The verdict rests on a clause every cell
+failed by ×1.9 or more against a bound of 1.5, so more rounds would move the ratios, not the verdict. Also open: the
+two quality shapes, not built; the 20 Mbit/s `dbts_a1` level-2 cell at 1×, every visit `VOID`; and a product binding of
+`restrict_input_resolution`, which would need the SIZ reset above and is structural, so proposed separately.
 
 ## The BYOB read path
 
