@@ -2194,6 +2194,9 @@ engines. The first run's VOID rows in `rows/m5/` stand as run.
 * **What would let the rule choose:** the fill bar measured to the last frame on disk in every arm, `today` included.
   That is a change to the protocol after data, and so a new pre-registration; read that way, the four profiled fills
   put `ring` at or under `today` on Firefox.
+* *Corrected 2026-11-03:* done (*M5's fill bar, amended*, and *M5 under the amended bar*, below). Measured to the last
+  frame on disk, `ring` qualifies on Firefox and on Chromium, and the rule chooses `ring`. The verdict above stands
+  as the verdict of the bar it was run under.
 
 **M5's fill bar, amended 2026-11-02, before any data.** The bar above compares different ends: the arms write each
 frame before posting it, so their fill ends after its last write; `today`'s ends at its last frame delivered, with its
@@ -2244,6 +2247,50 @@ arm shares.
 So the rule is predicted to choose **`ring` on both engines**. The prediction fails if `ring` misses on Firefox,
 whether on the fill bar or on the memory bar, where its rerun range ended 12 MiB under it.
 
+**M5 under the amended bar, run 2026-11-02 to 11-03.** The rows are
+[`rows/m5-disk-bar/`](https://github.com/dary-dc/wt-pacs/tree/ROWS_COMMIT/lab/opfs-cache/rows/m5-disk-bar), with the smoke
+rows beside them in `m5-disk-bar-smoke/`, at `claude/core-m5b@ROWS_SHORT`. `python3 lab/opfs-cache/summary.py
+lab/opfs-cache/rows/m5-disk-bar` prints every number below. Each cell ran 7 rounds per engine, and every round of
+every arm filled with all 80 frames exact by both checks. The decoders matched `manifest.sha256`.
+
+* **The verdict, by the rule as amended: `ring`, on both engines.** It is the only arm that qualifies on either.
+  Neither cell is VOID. The A/A differs by 4 MiB with `ring′` at 0.96 × `ring`'s time on Chromium, and by 30 MiB at
+  0.98 on Firefox.
+* **On Firefox, the amendment alone turned the verdict.** Read by the struck bar, the same rows put `ring` at 1.23 ×
+  `today`, a miss. Read to the last frame on disk, `ring` is at 0.85. `today`'s writes ended a median 3.5 s after its last
+  delivery (11.09 s against 7.57 s).
+* **As predicted for every arm but one figure.** Chromium's `ring` came in at 0.96 × `today`, just over the predicted
+  0.85–0.95. `today`'s writes there trailed by 0.6 s, not the profile's 1.1–2.5 s.
+
+| arm | Chromium growth, median [range] | fill to disk / `today` | ask / step (ms) | Chromium | Firefox growth, median [range] | fill to disk / `today` | ask / step (ms) | Firefox |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| bar | `disk` + 320 = **681 MiB** | ≤ 1.10 | `ring`'s + 16.7 | | `disk` + 320 = **760 MiB** | ≤ 1.10 | `ring`'s + 16.7 | |
+| `ring` | 576 [571–580] | 0.96 | 0.03 / 0.03 | **qualifies** | 702 [673–710] | 0.85 | 0.04 / 0.06 | **qualifies** |
+| `ring′` | 574 [567–582] | 0.94 | 0.03 / 0.03 | A/A | 699 [670–708] | 0.83 | 0.04 / 0.04 | A/A |
+| `transfer` | 881 [847–942] | 1.00 | 0.02 / 0.01 | misses the memory bar | 926 [846–1 078] | 1.02 | 0.04 / 0.02 | misses the memory bar |
+| `transfer-k` | 961 [870–1 018] | 0.96 | 0.02 / 0.01 | misses the memory bar | 971 [866–1 046] | 1.06 | 0.04 / 0.00 | misses the memory bar |
+| `disk` | 361 [353–371] | 0.88 | **18.7** / 12.0 | misses the time bar on asks | 440 [429–450] | 0.85 | **29.8** / 17.2 | misses the time bar on asks |
+| `today` | 2 791 [2 688–3 240] | 1 | — | reported | 2 331 [2 060–2 467] | 1 | — | reported |
+
+The medians of the fill to disk are 8.78 s (`ring`) against 9.35 s (`today`) on Chromium, and 9.77 s against 11.09 s
+on Firefox.
+
+* **The stamp's check did not separate cleanly.** It flagged one real row: Firefox `transfer-k` in round 4, whose
+  80th frame the rig's poll saw 569 ms after the stamp, over the 500 ms bound. That row is counted incomplete, and its
+  arm misses on memory anyway. Over the other 83 rows the lag was 5–135 ms on Chromium and 48–368 ms on Firefox, all in
+  the two `transfer` arms above 200 ms. The smoke mutant was caught at 529 ms on Chromium, where `today`'s writes
+  trailed only 0.66 s, and at 1 324 ms on Firefox. The Chromium mutant's lag is under that one real row's, so the bound
+  sorts the two only by where each falls. It would not catch a stamp off by less than about half a second. No row the
+  verdict rests on is near the bound: every `ring`, `ring′` and `today` lag was under 200 ms.
+* **Firefox is 155.0 here, not M5's 159.0.** Its floor (`disk`, 440 MiB) sits 102 MiB under the rerun's, and with it the bar.
+  `ring`'s largest round, 710 MiB, is 50 MiB under this bar. Against the rerun's 862 MiB bar, 159.0's `ring` had 12 MiB to spare.
+  Whether 159.0 under the amended bar also qualifies `ring` is not measured.
+* **Where the host saturates.** The CPU was 0.77–0.91 busy through Chromium's fills and 0.65–0.80 through Firefox's.
+  So Chromium's fills ran close to this host's limit, above the 0.66–0.80 the amendment quoted from M5. Nothing stopped
+  on the memory floor. The ratios hold for three decoders on four vCPUs, and nothing here speaks to a faster host.
+
+BUSY_RESULTS
+
 **How the ring works**, in plain words, as M5 built it in the lab: [`arms-slots.js`](../../lab/opfs-cache/arms-slots.js)
 (the table), [`arms-decoder.js`](../../lab/opfs-cache/arms-decoder.js) (who takes a slot),
 [`arms-view.js`](../../lab/opfs-cache/arms-view.js) (who frees one).
@@ -2292,6 +2339,33 @@ whether on the fill bar or on the memory bar, where its rerun range ended 12 MiB
 
   None of this is built. M5 decides only which frame memory bounds a fill. Building the ring in is a change to the
   core's frame store and decoders, proposed for review first.
+
+  *Proposed for the owner, 2026-11-03, now that `ring` qualifies on both engines under the amended bar (above).
+  Not built: the change is structural.* The steps, each behind the setting `opts.pixels` with a new value `ring`, so
+  that `shared` stays the default until the owner flips it:
+
+  1. **The ring, owned by the store.** `client/view/store.js` carves one `SharedArrayBuffer` at the first frame's
+     shape: ⌊budget bytes / frame bytes⌋ slots, and the slot table beside it, taken from `arms-slots.js` into
+     `client/view/`. The store's budget counts frames today (`#frames.size`), so it is restated in bytes, the unit the
+     ring is cut in. Letting a frame go frees its slot.
+  2. **The decoders claim, not allocate.** `frameBuffer` (`client/decode/frame-buffer.js`) becomes a claim on the
+     table, handed over at the decoders' `init`. Claims happen in `htj2k.js` and `av1-frame.js` once a decode ends,
+     with the copy into the slot as M5 built it. A decoder that fails after its claim frees the slot (the
+     `throws-after-slot` fixture, carried as a test). An AV1 preview layer stays a buffer of its own, outside the ring.
+  3. **A dry ring without a blocked thread.** The decoder tells the store over its port and waits on
+     `Atomics.waitAsync`, or for the store's reply, never on `Atomics.wait`. The store answers by evicting its
+     farthest frame. That is the one behaviour the lab's version does not have, and it wants its own test and mutant
+     (`slots-never-freed` as the stall).
+  4. **A slot used only while its take count holds.** The paint's upload and the cache's write read a slot in the
+     view worker. Each compares the take count before and after, and drops and re-asks on a change: two
+     `Atomics.load`s a frame.
+  5. **Only one frame shape.** One series of one shape is on screen, as today. A second shape, or a second
+     viewport, re-carves only with every slot free, or refuses `ring` and stays on `shared`. That is not designed here.
+  6. **Kept as it is:** cross-origin isolation, which the core already needs; credits off on this path, since M5's
+     `m5-busy` shows the ring's port bounded without them.
+  7. **Before the default flips:** the core's own fill, `?view=worker` with `opts.pixels=ring` against `shared`,
+     interleaved, on both engines, with this section's memory bar, its amended fill bar, and exactness by both checks.
+     M5 measured the lab's stand-in view, not the core.
 
 ### Options, and what each costs
 
