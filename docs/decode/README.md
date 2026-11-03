@@ -2222,6 +2222,30 @@ G's numbers for their structural review. It builds nothing in the product.
   report says where the host saturates if it measures that, and claims nothing for fills, concurrency or phones. A
   phone's reading needs its own run. Each cell is quoted in ms a frame, latency only.
 
+*Measured (2026-11-03)*, by a separate session given only the protocol
+([`merge-free`](../../lab/av1/decode/merge-free/README.md) §Measured). 150 rounds at 1×, 40 at 4×, Chromium
+141.0.7390.37 on 4 vCPUs. **60 800 of 60 800 frames exact**. Every broken copy read 0 exact (`--mutate`, S's
+shift one short, R's buffer never grown), and the control read all exact. **G was not run**: the host's WebGL2
+renderer is SwiftShader. The run was cut after 149 browsers and resumed from its rows on a slower host of the same
+shape (2.80 → 2.10 GHz). Each ratio is paired within one browser, and each half alone gives the same verdict.
+
+| throttle | set | W2 ms | R ÷ W2 | S ÷ W2 | S ÷ W |
+| --- | --- | --: | --: | --: | --: |
+| 1× | `dbts_a1` | 110.3 | 0.968 [0.958–0.978] | 0.877 [0.867–0.886] | 0.824 [0.815–0.833] |
+| 1× | `dbts_b1` | 222.1 | 0.932 [0.926–0.940] | 0.778 [0.771–0.788] | 0.697 [0.689–0.702] |
+| 1× | `dbts_c1` | 109.0 | 0.951 [0.940–0.966] | 0.849 [0.839–0.861] | 0.784 [0.778–0.796] |
+| 1× | `mr_ispy1` | 19.9 | 0.976 [0.967–0.998] | 0.909 [0.890–0.926] | 0.869 [0.850–0.893] |
+| 4× | `dbts_a1` | 433.1 | 0.964 [0.943–0.976] | 0.891 [0.881–**0.908**] | 0.837 [0.820–0.847] |
+| 4× | `dbts_b1` | 876.9 | 0.936 [0.926–0.944] | 0.773 [0.758–0.784] | 0.686 [0.675–0.695] |
+| 4× | `dbts_c1` | 417.8 | 0.968 [0.936–0.984] | 0.868 [0.852–0.883] | 0.788 [0.774–0.804] |
+| 4× | `mr_ispy1` | 61.1 | 0.986 [0.950–**1.024**] | 0.946 [0.923–0.996] | 0.913 [0.883–0.946] |
+
+The A/A missed in 1 cell of 8 (`dbts_b1` at 1×), which the protocol allows. **By the rule as written, R does not
+become the default.** It meets its line in all six DBT cells, but on `mr_ispy1` at 4× its upper end is 1.024 > 1.02.
+**S is not proposed for building.** Its ratio to W2 lies below 0.90 in five DBT cells, but at 4× on `dbts_a1` the
+interval reaches 0.908. S and G go to the owner with these numbers, and G has none. The host did not saturate: no
+second reached 95 % of the 4 CPUs, and the busiest reached 49 %. Nothing is claimed for fills, concurrency or phones.
+
 ## Hardware decode
 
 Queue row HWDECODE, theory only: [`hardware.md`](hardware.md). No browser path serves the viewer as the product codes
