@@ -4,7 +4,7 @@ The harness for the pre-registered protocol in
 [`../../docs/adr/frame-path.md`](../../docs/adr/frame-path.md) §A frame clock in the view worker: seven cine clocks,
 each in the real view worker (`client/view/view-worker.js`) with its frames already held, on a quiet or a busy page.
 The protocol, its rule and every claim live in the ADR; this file says how to run it and how it scores.
-**Built and smoke-run, not run as a protocol: no number from here is a result.**
+**Run in Chromium on 2026-11-03 (`rows/chromium.jsonl`): no verdict, every cell past the host's limit — the ADR says why.**
 
 ```bash
 node lab/frame-clock/check.mjs                             # each arm wired end to end, a second each, nothing timed

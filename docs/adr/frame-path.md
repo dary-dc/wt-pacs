@@ -929,7 +929,7 @@ after its draw; Gecko and WebKit present it after the task (row (c)).
 At 4× the worker's own per-tick work counts: a 512² paint is 0.34 ms on a GPU (§3), but a 2560×3328 16-bit frame is 17 MB a
 `texImage2D`, not measured; if it passes the interval, every arm misses alike and the cell is the host's limit.
 
-**Protocol (pre-registered, not queued; built, not run).** Frames are in the view worker's memory before the clock
+**Protocol (pre-registered; run in Chromium 2026-11-03, below: no verdict).** Frames are in the view worker's memory before the clock
 starts: no network, no decode. Each frame is uploaded on its tick, as the paint worker does today.
 
 * **Cells:** {a 512×512 16-bit series of 76 frames, 12 frames of 2560×3328 16-bit} × {30, 60 frames/s} × {quiet page,
@@ -1013,7 +1013,8 @@ on all 16 cells, Firefox 155 (Xvfb) on the eight 512² cells and one 2560×3328 
 and the 4× lever held on the page thread and a worker alike. **By the protocol's own guard this container saturates
 in every cell but 512² at 30/s on a quiet page at 1×**, in both engines, and in Chromium also on a busy page at 1×. Every 60/s cell, every 4× cell and every
 2560×3328 cell is past the host's limit here: nothing is claimed in them, and no other figure from the smoke is a
-result.
+result. *Corrected 2026-11-03 by the run below: the smoke's draw p99 was the draw's issue; settled by the fence, the
+512² 30/s quiet 1× cell saturates too, so in Chromium no cell is inside the host's limit.*
 
 **Rule, stated before any data.** Per engine: **the clock moves into the worker** with `worker-raf` if, in every
 non-VOID busy-page cell of the 512² series at 1× and 4×, it has ≥ 20 points fewer frames late than `page-raf` in ≥ 11
@@ -1022,6 +1023,30 @@ pair's difference. Where the engine has no worker rAF, or it fails, the fallback
 passes the same bar is the clock; if none passes, cine keeps the page's clock in that engine and the owner decides.
 The 2560×3328 cells decide nothing outside the host's limit; inside it they must not reverse the 512² verdict. The
 runs are a later row.
+
+**Run, Chromium (2026-11-03): no verdict — this container saturates in every cell.** Chromium 153 on SwiftShader,
+headless, 4 cores; the paint settled by the fence; the eight 512² cells as amended above, interleaved by
+`lab/order.mjs`, 280 runs in [`../../lab/frame-clock/rows/chromium.jsonl`](../../lab/frame-clock/rows/chromium.jsonl)
+(`node lab/frame-clock/run.mjs --summary` on it). Every busy run's shortest long task was ≥ 200 ms, so no run was void.
+`page-raf`'s draw p99, median over rounds, against the guard's T/2:
+
+| cell | rounds | `page-raf` draw p99 | T/2 | A/A late, gap p99 | |
+| --- | --- | --- | --- | --- | --- |
+| 30/s quiet 1× | 14 | 17.4 ms | 16.7 ms | 0.3 pts, 0 ms | saturated |
+| 30/s busy 1× | 14 | 24.6 ms | 16.7 ms | 1.0 pts, 16.7 ms | saturated |
+| 30/s quiet 4× | 2 | 108 ms | 16.7 ms | 11.2 pts, 200 ms | cut by the screen; VOID |
+| 30/s busy 4× | 2 | 189 ms | 16.7 ms | 3.7 pts, 25 ms | cut by the screen; VOID |
+| 60/s quiet 1× | 2 | 50.9 ms | 8.3 ms | 0.1 pts, 0 ms | cut by the screen |
+| 60/s busy 1× | 2 | 51.7 ms | 8.3 ms | 0.2 pts, 150 ms | cut by the screen; VOID |
+| 60/s quiet 4× | 2 | 3 289 ms | 8.3 ms | 0, 0 | cut by the screen |
+| 60/s busy 4× | 2 | 341 ms | 8.3 ms | 0, 0 | cut by the screen |
+
+So no busy-page 512² cell is inside the host's limit, and by the rule as amended there is **no clock verdict in
+Chromium from this container**; nothing about the arms is claimed, and no figure in the rows beyond the guard's is a
+result. The two cells that ran 14 rounds miss the guard by 0.7 ms (quiet) and 7.9 ms (busy): SwiftShader's 512²
+paint (`client/paint/README.md`, 8.5 ms) plus the fence's 1 ms polls, on a busy page also sharing four cores with
+the page's spin. What decides it is a host whose paint is well inside T/2 — a GPU, where §3 measured 0.34 ms — and a
+real display for any presented-on-time claim, which this run does not make.
 
 ## 8 · Decisions for the owner
 
@@ -3450,7 +3475,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | answered by M5: `transfer` misses the memory bar on both engines (Firefox: "misses the memory and fill bars") |
 | frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241; Firefox re-run, #264 | **run on both engines (#264): "none qualifies on Firefox, so none on both engines: lever 2 returns to the owner. Chromium's verdict stands: `ring`."** Credits not shown needed; *How the ring works* written for the owner |
 | `?writer=`, who writes the OPFS cache | `none`: no cache, as main | `store`, `decoders`, `view` | OPFS arms, #227/#242; #244 | **running (`claude/opfs-arms-run`, its Firefox cells); no verdict recorded.** From the rows, not the run's verdict: `summary.mjs` gives Chromium "no arm passes: to the owner as measured (10 of 20 cells counted)" — D fails only rule 3, its clock at 512² 4× (2.12 ms against a 14.6 ms decode); A paint first unbounded at 3328 1×; C late in four cells. Firefox 4 cells so far (2 counted), none passes; the mutant *write-before-paint* not caught on Chromium's A paint first |
-| frame clock | the page's timer | worker rAF, timer to a schedule, `MessageChannel`, `Atomics.wait` | #225 | harness built (#249) and smoked: the guard saturates every cell but 512² at 30/s, quiet, 1×; the run not started (`claude/core-clock` held back for the usage limit) |
+| frame clock | the page's timer | worker rAF, timer to a schedule, `MessageChannel`, `Atomics.wait` | #225 | run in Chromium 2026-11-03 (`claude/core-clock`): **no verdict** — settled by the fence, the guard saturates every 512² cell, 30/s quiet 1× included (draw p99 17.4 ms against 16.7); it needs a GPU host |
 | receive loop, the downloader in the view worker | its own worker | merged | #237 | rig in `lab/recv-loop` only; needs a GPU host |
 | native `--paint-thread`; `--credits`, `--budget` | `ui` | `view`, `core`; `K` 4, 64 MiB | NATIVERUN, #247 | NATIVERUN's window pieces built (#267: cine, busy UI, off-UI steps, hop stamps; mutants fail them) and smoked on lavapipe; the runner not built, not run |
 
