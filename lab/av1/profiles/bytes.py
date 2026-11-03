@@ -150,7 +150,7 @@ def y4m_frames(path, s, form):
 
 
 def htj2k_residual(build, work, s, r, bits):
-    src, cs = work / "r.pgm", work / "r.j2c"
+    src, cs = work / ("r.pgm" if s.ch == 1 else "r.ppm"), work / "r.j2c"
     ext = "P5" if s.ch == 1 else "P6"
     with open(src, "wb") as fh:
         fh.write(b"%s\n%d %d\n%d\n" % (ext.encode(), s.w, s.h, (1 << bits) - 1))
