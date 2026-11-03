@@ -1477,6 +1477,13 @@ offline trial, not an independent decoder for it, not an encoder, not lossless, 
 path: no FFmpeg WASM build with LCEVC was found (*unverified* that none exists)
 ([`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Re-checked 2026-11-02).
 
+*HTJ2K's own progression, a candidate beside this line (the owner, 2026-11-02):* theory, a prediction and a
+protocol, not run, in [`../decode/README.md`](../decode/README.md) §HTJ2K progressive, resolution and quality. Today's
+codestream is resolution-progressive already; its quality progression spans one bit-plane or pays for every earlier HT
+set, and OpenJPH writes and reads neither. Predicted: a first picture as soon as the scalable preview's, every large
+slice exact at display scale in under a third of the exact series' time, but every slice pictured at the base's size
+7–46× later on 5 Mbit/s.
+
 *Parked by the owner on 2026-10-03, kept for the decision later* (the owner's focus, §Where AV1 stands): the
 preview plus an HTJ2K residual, the separate preview then exact HTJ2K, the embedded intra codecs and LCEVC — each
 measured above.
