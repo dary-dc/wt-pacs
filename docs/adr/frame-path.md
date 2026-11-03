@@ -1063,6 +1063,12 @@ follows. *The `viewWorker` stamp* is taken where the page makes the `ViewWorker`
 
 ### The busy page, asks on the mean (2026-11-02)
 
+**Verdict, both engines (2026-11-03): "B′ wins the busy page" in Chromium and in Firefox, so on both.** B′, with
+#276's start fix and settled by the fence, beats A on both engines in every decided cell. When an ask lands inside a
+200 ms long task, B′ puts it on screen 132–169 ms sooner. Over all ten asks, its mean is 30–85 ms sooner in Chromium
+and 40–80 ms sooner in Firefox. Its cine at 1× is 0 % late, against A's 20–21.5 %. The `?view=` default does not move,
+as pre-registered: §7's quiet-page clause still fails. The cells are below, Chromium's and then Firefox's.
+
 *Pre-registered 2026-11-02, before any data. Scored by `lab/viewer/busy-summary.mjs`, written and tested with its
 mutants before data; driven by `lab/viewer/busy_run.sh`.*
 
@@ -1191,7 +1197,8 @@ In ms; *won* counts the rounds of 12:
 environment's network policy refuses `cdn.playwright.dev` and `playwright.download.prss.microsoft.com`. Running a
 Firefox 155.0 from conda-forge, checked against its published SHA-256, was refused by this session's permissions. So the
 Firefox cells stay pre-registered and are **not run**, and Firefox's verdict is "undecided: not run". Nothing below
-claims anything for Firefox.
+claims anything for Firefox. *Superseded 2026-11-03:* Firefox was run in a later container, under the amendment
+that follows.
 
 **Amended 2026-11-02, before any Firefox data, for the Firefox cells' run.** A later container's policy allows the
 Playwright hosts, so the cells run as written above with three changes the rig forces, none to the arms, the cells or
@@ -1204,9 +1211,9 @@ rows* go to this branch's tracked `lab/viewer/rows/`, appended to the same two f
 commit: a tag push is refused here, so the `rows/core-busy2` tag named above is not made.
 
 **Measured 2026-11-02, Chromium alone** (rows
-[`busy-asks.jsonl`](https://github.com/dary-dc/wt-pacs/tree/rows/core-busy2/lab/viewer/rows/busy-asks.jsonl) and
-[`busy-cine.jsonl`](https://github.com/dary-dc/wt-pacs/tree/rows/core-busy2/lab/viewer/rows/busy-cine.jsonl), read by
-`node lab/viewer/busy-summary.mjs lab/viewer/rows/busy-{asks,cine}.jsonl`; the tag is to point at `24e86432`).
+[`busy-asks.jsonl`](https://github.com/dary-dc/wt-pacs/tree/24e86432ead423e7d6e8074b540b953bae140a88/lab/viewer/rows/busy-asks.jsonl) and
+[`busy-cine.jsonl`](https://github.com/dary-dc/wt-pacs/tree/24e86432ead423e7d6e8074b540b953bae140a88/lab/viewer/rows/busy-cine.jsonl), read by
+`node lab/viewer/busy-summary.mjs lab/viewer/rows/busy-{asks,cine}.jsonl`; `claude/core-busy2@24e86432`; the tag was refused, amendment (c)).
 Headless Chromium (Playwright 1.63's shell, SwiftShader), 4 cores, no GPU. Asks: rounds 0–11, then whole extra
 rounds until every cell had 12 rounds with all three arms kept: to round 35 for all six cells, then rounds 36–39 of
 CT at 4× alone. 660 visits, of which 169 were dropped, every one by the relay's timing guard. Cine: rounds 0–14 at 1×
@@ -1234,7 +1241,8 @@ was run first to check the rows, then discarded (not committed, not scored).
 tomosynthesis at 1×, CT at 4×) and the three 1× cine cells. On the mean, B′ hands the asked frame to the screen
 30–85 ms sooner than A. On an ask handed off inside a long task it is 132–168 ms sooner: B′ takes its quiet path
 (23–40 ms), while A waits out the rest of the task. **Firefox: "undecided: not run"**, as recorded before any data.
-The claim is Chromium's alone, and nothing here says B′ wins on both engines.
+The claim is Chromium's alone, and nothing here says B′ wins on both engines. *Superseded 2026-11-03:* Firefox's
+cells, run below, give "B′ wins the busy page" too, so the claim now holds on both engines.
 
 **Against the predictions.**
 
@@ -1262,6 +1270,64 @@ sooner, and on a quiet one it is later at the start.
 against 50). Nothing is claimed past those cells. A quarter of the asks visits were dropped by the relay's 1 ms timing
 guard, the container's scheduling noise on the relay's core, as in §7. Everything is from SwiftShader and Xvfb's
 synthetic vsync, so a GPU, a display and a phone are not measured.
+
+**Measured 2026-11-03, Firefox** (rows appended to the same two files, at
+[`claude/core-busy2@c260e4a1`](https://github.com/dary-dc/wt-pacs/tree/c260e4a140471696ec1693b2e3729231b0fb1125/lab/viewer/rows); same reader). Playwright's Firefox 155.0 (`firefox-1543`), headed under Xvfb,
+llvmpipe, 4 cores, no GPU, under the amendment above. Asks: rounds 0–29, all six cells in every round (whole extra
+rounds from round 12, until every cell had 12 rounds with all three arms kept). 540 visits, of which 51 were dropped,
+every one by the relay's timing guard. Cine at 1×: rounds 0–14. Cine at 4×: rounds 15–29, since the guard left every
+1× cell unsaturated (A's draw p99 36–49 ms against 50). 270 cine visits, 7 dropped by the same guard. No error, no long
+task under 200 ms. **5 400 of 5 400 asked frames and 15 750 of 15 750 cine frames exact.** A container restart cut
+round 11's cine pass after four visits. Those four rows were never committed: they were discarded and round 11 was
+re-run whole. One smoke visit of each arm was run first and discarded, as in Chromium. Medians over the 12 rounds,
+in ms.
+
+| asks cell | mean A / A′ / B′ | won (i) | in a task A / A′ / B′ (asks a visit) | won (ii) | quiet path A / B′ | A's excess | guards |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| CT 1× | 66.7 / 64.8 / **16.5** | 12 / 12 | 179.4 / 189.4 / **17.1** (3) | 12 / 12 | 17.5 / 15.8 | 17.1 | decided |
+| US 1× | 58.9 / 54.3 / **18.4** | 12 / 12 | 176.0 / 164.1 / **19.5** (3) | 12 / 12 | 19.4 / 16.4 | 19.2 | decided |
+| tomo 1× | 103.7 / 106.5 / **23.9** | 12 / 12 | 192.8 / 199.6 / **24.3** (4–5) | 12 / 12 | 23.8 / 22.5 | 22.9 | decided |
+| CT 4× | 77.4 / 73.6 / **22.0** | 11 / 12 | 170.3 / 175.4 / **21.1** (3) | 12 / 12 | 23.9 / 22.0 | 26.3 | decided |
+| US 4× | 95.7 / 98.0 / **34.4** | 12 / 12 | 181.6 / 167.8 / **35.5** (3–4) | 12 / 12 | 32.8 / 33.0 | 34.1 | decided |
+| tomo 4× | 93.0 / 91.3 / 53.0 | 12 / 12 | 142.1 / 138.3 / 50.8 (5) | 12 / 12 | 51.9 / 51.2 | 56.1 | *saturated* |
+
+| cine cell | late A / A′ / B′, % | gap p99 A / A′ / B′, ms (period 100) | A's draw p99, ms | guards |
+| --- | --- | --- | --- | --- |
+| CT 1× | 20 / 20 / 0 | 272 / 271 / 119 | 36 | *VOID* |
+| US 1× | 20.9 / 20.9 / **0** | 322 / 322 / 136 | 48 | decided |
+| tomo 1× | 20 / 20 / 0 | 255 / 272 / 135 | 49 | *VOID* |
+| CT, US, tomo 4× | 20–25 / 20–29.5 / 0 | 272–347 / 272–381 / 135–169 | 63–121 | *VOID and saturated*, each |
+
+**The rule's verdict, Firefox: "B′ wins the busy page."** All six decided cells pass: five asks cells (CT, US and
+tomosynthesis at 1×, CT and US at 4×) and US's 1× cine. On the mean, B′ is 40–80 ms sooner than A. On an ask
+handed off inside a long task, it is 146–169 ms sooner: B′ takes its quiet path (17–36 ms), while A waits out the
+rest of the task. **Both engines: "B′ wins the busy page"**, which is the claim the rule allows only when each engine
+has it.
+
+**Against the predictions.**
+
+* **Held: the source reading.** In §7, Firefox's B′ in-task asks waited on the read (156–205 ms). Settled by the
+  fence, they now take its quiet path: B′'s in-task median is within 3.1 ms of its quiet path in every decided cell.
+  Nothing else in the timed paint waits on the page, so the refutation clause does not fire and no probe follows.
+* **Held: §2's model.** A's excess past what was left of the task is its quiet path to within 2.4 ms (17–34 ms
+  against 18–33). The two arms' quiet paths agree within 3.0 ms, and the A/A pair within 8 ms on both parts, so no
+  asks cell is VOID.
+* **Held: the rounds won** (12 of 12, and 11 of 12 on CT 4×'s mean), A's means at 1× (59–104 against 61–104
+  predicted), and A's in-task medians (170–193 against 120–205). Cine at 1× is 20–20.9 % late under A and 0 % under
+  B′, with B′'s gap p99 119–136 ms, within the 117–136 predicted. Every 4× cine cell is saturated, as predicted.
+* **Off: B′'s means are slower** (16.5–23.9 ms at 1× against 11–17), from quiet paths of 16–24 ms against §7's 11–17,
+  as in Chromium.
+* **Off: tomosynthesis at 4× is saturated** by the asks guard (A's quiet path 51.9 ms against 50), where none was
+  predicted. Its figures are printed and not claimed.
+* **Off: two 1× cine cells are VOID**, CT and tomosynthesis. A's medians agree with the A/A pair's to within 1 point
+  of late frames and 17 ms of gap p99, but the median per-round gap-p99 difference is 16.7 ms or more. A 10 s cine's
+  p99 is about its single longest gap, so one stall moves it a whole task. As run, those two cells decide nothing.
+* **Off: the share of asks in a task** is 27–41 % on average at 1× and 30–47 % at 4×, below the 29–50 % and 34–72 %
+  predicted.
+
+**Where the host saturates, Firefox:** the asks at 4× on tomosynthesis, and every cine cell at 4× (A's draw p99
+63–121 ms against 50). Nothing is claimed past those cells. As in Chromium, everything is from a software rasteriser
+(llvmpipe) and Xvfb's synthetic vsync.
 
 ### A frame clock in the view worker (2026-10-28)
 
@@ -3819,7 +3885,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 
 | setting | default (today's) | other values | decided by | status 2026-10-30, the fold at 15:15 UTC |
 | --- | --- | --- | --- | --- |
-| `?view=` | `page` | `worker` | §7's rule (B′), #229 | **run (#263): "A stays — `?view=page` remains the core's default"**; B′'s quiet first frame later by ≥ 16.7 ms in five decided cells, no decided cell with its asks sooner (§7). Against main (#261): "`?view=worker`: not judged; both runs point the other way" (§*The core against main, timed*). **Its start, timed (#276):** B′'s quiet delay is all before the first byte — the view worker's boot ahead of the downloader's `start`, and on the mammogram one round trip more — behind A in five of eight decided 1× cells, throughput tied in all six multi-frame cells. **With the fix** (`pageDials`, `viewWorkerFirst`, `shortRuns`, lab settings, defaults off): **"does not tie A"** — behind in one decided cell, Chromium tomosynthesis by 21 ms, tied in the other three decided; four cells VOID. At 4×, again **"does not tie A"**: behind in the Firefox mammogram by 188 ms, where the two workers' boots overlap (inferred), tied in the other three decided (§7, *The view worker's start, timed*). *2026-10-31, the cine cell re-measured (#275):* §7's Firefox draw wait was the paint's one-pixel read; settled by a fence, B′'s busy cine is 0 % late on both engines where A's misses 20–22 % (§7, *The pixel read under a busy page*). No product paint settles now. The verdict stands. *2026-11-02, the busy page on the mean (§7, *The busy page, asks on the mean*):* in Chromium, **"B′ wins the busy page"**: B′ (with the fix) hands an ask landing in a long task to the screen 132–168 ms sooner than A, and its mean ask 30–85 ms sooner, in every decided cell; its cine 0 % late against A's 20–21.5 %. Firefox not run (its build could not be fetched or run in that container). The default does not move: §7's quiet-page clause still fails |
+| `?view=` | `page` | `worker` | §7's rule (B′), #229 | **run (#263): "A stays — `?view=page` remains the core's default"**; B′'s quiet first frame later by ≥ 16.7 ms in five decided cells, no decided cell with its asks sooner (§7). Against main (#261): "`?view=worker`: not judged; both runs point the other way" (§*The core against main, timed*). **Its start, timed (#276):** B′'s quiet delay is all before the first byte — the view worker's boot ahead of the downloader's `start`, and on the mammogram one round trip more — behind A in five of eight decided 1× cells, throughput tied in all six multi-frame cells. **With the fix** (`pageDials`, `viewWorkerFirst`, `shortRuns`, lab settings, defaults off): **"does not tie A"** — behind in one decided cell, Chromium tomosynthesis by 21 ms, tied in the other three decided; four cells VOID. At 4×, again **"does not tie A"**: behind in the Firefox mammogram by 188 ms, where the two workers' boots overlap (inferred), tied in the other three decided (§7, *The view worker's start, timed*). *2026-10-31, the cine cell re-measured (#275):* §7's Firefox draw wait was the paint's one-pixel read; settled by a fence, B′'s busy cine is 0 % late on both engines where A's misses 20–22 % (§7, *The pixel read under a busy page*). No product paint settles now. The verdict stands. *2026-11-02, the busy page on the mean (§7, *The busy page, asks on the mean*):* **"B′ wins the busy page" on both engines** (Firefox run 2026-11-03): B′ (with the fix) hands an ask landing in a long task to the screen 132–168 ms sooner than A in Chromium and 146–169 ms sooner in Firefox, and its mean ask 30–85 and 40–80 ms sooner, in every decided cell; its cine 0 % late against A's 20–21.5 %. The default does not move: §7's quiet-page clause still fails |
 | `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | **not run (#266): "Verdict: not run; `span` stays 0"** — the review finds the rule unmeetable on the model (S 1.90–1.96× A against ≤ 0.6×); removing `span` and `holdEveryOther` is the owner's (§Experiment 1: not run) |
 | `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | **running (#265), 2 of 12 rounds pushed; no verdict recorded.** From the rows, not the run's verdict: `wait-ahead-summary.mjs` over rounds 0–1 gives "undecided: no live, decided cell" — every cell under its 10 kept visits an arm |
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | answered by M5: `transfer` misses the memory bar on both engines (Firefox: "misses the memory and fill bars") |
