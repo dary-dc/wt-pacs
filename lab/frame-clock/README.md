@@ -12,6 +12,7 @@ node lab/frame-clock/run.mjs                               # Chromium: 16 cells 
 xvfb-run -a node lab/frame-clock/run.mjs --browser firefox # Firefox runs headed: headless has no WebGL2 in a worker
 node lab/frame-clock/run.mjs --rounds 1 --cells s512/30/busy/1,s512/60/busy/4   # a smoke round
 node lab/frame-clock/run.mjs --summary lab/frame-clock/runs/<file>.jsonl          # verdicts from a run's rows
+node lab/frame-clock/run.mjs --round 2 --cells … --out lab/frame-clock/rows/chromium.jsonl   # one round, the screen applied
 ```
 
 A 4× cell slows every thread of the browser with `lab/scripts/cpu_throttle.mjs`, which needs a writable
@@ -57,7 +58,8 @@ vsync (ADR, row (a)), so the log there is no phase and must be dropped.
   (`client/paint/README.md` §When a paint has executed). *Corrected 2026-10-30:* until then `page.js` named no settle,
   so the smoke's draw p99 was the draw's issue, not its execution.
 
-Per cell: a busy run whose shortest long task was under 200 ms is dropped as void; the cell is **VOID** when the
+The screen (amended 2026-11-03): from round 2 on, a cell whose `page-raf` draw p99 exceeded a whole period in each of
+rounds 0 and 1 is skipped and reported saturated. Per cell: a busy run whose shortest long task was under 200 ms is dropped as void; the cell is **VOID** when the
 median over rounds of |`page-raf` − `page-raf′`| exceeds 2 points of late frames or reaches 16.7 ms in gap p99;
 **saturated** when the median over rounds of `page-raf`'s draw p99 exceeds T/2. In a busy cell a worker arm passes with
 ≥ 20 points fewer late frames than `page-raf` in ≥ 11 of 14 rounds and a median gap p99 ≤ 2T; in a quiet cell, with a
@@ -65,7 +67,7 @@ median per-round difference from `page-raf` no worse than the A/A pair's, in lat
 
 ## The rule
 
-`rule()` takes the 512² cells neither VOID nor saturated and returns `worker-raf` if it passes in all of them, else the
+`rule()` takes the 512² cells neither VOID nor saturated, gives no verdict unless one of them is a busy page, and returns `worker-raf` if it passes in all of them, else the
 first fallback that does, by fewest late frames in the busy cells, else `page` (the owner decides). A 2560×3328 cell
 neither VOID nor saturated in which the chosen clock fails is reported as reversing it.
 

@@ -975,6 +975,27 @@ change is forced by the harness or by the review, and the original text above is
 * **The guards read medians over rounds:** a cell is saturated when `page-raf`'s draw p99, median over rounds, exceeds
   T/2; the rule's gap p99 ≤ 2T is the median over rounds. The text did not say which.
 
+**Amended before any data (2026-11-03), for the run on this container.** As written the protocol cannot decide here:
+the smoke put seven of the eight 512² cells past the guard, and the one left is quiet, so the rule would choose
+`worker-raf` from a quiet page alone — a verdict on the busy page with no busy cell in it. Each change below is forced
+by that or by the owner; the text above is kept.
+
+* **Chromium's eight 512² cells only.** Firefox and WebKit are not run (owner, 2026-10-31: Chromium first); the
+  2560×3328 cells are not run, since their per-tick cost measures the software rasteriser (*What a container can and
+  cannot claim*).
+* **The paint settles by the fence** (`client/paint/README.md` §When a paint has executed), never the pixel read. The
+  smoke's draw p99 was the draw's issue, so its map of where the host saturates is re-established here, not reused.
+* **A screen first.** Rounds 0 and 1 run in every cell; a cell whose `page-raf` draw p99 exceeds a whole period T in
+  both is reported saturated from those rows and runs no further. Every other cell runs to 14 rounds, the screen's
+  two being its rounds 0 and 1 in `order()`'s sequence. A cell between T/2 and T runs all 14, so the median guard
+  decides it; only a cell past twice the guard in every round is cut, where 12 more rounds could not bring the median
+  under T/2 without most of them halving. The cells run in turn within each round, so the rounds of every cell spread
+  over the run.
+* **The rule needs a busy-page cell.** It decides only if at least one busy-page 512² cell is neither VOID nor
+  saturated; otherwise there is no verdict in this engine, and the cells inside the host's limit rank the arms and
+  claim nothing more. A cell not cut by the screen gives no verdict under 14 rounds.
+* **The rows** are `lab/frame-clock/rows/chromium.jsonl`, one round a call, pushed after each round.
+
 **What a container can and cannot claim.** This container has 4 cores, no display and no GPU: Chromium paints on
 SwiftShader with headless Chromium's own BeginFrame source, Firefox on llvmpipe under Xvfb's vsync. So:
 

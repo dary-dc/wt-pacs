@@ -9,6 +9,8 @@ const AA_POINTS = 2;
 const AA_GAP_MS = 16.7;
 const LEAD_POINTS = 20;
 const LEAD_ROUNDS = 11 / 14;
+/** Rounds the screen runs in every cell before the rest: docs/adr/frame-path.md §A frame clock, amended 2026-11-03. */
+export const SCREEN_ROUNDS = 2;
 
 export const median = (v) => {
   const s = [...v].sort((a, b) => a - b);
@@ -79,10 +81,13 @@ export function verdict(rows, { period, busy }) {
   return out;
 }
 
+/** Past the host's limit on the screen alone: `page-raf`'s draw p99 above a whole period in every screen round. */
+export const screenedOut = (refDrawP99s, period) => refDrawP99s.length >= SCREEN_ROUNDS && refDrawP99s.every((d) => d > period);
+
 /** The engine's clock from its cells' verdicts, `{ series, busy, ...verdict }`: lab/frame-clock/README.md §The rule. */
 export function rule(cells) {
   const decide = cells.filter((c) => c.series === "s512" && !c.void && !c.saturated);
-  if (!decide.length) return { clock: null, why: "no 512² cell is neither VOID nor saturated" };
+  if (!decide.some((c) => c.busy)) return { clock: null, why: "no busy-page 512² cell is neither VOID nor saturated" };
   const arms = Object.keys(decide[0].arms);
   const lateness = (arm) => median(decide.filter((c) => c.busy).map((c) => c.arms[arm]?.latePct ?? Infinity));
   const order = ["worker-raf", ...arms.filter((a) => a !== "worker-raf").sort((a, b) => lateness(a) - lateness(b))].filter((a) => arms.includes(a));
