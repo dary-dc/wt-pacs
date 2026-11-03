@@ -26,6 +26,9 @@ def load(work):
         lossless[(name, codec)] = sum(sizes)
     noise = {r["set"]: r["sigma"] for r in map(json.loads, (w / "noise.jsonl").open())} \
         if (w / "noise.jsonl").exists() else {}
+    rho = {r["set"]: r["top"]["best"]["median"] for r in map(json.loads, (w / "rho.jsonl").open())} \
+        if (w / "rho.jsonl").exists() else {}
+    ROW100_RHO.update({k: v for k, v in rho.items()})
     by = {(c["set"], c["form"], c["q"], 0 if c["whole"] else c["g"]): c for c in cells}
     return cells, alt, lossless, noise, by
 
@@ -280,11 +283,11 @@ def main():
     for s in all_series:
         av1 = lossless.get((s.name, "av1"))
         f = [x for t in twelve if t[0].name == s.name for x in t if x] or [s]
-        rows.append([f"`{s.name}`", fmt(s.sigma, 2), ROW100_RHO.get(s.name[5:], "—") if is_dbt15(s.name) else "—",
+        rows.append([f"`{s.name}`", fmt(s.sigma, 2), ROW100_RHO.get(s.name[5:] if is_dbt15(s.name) else s.name, "not measured"),
                      lossless[(s.name, "htj2k")], f"{av1 / s.h:.4f}" if av1 else "not run",
                      " · ".join(f"{x.form} {ladder[x.crossover()] if x.crossover() < len(ladder) else '> ' + str(ladder[-1])}"
                                 for x in f), ladder[s.bend()]])
-    print(table(["series", "σ", "ρ (row 100)", "HTJ2K B", "lossless AV1 ÷ HTJ2K", "crossover rung, by form",
+    print(table(["series", "σ", "ρ (top, best offset, median)", "HTJ2K B", "lossless AV1 ÷ HTJ2K", "crossover rung, by form",
                  "bend (G1)"], rows))
     in12 = lambda ss: [x for t in twelve if t[0] in ss for x in t if x]
     groups = (("DBT-10 (system B)", by_sys["B"]), ("DBT-12 (systems A, C)", in12(by_sys["A"] + by_sys["C"])),
