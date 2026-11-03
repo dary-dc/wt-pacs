@@ -2,8 +2,9 @@
 
 The cache's arms, as [`docs/adr/frame-path.md`](../../docs/adr/frame-path.md) §The cache I/O in the view worker
 pre-registers them: **A** a sync access handle in the view worker, **B** the async API there (a file per frame), **C**
-the built store worker, `client/viewer/store.js`, on a port the page hands it (`store-port.js`), and **D** the decoders
-writing a file per frame before they post it (§Arm D there). The predictions, the cells and the rule are there; no
+the built store worker, `client/viewer/store.js`, on a port the page hands it (`store-port.js`), handed a copy (C) or
+the shared buffer itself (C-shared), and **D** the decoders writing a file per frame before they post it (§Arm D
+there); A paint first drains a fixed budget a tick, or what is left of it (A-left). The predictions, the cells and the rule are there; no
 cell's numbers are.
 
 `index.html` is the page: it starts the workers, hands each its ports, and sends the view worker intents only.
@@ -20,7 +21,7 @@ display (`DISPLAY`) and `FIREFOX_PATH`. It reuses `lab/opfs-cache/browser.mjs` f
 
 ```bash
 NODE_PATH=$(npm root -g) node lab/opfs-arms/run.mjs --cell late|rate|miss|drag|probe --size 512|2560|3328 [--throttle 1|4] \
-  [--engine chromium|firefox] [--rounds N] [--arms A-arrival,C] [--mutant write-before-paint|drop-writes|late-input] [--out rows.jsonl]
+  [--engine chromium|firefox] [--rounds N] [--arms A-arrival,C] [--mutant write-before-paint|drop-writes|late-input|overwrite-after-post] [--out rows.jsonl]
 node lab/opfs-arms/summary.mjs DIR    # the mutants caught or not, each cell's arms, and each engine's verdict by the rule
 ```
 

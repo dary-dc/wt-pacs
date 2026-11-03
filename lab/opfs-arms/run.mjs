@@ -1,7 +1,7 @@
 // The cache arms in the view worker, one cell at a time: docs/adr/frame-path.md §The cache I/O in the view worker.
 //
 //   NODE_PATH=$(npm root -g) node lab/opfs-arms/run.mjs --cell late|rate|miss|drag|probe --size 512|2560|3328 [--throttle 1|4]
-//     [--engine chromium|firefox] [--rounds N] [--arms A-arrival,C,...] [--mutant write-before-paint|drop-writes|late-input]
+//     [--engine chromium|firefox] [--rounds N] [--arms A-arrival,C,...] [--mutant write-before-paint|drop-writes|late-input|overwrite-after-post]
 //     [--out rows.jsonl]
 import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -24,17 +24,20 @@ mkdirSync(path.dirname(OUT), { recursive: true });
 
 /** Width, height; 16-bit grey. */
 const SIZES = { 512: [512, 512], 2560: [2560, 3328], 3328: [3328, 4096] };
-/** The arms: the cache's thread and API, and the order of paint and write. C2 is C again, the A/A pair; D's decoders write. */
+/** The arms: the cache's thread and API, and the order of paint and write. C2 is C again, the A/A pair; D's decoders write;
+ *  C-shared posts the shared buffer itself; A-left drains what is left of the tick. */
 const ARMS = {
   none: { arm: "none" }, "A-arrival": { arm: "A", order: "arrival" }, "A-paint": { arm: "A", order: "paint" },
+  "A-left": { arm: "A", order: "paint", budget: "left" },
   "B-arrival": { arm: "B", order: "arrival" }, "B-paint": { arm: "B", order: "paint" }, C: { arm: "C" }, C2: { arm: "C" },
-  D: { arm: "D" },
+  "C-shared": { arm: "Cs" }, D: { arm: "D" },
 };
+/** The cells' arms as amended 2026-11-03 (§Arm D, *C with shared memory*); the run before it is in its rows' settings lines. */
 const CELLS = {
-  late: ["none", "A-arrival", "A-paint", "B-arrival", "B-paint", "C", "C2", "D"],
-  rate: ["A-arrival", "A-paint", "B-arrival", "B-paint", "C", "C2", "D"],
-  miss: ["A-arrival", "B-arrival", "C", "C2", "D"],
-  drag: ["none", "A-paint", "C", "C2", "D"],
+  late: ["none", "A-paint", "A-left", "C", "C2", "C-shared", "D"],
+  rate: ["A-paint", "A-left", "C", "C2", "C-shared", "D"],
+  miss: ["A-paint", "A-left", "C", "C2", "C-shared", "D"],
+  drag: ["none", "A-paint", "A-left", "C", "C2", "C-shared", "D"],
 };
 const HELD = 4;
 const SECONDS = 10;
@@ -47,8 +50,8 @@ function params(name) {
   const mb = (w * h * 2) / 1e6;
   const late = Math.ceil((RATE_MBPS * SECONDS) / mb);
   const fill = { late, drag: late, rate: Math.ceil(RATE_CELL_MB / mb), miss: 32 }[CELL];
-  return { cell: CELL, ...ARMS[name], mutant: MUTANT, w, h, n: HELD + fill, held: HELD, rate: RATE_MBPS, seconds: SECONDS,
-    cineEvery: CELL === "drag" ? 0 : SIZE === "512" ? 1 : 6, budgetMs: 8, chunkBytes: 1 << 20, misses: 16, decoders: DECODERS };
+  return { cell: CELL, budget: "fixed", ...ARMS[name], mutant: MUTANT, w, h, n: HELD + fill, held: HELD, rate: RATE_MBPS, seconds: SECONDS,
+    cineEvery: CELL === "drag" ? 0 : SIZE === "512" ? 1 : 6, budgetMs: 8, marginMs: 2, chunkBytes: 1 << 20, misses: 16, decoders: DECODERS };
 }
 
 async function browser(profile) {
@@ -70,8 +73,9 @@ async function once(origin, p) {
       new Promise((res) => setTimeout(() => res({ error: "timed out" }), 300000))]);
     const dragging = p.cell === "drag" ? loaded.then(() => drag(b.page, result)).catch(() => {}) : null;
     const r = await result;
+    const endGrowthMiB = treePss(b.pid) - baseline;
     await Promise.race([dragging, new Promise((res) => setTimeout(res, 5000))]);
-    return { ...r, peakGrowthMiB: peak - baseline };
+    return { ...r, peakGrowthMiB: Math.max(peak, baseline + endGrowthMiB) - baseline, endGrowthMiB };
   } finally {
     clearInterval(sampler);
     unthrottle();

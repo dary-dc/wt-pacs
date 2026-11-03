@@ -17,13 +17,15 @@ const FRAME_MB = { 512: 0.524288, 2560: 17.03936, 3328: 27.262976 };
 const FILL_MBPS = 125;
 const DECODERS = 3;
 const PERIOD_MS = 16.7;
+/** The product's memory window a tab, MiB (lever 2): C-shared may hold no more than this over C. */
+const WINDOW_MIB = 256;
 
 const at = (r) => `${r.engine} ${r.size} ${r.throttle}×`;
 /** write-before-paint is caught only against the same arm unmutated: late by more than the rule's 1 % of ticks. */
 const mutants = rows.filter((r) => r.unit && r.mutant);
 for (const r of mutants) {
   const control = median(rows.filter((u) => u.unit === r.unit && !u.mutant && u.cell === r.cell && at(u) === at(r)).map((u) => u.missedShare));
-  const caught = r.mutant === "drop-writes" ? r.checks.writesVerified === false
+  const caught = r.mutant === "drop-writes" || r.mutant === "overwrite-after-post" ? r.checks.writesVerified === false
     : r.mutant === "late-input" ? r.dragInputs > 0 && r.checks.lateInputAsPredicted
     : Number.isFinite(control) ? r.missedShare - control > 0.01 && r.lateAsPredicted : "no unmutated run to compare";
   console.log(`mutant ${r.mutant} · ${r.engine} ${r.cell} ${r.size} ${r.throttle}× ${r.unit}: ${caught === true ? "caught" : caught || "NOT CAUGHT"}`);
@@ -74,6 +76,8 @@ function judge({ cell, size, throttle, at: where, rounds }) {
     pass: rs.filter((r) => r[a] && pass(r, a)).length,
     bounded: cell === "late" ? rs.filter((r) => r[a] && bounded(r, a)).length : null,
     median: median(rs.map((r) => r[a] && aa(r[a]))),
+    block: median(rs.map((r) => r[a]?.blockMsP50)),
+    overC: median(rs.map((r) => r[a] && r.C ? r[a].peakGrowthMiB - r.C.peakGrowthMiB : NaN)),
   }]));
   return { n: rs.length, voided, saturated, per, clock: cell === "rate" ? decoderClock({ size, throttle }, rs) : null };
 }
@@ -83,24 +87,28 @@ const verdicts = new Map();
 for (const [key, c] of cells) {
   const j = judge(c);
   console.log(`${key}: ${j.n} rounds${j.voided ? " · VOID" : ""}${j.saturated ? " · saturated" : ""}`);
-  for (const [a, p] of Object.entries(j.per)) console.log(`  ${a.padEnd(9)} median ${p.median.toFixed(3)} · pass ${p.pass}/${j.n}${p.bounded === null ? "" : ` · bounded ${p.bounded}/${j.n}`}`);
+  for (const [a, p] of Object.entries(j.per)) console.log(`  ${a.padEnd(9)} median ${p.median.toFixed(3)} · pass ${p.pass}/${j.n}${p.bounded === null ? "" : ` · bounded ${p.bounded}/${j.n}`}` +
+    ` · block p50 ${p.block?.toFixed?.(2) ?? "-"} ms · peak over C ${Number.isFinite(p.overC) ? p.overC.toFixed(0) : "-"} MiB`);
   if (j.clock) console.log(`  D on a decoder's clock: ${j.clock.judged ? `${j.clock.onClock.toFixed(2)} ms against a ${j.clock.decode} ms decode → ${j.clock.pass ? "pass" : "FAIL"}` : `not judged (${j.clock.why ?? "not decode-bound"})`}`);
   if (!verdicts.has(c.engine)) verdicts.set(c.engine, []);
   verdicts.get(c.engine).push({ cell: c.cell, ...j });
 }
 
-/** The amended rule: among A paint-first, C and D, D first unless its miss paints a period after A's, then A paint-first, then C. */
+/** The amended rule: among A paint-first, A-left, C, C-shared and D, D first unless its miss paints a period after an A's
+ *  that passes; then A paint-first, A-left, C-shared (if it holds no more than the window over C in L), C. */
 for (const [engine, js] of verdicts) {
   const counted = js.filter((j) => !j.voided && !j.saturated);
   const has = (cell) => counted.some((j) => j.cell === cell);
   const passes = (arm) => ["late", "rate", "drag"].every(has) &&
     counted.filter((j) => j.cell !== "miss").every((j) => j.per[arm] && enough(j.per[arm].pass, j.n) && (j.cell !== "late" || enough(j.per[arm].bounded, j.n))) &&
-    (arm !== "D" || counted.filter((j) => j.clock).every((j) => j.clock.pass));
-  const ok = ["A-paint", "C", "D"].filter(passes);
+    (arm !== "D" || counted.filter((j) => j.clock).every((j) => j.clock.pass)) &&
+    (arm !== "C-shared" || counted.filter((j) => j.cell === "late").every((j) => j.per[arm].overC <= WINDOW_MIB));
+  const ok = ["A-paint", "A-left", "C", "C-shared", "D"].filter(passes);
   const reported = ["A-arrival", "B-arrival", "B-paint"].filter(passes);
   const missR = counted.filter((j) => j.cell === "miss");
-  const dReadsSlower = missR.some((j) => j.per.D?.median >= j.per["A-arrival"]?.median + PERIOD_MS);
-  const pick = ok.includes("D") && !(ok.includes("A-paint") && dReadsSlower) ? "D" : ok.includes("A-paint") ? "A-paint" : ok.includes("C") ? "C" : null;
+  const aPasses = ["A-paint", "A-left"].filter((a) => ok.includes(a));
+  const dReadsSlower = missR.some((j) => j.per.D?.median >= (j.per["A-arrival"] ?? j.per["A-paint"])?.median + PERIOD_MS);
+  const pick = ok.includes("D") && !(aPasses.length && dReadsSlower) ? "D" : ["A-paint", "A-left", "C-shared", "C"].find((a) => ok.includes(a)) ?? null;
   console.log(`${engine}: passing ${ok.join(", ") || "none"}${reported.length ? ` (reported only: ${reported.join(", ")})` : ""} → ` +
     `${pick ?? "no arm passes: to the owner as measured"} (${counted.length} of ${js.length} cells counted)`);
 }

@@ -7,14 +7,15 @@ async function run() {
   const c = {
     cell: q.get("cell"), arm: q.get("arm"), order: q.get("order") ?? "arrival", mutant: q.get("mutant") ?? "",
     w: num("w", 512), h: num("h", 512), n: num("n", 64), held: num("held", 4), rateMBps: num("rate", 125),
-    seconds: num("seconds", 10), cineEvery: num("cineEvery", 1), budgetMs: num("budgetMs", 8), chunkBytes: num("chunkBytes", 1 << 20),
+    seconds: num("seconds", 10), cineEvery: num("cineEvery", 1), budget: q.get("budget") ?? "fixed", budgetMs: num("budgetMs", 8),
+    marginMs: num("marginMs", 2), chunkBytes: num("chunkBytes", 1 << 20),
     misses: num("misses", 16), decoders: num("decoders", 3),
   };
   const view = new Worker("view.js", { type: "module" });
   const toFeeders = [...Array(c.decoders)].map(() => new MessageChannel());
   const toPage = new MessageChannel();
   let store = null;
-  if (c.arm === "C") {
+  if (c.arm === "C" || c.arm === "Cs") {
     const s = new MessageChannel();
     new Worker("store-port.js", { type: "module" }).postMessage({ port: s.port1 }, [s.port1]);
     store = s.port2;

@@ -28,6 +28,11 @@ let frameBytes = 0;
 let input = null;
 const LATE_INPUT_MS = 34;
 const drags = [];
+const storeWrites = [];
+/** The display period, ms: assumed 60 Hz until the cell measures it. */
+let periodMs = 1000 / 60;
+/** A-left's guess at the next piece's time: the last piece's, halved after a tick that wrote nothing. */
+let pieceMs = 0;
 
 /** WebGL2 on the transferred canvas: the frame as an R16UI texture, drawn as grey through one quad. */
 const painter = {
@@ -66,6 +71,7 @@ const root = async () => (await navigator.storage.getDirectory()).getDirectoryHa
 let calls = 0;
 const replies = new Map();
 const ask = (kind, m, transfer) => new Promise((resolve) => (replies.set(++calls, resolve), store.postMessage({ kind, id: calls, ...m }, transfer)));
+const viaStore = () => c.arm === "C" || c.arm === "Cs";
 const dropped = () => c.mutant === "drop-writes";
 
 /** The arms: `put` writes frame i (A also a byte range of it, synchronously); `get` reads it back. D's decoders write. */
@@ -102,7 +108,8 @@ const arms = {
     async put(i, shared, pixels = new Uint8Array(shared).slice().buffer) {
       if (dropped()) return;
       const info = { width: c.w, height: c.h, bits: 16, components: 1, signed: false, pixels, min: 0, max: 65535, exact: true };
-      const r = await ask("write", { index: i, info }, [pixels]);
+      const r = await ask("write", { index: i, info }, pixels === shared ? [] : [pixels]);
+      storeWrites.push(r.serviceMs);
       if (!r.written) throw new Error(`store refused frame ${i}: ${r.error ?? "not written"}`);
     },
     async get(i) {
@@ -110,6 +117,12 @@ const arms = {
       if (!r.info) throw new Error(r.miss ?? r.error);
       return r.info.pixels;
     },
+  },
+  /** C with the shared buffer itself posted: the store writes from shared memory. A frame's buffer is never written after its post. */
+  Cs: {
+    open() { return arms.C.open(); },
+    put(i, shared) { return arms.C.put(i, shared, shared); },
+    get(i) { return arms.C.get(i); },
   },
   D: {
     async open() { this.dir = await (await root()).getDirectoryHandle("frames", { create: true }); },
@@ -131,7 +144,7 @@ function done(i, f) {
   if (i >= c.held) feeders[(i - c.held) % c.decoders].postMessage({ kind: "credit" });
 }
 
-/** Writes a whole frame now, the order "arrival": A on this thread, B and C started and awaited off it. */
+/** Writes a whole frame now, the order "arrival": A on this thread, B and the C arms started and awaited off it. */
 function writeNow(i, pixels, f, copy) {
   f.start ??= now();
   if (c.arm === "A") {
@@ -147,10 +160,12 @@ function writeNow(i, pixels, f, copy) {
   p.then(() => (inflight--, (f.end = now()), done(i, f)), (e) => (inflight--, (f.error = String(e)), done(i, f)));
 }
 
-/** The order "paint": after the paint, the queue drains for at most `budgetMs` more by byte ranges, A writing
- *  them and B copying them out of shared memory; B's write then starts, and the engine's own copy lands where it lands. */
-function drain(tickStart, budgetMs) {
-  while (pending.length && now() - tickStart < budgetMs) {
+/** The order "paint": after the paint, the queue drains by byte ranges until `deadline`, A writing them and B copying
+ *  them out of shared memory; B's write then starts, and the engine's own copy lands where it lands. A piece starts
+ *  while now + `ahead` is before the deadline. */
+function drain(deadline, ahead = 0) {
+  let pieces = 0;
+  while (pending.length && now() + ahead < deadline) {
     const w = pending[0];
     const t = now();
     w.f.start ??= t;
@@ -159,11 +174,20 @@ function drain(tickStart, budgetMs) {
     else (w.copy ??= new Uint8Array(frameBytes)).set(new Uint8Array(w.pixels, w.at, end - w.at), w.at);
     w.at = end;
     blocks.push(now() - t);
+    pieces++;
+    if (c.budget === "left") ahead = pieceMs = now() - t;
     if (w.at < frameBytes) continue;
     pending.shift();
     if (c.arm !== "A") writeNow(w.i, w.pixels, w.f, w.copy);
     else (w.f.end = now()), done(w.i, w.f);
   }
+  return pieces;
+}
+
+/** After the paint: a fixed budget from the paint's end, or under `budget=left` what is left of the tick less a margin. */
+function drainAfterPaint(tickStart) {
+  if (c.budget !== "left") return drain(now() + c.budgetMs);
+  if (!drain(tickStart + periodMs - c.marginMs, pieceMs || 1e-3) && pending.length) pieceMs /= 2;
 }
 
 function arrive({ index, info, postedAt, decoder }) {
@@ -177,10 +201,11 @@ function arrive({ index, info, postedAt, decoder }) {
 function tick(ts) {
   const start = now();
   const mutantFirst = c.mutant === "write-before-paint" && c.order === "paint";
-  if (mutantFirst) drain(start, Infinity);
+  if (mutantFirst) drain(Infinity);
   if (running && c.cineEvery && c.cell !== "miss" && ticks.length % c.cineEvery === 0) shown = (shown + 1) % c.held;
   const pixels = memory.get(shown);
   painter.paint(uploaded !== shown && pixels ? pixels : null, input?.level);
+  const upload = uploaded !== shown && !!pixels;
   if (pixels) uploaded = shown;
   const end = now();
   if (input) {
@@ -188,11 +213,11 @@ function tick(ts) {
     input = null;
   }
   if (running) {
-    ticks.push({ ts: performance.timeOrigin + ts, start, end });
+    ticks.push({ ts: performance.timeOrigin + ts, start, end, upload });
     backlog.push(pending.length + inflight);
   }
   if (note && uploaded === note.index) page.postMessage({ kind: "painted", ...note, paintedAt: end }), (note = null);
-  if (c.order === "paint" && !mutantFirst) drain(now(), c.budgetMs);
+  if (c.order === "paint" && !mutantFirst) drainAfterPaint(start);
   onTick?.();
   requestAnimationFrame(tick);
 }
@@ -204,7 +229,7 @@ async function show({ index, sentAt }) {
   if (!memory.has(index)) {
     const pixels = await arm().get(index);
     n.readEnd = now();
-    if (c.arm !== "C") n.exact = xxh3.init().update(new Uint8Array(pixels)).digest("hex") === digests[index];
+    if (!viaStore()) n.exact = xxh3.init().update(new Uint8Array(pixels)).digest("hex") === digests[index];
     n.checkEnd = now();
     memory.set(index, pixels);
   }
@@ -238,11 +263,14 @@ function summary(period) {
   const third = Math.floor(backlog.length / 3);
   const lag = drags.map((d) => d.paintedAt - d.inputAt);
   const dec = fills.filter((f) => f.decoder);
+  const paintMs = (up) => ticks.filter((t) => t.upload === up).map((t) => t.end - t.start);
   return {
     periodMs: period, ticks: ticks.length, missedTicks: missed, missedShare: missed / Math.max(1, ticks.length + missed),
     paintDelayP50: median(delays), paintDelayP99: quantile(delays, 0.99), paintMsP50: median(ticks.map((t) => t.end - t.start)),
     lateAsPredicted: missed >= blocks.reduce((s, b) => s + Math.floor(b / period), 0), predictedMissedMin: blocks.reduce((s, b) => s + Math.floor(b / period), 0),
-    blockMsP50: median(blocks), blockMsMax: blocks.length ? Math.max(...blocks) : null,
+    paintUploadMsP50: median(paintMs(true)), paintUploadMsP99: quantile(paintMs(true), 0.99), paintNoUploadMsP50: median(paintMs(false)),
+    blockMsP50: median(blocks), blockMsP99: quantile(blocks, 0.99), blockMsMax: blocks.length ? Math.max(...blocks) : null,
+    storeWriteMsP50: median(storeWrites), storeWriteMsP99: quantile(storeWrites, 0.99),
     frames: fills.length, errors: fills.filter((f) => f.error).length, writeMBps: (fills.length * frameBytes) / 1e3 / Math.max(1, last - first),
     backlogFirstThirdMax: Math.max(0, ...backlog.slice(0, third)), backlogLastThirdMax: Math.max(0, ...backlog.slice(-third)),
     arrivalLagP99: quantile(fills.map((f) => f.arrivedAt - f.postedAt), 0.99),
@@ -263,8 +291,8 @@ async function cell() {
   }
   running = true;
   await nextTicks(60);
-  const period = median(ticks.slice(1).map((t, k) => t.start - ticks[k].start));
-  ticks.length = backlog.length = blocks.length = drags.length = 0;
+  const period = (periodMs = median(ticks.slice(1).map((t, k) => t.start - ticks[k].start)));
+  ticks.length = backlog.length = blocks.length = drags.length = storeWrites.length = 0;
   const fill = c.cell === "late" || c.cell === "drag" ? { bytesPerMs: c.rateMBps * 1e3 } : { credits: Math.ceil(8 / c.decoders) };
   feeders.forEach((f, k) => f.postMessage({ kind: "go", from: c.held, to: c.n, first: c.held + k, stride: c.decoders, ...fill }));
   await until(() => written.size === c.n && !pending.length && !inflight, c.seconds * 4000);

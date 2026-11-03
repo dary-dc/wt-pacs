@@ -54,6 +54,7 @@ function go(c, { from, to, first, stride, bytesPerMs, credits }) {
   const post = (i) => (busy = busy.then(async () => {
     const f = await frame(i, c);
     port.postMessage({ kind: "frame", postedAt: now(), ...f });
+    if (c.mutant === "overwrite-after-post") new Uint16Array(f.info.pixels).set(fields[(i + 1) % FIELDS].samples);
   }));
   if (credits) {
     port.addEventListener("message", ({ data }) => {

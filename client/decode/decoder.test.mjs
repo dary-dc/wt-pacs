@@ -1,10 +1,10 @@
 // node client/decode/decoder.test.mjs — decoder.js and htj2k.js as built, over a stand-in OpenJPH glue: the frame's buffer and its transfer list.
 const GLUE = `var OpenJPHModule = () => ({ HTJ2KDecoder: class {
-  getEncodedBuffer(n) { return new Uint8Array(n); }
+  getEncodedBuffer(n) { return (this.coded = new Uint8Array(n)); }
   readHeader() {}
   getFrameInfo() { return { width: 2, height: 1, componentCount: 1, bitsPerSample: 12, isSigned: false }; }
   decode() {}
-  getDecodedBuffer() { return new Uint8Array([1, 0, 2, 0]); }
+  getDecodedBuffer() { return this.coded.slice(0, 4); }
 } });`;
 globalThis.fetch = async () => new Response(GLUE);
 
@@ -22,17 +22,21 @@ globalThis.onmessage = null;
 await import("./decoder.js");
 const next = () => new Promise((r) => { reply = r; });
 
-/** One frame decoded under `pixels`: what reached the consumer, and the transfer list it rode with. */
-async function frameUnder(pixels) {
+/** Frames decoded under `pixels`, each stand-in frame's samples its coded bytes: what reached the consumer, and the
+ *  transfer list each rode with. */
+async function framesUnder(pixels, coded = [[1, 0, 2, 0]]) {
   const sent = [];
   const ready = next();
   onmessage({ data: { kind: "init", toConsumer: { postMessage: (m, transfer = []) => sent.push({ m, transfer }) }, decoder: { glue: "g", wasm: "w" }, pixels } });
   check((await ready).kind === "ready", `the decoder starts under pixels=${pixels}`);
-  const done = next();
-  onmessage({ data: { kind: "decode", index: 0, gen: 0, bytes: new Uint8Array(4), stamps: {} } });
-  check((await done).kind === "done", `the frame decodes under pixels=${pixels}`);
-  return sent[0];
+  for (const [index, bytes] of coded.entries()) {
+    const done = next();
+    onmessage({ data: { kind: "decode", index, gen: 0, bytes: Uint8Array.from(bytes), stamps: {} } });
+    check((await done).kind === "done", `frame ${index} decodes under pixels=${pixels}`);
+  }
+  return sent;
 }
+const frameUnder = async (pixels) => (await framesUnder(pixels))[0];
 
 /** By default a frame is a SharedArrayBuffer, shared, never transferred. */
 {
@@ -47,6 +51,14 @@ async function frameUnder(pixels) {
   check(m.pixels instanceof ArrayBuffer, "under transfer the frame is an ArrayBuffer");
   check(transfer.length === 1 && transfer[0] === m.pixels, "under transfer the frame is in its transfer list");
   check(new Uint16Array(m.pixels).join() === "1,2" && m.min === 1 && m.max === 2, "under transfer the samples and range are the decoder's");
+}
+
+/** A posted frame's memory is never written again: the next frame lands in a buffer of its own, so a reader of the
+ *  shared buffer (the store worker under C with shared memory) sees the samples as decoded. */
+{
+  const [first, second] = await framesUnder(undefined, [[1, 0, 2, 0], [3, 0, 4, 0]]);
+  check(first.m.pixels !== second.m.pixels, "each frame has a buffer of its own");
+  check(new Uint16Array(first.m.pixels).join() === "1,2", "a posted frame's samples are unchanged by the next decode");
 }
 
 /** A decoder started again without the setting goes back to shared frames. */

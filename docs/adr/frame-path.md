@@ -2401,6 +2401,66 @@ sync handle is inside its region at both; its one failure, at S1 1×, is 4 round
 the cell's 40 s deadline and one whose queue reached 88 frames, a stall the inequalities do not model (not traced).
 Gecko's own block is 1 MiB with a quota round trip each (§4), which is why q = 1 MiB suits it.
 
+#### Arm D, amended: C with shared memory, and A on what is left of the tick (2026-11-03, before any data)
+
+**Why.** C lost largely to a copy it did not need: the view thread copies each frame out of its `SharedArrayBuffer`
+and transfers the copy (`lab/opfs-arms/view.js`, as `client/view/cache.js:53`), 9.1 ms at S2 and 14.4 at S3 (§Arm D,
+Results), outside its region by that copy alone (§Each arm's parameters, *C as built*). The owner approved testing C
+without it. The same section names a cheap variant of A paint first, a budget of what is left of the tick; it is an
+arm here too. Chromium only (the owner, 2026-10-31). Nothing below is measured.
+
+**The two arms.**
+
+* **C-shared.** The view worker posts the frame's `SharedArrayBuffer` itself, no transfer list, to the store worker on
+  the port the page hands both (a `MessageChannel`, worker to worker); the store writes it with its sync handle from
+  shared memory (`client/viewer/store.js` unchanged: `write` takes `AllowSharedBufferSource`, §4). C as built stays,
+  C′ its A/A. Copies in script a frame: 2, as A paint first.
+* **A-left.** A paint first, with the fixed 8 ms replaced by what is left of the tick: after the paint, a 1 MiB piece
+  starts only if *now + the last piece's time* is before *the tick's start + T − g*, with T the period the cell
+  measures at its start and **g = 2 ms** (the theory's margin); a tick that writes nothing while frames wait halves the
+  guess, so a slow piece cannot stall the queue. Every other value as A paint first.
+
+**A frame's memory does not change before it is written.** No lock guards the shared bytes because nothing writes a
+frame's buffer after its post: the decoder takes a new buffer per frame (`client/decode/htj2k.js`, `frameBuffer` per
+call; AV1's `av1-frame.js` likewise, by reading, not tested), and neither the view worker nor the store writes into a
+frame. *Test:* `client/decode/decoder.test.mjs`, two frames decoded in a row land in two buffers and the first's
+samples are unchanged after the second; mutated (one buffer kept across calls), it fails. *Mutant in the rig,*
+`overwrite-after-post`: each feeder writes the next field into a fill frame's buffer right after posting it; W's
+read-back must then fail on C-shared.
+
+**The theory's parameters, recorded.** Each row now carries P₀ and Pᵤ apart (`paintNoUploadMsP50`,
+`paintUploadMsP50` / `P99`), each piece's time under paint first or the post's under the C arms (`blockMsP50` / `P99`
+/ `Max`), the store's own time a write, v_s (`storeWriteMsP50` / `P99`, timed in `store-port.js` from the later of the
+message's arrival and the previous reply), and the browser tree's PSS growth at its peak and at the cell's end
+(`peakGrowthMiB`, `endGrowthMiB`). The store worker's memory alone, which the theory's measurement 2 asks, is not
+separable here: the tree is.
+
+**Predicted** (the theory's inequalities; §Predicted's ~0.1 ms post). **C-shared**: the post ≲ 0.1 ms, so L and G as
+`none`; W holds 125 MB/s iff v_s ≥ R; memory unknown: M2 saw a posted `SharedArrayBuffer` not collected within 30 s,
+which would put C-shared's peak a fill's bytes over C's. **A-left**: on time except where a piece's tail exceeds its
+median (S3's worst piece, 14.6 ms); keeps up at S3 1× at ~157 MB/s on paper, with Pᵤ indicative.
+
+**Cells and rounds.** Chromium; L, W, R at S1, S2, S3 × 1×, 4×, and G at S2 × 1×, 4×, one Williams period each
+(`lab/order.mjs`): **L** `none`, A paint first, A-left, C, C′, C-shared, D (7 arms, 14 rounds); **W** and **R** the
+same less `none` (6 arms, 6 rounds); **G** as L (14 rounds). A on arrival and B are not run: the rule could not choose
+them. VOID, saturation and the "≥ 75 % of a cell's rounds" reading as the protocol says. Mutants, each once before its
+cell is believed: *overwrite-after-post* and *drop-writes* at W S1 1× on C-shared and C (and A-left, *drop-writes*);
+*write-before-paint* at L S3 4× on A paint first and A-left; *late-input* at G S2 1× on `none`, A-left and C-shared.
+Rows: `lab/opfs-arms/rows/chromium-c-shared/`.
+
+**The rule, amended again.** Among **A paint first, A-left, C, C-shared and D**: rules 1–3 as amended above, and
+
+5. **C-shared's memory:** in every counted L cell, the median over rounds of its peak PSS growth less C's in the same
+   round is ≤ 256 MiB, lever 2's window.
+
+and rule 4 becomes: **D**, if it passes 1–3, unless an A arm passes too and D's miss paints a display period or more
+after A paint first's in some R cell; then **A paint first**, then **A-left** (no thread more, and the fixed budget
+first, as built); then **C-shared** (one copy fewer than C), then **C**. If none passes, the result goes to the owner as
+measured. `lab/opfs-arms/summary.mjs` applies it, and still gives the run before this one its verdict.
+
+**Smoke, 2026-11-03** (one round, L S2 1×, `none`, C, C-shared, A paint first and A-left; not results): every arm ran
+to the end, every write read back exact; C-shared's post 0.06 ms a frame.
+
 ## Target: the view worker · 2026-10-28
 
 **Status:** the owner's next target design for the client, 2026-10-28, revised 2026-10-29 with the red team's
