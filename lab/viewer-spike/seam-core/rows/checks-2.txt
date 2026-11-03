@@ -1,0 +1,34 @@
+Chromium 153.0.8010.12, ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)
+pass  exact: 24/24 exact, fill 274 ms; 24/24 exact, fill 274 ms
+pass  policy: isolated true, 0 refused ; contexts on the page: HTMLCanvasElement:webgl2 ×9, HTMLCanvasElement:2d ×2
+pass  no loads: 0 loads, 0 B cached
+pass  prefetch competes: 23 loads asked of 23 other slices
+pass  metadata: length 18.028 mm, probe 2550; asked: imageRetrieveConfiguration, scalingModule
+pass  length: length 18.028 mm, want 18.028
+pass  angle: 1 angle annotations, 135.00°
+pass  probe: value 2550, want 2550
+pass  registration: value 2550: on screen 5, expected 5
+pass  zoom and pan: zoom 3.676; value 3650: on screen 15, expected 15
+pass  window drag: window -940–32940; code 25 before; on screen 43, expected 43
+pass  scroll: index 1; value 3060 (want 3060): on screen 10, expected 10
+pass  per slice: SVG annotations on slices 0, 1, 2, 0: 1, 0, 1, 1
+pass  stock links: VOI not reached (vp2 2000–30000); zoom 3.676 → vp2 3.676, pan -18.0,-11.0 → vp2 -18.0,-11.0; vp2 on screen 15, expected 15
+pass  our VOI link: vp1 -940–32940, vp2 -940–32940; vp2 code 25 before, on screen 43, expected 43
+pass  cine: 30 frames painted in 1.5 s at 20/s (0 started > 50 ms late); page index 5, view worker 5; annotation drawn 0
+caught  mutant "the view worker's series is not checked" by exact: 0/24 exact, fill 312 ms; 0/24 exact, fill 310 ms
+caught  mutant "the page connects off its policy" by policy: isolated true, 1 refused connect-src https://example.invalid/; contexts on the page: HTMLCanvasElement:webgl2 ×9, HTMLCanvasElement:2d ×2
+caught  mutant "the page enables Cornerstone3D's prefetch" by no loads: 23 loads, 0 B cached
+caught  mutant "the viewport says it holds no image URI" by prefetch competes: 0 loads asked of 23 other slices
+caught  mutant "the image data has no spacing" by metadata: length 36.056 mm, probe 2550; asked: scalingModule
+caught  mutant "canvasToWorld scaled 1.1 in x" by length: length 16.910 mm, want 18.028
+caught  mutant "canvasToWorld scaled 1.1 in y" by angle: 1 angle annotations, 137.73°
+caught  mutant "the sample one off" by probe: value 2551, want 2550
+caught  mutant "the painter's pan 8 px off" by registration: threw: page.waitForFunction: Timeout 5000ms exceeded.
+caught  mutant "the painter's zoom 5 % off" by zoom and pan: threw: page.waitForFunction: Timeout 5000ms exceeded.
+caught  mutant "the window never reaches the view worker" by window drag: window -940–32940; code 25 before; on screen 25, expected 43
+caught  mutant "a step never reaches the view worker" by scroll: threw: page.waitForFunction: Timeout 5000ms exceeded.
+caught  mutant "world z is not the slice" by per slice: SVG annotations on slices 0, 1, 2, 0: 1, 1, 2, 1
+caught  mutant "an image reference is viewable anywhere" by per slice: SVG annotations on slices 0, 1, 2, 0: 2, 1, 1, 2
+caught  mutant "the viewport has no getPan" by stock links: VOI not reached (vp2 2000–30000); zoom 3.676 → vp2 3.676, pan 0.0,0.0 → vp2 0.0,0.0; vp2 on screen 15, expected 15
+caught  mutant "our VOI callback does not render" by our VOI link: vp1 -940–32940, vp2 -940–32940; vp2 code 25 before, on screen 25, expected 43
+caught  mutant "the page does not follow the cine" by cine: 29 frames painted in 1.5 s at 20/s (0 started > 50 ms late); page index 0, view worker 4; annotation drawn 1

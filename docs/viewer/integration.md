@@ -152,8 +152,9 @@ from our fill, or they become asks.
 
 **Workers and isolation.** It needs no SAB. Its page has inline scripts
 (`platform/app/public/html-templates/index.html:53-56,209-216`) that our policy refuses
-([`../../client/README.md`](../../client/README.md) *Its policy*), so they need CSP hashes. It also registers a
-service worker (`index.html:200-205`).
+([`../../client/README.md`](../../client/README.md) *Its policy*), so they need CSP hashes. ~~It also registers a
+service worker (`index.html:200-205`).~~ *Corrected 2026-11-03 (§A seam, §5): it loads `init-service-worker.js`, which
+registers nothing in a page; the inline scripts' refusal was tested on v3.14.0-beta.68.*
 
 **Page open.** A React application: the HTML, `app-config.js`, a mode, the data source's JSON, and then a hanging
 protocol pass before the first image. The shipped size is unknown (npm `dist` 213 MB unpacked; survey.md). Not
@@ -252,9 +253,11 @@ because Cornerstone3D and OHIF paint on the main thread" holds for every viewpor
 It does not hold for Cornerstone3D in general. Cornerstone3D accepts a viewport type from outside, and a viewport of
 ours whose pixels our paint worker draws carries its tools. A spike (§4) proved this for the length, probe,
 window-level, zoom, pan and stack-scroll tools in headless Chromium, with 144 lines of glue. So B′ commits us to our
-own viewport, our own cine, and a seam that moves by majors. It does not commit us to our own tools. OHIF cannot
-take that viewport without a fork. Read at the tags in §Sources below; the spike ran once on SwiftShader, and
-nothing here is timed.
+own viewport, our own cine, and a seam that moves by majors. It does not commit us to our own tools. ~~OHIF cannot
+take that viewport without a fork.~~ *Corrected 2026-11-03 (§8): by source, an OHIF extension's viewport module and a
+data source of ours can host it without a fork; not built.* Read at the tags in §Sources below; the spike ran once on
+SwiftShader, and nothing here is timed. *2026-11-03: §5 runs it on our real core, §6 writes the phone protocol, §7
+and §8 answer the removal and OHIF questions, and §What option B costs sums it up.*
 
 ### Sources
 
@@ -311,14 +314,14 @@ is a sibling, placed as the whole-slide viewport places its own, and Cornerstone
 
 | tool | reads from the viewport | here |
 | --- | --- | --- |
-| length, angle | `worldToCanvas`, `canvasToWorld`; the target's image data for mm (`packages/tools/src/tools/annotation/LengthTool.ts:265-266,788-802`; `AngleTool.ts:221-248`) | length **tested**; angle by reading, same calls |
+| length, angle | `worldToCanvas`, `canvasToWorld`; the target's image data for mm (`packages/tools/src/tools/annotation/LengthTool.ts:265-266,788-802`; `AngleTool.ts:221-248`) | length **tested**; angle by reading, same calls. *Angle tested on our core, 2026-11-03 (§5)* |
 | probe, pixel value | `getImageData()`, then `imageData.worldToIndex` and `voxelManager.getAtIJKPoint`, synchronously, with k set to the current index (`ProbeTool.ts:667-724`; `packages/tools/src/tools/base/BaseTool.ts:330-351`); a target id from `getViewReferenceId` | **tested**: the samples are read on the page from the frame's `SharedArrayBuffer` |
 | window-level drag | `getProperties()` and `setProperties({ voiRange })` (`WindowLevelTool.ts:50,116`, `:358-386`) | **tested**: the window reaches the worker |
 | zoom, pan | with no camera `position`, `getPan`/`setPan` and `getZoom`/`setZoom` in canvas units (`PanTool.ts:136-150`; `ZoomTool.ts:446-462`) | **tested**, the tools' drags |
 | stack scroll | `getCurrentImageIdIndex`, `scroll`, `getImageIds` (`packages/core/src/utilities/scroll.ts:41-66`) | **tested**, the wheel |
-| annotations per slice | `getViewReference`, `isReferenceViewable` (`RenderingEngine/Viewport.ts:2154-2290`) | by reading: world z is the slice index here, so an annotation belongs to its slice. Not tested |
-| cine (`playClip`) | only stack, volume, video or Generic viewports; anything else throws `Unknown viewport type` (`packages/tools/src/utilities/cine/playClip.ts:580-619`). Its clock is a page timer (`:195-215`) | **ours**, and has to be: a page timer is what B′ moves into the view worker (frame-path §2). Not built |
-| synchronizers | VOI dispatches by class: stack, volume or Generic (`synchronizers/callbacks/voiSyncCallback.ts:54-80`). Zoom and pan need `setViewState` (`zoomPanSyncCallback.ts:23-88`). Generic means `setDisplaySets`, `setDisplaySetPresentation`, `setViewState` (`packages/core/src/utilities/viewportCapabilities.ts:119-127`) | **not reached** by this viewport. Linked VOI, zoom and pan are either ours, or glue for the Generic interface. Neither built |
+| annotations per slice | `getViewReference`, `isReferenceViewable` (`RenderingEngine/Viewport.ts:2154-2290`) | by reading: world z is the slice index here, so an annotation belongs to its slice. ~~Not tested~~ *Tested on our core (§5); a restored annotation needs an `isReferenceViewable` by image* |
+| cine (`playClip`) | only stack, volume, video or Generic viewports; anything else throws `Unknown viewport type` (`packages/tools/src/utilities/cine/playClip.ts:580-619`). Its clock is a page timer (`:195-215`) | **ours**, and has to be: a page timer is what B′ moves into the view worker (frame-path §2). ~~Not built~~ *Built on the view worker's clock and tested (§5)* |
+| synchronizers | VOI dispatches by class: stack, volume or Generic (`synchronizers/callbacks/voiSyncCallback.ts:54-80`). Zoom and pan ~~need `setViewState` (`zoomPanSyncCallback.ts:23-88`)~~ *try `setViewState` first, then fall back to `getZoom`/`setZoom` and `getPan`/`setPan` (`zoomPanSyncCallback.ts:130-147`): corrected 2026-11-03*. Generic means `setDisplaySets`, `setDisplaySetPresentation`, `setViewState` (`packages/core/src/utilities/viewportCapabilities.ts:119-127`) | ~~**not reached** by this viewport. Linked VOI, zoom and pan are either ours, or glue for the Generic interface. Neither built~~ *Tested (§5): zoom and pan reached by Cornerstone3D's own synchronizer; VOI not, and ours is one callback on its synchronizer* |
 
 **What lags, or lives in the wrong place.**
 
@@ -326,14 +329,16 @@ is a sibling, placed as the whole-slide viewport places its own, and Cornerstone
   fires when `customRenderViewportToCanvas` returns (`ContextPoolRenderingEngine.ts:353-369`). The paint is only a
   message to the worker at that moment. So during a drag the SVG can lead the image by a frame or more. Firing the
   event on the painter's acknowledgement instead would make the overlay follow the image, not match it. Nothing
-  here is measured. A busy page delays the overlay and the tools' response, not the image (frame-path §2).
+  here is measured. *Measured 2026-11-03 (§5): one frame apart on an idle page, the annotation leading in a pan and
+  trailing in a scroll.* A busy page delays the overlay and the tools' response, not the image (frame-path §2).
 * **The probe reads samples on the page.** The spike drives the paint worker with the page posting each frame's
   handle, which is today's `?view=page` shape. Under the view worker the page holds no frame (frame-path §3,
   *Built*). The probe would then need one of two things:
   * the current frame's handle, sent with `shown`;
   * or the view worker's asynchronous `valueAt`, whose answer arrives after the tool has drawn.
 
-  Neither was tried.
+  ~~Neither was tried.~~ *The second was tried on our core (§5): the probe answers after one round trip, with no frame
+  on the page.*
 * **The window.** The tools set `{ lower, upper }`. Ours is a centre, a width and a function. The glue maps the
   range to LINEAR_EXACT. LINEAR, SIGMOID and the VOI LUT Sequence need it to carry the function: the tool reads
   `VOILUTFunction` from `getProperties` (`WindowLevelTool.ts:116`). The table stays ours, so the painter's proof
@@ -370,7 +375,7 @@ host a canvas a worker paints.
 
 | viewer | off the main thread? |
 | --- | --- |
-| OHIF v3 | no: Cornerstone3D 5.6.8 (§1). Hosting our viewport needs a fork, because its viewport types are a closed list that throws on any other (`extensions/cornerstone/src/utils/getCornerstoneViewportType.ts:85-87`) |
+| OHIF v3 | no: Cornerstone3D 5.6.8 (§1). ~~Hosting our viewport needs a fork, because its viewport types are a closed list that throws on any other (`extensions/cornerstone/src/utils/getCornerstoneViewportType.ts:85-87`)~~ *That list closes only OHIF's own viewport; an extension's viewport module can host ours (§8, by source)* |
 | Cornerstone3D | its own viewports, no (§1); a viewport of ours, yes (§2, §4) |
 | VolView 4.5.3 | no: vtk.js on the page. Its only `OffscreenCanvas` decodes JPEG cine frames in a worker (`src/core/cine/jpegDecode.worker.ts:22-26`), or probes the GPU (`src/utils/gpuInfo.ts:3`) |
 | dwv 0.36.4 | no: Canvas 2D on the page (`src/gui/viewLayer.js:916,1151`), Konva for drawing (`src/gui/drawLayer.js:543`); and GPL-3.0 |
@@ -424,13 +429,14 @@ and the runner, 182, are not glue.
 
 **Not done:**
 
-* the angle tool, the per-slice annotation filter, cine, synchronizers;
-* the view worker in place of the paint worker (the probe's question above);
+* ~~the angle tool, the per-slice annotation filter, cine, synchronizers;~~ *done on our core (§5)*
+* ~~the view worker in place of the paint worker (the probe's question above);~~ *done (§5)*
 * any VOI function but LINEAR_EXACT;
 * DPR 2;
 * a GPU;
 * Firefox, where frame-path §7 found the worker's draw waiting for a busy page;
-* any timing, of the paint or of the overlay against it.
+* ~~any timing, of the paint or of the overlay against it.~~ *the overlay against the image, in frames (§5); the paint
+  only in §6's proxy*
 
 ### What it changes
 
@@ -444,8 +450,9 @@ and the runner, 182, are not glue.
   * a seam on the legacy method set, which Cornerstone3D says it will remove.
 
   Whether to carry it beside A is the owner's call, below.
-* **OHIF stays as integration.md has it.** It cannot take this viewport without a fork, so under OHIF the paint is
-  still Cornerstone3D's.
+* **OHIF stays as integration.md has it.** ~~It cannot take this viewport without a fork, so under OHIF the paint is
+  still Cornerstone3D's.~~ *By source it can, as an extension's viewport module beside a data source of ours (§8);
+  not built.*
 
 | Retracted | What is true |
 | --- | --- |
@@ -454,6 +461,118 @@ and the runner, 182, are not glue.
 | "Frame-path's B′ is lost: the paint runs on the page thread" (§Cornerstone3D, *The cache*) | lost on the standard path; kept for the paint through a viewport of ours. Cine through `playClip` stays a page timer, so the cine is ours (§2) |
 | "lost: the 1:1 proof; zero-copy to the GPU; the page out of the pixel path; cine off the page thread" (§Cornerstone3D, table) | on the standard path. Through a viewport of ours, the first three are kept and the cine is ours to build (§4) |
 | "a backend that owns its surface would have to own a worker's `OffscreenCanvas`, and Cornerstone3D's tools draw in page coordinates" (§Open) | the tools' page coordinates did not block a worker's canvas: the overlay is one thread apart, not wrong (§2, §4) |
+
+### 5 · On our core, end to end (2026-11-03)
+
+[`../../lab/viewer-spike/seam-core/`](../../lab/viewer-spike/seam-core/README.md) replaces §4's synthetic frame with
+the core of `claude/core-fold-2026-11-02` at `0920153` (frame-path §*The core, assembled*). That is our transport,
+downloader, decoders, digest check, frame store and view worker. Two viewports of ours each drive one `ViewWorker`
+(`?view=worker`'s shape) over a real WebTransport session to `series-server`. The page holds no frame. Every
+response carries the product's three isolation headers and its policy (`deploy/README.md` §*What must be preserved
+exactly*), with `connect-src` naming the series server. The series is 24 synthetic 16-bit slices of 128×96 with
+0.5 mm pixels: a ramp with one bright column, encoded HTJ2K by OpenJPH 0.31.0, with XXH3 digests (`series.mjs`). The
+browser is headless Chromium 153 on SwiftShader, DPR 1, Cornerstone3D 5.14.0. A check that compares the image reads
+the code **on screen**: a one-pixel screenshot, with the worker's canvas composited. §4 read back the paint instead.
+
+| check | result, 3 of 3 runs | its mutant, caught |
+| --- | --- | --- |
+| every frame exact, both viewports, through our digest check | 24/24 exact | no digests passed: 0/24 exact |
+| the product's headers and policy | cross-origin isolated, nothing refused | a fetch outside `connect-src`: 1 refused |
+| through every tool, Cornerstone3D's image loader asked for nothing, nothing in its cache | 0 loads, 0 B | the page enables `stackPrefetch`: 23 loads |
+| `stackPrefetch`, if enabled on our viewport, asks Cornerstone3D's loader for every other slice | 23 of 23 | no `hasImageURI`: 0 loads |
+| no metadata provider answers, yet length and probe give mm and samples | 18.028 mm, 2550; the tools asked for `imageRetrieveConfiguration` and `scalingModule` | the image data's spacing 1: 36.056 mm |
+| length, centres of pixels (10, 10) to (40, 30) | 18.028 mm | `canvasToWorld` × 1.1 in x: 16.910 |
+| angle, three clicks at (10, 10), (40, 10), (70, 40) | 135.00° | `canvasToWorld` × 1.1 in y: 137.73° |
+| probe at (20, 15), its sample asked of the view worker | 2550 | the sample + 1: 2551 |
+| the code on screen under the probe, at the fit | 5 against 5 | the pan 8 px off: the probe's reply no longer matches its pixel, so it never settles |
+| the same after the zoom tool's drag (3.676) and the pan tool's | 15 against 15 | the zoom 5 % off: as above |
+| window-level drag | 25 → 43 on screen, 43 expected | the window never sent: 25 |
+| one wheel step | slice 1 probed (3060) and on screen (10 against 10) | the step never sent |
+| an annotation drawn on slice 0, and one restored onto slice 2 | drawn on slices 0, 1, 2, 0: 1, 0, 1, 1 | world z constant: 1, 1, 2, 1; an image reference viewable anywhere: 2, 1, 1, 2 |
+| Cornerstone3D's own synchronizers | VOI not reached; zoom and pan reached (3.676 and −18, −11 on both views), the image on screen under both | no `getPan`: pan not linked |
+| our VOI callback on Cornerstone3D's synchronizer | the other view painted with the new window, 43 against 43 | the callback does not render: 25 |
+| our cine, the view worker's clock, 20/s for 1.5 s | 30 frames, none started > 50 ms late; the tools follow it; the slice's annotation shows on its slice only | the page does not follow: index 0, worker at 5 |
+
+The rows are on this branch at `lab/viewer-spike/seam-core/rows/` (commit below, §*The rows*). The painter's 1:1
+proof through this series and the view worker is the core's own viewer check: readbacks 0:0 12:0 23:0 23:0 on this
+series (`client/viewer/check.mjs --view worker`, run here once, not kept as rows).
+
+**What the data side needs, and the three risks, answered.**
+
+* **Cornerstone3D's image cache and stack prefetch against our download order: verified, by test, and conditional.**
+  Our viewport never touches Cornerstone3D's loader or cache: the frames' order is the view worker's want, as the
+  core's own viewer has it. Cornerstone3D's `stackPrefetch` decides by methods, not class
+  (`packages/tools/src/utilities/stackPrefetch/stackPrefetchUtils.ts:45-76`, through `viewportSupportsImageSlices`,
+  `packages/core/src/utilities/viewportCapabilities.ts:49-58`). So if it is enabled on our viewport, it queues every
+  other slice on its own loader (`stackPrefetch.ts:195-215`). That is a second download order. The risk holds only if
+  something enables it, or if a loader answers our image ids. Our page must not, and an OHIF host would (below).
+* **The metadata the tools expect: verified, by test, for these tools.** Length, angle, probe, window, zoom, pan,
+  scroll, links and cine took their geometry from the viewport (`getImageData`, `canvasToWorld`), with no metadata
+  provider answering. They asked only `imageRetrieveConfiguration` and `scalingModule`, and needed neither. What the
+  viewport itself needs is the frame's width, height and pixel spacing. Our series metadata carries width and height
+  (core-fold `ingest/from-dicom/dicom_series.py:142-145`) but **no pixel spacing, frame of reference, or image plane**.
+  The spike adds `pixelSpacing` to its own metadata. The ingest would have to carry it (requirements.md §Open,
+  *Identity*). Not checked: the US probe's calibrated regions and the SUV path (`ProbeTool.ts:699-722`), which read
+  metadata modules.
+* **OHIF's inline scripts and service worker against COOP/COEP and our policy: verified, by test, for OHIF unchanged
+  at `v3.14.0-beta.68`** (npm `@ohif/app`, tarball SHA-256 `7b98195…ef7cb4`; `ohif-policy.mjs`). Under our headers it
+  is cross-origin isolated and boots to its first screen. Our policy refuses its two inline scripts
+  (`platform/app/public/html-templates/index.html:53-56,209-216`), so `window.PUBLIC_URL` and
+  `browserImportFunction`, which loads extensions at run time, are missing. OHIF runs today, but one of those scripts
+  must move to a file (or be hashed into the policy) before an extension loads at run time. With `'unsafe-inline'`,
+  nothing is refused: the check's mutant. Its default data source is refused by `connect-src`, a configuration
+  matter. Its service worker does not register in a page: `init-service-worker.js:1-5` unregisters every worker, and
+  `:13` registers only where `importScripts` exists, which a window lacks (verified by source; the test page at
+  127.0.0.1 is also excluded by `:20`). OHIF ships no COOP/COEP of its own (`netlify.toml` at both tags), and its
+  suggested policy, report-only, allows inline scripts and `blob:` workers (`netlify.toml:37`).
+* **SharedArrayBuffer: verified, by test.** Cornerstone3D under the product's headers keeps the page cross-origin
+  isolated, so the core's `SharedArrayBuffer` frames hold. Under option B no frame reaches the page.
+* **Events: verified, by test.** The glue fires `STACK_NEW_IMAGE` on a step, `VOI_MODIFIED` on a window, and
+  `CAMERA_MODIFIED` on zoom and pan. The engine fires `IMAGE_RENDERED`. Cornerstone3D's zoom-pan synchronizer and our
+  VOI one run on the last two.
+* **Memory: measured once, not judged.** Cornerstone3D opens **nine WebGL2 contexts on the page** at start, and two 2D
+  ones, though nothing it draws reaches the screen under option B (`instrument.js`, the policy row's output). Each
+  costs a GPU context on a phone. Whether a setting avoids them was not looked for. The page's JS heap is in §6's
+  proxy rows; every thread's memory is not available in this headless build.
+
+**What else the run found.**
+
+* **A defect in the core: a repaint before the frame arrives stops all painting** (`controller-freeze.test.mjs`).
+  `Controller.repaint()` (core-fold `client/view/controller.js`) with the current frame not yet held runs its async
+  loop to its end synchronously, sets `#painting = null`, and only then stores the settled promise. Every later
+  repaint returns that promise, and nothing is painted again. The core's own viewer reaches it with a display key, a
+  ctrl-wheel zoom or a resize once connected and before frame 0 is painted (core-fold `client/viewer/viewer.js:147,
+  189-207,232`). Its drags wait for `shown` (`:214`). On a slow link that is the whole wait for the first frame. The test fails on the core as it is, and passes with
+  `await null` at the loop's head (`--fixed`). Not fixed on the core branch, which this run does not own. The glue
+  sends no display before the view worker's first `shown`.
+* **The probe under the view worker: answered.** It asks `valueAt` at the pixel's centre, answers `null` until the
+  reply, and the tool recomputes a `null` value on the next render (`ProbeTool.ts:531-546`). One round trip, no frame
+  on the page. The reply's pixel is checked against the asked one, which is how the pan and zoom mutants were caught.
+* **Restored annotations need one more override.** `hydrate` throws "Unsupported viewport type" on a class it does not
+  know unless given `referencedImageId` (`packages/tools/src/tools/base/AnnotationTool.ts:915-958`). It stores no
+  plane, and only `StackViewport` filters by image (`filterAnnotationsForDisplay.ts:62-77`), so a restored annotation
+  showed on every slice. The glue answers `isReferenceViewable` by image when there is no plane.
+* **Our cine needs the page to follow until the pause is answered.** A frame painted while the pause was in flight left
+  the page's index one behind the screen, once in 3 runs. The glue now follows `shown` until the view worker answers.
+* **The glue is 212 lines** (`core-viewport.js`, non-blank, non-comment) at spike quality, against §4's 144.
+
+**The overlay against the image (c), in frames: measured, indicative.** `lag.mjs` films the screencast (every
+composited frame, both layers together) while the page pans 2 px each frame for 60 frames, then steps one slice every
+3 frames through 23 steps with an annotation on the even slices.
+
+| gesture, 3 rounds | distinct composited frames | the annotation against the image |
+| --- | --- | --- |
+| pan, 2 px a frame | 62 per round | the annotation **one frame ahead** of the image in 59; level in 2, at rest before and after; one where the first step jumps 58 px, which reads as 29 |
+| scroll, a slice every 3 frames | 44–45 per round | at 21–22 of 23 steps, one composited frame with the annotation on the wrong slice, lasting a median 14.4–15.0 ms, **after** the image changed |
+
+The rows are `lab/viewer-spike/seam-core/rows/lag.txt`.
+
+The two drawings are one frame apart in both gestures, but in opposite directions. In the scroll, the annotations
+change one frame after the image: Cornerstone3D draws the SVG in its own next animation frame after `IMAGE_RENDERED`
+(`packages/tools/src/stateManagement/annotation/AnnotationRenderingEngine.ts:154`), while the view worker paints a
+frame it already holds as soon as the intent arrives. In the pan, the annotation leads the image by one frame. Why the
+two differ was not traced. Neither drawing is ever more than one frame from the other in these rows, on an idle page.
+A busy page delays the SVG, not the image, and was not measured.
 
 ### 6 · The phone protocol: option A against option B (written 2026-11-03, before any data)
 
@@ -507,6 +626,107 @@ it measures the paint path and the page, not the wire. A DBT series is the next 
 not a phone: its GPU is software, its memory and thermals are a server's, and `measureUserAgentSpecificMemory` is not
 available in this headless build, so memory is the page heap alone.
 
+### 7 · The methods Cornerstone3D says it will remove (d)
+
+Read in `packages/docs/docs/migration-guides/5x/2-generic-viewport.md` at 5.14.0. The guide names a method set the
+"legacy compatibility adapters" keep, and says each "should be expected to be removed in a later breaking release".
+Our viewport implements several of them, because the tools read them from any viewport that is not Generic.
+
+| our viewport implements | read by (5.14.0) | the guide says | what replaces it |
+| --- | --- | --- | --- |
+| `getProperties`, `setProperties` | the window-level tool (`WindowLevelTool.ts:50,116,358-386`) | temporary, for migration only (`:379-382`) | `setDisplaySetPresentation(displaySetId, { voiRange, … })` (`:362-376`) |
+| `getCamera`, `setCamera` | pan and zoom take their canvas-unit path when the camera has no `position` (`PanTool.ts:136-150`, `ZoomTool.ts:446-462`); the base `getViewReference` (`Viewport.ts:2154-2167`) | temporary, to be removed (`:386-389`) | `ViewState`: `setViewState`, `updateViewState`; presentation through `viewportProjection` (`:389-424`) |
+| `resetCamera` | the reset of a view (the glue's own use) | a temporary migration name (`:514-519`) | `resetViewState` (`:510-514`) |
+| the `Viewport` base class it extends | everything above, through `super` | not named for removal; the guide moves code from concrete classes to capability guards (`:7-15`) | the Generic interface: `setDisplaySets`, `setDisplaySetPresentation`, `setViewState` (`packages/core/src/utilities/viewportCapabilities.ts:119-127`) |
+
+Not named by the guide, and tested by method rather than class: `scroll`, `getImageData`, `getCurrentImageIdIndex`,
+`getImageIds`, `hasImageURI`, `canvasToWorld`, `worldToCanvas`, `getZoom`/`setZoom`, `getPan`/`setPan`
+(`viewportCapabilities.ts:49-58`, `zoomPanSyncCallback.ts:130-147`). `registerViewportType` is the documented
+extension point (`:66-87`).
+
+**When.** No release is named. The guide says "a later breaking release". GitHub's search found no issue or pull
+request titled for a 6.0 (2026-11-03, titles only). The tools already route a Generic viewport first
+(`voiSyncCallback.ts:63`, `playClip.ts:610-617`). So the lasting form of this glue implements the Generic interface,
+which would also let Cornerstone3D's own VOI synchronizer reach it. That was not attempted, and it is an upgrade risk
+each major.
+
+### 8 · OHIF without a fork (e)
+
+Read at `v3.14.0-beta.68` (`51e301d`, 2026-10-29), the latest v3 tag; every line below is the same at `v3.13.13`
+(`1fa151f`), the latest release, unless noted. OHIF pins Cornerstone3D 5.12.0 at beta.68 and 5.6.8 at 3.13.13
+(`extensions/cornerstone/package.json:54` and `:57`). 5.12.0's build exports `registerViewportType` and calls
+`customRenderViewportToCanvas` (`dist/esm/RenderingEngine/ContextPoolRenderingEngine.js:210,233`, from npm). Read, not
+run.
+
+**By source: yes, as an extension and a mode, with no fork.**
+
+* **A viewport module of ours.** An extension may return any React component from `getViewportModule`
+  (`platform/core/src/extensions/ExtensionManager.ts:47`), as `dicom-pdf` does with a viewport that is not
+  Cornerstone3D's (`extensions/dicom-pdf/src/index.tsx:31-37`). A mode routes display sets to that viewport by
+  namespace (`modes/basic/src/index.tsx:284-285`). OHIF's closed list of viewport types
+  (`getCornerstoneViewportType.ts:56,85`) applies only to its own Cornerstone viewport, which ours would not use.
+  §3's "needs a fork" read that list as the only door. **Corrected below.**
+* **A data source of ours.** `dataSourcesModule` is an extension module type (`MODULE_TYPES.js:5`,
+  `ExtensionManager.ts:314`). Ours would answer the study and series queries from our metadata, and a SOP class
+  handler of ours (`:50`) would make the display sets our viewport takes.
+* **OHIF's tools on our viewport.** Its tool groups take any viewport id and rendering engine
+  (`ToolGroupService.ts:171-193`), so the toolbar's length, angle, probe and window reach our viewport as in §5.
+
+**What it does not give without more glue.**
+
+* OHIF's commands that act on "the viewport" (presets, reset, flip, its cine) find it through
+  `getCornerstoneViewport`, which answers only viewports OHIF created (`CornerstoneViewportService.ts:631-636`;
+  3.13.13 `:599-604`). Ours is not among them.
+* Its measurement panel maps each annotation to a DICOM instance through `metaData.get('instance', imageId)`
+  (`utils/measurementServiceMappings/utils/getSOPInstanceAttributes.js:58-64`). Our data source would have to give
+  every frame Study, Series and SOP Instance UIDs, which the ingest does not carry (`dicom_series.py:133-160`: no
+  identifiers).
+* OHIF registers image loaders and a prefetcher for its own schemes. Our image ids must stay on a scheme no loader
+  answers, or §5's second download order returns.
+* The two inline scripts (§5) must leave the HTML before an extension loads at run time under our policy.
+
+None of this was built. Whether OHIF's layout, hanging protocols and viewport grid accept a viewport module that
+holds a worker's canvas (resize, re-mount, unmount) is **open**.
+
+### What option B costs (updated 2026-11-03)
+
+Option B is our viewport inside Cornerstone3D (§2, §5). Each cost is marked as this run leaves it.
+
+**The four costs.**
+
+1. **Cine and linked views are ours to build; Cornerstone3D's run on the page.** *Verified, by test and source, and
+   smaller than drawn.* `playClip` refuses our class (`playClip.ts:580-619`). Our cine on the view worker's clock is
+   about 20 lines of the glue (§5). Linked zoom and pan come free: Cornerstone3D's own synchronizer falls back to
+   `getZoom` and `getPan` (`zoomPanSyncCallback.ts:130-147`). Linked window is one callback of ours on its
+   synchronizer (§5).
+2. **Annotations can lag the image by a frame.** *Verified, by test, indicative* (SwiftShader, idle page): one frame
+   apart, the annotation leading in a pan and trailing in a scroll (§5). A busy page is not measured.
+3. **Methods Cornerstone3D says it will remove, an upgrade risk each major.** *Verified, by source* (§7):
+   `getProperties`/`setProperties`, `getCamera`/`setCamera` and `resetCamera`, "in a later breaking release". No
+   release is named. The Generic interface replaces them, and was not attempted.
+4. **~~OHIF cannot take the viewport without a fork.~~** *Retracted, by source* (§8): an extension's viewport module, a
+   data source and a mode of ours can host it, and OHIF's tool groups reach it. **Open, by test:** none of it was
+   built, and OHIF's commands, measurement panel and grid need more glue.
+
+**The three data-side risks.**
+
+5. **Cornerstone3D's image cache and stack prefetch against our download order.** *Verified, by test:* no load and
+   nothing cached through every tool. But `stackPrefetch`, if enabled on our viewport, queues every other slice (23 of
+   23) on Cornerstone3D's loader: a second order. Our page must not enable it, and under OHIF our image ids must stay
+   on a scheme no loader answers.
+6. **The metadata its tools expect.** *Verified, by test, for the tools tried:* nothing from a metadata provider. The
+   viewport needs each frame's width, height and pixel spacing, and the ingest carries no spacing or frame of
+   reference. OHIF's measurement panel would also need instance UIDs, which the ingest does not carry. *Open:* the US
+   probe's regions and the SUV path.
+7. **With OHIF, its inline scripts and service worker against COOP/COEP and our policy.** *Verified, by test, OHIF
+   unchanged at v3.14.0-beta.68:* it boots cross-origin isolated under our headers. Its two inline scripts are
+   refused, which breaks run-time extension loading until they move to a file. Its service worker never registers in
+   a page (by source).
+
+**Found on the way, and not in the owner's list:** a defect in the core's controller that stops all painting after a
+display change before the first frame (§5, fix proposed). Also, Cornerstone3D opens nine WebGL2 contexts on the page
+under option B, though none of them paints.
+
 ## Open
 
 * **Whether the bit-exactness that is decided reaches the screen.** If it does, the ranking stands. If it stops at the
@@ -518,7 +738,9 @@ available in this headless build, so memory is the page heap alone.
   issue #2894 with no release named, §A seam for our painter inside Cornerstone3D)*. ~~A backend that owns its surface would have to own a worker's
   `OffscreenCanvas`, and Cornerstone3D's tools draw in page coordinates.~~ *Corrected 2026-11-02: the tools' page
   coordinates did not block a worker's canvas behind a viewport type of ours; the overlay is drawn one thread apart.*
-* **A viewport type of ours, beyond the spike** (§A seam for our painter inside Cornerstone3D): the probe under the view worker, the cine, synchronizers or the
-  Generic viewport's interface, the overlay against the image in time, Firefox, a GPU. None done.
+* **A viewport type of ours, beyond the spike** (§A seam for our painter inside Cornerstone3D): ~~the probe under the view worker, the cine, synchronizers or the
+  Generic viewport's interface, the overlay against the image in time,~~ Firefox, a GPU, DPR 2, any VOI function but
+  LINEAR_EXACT, the Generic viewport's interface, the phone run (§6). *The struck items were done on our core,
+  2026-11-03 (§5).*
 * **The glue line counts are estimates**, as are the 1 000–1 500 lines of the own option. No shipped bundle size or
   first image was measured for any option.
