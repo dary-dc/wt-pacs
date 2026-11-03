@@ -7,8 +7,8 @@ Error: ENOTEMPTY: directory not empty, rmdir 'lab/opfs-arms/work/profile-VCfl1K'
     at _rmdirSync (node:internal/fs/rimraf:261:21)
     at rimrafSync (node:internal/fs/rimraf:194:7)
     at rmSync (node:fs:1246:10)
-    at once (file:///lab/opfs-arms/run.mjs:62:24)
-    at async file:///lab/opfs-arms/run.mjs:123:15 {
+    at once (lab/opfs-arms/run.mjs:62:24)
+    at async lab/opfs-arms/run.mjs:123:15 {
   errno: -39,
   code: 'ENOTEMPTY',
   syscall: 'rmdir',
@@ -26,8 +26,8 @@ Error: ENOTEMPTY: directory not empty, rmdir 'lab/opfs-arms/work/profile-BblW1e'
     at _rmdirSync (node:internal/fs/rimraf:261:21)
     at rimrafSync (node:internal/fs/rimraf:194:7)
     at rmSync (node:fs:1246:10)
-    at once (file:///lab/opfs-arms/run.mjs:62:24)
-    at async file:///lab/opfs-arms/run.mjs:123:15 {
+    at once (lab/opfs-arms/run.mjs:62:24)
+    at async lab/opfs-arms/run.mjs:123:15 {
   errno: -39,
   code: 'ENOTEMPTY',
   syscall: 'rmdir',
