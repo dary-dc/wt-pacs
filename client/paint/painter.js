@@ -6,10 +6,12 @@ export class Painter {
   #pending = new Map();
   #lost = null;
   #last = null;
+  #settle;
 
-  /** `renderer` resolves to the WebGL renderer string, or rejects with why nothing can be painted. */
-  constructor(canvas, { onLost = () => {} } = {}) {
+  /** `renderer` resolves to the WebGL renderer string, or rejects with why nothing can be painted; `settle`, a lab's. */
+  constructor(canvas, { onLost = () => {}, settle } = {}) {
     this.#canvas = canvas;
+    this.#settle = settle;
     this.#worker = new Worker(new URL("./paint-worker.js", import.meta.url), { type: "module" });
     const offscreen = canvas.transferControlToOffscreen();
     this.renderer = new Promise((resolve, reject) => {
@@ -50,7 +52,7 @@ export class Painter {
     this.#last = frame;
     return new Promise((resolve, reject) => {
       this.#pending.set(id, { resolve, reject });
-      this.#worker.postMessage({ kind: "paint", id, frame, same, display, width, height, dpr, read });
+      this.#worker.postMessage({ kind: "paint", id, frame, same, display, width, height, dpr, read, settle: this.#settle });
     });
   }
 

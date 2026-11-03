@@ -5,13 +5,15 @@ import { now } from "../../client/view/clock.js";
 export const LONG_TASK_MS = 200;
 export const BUSY_PERIOD_MS = 500;
 
-/** Starts the long tasks; returns the array their lengths are pushed to. */
-export function busyPage() {
+/** Starts the long tasks; returns the array their lengths are pushed to, and pushes each one's `[start, end]` to `spans`. */
+export function busyPage(spans = []) {
   const tasks = [];
   setInterval(() => {
     const a = now();
     while (now() - a < LONG_TASK_MS);
-    tasks.push(now() - a);
+    const b = now();
+    tasks.push(b - a);
+    spans.push([a, b]);
   }, BUSY_PERIOD_MS);
   return tasks;
 }

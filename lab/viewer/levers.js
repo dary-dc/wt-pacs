@@ -15,6 +15,8 @@ export function levers(q) {
   if (ignored) throw new Error(`refused: ${ignored} under view page — the view worker's; name view=worker`);
   if (writer !== undefined && !["store", "decoders", "view"].includes(writer)) throw new Error(`refused: writer ${JSON.stringify(writer)} — store, decoders or view`);
   if (writer === "decoders" && opts.pixels === "transfer") throw new Error("refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred");
+  const settle = q.get("settle") ?? "fence";
+  if (!["fence", "read"].includes(settle)) throw new Error(`refused: settle ${JSON.stringify(settle)} — fence or read`);
   // docs/adr/frame-path.md §7: the page busy from here, and after the fill a cine of `cine` seconds.
   const tasks = q.get("busy") === "1" ? busyPage() : [];
   const seconds = Number(q.get("cine") ?? 0);
@@ -23,7 +25,7 @@ export function levers(q) {
     transport: q.get("wt") ? { wt_url: q.get("wt"), cert_sha256: q.get("hash") } : undefined,
     metadata: q.get("metadata") ?? undefined,
     writer,
-    ...(q.get("post") && totalTime(q.get("post"), q.get("origin"), opts, q.get("fill") === "0" ? Number(q.get("after") ?? 0) : 0, Boolean(q.get("trace")), tasks)),
+    ...(q.get("post") && totalTime(q.get("post"), q.get("origin"), settle, opts, q.get("fill") === "0" ? Number(q.get("after") ?? 0) : 0, Boolean(q.get("trace")), tasks)),
     ...(seconds && { cine: cineOf(seconds * 1000) }),
     ...(q.get("trace") && { trace: { steps: sawtooth, everyMs: STEP_MS } }),
   };
@@ -33,11 +35,11 @@ export function levers(q) {
  * The page's hooks for lab/av1/delivery/total-time/run.mjs: `hello` before the fill, then page.js's result shape.
  * On demand, frames 1 … `after` are stepped to one at a time once frame 0 is shown; under `traced`, the steps are the trace's.
  */
-function totalTime(post, origin, opts, after, traced, tasks) {
+function totalTime(post, origin, settle, opts, after, traced, tasks) {
   const send = (what, body) => fetch(`${post}${what}`, { method: "POST", body: body && JSON.stringify(body) });
   return {
-    // The rig times "shown", so under the worker view its paint waits for the GPU as the paint worker's does.
-    settlePaint: true,
+    // The rig times "shown", so each paint waits for its draw: client/paint/README.md §When a paint has executed.
+    settle,
     steps: Array.from({ length: after }, (_, k) => k + 1),
     started: () => send("hello"),
     filled: () => send("filled"),
