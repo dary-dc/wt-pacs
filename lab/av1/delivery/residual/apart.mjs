@@ -7,7 +7,7 @@
  *     [--rounds N] [--throttles 1,4] [--first 16] [--mutate hash|offset] [--pilot] [--out rows.json]
  */
 import { spawn } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { leadsByPredecessor, order } from "../../../order.mjs";
 import { throttleTree } from "../../../scripts/cpu_throttle.mjs";
@@ -100,8 +100,13 @@ async function inChromium(throttle, round) {
   return rows;
 }
 
-const rows = [];
-for (let round = 0; round < ROUNDS; round++) {
+/** Rows are written after every round; a run given an --out that exists resumes after its last complete round. */
+const rows = OUT && existsSync(OUT) ? JSON.parse(readFileSync(OUT, "utf8")) : [];
+const done = (round) => THROTTLES.every((t) => rows.some((r) => r.round === round && r.throttle === t));
+let start = 0;
+while (start < ROUNDS && done(start)) start++;
+rows.splice(0, rows.length, ...rows.filter((r) => r.round < start));
+for (let round = start; round < ROUNDS; round++) {
   for (const throttle of order(THROTTLES, round)) {
     const got = await inChromium(throttle, round);
     rows.push(...got);
@@ -110,8 +115,8 @@ for (let round = 0; round < ROUNDS; round++) {
     }
     console.error(`round ${round} ${throttle}x done`);
   }
+  if (OUT) writeFileSync(OUT, JSON.stringify(rows));
 }
-if (OUT) writeFileSync(OUT, JSON.stringify(rows));
 
 const med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 const f2 = (v) => (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
