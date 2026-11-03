@@ -108,7 +108,7 @@ function variantOf(set, name) {
   if (name === "htj2k" || a.codec === "htj2k" || a.downloader) {
     // A layered HTJ2K series (lab/av1/decode/resolution-level): F prefixes, then F rests.
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
-    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion, initialWindow: a.initialWindow, viewer: a.viewer, view: a.view,
+    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion, initialWindow: a.initialWindow, viewer: a.viewer, view: a.view, settle: a.settle,
       opts: { decoder: { ...(a.openjph === "delivered" ? DELIVERED : a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // Decode pacing: the downloader's lab flag.
         ...(a.startOnNeed && { startOnNeed: true }),
@@ -349,7 +349,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   const q = new URLSearchParams({ opts: JSON.stringify(a.opts), fill, after: AFTER, ...(BUSY && { busy: 1 }), ...(CINE && { cine: CINE }), wt: `https://127.0.0.1:${relayPort}/`, hash: HASH,
     ...(orderName === "prio" ? { asks: need.join(",") } : {}), ...(MUTATE === "sample" ? { mutate: "sample" } : {}),
     // The viewer: the product's page on the variant's metadata, and both pages timed from navigation.
-    ...(a.viewer && { metadata: `/${FRAMES}/${set.name}/${a.viewer}` }), ...(a.view && { view: a.view }), ...(arg("--origin") && { origin: arg("--origin") }),
+    ...(a.viewer && { metadata: `/${FRAMES}/${set.name}/${a.viewer}` }), ...(a.view && { view: a.view }), ...(a.settle && { settle: a.settle }), ...(arg("--origin") && { origin: arg("--origin") }),
     ...(TRACE && a.viewer && { trace: TRACE }) });
   let r = null;
   const threads = {};

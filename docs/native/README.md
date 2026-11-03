@@ -936,7 +936,8 @@ NATIVERUN is not run and nothing here is timed.*
 * **B's 1-pixel read** was already behind a lab flag on `claude/core`: `settlePaint` in `client/view/view-worker.js`,
   off by default, set by `lab/viewer/levers.js` ([`../adr/frame-path.md`](../adr/frame-path.md) §3). *Corrected
   (2026-10-30)*: the independent review read `paint-worker.js` alone, which the page view keeps reading on. Nothing
-  built.
+  built. *Since 2026-10-30* neither view's product paint reads; a lab's settle is the fence by default
+  ([`../adr/frame-path.md`](../adr/frame-path.md) §7, *The pixel read under a busy page*).
 
 **Proved.** `clock::tests` and `count::tests`: the cine shows the frame due and counts those passed over; a frame is
 on time only if its paint ends before the next is due; the busy loop blocks for its length and keeps its schedule;

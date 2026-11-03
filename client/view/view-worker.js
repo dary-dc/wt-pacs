@@ -15,8 +15,8 @@ let downloader = null;
 let lastPainted = null;
 let progress = null;
 let latest = null;
-/** The lab's flag: a paint waits for the GPU before it reports, which here would block the store. */
-let settle = false;
+/** A lab's settle (client/paint/paint-worker.js); none in the product. */
+let settle;
 let cine = null;
 /** Steps on each play and pause, so a play whose clock is still loading starts no cine once overtaken. */
 let cues = 0;
@@ -43,9 +43,9 @@ function paint(frame, display, { read = false } = {}) {
 }
 
 /** `watchWrites`, the viewer check's: every cache write on this thread is counted from the start. */
-function start({ canvas, meta, fillMode, size, settlePaint, watchWrites }) {
+function start({ canvas, meta, fillMode, size, settle: lab, watchWrites }) {
   controller = new Controller({ meta, fillMode, paint, emit, size });
-  settle = settlePaint;
+  settle = lab;
   if (watchWrites) import("./check.js").then((m) => m.watchWrites());
   try {
     emit("renderer", { renderer: painter.start(canvas, (why) => emit("failed", { scope: "worker", reason: `painter: ${why}` })) });

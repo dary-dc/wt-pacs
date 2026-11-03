@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """docs/adr/frame-path.md §7's series for total-time's run.mjs: each set through the product's DICOM ingest as HTJ2K,
-its frames, its metadata and the viewer variants `page`, `pageaa` (its A/A copy) and `worker`.
+its frames, its metadata and the viewer variants `page`, `pageaa` (its A/A copy) and `worker`, each settling by the
+fence, and `page-read`, `worker-read` settling by the pixel read (§7, *The pixel read under a busy page*).
 
 usage: lab/av1/.venv/bin/python lab/viewer/view_frames.py BUILD WORK SET ...   (SET@K: that file of the set alone)
 """
@@ -28,7 +29,8 @@ def main():
         (w / "metadata.json").write_text(json.dumps(meta))
         viewer = {"codec": "htj2k", "openjph": "delivered", "viewer": "metadata.json", "digests": meta["digests"]["frames"]}
         (w / "variants.json").write_text(json.dumps({"name": w.name, "frames": s.n, "truth": truth, "variants": {
-            "page": viewer, "pageaa": viewer, "worker": {**viewer, "view": "worker"}}}))
+            "page": viewer, "pageaa": viewer, "worker": {**viewer, "view": "worker"},
+            "page-read": {**viewer, "settle": "read"}, "worker-read": {**viewer, "view": "worker", "settle": "read"}}}))
         print(w.name, s.n, "frames", flush=True)
 
 
