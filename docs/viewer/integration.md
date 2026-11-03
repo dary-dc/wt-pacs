@@ -455,6 +455,58 @@ and the runner, 182, are not glue.
 | "lost: the 1:1 proof; zero-copy to the GPU; the page out of the pixel path; cine off the page thread" (§Cornerstone3D, table) | on the standard path. Through a viewport of ours, the first three are kept and the cine is ours to build (§4) |
 | "a backend that owns its surface would have to own a worker's `OffscreenCanvas`, and Cornerstone3D's tools draw in page coordinates" (§Open) | the tools' page coordinates did not block a worker's canvas: the overlay is one thread apart, not wrong (§2, §4) |
 
+### 6 · The phone protocol: option A against option B (written 2026-11-03, before any data)
+
+**The options, as the owner named them for this run.** Option A is Cornerstone3D's standard path: its stack
+viewport paints on the page, its images handed over by an image loader fed by our core on the page. It is
+[`architecture.md`](architecture.md)'s B. Option B is our viewport inside Cornerstone3D: the view worker holds the
+frames and paints them, and the page sends intents (§4, §5). Both run the same transport, downloader, decoders and
+digest check. Product target: mobile browsers first.
+
+**Rig.** Chrome for Android, driven from a computer over remote debugging (`adb forward tcp:9222
+localabstract:chrome_devtools_remote`, then Playwright's `connectOverCDP`). The page is served on the phone's own
+`localhost` through `adb reverse`, so it is a secure context and can be cross-origin isolated. The series server is
+dialled over the LAN, because WebTransport is UDP and `adb reverse` carries TCP only. Both arms share one Wi-Fi link,
+interleaved. The runner is [`../../lab/viewer-spike/seam-core/proxy.mjs`](../../lab/viewer-spike/seam-core/README.md):
+`--remote http://localhost:9222 --lan <computer's IP> --http-port <P> --rates 1`, after `adb reverse tcp:P tcp:P`.
+Record before the first round: the phone's model, Android and Chrome versions, the display's refresh rate, the
+battery level, and that the phone is on charge, not hot, and has no other tab open.
+
+**Series.** The spike's: 24 slices of 128×96, 16-bit, HTJ2K, with digests (`series.mjs`). It is small on purpose:
+it measures the paint path and the page, not the wire. A DBT series is the next cell, once this one is read.
+
+**Order.** 10 rounds. Each round runs both arms on a fresh page, A then B in odd rounds and B then A in even ones.
+
+**The metrics, one visit each.**
+
+| metric | how |
+| --- | --- |
+| first exact image | navigation → the first paint of frame 0, which is checked exact before either option may paint it: A's `IMAGE_RENDERED`, B's `shown` heard on the page |
+| scroll on time | 71 steps (1 → 23, 23 → 0, 0 → 23), one every 50 ms, once the fill is complete. A step is on time if its frame's paint (as above) lands within 33.3 ms (two 60 Hz periods) of the step. Reported as the fraction on time |
+| cine on time | 30 frames/s for 3 s: A's `playClip`, B's view-worker clock. Frame k is due k periods after the first paint, and on time if painted within one period of that. A skipped frame is not on time. Reported as on-time paints ÷ the 90 due. A's paint time is `IMAGE_RENDERED`; B's is the paint's end on the view worker's own clock, because B's claim is that its paint does not wait on the page |
+| page long tasks | the page thread's `longtask` entries, summed in ms, over the open, the scroll and the cine |
+| memory | `measureUserAgentSpecificMemory` after the cine, every thread, where Chrome gives it. Otherwise the page thread's JS heap (`Performance.getMetrics`), which leaves out the workers and so favours B; said as such |
+
+**The rule, fixed now.** Each metric's median over the 10 rounds, B against A.
+
+* *B no worse* on a metric when: first exact ≤ 1.1 × A + 16.7 ms; scroll on time ≥ A − 5 points; cine on time ≥ A − 5
+  points; page long tasks ≤ 1.1 × A + 50 ms; memory ≤ A + 32 MiB.
+* *B better* on a metric when it beats A by the same margins the other way: first exact ≤ A / 1.1 − 16.7 ms, on time
+  ≥ A + 5 points, long tasks ≤ A / 1.1 − 50 ms, memory ≤ A − 32 MiB.
+* **Verdict.** "B pays for its costs on this phone" if B is no worse on all five and better on at least one of scroll,
+  cine or page long tasks. "A" if B is worse on any. Otherwise "a tie, and A by default", since A carries none of
+  §*What option B costs*.
+* **Void.** A visit with any frame not exact, or a page error, is dropped with its round's other arm. Fewer than 8 of
+  10 rounds kept: not judged.
+* **Where it saturates.** The phone's refresh rate caps what on time can mean, and a 90 or 120 Hz display is judged
+  against 60 Hz periods as written. Its thermal state is not controlled beyond the checks above. Nothing is claimed
+  for another phone, a busy page, or a larger series.
+
+**The desktop proxy, run here (indicative).** The same runner in headless Chromium on SwiftShader, its CPU throttled
+4× and 6× (`Emulation.setCPUThrottlingRate`), 5 rounds per rate, the rule applied as written. A throttled desktop is
+not a phone: its GPU is software, its memory and thermals are a server's, and `measureUserAgentSpecificMemory` is not
+available in this headless build, so memory is the page heap alone.
+
 ## Open
 
 * **Whether the bit-exactness that is decided reaches the screen.** If it does, the ranking stands. If it stops at the

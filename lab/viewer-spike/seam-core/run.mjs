@@ -34,7 +34,7 @@ export async function bundle(mutant, entry = "page.js") {
 }
 
 export async function hosts() {
-  const series = await seriesServer(core, sbnd);
+  const series = await seriesServer(core, sbnd, arg("--lan"));
   const page = { current: await bundle(null), standard: await bundle(null, "standard.js") };
   const routes = {
     "/lab/viewer-spike/seam-core/dist/page.js": () => page.current,
@@ -42,7 +42,8 @@ export async function hosts() {
     "/series/metadata": () => series.metadata,
     "/wt/dev-transport.json": () => JSON.stringify(series.transport),
   };
-  const server = await staticHost({ core, root: ROOT, routes, wt: series.wt });
+  // `--http-port`: a fixed port, so a phone reaches it at its own localhost through `adb reverse`.
+  const server = await staticHost({ core, root: ROOT, routes, wt: series.wt, port: Number(arg("--http-port") ?? 0) });
   const base = `http://127.0.0.1:${server.address().port}/lab/viewer-spike/seam-core`;
   return { page, server, url: `${base}/index.html`, base };
 }

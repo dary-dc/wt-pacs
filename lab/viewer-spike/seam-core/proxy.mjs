@@ -1,6 +1,7 @@
 // The phone protocol's desktop proxy: option A (Cornerstone3D's stack viewport, paint on the page) against option B
 // (our viewport, paint in our view worker), Chromium's CPU throttled. Indicative only. docs/viewer/integration.md §The phone protocol
-//   NODE_PATH=$(npm root -g) node proxy.mjs --core DIR --series X.sbnd [--rounds 5] [--rates 4,6] [--remote ws://...]
+//   NODE_PATH=$(npm root -g) node proxy.mjs --core DIR --series X.sbnd [--rounds 5] [--rates 4,6]
+//   ... --remote http://localhost:9222 --lan IP --rates 1     a phone's Chrome over adb, unthrottled; not yet run
 import { createRequire } from "node:module";
 import { hosts } from "./run.mjs";
 
@@ -12,10 +13,10 @@ const rates = arg("--rates", "4,6").split(",").map(Number);
 const STEP_MS = 50, CINE_FPS = 30, CINE_MS = 3000;
 
 async function visit(browser, url, rate) {
-  const context = await browser.newContext({ viewport: { width: 560, height: 220 }, deviceScaleFactor: 1 });
+  const context = remote ? browser.contexts()[0] : await browser.newContext({ viewport: { width: 560, height: 220 }, deviceScaleFactor: 1 });
   const page = await context.newPage();
   const cdp = await context.newCDPSession(page);
-  await cdp.send("Emulation.setCPUThrottlingRate", { rate });
+  if (rate !== 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate });
   await cdp.send("Performance.enable");
   await page.goto(url);
   await page.waitForFunction(() => window.spikeReady || window.spikeError, null, { timeout: 120_000 });
@@ -38,13 +39,14 @@ async function visit(browser, url, rate) {
   // Where the browser gives no every-thread figure, the page thread's JS heap alone: workers not counted.
   const { metrics } = await cdp.send("Performance.getMetrics");
   r.pageHeap = metrics.find((m) => m.name === "JSHeapUsedSize").value;
-  await context.close();
+  await (remote ? page.close() : context.close());
   return r;
 }
 
 const median = (a) => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
 const { server, base } = await hosts();
-const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader", "--enable-blink-features=ForceEagerMeasureMemory"] });
+const remote = arg("--remote");
+const browser = remote ? await chromium.connectOverCDP(remote) : await chromium.launch({ args: ["--enable-unsafe-swiftshader", "--enable-blink-features=ForceEagerMeasureMemory"] });
 const URLS = { A: `${base}/standard.html`, B: `${base}/index.html?views=1` };
 try {
   console.log(`Chromium ${browser.version()}, SwiftShader; ${rounds} rounds ABBA per rate; scroll a step every ${STEP_MS} ms; cine ${CINE_FPS}/s for ${CINE_MS} ms`);

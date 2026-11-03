@@ -30,25 +30,27 @@ function metadataOf(sbnd) {
   return b.subarray(16 + 12 * b.readUInt32LE(12), 16 + 12 * b.readUInt32LE(12) + b.readUInt32LE(8));
 }
 
-export async function seriesServer(core, sbnd) {
+/** `lan`: an address the phone reaches over Wi-Fi; WebTransport is UDP, which `adb reverse` does not carry. */
+export async function seriesServer(core, sbnd, lan) {
   const T = mkdtempSync(join(tmpdir(), "seam-core-"));
   const [key, cert] = [`${T}/key.pem`, `${T}/cert.pem`];
   execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-keyout", key, "-out", cert,
-    "-days", "2", "-nodes", "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"], { stdio: "ignore" });
+    "-days", "2", "-nodes", "-subj", "/CN=localhost", "-addext", `subjectAltName=DNS:localhost,IP:127.0.0.1${lan ? `,IP:${lan}` : ""}`], { stdio: "ignore" });
   const hash = execFileSync("openssl", ["dgst", "-sha256", "-r"], { input: execFileSync("openssl", ["x509", "-in", cert, "-outform", "DER"]) }).toString().split(" ")[0];
   const port = await freeUdpPort();
-  const server = spawn(join(core, "target/release/series-server"), ["--port", String(port), "--bind", "127.0.0.1", "--series", sbnd, "--cert-pem", cert, "--key-pem", key], { stdio: ["ignore", "pipe", "inherit"] });
+  const server = spawn(join(core, "target/release/series-server"), ["--port", String(port), "--bind", lan ? "0.0.0.0" : "127.0.0.1", "--series", sbnd, "--cert-pem", cert, "--key-pem", key], { stdio: ["ignore", "pipe", "inherit"] });
   children.push(server);
   await new Promise((resolve, reject) => {
     let out = "";
     server.stdout.on("data", (d) => ((out += d), /transport=/.test(out) && resolve()));
     server.once("exit", (c) => reject(new Error(`series-server exited ${c}: ${out}`)));
   });
-  return { wt: `https://127.0.0.1:${port}`, transport: { wt_url: `https://127.0.0.1:${port}/`, cert_sha256: hash, client: "ts" }, metadata: metadataOf(sbnd) };
+  const at = `https://${lan ?? "127.0.0.1"}:${port}`;
+  return { wt: at, transport: { wt_url: `${at}/`, cert_sha256: hash, client: "ts" }, metadata: metadataOf(sbnd) };
 }
 
 /** `/client/` from the core's tree, the rest from this checkout; `routes` answer exact paths first. */
-export function staticHost({ core, root, routes, wt }) {
+export function staticHost({ core, root, routes, wt, port = 0 }) {
   const server = createServer(async (req, res) => {
     const path = new URL(req.url, "http://x").pathname;
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
@@ -63,5 +65,5 @@ export function staticHost({ core, root, routes, wt }) {
       res.writeHead(404).end();
     }
   });
-  return new Promise((r) => server.listen(0, "127.0.0.1", () => r(server)));
+  return new Promise((r) => server.listen(port, "127.0.0.1", () => r(server)));
 }
