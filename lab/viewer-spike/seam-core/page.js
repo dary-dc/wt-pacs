@@ -5,8 +5,10 @@ import * as tools from "@cornerstonejs/tools";
 import { CoreViewport, CORE_VIEWPORT } from "./core-viewport.js";
 import { built } from "/client/decode/wasm-glue.js";
 import { windowTable, tableShape } from "/client/paint/voi.js";
+import { measure } from "./measure.js";
 
-const IDS = ["vp1", "vp2"];
+// `?views=1`, the proxy's: one viewport, as option A has.
+const IDS = new URLSearchParams(location.search).get("views") === "1" ? ["vp1"] : ["vp1", "vp2"];
 /** Every metadata module the tools ask for, and every image Cornerstone3D's loader is asked to load. */
 const asked = { metadata: new Set(), loads: [] };
 
@@ -104,6 +106,17 @@ async function start() {
     },
     meta,
   };
+  const m = measure();
+  vp.listeners.add((type, e) => type === "shown" && e.exact === true && m.painted(e.i, performance.now()));
+  if (vp.shown?.exact === true) m.painted(vp.shown.i, vp.heard.find((e) => e.type === "shown").at);
+  if (vp.heard.some((e) => e.type === "progress" && e.have === e.total)) m.filled();
+  else vp.listeners.add((type, e) => type === "progress" && e.have === e.total && m.filled());
+  window.proxy = m.handle({
+    step: (i) => vp.setImageIdIndex(i),
+    play: (fps) => vp.play(fps),
+    pause: () => vp.pause(),
+    cineLog: async () => (await vp.view.cine()).map((e) => ({ i: e.i, t: e.end - performance.timeOrigin })),
+  });
   window.spikeTools = tools;
   window.spikeReady = true;
 }

@@ -14,7 +14,7 @@ const ROOT = normalize(join(HERE, "../../.."));
 const arg = (k) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : undefined; };
 const core = arg("--core"), sbnd = arg("--series"), only = arg("--only");
 
-export async function bundle(mutant) {
+export async function bundle(mutant, entry = "page.js") {
   const patch = {
     name: "mutant",
     setup(b) {
@@ -29,20 +29,22 @@ export async function bundle(mutant) {
       });
     },
   };
-  const out = await build({ entryPoints: [join(HERE, "page.js")], bundle: true, format: "esm", write: false, external: ["/client/*"], plugins: [patch], logLevel: "silent" });
+  const out = await build({ entryPoints: [join(HERE, entry)], bundle: true, format: "esm", write: false, external: ["/client/*"], plugins: [patch], logLevel: "silent" });
   return out.outputFiles[0].contents;
 }
 
 export async function hosts() {
   const series = await seriesServer(core, sbnd);
-  const page = { current: await bundle(null) };
+  const page = { current: await bundle(null), standard: await bundle(null, "standard.js") };
   const routes = {
     "/lab/viewer-spike/seam-core/dist/page.js": () => page.current,
+    "/lab/viewer-spike/seam-core/dist/standard.js": () => page.standard,
     "/series/metadata": () => series.metadata,
     "/wt/dev-transport.json": () => JSON.stringify(series.transport),
   };
   const server = await staticHost({ core, root: ROOT, routes, wt: series.wt });
-  return { page, server, url: `http://127.0.0.1:${server.address().port}/lab/viewer-spike/seam-core/index.html` };
+  const base = `http://127.0.0.1:${server.address().port}/lab/viewer-spike/seam-core`;
+  return { page, server, url: `${base}/index.html`, base };
 }
 
 /** A fresh tab on the page, once both viewports are open and every frame has arrived. */

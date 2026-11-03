@@ -21,6 +21,7 @@ export class CoreViewport extends Viewport {
   /** The view worker's last `shown`, and every event it sent, for the runner. */
   shown = null;
   heard = [];
+  listeners = new Set();
   /** Samples the probe asked of the view worker, by `k:i:j`. */
   samples = new Map();
   #sent = { index: -1, display: "" };
@@ -49,6 +50,7 @@ export class CoreViewport extends Viewport {
 
   #heard(type, e) {
     this.heard.push({ type, at: performance.now(), ...e });
+    for (const listen of this.listeners) listen(type, e);
     if (type !== "shown") return;
     const first = !this.shown;
     this.shown = e;
