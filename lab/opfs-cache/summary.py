@@ -9,8 +9,13 @@ from pathlib import Path
 DECODE_MS = {"512x512": 3.0, "3328x4096": 69.0}
 
 
+SET_ASIDE = "--set-aside-start-hangs" in sys.argv
+
+
 def rows(path):
-    return [r for r in map(json.loads, path.read_text().splitlines()) if not r.get("settings")] if path.exists() else []
+    """A cell's rows; with --set-aside-start-hangs, not the pre-registered rule, M5's runs that never received a frame dropped."""
+    rs = [r for r in map(json.loads, path.read_text().splitlines()) if not r.get("settings")] if path.exists() else []
+    return [r for r in rs if not (SET_ASIDE and r.get("cell", "").startswith("m5") and r.get("received") == 0)]
 
 
 def m1(rs):
@@ -86,6 +91,7 @@ CAUGHT = {
     "credits-ignored": lambda r: (r["view"] or {}).get("backlogPeak", 0) > K,
     "disk-keeps-frames": lambda r: (r["view"] or {}).get("heldPeakMiB", 0) > 0,
     "throws-slot-kept": lambda r: (r["view"] or {}).get("slotsDecoding", 0) > 0,
+    "written-at-delivery": lambda r: not stamp_agrees(r),
 }
 TESTS = {"throws-after-slot": lambda r: (r["view"] or {}).get("slotsDecoding") == 0 and bool((r["view"] or {}).get("errors"))}
 
@@ -94,12 +100,21 @@ def med(xs):
     return statistics.median(xs) if xs else None
 
 
+STAMP_LAG_MS = (0, 500)
+
+
+def stamp_agrees(r):
+    """The rig's own poll saw the last frame on disk within one poll and one page call after the page's stamp of it."""
+    lag = None if r.get("diskMs") is None or r.get("diskSeenMs") is None else r["diskSeenMs"] - r["diskMs"]
+    return lag is not None and STAMP_LAG_MS[0] <= lag <= STAMP_LAG_MS[1]
+
+
 def complete(r):
-    """Every frame in, exact by the decoder's XXH3 and, read back from disk, by the rig's SHA-256."""
+    """Every frame in, exact by the decoder's XXH3, on disk with its stamp checked and, read back, exact by the rig's SHA-256."""
     n = 80
     second = r.get("second") or {}
     view = r.get("view") or {}
-    return r["fillMs"] is not None and r["inexact"] == 0 and r["exact"] == n and (
+    return r["fillMs"] is not None and r["inexact"] == 0 and r["exact"] == n and stamp_agrees(r) and (
         r["arm"] == "today" or (second.get("read") == n and not second.get("wrong") and view.get("readMismatch") == 0 and view.get("stored") == n))
 
 
@@ -115,7 +130,7 @@ def aa(by):
     """ring' against ring in the same rounds: the median |growth| difference and fill-time ratio, and whether they VOID the cell."""
     pairs = [a for a in by.values() if "ring" in a and "ring2" in a]
     mib = med([abs(a["ring2"]["growthMiB"] - a["ring"]["growthMiB"]) for a in pairs])
-    time = med([a["ring2"]["fillMs"] / a["ring"]["fillMs"] for a in pairs if a["ring"]["fillMs"] and a["ring2"]["fillMs"]])
+    time = med([a["ring2"]["diskMs"] / a["ring"]["diskMs"] for a in pairs if a["ring"].get("diskMs") and a["ring2"].get("diskMs")])
     return mib, time, mib is None or time is None or mib > 64 or not 0.90 <= time <= 1.10
 
 
@@ -126,7 +141,8 @@ def m5(rs, name):
         if not r.get("mutant"):
             by[r["round"]][r["arm"]] = r
     aa_mib, aa_time, void = aa(by)
-    today = {k: a["today"]["fillMs"] for k, a in by.items() if "today" in a and a["today"]["fillMs"]}
+    # The fill's time is navigation to the last frame on disk in every arm: docs/adr/frame-path.md, M5's fill bar, amended.
+    today = {k: a["today"]["diskMs"] for k, a in by.items() if "today" in a and complete(a["today"])}
     ring_hand = {p: in_hand([a["ring"] for a in by.values() if "ring" in a], p) for p in PATHS}
     floor = med([a["disk"]["growthMiB"] for a in by.values() if "disk" in a])
     bar_mib = None if floor is None else floor + ABOVE_FLOOR_MIB
@@ -137,7 +153,7 @@ def m5(rs, name):
         if not sel:
             continue
         g = [r["growthMiB"] for r in sel]
-        ratio = med([r["fillMs"] / today[r["round"]] for r in sel if r["fillMs"] and r["round"] in today])
+        ratio = med([r["diskMs"] / today[r["round"]] for r in sel if r.get("diskMs") and r["round"] in today])
         hand = {p: in_hand(sel, p) for p in PATHS}
         own = {"ring": all((r["view"] or {}).get("offRing", 1) == 0 for r in sel), "disk": all((r["view"] or {}).get("heldPeakMiB", 1) == 0 for r in sel),
                "transfer-k": all((r["view"] or {}).get("backlogPeak", K + 1) <= K for r in sel)}.get(arm, True)
@@ -189,6 +205,8 @@ def mutants(rs, name):
 
 
 d = Path(sys.argv[1])
+if SET_ASIDE:
+    print("M5 with the runs that never received a frame set aside: descriptive, not the pre-registered rule")
 m1(rows(d / "m1.jsonl"))
 for f, name in (("m2.jsonl", "M2 2 GiB"), ("m2-13g.jsonl", "M2 13 GiB")):
     if rows(d / f):

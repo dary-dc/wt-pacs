@@ -17,6 +17,8 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const CELL = arg("--cell");
 const OUT = path.resolve(arg("--out", path.join(WORK, `${CELL}.jsonl`)));
 const ROUNDS = Number(arg("--rounds", 7));
+/** The round a cell resumes at, its interleaved order unchanged: rows already written for earlier rounds stand. */
+const FIRST_ROUND = Number(arg("--first-round", 0));
 const MUTANT = arg("--mutant", "");
 const ENGINE = arg("--engine", "chromium");
 // MiB the store may hold in Firefox: its per-site limit is a fifth of this pref, in KiB (ActorsParent.cpp 1413–1416). M5's series is 2.03 GiB.
@@ -87,6 +89,8 @@ async function relay(link, to) {
   };
 }
 
+/** The static host serving the pages, set by each cell. */
+let origin = null;
 const viewerUrl = (s, wt) => `${origin}/?${new URLSearchParams({ wt, hash: cert.hash, metadata: s.metadata })}`;
 const armsUrl = (s, wt, a) => `${origin}/lab/opfs-cache/arms.html?${new URLSearchParams({ wt, hash: cert.hash, metadata: s.metadata, sha: s.sha, ...a.query })}`;
 const reopenUrl = (s, key) => `${origin}/lab/opfs-cache/reopen.html?${new URLSearchParams({ key, metadata: s.metadata, sha: s.sha })}`;
@@ -98,6 +102,11 @@ const ACK_PUMPS = ["return void (m.gen === generation && records.delete(m.index)
 
 /** The fill's last frame fails once its decoder holds a slot: a test of the release, not a mutant. */
 const THROWS_AFTER_SLOT = ["    if (exact) {", `    if (m.index === 78) throw new Error("throws-after-slot");\n    if (exact) {`];
+
+/** `today`'s page keeps its store's last write as `lastWrittenAt`, the arms' reading, and shows each write as it lands. */
+const PAGE_STORED = "store?.write(f.frameIndex, f.info).then((r) => r.written && (stored.add(f.frameIndex), trim()));";
+const PAGE_SHOWS_WRITES = PAGE_STORED.replace("trim()", "status(), trim()");
+const PAGE_KEEPS_WRITTEN_AT = PAGE_STORED.replace("trim()", "(globalThis.lastWrittenAt = r.writtenAt), status(), trim()");
 
 /** The rig's stand-ins for the product's files, served in their place: the store switched off, and the mutants. */
 const STAND_INS = {
@@ -113,6 +122,9 @@ const STAND_INS = {
   "fresh-when-dry": { file: "lab/opfs-cache/arms-decoder.js", from: `dry.postMessage("dry");\n    ring.waitFree(seen);`,
     to: "return { bytes: new Uint8Array(new SharedArrayBuffer(ring.slotBytes)), waits, waitedMs: 0 };" },
   "disk-keeps-frames": { file: "lab/opfs-cache/arms-decoder.js", from: `into.slot === undefined && arm !== "disk" ?`, to: "into.slot === undefined ?" },
+  "written-at": { file: "client/viewer/store.js", from: "  return { written: true };", to: "  return { written: true, writtenAt: performance.timeOrigin + performance.now() };" },
+  "written-at-page": { file: "client/viewer/viewer.js", from: PAGE_STORED, to: PAGE_KEEPS_WRITTEN_AT },
+  "written-at-delivery": { file: "client/viewer/viewer.js", edits: [[PAGE_STORED, PAGE_SHOWS_WRITES], ["  delivered++;\n", "  delivered++;\n  globalThis.lastWrittenAt = at();\n"]] },
   "throws-after-slot": { file: "lab/opfs-cache/arms-decoder.js", edits: [THROWS_AFTER_SLOT] },
   "throws-slot-kept": { file: "lab/opfs-cache/arms-decoder.js", edits: [THROWS_AFTER_SLOT, ["if (into?.slot !== undefined) ring.free(into.slot);", ""]] },
 };
@@ -168,13 +180,19 @@ const statusOf = (text) => ({
 async function fill(b, s, wt, { deadlineS = 1800, until, url = viewerUrl(s, wt) } = {}) {
   const t0 = Date.now();
   const cached0 = cached();
-  await b.page.goto(url);
-  let st = statusOf(""), peak = 0, lastSample = 0, cachedPeak = 0;
+  let st = statusOf(""), peak = 0, lastSample = 0, cachedPeak = 0, diskSeenMs = null;
+  const seen = () => diskSeenMs ??= st.onDisk >= s.n ? Date.now() - t0 : null;
+  try {
+    await b.page.goto(url);
+  } catch (e) {
+    return { ...st, peakPssMiB: treePss(b.pid), stoppedBy: `rig: ${e.message}` };
+  }
   while (Date.now() - t0 < deadlineS * 1000) {
     await sleep(100);
     if (Date.now() - lastSample >= 1000) { peak = Math.max(peak, treePss(b.pid)); cachedPeak = Math.max(cachedPeak, cached() - cached0); lastSample = Date.now(); }
     if (available() < 1536) return { ...st, peakPssMiB: peak, stoppedBy: "host saturated: under 1536 MiB available" };
     st = statusOf(await b.page.evaluate(STATUS).catch(() => st.text));
+    seen();
     if (until?.(st)) return { ...st, peakPssMiB: peak, stoppedBy: "until" };
     if (st.fillMs !== null || /^connect/.test(st.error ?? "")) break;
   }
@@ -184,9 +202,10 @@ async function fill(b, s, wt, { deadlineS = 1800, until, url = viewerUrl(s, wt) 
     await sleep(100);
     peak = Math.max(peak, treePss(b.pid));
     st = statusOf(await b.page.evaluate(STATUS));
+    seen();
     still = st.onDisk === last ? still + 1 : 0;
   }
-  return { ...st, peakPssMiB: peak, pageCacheGrowthMiB: cachedPeak, wallS: (Date.now() - t0) / 1000 };
+  return { ...st, peakPssMiB: peak, pageCacheGrowthMiB: cachedPeak, wallS: (Date.now() - t0) / 1000, diskSeenMs };
 }
 
 /** The viewer's store worker lets go of the series' lock some time after its page is gone, so a held lock is waited out. */
@@ -220,7 +239,7 @@ function hostInfo() {
 }
 
 async function m1() {
-  await staticHost();
+  origin = await staticHost();
   const sets = [
     { s: series(512, 512, 256), links: ["clean", "loss2"] },
     { s: series(3328, 4096, 32), links: ["clean"] },
@@ -263,7 +282,7 @@ async function m1() {
 }
 
 async function m2(big) {
-  await staticHost();
+  origin = await staticHost();
   const s = big ? series(3328, 4096, 512) : series(3328, 4096, 80);
   const server = await serve(s);
   const arms = big ? ["on"] : MUTANT ? ["on"] : ["on", "on2", "off", "was"];
@@ -287,7 +306,7 @@ async function m2(big) {
 
 /** Not pre-registered: after M2's fill, whether the dropped frames' memory comes back on its own, after a page GC, after a measurement's. */
 async function m2Trace() {
-  await staticHost();
+  origin = await staticHost();
   const s = series(3328, 4096, 80);
   const server = await serve(s);
   settings({ series: s, arm: "on", flags: "--js-flags=--expose-gc", trace: "PSS each second for 30 s after the fill, then gc() on the page, then in its workers one kind at a time: store, paint, downloader, decoders" });
@@ -317,7 +336,7 @@ async function m2Trace() {
 }
 
 async function m3() {
-  await staticHost();
+  origin = await staticHost();
   const s = series(3328, 4096, 20);
   const servers = {};
   for (const k of ["A", "B", "C", "D"]) servers[k] = await serve(s);
@@ -367,7 +386,7 @@ function framesFile(dir, s) {
 }
 
 async function m4() {
-  await staticHost();
+  origin = await staticHost();
   const s = series(3328, 4096, 64);
   const server = await serve(s);
   settings({ series: s, kill: "SIGKILL to the browser's process tree once the status shows >= 32 on disk", flip: "rounds 0, 2, 4, 6: one byte in the middle of frame 0, or the first present, XORed 0xff" });
@@ -417,36 +436,47 @@ const M5_ARMS = {
   transfer: { query: { arm: "transfer" } },
   "transfer-k": { query: { arm: "transfer", credits: K }, standIns: ["credits"] },
   disk: { query: { arm: "disk" } },
-  today: { today: true },
+  today: { today: true, standIns: ["written-at", "written-at-page"] },
 };
 
 /** M5 as amended, before any data: docs/adr/frame-path.md §Who owns a frame's memory, M5 amended. */
 async function m5(busy) {
-  await staticHost();
+  origin = await staticHost();
   const s = series(3328, 4096, 80);
   const server = await serve(s);
   const names = MUTANT ? [arg("--arm")] : busy ? ["ring", "ring2", "transfer", "transfer-k"] : Object.keys(M5_ARMS);
   const arms = Object.fromEntries(names.map((k) => [k, busy ? { ...M5_ARMS[k], query: { ...M5_ARMS[k].query, holdMs: BUSY_MS } } : M5_ARMS[k]]));
-  settings({ series: s, decodedMiB: (s.n * s.frameBytes) / 2 ** 20, window: "256 MiB", link: "loopback, no relay", K, arms });
-  for (let round = 0; round < ROUNDS; round++) {
+  settings({ series: { ...s, sbnd: path.relative(ROOT, s.sbnd) }, decodedMiB: (s.n * s.frameBytes) / 2 ** 20, window: "256 MiB", link: "loopback, no relay", K, arms, firstRound: FIRST_ROUND });
+  for (let round = FIRST_ROUND; round < ROUNDS; round++) {
     for (const arm of order(names, round)) {
       const a = arms[arm];
       const dir = profile(`m5-${arm}`);
       // A mutant of a file the arm already stands in for takes its place.
       const own = (a.standIns ?? []).filter((x) => !MUTANT || STAND_INS[x].file !== STAND_INS[MUTANT].file);
-      const b = await browser(dir, [...own, ...(MUTANT ? [MUTANT] : [])]);
+      // A browser that does not start has measured nothing: started once more, then recorded as such.
+      const launch = () => browser(dir, [...own, ...(MUTANT ? [MUTANT] : [])]).catch((e) => (putBack(), { failed: e.message }));
+      let b = await launch();
+      if (b.failed) b = await launch();
+      if (b.failed) {
+        drop(dir);
+        write({ cell: busy ? "m5-busy" : "m5", engine: ENGINE, round, arm, mutant: MUTANT || null, stoppedBy: `rig: the browser did not start twice: ${b.failed}`,
+          fillMs: null, received: 0, exact: 0, inexact: 0, growthMiB: 0, view: null, second: null });
+        continue;
+      }
       await sleep(1000);
       const baseline = treePss(b.pid);
       const before = cpuBusy();
       const f = await fill(b, s, server.url, { deadlineS: 120, ...(!a.today && { url: armsUrl(s, server.url, a) }) });
       const cpu = busyShare(before, cpuBusy());
       const settled = (p) => Promise.race([b.page.evaluate(p), sleep(10000).then(() => ({ error: "no answer in 10 s" }))]);
-      const view = a.today ? null : await settled(() => globalThis.armsResult);
-      const second = a.today || f.exact !== s.n ? null : await settled(() => globalThis.verify());
+      const view = a.today ? null : await settled(() => globalThis.armsResult).catch((e) => ({ error: e.message }));
+      // The fill's time: navigation to the last frame written, as the page's writers stamped it. docs/adr/frame-path.md, M5's fill bar, amended
+      const diskMs = f.onDisk === s.n ? await settled(() => globalThis.lastWrittenAt - performance.timeOrigin || null).catch(() => null) : null;
+      const second = a.today || f.exact !== s.n ? null : await settled(() => globalThis.verify()).catch((e) => ({ error: e.message }));
       await b.context.close();
       putBack();
       drop(dir);
-      write({ cell: busy ? "m5-busy" : "m5", engine: ENGINE, round, arm, mutant: MUTANT || null, baselineMiB: baseline, growthMiB: f.peakPssMiB - baseline, cpuBusy: cpu, ...f, view, second });
+      write({ cell: busy ? "m5-busy" : "m5", engine: ENGINE, round, arm, mutant: MUTANT || null, baselineMiB: baseline, growthMiB: f.peakPssMiB - baseline, cpuBusy: cpu, ...f, diskMs, view, second });
     }
   }
 }

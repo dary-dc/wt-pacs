@@ -5,7 +5,8 @@
 use anyhow::{bail, Context, Result};
 use clap::{Parser, ValueEnum};
 use native_client::cache::Cache;
-use native_client::count;
+use native_client::clock::{Busy, Cine};
+use native_client::count::{self, Sent};
 use native_client::decode::Decoder;
 use native_client::paint::{Display, Frame, Function, Painter, Photometric, View, Voi};
 use native_client::transport::{cert_hash, dial, dial_bounded, Event, Windows};
@@ -19,7 +20,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
@@ -63,6 +64,30 @@ struct Args {
     /// After each paint, wait for the GPU's queue to drain and print when: the lab's painted stamp.
     #[arg(long)]
     stamp_painted: bool,
+    /// The lab's timer cine at this rate, from the window's opening, on the thread that paints.
+    #[arg(long)]
+    cine_hz: Option<f64>,
+    /// The lab's busy-UI loop: the UI thread spins this long every `--busy-every-ms`, from the window's opening.
+    #[arg(long, default_value_t = 0)]
+    busy_ui_ms: u64,
+    #[arg(long, default_value_t = 500)]
+    busy_every_ms: u64,
+    /// The lab's steps, one frame forward each, `--step-every-ms` apart from the window's opening.
+    #[arg(long, default_value_t = 0)]
+    steps: u32,
+    #[arg(long, default_value_t = 1000)]
+    step_every_ms: u64,
+    #[arg(long, value_enum, default_value_t = StepsVia::Paint)]
+    steps_via: StepsVia,
+}
+
+/// Where the lab's steps enter.
+#[derive(Clone, Copy, PartialEq, ValueEnum, Debug)]
+enum StepsVia {
+    /// Straight to the thread that paints, from a thread of their own.
+    Paint,
+    /// Through the UI thread, as a user's input arrives.
+    Ui,
 }
 
 #[derive(Clone, Copy, PartialEq, ValueEnum, Debug)]
@@ -81,6 +106,7 @@ enum Note {
     Frame(u32, Vec<u8>),
     Shown(u32),
     Failed(String),
+    Step,
 }
 
 /// The user's input as the thread that paints applies it.
@@ -90,6 +116,12 @@ enum Intent {
     Fit,
     Resize(u32, u32),
     Redraw,
+}
+
+fn stamp_step(stamp: bool) {
+    if stamp {
+        println!("step at_ms={:.3}", since_start());
+    }
 }
 
 fn since_start() -> f64 {
@@ -249,8 +281,10 @@ struct App {
     gpu: Option<Gpu>,
     args: Args,
     metadata: String,
-    proxy: EventLoopProxy<Note>,
-    view: Option<mpsc::UnboundedSender<Intent>>,
+    proxy: EventLoopProxy<Sent<Note>>,
+    view: Option<mpsc::UnboundedSender<Sent<Intent>>>,
+    busy: Option<Busy>,
+    cine: Option<Cine>,
 }
 
 impl App {
@@ -260,13 +294,15 @@ impl App {
         }
     }
 
+    fn step(&mut self, by: i64) {
+        stamp_step(self.args.stamp_painted);
+        self.input(Intent::Step(by));
+    }
+
     /// On this thread when it paints; else sent to the thread that paints.
     fn input(&mut self, intent: Intent) {
-        if matches!(intent, Intent::Step(_)) && self.args.stamp_painted {
-            println!("step at_ms={:.3}", since_start());
-        }
         if let Some(view) = &self.view {
-            let _ = view.send(intent);
+            let _ = view.send(Sent::now(intent));
             return;
         }
         if let (Intent::Resize(width, height), Some(gpu)) = (&intent, &mut self.gpu) {
@@ -277,9 +313,51 @@ impl App {
         }
     }
 
-    fn paint(&mut self) -> Result<()> {
-        let (Some(gpu), Some(Some(pixels))) = (&mut self.gpu, self.frames.get(self.look.current)) else { return Ok(()) };
-        gpu.paint(&self.series, &self.look, pixels)
+    /// False when the frame shown is not held.
+    fn paint(&mut self) -> Result<bool> {
+        let (Some(gpu), Some(Some(pixels))) = (&mut self.gpu, self.frames.get(self.look.current)) else { return Ok(false) };
+        gpu.paint(&self.series, &self.look, pixels)?;
+        Ok(true)
+    }
+
+    fn cine(&mut self) -> Result<()> {
+        let Some((slot, frame, passed)) = self.cine.as_mut().and_then(|c| c.tick(Instant::now())) else { return Ok(()) };
+        self.look.current = frame;
+        let on_time = self.paint()? && self.cine.as_ref().is_some_and(|c| c.on_time(slot, Instant::now()));
+        count::cine(u64::from(on_time), passed + u64::from(!on_time));
+        Ok(())
+    }
+
+    /// The lab's clocks and steps, from the window's opening: the busy loop on this thread, the cine on the thread that
+    /// paints, the steps from a thread of their own.
+    fn lab(&mut self) -> Result<()> {
+        let (a, now) = (&self.args, Instant::now());
+        self.busy = (a.busy_ui_ms > 0).then(|| Busy::new(now, Duration::from_millis(a.busy_every_ms), Duration::from_millis(a.busy_ui_ms)));
+        if self.view.is_none() {
+            self.cine = a.cine_hz.map(|hz| Cine::new(hz, self.series.count, now));
+        }
+        if a.steps == 0 {
+            return Ok(());
+        }
+        let step: Box<dyn Fn() + Send> = match (&self.view, a.steps_via) {
+            (Some(view), StepsVia::Paint) => {
+                let view = view.clone();
+                Box::new(move || drop(view.send(Sent::now(Intent::Step(1)))))
+            }
+            _ => {
+                let proxy = self.proxy.clone();
+                Box::new(move || drop(proxy.send_event(Sent::now(Note::Step))))
+            }
+        };
+        let (n, every, stamp) = (a.steps, Duration::from_millis(a.step_every_ms), a.stamp_painted);
+        std::thread::Builder::new().name("steps".into()).spawn(move || {
+            for _ in 0..n {
+                std::thread::sleep(every);
+                stamp_step(stamp);
+                step();
+            }
+        })?;
+        Ok(())
     }
 
     fn open(&mut self, event_loop: &ActiveEventLoop) -> Result<Gpu> {
@@ -331,7 +409,8 @@ impl App {
         decoders(n, &self.metadata, digests(&self.metadata)?, cache.clone(), queued, decoded, done)?;
         let s = &self.series;
         let frame_bytes = (s.width * s.height * s.components) as usize * if s.bits > 8 { 2 } else { 1 };
-        let view = Viewer { gpu, series: s.clone(), look: self.look, store: Store::new(a.budget), frame_bytes, want, notes: self.proxy.clone() };
+        let cine = a.cine_hz.map(|hz| Cine::new(hz, s.count, Instant::now()));
+        let view = Viewer { gpu, series: s.clone(), look: self.look, store: Store::new(a.budget), frame_bytes, want, notes: self.proxy.clone(), cine };
         let (url, hash, asks) = (a.url.clone(), cert_hash(&a.cert_sha256)?, a.asks);
         let downloading = async move {
             let session = dial_bounded(&url, hash, &Windows::default(), 1).await?;
@@ -370,16 +449,18 @@ struct Viewer {
     store: Store,
     frame_bytes: usize,
     want: watch::Sender<Vec<u32>>,
-    notes: EventLoopProxy<Note>,
+    notes: EventLoopProxy<Sent<Note>>,
+    cine: Option<Cine>,
 }
 
 impl Viewer {
-    async fn run(mut self, mut inbox: mpsc::UnboundedReceiver<Intent>, mut frames: mpsc::Receiver<Decoded>) -> Result<()> {
+    async fn run(mut self, mut inbox: mpsc::UnboundedReceiver<Sent<Intent>>, mut frames: mpsc::Receiver<Sent<Decoded>>) -> Result<()> {
         self.ask();
         loop {
             tokio::select! {
                 intent = inbox.recv() => {
                     let Some(intent) = intent else { return Ok(()) };
+                    let intent = intent.received("intent");
                     count::intent();
                     if let Intent::Resize(width, height) = intent {
                         self.gpu.resize(width, height);
@@ -390,7 +471,7 @@ impl Viewer {
                     }
                 }
                 frame = frames.recv() => {
-                    let Decoded { index, samples, exact, written } = frame.context("the decoders stopped")?;
+                    let Decoded { index, samples, exact, written } = frame.context("the decoders stopped")?.received("decoded");
                     count::hop(index);
                     match samples {
                         Ok(samples) if exact != Exact::False => {
@@ -403,6 +484,7 @@ impl Viewer {
                         Err(reason) => self.fail(format!("scope=frame frame={index} reason={reason:?}")),
                     }
                 }
+                _ = tokio::time::sleep_until(self.cine.as_ref().map_or_else(Instant::now, Cine::next).into()), if self.cine.is_some() => self.cine()?,
             }
         }
     }
@@ -416,19 +498,29 @@ impl Viewer {
         });
     }
 
-    fn paint(&mut self) -> Result<()> {
-        let Some(pixels) = self.store.get(self.look.current as u32) else { return Ok(()) };
+    /// False when the frame shown is not held.
+    fn paint(&mut self) -> Result<bool> {
+        let Some(pixels) = self.store.get(self.look.current as u32) else { return Ok(false) };
         self.gpu.paint(&self.series, &self.look, pixels)?;
-        let _ = self.notes.send_event(Note::Shown(self.look.current as u32));
+        let _ = self.notes.send_event(Sent::now(Note::Shown(self.look.current as u32)));
+        Ok(true)
+    }
+
+    fn cine(&mut self) -> Result<()> {
+        let Some((slot, frame, passed)) = self.cine.as_mut().and_then(|c| c.tick(Instant::now())) else { return Ok(()) };
+        self.look.current = frame;
+        self.ask();
+        let on_time = self.paint()? && self.cine.as_ref().is_some_and(|c| c.on_time(slot, Instant::now()));
+        count::cine(u64::from(on_time), passed + u64::from(!on_time));
         Ok(())
     }
 
     fn fail(&self, reason: String) {
-        let _ = self.notes.send_event(Note::Failed(reason));
+        let _ = self.notes.send_event(Sent::now(Note::Failed(reason)));
     }
 }
 
-impl ApplicationHandler<Note> for App {
+impl ApplicationHandler<Sent<Note>> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.gpu.is_some() || self.view.is_some() {
             return;
@@ -440,14 +532,32 @@ impl ApplicationHandler<Note> for App {
             }
             _ => self.start(gpu),
         });
-        if let Err(e) = opened {
+        if let Err(e) = opened.and_then(|()| self.lab()) {
             eprintln!("{e:#}");
             event_loop.exit();
         }
     }
 
-    fn user_event(&mut self, _: &ActiveEventLoop, note: Note) {
-        match note {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if let Some(busy) = &mut self.busy {
+            busy.run(Instant::now());
+        }
+        if let Err(e) = self.cine() {
+            eprintln!("{e:#}");
+            event_loop.exit();
+        }
+        let next = [self.busy.as_ref().map(Busy::next), self.cine.as_ref().map(Cine::next)].into_iter().flatten().min();
+        event_loop.set_control_flow(next.map_or(ControlFlow::Wait, ControlFlow::WaitUntil));
+    }
+
+    fn user_event(&mut self, _: &ActiveEventLoop, note: Sent<Note>) {
+        let hop = match *note {
+            Note::Frame(..) => "frame",
+            Note::Shown(_) => "shown",
+            Note::Failed(_) => "failed",
+            Note::Step => "step",
+        };
+        match note.received(hop) {
             Note::Frame(index, samples) => {
                 count::hop(index);
                 self.frames[index as usize] = Some(samples);
@@ -465,6 +575,7 @@ impl ApplicationHandler<Note> for App {
                 count::note();
                 println!("failed {reason}");
             }
+            Note::Step => self.input(Intent::Step(1)),
         }
     }
 
@@ -480,8 +591,8 @@ impl ApplicationHandler<Note> for App {
                 }
             }
             WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => match event.logical_key {
-                Key::Named(NamedKey::ArrowRight | NamedKey::ArrowDown) => self.input(Intent::Step(1)),
-                Key::Named(NamedKey::ArrowLeft | NamedKey::ArrowUp) => self.input(Intent::Step(-1)),
+                Key::Named(NamedKey::ArrowRight | NamedKey::ArrowDown) => self.step(1),
+                Key::Named(NamedKey::ArrowLeft | NamedKey::ArrowUp) => self.step(-1),
                 Key::Character(c) if c.eq_ignore_ascii_case("f") => self.input(Intent::Fit),
                 Key::Named(NamedKey::Escape) => event_loop.exit(),
                 _ => {}
@@ -491,7 +602,7 @@ impl ApplicationHandler<Note> for App {
                     MouseScrollDelta::LineDelta(_, y) => y as f64,
                     MouseScrollDelta::PixelDelta(p) => p.y,
                 };
-                self.input(Intent::Step(if y < 0.0 { 1 } else if y > 0.0 { -1 } else { 0 }));
+                self.step(if y < 0.0 { 1 } else if y > 0.0 { -1 } else { 0 });
             }
             WindowEvent::MouseInput { state, button: MouseButton::Left, .. } => self.held = state == ElementState::Pressed,
             WindowEvent::CursorMoved { position, .. } => {
@@ -507,7 +618,7 @@ impl ApplicationHandler<Note> for App {
 
 /// Fills the series and hands each frame on once decoded; a frame that is not exact is never painted.
 /// With a cache, each frame's write and both fsyncs run before its hand-off, as the branches merged it.
-async fn load(args: Args, metadata: String, count: usize, proxy: EventLoopProxy<Note>) -> Result<()> {
+async fn load(args: Args, metadata: String, count: usize, proxy: EventLoopProxy<Sent<Note>>) -> Result<()> {
     let digests = digests(&metadata)?;
     let mut decoder = Decoder::new(&metadata)?;
     let cache = match &args.cache {
@@ -531,7 +642,7 @@ async fn load(args: Args, metadata: String, count: usize, proxy: EventLoopProxy<
                         if let Some(cache) = &cache {
                             cache.put(index, &body, &e)?;
                         }
-                        proxy.send_event(Note::Frame(index, samples))?;
+                        proxy.send_event(Sent::now(Note::Frame(index, samples)))?;
                     }
                     Err(e) => println!("frame={index} exact=false reason={e:#}"),
                 }
@@ -563,6 +674,8 @@ fn main() -> Result<()> {
         metadata: metadata.clone(),
         proxy: proxy.clone(),
         view: None,
+        busy: None,
+        cine: None,
     };
     let runtime = tokio::runtime::Runtime::new()?;
     if args.paint_thread == PaintThread::Ui {
