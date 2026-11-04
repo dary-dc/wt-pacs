@@ -1921,6 +1921,19 @@ failed by ×1.9 or more against a bound of 1.5, so more rounds would move the ra
 two quality shapes, not built; the 20 Mbit/s `dbts_a1` level-2 cell at 1×, every visit `VOID`; and a product binding of
 `restrict_input_resolution`, which would need the SIZ reset above and is structural, so proposed separately.
 
+### HTJ2K quality layers, built
+
+*2026-11-04, a later session; not timed. Everything, with sources and commands, in
+[`lab/htj2k-progressive`](../../lab/htj2k-progressive/README.md) §Quality layers, built.* Both quality shapes are now
+built by a lab writer (its one-layer output equal to `ojph_compress`'s byte for byte) and checked on `mr9_ispy2`,
+`rf_fluoro`, `mr_ispy1`, `dbt12_ea1141` and `dbts_b1` (149 frames): every layer-1 picture and every whole frame
+decoded as expected by the client's OpenJPH build, through a one-layer rewrite, since that build refuses two layers.
+**One set, two layers:** layer 1 80–99 % of today's bytes, the whole ×0.985–1.000 (§3 derived 0.80–0.93 and
+1.00–1.03). **Two sets:** layer 1 from 55–84 % (plane 1) to 0.4–1.3 % (plane 7), the whole that plus 99.7–100.6 % of
+today's. No open encoder writes HTJ2K with more than one layer (OpenJPH, Grok, OpenJPEG, FFmpeg read at their tags), so
+§2's "Another open encoder that writes HT sets or HT quality layers: *unverified*" is now: none found; and no decoder
+here reads the layered bytes whole (OpenJPEG 2.5.4 refuses or misreads layer 2).
+
 ## The BYOB read path
 
 Retired; code in history at `6e9c126`. The WASM client's BYOB reader (`byob`, `byob-min`) read each
