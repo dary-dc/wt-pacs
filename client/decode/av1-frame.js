@@ -19,11 +19,10 @@ export function neutral(planes, width, height, mid) {
   return true;
 }
 
-/** The top picture checked against the payload's header and placed; `byCopy`, by copy() where that is place()'s identity. */
-export function begin(pic, payload, byCopy = false) {
+/** The top picture checked against the payload's header and placed. */
+export function begin(pic, payload) {
   const f = output(pic, payload);
   if (payload.rct) unrct(f, pic);
-  else if (byCopy && copyable(f, pic, payload)) copy(f, pic);
   else place(f, pic, payload.split, !payload.split);
   return f;
 }
@@ -106,26 +105,6 @@ function place(f, pic, shift, last) {
       }
     }
   }
-}
-
-/** An unsplit, unsigned grey picture in a heap of the output's width: place() would write each sample unchanged. */
-const copyable = (f, pic, payload) =>
-  !payload.split && !f.signed && f.components === 1 && pic.planes[0].heap.BYTES_PER_ELEMENT === f.out.BYTES_PER_ELEMENT;
-
-/** place() for a copyable picture: each row copied natively, then ranged while it is in cache. docs/decode/README.md §Grey path protocol, pre-registered */
-function copy(f, pic) {
-  const { out, range } = f;
-  const { width, height, planes: [{ heap, offset, stride }] } = pic;
-  let { min, max } = range;
-  for (let y = 0, o = 0; y < height; y++, o += width) {
-    out.set(heap.subarray(offset + y * stride, offset + y * stride + width), o);
-    for (let x = o; x < o + width; x++) {
-      if (out[x] < min) min = out[x];
-      if (out[x] > max) max = out[x];
-    }
-  }
-  range.min = min;
-  range.max = max;
 }
 
 /** JPEG 2000's reversible colour transform undone: planes Y, B − G + 256, R − G + 256 to R, G, B. lab/av1/bytes/represented */
