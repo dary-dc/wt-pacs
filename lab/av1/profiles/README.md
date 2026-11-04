@@ -1806,7 +1806,165 @@ brought the fixed driver (check before a round, timestamps to the µs). The cell
 
 ### Decode shard 2, measured
 
-*Partial, 2026-11-04: running — setup started 18:31 UTC; rows land in `rows/decode-shard-2.*` every two rounds.*
+*Run 2026-11-04, 18:31–21:52 UTC, by a separate session given only §7, which it ran as §Shards writes it; nothing
+above was changed. Rows: `rows/decode-shard-2.{json,log,txt}`. **One block: not a verdict.***
+
+* **Run:** block `shard-2`, rounds 0–23 (24, both Williams squares from row 0), every rung at 1×, the crossover rung
+  at 4×, all three series, every unit of §7 interleaved, with its own A/A; the loop's list ended at 24 before `--until`.
+* **Shows:** within this one block, D1 ratios 1.09–2.27 at 1× and 0.87–1.25 at 4×; D2 4.03–12.96 on dav1d-WASM and
+  5.94–9.22 on WebCodecs; D3 1.43–1.70; the A/A 1.002 at 1× and 0.998 at 4×; every check matched; no cell void.
+* **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` (systems A, B, C; DBT, not cine) only, their streams from
+  `decode_setup.sh`; one 4-core host; Chromium 141.0.7390.37 (`headless_shell --version`).
+* **Left:** pooling with the other five blocks and the rule (the collector); everything §7 lists as left.
+* **Host:** Intel Xeon @ 2.30 GHz, 4 cores, 16 GB (the block's `host` row); one decode in flight, so at 1× dav1d-WASM
+  and OpenJPH use one core and the host does not saturate; at 4× every browser thread is capped at a quarter of a CPU;
+  WebCodecs' own threads make its cells no one-core figure. Nothing is claimed past 4× or for another host.
+
+**Terms** are §7's. In the tables: **d** — dav1d-WASM, **WC** — WebCodecs, **ord** — in order, **S*G*** — the lossy
+stream at G, **R *form*** — residual decode + add on that form; a ratio is ln-paired by round inside the block and
+reported as exp of its median over rounds.
+
+**Setup** (`decode_setup.sh`): 12.8 min. A first start was stopped after about two minutes and restarted, so some
+fetches were already cached: an under-estimate of a cold host. **A round:** 7.3 min (median of 24; 7.1–7.6),
+3.1 min at 1× and 4.2 at 4×.
+
+**A/A**, H′ ÷ H, median of the pairs [distribution-free 95 %]: **1×** 1.002 [0.993–1.007] over 216 pairs; **4×**
+0.998 [0.990–1.007] over 72 pairs. Both inside ±5 %: both throttles kept.
+
+**Checks, every unit, every round:** H exact 9 216/9 216 and R exact 7 680/7 680 against the fetch checksum; R's
+residuals 7 680/7 680 against `streams.py`; R's lossy frames 7 680/7 680 and every clocked lossy frame 59 520/59 520
+against native dav1d 1.5.4; no error in 4 512 units. **Void:** none.
+
+**Mutations, rerun on this host** after the block, `dbts_a1` Q 16 at 1×, one round each (rows in the session only):
+`--mutate hash` — 0 of every check on all 16 units; `--mutate offset` — R exact 0/16 on both forms, residuals and
+lossy 16/16, the other 14 units intact; `--mutate drop` — both S8 jumps fail (dav1d-WASM `-28`, WebCodecs
+`Decoding error.`) with 1 of 20 frames matched, every other unit intact. `decode_pool.py --test` passes, and each of
+its nine mutations (§7's list, applied to a copy) fails it. Each as §7's table records.
+
+**Order effect:** the largest across every ratio and cell, 203 % (S8 ÷ S1 WebCodecs jump, `dbts_a1` Q 16 4×), reached
+by 39 % of its shuffles; no cell over 10 % with under 5 % of its shuffles reaching it (the smallest share, 0.22).
+
+**ms, median over the 24 rounds, inside this block only** (H, R: the median slice; in order: the median frame; a jump:
+the mean over the middle 16):
+
+| cell | H | H′ | R 12/10 bit | R top10 | S1 d ord | S1 WC ord | S16 d ord | S16 WC ord | S1 d jump | S1 WC jump | S16 d jump | S16 WC jump |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `dbts_a1` Q 8 1× | 13 | 13 | 18 | 18 | 35 | 23 | 42 | 27 | 35 | 25 | 356 | 234 |
+| `dbts_a1` Q 16 1× | 13 | 13 | 19 | 18 | 24 | 15 | 37 | 17 | 24 | 18 | 307 | 155 |
+| `dbts_a1` Q 32 1× | 13 | 13 | 19 | 19 | 32 | 14 | 30 | 15 | 33 | 17 | 238 | 139 |
+| `dbts_a1` Q 16 4× | 54 | 54 | 80 | 78 | 99 | 47 | 154 | 48 | 101 | 97 | 1296 | 443 |
+| `dbts_b1` Q 16 1× | 36 | 36 | 60 | — | 95 | 64 | 128 | 73 | 95 | 72 | 1059 | 639 |
+| `dbts_b1` Q 32 1× | 36 | 36 | 60 | — | 106 | 54 | 103 | 59 | 107 | 61 | 850 | 523 |
+| `dbts_b1` Q 56 1× | 35 | 36 | 60 | — | 162 | 50 | 66 | 55 | 166 | 58 | 669 | 489 |
+| `dbts_b1` Q 32 4× | 156 | 154 | 252 | — | 444 | 190 | 431 | 191 | 456 | 219 | 3587 | 1711 |
+| `dbts_c1` Q 8 1× | 12 | 13 | 19 | 19 | 34 | 26 | 38 | 28 | 35 | 29 | 343 | 251 |
+| `dbts_c1` Q 16 1× | 13 | 13 | 20 | 19 | 25 | 18 | 35 | 19 | 25 | 21 | 300 | 180 |
+| `dbts_c1` Q 32 1× | 13 | 13 | 20 | 20 | 53 | 15 | 26 | 16 | 49 | 19 | 241 | 157 |
+| `dbts_c1` Q 16 4× | 55 | 55 | 84 | 83 | 108 | 55 | 145 | 54 | 108 | 71 | 1256 | 505 |
+
+**D1, S_G WebCodecs in order ÷ H** — the ratio, median over the 24 rounds [its distribution-free 95 % interval]
+
+| cell | S1 WC ord ÷ H | S8 WC ord ÷ H | S16 WC ord ÷ H |
+| --- | ---: | ---: | ---: |
+| `dbts_a1` Q 8 1× | 1.797 [1.775–1.856] | 2.081 [2.044–2.115] | 2.101 [2.055–2.140] |
+| `dbts_a1` Q 16 1× | 1.205 [1.163–1.219] | 1.308 [1.278–1.353] | 1.329 [1.284–1.377] |
+| `dbts_a1` Q 32 1× | 1.090 [1.053–1.138] | 1.138 [1.116–1.153] | 1.174 [1.126–1.220] |
+| `dbts_a1` Q 16 4× | 0.873 [0.823–0.910] | 0.872 [0.828–0.902] | 0.880 [0.830–0.935] |
+| `dbts_b1` Q 16 1× | 1.764 [1.702–1.789] | 1.970 [1.947–2.029] | 2.018 [1.966–2.052] |
+| `dbts_b1` Q 32 1× | 1.478 [1.435–1.517] | 1.619 [1.582–1.658] | 1.631 [1.597–1.658] |
+| `dbts_b1` Q 56 1× | 1.402 [1.352–1.444] | 1.527 [1.465–1.552] | 1.528 [1.507–1.563] |
+| `dbts_b1` Q 32 4× | 1.207 [1.151–1.283] | 1.253 [1.161–1.304] | 1.230 [1.185–1.282] |
+| `dbts_c1` Q 8 1× | 2.032 [1.990–2.094] | 2.267 [2.231–2.319] | 2.236 [2.193–2.284] |
+| `dbts_c1` Q 16 1× | 1.381 [1.361–1.407] | 1.560 [1.538–1.651] | 1.482 [1.435–1.518] |
+| `dbts_c1` Q 32 1× | 1.225 [1.198–1.279] | 1.376 [1.348–1.448] | 1.287 [1.243–1.321] |
+| `dbts_c1` Q 16 4× | 0.997 [0.941–1.062] | 1.029 [0.973–1.067] | 0.994 [0.965–1.025] |
+
+**D2, S16 jump ÷ S1 jump** — the ratio, median over the 24 rounds [its distribution-free 95 % interval]
+
+| cell | S16 d jump ÷ S1 d jump | S16 WC jump ÷ S1 WC jump |
+| --- | ---: | ---: |
+| `dbts_a1` Q 8 1× | 10.299 [9.919–10.439] | 9.222 [8.967–9.445] |
+| `dbts_a1` Q 16 1× | 12.750 [12.307–13.044] | 8.678 [8.459–9.221] |
+| `dbts_a1` Q 32 1× | 7.335 [7.121–7.616] | 8.393 [8.129–8.756] |
+| `dbts_a1` Q 16 4× | 12.958 [12.259–13.421] | 5.944 [3.649–7.310] |
+| `dbts_b1` Q 16 1× | 11.198 [11.095–11.515] | 8.924 [8.762–9.200] |
+| `dbts_b1` Q 32 1× | 7.930 [7.844–8.137] | 8.650 [8.487–8.825] |
+| `dbts_b1` Q 56 1× | 4.030 [3.939–4.114] | 8.441 [8.211–8.612] |
+| `dbts_b1` Q 32 4× | 7.992 [7.626–8.413] | 7.763 [6.506–8.223] |
+| `dbts_c1` Q 8 1× | 10.025 [9.566–10.240] | 8.800 [8.689–8.902] |
+| `dbts_c1` Q 16 1× | 11.805 [11.515–11.998] | 8.656 [8.355–8.878] |
+| `dbts_c1` Q 32 1× | 4.867 [4.806–5.041] | 8.523 [8.352–8.760] |
+| `dbts_c1` Q 16 4× | 11.650 [11.424–12.033] | 7.227 [4.319–7.381] |
+
+**D3, R ÷ H** — the ratio, median over the 24 rounds [its distribution-free 95 % interval]
+
+| cell | R 12bit ÷ H | R top10 ÷ H | R 10bit ÷ H |
+| --- | ---: | ---: | ---: |
+| `dbts_a1` Q 8 1× | 1.453 [1.428–1.480] | 1.449 [1.429–1.475] | — |
+| `dbts_a1` Q 16 1× | 1.464 [1.448–1.502] | 1.444 [1.413–1.478] | — |
+| `dbts_a1` Q 32 1× | 1.484 [1.447–1.498] | 1.444 [1.434–1.459] | — |
+| `dbts_a1` Q 16 4× | 1.479 [1.419–1.524] | 1.431 [1.389–1.493] | — |
+| `dbts_b1` Q 16 1× | — | — | 1.652 [1.633–1.693] |
+| `dbts_b1` Q 32 1× | — | — | 1.655 [1.614–1.708] |
+| `dbts_b1` Q 56 1× | — | — | 1.704 [1.648–1.729] |
+| `dbts_b1` Q 32 4× | — | — | 1.612 [1.556–1.678] |
+| `dbts_c1` Q 8 1× | 1.532 [1.515–1.571] | 1.545 [1.498–1.569] | — |
+| `dbts_c1` Q 16 1× | 1.576 [1.554–1.600] | 1.535 [1.493–1.557] | — |
+| `dbts_c1` Q 32 1× | 1.584 [1.562–1.642] | 1.575 [1.542–1.610] | — |
+| `dbts_c1` Q 16 4× | 1.538 [1.504–1.658] | 1.524 [1.470–1.604] | — |
+
+**G on a jump, S8 ÷ S1** — the ratio, median over the 24 rounds [its distribution-free 95 % interval]
+
+| cell | S8 d jump ÷ S1 d jump | S8 WC jump ÷ S1 WC jump |
+| --- | ---: | ---: |
+| `dbts_a1` Q 8 1× | 5.255 [5.167–5.467] | 4.883 [4.780–4.993] |
+| `dbts_a1` Q 16 1× | 6.450 [6.243–6.562] | 4.689 [4.643–4.759] |
+| `dbts_a1` Q 32 1× | 3.828 [3.748–3.903] | 4.450 [4.353–4.516] |
+| `dbts_a1` Q 16 4× | 6.437 [6.228–6.648] | 2.880 [2.016–4.099] |
+| `dbts_b1` Q 16 1× | 5.754 [5.639–5.925] | 4.766 [4.728–4.837] |
+| `dbts_b1` Q 32 1× | 4.199 [4.119–4.309] | 4.636 [4.521–4.707] |
+| `dbts_b1` Q 56 1× | 2.312 [2.270–2.345] | 4.522 [4.431–4.616] |
+| `dbts_b1` Q 32 4× | 4.220 [4.087–4.344] | 4.141 [3.397–4.310] |
+| `dbts_c1` Q 8 1× | 5.103 [4.961–5.247] | 4.670 [4.598–4.748] |
+| `dbts_c1` Q 16 1× | 5.939 [5.881–6.010] | 4.695 [4.528–4.817] |
+| `dbts_c1` Q 32 1× | 2.667 [2.584–2.783] | 4.637 [4.477–4.733] |
+| `dbts_c1` Q 16 4× | 5.908 [5.710–6.051] | 3.892 [2.457–4.033] |
+
+**G in order** — the ratio, median over the 24 rounds [its distribution-free 95 % interval]
+
+| cell | S8 d ord ÷ S1 d ord | S16 d ord ÷ S1 d ord | S8 WC ord ÷ S1 WC ord | S16 WC ord ÷ S1 WC ord |
+| --- | ---: | ---: | ---: | ---: |
+| `dbts_a1` Q 8 1× | 1.199 [1.171–1.228] | 1.200 [1.191–1.224] | 1.152 [1.100–1.176] | 1.157 [1.136–1.182] |
+| `dbts_a1` Q 16 1× | 1.542 [1.499–1.563] | 1.540 [1.516–1.596] | 1.087 [1.048–1.142] | 1.099 [1.063–1.129] |
+| `dbts_a1` Q 32 1× | 0.968 [0.943–0.994] | 0.911 [0.887–0.945] | 1.034 [0.988–1.081] | 1.057 [1.030–1.097] |
+| `dbts_a1` Q 16 4× | 1.556 [1.491–1.587] | 1.559 [1.501–1.590] | 1.013 [0.969–1.055] | 1.029 [0.999–1.061] |
+| `dbts_b1` Q 16 1× | 1.339 [1.317–1.365] | 1.345 [1.321–1.381] | 1.134 [1.098–1.152] | 1.152 [1.132–1.163] |
+| `dbts_b1` Q 32 1× | 0.968 [0.957–0.976] | 0.968 [0.953–0.988] | 1.085 [1.071–1.112] | 1.105 [1.062–1.127] |
+| `dbts_b1` Q 56 1× | 0.404 [0.401–0.414] | 0.404 [0.397–0.420] | 1.086 [1.047–1.114] | 1.099 [1.068–1.110] |
+| `dbts_b1` Q 32 4× | 0.976 [0.947–1.005] | 0.979 [0.957–0.997] | 1.023 [0.994–1.044] | 1.010 [0.995–1.030] |
+| `dbts_c1` Q 8 1× | 1.159 [1.139–1.181] | 1.145 [1.116–1.162] | 1.108 [1.086–1.153] | 1.103 [1.083–1.126] |
+| `dbts_c1` Q 16 1× | 1.375 [1.367–1.419] | 1.355 [1.336–1.393] | 1.128 [1.079–1.176] | 1.064 [1.036–1.103] |
+| `dbts_c1` Q 32 1× | 0.503 [0.492–0.519] | 0.499 [0.490–0.513] | 1.116 [1.074–1.150] | 1.044 [1.014–1.080] |
+| `dbts_c1` Q 16 4× | 1.370 [1.328–1.426] | 1.352 [1.307–1.412] | 1.010 [0.978–1.071] | 1.000 [0.943–1.043] |
+
+**The 12-bit forms, dav1d-WASM ÷ WebCodecs (on `dbts_b1`: the two decoders on one 10-bit stream)** — the ratio, median over the 24 rounds [its distribution-free 95 % interval]
+
+| cell | S1 d ord ÷ S1 WC ord | S1 d jump ÷ S1 WC jump | S8 d ord ÷ S8 WC ord | S8 d jump ÷ S8 WC jump | S16 d ord ÷ S16 WC ord | S16 d jump ÷ S16 WC jump |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `dbts_a1` Q 8 1× | 1.538 [1.490–1.562] | 1.379 [1.349–1.452] | 1.609 [1.568–1.644] | 1.507 [1.456–1.562] | 1.603 [1.560–1.628] | 1.563 [1.530–1.595] |
+| `dbts_a1` Q 16 1× | 1.546 [1.509–1.610] | 1.373 [1.327–1.419] | 2.200 [2.134–2.289] | 1.869 [1.820–1.904] | 2.203 [2.132–2.260] | 1.982 [1.961–2.055] |
+| `dbts_a1` Q 32 1× | 2.378 [2.248–2.422] | 1.959 [1.914–2.018] | 2.180 [2.148–2.249] | 1.675 [1.634–1.720] | 2.024 [1.951–2.076] | 1.688 [1.647–1.784] |
+| `dbts_a1` Q 16 4× | 2.149 [2.071–2.208] | 1.116 [0.868–1.659] | 3.308 [3.183–3.398] | 2.749 [2.614–2.845] | 3.247 [3.119–3.382] | 2.970 [2.823–3.092] |
+| `dbts_b1` Q 16 1× | 1.497 [1.456–1.528] | 1.320 [1.307–1.369] | 1.768 [1.727–1.806] | 1.619 [1.583–1.635] | 1.741 [1.722–1.787] | 1.672 [1.633–1.727] |
+| `dbts_b1` Q 32 1× | 1.996 [1.942–2.018] | 1.763 [1.713–1.823] | 1.766 [1.737–1.780] | 1.596 [1.553–1.675] | 1.761 [1.714–1.802] | 1.626 [1.596–1.682] |
+| `dbts_b1` Q 56 1× | 3.263 [3.184–3.338] | 2.866 [2.790–2.931] | 1.225 [1.180–1.254] | 1.469 [1.420–1.508] | 1.208 [1.150–1.242] | 1.362 [1.332–1.399] |
+| `dbts_b1` Q 32 4× | 2.339 [2.298–2.415] | 2.100 [1.719–2.171] | 2.249 [2.165–2.324] | 2.079 [2.005–2.204] | 2.257 [2.209–2.316] | 2.104 [2.041–2.200] |
+| `dbts_c1` Q 8 1× | 1.323 [1.293–1.344] | 1.206 [1.191–1.238] | 1.382 [1.342–1.420] | 1.329 [1.300–1.346] | 1.365 [1.355–1.430] | 1.363 [1.331–1.418] |
+| `dbts_c1` Q 16 1× | 1.435 [1.403–1.458] | 1.231 [1.211–1.256] | 1.761 [1.709–1.838] | 1.587 [1.513–1.614] | 1.828 [1.803–1.867] | 1.641 [1.595–1.702] |
+| `dbts_c1` Q 32 1× | 3.402 [3.295–3.502] | 2.665 [2.606–2.725] | 1.513 [1.471–1.551] | 1.541 [1.510–1.609] | 1.632 [1.581–1.671] | 1.523 [1.497–1.551] |
+| `dbts_c1` Q 16 4× | 1.989 [1.896–2.030] | 1.505 [0.922–1.591] | 2.673 [2.547–2.830] | 2.341 [2.205–2.424] | 2.715 [2.548–2.830] | 2.559 [2.301–2.628] |
+
+Every unit ÷ H, the per-cell A/A and each cell's order effect: `rows/decode-shard-2.txt`.
 
 ### Decode shard 3, measured
 
