@@ -1797,7 +1797,12 @@ and writes only its own files.*
 
 ### Decode shard 1, measured
 
-*Not yet run.*
+*Partial, 2026-11-04 19:25 UTC: running.* Block `shard-1` of §7, run as §Shards gives it, on a fresh host: Intel Xeon
+@ 2.80 GHz, 4 cores, 15 GiB, Linux, nothing else running during the block. Session start 18:30:56 UTC (T0);
+`decode_setup.sh` took 1 204 s, 20.1 min wall. Rows: `rows/decode-shard-1.{json,log,txt}`, pushed every two rounds.
+Round 0 took 14.6 min (6.1 at 1×, 8.5 at 4×), against the pilot's 10.6. The block started from `deebda0a`, before
+`51c2ef69`: rounds 0–1 ran the driver that checks `--until` after a round; from round 2 its loop's `git pull --rebase`
+brought the fixed driver (check before a round, timestamps to the µs). The cells follow when it stops.
 
 ### Decode shard 2, measured
 
