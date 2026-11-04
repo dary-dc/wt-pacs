@@ -58,6 +58,19 @@ def main():
                 eqs = " · ".join(fmt(per[m][q][0]) for m in metrics if m in per)
                 print(f"| `{s}` | {g} | {arm} | {form} | {q} | {ref[q]['psnr']:.2f} | {fmt(dq, 2)} | {fmt(eqq)} | {eqs} |")
     print()
+    print("Every (arm, form) ÷ the stock 12-bit stream at equal PSNR, at the stock 12-bit stream's PSNR at each Q:")
+    print()
+    print("| set | G | arm, form | " + " | ".join(f"Q {q}" for q in (12, 16, 20, 24, 32)) + " |")
+    print("| --- | --- | --- | --- | --- | --- | --- | --- |")
+    for (s, g, arm), rs in sorted(groups.items()):
+        base = groups.get((s, g, "base"), [])
+        ref = {r["q"]: r for r in base if r["form"] == "12bit"}
+        for form in sorted({r["form"] for r in rs}):
+            curve = [(r["psnr"], r["lossy"]) for r in rs if r["form"] == form]
+            cells = [fmt(at_equal(curve, ref[q]["psnr"]) / ref[q]["lossy"]) if q in ref and
+                     at_equal(curve, ref[q]["psnr"]) else "—" for q in (12, 16, 20, 24, 32)]
+            print(f"| `{s}` | {g} | {arm}, {form} | " + " | ".join(cells) + " |")
+    print()
     print("Mutations of the comparison (dbts_a1, G 1, base arm, at the 12-bit stream's Q 16 PSNR):")
     rs = groups[("dbts_a1", 1, "base")]
     print("* 12-bit against itself:", fmt(ratios(rs, "12bit", "12bit", "psnr")[16][0], 4))
