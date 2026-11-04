@@ -20,7 +20,7 @@ here are the pilot of §8, which sizes the run and checks the harness, and are n
    the share of shown samples whose level moves by ≥ 1, ≥ 2, ≥ 4 against the exact frame, and the largest move; SSIM
    inside the window; CAMBI (libvmaf's banding index), and the bytes the reduced preview needs for the full one's
    reading. The pilot (§8, two small series) already reads the level bound exactly, and the same in-window SSIM for
-   0.93–1.02 × the full preview's bytes on the 12-bit volume and 1.01–1.18 × on the 10-bit one.
+   0.93–1.02 × the full preview’s bytes on the 12-bit volume and 1.00–1.18 × on the 10-bit one.
 4. **It rests on** the 15 DBT volumes of systems A, B and C, four further DBT volumes, one fluoroscopy and one breast
    MR series (§3, these 21 and no other); libaom 3.15.1 at cpu6 and dav1d 1.5.4 as the metrics work runs them, at
    G 16; the AV1 specification's requirement that every conformant decoder's output is identical, which lets dav1d's
@@ -212,7 +212,8 @@ sets carry 275 (12-bit) and 92 (10-bit) windows.
 
 **5.2 Per window, over every frame** (exact, from one joint histogram of (source value, lossy − source) per cell, so
 any window's counts cost a lookup): the shown samples n; the shares moved ≥ 1, ≥ 2, ≥ 4 levels; the largest move; and
-the distinct levels the exact and the lossy frames paint over the shown samples, the series pooled. Sweep windows that
+the distinct inner levels (1 … 254; a window's clipped ends are not levels of its range) the exact and the lossy
+frames paint over the shown samples, the series pooled. Sweep windows that
 show < 0.1 % of the body are left out of the tables.
 
 **5.3 SSIM inside the window**, on the probe windows: SSIM of the 8-bit codes (L = 255, the metrics protocol's
@@ -277,7 +278,7 @@ as run here (`pilot/preview-depth.checks.json`), every one sees its mutation:
 | --- | --- | --- | --- |
 | window counts from the joint histogram = a per-sample count, 4 windows, 120 000 samples | equal | lossy + 1 unit: differs | yes |
 | `top8`'s error lossy − source ∈ {−1, 0, +1, +2}, mean square 1.5 (the 10-bit series' own form) | {−1, 0, 1, 2}, 1.5 | no rounding offset: {−3 … 0}, 3.5 | yes |
-| level bound: W = 64 on a noisy ramp, cut ≤ 17, source ≥ 60 | 17, 62 | no cut: 62 | yes |
+| level bound: W = 64 on a noisy ramp, cut ≤ 17, source ≥ 60 | 15, 62 | no cut: 62 | yes |
 | dither (2d): σ = 2 leaves a stair < 0.1 unit in the local mean; σ = 0.5 leaves the predicted 0.94 within 25 % | 0.044; 0.995 | (the second case is the mutation) | yes |
 | SSIM in window: identical 1, float32 = float64 to 1e-4, shown positions only | 1.0; 0.99769 both | every position counted: 0.508 | yes |
 | σ_out of a reduced frame, coded units × 4, reads a source σ of 8 within 10 % | 7.99 | no × 4: 2.00 | yes |
@@ -291,7 +292,7 @@ encode and decode this row reuses unchanged; they are not repeated.
 
 `dbt12_ea1141` (29 frames of 614 × 1359, 12-bit, 24.2 Mpx) and `dbt10_ea1141` (24 frames of 678 × 1727, 10-bit,
 28.1 Mpx), the whole ladder, both arms, G 16: 32 cells in **3 min 11 s of wall clock** with four in flight, on this
-host (4 cores, Xeon, 15 GB), without CAMBI. Rows in [`pilot/preview-depth.jsonl`](pilot/preview-depth.jsonl), **to size
+host (4 cores, Xeon, 15 GB), without CAMBI; run twice, every cell's bytes identical. Rows in [`pilot/preview-depth.jsonl`](pilot/preview-depth.jsonl), **to size
 the run and to show the readings exist — not as a result**: two small cropped series.
 
 **Costs** (what §9's estimate uses): encode, the ladder summed, both arms, **6.5–6.8 CPU s a megapixel** of the
@@ -305,19 +306,19 @@ series (the metrics shards' medians on larger volumes run 4.0; the pilot's is us
 | --- | --- | --- |
 | σ, middle frame | 11.5 | 4.1 |
 | σ_out, full · reduced, Q 2 / 8 / 12 / 16 | 11.3 · 11.2 / 4.1 · 4.0 / 1.2 · 1.5 / 0.4 · 0.6 | 4.1 · 4.2 / 2.5 · 2.2 / 1.5 · 1.5 / 0.9 · 1.0 |
-| P1: levels, reduced, sweep W 32 … 1024 (median) | 9, 17, 33, 65, 129, 256 — the bound | 10, 18, 34, 66, 126–129, 186–190 — the bound (+1 where a clipped end shows) |
-| P1: levels, first preset, full · reduced | 254 · 208 | 254 · **129** |
+| P1: inner levels, reduced, sweep W 32 … 1024 (median) | 7, 15, 31, 63, 127, 254 — under the bound | 8, 16, 32, 64, 114–127, 178–188 — under the bound (W 1024 spans the whole range) |
+| P1: inner levels, first preset, full · reduced | 254 · 207 | 254 · **127** |
 | P2: the cut alone, moved ≥ 1, W ≤ 256 · 512 · 1024 | 0.75–0.77 · 0.50 · 0.25 | 0.74–0.75 · 0.49 · 0.17 |
 | bytes, reduced ÷ full at equal Q, Q 2 / 8 / 16 / 56 | 0.82 / 0.94 / 1.19 / 1.29 | 0.69 / 0.79 / 0.94 / 1.23 |
 | PSNR, full · reduced, Q 2 / 8 / 16 | 65.9 · 61.6 / 50.3 · 49.9 / 45.7 · 45.9 dB | 62.1 · 53.7 / 49.6 · 47.5 / 44.4 · 44.0 dB |
-| P6: bytes at equal in-window SSIM, reduced ÷ full, median by width | 0.93–1.02 (Q 2–32); 0.82–0.95 at Q 56 | 1.11–1.18 (Q 2), 1.04–1.08 (Q 8–12), 1.00–1.07 (Q 16–56) |
+| P6: bytes at equal in-window SSIM, reduced ÷ full, median by width | 0.93–1.02 (Q 2–32); 0.82–0.95 at Q 56 | 1.11–1.18 (Q 2), 1.08–1.12 (Q 4), 1.04–1.08 (Q 8–12), 1.00–1.07 (Q 16–56) |
 | P5: share of windows "same" at equal bytes, moved shares and SSIM, Q ≥ 8 | 95–100 % | 99–100 %; at Q 2–4, 75–100 % (≥ 4 levels: 75 %) |
 
-Read as §6 would on these two series: the level bound holds exactly (P1), including **129 of 254 levels under
+Read as §6 would on these two series: the level bound holds exactly (P1), including **127 of 254 levels under
 system B's own preset** at every Q; the cut alone reads as 2a predicts on the 12-bit volume and at W ≤ 512 on the
 10-bit one (P2; at W = 1024 the 10-bit volume's window is wider than its whole range, so fewer samples cross a level);
-σ_out falls under 2 units at Q 12 on both, as 2f predicts; the in-window SSIM costs the reduced preview no extra bytes
-on the 12-bit volume and up to 18 % on the 10-bit one at Q 2 (P6 at its top edge). At equal Q the reduced 12-bit
+σ_out falls under 2 units at Q 12 on both, as 2f predicts; the in-window SSIM costs the reduced preview at most 2 % more
+bytes on the 12-bit volume and up to 18 % on the 10-bit one at Q 2 (P6 at its top edge). At equal Q the reduced 12-bit
 preview reads *higher* PSNR from Q 12 up — and is 6–30 % larger there — which is why every verdict is also given at
 equal bytes. **P4, the one that decides banding, is not read by the pilot**: CAMBI was not run.
 
