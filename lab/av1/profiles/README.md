@@ -1813,7 +1813,18 @@ and writes only its own files.*
 
 ### Decode shard 5, measured
 
-*Not yet run.*
+*Partial, 2026-11-04 19:05 UTC: setup and the mutations done; block `shard-5` running, its rows pushed every two rounds
+to `lab/av1/profiles/rows/decode-shard-5.*`. The cells follow when it stops.*
+
+* **Host:** Intel Xeon @ 2.10 GHz, 4 cores (one thread each), 15 GiB, Linux; nothing else running during the block.
+* **Setup** (`decode_setup.sh` on this fresh host): 16.9 min wall.
+* **Mutations, once before the block**, `dbts_a1` Q 16 at 1×, one round: `--mutate hash` — every check 0 on all 16
+  units (exact 0/16, lossy 0/16 or 0/20, residuals 0/16); `--mutate offset` — R exact 0/16 on both forms, residuals
+  16/16 and lossy 16/16 intact, no other unit failed; `--mutate drop` — both S8 jumps fail, dav1d-WASM `dav1d -28`,
+  WebCodecs `Decoding error.`, each with 1/20 lossy frames matched; `decode_pool.py --test`: every test passed.
+* **A false start:** the block's first launch was stopped by hand inside round 0, before any row was written, to
+  relaunch it detached from the session's two-hour command limit; its `page.evaluate … closed` trace is the first lines
+  of `decode-shard-5.log`. No round of it is in the rows.
 
 ### Decode shard 6, measured
 
