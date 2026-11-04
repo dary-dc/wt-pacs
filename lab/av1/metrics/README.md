@@ -416,7 +416,7 @@ Read 2026-11-04 unless stated.
 
 ### Shard 1, measured (2026-11-04, partial)
 
-*In progress, 21:08 UTC: the checks, the controls, every series row, and every cell of `dbts_c3`, `dbt12_c` and `dbts_a1` are in `rows/shard-1.jsonl`; the other four series are running. This section is replaced as each series lands.*
+*In progress, 21:38 UTC: the checks, the controls, every series row, and every cell of `dbts_c3`, `dbt12_c`, `dbts_a1` and `dbts_c2` are in `rows/shard-1.jsonl`; the other three series are running. This section is replaced as each series lands.*
 
 **Host.** 4 cores (Intel Xeon @ 2.10 GHz), 15 GB, no swap; four cells in flight as `shard.sh` runs them. libaom
 3.15.1 and dav1d 1.5.4 built by `tools.sh`. On this host `dav1d` loads the system's libdav1d 1.4.1 unless
