@@ -17,3 +17,4 @@ round 7 4x done, 583 s
 round 8 1x done, 416 s
 round 10 1x done, 400 s
 round 12 1x done, 394 s
+stopping before round 13: it would pass --until
