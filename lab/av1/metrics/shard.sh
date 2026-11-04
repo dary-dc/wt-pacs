@@ -21,7 +21,8 @@ GREY=$(printf '%s\n' "${SETS[@]}" | grep -v -e usb_cine_rgb -e us_liver | tail -
 [[ -f "$OUT.checks.json" ]] || "$PY" "$HERE/checks.py" "$BUILD" "$WORK/checks" "$DATA/$GREY" "$OUT.checks.json" --vdp "$VDP_PY"
 
 control() {
-  local codec=$1 preset=$2 set=$3 dir="$WORK/control/$set-$1"
+  local codec=$1 preset=$2 set=$3
+  local dir="$WORK/control/$set-$codec"
   grep -q "\"kind\": \"control\", \"set\": \"$set\", \"codec\": \"$codec\"" "$OUT.jsonl" 2>/dev/null && return
   local t0; t0=$(date +%s.%N)
   "$PY" "$HERE/../tools/ingest_coded.py" "$BUILD" "$DATA/$set" "$dir" --codec "$codec" --preset "$preset" --jobs 4 >&2
