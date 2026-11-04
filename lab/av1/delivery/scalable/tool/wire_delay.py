@@ -11,6 +11,7 @@ import struct
 import time
 
 ETH_P_ALL = 3
+PACKET_VNET_HDR = 15
 
 
 def quantile(xs, q):
@@ -24,6 +25,8 @@ def main():
     ap.add_argument("--out")
     args = ap.parse_args()
     s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(ETH_P_ALL))
+    # Each frame then leads with virtio_net_hdr, whose gso_size splits a sender's GSO batch into its datagrams.
+    s.setsockopt(263, PACKET_VNET_HDR, 1)
     s.bind(("lo", 0))
     s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 64 << 20)
     s.settimeout(0.5)
@@ -36,20 +39,24 @@ def main():
         except socket.timeout:
             continue
         now = time.monotonic()
+        gso_size = struct.unpack("<H", frame[4:6])[0]
+        frame = frame[10:]
         # lo delivers each datagram once as outgoing (pkttype 4); count only that copy.
         if meta[2] != 4 or len(frame) < 42 or frame[12:14] != b"\x08\x00" or frame[23] != 17:
             continue
         ihl = (frame[14] & 15) * 4
         sport, dport = struct.unpack("!HH", frame[14 + ihl:18 + ihl])
-        payload = frame[22 + ihl:]
-        key = hash(payload)
-        if key in first:
-            t0, direction = first.pop(key)
-            pairs[direction].append((t0, (now - t0) * 1000))
-        elif dport == args.relay_port:
-            first[key] = (now, "to_server")
-        elif sport != args.relay_port:
-            first[key] = (now, "to_client")
+        data = frame[22 + ihl:]
+        step = gso_size or len(data)
+        for payload in (data[i:i + step] for i in range(0, len(data), step)):
+            key = hash(payload)
+            if key in first:
+                t0, direction = first.pop(key)
+                pairs[direction].append((t0, (now - t0) * 1000))
+            elif dport == args.relay_port:
+                first[key] = (now, "to_server")
+            elif sport != args.relay_port:
+                first[key] = (now, "to_client")
     for direction, rows in pairs.items():
         transits = sorted(t for _, t in rows)
         if not transits:
