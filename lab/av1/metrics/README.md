@@ -13,9 +13,9 @@ nothing above §Shards, and report every cell including those that miss.*
    slices, PSNR, SSIM, MS-SSIM, the compression ratio and a visibility model's score; the anchors and knees are read
    off those curves, not set in advance.
 3. **The numbers that decide it** come from the four shards (§Shards, 3.3 h each); the pilot on one small DBT volume
-   (§8) shows the readings exist and agree: every pixel metric bends at Q 8, where the coding error first reaches the
-   frame's noise in the noise band; no rung, not even Q 1, keeps every displayed level within 1; and the preview's
-   error stays under the step between neighbouring slices up to Q 16.
+   (§8) shows the readings exist and agree: every pixel metric bends at Q 8, the last rung before the coding error
+   reaches the frame's noise in the noise band; no rung, not even Q 1, keeps every displayed level within 1; and the
+   preview's error stays under the step between neighbouring slices up to Q 16.
 4. **It rests on** the 15 DBT volumes of system A, B and C, the seven sound sets of content 2, the two TRUS sweeps,
    and three lossy-sourced cine sets reported apart; on libaom 3.15.1 at cpu6 and dav1d 1.5.4; on a noise estimator
    tested here on integer frames of known σ from 0.25 to 16; and on one display model for the visibility score.
@@ -98,7 +98,7 @@ search); every result is claimed for the named fixtures only.
 
 12-bit series run all three forms (12-bit stream, top 10 bits, window); every measure is taken at the source's depth b,
 so the forms share one scale. The visibility model (§4.6) runs on the stored form only. **G = whole** is not run: the
-bytes run showed it within 1.07 × G = 16's gain, as 1d predicted, and it does not fit.
+bytes run found whole-series gain within its P4 band of G = 16's (≤ 1.15 ×, held on every cell), and it does not fit.
 
 **Interleaving.** Within a shard each series' cells run in a Williams order over (form, Q, G), the round being the
 series' index (`lab/scripts/order.py`), four in flight. The quality readings do not depend on order: the encode is
@@ -254,8 +254,8 @@ on its smallest series and writes `rows/shard-<k>.checks.json`.
 | reported, no verdict: σ 8 noise blurred by 0.5 and 1 px | 5.27, 0.67 | — | — |
 
 **Also read from every cell:** `--q-hist` (every frame at Q; the bytes run found its own mutation unable to see a
-moved quantizer, so this is reported, not trusted), the keyframe positions, `film_grain_params_present` is not re-read
-(the knobs are the bytes run's, which read 0 on every stream).
+moved quantizer, so this is reported, not trusted) and the temporal unit sizes. `film_grain_params_present` is not
+re-read: the knobs are the bytes run's, under which it read 0 on every stream.
 
 ### 8 · Pilot, and what it sizes
 
