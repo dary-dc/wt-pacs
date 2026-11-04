@@ -1797,12 +1797,68 @@ and writes only its own files.*
 
 ### Decode shard 1, measured
 
-*Partial, 2026-11-04 19:25 UTC: running.* Block `shard-1` of §7, run as §Shards gives it, on a fresh host: Intel Xeon
-@ 2.80 GHz, 4 cores, 15 GiB, Linux, nothing else running during the block. Session start 18:30:56 UTC (T0);
-`decode_setup.sh` took 1 204 s, 20.1 min wall. Rows: `rows/decode-shard-1.{json,log,txt}`, pushed every two rounds.
-Round 0 took 14.6 min (6.1 at 1×, 8.5 at 4×), against the pilot's 10.6. The block started from `deebda0a`, before
-`51c2ef69`: rounds 0–1 ran the driver that checks `--until` after a round; from round 2 its loop's `git pull --rebase`
-brought the fixed driver (check before a round, timestamps to the µs). The cells follow when it stops.
+*Run 2026-11-04, 18:30–22:40 UTC, by a separate session given only §7, which it ran as §Shards gives it. One block:
+not a verdict.*
+
+* **Run:** block `shard-1`, 15 rounds (0–14), every unit of §7 interleaved in its Williams rows, 1× every rung and 4×
+  the crossover rung, on `dbts_a1`, `dbts_b1` and `dbts_c1`; then the three driver mutations and the pool's nine.
+* **Shows:** for this block alone, the ratios below with their within-block 95 % intervals; its A/A at 0.997 (1×) and
+  0.989 (4×), both kept; no cell void.
+* **Rests on:** those three series' middle 16 slices, one 4-core host, Playwright 1.56.1's headless shell (build 1194,
+  §7's Chromium 141); every exact frame checked against the fetch checksum, every lossy frame against native dav1d.
+* **Left:** pooling and the rule — the collector's; other hosts; nothing claimed for any other series or fixture.
+
+**Terms**, beyond §7's: the **within-block interval** is the distribution-free 95 % interval of the median over this
+block's rounds (`decode_pool.py`'s `median_interval`, order statistics from the binomial(n, ½) tails), no *t* over
+blocks; with one block every cell prints *not read: one block*, as §7's rule asks.
+
+**Host** (its `host` row): Intel Xeon Processor @ 2.80 GHz, 4 cores, 16 GB (`os.totalmem`, rounded), no swap, Linux;
+nothing else ran during the block. **Saturation:** as §7 states it, one decode in flight; dav1d-WASM and OpenJPH one
+thread each, so at 1× one core and the host does not saturate; at 4× each browser thread is capped to a quarter CPU;
+WebCodecs runs its own threads, so its cells are not one-core figures (not measured separately here). Nothing past 4×.
+
+**Time.** T0 18:30:56 UTC; `decode_setup.sh` 1 204 s, **20.1 min**; the block 18:51–22:28, a round **14.4 min** median
+of 15 (1× 5.6–6.7 min, 4× 7.8–8.8), against the pilot's 10.6: this host ran about 1.35× the pilot's round. The
+driver stopped before round 15 ("it would pass --until"). The block started from `deebda0a`, before `51c2ef69`: rounds
+0–1 ran the driver that checks `--until` after a round and keeps timestamps unrounded; from round 2 the loop's own
+`git pull --rebase` brought `51c2ef69`'s driver. §Shards pools such rows as they are.
+
+**Checks, every unit, every round** (`rows/decode-shard-1.json`): H and H′ exact **5 760/5 760**; R exact after its add
+**4 800/4 800**, its residuals 4 800/4 800, its lossy frames 4 800/4 800; S lossy frames against native dav1d 1.5.4
+**37 200/37 200**; no error, no void cell. 2 820 rows.
+
+**Mutations**, once after the block, `dbts_a1` Q 16 at 1×, one round (rows kept outside the repo):
+`--mutate hash` — every check 0 on all 16 units (exact 0/16, lossy 0/16 or 0/20, residuals 0/16); `--mutate offset` —
+R exact 0/16 on both forms, its residuals 16/16 and lossy 16/16 intact, the other 14 units untouched; `--mutate drop` —
+both S8 jumps fail, dav1d-WASM `dav1d -28`, WebCodecs `Decoding error.`, each 1/20 lossy matched, S1 and S16 untouched.
+`decode_pool.py --test`: every test passed; §7's nine pool mutations, applied to a copy by text substitution: each
+fails the test.
+
+**A/A** (H′ ÷ H, median over every (series, rung) and round): 1× **0.997 [0.977–1.017]** over 135 pairs, 4× **0.989
+[0.952–1.052]** over 45 — both inside ±5 %, kept.
+
+**The question cells**, ratio and within-block 95 % interval over 15 rounds, from `rows/decode-shard-1.txt`
+(D1: S_G WebCodecs in order ÷ H; D2: S16 jump ÷ S1 jump; D3: R ÷ H, by form); H ms is this block's median, inside it only:
+
+| series Q, throttle | H ms | A/A | D1 G 1 · 8 · 16 | D2 dav1d-WASM · WebCodecs | D3 R ÷ H |
+| --- | --: | --- | --- | --- | --- |
+| `dbts_a1` Q 8, 1× | 19 | 0.97 [0.73–1.07] | 1.86 [1.36–2.09] · 2.13 [1.52–2.38] · 2.23 [1.54–2.44] | 9.92 [9.36–10.88] · 9.30 [8.80–10.09] | 12bit 1.37 [1.26–1.46] · top10 1.34 [1.01–1.43] |
+| `dbts_a1` Q 16, 1× | 19 | 1.00 [0.96–1.21] | 1.25 [1.19–1.37] · 1.38 [1.23–1.47] · 1.46 [1.25–1.52] | 12.97 [11.47–15.17] · 8.70 [8.28–9.26] | 12bit 1.46 [1.33–1.58] · top10 1.52 [1.35–1.58] |
+| `dbts_a1` Q 32, 1× | 19 | 0.99 [0.91–1.09] | 1.03 [0.98–1.14] · 1.18 [1.13–1.45] · 1.22 [1.12–1.31] | 6.93 [6.62–7.85] · 8.55 [7.70–9.11] | 12bit 1.51 [1.45–1.67] · top10 1.45 [1.27–1.59] |
+| `dbts_a1` Q 16, 4× | 89 | 0.99 [0.88–1.16] | 0.79 [0.74–0.86] · 0.76 [0.70–0.83] · 0.77 [0.67–0.81] | 13.61 [12.74–14.16] · 7.36 [4.73–8.23] | 12bit 1.47 [1.33–1.58] · top10 1.47 [1.25–1.57] |
+| `dbts_b1` Q 16, 1× | 54 | 0.99 [0.94–1.30] | 1.71 [1.55–1.93] · 2.02 [1.87–2.07] · 2.02 [1.81–2.22] | 12.49 [10.85–12.92] · 9.12 [8.60–9.60] | 10bit 1.66 [1.57–2.45] |
+| `dbts_b1` Q 32, 1× | 53 | 0.97 [0.71–1.10] | 1.33 [1.21–1.47] · 1.51 [1.12–1.67] · 1.55 [1.43–1.68] | 7.54 [7.09–8.25] · 8.17 [7.73–8.69] | 10bit 1.69 [1.22–2.21] |
+| `dbts_b1` Q 56, 1× | 54 | 1.00 [0.94–1.38] | 1.33 [1.19–1.46] · 1.43 [1.32–1.50] · 1.36 [1.30–1.51] | 3.54 [3.31–4.12] · 7.88 [7.15–9.16] | 10bit 1.70 [1.63–2.04] |
+| `dbts_b1` Q 32, 4× | 273 | 0.95 [0.93–1.06] | 1.02 [0.96–1.17] · 1.05 [0.90–1.16] · 1.03 [0.96–1.13] | 7.75 [7.47–7.89] · 8.31 [7.33–8.79] | 10bit 1.72 [1.53–1.80] |
+| `dbts_c1` Q 8, 1× | 19 | 1.00 [0.94–1.04] | 2.02 [1.90–2.24] · 2.19 [2.04–2.30] · 2.19 [1.89–2.32] | 10.15 [9.16–10.78] · 8.84 [8.33–9.05] | 12bit 1.53 [1.36–1.57] · top10 1.52 [1.21–1.73] |
+| `dbts_c1` Q 16, 1× | 18 | 1.01 [0.95–1.05] | 1.57 [1.40–1.82] · 1.73 [1.60–1.88] · 1.70 [1.53–1.86] | 12.18 [11.92–13.97] · 8.53 [8.10–9.12] | 12bit 1.54 [1.50–1.61] · top10 1.53 [1.44–1.63] |
+| `dbts_c1` Q 32, 1× | 19 | 1.00 [0.95–1.02] | 1.30 [1.21–1.51] · 1.36 [1.25–1.48] · 1.44 [1.23–1.57] | 4.89 [4.72–5.21] · 8.62 [7.67–9.13] | 12bit 1.62 [1.53–1.68] · top10 1.57 [1.54–1.71] |
+| `dbts_c1` Q 16, 4× | 91 | 1.00 [0.96–1.08] | 0.94 [0.87–1.08] · 0.97 [0.91–1.09] · 0.97 [0.87–1.09] | 12.24 [11.16–13.02] · 7.54 [4.80–8.27] | 12bit 1.51 [1.38–1.63] · top10 1.59 [1.50–1.77] |
+
+**The other ratios** (every one in `rows/decode-shard-1.txt`), ranges over the 12 (series, rung, throttle): dav1d-WASM ÷
+WebCodecs (the 12-bit forms on `dbts_a1` and `dbts_c1`; two decoders on one 10-bit stream on `dbts_b1`) 1.205–3.96, over
+1 in every cell; S8 jump ÷ S1 jump 2.14–6.86; S8 and S16 in order ÷ S1 in order 0.34–1.64 (the lowest, 0.34, dav1d-WASM
+on `dbts_b1` Q 56). The order effect printed beside each cell is not read: §7 reads it on the pooled pairs.
 
 ### Decode shard 2, measured
 
