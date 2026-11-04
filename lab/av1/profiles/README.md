@@ -570,8 +570,82 @@ runs the same commands with its own k, and writes **only its own files and its o
 | --: | --- | --- | --- | --- |
 | 1 | `shard-1` | rounds 0, 1, 2, … (both Williams squares from row 0) until `--until`: ≥ 10, about 22 on a host like the pilot's; 1× every rung, 4× the crossover rung, all three series | `lab/av1/profiles/rows/decode-shard-1.{json,log,txt}` | `### Decode shard 1, measured` |
 | 2 | `shard-2` | the same | `lab/av1/profiles/rows/decode-shard-2.{json,log,txt}` | `### Decode shard 2, measured` |
-| 3 | `shard-3` | the same | `lab/av1/profiles/rows/decode-shard-3.{json,log,txt}` | `### Decode shard 3, measured` |
-| 4 | `shard-4` | the same | `lab/av1/profiles/rows/decode-shard-4.{json,log,txt}` | `### Decode shard 4, measured` |
+| 3 | `shard-3` | the same | `lab/av1/profiles/rows/decode-shard-3.{json,log,txt}` | `### Decode shard 3, measured
+
+*Run 2026-11-04, 18:31–22:31 UTC, by a separate session given only §7, which it ran as §Shards assigns k = 3; nothing
+outside this section and `rows/decode-shard-3.*` was changed. **One block: not a verdict.***
+
+* **Run:** block `shard-3`, rounds 0–21 (22 rounds), 1× every rung, 4× the crossover rung, all three series, every
+  unit interleaved in §7's Williams rows; then §7's three block mutations and nine pool mutations.
+* **Shows:** this block's A/A (H′ ÷ H, two timings of the same HTJ2K unit) is 1.002 at 1× and 1.000 at 4×, kept;
+  every check matched; no cell void; its within-block ratios are below.
+* **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` only, at §7's rungs, on one 4-core host, through Playwright
+  1.56.1's headless Chromium shell (build 1194; its Chromium major not read here: *unverified*).
+* **Left:** everything pooled — the between-host spread, the order effects on pooled pairs, D1–D3's verdicts — is
+  the collector's (§Shards); nothing here is read against a band.
+
+**Terms**, §7's: a **round** runs every unit once at each throttle; a **block** is this session's rounds on its one
+host; **in order** is the next slice from a decoder holding the one before; a **jump** reaches a slice from a fresh
+decoder via its group's keyframe; **4×** caps every browser thread to a quarter of a CPU.
+
+**Host** (its `host` row): Intel Xeon @ 2.10 GHz, 4 cores, 16 GB. **Setup** (`decode_setup.sh` on this fresh host):
+16.6 min. **A round:** 10.0 min, the median of 22 (9.5–10.4) — 4.3 at 1×, 5.7 at 4×; `--until` stopped the block
+before round 22. **Where it saturates:** one decode in flight; OpenJPH-WASM and dav1d-WASM run one thread each, so
+at 1× they use one of four cores and the host does not saturate; at 4× each thread gets a quarter of a CPU. WebCodecs
+runs its own decoder threads, so its cells are a one-core figure at neither throttle. Nothing is claimed past 4×, for
+concurrent decodes, or for another host.
+
+**A/A**, median of ln(H′ ÷ H) over every (series, rung) and round, its distribution-free 95 % interval: 1× **1.002
+[0.999–1.011]** over 198 pairs; 4× **1.000 [0.994–1.013]** over 66 pairs. Both lie inside ±5 %: kept at both throttles.
+
+**Checks, every unit of every round** (4 136 rows, no error): H and H′ exact frames against the fetch checksum
+5 376/5 376; R exact after its add 4 480/4 480, its residuals against `streams.py` 4 480/4 480, its lossy frames
+against native dav1d 4 480/4 480; S lossy frames against native dav1d 34 720/34 720. **Void cells: none.** Every exact
+frame was checked against its source.
+
+**Mutations, as §7 names them**, rerun here on `dbts_a1` Q16 at 1×, one round each (rows kept outside the repo, as
+§Shards gives this shard no other file): `--mutate hash` — 0 of every check on all 16 units; `--mutate offset` — R exact
+0/16 on both forms, its residuals and lossy frames 16/16, the other 14 units untouched; `--mutate drop` — both S8 jumps
+fail, dav1d-WASM `-28`, WebCodecs `Decoding error.`, 1 of 20 frames matched, S1 and S16 untouched. `decode_pool.py
+--test` passes as committed and fails under each of §7's nine mutations (the A/A rule off; checks ignored; a jump
+timed from its own slice's hand-in; the replay not waiting for the frame before; pairs pooled as one sample; a
+block's mean for its median; a block under 10 rounds kept; the *t* series a term short; predecessors never shuffled).
+
+**Cells** (`rows/decode-shard-3.txt`, which also holds every unit's ms and every S ÷ H): each ratio the block's median
+over its 22 rounds, paired by round, with its distribution-free 95 % interval over those rounds; H's ms the median
+over rounds. `decode_pool.py` marks every cell *not read: one block*, as §7 does for any single block; the order
+effects it prints are this block's alone (no cell's is both over 10 % and beyond its shuffles, p < 0.05).
+
+| series, Q, throttle | H ms | D1 S1 · S8 · S16 WebCodecs in order ÷ H | D2 S16 ÷ S1 jump: dav1d-WASM · WebCodecs | D3 R ÷ H, each form |
+| --- | --: | --- | --- | --- |
+| `dbts_a1` Q8 1× | 17 | 1.772 [1.726–1.826] · 2.034 [1.965–2.179] · 2.096 [2.033–2.157] | 10.029 [9.661–10.637] · 9.071 [8.741–9.758] | 12bit 1.406 [1.371–1.447] · top10 1.398 [1.360–1.454] |
+| `dbts_a1` Q16 1× | 17 | 1.159 [1.102–1.237] · 1.239 [1.199–1.363] · 1.279 [1.202–1.361] | 12.519 [11.989–13.347] · 8.538 [8.184–9.046] | 12bit 1.439 [1.427–1.474] · top10 1.439 [1.408–1.466] |
+| `dbts_a1` Q32 1× | 17 | 0.990 [0.953–1.069] · 1.063 [0.998–1.113] · 1.106 [1.036–1.193] | 7.103 [6.446–7.671] · 8.229 [7.821–8.681] | 12bit 1.478 [1.461–1.499] · top10 1.443 [1.407–1.492] |
+| `dbts_b1` Q16 1× | 50 | 1.666 [1.604–1.691] · 1.852 [1.765–1.938] · 1.851 [1.807–1.990] | 11.170 [10.489–11.561] · 8.682 [8.451–9.110] | 10bit 1.584 [1.541–1.621] |
+| `dbts_b1` Q32 1× | 49 | 1.383 [1.330–1.428] · 1.501 [1.431–1.553] · 1.492 [1.459–1.549] | 7.838 [7.419–8.101] · 8.483 [8.251–8.759] | 10bit 1.659 [1.617–1.709] |
+| `dbts_b1` Q56 1× | 49 | 1.277 [1.223–1.304] · 1.377 [1.324–1.432] · 1.381 [1.338–1.421] | 3.774 [3.633–4.053] · 8.232 [7.716–8.531] | 10bit 1.652 [1.586–1.700] |
+| `dbts_c1` Q8 1× | 17 | 2.018 [1.963–2.069] · 2.197 [2.134–2.300] · 2.179 [2.114–2.232] | 9.906 [9.730–10.281] · 8.891 [8.457–9.183] | 12bit 1.516 [1.487–1.588] · top10 1.540 [1.467–1.569] |
+| `dbts_c1` Q16 1× | 17 | 1.380 [1.305–1.404] · 1.474 [1.427–1.519] · 1.404 [1.364–1.437] | 11.462 [10.960–12.410] · 8.516 [8.069–8.981] | 12bit 1.551 [1.523–1.617] · top10 1.512 [1.470–1.586] |
+| `dbts_c1` Q32 1× | 17 | 1.151 [1.136–1.212] · 1.269 [1.242–1.304] · 1.177 [1.153–1.226] | 4.549 [4.323–4.866] · 8.163 [8.008–8.373] | 12bit 1.536 [1.503–1.593] · top10 1.539 [1.490–1.578] |
+| `dbts_a1` Q16 4× | 76 | 0.765 [0.728–0.796] · 0.777 [0.748–0.810] · 0.770 [0.729–0.790] | 12.898 [12.249–13.293] · 7.552 [6.893–7.792] | 12bit 1.426 [1.388–1.493] · top10 1.411 [1.376–1.451] |
+| `dbts_b1` Q32 4× | 217 | 1.107 [1.087–1.137] · 1.113 [1.077–1.148] · 1.121 [1.103–1.155] | 7.876 [7.588–8.089] · 7.710 [6.731–8.182] | 10bit 1.582 [1.552–1.629] |
+| `dbts_c1` Q16 4× | 77 | 0.886 [0.861–0.913] · 0.922 [0.887–0.966] · 0.901 [0.879–0.950] | 11.144 [10.476–11.631] · 7.330 [4.955–7.760] | 12bit 1.539 [1.468–1.602] · top10 1.480 [1.439–1.545] |
+| series, Q, throttle | jump G: S8 ÷ S1 jump, dav1d-WASM · WebCodecs | in order G: S8 · S16 ÷ S1, dav1d-WASM | in order G: S8 · S16 ÷ S1, WebCodecs | decoders: dav1d-WASM ÷ WebCodecs, in order G 1 · 8 · 16 | the same, jump G 1 · 8 · 16 |
+| --- | --- | --- | --- | --- | --- |
+| `dbts_a1` Q8 1× | 5.263 [4.899–5.424] · 4.913 [4.734–4.972] | 1.212 [1.178–1.245] · 1.256 [1.171–1.303] | 1.170 [1.129–1.198] · 1.204 [1.159–1.256] | 1.665 [1.574–1.727] · 1.709 [1.657–1.788] · 1.712 [1.663–1.754] | 1.563 [1.486–1.667] · 1.680 [1.622–1.732] · 1.738 [1.671–1.791] |
+| `dbts_a1` Q16 1× | 6.618 [6.318–6.769] · 4.674 [4.299–4.779] | 1.552 [1.507–1.591] · 1.545 [1.529–1.598] | 1.084 [1.033–1.156] · 1.102 [1.057–1.165] | 1.701 [1.571–1.748] · 2.455 [2.261–2.507] · 2.354 [2.256–2.505] | 1.499 [1.449–1.611] · 2.191 [2.082–2.245] · 2.228 [2.083–2.433] |
+| `dbts_a1` Q32 1× | 3.749 [3.434–3.961] · 4.483 [4.191–4.762] | 0.937 [0.904–0.967] · 0.899 [0.871–0.960] | 1.034 [0.982–1.113] · 1.108 [1.023–1.206] | 2.638 [2.525–2.817] · 2.393 [2.212–2.450] · 2.252 [2.116–2.324] | 2.361 [2.213–2.509] · 1.957 [1.837–2.061] · 1.997 [1.909–2.065] |
+| `dbts_b1` Q16 1× | 5.497 [5.395–5.721] · 4.705 [4.607–4.797] | 1.312 [1.293–1.333] · 1.336 [1.294–1.370] | 1.095 [1.082–1.145] · 1.117 [1.097–1.163] | 1.591 [1.531–1.637] · 1.844 [1.786–1.955] · 1.858 [1.817–1.904] | 1.486 [1.444–1.552] · 1.752 [1.707–1.793] · 1.859 [1.791–1.919] |
+| `dbts_b1` Q32 1× | 4.078 [3.949–4.175] · 4.636 [4.500–4.723] | 0.943 [0.929–0.979] · 0.954 [0.926–0.975] | 1.075 [1.041–1.132] · 1.085 [1.062–1.105] | 2.192 [2.065–2.276] · 1.898 [1.841–1.988] · 1.941 [1.888–1.988] | 1.972 [1.887–2.008] · 1.725 [1.666–1.777] · 1.809 [1.696–1.914] |
+| `dbts_b1` Q56 1× | 2.189 [2.103–2.266] · 4.418 [4.353–4.564] | 0.372 [0.357–0.383] · 0.373 [0.360–0.383] | 1.086 [1.047–1.119] · 1.073 [1.037–1.108] | 3.670 [3.486–3.716] · 1.262 [1.195–1.284] · 1.252 [1.223–1.288] | 3.232 [3.159–3.310] · 1.581 [1.485–1.679] · 1.494 [1.412–1.600] |
+| `dbts_c1` Q8 1× | 5.005 [4.772–5.219] · 4.571 [4.491–4.725] | 1.171 [1.136–1.190] · 1.136 [1.112–1.182] | 1.096 [1.054–1.116] · 1.080 [1.035–1.116] | 1.449 [1.406–1.479] · 1.558 [1.497–1.607] · 1.512 [1.472–1.597] | 1.315 [1.265–1.435] · 1.451 [1.408–1.516] · 1.508 [1.465–1.596] |
+| `dbts_c1` Q16 1× | 5.994 [5.688–6.171] · 4.642 [4.379–4.911] | 1.395 [1.326–1.440] · 1.397 [1.360–1.418] | 1.061 [1.037–1.128] · 1.043 [0.985–1.072] | 1.502 [1.470–1.559] · 1.959 [1.875–1.996] · 2.034 [1.928–2.101] | 1.329 [1.265–1.409] · 1.729 [1.637–1.852] · 1.848 [1.714–1.941] |
+| `dbts_c1` Q32 1× | 2.471 [2.354–2.600] · 4.441 [4.103–4.789] | 0.482 [0.466–0.509] · 0.487 [0.476–0.497] | 1.090 [1.040–1.116] · 1.025 [0.985–1.066] | 3.735 [3.501–3.811] · 1.631 [1.548–1.799] · 1.758 [1.698–1.838] | 2.950 [2.892–3.203] · 1.686 [1.584–1.767] · 1.725 [1.592–1.780] |
+| `dbts_a1` Q16 4× | 6.330 [6.036–6.518] · 4.010 [2.672–4.311] | 1.563 [1.504–1.597] · 1.542 [1.503–1.601] | 1.008 [0.956–1.043] · 0.995 [0.940–1.011] | 2.481 [2.430–2.617] · 3.862 [3.802–3.941] · 3.877 [3.638–4.025] | 2.001 [1.190–2.173] · 3.205 [3.011–3.259] · 3.439 [3.271–3.626] |
+| `dbts_b1` Q32 4× | 4.235 [4.033–4.347] · 4.129 [3.777–4.402] | 0.945 [0.926–0.980] · 0.948 [0.933–0.976] | 0.993 [0.978–1.036] · 1.023 [0.994–1.033] | 2.672 [2.629–2.808] · 2.540 [2.491–2.657] · 2.516 [2.430–2.619] | 2.395 [1.994–2.457] · 2.389 [2.233–2.550] · 2.413 [2.278–2.506] |
+| `dbts_c1` Q16 4× | 5.754 [5.629–5.887] · 4.032 [2.550–4.358] | 1.366 [1.314–1.432] · 1.355 [1.259–1.440] | 1.032 [1.011–1.061] · 1.019 [0.995–1.069] | 2.333 [2.200–2.437] · 3.001 [2.901–3.146] · 3.096 [2.813–3.220] | 1.886 [1.179–2.063] · 2.711 [2.628–2.931] · 2.869 [2.800–2.944] |
+
+### Decode shard 4, measured` |
 | 5 | `shard-5` | the same | `lab/av1/profiles/rows/decode-shard-5.{json,log,txt}` | `### Decode shard 5, measured` |
 | 6 | `shard-6` | the same | `lab/av1/profiles/rows/decode-shard-6.{json,log,txt}` | `### Decode shard 6, measured` |
 
