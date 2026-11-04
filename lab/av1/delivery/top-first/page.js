@@ -1,5 +1,6 @@
 /**
- * f4c396c8's lab/av1/delivery/total-time/page.js, unchanged but for its paths (row TOPFIRST, docs/av1/top-first.md §4).
+ * f4c396c8's lab/av1/delivery/total-time/page.js but for its paths and `tf-frame`'s entries, slice i's top 2i and its
+ * exact frame 2i + 1 (row TOPFIRST, docs/av1/top-first.md §4).
  * One fill through the downloader, every frame timed and hashed; a layer-major series (lab/av1/delivery/bases-first)
  * fills F bases as previews, then F exact frames; then frames N … N+K−1 asked one at a time, each timed
  * from its ask. run.mjs drives it. lab/av1/delivery/total-time/README.md
@@ -19,6 +20,7 @@ const EXACT_AT = OPTS.decoder?.exactAt ?? (LAYERS - 1) * F;
 /** [start, count, layer] a layer, when a series names its entries (lab/av1/delivery/scalable/tool). */
 const RANGES = OPTS.decoder?.ranges;
 const MIDDLE_AT = OPTS.decoder?.middleAt ?? Infinity;
+const INTERLEAVED = OPTS.decoder?.mode === "tf-frame";
 const ENTRIES = RANGES ? RANGES.flatMap(([at, n]) => Array.from({ length: n }, (_, i) => at + i))
   : OPTS.decoder?.exactAt ? [...Array(F).keys(), ...Array.from({ length: F }, (_, i) => EXACT_AT + i)] : [...Array(FILL).keys()];
 const at = () => performance.timeOrigin + performance.now();
@@ -78,7 +80,7 @@ if (q.get("post")) await fetch(`${q.get("post")}hello`, { method: "POST" });
 const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
   ...OPTS,
   onFrame: (f) => {
-    const i = f.frameIndex - EXACT_AT;
+    const i = INTERLEAVED ? (f.frameIndex - 1) / 2 : f.frameIndex - EXACT_AT;
     const { lastByte, decoder, decodeStart: start, decodeEnd: end } = f.info.stamps;
     frames.push({ i, page: at(), lastByte, decoder, start, end, exact: f.info.exact, path: f.info.path, wireBytes: f.info.wireBytes });
     pixels.set(i, f.bytes);
@@ -87,10 +89,10 @@ const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
   // A base decoded after its exact frame must not replace it: it is counted, never shown.
   onPreview: (f) => {
     const middle = f.frameIndex >= MIDDLE_AT;
-    const i = middle ? f.frameIndex - MIDDLE_AT : f.frameIndex;
+    const i = middle ? f.frameIndex - MIDDLE_AT : INTERLEAVED ? f.frameIndex / 2 : f.frameIndex;
     const { lastByte, decoder, decodeStart: start, decodeEnd: end } = f.info.stamps;
     previews.push({ i, layer: middle ? "middle" : "base", page: at(), late: pixels.has(i), lastByte, decoder, start, end, wireBytes: f.info.wireBytes });
-    previewPixels.set(f.frameIndex, f.bytes);
+    previewPixels.set(middle ? f.frameIndex : i, f.bytes);
     settled(client);
   },
   onError: (e) => {

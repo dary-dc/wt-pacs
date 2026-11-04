@@ -1,8 +1,9 @@
 /**
- * The decoder worker of both top-first arms, client/decode/decoder.js's protocol. Entry i < F is slice i's top: the
- * shipped payload's prefix (`tf-frame`, cut by ./transport.js) or a top-only payload (`tf-series`), decoded through
- * the product's av1.js and posted as a preview, top ≪ k. Entry F + i is the slice's exact frame: the whole shipped
- * payload (`tf-frame`), or one rebuilt from the top and a low-only payload (`tf-series`). docs/av1/top-first.md §4
+ * The decoder worker of both top-first arms, client/decode/decoder.js's protocol. A slice's top — the shipped
+ * payload's prefix (`tf-frame`, entry 2i, cut by ./transport.js) or a top-only payload (`tf-series`, entry i) — is
+ * decoded through the product's av1.js and posted as a preview, top ≪ k. Its exact frame — the whole shipped payload
+ * (`tf-frame`, entry 2i + 1) or one rebuilt from the top and a low-only payload (`tf-series`, entry F + i) — after.
+ * docs/av1/top-first.md §4
  *
  * `mutate` (lab checks only): preview-or1, preview-shift1, join-next, drop-low, preview-late, preview-unmarked.
  */
@@ -94,8 +95,12 @@ async function preview(m) {
   return shifted(await payload.decodeFrame(bytes, { key: true }));
 }
 
+const interleaved = () => cfg.mode === "tf-frame";
+const isTop = (index) => (interleaved() ? index % 2 === 0 : index < cfg.frames);
+const sliceOf = (index) => (interleaved() ? index >> 1 : index % cfg.frames);
+
 async function exact(m) {
-  const i = m.index - cfg.frames;
+  const i = sliceOf(m.index);
   let bytes = m.bytes;
   if (cfg.mode === "tf-series") {
     const at = cfg.mutate === "join-next" && i + 1 < cfg.frames ? i + 1 : i;
@@ -111,7 +116,7 @@ onmessage = async (e) => {
     toConsumer = m.toConsumer;
     try {
       cfg = m.decoder;
-      await payload.init({ ...m.decoder, groupLength: m.groupLength });
+      await payload.init({ ...m.decoder, groupLength: 1 });
       postMessage({ kind: "ready" });
     } catch (err) {
       postMessage({ kind: "init-failed", reason: String(err?.message ?? err) });
@@ -123,7 +128,7 @@ onmessage = async (e) => {
 
 async function decode(m) {
   const stamps = { ...m.stamps, decodeStart: abs() };
-  const isPreview = m.index < cfg.frames;
+  const isPreview = isTop(m.index);
   const wireBytes = m.bytes.length;
   try {
     const r = await (isPreview ? preview(m) : exact(m));
@@ -134,10 +139,11 @@ async function decode(m) {
       bits: r.info.bitsPerSample, components: r.info.componentCount, signed: r.info.isSigned, min: r.range.min, max: r.range.max,
       byteCount: r.byteCount, wireBytes, stamps, path: r.path, ...(marked && { preview: true }), ...(marked && { layer: "base" }),
     });
-    if (isPreview && cfg.mutate === "preview-late" && !seen.has(m.index)) held.set(m.index, post);
+    const slice = sliceOf(m.index);
+    if (isPreview && cfg.mutate === "preview-late" && !seen.has(slice)) held.set(slice, post);
     else if (isPreview && cfg.mutate === "preview-late") setTimeout(post, 50);
     else post();
-    if (!isPreview && cfg.mutate === "preview-late") exactSent.postMessage(m.index - cfg.frames);
+    if (!isPreview && cfg.mutate === "preview-late") exactSent.postMessage(slice);
     postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount: r.byteCount, buffer: m.bytes.buffer }, [m.bytes.buffer]);
   } catch (err) {
     postMessage({ kind: "failed", index: m.index, gen: m.gen, reason: String(err?.message ?? err), buffer: m.bytes.buffer }, [m.bytes.buffer]);

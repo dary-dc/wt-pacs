@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Every arm's entries for the total-time rig ported here (run.mjs), from split-rule's shipped payloads: HTJ2K, `k2`
 and `k2-aa` (the shipped payload), `tf-frame` (the same bundle, cut by ./transport.js) and `tf-series` (entry i the
-top-only payload of slice i, entry F + i its low-only payload). A head set, SET-head, holds the first HEAD slices.
+top-only payload of slice i, entry F + i its low-only payload). Slice i's top is
+`tf-frame`'s entry 2i and its exact frame 2i + 1, a group of 2. A head set, SET-head, holds the first HEAD slices.
 Nothing is re-encoded: both cut payloads are the shipped payload's bytes, and rejoined they are it, byte for byte.
 
 usage: make_frames.py SHIPPED OUT SET_DIR ... [--head 8]   — lab/av1/delivery/top-first/README.md
@@ -70,11 +71,11 @@ def write(src, shipped, dst, n, s):
     for i, unit in enumerate(tops + lows):
         (dst / f"{i:03d}.tfs.av1").write_bytes(unit)
     size = lambda ext: sum((dst / f"{i:03d}.{ext}").stat().st_size for i in range(n))  # noqa: E731
-    layered = dict(layers=2, exactAt=n, worker=WORKER, split=split, previewTruth=truth)
+    layered = dict(layers=2, worker=WORKER, split=split, previewTruth=truth)
     entry = dict(name=dst.name, frames=n, width=s.w, height=s.h, bits=s.stored, truth=s.truth[:n], variants={
         "htj2k": {}, "k2": {"ext": "k2.av1"}, "k2-aa": {"ext": "k2.av1"},
-        "tf-frame": dict(layered, ext="k2.av1", mode="tf-frame", serverEntries=n, transport=f"{TRANSPORT}?frames={n}"),
-        "tf-series": dict(layered, ext="tfs.av1", mode="tf-series"),
+        "tf-frame": dict(layered, ext="k2.av1", mode="tf-frame", group=2, serverEntries=n, transport=TRANSPORT),
+        "tf-series": dict(layered, exactAt=n, ext="tfs.av1", mode="tf-series"),
     }, bytes={"htj2k": size("htj2k"), "k2": size("k2.av1"), "tf-series": sum(map(len, tops + lows))})
     (dst / "variants.json").write_text(json.dumps(entry, indent=1))
     print(dst.name, ", ".join(f"{k} {v} B" for k, v in entry["bytes"].items()), flush=True)
