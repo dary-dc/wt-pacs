@@ -113,7 +113,8 @@ async function inChromium(throttle, round) {
     for (const [n, u] of units.entries()) {
       const r = got.units[n];
       const bytes = u.arm === "H" ? e.htj2k : u.arm === "R" ? b.forms[u.form].residual_units : b.cells[u.form][u.g].units;
-      r.frames = r.frames.map(([i, handed, written]) => [i, handed, written, bytes[i]]);
+      const us = (t) => Math.round(t * 1000) / 1000;
+      r.frames = r.frames.map(([i, handed, written]) => [i, us(handed), us(written), bytes[i]]);
       const c = checks(b, u, r);
       if (u.arm === "R") c.lossy = pre[u.form];
       rows.push({ block: BLOCK, round, throttle, set: e.name, q: b.q, unit: u.name, prev, arm: u.arm, form: u.form ?? null,
@@ -135,18 +136,20 @@ if (!rows.length) rows.push({ block: BLOCK, host: { cpu: cpus()[0].model, cores:
 let start = 0;
 while (start < ROUNDS && done(start)) start++;
 rows.splice(0, rows.length, ...rows.filter((r) => r.host || r.round < start));
-const began = Date.now();
+// A round's length: the last one this run timed, else the walls of the last round in the rows, else none.
+const walls = rows.filter((r) => r.round === start - 1 && r.unit === "H").reduce((a, r) => a + r.wall * 1000, 0);
+let per = walls * 1.05;
 for (let round = start; round < ROUNDS; round++) {
+  if (Date.now() + per > UNTIL) {
+    console.error(`stopping before round ${round}: it would pass --until`);
+    break;
+  }
   const t0 = Date.now();
   for (const throttle of order(THROTTLES, round)) {
     rows.push(...(await inChromium(throttle, round)));
     console.error(`round ${round} ${throttle}x done, ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   }
   if (OUT) writeFileSync(OUT, JSON.stringify(rows));
-  const per = (Date.now() - began) / (round - start + 1);
-  if (Date.now() + per > UNTIL) {
-    console.error(`stopping after round ${round}: another round would pass --until`);
-    break;
-  }
+  per = Date.now() - t0;
 }
 process.exit(0);

@@ -369,7 +369,7 @@ its campaign. Six separate sessions, given only this section, run it (§Shards);
   host, keeping D1–D3's questions and adding how frames are reached (in order, or a jump) and the 12-bit forms' decode.
 * **Answer:** **it fits.** A round takes 10.6 min here (§6's: 8.85 h), so each 4.5 h session runs 14–22 rounds
   (floor 10); six pooled blocks should pin D1 to ±4–8 %, D2 to ±6–17 %, D3 to ±3–6 % (95 %), inside bands of ±10–29 %.
-* **The numbers that decide it:** round 10.6 min, setup ≈ 20 min, 22 rounds fit here; σ of ln ratio ≤ 0.19 on every D1 and D3 cell,
+* **The numbers that decide it:** round 10.6 min, setup 16 min, 22 rounds fit here; σ of ln ratio ≤ 0.19 on every D1 and D3 cell,
   up to 0.37 on WebCodecs' D2 at 4× (§Sizing pilot).
 * **What it rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` (§6's, one a scanner), their streams byte for byte the bytes
   run's; a 6-round pilot and a 4-round check of the jump against §6's ask, on one 4-core host, Chromium 141.
@@ -530,7 +530,10 @@ S lossy 17 360/17 360; no error.
 
 * **A round:** 10.6 min (median of six) — 4.4 min at 1×, 6.3 at 4×; 22.8 min with every rung at 4×. §6's round, on
   its host and after its own drops: 8.85 h.
-* **Setup on a fresh host** (`decode_setup.sh`): *pending: timed in a fresh worktree as this is pushed*.
+* **Setup on a fresh host** (`decode_setup.sh`, timed in a fresh worktree here): 954 s, 16 min — decoders, encoders
+  and data in parallel, then the 54 streams (13 min of it), all byte for byte the bytes run's; then the driver ran from
+  that worktree with nothing else. Here emscripten's library cache and meson were already present; a cold host builds
+  them too (*unverified* how long).
 * **Rounds that fit** 4.5 h less 0.6 h (setup, the section, pushes): 22 here. §6's host timed H at 26 ms a frame where
   this one takes 17, so a host that much slower fits about 14 (*derived*, ×1.5 on the round). `--until` stops each block
   where its own host's time runs out.
@@ -564,7 +567,7 @@ runs the same commands with its own k, and writes **only its own files and its o
 
 | k | block | runs | writes | its section |
 | --: | --- | --- | --- | --- |
-| 1 | `shard-1` | rounds 0 … N − 1 (both Williams squares from row 0), 1× every rung, 4× the crossover rung, all three series | `lab/av1/profiles/rows/decode-shard-1.{json,log,txt}` | `### Decode shard 1, measured` |
+| 1 | `shard-1` | rounds 0, 1, 2, … (both Williams squares from row 0) until `--until`: ≥ 10, about 22 on a host like the pilot's; 1× every rung, 4× the crossover rung, all three series | `lab/av1/profiles/rows/decode-shard-1.{json,log,txt}` | `### Decode shard 1, measured` |
 | 2 | `shard-2` | the same | `lab/av1/profiles/rows/decode-shard-2.{json,log,txt}` | `### Decode shard 2, measured` |
 | 3 | `shard-3` | the same | `lab/av1/profiles/rows/decode-shard-3.{json,log,txt}` | `### Decode shard 3, measured` |
 | 4 | `shard-4` | the same | `lab/av1/profiles/rows/decode-shard-4.{json,log,txt}` | `### Decode shard 4, measured` |
@@ -574,19 +577,20 @@ runs the same commands with its own k, and writes **only its own files and its o
 **A shard session, k = 1 … 6** (the clock starts when the session does):
 
 ```bash
-T0=$(date +%s); K=k                                           # this shard's number
-lab/av1/profiles/decode_setup.sh && source lab/.av1-work/decode-env.sh  # ~20 min here: decoders, tools, data, streams, browser
+T0=$(date +%s); K=1                         # the session's first command; K is this shard's k, 1 … 6
+lab/av1/profiles/decode_setup.sh && source lab/.av1-work/decode-env.sh   # 16 min here
 R=lab/av1/profiles/rows/decode-shard-$K
-for n in 2 4 6 8 10 12 14 16 18 20 22 24; do                  # resumes at the first round it lacks; pushes every 2
+for n in $(seq 2 2 40); do                  # resumes at the first round it lacks; pushes every 2 rounds
   node lab/av1/profiles/decode_block.mjs --block shard-$K --rounds $n --every-rung-at 1 \
     --until $((T0 + 14760)) --out $R.json 2>>$R.log
   python3 lab/av1/profiles/decode_pool.py $R.json > $R.txt
   git add $R.*; git -c user.name=dary-dc -c user.email=crespoydelgado@gmail.com commit -qm "av1: profiles decode shard $K rows"; git pull -q --rebase; git push -q
-  grep -q "would pass --until" $R.log && break                 # --until stopped it
+  grep -q "would pass --until" $R.log && break   # the next round would end past T0 + 4.1 h
 done
 ```
 
-`--until` stops before a round that would end past T0 + 4.1 h, leaving the rest of the 4.5 h for the section.
+`--until` stops before a round that would end past T0 + 4.1 h (the last round's length decides), leaving the rest of
+the 4.5 h for the section.
 Commits are authored `dary-dc <crespoydelgado@gmail.com>`, `git pull --rebase` before each push, never a force-push.
 The session then replaces the one line under its own `### Decode shard k, measured` with: the host (its `host` row:
 CPU, cores, memory), the rounds it ran, setup minutes, its A/A at each throttle, every check's tally, void cells with
@@ -605,7 +609,7 @@ python3 lab/av1/profiles/decode_pool.py lab/av1/profiles/rows/decode-shard-*.jso
 ```
 
 It writes `### Decode, pooled` only: the kept and void blocks and why; per cell the pooled ratio, its interval, the
-blocks and rounds in it, the order effect beside the A/A's; D1, D2, D3 each **held**, **refuted** or **not decided**
+blocks and rounds in it, the order effect and its shuffles; D1, D2, D3 each **held**, **refuted** or **not decided**
 by §7's rule with the deciding cells; the new questions (G in order and on a jump; the 12-bit forms) as estimates
 with their intervals; the derived link figures, marked *derived*. Claims are for `dbts_a1`, `dbts_b1` and `dbts_c1`,
 these hosts and Chromium 141 only.
