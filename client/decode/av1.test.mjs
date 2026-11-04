@@ -98,6 +98,167 @@ const { parsePayload } = await import("./av1-payload.js");
 }
 
 /**
+ * merge() is begin() and end() in one pass, byte for byte and range for range: every 8–16 bits, signed and
+ * unsigned with the signed offset, split 1–8, over tops past `bits − split` (the two passes' wrap) and padded rows.
+ */
+{
+  const { begin, end, merge } = await import("./av1-frame.js");
+  let wrong = 0;
+  let seed = 7;
+  const rnd = (n) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) >>> 8) % n;
+  const [w, h, pad, at] = [37, 5, 3, 2];
+  const pic = (bits, max) => {
+    const heap = bits > 8 ? new Uint16Array(at + (w + pad) * h) : new Uint8Array(at + (w + pad) * h);
+    for (let i = 0; i < heap.length; i++) heap[i] = rnd(max);
+    return { width: w, height: h, bits, planes: [{ heap, offset: at, stride: w + pad }] };
+  };
+  for (let bits = 8; bits <= 16; bits++) {
+    for (const signed of [false, true]) {
+      for (let split = 1; split <= 8; split++) {
+        const depth = [8, 10, 12].find((d) => bits - split <= d) ?? bits - split;
+        const payload = { bits, depth, split, signed, rct: false, offset: signed ? 2 ** (bits - 1) : 0 };
+        for (const [top, low] of [[pic(depth, 2 ** (bits - split)), pic(8, 2 ** split)], [pic(depth, 2 ** depth), pic(8, 256)]]) {
+          const two = end(begin(top, payload), low);
+          const one = merge(top, low, payload);
+          const same = sha(two.sab) === sha(one.sab) && two.range.min === one.range.min && two.range.max === one.range.max;
+          if (!same) wrong++;
+          check(same && JSON.stringify(two.info) === JSON.stringify(one.info), `merge in one pass: ${bits}-bit ${signed ? "signed" : "unsigned"} split ${split} is the two passes' bytes and range`);
+        }
+      }
+    }
+  }
+  check(wrong === 0, `merge in one pass: ${wrong} of 288 cells unlike the two passes`);
+  const payload = { bits: 12, depth: 10, split: 2, signed: false, rct: false, offset: 0 };
+  const said = (f) => { try { f(); return "merged"; } catch (e) { return e.message; } };
+  const low = (width, height, bits, n = 1) => ({ width, height, bits, planes: Array.from({ length: n }, () => ({ heap: new Uint8Array(width * height), offset: 0, stride: width })) });
+  const top = { ...low(w, h, 10), planes: [{ heap: new Uint16Array(w * h), offset: 0, stride: w }] };
+  for (const [what, t, l, want] of [
+    ["a low of another size", top, low(w, h + 1, 8), /a low picture of 37x6x1 under 37x5/],
+    ["a low of two planes", top, low(w, h, 8, 2), /a low picture of 37x5x2/],
+    ["a 10-bit low", top, low(w, h, 10), /low stream 10-bit, not 8/],
+    ["a top of another depth", { ...top, bits: 8 }, low(w, h, 8), /top stream 8-bit, header says 10/],
+  ]) {
+    const got = said(() => merge(t, l, payload));
+    check(want.test(got) && got === said(() => end(begin(t, payload), l)), `merge in one pass: ${what} is refused as the two passes refuse it (${got})`);
+  }
+}
+
+/** Under the lab's `pixels: "transfer"`, merge() writes its frame into an ArrayBuffer, as the two passes do, with the same bytes; otherwise into shared memory. */
+{
+  const { begin, end, merge } = await import("./av1-frame.js");
+  const { transferFrames } = await import("./frame-buffer.js");
+  const n = 300;
+  const pic = (bits, max) => ({ width: n, height: 1, bits, planes: [{ heap: Uint16Array.from({ length: n }, (_, i) => (i * 37) % max), offset: 0, stride: n }] });
+  const [top, low] = [pic(10, 1024), pic(8, 4)];
+  const payload = { bits: 12, depth: 10, split: 2, signed: false, rct: false, offset: 0 };
+  for (const transfer of [false, true]) {
+    transferFrames(transfer);
+    const [one, two] = [merge(top, low, payload), end(begin(top, payload), low)];
+    const kind = transfer ? ArrayBuffer : SharedArrayBuffer;
+    check(one.sab instanceof kind && two.sab instanceof kind && sha(one.sab) === sha(two.sab), `merge in one pass: transfer ${transfer}, the frame is ${transfer ? "an" : "a"} ${kind.name} with the two passes' bytes`);
+  }
+  transferFrames(false);
+}
+
+/** `onePass`, on unless `false`, takes a WebCodecs split frame through merge() and every other payload as before: same bytes and range. */
+{
+  const reads = [];
+  const make = async (onePass) => {
+    const pics = {};
+    const pic = (bits, n, which) => (pics[`${which}${bits}x${n}`] ??= (() => {
+      let seed = bits * 31 + n + (which === "low" ? 1000 : 0);
+      const max = which === "low" ? 4 : 2 ** bits;
+      const planes = Array.from({ length: n }, () => {
+        const heap = bits > 8 ? new Uint16Array(6 * 4) : new Uint8Array(6 * 4);
+        for (let i = 0; i < heap.length; i++) heap[i] = (seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) % max;
+        // Each read logged by its picture: the two passes read every top sample before any low one.
+        const logged = new Proxy(heap, { get: (a, k) => (typeof k === "string" && /^\d+$/.test(k) && reads.push(which), a[k]) });
+        return { heap: logged, offset: 0, stride: 6 };
+      });
+      return { width: 5, height: 4, bits, planes };
+    })());
+    let current = null;
+    const stubs = {
+      "./av1-webcodecs.js": {
+        init: async () => {},
+        probe: async () => true,
+        picture: async (bytes, unit, which) => (which === "low" ? pic(8, 1, "low") : pic(current.depth, current.rct || current.colour ? 3 : 1, "top")),
+      },
+      "./av1-dav1d.js": { init: async () => {}, picture: () => { throw new Error("dav1d reached"); } },
+    };
+    const av1 = await import(`./av1.js?one-pass-${onePass}`);
+    await av1.init({ onePass }, async (path) => stubs[path]);
+    return async (rep, name) => {
+      const bytes = golden(rep, name);
+      current = { ...parsePayload(bytes), colour: name === "c8" };
+      reads.length = 0;
+      const r = await av1.decodeFrame(bytes, { key: true });
+      const interleaved = reads.slice(0, 4).join() === "top,low,top,low";
+      return `${interleaved ? "one pass" : "two passes"} ${r.path} ${sha(r.sab)} ${r.range.min} ${r.range.max} ${JSON.stringify(r.info)}`;
+    };
+  };
+  globalThis.VideoDecoder = class {};
+  const [before, after, unset] = [await make(false), await make(true), await make(undefined)];
+  for (const [rep, name, what] of [
+    ["optimized", "g10", "split, an 8-bit top"], ["optimized", "g12", "split, a 10-bit top"],
+    ["optimized", "s11", "split and signed"], ["optimized", "s13", "split, signed, offset 2048"],
+    ["optimized", "c8", "rct"], ["optimized", "g9", "unsplit"], ["plain", "g10", "unsplit, 10-bit"], ["plain", "c8", "plain colour"],
+  ]) {
+    const [a, b, c] = [await before(rep, name), await after(rep, name), await unset(rep, name)];
+    const split = parsePayload(golden(rep, name)).split > 0;
+    const passes = (r) => r.slice(0, r.indexOf(" av1-"));
+    check(a.endsWith(b.slice(b.indexOf(" av1-"))) && b.includes(" av1-webcodecs "), `one pass: ${what} (${rep} ${name}) decodes to the same bytes and range`);
+    check(passes(a) === "two passes" && passes(b) === (split ? "one pass" : "two passes"), `one pass: ${what} is read ${split ? "in one pass under onePass" : "as before"} (${passes(a)}; ${passes(b)})`);
+    check(c === b, `one pass: ${what} is read as under onePass when the config does not name it`);
+  }
+  delete globalThis.VideoDecoder;
+}
+
+/** Under `onePass` only a `mono_chrome` stream's chroma goes unchecked: a 4:2:0 stream with `mono_chrome` 0 and chroma is refused. */
+{
+  const { PROBES } = await import("./av1-probe.js");
+  const { sequence } = await import("./av1-payload.js");
+  const unit = (layout) => Uint8Array.from(atob(PROBES[layout].unit), (c) => c.charCodeAt(0));
+  check(sequence(unit("g8")).mono === 1 && sequence(unit("g8f")).mono === 0, "chroma: the g8 probe is mono_chrome, g8f is not");
+  const [w, h] = [4, 2];
+  let tint = 128;
+  globalThis.EncodedVideoChunk = class { constructor(c) { Object.assign(this, c); } };
+  globalThis.VideoDecoder = class {
+    constructor({ output }) { this.output = output; this.state = "unconfigured"; }
+    configure() { this.state = "configured"; }
+    async flush() {}
+    close() { this.state = "closed"; }
+    decode(chunk) {
+      const c = (w >> 1) * (h >> 1);
+      this.output({ format: "I420", timestamp: chunk.timestamp, visibleRect: { width: w, height: h }, close() {},
+        allocationSize: () => w * h + 2 * c,
+        copyTo: async (buf) => {
+          const px = new Uint8Array(buf);
+          for (let i = 0; i < w * h; i++) px[i] = i;
+          px.fill(128, w * h);
+          px[w * h + c] = tint;
+          return [{ offset: 0, stride: w }, { offset: w * h, stride: w >> 1 }, { offset: w * h + c, stride: w >> 1 }];
+        } });
+    }
+  };
+  let gen = 0;
+  for (const onePass of [false, true, undefined]) {
+    const on = onePass !== false;
+    const wc = await import(`./av1-webcodecs.js?chroma-${onePass}`);
+    await wc.init({ onePass });
+    const read = (layout) => wc.picture(unit(layout), { key: true, gen: gen++, index: 0 }).then((p) => `grey ${p.planes[0].heap[w + 1]}`, (e) => e.message);
+    tint = 128;
+    for (const layout of ["g8", "g8f"]) check((await read(layout)) === "grey 5", `chroma: onePass ${onePass}, ${layout} with mid-grey chroma decodes`);
+    tint = 129;
+    check(/4:2:0 with chroma/.test(await read("g8f")), `chroma: onePass ${onePass}, mono_chrome 0 with a tinted chroma sample is refused`);
+    const mono = await read("g8");
+    check(on ? mono === "grey 5" : /4:2:0 with chroma/.test(mono), `chroma: onePass ${onePass}, mono_chrome 1 with a tinted chroma sample is ${on ? "not checked" : "refused"} (${mono})`);
+  }
+  delete globalThis.VideoDecoder;
+  delete globalThis.EncodedVideoChunk;
+}
+
+/**
  * The codecs string is the one ffmpeg 6.1.1's trace_headers and ffprobe read from the same sequence header
  * (lab/av1/exact/codec-string): reduced still-picture headers as ingest writes them, and full ones with timing info, a
  * decoder model, frame ids, High tier and nine operating points, the first point's level taken.
