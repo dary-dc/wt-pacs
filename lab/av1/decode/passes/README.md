@@ -34,7 +34,7 @@ DBT sets' payloads come to 18 829 489, 32 793 318 and 15 890 075 B, the 2026-10-
 
 | arm | decoder config |
 | --- | --- |
-| W | the viewer's: `{ codec: "av1", ...built("dav1d") }` |
+| W | the viewer's when run: `{ codec: "av1", ...built("dav1d"), onePass: false }` |
 | W′ | the same, in a second worker (the A/A) |
 | W2 | the same with `onePass: true` |
 

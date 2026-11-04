@@ -4,7 +4,7 @@ import { order } from "../../../order.mjs";
 import { built } from "/client/decode/wasm-glue.js";
 
 /** The viewer's AV1 decoder config (client/viewer/viewer.js). */
-const DEFAULT = { codec: "av1", ...(await built("dav1d")) };
+const DEFAULT = { codec: "av1", ...(await built("dav1d")), onePass: false };
 
 /** name → its decoder config; W′ is W again in a worker of its own, the A/A. */
 export const ARMS = { W: DEFAULT, "W′": DEFAULT, W2: { ...DEFAULT, onePass: true } };
