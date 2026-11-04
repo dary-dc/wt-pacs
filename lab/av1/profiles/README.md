@@ -1796,7 +1796,7 @@ and writes only its own files.*
 
 ### Decode shard 3, measured
 
-*Not yet run.*
+*Running since 2026-11-04 18:31 UTC (partial): setup, then block `shard-3` as §Shards assigns it; rows land in `rows/decode-shard-3.*` every 2 rounds.*
 
 ### Decode shard 4, measured
 
