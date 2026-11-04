@@ -1,0 +1,138 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>paint depth check</title>
+<style>body { margin: 0; background: #000; } canvas { display: block; }</style>
+<body>
+<script type="module">
+// Driven by depth.mjs: each case painted at its own depth and at full scale, both read back against the CPU path's codes.
+import { Painter } from "/client/paint/painter.js";
+import { tableShape, windowTable } from "/client/paint/voi.js";
+import { shown } from "/lab/av1/delivery/residual/add.js";
+
+const VOI_TEST = [
+  { voi: { center: 100, width: 11, function: "LINEAR" } },
+  { voi: { center: 10, width: 1, function: "LINEAR" } },
+  { voi: { center: 100, width: 10, function: "LINEAR_EXACT" } },
+  { voi: { center: 100, width: 11, function: "LINEAR_EXACT" } },
+  { voi: { center: 0, width: 0.001, function: "LINEAR_EXACT" } },
+  { voi: { center: 0, width: 4, function: "SIGMOID" } },
+  { voi: { center: 0, width: 10, function: "LINEAR_EXACT" }, rescale: { slope: 1, intercept: -1024 } },
+  { voi: { center: -1000, width: 10, function: "LINEAR_EXACT" } },
+  { voi: { center: 127.5, width: 256, function: "LINEAR_EXACT" }, photometric: "MONOCHROME1" },
+  { voi: { center: 127.5, width: 256, function: "LINEAR_EXACT" }, photometric: "MONOCHROME1", invert: true },
+];
+
+/** Narrow windows whose centres step across [lo, hi] in at most `n` steps, off the grid by a quarter step. */
+function sweep(lo, hi, shift, n) {
+  const unit = 2 ** shift;
+  const step = Math.max(unit / 2, (hi - lo) / n);
+  const out = [];
+  for (let c = lo + step / 4; c <= hi; c += step) {
+    for (const width of new Set([1, unit, 3 * unit])) out.push({ voi: { center: c, width, function: "LINEAR" } });
+    out.push({ voi: { center: c, width: unit, function: "LINEAR_EXACT" } });
+    out.push({ voi: { center: c, width: unit, function: "SIGMOID" } });
+  }
+  return out;
+}
+
+let painter = null;
+let canvas = null;
+async function fresh(w, h) {
+  painter?.close();
+  canvas?.remove();
+  canvas = document.createElement("canvas");
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
+  document.body.append(canvas);
+  painter = new Painter(canvas);
+  return painter.renderer;
+}
+
+function mismatches(rgba, codes) {
+  let n = 0;
+  for (let i = 0; i < codes.length; i++) {
+    const c = codes[i];
+    if (rgba[4 * i] !== c || rgba[4 * i + 1] !== c || rgba[4 * i + 2] !== c) n++;
+  }
+  return n;
+}
+
+/** One case: `preview` (Uint8Array or Uint16Array of p) painted reduced and, after `shown()`, at full scale. */
+async function one(c, preview, windows) {
+  const { width, height, bits, shift, bias } = c;
+  const pixels = new SharedArrayBuffer(preview.byteLength);
+  new preview.constructor(pixels).set(preview);
+  const reduced = { pixels, width, height, bits, components: 1, signed: false, reduced: { shift, bias } };
+  const full = { width, height, bits: c.fullBits, signed: c.fullSigned, shift, bias };
+  const { sab } = shown({ heap: preview, offset: 0, stride: width }, full);
+  const fullFrame = { pixels: sab, width, height, bits: c.fullBits, components: 1, signed: c.fullSigned };
+  const stored = c.fullSigned ? new Int16Array(sab) : new Uint16Array(sab);
+  const { offset } = tableShape(fullFrame);
+  const renderer = await fresh(width, height);
+  const codes = new Uint8Array(width * height);
+  let reducedBad = 0;
+  let fullBad = 0;
+  let worstWindow = null;
+  for (const d of windows) {
+    const display = { photometric: "MONOCHROME2", ...d, view: { fit: false, zoom: 1 } };
+    const table = windowTable(fullFrame, display);
+    for (let i = 0; i < codes.length; i++) codes[i] = table[stored[i] + offset];
+    const r = mismatches((await painter.paint(reduced, display, { read: true })).pixels, codes);
+    const f = mismatches((await painter.paint(fullFrame, display, { read: true })).pixels, codes);
+    if (r && !worstWindow) worstWindow = { ...d, samples: r };
+    reducedBad += r ? 1 : 0;
+    fullBad += f ? 1 : 0;
+  }
+  return { key: c.key, renderer, windows: windows.length, samples: codes.length, reducedBad, fullBad, worstWindow };
+}
+
+globalThis.dbt = async (c) => {
+  const bytes = await (await fetch(`frames/${c.key}.raw`)).arrayBuffer();
+  const preview = c.bits > 8 ? new Uint16Array(bytes) : new Uint8Array(bytes);
+  const lo = (c.min << c.shift) - c.bias;
+  const hi = (c.max << c.shift) - c.bias;
+  return one({ ...c, fullBits: c.stored, fullSigned: false }, preview, [...VOI_TEST, ...sweep(lo, hi, c.shift, 16)]);
+};
+
+/** Every preview code once, 256 a row; windows swept over the whole stored range. */
+globalThis.ramp = async (c) => {
+  const n = 1 << c.bits;
+  const preview = c.bits > 8 ? new Uint16Array(n) : new Uint8Array(n);
+  for (let p = 0; p < n; p++) preview[p] = p;
+  const lo = -c.bias - 2 ** c.shift;
+  const hi = ((n - 1) << c.shift) - c.bias + 2 ** c.shift;
+  return one({ ...c, width: 256, height: n / 256 }, preview, [...VOI_TEST, ...sweep(lo, hi, c.shift, 400)]);
+};
+/** One timed paint of a new frame, fit into `css`: arm "cpu" runs shown() then paints full scale, arm "gpu" paints p as it is. */
+const benches = new Map();
+globalThis.time = async (c, arm, display, css) => {
+  if (!benches.has(c.key)) {
+    const bytes = await (await fetch(`frames/${c.key}.raw`)).arrayBuffer();
+    const cv = document.createElement("canvas");
+    cv.style.width = `${css.w}px`;
+    cv.style.height = `${css.h}px`;
+    document.body.append(cv);
+    const p = new Painter(cv);
+    await p.renderer;
+    benches.set(c.key, { p, preview: c.bits > 8 ? new Uint16Array(bytes) : new Uint8Array(bytes) });
+  }
+  const { p, preview } = benches.get(c.key);
+  const { width, height, bits, shift, bias } = c;
+  // The preview as copyTo leaves it, a new buffer each paint (else the painter skips the upload), made off the clock.
+  const plane = new preview.constructor(new SharedArrayBuffer(preview.byteLength));
+  plane.set(preview);
+  const t0 = performance.now();
+  let frame;
+  if (arm === "cpu") {
+    const { sab } = shown({ heap: plane, offset: 0, stride: width }, { width, height, bits: c.stored, signed: false, shift, bias });
+    frame = { pixels: sab, width, height, bits: c.stored, components: 1, signed: false };
+  } else {
+    frame = { pixels: plane.buffer, width, height, bits, components: 1, signed: false, reduced: { shift, bias } };
+  }
+  const t1 = performance.now();
+  const { ms } = await p.paint(frame, display);
+  return { roundTrip: performance.now() - t0, prep: t1 - t0, worker: ms, renderer: await p.renderer };
+};
+globalThis.ready = true;
+</script>
+</body>

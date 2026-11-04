@@ -7,7 +7,7 @@ grey above 10 bits is coded as (v + half) >> s and shown as p << s; colour is BT
 4:2:0, back to RGB in 16-bit fixed point (preview_rgb). Every residual is decoded, added to the
 native dav1d preview and compared with the checksum written when the frame was fetched.
 
-usage: encode.py BUILD OUT SETDIR ...   — lab/av1/delivery/residual/README.md
+usage: encode.py BUILD OUT SETDIR ... [--crfs 8,20,32,44] [--shift s]   — lab/av1/delivery/residual/README.md
 """
 import hashlib
 import json
@@ -26,6 +26,7 @@ GROUP = 8
 CRFS = (8, 20, 32, 44)
 PRESET = 6
 DAV1D_ENV = None
+SHIFT = None
 
 
 def coded_bits(s):
@@ -33,12 +34,16 @@ def coded_bits(s):
 
 
 def grey_shift(s):
-    return max(0, coded_bits(s) - 10)
+    return max(0, coded_bits(s) - 10) if SHIFT is None else SHIFT
+
+
+def preview_bits(s):
+    return 8 if s.ch == 3 else 10 if coded_bits(s) - grey_shift(s) <= 10 else 12
 
 
 def to_preview_grey(s, v):
     k = grey_shift(s)
-    return np.minimum((v + ((1 << k) >> 1)) >> k, 1023).astype("<u2")
+    return np.minimum((v + ((1 << k) >> 1)) >> k, (1 << preview_bits(s)) - 1).astype("<u2")
 
 
 def preview_rgb(y, u, v):
@@ -92,13 +97,14 @@ def dav1d(build, ivf, out):
 
 def preview_cell(build, s, work, crf):
     y4m, ivf = work / "in.y4m", work / "preview.ivf"
+    pb = preview_bits(s)
     with open(y4m, "wb") as fh:
-        fh.write(f"YUV4MPEG2 W{s.w} H{s.h} F25:1 Ip A1:1 C{'420' if s.ch == 3 else '420p10'}\n".encode())
-        grey = np.full(((s.h + 1) // 2, (s.w + 1) // 2), 512, "<u2")
+        fh.write(f"YUV4MPEG2 W{s.w} H{s.h} F25:1 Ip A1:1 C{'420' if s.ch == 3 else f'420p{pb}'}\n".encode())
+        grey = np.full(((s.h + 1) // 2, (s.w + 1) // 2), 1 << (pb - 1), "<u2")
         for i in range(s.n):
             planes = to_yuv420(s.frame(i)) if s.ch == 3 else (to_preview_grey(s, coded(s, i)[..., 0]), grey, grey)
             fh.write(b"FRAME\n" + b"".join(np.ascontiguousarray(p).tobytes() for p in planes))
-    colour = ["--monochrome", "--bit-depth=10", "--input-bit-depth=10", "--profile=0"] if s.ch == 1 else \
+    colour = ["--monochrome", f"--bit-depth={pb}", f"--input-bit-depth={pb}", f"--profile={2 if pb == 12 else 0}"] if s.ch == 1 else \
         ["--bit-depth=8", "--profile=0", "--color-primaries=bt601", "--transfer-characteristics=bt601",
          "--matrix-coefficients=bt601"]
     timed([build / f"aom-{AOM}/bin/aomenc", "-q", "--ivf", "-o", ivf, "--end-usage=q", f"--cq-level={crf}",
@@ -187,9 +193,19 @@ def sha(planes):
 
 
 def main():
-    build, out = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
+    global SHIFT
+    args, crfs = sys.argv[1:], CRFS
+    if "--crfs" in args:
+        i = args.index("--crfs")
+        crfs = tuple(int(c) for c in args.pop(i + 1).split(","))
+        args.pop(i)
+    if "--shift" in args:
+        i = args.index("--shift")
+        SHIFT = int(args.pop(i + 1))
+        args.pop(i)
+    build, out = Path(args[0]).resolve(), Path(args[1]).resolve()
     manifest = []
-    for d in sys.argv[3:]:
+    for d in args[2:]:
         s = Set(Path(d))
         dst, work = out / s.name, out / f".{s.name}-work"
         dst.mkdir(parents=True, exist_ok=True)
@@ -199,8 +215,8 @@ def main():
                      offset=s.offset, htj2k_shift=shift, grey_shift=grey_shift(s) if s.ch == 1 else None,
                      frames=s.n, truth=s.truth, htj2k=sizes, cells=[])
         print(s.name, "HTJ2K", sum(sizes), "B", flush=True)
-        for crf in CRFS:
-            cell = f"crf{crf}"
+        for crf in crfs:
+            cell = f"crf{crf}" if SHIFT is None else f"crf{crf}-s{SHIFT}"
             (dst / cell).mkdir(exist_ok=True)
             units, frames = preview_cell(build, s, work, crf)
             for i, u in enumerate(units):
@@ -217,7 +233,8 @@ def main():
             c = dict(cell=cell, crf=crf, group=GROUP, preview=[len(u) for u in units],
                      preview_hashes=[sha(f) for f in frames], psnr_mean=p, max_abs=worst,
                      resid_offset=ro, resid_bits=bits, resid_htj2k=rh, resid_av1=ra,
-                     webcodecs="av01.0.00M.10" if s.ch == 1 else "av01.0.00M.08")
+                     preview_bits=preview_bits(s), preview_shift=grey_shift(s) if s.ch == 1 else None,
+                     webcodecs=f"av01.{2 if preview_bits(s) == 12 else 0}.00M.{preview_bits(s)}")
             entry["cells"].append(c)
             h, pv = sum(sizes), sum(c["preview"])
             print(s.name, cell, f"preview {pv / h:.4f} PSNR {p} max|Δ| {worst} resid {lo}..{hi} ({bits} b)",
