@@ -89,3 +89,9 @@ and SHA-256 matched and no fallback.
 
 **Committed results.** `manifest.json` is the four sets' frames and truths as coded; `checks.json.gz` the rows of the
 three broken-copy checks and the Firefox round. The reading is in `docs/decode/README.md` §Grey path, measured.
+
+## Measured (2026-11-04)
+
+[`report.md`](report.md) is `report.mjs` over `rows.json.gz`; `busy.txt` is `passes/busy.mjs` over the host's CPUs,
+cut by `run.log`. 188 browsers, 48 128 of 48 128 frames exact; the reading by the protocol's rule is in
+`docs/decode/README.md` §Grey path, measured.

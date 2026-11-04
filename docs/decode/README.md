@@ -2542,34 +2542,83 @@ with these numbers and the merge-free run's.
 
 ### Grey path, measured
 
-*Partial (2026-11-04)*, by a separate session given only the protocol ([`grey-path`](../../lab/av1/decode/grey-path/README.md)).
+*Measured (2026-11-04)*, by a separate session given only the protocol ([`grey-path`](../../lab/av1/decode/grey-path/README.md)).
 
-1. **Run:** the grey path protocol, pre-registered (above), its four arms on its four cells, at 1× and 4×, in
-   Chromium 141.0.7390.37 on 4 vCPUs, and its Firefox check.
-2. **Shows, so far:** every broken copy fails as the protocol requires, and in Firefox 157.0.1 every frame of the
-   four sets goes to dav1d-WASM, exact. The timed rounds are running.
+1. **Run:** the grey path protocol (above) as written: W, W′, W2 and R on its four cells, 148 rounds at 1× and 40
+   at 4×, in Chromium 141.0.7390.37 on 4 vCPUs, and its untimed Firefox 157.0.1 round.
+2. **Shows:** **48 128 of 48 128 frames exact**, so the run is read. M is a speed-up in 5 of 8 cells and not resolved
+   in 3, and a cost in none. R is a speed-up in 6 and not resolved in 2. Firefox sent every frame to dav1d-WASM.
 3. **Rests on:** `usb_cine` frames 24–39, lossless and at Q = 10, and the middle 16 slices of `dbts_b1` (17–32)
-   and `dbts_b3` (23–38) at Q = 10, each a single unsplit 4:0:0 stream at G = 1. Nothing is claimed for other sets.
-4. **Left:** the 148 rounds at 1× and 40 at 4×, then the reading. The rows of the first 130 browsers are in `rows.json.gz`, every frame exact; they are not read before the run ends.
-5. Terms are the protocol's: *M* is `onePass`'s chroma-check skip, read as W2 ÷ W; *R* is `reuseCopyBuffer`, read
-   as R ÷ W2; the *A/A* is W′ ÷ W, two workers of one config.
+   and `dbts_b3` (23–38) at Q = 10, each a single unsplit 4:0:0 stream at G = 1, decoded one at a time. Nothing is
+   claimed for other sets, for a series the ingest writes beyond `usb_cine` lossless, for fills or for phones.
+4. **Left:** whether R becomes the default stays the owner's call, with these numbers and the merge-free run's.
+   The protocol changes no default.
+5. **Terms**, the protocol's: *M* is `onePass`'s skip of the chroma check on a `mono_chrome` stream, read as
+   W2 ÷ W; *R* is `reuseCopyBuffer`, read as R ÷ W2; the *A/A* is W′ ÷ W, two workers of one config. A lever is
+   *a speed-up* in a cell when its 95 % interval lies entirely below 1.00, *a cost* when it lies entirely above, and
+   *not resolved* otherwise.
 
 **Codings.** `usb_cine` lossless is `passes/codings.py`'s, 1 133 300 B of payload for 16 frames, every frame
-decoded natively and matched to its fetch checksum. The three lossy sets are `lossy.py`'s: 345 898, 5 178 077 and
-5 163 681 B. Every one of their 48 units decoded alone by native dav1d 1.5.4 and by `aomdec` 3.15.1 gave the same
-samples, and those samples are each frame's truth. The lossy `usb_cine` frame differs from its source in 36 % of
-its samples, by at most 6 (frame 24), so the cells are lossy in fact.
+decoded natively and matched to its fetch checksum. The three lossy sets are `lossy.py`'s: 345 898
+(`usb_cine_q10`), 5 178 077 (`dbts_b1_q10`) and 5 163 681 B (`dbts_b3_q10`). Each of their 48 units, decoded alone
+by native dav1d 1.5.4 and by `aomdec` 3.15.1, gave the same samples, and those samples are each frame's truth. The
+lossy `usb_cine` frame 24 differs from its source in 36 % of its samples, by at most 6, so the cells are lossy in fact.
 
-**Checks**, one round at 1× each, rows in `checks.json.gz`:
+**Checks**, one round at 1× each before the run, rows in `checks.json.gz`:
 
 | check | must read | read |
 | --- | --- | --- |
 | `--mutate`, every arm, every set | 0 exact | 0 of 256, and every warm-up frame inexact |
 | `neutral()` one off: W, W2, R | W 0 exact on `av1-webcodecs`; W2, R all | W 0 of 64: every frame decoded on `av1-dav1d` (exact there); W2 and R 64 of 64 each |
-| R with `copyTo` skipped on a reused buffer | exact on each worker's first frame only | the warm-up frame exact in each set; of the 16 timed, frame 0 exact (the warm-up is frame 0, so the stale buffer holds the same samples) and 15 of 15 others mismatched on WebCodecs and were decoded again on dav1d |
+| R with `copyTo` skipped on a reused buffer | exact on each worker's first frame only | the warm-up frame exact in each set; of the 16 timed, frame 0 exact (the warm-up is frame 0, so the stale buffer holds the same samples) and the other 15 mismatched on WebCodecs and were decoded again on dav1d |
 | Firefox 157.0.1, default config, untimed | every frame `av1-dav1d`, exact | 68 of 68 (16 + the warm-up, × 4 sets), none on WebCodecs |
 
-A smoke round before the run (not counted) read 256 of 256 exact.
+**The run.** [`report.md`](../../lab/av1/decode/grey-path/report.md) is `report.mjs` over the rows
+(`rows.json.gz`). 188 browsers, 3 008 arm runs, 48 128 frames, each exact the first time on WebCodecs with its
+SHA-256 matched; none off WebCodecs, none rescued by the fallback, and all 3 008 warm-up frames exact too.
+
+**ms a frame**, `decodeStart`→`decodeEnd`, the median over rounds of each round's median of 16:
+
+| throttle | set | W | W′ | W2 | R |
+| --- | --- | --: | --: | --: | --: |
+| 1× | `usb_cine` | 11.0 | 11.1 | 10.9 | 10.7 |
+| 1× | `usb_cine_q10` | 6.2 | 6.1 | 5.9 | 5.8 |
+| 1× | `dbts_b1_q10` | 135.6 | 137.0 | 130.1 | 116.2 |
+| 1× | `dbts_b3_q10` | 97.2 | 97.6 | 94.0 | 85.5 |
+| 4× | `usb_cine` | 30.3 | 30.6 | 30.3 | 29.7 |
+| 4× | `usb_cine_q10` | 11.8 | 11.6 | 11.9 | 11.3 |
+| 4× | `dbts_b1_q10` | 405.8 | 408.8 | 380.4 | 324.6 |
+| 4× | `dbts_b3_q10` | 277.9 | 276.5 | 265.3 | 226.4 |
+
+**The reading**, round-paired, the median [95 % interval]; 148 rounds at 1×, 40 at 4×:
+
+| throttle | set | W′ ÷ W (A/A) | W2 ÷ W (M) | M | R ÷ W2 (R) | R |
+| --- | --- | --: | --: | --- | --: | --- |
+| 1× | `usb_cine` | 1.006 [0.988–1.018] | 0.992 [0.985–1.002] | not resolved | 0.971 [0.965–0.988] | speed-up |
+| 1× | `usb_cine_q10` | 0.999 [0.979–1.018] | 0.960 [0.943–0.984] | speed-up | 0.972 [0.954–0.995] | speed-up |
+| 1× | `dbts_b1_q10` | 1.008 [1.003–1.018] **miss** | 0.962 [0.950–0.974] | speed-up | 0.883 [0.877–0.896] | speed-up |
+| 1× | `dbts_b3_q10` | 0.997 [0.990–1.013] | 0.968 [0.958–0.977] | speed-up | 0.910 [0.902–0.924] | speed-up |
+| 4× | `usb_cine` | 1.015 [0.969–1.044] | 1.001 [0.943–1.055] | not resolved | 0.982 [0.951–1.019] | not resolved |
+| 4× | `usb_cine_q10` | 0.997 [0.903–1.047] | 0.988 [0.914–1.041] | not resolved | 1.001 [0.942–1.047] | not resolved |
+| 4× | `dbts_b1_q10` | 1.019 [0.972–1.032] | 0.930 [0.916–0.942] | speed-up | 0.860 [0.836–0.877] | speed-up |
+| 4× | `dbts_b3_q10` | 0.978 [0.961–1.008] | 0.948 [0.890–0.966] | speed-up | 0.865 [0.833–0.894] | speed-up |
+
+**By the reading as written.** The A/A missed in 1 cell of 8 (`dbts_b1_q10` at 1×, lower end 1.003), which the
+protocol allows, so the run is not void. **M is a cost in no cell**: a speed-up in both lossy DBT cells at both
+throttles and in `usb_cine_q10` at 1×, not resolved in `usb_cine` at both throttles and `usb_cine_q10` at 4×.
+**R is a speed-up** in both lossy DBT cells at both throttles and in both `usb_cine` cells at 1×, and not resolved
+in both `usb_cine` cells at 4×. On `usb_cine` lossless, the one cell whose shape the product serves, M is not
+resolved at either throttle and R is a speed-up at 1× only. No default changes here: the protocol answers the
+owner's question and leaves R's default to the owner.
+
+The post → consumer-port receipt, beyond `decodeStart`→`decodeEnd`, was 0.3–0.7 ms a frame at the median in every
+arm and cell (`report.md`), recorded as a check and not decided on.
+
+**The host.** 4 vCPUs of an Intel Xeon at 2.10 GHz, one ask at a time, one `VideoDecoder` per arm.
+`passes/busy.mjs` over `busy.sh`'s samples: at 1× a browser kept 29–32 % of the 4 CPUs busy on average and its
+busiest second reached 40 %; at 4×, 15–20 % and 32 %. No second reached 95 %. The host did not saturate in this
+run, and where it saturates was not measured, so nothing is claimed for fills, concurrency or phones. Each cell is
+in ms a frame, latency only.
 
 ## Hardware decode
 
