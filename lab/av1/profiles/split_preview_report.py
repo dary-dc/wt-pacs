@@ -2,7 +2,7 @@
 """Row SPLITPREVIEWB's tables and verdicts (split-preview-b.md §Statistics and decision rules), from the rows alone:
 equal Q, equal PSNR with its tol, residual, SSIM and display, the decode cells and their A/A, S1–S8, the verdict.
 
-usage: split_preview_report.py RESULTS_DIR [--partners]
+usage: split_preview_report.py RESULTS_DIR [--partners | --decode FILE]   (FILE in RESULTS_DIR, default decode.json)
        split_preview_report.py --test
 """
 import json
@@ -290,7 +290,7 @@ def table(head, body):
     return "\n".join(["| " + " | ".join(head) + " |", "|" + " --- |" * len(head)] + ["| " + " | ".join(map(str, r)) + " |" for r in body])
 
 
-def report(out):
+def report(out, decode_file="decode.json"):
     by = rows(out)
     lines = []
     say = lines.append
@@ -400,7 +400,7 @@ def report(out):
     say(f"* S7 {verdicts['S7']}: {len(s7)} matched points, residual ratio "
         f"{min(v for _, v in s7):.4f}–{max(v for _, v in s7):.4f}" if s7 else "* S7: no matched point")
 
-    dec = Path(out) / "decode.json"
+    dec = Path(out) / decode_file
     if dec.exists():
         drows = [r for r in json.loads(dec.read_text()) if r.get("unit")]
         aa, cells = decode(drows)
@@ -466,4 +466,4 @@ if __name__ == "__main__":
         print(json.dumps([dict(set=s, anchor=q, partner=p["q"], delta=p["delta"], middle=(by[(s, "10bit", q, 1)]["frames"] - 16) // 2)
                           for (s, q), p in sorted(partners(by).items())]))
         sys.exit()
-    print(report(sys.argv[1]))
+    print(report(sys.argv[1], sys.argv[sys.argv.index("--decode") + 1] if "--decode" in sys.argv else "decode.json"))
