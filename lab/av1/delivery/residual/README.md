@@ -730,3 +730,74 @@ NODE_PATH=$(npm root -g) node lab/av1/delivery/residual/pixel.mjs --frames lab/.
 The cloud host's command is the same without `--gpu` and `--chromium-args`, with `--arms L,LR,LS,A2,A1,A1′,AS,H` and
 `--out rows/pixel.json`. G0 (#8) gets no arm until a browser's upload precision for a 10-bit frame is read from its
 source.
+
+## Lossy pixel work, measured (2026-11-04)
+
+* **Run:** the protocol above as written, on this branch: arms L, LR, LS, A2, A1, A1′, AS and H, 152 rounds at 1× and 40 at 4×. *In progress; this is a dated partial.*
+* **Shows:** *not yet read*. The rule is applied once the campaign ends, or to the rounds it has if it is cut.
+* **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` at CRF 20 and `mr_ispy1` at CRF 8, their first 16 frames; nothing is claimed for another series.
+* **Host:** a 4-core cloud VM, headless Chromium with a software renderer (SwiftShader), one worker at a time.
+* **Left:** lever G (G1, G2), owed to a machine with a hardware GPU, and not yet written in this harness.
+
+**Terms** are the protocol's. In addition: a **cell** is one (set, throttle); a **span** is one arm's `performance.now()`
+interval on one frame; **prep** is the untimed `shown()` of each frame that the A arms add to (below).
+
+**Harness.** [`pixel.mjs`](pixel.mjs) (driver), [`pixel.js`](pixel.js) (one worker per set and round, every arm),
+[`pixel.html`](pixel.html), [`pixel-report.mjs`](pixel-report.mjs) (checks, ratios, rule). Rows in
+[`rows/pixel.json`](rows/), the host's busy seconds beside them in `rows/pixel.json.busy`, the pre-campaign checks in
+`rows/pixel-check-*.txt`.
+
+**Setup, as the protocol's commands ran here.**
+
+* `lab/av1/tools/tools.sh` needed `meson`, which this host lacked; it was installed from PyPI (unpinned). dav1d's
+  source is still checked by its pinned commit.
+* `client/decode/wasm/build/build.sh` ran in its container (the Docker daemon started by hand). All built files match
+  `wasm/build/manifest.sha256`, which `built()` and `builtWasm()` check again in the browser.
+* `lab/av1/fetch_data.sh` stopped at a 404 on a set this row does not use. The four sets were then fetched by name and
+  checked against `data.json`.
+* `encode.py` and `apart_truth.py` are not executable here, so they ran under `lab/av1/.venv/bin/python`.
+  `lab/av1/size.py` looks for OpenJPH's encoder at `lab/.openjph-build/install`; that path is a link to the OpenJPH 0.31.0
+  that `tools.sh` built from its pinned commit.
+* The encodings reproduce RESIDAPART's. HTJ2K bytes are 67 812 443, 107 407 602 and 70 664 924 B. Preview PSNR and
+  max |Δ| are 45.94 · 589, 44.77 · 376 and 46.56 · 644, and `mr_ispy1` is 47.88 · 64. Film grain is 0/2 keyframes on each.
+* `add-build.sh` built S with clang 18.1.3 (`add.wasm` sha256 `e25e4720…`, `broken/add.wasm` `7a853173…`), and
+  `node --test add.test.mjs add-simd.test.mjs` passed 15 of 15.
+
+**Where the harness had to choose.** Each is a reading of the protocol, not a change to it.
+
+* **The A arms' preview is prep, not L's own output.** The Williams order puts an A arm before L on some frames, so
+  each frame is first shown once, untimed (`copyTo` and `shown()`), and the A arms add to that buffer. L's timed output
+  is checked byte-equal to prep on every frame (`=prep`).
+* **H's OpenJPH stamp is a twin.** `htj2k.js` keeps its decoder private, and product code is not changed. So H's codec
+  call is timed as a second decode of the same codestream, in a decoder object of its own, right after H's span. It
+  enters only design 3's share, which decides nothing.
+* **`mr_ispy1` is stored 16-bit signed** (values 0–1765), and its HTJ2K carries the samples +32768 as unsigned
+  (`htj2k_shift`). H's SHA-256 and digest agreement are taken on its output shifted back, outside the span. Its digest
+  stage times the raw output. S writes unsigned samples only (`add-simd.js`: "the kernel writes unsigned samples over 8
+  bits only"), so LS and AS are refused on `mr_ispy1`, and its frames rotate over the other six arms. The S rule reads
+  DBT cells only.
+* **A defect in `add-simd.js`.** `target()` evaluates `x.memory.buffer` before `layout()` grows the memory, so the
+  first call that grows it throws "Cannot perform Construct on a detached ArrayBuffer". This harness grows the kernel's
+  memory once, before any span (`pixel.js` `setUp`). `add-simd.js` is not changed here; the fix is the owner's.
+* **Decode, for the shares,** is the WebCodecs group's span from the first chunk handed in to `flush()` resolving,
+  divided by 8. Chunk-to-output stamps are also kept. They queue behind the group's earlier chunks, so they are not
+  per-frame decode times.
+* **The order effect** is computed per pair on frames: every frame's ratio, grouped by the numerator arm's predecessor
+  on that frame. The statistic is the largest |group median ÷ overall median − 1| (*derived*: RESIDAPART's statistic,
+  moved from rounds to frames because here the arms rotate inside a round).
+* **`busy.sh`** is on another branch and watches merge-free's driver. `pixel.mjs` writes the same line itself, once a
+  second: epoch, busy jiffies, total jiffies.
+* **A prediction counts as falsified** when a DBT cell's median lies outside its range.
+
+**The checks before the campaign** (one round at 1×, every set, [`rows/pixel-check-none.txt`](rows/pixel-check-none.txt)
+and its siblings), each as the protocol requires:
+
+| run | result |
+| --- | --- |
+| unmutated | every check 16/16 in every set |
+| `--mutate hash` | every SHA-256 check 0/16, exact and preview, in every arm and set. `=L`, `=prep` and `agree` compare bytes or XXH3 digests with each other, not with a stored hash, and stay 16/16 |
+| `--mutate offset` | A2, A1, A1′ and AS 0/16 exact; H and the previews 16/16 |
+| `--mutate kernel` (`broken/add.wasm`) | AS 0/16 exact and LS 0/16 equal to L on the three DBT sets; `mr_ispy1` has no S arm |
+| `--mutate reuse` | LR 1/16 equal to L in every set |
+
+*Results follow when the campaign ends.*
