@@ -325,7 +325,7 @@ decoder does not survive: encode unsigned, then set each component's sign bit in
 
 The one exception to generated-only: whether AV1's inter coding pays depends on how much
 neighbouring frames share, which synthetic frames with independent noise cannot answer
-([`av1/README.md`](av1/README.md) §Content). Eighty-eight public series, fetched at run time — eighty-five from the
+([`av1/README.md`](av1/README.md) §Content). Ninety-one public series, fetched at run time — eighty-eight from the
 NCI Imaging Data Commons public bucket (anonymous HTTPS; chosen with `idc-index` 0.12.5, IDC release v24),
 three of breast ultrasound from two Zenodo records — never committed:
 
@@ -341,7 +341,7 @@ concatenated in order. Stacks are ordered by position along the slice normal (un
 checked). A set may name a `crop` [y, x, h, w], kept from every frame. Every frame was checked once
 against the file's `PixelData` bytes read directly, not through the DICOM library's pixel decoder:
 all 387 identical (the missing-content search's nine sets, queue row DATA3: 565/565; the
-breast-family fetch's seven, queue row BREAST: 140/140), and no sample carries bits above
+breast-family fetch's seven, queue row BREAST: 140/140; the ultrasound data search's three cines: 74/74), and no sample carries bits above
 `BitsStored`. The ultrasound sets are a pinned zip's pinned members decoded by FFmpeg 6.1.1 (`-threads 1`;
 RGB through its bit-exact `swscale` flags, which the digest pins: other flags change it): their frames are what
 that decoder makes of a lossy clip, checked against a second run with FFmpeg's default threads (128/128) and the
@@ -407,6 +407,7 @@ stills against Pillow 11.3.0's PNG decoder (29/29). Dependencies: pydicom 3.0.1 
 | `usrgb_mel` | ultrasound stills, colour, natively stored uncompressed | 8 × 1400×1050 | 3 × 8-bit RGB | 0..255 | CMB-MEL, CC BY 4.0 | sound |
 | `usrgb_lca` | ultrasound stills, colour, natively stored uncompressed | 8 × 1400×1050 | 3 × 8-bit RGB | 0..255 | CMB-LCA, CC BY 4.0 | sound |
 | `usrgb_stad` | ultrasound stills, colour, natively stored uncompressed | 8 × 1552×970 | 3 × 8-bit RGB | 0..255 | CPTAC-STAD, CC BY 4.0 | sound |
+| `uscine_crc1`…`uscine_crc3` | ultrasound cine, B-mode liver (biopsy), grey, 32 frames/s, natively stored uncompressed; three clips of one series | 21, 25, 28 × 552×421 | 8-bit | 0..255 | CMB-CRC, CC BY 4.0 | sound |
 
 ### Provenance
 
@@ -459,6 +460,7 @@ to fail; on the real files, `us_liver` and `usb_still` marked `sound` are refuse
 | `syn2ds_a*`, `syn2ds_b1`…`b3` | explicit LE | 00 | `DERIVED\PRIMARY\TOMOSYNTHESIS\GENERATED_2D` | — | — | sound |
 | `syn2ds_b4` | implicit LE | 00 | `DERIVED\PRIMARY` | FOR PRESENTATION | — | sound |
 | `usrgb_*` (six sets, 48 stills) | explicit LE | 00 | `DERIVED\PRIMARY\…` or `ORIGINAL\PRIMARY\…`, fourth value `0011` (2-D with colour flow) on 42, `0001` on 6 | — | — | sound |
+| `uscine_crc1`…`uscine_crc3` | explicit LE | 00 | `ORIGINAL\PRIMARY\\0001` | — | — | sound |
 | `usb_cine`, `usb_cine_rgb` | an AVI clip, MPEG-4 Part 2 | the coding is lossy | — | — | decoded by FFmpeg; luma kept, or converted to RGB | lossy-sourced |
 | `usb_still` | a PNG, cropped around the lesion by the dataset | not recorded | — | — | decoded by FFmpeg | unknown |
 
@@ -726,6 +728,37 @@ ABUS has nothing close: only a site's native scanner DICOM under a written licen
 
 Sources: the hosts' APIs and pages, read 2026-10-27; the two Hugging Face headers; CardioSYNTAX's `all.json` against
 `philips_100.json`.
+
+#### The ultrasound data search (2026-11-04)
+
+* **Asked:** ultrasound cine and swept volumes of any anatomy, and ABUS, that the earlier searches did not list.
+* **Answer:** one sound cine source, small: three native grey B-mode clips (21–28 frames) in IDC's CMB-CRC, now `uscine_crc1`…`3`. Nothing sound for breast cine or ABUS.
+* **Rests on:** every US header in IDC v25 outside the three collections already read whole, and the hosts' own pages below.
+* **Left:** the sound cine is one patient, one scanner, one liver biopsy: a single source, under the two-source bar.
+* **The owner decides or requests:** below, *The short list*.
+
+Status: IDC done; the other hosts are being read (this session).
+
+**IDC v25 (`idc-index-data` 25.0.5, still the newest on PyPI), every US series, headers read from 256 KiB range reads
+with pydicom 3.0.2, 2026-11-04 from 21:40 UTC.** The index's 2 249 US series sit in twelve collections; the prostate
+TRUS volumes and ReMIND are as the wider search found. Every instance of the other ten was read (3 233 headers:
+`b_mode_and_ceus_liver`'s 1 859 and the nine smaller collections' 1 374):
+
+| collection | multi-frame instances | as stored | Lossy Image Compression | class |
+| --- | --: | --- | --- | --- |
+| `b_mode_and_ceus_liver` | 917, GE LOGIQ E9, RGB or `YBR_FULL` | implicit or explicit LE | `01` on all 917 | lossy-sourced |
+| `cmb_crc` | 56, Philips EPIQ 7C, RGB, 48–271 frames | explicit LE | `01`, `ISO_10918_1` | lossy-sourced |
+| `cmb_crc` | **3, GE LOGIQ S8, `MONOCHROME2`, 21, 25 and 28 frames of 552×421, 8 bits, `CineRate` 32** | explicit LE | **`00`**, `ImageType` `ORIGINAL\PRIMARY\\0001` | **sound** |
+| `cmb_mel` | 18, GE LOGIQ E9, `MONOCHROME2`, 52–115 frames | explicit LE | `01`, ratio 25.6–30.8 | lossy-sourced |
+| `cptac_ucec` (*new here*) | 6, Siemens S2000, `YBR_FULL`, 91–302 frames of 1024×768, `ImageType` `DERIVED\PRIMARY\GYN\0001` | explicit LE | `01`, ratio 21–24, `ISO_10918_1` | lossy-sourced |
+| `cmb_brca`, `cmb_lca`, `cptac_aml`, `cptac_pda`, `cptac_stad`, `varepop_apollo` | none: stills | explicit LE | `00`, absent, or `01` (`cptac_pda`'s GE) | — |
+
+The three sound clips are one series (study `Biopsy_Liver`, series
+1.3.6.1.4.1.14519.5.2.1.1.23559092546432114112420871134697309480), acquired two seconds apart (`ContentTime` 200527, 200529, 200531), licence `CC BY 4.0` by IDC's
+`license_short_name`, `PatientIdentityRemoved` `YES`. Each clip's first three and last three frames are identical
+(checked): the clip as the scanner stored it, kept whole. Every frame matches the file's `PixelData` bytes read directly
+(74/74). Not breast and not ABUS; it is the first sound 8-bit grey cine here, the content rows GREY420, SPEED and FILL
+lacked (§*Every closed verdict against its data*).
 
 #### Every closed verdict against its data
 
