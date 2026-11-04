@@ -1809,7 +1809,8 @@ and writes only its own files.*
 
 ### Decode shard 4, measured
 
-*Not yet run.*
+*Partial, 2026-11-04: running.* Block `shard-4` of §7, run as §Shards gives it, on a fresh host: Intel Xeon @ 2.80 GHz,
+4 cores, 15 GiB. `decode_setup.sh` took 25.3 min wall. Rows: `rows/decode-shard-4.{json,log,txt}`, pushed every two rounds.
 
 ### Decode shard 5, measured
 
