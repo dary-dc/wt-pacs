@@ -356,4 +356,13 @@ either ran (`4b12442`), and nothing in 2–4 changed after them but the budget.
 * **Done.** `run.sh tools` (libaom 3.15.1, the patched `svc_encoder_rtc`, the lab's dav1d-WASM, OpenJPH, the three
   volumes SHA-256-checked, the profiles directory at `b9e3e9e`). The host lacked `meson`; it was installed with pip
   (1.12.1) before `tools`, no file of the repository changed.
-* **Running.** `run.sh content`.
+* **Content** (`run.sh content`, 23 min on this host): the `p3-m10/20/30` streams equal `svc-shapes.tsv`'s totals
+  byte for byte on all three volumes (`run.sh`'s diff empty); `content.py` coded `p3k1-m20` (`-k 1` accepted) and
+  the separate streams (`streams.py` did not stop: each equals the profiles bytes run's row); every layered ask decoded
+  natively from its keyframe is exact, 8/8 a volume for `p3-m20` and for `p3k1-m20` (48/48).
+* **Mutations** (`run.sh mutate`, `dbts_a1`, one round at 1×). `roles_test.py` 16/16, each of `mutate.py`'s six breaks
+  caught. Native: `skip` leaves `p3-m20` 1/8 (the keyframe's) and `p3k1-m20` 8/8; `low` 0/8 on both. In the browser:
+  `sample` 0/8 every exact arm and 0/56 every view; `truth` the same (its first cell hung and was written `VOID` after
+  15 min; run again, as above); `offset` `res` 0/8, its lossy frames 8/8, every other arm whole; `skip` `svc` 1/8,
+  `svc1` 8/8, every other arm whole; `low` `svc`, `svc1`, `k2` 0/8, every other arm whole. Each check sees its break.
+* **Running.** `run.sh rounds`, 10 rounds.
