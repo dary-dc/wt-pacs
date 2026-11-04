@@ -1470,10 +1470,13 @@ measured above.
 
 *The owner, 2026-11-02: most roles would scroll a cine-like series as a lossy AV1 stream meant to be visually
 lossless, and some could ask for the exact frame, never by default ([`../glossary.md`](../glossary.md), *quality
-profile*).* Theory, a prediction and two protocols, pre-registered and **not run**:
-[`lab/av1/profiles`](../../lab/av1/profiles/README.md) — §5 *Profiles bytes protocol, pre-registered* (offline: bytes,
-quality, encode time; results to go under *Profiles bytes, measured*) and §6 *Profiles decode protocol, pre-registered*
-(a lab harness, one decoder setting for every arm).
+profile*).* Theory, prediction, protocols and results: [`lab/av1/profiles`](../../lab/av1/profiles/README.md).
+
+* **Decode, measured 2026-11-04** (§7's amended protocol: six 4-core hosts, 108 rounds, pooled; §*Profiles decode,
+  measured (amended)* there). D1, D2 and D3 are each **refuted**. At 1×, a lossy frame through WebCodecs costs
+  1.05–2.24× an HTJ2K exact frame. A jump at G 16 through dav1d-WASM costs 3.8–13× one at G 1, against a 5–9 band.
+  Residual decode + add costs 1.42–1.69× an HTJ2K frame, against 0.9–1.1. Claimed for `dbts_a1`, `dbts_b1` and
+  `dbts_c1` (one DBT volume per system), Chromium 141, ≤ 4× only; no cine.
 
 * **The prediction** (*derived*, §2 there). Lossless inter lost on DBT because it pays for noise that adjacent slices
   do not share (ρ 0.11–0.22, [`frame-groups.md`](frame-groups.md) §4). A quantizer whose step exceeds the noise
