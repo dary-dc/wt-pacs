@@ -298,7 +298,39 @@ mutations' outcomes, the host and what was not run.
 
 ### 5 · The harness
 
-*To be filled once built and mutated.*
+[`lab/av1/delivery/carriers`](../../lab/av1/delivery/carriers/), built and run here on 2026-11-04 by this session, on
+the protocol's host: 4 cores of an Intel Xeon @ 2.80 GHz, 15 GB, headless Chrome for Testing 153.0.8010.12
+(playwright 1.63.0). `run.sh` runs §4 end to end (`tools`, `content`, `mutate`, `rounds`, `tables`).
+
+| file | does |
+| --- | --- |
+| `content.py` | codes `p3k1-m20` with `shape.py`'s encoder at `-k 1`; codes the separate streams through `streams.py`'s `lossy` (profiles `b9e3e9e`), which stops unless each stream and residual equals that run's row; decodes every lossy frame natively for its reference hash and its quality; decodes every layered ask natively from its keyframe and checks it exact; writes one index a volume |
+| `ask.mjs`, `ask.js`, `index.html` | §4's arms in a fresh Chromium a (round, throttle, volume); a cell that hangs past 15 min is closed, written `VOID` and counted |
+| `roles.py` | §4's role tables, the link pipeline, bytes at equal PSNR, the decision rule (through `aa_rule.py`), order effects |
+| `roles_test.py`, `mutate.py` | the claims `roles.py`'s arithmetic makes, and six breaks of it |
+
+**Reproduced before anything was timed.** The `p3-m10/20/30` streams coded here equal `svc-shapes.tsv`'s totals byte
+for byte on all three volumes (`run.sh` diffs them). Every separate stream and its residual equal the profiles bytes
+run's rows (`streams.py` refuses otherwise), and the volume PSNRs this harness computes for them equal that run's, for
+example 46.76 dB at Q 16 on `dbts_a1`. `p3k1-m20` codes: `-k 1` is accepted, and every top comes back exact.
+
+**Checks, and their mutations** (`dbts_a1`, one round at 1×; the native ones on the volume's asked group):
+
+| check | as run | mutated | verdict |
+| --- | --- | --- | --- |
+| a layered ask decoded natively from its keyframe, merged with k's low bits, against the fetch checksum | `p3-m20` and `p3k1-m20`, 8/8 on each volume (48/48) | `--mutate skip` (start one unit after the keyframe): `p3-m20` 1/8, the keyframe's own; `p3k1-m20` 8/8, having no group to skip into. `--mutate low` (k + 1's low bits): 0/8 on both | **sees it** |
+| every exact frame in the browser against the fetch checksum | `svc`, `svc1`, `res`, `htj2k`, `htj2k-aa`, `k2`: 8/8 each | `sample` (a sample flipped): 0/8 every arm. `truth` (the checksum flipped): 0/8 every arm. `offset` (the residual's offset + 1): `res` 0/8, its lossy frames 8/8 as native. `skip`: `svc` 1/8, the other seven refused by dav1d (`-28`) and written failed, not wrong; `svc1` 8/8. `low`: `svc`, `svc1`, `k2` 0/8, every other arm 8/8 | **sees it** |
+| every lossy frame in the browser against native dav1d's | the views' 616/616 (WebCodecs included) and `res`'s 8/8 | `sample`, `truth`: views 0/616 | **sees it**; `res`'s lossy check first ignored the mutation, fixed (it now takes it) |
+| `roles.py` | `roles_test.py` 16/16 | `mutate.py`: the link ignoring the previous frame, bytes interpolated linearly, an ask begun one unit late, no A/A range, a trade read as a win, the order effect against another centre: each fails the test | **sees it** |
+
+**Fixed while building, before any round counted:** the merge and the residual's add first ran a per-sample
+callback, which slowed `res` against `htj2k` by the harness's own cost; they are now one loop a row, as a client would
+write them. A decode error ended the run; it now fails its ask. One cell hung once with no browser left; the 15-min
+`VOID` guard is the answer.
+
+**What this session timed, and did not read.** One round, run while `content.py` still coded on the other cores, and
+the timing round below. Their rows are not committed and not read here: the predictions in 3 were committed before
+either ran (`4b12442`), and nothing in 2–4 changed after them but the budget.
 
 ### Sources
 
