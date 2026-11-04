@@ -11,8 +11,9 @@ from collections import defaultdict
 
 import numpy as np
 
-MEASURES = ("ge1", "ge2", "ge4", "max", "levels", "ssim", "cambi_2", "cambi_5")
-LOWER_IS_BETTER = {"ge1", "ge2", "ge4", "max", "cambi_2", "cambi_5"}
+MEASURES = ("ge1", "ge2", "ge4", "max", "levels", "ssim", "cambi_2", "cambi_5", "cambi_2_nr", "cambi_5_nr")
+LOWER_IS_BETTER = {"ge1", "ge2", "ge4", "max", "cambi_2", "cambi_5", "cambi_2_nr", "cambi_5_nr"}
+BANDING = 5.0
 MIN_SHARE = 0.001
 
 
@@ -21,7 +22,18 @@ def at_bytes(points, target):
     pts = sorted((b, v) for b, v in points if v is not None)
     for (b0, v0), (b1, v1) in zip(pts, pts[1:]):
         if b0 <= target <= b1:
-            return v0 if b1 == b0 else v0 + (v1 - v0) * (math.log(target) - math.log(b0)) / (math.log(b1) - math.log(b0))
+            if b1 == b0:
+                return v0
+            return v0 + (v1 - v0) * (math.log(target) - math.log(b0)) / (math.log(b1) - math.log(b0))
+    return None
+
+
+def bytes_at(points, value):
+    """The full arm's bytes at which a measure reaches `value`, ln-linear between the rungs that bracket it."""
+    pts = sorted((b, v) for b, v in points if v is not None)
+    for (b0, v0), (b1, v1) in zip(pts, pts[1:]):
+        if min(v0, v1) <= value <= max(v0, v1):
+            return b0 if v1 == v0 else math.exp(math.log(b0) + (value - v0) / (v1 - v0) * (math.log(b1) - math.log(b0)))
     return None
 
 
@@ -47,13 +59,15 @@ def window_values(cell, series):
             out[p["window"]]["ssim"] = p["ssim"]
             for c in (2, 5):
                 s = p.get(f"cambi_{c}")
-                out[p["window"]][f"cambi_{c}"] = None if s is None else float(np.mean(
-                    [f.get("cambi_full_reference", f.get("cambi", 0.0)) for f in s]))
+                for key, name in ((f"cambi_{c}", "cambi_full_reference"), (f"cambi_{c}_nr", "cambi")):
+                    v = None if s is None else [f.get(name) for f in s]
+                    out[p["window"]][key] = None if v is None or None in v else float(np.mean(v))
     return out
 
 
 def compare(series, cells):
-    """Per (window, Q, measure): full, reduced, the equal-bytes full value, one rung, and the verdict each way."""
+    """Per (window, Q, measure): full, reduced, the equal-bytes full value, one rung, the verdict each way, and the
+    reduced arm's bytes over the full arm's at the same reading of the measure (bytes_ratio)."""
     by = {(c["arm"], c["q"]): (sum(c["units"]), window_values(c, series)) for c in cells}
     qs = sorted(q for a, q in by if a == "reduced" and ("full", q) in by)
     rows = []
@@ -67,10 +81,13 @@ def compare(series, cells):
                     continue
                 q_of = {qq: by[("full", qq)][1].get(i, {}).get(m) for qq in qs}
                 one = rung(q_of, q)
-                fe = at_bytes([(by[("full", qq)][0], q_of[qq]) for qq in qs], rb)
+                pts = [(by[("full", qq)][0], q_of[qq]) for qq in qs]
+                fe, same_quality = at_bytes(pts, rb), bytes_at(pts, r)
                 rows.append(dict(set=series["set"], window=i, width=series["windows"][i]["width"],
                                  source=series["windows"][i]["source"], q=q, measure=m, full=f, reduced=r,
-                                 full_at_bytes=fe, rung=one, bytes_reduced=rb, bytes_full=fb,
+                                 full_at_bytes=fe, rung=one,
+                                 bytes_ratio=None if not same_quality else rb / same_quality,
+                                 bytes_reduced=rb, bytes_full=fb,
                                  equal_q=verdict(m, r - f, one), equal_bytes=None if fe is None else
                                  verdict(m, r - fe, one)))
     return rows
@@ -84,6 +101,17 @@ def verdict(m, diff, one):
         return "same"
     worse = diff > 0 if m in LOWER_IS_BETTER else diff < 0
     return "reduced worse" if worse else "reduced better"
+
+
+def banding(rows):
+    """Windows whose reduced preview reaches CAMBI's 'around 5' at default settings where the full-depth one,
+    at equal Q and at equal bytes, does not (preview-depth.md §6)."""
+    out = []
+    for r in rows:
+        if r["measure"] == "cambi_2_nr" and r["reduced"] >= BANDING and (
+                r["full"] < BANDING or (r["full_at_bytes"] is not None and r["full_at_bytes"] < BANDING)):
+            out.append((r["set"], r["width"], r["source"], r["q"], r["full"], r["full_at_bytes"], r["reduced"]))
+    return out
 
 
 def summary(rows):
@@ -123,6 +151,10 @@ def main():
         eqq, eqb = table[(s, w, q, m, "equal_q")], table[(s, w, q, m, "equal_bytes")]
         print(f"| {s} | {w} | {q} | {m} | {eqq['same']} · {eqq['reduced worse']} · {eqq['reduced better']} | "
               f"{eqb['same']} · {eqb['reduced worse']} · {eqb['reduced better']} · {eqb[None]} |")
+    print("\n| set | width | window | Q | full CAMBI | full at equal bytes | reduced CAMBI |")
+    print("| --- | --: | --- | --: | --: | --: | --: |")
+    for b in banding(rows):
+        print("| " + " | ".join(str(x if not isinstance(x, float) else round(x, 2)) for x in b) + " |")
 
 
 if __name__ == "__main__":

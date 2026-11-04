@@ -28,7 +28,7 @@ import ingest  # noqa: E402
 
 WIDTHS = (32, 64, 128, 256, 512, 1024)
 PROBES = (2, 25, 50, 75, 98)
-PROBE_FRAMES, SIDE = 4, 1024
+PROBE_FRAMES, CAMBI_FRAMES, SIDE = 4, 2, 1024
 SPAN = 1023
 CAMBI_CONTRAST = (2, 5)
 
@@ -135,7 +135,7 @@ def cambi(vmaf, tmp, src, los, contrast):
 
 
 def probes(s, tabs, wins, decoded_middle, source_middle, vmaf, tmp):
-    """SSIM in each probe window and CAMBI over the probe windows' stacked frames, on the middle frames' square."""
+    """SSIM in each probe window on the middle frames' square; CAMBI on its middle CAMBI_FRAMES, all windows stacked."""
     cut = square(source_middle[len(source_middle) // 2])
     src_v = np.stack([f[cut] for f in source_middle])
     los_v = np.stack([f[cut] for f in decoded_middle])
@@ -147,10 +147,11 @@ def probes(s, tabs, wins, decoded_middle, source_middle, vmaf, tmp):
         per = [ssim_in_window(a[k], b[k]) for k in range(len(a))]
         n = sum(m for _, m in per)
         out.append(dict(window=i, ssim=sum(v * m for v, m in per if v is not None) / n if n else None, n=n))
-        srcs.append(a)
-        loss.append(b)
+        mid = slice((len(a) - CAMBI_FRAMES) // 2, (len(a) + CAMBI_FRAMES) // 2)
+        srcs.append(a[mid])
+        loss.append(b[mid])
     if vmaf and out:
-        frames = len(src_v)
+        frames = len(srcs[0])
         for c in CAMBI_CONTRAST:
             scores = cambi(vmaf, tmp, np.concatenate(srcs), np.concatenate(loss), c)
             for j, o in enumerate(out):

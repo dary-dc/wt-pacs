@@ -1,0 +1,85 @@
+[
+ {
+  "check": "window statistics from the histogram = per-sample count",
+  "as_run": true,
+  "mutated": "lossy + 1",
+  "mutated_equal": false,
+  "sees": true
+ },
+ {
+  "check": "top8: depth cut error \u2208 {\u22121 \u2026 +2}, mean square 1.5",
+  "as_run": [
+   [
+    -1,
+    0,
+    1,
+    2
+   ],
+   1.5
+  ],
+  "mutated": "no rounding offset",
+  "mutated_value": [
+   [
+    -3,
+    -2,
+    -1,
+    0
+   ],
+   3.5
+  ],
+  "sees": 1.0
+ },
+ {
+  "check": "levels under a 64-wide window: cut \u2264 17, source \u2265 60",
+  "as_run": [
+   17,
+   62
+  ],
+  "mutated": "no cut",
+  "mutated_value": 62,
+  "sees": true
+ },
+ {
+  "check": "dither: \u03c3 = \u0394 \u00f7 2 leaves no stair",
+  "as_run": 0.043902576855543884,
+  "predicted": 0.009156990289760759,
+  "mutated": "\u03c3 = \u0394 \u00f7 8",
+  "mutated_value": 0.9954734463126655,
+  "mutated_predicted": 0.9353255183980993,
+  "sees": true
+ },
+ {
+  "check": "SSIM in window: identical 1, float32 = float64 to 1e-4, shown positions only",
+  "as_run": [
+   1.0,
+   0.9976944923400879,
+   0.9976945046076424
+  ],
+  "mutated": "every position",
+  "mutated_value": 0.5079791065390125,
+  "sees": true
+ },
+ {
+  "check": "\u03c3 of the reduced frame \u00d74 reads 8 to 10 %",
+  "as_run": 7.99048409327841,
+  "mutated": "no \u00d74",
+  "mutated_value": 1.9976210233196026,
+  "sees": true
+ },
+ {
+  "check": "equal bytes: exact at a rung, ln-linear between",
+  "as_run": [
+   1.0,
+   1.9999999999999993
+  ],
+  "mutated": "linear in bytes",
+  "mutated_value": 1.6666666666666665,
+  "sees": true
+ },
+ {
+  "check": "CAMBI",
+  "as_run": null,
+  "sees": null,
+  "note": "no vmaf given: banding columns not run"
+ }
+]
