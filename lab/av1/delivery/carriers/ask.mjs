@@ -39,6 +39,7 @@ async function inChromium(throttle, set, r) {
   const browser = await chromium.connect(server.wsEndpoint());
   const page = await browser.newPage();
   page.setDefaultTimeout(0);
+  if (process.env.VERBOSE) page.on("console", (m) => process.stderr.write(`  ${new Date().toISOString().slice(11, 19)} ${m.text()}\n`));
   await page.goto(`http://127.0.0.1:${PORT}/lab/av1/delivery/carriers/index.html`);
   await page.waitForFunction(() => globalThis.ready);
   const stop = throttleTree(server.process().pid, throttle);

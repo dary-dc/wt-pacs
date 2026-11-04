@@ -183,10 +183,11 @@ a system). The repository holds few cine-like breast series and repeated searche
 in it is lossy-sourced (`usb_cine`, `us_liver`, profiles README §3) and ABUS is absent, so no result here is claimed
 for ultrasound, and every result is claimed for these three volumes only.
 
-**Tools.** `lab/av1/tools/tools.sh aom dav1d` (libaom 3.15.1, dav1d 1.5.4, OpenJPH 0.31.0), the patched
-`svc_encoder_rtc` (`lab/av1/delivery/scalable/encoder/build.sh`), the lab's dav1d-WASM with operating points
-(`two-layer/build_wasm.sh`), the OpenJPH the fill's HTJ2K arm runs (`client/decode/wasm/fetch_openjph.sh`), playwright's
-headless Chromium. From the profiles branch, at its tip **`b9e3e9e7119898e055bbf930d60ccbea2a234b48`**:
+**Tools** (`lab/av1/delivery/carriers/run.sh tools`). `lab/av1/tools/tools.sh aom dav1d` (libaom 3.15.1, dav1d
+1.5.4, OpenJPH 0.31.0); the patched `svc_encoder_rtc` by `encoder/build.sh`'s own steps, not the script, whose call to
+`tools.sh` also builds SVT-AV1 and AVM; `ojph_compress` (`lab/scripts/gen_htj2k_fixtures.sh` builds it); the lab's
+dav1d-WASM with operating points (`two-layer/build_wasm.sh`); the OpenJPH the fill's HTJ2K arm runs
+(`client/decode/wasm/fetch_openjph.sh`); playwright's headless Chromium. From the profiles branch, at its tip **`b9e3e9e7119898e055bbf930d60ccbea2a234b48`**:
 
 ```bash
 git checkout b9e3e9e7119898e055bbf930d60ccbea2a234b48 -- lab/av1/profiles     # never committed on this branch
@@ -199,7 +200,7 @@ lab/av1/.venv/bin/python -m pip install --require-hashes -r lab/av1/profiles/req
    sittings ran it (`tool/README.md`).
 2. The layered streams: `tool/shapes.py --shapes three-full-m10,three-full-m20,three-full-m30` (~15 min), each
    total equal to `svc-shapes.tsv`'s byte for byte or the session stops; then `p3k1-m20`, the same encode at `-k 1`
-   (`content.py --k1`).
+   (`content.py`).
 3. The separate streams: the profiles encoder at Q 8, 16, 32, 56 and G = 16 only, the 10-bit stream on `dbts_b1` and
    the 10-bit top on the 12-bit volumes, with the G = 16 residual (`content.py`, calling `streams.py`'s `lossy`, which
    stops unless each stream's unit sizes and residual equal the profiles bytes run's row).
@@ -242,23 +243,24 @@ measured; for the separate stream the model is *unverified* against a fill.
 
 **Order, rounds, throttle.** One round is, at 1× and at 4× (`lab/scripts/cpu_throttle.mjs`, `throttleTree`), each
 volume in a fresh headless Chromium, its arms in a Williams order (`lab/order.mjs`); throttles and volumes rotate by
-round. Each browser first decodes two units on every decoder, untimed. **10 rounds**, fixed by the budget, not by a
-power target (the profiles decode protocol asked for 315 and ran none). Every row carries the arm that ran before it;
-an arm whose order effect (largest |median by predecessor ÷ median − 1|, RESIDAPART's statistic) exceeds 10 % is
-printed by `roles.py`, reported and not read.
+round. Each browser first decodes two units on every decoder, untimed. **7 rounds**, fixed by the budget, not by a
+power target (the profiles decode protocol asked for 315 and ran none); an 8th if at least 30 min of the 4.5 h remain
+when the 7th ends. Every row carries the arm that ran before it; an arm whose order effect (largest |median by
+predecessor ÷ median − 1|, RESIDAPART's statistic) exceeds 10 % is printed by `roles.py`, reported and not read. A
+cell that has not ended in 15 min is closed, written `VOID`, counted, and not re-run.
 
-**The budget, 4.5 h on 4 cores** (*derived* from the rows above, scaled):
+**The budget, 4.5 h on 4 cores**, timed by this session on the host (§5) except where it says:
 
 | step | time |
 | --- | --: |
-| tools, the WASM build, the volumes | 45 min |
-| content 1–4 (three encodes in parallel) | 50 min |
-| mutations (§5, each once) | 10 min |
-| one round: 1× ≈ 3.5 min, 4× ≈ 13 min | 16.5 min |
-| 10 rounds | 2 h 45 min |
-| **total** | **4 h 30 min** |
+| tools, the WASM build, the volumes (not timed here as one step; the patched encoder alone 2.0 min) | 25 min |
+| content: the shipped payload 7.6 min, the layered streams 6.7 min, `content.py` 17.0 min | 31 min |
+| mutations, each once | 8 min |
+| one round: 4× 20.3 min (`dbts_b1` 11.6 of it), 1× 4.5 min | 25 min |
+| 7 rounds | 2 h 55 min |
+| **total** | **3 h 59 min**, and 31 min for two `VOID` cells or the 8th round |
 
-If round 0 takes over 18 min, from round 1 on drop at 4× first `mid-m10` and `mid-m30`, then `sep-q8` and `sep-q32`;
+If a round takes over 30 min, from the next on drop at 4× first `mid-m10` and `mid-m30`, then `sep-q8` and `sep-q32`;
 a dropped arm reports its n and is not read under n = 3. If the session must stop, it stops after a whole round and
 reports n; 3 rounds is the fewest at which `aa_rule.py`'s test can flag at all (`can_flag(3)`).
 
@@ -320,13 +322,15 @@ example 46.76 dB at Q 16 on `dbts_a1`. `p3k1-m20` codes: `-k 1` is accepted, and
 | --- | --- | --- | --- |
 | a layered ask decoded natively from its keyframe, merged with k's low bits, against the fetch checksum | `p3-m20` and `p3k1-m20`, 8/8 on each volume (48/48) | `--mutate skip` (start one unit after the keyframe): `p3-m20` 1/8, the keyframe's own; `p3k1-m20` 8/8, having no group to skip into. `--mutate low` (k + 1's low bits): 0/8 on both | **sees it** |
 | every exact frame in the browser against the fetch checksum | `svc`, `svc1`, `res`, `htj2k`, `htj2k-aa`, `k2`: 8/8 each | `sample` (a sample flipped): 0/8 every arm. `truth` (the checksum flipped): 0/8 every arm. `offset` (the residual's offset + 1): `res` 0/8, its lossy frames 8/8 as native. `skip`: `svc` 1/8, the other seven refused by dav1d (`-28`) and written failed, not wrong; `svc1` 8/8. `low`: `svc`, `svc1`, `k2` 0/8, every other arm 8/8 | **sees it** |
-| every lossy frame in the browser against native dav1d's | the views' 616/616 (WebCodecs included) and `res`'s 8/8 | `sample`, `truth`: views 0/616 | **sees it**; `res`'s lossy check first ignored the mutation, fixed (it now takes it) |
+| every lossy frame in the browser against native dav1d's | the views' 616/616 (WebCodecs included) and `res`'s 8/8 | `sample`, `truth`: views 0/616 | **sees it**; `res`'s lossy check first ignored the mutation and was fixed: 0/8 under each, re-run |
 | `roles.py` | `roles_test.py` 16/16 | `mutate.py`: the link ignoring the previous frame, bytes interpolated linearly, an ask begun one unit late, no A/A range, a trade read as a win, the order effect against another centre: each fails the test | **sees it** |
 
 **Fixed while building, before any round counted:** the merge and the residual's add first ran a per-sample
 callback, which slowed `res` against `htj2k` by the harness's own cost; they are now one loop a row, as a client would
-write them. A decode error ended the run; it now fails its ask. One cell hung once with no browser left; the 15-min
-`VOID` guard is the answer.
+write them. A decode error ended the run; it now fails its ask or view. Two cells of the first thirteen hung, one with
+no browser left, one with its browser idle; the cause was not found (a WebCodecs unit that never gives its frame is one
+candidate, *unverified*). Each WebCodecs unit is now bounded at 20 s, failing its view by name, and each cell at
+15 min (`VOID`); six cells after that, none hung.
 
 **What this session timed, and did not read.** One round, run while `content.py` still coded on the other cores, and
 the timing round below. Their rows are not committed and not read here: the predictions in 3 were committed before

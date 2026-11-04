@@ -12,6 +12,8 @@ const ASKED = "three-full-m20";
 const K1 = "three-full-m20-k1";
 const SHIPPED_SHIFT = 2;
 const GROUP = 8;
+/** A WebCodecs unit with no frame by then fails its view (the profiles decode harness's bound). */
+const STALL_MS = 20000;
 
 export const ASKS = ["svc", "svc1", "res", "htj2k", "htj2k-aa", "k2"];
 export const VIEWS = ["base", "mid-m10", "mid-m20", "mid-m30", "mid1-m20", "sep-q8", "sep-q16", "sep-q32", "sep-q56", "wc-q16", "wc-q56"];
@@ -81,7 +83,9 @@ function webcodecs(first) {
     async decode(u) {
       const out = new Promise((r) => (wake = r));
       vd.decode(new EncodedVideoChunk({ type: sequence(u) ? "key" : "delta", timestamp: stamp++, data: u }));
-      await out;
+      let stall;
+      await Promise.race([out, new Promise((_, no) => (stall = setTimeout(() => no(new Error(`no frame in ${STALL_MS} ms`)), STALL_MS)))]);
+      clearTimeout(stall);
       if (failed) throw failed;
       const f = got;
       got = null;
@@ -259,8 +263,15 @@ export async function round(env, set, r, mutate = "", arms = [...ASKS, ...VIEWS]
         rows.push({ set: set.name, arm, round: r, prev, k, position: k % GROUP, ms, exact, lossy, ...(error && { error }) });
       }
     } else {
-      rows.push({ set: set.name, arm, round: r, prev, ...(await view(env, set, arm, mutate)) });
+      let got;
+      try {
+        got = await view(env, set, arm, mutate);
+      } catch (e) {
+        got = { ms: [], lossy: 0, frames: set.frames, error: String(e) };
+      }
+      rows.push({ set: set.name, arm, round: r, prev, ...got });
     }
+    console.log(`${set.name} ${arm} done`);
     prev = arm;
   }
   return rows;
