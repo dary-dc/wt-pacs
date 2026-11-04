@@ -449,6 +449,10 @@ not depend on the series):
 
 *In progress: the checks are in, the controls and cells are running. This section is replaced as each series lands.*
 
+**Fit, projected after the first series.** `dbts_c1`'s 90 cells took 48 min of wall clock (19:09–19:57 UTC) against
+its 13 622 CPU s estimate (3 405 s at four cores, controls included); the shard started 18:52 UTC. At the plan's
+47 933 CPU s scaled by the same ratio, the shard ends inside 4.5 h, so every series runs at G 1, 8 and 16: no cell cut.
+
 **Host.** 4 cores (Intel Xeon @ 2.10 GHz), 15 GB, no swap; four cells in flight as `shard.sh` runs them. libaom
 3.15.1, dav1d 1.5.4 and OpenJPH 0.31.0 built by `tools.sh`. Here too the built `dav1d` loads the system's libdav1d
 1.4.1 unless `LD_LIBRARY_PATH` names the built one; a first start ran the checks and three control rows under 1.4.1,
