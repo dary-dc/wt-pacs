@@ -1,0 +1,10 @@
+renderer ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)
+ramp 10-bit k2           every code: 2010 windows × 1024 samples; reduced ≠ CPU in 0 windows, full ≠ CPU in 0
+ramp 10-bit k0           every code: 1610 windows × 1024 samples; reduced ≠ CPU in 0 windows, full ≠ CPU in 0
+ramp 8-bit k2            every code: 2010 windows × 256 samples; reduced ≠ CPU in 0 windows, full ≠ CPU in 0
+ramp 10-bit k2 bias 37   every code: 2010 windows × 1024 samples; reduced ≠ CPU in 2007 windows, full ≠ CPU in 0; first: {"voi":{"center":100,"width":11,"function":"LINEAR"},"samples":12}
+dbts_a1-k2               frame 28, 1142×1785, 12-bit stored, top 10 bits (k = 2): 90 windows × 2038470 samples; reduced ≠ CPU in 0 windows, full ≠ CPU in 0
+dbts_b1-k0               frame 25, 2560×3328, 10-bit stored, top 10 bits (k = 0): 74 windows × 8519680 samples; reduced ≠ CPU in 0 windows, full ≠ CPU in 0
+dbts_b1-k2               frame 25, 2560×3328, 10-bit stored, top 8 bits (k = 2): 90 windows × 8519680 samples; reduced ≠ CPU in 0 windows, full ≠ CPU in 0
+dbts_c1-k2               frame 34, 976×2513, 12-bit stored, top 10 bits (k = 2): 90 windows × 2452688 samples; reduced ≠ CPU in 0 windows, full ≠ CPU in 0
+mutant bias: NOT EQUAL in 2007 (case, path, window)s (201 s)

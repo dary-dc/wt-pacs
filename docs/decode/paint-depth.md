@@ -119,7 +119,15 @@ cover every p a depth has. It rests on these three volumes, one middle frame eac
 them only, and for SwiftShader only.
 
 **Mutated in the browser** (the served `voi.js` patched for reduced frames only, so the CPU path is untouched):
-*Running; reported here when done.*
+one run each, the same windows ([`rows/mutate-shift.txt`](../../lab/paint-depth/rows/mutate-shift.txt),
+[`rows/mutate-bias.txt`](../../lab/paint-depth/rows/mutate-bias.txt)).
+
+| mutant | reduced ≠ CPU | full ≠ CPU |
+| --- | --- | --- |
+| **the scale off by one bit** (shift + 1) | 7 946 of 7 984 windows, in every case; the 38 it misses are windows that show the whole case as 0 or 255 either way | 0 |
+| the bias dropped | 2 007 of 2 010 windows on the bias-37 ramp; 0 elsewhere, since every DBT set's bias is 0 | 0 |
+
+The full-scale path stays equal under both, so the check sees the reduced path alone.
 
 **Not checked.** A GPU (the protocol below runs the same check first); fractional placements; the worker's table
 key: a check that repaints one buffer with a second shift would see it, and this one paints a new frame each time.
