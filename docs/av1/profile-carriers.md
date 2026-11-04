@@ -342,3 +342,14 @@ either ran (`4b12442`), and nothing in 2–4 changed after them but the budget.
 * Measured rows: `lab/av1/delivery/scalable/tool/svc-results.md`, `svc-shapes.tsv`, `svc-errors.jsonl` (`ee572f7`, this
   branch's base); `lab/av1/profiles/README.md` and `results/` (`b9e3e9e`); `lab/av1/delivery/residual/README.md`
   (`6a2994f`).
+
+## Profile carriers, measured
+
+*2026-11-04, partial: the run is in progress; this section is replaced as each unit finishes.*
+
+* **Host.** 4 cores of an Intel Xeon Processor @ 2.10 GHz (one thread a core), 15 GB, headless Chrome for Testing
+  153.0.8010.12 (playwright 1.63.0). Not the 2.80 GHz host §5 was built on: every time below is for this host only.
+* **Done.** `run.sh tools` (libaom 3.15.1, the patched `svc_encoder_rtc`, the lab's dav1d-WASM, OpenJPH, the three
+  volumes SHA-256-checked, the profiles directory at `b9e3e9e`). The host lacked `meson`; it was installed with pip
+  (1.12.1) before `tools`, no file of the repository changed.
+* **Running.** `run.sh content`.
