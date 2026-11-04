@@ -410,3 +410,9 @@ the sets before it (B.3, S_skip). A one-layer codestream takes OpenJPH's own pat
 [`rows/layers-measured/stage1.md`](rows/layers-measured/stage1.md). One set's layer 1 is at the proxy at full size on
 `rf_fluoro` (18/18) and `dbt12_c` (68/68), the whole ×0.988–0.989 of today's bytes; on no other set. Two sets reach
 it only at p ≤ 2 on those two sets, the whole ×1.67–1.85.
+
+### Stage 3, delivery (partial: round 0 of the three volumes)
+
+*Partial, 2026-11-04.* `dbts_a1`, `dbts_b1`, `dbts_c1`, every cell (plain, 5, 20, 50 Mbit/s; 1× and 4×), arms today's
+(`htj2k`), A′, one set and two sets at p = 1: 96 visits, every frame exact in all, every layer-1 preview its
+stage-1 digest. Rows and table: [`rows/layers-measured/stage3-volumes.md`](rows/layers-measured/stage3-volumes.md).
