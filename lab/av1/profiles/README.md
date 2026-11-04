@@ -598,6 +598,10 @@ CPU, cores, memory), the rounds it ran, setup minutes, its A/A at each throttle,
 why, and its `$R.txt` cells — ms inside the block only, ratios with their within-block interval, marked
 **one block: not a verdict**. It claims nothing for the other blocks and decides nothing.
 
+**Shards that started before `51c2ef69`** run a driver that checks `--until` after each round rather than before it
+(so one round may end up to its own length past T0 + 4.1 h, inside the 0.4 h kept back) and keeps timestamps unrounded;
+their rows, statistics and rule are the same, and the collector pools them as they are.
+
 **A block fewer than 10 rounds** (a slower host) is reported and enters no pooled cell; **a void block** (its A/A, or
 every cell failing a check) is reported with why. Neither is re-run in place; a replacement block, if the owner wants
 one, is a seventh session with k = 7, appended as a row here first.
