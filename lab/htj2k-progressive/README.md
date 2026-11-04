@@ -416,3 +416,5 @@ it only at p ≤ 2 on those two sets, the whole ×1.67–1.85.
 *Partial, 2026-11-04.* `dbts_a1`, `dbts_b1`, `dbts_c1`, every cell (plain, 5, 20, 50 Mbit/s; 1× and 4×), arms today's
 (`htj2k`), A′, one set and two sets at p = 1: 96 visits, every frame exact in all, every layer-1 preview its
 stage-1 digest. Rows and table: [`rows/layers-measured/stage3-volumes.md`](rows/layers-measured/stage3-volumes.md).
+Round 0 of the eight cine-like sets of stage 1 (`rf_fluoro` also with two sets at p = 2): 264 visits, every frame
+exact; [`rows/layers-measured/stage3-cine.md`](rows/layers-measured/stage3-cine.md).
