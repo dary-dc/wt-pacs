@@ -2348,6 +2348,278 @@ become the default.** It meets its line in all six DBT cells, but on `mr_ispy1` 
 interval reaches 0.908. S and G go to the owner with these numbers, and G has none. The host did not saturate: no
 second reached 95 % of the 4 CPUs, and the busiest reached 49 %. Nothing is claimed for fills, concurrency or phones.
 
+### Grey path protocol, pre-registered
+
+Written 2026-11-04. Theory, exploratory node profiles and a protocol for a separate session; nothing timed in a browser.
+
+1. **Asked:** a grey AV1 stream comes back from WebCodecs with mid-grey chroma, which the client copies. Can it be
+   read as grey directly, and do `onePass`'s chroma skip and `reuseCopyBuffer` pay on streams that are not split?
+2. **Answer:** no browser API hands over the luma plane alone, exactly. Every exact WebCodecs route copies the
+   chroma. The GPU routes convert to RGB, and no specification makes that exact. The one decoder that returns grey
+   alone is dav1d-WASM, already the fallback, and its frame is 1.6–2.0× WebCodecs'. The unsplit question is the protocol below.
+3. **Numbers that decide it:** on a split frame the chroma is a third of `copyTo`'s bytes, ~1.0–2.5 % of the frame
+   (*derived*). The chroma check was 5–7 %, and `onePass` already skips it on a 4:0:0 stream. The one
+   non-structural candidate left, placing an unsplit picture by a native copy, tied `place()` (*exploratory*), so it
+   was built, profiled and removed.
+4. **Rests on:** the WebCodecs, WebGL 2.0, WebGPU and WGSL texts and the Chromium 141, dav1d and FFmpeg sources
+   quoted below; the 2026-10-31 breakdown of `dbts_a1`, `dbts_b1` and `dbts_c1`
+   ([`breakdown`](../../lab/av1/decode/breakdown/README.md)); profiles in node 22.23.4, not a browser.
+5. **Left:** the run below, on `usb_cine`, `dbts_b1` and `dbts_b3` only. Two structural options go to the owner:
+   the range from ingest metadata, and `copyTo` straight into the frame's buffer.
+
+**Terms.** *4:0:0* is grey only: the stream has no chroma planes (AV1 `mono_chrome` 1). *Systems A, B, C* are the
+three DBT scanners of the EA1141 dataset. A and C store 12 bits, B 10. *The split* carries a 12- or 10-bit frame as
+a top stream (v ≫ k) and a low stream (its k low bits), each 8 or 10 bits, so WebCodecs takes both. *Unsplit* is one
+stream. *G* is the group length, the frames from one keyframe; G = 1 makes every frame a keyframe. (§The split's
+rebuild used G for a paint-shader merge. That sense is not used here.) *Q* is a lossy coding's constant-quality
+level, libaom's `--end-usage=q --cq-level=Q`. *W* is the WebCodecs path with `onePass: false`. *W2* is the default
+(`onePass`), which merges a split frame in one pass and leaves a 4:0:0 stream's chroma unchecked. That skip is
+*M*. *R* is `reuseCopyBuffer`: each stream copies every frame into one kept buffer.
+
+Sources, fetched 2026-11-04: [WebCodecs](https://www.w3.org/TR/webcodecs/) (W3C WD 2 November 2026);
+[WebGL 1.0](https://registry.khronos.org/webgl/specs/latest/1.0/) and
+[2.0](https://registry.khronos.org/webgl/specs/latest/2.0/) (Editor's Drafts, from the KhronosGroup/WebGL `main`
+branch); [WebGPU](https://www.w3.org/TR/webgpu/) (W3C CRD 15 September 2026); [WGSL](https://www.w3.org/TR/WGSL/);
+Chromium at tag `141.0.7390.37` (the lab's): `media/filters/dav1d_video_decoder.cc`, `media/media_options.gni`,
+`third_party/blink/renderer/modules/webcodecs/video_frame.cc`; dav1d 1.5.1 `src/picture.c`; FFmpeg `n7.1`
+`libavcodec/libdav1d.c`; libaom `v3.15.1` `av1/av1_cx_iface.c`.
+
+**Every route to the luma alone.**
+
+* **`copyTo` cannot drop a plane.** No `VideoPixelFormat` holds luma alone: the enum lists `I420`…`I444AP12`,
+  `NV12`, `RGBA`, `RGBX`, `BGRA`, `BGRX`. `rect` is cut from every plane ("Let numPlanes be the number of planes
+  as defined by format"; each plane's rows are "parsedRect.height by sampleHeight, rounded up"). `layout` must cover
+  every plane: "If layout is not undefined and its length does not equal numPlanes, throw a TypeError". Planes may
+  not overlap: "If plane A ends before plane B starts, they do not overlap. Otherwise, return a TypeError." `format`
+  converts only to RGB: "if options.format is equal to one of RGBA, RGBX, BGRA, BGRX, then assign options.format to
+  format, otherwise return NotSupportedError". RGB is 8 bits a channel, and it is exact for grey only at full range
+  (§Why, and what would make it exact). So the chroma always lands in the destination. What `layout` does allow is a
+  destination larger than the planes: luma at offset 0 with stride = width, chroma behind it (Y below).
+* **`VideoFrame` plane access** is `copyTo` alone. The `VideoFrame` interface has attributes for format, rects, size,
+  time and colour space, and its samples leave only by "Promise<sequence<PlaneLayout>> copyTo(".
+* **Chromium 141 never decodes the chroma.** Its AV1 decoder is dav1d (`enable_dav1d_decoder = use_blink`,
+  `media_options.gni`). For a 4:0:0 picture it wraps one shared buffer as both chroma planes: "const bool
+  needs_fake_uv_planes = pic->p.layout == DAV1D_PIXEL_LAYOUT_I400;", filled once per size with
+  "constexpr uint8_t kBlankUV = 256 / 2;" or "const uint16_t kBlankUV = (1 << pic->p.bpc) / 2;", then
+  "u_plane = v_plane = base::span<const uint8_t>(*fake_uv_data_);". `copyTo` then copies every plane:
+  "for (wtf_size_t i = 0; i < dest_layout.NumPlanes(); i++)" around "libyuv::CopyPlane(" (`CopyMappablePlanes`).
+  The chroma costs a 4:0:0 stream its copy and nothing in the decoder. It also confirms from source that M skips
+  only Chromium's constant: a `mono_chrome` stream's chroma is never the stream's.
+* **WebGL2 `texImage2D` from a `VideoFrame`** always converts to RGB. WebGL 1.0 §Pixel Storage Parameters: "If set
+  to NONE, no colorspace conversion is applied, other than conversion to RGBA. (For example, a rec709 YUV video is
+  still converted to rec709 RGB data, but not then converted to e.g. srgb RGB data)", and "The precise conversions
+  may be specific to both the browser and file type." WebGL 2.0 takes `R8UI`/`RED_INTEGER`/`UNSIGNED_BYTE` from a
+  `TexImageSource` with "R = sourceRed". Its table has no 16-bit integer target, so above 8 bits the only targets
+  are float (`R16F`, `R32F`). *Derived:* at full range with mid-grey chroma the conversion's chroma terms are zero,
+  so R = Y in exact arithmetic. At limited range R = 255 (Y − 16) ÷ 219, which is not Y. The browser's arithmetic
+  is not specified, so exactness at 8 bits is *unverified*, and at 10 bits it is *unverified* and rests on an
+  unspecified intermediate precision. The frame must then be read back to the CPU for its digest and range.
+* **WebGPU `importExternalTexture`** converts too. `colorSpace` is "The color space the image contents of source
+  will be converted into when reading", a `PredefinedColorSpace` defaulting to `"srgb"`, and "When the binding
+  resource type is a GPUExternalTexture, the result is in the color space set by colorSpace." WGSL reads it as
+  floats: "fn textureLoad(t: texture_external, coords: vec2<C>) -> vec4<f32>". No luma plane is exposed, and
+  exactness at any depth is *unverified*. Neither GPU route can be tried on this lab's hosts, whose WebGL2 renderer
+  is SwiftShader (§Merge-free protocol, *Measured*).
+* **dav1d's native 4:0:0 output** has no chroma: "p->data[1] = has_chroma ? data + y_sz : NULL;" (`picture.c`,
+  `has_chroma` being "p->p.layout != DAV1D_PIXEL_LAYOUT_I400"). `av1-dav1d.js` already takes layout 0 as one plane,
+  with no check and no copy beyond `place()`. That is grey read directly, exact (§dav1d-WASM, the decoder the
+  client runs), and its frame is 1.6–2.0× WebCodecs' on these sets (§The split's rebuild, D12).
+* **Firefox and WebKit** never hand a 4:0:0 frame to the page. FFmpeg's libdav1d wrapper, which Firefox's
+  WebCodecs decodes through (Firefox bundles its own copy, *unverified* to match `n7.1`), maps 4:0:0 to grey formats: "[DAV1D_PIXEL_LAYOUT_I400] = { AV_PIX_FMT_GRAY8,
+  AV_PIX_FMT_GRAY10, AV_PIX_FMT_GRAY12 }". Gecko has no grey format, so the decode fails, and WebKit has none
+  either (§Why, and what would make it exact). The probe sends those streams to dav1d-WASM. No Firefox unit on
+  this protocol's cells reaches WebCodecs.
+
+**What the chroma costs now.** These are shares of W's frame at 1× from the 2026-10-31 breakdown, whose A/A failed,
+so they are predictions. On a split frame `copyTo` is 3.0–7.6 %. A 4:2:0 plane set is 1.5 N samples for N luma, so
+the chroma is a third of that, **~1.0–2.5 % *derived***. Its allocation is part of that share, and R removes the
+allocation. The check (`neutral()`) was 5–7 %. W2, the default since 2026-11-02, skips it on every 4:0:0 stream,
+and the product codes grey as 4:0:0 (`--monochrome`, `ingest/coded-frames/ingest.py`). On an unsplit grey frame,
+*derived* from the breakdown's per-byte and per-sample costs (0.69 ms a MB for `copyTo` with its allocation, 1.6 ns
+a chroma sample for the check), the chroma's copy is ~5.9, ~3.4 and ~0.1 ms, and the check ~6.8, ~3.9 and ~0.2 ms,
+on a `dbts_b1`, `dbts_b3` and `usb_cine` frame. R saves the allocation and first touch, ~0.45 ms a MB in node
+(*exploratory*), so ~11.5, ~6.6 and ~0.2 ms. What share of a frame these are depends on the frame's decode time,
+which no run has measured for a lossy or an unsplit 10-bit stream (*unverified*). That is why the protocol runs.
+
+**The candidates, ranked** by exactness, then by whether they change the product's structure, then by saving:
+
+| # | candidate | exact | structural | saving on an unsplit grey frame | state |
+| --: | --- | --- | --- | --- | --- |
+| 1 | **M**, the check from the sequence header | yes: it skips Chromium's constant (above) | no | the check, ~0.2–6.8 ms (*derived*) | default (`onePass`) |
+| 2 | **R**, the copy buffer reused | yes | no | the allocation and first touch, ~0.2–11.5 ms (*exploratory*) | built, off: [merge-free](../../lab/av1/decode/merge-free/README.md) did not meet its line on `mr_ispy1` at 4× |
+| 3 | **Rg**, the range from ingest metadata | yes, the range then being the ingest's | yes: metadata | the range read. An unsplit `place()` becomes a native copy: 2.0–2.3 ms against 16–21 on a `dbts_b1`-sized frame (*exploratory*) | proposed, the owner's |
+| 4 | **Y**, `copyTo` into the frame's own buffer: luma at offset 0, stride = width, chroma in a tail | yes | yes: the frame's buffer is 1.5× its pixels, which every retained frame keeps, and the digest, `check-page.js` and `consumer.js` read the whole buffer | the copy buffer and `place()`'s write. Without Rg the range read stays: the write is ≤ ~3.5 ms on `dbts_b1` (*derived*), and R already removes the allocation | proposed with Rg, the owner's |
+| 5 | **the copy placement**: `place()` on an unsplit unsigned grey picture as one native row copy and a range read | yes: byte for byte and range for range | no | **none found**: a tie (below) | built, tested, profiled, removed |
+| 6 | **GPU upload** (`texImage2D`, `importExternalTexture`) | not by any specification | yes | — | not pursued |
+| 7 | **dav1d-WASM for grey** | yes | no | negative: its frame is 1.6–2.0× W's | already the fallback |
+| 8 | **luma alone by `copyTo`** | — | — | — | impossible by the specification |
+
+**The copy placement, profiled and removed.** For an unsplit unsigned grey picture whose heap has the output's
+sample width, `place()` writes each sample unchanged. So one `TypedArray.set` a row, followed by a min/max read of
+the row while it is in cache, gives the same bytes and range. It was built behind `placeByCopy` with tests
+(18 depth × sample-range cells against `place()`; split, signed, RCT, colour and mixed-width pictures left to
+`place()`; both decoders' paths; off by default). Each of 11 mutations failed a test. *Exploratory*, node 22.23.4 on this
+container, synthetic frames, a fresh process a form, interleaved, the median of 15 frames after 5 with a forced GC,
+4 processes a form [range] (3 for the last two columns):
+
+| frame | `place()`, ms | copy + range, ms | range read alone, ms | `set()` alone, ms |
+| --- | --: | --: | --: | --: |
+| 512², 8-bit (`usb_cine`) | 0.59 [0.49–0.72] | 0.45 [0.43–0.66] | 0.36 [0.35–0.53] | 0.06 [0.05–0.06] |
+| 1996×2457, 10-bit (`dbts_b3`) | 10.3 [9.3–15.4] | 8.9 [8.1–10.6] | — | — |
+| 2560×3328, 10-bit (`dbts_b1`) | 16.5 [16.3–20.9] | 16.6 [16.3–16.7] | 13.0 [12.8–13.6] | 2.2 [2.1–2.4] |
+
+The copy + range column reads the source row. The form first built read the output row back, and in a first
+separate profile it was slower at 512² (2.5–3.6 ms against 0.7–2.3). The forms overlap on every size. The range
+read is ~1.5 ns a sample and the floor of any JavaScript placement. In theory the copy saves the write, at most
+`place()` less the range read, ~3.5 ms on `dbts_b1`. Profiled, it saved nothing beyond the spread. The code is
+removed, and `git show 6c4e0579` restores it. Only Rg removes the range read.
+
+**Protocol.** It answers the owner's second question and changes no default. R's default stays the owner's call,
+with these numbers and the merge-free run's.
+
+* **Arms**, each a worker of the product's own `client/decode/*.js`, unmodified, behind `decoder.js`, one frame in
+  flight, digests passed:
+  * **W**: `onePass: false`.
+  * **W′**: the same config in a second worker, the A/A.
+  * **W2**: the default config.
+  * **R**: the default with `reuseCopyBuffer: true`.
+
+  On an unsplit stream W2 differs from W only by M, since no merge runs.
+* **Time**: the product's `decodeStart`→`decodeEnd`, which brackets both levers. The page's post → the consumer
+  port's receipt is recorded as a check and not decided on. A round's value for an arm is the median of its 16
+  frames after one warm-up frame.
+* **Cells**: four unsplit grey sets at G = 1, one tile, each at 1× and 4× (`lab/scripts/cpu_throttle.mjs`), so 8 cells.
+  * `usb_cine` (breast ultrasound cine, 8-bit, 512², lossy-sourced), the middle 16 frames, lossless.
+    `lab/av1/decode/passes/codings.py` codes it as it codes a set: optimized representation, which for 8-bit grey
+    is one 4:0:0 stream, at libaom 3.15.1 `good` 6. This is the only cell whose shape the product serves.
+  * `usb_cine` again, lossy, Q = 10.
+  * `dbts_b1` (system B, 2560×3328, 10 bits), the middle 16 slices, lossy, Q = 10, one 10-bit 4:0:0 stream.
+  * `dbts_b3` (system B, 1996×2457, 10 bits), the same.
+
+  Q = 10 is libaom's default, not a tuned value: `default_extra_cfg` in `av1_cx_iface.c` holds `10,` against
+  `// cq_level`.
+  A lossy cell is coded as `lab/av1/size.py`'s `av1_cell` codes at G = 1 (`--kf-max-dist=0`, `--monochrome`, the
+  set's depth), with `--lossless=1` replaced by `--end-usage=q --cq-level=10` and `--cpu-used=6 --good`. Its truth
+  is the decoded stream, not the source. Each unit is decoded alone by native dav1d 1.5.4 and by libaom 3.15.1's
+  `aomdec`, and the two must agree on every sample, or the set is void. The frame digest (`docs/FIXTURES.md` §Frame
+  digests) and the page's SHA-256 are taken from that output. The payload header is `bits` = `depth` = the
+  stream's, split 0, no flags. No lossy grey AV1 is served by the product. These cells answer the owner's question
+  and claim nothing for a series the ingest writes.
+* **Order**: a fresh headless Chromium 141.0.7390.37 per round × throttle. Inside it the sets, then the arms, each
+  in a Williams order (`lab/order.mjs`; 4 arms, period 4).
+* **Rounds, by power to resolve 3 %**: no unsplit spread has been measured, so σ of a round-paired log ratio is
+  borrowed from the 2026-10-31 split runs: 0.105 at 1× and 0.053 at 4× (§JS passes protocol, pre-registered).
+  n = 1.571 × (2.8016 σ ÷ ln(1 ÷ 0.97))² gives 147 and 38. Rounded up to the period, that is **148 at 1× and 40 at
+  4×**, power ≥ 0.80 for a 95 % interval to exclude 1 at a true 0.97 *derived*. The count is fixed here and is not
+  revised from the run.
+* **Effect and interval**: per cell, each round's ln(arm ÷ reference) is paired within that round's browser. The
+  effect is the median over rounds, as a ratio. The 95 % interval is the k-th and (n − k + 1)-th ordered values, k
+  the largest with P(Binomial(n, ½) ≤ k − 1) ≤ 0.025 (`lab/av1/decode/passes/report.mjs`). Reported: W2 ÷ W (M),
+  R ÷ W2 (R) and W′ ÷ W (A/A).
+* **Exact**: a frame counts only when the worker's XXH3 matched the digest on `av1-webcodecs` the first time, with
+  no fallback (`mismatchOn` absent), and the page's SHA-256 matched. Every frame of every arm must be exact, or the
+  run is void. These broken copies must fail:
+  * `--mutate` flips one sample, and every arm reads 0 exact.
+  * `neutral()` with its mid value one off: W reads 0 exact on `av1-webcodecs` while W2 and R read all exact. This
+    shows the check is on W's path and not on W2's.
+  * R with `copyTo` skipped whenever the kept buffer is reused: R reads exact on each worker's first frame only.
+* **A/A**: W′ ÷ W's interval contains 1 in each cell. The run is void if two or more of the 8 cells miss (P ≈ 0.057
+  by chance, *derived*).
+* **Reading**, every frame exact. In each cell a lever is **a speed-up** when its interval lies entirely below
+  1.00, **a cost** when it lies entirely above, and **not resolved** otherwise. That is the 95 % interval's own
+  reading at the power above, and no line is drawn on a point estimate. A cost of M in any cell is reported by
+  name, because M is the default. No round count decides anything.
+* **Firefox**: Firefox 157.0.1 is installed as in [`grey-420`](../../lab/av1/delivery/grey-420/README.md). One
+  untimed round of the four sets checks that every frame reports `av1-dav1d`, exact. If one reaches WebCodecs, the
+  premise above is wrong and the report says so before any reading.
+* **Host**: 4 vCPUs, one ask at a time, one `VideoDecoder` per arm. `lab/av1/decode/passes/busy.sh` records the CPUs.
+  The report says where the host saturates if it does, and claims nothing for fills, concurrency or phones. Each
+  cell is quoted in ms a frame, latency only.
+* **Budget, *derived***: 4 arms × 17 frames a set. At 1× a round is ~20 s if a lossy `dbts_b1` frame is ≤ 120 ms
+  and `dbts_b3` ≤ 70 (*unverified*: no lossy frame has been timed), with ~6 s for the browser and fetches. At 4× it
+  is ~65 s. 148 × 20 s + 40 × 65 s ≈ 1.6 h, plus ~30 min of coding and checks. At twice those decode times it is
+  ~3.3 h, inside 4.5 h. If the run is cut, it resumes from its rows, as the merge-free run did.
+
+### Grey path, measured
+
+*Measured (2026-11-04)*, by a separate session given only the protocol ([`grey-path`](../../lab/av1/decode/grey-path/README.md)).
+
+1. **Run:** the grey path protocol (above) as written: W, W′, W2 and R on its four cells, 148 rounds at 1× and 40
+   at 4×, in Chromium 141.0.7390.37 on 4 vCPUs, and its untimed Firefox 157.0.1 round.
+2. **Shows:** **48 128 of 48 128 frames exact**, so the run is read. M is a speed-up in 5 of 8 cells and not resolved
+   in 3, and a cost in none. R is a speed-up in 6 and not resolved in 2. Firefox sent every frame to dav1d-WASM.
+3. **Rests on:** `usb_cine` frames 24–39, lossless and at Q = 10, and the middle 16 slices of `dbts_b1` (17–32)
+   and `dbts_b3` (23–38) at Q = 10, each a single unsplit 4:0:0 stream at G = 1, decoded one at a time. Nothing is
+   claimed for other sets, for a series the ingest writes beyond `usb_cine` lossless, for fills or for phones.
+4. **Left:** whether R becomes the default stays the owner's call, with these numbers and the merge-free run's.
+   The protocol changes no default.
+5. **Terms**, the protocol's: *M* is `onePass`'s skip of the chroma check on a `mono_chrome` stream, read as
+   W2 ÷ W; *R* is `reuseCopyBuffer`, read as R ÷ W2; the *A/A* is W′ ÷ W, two workers of one config. A lever is
+   *a speed-up* in a cell when its 95 % interval lies entirely below 1.00, *a cost* when it lies entirely above, and
+   *not resolved* otherwise.
+
+**Codings.** `usb_cine` lossless is `passes/codings.py`'s, 1 133 300 B of payload for 16 frames, every frame
+decoded natively and matched to its fetch checksum. The three lossy sets are `lossy.py`'s: 345 898
+(`usb_cine_q10`), 5 178 077 (`dbts_b1_q10`) and 5 163 681 B (`dbts_b3_q10`). Each of their 48 units, decoded alone
+by native dav1d 1.5.4 and by `aomdec` 3.15.1, gave the same samples, and those samples are each frame's truth. The
+lossy `usb_cine` frame 24 differs from its source in 36 % of its samples, by at most 6, so the cells are lossy in fact.
+
+**Checks**, one round at 1× each before the run, rows in `checks.json.gz`:
+
+| check | must read | read |
+| --- | --- | --- |
+| `--mutate`, every arm, every set | 0 exact | 0 of 256, and every warm-up frame inexact |
+| `neutral()` one off: W, W2, R | W 0 exact on `av1-webcodecs`; W2, R all | W 0 of 64: every frame decoded on `av1-dav1d` (exact there); W2 and R 64 of 64 each |
+| R with `copyTo` skipped on a reused buffer | exact on each worker's first frame only | the warm-up frame exact in each set; of the 16 timed, frame 0 exact (the warm-up is frame 0, so the stale buffer holds the same samples) and the other 15 mismatched on WebCodecs and were decoded again on dav1d |
+| Firefox 157.0.1, default config, untimed | every frame `av1-dav1d`, exact | 68 of 68 (16 + the warm-up, × 4 sets), none on WebCodecs |
+
+**The run.** [`report.md`](../../lab/av1/decode/grey-path/report.md) is `report.mjs` over the rows
+(`rows.json.gz`). 188 browsers, 3 008 arm runs, 48 128 frames, each exact the first time on WebCodecs with its
+SHA-256 matched; none off WebCodecs, none rescued by the fallback, and all 3 008 warm-up frames exact too.
+
+**ms a frame**, `decodeStart`→`decodeEnd`, the median over rounds of each round's median of 16:
+
+| throttle | set | W | W′ | W2 | R |
+| --- | --- | --: | --: | --: | --: |
+| 1× | `usb_cine` | 11.0 | 11.1 | 10.9 | 10.7 |
+| 1× | `usb_cine_q10` | 6.2 | 6.1 | 5.9 | 5.8 |
+| 1× | `dbts_b1_q10` | 135.6 | 137.0 | 130.1 | 116.2 |
+| 1× | `dbts_b3_q10` | 97.2 | 97.6 | 94.0 | 85.5 |
+| 4× | `usb_cine` | 30.3 | 30.6 | 30.3 | 29.7 |
+| 4× | `usb_cine_q10` | 11.8 | 11.6 | 11.9 | 11.3 |
+| 4× | `dbts_b1_q10` | 405.8 | 408.8 | 380.4 | 324.6 |
+| 4× | `dbts_b3_q10` | 277.9 | 276.5 | 265.3 | 226.4 |
+
+**The reading**, round-paired, the median [95 % interval]; 148 rounds at 1×, 40 at 4×:
+
+| throttle | set | W′ ÷ W (A/A) | W2 ÷ W (M) | M | R ÷ W2 (R) | R |
+| --- | --- | --: | --: | --- | --: | --- |
+| 1× | `usb_cine` | 1.006 [0.988–1.018] | 0.992 [0.985–1.002] | not resolved | 0.971 [0.965–0.988] | speed-up |
+| 1× | `usb_cine_q10` | 0.999 [0.979–1.018] | 0.960 [0.943–0.984] | speed-up | 0.972 [0.954–0.995] | speed-up |
+| 1× | `dbts_b1_q10` | 1.008 [1.003–1.018] **miss** | 0.962 [0.950–0.974] | speed-up | 0.883 [0.877–0.896] | speed-up |
+| 1× | `dbts_b3_q10` | 0.997 [0.990–1.013] | 0.968 [0.958–0.977] | speed-up | 0.910 [0.902–0.924] | speed-up |
+| 4× | `usb_cine` | 1.015 [0.969–1.044] | 1.001 [0.943–1.055] | not resolved | 0.982 [0.951–1.019] | not resolved |
+| 4× | `usb_cine_q10` | 0.997 [0.903–1.047] | 0.988 [0.914–1.041] | not resolved | 1.001 [0.942–1.047] | not resolved |
+| 4× | `dbts_b1_q10` | 1.019 [0.972–1.032] | 0.930 [0.916–0.942] | speed-up | 0.860 [0.836–0.877] | speed-up |
+| 4× | `dbts_b3_q10` | 0.978 [0.961–1.008] | 0.948 [0.890–0.966] | speed-up | 0.865 [0.833–0.894] | speed-up |
+
+**By the reading as written.** The A/A missed in 1 cell of 8 (`dbts_b1_q10` at 1×, lower end 1.003), which the
+protocol allows, so the run is not void. **M is a cost in no cell**: a speed-up in both lossy DBT cells at both
+throttles and in `usb_cine_q10` at 1×, not resolved in `usb_cine` at both throttles and `usb_cine_q10` at 4×.
+**R is a speed-up** in both lossy DBT cells at both throttles and in both `usb_cine` cells at 1×, and not resolved
+in both `usb_cine` cells at 4×. On `usb_cine` lossless, the one cell whose shape the product serves, M is not
+resolved at either throttle and R is a speed-up at 1× only. No default changes here: the protocol answers the
+owner's question and leaves R's default to the owner.
+
+The post → consumer-port receipt, beyond `decodeStart`→`decodeEnd`, was 0.3–0.7 ms a frame at the median in every
+arm and cell (`report.md`), recorded as a check and not decided on.
+
+**The host.** 4 vCPUs of an Intel Xeon at 2.10 GHz, one ask at a time, one `VideoDecoder` per arm.
+`passes/busy.mjs` over `busy.sh`'s samples: at 1× a browser kept 29–32 % of the 4 CPUs busy on average and its
+busiest second reached 40 %; at 4×, 15–20 % and 32 %. No second reached 95 %. The host did not saturate in this
+run, and where it saturates was not measured, so nothing is claimed for fills, concurrency or phones. Each cell is
+in ms a frame, latency only.
+
 ## Hardware decode
 
 Queue row HWDECODE, theory only: [`hardware.md`](hardware.md). No browser path serves the viewer as the product codes
