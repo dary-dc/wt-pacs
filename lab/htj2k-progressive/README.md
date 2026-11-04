@@ -358,3 +358,55 @@ ITU-T T.800 (06/2019) | ISO/IEC 15444-1:2019, itu.int (superseded by the 07/2024
 al., *Frontiers in Signal Processing* 2 (2022), doi:10.3389/frsip.2022.885644; OpenJPH tags 0.31.0 (`c68064d0`) and
 0.33.0 (`345a8bcd`), github.com/aous72/OpenJPH; Grok tag v20.4.25, github.com/GrokImageCompression/grok; OpenJPEG tag
 v2.5.4, github.com/uclouvain/openjpeg; FFmpeg tag n8.1.3, github.com/FFmpeg/FFmpeg.
+
+## Quality layers, measured
+
+*2026-11-04, a separate session given the protocol and nothing else; partial, completed in place as each stage
+lands. Code in [`layers/`](layers/); rows in [`rows/layers-measured/`](rows/layers-measured/).*
+
+* **Ran:** the protocol's stages for its two quality shapes — one HT set split over two layers (`oneset`) and two HT
+  sets with the first at plane p = 1 … 7 (`twosetsP`) — through a layered decoder built for it.
+* **Shows (so far):** stage 0 passes on every coding; stage 1 below. (Stages 2 and 3 and the rule: pending.)
+* **Rests on:** §Quality layers, built's writer; OpenJPH 0.31.0 patched to read layers ([`layers/layered.patch`](layers/layered.patch));
+  the source digests; OpenJPEG 2.5.4 on every layer-1 prefix.
+* **Left:** filled in when the run ends.
+
+### Terms
+
+* **Layer 1** is a frame's first quality layer: the main header and the first tile-part. **The whole** is both
+  layers; it must decode to the source exactly.
+* **The proxy** (the protocol's, not a visually lossless threshold): under every window in the series' header, at
+  least 99 % of in-window 8-bit codes within ±1 of the exact frame's; samples as stored where there is no window.
+  *At full size* compares the pictures as decoded; *at display scale* after both are area-resampled to a 1 000-pixel
+  long side (§Stage 1). A set is *at the proxy* when every frame is.
+* **Operating points** of two sets, named before stage 3: the smallest p at ≥ 40 dB and the largest p meeting the
+  proxy, each read on the series' PSNR at full size.
+
+### Stage 0, the layered decoder
+
+[`layers/layered.patch`](layers/layered.patch) over OpenJPH 0.31.0 (built by [`layers/decoder.sh`](layers/decoder.sh),
+native and as WASM with the client's wrapper and `../wasm/levels.patch`): with more than one layer in COD it reads each
+LRCP tile-part's packets with tag trees, Lblock and pass counts kept across layers (T.800 B.10), cuts each block's
+passes into HT segments (T.814 B.2), and keeps the last HT set whose cleanup has bytes, its missing MSBs raised by
+the sets before it (B.3, S_skip). A one-layer codestream takes OpenJPH's own path untouched.
+
+* `lab/decode-bench/parity.mjs` with `VARIANT=layered` on `g512 c512 g8 s512 s12 sat256 cine512` (8 frames each):
+  `PARITY OK` ([`rows/layers-measured/stage0-parity.txt`](rows/layers-measured/stage0-parity.txt)).
+* [`layers/stage0.mjs`](layers/stage0.mjs), every coding: the layered whole through the WASM decoder equals the
+  source's sha256; its layer-1 prefix equals the picture computed from the coefficients (§Quality layers, built), which
+  OpenJPEG 2.5.4 also gives from the prefix's own bytes; the smallest prefix giving layer 1 (binary search) is the
+  whole first tile-part, one byte less failing; today's codestream decodes as the delivered build decodes it (picture,
+  range, frame info). OpenJPEG cannot read the whole (§Quality layers, built), so **the whole's exactness is
+  single-decoder**: it rests on the source digests.
+* Mutants, each caught on every coding: a byte of layer 2 flipped (whole not exact), layer 1 three bytes short (not
+  layer 1), S_skip dropped through the native decoder's `OJPH_LAB_MUTATE_SKIP` (two sets' whole not exact — S_skip is
+  0 in layer 1, so it is the whole, not layer 1 as the protocol's list puts it, that it changes); `--mutate truth`
+  fails every digest check.
+
+### Stage 1, bytes and quality per layer
+
+*Partial (cine-like sets and `usb_cine` done; the 15 volumes running).* Every frame of `rf_fluoro`, `mr_ispy1`,
+`mr9_ispy2`, `dbt12_ea1141`, `dbt10_ea1141`, `dbt12_c`, `dbt10_d` and `usb_cine` (lossy-sourced): full table in
+[`rows/layers-measured/stage1.md`](rows/layers-measured/stage1.md). One set's layer 1 is at the proxy at full size on
+`rf_fluoro` (18/18) and `dbt12_c` (68/68), the whole ×0.988–0.989 of today's bytes; on no other set. Two sets reach
+it only at p ≤ 2 on those two sets, the whole ×1.67–1.85.
