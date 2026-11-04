@@ -5,10 +5,14 @@
  * every round and resumed from them.
  *
  *   NODE_PATH=… node lab/av1/profiles/decode_block.mjs --block K --out rows.json [--work lab/.av1-work/profiles-decode]
- *     [--sets dbts_a1,dbts_b1,dbts_c1] [--rounds N] [--throttles 1,4] [--hours H] [--mutate hash|offset|drop]
+ *     [--sets dbts_a1,dbts_b1,dbts_c1] [--rounds N] [--throttles 1,4] [--every-rung-at 1,4] [--until UNIX_S]
+ *     [--mutate hash|offset|drop]
+ * At a throttle not in --every-rung-at, only each series' middle rung runs: its crossover rung (§6 Content).
+ *     [--direct: adds §6's own ask at G = 16, to check the jump against]
  */
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { cpus, totalmem } from "node:os";
 import { createRequire } from "node:module";
 import { order } from "../../order.mjs";
 import { throttleTree } from "../../scripts/cpu_throttle.mjs";
@@ -19,10 +23,12 @@ const WORK = arg("--work", "lab/.av1-work/profiles-decode");
 const SETS = arg("--sets", "dbts_a1,dbts_b1,dbts_c1").split(",");
 const ROUNDS = Number(arg("--rounds", 10));
 const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
-const HOURS = Number(arg("--hours", Infinity));
+const EVERY_RUNG = arg("--every-rung-at", "1,4").split(",").map(Number);
+const UNTIL = Number(arg("--until", Infinity)) * 1000;
 const BLOCK = arg("--block", "pilot");
 const MUTATE = arg("--mutate", "");
 const OUT = arg("--out", null);
+const DIRECT = process.argv.includes("--direct");
 const ONLY = new RegExp(arg("--only", ""));
 const ROOT = new URL("../../..", import.meta.url).pathname;
 const PORT = 30000 + ((Math.random() * 10000) | 0);
@@ -48,6 +54,7 @@ function blocks() {
           for (const pattern of ["order", "jump"]) units.push({ name: `S${g}|${dec}|${pattern}`, arm: "S", form: formOf(e, dec), dec, g, pattern });
         }
       }
+      if (DIRECT) for (const dec of ["dav1d", "webcodecs"]) units.push({ name: `S16|${dec}|ask`, arm: "S", form: formOf(e, dec), dec, g: 16, pattern: "ask" });
       const cell = (form, g) => e.cells.find((c) => c.form === form && c.q === q && c.g === g);
       out.push({ e, q, name: `${e.name}|Q${q}`, units, forms: Object.fromEntries(forms.map((f) => [f, cell(f, 16)])),
         cells: Object.fromEntries(forms.map((f) => [f, Object.fromEntries([1, 8, 16].map((g) => [g, cell(f, g)]))])) });
@@ -72,6 +79,7 @@ function checks(b, u, got) {
     return { exact: tally(mid.map((i) => [h.get(i), e.truth[i]])), residuals: tally(mid.map((i) => [h.get(-1 - i), c.residuals[i]])) };
   }
   const lossy = b.cells[u.form][u.g].lossy;
+  if (u.pattern === "ask") return { lossy: tally([...h].map(([i, x]) => [x, lossy[i]])) };
   const seen = u.pattern === "order" ? mid : [...new Set(mid.map((k) => k - (k % u.g)))].flatMap((s) => range(s, Math.min(s + u.g, e.middle + 16)));
   return { lossy: tally(seen.map((i) => [h.get(i), lossy[i]])) };
 }
@@ -84,9 +92,10 @@ async function inChromium(throttle, round) {
   await page.waitForFunction(() => globalThis.ready);
   const stop = throttleTree(server.process().pid, throttle);
   const rows = [];
-  for (const b of order(BLOCKS, round)) {
+  const middle = (b) => { const qs = [...new Set(b.e.cells.map((c) => c.q))].sort((x, y) => x - y); return b.q === qs[1]; };
+  for (const b of order(BLOCKS.filter((b) => EVERY_RUNG.includes(throttle) || middle(b)), round)) {
     const e = b.e;
-    const units = order(b.units, round);
+    const units = order(b.units, round).map((u) => (u.pattern === "ask" ? { ...u, asks: order(range(e.middle, e.middle + 16), round) } : u));
     const forms = Object.fromEntries(Object.entries(b.cells).map(([f, cells]) => [f, {
       cells: Object.fromEntries(Object.entries(cells).map(([g, c]) => [g, c.cell])), shift: b.forms[f].shift,
       residualOffset: b.forms[f].residual_offset, residualBits: b.forms[f].residual_bits }]));
@@ -108,7 +117,7 @@ async function inChromium(throttle, round) {
       const c = checks(b, u, r);
       if (u.arm === "R") c.lossy = pre[u.form];
       rows.push({ block: BLOCK, round, throttle, set: e.name, q: b.q, unit: u.name, prev, arm: u.arm, form: u.form ?? null,
-        dec: u.dec ?? null, g: u.g ?? null, pattern: u.pattern ?? null, wall, frames: r.frames, error: r.error ?? null, checks: c });
+        dec: u.dec ?? null, g: u.g ?? null, pattern: u.pattern ?? null, wall, frames: r.frames, asks: r.asks, error: r.error ?? null, checks: c });
       if (r.error || Object.values(c).some(([ok, k]) => ok !== k)) console.error(`round ${round} ${throttle}x ${b.name} ${u.name}: ${JSON.stringify(c)} ${r.error ?? ""}`);
       prev = u.name;
     }
@@ -122,9 +131,10 @@ async function inChromium(throttle, round) {
 
 const rows = OUT && existsSync(OUT) ? JSON.parse(readFileSync(OUT, "utf8")) : [];
 const done = (round) => THROTTLES.every((t) => rows.some((r) => r.round === round && r.throttle === t));
+if (!rows.length) rows.push({ block: BLOCK, host: { cpu: cpus()[0].model, cores: cpus().length, gb: Math.round(totalmem() / 2 ** 30) } });
 let start = 0;
 while (start < ROUNDS && done(start)) start++;
-rows.splice(0, rows.length, ...rows.filter((r) => r.round < start));
+rows.splice(0, rows.length, ...rows.filter((r) => r.host || r.round < start));
 const began = Date.now();
 for (let round = start; round < ROUNDS; round++) {
   const t0 = Date.now();
@@ -134,8 +144,8 @@ for (let round = start; round < ROUNDS; round++) {
   }
   if (OUT) writeFileSync(OUT, JSON.stringify(rows));
   const per = (Date.now() - began) / (round - start + 1);
-  if (Date.now() - began + per > HOURS * 3600e3) {
-    console.error(`stopping after round ${round}: another round would pass ${HOURS} h`);
+  if (Date.now() + per > UNTIL) {
+    console.error(`stopping after round ${round}: another round would pass --until`);
     break;
   }
 }

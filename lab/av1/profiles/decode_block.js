@@ -90,6 +90,20 @@ async function block(o) {
           for (const i of range(start(o.middle), o.middle)) await d.decode(units.get(i));
           for (const i of mid) await timed(i);
           await d.flush();
+        } else if (u.pattern === "ask") {
+          // §6's own ask, to check the jump against: a fresh decoder for each slice, its chain from the keyframe.
+          r.asks = [];
+          for (const k of u.asks) {
+            await d.fresh();
+            const t = now();
+            for (const i of range(start(k), k + 1)) {
+              const px = await d.decode(units.get(i));
+              back(px, shift);
+              keep(i, px);
+            }
+            r.asks.push([k, now() - t]);
+            await d.flush();
+          }
         } else {
           // Jump: a fresh decoder at each group the middle 16 touch, its keyframe up to the last asked slice in it.
           // The jump to k is written(k) − handed(start(k)): the one-in-flight chain up to k is a prefix of this one.

@@ -3,7 +3,8 @@
 its ratios paired by round, the blocks pooled, D1–D3 against their bands; with --size, n and the round time from a
 pilot block. A block is one rows file of decode_block.mjs, one host; ms never leave their block.
 
-usage: decode_pool.py ROWS.json [ROWS.json ...] [--size --hours 4.5 --setup-hours S --sessions 6] [--links]
+usage: decode_pool.py ROWS.json [ROWS.json ...] [--links]
+       decode_pool.py PILOT.json --size [--hours 4.5] [--setup-hours S] [--sessions 6] [--every-rung-at 1]
        decode_pool.py --test
 """
 import json
@@ -20,15 +21,29 @@ RATES = (5e6, 50e6)
 BANDS = {"D1": (0.0, 1.0), "D2": (5.0, 9.0), "D3": (0.9, 1.1)}
 
 
+def t_cdf(x, df):
+    """Student's t distribution function at integer df, in closed form (Abramowitz & Stegun 26.7.3–26.7.4)."""
+    th = math.atan(abs(x) / math.sqrt(df))
+    c2, term, total = math.cos(th) ** 2, 1.0, 1.0
+    if df % 2:
+        for k in range(1, (df - 1) // 2):
+            term *= c2 * 2 * k / (2 * k + 1)
+            total += term
+        a = 2 / math.pi * (th + (math.sin(th) * math.cos(th) * total if df > 1 else 0))
+    else:
+        for k in range(1, df // 2):
+            term *= c2 * (2 * k - 1) / (2 * k)
+            total += term
+        a = math.sin(th) * total
+    return (1 + math.copysign(a, x)) / 2
+
+
 def t_quantile(p, df):
-    """Student's t quantile: exact for df 1 and 2, Cornish–Fisher above (within 0.2 % of tables at df ≥ 3)."""
-    if df == 1:
-        return math.tan(math.pi * (p - 0.5))
-    if df == 2:
-        return (2 * p - 1) / math.sqrt(2 * p * (1 - p))
-    z = st.NormalDist().inv_cdf(p)
-    return (z + (z ** 3 + z) / (4 * df) + (5 * z ** 5 + 16 * z ** 3 + 3 * z) / (96 * df ** 2)
-            + (3 * z ** 7 + 19 * z ** 5 + 17 * z ** 3 - 15 * z) / (384 * df ** 3))
+    lo, hi = -1e3, 1e3
+    for _ in range(200):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if t_cdf(mid, df) < p else (lo, mid)
+    return (lo + hi) / 2
 
 
 def interval(v):
@@ -42,7 +57,11 @@ def interval(v):
 def figure(r):
     """A row's figure, ms: the median frame for H, R and in order; for a jump the mean over the middle 16 of
     written(k) − handed(the keyframe k's chain began at). None when an error cut the row."""
-    if r.get("error") or not r.get("frames"):
+    if r.get("error"):
+        return None
+    if r["pattern"] == "ask":
+        return st.mean(ms for _, ms in r["asks"])
+    if not r.get("frames"):
         return None
     if r["pattern"] != "jump":
         return st.median(w - h for _, h, w, _ in r["frames"])
@@ -93,6 +112,7 @@ def ratios(forms, decs=("dav1d", "webcodecs")):
     out += [("jump G", f"S8|{d}|jump", f"S1|{d}|jump", None) for d in decs]
     out += [("in order G", f"S{g}|{d}|order", f"S1|{d}|order", None) for d in decs for g in (8, 16)]
     out += [("decoder", f"S{g}|dav1d|{p}", f"S{g}|webcodecs|{p}", None) for g in (1, 8, 16) for p in ("order", "jump")]
+    out += [("jump = ask", f"S16|{d}|jump", f"S16|{d}|ask", None) for d in decs]
     out += [("÷ H", f"S{g}|{d}|{p}", "H", None) for g in (1, 8, 16) for d in decs for p in ("order", "jump")]
     return out
 
@@ -130,7 +150,15 @@ def analyse(rows, links=False):
     for b, cells in sorted(blocks.items()):
         rounds = {r["round"] for rs in cells.values() for r in rs}
         lines.append(f"block {b}: {len(rounds)} rounds, {sum(map(len, cells.values()))} rows")
+        if len(rounds) < MIN_ROUNDS and len(blocks) > 1:
+            lines.append(f"  VOID: under {MIN_ROUNDS} rounds")
+            void |= {(b, *c) for c in cells}
         for c, rs in sorted(cells.items(), key=str):
+            figs = defaultdict(list)
+            for r in rs:
+                if figure(r) is not None:
+                    figs[unit(r)].append(figure(r))
+            lines.append(f"  ms, median over rounds, {c[0]} Q{c[1]} {c[2]}x: " + "  ".join(f"{u} {st.median(v):.0f}" for u, v in sorted(figs.items())))
             if any(failed(r) for r in rs):
                 void.add((b, *c))
                 lines.append(f"  void cell {c}: " + "; ".join(f"r{r['round']} {unit(r)} {r.get('checks')} {r.get('error') or ''}"[:200] for r in rs if failed(r))[:600])
@@ -165,7 +193,7 @@ def analyse(rows, links=False):
             if len(m) < 2:
                 why.append("one block")
             if min(n) < MIN_ROUNDS:
-                why.append(f"a block under {MIN_ROUNDS} rounds")
+                why.append(f"under {MIN_ROUNDS} rounds")
             if eff is not None and eff > ORDER_LIMIT and (aa_eff is None or eff > aa_eff):
                 why.append(f"order {eff:.0%} over 10 % and over the A/A's {aa_eff or 0:.0%}")
             state = "read" if not why else "not read: " + ", ".join(why)
@@ -203,9 +231,14 @@ def pct(x):
     return "—" if x is None else f"{x:.0%}"
 
 
-def size(rows, hours, setup_hours, sessions):
+def size(rows, hours, setup_hours, sessions, every_rung_at):
     """From one pilot block: σ of ln(ratio) over its rounds, per (cell, ratio); the blocks' rounds that see 5 % with
-    80 % power on a t over `sessions` blocks; and the rounds that fit `hours` less setup, from the pilot's round time."""
+    80 % power on a t over `sessions` blocks; and the rounds that fit `hours` less setup, from the pilot's round time.
+    At a throttle not in `every_rung_at`, only each series' middle rung counts, as decode_block.mjs runs it."""
+    rungs = defaultdict(set)
+    for r in rows:
+        rungs[r["set"]].add(r["q"])
+    rows = [r for r in rows if r["throttle"] in every_rung_at or r["q"] == sorted(rungs[r["set"]])[1]]
     cells = defaultdict(list)
     for r in rows:
         cells[(r["set"], r["q"], r["throttle"])].append(r)
@@ -269,6 +302,9 @@ def test():
     # A block whose A/A is 20 % off is void: the refuting block drops out and the other two hold.
     v, x = d2(block("a", 1.0) + block("b", 1.0, seed=1) + block("c", 1.5, aa=1.2, seed=2))
     assert v == "held" and x["blocks"] == 2, (v, x)
+    # A block under 10 rounds is void when others are pooled.
+    v, x = d2(block("a", 1.0) + block("b", 1.0, seed=1) + block("c", 1.5, rounds=9, seed=2))
+    assert v == "held" and x["blocks"] == 2, (v, x)
     # A failed check voids its block's cell.
     rows = block("a", 1.0) + block("b", 1.0, seed=1) + block("c", 1.5, seed=2)
     rows[-1]["checks"] = {"x": [0, 1]}
@@ -280,6 +316,9 @@ def test():
     assert abs(on_link(row("order", 1000), 5e6) - 10) < 1e-9
     assert abs(on_link(row("order", 100000), 5e6) - 160) < 1e-9
     assert abs(on_link(row("jump", 1000), 5e6) - (1.6 + 85)) < 1e-9
+    # The t quantiles against printed tables, odd and even df.
+    for p, df, want in ((0.975, 3, 3.182), (0.975, 4, 2.776), (0.975, 5, 2.571), (0.80, 5, 0.920), (0.975, 1, 12.706)):
+        assert abs(t_quantile(p, df) - want) < 1e-3, (p, df, t_quantile(p, df))
     print("decode_pool.py: every test passed")
 
 
@@ -288,10 +327,15 @@ if __name__ == "__main__":
         test()
         sys.exit()
     paths = [a for a in sys.argv[1:] if a.endswith(".json")]
-    rows = [r for p in paths for r in json.load(open(p)) if r.get("unit")]
+    every = [r for p in paths for r in json.load(open(p))]
+    rows = [r for r in every if r.get("unit")]
+    for r in every:
+        if "host" in r:
+            print(f"block {r['block']}: host {r['host']}")
     opt = lambda k, d: float(sys.argv[sys.argv.index(k) + 1]) if k in sys.argv else d
     if "--size" in sys.argv:
-        size(rows, opt("--hours", 4.5), opt("--setup-hours", 0.0), int(opt("--sessions", 6)))
+        every = [float(x) for x in sys.argv[sys.argv.index("--every-rung-at") + 1].split(",")] if "--every-rung-at" in sys.argv else [1, 4]
+        size(rows, opt("--hours", 4.5), opt("--setup-hours", 0.0), int(opt("--sessions", 6)), every)
         sys.exit()
     lines, verdicts, _ = analyse(rows, "--links" in sys.argv)
     print("\n".join(lines))
