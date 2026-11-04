@@ -29,9 +29,13 @@ const http = spawn("python3", ["server/dev-server.py", "--port", String(PORT)], 
 process.on("exit", () => http.kill());
 await new Promise((ok) => setTimeout(ok, 1000));
 
+/** A cell past this is VOID: its browser is closed and the campaign goes on. */
+const CELL_MS = 15 * 60 * 1000;
+
 async function inChromium(throttle, set, r) {
   const { chromium } = require("playwright");
   const server = await chromium.launchServer({ executablePath: process.env.CHROME_PATH || chromium.executablePath() });
+  const timer = setTimeout(() => server.kill(), CELL_MS);
   const browser = await chromium.connect(server.wsEndpoint());
   const page = await browser.newPage();
   page.setDefaultTimeout(0);
@@ -41,9 +45,10 @@ async function inChromium(throttle, set, r) {
   try {
     return await page.evaluate((o) => globalThis.run(o), { work: WORK, set, r, mutate: MUTATE, arms: ARMS });
   } finally {
+    clearTimeout(timer);
     stop();
-    await browser.close();
-    await server.close();
+    await browser.close().catch(() => {});
+    await server.close().catch(() => {});
   }
 }
 
@@ -51,10 +56,16 @@ for (let r = FIRST; r < FIRST + ROUNDS; r++) {
   const t0 = Date.now();
   for (const throttle of order(THROTTLES, r)) {
     for (const set of order(SETS, r)) {
-      const rows = (await inChromium(throttle, set, r)).map((row) => ({ throttle, mutate: MUTATE || null, ...row }));
+      const t1 = Date.now();
+      let rows;
+      try {
+        rows = (await inChromium(throttle, set, r)).map((row) => ({ throttle, mutate: MUTATE || null, ...row }));
+      } catch (e) {
+        rows = [{ throttle, mutate: MUTATE || null, set, round: r, void: String(e).slice(0, 200) }];
+      }
       if (OUT) appendFileSync(OUT, rows.map((x) => JSON.stringify(x) + "\n").join(""));
-      const bad = rows.filter((x) => x.exact === false || x.lossy === false || (x.frames && x.lossy < x.frames));
-      process.stderr.write(`round ${r} ${throttle}x ${set}: ${rows.length} rows, ${bad.length} failing a check\n`);
+      const bad = rows.filter((x) => x.void || x.exact === false || x.lossy === false || (x.frames && x.lossy < x.frames));
+      process.stderr.write(`round ${r} ${throttle}x ${set}: ${rows.length} rows, ${bad.length} failing a check or VOID, ${((Date.now() - t1) / 60000).toFixed(1)} min\n`);
     }
   }
   process.stderr.write(`round ${r}: ${((Date.now() - t0) / 60000).toFixed(1)} min\n`);

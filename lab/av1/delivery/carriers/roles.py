@@ -87,7 +87,7 @@ def order_effect(values_by_prev):
 
 def load_rows(path):
     rows = [json.loads(line) for line in Path(path).open()]
-    return [r for r in rows if not r.get("mutate")]
+    return [r for r in rows if not r.get("mutate") and not r.get("void")]
 
 
 def per_round(rows, key):
@@ -119,7 +119,8 @@ def main():
     asks, views = per_round([r for r in rows if "k" in r], ask_ms), per_round([r for r in rows if "frames" in r], view_ms)
     rounds = sorted({r["round"] for r in rows})
     throttles = sorted({r["throttle"] for r in rows})
-    print(f"rounds {len(rounds)}; throttles {throttles}\n")
+    voids = sum(1 for line in Path(sys.argv[2]).open() if '"void"' in line)
+    print(f"rounds {len(rounds)}; throttles {throttles}; VOID cells {voids}\n")
     for idx in sorted(work.glob("dbts_*.json")):
         e = json.loads(idx.read_text())
         s, H = e["name"], sum(e["htj2k_bytes"])
@@ -185,7 +186,8 @@ def main():
                 by = defaultdict(list)
                 for r in rows:
                     if (r["set"], r["throttle"], r["arm"]) == (s, t, arm):
-                        by[r["prev"]].append(r["ms"] if "k" in r else sum(r["ms"]))
+                        if (v := r["ms"] if "k" in r else sum(r["ms"])) is not None:
+                            by[r["prev"]].append(v)
                 if (effect := order_effect(by)) > 0.10:
                     print(f"* order effect {arm}: {effect:.1%}, not read")
             print()

@@ -243,9 +243,9 @@ measured; for the separate stream the model is *unverified* against a fill.
 **Order, rounds, throttle.** One round is, at 1× and at 4× (`lab/scripts/cpu_throttle.mjs`, `throttleTree`), each
 volume in a fresh headless Chromium, its arms in a Williams order (`lab/order.mjs`); throttles and volumes rotate by
 round. Each browser first decodes two units on every decoder, untimed. **10 rounds**, fixed by the budget, not by a
-power target (the profiles decode protocol asked for 315 and ran none). The paired leads by predecessor are printed
-with `order.mjs`'s `UNBALANCED` flag; an arm whose order effect (largest |median by predecessor ÷ median − 1|, as
-RESIDAPART) exceeds 10 % is reported and not read.
+power target (the profiles decode protocol asked for 315 and ran none). Every row carries the arm that ran before it;
+an arm whose order effect (largest |median by predecessor ÷ median − 1|, RESIDAPART's statistic) exceeds 10 % is
+printed by `roles.py`, reported and not read.
 
 **The budget, 4.5 h on 4 cores** (*derived* from the rows above, scaled):
 
