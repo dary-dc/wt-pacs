@@ -143,7 +143,8 @@ every cell run.
 
 * **Resolution scalability:** "the ability to extract reduced resolution representations directly from the
   code-stream" [T22, §1]. The ladder above is this.
-* **Quality scalability** (also called SNR scalability): "the ability to extract reduced quality representations
+* **Quality scalability** (SNR scalability elsewhere; T.800's only use of SNR in this sense is "for SNR progressive
+  applications", J.13.2): "the ability to extract reduced quality representations
   directly from the code-stream, while ensuring that the extracted representation has the same high coding efficiency
   as if the content were encoded directly at the corresponding reduced bit-rate" [T22, §1]. T.800 itself names
   neither; its word is *layer*.
