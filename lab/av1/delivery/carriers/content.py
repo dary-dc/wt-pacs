@@ -135,7 +135,7 @@ def quality(s, pics, back, factor, win, peak):
 
 def run_set(build, shipped, tool, work, path, mutate):
     s = svc.load(Path(path))
-    p = shapes.codings(s)[-1]
+    _, p = shapes.codings(s)[-1]
     peak = (1 << s.stored) - 1
     win = layer_error.voi_window(Path(path))
     w = work / s.name
@@ -146,6 +146,11 @@ def run_set(build, shipped, tool, work, path, mutate):
         code_k1(build, tool, lay, s, p)
     low = lows(build, tool, s, p)
     tmp = w / ".ask.ivf"
+    if mutate:
+        for name in (ASKED, f"{ASKED}-k1"):
+            got = native_asks(build, s, p, lay / f"{coding(p)}-{name}.ivf_2.av1", low, mutate, tmp)
+            print(s.name, name, f"--mutate {mutate}: asks exact", sum(got), "of", len(got), flush=True)
+        return s.name
     e = dict(name=s.name, frames=s.n, width=s.w, height=s.h, bits=s.stored, shift=p.shift, group=asked_group(s.n),
              truth=s.truth, window=win, layered={}, separate={},
              htj2k=[rel(shipped / s.name / f"{i:03d}.htj2k") for i in range(s.n)],

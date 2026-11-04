@@ -98,19 +98,40 @@ function webcodecs(first) {
   };
 }
 
-/** The stored samples the fetch's checksum covers: (top << shift) | low, or lossy << shift + residual − offset. */
-function stored(set, plane, width, f) {
-  const out = new Uint16Array(set.width * set.height);
-  for (let y = 0; y < set.height; y++) for (let x = 0; x < set.width; x++) out[y * set.width + x] = f(plane[y * width + x], y, x);
+/** The stored samples the fetch's checksum covers, cropped to the volume: (top << shift) | low. */
+function merged(set, top, low, shift) {
+  const { width: w, height: h } = set;
+  const out = new Uint16Array(w * h);
+  const t = top.planes[0];
+  const l = low?.planes[0];
+  for (let y = 0; y < h; y++) {
+    const a = y * top.width;
+    const o = y * w;
+    if (!shift) {
+      out.set(t.subarray(a, a + w), o);
+      continue;
+    }
+    const b = y * low.width;
+    for (let x = 0; x < w; x++) out[o + x] = (t[a + x] << shift) | l[b + x];
+  }
   return out;
 }
 
-function merged(set, top, low, shift) {
-  if (!shift) return stored(set, top.planes[0], top.width, (v) => v);
-  return stored(set, top.planes[0], top.width, (v, y, x) => (v << shift) | low.planes[0][y * low.width + x]);
+/** The exact samples from the lossy frame and its residual: (lossy << shift) + residual − offset. */
+function added(set, lossy, r, shift, offset) {
+  const { width: w, height: h } = set;
+  const out = new Uint16Array(w * h);
+  const p = lossy.planes[0];
+  for (let y = 0; y < h; y++) {
+    const a = y * lossy.width;
+    const o = y * w;
+    for (let x = 0; x < w; x++) out[o + x] = (p[a + x] << shift) + r[o + x] - offset;
+  }
+  return out;
 }
 
-async function checkExact(set, samples, k, mutate) {
+async function checkExact(set, decoded, k, mutate) {
+  const samples = decoded.buffer instanceof SharedArrayBuffer ? decoded.slice() : decoded;
   if (mutate === "sample") samples[0] ^= 1;
   const truth = mutate === "truth" ? set.truth[k].replace(/^./, (c) => (c === "0" ? "1" : "0")) : set.truth[k];
   return (await sha256(bytesOf(samples))) === truth;
@@ -165,8 +186,7 @@ async function ask(env, set, arm, k, mutate) {
     const t0 = performance.now();
     const r = htj2k.decodeFrame(set.residualUnits[k]);
     const rv = r.info.bitsPerSample > 8 ? new Uint16Array(r.sab) : new Uint8Array(r.sab);
-    const lp = lossy.planes[0];
-    const samples = stored(set, lp, lossy.width, (v, y, x) => (v << c.shift) + rv[y * set.width + x] - offset);
+    const samples = added(set, lossy, rv, c.shift, offset);
     const ms = performance.now() - t0;
     return [ms, await checkExact(set, samples, k, mutate), lossyOk];
   }
