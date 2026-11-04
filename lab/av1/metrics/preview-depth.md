@@ -384,3 +384,310 @@ Read 2026-11-04.
 * [D4] DICOM PS3.14, chapter 7 (Grayscale Standard Display Function), as the metrics protocol [M6] reads it.
 * The metrics protocol, [`README.md`](README.md) on `claude/av1-quality-metrics` at `5f12d5ee`: its §4.2, §4.4, §4.5,
   §7, §8 and its shards' series rows (σ in 2e).
+
+## Preview depth, measured (2026-11-04)
+
+*Row PREVIEWDEPTH. §9 run as written, every cell of every series in §3, 336 cells; nothing above §9 changed.*
+
+What was run: §4's two arms (full-depth and reduced-depth preview) over the whole ladder at G 16 on all 21 series of §3, plus the depth cut alone.
+
+What it shows: the level bound (P1) holds exactly; at equal bytes the reduced preview reads "same" on error and in-window SSIM on every A and C volume (P5) and costs 1.00 × the bytes there, 1.09 × on B (P6).
+
+Where it does not: P5 fails on `dbts_b4` and `dbts_b5`, the two B volumes with the least noise (σ 2.4 and 1.9); P2 misses at W = 1024 on most series, and P7 misses by one point on the level count. Under the rule as written, P2, P5 and P7 read refuted.
+
+It rests on these 21 series only, on libaom 3.15.1 · dav1d 1.5.4 output standing for every conformant decoder (§1), and on one 4-core host.
+
+What is left: banding. libvmaf was not built in this session (its build was refused by the session's permission policy), so CAMBI, P3, P4 and §6's banding call are **not run**.
+
+**Terms first used here.** *Shows* — §6's verdict that every measure but the level count reads "same" at equal bytes; with
+CAMBI not run it says nothing about banding. *Separates* (P7, which does not define it) — read here as: some system has a
+non-zero share of comparisons "reduced worse" on that measure. *Bracketed* — a reduced cell whose bytes fall between two
+full-depth rungs, so §6's equal-bytes reading exists.
+
+### Host, and where it saturates
+
+One cloud host: 4 cores (Intel Xeon @ 2.10 GHz), 15 GB, no swap. `aomenc` 3.15.1 and `dav1d` 1.5.4 (`--version`
+printed `1.5.4-0-g54706fc` with `LD_LIBRARY_PATH` on the built library) built by `lab/av1/tools/tools.sh aom`. Four
+cells in flight, one encoder thread each. Wall clock 21:42:02 → 23:23:40 UTC, **6 098 s** (§9 estimated 3.6 h with
+CAMBI); encode CPU 16 821 s, so wall ÷ encode CPU 0.36, and the cells' own wall summed 24 111 s — 3.95 of 4 slots busy
+on average: **the host is saturated at four cells**, and nothing past it is claimed. Times size the run; they are not
+compared between arms (§4).
+
+**Fit.** At the first A, B and C volumes (22:04 UTC, 113 cells, 8 778 of 55 368 Mpx·cells, 0.37 h) the projection was
+2.3 h, under 4.5 h: the full ladder was kept and no cell was cut.
+
+**Determinism across hosts.** The pilot's two series reproduce §8's rows byte for byte: 32 of 32 cells, every temporal
+unit's size equal.
+
+### Checks (§7), `rows/preview-depth.checks.json`
+
+| check | as run | mutated | sees it |
+| --- | --- | --- | --- |
+| window counts from the joint histogram = per-sample count | equal | lossy + 1: differs | yes |
+| `top8` error ∈ {−1 … +2}, mean square 1.5 | {−1, 0, 1, 2}, 1.5 | no rounding offset: {−3 … 0}, 3.5 | yes |
+| level bound, W = 64 noisy ramp: cut ≤ 17, source ≥ 60 | 15, 62 | no cut: 62 | yes |
+| dither: σ = 2 leaves a stair < 0.1 unit | 0.044 | σ = 0.5: 0.995 | yes |
+| SSIM in window: identical 1, float32 = float64, shown positions only | 1.0; 0.99769 both | every position: 0.508 | yes |
+| σ_out of a reduced frame × 4 reads 8 within 10 % | 7.99 | no × 4: 2.00 | yes |
+| equal bytes: exact at a rung, ln-linear between | 1.0; 2.0 | linear in bytes: 1.67 | yes |
+| CAMBI full-reference | **not run** (no libvmaf) | — | — |
+
+The libvmaf source was cloned at tag v3.0.0 and read `17a67b238ce0539bdeafdc95961abac64fa16ea8`, as §9 requires; its
+build step was not allowed to run in this session. The runner said so ("no vmaf … the banding columns are not run") and
+ran without it, as §9 provides.
+
+### Read against P1–P7
+
+* **P1 — holds.** No sweep window of the 20 series with a two-bit cut goes over ⌊W ÷ 4⌋ + 1 (0 of every count). System B's
+  header preset paints 127 levels under the reduced preview (bound 129) where the full-depth one paints 253–254, at every Q.
+  `mr_ispy1` goes over in 656 windows. It is the 11-bit control, whose `top10` cuts one bit (§Terms), so Δ = 2 and its
+  counts (15, 31, 63, 127, 254) sit under ⌊W ÷ 2⌋ + 1 (*derived*). That is not a harness error. It is a bound P1 did not state for that series.
+* **P2 — refuted under the rule as written.** Outside ± 0.03: at W = 1024 on every series except `dbt12_ea1141`, `dbts_a5`,
+  `dbt12_c` (which hold everywhere) and `dbts_b4`; at W = 512 on `dbts_b4` and `dbts_b5`. `mr_ispy1` also misses at W ≤ 256,
+  where it reads 0.50. That is what a one-bit cut gives (*derived*: error 0 or +1 on even and odd values, so half the samples
+  move where one unit is ≥ 1 level), not the two-bit cut P2 predicts for. At W ≤ 256 every series with a two-bit cut reads
+  0.73–0.77 against 0.75 ± 0.03 (largest move within ⌈2 × 255 ÷ W⌉ + 1 everywhere). The W = 1024 medians run 0.09–0.33.
+  The pilot met the same thing on its 10-bit volume and read it as the window being wider than the body's range (§8). That
+  cause is *unverified* here. The ≥ 1 % filter is applied per window against the most-populated window, the report's own
+  proxy for the body, because the rows carry no body count.
+* **P3, P4 — not run** (no CAMBI). The σ_out table shows where they would have been read: σ_out ≥ 4 at Q 2–4 on every A
+  and C volume, and at Q 8 on every C volume and on `dbts_a3` and `dbts_a4`. It falls under 2 from Q 12 on every A and C volume
+  except `dbts_c4` (Q 16), as 2f predicted. On B
+  the source σ is itself 1.9–5.5, and σ_out < 2 from Q 2 (`dbts_b5`), Q 8 (`dbts_b2`, `dbts_b4`), Q 12–16 (the rest).
+* **P5 — refuted on system B:** `dbts_b5` (69 / 74 / 77 % on the moved shares, 72 % SSIM) and `dbts_b4` (75 / 80 / 82 %,
+  77 %) are under 90 %; the other three B volumes read 96–100 %. Every A and C volume reads 95–100 % on every measure.
+  The controls are outside P5's scope: `rf_fluoro` 81–82 % on the moved shares, `mr_ispy1` 74–78 %.
+* **P6 — holds.** System medians: A 1.00 (band 0.9–1.1), C 1.00 (0.9–1.1), B 1.09 (1.0–1.2). The prediction's aside, "the
+  most at Q 2–4", is not what B shows. B's highest Q median is 1.20 at Q 56, with 1.14 at Q 2.
+* **P7 — refuted under the rule as written, on the level count only.** On every error measure B's share "reduced worse" is
+  the largest (ge1 6 %, ge2 9 %, ge4 11 %, max 9 %, SSIM 9 %, against 0–7 % on A and C). On the level count, which
+  separates the arms on all three systems, B reads 93 % against C's 94 %.
+* **The theory as a whole** (§2's last line): its detail-loss clause names A and C, and neither loses detail at equal bytes. Its
+  banding clause is not run.
+
+**What keeps A and C windows out of "shows"** at Q 12–32 and W 128–1024 (30–70 % of windows there) is mostly the largest
+move. It reads "reduced worse" in 347 (A) and 501 (C) comparisons and "reduced better" in 294 and 351. Next come the moved shares, in
+both directions, and never SSIM: **0 windows lose detail on A or C at any width or Q.** On B, 117 SSIM comparisons
+read "reduced worse" (19 better): 98 of them on `dbts_b5` (56) and `dbts_b4` (42), the rest on `dbts_b1` (10), `dbts_b2` (6), `dbts_b3` (3); all at Q 2 or Q 12–32, in W ≤ 512.
+
+### The tables P1–P7 are read from
+
+#### P1 · inner levels, reduced arm, sweep windows: bound ⌊W ÷ 4⌋ + 1 (cap 254)
+
+| set | W 32: max · bound | W 64: max · bound | W 128: max · bound | W 256: max · bound | W 512: max · bound | W 1024: max · bound | over bound | presets full · reduced |
+| --- | --: | --: | --: | --: | --: | --: | --: | --- |
+| dbt12_ea1141 | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 254 · 254 | 0 | 253–254 · 195–220 |
+| dbt10_ea1141 | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 242 · 254 | 0 | 254–254 · 127–127 |
+| rf_fluoro | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 254 · 254 | 0 | 254–254 · 254–254 |
+| mr_ispy1 | 15 · 9 | 31 · 17 | 63 · 33 | 127 · 65 | 254 · 129 | 254 · 254 | 656 | 254–254 · 155–155 |
+| dbts_a3 | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 254 · 254 | 0 | 253–254 · 195–220 |
+| dbts_b5 | 7 · 9 | 15 · 17 | 31 · 33 | 63 · 65 | 127 · 129 | 232 · 254 | 0 | 254–254 · 127–127 |
+| dbts_c2 | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 254 · 254 | 0 | 252–254 · 200–224 |
+| dbts_a1 | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 254 · 254 | 0 | 254–254 · 212–238 |
+| dbts_b3 | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 249 · 254 | 0 | 254–254 · 127–127 |
+| dbts_c4 | 7 · 9 | 15 · 17 | 31 · 33 | 63 · 65 | 127 · 129 | 254 · 254 | 0 | 254–254 · 195–220 |
+| dbts_a5 | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 254 · 254 | 0 | 254–254 · 218–242 |
+| dbts_b2 | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 246 · 254 | 0 | 254–254 · 127–127 |
+| dbts_c5 | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 254 · 254 | 0 | 254–254 · 212–238 |
+| dbts_a4 | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 254 · 254 | 0 | 254–254 · 195–221 |
+| dbts_b4 | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 205 · 254 | 0 | 253–254 · 127–127 |
+| dbts_c1 | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 254 · 254 | 0 | 253–254 · 244–253 |
+| dbts_a2 | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 254 · 254 | 0 | 254–254 · 216–240 |
+| dbts_b1 | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 252 · 254 | 0 | 254–254 · 127–127 |
+| dbts_c3 | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 254 · 254 | 0 | 254–254 · 228–249 |
+| dbt12_c | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 254 · 254 | 0 | 253–254 · 232–250 |
+| dbt10_d | 8 · 9 | 16 · 17 | 32 · 33 | 64 · 65 | 127 · 129 | 223 · 254 | 0 | 243–254 · 126–127 |
+
+#### P2 · the depth cut alone, share of shown samples moved ≥ 1 level: median (range) over the sweep windows showing ≥ 1 % of the samples, as §8 reads it; largest move against ⌈2 × 255 ÷ W⌉ + 1
+
+| set | W 32 (pred 0.75) | W 64 (pred 0.75) | W 128 (pred 0.75) | W 256 (pred 0.75) | W 512 (pred 0.50) | W 1024 (pred 0.25) | outside ± 0.03 |
+| --- | --: | --: | --: | --: | --: | --: | --- |
+| dbt12_ea1141 | 0.766 (0.76–0.77), max 17 ≤ 17 | 0.758 (0.76–0.76), max 9 ≤ 9 | 0.754 (0.01–0.76), max 5 ≤ 5 | 0.752 (0.01–0.76), max 2 ≤ 3 | 0.499 (0.01–0.51), max 1 ≤ 2 | 0.252 (0.01–0.46), max 1 ≤ 2 | none |
+| dbt10_ea1141 | 0.735 (0.72–0.74), max 17 ≤ 17 | 0.744 (0.73–0.74), max 9 ≤ 9 | 0.747 (0.74–0.75), max 4 ≤ 5 | 0.748 (0.74–0.75), max 2 ≤ 3 | 0.489 (0.32–0.50), max 1 ≤ 2 | 0.167 (0.09–0.25), max 1 ≤ 2 | 1024 |
+| rf_fluoro | 0.733 (0.72–0.74), max 17 ≤ 17 | 0.742 (0.74–0.75), max 9 ≤ 9 | 0.746 (0.74–0.75), max 5 ≤ 5 | 0.748 (0.74–0.75), max 2 ≤ 3 | 0.500 (0.50–0.50), max 1 ≤ 2 | 0.325 (0.01–0.43), max 1 ≤ 2 | 1024 |
+| mr_ispy1 | 0.505 (0.38–0.51), max 9 ≤ 17 | 0.504 (0.46–0.51), max 5 ≤ 9 | 0.503 (0.49–0.51), max 3 ≤ 5 | 0.503 (0.49–0.50), max 1 ≤ 3 | 0.498 (0.49–0.50), max 1 ≤ 2 | 0.114 (0.00–0.22), max 1 ≤ 2 | 32, 64, 128, 256, 1024 |
+| dbts_a3 | 0.733 (0.73–0.74), max 17 ≤ 17 | 0.742 (0.74–0.74), max 9 ≤ 9 | 0.746 (0.74–0.75), max 5 ≤ 5 | 0.747 (0.74–0.75), max 2 ≤ 3 | 0.498 (0.01–0.51), max 1 ≤ 2 | 0.101 (0.00–0.50), max 1 ≤ 2 | 1024 |
+| dbts_b5 | 0.766 (0.37–0.78), max 17 ≤ 17 | 0.756 (0.37–0.78), max 9 ≤ 9 | 0.752 (0.37–0.78), max 4 ≤ 5 | 0.750 (0.37–0.75), max 2 ≤ 3 | 0.318 (0.22–0.50), max 1 ≤ 2 | 0.160 (0.07–0.25), max 1 ≤ 2 | 512, 1024 |
+| dbts_c2 | 0.733 (0.73–0.74), max 17 ≤ 17 | 0.742 (0.74–0.74), max 9 ≤ 9 | 0.746 (0.74–0.75), max 5 ≤ 5 | 0.748 (0.74–0.75), max 2 ≤ 3 | 0.500 (0.49–0.51), max 1 ≤ 2 | 0.137 (0.00–0.50), max 1 ≤ 2 | 1024 |
+| dbts_a1 | 0.733 (0.73–0.74), max 17 ≤ 17 | 0.742 (0.74–0.74), max 9 ≤ 9 | 0.746 (0.74–0.75), max 4 ≤ 5 | 0.748 (0.74–0.75), max 2 ≤ 3 | 0.499 (0.01–0.51), max 1 ≤ 2 | 0.148 (0.00–0.25), max 1 ≤ 2 | 1024 |
+| dbts_b3 | 0.765 (0.76–0.79), max 17 ≤ 17 | 0.757 (0.75–0.78), max 9 ≤ 9 | 0.754 (0.75–0.76), max 4 ≤ 5 | 0.751 (0.75–0.75), max 2 ≤ 3 | 0.500 (0.50–0.50), max 1 ≤ 2 | 0.310 (0.12–0.50), max 1 ≤ 2 | 1024 |
+| dbts_c4 | 0.766 (0.77–0.77), max 17 ≤ 17 | 0.757 (0.76–0.76), max 9 ≤ 9 | 0.753 (0.00–0.76), max 4 ≤ 5 | 0.751 (0.00–0.76), max 2 ≤ 3 | 0.498 (0.00–0.50), max 1 ≤ 2 | 0.196 (0.00–0.47), max 1 ≤ 2 | 1024 |
+| dbts_a5 | 0.767 (0.76–0.77), max 17 ≤ 17 | 0.758 (0.76–0.76), max 9 ≤ 9 | 0.754 (0.75–0.76), max 5 ≤ 5 | 0.752 (0.75–0.75), max 2 ≤ 3 | 0.501 (0.49–0.51), max 1 ≤ 2 | 0.257 (0.00–0.40), max 1 ≤ 2 | none |
+| dbts_b2 | 0.735 (0.71–0.74), max 17 ≤ 17 | 0.743 (0.72–0.74), max 9 ≤ 9 | 0.747 (0.72–0.75), max 4 ≤ 5 | 0.748 (0.75–0.75), max 2 ≤ 3 | 0.500 (0.49–0.50), max 1 ≤ 2 | 0.132 (0.02–0.25), max 1 ≤ 2 | 1024 |
+| dbts_c5 | 0.766 (0.77–0.77), max 17 ≤ 17 | 0.758 (0.76–0.76), max 9 ≤ 9 | 0.754 (0.75–0.76), max 4 ≤ 5 | 0.752 (0.75–0.76), max 2 ≤ 3 | 0.499 (0.50–0.51), max 1 ≤ 2 | 0.087 (0.00–0.46), max 1 ≤ 2 | 1024 |
+| dbts_a4 | 0.733 (0.73–0.74), max 17 ≤ 17 | 0.742 (0.74–0.74), max 9 ≤ 9 | 0.746 (0.74–0.75), max 5 ≤ 5 | 0.747 (0.74–0.75), max 2 ≤ 3 | 0.500 (0.49–0.51), max 1 ≤ 2 | 0.158 (0.00–0.50), max 1 ≤ 2 | 1024 |
+| dbts_b4 | 0.765 (0.36–0.78), max 17 ≤ 17 | 0.757 (0.36–0.78), max 9 ≤ 9 | 0.753 (0.36–0.78), max 4 ≤ 5 | 0.751 (0.36–0.75), max 2 ≤ 3 | 0.410 (0.24–0.50), max 1 ≤ 2 | 0.254 (0.08–0.49), max 1 ≤ 2 | 512 |
+| dbts_c1 | 0.733 (0.73–0.74), max 17 ≤ 17 | 0.742 (0.74–0.74), max 9 ≤ 9 | 0.746 (0.74–0.75), max 4 ≤ 5 | 0.748 (0.74–0.75), max 2 ≤ 3 | 0.499 (0.00–0.51), max 1 ≤ 2 | 0.172 (0.00–0.25), max 1 ≤ 2 | 1024 |
+| dbts_a2 | 0.766 (0.77–0.77), max 17 ≤ 17 | 0.758 (0.76–0.76), max 9 ≤ 9 | 0.754 (0.75–0.76), max 4 ≤ 5 | 0.752 (0.75–0.76), max 2 ≤ 3 | 0.499 (0.01–0.50), max 1 ≤ 2 | 0.102 (0.00–0.48), max 1 ≤ 2 | 1024 |
+| dbts_b1 | 0.735 (0.72–0.74), max 17 ≤ 17 | 0.744 (0.72–0.74), max 9 ≤ 9 | 0.747 (0.74–0.75), max 4 ≤ 5 | 0.748 (0.75–0.75), max 2 ≤ 3 | 0.500 (0.50–0.50), max 1 ≤ 2 | 0.128 (0.01–0.25), max 1 ≤ 2 | 1024 |
+| dbts_c3 | 0.767 (0.75–0.77), max 17 ≤ 17 | 0.759 (0.75–0.76), max 9 ≤ 9 | 0.754 (0.75–0.76), max 5 ≤ 5 | 0.752 (0.75–0.76), max 2 ≤ 3 | 0.499 (0.00–0.50), max 1 ≤ 2 | 0.294 (0.00–0.34), max 1 ≤ 2 | 1024 |
+| dbt12_c | 0.767 (0.76–0.77), max 17 ≤ 17 | 0.758 (0.76–0.76), max 9 ≤ 9 | 0.754 (0.75–0.76), max 5 ≤ 5 | 0.752 (0.75–0.75), max 2 ≤ 3 | 0.499 (0.00–0.50), max 1 ≤ 2 | 0.263 (0.00–0.40), max 1 ≤ 2 | none |
+| dbt10_d | 0.732 (0.72–0.74), max 17 ≤ 17 | 0.741 (0.73–0.75), max 9 ≤ 9 | 0.745 (0.73–0.75), max 5 ≤ 5 | 0.749 (0.75–0.75), max 2 ≤ 3 | 0.500 (0.50–0.50), max 1 ≤ 2 | 0.102 (0.00–0.20), max 1 ≤ 2 | 1024 |
+
+#### σ_out, full · reduced, source units (read as a number from 4 up)
+
+| set | σ | Q 2 | Q 4 | Q 8 | Q 12 | Q 16 | Q 24 | Q 32 | Q 56 | first Q σ_out < 2, full · reduced |
+| --- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --- |
+| dbt12_ea1141 | 11.5 | 11.3 · 11.2 | 10.0 · 9.9 | 4.0 · 4.0 | 1.2 · 1.4 | 0.4 · 0.6 | 0.3 · 0.8 | 0.3 · 1.1 | 0.0 · 0.0 | 12 · 12 |
+| dbt10_ea1141 | 4.1 | 4.1 · 4.2 | 3.9 · 3.6 | 2.5 · 2.2 | 1.5 · 1.5 | 0.9 · 1.0 | 0.4 · 0.3 | 0.1 · 0.0 | 0.4 · 1.5 | 12 · 12 |
+| rf_fluoro | 12.7 | 12.4 · 12.2 | 10.2 · 9.8 | 3.7 · 3.7 | 0.7 · 0.8 | 0.3 · 0.3 | 0.3 · 0.0 | 0.3 · 0.6 | 0.3 · 0.7 | 12 · 12 |
+| mr_ispy1 | 3.2 | 2.9 · 3.1 | 2.4 · 2.8 | 1.1 · 2.0 | 0.5 · 1.4 | 0.3 · 0.9 | 0.0 · 0.3 | 0.0 · 0.0 | 0.0 · 0.0 | 8 · 12 |
+| dbts_a3 | 13.4 | 13.3 · 13.2 | 12.2 · 12.1 | 4.9 · 4.7 | 1.0 · 1.2 | 0.3 · 0.4 | 0.3 · 0.5 | 0.3 · 0.9 | 0.0 · 0.0 | 12 · 12 |
+| dbts_b5 | 1.9 | 1.9 · 1.7 | 1.7 · 1.1 | 0.9 · 0.0 | 0.4 · 0.0 | 0.1 · 0.0 | 0.0 · 0.0 | 0.0 · 0.0 | 0.0 · 0.0 | 2 · 2 |
+| dbts_c2 | 14.7 | 14.6 · 14.6 | 13.5 · 13.5 | 6.7 · 6.5 | 1.5 · 1.9 | 0.4 · 0.6 | 0.3 · 0.2 | 0.4 · 1.3 | 0.0 · 0.7 | 12 · 12 |
+| dbts_a1 | 11.3 | 11.2 · 11.2 | 9.5 · 8.9 | 2.8 · 2.7 | 0.5 · 0.6 | 0.1 · 0.3 | 0.3 · 0.4 | 0.5 · 1.2 | 0.0 · 0.4 | 12 · 12 |
+| dbts_b3 | 5.5 | 5.5 · 5.6 | 5.5 · 5.5 | 4.0 · 3.5 | 2.0 · 2.0 | 0.9 · 1.0 | 0.2 · 0.0 | 0.2 · 0.0 | 0.3 · 0.7 | 16 · 16 |
+| dbts_c4 | 15.9 | 15.7 · 15.6 | 14.9 · 14.9 | 7.8 · 7.6 | 2.3 · 2.9 | 0.6 · 1.0 | 0.2 · 0.2 | 0.2 · 0.5 | 0.0 · 0.4 | 16 · 16 |
+| dbts_a5 | 11.8 | 11.7 · 11.7 | 10.2 · 9.9 | 3.8 · 3.8 | 0.9 · 1.2 | 0.2 · 0.3 | 0.2 · 0.2 | 0.3 · 1.0 | 0.0 · 0.0 | 12 · 12 |
+| dbts_b2 | 3.4 | 3.4 · 3.4 | 2.9 · 2.2 | 1.3 · 1.1 | 0.6 · 0.4 | 0.3 · 0.0 | 0.1 · 0.0 | 0.1 · 0.0 | 0.0 · 0.0 | 8 · 8 |
+| dbts_c5 | 13.2 | 13.0 · 13.1 | 11.6 · 11.4 | 4.7 · 4.6 | 1.1 · 1.4 | 0.3 · 0.4 | 0.2 · 0.0 | 0.2 · 0.7 | 0.0 · 0.0 | 12 · 12 |
+| dbts_a4 | 14.2 | 14.1 · 14.1 | 13.0 · 12.8 | 5.4 · 5.2 | 1.1 · 1.5 | 0.3 · 0.2 | 0.2 · 0.0 | 0.0 · 0.0 | 0.0 · 0.0 | 12 · 12 |
+| dbts_b4 | 2.4 | 2.4 · 2.2 | 2.4 · 2.1 | 1.7 · 1.3 | 0.8 · 0.0 | 0.4 · 0.0 | 0.0 · 0.0 | 0.0 · 0.0 | 0.0 · 0.0 | 8 · 8 |
+| dbts_c1 | 12.9 | 12.8 · 12.8 | 11.4 · 11.1 | 4.6 · 4.5 | 1.0 · 1.4 | 0.2 · 0.4 | 0.1 · 0.0 | 0.3 · 0.5 | 0.0 · 0.0 | 12 · 12 |
+| dbts_a2 | 12.0 | 11.8 · 11.8 | 10.3 · 10.0 | 3.8 · 3.7 | 0.8 · 1.1 | 0.2 · 0.2 | 0.3 · 0.7 | 0.4 · 1.2 | 0.0 · 0.0 | 12 · 12 |
+| dbts_b1 | 5.5 | 5.4 · 5.5 | 5.4 · 5.2 | 3.4 · 2.8 | 1.4 · 1.4 | 0.5 · 0.6 | 0.1 · 0.0 | 0.2 · 0.0 | 0.5 · 1.5 | 12 · 12 |
+| dbts_c3 | 14.6 | 14.5 · 14.5 | 13.4 · 13.3 | 6.2 · 6.0 | 1.5 · 1.9 | 0.4 · 0.5 | 0.3 · 0.6 | 0.3 · 1.1 | 0.0 · 0.0 | 12 · 12 |
+| dbt12_c | 14.5 | 14.4 · 14.4 | 13.2 · 13.1 | 6.0 · 5.8 | 1.4 · 1.8 | 0.4 · 0.6 | 0.2 · 0.3 | 0.3 · 0.9 | 0.0 · 0.0 | 12 · 12 |
+| dbt10_d | 3.9 | 3.9 · 4.0 | 3.6 · 3.2 | 2.1 · 2.0 | 1.2 · 1.3 | 0.7 · 0.8 | 0.3 · 0.3 | 0.2 · 0.0 | 0.3 · 0.7 | 12 · 8 |
+
+#### P5 · share of windows 'same' at equal bytes, Q ≥ 8 (windows with a bracketed reading)
+
+| set | ge1 | ge2 | ge4 | ssim | not bracketed | under 90 % |
+| --- | --: | --: | --: | --: | --: | --- |
+| dbt12_ea1141 | 96 % | 97 % | 97 % | 100 % | 0 | none |
+| dbt10_ea1141 | 100 % | 100 % | 99 % | 100 % | 0 | none |
+| rf_fluoro | 81 % | 81 % | 82 % | 96 % | 0 | ge1, ge2, ge4 |
+| mr_ispy1 | 74 % | 76 % | 78 % | 94 % | 0 | ge1, ge2, ge4 |
+| dbts_a3 | 97 % | 97 % | 98 % | 100 % | 0 | none |
+| dbts_b5 | 69 % | 74 % | 77 % | 72 % | 0 | ge1, ge2, ge4, ssim |
+| dbts_c2 | 98 % | 99 % | 99 % | 100 % | 0 | none |
+| dbts_a1 | 98 % | 99 % | 99 % | 100 % | 0 | none |
+| dbts_b3 | 97 % | 97 % | 96 % | 100 % | 0 | none |
+| dbts_c4 | 98 % | 99 % | 99 % | 100 % | 0 | none |
+| dbts_a5 | 99 % | 99 % | 99 % | 100 % | 0 | none |
+| dbts_b2 | 99 % | 99 % | 99 % | 100 % | 0 | none |
+| dbts_c5 | 97 % | 98 % | 98 % | 100 % | 0 | none |
+| dbts_a4 | 95 % | 95 % | 95 % | 100 % | 0 | none |
+| dbts_b4 | 75 % | 80 % | 82 % | 77 % | 0 | ge1, ge2, ge4, ssim |
+| dbts_c1 | 98 % | 98 % | 98 % | 100 % | 0 | none |
+| dbts_a2 | 99 % | 99 % | 99 % | 100 % | 0 | none |
+| dbts_b1 | 100 % | 100 % | 99 % | 100 % | 0 | none |
+| dbts_c3 | 98 % | 98 % | 98 % | 100 % | 0 | none |
+| dbt12_c | 99 % | 100 % | 100 % | 100 % | 0 | none |
+| dbt10_d | 100 % | 100 % | 99 % | 100 % | 0 | none |
+
+#### P6 · bytes at equal in-window SSIM, reduced ÷ full: median over probe windows
+
+| group | band | all Q | Q 2 | Q 4 | Q 8 | Q 12 | Q 16 | Q 24 | Q 32 | Q 56 | n |
+| --- | --- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| A | 0.9–1.1 | 1.00 | 0.98 | 0.96 | 1.01 | 1.04 | 1.02 | 1.01 | 0.99 | 0.98 | 1320 |
+| B | 1.0–1.2 | 1.09 | 1.14 | 1.06 | 1.06 | 1.08 | 1.10 | 1.08 | 1.11 | 1.20 | 1166 |
+| C | 0.9–1.1 | 1.00 | 0.98 | 0.96 | 1.01 | 1.02 | 1.04 | 1.04 | 0.99 | 0.94 | 1296 |
+| content 2, 12-bit | – | 0.99 | 0.98 | 0.96 | 1.00 | 1.02 | 1.01 | 1.01 | 0.97 | 0.91 | 512 |
+| content 2, 10-bit | – | 1.07 | 1.17 | 1.11 | 1.06 | 1.07 | 1.05 | 1.03 | 1.05 | 1.07 | 495 |
+| rf_fluoro | – | 1.00 | 0.97 | 1.03 | 1.05 | 1.04 | 1.01 | 0.99 | 0.96 | 0.90 | 235 |
+| mr_ispy1 | – | 0.98 | – | 0.83 | 0.90 | 0.94 | 1.04 | 1.00 | 0.99 | 1.36 | 217 |
+
+#### P7 · share of (window, Q) comparisons 'reduced worse' at equal bytes, by system
+
+| measure | A | B | C | separates | B ≥ A and C |
+| --- | --: | --: | --: | --- | --- |
+| ge1 | 0 % | 6 % | 1 % | yes | yes |
+| ge2 | 0 % | 9 % | 1 % | yes | yes |
+| ge4 | 0 % | 11 % | 1 % | yes | yes |
+| max | 6 % | 9 % | 7 % | yes | yes |
+| levels | 93 % | 93 % | 94 % | yes | **no** |
+| ssim | 0 % | 9 % | 0 % | yes | yes |
+
+### Per system, width and Q: §6's verdict
+
+Each table cell: the share of windows that *show* · how many *lose detail* · windows read. Banding is not run, so a
+"shows" here is not cleared of banding. The level count is reported beside every verdict, in P1 above.
+`rows/preview-depth.report.md` is `preview_depth_report.py`'s full output (7 061 lines), and `rows/preview-depth.tsv`
+holds every comparison. These tables and those of P1–P7 come from
+[`preview_depth_verdict.py`](preview_depth_verdict.py) `rows/preview-depth.jsonl --pilot pilot/preview-depth.jsonl`.
+
+
+**A** — shows · loses detail · windows (n/a: no bracketed reading)
+
+| width | Q 2 | Q 4 | Q 8 | Q 12 | Q 16 | Q 24 | Q 32 | Q 56 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 32 | 99 % · 0 · 254 | 99 % · 0 · 254 | 100 % · 0 · 254 | 97 % · 0 · 254 | 94 % · 0 · 254 | 88 % · 0 · 254 | 91 % · 0 · 254 | 98 % · 0 · 254 |
+| 64 | 99 % · 0 · 163 | 94 % · 0 · 163 | 100 % · 0 · 163 | 98 % · 0 · 163 | 100 % · 0 · 163 | 99 % · 0 · 163 | 99 % · 0 · 163 | 99 % · 0 · 163 |
+| 128 | 96 % · 0 · 122 | 91 % · 0 · 122 | 90 % · 0 · 122 | 57 % · 0 · 122 | 30 % · 0 · 122 | 63 % · 0 · 122 | 96 % · 0 · 122 | 100 % · 0 · 122 |
+| 256 | 95 % · 0 · 110 | 86 % · 0 · 110 | 84 % · 0 · 110 | 63 % · 0 · 110 | 66 % · 0 · 110 | 52 % · 0 · 110 | 42 % · 0 · 110 | 100 % · 0 · 110 |
+| 512 | 90 % · 0 · 72 | 83 % · 0 · 72 | 92 % · 0 · 72 | 57 % · 0 · 72 | 71 % · 0 · 72 | 67 % · 0 · 72 | 74 % · 0 · 72 | 97 % · 0 · 72 |
+| 1024 | 92 % · 0 · 52 | 85 % · 0 · 52 | 92 % · 0 · 52 | 62 % · 0 · 52 | 75 % · 0 · 52 | 81 % · 0 · 52 | 85 % · 0 · 52 | 96 % · 0 · 52 |
+| presets | 100 % · 0 · 15 | 100 % · 0 · 15 | 100 % · 0 · 15 | 93 % · 0 · 15 | 87 % · 0 · 15 | 80 % · 0 · 15 | 100 % · 0 · 15 | 100 % · 0 · 15 |
+
+**B** — shows · loses detail · windows (n/a: no bracketed reading)
+
+| width | Q 2 | Q 4 | Q 8 | Q 12 | Q 16 | Q 24 | Q 32 | Q 56 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 32 | 69 % · 7 · 132 | 85 % · 0 · 132 | 90 % · 0 · 132 | 84 % · 0 · 132 | 87 % · 0 · 132 | 82 % · 5 · 132 | 86 % · 2 · 132 | 99 % · 0 · 132 |
+| 64 | 67 % · 8 · 84 | 68 % · 0 · 84 | 80 % · 0 · 84 | 73 % · 2 · 84 | 62 % · 5 · 84 | 39 % · 5 · 84 | 46 % · 5 · 84 | 99 % · 0 · 84 |
+| 128 | 65 % · 7 · 60 | 62 % · 0 · 60 | 82 % · 0 · 60 | 63 % · 5 · 60 | 67 % · 5 · 60 | 55 % · 5 · 60 | 48 % · 5 · 60 | 97 % · 0 · 60 |
+| 256 | 0 % · 8 · 49 | 0 % · 0 · 49 | 78 % · 0 · 49 | 47 % · 5 · 49 | 55 % · 5 · 49 | 41 % · 5 · 49 | 51 % · 5 · 49 | 96 % · 0 · 49 |
+| 512 | 10 % · 6 · 41 | 7 % · 0 · 41 | 73 % · 0 · 41 | 56 % · 5 · 41 | 44 % · 5 · 41 | 59 % · 5 · 41 | 71 % · 2 · 41 | 98 % · 0 · 41 |
+| 1024 | 5 % · 0 · 37 | 0 % · 0 · 37 | 30 % · 0 · 37 | 49 % · 0 · 37 | 54 % · 0 · 37 | 68 % · 0 · 37 | 78 % · 0 · 37 | 97 % · 0 · 37 |
+| presets | 20 % · 0 · 5 | 0 % · 0 · 5 | 100 % · 0 · 5 | 60 % · 0 · 5 | 60 % · 0 · 5 | 40 % · 0 · 5 | 60 % · 0 · 5 | 100 % · 0 · 5 |
+
+**C** — shows · loses detail · windows (n/a: no bracketed reading)
+
+| width | Q 2 | Q 4 | Q 8 | Q 12 | Q 16 | Q 24 | Q 32 | Q 56 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 32 | 99 % · 0 · 300 | 100 % · 0 · 300 | 99 % · 0 · 300 | 96 % · 0 · 300 | 97 % · 0 · 300 | 89 % · 0 · 300 | 92 % · 0 · 300 | 99 % · 0 · 300 |
+| 64 | 98 % · 0 · 192 | 95 % · 0 · 192 | 97 % · 0 · 192 | 93 % · 0 · 192 | 99 % · 0 · 192 | 99 % · 0 · 192 | 100 % · 0 · 192 | 100 % · 0 · 192 |
+| 128 | 97 % · 0 · 142 | 89 % · 0 · 142 | 87 % · 0 · 142 | 42 % · 0 · 142 | 31 % · 0 · 142 | 80 % · 0 · 142 | 94 % · 0 · 142 | 99 % · 0 · 142 |
+| 256 | 96 % · 0 · 142 | 90 % · 0 · 142 | 71 % · 0 · 142 | 68 % · 0 · 142 | 58 % · 0 · 142 | 50 % · 0 · 142 | 35 % · 0 · 142 | 99 % · 0 · 142 |
+| 512 | 95 % · 0 · 88 | 91 % · 0 · 88 | 80 % · 0 · 88 | 66 % · 0 · 88 | 61 % · 0 · 88 | 60 % · 0 · 88 | 61 % · 0 · 88 | 98 % · 0 · 88 |
+| 1024 | 97 % · 0 · 60 | 88 % · 0 · 60 | 73 % · 0 · 60 | 62 % · 0 · 60 | 77 % · 0 · 60 | 72 % · 0 · 60 | 77 % · 0 · 60 | 95 % · 0 · 60 |
+| presets | 100 % · 0 · 15 | 93 % · 0 · 15 | 100 % · 0 · 15 | 100 % · 0 · 15 | 93 % · 0 · 15 | 93 % · 0 · 15 | 87 % · 0 · 15 | 100 % · 0 · 15 |
+
+**content 2, 12-bit** — shows · loses detail · windows (n/a: no bracketed reading)
+
+| width | Q 2 | Q 4 | Q 8 | Q 12 | Q 16 | Q 24 | Q 32 | Q 56 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 32 | 98 % · 0 · 131 | 98 % · 0 · 131 | 100 % · 0 · 131 | 100 % · 0 · 131 | 99 % · 0 · 131 | 93 % · 0 · 131 | 94 % · 0 · 131 | 98 % · 0 · 131 |
+| 64 | 97 % · 0 · 102 | 91 % · 0 · 102 | 97 % · 0 · 102 | 83 % · 0 · 102 | 98 % · 0 · 102 | 98 % · 0 · 102 | 100 % · 0 · 102 | 100 % · 0 · 102 |
+| 128 | 97 % · 0 · 73 | 90 % · 0 · 73 | 88 % · 0 · 73 | 49 % · 0 · 73 | 34 % · 0 · 73 | 64 % · 0 · 73 | 92 % · 0 · 73 | 100 % · 0 · 73 |
+| 256 | 98 % · 0 · 52 | 90 % · 0 · 52 | 88 % · 0 · 52 | 77 % · 0 · 52 | 63 % · 0 · 52 | 63 % · 0 · 52 | 44 % · 0 · 52 | 100 % · 0 · 52 |
+| 512 | 100 % · 0 · 33 | 97 % · 0 · 33 | 85 % · 0 · 33 | 85 % · 0 · 33 | 64 % · 0 · 33 | 73 % · 0 · 33 | 88 % · 0 · 33 | 100 % · 0 · 33 |
+| 1024 | 100 % · 0 · 23 | 96 % · 0 · 23 | 83 % · 0 · 23 | 74 % · 0 · 23 | 57 % · 0 · 23 | 57 % · 0 · 23 | 87 % · 0 · 23 | 100 % · 0 · 23 |
+| presets | 100 % · 0 · 6 | 100 % · 0 · 6 | 100 % · 0 · 6 | 100 % · 0 · 6 | 100 % · 0 · 6 | 50 % · 0 · 6 | 100 % · 0 · 6 | 100 % · 0 · 6 |
+
+**content 2, 10-bit** — shows · loses detail · windows (n/a: no bracketed reading)
+
+| width | Q 2 | Q 4 | Q 8 | Q 12 | Q 16 | Q 24 | Q 32 | Q 56 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 32 | 77 % · 1 · 53 | 72 % · 0 · 53 | 87 % · 0 · 53 | 91 % · 0 · 53 | 96 % · 0 · 53 | 96 % · 0 · 53 | 100 % · 0 · 53 | 100 % · 0 · 53 |
+| 64 | 68 % · 4 · 34 | 74 % · 0 · 34 | 76 % · 0 · 34 | 71 % · 0 · 34 | 74 % · 0 · 34 | 53 % · 0 · 34 | 50 % · 0 · 34 | 100 % · 0 · 34 |
+| 128 | 65 % · 3 · 23 | 74 % · 0 · 23 | 83 % · 0 · 23 | 57 % · 0 · 23 | 78 % · 0 · 23 | 61 % · 0 · 23 | 43 % · 0 · 23 | 100 % · 0 · 23 |
+| 256 | 0 % · 2 · 18 | 0 % · 0 · 18 | 94 % · 0 · 18 | 61 % · 0 · 18 | 72 % · 0 · 18 | 78 % · 0 · 18 | 83 % · 0 · 18 | 100 % · 0 · 18 |
+| 512 | 0 % · 2 · 15 | 0 % · 0 · 15 | 80 % · 0 · 15 | 67 % · 0 · 15 | 53 % · 0 · 15 | 87 % · 0 · 15 | 100 % · 0 · 15 | 93 % · 0 · 15 |
+| 1024 | 14 % · 0 · 14 | 0 % · 0 · 14 | 29 % · 0 · 14 | 57 % · 0 · 14 | 50 % · 0 · 14 | 86 % · 0 · 14 | 100 % · 0 · 14 | 86 % · 0 · 14 |
+| presets | 0 % · 0 · 2 | 0 % · 0 · 2 | 100 % · 0 · 2 | 0 % · 0 · 2 | 0 % · 0 · 2 | 50 % · 0 · 2 | 100 % · 0 · 2 | 100 % · 0 · 2 |
+
+**rf_fluoro** — shows · loses detail · windows (n/a: no bracketed reading)
+
+| width | Q 2 | Q 4 | Q 8 | Q 12 | Q 16 | Q 24 | Q 32 | Q 56 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 32 | 100 % · 0 · 196 | 98 % · 0 · 196 | 94 % · 0 · 196 | 73 % · 0 · 196 | 53 % · 0 · 196 | 46 % · 0 · 196 | 65 % · 0 · 196 | 96 % · 0 · 196 |
+| 64 | 100 % · 0 · 101 | 99 % · 1 · 101 | 82 % · 0 · 101 | 41 % · 0 · 101 | 73 % · 0 · 101 | 66 % · 1 · 101 | 80 % · 0 · 101 | 99 % · 1 · 101 |
+| 128 | 100 % · 0 · 54 | 98 % · 1 · 54 | 96 % · 1 · 54 | 67 % · 0 · 54 | 30 % · 0 · 54 | 30 % · 0 · 54 | 67 % · 0 · 54 | 98 % · 1 · 54 |
+| 256 | 100 % · 0 · 30 | 97 % · 1 · 30 | 93 % · 0 · 30 | 97 % · 0 · 30 | 63 % · 0 · 30 | 47 % · 0 · 30 | 40 % · 0 · 30 | 100 % · 0 · 30 |
+| 512 | 100 % · 0 · 18 | 100 % · 0 · 18 | 94 % · 0 · 18 | 94 % · 0 · 18 | 61 % · 0 · 18 | 83 % · 0 · 18 | 56 % · 0 · 18 | 100 % · 0 · 18 |
+| 1024 | 100 % · 0 · 12 | 100 % · 0 · 12 | 92 % · 0 · 12 | 92 % · 0 · 12 | 33 % · 0 · 12 | 67 % · 0 · 12 | 75 % · 0 · 12 | 100 % · 0 · 12 |
+| presets | 100 % · 0 · 1 | 0 % · 0 · 1 | 100 % · 0 · 1 | 100 % · 0 · 1 | 100 % · 0 · 1 | 100 % · 0 · 1 | 100 % · 0 · 1 | 100 % · 0 · 1 |
+
+**mr_ispy1** — shows · loses detail · windows (n/a: no bracketed reading)
+
+| width | Q 2 | Q 4 | Q 8 | Q 12 | Q 16 | Q 24 | Q 32 | Q 56 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 32 | n/a · 0 · 0 (36 n/a) | 83 % · 0 · 36 | 0 % · 1 · 36 | 0 % · 1 · 36 | 83 % · 2 · 36 | 94 % · 0 · 36 | 100 % · 0 · 36 | 86 % · 0 · 36 |
+| 64 | n/a · 0 · 0 (22 n/a) | 100 % · 0 · 22 | 59 % · 0 · 22 | 0 % · 1 · 22 | 5 % · 3 · 22 | 82 % · 0 · 22 | 95 % · 0 · 22 | 95 % · 0 · 22 |
+| 128 | n/a · 0 · 0 (14 n/a) | 100 % · 0 · 14 | 57 % · 0 · 14 | 0 % · 0 · 14 | 7 % · 3 · 14 | 14 % · 0 · 14 | 14 % · 0 · 14 | 100 % · 0 · 14 |
+| 256 | n/a · 0 · 0 (10 n/a) | 100 % · 0 · 10 | 40 % · 0 · 10 | 0 % · 0 · 10 | 90 % · 0 · 10 | 60 % · 0 · 10 | 10 % · 0 · 10 | 90 % · 0 · 10 |
+| 512 | n/a · 0 · 0 (8 n/a) | 100 % · 0 · 8 | 38 % · 0 · 8 | 0 % · 0 · 8 | 50 % · 0 · 8 | 62 % · 0 · 8 | 50 % · 0 · 8 | 75 % · 0 · 8 |
+| 1024 | n/a · 0 · 0 (7 n/a) | 100 % · 0 · 7 | 29 % · 0 · 7 | 0 % · 0 · 7 | 100 % · 0 · 7 | 100 % · 0 · 7 | 100 % · 0 · 7 | 100 % · 0 · 7 |
+| presets | n/a · 0 · 0 (1 n/a) | 100 % · 0 · 1 | 0 % · 0 · 1 | 0 % · 0 · 1 | 0 % · 0 · 1 | 0 % · 0 · 1 | 0 % · 0 · 1 | 100 % · 0 · 1 |
