@@ -2164,7 +2164,7 @@ to `lab/av1/profiles/rows/decode-shard-5.*`. The cells follow when it stops.*
 
 ### Decode shard 6, measured
 
-*Run 2026-11-04, 18:29–22:52 UTC, by a session given only §7; nothing in §7 was changed.*
+*Run 2026-11-04, 18:29–22:35 UTC, by a session given only §7; nothing in §7 was changed.*
 
 * **Ran:** block `shard-6` of §7, rounds 0–22 (23), as §Shards writes it, then §7's three driver mutations and the pool's nine.
 * **Shows:** every check matched in all 23 rounds; the A/A sits inside ±5 % at 1× and at 4×, so the block is kept.
