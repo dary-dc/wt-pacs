@@ -7,3 +7,11 @@ page.evaluate: Target page, context or browser has been closed
     at async file:///home/user/wt-pacs/lab/av1/profiles/decode_block.mjs:142:19
 
 Node.js v22.23.4
+round 0 1x done, 260 s
+round 0 1x done, 256 s
+round 0 4x done, 579 s
+round 0 4x done, 580 s
+round 1 4x done, 321 s
+round 1 4x done, 326 s
+round 1 1x done, 582 s
+round 1 1x done, 586 s
