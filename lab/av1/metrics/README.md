@@ -413,3 +413,34 @@ Read 2026-11-04 unless stated.
   <https://dicom.nema.org/medical/dicom/current/output/chtml/part14/chapter_7.html>.
 * Kim B et al. 2011, ACR, ESR, MQSA and the other guideline quotes: as `docs/av1/visually-lossless.md`
   on `claude/av1-visually-lossless` at 95357d834 gives them (read there 2026-11-02).
+
+### Shard 1, measured (2026-11-04, partial)
+
+*In progress: the checks are in, the cells are running. This section is replaced as each series lands.*
+
+**Host.** 4 cores (Intel Xeon @ 2.10 GHz), 15 GB, no swap; four cells in flight as `shard.sh` runs them. libaom
+3.15.1 and dav1d 1.5.4 built by `tools.sh`. On this host `dav1d` loads the system's libdav1d 1.4.1 unless
+`LD_LIBRARY_PATH` names the built one, so the shard ran with `LD_LIBRARY_PATH=lab/.av1-build/dav1d/lib`
+(`dav1d --version`: 1.5.4-0-g54706fc).
+
+**Checks** (`rows/shard-1.checks.json`, on `mr9_ispy2`, the shard's smallest grey series; the synthetic checks do
+not depend on the series):
+
+| check | as run | mutated | sees it |
+| --- | --- | --- | --- |
+| σ on integer frames of known σ, smooth and edge scenes | 0.241 … 16.115 for σ 0.25 … 16; scene alone 0.00 | rounding term dropped: σ 0.5 reads 0.575 | yes |
+| the same | — | median in place of mean: σ 1 reads 0.784 | yes |
+| the same | — | no edge exclusion: σ 1 on the edge scene reads 1.45 | yes |
+| SSIM = scikit-image's, to 1e-9 | 0.99911359 both | L = 255: 0.879 | yes |
+| MS-SSIM, scale 5 alone = SSIM of the 16× reduced pair | 1.0; 0.9999042 both | no downsampling: 0.9666 | yes |
+| PSNR of a ±1 checkerboard at 12 bits | 72.245 dB, max \|Δ\| 1 | peak 255: 48.13 | yes |
+| displayed levels over the window's samples only | 40 of 40, 1 level | clipped codes counted: 120 | yes |
+| the band | 5 full, 4 band | no reduction: 5, 5 | yes |
+| ratio on bits stored | 1.0 | 16-bit container: 1.33 | yes |
+| GSDF | L(1) 0.04998, L(1023) 3 993.33, inverse 0.09 JND | c's sign flipped: L(1023) 1.6e-5 | yes |
+| deterministic encode | byte-identical | `--cpu-used=5`: differs | yes |
+| frames aligned: Q 1 error < neighbour step | 0.62–0.66 against 9.58–10.13 | source k + 1: 9.57–10.13 | yes |
+| an exact frame reads exact | 0, 0, 0, 0 | one sample +1: 0, 1, 0, 0 | yes |
+| knee and anchor | 8, 4 | rung nearest the chord: 2 | yes |
+| ColorVideoVDP | 10.00 against itself, 9.88 with ±2 codes | (the second case) | yes |
+| reported, no verdict: σ 8 noise blurred 0.5 · 1 px | 5.27 · 0.67 | — | — |
