@@ -2550,7 +2550,7 @@ with these numbers and the merge-free run's.
    four sets goes to dav1d-WASM, exact. The timed rounds are running.
 3. **Rests on:** `usb_cine` frames 24–39, lossless and at Q = 10, and the middle 16 slices of `dbts_b1` (17–32)
    and `dbts_b3` (23–38) at Q = 10, each a single unsplit 4:0:0 stream at G = 1. Nothing is claimed for other sets.
-4. **Left:** the 148 rounds at 1× and 40 at 4×, then the reading. The rows of the first 60 browsers (47 at 1×, 13 at 4×) are in `rows.json.gz`, every frame exact; they are not read before the run ends.
+4. **Left:** the 148 rounds at 1× and 40 at 4×, then the reading. The rows of the first 130 browsers are in `rows.json.gz`, every frame exact; they are not read before the run ends.
 5. Terms are the protocol's: *M* is `onePass`'s chroma-check skip, read as W2 ÷ W; *R* is `reuseCopyBuffer`, read
    as R ÷ W2; the *A/A* is W′ ÷ W, two workers of one config.
 
