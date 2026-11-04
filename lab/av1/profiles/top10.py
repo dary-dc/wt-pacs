@@ -4,6 +4,7 @@ quantizer, one group length and one encoder arm per cell — the lossy stream's 
 
 usage: top10.py BUILD WORK OUT.jsonl SETDIR ... --rungs 12,16,20 [--groups 1] [--forms 12bit,top10]
                 [--arms base] [--ssim] [--residual] [--jobs 4]
+       top10.py BUILD WORK OUT.jsonl SETDIR ... --rungs 0 --low-bits
 """
 import argparse
 import json
@@ -24,7 +25,9 @@ ARMS = {
     "nolr": ["--enable-restoration=0"],
     "notrellis": ["--disable-trellis-quant=1"],
     "nofilters": ["--enable-cdef=0", "--loopfilter-control=0", "--enable-restoration=0"],
+    "lambda": [],
 }
+PATCHED = {"lambda": "aom-lambda"}  # built from aom-3.15.1 with top10-lambda.patch applied
 
 
 def top10(v):
@@ -47,7 +50,7 @@ def cell(job):
     work.mkdir(parents=True, exist_ok=True)
     y4m, ivf, dec = work / "in.y4m", work / "out.ivf", work / "dec.yuv"
     campaign.write_y4m(s, form, y4m)
-    aom = build / f"aom-{campaign.AOM}/bin"
+    aom = build / PATCHED.get(arm, f"aom-{campaign.AOM}") / "bin"
     wall, cpu, err = campaign.child([aom / "aomenc", "-o", ivf, f"--limit={s.n}", "--q-hist=64",
                                      "--disable-warning-prompt", *campaign.aomenc_args(form, q, g, s.n), *ARMS[arm], y4m])
     y4m.unlink()
@@ -100,6 +103,21 @@ def htj2k_bytes(build, work, s, r, bits):
     return cs.stat().st_size
 
 
+def low_bits(build, work, path):
+    """The two bits the top 10 drop, as their own lossless HTJ2K stream, and their zeroth-order entropy."""
+    s = campaign.Middle(Path(path), 0)
+    work = Path(work) / f"{s.name}-low"
+    work.mkdir(parents=True, exist_ok=True)
+    total, counts = 0, np.zeros(4, np.int64)
+    for i in range(s.n):
+        low = (s.frame(i)[..., 0].astype(np.int32) + s.offset) & 3
+        counts += np.bincount(low.ravel(), minlength=4)
+        total += htj2k_bytes(build, work, s, low, 2)
+    p = counts / counts.sum()
+    return dict(set=s.name, form="low2", bytes=total, entropy_bits=float(-(p * np.log2(p)).sum()),
+                mpx=s.n * s.w * s.h / 1e6)
+
+
 def interleaved(a):
     """Forms and arms alternate inside each (set, G, Q), so no arm runs as a block before another."""
     out = []
@@ -123,9 +141,15 @@ def main():
     ap.add_argument("--ssim", action="store_true")
     ap.add_argument("--residual", action="store_true")
     ap.add_argument("--jobs", type=int, default=4)
+    ap.add_argument("--low-bits", action="store_true", help="only the dropped two bits' own lossless stream")
     a = ap.parse_args()
     a.build, a.work = a.build.resolve(), a.work.resolve()
     a.work.mkdir(parents=True, exist_ok=True)
+    if a.low_bits:
+        with open(a.out, "a") as fh:
+            for path in a.sets:
+                fh.write(json.dumps(low_bits(a.build, a.work, path)) + "\n")
+        return
     key = lambda r: (Path(r[2]).name, r[3], r[4], r[5], r[6])
     done = {(r["set"], r["form"], r["q"], r["g"], r["arm"]) for r in map(json.loads, a.out.open())} \
         if a.out.exists() else set()
