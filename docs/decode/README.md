@@ -2540,6 +2540,37 @@ with these numbers and the merge-free run's.
   is ~65 s. 148 × 20 s + 40 × 65 s ≈ 1.6 h, plus ~30 min of coding and checks. At twice those decode times it is
   ~3.3 h, inside 4.5 h. If the run is cut, it resumes from its rows, as the merge-free run did.
 
+### Grey path, measured
+
+*Partial (2026-11-04)*, by a separate session given only the protocol ([`grey-path`](../../lab/av1/decode/grey-path/README.md)).
+
+1. **Run:** the grey path protocol, pre-registered (above), its four arms on its four cells, at 1× and 4×, in
+   Chromium 141.0.7390.37 on 4 vCPUs, and its Firefox check.
+2. **Shows, so far:** every broken copy fails as the protocol requires, and in Firefox 157.0.1 every frame of the
+   four sets goes to dav1d-WASM, exact. The timed rounds are running.
+3. **Rests on:** `usb_cine` frames 24–39, lossless and at Q = 10, and the middle 16 slices of `dbts_b1` (17–32)
+   and `dbts_b3` (23–38) at Q = 10, each a single unsplit 4:0:0 stream at G = 1. Nothing is claimed for other sets.
+4. **Left:** the 148 rounds at 1× and 40 at 4×, then the reading.
+5. Terms are the protocol's: *M* is `onePass`'s chroma-check skip, read as W2 ÷ W; *R* is `reuseCopyBuffer`, read
+   as R ÷ W2; the *A/A* is W′ ÷ W, two workers of one config.
+
+**Codings.** `usb_cine` lossless is `passes/codings.py`'s, 1 133 300 B of payload for 16 frames, every frame
+decoded natively and matched to its fetch checksum. The three lossy sets are `lossy.py`'s: 345 898, 5 178 077 and
+5 163 681 B. Every one of their 48 units decoded alone by native dav1d 1.5.4 and by `aomdec` 3.15.1 gave the same
+samples, and those samples are each frame's truth. The lossy `usb_cine` frame differs from its source in 36 % of
+its samples, by at most 6 (frame 24), so the cells are lossy in fact.
+
+**Checks**, one round at 1× each, rows in `checks.json.gz`:
+
+| check | must read | read |
+| --- | --- | --- |
+| `--mutate`, every arm, every set | 0 exact | 0 of 256, and every warm-up frame inexact |
+| `neutral()` one off: W, W2, R | W 0 exact on `av1-webcodecs`; W2, R all | W 0 of 64: every frame decoded on `av1-dav1d` (exact there); W2 and R 64 of 64 each |
+| R with `copyTo` skipped on a reused buffer | exact on each worker's first frame only | the warm-up frame exact in each set; of the 16 timed, frame 0 exact (the warm-up is frame 0, so the stale buffer holds the same samples) and 15 of 15 others mismatched on WebCodecs and were decoded again on dav1d |
+| Firefox 157.0.1, default config, untimed | every frame `av1-dav1d`, exact | 68 of 68 (16 + the warm-up, × 4 sets), none on WebCodecs |
+
+A smoke round before the run (not counted) read 256 of 256 exact.
+
 ## Hardware decode
 
 Queue row HWDECODE, theory only: [`hardware.md`](hardware.md). No browser path serves the viewer as the product codes

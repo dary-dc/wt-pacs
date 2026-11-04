@@ -86,3 +86,6 @@ M's cost read from R.
 **Firefox** (`firefox.mjs`). Firefox has no driver here, so `index.html?firefox` runs one untimed round of the four
 sets through the default config (W2) and posts its rows back. Every frame must report `av1-dav1d`, with its digest
 and SHA-256 matched and no fallback.
+
+**Committed results.** `manifest.json` is the four sets' frames and truths as coded; `checks.json.gz` the rows of the
+three broken-copy checks and the Firefox round. The reading is in `docs/decode/README.md` §Grey path, measured.

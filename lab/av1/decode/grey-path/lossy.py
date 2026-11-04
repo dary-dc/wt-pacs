@@ -63,10 +63,9 @@ def by_dav1d(build, work, unit):
 def cell(build, out, path):
     s = size.Set(path)
     a0, a1 = gop.run_of(s, FRAMES)
-    header, streams = ingest.plan(s, "optimized")
-    if header["split"] or header["flags"] or s.offset or s.ch != 1:
-        sys.exit(f"{s.name}: not an unsigned grey set of ≤ 10 bits")
-    depth = streams[0][0]
+    depth = s.av1_bits
+    if s.signed or s.offset or s.ch != 1 or depth not in (8, 10):
+        sys.exit(f"{s.name}: not an unsigned grey set of 8 or 10 bits")
     name = f"{s.name}_q{Q}"
     dst = out / name
     dst.mkdir(parents=True, exist_ok=True)
@@ -74,7 +73,7 @@ def cell(build, out, path):
     frames, total = [], 0
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
-        units = encode(build, work, [streams[0][2](i) for i in range(a0, a1)], depth)
+        units = encode(build, work, [s.frame(i).astype(np.int32) for i in range(a0, a1)], depth)
         if len(units) != a1 - a0:
             sys.exit(f"{name}: {len(units)} units for {a1 - a0} frames")
         for i, unit in enumerate(units):
