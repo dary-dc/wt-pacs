@@ -10,7 +10,8 @@ frame is either a whole HTJ2K frame or a lossless HTJ2K **residual** added to th
 **This file is theory, a prediction and two protocols, written before any number** and run by separate sessions:
 nothing here was encoded, decoded or timed, and no product or server code changes. The one change to data is §Larger
 cine fixtures, which pins five more public series. Repo claims carry their row and file; outside claims quote their
-source ([L1]–[L7], §Sources); inference is marked *derived*, the rest *unverified*.
+source ([L1]–[L7], §Sources); inference is marked *derived*, the rest *unverified*. §7, written 2026-11-04 after §6 ran
+and could not decide, amends §6's campaign from that run's numbers and a pilot of its own.
 
 ## Names
 
@@ -531,7 +532,7 @@ S lossy 17 360/17 360; no error.
 * **A round:** 10.6 min (median of six) — 4.4 min at 1×, 6.3 at 4×; 22.8 min with every rung at 4×. §6's round, on
   its host and after its own drops: 8.85 h.
 * **Setup on a fresh host** (`decode_setup.sh`, timed in a fresh worktree here): 954 s, 16 min — decoders, encoders
-  and data in parallel, then the 54 streams (13 min of it), all byte for byte the bytes run's; then the driver ran from
+  and data in parallel, then the 45 streams (13 min of it), all byte for byte the bytes run's; then the driver ran from
   that worktree with nothing else. Here emscripten's library cache and meson were already present; a cold host builds
   them too (*unverified* how long).
 * **Rounds that fit** 4.5 h less 0.6 h (setup, the section, pushes): 22 here. §6's host timed H at 26 ms a frame where
