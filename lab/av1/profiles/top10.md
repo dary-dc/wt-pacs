@@ -1,6 +1,6 @@
 # top10 — why a 12-bit series' top 10 bits cost more than its 12-bit stream
 
-1. **Asked.** A 12-bit DBT series coded lossy as its top 10 bits (the only depth WebCodecs decodes) was 11–26 %
+1. **Asked.** A 12-bit DBT series coded lossy as its top 10 bits (WebCodecs decodes up to 10) was 11–26 %
    larger than its 12-bit stream at the same Q 16 (P9, [`README.md`](README.md) §Profiles bytes). Why, and which
    ≤ 10-bit form reaches a lossy view with the fewest bytes at equal quality?
 2. **Answer.** The top 10 bits do not cost more at equal quality. libaom's rate-distortion multiplier grows faster
