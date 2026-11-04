@@ -10,6 +10,7 @@ usage: sweep.py search|code BUILD SHIPPED TOOL WORK SETDIR ... [--pin results/am
 """
 import argparse
 import json
+import subprocess
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -58,9 +59,13 @@ def single(build, w, s, p, k, q, win, peak):
     out = w / f"{coding(p)}-{name}.ivf"
     y4m = w / f".{name}.y4m"
     shape.write_y4m(p, y4m, p.top, p.av1_bits, s.ch)
-    shape.encode(build, y4m, out, p.av1_bits, s.ch, 0, 1, 1, None, str(q), k)
+    # --layer-q is ignored with one layer, so the quantizer is pinned by --min-q and --max-q.
+    cmd = [str(build / "aom-3.15.1-svc-b/svc_encoder_rtc"), "-o", str(out), "-lm", "0", "-sl", "1", "-tl", "1",
+           "-b", str(svc.KBPS), "-bl", str(svc.KBPS), f"--min-q={q}", f"--max-q={q}", "-k", str(k), "-sp", str(shape.SPEED),
+           "-d", str(p.av1_bits), f"--profile={2 if p.av1_bits == 12 else s.ch // 3}", *(["--monochrome"] if s.ch == 1 else [])]
+    subprocess.run(cmd + [str(y4m)], check=True, capture_output=True)
     y4m.unlink()
-    f = Path(f"{out}_0.av1") if Path(f"{out}_0.av1").exists() else out
+    f = Path(f"{out}_0.av1")
     pics = decoded(build, f, w / f".{name}.dec.y4m")
     back = lambda x: x * (1 << p.shift) + ((1 << p.shift) - 1) / 2  # noqa: E731
     got = quality(s, pics, back, 1, win, peak)
@@ -73,13 +78,17 @@ def separate(build, w, s, m, form, q, g, win, peak, residual):
     d = w / "separate" / cell
     d.mkdir(parents=True, exist_ok=True)
     y4m, out, dec = d / "in.y4m", d / "out.ivf", d / "dec.y4m"
-    run.write_y4m(m, form, y4m)
-    run.child([build / f"aom-{run.AOM}/bin/aomenc", "-o", out, f"--limit={m.n}", "--disable-warning-prompt",
-               *run.aomenc_args(form, q, g, m.n), y4m])
-    y4m.unlink()
-    units = run.ingest.ivf_units(out)
-    for i, u in enumerate(units):
-        (d / f"{i:03d}.obu").write_bytes(u)
+    if (d / f"{m.n - 1:03d}.obu").exists():
+        units = [(d / f"{i:03d}.obu").read_bytes() for i in range(m.n)]
+        content.write_ivf(out, units)
+    else:
+        run.write_y4m(m, form, y4m)
+        run.child([build / f"aom-{run.AOM}/bin/aomenc", "-o", out, f"--limit={m.n}", "--disable-warning-prompt",
+                   *run.aomenc_args(form, q, g, m.n), y4m])
+        y4m.unlink()
+        units = run.ingest.ivf_units(out)
+        for i, u in enumerate(units):
+            (d / f"{i:03d}.obu").write_bytes(u)
     pics = decoded(build, content.write_ivf(d / "units.ivf", units), d / "pics.y4m")
     shift = m.b - 10 if form.name == "top10" else 0
     c = dict(cell=cell, q=q, g=g, shift=shift, path=str(d.resolve().relative_to(ROOT)), units=[len(u) for u in units],
