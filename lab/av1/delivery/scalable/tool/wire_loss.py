@@ -1,5 +1,6 @@
-"""The loss a visit met, counted on the loopback wire rather than by the relay: every UDP datagram sent on `lo`
-is counted by port pair until SIGTERM, then each direction's relayed count is set against what entered the relay.
+"""The loss a visit met, counted on the loopback wire rather than by the relay: the UDP payload bytes sent on `lo`
+by port pair until SIGTERM, each direction's bytes out of the relay against its bytes in. Bytes, not datagrams:
+the server sends segmentation-offloaded batches, one frame on `lo` holding many datagrams.
 
     sudo python3 wire_loss.py out.json &   # around one visit of run.mjs; needs CAP_NET_RAW
 """
@@ -14,7 +15,7 @@ ETH_P_ALL, PACKET_OUTGOING = 0x0003, 4
 
 
 def legs(flows):
-    """The relay's two socket pairs, and each direction's datagrams in → out: (server→client, client→server)."""
+    """The relay's two socket pairs, and each direction's bytes in → out: (server→client, client→server)."""
     pairs = {}
     for (a, b), n in flows.items():
         if (b, a) in flows:
@@ -37,7 +38,7 @@ def main():
     s.settimeout(0.2)
     while not stop:
         try:
-            frame, addr = s.recvfrom(65535)
+            frame, addr = s.recvfrom(1 << 17)
         except (socket.timeout, InterruptedError):
             continue
         # Loopback frames carry a 14-byte Ethernet header; each datagram is seen once going out.
@@ -49,7 +50,7 @@ def main():
         else:
             proto, udp = ip[6], ip[40:]
         if proto == 17:
-            flows[struct.unpack("!HH", udp[:4])] += 1
+            flows[struct.unpack("!HH", udp[:4])] += len(udp) - 8
     down, up = legs(flows)
     res = {"s2c": {"in": down[0], "out": down[1], "lost": 1 - down[1] / down[0]},
            "c2s": {"in": up[0], "out": up[1], "lost": 1 - up[1] / up[0]},
