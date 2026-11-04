@@ -1792,7 +1792,7 @@ and writes only its own files.*
 
 ### Decode shard 2, measured
 
-*Not yet run.*
+*Partial, 2026-11-04: running — setup started 18:31 UTC; rows land in `rows/decode-shard-2.*` every two rounds.*
 
 ### Decode shard 3, measured
 
