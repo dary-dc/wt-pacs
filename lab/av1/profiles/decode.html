@@ -3,7 +3,7 @@
 <title>AV1 PROFILEDECODE</title>
 <script type="module">
   globalThis.cell = (o) => new Promise((resolve) => {
-    const w = new Worker("./decode.js", { type: "module" });
+    const w = new Worker(o.worker ?? "./decode.js", { type: "module" });
     w.onmessage = (e) => { w.terminate(); resolve(e.data); };
     w.onerror = (e) => { w.terminate(); resolve({ error: String(e.message ?? e) }); };
     w.postMessage(o);

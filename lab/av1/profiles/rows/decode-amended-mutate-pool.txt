@@ -1,0 +1,6 @@
+decode_pool.py --test, as committed: decode_pool.py: every test passed
+mutated, A/A rule off: fails (caught) — AssertionError: ('not decided (0 of 1 cells not read, 1 undecided)', {'ci': (2.083046255567802, 1.507449076283
+mutated, checks ignored: fails (caught) — AssertionError: ('not decided (0 of 1 cells not read, 1 undecided)', {'ci': (2.083046255567802, 1.507449076283
+mutated, jump timed from k's own hand-in: fails (caught) — AssertionError: ('refuted', {'ci': (-0.19217494396452353, -0.19822148025102607, -0.186128407678021), 'blocks':
+mutated, link: no wait for the previous frame: fails (caught) — AssertionError
+mutated, blocks not pooled as blocks: fails (caught) — AssertionError: held

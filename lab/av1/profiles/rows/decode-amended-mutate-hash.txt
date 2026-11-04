@@ -1,0 +1,17 @@
+round 0 1x dbts_a1|Q16 H: {"exact":[0,16]} 
+round 0 1x dbts_a1|Q16 H′: {"exact":[0,16]} 
+round 0 1x dbts_a1|Q16 S16|webcodecs|jump: {"lossy":[0,20]} 
+round 0 1x dbts_a1|Q16 R|12bit: {"exact":[0,16],"residuals":[0,16],"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S16|webcodecs|order: {"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 R|top10: {"exact":[0,16],"residuals":[0,16],"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S8|webcodecs|jump: {"lossy":[0,20]} 
+round 0 1x dbts_a1|Q16 S1|dav1d|order: {"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S8|webcodecs|order: {"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S1|dav1d|jump: {"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S1|webcodecs|jump: {"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S8|dav1d|order: {"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S1|webcodecs|order: {"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S8|dav1d|jump: {"lossy":[0,20]} 
+round 0 1x dbts_a1|Q16 S16|dav1d|jump: {"lossy":[0,20]} 
+round 0 1x dbts_a1|Q16 S16|dav1d|order: {"lossy":[0,16]} 
+round 0 1x done, 21 s
