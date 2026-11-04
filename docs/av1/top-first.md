@@ -26,9 +26,9 @@ off by at most 3 source levels at two-thirds of the exact time is worth a change
 * **Top-only picture.** top ≪ k shown before the low arrives: every sample is v − low, so it is off by 0 to
   2^k − 1 = 3 source levels, never more. It is a **preview** in [`../glossary.md`](../glossary.md)'s sense: shown
   before the exact picture and replaced by it.
-* **SVC base.** In the scalable-preview work (branch `claude/av1-svc-preview`, at `f4c396c8`) a slice is coded as
+* **SVC base.** In the scalable-preview work (branch `claude/av1-svc-preview`) a slice is coded as
   layers of one scalable AV1 stream; the base is a quarter-size lossy picture sent for every slice before any
-  exact frame (layer-major order). Its timings are in that branch's
+  exact frame (layer-major order). Its timings are in that branch's (at `f4c396c8`)
   `lab/av1/delivery/scalable/tool/svc-results.md` (20 Mbit/s and `none`), `svc-results-r5000.md` and
   `svc-results-r50000.md`.
 * **`k2`.** The shipped payload, split at k = 2, `allintra` 7, decoded by the product through WebCodecs (both
@@ -258,5 +258,5 @@ against each `tf-*` figure ÷ this sitting's `k2`. The comparison is *across sit
 **Stop rule.** Push the rows after every round. At 4.5 h, stop at the round's end, report each cell's n, and mark any
 clause a missing cell would decide as *not decided*.
 
-**Results go** to `lab/av1/delivery/top-first/README.md` (commands, rows, the tables) and a *Measured* paragraph under
+**Results go** to a README in the new lab directory above (commands, rows, the tables) and a *Measured* paragraph under
 this section; this section is not edited after the measurement starts, except to correct a fact, in place and dated.
