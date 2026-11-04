@@ -5,19 +5,20 @@
    ≤ 10-bit form reaches a lossy view with the fewest bytes at equal quality?
 2. **Answer.** The top 10 bits do not cost more at equal quality. libaom's rate-distortion multiplier grows faster
    with Q at 12 bits than at 10, so the same Q buys a *different quality*: the 10-bit stream sits higher on the same
-   curve. Matched on PSNR, the top 10 bits are 0.95–1.01 of the 12-bit stream's bytes. Ship the top 10 bits, rounded
+   curve. Matched on PSNR, the top 10 bits are 0.93–1.04× the 12-bit stream's bytes. Ship the top 10 bits, rounded
    to nearest, at the Q that hits the target quality (about 1–3 rungs above the 12-bit Q). A "lossy split" (a lossy
    top plus a low-bits stream) means nothing on these series: the low bits are noise, far under the lossy error.
-3. **The numbers that decide it** (`dbts_a1`, `dbts_c1`, G 1, Q 12–28): at equal Q the top 10 bits are 1.07–1.15× the
-   bytes, at +0.08 to +0.29 dB. At equal PSNR they are 0.954–1.008×. libaom patched to compute the multiplier from the
-   8-bit-equivalent step: the equal-Q gap falls to 0.94–1.00×. Trellis off removes most of it (1.00–1.03×), and
+3. **The numbers that decide it** (`dbts_a1`, `dbts_c1`, Q 12–40): at equal Q the top 10 bits are 1.07–1.19× the
+   bytes at G 1 and 1.06–1.34× at G 16, always at higher PSNR (+0.02 to +0.76 dB). At equal PSNR they are 0.95–1.03×
+   (G 1) and 0.93–1.04× (G 16). libaom patched to compute the multiplier from the 8-bit-equivalent step: the
+   equal-Q gap falls to 0.88–1.00×, the residue being the 10-bit step's coarseness. Trellis off removes most of it (1.00–1.03× on 11 of 12 cells), and
    loop filters off leave it (1.06–1.19×). The 12-bit coder fed the top-10 data matches the 12-bit stream to 0.2 %.
 4. **What it rests on.** Two volumes, `dbts_a1` (system A) and `dbts_c1` (system C), whole, one encoder (libaom 3.15.1,
    the campaign's knobs), PSNR as the matching metric, on one 4-core host. The source reading is in §2: the AV1
    specification's step tables and three functions in libaom's `rd.c` and `txb_rdopt.c`.
 5. **What is left.** Untested here: the other eight A/C volumes; another encoder (SVT-AV1, which WebCodecs streams
-   might come from); a reader study, since SSIM disagrees with PSNR in the top 10 bits' favour (§4). The patch is a
-   lab instrument, not a proposal.
+   might come from); a reader study. SSIM is too flat over these rungs to match on (§5). The patch is a lab
+   instrument, not a proposal; whether libaom means the multiplier's argument to be a step is for its maintainers.
 
 ## Terms
 
@@ -156,7 +157,7 @@ encoder was built while the first ladder ran, and those cells' encode times are 
 | equal-PSNR comparison, a form against itself | 1.0000 | the same curve's bytes planted × 1.10: **1.1000** | sees it |
 | equal-PSNR comparison, top10 against 12bit at Q 16 (`dbts_a1`) | 1.0081 | top10's PSNR planted +0.30 dB: 0.764; −0.30 dB: 1.319 | sees it, in the right direction |
 | the patch changes the coder | — | the λ arm's bytes differ from base on every cell (e.g. 12bit Q 16: 887 649 vs 742 851 B) | the patch is live |
-| top10at12 control | equals 12bit (H3) | top10 is the same data at 10 bits: 1.07–1.15× | the control can tell the two apart |
+| top10at12 control | equals 12bit (H3) | top10 is the same data at 10 bits: 1.07–1.19× | the control can tell the two apart |
 
 ## 5 · Results
 
@@ -171,29 +172,35 @@ bytes over 12bit's.
 | `dbts_a1` | 18 | 46.40 | +0.11 | 1.105 | 1.000 | 1.010 | 0.854 |
 | `dbts_a1` | 20 | 46.22 | +0.11 | 1.101 | 1.000 | 1.013 | 0.820 |
 | `dbts_a1` | 24 | 45.88 | +0.15 | 1.117 | 0.995 | 1.012 | 0.787 |
-| `dbts_a1` | 28 | 45.40 | +0.21 | 1.137 | 0.987 | 1.007 | — |
+| `dbts_a1` | 28 | 45.40 | +0.21 | 1.137 | 0.987 | 1.007 | 0.737 |
+| `dbts_a1` | 32 | 44.91 | +0.26 | 1.143 | 1.001 | 1.012 | 0.951 |
+| `dbts_a1` | 40 | 43.63 | +0.49 | 1.177 | 1.020 | 1.030 | 1.073 |
+| `dbts_a1` | 56 | 39.54 | +1.25 | 1.188 | — | — | — |
 | `dbts_c1` | 12 | 48.55 | +0.13 | 1.069 | 0.994 | 0.997 | 0.954 |
 | `dbts_c1` | 14 | 47.84 | +0.16 | 1.110 | 0.995 | 1.007 | 0.884 |
 | `dbts_c1` | 16 | 47.37 | +0.17 | 1.141 | 0.996 | 1.007 | 0.851 |
 | `dbts_c1` | 18 | 47.05 | +0.16 | 1.145 | 0.996 | 1.005 | 0.857 |
 | `dbts_c1` | 20 | 46.80 | +0.17 | 1.135 | 0.977 | 1.004 | 0.601 |
-| `dbts_c1` | 24 | 46.41 | +0.22 | 1.135 | 0.954 | 1.002 | — |
-| `dbts_c1` | 28 | 45.95 | +0.24 | 1.142 | 0.972 | 1.000 | — |
+| `dbts_c1` | 24 | 46.41 | +0.22 | 1.135 | 0.954 | 1.002 | 0.554 |
+| `dbts_c1` | 28 | 45.95 | +0.24 | 1.142 | 0.972 | 1.000 | 0.741 |
+| `dbts_c1` | 32 | 45.48 | +0.29 | 1.153 | 0.997 | 1.004 | 0.988 |
+| `dbts_c1` | 40 | 44.22 | +0.50 | 1.187 | 1.029 | 1.032 | 1.188 |
+| `dbts_c1` | 56 | 40.18 | +1.25 | 1.202 | — | — | 1.337 |
 
-**H1 held**: at equal PSNR top10 is 0.954–1.008×, and at equal in-window PSNR 0.997–1.016×. The 11–14 % at equal Q
-is the operating point. SSIM favours top10 by 3–40 %. Over this range SSIM moves 0.976 → 0.983 while bytes move
-6×, so a 0.001 SSIM difference swings the ratio widely. It agrees in sign (a lower λ keeps more fine structure, which
-SSIM rewards) and is not the deciding metric here.
+"—" is a PSNR outside the other form's measured curve (no extrapolation). **H1 held**: at equal PSNR top10 is
+0.954–1.029×, and at equal in-window PSNR 0.997–1.032×. The 7–20 % at equal Q is the operating point. SSIM does not
+decide anything here. Over Q 12–32 a series' SSIM moves by under 0.008 while its bytes move 7×, so the equal-SSIM
+ratio swings from 0.55 to 1.34 between neighbouring rungs.
 
 **G 1, the arms at equal Q** (top10 ÷ 12bit bytes, Δ PSNR):
 
 | series | arm | Q 12 | Q 16 | Q 20 | Q 24 | Q 32 | Q 40 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `dbts_a1` | base | 1.065, +0.08 | 1.113, +0.10 | 1.101, +0.11 | 1.117, +0.15 | 1.143, +0.26 | ⟨Q40⟩ |
+| `dbts_a1` | base | 1.065, +0.08 | 1.113, +0.10 | 1.101, +0.11 | 1.117, +0.15 | 1.143, +0.26 | 1.177, +0.49 |
 | `dbts_a1` | lambda (patched) | 0.936, −0.11 | 0.971, −0.05 | 0.986, −0.02 | 0.999, −0.00 | 1.003, −0.00 | 1.004, +0.01 |
 | `dbts_a1` | nofilters | 1.062, +0.07 | 1.111, +0.10 | 1.101, +0.11 | 1.115, +0.14 | 1.144, +0.26 | 1.177, +0.48 |
 | `dbts_a1` | notrellis | 0.998, −0.03 | 1.007, +0.01 | 1.023, +0.03 | 1.030, +0.04 | 1.021, +0.05 | 1.023, +0.09 |
-| `dbts_c1` | base | 1.069, +0.13 | 1.141, +0.17 | 1.135, +0.17 | 1.135, +0.22 | 1.153, +0.29 | ⟨Q40c⟩ |
+| `dbts_c1` | base | 1.069, +0.13 | 1.141, +0.17 | 1.135, +0.17 | 1.135, +0.22 | 1.153, +0.29 | 1.187, +0.50 |
 | `dbts_c1` | lambda (patched) | 0.936, −0.13 | 0.967, −0.06 | 0.983, −0.01 | 0.994, +0.02 | 1.002, +0.01 | 0.999, −0.01 |
 | `dbts_c1` | nofilters | 1.066, +0.10 | 1.138, +0.17 | 1.136, +0.16 | 1.131, +0.21 | 1.154, +0.29 | 1.187, +0.50 |
 | `dbts_c1` | notrellis | 1.127, +0.23 | 1.014, +0.01 | 1.024, +0.04 | 1.033, +0.06 | 1.027, +0.07 | 1.028, +0.10 |
@@ -201,7 +208,8 @@ SSIM rewards) and is not the deciding metric here.
 * **H2 held.** Under the patch, top10 is 0.94–0.99× at Q 12–20, at slightly lower PSNR. That is the coarser 10-bit
   step of §2, which sets λ at (step ratio)² ≈ 0.94, 0.97, 0.98 there. From Q 24 up it is 0.994–1.004× at ±0.02 dB:
   the two depths code alike once λ is on one scale.
-* **H3 refuted.** top10at12 is 0.999–1.001× the bytes of 12bit at −0.002 to +0.004 dB on every rung of both series.
+* **H3 refuted.** top10at12 is 0.998–1.001× the bytes of 12bit at −0.02 to +0.004 dB on every rung (Q 12–56) of both
+  series.
   Rounding to 10 bits changes nothing the coder can see, which fits the derivation: the rounding error's variance,
   1.5, is 0.4 % of the coded error's (RMSE ≈ 19 at Q 16).
 * **H4 refuted** by derivation (§2): the 10-bit step is coarser.
@@ -209,17 +217,42 @@ SSIM rewards) and is not the deciding metric here.
 * **H6 held, mostly.** With trellis off the gap falls to 1.00–1.03×, except `dbts_c1` Q 12 (1.127×). The remainder
   goes through λ's other uses (mode, partition and transform-size decisions), which this run did not separate.
 
-**Does the patched λ make the 12-bit stream itself cheaper?** Every arm's form, over the stock 12bit at equal PSNR:
+**Is either stock stream wasting bytes?** Every arm's form over the stock 12bit at equal PSNR, at the stock 12bit's
+PSNR at each Q:
 
-⟨XARM⟩
+| series | G | arm, form | Q 12 | Q 16 | Q 20 | Q 24 | Q 32 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `dbts_a1` | 1 | base, top10 | 1.005 | 1.008 | 1.000 | 0.995 | 1.001 |
+| `dbts_a1` | 1 | lambda, 12bit | 0.980 | 0.997 | 0.996 | 1.001 | 1.001 |
+| `dbts_a1` | 1 | lambda, top10 | 0.998 | 1.009 | 1.000 | 1.004 | 1.004 |
+| `dbts_a1` | 16 | base, top10 | 1.037 | 1.028 | 0.964 | 0.980 | 0.977 |
+| `dbts_a1` | 16 | lambda, 12bit | 0.951 | 0.999 | 0.927 | 0.952 | 0.962 |
+| `dbts_a1` | 16 | lambda, top10 | 1.024 | 1.026 | 0.953 | 0.974 | 0.975 |
+| `dbts_c1` | 1 | base, top10 | 0.994 | 0.996 | 0.977 | 0.954 | 0.997 |
+| `dbts_c1` | 1 | lambda, 12bit | 0.974 | 0.987 | 0.996 | 0.985 | 1.000 |
+| `dbts_c1` | 1 | lambda, top10 | 0.983 | 0.990 | 0.976 | 0.965 | 0.998 |
+| `dbts_c1` | 16 | base, top10 | 1.013 | 1.008 | 0.931 | 0.952 | 0.983 |
+| `dbts_c1` | 16 | lambda, 12bit | 0.950 | 0.978 | 0.902 | 0.930 | 0.964 |
+| `dbts_c1` | 16 | lambda, top10 | 1.002 | 1.004 | 0.916 | 0.941 | 0.981 |
 
-The patched 12-bit stream is 0.97–1.00× the stock one at equal PSNR. A larger λ moves the stream along nearly the
-same curve; it does not make it worse. So the stock encoder is not wasting bytes at 12 bits. It is only at a
-different point for the same Q.
+At G 1 the patched 12-bit stream is 0.97–1.00× the stock one: a larger λ moves an intra stream along nearly the same
+curve. At G 16 it is 0.90–1.00×: the stock 12-bit stream's inter frames, at λ 1.24–1.62× the 10-bit stream's at
+Q 16–32 (§2), spend up to 10 % more than they need at equal PSNR. That is why top10 can be the *cheaper* stock stream
+at G 16, Q 20–32 (0.93–0.98×). Nothing past these two volumes is claimed.
 
-**G 16** (inter, a keyframe every 16 slices; the campaign's P9 gap was largest here, 1.18× at Q 16):
+**G 16** (inter, a keyframe every 16 slices; the campaign's P9 gap was largest here, 1.18× at Q 16), top10 ÷ 12bit:
 
-⟨G16⟩
+| series | arm | measure | Q 12 | Q 16 | Q 20 | Q 24 | Q 32 | Q 40 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `dbts_a1` | base | at equal Q, Δ dB | 1.056, +0.02 | 1.180, +0.12 | 1.203, +0.19 | 1.230, +0.24 | 1.274, +0.42 | 1.338, +0.76 |
+| `dbts_a1` | base | at equal PSNR | 1.037 | 1.028 | 0.964 | 0.980 | 0.977 | — |
+| `dbts_a1` | lambda | at equal Q, Δ dB | 0.875, −0.21 | 0.956, −0.06 | 0.977, −0.04 | 0.997, −0.03 | 0.999, −0.02 | 0.997, −0.02 |
+| `dbts_c1` | base | at equal Q, Δ dB | 1.073, +0.07 | 1.199, +0.16 | 1.306, +0.28 | 1.280, +0.29 | 1.275, +0.41 | 1.326, +0.69 |
+| `dbts_c1` | base | at equal PSNR | 1.013 | 1.008 | 0.931 | 0.952 | 0.983 | — |
+| `dbts_c1` | lambda | at equal Q, Δ dB | 0.909, −0.21 | 0.929, −0.11 | 0.968, −0.04 | 0.990, −0.02 | 1.002, −0.01 | 1.002, −0.03 |
+
+G 16 shows the same as G 1, larger. The inter multiplier's ratio is slightly larger (§2), and at G 16 the cheap inter
+frames make each extra 0.1 dB costlier. Under the patch the gap again falls to the step tables' residue (0.88–1.00×).
 
 ## 6 · The answer
 
@@ -228,9 +261,9 @@ in Chromium refuses 12-bit AV1, measured, row WCAP, [`docs/decode/README.md`](..
 Among the 10-bit forms:
 
 * **The top 10 bits, rounded to nearest, at the Q that hits the target quality.** At equal PSNR it costs what the
-  12-bit stream costs (0.95–1.01×, G 1). It costs no more than the 12-bit stream would if WebCodecs took 12 bits. The
+  12-bit stream costs (0.95–1.03× at G 1, 0.93–1.04× at G 16). It costs no more than the 12-bit stream would if WebCodecs took 12 bits. The
   Q to use is not the 12-bit ladder's. Interpolated from the rows above, 12bit Q 16's PSNR is reached by top10 at
-  about Q 17 on both series, and 12bit Q 24's at about Q 26. The λ table of §2 predicts 17.8 and 26.2 (*derived*).
+  about Q 17 on both series (G 1), and 12bit Q 24's at about Q 26. The λ table of §2 predicts 17.8 and 26.2 (*derived*).
   So a profile ladder for top10 is the 12-bit ladder moved up 1–3 rungs, set by measured quality. aomenc takes whole
   Q (4 qindex), so the match is to the nearest rung.
 * **A different rounding** cannot move the result. Rounding to nearest has error variance 1.5 (12-bit units²)
@@ -246,12 +279,17 @@ Among the 10-bit forms:
   reached in stock libaom by choosing Q.
 
 **Does a "lossy split" mean anything below the noise?** No, on these two series. A lossy split here means a lossy
-stream of the top 10 bits plus a stream of the two low bits.
+stream of the top 10 bits plus a stream of the two low bits. The low-bits stream was measured
+(`results/top10-low.jsonl`: v & 3 as a 2-bit plane, HTJ2K lossless as served, every frame):
 
-⟨LOW⟩
+| series | low-bits stream | per sample | entropy, whole frame | entropy, in-window samples | ÷ HTJ2K lossless of the series | ÷ top10's lossy stream, G 1, Q 16 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `dbts_a1` | 27 618 197 B | 1.94 bits | 1.80 bits | 2.000 bits | 0.41 | 33× |
+| `dbts_c1` | 38 351 413 B | 1.81 bits | 1.48 bits | 2.000 bits | 0.54 | 31× |
 
-The two low bits of systems A and C (σ 13–18) are noise. Their distribution is flat: entropy ⟨H⟩ bits of 2. Coded
-losslessly they cost ⟨LOWB⟩ the lossy stream they would sit beside. Added to a lossy top they repair only the
+The two low bits of systems A and C (σ 13–18) are noise. On the in-window samples each of the four values occurs
+0.250 ± 0.0002 of the time: 2.000 bits, nothing to code but their own size. The whole-frame entropy is lower only
+because the air is constant. Coded losslessly they cost 31–33× the lossy stream they would sit beside. Added to a lossy top they repair only the
 rounding (error variance 1.5 out of ≈ 360 at Q 16, +0.02 dB, *derived*). The top's own error is 19 units RMS,
 against a low-bits range of 0–3. A split pays sense only when the top is *exact*: that is the lossless split as
 shipped (row 100), not a lossy one. For a lossy view with an exact frame on request, the one extra stream worth
