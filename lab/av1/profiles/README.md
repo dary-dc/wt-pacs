@@ -2417,7 +2417,138 @@ whose shuffle share is ≥ 5 % does not stop a cell being read). Full lines: `de
 
 ### Decode, pooled
 
-*Not yet run: the collector, once the six have pushed (§Shards).*
+*Pooled 2026-11-04 by the collector: §Profiles decode, measured (amended), below.*
+
+
+## Profiles decode, measured (amended)
+
+*2026-11-04, the collector of §7, given only §7 and the six blocks' rows. Rows: `rows/decode-shard-{1…6}.json`;
+the pool, every cell and the *derived* link figures: `rows/decode-pooled.txt`
+(`decode_pool.py rows/decode-shard-*.json --links`).*
+
+* **Run:** §7's six blocks, one per fresh 4-core host, pooled by §7's rule: 108 rounds in all (15, 24, 22, 13, 11, 23), every block kept.
+* **Shows:** D1, D2 and D3 are each **refuted**. A lossy frame through WebCodecs costs more than an HTJ2K exact frame at 1×; a jump at G 16 is not 5–9 jumps at G 1 through dav1d-WASM; residual + add costs 1.4–1.7× an HTJ2K frame, not 0.9–1.1.
+* **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` only. These are one DBT volume per system: three volumes, their middle 16 slices, at the bytes run's crossover rung and the rungs either side. One decode in flight; Chromium 141.0.7390.37 headless, the shards' Intel Xeon hosts at 2.1–2.8 GHz.
+* **Left:** cine and ABUS series (none in the repo is breast cine); other host types, phones, concurrent decodes, past 4×; timed links (only *derived* here); everything else §7 lists as left.
+* **Missing:** shard 3's own section. Its session pushed every round's rows, and its driver stopped before round 22 at `--until` (its log), but it wrote no prose. Its block is pooled from those rows, which pass every check below.
+
+**Terms** (§7 has them in full). **G**: frames coded together, a keyframe every G frames and the rest predicted from
+the frame before; G 1 codes each frame alone. **Q**: the lossy quantizer on libaom's 0–63 scale. **Systems A, B, C**:
+the three DBT scanners of the EA1141 dataset; A and C store 12 bits, B 10. `dbts_a1`, `dbts_b1` and `dbts_c1` are one
+volume from each. **H**: an HTJ2K exact frame through OpenJPH-WASM. **R**: a residual (exact − lossy, HTJ2K)
+decoded and added onto a lossy frame already decoded. **S_G**: the lossy stream at G. **In order**: the next slice,
+the decoder holding the one before. **Jump**: a slice reached from elsewhere: a fresh decoder, its group's keyframe,
+then each frame up to it. **Block**: one host's rounds. **A/A**: H timed twice in a round as two units, whose ratio
+should be 1. **4×**: every browser thread capped at a quarter of a CPU.
+
+**Method, as §7 writes it.** Every ratio is formed inside a block: ln(num ÷ den), paired by round. Each block gives its
+median over rounds. The pooled ratio is exp of the mean of the six medians, with a 95 % *t* interval on 5 degrees of
+freedom. No millisecond crosses a host. A cell is **held** where that interval lies inside the band, **refuted**
+where it lies wholly outside, and **not decided** otherwise. It is **not read** where its order effect exceeds 10 % and
+under 5 % of 400 shuffles reach it. A question is refuted if any read cell refutes it.
+
+**Blocks.** All six kept. Each block's A/A, H′ ÷ H, median [distribution-free 95 %], with its host:
+
+| block | host (its `host` row) | rounds | A/A 1× | A/A 4× |
+| --- | --- | --: | --- | --- |
+| `shard-1` | Xeon 2.80 GHz, 4 cores, 16 GB | 15 | 0.997 [0.977–1.017] | 0.989 [0.952–1.052] |
+| `shard-2` | Xeon 2.30 GHz, 4 cores, 16 GB | 24 | 1.002 [0.993–1.007] | 0.998 [0.990–1.007] |
+| `shard-3` | Xeon 2.10 GHz, 4 cores, 16 GB | 22 | 1.002 [0.999–1.011] | 1.000 [0.994–1.013] |
+| `shard-4` | Xeon 2.80 GHz, 4 cores, 16 GB | 13 | 0.993 [0.984–0.999] | 0.996 [0.956–1.034] |
+| `shard-5` | Xeon 2.10 GHz, 4 cores, 16 GB | 11 | 0.978 [0.962–0.997] | 0.970 [0.949–0.998] |
+| `shard-6` | Xeon 2.10 GHz, 4 cores, 16 GB | 23 | 0.995 [0.984–1.003] | 0.990 [0.971–1.009] |
+
+Shard 5's eleven rounds from its void start, which ran two drivers at once, are not in its rows (its section). Every
+interval meets ±5 %, so no throttle is void.
+
+**Checks, every unit of every block.** Exact frames 76 032/76 032 against the fetch checksum. Lossy frames 302 400/302 400 against
+native dav1d 1.5.4. Residuals 34 560/34 560 against `streams.py`. No error. No cell is void.
+
+**Saturation, as each shard reports it.** One decode is in flight. dav1d-WASM and OpenJPH-WASM run one thread each, so
+at 1× they use one of four cores and the host does not saturate. At 4× each browser thread gets a quarter of a CPU.
+WebCodecs runs its own decoder threads, so its cells are no one-core figure at either throttle. Shards 1, 2, 4, 5 and 6
+say so in their sections; shard 3 wrote none. Nothing is claimed past 4×.
+
+### D1, D2, D3
+
+| question | band (§2) | read cells | verdict |
+| --- | --- | --- | --- |
+| **D1** — S_G WebCodecs in order ÷ H | ≤ 1.0 | 1×: 26 refuted, 1 not decided (`dbts_a1` Q 32, G 1: 1.045 [0.996–1.097]); 4×: 5 held, 1 not decided (`dbts_c1` Q 16, G 8: 0.971 [0.936–1.007]); not read: `dbts_b1` Q 32 4×, G 1, 8, 16 (order 24–27 %, p ≤ 0.013) | **refuted** |
+| **D2** — S16 jump ÷ S1 jump | 5–9 | dav1d-WASM: 3 held, 9 refuted (10.1–13.1 at Q 8 and the crossover rung; 3.8–4.8 at `dbts_b1` Q 56 and `dbts_c1` Q 32); WebCodecs: 10 held, 1 not decided (`dbts_b1` Q 16 1×: 8.955 [8.720–9.196]), 1 refuted (`dbts_a1` Q 8 1×: 9.234 [9.055–9.417]) | **refuted** |
+| **D3** — R ÷ H | 0.9–1.1 | 18 refuted, 1.42–1.69; not read: `dbts_a1` Q 16 4× top 10 bits, `dbts_b1` Q 32 4× (order 14 % and 20 %, p ≤ 0.022) | **refuted** |
+
+* **D1.** WebCodecs in order at 1× costs 1.05–2.24× an HTJ2K exact frame, most at Q 8 and on system B. At 4× the
+  12-bit volumes' top 10 bits come in under H: 0.81 on `dbts_a1` and 0.96–0.97 on `dbts_c1`, every G.
+* **D2.** The band assumed a predicted frame costs about a keyframe. Through dav1d-WASM it does not. At Q 8 and the
+  crossover rung, a predicted frame costs more than a keyframe, so a jump at G 16 costs 10–13 at G 1. At the coarsest
+  rungs it costs much less, so the jump falls to 3.8–4.8. WebCodecs sits at 6.7–9.2, inside the band but for two cells.
+* **D3.** Decoding the residual and adding it costs half as much again as a whole HTJ2K frame: 1.42–1.58 on systems A
+  and C, 1.63–1.69 on B. It costs the same on the 12-bit and the top-10-bit forms, within 3 %.
+
+### The access patterns, at G 1, 8 and 16
+
+For the owner: what a slice costs to show, per decoder, pattern and G. *÷ G 1* is against the same decoder and pattern
+at G 1. *÷ HTJ2K* is against one HTJ2K exact frame, H; for a jump it is the mean time to reach a slice. Each figure is
+the range of pooled ratios over the 9 cells at 1× (three series × three rungs) or the 3 at 4× (the crossover rung).
+The verdict is the rule's where a band applies.
+
+| decoder | pattern | G | throttle | ÷ G 1 | ÷ HTJ2K | the rule |
+| --- | --- | --: | --- | --- | --- | --- |
+| WebCodecs | in order | 1 | 1× | 1 | 1.05–2.04 | D1 ≤ 1.0: not decided 1, refuted 8 |
+| WebCodecs | in order | 1 | 4× | 1 | 0.81–1.11 | D1 ≤ 1.0: held 2, not read 1 |
+| WebCodecs | in order | 8 | 1× | 1.09–1.15 | 1.14–2.24 | D1 ≤ 1.0: refuted 9 |
+| WebCodecs | in order | 8 | 4× | 1.00–1.02 | 0.81–1.13 | D1 ≤ 1.0: held 1, not decided 1, not read 1 |
+| WebCodecs | in order | 16 | 1× | 1.04–1.20 | 1.18–2.21 | D1 ≤ 1.0: refuted 9 |
+| WebCodecs | in order | 16 | 4× | 1.01–1.02 | 0.81–1.12 | D1 ≤ 1.0: held 2, not read 1 |
+| WebCodecs | a jump | 1 | 1× | 1 | 1.30–2.25 | no band |
+| WebCodecs | a jump | 1 | 4× | 1 | 1.24–1.36 | no band |
+| WebCodecs | a jump | 8 | 1× | 4.44–4.93 | 5.83–10.64 | no band |
+| WebCodecs | a jump | 8 | 4× | 3.58–4.24 | 4.05–5.43 | no band |
+| WebCodecs | a jump | 16 | 1× | 8.24–9.23 | 10.64–19.83 | D2 5–9: held 7, not decided 1, refuted 1 |
+| WebCodecs | a jump | 16 | 4× | 6.71–7.96 | 7.62–10.16 | D2 5–9: held 3 |
+| dav1d-WASM | in order | 1 | 1× | 1 | 1.92–4.67 | no band |
+| dav1d-WASM | in order | 1 | 4× | 1 | 1.86–2.93 | no band |
+| dav1d-WASM | in order | 8 | 1× | 0.38–1.56 | 1.80–3.51 | no band |
+| dav1d-WASM | in order | 8 | 4× | 0.95–1.58 | 2.81–2.87 | no band |
+| dav1d-WASM | in order | 16 | 1× | 0.39–1.56 | 1.81–3.56 | no band |
+| dav1d-WASM | in order | 16 | 4× | 0.95–1.58 | 2.77–2.91 | no band |
+| dav1d-WASM | a jump | 1 | 1× | 1 | 1.98–4.82 | no band |
+| dav1d-WASM | a jump | 1 | 4× | 1 | 1.91–2.99 | no band |
+| dav1d-WASM | a jump | 8 | 1× | 2.23–6.46 | 10.25–15.62 | no band |
+| dav1d-WASM | a jump | 8 | 4× | 4.16–6.46 | 12.38–12.48 | no band |
+| dav1d-WASM | a jump | 16 | 1× | 3.84–12.92 | 18.64–30.36 | D2 5–9: held 2, refuted 7 |
+| dav1d-WASM | a jump | 16 | 4× | 7.95–13.06 | 23.69–24.78 | D2 5–9: held 1, refuted 2 |
+
+*Read:* in order, G costs little: WebCodecs 1.00–1.20 against G 1. dav1d-WASM runs 0.38–1.58, cheaper at the coarse
+rungs where predicted frames are cheap. A jump costs about (G + 1) ÷ 2 frames, §2's derivation: WebCodecs 3.6–4.9 at G 8 and
+6.7–9.2 at G 16; dav1d-WASM 2.2–6.5 and 3.8–13.1. Against HTJ2K, every lossy path at 1× costs more than an exact frame.
+The only lossy path at or under one H is WebCodecs in order at 4× on systems A and C. A jump at G 16 costs 7.6–30× an
+HTJ2K frame.
+
+### The 12-bit forms
+
+dav1d-WASM on the 12-bit stream against WebCodecs on its top 10 bits (`dbts_a1`, `dbts_c1`). On `dbts_b1` this is the
+two decoders on one 10-bit stream. It is the pooled estimate's range over cells, both patterns:
+
+| series | throttle | G 1 | G 8 | G 16 |
+| --- | --- | --- | --- | --- |
+| A, C (12-bit vs top 10) | 1× | 1.23–3.41 | 1.37–2.23 | 1.43–2.20 |
+| A, C | 4× | 1.50–2.26 | 2.57–3.57 | 2.68–3.57 |
+| B (10-bit, both) | 1× | 1.38–3.48 | 1.23–1.83 | 1.24–1.84 |
+| B | 4× | 2.36–2.62 | 2.29–2.48 | 2.35–2.49 |
+
+Every interval excludes 1, so WebCodecs is **faster** in every cell; the lowest lower bound is 1.17. Exactness on a
+12-bit volume through dav1d-WASM alone costs 1.2–3.6× the top-10-bit stream through WebCodecs. Part of that is the
+decoder, not the depth: on system B's one 10-bit stream the ratio is 1.2–3.5.
+
+**Order effects.** Of every pooled ratio (`rows/decode-pooled.txt`), the cells not read are: D1 on `dbts_b1` Q 32 4×;
+D3 on `dbts_a1` Q 16 4× (top 10 bits) and `dbts_b1` Q 32 4×; and in-order G 16 ÷ G 1 through WebCodecs on `dbts_c1`
+Q 32 1×. Nine more of the every-unit ÷ H cells are not read, six of them on `dbts_b1` Q 32 4×, whose A/A also shows a
+21 % order effect. The ÷ HTJ2K ranges in the owner's table include those as estimates. The largest order effects that were still read are on WebCodecs jumps at 4× (29–38 %). There, the shuffles
+reach the effect as often as not (p 0.55–0.75): noise from the slow first frame of a fresh `VideoDecoder` that the
+pilot saw (§7, Sizing pilot), which widens those intervals.
+
+**Derived, not decided on:** each unit replayed on a 5 and 50 Mbit/s link (§7, Units), per cell in `rows/decode-pooled.txt`.
 
 ## Larger cine fixtures
 
