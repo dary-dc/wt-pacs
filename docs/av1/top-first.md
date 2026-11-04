@@ -260,3 +260,139 @@ clause a missing cell would decide as *not decided*.
 
 **Results go** to a README in the new lab directory above (commands, rows, the tables) and a *Measured* paragraph under
 this section; this section is not edited after the measurement starts, except to correct a fact, in place and dated.
+
+## Top first, measured
+
+*2026-11-04, a separate session given only §4. Harness, rows and tables: [`lab/av1/delivery/top-first`](../../lab/av1/delivery/top-first/README.md).*
+
+**Run.** §4 as written: stage 1 offline on all 175 slices, and stage 2's five arms over 270 visits, three rounds of every cell.
+**Shows.** Both forms are exact (clause 1 passes). Top first in the frame takes 4–29 % off the first picture when the link is the clock, but no time off a whole series.
+**Verdict.** By the rule, neither form passes: both fail clause 2 where this host's CPU is the clock, both fail clause 3 by 3–5×, and `tf-frame` is not proposed (clause 4).
+**Rests on** three DBT volumes, `dbts_a1`, `dbts_b1` and `dbts_c1`, on one 4-vCPU host, and is claimed for those only.
+**Left:** Firefox; any link above 50 Mbit/s; the owner's call on `tf-series` (clause 5), which this run does not price.
+
+### Terms used here
+
+* **Visit**: one fill of one arm, in a fresh server, relay and browser.
+* **VOID**: a visit the relay's self-timing condemns (p99 over 1 ms). It is checked but not timed.
+* **Kept**: the visits that are not VOID.
+* **Head fill**: a bundle of a volume's first 8 slices, at 5 Mbit/s only (§4).
+* **÷ k2**: the median over rounds of each round's value divided by `k2`'s in the same round and cell.
+* **A/A**: `k2-aa`, the same bytes as `k2` run as a second arm. Its spread is the resolution `aa_rule.py` holds every other arm to.
+* **Link-bound**: the last byte arrives at R and 4× does not move t_X.
+* **CPU-bound**: 4× moves t_X.
+
+### What ran, and where it departs from §4
+
+* **Rig.** f4c396c8's total-time rig, ported. This branch's `client/` is unchanged.
+* **Browser and decoders.** Headless Chromium 153. All 11 220 exact AV1 frames decoded through WebCodecs and every HTJ2K frame through OpenJPH. dav1d-WASM was not built and was never needed.
+* **`tf-frame`'s entries.**
+  * The lab transport delivers slice i's prefix as entry 2i and its whole payload as entry 2i + 1, in groups of 2. The downloader's own group rule then gives both to one decoder, prefix first, which is §4's "posts the preview, then decodes the whole payload".
+  * A first build left the two to separate decoders. That build posted 23 of 56 previews after their exact frame on `dbts_a1` at 50 Mbit/s, so it was replaced before any measured visit.
+* **`tf-series`'s tops.** A slice's low may reach a different decoder than its top, so the workers share each top-only payload over a `BroadcastChannel`. The product form would hold the tops in the downloader instead.
+* **Check (a).** Each exact frame is checked against the SHA-256 the fetch wrote, not against the product's XXH3 digests.
+* **Restart.** The container restarted during round 2. Six whole-fill visits were run again under round 2: all of `dbts_c1` at 20 Mbit/s 1×, and its 4× `tf-series` visit. Round 2's head fills were also run then. Their arm order is not the Williams order.
+* **One check mended.** The mutation "preview posted unmarked" first showed only 1 stray on `tf-frame`, because the page maps its entries to half-integers. The stray check was mended and the mutation run again: 56 strays.
+
+### Stage 1, offline
+
+| volume | top ÷ payload, whole · per slice | rejoined | tops = source ≫ 2 | max \|Δ\| | PSNR, dB | low bits 0 · 1 · 2 · 3 | pixels moved ≥ 1 display level |
+| --- | --- | --- | --- | --: | --- | --- | --- |
+| `dbts_a1` | 0.697 · 0.665–0.699 | 56/56 | 56/56 | 3 | 68.3–69.2 | 50 · 17 · 17 · 17 % | 24–29 % |
+| `dbts_b1` | 0.632 · 0.630–0.634 | 50/50 | 50/50 | 3 | 59.3–59.5 | 74 · 9 · 9 · 9 % | 17–18 % |
+| `dbts_c1` | 0.705 · 0.703–0.709 | 69/69 | 69/69 | 3 | 69.8–71.0 | 66 · 12 · 12 · 12 % | 11–14 % |
+
+* The top's share is the one §2 derived, to the third digit.
+* The low bits are not uniform: a third to three-quarters of samples carry 0. So §3's PSNR, which assumed them uniform, is low by 1.5–4.6 dB.
+* The display window is each series header's: SIGMOID 1958/717 for A, LINEAR 512/512 for B, SIGMOID 2718/969 for C.
+* "Moved" is the share of pixels whose display level changes between the top-only picture and the exact one. It is far from §3's "about 1 display level" reading of the error.
+* Both stage-1 mutations failed as they should: a low byte changed gave 55/56 rejoined, and a comparison against source ≫ 1 gave 0/56 tops equal.
+
+**Decode, item 5** (5 rounds, every 8th slice, 1× and 4× interleaved), median ms:
+
+| volume | 1× d_T · d_X | 4× d_T · d_X | d_T ÷ d_X | exact |
+| --- | --- | --- | --- | --- |
+| `dbts_a1` | 99 · 98 | 391 · 372 | 1.02 · 1.07 | 140/140 |
+| `dbts_b1` | 169 · 189 | 697 · 786 | 0.91 · 0.91 | 140/140 |
+| `dbts_c1` | 89 · 89 | 362 · 357 | 0.99 · 1.04 | 180/180 |
+
+The top alone decodes no faster than the whole frame on WebCodecs, as §3 expected: WebCodecs decodes the two streams at once.
+
+### Stage 2, end to end
+
+**Checks, every visit, VOID included: clause 1 passes for both arms.**
+* Every arm: 2 244/2 244 exact frames.
+* Both `tf-*` arms: 2 244/2 244 top-only pictures equal to (source ≫ 2) ≪ 2, 0 late, 0 stray.
+* VOID: 3 of 270 visits (`k2-aa` `dbts_c1` 20 Mbit/s 1×; `tf-frame` and `tf-series` `dbts_a1` head, 5 Mbit/s 1×). n is 3 a cell everywhere else.
+* Mutations on `dbts_a1` at 50 Mbit/s 1×, each caught:
+
+| mutation | result |
+| --- | --- |
+| `--mutate sample` | 0 exact and 0 previews equal, every arm |
+| preview (top ≪ 2) \| 1 | 0/56 previews equal |
+| preview shifted by 1 | 0/56 previews equal |
+| `tf-series` joins the next slice's top | 1/56 exact |
+| low dropped | 0/56 exact |
+| preview held until after its exact frame | 56 late |
+| preview posted unmarked | 56 stray |
+
+**Host.** 4 vCPU at 2.1 GHz and 15 GB. The relay has a core of its own; browser and server share three.
+* **Link-bound** at 5 and 20 Mbit/s for every arm at 1×, and for HTJ2K, `k2` and `tf-frame` at 4×.
+  * The last byte arrives at 0.977–0.979 of R.
+  * The last exact frame lands 0.07–0.80 s after it (medians).
+  * t_X at 4× ÷ 1× is 1.00–1.05.
+* **CPU-bound** — the clock is this host's three slowed cores, not a client's:
+  * 50 Mbit/s at 4×: `k2` itself 1.02–1.41×, `tf-frame` 1.75–2.31×, `tf-series` 1.72–2.05×.
+  * `tf-series` at 20 Mbit/s 4×: 1.10–1.19×.
+  * At 50 Mbit/s 1× the wire runs at 0.964–0.971 of R and `tf-series` lags it by up to 1.4 s.
+* Nothing is claimed above 50 Mbit/s.
+
+**Latencies**, s from the fill's issue, medians of n = 3 (2 where a VOID was dropped), each a ÷ k2:
+
+| cell | `k2` first picture | `tf-frame` first ÷ k2 | `tf-series` first ÷ k2 | `tf-frame` t_T,all ÷ k2 · t_X ÷ k2 | `tf-series` t_T,all ÷ k2 · t_X ÷ k2 |
+| --- | --- | --- | --- | --- | --- |
+| 5 Mbit/s head, 1× | 2.54–3.82 | 0.709–0.734 | 0.708–0.730 | 0.954–0.975 · 0.998–1.016 | 0.639–0.709 · 0.999–1.000 |
+| 5 Mbit/s head, 4× | 2.84–4.42 | 0.741–0.760 | 0.753–0.761 | 0.958–0.977 · 1.002–1.006 | 0.646–0.720 · 1.002–1.004 |
+| 20 Mbit/s, 1× | 0.81–1.23 | 0.719–0.922 | 0.698–0.913 | 0.993–0.997 · 1.000 | 0.635–0.708 · 1.000–1.004 |
+| 20 Mbit/s, 4× | 1.12–1.83 | 0.779–0.962 | 0.797–0.995 | 0.995–0.999 · 1.006–1.031 | 0.642–0.712 · 1.085–1.180 |
+| 50 Mbit/s, 1× | 0.48–0.85 | 0.814–0.931 | 0.844–0.929 | 0.997–1.005 · 1.004–1.023 | 0.645–0.716 · 1.043–1.069 |
+| 50 Mbit/s, 4× | 0.81–1.81 | 0.733–1.023 | 0.731–1.015 | 1.636–1.753 · 1.673–1.782 | 0.694–0.878 · 1.557–1.857 |
+
+* **First picture, 20 Mbit/s 1×.** `tf-frame` 0.58–0.94 s, against §3's prediction of 0.64–0.91.
+* **Every slice's top.** `tf-series` showed every slice's top at 18.5–26.3 s at 20 Mbit/s 1×, against §3's 17.9–25.5 s on the wire alone.
+* **Every slice showing something.** `tf-frame` reached that point a low's time before t_X: 0.09–0.36 s of 26–41 s at 20 Mbit/s 1×.
+* **Bytes.** `tf-frame` 1.00000 of `k2`'s; `tf-series` 1.00001–1.00002, which is +16 B a slice.
+* **Scroll.** At 15 slices/s, every arm on every link showed nothing on 100 % of the slices a reader reaches: no arm's pictures arrive that fast here, so this reading does not separate the arms.
+
+**5 Mbit/s, whole volumes, *derived*.**
+* The head fills' wire rate measured 4.88–4.90 Mbit/s.
+* At that rate HTJ2K's t_X is 111–176 s and `k2`'s 105–165 s.
+* `tf-frame`'s t_T,all is 105–164 s (0.932–0.944 of HTJ2K's t_X); `tf-series`'s is 73–104 s (0.593–0.668).
+
+**Against the SVC base, *across sittings*.**
+
+| quantity, each ÷ its own sitting's `k2` | SVC base (f4c396c8's `a2-q20` rows) | `tf-frame` | `tf-series` |
+| --- | --- | --- | --- |
+| first picture, 20 and 50 Mbit/s | 0.070–0.157 | 0.719–1.023 | 0.698–1.015 |
+| first picture, 5 Mbit/s | 0.026–0.049 | 0.709–0.760 | 0.708–0.761 |
+| every slice showing something (t_P or t_T,all) ÷ `k2`'s t_X | 0.010–0.049 | 0.993–1.753 | 0.635–0.878 |
+
+### The rule, as written
+
+1. **Exact or refused.** Both arms pass: no wrong frame, no wrong top-only picture, no late and no stray preview, in any visit.
+2. **Cost: both arms fail.** Bytes pass for both (1.00000–1.00002). t_X fails:
+   * `tf-frame` is within 1.10× in every cell but 50 Mbit/s 4× (1.673–1.782).
+   * `tf-series` fails at 20 Mbit/s 4× on `dbts_b1` (1.180) and `dbts_c1` (1.125), and at 50 Mbit/s 4× (1.557–1.857).
+   * Each failing cell is CPU-bound on this host. The rule names no exception, so neither does this report.
+3. **A fast preview: both fail.** t_T,all ÷ HTJ2K's t_X should be ≤ 0.2:
+   * `tf-frame`: 0.936–0.955 at 20 Mbit/s, *derived* 0.932–0.944 at 5.
+   * `tf-series`: 0.598–0.681 at 20 Mbit/s, *derived* 0.593–0.668 at 5.
+   * §3 predicted about 3×: `tf-series` misses by 3.0–3.4×, `tf-frame` by 4.7–4.8×.
+4. **`tf-frame` is not proposed.** It fails clause 2. Apart from that:
+   * Its first-picture gain on `k2` reaches 0.2 beyond the A/A on at least two volumes only at 5 Mbit/s: gains 0.24–0.29, though `dbts_a1` at 1× had n = 2, too few for `aa_rule.py` to flag.
+   * At 20 Mbit/s 1× two volumes clear 0.2 (gains 0.08, 0.25, 0.28), but `dbts_c1` cannot be flagged (its A/A arm kept n = 2), so only one counts.
+   * At 20 Mbit/s 4× only one volume clears 0.2 (gains 0.04–0.22).
+   * At 50 Mbit/s 1× none clears 0.2 (gains 0.07–0.19).
+   * At 50 Mbit/s 4× only one clears 0.2 (gains −0.02–0.27).
+   * §3 predicted 0.10–0.24 at 20 and 50 Mbit/s, a fail as written. That held.
+5. **`tf-series`** fails clauses 2 and 3. It does give a picture within 3 levels of every slice at 0.64–0.72 of `k2`'s t_X where the link is the clock. Whether that trade is worth a change to the store is the owner's call, from the tables above; no clause here prices it.

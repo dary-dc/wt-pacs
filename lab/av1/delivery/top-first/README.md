@@ -18,7 +18,7 @@ $P $T/stage1.py lab/.av1-build $W/shipped /tmp/m.jsonl lab/av1/data/dbts_a1 --mu
 NODE_PATH=$(npm root -g) node $T/bench.mjs --rounds 5 --out $T/decode.jsonl                     # stage 1, item 5, ~20 min
 $T/mutations.sh                                                                                  # stage 2's mutations, ~5 min
 $T/stage2.sh 0 2                                                                                 # stage 2, three rounds
-python3 $T/summary.py $T/rows.jsonl $W/top-first --decode $T/decode.jsonl --svc svc-rows.jsonl svc-rows-r50000.jsonl rows.jsonl
+python3 $T/summary.py $T/rows.jsonl $W/top-first --decode $T/decode.jsonl --svc svc-rows.jsonl svc-rows-r50000.jsonl rows.jsonl > $T/results.md
 ```
 
 The last three files are `lab/av1/delivery/scalable/tool/`'s at `f4c396c8` (`git show f4c396c8:lab/av1/delivery/scalable/tool/svc-rows.jsonl`).
@@ -55,3 +55,14 @@ own; an exact frame is the whole payload (`tf-frame`) or the one rejoined from t
 picture's against SHA-256 of (source ≫ 2) ≪ 2 as 16-bit little-endian samples, written by `make_frames.py` from the
 source after checking the source's bytes against its checksum; previews after their exact frame (`late`) and frames
 posted unmarked (`stray`).
+
+## Outputs
+
+This run's outputs are committed here:
+* [`stage1.jsonl`](stage1.jsonl): stage 1, items 1–4, one row a slice.
+* [`decode.jsonl`](decode.jsonl): item 5.
+* [`mutations.jsonl`](mutations.jsonl): stage 2's mutations.
+* [`rows.jsonl`](rows.jsonl): stage 2's 270 visits.
+* [`results.md`](results.md): `summary.py`'s full tables.
+
+**Rounds.** Rounds 0–1 ran in full. A container restart cut round 2 after 54 of its 60 whole-fill visits. The missing six were run again under `--first-round 2`: `dbts_c1` 20 Mbit/s 1× all five arms, and its 4× `tf-series` visit. Round 2's head fills ran after them.
