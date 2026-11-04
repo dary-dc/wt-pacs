@@ -172,6 +172,98 @@ const { parsePayload } = await import("./av1-payload.js");
   }
 }
 
+/**
+ * begin()'s `byCopy` is place()'s bytes and range wherever it is taken: unsplit unsigned grey at 8–16 bits, samples up to
+ * the heap type's maximum, over an offset and padded rows; and it is taken only there.
+ */
+{
+  const { begin, end } = await import("./av1-frame.js");
+  let seed = 11;
+  let copies = 0;
+  const rnd = (n) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) >>> 8) % n;
+  class Counted8 extends Uint8Array { subarray(...a) { copies++; return super.subarray(...a); } }
+  class Counted16 extends Uint16Array { subarray(...a) { copies++; return super.subarray(...a); } }
+  const [w, h, pad, at] = [37, 5, 3, 2];
+  const pic = (bits, max, n = 1, heapBits = bits) => ({ width: w, height: h, bits, planes: Array.from({ length: n }, () => {
+    const heap = heapBits > 8 ? new Counted16(at + (w + pad) * h) : new Counted8(at + (w + pad) * h);
+    for (let i = 0; i < heap.length; i++) heap[i] = rnd(max);
+    return { heap, offset: at, stride: w + pad };
+  }) });
+  const same = (a, b) => sha(a.sab) === sha(b.sab) && a.range.min === b.range.min && a.range.max === b.range.max && JSON.stringify(a.info) === JSON.stringify(b.info);
+  let wrong = 0;
+  for (let bits = 8; bits <= 16; bits++) {
+    const depth = [8, 10, 12].find((d) => bits <= d) ?? bits;
+    const payload = { bits, depth, split: 0, signed: false, rct: false, offset: 0 };
+    for (const max of [2 ** bits, depth > 8 ? 65536 : 256]) {
+      const top = pic(depth, max);
+      copies = 0;
+      const ok = same(end(begin(top, payload, true)), end(begin(top, payload)));
+      if (!ok) wrong++;
+      check(ok && copies === h, `by copy: ${bits}-bit unsplit grey, samples below ${max}, is place()'s bytes and range, a row a copy (${copies})`);
+    }
+  }
+  check(wrong === 0, `by copy: ${wrong} of 18 cells unlike place()`);
+  const taken = (what, top, payload, low = null) => {
+    copies = 0;
+    const ok = same(end(begin(top, payload, true), low), end(begin(top, payload), low));
+    check(ok && copies === 0, `by copy: ${what} is placed as before (${copies} copies)`);
+  };
+  taken("a split frame", pic(10, 1024), { bits: 12, depth: 10, split: 2, signed: false, rct: false, offset: 0 }, pic(8, 4));
+  taken("a signed frame", pic(10, 1024), { bits: 10, depth: 10, split: 0, signed: true, rct: false, offset: 512 });
+  taken("a signed frame with no offset", pic(8, 256), { bits: 8, depth: 8, split: 0, signed: true, rct: false, offset: 0 });
+  taken("an RCT frame", pic(10, 1024, 3), { bits: 8, depth: 10, split: 0, signed: false, rct: true, offset: 0 });
+  taken("plain 8-bit colour", pic(8, 256, 3), { bits: 8, depth: 8, split: 0, signed: false, rct: false, offset: 0 });
+  taken("an 8-bit output from a 16-bit heap", pic(8, 256, 1, 10), { bits: 8, depth: 8, split: 0, signed: false, rct: false, offset: 0 });
+}
+
+/** `placeByCopy`, off unless set, reaches begin() on both decoders' unsplit grey pictures and changes no frame's bytes or range. */
+{
+  let copies = 0;
+  class Counted16 extends Uint16Array { subarray(...a) { copies++; return super.subarray(...a); } }
+  class Counted8 extends Uint8Array { subarray(...a) { copies++; return super.subarray(...a); } }
+  const pic = (bits, n) => {
+    let seed = bits * 31 + n;
+    const planes = Array.from({ length: n }, () => {
+      const heap = bits > 8 ? new Counted16(6 * 4) : new Counted8(6 * 4);
+      for (let i = 0; i < heap.length; i++) heap[i] = (seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) % 2 ** bits;
+      return { heap, offset: 0, stride: 6 };
+    });
+    return { width: 5, height: 4, bits, planes };
+  };
+  const make = async (placeByCopy, webcodecs) => {
+    let current = null;
+    let calls = 0;
+    // dav1d's low is the frame's second call; WebCodecs names it.
+    const stub = { init: async () => {}, probe: async () => true, picture: (bytes, unit, which) => (which === "low" || calls++ ? pic(8, 1) : pic(current.depth, current.rct || current.colour ? 3 : 1)) };
+    const stubs = { "./av1-webcodecs.js": webcodecs ? stub : { init: async () => {}, probe: async () => false }, "./av1-dav1d.js": stub };
+    const av1 = await import(`./av1.js?by-copy-${placeByCopy}-${webcodecs}`);
+    await av1.init({ placeByCopy }, async (path) => stubs[path]);
+    return async (rep, name) => {
+      const bytes = golden(rep, name);
+      current = { ...parsePayload(bytes), colour: name === "c8" };
+      copies = 0;
+      calls = 0;
+      const r = await av1.decodeFrame(bytes, { key: true });
+      return [`${r.path} ${sha(r.sab)} ${r.range.min} ${r.range.max} ${JSON.stringify(r.info)}`, copies];
+    };
+  };
+  globalThis.VideoDecoder = class {};
+  for (const webcodecs of [true, false]) {
+    const [off, on, unset] = [await make(false, webcodecs), await make(true, webcodecs), await make(undefined, webcodecs)];
+    for (const [rep, name, what] of [
+      ["optimized", "g9", "unsplit"], ["plain", "g10", "unsplit, 10-bit"], ["optimized", "g12", "split"],
+      ["optimized", "s11", "signed"], ["optimized", "c8", "rct"], ["plain", "c8", "plain colour"],
+    ]) {
+      const [[a, na], [b, nb], [c, nc]] = [await off(rep, name), await on(rep, name), await unset(rep, name)];
+      const unsplitGrey = /^unsplit/.test(what);
+      const where = webcodecs ? "WebCodecs" : "dav1d";
+      check(a === b && b === c, `placeByCopy: ${what} (${rep} ${name}) through ${where} decodes to the same bytes and range`);
+      check(na === 0 && nc === 0 && (nb > 0) === unsplitGrey, `placeByCopy: ${what} through ${where} is placed by copy ${unsplitGrey ? "under the flag only" : "never"} (${na}, ${nb}, ${nc})`);
+    }
+  }
+  delete globalThis.VideoDecoder;
+}
+
 /** `onePass`, on unless `false`, takes a WebCodecs split frame through merge() and every other payload as before: same bytes and range. */
 {
   const reads = [];

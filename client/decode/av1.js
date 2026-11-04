@@ -10,7 +10,7 @@ let cfg = null;
 let importer = (path) => import(path);
 const loaded = {};
 
-/** `d` is the series' decoder config: dav1d's `glue`, `wasm` and `dir`, `groupLength`, `mixed`: a top over 10 bits to dav1d, its low to WebCodecs (lab/av1/decode/mixed), `onePass`, on unless `false`: a WebCodecs split frame merged in one pass and a `mono_chrome` stream's chroma not checked (docs/decode/README.md §JS passes protocol, pre-registered), and `reuseCopyBuffer`: each WebCodecs stream copies every frame into one buffer (§Merge-free protocol, pre-registered). */
+/** `d` is the series' decoder config: dav1d's `glue`, `wasm` and `dir`, `groupLength`, `mixed`: a top over 10 bits to dav1d, its low to WebCodecs (lab/av1/decode/mixed), `onePass`, on unless `false`: a WebCodecs split frame merged in one pass and a `mono_chrome` stream's chroma not checked (docs/decode/README.md §JS passes protocol, pre-registered), and `reuseCopyBuffer`: each WebCodecs stream copies every frame into one buffer (§Merge-free protocol, pre-registered), and `placeByCopy`: an unsplit grey picture placed by a native copy (§Grey path protocol, pre-registered). */
 export async function init(d, load) {
   cfg = d;
   if (load) importer = load;
@@ -47,7 +47,7 @@ export async function decodeFrame(bytes, unit = { key: true }, preview, avoid) {
   if (wc) {
     try {
       const [t, l] = await Promise.all([wc.picture(top, unit), low && wc.picture(low, { key: true }, "low")]);
-      return { ...(cfg.onePass !== false && l ? merge(t, l, payload) : end(begin(t, payload), l)), path: "av1-webcodecs" };
+      return { ...(cfg.onePass !== false && l ? merge(t, l, payload) : end(begin(t, payload, cfg.placeByCopy), l)), path: "av1-webcodecs" };
     } catch (e) {
       if (avoid === "av1-dav1d") throw e;
       /* dav1d decodes what WebCodecs would not */
@@ -61,7 +61,7 @@ export async function decodeFrame(bytes, unit = { key: true }, preview, avoid) {
   const pending = lowWc && lowWc.picture(low, { key: true }, "low").catch(() => null);
   let f;
   try {
-    f = begin(dav1d.picture(top, unit, base), payload);
+    f = begin(dav1d.picture(top, unit, base), payload, cfg.placeByCopy);
   } finally {
     await pending; // in flight, it would be taken as the next payload's low
   }
