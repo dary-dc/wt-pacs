@@ -84,3 +84,6 @@ round 8 1x done, 240 s
 round 8 4x done, 575 s
 round 9 4x done, 319 s
 round 9 1x done, 556 s
+round 10 1x done, 235 s
+round 10 4x done, 543 s
+stopping before round 11: it would pass --until
