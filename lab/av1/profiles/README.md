@@ -2146,21 +2146,79 @@ WebCodecs) and every unit ÷ H. The derived link figures are left to the collect
 
 ### Decode shard 5, measured
 
-*Partial, 2026-11-04 20:55 UTC: setup and the mutations done; block `shard-5` running again after a void start (below), its rows pushed every two rounds
-to `lab/av1/profiles/rows/decode-shard-5.*`. The cells follow when it stops.*
+**One block: not a verdict.** Block `shard-5`, 2026-11-04, rows `lab/av1/profiles/rows/decode-shard-5.{json,log,txt}`.
 
-* **Host:** Intel Xeon @ 2.10 GHz, 4 cores (one thread each), 15 GiB, Linux; nothing else running during the block.
-* **Setup** (`decode_setup.sh` on this fresh host): 16.9 min wall.
-* **Mutations, once before the block**, `dbts_a1` Q 16 at 1×, one round: `--mutate hash` — every check 0 on all 16
-  units (exact 0/16, lossy 0/16 or 0/20, residuals 0/16); `--mutate offset` — R exact 0/16 on both forms, residuals
-  16/16 and lossy 16/16 intact, no other unit failed; `--mutate drop` — both S8 jumps fail, dav1d-WASM `dav1d -28`,
-  WebCodecs `Decoding error.`, each with 1/20 lossy frames matched; `decode_pool.py --test`: every test passed.
-* **A void start.** The first launch was meant to be stopped inside round 0 and relaunched detached from the
-  session's two-hour command limit; only its browser stopped, its loop went on, so from 19:00 to 20:49 UTC two block
-  drivers ran at once on this host, writing to the same rows. Every round of that (0–10, commit `d6fcace0`, the log
-  above its `restart` line) had two decodes in flight on four cores: **void**, read nowhere. The block restarted from
-  round 0 at 20:50 UTC with one driver, under the same `--until` (T0 + 4.1 h = 22:37 UTC), which leaves room for about
-  10 rounds.
+* **Run:** §7's shard command with K = 5 on one fresh 4-core host: 11 rounds (0–10), each 1× on all nine (series,
+  rung) and 4× on the three crossover rungs, every unit interleaved in its Williams row, with the block's own A/A.
+* **Shows:** this block's A/A kept at both throttles; every check matched; the D1–D3 ratios below, inside this block only.
+* **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` at §7's rungs, their middle 16 slices; this one host; Chromium 141
+  headless (playwright 1.56.1). Nothing here is claimed for cine, ABUS or other series.
+* **Left:** pooling with the other five blocks, and D1–D3's verdicts — the collector's (§Shards), not this section's.
+* **Not in it:** a first launch of 11 rounds that ran beside a second driver (below), void.
+
+**Terms** as §7 defines them; "[a–b]" after a ratio is its within-block 95 % interval as `decode_pool.py` prints it.
+
+**Host and saturation.** Intel Xeon @ 2.10 GHz (AVX2, AVX-512F), 4 cores, one thread a core, 16 GB as the driver
+reports it (15 GiB by `free`), Linux; nothing else running during the clean block. One decode in flight: dav1d-WASM
+and OpenJPH-WASM use one thread, so at 1× one core of four and the host does not saturate; at 4× each browser thread
+has a quarter CPU. WebCodecs runs its own decoder threads, so its cells are not a one-core figure at either throttle.
+Nothing is claimed for concurrent decodes or past 4×.
+
+**Setup and time.** `decode_setup.sh` 16.9 min. Clean block 20:49–22:35 UTC, a round 9.1–10.0 min (1× 3.9–4.2 min,
+4× 5.3–6.0 min, from the log's cumulative times); `--until` (T0 + 4.1 h) stopped it before round 11.
+
+**A void start.** The first launch was meant to be stopped inside round 0 and relaunched detached from the session's
+two-hour command limit; only its browser stopped, its loop went on, so from about 19:00 to 20:49 UTC two block drivers
+ran at once on this host, writing to the same rows. Those rounds (0–10, commit `d6fcace0`, the log above its `restart`
+line) had two decodes in flight on four cores: **void**, read nowhere. The rows file was then removed and the block
+began again at round 0; only the clean block is in `decode-shard-5.json`.
+
+**Mutations, once before the block** (`dbts_a1` Q 16 at 1×, one round each; outputs kept outside the repo, tallies
+here): `--mutate hash` — every check 0 on all 16 units (exact 0/16, lossy 0/16 or 0/20, residuals 0/16);
+`--mutate offset` — R exact 0/16 on both forms, residuals 16/16 and lossy 16/16 intact, no other unit failed;
+`--mutate drop` — both S8 jumps fail, dav1d-WASM `dav1d -28`, WebCodecs `Decoding error.`, each 1/20 lossy frames
+matched; `decode_pool.py --test`: every test passed.
+
+**Checks, the clean block:** exact frames (H, H′, R after its add) against the fetch checksum 7 744/7 744; lossy frames
+against native dav1d 1.5.4 30 800/30 800; residuals against `streams.py` 3 520/3 520; no decode error. No cell void.
+
+**A/A** (median ln(H′ ÷ H) over every (series, rung) and round): 1× 0.978 [0.962–0.997] over 99 pairs; 4× 0.970
+[0.949–0.998] over 33 pairs — both inside ±5 %, so the block is **kept** at both throttles.
+
+**ms, median over rounds of each unit's figure, this block only** (H; R; S1, S16 in order and jump; full list in
+`decode-shard-5.txt`):
+
+| series, rung, throttle | H | R | S1 dav1d order · jump | S1 WebCodecs order · jump | S16 dav1d order · jump | S16 WebCodecs order · jump |
+| --- | --: | --: | --: | --: | --: | --: |
+| `dbts_a1` Q 16 1× | 16 | 23 (12-bit), 23 (top 10) | 32 · 33 | 19 · 22 | 48 · 410 | 21 · 198 |
+| `dbts_a1` Q 16 4× | 74 | 110, 104 | 141 · 148 | 60 · 94 | 224 · 1 877 | 58 · 533 |
+| `dbts_b1` Q 32 1× | 47 | 74 (10-bit) | 139 · 141 | 68 · 79 | 129 · 1 151 | 70 · 635 |
+| `dbts_b1` Q 32 4× | 210 | 329 | 625 · 644 | 239 · 292 | 588 · 5 095 | 237 · 2 096 |
+| `dbts_c1` Q 16 1× | 17 | 24, 23 | 34 · 34 | 23 · 27 | 45 · 400 | 24 · 234 |
+| `dbts_c1` Q 16 4× | 74 | 114, 112 | 150 · 156 | 69 · 136 | 195 · 1 766 | 70 · 672 |
+
+**D1–D3 ratios, this block, median over its 11 rounds [within-block interval]** — D1: S_G WebCodecs in order ÷ H;
+D2: S16 jump ÷ S1 jump; D3: R ÷ H. Bands (§7): D1 ≤ 1.0, D2 5–9, D3 0.9–1.1. One block: every cell prints "not
+read: one block" by §7's rule; these are inputs to the pool, not readings.
+
+| series, rung, throttle | A/A H′÷H | D1 S1 | D1 S8 | D1 S16 | D2 dav1d-WASM | D2 WebCodecs | D3 R 12-bit | D3 R top 10 | D3 R 10-bit |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `dbts_a1` Q 8 1× | 0.97 [0.91–1.01] | 1.83 [1.67–1.95] | 2.14 [1.76–2.20] | 2.15 [1.92–2.35] | 11.07 [9.00–12.20] | 9.54 [8.48–9.96] | 1.46 [1.39–1.58] | 1.49 [1.37–1.56] | — |
+| `dbts_a1` Q 16 1× | 0.97 [0.92–1.04] | 1.25 [1.04–1.33] | 1.34 [1.16–1.36] | 1.35 [1.18–1.44] | 12.37 [10.37–13.45] | 9.11 [8.29–10.43] | 1.47 [1.36–1.60] | 1.41 [1.34–1.81] | — |
+| `dbts_a1` Q 32 1× | 0.99 [0.91–1.08] | 1.01 [0.96–1.12] | 1.11 [1.01–1.29] | 1.19 [0.94–1.35] | 6.79 [6.36–8.00] | 7.80 [7.22–8.31] | 1.45 [1.26–1.60] | 1.41 [1.15–1.52] | — |
+| `dbts_b1` Q 16 1× | 0.98 [0.94–1.02] | 1.68 [1.61–1.83] | 1.96 [1.83–2.12] | 1.88 [1.77–1.98] | 10.80 [8.93–11.86] | 8.92 [7.93–10.49] | — | — | 1.62 [1.48–1.95] |
+| `dbts_b1` Q 32 1× | 0.98 [0.91–1.08] | 1.49 [1.31–1.59] | 1.57 [1.41–1.64] | 1.55 [1.38–1.65] | 8.06 [6.87–8.97] | 7.84 [7.58–8.80] | — | — | 1.55 [1.47–1.74] |
+| `dbts_b1` Q 56 1× | 0.98 [0.91–1.02] | 1.43 [1.24–1.48] | 1.45 [1.37–1.56] | 1.43 [1.30–1.57] | 3.77 [3.12–4.08] | 8.31 [7.65–9.52] | — | — | 1.62 [1.55–1.81] |
+| `dbts_c1` Q 8 1× | 0.97 [0.85–1.08] | 2.11 [1.75–2.21] | 2.23 [1.89–2.42] | 2.28 [2.11–2.46] | 10.35 [9.06–10.95] | 9.03 [8.40–9.25] | 1.49 [1.24–1.61] | 1.49 [1.39–1.58] | — |
+| `dbts_c1` Q 16 1× | 0.94 [0.70–1.04] | 1.43 [1.03–1.56] | 1.49 [1.13–1.75] | 1.47 [1.05–1.66] | 10.93 [10.82–12.04] | 8.53 [8.24–8.99] | 1.54 [1.11–1.66] | 1.43 [1.11–1.63] | — |
+| `dbts_c1` Q 32 1× | 0.98 [0.88–1.12] | 1.20 [1.13–1.29] | 1.25 [1.16–1.45] | 1.17 [1.15–1.29] | 4.71 [4.29–5.16] | 7.74 [6.98–8.71] | 1.54 [1.37–1.65] | 1.50 [1.39–1.60] | — |
+| `dbts_a1` Q 16 4× | 0.99 [0.86–1.03] | 0.82 [0.71–0.86] | 0.83 [0.70–0.89] | 0.80 [0.72–0.85] | 12.43 [11.66–13.50] | 6.21 [3.90–8.10] | 1.47 [1.30–1.59] | 1.44 [1.27–1.47] | — |
+| `dbts_b1` Q 32 4× | 0.96 [0.94–1.02] | 1.13 [1.04–1.21] | 1.16 [1.06–1.23] | 1.09 [1.04–1.19] | 7.98 [7.45–8.38] | 7.64 [6.39–8.35] | — | — | 1.55 [1.47–1.63] |
+| `dbts_c1` Q 16 4× | 0.97 [0.93–1.07] | 0.96 [0.86–1.03] | 0.96 [0.89–1.02] | 0.93 [0.85–1.06] | 11.16 [10.58–12.47] | 5.17 [4.41–7.55] | 1.59 [1.43–1.65] | 1.50 [1.43–1.72] | — |
+
+The order effect `decode_pool.py` prints per cell (largest |median by predecessor ÷ median − 1|) runs 7–194 % here at
+n = 11, its shuffle share 1.0 in every cell: on one block's pairs the shuffles reach it every time. The other ratios
+(G in order and on a jump, the 12-bit forms, each unit ÷ H) are in `decode-shard-5.txt`, same status.
 
 ### Decode shard 6, measured
 
