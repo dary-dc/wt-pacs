@@ -93,7 +93,7 @@ def cell(job):
     t1 = time.perf_counter()
     shown = {}
     frames = measure(s, form, meta, y4m_frames(dec, s, form), shown=shown if vdp else None)
-    seen = visibility(vdp, tmp, shown) if vdp else None
+    seen = visibility(vdp, tmp, shown) if vdp and shown else None
     for f in tmp.iterdir():
         f.unlink()
     tmp.rmdir()

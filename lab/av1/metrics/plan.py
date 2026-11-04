@@ -15,7 +15,8 @@ ENCODE = {  # CPU s a megapixel at cpu6, one thread: the bytes run's DBT medians
     8: {1: 0.72, 2: 0.650, 4: 0.74, 8: 0.551, 12: 0.39, 16: 0.295, 24: 0.16, 32: 0.161, 40: 0.14, 56: 0.096},
     16: {1: 0.68, 2: 0.611, 4: 0.70, 8: 0.543, 12: 0.37, 16: 0.277, 24: 0.15, 32: 0.145, 40: 0.13, 56: 0.093},
 }
-MEASURE, SERIES, LOSSLESS, VDP = 0.23, 0.30, 4.1, 3.0  # CPU s a megapixel: per cell, per series, controls, per VDP frame
+MEASURE, SERIES, LOSSLESS, VDP = 0.27, 0.30, 4.1, 2.0  # CPU s a megapixel: per cell, per series, controls, per VDP frame
+ENCODE_MARGIN = 1.15  # the pilot coded up to 15 % over ENCODE at G 8 and 16 (README.md §8)
 VDP_FRAMES = 8
 SHARE_OF_BUDGET = 0.85
 BUDGET = 4.5 * 3600 * 4
@@ -43,7 +44,7 @@ def cost(name):
     n, h, w, ch, forms, _ = SETS[name]
     mpx = n * h * w / 1e6
     coded = mpx * (1.5 if ch == 3 else 1)
-    cells = sum(forms * (coded * ENCODE[g][q] + mpx * ch * MEASURE) for g in GROUPS for q in LADDER)
+    cells = sum(forms * (coded * ENCODE[g][q] * ENCODE_MARGIN + mpx * ch * MEASURE) for g in GROUPS for q in LADDER)
     seen = 0 if ch == 3 else len(GROUPS) * len(LADDER) * min(n, VDP_FRAMES) * min(h, 1024) * min(w, 1024) / 1e6 * VDP
     return cells + seen + mpx * ch * (SERIES + LOSSLESS)
 

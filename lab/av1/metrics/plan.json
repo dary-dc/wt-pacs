@@ -20,53 +20,53 @@
   "1": {
    "sets": [
     "dbts_c3",
-    "dbts_b2",
-    "dbts_a5",
-    "dbts_a3",
-    "dbt10_d",
-    "ustrus_2",
-    "rf_fluoro"
-   ],
-   "cpu_s": 46606,
-   "wall_h": 3.24
-  },
-  "2": {
-   "sets": [
-    "dbts_b1",
-    "dbts_c5",
     "dbt12_c",
     "dbts_a1",
-    "dbt10_ea1141",
-    "usb_cine_rgb"
-   ],
-   "cpu_s": 46775,
-   "wall_h": 3.25
-  },
-  "3": {
-   "sets": [
-    "dbts_a2",
-    "dbts_c1",
-    "dbts_b5",
-    "dbts_c4",
-    "dbt12_ea1141",
+    "dbts_c2",
+    "ustrus_1",
     "mr_ispy1",
     "mr9_ispy2"
    ],
-   "cpu_s": 46505,
-   "wall_h": 3.23
+   "cpu_s": 47796,
+   "wall_h": 3.32
   },
-  "4": {
+  "2": {
+   "sets": [
+    "dbts_a2",
+    "dbts_c5",
+    "dbts_b2",
+    "dbts_c4",
+    "dbt12_ea1141",
+    "dbt10_ea1141",
+    "usb_cine"
+   ],
+   "cpu_s": 48175,
+   "wall_h": 3.35
+  },
+  "3": {
    "sets": [
     "dbts_a4",
     "dbts_b4",
-    "dbts_b3",
-    "dbts_c2",
-    "ustrus_1",
+    "dbts_a5",
+    "dbts_a3",
+    "dbt10_d",
     "us_liver",
-    "usb_cine"
+    "rf_fluoro"
    ],
-   "cpu_s": 46575,
-   "wall_h": 3.23
+   "cpu_s": 47724,
+   "wall_h": 3.31
+  },
+  "4": {
+   "sets": [
+    "dbts_c1",
+    "dbts_b1",
+    "dbts_b3",
+    "dbts_b5",
+    "ustrus_2",
+    "usb_cine_rgb"
+   ],
+   "cpu_s": 47933,
+   "wall_h": 3.33
   }
  }
 }

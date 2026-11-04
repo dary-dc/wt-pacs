@@ -283,6 +283,20 @@
   "mutation": "coefficient c's sign flipped",
   "sees_it": true
  },
+ "knee": {
+  "as_run": {
+   "knee": 8,
+   "anchor": 4,
+   "held": true
+  },
+  "mutated": {
+   "knee": 2,
+   "anchor": 4,
+   "held": false
+  },
+  "mutation": "the rung nearest the chord in place of the farthest",
+  "sees_it": true
+ },
  "sigma_correlated": {
   "as_run": {
    "0.5": 5.272,

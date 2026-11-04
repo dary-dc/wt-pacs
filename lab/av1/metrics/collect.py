@@ -77,17 +77,19 @@ def summary(s, r):
     return out
 
 
-def knee(points, key):
-    """The interior rung where the slope of ln bytes against the metric changes most (the bytes run's bend, §5)."""
-    pts = sorted((p["q"], math.log(p["bytes"]), p[key]) for p in points if p[key] is not None and math.isfinite(p[key]))
-    best, at = -1.0, None
-    for (_, b0, m0), (q, b1, m1), (_, b2, m2) in zip(pts, pts[1:], pts[2:]):
-        if m1 == m0 or m2 == m1:
-            continue
-        change = abs((b2 - b1) / (m2 - m1) - (b1 - b0) / (m1 - m0))
-        if change > best:
-            best, at = change, q
-    return at
+def knee(points, key, pick=max):
+    """The rung farthest from the chord joining the curve's two ends, ln bytes and the metric each scaled to 0 … 1
+    (README.md §5 c): where the curve bends most, whichever way the metric saturates."""
+    pts = sorted((math.log(p["bytes"]), p[key], p["q"]) for p in points if p[key] is not None and math.isfinite(p[key]))
+    if len(pts) < 3:
+        return None
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+    unit = lambda v, lo, hi: (v - lo) / ((hi - lo) or 1)
+    xy = [(unit(x, min(xs), max(xs)), unit(y, min(ys), max(ys)), q) for x, y, q in pts]
+    (x0, y0, _), (x1, y1, _) = xy[0], xy[-1]
+    far = lambda p: abs((y1 - y0) * p[0] - (x1 - x0) * p[1] + x1 * y0 - y1 * x0)
+    best = pick(xy[1:-1], key=far)
+    return best[2] if far(best) > 0 else None
 
 
 def highest(points, test):
@@ -130,7 +132,7 @@ def report(series, cells, controls):
             f"{highest(pts, lambda p: p['e_sigma_max'] <= 1)} | "
             f"{highest(pts, lambda p: all(p[w]['max'] <= 1 for w in windows))} | "
             f"{highest(pts, lambda p: p['scroll_max'] < 1)} | {highest(pts, lambda p: p['scroll_full_max'] < 1)} |")
-    out = ["#### Every cell", "", *lines, "", "#### Knees: the rung where ln bytes bends against each metric", "",
+    out = ["#### Every cell", "", *lines, "", "#### Knees: the rung farthest from each curve's chord (metric against ln bytes, both scaled 0 … 1)", "",
            "| series, form | G | PSNR | MS-SSIM (dB of 1 − MS-SSIM) | noise-band e ÷ σ | ≥ 1 level | JOD |",
            "| --- | --: | --: | --: | --: | --: | --: |", *knees, "", "#### Anchors: the highest Q from Q 1 up at which "
            "every frame holds", "", "| series, form | G | noise-band e ≤ σ | e ≤ σ | every window ≤ 1 level | scroll, band "
@@ -174,8 +176,8 @@ def svg(by, out):
                 continue
             sx = lambda x: 60 + 520 * (x - min(xs)) / ((max(xs) - min(xs)) or 1)
             sy = lambda y: 340 - 300 * (y - min(ys)) / ((max(ys) - min(ys)) or 1)
-            body = [f'<polyline fill="none" stroke="hsl({(37 * i) % 360},60%,40%)" stroke-width="1.5"'
-                    f'{" stroke-dasharray=\"5 3\"" if g == 16 else ""} points="'
+            dash = {1: "", 16: ' stroke-dasharray="5 3"'}
+            body = [f'<polyline fill="none" stroke="hsl({(37 * i) % 360},60%,40%)" stroke-width="1.5"{dash[g]} points="'
                     + " ".join(f"{sx(x):.1f},{sy(y):.1f}" for x, y in l) + f'"><title>{n} G {g}</title></polyline>'
                     for i, (n, g, l) in enumerate(sorted(lines))]
             text = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 380" font-size="11">'

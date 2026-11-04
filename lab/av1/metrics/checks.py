@@ -6,6 +6,7 @@ usage: checks.py BUILD WORK SETDIR OUT.json [--vdp TORCH_PYTHON]     (SETDIR: a 
 """
 import argparse
 import json
+import math
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ from skimage.metrics import structural_similarity
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import cell  # noqa: E402
+import collect  # noqa: E402
 import quality  # noqa: E402
 import vdp  # noqa: E402
 from bytes import AOM, Middle, aomenc_args, forms, write_y4m, y4m_frames  # noqa: E402
@@ -139,6 +141,15 @@ def gsdf_check(coefficient=None):
                 held=abs(lo - 0.05) / 0.05 < 0.003 and abs(hi - 3993.4) / 3993.4 < 0.003 and err < 0.5)
 
 
+def knee_check(pick=max):
+    """A curve that rises steeply to Q 8 and is flat after has its knee at Q 8, and the anchor run from Q 1 stops at
+    the first failing rung (Q 4 here, though Q 16 passes again)."""
+    pts = [dict(q=q, bytes=math.exp(10 - i), m=min(i, 3) * 10.0, ok=q != 8) for i, q in enumerate((1, 2, 4, 8, 16, 32))]
+    k = collect.knee(pts, "m", pick)
+    run = collect.highest(pts, lambda p: p["ok"])
+    return dict(knee=k, anchor=run, held=k == 8 and run == 4)
+
+
 def encode(build, work, s, form, q, g, cpu=6):
     y4m, ivf, dec = work / "c.y4m", work / f"c{cpu}.ivf", work / "c-dec.y4m"
     write_y4m(s, form, y4m)
@@ -216,6 +227,7 @@ def main():
         "band": (band_check(), band_check(band=lambda d: d), "no band reduction"),
         "ratio": (ratio_check(), ratio_check(bits=16), "the 16-bit container in place of bits stored"),
         "gsdf": (gsdf_check(), gsdf_check(coefficient="c"), "coefficient c's sign flipped"),
+        "knee": (knee_check(), knee_check(pick=min), "the rung nearest the chord in place of the farthest"),
     }
     out = {k: dict(as_run=r, mutated=m, mutation=why, sees_it=r["held"] and not m["held"])
            for k, (r, m, why) in pairs.items()}

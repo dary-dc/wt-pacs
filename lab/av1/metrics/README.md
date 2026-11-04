@@ -12,9 +12,10 @@ nothing above §Shards, and report every cell including those that miss.*
    displayed grey levels it moves under the series' own windows, its size against the step between neighbouring
    slices, PSNR, SSIM, MS-SSIM, the compression ratio and a visibility model's score; the anchors and knees are read
    off those curves, not set in advance.
-3. **The numbers that decide it** come from the shards; the pilot on `dbt12_ea1141` (§8) shows the readings exist:
-   at Q 8 its coding error is already 1.4 × the frame's noise in the noise band, and 89 % of in-window pixels move
-   by at least one displayed level, against 95 % between two neighbouring exact slices.
+3. **The numbers that decide it** come from the four shards (§Shards, 3.3 h each); the pilot on one small DBT volume
+   (§8) shows the readings exist and agree: every pixel metric bends at Q 8, where the coding error first reaches the
+   frame's noise in the noise band; no rung, not even Q 1, keeps every displayed level within 1; and the preview's
+   error stays under the step between neighbouring slices up to Q 16.
 4. **It rests on** the 15 DBT volumes of system A, B and C, the seven sound sets of content 2, the two TRUS sweeps,
    and three lossy-sourced cine sets reported apart; on libaom 3.15.1 at cpu6 and dav1d 1.5.4; on a noise estimator
    tested here on integer frames of known σ from 0.25 to 16; and on one display model for the visibility score.
@@ -198,9 +199,11 @@ where each anchor falls on the ladder — the highest Q from Q 1 up at which eve
 * **(b) Scrolling:** error ÷ step < 1 on every frame, in the band and at full resolution — the preview's error is
   smaller than the difference between neighbouring slices, so what moves on screen is the stack, not the coding.
   Per series, because the step is the series' own.
-* **(c) Knees:** on each curve of ln bytes against a metric (median PSNR; MS-SSIM as −10 log10(1 − MS-SSIM); median
-  e_N ÷ σ; median share moved ≥ 1 level, first window; JOD), the interior rung where the slope changes most — the
-  bytes run's bend (§5 there), *derived*, now on ten rungs.
+* **(c) Knees:** on each curve of a metric against ln bytes (median PSNR; MS-SSIM as −10 log10(1 − MS-SSIM); median
+  e_N ÷ σ; median share moved ≥ 1 level, first window; JOD), both axes scaled to 0 … 1, the interior rung farthest
+  from the chord joining the curve's ends (*derived*). The bytes run's bend (largest change of slope of ln bytes
+  against PSNR) was tried on the pilot first and rejected: where a metric saturates (JOD at 10 for Q 1 and 2) its slope
+  diverges and the bend lands on the saturated end; the chord distance does not depend on which way a metric runs.
 
 The shards report these per series; the collector names the knees and anchors per system and says where the anchors
 and the knees agree and where they do not.
@@ -227,7 +230,8 @@ What the data picks must be confirmed by readers; the method the literature uses
 
 ### 7 · Checks, and their mutations
 
-Run on `dbt12_ea1141` (its middle 4 frames for the coded checks) by `checks.py`; every shard runs the same file first
+Run on `dbt12_ea1141` (its middle 4 frames for the coded checks) by `checks.py`, ColorVideoVDP from the hash-pinned
+`requirements-vdp.txt` venv; every shard runs the same file first
 on its smallest series and writes `rows/shard-<k>.checks.json`.
 
 | check | as run | mutated | sees it |
@@ -245,6 +249,7 @@ on its smallest series and writes `rows/shard-<k>.checks.json`.
 | the encode is deterministic: one cell coded twice is byte-identical | identical | `--cpu-used=5`: differs | yes |
 | frames aligned: every Q 1 frame's error < every neighbour step | 1.06 against 34.3–37.7 | compared with source frame k + 1: 34.3–37.7 | yes |
 | an exact frame reads exact (MSE 0, no level moved) | 0, 0, 0, 0 | one sample +1: max \|Δ\| 1 on that frame | yes |
+| the knee: a curve rising to Q 8 and flat after bends at Q 8; an anchor run that fails at Q 8 stops at Q 4 though Q 16 passes | 8, 4 | the rung nearest the chord: 2 | yes |
 | ColorVideoVDP: 10 JOD on a stack against itself, less with ±2 codes of noise | 10.00, 9.88 | (the second case is the mutation) | yes |
 | reported, no verdict: σ 8 noise blurred by 0.5 and 1 px | 5.27, 0.67 | — | — |
 
@@ -254,14 +259,107 @@ moved quantizer, so this is reported, not trusted), the keyframe positions, `fil
 
 ### 8 · Pilot, and what it sizes
 
-*Being written: the pilot on `dbt12_ea1141` is running (2026-11-04).*
+`dbt12_ea1141` (29 frames of 614 × 1359, 12 bits, 24.2 Mpx), the whole ladder × G 1, 8, 16 × its three forms: 90
+cells, the visibility model on its 30 stored-form cells, run 2026-11-04 on this host (4 cores, Xeon, 15 GB) with four
+cells in flight: **9 min 5 s of wall clock**, encode wall ÷ CPU 1.018 (median). Its rows are kept in
+[`pilot/dbt12_ea1141.jsonl`](pilot/dbt12_ea1141.jsonl) and the checks in [`pilot/checks.json`](pilot/checks.json),
+**to size the shards and to show the readings exist — not as a result**: one small series, cropped by its source.
+
+**Costs, CPU s a megapixel of the series** (what `plan.py` uses):
+
+| part | pilot | bytes run | used |
+| --- | --- | --- | --- |
+| encode, the ladder summed, G 1 · 8 · 16 | 12-bit 5.99 · 3.76 · 3.52; top 10 5.69 · 3.61 · 3.40; window 7.88 · 6.03 · 5.79 | medians at Q 2, 8, 16, 32, 56 | the bytes run's medians, the pilot's ratios at Q 1, 4, 12, 24, 40, × 1.15 |
+| decode (dav1d) + measure + y4m, per cell | 0.27 | — | 0.27 |
+| ColorVideoVDP, per megapixel of its 8-frame square | 1.5 | — | 2.0 |
+| controls: lossless AV1 G 1 good:6 · HTJ2K | 4.1 · under 0.05 | — | 4.1 |
+
+The window form costs about 1.6× the others at G 8 and 16: it spreads a 614–692-unit window over 1 023 codes, so its
+noise is coded larger.
+
+**What the pilot reads**, 12-bit stream (the stored form), G = 16 (G 1 and 8 within a rung of it everywhere):
+
+| Q | ratio | PSNR med, dB | MS-SSIM med | e ÷ σ · e_N ÷ σ med | ≥ 1 level med · ≥ 2 worst · largest | error ÷ step, band worst | JOD |
+| --: | --: | --: | --: | --- | --- | --: | --: |
+| 1 | 3.9 | 71.80 | 1.0000 | 0.11 · 0.11 | 29.0 % · 0.5 % · 3 | 0.03 | 10.00 |
+| 2 | 5.1 | 65.88 | 1.0000 | 0.22 · 0.23 | 51.6 % · 8.8 % · 5 | 0.06 | 10.00 |
+| 4 | 8.7 | 58.05 | 0.9998 | 0.55 · 0.55 | 76.3 % · 41.7 % · 13 | 0.13 | 9.96 |
+| 8 | 26.0 | 50.26 | 0.9987 | 1.35 · 0.97 | 89.4 % · 72.0 % · 33 | 0.37 | 9.68 |
+| 12 | 76.7 | 47.19 | 0.9965 | 1.92 · 1.03 | 92.3 % · 79.4 % · 49 | 0.64 | 9.08 |
+| 16 | 214.3 | 45.69 | 0.9939 | 2.26 · 1.04 | 93.4 % · 82.3 % · 67 | 0.94 | 8.16 |
+| 24 | 775.4 | 44.31 | 0.9897 | 2.64 · 1.04 | 94.3 % · 84.4 % · 98 | 1.37 | 6.53 |
+| 32 | 1 844 | 43.22 | 0.9855 | 2.96 · 1.04 | 94.9 % · 86.2 % · 101 | 1.74 | 5.44 |
+| 56 | 13 671 | 37.76 | 0.9607 | 5.11 · 1.04 | 96.9 % · 91.9 % · 192 | 4.52 | 1.51 |
+
+Neighbouring exact slices themselves differ by ≥ 1 level on 95 % of in-window pixels. Read as the protocol would:
+**knees** at Q 8 on PSNR, MS-SSIM, e_N ÷ σ and the ≥ 1-level share, Q 16 on JOD; **anchor (a) by noise** holds to Q 8,
+**by displayed levels** at no rung (Q 1 already moves 0.5 % of pixels by 2 levels, the largest by 3); **anchor (b)**
+holds to Q 16 in the band and to Q 32 (G 1: Q 40) at full resolution. Two readings the shards should expect:
+
+* **e_N ÷ σ saturates near 1.04.** Once the quantizer removes the frame's fine-band noise, the residual in that band
+  *is* that noise (*derived*: §1b of the bytes run's theory, Δ ≫ σ), so e_N ≤ σ marks the last rung that still keeps
+  part of the noise — here Q 8, which is also every pixel metric's knee. It is read so, not as "error below noise".
+* **The window form** reads 13.6 dB PSNR at every Q: it clips the first window's SIGMOID tails, which the in-window
+  test still counts (the bytes run's P9 found the same). Its cells are reported and in no anchor.
+
+The 12-bit stream and the top 10 bits sit within one rung of each other on every anchor and knee here.
 
 **Saturation.** Four cells in flight, one thread each, on 4 cores and 15 GB; ColorVideoVDP one thread inside its cell.
 Nothing past this host is claimed; encode cost is quoted as CPU seconds a megapixel only.
 
 ## Shards
 
-*Being written: the table follows the pilot (2026-11-04).*
+Exactly four, each one session on its own 4-core, 15 GB cloud host, each **≤ 4.5 h of wall clock**. `plan.py` deals the
+series largest first to the least-loaded shard from the costs of §8 and writes `plan.json`, which `shard.sh` reads; the
+table is its output. Every shard runs the whole ladder (Q 1, 2, 4, 8, 12, 16, 24, 32, 40, 56) at G 1, 8 and 16, every
+form, the visibility model on the stored form, and both controls.
+
+| shard | series | Q | G | CPU s (est.) | wall h on 4 cores (est.) |
+| --- | --- | --- | --- | --: | --: |
+| 1 | `dbts_c3`, `dbt12_c`, `dbts_a1`, `dbts_c2`, `ustrus_1`, `mr_ispy1`, `mr9_ispy2` | 1, 2, 4, 8, 12, 16, 24, 32, 40, 56 | 1, 8, 16 | 47796 | 3.32 |
+| 2 | `dbts_a2`, `dbts_c5`, `dbts_b2`, `dbts_c4`, `dbt12_ea1141`, `dbt10_ea1141`, `usb_cine` | 1, 2, 4, 8, 12, 16, 24, 32, 40, 56 | 1, 8, 16 | 48175 | 3.35 |
+| 3 | `dbts_a4`, `dbts_b4`, `dbts_a5`, `dbts_a3`, `dbt10_d`, `us_liver`, `rf_fluoro` | 1, 2, 4, 8, 12, 16, 24, 32, 40, 56 | 1, 8, 16 | 47724 | 3.31 |
+| 4 | `dbts_c1`, `dbts_b1`, `dbts_b3`, `dbts_b5`, `ustrus_2`, `usb_cine_rgb` | 1, 2, 4, 8, 12, 16, 24, 32, 40, 56 | 1, 8, 16 | 47933 | 3.33 |
+
+Each estimate is §8's costs over the shard's series: encodes at the bytes run's medians (pilot rungs elsewhere) × 1.15,
+measurement 0.27, the visibility model 2.0 a megapixel of its frames, controls 4.4 (lossless AV1 4.1, the series row
+0.3); its wall clock is CPU ÷ 4. The pilot's own series came in at about 2 200 CPU s (2 097 in its cells, its controls timed apart) against an
+estimate of 2 181.
+
+**Everything of §2 fits**, at G 1, 8 and 16, with about 1.2 h of headroom a shard (3.31–3.35 h of 4.5). **Left over,
+not run:** `dbts_a_max`, `dbts_b_max`, `dbts_c_max` — 22 400, 21 300 and 35 200 CPU s by the same costs, each larger
+than any shard's headroom (about 16 900 CPU s), and 270 500 CPU s in all against 4 × 64 800; G = whole (§3).
+
+### Running one
+
+A shard session reads §1–§8 and this section, changes nothing above §Shards, and works on `claude/av1-quality-metrics`:
+
+```bash
+git fetch origin && git checkout claude/av1-quality-metrics && git pull --rebase
+pip install meson                                    # ingest/tools.sh needs it; the host may lack it
+BUILD=$PWD/lab/.av1-build lab/av1/tools/tools.sh aom # libaom 3.15.1, dav1d 1.5.4, OpenJPH 0.31.0 (and libaom 3.8.2)
+S=$(python3 -c "import json; print(' '.join(json.load(open('lab/av1/metrics/plan.json'))['shards']['K']['sets']))")
+lab/av1/fetch_data.sh $S                             # its sets only, checked against their pins
+lab/av1/.venv/bin/pip install --require-hashes -r lab/av1/profiles/requirements.txt
+python3.11 -m venv lab/av1/metrics/.venv && lab/av1/metrics/.venv/bin/pip install --require-hashes \
+    -r lab/av1/metrics/requirements-vdp.txt          # ColorVideoVDP on CPU torch, its own venv
+lab/av1/metrics/shard.sh K                           # K = 1 … 4
+```
+
+* **What it writes:** `rows/shard-K.checks.json` (§7's checks, as run and mutated, on the shard's smallest grey
+  series), then `rows/shard-K.jsonl`: one `series` row per set, two `control` rows, one `cell` row per (form, Q, G).
+  Nothing else in the repository.
+* **Stopping and resuming:** `shard.sh` skips every row already written; a cell in flight when the session stopped is
+  coded again whole.
+* **Push early:** commit `rows/shard-K.*` after the checks and then about hourly (`git pull --rebase` first; others push
+  to this branch, and only these files and the shard's own section are its).
+* **Disk:** the fetched sets (up to ~3.5 GB raw a shard) and four cells' y4m in flight (up to ~2 GB each on system B).
+* **If it would not fit:** after the first series, project the shard's wall clock from its rows; if over 4.5 h, run the
+  remaining series with `cell.py … --g 1,16` and say so. A cut cell is listed, not dropped quietly.
+* **Its section:** at the end of this file, `### Shard K, measured (date)`: five plain lines; the host (cores, memory,
+  wall ÷ CPU of its encodes, from the rows); the checks table from `rows/shard-K.checks.json`; then
+  `collect.py lab/av1/metrics/rows/shard-K.jsonl --partial`'s tables for its series, which it reads only as its
+  own; anything not run. On a rebase conflict at the end of the file, keep every shard's section.
 
 ## Collector
 
@@ -275,8 +373,8 @@ $P lab/av1/metrics/collect.py lab/av1/metrics/rows/shard-{1,2,3,4}.jsonl --tsv l
 ```
 
 `collect.py` refuses a missing series, control or cell against `plan.json` (`--partial` reports what is there and says
-so). It prints, and the session pastes under one dated heading **`## Quality metrics, measured (YYYY-MM-DD)`** below
-§Shards, with the five plain lines of this file's opening:
+so). It prints, and the session pastes under one dated heading **`## Quality metrics, measured (YYYY-MM-DD)`** at the
+end of this file, after the four shards' sections, with the five plain lines of this file's opening:
 
 1. **Every cell**: per (series, form, G, Q) the ratio, PSNR median / p5 / worst frame, max |Δ|, SSIM and MS-SSIM median
    / worst, e ÷ σ and e_N ÷ σ, the first window's moves ≥ 1 / ≥ 2 / ≥ 4 levels and the largest, error ÷ step (band, full),
