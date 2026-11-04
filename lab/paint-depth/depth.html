@@ -103,6 +103,36 @@ globalThis.ramp = async (c) => {
   const hi = ((n - 1) << c.shift) - c.bias + 2 ** c.shift;
   return one({ ...c, width: 256, height: n / 256 }, preview, [...VOI_TEST, ...sweep(lo, hi, c.shift, 400)]);
 };
+/** One timed paint of a new frame, fit into `css`: arm "cpu" runs shown() then paints full scale, arm "gpu" paints p as it is. */
+const benches = new Map();
+globalThis.time = async (c, arm, display, css) => {
+  if (!benches.has(c.key)) {
+    const bytes = await (await fetch(`frames/${c.key}.raw`)).arrayBuffer();
+    const cv = document.createElement("canvas");
+    cv.style.width = `${css.w}px`;
+    cv.style.height = `${css.h}px`;
+    document.body.append(cv);
+    const p = new Painter(cv);
+    await p.renderer;
+    benches.set(c.key, { p, preview: c.bits > 8 ? new Uint16Array(bytes) : new Uint8Array(bytes) });
+  }
+  const { p, preview } = benches.get(c.key);
+  const { width, height, bits, shift, bias } = c;
+  // The preview as copyTo leaves it, a new buffer each paint (else the painter skips the upload), made off the clock.
+  const plane = new preview.constructor(new SharedArrayBuffer(preview.byteLength));
+  plane.set(preview);
+  const t0 = performance.now();
+  let frame;
+  if (arm === "cpu") {
+    const { sab } = shown({ heap: plane, offset: 0, stride: width }, { width, height, bits: c.stored, signed: false, shift, bias });
+    frame = { pixels: sab, width, height, bits: c.stored, components: 1, signed: false };
+  } else {
+    frame = { pixels: plane.buffer, width, height, bits, components: 1, signed: false, reduced: { shift, bias } };
+  }
+  const t1 = performance.now();
+  const { ms } = await p.paint(frame, display);
+  return { roundTrip: performance.now() - t0, prep: t1 - t0, worker: ms, renderer: await p.renderer };
+};
 globalThis.ready = true;
 </script>
 </body>

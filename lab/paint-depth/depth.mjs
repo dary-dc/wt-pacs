@@ -4,11 +4,13 @@
  *
  *   lab/av1/.venv/bin/python lab/paint-depth/frames.py lab/av1/data lab/paint-depth/frames
  *   NODE_PATH=$(npm root -g) node lab/paint-depth/depth.mjs [--mutate shift|bias] [--renderer swiftshader|gl]
+ *   NODE_PATH=$(npm root -g) node lab/paint-depth/depth.mjs --bench --rounds 30 --renderer gl --out rows.json
  */
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { order } from "../order.mjs";
 
 const { chromium } = createRequire(import.meta.url)("playwright");
 const HERE = path.dirname(new URL(import.meta.url).pathname);
@@ -55,6 +57,7 @@ await page.goto(`http://127.0.0.1:${port}/lab/paint-depth/depth.html`);
 await page.waitForFunction(() => globalThis.ready);
 
 const cases = JSON.parse(fs.readFileSync(path.join(HERE, "frames/cases.json"), "utf8"));
+if (argv.includes("--bench")) await bench();
 let bad = 0;
 const t0 = Date.now();
 for (const [kind, c] of [...RAMPS.map((c) => ["ramp", c]), ...cases.map((c) => ["dbt", c])]) {
@@ -68,3 +71,38 @@ for (const [kind, c] of [...RAMPS.map((c) => ["ramp", c]), ...cases.map((c) => [
 console.log(`${mutant ? `mutant ${mutant}: ` : ""}${bad ? `NOT EQUAL in ${bad} (case, path, window)s` : "every window equal to the code"} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
 await browser.close();
 process.exit(mutant ? (bad ? 0 : 1) : bad ? 1 : 0);
+
+/** Arms cpu and gpu on every case, a new frame each paint, Williams-ordered per round; rows written after every round. */
+async function bench() {
+  const rounds = Number(flag("rounds", 30));
+  const out = flag("out", path.join(HERE, "frames/bench.json"));
+  const css = { w: 1024, h: 1024 };
+  const units = cases.flatMap((c) => ["cpu", "gpu"].map((arm) => ({ c, arm })));
+  const rows = [];
+  let toggle = 0;
+  let renderer = null;
+  for (let round = -1; round < rounds; round++) {
+    for (const { c, arm } of order(units, Math.max(round, 0))) {
+      const hi = (c.max << c.shift) - c.bias;
+      const display = { voi: { center: hi / 2 + (toggle++ % 2), width: hi / 2, function: "LINEAR" }, view: { fit: true } };
+      const t = await page.evaluate(([x, a, d, s]) => globalThis.time(x, a, d, s), [c, arm, display, css]);
+      renderer ??= t.renderer;
+      if (round >= 0) rows.push({ round, key: c.key, arm, roundTrip: t.roundTrip, prep: t.prep, worker: t.worker });
+    }
+    if (round >= 0) fs.writeFileSync(out, JSON.stringify(rows));
+  }
+  const med = (xs) => [...xs].sort((a, b) => a - b)[xs.length >> 1];
+  console.log(`renderer ${renderer}; ms a paint, median over ${rounds} rounds; ratio gpu ÷ cpu paired by round`);
+  for (const c of cases) {
+    const of = (arm) => rows.filter((r) => r.key === c.key && r.arm === arm);
+    const cpu = of("cpu");
+    const gpu = of("gpu");
+    const ratios = gpu.map((g, i) => g.roundTrip / cpu[i].roundTrip);
+    const faster = ratios.filter((r) => r < 1).length;
+    console.log(`${c.key.padEnd(12)} cpu ${med(cpu.map((r) => r.roundTrip)).toFixed(2)} (prep ${med(cpu.map((r) => r.prep)).toFixed(2)})` +
+      `  gpu ${med(gpu.map((r) => r.roundTrip)).toFixed(2)} (prep ${med(gpu.map((r) => r.prep)).toFixed(2)})` +
+      `  ratio ${med(ratios).toFixed(3)} [${Math.min(...ratios).toFixed(3)}–${Math.max(...ratios).toFixed(3)}], gpu faster ${faster}/${ratios.length}`);
+  }
+  await browser.close();
+  process.exit(0);
+}
