@@ -3,3 +3,5 @@ setup: tools (libaom 3.15.1, dav1d 1.5.4, OpenJPH 0.31.0), data, venv, Playwrigh
 stage 1 checks C1–C4 and C6 run 21:35–21:48; 10bit anchor streams (decode setup) from 21:39
 item 1 from 21:48:34
 item 1 done 21:49:13
+item 2 from 21:49:15
+item 2 done 21:49:16
