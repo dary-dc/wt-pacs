@@ -240,3 +240,122 @@ device with an AV1 hardware decoder, the same previews through WebCodecs with `p
 confirmed in the browser's media log, every frame's `copyTo` planes hashed against native dav1d's; then RA's exact-frame
 check on that device. Until then the residual on a hardware-decoded preview is exact only where the frame check passes,
 and a failed frame falls back to the whole HTJ2K frame (*derived*).
+
+## Residual apart, measured: the DBT volumes (2026-11-03)
+
+The protocol above, run on its first content. The seven series of row 17 follow in their own section once this one is
+reported, as the protocol orders. Harness: `apart.mjs` (driver), `apart.js` (one arm, one worker), `apart.html`,
+`apart_truth.py` (references and bytes); rows and printed summaries in [`rows/`](rows/).
+
+```bash
+lab/av1/delivery/residual/encode.py lab/.av1-build lab/.av1-work/apart/a1 lab/av1/data/dbts_a1 --crfs 8,20,32,44,2  # b1, c1 alike
+lab/av1/delivery/residual/encode.py lab/.av1-build lab/.av1-work/apart/a1-s0 lab/av1/data/dbts_a1 --crfs 8 --shift 0 # c1 alike
+lab/av1/.venv/bin/python lab/av1/delivery/residual/apart_truth.py lab/.av1-build lab/.av1-work/apart/a1   # every OUT
+D=lab/.av1-work/apart; NODE_PATH=$(npm root -g) node lab/av1/delivery/residual/apart.mjs \
+  --frames $D/a1,$D/a1-s0,$D/b1,$D/c1,$D/c1-s0 --sets dbts_a1,dbts_b1,dbts_c1 --rounds 60 --out rows/dbt.json  # ~11.7 h
+```
+
+**Host.** This container: 4 cores of an Intel Xeon @ 2.80 GHz, 15 GB, nothing else running during the timed runs;
+headless Chrome for Testing 153.0.8010.12 (playwright 1.63.0), not row 17's 141. H, R and RA are one thread each, in a
+worker of their own, so at 1× they use one of the four cores and the host does not saturate; at 4× every thread is
+capped at a quarter of a CPU (`cpu_throttle.mjs --check` on this VM: page thread 623 → 2 692 ms, worker 674 → 2 733 ms).
+P through WebCodecs runs its own decoder threads and is not a one-core figure at either throttle. Nothing here holds
+past 4× or for another host.
+
+**What was run as written, and where the run had to choose.**
+
+* **The decoders are the client's.** OpenJPH and dav1d are `built("openjph")` and `built("dav1d")` through `wasm-glue.js`,
+  which refuses a file whose SHA-256 differs from `wasm/build/manifest.sha256`. Docker Hub refused the pinned base
+  image (HTTP 429), so `inside.sh` ran on the host from the same pinned, checksummed inputs; all ten built files match
+  the manifest. The WebCodecs preview is configured as the client does it (`prefer-software`, `optimizeForLatency`, the
+  codec string from the stream's own sequence header).
+* **Clocks.** H, R and RA sum each frame's interval: H decodes and writes the stored samples; R decodes the residual
+  and adds after its clock stops; RA decodes and adds on the clock. P is one span over the 16 units, a group at a time,
+  flushed at each group's end. Every arm decodes once before its clock starts, row 17's warm-up.
+* **Order.** Inside a round the cells run in a Williams order, and so do the arms of each cell. A cell has five arms
+  (H, R, RA, P WebCodecs, P dav1d), or four at 12 bits, where only dav1d decodes the preview. The **order effect** of a
+  cell is the largest |median ÷ overall median − 1| of RA ÷ H over the groups of rounds that share RA's predecessor
+  (*derived*: the protocol names the 10 % limit, not the statistic). No cell printed `UNBALANCED`.
+* **Rounds.** The first campaign (n = 40 from a pilot on the first VM) was lost at round 26 of 40 to a container restart.
+  Its rows were written only at the end, and pairs across a restart are not comparable ([`docs/rig-limits.md`](../../../../docs/rig-limits.md)
+  §6). So the mutations and the pilot were re-run on the new VM, and the driver now writes its rows after every round.
+  That pilot, on `dbts_a1` at row 17's quality (CRF 20), gave σ = 0.181 at 1× (n = 109) and 0.057 at 4× (n = 11). By the
+  protocol's own rule the run stopped at **60 rounds, and 5 % was not resolved**. σ was taken at row 17's quality, the
+  cell the rule reads; `dbts_a1`'s other three cells asked for 102–313 at 1× and 7–44 at 4×
+  ([`rows/pilot-summary.txt`](rows/pilot-summary.txt)).
+* **`encode.py`** takes `--crfs` and `--shift` and nothing else changed. A shift that leaves more than 10 bits makes a
+  12-bit 4:0:0 preview (profile 2); a shifted cell is named `crf8-s0`.
+
+**Encodings and bytes.** Row 17's quality is CRF 20 on all three: preview + HTJ2K residual over the series is 1.0008
+(`dbts_a1`), 0.9933 (`dbts_b1`) and 0.9973 (`dbts_c1`) of HTJ2K's whole frames, the fewest of {8, 20, 32, 44}. The 16
+timed frames hold 20 172 292, 34 277 351 and 17 552 575 B of HTJ2K (series 67 812 443, 107 407 602 and 70 664 924 B; 56,
+50 and 69 frames). Every preview keyframe of every cell reads film_grain_params_present = 0 in its sequence header
+(2/2 per cell's 16 frames), so for these streams the condition the protocol quotes from AV1 §7.2 holds.
+
+| set | cell | quality | preview bits | PSNR · max \|Δ\| | residual bits | residual ÷ HTJ2K, 16 · series | preview ÷ HTJ2K, 16 · series |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `dbts_a1` | CRF 20 | row 17 | 10 | 45.94 · 589 | 10 | 0.9978 · 0.9976 | 0.0029 · 0.0032 |
+| | CRF 8 | higher | 10 | 48.35 · 248 | 9 | 0.9726 · 0.9724 | 0.0291 · 0.0300 |
+| | CRF 2 | higher | 10 | 61.90 · 113 | 8 | 0.6642 · 0.6599 | 0.3839 · 0.3888 |
+| | CRF 8, s = 0 | full depth | 12 | 48.47 · 256 | 9 | 0.9694 · 0.9694 | 0.0311 · 0.0319 |
+| `dbts_b1` | CRF 20 | row 17 | 10 | 44.77 · 376 | 10 | 0.9809 · 0.9816 | 0.0115 · 0.0118 |
+| | CRF 8 | higher | 10 | 50.15 · 107 | 8 | 0.8750 · 0.8747 | 0.1366 · 0.1399 |
+| | CRF 2 | higher | 10 | 65.53 · 31 | 6 | 0.4423 · 0.4431 | 0.6203 · 0.6233 |
+| `dbts_c1` | CRF 20 | row 17 | 10 | 46.56 · 644 | 10 | 0.9936 · 0.9934 | 0.0036 · 0.0040 |
+| | CRF 8 | higher | 10 | 49.71 · 301 | 10 | 0.9589 · 0.9583 | 0.0436 · 0.0459 |
+| | CRF 2 | higher | 10 | 63.59 · 107 | 8 | 0.6489 · 0.6429 | 0.3942 · 0.3999 |
+| | CRF 8, s = 0 | full depth | 12 | 49.87 · 280 | 9 | 0.9545 · 0.9537 | 0.0464 · 0.0490 |
+
+(`dbts_b1` is 10-bit, so its s is already 0 and it has no full-depth cell; PSNR over 2^bits − 1 as §The preview and the
+residual defines it.)
+
+**Decode time**, ms a frame over the 16 timed frames, median over 60 rounds. The rule's columns: RA ÷ H paired by round,
+median [range], and the rounds RA was slower out of 60. RA − R is the add, *derived*.
+
+| throttle · set | cell | H | R | RA | RA − R | P WebCodecs | P dav1d | **RA ÷ H** | RA slower | order effect | rule |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1× `dbts_a1` | **CRF 20** | 25.0 | 18.8 | 24.9 | 5.40 | 13.2 | 33.6 | **1.003** [0.668–1.762] | 31/60 | 7.6 % | the same |
+| | CRF 8 | 25.8 | 18.8 | 25.1 | 5.86 | 23.7 | 57.2 | 1.003 [0.542–1.988] | 30/60 | 9.0 % | the same |
+| | CRF 2 | 25.4 | 18.5 | 24.7 | 5.84 | 60.4 | 106 | 0.968 [0.655–1.381] | 26/60 | 5.4 % | the same |
+| | CRF 8, s = 0 | 26.1 | 19.0 | 24.8 | 5.70 | — | 56.6 | 0.963 [0.543–1.639] | 22/60 | 5.4 % | the same |
+| 1× `dbts_b1` | **CRF 20** | 71.0 | 46.1 | 72.8 | 24.6 | 42.1 | 98.1 | **1.002** [0.760–1.617] | 30/60 | 1.9 % | the same |
+| | CRF 8 | 73.3 | 47.7 | 74.6 | 24.5 | 88.3 | 169 | 0.962 [0.734–1.441] | 25/60 | 8.3 % | the same |
+| | CRF 2 | 73.7 | 44.8 | 69.4 | 25.8 | 152 | 258 | 0.951 [0.680–2.511] | 19/60 | 4.5 % | the same |
+| 1× `dbts_c1` | **CRF 20** | 26.5 | 18.7 | 26.3 | 7.84 | 15.5 | 34.7 | **0.992** [0.574–1.642] | 29/60 | 8.5 % | the same |
+| | CRF 8 | 26.3 | 18.7 | 25.4 | 6.63 | 25.4 | 53.3 | 0.982 [0.607–1.611] | 25/60 | 8.5 % | the same |
+| | CRF 2 | 25.5 | 17.8 | 25.2 | 7.00 | 54.9 | 96.6 | 0.979 [0.605–1.374] | 26/60 | **19.5 %** | not read |
+| | CRF 8, s = 0 | 25.9 | 18.0 | 26.6 | 7.79 | — | 53.7 | 1.020 [0.706–1.266] | 33/60 | 9.6 % | the same |
+| 4× `dbts_a1` | **CRF 20** | 116 | 89.0 | 118 | 27.8 | 41.1 | 154 | **1.004** [0.767–1.290] | 30/60 | 3.1 % | the same |
+| | CRF 8 | 114 | 87.5 | 117 | 27.9 | 48.5 | 267 | 0.996 [0.723–1.613] | 28/60 | 7.7 % | the same |
+| | CRF 2 | 117 | 84.5 | 110 | 27.0 | 255 | 482 | 0.952 [0.774–1.285] | 22/60 | 4.7 % | the same |
+| | CRF 8, s = 0 | 114 | 87.0 | 114 | 27.5 | — | 270 | 1.008 [0.829–1.223] | 33/60 | 0.8 % | the same |
+| 4× `dbts_b1` | **CRF 20** | 337 | 219 | 331 | 116 | 141 | 465 | **0.981** [0.811–1.952] | 24/60 | 5.1 % | the same |
+| | CRF 8 | 336 | 214 | 328 | 113 | 220 | 763 | 0.978 [0.745–1.596] | 19/60 | 1.7 % | the same |
+| | CRF 2 | 329 | 204 | 323 | 114 | 633 | 1 147 | 0.953 [0.818–1.759] | 18/60 | 5.7 % | the same |
+| 4× `dbts_c1` | **CRF 20** | 120 | 85.9 | 118 | 31.4 | 46.4 | 161 | **0.973** [0.756–1.353] | 25/60 | 4.2 % | the same |
+| | CRF 8 | 121 | 84.6 | 117 | 33.2 | 56.9 | 254 | 0.978 [0.685–1.324] | 26/60 | 6.3 % | the same |
+| | CRF 2 | 119 | 81.9 | 115 | 33.4 | 225 | 438 | 0.979 [0.736–1.147] | 23/60 | 6.7 % | the same |
+| | CRF 8, s = 0 | 121 | 84.3 | 117 | 34.5 | — | 249 | 0.974 [0.721–1.128] | 21/60 | 3.8 % | the same |
+
+**The rule, as written.** At row 17's quality (bold), 1× and 4×, all six DBT cells read **the same** (medians
+0.973–1.004). The rule's reading for that case: *with the preview on screen, the exact frame by residual costs no more
+decode than a whole HTJ2K frame, the preview costs the exact fill only its own decode, and the choice between them is
+bytes and the owner's ruling on a lossy first picture.* The run attaches two limits of its own:
+
+* **5 % was not resolved.** The pilot asked for 109 rounds at 1× and the protocol stops at 60. Paired ratios ran
+  0.57–1.95 within one cell, so a median inside 0.95–1.05 is "the same" by the rule, not a measured bound of ±5 %.
+* **The prediction (0.9–1.1×) stands.** All 22 cells' medians fall within 0.951–1.020; none falsifies it.
+
+Beside the rule, as numbers and not as findings of it: R alone is 0.61–0.76 of H, paired, in every cell. The add (RA − R)
+is 5.4–7.8 ms a frame at 1× on `dbts_a1` and `dbts_c1` (2.0 and 2.5 Mpx a frame: 1142 × 1785, 976 × 2513) and
+24.5–25.8 ms on `dbts_b1` (8.5 Mpx: 2560 × 3328). The protocol left "the add is small against entropy decoding"
+*unverified*; here it is 0.22–0.35 of RA (*derived* from the medians), so not small.
+
+**Checked, every round.** All 60 rounds × 2 throttles, every arm of every cell: exact frames 960/960 (H, R after its add,
+RA), previews bit-identical to native dav1d 960/960 (R, RA, both P), residuals as `encode.py` wrote them 960/960 (R).
+Not one cell is void.
+
+**Mutated, once before the campaign** (this VM, 1 round, 1×, all 11 cells; [`rows/mutate-offset.txt`](rows/mutate-offset.txt),
+[`rows/mutate-hash.txt`](rows/mutate-hash.txt)). The add's offset off by one turned RA to 0/16 exact in every cell, and R's
+frames after its add with it, while R's residual checks, H and every preview check stayed 16/16. `--mutate hash` turned
+every exact-frame, preview and residual check to 0/16. Both held on the first VM too.
