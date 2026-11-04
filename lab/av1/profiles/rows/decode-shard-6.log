@@ -25,3 +25,6 @@ round 18 1x done, 251 s
 round 20 1x done, 261 s
 round 20 4x done, 609 s
 round 21 4x done, 323 s
+round 22 1x done, 244 s
+round 22 4x done, 579 s
+stopping before round 23: it would pass --until
