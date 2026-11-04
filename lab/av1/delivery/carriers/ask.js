@@ -181,7 +181,7 @@ async function ask(env, set, arm, k, mutate) {
     let lossy;
     for (let i = k - (k % c.g); i <= k; i++) lossy = lossyDec.decode(set.units["sep/q16"][i]);
     lossyDec.close();
-    const lossyOk = await checkLossy(lossy.planes[0].slice(), c.lossy_dav1d[k], "");
+    const lossyOk = await checkLossy(lossy.planes[0].slice(), c.lossy_dav1d[k], mutate);
     const offset = c.residual_offset + (mutate === "offset" ? 1 : 0);
     const t0 = performance.now();
     const r = htj2k.decodeFrame(set.residualUnits[k]);
@@ -249,8 +249,14 @@ export async function round(env, set, r, mutate = "", arms = [...ASKS, ...VIEWS]
   for (const arm of order(arms, r)) {
     if (ASKS.includes(arm)) {
       for (const k of order(set.asked, r)) {
-        const [ms, exact, lossy] = await ask(env, set, arm, k, mutate);
-        rows.push({ set: set.name, arm, round: r, prev, k, position: k % GROUP, ms, exact, lossy });
+        let got;
+        try {
+          got = await ask(env, set, arm, k, mutate);
+        } catch (e) {
+          got = [null, false, null, String(e)];
+        }
+        const [ms, exact, lossy, error] = got;
+        rows.push({ set: set.name, arm, round: r, prev, k, position: k % GROUP, ms, exact, lossy, ...(error && { error }) });
       }
     } else {
       rows.push({ set: set.name, arm, round: r, prev, ...(await view(env, set, arm, mutate)) });
