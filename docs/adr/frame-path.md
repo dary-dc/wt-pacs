@@ -2461,6 +2461,67 @@ measured. `lab/opfs-arms/summary.mjs` applies it, and still gives the run before
 **Smoke, 2026-11-03** (one round, L S2 1×, `none`, C, C-shared, A paint first and A-left; not results): every arm ran
 to the end, every write read back exact; C-shared's post 0.06 ms a frame.
 
+#### Arm D, amended: Results (run 2026-11-03 to 2026-11-04)
+
+**What ran.** The amendment as pre-registered, on the 4-vCPU agent container, Chrome for Testing 153.0.8010.12, decoder
+builds checked against `manifest.sha256`: every cell L, W, R at S1, S2, S3 × 1×, 4× and G at S2 × 1×, 4×, one Williams
+period each (L and G 14 rounds, W and R 6), and the four mutants once each. Rows: `lab/opfs-arms/rows/chromium-c-shared/`.
+The container restarted once, during L S2 4×; that cell's partial rows were discarded and the cell run whole again.
+
+**The mutants.** *overwrite-after-post* caught on C-shared and C, *drop-writes* on C-shared, C and A-left, and
+*late-input* on `none`, A-left and C-shared. *write-before-paint* **not caught**: it missed 69 % (A paint first) and 71 %
+(A-left) of ticks against 45 % and 38 % unmutated, but under the Σ ⌊block / period⌋ bar (467 of 649, 516 of 602), the
+marginal bar the Protocol names, as in the run before. Its cell, S3 4×, is saturated, so no claim leans on it.
+
+**Where the host saturates:** every 4× cell. `none` misses more than 5 % of ticks in L's median round at S1, S2 and S3,
+4× (S1 4× was not saturated in the run before). **VOID** (A/A): W S1 1× (C′ / C 0.86). Counted: L, R at S1–S3 1×; W at
+S2, S3 1×; G S2 1×: 9 cells of 20. Rule 1's "both throttles" is judged at 1× alone; **nothing is claimed at 4×.**
+
+**Counted cells.** L: median missed share of ticks, % (rounds on time, rounds bounded) of 14; G: input → painted p99 ms
+(rounds on time) of 14; W: median MB/s, every arm ≥ 125 in 6 of 6; R: miss p50 ms, every arm 6 of 6.
+
+| | `none` | A paint first | A-left | C | C′ | C-shared | D |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| L S1 1× | 0.17 | 0.17 (14, 12) | 0.17 (14, **8**) | 0.50 (7, 8) | 0.33 (10, 8) | 0.17 (14, 12) | 0.17 (13, 14) |
+| L S2 1× | 1.34 | 2.67 (**7**, 14) | 2.83 (**7**, 14) | 4.89 (**0**, 14) | 4.54 (1, 14) | 1.82 (**9**, 14) | 1.48 (**10**, 14) |
+| L S3 1× | 1.02 | 6.69 (**0**, 11) | 6.00 (**0**, 12) | 7.35 (**0**, 14) | 7.35 (0, 14) | 0.83 (12, 14) | 1.34 (12, 14) |
+| G S2 1× | 33.7 | 33.8 (14) | 33.8 (14) | 39.4 (**4**) | 38.6 (5) | 33.8 (14) | 33.7 (14) |
+| W S2 1× | | 1158 | 1361 | 433 | 410 | 395 | 639 |
+| W S3 1× | | 433 | 404 | 374 | 362 | 426 | 697 |
+| R S1, S2, S3 1× | | 16.4, 31.5, 44.9 | 16.4, 32.0, 45.3 | 16.4, 33.0, 49.8 | 16.5, 32.9, 49.8 | 16.4, 33.2, 49.7 | 16.4, 37.1, 48.6 |
+
+**The theory's parameters, measured** (L at 1×, medians over rounds). The post of a shared buffer blocks the view
+thread **0.03 ms at S1, 0.06 at S2, 0.05 at S3** (p99 0.08–0.14); C's copy 0.31, 9.2 and 15.2 ms. Pᵤ, the paint with an
+upload, **7.9 ms at S2 and 8.8 at S3, p99 15.7 and 16.4**, in every arm alike (`none` included); P₀ 0.01–0.02. A's 1 MiB
+pieces 0.32–0.34 ms at S2–S3, p99 0.75 and 4.9–5.6. The store's own time a frame, v_s, **82 ms at S2 (0.21 GB/s) and
+10 ms at S3 (2.7 GB/s), p99 118 and 154**, the same in C and C-shared: the store's write varies by cell as the view
+thread's did (§Each arm's parameters, *v*), cause still not isolated. **Memory:** the browser tree's peak PSS growth in
+L is C-shared's within −26 to +3 MiB of C's in every counted cell (rule 5 passes), and is ~1.25 GB over `none`'s for
+every cache arm alike; at the cell's end it has not fallen in any arm. A posted shared buffer held no more than C's
+transferred copy here; neither was collected within a cell.
+
+**The verdict, by the amended rule.**
+
+| | Chromium 153 |
+| --- | --- |
+| **D** | rules 2, 3 pass on every counted cell (rule 3 judges no counted cell: S1 4× is saturated); **rule 1 fails** at L S2 1×: 10 of 14 |
+| **A paint first** | **rule 1 fails** at L S2 1× (7 of 14) and S3 1× (0 of 14) |
+| **A-left** | **rule 1 fails** as A paint first; **rule 2 fails** at L S1 1×: bounded 8 of 14 |
+| **C-shared** | rules 2 and 5 pass, and G, W, R; **rule 1 fails** at L S2 1× alone: 9 of 14 against 11 |
+| **C** | **rule 1 fails** at L S2 1× and S3 1× (0 of 14) and G S2 1× (4 of 14) |
+| **rule 4** | no arm passes: **to the owner as measured** |
+
+**Against the prediction.** C-shared's post is the ~0.1 ms predicted, and removing the copy moves C from the worst
+arm in L to the best with D: at S3 1× 0.83 % of ticks missed against C's 7.35 % and `none`'s 1.02 %, and in G as
+`none`. Its one failure is L S2 1×, 0.48 points over `none` at the median, in 5 rounds of 14 past the 1 % bar; D fails
+the same cell at 10 of 14, which it passed 8 of 8 in the run before, so **that cell's margin is within this
+host's round-to-round spread**, which the rule does not model. The store kept up (W ≥ 395 MB/s; L's backlog bounded).
+A-left was predicted on time but for a piece's tail; it misses 6.0 % at S3 1× against A paint first's 6.7 %, though its
+measured pieces (p99 5.6 ms) and Pᵤ (p50 8.8) fit inside the 14.7 ms it leaves itself: **its misses are not the view
+thread's own blocks**, and what they are (the upload's work after the callback, in the GPU process sharing 4 vCPUs, is
+the candidate) is not traced. Memory, predicted possibly a fill's bytes over C, is not: C's copies stay resident as
+long as the shared buffers do, so M2's finding holds for C as built too, and the copy does not buy memory back.
+
 ## Target: the view worker · 2026-10-28
 
 **Status:** the owner's next target design for the client, 2026-10-28, revised 2026-10-29 with the red team's
