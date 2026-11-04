@@ -484,3 +484,249 @@ Where row 17's CRF is 8, "higher" is CRF 2 alone, the protocol's no-repeat claus
 **Checked, every round:** exact frames, previews against native dav1d and residuals against `encode.py`, 960/960 in
 every arm of all 34 (cell, throttle) pairs; none void, none `UNBALANCED`. The mutations are the DBT section's, run
 once before the campaign as the protocol orders.
+
+## Lossy pixel work protocol, pre-registered (row PIXELWORK, 2026-11-04)
+
+* **Asked:** in each lossy design, where does a frame's time go once the decoder has returned its pixels, and which way of removing that work applies, at what saving and what structural cost?
+* **Answer (theory, nothing timed in a browser yet):** the pixel work is largest beside its own decode in the lossy picture alone, ~1× the decode, about a third of the residual design's exact frame, and a few % of a whole HTJ2K frame's. The add with its range in one pass (built behind `onePass`) is the best change that is not structural. The SIMD kernel S and the shader G save more, but S adds a build artifact and G changes the frame contract.
+* **Numbers that decide it:** the add is 0.22–0.35 of the residual design's exact frame (measured above). A JS pass costs 3.6–4.1 ns a sample, against 1.6–2.4 ns for the copy a frame makes out of WebCodecs (both measured in the lossless work). In Node, the one-pass add is 0.70–0.76 of the two-pass and S is 0.22–0.50 of the one-pass (*exploratory*).
+* **Rests on:** `dbts_a1`, `dbts_b1` and `dbts_c1`, with `mr_ispy1` as the small-frame control. Nothing here is claimed for any other series.
+* **Left:** the browser run below (≤ 4.5 h on a 4-core host), and the GPU arms, which are owed to a machine with a GPU.
+
+**Terms.** *G* is the number of frames coded together (a group; the previews here use G = 8). *Q* is the lossy quantizer;
+libaom sets it here through CRF, its quality setting. *Systems A, B and C* are the three DBT scanners of the EA1141 dataset: A and C
+store 12 bits, B stores 10 (`dbts_a1`, `dbts_b1`, `dbts_c1` are one volume of each). The *preview* is the lossy AV1 picture
+(10-bit 4:0:0, coded as `(v + 2^(s−1)) >> s` with s = max(0, bits − 10), so s = 2 on A and C, 0 on B and 1 on 11-bit MR).
+The *residual* is exact − preview, after one offset per series makes it unsigned. The *three lossy designs* are:
+**1**, the preview alone (shown at the stored scale, `(p << s) − offset`); **2**, preview + HTJ2K residual (exact =
+`(p << s) + r − bias`); **3**, preview, then the whole HTJ2K frame. The levers take the merge-free work's names
+([`docs/decode/README.md`](../../../../docs/decode/README.md) §The split's rebuild without JavaScript, in theory):
+**S** is a WebAssembly SIMD kernel doing the pass. **Lever G** is the pass done in the paint shader. It is a different
+thing from the group length G, and is always written "lever G". **R** is the `copyTo` buffer reused across frames
+(the product's `reuseCopyBuffer`). A *pass* is one JavaScript loop over every sample. *N* is a frame's samples: 2.04 M on `a1`
+(1142 × 1785), 8.52 M on `b1` (2560 × 3328), 2.45 M on `c1` (976 × 2513), 0.26 M on `mr_ispy1` (512²).
+
+### Where the time after decode goes, predicted
+
+Per-sample costs, all measured in the lossless work and carried over here (*derived*):
+
+* **A JS pass** writing a fresh output: 3.6–4.1 ns a sample ([`../../decode/breakdown`](../../decode/breakdown/README.md)
+  §Why the JS passes cost 17–30 %, on `origin/claude/av1-unified-mainbase`).
+* **A read-only range pass**: 1.9 ns a sample (497 µs over 512² for `set()` plus the pass, §The range pass in
+  `docs/decode/README.md`, an upper bound).
+* **`copyTo`, buffer allocated each frame**: ~0.7 ns a byte. That is W's `copyTo` share over the bytes it copies:
+  5.7 % of 113 ms over 9.2 MB on `a1`, 7.6 % of 233 ms over 25.6 MB on `b1`, 6.9 % of 112 ms over 11 MB on `c1`
+  (breakdown, §Stages, W).
+* **The digest (XXH3)**: ~0.26 ns a byte (W's 0.9 % of 113 ms over 4.1 MB, and 1.9 % of 233 over 17 MB).
+* **The preview's `copyTo`**: 3 bytes a sample. WebCodecs returns 4:0:0 as I420P10, with mid-grey chroma it must copy,
+  since "If layout is not undefined and its length does not equal numPlanes, throw a TypeError"
+  ([WebCodecs](https://www.w3.org/TR/webcodecs/), §Compute Layout and Allocation Size, read 2026-11-04).
+
+| design | pixel work after decode, per frame | `a1` | `b1` | `c1` | `mr_ispy1` | against |
+| --- | --- | --: | --: | --: | --: | --- |
+| 1, preview alone | `copyTo` 3N bytes + one pass, shift, offset and range (+ digest 2N, only if a preview digest is kept) | 10–13 ms | 42–52 | 12–15 | 1.3–1.6 | the preview's decode: P WebCodecs, 13.2, 42.1, 15.5 and 4.65 ms at 1× (tables above), which include the harness's own copy |
+| 2, + HTJ2K residual | the add, then a range pass (two-pass), + digest 2N | 9.8–13 ms | 41–45 | 12–14 | 1.4–1.6 | the residual's decode R: 18.8, 46.1, 18.7, 3.26 ms |
+| 3, + whole HTJ2K | `set()` 2N into the frame's buffer + digest 2N; the range is taken in OpenJPH's pack | ~1.5 ms | ~6 | ~1.8 | ~0.2 | H: 25.0, 71.0, 26.5, 4.90 ms; the codec call is 95–97 % of H (breakdown) |
+
+So **after decode, design 1 is predicted at 40–65 % pixel work, design 2 at 30–40 % (add, range and digest of the
+exact frame), and design 3 at 4–8 %**. All three are *derived*. Design 3's preview costs what design 1's does. On `b1`,
+s = 0, so its preview pass does no shift, only offset and range.
+
+### What applies, ranked
+
+The specifications behind the table, each read 2026-11-04 unless marked:
+
+* `copyTo` may write into shared memory, more than once on one frame: `Promise<sequence<PlaneLayout>> copyTo(
+  AllowSharedBufferSource destination, optional VideoFrameCopyToOptions options = {});` and "Promises that are returned
+  by several calls to copyTo() are not guaranteed to resolve in the order they were returned" ([WebCodecs](https://www.w3.org/TR/webcodecs/), §VideoFrame).
+* The window shader can shift and add exactly only in `highp`: "Highp signed integers are represented as
+  twos-complement 32-bit signed integers. Highp unsigned integers are represented as unsigned 32-bit integers"
+  ([GLSL ES 3.00](https://github.com/KhronosGroup/OpenGL-Registry/blob/main/specs/es/3.0/GLSL_ES_Specification_3.00.pdf)
+  §4.5.1, as quoted in `docs/decode/README.md`, read 2026-11-02).
+* A frame can go to a texture with no CPU copy: "NOTE: VideoFrame is a CanvasImageSource" (WebCodecs §VideoFrame
+  Interface), and WebGL2's `texImage2D` takes a `TexImageSource`
+  ([`webgl2.idl`](https://github.com/KhronosGroup/WebGL/blob/main/specs/latest/2.0/webgl2.idl)). The internal format and
+  precision the browser picks for a 10-bit frame are *unverified*.
+* "Vector instructions (also known as SIMD instructions, single instruction multiple data) provide basic operations
+  over values of vector type" ([WebAssembly 3.0](https://webassembly.github.io/spec/core/syntax/instructions.html),
+  as quoted in `docs/decode/README.md`, read 2026-11-02).
+
+| # | lever | designs | saving, predicted | structural cost | exactness check | phone memory |
+| --: | --- | --- | --- | --- | --- | --- |
+| 1 | **The add in one pass** (`add.js` `exact(…, onePass)`, built): the range taken in the add | 2 | the range pass: ×0.83–0.92 of design 2's exact frame (residual decode + add + digest) | none. Same output, range and buffer | unchanged: the frame's digest covers the output | none |
+| 2 | **R** for the preview (`reuseCopyBuffer`, built in the product) | 1, and 3's preview | the buffer's allocation and first touch, 0.38–0.59 ns a byte (merge-free's R ÷ W2 over its 4.5N-byte buffers): ×0.65–0.90 of design 1's pixel work | none | unchanged | one 3N-byte buffer a stream, resident: 6.1, 25.6, 7.4 and 0.8 MB |
+| 3 | **M**, chroma check from the header (`mono_chrome`) | 1 | `neutral()`'s 1.6–1.7 ns a chroma sample | none; already the default under `onePass` | unchanged | none |
+| 4 | **S**, the pass as a SIMD kernel (`add.c` through `add-simd.js`, built for the lab) | 1 and 2 | design 2: ×0.78–0.90 of the one-pass exact frame. Design 1: ×0.5–0.8 of R's pixel work, since `copyTo` writes straight into the kernel's memory | **yes**: a new WebAssembly artifact pinned in `manifest.sha256`. The frame contract is unchanged | unchanged: a kernel bug is a digest miss | resident kernel memory: 5N bytes for design 1 and 6N for design 2 (43 and 51 MB on `b1`), which grows and never shrinks |
+| 5 | **P, the add in OpenJPH's pack**: the preview copied into OpenJPH's heap, and added where `pack` already narrows and ranges each sample | 2 | the whole JS add, less a 2N-byte copy in: ×0.70–0.85 of the one-pass exact frame | **yes**: the pinned OpenJPH build and its interface change, and every HTJ2K frame runs through it | unchanged | +2N in OpenJPH's heap (17 MB on `b1`), which does not shrink ([`docs/decode/README.md`](../../../../docs/decode/README.md) §Heap) |
+| 6 | **Lever G, design 1**: the preview's 10-bit plane as an `R16UI` texture, shift and offset in the `highp` window pass, the range from ingest metadata | 1 | the whole pass: design 1's pixel work falls to `copyTo` alone (×0.35–0.55) | **yes**: the frame contract (a picture at 2^−s scale) and a per-frame range at ingest | a lossy picture has no exact claim; a per-preview digest would be ingest metadata | GPU texture 2N |
+| 7 | **Lever G, design 2**: the shown preview and the residual as textures, added in the shader | 2 | the add, range and output buffer: ×0.65–0.80 of the one-pass exact frame | **yes**, as merge-free's lever G: two planes, per-stream digests, range from ingest, painter, OPFS store, check page | weaker. The digest covers the residual, not the sum. The sum is checked only by readback | the residual is uploaded: 2N at > 8 bits |
+| 8 | **G0, the `VideoFrame` uploaded as is** (`texImage2D` with a `VideoFrame`) | 1 | `copyTo` and the pass both gone | **yes**, and the window needs ≥ 12 bits of a 10-bit frame scaled by 2^s. That a browser keeps those bits through its YUV upload is *unverified* | none | — |
+| 9 | **F**, the digest fused into the add | 2 | ≤ the digest's re-read, 0.5 ns a sample (≤ 2 %) | no, but the codec returns the digest | unchanged | none |
+| 10 | **The exact frame written over the preview's buffer** | 2 | the output's allocation and first touch | **yes**: a buffer handed on would be written again, a contract change | unchanged | −2N a frame |
+
+Design 3's own pixel work is a `set()` and the digest, and the range is already in the pack. What is left there is F,
+and the zero-copy hand-off that §The decoder worker's hand-off already declined as a contract change. **The best
+non-structural candidate is #1**, because #2 and #3 already exist in the product. It is built behind `onePass`
+(off by default).
+
+**How the savings are derived.** #1: the range pass at 1.6–1.9 ns a sample, set against R + the add (RESIDAPART's RA − R)
++ range + digest. On `a1` that is 3.3–3.9 ms of 28.6; on `b1` 13.6–16.2 of 88; on `c1` 3.9–4.7 of 31.7; on
+`mr_ispy1` 0.42–0.50 of 4.7. #2: 3N bytes × 0.38–0.59 ns over design 1's 10–52 ms. #4, #5 and #7 remove the add's
+2.7–3.2 ns a sample (RESIDAPART's RA − R ÷ N). S keeps ~1.2–1.8 ns of memory traffic, P ~0.5, and lever G only the
+upload. **Exploratory, Node 22.23**, synthetic frames at the four sizes, 15 rounds interleaved within one process, GC
+forced before each call, 3 processes, ms a call: shown in JS 5.4–9.6 / 23.9–27.4 / 6.5–9.1 / 0.70–0.85 (`a1` / `b1` / `c1` / `mr`);
+shown by S 1.6–2.3 / 9.7–10.9 / 1.8–2.6 / 0.17–0.19; the two-pass add 9.7–16.3 / 40.7–44.6 / 10.9–16.5 / 1.5–2.1;
+the one-pass add 6.8–11.8 / 28.4–29.9 / 7.4–11.4 / 1.1–1.5; S's add 2.2–3.2 / 13.3–14.8 / 2.4–3.5 / 0.25–0.27.
+Without the forced GC the same calls ran 2–4× slower in one process of two. The freshly allocated
+`SharedArrayBuffer` is most of a call's variance there, and how Chromium charges it is *unverified*. None of these is a browser number.
+
+**Built, and checked.** [`add.js`](add.js) has `shown()` (design 1's pass) and `exact()` (design 2's add, two passes, or
+one under `onePass`). Each writes a fresh `SharedArrayBuffer` and returns its range. [`add.c`](add.c) and
+[`add-simd.js`](add-simd.js) are S, built by [`add-build.sh`](add-build.sh) with the host's clang 18.1.3 (`--target=wasm32
+-O3 -msimd128`, no libc). That is not the product's emscripten, so it is a lab arm and not a product build.
+`node --test add.test.mjs` shows that both forms of `exact()` give back the source from a preview within ±3 of it and
+its residual. It covers an offset and stride on the plane, 8- and 16-bit residuals, an odd width, s = 0–3 and a signed
+13-bit series. It also covers that `shown()` is `(p << s) − offset`, that every call gets a buffer of its own, and the
+refusals. `ADD_WASM=… node --test add-simd.test.mjs` shows S equals `add.js` sample for sample and in range. That holds
+over tails, growing frames, 8- and 16-bit residuals, and a preview already in kernel memory.
+**Mutated, each failing:** in `add.js`, the shift one short (each form, and `shown`), the stride ignored (each
+function), the bias off by one, the one-pass min started at 0, the two-pass range taken over the residual, one buffer
+reused across calls, and the length refusal dropped (10 of 10). In `add-simd.js`, the residual not copied, the plane's
+offset dropped, memory never grown, the in-place test always true, and an 8-bit residual through the 16-bit kernel
+(5 of 5). The kernel built with its shift one short (`add-build.sh`'s `broken/`) fails 3 of 4 (the refusals pass, as
+they should).
+
+### The protocol
+
+Written 2026-11-04 for a separate session, which changes nothing below and reports every cell, including misses.
+The question it decides: **does design 2's add take its range in the same pass (#1)**? It also gives the owner the
+numbers for R on the preview and S in both designs, and stage times for "where it goes". The levers' structural reviews
+stay with the owner.
+
+**Fixtures and encodings.** `dbts_a1`, `dbts_b1` and `dbts_c1` at row 17's quality, CRF 20, as RESIDAPART encoded them.
+`mr_ispy1` at its row-17 CRF, 8, is the small-frame control, where a per-frame fixed cost is the largest share. The
+first 16 frames of each are timed, after one warm-up group. The commands, as §Residual apart, measured:
+
+```bash
+lab/av1/tools/tools.sh && client/decode/wasm/fetch_openjph.sh && lab/av1/fetch_data.sh
+W=lab/.av1-work/pixel
+for s in dbts_a1 dbts_b1 dbts_c1; do lab/av1/delivery/residual/encode.py lab/.av1-build $W/$s lab/av1/data/$s --crfs 20; done
+lab/av1/delivery/residual/encode.py lab/.av1-build $W/mr_ispy1 lab/av1/data/mr_ispy1 --crfs 8
+for s in dbts_a1 dbts_b1 dbts_c1 mr_ispy1; do lab/av1/.venv/bin/python lab/av1/delivery/residual/apart_truth.py lab/.av1-build $W/$s; done
+lab/av1/delivery/residual/add-build.sh $W/simd                      # S, and its shift-one-short copy
+ADD_WASM=$W/simd/add.wasm node --test lab/av1/delivery/residual/add.test.mjs lab/av1/delivery/residual/add-simd.test.mjs
+```
+
+The client's OpenJPH and XXH3 (`built("openjph")`, `hasher()`) must match `wasm/build/manifest.sha256`, as in RESIDAPART.
+
+**Harness, written by the measuring session** as `pixel.mjs` (driver), `pixel.js` (worker), `pixel.html` and
+`pixel-report.mjs`, beside `apart.*`, whose fetching, checking and order code it may copy. There is one worker per set,
+and it runs every arm on the same frames. Each frame's preview group (8 units) is decoded once through WebCodecs, with
+the client's configuration (`prefer-software`, `optimizeForLatency`, the codec string from the stream's header) and a
+flush at the group's end. The 8 `VideoFrame`s stay open until every arm has run on them, then close. If a group gives
+fewer than 8 frames within 2 s, the run is void and the report says so. Each frame then runs these arms, in a Williams
+order (`lab/order.mjs`, index round × 16 + frame), each span its own:
+
+| arm | design | span (`performance.now()`) |
+| --- | --- | --- |
+| **L** | 1 | `copyTo` into a fresh `ArrayBuffer(allocationSize())` → `shown()` returns |
+| **LR** | 1 | as L, into one `ArrayBuffer` kept for the worker's life (R) |
+| **LS** | 1 | `copyTo` into `add-simd.js`'s `target()` → its `shown()` returns, the frame copied out |
+| **A2** | 2 | the residual codestream into OpenJPH → `exact(shownPlane, residual, f, false)` returns |
+| **A1** | 2 | as A2, `onePass` true |
+| **A1′** | 2 | A1 again, the A/A |
+| **AS** | 2 | as A2, through `add-simd.js`'s `exact()` |
+| **H** | 3 | `htj2k.js`'s `decodeFrame` on the whole frame: decode, pack and range, `set()` into its buffer |
+
+The add's preview is L's shown buffer for that frame (shift 0, bias = the residual's offset). That buffer is the only
+copy of the preview a lossy design keeps once it is shown (*derived*). Outside every span, each arm's output is hashed
+with XXH3 (`hasher()`), timed as its own **digest** stage. The WebCodecs decode is also stamped (chunk handed in →
+output callback, and the group's flush), as is OpenJPH's own call inside A2, A1, AS and H. These stamps are for "where
+it goes" and decide nothing. A round's value for an arm is the median of its 16 frames.
+
+**Order and throttles.** Each (throttle, round) gets a fresh headless Chromium, the version recorded in every row. The
+four sets run in a Williams order inside it. 1× and 4× (`lab/scripts/cpu_throttle.mjs` `throttleTree`) alternate: after
+every fourth 1× round comes a 4× round, until the 4× count is met. So a run cut short still has both throttles. One
+worker runs at a time and one `VideoDecoder` exists at a time. `lab/av1/decode/merge-free/busy.sh` records the CPUs. The
+order effect per cell is RESIDAPART's statistic, and a cell over 10 % is not read (§Residual apart, measured: the DBT
+volumes).
+
+**Rounds, from a cited spread.** σ of a round-paired log ratio is taken as merge-free's: 0.105 at 1× and 0.053 at 4×
+(`docs/decode/README.md` §Merge-free protocol). Its arms were whole frames, so this σ is an upper planning value for
+pixel spans. The effect is the median of rounds, standard error 1.2533 σ ÷ √n. For 80 % power for a 95 % interval to
+exclude 1 at a true 0.97, n = 1.571 × (2.8016 σ ÷ ln(1 ÷ 0.97))² = 147 at 1× and 38 at 4× (*derived*, the same
+arithmetic as there). Rounded up to the order's period (8 arms): **152 rounds at 1× and 40 at 4×**. The count is
+fixed here and not revised from the run.
+
+**Time budget** (*derived* from the tables above): a 1× round is ~25 s (17 frames × ~1 s of arms over the four sets, and
+~6 s of launch and instantiation), so 152 rounds take ~65 min. A 4× round is ~80 s, so 40 take ~55 min. Tools, encodes
+and truth take ~60–75 min, as RESIDAPART's did. That is ~3.2 h, inside 4.5. **If the run is cut**, the rule is applied
+to the rounds it has, and each interval is marked short of n.
+
+**Effect and interval.** Per cell and arm pair, each round's ln(arm ÷ reference) is paired inside one browser. The
+effect is the median over rounds, as a ratio. The 95 % interval is the k-th and (n − k + 1)-th ordered values, k the
+largest with P(Binomial(n, ½) ≤ k − 1) ≤ 0.025 (`rank`/`effect` in `lab/av1/decode/passes/report.mjs` on
+`origin/claude/av1-unified-mainbase`; copy them). Pairs reported: A1 ÷ A2 (the decision), A1′ ÷ A1 (A/A), LR ÷ L,
+LS ÷ LR, AS ÷ A1. Stage shares are reported as medians with their range over rounds.
+
+**Exact.**
+
+* Every A2, A1, A1′, AS and H frame's SHA-256 must match the checksum written when the series was fetched.
+* Every frame's Y plane, taken densely from L's `copyTo`, must match native dav1d 1.5.4's preview (`apart_truth.py`).
+* LR's and LS's shown buffers must equal L's byte for byte. All digests of one frame must be equal across the A arms
+  and H.
+* A miss voids that (set, throttle) cell. It is reported and not re-run quietly.
+* Before the campaign, one round at 1× must show each of these:
+  * `--mutate hash` gives 0 exact everywhere.
+  * `--mutate offset` (bias + 1 in every A arm) gives the A arms 0/16 exact while H and the previews stay 16/16.
+  * The kernel's `broken/add.wasm` gives AS 0/16 exact and LS 0/16 equal to L.
+  * `--mutate reuse` (LR copies only on its first frame) gives LR 1/16 equal to L.
+
+**Decision rule**, every frame exact. The lines are those the product's `onePass` and R were held to
+(`docs/decode/README.md` §JS passes protocol and §Merge-free protocol). They are cited, not chosen here.
+
+* **The A/A**: A1′ ÷ A1's interval contains 1. The run is void if 2 or more of the 8 cells miss (P ≈ 0.057 by chance,
+  derived there).
+* **#1 is the add a lossy design's product build takes** when A1 ÷ A2's interval lies entirely below 1.00, with a median
+  ≤ 0.97, in each of the six DBT cells, and its upper end is ≤ 1.02 on `mr_ispy1` at both throttles. Otherwise
+  two-pass stays, and the report names the cell.
+* **R on the preview, for the owner**: the same line on LR ÷ L, beside its resident 3N bytes a stream.
+* **S, for the owner**: proposed for building only if LS ÷ LR and AS ÷ A1 each lie entirely below 0.90 in every DBT
+  cell, merge-free's measured form of "much more cheaply".
+* **Predictions, each falsified by a DBT cell outside it:**
+  * A1 ÷ A2: 0.83–0.92.
+  * LR ÷ L: 0.65–0.90.
+  * LS ÷ LR: 0.5–0.8.
+  * AS ÷ A1: 0.78–0.90.
+  * Pixel work after decode: design 1 40–65 % of its frame, design 2 30–40 %, design 3 4–8 % (stage stamps). Design
+    1's share is (L + digest) ÷ (decode + L + digest). Design 2's is (A1 − its OpenJPH call + digest) ÷ (A1 + digest).
+    Design 3's is (H − its OpenJPH call + digest) ÷ (H + digest).
+
+**Host.** A 4-core cloud host. The report gives its CPU and L3 size (`lscpu`). On a 260 MiB L3 every input here stays
+cache-resident, which a phone's cache does not, so nothing is claimed for a phone. It says where the host saturates
+from `busy.sh` (the busiest second, and the share of seconds at ≥ 95 % of 4 CPUs). It claims nothing past one worker,
+nor for fills, concurrency or another host. Each cell is quoted in ms a frame, latency only.
+
+**Owed to a machine with a GPU: lever G.** SwiftShader is software, so lever G is not run on the cloud host. The
+harness refuses the G arms when `UNMASKED_RENDERER_WEBGL` matches `/SwiftShader/i`, and records the renderer in every
+row. On a machine with a hardware GPU:
+
+* **G1** (design 1): L's `copyTo` plane uploaded as `R16UI` (`UNPACK_ROW_LENGTH` = stride), with `(p << s) − offset`
+  in a `highp` window pass. The range is a per-frame table computed at coding time.
+* **G2** (design 2): the shown preview's texture from G1 and the residual (`R16UI`, or `R8UI` at ≤ 8 bits), added in
+  the shader.
+* Every arm's span ends at a `fenceSync` after its window pass, waited with `clientWaitSync`. L and A1 then upload their
+  buffers as the product's painter does.
+* G2 is exact when a readback of an `R32UI` target matches the frame's SHA-256, outside the span. That
+  `readPixels` reads one with `RGBA_INTEGER` is *unverified*, as in merge-free.
+* The rounds and rule are the ones above, with G1 ÷ L and G2 ÷ A1 against 0.90.
+
+```bash
+NODE_PATH=$(npm root -g) node lab/av1/delivery/residual/pixel.mjs --frames lab/.av1-work/pixel \
+  --sets dbts_a1,dbts_b1,dbts_c1,mr_ispy1 --arms L,G1,A1,G2 --gpu --throttles 1,4 --rounds 152,40 \
+  --chromium-args=--enable-gpu,--ignore-gpu-blocklist,--use-angle=vulkan --out lab/av1/delivery/residual/rows/pixel-gpu.json
+```
+
+The cloud host's command is the same without `--gpu` and `--chromium-args`, with `--arms L,LR,LS,A2,A1,A1′,AS,H` and
+`--out rows/pixel.json`. G0 (#8) gets no arm until a browser's upload precision for a 10-bit frame is read from its
+source.
