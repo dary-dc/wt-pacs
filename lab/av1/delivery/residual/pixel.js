@@ -66,6 +66,14 @@ function previewDecoder(first) {
   };
 }
 
+/** H's samples in the stored layout when the HTJ2K codestream carries them shifted unsigned (encode.py `htj2k_shift`). */
+function unshifted(bytes, shift) {
+  const v = new Uint16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
+  const out = new Int16Array(v.length);
+  for (let i = 0; i < v.length; i++) out[i] = v[i] - shift;
+  return bytesOf(out);
+}
+
 const planeOf = (heap, layout) => ({ heap, offset: layout[0].offset / 2, stride: layout[0].stride / 2 });
 
 /** Y alone, dense, from a copyTo buffer: the preview native dav1d writes for a 4:0:0 stream. */
@@ -83,6 +91,8 @@ async function setUp(o) {
   await htj2k.init(await built("openjph"));
   const { residual, twin } = await residualDecoder(o.residBits);
   const kernel = await simd(await (await fetch(o.kernel)).arrayBuffer());
+  // add-simd.js's target() reads memory.buffer before growing it, so its first growth throws: grown here, off every span.
+  try { kernel.target(4 * o.width * o.height); } catch { kernel.target(4 * o.width * o.height); }
   const hash = await hasher();
   return { units, resids, wholes, residual, twin, kernel, hash, kept: null, reuseCopied: false };
 }
@@ -168,7 +178,11 @@ async function frame(ctx, o, vf, k, index) {
   for (const r of results) {
     const row = { arm: r.name, frame: k, prev: r.prev, ms: r.ms, digestMs: r.digestMs, codec: r.codec, digest: r.digest,
       range: [r.range.min, r.range.max] };
-    if (/^A|^H/.test(r.name)) row.sha = await sha256(r.out);
+    if (/^A|^H/.test(r.name)) {
+      const stored = r.name === "H" && o.htj2kShift ? unshifted(r.out, o.htj2kShift) : r.out;
+      row.sha = await sha256(stored);
+      if (stored !== r.out) row.digest = ctx.hash.init().update(stored).digest();
+    }
     if (r.name === "L") {
       row.previewSha = await sha256(denseY(r.copy.buf, r.copy.layout, o.width, o.height));
       row.equalPrep = same(r.out, new Uint8Array(prep.sab));
@@ -179,7 +193,11 @@ async function frame(ctx, o, vf, k, index) {
   return rows;
 }
 
+const KERNEL_ARMS = ["LS", "AS"];
+
 async function run(o) {
+  const refused = o.signed ? o.arms.filter((a) => KERNEL_ARMS.includes(a)) : [];
+  o = { ...o, arms: o.arms.filter((a) => !refused.includes(a)) };
   const ctx = await setUp(o);
   const decoder = previewDecoder(ctx.units[0]);
   const groups = [];
@@ -197,7 +215,7 @@ async function run(o) {
   } finally {
     decoder.close();
   }
-  return { rows, groups, xxh3Vector: ctx.hash.vector };
+  return { rows, groups, refused, xxh3Vector: ctx.hash.vector };
 }
 
 onmessage = async ({ data: o }) => {

@@ -10,6 +10,7 @@ import { existsSync, readFileSync } from "node:fs";
 const FILE = process.argv[2];
 const PLANNED = (process.argv[3] ?? "152,40").split(",").map(Number);
 const CONTROL = "mr_ispy1";
+const DBT = ["dbts_a1", "dbts_b1", "dbts_c1"];
 const rows = JSON.parse(readFileSync(FILE, "utf8"));
 
 const median = (v) => {
@@ -49,7 +50,8 @@ for (const r of rows) {
 const f2 = (v) => (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
 const f3 = (v) => v.toFixed(3);
 const pct = (v) => `${(100 * v).toFixed(0)} %`;
-const spread = (v, f = f2) => `${f(median(v))} [${f(Math.min(...v))}–${f(Math.max(...v))}]`;
+const spread = (v, f = f2) => (v?.length ? `${f(median(v))} [${f(Math.min(...v))}–${f(Math.max(...v))}]` : "—");
+const vals = (m) => (m ? [...m.values()].filter(Number.isFinite) : []);
 
 /** arm → round → the median over its frames of `pick(frame)`. */
 function perRound(c, pick = (f) => f.ms) {
@@ -122,8 +124,8 @@ for (const c of cells.values()) {
   const dg = perRound(c, (f) => f.digestMs);
   const codec = perRound(c, (f) => f.codec ?? NaN);
   out(`${c.throttle}x\t${c.set}\tdecode ${spread(span)}\tchunk→output ${spread(c2o)}\tflush ${spread(flush)}`
-    + `\tdigest L ${spread([...dg.L.values()])} A1 ${spread([...dg.A1.values()])} H ${spread([...dg.H.values()])}`
-    + `\tOpenJPH in A1 ${spread([...codec.A1.values()])} in H ${spread([...codec.H.values()])}`);
+    + `\tdigest L ${spread(vals(dg.L))} A1 ${spread(vals(dg.A1))} H ${spread(vals(dg.H))}`
+    + `\tOpenJPH in A1 ${spread(vals(codec.A1))} in H ${spread(vals(codec.H))}`);
 }
 
 out("\npixel work after decode, share of the design's frame, median [range over rounds]");
@@ -166,7 +168,7 @@ const aaMiss = keys.filter((k) => { const r = readable(k, "A1′÷A1"); return !
 out(`A/A (A1′÷A1 interval contains 1): ${keys.length - aaMiss.length}/${keys.length} cells; misses ${aaMiss.join(", ") || "none"} → ${aaMiss.length >= 2 ? "RUN VOID" : "run stands"}`);
 
 function line(name, label) {
-  const fails = [];
+  const fails = [1, 4].flatMap((t) => [...DBT, CONTROL].map((d) => `${t}|${d}`)).filter((k) => !cells.has(k)).map((k) => `${k}: no data`);
   for (const k of keys) {
     const r = readable(k, name);
     const set = k.split("|")[1];
@@ -180,7 +182,8 @@ function line(name, label) {
 }
 line("A1÷A2", "#1, the add in one pass, is the add a lossy design's product build takes");
 line("LR÷L", "R on the preview meets the same line");
-const sFails = [];
+const missing = [1, 4].flatMap((t) => DBT.map((d) => `${t}|${d}`)).filter((k) => !cells.has(k));
+const sFails = missing.map((k) => `${k}: no data`);
 for (const k of keys.filter((k) => !k.endsWith(CONTROL))) {
   for (const name of ["LS÷LR", "AS÷A1"]) {
     const r = readable(k, name);

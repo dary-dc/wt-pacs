@@ -115,7 +115,7 @@ async function inChromium(throttle, round) {
       const got = await page.evaluate((o) => globalThis.set(o), { ...s.o, round });
       const at = { round, throttle, set: s.name, chromium: version, renderer };
       if (got.error) rows.push({ ...at, error: got.error });
-      else rows.push({ ...at, groups: got.groups, xxh3Vector: got.xxh3Vector, frames: checked(s, got) });
+      else rows.push({ ...at, groups: got.groups, refused: got.refused, xxh3Vector: got.xxh3Vector, frames: checked(s, got) });
     }
   } finally {
     stop();
