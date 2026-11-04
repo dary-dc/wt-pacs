@@ -13,3 +13,5 @@ stage 2, as run (a deviation, see the measured section):
   item 1's rows were written to a file a stash had replaced; read back through its open handle and restored at 22:50:24
   item 2 run again in full after item 1, 22:50:24–22:57:31: the 9 remaining partner cells
 stage 3 from 22:57:35, --until 01:15:30
+stage 3 host 1 stopped ~23:29 by a worker restart, rounds 0–7 kept (decode-host1.json); the session resumed on another host (Intel Xeon @ 2.80 GHz, 4 cores; host 1 was @ 2.10 GHz)
+stage 3 host 2 from 23:30:24, a new block (decode.json), --until 01:15:30
