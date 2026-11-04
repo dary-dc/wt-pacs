@@ -2,6 +2,4 @@ T0 (session start, host up) 21:30:30 UTC 2026-11-04
 setup: tools (libaom 3.15.1, dav1d 1.5.4, OpenJPH 0.31.0), data, venv, Playwright 1.56.1 ready by 21:36
 stage 1 checks C1–C4 and C6 run 21:35–21:48; 10bit anchor streams (decode setup) from 21:39
 item 1 from 21:48:34
-item 1 done 21:49:13
-item 2 from 21:49:15
-item 2 done 21:49:16
+21:49:13–21:49:30 a waiter script misread item 1 as done and started items 2 (0 cells) and 3; both stopped within 15 s, no row written; item 1 ran on untouched

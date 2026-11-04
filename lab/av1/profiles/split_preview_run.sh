@@ -9,8 +9,8 @@ W=lab/.av1-work/split
 R=lab/av1/profiles/results/split-preview-b
 push() {
   git add "$R"
-  git commit -qm "$1" || return 0
-  git pull -q --rebase origin claude/av1-split-preview-b
+  git commit -qm "$1" -- "$R" || return 0
+  git pull -q --rebase --autostash origin claude/av1-split-preview-b
   git push -q origin claude/av1-split-preview-b
 }
 items=("$@")
