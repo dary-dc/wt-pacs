@@ -4,3 +4,6 @@ stage 1 checks C1–C4 and C6 run 21:35–21:48; 10bit anchor streams (decode se
 item 1 from 21:48:34
 21:49:13–21:49:30 a waiter script misread item 1 as done and started items 2 (0 cells) and 3; both stopped within 15 s, no row written; item 1 ran on untouched
 decode setup: the 20 10bit anchor streams (G 1, 16 at Q 16, 32) coded again 21:39–22:01:40, every one unit for unit the bytes run's (streams.jsonl)
+item 1 done 22:02:51
+item 2 from 22:02:51
+item 2 done 22:06:53
