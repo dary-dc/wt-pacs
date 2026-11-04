@@ -365,4 +365,16 @@ either ran (`4b12442`), and nothing in 2–4 changed after them but the budget.
   `sample` 0/8 every exact arm and 0/56 every view; `truth` the same (its first cell hung and was written `VOID` after
   15 min; run again, as above); `offset` `res` 0/8, its lossy frames 8/8, every other arm whole; `skip` `svc` 1/8,
   `svc1` 8/8, every other arm whole; `low` `svc`, `svc1`, `k2` 0/8, every other arm whole. Each check sees its break.
+* **Bytes, storage and quality** (deterministic, from `content.py`'s index; `predictions.py` reads C2, C4's bytes, C5,
+  C7's bytes and PSNR, C8). C2 held: an ask downloads 3.49 · 4.46 · 3.47× a shipped frame (`dbts_a1` · `b1` · `c1`);
+  the top's share t of top + low bits is 0.691 · 1 · 0.699. C4's bytes: `p3k1-m20`'s base + middle is 1.96 · 1.49 ·
+  1.93× `p3-m20`'s, **refuted** on `dbts_a1` and `dbts_c1` (band 1.15–1.8); its stored stream 1.02 · 1.02 · 1.03×,
+  held. C5 held at every (volume, m): the separate stream at the middle's PSNR is 0.60 · 0.64 · 0.52 (`a1`, m 10 · 20 ·
+  30), 0.67 · 0.66 · 0.57 (`b1`), 0.61 · 0.62 · 0.45 (`c1`) of base + middle. C7's bytes and PSNR held: Q 56 is 0.75 ·
+  0.89 · 0.66× the quarter base, +2.31 · +0.54 · +2.69 dB. C8 held: layered 0.940 · 0.947 · 0.937 of HTJ2K, by
+  residual 1.004 · 1.001 · 1.002, by whole frame 1.008 · 1.043 · 1.012.
+* **Pairing by nearest PSNR** (§4's rule). Middle m 10 · 20 · 30 against Q 8 · 16 · 32: `dbts_a1` 48.46 · 46.33 · 45.31
+  dB against 49.94 · 46.76 · 45.02; `dbts_c1` 49.59 · 46.98 · 45.77 against 51.42 · 47.54 · 45.61 — paired as written.
+  `dbts_b1` 49.23 · 45.84 · 44.20 against 52.05 · 46.69 · 43.96: m 10 is nearer Q 16 (gap 2.54 dB) than Q 8 (2.82 dB),
+  so on `dbts_b1` m 10's times are read against Q 16.
 * **Running.** `run.sh rounds`, 10 rounds.
