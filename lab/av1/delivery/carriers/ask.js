@@ -19,7 +19,7 @@ export const ASKS = ["svc", "svc1", "res", "htj2k", "htj2k-aa", "k2"];
 export const VIEWS = ["base", "mid-m10", "mid-m20", "mid-m30", "mid1-m20", "sep-q8", "sep-q16", "sep-q32", "sep-q56", "wc-q16", "wc-q56"];
 
 /** An IVF file's temporal units, the layers sharing a timestamp joined, in timestamp order. */
-function ivf(buf) {
+export function ivf(buf) {
   const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
   const byPts = new Map();
   for (let at = view.getUint16(6, true); at + 12 <= buf.length;) {
@@ -63,7 +63,7 @@ export async function prepare(get, work, name) {
 }
 
 /** dav1d-WASM at an operating point, opened off the clock. */
-async function dav1d(env, op) {
+export async function dav1d(env, op) {
   return createDecoder(async (o) => {
     const M = await env.dav1d(o);
     M._av1_open = (threads) => M._av1_open_op(threads, op, 0);
@@ -103,7 +103,7 @@ function webcodecs(first) {
 }
 
 /** The stored samples the fetch's checksum covers, cropped to the volume: (top << shift) | low. */
-function merged(set, top, low, shift) {
+export function merged(set, top, low, shift) {
   const { width: w, height: h } = set;
   const out = new Uint16Array(w * h);
   const t = top.planes[0];
@@ -122,7 +122,7 @@ function merged(set, top, low, shift) {
 }
 
 /** The exact samples from the lossy frame and its residual: (lossy << shift) + residual − offset. */
-function added(set, lossy, r, shift, offset) {
+export function added(set, lossy, r, shift, offset) {
   const { width: w, height: h } = set;
   const out = new Uint16Array(w * h);
   const p = lossy.planes[0];
@@ -134,14 +134,14 @@ function added(set, lossy, r, shift, offset) {
   return out;
 }
 
-async function checkExact(set, decoded, k, mutate) {
+export async function checkExact(set, decoded, k, mutate) {
   const samples = decoded.buffer instanceof SharedArrayBuffer ? decoded.slice() : decoded;
   if (mutate === "sample") samples[0] ^= 1;
   const truth = mutate === "truth" ? set.truth[k].replace(/^./, (c) => (c === "0" ? "1" : "0")) : set.truth[k];
   return (await sha256(bytesOf(samples))) === truth;
 }
 
-async function checkLossy(plane, ref, mutate) {
+export async function checkLossy(plane, ref, mutate) {
   if (mutate === "sample") plane[0] ^= 1;
   const want = mutate === "truth" ? ref.replace(/^./, (c) => (c === "0" ? "1" : "0")) : ref;
   return (await sha256(bytesOf(plane))) === want;

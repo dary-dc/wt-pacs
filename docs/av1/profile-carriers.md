@@ -486,3 +486,7 @@ layered exact unit ran on dav1d-WASM only (operating point 0); no WebCodecs arm 
 
 **Not run.** The exact-volume fill (2e); a dweller's stepping asks (only the cold ask was timed); Firefox; a link (the
 role times past the decode are a model); any fixture but the three named.
+
+## Profile carriers protocol, amended
+
+*Row CARRIERS, amended 2026-11-04 (in progress: the harness is being built and the pilot run; the protocol follows).*
