@@ -10,8 +10,8 @@ R=lab/av1/profiles/results/split-preview-b
 push() {
   git add "$R"
   git commit -qm "$1" -- "$R" || return 0
-  git pull -q --rebase --autostash origin claude/av1-split-preview-b
-  git push -q origin claude/av1-split-preview-b
+  git fetch -q origin claude/av1-split-preview-b
+  if git merge-base --is-ancestor origin/claude/av1-split-preview-b HEAD; then git push -q origin HEAD:claude/av1-split-preview-b; fi
 }
 items=("$@")
 [[ ${#items[@]} -gt 0 ]] || items=(1 2 3 4)
