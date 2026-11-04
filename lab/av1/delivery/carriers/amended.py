@@ -23,9 +23,12 @@ ALPHA = 0.05
 PERMUTATIONS = 2000
 KS = (1, 4, 8, 16)
 GS = (1, 4, 8, 16, 32)
-ROLES = {"cheap view": ("cine-cheap frame", "cine-cheap total"),
-         "high view": ("cine-high frame", "cine-high total", "jump"),
-         "exact on request": ("exact cold", "dwell first", "dwell next")}
+# (role, access pattern): the one time metric the rule reads for it. The cheap view is reported, not judged.
+PATTERNS = {("high view", "cine playback"): "cine-high total", ("high view", "scroll to the next slice"): "cine-high frame",
+            ("high view", "jump to a random slice"): "jump", ("exact on request", "after a jump"): "exact cold",
+            ("exact on request", "dweller, frame i"): "dwell first", ("exact on request", "dweller, then i + 1"): "dwell next",
+            ("cheap view", "cine playback"): "cine-cheap total", ("cheap view", "scroll to the next slice"): "cine-cheap frame"}
+JUDGED = ("high view", "exact on request")
 
 
 def interval_rank(n, level=LEVEL):
@@ -76,10 +79,10 @@ def order_p(by_prev, seed=0):
 
 
 def dominates(x, y):
-    """x dominates y on a role: bytes no more, no time decided against x, and fewer bytes or a time decided for x.
-    x, y: {'bytes': B}; times: {metric: 'x' | 'y' | 'not resolved'}."""
+    """x dominates y on a role: bytes no more, no time decided against x or not read, and fewer bytes or a time
+    decided for x. x, y: {'name', 'bytes', 'times': {other: {metric: 'x' | 'y' | 'not resolved' | 'not read'}}}."""
     xb, yb, times = x["bytes"], y["bytes"], x["times"][y["name"]]
-    if xb > yb or "y" in times.values():
+    if xb > yb or "y" in times.values() or "not read" in times.values():
         return False
     return xb < yb or "x" in times.values()
 
@@ -192,41 +195,41 @@ def main():
     gate = aa(cells)
     effects = order_effects(cells, rows)
     print(f"rounds {len({r['round'] for r in rows})}; VOID blocks {voids}\n")
-    print("| volume · block | A/A median log (interval), n | A/A | arms flagged by order (p) |\n| --- | --- | --- | --- |")
+    print("| volume · block | A/A: median log (interval), n | A/A | arms flagged by order (p) |\n| --- | --- | --- | --- |")
     for (s, b), (med, lo, hi, n) in sorted(gate.items()):
         flagged = [f"{a} ({p:.3g})" for (s2, b2, a), (_, p, f) in sorted(effects.items()) if (s2, b2) == (s, b) and f]
         ok = lo is not None and lo <= 0 <= hi
-        print(f"| {s} · k {b} | {med:+.3f} ({lo}, {hi}), {n} | {'passes' if ok else 'fails: block not read'} | {', '.join(flagged) or '—'} |")
+        print(f"| {s} · k {b} | {med:+.4f} ({lo and round(lo, 4)}, {hi and round(hi, 4)}), {n} | {'passes' if ok else 'fails: not read'} |"
+              f" {', '.join(flagged) or '—'} |")
     unread = {(s, b) for (s, b), (_, lo, hi, _) in gate.items() if lo is None or not lo <= 0 <= hi}
     unread |= {(s, b, a) for (s, b, a), (_, _, f) in effects.items() if f}
-    false = [decided([math.log(cells[c]["ctrl-aa"]["frame"] / cells[c]["ctrl"]["frame"])])[0] for c in []]
-    del false
+    print(f"\nA/A decided (interval excludes 0) in {sum(len(c) == 2 for c in unread)} of {len(gate)} blocks")
     for idx in sorted(work.glob("dbts_*.json")):
         e = json.loads(idx.read_text())
         s = e["name"]
         configs = config_bytes(e)
         print(f"\n## {s}\n")
-        for role, ms in ROLES.items():
-            names = [c for c in configs if role in configs[c]]
-            table = []
-            for n in names:
-                c = {"name": n, "bytes": configs[n][role], "times": {}}
-                for o in names:
-                    if o != n:
-                        c["times"][o] = {m: pair(norm, s, n, o, m, unread) for m in ms}
-                table.append(c)
-            print(f"### {role}\n\n| configuration | bytes | " + " | ".join(f"{m} ÷ HTJ2K frame" for m in ms) + " |")
-            print("| --- | --: |" + " --: |" * len(ms))
+        kept = set()
+        for (role, pattern), m in PATTERNS.items():
+            names = [c for c in configs if role in configs[c] and (c != "whole" or role == "exact on request")]
+            table = [{"name": n, "bytes": configs[n][role],
+                      "times": {o: {m: pair(norm, s, n, o, m, unread)} for o in names if o != n}} for n in names]
+            print(f"### {role}, {pattern}\n\n| configuration | bytes | {m} ÷ HTJ2K frame, median | n |\n| --- | --: | --: | --: |")
             for c in table:
-                vals = [median_of(norm, s, c["name"], m) for m in ms]
-                print(f"| {c['name']} | {c['bytes']:.0f} | " + " | ".join("—" if v is None else f"{v:.3g}" for v in vals) + " |")
+                v, n = median_of(norm, s, c["name"], m)
+                print(f"| {c['name']} | {c['bytes']:.0f} | {'—' if v is None else f'{v:.3g}'} | {n} |")
             front = frontier(table)
-            print(f"\nfrontier: {', '.join(front)}; layered on it: {', '.join(n for n in front if n.startswith('lay')) or 'none'}\n")
+            lay = [n for n in front if n.startswith("lay")]
+            if role in JUDGED:
+                kept |= {(n, role, pattern) for n in lay}
+            print(f"\nfrontier: {', '.join(front)}; layered on it: {', '.join(lay) or 'none'}\n")
+        print(f"**{s}: the layered stream stays a candidate**" if kept else f"**{s}: no layered k is on any judged frontier**",
+              "— " + "; ".join(f"{n} ({r}, {p})" for n, r, p in sorted(kept)) if kept else "")
 
 
 def median_of(norm, s, arm, m):
     v = [x[m] for x in norm.get((s, arm), {}).values() if m in x]
-    return statistics.median(v) if v else None
+    return (statistics.median(v) if v else None), len(v)
 
 
 def block_of(arm):
@@ -234,11 +237,12 @@ def block_of(arm):
 
 
 def pair(norm, s, x, y, m, unread):
-    """'x', 'y' (the lower) or 'not resolved' for metric m, rounds paired, a gated block or arm never read."""
+    """'x', 'y' (the lower), 'not resolved', or 'not read' when either side's block fails its A/A or either arm, or
+    the block's control, is flagged by order."""
     for a in (x, y):
         b = block_of(a)
-        if (s, b) in unread or (s, b, "ctrl" if a == "whole" else a) in unread or (s, b, "ctrl-aa") in unread:
-            return "not resolved"
+        if (s, b) in unread or (s, b, "ctrl" if a == "whole" else a) in unread or (s, b, "ctrl") in unread:
+            return "not read"
     X, Y = norm.get((s, x), {}), norm.get((s, y), {})
     d = [math.log(X[r][m] / Y[r][m]) for r in X if r in Y and m in X[r] and m in Y[r]]
     return {"A": "x", "B": "y"}.get(decided(d)[0], "not resolved")

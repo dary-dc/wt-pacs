@@ -52,6 +52,21 @@ def layered(build, tool, w, s, p, k, m, win, peak):
     return c
 
 
+def single(build, w, s, p, k, q, win, peak):
+    """Bytes only: one full-size layer from the layered stream's own encoder and speed at keyframe interval k."""
+    name = f"rtc1-q{q}-k{k}"
+    out = w / f"{coding(p)}-{name}.ivf"
+    y4m = w / f".{name}.y4m"
+    shape.write_y4m(p, y4m, p.top, p.av1_bits, s.ch)
+    shape.encode(build, y4m, out, p.av1_bits, s.ch, 0, 1, 1, None, str(q), k)
+    y4m.unlink()
+    f = Path(f"{out}_0.av1") if Path(f"{out}_0.av1").exists() else out
+    pics = decoded(build, f, w / f".{name}.dec.y4m")
+    back = lambda x: x * (1 << p.shift) + ((1 << p.shift) - 1) / 2  # noqa: E731
+    got = quality(s, pics, back, 1, win, peak)
+    return dict(psnr=got["psnr_in"], bytes=sum(len(u) for _, u in ivf(f)))
+
+
 def separate(build, w, s, m, form, q, g, win, peak, residual):
     """One lossy stream at Q, G (the profiles encoder's arguments), its native frames' hashes and PSNR."""
     cell = f"{form.name}-q{q}-g{g}"
@@ -136,30 +151,51 @@ def setup(path):
     return s, p, m, form, (1 << s.stored) - 1, content.layer_error.voi_window(Path(path))
 
 
-def search_set(build, tool, work, path):
+def target(build, tool, work, path):
+    """The role targets: the in-window PSNR of the k = 8, m 20 stream's middle (high) and base (cheap)."""
     s, p, m, form, peak, win = setup(path)
     w = work / s.name
     w.mkdir(parents=True, exist_ok=True)
     ref = layered(build, tool / s.name, w, s, p, 8, 20, win, peak)
-    high, cheap = ref["middle_quality"]["psnr_in"], ref["base_quality"]["psnr_in"]
-    pin = dict(name=s.name, target=dict(high=high, cheap=cheap, of=f"{TARGET}, k 8"), layered={}, separate={})
-    for k in KS:
-        seen = nearest(lambda q: middle(layered(build, tool / s.name, w, s, p, k, q, win, peak)), high, 20, 1, 62)
+    for layer, i, _ in content.LAYERS:
+        if ref["units"][layer] != [len(u) for _, u in ivf(tool / s.name / f"{coding(p)}-{TARGET}.ivf_{i}.av1")]:
+            sys.exit(f"{s.name}: k 8, m 20 differs from shapes.py's {TARGET} ({layer})")
+    return dict(high=ref["middle_quality"]["psnr_in"], cheap=ref["base_quality"]["psnr_in"], of=f"{TARGET}, k 8")
+
+
+def search_one(build, tool, work, path, aim, kind, n):
+    """One searched configuration: ('layered' | 'single', k) or ('separate', G) with both roles."""
+    s, p, m, form, peak, win = setup(path)
+    w = work / s.name
+    high = aim["high"]
+    if kind == "layered":
+        seen = nearest(lambda q: middle(layered(build, tool / s.name, w, s, p, n, q, win, peak)), high, 20, 1, 62)
         q, tried = chosen(seen, high)
-        c = layered(build, tool / s.name, w, s, p, k, q, win, peak)
-        pin["layered"][str(k)] = dict(m=q, tried={x: [seen[x]["psnr"], seen[x]["bytes"]] for x in tried}, units=c["units"],
-                                      middle=c["middle_quality"], base=c["base_quality"])
-        print(s.name, "k", k, "m", q, pin["layered"][str(k)]["tried"], flush=True)
-    for g in GS:
-        e = {}
-        for role, target, start in (("high", high, 16), ("cheap", cheap, 56)):
-            seen = nearest(lambda q: whole(separate(build, w, s, m, form, q, g, win, peak, False)), target, start, 1, 63)
-            q, tried = chosen(seen, target)
-            c = separate(build, w, s, m, form, q, g, win, peak, role == "high")
-            e[role] = dict(q=q, tried={x: [seen[x]["psnr"], seen[x]["bytes"]] for x in tried}, units=c["units"], quality=c["quality"],
-                           **({"residual_units": c["residual_units"]} if role == "high" else {}))
-            print(s.name, "G", g, role, "Q", q, e[role]["tried"], flush=True)
-        pin["separate"][str(g)] = e
+        c = layered(build, tool / s.name, w, s, p, n, q, win, peak)
+        return s.name, kind, n, dict(m=q, tried={x: [seen[x]["psnr"], seen[x]["bytes"]] for x in tried}, units=c["units"],
+                                     middle=c["middle_quality"], base=c["base_quality"])
+    if kind == "single":
+        seen = nearest(lambda q: single(build, w, s, p, n, q, win, peak), high, 20, 1, 62)
+        return s.name, kind, n, {x: [seen[x]["psnr"], seen[x]["bytes"]] for x in sorted(seen)}
+    e = {}
+    for role, aim_db, start in (("high", high, 16), ("cheap", aim["cheap"], 56)):
+        seen = nearest(lambda q: whole(separate(build, w, s, m, form, q, n, win, peak, False)), aim_db, start, 1, 63)
+        q, tried = chosen(seen, aim_db)
+        c = separate(build, w, s, m, form, q, n, win, peak, role == "high")
+        e[role] = dict(q=q, tried={x: [seen[x]["psnr"], seen[x]["bytes"]] for x in tried}, units=c["units"], quality=c["quality"],
+                       **({"residual_units": c["residual_units"]} if role == "high" else {}))
+    return s.name, kind, n, e
+
+
+def search(build, tool, work, sets, jobs):
+    with ProcessPoolExecutor(jobs) as pool:
+        aims = dict(zip([d.name for d in sets], pool.map(target, *zip(*[(build, tool, work, d) for d in sets]))))
+        pin = {n: dict(name=n, target=a, layered={}, single={}, separate={}) for n, a in aims.items()}
+        tasks = [(build, tool, work, d, aims[d.name], kind, n) for kind, ns in (("separate", GS), ("layered", KS), ("single", KS))
+                 for n in ns for d in sets]
+        for name, kind, n, got in pool.map(search_one, *zip(*tasks)):
+            pin[name][kind][str(n)] = got
+            print(name, kind, n, got.get("m", got.get("high", {}).get("q", "")), flush=True)
     return pin
 
 
@@ -212,19 +248,18 @@ def main():
         ap.add_argument(a, type=Path)
     ap.add_argument("sets", nargs="+", type=Path)
     ap.add_argument("--pin", type=Path, default=PIN)
+    ap.add_argument("--jobs", type=int, default=4)
     a = ap.parse_args()
     work = a.work.resolve()
     work.mkdir(parents=True, exist_ok=True)
     build, shipped, tool = a.build.resolve(), a.shipped.resolve(), a.tool.resolve()
+    if a.mode == "search":
+        a.pin.write_text(json.dumps(search(build, tool, work, [d.resolve() for d in a.sets], a.jobs), indent=1) + "\n")
+        return
+    pin = json.loads(a.pin.read_text())
     with ProcessPoolExecutor(len(a.sets)) as pool:
-        if a.mode == "search":
-            pins = list(pool.map(search_set, *zip(*[(build, tool, work, d.resolve()) for d in a.sets])))
-            a.pin.write_text(json.dumps({x["name"]: x for x in pins}, indent=1) + "\n")
-        else:
-            pin = json.loads(a.pin.read_text())
-            jobs = [(build, shipped, tool, work, d.resolve(), pin[d.name]) for d in a.sets]
-            for name in pool.map(code_set, *zip(*jobs)):
-                print("done", name, flush=True)
+        for name in pool.map(code_set, *zip(*[(build, shipped, tool, work, d.resolve(), pin[d.name]) for d in a.sets])):
+            print("done", name, flush=True)
 
 
 if __name__ == "__main__":
