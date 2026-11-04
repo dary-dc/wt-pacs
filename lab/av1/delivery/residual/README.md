@@ -488,8 +488,8 @@ once before the campaign as the protocol orders.
 ## Lossy pixel work protocol, pre-registered (row PIXELWORK, 2026-11-04)
 
 * **Asked:** in each lossy design, where does a frame's time go once the decoder has returned its pixels, and which way of removing that work applies, at what saving and what structural cost?
-* **Answer (theory, nothing timed in a browser yet):** the pixel work is largest beside its own decode in the lossy picture alone, ~1× the decode, about a third of the residual design's exact frame, and a few % of a whole HTJ2K frame's. The add with its range in one pass (built behind `onePass`) is the best change that is not structural. The SIMD kernel S and the shader G save more, but S adds a build artifact and G changes the frame contract.
-* **Numbers that decide it:** the add is 0.22–0.35 of the residual design's exact frame (measured above). A JS pass costs 3.6–4.1 ns a sample, against 1.6–2.4 ns for the copy a frame makes out of WebCodecs (both measured in the lossless work). In Node, the one-pass add is 0.70–0.76 of the two-pass and S is 0.22–0.50 of the one-pass (*exploratory*).
+* **Answer (theory, nothing timed in a browser yet):** the pixel work is largest beside its own decode in the lossy picture alone, ~1× the decode, a third to a half of the residual design's exact frame, and a few % of a whole HTJ2K frame's. The add with its range in one pass (built behind `onePass`) is the best change that is not structural. The SIMD kernel S and the shader G save more, but S adds a build artifact and G changes the frame contract.
+* **Numbers that decide it:** the add is 0.22–0.35 of the residual design's exact frame (measured above). A JS pass costs 3.6–4.1 ns a sample, against ~2.1 ns for the copy a frame makes out of WebCodecs (both measured in the lossless work). In Node, the one-pass add is 0.70–0.76 of the two-pass and S is 0.22–0.50 of the one-pass (*exploratory*).
 * **Rests on:** `dbts_a1`, `dbts_b1` and `dbts_c1`, with `mr_ispy1` as the small-frame control. Nothing here is claimed for any other series.
 * **Left:** the browser run below (≤ 4.5 h on a 4-core host), and the GPU arms, which are owed to a machine with a GPU.
 
@@ -524,12 +524,12 @@ Per-sample costs, all measured in the lossless work and carried over here (*deri
 
 | design | pixel work after decode, per frame | `a1` | `b1` | `c1` | `mr_ispy1` | against |
 | --- | --- | --: | --: | --: | --: | --- |
-| 1, preview alone | `copyTo` 3N bytes + one pass, shift, offset and range (+ digest 2N, only if a preview digest is kept) | 10–13 ms | 42–52 | 12–15 | 1.3–1.6 | the preview's decode: P WebCodecs, 13.2, 42.1, 15.5 and 4.65 ms at 1× (tables above), which include the harness's own copy |
-| 2, + HTJ2K residual | the add, then a range pass (two-pass), + digest 2N | 9.8–13 ms | 41–45 | 12–14 | 1.4–1.6 | the residual's decode R: 18.8, 46.1, 18.7, 3.26 ms |
+| 1, preview alone | `copyTo` 3N bytes + one pass, shift, offset and range (+ digest 2N, only if a preview digest is kept) | 10–14 ms | 42–52 | 12–15 | 1.3–1.6 | the preview's decode: P WebCodecs, 13.2, 42.1, 15.5 and 4.65 ms at 1× (tables above), which include the harness's own copy |
+| 2, + HTJ2K residual | the add (RESIDAPART's RA − R), then a range pass (two-pass), + digest 2N | 9.7–10.3 ms | 43–45 | 13–14 | 1.4 | the residual's decode R: 18.8, 46.1, 18.7, 3.26 ms |
 | 3, + whole HTJ2K | `set()` 2N into the frame's buffer + digest 2N; the range is taken in OpenJPH's pack | ~1.5 ms | ~6 | ~1.8 | ~0.2 | H: 25.0, 71.0, 26.5, 4.90 ms; the codec call is 95–97 % of H (breakdown) |
 
-So **after decode, design 1 is predicted at 40–65 % pixel work, design 2 at 30–40 % (add, range and digest of the
-exact frame), and design 3 at 4–8 %**. All three are *derived*. Design 3's preview costs what design 1's does. On `b1`,
+So **after decode, design 1 is predicted at 45–75 % pixel work, design 2 at 30–50 % (add, range and digest of the
+exact frame), and design 3 at 4–9 %**. Design 1's range is wide because P includes the harness's copies, so its decode alone is between P less those copies and P. All three are *derived*. Design 3's preview costs what design 1's does. On `b1`,
 s = 0, so its preview pass does no shift, only offset and range.
 
 ### What applies, ranked
@@ -553,7 +553,7 @@ The specifications behind the table, each read 2026-11-04 unless marked:
 
 | # | lever | designs | saving, predicted | structural cost | exactness check | phone memory |
 | --: | --- | --- | --- | --- | --- | --- |
-| 1 | **The add in one pass** (`add.js` `exact(…, onePass)`, built): the range taken in the add | 2 | the range pass: ×0.83–0.92 of design 2's exact frame (residual decode + add + digest) | none. Same output, range and buffer | unchanged: the frame's digest covers the output | none |
+| 1 | **The add in one pass** (`add.js` `exact(…, onePass)`, built): the range taken in the add | 2 | the range pass: ×0.80–0.90 of design 2's exact frame on DBT, ×0.89–0.91 on `mr_ispy1` (residual decode + add + digest) | none. Same output, range and buffer | unchanged: the frame's digest covers the output | none |
 | 2 | **R** for the preview (`reuseCopyBuffer`, built in the product) | 1, and 3's preview | the buffer's allocation and first touch, 0.38–0.59 ns a byte (merge-free's R ÷ W2 over its 4.5N-byte buffers): ×0.65–0.90 of design 1's pixel work | none | unchanged | one 3N-byte buffer a stream, resident: 6.1, 25.6, 7.4 and 0.8 MB |
 | 3 | **M**, chroma check from the header (`mono_chrome`) | 1 | `neutral()`'s 1.6–1.7 ns a chroma sample | none; already the default under `onePass` | unchanged | none |
 | 4 | **S**, the pass as a SIMD kernel (`add.c` through `add-simd.js`, built for the lab) | 1 and 2 | design 2: ×0.78–0.90 of the one-pass exact frame. Design 1: ×0.5–0.8 of R's pixel work, since `copyTo` writes straight into the kernel's memory | **yes**: a new WebAssembly artifact pinned in `manifest.sha256`. The frame contract is unchanged | unchanged: a kernel bug is a digest miss | resident kernel memory: 5N bytes for design 1 and 6N for design 2 (43 and 51 MB on `b1`), which grows and never shrinks |
@@ -694,11 +694,11 @@ LS ÷ LR, AS ÷ A1. Stage shares are reported as medians with their range over r
 * **S, for the owner**: proposed for building only if LS ÷ LR and AS ÷ A1 each lie entirely below 0.90 in every DBT
   cell, merge-free's measured form of "much more cheaply".
 * **Predictions, each falsified by a DBT cell outside it:**
-  * A1 ÷ A2: 0.83–0.92.
+  * A1 ÷ A2: 0.80–0.90.
   * LR ÷ L: 0.65–0.90.
   * LS ÷ LR: 0.5–0.8.
   * AS ÷ A1: 0.78–0.90.
-  * Pixel work after decode: design 1 40–65 % of its frame, design 2 30–40 %, design 3 4–8 % (stage stamps). Design
+  * Pixel work after decode: design 1 45–75 % of its frame, design 2 30–50 %, design 3 4–9 % (stage stamps). Design
     1's share is (L + digest) ÷ (decode + L + digest). Design 2's is (A1 − its OpenJPH call + digest) ÷ (A1 + digest).
     Design 3's is (H − its OpenJPH call + digest) ÷ (H + digest).
 
