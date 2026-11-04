@@ -367,11 +367,11 @@ its campaign. Six separate sessions, given only this section, run it (§Shards);
 
 * **Asked:** make §6's decode decision fit exactly six cloud sessions run in parallel, each ≤ 4.5 h wall on a 4-core
   host, keeping D1–D3's questions and adding how frames are reached (in order, or a jump) and the 12-bit forms' decode.
-* **Answer:** *pending — the sizing pilot is running as this partial section is pushed (2026-11-04, 17:45 UTC).*
-* **The numbers that decide it:** *pending — the sizing pilot is running as this partial section is pushed (2026-11-04, 17:45 UTC).*
+* **Answer:** **yes, with a resolution stated per cell rather than §6's 5 % everywhere.** A round now takes 10.6 min on this host against 8.85 h for §6's after its own drops, so one 4.5 h session runs 22 rounds here and about 14 on a host 1.5× slower, over the floor of 10; six blocks pooled are expected to pin D1 to ±4–8 %, D2 to ±6–17 % and D3 to ±3–6 % (95 % half-intervals), where D3's band is ±10 % and D2's about ±29 % around their centres.
+* **The numbers that decide it:** round 10.6 min (1× 4.4, 4× 6.3; full scope 22.8); setup ≈ 20 min; robust σ of ln ratio over the pilot's rounds ≤ 0.19 on every D1 and D3 cell and ≤ 0.09 on dav1d-WASM's D2, up to 0.37 on WebCodecs' D2 at 4× and 0.51 on G's cost to a WebCodecs jump at 4× (a fresh `VideoDecoder` now and then takes up to 1 s to give its first frame there); §6's own n (5 % at 80 % power) would need 24–48 rounds a block for D1 and D3 and 184 for D2 — the sizing below.
 * **What it rests on:** the three DBT volumes §6 chose (`dbts_a1`, `dbts_b1`, `dbts_c1`, one a scanner), their streams
-  coded again and equal byte for byte to the bytes run's; a sizing pilot on this host (pending); headless Chromium 141 on one 4-core host.
-* **What is left:** *pending — the sizing pilot is running as this partial section is pushed (2026-11-04, 17:45 UTC).*
+  coded again and equal byte for byte to the bytes run's; a 6-round sizing pilot, discarded (rounds 0–1 at full scope, 2–5 as amended), and a 4-round check of the jump against §6's own ask, on one 4-core host (Intel Xeon @ 2.10 GHz, 15 GB); headless Chromium 141 on one 4-core host.
+* **What is left:** lossless AV1 (L, measured elsewhere), W, G = whole series, the whole-series clock and timed links (derived instead); 4× at the rungs below and above the crossover; §6's 5 % at 80 % power on WebCodecs jumps at 4×; the top 10 bits through dav1d-WASM, which would separate depth from decoder; the breast cine, ABUS and TRUS stand-ins; other host types, a phone, concurrent decodes. The six blocks themselves are §Shards'.
 
 **Terms.** **G** — frames coded together: a keyframe every G frames, the rest predicted from the frame before; G = 1
 codes each frame alone. **Q** — the lossy quantizer, libaom's 0–63 scale (§Names): 2 is near-lossless, 56 heavy.
@@ -400,8 +400,8 @@ over its period. **4×** is `lab/scripts/cpu_throttle.mjs`'s cap of every browse
 | an ask: 16 fresh chains, keyframe … k, 136 decodes at G = 16 | a **jump**: one fresh chain a group the middle 16 touch, the jump to k read off it as written(k) − handed(its keyframe); 20 decodes at G = 16 | with one unit in flight and no flush until a chain ends, decoding keyframe … k is the first steps of decoding keyframe … the group's last asked slice, so the clock to k is the same; checked against §6's own ask (`--direct`, below) |
 | one worker a cell; 351 cells in one Williams order over a round of 2–9 h | **one worker a (series, rung)** holding every decoder and byte; its 15–16 units back to back in a Williams row; the 9 (series, rung) in a Williams row | §6's pilot: σ of ln(arm ÷ H) to 0.31 and order effects to 52 %, with each arm minutes from its H |
 | every rung at 1× and at 4× | **every rung at 1×; at 4× the crossover rung alone** (`--every-rung-at 1`) | 4× was 18.3 of the pilot's 22.8 min a round (below); a host as slow as §6's (its H 26 ms a frame at 1× against 17 here) must still fit 10 rounds. D1–D3 keep a 4× cell on every series |
-| n by power on a normal, in one session, cap 5 h | n by power on a *t* over **6 blocks**; each block ≤ 4.5 h with its own setup; floor 10 rounds a block (§6's) | the six-session budget |
-| a cell read when n ≥ 10 and its order effect ≤ 10 %; its median against the band | the pooled ratio's **95 % interval** against the band; the A/A's own order effect beside each cell's | below |
+| n by power on a normal, in one session, cap 5 h | **as many rounds as fit** each block's 4.5 h, at least 10 (§6's floor); each block's median, then a *t* over **6 blocks**; the resolution this buys, per cell, from the pilot (below) | the six-session budget; §6's own n (5 % at 80 % power) does not fit it on the WebCodecs jumps (below) |
+| a cell read when n ≥ 10 and its order effect ≤ 10 %; its median against the band | the pooled ratio's **95 % interval** against the band; each block's median over rounds; the A/A's own order effect beside each cell's | below |
 
 ### Units, decoders and clocks
 
@@ -461,20 +461,29 @@ denominator). Milliseconds never leave their block.
 | every unit against H | S_G ÷ H, each decoder and pattern | none |
 | A/A | H′ ÷ H | — |
 
-**A block's A/A.** Per (block, throttle), the mean of ln(H′ ÷ H) over every (series, rung) and round, with its 95 %
-*t* interval. If that interval leaves ±ln 1.05 — the 5 % §6 sized its n to see — the block cannot see what the
-protocol asks at that throttle, and every one of its cells at that throttle is **void**. A void block, or cell, is
-reported with why and enters no pooled figure; nobody re-runs it quietly.
+**A block's statistic is a median over its rounds.** The pilot (below) caught the host slowing one unit 2.4× for ten
+consecutive frames while the same unit's first six, and its A/A twin beside it, ran at speed; a mean over rounds
+carries such an event into the block's figure, a median does not (it breaks down only past half the rounds).
 
-**Pooling.** For each ratio and (series, rung, throttle), each kept block contributes **one number**: its mean of ln
+**A block's A/A.** Per (block, throttle), the median of ln(H′ ÷ H) over every (series, rung) and round, with its
+distribution-free 95 % interval (order statistics k and n + 1 − k, k from the binomial(n, ½) tails). H′ and H are the
+same unit, so a block whose interval lies wholly beyond ±ln 1.05 — identical units apart by more than the 5 % §6 sized
+its n to see — measures position, not decoders, at that throttle: every one of its cells there is **void**. Noise alone
+voids nothing; it widens the block's intervals, and through them the pooled one. (The pilot's 4× A/A, σ ≈ 0.085 a pair,
+would have voided 27–67 % of blocks under a rule that asked its interval to sit *inside* ±5 %: a bootstrap of its 30
+pairs.) A block under 10 rounds (§6's floor) is void when others are pooled. A void block, or cell, is reported with why
+and enters no pooled figure; nobody re-runs it quietly.
+
+**Pooling.** For each ratio and (series, rung, throttle), each kept block contributes **one number**: its median of ln
 ratio over its rounds. The pooled ratio is exp of the mean of those numbers, with a 95 % *t* interval on B − 1 degrees
 of freedom over the B kept blocks — so a difference between hosts widens the interval instead of hiding in it. One kept
-block gives no between-host spread: **not decided**. Each block needs ≥ 10 rounds (§6's floor).
+block gives no between-host spread: **not decided**.
 
-**Order effect.** On the pooled pairs, the largest |median by the numerator's predecessor ÷ median − 1|. A cell is not
-read when it exceeds 10 % (`docs/rig-limits.md` §6) **and** exceeds the same statistic of the A/A in that cell — the
-data's own floor for it at that n: at a few pairs a predecessor, the statistic alone runs past 10 % on pure noise
-(§6's pilot: 52 % at n = 5).
+**Order effect.** On the pooled pairs, the largest |median by the numerator's predecessor ÷ median − 1|, and the share
+of 400 shuffles of the same pairs' predecessors that reach it. A cell is not read when the effect exceeds 10 %
+(`docs/rig-limits.md` §6) **and** under 5 % of its shuffles reach it: at a few pairs a predecessor the statistic alone
+runs past 10 % on noise (§6's pilot: 52 % at n = 5; this pilot: 10–52 % at n = 6, its A/A's 18–37 %), and the shuffles
+measure that noise on the cell's own data. The Williams square balances first-order carry-over in every block either way.
 
 **The rule** (the bands are §2's, unchanged): in a read cell, **held** where the 95 % interval lies inside the band,
 **refuted** where it lies wholly outside, **not decided** otherwise. D1, D2, D3 each **held** if every read cell holds,
@@ -488,13 +497,60 @@ core and the host does not saturate; at 4× each thread gets a quarter of a CPU.
 a one-core figure at either throttle. Nothing is claimed past 4×, for concurrent decodes, for a phone, for another host
 type, or for a timed link.
 
-### Checks and mutations, as run
+### Checks and mutations, as run (2026-11-04)
 
-*pending — the sizing pilot is running as this partial section is pushed (2026-11-04, 17:45 UTC).*
+Every new check broken on purpose, once, on `dbts_a1` Q 16 at 1× (`lab/av1/profiles/rows/decode-amended-mutate-*`):
 
-### Sizing pilot
+| what is checked | broken by | seen |
+| --- | --- | --- |
+| exact frames against the fetch checksum; lossy frames against native dav1d; residuals against `streams.py` | `--mutate hash`: every expected hash flipped | 0 of every check on all 16 units |
+| R's add | `--mutate offset`: the residual's offset off by one | R exact 0/16 on both forms, its residuals 16/16 and lossy frames 16/16 intact; the other 14 units untouched |
+| a jump's chain | `--mutate drop`: a group's second unit dropped at G = 8 | both S8 jumps fail — dav1d-WASM `-28`, WebCodecs `Decoding error.` — with 1 of 20 frames matched, the keyframe before the gap; S1 and S16 untouched |
+| `decode_pool.py`: pooling, the A/A, the rule, order effects, the link replay, the *t* quantiles (`--test`, blocks with known answers) | nine mutations: the A/A rule off; checks ignored; a jump timed from its own slice's hand-in; the replay not waiting for the frame before; the blocks' pairs pooled as one sample; a block's mean for its median; a block under 10 rounds kept; the *t* series a term short; predecessors never shuffled | each fails the test (`decode-amended-mutate-pool.txt`) |
 
-*pending — the sizing pilot is running as this partial section is pushed (2026-11-04, 17:45 UTC).*
+**The jump against §6's ask** (`--direct`, `dbts_a1` Q 16, 4 rounds a throttle, `decode-amended-direct.*`), jump ÷ ask,
+median of the rounds [range]: dav1d-WASM 0.991 [0.946–1.073] at 1×, 0.966 [0.943–0.981] at 4×; WebCodecs 1.025
+[0.954–1.078] at 1×, 0.961 [0.825–1.232] at 4×; the A/A beside them 1.008 [0.887–1.054] and 0.991 [0.950–1.051]. The
+two read the same within the A/A's own spread, except dav1d-WASM at 4×, where the jump read 3.4 % under the ask in 4 of
+4 rounds: D2 at 4× on dav1d-WASM may sit up to that much under §6's definition (its denominator, a jump at G = 1, is one
+frame and the same either way). n = 4: a check, not a reading.
+
+**In the pilot**, every check matched in every round: H exact 2 688/2 688, R exact, residual and lossy 2 240/2 240 each,
+S lossy 17 360/17 360; no error.
+
+### Sizing pilot (2026-11-04)
+
+`decode_block.mjs --block pilot`, six rounds on this host with nothing else running (`decode-amended-pilot.*`; rounds
+0–1 ran every rung at 4×, 2–5 as amended), then `decode_pool.py … --size --setup-hours 0.6 --every-rung-at 1`
+(`decode-amended-size.txt`). Discarded: a pilot sizes, it is not read.
+
+* **A round:** 10.6 min (median of six) — 4.4 min at 1×, 6.3 at 4×; 22.8 min with every rung at 4×. §6's round, on
+  its host and after its own drops: 8.85 h.
+* **Setup on a fresh host** (`decode_setup.sh`): *pending: timed in a fresh worktree as this is pushed*.
+* **Rounds that fit** 4.5 h less 0.6 h (setup, the section, pushes): 22 here. §6's host timed H at 26 ms a frame where
+  this one takes 17, so a host that much slower fits about 14 (*derived*, ×1.5 on the round). `--until` stops each block
+  where its own host's time runs out.
+* **σ** of ln ratio over the pilot's rounds, robust (1.4826 × the median absolute deviation), largest cell by
+  question: D1 0.19, D2 0.37, D3 0.13, G in order 0.15, G on a jump 0.51, the 12-bit forms 0.30. The large ones are all
+  WebCodecs jumps at 4×: a fresh `VideoDecoder` now and then takes up to ~1 s to give its first frame there (`dbts_c1`
+  Q 16, round 0: two of 16 jumps at 615 and 1 058 ms, the other 14 at 80–124).
+* **What §6's n would ask** (5 % at 80 % power, on a *t* over six blocks of medians, variance π/2 · σ² ÷ n), rounds a
+  block, largest cell by question: D3 24, G in order 30, D1 48, the 12-bit forms 118, D2 184, G on a jump 351.
+* **What the budget buys instead**, the widest expected 95 % half-interval of a pooled cell (*derived* from the σ, if
+  the blocks agree; a spread between hosts widens it):
+
+| question | at 10 rounds a block, 1× · 4× | at 22, 1× · 4× | its band |
+| --- | --- | --- | --- |
+| D1 | ±8 % · ±7 % | ±5 % · ±4 % | ≤ 1.0 |
+| D2 | ±9 % · ±17 % | ±6 % · ±11 % | 5–9 |
+| D3 | ±5 % · ±6 % | ±3 % · ±4 % | 0.9–1.1 |
+| G in order | ±4 % · ±6 % | ±3 % · ±4 % | — |
+| G on a jump | ±3 % · ±24 % | ±2 % · ±15 % | — |
+| the 12-bit forms | ±6 % · ±13 % | ±4 % · ±9 % | — |
+
+So the decision fits: every D1–D3 cell gets a pooled interval narrower than its band, and a cell is decided wherever
+its estimate sits farther from a band edge than that; a cell whose estimate sits nearer stays **not decided**, and is
+reported so. What it does not buy is §6's 5 % on WebCodecs jumps at 4× — listed as left.
 
 ## Shards
 
@@ -519,14 +575,14 @@ lab/av1/profiles/decode_setup.sh && source lab/.av1-work/decode-env.sh  # ~20 mi
 R=lab/av1/profiles/rows/decode-shard-$K
 for n in 2 4 6 8 10 12 14 16 18 20 22 24; do                  # resumes at the first round it lacks; pushes every 2
   node lab/av1/profiles/decode_block.mjs --block shard-$K --rounds $n --every-rung-at 1 \
-    --until $((T0 + UNTIL_S)) --out $R.json 2>>$R.log
+    --until $((T0 + 14760)) --out $R.json 2>>$R.log
   python3 lab/av1/profiles/decode_pool.py $R.json > $R.txt
   git add $R.*; git -c user.name=dary-dc -c user.email=crespoydelgado@gmail.com commit -qm "av1: profiles decode shard $K rows"; git pull -q --rebase; git push -q
   grep -q "would pass --until" $R.log && break                 # --until stopped it
 done
 ```
 
-`--until` stops before a round that would end past T0 + H h, leaving the rest of the 4.5 h for the section.
+`--until` stops before a round that would end past T0 + 4.1 h, leaving the rest of the 4.5 h for the section.
 Commits are authored `dary-dc <crespoydelgado@gmail.com>`, `git pull --rebase` before each push, never a force-push.
 The session then replaces the one line under its own `### Decode shard k, measured` with: the host (its `host` row:
 CPU, cores, memory), the rounds it ran, setup minutes, its A/A at each throttle, every check's tally, void cells with

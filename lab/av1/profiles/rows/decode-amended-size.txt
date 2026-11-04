@@ -1,0 +1,229 @@
+a round: 10.6 min (median of 6); 22 rounds fit 4.5 h less 0.6 h of setup
+rounds a block needs (t over 6 blocks, 5 %, 80 % power), largest first:
+    351  σ 0.5113  dbts_a1 Q16 4x  jump G: S8|webcodecs|jump ÷ S1|webcodecs|jump  DOES NOT FIT
+    232  σ 0.4153  dbts_c1 Q16 4x  jump G: S8|webcodecs|jump ÷ S1|webcodecs|jump  DOES NOT FIT
+    184  σ 0.3702  dbts_a1 Q16 4x  D2: S16|webcodecs|jump ÷ S1|webcodecs|jump  DOES NOT FIT
+    118  σ 0.2963  dbts_a1 Q16 4x  decoder: S1|dav1d|jump ÷ S1|webcodecs|jump  DOES NOT FIT
+     62  σ 0.2134  dbts_b1 Q32 1x  D2: S16|webcodecs|jump ÷ S1|webcodecs|jump  DOES NOT FIT
+     48  σ 0.1889  dbts_b1 Q32 1x  D1: S8|webcodecs|order ÷ H  DOES NOT FIT
+     45  σ 0.1825  dbts_c1 Q16 4x  D2: S16|webcodecs|jump ÷ S1|webcodecs|jump  DOES NOT FIT
+     38  σ 0.1670  dbts_c1 Q16 4x  decoder: S1|dav1d|jump ÷ S1|webcodecs|jump  DOES NOT FIT
+     34  σ 0.1593  dbts_a1 Q16 4x  decoder: S8|dav1d|jump ÷ S8|webcodecs|jump  DOES NOT FIT
+     32  σ 0.1522  dbts_c1 Q16 4x  D1: S1|webcodecs|order ÷ H  DOES NOT FIT
+     31  σ 0.1514  dbts_b1 Q32 1x  decoder: S16|dav1d|jump ÷ S16|webcodecs|jump  DOES NOT FIT
+     30  σ 0.1486  dbts_c1 Q16 4x  in order G: S8|webcodecs|order ÷ S1|webcodecs|order  DOES NOT FIT
+     24  σ 0.1325  dbts_c1 Q16 4x  D1: S16|webcodecs|order ÷ H  DOES NOT FIT
+     24  σ 0.1334  dbts_b1 Q32 4x  D3: R|10bit ÷ H  DOES NOT FIT
+     23  σ 0.1307  dbts_a1 Q16 1x  decoder: S1|dav1d|jump ÷ S1|webcodecs|jump  DOES NOT FIT
+     23  σ 0.1303  dbts_c1 Q16 4x  D3: R|12bit ÷ H  DOES NOT FIT
+     22  σ 0.1279  dbts_c1 Q16 4x  D3: R|top10 ÷ H
+     22  σ 0.1279  dbts_b1 Q32 4x  D2: S16|webcodecs|jump ÷ S1|webcodecs|jump
+     20  σ 0.1213  dbts_a1 Q16 4x  in order G: S16|webcodecs|order ÷ S1|webcodecs|order
+     19  σ 0.1161  dbts_a1 Q16 1x  D1: S8|webcodecs|order ÷ H
+     19  σ 0.1188  dbts_c1 Q16 4x  decoder: S8|dav1d|order ÷ S8|webcodecs|order
+     18  σ 0.1146  dbts_a1 Q16 4x  decoder: S8|dav1d|order ÷ S8|webcodecs|order
+     17  σ 0.1100  dbts_a1 Q16 4x  in order G: S8|webcodecs|order ÷ S1|webcodecs|order
+     17  σ 0.1119  dbts_a1 Q16 4x  decoder: S1|dav1d|order ÷ S1|webcodecs|order
+     16  σ 0.1083  dbts_b1 Q16 1x  D3: R|10bit ÷ H
+     16  σ 0.1064  dbts_b1 Q32 4x  decoder: S1|dav1d|jump ÷ S1|webcodecs|jump
+     15  σ 0.1034  dbts_a1 Q16 1x  in order G: S16|webcodecs|order ÷ S1|webcodecs|order
+     15  σ 0.1040  dbts_a1 Q32 1x  D2: S16|webcodecs|jump ÷ S1|webcodecs|jump
+     15  σ 0.1038  dbts_c1 Q16 1x  D1: S1|webcodecs|order ÷ H
+     13  σ 0.0957  dbts_a1 Q8 1x  in order G: S8|webcodecs|order ÷ S1|webcodecs|order
+     13  σ 0.0952  dbts_a1 Q16 1x  decoder: S8|dav1d|jump ÷ S8|webcodecs|jump
+     13  σ 0.0974  dbts_c1 Q32 1x  decoder: S16|dav1d|jump ÷ S16|webcodecs|jump
+     13  σ 0.0967  dbts_b1 Q56 1x  D3: R|10bit ÷ H
+     13  σ 0.0982  dbts_a1 Q16 4x  D3: R|top10 ÷ H
+     13  σ 0.0952  dbts_a1 Q16 4x  decoder: S16|dav1d|order ÷ S16|webcodecs|order
+     13  σ 0.0954  dbts_b1 Q32 4x  in order G: S8|dav1d|order ÷ S1|dav1d|order
+     12  σ 0.0919  dbts_a1 Q16 1x  D2: S16|dav1d|jump ÷ S1|dav1d|jump
+     12  σ 0.0935  dbts_a1 Q16 1x  D2: S16|webcodecs|jump ÷ S1|webcodecs|jump
+     12  σ 0.0921  dbts_a1 Q16 1x  in order G: S8|webcodecs|order ÷ S1|webcodecs|order
+     12  σ 0.0933  dbts_c1 Q32 1x  D1: S1|webcodecs|order ÷ H
+     12  σ 0.0908  dbts_c1 Q16 1x  in order G: S16|webcodecs|order ÷ S1|webcodecs|order
+     12  σ 0.0919  dbts_b1 Q56 1x  D1: S8|webcodecs|order ÷ H
+     12  σ 0.0931  dbts_a1 Q16 4x  D1: S1|webcodecs|order ÷ H
+     11  σ 0.0874  dbts_a1 Q32 1x  decoder: S8|dav1d|order ÷ S8|webcodecs|order
+     11  σ 0.0893  dbts_c1 Q16 1x  D1: S16|webcodecs|order ÷ H
+     11  σ 0.0892  dbts_c1 Q8 1x  D3: R|12bit ÷ H
+     11  σ 0.0887  dbts_b1 Q32 1x  D1: S1|webcodecs|order ÷ H
+     11  σ 0.0894  dbts_b1 Q56 1x  decoder: S8|dav1d|jump ÷ S8|webcodecs|jump
+     11  σ 0.0879  dbts_a1 Q16 4x  decoder: S16|dav1d|jump ÷ S16|webcodecs|jump
+     11  σ 0.0889  dbts_b1 Q32 4x  D1: S1|webcodecs|order ÷ H
+     11  σ 0.0875  dbts_b1 Q32 4x  D1: S16|webcodecs|order ÷ H
+     10  σ 0.0077  dbts_a1 Q8 1x  D1: S1|webcodecs|order ÷ H
+     10  σ 0.0469  dbts_a1 Q8 1x  D1: S8|webcodecs|order ÷ H
+     10  σ 0.0237  dbts_a1 Q8 1x  D1: S16|webcodecs|order ÷ H
+     10  σ 0.0849  dbts_a1 Q8 1x  D2: S16|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0323  dbts_a1 Q8 1x  D2: S16|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0228  dbts_a1 Q8 1x  D3: R|12bit ÷ H
+     10  σ 0.0557  dbts_a1 Q8 1x  D3: R|top10 ÷ H
+     10  σ 0.0645  dbts_a1 Q8 1x  jump G: S8|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0640  dbts_a1 Q8 1x  jump G: S8|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0547  dbts_a1 Q8 1x  in order G: S8|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0374  dbts_a1 Q8 1x  in order G: S16|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0160  dbts_a1 Q8 1x  in order G: S16|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0779  dbts_a1 Q8 1x  decoder: S1|dav1d|order ÷ S1|webcodecs|order
+     10  σ 0.0301  dbts_a1 Q8 1x  decoder: S1|dav1d|jump ÷ S1|webcodecs|jump
+     10  σ 0.0563  dbts_a1 Q8 1x  decoder: S8|dav1d|order ÷ S8|webcodecs|order
+     10  σ 0.0556  dbts_a1 Q8 1x  decoder: S8|dav1d|jump ÷ S8|webcodecs|jump
+     10  σ 0.0549  dbts_a1 Q8 1x  decoder: S16|dav1d|order ÷ S16|webcodecs|order
+     10  σ 0.0515  dbts_a1 Q8 1x  decoder: S16|dav1d|jump ÷ S16|webcodecs|jump
+     10  σ 0.0403  dbts_a1 Q16 1x  D1: S1|webcodecs|order ÷ H
+     10  σ 0.0797  dbts_a1 Q16 1x  D1: S16|webcodecs|order ÷ H
+     10  σ 0.0466  dbts_a1 Q16 1x  D3: R|12bit ÷ H
+     10  σ 0.0432  dbts_a1 Q16 1x  D3: R|top10 ÷ H
+     10  σ 0.0657  dbts_a1 Q16 1x  jump G: S8|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0624  dbts_a1 Q16 1x  jump G: S8|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0345  dbts_a1 Q16 1x  in order G: S8|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0364  dbts_a1 Q16 1x  in order G: S16|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0709  dbts_a1 Q16 1x  decoder: S1|dav1d|order ÷ S1|webcodecs|order
+     10  σ 0.0816  dbts_a1 Q16 1x  decoder: S8|dav1d|order ÷ S8|webcodecs|order
+     10  σ 0.0620  dbts_a1 Q16 1x  decoder: S16|dav1d|order ÷ S16|webcodecs|order
+     10  σ 0.0447  dbts_a1 Q16 1x  decoder: S16|dav1d|jump ÷ S16|webcodecs|jump
+     10  σ 0.0492  dbts_c1 Q32 1x  D1: S8|webcodecs|order ÷ H
+     10  σ 0.0312  dbts_c1 Q32 1x  D1: S16|webcodecs|order ÷ H
+     10  σ 0.0644  dbts_c1 Q32 1x  D2: S16|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0495  dbts_c1 Q32 1x  D2: S16|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0269  dbts_c1 Q32 1x  D3: R|12bit ÷ H
+     10  σ 0.0206  dbts_c1 Q32 1x  D3: R|top10 ÷ H
+     10  σ 0.0806  dbts_c1 Q32 1x  jump G: S8|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0474  dbts_c1 Q32 1x  jump G: S8|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0253  dbts_c1 Q32 1x  in order G: S8|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0359  dbts_c1 Q32 1x  in order G: S16|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0689  dbts_c1 Q32 1x  in order G: S8|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0862  dbts_c1 Q32 1x  in order G: S16|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0689  dbts_c1 Q32 1x  decoder: S1|dav1d|order ÷ S1|webcodecs|order
+     10  σ 0.0596  dbts_c1 Q32 1x  decoder: S1|dav1d|jump ÷ S1|webcodecs|jump
+     10  σ 0.0538  dbts_c1 Q32 1x  decoder: S8|dav1d|order ÷ S8|webcodecs|order
+     10  σ 0.0633  dbts_c1 Q32 1x  decoder: S8|dav1d|jump ÷ S8|webcodecs|jump
+     10  σ 0.0611  dbts_c1 Q32 1x  decoder: S16|dav1d|order ÷ S16|webcodecs|order
+     10  σ 0.0459  dbts_a1 Q32 1x  D1: S1|webcodecs|order ÷ H
+     10  σ 0.0686  dbts_a1 Q32 1x  D1: S8|webcodecs|order ÷ H
+     10  σ 0.0521  dbts_a1 Q32 1x  D1: S16|webcodecs|order ÷ H
+     10  σ 0.0277  dbts_a1 Q32 1x  D2: S16|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0340  dbts_a1 Q32 1x  D3: R|12bit ÷ H
+     10  σ 0.0082  dbts_a1 Q32 1x  D3: R|top10 ÷ H
+     10  σ 0.0459  dbts_a1 Q32 1x  jump G: S8|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0405  dbts_a1 Q32 1x  jump G: S8|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0377  dbts_a1 Q32 1x  in order G: S8|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0326  dbts_a1 Q32 1x  in order G: S16|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0609  dbts_a1 Q32 1x  in order G: S8|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0391  dbts_a1 Q32 1x  in order G: S16|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0486  dbts_a1 Q32 1x  decoder: S1|dav1d|order ÷ S1|webcodecs|order
+     10  σ 0.0855  dbts_a1 Q32 1x  decoder: S1|dav1d|jump ÷ S1|webcodecs|jump
+     10  σ 0.0466  dbts_a1 Q32 1x  decoder: S8|dav1d|jump ÷ S8|webcodecs|jump
+     10  σ 0.0573  dbts_a1 Q32 1x  decoder: S16|dav1d|order ÷ S16|webcodecs|order
+     10  σ 0.0553  dbts_a1 Q32 1x  decoder: S16|dav1d|jump ÷ S16|webcodecs|jump
+     10  σ 0.0288  dbts_c1 Q16 1x  D1: S8|webcodecs|order ÷ H
+     10  σ 0.0442  dbts_c1 Q16 1x  D2: S16|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0782  dbts_c1 Q16 1x  D2: S16|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0309  dbts_c1 Q16 1x  D3: R|12bit ÷ H
+     10  σ 0.0388  dbts_c1 Q16 1x  D3: R|top10 ÷ H
+     10  σ 0.0680  dbts_c1 Q16 1x  jump G: S8|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0395  dbts_c1 Q16 1x  jump G: S8|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0360  dbts_c1 Q16 1x  in order G: S8|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0388  dbts_c1 Q16 1x  in order G: S16|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0695  dbts_c1 Q16 1x  in order G: S8|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0790  dbts_c1 Q16 1x  decoder: S1|dav1d|order ÷ S1|webcodecs|order
+     10  σ 0.0352  dbts_c1 Q16 1x  decoder: S1|dav1d|jump ÷ S1|webcodecs|jump
+     10  σ 0.0289  dbts_c1 Q16 1x  decoder: S8|dav1d|order ÷ S8|webcodecs|order
+     10  σ 0.0422  dbts_c1 Q16 1x  decoder: S8|dav1d|jump ÷ S8|webcodecs|jump
+     10  σ 0.0757  dbts_c1 Q16 1x  decoder: S16|dav1d|order ÷ S16|webcodecs|order
+     10  σ 0.0633  dbts_c1 Q16 1x  decoder: S16|dav1d|jump ÷ S16|webcodecs|jump
+     10  σ 0.0472  dbts_b1 Q16 1x  D1: S1|webcodecs|order ÷ H
+     10  σ 0.0208  dbts_b1 Q16 1x  D1: S8|webcodecs|order ÷ H
+     10  σ 0.0311  dbts_b1 Q16 1x  D1: S16|webcodecs|order ÷ H
+     10  σ 0.0346  dbts_b1 Q16 1x  D2: S16|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0299  dbts_b1 Q16 1x  D2: S16|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0794  dbts_b1 Q16 1x  jump G: S8|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0344  dbts_b1 Q16 1x  jump G: S8|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0516  dbts_b1 Q16 1x  in order G: S8|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0273  dbts_b1 Q16 1x  in order G: S16|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0364  dbts_b1 Q16 1x  in order G: S8|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0318  dbts_b1 Q16 1x  in order G: S16|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0523  dbts_b1 Q16 1x  decoder: S1|dav1d|order ÷ S1|webcodecs|order
+     10  σ 0.0649  dbts_b1 Q16 1x  decoder: S1|dav1d|jump ÷ S1|webcodecs|jump
+     10  σ 0.0276  dbts_b1 Q16 1x  decoder: S8|dav1d|order ÷ S8|webcodecs|order
+     10  σ 0.0560  dbts_b1 Q16 1x  decoder: S8|dav1d|jump ÷ S8|webcodecs|jump
+     10  σ 0.0113  dbts_b1 Q16 1x  decoder: S16|dav1d|order ÷ S16|webcodecs|order
+     10  σ 0.0695  dbts_b1 Q16 1x  decoder: S16|dav1d|jump ÷ S16|webcodecs|jump
+     10  σ 0.0786  dbts_c1 Q8 1x  D1: S1|webcodecs|order ÷ H
+     10  σ 0.0859  dbts_c1 Q8 1x  D1: S8|webcodecs|order ÷ H
+     10  σ 0.0801  dbts_c1 Q8 1x  D1: S16|webcodecs|order ÷ H
+     10  σ 0.0431  dbts_c1 Q8 1x  D2: S16|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0320  dbts_c1 Q8 1x  D2: S16|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0824  dbts_c1 Q8 1x  D3: R|top10 ÷ H
+     10  σ 0.0643  dbts_c1 Q8 1x  jump G: S8|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0614  dbts_c1 Q8 1x  jump G: S8|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0179  dbts_c1 Q8 1x  in order G: S8|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0138  dbts_c1 Q8 1x  in order G: S16|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0742  dbts_c1 Q8 1x  in order G: S8|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0214  dbts_c1 Q8 1x  in order G: S16|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0182  dbts_c1 Q8 1x  decoder: S1|dav1d|order ÷ S1|webcodecs|order
+     10  σ 0.0409  dbts_c1 Q8 1x  decoder: S1|dav1d|jump ÷ S1|webcodecs|jump
+     10  σ 0.0804  dbts_c1 Q8 1x  decoder: S8|dav1d|order ÷ S8|webcodecs|order
+     10  σ 0.0842  dbts_c1 Q8 1x  decoder: S8|dav1d|jump ÷ S8|webcodecs|jump
+     10  σ 0.0725  dbts_c1 Q8 1x  decoder: S16|dav1d|order ÷ S16|webcodecs|order
+     10  σ 0.0563  dbts_c1 Q8 1x  decoder: S16|dav1d|jump ÷ S16|webcodecs|jump
+     10  σ 0.0601  dbts_b1 Q32 1x  D1: S16|webcodecs|order ÷ H
+     10  σ 0.0636  dbts_b1 Q32 1x  D2: S16|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0762  dbts_b1 Q32 1x  D3: R|10bit ÷ H
+     10  σ 0.0426  dbts_b1 Q32 1x  jump G: S8|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0344  dbts_b1 Q32 1x  jump G: S8|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0175  dbts_b1 Q32 1x  in order G: S8|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0164  dbts_b1 Q32 1x  in order G: S16|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0570  dbts_b1 Q32 1x  in order G: S8|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0474  dbts_b1 Q32 1x  in order G: S16|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0304  dbts_b1 Q32 1x  decoder: S1|dav1d|order ÷ S1|webcodecs|order
+     10  σ 0.0223  dbts_b1 Q32 1x  decoder: S1|dav1d|jump ÷ S1|webcodecs|jump
+     10  σ 0.0353  dbts_b1 Q32 1x  decoder: S8|dav1d|order ÷ S8|webcodecs|order
+     10  σ 0.0507  dbts_b1 Q32 1x  decoder: S8|dav1d|jump ÷ S8|webcodecs|jump
+     10  σ 0.0225  dbts_b1 Q32 1x  decoder: S16|dav1d|order ÷ S16|webcodecs|order
+     10  σ 0.0417  dbts_b1 Q56 1x  D1: S1|webcodecs|order ÷ H
+     10  σ 0.0676  dbts_b1 Q56 1x  D1: S16|webcodecs|order ÷ H
+     10  σ 0.0378  dbts_b1 Q56 1x  D2: S16|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0508  dbts_b1 Q56 1x  D2: S16|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0125  dbts_b1 Q56 1x  jump G: S8|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0404  dbts_b1 Q56 1x  jump G: S8|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0460  dbts_b1 Q56 1x  in order G: S8|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0432  dbts_b1 Q56 1x  in order G: S16|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0757  dbts_b1 Q56 1x  in order G: S8|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0239  dbts_b1 Q56 1x  in order G: S16|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0154  dbts_b1 Q56 1x  decoder: S1|dav1d|order ÷ S1|webcodecs|order
+     10  σ 0.0703  dbts_b1 Q56 1x  decoder: S1|dav1d|jump ÷ S1|webcodecs|jump
+     10  σ 0.0384  dbts_b1 Q56 1x  decoder: S8|dav1d|order ÷ S8|webcodecs|order
+     10  σ 0.0562  dbts_b1 Q56 1x  decoder: S16|dav1d|order ÷ S16|webcodecs|order
+     10  σ 0.0411  dbts_b1 Q56 1x  decoder: S16|dav1d|jump ÷ S16|webcodecs|jump
+     10  σ 0.0849  dbts_a1 Q16 4x  D1: S8|webcodecs|order ÷ H
+     10  σ 0.0614  dbts_a1 Q16 4x  D1: S16|webcodecs|order ÷ H
+     10  σ 0.0447  dbts_a1 Q16 4x  D2: S16|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0806  dbts_a1 Q16 4x  D3: R|12bit ÷ H
+     10  σ 0.0805  dbts_a1 Q16 4x  jump G: S8|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0327  dbts_a1 Q16 4x  in order G: S8|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0478  dbts_a1 Q16 4x  in order G: S16|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0618  dbts_c1 Q16 4x  D1: S8|webcodecs|order ÷ H
+     10  σ 0.0367  dbts_c1 Q16 4x  D2: S16|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0383  dbts_c1 Q16 4x  jump G: S8|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0325  dbts_c1 Q16 4x  in order G: S8|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0337  dbts_c1 Q16 4x  in order G: S16|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0837  dbts_c1 Q16 4x  in order G: S16|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0465  dbts_c1 Q16 4x  decoder: S1|dav1d|order ÷ S1|webcodecs|order
+     10  σ 0.0240  dbts_c1 Q16 4x  decoder: S8|dav1d|jump ÷ S8|webcodecs|jump
+     10  σ 0.0775  dbts_c1 Q16 4x  decoder: S16|dav1d|order ÷ S16|webcodecs|order
+     10  σ 0.0371  dbts_c1 Q16 4x  decoder: S16|dav1d|jump ÷ S16|webcodecs|jump
+     10  σ 0.0856  dbts_b1 Q32 4x  D1: S8|webcodecs|order ÷ H
+     10  σ 0.0733  dbts_b1 Q32 4x  D2: S16|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0160  dbts_b1 Q32 4x  jump G: S8|dav1d|jump ÷ S1|dav1d|jump
+     10  σ 0.0613  dbts_b1 Q32 4x  jump G: S8|webcodecs|jump ÷ S1|webcodecs|jump
+     10  σ 0.0765  dbts_b1 Q32 4x  in order G: S16|dav1d|order ÷ S1|dav1d|order
+     10  σ 0.0717  dbts_b1 Q32 4x  in order G: S8|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0471  dbts_b1 Q32 4x  in order G: S16|webcodecs|order ÷ S1|webcodecs|order
+     10  σ 0.0712  dbts_b1 Q32 4x  decoder: S1|dav1d|order ÷ S1|webcodecs|order
+     10  σ 0.0258  dbts_b1 Q32 4x  decoder: S8|dav1d|order ÷ S8|webcodecs|order
+     10  σ 0.0046  dbts_b1 Q32 4x  decoder: S8|dav1d|jump ÷ S8|webcodecs|jump
+     10  σ 0.0667  dbts_b1 Q32 4x  decoder: S16|dav1d|order ÷ S16|webcodecs|order
+     10  σ 0.0335  dbts_b1 Q32 4x  decoder: S16|dav1d|jump ÷ S16|webcodecs|jump
+largest by question: jump G 351, D2 184, decoder 118, D1 48, in order G 30, D3 24
+at 10 rounds a block, the widest expected 95 % half-interval, by question and throttle: D1 1x ±8%, D1 4x ±7%, D2 1x ±9%, D2 4x ±17%, D3 1x ±5%, D3 4x ±6%, decoder 1x ±6%, decoder 4x ±13%, in order G 1x ±4%, in order G 4x ±6%, jump G 1x ±3%, jump G 4x ±24%
+at 22 rounds a block, the widest expected 95 % half-interval, by question and throttle: D1 1x ±5%, D1 4x ±4%, D2 1x ±6%, D2 4x ±11%, D3 1x ±3%, D3 4x ±4%, decoder 1x ±4%, decoder 4x ±9%, in order G 1x ±3%, in order G 4x ±4%, jump G 1x ±2%, jump G 4x ±15%

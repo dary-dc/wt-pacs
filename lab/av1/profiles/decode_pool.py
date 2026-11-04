@@ -288,7 +288,7 @@ def size(rows, hours, setup_hours, sessions, every_rung_at):
     fit = int((hours - setup_hours) * 3600 // per)
     print(f"a round: {per / 60:.1f} min (median of {len(walls)}); {fit} rounds fit {hours:g} h less {setup_hours:g} h of setup")
     print(f"rounds a block needs (t over {sessions} blocks, 5 %, 80 % power), largest first:")
-    for n, s, c, q, num, den in need[:25]:
+    for n, s, c, q, num, den in need:
         print(f"  {n:5d}  σ {s:.4f}  {c[0]} Q{c[1]} {c[2]}x  {q}: {num} ÷ {den}" + ("" if n <= fit else "  DOES NOT FIT"))
     by_q = defaultdict(int)
     for n, _, _, q, _, _ in need:
