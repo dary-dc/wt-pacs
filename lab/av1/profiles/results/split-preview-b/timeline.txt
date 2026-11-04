@@ -7,3 +7,5 @@ decode setup: the 20 10bit anchor streams (G 1, 16 at Q 16, 32) coded again 21:3
 item 1 done 22:02:51
 item 2 from 22:02:51
 item 2 done 22:06:53
+item 3 from 22:06:55
+item 3 done 22:29:28
