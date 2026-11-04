@@ -80,6 +80,11 @@ def joint(u, x, peak):
     return np.bincount((u.astype(np.int64) * (2 * SPAN + 1) + d).ravel(), minlength=(peak + 1) * (2 * SPAN + 1))
 
 
+def inner_levels(codes):
+    """Distinct display levels strictly inside 0 … 255: the window's clipped ends are not levels of its range."""
+    return int(np.count_nonzero(np.bincount(codes, minlength=256)[1:255]))
+
+
 def window_stats(hist, tabs, peak):
     """Per window, over the samples it shows (source code strictly inside 0 … 255): displayed-level moves and the
     distinct levels the source and the lossy frames paint."""
@@ -94,8 +99,7 @@ def window_stats(hist, tabs, peak):
         m, c = np.abs(los[keep] - src[keep]), cnt[keep]
         out.append(dict(n=int(c.sum()), ge1=int(c[m >= 1].sum()), ge2=int(c[m >= 2].sum()), ge4=int(c[m >= 4].sum()),
                         max=int(m.max()) if m.size else 0,
-                        levels_source=int(np.count_nonzero(np.bincount(src[keep], minlength=256))),
-                        levels_lossy=int(np.count_nonzero(np.bincount(los[keep], minlength=256)))))
+                        levels_source=inner_levels(src[keep]), levels_lossy=inner_levels(los[keep])))
     return out
 
 

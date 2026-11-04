@@ -39,7 +39,8 @@ def brute(v, x, tabs):
         k = (s > 0) & (s < 255)
         m = np.abs(l - s)[k]
         out.append(dict(n=int(k.sum()), ge1=int((m >= 1).sum()), ge2=int((m >= 2).sum()), ge4=int((m >= 4).sum()),
-                        max=int(m.max()), levels_source=len(np.unique(s[k])), levels_lossy=len(np.unique(l[k]))))
+                        max=int(m.max()), levels_source=len(set(np.unique(s[k])) - {0, 255}),
+                        levels_lossy=len(set(np.unique(l[k])) - {0, 255})))
     return out
 
 
