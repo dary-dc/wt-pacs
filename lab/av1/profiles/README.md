@@ -1834,7 +1834,21 @@ to `lab/av1/profiles/rows/decode-shard-5.*`. The cells follow when it stops.*
 
 ### Decode shard 6, measured
 
-*Not yet run.*
+*Partial, 2026-11-04 19:50 UTC: rounds 0–5 of block `shard-6` written; the block is still running. Final figures replace this.*
+
+* **Ran:** block `shard-6` of §7 as §Shards writes it, on one fresh 4-core host; 6 rounds so far.
+* **Shows:** so far, every check matched and both A/A intervals sit inside ±5 %; nothing is read under 10 rounds.
+* **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` only, this host, Chromium 141 (as `decode_setup.sh` pins it).
+* **Left:** the remaining rounds, the mutations, the cells.
+* **One block: not a verdict.**
+
+**Host** (its `host` row): Intel Xeon Processor @ 2.10 GHz, 4 cores, 16 GB. Setup (`decode_setup.sh`): 17.0 min.
+
+**Checks, rounds 0–5:** H and H′ exact 2 304/2 304; R exact 1 920/1 920, its residuals 1 920/1 920, its lossy frames
+1 920/1 920; S lossy 14 880/14 880; no error.
+
+**A/A** (H′ ÷ H, median over every (series, rung) and round, 95 % distribution-free interval): 1× 0.998
+[0.970–1.053], 54 pairs; 4× 0.975 [0.935–1.044], 18 pairs.
 
 ### Decode, pooled
 
