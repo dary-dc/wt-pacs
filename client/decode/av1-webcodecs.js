@@ -8,11 +8,13 @@ import { codecString, continues, sequence } from "./av1-payload.js";
 import { PROBES } from "./av1-probe.js";
 
 let groupLength = 1;
+let onePass = true;
 const streams = {};
 const probed = {};
 
 export async function init(d) {
   groupLength = d.groupLength ?? 1;
+  onePass = d.onePass !== false;
 }
 
 /** Whether a tiny unit of `layout` comes back with the samples it was coded from, once per worker. */
@@ -140,7 +142,8 @@ async function read(frame, seq) {
   const planes = layout.map(({ offset, stride }) => ({ heap, offset: offset >> shift, stride: stride >> shift }));
   const { width, height } = frame.visibleRect;
   // 4:0:0 comes back as 4:2:0 with every chroma sample mid-grey; colour 4:2:0 is not lossless.
-  if (components === 1 && !neutral(planes.slice(1), (width + 1) >> 1, (height + 1) >> 1, 1 << (bits - 1))) {
+  // mono_chrome: "does not contain U and V color planes" (AV1 §Color config semantics), so its 4:2:0 chroma is the decoder's own.
+  if (components === 1 && !(onePass && seq.mono) && !neutral(planes.slice(1), (width + 1) >> 1, (height + 1) >> 1, 1 << (bits - 1))) {
     throw new Error("4:2:0 with chroma");
   }
   return { width, height, bits, planes: planes.slice(0, components) };
