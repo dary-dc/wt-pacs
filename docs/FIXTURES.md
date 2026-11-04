@@ -760,6 +760,24 @@ The three sound clips are one series (study `Biopsy_Liver`, series
 (74/74). Not breast and not ABUS; it is the first sound 8-bit grey cine here, the content rows GREY420, SPEED and FILL
 lacked (§*Every closed verdict against its data*).
 
+**The other hosts, 2026-11-04 21:40–22:40 UTC: their search APIs and pages; DICOM headers from 256 KiB range reads,
+inside zips through the central directory; no pixel data kept.** Zenodo, figshare, Mendeley Data, Hugging Face, Kaggle
+and OpenNeuro were searched by their APIs (cine, video, sequence, sweep and volume terms per anatomy, plus ABUS and
+ABVS). Only records the earlier searches do not list:
+
+| dataset | content, anatomy | frames, size, photometric | how stored, and how known | class | licence (verbatim) | access | sources, vendors | size |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **ThrombUS+ Dataset #1**, Zenodo `17659415` (training) and `17664207` (testing), v1.0, 2025-11-20 | "compression ultrasound video scannings of lower limbs collected during a multi-center cohort study in European Hospitals" — deep-vein compression cine, sites "CFV, GS, FV, PV" | 57–301 frames, 430×333 to 610×392 (also 606×918, 561×778), 8 bits, `YBR_FULL_422` (13 training headers) | multi-frame DICOM, Multi-frame True Colour SC; transfer syntax `1.2.840.10008.1.2.4.50` (JPEG baseline), Lossy Image Compression `01`, `ImageType` `DERIVED\SECONDARY\LOSSY\CROPPED\COMPRESSED` on all 13 (headers) | lossy-sourced | `cc-by-4.0` (API) | open | four countries' hospitals; Philips EPIQ 7G and 5G, Esaote, Canon, Mindray, GE LOGIQ S8 (headers) | 9 732 783 309 + 2 456 983 680 B, 2 341 + 578 `.dcm` |
+| **MUST-ABUS**, Hugging Face `Flying-fish/MUST-ABUS` (2026-10-17) | ABUS: "356 retained view-specific 3D ABUS volumes from 90 subjects" | "330 frames per volume, with each frame measuring 482 x 841 pixels" | not seen (files answer 401 without accepting the terms); the card names removed `ap_nifti_path` columns, so NIfTI is likely (*unverified*) | unknown | `license:cc-by-nc-sa-4.0` (card tag) | gated: log in to Hugging Face and accept the terms (automatic) | one site; "GE Healthcare Invenia ABUS system with a C15-6XW transducer" | 56.45 GB (card's file list) |
+| Zenodo `232032` (EMG and ultrasound, biceps) | M-mode screen captures; the cine only in Telemed `.tvd` files | single frames, 772×1396, RGB | implicit LE, Lossy absent, `ORIGINAL` (one header); `.tvd` a vendor format | sound, but stills | `cc-by-4.0` | open | one site, Telemed | 15.63 GB |
+| RVENet (`rvenet.github.io`) | apical four-chamber echo, 3 583 videos "in DICOM format" | not read | transfer syntax not stated (*unverified*) | unknown | "for personal, non-commercial research purposes only" | request form | one site | — |
+| Video sets: ERDES ocular POCUS (Zenodo `18644370`), intrapartum (`17655183`), SPLOA spleen (`13195053`), muscle (`14768397`, `15126622`, `17316246`, `14996875`, `6622259`), figshare `26889334` (heterogeneous, 6 190 MP4) and `32358771` (DELTA fetal echo), Mendeley `y6z64ntstg` (EchoNSTE-MI) and `s27zfxgbpj` (cervix), Kaggle SYSU-CEUS-FLL and liver sequences, Hugging Face `bcm-liuzlab/pocus-atlas-bench` | many anatomies | — | MP4, AVI, or JPEG frames (archive listings) | lossy-sourced | `cc-by-4.0` on Zenodo, figshare and Mendeley; Apache 2.0 and CC0 on Kaggle; `cc-by-nc-4.0` on the Hugging Face set | open | — | — |
+| Volume and array exports: ACOUSLIC-AI blind sweeps (Zenodo `12697994`, `.mha`), shoulder 3D (`20283247`, MHD), multi-view echo (`30999`, MHD), micro-ultrasound prostate (`10475293`, NIfTI), prostate (`16396`, NRRD), TUS-REC forearm sweeps (`7740734`, `15699959`), SegThy thyroid 3D (Hugging Face `MedOtter/SegThy`, NIfTI), 4D diaphragm (figshare `29290757`, Voluson `.vol`), TRUSTED kidney (figshare `27981050`) | obstetric sweeps, shoulder, heart, prostate, forearm, thyroid, diaphragm, kidney | — | exports (file listings) | unknown | `cc-by-nc-sa-4.0` (ACOUSLIC-AI, `16396`, `15699959`, diaphragm), `cc-by-4.0` (the rest); TRUSTED's figshare "CC BY" conflicts with the zip's `data_use_agreement.txt`: "may not distribute the dataset" | open | — | ACOUSLIC-AI 38 GB |
+
+Searched and empty: ABUS or ABVS anywhere but MUST-ABUS; OpenNeuro's "ultrasound" hits are focused-ultrasound MRI and
+EEG studies, and Zenodo's functional-ultrasound records are power-Doppler arrays, not a scanner's cine. Two Hugging Face
+and Kaggle uploads re-export ThrombUS+ as JPEG frames and MP4 under MIT: derivatives, not sources.
+
 #### Every closed verdict against its data
 
 *2026-10-10, queue row DATAAUDIT. A reading of every result cell of rows 1–118 in [`av1/queue.md`](av1/queue.md)
