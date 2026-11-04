@@ -65,6 +65,12 @@ def sigma(frame, inside=None, edge_share=EDGE_SHARE, sheppard=True, centre=np.me
     return float(np.sqrt(max(0.0, s * s - 1 / 12)) if sheppard else s)
 
 
+def noise_band(d, inside=None):
+    """A difference's RMS in the estimator's own band: the Laplacian difference ÷ 6, which keeps white noise's σ."""
+    lap = convolve(d.astype(np.float64), LAPLACIAN, mode="reflect")[1:-1, 1:-1] / 6
+    return rms(lap if inside is None else lap[inside[1:-1, 1:-1]])
+
+
 def band(d):
     """A difference image seen at MS-SSIM's heaviest scale (the third): 4 × 4 means."""
     return halve(halve(d))

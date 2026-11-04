@@ -4,7 +4,7 @@ step between neighbouring slices; per (series, form, Q, G) the lossy stream re-e
 measured frame by frame against the source.
 
 usage: cell.py BUILD WORK OUT.jsonl SETDIR ... --q 1,2,4 [--g 1,16] [--forms all|primary] [--jobs 4]
-               [--vdp TORCH_PYTHON]      (ColorVideoVDP on the stored form's middle VDP_FRAMES frames)
+               [--vdp TORCH_PYTHON]      (ColorVideoVDP on the stored form's middle frames, a square of each)
 """
 import argparse
 import json
@@ -28,7 +28,7 @@ from voi import display_windows, window_codes  # noqa: E402
 sys.path.insert(0, str(ROOT / "ingest/coded-frames"))
 import ingest  # noqa: E402
 
-VDP_FRAMES = 8
+VDP_FRAMES, VDP_SIDE = 8, 1024
 
 
 def display(meta, peak):
@@ -103,14 +103,24 @@ def cell(job):
 
 
 def visibility(python, tmp, shown):
-    """vdp.py in its own venv on the first window's codes of the kept frames."""
+    """vdp.py in its own venv on the first window's codes of the kept frames, cut to the VDP_SIDE square centred on
+    the middle kept frame's in-window samples."""
+    src = np.stack(shown["source"])
+    mid = src[len(src) // 2]
+    ys, xs = np.nonzero((mid > 0) & (mid < 255))
+    cut = []
+    for c, n in ((int(np.mean(ys)) if ys.size else mid.shape[0] // 2, mid.shape[0]),
+                 (int(np.mean(xs)) if xs.size else mid.shape[1] // 2, mid.shape[1])):
+        lo = min(max(0, c - VDP_SIDE // 2), max(0, n - VDP_SIDE))
+        cut.append(slice(lo, lo + VDP_SIDE))
     for k in ("source", "lossy"):
-        np.save(tmp / f"{k}.npy", np.stack(shown[k]))
+        np.save(tmp / f"{k}.npy", np.stack(shown[k])[:, cut[0], cut[1]])
     before = resource.getrusage(resource.RUSAGE_CHILDREN)
     r = subprocess.run([str(python), str(HERE / "vdp.py"), str(tmp / "source.npy"), str(tmp / "lossy.npy")],
                        capture_output=True, check=True)
     after = resource.getrusage(resource.RUSAGE_CHILDREN)
-    return dict(json.loads(r.stdout), frames=len(shown["source"]),
+    return dict(json.loads(r.stdout), frames=len(shown["source"]), rows=[cut[0].start, cut[0].stop],
+                cols=[cut[1].start, cut[1].stop],
                 cpu=after.ru_utime + after.ru_stime - before.ru_utime - before.ru_stime)
 
 
@@ -135,6 +145,8 @@ def measure(s, form, meta, decoded, shift=0, shown=None):
         out.append(dict(mse=float(np.mean(d * d)), mse_in=float(np.mean(d[inside] ** 2)) if inside.any() else None,
                         max_abs=int(np.abs(d).max()), ssim=float(np.mean([a for a, _ in st])),
                         ms_ssim=float(np.mean([b for _, b in st])), err_band=band_rms(d, inside),
+                        err_noise_band=float(np.sqrt(np.mean([quality.noise_band(d[..., c], inside[..., c]) ** 2
+                                                              for c in range(s.ch)]))),
                         codes=[quality.display_moves(t[v - s.offset], t[xs]) for t in tables]))
     return out
 
@@ -167,9 +179,10 @@ def main():
     a.build, a.work = a.build.resolve(), a.work.resolve()
     a.work.mkdir(parents=True, exist_ok=True)
     rows = [json.loads(r) for r in a.out.open()] if a.out.exists() else []
-    done = {(r["set"], r.get("form"), r.get("q"), 0 if r.get("whole") else r.get("g")) for r in rows}
+    done = {(r["set"], r["form"], r["q"], 0 if r["whole"] else r["g"]) for r in rows if r["kind"] == "cell"}
     todo = [j for j in jobs(a) if (Path(j[2]).name, j[3], j[4], j[5]) not in done]
-    series = [p for p in a.sets if (Path(p).name, None, None, None) not in done]
+    measured = {r["set"] for r in rows if r["kind"] == "series"}
+    series = [p for p in a.sets if Path(p).name not in measured]
     print(f"{len(series)} series, {len(todo)} cells", flush=True)
     with open(a.out, "a") as fh, ProcessPoolExecutor(a.jobs) as pool:
         for row in pool.map(series_row, series, [a.work] * len(series)):
