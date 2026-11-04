@@ -2102,8 +2102,47 @@ Every unit ÷ H, the per-cell A/A and each cell's order effect: `rows/decode-sha
 
 ### Decode shard 4, measured
 
-*Partial, 2026-11-04: running.* Block `shard-4` of §7, run as §Shards gives it, on a fresh host: Intel Xeon @ 2.80 GHz,
-4 cores, 15 GiB. `decode_setup.sh` took 25.3 min wall. Rows: `rows/decode-shard-4.{json,log,txt}`, pushed every two rounds.
+*Run 2026-11-04 by the shard-4 session, given only §7, which it ran as §Shards writes it, k = 4. Terms are §7's (Terms).*
+
+* **Run:** block `shard-4`, 13 rounds (0–12 of both Williams squares), every unit of §7 at 1× on every rung and at 4× on the crossover rung, interleaved, with its own A/A.
+* **Shows:** this block's ratios with their within-block 95 % intervals (below, and every cell in `rows/decode-shard-4.txt`). **One block: not a verdict**; `decode_pool.py` reads every cell as *not read: one block*.
+* **Every check matched:** H exact 4 992/4 992, R exact, residual and lossy 4 160/4 160 each, S lossy 32 240/32 240; no unit errored; no void cell. Each exact frame was checked against the fetch checksum of its source.
+* **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` only (two 12-bit, one 10-bit, middle 16 slices); one 4-core host; Chromium 141.0.7390.37 headless.
+* **Left:** the other five blocks and the pool (§Shards); nothing here is claimed for another host, a phone, concurrent decodes or a timed link.
+
+**Host** (its `host` row): Intel Xeon Processor @ 2.80 GHz, 4 cores, 16 GB. **Setup** (`decode_setup.sh`, fresh host): 25.3 min.
+**Rounds:** 13. A round took 16–17 min here (1× 6.6–7.1 min; 4× 9.7–16.3 min), against the pilot's 10.6. `--until` stopped the
+block before round 13. The shard loop was killed once by the session's 2 h background limit, in round 7. That round's partial rows were dropped. It resumed at round 7, as §7's Order allows. The stack trace in `decode-shard-4.log` is that kill.
+**Saturation:** as §7 Saturation states it. One decode is in flight. dav1d-WASM and OpenJPH use one core of 4 at 1×. At 4× each browser thread is capped at a quarter of a CPU. WebCodecs runs its own threads, so its cells are not a one-core figure. Nothing is claimed past 4×.
+
+**A/A** (H′ ÷ H, median over every (series, rung) and round, distribution-free 95 %): 1× **0.993 [0.984–0.999]**, 117 pairs; 4×
+**0.996 [0.956–1.034]**, 39 pairs. Both are inside ±5 %, so both throttles are kept.
+
+**D1–D3, this block** (ratio = median over 13 rounds of the paired ratio, [within-block distribution-free 95 %]; band from §7).
+D1 is WebCodecs in order ÷ H, band ≤ 1.0. D2 is a jump at G = 16 ÷ a jump at G = 1, band 5–9. D3 is R ÷ H, band 0.9–1.1:
+
+| cell | D1 G 1 · 8 · 16 | D2 dav1d-WASM · WebCodecs | D3 12-bit · top 10 (B: 10-bit) |
+| --- | --- | --- | --- |
+| `dbts_a1` Q 8, 1× | 1.82 [1.68–1.91] · 2.09 [2.00–2.14] · 2.16 [2.05–2.34] | 10.7 [9.5–11.4] · 9.08 [8.84–9.79] | 1.43 [1.38–1.50] · 1.46 [1.43–1.50] |
+| `dbts_a1` Q 16, 1× | 1.23 [1.09–1.39] · 1.35 [1.26–1.43] · 1.43 [1.31–1.48] | 14.2 [12.7–15.4] · 8.69 [8.15–9.20] | 1.46 [1.36–1.52] · 1.46 [1.34–1.58] |
+| `dbts_a1` Q 16, 4× | 0.78 [0.73–0.86] · 0.81 [0.77–0.86] · 0.83 [0.79–0.89] | 13.7 [12.6–13.9] · 7.00 [5.23–7.85] | 1.47 [1.34–1.57] · 1.50 [1.34–1.54] |
+| `dbts_a1` Q 32, 1× | 1.05 [0.97–1.18] · 1.22 [1.15–1.27] · 1.20 [1.10–1.30] | 7.59 [6.74–8.24] · 8.33 [7.97–8.90] | 1.51 [1.49–1.65] · 1.46 [1.43–1.53] |
+| `dbts_b1` Q 16, 1× | 1.64 [1.54–1.68] · 2.00 [1.90–2.02] · 2.00 [1.94–2.10] | 11.6 [10.9–12.4] · 9.31 [8.69–9.82] | 1.66 [1.53–1.81] |
+| `dbts_b1` Q 32, 1× | 1.35 [1.28–1.44] · 1.56 [1.43–1.68] · 1.56 [1.49–1.65] | 8.22 [7.84–8.52] · 8.83 [7.83–9.20] | 1.67 [1.62–1.80] |
+| `dbts_b1` Q 32, 4× | 1.05 [0.98–1.14] · 1.07 [0.99–1.13] · 1.08 [1.00–1.12] | 8.18 [7.67–8.74] · 8.12 [7.79–9.58] | 1.62 [1.44–1.78] |
+| `dbts_b1` Q 56, 1× | 1.27 [1.12–1.35] · 1.53 [1.20–1.58] · 1.44 [1.28–1.53] | 4.00 [3.70–4.25] · 8.05 [7.60–8.84] | 1.74 [1.60–1.94] |
+| `dbts_c1` Q 8, 1× | 1.95 [1.89–2.07] · 2.21 [2.00–2.33] · 2.17 [1.98–2.24] | 9.95 [9.21–10.6] · 8.63 [8.34–9.14] | 1.56 [1.50–1.70] · 1.55 [1.48–1.58] |
+| `dbts_c1` Q 16, 1× | 1.46 [1.26–1.67] · 1.66 [1.48–1.70] · 1.54 [1.44–1.65] | 11.8 [10.8–12.6] · 8.36 [8.21–9.79] | 1.61 [1.54–1.71] · 1.61 [1.54–1.71] |
+| `dbts_c1` Q 16, 4× | 0.98 [0.93–1.05] · 0.97 [0.96–1.06] · 0.99 [0.87–1.10] | 11.9 [10.9–12.7] · 7.73 [7.23–8.31] | 1.67 [1.48–1.73] · 1.55 [1.49–1.69] |
+| `dbts_c1` Q 32, 1× | 1.23 [1.16–1.30] · 1.42 [1.32–1.55] · 1.33 [1.24–1.40] | 4.97 [4.73–5.48] · 8.05 [7.79–8.44] | 1.60 [1.52–1.74] · 1.57 [1.50–1.78] |
+
+**H, ms** (median over rounds, a frame): 23–25 on `dbts_a1` and `dbts_c1` at 1×, 107–115 at 4×; 65–71 on `dbts_b1` at 1×,
+335 at 4×. These are milliseconds inside this block only.
+
+**Order effect.** Of the cells above, the largest effects are R ÷ H on `dbts_b1` (126–188 %), the `dbts_b1` A/A (61–155 %) and WebCodecs
+jumps at 4× (54–57 %). In every cell all 400 shuffles reach the effect seen (p 1.0), so none is beyond its shuffles.
+The rest of the block's cells are in `rows/decode-shard-4.txt`: G in order, G on a jump, the 12-bit forms (dav1d-WASM ÷
+WebCodecs) and every unit ÷ H. The derived link figures are left to the collector's `--links`.
 
 ### Decode shard 5, measured
 
