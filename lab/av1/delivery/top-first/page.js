@@ -1,6 +1,5 @@
 /**
- * f4c396c8's lab/av1/delivery/total-time/page.js but for its paths and `tf-frame`'s entries, slice i's top 2i and its
- * exact frame 2i + 1 (row TOPFIRST, docs/av1/top-first.md §4).
+ * f4c396c8's total-time/page.js, and `tf-frame`'s slice i as entries 2i (top) and 2i + 1 (exact). README.md
  * One fill through the downloader, every frame timed and hashed; a layer-major series (lab/av1/delivery/bases-first)
  * fills F bases as previews, then F exact frames; then frames N … N+K−1 asked one at a time, each timed
  * from its ask. run.mjs drives it. lab/av1/delivery/total-time/README.md
