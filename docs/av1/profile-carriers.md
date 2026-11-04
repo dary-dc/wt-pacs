@@ -377,4 +377,10 @@ either ran (`4b12442`), and nothing in 2–4 changed after them but the budget.
   dB against 49.94 · 46.76 · 45.02; `dbts_c1` 49.59 · 46.98 · 45.77 against 51.42 · 47.54 · 45.61 — paired as written.
   `dbts_b1` 49.23 · 45.84 · 44.20 against 52.05 · 46.69 · 43.96: m 10 is nearer Q 16 (gap 2.54 dB) than Q 8 (2.82 dB),
   so on `dbts_b1` m 10's times are read against Q 16.
-* **Running.** `run.sh rounds`, 10 rounds.
+* **Rounds 0–2** (15.8–16.2 min each, under §4's 18 min: no arm dropped; 1 062 rows, none failing a check, no
+  `VOID`). Read at n = 3 by `predictions.py`, medians over rounds, `dbts_a1` · `b1` · `c1`, 1× / 4×: C1 held, a layered
+  ask 35.5 · 24.5 · 29.7× / 30.3 · 24.0 · 26.0× an HTJ2K frame, position 7 ÷ position 0 4.5–6.4 (the theory stands);
+  **C3 refuted**, the residual + add 1.58 · 2.00 · 1.52× / 1.49 · 2.04 · 1.50×, the whole frame (`htj2k-aa`) 0.99–1.10×;
+  C4's ask held, 11.5 · 6.2 · 10.5× / 9.6 · 6.5 · 8.8×; C6 held, 0.98–1.31×, WebCodecs 0.23–0.68×; C7's decode held,
+  6.3–13.4×. Partial: the reading at 10 rounds replaces this line. Rows: `lab/av1/delivery/carriers/results/`.
+* **Running.** `run.sh rounds`, rounds 3–9.
