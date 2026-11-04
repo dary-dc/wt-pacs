@@ -42,3 +42,4 @@ round 20 1x done, 256 s
 round 20 4x done, 602 s
 round 21 4x done, 333 s
 round 21 1x done, 581 s
+stopping before round 22: it would pass --until
