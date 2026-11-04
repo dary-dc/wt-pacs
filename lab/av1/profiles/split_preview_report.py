@@ -2,7 +2,7 @@
 """Row SPLITPREVIEWB's tables and verdicts (split-preview-b.md §Statistics and decision rules), from the rows alone:
 equal Q, equal PSNR with its tol, residual, SSIM and display, the decode cells and their A/A, S1–S8, the verdict.
 
-usage: split_preview_report.py RESULTS_DIR [--checks]
+usage: split_preview_report.py RESULTS_DIR [--partners]
        split_preview_report.py --test
 """
 import json
@@ -460,5 +460,10 @@ def report(out):
 if __name__ == "__main__":
     if "--test" in sys.argv:
         test()
+        sys.exit()
+    if "--partners" in sys.argv:
+        by = rows(sys.argv[1])
+        print(json.dumps([dict(set=s, anchor=q, partner=p["q"], delta=p["delta"], middle=(by[(s, "10bit", q, 1)]["frames"] - 16) // 2)
+                          for (s, q), p in sorted(partners(by).items())]))
         sys.exit()
     print(report(sys.argv[1]))
