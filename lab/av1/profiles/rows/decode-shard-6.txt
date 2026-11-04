@@ -1,399 +1,399 @@
 block shard-6: host {'cpu': 'Intel(R) Xeon(R) Processor @ 2.10GHz', 'cores': 4, 'gb': 16}
-block shard-6: 12 rounds, 2256 rows
-  ms, median over rounds, dbts_a1 Q16 1x: H 15  H′ 15  R|12bit 23  R|top10 22  S16|dav1d|jump 383  S16|dav1d|order 47  S16|webcodecs|jump 189  S16|webcodecs|order 20  S1|dav1d|jump 30  S1|dav1d|order 30  S1|webcodecs|jump 24  S1|webcodecs|order 20  S8|dav1d|jump 194  S8|dav1d|order 45  S8|webcodecs|jump 104  S8|webcodecs|order 22
-  ms, median over rounds, dbts_a1 Q16 4x: H 74  H′ 71  R|12bit 105  R|top10 101  S16|dav1d|jump 1733  S16|dav1d|order 206  S16|webcodecs|jump 562  S16|webcodecs|order 61  S1|dav1d|jump 138  S1|dav1d|order 137  S1|webcodecs|jump 89  S1|webcodecs|order 61  S8|dav1d|jump 883  S8|dav1d|order 204  S8|webcodecs|jump 295  S8|webcodecs|order 58
-  ms, median over rounds, dbts_a1 Q32 1x: H 16  H′ 16  R|12bit 24  R|top10 23  S16|dav1d|jump 299  S16|dav1d|order 38  S16|webcodecs|jump 173  S16|webcodecs|order 19  S1|dav1d|jump 41  S1|dav1d|order 40  S1|webcodecs|jump 20  S1|webcodecs|order 17  S8|dav1d|jump 161  S8|dav1d|order 38  S8|webcodecs|jump 91  S8|webcodecs|order 18
-  ms, median over rounds, dbts_a1 Q8 1x: H 15  H′ 15  R|12bit 22  R|top10 22  S16|dav1d|jump 436  S16|dav1d|order 53  S16|webcodecs|jump 289  S16|webcodecs|order 34  S1|dav1d|jump 45  S1|dav1d|order 43  S1|webcodecs|jump 32  S1|webcodecs|order 28  S8|dav1d|jump 239  S8|dav1d|order 51  S8|webcodecs|jump 155  S8|webcodecs|order 34
-  ms, median over rounds, dbts_b1 Q16 1x: H 45  H′ 46  R|10bit 73  S16|dav1d|jump 1352  S16|dav1d|order 153  S16|webcodecs|jump 796  S16|webcodecs|order 94  S1|dav1d|jump 122  S1|dav1d|order 119  S1|webcodecs|jump 91  S1|webcodecs|order 82  S8|dav1d|jump 679  S8|dav1d|order 156  S8|webcodecs|jump 444  S8|webcodecs|order 92
-  ms, median over rounds, dbts_b1 Q32 1x: H 44  H′ 44  R|10bit 74  S16|dav1d|jump 1080  S16|dav1d|order 126  S16|webcodecs|jump 663  S16|webcodecs|order 74  S1|dav1d|jump 137  S1|dav1d|order 132  S1|webcodecs|jump 77  S1|webcodecs|order 69  S8|dav1d|jump 575  S8|dav1d|order 126  S8|webcodecs|jump 356  S8|webcodecs|order 72
-  ms, median over rounds, dbts_b1 Q32 4x: H 201  H′ 205  R|10bit 332  S16|dav1d|jump 4751  S16|dav1d|order 558  S16|webcodecs|jump 2123  S16|webcodecs|order 237  S1|dav1d|jump 592  S1|dav1d|order 587  S1|webcodecs|jump 275  S1|webcodecs|order 239  S8|dav1d|jump 2533  S8|dav1d|order 567  S8|webcodecs|jump 1166  S8|webcodecs|order 242
-  ms, median over rounds, dbts_b1 Q56 1x: H 45  H′ 45  R|10bit 76  S16|dav1d|jump 820  S16|dav1d|order 83  S16|webcodecs|jump 613  S16|webcodecs|order 69  S1|dav1d|jump 213  S1|dav1d|order 203  S1|webcodecs|jump 71  S1|webcodecs|order 63  S8|dav1d|jump 496  S8|dav1d|order 81  S8|webcodecs|jump 330  S8|webcodecs|order 67
-  ms, median over rounds, dbts_c1 Q16 1x: H 16  H′ 16  R|12bit 25  R|top10 24  S16|dav1d|jump 372  S16|dav1d|order 43  S16|webcodecs|jump 233  S16|webcodecs|order 25  S1|dav1d|jump 32  S1|dav1d|order 32  S1|webcodecs|jump 28  S1|webcodecs|order 23  S8|dav1d|jump 191  S8|dav1d|order 44  S8|webcodecs|jump 130  S8|webcodecs|order 26
-  ms, median over rounds, dbts_c1 Q16 4x: H 71  H′ 71  R|12bit 112  R|top10 109  S16|dav1d|jump 1622  S16|dav1d|order 191  S16|webcodecs|jump 665  S16|webcodecs|order 69  S1|dav1d|jump 145  S1|dav1d|order 146  S1|webcodecs|jump 138  S1|webcodecs|order 70  S8|dav1d|jump 847  S8|dav1d|order 194  S8|webcodecs|jump 376  S8|webcodecs|order 72
-  ms, median over rounds, dbts_c1 Q32 1x: H 16  H′ 16  R|12bit 25  R|top10 25  S16|dav1d|jump 300  S16|dav1d|order 33  S16|webcodecs|jump 205  S16|webcodecs|order 21  S1|dav1d|jump 63  S1|dav1d|order 65  S1|webcodecs|jump 24  S1|webcodecs|order 19  S8|dav1d|jump 171  S8|dav1d|order 33  S8|webcodecs|jump 114  S8|webcodecs|order 22
-  ms, median over rounds, dbts_c1 Q8 1x: H 16  H′ 16  R|12bit 24  R|top10 24  S16|dav1d|jump 453  S16|dav1d|order 49  S16|webcodecs|jump 318  S16|webcodecs|order 36  S1|dav1d|jump 42  S1|dav1d|order 42  S1|webcodecs|jump 36  S1|webcodecs|order 34  S8|dav1d|jump 220  S8|dav1d|order 50  S8|webcodecs|jump 170  S8|webcodecs|order 37
-  A/A 1x: H′ ÷ H 0.996 [0.978–1.014] over 108 pairs — kept
-  A/A 4x: H′ ÷ H 0.984 [0.961–1.020] over 36 pairs — kept
-  dbts_a1 Q16 1x  A/A        H′ ÷ H: 0.993 [0.844–1.026]  blocks 1 n [12]  order 30% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  D1         S1|webcodecs|order ÷ H: 1.273 [1.199–1.397]  blocks 1 n [12]  order 28% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  D1         S8|webcodecs|order ÷ H: 1.419 [1.354–1.526]  blocks 1 n [12]  order 21% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  D1         S16|webcodecs|order ÷ H: 1.333 [1.286–1.585]  blocks 1 n [12]  order 31% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 12.737 [11.493–13.261]  blocks 1 n [12]  order 19% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.134 [7.855–8.526]  blocks 1 n [12]  order 22% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  D3         R|12bit ÷ H: 1.488 [1.450–1.618]  blocks 1 n [12]  order 27% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  D3         R|top10 ÷ H: 1.443 [1.391–1.477]  blocks 1 n [12]  order 25% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 6.583 [5.844–7.070]  blocks 1 n [12]  order 25% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.534 [4.280–5.220]  blocks 1 n [12]  order 21% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.516 [1.447–1.589]  blocks 1 n [12]  order 28% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.566 [1.226–1.615]  blocks 1 n [12]  order 30% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.092 [1.031–1.190]  blocks 1 n [12]  order 14% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.074 [1.012–1.117]  blocks 1 n [12]  order 14% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.500 [1.423–1.690]  blocks 1 n [12]  order 26% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.308 [1.261–1.389]  blocks 1 n [12]  order 29% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 2.070 [1.974–2.242]  blocks 1 n [12]  order 19% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.873 [1.635–2.020]  blocks 1 n [12]  order 19% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 2.201 [1.934–2.301]  blocks 1 n [12]  order 18% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.990 [1.932–2.154]  blocks 1 n [12]  order 13% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  ÷ H        S1|dav1d|order ÷ H: 2.025 [1.790–2.388]  blocks 1 n [12]  order 28% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  ÷ H        S1|dav1d|jump ÷ H: 2.037 [1.923–2.285]  blocks 1 n [12]  order 19% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  ÷ H        S1|webcodecs|order ÷ H: 1.273 [1.199–1.397]  blocks 1 n [12]  order 28% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.541 [1.476–1.601]  blocks 1 n [12]  order 19% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  ÷ H        S8|dav1d|order ÷ H: 2.880 [2.799–3.121]  blocks 1 n [12]  order 38% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  ÷ H        S8|dav1d|jump ÷ H: 12.812 [12.175–14.047]  blocks 1 n [12]  order 24% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  ÷ H        S8|webcodecs|order ÷ H: 1.419 [1.354–1.526]  blocks 1 n [12]  order 21% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  ÷ H        S8|webcodecs|jump ÷ H: 7.010 [6.582–8.246]  blocks 1 n [12]  order 19% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  ÷ H        S16|dav1d|order ÷ H: 2.955 [2.788–3.265]  blocks 1 n [12]  order 35% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  ÷ H        S16|dav1d|jump ÷ H: 25.242 [23.624–26.895]  blocks 1 n [12]  order 27% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  ÷ H        S16|webcodecs|order ÷ H: 1.333 [1.286–1.585]  blocks 1 n [12]  order 31% (p 1.0)  not read: one block
-  dbts_a1 Q16 1x  ÷ H        S16|webcodecs|jump ÷ H: 12.572 [12.067–13.396]  blocks 1 n [12]  order 18% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  A/A        H′ ÷ H: 0.949 [0.905–0.990]  blocks 1 n [12]  order 10% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  D1         S1|webcodecs|order ÷ H: 0.830 [0.761–0.866]  blocks 1 n [12]  order 14% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  D1         S8|webcodecs|order ÷ H: 0.770 [0.734–0.829]  blocks 1 n [12]  order 14% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  D1         S16|webcodecs|order ÷ H: 0.812 [0.796–0.847]  blocks 1 n [12]  order 11% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 12.683 [11.581–14.319]  blocks 1 n [12]  order 17% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 6.201 [4.039–8.026]  blocks 1 n [12]  order 54% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  D3         R|12bit ÷ H: 1.416 [1.368–1.471]  blocks 1 n [12]  order 9% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  D3         R|top10 ÷ H: 1.377 [1.346–1.515]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 6.380 [6.151–6.590]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 3.403 [2.235–4.083]  blocks 1 n [12]  order 56% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.503 [1.430–1.546]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.504 [1.458–1.574]  blocks 1 n [12]  order 10% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 0.958 [0.910–1.000]  blocks 1 n [12]  order 15% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.030 [0.967–1.048]  blocks 1 n [12]  order 18% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 2.231 [2.168–2.421]  blocks 1 n [12]  order 10% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.542 [1.037–2.027]  blocks 1 n [12]  order 58% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 3.567 [3.343–3.771]  blocks 1 n [12]  order 15% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 2.995 [2.812–3.100]  blocks 1 n [12]  order 16% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 3.422 [3.113–3.587]  blocks 1 n [12]  order 11% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 3.136 [2.957–3.303]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  ÷ H        S1|dav1d|order ÷ H: 1.822 [1.739–1.899]  blocks 1 n [12]  order 11% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  ÷ H        S1|dav1d|jump ÷ H: 1.823 [1.757–1.981]  blocks 1 n [12]  order 20% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  ÷ H        S1|webcodecs|order ÷ H: 0.830 [0.761–0.866]  blocks 1 n [12]  order 14% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  ÷ H        S1|webcodecs|jump ÷ H: 1.204 [1.005–1.706]  blocks 1 n [12]  order 119% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  ÷ H        S8|dav1d|order ÷ H: 2.747 [2.641–2.830]  blocks 1 n [12]  order 11% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  ÷ H        S8|dav1d|jump ÷ H: 11.801 [11.218–12.352]  blocks 1 n [12]  order 16% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  ÷ H        S8|webcodecs|order ÷ H: 0.770 [0.734–0.829]  blocks 1 n [12]  order 14% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  ÷ H        S8|webcodecs|jump ÷ H: 3.877 [3.795–4.285]  blocks 1 n [12]  order 21% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  ÷ H        S16|dav1d|order ÷ H: 2.792 [2.587–2.920]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  ÷ H        S16|dav1d|jump ÷ H: 23.376 [21.984–26.175]  blocks 1 n [12]  order 16% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  ÷ H        S16|webcodecs|order ÷ H: 0.812 [0.796–0.847]  blocks 1 n [12]  order 11% (p 1.0)  not read: one block
-  dbts_a1 Q16 4x  ÷ H        S16|webcodecs|jump ÷ H: 7.588 [7.301–8.088]  blocks 1 n [12]  order 16% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  A/A        H′ ÷ H: 1.018 [0.967–1.053]  blocks 1 n [12]  order 23% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  D1         S1|webcodecs|order ÷ H: 1.079 [0.979–1.251]  blocks 1 n [12]  order 26% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  D1         S8|webcodecs|order ÷ H: 1.167 [1.126–1.328]  blocks 1 n [12]  order 23% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  D1         S16|webcodecs|order ÷ H: 1.197 [1.130–1.255]  blocks 1 n [12]  order 33% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 7.362 [6.574–7.852]  blocks 1 n [12]  order 20% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.321 [7.763–8.720]  blocks 1 n [12]  order 11% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  D3         R|12bit ÷ H: 1.534 [1.427–1.724]  blocks 1 n [12]  order 72% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  D3         R|top10 ÷ H: 1.440 [1.412–1.530]  blocks 1 n [12]  order 20% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 3.804 [3.656–4.276]  blocks 1 n [12]  order 28% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.379 [4.102–4.545]  blocks 1 n [12]  order 15% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 0.910 [0.850–1.001]  blocks 1 n [12]  order 36% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 0.914 [0.867–0.957]  blocks 1 n [12]  order 31% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.121 [1.063–1.152]  blocks 1 n [12]  order 13% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.099 [1.008–1.269]  blocks 1 n [12]  order 24% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 2.549 [2.007–2.697]  blocks 1 n [12]  order 29% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.951 [1.808–2.126]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 2.021 [1.762–2.165]  blocks 1 n [12]  order 22% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.736 [1.628–1.838]  blocks 1 n [12]  order 19% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.985 [1.911–2.123]  blocks 1 n [12]  order 22% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.728 [1.531–1.810]  blocks 1 n [12]  order 15% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  ÷ H        S1|dav1d|order ÷ H: 2.598 [2.469–2.861]  blocks 1 n [12]  order 44% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  ÷ H        S1|dav1d|jump ÷ H: 2.657 [2.473–2.826]  blocks 1 n [12]  order 18% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  ÷ H        S1|webcodecs|order ÷ H: 1.079 [0.979–1.251]  blocks 1 n [12]  order 26% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.352 [1.281–1.419]  blocks 1 n [12]  order 11% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  ÷ H        S8|dav1d|order ÷ H: 2.402 [2.245–2.486]  blocks 1 n [12]  order 15% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  ÷ H        S8|dav1d|jump ÷ H: 10.195 [10.011–10.657]  blocks 1 n [12]  order 20% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  ÷ H        S8|webcodecs|order ÷ H: 1.167 [1.126–1.328]  blocks 1 n [12]  order 23% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  ÷ H        S8|webcodecs|jump ÷ H: 5.839 [5.625–6.192]  blocks 1 n [12]  order 14% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  ÷ H        S16|dav1d|order ÷ H: 2.398 [2.316–2.626]  blocks 1 n [12]  order 20% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  ÷ H        S16|dav1d|jump ÷ H: 19.080 [17.427–20.502]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  ÷ H        S16|webcodecs|order ÷ H: 1.197 [1.130–1.255]  blocks 1 n [12]  order 33% (p 1.0)  not read: one block
-  dbts_a1 Q32 1x  ÷ H        S16|webcodecs|jump ÷ H: 11.141 [10.831–11.428]  blocks 1 n [12]  order 14% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  A/A        H′ ÷ H: 0.953 [0.822–1.021]  blocks 1 n [12]  order 15% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  D1         S1|webcodecs|order ÷ H: 1.846 [1.781–1.901]  blocks 1 n [12]  order 6% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  D1         S8|webcodecs|order ÷ H: 2.170 [2.046–2.257]  blocks 1 n [12]  order 7% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  D1         S16|webcodecs|order ÷ H: 2.190 [2.164–2.364]  blocks 1 n [12]  order 15% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 9.972 [9.336–12.339]  blocks 1 n [12]  order 69% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 9.123 [8.840–9.308]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  D3         R|12bit ÷ H: 1.392 [1.131–1.503]  blocks 1 n [12]  order 19% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  D3         R|top10 ÷ H: 1.416 [1.299–1.529]  blocks 1 n [12]  order 21% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 5.549 [5.131–5.979]  blocks 1 n [12]  order 28% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.727 [4.561–5.040]  blocks 1 n [12]  order 8% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.153 [0.992–1.338]  blocks 1 n [12]  order 37% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.190 [1.176–1.340]  blocks 1 n [12]  order 40% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.169 [1.115–1.232]  blocks 1 n [12]  order 8% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.210 [1.173–1.246]  blocks 1 n [12]  order 10% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.529 [1.461–1.583]  blocks 1 n [12]  order 24% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.374 [1.283–1.452]  blocks 1 n [12]  order 22% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.485 [1.356–1.589]  blocks 1 n [12]  order 18% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.516 [1.463–1.732]  blocks 1 n [12]  order 20% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.524 [1.349–1.696]  blocks 1 n [12]  order 24% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.511 [1.387–1.714]  blocks 1 n [12]  order 40% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  ÷ H        S1|dav1d|order ÷ H: 2.849 [2.718–2.981]  blocks 1 n [12]  order 23% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  ÷ H        S1|dav1d|jump ÷ H: 2.845 [2.691–2.925]  blocks 1 n [12]  order 22% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  ÷ H        S1|webcodecs|order ÷ H: 1.846 [1.781–1.901]  blocks 1 n [12]  order 6% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  ÷ H        S1|webcodecs|jump ÷ H: 2.057 [2.015–2.126]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  ÷ H        S8|dav1d|order ÷ H: 3.248 [3.064–3.376]  blocks 1 n [12]  order 22% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  ÷ H        S8|dav1d|jump ÷ H: 15.663 [14.527–16.181]  blocks 1 n [12]  order 21% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  ÷ H        S8|webcodecs|order ÷ H: 2.170 [2.046–2.257]  blocks 1 n [12]  order 7% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  ÷ H        S8|webcodecs|jump ÷ H: 9.999 [9.455–10.396]  blocks 1 n [12]  order 11% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  ÷ H        S16|dav1d|order ÷ H: 3.389 [3.235–3.550]  blocks 1 n [12]  order 26% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  ÷ H        S16|dav1d|jump ÷ H: 28.465 [26.749–32.509]  blocks 1 n [12]  order 34% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  ÷ H        S16|webcodecs|order ÷ H: 2.190 [2.164–2.364]  blocks 1 n [12]  order 15% (p 1.0)  not read: one block
-  dbts_a1 Q8 1x  ÷ H        S16|webcodecs|jump ÷ H: 18.791 [18.355–19.094]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  A/A        H′ ÷ H: 1.008 [0.939–1.237]  blocks 1 n [12]  order 247% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  D1         S1|webcodecs|order ÷ H: 1.904 [1.757–2.222]  blocks 1 n [12]  order 64% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  D1         S8|webcodecs|order ÷ H: 2.184 [1.931–2.539]  blocks 1 n [12]  order 64% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  D1         S16|webcodecs|order ÷ H: 2.040 [1.990–2.544]  blocks 1 n [12]  order 62% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 10.775 [10.029–11.918]  blocks 1 n [12]  order 26% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.595 [8.400–9.194]  blocks 1 n [12]  order 14% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  D3         R|10bit ÷ H: 1.746 [1.472–2.067]  blocks 1 n [12]  order 178% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 5.516 [5.220–5.663]  blocks 1 n [12]  order 21% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.914 [4.442–5.075]  blocks 1 n [12]  order 97% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.343 [1.306–1.507]  blocks 1 n [12]  order 15% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.317 [1.241–1.354]  blocks 1 n [12]  order 14% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.099 [1.043–1.176]  blocks 1 n [12]  order 20% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.111 [1.057–1.161]  blocks 1 n [12]  order 8% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.351 [1.332–1.482]  blocks 1 n [12]  order 15% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.355 [1.269–1.409]  blocks 1 n [12]  order 20% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.670 [1.623–1.791]  blocks 1 n [12]  order 20% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.513 [1.405–1.603]  blocks 1 n [12]  order 50% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.639 [1.573–1.688]  blocks 1 n [12]  order 18% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.704 [1.557–1.790]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  ÷ H        S1|dav1d|order ÷ H: 2.682 [2.379–3.094]  blocks 1 n [12]  order 64% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  ÷ H        S1|dav1d|jump ÷ H: 2.818 [2.425–3.363]  blocks 1 n [12]  order 66% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  ÷ H        S1|webcodecs|order ÷ H: 1.904 [1.757–2.222]  blocks 1 n [12]  order 64% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  ÷ H        S1|webcodecs|jump ÷ H: 2.169 [1.967–2.472]  blocks 1 n [12]  order 67% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  ÷ H        S8|dav1d|order ÷ H: 3.516 [3.170–4.282]  blocks 1 n [12]  order 63% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  ÷ H        S8|dav1d|jump ÷ H: 15.433 [13.649–19.044]  blocks 1 n [12]  order 65% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  ÷ H        S8|webcodecs|order ÷ H: 2.184 [1.931–2.539]  blocks 1 n [12]  order 64% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  ÷ H        S8|webcodecs|jump ÷ H: 9.851 [9.350–11.877]  blocks 1 n [12]  order 159% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  ÷ H        S16|dav1d|order ÷ H: 3.419 [3.095–4.139]  blocks 1 n [12]  order 63% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  ÷ H        S16|dav1d|jump ÷ H: 31.284 [27.827–37.172]  blocks 1 n [12]  order 64% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  ÷ H        S16|webcodecs|order ÷ H: 2.040 [1.990–2.544]  blocks 1 n [12]  order 62% (p 1.0)  not read: one block
-  dbts_b1 Q16 1x  ÷ H        S16|webcodecs|jump ÷ H: 18.128 [16.593–21.941]  blocks 1 n [12]  order 61% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  A/A        H′ ÷ H: 1.020 [0.984–1.267]  blocks 1 n [12]  order 168% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  D1         S1|webcodecs|order ÷ H: 1.531 [1.454–1.605]  blocks 1 n [12]  order 33% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  D1         S8|webcodecs|order ÷ H: 1.664 [1.583–1.892]  blocks 1 n [12]  order 23% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  D1         S16|webcodecs|order ÷ H: 1.682 [1.593–1.914]  blocks 1 n [12]  order 30% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 7.904 [7.021–8.361]  blocks 1 n [12]  order 37% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.633 [8.051–8.990]  blocks 1 n [12]  order 11% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  D3         R|10bit ÷ H: 1.749 [1.593–3.139]  blocks 1 n [12]  order 157% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 4.188 [3.901–4.451]  blocks 1 n [12]  order 23% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.423 [4.367–4.778]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 0.931 [0.823–0.953]  blocks 1 n [12]  order 15% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 0.965 [0.926–0.972]  blocks 1 n [12]  order 28% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.081 [1.014–1.126]  blocks 1 n [12]  order 18% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.092 [1.056–1.193]  blocks 1 n [12]  order 18% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.976 [1.943–2.062]  blocks 1 n [12]  order 10% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.798 [1.603–1.949]  blocks 1 n [12]  order 27% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.707 [1.454–1.801]  blocks 1 n [12]  order 26% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.643 [1.548–1.795]  blocks 1 n [12]  order 14% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.731 [1.529–1.827]  blocks 1 n [12]  order 33% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.615 [1.442–1.740]  blocks 1 n [12]  order 20% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  ÷ H        S1|dav1d|order ÷ H: 3.008 [2.892–3.332]  blocks 1 n [12]  order 33% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  ÷ H        S1|dav1d|jump ÷ H: 3.112 [2.998–3.599]  blocks 1 n [12]  order 35% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  ÷ H        S1|webcodecs|order ÷ H: 1.531 [1.454–1.605]  blocks 1 n [12]  order 33% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.677 [1.652–2.011]  blocks 1 n [12]  order 45% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  ÷ H        S8|dav1d|order ÷ H: 2.836 [2.379–2.915]  blocks 1 n [12]  order 35% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  ÷ H        S8|dav1d|jump ÷ H: 13.070 [12.212–13.977]  blocks 1 n [12]  order 36% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  ÷ H        S8|webcodecs|order ÷ H: 1.664 [1.583–1.892]  blocks 1 n [12]  order 23% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  ÷ H        S8|webcodecs|jump ÷ H: 7.987 [7.481–8.300]  blocks 1 n [12]  order 33% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  ÷ H        S16|dav1d|order ÷ H: 2.929 [2.774–3.340]  blocks 1 n [12]  order 40% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  ÷ H        S16|dav1d|jump ÷ H: 24.295 [21.806–25.793]  blocks 1 n [12]  order 44% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  ÷ H        S16|webcodecs|order ÷ H: 1.682 [1.593–1.914]  blocks 1 n [12]  order 30% (p 1.0)  not read: one block
-  dbts_b1 Q32 1x  ÷ H        S16|webcodecs|jump ÷ H: 15.024 [14.400–17.031]  blocks 1 n [12]  order 30% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  A/A        H′ ÷ H: 1.015 [0.961–1.046]  blocks 1 n [12]  order 102% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  D1         S1|webcodecs|order ÷ H: 1.188 [1.142–1.215]  blocks 1 n [12]  order 60% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  D1         S8|webcodecs|order ÷ H: 1.177 [1.150–1.221]  blocks 1 n [12]  order 58% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  D1         S16|webcodecs|order ÷ H: 1.179 [1.130–1.220]  blocks 1 n [12]  order 56% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 7.983 [7.852–8.289]  blocks 1 n [12]  order 6% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 7.646 [6.541–8.741]  blocks 1 n [12]  order 69% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  D3         R|10bit ÷ H: 1.659 [1.587–1.681]  blocks 1 n [12]  order 33% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 4.201 [4.017–4.403]  blocks 1 n [12]  order 8% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.273 [3.561–5.771]  blocks 1 n [12]  order 43% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  in order G S8|dav1d|order ÷ S1|dav1d|order: 0.967 [0.924–1.003]  blocks 1 n [12]  order 7% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  in order G S16|dav1d|order ÷ S1|dav1d|order: 0.962 [0.904–0.977]  blocks 1 n [12]  order 8% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.006 [0.972–1.047]  blocks 1 n [12]  order 28% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.001 [0.973–1.057]  blocks 1 n [12]  order 29% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 2.484 [2.355–2.543]  blocks 1 n [12]  order 31% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 2.215 [1.862–2.307]  blocks 1 n [12]  order 36% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 2.357 [2.330–2.397]  blocks 1 n [12]  order 5% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 2.149 [1.700–2.228]  blocks 1 n [12]  order 27% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 2.348 [2.232–2.421]  blocks 1 n [12]  order 9% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 2.253 [2.055–2.369]  blocks 1 n [12]  order 43% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  ÷ H        S1|dav1d|order ÷ H: 2.874 [2.804–2.950]  blocks 1 n [12]  order 56% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  ÷ H        S1|dav1d|jump ÷ H: 2.930 [2.809–2.993]  blocks 1 n [12]  order 56% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  ÷ H        S1|webcodecs|order ÷ H: 1.188 [1.142–1.215]  blocks 1 n [12]  order 60% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  ÷ H        S1|webcodecs|jump ÷ H: 1.341 [1.263–1.599]  blocks 1 n [12]  order 57% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  ÷ H        S8|dav1d|order ÷ H: 2.790 [2.724–2.855]  blocks 1 n [12]  order 58% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  ÷ H        S8|dav1d|jump ÷ H: 12.398 [11.735–12.880]  blocks 1 n [12]  order 58% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  ÷ H        S8|webcodecs|order ÷ H: 1.177 [1.150–1.221]  blocks 1 n [12]  order 58% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  ÷ H        S8|webcodecs|jump ÷ H: 5.772 [5.484–7.086]  blocks 1 n [12]  order 57% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  ÷ H        S16|dav1d|order ÷ H: 2.755 [2.615–2.833]  blocks 1 n [12]  order 59% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  ÷ H        S16|dav1d|jump ÷ H: 23.789 [22.403–24.056]  blocks 1 n [12]  order 59% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  ÷ H        S16|webcodecs|order ÷ H: 1.179 [1.130–1.220]  blocks 1 n [12]  order 56% (p 1.0)  not read: one block
-  dbts_b1 Q32 4x  ÷ H        S16|webcodecs|jump ÷ H: 10.459 [10.053–11.042]  blocks 1 n [12]  order 29% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  A/A        H′ ÷ H: 0.979 [0.895–1.097]  blocks 1 n [12]  order 48% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  D1         S1|webcodecs|order ÷ H: 1.381 [1.307–1.538]  blocks 1 n [12]  order 65% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  D1         S8|webcodecs|order ÷ H: 1.475 [1.400–1.625]  blocks 1 n [12]  order 63% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  D1         S16|webcodecs|order ÷ H: 1.537 [1.430–1.618]  blocks 1 n [12]  order 64% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 3.868 [3.581–4.080]  blocks 1 n [12]  order 35% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.423 [8.286–9.081]  blocks 1 n [12]  order 13% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  D3         R|10bit ÷ H: 1.780 [1.504–1.967]  blocks 1 n [12]  order 137% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 2.368 [2.254–2.478]  blocks 1 n [12]  order 16% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.513 [4.372–4.748]  blocks 1 n [12]  order 15% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 0.398 [0.383–0.421]  blocks 1 n [12]  order 28% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 0.405 [0.384–0.434]  blocks 1 n [12]  order 69% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.066 [1.042–1.123]  blocks 1 n [12]  order 13% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.094 [1.034–1.188]  blocks 1 n [12]  order 9% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 3.278 [3.212–3.462]  blocks 1 n [12]  order 7% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 3.012 [2.847–3.086]  blocks 1 n [12]  order 8% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.208 [1.190–1.290]  blocks 1 n [12]  order 28% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.576 [1.470–1.711]  blocks 1 n [12]  order 14% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.236 [1.144–1.277]  blocks 1 n [12]  order 71% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.364 [1.287–1.423]  blocks 1 n [12]  order 26% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  ÷ H        S1|dav1d|order ÷ H: 4.626 [4.279–4.891]  blocks 1 n [12]  order 66% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  ÷ H        S1|dav1d|jump ÷ H: 4.719 [4.589–4.932]  blocks 1 n [12]  order 64% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  ÷ H        S1|webcodecs|order ÷ H: 1.381 [1.307–1.538]  blocks 1 n [12]  order 65% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.572 [1.545–1.703]  blocks 1 n [12]  order 65% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  ÷ H        S8|dav1d|order ÷ H: 1.806 [1.725–2.036]  blocks 1 n [12]  order 63% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  ÷ H        S8|dav1d|jump ÷ H: 11.347 [10.876–12.588]  blocks 1 n [12]  order 66% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  ÷ H        S8|webcodecs|order ÷ H: 1.475 [1.400–1.625]  blocks 1 n [12]  order 63% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  ÷ H        S8|webcodecs|jump ÷ H: 7.344 [6.769–7.913]  blocks 1 n [12]  order 65% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  ÷ H        S16|dav1d|order ÷ H: 1.867 [1.733–2.067]  blocks 1 n [12]  order 79% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  ÷ H        S16|dav1d|jump ÷ H: 18.328 [16.906–20.450]  blocks 1 n [12]  order 70% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  ÷ H        S16|webcodecs|order ÷ H: 1.537 [1.430–1.618]  blocks 1 n [12]  order 64% (p 1.0)  not read: one block
-  dbts_b1 Q56 1x  ÷ H        S16|webcodecs|jump ÷ H: 13.559 [12.875–14.727]  blocks 1 n [12]  order 62% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  A/A        H′ ÷ H: 1.000 [0.825–1.309]  blocks 1 n [12]  order 51% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  D1         S1|webcodecs|order ÷ H: 1.493 [1.328–1.797]  blocks 1 n [12]  order 42% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  D1         S8|webcodecs|order ÷ H: 1.683 [1.465–2.058]  blocks 1 n [12]  order 32% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  D1         S16|webcodecs|order ÷ H: 1.596 [1.325–1.948]  blocks 1 n [12]  order 23% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 11.367 [10.712–12.560]  blocks 1 n [12]  order 36% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.550 [7.942–9.087]  blocks 1 n [12]  order 17% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  D3         R|12bit ÷ H: 1.505 [1.318–1.837]  blocks 1 n [12]  order 33% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  D3         R|top10 ÷ H: 1.569 [1.400–1.955]  blocks 1 n [12]  order 33% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 5.997 [5.556–6.549]  blocks 1 n [12]  order 30% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.671 [4.348–4.984]  blocks 1 n [12]  order 13% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.372 [1.172–1.428]  blocks 1 n [12]  order 24% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.323 [1.174–1.444]  blocks 1 n [12]  order 14% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.122 [1.047–1.146]  blocks 1 n [12]  order 14% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.043 [0.938–1.167]  blocks 1 n [12]  order 18% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.371 [1.245–1.432]  blocks 1 n [12]  order 20% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.202 [1.065–1.247]  blocks 1 n [12]  order 26% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.650 [1.514–1.803]  blocks 1 n [12]  order 20% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.471 [1.405–1.566]  blocks 1 n [12]  order 27% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.799 [1.540–1.818]  blocks 1 n [12]  order 33% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.550 [1.415–1.750]  blocks 1 n [12]  order 18% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  ÷ H        S1|dav1d|order ÷ H: 2.150 [1.654–2.478]  blocks 1 n [12]  order 30% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  ÷ H        S1|dav1d|jump ÷ H: 2.054 [1.641–2.541]  blocks 1 n [12]  order 42% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  ÷ H        S1|webcodecs|order ÷ H: 1.493 [1.328–1.797]  blocks 1 n [12]  order 42% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.735 [1.522–2.201]  blocks 1 n [12]  order 29% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  ÷ H        S8|dav1d|order ÷ H: 2.777 [2.496–3.381]  blocks 1 n [12]  order 31% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  ÷ H        S8|dav1d|jump ÷ H: 12.617 [10.439–13.453]  blocks 1 n [12]  order 27% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  ÷ H        S8|webcodecs|order ÷ H: 1.683 [1.465–2.058]  blocks 1 n [12]  order 32% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  ÷ H        S8|webcodecs|jump ÷ H: 8.089 [6.963–9.708]  blocks 1 n [12]  order 31% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  ÷ H        S16|dav1d|order ÷ H: 2.866 [2.342–3.377]  blocks 1 n [12]  order 30% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  ÷ H        S16|dav1d|jump ÷ H: 23.024 [21.732–27.345]  blocks 1 n [12]  order 37% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  ÷ H        S16|webcodecs|order ÷ H: 1.596 [1.325–1.948]  blocks 1 n [12]  order 23% (p 1.0)  not read: one block
-  dbts_c1 Q16 1x  ÷ H        S16|webcodecs|jump ÷ H: 14.065 [12.652–18.349]  blocks 1 n [12]  order 46% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  A/A        H′ ÷ H: 1.010 [0.971–1.071]  blocks 1 n [12]  order 29% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  D1         S1|webcodecs|order ÷ H: 0.972 [0.881–1.008]  blocks 1 n [12]  order 58% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  D1         S8|webcodecs|order ÷ H: 0.991 [0.907–1.030]  blocks 1 n [12]  order 53% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  D1         S16|webcodecs|order ÷ H: 0.956 [0.887–1.024]  blocks 1 n [12]  order 43% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 11.319 [10.618–11.709]  blocks 1 n [12]  order 96% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 5.928 [4.407–7.536]  blocks 1 n [12]  order 55% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  D3         R|12bit ÷ H: 1.564 [1.536–1.622]  blocks 1 n [12]  order 50% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  D3         R|top10 ÷ H: 1.497 [1.404–1.567]  blocks 1 n [12]  order 51% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 5.878 [5.541–6.214]  blocks 1 n [12]  order 96% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 2.789 [2.056–4.280]  blocks 1 n [12]  order 66% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.357 [1.300–1.412]  blocks 1 n [12]  order 33% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.333 [1.274–1.369]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.035 [0.975–1.124]  blocks 1 n [12]  order 11% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.003 [0.943–1.100]  blocks 1 n [12]  order 32% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 2.114 [2.049–2.188]  blocks 1 n [12]  order 26% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.035 [0.783–1.731]  blocks 1 n [12]  order 3095% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 2.776 [2.582–2.891]  blocks 1 n [12]  order 51% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 2.358 [2.249–2.568]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 2.729 [2.657–2.843]  blocks 1 n [12]  order 13% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 2.511 [1.826–2.570]  blocks 1 n [12]  order 50% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  ÷ H        S1|dav1d|order ÷ H: 2.034 [1.869–2.103]  blocks 1 n [12]  order 46% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  ÷ H        S1|dav1d|jump ÷ H: 2.038 [1.883–2.148]  blocks 1 n [12]  order 1429% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  ÷ H        S1|webcodecs|order ÷ H: 0.972 [0.881–1.008]  blocks 1 n [12]  order 58% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  ÷ H        S1|webcodecs|jump ÷ H: 1.886 [1.077–2.589]  blocks 1 n [12]  order 89% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  ÷ H        S8|dav1d|order ÷ H: 2.729 [2.566–2.852]  blocks 1 n [12]  order 28% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  ÷ H        S8|dav1d|jump ÷ H: 12.090 [11.264–12.443]  blocks 1 n [12]  order 33% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  ÷ H        S8|webcodecs|order ÷ H: 0.991 [0.907–1.030]  blocks 1 n [12]  order 53% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  ÷ H        S8|webcodecs|jump ÷ H: 5.077 [4.624–5.464]  blocks 1 n [12]  order 39% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  ÷ H        S16|dav1d|order ÷ H: 2.566 [2.461–2.790]  blocks 1 n [12]  order 41% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  ÷ H        S16|dav1d|jump ÷ H: 22.828 [21.218–23.732]  blocks 1 n [12]  order 43% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  ÷ H        S16|webcodecs|order ÷ H: 0.956 [0.887–1.024]  blocks 1 n [12]  order 43% (p 1.0)  not read: one block
-  dbts_c1 Q16 4x  ÷ H        S16|webcodecs|jump ÷ H: 9.004 [8.728–9.474]  blocks 1 n [12]  order 112% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  A/A        H′ ÷ H: 1.033 [0.859–1.218]  blocks 1 n [12]  order 30% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  D1         S1|webcodecs|order ÷ H: 1.262 [1.117–1.514]  blocks 1 n [12]  order 27% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  D1         S8|webcodecs|order ÷ H: 1.417 [1.257–1.515]  blocks 1 n [12]  order 29% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  D1         S16|webcodecs|order ÷ H: 1.319 [1.217–1.614]  blocks 1 n [12]  order 27% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 4.841 [4.623–5.225]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.825 [8.091–9.493]  blocks 1 n [12]  order 43% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  D3         R|12bit ÷ H: 1.590 [1.365–1.793]  blocks 1 n [12]  order 31% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  D3         R|top10 ÷ H: 1.580 [1.465–1.889]  blocks 1 n [12]  order 33% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 2.771 [2.441–3.065]  blocks 1 n [12]  order 22% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.691 [4.577–4.952]  blocks 1 n [12]  order 13% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 0.509 [0.479–0.644]  blocks 1 n [12]  order 34% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 0.522 [0.395–0.528]  blocks 1 n [12]  order 185% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.142 [0.988–1.196]  blocks 1 n [12]  order 17% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.055 [1.012–1.100]  blocks 1 n [12]  order 17% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 3.179 [2.823–3.547]  blocks 1 n [12]  order 31% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 2.677 [2.401–2.897]  blocks 1 n [12]  order 15% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.493 [1.427–1.653]  blocks 1 n [12]  order 27% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.506 [1.353–1.711]  blocks 1 n [12]  order 23% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.529 [1.375–1.670]  blocks 1 n [12]  order 134% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.483 [1.355–1.565]  blocks 1 n [12]  order 36% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  ÷ H        S1|dav1d|order ÷ H: 4.224 [3.361–4.874]  blocks 1 n [12]  order 49% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  ÷ H        S1|dav1d|jump ÷ H: 4.009 [3.468–4.954]  blocks 1 n [12]  order 31% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  ÷ H        S1|webcodecs|order ÷ H: 1.262 [1.117–1.514]  blocks 1 n [12]  order 27% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.511 [1.372–1.710]  blocks 1 n [12]  order 23% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  ÷ H        S8|dav1d|order ÷ H: 2.087 [2.042–2.442]  blocks 1 n [12]  order 51% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  ÷ H        S8|dav1d|jump ÷ H: 11.253 [10.240–12.492]  blocks 1 n [12]  order 33% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  ÷ H        S8|webcodecs|order ÷ H: 1.417 [1.257–1.515]  blocks 1 n [12]  order 29% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  ÷ H        S8|webcodecs|jump ÷ H: 6.975 [6.691–8.604]  blocks 1 n [12]  order 30% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  ÷ H        S16|dav1d|order ÷ H: 2.164 [1.738–2.540]  blocks 1 n [12]  order 102% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  ÷ H        S16|dav1d|jump ÷ H: 19.047 [18.037–22.477]  blocks 1 n [12]  order 27% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  ÷ H        S16|webcodecs|order ÷ H: 1.319 [1.217–1.614]  blocks 1 n [12]  order 27% (p 1.0)  not read: one block
-  dbts_c1 Q32 1x  ÷ H        S16|webcodecs|jump ÷ H: 13.190 [12.323–15.501]  blocks 1 n [12]  order 34% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  A/A        H′ ÷ H: 0.937 [0.848–0.998]  blocks 1 n [12]  order 24% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  D1         S1|webcodecs|order ÷ H: 2.094 [2.007–2.198]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  D1         S8|webcodecs|order ÷ H: 2.285 [2.129–2.411]  blocks 1 n [12]  order 13% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  D1         S16|webcodecs|order ÷ H: 2.209 [2.115–2.339]  blocks 1 n [12]  order 28% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 10.519 [9.928–11.568]  blocks 1 n [12]  order 26% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.719 [8.076–8.908]  blocks 1 n [12]  order 30% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  D3         R|12bit ÷ H: 1.520 [1.392–1.693]  blocks 1 n [12]  order 22% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  D3         R|top10 ÷ H: 1.450 [1.392–1.566]  blocks 1 n [12]  order 54% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 5.232 [4.911–5.677]  blocks 1 n [12]  order 22% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.580 [4.391–4.770]  blocks 1 n [12]  order 31% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.184 [1.035–1.282]  blocks 1 n [12]  order 18% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.137 [1.115–1.344]  blocks 1 n [12]  order 27% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.103 [1.035–1.142]  blocks 1 n [12]  order 17% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.077 [0.997–1.121]  blocks 1 n [12]  order 15% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.231 [1.104–1.360]  blocks 1 n [12]  order 20% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.121 [1.070–1.215]  blocks 1 n [12]  order 29% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.345 [1.211–1.455]  blocks 1 n [12]  order 26% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.306 [1.260–1.397]  blocks 1 n [12]  order 14% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.378 [1.257–1.453]  blocks 1 n [12]  order 30% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.411 [1.315–1.478]  blocks 1 n [12]  order 22% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  ÷ H        S1|dav1d|order ÷ H: 2.581 [2.448–2.784]  blocks 1 n [12]  order 21% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  ÷ H        S1|dav1d|jump ÷ H: 2.714 [2.506–2.812]  blocks 1 n [12]  order 29% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  ÷ H        S1|webcodecs|order ÷ H: 2.094 [2.007–2.198]  blocks 1 n [12]  order 12% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  ÷ H        S1|webcodecs|jump ÷ H: 2.302 [2.196–2.604]  blocks 1 n [12]  order 53% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  ÷ H        S8|dav1d|order ÷ H: 3.134 [2.626–3.328]  blocks 1 n [12]  order 25% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  ÷ H        S8|dav1d|jump ÷ H: 13.746 [13.252–14.748]  blocks 1 n [12]  order 20% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  ÷ H        S8|webcodecs|order ÷ H: 2.285 [2.129–2.411]  blocks 1 n [12]  order 13% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  ÷ H        S8|webcodecs|jump ÷ H: 10.334 [9.758–11.951]  blocks 1 n [12]  order 25% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  ÷ H        S16|dav1d|order ÷ H: 2.953 [2.852–3.347]  blocks 1 n [12]  order 20% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  ÷ H        S16|dav1d|jump ÷ H: 28.207 [27.309–30.072]  blocks 1 n [12]  order 15% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  ÷ H        S16|webcodecs|order ÷ H: 2.209 [2.115–2.339]  blocks 1 n [12]  order 28% (p 1.0)  not read: one block
-  dbts_c1 Q8 1x  ÷ H        S16|webcodecs|jump ÷ H: 19.836 [18.575–22.975]  blocks 1 n [12]  order 24% (p 1.0)  not read: one block
+block shard-6: 14 rounds, 2632 rows
+  ms, median over rounds, dbts_a1 Q16 1x: H 15  H′ 15  R|12bit 23  R|top10 22  S16|dav1d|jump 385  S16|dav1d|order 46  S16|webcodecs|jump 191  S16|webcodecs|order 21  S1|dav1d|jump 31  S1|dav1d|order 30  S1|webcodecs|jump 24  S1|webcodecs|order 20  S8|dav1d|jump 194  S8|dav1d|order 45  S8|webcodecs|jump 108  S8|webcodecs|order 22
+  ms, median over rounds, dbts_a1 Q16 4x: H 74  H′ 71  R|12bit 106  R|top10 102  S16|dav1d|jump 1733  S16|dav1d|order 207  S16|webcodecs|jump 566  S16|webcodecs|order 61  S1|dav1d|jump 138  S1|dav1d|order 136  S1|webcodecs|jump 100  S1|webcodecs|order 62  S8|dav1d|jump 881  S8|dav1d|order 203  S8|webcodecs|jump 297  S8|webcodecs|order 58
+  ms, median over rounds, dbts_a1 Q32 1x: H 16  H′ 16  R|12bit 24  R|top10 23  S16|dav1d|jump 299  S16|dav1d|order 38  S16|webcodecs|jump 173  S16|webcodecs|order 19  S1|dav1d|jump 41  S1|dav1d|order 41  S1|webcodecs|jump 21  S1|webcodecs|order 17  S8|dav1d|jump 162  S8|dav1d|order 39  S8|webcodecs|jump 93  S8|webcodecs|order 18
+  ms, median over rounds, dbts_a1 Q8 1x: H 15  H′ 15  R|12bit 22  R|top10 22  S16|dav1d|jump 439  S16|dav1d|order 52  S16|webcodecs|jump 289  S16|webcodecs|order 34  S1|dav1d|jump 45  S1|dav1d|order 43  S1|webcodecs|jump 32  S1|webcodecs|order 28  S8|dav1d|jump 242  S8|dav1d|order 51  S8|webcodecs|jump 156  S8|webcodecs|order 34
+  ms, median over rounds, dbts_b1 Q16 1x: H 46  H′ 46  R|10bit 73  S16|dav1d|jump 1367  S16|dav1d|order 155  S16|webcodecs|jump 817  S16|webcodecs|order 94  S1|dav1d|jump 125  S1|dav1d|order 120  S1|webcodecs|jump 92  S1|webcodecs|order 83  S8|dav1d|jump 679  S8|dav1d|order 159  S8|webcodecs|jump 449  S8|webcodecs|order 94
+  ms, median over rounds, dbts_b1 Q32 1x: H 44  H′ 44  R|10bit 74  S16|dav1d|jump 1082  S16|dav1d|order 126  S16|webcodecs|jump 663  S16|webcodecs|order 74  S1|dav1d|jump 137  S1|dav1d|order 135  S1|webcodecs|jump 77  S1|webcodecs|order 69  S8|dav1d|jump 575  S8|dav1d|order 126  S8|webcodecs|jump 360  S8|webcodecs|order 73
+  ms, median over rounds, dbts_b1 Q32 4x: H 205  H′ 205  R|10bit 335  S16|dav1d|jump 4777  S16|dav1d|order 565  S16|webcodecs|jump 2135  S16|webcodecs|order 239  S1|dav1d|jump 598  S1|dav1d|order 584  S1|webcodecs|jump 271  S1|webcodecs|order 241  S8|dav1d|jump 2533  S8|dav1d|order 567  S8|webcodecs|jump 1174  S8|webcodecs|order 243
+  ms, median over rounds, dbts_b1 Q56 1x: H 45  H′ 45  R|10bit 76  S16|dav1d|jump 824  S16|dav1d|order 84  S16|webcodecs|jump 628  S16|webcodecs|order 69  S1|dav1d|jump 213  S1|dav1d|order 205  S1|webcodecs|jump 72  S1|webcodecs|order 63  S8|dav1d|jump 492  S8|dav1d|order 81  S8|webcodecs|jump 330  S8|webcodecs|order 68
+  ms, median over rounds, dbts_c1 Q16 1x: H 16  H′ 16  R|12bit 25  R|top10 25  S16|dav1d|jump 374  S16|dav1d|order 44  S16|webcodecs|jump 233  S16|webcodecs|order 25  S1|dav1d|jump 32  S1|dav1d|order 33  S1|webcodecs|jump 28  S1|webcodecs|order 24  S8|dav1d|jump 193  S8|dav1d|order 44  S8|webcodecs|jump 127  S8|webcodecs|order 26
+  ms, median over rounds, dbts_c1 Q16 4x: H 71  H′ 72  R|12bit 112  R|top10 110  S16|dav1d|jump 1641  S16|dav1d|order 193  S16|webcodecs|jump 666  S16|webcodecs|order 72  S1|dav1d|jump 145  S1|dav1d|order 146  S1|webcodecs|jump 138  S1|webcodecs|order 70  S8|dav1d|jump 855  S8|dav1d|order 195  S8|webcodecs|jump 374  S8|webcodecs|order 72
+  ms, median over rounds, dbts_c1 Q32 1x: H 16  H′ 16  R|12bit 25  R|top10 25  S16|dav1d|jump 303  S16|dav1d|order 33  S16|webcodecs|jump 205  S16|webcodecs|order 21  S1|dav1d|jump 64  S1|dav1d|order 66  S1|webcodecs|jump 24  S1|webcodecs|order 19  S8|dav1d|jump 177  S8|dav1d|order 34  S8|webcodecs|jump 114  S8|webcodecs|order 22
+  ms, median over rounds, dbts_c1 Q8 1x: H 16  H′ 16  R|12bit 24  R|top10 24  S16|dav1d|jump 451  S16|dav1d|order 48  S16|webcodecs|jump 322  S16|webcodecs|order 36  S1|dav1d|jump 42  S1|dav1d|order 43  S1|webcodecs|jump 36  S1|webcodecs|order 34  S8|dav1d|jump 224  S8|dav1d|order 49  S8|webcodecs|jump 170  S8|webcodecs|order 37
+  A/A 1x: H′ ÷ H 0.995 [0.975–1.006] over 126 pairs — kept
+  A/A 4x: H′ ÷ H 0.988 [0.971–1.019] over 42 pairs — kept
+  dbts_a1 Q16 1x  A/A        H′ ÷ H: 1.002 [0.844–1.060]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  D1         S1|webcodecs|order ÷ H: 1.328 [1.199–1.405]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  D1         S8|webcodecs|order ÷ H: 1.429 [1.354–1.614]  blocks 1 n [14]  order 26% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  D1         S16|webcodecs|order ÷ H: 1.334 [1.286–1.585]  blocks 1 n [14]  order 31% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 12.737 [11.449–13.345]  blocks 1 n [14]  order 19% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.134 [7.810–8.528]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  D3         R|12bit ÷ H: 1.488 [1.450–1.618]  blocks 1 n [14]  order 27% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  D3         R|top10 ÷ H: 1.443 [1.174–1.480]  blocks 1 n [14]  order 25% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 6.521 [5.409–7.070]  blocks 1 n [14]  order 25% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.534 [4.280–5.287]  blocks 1 n [14]  order 41% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.516 [1.293–1.612]  blocks 1 n [14]  order 28% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.553 [1.226–1.615]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.092 [1.026–1.191]  blocks 1 n [14]  order 17% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.070 [1.012–1.117]  blocks 1 n [14]  order 14% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.483 [1.398–1.690]  blocks 1 n [14]  order 28% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.308 [1.243–1.428]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 2.063 [1.842–2.242]  blocks 1 n [14]  order 20% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.833 [1.586–2.020]  blocks 1 n [14]  order 32% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 2.161 [1.911–2.301]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.983 [1.905–2.154]  blocks 1 n [14]  order 13% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  ÷ H        S1|dav1d|order ÷ H: 2.025 [1.790–2.388]  blocks 1 n [14]  order 28% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  ÷ H        S1|dav1d|jump ÷ H: 2.048 [1.923–2.294]  blocks 1 n [14]  order 18% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  ÷ H        S1|webcodecs|order ÷ H: 1.328 [1.199–1.405]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.551 [1.476–1.641]  blocks 1 n [14]  order 19% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  ÷ H        S8|dav1d|order ÷ H: 2.880 [2.787–3.121]  blocks 1 n [14]  order 38% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  ÷ H        S8|dav1d|jump ÷ H: 12.776 [12.175–14.047]  blocks 1 n [14]  order 25% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  ÷ H        S8|webcodecs|order ÷ H: 1.429 [1.354–1.614]  blocks 1 n [14]  order 26% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  ÷ H        S8|webcodecs|jump ÷ H: 7.128 [6.582–8.279]  blocks 1 n [14]  order 47% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  ÷ H        S16|dav1d|order ÷ H: 2.897 [2.574–3.265]  blocks 1 n [14]  order 38% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  ÷ H        S16|dav1d|jump ÷ H: 25.242 [23.624–27.559]  blocks 1 n [14]  order 27% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  ÷ H        S16|webcodecs|order ÷ H: 1.334 [1.286–1.585]  blocks 1 n [14]  order 31% (p 1.0)  not read: one block
+  dbts_a1 Q16 1x  ÷ H        S16|webcodecs|jump ÷ H: 12.572 [12.067–14.573]  blocks 1 n [14]  order 18% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  A/A        H′ ÷ H: 0.949 [0.894–1.044]  blocks 1 n [14]  order 23% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  D1         S1|webcodecs|order ÷ H: 0.830 [0.761–0.869]  blocks 1 n [14]  order 15% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  D1         S8|webcodecs|order ÷ H: 0.779 [0.734–0.879]  blocks 1 n [14]  order 55% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  D1         S16|webcodecs|order ÷ H: 0.817 [0.796–0.882]  blocks 1 n [14]  order 12% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 12.905 [11.581–14.319]  blocks 1 n [14]  order 19% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 6.201 [4.039–8.298]  blocks 1 n [14]  order 318% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  D3         R|12bit ÷ H: 1.432 [1.368–1.536]  blocks 1 n [14]  order 10% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  D3         R|top10 ÷ H: 1.387 [1.346–1.515]  blocks 1 n [14]  order 12% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 6.380 [5.900–6.597]  blocks 1 n [14]  order 12% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 3.203 [2.235–4.083]  blocks 1 n [14]  order 53% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.508 [1.430–1.561]  blocks 1 n [14]  order 11% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.523 [1.458–1.633]  blocks 1 n [14]  order 11% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 0.964 [0.910–1.033]  blocks 1 n [14]  order 61% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.030 [0.936–1.076]  blocks 1 n [14]  order 18% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 2.210 [2.029–2.421]  blocks 1 n [14]  order 11% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.302 [1.037–2.027]  blocks 1 n [14]  order 62% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 3.471 [3.064–3.771]  blocks 1 n [14]  order 39% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 2.968 [2.638–3.100]  blocks 1 n [14]  order 27% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 3.419 [3.113–3.587]  blocks 1 n [14]  order 11% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 3.129 [2.766–3.303]  blocks 1 n [14]  order 82% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  ÷ H        S1|dav1d|order ÷ H: 1.822 [1.715–1.917]  blocks 1 n [14]  order 14% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  ÷ H        S1|dav1d|jump ÷ H: 1.838 [1.757–1.981]  blocks 1 n [14]  order 19% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  ÷ H        S1|webcodecs|order ÷ H: 0.830 [0.761–0.869]  blocks 1 n [14]  order 15% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  ÷ H        S1|webcodecs|jump ÷ H: 1.413 [1.005–1.706]  blocks 1 n [14]  order 87% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  ÷ H        S8|dav1d|order ÷ H: 2.747 [2.628–2.881]  blocks 1 n [14]  order 11% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  ÷ H        S8|dav1d|jump ÷ H: 11.801 [11.121–12.496]  blocks 1 n [14]  order 16% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  ÷ H        S8|webcodecs|order ÷ H: 0.779 [0.734–0.879]  blocks 1 n [14]  order 55% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  ÷ H        S8|webcodecs|jump ÷ H: 3.912 [3.795–4.699]  blocks 1 n [14]  order 31% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  ÷ H        S16|dav1d|order ÷ H: 2.792 [2.587–2.977]  blocks 1 n [14]  order 12% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  ÷ H        S16|dav1d|jump ÷ H: 23.700 [21.984–26.175]  blocks 1 n [14]  order 14% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  ÷ H        S16|webcodecs|order ÷ H: 0.817 [0.796–0.882]  blocks 1 n [14]  order 12% (p 1.0)  not read: one block
+  dbts_a1 Q16 4x  ÷ H        S16|webcodecs|jump ÷ H: 7.620 [7.301–8.513]  blocks 1 n [14]  order 464% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  A/A        H′ ÷ H: 1.009 [0.966–1.053]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  D1         S1|webcodecs|order ÷ H: 1.054 [0.916–1.251]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  D1         S8|webcodecs|order ÷ H: 1.159 [1.126–1.328]  blocks 1 n [14]  order 24% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  D1         S16|webcodecs|order ÷ H: 1.197 [1.110–1.255]  blocks 1 n [14]  order 33% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 7.362 [6.574–8.174]  blocks 1 n [14]  order 20% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.248 [7.511–8.720]  blocks 1 n [14]  order 12% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  D3         R|12bit ÷ H: 1.491 [1.413–1.724]  blocks 1 n [14]  order 77% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  D3         R|top10 ÷ H: 1.440 [1.344–1.530]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 3.859 [3.656–4.617]  blocks 1 n [14]  order 26% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.421 [4.102–4.658]  blocks 1 n [14]  order 14% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 0.942 [0.850–1.001]  blocks 1 n [14]  order 38% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 0.914 [0.867–0.997]  blocks 1 n [14]  order 31% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.136 [1.063–1.209]  blocks 1 n [14]  order 17% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.130 [1.008–1.279]  blocks 1 n [14]  order 26% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 2.549 [2.007–2.697]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.951 [1.738–2.136]  blocks 1 n [14]  order 25% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 2.021 [1.758–2.186]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.736 [1.526–1.838]  blocks 1 n [14]  order 19% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.985 [1.824–2.123]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.728 [1.531–1.863]  blocks 1 n [14]  order 15% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  ÷ H        S1|dav1d|order ÷ H: 2.568 [2.466–2.861]  blocks 1 n [14]  order 46% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  ÷ H        S1|dav1d|jump ÷ H: 2.657 [2.398–2.841]  blocks 1 n [14]  order 36% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  ÷ H        S1|webcodecs|order ÷ H: 1.054 [0.916–1.251]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.305 [1.259–1.419]  blocks 1 n [14]  order 15% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  ÷ H        S8|dav1d|order ÷ H: 2.402 [2.202–2.493]  blocks 1 n [14]  order 17% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  ÷ H        S8|dav1d|jump ÷ H: 10.195 [9.903–11.504]  blocks 1 n [14]  order 23% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  ÷ H        S8|webcodecs|order ÷ H: 1.159 [1.126–1.328]  blocks 1 n [14]  order 24% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  ÷ H        S8|webcodecs|jump ÷ H: 5.839 [5.511–6.483]  blocks 1 n [14]  order 14% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  ÷ H        S16|dav1d|order ÷ H: 2.384 [2.285–2.626]  blocks 1 n [14]  order 19% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  ÷ H        S16|dav1d|jump ÷ H: 19.080 [16.864–20.706]  blocks 1 n [14]  order 25% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  ÷ H        S16|webcodecs|order ÷ H: 1.197 [1.110–1.255]  blocks 1 n [14]  order 33% (p 1.0)  not read: one block
+  dbts_a1 Q32 1x  ÷ H        S16|webcodecs|jump ÷ H: 11.065 [10.634–11.428]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  A/A        H′ ÷ H: 0.946 [0.822–1.021]  blocks 1 n [14]  order 16% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  D1         S1|webcodecs|order ÷ H: 1.846 [1.760–1.918]  blocks 1 n [14]  order 6% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  D1         S8|webcodecs|order ÷ H: 2.195 [2.046–2.266]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  D1         S16|webcodecs|order ÷ H: 2.200 [2.164–2.364]  blocks 1 n [14]  order 14% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 10.150 [9.336–12.372]  blocks 1 n [14]  order 66% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 9.123 [8.776–9.313]  blocks 1 n [14]  order 12% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  D3         R|12bit ÷ H: 1.429 [1.131–1.512]  blocks 1 n [14]  order 65% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  D3         R|top10 ÷ H: 1.382 [1.193–1.529]  blocks 1 n [14]  order 19% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 5.549 [4.579–5.981]  blocks 1 n [14]  order 28% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.764 [4.561–5.095]  blocks 1 n [14]  order 27% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.178 [0.992–1.390]  blocks 1 n [14]  order 39% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.190 [0.997–1.340]  blocks 1 n [14]  order 40% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.175 [1.115–1.235]  blocks 1 n [14]  order 39% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.210 [1.173–1.253]  blocks 1 n [14]  order 12% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.529 [1.312–1.614]  blocks 1 n [14]  order 24% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.374 [1.283–1.459]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.477 [1.355–1.589]  blocks 1 n [14]  order 18% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.516 [1.324–1.732]  blocks 1 n [14]  order 25% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.499 [1.257–1.696]  blocks 1 n [14]  order 25% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.515 [1.387–1.831]  blocks 1 n [14]  order 40% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  ÷ H        S1|dav1d|order ÷ H: 2.817 [2.393–2.981]  blocks 1 n [14]  order 24% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  ÷ H        S1|dav1d|jump ÷ H: 2.845 [2.691–3.096]  blocks 1 n [14]  order 23% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  ÷ H        S1|webcodecs|order ÷ H: 1.846 [1.760–1.918]  blocks 1 n [14]  order 6% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  ÷ H        S1|webcodecs|jump ÷ H: 2.068 [2.015–2.147]  blocks 1 n [14]  order 11% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  ÷ H        S8|dav1d|order ÷ H: 3.308 [3.064–3.498]  blocks 1 n [14]  order 24% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  ÷ H        S8|dav1d|jump ÷ H: 15.663 [14.527–16.275]  blocks 1 n [14]  order 21% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  ÷ H        S8|webcodecs|order ÷ H: 2.195 [2.046–2.266]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  ÷ H        S8|webcodecs|jump ÷ H: 10.098 [9.455–10.646]  blocks 1 n [14]  order 33% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  ÷ H        S16|dav1d|order ÷ H: 3.378 [2.945–3.550]  blocks 1 n [14]  order 26% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  ÷ H        S16|dav1d|jump ÷ H: 28.498 [26.749–33.991]  blocks 1 n [14]  order 52% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  ÷ H        S16|webcodecs|order ÷ H: 2.200 [2.164–2.364]  blocks 1 n [14]  order 14% (p 1.0)  not read: one block
+  dbts_a1 Q8 1x  ÷ H        S16|webcodecs|jump ÷ H: 18.791 [18.337–19.674]  blocks 1 n [14]  order 12% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  A/A        H′ ÷ H: 0.997 [0.921–1.237]  blocks 1 n [14]  order 251% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  D1         S1|webcodecs|order ÷ H: 1.866 [1.714–2.222]  blocks 1 n [14]  order 63% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  D1         S8|webcodecs|order ÷ H: 2.101 [1.770–2.539]  blocks 1 n [14]  order 62% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  D1         S16|webcodecs|order ÷ H: 2.027 [1.876–2.544]  blocks 1 n [14]  order 62% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 10.465 [10.026–11.918]  blocks 1 n [14]  order 30% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.634 [8.400–9.194]  blocks 1 n [14]  order 13% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  D3         R|10bit ÷ H: 1.582 [1.344–2.067]  blocks 1 n [14]  order 207% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 5.390 [5.160–5.663]  blocks 1 n [14]  order 23% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.928 [4.442–5.075]  blocks 1 n [14]  order 96% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.343 [1.298–1.507]  blocks 1 n [14]  order 15% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.317 [1.241–1.368]  blocks 1 n [14]  order 14% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.097 [1.043–1.176]  blocks 1 n [14]  order 20% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.111 [1.042–1.161]  blocks 1 n [14]  order 10% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.365 [1.332–1.482]  blocks 1 n [14]  order 14% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.374 [1.269–1.441]  blocks 1 n [14]  order 21% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.692 [1.623–1.859]  blocks 1 n [14]  order 19% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.513 [1.405–1.621]  blocks 1 n [14]  order 50% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.660 [1.573–1.721]  blocks 1 n [14]  order 19% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.676 [1.557–1.790]  blocks 1 n [14]  order 11% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  ÷ H        S1|dav1d|order ÷ H: 2.608 [2.213–3.094]  blocks 1 n [14]  order 63% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  ÷ H        S1|dav1d|jump ÷ H: 2.795 [2.210–3.363]  blocks 1 n [14]  order 66% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  ÷ H        S1|webcodecs|order ÷ H: 1.866 [1.714–2.222]  blocks 1 n [14]  order 63% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  ÷ H        S1|webcodecs|jump ÷ H: 2.080 [1.744–2.472]  blocks 1 n [14]  order 65% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  ÷ H        S8|dav1d|order ÷ H: 3.463 [3.088–4.282]  blocks 1 n [14]  order 63% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  ÷ H        S8|dav1d|jump ÷ H: 14.796 [13.140–19.044]  blocks 1 n [14]  order 63% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  ÷ H        S8|webcodecs|order ÷ H: 2.101 [1.770–2.539]  blocks 1 n [14]  order 62% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  ÷ H        S8|webcodecs|jump ÷ H: 9.685 [8.851–11.877]  blocks 1 n [14]  order 163% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  ÷ H        S16|dav1d|order ÷ H: 3.410 [2.746–4.139]  blocks 1 n [14]  order 63% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  ÷ H        S16|dav1d|jump ÷ H: 30.248 [24.310–37.172]  blocks 1 n [14]  order 63% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  ÷ H        S16|webcodecs|order ÷ H: 2.027 [1.876–2.544]  blocks 1 n [14]  order 62% (p 1.0)  not read: one block
+  dbts_b1 Q16 1x  ÷ H        S16|webcodecs|jump ÷ H: 17.978 [16.242–21.941]  blocks 1 n [14]  order 61% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  A/A        H′ ÷ H: 1.020 [0.844–1.267]  blocks 1 n [14]  order 168% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  D1         S1|webcodecs|order ÷ H: 1.537 [1.454–1.642]  blocks 1 n [14]  order 32% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  D1         S8|webcodecs|order ÷ H: 1.665 [1.583–1.892]  blocks 1 n [14]  order 23% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  D1         S16|webcodecs|order ÷ H: 1.690 [1.593–1.914]  blocks 1 n [14]  order 30% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 7.904 [7.021–8.990]  blocks 1 n [14]  order 38% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.573 [8.028–8.990]  blocks 1 n [14]  order 20% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  D3         R|10bit ÷ H: 1.749 [1.593–3.139]  blocks 1 n [14]  order 157% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 4.188 [3.762–4.581]  blocks 1 n [14]  order 66% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.423 [4.324–4.778]  blocks 1 n [14]  order 12% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 0.903 [0.810–0.953]  blocks 1 n [14]  order 13% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 0.958 [0.884–0.972]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.081 [1.010–1.126]  blocks 1 n [14]  order 18% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.092 [1.040–1.193]  blocks 1 n [14]  order 18% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.976 [1.922–2.062]  blocks 1 n [14]  order 10% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.798 [1.503–1.949]  blocks 1 n [14]  order 30% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.686 [1.454–1.801]  blocks 1 n [14]  order 25% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.643 [1.508–1.802]  blocks 1 n [14]  order 31% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.701 [1.529–1.827]  blocks 1 n [14]  order 36% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.636 [1.442–1.760]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  ÷ H        S1|dav1d|order ÷ H: 3.053 [2.892–3.332]  blocks 1 n [14]  order 31% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  ÷ H        S1|dav1d|jump ÷ H: 3.112 [2.873–3.599]  blocks 1 n [14]  order 35% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  ÷ H        S1|webcodecs|order ÷ H: 1.537 [1.454–1.642]  blocks 1 n [14]  order 32% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.718 [1.652–2.011]  blocks 1 n [14]  order 41% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  ÷ H        S8|dav1d|order ÷ H: 2.778 [2.379–2.915]  blocks 1 n [14]  order 38% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  ÷ H        S8|dav1d|jump ÷ H: 13.070 [11.991–16.063]  blocks 1 n [14]  order 36% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  ÷ H        S8|webcodecs|order ÷ H: 1.665 [1.583–1.892]  blocks 1 n [14]  order 23% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  ÷ H        S8|webcodecs|jump ÷ H: 8.074 [7.481–8.300]  blocks 1 n [14]  order 32% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  ÷ H        S16|dav1d|order ÷ H: 2.887 [2.723–3.340]  blocks 1 n [14]  order 42% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  ÷ H        S16|dav1d|jump ÷ H: 24.295 [21.806–27.217]  blocks 1 n [14]  order 44% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  ÷ H        S16|webcodecs|order ÷ H: 1.690 [1.593–1.914]  blocks 1 n [14]  order 30% (p 1.0)  not read: one block
+  dbts_b1 Q32 1x  ÷ H        S16|webcodecs|jump ÷ H: 14.854 [14.147–17.031]  blocks 1 n [14]  order 31% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  A/A        H′ ÷ H: 1.005 [0.961–1.046]  blocks 1 n [14]  order 104% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  D1         S1|webcodecs|order ÷ H: 1.189 [1.142–1.215]  blocks 1 n [14]  order 60% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  D1         S8|webcodecs|order ÷ H: 1.174 [1.149–1.221]  blocks 1 n [14]  order 58% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  D1         S16|webcodecs|order ÷ H: 1.179 [1.130–1.220]  blocks 1 n [14]  order 56% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 7.983 [7.852–8.312]  blocks 1 n [14]  order 6% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 7.753 [6.541–8.741]  blocks 1 n [14]  order 67% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  D3         R|10bit ÷ H: 1.669 [1.587–1.720]  blocks 1 n [14]  order 33% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 4.201 [4.017–4.502]  blocks 1 n [14]  order 9% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.311 [3.561–5.771]  blocks 1 n [14]  order 42% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  in order G S8|dav1d|order ÷ S1|dav1d|order: 0.968 [0.924–1.026]  blocks 1 n [14]  order 7% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  in order G S16|dav1d|order ÷ S1|dav1d|order: 0.969 [0.904–1.001]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 0.998 [0.970–1.047]  blocks 1 n [14]  order 27% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.001 [0.954–1.057]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 2.470 [2.291–2.543]  blocks 1 n [14]  order 30% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 2.227 [1.862–2.307]  blocks 1 n [14]  order 37% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 2.357 [2.284–2.414]  blocks 1 n [14]  order 5% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 2.149 [1.700–2.228]  blocks 1 n [14]  order 27% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 2.348 [2.232–2.444]  blocks 1 n [14]  order 18% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 2.253 [2.055–2.369]  blocks 1 n [14]  order 43% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  ÷ H        S1|dav1d|order ÷ H: 2.863 [2.716–2.950]  blocks 1 n [14]  order 56% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  ÷ H        S1|dav1d|jump ÷ H: 2.888 [2.809–2.993]  blocks 1 n [14]  order 55% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  ÷ H        S1|webcodecs|order ÷ H: 1.189 [1.142–1.215]  blocks 1 n [14]  order 60% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  ÷ H        S1|webcodecs|jump ÷ H: 1.292 [1.263–1.599]  blocks 1 n [14]  order 55% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  ÷ H        S8|dav1d|order ÷ H: 2.781 [2.709–2.855]  blocks 1 n [14]  order 57% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  ÷ H        S8|dav1d|jump ÷ H: 12.398 [11.727–12.977]  blocks 1 n [14]  order 58% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  ÷ H        S8|webcodecs|order ÷ H: 1.174 [1.149–1.221]  blocks 1 n [14]  order 58% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  ÷ H        S8|webcodecs|jump ÷ H: 5.772 [5.484–7.086]  blocks 1 n [14]  order 57% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  ÷ H        S16|dav1d|order ÷ H: 2.764 [2.615–2.884]  blocks 1 n [14]  order 59% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  ÷ H        S16|dav1d|jump ÷ H: 23.747 [22.403–24.056]  blocks 1 n [14]  order 59% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  ÷ H        S16|webcodecs|order ÷ H: 1.179 [1.130–1.220]  blocks 1 n [14]  order 56% (p 1.0)  not read: one block
+  dbts_b1 Q32 4x  ÷ H        S16|webcodecs|jump ÷ H: 10.459 [9.988–11.042]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  A/A        H′ ÷ H: 0.979 [0.895–1.097]  blocks 1 n [14]  order 48% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  D1         S1|webcodecs|order ÷ H: 1.381 [1.307–1.538]  blocks 1 n [14]  order 65% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  D1         S8|webcodecs|order ÷ H: 1.511 [1.400–1.668]  blocks 1 n [14]  order 64% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  D1         S16|webcodecs|order ÷ H: 1.537 [1.430–1.618]  blocks 1 n [14]  order 64% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 3.908 [3.581–4.245]  blocks 1 n [14]  order 34% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.499 [8.286–9.396]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  D3         R|10bit ÷ H: 1.780 [1.504–2.011]  blocks 1 n [14]  order 137% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 2.321 [2.110–2.478]  blocks 1 n [14]  order 18% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.508 [4.271–4.748]  blocks 1 n [14]  order 15% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 0.398 [0.382–0.436]  blocks 1 n [14]  order 28% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 0.405 [0.382–0.448]  blocks 1 n [14]  order 69% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.066 [1.042–1.145]  blocks 1 n [14]  order 14% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.093 [1.032–1.188]  blocks 1 n [14]  order 10% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 3.278 [3.207–3.462]  blocks 1 n [14]  order 7% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 2.978 [2.802–3.086]  blocks 1 n [14]  order 7% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.208 [1.175–1.290]  blocks 1 n [14]  order 28% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.538 [1.380–1.711]  blocks 1 n [14]  order 16% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.236 [1.144–1.314]  blocks 1 n [14]  order 71% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.355 [1.253–1.423]  blocks 1 n [14]  order 27% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  ÷ H        S1|dav1d|order ÷ H: 4.681 [4.279–4.891]  blocks 1 n [14]  order 67% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  ÷ H        S1|dav1d|jump ÷ H: 4.719 [4.558–4.932]  blocks 1 n [14]  order 64% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  ÷ H        S1|webcodecs|order ÷ H: 1.381 [1.307–1.538]  blocks 1 n [14]  order 65% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.584 [1.545–1.703]  blocks 1 n [14]  order 65% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  ÷ H        S8|dav1d|order ÷ H: 1.806 [1.725–2.078]  blocks 1 n [14]  order 63% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  ÷ H        S8|dav1d|jump ÷ H: 10.987 [10.056–12.588]  blocks 1 n [14]  order 65% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  ÷ H        S8|webcodecs|order ÷ H: 1.511 [1.400–1.668]  blocks 1 n [14]  order 64% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  ÷ H        S8|webcodecs|jump ÷ H: 7.344 [6.769–7.913]  blocks 1 n [14]  order 65% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  ÷ H        S16|dav1d|order ÷ H: 1.873 [1.733–2.326]  blocks 1 n [14]  order 79% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  ÷ H        S16|dav1d|jump ÷ H: 18.814 [16.906–21.682]  blocks 1 n [14]  order 71% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  ÷ H        S16|webcodecs|order ÷ H: 1.537 [1.430–1.618]  blocks 1 n [14]  order 64% (p 1.0)  not read: one block
+  dbts_b1 Q56 1x  ÷ H        S16|webcodecs|jump ÷ H: 13.808 [12.875–14.961]  blocks 1 n [14]  order 62% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  A/A        H′ ÷ H: 1.000 [0.822–1.309]  blocks 1 n [14]  order 51% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  D1         S1|webcodecs|order ÷ H: 1.482 [1.328–1.797]  blocks 1 n [14]  order 43% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  D1         S8|webcodecs|order ÷ H: 1.642 [1.465–2.058]  blocks 1 n [14]  order 36% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  D1         S16|webcodecs|order ÷ H: 1.596 [1.325–1.948]  blocks 1 n [14]  order 23% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 11.528 [10.712–13.823]  blocks 1 n [14]  order 34% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.550 [7.942–9.087]  blocks 1 n [14]  order 17% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  D3         R|12bit ÷ H: 1.536 [1.318–1.837]  blocks 1 n [14]  order 30% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  D3         R|top10 ÷ H: 1.555 [1.400–1.955]  blocks 1 n [14]  order 34% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 5.997 [5.384–6.635]  blocks 1 n [14]  order 35% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.671 [4.321–4.984]  blocks 1 n [14]  order 13% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.372 [1.172–1.475]  blocks 1 n [14]  order 24% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.323 [1.174–1.462]  blocks 1 n [14]  order 14% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.106 [1.047–1.146]  blocks 1 n [14]  order 13% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.054 [0.938–1.168]  blocks 1 n [14]  order 17% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.371 [1.245–1.445]  blocks 1 n [14]  order 20% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.202 [1.020–1.314]  blocks 1 n [14]  order 26% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.680 [1.514–1.862]  blocks 1 n [14]  order 18% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.480 [1.405–1.658]  blocks 1 n [14]  order 27% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.795 [1.540–1.818]  blocks 1 n [14]  order 33% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.609 [1.415–1.760]  blocks 1 n [14]  order 21% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  ÷ H        S1|dav1d|order ÷ H: 2.132 [1.654–2.478]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  ÷ H        S1|dav1d|jump ÷ H: 2.054 [1.595–2.541]  blocks 1 n [14]  order 42% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  ÷ H        S1|webcodecs|order ÷ H: 1.482 [1.328–1.797]  blocks 1 n [14]  order 43% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.725 [1.522–2.201]  blocks 1 n [14]  order 30% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  ÷ H        S8|dav1d|order ÷ H: 2.777 [2.496–3.381]  blocks 1 n [14]  order 31% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  ÷ H        S8|dav1d|jump ÷ H: 12.617 [10.439–13.453]  blocks 1 n [14]  order 27% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  ÷ H        S8|webcodecs|order ÷ H: 1.642 [1.465–2.058]  blocks 1 n [14]  order 36% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  ÷ H        S8|webcodecs|jump ÷ H: 7.770 [6.963–9.708]  blocks 1 n [14]  order 37% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  ÷ H        S16|dav1d|order ÷ H: 2.866 [2.342–3.377]  blocks 1 n [14]  order 30% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  ÷ H        S16|dav1d|jump ÷ H: 23.292 [21.732–27.345]  blocks 1 n [14]  order 35% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  ÷ H        S16|webcodecs|order ÷ H: 1.596 [1.325–1.948]  blocks 1 n [14]  order 23% (p 1.0)  not read: one block
+  dbts_c1 Q16 1x  ÷ H        S16|webcodecs|jump ÷ H: 14.181 [12.652–18.349]  blocks 1 n [14]  order 45% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  A/A        H′ ÷ H: 1.012 [0.971–1.071]  blocks 1 n [14]  order 28% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  D1         S1|webcodecs|order ÷ H: 0.989 [0.881–1.034]  blocks 1 n [14]  order 59% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  D1         S8|webcodecs|order ÷ H: 0.991 [0.907–1.077]  blocks 1 n [14]  order 53% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  D1         S16|webcodecs|order ÷ H: 0.961 [0.887–1.084]  blocks 1 n [14]  order 44% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 11.319 [10.618–11.969]  blocks 1 n [14]  order 96% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 5.919 [4.127–7.536]  blocks 1 n [14]  order 55% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  D3         R|12bit ÷ H: 1.564 [1.449–1.685]  blocks 1 n [14]  order 50% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  D3         R|top10 ÷ H: 1.497 [1.404–1.602]  blocks 1 n [14]  order 51% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 5.935 [5.541–6.494]  blocks 1 n [14]  order 96% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 2.789 [1.724–4.280]  blocks 1 n [14]  order 66% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.357 [1.256–1.458]  blocks 1 n [14]  order 33% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.333 [1.199–1.371]  blocks 1 n [14]  order 16% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.027 [0.957–1.124]  blocks 1 n [14]  order 11% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 0.995 [0.943–1.100]  blocks 1 n [14]  order 33% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 2.114 [1.968–2.198]  blocks 1 n [14]  order 26% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.035 [0.762–1.731]  blocks 1 n [14]  order 3095% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 2.726 [2.528–2.891]  blocks 1 n [14]  order 54% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 2.390 [2.249–2.620]  blocks 1 n [14]  order 11% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 2.738 [2.657–2.843]  blocks 1 n [14]  order 14% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 2.542 [1.826–2.581]  blocks 1 n [14]  order 51% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  ÷ H        S1|dav1d|order ÷ H: 2.034 [1.869–2.120]  blocks 1 n [14]  order 46% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  ÷ H        S1|dav1d|jump ÷ H: 2.038 [1.883–2.158]  blocks 1 n [14]  order 1429% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  ÷ H        S1|webcodecs|order ÷ H: 0.989 [0.881–1.034]  blocks 1 n [14]  order 59% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  ÷ H        S1|webcodecs|jump ÷ H: 1.886 [1.077–2.959]  blocks 1 n [14]  order 89% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  ÷ H        S8|dav1d|order ÷ H: 2.729 [2.563–2.863]  blocks 1 n [14]  order 28% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  ÷ H        S8|dav1d|jump ÷ H: 12.149 [11.264–12.847]  blocks 1 n [14]  order 33% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  ÷ H        S8|webcodecs|order ÷ H: 0.991 [0.907–1.077]  blocks 1 n [14]  order 53% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  ÷ H        S8|webcodecs|jump ÷ H: 5.077 [4.624–5.464]  blocks 1 n [14]  order 39% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  ÷ H        S16|dav1d|order ÷ H: 2.599 [2.461–2.809]  blocks 1 n [14]  order 42% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  ÷ H        S16|dav1d|jump ÷ H: 22.831 [21.218–24.009]  blocks 1 n [14]  order 43% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  ÷ H        S16|webcodecs|order ÷ H: 0.961 [0.887–1.084]  blocks 1 n [14]  order 44% (p 1.0)  not read: one block
+  dbts_c1 Q16 4x  ÷ H        S16|webcodecs|jump ÷ H: 9.004 [8.728–9.563]  blocks 1 n [14]  order 112% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  A/A        H′ ÷ H: 1.033 [0.859–1.278]  blocks 1 n [14]  order 31% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  D1         S1|webcodecs|order ÷ H: 1.262 [1.065–1.573]  blocks 1 n [14]  order 30% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  D1         S8|webcodecs|order ÷ H: 1.417 [1.257–1.587]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  D1         S16|webcodecs|order ÷ H: 1.320 [1.217–1.630]  blocks 1 n [14]  order 34% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 4.706 [4.272–5.225]  blocks 1 n [14]  order 15% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.853 [8.091–9.786]  blocks 1 n [14]  order 42% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  D3         R|12bit ÷ H: 1.590 [1.365–1.824]  blocks 1 n [14]  order 44% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  D3         R|top10 ÷ H: 1.544 [1.325–1.889]  blocks 1 n [14]  order 36% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 2.771 [2.441–3.065]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.782 [4.577–5.070]  blocks 1 n [14]  order 15% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 0.516 [0.479–0.644]  blocks 1 n [14]  order 32% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 0.522 [0.395–0.556]  blocks 1 n [14]  order 185% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.142 [0.976–1.230]  blocks 1 n [14]  order 17% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.064 [1.012–1.209]  blocks 1 n [14]  order 27% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 3.179 [2.783–3.794]  blocks 1 n [14]  order 31% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 2.732 [2.401–2.970]  blocks 1 n [14]  order 17% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.503 [1.427–1.739]  blocks 1 n [14]  order 26% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.511 [1.353–1.764]  blocks 1 n [14]  order 23% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.529 [1.375–1.670]  blocks 1 n [14]  order 134% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.483 [1.331–1.573]  blocks 1 n [14]  order 36% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  ÷ H        S1|dav1d|order ÷ H: 4.183 [3.361–4.874]  blocks 1 n [14]  order 50% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  ÷ H        S1|dav1d|jump ÷ H: 4.009 [3.468–5.248]  blocks 1 n [14]  order 32% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  ÷ H        S1|webcodecs|order ÷ H: 1.262 [1.065–1.573]  blocks 1 n [14]  order 30% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.511 [1.351–1.710]  blocks 1 n [14]  order 23% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  ÷ H        S8|dav1d|order ÷ H: 2.098 [2.042–2.442]  blocks 1 n [14]  order 50% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  ÷ H        S8|dav1d|jump ÷ H: 11.375 [10.240–12.961]  blocks 1 n [14]  order 33% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  ÷ H        S8|webcodecs|order ÷ H: 1.417 [1.257–1.587]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  ÷ H        S8|webcodecs|jump ÷ H: 6.975 [6.167–8.907]  blocks 1 n [14]  order 31% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  ÷ H        S16|dav1d|order ÷ H: 2.164 [1.738–2.792]  blocks 1 n [14]  order 102% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  ÷ H        S16|dav1d|jump ÷ H: 19.047 [17.774–22.477]  blocks 1 n [14]  order 27% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  ÷ H        S16|webcodecs|order ÷ H: 1.320 [1.217–1.630]  blocks 1 n [14]  order 34% (p 1.0)  not read: one block
+  dbts_c1 Q32 1x  ÷ H        S16|webcodecs|jump ÷ H: 13.190 [12.049–16.262]  blocks 1 n [14]  order 34% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  A/A        H′ ÷ H: 0.937 [0.848–1.039]  blocks 1 n [14]  order 24% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  D1         S1|webcodecs|order ÷ H: 2.121 [2.007–2.222]  blocks 1 n [14]  order 11% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  D1         S8|webcodecs|order ÷ H: 2.285 [2.129–2.411]  blocks 1 n [14]  order 13% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  D1         S16|webcodecs|order ÷ H: 2.219 [2.115–2.515]  blocks 1 n [14]  order 28% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 10.376 [9.710–11.568]  blocks 1 n [14]  order 28% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.749 [8.076–9.145]  blocks 1 n [14]  order 31% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  D3         R|12bit ÷ H: 1.562 [1.392–1.699]  blocks 1 n [14]  order 24% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  D3         R|top10 ÷ H: 1.450 [1.321–1.746]  blocks 1 n [14]  order 54% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 5.232 [4.911–5.968]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.580 [4.255–4.852]  blocks 1 n [14]  order 31% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.144 [1.035–1.282]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.133 [1.001–1.344]  blocks 1 n [14]  order 28% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.095 [1.035–1.142]  blocks 1 n [14]  order 17% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.090 [0.997–1.132]  blocks 1 n [14]  order 13% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.247 [1.104–1.360]  blocks 1 n [14]  order 18% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.121 [1.070–1.223]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.345 [1.211–1.455]  blocks 1 n [14]  order 26% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.306 [1.257–1.415]  blocks 1 n [14]  order 22% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.365 [1.142–1.453]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.371 [1.300–1.478]  blocks 1 n [14]  order 20% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  ÷ H        S1|dav1d|order ÷ H: 2.604 [2.448–2.857]  blocks 1 n [14]  order 20% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  ÷ H        S1|dav1d|jump ÷ H: 2.714 [2.506–2.983]  blocks 1 n [14]  order 29% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  ÷ H        S1|webcodecs|order ÷ H: 2.121 [2.007–2.222]  blocks 1 n [14]  order 11% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  ÷ H        S1|webcodecs|jump ÷ H: 2.310 [2.196–2.604]  blocks 1 n [14]  order 53% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  ÷ H        S8|dav1d|order ÷ H: 3.113 [2.626–3.328]  blocks 1 n [14]  order 25% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  ÷ H        S8|dav1d|jump ÷ H: 13.903 [13.252–15.822]  blocks 1 n [14]  order 18% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  ÷ H        S8|webcodecs|order ÷ H: 2.285 [2.129–2.411]  blocks 1 n [14]  order 13% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  ÷ H        S8|webcodecs|jump ÷ H: 10.428 [9.758–11.967]  blocks 1 n [14]  order 23% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  ÷ H        S16|dav1d|order ÷ H: 2.930 [2.805–3.347]  blocks 1 n [14]  order 21% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  ÷ H        S16|dav1d|jump ÷ H: 28.207 [26.929–30.072]  blocks 1 n [14]  order 15% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  ÷ H        S16|webcodecs|order ÷ H: 2.219 [2.115–2.515]  blocks 1 n [14]  order 28% (p 1.0)  not read: one block
+  dbts_c1 Q8 1x  ÷ H        S16|webcodecs|jump ÷ H: 20.605 [18.575–22.975]  blocks 1 n [14]  order 19% (p 1.0)  not read: one block
 
 D1–D3, pooled over the kept blocks (held: the 95 % interval inside the band in every cell; refuted: outside it in one)
   D1 band (0.0, 1.0): not decided (36 of 36 cells not read, 0 undecided)
