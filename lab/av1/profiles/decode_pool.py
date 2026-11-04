@@ -9,6 +9,7 @@ usage: decode_pool.py ROWS.json [ROWS.json ...] [--links]
 """
 import json
 import math
+import random
 import statistics as st
 import sys
 from collections import defaultdict
@@ -52,6 +53,16 @@ def interval(v):
         return None
     m, h = st.mean(v), t_quantile(0.975, len(v) - 1) * st.stdev(v) / math.sqrt(len(v))
     return m, m - h, m + h
+
+
+def median_interval(v):
+    """Median of v and its distribution-free 95 % interval, order statistics k and n + 1 − k with k the largest
+    whose two binomial(n, ½) tails stay ≤ 2.5 % each; None under 6 values, where no such k exists."""
+    v = sorted(v)
+    n = len(v)
+    tail = lambda k: sum(math.comb(n, i) for i in range(k)) / 2 ** n
+    ks = [k for k in range(1, n // 2 + 1) if tail(k) <= 0.025]
+    return (st.median(v), v[ks[-1] - 1], v[n - ks[-1]]) if ks else None
 
 
 def figure(r):
@@ -130,15 +141,28 @@ def paired(rows, num, den, fig=figure):
     return out
 
 
-def order_effect(p):
-    """The largest |median by predecessor ÷ median − 1| of the ratio (docs/rig-limits.md §6)."""
+def order_effect(p, shuffles=400):
+    """The largest |median by predecessor ÷ median − 1| of the ratio (docs/rig-limits.md §6), and how often the same
+    pairs with their predecessors shuffled reach it: the share is the chance the effect is noise at this n."""
     if len(p) < 2:
-        return None
-    m = st.median(math.exp(x) for _, x, _ in p)
-    groups = defaultdict(list)
-    for _, x, prev in p:
-        groups[prev].append(math.exp(x))
-    return max(abs(st.median(g) / m - 1) for g in groups.values())
+        return None, None
+
+    def effect(xs, prevs):
+        m = st.median(xs)
+        groups = defaultdict(list)
+        for x, prev in zip(xs, prevs):
+            groups[prev].append(x)
+        return max(abs(math.exp(st.median(g) - m) - 1) for g in groups.values())
+
+    xs, prevs = [x for _, x, _ in p], [prev for _, _, prev in p]
+    seen = effect(xs, prevs)
+    rnd = random.Random(0)
+    shuffled = list(prevs)
+    hits = 0
+    for _ in range(shuffles):
+        rnd.shuffle(shuffled)
+        hits += effect(xs, shuffled) >= seen
+    return seen, hits / shuffles
 
 
 def analyse(rows, links=False):
@@ -164,9 +188,10 @@ def analyse(rows, links=False):
                 lines.append(f"  void cell {c}: " + "; ".join(f"r{r['round']} {unit(r)} {r.get('checks')} {r.get('error') or ''}"[:200] for r in rs if failed(r))[:600])
         for t in sorted({c[2] for c in cells}):
             aa = [x for c, rs in cells.items() if c[2] == t and (b, *c) not in void for _, x, _ in paired(rs, "H′", "H")]
-            ci = interval(aa)
-            ok = ci is not None and -RESOLUTION <= ci[1] and ci[2] <= RESOLUTION
-            lines.append(f"  A/A {t}x: H′ ÷ H {fmt(ci)} over {len(aa)} pairs — " + ("kept" if ok else "VOID: its 95 % interval leaves ±5 %"))
+            ci = median_interval(aa)
+            ok = ci is not None and ci[1] <= RESOLUTION and ci[2] >= -RESOLUTION
+            lines.append(f"  A/A {t}x: H′ ÷ H {fmt(ci)} over {len(aa)} pairs — "
+                         + ("kept" if ok else "VOID: under 6 pairs, or H′ and H apart by more than 5 % at 95 %"))
             if not ok:
                 void |= {(b, *c) for c in cells if c[2] == t}
 
@@ -175,7 +200,7 @@ def analyse(rows, links=False):
     for c in keys:
         forms = sorted({r["form"] for cells in blocks.values() for r in cells.get(c, []) if r["arm"] == "R"})
         for q, num, den, band in ratios(forms):
-            per, effects, aa_effects = {}, [], []
+            per = {}
             for b, cells in blocks.items():
                 rs = cells.get(c, [])
                 p = paired(rs, num, den)
@@ -184,18 +209,17 @@ def analyse(rows, links=False):
             if not per:
                 continue
             allp = [x for p in per.values() for x in p]
-            aap = [x for b in per for x in paired(blocks[b][c], "H′", "H")]
-            eff, aa_eff = order_effect(allp), order_effect(aap)
-            m = [st.mean(x for _, x, _ in p) for p in per.values()]
+            eff, chance = order_effect(allp)
+            m = [st.median(x for _, x, _ in p) for p in per.values()]
             n = [len(p) for p in per.values()]
-            ci = interval(m) if len(m) > 1 else interval([x for _, x, _ in allp])
+            ci = interval(m) if len(m) > 1 else median_interval([x for _, x, _ in allp])
             why = []
             if len(m) < 2:
                 why.append("one block")
             if min(n) < MIN_ROUNDS:
                 why.append(f"under {MIN_ROUNDS} rounds")
-            if eff is not None and eff > ORDER_LIMIT and (aa_eff is None or eff > aa_eff):
-                why.append(f"order {eff:.0%} over 10 % and over the A/A's {aa_eff or 0:.0%}")
+            if eff is not None and eff > ORDER_LIMIT and chance < 0.05:
+                why.append(f"order {eff:.0%}, over 10 % and beyond its shuffles (p {chance:.3f})")
             state = "read" if not why else "not read: " + ", ".join(why)
             verdict = None
             if band and ci and not why:
@@ -203,7 +227,8 @@ def analyse(rows, links=False):
                 e = [math.exp(x) for x in ci]
                 verdict = "held" if lo <= e[1] and e[2] <= hi else "refuted" if e[2] < lo or e[1] > hi else "not decided"
             pooled[c][(q, num, den)] = dict(ci=ci, blocks=len(m), n=n, effect=eff, state=state, band=band, verdict=verdict)
-            line = f"  {c[0]} Q{c[1]} {c[2]}x  {q:<10} {num} ÷ {den}: {fmt(ci)}  blocks {len(m)} n {n}  order {pct(eff)} (A/A {pct(aa_eff)})  {state}"
+            line = (f"  {c[0]} Q{c[1]} {c[2]}x  {q:<10} {num} ÷ {den}: {fmt(ci)}  blocks {len(m)} n {n}  "
+                    f"order {pct(eff)} (p {chance if chance is None else round(chance, 3)})  {state}")
             if verdict:
                 line += f"  {band} {BANDS[band]}: {verdict}"
             if links:
@@ -232,8 +257,9 @@ def pct(x):
 
 
 def size(rows, hours, setup_hours, sessions, every_rung_at):
-    """From one pilot block: σ of ln(ratio) over its rounds, per (cell, ratio); the blocks' rounds that see 5 % with
-    80 % power on a t over `sessions` blocks; and the rounds that fit `hours` less setup, from the pilot's round time.
+    """From one pilot block: a robust σ of ln(ratio) over its rounds (1.4826 × MAD), per (cell, question ratio); the
+    rounds a block needs for its median (variance π/2 · σ² ÷ n) to let a t over `sessions` blocks see 5 % with 80 %
+    power; and the rounds that fit `hours` less setup, from the pilot's round time.
     At a throttle not in `every_rung_at`, only each series' middle rung counts, as decode_block.mjs runs it."""
     rungs = defaultdict(set)
     for r in rows:
@@ -247,10 +273,12 @@ def size(rows, hours, setup_hours, sessions, every_rung_at):
     for c, rs in cells.items():
         forms = sorted({r["form"] for r in rs if r["arm"] == "R"})
         for q, num, den, band in ratios(forms):
+            if q in ("A/A", "÷ H", "jump = ask"):
+                continue
             p = [x for _, x, _ in paired(rs, num, den)]
             if len(p) > 2:
-                s = st.stdev(p)
-                total = math.ceil((k * s / RESOLUTION) ** 2)
+                s = 1.4826 * st.median(abs(x - st.median(p)) for x in p)
+                total = math.ceil(math.pi / 2 * (k * s / RESOLUTION) ** 2)
                 need.append((max(MIN_ROUNDS, math.ceil(total / sessions)), s, c, q, num, den))
     need.sort(reverse=True, key=lambda x: x[0])
     walls = defaultdict(float)
@@ -263,9 +291,16 @@ def size(rows, hours, setup_hours, sessions, every_rung_at):
     for n, s, c, q, num, den in need[:25]:
         print(f"  {n:5d}  σ {s:.4f}  {c[0]} Q{c[1]} {c[2]}x  {q}: {num} ÷ {den}" + ("" if n <= fit else "  DOES NOT FIT"))
     by_q = defaultdict(int)
-    for n, *_rest in need:
-        by_q[_rest[2]] = max(by_q[_rest[2]], n)
+    for n, _, _, q, _, _ in need:
+        by_q[q] = max(by_q[q], n)
     print("largest by question: " + ", ".join(f"{q} {n}" for q, n in by_q.items()))
+    for rounds in sorted({MIN_ROUNDS, fit}):
+        half = lambda s: math.exp(t_quantile(0.975, sessions - 1) * math.sqrt(math.pi / 2) * s / math.sqrt(sessions * rounds)) - 1
+        worst = defaultdict(float)
+        for _, s, c, q, _, _ in need:
+            worst[(q, c[2])] = max(worst[(q, c[2])], half(s))
+        print(f"at {rounds} rounds a block, the widest expected 95 % half-interval, by question and throttle: "
+              + ", ".join(f"{q} {t}x ±{w:.0%}" for (q, t), w in sorted(worst.items(), key=str)))
 
 
 def test():
@@ -299,6 +334,13 @@ def test():
     assert v.startswith("not decided"), v
     v, x = d2(block("a", 1.0))
     assert v.startswith("not decided") and "one block" in x["state"], (v, x)
+    # One round of one block ten times slower on S16 (host interference) moves a mean, not the median or the verdict.
+    rows = block("a", 1.0) + block("b", 1.0, seed=1) + block("c", 1.0, seed=2)
+    for r in rows:
+        if r["block"] == "b" and r["round"] == 3 and r["unit"].startswith("S16"):
+            r["frames"] = [[i, h * 10, w * 10, b] for i, h, w, b in r["frames"]]
+    v, x = d2(rows)
+    assert v == "held", (v, x)
     # A block whose A/A is 20 % off is void: the refuting block drops out and the other two hold.
     v, x = d2(block("a", 1.0) + block("b", 1.0, seed=1) + block("c", 1.5, aa=1.2, seed=2))
     assert v == "held" and x["blocks"] == 2, (v, x)
@@ -310,6 +352,13 @@ def test():
     rows[-1]["checks"] = {"x": [0, 1]}
     v, x = d2(rows)
     assert v == "held" and x["blocks"] == 2, (v, x)
+    # A ratio 30 % higher after one predecessor in every round is beyond its shuffles; the same pairs with no such
+    # effect are not flagged, though some predecessor's median sits over 10 % from the whole on noise.
+    rnd = random.Random(5)
+    noise = [(k, rnd.gauss(0, 0.15), f"u{k % 15}") for k in range(90)]
+    real = [(k, x + (math.log(1.3) if prev == "u3" else 0), prev) for k, x, prev in noise]
+    (e0, p0), (e1, p1) = order_effect(noise), order_effect(real)
+    assert e0 > ORDER_LIMIT and p0 >= 0.05 and e1 > ORDER_LIMIT and p1 < 0.05, (e0, p0, e1, p1)
     # The link replay. In order: 1 000 B at 5 Mbit/s is 1.6 ms, under each 10 ms decode, so frames come every 10 ms;
     # 100 000 B is 160 ms, so every 160. A jump to the k-th frame of a chain: 1.6 ms for its keyframe, then 10 ms a frame.
     row = lambda pattern, b: dict(pattern=pattern, g=16, error=None, frames=[[i, 0.0, 10.0, b] for i in range(16, 32)])
