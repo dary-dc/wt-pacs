@@ -3,8 +3,8 @@ node:internal/modules/run_main:123
     ^
 
 page.evaluate: Target page, context or browser has been closed
-    at inChromium (/home/user/wt-pacs/lab/av1/profiles/decode_block.mjs:104:28)
-    at async file:///home/user/wt-pacs/lab/av1/profiles/decode_block.mjs:142:19
+    at inChromium (lab/av1/profiles/decode_block.mjs:104:28)
+    at async lab/av1/profiles/decode_block.mjs:142:19
 
 Node.js v22.23.4
 round 0 1x done, 260 s
@@ -50,8 +50,8 @@ node:internal/modules/run_main:123
     ^
 
 page.evaluate: Target page, context or browser has been closed
-    at inChromium (/home/user/wt-pacs/lab/av1/profiles/decode_block.mjs:104:28)
-    at async file:///home/user/wt-pacs/lab/av1/profiles/decode_block.mjs:149:19
+    at inChromium (lab/av1/profiles/decode_block.mjs:104:28)
+    at async lab/av1/profiles/decode_block.mjs:149:19
 
 Node.js v22.23.4
 node:internal/modules/run_main:123
@@ -59,8 +59,8 @@ node:internal/modules/run_main:123
     ^
 
 page.evaluate: Target page, context or browser has been closed
-    at inChromium (/home/user/wt-pacs/lab/av1/profiles/decode_block.mjs:104:28)
-    at async file:///home/user/wt-pacs/lab/av1/profiles/decode_block.mjs:149:19
+    at inChromium (lab/av1/profiles/decode_block.mjs:104:28)
+    at async lab/av1/profiles/decode_block.mjs:149:19
 
 Node.js v22.23.4
 --- 2026-11-04T20:49Z restart: every line above ran with two block drivers at once on this host (a launch not stopped); void. The block starts again at round 0 below.
