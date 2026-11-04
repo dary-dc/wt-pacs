@@ -349,39 +349,140 @@ either ran (`4b12442`), and nothing in 2–4 changed after them but the budget.
 
 ## Profile carriers, measured
 
-*2026-11-04, partial: the run is in progress; this section is replaced as each unit finishes.*
+*2026-11-04, row CARRIERS, run by a session given only the protocol above; §4 as written, nothing in 1–5 changed.*
 
-* **Host.** 4 cores of an Intel Xeon Processor @ 2.10 GHz (one thread a core), 15 GB, headless Chrome for Testing
-  153.0.8010.12 (playwright 1.63.0). Not the 2.80 GHz host §5 was built on: every time below is for this host only.
-* **Done.** `run.sh tools` (libaom 3.15.1, the patched `svc_encoder_rtc`, the lab's dav1d-WASM, OpenJPH, the three
-  volumes SHA-256-checked, the profiles directory at `b9e3e9e`). The host lacked `meson`; it was installed with pip
-  (1.12.1) before `tools`, no file of the repository changed.
-* **Content** (`run.sh content`, 23 min on this host): the `p3-m10/20/30` streams equal `svc-shapes.tsv`'s totals
-  byte for byte on all three volumes (`run.sh`'s diff empty); `content.py` coded `p3k1-m20` (`-k 1` accepted) and
-  the separate streams (`streams.py` did not stop: each equals the profiles bytes run's row); every layered ask decoded
-  natively from its keyframe is exact, 8/8 a volume for `p3-m20` and for `p3k1-m20` (48/48).
-* **Mutations** (`run.sh mutate`, `dbts_a1`, one round at 1×). `roles_test.py` 16/16, each of `mutate.py`'s six breaks
-  caught. Native: `skip` leaves `p3-m20` 1/8 (the keyframe's) and `p3k1-m20` 8/8; `low` 0/8 on both. In the browser:
-  `sample` 0/8 every exact arm and 0/56 every view; `truth` the same (its first cell hung and was written `VOID` after
-  15 min; run again, as above); `offset` `res` 0/8, its lossy frames 8/8, every other arm whole; `skip` `svc` 1/8,
-  `svc1` 8/8, every other arm whole; `low` `svc`, `svc1`, `k2` 0/8, every other arm whole. Each check sees its break.
-* **Bytes, storage and quality** (deterministic, from `content.py`'s index; `predictions.py` reads C2, C4's bytes, C5,
-  C7's bytes and PSNR, C8). C2 held: an ask downloads 3.49 · 4.46 · 3.47× a shipped frame (`dbts_a1` · `b1` · `c1`);
-  the top's share t of top + low bits is 0.691 · 1 · 0.699. C4's bytes: `p3k1-m20`'s base + middle is 1.96 · 1.49 ·
-  1.93× `p3-m20`'s, **refuted** on `dbts_a1` and `dbts_c1` (band 1.15–1.8); its stored stream 1.02 · 1.02 · 1.03×,
-  held. C5 held at every (volume, m): the separate stream at the middle's PSNR is 0.60 · 0.64 · 0.52 (`a1`, m 10 · 20 ·
-  30), 0.67 · 0.66 · 0.57 (`b1`), 0.61 · 0.62 · 0.45 (`c1`) of base + middle. C7's bytes and PSNR held: Q 56 is 0.75 ·
-  0.89 · 0.66× the quarter base, +2.31 · +0.54 · +2.69 dB. C8 held: layered 0.940 · 0.947 · 0.937 of HTJ2K, by
-  residual 1.004 · 1.001 · 1.002, by whole frame 1.008 · 1.043 · 1.012.
-* **Pairing by nearest PSNR** (§4's rule). Middle m 10 · 20 · 30 against Q 8 · 16 · 32: `dbts_a1` 48.46 · 46.33 · 45.31
-  dB against 49.94 · 46.76 · 45.02; `dbts_c1` 49.59 · 46.98 · 45.77 against 51.42 · 47.54 · 45.61 — paired as written.
-  `dbts_b1` 49.23 · 45.84 · 44.20 against 52.05 · 46.69 · 43.96: m 10 is nearer Q 16 (gap 2.54 dB) than Q 8 (2.82 dB),
-  so on `dbts_b1` m 10's times are read against Q 16.
-* **Rounds 0–2** (15.8–16.2 min each, under §4's 18 min: no arm dropped; 1 062 rows, none failing a check, no
-  `VOID`). Read at n = 3 by `predictions.py`, medians over rounds, `dbts_a1` · `b1` · `c1`, 1× / 4×: C1 held, a layered
-  ask 35.5 · 24.5 · 29.7× / 30.3 · 24.0 · 26.0× an HTJ2K frame, position 7 ÷ position 0 4.5–6.4 (the theory stands);
-  **C3 refuted**, the residual + add 1.58 · 2.00 · 1.52× / 1.49 · 2.04 · 1.50×, the whole frame (`htj2k-aa`) 0.99–1.10×;
-  C4's ask held, 11.5 · 6.2 · 10.5× / 9.6 · 6.5 · 8.8×; C6 held, 0.98–1.31×, WebCodecs 0.23–0.68×; C7's decode held,
-  6.3–13.4×. Partial: the reading at 10 rounds replaces this line. Rows: `lab/av1/delivery/carriers/results/`.
-* **Rounds 3–6** run (15.8–16.1 min each, no check failed, no `VOID`); rows committed, read with rounds 7–9.
-* **Running.** rounds 7–9 (the first `rounds` job was stopped after round 6, whole, to outlast its shell limit, and restarted with `FIRST=7`).
+1. **Run:** §4 end to end on `dbts_a1`, `dbts_b1`, `dbts_c1`: content, every mutation, 10 rounds at 1× and 4× (3 540
+   timed rows, every exact and lossy frame checked, none failing, no `VOID`).
+2. **Rule's verdict, on these three volumes:** separate payloads are better for the exact frame on request (from
+   `p3-m20`), the cheap view and the high-quality view; the layered stream stores less. A layered stream with a
+   keyframe in every unit (`p3k1-m20`) is better than the separate carrier for the ask.
+3. **What it shows:** every time metric is gated out by §4's order-effect rule, so each verdict above rests on bytes.
+   The times, read without the gate, agree for the ask (the layered ask 23–35× an HTJ2K frame's decode) and go the other
+   way for the cheap view (the quarter base decodes 8–12× faster a frame).
+4. **Rests on:** these three DBT volumes only, this 4-core host up to 4×, dav1d-WASM one thread, Chromium's WebCodecs,
+   a link that is a model fed with measured decode.
+5. **Left:** ultrasound cine and ABUS (no fixture), phones, a hardware decoder, the exact-volume fill (2e, not
+   re-measured), and an order-effect statistic that can be read at 10 rounds (below, *The gate*).
+
+**Terms used here first.** *Order effect*: §4's statistic, the largest |median by preceding arm ÷ median − 1| of one
+arm in one (volume, throttle). *Not read*: an arm whose order effect passes 10 %. *A/A range*: min–max over rounds of
+`htj2k-aa ÷ htj2k`. *Strict*: a time metric is not read if any arm it uses is (the two compared, `htj2k` and
+`htj2k-aa`, which the rule's ratios divide by); *compared only*: if either compared arm is. The verdict is the strict
+reading; the other is printed beside it so that nothing is hidden.
+
+### Host and saturation
+
+4 cores of an Intel Xeon Processor @ 2.10 GHz (one thread a core), 15 GB, headless Chrome for Testing 153.0.8010.12,
+playwright 1.63.0 — not the 2.80 GHz host of §5; every time here is this host's. `cpu_throttle.mjs --check 1,4`: page
+thread 382 ms and worker 397 ms at 1×, 1 571 ms and 1 668 ms at 4× (median of 4), a factor of 4.1–4.2. One decode in
+flight, one thread a decoder: one core of four at 1×; the host does not saturate in any arm. WebCodecs runs its own
+threads and is not a one-core figure. Nothing is claimed past 4×, for concurrent asks, a phone or another host.
+
+Environment, not protocol: `meson` was absent and installed with pip (1.12.1); the `rounds` job was stopped after round
+6, whole, to outlast a shell time limit, and restarted with `FIRST=7` (each round's 354 rows present, none twice). The harness moved once under the run:
+`e67b87d` (a 20 s bound on a WebCodecs unit, a failed view kept as a row) landed after `tools`; content and every
+mutation ran on `e311fd3`'s `ask.js`, all 10 rounds on `e67b87d`'s. No round row carries an error.
+
+### Content, checks and mutations
+
+* `p3-m10/20/30` equal `svc-shapes.tsv`'s totals byte for byte on all three volumes; `streams.py` did not stop, so every
+  separate stream and residual equals the profiles bytes run's row; `p3k1-m20` codes (`-k 1` accepted, C4's
+  *unverified* resolved).
+* Native layered asks from the keyframe, exact: 48/48. In the browser, 10 rounds: every exact frame (`svc`, `svc1`,
+  `res`, `htj2k`, `htj2k-aa`, `k2`) equals the fetch checksum, every lossy frame native dav1d's.
+* Mutations, once each on `dbts_a1` at 1×: `roles_test.py` 16/16, and each of `mutate.py`'s six breaks fails it. Native
+  `skip`: `p3-m20` 1/8 (the keyframe's), `p3k1-m20` 8/8; native `low`: 0/8 on both. Browser `sample` and `truth`: 0/8
+  every exact arm, 0/56 every view (`truth`'s first cell hung and was written `VOID` after 15 min; run again);
+  `offset`: `res` 0/8, its lossy frames 8/8; `skip`: `svc` 1/8, `svc1` 8/8; `low`: `svc`, `svc1`, `k2` 0/8. Every
+  other arm stayed whole under each. Each check sees its break.
+
+### Bytes, storage, quality (deterministic)
+
+`dbts_a1` · `dbts_b1` · `dbts_c1`. PSNR over the volume at the stored depth.
+
+| quantity | layered | separate |
+| --- | --- | --- |
+| cheap view, bytes a volume (quarter base · Q 56) | 14 985 · 41 497 · 23 613 | 11 272 · 37 079 · 15 640 |
+| cheap view, PSNR full size | 38.05 · 38.89 · 38.33 dB | 40.36 · 39.42 · 41.02 dB |
+| high view, base + middle m 10 · 20 · 30 ÷ separate at its PSNR | `a1` 0.60 · 0.64 · 0.52; `b1` 0.67 · 0.66 · 0.57; `c1` 0.61 · 0.62 · 0.45 (separate ÷ layered) | |
+| exact ask, bytes, mean of 8 positions (`p3-m20` · residual) | 4 006 706 · 8 997 658 · 3 366 240 | 1 242 777 · 2 088 261 · 1 034 815 |
+| the same ÷ a shipped frame | 3.49 · 4.46 · 3.47 | 1.08 · 1.04 · 1.07 |
+| exact ask, `p3k1-m20` · whole HTJ2K frame | 1 178 688 · 2 008 418 · 986 221 | 1 249 274 · 2 182 401 · 1 045 473 |
+| storage ÷ HTJ2K (layered · by residual · by whole frame) | 0.940 · 0.947 · 0.937 | 1.004 · 1.001 · 1.002 · 1.008 · 1.043 · 1.012 |
+
+The top's share t of top + low bits, which 2a left *unverified* at 0.4–0.8: **0.691 · — · 0.699** (`dbts_b1` has no low
+bits). Pairing by nearest PSNR (§4): m 10 · 20 · 30 against Q 8 · 16 · 32 on `dbts_a1` (48.46 · 46.33 · 45.31 dB
+against 49.94 · 46.76 · 45.02) and `dbts_c1` (49.59 · 46.98 · 45.77 against 51.42 · 47.54 · 45.61). On `dbts_b1` m 10
+(49.23 dB) is nearer Q 16 (46.69, gap 2.54) than Q 8 (52.05, gap 2.82), so its times are read against Q 16.
+
+### Times, 10 rounds (medians over rounds; ms unless s)
+
+`dbts_a1` · `dbts_b1` · `dbts_c1`, 1× / 4×. An ask's decode is the mean of its 8 asks in a round.
+
+| arm | 1× | 4× |
+| --- | --- | --- |
+| ask `svc` (`p3-m20`), mean | 707 · 1 494 · 594 | 2 971 · 6 668 · 2 621 |
+| ask `svc`, position 0 … 7 | 229 … 1 161 · 414 … 2 637 · 204 … 991 | 1 025 … 5 047 · 1 798 … 11 579 · 868 … 4 288 |
+| ask `svc1` (`p3k1-m20`) | 224 · 407 · 207 | 959 · 1 833 · 860 |
+| ask `res` (residual + add) | 33.3 · 123 · 32.0 | 151 · 559 · 158 |
+| ask `htj2k` · `htj2k-aa` | 19.8 · 64.9 · 20.4 / 21.3 · 68.2 · 20.4 | 97.3 · 289 · 97.5 / 101 · 282 · 99.0 |
+| ask `k2` | 186 · 402 · 167 | 804 · 1 717 · 704 |
+| A/A range | 0.89–1.31 · 0.85–1.55 · 0.75–1.19 | 0.78–1.25 · 0.82–1.12 · 0.86–1.12 |
+| decode a frame `base` · `sep-q56` · `wc-q56` | 1.6 · 15.4 · 10.5; 4.3 · 51.8 · 41.0; 1.6 · 13.5 · 12.5 | 7.5 · 71.8 · 32.0; 19.7 · 236 · 127; 8.0 · 63.7 · 36.8 |
+| decode a frame `mid-m20` · `sep-q16` · `wc-q16` | 32.1 · 39.6 · 14.4; 92.0 · 126 · 65.6; 29.0 · 35.9 · 16.9 | 147 · 177 · 34.1; 431 · 572 · 161; 129 · 164 · 40.6 |
+| decode a frame `mid-m10` · `sep-q8`; `mid-m30` · `sep-q32` | 42.2 · 45.5, 28.9 · 33.7; 132 · 134, 85.3 · 93.4; 40.1 · 41.9, 26.7 · 27.6 | 190 · 204, 130 · 156; 594 · 609, 394 · 428; 185 · 184, 117 · 126 |
+| decode in total `mid-m20` · `sep-q16` · `wc-q16` | 1.83 · 2.26 · 0.82 s; 4.82 · 6.34 · 3.31 s; 2.17 · 2.60 · 1.20 s | 8.46 · 10.1 · 2.04 s; 22.6 · 28.5 · 8.29 s; 9.59 · 11.5 · 2.99 s |
+
+Every slice of the high view at 20 Mbit/s, 1× (`roles.py`'s link model): `mid-m20` 1.87 · 5.82 · 2.24 s, `sep-q16` 2.30
+· 7.55 · 2.67 s, `wc-q16` 0.86 · 7.48 (link-bound) · 1.20 s; the cheap view's every slice 0.15 · 0.28 · 0.18 s by the
+base, 1.01 · 3.11 · 1.21 s by `sep-q56`. An ask over 20 Mbit/s at 1×, bytes ÷ R + decode (*derived*): `p3-m20` 2.3 · 5.1
+· 1.9 s, residual 0.53 · 0.96 · 0.45 s, whole HTJ2K 0.52 · 0.94 · 0.44 s, `p3k1-m20` 0.69 · 1.21 · 0.60 s. All
+tables: [`results/roles.md`](../../lab/av1/delivery/carriers/results/roles.md).
+
+### The decision rule, as written
+
+**The gate.** Arms not read (order effect > 10 %), from `roles.py` (`verdict.py` lists the same):
+
+| | 1× | 4× |
+| --- | --- | --- |
+| `dbts_a1` | base 38 %, htj2k 63 %, htj2k-aa 38 %, mid-m20 21 %, mid-m30 15 %, mid1-m20 15 %, res 17 %, sep-q32 15 %, sep-q56 15 %, sep-q8 16 %, svc 10 % | base 26 %, htj2k 11 %, htj2k-aa 18 %, mid-m20 11 %, wc-q16 49 % |
+| `dbts_b1` | base 11 %, htj2k 17 %, htj2k-aa 27 %, k2 10 %, res 15 % | base 19 %, htj2k 20 %, htj2k-aa 22 %, res 12 % |
+| `dbts_c1` | base 50 %, htj2k 18 %, htj2k-aa 12 %, k2 10 %, res 21 %, sep-q16 12 %, sep-q32 15 %, sep-q56 13 %, svc1 16 %, wc-q16 11 % | base 26 %, htj2k-aa 24 %, k2 14 %, mid-m10 11 %, res 25 %, svc 14 %, wc-q16 11 % |
+
+`htj2k` or `htj2k-aa` is not read in every (volume, throttle), so under the strict reading **no time metric is read
+anywhere**, and each role is decided by its bytes alone. With 17 arms in a Williams order over 10 rounds each arm has
+about one value a predecessor, so the statistic is mostly round-to-round spread (*derived* from the order; a reason,
+not a change to the rule).
+
+**Verdict per role** (`verdict.py`; [`results/verdict.md`](../../lab/av1/delivery/carriers/results/verdict.md)), the same
+on all three volumes at 1× and 4×, so it holds "on these three volumes":
+
+| role | strict (the verdict) | compared only | `roles.py`'s times alone, ungated |
+| --- | --- | --- | --- |
+| exact ask, `p3-m20` vs residual or whole frame | **separate better** (bytes 3.2–4.3× less; times not read) | separate better in all 12 | separate better, every time decided (paired sep ÷ layered 0.03–0.08) |
+| exact ask, `p3k1-m20` vs residual or whole frame | **layered better** (bytes 0.92–0.96×) | layered better in 10, a trade in 2 | separate better (paired 0.09–0.31) |
+| cheap view, base vs Q 56 (dav1d or WebCodecs) | **separate better** (bytes 0.66–0.89×) | separate better (the base not read in any cell) | layered better |
+| high view, base + middle vs its nearest rung (and WebCodecs) | **separate better** (bytes 0.45–0.67× at equal PSNR) | separate better in 19 of 24, a trade in 5 | a trade: on dav1d 23 metrics decided for layered, 10 for separate (every one a first picture), WebCodecs separate |
+| server storage | **layered** 0.937–0.947 against 1.001–1.043 of HTJ2K | | |
+
+### Predictions C1–C8, judged as written (`predictions.py`; [`results/predictions.md`](../../lab/av1/delivery/carriers/results/predictions.md))
+
+| # | measured, `a1` · `b1` · `c1`, 1× / 4× | |
+| --- | --- | --- |
+| C1 | ask 34.7 · 22.9 · 29.6× / 31.1 · 23.7 · 26.1× HTJ2K; position 0 11.9 · 6.3 · 10.3× / 10.6 · 6.3 · 9.0×; position 7 58.4 · 39.1 · 48.3× / 52.8 · 40.2 · 44.5× | **held**; position 7 ÷ 0 is 4.7–6.4, so the theory stands |
+| C2 | 3.49 · 4.46 · 3.47× a shipped frame | **held** |
+| C3 | residual + add 1.74 · 1.91 · 1.58× / 1.53 · 1.97 · 1.58×; whole (`htj2k-aa`) 1.04 · 1.00 · 1.03× / 1.06 · 1.01 · 1.02× | **refuted** for the residual (band 0.85–1.15); why is not measured here |
+| C4 | `p3k1-m20` ask 11.4 · 6.1 · 10.4× / 9.8 · 6.4 · 8.9×; base + middle 1.96 · 1.49 · 1.93× `p3-m20`'s; stored 1.02 · 1.02 · 1.03× | **refuted** on base + middle for `a1` and `c1` (band 1.15–1.8); the rest held |
+| C5 | 0.45–0.67 at every (volume, m) | **held** |
+| C6 | dav1d 1.08 · 1.23 · 1.17 (`a1`, m 10 · 20 · 30), 0.95 · 1.36 · 1.08 (`b1`, m 10 read against Q 16), 1.05 · 1.24 · 1.05 (`c1`) at 1×, 0.96–1.33 at 4×; WebCodecs ÷ `mid-m20` 0.44 · 0.71 · 0.57 / 0.22 · 0.38 · 0.31 | **held** |
+| C7 | 0.75 · 0.89 · 0.66× the base's bytes; +2.31 · +0.54 · +2.69 dB; decode 9.8 · 12.2 · 8.7× / 9.8 · 11.9 · 7.7× | **held** |
+| C8 | layered 0.940 · 0.947 · 0.937; by residual 1.004 · 1.001 · 1.002; by whole frame 1.008 · 1.043 · 1.012 | **held** |
+
+C1–C7's time ratios are medians over 10 rounds of each round's ratio, n = 10 every cell; the order-effect gate is the
+decision rule's and is not applied to the predictions, which §3 states as bands, not decisions.
+
+**Complexity (2f), checked against the code that ran** (`ask.js`): as the table states, with one narrowing — the
+layered exact unit ran on dav1d-WASM only (operating point 0); no WebCodecs arm decoded a layered unit.
+
+**Not run.** The exact-volume fill (2e); a dweller's stepping asks (only the cold ask was timed); Firefox; a link (the
+role times past the decode are a model); any fixture but the three named.
