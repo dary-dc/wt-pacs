@@ -6449,6 +6449,57 @@
      "sha256": "9a58c5654a7b106ebaa27e273e8fa5afaaf759f9f6c565161a769a6726555bb9"
     }
    ]
+  },
+  {
+   "name": "uscine_crc1",
+   "what": "ultrasound cine, B-mode liver, grey, 32 frames/s, natively stored uncompressed, 21 frames",
+   "collection": "cmb_crc",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1.23559092546432114112420871134697309480",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/djg7-gz87",
+   "provenance": "sound",
+   "frames_sha256": "9148caaba7e4f90f84139b7876db97189891ab9632d71403f378dfc3c7a93845",
+   "files": [
+    {
+     "key": "cdbf5f43-3fdc-45c5-94b2-43de66bdd669/d100c3bf-8e03-4101-bc63-023b781e026f.dcm",
+     "sha256": "7cc5efead515eb4c0c467fee6825a08d37ed80394cc2bb8b8affe79b80d1d931",
+     "bytes": 4882732
+    }
+   ]
+  },
+  {
+   "name": "uscine_crc2",
+   "what": "ultrasound cine, B-mode liver, grey, 32 frames/s, natively stored uncompressed, 25 frames",
+   "collection": "cmb_crc",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1.23559092546432114112420871134697309480",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/djg7-gz87",
+   "provenance": "sound",
+   "frames_sha256": "cb57a9f31a08d8395238c568a35ed990962d8fae74bbbffab3b8f6165a001ec5",
+   "files": [
+    {
+     "key": "cdbf5f43-3fdc-45c5-94b2-43de66bdd669/a5521ceb-2db7-4cd5-bcd5-ea97d98cfe3b.dcm",
+     "sha256": "88ed24dca4f80646d3c2eec0c3169f406ad925c06a3562bf69833917832249b4",
+     "bytes": 5812300
+    }
+   ]
+  },
+  {
+   "name": "uscine_crc3",
+   "what": "ultrasound cine, B-mode liver, grey, 32 frames/s, natively stored uncompressed, 28 frames",
+   "collection": "cmb_crc",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1.23559092546432114112420871134697309480",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/djg7-gz87",
+   "provenance": "sound",
+   "frames_sha256": "61e4b2af8d3fbdba3b52992ec12db17c9479e94530b01a8a81b3fcdad02d4a8c",
+   "files": [
+    {
+     "key": "cdbf5f43-3fdc-45c5-94b2-43de66bdd669/c0273c77-032a-4f3b-9768-1a0518242679.dcm",
+     "sha256": "f9f6878f2ca98aed4cafded9ad6880c452dcee37c53510ec4d8e613d2bc3d4c8",
+     "bytes": 6509474
+    }
+   ]
   }
  ]
 }
