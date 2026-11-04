@@ -529,7 +529,7 @@ Per-sample costs, all measured in the lossless work and carried over here (*deri
 | 3, + whole HTJ2K | `set()` 2N into the frame's buffer + digest 2N; the range is taken in OpenJPH's pack | ~1.5 ms | ~6 | ~1.8 | ~0.2 | H: 25.0, 71.0, 26.5, 4.90 ms; the codec call is 95–97 % of H (breakdown) |
 
 So **after decode, design 1 is predicted at 45–75 % pixel work, design 2 at 30–50 % (add, range and digest of the
-exact frame), and design 3 at 4–9 %**. Design 1's range is wide because P includes the harness's copies, so its decode alone is between P less those copies and P. All three are *derived*. Design 3's preview costs what design 1's does. On `b1`,
+exact frame), and design 3 at 4–9 %**. *Measured:* 63–66 % (80–85 % at 4×), 35–49 %, and 15–26 %, which falsifies design 3's prediction and design 1's at 4× (§PIXELWORK, measured, a void run). Design 1's range is wide because P includes the harness's copies, so its decode alone is between P less those copies and P. All three are *derived*. Design 3's preview costs what design 1's does. On `b1`,
 s = 0, so its preview pass does no shift, only offset and range.
 
 ### What applies, ranked
@@ -553,7 +553,7 @@ The specifications behind the table, each read 2026-11-04 unless marked:
 
 | # | lever | designs | saving, predicted | structural cost | exactness check | phone memory |
 | --: | --- | --- | --- | --- | --- | --- |
-| 1 | **The add in one pass** (`add.js` `exact(…, onePass)`, built): the range taken in the add | 2 | the range pass: ×0.80–0.90 of design 2's exact frame on DBT, ×0.89–0.91 on `mr_ispy1` (residual decode + add + digest) | none. Same output, range and buffer | unchanged: the frame's digest covers the output | none |
+| 1 | **The add in one pass** (`add.js` `exact(…, onePass)`, built): the range taken in the add | 2 | the range pass: ×0.80–0.90 of design 2's exact frame on DBT, ×0.89–0.91 on `mr_ispy1`. *Falsified:* measured 0.933–0.957 on DBT (§PIXELWORK, measured, a void run) (residual decode + add + digest) | none. Same output, range and buffer | unchanged: the frame's digest covers the output | none |
 | 2 | **R** for the preview (`reuseCopyBuffer`, built in the product) | 1, and 3's preview | the buffer's allocation and first touch, 0.38–0.59 ns a byte (merge-free's R ÷ W2 over its 4.5N-byte buffers): ×0.65–0.90 of design 1's pixel work | none | unchanged | one 3N-byte buffer a stream, resident: 6.1, 25.6, 7.4 and 0.8 MB |
 | 3 | **M**, chroma check from the header (`mono_chrome`) | 1 | `neutral()`'s 1.6–1.7 ns a chroma sample | none; already the default under `onePass` | unchanged | none |
 | 4 | **S**, the pass as a SIMD kernel (`add.c` through `add-simd.js`, built for the lab) | 1 and 2 | design 2: ×0.78–0.90 of the one-pass exact frame. Design 1: ×0.5–0.8 of R's pixel work, since `copyTo` writes straight into the kernel's memory | **yes**: a new WebAssembly artifact pinned in `manifest.sha256`. The frame contract is unchanged | unchanged: a kernel bug is a digest miss | resident kernel memory: 5N bytes for design 1 and 6N for design 2 (43 and 51 MB on `b1`), which grows and never shrinks |
