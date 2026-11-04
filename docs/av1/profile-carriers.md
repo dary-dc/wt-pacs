@@ -383,4 +383,5 @@ either ran (`4b12442`), and nothing in 2–4 changed after them but the budget.
   **C3 refuted**, the residual + add 1.58 · 2.00 · 1.52× / 1.49 · 2.04 · 1.50×, the whole frame (`htj2k-aa`) 0.99–1.10×;
   C4's ask held, 11.5 · 6.2 · 10.5× / 9.6 · 6.5 · 8.8×; C6 held, 0.98–1.31×, WebCodecs 0.23–0.68×; C7's decode held,
   6.3–13.4×. Partial: the reading at 10 rounds replaces this line. Rows: `lab/av1/delivery/carriers/results/`.
-* **Running.** `run.sh rounds`, rounds 3–9.
+* **Rounds 3–6** run (15.8–16.1 min each, no check failed, no `VOID`); rows committed, read with rounds 7–9.
+* **Running.** rounds 7–9 (the first `rounds` job was stopped after round 6, whole, to outlast its shell limit, and restarted with `FIRST=7`).
