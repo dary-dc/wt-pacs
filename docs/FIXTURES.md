@@ -731,13 +731,11 @@ Sources: the hosts' APIs and pages, read 2026-10-27; the two Hugging Face header
 
 #### The ultrasound data search (2026-11-04)
 
-* **Asked:** ultrasound cine and swept volumes of any anatomy, and ABUS, that the earlier searches did not list.
-* **Answer:** one sound cine source, small: three native grey B-mode clips (21–28 frames) in IDC's CMB-CRC, now `uscine_crc1`…`3`. Nothing sound for breast cine or ABUS.
-* **Rests on:** every US header in IDC v25 outside the three collections already read whole, and the hosts' own pages below.
-* **Left:** the sound cine is one patient, one scanner, one liver biopsy: a single source, under the two-source bar.
-* **The owner decides or requests:** below, *The short list*.
-
-Status: IDC done; the other hosts are being read (this session).
+* **Asked:** ultrasound cine and swept volumes of any anatomy, and ABUS, beyond what the earlier searches list.
+* **Answer:** one sound cine source, and it is small: three native grey B-mode liver clips (21–28 frames) in IDC's CMB-CRC, pinned as `uscine_crc1`…`3`. There is nothing sound for breast cine or ABUS.
+* **Rests on:** 3 233 IDC headers (every US instance outside the prostate and brain volumes), TCIA's API, and the pages, APIs and headers cited below.
+* **Left:** that source is one patient on one scanner, under the two-source bar. MUST-ABUS and ALN-Ultra are unread past their pages.
+* **The owner decides or requests:** whether to send the requests in *The short list* (MUST-ABUS, ALN-Ultra, TDSC-ABUS), and whether a lossy multi-vendor set (ThrombUS+) is worth provisional numbers.
 
 **IDC v25 (`idc-index-data` 25.0.5, still the newest on PyPI), every US series, headers read from 256 KiB range reads
 with pydicom 3.0.2, 2026-11-04 from 21:40 UTC.** The index's 2 249 US series sit in twelve collections; the prostate
@@ -746,10 +744,10 @@ TRUS volumes and ReMIND are as the wider search found. Every instance of the oth
 
 | collection | multi-frame instances | as stored | Lossy Image Compression | class |
 | --- | --: | --- | --- | --- |
-| `b_mode_and_ceus_liver` | 917, GE LOGIQ E9, RGB or `YBR_FULL` | implicit or explicit LE | `01` on all 917 | lossy-sourced |
-| `cmb_crc` | 56, Philips EPIQ 7C, RGB, 48–271 frames | explicit LE | `01`, `ISO_10918_1` | lossy-sourced |
+| `b_mode_and_ceus_liver` (listed before; now every header) | 917, GE LOGIQ E9, RGB or `YBR_FULL` | implicit or explicit LE | `01` on all 917 | lossy-sourced |
+| `cmb_crc` (listed before: the echo clips) | 56, Philips EPIQ 7C, RGB, 48–271 frames | explicit LE | `01`, `ISO_10918_1` | lossy-sourced |
 | `cmb_crc` | **3, GE LOGIQ S8, `MONOCHROME2`, 21, 25 and 28 frames of 552×421, 8 bits, `CineRate` 32** | explicit LE | **`00`**, `ImageType` `ORIGINAL\PRIMARY\\0001` | **sound** |
-| `cmb_mel` | 18, GE LOGIQ E9, `MONOCHROME2`, 52–115 frames | explicit LE | `01`, ratio 25.6–30.8 | lossy-sourced |
+| `cmb_mel` (listed before) | 18, GE LOGIQ E9, `MONOCHROME2`, 52–115 frames | explicit LE | `01`, ratio 25.6–30.8 | lossy-sourced |
 | `cptac_ucec` (*new here*) | 6, Siemens S2000, `YBR_FULL`, 91–302 frames of 1024×768, `ImageType` `DERIVED\PRIMARY\GYN\0001` | explicit LE | `01`, ratio 21–24, `ISO_10918_1` | lossy-sourced |
 | `cmb_brca`, `cmb_lca`, `cptac_aml`, `cptac_pda`, `cptac_stad`, `varepop_apollo` | none: stills | explicit LE | `00`, absent, or `01` (`cptac_pda`'s GE) | — |
 
@@ -777,6 +775,51 @@ ABVS). Only records the earlier searches do not list:
 Searched and empty: ABUS or ABVS anywhere but MUST-ABUS; OpenNeuro's "ultrasound" hits are focused-ultrasound MRI and
 EEG studies, and Zenodo's functional-ultrasound records are power-Doppler arrays, not a scanner's cine. Two Hugging Face
 and Kaggle uploads re-export ThrombUS+ as JPEG frames and MP4 under MIT: derivatives, not sources.
+
+**Challenges, institutional and curated hosts, 2026-11-04, the same method:** Stanford AIMI, PhysioNet, IEEE DataPort,
+grand-challenge's API (264 challenges) and the challenges it does not host, 4TU.ResearchData, Harvard Dataverse,
+TUM's dataset pages, the Cardiac Atlas Project. Synapse, KU Leuven RDR, Leeds, UCL RDR, DANS, OSF, Radboud and Dataverse NL
+were not searched this time.
+
+| dataset | content, anatomy | frames, size, photometric | how stored, and how known | class | licence (verbatim) | access | sources | size |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **Thyroid Ultrasound Cine-clip**, Stanford AIMI (`aimi.stanford.edu/datasets/thyroid-ultrasound-cine-clip`, files on Redivis, DOI 10.71718/7m5n-rh16) | "167 patients with biopsy-confirmed thyroid nodules (n=192) at the Stanford University Medical Center. The dataset consists of ultrasound cine-clip images, radiologist-annotated segmentations, …" | not stated on the page; papers say 17 412 frames of 1054×802 (*unverified*) | one file in Redivis's "Files" table, 36 418 794 716 B (its API); HDF5 by reputation (*unverified*) | unknown | the page's "Terms & Conditions" and "License" tabs are empty; AIMI's shared-datasets page: "available to the global research community at no charge for non-commercial research use, subject to the applicable data use terms" | Redivis account and the data use terms (read rows answer "Make sure that you have data access and approval") | one site | 36.4 GB |
+| ACOUSLIC-AI (Zenodo `12697994`, re-read) | obstetric blind sweeps, "three Public Health Units (PHUs) in Sierra Leone… MicrUs Pro-C60S, Telemed" | "840 frames of shape 744x562 pixels" | `.mha`, `ElementType = MET_UCHAR`, `CompressedData = False` (one header) | unknown | `cc-by-nc-sa-4.0` | open | three units, one device | 38 034 134 378 B |
+| SegThy, TUM (`cs.cit.tum.de/camp/publications/segthy-dataset/`) | thyroid 3D, freehand-tracked, Siemens Acuson NX-3, 28 volunteers (sub-dataset 1) | compounded volumes | 1 008 `.gz` and 64 `.nii` in `US_data.zip` (central directory) | unknown | "This dataset is licensed under a CC BY license. … The license permits commercial use as long as the authors are cited." | open | one site | 19 703 994 757 B |
+| CLUST 2015 (`caim.research.it.uu.se/clust/data.html`) | liver tracking, "64 2D+t sequences 22 4D sequences" | — | "(.png) or 3D images (.mha)" | unknown | "used solely for the purpose of participating in the open CLUST challenge" | login on request to the organisers | several scanners | — |
+| MITEA (Cardiac Atlas Project) | 3D echo, 134 subjects, end-diastole and end-systole only | — | not stated | unknown | "MITEA can be provided under a non-commercial license CC BY-NC-SA 4.0 for research purposes." | institutional request form | one site | — |
+| DehazingEcho2025 (grand-challenge) | echo, 115 patients | stills | not stated | unknown | "currently only available for challenge use" | signed agreement mailed to the organisers | — | — |
+| PhysioNet `mimic-iv-echo-ext-lvvol-a4c` 1.0.0 | "1,064 de-identified A4C DICOM video sequences", a MIMIC-IV-ECHO subset | — | DICOM, not read | not known | PhysioNet credentialed | credentialed | one site | — |
+| IEEE DataPort TEE (10.21227/aj3n-pf63) | transoesophageal echo, "68 patients… 60 to 500 frames" | — | `TEE_Data_Ready.zip`, contents *unverified* | not known | CC BY (page) | "Subscription Required" | one probe | 318.76 MB |
+| Stanford AIMI Open POCUS, Multimodal Prostate, EchoNet TEE-View-Classifier | lung POCUS ("frames were extracted and standardized to 512×512 pixels"), prostate TRUS, intra-operative TEE | — | exports or video (*unverified*) | unknown | non-commercial (AIMI) | Redivis | — | 5.26 GB, 19.1 GB, 162 MB |
+| Harvard Dataverse MLSC-BEDLUS-741 (10.7910/DVN/HFTV7D), BonUS | lung ultrasound annotations of "6,654 clips/DICOM series"; bone | annotations only | — | — | "Please contact us for the Data Use Agreement." | request | — | — |
+
+**Already listed, re-read for change:** ALN-Ultra's Zenodo record now types itself "Video/Audio" and says "The record is
+publicly accessible, but files are restricted. Log in to check if you have access."; its page shows "Total data volume
+593.8 GB" (downloads counted, not the record's size, *unverified*). The type suggests video files, which would make it
+lossy-sourced (*derived*, not read). TDSC-ABUS's Dataset page is unchanged: "Please send the signed document to
+tdscabus@gmail.com to receive the data access link", next to "The data is publicly available" and a Baidu link. One
+institutional upload of native, unflagged multi-frame thyroid DICOM was found whose headers appear to carry participant
+identity; it is left out of this section on purpose and named to the owner alone.
+
+**The short list, ranked** (sound first, then closeness to breast cine and ABUS, licence, size):
+
+1. **`uscine_crc1`…`3`** (IDC CMB-CRC) — sound, CC BY 4.0, 17 MB, in `data.json`. Grey liver B-mode, one patient, one
+   scanner: a single source, so it may enter a verdict's arithmetic but cannot meet the two-source bar alone.
+2. **MUST-ABUS** — the first ABUS volumes found besides TDSC-ABUS; unknown (likely NIfTI) and CC BY-NC-SA 4.0, so
+   unusable for a verdict under the commercial-use rule even if sound. To request: accept the Hugging Face terms,
+   then ask the curator on the dataset's Community tab whether the scanner's DICOM can be released under CC BY 4.0.
+3. **ALN-Ultra** — breast, videos by its record type. To request: log in to Zenodo and use the record's access request
+   (the button shows only when logged in, *unverified*); ask whether the videos exist as the scanner's DICOM, in their
+   stored transfer syntax, under the record's CC BY 4.0.
+4. **TDSC-ABUS** — ABUS NRRD, challenge use only. To request: sign the challenge agreement and send it to
+   tdscabus@gmail.com; then ask the organisers whether the Invenia DICOM can be released, and under what licence.
+5. **ThrombUS+** — the most sources (four countries, five vendors) and CC BY 4.0, but lossy-sourced: every header read
+   is JPEG baseline, Lossy `01`. Usable for provisional numbers only. 12.2 GB; not pinned.
+6. **The Stanford thyroid cine-clips** — a cine set of the right shape, but non-commercial and an export.
+
+**Nothing sound exists for breast cine or ABUS at any host searched.** The only sound cine found under a usable licence
+is `uscine_crc*`.
 
 #### Every closed verdict against its data
 
