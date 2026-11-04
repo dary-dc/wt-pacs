@@ -2,7 +2,7 @@
 const { chromium } = require("playwright");
 const { spawn } = require("child_process");
 (async () => {
-  const http = spawn("python3", ["server/dev-server.py", "--port", "31998"], { cwd: "/home/user/wt-pacs", stdio: "ignore" });
+  const http = spawn("python3", ["server/dev-server.py", "--port", "31998"], { cwd: require("path").resolve(__dirname, "../../.."), stdio: "ignore" });
   await new Promise((r) => setTimeout(r, 1000));
   const b = await chromium.launch(); const p = await b.newPage();
   const cdp = await p.context().newCDPSession(p);
