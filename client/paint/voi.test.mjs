@@ -110,6 +110,46 @@ test("RGB as stored, others declined", () => {
   assert.throws(() => windowTable(grey(8, false), { photometric: "RGB" }), /RGB with 1 component/);
 });
 
+const WINDOWS = [
+  { voi: { center: 100, width: 11, function: "LINEAR" } },
+  { voi: { center: 10, width: 1, function: "LINEAR" } },
+  { voi: { center: 100, width: 10, function: "LINEAR_EXACT" } },
+  { voi: { center: 0, width: 0.001, function: "LINEAR_EXACT" } },
+  { voi: { center: 0, width: 4, function: "SIGMOID" } },
+  { voi: { center: 0, width: 10, function: "LINEAR_EXACT" }, rescale: { slope: 1, intercept: -1024 } },
+  { voi: { center: 900, width: 37, function: "LINEAR" }, rescale: { slope: 0.7, intercept: 3.1 }, photometric: "MONOCHROME1" },
+];
+
+/** At reduced depth, entry p is the full-scale entry of stored (p << shift) − bias, for every p, window, shift and bias. */
+test("a reduced frame's table is the full table at (p << shift) − bias", () => {
+  const full = grey(16, true);
+  for (const bits of [8, 10]) {
+    for (const shift of [0, 1, 2, 4]) {
+      for (const bias of [0, 37]) {
+        for (const d of WINDOWS) {
+          const want = windowTable(full, d);
+          const got = windowTable({ ...grey(bits, false), reduced: { shift, bias } }, d);
+          for (let p = 0; p < 1 << bits; p++) assert.equal(got[p], want[(p << shift) - bias + 32768], `p ${p} shift ${shift}`);
+        }
+      }
+    }
+  }
+});
+
+/** Dividing LINEAR's c and w by 2^k is not the same window: at k = 2, c = 100, w = 11, p = 24 (stored 96) is 38, not 55. */
+test("LINEAR's window does not scale with the samples", () => {
+  assert.equal(code("LINEAR", 100, 11, 24 << 2), 38);
+  assert.equal(code("LINEAR", 100 / 4, 11 / 4, 24), 55);
+  const t = windowTable({ ...grey(10, false), reduced: { shift: 2, bias: 0 } }, { voi: { center: 100, width: 11, function: "LINEAR" } });
+  assert.equal(t[24], 38);
+});
+
+/** A reduced frame is grey only. */
+test("RGB at reduced depth is refused", () => {
+  const rgb = { bits: 8, signed: false, components: 3, reduced: { shift: 1, bias: 0 } };
+  assert.throws(() => windowTable(rgb, { photometric: "RGB" }), /RGB is not painted at reduced depth/);
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try {
