@@ -1404,6 +1404,132 @@ Median over the 15 DBT volumes and every form, CPU seconds a megapixel; wall ÷ 
 | `dbts_c1` | 56 | 10221 | 11655 | +12.3 | 39.76 | 39.54 | 69/69 |
 
 
+## Profiles decode, measured (2026-11-04)
+
+*Run 2026-11-04 by a separate session, given only §6, which it ran as written; nothing above was changed. Harness:
+`streams.py` (the content, coded again with `bytes.py`'s own functions and checked byte for byte against the bytes
+run's rows), `decode.mjs` (driver), `decode.js` (one cell in a worker), `shared.js` (the merge, the back-conversion,
+the add), `decode.html`, `decode_report.py` (every table below and D1–D3, computed), `decode_fit.py` (§6 Fitting a
+session), `media_log.cjs`; rows and printed summaries in `results/decode/`.*
+
+```bash
+P=lab/av1/.venv/bin/python; B=lab/.av1-build; D=lab/av1/data; W=lab/.av1-work/profiles-decode
+$P lab/av1/profiles/streams.py $B $W $D/dbts_a1 --rungs 8,16,32 --forms 12bit,top10    # b1: 16,32,56 10bit; c1 as a1
+PW=…  # playwright 1.56.1 with its Chromium 141: PLAYWRIGHT_BROWSERS_PATH, NODE_PATH
+node lab/av1/profiles/decode.mjs --sets dbts_a1 --rounds 1 --throttles 1 --links none --mutate hash|offset|drop …
+node lab/av1/profiles/decode.mjs --sets dbts_a1 --rounds 5 --throttles 1,4 --links none --series all --out results/decode/pilot.json
+$P lab/av1/profiles/decode_fit.py results/decode/pilot.json $W
+$P lab/av1/profiles/decode_report.py results/decode/pilot.json --pilot    # and --table
+```
+
+**The verdict, first.** The pilot asked for n = 315 rounds at 1× (σ of ln(arm ÷ H) up to 0.309 on the per-frame
+clock; 590 over every clock), and one full round, after both of the protocol's drops, takes 8.85 h (*derived*, below)
+against a cap of 5 h: **no campaign round fits, so no cell reaches n = 10, and by §6 no cell is read. D1, D2 and D3
+are not decided.** What follows is the content, the checks, the pilot and the fit; the pilot is discarded by the
+protocol and its numbers are reported as a pilot's, never as a reading.
+
+**Host.** 4 cores (Intel Xeon @ 2.80 GHz), 15 GB, no swap, Linux; nothing else ran during the pilot. Headless
+Chromium 141.0.7390.37 (playwright 1.56.1's headless shell), as §6 names. The client's decoders built from
+`client/decode/wasm/build`'s pinned inputs; the build's container could not start (no Docker daemon here), so
+`inside.sh` ran on the host from the same checked cache, as the RESIDAPART run did, and every built file matches
+`manifest.sha256`. **Saturation:** one decode in flight; dav1d-WASM and OpenJPH are one thread each, so at 1× they use
+one of the four cores and the host does not saturate; at 4× every thread is capped at a quarter of a CPU
+(`cpu_throttle.mjs --check` here: page thread 926 → 4 168 ms, worker 917 → 4 013 ms). WebCodecs runs its own decoder
+threads, so its cells are not a one-core figure at either throttle. Nothing is claimed past 4×, for concurrent asks,
+a phone, or another host.
+
+**The WebCodecs decoder.** Chromium's media log, read through the DevTools protocol's `Media` domain on a page decoding
+one of these units with §6's configuration, reports `kVideoDecoderName` **`Dav1dVideoDecoder`** and
+`kIsPlatformVideoDecoder` `false` (`results/decode/media-log.txt`). The log was read on a page, not inside the
+harness's workers, where the same configuration is used (that the worker's decoder is the same is *unverified*).
+
+**Content, as §6 chose it from the bytes run.** The crossover rung, the rung below and the rung above, on the ladder
+that ran (2, 8, 16, 32, 56): `dbts_a1` and `dbts_c1` Q 8, 16, 32 (crossover 16, every form), `dbts_b1` Q 16, 32, 56
+(crossover 32). The 12-bit volumes go to WebCodecs as the 10-bit top and to dav1d-WASM as 12 bits; `dbts_b1` is its
+10-bit stream through both. G 1, 8, 16 and the whole series at each rung. Every lossy stream's unit sizes, and the
+G = 16 residual's sizes, offset and bits, equal the bytes run's row (`results/cells.jsonl`), and HTJ2K's and lossless
+AV1's sizes equal `results/lossless.jsonl`: **the bytes run's encodings, byte for byte**, on all 60 lossy streams and
+the six lossless codings. `film_grain_params_present` is 0 on every keyframe of every stream. Every residual added back
+is exact on every frame (`streams.py` refuses otherwise). Per frame and per ask: the middle 16 slices (`dbts_a1`
+20–35, `dbts_b1` 17–32, `dbts_c1` 26–41); per series: the whole volume.
+
+**Readings §6 needed** (each a reading, not a change):
+
+* *Arm R's residual* is the G = 16 stream's (the profile's own G; on these streams its bytes are within 0.55 % of G = 1's,
+  bytes run); *W's lossy frame* is the same stream's. In R and W each asked slice's lossy frame is decoded off the clock just
+  before its residual or HTJ2K frame is handed in, so the AV1 decoder is alive and interleaved, as on request.
+* *Per ask*: the asks are the middle 16 slices, each from a fresh decoder (dav1d closed and opened; a new
+  `VideoDecoder`, configured off the clock), in a Williams order of the 16; an ask at slice k decodes from its group's
+  keyframe, k − k mod G. At G = 16 the middle 16 hold every position once, at G = 8 twice, at the whole series they are
+  positions 17–41. A round's ask figure is the mean over the 16. Asks run on the S arms; H, L, R and W are G = 1 arms,
+  whose ask is their per-frame clock.
+* *Per whole series* runs on H, L, every S and R; not on W, whose clock is one asked frame.
+* *One in flight* on every clock and decoder, WebCodecs included (each unit's frame awaited before the next is
+  handed in); WebCodecs returned every frame without a flush, which ran only at each timed operation's end. A unit with
+  no frame in 20 s is reported as an error (none was).
+* *The link*: unit i is released bytes ÷ rate after unit i − 1, and handed in at the later of that and the previous
+  frame written; the per-frame clock starts at hand-in (so it is decode only, as §6 defines it), the ask and series
+  clocks span the hand-in of the first unit to the last frame written.
+* *A round* is every (arm, decoder, series, rung, link) once, in one Williams order of all of them: 351 units, a
+  period of 702 rounds, which no n here reaches.
+* *Pilot n*: σ of ln(arm ÷ H) over the paired pilot rounds, per arm, decoder, rung and clock; n is the largest.
+* *The cap* of 5 h covers both throttles together (the bytes protocol's own "5 hours of wall clock"). Read as 5 h for
+  each throttle, it changes nothing below: 4× alone needs 6.8 h a round.
+
+**Checked, and mutated before the pilot** (`results/decode/mutate-*.txt`, `dbts_a1` Q 16, 1×, no limit):
+
+| check | as run (pilot, 5 rounds × 2 throttles) | mutated | verdict |
+| --- | --- | --- | --- |
+| every exact frame (H, L, R after its add, W) against the fetch checksum | H 720/720, L 1 440/1 440, R 4 320/4 320, W 960/960 | `--mutate hash`: 0 of every check, every arm | **sees it** |
+| every lossy frame against native dav1d 1.5.4, both decoders | S 3 840/3 840 per frame, 3 840/3 840 asks, 13 440/13 440 series; R 4 320/4 320; W 960/960 | (as above) | **sees it** |
+| every residual against what the bytes run wrote | R 4 320/4 320 | residual offset off by one: R exact 0/72, its lossy and residual checks 72/72 | **sees it** |
+| a group's second unit dropped | — | S8's asks at k mod 8 ≥ 1: 14 of 14 fail on each decoder (12 a decode error, `dav1d -28` or WebCodecs `EncodingError`; 2 a wrong frame), k mod 8 = 0 still exact, S1 untouched | **sees it** |
+
+No cell is void: 0 errors, every check matched on every round.
+
+**Pilot** (`dbts_a1`, no limit, 5 rounds at each throttle, discarded by §6; `results/decode/pilot-summary.txt` holds
+every cell with its range, order effect and σ). Per frame, ms, median over rounds; in brackets the median paired ratio
+over H; then the mean ask and the whole series. dav1d decodes the 12-bit form, WebCodecs the 10-bit top. **n = 5:
+none of this is read.**
+
+| series · Q · throttle · link | decoder | H | L | S1 | S8 | S16 | SW | R | W |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `dbts_a1` Q8 1× none | dav1d | 26 · series 1.7 s | 273 (9.21) · series 13.2 s | 63 (2.42) · ask 61 · series 3.6 s | 81 (3.07) · ask 390 · series 4.9 s | 78 (3.03) · ask 730 · series 4.8 s | 81 (3.13) · ask 2456 · series 5.0 s | 38 (1.43) · series 2.2 s | 25 (0.88) |
+| `dbts_a1` Q8 1× none | webcodecs | 26 · series 1.7 s | 208 (7.71) · series 10.8 s | 42 (1.55) · ask 49 · series 2.4 s | 53 (2.02) · ask 253 · series 2.9 s | 54 (2.01) · ask 464 · series 2.7 s | 54 (1.92) · ask 1502 · series 3.0 s | 42 (1.53) · series 2.3 s | 26 (1.00) |
+| `dbts_a1` Q16 1× none | dav1d | 26 · series 1.7 s | 273 (9.21) · series 13.2 s | 40 (1.55) · ask 44 · series 2.5 s | 70 (2.57) · ask 316 · series 4.1 s | 70 (2.64) · ask 606 · series 3.8 s | 71 (2.78) · ask 2080 · series 4.0 s | 37 (1.47) · series 2.3 s | 25 (0.94) |
+| `dbts_a1` Q16 1× none | webcodecs | 26 · series 1.7 s | 208 (7.71) · series 10.8 s | 29 (1.03) · ask 32 · series 1.6 s | 30 (1.15) · ask 162 · series 1.9 s | 32 (1.16) · ask 287 · series 1.8 s | 34 (1.24) · ask 972 · series 1.9 s | 46 (1.61) · series 2.3 s | 28 (1.02) |
+| `dbts_a1` Q32 1× none | dav1d | 26 · series 1.7 s | 273 (9.21) · series 13.2 s | 59 (2.48) · ask 63 · series 4.8 s | 60 (2.17) · ask 260 · series 3.1 s | 57 (2.06) · ask 463 · series 3.3 s | 63 (2.30) · ask 1635 · series 3.3 s | 37 (1.43) · series 2.2 s | 25 (0.89) |
+| `dbts_a1` Q32 1× none | webcodecs | 26 · series 1.7 s | 208 (7.71) · series 10.8 s | 26 (0.92) · ask 30 · series 1.4 s | 29 (1.06) · ask 140 · series 1.6 s | 27 (1.00) · ask 267 · series 1.5 s | 29 (1.01) · ask 836 · series 1.5 s | 47 (1.52) · series 2.2 s | 32 (1.10) |
+| `dbts_a1` Q8 4× none | dav1d | 120 · series 7.2 s | 1051 (8.90) · series 58.1 s | 318 (2.60) · ask 298 · series 17.0 s | 416 (3.52) · ask 1854 · series 22.1 s | 378 (3.32) · ask 3316 · series 21.2 s | 404 (3.36) · ask 11434 · series 21.6 s | 159 (1.36) · series 10.1 s | 123 (1.03) |
+| `dbts_a1` Q8 4× none | webcodecs | 120 · series 7.2 s | 750 (6.37) · series 41.2 s | 108 (0.91) · ask 129 · series 6.2 s | 134 (1.12) · ask 583 · series 6.9 s | 129 (1.13) · ask 1162 · series 6.6 s | 123 (1.09) · ask 3798 · series 7.0 s | 176 (1.46) · series 10.6 s | 124 (1.03) |
+| `dbts_a1` Q16 4× none | dav1d | 120 · series 7.2 s | 1051 (8.90) · series 58.1 s | 205 (1.75) · ask 209 · series 11.8 s | 356 (2.95) · ask 1500 · series 18.5 s | 363 (2.96) · ask 2912 · series 19.3 s | 346 (2.90) · ask 9850 · series 19.6 s | 188 (1.56) · series 10.6 s | 126 (1.11) |
+| `dbts_a1` Q16 4× none | webcodecs | 120 · series 7.2 s | 750 (6.37) · series 41.2 s | 91 (0.74) · ask 109 · series 4.6 s | 81 (0.72) · ask 411 · series 4.7 s | 92 (0.75) · ask 829 · series 5.3 s | 85 (0.71) · ask 2572 · series 4.9 s | 180 (1.47) · series 10.4 s | 124 (1.03) |
+| `dbts_a1` Q32 4× none | dav1d | 120 · series 7.2 s | 1051 (8.90) · series 58.1 s | 286 (2.45) · ask 319 · series 23.1 s | 303 (2.53) · ask 1214 · series 14.8 s | 300 (2.50) · ask 2220 · series 15.1 s | 303 (2.66) · ask 7827 · series 15.6 s | 181 (1.70) · series 11.1 s | 121 (1.02) |
+| `dbts_a1` Q32 4× none | webcodecs | 120 · series 7.2 s | 750 (6.37) · series 41.2 s | 86 (0.75) · ask 103 · series 4.6 s | 87 (0.77) · ask 403 · series 4.6 s | 92 (0.76) · ask 779 · series 4.5 s | 85 (0.70) · ask 2421 · series 4.6 s | 177 (1.54) · series 10.5 s | 131 (1.02) |
+
+The ask at G = 16 over the ask at G = 1 (D2's ratio), pilot medians: dav1d 11.1, 14.2, 7.8 at Q 8, 16, 32 (1×) and
+11.0, 13.8, 7.0 (4×); WebCodecs 9.6, 9.1, 9.0 (1×) and 9.1, 7.6, 7.6 (4×). Order effects in the pilot ran to 52 %
+(n = 5 over 117 units, one predecessor each).
+
+**Fitting a session** (`results/decode/fit.txt`, *derived*: each pilot unit's clocks scaled to a series by its pixels a
+frame — and its frames, for the series clock — on a link no shorter than its bytes ÷ rate, plus the pilot's time
+outside the clocks):
+
+| as §6 orders it | a round at 1× | at 4× | a round | rounds in 5 h |
+| --- | --: | --: | --: | --: |
+| as written | 263 min | 772 min | 17.25 h | 0 |
+| whole-series clock dropped to dav1d-WASM's L at 4× on `dbts_b1` | 171 min | 601 min | 12.87 h | 0 |
+| then the 50 Mbit/s link dropped | 123 min | 408 min | 8.85 h | 0 |
+
+§6 lists no further drop, so the campaign ran no round: **every (series, rung, throttle, link) cell has n = 0 < 10 and
+is marked not read; D1, D2, D3 are not decided** (`decode_report.py`'s rule: no cell read, no verdict). The pilot's
+own n would have been 315 at 1× and 82 at 4× on the per-frame clock even if time had allowed.
+
+**Left for the owner** (not a judgment of the run's, which applies §6 as written): §6 fits neither its rounds nor its
+power in 5 h on this host. What a session could fit is a decision for the owner: fewer units a round (351 now; the
+5 Mbit/s link's per-frame cells alone are about 28 min a throttle-round of waiting, *derived*), a longer cap, or a
+smaller n target.
+
 ## Larger cine fixtures
 
 The largest open cine-like series at ≤ 12 bits the lab's sources hold (IDC v25, `idc-index` 0.13.4, `idc-index-data`

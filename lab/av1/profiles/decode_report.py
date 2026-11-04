@@ -139,5 +139,32 @@ def main():
             print(f"    {k[0]} Q{k[1]} {k[2]}x {k[3]} {k[4]} {k[5]}: {m:.3f} {flag} ({r})")
 
 
+def table(rows):
+    """Per series, rung and throttle: each arm's frame, ask and series medians (ms) and frame ÷ H, as a Markdown table."""
+    cells = defaultdict(list)
+    for r in rows:
+        cells[key(r)].append(r)
+    arms = ["H", "L", "S1", "S8", "S16", "SW", "R", "W"]
+    out = ["| series · Q · throttle · link | decoder | " + " | ".join(arms) + " |", "| --- | --- |" + " --- |" * len(arms)]
+    for s, q, t, link in sorted({(k[0], k[1], k[2], k[3]) for k in cells if k[1]}, key=lambda k: (k[0], k[2], k[1], k[3])):
+        h = cells[(s, None, t, link, "H", "openjph")]
+        for dec in ("dav1d", "webcodecs"):
+            line = []
+            for a in arms:
+                rs = h if a == "H" else cells.get((s, None if a in ("H", "L") else q, t, link, a, dec), [])
+                med = lambda n: st.median(v) if (v := [clock(r, n) for r in rs if clock(r, n) is not None]) else None
+                f, k, w = med("frame"), med("ask"), med("series")
+                p = ratios(rs, h, "frame") if a != "H" else []
+                txt = f"{f:.0f}" + (f" ({st.median(x for x, _, _ in p):.2f})" if p else "")
+                txt += f" · ask {k:.0f}" if k is not None else ""
+                txt += f" · series {w / 1000:.1f} s" if w is not None else ""
+                line.append(txt if f is not None else "—")
+            out.append(f"| `{s}` Q{q} {t}× {link} | {dec} | " + " | ".join(line) + " |")
+    return "\n".join(out)
+
+
 if __name__ == "__main__":
+    if "--table" in sys.argv:
+        print(table(json.load(open(sys.argv[1]))))
+        sys.exit()
     main()
