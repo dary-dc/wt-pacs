@@ -359,6 +359,197 @@ turns S8's ask at k ≥ 1 to a decode error or a failed check.
 **Reported:** per (series, rung, throttle, link) the median over rounds of each clock, its range and n, and the
 paired ratio over H with the rounds it was slower; D1–D3 (§2) each held or refuted, with the deciding cells.
 
+## 7 · Profiles decode protocol, amended
+
+*Row PROFILEDECODE, amended 2026-11-04 by the protocol session, after §Profiles decode, measured (2026-11-04) ran §6 and
+could not decide in its 5 h. §6 stays as written, the record of what was pre-registered and run; this section replaces
+its campaign. Six separate sessions, given only this section, run it (§Shards); a seventh pools them.*
+
+* **Asked:** make §6's decode decision fit exactly six cloud sessions run in parallel, each ≤ 4.5 h wall on a 4-core
+  host, keeping D1–D3's questions and adding how frames are reached (in order, or a jump) and the 12-bit forms' decode.
+* **Answer:** *pending — the sizing pilot is running as this partial section is pushed (2026-11-04, 17:45 UTC).*
+* **The numbers that decide it:** *pending — the sizing pilot is running as this partial section is pushed (2026-11-04, 17:45 UTC).*
+* **What it rests on:** the three DBT volumes §6 chose (`dbts_a1`, `dbts_b1`, `dbts_c1`, one a scanner), their streams
+  coded again and equal byte for byte to the bytes run's; a sizing pilot on this host (pending); headless Chromium 141 on one 4-core host.
+* **What is left:** *pending — the sizing pilot is running as this partial section is pushed (2026-11-04, 17:45 UTC).*
+
+**Terms.** **G** — frames coded together: a keyframe every G frames, the rest predicted from the frame before; G = 1
+codes each frame alone. **Q** — the lossy quantizer, libaom's 0–63 scale (§Names): 2 is near-lossless, 56 heavy.
+**Systems A, B, C** — the three DBT scanners of the EA1141 dataset (§3); A and C store 12 bits, B 10. **Residual** —
+exact − lossy, per sample, coded losslessly in HTJ2K; lossy + residual is the exact frame. **Forms** (§4): a 12-bit
+volume goes to dav1d-WASM as its **12-bit** stream and to WebCodecs as its **top 10 bits** (Chromium's WebCodecs refuses
+12-bit AV1, row WCAP), shifted back by 2 on the clock; system B's volume is one **10-bit** stream to both. **Arms:** **H**
+— an HTJ2K exact frame through OpenJPH-WASM; **R** — a residual's HTJ2K decode plus the add onto a lossy frame already
+decoded; **S_G** — the lossy stream at G, through dav1d-WASM or WebCodecs. **In order** — the next slice, the decoder
+holding the one before: cine playback, scrolling one slice. **Jump** — a slice reached from elsewhere: a fresh decoder,
+its group's keyframe, then each frame up to it. A **unit** is one arm with its form, decoder, G and pattern, timed over
+the middle 16 slices. A **round** runs every unit once at each throttle; a **block** is one session's rounds, on one
+host. **A/A** is H timed twice in a round as two units, H and H′, whose ratio should be 1. A **Williams order**
+(`lab/order.mjs`, `docs/rig-limits.md` §6) puts every unit at every position, and after every other unit, equally often
+over its period. **4×** is `lab/scripts/cpu_throttle.mjs`'s cap of every browser thread to a quarter of a CPU.
+
+### What changed from §6, and why
+
+| §6 | amended | why, and the source |
+| --- | --- | --- |
+| links of 5 and 50 Mbit/s, timed through a pacer | **not timed**: each unit's figure on a link is *derived* by replaying §6's own pacer over the unit's measured decode times and its bytes (`decode_pool.py --links`) | a paced link is waiting, bytes ÷ rate: no measurement in it; §6's run put the 5 Mbit/s link alone at about 28 min a throttle-round |
+| **L**, lossless AV1 split as shipped | **dropped** | measured elsewhere: row SPEED, `docs/decode/README.md` §Decode time against HTJ2K, lossless AV1 through dav1d-WASM 5.4–8.1× OpenJPH in Chromium at 1× and 4×, "the smallest of 224 paired ratios is 3.6×"; §6's pilot 9.2× (dav1d-WASM) and 7.7× (WebCodecs) on `dbts_a1`, n = 5, not read. It enters none of D1–D3 |
+| **W**, a whole HTJ2K frame on request beside a live AV1 decoder | **folded into H** | every decoder of the (series, rung) stays open in the same worker beside OpenJPH in every unit, so every H is timed beside live AV1 decoders |
+| **SW**, G = the whole series | **dropped** | not asked; G 1, 8 and 16 are |
+| the whole-series clock | **dropped** | in none of D1–D3; in order per frame answers cine playback |
+| an ask: 16 fresh chains, keyframe … k, 136 decodes at G = 16 | a **jump**: one fresh chain a group the middle 16 touch, the jump to k read off it as written(k) − handed(its keyframe); 20 decodes at G = 16 | with one unit in flight and no flush until a chain ends, decoding keyframe … k is the first steps of decoding keyframe … the group's last asked slice, so the clock to k is the same; checked against §6's own ask (`--direct`, below) |
+| one worker a cell; 351 cells in one Williams order over a round of 2–9 h | **one worker a (series, rung)** holding every decoder and byte; its 15–16 units back to back in a Williams row; the 9 (series, rung) in a Williams row | §6's pilot: σ of ln(arm ÷ H) to 0.31 and order effects to 52 %, with each arm minutes from its H |
+| every rung at 1× and at 4× | **every rung at 1×; at 4× the crossover rung alone** (`--every-rung-at 1`) | 4× was 18.3 of the pilot's 22.8 min a round (below); a host as slow as §6's (its H 26 ms a frame at 1× against 17 here) must still fit 10 rounds. D1–D3 keep a 4× cell on every series |
+| n by power on a normal, in one session, cap 5 h | n by power on a *t* over **6 blocks**; each block ≤ 4.5 h with its own setup; floor 10 rounds a block (§6's) | the six-session budget |
+| a cell read when n ≥ 10 and its order effect ≤ 10 %; its median against the band | the pooled ratio's **95 % interval** against the band; the A/A's own order effect beside each cell's | below |
+
+### Units, decoders and clocks
+
+**Decoders and settings: §6's, unchanged** — WebCodecs `{ codec, hardwareAcceleration: "prefer-software",
+optimizeForLatency: true }`, one unit in flight, `flush()` only at the end of a timed operation; dav1d-WASM, the
+client's `built("dav1d")`, one thread, `max_frame_delay` 1; OpenJPH-WASM, the client's `built("openjph")`, one thread;
+the add and the back-conversion from `shared.js`. Code: `decoders.js` (the three, moved out of `decode.js` unchanged),
+`decode_block.js` (one (series, rung) in a worker), `decode_block.mjs` (the driver), `decode_pool.py` (checks, A/A,
+pooling, the rule, the sizing, the derived links).
+
+**Units, per (series, rung)** — H, H′; R per form; S_G for G = 1, 8, 16 × {dav1d-WASM, WebCodecs} × {in order, jump}:
+16 units on `dbts_a1` and `dbts_c1` (R on the 12-bit and on the top-10 form), 15 on `dbts_b1`.
+
+**Clocks** — latency, ms, one decode in flight; no throughput is quoted (`CLAUDE.md` §Measurement):
+
+* **H, R** — per slice, codestream handed in to samples written; R's clock is the residual's decode and the add, its
+  lossy frame (the G = 16 stream's, the profile's G as in §6) decoded once per worker off the clock and checked. The
+  unit's figure is the median over the middle 16.
+* **In order** — a fresh decoder primed off the clock from the first middle slice's keyframe, then the 16 middle
+  slices, each from its unit handed in to its samples written, back-conversion included; the median over the 16.
+* **Jump** — for each group the middle 16 touch, a fresh decoder opened off the clock (dav1d closed and opened; a new
+  `VideoDecoder` configured), then that group's units in order from its keyframe to the last middle slice in it; the
+  jump to slice k is written(k) − handed(k − k mod G). The figure is the mean over the middle 16, §6's ask. At G = 1 a
+  jump is one keyframe from a fresh decoder.
+* **On a link** (*derived*, never timed) — §6's pacer replayed: unit j released bytes ÷ rate after unit j − 1 and
+  handed in at the later of that and the frame before written, each decode the time measured. In order, the median
+  interval between frames written; a jump, from its first byte to slice k written. Reported at 5 and 50 Mbit/s beside
+  the read cells, not decided on.
+
+**Content: §6's, as its run reproduced it** — `dbts_a1` and `dbts_c1` Q 8, 16, 32 (system A and C, 12 bits),
+`dbts_b1` Q 16, 32, 56 (system B, 10 bits): the crossover rung of the bytes run, the rung below and the rung above. The
+middle 16 slices (`dbts_a1` 20–35, `dbts_b1` 17–32, `dbts_c1` 26–41). At 4× only the crossover rung runs (Q 16, 32, 16). `streams.py … --groups 1,8,16
+--no-lossless-av1` codes only what these units read, and refuses a stream whose unit sizes differ from the bytes run's.
+
+**Order.** A round is each throttle, 1× and 4× (which first alternates by round), in a fresh headless Chromium;
+inside it the (series, rung) it runs — 9 at 1×, 3 at 4× — in that round's Williams row; inside each, one worker, its units in that round's
+Williams row. A block runs rows 0, 1, 2, … of both squares, the same in every block, so each block is balanced on its
+own. Rows are written after every round; a stopped session resumes at the first round it lacks.
+
+**Checked, every unit** (unchanged from §6): every exact frame (H, H′, R after its add) against the fetch checksum;
+every lossy frame decoded on a clock, and R's lossy frames, against native dav1d 1.5.4's decode of the same stream;
+every residual against what `streams.py` wrote. A miss or an error voids that (block, series, rung, throttle).
+
+### Questions, ratios and the rule
+
+Every ratio is formed **inside a block**, paired by round within (series, rung, throttle): ln(numerator ÷
+denominator). Milliseconds never leave their block.
+
+| question | ratio, each (series, rung, throttle) | band, and its source |
+| --- | --- | --- |
+| **D1** — a lossy frame through WebCodecs against an HTJ2K exact frame | S_G WebCodecs in order ÷ H, G = 1, 8, 16 | ≤ 1.0 (§2, from row PREVIEW) |
+| **D2** — a jump at G = 16 against one at G = 1 | S16 jump ÷ S1 jump, each decoder | 5–9 (§2, *derived*: (G + 1) ÷ 2 = 8.5 lossy decodes, a predicted frame possibly cheaper) |
+| **D3** — residual decode + add against an HTJ2K whole frame | R ÷ H, each form | 0.9–1.1 (§2, RESIDAPART's prediction) |
+| how G costs a jump | S8 jump ÷ S1 jump, each decoder | none: an estimate and its interval |
+| how G costs in order | S8 and S16 in order ÷ S1 in order, each decoder | none |
+| the 12-bit forms | S_G dav1d-WASM (12-bit stream) ÷ S_G WebCodecs (top 10 bits), G = 1, 8, 16, in order and jump, on `dbts_a1`, `dbts_c1`; on `dbts_b1` the same ratio is the two decoders on one 10-bit stream | none: "faster" said only where the interval excludes 1 |
+| every unit against H | S_G ÷ H, each decoder and pattern | none |
+| A/A | H′ ÷ H | — |
+
+**A block's A/A.** Per (block, throttle), the mean of ln(H′ ÷ H) over every (series, rung) and round, with its 95 %
+*t* interval. If that interval leaves ±ln 1.05 — the 5 % §6 sized its n to see — the block cannot see what the
+protocol asks at that throttle, and every one of its cells at that throttle is **void**. A void block, or cell, is
+reported with why and enters no pooled figure; nobody re-runs it quietly.
+
+**Pooling.** For each ratio and (series, rung, throttle), each kept block contributes **one number**: its mean of ln
+ratio over its rounds. The pooled ratio is exp of the mean of those numbers, with a 95 % *t* interval on B − 1 degrees
+of freedom over the B kept blocks — so a difference between hosts widens the interval instead of hiding in it. One kept
+block gives no between-host spread: **not decided**. Each block needs ≥ 10 rounds (§6's floor).
+
+**Order effect.** On the pooled pairs, the largest |median by the numerator's predecessor ÷ median − 1|. A cell is not
+read when it exceeds 10 % (`docs/rig-limits.md` §6) **and** exceeds the same statistic of the A/A in that cell — the
+data's own floor for it at that n: at a few pairs a predecessor, the statistic alone runs past 10 % on pure noise
+(§6's pilot: 52 % at n = 5).
+
+**The rule** (the bands are §2's, unchanged): in a read cell, **held** where the 95 % interval lies inside the band,
+**refuted** where it lies wholly outside, **not decided** otherwise. D1, D2, D3 each **held** if every read cell holds,
+**refuted** if any read cell refutes, else not decided, with the cells that left it open. The new questions carry no
+band and get none: each is reported as its pooled ratio and interval. `decode_pool.py` computes all of it; its
+`--test` builds blocks with known answers.
+
+**Saturation.** One decode in flight on 4 cores. dav1d-WASM and OpenJPH run one thread each, so at 1× they use one
+core and the host does not saturate; at 4× each thread gets a quarter of a CPU. WebCodecs runs its own decoder threads
+(its decoder: `Dav1dVideoDecoder`, not a platform decoder, from Chromium's media log in §6's run), so its cells are not
+a one-core figure at either throttle. Nothing is claimed past 4×, for concurrent decodes, for a phone, for another host
+type, or for a timed link.
+
+### Checks and mutations, as run
+
+*pending — the sizing pilot is running as this partial section is pushed (2026-11-04, 17:45 UTC).*
+
+### Sizing pilot
+
+*pending — the sizing pilot is running as this partial section is pushed (2026-11-04, 17:45 UTC).*
+
+## Shards
+
+Six sessions run in parallel, each on its own fresh 4-core host, each **one block**: every arm, form, decoder, G,
+pattern, series and rung, interleaved, with its own A/A — split by rounds, never by arm. Each starts from this branch,
+runs the same commands with its own k, and writes **only its own files and its own section**:
+
+| k | block | runs | writes | its section |
+| --: | --- | --- | --- | --- |
+| 1 | `shard-1` | rounds 0 … N − 1 (both Williams squares from row 0), 1× every rung, 4× the crossover rung, all three series | `lab/av1/profiles/rows/decode-shard-1.{json,log,txt}` | `### Decode shard 1, measured` |
+| 2 | `shard-2` | the same | `lab/av1/profiles/rows/decode-shard-2.{json,log,txt}` | `### Decode shard 2, measured` |
+| 3 | `shard-3` | the same | `lab/av1/profiles/rows/decode-shard-3.{json,log,txt}` | `### Decode shard 3, measured` |
+| 4 | `shard-4` | the same | `lab/av1/profiles/rows/decode-shard-4.{json,log,txt}` | `### Decode shard 4, measured` |
+| 5 | `shard-5` | the same | `lab/av1/profiles/rows/decode-shard-5.{json,log,txt}` | `### Decode shard 5, measured` |
+| 6 | `shard-6` | the same | `lab/av1/profiles/rows/decode-shard-6.{json,log,txt}` | `### Decode shard 6, measured` |
+
+**A shard session, k = 1 … 6** (the clock starts when the session does):
+
+```bash
+T0=$(date +%s); K=k                                           # this shard's number
+lab/av1/profiles/decode_setup.sh && source lab/.av1-work/decode-env.sh  # ~20 min here: decoders, tools, data, streams, browser
+R=lab/av1/profiles/rows/decode-shard-$K
+for n in 2 4 6 8 10 12 14 16 18 20 22 24; do                  # resumes at the first round it lacks; pushes every 2
+  node lab/av1/profiles/decode_block.mjs --block shard-$K --rounds $n --every-rung-at 1 \
+    --until $((T0 + UNTIL_S)) --out $R.json 2>>$R.log
+  python3 lab/av1/profiles/decode_pool.py $R.json > $R.txt
+  git add $R.*; git -c user.name=dary-dc -c user.email=crespoydelgado@gmail.com commit -qm "av1: profiles decode shard $K rows"; git pull -q --rebase; git push -q
+  grep -q "would pass --until" $R.log && break                 # --until stopped it
+done
+```
+
+`--until` stops before a round that would end past T0 + H h, leaving the rest of the 4.5 h for the section.
+Commits are authored `dary-dc <crespoydelgado@gmail.com>`, `git pull --rebase` before each push, never a force-push.
+The session then replaces the one line under its own `### Decode shard k, measured` with: the host (its `host` row:
+CPU, cores, memory), the rounds it ran, setup minutes, its A/A at each throttle, every check's tally, void cells with
+why, and its `$R.txt` cells — ms inside the block only, ratios with their within-block interval, marked
+**one block: not a verdict**. It claims nothing for the other blocks and decides nothing.
+
+**A block fewer than 10 rounds** (a slower host) is reported and enters no pooled cell; **a void block** (its A/A, or
+every cell failing a check) is reported with why. Neither is re-run in place; a replacement block, if the owner wants
+one, is a seventh session with k = 7, appended as a row here first.
+
+**The collector**, a later session once the six have pushed (no setup; Python only):
+
+```bash
+git pull -q --rebase
+python3 lab/av1/profiles/decode_pool.py lab/av1/profiles/rows/decode-shard-*.json --links > lab/av1/profiles/rows/decode-pooled.txt
+```
+
+It writes `### Decode, pooled` only: the kept and void blocks and why; per cell the pooled ratio, its interval, the
+blocks and rounds in it, the order effect beside the A/A's; D1, D2, D3 each **held**, **refuted** or **not decided**
+by §7's rule with the deciding cells; the new questions (G in order and on a jump; the 12-bit forms) as estimates
+with their intervals; the derived link figures, marked *derived*. Claims are for `dbts_a1`, `dbts_b1` and `dbts_c1`,
+these hosts and Chromium 141 only.
+
 ## Profiles bytes, measured
 
 *Run 2026-11-02 to 2026-11-03 by a separate session, given only §5, which it ran as written; nothing above was
@@ -1529,6 +1720,39 @@ own n would have been 315 at 1× and 82 at 4× on the per-frame clock even if ti
 power in 5 h on this host. What a session could fit is a decision for the owner: fewer units a round (351 now; the
 5 Mbit/s link's per-frame cells alone are about 28 min a throttle-round of waiting, *derived*), a longer cap, or a
 smaller n target.
+
+## Profiles decode, amended, measured
+
+*Six blocks of §7, one a session (§Shards), then the pool. Each session replaces only the line under its own heading
+and writes only its own files.*
+
+### Decode shard 1, measured
+
+*Not yet run.*
+
+### Decode shard 2, measured
+
+*Not yet run.*
+
+### Decode shard 3, measured
+
+*Not yet run.*
+
+### Decode shard 4, measured
+
+*Not yet run.*
+
+### Decode shard 5, measured
+
+*Not yet run.*
+
+### Decode shard 6, measured
+
+*Not yet run.*
+
+### Decode, pooled
+
+*Not yet run: the collector, once the six have pushed (§Shards).*
 
 ## Larger cine fixtures
 
