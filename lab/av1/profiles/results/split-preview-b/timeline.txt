@@ -11,3 +11,6 @@ item 3 from 22:06:55
 item 3 done 22:29:28
 item 4 from 22:29:31
 item 4 done 22:39:16
+item 1 done 22:50:24 (its 30 rows recovered from the open file, see below)
+item 2 from 22:50:24
+item 2 done 22:57:31
