@@ -1703,8 +1703,9 @@ A flush per unit cannot carry a group: `flush()` sets `[[key chunk required]]`, 
 `DataError` for a chunk whose type is not `key` ([S24] §4.5). Sources: [`../av1/frame-groups.md`](../av1/frame-groups.md) §6.
 
 Skipping the flush makes a frame 7–20 % faster at 1× and 3–28 % at 4×, intra, 10 interleaved rounds
-(every frame exact). A keyframe still needs one, though, or a unit labelled key that is not a
-keyframe decodes against the frame before it. That is how `inter.av1` passed as pixels in the first
+(every frame exact). *Corrected 2026-11-04: those arms also differed in `optimizeForLatency`; the flush alone waits
+1.3–2.0 ms a frame at 1× (§keyParse, measured and not adopted).* A keyframe still needs one, though, or a unit
+labelled key that is not a keyframe decodes against the frame before it. That is how `inter.av1` passed as pixels in the first
 build. The specification checks a key only while `[[key chunk required]]` is true, after construction,
 `configure`, `flush` or `reset`: then "Implementers SHOULD inspect the chunk’s [[internal data]] to verify that it
 is truly a key chunk" ([S24] §4.5). Otherwise the chunk's type is not checked, and what a decoder does with a
@@ -1762,7 +1763,8 @@ specification bounds the release of a frame or a `flush()`: `close()` "Immediate
 pays the stall timer each frame. At G > 1 nothing new: inside a group no flush runs today, deltas rest on order
 (`continues`) and the digest, and the group-end flush's only guard is the next key, which the parse replaces.
 
-**Test protocol, pre-registered, not run.** Mutations, each at G = 1 and G = 8: a delta, an intra-only frame, a
+**Test protocol, pre-registered**, amended and run since (§keyParse, measured and not adopted). Mutations, each at
+G = 1 and G = 8: a delta, an intra-only frame, a
 `show_existing_frame` unit and an unshown key frame, each labelled key; a unit cut mid-OBU, and one without its last
 tile group; a flipped tile byte; a delimiter-only unit; another series' key unit with a different sequence header;
 one with the same; two units swapped; a unit with an OBU extension. Each must be refused by name or fail its digest,
@@ -1772,6 +1774,27 @@ Browsers: Chromium 141 and current, and Firefox and WebKit where their `VideoDec
 and Firefox). Mutate each new check to fail. Decision: drop the flush if every mutation is caught in every browser
 and the no-flush arm is faster in at least 9 of 10 paired rounds at both throttles. Otherwise keep it, per browser.
 Dropping the flush is a candidate to build and measure under this protocol; nothing of it is built.
+
+#### keyParse, measured and not adopted
+
+2026-11-04. `keyParse` (PR #287) checked a G = 1 unit's key by parsing it, and never flushed. The protocol above,
+amended so the mutation clause is judged against the shipped flush and speed by a 95 % paired-*t* interval, ran 24
+rounds on 2026-11-02 and 11-03: **89 856 of 89 856 frames exact**, and the mutation clause held in all four
+browsers. keyParse ÷ flush over all streams:
+
+| browser | 1× | 4× |
+| --- | --- | --- |
+| Chromium 141.0.7390.37 | ×0.941 [0.935–0.948] | ×0.966 [0.960–0.971] |
+| Chromium 156.0.8078.80 | ×0.953 [0.947–0.959] | ×0.975 [0.969–0.981], but `dbts_b1` ×1.030 [1.016–1.043] |
+| Firefox 159.0 | ×1.002 [0.994–1.010] | ×0.998 [0.990–1.005]: every frame through dav1d-WASM, no flush in either arm |
+| WebKitGTK 2.52.6 | inert: no unit reaches `VideoDecoder` | |
+
+The gain is small because the flush itself waits only 1.3–2.0 ms a frame at 1× (2.1–5.3 ms at 4×). Row WCLAT's
+7–20 % (above) compared arms that also differed in `optimizeForLatency`, which the product sets in both. **Not
+adopted** (the owner, 2026-11-04): no default may depend on the browser version; it adds a code path that applies
+only at G = 1; and it regressed `dbts_b1` at 4× in Chromium 156. It rests on `dbts_a1`, `b1` and `c1` and the
+fluoroscopy and ultrasound units only. Restore from tag `archive/av1-keyparse`; its record is
+`git show archive/av1-keyparse:lab/av1/decode/key-parse/README.md`.
 
 ### A split payload through two decoders
 
