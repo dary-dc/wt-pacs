@@ -120,6 +120,22 @@ def main():
                   flush=True)
 
 
+def uncoded(name, floor):
+    """The top 8 bits shown back at 10 bits with no coder between: their mean square, and the v mod 4 prediction."""
+    s = run.Middle(DATA / name, 0)
+    sse = hist = 0
+    weights = np.array([0, 1, 4, 1], np.float64)
+    for i in range(s.n):
+        v = s.frame(i).astype(np.int64)[..., 0] + s.offset
+        p = (v >> 2) if floor else np.minimum((v + 2) >> 2, 255)
+        sse += float(np.sum((v - (p << 2)) ** 2))
+        w = weights[v & 3]
+        w[v == 1022], w[v == 1023] = 4.0, 9.0
+        hist += float(w.sum())
+    n = s.n * s.w * s.h
+    return dict(mean_square=sse / n, from_histogram=hist / n, psnr=run.psnr(sse / n, 1023), same=abs(sse - hist) / n < 1e-9)
+
+
 def check(a):
     """C1–C4 on dbts_b2, as §Checks states them; with --mutate, the check's mutation. One JSON line out."""
     name = "dbts_b2"
@@ -132,19 +148,8 @@ def check(a):
         same = r["lossy"] == want["lossy"] and abs(r["psnr"] - want["psnr"]) < 1e-3
         res = dict(bytes=sum(r["lossy"]), want=sum(want["lossy"]), psnr=r["psnr"], want_psnr=want["psnr"], same=same)
     elif a.check == "C2":
-        s = run.Middle(DATA / name, 0)
-        sse = hist = 0
-        weights = np.array([0, 1, 4, 1], np.float64)
-        for i in range(s.n):
-            v = s.frame(i).astype(np.int64)[..., 0] + s.offset
-            p = (v >> 2) if a.mutate else np.minimum((v + 2) >> 2, 255)
-            sse += float(np.sum((v - (p << 2)) ** 2))
-            w = weights[v & 3]
-            w[v == 1022], w[v == 1023] = 4.0, 9.0
-            hist += float(w.sum())
-        n = s.n * s.w * s.h
-        res = dict(mean_square=sse / n, from_histogram=hist / n, psnr=run.psnr(sse / n, 1023),
-                   same=abs(sse / n - hist / n) < 1e-9)
+        res = dict(series={n: uncoded(n, a.mutate) for n in SERIES})
+        res["same"] = all(x["same"] for x in res["series"].values())
     elif a.check == "C3" and a.mutate:
         lossy = run.cell(job("top8", 16, 1, "lowbits"))
         own = run.cell(job("top8", 0, 1, "splittop"))
