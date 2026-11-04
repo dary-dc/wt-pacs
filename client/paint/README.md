@@ -27,6 +27,8 @@ await painter.paint(
 shared memory: `R8UI` for ≤ 8-bit grey, `R16UI` or `R16I` for 9–16 bits, `RGB8UI` for RGB. Nothing is copied
 on either thread. Painting the same frame object again skips the upload. Signed 8-bit, RGB over 8 bits and
 any other photometric interpretation are declined by name.
+A grey frame may carry `reduced: { shift, bias }`, its samples p then standing for stored values (p ≪ shift) − bias;
+its table is built for p, so no pass rescales it ([`docs/decode/paint-depth.md`](../../docs/decode/paint-depth.md)).
 
 **The pipeline** (DICOM PS3.3 2026d), evaluated in float64 on the CPU into a table indexed by stored code
 (`voi.js`). The table has 256 entries up to 8 bits and 65 536 above; a signed code s sits at s + 32 768.

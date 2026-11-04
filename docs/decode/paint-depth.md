@@ -129,6 +129,10 @@ one run each, the same windows ([`rows/mutate-shift.txt`](../../lab/paint-depth/
 
 The full-scale path stays equal under both, so the check sees the reduced path alone.
 
+**The product's checks, after the change.** `scripts/gate.sh --quick` stopped at its prerequisites on this host (no
+built `transport_wasm_bg.wasm`), so its paint steps ran by hand: `voi.test.mjs` 15/15, `check.mjs --zoom1` every 1:1
+cell equal at DPR 1 and 2, `scripts/comment_budget.sh` clean. The server's tests were not run; nothing here touches them.
+
 **Not checked.** A GPU (the protocol below runs the same check first); fractional placements; the worker's table
 key: a check that repaints one buffer with a second shift would see it, and this one paints a new frame each time.
 The key matters only if a producer reuses a buffer under a new `reduced`, which none does.
