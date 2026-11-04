@@ -364,7 +364,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   // A layered variant owes one preview a frame, and exact frames only under frame indices.
   const previews = previewTruth ? {
     previews: r.previews.length,
-    strays: r.frames.filter((f) => !(f.i >= 0 && f.i < set.frames)).length,
+    strays: r.frames.filter((f) => !(Number.isInteger(f.i) && f.i >= 0 && f.i < set.frames)).length,
     late: r.previews.filter((p) => p.late).length,
     previewExact: r.previews.filter((p) => p.layer !== "middle" && r.previewSha[p.i] === previewTruth?.[p.i]).length,
     ...(middleTruth && { middleExact: r.previews.filter((p) => p.layer === "middle" && r.previewSha[a.middleAt + p.i] === middleTruth[p.i]).length }),
