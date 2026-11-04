@@ -7,7 +7,7 @@
   stored value it stands for. No shader change. Built behind a frame field, `reduced`; absent, nothing changes.
 * **Rests on:** the window table's construction (equal by construction, tested over every code), and a readback on
   SwiftShader: every window of `voi.test.mjs` and narrow windows swept across the range, on one frame each of
-  `dbts_a1`, `dbts_b1`, `dbts_c1` and on ramps of every preview code — 0 windows differ, in 13 584 windows over 8 cases.
+  `dbts_a1`, `dbts_b1`, `dbts_c1` and on ramps of every preview code — 0 of 7 984 (case, window) pairs differ, on either path.
 * **Left:** timing, owed to a machine with a GPU (the protocol below), and the producer: the decoder handing the
   preview on at its own depth with its range from ingest, a contract change written here as design only.
 * **Nothing is timed here.** This host's WebGL2 is SwiftShader, a software renderer.
