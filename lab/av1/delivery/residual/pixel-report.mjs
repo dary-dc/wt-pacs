@@ -48,7 +48,7 @@ for (const r of rows) {
 }
 
 const f2 = (v) => (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
-const f3 = (v) => v.toFixed(3);
+const f3 = (v) => v.toFixed(4);
 const pct = (v) => `${(100 * v).toFixed(0)} %`;
 const spread = (v, f = f2) => (v?.length ? `${f(median(v))} [${f(Math.min(...v))}–${f(Math.max(...v))}]` : "—");
 const vals = (m) => (m ? [...m.values()].filter(Number.isFinite) : []);

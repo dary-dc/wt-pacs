@@ -733,11 +733,11 @@ source.
 
 ## Lossy pixel work, measured (2026-11-04)
 
-* **Run:** the protocol above as written, on this branch: arms L, LR, LS, A2, A1, A1′, AS and H, 152 rounds at 1× and 40 at 4×. *In progress; this is a dated partial.*
-* **Shows:** *not yet read*. The rule is applied once the campaign ends, or to the rounds it has if it is cut.
-* **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` at CRF 20 and `mr_ispy1` at CRF 8, their first 16 frames; nothing is claimed for another series.
-* **Host:** a 4-core cloud VM, headless Chromium with a software renderer (SwiftShader), one worker at a time.
-* **Left:** lever G (G1, G2), owed to a machine with a hardware GPU, and not yet written in this harness.
+* **Run:** the protocol above as written: arms L, LR, LS, A2, A1, A1′, AS and H, 152 rounds at 1× and 40 at 4×, all of them, 4.7 h. Every frame of every arm passed every check.
+* **Shows:** **the run is void by its own A/A.** A1′ ÷ A1's interval excludes 1 in three of the eight cells (all at 1×), and the rule voids the run at two. No verdict is drawn: #1 is not adopted, two-pass stays, and R and S are not decided.
+* **Beside the void, measured:** the one-pass add is 0.93–0.98 of the two-pass, R is 0.75–0.79 of L, and AS is 0.79–0.86 of A1. LS ÷ LR (0.47–0.54) is not read in any DBT cell, because its order effect exceeds 10 %.
+* **Rests on:** `dbts_a1`, `dbts_b1` and `dbts_c1` at CRF 20 and `mr_ispy1` at CRF 8, the first 16 frames of each. Nothing is claimed for another series. This host (below) never saturated.
+* **Left:** lever G (G1, G2), owed to a machine with a hardware GPU and not yet written in this harness. A re-run, if the owner wants a verdict, under an A/A line the owner sets (below).
 
 **Terms** are the protocol's. In addition: a **cell** is one (set, throttle); a **span** is one arm's `performance.now()`
 interval on one frame; **prep** is the untimed `shown()` of each frame that the A arms add to (below).
@@ -800,4 +800,93 @@ and its siblings), each as the protocol requires:
 | `--mutate kernel` (`broken/add.wasm`) | AS 0/16 exact and LS 0/16 equal to L on the three DBT sets; `mr_ispy1` has no S arm |
 | `--mutate reuse` | LR 1/16 equal to L in every set |
 
-*Results follow when the campaign ends.*
+**Host.** This container: 4 cores of an Intel Xeon @ 2.10 GHz (KVM), L1d 48 KiB and L2 2 MiB a core, L3 260 MiB, 15 GB.
+Headless Chrome for Testing 153.0.8010.12 (playwright 1.63.0), renderer "ANGLE (Google, Vulkan 1.3.0 (SwiftShader
+Device (Subzero) …), SwiftShader driver)". XXH3 ran its SIMD128 path (`vector` 4). `cpu_throttle.mjs --check` on this VM
+after the run gave page thread 577 → 2 329 ms and worker 628 → 2 284 ms (1× → 4×). Over the campaign's 16 562 busy
+seconds the host was 23 % busy at the median (every CPU), 62 % in its busiest second, and **0 % of seconds at ≥ 95 %**,
+so it did not saturate. One worker ran at a time. Nothing is claimed past one worker, for fills, for concurrency, for
+another host, or for a phone: every input here stays resident in a 260 MiB L3.
+
+**Checks, the whole campaign** ([`rows/pixel-summary.txt`](rows/pixel-summary.txt)):
+
+* Every A2, A1, A1′, AS and H frame matched its source's SHA-256: 2 432/2 432 per arm and set at 1×, and 640/640 at 4×.
+* Every L frame's dense Y matched native dav1d's preview.
+* LR and LS equalled L byte for byte, and L equalled prep.
+* The A and H digests agreed on every frame.
+
+No cell is void by a check.
+
+**ms a frame**, the median over rounds of each round's median over 16 frames, latency only:
+
+| set | throttle | L | LR | LS | A2 | A1 | A1′ | AS | H |
+| --- | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| `dbts_a1` | 1× | 10.8 | 8.28 | 4.03 | 24.7 | 23.4 | 23.5 | 19.8 | 17.6 |
+| `dbts_b1` | 1× | 44.1 | 34.7 | 16.4 | 76.6 | 71.3 | 71.1 | 56.7 | 47.7 |
+| `dbts_c1` | 1× | 13.0 | 10.0 | 4.89 | 26.0 | 24.6 | 24.7 | 20.3 | 17.8 |
+| `mr_ispy1` | 1× | 1.35 | 1.07 | — | 3.52 | 3.40 | 3.40 | — | 3.35 |
+| `dbts_a1` | 4× | 48.1 | 36.4 | 19.5 | 107 | 102 | 103 | 87.9 | 76.3 |
+| `dbts_b1` | 4× | 192 | 151 | 74.7 | 331 | 314 | 312 | 253 | 210 |
+| `dbts_c1` | 4× | 57.1 | 43.8 | 23.5 | 115 | 109 | 108 | 91.4 | 77.3 |
+| `mr_ispy1` | 4× | 5.37 | 3.86 | — | 16.2 | 15.9 | 15.9 | — | 15.8 |
+
+**Ratios**, round-paired: the median, with its 95 % interval in brackets. n is 152 at 1× and 40 at 4×, as planned.
+A mark means the cell is **not read** because its order effect is over 10 %.
+
+| set | throttle | A1 ÷ A2 | A1′ ÷ A1 (A/A) | LR ÷ L | LS ÷ LR | AS ÷ A1 |
+| --- | --: | --- | --- | --- | --- | --- |
+| `dbts_a1` | 1× | 0.950 [0.948–0.952] | **1.0026 [1.0002–1.0045] miss** | 0.769 [0.768–0.771] not read, 17 % | 0.485 [0.482–0.487] not read, 69 % | 0.844 [0.842–0.846] |
+| `dbts_b1` | 1× | 0.933 [0.930–0.936] | **0.9977 [0.9952–0.9996] miss** | 0.785 [0.781–0.787] not read, 11 % | 0.472 [0.467–0.476] not read, 39 % | 0.793 [0.792–0.795] |
+| `dbts_c1` | 1× | 0.946 [0.944–0.947] | **1.0020 [1.0001–1.0040] miss** | 0.772 [0.769–0.775] | 0.490 [0.487–0.494] not read, 20 % | 0.824 [0.822–0.826] |
+| `mr_ispy1` | 1× | 0.964 [0.962–0.966] | 0.9993 [0.9971–1.0030] | 0.791 [0.787–0.797] | — | — |
+| `dbts_a1` | 4× | 0.957 [0.948–0.968] | 1.0065 [0.9978–1.0257] | 0.753 [0.732–0.773] not read, 15 % | 0.514 [0.478–0.544] not read, 32 % | 0.861 [0.844–0.873] |
+| `dbts_b1` | 4× | 0.940 [0.928–0.948] | 1.0044 [0.9929–1.0102] | 0.789 [0.777–0.799] | 0.494 [0.487–0.503] not read, 30 % | 0.808 [0.794–0.813] |
+| `dbts_c1` | 4× | 0.943 [0.930–0.964] | 0.9908 [0.9758–1.0045] | 0.772 [0.755–0.783] | 0.536 [0.502–0.546] not read, 25 % | 0.845 [0.833–0.856] |
+| `mr_ispy1` | 4× | 0.977 [0.920–0.995] | 1.0002 [0.9946–1.0175] | 0.764 [0.629–0.962] not read, 79 % | — | — |
+
+**The rule, applied as written.**
+
+* **A/A:** the interval contains 1 in 5 of 8 cells. It misses in `dbts_a1`, `dbts_b1` and `dbts_c1` at 1×, so 3 ≥ 2,
+  and **the run is void**. The rule therefore decides nothing below; each line is reported as it reads, for the record.
+* **#1:** A1 ÷ A2 met the line in all eight cells: below 1.00 with a median ≤ 0.97 in the six DBT cells, and an upper
+  end ≤ 1.02 on `mr_ispy1`. Each order effect was ≤ 7.6 %. Because the run is void, this does not adopt #1, and
+  two-pass stays.
+* **R on the preview:** not read in 4 of 8 cells (order effect 11–79 %). The other four cells met the line.
+* **S:** LS ÷ LR is not read in any DBT cell (order effect 20–69 %), so S is not proposed. AS ÷ A1 lies entirely below
+  0.90 in all six DBT cells.
+
+What the misses are, without a judgment on them: the three A/A medians lie 0.2–0.3 % from 1, and with n = 152 their
+intervals are about ±0.2 % wide. The rule's "P ≈ 0.057 by chance" assumes misses fall by chance alone. Whether a fixed
+0.2 % difference between two identical spans comes from their position in the frame's order is not measured here.
+A re-run that wants a verdict needs an A/A line set by the owner before it starts.
+
+**Predictions**, each falsified by a DBT cell whose median lies outside its range:
+
+* **A1 ÷ A2, 0.80–0.90: falsified** in all six DBT cells, at 0.933–0.957. The one-pass add saved 4–7 %, not 10–20 %.
+* **LR ÷ L, 0.65–0.90:** held, at 0.753–0.789.
+* **LS ÷ LR, 0.5–0.8: falsified** in four cells, at 0.472–0.494. Those cells are not read for the rule.
+* **AS ÷ A1, 0.78–0.90:** held, at 0.793–0.861.
+* **Design 1's pixel-work share, 45–75 %:** held at 1× (63–66 %). **Falsified at 4×** (80–85 %).
+* **Design 2's share, 30–50 %:** held, at 35–49 %.
+* **Design 3's share, 4–9 %: falsified** in all six DBT cells, at 15–26 %. That share rests on the twin stamp, so it is
+  *derived*.
+
+**Where the time goes**, ms a frame at 1× (`a1` / `b1` / `c1` / `mr`), for "where it goes" only:
+
+* **WebCodecs decode** is the group's span ÷ 8: 6.61 / 24.5 / 7.86 / 3.89.
+* **OpenJPH's call inside A1** is 15.5 / 38.2 / 15.1 / 2.36.
+* **The XXH3 digest of a frame** is 0.64–0.99 on `a1` and `c1`, 3.7 on `b1`, and 0.07–0.12 on `mr`.
+
+At 4× the decode and the OpenJPH call grow 2–4.5×. The digest grows to 16 ms on `b1`.
+
+```bash
+lab/av1/delivery/residual/add-build.sh lab/.av1-work/pixel/simd
+NODE_PATH=$(npm root -g) node lab/av1/delivery/residual/pixel.mjs --frames lab/.av1-work/pixel \
+  --sets dbts_a1,dbts_b1,dbts_c1,mr_ispy1 --arms L,LR,LS,A2,A1,A1′,AS,H --throttles 1,4 --rounds 152,40 \
+  --out lab/av1/delivery/residual/rows/pixel.json                                           # 4.7 h here
+node lab/av1/delivery/residual/pixel-report.mjs lab/av1/delivery/residual/rows/pixel.json > rows/pixel-summary.txt
+```
+
+**Owed to a machine with a GPU: lever G**, with the protocol's command (§The protocol, Owed). `pixel.mjs` refuses G arms
+without `--gpu` or on a SwiftShader renderer, but **`pixel.js` does not implement G1 or G2 yet**. Writing them is
+owed with the run.
