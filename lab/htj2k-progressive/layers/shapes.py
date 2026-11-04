@@ -183,7 +183,7 @@ def assemble(hdr, res, layers, order):
     seq = [(l, r) for l in range(layers) for r in range(LEVELS + 1)] if order == 0 else \
           [(l, r) for r in range(LEVELS + 1) for l in range(layers)]
     for l, r in seq:
-        packets[l, r] = write_packet(res[r], l, state.setdefault(r, {}))
+        packets[l, r] = write_packet(res[r], l, state.setdefault(r, {}), openjph=layers == 1 and order == 2)
     if order == 0:
         parts = [b"".join(packets[l, r] for r in range(LEVELS + 1)) for l in range(layers)]
     else:

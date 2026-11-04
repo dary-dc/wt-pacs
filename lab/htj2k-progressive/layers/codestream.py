@@ -72,7 +72,9 @@ def tree_levels(w, h):
 class TagTree:
     """B.10.2, leaves the code-blocks of one sub-band's precinct in raster order."""
 
-    def __init__(self, w, h, values=None):
+    def __init__(self, w, h, values=None, openjph=False):
+        """openjph: a parent also takes the child its encoder reads past an odd row's end, the next row's first
+        (OpenJPH 0.31.0 tag_tree::get in ojph_precinct.cpp); decodable, and needed only to equal its bytes."""
         self.dims = tree_levels(w, h)
         self.value = [[0] * (a * b) for a, b in self.dims]
         self.low = [[0] * (a * b) for a, b in self.dims]
@@ -81,14 +83,18 @@ class TagTree:
             self.value[0] = list(values)
             for lv in range(1, len(self.dims)):
                 pw, ph = self.dims[lv - 1]
-                w, _ = self.dims[lv]
-                v = self.value[lv]
-                for i in range(len(v)):
-                    v[i] = 1 << 30
-                for y in range(ph):
-                    for x in range(pw):
-                        j = (y // 2) * w + x // 2
-                        v[j] = min(v[j], self.value[lv - 1][y * pw + x])
+                w, h = self.dims[lv]
+                child = self.value[lv - 1]
+                for y in range(h):
+                    for x in range(w):
+                        v = 1 << 30
+                        for cy in (2 * y, 2 * y + 1):
+                            for cx in (2 * x, 2 * x + 1):
+                                if cx < pw and cy < ph:
+                                    v = min(v, child[cy * pw + cx])
+                                elif openjph and cy * pw + cx < pw * ph:
+                                    v = min(v, child[cy * pw + cx])
+                        self.value[lv][y * w + x] = v
 
     def path(self, i):
         w0 = self.dims[0][0]
@@ -174,7 +180,7 @@ class Block:
         self.layers, self.zero_planes, self.placeholders = layers, zero_planes, placeholders
 
 
-def write_packet(bands, layer, state):
+def write_packet(bands, layer, state, openjph=False):
     """One packet: bands is a list of (blocks, w, h) in the resolution's sub-band order; state carries each
     block's inclusion, Lblock and passes so far, and each sub-band's two tag trees."""
     bw = BitWriter()
@@ -186,8 +192,8 @@ def write_packet(bands, layer, state):
     for bi, (blocks, w, h) in enumerate(bands):
         if (bi, "inc") not in state:
             first = [next((ly for ly, c in enumerate(b.layers) if c), 1 << 20) for b in blocks]
-            state[bi, "inc"] = TagTree(w, h, first)
-            state[bi, "zero"] = TagTree(w, h, [b.zero_planes or 0 for b in blocks])
+            state[bi, "inc"] = TagTree(w, h, first, openjph)
+            state[bi, "zero"] = TagTree(w, h, [b.zero_planes or 0 for b in blocks], openjph)
         for i, b in enumerate(blocks):
             st = state.setdefault((bi, i), {"in": False, "lblock": 3, "passes": 0})
             segs = b.layers[layer]
