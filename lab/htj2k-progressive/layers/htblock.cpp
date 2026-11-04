@@ -33,7 +33,7 @@ struct Forward {
 struct Backward {
   std::vector<ui8> bytes;  // in write order; the segment holds them reversed at its end
   ui32 acc = 0, used = 0;
-  bool unstuff = false;
+  bool unstuff = true;  // rev_init_mrp starts with unstuff set
   void put(ui32 bit) {
     acc |= bit << used;
     ++used;

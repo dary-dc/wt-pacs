@@ -249,8 +249,8 @@ def last_set(e):
     return best
 
 
-def single(cs, hdr, layers):
-    """The prefix `cs` as one layer, every block its last HT set after 3 * S_skip placeholder passes."""
+def single(cs, hdr, layers, honour_skip=True):
+    """The prefix `cs` as one layer, every block its last HT set after 3 * S_skip placeholder passes (none, for a mutant)."""
     blocks, dims = parse(cs, hdr, layers)
     res = []
     for r in range(LEVELS + 1):
@@ -264,7 +264,7 @@ def single(cs, hdr, layers):
                     out.append(Block([None]))
                     continue
                 s, cup, ref, n = best
-                segs = [(3 * s + 1, cup)] + ([(n - 1, ref)] if n > 1 else [])
+                segs = [(3 * s * honour_skip + 1, cup)] + ([(n - 1, ref)] if n > 1 else [])
                 out.append(Block([segs], e["z"]))
             row.append((out, nx, ny))
         res.append(row)
@@ -275,28 +275,25 @@ def prefix(cs, sizes, layers):
     return cs[:sum(sizes[:1 + layers])] + EOC
 
 
-def expected(hdr, img, shape, layers, p=None):
+def expected(hdr, img, plans, layers):
     """What a decoder reconstructs from the first `layers` layers: OpenJPH's bin-centre rule on the truncated bit-planes
-    (a cleanup at plane q adds 2^(q-1) to a nonzero magnitude), every block per its plan."""
+    (a nonzero magnitude cut at plane q gains 2^(q-1)), every block per its plan in `plans` (coded's output)."""
     res = analyse(img.astype(np.int64) - (0 if hdr.signed else 1 << (hdr.bits - 1)))
     for r, bands in enumerate(res):
         for b, band in enumerate(bands):
-            k = kmax_of(hdr, r, b if r else 0)
-            h, w = band.shape
-            for y in range(0, h, CB):
-                for x in range(0, w, CB):
-                    c = band[y:y + CB, x:x + CB]
-                    blk = plan(shape, c, k, p) if shape != "today" else None
-                    q = 0
-                    if blk and layers == 1 and blk.layers[0]:
-                        q = k - 1 - blk.zero_planes
-                    elif blk and layers == 1:
-                        c[:] = 0
-                        continue
-                    if q:
-                        m = np.abs(c) >> q
-                        rec = np.where(m > 0, (m << q) | (1 << (q - 1)), 0)
-                        c[:] = np.sign(c) * rec
+            blocks, nx, _ = plans[r][b]
+            for j, blk in enumerate(blocks):
+                y, x = (j // nx) * CB, (j % nx) * CB
+                c = band[y:y + CB, x:x + CB]
+                if layers >= len(blk.layers):
+                    continue
+                if not blk.layers[0]:
+                    c[:] = 0
+                    continue
+                q = kmax_of(hdr, r, b if r else 0) - 1 - blk.zero_planes
+                if q:
+                    m = np.abs(c) >> q
+                    c[:] = np.sign(c) * np.where(m > 0, (m << q) | (1 << (q - 1)), 0)
     out = synthesise(res, hdr.h, hdr.w) + (0 if hdr.signed else 1 << (hdr.bits - 1))
     lo, hi = (-(1 << (hdr.bits - 1)), (1 << (hdr.bits - 1)) - 1) if hdr.signed else (0, (1 << hdr.bits) - 1)
     return np.clip(out, lo, hi)
