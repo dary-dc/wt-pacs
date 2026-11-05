@@ -220,6 +220,29 @@ def judge(norm, s, g, v, nbytes, unread):
                     for k, d in doms.items()}
 
 
+def reported(cells, e, s, g, v):
+    """Beside the rule: each layer's in-window PSNR on both encoders, and per-frame decodes in HTJ2K-frame units."""
+    c = e["g"][str(g)]
+    q = lambda x: f"{x['quality']['psnr_in']:.2f}"  # noqa: E731
+    n = c["snr"][str(v)]["layers"]
+    lines = [f"in-window PSNR, aomenc · quality layers: preview {q(c['preview'])} · {q(n['preview'])} dB, "
+             f"visually lossless {q(c['vl'][str(v)])} · {q(n['vl'])} dB (quantizers {c['snr'][str(v)]['q']})"]
+    per = defaultdict(list)
+    for (s2, g2, v2, _), a in cells.items():
+        if (s2, g2, v2) != (s, g, v) or "ctrl" not in a:
+            continue
+        ref = statistics.median(a["ctrl"]["cine-exact"][0]["ms"])
+        for arm in ("snr", "two"):
+            if arm in a:
+                per[f"{arm} preview frame"].append(statistics.median(a[arm]["preview"][0]["ms"]) / ref)
+                per[f"{arm} VL frame"].append(statistics.median(a[arm]["vl"][0]["ms"]) / ref)
+                per[f"{arm} residual decode"].append(statistics.mean(x["decode"] for x in a[arm]["residual"]) / ref)
+                per[f"{arm} add"].append(statistics.mean(x["add"] for x in a[arm]["residual"]) / ref)
+    if per:
+        lines.append("per frame, median over rounds: " + "; ".join(f"{k} {statistics.median(x):.3g}" for k, x in per.items()))
+    return lines
+
+
 def median_of(norm, key, stage):
     v = [x[stage] for x in norm.get(key, {}).values()]
     return (statistics.median(v) if v else None), len(v)
@@ -258,6 +281,8 @@ def main():
                     print(f"| {stage} | " + " | ".join(cells_) + " |")
                 print("\nbytes · median time ÷ the block's HTJ2K frame; ✗ dominated, ? not read, n per carrier "
                       + ", ".join(f"{c} {median_of(norm, (s, g, v, c), STAGES[0])[1]}" for c in CARRIERS) + "\n")
+                for line in reported(cells, e, s, g, v):
+                    print(f"*Reported:* {line}\n")
                 for (t, x), (lab, won, lost) in labels.items():
                     verdicts[(t, x, g, v)][s] = lab
                     print(f"* **{t} against {x}: {lab}** — {t} dominates at {', '.join(won) or 'no stage'}; "

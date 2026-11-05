@@ -208,6 +208,16 @@ p = min((v + 2) ≫ 2, 1023), B as stored — so every carrier codes the same pi
 * `search` writes the pin, [`results/pin.json`](../../lab/av1/delivery/snr/results/pin.json): every quantizer
   tried, its PSNR and bytes, and every unit size. `code` re-codes the pin and stops on any unit size that differs.
 
+**What the search found** (the pin, *measured* on the pilot's host after the predictions above were pushed at
+`9799d78a`; in-window PSNR; `dbts_a1` · `dbts_b1` · `dbts_c1`, G 1 · 8 · 16). The real-time encoder's layer 1 lands
+at q 25 on every volume and G (q 26 on `dbts_c1` G 16 at the Q 4 rung), within 0.15 dB of `aomenc` Q 24, at **1.46–1.55
+· 1.18–1.30 · 1.30–1.48×** its bytes. Layer 2 lands at q 3 · 2 · 2 for the Q 4 rung and q 8 · 7 · 7 for Q 8. Bytes to
+VL, layers 1 + 2 over `aomenc` Q 24 + the VL stream, read at the VL stream's PSNR (log bytes linear in PSNR between
+the two bracketing quantizers, *derived*): **Q 8 1.12–1.16 · 1.10–1.11 · 1.14–1.16×, Q 4 1.34–1.40 · 1.25–1.30 ·
+1.38–1.43×**. So prediction S3 (0.95–1.25) is already outside its band at Q 4 on all three volumes, by the pin; the
+run re-derives it and does not change it. The timed streams are the nearer quantizers, whose PSNR gaps (up to 0.9 dB
+on `dbts_b1` at Q 4, where layer 2's q 2 and q 3 straddle 54.5 dB) the collector prints beside every bytes figure.
+
 **5b · Blocks, arms, order.** A **block** is one (volume, G, VL rung) in one fresh headless Chromium: arms `snr`,
 `two`, `ctrl`, `ctrl-aa`, and `svc` too when the rung is 8 (`svc` does not depend on the rung, so it runs once a
 (volume, G) and is compared at both rungs through the controls, rounds paired). `ctrl` decodes every HTJ2K frame of
