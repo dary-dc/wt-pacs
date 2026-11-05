@@ -157,11 +157,13 @@ def readable(s, g, v, c, unread):
 
 
 def pair(norm, s, g, v, x, y, stage, unread):
-    """'x', 'y' (the lower time), 'not resolved', or 'not read'."""
+    """'x', 'y' (the lower time), 'not resolved', or 'not read' (a gate, or too few rounds for an interval)."""
     if not (readable(s, g, v, x, unread) and readable(s, g, v, y, unread)):
         return "not read"
     X, Y = norm.get((s, g, v, x), {}), norm.get((s, g, v, y), {})
     d = [math.log(X[r][stage] / Y[r][stage]) for r in X if r in Y]
+    if median_interval(d)[1] is None:
+        return "not read"
     return {"A": "x", "B": "y"}.get(decided(d)[0], "not resolved")
 
 

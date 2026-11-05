@@ -245,7 +245,8 @@ averaged over every i in 0 … F − 2.
    not read where any arm it is built from (`one` from `two`, `sep` from `two` and `ctrl`), or the control, is flagged.
 4. **A pair** (two carriers, one stage): per-round log ratio, its median and the distribution-free 95 % interval of
    the median from order statistics [S6]; **decided** for the lower time when the interval excludes 0, **not
-   resolved** otherwise, **not read** under 2 or 3; at n < 6 nothing is decided.
+   resolved** otherwise, **not read** under 2 or 3, and at n < 6, where no interval exists (so too few rounds never let
+   bytes alone decide dominance).
 5. **Dominance, per stage**, the carriers row's definition (`amended.dominates`): X dominates Y if X's bytes are no
    more, no time pair is decided against X or not read, and X has fewer bytes or the time decided for it. Each
    carrier's state at each stage — on the frontier, dominated, or not read — is printed with its bytes and median.
@@ -273,7 +274,7 @@ averaged over every i in 0 … F − 2.
 | `snr.mjs` | the driver: each (round, volume, G, rung) a fresh Chromium; a block past 15 min is `VOID`; `--mutate sample · truth · offset · skip · low · unit` |
 | `mutations.py` | each browser break against the checks it must fail and only those |
 | `rule.py` | the collector: §5d–e end to end |
-| `rule_test.py`, `mutate_rule.py` | 46 claims of `rule.py`'s arithmetic, and 14 breaks of it, each caught |
+| `rule_test.py`, `mutate_rule.py` | 47 claims of `rule.py`'s arithmetic, and 15 breaks of it, each caught |
 | `run.sh` | a shard: `tools content mutate rounds` |
 
 ### Sources
