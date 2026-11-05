@@ -22,7 +22,7 @@ BREAKS = {
     "a failed lossy check kept": ('or x.get("lossy") is False\n', "\n"),
     "the A/A gate ignored": ("return b not in unread and not any(", "return not any("),
     "the control's order flag ignored": ('for a in (*ARMS_OF[c], "ctrl"))', "for a in ARMS_OF[c])"),
-    "svc read from its own rung only": ("for vv in ((4, 8) if c == \"svc\" else (v,)):", "for vv in (v,):"),
+    "svc read across blocks": ("out[(s, g, v, c)][r] = {k: x / ref", "out[(s, g, 4 if c == \"svc\" else v, c)][r] = {k: x / ref"),
     "too few rounds let bytes decide": ("    if median_interval(d)[1] is None:\n        return \"not read\"\n", ""),
     "the lower time read as the higher": ('return {"A": "x", "B": "y"}', 'return {"A": "y", "B": "x"}'),
     "an unread stage ignored": ('return got if got == "a trade" or all(r for *_, r in doms) else "not read"', "return got"),

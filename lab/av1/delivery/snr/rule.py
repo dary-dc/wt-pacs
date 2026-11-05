@@ -94,7 +94,7 @@ def stages(carrier, a, ctrl):
 
 
 def normalized(cells):
-    """{(set, g, v, carrier): {round: {stage: time ÷ the block's control frame}}}; svc from the VL-8 block under every v."""
+    """{(set, g, v, carrier): {round: {stage: time ÷ the block's control frame}}}; svc runs in the VL-8 blocks only."""
     out = defaultdict(dict)
     for (s, g, v, r), a in cells.items():
         if "ctrl" not in a:
@@ -105,9 +105,7 @@ def normalized(cells):
             src = {"snr": "snr", "svc": "svc"}.get(c, "two")
             if not all(x in a for x in (*ARMS_OF[c], src)):
                 continue
-            got = {k: x / ref for k, x in stages(c, a[src], ctrl).items()}
-            for vv in ((4, 8) if c == "svc" else (v,)):
-                out[(s, g, vv, c)][r] = got
+            out[(s, g, v, c)][r] = {k: x / ref for k, x in stages(c, a[src], ctrl).items()}
     return out
 
 

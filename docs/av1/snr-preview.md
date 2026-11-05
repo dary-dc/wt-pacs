@@ -186,7 +186,7 @@ All per volume, at both VL rungs unless named; the collector's medians decide. "
 | S5 | Every slice at VL, decode: `snr` ÷ `two` 1.3–1.7 | outside |
 | S6 | Exact by residual against whole HTJ2K at the exact stage (`two` against `sep`): the residual's bytes fewer and its decode + add 0.75–1.1× an HTJ2K frame, so `two` **better** than `sep` | `sep` dominating at any stage |
 | S7 | `two` against `one`: **a trade** — `two` dominates at first picture and preview, `one` at VL (its VL is `two`'s minus the preview) | any other label |
-| S8 | `two` and `snr` against `svc`: **a trade** — `svc` dominates at first picture, preview and exact bytes, the two-layer carriers at VL | any other label |
+| S8 | `two` and `snr` against `svc` (Q 8): **a trade** — `svc` dominates at first picture, preview and exact bytes, the two-layer carriers at VL | any other label |
 | S9 | `snr` against `two`: `two` **better** (`snr` dominated at VL, nowhere dominating) | `snr` dominating at any stage |
 
 ### 5 · The protocol
@@ -220,7 +220,7 @@ on `dbts_b1` at Q 4, where layer 2's q 2 and q 3 straddle 54.5 dB) the collector
 
 **5b · Blocks, arms, order.** A **block** is one (volume, G, VL rung) in one fresh headless Chromium: arms `snr`,
 `two`, `ctrl`, `ctrl-aa`, and `svc` too when the rung is 8 (`svc` does not depend on the rung, so it runs once a
-(volume, G) and is compared at both rungs through the controls, rounds paired). `ctrl` decodes every HTJ2K frame of
+(volume, G) and is judged at the Q 8 rung only, in its own block, §6). `ctrl` decodes every HTJ2K frame of
 the volume in order; `ctrl-aa` the same again — the A/A. Arms run in a Williams order (`lab/order.mjs`; period 4 for
 the four-arm blocks, 10 for the five-arm), the 18 blocks of a round in a Williams order too. Each block starts with
 an untimed pass of every path on frame 0; before each arm a forced collection and two untimed units on a throwaway
@@ -261,16 +261,63 @@ averaged over every i in 0 … F − 2.
    more, no time pair is decided against X or not read, and X has fewer bytes or the time decided for it. Each
    carrier's state at each stage — on the frontier, dominated, or not read — is printed with its bytes and median.
 6. **The answer, per (volume, G, rung)**, for each two-layer carrier T ∈ {`snr`, `two`} against each alternative X ∈
-   {`svc`, `sep`, `one`}, and `snr` against `two`: **better** if T dominates X at some stage and X dominates T at
-   none; **worse** the mirror; **a trade** if each dominates somewhere; **neither dominates** otherwise; **not read**
-   if a stage between them is not read and the label is not already a trade (one more stage cannot undo a trade, *derived*).
+   {`svc`, `sep`, `one`} (`svc` at the Q 8 rung), and `snr` against `two`: **better** if T dominates X at some stage
+   and X dominates T at none; **worse** the mirror; **a trade** if each dominates somewhere; **neither dominates**
+   otherwise; **not read** if a stage between them is not read and the label is not already a trade (one more stage
+   cannot undo a trade, *derived*).
    A label holds "on these three volumes" when it is the same on each.
 7. **Reported, not judged:** per-frame medians, the residual's decode and add apart, the Q 16 and Q 32 previews' bytes,
    the matched quantizers and their PSNR gaps, and the real-time encoder's share (`snr` ÷ `two` bytes per layer).
 
 ### 6 · Pilot, rounds, saturation
 
-*Filled from the pilot (§6 is the pilot's section); see below.*
+**The pilot** (this session, 2026-11-05: a 4-core Intel Xeon @ 2.10 GHz, 15 GB, headless Chromium 153.0.8010.12; rows
+in [`results/pilot.jsonl`](../../lab/av1/delivery/snr/results/pilot.jsonl), not read for any verdict). Three rounds of
+all 18 blocks, 20.0 · 21.2 · 20.4 min; every check passed in all 54 blocks, no `VOID`; the six browser breaks on
+`dbts_a1` · G 8 · Q 8 each caught, only its own
+([`results/pilot.mutations.jsonl`](../../lab/av1/delivery/snr/results/pilot.mutations.jsonl)). The robust spread
+(1.4826 × MAD of per-round log ratios, `pilot_spread.py`) of the A/A is **0.061 · 0.073 · 0.061** (`dbts_a1` ·
+`dbts_b1` · `dbts_c1`), against the carriers pilot's 0.022–0.032: whole passes slowed by 20–40 % at random on every
+arm alike, and where `ctrl-aa` ran first in a block (round 1, the nine five-arm blocks) it was slower than `ctrl` in
+six, by up to 42 %, despite the washout. V8's optimizing WASM compiler forced from the start (`--no-liftoff`, four
+rounds of `dbts_a1` · G 8's two blocks) left the A/A as spread, so it is not adopted; the cause is *unverified* (the
+host's own noise is the reading). The order gate (§5e.3) counts "first" as a predecessor, so a first-arm effect is
+tested, not assumed away. **Of the pairs the rule reads**, the spread's median · 90th percentile per stage: first
+picture 0.12 · 0.36; every slice at preview 0.068 · 0.21, at VL 0.028 · 0.097, exact 0.026 · 0.091; a jump at preview
+0.057 · 0.26, at VL 0.044 · 0.17, exact 0.035 · 0.16 (a single unit, or a mean over four asked frames that change from
+round to round, spreads the most). Three values give a crude spread; the collector prints the run's own.
+
+**The control differs between the two kinds of block**: its median HTJ2K frame is 1.25× slower in the four-arm (Q 4)
+blocks than in the five-arm (Q 8) blocks on `dbts_a1` and `dbts_c1`, and 0.94× on `dbts_b1`, over the pilot's rounds
+(the cause is *unverified*: the Q 4 blocks hold larger streams and residuals in the page). A time divided by one block's
+control and compared with a time divided by another's would carry that gap, so **`svc` is judged only at the Q 8 rung,
+in its own block**; at Q 4 its bytes are printed and its pairs are not read (`rule.normalized`; tested and mutated).
+
+**Rounds, from it.** The budget holds **10 rounds a shard, n = 20 over the two shards** (§Shards: about 39 min of
+tools, frames, content and mutations, then 21 min a round, within 4.5 h). No resolution is a bar on the answer; it is
+what n buys, said before the run. For a median of n paired log ratios of spread σ the rule's interval excludes 0 for a
+true ratio e^δ in about 80 % of runs when δ ≥ 2.80 × 1.2533 × σ ÷ √n (normal approximation; 1.2533 = √(π/2), the
+median's cost against the mean; *derived*). At n = 20, at the pilot's median spread, a stage resolves: first picture
+9.3 %, every slice at preview 5.3 %, at VL 2.2 %, exact 2.0 %, a jump at preview 4.5 %, at VL 3.5 %, exact 2.7 %; at
+its 90th percentile 28 · 17 · 7.6 · 7.1 · 20 · 13 · 12 % (*derived*). The gaps §4 predicts for the decisive pairs are
+30–70 % (`snr` against `two` at VL) or orders of magnitude (first picture against `one` and `svc`); the residual
+against the whole HTJ2K frame (S6), predicted within 0.75–1.1×, may not resolve, which the label then shows as a stage
+neither side dominates. The pilot's own medians, crude and not read: `snr` ÷ `two` to every slice at VL 1.13–1.65,
+`two` ÷ `sep` to every slice exact 1.04–1.11.
+
+**Order at that n.** The four-arm blocks' Williams period is 4 rounds, the five-arm blocks' 10, the round's own order
+of 18 blocks 18: 20 rounds are whole periods of the first two, so each arm follows each other arm 5 times in a
+four-arm block and 4 in a five-arm block (and runs first as often), enough for the permutation test to have values
+a predecessor (§5e.3; the carriers review's finding 1).
+
+**Saturation.** One decode in flight, one thread a decoder: one core of four, on the page's thread; the host does not
+saturate in any arm, and a shard runs nothing else while it times. Nothing is claimed past 1×, for concurrent asks, a
+link, a phone, another host, or WebCodecs; no absolute ms: every time is a ratio inside one block, and only ratios are
+pooled across shards.
+
+**Fixtures, and the only ones.** `dbts_a1`, `dbts_b1`, `dbts_c1` (`lab/av1/fetch_data.sh`, SHA-256-checked), one per
+system. The repository holds few cine-like breast series: its ultrasound cine is lossy-sourced and ABUS is absent, so
+nothing is claimed for ultrasound, FFDM, or any volume but these three.
 
 ### 7 · The harness
 
@@ -284,7 +331,8 @@ averaged over every i in 0 … F − 2.
 | `snr.mjs` | the driver: each (round, volume, G, rung) a fresh Chromium; a block past 15 min is `VOID`; `--mutate sample · truth · offset · skip · low · unit` |
 | `mutations.py` | each browser break against the checks it must fail and only those |
 | `rule.py` | the collector: §5d–e end to end |
-| `rule_test.py`, `mutate_rule.py` | 47 claims of `rule.py`'s arithmetic, and 15 breaks of it, each caught |
+| `rule_test.py`, `mutate_rule.py` | 48 claims of `rule.py`'s arithmetic, and 15 breaks of it, each caught |
+| `pilot_spread.py` | the pilot's spread per stage and pair, which sizes the rounds (§6) |
 | `run.sh` | a shard: `tools content mutate rounds` |
 
 ### Sources
@@ -305,3 +353,49 @@ averaged over every i in 0 … F − 2.
 * Measured rows: RESIDAPART (`lab/av1/delivery/residual/README.md` on `claude/av1-residual-apart`, `6a2994f8`),
   METRICS shards 1, 2, 4 (`lab/av1/metrics/README.md` on `claude/av1-quality-metrics`, `a959cb04`), the SVC metrics
   (`svc-results.md` on `claude/av1-svc-preview`, `ad28ae2b`), the carriers row (this branch's base, `ff3e2de9`).
+
+## Shards
+
+| shard | rounds | writes | heading |
+| --- | --- | --- | --- |
+| 1 | 0–9, every block | `lab/av1/delivery/snr/results/shard-1.jsonl`, `.mutations.jsonl`, `.index.dbts_{a1,b1,c1}.json`, `.md` | `### SNR shard 1, measured` |
+| 2 | 10–19, every block | `lab/av1/delivery/snr/results/shard-2.jsonl`, `.mutations.jsonl`, `.md` | `### SNR shard 2, measured` |
+
+Each on its own 4-core cloud host, ≤ 4.5 h wall; split by rounds, never by arm, so every shard runs every block whole.
+
+```bash
+git fetch origin && git checkout claude/av1-snr-preview
+SHARD=k ROUNDS_PER_SHARD=10 BUDGET_S=16200 lab/av1/delivery/snr/run.sh tools content mutate rounds
+python3 lab/av1/delivery/snr/rule.py lab/.av1-work/snr/ lab/av1/delivery/snr/results/shard-k.jsonl \
+  > lab/av1/delivery/snr/results/shard-k.md   # the shard's own rows, a check, not read for any verdict
+```
+
+| step | `run.sh` | minutes on the pilot's host |
+| --- | --- | --: |
+| tools: libaom, dav1d, the patched `svc_encoder_rtc`, dav1d-WASM with operating points, OpenJPH, the volumes | `tools` | 6 |
+| the shipped frames (HTJ2K and the low bits) 5.5; `snr_content.py code` re-coding the pin, every unit checked, 21 | `content` | 27 |
+| `rule_test.py`, `mutate_rule.py`; six browser breaks on block `dbts_a1` · G 8 · Q 8, `mutations.py` | `mutate` | 6 |
+| 10 rounds at 20.0–21.2 min | `rounds` | 200–212 |
+| **total** | | **239–251**, under 270 |
+
+`BUDGET_S` is 4.5 h from `run.sh`'s start: a shard on a slower host stops after a whole round once less than one
+round's time is left and reports its n; the collector pools what came. `code` stops the shard if any unit differs from
+the pin; `mutations.py` stops it if a break misses its own check or fails another's, and the shard reports that
+instead of rounds.
+
+Each shard appends its heading at the end of this file (after `git pull --rebase`) and writes nothing else: its host
+(`lscpu` model, cores, memory, Chromium), each step's wall, its n and `VOID` count, its mutations' table, and anything
+that differed from the protocol; `.md` holds `rule.py`'s output on its own rows.
+
+**The collector**, once both headings exist (or the last says it stopped):
+
+```bash
+python3 lab/av1/delivery/snr/rule.py lab/av1/delivery/snr/results/shard-1.index. \
+  lab/av1/delivery/snr/results/shard-{1,2}.jsonl > lab/av1/delivery/snr/results/collected.md
+```
+
+It prints, under `## SNR preview, collected`: n and `VOID`s; every block's A/A interval and the count that fail; every
+arm flagged by order with its p; per (volume, G, rung) each stage's bytes and median in HTJ2K-frame units for all six
+carriers with its frontier state, the match's PSNR and the per-frame decodes beside it; each pair's label and the
+stages each side dominates; and the answer table, per (two-layer carrier, alternative, G, rung), with whether it
+holds "on these three volumes".
