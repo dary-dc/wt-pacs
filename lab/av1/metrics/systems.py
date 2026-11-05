@@ -28,7 +28,7 @@ def family(name):
 
 def stored(by):
     out = {}
-    for name, form, g in sorted(by, key=lambda k: (k[0], k[1] != "12bit")):
+    for name, form, g in sorted(by, key=lambda k: (k[0], k[1] != "12bit", k[1])):
         out.setdefault(name, form)
     return out
 
@@ -99,6 +99,20 @@ def main():
             knees = " · ".join(spread([r['knee_' + k][0] for r in rows]).split(" (")[0] for k in KNEES)
             print(f"| {fam} | {len(rows)} | {g} | {col('noise')} | {spread([r['level'][0] for r in rows])} | "
                   f"{col('band')} | {col('full')} | {knees} | {frac([r['knee_psnr_med'][1] for r in rows])} |")
+
+    ladder = collect.json.loads((collect.HERE / "plan.json").read_text())["ladder"]
+    print("\n#### More than one rung from the family's median\n")
+    print("| series | G | reading | Q | family median Q |")
+    print("| --- | --: | --- | --: | --: |")
+    for (name, g), r in sorted(per.items(), key=lambda kv: (FAMILIES.index(family(kv[0][0])), kv[0])):
+        fam = [rr for (n, gg), rr in per.items() if family(n) == family(name) and gg == g]
+        for key in r:
+            got = [rr[key][0] for rr in fam if rr[key][0] is not None]
+            if r[key][0] is None or len(got) < 3:
+                continue
+            med = statistics.median_low(got)
+            if abs(ladder.index(r[key][0]) - ladder.index(med)) > 1:
+                print(f"| `{name}` | {g} | {key} | {r[key][0]} | {med} |")
 
 
 if __name__ == "__main__":
