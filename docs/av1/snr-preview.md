@@ -402,9 +402,82 @@ holds "on these three volumes".
 
 ### SNR shard 1, measured
 
-*Running: rounds 0–9 of §Shards on one 4-core host, started 2026-11-05 09:03 UTC. This heading is filled in when the
-shard ends; until then [`results/shard-1.jsonl`](../../lab/av1/delivery/snr/results/shard-1.jsonl) holds every
-block so far, pushed after each round.*
+* **Run:** rounds 0–9 of §Shards, every one of the 18 blocks whole in each round, on one 4-core cloud host, 2026-11-05.
+* **Shows:** n = 10 rounds, 180 timed blocks, 0 `VOID`, 0 failed checks; 17 of 18 blocks pass the A/A gate.
+* **Every check held:** each lossy picture against native dav1d's hash, each exact frame against the fetch's checksum.
+* **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` only, at 1×, one-thread dav1d-WASM and OpenJPH, this host's Chromium.
+* **Left:** shard 2's rounds 10–19 and the collector over both; nothing below is a verdict, only this shard's rows.
+
+A **block** is one (volume, G, VL rung) in a fresh Chromium; an **arm** one carrier's ops within it; the **A/A** is
+`ctrl-aa` against `ctrl`, the same HTJ2K pass twice; a **`VOID`** block is one stopped past 15 min; **n** is rounds
+read. Times are in HTJ2K-frame units (§Terms). Every other term is §Terms'.
+
+**Host.** Intel(R) Xeon(R) Processor @ 2.10GHz (`lscpu`), 4 cores, 15 GB, Google Chrome for Testing 153.0.8010.12
+headless — the pilot's model and build. Where it saturates: it does not, in any arm; one decode in flight on one
+thread, one core of four, as §6 says, and nothing is claimed past 1×. While blocks timed, the only other work was
+`git commit`/`push` of this shard's rows (below).
+
+| step | wall |
+| --- | --: |
+| `tools` | 7.3 min |
+| `content`: shipped frames 6.3, `snr_content.py code` 22.0 (no unit differed from the pin) | 28.3 min |
+| `mutate`: `rule_test.py` 48/48, `mutate_rule.py` 15/15 caught, six browser breaks | 6 min |
+| `rounds`: 20.7 · 20.9 · 19.5 · 20.0 · 20.7 · 19.2 · 19.9 · 20.6 · 20.8 · 19.8 | 201.9 min |
+| **total**, 09:03:43–13:07:10 UTC, under `BUDGET_S` | 243.5 min |
+
+**Mutations** ([`shard-1.mutations.jsonl`](../../lab/av1/delivery/snr/results/shard-1.mutations.jsonl), block
+`dbts_a1` · G 8 · Q 8; `mutations.py`'s table):
+
+| break | checks failed | must fail | outcome |
+| --- | --- | --: | --- |
+| sample | all 16 (`snr`, `two`: preview, vl, preview-jump, vl-jump, residual; `svc`: preview, exact, both jumps; `ctrl`, `ctrl-aa`) | 16 | caught, only its own |
+| truth | the same 16 | 16 | caught, only its own |
+| offset | `snr` residual, `snr` vl, `two` residual, `two` vl | 4 | caught, only its own |
+| skip | `snr`, `two` preview-jump, vl-jump, residual; `svc` preview-jump, exact-jump | 8 | caught, only its own |
+| low | `svc` exact, `svc` exact-jump | 2 | caught, only its own |
+| unit | `snr` residual, `snr` vl, `snr` vl-jump | 3 | caught, only its own |
+
+**A/A** (`rule.py` on this shard's rows, [`shard-1.md`](../../lab/av1/delivery/snr/results/shard-1.md)): the 95 %
+interval of the median log(`ctrl-aa` ÷ `ctrl`) holds 0 in 17 of 18 blocks; `dbts_c1` · G 16 · Q 4 does not (+0.035,
+interval 0.012 to 0.098, n 10), so that block is not read. No arm is flagged by the order gate in any block.
+
+**Numbers, this shard's rows only** (every slice; bytes are the pin's at the timed — nearer — quantizers, not the
+PSNR-interpolated figures of §5a; time is the ratio of the two carriers' medians, *derived* from `shard-1.md`, not
+the rule's paired interval). `dbts_a1` · `dbts_b1` · `dbts_c1`, G 1 · 8 · 16:
+
+| | Q 4 rung | Q 8 rung |
+| --- | --- | --- |
+| VL, `snr` ÷ `two` bytes | 1.26 1.21 1.21 · 1.33 1.33 1.33 · 1.55 1.52 1.51 | 1.10 1.02 1.01 · 1.07 1.05 1.05 · 1.28 1.23 1.23 |
+| VL, `snr` ÷ `two` time | 1.52 1.50 1.39 · 1.25 1.38 1.42 · 1.62 1.58 1.56 | 1.61 1.24 1.36 · 1.21 1.29 1.32 · 1.65 1.50 1.43 |
+| exact, ÷ HTJ2K bytes: `two` | 1.045 1.045 1.045 · 1.077 1.067 1.066 · 1.043 1.042 1.043 | 1.025 1.020 1.020 · 1.068 1.053 1.053 · 1.029 1.021 1.022 |
+| exact, ÷ HTJ2K bytes: `one` | 1.039 1.042 1.042 · 1.053 1.051 1.051 · 1.035 1.038 1.039 | 1.019 1.017 1.017 · 1.044 1.038 1.038 · 1.021 1.017 1.018 |
+| exact, ÷ HTJ2K bytes: `sep` | 1.236 1.234 1.234 · 1.467 1.452 1.451 · 1.256 1.251 1.251 | 1.075 1.072 1.071 · 1.243 1.232 1.231 · 1.098 1.092 1.092 |
+| exact, ÷ HTJ2K bytes: `snr` | 1.120 1.107 1.106 · 1.219 1.185 1.183 · 1.167 1.150 1.149 | 1.037 1.027 1.026 · 1.091 1.073 1.072 · 1.050 1.038 1.037 |
+| exact, `two` ÷ `sep` time | 1.05 1.03 1.05 · 1.04 1.07 1.06 · 1.05 1.08 1.11 | 1.07 1.07 1.06 · 1.05 1.07 1.06 · 1.08 1.09 1.09 |
+
+`svc`'s exact bytes ÷ HTJ2K: 0.979 0.942 0.940 · 1.022 0.945 0.940 · 1.001 0.940 0.936. `two`'s every-slice preview ÷
+HTJ2K: 0.64 0.31 0.29 · 2.46 1.56 1.51 · 0.80 0.38 0.36 %. The matched quantizers are the pin's (layer 1 q 25, q 26
+on `dbts_c1` G 16 Q 4; layer 2 q 3 · 2 · 2 at Q 4, q 8 · 7 · 7 at Q 8); their in-window PSNR gaps are in `shard-1.md`.
+
+**Labels the rule prints on this shard's rows** (n = 10; `svc` pairs at Q 4 are not read by design, §6):
+
+| pair | label at every (G, rung) read on all three volumes |
+| --- | --- |
+| `snr` against `two` | worse |
+| `snr` against `sep` | worse |
+| `snr`, `two` against `one` | a trade |
+| `snr`, `two` against `svc` (Q 8) | a trade |
+| `two` against `sep` | neither dominates, except better on `dbts_b1` G 1 Q 4 and `dbts_a1` G 8 Q 4 |
+
+At G 16 · Q 4 the `dbts_c1` block is not read (A/A), so no label there holds on all three volumes from this shard.
+
+**What differed from the protocol.** (1) `meson`, which `tools` needs for dav1d, was absent from the host and was
+installed from PyPI (1.12.1, not pinned); the first `run.sh` stopped there and was restarted from the start, and the
+budget runs from that start. (2) `run.sh` exits 1 after a whole run: its last command is the budget test, false when
+budget remains (*derived* from `set -e` and the loop's last status); every round finished. (3) This shard's rows were
+committed and pushed after each round, at the next round's first block, and seven more times inside rounds 2, 3, 4,
+6, 7 and 8, while a block timed: a few seconds of `git` on a second core each. (4) `tools` leaves `lab/av1/profiles/`
+checked out from the carriers row; it is not committed.
 
 ### SNR shard 2, measured
 
