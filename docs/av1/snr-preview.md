@@ -438,6 +438,6 @@ the budget runs from that restart. (2) The steps were run one `run.sh` call at a
 test was the same, from the `tools` restart. (3) Round 15's last two blocks, `dbts_b1` · G 1 · Q 8 and Q 4, are
 `VOID`: this session's two-hour limit on one background command stopped the round runner and its local file server
 mid-block (rows: "Browser closed", then "ERR_CONNECTION_REFUSED"), not the 15-min block limit; they were not re-run,
-which would have broken the round's order, and rounds 16–19 ran after a 2-min gap. (4) Once, during round 11, a
+which would have broken the round's order, and rounds 16–19 ran after a gap of about a minute. (4) Once, during round 11, a
 commit and push of this heading ran beside a timed block: a few seconds of `git` on a second core. (5) `tools` leaves
 `lab/av1/profiles/` checked out from the carriers row; it is not committed.
