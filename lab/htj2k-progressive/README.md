@@ -370,7 +370,7 @@ full, and the rows, in [`rows/layers-measured/`](rows/layers-measured/).*
   the proxy at full size, the whole is ×0.988 of today's bytes and the exact series ×0.988–1.037 of today's in every
   kept cell; on `dbts_c1` and `dbt12_c` the same holds in every cell but 50 Mbit/s at 4×. **Two sets are closed**.
 * **What it rests on:** every exact frame equal to its source's sha256 (single-decoder: no other decoder reads the
-  layered whole); every layer-1 picture equal to the coefficients' and to OpenJPEG 2.5.4's; n = 2 rounds a cell of
+  layered whole); every layer-1 picture equal to the coefficients' and to OpenJPEG 2.5.4's; n = 2–3 rounds a cell of
   the protocol's 12, on one 4-vCPU host.
 * **What is left:** the protocol's n; the RGB sets; content this repo lacks (breast ultrasound cine, ABUS); and what
   a layer 1 at 77–99 % of the bytes is worth, which the rule does not ask (below).
@@ -498,9 +498,9 @@ entry i frame i's layer 1, entry F + i its second tile-part and EOC, the two con
 (`client/decode/htj2k.js`) over the layered lab build. Arms: today's (`htj2k`, the delivered build), A′, two sets at
 the operating points (p = 1 everywhere; p = 2 also on `rf_fluoro`), and **one set, which the protocol's arm list does
 not name but its rule needs**: whether one set's exact series is within ×1.10 cannot be read otherwise. The AV1
-preview arm belongs to the ladder's clause and was not run. **Rounds: 2** (Williams order, a fresh server, relay and
-browser a visit), n = 2 kept a cell on the volumes and 1–2 on the cine-like sets; the protocol's n = 12 was not
-reached, and no MDL is computed at this n. 720 visits, **every frame exact and every layer-1 preview its stage-1
+preview arm belongs to the ladder's clause and was not run. **Rounds: 3 on the volumes, 2 on the cine-like sets** (Williams
+order, a fresh server, relay and browser a visit), n = 3 kept a cell on the volumes and 1–2 on the cine-like sets; the protocol's n = 12 was not
+reached, and no MDL is computed at this n. 816 visits, **every frame exact and every layer-1 preview its stage-1
 digest in every one**.
 
 The five series with a one-set layer 1 at the proxy, or the stage-3 volumes (seconds from the fill's issue, medians of
@@ -509,24 +509,24 @@ rounds; ratios the median of round-paired ratios; full tables [`stage3-volumes.m
 
 | series, link, CPU | n | today exact s | one set: first s · every frame at the proxy, full size s (÷ today exact) · exact ÷ today | two sets p = 1: exact ÷ today | A/A p90 |
 | --- | --: | --: | --- | --: | --: |
-| `dbts_a1` 5 Mbit 1× | 2 | 110.52 | 2.50 · not at the proxy · ×0.988 | ×1.836 | 0.000 |
-| `dbts_a1` 5 Mbit 4× | 2 | 110.58 | 2.67 · not at the proxy · ×0.988 | ×1.836 | 0.002 |
-| `dbts_a1` 20 Mbit 1× | 2 | 27.77 | 0.75 · not at the proxy · ×0.988 | ×1.832 | 0.000 |
-| `dbts_a1` 20 Mbit 4× | 2 | 27.86 | 0.92 · not at the proxy · ×0.988 | ×1.830 | 0.001 |
-| `dbts_a1` 50 Mbit 1× | 2 | 11.27 | 0.45 · not at the proxy · ×0.992 | ×1.821 | 0.001 |
-| `dbts_a1` 50 Mbit 4× | 2 | 11.36 | 0.60 · not at the proxy · ×1.092 | ×1.816 | 0.007 |
-| `dbts_b1` 5 Mbit 1× | 2 | 175.03 | 3.30 · not at the proxy · ×0.985 | ×1.794 | 0.000 |
-| `dbts_b1` 5 Mbit 4× | 2 | 175.32 | 3.44 · not at the proxy · ×0.985 | ×1.793 | 0.001 |
-| `dbts_b1` 20 Mbit 1× | 2 | 43.94 | 1.06 · not at the proxy · ×0.985 | ×1.792 | 0.001 |
-| `dbts_b1` 20 Mbit 4× | 2 | 44.14 | 1.41 · not at the proxy · ×0.987 | ×1.788 | 0.000 |
-| `dbts_b1` 50 Mbit 1× | 2 | 17.78 | 0.66 · not at the proxy · ×0.985 | ×1.781 | 0.003 |
-| `dbts_b1` 50 Mbit 4× | 2 | 18.05 | 1.07 · not at the proxy · ×1.159 | ×1.767 | 0.006 |
-| `dbts_c1` 5 Mbit 1× | 2 | 115.17 | 1.91 · 97.34 (0.845) · ×0.989 | ×1.841 | 0.000 |
-| `dbts_c1` 5 Mbit 4× | 2 | 115.23 | 2.08 · 97.41 (0.845) · ×0.989 | ×1.841 | 0.000 |
-| `dbts_c1` 20 Mbit 1× | 2 | 28.93 | 0.71 · 24.49 (0.846) · ×0.989 | ×1.837 | 0.000 |
-| `dbts_c1` 20 Mbit 4× | 2 | 28.99 | 0.89 · 24.54 (0.847) · ×0.991 | ×1.836 | 0.000 |
-| `dbts_c1` 50 Mbit 1× | 2 | 11.74 | 0.45 · 9.96 (0.848) · ×0.990 | ×1.834 | 0.001 |
-| `dbts_c1` 50 Mbit 4× | 2 | 11.83 | 0.58 · 10.07 (0.851) · ×1.234 | ×1.821 | 0.003 |
+| `dbts_a1` 5 Mbit 1× | 3 | 110.52 | 2.50 · not at the proxy · ×0.988 | ×1.836 | 0.000 |
+| `dbts_a1` 5 Mbit 4× | 3 | 110.59 | 2.65 · not at the proxy · ×0.988 | ×1.836 | 0.002 |
+| `dbts_a1` 20 Mbit 1× | 3 | 27.78 | 0.77 · not at the proxy · ×0.988 | ×1.832 | 0.000 |
+| `dbts_a1` 20 Mbit 4× | 3 | 27.89 | 0.92 · not at the proxy · ×0.987 | ×1.828 | 0.002 |
+| `dbts_a1` 50 Mbit 1× | 3 | 11.27 | 0.47 · not at the proxy · ×0.988 | ×1.821 | 0.002 |
+| `dbts_a1` 50 Mbit 4× | 3 | 11.34 | 0.60 · not at the proxy · ×1.106 | ×1.817 | 0.007 |
+| `dbts_b1` 5 Mbit 1× | 3 | 175.03 | 3.10 · not at the proxy · ×0.985 | ×1.794 | 0.000 |
+| `dbts_b1` 5 Mbit 4× | 3 | 175.25 | 3.45 · not at the proxy · ×0.985 | ×1.794 | 0.001 |
+| `dbts_b1` 20 Mbit 1× | 3 | 43.94 | 1.07 · not at the proxy · ×0.985 | ×1.791 | 0.001 |
+| `dbts_b1` 20 Mbit 4× | 3 | 44.15 | 1.43 · not at the proxy · ×0.987 | ×1.788 | 0.001 |
+| `dbts_b1` 50 Mbit 1× | 3 | 17.76 | 0.66 · not at the proxy · ×0.986 | ×1.783 | 0.003 |
+| `dbts_b1` 50 Mbit 4× | 3 | 18.02 | 1.07 · not at the proxy · ×1.162 | ×1.770 | 0.006 |
+| `dbts_c1` 5 Mbit 1× | 3 | 115.18 | 1.91 · 97.34 (0.845) · ×0.989 | ×1.841 | 0.000 |
+| `dbts_c1` 5 Mbit 4× | 3 | 115.23 | 2.11 · 97.41 (0.846) · ×0.989 | ×1.841 | 0.000 |
+| `dbts_c1` 20 Mbit 1× | 3 | 28.93 | 0.72 · 24.49 (0.846) · ×0.989 | ×1.837 | 0.001 |
+| `dbts_c1` 20 Mbit 4× | 3 | 28.98 | 0.90 · 24.55 (0.847) · ×0.991 | ×1.836 | 0.000 |
+| `dbts_c1` 50 Mbit 1× | 3 | 11.74 | 0.44 · 9.95 (0.849) · ×0.993 | ×1.827 | 0.001 |
+| `dbts_c1` 50 Mbit 4× | 3 | 11.80 | 0.62 · 10.10 (0.855) · ×1.152 | ×1.821 | 0.003 |
 | `dbt12_c` 5 Mbit 1× | 2 | 105.79 | 1.86 · 89.49 (0.846) · ×0.989 | ×1.844 | 0.000 |
 | `dbt12_c` 5 Mbit 4× | 2 | 105.83 | 1.99 · 89.58 (0.846) · ×0.990 | ×1.844 | 0.000 |
 | `dbt12_c` 20 Mbit 1× | 2 | 26.59 | 0.70 · 22.51 (0.847) · ×0.990 | ×1.852 | 0.000 |
@@ -548,7 +548,7 @@ same everywhere here:
 
 * **One set: interesting.** On `rf_fluoro`: every frame's layer 1 at the proxy at full size, the whole ×0.988, the
   exact series ×0.988–1.037 — holds in all 6 kept cells. On `dbts_c1` and `dbt12_c`: proxy and bytes hold (×0.989),
-  and the exact series is ×0.989–0.991 in 5 of 6 cells but ×1.234 and ×1.123 at 50 Mbit/s 4×, past the bound with
+  and the exact series is ×0.989–0.991 in 5 of 6 cells but ×1.152 and ×1.123 at 50 Mbit/s 4×, past the bound with
   the spread (p90 0.003). On `dbts_a2`, `dbts_a5`, `dbts_c3` and `dbts_c5` it is at the proxy too, but stage 3 did not run them; on the other 16 sets its layer 1 is not at the proxy. Read over every cell, as the ladder's
   clause is read, it holds on `rf_fluoro` alone.
 * **Two sets: closed.** Wherever a layer 1 reaches the proxy (p ≤ 2) the whole is ×1.45–1.85 of today's bytes, and its exact

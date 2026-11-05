@@ -1943,9 +1943,9 @@ for both quality shapes through OpenJPH 0.31.0 patched to read layers, on every 
 10-bit DBT, fluoroscopy, MR, `usb_cine`): every exact frame equal to its source digest (single-decoder), every layer 1
 also OpenJPEG 2.5.4's. **By the rule as written, one set, two layers is interesting**: on `rf_fluoro` its layer 1 is at
 the proxy at full size, the whole ×0.988 of today's bytes and the exact series ×0.988–1.037 in every kept cell; on
-`dbts_c1` and `dbt12_c` the same except at 50 Mbit/s 4×, where its whole's ×1.3–1.5 decode puts it at ×1.12–1.23.
+`dbts_c1` and `dbt12_c` the same except at 50 Mbit/s 4×, where its whole's ×1.3–1.5 decode puts it at ×1.12–1.15.
 Layer 1 is 77–99 % of the bytes, so the proxy comes 14–16 % before the exact series and the first picture no sooner.
-**Two sets are closed**: wherever layer 1 reaches the proxy the whole is ×1.45–1.85. Two rounds of the protocol's 12.
+**Two sets are closed**: wherever layer 1 reaches the proxy the whole is ×1.45–1.85. Two to three rounds of the protocol's 12.
 
 ## The BYOB read path
 
