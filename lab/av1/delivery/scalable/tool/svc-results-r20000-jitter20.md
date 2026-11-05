@@ -1,11 +1,9 @@
-# SVC metrics — 20 Mbit/s with ±20 ms jitter (2026-11-04)
+# SVC metrics — 20 Mbit/s with ±20 ms jitter (2026-11-04 to 11-05)
 
-What was run: the pre-registered SVC metrics protocol on one more link, 20 Mbit/s with ±20 ms of jitter each way, on three volumes, 13 variants, at full and quarter CPU speed.
-What it shows: *the sitting is in progress, 10 of 10 rounds done; the reading is written when it is whole.*
-What it rests on: three digital breast tomosynthesis (DBT) volumes only, `dbts_a1`, `dbts_b1` and `dbts_c1`; one 4-core container; headless Chromium 153.0.8010.12. Nothing is claimed for any other series, modality, host or device.
+What was run: the pre-registered SVC metrics protocol on one more link, 20 Mbit/s with ±20 ms of jitter each way, on three volumes, 13 variants, at full and quarter CPU speed, 10 whole rounds (780 visits, 690 kept).
+What it shows: with jitter the preview still gives every slice a picture in 0.30–1.16 s, while HTJ2K takes 28–44 s to make every slice exact; the two-layer variants reach exact in 0.989–1.025× the shipped payload's time; all 38 500 exact frames, 31 500 bases and 14 000 middles passed their checks.
+What it rests on: three digital breast tomosynthesis (DBT) volumes only, `dbts_a1`, `dbts_b1` and `dbts_c1`; one 4-core container whose CPU decodes 1.4–1.5× slower than the first sitting's; headless Chromium 153.0.8010.12. Nothing is claimed for any other series, modality, host or device.
 What is left: the breast ultrasound cine and ABUS rows, and the 5 and 50 Mbit/s and 2 % loss links, which other sittings run; the rule's verdict, which another session applies once every condition is in.
-
-*The tables are partial until round 10; rows are pushed after every round.*
 
 The protocol is [`docs/av1/README.md`](../../../../../docs/av1/README.md) §The scalable preview as a tool, part 10; how each
 number is made is [`README.md`](README.md) §SVC metrics; the first sitting (no rate limit, and 20 Mbit/s without
@@ -51,18 +49,63 @@ check was mutated: probes 5 ms apart through `--jitter-mode reorder` came back 1
 `ordered` none; at 50 ms apart, ±20 ms gave 0.3–39.5 ms against 20.0–24.7 with no jitter.
 
 **Host and where it saturates.** 4 vCPU, 15 GB: browser and server on three cores, the relay alone on the fourth,
-as the first sitting. At 20 Mbit/s every exact fill arrives at the link's rate (the per-cell received rate below,
-2.43–2.44 MB/s against the link's 2.5), so these cells are link-bound and do not reach the CPU's limit. The relay is
-the part that strains: its self-timing p99 is higher with jitter than the first sitting's 20 Mbit/s without
-(*see the control pair below*), so more visits are `VOID`.
+as in the first sitting. This container's CPU is slower than the first sitting's: HTJ2K's decode, which jitter
+cannot change, sums to 1.7–4.8 s a fill at 1× here against 1.2–3.2 s there (1.4–1.5×, the same for `k2`). **At 1×
+every exact fill is link-bound**: it arrives at 2.43–2.44 MB/s against the link's 2.5, and its last exact frame
+trails its last byte by 0.0–0.3 s. **At 4× the browser's CPU becomes the limit on the 10-bit `dbts_b1`**: the last
+exact frame trails the last byte by 0.8 s for `k2`, 1.2–1.6 s for `a2-*` and `p2-*`, and 4.0–5.6 s for `p3-*`, whose
+middles are decoded on dav1d-WASM beside the exact frames. So `dbts_b1` at 4× measures this host's decode, and its
+t_X is not a link's. On `dbts_a1` and `dbts_c1` at 4× the tail is 0.1–0.6 s. The relay also strains: 90 of 780
+visits are `VOID` (11–24 of 130 a cell), against 31 of 780 on the first sitting's 20 Mbit/s without jitter.
 
-**The control pair.** After each round, one `k2` visit on `dbts_a1` at 1× without jitter and one with, in
-alternating order, kept out of the rows and the tables: whether the `VOID`s come from the jitter or the host.
+**The control pair: what the jitter itself does, interleaved.** After each round, one `k2` visit on `dbts_a1` at 1×
+without jitter and one with, in alternating order, kept out of the rows and the tables. Over the 10 pairs:
+jitter adds **164 ms to the first picture** (0.83 → 0.99 s, larger in 10 of 10) and **91 ms to t_X** (26.40 →
+26.50 s, larger in 10 of 10); over the 6 pairs with neither visit `VOID`, 161 ms and 86 ms. The relay's p99 is
+0.13 ms later with jitter (larger in 9 of 10), and 4 of 10 jitter visits went `VOID` against none without: the
+jitter's own wakeups make the relay late more often, beside the host's noise (the clean visits' p99 ran 0.22–0.81 ms,
+the first sitting's median 0.24). Everything else here is compared with the first sitting only across sittings,
+not interleaved, on a different host: a difference between the two files is not attributed to jitter unless the
+control pair shows it.
 
 **Exactness**, every visit, `VOID` ones included: each exact frame against its checksum, each base and middle against
-native dav1d at its operating point, no preview after its frame's exact picture, no stray (the per-cell lines
-below). These checks were mutated in the first sitting ([`svc-mutations.jsonl`](svc-mutations.jsonl)) on the same
-code, and not again here; the one new check, the wire's, was mutated above.
+native dav1d at its operating point, no preview after its frame's exact picture, no stray. **38 500/38 500 exact;
+31 500/31 500 bases and 14 000/14 000 middles as native; 0 late, 0 stray, 0 stall-flushes.** These checks were mutated
+in the first sitting ([`svc-mutations.jsonl`](svc-mutations.jsonl)) on the same code, and not again here; the one
+new check, the wire's, was mutated above.
+
+## The seven headlines
+
+*At 20 Mbit/s with ±20 ms jitter, 1× · 4×, the three volumes' range; median over kept visits, n = 7–10 a cell.*
+
+1. **First picture.** Every layered and lossy-only variant: **0.09–0.13 s · 0.14–0.24 s**. HTJ2K 0.89–1.34 · 1.06–1.76 (both arms);
+   its half-size prefix 0.40–0.54 · 0.49–0.69; `k2` 0.96–1.40 · 1.31–2.12.
+2. **Useful pictures.** Every slice has a base at **0.30–0.57 s · 0.51–1.16 s**, 0.011–0.026 of HTJ2K's t_X (*derived*
+   from tables 2a and 4); every slice a full-size middle (`p3-m20`) at 2.26–6.21 · 6.23–16.3 s; HTJ2K's prefix at
+   7.72–12.1 · 7.75–12.2 s. Scrolling from slice 0 at 15 slices/s, slices reached with a base: **90–97 % · 84–94 %**;
+   with a middle 0–80 % · 0–3 %; with the prefix or anything exact, 0 %.
+3. **Error of each lossy layer:** not re-measured; it does not depend on the link ([`svc-results.md`](svc-results.md)
+   table 3; the codings here are byte-identical to that sitting's, `svc-shapes.tsv`).
+4. **Time to exact**, round-paired ÷ `k2`: HTJ2K 27.9–44.0 · 28.0–44.3 s, 1.052–1.061 · 1.043–1.051. Alone (`a2-*`)
+   **1.001–1.003 · 1.002–1.009**; predicted two layers (`p2-*`) **0.989–1.009 · 0.991–1.025**, the upper end on
+   `dbts_b1` at 4×; three layers `p3-m10` 1.040–1.172 · 1.038–1.243, `p3-m20` 1.000–1.046 · 1.000–1.146, `p3-m30` 0.995–1.026 ·
+   0.998–1.135, the excess on `dbts_b1`, at 4× this host's decode (above). A/A resolution ±0.1–0.2 %.
+5. **Decode a frame in the fill:** table 5. Offline decode does not depend on the link and was not re-run.
+6. **Total decode**, the sum of a fill's per-frame decode times: HTJ2K 1.7–4.8 · 6.6–18.2 s; `k2` 6.2–11.4 · 25.0–45.0
+   s; `p2-q40` 6.5–16.3 · 24.5–58.5 s; `p3-m20` 12.4–36.3 · 39.9–124 s; `lossy-m20` 5.8–16.2 · 15.4–42.5 s, on a host
+   1.4–1.5× slower than the first sitting's.
+7. **Total fill and bytes.** The last exact frame trails the last byte by 0.0–0.3 s at 1× (4×: above). Fill bytes ÷
+   `k2`: HTJ2K 1.055–1.065; `a2-*` 1.0002–1.0018; `p2-*` 0.989–1.007; `p3-m10` 1.040–1.170, `p3-m20` 0.999–1.044,
+   `p3-m30` 0.994–1.022; `lossy-q20` 0.0008–0.0018, `lossy-m20` 0.008–0.036 — the same bytes as the first sitting,
+   since the codings are.
+
+**Against the first sitting's 20 Mbit/s without jitter**, across sittings and hosts and so only where the control
+pair agrees: t_X at 1× is 0.10–0.23 s later for every exact variant (the control pair: 0.09 s), and the first picture
+0.1–0.2 s later (the control pair: 0.16 s for `k2`). The docs' loss-and-jitter run
+([`docs/av1/README.md`](../../../../../docs/av1/README.md) §Under loss and jitter) found the same order: "±20 ms adds
+0.05–0.22 s to a fill". The larger 4× numbers here (first picture, every-base time, `dbts_b1`'s t_X) track this host's slower
+decode, which the control pair does not test; they are not claimed as jitter's. The rule (part 5) is left to the
+session that applies it; its per-clause table for these cells is the last table below.
 
 ## Tables
 
