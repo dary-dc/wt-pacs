@@ -1,0 +1,352 @@
+{
+ "sigma": {
+  "as_run": {
+   "estimates": {
+    "smooth": {
+     "0.25": 0.241,
+     "0.5": 0.497,
+     "1": 1.0,
+     "2": 1.989,
+     "3": 3.0,
+     "4": 3.989,
+     "8": 8.005,
+     "16": 16.115,
+     "0": 0.0
+    },
+    "edge": {
+     "0.25": 0.242,
+     "0.5": 0.497,
+     "1": 0.999,
+     "2": 1.994,
+     "3": 3.001,
+     "4": 4.014,
+     "8": 8.001,
+     "16": 16.079,
+     "0": 0.0
+    }
+   },
+   "held": true
+  },
+  "mutated": {
+   "estimates": {
+    "smooth": {
+     "0.25": 0.376,
+     "0.5": 0.575,
+     "1": 1.041,
+     "2": 2.01,
+     "3": 3.014,
+     "4": 4.0,
+     "8": 8.011,
+     "16": 16.117,
+     "0": 0.267
+    },
+    "edge": {
+     "0.25": 0.377,
+     "0.5": 0.574,
+     "1": 1.04,
+     "2": 2.015,
+     "3": 3.014,
+     "4": 4.024,
+     "8": 8.006,
+     "16": 16.082,
+     "0": 0.267
+    }
+   },
+   "held": false
+  },
+  "mutation": "rounding's 1/12 not taken out",
+  "sees_it": true
+ },
+ "sigma_median": {
+  "as_run": {
+   "estimates": {
+    "smooth": {
+     "0.25": 0.241,
+     "0.5": 0.497,
+     "1": 1.0,
+     "2": 1.989,
+     "3": 3.0,
+     "4": 3.989,
+     "8": 8.005,
+     "16": 16.115,
+     "0": 0.0
+    },
+    "edge": {
+     "0.25": 0.242,
+     "0.5": 0.497,
+     "1": 0.999,
+     "2": 1.994,
+     "3": 3.001,
+     "4": 4.014,
+     "8": 8.001,
+     "16": 16.079,
+     "0": 0.0
+    }
+   },
+   "held": true
+  },
+  "mutated": {
+   "estimates": {
+    "smooth": {
+     "0.25": 0.302,
+     "0.5": 0.302,
+     "1": 0.784,
+     "2": 1.646,
+     "3": 2.49,
+     "4": 3.33,
+     "8": 6.678,
+     "16": 13.575,
+     "0": 0.0
+    },
+    "edge": {
+     "0.25": 0.302,
+     "0.5": 0.302,
+     "1": 0.784,
+     "2": 1.646,
+     "3": 2.49,
+     "4": 3.33,
+     "8": 6.678,
+     "16": 13.575,
+     "0": 0.0
+    }
+   },
+   "held": false
+  },
+  "mutation": "the median in place of the mean",
+  "sees_it": true
+ },
+ "sigma_edges": {
+  "as_run": {
+   "estimates": {
+    "smooth": {
+     "0.25": 0.241,
+     "0.5": 0.497,
+     "1": 1.0,
+     "2": 1.989,
+     "3": 3.0,
+     "4": 3.989,
+     "8": 8.005,
+     "16": 16.115,
+     "0": 0.0
+    },
+    "edge": {
+     "0.25": 0.242,
+     "0.5": 0.497,
+     "1": 0.999,
+     "2": 1.994,
+     "3": 3.001,
+     "4": 4.014,
+     "8": 8.001,
+     "16": 16.079,
+     "0": 0.0
+    }
+   },
+   "held": true
+  },
+  "mutated": {
+   "estimates": {
+    "smooth": {
+     "0.25": 0.239,
+     "0.5": 0.497,
+     "1": 1.0,
+     "2": 1.989,
+     "3": 2.998,
+     "4": 3.992,
+     "8": 7.994,
+     "16": 16.105,
+     "0": 0.0
+    },
+    "edge": {
+     "0.25": 0.765,
+     "0.5": 0.974,
+     "1": 1.45,
+     "2": 2.433,
+     "3": 3.431,
+     "4": 4.438,
+     "8": 8.403,
+     "16": 16.439,
+     "0": 0.639
+    }
+   },
+   "held": false
+  },
+  "mutation": "no edge left out",
+  "sees_it": true
+ },
+ "ssim": {
+  "as_run": {
+   "ours": 0.9991135919438753,
+   "skimage": 0.9991135919438752,
+   "held": "True"
+  },
+  "mutated": {
+   "ours": 0.878822652536915,
+   "skimage": 0.9991135919438752,
+   "held": "False"
+  },
+  "mutation": "L = 255",
+  "sees_it": true
+ },
+ "ms_ssim": {
+  "as_run": {
+   "identical": 1.0,
+   "scale5": 0.9999042380292078,
+   "skimage_scale5": 0.9999042380292077,
+   "held": "True"
+  },
+  "mutated": {
+   "identical": 1.0,
+   "scale5": 0.966597804095607,
+   "skimage_scale5": 0.9999042380292077,
+   "held": "False"
+  },
+  "mutation": "no downsampling between scales",
+  "sees_it": true
+ },
+ "psnr": {
+  "as_run": {
+   "psnr": 72.24507812192874,
+   "max_abs": 1,
+   "held": "True"
+  },
+  "mutated": {
+   "psnr": 48.1308036086791,
+   "max_abs": 1,
+   "held": false
+  },
+  "mutation": "peak 255",
+  "sees_it": true
+ },
+ "display": {
+  "as_run": {
+   "moves": {
+    "n": 40,
+    "ge1": 40,
+    "ge2": 0,
+    "ge4": 0,
+    "max": 1
+   },
+   "held": true
+  },
+  "mutated": {
+   "moves": {
+    "n": 120,
+    "ge1": 120,
+    "ge2": 80,
+    "ge4": 0,
+    "max": 2
+   },
+   "held": false
+  },
+  "mutation": "clipped codes counted",
+  "sees_it": true
+ },
+ "band": {
+  "as_run": {
+   "full": 5.0,
+   "band": 4.0,
+   "held": true
+  },
+  "mutated": {
+   "full": 5.0,
+   "band": 5.0,
+   "held": false
+  },
+  "mutation": "no band reduction",
+  "sees_it": true
+ },
+ "ratio": {
+  "as_run": {
+   "ratio": 1.0,
+   "held": true
+  },
+  "mutated": {
+   "ratio": 1.3333333333333333,
+   "held": false
+  },
+  "mutation": "the 16-bit container in place of bits stored",
+  "sees_it": true
+ },
+ "gsdf": {
+  "as_run": {
+   "L1": 0.04998184691348245,
+   "L1023": 3993.329585887327,
+   "inverse_max_jnd": 0.09161702444248476,
+   "held": true
+  },
+  "mutated": {
+   "L1": 0.04998184691348245,
+   "L1023": 1.6255903847429206e-05,
+   "inverse_max_jnd": 13769.94041931983,
+   "held": false
+  },
+  "mutation": "coefficient c's sign flipped",
+  "sees_it": true
+ },
+ "knee": {
+  "as_run": {
+   "knee": 8,
+   "anchor": 4,
+   "held": true
+  },
+  "mutated": {
+   "knee": 2,
+   "anchor": 4,
+   "held": false
+  },
+  "mutation": "the rung nearest the chord in place of the farthest",
+  "sees_it": true
+ },
+ "sigma_correlated": {
+  "as_run": {
+   "0.5": 5.272,
+   "1.0": 0.672
+  },
+  "note": "reported, no verdict"
+ },
+ "deterministic": {
+  "as_run": true,
+  "mutated_cpu5_equal": false,
+  "held": true
+ },
+ "aligned": {
+  "err": [
+   0.34010743182933667,
+   0.3155551342073353,
+   0.32407164396151955,
+   0.31055915856209565
+  ],
+  "step": [
+   1.1236649114624666,
+   1.5487357613537869,
+   1.1812612381657872
+  ],
+  "shifted": [
+   1.1658602152504847,
+   1.5730175802772606,
+   1.2204218425925328,
+   0.31055915856209565
+  ],
+  "held": true
+ },
+ "exact_reads_exact": {
+  "as_run": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "mutated": [
+   0,
+   1,
+   0,
+   0
+  ],
+  "held": true
+ },
+ "vdp": {
+  "identical": 10.0,
+  "noise": 9.881600379943848,
+  "held": true
+ }
+}
