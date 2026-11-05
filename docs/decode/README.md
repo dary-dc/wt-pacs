@@ -1934,6 +1934,19 @@ today's. No open encoder writes HTJ2K with more than one layer (OpenJPH, Grok, O
 §2's "Another open encoder that writes HT sets or HT quality layers: *unverified*" is now: none found; and no decoder
 here reads the layered bytes whole (OpenJPEG 2.5.4 refuses or misreads layer 2).
 
+
+### HTJ2K quality layers, measured
+
+*2026-11-04/05, a separate session given the protocol; everything in
+[`lab/htj2k-progressive`](../../lab/htj2k-progressive/README.md) §Quality layers, measured.* The protocol's stages ran
+for both quality shapes through OpenJPH 0.31.0 patched to read layers, on every frame of the 23 grey sets (12-bit and
+10-bit DBT, fluoroscopy, MR, `usb_cine`): every exact frame equal to its source digest (single-decoder), every layer 1
+also OpenJPEG 2.5.4's. **By the rule as written, one set, two layers is interesting**: on `rf_fluoro` its layer 1 is at
+the proxy at full size, the whole ×0.988 of today's bytes and the exact series ×0.988–1.037 in every kept cell; on
+`dbts_c1` and `dbt12_c` the same except at 50 Mbit/s 4×, where its whole's ×1.3–1.5 decode puts it at ×1.12–1.23.
+Layer 1 is 77–99 % of the bytes, so the proxy comes 14–16 % before the exact series and the first picture no sooner.
+**Two sets are closed**: wherever layer 1 reaches the proxy the whole is ×1.45–1.85. Two rounds of the protocol's 12.
+
 ## The BYOB read path
 
 Retired; code in history at `6e9c126`. The WASM client's BYOB reader (`byob`, `byob-min`) read each
