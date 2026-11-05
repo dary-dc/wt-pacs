@@ -41,7 +41,7 @@ Arithmetic of ours is* derived*; what no source holds is* unverified*. The pilot
   noise's size: it is cheap mainly because it drops the noise. **In-window PSNR** counts only the samples the series'
   first display window shows strictly between black and white (the tissue), as the carriers row defined it.
 * **Visually lossless (VL)** — here, METRICS' anchor (a): the coding error in the finest band is no larger than the
-  frame's own noise in that band on every frame (`lab/av1/metrics/README.md` §5 on `claude/av1-quality-metrics`).
+  frame's own noise in that band on every frame (`lab/av1/metrics/README.md` §5 on `claude/av1-quality-metrics`, `a959cb04`).
   It is a measured anchor, not a reader's verdict.
 * **SVC, base, layer** — scalable coding: one AV1 stream whose every unit holds a **base** layer and one or more
   enhancement layers predicted from it; a client takes a prefix of each unit. The **quarter-size SVC base** is a
@@ -358,8 +358,8 @@ nothing is claimed for ultrasound, FFDM, or any volume but these three.
 
 | shard | rounds | writes | heading |
 | --- | --- | --- | --- |
-| 1 | 0–9, every block | `lab/av1/delivery/snr/results/shard-1.jsonl`, `.mutations.jsonl`, `.index.dbts_{a1,b1,c1}.json`, `.md` | `### SNR shard 1, measured` |
-| 2 | 10–19, every block | `lab/av1/delivery/snr/results/shard-2.jsonl`, `.mutations.jsonl`, `.md` | `### SNR shard 2, measured` |
+| 1 | 0–9, every block | in `lab/av1/delivery/snr/results/`: `shard-1.jsonl`, `.mutations.jsonl`, `.index.dbts_{a1,b1,c1}.json`, `.md` | `### SNR shard 1, measured` |
+| 2 | 10–19, every block | in `lab/av1/delivery/snr/results/`: `shard-2.jsonl`, `.mutations.jsonl`, `.md` | `### SNR shard 2, measured` |
 
 Each on its own 4-core cloud host, ≤ 4.5 h wall; split by rounds, never by arm, so every shard runs every block whole.
 
