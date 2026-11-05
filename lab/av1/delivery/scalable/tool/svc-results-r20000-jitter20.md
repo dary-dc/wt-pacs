@@ -11,7 +11,8 @@ jitter) is [`svc-results.md`](svc-results.md), whose method this sitting keeps: 
 `--links r20000 --impairs j20` in place of `--links none,r20000`, the cells and the variants inside each in
 `run.mjs`'s Williams order (`lab/order.mjs`), a fresh browser a visit, 10 whole rounds. The layer errors (metric 3)
 and the offline decode (metric 5's second half) do not depend on the link and were not re-run: they are the first
-sitting's.
+sitting's. Rounds 0–8 ran on 2026-11-04; round 9 was cut off after 10 visits when the session's worker restarted,
+and those 10 rows were set aside and the round run again whole on 2026-11-05, in the same container and builds.
 
 **Terms.** A *variant* is one way of coding and sending the volume (the protocol's table names all 13). *SVC*
 (scalable video coding) codes a frame as layers: a quarter-size lossy *base*, for `p3-*` a full-size lossy *middle*,
