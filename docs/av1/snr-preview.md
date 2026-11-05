@@ -405,3 +405,10 @@ holds "on these three volumes".
 *Running: rounds 0–9 of §Shards on one 4-core host, started 2026-11-05 09:03 UTC. This heading is filled in when the
 shard ends; until then [`results/shard-1.jsonl`](../../lab/av1/delivery/snr/results/shard-1.jsonl) holds every
 block so far, pushed after each round.*
+
+### SNR shard 2, measured
+
+*Running: rounds 10–19 of §Shards on one 4-core host (Intel Xeon @ 2.10 GHz, 15.7 GB, headless Chromium
+153.0.8010.12), started 2026-11-05 09:03 UTC. This heading is filled in when the shard ends; until then
+[`results/shard-2.jsonl`](../../lab/av1/delivery/snr/results/shard-2.jsonl) holds every block so far, pushed after
+each round.*
