@@ -786,15 +786,16 @@ bytes are reported, not judged.
 ### Amended shard 1, measured
 
 *2026-11-05, shard 1 of 4, run by a session given only the amended protocol; §F's command as written, on `fb6e522a`.
-Numbers only; the collector pools the shards and applies §D. In progress: rounds are running, and this section is
-filled as they finish.*
+Numbers only; the collector pools the shards and applies §D.*
 
 1. **Run:** `SHARD=1 ROUNDS_PER_SHARD=24 BUDGET_S=16200 run.sh tools amended-content amended-mutate amended-rounds`,
-   started 01:17:27 UTC. Done so far: tools, content, every test and mutation. Rounds 0–23 are running.
+   from 01:17:27 to 04:54:40 UTC (3 h 37 min, under `BUDGET_S`). All 24 rounds assigned (0–23) ran, every block whole.
 2. **Shows:** the content equals the pin. `amended_test.py` passes 31/31, and `mutate_amended.py`'s 12 breaks are each
-   caught. Each of the six browser mutations fails its own check on all three volumes and leaves the others whole.
+   caught. Each of the six browser mutations fails its own check on all three volumes and leaves the others whole. In
+   the rounds, 17 424 rows: every exact frame (43 968) and every lossy frame (80 784) passed its check. No `VOID`, no
+   error. All 12 blocks pass the A/A gate.
 3. **Rests on:** `dbts_a1`, `dbts_b1` and `dbts_c1` only, on the host below, at 1×.
-4. **Left:** the remaining rounds, then `amended.py` on this shard's rows as a check (not read).
+4. **Left:** nothing in shard 1. The collector pools all four shards.
 5. **Not here:** a verdict. Twenty-four rounds is not the n that §F sized.
 
 Terms are those of §Terms, for this section. A **check** compares a decoded frame with its truth. An exact frame's
@@ -817,6 +818,7 @@ claimed past one decode in flight at 1×.
 | `tools` | about 1.5 min | built in this session's earlier `tools` (below), reused |
 | `amended-content` | 20.0 min | make_frames 1 s (reused, below); `shapes.py` 106 s, k = 8 stream equal to `svc-shapes.tsv` (the `diff` printed nothing); `sweep.py code` 1 092 s, no unit differing from the pin, the native chain checks passed (it did not stop) |
 | `amended-mutate` | 10.4 min | below |
+| `amended-rounds` | 185.7 min | 24 rounds of 12 blocks, 7.2–8.2 min a round; no budget stop |
 
 #### Mutations (round 0, block k 8, every volume)
 
@@ -850,6 +852,28 @@ another's, so the shard went on to rounds. Rows:
   their outputs present: both are deterministic, and the stream `diff` and `sweep.py code`'s pin check ran in full.
 * The run's working tree stayed at `fb6e522a`, plus this section. Rows are committed from a second worktree, so no
   pull changed the harness under the rounds (finding 16).
+
+#### Rounds (0–23)
+
+These are [`amended-shard-1.jsonl`](../../lab/av1/delivery/carriers/results/amended-shard-1.jsonl): 17 424 rows over
+288 blocks (24 rounds × 3 volumes × 4 points), 54 rows a four-arm block and 80 at p = 16.
+
+* Each exact frame's check, against its fetch checksum: 43 968 of 43 968 passed.
+* Each lossy frame's check, against native dav1d's hash: 80 784 of 80 784 passed.
+* No row is `VOID` or carries an error.
+* The indexes the checks read are
+  [`amended-shard-1.index.dbts_{a1,b1,c1}.json`](../../lab/av1/delivery/carriers/results/), as `sweep.py code` wrote
+  them.
+
+`amended.py` on this shard's rows alone is in
+[`amended-shard-1.md`](../../lab/av1/delivery/carriers/results/amended-shard-1.md). It is printed as a check and
+**not read**: n = 24 is not §F's n. Facts of this shard from it:
+
+* **A/A** — the median of log(`ctrl-aa` ÷ `ctrl`) and its 95 % interval, n = 24 in every block. The interval contains 0
+  in all 12 blocks, so 0 of 12 fail. Medians run from −0.0136 to +0.0121; the widest interval is `dbts_a1` k 4,
+  (−0.0111, 0.0503).
+* **Order, flagged** at p < 0.05 ÷ 4 — only in `dbts_b1` block k 8: `lay-k8` (p printed 0.0125) and `sep-g8`
+  (0.0085). No other (block, arm) is flagged.
 
 ### Amended shard 3, measured
 
