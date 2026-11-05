@@ -782,3 +782,15 @@ that fail; every arm flagged by order with its p; per volume and (role, pattern)
 HTJ2K-frame units with n, and each configuration's state; the answer of §D.6 per volume and whether it holds "on
 these three volumes"; storage beside it; and every deviation a shard reported. The cheap view and the single-layer
 bytes are reported, not judged.
+
+### Amended shard 1, measured
+
+*2026-11-05, shard 1 of 4, run by a session given only the amended protocol; §F's command as written on `fb6e522a`.
+In progress: this section is filled as steps finish.*
+
+1. **Run:** `SHARD=1 ROUNDS_PER_SHARD=24 BUDGET_S=16200 run.sh tools amended-content amended-mutate amended-rounds`,
+   started 01:17 UTC. Rounds 0–23 are assigned.
+2. **Shows:** nothing yet.
+3. **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` only, on the host below.
+4. **Left:** every step; the collector pools the four shards and applies §D.
+5. **Not judged here:** nothing in this section is a verdict.
