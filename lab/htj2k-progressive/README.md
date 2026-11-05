@@ -407,6 +407,12 @@ the sets before it (B.3, S_skip). A one-layer codestream takes OpenJPH's own pat
 
 *Complete 2026-11-05; the README table follows when the run ends.* Every frame of the 23 grey sets: [`rows/layers-measured/stage1.md`](rows/layers-measured/stage1.md).
 
+### Stage 2, decode
+
+*Complete 2026-11-05.* [`layers/decode/run.mjs`](layers/decode/run.mjs), 2 rounds, 1× and 4×, the first 16 frames of
+the 23 grey sets, 38 272/38 272 pictures exact (`--mutate`: 0/104); table in
+[`rows/layers-measured/stage2-decode.md`](rows/layers-measured/stage2-decode.md).
+
 ### Stage 3, delivery (partial: round 0 of the three volumes)
 
 *Partial, 2026-11-04.* `dbts_a1`, `dbts_b1`, `dbts_c1`, every cell (plain, 5, 20, 50 Mbit/s; 1× and 4×), arms today's
