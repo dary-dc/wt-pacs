@@ -1,0 +1,21 @@
+T0 (session start, host up) 21:30:30 UTC 2026-11-04
+setup: tools (libaom 3.15.1, dav1d 1.5.4, OpenJPH 0.31.0), data, venv, Playwright 1.56.1 ready by 21:36 (0:06)
+stage 1: checks C1–C4 and C6 run 21:35–21:48; C5, C7, C8 on the rows after item 1
+decode setup: the 20 10bit anchor streams (G 1, 16 at Q 16, 32) coded again 21:39–22:01:40, every one unit for unit the bytes run's (streams.jsonl)
+stage 2, as run (a deviation, see the measured section):
+  item 1 21:48:34–22:50:24 (30 cells)
+  21:49:13–21:49:30 a waiter script misread item 1 as done and started items 2 and 3; both stopped within 15 s, no row written
+  22:02:51 a second waiter misread item 1 as done again: items 2, 3, 4 ran beside item 1, eight processes on four cores
+    item 2 22:02:51–22:06:53, 1 cell (dbts_b1 top8 Q16 G16: the only partner then known)
+    item 3 22:06:55–22:29:28, 10 cells
+    item 4 22:29:31–22:39:16, 4 cells
+  their rows were cut from the rows file by a copy at 22:32 and 22:46 and restored from the commits that held them (7b404705, c981a744, 95aa441e)
+  item 1's rows were written to a file a stash had replaced; read back through its open handle and restored at 22:50:24
+  item 2 run again in full after item 1, 22:50:24–22:57:31: the 9 remaining partner cells
+stage 3 from 22:57:35, --until 01:15:30
+stage 3 host 1 stopped ~23:29 by a worker restart, rounds 0–7 kept (decode-host1.json); the session resumed on another host (Intel Xeon @ 2.80 GHz, 4 cores; host 1 was @ 2.10 GHz)
+stage 3 host 2 from 23:30:24, a new block (decode.json), --until 01:15:30
+stage 3 host 2 stopped 01:13:46
+stage 4 from 01:13:47: stage 3 reached 21 rounds, 26 min left before T0 + 4:10
+item b_max from 01:13:47
+item b_max done 01:28:17
