@@ -408,7 +408,7 @@ that cell measures the layered decode on three slowed cores, which is the shape'
 ### Stage 0, the layered decoder
 
 [`layers/layered.patch`](layers/layered.patch) over OpenJPH 0.31.0 (built by [`layers/decoder.sh`](layers/decoder.sh),
-native and as WASM with the client's wrapper and [`../wasm/levels.patch`](../wasm/levels.patch)): with more than one
+native and as WASM with the client's wrapper and [`wasm/levels.patch`](wasm/levels.patch)): with more than one
 layer in COD, each LRCP tile-part's packets are read with tag trees, Lblock and pass counts kept across layers (T.800
 B.10), each block's passes are cut into HT segments (T.814 B.2), and the last HT set whose cleanup has bytes is kept,
 its missing MSBs raised by the sets before it (B.3, S_skip). A one-layer codestream takes OpenJPH's own path untouched.
