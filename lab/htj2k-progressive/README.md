@@ -361,62 +361,227 @@ v2.5.4, github.com/uclouvain/openjpeg; FFmpeg tag n8.1.3, github.com/FFmpeg/FFmp
 
 ## Quality layers, measured
 
-*2026-11-04, a separate session given the protocol and nothing else; partial, completed in place as each stage
-lands. Code in [`layers/`](layers/); rows in [`rows/layers-measured/`](rows/layers-measured/).*
+*2026-11-04/05, a separate session given the protocol and nothing else. Code in [`layers/`](layers/); every table in
+full, and the rows, in [`rows/layers-measured/`](rows/layers-measured/).*
 
-* **Ran:** the protocol's stages for its two quality shapes — one HT set split over two layers (`oneset`) and two HT
-  sets with the first at plane p = 1 … 7 (`twosetsP`) — through a layered decoder built for it.
-* **Shows (so far):** stage 0 passes on every coding; stage 1 below. (Stages 2 and 3 and the rule: pending.)
-* **Rests on:** §Quality layers, built's writer; OpenJPH 0.31.0 patched to read layers ([`layers/layered.patch`](layers/layered.patch));
-  the source digests; OpenJPEG 2.5.4 on every layer-1 prefix.
-* **Left:** filled in when the run ends.
+* **What was run:** the pre-registered protocol's four stages for its two quality shapes (one HT set split over two
+  layers; two HT sets), through a layered OpenJPH decoder built for it, on every grey set the writer can code.
+* **What it shows:** by the rule as written, **one set, two layers is interesting**: on `rf_fluoro` its layer 1 is at
+  the proxy at full size, the whole is ×0.988 of today's bytes and the exact series ×0.988–1.037 of today's in every
+  kept cell; on `dbts_c1` and `dbt12_c` the same holds in every cell but 50 Mbit/s at 4×. **Two sets are closed**.
+* **What it rests on:** every exact frame equal to its source's sha256 (single-decoder: no other decoder reads the
+  layered whole); every layer-1 picture equal to the coefficients' and to OpenJPEG 2.5.4's; n = 2 rounds a cell of
+  the protocol's 12, on one 4-vCPU host.
+* **What is left:** the protocol's n; the RGB sets; content this repo lacks (breast ultrasound cine, ABUS); and what
+  a layer 1 at 77–99 % of the bytes is worth, which the rule does not ask (below).
+* **Fixtures, and the only content any result is claimed for:** the 15 DBT volumes `dbts_a1`…`dbts_c5`; the
+  cine-like `dbt12_ea1141`, `dbt10_ea1141`, `dbt12_c`, `dbt10_d`, `rf_fluoro`, `mr_ispy1`, `mr9_ispy2`; and
+  `usb_cine`, lossy-sourced and in no verdict. Not built: `usb_cine_rgb`, `us_liver` and `cine512`, which are RGB
+  (the writer is grey only); `dbts_*_max` and `ustrus_*` (no pins on this base).
 
 ### Terms
 
-* **Layer 1** is a frame's first quality layer: the main header and the first tile-part. **The whole** is both
-  layers; it must decode to the source exactly.
+* **One set** (`oneset`): §Quality layers, built's shape — layer 1 each code-block's HT cleanup at bit-plane 1,
+  layer 2 its SigProp and MagRef passes at plane 0. **Two sets, p** (`twosetsP`): layer 1 a cleanup at plane p,
+  layer 2 a second, lossless HT set. **Today** is the served one-layer codestream.
+* **Layer 1** is the main header and the first tile-part; **the whole** is both layers, and must decode to the source.
 * **The proxy** (the protocol's, not a visually lossless threshold): under every window in the series' header, at
   least 99 % of in-window 8-bit codes within ±1 of the exact frame's; samples as stored where there is no window.
-  *At full size* compares the pictures as decoded; *at display scale* after both are area-resampled to a 1 000-pixel
-  long side (§Stage 1). A set is *at the proxy* when every frame is.
-* **Operating points** of two sets, named before stage 3: the smallest p at ≥ 40 dB and the largest p meeting the
-  proxy, each read on the series' PSNR at full size.
+  *At full size* compares pictures as decoded; *at display scale* after area-resampling both to a 1 000-pixel long
+  side (§Stage 1). A set is at the proxy when every frame is.
+* **A cell** is one link (plain, 5, 20, 50 Mbit/s) at one CPU throttle (1×, 4×); **today exact** the time from the
+  fill's issue until every frame of today's arm is exact; **A/A** today's arm against itself under another name.
+* **Operating points** of two sets, named before stage 3 as the protocol words them: the smallest p at ≥ 40 dB and
+  the largest p at the proxy, both on the series' full-size PSNR and proxy. As written, the first is p = 1 on every
+  set (it would be the largest p if "smallest" meant fewest bytes; that reading is not taken here), and the second
+  exists only on `dbt12_c`, `dbts_a2`, `dbts_a5`, `dbts_c1`, `dbts_c3`, `dbts_c5` (p = 1) and `rf_fluoro` (p = 2).
+
+### The host, and where it saturates
+
+4 vCPU (KVM, Intel Xeon @ 2.80 GHz), 15 GB, a container; headless Chromium 153.0.8010.12 (Playwright's). The rig as
+§Stage 3 sets it. The unshaped `plain` cell `VOID`ed on all 48 volume visits and 110 of 132 cine visits (the relay
+late, as [`../../docs/rig-limits.md`](../../docs/rig-limits.md) says an unshaped flight is), so it is dropped and nothing
+is claimed above 50 Mbit/s; 19 shaped cine visits `VOID`ed, none on the volumes. **At 50 Mbit/s and 4× the one-set arm
+is decode-bound** (its whole decodes ×1.27–1.44 of today's frame, stage 2) while today's arm is still link-bound;
+that cell measures the layered decode on three slowed cores, which is the shape's own cost on such a CPU.
 
 ### Stage 0, the layered decoder
 
 [`layers/layered.patch`](layers/layered.patch) over OpenJPH 0.31.0 (built by [`layers/decoder.sh`](layers/decoder.sh),
-native and as WASM with the client's wrapper and `../wasm/levels.patch`): with more than one layer in COD it reads each
-LRCP tile-part's packets with tag trees, Lblock and pass counts kept across layers (T.800 B.10), cuts each block's
-passes into HT segments (T.814 B.2), and keeps the last HT set whose cleanup has bytes, its missing MSBs raised by
-the sets before it (B.3, S_skip). A one-layer codestream takes OpenJPH's own path untouched.
+native and as WASM with the client's wrapper and [`../wasm/levels.patch`](../wasm/levels.patch)): with more than one
+layer in COD, each LRCP tile-part's packets are read with tag trees, Lblock and pass counts kept across layers (T.800
+B.10), each block's passes are cut into HT segments (T.814 B.2), and the last HT set whose cleanup has bytes is kept,
+its missing MSBs raised by the sets before it (B.3, S_skip). A one-layer codestream takes OpenJPH's own path untouched.
+The writer is §Quality layers, built's, its one-layer output checked equal to `ojph_compress`'s on every frame.
 
 * `lab/decode-bench/parity.mjs` with `VARIANT=layered` on `g512 c512 g8 s512 s12 sat256 cine512` (8 frames each):
-  `PARITY OK` ([`rows/layers-measured/stage0-parity.txt`](rows/layers-measured/stage0-parity.txt)).
-* [`layers/stage0.mjs`](layers/stage0.mjs), every coding: the layered whole through the WASM decoder equals the
-  source's sha256; its layer-1 prefix equals the picture computed from the coefficients (§Quality layers, built), which
-  OpenJPEG 2.5.4 also gives from the prefix's own bytes; the smallest prefix giving layer 1 (binary search) is the
-  whole first tile-part, one byte less failing; today's codestream decodes as the delivered build decodes it (picture,
-  range, frame info). OpenJPEG cannot read the whole (§Quality layers, built), so **the whole's exactness is
-  single-decoder**: it rests on the source digests.
-* Mutants, each caught on every coding: a byte of layer 2 flipped (whole not exact), layer 1 three bytes short (not
-  layer 1), S_skip dropped through the native decoder's `OJPH_LAB_MUTATE_SKIP` (two sets' whole not exact — S_skip is
-  0 in layer 1, so it is the whole, not layer 1 as the protocol's list puts it, that it changes); `--mutate truth`
-  fails every digest check.
+  `PARITY OK` ([`rows/layers-measured/stage0-parity.txt`](rows/layers-measured/stage0-parity.txt)). The delivered build
+  was rebuilt by `inside.sh` on the host (no Docker here) and matched `manifest.sha256`.
+* [`layers/stage0.mjs`](layers/stage0.mjs) on **every coding of every frame: 1 337 frames × 8 shapes = 10 696
+  codings**, all passing: the layered whole through the WASM decoder equals the source's sha256; its layer-1 prefix
+  equals the picture computed from the coefficients, which OpenJPEG 2.5.4 also gives from the prefix's own bytes
+  (10 696/10 696); the smallest prefix giving layer 1 (binary search) is the whole first tile-part, one byte less
+  failing; today's codestream decodes as the delivered build decodes it (picture, range, frame info), every frame.
+  OpenJPEG cannot read the layered whole (§Quality layers, built), so **the whole's exactness is single-decoder**.
+* **Mutants**, 30 749 of 30 751 caught: a byte in the middle of layer 2 flipped (whole not exact), layer 1 three bytes
+  short (not layer 1), S_skip dropped through the native decoder's `OJPH_LAB_MUTATE_SKIP` (two sets' whole not exact —
+  S_skip is 0 in layer 1, so it changes the whole, not layer 1 as the protocol's list puts it); `--mutate truth`
+  fails every digest check. **Two flips missed**, each a byte OpenJPH does not read: `dbts_a1` frame 37 `twosets6`,
+  whose byte flipped in today's own codestream leaves unpatched OpenJPH's decode unchanged too; `dbts_b3` frame 58
+  `oneset`, a refinement byte none of whose eight bits changes the decode. Neither is a byte the patch drops.
 
 ### Stage 1, bytes and quality per layer
 
-*Complete 2026-11-05; the README table follows when the run ends.* Every frame of the 23 grey sets: [`rows/layers-measured/stage1.md`](rows/layers-measured/stage1.md).
+[`layers/stage1.py`](layers/stage1.py), every frame of the 23 sets; quality as §Stage 1 defines it, against the
+source at its stored depth; full table per set and shape in [`rows/layers-measured/stage1.md`](rows/layers-measured/stage1.md).
+
+The 15 volumes, 994 frames (ranges over volumes; PSNR over the series):
+
+| shape | layer 1 ÷ today, % | whole ÷ today | layer 1 PSNR, dB · SSIM | in-window codes off by > 1, worst window | volumes at the proxy, full size · display scale |
+| --- | --- | --- | --- | --- | --- |
+| one set | 77.1–85.4 | ×0.985–0.990 | 57.4–72.2 · 0.9979–1.0000 | 0.08–9.43 % | 5 · 8 of 15 |
+| two sets, p = 1 | 73.2–84.9 | ×1.732–1.849 | 57.4–72.2 · 0.9967–1.0000 | 0.09–9.47 % | 5 · 8 of 15 |
+| two sets, p = 2 | 45.4–69.6 | ×1.456–1.697 | 53.3–68.2 · 0.9931–0.9999 | 1.41–28.10 % | 0 · 1 of 15 |
+| two sets, p = 3 | 23.2–53.7 | ×1.235–1.540 | 47.6–62.6 · 0.9624–0.9997 | 11.51–56.98 % | 0 · 0 of 15 |
+| two sets, p = 4 | 6.0–36.5 | ×1.065–1.369 | 42.5–55.9 · 0.8445–0.9982 | 38.93–77.29 % | 0 · 0 of 15 |
+| two sets, p = 5 | 1.2–18.7 | ×1.014–1.191 | 37.1–49.2 · 0.6459–0.9917 | 65.32–85.28 % | 0 · 0 of 15 |
+| two sets, p = 6 | 0.5–5.4 | ×1.007–1.060 | 31.6–44.7 · 0.5021–0.9792 | 77.04–90.47 % | 0 · 0 of 15 |
+| two sets, p = 7 | 0.3–1.2 | ×1.004–1.017 | 25.3–41.5 · 0.4359–0.9667 | 83.73–96.90 % | 0 · 0 of 15 |
+
+One set is at the proxy at full size on `dbts_a2`, `dbts_a5`, `dbts_c1`, `dbts_c3`, `dbts_c5` — all 12-bit — and on
+none of the five 10-bit `dbts_b*`. The cine-like sets:
+
+| set | one set: layer 1 % · whole · PSNR · codes off by > 1 · frames at the proxy (full) | two sets at the proxy (full), whole |
+| --- | --- | --- |
+| `dbt12_ea1141` | 84.2 · ×0.989 · 68.9 dB · 3.55 % · 0/29 | none |
+| `dbt10_ea1141` | 79.8 · ×0.986 · 57.1 dB · 9.55 % · 0/24 | none |
+| `dbt12_c` | 84.6 · ×0.989 · 71.5 dB · 0.16 % · 68/68 | p = 1 ×1.845 |
+| `dbt10_d` | 78.7 · ×0.985 · 56.9 dB · 9.31 % · 0/48 | none |
+| `rf_fluoro` | 83.7 · ×0.988 · 68.1 dB · 0.00 % · 18/18 | p = 1 ×1.836, p = 2 ×1.667 |
+| `mr_ispy1` | 88.1 · ×0.991 · 93.3 dB · 20.27 % · 0/58 | none |
+| `mr9_ispy2` | 98.8 · ×1.000 · 73.1 dB · 42.66 % · 0/34 | none |
+| `usb_cine` (lossy-sourced) | 96.0 · ×0.998 · 46.2 dB · 19.81 % · 0/64 | none |
+
+(`mr_ispy1` stores 16 bits for 0–1765, so its dB read high; its window is narrow enough that one sample value moves
+a code.) **No two-sets layer reaches the proxy with the whole under ×1.45 of today's bytes on any set.**
 
 ### Stage 2, decode
 
-*Complete 2026-11-05.* [`layers/decode/run.mjs`](layers/decode/run.mjs), 2 rounds, 1× and 4×, the first 16 frames of
-the 23 grey sets, 38 272/38 272 pictures exact (`--mutate`: 0/104); table in
-[`rows/layers-measured/stage2-decode.md`](rows/layers-measured/stage2-decode.md).
+[`layers/decode/run.mjs`](layers/decode/run.mjs): the lab decoder in a module worker, 2 rounds, 1× and 4×, the first
+16 frames of the 23 sets; arms today's whole frame (A), A′, each shape's layer 1 alone, and each shape's layer 1 then
+its whole from scratch. **38 272/38 272 pictures exact** (`--mutate`: 0/104). Today's frame on the volumes: 11.6–50.5
+ms at 1×, 50–269 ms at 4×. × A, the median of round-paired ratios, range over sets
+([`rows/layers-measured/stage2-decode.md`](rows/layers-measured/stage2-decode.md)):
 
-### Stage 3, delivery (partial: round 0 of the three volumes)
+| arm | the 15 volumes, 1× | 4× | cine-like and `usb_cine`, 1× | 4× |
+| --- | --- | --- | --- | --- |
+| A′ | ×0.99–1.02 | ×0.94–1.03 | ×0.98–1.01 | ×0.78–1.73 |
+| one set: layer 1 | ×0.98–1.04 | ×0.98–1.09 | ×1.01–1.17 | ×0.71–1.79 |
+| one set: the whole | ×1.28–1.49 | ×1.27–1.44 | ×1.00–1.45 | ×0.99–1.50 |
+| one set: layer 1, then the whole | ×2.31–2.51 | ×2.28–2.50 | ×2.12–2.50 | ×1.77–2.64 |
+| two sets p = 1: layer 1 | ×0.97–1.03 | ×0.98–1.06 | ×1.01–1.20 | ×0.91–1.35 |
+| p = 1: the whole | ×1.03–1.06 | ×1.02–1.11 | ×1.00–1.05 | ×0.72–1.74 |
+| p = 1: layer 1, then the whole | ×2.02–2.10 | ×1.99–2.17 | ×2.06–2.25 | ×1.70–2.48 |
+| p = 4: layer 1 | ×0.70–1.00 | ×0.69–1.05 | ×0.74–1.01 | ×0.56–1.70 |
+| p = 7: layer 1 | ×0.34–0.59 | ×0.31–0.58 | ×0.31–0.58 | ×0.27–0.75 |
+| p = 7: the whole | ×1.00–1.03 | ×0.94–1.10 | ×0.99–1.03 | ×0.66–1.05 |
+| p = 7: layer 1, then the whole | ×1.35–1.60 | ×1.30–1.61 | ×1.29–1.58 | ×1.13–1.85 |
 
-*Partial, 2026-11-04.* `dbts_a1`, `dbts_b1`, `dbts_c1`, every cell (plain, 5, 20, 50 Mbit/s; 1× and 4×), arms today's
-(`htj2k`), A′, one set and two sets at p = 1: 96 visits, every frame exact in all, every layer-1 preview its
-stage-1 digest. Rows and table: [`rows/layers-measured/stage3-volumes.md`](rows/layers-measured/stage3-volumes.md).
-Round 0 of the eight cine-like sets of stage 1 (`rf_fluoro` also with two sets at p = 2): 264 visits, every frame
-exact; [`rows/layers-measured/stage3-cine.md`](rows/layers-measured/stage3-cine.md).
+The small frames' 4× ranges (A′ ×0.78–1.73) are the throttle's quantum, not decode. One set's whole costs ×1.3–1.5:
+its SigProp and MagRef passes run on top of a cleanup that is itself nearly a whole frame's.
+
+### Stage 3, delivery
+
+The total-time rig as §Stage 3 runs it, entries layer-major ([`layers/delivery/make_frames.py`](layers/delivery/make_frames.py)):
+entry i frame i's layer 1, entry F + i its second tile-part and EOC, the two concatenating to the layered codestream;
+[`layers/delivery/decoder.js`](layers/delivery/decoder.js) decodes both through the product's own module
+(`client/decode/htj2k.js`) over the layered lab build. Arms: today's (`htj2k`, the delivered build), A′, two sets at
+the operating points (p = 1 everywhere; p = 2 also on `rf_fluoro`), and **one set, which the protocol's arm list does
+not name but its rule needs**: whether one set's exact series is within ×1.10 cannot be read otherwise. The AV1
+preview arm belongs to the ladder's clause and was not run. **Rounds: 2** (Williams order, a fresh server, relay and
+browser a visit), n = 2 kept a cell on the volumes and 1–2 on the cine-like sets; the protocol's n = 12 was not
+reached, and no MDL is computed at this n. 720 visits, **every frame exact and every layer-1 preview its stage-1
+digest in every one**.
+
+The five series with a one-set layer 1 at the proxy, or the stage-3 volumes (seconds from the fill's issue, medians of
+rounds; ratios the median of round-paired ratios; full tables [`stage3-volumes.md`](rows/layers-measured/stage3-volumes.md),
+[`stage3-cine.md`](rows/layers-measured/stage3-cine.md), and with the `VOID`s kept beside them):
+
+| series, link, CPU | n | today exact s | one set: first s · every frame at the proxy, full size s (÷ today exact) · exact ÷ today | two sets p = 1: exact ÷ today | A/A p90 |
+| --- | --: | --: | --- | --: | --: |
+| `dbts_a1` 5 Mbit 1× | 2 | 110.52 | 2.50 · not at the proxy · ×0.988 | ×1.836 | 0.000 |
+| `dbts_a1` 5 Mbit 4× | 2 | 110.58 | 2.67 · not at the proxy · ×0.988 | ×1.836 | 0.002 |
+| `dbts_a1` 20 Mbit 1× | 2 | 27.77 | 0.75 · not at the proxy · ×0.988 | ×1.832 | 0.000 |
+| `dbts_a1` 20 Mbit 4× | 2 | 27.86 | 0.92 · not at the proxy · ×0.988 | ×1.830 | 0.001 |
+| `dbts_a1` 50 Mbit 1× | 2 | 11.27 | 0.45 · not at the proxy · ×0.992 | ×1.821 | 0.001 |
+| `dbts_a1` 50 Mbit 4× | 2 | 11.36 | 0.60 · not at the proxy · ×1.092 | ×1.816 | 0.007 |
+| `dbts_b1` 5 Mbit 1× | 2 | 175.03 | 3.30 · not at the proxy · ×0.985 | ×1.794 | 0.000 |
+| `dbts_b1` 5 Mbit 4× | 2 | 175.32 | 3.44 · not at the proxy · ×0.985 | ×1.793 | 0.001 |
+| `dbts_b1` 20 Mbit 1× | 2 | 43.94 | 1.06 · not at the proxy · ×0.985 | ×1.792 | 0.001 |
+| `dbts_b1` 20 Mbit 4× | 2 | 44.14 | 1.41 · not at the proxy · ×0.987 | ×1.788 | 0.000 |
+| `dbts_b1` 50 Mbit 1× | 2 | 17.78 | 0.66 · not at the proxy · ×0.985 | ×1.781 | 0.003 |
+| `dbts_b1` 50 Mbit 4× | 2 | 18.05 | 1.07 · not at the proxy · ×1.159 | ×1.767 | 0.006 |
+| `dbts_c1` 5 Mbit 1× | 2 | 115.17 | 1.91 · 97.34 (0.845) · ×0.989 | ×1.841 | 0.000 |
+| `dbts_c1` 5 Mbit 4× | 2 | 115.23 | 2.08 · 97.41 (0.845) · ×0.989 | ×1.841 | 0.000 |
+| `dbts_c1` 20 Mbit 1× | 2 | 28.93 | 0.71 · 24.49 (0.846) · ×0.989 | ×1.837 | 0.000 |
+| `dbts_c1` 20 Mbit 4× | 2 | 28.99 | 0.89 · 24.54 (0.847) · ×0.991 | ×1.836 | 0.000 |
+| `dbts_c1` 50 Mbit 1× | 2 | 11.74 | 0.45 · 9.96 (0.848) · ×0.990 | ×1.834 | 0.001 |
+| `dbts_c1` 50 Mbit 4× | 2 | 11.83 | 0.58 · 10.07 (0.851) · ×1.234 | ×1.821 | 0.003 |
+| `dbt12_c` 5 Mbit 1× | 2 | 105.79 | 1.86 · 89.49 (0.846) · ×0.989 | ×1.844 | 0.000 |
+| `dbt12_c` 5 Mbit 4× | 2 | 105.83 | 1.99 · 89.58 (0.846) · ×0.990 | ×1.844 | 0.000 |
+| `dbt12_c` 20 Mbit 1× | 2 | 26.59 | 0.70 · 22.51 (0.847) · ×0.990 | ×1.852 | 0.000 |
+| `dbt12_c` 20 Mbit 4× | 2 | 26.66 | 0.85 · 22.63 (0.849) · ×0.991 | ×1.838 | 0.002 |
+| `dbt12_c` 50 Mbit 1× | 2 | 10.80 | 0.40 · 9.16 (0.848) · ×0.989 | ×1.828 | 0.001 |
+| `dbt12_c` 50 Mbit 4× | 2 | 10.87 | 0.61 · 9.27 (0.854) · ×1.123 | ×1.822 | 0.003 |
+| `rf_fluoro` 5 Mbit 1× | 2 | 15.18 | 0.90 · 13.01 (0.857) · ×0.988 | ×1.831 | 0.000 |
+| `rf_fluoro` 5 Mbit 4× | 2 | 15.21 | 0.97 · 13.05 (0.858) · ×0.989 | ×1.829 | 0.001 |
+| `rf_fluoro` 20 Mbit 1× | 2 | 3.93 | 0.37 · 3.32 (0.845) · ×0.990 | ×1.801 | 0.001 |
+| `rf_fluoro` 20 Mbit 4× | 2 | 3.95 | 0.48 · 3.35 (0.849) · ×0.990 | ×1.801 | 0.004 |
+| `rf_fluoro` 50 Mbit 1× | 2 | 1.72 | 0.33 · 1.48 (0.858) · ×0.991 | ×1.733 | 0.002 |
+| `rf_fluoro` 50 Mbit 4× | 2 | 1.78 | 0.44 · 1.53 (0.857) · ×1.037 | ×1.693 | 0.008 |
+
+**The rule, applied** (docs/decode/README.md §HTJ2K progressive protocol, Rule, second clause: "A quality shape is
+interesting if one reaches the proxy at full size with the whole ≤ 1.10× today's bytes and exact series time;
+otherwise it is closed with its numbers"). The clause names no series and no cells; it is applied per series and per
+kept cell, strict and with the A/A spread (a bound b missed only past b × (1 + p90 |A′/A − 1|)), and the two read the
+same everywhere here:
+
+* **One set: interesting.** On `rf_fluoro`: every frame's layer 1 at the proxy at full size, the whole ×0.988, the
+  exact series ×0.988–1.037 — holds in all 6 kept cells. On `dbts_c1` and `dbt12_c`: proxy and bytes hold (×0.989),
+  and the exact series is ×0.989–0.991 in 5 of 6 cells but ×1.234 and ×1.123 at 50 Mbit/s 4×, past the bound with
+  the spread (p90 0.003). On `dbts_a2`, `dbts_a5`, `dbts_c3` and `dbts_c5` it is at the proxy too, but stage 3 did not run them; on the other 16 sets its layer 1 is not at the proxy. Read over every cell, as the ladder's
+  clause is read, it holds on `rf_fluoro` alone.
+* **Two sets: closed.** Wherever a layer 1 reaches the proxy (p ≤ 2) the whole is ×1.45–1.85 of today's bytes, and its exact
+  series ×1.56–1.85 of today's in every kept cell.
+
+**Against the predictions** ("one set, two layers closed (layer 1 ≥ 0.8 of the bytes); two sets closed at the proxy,
+its 37–45 dB previews within 1.02× of the bytes but not visually lossless"). One set: layer 1 is 77–99 % of the bytes
+(≥ 0.8 on 22 of 23 sets) as predicted, but the rule has no clause on layer 1's share, so "closed" is **refuted** by the
+rule as written. Two sets closed: **held**. Its previews within ×1.02: p = 6–7 give 25–45 dB on the volumes at ×1.004–1.06
+of the bytes, none at the proxy — held in part (p = 7 alone is within ×1.02, at 25–42 dB).
+
+**What the clause does not ask.** One set's layer 1 is 77–99 % of today's bytes, so every frame is at the proxy at
+0.845–0.858 of today's exact series, 14–16 % sooner, at the cost of a whole that decodes ×1.3–1.5 (stage 2); it gives
+no cheap first picture (×0.75–1.09 of today's first frame, 0.33–2.67 s for today's on those three series). Whether that is worth a decoder that reads
+layers, which no open decoder does, is the owner's; a product binding would be structural, so proposed separately.
+
+### Commands
+
+```bash
+lab/av1/fetch_data.sh dbts_a1 … dbts_c5 dbt12_ea1141 dbt10_ea1141 dbt12_c dbt10_d rf_fluoro mr_ispy1 mr9_ispy2 usb_cine
+lab/htj2k-progressive/layers/build.sh && lab/htj2k-progressive/layers/decoder.sh    # writer's block coder; layered decoder
+# native OpenJPH 0.31.0 and OpenJPEG 2.5.4, and the delivered build, as §Quality layers, built's commands
+W=lab/.av1-work/q
+for s in <set> …; do lab/av1/.venv/bin/python lab/htj2k-progressive/layers/stage1.py $W lab/av1/data/$s; \
+  node lab/htj2k-progressive/layers/stage0.mjs $W/$s; done          # --mutate truth: every digest check fails
+VARIANT=layered node lab/decode-bench/parity.mjs lab/.av1-work/fx/decode_*   # fixtures: gen_htj2k_fixtures.sh, FRAMES=8
+lab/av1/.venv/bin/python lab/htj2k-progressive/layers/summary1.py $W/* --json stage1.json
+NODE_PATH=$(npm root -g) node lab/htj2k-progressive/layers/decode/run.mjs --rounds 2 --out decode.json   # stage 2
+node lab/htj2k-progressive/layers/decode/summary.mjs decode.json
+lab/av1/.venv/bin/python lab/htj2k-progressive/layers/delivery/make_frames.py $W lab/.av1-work/qrig dbts_c1:oneset,twosets1 … rf_fluoro:oneset,twosets1,twosets2
+NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames lab/.av1-work/qrig --sets dbts_a1,dbts_b1,dbts_c1 \
+  --links plain,r5000,r20000,r50000 --throttles 1,4 --per-frame --rounds 1 --first-round $r --out rig-q-dbt.jsonl
+lab/av1/.venv/bin/python lab/htj2k-progressive/layers/summary3.py rig-q-dbt.jsonl lab/.av1-work/qrig $W
+```
+
+Python packages as §Quality layers, built (scikit-image 0.25.2; Pillow 13.0.0 here).
