@@ -561,3 +561,145 @@ mid-block (rows: "Browser closed", then "ERR_CONNECTION_REFUSED"), not the 15-mi
 which would have broken the round's order, and rounds 16–19 ran after a gap of about a minute. (4) Once, during round 11, a
 commit and push of this heading ran beside a timed block: a few seconds of `git` on a second core. (5) `tools` leaves
 `lab/av1/profiles/` checked out from the carriers row; it is not committed.
+
+## SNR preview, measured
+
+*2026-11-05, the collector over shards 1 and 2.*
+
+* **Run:** `rule.py` (§5e) over both shards' rows, as §Shards writes it, into [`results/collected.md`](../../lab/av1/delivery/snr/results/collected.md); no new timing.
+* **Shows:** `two` is a trade against `svc` (Q 8 rung) and `one`, and neither it nor `sep` dominates the other; `snr` is worse than `two` and `sep`.
+* **And:** every AV1 carrier's decode to every exact slice is 2.8–10× the shipped HTJ2K's, and the residual plus its add costs 1.2–1.6 HTJ2K frames, not the 0.75–1.1 predicted.
+* **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` only (one DBT volume per system), n = 20 rounds (19 on `dbts_b1` G 1), at 1×, one-thread dav1d-WASM and OpenJPH in headless Chromium on two 4-core hosts.
+* **Left:** no breast ultrasound cine or ABUS fixture exists, so nothing here speaks for them; `dbts_a1` · G 8 · Q 4 is not read (A/A); `svc` at the Q 4 rung is not read by design (§6).
+
+**Terms.** A **carrier** is one way of delivering the volume (§1): `snr` (preview and VL as two AV1 quality layers
+in one stream), `two` (preview and VL as two `aomenc` streams), `svc` (quarter-size SVC base + exact layer), `sep`
+(`two`'s streams + the whole HTJ2K frame), `one` (the VL stream alone + residual), `htj2k` (the shipped exact
+profile). **VL** is visually lossless, METRICS' noise anchor (§Terms), at the **Q 4** or **Q 8 rung**. A
+**stage** is what the client has shown: the first picture, every slice at preview, at VL or exact, or a **jump**
+(one slice from no decoder state) at each. A **block** is one (volume, G, rung) in a fresh browser, and a **round**
+is one pass over all 18 blocks. **n** is the rounds read. Times are in **HTJ2K-frame units**: a time ÷ the median
+HTJ2K frame decode of its own block's control. A carrier **dominates** another at a stage when its bytes are no more,
+no time pair is decided against it or not read, and its bytes are fewer or its time is decided lower (§5e.5). A pair
+is **decided** when the 95 % order-statistic interval of the median per-round log ratio excludes 0. A **label**
+(better, worse, a trade, neither dominates, not read) is §5e.6's.
+
+**Collected.** 20 rounds and 2 `VOID` blocks (shard 2's round 15). The A/A (`ctrl-aa` against `ctrl`) holds 0 in 17
+of 18 blocks. Over both shards `dbts_a1` · G 8 · Q 4 fails (median −0.131, interval −0.208 to −0.030); shard 1 had
+failed `dbts_c1` · G 16 · Q 4 alone, which passes at n = 20. No arm is flagged by order in any block. The collector
+step ran exactly as §Shards writes it. `rule_test.py` holds 48/48 on this checkout.
+
+**The answer** (§5e.6; "all three" = the same label on each volume):
+
+| pair | G 1 | G 8 | G 16 |
+| --- | --- | --- | --- |
+| `two` against `svc` (Q 8) | a trade, all three | a trade, all three | a trade, all three |
+| `two` against `one` | a trade, all three, both rungs | Q 8 all three; Q 4 not read on `dbts_a1`, a trade on the others | a trade, all three, both rungs |
+| `two` against `sep` | neither dominates, all three, both rungs | Q 8 all three; Q 4 not read on `dbts_a1`, neither on the others | neither dominates, all three, both rungs |
+| `snr` against `two` | worse, all three, both rungs | Q 8 all three; Q 4 not read on `dbts_a1`, worse on the others | worse, all three, both rungs |
+| `snr` against `sep` | worse, all three, both rungs | as `snr` against `two` | worse, all three, both rungs |
+| `snr` against `one` | a trade, all three, both rungs | as `two` against `one` | a trade, all three, both rungs |
+| `snr` against `svc` (Q 8) | a trade, all three | a trade, all three | a trade on `dbts_a1`, `dbts_c1`; **worse on `dbts_b1`** |
+
+The stages decide it like this (from `collected.md`). `svc` dominates the two-layer carriers at the first picture,
+at preview and at every slice exact. `two` dominates `svc` at VL: `svc`'s next picture is the exact one, 4–13× `two`'s
+VL bytes for one slice (Q 8). On `dbts_b1` · G 16 `snr`'s VL also costs fewer bytes than `svc`'s, but its time is decided
+higher, so `snr` dominates `svc` nowhere. `two` dominates `one` at preview, and at the first picture except on
+`dbts_b1` at G 8 · 16, where `one`'s first unit decodes faster. `one` dominates `two` at VL and exact, with fewer
+bytes and less time. Against `sep`, `two` has fewer bytes to exact (`sep` 1.07–1.47 of HTJ2K, `two` 1.02–1.08) but
+is decided slower, 1.04–1.11× (ratio of medians, *derived*). Every earlier stage is the same arm, so neither side
+dominates.
+
+**Predictions** (§4), against the pooled rows; bands are §4's:
+
+| # | outcome |
+| --- | --- |
+| S1 | **held**: the order `svc` < `two` = `sep` < `snr` < `one` < `htj2k`; `two`'s first unit 0.49–2.34 % of an HTJ2K frame, `one`'s 6.7–44 % |
+| S2 | **refuted, narrowly**: `two` 0.29–2.46 % held; `snr` ÷ `two` 1.18–1.55, below 1.2 on `dbts_b1` G 8 · 16; `svc` 0.018–0.143 %, below 0.02 on `dbts_a1` G 16 |
+| S3 | **refuted**: `snr` ÷ `two` at VL 1.21–1.55 at Q 4 (already outside by the pin, §5a) and 1.01–1.28 at Q 8 (`dbts_c1` G 1 1.28) |
+| S4 | `two` 1.02–1.08, `one` 1.02–1.05, `sep` 1.07–1.47 **held**; `svc` 0.94–1.02 **refuted** at G 1 (0.98 · 1.02 · 1.00) |
+| S5 | **refuted on part**: `snr` ÷ `two` at VL decode 1.17–1.66 (ratio of medians, *derived*); below 1.3 on `dbts_a1` G 8 Q 8, `dbts_b1` G 1 both rungs and G 8 Q 8 |
+| S6 | **refuted**: label neither dominates, not better. Its stated refuter (`sep` dominating) did not occur; residual decode + add 1.18–1.56 HTJ2K frames per frame (`two` · `snr`), outside 0.75–1.1 |
+| S7 | **held**: a trade wherever read |
+| S8 | `two` **held**; `snr` **refuted** on `dbts_b1` G 16 (worse) |
+| S9 | **held**: `snr` worse than `two` wherever read |
+
+**Checked by hand.** Two verdict cells were re-derived from the committed rows and index (`shard-{1,2}.jsonl`,
+`shard-1.index.dbts_b1.json`) by a script that imports neither `rule.py` nor `amended.py`. It re-implements §5d's
+stage sums, the per-round HTJ2K-frame units, the order-statistic interval (n = 20: the 6th and 15th) and §5e.5
+dominance. The gates were taken from `collected.md`: both blocks pass the A/A and no arm is flagged. Both match the
+rule. **`two` against `one`, `dbts_b1` · G 8 · Q 8: a trade.** `two` dominates at every slice preview (1.67 MB
+against 23.2 MB, log time ratio −0.240, interval −0.271 to −0.205) and jump preview. `one` dominates at VL and exact,
+both kinds (every slice VL: 23.2 against 24.9 MB, +0.580, interval +0.567 to +0.596). At the first picture `two` has
+fewer bytes (49.5 against 468 kB) but `one` is decided faster (+0.096, interval +0.023 to +0.186), so neither
+dominates there. **`snr` against `svc`, `dbts_b1` · G 16 · Q 8: worse.** `svc` dominates at the first picture
+(2.5 against 64.2 kB, +2.33), every slice preview, jump preview and every slice exact (101 against 115 MB, +0.355).
+At VL `snr` has fewer bytes, but `svc` is decided faster (every slice +0.079, interval +0.047 to +0.110; jump
++0.107), so neither dominates there.
+
+**For the owner: bytes · time per carrier and G.** Each cell shows the lowest and highest of the three volumes. Times
+are in HTJ2K-frame units. **First picture** is the first slice's first picture. **One slice, VL** and **one slice,
+exact** are a jump to one slice from no decoder state: its bytes are the mean over every slice, its time the mean over
+the round's four asked slices. `svc`'s VL is its exact frame, and `one`'s first picture is VL. **Every slice, exact**
+is the whole volume delivered and decoded, the total decode. **The rule's verdict** is the two-layer carrier against
+that row's carrier. A verdict that differs by volume is listed `dbts_a1` · `dbts_b1` · `dbts_c1`. At G 8 · Q 4 the
+times leave out `dbts_a1` (not read).
+
+**VL rung Q 8**
+
+| carrier | G | first picture | one slice, VL | one slice, exact | every slice, exact | the rule's verdict |
+| --- | --: | --- | --- | --- | --- | --- |
+| `snr` | 1 | 8.84 kB–64.2 kB · 1.1–2.4 | 100 kB–558 kB · 4.3–7.3 | 1.08 MB–2.35 MB · 5.6–8.9 | 70.3 MB–117 MB · 272–550 | `snr` worse |
+| `snr` | 8 | 8.84 kB–64.2 kB · 1.1–2.3 | 398 kB–2.34 MB · 17–30 | 1.47 MB–4.12 MB · 19–31 | 69.6 MB–115 MB · 281–503 | `snr` worse |
+| `snr` | 16 | 8.84 kB–64.2 kB · 1.1–2.2 | 707 kB–4.38 MB · 33–49 | 1.86 MB–6.16 MB · 34–51 | 69.6 MB–115 MB · 274–481 | `snr` worse |
+| `two` | 1 | 6.16 kB–49.5 kB · 1.9–2.2 | 91.1 kB–523 kB · 3.6–4.3 | 1.06 MB–2.3 MB · 5–5.8 | 69.5 MB–115 MB · 241–375 | — |
+| `two` | 8 | 6.16 kB–49.5 kB · 1.8–2 | 388 kB–2.22 MB · 14–20 | 1.37 MB–3.98 MB · 15–21 | 69.2 MB–113 MB · 232–377 | — |
+| `two` | 16 | 6.16 kB–49.5 kB · 1.9–2.2 | 697 kB–4.16 MB · 26–36 | 1.73 MB–5.92 MB · 28–38 | 69.2 MB–113 MB · 226–362 | — |
+| `svc` | 1 | 0.848 kB–2.5 kB · 0.11–0.33 | 1.03 MB–2.2 MB · 4.8–12 | 1.03 MB–2.2 MB · 4.8–12 | 66.4 MB–110 MB · 241–672 | `two` a trade; `snr` a trade |
+| `svc` | 8 | 0.848 kB–2.5 kB · 0.11–0.27 | 3.31 MB–9.08 MB · 15–31 | 3.31 MB–9.08 MB · 15–31 | 63.9 MB–102 MB · 195–582 | `two` a trade; `snr` a trade |
+| `svc` | 16 | 0.848 kB–2.5 kB · 0.11–0.33 | 5.88 MB–16.9 MB · 30–51 | 5.88 MB–16.9 MB · 30–51 | 63.7 MB–101 MB · 190–566 | `two` a trade; `snr` a trade · worse · a trade |
+| `sep` | 1 | 6.16 kB–49.5 kB · 1.9–2.2 | 91.1 kB–523 kB · 3.6–4.3 | 1.13 MB–2.67 MB · 4.8–5.4 | 72.9 MB–134 MB · 231–343 | `two` neither dominates; `snr` worse |
+| `sep` | 8 | 6.16 kB–49.5 kB · 1.8–2 | 388 kB–2.22 MB · 14–20 | 1.44 MB–4.37 MB · 15–21 | 72.7 MB–132 MB · 219–342 | `two` neither dominates; `snr` worse |
+| `sep` | 16 | 6.16 kB–49.5 kB · 1.9–2.2 | 697 kB–4.16 MB · 26–36 | 1.8 MB–6.31 MB · 27–37 | 72.7 MB–132 MB · 215–334 | `two` neither dominates; `snr` worse |
+| `one` | 1 | 84.5 kB–468 kB · 1.6–2.1 | 83.3 kB–470 kB · 1.9–2.1 | 1.05 MB–2.24 MB · 3.1–3.6 | 69.1 MB–112 MB · 148–241 | `two` a trade; `snr` a trade |
+| `one` | 8 | 84.5 kB–468 kB · 1.6–2.1 | 370 kB–2.06 MB · 7.5–11 | 1.35 MB–3.83 MB · 8.9–13 | 69 MB–111 MB · 159–269 | `two` a trade; `snr` a trade |
+| `one` | 16 | 84.5 kB–468 kB · 1.6–2.2 | 666 kB–3.88 MB · 16–21 | 1.7 MB–5.65 MB · 17–22 | 69 MB–111 MB · 156–261 | `two` a trade; `snr` a trade |
+| `htj2k` | 1 | 1.09 MB–2.11 MB · 1–1.1 | 1.03 MB–2.15 MB · 1–1.1 | 1.03 MB–2.15 MB · 1–1.1 | 67.8 MB–107 MB · 54–74 | — |
+| `htj2k` | 8 | 1.09 MB–2.11 MB · 1–1.3 | 1.03 MB–2.15 MB · 1 | 1.03 MB–2.15 MB · 1 | 67.8 MB–107 MB · 54–73 | — |
+| `htj2k` | 16 | 1.09 MB–2.11 MB · 1–1.2 | 1.03 MB–2.15 MB · 1–1.1 | 1.03 MB–2.15 MB · 1–1.1 | 67.8 MB–107 MB · 54–75 | — |
+
+**VL rung Q 4** (`svc`'s bytes do not depend on the rung; its times are read only in the Q 8 blocks, §6)
+
+| carrier | G | first picture | one slice, VL | one slice, exact | every slice, exact | the rule's verdict |
+| --- | --: | --- | --- | --- | --- | --- |
+| `snr` | 1 | 8.84 kB–64.2 kB · 1.1–1.9 | 362 kB–1.33 MB · 5.1–7.7 | 1.2 MB–2.62 MB · 6.5–9.1 | 76 MB–131 MB · 321–532 | `snr` worse |
+| `snr` | 8 | 8.84 kB–64.2 kB · 1–1.7 | 1.54 MB–5.75 MB · 19–25 | 2.52 MB–7 MB · 21–26 | 75.1 MB–127 MB · 324–486 | `snr` not read · worse · worse |
+| `snr` | 16 | 8.84 kB–64.2 kB · 1.2–1.6 | 2.76 MB–10.8 MB · 36–51 | 3.76 MB–12 MB · 37–53 | 75 MB–127 MB · 320–492 | `snr` worse |
+| `two` | 1 | 6.16 kB–49.5 kB · 1.7–1.9 | 262 kB–1 MB · 4.2–5.2 | 1.07 MB–2.32 MB · 5.6–6.7 | 70.9 MB–116 MB · 265–364 | — |
+| `two` | 8 | 6.16 kB–49.5 kB · 1.7–1.8 | 1.14 MB–4.32 MB · 15–16 | 1.95 MB–5.64 MB · 16–17 | 70.9 MB–115 MB · 250–359 | — |
+| `two` | 16 | 6.16 kB–49.5 kB · 1.7–1.9 | 2.12 MB–8.12 MB · 24–37 | 2.93 MB–9.44 MB · 25–39 | 70.9 MB–115 MB · 253–346 | — |
+| `svc` | 1 | 0.848 kB–2.5 kB · not read | 1.03 MB–2.2 MB · not read | 1.03 MB–2.2 MB · not read | 66.4 MB–110 MB · not read | `two` not read; `snr` not read |
+| `svc` | 8 | 0.848 kB–2.5 kB · not read | 3.31 MB–9.08 MB · not read | 3.31 MB–9.08 MB · not read | 63.9 MB–102 MB · not read | `two` not read; `snr` not read |
+| `svc` | 16 | 0.848 kB–2.5 kB · not read | 5.88 MB–16.9 MB · not read | 5.88 MB–16.9 MB · not read | 63.7 MB–101 MB · not read | `two` not read; `snr` not read |
+| `sep` | 1 | 6.16 kB–49.5 kB · 1.7–1.9 | 262 kB–1 MB · 4.2–5.2 | 1.29 MB–3.15 MB · 5.3–6.3 | 83.8 MB–158 MB · 256–346 | `two` neither dominates; `snr` worse |
+| `sep` | 8 | 6.16 kB–49.5 kB · 1.7–1.8 | 1.14 MB–4.32 MB · 15–16 | 2.16 MB–6.47 MB · 16–17 | 83.7 MB–156 MB · 239–324 | `two` not read · neither dominates · neither dominates; `snr` not read · worse · worse |
+| `sep` | 16 | 6.16 kB–49.5 kB · 1.7–1.9 | 2.12 MB–8.12 MB · 24–37 | 3.15 MB–10.3 MB · 25–38 | 83.7 MB–156 MB · 238–323 | `two` neither dominates; `snr` worse |
+| `one` | 1 | 265 kB–940 kB · 2.2–2.8 | 254 kB–952 kB · 2.3–3.2 | 1.06 MB–2.26 MB · 3.6–4.7 | 70.5 MB–113 MB · 176–252 | `two` a trade; `snr` a trade |
+| `one` | 8 | 265 kB–940 kB · 2.2–2.5 | 1.12 MB–4.17 MB · 9.1–10 | 1.93 MB–5.49 MB · 10–12 | 70.7 MB–113 MB · 180–274 | `two` not read · a trade · a trade; `snr` not read · a trade · a trade |
+| `one` | 16 | 265 kB–940 kB · 2.1–2.9 | 2.09 MB–7.84 MB · 16–25 | 2.9 MB–9.16 MB · 17–26 | 70.7 MB–113 MB · 181–270 | `two` a trade; `snr` a trade |
+| `htj2k` | 1 | 1.09 MB–2.11 MB · 0.97–1 | 1.03 MB–2.15 MB · 1 | 1.03 MB–2.15 MB · 1 | 67.8 MB–107 MB · 53–76 | — |
+| `htj2k` | 8 | 1.09 MB–2.11 MB · 1–1.1 | 1.03 MB–2.15 MB · 1 | 1.03 MB–2.15 MB · 1 | 67.8 MB–107 MB · 54–73 | — |
+| `htj2k` | 16 | 1.09 MB–2.11 MB · 0.99–1 | 1.03 MB–2.15 MB · 1–1.1 | 1.03 MB–2.15 MB · 1–1.1 | 67.8 MB–107 MB · 53–73 | — |
+
+What the table says, on these three volumes only. The quarter base (`svc`) is the cheapest first picture by
+7–20× in bytes and 7–18× in time against `two`. The two-layer preview (`two`) gets a full-size first picture for 0.5–2.3 %
+of an HTJ2K frame. It decodes in 1.7–2.2 HTJ2K frames, so it costs more time than the shipped HTJ2K frame, though
+far fewer bytes. To the exact frame, every AV1 carrier decodes 2.8–10× slower than HTJ2K over the whole volume
+(`one` 2.8–4.1×, `sep` 4.0–5.4×, `two` 4.2–5.8×, `snr` 5.0–7.7×, `svc` 3.5–10×; *derived*, ratios of medians). The quality-layer form (`snr`) costs 1.01–1.55× `two`'s bytes to VL and 1.01–1.13× to exact, and 1.17–1.66× its
+decode to VL, and it is better at no stage.
+
+**What differed.** (1) Shard 2's doc commit (`7c594e7b`) had overwritten §Shards' run and collector text and the
+whole `### SNR shard 1, measured` section. Both were restored verbatim from shard 1's commit `723bb6aa` (`0c3a1f8a`),
+with shard 2's section unchanged after them; both headings were then present, so no fetch-wait was needed. (2)
+`scripts/gate.sh --quick --no-browser` stopped at its prerequisites: this host has no built
+`client/transport/wasm/pkg`. It did not run; the change is docs and the collector's output only.
