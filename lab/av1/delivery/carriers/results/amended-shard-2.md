@@ -1,7 +1,7 @@
 # Amended shard 2, measured
 
 *2026-11-05, shard 2 of 4, run by a session given only the amended protocol; §F's command as written, on `fb6e522a`.
-Numbers only; the collector pools the shards and applies §D.*
+Its protocol: [`profile-carriers.md`](../../../../../docs/av1/profile-carriers.md) §Profile carriers protocol, amended. Numbers only; the collector pools the shards and applies §D.*
 
 1. **Run:** `SHARD=2 ROUNDS_PER_SHARD=24 BUDGET_S=16200 run.sh tools amended-content amended-mutate amended-rounds`,
    01:17:30–04:36:15 UTC: rounds 24–47, every block whole, then nothing else.
