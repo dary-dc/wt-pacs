@@ -21,6 +21,7 @@ BREAKS = {
     "a time against ignored": ('if xb > yb or "y" in times.values() or', "if xb > yb or"),
     "a time not read lets bytes decide": (' or "not read" in times.values():', ":"),
     "the A/A gate ignored": ("if (s, b) in unread or (s, b,", "if (s, b, b) in unread or (s, b,"),
+    "an unread rival ignored": ('if any(o["bytes"] <= c["bytes"] and "not read"', 'if any(o["bytes"] < 0 and "not read"'),
     "the frontier keeps everything": ("if not any(dominates(o, c) for o in configs if o is not c)]", "]"),
     "an ask begins one unit late": ("sum(tops[i - i % int(k):i + 1])", "sum(tops[i - i % int(k) + 1:i + 1])"),
     "a failed check kept": ('if any(x.get("error") or x.get("exact") is False or x.get("lossy") is False\n                   or ("frames" in x and (x.get("lossy", x.get("exact")) < x["frames"])) for x in rs):',

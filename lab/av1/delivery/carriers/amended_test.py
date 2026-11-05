@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from amended import config_bytes, decided, dominates, frontier, interval_rank, median_interval, metrics, order_p, pair  # noqa: E402
+from amended import config_bytes, decided, dominates, frontier, interval_rank, median_interval, metrics, order_p, pair, status  # noqa: E402
 
 wrong = []
 cases = 0
@@ -55,6 +55,12 @@ check("equal, no time", dominates(cfg("x", 20, {"y": {"t": "not resolved"}}), y)
 check("equal bytes, time for x", dominates(cfg("x", 20, {"y": {"t": "x"}}), y), True)
 # A time not read never lets bytes alone decide (review finding 2).
 check("not read blocks dominance", dominates(cfg("x", 10, {"y": {"t": "not read"}}), y), False)
+# On the frontier only when every cheaper rival's time against it was read; else its place is not read.
+cheap_unread = cfg("x", 10, {"y": {"t": "not read"}})
+check("status not read", status(y, [cheap_unread, y]), "not read")
+check("status dominated", status(y, [x, y]), "dominated")
+traded = [cfg("x", 10, {"y": {"t": "y"}}), cfg("y", 20, {"x": {"t": "x"}})]
+check("status frontier", status(traded[1], traded), "on the frontier")
 # A pair is read only when both blocks pass their A/A and neither arm nor the control is flagged by order.
 norm = {("s", "lay-k4"): {r: {"t": 1.0} for r in range(10)}, ("s", "sep-g4"): {r: {"t": 2.0} for r in range(10)}}
 check("pair read", pair(norm, "s", "lay-k4", "sep-g4", "t", set()), "x")

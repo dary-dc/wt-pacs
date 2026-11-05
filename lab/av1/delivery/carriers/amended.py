@@ -21,6 +21,7 @@ from roles import at_psnr  # noqa: E402
 LEVEL = 0.95
 ALPHA = 0.05
 PERMUTATIONS = 2000
+PIN = Path(__file__).resolve().parent / "results/amended-content.json"
 KS = (1, 4, 8, 16)
 GS = (1, 4, 8, 16, 32)
 # (role, access pattern): the one time metric the rule reads for it. The cheap view is reported, not judged.
@@ -90,6 +91,17 @@ def dominates(x, y):
 def frontier(configs):
     """The configurations no other dominates."""
     return [c["name"] for c in configs if not any(dominates(o, c) for o in configs if o is not c)]
+
+
+def status(c, configs):
+    """'dominated'; 'not read' when a configuration with no more bytes has its time against c not read, so c's place
+    is unknown; else 'on the frontier'."""
+    others = [o for o in configs if o is not c]
+    if any(dominates(o, c) for o in others):
+        return "dominated"
+    if any(o["bytes"] <= c["bytes"] and "not read" in o["times"][c["name"]].values() for o in others):
+        return "not read"
+    return "on the frontier"
 
 
 def load(paths):
@@ -190,6 +202,7 @@ def order_effects(cells, rows):
 
 def main():
     work, (rows, voids) = Path(sys.argv[1]), load(sys.argv[2:])
+    pin = json.loads(PIN.read_text())
     cells = metrics(rows)
     norm = normalized(cells)
     gate = aa(cells)
@@ -198,18 +211,19 @@ def main():
     print("| volume · block | A/A: median log (interval), n | A/A | arms flagged by order (p) |\n| --- | --- | --- | --- |")
     for (s, b), (med, lo, hi, n) in sorted(gate.items()):
         flagged = [f"{a} ({p:.3g})" for (s2, b2, a), (_, p, f) in sorted(effects.items()) if (s2, b2) == (s, b) and f]
-        ok = lo is not None and lo <= 0 <= hi
-        print(f"| {s} · k {b} | {med:+.4f} ({lo and round(lo, 4)}, {hi and round(hi, 4)}), {n} | {'passes' if ok else 'fails: not read'} |"
+        state = "n < 6: not read" if lo is None else "passes" if lo <= 0 <= hi else "fails: not read"
+        print(f"| {s} · k {b} | {med:+.4f} ({lo and round(lo, 4)}, {hi and round(hi, 4)}), {n} | {state} |"
               f" {', '.join(flagged) or '—'} |")
     unread = {(s, b) for (s, b), (_, lo, hi, _) in gate.items() if lo is None or not lo <= 0 <= hi}
     unread |= {(s, b, a) for (s, b, a), (_, _, f) in effects.items() if f}
-    print(f"\nA/A decided (interval excludes 0) in {sum(len(c) == 2 for c in unread)} of {len(gate)} blocks")
+    failed = sum(lo is not None and not lo <= 0 <= hi for _, lo, hi, _ in gate.values())
+    print(f"\nA/A decided (interval excludes 0) in {failed} of {sum(v[1] is not None for v in gate.values())} readable blocks")
     for idx in sorted(work.glob("dbts_*.json")):
-        e = json.loads(idx.read_text())
+        e = with_brackets(json.loads(idx.read_text()), pin)
         s = e["name"]
         configs = config_bytes(e)
         print(f"\n## {s}\n")
-        kept = set()
+        kept = defaultdict(list)
         for (role, pattern), m in PATTERNS.items():
             names = [c for c in configs if role in configs[c] and (c != "whole" or role == "exact on request")]
             table = [{"name": n, "bytes": configs[n][role],
@@ -218,13 +232,16 @@ def main():
             for c in table:
                 v, n = median_of(norm, s, c["name"], m)
                 print(f"| {c['name']} | {c['bytes']:.0f} | {'—' if v is None else f'{v:.3g}'} | {n} |")
-            front = frontier(table)
-            lay = [n for n in front if n.startswith("lay")]
+            states = {c["name"]: status(c, table) for c in table}
+            print("\n" + "; ".join(f"{n}: {v}" for n, v in states.items()) + "\n")
             if role in JUDGED:
-                kept |= {(n, role, pattern) for n in lay}
-            print(f"\nfrontier: {', '.join(front)}; layered on it: {', '.join(lay) or 'none'}\n")
-        print(f"**{s}: the layered stream stays a candidate**" if kept else f"**{s}: no layered k is on any judged frontier**",
-              "— " + "; ".join(f"{n} ({r}, {p})" for n, r, p in sorted(kept)) if kept else "")
+                for n, v in states.items():
+                    if n.startswith("lay"):
+                        kept[v].append(f"{n} ({role}, {pattern})")
+        verdict = ("stays a candidate" if kept["on the frontier"] else "not read" if kept["not read"]
+                   else "is dominated in every judged role and pattern")
+        print(f"**{s}: the layered stream {verdict}** — on the frontier: {'; '.join(kept['on the frontier']) or 'none'};"
+              f" not read: {'; '.join(kept['not read']) or 'none'}")
 
 
 def median_of(norm, s, arm, m):
@@ -246,6 +263,17 @@ def pair(norm, s, x, y, m, unread):
     X, Y = norm.get((s, x), {}), norm.get((s, y), {})
     d = [math.log(X[r][m] / Y[r][m]) for r in X if r in Y and m in X[r] and m in Y[r]]
     return {"A": "x", "B": "y"}.get(decided(d)[0], "not resolved")
+
+
+def with_brackets(e, pin):
+    """The index with each stream's bracketing quantizers (PSNR, bytes) from the pin sweep.py coded it from."""
+    p = pin[e["name"]]
+    for k, c in e["layered"].items():
+        c["tried"] = p["layered"][k]["tried"]
+    for g, roles in e["separate"].items():
+        for role, c in roles.items():
+            c["tried"] = p["separate"][g][role]["tried"]
+    return e
 
 
 def config_bytes(e):
