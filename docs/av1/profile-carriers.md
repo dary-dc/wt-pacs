@@ -794,3 +794,15 @@ In progress: this section is filled as steps finish.*
 3. **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` only, on the host below.
 4. **Left:** every step; the collector pools the four shards and applies §D.
 5. **Not judged here:** nothing in this section is a verdict.
+
+### Amended shard 3, measured
+
+*2026-11-05, shard 3 of 4, run by a session given only the amended protocol; §F's command as written, on `fb6e522a`.
+In progress: this section is filled as steps finish.*
+
+1. **Run:** `SHARD=3 ROUNDS_PER_SHARD=24 BUDGET_S=16200 run.sh tools amended-content amended-mutate amended-rounds`,
+   started 01:17:43 UTC. Rounds 48–71 are assigned, every block whole.
+2. **Shows:** so far, that the content matches the pin and that every check catches its own mutation (below).
+3. **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` only, on the host below.
+4. **Left:** the rounds; the collector pools the four shards and applies §D.
+5. **Not judged here:** nothing in this section is a verdict.
