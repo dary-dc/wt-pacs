@@ -415,7 +415,7 @@ def report(out, decode_file="decode.json"):
             top, ten = by.get((s, "top8", p["q"], G)) if p else None, by.get((s, "10bit", q, G))
             delta = top["psnr"] - ten["psnr"] if top and ten else None
             gate = delta is not None and quality_gate(c, delta)
-            if c["state"] == "read" and not gate:
+            if c["state"] == "read" and c.get("speed") in ("faster", "slower") and not gate:
                 c["state"] = "not decided at equal quality"
             body.append([s, q, f"{t}×", G, c["n"], f"{c['ms_10bit']:.1f}", f"{c['ms_top8']:.1f}", ci_text(c["ci"]),
                          c.get("speed", "—"), "—" if delta is None else f"{delta:+.3f}",
