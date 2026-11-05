@@ -405,11 +405,7 @@ the sets before it (B.3, S_skip). A one-layer codestream takes OpenJPH's own pat
 
 ### Stage 1, bytes and quality per layer
 
-*Partial (cine-like sets and `usb_cine` done; the 15 volumes running).* Every frame of `rf_fluoro`, `mr_ispy1`,
-`mr9_ispy2`, `dbt12_ea1141`, `dbt10_ea1141`, `dbt12_c`, `dbt10_d` and `usb_cine` (lossy-sourced): full table in
-[`rows/layers-measured/stage1.md`](rows/layers-measured/stage1.md). One set's layer 1 is at the proxy at full size on
-`rf_fluoro` (18/18) and `dbt12_c` (68/68), the whole ×0.988–0.989 of today's bytes; on no other set. Two sets reach
-it only at p ≤ 2 on those two sets, the whole ×1.67–1.85.
+*Complete 2026-11-05; the README table follows when the run ends.* Every frame of the 23 grey sets: [`rows/layers-measured/stage1.md`](rows/layers-measured/stage1.md).
 
 ### Stage 3, delivery (partial: round 0 of the three volumes)
 
