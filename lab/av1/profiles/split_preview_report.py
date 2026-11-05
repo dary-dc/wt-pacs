@@ -122,6 +122,8 @@ def equal_psnr(by, s, form, g):
 def classify(ratio, t):
     if ratio is None:
         return "—"
+    if math.isnan(t):
+        return "no tol"
     x = math.log(ratio)
     return "smaller" if x < -t else "larger" if x > t else "tie"
 
@@ -339,8 +341,8 @@ def report(out, decode_file="decode.json"):
               [[s, q, f"{p['anchor_psnr']:.3f}", p["q"], f"{p['delta']:+.3f}"] for (s, q), p in sorted(pairs.items())]))
 
     verdicts = {}
-    say("\n**S1–S7**\n")
-    tops = [r["psnr"] for k, r in by.items() if k[1] == "top8"]
+    say("\n**S1–S7**, on `dbts_b1` … `dbts_b5` (stage 4's `dbts_b_max` is in the tables, not in the predictions)\n")
+    tops = [r["psnr"] for k, r in by.items() if k[1] == "top8" and k[0] in SERIES]
     c2 = [c for c in jsonl(Path(out) / "checks.jsonl") if c.get("check") == "C2" and not c.get("mutated") and "series" in c]
     s1 = "refuted" if any(p > CEILING_DB for p in tops) else "held"
     say(f"* S1 {s1} by its clause: highest top8 PSNR {max(tops):.3f} dB over {len(tops)} cells (edge {CEILING_DB})")
@@ -361,19 +363,19 @@ def report(out, decode_file="decode.json"):
         return v, vals
 
     lo10 = lambda s, q, g: by.get((s, "10bit", q, g), {}).get("psnr")
-    s2pts = [(k, p) for k, p in eq.items() if k[1] == "top8" and lo10(k[0], 56, k[2]) is not None
+    s2pts = [(k, p) for k, p in eq.items() if k[1] == "top8" and k[0] in SERIES and lo10(k[0], 56, k[2]) is not None
              and lo10(k[0], 56, k[2]) <= p["psnr"] <= lo10(k[0], CROSSOVER.get(k[0], 32), k[2])]
     verdicts["S2"], s2v = band("S2 (from the noise up, 1.00–1.12)", s2pts, 1.00, 1.12)
-    s3pts = [(k, p) for k, p in eq.items() if k[1] == "top8" and lo10(k[0], 12, k[2]) is not None
+    s3pts = [(k, p) for k, p in eq.items() if k[1] == "top8" and k[0] in SERIES and lo10(k[0], 12, k[2]) is not None
              and p["psnr"] > lo10(k[0], 12, k[2])]
     verdicts["S3"], s3v = band("S3 (Q 8's quality: above the 10bit Q 12 rung's PSNR, 1.05–1.35)", s3pts, 1.05, 1.35)
     below = [k[0] for k, v in s3v if any(k2[0] == k[0] and v <= v2 for k2, v2 in s2v)]
     if below:
         verdicts["S3"] = "refuted"
-        say(f"  S3 refuted also: not above S2's range on {sorted(set(below))}")
+        lines[-1] = lines[-1].replace("held", "refuted", 1) + f"; inside the band, but not above S2's range on {sorted(set(below))}"
 
     wrong = defaultdict(set)
-    for s in sets:
+    for s in SERIES:
         for q, sign in ((8, -1), (12, -1), (32, 1), (56, 1)):
             a, b = by.get((s, "10bit", q, 1)), by.get((s, "top8", q, 1))
             if a and b:
@@ -390,11 +392,11 @@ def report(out, decode_file="decode.json"):
 
     bad6 = set()
     for k, p in eq.items():
-        if k[1] == "top8" and p["ssim"] is not None and (abs(p["ssim"]) > 0.002 or abs(p["differ"]) > 2 or abs(p["over1"]) > 2):
+        if k[1] == "top8" and k[0] in SERIES and p["ssim"] is not None and (abs(p["ssim"]) > 0.002 or abs(p["differ"]) > 2 or abs(p["over1"]) > 2):
             bad6.add(k[0])
     verdicts["S6"] = "refuted" if len(bad6) >= 3 else "held"
     say(f"* S6 {verdicts['S6']}: series with a matched point outside ±0.002 SSIM or ±2 points: {sorted(bad6) or 'none'}")
-    s7 = [(k, p["residual"]) for k, p in eq.items() if k[1] == "top8" and p["residual"] is not None]
+    s7 = [(k, p["residual"]) for k, p in eq.items() if k[1] == "top8" and k[0] in SERIES and p["residual"] is not None]
     s7out = [(k, v) for k, v in s7 if not 0.98 <= v <= 1.02]
     verdicts["S7"] = "refuted" if s7out else "held" if s7 else "not decided"
     say(f"* S7 {verdicts['S7']}: {len(s7)} matched points, residual ratio "
@@ -446,10 +448,12 @@ def report(out, decode_file="decode.json"):
                 v = "top8 worse"
             elif bc == "—":
                 v = "not decided (no matched point)"
+            elif not read:
+                v = "not decided (no decode cell read)"
             else:
                 times = [math.exp(c["ci"][0]) for c in read]
-                v = (f"a trade: {(e['bytes'] - 1):+.1%} bytes for "
-                     + (", ".join(f"{1 - x:.0%}" for x in times) + " less decode time a frame" if times else "no decode read"))
+                v = (f"a trade: {(e['bytes'] - 1):+.1%} bytes (a {bc}) for "
+                     + ", ".join(f"{1 - x:.0%}" for x in times) + " less decode time a frame in the read cells")
             body.append([s, q, p["q"], pct(e["bytes"]) if e else "—", bc, pct(e["residual"]) if e else "—", rc,
                          f"{len(read)} of {len(mine)} read, " + ("all faster" if faster else "not all faster"), v])
         say(table(["series", "anchor Q", "partner Q", "bytes ratio", "bytes", "residual ratio", "residual", "decode", "verdict"], body))

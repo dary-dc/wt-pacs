@@ -331,7 +331,45 @@ Read 2026-11-04.
 
 ## Split preview B, measured (2026-11-04)
 
-*Partial, 2026-11-04 23:10 UTC: stages 1 and 2 done, stage 3 (decode) running. The decode, S8 and the verdict follow.*
+1. **What ran.** §Split preview B protocol, pre-registered, on `dbts_b1` … `dbts_b5`: checks C1–C8 each with its mutation; 54 bytes cells (40 top8, 4 top8at10, 10 new 10bit) beside the bytes run's 10bit cells; the WebCodecs decode in 21 rounds on one host, after 8 rounds on another were cut by a worker restart; stage 4, `dbts_b_max` at Q 16 and Q 32, fitted and ran.
+2. **The answer, by the rule as written.** S1 held by its clause; S2–S7 refuted; S8 not decided (5 cells held, 8 not decided, 17 not read, none refuted). The verdict is **a trade** on 8 of the 10 (series, quality) pairs and **not decided** on 2. No pair is "top8 better" or "top8 worse": every bytes ratio is a tie within tol, and at no quality is every decode cell both read and faster.
+3. **The numbers.** At equal PSNR top8 costs 1.05–1.26× the 10bit stream's bytes at G = 1 and 1.08–1.26× at G = 16 from the noise up (0.95–0.98 at the Q 56 points; 1.18–1.43 at G = 16, Q 16 on the four series whose crossover is Q 32), and 1.13–1.17× at Q 8's quality — every one a tie, because tol is 0.28–1.12 in ln; its residual is 0.97–1.02× the 10bit form's. In decode a frame takes 0.76–0.82 (the median over 21 rounds in each of the 30 cells on host 2; their intervals within 0.67–1.03) of the 10bit stream's time. The bit cut's own error is 0.52–1.01 in mean square, not T1's 1.5: uncoded top8 sits at 60.1–63.1 dB, not 58.4.
+4. **What it rests on.** Five whole volumes of system B (one scanner model, one public trial), libaom 3.15.1 at the bytes run's knobs, headless Chromium 141.0.7390.37's WebCodecs (that it runs dav1d is §T5's, from an earlier media log: *unverified* here) on one 4-core cloud host per decode block. It holds for these five volumes, this encoder and this browser only.
+5. **What is left.** Everything the protocol's own line 5 lists; rungs between the bytes run's, so that *tol* (below) stops deciding the bytes; `dbts_b_max` at more rungs and in decode; a decode design whose intervals reach the ±4–5 % the protocol sized for: the first unit in a worker runs faster, and that, not the round count, set the widths here (§Decode, below).
+
+**Terms first used here.** A **cell** is one (series, form, Q, G) coded and measured; a **unit** one decode of the middle 16 slices in one worker; a **round** every unit once at each throttle; a **block** every round on one host. A **matched point** is a top8 cell whose PSNR lies between two 10bit rungs of the same series and G, so the 10bit value there is interpolated, never extrapolated. **tol** is §Equal PSNR's interpolation error, in ln units. **Host 1, host 2**: the two machines stage 3 ran on (below).
+
+### Host, and where it saturates
+
+* **Host 1** (setup, stages 1–2, stage 3 rounds 0–7): Intel Xeon @ 2.10 GHz, 4 cores, one thread a core, 16 GB, Linux 6.18. **Host 2** (stage 3 from 23:30, stage 4 and C1 again): Intel Xeon @ 2.80 GHz, 4 cores, 16 GB, Linux 6.18; the session's worker was restarted onto it at about 23:29 UTC, with the disk kept. The two decode blocks are read apart: ms never leave their block, and nothing is pooled across hosts.
+* **Bytes:** four single-thread processes on four cores, saturated by design; from 22:02 to 22:50, eight (below). No encode time is claimed. Bytes and PSNR did not move with load: C1 reproduced the bytes run's cell byte for byte, and the 20 10bit anchor streams re-coded for the decode matched the bytes run's unit sizes, every unit (`streams.jsonl`).
+* **Decode:** one decode in flight. On host 1, vmstat's 5 s samples read 29–34 % CPU busy over a 1× phase and 16–25 % over a 4× phase (about 1.2 and 0.8 of 4 cores): the host is not saturated at either throttle. Nothing is claimed past 4×, for concurrent decodes, for a phone or for another host.
+
+### Timeline as run, and deviations
+
+T0 21:30:30 UTC. Setup done 21:36 (0:06); stage 1 21:35–21:48 (C5, C7, C8 need the stage-2 rows and ran after them); stage 2 21:48–22:57; stage 3 22:57–01:13:46 (host 1 to 23:29, host 2 from 23:30:24); stage 4 01:13:47–01:28:17, with 26 min left at its start (≥ 25 needed). Every stage ended inside its window. `results/split-preview-b/timeline.txt` holds the minute-by-minute record.
+
+* **Stage 2's items overlapped.** A waiter script misread item 1 as finished (twice, at 21:49 and 22:02). The second time items 2, 3 and 4 ran beside item 1, eight processes on four cores, and item 2 saw only the one partner then known (`dbts_b1` Q 16) and coded that one cell. Item 2 was run again in full after item 1. Bytes do not depend on order or load (C1), so every row stands; only "each item finishes before the next starts" was not kept.
+* **Rows restored.** A `git stash` replaced the file item 1 was appending to; its rows were read back through the process's open handle. A later copy cut items 2–4's rows from the file; they were restored from the commits that held them (7b404705, c981a744, 95aa441e). All 54 cells are in `cells.jsonl`, each once, each with every frame exact.
+* **Two decode blocks.** Stage 3 was cut at 23:29 after 8 complete rounds on host 1 (`decode-host1.json`); it restarted as a new block on host 2 (`decode.json`). Host 1's block is under §7's floor of 10 rounds and is reported, not read.
+* **Partners.** Every partner is the anchor's own Q (table below); S1 and S16 at the partner rung are what the decode ran.
+* **"Q 8's quality" (S3)** was read as the top8 points whose PSNR lies above the 10bit Q 12 rung's: the top8 Q 8 cells, 47.97–50.13 dB. The protocol does not define the band further.
+* **"In order" (§Stage 3)** follows §7's in-order pattern: a fresh decoder, the chain from the first middle slice's keyframe decoded off the clock (none at G = 1), then the 16 slices timed.
+
+### Checks, each with its mutation
+
+| # | as it read | mutated | the mutation read |
+| --- | --- | --- | --- |
+| C1 | 10bit Q 32 G 1 on `dbts_b2`: 1 169 647 B, 42.805 dB, the bytes run's to the byte and 0.001 dB; the 20 anchor streams unit for unit the bytes run's | `--cq-level` 33 | 1 076 014 B, 42.676 dB: mismatch named |
+| C2 | uncoded top8's mean square equals the v mod 4 histogram weighted 0, 1, 4, 1 (clamp 4, 9) to 1e−9 on all five series: 0.516, 0.988, 0.773, 0.966, 1.012 | floor, p = v ≫ 2 | 1.20, 2.30, 1.80, 2.26, 2.50 against the same histogram: mismatch on every series (the protocol expected ≈ 3.5; the residues are not evenly spread, see S1) |
+| C3 | every frame of every cell exact (3 614 frames, 54 cells) | the residual taken as v & 3 onto p̂ ≪ 2 | 0 of 71 exact on top8 Q 16 `dbts_b2`; 71 of 71 when applied to the split's own lossless top (v ≫ 2, Q 0) |
+| C4 | top8 Q 16 `dbts_b2`: aomdec's frames equal dav1d's sample for sample, and ≪ 2 give 45.170 dB, the row's | shift 0 | 12.93 dB: mismatch named |
+| C5 | each 10bit curve against itself: 1.000 at every point; tol finite (0.28–0.37 at G 1, 0.71–1.12 at G 16) | bytes × 1.10; PSNR ± 0.3 dB | 1.100 at every point; +0.3 dB → 0.79–0.98 (< 1), −0.3 dB → 1.02–1.27 (> 1), every series and G |
+| C6 | every timed frame of every unit, after back-conversion, hashes as native dav1d's ≪ shift (16 of 16, every unit of every round of both blocks) | `--mutate hash`; top8's shift 0 | 0 of 16 on every unit; 0 of 16 on the two top8 units, 16 of 16 on the three 10bit units |
+| C7 | `split_preview_report.py --test`: ratio 0.75 and A/A 1.00 recovered inside their intervals, under a per-round drift too | mean for median; A/A rule off; pairs across rounds; no shuffles | each fails its assertion: the mean misses 0.75 under slow rounds, a 20 % A/A is kept, cross-round pairs miss 0.75 under drift, a noise-only order spread is flagged |
+| C8 | partners printed with Δ PSNR (table below), Δ −0.47 to +0.01 dB | the 10bit curve given as top8's | partner = anchor, Δ = 0.000 on all ten |
+
+### Bytes and quality (stage 2)
 
 **Equal Q, G = 1** (bytes over the series; PSNR dB; top8 ÷ 10bit bytes; Δ PSNR top8 − 10bit)
 
@@ -367,6 +405,8 @@ Read 2026-11-04.
 | dbts_b5 | 24 | 1973804 | 45.798 | 2061699 | 45.527 | 1.045 | -0.271 |
 | dbts_b5 | 32 | 806333 | 44.277 | 878380 | 44.013 | 1.089 | -0.264 |
 | dbts_b5 | 56 | 116531 | 39.996 | 137732 | 40.424 | 1.182 | +0.428 |
+| dbts_b_max | 16 | 7994364 | 47.270 | 7866404 | 46.726 | 0.984 | -0.544 |
+| dbts_b_max | 32 | 1502875 | 44.658 | 1638948 | 44.233 | 1.091 | -0.425 |
 
 **The control at equal Q** (top8at10; G = 1)
 
@@ -425,6 +465,8 @@ Read 2026-11-04.
 | dbts_b5 | top8 | 16 | 16 | 47.000 | 1.430 | tie | 0.705 | 1.022 | tie | -0.0046 | +0.07 | +0.25 |
 | dbts_b5 | top8at10 | 1 | 32 | 44.236 | 1.018 | tie | 0.279 | 1.000 | tie | -0.0017 | +0.03 | +0.08 |
 | dbts_b5 | top8at10 | 1 | 16 | 47.414 | 1.043 | tie | 0.279 | 1.001 | tie | -0.0011 | +0.01 | +0.02 |
+| dbts_b_max | top8 | 1 | 32 | 44.233 | — | — | nan | — | — | — | — | — |
+| dbts_b_max | top8 | 1 | 16 | 46.726 | 1.394 | no tol | nan | 1.018 | no tol | -0.0073 | -0.13 | -0.28 |
 
 **Partners** (top8 G = 1 rung nearest the 10bit anchor's PSNR)
 
@@ -441,15 +483,125 @@ Read 2026-11-04.
 | dbts_b5 | 16 | 47.470 | 16 | -0.471 |
 | dbts_b5 | 32 | 44.277 | 32 | -0.264 |
 
-**S1–S7**
+Read by its clauses, with what drives each:
 
-* S1 held by its clause: highest top8 PSNR 50.127 dB over 40 cells (edge 58.5)
-  its second part, uncoded top8 at 58.4 ± 0.1 dB: dbts_b1 63.07 dB (mean square 0.516), dbts_b2 60.25 dB (mean square 0.988), dbts_b3 61.32 dB (mean square 0.773), dbts_b4 60.35 dB (mean square 0.966), dbts_b5 60.15 dB (mean square 1.012) — outside on ['dbts_b1', 'dbts_b2', 'dbts_b3', 'dbts_b4', 'dbts_b5']
-* S2 (from the noise up, 1.00–1.12) refuted: 14 matched points, range 0.950–1.258; outside 1.0–1.12: dbts_b1 G1 Q56 0.950, dbts_b2 G1 Q56 0.982, dbts_b2 G1 Q16 1.125, dbts_b2 G16 Q32 1.132, dbts_b2 G16 Q16 1.256, dbts_b3 G1 Q56 0.983, dbts_b4 G1 Q56 0.952, dbts_b4 G1 Q32 1.258, dbts_b4 G16 Q32 1.214, dbts_b5 G1 Q56 0.974, dbts_b5 G1 Q32 1.227, dbts_b5 G16 Q32 1.206
-* S3 (Q 8's quality: above the 10bit Q 12 rung's PSNR, 1.05–1.35) held: 5 matched points, range 1.134–1.173
-  S3 refuted also: not above S2's range on ['dbts_b2', 'dbts_b4', 'dbts_b5']
-* S4 refuted: series with a wrong sign, by Q: Q 32: ['dbts_b2', 'dbts_b4', 'dbts_b5']
-* S5 refuted: top8at10 ÷ 10bit at equal PSNR: dbts_b2 Q32 1.008, dbts_b2 Q16 1.022, dbts_b5 Q32 1.018, dbts_b5 Q16 1.043
-* S6 refuted: series with a matched point outside ±0.002 SSIM or ±2 points: ['dbts_b1', 'dbts_b2', 'dbts_b3', 'dbts_b4', 'dbts_b5']
-* S7 refuted: 40 matched points, residual ratio 0.9685–1.0227
+* **tol decides the bytes.** At G = 1 the largest error predicting an interior 10bit rung from its neighbours is 0.28–0.37 in ln, set by Q 8 predicted from Q 2 and Q 12 (the smallest interior error per series is 0.035–0.16); at G = 16, with rungs 2, 8, 16, 32, 56 only, 0.71–1.12. Every top8 ÷ 10bit ratio, 0.95–1.43, lies within it: **a tie in every cell by the rule**, though the point ratios run 1.05–1.26 at G = 1 and 1.08–1.43 at G = 16 from the crossover up. The same holds for the residual (ratios 0.97–1.02, the residual curve's tol 0.04–0.07 ln at G = 1 and 0.06–0.12 at G = 16).
+* **The Q 56 points** (0.95–0.98) are interpolated across the 10bit Q 32–Q 56 gap, 4 dB wide, where the curve bends; they carry most of S2's and S6's misses below 1 and in SSIM.
+* **S4's sign at Q 32**: top8 has lower PSNR than 10bit at Q 32 on `dbts_b2`, `dbts_b4`, `dbts_b5` (−0.02, −0.24, −0.26 dB) while larger in bytes, where T3 predicted higher PSNR.
+* **The control** (S5): top8at10 ÷ 10bit at equal PSNR is 1.008–1.043; top8 ÷ top8at10 at equal Q is 0.95–0.97 at Q 16 and 1.06–1.09 at Q 32, the sign T3's λ ratio (0.96, 1.18) gives. So most of top8's extra bytes at Q 32 are the 8-bit coder's, not the data's — on `dbts_b2` and `dbts_b5` only.
 
+### Decode (stage 3)
+
+**Host 2, the block read** (21 rounds):
+
+* A/A 1×: 10bit S1′ ÷ 10bit S1 1.005 [0.993–1.013] over 210 pairs — kept
+* A/A 4×: 10bit S1′ ÷ 10bit S1 0.987 [0.977–1.001] over 105 pairs — kept
+| series | anchor Q | throttle | G | n | 10bit ms | top8 ms | top8 ÷ 10bit [95 %] | speed | Δ dB | |Δ|·8 % | order effect | state | S8 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| dbts_b1 | 16 | 1× | 1 | 21 | 89.7 | 70.6 | 0.787 [0.754–1.005] | not decided | -0.244 | 2.0% | 24% (p 0.448) | read | not decided |
+| dbts_b1 | 16 | 1× | 16 | 21 | 103.1 | 82.6 | 0.806 [0.707–0.853] | faster | -0.303 | 2.4% | 23% (p 0.018) | not read: order | — |
+| dbts_b1 | 32 | 1× | 1 | 21 | 76.3 | 59.4 | 0.787 [0.756–0.993] | faster | +0.012 | 0.1% | 29% (p 0.195) | read | not decided |
+| dbts_b1 | 32 | 1× | 16 | 21 | 82.1 | 63.3 | 0.783 [0.725–0.831] | faster | +0.037 | 0.3% | 33% (p 0.013) | not read: order | — |
+| dbts_b1 | 32 | 4× | 1 | 21 | 280.4 | 210.1 | 0.767 [0.701–1.026] | not decided | +0.012 | 0.1% | 31% (p 0.520) | read | not decided |
+| dbts_b1 | 32 | 4× | 16 | 21 | 275.7 | 211.1 | 0.785 [0.735–0.832] | faster | +0.037 | 0.3% | 34% (p 0.065) | read | held |
+| dbts_b2 | 16 | 1× | 1 | 21 | 55.2 | 43.7 | 0.793 [0.732–0.943] | faster | -0.303 | 2.4% | 22% (p 0.198) | read | not decided |
+| dbts_b2 | 16 | 1× | 16 | 21 | 62.7 | 50.1 | 0.798 [0.757–0.880] | faster | -0.375 | 3.0% | 19% (p 0.037) | not read: order | — |
+| dbts_b2 | 16 | 4× | 1 | 21 | 165.1 | 127.4 | 0.776 [0.667–0.921] | faster | -0.303 | 2.4% | 27% (p 0.185) | read | not decided |
+| dbts_b2 | 16 | 4× | 16 | 21 | 178.8 | 136.5 | 0.796 [0.720–0.842] | faster | -0.375 | 3.0% | 31% (p 0.013) | not read: order | — |
+| dbts_b2 | 32 | 1× | 1 | 21 | 44.3 | 35.9 | 0.806 [0.718–0.929] | faster | -0.023 | 0.2% | 28% (p 0.022) | not read: order | — |
+| dbts_b2 | 32 | 1× | 16 | 21 | 45.0 | 34.7 | 0.765 [0.722–0.831] | faster | -0.025 | 0.2% | 15% (p 0.320) | read | held |
+| dbts_b3 | 16 | 1× | 1 | 21 | 65.4 | 50.7 | 0.797 [0.729–0.860] | faster | -0.270 | 2.2% | 21% (p 0.025) | not read: order | — |
+| dbts_b3 | 16 | 1× | 16 | 21 | 71.2 | 57.9 | 0.822 [0.774–0.902] | faster | -0.329 | 2.6% | 22% (p 0.015) | not read: order | — |
+| dbts_b3 | 32 | 1× | 1 | 21 | 46.9 | 37.6 | 0.791 [0.757–0.919] | faster | +0.002 | 0.0% | 30% (p 0.040) | not read: order | — |
+| dbts_b3 | 32 | 1× | 16 | 21 | 49.0 | 38.5 | 0.798 [0.735–0.836] | faster | +0.017 | 0.1% | 28% (p 0.018) | not read: order | — |
+| dbts_b3 | 32 | 4× | 1 | 21 | 159.8 | 126.1 | 0.770 [0.724–1.034] | not decided | +0.002 | 0.0% | 32% (p 0.520) | read | not decided |
+| dbts_b3 | 32 | 4× | 16 | 21 | 164.3 | 121.6 | 0.762 [0.691–0.820] | faster | +0.017 | 0.1% | 39% (p 0.065) | read | held |
+| dbts_b4 | 16 | 1× | 1 | 21 | 58.7 | 47.5 | 0.807 [0.773–0.922] | faster | -0.440 | 3.5% | 21% (p 0.113) | read | not decided |
+| dbts_b4 | 16 | 1× | 16 | 21 | 66.1 | 53.8 | 0.795 [0.767–0.858] | faster | -0.466 | 3.7% | 21% (p 0.035) | not read: order | — |
+| dbts_b4 | 32 | 1× | 1 | 21 | 46.2 | 37.7 | 0.816 [0.723–0.976] | faster | -0.244 | 2.0% | 30% (p 0.015) | not read: order | — |
+| dbts_b4 | 32 | 1× | 16 | 21 | 49.3 | 38.5 | 0.801 [0.709–0.864] | faster | -0.057 | 0.5% | 29% (p 0.013) | not read: order | — |
+| dbts_b4 | 32 | 4× | 1 | 21 | 164.3 | 125.0 | 0.813 [0.717–0.938] | faster | -0.244 | 2.0% | 39% (p 0.007) | not read: order | — |
+| dbts_b4 | 32 | 4× | 16 | 21 | 159.7 | 122.6 | 0.770 [0.713–0.841] | faster | -0.057 | 0.5% | 36% (p 0.058) | read | held |
+| dbts_b5 | 16 | 1× | 1 | 21 | 51.4 | 41.4 | 0.817 [0.784–0.946] | faster | -0.471 | 3.8% | 21% (p 0.015) | not read: order | — |
+| dbts_b5 | 16 | 1× | 16 | 21 | 58.9 | 47.5 | 0.815 [0.762–0.850] | faster | -0.575 | 4.6% | 18% (p 0.013) | not read: order | — |
+| dbts_b5 | 32 | 1× | 1 | 21 | 43.4 | 35.0 | 0.814 [0.711–0.995] | faster | -0.264 | 2.1% | 30% (p 0.025) | not read: order | — |
+| dbts_b5 | 32 | 1× | 16 | 21 | 45.4 | 34.7 | 0.770 [0.730–0.826] | faster | -0.081 | 0.7% | 22% (p 0.163) | read | held |
+| dbts_b5 | 32 | 4× | 1 | 21 | 155.2 | 116.9 | 0.758 [0.716–0.974] | faster | -0.264 | 2.1% | 33% (p 0.282) | read | not decided |
+| dbts_b5 | 32 | 4× | 16 | 21 | 144.3 | 114.4 | 0.787 [0.744–0.855] | faster | -0.081 | 0.7% | 38% (p 0.015) | not read: order | — |
+
+**Host 1, reported, not read** (8 rounds, under §7's floor of 10):
+
+* A/A 1×: 10bit S1′ ÷ 10bit S1 1.003 [0.989–1.032] over 80 pairs — kept
+* A/A 4×: 10bit S1′ ÷ 10bit S1 0.988 [0.955–1.018] over 40 pairs — kept
+| series | anchor Q | throttle | G | n | 10bit ms | top8 ms | top8 ÷ 10bit [95 %] | speed | Δ dB | |Δ|·8 % | order effect | state | S8 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| dbts_b1 | 16 | 1× | 1 | 8 | 85.7 | 68.3 | 0.870 [0.610–1.022] | not decided | -0.244 | 2.0% | 30% (p 0.258) | not read: 8 rounds | — |
+| dbts_b1 | 16 | 1× | 16 | 8 | 99.4 | 72.2 | 0.763 [0.576–0.909] | faster | -0.303 | 2.4% | 25% (p 0.273) | not read: 8 rounds | — |
+| dbts_b1 | 32 | 1× | 1 | 8 | 73.3 | 58.8 | 0.822 [0.543–1.039] | not decided | +0.012 | 0.1% | 34% (p 0.258) | not read: 8 rounds | — |
+| dbts_b1 | 32 | 1× | 16 | 8 | 78.2 | 62.6 | 0.780 [0.560–1.062] | not decided | +0.037 | 0.3% | 28% (p 0.713) | not read: 8 rounds | — |
+| dbts_b1 | 32 | 4× | 1 | 8 | 263.8 | 209.2 | 0.819 [0.487–1.083] | not decided | +0.012 | 0.1% | 41% (p 0.258) | not read: 8 rounds | — |
+| dbts_b1 | 32 | 4× | 16 | 8 | 278.1 | 210.7 | 0.796 [0.514–1.015] | not decided | +0.037 | 0.3% | 35% (p 0.273) | not read: 8 rounds | — |
+| dbts_b2 | 16 | 1× | 1 | 8 | 55.1 | 41.4 | 0.743 [0.525–0.969] | faster | -0.303 | 2.4% | 29% (p 0.453) | not read: 8 rounds | — |
+| dbts_b2 | 16 | 1× | 16 | 8 | 57.2 | 45.4 | 0.765 [0.607–0.919] | faster | -0.375 | 3.0% | 21% (p 0.273) | not read: 8 rounds | — |
+| dbts_b2 | 16 | 4× | 1 | 8 | 159.3 | 118.8 | 0.735 [0.477–1.015] | not decided | -0.303 | 2.4% | 35% (p 0.507) | not read: 8 rounds | — |
+| dbts_b2 | 16 | 4× | 16 | 8 | 167.4 | 116.1 | 0.726 [0.494–0.983] | faster | -0.375 | 3.0% | 32% (p 0.475) | not read: 8 rounds | — |
+| dbts_b2 | 32 | 1× | 1 | 8 | 41.3 | 30.5 | 0.783 [0.495–0.996] | faster | -0.023 | 0.2% | 37% (p 0.258) | not read: 8 rounds | — |
+| dbts_b2 | 32 | 1× | 16 | 8 | 43.4 | 34.5 | 0.765 [0.539–1.069] | not decided | -0.025 | 0.2% | 30% (p 0.713) | not read: 8 rounds | — |
+| dbts_b3 | 16 | 1× | 1 | 8 | 62.7 | 47.4 | 0.764 [0.574–0.936] | faster | -0.270 | 2.2% | 25% (p 0.258) | not read: 8 rounds | — |
+| dbts_b3 | 16 | 1× | 16 | 8 | 67.3 | 52.5 | 0.789 [0.642–0.928] | faster | -0.329 | 2.6% | 19% (p 0.273) | not read: 8 rounds | — |
+| dbts_b3 | 32 | 1× | 1 | 8 | 45.1 | 34.6 | 0.827 [0.521–1.086] | not decided | +0.002 | 0.0% | 37% (p 0.258) | not read: 8 rounds | — |
+| dbts_b3 | 32 | 1× | 16 | 8 | 46.7 | 34.7 | 0.747 [0.533–0.931] | faster | +0.017 | 0.1% | 29% (p 0.273) | not read: 8 rounds | — |
+| dbts_b3 | 32 | 4× | 1 | 8 | 161.4 | 115.0 | 0.756 [0.447–0.998] | faster | +0.002 | 0.0% | 41% (p 0.258) | not read: 8 rounds | — |
+| dbts_b3 | 32 | 4× | 16 | 8 | 159.9 | 114.3 | 0.746 [0.450–1.038] | not decided | +0.017 | 0.1% | 40% (p 0.273) | not read: 8 rounds | — |
+| dbts_b4 | 16 | 1× | 1 | 8 | 55.3 | 45.2 | 0.858 [0.514–0.985] | faster | -0.440 | 3.5% | 40% (p 0.258) | not read: 8 rounds | — |
+| dbts_b4 | 16 | 1× | 16 | 8 | 62.5 | 48.9 | 0.819 [0.604–0.959] | faster | -0.466 | 3.7% | 26% (p 0.273) | not read: 8 rounds | — |
+| dbts_b4 | 32 | 1× | 1 | 8 | 44.5 | 34.4 | 0.817 [0.508–1.201] | not decided | -0.244 | 2.0% | 38% (p 0.472) | not read: 8 rounds | — |
+| dbts_b4 | 32 | 1× | 16 | 8 | 46.6 | 35.5 | 0.769 [0.555–1.020] | not decided | -0.057 | 0.5% | 28% (p 0.500) | not read: 8 rounds | — |
+| dbts_b4 | 32 | 4× | 1 | 8 | 151.3 | 119.7 | 0.794 [0.527–1.019] | not decided | -0.244 | 2.0% | 34% (p 0.258) | not read: 8 rounds | — |
+| dbts_b4 | 32 | 4× | 16 | 8 | 155.0 | 109.9 | 0.747 [0.481–0.986] | faster | -0.057 | 0.5% | 36% (p 0.273) | not read: 8 rounds | — |
+| dbts_b5 | 16 | 1× | 1 | 8 | 47.2 | 39.7 | 0.816 [0.566–1.040] | not decided | -0.471 | 3.8% | 31% (p 0.258) | not read: 8 rounds | — |
+| dbts_b5 | 16 | 1× | 16 | 8 | 55.4 | 42.8 | 0.843 [0.614–0.941] | faster | -0.575 | 4.6% | 27% (p 0.273) | not read: 8 rounds | — |
+| dbts_b5 | 32 | 1× | 1 | 8 | 41.4 | 30.6 | 0.790 [0.500–1.006] | not decided | -0.264 | 2.1% | 37% (p 0.258) | not read: 8 rounds | — |
+| dbts_b5 | 32 | 1× | 16 | 8 | 42.2 | 31.5 | 0.809 [0.587–0.986] | faster | -0.081 | 0.7% | 27% (p 0.273) | not read: 8 rounds | — |
+| dbts_b5 | 32 | 4× | 1 | 8 | 153.7 | 118.1 | 0.735 [0.535–1.002] | not decided | -0.264 | 2.1% | 27% (p 0.733) | not read: 8 rounds | — |
+| dbts_b5 | 32 | 4× | 16 | 8 | 159.2 | 109.0 | 0.702 [0.479–1.022] | not decided | -0.081 | 0.7% | 32% (p 0.713) | not read: 8 rounds | — |
+
+Read with these:
+
+* **The A/A held** at both throttles on host 2 (1.005 [0.993–1.013] at 1×, 0.987 [0.977–1.001] at 4×), so no cell is void.
+* **The intervals are 2–4 times the sizing's ±4–5 %.** The cause is in the rows: the unit run first in its worker takes 0.66–0.88 (median 0.77) of the same unit's time in the other positions, on host 2. The Williams rows put each unit first equally often, so the median is balanced, but the per-round ratio spreads with who ran first. The same effect is what §7's order rule flags in 17 of the 30 cells (largest predecessor median 18–39 % from the whole, beyond 95 % of 400 shuffles); those are not read.
+* **Equal quality**: every partner is the anchor's own Q, Δ −0.58 to +0.04 dB; |Δ| · 8 % is at most 4.6 %, under every decided cell's distance from 1, so no cell is set aside for it.
+* **Host 1's block** (8 rounds) gives medians 0.70–0.87 in the same cells, consistent with host 2's, and is not read: under 10 rounds, and on another CPU.
+* *Throughput is not quoted*: every figure is the latency of one frame, one decode in flight.
+
+### S1–S8
+
+* **S1 held by its clause** (no rung over 58.5 dB: the highest top8 PSNR is 50.13 dB). Its second part is wrong: the uncoded top8 lands at **60.15–63.07 dB**, not 58.4 ± 0.1 (mean square 0.52–1.01, not 1.5). T1 assumed v mod 4 evenly spread; on these volumes it is not (C2 matches the histogram exactly), so the ceiling is per series and 1.7–4.7 dB higher than T1's.
+* **S2 refuted**: 14 matched points from the noise up, 0.950–1.258; outside 1.00–1.12 on every series (above on `dbts_b2` G 1 Q 16 1.125, `dbts_b4` and `dbts_b5` at Q 32, 1.21–1.26 at G 1 and G 16, `dbts_b2` G 16 1.13–1.26; below at every Q 56 point, 0.95–0.98).
+* **S3 refuted**: the five Q 8 points are 1.134–1.173, inside 1.05–1.35, but not above S2's range on `dbts_b2`, `dbts_b4`, `dbts_b5`.
+* **S4 refuted**: at Q 8 and Q 12 top8 is smaller and lower in PSNR on all five, as predicted (0.74–0.89×, −0.70 to −2.25 dB); at Q 56 larger (1.13–1.19×) and higher (+0.31 to +0.43 dB) on all five; at Q 32 larger (1.05–1.11×) on all five but lower in PSNR on `dbts_b2`, `dbts_b4`, `dbts_b5` (−0.02 to −0.26 dB) — three series, the clause's count.
+* **S5 refuted**: top8at10 ÷ 10bit at equal PSNR 1.008 and 1.022 on `dbts_b2`, 1.018 and **1.043** on `dbts_b5` (Q 32, Q 16): one outside ±3 %. Its second part held: top8 ÷ top8at10 at equal Q 0.947, 0.966 at Q 16 and 1.064, 1.090 at Q 32, the signs of T3's λ ratio.
+* **S6 refuted**: SSIM differs by more than 0.002 at a matched point on all five series (+0.0015 to +0.028 at the Q 56 points, −0.018 and −0.021 at Q 32 on `dbts_b5`, `dbts_b4`); the displayed-level change is inside ±2 points everywhere (share differing −0.04 to +0.31 points, differing by more than one code −0.10 to +1.44).
+* **S7 refuted**: residual ratio 0.968–1.023 over 40 matched points; outside 0.98–1.02 at Q 8 on `dbts_b4` (0.968) and `dbts_b5` (0.976), and at G 16 Q 16 on `dbts_b4` (1.023) and `dbts_b5` (1.022).
+* **S8 not decided**: of 30 cells, 13 read; 5 held (inside 0.55–0.90: 4× G 16 on `dbts_b1`, `dbts_b3`, `dbts_b4`, 1× G 16 on `dbts_b2` Q 32 and `dbts_b5` Q 32), 8 not decided (their interval reaches past 0.90), none refuted; 17 not read for order.
+
+### The verdict per series and quality
+
+| series | anchor Q | partner Q | bytes ratio | bytes | residual ratio | residual | decode | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| dbts_b1 | 16 | 16 | 1.095 | tie | 1.002 | tie | 1 of 2 read, not all faster | a trade: +9.5% bytes (a tie) for 21% less decode time a frame in the read cells |
+| dbts_b1 | 32 | 32 | 1.046 | tie | 1.002 | tie | 3 of 4 read, not all faster | a trade: +4.6% bytes (a tie) for 21%, 23%, 22% less decode time a frame in the read cells |
+| dbts_b2 | 16 | 16 | 1.125 | tie | 1.006 | tie | 2 of 4 read, not all faster | a trade: +12.5% bytes (a tie) for 21%, 22% less decode time a frame in the read cells |
+| dbts_b2 | 32 | 32 | 1.077 | tie | 1.005 | tie | 1 of 2 read, not all faster | a trade: +7.7% bytes (a tie) for 23% less decode time a frame in the read cells |
+| dbts_b3 | 16 | 16 | 1.086 | tie | 1.002 | tie | 0 of 2 read, not all faster | not decided (no decode cell read) |
+| dbts_b3 | 32 | 32 | 1.052 | tie | 1.002 | tie | 2 of 4 read, not all faster | a trade: +5.2% bytes (a tie) for 23%, 24% less decode time a frame in the read cells |
+| dbts_b4 | 16 | 16 | 1.207 | tie | 1.008 | tie | 1 of 2 read, not all faster | a trade: +20.7% bytes (a tie) for 19% less decode time a frame in the read cells |
+| dbts_b4 | 32 | 32 | 1.258 | tie | 1.003 | tie | 1 of 4 read, not all faster | a trade: +25.8% bytes (a tie) for 23% less decode time a frame in the read cells |
+| dbts_b5 | 16 | 16 | 1.213 | tie | 1.009 | tie | 0 of 2 read, not all faster | not decided (no decode cell read) |
+| dbts_b5 | 32 | 32 | 1.227 | tie | 1.004 | tie | 2 of 4 read, not all faster | a trade: +22.7% bytes (a tie) for 23%, 24% less decode time a frame in the read cells |
+
+### `dbts_b_max` (stage 4)
+
+Two 10bit rungs only (Q 16 47.27 dB, Q 32 44.66 dB), so no tol: top8 Q 16 (46.73 dB) is bracketed and reads **1.394** at equal PSNR, residual 1.018, SSIM −0.0073; top8 Q 32 (44.23 dB) lies under the curve and is not extrapolated. At equal Q: 0.984× and −0.54 dB at Q 16, 1.091× and −0.43 dB at Q 32 — at Q 32 the same wrong PSNR sign as three of the five. Coded on host 2, where C1 reproduced the bytes run's cell byte for byte first. One volume, two rungs: reported, not read into S1–S8.
+
+Files: `lab/av1/profiles/results/split-preview-b/` — `cells.jsonl` (stage 2 and 4 rows), `checks.jsonl`, `c6-*.json`, `streams.jsonl`, `partners.json`, `decode.json` (host 2), `decode-host1.json`, `timeline.txt`. Harness: `split_preview_bytes.py`, `split_preview_run.sh`, `split_preview_block.mjs` with its worker `split_preview_block.js`, `split_preview_report.py`; `bytes.py` gained the top8 and top8at10 forms, the C2–C4 mutations and the stream writer behind the driver's `--keep`. The tables above are `split_preview_report.py`'s output.
