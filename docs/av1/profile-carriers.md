@@ -1110,3 +1110,198 @@ them alone, a check and **not read**:
   from a second worktree. The harness under the run (everything but `results/` and `docs/`) stayed equal to
   `fb6e522a` (finding 16; `git diff fb6e522a HEAD -- lab server client`, results excluded, empty).
 * One commit is misnamed: `2f070844` says "rows through round 72" but holds only mutation rows.
+
+## Profile carriers, measured (amended)
+
+*2026-11-05, the collector of "Profile carriers protocol, amended", run by a session given only that protocol; its
+§D and *The collector* applied as written to the four shards' rows, nothing in them changed.*
+
+1. **Run:** `amended.py` on the rows of shards 1–4 pooled: 94 rounds of 12 blocks (rounds 0–93), every block whole;
+   output in [`results/amended-collected.md`](../../lab/av1/delivery/carriers/results/amended-collected.md).
+2. **Shows:** the rule keeps the layered stream a candidate on each of the three volumes, but only in two places. At
+   k = 1 it is on the exact frame's frontier because its ask is the smallest (0.95× the residual's bytes), even though
+   that ask takes 2.7–11.6× the time of the separate carrier's fastest. At k = 16 it is on the high view's cine and scroll
+   frontier on `dbts_b1` and `dbts_c1`, 5–19 % faster for 15–35 % more bytes. For the jump, every k is dominated.
+3. **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` only; one-thread dav1d-WASM and OpenJPH in headless Chromium at 1×;
+   four 4-core cloud hosts, three of one model and one of another (below). Decode only, no link.
+4. **Left:** rounds 94–95 (shard 4 stopped on its budget); ultrasound cine and ABUS (no fixture); 4×, phones, a link,
+   WebCodecs; and which quality is visually lossless (the owner's call).
+5. **Not here:** a verdict past these three volumes, this host class or 1×. The cheap view is reported, not judged.
+
+**Terms, first use.**
+
+* **G** — the separate streams' group length: a keyframe every G frames, each frame of a group predicted from the one
+  before; G = 1 codes each frame alone. **k** — the same for the layered stream: its keyframe interval. A client
+  with no decoder state decodes (i mod G) + 1 units (or (i mod k) + 1) to show frame i.
+* **Layered stream (SVC)** — one AV1 stream whose every temporal unit (one frame's coded data) holds three spatial
+  layers: the **base**, a quarter-size lossy picture; the **middle**, a full-size lossy picture predicted from the
+  base; the **top**, the exact picture predicted from the middle. Base = cheap view, base + middle = high view, all
+  three = exact frame. On 12 bits the top codes the upper 10 bits and the two low bits are a separate intra stream.
+* **Separate carrier** — one lossy AV1 stream per view at its own G, plus, for the exact frame, the **residual**
+  (exact − lossy per sample, plus one offset, coded losslessly in HTJ2K and added to the lossy frame on screen) or the
+  **whole** HTJ2K frame.
+* **Systems A, B, C** — the three DBT scanners of the EA1141 dataset; A and C store 12 bits, B 10. `dbts_a1` is A's
+  volume (56 frames × 1142×1785), `dbts_b1` B's (50 × 2560×3328), `dbts_c1` C's (69 × 976×2513).
+* **Time** — each metric is in **HTJ2K-frame units**: the arm's time divided by the median per-frame HTJ2K decode of
+  its own block's control in the same round. 1.0 is one whole HTJ2K frame's decode in that browser on that host.
+  **n** is the number of rounds. A configuration is **dominated** when a rival has no more bytes and is no slower
+  (decided), and fewer bytes or decided faster. It is **not read** when such a rival's comparison is gated out. It is
+  **on the frontier** otherwise (§D.5).
+* **Bytes** — per role, at the target in-window PSNR (§A): the high view's stream; for the exact frame, what one ask
+  adds to the high view the client already holds (the mean over i = 0 … F − 2).
+
+**Fixtures, and only these.** The three volumes above, SHA-256-checked by every shard. The repository holds few
+cine-like breast series. It has no breast ultrasound cine (the one ultrasound cine is lossy-sourced) and no ABUS.
+Every result below is for these three DBT volumes and is claimed for nothing else.
+
+### Pooled, and what is missing
+
+| shard | rounds | n | host (`lscpu`) | a round | saturation, as the shard reports |
+| --- | --- | --: | --- | --: | --- |
+| 1 | 0–23 | 24 | Xeon @ 2.10 GHz, 4 cores, 15 GB | 7.2–8.2 min | host 26–33 % busy, load 1.1–1.3: one core of four; did not saturate |
+| 2 | 24–47 | 24 | Xeon @ 2.10 GHz, 4 cores, 15.7 GiB | 6.6–7.5 min | median 28 % busy, max 31 %, run queue 1.2; did not saturate |
+| 3 | 48–71 | 24 | Xeon @ 2.10 GHz, 4 cores, 15 GiB | 8.0–9.5 min | load 1.24 (one sample): one core of four; did not saturate |
+| 4 | 72–93 | 22 | Xeon @ 2.80 GHz, 4 cores, 15 GB | 9.6–11.2 min | host 26–33 % busy, load 1.0–1.2; did not saturate |
+
+* **n = 94 of 96 in every block.** Rounds 94 and 95 are missing: shard 4's `BUDGET_S` stopped it after round 93, as
+  §F provides. Nothing else is missing. No block is `VOID`. No row carries an error. Every exact and lossy frame
+  passed its check in all four shards, so no arm-round was dropped. Two medians rest on fewer rounds: `dbts_c1`
+  `lay-k16` scroll (n 92) and `sep-g8` / `sep-g32` scroll (n 93). There the arm's per-frame metric lacked rows in 1–2
+  rounds. The cause is *unverified*.
+* **Each host stayed at one decode in flight on one core of four** and did not saturate. Nothing is claimed past 1×.
+* **Shard 4's host differs.** Its model string reads 2.80 GHz, yet its rounds ran slower. Its control's median HTJ2K
+  frame on `dbts_a1` is 1.05–1.25× the other shards' (*derived*). Only ratios are pooled, as §F says. The per-shard
+  medians of the ratios the verdicts rest on move by up to 7 % from shard to shard on any host, shard 4 included:
+  `dbts_c1` `lay-k16` ÷ `sep-g32`, cine, is 0.981 · 0.919 · 0.930 · 0.964 across shards 1–4 (*derived* from the
+  rows). The rule's interval treats every round as alike and holds no shard term, so a gap under about 7 % rests on
+  that.
+* **Deviations the shards reported**, none of them protocol: `meson` installed with pip in all four. numpy was absent
+  for `gen_htj2k_fixtures.sh`, but `ojph_compress` was built. `tools` was first run on an earlier commit before §F
+  existed, then §F's command was run from its start on `fb6e522a`. Shard 3 has one commit with another committer.
+  Shard 4 has one misnamed commit. Each shard's harness stayed at `fb6e522a` under its rounds.
+
+### Gates
+
+* **A/A, per block** (the 95 % interval of the median of log(`ctrl-aa` ÷ `ctrl`), n 94): it contains 0 in 11 of 12
+  blocks. It excludes 0 in `dbts_b1` · k 1: −0.0058 (−0.0108, −0.0016). So that block's arms, `lay-k1` and `sep-g1`,
+  are **not read** on `dbts_b1`. One failure in 12 is the rate §D.2 expects by chance (about 1 in 20). Medians across
+  blocks run from −0.0058 to +0.0052.
+* **Order, per (block, arm)**, at p < 0.05 ÷ arms in the block: **no arm is flagged** on the pooled rows. The shards'
+  own checks flagged `dbts_b1` k 8 `lay-k8`, `sep-g8` (shard 1) and `dbts_b1` k 16 `ctrl` (shard 3). Neither is
+  flagged at n 94.
+
+### The verdict, per role and access pattern (§D.5–6)
+
+Each cell lists the layered stream's state at k = 1 · 4 · 8 · 16. The last column lists what else is on the
+frontier. F = on the frontier, D = dominated, N = not read.
+
+| role · access pattern (metric) | `dbts_a1` | `dbts_b1` | `dbts_c1` | also on the frontier (a1 / b1 / c1) |
+| --- | --- | --- | --- | --- |
+| high view · in order (cine total) | D · D · D · D | N · D · D · **F** | D · D · D · **F** | sep-g4, g16, g32 / sep-g4, g8, g32 / sep-g32 |
+| high view · in order (scroll, one frame) | D · D · D · D | N · D · D · **F** | D · D · D · **F** | sep-g8, g16, g32 / sep-g4, g32 / sep-g32 |
+| high view · jump | D · D · D · D | N · D · D · D | D · D · D · D | every sep-g / sep-g4–g32 / every sep-g |
+| exact · after a jump | **F** · D · D · D | **F** · D · D · D | **F** · D · D · D | sep-g1, whole / none (rivals N) / sep-g1, whole |
+| exact · dweller, frame i | **F** · D · D · D | **F** · D · D · D | **F** · D · D · D | sep-g1, g32, whole / none (rivals N) / sep-g1, whole |
+| exact · dweller, then i + 1 | **F** · D · D · D | **F** · D · D · D | **F** · D · D · D | sep-g1, g4, whole / none (rivals N) / sep-g1, g4, whole |
+
+**§D.6, per volume: the layered stream stays a candidate on `dbts_a1`, `dbts_b1` and `dbts_c1`, so it holds "on
+these three volumes".** The configurations that keep it, with their numbers. Each figure below is the layered time ÷
+the rival's, as the median per-round ratio with its 95 % interval, n 94 unless stated. It comes from `amended.py`'s
+`pair`, printed apart (*derived*).
+
+* **k = 1, the exact frame, every pattern, every volume.** Its ask adds 0.944–0.951× the bytes of the cheapest
+  separate rival: the residual at any G, or the whole frame. With fewest bytes it is on the frontier "whatever their
+  time" (§D.5). The time is decided against it everywhere it is read. After a jump it is 11.6× the whole HTJ2K frame
+  on `dbts_a1` (11.48, 11.77) and 10.5× on `dbts_c1` (10.20, 10.64). Against `sep-g1` it is 3.38× (3.30, 3.46) and
+  2.89× (2.82, 2.96). For the dweller's frame i it is 8.3–8.7× and 7.3–7.4× every residual. On `dbts_b1` every rival
+  of the exact frame is not read (the A/A above, through `sep-g1`'s block). Their unread medians are 2.2× `sep-g1` and
+  6.5× the whole frame.
+* **k = 16, the high view in order, on `dbts_b1` and `dbts_c1`.** It needs 1.15–1.24× (`dbts_b1`) and 1.21–1.35×
+  (`dbts_c1`) the bytes of `sep-g4` … `sep-g32`. Its time is decided lower against each. On `dbts_b1` the cine is
+  0.83–0.88× and the scroll 0.81–0.83×. On `dbts_c1` the cine is 0.92–0.95× and the scroll 0.90–0.92×. It is not
+  dominated, so it is on the frontier. The `dbts_c1` cine lead, 5–8 %, is within the shard-to-shard spread above. On
+  shard 1's rows alone `lay-k16` ÷ `sep-g16` cine is 0.996 (*derived*). On `dbts_a1` the same k = 16 is dominated:
+  `sep-g4` has 0.78× its bytes and is faster, 1.020 (1.004, 1.036).
+* **The jump, every volume.** Every k is dominated (k = 1 on `dbts_b1` is not read). At k = 1, `sep-g1` has 0.59–0.61×
+  the bytes and is faster: the layered jump is 1.065× (1.045, 1.108) on `dbts_a1` and 1.046× (1.027, 1.069) on
+  `dbts_c1`. At k ≥ 4, a separate stream with fewer bytes is as fast or faster.
+* **Not one k is kept by both judged roles.** `lay-k1`, the only k on any exact frontier, is dominated in every
+  high-view pattern on `dbts_a1` and `dbts_c1` and not read on `dbts_b1`. `lay-k16`, the only k on a high-view
+  frontier, is dominated in every exact pattern, at 5.5–7.9× the separate ask's bytes. A client that holds the high
+  view and then asks the exact frame takes, at k = 1, 1.19 · 1.20 · 1.27× the bytes of `sep-g1`'s high view plus
+  residual (*derived* from the bytes below). That reading is not the rule's, which judges each role alone (§D.5).
+* **Storage beside it** (÷ the HTJ2K volume; *derived* from the indexes): layered 0.961 · 0.970 · 0.963 at k = 1 and
+  0.939 · 0.946 · 0.936 at k = 16. Separate by residual 0.997–1.009, by whole frame 1.005–1.038. The layered stream
+  stores 3–7 % less, which §D.6 does not count as a reason to keep it.
+* **The encoder, apart** (bytes only, from the pin, §A): above k = 1 a single-layer stream from the same
+  `svc_encoder_rtc` needs 1.06–1.32× the layered base + middle's bytes. So the layered view's extra bytes against
+  `aomenc` come from its encoder, not from the base it carries.
+
+### For the owner: bytes and time each carrier needs, and the rule's verdict
+
+For each role and group length (G = k), each cell lists `dbts_a1` · `dbts_b1` · `dbts_c1`. Bytes are layered ÷
+separate at that G = k. Times are in HTJ2K-frame units: 1.0 is one whole HTJ2K frame's decode. The cine time is the
+whole volume. The last column is the rule's state for the layered stream at that k. The separate streams' own states
+are in `amended-collected.md`.
+
+| role, access pattern | G = k | bytes, layered ÷ separate | time, layered | time, separate | layered at this k |
+| --- | --: | --- | --- | --- | --- |
+| high view, cine playback | 1 | 1.68 · 1.34 · 1.65 | 117 · 98.5 · 152 | 106 · 71.7 · 142 | dominated · not read · dominated |
+|  | 4 | 1.50 · 1.25 · 1.44 | 101 · 82.4 · 115 | 96.9 · 89.1 · 117 | dominated · dominated · dominated |
+|  | 8 | 1.44 · 1.23 · 1.37 | 100 · 79.7 · 109 | 99.7 · 93.5 · 115 | dominated · dominated · dominated |
+|  | 16 | 1.41 · 1.22 · 1.34 | 98.8 · 79.9 · 108 | 102 · 93.8 · 114 | dominated · **frontier** · **frontier** |
+| | 32 (separate only) | — | — | 105 · 95.2 · 114 | — |
+| high view, scroll to the next slice | 1 | 1.68 · 1.34 · 1.65 | 2.03 · 1.92 · 2.14 | 1.83 · 1.38 · 2.01 | dominated · not read · dominated |
+|  | 4 | 1.50 · 1.25 · 1.44 | 1.76 · 1.54 · 1.49 | 1.75 · 1.8 · 1.66 | dominated · dominated · dominated |
+|  | 8 | 1.44 · 1.23 · 1.37 | 1.77 · 1.52 · 1.49 | 1.79 · 1.86 · 1.64 | dominated · dominated · dominated |
+|  | 16 | 1.41 · 1.22 · 1.34 | 1.74 · 1.51 · 1.5 | 1.81 · 1.85 · 1.62 | dominated · **frontier** · **frontier** |
+| | 32 (separate only) | — | — | 1.86 · 1.85 · 1.63 | — |
+| high view, jump to a random slice | 1 | 1.68 · 1.34 · 1.65 | 2.2 · 2.09 · 2.35 | 2.07 · 1.52 · 2.25 | dominated · not read · dominated |
+|  | 4 | 1.50 · 1.25 · 1.44 | 4.84 · 4.27 · 4.61 | 4.55 · 4.25 · 4.55 | dominated · dominated · dominated |
+|  | 8 | 1.44 · 1.23 · 1.37 | 8.31 · 7.42 · 7.8 | 8.18 · 8.13 · 8.01 | dominated · dominated · dominated |
+|  | 16 | 1.41 · 1.22 · 1.34 | 14.8 · 13.2 · 13.3 | 15 · 15.5 · 14 | dominated · dominated · dominated |
+| | 32 (separate only) | — | — | 28.4 · 27.3 · 26.8 | — |
+| exact on request, after a jump | 1 | 0.95 · 0.95 · 0.95 | 11.9 · 6.58 · 10.7 | 3.48 · 2.97 · 3.72 | **frontier** · **frontier** · **frontier** |
+|  | 4 | 1.90 · 2.33 · 1.93 | 21.6 · 13.7 · 18.8 | 5.89 · 5.71 · 6 | dominated · dominated · dominated |
+|  | 8 | 3.17 · 4.17 · 3.17 | 34.9 · 23.9 · 30.3 | 9.54 · 9.57 · 9.45 | dominated · dominated · dominated |
+|  | 16 | 5.46 · 7.87 · 5.66 | 59 · 42.9 · 50.6 | 16.4 · 17.1 · 15.5 | dominated · dominated · dominated |
+| | 32 (separate only) | — | — | 29.8 · 28.7 · 28.3 | — |
+| | whole HTJ2K frame | — | — | 1.01 · 1.03 · 1.02 | — |
+| exact on request, dweller, frame i | 1 | 0.95 · 0.95 · 0.95 | 11.9 · 6.58 · 10.7 | 1.42 · 1.44 · 1.46 | **frontier** · **frontier** · **frontier** |
+|  | 4 | 1.90 · 2.33 · 1.93 | 21.6 · 13.7 · 18.8 | 1.41 · 1.47 · 1.45 | dominated · dominated · dominated |
+|  | 8 | 3.17 · 4.17 · 3.17 | 34.9 · 23.9 · 30.3 | 1.42 · 1.45 · 1.45 | dominated · dominated · dominated |
+|  | 16 | 5.46 · 7.87 · 5.66 | 59 · 42.9 · 50.6 | 1.37 · 1.48 · 1.46 | dominated · dominated · dominated |
+| | 32 (separate only) | — | — | 1.37 · 1.54 · 1.43 | — |
+| | whole HTJ2K frame | — | — | 1.01 · 1.03 · 1.02 | — |
+| exact on request, dweller, then i + 1 | 1 | 0.95 · 0.95 · 0.95 | 11.1 · 6.4 · 9.81 | 3.39 · 3 · 3.59 | **frontier** · **frontier** · **frontier** |
+|  | 4 | 1.90 · 2.33 · 1.93 | 10.5 · 5.55 · 9.12 | 3.19 · 3.56 · 3.17 | dominated · dominated · dominated |
+|  | 8 | 3.17 · 4.17 · 3.17 | 10.4 · 5.52 · 8.91 | 3.19 · 3.49 · 3.12 | dominated · dominated · dominated |
+|  | 16 | 5.46 · 7.87 · 5.66 | 10.4 · 5.43 · 8.94 | 3.19 · 3.41 · 3.1 | dominated · dominated · dominated |
+| | 32 (separate only) | — | — | 3.23 · 3.42 · 3.08 | — |
+| | whole HTJ2K frame | — | — | 1.01 · 1.02 · 1.02 | — |
+
+The cheap view, reported and not judged. The separate cheap stream is full-size, at Q 57–62. The layered base is a
+quarter-size picture. A separate carrier may send that base itself (§E, finding 22).
+
+| cheap view · access pattern | G = k | bytes, layered ÷ separate | time, layered | time, separate |
+| --- | --: | --- | --- | --- |
+| cheap view, cine playback | 1 | 1.64 · 1.23 · 1.76 | 11.8 · 6.19 · 15.2 | 124 · 141 · 165 |
+|  | 4 | 1.80 · 1.22 · 1.95 | 6.3 · 3.93 · 7.62 | 50.1 · 59 · 66.8 |
+|  | 8 | 1.86 · 1.10 · 2.03 | 5.26 · 3.66 · 6.32 | 39.4 · 50.8 · 49.1 |
+|  | 16 | 1.80 · 1.00 · 2.03 | 4.9 · 3.78 · 5.79 | 34.4 · 45.6 · 41.7 |
+| cheap view, scroll to the next slice | 1 | 1.64 · 1.23 · 1.76 | 0.205 · 0.118 · 0.212 | 2.17 · 2.76 · 2.33 |
+|  | 4 | 1.80 · 1.22 · 1.95 | 0.0843 · 0.0634 · 0.0767 | 0.493 · 0.62 · 0.48 |
+|  | 8 | 1.86 · 1.10 · 2.03 | 0.0788 · 0.0671 · 0.0736 | 0.45 · 0.73 · 0.444 |
+|  | 16 | 1.80 · 1.00 · 2.03 | 0.0783 · 0.0699 · 0.0732 | 0.457 · 0.752 · 0.447 |
+
+**Plainly, on these three fixtures.** The layered stream remains a candidate under the rule for two roles, each at a
+different k.
+
+* **Exact frame on request, at k = 1.** It is kept only because its ask is about 5 % smaller. That ask takes 2.7–11.6×
+  the decode time of the separate residual at G = 1 or of the whole HTJ2K frame.
+* **High view in order, at k = 16, on `dbts_b1` and `dbts_c1`.** It is 5–19 % faster for 15–35 % more bytes.
+
+It is not a candidate for the jump at any k, and for nothing at all on `dbts_a1`'s high view. No single layered
+stream is kept by both judged roles. The separate carrier has a configuration on every judged frontier of `dbts_a1`
+and `dbts_c1`, `sep-g1` or `whole` on each exact one. On `dbts_b1` its exact-frame configurations are not read, gated
+out by the k = 1 block's A/A. Nothing here is claimed for ultrasound, FFDM, other volumes, 4×, a phone or a link.
