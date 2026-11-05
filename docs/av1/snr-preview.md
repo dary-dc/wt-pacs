@@ -399,3 +399,9 @@ arm flagged by order with its p; per (volume, G, rung) each stage's bytes and me
 carriers with its frontier state, the match's PSNR and the per-frame decodes beside it; each pair's label and the
 stages each side dominates; and the answer table, per (two-layer carrier, alternative, G, rung), with whether it
 holds "on these three volumes".
+
+### SNR shard 1, measured
+
+*Running: rounds 0–9 of §Shards on one 4-core host, started 2026-11-05 09:03 UTC. This heading is filled in when the
+shard ends; until then [`results/shard-1.jsonl`](../../lab/av1/delivery/snr/results/shard-1.jsonl) holds every
+block so far, pushed after each round.*
