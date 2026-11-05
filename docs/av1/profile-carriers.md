@@ -785,15 +785,71 @@ bytes are reported, not judged.
 
 ### Amended shard 1, measured
 
-*2026-11-05, shard 1 of 4, run by a session given only the amended protocol; §F's command as written on `fb6e522a`.
-In progress: this section is filled as steps finish.*
+*2026-11-05, shard 1 of 4, run by a session given only the amended protocol; §F's command as written, on `fb6e522a`.
+Numbers only; the collector pools the shards and applies §D. In progress: rounds are running, and this section is
+filled as they finish.*
 
 1. **Run:** `SHARD=1 ROUNDS_PER_SHARD=24 BUDGET_S=16200 run.sh tools amended-content amended-mutate amended-rounds`,
-   started 01:17 UTC. Rounds 0–23 are assigned.
-2. **Shows:** nothing yet.
-3. **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` only, on the host below.
-4. **Left:** every step; the collector pools the four shards and applies §D.
-5. **Not judged here:** nothing in this section is a verdict.
+   started 01:17:27 UTC. Done so far: tools, content, every test and mutation. Rounds 0–23 are running.
+2. **Shows:** the content equals the pin. `amended_test.py` passes 31/31, and `mutate_amended.py`'s 12 breaks are each
+   caught. Each of the six browser mutations fails its own check on all three volumes and leaves the others whole.
+3. **Rests on:** `dbts_a1`, `dbts_b1` and `dbts_c1` only, on the host below, at 1×.
+4. **Left:** the remaining rounds, then `amended.py` on this shard's rows as a check (not read).
+5. **Not here:** a verdict. Twenty-four rounds is not the n that §F sized.
+
+Terms are those of §Terms, for this section. A **check** compares a decoded frame with its truth. An exact frame's
+truth is the fetch's SHA-256 of its samples; a lossy frame's is native dav1d's hash, written by `sweep.py code`. A
+**mutation** breaks one input on purpose, for one round of block k 8, to show that a check sees it.
+
+#### Host and saturation
+
+4 cores of an Intel Xeon Processor @ 2.10 GHz, one thread a core (`lscpu`), 15 GB. Headless Chrome for Testing
+153.0.8010.12, playwright 1.63.0, node 22. It is the pilot's host model.
+
+A 60 s sample of `/proc/stat` was taken in round 0, its only addition to the run. At 10 s steps the whole host was
+26–33 % busy, about one core of four, with load average 1.1–1.3. The host does not saturate in any arm. Nothing is
+claimed past one decode in flight at 1×.
+
+#### Steps, wall
+
+| step | wall | what it printed |
+| --- | --: | --- |
+| `tools` | about 1.5 min | built in this session's earlier `tools` (below), reused |
+| `amended-content` | 20.0 min | make_frames 1 s (reused, below); `shapes.py` 106 s, k = 8 stream equal to `svc-shapes.tsv` (the `diff` printed nothing); `sweep.py code` 1 092 s, no unit differing from the pin, the native chain checks passed (it did not stop) |
+| `amended-mutate` | 10.4 min | below |
+
+#### Mutations (round 0, block k 8, every volume)
+
+`amended_test.py`: 31/31. `mutate_amended.py`: each of 12 breaks caught. Browser, passed/total per (arm, op, check).
+`lay-k8` is the layered arm and `sep-g8` the separate one; `ctrl` and `ctrl-aa` each check every frame.
+
+| mutation | expected (*derived* from `amended.js`, `ask.js`) | `dbts_a1` | `dbts_b1` (10 bits) | `dbts_c1` |
+| --- | --- | --- | --- | --- |
+| `sample` | every check fails | 0 passed, in every row | 0 passed, in every row | 0 passed, in every row |
+| `truth` | every check fails | 0 passed, in every row | 0 passed, in every row | 0 passed, in every row |
+| `offset` | `sep-g8` residual and next fail; all else whole | residual 0/8, next 0/8; all else all passed | the same | the same |
+| `skip` | asks starting one unit late fail, on both carriers | `lay-k8` and `sep-g8` arms end `Error: dav1d: -28`, so no value; `ctrl` 56/56, `ctrl-aa` 56/56 | the same; 50/50 | the same; 69/69 |
+| `low` | `lay-k8` exact and next fail on 12 bits only | `lay-k8` exact 0/8, next 0/8; all else all passed | everything passed (no low bits) | as `dbts_a1` |
+| `dwell` | next fails, on both carriers | `lay-k8` next 0/8, `sep-g8` next 0/8; all else all passed | the same | the same |
+
+"All else all passed" means every other row passed: the cines 56/56 (50, 69), the jumps 8/8 and the controls 56/56
+(50, 69). Under `skip` an error ends the whole arm, so its cines leave no row: the break is seen, but whether the
+cines stayed whole is not. The pilot's `skip` on `dbts_a1` ended the same way
+([`amended-pilot.mutations.jsonl`](../../lab/av1/delivery/carriers/results/amended-pilot.mutations.jsonl)). The
+error code is printed as it came; what −28 means in dav1d is *unverified*. No mutation missed its own check or broke
+another's, so the shard went on to rounds. Rows:
+[`amended-shard-1.mutations.jsonl`](../../lab/av1/delivery/carriers/results/amended-shard-1.mutations.jsonl).
+
+#### What differed from §F (environment, not protocol)
+
+* `meson` was absent. It was installed with pip (1.12.1), as in the first run.
+* `gen_htj2k_fixtures.sh` printed `ModuleNotFoundError: numpy` under `run.sh`'s `|| true`. `ojph_compress` was built
+  all the same: the `test -x` that follows passed.
+* Before §F's table existed, this session ran `tools` on `a731ca81` and began `amended-content` there. It stopped
+  after `shapes.py`, and §F's command was then run from its start on `fb6e522a`. So `tools` and make_frames found
+  their outputs present: both are deterministic, and the stream `diff` and `sweep.py code`'s pin check ran in full.
+* The run's working tree stayed at `fb6e522a`, plus this section. Rows are committed from a second worktree, so no
+  pull changed the harness under the rounds (finding 16).
 
 ### Amended shard 3, measured
 
