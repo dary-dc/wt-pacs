@@ -16,7 +16,7 @@ What is left: the remaining rounds of this link if not 10; the links `r50000`, `
 * t_X at 4× ÷ at 1×: 1.001–1.008 over 33 series × variants
 * `VOID`: 37 of 198 fills with an exact layer, 8 of 36 lossy-only; relay p99 0.66 ms median, max 5.16
 
-More visits are `VOID` here than at 20 Mbit/s (where 2–8 of 130 a cell were): the relay's p99 self-timing went over the 1 ms bound on about a third of the visits, on lossy-only fills as on full ones. Why is *unverified*; that it is not CPU load is *derived* from 4× moving no fill's time beyond the figure above. Each cell reports its n, and the cells' n is what this sitting can claim.
+`VOID` visits by round, of 78: round 0 25, round 1 17, round 2 3. At 20 Mbit/s the first sitting dropped 2–8 of 130 a cell. Why the rate changes between rounds is *unverified*: the rounds with many ran before the first restart, on a machine whose clock was not recorded. That CPU load is not the cause is *derived* from 4× moving no fill's time beyond the figure above. Each cell reports its n, and the cells' n is what this sitting can claim.
 
 **Exactness**, over every visit, `VOID` ones included, per cell in the list at the end of the tables: every exact frame against its checksum, every base and middle against native dav1d at its operating point, previews after their exact picture (`late`), lossy layers posted as exact (`stray`), and stall-flushes (a unit at the worker's 10 000 ms bound). The checks are the first sitting's, each mutated there ([`svc-mutations.jsonl`](svc-mutations.jsonl)); this sitting adds no check and so mutates none. **Totals: 11 550/11 550 exact frames equal to their checksums; 9 450 bases and 4 200 middles equal to native dav1d; 0 late, 0 stray, 0 stall-flushes.**
 
