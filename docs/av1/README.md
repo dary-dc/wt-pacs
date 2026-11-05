@@ -1898,7 +1898,19 @@ jump and settle outside 10.
 * **The rule (5), on its cells that ran:** not decided, since t_P at 5 Mbit/s and its other cells are pending. Every
   clause it can decide passes for `a2-q20`, `a2-q40`, `p2-q20` and `p2-q40` on all three volumes. `p3-m10` fails the
   bytes clause on all three and so cannot pass. `p3-m20` and `p3-m30` fail it on `dbts_b1` only. Part 6's verdict
-  stands.
+  stands. *Superseded below.*
+* **The rule (5), on every cell measured (2026-11-05)** ([`svc-rule.md`](../../lab/av1/delivery/scalable/tool/svc-rule.md)):
+  the cells are 5, 20 and 50 Mbit/s and 20 Mbit/s with ±20 ms jitter, at 1× and 4×, on the three DBT volumes.
+  * **Interesting, by `p2-q20` and `p2-q40`**, the predicted two-layer tops. Each passes every clause on `dbts_a1`
+    and `dbts_c1`: frames exact, t_P 0.002–0.018 of HTJ2K's, more slices pictured at 15 slices/s than prefix-first,
+    t_X 0.988–1.070× and bytes 0.989–0.994× the shipped payload's. Both fail t_X on `dbts_b1` at 50 Mbit/s 4×
+    (1.20–1.23×).
+  * **The alone `a2-*` fail** on `dbts_a1` and `dbts_b1`, on t_X at 50 Mbit/s 4× (1.115–1.218×), where decode, not
+    the link, sets the last exact frame. So part 6's "all four shapes … pass" no longer holds for them.
+  * **`p3-*` fail on all three volumes.**
+  * **Not final.** The 2 % loss cells have not run, and 5 Mbit/s has 3 of its 10 rounds. A fail by both `p2-*`
+    shapes on `dbts_a1` or `dbts_c1` in any of those cells would reverse the verdict.
+  * Predicted tops pass, so the change is to the stored representation, and is structural.
 
 ## Exactness risks and how they're checked
 
