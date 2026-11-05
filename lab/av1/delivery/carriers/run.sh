@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Row CARRIERS end to end (docs/av1/profile-carriers.md §4): tools, content, mutations, rounds, tables.
 #   lab/av1/delivery/carriers/run.sh [tools|content|mutate|rounds|tables ...]   default: all five, in order
+# The amended protocol's shard k (§Profile carriers protocol, amended, Shards):
+#   SHARD=k lab/av1/delivery/carriers/run.sh tools amended-content amended-mutate amended-rounds
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 cd "$ROOT"
@@ -9,6 +11,7 @@ SETS=(lab/av1/data/dbts_a1 lab/av1/data/dbts_b1 lab/av1/data/dbts_c1)
 ROWS="$W/carriers-rows.jsonl"
 PROFILES=b9e3e9e7119898e055bbf930d60ccbea2a234b48
 STEPS=" ${*:-tools content mutate rounds tables} "
+AW=$W/amended RESULTS=$C/results
 want() { [[ "$STEPS" == *" $1 "* ]]; }
 t() { local s=$SECONDS; "$@"; echo "TIME $((SECONDS - s)) s: $*" >&2; }
 
@@ -46,6 +49,29 @@ fi
 if want rounds; then
   for r in $(seq "${FIRST:-0}" "${LAST:-9}"); do
     NODE_PATH=$(npm root -g) node $C/ask.mjs --work $W/carriers --rounds 1 --first-round "$r" --out "$ROWS"
+  done
+fi
+if want amended-content; then
+  t $P lab/av1/delivery/split-rule/make_frames.py "$BUILD" $W/shipped "${SETS[@]}" --preset allintra:7 --k 2 --jobs 3
+  t $P $T/shapes.py "$BUILD" $W/shipped $W/preview-tool $W/carriers-shapes.tsv "${SETS[@]}" --shapes three-full-m20
+  diff <(cut -f1,3,8 $T/svc-shapes.tsv | grep 'three-full-m20	') <(cut -f1,3,8 $W/carriers-shapes.tsv | grep three-full-m20)
+  t $P $C/sweep.py code "$BUILD" $W/shipped $W/preview-tool $AW "${SETS[@]}"
+fi
+if want amended-mutate; then
+  python3 $C/amended_test.py && python3 $C/mutate_amended.py
+  sets=dbts_a1; [[ "${SHARD:?}" == 1 ]] && sets=dbts_a1,dbts_b1,dbts_c1
+  for m in sample truth offset skip low dwell; do
+    NODE_PATH=$(npm root -g) node $C/amended.mjs --work $AW --first-round 0 --sets $sets --points 8 --mutate $m \
+      --out "$RESULTS/amended-shard-$SHARD.mutations.jsonl"
+  done
+fi
+if want amended-rounds; then
+  # Shard k runs rounds (k − 1)·N … k·N − 1; it stops after a whole round once less than one round's time is left.
+  N=${ROUNDS_PER_SHARD:?} first=$(( (SHARD - 1) * N )) end=$(( SECONDS + ${BUDGET_S:?} ))
+  for r in $(seq $first $(( first + N - 1 ))); do
+    s=$SECONDS
+    NODE_PATH=$(npm root -g) node $C/amended.mjs --work $AW --first-round "$r" --out "$RESULTS/amended-shard-$SHARD.jsonl"
+    (( end - SECONDS < SECONDS - s )) && { echo "stopped after round $r: budget" >&2; break; }
   done
 fi
 if want tables; then
