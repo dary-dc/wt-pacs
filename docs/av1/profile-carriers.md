@@ -878,14 +878,70 @@ These are [`amended-shard-1.jsonl`](../../lab/av1/delivery/carriers/results/amen
 ### Amended shard 3, measured
 
 *2026-11-05, shard 3 of 4, run by a session given only the amended protocol; §F's command as written, on `fb6e522a`.
-In progress: this section is filled as steps finish.*
+Numbers only; the collector pools the shards and applies §D.*
 
 1. **Run:** `SHARD=3 ROUNDS_PER_SHARD=24 BUDGET_S=16200 run.sh tools amended-content amended-mutate amended-rounds`,
-   started 01:17:43 UTC. Rounds 48–71 are assigned, every block whole.
-2. **Shows:** so far, that the content matches the pin and that every check catches its own mutation (below).
-3. **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` only, on the host below.
-4. **Left:** the rounds; the collector pools the four shards and applies §D.
-5. **Not judged here:** nothing in this section is a verdict.
+   01:17:43–05:16:12 UTC: rounds 48–71, every block whole, then nothing else.
+2. **Shows:** the content equals the pin; every check fails under its own mutation and no other; 24 rounds of 12
+   blocks, none `VOID`, every exact and lossy frame passing its check.
+3. **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` only, on the host below, at 1×.
+4. **Left:** pooling with shards 1, 2 and 4, and §D's rule, by the collector. n = 24 here is not the n §F sized.
+5. **Not judged here:** nothing in this section, or in its `.md`, is a verdict.
+
+Terms as in this protocol: a **block** is one fresh Chromium running one (volume, sweep point) in one round; an
+**arm** is one configuration in it; **`VOID`** a block past 15 min; a **mutation** a deliberate break of one check,
+which must turn that check, and only it, to failure.
+
+**Host.** `lscpu`: Intel(R) Xeon(R) Processor @ 2.10GHz, 4 CPUs, 1 thread per core, 1 socket; 15 GiB memory;
+Chromium 153.0.8010.12 (Playwright 1.63.0's, headless). **Saturation:** one decode in flight on one thread; load
+average 1.24 at one sample in round 49, so one core of four busy. The host did not saturate in any arm, and
+nothing is claimed past 1× or for any other host.
+
+**Walls.**
+
+| step | wall |
+| --- | --: |
+| `tools` + `amended-content` + `amended-mutate` | 28.7 min (01:17:43–01:46:23) |
+| of which `sweep.py code` | 22.6 min (1356 s) |
+| of which the shipped payload / the k = 8 stream | 1 s (reused, below) / 122 s |
+| `amended-rounds`, 24 rounds | 209.8 min; a round 8.0–9.5 min, median 8.7 |
+| **total** | **238.5 min**, under the 270 of `BUDGET_S`; no round stopped by the budget |
+
+**n and `VOID`.** 24 rounds (48–71), 288 blocks, 17 424 rows; `VOID` 0, errors 0. Checks: 43 968 exact frames,
+each against the SHA-256 the index holds, 43 968 passed; 80 784 lossy frames against native dav1d's hash, 80 784
+passed. Apart from the harness, the index's 175 truth hashes (56 + 50 + 69) were checked here against SHA-256 of
+each source `.raw` and against its `.sha256` file: 175 of 175 equal. The three indexes `sweep.py code` wrote are
+byte-identical to `results/amended-shard-1.index.dbts_{a1,b1,c1}.json`.
+
+**Mutations.** `amended_test.py` 31/31; `mutate_amended.py` 12 breaks, each caught (30/31 or fewer each). The six
+browser mutations, block k 8 of `dbts_a1`, round 0 (`.mutations.jsonl`): the failing (arm, op, check) set of each
+is the same as the pilot's, row for row.
+
+| mutation | rows failing | which (arm · op · check) |
+| --- | --: | --- |
+| `sample` | 54 of 54 | every op of `lay-k8` and `sep-g8`, and `ctrl`, `ctrl-aa` cine-exact |
+| `truth` | 54 of 54 | the same as `sample` |
+| `offset` | 16 of 54 | `sep-g8` residual · exact (8), next · exact (8) |
+| `skip` | 2 of 4 | `lay-k8`, `sep-g8`: decode error `dav1d: -28`, the arm stops there; `ctrl`, `ctrl-aa` pass |
+| `low` | 16 of 54 | `lay-k8` exact · exact (8), next · exact (8) |
+| `dwell` | 16 of 54 | `lay-k8` next · exact (8), `sep-g8` next · exact (8) |
+
+**The check on its own rows** ([`results/amended-shard-3.md`](../../lab/av1/delivery/carriers/results/amended-shard-3.md),
+not read): A/A passes in 12 of 12 blocks, its median log ratio −0.0097 … +0.0051; one arm flagged by order,
+`ctrl` in `dbts_b1` · k 16 (p 0.0085).
+
+**Differed from this section.**
+
+* Before §F was pushed, this session ran `tools` and part of `amended-content` on `589f1c11`, then stopped them and
+  ran §F's command from the start on `fb6e522a`. `make_frames.py` (unchanged between the two) found its payload
+  already coded and took 1 s; the k = 8 stream was recoded and diffed against `svc-shapes.tsv`, and `sweep.py code`
+  recoded and checked every unit.
+* meson 1.9.1 (the README's version) was installed with pip; the host had none. Playwright is 1.63.0, not the
+  README's 1.56.1.
+* `gen_htj2k_fixtures.sh` printed a numpy `ModuleNotFoundError` under `tools`; `run.sh` runs it `|| true` only to
+  build `ojph_compress`, whose presence the next line checks.
+* Commit `ff801278` (the mutations) has committer `Claude <noreply@anthropic.com>`, set by a `pull --rebase`; it is
+  pushed and the branch is not force-pushed. Every later commit's author and committer is `dary-dc`.
 
 ### Amended shard 2, measured
 
