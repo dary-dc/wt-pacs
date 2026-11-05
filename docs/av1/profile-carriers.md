@@ -489,4 +489,190 @@ role times past the decode are a model); any fixture but the three named.
 
 ## Profile carriers protocol, amended
 
-*Row CARRIERS, amended 2026-11-04 (in progress: the harness is being built and the pilot run; the protocol follows).*
+*Row CARRIERS, amended 2026-11-04 (draft: §F, the shards and the pilot, follow) by the owner's request of that day. Written for a reader who has not followed this
+row; the terms are defined below even where the protocol above defines them. Separate sessions, given only this
+section, measure it; the pilot here only sized it. Arithmetic of ours is* derived*; what no source holds is*
+unverified*.*
+
+1. **Asked.** Does a layered AV1 stream stay a candidate as the carrier of quality profiles, against separate
+   payloads, once both sides choose their group length and are compared at equal quality?
+2. **Why amended.** The first run (above) read no time metric — its order-effect gate voided every one — and compared
+   one layered keyframe interval (8) against separate streams at one group length (16).
+3. **What changes.** Both group lengths are swept; every comparison runs in a small block with its own control and
+   A/A; the order effect is a permutation test, not a fixed bar; a pair is decided by the median's order-statistic
+   interval; 4 shards of 4.5 h each run it, and a collector pools them.
+4. **It rests on** three DBT volumes, one per system (`dbts_a1`, `dbts_b1`, `dbts_c1`), one-thread dav1d-WASM and
+   OpenJPH in headless Chromium at 1×, on 4-core cloud hosts. Nothing else is claimed.
+5. **Not in it:** a link (decode only), 4×, WebCodecs, phones, ultrasound cine and ABUS (no fixture), and which
+   quality is visually lossless (the owner's call).
+
+### Terms, for this section
+
+* **Profile** — what a role receives: the **cheap view** (e.g. a patient's), the **high-quality view** (most clinical
+  roles), the **exact frame on request** (one frame, bit-exact, asked while viewing).
+* **Layered carrier (SVC)** — one AV1 stream whose every temporal unit (the coded data of one frame) holds three
+  spatial layers: the **base**, a quarter-size lossy picture; the **middle**, a full-size lossy picture predicted from
+  the base; the **top**, the exact picture predicted from the middle. A client takes a prefix of each unit: base for
+  the cheap view, base + middle for the high view, all three for the exact frame. On 12 bits the stream codes the top
+  10 bits and the two low bits are a separate intra stream, as the shipped payload splits them.
+* **Separate carrier** — one lossy AV1 stream per view, plus, for the exact frame, the **residual** (exact − lossy,
+  per sample, plus one offset, coded losslessly in HTJ2K, added to the lossy frame on screen) or the **whole HTJ2K
+  frame**.
+* **G** — the separate streams' group length: a keyframe every G frames, each frame of a group predicted from the one
+  before; G = 1 codes each frame alone. **k** — the same for the layered stream (its keyframe interval). To show frame
+  i, a client that holds no decoder state decodes from i's keyframe to i: (i mod G) + 1 units (or (i mod k) + 1).
+* **Q** — the separate streams' quantizer, libaom's 0–63 scale (low is finer). **m** — the layered middle's quantizer
+  on the same scale; the base is at 40, the top at 0.
+* **Systems A, B, C** — the three DBT scanners of the EA1141 dataset; A and C store 12 bits, B 10. `dbts_a1` is A's
+  (56 frames × 1142×1785), `dbts_b1` B's (50 × 2560×3328), `dbts_c1` C's (69 × 976×2513).
+* **Block** — one fresh headless Chromium running a few arms in one round on one volume. **Arm** — one configuration
+  run through every access pattern. **Control** (`ctrl`) — every HTJ2K frame of the volume decoded in order;
+  **A/A** (`ctrl-aa`) — the same, a second time in the same block. **Round** — every block once.
+* **HTJ2K-frame unit** — a time divided by the median per-frame HTJ2K decode of its own block's control in the same
+  round; every time below is in it, so every number is a ratio inside one browser on one host.
+
+### A · What is swept, and at what quality
+
+**The configurations.** Layered at k = 1, 4, 8, 16 (`lay-k1` … `lay-k16`); separate at G = 1, 4, 8, 16, 32
+(`sep-g1` … `sep-g32`; 32 fits: the volumes hold 50–69 frames). The whole HTJ2K frame (`whole`) is the separate exact
+carrier that has no G. Each separate configuration is two lossy streams, the cheap and the high, at the same G, and
+the residual of its high stream.
+
+**Equal quality, and the metric.** Each role is matched on **in-window PSNR**: PSNR over the samples whose display
+code under the series' first header window is strictly inside 0–255 (the tissue a reader is shown, not the
+background or the clipped skin line), against the source at the stored depth, from the summed squared error, peak
+2^b − 1, as `content.quality` computes it for both carriers. Why this one: it is the only quality the harness
+measures one way on both carriers; the review found the all-sample PSNR moves the high-view ratios by 0.00–0.14
+(finding 18) because it counts background; and no threshold of visual losslessness is set here (the owner's call),
+so PSNR is used to *match* the carriers, not to accept either. All-sample PSNR and max |Δ| are printed beside it.
+Each carrier is put back at the stored depth by its own form's inverse: the layered top codes v ≫ 2, so its middle is
+read back as x · 4 + 1.5; the separate 10-bit top codes (v + 2) ≫ 2 (`bytes.py`, `forms`), so x · 4.
+
+**The targets** (per volume): the high view's is the in-window PSNR of the first run's layered middle (`p3-m20`,
+k = 8), the cheap view's that of its base. `sweep.py search` then steps the integer quantizer one at a time from a
+start (m 20; Q 16 for the high, Q 56 for the cheap) until two neighbours bracket the target, keeps the nearer as the
+**timed** stream, and records both neighbours' bytes: **bytes at the target** are read between the two, log bytes
+linear in PSNR, over one quantizer step (the review's finding 3: the first run's chord spanned 1.7–5.4 dB). A target
+outside the scale's reach (Q 63, m 1) takes the end and its gap is printed. The pin it writes,
+[`results/amended-content.json`](../../lab/av1/delivery/carriers/results/amended-content.json), is what every shard
+codes; `sweep.py code` stops unless every unit size equals it.
+
+**The encoder, apart.** The separate streams come from `aomenc --good --cpu-used=6`, the layered from
+`svc_encoder_rtc` at speed 7 (review finding 7). So that the carrier's own cost can be told from its encoder's, the
+search also codes, bytes only, a **single-layer** full-size stream from `svc_encoder_rtc` at speed 7 and each k
+(`-lm 0 -sl 1`), bracketed to the high target the same way. It is not timed and not in the rule.
+
+### B · The access patterns, each a clock
+
+Every AV1 decode is the same one-thread dav1d-WASM build with operating points (`two-layer/build_wasm.sh`), a fresh
+decoder where the pattern says *fresh*; OpenJPH-WASM one thread for HTJ2K and the residual; no WebCodecs (review
+finding 11). Every clock stops at the same endpoint: the frame's samples, cropped, in one array (finding 14). Each
+round asks **8 frames i drawn uniformly from 0 … F − 2** (`amended.js`, `draws`, seeded by round and volume, so every
+block of a round asks the same frames and a run covers every depth of the volume, finding 9).
+
+| pattern | layered at k | separate at G |
+| --- | --- | --- |
+| **cine playback** (high, cheap) | every middle (or base) unit in order on one fresh decoder at that operating point; the metric: the sum | every unit of the high (or cheap) stream in order, one fresh decoder; the sum |
+| **scroll to the next slice** | the same rows: the median frame's decode on the decoder that holds the one before | the same |
+| **jump to a random slice** (high) | a fresh decoder at the middle's operating point, units from i's keyframe to i; the mean over the 8 | a fresh decoder, the high stream from i's keyframe to i; the mean |
+| **exact, after a jump** | a fresh full decoder, units from i's keyframe to i, and i's low bits on 12 bits, merged | the jump above, then i's residual decoded and added (decode and add timed apart) — or the whole HTJ2K frame i, read from the control's rows |
+| **dweller, frame i** (high view on screen) | as after a jump: the top of i is predicted from the top before it, which no middle-only client holds (*derived*, §2a above) | the residual of i and the add only, the lossy i being on screen — or HTJ2K frame i |
+| **dweller, then i + 1** | on the decoders that reached i: unit i + 1 and its low bits | on the lossy decoder that reached i: unit i + 1, then its residual and the add — or HTJ2K frame i + 1 |
+
+**Checked, every op:** every exact frame against the fetch's checksum, every lossy frame against native dav1d's hash
+(`sweep.py code` writes them); a miss voids that arm's round in the collector and is counted. `sweep.py code` also
+decodes natively, from the keyframe, the last frame of each layered stream's first group and the first of its second,
+and stops unless both are exact.
+
+### C · Blocks, order, rounds
+
+**Nested.** A block is one (volume, sweep point p) in one fresh Chromium, p = 1, 4, 8, 16: its arms are `lay-kp`,
+`sep-gp`, `ctrl` and `ctrl-aa` — four, and five at p = 16, where `sep-g32` joins. So each block compares a layered and
+a separate configuration at the same group length, with its own control and its own A/A. Arms run in a Williams
+order (`lab/order.mjs`; period 4, and 10 for the five-arm block), so over the run each arm follows each other arm
+equally often; the 12 blocks of a round run in a Williams order too. Comparisons across blocks (`sep-g1` against
+`sep-g16`, `lay-k1` against `sep-g16`) are made through each block's control, rounds paired: still a ratio inside one
+host and one round.
+
+**Washout.** The review traced part of the first run's spread to the first arm of a round running slow (finding 19).
+Each block now starts with an untimed pass of every path its arms run (the merge, the residual decode, the add) on
+frame 0; and before each arm a forced collection (`--js-flags=--expose-gc`) and two untimed units on a throwaway
+decoder of its kind.
+
+**1× only.** The first run's ratios at 4× were within 0.85–1.15× of those at 1× in C1, C3 and C6 (*derived* from
+its table), and 4× costs four times the wall; the budget goes to rounds. Nothing is claimed at 4×.
+
+### E · The review's findings, each answered
+
+[`profile-carriers-review.md`](profile-carriers-review.md) (`9aec9477`), 22 findings. *Accepted* names the change and
+where it is; *rejected* gives the reason.
+
+| # | finding, in short | | change, or reason |
+| --- | --- | --- | --- |
+| 1 | the order statistic, with one value a predecessor, measures round spread | accepted | four arms a block (five at p = 16), ≥ RND rounds so each predecessor has ≥ PRED values; a permutation test of predecessor labels on control-normalized values, gated at p < 0.05 ÷ arms in the block (§D) |
+| 2 | "not read" became "absent", so bytes alone decided a role | accepted | a comparison whose block fails its A/A, or whose arm or control is flagged, is **not read**, and a not-read time never lets bytes decide dominance (`amended.dominates`; tested and mutated) |
+| 3 | high-view bytes rest on a chord across 1.7–5.4 dB | accepted | each stream's quantizer is stepped to bracket the target; bytes are read over one quantizer step (§A); the measured neighbours are in the pin |
+| 4 | the A/A min–max range widens with n; `htj2k` is a noisy reference | accepted | the A/A is an order-statistic interval of its median, a gate that must contain 0; the control is the whole volume's HTJ2K decode, not 8 frames (§C, §D) |
+| 5 | eight correlated metrics a pair, any one makes "a trade" | accepted | one time metric per (role, access pattern), each read alone with the bytes on its own frontier; no metric is combined with another (§D) |
+| 6 | role times are an unvalidated link model | accepted | no link model in the rule: decode only, and nothing is claimed for a link (*Not in it*) |
+| 7 | the high view confounds carrier with encoder and group | accepted | the group by the sweep, both sides at 1 · 4 · 8 · 16; the encoder by the single-layer `svc_encoder_rtc` stream's bytes at each k (§A), reported beside the rule |
+| 8 | times paired at the nearest rung, not equal quality | accepted | as 3: every timed stream is the one nearest the target, its gap printed |
+| 9 | one asked group, no dweller, no view jump | accepted | 8 frames drawn over the whole volume each round; a jump for both carriers; a dweller (i, then i + 1) (§B). Steps past i + 1 are not added: each costs what i + 1 does, one unit on a held decoder (*derived*) |
+| 10 | `p3k1-m20` judged for the ask without its high-view cost | accepted | a configuration is one stream serving every role; the verdict lists each k across every judged (role, pattern) at once |
+| 11 | WebCodecs against one-thread dav1d-WASM | accepted | no WebCodecs arm |
+| 12 | the code that decides every verdict has no test | accepted | `amended_test.py` (28 claims) and `mutate_amended.py` (11 breaks, each caught), covering the interval, the decision, the order test, dominance, the frontier, the ask's bytes, the A/A and order gates, and the drop of a failed check |
+| 13 | three volumes; mutations on one | accepted | the claim is "these three volumes" in every verdict line; the browser mutations run on all three in shard 1, on `dbts_a1` in the others (§F) |
+| 14 | arms stop their clocks at different points; `res` not split | accepted | one endpoint for every exact op (cropped samples in one array); the residual's decode and add are timed apart (§B) |
+| 15 | rounds differ from §4 as committed | accepted, here | the first run's measured section is that session's; this protocol notes the deviation (pre-registered 10 at `4b12442`, 7 at `e67b87d`, 10 run) and changes nothing there |
+| 16 | mutations and rounds on different `ask.js` | accepted | every shard runs its mutations in the same session, on the commit it times |
+| 17 | the two carriers' lossy frames reconstructed differently on 12 bits | rejected | each is its own form's centred inverse: the layered top codes v ≫ 2 (`shape.py`, `Plane.top`), so x · 4 + 1.5; the separate 10-bit form codes (v + 2) ≫ 2 (`bytes.py`, `forms`), so x · 4. One reconstruction for both would bias one of them |
+| 18 | which PSNR | accepted | in-window PSNR is the matching metric; all-sample beside it (§A) |
+| 19 | the first arm of a round runs slow | accepted | an untimed pass of every path at each block's start, and a washout before each arm (§C) |
+| 20 | mutate-and-restore can read the mutant from the bytecode cache | accepted | `mutate_amended.py` runs each child with a fresh `PYTHONPYCACHEPREFIX` |
+| 21 | `verdict.not_read` sums `ms` unguarded | rejected | no change: the amended collector does not use `verdict.py`; the first run's code is left as it ran |
+| 22 | the cheap view compares bytes at unequal quality; separate may send the base | accepted | the cheap view is matched at equal in-window PSNR and reported, but not judged: the separate carrier may send the layered base itself, so it cannot lose that role by construction (*derived*, §2c above) |
+
+### D · The rule (`amended.py`; derived from the definitions and one cited interval, no bar of ours)
+
+1. **Value.** Each (volume, configuration, metric, round) is the arm's time ÷ its block's control's median frame in
+   that round (HTJ2K-frame units). An arm-round with any failed check, error or `VOID` has no value.
+2. **A/A gate, per block.** The block's times are read only if the 95 % interval of the median of
+   log(`ctrl-aa` ÷ `ctrl`) over its rounds contains 0. The count of blocks that fail is the run's empirical
+   false-decision rate, printed; at 95 % about 1 in 20 is expected by chance.
+3. **Order gate, per (block, arm).** The statistic: over the arm's predecessors with two or more rounds, the largest
+   |median − overall median| of log(arm's total time ÷ the control's total) (for `ctrl`, ÷ `ctrl-aa`'s, and back).
+   Its p is the share of 2 000 shuffles of the predecessor labels over the same values that reach it; the arm is not
+   read in that block if p < 0.05 ÷ (arms in the block) (Bonferroni over the block's arms, so a block with no
+   carryover flags an arm about 5 % of the time). Values normalized by the same round's control remove the
+   round-to-round drift that the first run's statistic measured (review, *Order and statistic*).
+4. **A pair** (two configurations, one metric, one volume): the per-round log ratio, rounds paired, its median and
+   the distribution-free 95 % interval of the median from order statistics: the r-th and (n − r + 1)-th of the n
+   sorted values, r the largest with P(r ≤ W ≤ n − r) ≥ 0.95 for W binomial (n, ½) [C3]. **Decided** for the lower
+   time when the interval excludes 0; **not resolved** otherwise; **not read** when either side's block fails 2, or
+   either arm or the block's control is flagged by 3. At n under 6 no interval exists and nothing is decided.
+5. **A frontier, per (volume, role, access pattern).** Each configuration has the role's bytes (deterministic, §A;
+   for the exact frame, what an ask adds to what the high view holds, the mean over i = 0 … F − 2: the tops of i's
+   group to i and i's low bits for layered; i's residual, or HTJ2K frame i, for separate) and the pattern's one time
+   metric. X **dominates** Y if X's bytes are no more, no pair decides the time against X or is not read, and X has
+   fewer bytes or the time decided for it. The **frontier** is the configurations no other dominates.
+6. **The answer.** On a volume, the layered stream **stays a candidate** if at least one k is on the frontier of at
+   least one (role, pattern) of the high view or the exact frame; the collector prints which. It holds "on these three
+   volumes" when it holds on each; otherwise the table says which. Storage is printed beside it (layered stores less,
+   as measured above) and is not, by itself, a reason to keep a carrier the roles do not choose: the owner's question
+   is about carriers of the profiles the roles receive.
+7. **Primary and reported.** The rule reads only the metrics of §B, one per (role, pattern), in HTJ2K-frame units.
+   The single-layer encoder's bytes, all-sample PSNR, the residual's decode and add apart, and every median are
+   reported beside it.
+
+### G · The harness
+
+New files in [`lab/av1/delivery/carriers`](../../lab/av1/delivery/carriers/); the first run's files are unchanged but
+for `ask.js`, whose helpers are now exported.
+
+| file | does |
+| --- | --- |
+| `sweep.py` | `search`: the role targets, the bracketing quantizers for every k and G, the single-layer bytes; writes the pin. `code`: codes what the pin names, stops on any unit size that differs, checks the layered chains natively, writes one index a volume with every lossy frame's native hash and the residuals |
+| `amended.js`, `amended.html` | one block: the untimed pass, the washouts, the arms in a Williams order, every pattern of §B with its checks |
+| `amended.mjs` | the driver: each (round, volume, block) a fresh Chromium with `--expose-gc`; a block past 15 min is `VOID`; `--mutate sample · truth · offset · skip · low · dwell` |
+| `amended.py` | the collector: §D end to end |
+| `amended_test.py`, `mutate_amended.py` | 28 claims of `amended.py`'s arithmetic, and 11 breaks of it, each caught |
