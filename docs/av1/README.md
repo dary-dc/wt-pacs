@@ -1470,26 +1470,17 @@ measured above.
 
 *The owner, 2026-11-02: most roles would scroll a cine-like series as a lossy AV1 stream meant to be visually
 lossless, and some could ask for the exact frame, never by default ([`../glossary.md`](../glossary.md), *quality
-profile*).* Theory, a prediction and two protocols, pre-registered and **not run**:
-[`lab/av1/profiles`](../../lab/av1/profiles/README.md) — §5 *Profiles bytes protocol, pre-registered* (offline: bytes,
-quality, encode time; results to go under *Profiles bytes, measured*) and §6 *Profiles decode protocol, pre-registered*
-(a lab harness, one decoder setting for every arm).
+profile*).* Measured, 2026-11-02 to 2026-11-05, in three places:
 
-* **The prediction** (*derived*, §2 there). Lossless inter lost on DBT because it pays for noise that adjacent slices
-  do not share (ρ 0.11–0.22, [`frame-groups.md`](frame-groups.md) §4). A quantizer whose step exceeds the noise
-  stops coding that noise in intra and inter alike, and inter predicts from an already denoised decoded slice; so
-  G = 16's gain over G = 1 should turn from ≤ +5 % below half the noise's RMSE to ≥ +10 % from the rung where the
-  coded error reaches the noise, and **+15 to +50 %** once it is twice the noise; system B (10-bit, highest ρ) most.
-  G = 8 keeps ≥ 80 % of G = 16's gain. The lossy stream plus an HTJ2K residual stays at **0.93–1.03 of HTJ2K**
-  (row 17 measured 0.947–1.002). Refuted by inter gaining under half the noise, or by no gain at any rung.
-* **Depth.** A 12-bit slice reaches WebCodecs (≤ 10 bits, row WCAP) as its rounded top 10 bits (a 70.5 dB ceiling,
-  the two low noise bits left to the residual), a windowed map (finer in the window, clipped tails in the residual),
-  or stays 12-bit through dav1d-WASM alone; all three are coded.
-* **Fixtures.** The 15 DBT volumes, every cine-like set at ≤ 12 bits (`usb_cine`, `usb_cine_rgb`, `us_liver`
-  flagged lossy-sourced, provisional), and five larger sound sets pinned for it: each system's largest DBT volume in
-  IDC v25 and two 280-frame prostate ultrasound sweeps, the nearest swept volume to ABUS
-  ([`../FIXTURES.md`](../FIXTURES.md) §AV1 data). Breast ultrasound cine and ABUS are **pending** the owner's dataset;
-  the product's study mix is not in the repo.
+* **Bytes** — [`lab/av1/profiles`](../../lab/av1/profiles/README.md) §Profiles bytes, measured; **decode** — the same
+  file, §Profiles decode, measured (2026-11-04).
+* **Quality** — [`lab/av1/metrics`](../../lab/av1/metrics/README.md) §Quality metrics, measured (2026-11-05), three
+  of four shards: 20 series, 1 200 cells, every rung Q 1 … 56 at G 1, 8, 16. On DBT, stored form: the coding error
+  reaches the frame's own noise after Q 8 on systems B and C (A: Q 4), at 0.10–0.22 of HTJ2K's bytes (A: 0.27–0.28),
+  where the pixel metrics also bend; **no rung, not even Q 1, keeps every displayed grey level within 1**; the
+  preview's error stays below the step between neighbouring slices to Q 16 (B: 12–24), at 0.006–0.073 of HTJ2K's.
+  Nothing is called visually lossless: that needs readers (§6 there, not run). Claimed for the named fixtures only;
+  shard 3's seven series, breast ultrasound cine and ABUS are missing.
 
 ## Exactness risks and how they're checked
 
