@@ -115,7 +115,7 @@ async function twoLayer(env, set, arm, mutate) {
 async function svc(env, set, mutate) {
   const c = set.c.svc;
   const low = set.units.low;
-  const lowAt = (n) => (mutate === "low" ? n + 1 : n);
+  const lowAt = (n) => (mutate === "low" ? (n + 1) % set.frames : n);
   const rows = [{ op: "preview", ...(await pass(env, set.units["svc/base"], c.base.op, c.base.lossy, mutate)) }];
   const lowDec = set.shift ? await dav1d(env, 0) : null;
   const dec = await dav1d(env, c.full.op);

@@ -13,6 +13,7 @@ EXACT_JUMPS = {("snr", "residual"), ("two", "residual"), ("svc", "exact-jump")}
 EVERY = {(a, o) for a in ("snr", "two") for o in ("preview", "vl", "preview-jump", "vl-jump", "residual")} | \
     {("svc", o) for o in ("preview", "exact", "preview-jump", "exact-jump")} | {("ctrl", "cine-exact"), ("ctrl-aa", "cine-exact")}
 # What each break must fail, and nothing else; skip may leave a jump to a keyframe whole, so it must fail at least one.
+# An arm stopped by the decoder's error fails every check of that arm the break must fail.
 MUST = {
     "sample": EVERY, "truth": EVERY,
     "offset": {("snr", "vl"), ("two", "vl"), ("snr", "residual"), ("two", "residual")},
@@ -38,7 +39,9 @@ def main():
             got[x["mutate"]].add(("VOID", ""))
             continue
         seen.add(x["mutate"])
-        if bad(x):
+        if x["op"] == "failed":
+            got[x["mutate"]] |= {c for c in MUST[x["mutate"]] if c[0] == x["arm"]} or {(x["arm"], "failed")}
+        elif bad(x):
             got[x["mutate"]].add((x["arm"], x["op"]))
     wrong = []
     print("| break | checks failed | must fail | outcome |\n| --- | --- | --- | --- |")
