@@ -23,6 +23,7 @@ STAGES = ("first picture", "every slice, preview", "every slice, visually lossle
 CARRIERS = ("snr", "two", "one", "sep", "svc", "htj2k")
 TWO_LAYER = ("snr", "two")
 ALTERNATIVES = ("svc", "sep", "one")
+PAIRS = [(t, x) for t in TWO_LAYER for x in ALTERNATIVES] + [("snr", "two")]
 ARMS_OF = {"snr": ("snr",), "two": ("two",), "one": ("two",), "sep": ("two", "ctrl"), "svc": ("svc",), "htj2k": ("ctrl",)}
 SVC_VL = 8
 
@@ -210,10 +211,9 @@ def judge(norm, s, g, v, nbytes, unread):
                   "times": {o: {stage: pair(norm, s, g, v, c, o, stage, unread)} for o in CARRIERS if o != c}} for c in CARRIERS]
         by = {c["name"]: c for c in table}
         states[stage] = {c["name"]: status(c, table) for c in table}
-        for t in TWO_LAYER:
-            for x in ALTERNATIVES:
-                read = "not read" not in by[t]["times"][x].values()
-                doms[(t, x)].append((dominates(by[t], by[x]), dominates(by[x], by[t]), read))
+        for t, x in PAIRS:
+            read = "not read" not in by[t]["times"][x].values()
+            doms[(t, x)].append((dominates(by[t], by[x]), dominates(by[x], by[t]), read))
     return states, {k: (label(d), [st for st, (a, _, _) in zip(STAGES, d) if a], [st for st, (_, b, _) in zip(STAGES, d) if b])
                     for k, d in doms.items()}
 

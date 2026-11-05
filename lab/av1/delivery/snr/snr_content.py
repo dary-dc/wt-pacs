@@ -105,39 +105,42 @@ def search_one(build, work, path, g):
     return s.name, g, out
 
 
-def code_set(build, shipped, work, path, pin):
-    """The pinned streams, every unit size checked against the pin, and the browser's index."""
-    s, p, m, form, peak, win = sweep.setup(path)
+def head(build, shipped, work, path):
+    """A volume's index without its streams: the HTJ2K frames and, on 12 bits, the shipped low bits."""
+    s, p, *_ = sweep.setup(path)
     w = work / s.name
     w.mkdir(parents=True, exist_ok=True)
-    low = None
     e = dict(name=s.name, frames=s.n, width=s.w, height=s.h, bits=s.stored, shift=p.shift, truth=s.truth,
              htj2k=[rel(shipped / s.name / f"{i:03d}.htj2k") for i in range(s.n)],
              htj2k_bytes=[(shipped / s.name / f"{i:03d}.htj2k").stat().st_size for i in range(s.n)], g={})
     if p.shift:
-        lows, _ = shapes.shipped_low(build, s, shipped, w)
-        low = [x[0] for x in lows]
+        shapes.shipped_low(build, s, shipped, w)
         e["low"], e["low_bytes"] = rel(w / "low.ivf"), [len(u) for _, u in ivf(w / "low.ivf")]
-    for g, want in pin["g"].items():
-        G = int(g)
-        c = dict(preview=sweep.separate(build, w, s, m, form, PREVIEW_Q, G, win, peak, False), vl={}, snr={},
-                 svc=svc_stream(build, w, s, p, G, low), aomenc_bytes_only=want["aomenc"])
-        for v in VL_QS:
-            c["vl"][str(v)] = sweep.separate(build, w, s, m, form, v, G, win, peak, True)
-            c["snr"][str(v)] = snr_stream(build, w, s, m, form, G, tuple(want["snr"][str(v)]["q"]), win, peak, True)
-        for q, got in [(PREVIEW_Q, c["preview"]["units"])] + [(v, c["vl"][str(v)]["units"]) for v in VL_QS]:
-            if got != want["aomenc"][str(q)]["units"]:
-                sys.exit(f"{s.name} G {g} Q {q}: unit sizes differ from the pin")
-        for v in VL_QS:
-            got = c["snr"][str(v)]
-            if {k: got["layers"][k]["units"] for k in got["layers"]} != want["snr"][str(v)]["units"] \
-                    or got["residual_units"] != want["snr"][str(v)]["residual_units"]:
-                sys.exit(f"{s.name} G {g} VL {v}: quality-layer stream differs from the pin")
-        if not all(c["svc"]["exact_first"]):
-            sys.exit(f"{s.name} G {g}: the quarter-base stream's top is not exact from its keyframe")
-        e["g"][g] = c
-    (work / f"{s.name}.json").write_text(json.dumps(e))
-    return s.name
+    return e
+
+
+def code_g(build, work, path, g, want):
+    """One (volume, G) of the pin: every stream re-coded, every unit size checked against it."""
+    s, p, m, form, peak, win = sweep.setup(path)
+    w = work / s.name
+    low = decoded(build, w / "low.obu", w / f".low-g{g}.y4m") if p.shift else None
+    G = int(g)
+    c = dict(preview=sweep.separate(build, w, s, m, form, PREVIEW_Q, G, win, peak, False), vl={}, snr={},
+             svc=svc_stream(build, w, s, p, G, low), aomenc_bytes_only=want["aomenc"])
+    for v in VL_QS:
+        c["vl"][str(v)] = sweep.separate(build, w, s, m, form, v, G, win, peak, True)
+        c["snr"][str(v)] = snr_stream(build, w, s, m, form, G, tuple(want["snr"][str(v)]["q"]), win, peak, True)
+    for q, got in [(PREVIEW_Q, c["preview"]["units"])] + [(v, c["vl"][str(v)]["units"]) for v in VL_QS]:
+        if got != want["aomenc"][str(q)]["units"]:
+            sys.exit(f"{s.name} G {g} Q {q}: unit sizes differ from the pin")
+    for v in VL_QS:
+        got = c["snr"][str(v)]
+        if {k: got["layers"][k]["units"] for k in got["layers"]} != want["snr"][str(v)]["units"] \
+                or got["residual_units"] != want["snr"][str(v)]["residual_units"]:
+            sys.exit(f"{s.name} G {g} VL {v}: quality-layer stream differs from the pin")
+    if not all(c["svc"]["exact_first"]):
+        sys.exit(f"{s.name} G {g}: the quarter-base stream's top is not exact from its keyframe")
+    return s.name, g, c
 
 
 def main():
@@ -163,8 +166,13 @@ def main():
             a.pin.write_text(json.dumps(pin, indent=1) + "\n")
             return
         pin = json.loads(a.pin.read_text())
-        for name in pool.map(code_set, *zip(*[(build, shipped, work, d, pin[d.name]) for d in sets])):
-            print("done", name, flush=True)
+        index = {e["name"]: e for e in pool.map(head, *zip(*[(build, shipped, work, d) for d in sets]))}
+        tasks = [(build, work, d, g, pin[d.name]["g"][g]) for d in sets for g in pin[d.name]["g"]]
+        for name, g, c in pool.map(code_g, *zip(*sorted(tasks, key=lambda x: x[2].name != "dbts_b1"))):
+            index[name]["g"][g] = c
+            print("coded", name, "G", g, flush=True)
+        for name, e in index.items():
+            (work / f"{name}.json").write_text(json.dumps(e))
 
 
 if __name__ == "__main__":
