@@ -489,7 +489,7 @@ role times past the decode are a model); any fixture but the three named.
 
 ## Profile carriers protocol, amended
 
-*Row CARRIERS, amended 2026-11-04 (draft: §F, the shards and the pilot, follow) by the owner's request of that day. Written for a reader who has not followed this
+*Row CARRIERS, amended 2026-11-04 at the owner's request of that day. Written for a reader who has not followed this
 row; the terms are defined below even where the protocol above defines them. Separate sessions, given only this
 section, measure it; the pilot here only sized it. Arithmetic of ours is* derived*; what no source holds is*
 unverified*.*
@@ -562,6 +562,14 @@ codes; `sweep.py code` stops unless every unit size equals it.
 search also codes, bytes only, a **single-layer** full-size stream from `svc_encoder_rtc` at speed 7 and each k
 (`-lm 0 -sl 1`), bracketed to the high target the same way. It is not timed and not in the rule.
 
+**What the search found** (the pin, *measured* on the pilot's host; in-window PSNR, `dbts_a1` · `dbts_b1` · `dbts_c1`).
+Targets: high 44.70 · 41.30 · 43.73 dB, cheap 37.13 · 35.16 · 36.04 dB. The layered middle stays at m 20 at every k
+(m 19 or m 21 brackets it). The separate high stream is Q 18–19 at every G, the cheap one Q 57–62. Bytes at the
+target, separate ÷ layered base + middle at G = k (*derived* from the pin): k 1 0.59 · 0.75 · 0.61; k 4 0.67 · 0.80 ·
+0.70; k 8 0.69 · 0.81 · 0.73; k 16 0.71 · 0.82 · 0.75. The single-layer `svc_encoder_rtc` stream ÷ the layered base
++ middle: k 1 0.91 · 0.92 · 0.86, k 4–16 **1.06–1.32**: above k = 1 the layered view's extra bytes come from its
+encoder, not from the base it carries. Bytes only, not timed.
+
 ### B · The access patterns, each a clock
 
 Every AV1 decode is the same one-thread dav1d-WASM build with operating points (`two-layer/build_wasm.sh`), a fresh
@@ -599,38 +607,9 @@ Each block now starts with an untimed pass of every path its arms run (the merge
 frame 0; and before each arm a forced collection (`--js-flags=--expose-gc`) and two untimed units on a throwaway
 decoder of its kind.
 
-**1× only.** The first run's ratios at 4× were within 0.85–1.15× of those at 1× in C1, C3 and C6 (*derived* from
-its table), and 4× costs four times the wall; the budget goes to rounds. Nothing is claimed at 4×.
-
-### E · The review's findings, each answered
-
-[`profile-carriers-review.md`](profile-carriers-review.md) (`9aec9477`), 22 findings. *Accepted* names the change and
-where it is; *rejected* gives the reason.
-
-| # | finding, in short | | change, or reason |
-| --- | --- | --- | --- |
-| 1 | the order statistic, with one value a predecessor, measures round spread | accepted | four arms a block (five at p = 16), ≥ RND rounds so each predecessor has ≥ PRED values; a permutation test of predecessor labels on control-normalized values, gated at p < 0.05 ÷ arms in the block (§D) |
-| 2 | "not read" became "absent", so bytes alone decided a role | accepted | a comparison whose block fails its A/A, or whose arm or control is flagged, is **not read**, and a not-read time never lets bytes decide dominance (`amended.dominates`; tested and mutated) |
-| 3 | high-view bytes rest on a chord across 1.7–5.4 dB | accepted | each stream's quantizer is stepped to bracket the target; bytes are read over one quantizer step (§A); the measured neighbours are in the pin |
-| 4 | the A/A min–max range widens with n; `htj2k` is a noisy reference | accepted | the A/A is an order-statistic interval of its median, a gate that must contain 0; the control is the whole volume's HTJ2K decode, not 8 frames (§C, §D) |
-| 5 | eight correlated metrics a pair, any one makes "a trade" | accepted | one time metric per (role, access pattern), each read alone with the bytes on its own frontier; no metric is combined with another (§D) |
-| 6 | role times are an unvalidated link model | accepted | no link model in the rule: decode only, and nothing is claimed for a link (*Not in it*) |
-| 7 | the high view confounds carrier with encoder and group | accepted | the group by the sweep, both sides at 1 · 4 · 8 · 16; the encoder by the single-layer `svc_encoder_rtc` stream's bytes at each k (§A), reported beside the rule |
-| 8 | times paired at the nearest rung, not equal quality | accepted | as 3: every timed stream is the one nearest the target, its gap printed |
-| 9 | one asked group, no dweller, no view jump | accepted | 8 frames drawn over the whole volume each round; a jump for both carriers; a dweller (i, then i + 1) (§B). Steps past i + 1 are not added: each costs what i + 1 does, one unit on a held decoder (*derived*) |
-| 10 | `p3k1-m20` judged for the ask without its high-view cost | accepted | a configuration is one stream serving every role; the verdict lists each k across every judged (role, pattern) at once |
-| 11 | WebCodecs against one-thread dav1d-WASM | accepted | no WebCodecs arm |
-| 12 | the code that decides every verdict has no test | accepted | `amended_test.py` (28 claims) and `mutate_amended.py` (11 breaks, each caught), covering the interval, the decision, the order test, dominance, the frontier, the ask's bytes, the A/A and order gates, and the drop of a failed check |
-| 13 | three volumes; mutations on one | accepted | the claim is "these three volumes" in every verdict line; the browser mutations run on all three in shard 1, on `dbts_a1` in the others (§F) |
-| 14 | arms stop their clocks at different points; `res` not split | accepted | one endpoint for every exact op (cropped samples in one array); the residual's decode and add are timed apart (§B) |
-| 15 | rounds differ from §4 as committed | accepted, here | the first run's measured section is that session's; this protocol notes the deviation (pre-registered 10 at `4b12442`, 7 at `e67b87d`, 10 run) and changes nothing there |
-| 16 | mutations and rounds on different `ask.js` | accepted | every shard runs its mutations in the same session, on the commit it times |
-| 17 | the two carriers' lossy frames reconstructed differently on 12 bits | rejected | each is its own form's centred inverse: the layered top codes v ≫ 2 (`shape.py`, `Plane.top`), so x · 4 + 1.5; the separate 10-bit form codes (v + 2) ≫ 2 (`bytes.py`, `forms`), so x · 4. One reconstruction for both would bias one of them |
-| 18 | which PSNR | accepted | in-window PSNR is the matching metric; all-sample beside it (§A) |
-| 19 | the first arm of a round runs slow | accepted | an untimed pass of every path at each block's start, and a washout before each arm (§C) |
-| 20 | mutate-and-restore can read the mutant from the bytecode cache | accepted | `mutate_amended.py` runs each child with a fresh `PYTHONPYCACHEPREFIX` |
-| 21 | `verdict.not_read` sums `ms` unguarded | rejected | no change: the amended collector does not use `verdict.py`; the first run's code is left as it ran |
-| 22 | the cheap view compares bytes at unequal quality; separate may send the base | accepted | the cheap view is matched at equal in-window PSNR and reported, but not judged: the separate carrier may send the layered base itself, so it cannot lose that role by construction (*derived*, §2c above) |
+**1× only.** In the first run, each dav1d-WASM or OpenJPH ratio at 4× was 0.86–1.05× the same ratio at 1× (C1's
+mean ask, C3's residual, C4's ask; *derived* from its table above), and 4× costs four times the wall; the budget goes
+to rounds. Nothing is claimed at 4×.
 
 ### D · The rule (`amended.py`; derived from the definitions and one cited interval, no bar of ours)
 
@@ -654,15 +633,103 @@ where it is; *rejected* gives the reason.
    for the exact frame, what an ask adds to what the high view holds, the mean over i = 0 … F − 2: the tops of i's
    group to i and i's low bits for layered; i's residual, or HTJ2K frame i, for separate) and the pattern's one time
    metric. X **dominates** Y if X's bytes are no more, no pair decides the time against X or is not read, and X has
-   fewer bytes or the time decided for it. The **frontier** is the configurations no other dominates.
+   fewer bytes or the time decided for it. Each configuration is then **dominated**; **not read**, if some rival with
+   no more bytes has its time against it not read, so its place is unknown; or **on the frontier**. The fewest bytes
+   of a role are on its frontier by this definition, whatever their time; the collector prints every median beside
+   it, so the trade is visible.
 6. **The answer.** On a volume, the layered stream **stays a candidate** if at least one k is on the frontier of at
-   least one (role, pattern) of the high view or the exact frame; the collector prints which. It holds "on these three
+   least one (role, pattern) of the high view or the exact frame; it **is not read** if none is on a frontier and some
+   k is not read; otherwise it **is dominated**. The collector prints each k's state in every judged (role, pattern)
+   at once, so a k kept by one role and dominated in another reads as such (review finding 10). It holds "on these three
    volumes" when it holds on each; otherwise the table says which. Storage is printed beside it (layered stores less,
    as measured above) and is not, by itself, a reason to keep a carrier the roles do not choose: the owner's question
    is about carriers of the profiles the roles receive.
 7. **Primary and reported.** The rule reads only the metrics of §B, one per (role, pattern), in HTJ2K-frame units.
    The single-layer encoder's bytes, all-sample PSNR, the residual's decode and add apart, and every median are
    reported beside it.
+
+### E · The review's findings, each answered
+
+[`profile-carriers-review.md`](profile-carriers-review.md) (`9aec9477`), 22 findings. *Accepted* names the change and
+where it is; *rejected* gives the reason.
+
+| # | finding, in short | | change, or reason |
+| --- | --- | --- | --- |
+| 1 | the order statistic, with one value a predecessor, measures round spread | accepted | four arms a block (five at p = 16), 96 rounds so each predecessor has 24 values (about 19 in the five-arm block); a permutation test of predecessor labels on control-normalized values, gated at p < 0.05 ÷ arms in the block (§D) |
+| 2 | "not read" became "absent", so bytes alone decided a role | accepted | a comparison whose block fails its A/A, or whose arm or control is flagged, is **not read**, and a not-read time never lets bytes decide dominance (`amended.dominates`; tested and mutated) |
+| 3 | high-view bytes rest on a chord across 1.7–5.4 dB | accepted | each stream's quantizer is stepped to bracket the target; bytes are read over one quantizer step (§A); the measured neighbours are in the pin |
+| 4 | the A/A min–max range widens with n; `htj2k` is a noisy reference | accepted | the A/A is an order-statistic interval of its median, a gate that must contain 0; the control is the whole volume's HTJ2K decode, not 8 frames (§C, §D) |
+| 5 | eight correlated metrics a pair, any one makes "a trade" | accepted | one time metric per (role, access pattern), each read alone with the bytes on its own frontier; no metric is combined with another (§D) |
+| 6 | role times are an unvalidated link model | accepted | no link model in the rule: decode only, and nothing is claimed for a link (*Not in it*) |
+| 7 | the high view confounds carrier with encoder and group | accepted | the group by the sweep, both sides at 1 · 4 · 8 · 16; the encoder by the single-layer `svc_encoder_rtc` stream's bytes at each k (§A), reported beside the rule |
+| 8 | times paired at the nearest rung, not equal quality | accepted | as 3: every timed stream is the one nearest the target, its gap printed |
+| 9 | one asked group, no dweller, no view jump | accepted | 8 frames drawn over the whole volume each round; a jump for both carriers; a dweller (i, then i + 1) (§B). Steps past i + 1 are not added: each costs what i + 1 does, one unit on a held decoder (*derived*) |
+| 10 | `p3k1-m20` judged for the ask without its high-view cost | accepted | a configuration is one stream serving every role; the verdict lists each k across every judged (role, pattern) at once |
+| 11 | WebCodecs against one-thread dav1d-WASM | accepted | no WebCodecs arm |
+| 12 | the code that decides every verdict has no test | accepted | `amended_test.py` (31 claims) and `mutate_amended.py` (12 breaks, each caught), covering the interval, the decision, the order test, dominance, the frontier and its "not read", the ask's bytes, the A/A and order gates, and the drop of a failed check |
+| 13 | three volumes; mutations on one | accepted | the claim is "these three volumes" in every verdict line; the browser mutations run on all three in shard 1, on `dbts_a1` in the others (§F) |
+| 14 | arms stop their clocks at different points; `res` not split | accepted | one endpoint for every exact op (cropped samples in one array); the residual's decode and add are timed apart (§B) |
+| 15 | rounds differ from §4 as committed | accepted, here | the first run's measured section is that session's; this protocol notes the deviation (pre-registered 10 at `4b12442`, 7 at `e67b87d`, 10 run) and changes nothing there |
+| 16 | mutations and rounds on different `ask.js` | accepted | every shard runs its mutations in the same session, on the commit it times |
+| 17 | the two carriers' lossy frames reconstructed differently on 12 bits | rejected | each is its own form's centred inverse: the layered top codes v ≫ 2 (`shape.py`, `Plane.top`), so x · 4 + 1.5; the separate 10-bit form codes (v + 2) ≫ 2 (`bytes.py`, `forms`), so x · 4. One reconstruction for both would bias one of them |
+| 18 | which PSNR | accepted | in-window PSNR is the matching metric; all-sample beside it (§A) |
+| 19 | the first arm of a round runs slow | accepted | an untimed pass of every path at each block's start, and a washout before each arm (§C) |
+| 20 | mutate-and-restore can read the mutant from the bytecode cache | accepted | `mutate_amended.py` runs each child with a fresh `PYTHONPYCACHEPREFIX` |
+| 21 | `verdict.not_read` sums `ms` unguarded | rejected | no change: the amended collector does not use `verdict.py`; the first run's code is left as it ran |
+| 22 | the cheap view compares bytes at unequal quality; separate may send the base | accepted | the cheap view is matched at equal in-window PSNR and reported, but not judged: the separate carrier may send the layered base itself, so it cannot lose that role by construction (*derived*, §2c above) |
+
+### F · Rounds, pilot, shards
+
+**The pilot** (this session, 2026-11-05, the protocol's harness on a 4-core Intel Xeon @ 2.10 GHz, 15 GB; four
+rounds, rows in [`results/amended-pilot.jsonl`](../../lab/av1/delivery/carriers/results/amended-pilot.jsonl), not
+read for any verdict). Every check passed in all 48 blocks; no `VOID`. A round of the 12 blocks took 7.1–8.1 min.
+The robust spread (1.4826 × MAD, log units, per-round ratios, `pilot_spread.py`) of the A/A was 0.022 · 0.032 ·
+0.022 (the first run's ratio over its 8-frame `htj2k`: 0.10–0.17); of the pairs the rule reads, at most 0.049 for the
+cine and scroll metrics, 0.13 for the dweller's next, 0.16 for the jump, 0.20 for the exact after a jump and 0.26 for
+the dweller's first frame (the draws of i change from round to round, and the chain's length with them). Four
+values give a crude spread; the collector prints the run's own.
+
+**Rounds, from it.** The resolution sought is 5 %: the smallest gap the first run measured between two compared
+dav1d arms of one role (C6, 0.95 · 1.05 on `dbts_b1` and `dbts_c1`; *derived*, not a bar on the answer). For a median
+of n paired log ratios of spread σ, the rule's interval excludes 0 for a true ratio e^δ in about 80 % of runs when
+n ≥ (2.80 × 1.2533 × σ / δ)² (normal approximation; 1.2533 = √(π/2), the median's cost against the mean;
+*derived*). At δ = ln 1.05 that is n ≈ 24 at σ 0.049, 86 at 0.13, 139 at 0.16, 196 at 0.20, 361 at 0.26. The
+budget holds **96 rounds** (4 × 24). So, said before the run: at n = 96 the cine and scroll metrics and the dweller's
+next resolve 5 % (1.8 % and 4.7 %); the jump 6.0 %, the exact after a jump 7.2 %, the dweller's first frame 9.7 %
+(each *derived* from the pilot's σ). The pilot's exact-frame ratios between carriers were 2–46×, far past those.
+
+**Order at that n.** With four arms and 96 rounds each arm has 24 rounds after each predecessor (the five-arm block
+about 19); 24 rounds a shard is a whole number of Williams periods for the four-arm blocks and of the 12 blocks'
+order, and within one visit for the five-arm block.
+
+**Saturation.** One decode in flight, one thread a decoder: one core of four, on the page's thread; the host does not
+saturate in any arm, and the shards run nothing else. Nothing is claimed past 1×, for concurrent asks, a link, a
+phone or another host, and no absolute ms: every number is a ratio inside one block, and only ratios are pooled
+across shards.
+
+**Fixtures, and the only ones.** `dbts_a1`, `dbts_b1`, `dbts_c1` (`lab/av1/fetch_data.sh`, SHA-256-checked). The
+repository holds few cine-like breast series: the ultrasound cine in it is lossy-sourced and ABUS is absent, so
+nothing is claimed for ultrasound, FFDM, or any volume but these three.
+
+**Per shard, on a 4-core cloud host** (minutes on the pilot's host):
+
+| step | `run.sh` | time |
+| --- | --- | --: |
+| tools, the WASM build, the volumes | `tools` | 8 |
+| the shipped payload 5.2, the layered k = 8 stream 2.1 (checked against `svc-shapes.tsv`), `sweep.py code` 23.1 | `amended-content` | 31 |
+| `amended_test.py`, `mutate_amended.py`; six browser mutations on block k 8 of `dbts_a1` (shard 1: all three volumes) | `amended-mutate` | 3 (shard 1: 11) |
+| 24 rounds at 7.1–8.1 min | `amended-rounds` | 170–194 |
+| **total** | | **212–236** (shard 1: 220–244), under 270 |
+
+```bash
+git fetch origin && git checkout claude/av1-profile-carriers
+SHARD=k ROUNDS_PER_SHARD=24 BUDGET_S=16200 lab/av1/delivery/carriers/run.sh tools amended-content amended-mutate amended-rounds
+```
+
+`BUDGET_S` is 4.5 h from `run.sh`'s start: a shard on a slower host stops after a whole round once less than one
+round's time is left, and reports its n; the collector pools what came. `sweep.py code` stops the shard if any unit
+differs from the pin; a mutation that does not turn its own check to failure (or turns another's) stops it too, and
+the shard reports that instead of rounds.
 
 ### G · The harness
 
@@ -675,4 +742,43 @@ for `ask.js`, whose helpers are now exported.
 | `amended.js`, `amended.html` | one block: the untimed pass, the washouts, the arms in a Williams order, every pattern of §B with its checks |
 | `amended.mjs` | the driver: each (round, volume, block) a fresh Chromium with `--expose-gc`; a block past 15 min is `VOID`; `--mutate sample · truth · offset · skip · low · dwell` |
 | `amended.py` | the collector: §D end to end |
-| `amended_test.py`, `mutate_amended.py` | 28 claims of `amended.py`'s arithmetic, and 11 breaks of it, each caught |
+| `amended_test.py`, `mutate_amended.py` | 31 claims of `amended.py`'s arithmetic, and 12 breaks of it, each caught |
+| `pilot_spread.py` | the pilot's robust spread per metric and pair, which sizes the rounds (§F) |
+
+### Sources
+
+* [C3] NIST/SEMATECH Dataplot Reference Manual, MEDIAN CONFIDENCE LIMITS,
+  <https://itl.nist.gov/div898/software/dataplot/refman1/auxillar/mediancl.htm>, read 2026-11-04 (SHA-256 of the
+  page `bc7f45b1ac28…`): "Suppose W is a binomial random variable with n trials and a probability of success p =
+  0.5. For any integer, k, between 0 and [n/2], let γ_k = P(k ≤ W ≤ n − k). A 95% confidence interval for the median
+  is: (X_k, X_{n−k+1}) with X denoting the sorted observations." The page's k is this section's r; the rule takes the
+  largest r with γ_r ≥ 0.95 and not the page's interpolated interval, so its coverage is at least 95 %.
+* The first run's measured rows, its review (`9aec9477`), and this branch's pin and pilot, as named above.
+
+## Shards
+
+| shard | rounds | writes | heading |
+| --- | --- | --- | --- |
+| 1 | 0–23, every block | `lab/av1/delivery/carriers/results/amended-shard-1.jsonl`, `.mutations.jsonl`, `.index.dbts_{a1,b1,c1}.json`, `.md` | `### Amended shard 1, measured` |
+| 2 | 24–47, every block | `lab/av1/delivery/carriers/results/amended-shard-2.jsonl`, `.mutations.jsonl`, `.md` | `### Amended shard 2, measured` |
+| 3 | 48–71, every block | `lab/av1/delivery/carriers/results/amended-shard-3.jsonl`, `.mutations.jsonl`, `.md` | `### Amended shard 3, measured` |
+| 4 | 72–95, every block | `lab/av1/delivery/carriers/results/amended-shard-4.jsonl`, `.mutations.jsonl`, `.md` | `### Amended shard 4, measured` |
+
+Split by rounds, never by arm: every shard runs every block whole. Each shard appends its heading at the end of this
+file (after `git pull --rebase`) and writes nothing else: its host (`lscpu` model, cores, memory, Chromium), each
+step's wall, its n and `VOID` count, its mutations' outcome table, and anything that differed from this section;
+`.md` holds the same plus `amended.py`'s output on its own rows, printed as a check, **not read** for any verdict
+(24 rounds is not the n this section sized).
+
+**The collector**, once all four headings exist (or when the last one says it stopped): pool, apply the rule.
+
+```bash
+python3 lab/av1/delivery/carriers/amended.py lab/av1/delivery/carriers/results/amended-shard-1.index. \
+  lab/av1/delivery/carriers/results/amended-shard-{1,2,3,4}.jsonl > lab/av1/delivery/carriers/results/amended-collected.md
+```
+
+It reports, under `## Profile carriers, amended, collected`: n per block; every block's A/A interval and the count
+that fail; every arm flagged by order with its p; per volume and (role, pattern) the bytes, the median in
+HTJ2K-frame units with n, and each configuration's state; the answer of §D.6 per volume and whether it holds "on
+these three volumes"; storage beside it; and every deviation a shard reported. The cheap view and the single-layer
+bytes are reported, not judged.

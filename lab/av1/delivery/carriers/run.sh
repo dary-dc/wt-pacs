@@ -64,10 +64,12 @@ if want amended-mutate; then
     NODE_PATH=$(npm root -g) node $C/amended.mjs --work $AW --first-round 0 --sets $sets --points 8 --mutate $m \
       --out "$RESULTS/amended-shard-$SHARD.mutations.jsonl"
   done
+  [[ "$SHARD" == 1 ]] && for v in dbts_a1 dbts_b1 dbts_c1; do cp $AW/$v.json "$RESULTS/amended-shard-1.index.$v.json"; done
 fi
 if want amended-rounds; then
-  # Shard k runs rounds (k − 1)·N … k·N − 1; it stops after a whole round once less than one round's time is left.
-  N=${ROUNDS_PER_SHARD:?} first=$(( (SHARD - 1) * N )) end=$(( SECONDS + ${BUDGET_S:?} ))
+  # Shard k runs rounds (k − 1)·N … k·N − 1; it stops after a whole round once less than one round's time is left
+  # before BUDGET_S, seconds since run.sh started.
+  N=${ROUNDS_PER_SHARD:?} first=$(( (SHARD - 1) * N )) end=${BUDGET_S:?}
   for r in $(seq $first $(( first + N - 1 ))); do
     s=$SECONDS
     NODE_PATH=$(npm root -g) node $C/amended.mjs --work $AW --first-round "$r" --out "$RESULTS/amended-shard-$SHARD.jsonl"

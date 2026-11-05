@@ -4,8 +4,10 @@ Pools the shards' rows, normalizes every time by its block's HTJ2K control in th
 its own A/A and each arm on its order effect, decides each pair by the median's order-statistic interval, and
 reads every role's frontier over k and G.
 
-usage: amended.py WORK ROWS.jsonl ...   — prints the tables; amended_test.py checks the arithmetic
+usage: amended.py INDEX-PREFIX ROWS.jsonl ...   — prints the tables; amended_test.py checks the arithmetic
+  INDEX-PREFIX: sweep.py code's indexes are INDEX-PREFIX*.json (results/amended-shard-1.index. or WORK/)
 """
+import glob
 import json
 import math
 import random
@@ -201,7 +203,7 @@ def order_effects(cells, rows):
 
 
 def main():
-    work, (rows, voids) = Path(sys.argv[1]), load(sys.argv[2:])
+    indexes, (rows, voids) = sorted(glob.glob(sys.argv[1] + "*.json")), load(sys.argv[2:])
     pin = json.loads(PIN.read_text())
     cells = metrics(rows)
     norm = normalized(cells)
@@ -218,8 +220,8 @@ def main():
     unread |= {(s, b, a) for (s, b, a), (_, _, f) in effects.items() if f}
     failed = sum(lo is not None and not lo <= 0 <= hi for _, lo, hi, _ in gate.values())
     print(f"\nA/A decided (interval excludes 0) in {failed} of {sum(v[1] is not None for v in gate.values())} readable blocks")
-    for idx in sorted(work.glob("dbts_*.json")):
-        e = with_brackets(json.loads(idx.read_text()), pin)
+    for idx in indexes:
+        e = with_brackets(json.loads(Path(idx).read_text()), pin)
         s = e["name"]
         configs = config_bytes(e)
         print(f"\n## {s}\n")
