@@ -3,6 +3,8 @@
 A WebTransport PACS server: `server/` is the product, `lab/` measures it, `docs/` is where
 every number and every reason lives. `README.md` runs it.
 
+The client's subsystems and the build-or-integrate options are in `docs/viewer/architecture.md` §The subsystems.
+
 ## Code
 
 **Essentialist and self-documenting.** Readers run junior to senior. At equal functionality

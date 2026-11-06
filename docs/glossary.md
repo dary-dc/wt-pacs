@@ -36,6 +36,11 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | preview | a lossy picture shown before its frame's exact one, and replaced by it |
 | view | where the viewer holds and paints its frames: `page` (the default) or `worker`, the page's `?view=` ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) |
 | view worker | under `?view=worker`, the worker that holds the controller, the frame store and the paint module; the page sends it intents and hears events, never a frame |
+| subsystem | a group of the client's modules built, or bought, as one: **delivery**, **view**, **tools**, **application** ([`viewer/architecture.md`](viewer/architecture.md) §The subsystems) |
+| delivery | the subsystem that brings a checked frame: the transport, session survival, the records, the decoders, the frame digest check, the frame store and its cache |
+| view | the subsystem that turns a held frame into pixels: the controller, the paint module, display state, `valueAt`; one **viewport** is one canvas region it paints |
+| tools | the subsystem that reads values and draws vector overlays: input handlers, measurements, annotations, GSPS, CAD SR marks; nothing that changes a pixel's value |
+| application | the subsystem around the views: layouts, hanging protocols, linked viewports, the study list, labels, security and audit |
 | controller | the view's current frame, what it wants and in what order, and its paint (`client/view/controller.js`) |
 | frame store | the frames held, by index: has, get, put, a memory window; under `worker`, where a frame comes from: it sends the downloader the misses of each want (`client/view/store.js`) |
 | cache | under `worker`, a series' decoded frames in OPFS behind the frame store, each checked against its frame digest when read back; its **cache writer** (`?writer=`, a lab lever; none by default, so no cache) is the **store worker** (`client/viewer/store.js`, one packed file a series), the `decoders` or the `view` worker, those two a file per frame ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) |
