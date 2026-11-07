@@ -404,3 +404,6 @@ or more. It is cheap in bytes, not in decode.
   No sequential before/after was measured.
 * **Saturation.** In both timed sources one decode was in flight on one thread, using one core of four. Nothing is
   claimed past 1×, for concurrent decodes, WebCodecs, another host or a phone.
+* **Gate.** `scripts/gate.sh --quick --no-browser` stopped at its prerequisites: this container has no built
+  `client/transport/wasm/pkg`. So it did not run. The change is docs, three arithmetic scripts and their outputs;
+  `scripts/comment_budget.sh` passes.
