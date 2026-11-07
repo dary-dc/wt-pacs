@@ -20,7 +20,7 @@ What is left: the remaining rounds of this link if not 10; the breast ultrasound
 
 **Where the host saturates.** Recomputed from the raw rows below at every push, over every visit with an exact layer, `VOID` ones included: wire bits ÷ the last byte's time; the last exact frame against the last byte; the median t_X at 4× ÷ at 1× per series and variant.
 
-*No round complete yet: the harness started at 2026-11-07 22:04 UTC.* One early observation, not a result: at 2 % loss  on  at 1× took 249.5 s to its last byte, against 28–30 s on the clean 20 Mbit/s link, so a round here takes hours.
+*No round complete yet: the harness started at 2026-11-07 22:04 UTC.* One early observation, not a result: at 2 % loss `htj2k` on `dbts_a1` at 1× took 249.5 s to its last byte, against 27.7 s on the clean 20 Mbit/s link in the first sitting ([`svc-results.md`](svc-results.md) table 7), so a round here takes hours.
 
 
 
