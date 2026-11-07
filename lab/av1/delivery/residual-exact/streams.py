@@ -76,11 +76,22 @@ def write_y4m(s, form, path):
             fh.write(b"FRAME\n" + b"".join(np.ascontiguousarray(p, dt).tobytes() for p in (y, neutral, neutral)))
 
 
-def run(cmd):
-    r = subprocess.run([str(c) for c in cmd], capture_output=True)
+def run(cmd, env=None):
+    r = subprocess.run([str(c) for c in cmd], capture_output=True, env=env)
     if r.returncode:
         raise RuntimeError(f"{cmd[0]}: {r.stderr.decode()[-400:]}")
     return r.stderr.decode()
+
+
+def pinned(build):
+    """The CLI links libdav1d dynamically: without this it loads whatever libdav1d the host has."""
+    return {"LD_LIBRARY_PATH": str(build / "dav1d/lib")}
+
+
+def versions(build):
+    v = lambda env: subprocess.run([build / "dav1d/bin/dav1d", "--version"], capture_output=True, text=True,
+                                   env=env).stderr.strip()
+    return {"pinned": v(pinned(build)), "system": v({})}
 
 
 def y4m_luma(path, s, depth):
@@ -144,17 +155,19 @@ def cell(job):
     if any(h["film_grain"] for h in seqs):
         sys.exit(f"{d.name}: film_grain_params_present set — the residual needs it 0 (docs §1c)")
     dec = {}
-    for name, cmd in (("dav1d-t1", ["--threads=1"]), ("dav1d-t4", ["--threads=4"])):
+    for name, cmd, env in (("dav1d-t1", ["--threads=1"], pinned(build)), ("dav1d-t4", ["--threads=4"], pinned(build)),
+                           ("dav1d-system", ["--threads=1"], {})):
         dec[name] = d / f"{name}.y4m"
-        run([build / "dav1d/bin/dav1d", "-q", *cmd, "-i", ivf, "-o", dec[name]])
+        run([build / "dav1d/bin/dav1d", "-q", *cmd, "-i", ivf, "-o", dec[name]], env)
     dec["aomdec"] = d / "aomdec.yuv"
     run([build / f"aom-{AOM}/bin/aomdec", "--rawvideo", "-o", dec["aomdec"], ivf])
     ref = lambda: y4m_luma(dec["dav1d-t1"], s, form.depth)
     row = dict(set=s.name, frames=s.n, width=s.w, height=s.h, form=form.name, depth=form.depth, q=q, g=g,
-               args=args, units=[len(u) for u in units], keyframes=sum(1 for u in units if obu.sequence_header(u)),
+               args=args, dav1d=versions(build), units=[len(u) for u in units], keyframes=sum(1 for u in units if obu.sequence_header(u)),
                seq=seqs[0], film_grain_any=False,
                native=compare(ref(), ref()),
                against={"dav1d-t4": compare(ref(), y4m_luma(dec["dav1d-t4"], s, form.depth)),
+                 "dav1d-system": compare(ref(), y4m_luma(dec["dav1d-system"], s, form.depth)),
                         "aomdec": compare(ref(), raw_luma(dec["aomdec"], s, form.depth),
                                           (s.n // 2, s.h // 3, s.w // 3) if mutate else None)})
     row["native"].pop("first")
@@ -168,7 +181,7 @@ def refs(build, cell_dir):
     meta = json.loads((cell_dir / "cell.json").read_text())
     ivf = cell_dir / "out.ivf"
     y4m = cell_dir / "ref.y4m"
-    run([build / "dav1d/bin/dav1d", "-q", "--threads=1", "-i", ivf, "-o", y4m])
+    run([build / "dav1d/bin/dav1d", "-q", "--threads=1", "-i", ivf, "-o", y4m], pinned(build))
 
     class S:
         n, h, w = len(meta["units"]), meta["height"], meta["width"]
