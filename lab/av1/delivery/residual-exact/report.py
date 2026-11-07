@@ -23,10 +23,10 @@ def main():
         print(f"| `{r['set']}` | {r['form']} | {r['q']} | {r['g']} | {r['frames']} | {r['native']['samples']:,} | "
               f"{sum(r['units']):,} | {r['keyframes']} | {r['seq']['film_grain']} | {verdict(a['dav1d-t4'])} | "
               f"{verdict(a['aomdec'])} |")
-    arms = [("dav1d-wasm", None), ("webcodecs", "prefer-software"), ("webcodecs", "no-preference")]
+    arms = [("dav1d-wasm", None), ("webcodecs", "prefer-software"), ("webcodecs", "no-preference"), ("webcodecs", "prefer-hardware")]
     print("\n| fixture | form | Q | G | dav1d-WASM | WebCodecs `prefer-software` | WebCodecs `no-preference` | "
-          "decoder (media log) | `copyTo` format |")
-    print("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+          "WebCodecs `prefer-hardware` | decoder (media log) | `copyTo` format |")
+    print("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for s in streams:
         name = f"{s['set']}-{s['form']}-q{s['q']}-g{s['g']}"
         got = {(r["decoder"], r["accel"]): r for r in browser if r["cell"] == name}

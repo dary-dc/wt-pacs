@@ -2,20 +2,22 @@
 // WebCodecs in headless Chromium, every sample against native dav1d; Chromium's media log names the decoder.
 //
 //   node lab/av1/delivery/residual-exact/run.mjs WORK OUT.jsonl [--cells a,b] [--mutate] [--port 31997]
+//     [--browser chromium|firefox|webkit] [--channel chrome] [--headed] [--args "--flag …"] [--arms dav1d-wasm,webcodecs:prefer-hardware]
 import { spawn, spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const { chromium } = createRequire(import.meta.url)("playwright");
+const playwright = createRequire(import.meta.url)("playwright");
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "../../../..");
 const [work, outPath] = process.argv.slice(2).map((p) => resolve(p));
 const opt = (k, d) => (process.argv.includes(k) ? process.argv[process.argv.indexOf(k) + 1] : d);
 const mutate = process.argv.includes("--mutate");
 const port = Number(opt("--port", "31997"));
-const ARMS = [["dav1d-wasm"], ["webcodecs", "prefer-software"], ["webcodecs", "no-preference"]];
+const ARMS = opt("--arms", "dav1d-wasm,webcodecs:prefer-software,webcodecs:no-preference,webcodecs:prefer-hardware").split(",").map((a) => a.split(":"));
+const engine = opt("--browser", "chromium");
 
 const cells = (opt("--cells") ?? readdirSync(work).join(",")).split(",").filter((c) => {
   try {
@@ -27,10 +29,11 @@ const cells = (opt("--cells") ?? readdirSync(work).join(",")).split(",").filter(
 
 const http = spawn("python3", ["server/dev-server.py", "--port", String(port)], { cwd: ROOT, stdio: "ignore" });
 await new Promise((r) => setTimeout(r, 1500));
-const browser = await chromium.launch();
+const args = opt("--args", "").split(" ").filter(Boolean);
+const browser = await playwright[engine].launch({ headless: !process.argv.includes("--headed"), channel: opt("--channel"), args });
 const page = await browser.newPage();
-const cdp = await page.context().newCDPSession(page);
 const players = new Map();
+const cdp = engine === "chromium" ? await page.context().newCDPSession(page) : { on() {}, send: async () => {} };
 cdp.on("Media.playerPropertiesChanged", ({ playerId, properties }) => {
   const p = players.get(playerId) ?? {};
   for (const { name, value } of properties) p[name] = value;
@@ -45,7 +48,7 @@ await cdp.send("Media.enable");
 page.on("console", (m) => m.type() === "error" && console.error("page:", m.text()));
 await page.goto(`http://127.0.0.1:${port}/${relative(ROOT, HERE)}/decode.html`);
 await page.waitForFunction(() => globalThis.ready);
-const meta = { chromium: browser.version(), headless: true, userAgent: await page.evaluate(() => navigator.userAgent) };
+const meta = { engine, chromium: browser.version(), headless: !process.argv.includes("--headed"), args, userAgent: await page.evaluate(() => navigator.userAgent) };
 console.log(JSON.stringify(meta));
 
 for (const [c, name] of cells.entries()) {

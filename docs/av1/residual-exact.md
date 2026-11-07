@@ -158,6 +158,59 @@ not an independent check — §2 adds libaom's `aomdec`, the reference decoder, 
 
 *Pending.*
 
-## 3 · Owed: hardware and other browsers
+## 3 · Owed: hardware decoders and other browsers
 
-*Pending.*
+Nothing below was run; this host has no GPU and only Chromium. What each path would return is read from source where
+one was read (*derived*), else *unverified*. dav1d-WASM is the same module in every engine, and WebAssembly's integer
+arithmetic is deterministic — the WebAssembly design's *Nondeterminism* list
+(<https://github.com/WebAssembly/design/blob/6e43416/Nondeterminism.md>) names NaN bits, shared memory, resource
+limits and "The [relaxed SIMD] instructions have nondeterministic results", none of which the product's build uses
+(`-msimd128`, no relaxed SIMD, one thread; `client/decode/wasm/build/inside.sh`). So **dav1d-WASM's result here is
+expected in every browser** (*derived*); a WebCodecs path is what can differ.
+
+| path | what it is | what the sources predict | status |
+| --- | --- | --- | --- |
+| Chrome desktop, GPU (Windows D3D11, macOS VideoToolbox, Linux VA-API) | a platform decoder behind WebCodecs, chosen by `no-preference` or `prefer-hardware` | output arrives as a GPU surface (NV12 or P010 commonly), read back by `copyTo`; whether the hardware decoder accepts 4:0:0 and returns its luma unchanged is *unverified* | owed |
+| Chrome on Android | MediaCodec where the device has an AV1 decoder, else Chromium's dav1d | as above; device-specific | owed |
+| Firefox | WebCodecs over its platform decoders; software AV1 is dav1d (`dom/media/platforms/agnostic/DAV1DDecoder.cpp`) | **a 4:0:0 picture is skipped, never output** (source below), so every VL view here would fail through Firefox's WebCodecs and must go to dav1d-WASM; Firefox's WebCodecs does not ask for 8-bit output (no `Output8BitPerChannel` in `dom/media/webcodecs/DecoderAgent.cpp`) | owed — *derived*, not run |
+| Safari (macOS, iOS) | WebCodecs over VideoToolbox on devices with AV1 hardware | *unverified*: no WebKit source read this run | owed |
+
+Firefox at `mozilla-firefox/firefox` `ac7b5e4`,
+<https://github.com/mozilla-firefox/firefox/blob/ac7b5e4bc10b65142541a54b0ef23462647f7da1/dom/media/platforms/agnostic/DAV1DDecoder.cpp>:
+
+> if ((*picture).p.layout == DAV1D_PIXEL_LAYOUT_I400) {
+> // Use NS_OK to indicate that this picture should be skipped.
+> auto r = MediaResult(
+> NS_OK,
+> RESULT_DETAIL("I400 picture: No chroma data to construct an image"));
+
+**Commands for a local run.** Once (any OS with the build tools; Linux shown), from the repo root:
+
+```bash
+lab/av1/tools/tools.sh aom dav1d && lab/av1/fetch_data.sh dbts_a1 dbts_b1 dbts_c1 && client/decode/wasm/build/build.sh
+lab/av1/.venv/bin/python lab/av1/delivery/residual-exact/streams.py lab/.av1-build lab/.av1-work/rx \
+  lab/.av1-work/rx.jsonl lab/av1/data/dbts_{a1,b1,c1}
+```
+
+then, per path (`run.mjs` writes each cell's reference luma, decodes, compares, deletes it; the rows say which
+decoder answered where the media log exists, Chromium only):
+
+```bash
+# Chrome with its GPU (Windows, macOS; on Linux add --args "--enable-features=AcceleratedVideoDecodeLinuxGL,VaapiVideoDecoder")
+node lab/av1/delivery/residual-exact/run.mjs lab/.av1-work/rx lab/.av1-work/rx-chrome-gpu.jsonl --channel chrome --headed \
+  --arms webcodecs:prefer-hardware,webcodecs:no-preference,dav1d-wasm
+# Firefox (Playwright's build: npx playwright install firefox)
+node lab/av1/delivery/residual-exact/run.mjs lab/.av1-work/rx lab/.av1-work/rx-firefox.jsonl --browser firefox \
+  --arms dav1d-wasm,webcodecs:no-preference,webcodecs:prefer-hardware
+# WebKit on macOS (Playwright's WebKit, not Safari itself)
+node lab/av1/delivery/residual-exact/run.mjs lab/.av1-work/rx lab/.av1-work/rx-webkit.jsonl --browser webkit \
+  --arms dav1d-wasm,webcodecs:no-preference
+# Safari, iOS Safari, Android Chrome: serve the page, open it on the device, run one cell from the inspector console
+lab/av1/.venv/bin/python lab/av1/delivery/residual-exact/streams.py lab/.av1-build lab/.av1-work/rx --refs dbts_a1-top10-q8-g16
+python3 server/dev-server.py --port 31997      # Android: adb reverse tcp:31997 tcp:31997; iOS: the Mac's LAN address
+#   http://127.0.0.1:31997/lab/av1/delivery/residual-exact/decode.html, then in the console:
+#   await check({ dir: "/lab/.av1-work/rx/dbts_a1-top10-q8-g16", n: 56, decoder: "webcodecs", accel: "prefer-hardware" })
+```
+
+`differ` 0 and every frame's SHA-256 equal to `cell.json`'s `native.sha` is a pass; anything else is reported by
+count, `first` positions and `max_abs`.
