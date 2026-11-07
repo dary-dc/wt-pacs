@@ -22,7 +22,7 @@ node lab/av1/delivery/residual-exact/run.mjs lab/.av1-work/rx-mutate lab/.av1-wo
 
 | file | does |
 | --- | --- |
-| `streams.py` | codes each VL view with `aomenc_args` (the profiles branch's, checked identical at run time), refuses film grain, decodes with native dav1d `--threads=1` (the reference) and `--threads=4` and with `aomdec`, compares every luma sample; `--refs` writes the reference luma for the browser |
+| `streams.py` | codes each VL view with `aomenc_args` (the profiles branch's, checked identical at run time), refuses film grain, decodes with native dav1d 1.5.4 on its own libdav1d, `--threads=1` (the reference) and `--threads=4`, the same CLI on the host's libdav1d, and `aomdec`, compares every luma sample; `--refs` writes the reference luma for the browser |
 | `obu.py` | the sequence header's `film_grain_params_present`, copied from `lab/av1/profiles/obu.py` at `1232918d` |
 | `decode.html`, `decode.mjs` | one cell through dav1d-WASM (the product's build) or WebCodecs, every luma sample against the reference, `copyTo()` with no `format` |
 | `run.mjs` | headless Chromium (Playwright), the arms in rotated order per cell, the media log's decoder name per WebCodecs arm |

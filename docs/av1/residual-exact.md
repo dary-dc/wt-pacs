@@ -11,7 +11,43 @@ reading, *unverified* = no source or run confirms it.
 
 ## Verdict
 
-*Pending: §1 (the sources) is written; §2 (the harness) is running. This block is rewritten when it lands.*
+**Claim.** On the three timed DBT fixtures — `dbts_a1`, `dbts_b1`, `dbts_c1` (EA1141; A and C 12-bit, noise σ 13–18,
+neighbour-slice noise correlation ρ 0.11–0.13; B 10-bit, σ 4.4–6.7, ρ 0.18–0.27) — every client decoder that
+**accepted** a VL view returned native dav1d's samples bit for bit: over every arm compared, server-side and client, **0 of 21 559 207 680
+luma samples differ, 6 200 frames**, on 20 views (Q 4 and 8; G 1 and 16; the 12-bit volumes both as 12-bit and as top 10 bits). So the
+server's residual, added back, rebuilds the exact frame on each of them (*derived*: addition is exact integer
+arithmetic, so exact ⇔ equal decode). The independent decoder agrees too: libaom's `aomdec`, the reference decoder,
+matches dav1d on all 20.
+
+**Where it does not reach.** WebCodecs in Chromium 153 **refuses every 12-bit view** (24/24 arms, `decode()`
+rejects the key chunk though `isConfigSupported` says yes). Those views decode only through dav1d-WASM, which
+matches. Headless Chromium has no hardware path: `isConfigSupported` says no to `prefer-hardware` on 20/20 views, and `prefer-software` and
+`no-preference` both name `Dav1dVideoDecoder`, platform decoder `false` (24/24). Nothing here covers breast
+ultrasound cine or ABUS (none in the fixtures), other Q or G, or any hardware decoder.
+
+**Proof chain.** (1) The AV1 specification makes output bit-exact when `film_grain_params_present` = 0 (§1a); film
+grain lifts that (§1c). (2) Every sequence header of all 20 views has it 0 (read, and the reader mutated: §2). (3)
+WebCodecs' `copyTo()` with no `format` is a byte copy (§1d), and Chromium hands it dav1d's luma (§1d). (4) Measured:
+native dav1d 1.5.4 at 1 and 4 threads, the host's libdav1d 1.4.1, `aomdec` 3.15.1, dav1d-WASM 1.5.4 and Chromium's
+WebCodecs all equal, sample for sample (§2). (5) The comparison catches a single flipped sample in every arm it
+judges (§2, mutation).
+
+**What would change it.** A VL view with film grain on (the encode must keep `--denoise-noise-level=0`); a hardware
+decoder, another browser's pipeline or a future Chromium that converts samples or decodes differently (§3); a coding
+tool these settings never use (higher Q, other `--cpu-used`, alt-ref, other dimensions) that one decoder implements
+wrongly; a 4:0:0 view reaching Firefox's WebCodecs, which by its source outputs no picture at all (§3).
+
+**What is owed.** The hardware and other-browser runs of §3 (desktop GPU in Chrome, Android, Safari on macOS and
+iOS, Firefox), with commands; the Argon conformance set through the product's dav1d-WASM build (§1b); a check that
+the product's client falls back to dav1d-WASM wherever WebCodecs refuses or outputs nothing.
+
+**Prior state, corrected.** Not every earlier harness compared dav1d with dav1d only: the profiles bytes run already
+compared `aomdec`'s luma with dav1d's on 27 series at Q 8, G 16 (`results/cells.jsonl`, `aomdec_matches` true on
+27/27). This run widens that to Q 4, G 1, the top 10 bits and every sample counted, and adds the browser decoders.
+Also found: `lab/.av1-build/dav1d/bin/dav1d` links libdav1d dynamically and **loads the host's library when
+`LD_LIBRARY_PATH` is unset** — here 1.4.1, not the pinned 1.5.4. Harnesses that call it bare (the profiles branch's
+`bytes.py` and `streams.py` among them) may have decoded with the host's library; whether they did on their hosts is
+*unverified*. Here the two versions agree on every sample, so this run's conclusion does not depend on it.
 
 ## 1 · What the sources say
 
@@ -156,7 +192,102 @@ not an independent check — §2 adds libaom's `aomdec`, the reference decoder, 
 
 ## 2 · The harness
 
-*Pending.*
+**Method card.**
+
+* **Input.** `dbts_a1` (56 frames, 1142×1785, 12-bit stored, max 3213), `dbts_b1` (50 frames, 2560×3328, 10-bit),
+  `dbts_c1` (69 frames, 976×2513, 12-bit, max 4095): every frame, fetched by `lab/av1/fetch_data.sh` and checked
+  against the SHA-256s in `lab/av1/data.json`. Limits: three volumes, one a system; no breast ultrasound cine or ABUS
+  exists in the fixtures. Branch base `claude/av1-unified-mainbase` `696c15d6`.
+* **Encode.** libaom `aomenc` 3.15.1 (`lab/av1/tools/tools.sh`), the profiles branch's `aomenc_args` (copied, and
+  checked identical at run time against `lab/av1/profiles/bytes.py` at `1232918d` on every cell):
+  `aomenc -o OUT.ivf --limit=N --disable-warning-prompt --ivf --good --cpu-used=6 --threads=1 --passes=1 --tune=psnr
+  --end-usage=q --cq-level=Q --min-q=Q --max-q=Q --deltaq-mode=0 --aq-mode=0 --denoise-noise-level=0
+  --lag-in-frames=0 --auto-alt-ref=0 (--kf-max-dist=0 | --kf-min-dist=16 --kf-max-dist=16) --monochrome
+  --profile=P --bit-depth=D --input-bit-depth=D IN.y4m`, P 2 and D 12 for `12bit`, P 0 and D 10 for `10bit` and
+  `top10` (v ↦ min((v + 2) ≫ 2, 1023)). Y4M 4:2:0 in, neutral chroma; the stream is 4:0:0.
+* **Decoders.** Reference (the server side): dav1d 1.5.4 CLI with its own libdav1d (`LD_LIBRARY_PATH` set),
+  `-q --threads=1`. Against it: the same at `--threads=4`; the same CLI on the host's libdav1d 1.4.1 (an Ubuntu
+  package); libaom `aomdec` 3.15.1 `--rawvideo` (independent code); dav1d-WASM 1.5.4, the product's build
+  (`client/decode/wasm/build`, checked against `manifest.sha256`; one thread, `max_frame_delay` 1); WebCodecs in
+  headless Chrome for Testing 153.0.8010.12 (Playwright 1.63.0), `codec` from the sequence header,
+  `optimizeForLatency: true`, `hardwareAcceleration` each of `prefer-software` (the product's), `no-preference`,
+  `prefer-hardware`; one chunk in flight, `copyTo()` with no options. The media log (CDP `Media` domain) records the
+  decoder name and `kIsPlatformVideoDecoder` per WebCodecs arm.
+* **Clock.** None: nothing is timed, so arm order cannot bias a number; the browser arms still rotate per cell.
+* **Bytes.** A VL view's bytes are the sum of its IVF frame payloads (one temporal unit a frame).
+* **Metrics.** Per arm, per frame, every luma sample against the reference: samples that differ, frames with any,
+  the first eight [frame, y, x, got − ref], the largest |Δ|; and each frame's SHA-256 against the reference's.
+  Only luma: the views are 4:0:0, whose U and V a decoder ignores (§7.18.1).
+* **Host.** 4 vCPU Intel Xeon @ 2.10 GHz, 15 GB, Linux, no GPU. Nothing here is throughput-bound, so no saturation
+  claim applies.
+
+Commands: [`lab/av1/delivery/residual-exact/README.md`](../../lab/av1/delivery/residual-exact/README.md). Rows:
+`lab/av1/delivery/residual-exact/results/` (`streams.jsonl`, `browser.jsonl`, `report.md`).
+
+**Server side and `aomdec` — every sample, every frame.**
+
+| fixture | form | Q | G | frames | samples | VL bytes | keyframes | grain | dav1d 1.5.4 `--threads=4` | system libdav1d | aomdec |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `dbts_a1` | 12bit | 4 | 1 | 56 | 114,154,320 | 18,205,137 | 56 | 0 | 0 / 114,154,320 | 0 / 114,154,320 | 0 / 114,154,320 |
+| `dbts_a1` | 12bit | 4 | 16 | 56 | 114,154,320 | 18,308,364 | 4 | 0 | 0 / 114,154,320 | 0 / 114,154,320 | 0 / 114,154,320 |
+| `dbts_a1` | 12bit | 8 | 1 | 56 | 114,154,320 | 5,019,224 | 56 | 0 | 0 / 114,154,320 | 0 / 114,154,320 | 0 / 114,154,320 |
+| `dbts_a1` | 12bit | 8 | 16 | 56 | 114,154,320 | 5,027,649 | 4 | 0 | 0 / 114,154,320 | 0 / 114,154,320 | 0 / 114,154,320 |
+| `dbts_a1` | top10 | 4 | 1 | 56 | 114,154,320 | 15,588,376 | 56 | 0 | 0 / 114,154,320 | 0 / 114,154,320 | 0 / 114,154,320 |
+| `dbts_a1` | top10 | 4 | 16 | 56 | 114,154,320 | 15,685,772 | 4 | 0 | 0 / 114,154,320 | 0 / 114,154,320 | 0 / 114,154,320 |
+| `dbts_a1` | top10 | 8 | 1 | 56 | 114,154,320 | 4,655,594 | 56 | 0 | 0 / 114,154,320 | 0 / 114,154,320 | 0 / 114,154,320 |
+| `dbts_a1` | top10 | 8 | 16 | 56 | 114,154,320 | 4,640,590 | 4 | 0 | 0 / 114,154,320 | 0 / 114,154,320 | 0 / 114,154,320 |
+| `dbts_b1` | 10bit | 4 | 1 | 50 | 425,984,000 | 47,554,367 | 50 | 0 | 0 / 425,984,000 | 0 / 425,984,000 | 0 / 425,984,000 |
+| `dbts_b1` | 10bit | 4 | 16 | 50 | 425,984,000 | 46,853,126 | 4 | 0 | 0 / 425,984,000 | 0 / 425,984,000 | 0 / 425,984,000 |
+| `dbts_b1` | 10bit | 8 | 1 | 50 | 425,984,000 | 23,477,229 | 50 | 0 | 0 / 425,984,000 | 0 / 425,984,000 | 0 / 425,984,000 |
+| `dbts_b1` | 10bit | 8 | 16 | 50 | 425,984,000 | 23,191,007 | 4 | 0 | 0 / 425,984,000 | 0 / 425,984,000 | 0 / 425,984,000 |
+| `dbts_c1` | 12bit | 4 | 1 | 69 | 169,235,472 | 20,120,330 | 69 | 0 | 0 / 169,235,472 | 0 / 169,235,472 | 0 / 169,235,472 |
+| `dbts_c1` | 12bit | 4 | 16 | 69 | 169,235,472 | 20,094,599 | 5 | 0 | 0 / 169,235,472 | 0 / 169,235,472 | 0 / 169,235,472 |
+| `dbts_c1` | 12bit | 8 | 1 | 69 | 169,235,472 | 6,772,806 | 69 | 0 | 0 / 169,235,472 | 0 / 169,235,472 | 0 / 169,235,472 |
+| `dbts_c1` | 12bit | 8 | 16 | 69 | 169,235,472 | 6,688,677 | 5 | 0 | 0 / 169,235,472 | 0 / 169,235,472 | 0 / 169,235,472 |
+| `dbts_c1` | top10 | 4 | 1 | 69 | 169,235,472 | 17,498,082 | 69 | 0 | 0 / 169,235,472 | 0 / 169,235,472 | 0 / 169,235,472 |
+| `dbts_c1` | top10 | 4 | 16 | 69 | 169,235,472 | 17,483,081 | 5 | 0 | 0 / 169,235,472 | 0 / 169,235,472 | 0 / 169,235,472 |
+| `dbts_c1` | top10 | 8 | 1 | 69 | 169,235,472 | 6,346,125 | 69 | 0 | 0 / 169,235,472 | 0 / 169,235,472 | 0 / 169,235,472 |
+| `dbts_c1` | top10 | 8 | 16 | 69 | 169,235,472 | 6,229,812 | 5 | 0 | 0 / 169,235,472 | 0 / 169,235,472 | 0 / 169,235,472 |
+
+**Browser.** The browser arms were compared against reference luma written by an earlier run whose CLI loaded the
+host's libdav1d 1.4.1 (`results/streams-host-libdav1d.jsonl`); its per-frame digests equal the pinned 1.5.4
+reference's on 20 of 20 cells, every frame, so the table holds against 1.5.4. "refused: DataError (key chunk)" is
+`decode()` throwing *"An EncodedVideoChunk was marked as type `key` but wasn't a key frame"* — libgav1's 10-bit-only
+parser (§1d), with `isConfigSupported` true; "refused: OperationError" is *"Unsupported configuration"*, with
+`isConfigSupported` false.
+
+| fixture | form | Q | G | dav1d-WASM | WebCodecs `prefer-software` | WebCodecs `no-preference` | WebCodecs `prefer-hardware` | decoder (media log) | `copyTo` format |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `dbts_a1` | 12bit | 4 | 1 | 0 / 114,154,320 | refused: DataError (key chunk) | refused: DataError (key chunk) | refused: DataError (key chunk) | none (refused before decode) | — |
+| `dbts_a1` | 12bit | 4 | 16 | 0 / 114,154,320 | refused: DataError (key chunk) | refused: DataError (key chunk) | refused: DataError (key chunk) | none (refused before decode) | — |
+| `dbts_a1` | 12bit | 8 | 1 | 0 / 114,154,320 | refused: DataError (key chunk) | refused: DataError (key chunk) | refused: DataError (key chunk) | none (refused before decode) | — |
+| `dbts_a1` | 12bit | 8 | 16 | 0 / 114,154,320 | refused: DataError (key chunk) | refused: DataError (key chunk) | refused: DataError (key chunk) | none (refused before decode) | — |
+| `dbts_a1` | top10 | 4 | 1 | 0 / 114,154,320 | 0 / 114,154,320 | 0 / 114,154,320 | refused: OperationError | Dav1dVideoDecoder, platform false | I420P10 |
+| `dbts_a1` | top10 | 4 | 16 | 0 / 114,154,320 | 0 / 114,154,320 | 0 / 114,154,320 | refused: OperationError | Dav1dVideoDecoder, platform false | I420P10 |
+| `dbts_a1` | top10 | 8 | 1 | 0 / 114,154,320 | 0 / 114,154,320 | 0 / 114,154,320 | refused: OperationError | Dav1dVideoDecoder, platform false | I420P10 |
+| `dbts_a1` | top10 | 8 | 16 | 0 / 114,154,320 | 0 / 114,154,320 | 0 / 114,154,320 | refused: OperationError | Dav1dVideoDecoder, platform false | I420P10 |
+| `dbts_b1` | 10bit | 4 | 1 | 0 / 425,984,000 | 0 / 425,984,000 | 0 / 425,984,000 | refused: OperationError | Dav1dVideoDecoder, platform false | I420P10 |
+| `dbts_b1` | 10bit | 4 | 16 | 0 / 425,984,000 | 0 / 425,984,000 | 0 / 425,984,000 | refused: OperationError | Dav1dVideoDecoder, platform false | I420P10 |
+| `dbts_b1` | 10bit | 8 | 1 | 0 / 425,984,000 | 0 / 425,984,000 | 0 / 425,984,000 | refused: OperationError | Dav1dVideoDecoder, platform false | I420P10 |
+| `dbts_b1` | 10bit | 8 | 16 | 0 / 425,984,000 | 0 / 425,984,000 | 0 / 425,984,000 | refused: OperationError | Dav1dVideoDecoder, platform false | I420P10 |
+| `dbts_c1` | 12bit | 4 | 1 | 0 / 169,235,472 | refused: DataError (key chunk) | refused: DataError (key chunk) | refused: DataError (key chunk) | none (refused before decode) | — |
+| `dbts_c1` | 12bit | 4 | 16 | 0 / 169,235,472 | refused: DataError (key chunk) | refused: DataError (key chunk) | refused: DataError (key chunk) | none (refused before decode) | — |
+| `dbts_c1` | 12bit | 8 | 1 | 0 / 169,235,472 | refused: DataError (key chunk) | refused: DataError (key chunk) | refused: DataError (key chunk) | none (refused before decode) | — |
+| `dbts_c1` | 12bit | 8 | 16 | 0 / 169,235,472 | refused: DataError (key chunk) | refused: DataError (key chunk) | refused: DataError (key chunk) | none (refused before decode) | — |
+| `dbts_c1` | top10 | 4 | 1 | 0 / 169,235,472 | 0 / 169,235,472 | 0 / 169,235,472 | refused: OperationError | Dav1dVideoDecoder, platform false | I420P10 |
+| `dbts_c1` | top10 | 4 | 16 | 0 / 169,235,472 | 0 / 169,235,472 | 0 / 169,235,472 | refused: OperationError | Dav1dVideoDecoder, platform false | I420P10 |
+| `dbts_c1` | top10 | 8 | 1 | 0 / 169,235,472 | 0 / 169,235,472 | 0 / 169,235,472 | refused: OperationError | Dav1dVideoDecoder, platform false | I420P10 |
+| `dbts_c1` | top10 | 8 | 16 | 0 / 169,235,472 | 0 / 169,235,472 | 0 / 169,235,472 | refused: OperationError | Dav1dVideoDecoder, platform false | I420P10 |
+
+Totals: 0 of 21 559 207 680 samples differ over 6 200 decoded frames; 2 600 of 2 600 browser frames hash to the
+reference; 36 browser arms refused (24 for 12 bits on every setting, 12 `prefer-hardware`).
+
+**Mutation.** `--mutate` flips the low bit of one sample — frame 28, y 595, x 380 of `dbts_a1` at Q 8, G 16 — after
+decoding, in `aomdec`'s output and in each browser decoder's. Every judged arm reports exactly that sample:
+`[28, 595, 380, −1]`, 1 of 114 154 320, |Δ| 1, and 55 of 56 digests matching
+(`results/mutate.md`; WebCodecs refused the 12-bit view, so it judged the top 10 only). `streams_test.py` holds the
+same for `compare()` and shows the film-grain reader returning 1 when the encode turns denoising on; each test fails
+when its check is broken (the flip removed; the flag forced to 0).
 
 ## 3 · Owed: hardware decoders and other browsers
 
