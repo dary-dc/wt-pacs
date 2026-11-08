@@ -2772,20 +2772,51 @@ synthetic checks do not depend on the series and read as shard 4's to the last d
 | `rf_fluoro` | 9267247 | 8775514 | 1.72 | 1.81 |
 | `us_liver` | 18019334 | 17433494 | 3.73 | 3.85 |
 
-## Quality metrics, measured (2026-11-05)
+## Quality metrics, measured (2026-11-08)
 
-1. **Run:** the collector step of §Collector over the rows of shards 1, 2 and 4 (1 200 cells, 20 series); shard 3
-   pushed its checks, controls and series rows but no cell by 08:00 UTC, so its seven series are missing (below).
-2. **Shows**, DBT, stored form: the coding error reaches the frame's own noise after Q 8 on systems B and C (A: Q 4),
-   at 0.10–0.22 of HTJ2K's bytes (A: 0.27–0.28), and the pixel metrics bend at Q 8–12; no rung, not even Q 1, keeps
-   every displayed grey level within 1; the scrolling anchor holds to Q 16 (B: 12–24), at 0.006–0.073 of HTJ2K's.
-3. **Rests on** the 20 series named below only (2 of system A's five volumes, 4 of B's, all 5 of C's, 3 content-2
-   DBT sets, the 2 TRUS sweeps, 2 breast MR controls, 2 lossy-sourced cine sets apart), libaom 3.15.1 at cpu6,
-   dav1d 1.5.4, and the checks each shard ran and mutated (their sections).
-4. **Left:** shard 3's series (`dbts_a3`, `dbts_a4`, `dbts_a5`, `dbts_b4`, `dbt10_d`, `us_liver`, `rf_fluoro`); breast
-   ultrasound cine and ABUS (no dataset); whether any rung is visually lossless to a reader (§6, not run).
+1. **Run:** the collector step of §Collector over the rows of all four shards: 1 650 cells, 27 series; `collect.py`
+   now passes without `--partial` (no series, control or cell of `plan.json` missing). Corrected in place: the
+   2026-11-05 version of this section read shards 1, 2 and 4 only (20 series, 1 200 cells); the readings shard 3
+   moved are marked *was* below.
+2. **Shows**, DBT, stored form: the coding error reaches the frame's own noise after Q 8 on system C and content 2,
+   Q 8–12 on B, Q 4–8 on A, at 0.09–0.28 of HTJ2K's bytes (median 0.10–0.14 a family, A at G 1 0.27); the pixel
+   metrics bend at Q 8 (B: 12); no rung, not even Q 1, keeps every displayed grey level within 1; the scrolling
+   anchor holds to Q 16 in the band (12–24 by series), at 0.006–0.073 of HTJ2K's.
+3. **Rests on** the 27 series named below only (all five volumes of each of systems A, B and C, the four content-2
+   DBT sets, the 2 TRUS sweeps, 3 controls, 3 lossy-sourced cine sets apart), libaom 3.15.1 at cpu6, dav1d 1.5.4,
+   and the checks each shard ran and mutated (their sections).
+4. **Left:** breast ultrasound cine and ABUS (no dataset); `dbts_a_max`, `dbts_b_max`, `dbts_c_max` and G = whole
+   (§Shards: they do not fit); whether any rung is visually lossless to a reader (§6, not run).
 5. **Host:** each shard on 4 cores and 15 GB, four cells in flight, one thread each (their sections); this step is
    arithmetic on their rows. Nothing past those hosts is claimed.
+
+**Verdict.**
+
+* **Claim.** On the 19 DBT volumes here (EA1141 systems A, B, C, five each, and content 2's four), stored form, G 1
+  to 16: the lossy AV1 view keeps part of the frame's fine-band noise to Q 8 (B: 8–12, A: 4–8), at about a tenth of
+  HTJ2K's bytes (A at G 1: a quarter); the scrolling test (error below the neighbour-slice step, 4 × 4 band) holds
+  to Q 16 at 0.6–7 % of HTJ2K's; no rung keeps every displayed level within one grey level. Each is a rung picked by a metric, not a
+  reading of visual losslessness.
+* **Proof chain.** Fixtures fetched and checked against their SHA-256 pins → every cell encoded at fixed Q
+  (`--min-q = --max-q`, q-hist: every frame at Q on all 1 650 cells) → decoded by dav1d 1.5.4 → §4's per-frame
+  metrics, each checked and mutated on every shard (§7) → `collect.py` and `systems.py` over all four shards' rows →
+  the tables below. The timed fixtures of the wider AV1 work, `dbts_a1`, `dbts_b1`, `dbts_c1`, are among the 19;
+  systems A and C are 12-bit with σ 10–18 by frame here, B 10-bit with σ 3.4–5.7 (σ is §4.4's estimator; the
+  profiles study's reads 13–18 and 4.4–6.7), and neighbour-slice noise correlation ρ is 0.11–0.13 on A and C,
+  0.18–0.27 on B (`../profiles` §Profiles bytes, measured).
+* **What would change it.** §6's flicker test with readers (the only test of visual losslessness here); a breast
+  ultrasound cine or ABUS fixture (none exists: TRUS is the nearest swept volume and decides nothing for ABUS); a
+  further DBT system, or system A's full-size `_max` volumes, whose noise anchor already spreads Q 4–8 over five
+  volumes; libaom tuned other than `--tune=psnr` at cpu6, or film grain synthesis, which none of these streams carries.
+* **What is owed.** §6; the `_max` volumes and G = whole on a larger host; a JOD for the RGB sets (`cell.py` scores
+  grey series only); the source of the brief's σ 1.9–2.4 for `dbts_b4` and `dbts_b5`, which this protocol reads 5.60
+  and 3.65 (shard 3's section) — *unverified* until found.
+
+**Method card.** *Input:* `rows/shard-{1,2,3,4}.jsonl` at `0bce750e` (shard 3's last row), code at `4f8347d3`; each
+shard's fixtures, encode command, decoder, clocks and byte count are its section's (shard 3's card gives them in
+full; they are one `aomenc_args` and one dav1d build on all four). *Computed:* `collect.py` (every cell, the curves,
+knees and anchors) and `systems.py` (stored form per series, then the family median and range), both run
+2026-11-08 from this commit's rows; bytes ÷ HTJ2K is the cell's IVF payload over the series' HTJ2K control.
 
 *Terms*, as §Terms and defined again here. **Q** — libaom's quantizer, 0–63, held fixed per cell. **G** — frames coded
 together, a keyframe every G frames; G 1 codes each frame alone. **Systems A, B, C** — the three DBT scanners of the
@@ -2806,48 +2837,61 @@ the per-family table below, which `systems.py` reads from the shards' rows.
 
 | family (series run) | G | inside the noise (e_N ≤ σ) | ≤ 1 displayed level | below the neighbour-slice step, band | the same, full resolution |
 | --- | --: | --- | --- | --- | --- |
-| DBT system A (2 of 5) | 1 | Q 4 · 0.27 | none | Q 16 · 0.012 | Q 40 · 0.002 |
-| | 16 | Q 4 · 0.28 | none | Q 16 · 0.007 | Q 32–40 · 0.001 |
-| DBT system B (4 of 5) | 1 | Q 8 (8–12) · 0.13 (0.10–0.15) | none | Q 16 (12–24) · 0.055 (0.025–0.073) | Q 40 (32–56) · 0.005 |
-| | 16 | Q 8 (8–12) · 0.14 (0.11–0.22) | none | Q 16 (12–24) · 0.044 (0.015–0.061) | Q 40 (32–40) · 0.002 |
+| DBT system A (5 of 5) | 1 | Q 4 (4–8) · 0.27 (0.10–0.28) | none | Q 16 · 0.013 (0.011–0.015) | Q 40 · 0.002 (0.001–0.002) |
+| | 16 | Q 8 (4–8) · 0.10 (0.09–0.28) | none | Q 16 (12–16) · 0.008 (0.006–0.025) | Q 40 (32–40) · under 0.001 |
+| DBT system B (5 of 5) | 1 | Q 12 (8–12) · 0.12 (0.10–0.15) | none | Q 16 (12–24) · 0.053 (0.025–0.073) | Q 40 (32–56) · 0.004 (0.001–0.008) |
+| | 16 | Q 8 (8–12) · 0.14 (0.09–0.22) | none | Q 16 (12–24) · 0.046 (0.015–0.061) | Q 40 (32–40) · 0.002 (0.001–0.003) |
 | DBT system C (5 of 5) | 1 | Q 8 · 0.11 (0.10–0.12) | none | Q 16 · 0.017 (0.014–0.022) | Q 40 · 0.002 |
 | | 16 | Q 8 · 0.11 (0.10–0.12) | none | Q 16 · 0.012 (0.009–0.016) | Q 40 · 0.001 |
-| other sound sets: content-2 DBT (3 of 4) | 1 | Q 8 (8–12) · 0.11 (0.10–0.13) | none | Q 16 (16–24) · 0.019 (0.017–0.041) | Q 40 (32–40) · 0.002 (0.002–0.018) |
-| | 16 | Q 8 (8–12) · 0.11 (0.10–0.11) | none | Q 16 (16–24) · 0.013 (0.012–0.027) | Q 32 (32–40) · 0.001 (0.001–0.008) |
+| other sound sets: content-2 DBT (4 of 4) | 1 | Q 8 (8–12) · 0.11 (0.10–0.13) | none | Q 16 (16–24) · 0.030 (0.017–0.069) | Q 32 (32–40) · 0.008 (0.002–0.018) |
+| | 16 | Q 8 (8–12) · 0.10 (0.10–0.11) | none | Q 16 (16–24) · 0.020 (0.012–0.055) | Q 32 (32–40) · 0.003 (0.001–0.008) |
 | other sound sets: TRUS sweeps (2 of 2) | 1 | Q 4 · 0.53 (0.52–0.54) | none | Q 24 · 0.12 | Q 32 · 0.06 |
 | | 16 | Q 2–4 · 0.44–0.60 | none | Q 24 · 0.08 | Q 32 · 0.04 |
-| other sound sets: breast MR controls (2 of 3 controls) | 1 | `mr_ispy1` Q 4 · 0.17; `mr9_ispy2` none | none | Q 4–16 · 0.01–0.15 | Q 16–40 · 0.001–0.02 |
-| | 16 | Q 1–4 · 0.18–0.57 | none | Q 4–16 · 0.01–0.15 | Q 16–32 · 0.002–0.02 |
-| provisional cine, lossy-sourced (2 of 3), in no verdict | 1 | `usb_cine_rgb` Q 4 · 0.25; `usb_cine` none | none | Q 8–32 · 0.05–0.29 | Q 8–32 · 0.05–0.29 |
-| | 16 | `usb_cine_rgb` Q 4 · 0.18; `usb_cine` none | none | Q 4–32 · 0.03–0.11 | Q 4–32 · 0.03–0.11 |
+| other sound sets: controls, breast MR and fluoroscopy (3 of 3) | 1 | Q 4 · 0.17–0.26 (`mr_ispy1`, `rf_fluoro`); `mr9_ispy2` none | `rf_fluoro` Q 1 · 0.63; MR none | Q 16 (4–40) · 0.010 (0.003–0.15) | Q 40 (16–40) · 0.003 (0.001–0.02) |
+| | 16 | Q 4 (1–4) · 0.26 (0.18–0.57) | `rf_fluoro` Q 1 · 0.64; MR none | Q 16 (4–40) · 0.009 (0.002–0.15) | Q 32 (16–40) · 0.002 (0.002–0.02) |
+| provisional cine, lossy-sourced (3 of 3), in no verdict | 1 | `usb_cine_rgb` Q 4 · 0.25; `us_liver` Q 32 · 0.10; `usb_cine` none | none | Q 32 (8–32) · 0.10 (0.05–0.29) | Q 24 (8–32) · 0.15 (0.05–0.29) |
+| | 16 | `usb_cine_rgb` Q 4 · 0.18; `us_liver` Q 32 · 0.08; `usb_cine` none | none | Q 32 (4–32) · 0.08 (0.03–0.11) | Q 24 (4–32) · 0.11 (0.03–0.13) |
+
+*Was*, on 2026-11-05 (shards 1, 2, 4): system A on 2 of 5 volumes, Q 4 · 0.27–0.28 inside the noise at G 1 and 16;
+system B on 4 of 5, Q 8 at G 1; content 2 on 3 of 4; the MR controls and two cine sets alone in their rows. Every
+other entry is unchanged.
 
 How to read it, and what it does not say:
 
 * **Inside the noise** on DBT is where the error first fills the fine band's noise: e_N ÷ σ saturates near 1.04
   above it (§8), because the quantizer has removed that noise. So Q 8 is the last rung that keeps part of the
   noise, not a rung whose error is below it, and at e_N = σ the band's noise rises by √2 (*derived*, §5 a). The
-  pixel metrics' knees fall on that same rung (below), and JOD there is 9.67–9.96 on DBT.
-* **No rung keeps every displayed level within 1** on any series: on DBT, Q 1 already moves 16–29 % of the first
-  window's pixels by at least one level (median frame) and its largest move is 2–9 levels (every cell). The two
-  forms of anchor (a) disagree everywhere, and neither is called visually lossless: §6's flicker test would decide.
-* **Below the neighbour-slice step** is the scrolling reading: on DBT the band test holds to Q 16 at 1–6 % of HTJ2K's
-  bytes, the full-resolution test to Q 32–40. JOD at Q 16 is 8.3–8.6 on A, 8.3–9.0 on C, 9.6–9.7 on B — the
-  visibility model sees system A and C's Q 16 as a difference a viewer would notice, B's much less.
-* **G 16 against G 1** moves no DBT anchor by more than one rung and cuts the bytes there by up to 40 % at Q 16
-  (system A 0.012 → 0.007); at the noise anchor the two are within 0.015 of each other except on `dbts_b1`, whose
-  anchor moves a rung (Q 12 · 0.10 at G 1, Q 8 · 0.22 at G 16).
-* **Where the data shows no knee:** `usb_cine_rgb` has no JOD (the visibility model runs on grey stored forms only),
-  so no JOD knee; `usb_cine` and `mr9_ispy2` at G 1 have no noise anchor (their σ is below every rung's e_N: median σ
-  0.358 on `usb_cine`, shard 2's section). Every other curve has a knee.
+  pixel metrics' knees fall on that same rung or one above (below), and JOD at Q 8 is 9.67–9.96 on DBT.
+* **System A spreads a rung.** `dbts_a1` and `dbts_a2` hold to Q 4, `dbts_a3` and `dbts_a4` to Q 8, `dbts_a5` to
+  Q 4 at G 1 and Q 8 at G 16; the bytes there differ by about 2.7× (0.27–0.28 against 0.09–0.10 of HTJ2K's),
+  because Q 4 and Q 8 are that far apart on the ladder. *Was* "A: Q 4", read on its first two volumes.
+* **`dbts_b4`**, which the brief names the low-noise edge case, is not low-noise by this protocol's σ (5.60; the
+  lowest on B are `dbts_b2` 3.38 and `dbts_b5` 3.65) and reads within a rung of system B's median on every anchor and
+  knee: noise anchor Q 12, band Q 16, knees Q 12, JOD's Q 24–32 (shard 3's section).
+* **No rung keeps every displayed level within 1** on any DBT volume: Q 1 already moves 16–29 % of the first
+  window's pixels by at least one level (median frame) and its largest move is 2–10 levels (every cell). The two
+  forms of anchor (a) disagree on every DBT volume, and neither is called visually lossless: §6's flicker test
+  would decide. The one series that holds at Q 1 is the fluoroscopy control `rf_fluoro` (largest move 1 level).
+* **Below the neighbour-slice step** is the scrolling reading: on DBT the band test holds to Q 16 (12–24 by series) at
+  0.6–7 % of HTJ2K's bytes, the full-resolution test to Q 32–40. JOD at Q 16 is 8.1–8.7 on A, 8.3–9.0 on C, 9.6–9.7 on
+  B, 8.2–9.8 on content 2 — the visibility model sees A and C's Q 16 as a difference a viewer would notice, B's much
+  less.
+* **G 16 against G 1** moves no DBT anchor by more than one rung and cuts the bytes at the band anchor by 13–38 %
+  (family medians: A 0.013 → 0.008, C 0.017 → 0.012; B 0.053 → 0.046); at the noise anchor the two are within 0.015
+  of each other except where the anchor moves a rung: `dbts_b1` (Q 12 · 0.10 at G 1, Q 8 · 0.22 at G 16) and `dbts_a5`
+  (Q 4 · 0.28 at G 1, Q 8 · 0.09 at G 16).
+* **Where the data shows no knee:** `usb_cine_rgb` and `us_liver` have no JOD (the visibility model runs on grey
+  stored forms only), so no JOD knee; `usb_cine` and `mr9_ispy2` at G 1 have no noise anchor (their σ is below every
+  rung's e_N: median σ 0.358 on `usb_cine`, shard 2's section). Every other curve has a knee.
 * **Claimed for these fixtures only.** The repo has few cine-like breast series: no breast ultrasound cine except the
-  two lossy-sourced sets, and no ABUS. TRUS is the nearest swept volume and is never an ABUS verdict.
+  lossy-sourced sets, and no ABUS. TRUS is the nearest swept volume and is never an ABUS verdict.
 
 ### Per series and per family
 
 `systems.py lab/av1/metrics/rows/shard-{1,2,3,4}.jsonl`, run from `lab/av1/metrics`: each series' stored form, its
 anchors and knees as `collect.py` computes them, then per family. Each anchor's entry is the Q and the bytes there ÷
-the series' HTJ2K control. "Controls" are the two breast MR series; "provisional" are the lossy-sourced cine sets,
-in no verdict.
+the series' HTJ2K control. "Controls" are the two breast MR series and the fluoroscopy series; "provisional" are the
+lossy-sourced cine sets, in no verdict.
 
 ##### Per series, stored form: anchors and knees (Q, and bytes ÷ HTJ2K there)
 
@@ -2857,12 +2901,20 @@ in no verdict.
 | `dbts_a1` | 12bit | 16 | 4 · 0.270 | no rung | 16 · 0.006 | 32 · 0.001 | 8 · 8 · 8 · 8 · 16 |
 | `dbts_a2` | 12bit | 1 | 4 · 0.279 | no rung | 16 · 0.014 | 40 · 0.002 | 8 · 8 · 8 · 8 · 16 |
 | `dbts_a2` | 12bit | 16 | 4 · 0.279 | no rung | 16 · 0.008 | 40 · 0.000 | 8 · 8 · 8 · 8 · 16 |
+| `dbts_a3` | 12bit | 1 | 8 · 0.097 | no rung | 16 · 0.013 | 40 · 0.002 | 8 · 8 · 8 · 8 · 16 |
+| `dbts_a3` | 12bit | 16 | 8 · 0.097 | no rung | 12 · 0.025 | 32 · 0.001 | 8 · 8 · 8 · 8 · 16 |
+| `dbts_a4` | 12bit | 1 | 8 · 0.101 | no rung | 16 · 0.011 | 40 · 0.001 | 8 · 8 · 8 · 8 · 16 |
+| `dbts_a4` | 12bit | 16 | 8 · 0.102 | no rung | 16 · 0.007 | 40 · 0.000 | 8 · 8 · 8 · 8 · 16 |
+| `dbts_a5` | 12bit | 1 | 4 · 0.279 | no rung | 16 · 0.015 | 40 · 0.002 | 8 · 8 · 8 · 8 · 16 |
+| `dbts_a5` | 12bit | 16 | 8 · 0.088 | no rung | 16 · 0.009 | 40 · 0.000 | 8 · 8 · 8 · 8 · 16 |
 | `dbts_b1` | 10bit | 1 | 12 · 0.101 | no rung | 24 · 0.025 | 56 · 0.001 | 12 · 12 · 12 · 8 · 24 |
 | `dbts_b1` | 10bit | 16 | 8 · 0.216 | no rung | 24 · 0.015 | 40 · 0.002 | 12 · 12 · 12 · 8 · 24 |
 | `dbts_b2` | 10bit | 1 | 8 · 0.150 | no rung | 12 · 0.073 | 32 · 0.008 | 8 · 12 · 8 · 8 · 24 |
 | `dbts_b2` | 10bit | 16 | 8 · 0.141 | no rung | 12 · 0.061 | 32 · 0.003 | 12 · 12 · 8 · 8 · 24 |
 | `dbts_b3` | 10bit | 1 | 12 · 0.120 | no rung | 16 · 0.065 | 40 · 0.006 | 12 · 12 · 12 · 8 · 24 |
 | `dbts_b3` | 10bit | 16 | 12 · 0.106 | no rung | 16 · 0.051 | 40 · 0.002 | 12 · 12 · 12 · 8 · 24 |
+| `dbts_b4` | 10bit | 1 | 12 · 0.096 | no rung | 16 · 0.053 | 56 · 0.001 | 12 · 12 · 12 · 8 · 24 |
+| `dbts_b4` | 10bit | 16 | 12 · 0.088 | no rung | 16 · 0.046 | 40 · 0.001 | 12 · 12 · 12 · 8 · 32 |
 | `dbts_b5` | 10bit | 1 | 8 · 0.143 | no rung | 16 · 0.045 | 40 · 0.004 | 8 · 12 · 8 · 8 · 24 |
 | `dbts_b5` | 10bit | 16 | 8 · 0.139 | no rung | 16 · 0.036 | 40 · 0.001 | 12 · 12 · 8 · 8 · 24 |
 | `dbts_c1` | 12bit | 1 | 8 · 0.096 | no rung | 16 · 0.015 | 40 · 0.002 | 8 · 8 · 8 · 8 · 16 |
@@ -2875,6 +2927,8 @@ in no verdict.
 | `dbts_c4` | 12bit | 16 | 8 · 0.122 | no rung | 16 · 0.016 | 40 · 0.001 | 8 · 8 · 12 · 8 · 16 |
 | `dbts_c5` | 12bit | 1 | 8 · 0.096 | no rung | 16 · 0.014 | 40 · 0.002 | 8 · 8 · 8 · 8 · 16 |
 | `dbts_c5` | 12bit | 16 | 8 · 0.096 | no rung | 16 · 0.009 | 40 · 0.000 | 8 · 8 · 8 · 8 · 16 |
+| `dbt10_d` | 10bit | 1 | 12 · 0.110 | no rung | 16 · 0.069 | 32 · 0.014 | 12 · 12 · 8 · 8 · 24 |
+| `dbt10_d` | 10bit | 16 | 12 · 0.099 | no rung | 16 · 0.055 | 32 · 0.006 | 12 · 12 · 12 · 8 · 24 |
 | `dbt10_ea1141` | 10bit | 1 | 12 · 0.126 | no rung | 24 · 0.041 | 32 · 0.018 | 12 · 12 · 12 · 8 · 24 |
 | `dbt10_ea1141` | 10bit | 16 | 12 · 0.113 | no rung | 24 · 0.027 | 32 · 0.008 | 12 · 12 · 12 · 8 · 24 |
 | `dbt12_c` | 12bit | 1 | 8 · 0.109 | no rung | 16 · 0.019 | 40 · 0.002 | 8 · 8 · 8 · 8 · 16 |
@@ -2889,6 +2943,10 @@ in no verdict.
 | `mr9_ispy2` | 9bit | 16 | 1 · 0.573 | no rung | 4 · 0.147 | 16 · 0.018 | 8 · 8 · 16 · 4 · 12 |
 | `mr_ispy1` | 11bit | 1 | 4 · 0.169 | no rung | 16 · 0.010 | 40 · 0.001 | 8 · 8 · 8 · 4 · 8 |
 | `mr_ispy1` | 11bit | 16 | 4 · 0.177 | no rung | 16 · 0.009 | 32 · 0.002 | 8 · 8 · 8 · 4 · 8 |
+| `rf_fluoro` | 12bit | 1 | 4 · 0.261 | 1 · 0.630 | 40 · 0.003 | 40 · 0.003 | 8 · 8 · 8 · 8 · 24 |
+| `rf_fluoro` | 12bit | 16 | 4 · 0.260 | 1 · 0.637 | 40 · 0.002 | 40 · 0.002 | 8 · 8 · 8 · 8 · 24 |
+| `us_liver` | rgb420 | 1 | 32 · 0.103 | no rung | 32 · 0.103 | 24 · 0.149 | 40 · 32 · 40 · 24 · None |
+| `us_liver` | rgb420 | 16 | 32 · 0.083 | no rung | 32 · 0.083 | 24 · 0.127 | 40 · 32 · 40 · 24 · None |
 | `usb_cine` | 8bit | 1 | no rung | no rung | 8 · 0.291 | 8 · 0.291 | 24 · 24 · 40 · 24 · 32 |
 | `usb_cine` | 8bit | 16 | no rung | no rung | 4 · 0.113 | 4 · 0.113 | 16 · 16 · 40 · 16 · 32 |
 | `usb_cine_rgb` | rgb420 | 1 | 4 · 0.248 | no rung | 32 · 0.054 | 32 · 0.054 | 8 · 8 · 24 · 24 · None |
@@ -2898,51 +2956,110 @@ in no verdict.
 
 | family | series | G | e_N ≤ σ: Q · bytes | ≤ 1 level: Q | band < step: Q · bytes | full < step: Q · bytes | knees, median Q: PSNR · MS-SSIM · e_N ÷ σ · ≥ 1 level · JOD | knee PSNR: bytes |
 | --- | --: | --: | --- | --- | --- | --- | --- | --- |
-| system A | 2 | 1 | 4 (4) · 0.274 (0.268–0.279) | no rung | 16 (16) · 0.012 (0.011–0.014) | 40 (40) · 0.002 (0.002–0.002) | 8 · 8 · 8 · 8 · 16 | 0.081 (0.074–0.089) |
-| system A | 2 | 16 | 4 (4) · 0.275 (0.270–0.279) | no rung | 16 (16) · 0.007 (0.006–0.008) | 32 (32–40) · 0.001 (0.000–0.001) | 8 · 8 · 8 · 8 · 16 | 0.081 (0.074–0.088) |
-| system B | 4 | 1 | 8 (8–12) · 0.132 (0.101–0.150) | no rung | 16 (12–24) · 0.055 (0.025–0.073) | 40 (32–56) · 0.005 (0.001–0.008) | 8 · 12 · 8 · 8 · 24 | 0.132 (0.101–0.150) |
-| system B | 4 | 16 | 8 (8–12) · 0.140 (0.106–0.216) | no rung | 16 (12–24) · 0.044 (0.015–0.061) | 40 (32–40) · 0.002 (0.001–0.003) | 12 · 12 · 8 · 8 · 24 | 0.080 (0.061–0.106) |
+| system A | 5 | 1 | 4 (4–8) · 0.268 (0.097–0.279) | no rung | 16 (16) · 0.013 (0.011–0.015) | 40 (40) · 0.002 (0.001–0.002) | 8 · 8 · 8 · 8 · 16 | 0.090 (0.074–0.101) |
+| system A | 5 | 16 | 8 (4–8) · 0.102 (0.088–0.279) | no rung | 16 (12–16) · 0.008 (0.006–0.025) | 40 (32–40) · 0.000 (0.000–0.001) | 8 · 8 · 8 · 8 · 16 | 0.088 (0.074–0.102) |
+| system B | 5 | 1 | 12 (8–12) · 0.120 (0.096–0.150) | no rung | 16 (12–24) · 0.053 (0.025–0.073) | 40 (32–56) · 0.004 (0.001–0.008) | 12 · 12 · 12 · 8 · 24 | 0.120 (0.096–0.150) |
+| system B | 5 | 16 | 8 (8–12) · 0.139 (0.088–0.216) | no rung | 16 (12–24) · 0.046 (0.015–0.061) | 40 (32–40) · 0.002 (0.001–0.003) | 12 · 12 · 12 · 8 · 24 | 0.088 (0.061–0.106) |
 | system C | 5 | 1 | 8 (8) · 0.111 (0.096–0.124) | no rung | 16 (16) · 0.017 (0.014–0.022) | 40 (40) · 0.002 (0.002–0.003) | 8 · 8 · 8 · 8 · 16 | 0.111 (0.096–0.124) |
 | system C | 5 | 16 | 8 (8) · 0.112 (0.095–0.122) | no rung | 16 (16) · 0.012 (0.009–0.016) | 40 (40) · 0.001 (0.000–0.001) | 8 · 8 · 8 · 8 · 16 | 0.112 (0.095–0.122) |
-| content 2 DBT | 3 | 1 | 8 (8–12) · 0.109 (0.097–0.126) | no rung | 16 (16–24) · 0.019 (0.017–0.041) | 40 (32–40) · 0.002 (0.002–0.018) | 8 · 8 · 8 · 8 · 16 | 0.109 (0.097–0.126) |
-| content 2 DBT | 3 | 16 | 8 (8–12) · 0.109 (0.096–0.113) | no rung | 16 (16–24) · 0.013 (0.012–0.027) | 32 (32–40) · 0.001 (0.001–0.008) | 8 · 8 · 8 · 8 · 16 | 0.109 (0.096–0.113) |
+| content 2 DBT | 4 | 1 | 8 (8–12) · 0.110 (0.097–0.126) | no rung | 16 (16–24) · 0.030 (0.017–0.069) | 32 (32–40) · 0.008 (0.002–0.018) | 8 · 8 · 8 · 8 · 16 | 0.110 (0.097–0.126) |
+| content 2 DBT | 4 | 16 | 8 (8–12) · 0.104 (0.096–0.113) | no rung | 16 (16–24) · 0.020 (0.012–0.055) | 32 (32–40) · 0.003 (0.001–0.008) | 8 · 8 · 8 · 8 · 16 | 0.104 (0.096–0.113) |
 | TRUS | 2 | 1 | 4 (4) · 0.531 (0.523–0.538) | no rung | 24 (24) · 0.118 (0.115–0.121) | 32 (32) · 0.061 (0.058–0.063) | 12 · 16 · 24 · 12 · 32 | 0.215 (0.186–0.244) |
 | TRUS | 2 | 16 | 2 (2–4) · 0.522 (0.444–0.599) | no rung | 24 (24) · 0.079 (0.077–0.080) | 32 (32) · 0.037 (0.035–0.039) | 12 · 16 · 24 · 12 · 32 | 0.157 (0.132–0.182) |
-| controls | 2 | 1 | 4 (4; no rung on 1) · 0.169 | no rung | 4 (4–16) · 0.079 (0.010–0.147) | 16 (16–40) · 0.011 (0.001–0.021) | 8 · 8 · 8 · 4 · 8 | 0.051 (0.045–0.056) |
-| controls | 2 | 16 | 1 (1–4) · 0.375 (0.177–0.573) | no rung | 4 (4–16) · 0.078 (0.009–0.147) | 16 (16–32) · 0.010 (0.002–0.018) | 8 · 8 · 8 · 4 · 8 | 0.049 (0.045–0.053) |
-| provisional | 2 | 1 | 4 (4; no rung on 1) · 0.248 | no rung | 8 (8–32) · 0.172 (0.054–0.291) | 8 (8–32) · 0.172 (0.054–0.291) | 8 · 8 · 24 · 24 · 32 | 0.162 (0.147–0.177) |
-| provisional | 2 | 16 | 4 (4; no rung on 1) · 0.182 | no rung | 4 (4–32) · 0.071 (0.029–0.113) | 4 (4–32) · 0.071 (0.029–0.113) | 4 · 8 · 32 · 16 · 32 | 0.116 (0.051–0.182) |
+| controls | 3 | 1 | 4 (4; no rung on 1) · 0.215 (0.169–0.261) | 1 (1; no rung on 2) | 16 (4–40) · 0.010 (0.003–0.147) | 40 (16–40) · 0.003 (0.001–0.021) | 8 · 8 · 8 · 4 · 12 | 0.056 (0.045–0.086) |
+| controls | 3 | 16 | 4 (1–4) · 0.260 (0.177–0.573) | 1 (1; no rung on 2) | 16 (4–40) · 0.009 (0.002–0.147) | 32 (16–40) · 0.002 (0.002–0.018) | 8 · 8 · 8 · 4 · 12 | 0.053 (0.045–0.085) |
+| provisional | 3 | 1 | 4 (4–32; no rung on 1) · 0.175 (0.103–0.248) | no rung | 32 (8–32) · 0.103 (0.054–0.291) | 24 (8–32) · 0.149 (0.054–0.291) | 24 · 24 · 40 · 24 · 32 | 0.147 (0.056–0.177) |
+| provisional | 3 | 16 | 4 (4–32; no rung on 1) · 0.132 (0.083–0.182) | no rung | 32 (4–32) · 0.083 (0.029–0.113) | 24 (4–32) · 0.113 (0.029–0.127) | 16 · 16 · 40 · 24 · 32 | 0.051 (0.042–0.182) |
 
 ##### More than one rung from the family's median
 
 | series | G | reading | Q | family median Q |
 | --- | --: | --- | --: | --: |
+| `mr9_ispy2` | 1 | band | 4 | 16 |
+| `mr9_ispy2` | 1 | full | 16 | 40 |
+| `mr9_ispy2` | 1 | knee_nb_sigma_med | 16 | 8 |
+| `mr9_ispy2` | 16 | noise | 1 | 4 |
+| `mr9_ispy2` | 16 | band | 4 | 16 |
+| `mr9_ispy2` | 16 | full | 16 | 32 |
+| `mr9_ispy2` | 16 | knee_nb_sigma_med | 16 | 8 |
+| `rf_fluoro` | 1 | band | 40 | 16 |
+| `rf_fluoro` | 1 | knee_jod | 24 | 12 |
+| `rf_fluoro` | 16 | band | 40 | 16 |
+| `rf_fluoro` | 16 | knee_jod | 24 | 12 |
+| `us_liver` | 1 | knee_psnr_med | 40 | 24 |
+| `us_liver` | 16 | knee_psnr_med | 40 | 16 |
+| `us_liver` | 16 | knee_ssim_db | 32 | 16 |
+| `usb_cine` | 1 | band | 8 | 32 |
+| `usb_cine` | 1 | full | 8 | 24 |
+| `usb_cine` | 16 | band | 4 | 32 |
+| `usb_cine` | 16 | full | 4 | 24 |
+| `usb_cine_rgb` | 1 | knee_psnr_med | 8 | 24 |
+| `usb_cine_rgb` | 1 | knee_ssim_db | 8 | 24 |
+| `usb_cine_rgb` | 1 | knee_nb_sigma_med | 24 | 40 |
+| `usb_cine_rgb` | 16 | knee_psnr_med | 4 | 16 |
+| `usb_cine_rgb` | 16 | knee_ssim_db | 8 | 16 |
 
 **The curves:** [`rows/curves.tsv`](rows/curves.tsv), one line per (series, form, G, Q), bytes against each metric,
 and [`rows/curves/`](rows/curves/), one SVG per family and metric (ln bytes on x; median PSNR, MS-SSIM in dB of
 1 − MS-SSIM, e_N ÷ σ, the share moved ≥ 1 level, JOD on y; each series' stored form, G 1 solid, G 16 dashed): system
 [A](rows/curves/system-A-psnr_med.svg), [B](rows/curves/system-B-psnr_med.svg),
 [C](rows/curves/system-C-psnr_med.svg), [the other sets](rows/curves/other-sets-psnr_med.svg) (PSNR shown; the
-other metrics sit beside each).
+other metrics sit beside each). Redrawn 2026-11-08 from all four shards.
 
 **What agrees.** On DBT the knees of PSNR, MS-SSIM, e_N ÷ σ and the ≥ 1-level share fall within a rung of anchor
-(a) by noise: both at Q 8 on C and content 2's 12-bit sets, both at Q 8–12 on B; on A the knees sit at Q 8 and the
-noise anchor one rung below, at Q 4. JOD bends later: Q 16 on A and C, Q 24 on B and the 10-bit content-2 set. The
-pilot's reading (§8) — knees at Q 8, noise anchor to Q 8, no rung within one displayed level, scrolling anchor to
-Q 16 in the band — holds on system C and content 2's 12-bit sets; A's noise anchor is a rung lower, and B's knees
-and anchors up to a rung higher.
+(a) by noise: both at Q 8 on C and content 2's 12-bit sets, the knees at Q 12 and the noise anchor at Q 8–12 on B
+and on content 2's 10-bit sets, the knees at Q 8 and the noise anchor at Q 4–8 on A. JOD bends later: Q 16 on A and
+C, Q 24 on B (`dbts_b4` at G 16: Q 32) and the 10-bit content-2 sets. The pilot's reading (§8) — knees at Q 8, noise
+anchor to Q 8, no rung within one displayed level, scrolling anchor to Q 16 in the band — holds on system C, content
+2's 12-bit sets and two of A's five volumes (`dbts_a3`, `dbts_a4`; `dbts_a5` at G 16); the rest of A holds the noise a
+rung lower, B's knees and anchors sit up to a rung higher. *Was* (2026-11-05): "on A the knees sit at Q 8 and the noise anchor one rung below, at Q 4" and "B's
+knees at Q 8–12", read on two and four volumes.
 
-**What does not.** Anchor (a) by noise and anchor (a) by displayed levels disagree on every series: the first holds
-to Q 4–12, the second at no rung. No series sits more than one rung from its family's median on any anchor or knee
-(the table above is empty), read only where a family has three series or more (B, C, content 2); system A (two
-series), TRUS (two) and the MR controls (two) are too few to name one.
+**What does not.** Anchor (a) by noise and anchor (a) by displayed levels disagree on every DBT volume: the first
+holds to Q 4–12, the second at no rung. **No DBT volume sits more than one rung from its family's median** on any
+anchor or knee, with every family now at four or five volumes. The table above names the series that do, all
+outside DBT: `mr9_ispy2` (breast MR, b = 9: band Q 4, full Q 16, e_N ÷ σ knee Q 16), `rf_fluoro` (fluoroscopy: band
+Q 40, JOD knee Q 24) against the controls' medians, which mix two modalities and three depths, so their median is
+read as no more than a summary; `us_liver`, `usb_cine` and `usb_cine_rgb` against the provisional sets', which are in
+no verdict. TRUS (two series) is too few to name one. *Was:* "the table above is empty", when the controls and the
+provisional sets had two series each and were not read.
 
-<details><summary><code>collect.py lab/av1/metrics/rows/shard-{1,2,3,4}.jsonl --partial --tsv … --svg …</code>: every cell, the knees, the anchors and the controls of the 20 series (every form, every G)</summary>
+<details><summary><code>collect.py lab/av1/metrics/rows/shard-{1,2,3,4}.jsonl --tsv … --svg …</code>: every cell, the knees, the anchors and the controls of the 27 series (every form, every G)</summary>
 
 ##### Every cell
 
 | series, form | G | Q | ratio | PSNR med / p5 / min dB | max \|Δ\| | SSIM med / min | MS-SSIM med / min | e ÷ σ med (noise band med / max) | window 1: ≥1 level med / max, ≥2 max, ≥4 max, max | scroll med / max | JOD |
 | --- | --: | --: | --: | --- | --: | --- | --- | --- | --- | --- | --: |
+| `dbt10_d` 10bit | 1 | 1 | 3.2 | 65.77 / 65.72 / 65.72 | 9 | 0.9998 / 0.9998 | 1.0000 / 1.0000 | 0.16 (0.16 / 0.16) | 19.2 / 19.3 %, 0.0 %, 0.0 %, 2 | 0.04 / 0.05 | 10.0 |
+| `dbt10_d` 10bit | 1 | 2 | 4.1 | 61.77 / 61.70 / 61.69 | 17 | 0.9994 / 0.9994 | 0.9999 / 0.9999 | 0.26 (0.26 / 0.26) | 36.0 / 36.1 %, 0.4 %, 0.0 %, 3 | 0.07 / 0.08 | 10.0 |
+| `dbt10_d` 10bit | 1 | 4 | 6.1 | 55.87 / 55.81 / 55.80 | 27 | 0.9978 / 0.9978 | 0.9997 / 0.9997 | 0.50 (0.52 / 0.53) | 61.9 / 62.1 %, 13.6 %, 0.0 %, 6 | 0.13 / 0.15 | 10.0 |
+| `dbt10_d` 10bit | 1 | 8 | 12.7 | 49.26 / 49.22 / 49.22 | 85 | 0.9901 / 0.9898 | 0.9986 / 0.9985 | 1.07 (0.88 / 0.89) | 81.2 / 81.3 %, 47.7 %, 9.8 %, 26 | 0.29 / 0.33 | 9.96 |
+| `dbt10_d` 10bit | 1 | 12 | 22.8 | 46.14 / 46.10 / 46.09 | 240 | 0.9798 / 0.9791 | 0.9966 / 0.9962 | 1.54 (0.99 / 0.99) | 86.6 / 86.7 %, 61.6 %, 24.5 %, 52 | 0.48 / 0.54 | 9.87 |
+| `dbt10_d` 10bit | 1 | 16 | 36.5 | 44.34 / 44.29 / 44.29 | 322 | 0.9698 / 0.9685 | 0.9942 / 0.9935 | 1.90 (1.02 / 1.03) | 89.0 / 89.1 %, 68.1 %, 34.1 %, 71 | 0.65 / 0.74 | 9.73 |
+| `dbt10_d` 10bit | 1 | 24 | 74.2 | 42.40 / 42.35 / 42.35 | 445 | 0.9542 / 0.9519 | 0.9893 / 0.9876 | 2.37 (1.05 / 1.05) | 91.0 / 91.2 %, 73.9 %, 44.0 %, 94 | 0.97 / 1.11 | 9.33 |
+| `dbt10_d` 10bit | 1 | 32 | 177.1 | 40.64 / 40.55 / 40.53 | 466 | 0.9364 / 0.9347 | 0.9805 / 0.9783 | 2.88 (1.07 / 1.07) | 92.4 / 92.5 %, 77.7 %, 51.3 %, 105 | 1.52 / 1.68 | 8.36 |
+| `dbt10_d` 10bit | 1 | 40 | 357.9 | 39.22 / 39.09 / 39.07 | 466 | 0.9257 / 0.9234 | 0.9706 / 0.9700 | 3.33 (1.15 / 1.17) | 93.3 / 93.5 %, 80.6 %, 56.9 %, 141 | 2.11 / 2.31 | 7.14 |
+| `dbt10_d` 10bit | 1 | 56 | 1498.6 | 35.92 / 35.50 / 35.48 | 615 | 0.9006 / 0.8901 | 0.9378 / 0.9322 | 4.70 (1.31 / 1.33) | 95.1 / 95.3 %, 85.9 %, 68.0 %, 182 | 3.76 / 4.10 | 4.35 |
+| `dbt10_d` 10bit | 16 | 1 | 3.3 | 65.40 / 65.35 / 65.33 | 25 | 0.9998 / 0.9998 | 1.0000 / 1.0000 | 0.17 (0.17 / 0.17) | 20.4 / 20.5 %, 0.0 %, 0.0 %, 10 | 0.05 / 0.06 | 10.0 |
+| `dbt10_d` 10bit | 16 | 2 | 4.1 | 61.72 / 61.67 / 61.66 | 29 | 0.9994 / 0.9994 | 0.9999 / 0.9999 | 0.26 (0.26 / 0.26) | 36.1 / 36.2 %, 0.5 %, 0.0 %, 12 | 0.07 / 0.08 | 10.0 |
+| `dbt10_d` 10bit | 16 | 4 | 6.2 | 55.90 / 55.86 / 55.83 | 46 | 0.9979 / 0.9978 | 0.9997 / 0.9997 | 0.50 (0.51 / 0.53) | 61.8 / 62.0 %, 13.6 %, 0.0 %, 23 | 0.13 / 0.15 | 10.0 |
+| `dbt10_d` 10bit | 16 | 8 | 13.4 | 49.41 / 49.32 / 49.23 | 65 | 0.9905 / 0.9899 | 0.9986 / 0.9985 | 1.06 (0.88 / 0.89) | 80.9 / 81.3 %, 47.6 %, 9.8 %, 29 | 0.30 / 0.33 | 9.96 |
+| `dbt10_d` 10bit | 16 | 12 | 25.5 | 46.26 / 46.18 / 46.11 | 185 | 0.9805 / 0.9794 | 0.9967 / 0.9964 | 1.52 (0.99 / 0.99) | 86.5 / 86.6 %, 61.5 %, 24.4 %, 38 | 0.48 / 0.54 | 9.87 |
+| `dbt10_d` 10bit | 16 | 16 | 45.6 | 44.42 / 44.36 / 44.30 | 179 | 0.9706 / 0.9692 | 0.9943 / 0.9934 | 1.88 (1.02 / 1.03) | 88.9 / 89.0 %, 68.0 %, 33.9 %, 48 | 0.66 / 0.76 | 9.71 |
+| `dbt10_d` 10bit | 16 | 24 | 117.2 | 42.36 / 42.31 / 42.26 | 361 | 0.9545 / 0.9526 | 0.9890 / 0.9874 | 2.37 (1.05 / 1.07) | 91.1 / 91.2 %, 74.0 %, 44.1 %, 77 | 1.01 / 1.15 | 9.26 |
+| `dbt10_d` 10bit | 16 | 32 | 450.5 | 40.46 / 40.35 / 40.34 | 466 | 0.9364 / 0.9350 | 0.9793 / 0.9769 | 2.94 (1.07 / 1.08) | 92.5 / 92.7 %, 78.2 %, 52.2 %, 124 | 1.62 / 1.80 | 8.18 |
+| `dbt10_d` 10bit | 16 | 40 | 1230.8 | 38.99 / 38.80 / 38.74 | 489 | 0.9258 / 0.9237 | 0.9686 / 0.9674 | 3.43 (1.14 / 1.18) | 93.5 / 93.7 %, 81.2 %, 58.2 %, 141 | 2.26 / 2.47 | 6.9 |
+| `dbt10_d` 10bit | 16 | 56 | 8253.7 | 35.66 / 35.18 / 35.12 | 591 | 0.9034 / 0.8931 | 0.9339 / 0.9246 | 4.87 (1.31 / 1.33) | 95.3 / 95.6 %, 86.8 %, 69.8 %, 205 | 3.97 / 4.38 | 4.2 |
+| `dbt10_d` 10bit | 8 | 1 | 3.3 | 65.41 / 65.34 / 65.33 | 20 | 0.9998 / 0.9998 | 1.0000 / 1.0000 | 0.17 (0.17 / 0.17) | 20.4 / 20.5 %, 0.0 %, 0.0 %, 8 | 0.05 / 0.05 | 10.0 |
+| `dbt10_d` 10bit | 8 | 2 | 4.1 | 61.73 / 61.67 / 61.66 | 30 | 0.9994 / 0.9994 | 0.9999 / 0.9999 | 0.26 (0.26 / 0.26) | 36.1 / 36.2 %, 0.5 %, 0.0 %, 12 | 0.07 / 0.08 | 10.0 |
+| `dbt10_d` 10bit | 8 | 4 | 6.2 | 55.90 / 55.85 / 55.83 | 38 | 0.9978 / 0.9978 | 0.9997 / 0.9997 | 0.50 (0.51 / 0.53) | 61.8 / 62.0 %, 13.6 %, 0.0 %, 17 | 0.13 / 0.15 | 10.0 |
+| `dbt10_d` 10bit | 8 | 8 | 13.3 | 49.41 / 49.27 / 49.23 | 65 | 0.9904 / 0.9898 | 0.9986 / 0.9985 | 1.06 (0.88 / 0.89) | 80.9 / 81.3 %, 47.7 %, 9.8 %, 28 | 0.30 / 0.33 | 9.96 |
+| `dbt10_d` 10bit | 8 | 12 | 25.4 | 46.25 / 46.14 / 46.10 | 240 | 0.9804 / 0.9792 | 0.9967 / 0.9963 | 1.52 (0.99 / 0.99) | 86.5 / 86.7 %, 61.6 %, 24.4 %, 45 | 0.48 / 0.54 | 9.87 |
+| `dbt10_d` 10bit | 8 | 16 | 45.1 | 44.43 / 44.34 / 44.30 | 310 | 0.9705 / 0.9686 | 0.9943 / 0.9934 | 1.88 (1.02 / 1.03) | 88.9 / 89.1 %, 68.1 %, 34.0 %, 71 | 0.66 / 0.76 | 9.71 |
+| `dbt10_d` 10bit | 8 | 24 | 114.6 | 42.37 / 42.29 / 42.26 | 361 | 0.9544 / 0.9522 | 0.9890 / 0.9873 | 2.37 (1.05 / 1.07) | 91.1 / 91.2 %, 74.1 %, 44.3 %, 74 | 1.01 / 1.16 | 9.27 |
+| `dbt10_d` 10bit | 8 | 32 | 420.0 | 40.51 / 40.35 / 40.29 | 499 | 0.9363 / 0.9347 | 0.9794 / 0.9775 | 2.93 (1.07 / 1.09) | 92.5 / 92.7 %, 78.3 %, 52.4 %, 116 | 1.62 / 1.80 | 8.22 |
+| `dbt10_d` 10bit | 8 | 40 | 1098.2 | 39.02 / 38.85 / 38.79 | 466 | 0.9254 / 0.9233 | 0.9689 / 0.9674 | 3.41 (1.14 / 1.18) | 93.5 / 93.7 %, 81.2 %, 58.0 %, 163 | 2.24 / 2.47 | 6.96 |
+| `dbt10_d` 10bit | 8 | 56 | 6656.3 | 35.70 / 35.21 / 35.13 | 559 | 0.9036 / 0.8904 | 0.9357 / 0.9244 | 4.83 (1.30 / 1.33) | 95.2 / 95.5 %, 86.6 %, 69.5 %, 216 | 3.90 / 4.39 | 4.26 |
 | `dbt10_ea1141` 10bit | 1 | 1 | 3.2 | 66.01 / 65.97 / 65.97 | 9 | 0.9998 / 0.9998 | 1.0000 / 1.0000 | 0.15 (0.15 / 0.15) | 19.2 / 19.3 %, 0.0 %, 0.0 %, 2 | 0.04 / 0.04 | 10.0 |
 | `dbt10_ea1141` 10bit | 1 | 2 | 4.1 | 62.04 / 62.00 / 61.99 | 9 | 0.9995 / 0.9995 | 0.9999 / 0.9999 | 0.24 (0.25 / 0.25) | 35.8 / 35.9 %, 0.4 %, 0.0 %, 3 | 0.06 / 0.06 | 10.0 |
 | `dbt10_ea1141` 10bit | 1 | 4 | 5.9 | 56.35 / 56.31 / 56.31 | 18 | 0.9982 / 0.9981 | 0.9998 / 0.9998 | 0.46 (0.48 / 0.49) | 61.1 / 61.2 %, 12.6 %, 0.0 %, 5 | 0.11 / 0.11 | 10.0 |
@@ -3333,6 +3450,276 @@ series), TRUS (two) and the MR controls (two) are too few to name one.
 | `dbts_a2` window | 8 | 32 | 42.9 | 9.43 / 8.01 / 7.87 | 2275 | 0.6046 / 0.4445 | 0.8968 / 0.8590 | 4.71 (1.01 / 1.03) | 91.1 / 91.3 %, 74.8 %, 46.9 %, 45 | 3.19 / 3.78 | — |
 | `dbts_a2` window | 8 | 40 | 167.4 | 9.43 / 8.00 / 7.87 | 2266 | 0.5978 / 0.4380 | 0.8951 / 0.8575 | 4.89 (1.05 / 1.07) | 93.1 / 93.4 %, 80.6 %, 57.2 %, 50 | 3.24 / 3.82 | — |
 | `dbts_a2` window | 8 | 56 | 2816.6 | 9.42 / 8.00 / 7.87 | 2315 | 0.5916 / 0.4334 | 0.8900 / 0.8536 | 5.17 (1.05 / 1.07) | 94.5 / 94.8 %, 84.5 %, 65.0 %, 136 | 3.47 / 4.05 | — |
+| `dbts_a3` 12bit | 1 | 1 | 3.7 | 71.55 / 71.49 / 71.49 | 16 | 0.9999 / 0.9999 | 1.0000 / 1.0000 | 0.10 (0.10 / 0.10) | 25.1 / 25.3 %, 0.2 %, 0.0 %, 3 | 0.03 / 0.03 | 10.0 |
+| `dbts_a3` 12bit | 1 | 2 | 4.7 | 65.65 / 65.58 / 65.58 | 25 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.19 (0.19 / 0.20) | 46.6 / 47.0 %, 5.6 %, 0.0 %, 6 | 0.05 / 0.06 | 10.0 |
+| `dbts_a3` 12bit | 1 | 4 | 7.9 | 57.86 / 57.79 / 57.77 | 59 | 0.9984 / 0.9984 | 0.9998 / 0.9998 | 0.46 (0.47 / 0.50) | 72.8 / 73.3 %, 34.3 %, 5.6 %, 14 | 0.13 / 0.14 | 9.98 |
+| `dbts_a3` 12bit | 1 | 8 | 24.3 | 49.59 / 49.55 / 49.54 | 180 | 0.9891 / 0.9889 | 0.9985 / 0.9984 | 1.20 (0.96 / 0.97) | 88.3 / 88.9 %, 69.0 %, 38.6 %, 36 | 0.36 / 0.39 | 9.77 |
+| `dbts_a3` 12bit | 1 | 12 | 81.8 | 46.45 / 46.42 / 46.40 | 430 | 0.9779 / 0.9776 | 0.9960 / 0.9958 | 1.72 (1.03 / 1.04) | 91.5 / 92.0 %, 77.1 %, 52.2 %, 54 | 0.63 / 0.69 | 9.27 |
+| `dbts_a3` 12bit | 1 | 16 | 187.2 | 45.38 / 45.33 / 45.31 | 431 | 0.9727 / 0.9718 | 0.9938 / 0.9933 | 1.94 (1.03 / 1.04) | 92.4 / 92.7 %, 79.2 %, 56.0 %, 84 | 0.87 / 0.97 | 8.66 |
+| `dbts_a3` 12bit | 1 | 24 | 400.6 | 44.55 / 44.49 / 44.46 | 584 | 0.9681 / 0.9675 | 0.9912 / 0.9907 | 2.12 (1.03 / 1.04) | 93.0 / 93.2 %, 80.6 %, 58.6 %, 123 | 1.19 / 1.29 | 7.77 |
+| `dbts_a3` 12bit | 1 | 32 | 781.5 | 43.79 / 43.51 / 43.47 | 631 | 0.9670 / 0.9651 | 0.9878 / 0.9872 | 2.34 (1.03 / 1.04) | 93.7 / 93.8 %, 82.2 %, 61.6 %, 182 | 1.58 / 1.64 | 6.52 |
+| `dbts_a3` 12bit | 1 | 40 | 1373.1 | 42.62 / 42.22 / 42.13 | 1148 | 0.9633 / 0.9597 | 0.9830 / 0.9812 | 2.63 (1.03 / 1.04) | 94.3 / 94.5 %, 84.0 %, 65.2 %, 191 | 2.06 / 2.15 | 5.04 |
+| `dbts_a3` 12bit | 1 | 56 | 3629.7 | 39.05 / 38.43 / 38.38 | 1522 | 0.9443 / 0.9240 | 0.9665 / 0.9574 | 3.74 (1.04 / 1.05) | 95.8 / 96.1 %, 88.3 %, 73.9 %, 213 | 3.58 / 3.96 | 2.43 |
+| `dbts_a3` 12bit | 16 | 1 | 3.6 | 71.57 / 71.48 / 71.48 | 48 | 0.9999 / 0.9999 | 1.0000 / 1.0000 | 0.10 (0.10 / 0.10) | 25.2 / 25.3 %, 0.2 %, 0.0 %, 3 | 0.03 / 0.03 | 10.0 |
+| `dbts_a3` 12bit | 16 | 2 | 4.8 | 65.63 / 65.57 / 65.56 | 65 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.19 (0.19 / 0.20) | 46.6 / 47.1 %, 5.7 %, 0.0 %, 6 | 0.05 / 0.06 | 10.0 |
+| `dbts_a3` 12bit | 16 | 4 | 7.9 | 57.87 / 57.78 / 57.76 | 105 | 0.9984 / 0.9984 | 0.9998 / 0.9998 | 0.46 (0.47 / 0.50) | 72.8 / 73.3 %, 34.4 %, 5.7 %, 14 | 0.13 / 0.14 | 9.98 |
+| `dbts_a3` 12bit | 16 | 8 | 24.5 | 49.72 / 49.68 / 49.58 | 205 | 0.9896 / 0.9891 | 0.9985 / 0.9984 | 1.18 (0.96 / 0.97) | 88.2 / 88.8 %, 68.7 %, 38.1 %, 35 | 0.36 / 0.39 | 9.77 |
+| `dbts_a3` 12bit | 16 | 12 | 94.8 | 46.54 / 46.50 / 46.42 | 257 | 0.9787 / 0.9776 | 0.9961 / 0.9958 | 1.70 (1.03 / 1.04) | 91.4 / 91.9 %, 76.9 %, 51.9 %, 61 | 0.63 / 0.70 | 9.27 |
+| `dbts_a3` 12bit | 16 | 16 | 313.9 | 45.34 / 45.29 / 45.24 | 263 | 0.9730 / 0.9720 | 0.9937 / 0.9931 | 1.95 (1.03 / 1.04) | 92.4 / 92.8 %, 79.3 %, 56.2 %, 89 | 0.89 / 1.01 | 8.56 |
+| `dbts_a3` 12bit | 16 | 24 | 1085.2 | 44.35 / 44.23 / 44.21 | 413 | 0.9694 / 0.9675 | 0.9905 / 0.9898 | 2.17 (1.03 / 1.04) | 93.2 / 93.4 %, 81.0 %, 59.5 %, 122 | 1.32 / 1.45 | 7.45 |
+| `dbts_a3` 12bit | 16 | 32 | 3028.3 | 43.43 / 43.11 / 42.99 | 577 | 0.9671 / 0.9657 | 0.9865 / 0.9852 | 2.43 (1.03 / 1.04) | 93.9 / 94.1 %, 82.9 %, 63.1 %, 151 | 1.75 / 1.85 | 6.19 |
+| `dbts_a3` 12bit | 16 | 40 | 7005.3 | 42.08 / 41.54 / 41.48 | 712 | 0.9629 / 0.9602 | 0.9807 / 0.9775 | 2.80 (1.03 / 1.04) | 94.6 / 94.9 %, 85.3 %, 67.5 %, 190 | 2.37 / 2.53 | 4.75 |
+| `dbts_a3` 12bit | 16 | 56 | 25373.8 | 38.54 / 37.84 / 37.70 | 1536 | 0.9479 / 0.9453 | 0.9644 / 0.9521 | 3.90 (1.03 / 1.05) | 95.9 / 96.3 %, 89.2 %, 75.9 %, 217 | 3.90 / 4.51 | 2.36 |
+| `dbts_a3` 12bit | 8 | 1 | 3.6 | 71.56 / 71.48 / 71.48 | 34 | 0.9999 / 0.9999 | 1.0000 / 1.0000 | 0.10 (0.10 / 0.10) | 25.1 / 25.2 %, 0.2 %, 0.0 %, 3 | 0.03 / 0.03 | 10.0 |
+| `dbts_a3` 12bit | 8 | 2 | 4.7 | 65.64 / 65.58 / 65.56 | 65 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.19 (0.19 / 0.20) | 46.6 / 47.0 %, 5.7 %, 0.0 %, 5 | 0.05 / 0.06 | 10.0 |
+| `dbts_a3` 12bit | 8 | 4 | 7.9 | 57.87 / 57.78 / 57.73 | 187 | 0.9984 / 0.9984 | 0.9998 / 0.9998 | 0.46 (0.47 / 0.50) | 72.8 / 73.4 %, 34.6 %, 5.7 %, 14 | 0.13 / 0.14 | 9.98 |
+| `dbts_a3` 12bit | 8 | 8 | 24.4 | 49.72 / 49.59 / 49.56 | 207 | 0.9896 / 0.9890 | 0.9985 / 0.9984 | 1.19 (0.96 / 0.97) | 88.2 / 88.9 %, 68.9 %, 38.6 %, 35 | 0.36 / 0.39 | 9.77 |
+| `dbts_a3` 12bit | 8 | 12 | 94.1 | 46.54 / 46.45 / 46.42 | 269 | 0.9787 / 0.9776 | 0.9961 / 0.9958 | 1.70 (1.03 / 1.04) | 91.5 / 91.9 %, 77.1 %, 52.2 %, 55 | 0.63 / 0.70 | 9.27 |
+| `dbts_a3` 12bit | 8 | 16 | 303.4 | 45.35 / 45.29 / 45.24 | 309 | 0.9730 / 0.9720 | 0.9937 / 0.9931 | 1.95 (1.03 / 1.04) | 92.4 / 92.7 %, 79.3 %, 56.3 %, 84 | 0.89 / 1.01 | 8.56 |
+| `dbts_a3` 12bit | 8 | 24 | 1013.1 | 44.38 / 44.23 / 44.21 | 387 | 0.9687 / 0.9675 | 0.9905 / 0.9897 | 2.17 (1.03 / 1.04) | 93.2 / 93.4 %, 81.1 %, 59.5 %, 113 | 1.30 / 1.45 | 7.46 |
+| `dbts_a3` 12bit | 8 | 32 | 2609.0 | 43.50 / 43.10 / 43.03 | 577 | 0.9670 / 0.9657 | 0.9868 / 0.9852 | 2.39 (1.03 / 1.04) | 93.8 / 94.0 %, 82.8 %, 62.9 %, 151 | 1.73 / 1.84 | 6.2 |
+| `dbts_a3` 12bit | 8 | 40 | 5636.9 | 42.26 / 41.62 / 41.58 | 941 | 0.9633 / 0.9602 | 0.9814 / 0.9781 | 2.73 (1.03 / 1.04) | 94.5 / 94.8 %, 85.0 %, 67.1 %, 192 | 2.21 / 2.48 | 4.76 |
+| `dbts_a3` 12bit | 8 | 56 | 17252.1 | 38.87 / 37.95 / 37.89 | 1559 | 0.9468 / 0.9400 | 0.9662 / 0.9542 | 3.76 (1.04 / 1.05) | 95.9 / 96.2 %, 88.7 %, 74.8 %, 224 | 3.64 / 4.33 | 2.37 |
+| `dbts_a3` top10 | 1 | 1 | 4.4 | 64.77 / 64.71 / 64.71 | 25 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.21 (0.21 / 0.22) | 45.7 / 46.1 %, 8.2 %, 0.0 %, 5 | 0.08 / 0.09 | — |
+| `dbts_a3` top10 | 1 | 2 | 5.8 | 61.33 / 61.27 / 61.26 | 39 | 0.9993 / 0.9993 | 0.9999 / 0.9999 | 0.31 (0.31 / 0.33) | 60.9 / 61.5 %, 18.7 %, 0.9 %, 8 | 0.11 / 0.12 | — |
+| `dbts_a3` top10 | 1 | 4 | 9.0 | 56.05 / 55.99 / 55.97 | 99 | 0.9976 / 0.9976 | 0.9997 / 0.9997 | 0.57 (0.57 / 0.59) | 77.2 / 77.7 %, 42.9 %, 10.4 %, 15 | 0.17 / 0.19 | — |
+| `dbts_a3` top10 | 1 | 8 | 26.0 | 49.28 / 49.24 / 49.23 | 176 | 0.9885 / 0.9884 | 0.9983 / 0.9983 | 1.25 (0.97 / 0.98) | 88.7 / 89.3 %, 70.0 %, 40.0 %, 37 | 0.39 / 0.42 | — |
+| `dbts_a3` top10 | 1 | 12 | 75.5 | 46.58 / 46.52 / 46.50 | 431 | 0.9788 / 0.9785 | 0.9962 / 0.9960 | 1.70 (1.03 / 1.04) | 91.4 / 91.9 %, 76.9 %, 51.7 %, 52 | 0.62 / 0.67 | — |
+| `dbts_a3` top10 | 1 | 16 | 163.7 | 45.52 / 45.46 / 45.44 | 431 | 0.9737 / 0.9727 | 0.9942 / 0.9937 | 1.91 (1.04 / 1.05) | 92.3 / 92.6 %, 79.0 %, 55.7 %, 80 | 0.84 / 0.93 | — |
+| `dbts_a3` top10 | 1 | 24 | 352.5 | 44.73 / 44.67 / 44.64 | 579 | 0.9704 / 0.9699 | 0.9917 / 0.9913 | 2.09 (1.04 / 1.05) | 92.9 / 93.2 %, 80.4 %, 58.2 %, 124 | 1.14 / 1.23 | — |
+| `dbts_a3` top10 | 1 | 32 | 672.3 | 43.99 / 43.78 / 43.76 | 554 | 0.9681 / 0.9672 | 0.9887 / 0.9882 | 2.29 (1.04 / 1.05) | 93.5 / 93.7 %, 81.8 %, 60.8 %, 178 | 1.49 / 1.56 | — |
+| `dbts_a3` top10 | 1 | 40 | 1141.5 | 43.09 / 42.70 / 42.68 | 959 | 0.9646 / 0.9620 | 0.9848 / 0.9838 | 2.52 (1.04 / 1.05) | 94.1 / 94.2 %, 83.4 %, 63.9 %, 191 | 1.89 / 1.94 | — |
+| `dbts_a3` top10 | 1 | 56 | 2920.5 | 40.22 / 39.65 / 39.62 | 1433 | 0.9480 / 0.9412 | 0.9711 / 0.9657 | 3.32 (1.04 / 1.05) | 95.5 / 95.7 %, 87.3 %, 71.8 %, 221 | 3.09 / 3.36 | — |
+| `dbts_a3` top10 | 16 | 1 | 4.4 | 64.78 / 64.71 / 64.70 | 57 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.21 (0.21 / 0.22) | 45.7 / 46.0 %, 8.2 %, 0.0 %, 6 | 0.08 / 0.09 | — |
+| `dbts_a3` top10 | 16 | 2 | 5.7 | 61.36 / 61.28 / 61.26 | 95 | 0.9993 / 0.9993 | 0.9999 / 0.9999 | 0.31 (0.31 / 0.33) | 60.9 / 61.5 %, 18.6 %, 0.9 %, 8 | 0.11 / 0.12 | — |
+| `dbts_a3` top10 | 16 | 4 | 9.2 | 55.88 / 55.73 / 55.73 | 108 | 0.9975 / 0.9974 | 0.9997 / 0.9996 | 0.58 (0.58 / 0.61) | 77.6 / 78.3 %, 44.1 %, 11.1 %, 17 | 0.18 / 0.20 | — |
+| `dbts_a3` top10 | 16 | 8 | 26.3 | 49.37 / 49.34 / 49.27 | 256 | 0.9889 / 0.9885 | 0.9984 / 0.9983 | 1.23 (0.97 / 0.98) | 88.6 / 89.2 %, 69.8 %, 39.7 %, 37 | 0.39 / 0.42 | — |
+| `dbts_a3` top10 | 16 | 12 | 86.9 | 46.60 / 46.56 / 46.54 | 225 | 0.9791 / 0.9785 | 0.9961 / 0.9958 | 1.69 (1.03 / 1.04) | 91.4 / 91.9 %, 76.9 %, 51.8 %, 55 | 0.64 / 0.71 | — |
+| `dbts_a3` top10 | 16 | 16 | 266.6 | 45.46 / 45.41 / 45.37 | 254 | 0.9737 / 0.9727 | 0.9940 / 0.9935 | 1.93 (1.04 / 1.05) | 92.3 / 92.7 %, 79.1 %, 55.8 %, 87 | 0.87 / 0.97 | — |
+| `dbts_a3` top10 | 16 | 24 | 834.5 | 44.60 / 44.51 / 44.47 | 330 | 0.9703 / 0.9697 | 0.9914 / 0.9906 | 2.11 (1.04 / 1.05) | 93.0 / 93.3 %, 80.7 %, 58.7 %, 107 | 1.20 / 1.34 | — |
+| `dbts_a3` top10 | 16 | 32 | 2276.8 | 43.78 / 43.51 / 43.45 | 543 | 0.9680 / 0.9670 | 0.9880 / 0.9870 | 2.34 (1.04 / 1.05) | 93.7 / 93.8 %, 82.2 %, 61.8 %, 125 | 1.59 / 1.67 | — |
+| `dbts_a3` top10 | 16 | 40 | 4944.9 | 42.78 / 42.33 / 42.30 | 654 | 0.9647 / 0.9630 | 0.9836 / 0.9818 | 2.61 (1.04 / 1.05) | 94.3 / 94.6 %, 84.2 %, 65.3 %, 164 | 2.04 / 2.16 | — |
+| `dbts_a3` top10 | 16 | 56 | 18731.2 | 39.71 / 39.08 / 39.06 | 1371 | 0.9511 / 0.9418 | 0.9683 / 0.9624 | 3.54 (1.04 / 1.05) | 95.6 / 95.9 %, 88.0 %, 73.4 %, 217 | 3.36 / 3.70 | — |
+| `dbts_a3` top10 | 8 | 1 | 4.4 | 64.79 / 64.71 / 64.70 | 57 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.21 (0.21 / 0.22) | 45.6 / 46.1 %, 8.2 %, 0.0 %, 6 | 0.08 / 0.09 | — |
+| `dbts_a3` top10 | 8 | 2 | 5.7 | 61.35 / 61.28 / 61.26 | 84 | 0.9993 / 0.9993 | 0.9999 / 0.9999 | 0.31 (0.31 / 0.33) | 60.9 / 61.5 %, 18.7 %, 0.9 %, 9 | 0.11 / 0.12 | — |
+| `dbts_a3` top10 | 8 | 4 | 9.2 | 55.86 / 55.75 / 55.73 | 107 | 0.9975 / 0.9974 | 0.9997 / 0.9996 | 0.58 (0.58 / 0.61) | 77.7 / 78.4 %, 44.2 %, 11.1 %, 16 | 0.18 / 0.20 | — |
+| `dbts_a3` top10 | 8 | 8 | 26.3 | 49.38 / 49.28 / 49.26 | 216 | 0.9888 / 0.9884 | 0.9984 / 0.9983 | 1.23 (0.97 / 0.98) | 88.6 / 89.3 %, 69.9 %, 40.0 %, 40 | 0.39 / 0.42 | — |
+| `dbts_a3` top10 | 8 | 12 | 86.2 | 46.61 / 46.55 / 46.54 | 256 | 0.9791 / 0.9785 | 0.9961 / 0.9958 | 1.69 (1.03 / 1.04) | 91.4 / 91.9 %, 76.9 %, 51.8 %, 52 | 0.63 / 0.71 | — |
+| `dbts_a3` top10 | 8 | 16 | 258.4 | 45.48 / 45.40 / 45.37 | 264 | 0.9737 / 0.9727 | 0.9940 / 0.9935 | 1.93 (1.04 / 1.05) | 92.3 / 92.7 %, 79.2 %, 55.9 %, 80 | 0.87 / 0.97 | — |
+| `dbts_a3` top10 | 8 | 24 | 788.7 | 44.62 / 44.52 / 44.47 | 389 | 0.9703 / 0.9697 | 0.9914 / 0.9906 | 2.12 (1.04 / 1.05) | 93.0 / 93.3 %, 80.6 %, 58.6 %, 103 | 1.20 / 1.34 | — |
+| `dbts_a3` top10 | 8 | 32 | 2027.4 | 43.80 / 43.51 / 43.48 | 543 | 0.9680 / 0.9670 | 0.9881 / 0.9873 | 2.34 (1.04 / 1.05) | 93.7 / 93.8 %, 82.1 %, 61.5 %, 125 | 1.57 / 1.67 | — |
+| `dbts_a3` top10 | 8 | 40 | 4150.3 | 42.84 / 42.40 / 42.30 | 773 | 0.9646 / 0.9627 | 0.9839 / 0.9815 | 2.57 (1.04 / 1.05) | 94.2 / 94.5 %, 84.0 %, 65.2 %, 164 | 1.99 / 2.16 | — |
+| `dbts_a3` top10 | 8 | 56 | 13471.0 | 39.90 / 39.24 / 39.00 | 1401 | 0.9459 / 0.9418 | 0.9701 / 0.9619 | 3.42 (1.04 / 1.05) | 95.6 / 95.8 %, 87.8 %, 72.9 %, 222 | 3.23 / 3.68 | — |
+| `dbts_a3` window | 1 | 1 | 2.8 | 13.34 / 12.69 / 12.61 | 1610 | 0.6913 / 0.6391 | 0.9051 / 0.8967 | 3.47 (0.41 / 0.43) | 26.7 / 28.5 %, 21.4 %, 18.0 %, 30 | 2.98 / 3.15 | — |
+| `dbts_a3` window | 1 | 2 | 3.4 | 13.34 / 12.69 / 12.61 | 1611 | 0.6913 / 0.6391 | 0.9051 / 0.8967 | 3.48 (0.41 / 0.44) | 31.2 / 32.9 %, 21.7 %, 18.2 %, 30 | 2.98 / 3.15 | — |
+| `dbts_a3` window | 1 | 4 | 4.3 | 13.34 / 12.69 / 12.61 | 1611 | 0.6912 / 0.6390 | 0.9051 / 0.8967 | 3.48 (0.42 / 0.44) | 40.9 / 42.6 %, 22.0 %, 18.5 %, 30 | 2.99 / 3.15 | — |
+| `dbts_a3` window | 1 | 8 | 5.8 | 13.34 / 12.69 / 12.61 | 1617 | 0.6910 / 0.6388 | 0.9050 / 0.8967 | 3.49 (0.45 / 0.47) | 61.6 / 62.8 %, 27.5 %, 18.7 %, 30 | 2.99 / 3.15 | — |
+| `dbts_a3` window | 1 | 12 | 7.3 | 13.34 / 12.69 / 12.61 | 1616 | 0.6905 / 0.6384 | 0.9050 / 0.8966 | 3.50 (0.50 / 0.52) | 73.8 / 74.8 %, 39.7 %, 19.9 %, 31 | 2.99 / 3.16 | — |
+| `dbts_a3` window | 1 | 16 | 8.9 | 13.34 / 12.69 / 12.61 | 1617 | 0.6900 / 0.6379 | 0.9049 / 0.8965 | 3.51 (0.56 / 0.58) | 80.3 / 81.1 %, 50.4 %, 23.0 %, 32 | 3.00 / 3.16 | — |
+| `dbts_a3` window | 1 | 24 | 12.5 | 13.34 / 12.68 / 12.61 | 1620 | 0.6884 / 0.6363 | 0.9046 / 0.8963 | 3.55 (0.70 / 0.72) | 86.8 / 87.4 %, 64.5 %, 33.4 %, 41 | 3.01 / 3.17 | — |
+| `dbts_a3` window | 1 | 32 | 24.5 | 13.34 / 12.68 / 12.61 | 1630 | 0.6835 / 0.6313 | 0.9039 / 0.8956 | 3.65 (0.93 / 0.94) | 91.8 / 92.2 %, 77.3 %, 51.2 %, 44 | 3.02 / 3.19 | — |
+| `dbts_a3` window | 1 | 40 | 76.0 | 13.34 / 12.68 / 12.60 | 1631 | 0.6746 / 0.6224 | 0.9020 / 0.8937 | 3.82 (1.03 / 1.04) | 94.3 / 94.5 %, 83.8 %, 63.7 %, 50 | 3.06 / 3.23 | — |
+| `dbts_a3` window | 1 | 56 | 813.1 | 13.33 / 12.68 / 12.60 | 1646 | 0.6652 / 0.6150 | 0.8959 / 0.8891 | 4.07 (1.03 / 1.04) | 95.6 / 95.9 %, 87.7 %, 71.7 %, 182 | 3.31 / 3.47 | — |
+| `dbts_a3` window | 16 | 1 | 2.8 | 13.34 / 12.69 / 12.61 | 1610 | 0.6913 / 0.6391 | 0.9051 / 0.8967 | 3.47 (0.41 / 0.43) | 26.7 / 28.5 %, 21.4 %, 18.0 %, 30 | 2.98 / 3.15 | — |
+| `dbts_a3` window | 16 | 2 | 3.4 | 13.34 / 12.69 / 12.61 | 1610 | 0.6913 / 0.6391 | 0.9051 / 0.8967 | 3.48 (0.41 / 0.44) | 31.1 / 32.9 %, 21.6 %, 18.2 %, 30 | 2.98 / 3.15 | — |
+| `dbts_a3` window | 16 | 4 | 4.3 | 13.34 / 12.69 / 12.61 | 1611 | 0.6912 / 0.6391 | 0.9051 / 0.8967 | 3.48 (0.42 / 0.44) | 40.9 / 42.6 %, 21.9 %, 18.4 %, 30 | 2.98 / 3.15 | — |
+| `dbts_a3` window | 16 | 8 | 5.8 | 13.34 / 12.69 / 12.61 | 1614 | 0.6910 / 0.6389 | 0.9051 / 0.8967 | 3.48 (0.44 / 0.47) | 61.3 / 62.8 %, 27.4 %, 18.7 %, 30 | 2.98 / 3.15 | — |
+| `dbts_a3` window | 16 | 12 | 7.3 | 13.34 / 12.69 / 12.61 | 1616 | 0.6905 / 0.6384 | 0.9050 / 0.8966 | 3.50 (0.50 / 0.52) | 74.0 / 74.9 %, 39.9 %, 19.9 %, 31 | 2.99 / 3.16 | — |
+| `dbts_a3` window | 16 | 16 | 8.9 | 13.34 / 12.69 / 12.61 | 1617 | 0.6899 / 0.6378 | 0.9049 / 0.8965 | 3.51 (0.56 / 0.58) | 80.5 / 81.2 %, 50.9 %, 23.2 %, 32 | 3.00 / 3.16 | — |
+| `dbts_a3` window | 16 | 24 | 12.6 | 13.34 / 12.68 / 12.61 | 1620 | 0.6883 / 0.6362 | 0.9046 / 0.8963 | 3.55 (0.70 / 0.72) | 86.9 / 87.4 %, 64.7 %, 33.7 %, 33 | 3.01 / 3.17 | — |
+| `dbts_a3` window | 16 | 32 | 24.6 | 13.34 / 12.68 / 12.61 | 1622 | 0.6837 / 0.6314 | 0.9039 / 0.8955 | 3.65 (0.93 / 0.94) | 91.8 / 92.2 %, 77.2 %, 51.1 %, 40 | 3.02 / 3.19 | — |
+| `dbts_a3` window | 16 | 40 | 83.0 | 13.34 / 12.68 / 12.61 | 1628 | 0.6750 / 0.6225 | 0.9020 / 0.8937 | 3.81 (1.03 / 1.04) | 94.3 / 94.5 %, 83.8 %, 63.4 %, 50 | 3.06 / 3.23 | — |
+| `dbts_a3` window | 16 | 56 | 2025.5 | 13.33 / 12.68 / 12.60 | 1646 | 0.6650 / 0.6148 | 0.8957 / 0.8889 | 4.07 (1.03 / 1.04) | 95.6 / 95.9 %, 87.8 %, 71.9 %, 124 | 3.33 / 3.49 | — |
+| `dbts_a3` window | 8 | 1 | 2.8 | 13.34 / 12.69 / 12.61 | 1610 | 0.6913 / 0.6391 | 0.9051 / 0.8967 | 3.47 (0.41 / 0.43) | 26.7 / 28.6 %, 21.4 %, 18.0 %, 30 | 2.98 / 3.15 | — |
+| `dbts_a3` window | 8 | 2 | 3.4 | 13.34 / 12.69 / 12.61 | 1611 | 0.6913 / 0.6391 | 0.9051 / 0.8967 | 3.48 (0.41 / 0.44) | 31.1 / 32.9 %, 21.6 %, 18.2 %, 30 | 2.98 / 3.15 | — |
+| `dbts_a3` window | 8 | 4 | 4.3 | 13.34 / 12.69 / 12.61 | 1611 | 0.6912 / 0.6390 | 0.9051 / 0.8967 | 3.48 (0.42 / 0.44) | 40.9 / 42.6 %, 21.9 %, 18.4 %, 30 | 2.98 / 3.15 | — |
+| `dbts_a3` window | 8 | 8 | 5.8 | 13.34 / 12.69 / 12.61 | 1617 | 0.6910 / 0.6388 | 0.9051 / 0.8967 | 3.48 (0.44 / 0.47) | 61.3 / 62.8 %, 27.4 %, 18.7 %, 31 | 2.99 / 3.15 | — |
+| `dbts_a3` window | 8 | 12 | 7.3 | 13.34 / 12.69 / 12.61 | 1616 | 0.6906 / 0.6384 | 0.9050 / 0.8966 | 3.50 (0.49 / 0.52) | 74.0 / 75.0 %, 39.9 %, 19.9 %, 31 | 2.99 / 3.16 | — |
+| `dbts_a3` window | 8 | 16 | 8.9 | 13.34 / 12.69 / 12.61 | 1617 | 0.6900 / 0.6378 | 0.9049 / 0.8965 | 3.51 (0.56 / 0.58) | 80.5 / 81.2 %, 50.8 %, 23.2 %, 32 | 3.00 / 3.16 | — |
+| `dbts_a3` window | 8 | 24 | 12.6 | 13.34 / 12.68 / 12.61 | 1620 | 0.6883 / 0.6362 | 0.9046 / 0.8963 | 3.55 (0.70 / 0.72) | 86.9 / 87.4 %, 64.7 %, 33.6 %, 33 | 3.01 / 3.17 | — |
+| `dbts_a3` window | 8 | 32 | 24.6 | 13.34 / 12.68 / 12.61 | 1622 | 0.6837 / 0.6314 | 0.9039 / 0.8955 | 3.64 (0.93 / 0.94) | 91.8 / 92.2 %, 77.2 %, 51.1 %, 43 | 3.02 / 3.19 | — |
+| `dbts_a3` window | 8 | 40 | 82.6 | 13.34 / 12.68 / 12.60 | 1632 | 0.6749 / 0.6225 | 0.9020 / 0.8937 | 3.81 (1.03 / 1.04) | 94.3 / 94.5 %, 83.8 %, 63.5 %, 50 | 3.07 / 3.23 | — |
+| `dbts_a3` window | 8 | 56 | 1919.9 | 13.33 / 12.68 / 12.60 | 1641 | 0.6650 / 0.6149 | 0.8957 / 0.8889 | 4.07 (1.03 / 1.04) | 95.6 / 95.9 %, 87.8 %, 71.8 %, 123 | 3.32 / 3.49 | — |
+| `dbts_a4` 12bit | 1 | 1 | 3.4 | 71.31 / 71.14 / 71.12 | 28 | 0.9999 / 0.9999 | 1.0000 / 1.0000 | 0.09 (0.09 / 0.10) | 26.4 / 27.0 %, 0.3 %, 0.0 %, 3 | 0.03 / 0.03 | 10.0 |
+| `dbts_a4` 12bit | 1 | 2 | 4.4 | 65.39 / 65.22 / 65.19 | 31 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.18 (0.18 / 0.20) | 48.5 / 49.5 %, 6.5 %, 0.0 %, 6 | 0.05 / 0.05 | 10.0 |
+| `dbts_a4` 12bit | 1 | 4 | 7.4 | 57.40 / 57.22 / 57.19 | 66 | 0.9983 / 0.9981 | 0.9998 / 0.9997 | 0.45 (0.46 / 0.50) | 75.0 / 75.8 %, 38.6 %, 7.1 %, 15 | 0.13 / 0.14 | 9.96 |
+| `dbts_a4` 12bit | 1 | 8 | 21.9 | 49.25 / 49.17 / 49.17 | 296 | 0.9884 / 0.9881 | 0.9984 / 0.9983 | 1.15 (0.95 / 0.96) | 89.5 / 89.7 %, 71.0 %, 41.1 %, 39 | 0.33 / 0.36 | 9.7 |
+| `dbts_a4` 12bit | 1 | 12 | 75.5 | 46.03 / 45.90 / 45.89 | 297 | 0.9757 / 0.9748 | 0.9956 / 0.9953 | 1.67 (1.02 / 1.03) | 92.5 / 92.7 %, 79.2 %, 55.6 %, 59 | 0.58 / 0.62 | 9.05 |
+| `dbts_a4` 12bit | 1 | 16 | 198.4 | 44.88 / 44.66 / 44.64 | 340 | 0.9692 / 0.9671 | 0.9929 / 0.9923 | 1.90 (1.03 / 1.04) | 93.3 / 93.7 %, 81.8 %, 60.5 %, 72 | 0.82 / 0.88 | 8.15 |
+| `dbts_a4` 12bit | 1 | 24 | 487.1 | 44.16 / 43.91 / 43.86 | 533 | 0.9660 / 0.9632 | 0.9903 / 0.9891 | 2.05 (1.03 / 1.04) | 93.8 / 94.2 %, 83.2 %, 63.2 %, 102 | 1.11 / 1.21 | 6.77 |
+| `dbts_a4` 12bit | 1 | 32 | 1051.9 | 43.42 / 43.23 / 43.16 | 633 | 0.9638 / 0.9614 | 0.9872 / 0.9855 | 2.21 (1.03 / 1.04) | 94.3 / 94.7 %, 84.4 %, 65.6 %, 125 | 1.42 / 1.56 | 5.4 |
+| `dbts_a4` 12bit | 1 | 40 | 2014.9 | 42.47 / 42.28 / 42.26 | 1144 | 0.9606 / 0.9582 | 0.9832 / 0.9814 | 2.44 (1.03 / 1.04) | 94.8 / 95.0 %, 85.6 %, 67.8 %, 192 | 1.81 / 1.92 | 4.1 |
+| `dbts_a4` 12bit | 1 | 56 | 5997.1 | 39.51 / 38.95 / 38.83 | 2157 | 0.9412 / 0.9320 | 0.9723 / 0.9655 | 3.32 (1.03 / 1.04) | 96.0 / 96.3 %, 89.0 %, 75.1 %, 245 | 2.95 / 3.26 | 1.88 |
+| `dbts_a4` 12bit | 16 | 1 | 3.4 | 71.33 / 71.16 / 71.12 | 53 | 0.9999 / 0.9999 | 1.0000 / 1.0000 | 0.09 (0.09 / 0.10) | 26.3 / 26.9 %, 0.3 %, 0.0 %, 3 | 0.03 / 0.03 | 10.0 |
+| `dbts_a4` 12bit | 16 | 2 | 4.6 | 64.93 / 64.71 / 64.70 | 70 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.19 (0.19 / 0.21) | 50.0 / 50.9 %, 7.7 %, 0.0 %, 6 | 0.05 / 0.06 | 10.0 |
+| `dbts_a4` 12bit | 16 | 4 | 7.4 | 57.33 / 57.15 / 57.14 | 116 | 0.9982 / 0.9981 | 0.9998 / 0.9997 | 0.45 (0.46 / 0.50) | 75.3 / 75.9 %, 38.8 %, 7.2 %, 14 | 0.13 / 0.14 | 9.96 |
+| `dbts_a4` 12bit | 16 | 8 | 21.8 | 49.38 / 49.29 / 49.19 | 185 | 0.9888 / 0.9882 | 0.9984 / 0.9983 | 1.13 (0.94 / 0.96) | 89.4 / 89.7 %, 70.9 %, 41.1 %, 39 | 0.33 / 0.36 | 9.69 |
+| `dbts_a4` 12bit | 16 | 12 | 84.1 | 46.10 / 45.98 / 45.90 | 336 | 0.9762 / 0.9748 | 0.9956 / 0.9953 | 1.65 (1.02 / 1.03) | 92.5 / 92.7 %, 79.2 %, 55.6 %, 60 | 0.59 / 0.64 | 9.06 |
+| `dbts_a4` 12bit | 16 | 16 | 320.2 | 44.87 / 44.63 / 44.57 | 389 | 0.9693 / 0.9671 | 0.9929 / 0.9921 | 1.90 (1.03 / 1.04) | 93.4 / 93.7 %, 81.8 %, 60.6 %, 72 | 0.83 / 0.92 | 8.08 |
+| `dbts_a4` 12bit | 16 | 24 | 1318.0 | 43.97 / 43.68 / 43.60 | 450 | 0.9659 / 0.9630 | 0.9894 / 0.9878 | 2.09 (1.03 / 1.04) | 94.0 / 94.4 %, 83.6 %, 64.0 %, 119 | 1.21 / 1.36 | 6.47 |
+| `dbts_a4` 12bit | 16 | 32 | 3820.7 | 43.19 / 42.93 / 42.88 | 599 | 0.9637 / 0.9613 | 0.9859 / 0.9842 | 2.27 (1.03 / 1.04) | 94.4 / 94.8 %, 84.8 %, 66.3 %, 127 | 1.53 / 1.70 | 5.18 |
+| `dbts_a4` 12bit | 16 | 40 | 9195.7 | 42.15 / 41.80 / 41.75 | 831 | 0.9603 / 0.9586 | 0.9815 / 0.9788 | 2.53 (1.03 / 1.04) | 95.0 / 95.3 %, 86.4 %, 69.4 %, 134 | 1.94 / 2.14 | 3.98 |
+| `dbts_a4` 12bit | 16 | 56 | 30737.2 | 39.09 / 38.26 / 38.20 | 1823 | 0.9408 / 0.9333 | 0.9694 / 0.9634 | 3.41 (1.03 / 1.04) | 96.1 / 96.5 %, 89.8 %, 76.7 %, 210 | 3.14 / 3.74 | 1.79 |
+| `dbts_a4` 12bit | 8 | 1 | 3.4 | 71.33 / 71.15 / 71.12 | 37 | 0.9999 / 0.9999 | 1.0000 / 1.0000 | 0.09 (0.09 / 0.10) | 26.3 / 26.9 %, 0.3 %, 0.0 %, 3 | 0.03 / 0.03 | 10.0 |
+| `dbts_a4` 12bit | 8 | 2 | 4.6 | 64.95 / 64.71 / 64.70 | 87 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.19 (0.19 / 0.21) | 50.0 / 50.9 %, 7.7 %, 0.0 %, 6 | 0.05 / 0.06 | 9.99 |
+| `dbts_a4` 12bit | 8 | 4 | 7.4 | 57.33 / 57.15 / 57.14 | 118 | 0.9982 / 0.9981 | 0.9998 / 0.9997 | 0.45 (0.46 / 0.50) | 75.3 / 75.9 %, 38.8 %, 7.2 %, 15 | 0.13 / 0.14 | 9.96 |
+| `dbts_a4` 12bit | 8 | 8 | 21.9 | 49.36 / 49.21 / 49.18 | 160 | 0.9887 / 0.9882 | 0.9984 / 0.9983 | 1.14 (0.94 / 0.96) | 89.4 / 89.7 %, 70.9 %, 41.1 %, 37 | 0.33 / 0.36 | 9.69 |
+| `dbts_a4` 12bit | 8 | 12 | 83.8 | 46.09 / 45.97 / 45.90 | 284 | 0.9761 / 0.9748 | 0.9956 / 0.9953 | 1.65 (1.02 / 1.03) | 92.5 / 92.7 %, 79.2 %, 55.6 %, 58 | 0.59 / 0.64 | 9.05 |
+| `dbts_a4` 12bit | 8 | 16 | 311.3 | 44.87 / 44.64 / 44.57 | 375 | 0.9693 / 0.9671 | 0.9929 / 0.9921 | 1.90 (1.03 / 1.04) | 93.4 / 93.7 %, 81.8 %, 60.6 %, 71 | 0.83 / 0.92 | 8.08 |
+| `dbts_a4` 12bit | 8 | 24 | 1247.4 | 43.97 / 43.66 / 43.60 | 479 | 0.9659 / 0.9630 | 0.9894 / 0.9878 | 2.10 (1.03 / 1.04) | 94.0 / 94.4 %, 83.6 %, 64.0 %, 125 | 1.21 / 1.36 | 6.44 |
+| `dbts_a4` 12bit | 8 | 32 | 3464.6 | 43.23 / 42.94 / 42.91 | 652 | 0.9637 / 0.9613 | 0.9862 / 0.9842 | 2.27 (1.03 / 1.04) | 94.4 / 94.8 %, 84.8 %, 66.3 %, 124 | 1.50 / 1.70 | 5.2 |
+| `dbts_a4` 12bit | 8 | 40 | 7903.4 | 42.32 / 41.87 / 41.72 | 840 | 0.9605 / 0.9585 | 0.9822 / 0.9788 | 2.52 (1.03 / 1.04) | 94.9 / 95.2 %, 86.1 %, 68.9 %, 167 | 1.88 / 2.13 | 3.96 |
+| `dbts_a4` 12bit | 8 | 56 | 24577.0 | 39.45 / 38.58 / 38.47 | 1836 | 0.9428 / 0.9324 | 0.9715 / 0.9634 | 3.37 (1.03 / 1.04) | 96.1 / 96.4 %, 89.5 %, 76.1 %, 226 | 3.04 / 3.54 | 1.93 |
+| `dbts_a4` top10 | 1 | 1 | 4.1 | 64.51 / 64.33 / 64.32 | 56 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.20 (0.20 / 0.21) | 48.1 / 48.8 %, 9.4 %, 0.0 %, 6 | 0.08 / 0.08 | — |
+| `dbts_a4` top10 | 1 | 2 | 5.4 | 61.05 / 60.88 / 60.86 | 42 | 0.9993 / 0.9992 | 0.9999 / 0.9999 | 0.30 (0.30 / 0.32) | 63.2 / 64.0 %, 21.3 %, 1.2 %, 9 | 0.10 / 0.11 | — |
+| `dbts_a4` top10 | 1 | 4 | 8.5 | 55.60 / 55.43 / 55.42 | 72 | 0.9974 / 0.9972 | 0.9996 / 0.9996 | 0.55 (0.56 / 0.59) | 79.2 / 79.8 %, 47.0 %, 12.4 %, 17 | 0.17 / 0.18 | — |
+| `dbts_a4` top10 | 1 | 8 | 23.5 | 48.92 / 48.84 / 48.84 | 297 | 0.9876 / 0.9872 | 0.9982 / 0.9981 | 1.20 (0.96 / 0.97) | 89.9 / 90.1 %, 72.0 %, 42.8 %, 39 | 0.36 / 0.38 | — |
+| `dbts_a4` top10 | 1 | 12 | 69.3 | 46.16 / 46.05 / 46.04 | 297 | 0.9766 / 0.9758 | 0.9958 / 0.9955 | 1.64 (1.02 / 1.03) | 92.4 / 92.6 %, 79.0 %, 55.0 %, 60 | 0.57 / 0.61 | — |
+| `dbts_a4` top10 | 1 | 16 | 166.8 | 45.04 / 44.82 / 44.81 | 307 | 0.9704 / 0.9684 | 0.9934 / 0.9929 | 1.87 (1.03 / 1.04) | 93.3 / 93.5 %, 81.5 %, 59.9 %, 75 | 0.78 / 0.84 | — |
+| `dbts_a4` top10 | 1 | 24 | 417.5 | 44.29 / 44.02 / 43.98 | 519 | 0.9669 / 0.9644 | 0.9908 / 0.9896 | 2.03 (1.03 / 1.04) | 93.8 / 94.1 %, 83.1 %, 62.9 %, 95 | 1.06 / 1.16 | — |
+| `dbts_a4` top10 | 1 | 32 | 882.4 | 43.63 / 43.40 / 43.35 | 736 | 0.9651 / 0.9623 | 0.9881 / 0.9865 | 2.17 (1.03 / 1.04) | 94.2 / 94.5 %, 84.2 %, 65.1 %, 124 | 1.34 / 1.48 | — |
+| `dbts_a4` top10 | 1 | 40 | 1645.5 | 42.82 / 42.64 / 42.62 | 866 | 0.9620 / 0.9596 | 0.9847 / 0.9828 | 2.35 (1.03 / 1.04) | 94.6 / 94.9 %, 85.2 %, 67.1 %, 148 | 1.67 / 1.80 | — |
+| `dbts_a4` top10 | 1 | 56 | 4794.5 | 40.54 / 40.11 / 40.02 | 1915 | 0.9515 / 0.9466 | 0.9751 / 0.9709 | 3.02 (1.03 / 1.04) | 95.6 / 95.9 %, 88.0 %, 72.8 %, 229 | 2.55 / 2.78 | — |
+| `dbts_a4` top10 | 16 | 1 | 4.2 | 64.16 / 63.95 / 63.94 | 85 | 0.9997 / 0.9996 | 1.0000 / 0.9999 | 0.21 (0.20 / 0.22) | 49.6 / 50.3 %, 10.5 %, 0.1 %, 6 | 0.09 / 0.09 | — |
+| `dbts_a4` top10 | 16 | 2 | 5.4 | 60.99 / 60.81 / 60.80 | 94 | 0.9993 / 0.9992 | 0.9999 / 0.9999 | 0.30 (0.30 / 0.32) | 63.5 / 64.2 %, 21.5 %, 1.2 %, 9 | 0.11 / 0.11 | — |
+| `dbts_a4` top10 | 16 | 4 | 8.5 | 55.51 / 55.34 / 55.32 | 125 | 0.9973 / 0.9972 | 0.9996 / 0.9996 | 0.56 (0.56 / 0.60) | 79.4 / 79.9 %, 47.3 %, 12.8 %, 18 | 0.17 / 0.18 | — |
+| `dbts_a4` top10 | 16 | 8 | 23.5 | 49.03 / 48.94 / 48.85 | 200 | 0.9879 / 0.9873 | 0.9982 / 0.9981 | 1.18 (0.96 / 0.97) | 89.8 / 90.1 %, 72.0 %, 42.7 %, 40 | 0.36 / 0.39 | — |
+| `dbts_a4` top10 | 16 | 12 | 76.2 | 46.21 / 46.07 / 46.06 | 340 | 0.9769 / 0.9759 | 0.9958 / 0.9954 | 1.63 (1.03 / 1.04) | 92.4 / 92.6 %, 79.0 %, 55.0 %, 60 | 0.58 / 0.64 | — |
+| `dbts_a4` top10 | 16 | 16 | 254.5 | 45.02 / 44.78 / 44.72 | 304 | 0.9704 / 0.9681 | 0.9933 / 0.9925 | 1.87 (1.03 / 1.04) | 93.3 / 93.6 %, 81.7 %, 60.2 %, 67 | 0.81 / 0.89 | — |
+| `dbts_a4` top10 | 16 | 24 | 972.2 | 44.18 / 43.90 / 43.82 | 340 | 0.9668 / 0.9640 | 0.9903 / 0.9889 | 2.04 (1.03 / 1.04) | 93.9 / 94.2 %, 83.3 %, 63.5 %, 123 | 1.12 / 1.25 | — |
+| `dbts_a4` top10 | 16 | 32 | 2769.7 | 43.50 / 43.27 / 43.18 | 758 | 0.9650 / 0.9622 | 0.9874 / 0.9856 | 2.20 (1.03 / 1.04) | 94.3 / 94.6 %, 84.4 %, 65.5 %, 126 | 1.39 / 1.56 | — |
+| `dbts_a4` top10 | 16 | 40 | 6466.7 | 42.62 / 42.41 / 42.38 | 662 | 0.9619 / 0.9597 | 0.9837 / 0.9820 | 2.40 (1.03 / 1.04) | 94.7 / 95.0 %, 85.5 %, 67.6 %, 124 | 1.75 / 1.88 | — |
+| `dbts_a4` top10 | 16 | 56 | 22750.6 | 40.31 / 39.78 / 39.70 | 1831 | 0.9517 / 0.9473 | 0.9739 / 0.9693 | 3.10 (1.03 / 1.04) | 95.7 / 96.0 %, 88.4 %, 73.5 %, 180 | 2.70 / 3.03 | — |
+| `dbts_a4` top10 | 8 | 1 | 4.2 | 64.19 / 63.95 / 63.94 | 73 | 0.9997 / 0.9996 | 1.0000 / 0.9999 | 0.21 (0.20 / 0.22) | 49.6 / 50.3 %, 10.5 %, 0.1 %, 6 | 0.08 / 0.09 | — |
+| `dbts_a4` top10 | 8 | 2 | 5.4 | 60.99 / 60.81 / 60.80 | 70 | 0.9993 / 0.9992 | 0.9999 / 0.9999 | 0.30 (0.30 / 0.32) | 63.4 / 64.2 %, 21.5 %, 1.2 %, 9 | 0.11 / 0.11 | — |
+| `dbts_a4` top10 | 8 | 4 | 8.5 | 55.53 / 55.34 / 55.32 | 137 | 0.9973 / 0.9972 | 0.9996 / 0.9996 | 0.56 (0.56 / 0.60) | 79.4 / 79.9 %, 47.3 %, 12.8 %, 17 | 0.17 / 0.18 | — |
+| `dbts_a4` top10 | 8 | 8 | 23.5 | 49.02 / 48.89 / 48.85 | 151 | 0.9879 / 0.9873 | 0.9982 / 0.9981 | 1.18 (0.96 / 0.97) | 89.8 / 90.1 %, 72.0 %, 42.7 %, 40 | 0.36 / 0.39 | — |
+| `dbts_a4` top10 | 8 | 12 | 75.9 | 46.20 / 46.07 / 46.06 | 340 | 0.9768 / 0.9759 | 0.9958 / 0.9954 | 1.63 (1.03 / 1.03) | 92.4 / 92.6 %, 79.0 %, 55.0 %, 60 | 0.58 / 0.64 | — |
+| `dbts_a4` top10 | 8 | 16 | 249.1 | 45.02 / 44.78 / 44.72 | 333 | 0.9704 / 0.9681 | 0.9933 / 0.9925 | 1.87 (1.03 / 1.04) | 93.3 / 93.6 %, 81.7 %, 60.2 %, 75 | 0.81 / 0.89 | — |
+| `dbts_a4` top10 | 8 | 24 | 928.0 | 44.19 / 43.90 / 43.82 | 331 | 0.9668 / 0.9640 | 0.9903 / 0.9889 | 2.05 (1.03 / 1.04) | 93.8 / 94.2 %, 83.3 %, 63.5 %, 106 | 1.11 / 1.25 | — |
+| `dbts_a4` top10 | 8 | 32 | 2547.5 | 43.51 / 43.27 / 43.18 | 545 | 0.9650 / 0.9622 | 0.9875 / 0.9856 | 2.20 (1.03 / 1.04) | 94.2 / 94.6 %, 84.4 %, 65.5 %, 125 | 1.39 / 1.56 | — |
+| `dbts_a4` top10 | 8 | 40 | 5683.3 | 42.67 / 42.44 / 42.39 | 651 | 0.9620 / 0.9597 | 0.9839 / 0.9820 | 2.40 (1.03 / 1.04) | 94.7 / 95.0 %, 85.5 %, 67.5 %, 124 | 1.72 / 1.88 | — |
+| `dbts_a4` top10 | 8 | 56 | 18947.2 | 40.49 / 39.89 / 39.77 | 1831 | 0.9518 / 0.9476 | 0.9748 / 0.9693 | 3.07 (1.03 / 1.04) | 95.7 / 95.9 %, 88.2 %, 73.3 %, 222 | 2.64 / 2.95 | — |
+| `dbts_a4` window | 1 | 1 | 2.4 | 12.16 / 10.90 / 10.78 | 2004 | 0.7396 / 0.6454 | 0.9355 / 0.9124 | 2.41 (0.32 / 0.34) | 19.5 / 20.9 %, 13.2 %, 10.2 %, 30 | 1.90 / 2.23 | — |
+| `dbts_a4` window | 1 | 2 | 2.9 | 12.16 / 10.90 / 10.78 | 2004 | 0.7395 / 0.6453 | 0.9355 / 0.9124 | 2.41 (0.32 / 0.34) | 24.5 / 25.8 %, 13.4 %, 10.4 %, 30 | 1.90 / 2.23 | — |
+| `dbts_a4` window | 1 | 4 | 3.7 | 12.16 / 10.90 / 10.78 | 2006 | 0.7395 / 0.6453 | 0.9355 / 0.9124 | 2.41 (0.33 / 0.35) | 35.6 / 36.8 %, 13.7 %, 10.6 %, 30 | 1.91 / 2.23 | — |
+| `dbts_a4` window | 1 | 8 | 5.0 | 12.16 / 10.90 / 10.78 | 2011 | 0.7392 / 0.6451 | 0.9354 / 0.9123 | 2.42 (0.37 / 0.38) | 57.7 / 58.7 %, 19.9 %, 10.8 %, 31 | 1.91 / 2.24 | — |
+| `dbts_a4` window | 1 | 12 | 6.3 | 12.16 / 10.90 / 10.78 | 2018 | 0.7388 / 0.6447 | 0.9353 / 0.9123 | 2.43 (0.43 / 0.44) | 70.9 / 71.7 %, 32.9 %, 12.1 %, 32 | 1.92 / 2.24 | — |
+| `dbts_a4` window | 1 | 16 | 7.6 | 12.16 / 10.90 / 10.78 | 2026 | 0.7381 / 0.6441 | 0.9352 / 0.9122 | 2.45 (0.50 / 0.52) | 78.1 / 78.6 %, 44.6 %, 15.5 %, 35 | 1.92 / 2.25 | — |
+| `dbts_a4` window | 1 | 24 | 10.5 | 12.16 / 10.90 / 10.78 | 2019 | 0.7363 / 0.6425 | 0.9350 / 0.9119 | 2.49 (0.66 / 0.68) | 85.4 / 85.8 %, 60.3 %, 26.7 %, 56 | 1.93 / 2.25 | — |
+| `dbts_a4` window | 1 | 32 | 20.6 | 12.16 / 10.90 / 10.78 | 2034 | 0.7305 / 0.6371 | 0.9341 / 0.9112 | 2.63 (0.91 / 0.93) | 91.2 / 91.4 %, 74.9 %, 46.6 %, 54 | 1.94 / 2.27 | — |
+| `dbts_a4` window | 1 | 40 | 64.5 | 12.15 / 10.90 / 10.77 | 2042 | 0.7198 / 0.6268 | 0.9319 / 0.9092 | 2.88 (1.02 / 1.03) | 93.9 / 94.0 %, 82.4 %, 60.6 %, 65 | 2.00 / 2.31 | — |
+| `dbts_a4` window | 1 | 56 | 921.4 | 12.15 / 10.89 / 10.77 | 2058 | 0.7088 / 0.6179 | 0.9253 / 0.9039 | 3.26 (1.03 / 1.04) | 95.3 / 95.4 %, 86.4 %, 68.9 %, 124 | 2.32 / 2.58 | — |
+| `dbts_a4` window | 16 | 1 | 2.5 | 12.16 / 10.90 / 10.78 | 2005 | 0.7396 / 0.6454 | 0.9355 / 0.9124 | 2.41 (0.32 / 0.34) | 19.9 / 21.3 %, 13.2 %, 10.3 %, 30 | 1.90 / 2.23 | — |
+| `dbts_a4` window | 16 | 2 | 2.9 | 12.16 / 10.90 / 10.78 | 2003 | 0.7395 / 0.6453 | 0.9355 / 0.9124 | 2.41 (0.32 / 0.34) | 24.6 / 25.9 %, 13.4 %, 10.4 %, 30 | 1.90 / 2.23 | — |
+| `dbts_a4` window | 16 | 4 | 3.7 | 12.16 / 10.90 / 10.78 | 2012 | 0.7395 / 0.6453 | 0.9355 / 0.9124 | 2.41 (0.33 / 0.35) | 35.9 / 37.3 %, 13.7 %, 10.6 %, 30 | 1.91 / 2.23 | — |
+| `dbts_a4` window | 16 | 8 | 5.0 | 12.16 / 10.90 / 10.78 | 2009 | 0.7392 / 0.6451 | 0.9354 / 0.9123 | 2.42 (0.37 / 0.38) | 57.8 / 59.2 %, 20.2 %, 10.8 %, 31 | 1.91 / 2.24 | — |
+| `dbts_a4` window | 16 | 12 | 6.3 | 12.16 / 10.90 / 10.78 | 2018 | 0.7388 / 0.6447 | 0.9353 / 0.9123 | 2.43 (0.43 / 0.44) | 71.4 / 72.0 %, 33.5 %, 12.1 %, 32 | 1.91 / 2.24 | — |
+| `dbts_a4` window | 16 | 16 | 7.6 | 12.16 / 10.90 / 10.78 | 2015 | 0.7381 / 0.6441 | 0.9352 / 0.9122 | 2.44 (0.50 / 0.52) | 78.3 / 78.9 %, 45.1 %, 15.7 %, 32 | 1.92 / 2.24 | — |
+| `dbts_a4` window | 16 | 24 | 10.6 | 12.16 / 10.90 / 10.78 | 2019 | 0.7362 / 0.6424 | 0.9350 / 0.9119 | 2.49 (0.66 / 0.68) | 85.5 / 85.9 %, 60.6 %, 26.9 %, 33 | 1.93 / 2.25 | — |
+| `dbts_a4` window | 16 | 32 | 20.4 | 12.16 / 10.90 / 10.78 | 2030 | 0.7308 / 0.6372 | 0.9341 / 0.9112 | 2.62 (0.91 / 0.93) | 91.1 / 91.3 %, 74.9 %, 46.6 %, 49 | 1.95 / 2.27 | — |
+| `dbts_a4` window | 16 | 40 | 67.2 | 12.15 / 10.90 / 10.77 | 2027 | 0.7204 / 0.6273 | 0.9321 / 0.9093 | 2.87 (1.02 / 1.03) | 93.8 / 94.0 %, 82.3 %, 60.5 %, 56 | 2.00 / 2.32 | — |
+| `dbts_a4` window | 16 | 56 | 2226.5 | 12.15 / 10.89 / 10.77 | 2058 | 0.7087 / 0.6179 | 0.9250 / 0.9038 | 3.26 (1.03 / 1.04) | 95.3 / 95.4 %, 86.5 %, 69.2 %, 126 | 2.33 / 2.60 | — |
+| `dbts_a4` window | 8 | 1 | 2.5 | 12.16 / 10.90 / 10.78 | 2005 | 0.7396 / 0.6454 | 0.9355 / 0.9124 | 2.41 (0.32 / 0.34) | 19.9 / 21.3 %, 13.2 %, 10.3 %, 30 | 1.90 / 2.23 | — |
+| `dbts_a4` window | 8 | 2 | 2.9 | 12.16 / 10.90 / 10.78 | 2004 | 0.7395 / 0.6453 | 0.9355 / 0.9124 | 2.41 (0.32 / 0.34) | 24.6 / 25.9 %, 13.4 %, 10.4 %, 30 | 1.90 / 2.23 | — |
+| `dbts_a4` window | 8 | 4 | 3.7 | 12.16 / 10.90 / 10.78 | 2004 | 0.7395 / 0.6453 | 0.9355 / 0.9124 | 2.41 (0.33 / 0.35) | 35.9 / 37.3 %, 13.7 %, 10.6 %, 30 | 1.91 / 2.23 | — |
+| `dbts_a4` window | 8 | 8 | 5.0 | 12.16 / 10.90 / 10.78 | 2009 | 0.7392 / 0.6451 | 0.9354 / 0.9123 | 2.42 (0.37 / 0.38) | 57.9 / 59.2 %, 20.2 %, 10.8 %, 31 | 1.91 / 2.24 | — |
+| `dbts_a4` window | 8 | 12 | 6.3 | 12.16 / 10.90 / 10.78 | 2018 | 0.7388 / 0.6447 | 0.9353 / 0.9123 | 2.43 (0.43 / 0.44) | 71.3 / 72.1 %, 33.5 %, 12.1 %, 31 | 1.91 / 2.24 | — |
+| `dbts_a4` window | 8 | 16 | 7.6 | 12.16 / 10.90 / 10.78 | 2015 | 0.7381 / 0.6441 | 0.9352 / 0.9122 | 2.45 (0.50 / 0.52) | 78.3 / 78.9 %, 45.1 %, 15.7 %, 32 | 1.92 / 2.24 | — |
+| `dbts_a4` window | 8 | 24 | 10.6 | 12.16 / 10.90 / 10.78 | 2017 | 0.7362 / 0.6424 | 0.9350 / 0.9119 | 2.49 (0.66 / 0.68) | 85.5 / 85.9 %, 60.6 %, 26.9 %, 34 | 1.93 / 2.25 | — |
+| `dbts_a4` window | 8 | 32 | 20.4 | 12.16 / 10.90 / 10.78 | 2029 | 0.7308 / 0.6372 | 0.9341 / 0.9112 | 2.62 (0.91 / 0.93) | 91.1 / 91.3 %, 74.9 %, 46.6 %, 47 | 1.95 / 2.27 | — |
+| `dbts_a4` window | 8 | 40 | 67.2 | 12.15 / 10.90 / 10.77 | 2023 | 0.7204 / 0.6273 | 0.9321 / 0.9093 | 2.88 (1.02 / 1.03) | 93.9 / 94.0 %, 82.3 %, 60.5 %, 63 | 2.00 / 2.32 | — |
+| `dbts_a4` window | 8 | 56 | 2155.8 | 12.15 / 10.89 / 10.77 | 2058 | 0.7087 / 0.6179 | 0.9250 / 0.9038 | 3.26 (1.03 / 1.04) | 95.3 / 95.4 %, 86.5 %, 69.1 %, 126 | 2.33 / 2.60 | — |
+| `dbts_a5` 12bit | 1 | 1 | 4.3 | 72.09 / 72.00 / 71.99 | 26 | 0.9999 / 0.9999 | 1.0000 / 1.0000 | 0.11 (0.11 / 0.12) | 22.5 / 22.8 %, 0.1 %, 0.0 %, 2 | 0.03 / 0.03 | 10.0 |
+| `dbts_a5` 12bit | 1 | 2 | 5.6 | 66.15 / 66.05 / 66.04 | 38 | 0.9998 / 0.9998 | 1.0000 / 1.0000 | 0.22 (0.22 / 0.24) | 42.9 / 43.5 %, 3.7 %, 0.0 %, 5 | 0.05 / 0.05 | 10.0 |
+| `dbts_a5` 12bit | 1 | 4 | 9.9 | 58.11 / 58.03 / 58.03 | 83 | 0.9985 / 0.9985 | 0.9998 / 0.9998 | 0.55 (0.55 / 0.58) | 70.5 / 71.2 %, 31.0 %, 4.2 %, 12 | 0.12 / 0.13 | 9.97 |
+| `dbts_a5` 12bit | 1 | 8 | 30.6 | 50.47 / 50.43 / 50.42 | 232 | 0.9913 / 0.9910 | 0.9987 / 0.9987 | 1.32 (0.99 / 1.00) | 86.2 / 86.8 %, 63.9 %, 32.8 %, 31 | 0.32 / 0.35 | 9.76 |
+| `dbts_a5` 12bit | 1 | 12 | 88.1 | 47.56 / 47.47 / 47.46 | 426 | 0.9834 / 0.9826 | 0.9969 / 0.9965 | 1.83 (1.06 / 1.07) | 89.6 / 90.0 %, 72.0 %, 45.1 %, 48 | 0.56 / 0.61 | 9.27 |
+| `dbts_a5` 12bit | 1 | 16 | 183.5 | 46.40 / 46.25 / 46.24 | 518 | 0.9790 / 0.9774 | 0.9951 / 0.9944 | 2.09 (1.06 / 1.08) | 90.7 / 91.2 %, 75.1 %, 49.3 %, 59 | 0.77 / 0.85 | 8.64 |
+| `dbts_a5` 12bit | 1 | 24 | 396.2 | 45.35 / 45.23 / 45.20 | 694 | 0.9742 / 0.9728 | 0.9927 / 0.9917 | 2.33 (1.06 / 1.08) | 91.7 / 92.1 %, 77.4 %, 53.2 %, 84 | 1.10 / 1.20 | 7.69 |
+| `dbts_a5` 12bit | 1 | 32 | 795.9 | 44.35 / 44.19 / 44.18 | 1074 | 0.9725 / 0.9703 | 0.9894 / 0.9881 | 2.61 (1.06 / 1.08) | 92.6 / 93.0 %, 79.7 %, 57.0 %, 99 | 1.46 / 1.59 | 6.49 |
+| `dbts_a5` 12bit | 1 | 40 | 1449.1 | 43.00 / 42.76 / 42.68 | 1100 | 0.9686 / 0.9638 | 0.9849 / 0.9831 | 3.01 (1.06 / 1.08) | 93.3 / 93.8 %, 82.0 %, 61.1 %, 106 | 1.90 / 2.02 | 5.27 |
+| `dbts_a5` 12bit | 1 | 56 | 4097.1 | 39.10 / 38.63 / 38.49 | 2107 | 0.9488 / 0.9160 | 0.9675 / 0.9621 | 4.53 (1.07 / 1.08) | 95.4 / 95.7 %, 87.2 %, 71.5 %, 206 | 3.38 / 3.72 | 2.63 |
+| `dbts_a5` 12bit | 16 | 1 | 4.3 | 72.14 / 72.03 / 71.99 | 52 | 0.9999 / 0.9999 | 1.0000 / 1.0000 | 0.11 (0.11 / 0.12) | 22.4 / 22.8 %, 0.1 %, 0.0 %, 2 | 0.03 / 0.03 | 10.0 |
+| `dbts_a5` 12bit | 16 | 2 | 5.8 | 65.68 / 65.55 / 65.54 | 76 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.23 (0.23 / 0.25) | 44.4 / 45.1 %, 4.6 %, 0.0 %, 5 | 0.05 / 0.06 | 10.0 |
+| `dbts_a5` 12bit | 16 | 4 | 9.9 | 58.10 / 58.02 / 58.01 | 136 | 0.9985 / 0.9985 | 0.9998 / 0.9998 | 0.55 (0.55 / 0.58) | 70.5 / 71.4 %, 31.4 %, 4.2 %, 12 | 0.13 / 0.14 | 9.97 |
+| `dbts_a5` 12bit | 16 | 8 | 31.2 | 50.62 / 50.57 / 50.44 | 220 | 0.9917 / 0.9911 | 0.9988 / 0.9987 | 1.30 (0.99 / 1.00) | 86.0 / 86.7 %, 63.6 %, 32.5 %, 34 | 0.32 / 0.35 | 9.76 |
+| `dbts_a5` 12bit | 16 | 12 | 106.9 | 47.65 / 47.55 / 47.48 | 339 | 0.9838 / 0.9828 | 0.9969 / 0.9965 | 1.82 (1.06 / 1.07) | 89.5 / 90.0 %, 71.9 %, 44.9 %, 44 | 0.56 / 0.61 | 9.28 |
+| `dbts_a5` 12bit | 16 | 16 | 300.6 | 46.41 / 46.26 / 46.20 | 426 | 0.9794 / 0.9775 | 0.9951 / 0.9943 | 2.09 (1.06 / 1.08) | 90.7 / 91.2 %, 75.1 %, 49.4 %, 70 | 0.78 / 0.88 | 8.62 |
+| `dbts_a5` 12bit | 16 | 24 | 986.3 | 45.18 / 44.97 / 44.93 | 694 | 0.9751 / 0.9730 | 0.9920 / 0.9908 | 2.38 (1.06 / 1.08) | 91.9 / 92.3 %, 78.0 %, 54.3 %, 86 | 1.19 / 1.32 | 7.51 |
+| `dbts_a5` 12bit | 16 | 32 | 2688.3 | 44.02 / 43.79 / 43.73 | 692 | 0.9727 / 0.9714 | 0.9885 / 0.9868 | 2.70 (1.06 / 1.08) | 92.8 / 93.3 %, 80.6 %, 58.5 %, 94 | 1.59 / 1.75 | 6.27 |
+| `dbts_a5` 12bit | 16 | 40 | 6191.6 | 42.54 / 42.12 / 41.97 | 952 | 0.9682 / 0.9669 | 0.9827 / 0.9804 | 3.21 (1.06 / 1.08) | 93.7 / 94.3 %, 83.2 %, 63.5 %, 97 | 2.15 / 2.33 | 5.0 |
+| `dbts_a5` 12bit | 16 | 56 | 22583.8 | 38.63 / 37.61 / 37.44 | 2073 | 0.9472 / 0.9351 | 0.9652 / 0.9564 | 4.81 (1.06 / 1.08) | 95.5 / 96.1 %, 88.3 %, 74.0 %, 216 | 3.76 / 4.44 | 2.42 |
+| `dbts_a5` 12bit | 8 | 1 | 4.3 | 72.14 / 72.03 / 71.99 | 53 | 0.9999 / 0.9999 | 1.0000 / 1.0000 | 0.11 (0.11 / 0.12) | 22.3 / 22.8 %, 0.1 %, 0.0 %, 2 | 0.03 / 0.03 | 10.0 |
+| `dbts_a5` 12bit | 8 | 2 | 5.8 | 65.73 / 65.55 / 65.54 | 91 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.23 (0.23 / 0.25) | 44.3 / 45.1 %, 4.6 %, 0.0 %, 5 | 0.05 / 0.06 | 10.0 |
+| `dbts_a5` 12bit | 8 | 4 | 9.9 | 58.10 / 58.02 / 58.01 | 140 | 0.9985 / 0.9985 | 0.9998 / 0.9998 | 0.55 (0.55 / 0.58) | 70.5 / 71.4 %, 31.4 %, 4.2 %, 12 | 0.13 / 0.14 | 9.97 |
+| `dbts_a5` 12bit | 8 | 8 | 31.2 | 50.61 / 50.46 / 50.44 | 180 | 0.9917 / 0.9911 | 0.9988 / 0.9987 | 1.30 (0.99 / 1.00) | 86.0 / 86.7 %, 63.6 %, 32.5 %, 34 | 0.32 / 0.35 | 9.77 |
+| `dbts_a5` 12bit | 8 | 12 | 105.7 | 47.64 / 47.54 / 47.48 | 351 | 0.9837 / 0.9828 | 0.9969 / 0.9965 | 1.82 (1.06 / 1.07) | 89.5 / 90.0 %, 71.9 %, 44.9 %, 44 | 0.56 / 0.61 | 9.28 |
+| `dbts_a5` 12bit | 8 | 16 | 292.1 | 46.42 / 46.26 / 46.20 | 518 | 0.9792 / 0.9775 | 0.9951 / 0.9943 | 2.09 (1.06 / 1.08) | 90.7 / 91.2 %, 75.1 %, 49.4 %, 72 | 0.78 / 0.88 | 8.61 |
+| `dbts_a5` 12bit | 8 | 24 | 936.6 | 45.20 / 44.96 / 44.90 | 694 | 0.9743 / 0.9728 | 0.9921 / 0.9907 | 2.38 (1.06 / 1.08) | 91.8 / 92.3 %, 78.0 %, 54.3 %, 88 | 1.18 / 1.32 | 7.51 |
+| `dbts_a5` 12bit | 8 | 32 | 2443.3 | 44.08 / 43.81 / 43.79 | 692 | 0.9727 / 0.9707 | 0.9885 / 0.9867 | 2.70 (1.06 / 1.08) | 92.8 / 93.2 %, 80.5 %, 58.6 %, 87 | 1.58 / 1.75 | 6.3 |
+| `dbts_a5` 12bit | 8 | 40 | 5443.4 | 42.80 / 42.12 / 42.03 | 952 | 0.9693 / 0.9670 | 0.9834 / 0.9808 | 3.16 (1.06 / 1.08) | 93.6 / 94.2 %, 83.2 %, 63.4 %, 97 | 2.07 / 2.32 | 5.0 |
+| `dbts_a5` 12bit | 8 | 56 | 17934.5 | 38.96 / 38.06 / 37.82 | 2074 | 0.9483 / 0.9351 | 0.9672 / 0.9580 | 4.65 (1.06 / 1.08) | 95.5 / 96.1 %, 88.4 %, 73.8 %, 217 | 3.57 / 4.22 | 2.47 |
+| `dbts_a5` top10 | 1 | 1 | 5.2 | 65.31 / 65.22 / 65.20 | 27 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.24 (0.23 / 0.25) | 44.6 / 45.5 %, 6.6 %, 0.0 %, 5 | 0.07 / 0.08 | — |
+| `dbts_a5` top10 | 1 | 2 | 6.9 | 61.82 / 61.73 / 61.71 | 43 | 0.9994 / 0.9994 | 0.9999 / 0.9999 | 0.36 (0.36 / 0.38) | 58.5 / 59.4 %, 16.0 %, 0.4 %, 7 | 0.10 / 0.11 | — |
+| `dbts_a5` top10 | 1 | 4 | 11.4 | 56.36 / 56.29 / 56.28 | 123 | 0.9978 / 0.9977 | 0.9997 / 0.9997 | 0.67 (0.65 / 0.68) | 75.2 / 76.0 %, 39.5 %, 8.3 %, 15 | 0.16 / 0.18 | — |
+| `dbts_a5` top10 | 1 | 8 | 32.6 | 50.18 / 50.14 / 50.13 | 225 | 0.9909 / 0.9906 | 0.9986 / 0.9985 | 1.36 (1.00 / 1.01) | 86.6 / 87.3 %, 65.0 %, 34.3 %, 33 | 0.35 / 0.38 | — |
+| `dbts_a5` top10 | 1 | 12 | 83.3 | 47.65 / 47.57 / 47.56 | 426 | 0.9839 / 0.9832 | 0.9970 / 0.9967 | 1.82 (1.06 / 1.07) | 89.5 / 90.0 %, 71.8 %, 44.7 %, 48 | 0.55 / 0.60 | — |
+| `dbts_a5` top10 | 1 | 16 | 162.4 | 46.55 / 46.42 / 46.41 | 462 | 0.9799 / 0.9787 | 0.9954 / 0.9948 | 2.06 (1.06 / 1.08) | 90.6 / 91.1 %, 74.8 %, 48.9 %, 58 | 0.74 / 0.82 | — |
+| `dbts_a5` top10 | 1 | 24 | 347.7 | 45.57 / 45.44 / 45.42 | 678 | 0.9765 / 0.9753 | 0.9932 / 0.9923 | 2.29 (1.06 / 1.08) | 91.5 / 92.0 %, 77.1 %, 52.5 %, 82 | 1.04 / 1.14 | — |
+| `dbts_a5` top10 | 1 | 32 | 683.5 | 44.61 / 44.48 / 44.47 | 934 | 0.9737 / 0.9722 | 0.9903 / 0.9891 | 2.54 (1.07 / 1.09) | 92.4 / 92.8 %, 79.3 %, 56.2 %, 89 | 1.37 / 1.49 | — |
+| `dbts_a5` top10 | 1 | 40 | 1204.3 | 43.54 / 43.34 / 43.32 | 1070 | 0.9697 / 0.9676 | 0.9866 / 0.9850 | 2.85 (1.07 / 1.09) | 93.2 / 93.6 %, 81.3 %, 59.9 %, 98 | 1.75 / 1.87 | — |
+| `dbts_a5` top10 | 1 | 56 | 3292.0 | 40.27 / 39.82 / 39.77 | 2069 | 0.9487 / 0.9378 | 0.9720 / 0.9684 | 3.99 (1.07 / 1.09) | 94.8 / 95.2 %, 85.9 %, 68.9 %, 182 | 2.93 / 3.14 | — |
+| `dbts_a5` top10 | 16 | 1 | 5.4 | 64.95 / 64.83 / 64.81 | 67 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.25 (0.24 / 0.26) | 45.9 / 47.1 %, 7.5 %, 0.0 %, 5 | 0.08 / 0.09 | — |
+| `dbts_a5` top10 | 16 | 2 | 7.0 | 61.77 / 61.66 / 61.66 | 121 | 0.9994 / 0.9994 | 0.9999 / 0.9999 | 0.36 (0.36 / 0.38) | 58.6 / 59.7 %, 16.2 %, 0.4 %, 8 | 0.10 / 0.11 | — |
+| `dbts_a5` top10 | 16 | 4 | 11.5 | 56.32 / 56.25 / 56.24 | 133 | 0.9978 / 0.9977 | 0.9997 / 0.9997 | 0.67 (0.65 / 0.68) | 75.3 / 76.2 %, 39.9 %, 8.6 %, 18 | 0.17 / 0.18 | — |
+| `dbts_a5` top10 | 16 | 8 | 33.5 | 50.30 / 50.25 / 50.14 | 219 | 0.9912 / 0.9907 | 0.9987 / 0.9985 | 1.34 (1.00 / 1.01) | 86.5 / 87.2 %, 64.7 %, 33.9 %, 33 | 0.35 / 0.38 | — |
+| `dbts_a5` top10 | 16 | 12 | 100.1 | 47.69 / 47.61 / 47.58 | 273 | 0.9841 / 0.9834 | 0.9969 / 0.9966 | 1.81 (1.06 / 1.08) | 89.5 / 90.0 %, 71.8 %, 44.8 %, 52 | 0.57 / 0.62 | — |
+| `dbts_a5` top10 | 16 | 16 | 252.7 | 46.58 / 46.42 / 46.40 | 422 | 0.9802 / 0.9787 | 0.9954 / 0.9948 | 2.05 (1.06 / 1.08) | 90.6 / 91.1 %, 74.8 %, 48.9 %, 60 | 0.76 / 0.84 | — |
+| `dbts_a5` top10 | 16 | 24 | 766.2 | 45.49 / 45.28 / 45.24 | 440 | 0.9765 / 0.9751 | 0.9930 / 0.9918 | 2.31 (1.07 / 1.08) | 91.6 / 92.2 %, 77.5 %, 53.3 %, 87 | 1.08 / 1.21 | — |
+| `dbts_a5` top10 | 16 | 32 | 2043.0 | 44.47 / 44.27 / 44.25 | 694 | 0.9741 / 0.9729 | 0.9899 / 0.9885 | 2.59 (1.07 / 1.08) | 92.6 / 92.9 %, 79.7 %, 57.0 %, 86 | 1.44 / 1.58 | — |
+| `dbts_a5` top10 | 16 | 40 | 4466.8 | 43.17 / 42.97 / 42.94 | 728 | 0.9698 / 0.9680 | 0.9857 / 0.9837 | 2.94 (1.07 / 1.09) | 93.4 / 93.8 %, 82.0 %, 61.2 %, 92 | 1.85 / 2.07 | — |
+| `dbts_a5` top10 | 16 | 56 | 16244.3 | 40.02 / 39.27 / 39.06 | 1670 | 0.9478 / 0.9435 | 0.9701 / 0.9654 | 4.24 (1.07 / 1.08) | 95.1 / 95.5 %, 86.8 %, 70.4 %, 155 | 3.17 / 3.55 | — |
+| `dbts_a5` top10 | 8 | 1 | 5.4 | 65.00 / 64.83 / 64.82 | 84 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.25 (0.24 / 0.26) | 45.8 / 47.1 %, 7.5 %, 0.0 %, 5 | 0.08 / 0.09 | — |
+| `dbts_a5` top10 | 8 | 2 | 6.9 | 61.77 / 61.67 / 61.66 | 121 | 0.9994 / 0.9994 | 0.9999 / 0.9999 | 0.36 (0.36 / 0.38) | 58.6 / 59.7 %, 16.2 %, 0.4 %, 8 | 0.10 / 0.11 | — |
+| `dbts_a5` top10 | 8 | 4 | 11.5 | 56.33 / 56.26 / 56.25 | 161 | 0.9978 / 0.9977 | 0.9997 / 0.9997 | 0.67 (0.65 / 0.68) | 75.3 / 76.2 %, 39.9 %, 8.6 %, 15 | 0.16 / 0.18 | — |
+| `dbts_a5` top10 | 8 | 8 | 33.5 | 50.30 / 50.17 / 50.14 | 215 | 0.9911 / 0.9907 | 0.9987 / 0.9985 | 1.34 (1.00 / 1.01) | 86.5 / 87.2 %, 64.7 %, 33.9 %, 33 | 0.35 / 0.38 | — |
+| `dbts_a5` top10 | 8 | 12 | 99.0 | 47.69 / 47.60 / 47.58 | 300 | 0.9841 / 0.9834 | 0.9969 / 0.9966 | 1.81 (1.06 / 1.08) | 89.5 / 90.0 %, 71.8 %, 44.8 %, 52 | 0.57 / 0.62 | — |
+| `dbts_a5` top10 | 8 | 16 | 246.3 | 46.55 / 46.42 / 46.39 | 422 | 0.9801 / 0.9787 | 0.9954 / 0.9948 | 2.05 (1.06 / 1.08) | 90.6 / 91.1 %, 74.8 %, 48.9 %, 71 | 0.76 / 0.84 | — |
+| `dbts_a5` top10 | 8 | 24 | 729.4 | 45.49 / 45.28 / 45.19 | 519 | 0.9765 / 0.9750 | 0.9930 / 0.9917 | 2.31 (1.07 / 1.08) | 91.6 / 92.2 %, 77.5 %, 53.3 %, 88 | 1.08 / 1.21 | — |
+| `dbts_a5` top10 | 8 | 32 | 1867.7 | 44.50 / 44.28 / 44.26 | 694 | 0.9741 / 0.9729 | 0.9899 / 0.9886 | 2.58 (1.07 / 1.09) | 92.5 / 92.9 %, 79.6 %, 56.9 %, 85 | 1.42 / 1.58 | — |
+| `dbts_a5` top10 | 8 | 40 | 3975.3 | 43.31 / 42.98 / 42.92 | 846 | 0.9699 / 0.9680 | 0.9858 / 0.9836 | 2.94 (1.07 / 1.09) | 93.2 / 93.8 %, 81.9 %, 61.1 %, 93 | 1.82 / 2.03 | — |
+| `dbts_a5` top10 | 8 | 56 | 13771.7 | 40.16 / 39.44 / 39.22 | 1670 | 0.9494 / 0.9435 | 0.9714 / 0.9654 | 4.12 (1.07 / 1.08) | 95.0 / 95.5 %, 86.6 %, 70.4 %, 155 | 3.05 / 3.52 | — |
+| `dbts_a5` window | 1 | 1 | 3.5 | 9.78 / 9.06 / 8.97 | 2144 | 0.6065 / 0.5306 | 0.8923 / 0.8695 | 4.33 (0.39 / 0.41) | 25.0 / 28.3 %, 20.2 %, 16.5 %, 30 | 2.93 / 3.78 | — |
+| `dbts_a5` window | 1 | 2 | 4.2 | 9.78 / 9.06 / 8.97 | 2145 | 0.6065 / 0.5306 | 0.8923 / 0.8695 | 4.33 (0.39 / 0.41) | 30.4 / 33.6 %, 20.4 %, 16.6 %, 30 | 2.93 / 3.78 | — |
+| `dbts_a5` window | 1 | 4 | 5.3 | 9.78 / 9.06 / 8.97 | 2146 | 0.6065 / 0.5305 | 0.8923 / 0.8695 | 4.33 (0.40 / 0.42) | 41.4 / 44.4 %, 20.8 %, 16.9 %, 30 | 2.93 / 3.79 | — |
+| `dbts_a5` window | 1 | 8 | 7.5 | 9.78 / 9.06 / 8.97 | 2153 | 0.6062 / 0.5303 | 0.8922 / 0.8695 | 4.34 (0.46 / 0.48) | 62.6 / 64.6 %, 27.9 %, 17.3 %, 31 | 2.94 / 3.79 | — |
+| `dbts_a5` window | 1 | 12 | 9.8 | 9.78 / 9.06 / 8.97 | 2153 | 0.6057 / 0.5299 | 0.8921 / 0.8694 | 4.36 (0.55 / 0.57) | 74.7 / 76.1 %, 41.2 %, 18.8 %, 31 | 2.94 / 3.79 | — |
+| `dbts_a5` window | 1 | 16 | 12.3 | 9.78 / 9.06 / 8.97 | 2156 | 0.6050 / 0.5292 | 0.8920 / 0.8693 | 4.38 (0.65 / 0.67) | 80.9 / 82.0 %, 52.1 %, 22.9 %, 32 | 2.94 / 3.79 | — |
+| `dbts_a5` window | 1 | 24 | 18.8 | 9.78 / 9.06 / 8.97 | 2166 | 0.6030 / 0.5273 | 0.8917 / 0.8691 | 4.43 (0.83 / 0.86) | 87.1 / 87.8 %, 65.5 %, 34.3 %, 34 | 2.95 / 3.80 | — |
+| `dbts_a5` window | 1 | 32 | 42.3 | 9.78 / 9.06 / 8.97 | 2163 | 0.5981 / 0.5222 | 0.8908 / 0.8683 | 4.56 (1.02 / 1.03) | 91.5 / 91.9 %, 76.4 %, 50.1 %, 38 | 2.96 / 3.82 | — |
+| `dbts_a5` window | 1 | 40 | 132.1 | 9.78 / 9.05 / 8.97 | 2171 | 0.5914 / 0.5158 | 0.8889 / 0.8667 | 4.75 (1.06 / 1.08) | 93.5 / 93.8 %, 81.7 %, 59.5 %, 58 | 3.01 / 3.85 | — |
+| `dbts_a5` window | 1 | 56 | 976.2 | 9.77 / 9.05 / 8.97 | 2197 | 0.5850 / 0.5108 | 0.8829 / 0.8621 | 5.03 (1.06 / 1.08) | 94.9 / 95.2 %, 85.8 %, 67.6 %, 127 | 3.28 / 4.04 | — |
+| `dbts_a5` window | 16 | 1 | 3.5 | 9.78 / 9.06 / 8.97 | 2144 | 0.6065 / 0.5306 | 0.8923 / 0.8695 | 4.33 (0.39 / 0.41) | 25.5 / 28.8 %, 20.3 %, 16.5 %, 30 | 2.93 / 3.78 | — |
+| `dbts_a5` window | 16 | 2 | 4.2 | 9.78 / 9.06 / 8.97 | 2144 | 0.6065 / 0.5306 | 0.8923 / 0.8695 | 4.33 (0.39 / 0.41) | 30.7 / 33.8 %, 20.4 %, 16.5 %, 30 | 2.93 / 3.78 | — |
+| `dbts_a5` window | 16 | 4 | 5.3 | 9.78 / 9.06 / 8.97 | 2148 | 0.6065 / 0.5305 | 0.8923 / 0.8695 | 4.33 (0.40 / 0.42) | 41.9 / 44.8 %, 20.7 %, 16.7 %, 30 | 2.93 / 3.78 | — |
+| `dbts_a5` window | 16 | 8 | 7.5 | 9.78 / 9.06 / 8.97 | 2150 | 0.6062 / 0.5303 | 0.8922 / 0.8695 | 4.34 (0.46 / 0.48) | 63.0 / 65.1 %, 28.2 %, 17.0 %, 31 | 2.93 / 3.79 | — |
+| `dbts_a5` window | 16 | 12 | 9.8 | 9.78 / 9.06 / 8.97 | 2150 | 0.6057 / 0.5298 | 0.8922 / 0.8694 | 4.36 (0.55 / 0.57) | 74.9 / 76.3 %, 41.7 %, 18.9 %, 31 | 2.94 / 3.79 | — |
+| `dbts_a5` window | 16 | 16 | 12.3 | 9.78 / 9.06 / 8.97 | 2154 | 0.6050 / 0.5292 | 0.8920 / 0.8693 | 4.38 (0.65 / 0.67) | 81.1 / 82.1 %, 52.4 %, 23.1 %, 32 | 2.94 / 3.79 | — |
+| `dbts_a5` window | 16 | 24 | 18.8 | 9.78 / 9.06 / 8.97 | 2163 | 0.6031 / 0.5273 | 0.8917 / 0.8691 | 4.43 (0.83 / 0.86) | 87.1 / 87.8 %, 65.5 %, 34.3 %, 34 | 2.95 / 3.80 | — |
+| `dbts_a5` window | 16 | 32 | 43.2 | 9.78 / 9.06 / 8.97 | 2165 | 0.5985 / 0.5226 | 0.8909 / 0.8683 | 4.55 (1.02 / 1.03) | 91.4 / 91.9 %, 76.3 %, 49.7 %, 53 | 2.97 / 3.81 | — |
+| `dbts_a5` window | 16 | 40 | 167.4 | 9.78 / 9.05 / 8.97 | 2171 | 0.5917 / 0.5160 | 0.8890 / 0.8667 | 4.74 (1.06 / 1.08) | 93.4 / 93.8 %, 81.6 %, 59.3 %, 56 | 3.01 / 3.85 | — |
+| `dbts_a5` window | 16 | 56 | 2651.2 | 9.77 / 9.05 / 8.97 | 2198 | 0.5849 / 0.5107 | 0.8827 / 0.8620 | 5.03 (1.06 / 1.08) | 95.0 / 95.3 %, 86.0 %, 67.9 %, 88 | 3.28 / 4.04 | — |
+| `dbts_a5` window | 8 | 1 | 3.5 | 9.78 / 9.06 / 8.97 | 2144 | 0.6065 / 0.5306 | 0.8923 / 0.8695 | 4.33 (0.39 / 0.41) | 25.5 / 28.8 %, 20.3 %, 16.5 %, 30 | 2.93 / 3.78 | — |
+| `dbts_a5` window | 8 | 2 | 4.2 | 9.78 / 9.06 / 8.97 | 2144 | 0.6065 / 0.5306 | 0.8923 / 0.8695 | 4.33 (0.39 / 0.41) | 30.7 / 33.8 %, 20.4 %, 16.6 %, 30 | 2.93 / 3.78 | — |
+| `dbts_a5` window | 8 | 4 | 5.3 | 9.78 / 9.06 / 8.97 | 2147 | 0.6065 / 0.5305 | 0.8923 / 0.8695 | 4.33 (0.40 / 0.42) | 41.9 / 44.7 %, 20.7 %, 16.7 %, 30 | 2.93 / 3.78 | — |
+| `dbts_a5` window | 8 | 8 | 7.5 | 9.78 / 9.06 / 8.97 | 2150 | 0.6062 / 0.5303 | 0.8922 / 0.8695 | 4.34 (0.46 / 0.48) | 63.0 / 65.0 %, 28.1 %, 17.0 %, 31 | 2.93 / 3.79 | — |
+| `dbts_a5` window | 8 | 12 | 9.8 | 9.78 / 9.06 / 8.97 | 2154 | 0.6057 / 0.5298 | 0.8921 / 0.8694 | 4.36 (0.55 / 0.57) | 74.9 / 76.3 %, 41.6 %, 18.9 %, 31 | 2.94 / 3.79 | — |
+| `dbts_a5` window | 8 | 16 | 12.3 | 9.78 / 9.06 / 8.97 | 2153 | 0.6050 / 0.5292 | 0.8920 / 0.8693 | 4.38 (0.65 / 0.67) | 81.1 / 82.1 %, 52.4 %, 23.1 %, 32 | 2.94 / 3.79 | — |
+| `dbts_a5` window | 8 | 24 | 18.8 | 9.78 / 9.06 / 8.97 | 2163 | 0.6031 / 0.5273 | 0.8917 / 0.8691 | 4.43 (0.83 / 0.86) | 87.1 / 87.8 %, 65.5 %, 34.2 %, 34 | 2.95 / 3.80 | — |
+| `dbts_a5` window | 8 | 32 | 43.2 | 9.78 / 9.06 / 8.97 | 2165 | 0.5985 / 0.5226 | 0.8909 / 0.8683 | 4.55 (1.02 / 1.03) | 91.4 / 91.8 %, 76.3 %, 49.9 %, 53 | 2.97 / 3.81 | — |
+| `dbts_a5` window | 8 | 40 | 165.5 | 9.78 / 9.05 / 8.97 | 2172 | 0.5917 / 0.5160 | 0.8890 / 0.8667 | 4.74 (1.06 / 1.08) | 93.5 / 93.8 %, 81.6 %, 59.3 %, 56 | 3.01 / 3.84 | — |
+| `dbts_a5` window | 8 | 56 | 2472.4 | 9.77 / 9.05 / 8.97 | 2190 | 0.5849 / 0.5107 | 0.8826 / 0.8620 | 5.03 (1.06 / 1.08) | 95.0 / 95.3 %, 86.0 %, 68.0 %, 94 | 3.28 / 4.04 | — |
 | `dbts_b1` 10bit | 1 | 1 | 6.3 | 68.85 / 68.77 / 68.76 | 11 | 0.9999 / 0.9999 | 1.0000 / 1.0000 | 0.11 (0.12 / 0.12) | 19.2 / 19.3 %, 0.0 %, 0.0 %, 2 | 0.03 / 0.04 | 10.0 |
 | `dbts_b1` 10bit | 1 | 2 | 7.9 | 64.91 / 64.81 / 64.79 | 19 | 0.9997 / 0.9997 | 1.0000 / 1.0000 | 0.18 (0.18 / 0.19) | 35.6 / 35.8 %, 0.4 %, 0.0 %, 3 | 0.05 / 0.06 | 10.0 |
 | `dbts_b1` 10bit | 1 | 4 | 11.2 | 59.27 / 59.12 / 59.11 | 36 | 0.9990 / 0.9990 | 0.9999 / 0.9999 | 0.34 (0.36 / 0.38) | 60.8 / 61.1 %, 12.5 %, 0.0 %, 6 | 0.10 / 0.11 | 10.0 |
@@ -3423,6 +3810,36 @@ series), TRUS (two) and the MR controls (two) are too few to name one.
 | `dbts_b3` 10bit | 8 | 32 | 681.4 | 41.56 / 41.49 / 41.46 | 420 | 0.9486 / 0.9471 | 0.9859 / 0.9846 | 2.12 (1.04 / 1.05) | 93.0 / 93.1 %, 79.5 %, 54.6 %, 135 | 1.78 / 2.15 | 8.08 |
 | `dbts_b3` 10bit | 8 | 40 | 1452.5 | 40.46 / 40.29 / 40.26 | 615 | 0.9402 / 0.9391 | 0.9799 / 0.9778 | 2.38 (1.08 / 1.10) | 93.6 / 93.8 %, 81.5 %, 58.7 %, 226 | 2.39 / 2.84 | 6.96 |
 | `dbts_b3` 10bit | 8 | 56 | 7882.3 | 37.18 / 36.78 / 36.72 | 858 | 0.9139 / 0.9104 | 0.9566 / 0.9508 | 3.34 (1.23 / 1.25) | 95.1 / 95.4 %, 86.2 %, 68.6 %, 250 | 4.50 / 5.00 | 4.21 |
+| `dbts_b4` 10bit | 1 | 1 | 6.5 | 69.08 / 68.95 / 68.92 | 5 | 0.9999 / 0.9999 | 1.0000 / 1.0000 | 0.11 (0.11 / 0.11) | 19.1 / 19.2 %, 0.0 %, 0.0 %, 2 | 0.05 / 0.06 | 10.0 |
+| `dbts_b4` 10bit | 1 | 2 | 8.1 | 64.66 / 64.51 / 64.47 | 9 | 0.9996 / 0.9996 | 1.0000 / 1.0000 | 0.18 (0.18 / 0.18) | 35.7 / 35.8 %, 0.4 %, 0.0 %, 4 | 0.08 / 0.10 | 10.0 |
+| `dbts_b4` 10bit | 1 | 4 | 11.5 | 58.90 / 58.78 / 58.72 | 24 | 0.9987 / 0.9985 | 0.9998 / 0.9998 | 0.34 (0.35 / 0.36) | 61.1 / 61.2 %, 12.7 %, 0.0 %, 12 | 0.15 / 0.18 | 9.99 |
+| `dbts_b4` 10bit | 1 | 8 | 22.1 | 51.86 / 51.71 / 51.67 | 38 | 0.9938 / 0.9936 | 0.9992 / 0.9992 | 0.78 (0.75 / 0.75) | 81.9 / 82.0 %, 49.4 %, 11.1 %, 17 | 0.34 / 0.41 | 9.95 |
+| `dbts_b4` 10bit | 1 | 12 | 42.6 | 48.35 / 48.24 / 48.23 | 76 | 0.9861 / 0.9856 | 0.9981 / 0.9980 | 1.18 (0.95 / 0.96) | 87.9 / 88.0 %, 65.1 %, 29.4 %, 34 | 0.55 / 0.67 | 9.86 |
+| `dbts_b4` 10bit | 1 | 16 | 76.7 | 46.49 / 46.41 / 46.40 | 115 | 0.9792 / 0.9786 | 0.9967 / 0.9966 | 1.48 (1.02 / 1.03) | 90.2 / 90.4 %, 71.6 %, 39.8 %, 48 | 0.76 / 0.92 | 9.7 |
+| `dbts_b4` 10bit | 1 | 24 | 192.5 | 44.69 / 44.62 / 44.60 | 163 | 0.9700 / 0.9693 | 0.9941 / 0.9938 | 1.83 (1.06 / 1.06) | 91.8 / 92.1 %, 76.6 %, 48.8 %, 56 | 1.14 / 1.37 | 9.22 |
+| `dbts_b4` 10bit | 1 | 32 | 536.1 | 43.43 / 43.30 / 43.29 | 208 | 0.9624 / 0.9615 | 0.9904 / 0.9898 | 2.12 (1.06 / 1.07) | 92.8 / 93.0 %, 79.2 %, 54.1 %, 79 | 1.71 / 2.05 | 8.18 |
+| `dbts_b4` 10bit | 1 | 40 | 1058.1 | 42.55 / 42.28 / 42.25 | 294 | 0.9566 / 0.9519 | 0.9863 / 0.9856 | 2.34 (1.06 / 1.08) | 93.4 / 93.5 %, 80.8 %, 57.3 %, 91 | 2.35 / 2.74 | 6.93 |
+| `dbts_b4` 10bit | 1 | 56 | 3492.6 | 39.77 / 39.22 / 39.10 | 459 | 0.9243 / 0.9003 | 0.9704 / 0.9663 | 3.11 (1.14 / 1.22) | 95.0 / 95.1 %, 85.3 %, 66.6 %, 183 | 4.31 / 4.50 | 3.9 |
+| `dbts_b4` 10bit | 16 | 1 | 6.7 | 68.10 / 67.66 / 67.40 | 19 | 0.9998 / 0.9998 | 1.0000 / 1.0000 | 0.12 (0.12 / 0.12) | 20.3 / 20.4 %, 0.0 %, 0.0 %, 9 | 0.06 / 0.07 | 10.0 |
+| `dbts_b4` 10bit | 16 | 2 | 8.1 | 64.49 / 64.19 / 63.97 | 29 | 0.9996 / 0.9995 | 1.0000 / 0.9999 | 0.18 (0.18 / 0.18) | 35.8 / 35.9 %, 0.4 %, 0.0 %, 15 | 0.08 / 0.10 | 10.0 |
+| `dbts_b4` 10bit | 16 | 4 | 11.5 | 58.69 / 58.49 / 58.40 | 37 | 0.9987 / 0.9985 | 0.9998 / 0.9998 | 0.34 (0.35 / 0.36) | 61.5 / 61.6 %, 13.0 %, 0.0 %, 19 | 0.15 / 0.19 | 9.99 |
+| `dbts_b4` 10bit | 16 | 8 | 22.5 | 52.01 / 51.89 / 51.71 | 54 | 0.9941 / 0.9936 | 0.9992 / 0.9992 | 0.76 (0.73 / 0.75) | 81.5 / 82.0 %, 49.4 %, 11.1 %, 26 | 0.34 / 0.41 | 9.95 |
+| `dbts_b4` 10bit | 16 | 12 | 46.5 | 48.48 / 48.38 / 48.26 | 74 | 0.9866 / 0.9860 | 0.9981 / 0.9980 | 1.16 (0.95 / 0.96) | 87.7 / 88.0 %, 65.1 %, 29.4 %, 34 | 0.55 / 0.67 | 9.86 |
+| `dbts_b4` 10bit | 16 | 16 | 90.0 | 46.59 / 46.50 / 46.44 | 273 | 0.9797 / 0.9788 | 0.9968 / 0.9966 | 1.46 (1.02 / 1.03) | 90.0 / 90.3 %, 71.5 %, 39.7 %, 54 | 0.77 / 0.93 | 9.69 |
+| `dbts_b4` 10bit | 16 | 24 | 289.9 | 44.69 / 44.63 / 44.57 | 342 | 0.9702 / 0.9694 | 0.9940 / 0.9936 | 1.83 (1.06 / 1.06) | 91.9 / 92.1 %, 76.6 %, 49.0 %, 70 | 1.18 / 1.49 | 9.14 |
+| `dbts_b4` 10bit | 16 | 32 | 1251.1 | 43.30 / 43.19 / 43.12 | 375 | 0.9623 / 0.9614 | 0.9899 / 0.9894 | 2.15 (1.06 / 1.07) | 92.9 / 93.1 %, 79.5 %, 54.6 %, 103 | 1.81 / 2.19 | 7.98 |
+| `dbts_b4` 10bit | 16 | 40 | 3050.1 | 42.31 / 42.03 / 41.99 | 414 | 0.9565 / 0.9547 | 0.9856 / 0.9850 | 2.40 (1.08 / 1.11) | 93.6 / 93.8 %, 81.5 %, 58.6 %, 100 | 2.50 / 2.93 | 6.67 |
+| `dbts_b4` 10bit | 16 | 56 | 20269.2 | 39.30 / 38.76 / 38.69 | 470 | 0.9201 / 0.9035 | 0.9685 / 0.9641 | 3.24 (1.21 / 1.25) | 95.1 / 95.3 %, 86.0 %, 68.1 %, 189 | 4.52 / 4.90 | 3.64 |
+| `dbts_b4` 10bit | 8 | 1 | 6.7 | 68.08 / 67.75 / 66.98 | 20 | 0.9998 / 0.9998 | 1.0000 / 1.0000 | 0.12 (0.12 / 0.12) | 20.3 / 20.4 %, 0.0 %, 0.0 %, 10 | 0.06 / 0.07 | 10.0 |
+| `dbts_b4` 10bit | 8 | 2 | 8.1 | 64.47 / 64.20 / 64.07 | 26 | 0.9996 / 0.9996 | 1.0000 / 0.9999 | 0.18 (0.18 / 0.18) | 35.8 / 35.9 %, 0.4 %, 0.0 %, 12 | 0.08 / 0.10 | 10.0 |
+| `dbts_b4` 10bit | 8 | 4 | 11.5 | 58.68 / 58.47 / 58.39 | 37 | 0.9986 / 0.9985 | 0.9998 / 0.9998 | 0.34 (0.35 / 0.36) | 61.5 / 61.6 %, 13.0 %, 0.0 %, 19 | 0.15 / 0.19 | 9.99 |
+| `dbts_b4` 10bit | 8 | 8 | 22.5 | 51.99 / 51.82 / 51.71 | 49 | 0.9940 / 0.9936 | 0.9992 / 0.9992 | 0.76 (0.73 / 0.75) | 81.6 / 82.0 %, 49.4 %, 11.1 %, 25 | 0.34 / 0.41 | 9.95 |
+| `dbts_b4` 10bit | 8 | 12 | 46.3 | 48.47 / 48.32 / 48.23 | 101 | 0.9866 / 0.9856 | 0.9981 / 0.9980 | 1.16 (0.95 / 0.96) | 87.7 / 88.0 %, 65.1 %, 29.4 %, 34 | 0.55 / 0.67 | 9.86 |
+| `dbts_b4` 10bit | 8 | 16 | 89.4 | 46.59 / 46.47 / 46.40 | 197 | 0.9797 / 0.9786 | 0.9968 / 0.9966 | 1.46 (1.02 / 1.03) | 90.1 / 90.3 %, 71.5 %, 39.7 %, 38 | 0.76 / 0.93 | 9.7 |
+| `dbts_b4` 10bit | 8 | 24 | 284.1 | 44.70 / 44.61 / 44.56 | 335 | 0.9701 / 0.9694 | 0.9940 / 0.9935 | 1.83 (1.06 / 1.06) | 91.9 / 92.1 %, 76.6 %, 49.0 %, 70 | 1.18 / 1.49 | 9.15 |
+| `dbts_b4` 10bit | 8 | 32 | 1182.4 | 43.30 / 43.19 / 43.12 | 380 | 0.9622 / 0.9613 | 0.9899 / 0.9893 | 2.15 (1.06 / 1.07) | 92.9 / 93.1 %, 79.5 %, 54.6 %, 99 | 1.81 / 2.19 | 8.0 |
+| `dbts_b4` 10bit | 8 | 40 | 2792.5 | 42.35 / 42.06 / 42.00 | 390 | 0.9567 / 0.9547 | 0.9857 / 0.9851 | 2.39 (1.08 / 1.10) | 93.6 / 93.7 %, 81.4 %, 58.5 %, 99 | 2.47 / 2.93 | 6.73 |
+| `dbts_b4` 10bit | 8 | 56 | 16023.2 | 39.43 / 38.92 / 38.88 | 460 | 0.9225 / 0.9035 | 0.9691 / 0.9645 | 3.19 (1.20 / 1.25) | 95.0 / 95.3 %, 85.8 %, 67.7 %, 203 | 4.42 / 4.87 | 3.75 |
 | `dbts_b5` 10bit | 1 | 1 | 6.6 | 68.65 / 68.60 / 68.56 | 5 | 0.9999 / 0.9999 | 1.0000 / 1.0000 | 0.17 (0.17 / 0.18) | 19.2 / 19.2 %, 0.0 %, 0.0 %, 2 | 0.05 / 0.05 | 10.0 |
 | `dbts_b5` 10bit | 1 | 2 | 8.5 | 64.24 / 64.16 / 64.14 | 8 | 0.9996 / 0.9996 | 1.0000 / 0.9999 | 0.27 (0.28 / 0.28) | 36.0 / 36.1 %, 0.5 %, 0.0 %, 4 | 0.08 / 0.09 | 10.0 |
 | `dbts_b5` 10bit | 1 | 4 | 12.9 | 58.40 / 58.33 / 58.32 | 22 | 0.9985 / 0.9985 | 0.9998 / 0.9998 | 0.54 (0.56 / 0.57) | 62.0 / 62.1 %, 13.7 %, 0.1 %, 8 | 0.14 / 0.17 | 9.99 |
@@ -4023,6 +4440,126 @@ series), TRUS (two) and the MR controls (two) are too few to name one.
 | `mr_ispy1` window | 8 | 32 | 18.9 | 41.01 / 29.50 / 28.57 | 1453 | 0.9848 / 0.9619 | 0.9901 / 0.9410 | 1.77 (0.85 / 0.90) | 90.2 / 90.6 %, 75.2 %, 48.5 %, 45 | 0.17 / 0.25 | — |
 | `mr_ispy1` window | 8 | 40 | 38.5 | 40.31 / 29.45 / 28.53 | 1456 | 0.9712 / 0.9499 | 0.9872 / 0.9382 | 2.83 (1.01 / 1.04) | 93.7 / 94.0 %, 83.8 %, 65.7 %, 63 | 0.31 / 0.44 | — |
 | `mr_ispy1` window | 8 | 56 | 368.6 | 38.65 / 29.22 / 28.33 | 1453 | 0.9319 / 0.9074 | 0.9745 / 0.9245 | 4.76 (1.06 / 1.09) | 96.2 / 96.4 %, 90.1 %, 78.1 %, 136 | 0.72 / 0.88 | — |
+| `rf_fluoro` 12bit | 1 | 1 | 2.7 | 69.98 / 69.96 / 69.96 | 10 | 0.9999 / 0.9999 | 1.0000 / 1.0000 | 0.09 (0.09 / 0.11) | 11.4 / 11.5 %, 0.0 %, 0.0 %, 1 | 0.00 / 0.01 | 10.0 |
+| `rf_fluoro` 12bit | 1 | 2 | 3.6 | 64.16 / 64.03 / 64.00 | 24 | 0.9996 / 0.9996 | 1.0000 / 1.0000 | 0.18 (0.19 / 0.21) | 23.2 / 23.7 %, 0.0 %, 0.0 %, 3 | 0.01 / 0.02 | 10.0 |
+| `rf_fluoro` 12bit | 1 | 4 | 6.6 | 56.04 / 55.89 / 55.88 | 44 | 0.9977 / 0.9976 | 0.9997 / 0.9997 | 0.46 (0.47 / 0.52) | 52.9 / 54.0 %, 6.6 %, 0.0 %, 5 | 0.02 / 0.06 | 9.96 |
+| `rf_fluoro` 12bit | 1 | 8 | 20.1 | 48.88 / 48.35 / 48.14 | 104 | 0.9881 / 0.9863 | 0.9983 / 0.9981 | 1.06 (0.98 / 1.06) | 74.5 / 75.9 %, 38.9 %, 6.4 %, 11 | 0.04 / 0.14 | 9.89 |
+| `rf_fluoro` 12bit | 1 | 12 | 58.3 | 45.92 / 45.19 / 44.26 | 257 | 0.9770 / 0.9668 | 0.9960 / 0.9951 | 1.47 (1.12 / 1.16) | 78.9 / 80.3 %, 52.5 %, 20.1 %, 18 | 0.06 / 0.24 | 9.73 |
+| `rf_fluoro` 12bit | 1 | 16 | 116.5 | 44.87 / 43.99 / 42.62 | 260 | 0.9713 / 0.9523 | 0.9942 / 0.9918 | 1.67 (1.13 / 1.16) | 80.4 / 81.6 %, 56.1 %, 25.6 %, 24 | 0.08 / 0.31 | 9.56 |
+| `rf_fluoro` 12bit | 1 | 24 | 202.8 | 44.05 / 43.12 / 41.80 | 544 | 0.9679 / 0.9452 | 0.9921 / 0.9886 | 1.85 (1.14 / 1.17) | 82.0 / 83.5 %, 58.6 %, 28.7 %, 63 | 0.11 / 0.40 | 9.23 |
+| `rf_fluoro` 12bit | 1 | 32 | 350.7 | 42.79 / 41.89 / 40.93 | 711 | 0.9635 / 0.9400 | 0.9887 / 0.9847 | 2.17 (1.15 / 1.20) | 83.9 / 85.6 %, 61.1 %, 32.0 %, 82 | 0.15 / 0.56 | 8.64 |
+| `rf_fluoro` 12bit | 1 | 40 | 575.8 | 41.09 / 40.30 / 39.72 | 1243 | 0.9590 / 0.9356 | 0.9831 / 0.9792 | 2.61 (1.18 / 1.23) | 86.4 / 87.7 %, 64.8 %, 36.3 %, 136 | 0.22 / 0.76 | 7.87 |
+| `rf_fluoro` 12bit | 1 | 56 | 1505.2 | 36.13 / 34.28 / 34.18 | 2354 | 0.9467 / 0.9170 | 0.9615 / 0.9528 | 4.25 (1.20 / 1.30) | 90.9 / 92.7 %, 78.2 %, 52.5 %, 234 | 0.44 / 1.56 | 6.01 |
+| `rf_fluoro` 12bit | 16 | 1 | 2.7 | 70.07 / 70.05 / 70.03 | 10 | 0.9999 / 0.9999 | 1.0000 / 1.0000 | 0.09 (0.09 / 0.10) | 11.3 / 11.3 %, 0.0 %, 0.0 %, 1 | 0.00 / 0.01 | 10.0 |
+| `rf_fluoro` 12bit | 16 | 2 | 3.7 | 63.57 / 63.53 / 63.52 | 24 | 0.9996 / 0.9996 | 0.9999 / 0.9999 | 0.19 (0.19 / 0.22) | 24.8 / 25.0 %, 0.0 %, 0.0 %, 3 | 0.01 / 0.02 | 9.99 |
+| `rf_fluoro` 12bit | 16 | 4 | 6.6 | 56.00 / 55.84 / 55.84 | 44 | 0.9976 / 0.9976 | 0.9997 / 0.9997 | 0.46 (0.47 / 0.52) | 53.2 / 54.1 %, 6.7 %, 0.0 %, 5 | 0.02 / 0.06 | 9.97 |
+| `rf_fluoro` 12bit | 16 | 8 | 20.2 | 48.90 / 48.37 / 48.14 | 123 | 0.9882 / 0.9863 | 0.9983 / 0.9982 | 1.06 (0.98 / 1.05) | 74.4 / 76.0 %, 38.9 %, 6.4 %, 14 | 0.04 / 0.14 | 9.89 |
+| `rf_fluoro` 12bit | 16 | 12 | 63.3 | 45.92 / 45.19 / 44.26 | 238 | 0.9770 / 0.9668 | 0.9960 / 0.9951 | 1.47 (1.12 / 1.16) | 78.9 / 80.2 %, 52.5 %, 20.1 %, 20 | 0.06 / 0.24 | 9.74 |
+| `rf_fluoro` 12bit | 16 | 16 | 135.4 | 44.86 / 43.99 / 42.62 | 441 | 0.9714 / 0.9523 | 0.9942 / 0.9918 | 1.67 (1.13 / 1.17) | 80.5 / 81.6 %, 56.1 %, 25.6 %, 51 | 0.08 / 0.32 | 9.56 |
+| `rf_fluoro` 12bit | 16 | 24 | 271.2 | 43.98 / 43.04 / 41.80 | 547 | 0.9679 / 0.9452 | 0.9920 / 0.9886 | 1.87 (1.14 / 1.18) | 82.0 / 83.5 %, 58.6 %, 28.7 %, 62 | 0.11 / 0.42 | 9.23 |
+| `rf_fluoro` 12bit | 16 | 32 | 517.0 | 42.71 / 41.85 / 40.93 | 1047 | 0.9639 / 0.9400 | 0.9886 / 0.9847 | 2.17 (1.15 / 1.21) | 84.2 / 85.6 %, 61.1 %, 32.0 %, 121 | 0.16 / 0.59 | 8.64 |
+| `rf_fluoro` 12bit | 16 | 40 | 937.0 | 40.98 / 40.14 / 39.72 | 1463 | 0.9592 / 0.9356 | 0.9830 / 0.9792 | 2.63 (1.18 / 1.24) | 86.7 / 87.8 %, 64.8 %, 36.3 %, 169 | 0.22 / 0.84 | 7.87 |
+| `rf_fluoro` 12bit | 16 | 56 | 2691.0 | 35.55 / 34.49 / 34.39 | 2285 | 0.9437 / 0.9170 | 0.9570 / 0.9460 | 4.68 (1.21 / 1.30) | 91.6 / 92.4 %, 76.7 %, 53.7 %, 231 | 0.48 / 1.81 | 5.77 |
+| `rf_fluoro` 12bit | 8 | 1 | 2.7 | 70.06 / 69.86 / 69.86 | 10 | 0.9999 / 0.9999 | 1.0000 / 1.0000 | 0.09 (0.09 / 0.10) | 11.3 / 11.6 %, 0.0 %, 0.0 %, 1 | 0.00 / 0.01 | 10.0 |
+| `rf_fluoro` 12bit | 8 | 2 | 3.7 | 63.59 / 63.53 / 63.53 | 24 | 0.9996 / 0.9996 | 0.9999 / 0.9999 | 0.19 (0.19 / 0.22) | 24.7 / 24.9 %, 0.0 %, 0.0 %, 3 | 0.01 / 0.02 | 10.0 |
+| `rf_fluoro` 12bit | 8 | 4 | 6.6 | 56.01 / 55.85 / 55.84 | 44 | 0.9976 / 0.9976 | 0.9997 / 0.9997 | 0.46 (0.47 / 0.52) | 53.1 / 54.1 %, 6.6 %, 0.0 %, 5 | 0.02 / 0.06 | 9.97 |
+| `rf_fluoro` 12bit | 8 | 8 | 20.2 | 48.96 / 48.36 / 48.14 | 138 | 0.9883 / 0.9863 | 0.9983 / 0.9982 | 1.06 (0.98 / 1.05) | 74.4 / 75.9 %, 38.9 %, 6.4 %, 16 | 0.04 / 0.14 | 9.89 |
+| `rf_fluoro` 12bit | 8 | 12 | 62.8 | 45.93 / 45.22 / 44.26 | 244 | 0.9771 / 0.9668 | 0.9960 / 0.9951 | 1.46 (1.12 / 1.16) | 78.9 / 80.3 %, 52.5 %, 20.1 %, 18 | 0.06 / 0.24 | 9.73 |
+| `rf_fluoro` 12bit | 8 | 16 | 135.3 | 44.85 / 44.02 / 42.62 | 283 | 0.9714 / 0.9523 | 0.9941 / 0.9918 | 1.67 (1.13 / 1.17) | 80.4 / 81.7 %, 56.1 %, 25.6 %, 33 | 0.08 / 0.32 | 9.56 |
+| `rf_fluoro` 12bit | 8 | 24 | 264.6 | 44.00 / 43.07 / 41.80 | 491 | 0.9680 / 0.9452 | 0.9920 / 0.9886 | 1.87 (1.14 / 1.18) | 81.8 / 83.5 %, 58.6 %, 28.7 %, 57 | 0.11 / 0.42 | 9.22 |
+| `rf_fluoro` 12bit | 8 | 32 | 496.3 | 42.78 / 41.88 / 40.93 | 777 | 0.9641 / 0.9400 | 0.9887 / 0.9847 | 2.17 (1.16 / 1.21) | 83.9 / 85.6 %, 61.1 %, 32.0 %, 90 | 0.15 / 0.58 | 8.66 |
+| `rf_fluoro` 12bit | 8 | 40 | 898.7 | 41.04 / 40.11 / 39.72 | 1463 | 0.9594 / 0.9356 | 0.9830 / 0.9792 | 2.63 (1.17 / 1.25) | 86.5 / 87.8 %, 64.8 %, 36.3 %, 169 | 0.22 / 0.82 | 7.83 |
+| `rf_fluoro` 12bit | 8 | 56 | 2610.3 | 35.66 / 34.39 / 34.38 | 2533 | 0.9450 / 0.9170 | 0.9572 / 0.9465 | 4.50 (1.21 / 1.31) | 91.0 / 93.3 %, 79.1 %, 53.5 %, 232 | 0.46 / 1.76 | 5.81 |
+| `rf_fluoro` top10 | 1 | 1 | 3.3 | 63.33 / 63.25 / 63.23 | 21 | 0.9996 / 0.9996 | 0.9999 / 0.9999 | 0.20 (0.20 / 0.22) | 24.9 / 25.2 %, 0.0 %, 0.0 %, 3 | 0.01 / 0.03 | — |
+| `rf_fluoro` top10 | 1 | 2 | 4.5 | 59.75 / 59.72 / 59.72 | 31 | 0.9990 / 0.9990 | 0.9999 / 0.9999 | 0.30 (0.30 / 0.34) | 37.9 / 38.1 %, 0.7 %, 0.0 %, 3 | 0.01 / 0.05 | — |
+| `rf_fluoro` top10 | 1 | 4 | 7.6 | 54.46 / 54.25 / 54.21 | 46 | 0.9967 / 0.9965 | 0.9996 / 0.9995 | 0.55 (0.56 / 0.62) | 59.0 / 60.4 %, 12.0 %, 0.0 %, 6 | 0.02 / 0.07 | — |
+| `rf_fluoro` top10 | 1 | 8 | 21.4 | 48.56 / 48.04 / 47.76 | 107 | 0.9872 / 0.9851 | 0.9981 / 0.9980 | 1.09 (1.00 / 1.07) | 75.1 / 76.6 %, 40.5 %, 7.6 %, 12 | 0.04 / 0.15 | — |
+| `rf_fluoro` top10 | 1 | 12 | 54.8 | 46.01 / 45.31 / 44.42 | 258 | 0.9774 / 0.9681 | 0.9961 / 0.9953 | 1.45 (1.12 / 1.16) | 78.9 / 80.2 %, 52.0 %, 19.4 %, 16 | 0.06 / 0.24 | — |
+| `rf_fluoro` top10 | 1 | 16 | 104.8 | 45.00 / 44.14 / 42.84 | 266 | 0.9721 / 0.9546 | 0.9945 / 0.9923 | 1.64 (1.13 / 1.17) | 80.3 / 81.4 %, 55.8 %, 25.0 %, 25 | 0.08 / 0.30 | — |
+| `rf_fluoro` top10 | 1 | 24 | 183.5 | 44.24 / 43.28 / 41.93 | 550 | 0.9687 / 0.9462 | 0.9926 / 0.9892 | 1.81 (1.14 / 1.17) | 81.6 / 83.2 %, 58.3 %, 28.2 %, 64 | 0.11 / 0.39 | — |
+| `rf_fluoro` top10 | 1 | 32 | 307.2 | 43.20 / 42.31 / 41.18 | 617 | 0.9650 / 0.9414 | 0.9899 / 0.9859 | 2.07 (1.15 / 1.19) | 83.2 / 84.8 %, 60.6 %, 31.2 %, 60 | 0.14 / 0.51 | — |
+| `rf_fluoro` top10 | 1 | 40 | 493.7 | 41.85 / 40.93 / 40.22 | 1059 | 0.9608 / 0.9367 | 0.9854 / 0.9814 | 2.42 (1.17 / 1.23) | 85.4 / 88.5 %, 64.9 %, 34.8 %, 123 | 0.19 / 0.68 | — |
+| `rf_fluoro` top10 | 1 | 56 | 1220.0 | 37.78 / 35.88 / 35.84 | 2307 | 0.9500 / 0.9171 | 0.9678 / 0.9614 | 3.80 (1.21 / 1.30) | 90.1 / 91.9 %, 74.6 %, 48.3 %, 236 | 0.38 / 1.34 | — |
+| `rf_fluoro` top10 | 16 | 1 | 3.4 | 62.84 / 62.82 / 62.82 | 21 | 0.9995 / 0.9995 | 0.9999 / 0.9999 | 0.21 (0.20 / 0.23) | 26.2 / 26.7 %, 0.0 %, 0.0 %, 3 | 0.01 / 0.04 | — |
+| `rf_fluoro` top10 | 16 | 2 | 4.5 | 59.63 / 59.61 / 59.60 | 31 | 0.9990 / 0.9990 | 0.9999 / 0.9999 | 0.30 (0.30 / 0.34) | 38.3 / 38.5 %, 0.8 %, 0.0 %, 3 | 0.01 / 0.05 | — |
+| `rf_fluoro` top10 | 16 | 4 | 7.7 | 54.33 / 54.15 / 54.15 | 47 | 0.9966 / 0.9965 | 0.9995 / 0.9995 | 0.56 (0.56 / 0.62) | 59.5 / 60.6 %, 12.1 %, 0.0 %, 6 | 0.02 / 0.08 | — |
+| `rf_fluoro` top10 | 16 | 8 | 21.6 | 48.58 / 48.03 / 47.76 | 105 | 0.9873 / 0.9851 | 0.9981 / 0.9980 | 1.09 (1.00 / 1.07) | 75.2 / 76.6 %, 40.5 %, 7.6 %, 12 | 0.04 / 0.16 | — |
+| `rf_fluoro` top10 | 16 | 12 | 59.3 | 45.99 / 45.28 / 44.42 | 250 | 0.9775 / 0.9681 | 0.9961 / 0.9953 | 1.46 (1.13 / 1.16) | 78.9 / 80.3 %, 52.0 %, 19.4 %, 24 | 0.06 / 0.24 | — |
+| `rf_fluoro` top10 | 16 | 16 | 120.8 | 44.99 / 44.17 / 42.84 | 325 | 0.9722 / 0.9546 | 0.9944 / 0.9923 | 1.64 (1.13 / 1.17) | 80.4 / 81.5 %, 55.8 %, 25.0 %, 38 | 0.08 / 0.31 | — |
+| `rf_fluoro` top10 | 16 | 24 | 241.3 | 44.16 / 43.25 / 41.93 | 432 | 0.9685 / 0.9462 | 0.9925 / 0.9892 | 1.82 (1.14 / 1.18) | 82.0 / 83.2 %, 58.3 %, 28.2 %, 50 | 0.11 / 0.40 | — |
+| `rf_fluoro` top10 | 16 | 32 | 443.5 | 43.08 / 42.20 / 41.18 | 1097 | 0.9650 / 0.9414 | 0.9897 / 0.9859 | 2.07 (1.15 / 1.20) | 83.6 / 84.6 %, 60.6 %, 31.2 %, 105 | 0.14 / 0.53 | — |
+| `rf_fluoro` top10 | 16 | 40 | 766.3 | 41.71 / 40.86 / 40.22 | 1039 | 0.9608 / 0.9367 | 0.9855 / 0.9814 | 2.45 (1.17 / 1.23) | 85.7 / 88.5 %, 64.9 %, 34.8 %, 116 | 0.19 / 0.72 | — |
+| `rf_fluoro` top10 | 16 | 56 | 2104.0 | 37.20 / 36.13 / 35.96 | 1887 | 0.9481 / 0.9171 | 0.9674 / 0.9599 | 3.94 (1.21 / 1.31) | 90.6 / 91.9 %, 74.3 %, 48.3 %, 218 | 0.39 / 1.28 | — |
+| `rf_fluoro` top10 | 8 | 1 | 3.4 | 62.90 / 62.80 / 62.71 | 21 | 0.9996 / 0.9995 | 0.9999 / 0.9999 | 0.21 (0.20 / 0.23) | 26.1 / 26.8 %, 0.1 %, 0.0 %, 3 | 0.01 / 0.04 | — |
+| `rf_fluoro` top10 | 8 | 2 | 4.5 | 59.63 / 59.58 / 59.56 | 31 | 0.9990 / 0.9990 | 0.9999 / 0.9999 | 0.30 (0.30 / 0.34) | 38.3 / 38.6 %, 0.8 %, 0.0 %, 3 | 0.01 / 0.05 | — |
+| `rf_fluoro` top10 | 8 | 4 | 7.6 | 54.46 / 54.14 / 54.12 | 46 | 0.9966 / 0.9964 | 0.9995 / 0.9995 | 0.56 (0.56 / 0.62) | 59.0 / 60.7 %, 12.2 %, 0.0 %, 6 | 0.02 / 0.07 | — |
+| `rf_fluoro` top10 | 8 | 8 | 21.5 | 48.66 / 48.05 / 47.76 | 105 | 0.9875 / 0.9851 | 0.9981 / 0.9980 | 1.09 (0.99 / 1.07) | 75.1 / 76.5 %, 40.5 %, 7.6 %, 12 | 0.04 / 0.15 | — |
+| `rf_fluoro` top10 | 8 | 12 | 58.6 | 46.04 / 45.32 / 44.42 | 250 | 0.9776 / 0.9681 | 0.9961 / 0.9953 | 1.45 (1.13 / 1.16) | 78.9 / 80.3 %, 52.0 %, 19.4 %, 24 | 0.06 / 0.24 | — |
+| `rf_fluoro` top10 | 8 | 16 | 121.3 | 45.00 / 44.17 / 42.84 | 266 | 0.9722 / 0.9546 | 0.9944 / 0.9923 | 1.64 (1.13 / 1.17) | 80.4 / 81.5 %, 55.8 %, 25.0 %, 29 | 0.08 / 0.31 | — |
+| `rf_fluoro` top10 | 8 | 24 | 237.6 | 44.18 / 43.27 / 41.93 | 446 | 0.9685 / 0.9462 | 0.9925 / 0.9892 | 1.82 (1.14 / 1.18) | 81.7 / 83.2 %, 58.3 %, 28.2 %, 51 | 0.11 / 0.40 | — |
+| `rf_fluoro` top10 | 8 | 32 | 428.7 | 43.13 / 42.30 / 41.18 | 669 | 0.9651 / 0.9414 | 0.9898 / 0.9859 | 2.07 (1.15 / 1.20) | 83.3 / 84.5 %, 60.6 %, 31.2 %, 77 | 0.14 / 0.52 | — |
+| `rf_fluoro` top10 | 8 | 40 | 736.0 | 41.76 / 40.91 / 40.22 | 843 | 0.9610 / 0.9367 | 0.9854 / 0.9814 | 2.45 (1.17 / 1.23) | 85.5 / 88.5 %, 64.9 %, 34.8 %, 93 | 0.19 / 0.71 | — |
+| `rf_fluoro` top10 | 8 | 56 | 2039.9 | 37.14 / 36.12 / 35.96 | 2042 | 0.9481 / 0.9171 | 0.9672 / 0.9592 | 3.95 (1.21 / 1.31) | 90.2 / 92.1 %, 75.3 %, 48.5 %, 236 | 0.39 / 1.32 | — |
+| `rf_fluoro` window | 1 | 1 | 3.1 | 36.00 / 26.52 / 24.71 | 1216 | 0.9970 / 0.9584 | 0.9980 / 0.9743 | 0.11 (0.20 / 0.29) | 12.7 / 13.2 %, 0.0 %, 0.0 %, 5 | 0.00 / 0.01 | — |
+| `rf_fluoro` window | 1 | 2 | 3.9 | 35.99 / 26.52 / 24.71 | 1218 | 0.9968 / 0.9582 | 0.9980 / 0.9743 | 0.16 (0.24 / 0.32) | 20.0 / 20.3 %, 0.0 %, 0.0 %, 5 | 0.01 / 0.02 | — |
+| `rf_fluoro` window | 1 | 4 | 5.7 | 35.97 / 26.52 / 24.71 | 1218 | 0.9961 / 0.9577 | 0.9979 / 0.9742 | 0.30 (0.37 / 0.43) | 38.2 / 38.7 %, 0.9 %, 0.0 %, 7 | 0.01 / 0.04 | — |
+| `rf_fluoro` window | 1 | 8 | 10.9 | 35.91 / 26.51 / 24.71 | 1218 | 0.9928 / 0.9550 | 0.9974 / 0.9738 | 0.65 (0.68 / 0.76) | 63.6 / 65.0 %, 17.7 %, 0.3 %, 16 | 0.02 / 0.08 | — |
+| `rf_fluoro` window | 1 | 12 | 19.7 | 35.80 / 26.50 / 24.70 | 1220 | 0.9876 / 0.9508 | 0.9966 / 0.9733 | 0.98 (0.94 / 1.02) | 72.8 / 74.5 %, 34.9 %, 4.3 %, 20 | 0.04 / 0.13 | — |
+| `rf_fluoro` window | 1 | 16 | 34.8 | 35.69 / 26.49 / 24.69 | 1220 | 0.9821 / 0.9464 | 0.9956 / 0.9725 | 1.23 (1.09 / 1.14) | 76.6 / 78.0 %, 45.4 %, 12.0 %, 33 | 0.05 / 0.17 | — |
+| `rf_fluoro` window | 1 | 24 | 82.2 | 35.53 / 26.47 / 24.68 | 1535 | 0.9736 / 0.9403 | 0.9937 / 0.9712 | 1.53 (1.13 / 1.17) | 79.1 / 80.6 %, 53.5 %, 22.0 %, 53 | 0.07 / 0.26 | — |
+| `rf_fluoro` window | 1 | 32 | 178.2 | 35.36 / 26.45 / 24.66 | 1240 | 0.9677 / 0.9356 | 0.9912 / 0.9692 | 1.76 (1.14 / 1.19) | 81.1 / 82.5 %, 57.0 %, 27.5 %, 93 | 0.10 / 0.37 | — |
+| `rf_fluoro` window | 1 | 40 | 291.3 | 35.15 / 26.40 / 24.63 | 1260 | 0.9641 / 0.9319 | 0.9886 / 0.9665 | 2.00 (1.15 / 1.20) | 82.9 / 84.4 %, 59.5 %, 30.4 %, 119 | 0.13 / 0.48 | — |
+| `rf_fluoro` window | 1 | 56 | 759.1 | 34.25 / 26.18 / 24.47 | 2025 | 0.9536 / 0.9208 | 0.9775 / 0.9553 | 3.00 (1.18 / 1.26) | 87.8 / 89.1 %, 68.1 %, 38.5 %, 234 | 0.26 / 0.92 | — |
+| `rf_fluoro` window | 16 | 1 | 3.1 | 36.00 / 26.52 / 24.71 | 1218 | 0.9970 / 0.9584 | 0.9980 / 0.9743 | 0.11 (0.20 / 0.29) | 13.1 / 13.7 %, 0.0 %, 0.0 %, 5 | 0.00 / 0.02 | — |
+| `rf_fluoro` window | 16 | 2 | 3.9 | 35.99 / 26.52 / 24.71 | 1218 | 0.9968 / 0.9582 | 0.9979 / 0.9743 | 0.16 (0.24 / 0.32) | 20.3 / 20.7 %, 0.0 %, 0.0 %, 5 | 0.01 / 0.02 | — |
+| `rf_fluoro` window | 16 | 4 | 5.7 | 35.98 / 26.52 / 24.71 | 1218 | 0.9962 / 0.9577 | 0.9979 / 0.9742 | 0.30 (0.36 / 0.43) | 38.0 / 39.0 %, 0.9 %, 0.0 %, 7 | 0.01 / 0.04 | — |
+| `rf_fluoro` window | 16 | 8 | 10.8 | 35.90 / 26.51 / 24.71 | 1222 | 0.9930 / 0.9552 | 0.9974 / 0.9738 | 0.65 (0.66 / 0.75) | 63.1 / 64.8 %, 17.4 %, 0.3 %, 16 | 0.02 / 0.08 | — |
+| `rf_fluoro` window | 16 | 12 | 19.8 | 35.80 / 26.50 / 24.70 | 1227 | 0.9879 / 0.9511 | 0.9966 / 0.9733 | 0.97 (0.94 / 1.01) | 72.7 / 74.2 %, 34.9 %, 4.3 %, 16 | 0.03 / 0.13 | — |
+| `rf_fluoro` window | 16 | 16 | 36.0 | 35.69 / 26.49 / 24.69 | 1227 | 0.9823 / 0.9466 | 0.9956 / 0.9725 | 1.22 (1.09 / 1.14) | 76.5 / 78.0 %, 45.4 %, 12.0 %, 19 | 0.05 / 0.17 | — |
+| `rf_fluoro` window | 16 | 24 | 98.7 | 35.53 / 26.47 / 24.68 | 1231 | 0.9735 / 0.9404 | 0.9936 / 0.9712 | 1.53 (1.13 / 1.18) | 79.1 / 80.6 %, 53.5 %, 22.0 %, 23 | 0.07 / 0.26 | — |
+| `rf_fluoro` window | 16 | 32 | 248.3 | 35.36 / 26.45 / 24.67 | 1250 | 0.9676 / 0.9357 | 0.9912 / 0.9692 | 1.76 (1.15 / 1.19) | 80.9 / 82.3 %, 57.0 %, 27.5 %, 44 | 0.10 / 0.38 | — |
+| `rf_fluoro` window | 16 | 40 | 453.3 | 35.20 / 26.41 / 24.63 | 1231 | 0.9645 / 0.9321 | 0.9886 / 0.9665 | 2.00 (1.16 / 1.21) | 82.8 / 83.9 %, 59.5 %, 30.4 %, 65 | 0.14 / 0.48 | — |
+| `rf_fluoro` window | 16 | 56 | 1447.7 | 34.32 / 26.24 / 24.50 | 1729 | 0.9559 / 0.9225 | 0.9777 / 0.9541 | 2.89 (1.18 / 1.26) | 87.3 / 88.3 %, 67.1 %, 38.5 %, 160 | 0.27 / 0.92 | — |
+| `rf_fluoro` window | 8 | 1 | 3.1 | 36.00 / 26.52 / 24.71 | 1218 | 0.9970 / 0.9584 | 0.9980 / 0.9743 | 0.11 (0.20 / 0.29) | 13.1 / 13.8 %, 0.0 %, 0.0 %, 5 | 0.00 / 0.02 | — |
+| `rf_fluoro` window | 8 | 2 | 3.9 | 35.99 / 26.52 / 24.71 | 1220 | 0.9968 / 0.9582 | 0.9979 / 0.9743 | 0.16 (0.24 / 0.32) | 20.2 / 20.7 %, 0.0 %, 0.0 %, 5 | 0.01 / 0.02 | — |
+| `rf_fluoro` window | 8 | 4 | 5.7 | 35.97 / 26.52 / 24.71 | 1218 | 0.9961 / 0.9578 | 0.9979 / 0.9742 | 0.30 (0.36 / 0.43) | 38.4 / 39.0 %, 0.9 %, 0.0 %, 9 | 0.01 / 0.04 | — |
+| `rf_fluoro` window | 8 | 8 | 10.8 | 35.90 / 26.51 / 24.71 | 1225 | 0.9929 / 0.9552 | 0.9974 / 0.9739 | 0.65 (0.67 / 0.75) | 63.6 / 64.9 %, 17.5 %, 0.3 %, 16 | 0.02 / 0.08 | — |
+| `rf_fluoro` window | 8 | 12 | 19.8 | 35.80 / 26.50 / 24.70 | 1225 | 0.9878 / 0.9511 | 0.9966 / 0.9733 | 0.98 (0.94 / 1.01) | 72.8 / 74.4 %, 34.9 %, 4.3 %, 16 | 0.04 / 0.13 | — |
+| `rf_fluoro` window | 8 | 16 | 35.7 | 35.69 / 26.49 / 24.69 | 1225 | 0.9823 / 0.9467 | 0.9956 / 0.9726 | 1.22 (1.09 / 1.14) | 76.5 / 78.1 %, 45.4 %, 12.0 %, 19 | 0.05 / 0.18 | — |
+| `rf_fluoro` window | 8 | 24 | 93.6 | 35.53 / 26.47 / 24.68 | 1535 | 0.9735 / 0.9404 | 0.9936 / 0.9712 | 1.54 (1.13 / 1.18) | 79.1 / 80.7 %, 53.5 %, 22.0 %, 31 | 0.07 / 0.27 | — |
+| `rf_fluoro` window | 8 | 32 | 236.9 | 35.36 / 26.45 / 24.67 | 1233 | 0.9675 / 0.9356 | 0.9912 / 0.9691 | 1.77 (1.14 / 1.19) | 81.0 / 82.4 %, 57.0 %, 27.5 %, 51 | 0.10 / 0.38 | — |
+| `rf_fluoro` window | 8 | 40 | 424.9 | 35.18 / 26.41 / 24.63 | 1240 | 0.9641 / 0.9321 | 0.9885 / 0.9665 | 2.01 (1.16 / 1.21) | 82.9 / 83.9 %, 59.5 %, 30.4 %, 135 | 0.13 / 0.49 | — |
+| `rf_fluoro` window | 8 | 56 | 1305.5 | 34.26 / 26.23 / 24.50 | 1734 | 0.9545 / 0.9226 | 0.9776 / 0.9543 | 2.92 (1.18 / 1.26) | 87.6 / 89.0 %, 68.2 %, 38.5 %, 151 | 0.26 / 0.91 | — |
+| `us_liver` (provisional) rgb420 | 1 | 1 | 9.0 | 43.53 / 43.22 / 41.76 | 85 | 0.9952 / 0.9944 | 0.9995 / 0.9995 | 0.77 (0.30 / 0.31) | 44.2 / 47.2 %, 24.5 %, 10.6 %, 85 | 0.06 / 0.11 | — |
+| `us_liver` (provisional) rgb420 | 1 | 2 | 10.3 | 43.35 / 43.05 / 41.63 | 85 | 0.9948 / 0.9941 | 0.9994 / 0.9994 | 0.78 (0.31 / 0.32) | 48.7 / 51.7 %, 25.2 %, 10.9 %, 85 | 0.07 / 0.13 | — |
+| `us_liver` (provisional) rgb420 | 1 | 4 | 12.3 | 43.03 / 42.76 / 41.39 | 85 | 0.9940 / 0.9934 | 0.9992 / 0.9991 | 0.81 (0.32 / 0.34) | 56.8 / 59.3 %, 26.8 %, 11.4 %, 85 | 0.09 / 0.17 | — |
+| `us_liver` (provisional) rgb420 | 1 | 8 | 15.1 | 42.20 / 41.97 / 40.76 | 92 | 0.9918 / 0.9915 | 0.9985 / 0.9984 | 0.89 (0.34 / 0.36) | 68.2 / 70.3 %, 33.6 %, 13.1 %, 92 | 0.13 / 0.25 | — |
+| `us_liver` (provisional) rgb420 | 1 | 12 | 17.5 | 41.07 / 40.88 / 39.80 | 87 | 0.9885 / 0.9881 | 0.9972 / 0.9971 | 1.01 (0.38 / 0.39) | 75.3 / 77.0 %, 42.0 %, 16.1 %, 87 | 0.19 / 0.35 | — |
+| `us_liver` (provisional) rgb420 | 1 | 16 | 20.0 | 39.88 / 39.72 / 38.83 | 94 | 0.9841 / 0.9837 | 0.9958 / 0.9956 | 1.16 (0.42 / 0.43) | 80.9 / 82.1 %, 51.3 %, 20.2 %, 94 | 0.23 / 0.44 | — |
+| `us_liver` (provisional) rgb420 | 1 | 24 | 25.0 | 38.11 / 37.97 / 37.17 | 105 | 0.9733 / 0.9723 | 0.9930 / 0.9928 | 1.42 (0.56 / 0.58) | 86.7 / 87.7 %, 64.1 %, 30.8 %, 105 | 0.30 / 0.57 | — |
+| `us_liver` (provisional) rgb420 | 1 | 32 | 36.2 | 35.44 / 35.35 / 34.72 | 106 | 0.9452 / 0.9426 | 0.9865 / 0.9859 | 1.93 (0.83 / 0.85) | 91.1 / 91.8 %, 75.7 %, 48.5 %, 106 | 0.41 / 0.80 | — |
+| `us_liver` (provisional) rgb420 | 1 | 40 | 66.7 | 31.94 / 31.87 / 31.33 | 117 | 0.8782 / 0.8747 | 0.9712 / 0.9703 | 2.87 (1.29 / 1.32) | 94.1 / 94.6 %, 83.6 %, 63.9 %, 117 | 0.61 / 1.15 | — |
+| `us_liver` (provisional) rgb420 | 1 | 56 | 322.1 | 26.68 / 26.55 / 25.82 | 166 | 0.6500 / 0.6338 | 0.8759 / 0.8713 | 5.26 (1.46 / 1.50) | 96.4 / 96.9 %, 90.6 %, 78.8 %, 166 | 1.40 / 2.70 | — |
+| `us_liver` (provisional) rgb420 | 16 | 1 | 9.3 | 43.50 / 43.18 / 41.76 | 84 | 0.9951 / 0.9944 | 0.9995 / 0.9995 | 0.77 (0.31 / 0.32) | 45.4 / 47.8 %, 24.5 %, 10.6 %, 84 | 0.06 / 0.11 | — |
+| `us_liver` (provisional) rgb420 | 16 | 2 | 10.8 | 43.31 / 43.00 / 41.62 | 86 | 0.9947 / 0.9940 | 0.9994 / 0.9994 | 0.79 (0.32 / 0.33) | 50.8 / 53.7 %, 25.3 %, 10.8 %, 86 | 0.07 / 0.13 | — |
+| `us_liver` (provisional) rgb420 | 16 | 4 | 13.2 | 42.95 / 42.65 / 41.36 | 87 | 0.9938 / 0.9932 | 0.9991 / 0.9991 | 0.82 (0.33 / 0.35) | 58.6 / 62.0 %, 27.5 %, 11.4 %, 87 | 0.09 / 0.17 | — |
+| `us_liver` (provisional) rgb420 | 16 | 8 | 16.4 | 41.91 / 41.62 / 40.68 | 87 | 0.9911 / 0.9905 | 0.9983 / 0.9982 | 0.92 (0.38 / 0.41) | 70.8 / 73.4 %, 36.3 %, 13.2 %, 87 | 0.14 / 0.25 | — |
+| `us_liver` (provisional) rgb420 | 16 | 12 | 19.6 | 40.60 / 40.35 / 39.70 | 92 | 0.9869 / 0.9861 | 0.9969 / 0.9968 | 1.07 (0.45 / 0.49) | 78.8 / 80.2 %, 47.1 %, 16.6 %, 92 | 0.19 / 0.35 | — |
+| `us_liver` (provisional) rgb420 | 16 | 16 | 22.7 | 39.38 / 39.18 / 38.74 | 93 | 0.9819 / 0.9812 | 0.9953 / 0.9951 | 1.23 (0.52 / 0.55) | 83.3 / 83.9 %, 54.9 %, 21.2 %, 93 | 0.24 / 0.44 | — |
+| `us_liver` (provisional) rgb420 | 16 | 24 | 29.3 | 37.56 / 37.33 / 37.14 | 100 | 0.9710 / 0.9698 | 0.9920 / 0.9916 | 1.52 (0.65 / 0.68) | 87.5 / 87.8 %, 64.7 %, 31.8 %, 100 | 0.32 / 0.58 | — |
+| `us_liver` (provisional) rgb420 | 16 | 32 | 44.8 | 34.86 / 34.66 / 34.62 | 108 | 0.9429 / 0.9404 | 0.9842 / 0.9832 | 2.05 (0.90 / 0.94) | 91.4 / 91.8 %, 75.7 %, 48.5 %, 108 | 0.47 / 0.78 | — |
+| `us_liver` (provisional) rgb420 | 16 | 40 | 88.3 | 31.68 / 31.51 / 31.33 | 125 | 0.8824 / 0.8760 | 0.9669 / 0.9650 | 2.96 (1.28 / 1.31) | 94.1 / 94.6 %, 83.6 %, 63.9 %, 125 | 0.71 / 1.16 | — |
+| `us_liver` (provisional) rgb420 | 16 | 56 | 606.4 | 26.57 / 26.40 / 25.82 | 166 | 0.6610 / 0.6338 | 0.8735 / 0.8688 | 5.33 (1.47 / 1.51) | 96.4 / 96.9 %, 90.6 %, 78.8 %, 166 | 1.51 / 2.70 | — |
+| `us_liver` (provisional) rgb420 | 8 | 1 | 9.3 | 43.50 / 43.19 / 41.76 | 84 | 0.9951 / 0.9944 | 0.9995 / 0.9995 | 0.77 (0.30 / 0.32) | 45.3 / 47.8 %, 24.5 %, 10.6 %, 84 | 0.06 / 0.11 | — |
+| `us_liver` (provisional) rgb420 | 8 | 2 | 10.8 | 43.32 / 43.00 / 41.62 | 86 | 0.9947 / 0.9940 | 0.9994 / 0.9994 | 0.79 (0.32 / 0.33) | 50.7 / 53.7 %, 25.3 %, 10.8 %, 86 | 0.07 / 0.13 | — |
+| `us_liver` (provisional) rgb420 | 8 | 4 | 13.1 | 42.96 / 42.65 / 41.36 | 87 | 0.9938 / 0.9932 | 0.9991 / 0.9991 | 0.82 (0.33 / 0.35) | 58.6 / 62.0 %, 27.5 %, 11.4 %, 87 | 0.09 / 0.17 | — |
+| `us_liver` (provisional) rgb420 | 8 | 8 | 16.4 | 41.95 / 41.66 / 40.68 | 88 | 0.9911 / 0.9906 | 0.9983 / 0.9982 | 0.92 (0.37 / 0.41) | 70.8 / 73.2 %, 36.3 %, 13.2 %, 88 | 0.14 / 0.25 | — |
+| `us_liver` (provisional) rgb420 | 8 | 12 | 19.4 | 40.62 / 40.39 / 39.70 | 92 | 0.9872 / 0.9862 | 0.9970 / 0.9968 | 1.06 (0.44 / 0.50) | 78.4 / 80.2 %, 46.8 %, 16.6 %, 92 | 0.19 / 0.35 | — |
+| `us_liver` (provisional) rgb420 | 8 | 16 | 22.5 | 39.41 / 39.20 / 38.74 | 94 | 0.9823 / 0.9814 | 0.9954 / 0.9952 | 1.22 (0.50 / 0.55) | 83.1 / 83.9 %, 54.7 %, 21.2 %, 94 | 0.24 / 0.44 | — |
+| `us_liver` (provisional) rgb420 | 8 | 24 | 28.9 | 37.58 / 37.32 / 37.14 | 100 | 0.9710 / 0.9699 | 0.9920 / 0.9915 | 1.50 (0.64 / 0.69) | 87.5 / 87.9 %, 64.9 %, 31.8 %, 100 | 0.32 / 0.58 | — |
+| `us_liver` (provisional) rgb420 | 8 | 32 | 44.0 | 34.94 / 34.71 / 34.62 | 110 | 0.9431 / 0.9396 | 0.9844 / 0.9833 | 2.03 (0.89 / 0.94) | 91.3 / 91.8 %, 75.7 %, 48.5 %, 110 | 0.47 / 0.78 | — |
+| `us_liver` (provisional) rgb420 | 8 | 40 | 86.0 | 31.73 / 31.54 / 31.33 | 125 | 0.8812 / 0.8760 | 0.9671 / 0.9644 | 2.94 (1.28 / 1.31) | 94.1 / 94.6 %, 83.6 %, 63.9 %, 125 | 0.70 / 1.16 | — |
+| `us_liver` (provisional) rgb420 | 8 | 56 | 564.6 | 26.59 / 26.42 / 25.82 | 166 | 0.6590 / 0.6338 | 0.8735 / 0.8691 | 5.30 (1.46 / 1.51) | 96.4 / 96.9 %, 90.6 %, 78.8 %, 166 | 1.49 / 2.70 | — |
 | `usb_cine` (provisional) 8bit | 1 | 1 | 5.6 | 57.57 / 57.41 / 57.38 | 2 | 0.9991 / 0.9990 | 0.9999 / 0.9999 | 0.93 (0.90 / 1.04) | 11.3 / 11.8 %, 0.0 %, 0.0 %, 2 | 0.19 / 0.37 | 10.0 |
 | `usb_cine` (provisional) 8bit | 1 | 2 | 7.0 | 55.28 / 55.10 / 55.06 | 4 | 0.9985 / 0.9983 | 0.9998 / 0.9998 | 1.16 (1.12 / 1.25) | 18.5 / 19.3 %, 0.3 %, 0.0 %, 4 | 0.24 / 0.43 | 10.0 |
 | `usb_cine` (provisional) 8bit | 1 | 4 | 9.1 | 53.11 / 52.52 / 52.48 | 6 | 0.9975 / 0.9970 | 0.9997 / 0.9996 | 1.53 (1.34 / 1.45) | 25.7 / 28.3 %, 2.7 %, 0.0 %, 6 | 0.33 / 0.61 | 10.0 |
@@ -4148,6 +4685,9 @@ series), TRUS (two) and the MR controls (two) are too few to name one.
 
 | series, form | G | PSNR | MS-SSIM (dB of 1 − MS-SSIM) | noise-band e ÷ σ | ≥ 1 level | JOD |
 | --- | --: | --: | --: | --: | --: | --: |
+| `dbt10_d` 10bit | 1 | 12 | 12 | 8 | 8 | 24 |
+| `dbt10_d` 10bit | 16 | 12 | 12 | 12 | 8 | 24 |
+| `dbt10_d` 10bit | 8 | 12 | 12 | 12 | 8 | 24 |
 | `dbt10_ea1141` 10bit | 1 | 12 | 12 | 12 | 8 | 24 |
 | `dbt10_ea1141` 10bit | 16 | 12 | 12 | 12 | 8 | 24 |
 | `dbt10_ea1141` 10bit | 8 | 12 | 12 | 12 | 8 | 24 |
@@ -4187,6 +4727,33 @@ series), TRUS (two) and the MR controls (two) are too few to name one.
 | `dbts_a2` window | 1 | 32 | 32 | 32 | 24 | None |
 | `dbts_a2` window | 16 | 32 | 32 | 32 | 24 | None |
 | `dbts_a2` window | 8 | 32 | 32 | 32 | 24 | None |
+| `dbts_a3` 12bit | 1 | 8 | 8 | 8 | 8 | 16 |
+| `dbts_a3` 12bit | 16 | 8 | 8 | 8 | 8 | 16 |
+| `dbts_a3` 12bit | 8 | 8 | 8 | 8 | 8 | 16 |
+| `dbts_a3` top10 | 1 | 8 | 8 | 8 | 8 | None |
+| `dbts_a3` top10 | 16 | 8 | 8 | 8 | 8 | None |
+| `dbts_a3` top10 | 8 | 8 | 8 | 8 | 8 | None |
+| `dbts_a3` window | 1 | 32 | 32 | 32 | 24 | None |
+| `dbts_a3` window | 16 | 32 | 32 | 32 | 24 | None |
+| `dbts_a3` window | 8 | 32 | 32 | 32 | 24 | None |
+| `dbts_a4` 12bit | 1 | 8 | 8 | 8 | 8 | 16 |
+| `dbts_a4` 12bit | 16 | 8 | 8 | 8 | 8 | 16 |
+| `dbts_a4` 12bit | 8 | 8 | 8 | 8 | 8 | 16 |
+| `dbts_a4` top10 | 1 | 8 | 8 | 8 | 8 | None |
+| `dbts_a4` top10 | 16 | 8 | 8 | 8 | 8 | None |
+| `dbts_a4` top10 | 8 | 8 | 8 | 8 | 8 | None |
+| `dbts_a4` window | 1 | 32 | 32 | 32 | 24 | None |
+| `dbts_a4` window | 16 | 32 | 32 | 32 | 24 | None |
+| `dbts_a4` window | 8 | 32 | 32 | 32 | 24 | None |
+| `dbts_a5` 12bit | 1 | 8 | 8 | 8 | 8 | 16 |
+| `dbts_a5` 12bit | 16 | 8 | 8 | 8 | 8 | 16 |
+| `dbts_a5` 12bit | 8 | 8 | 8 | 8 | 8 | 16 |
+| `dbts_a5` top10 | 1 | 8 | 8 | 8 | 8 | None |
+| `dbts_a5` top10 | 16 | 8 | 8 | 8 | 8 | None |
+| `dbts_a5` top10 | 8 | 8 | 8 | 8 | 8 | None |
+| `dbts_a5` window | 1 | 32 | 32 | 32 | 24 | None |
+| `dbts_a5` window | 16 | 32 | 40 | 32 | 24 | None |
+| `dbts_a5` window | 8 | 32 | 40 | 32 | 24 | None |
 | `dbts_b1` 10bit | 1 | 12 | 12 | 12 | 8 | 24 |
 | `dbts_b1` 10bit | 16 | 12 | 12 | 12 | 8 | 24 |
 | `dbts_b1` 10bit | 8 | 12 | 12 | 12 | 8 | 24 |
@@ -4196,6 +4763,9 @@ series), TRUS (two) and the MR controls (two) are too few to name one.
 | `dbts_b3` 10bit | 1 | 12 | 12 | 12 | 8 | 24 |
 | `dbts_b3` 10bit | 16 | 12 | 12 | 12 | 8 | 24 |
 | `dbts_b3` 10bit | 8 | 12 | 12 | 12 | 8 | 24 |
+| `dbts_b4` 10bit | 1 | 12 | 12 | 12 | 8 | 24 |
+| `dbts_b4` 10bit | 16 | 12 | 12 | 12 | 8 | 32 |
+| `dbts_b4` 10bit | 8 | 12 | 12 | 12 | 8 | 24 |
 | `dbts_b5` 10bit | 1 | 8 | 12 | 8 | 8 | 24 |
 | `dbts_b5` 10bit | 16 | 12 | 12 | 8 | 8 | 24 |
 | `dbts_b5` 10bit | 8 | 12 | 12 | 8 | 8 | 24 |
@@ -4256,6 +4826,18 @@ series), TRUS (two) and the MR controls (two) are too few to name one.
 | `mr_ispy1` window | 1 | 24 | 24 | 40 | 24 | None |
 | `mr_ispy1` window | 16 | 24 | 24 | 40 | 24 | None |
 | `mr_ispy1` window | 8 | 24 | 24 | 40 | 24 | None |
+| `rf_fluoro` 12bit | 1 | 8 | 8 | 8 | 8 | 24 |
+| `rf_fluoro` 12bit | 16 | 8 | 8 | 8 | 8 | 24 |
+| `rf_fluoro` 12bit | 8 | 8 | 8 | 8 | 8 | 24 |
+| `rf_fluoro` top10 | 1 | 8 | 8 | 8 | 8 | None |
+| `rf_fluoro` top10 | 16 | 8 | 8 | 8 | 8 | None |
+| `rf_fluoro` top10 | 8 | 8 | 8 | 8 | 8 | None |
+| `rf_fluoro` window | 1 | 32 | 32 | 16 | 12 | None |
+| `rf_fluoro` window | 16 | 40 | 32 | 16 | 12 | None |
+| `rf_fluoro` window | 8 | 32 | 32 | 16 | 12 | None |
+| `us_liver` (provisional) rgb420 | 1 | 40 | 32 | 40 | 24 | None |
+| `us_liver` (provisional) rgb420 | 16 | 40 | 32 | 40 | 24 | None |
+| `us_liver` (provisional) rgb420 | 8 | 40 | 32 | 40 | 24 | None |
 | `usb_cine` (provisional) 8bit | 1 | 24 | 24 | 40 | 24 | 32 |
 | `usb_cine` (provisional) 8bit | 16 | 16 | 16 | 40 | 16 | 32 |
 | `usb_cine` (provisional) 8bit | 8 | 16 | 16 | 32 | 16 | 32 |
@@ -4273,6 +4855,9 @@ series), TRUS (two) and the MR controls (two) are too few to name one.
 
 | series, form | G | noise-band e ≤ σ | e ≤ σ | every window ≤ 1 level | scroll, band < step | scroll, full < step |
 | --- | --: | --: | --: | --: | --: | --: |
+| `dbt10_d` 10bit | 1 | 12 | 4 | None | 16 | 32 |
+| `dbt10_d` 10bit | 16 | 12 | 4 | None | 16 | 32 |
+| `dbt10_d` 10bit | 8 | 12 | 4 | None | 16 | 32 |
 | `dbt10_ea1141` 10bit | 1 | 12 | 4 | None | 24 | 32 |
 | `dbt10_ea1141` 10bit | 16 | 12 | 4 | None | 24 | 32 |
 | `dbt10_ea1141` 10bit | 8 | 12 | 4 | None | 24 | 32 |
@@ -4312,6 +4897,33 @@ series), TRUS (two) and the MR controls (two) are too few to name one.
 | `dbts_a2` window | 1 | 24 | None | None | None | None |
 | `dbts_a2` window | 16 | 24 | None | None | None | None |
 | `dbts_a2` window | 8 | 24 | None | None | None | None |
+| `dbts_a3` 12bit | 1 | 8 | 4 | None | 16 | 40 |
+| `dbts_a3` 12bit | 16 | 8 | 4 | None | 12 | 32 |
+| `dbts_a3` 12bit | 8 | 8 | 4 | None | 12 | 32 |
+| `dbts_a3` top10 | 1 | 8 | 4 | None | 16 | 40 |
+| `dbts_a3` top10 | 16 | 8 | 4 | None | 16 | 40 |
+| `dbts_a3` top10 | 8 | 8 | 4 | None | 16 | 40 |
+| `dbts_a3` window | 1 | 32 | None | None | None | None |
+| `dbts_a3` window | 16 | 32 | None | None | None | None |
+| `dbts_a3` window | 8 | 32 | None | None | None | None |
+| `dbts_a4` 12bit | 1 | 8 | 4 | None | 16 | 40 |
+| `dbts_a4` 12bit | 16 | 8 | 4 | None | 16 | 40 |
+| `dbts_a4` 12bit | 8 | 8 | 4 | None | 16 | 40 |
+| `dbts_a4` top10 | 1 | 8 | 4 | None | 16 | 40 |
+| `dbts_a4` top10 | 16 | 8 | 4 | None | 16 | 40 |
+| `dbts_a4` top10 | 8 | 8 | 4 | None | 16 | 40 |
+| `dbts_a4` window | 1 | 32 | None | None | None | None |
+| `dbts_a4` window | 16 | 32 | None | None | None | None |
+| `dbts_a4` window | 8 | 32 | None | None | None | None |
+| `dbts_a5` 12bit | 1 | 4 | 4 | None | 16 | 40 |
+| `dbts_a5` 12bit | 16 | 8 | 4 | None | 16 | 40 |
+| `dbts_a5` 12bit | 8 | 8 | 4 | None | 16 | 40 |
+| `dbts_a5` top10 | 1 | 4 | 4 | None | 16 | 40 |
+| `dbts_a5` top10 | 16 | 4 | 4 | None | 16 | 40 |
+| `dbts_a5` top10 | 8 | 4 | 4 | None | 16 | 40 |
+| `dbts_a5` window | 1 | 24 | None | None | None | None |
+| `dbts_a5` window | 16 | 24 | None | None | None | None |
+| `dbts_a5` window | 8 | 24 | None | None | None | None |
 | `dbts_b1` 10bit | 1 | 12 | 8 | None | 24 | 56 |
 | `dbts_b1` 10bit | 16 | 8 | 8 | None | 24 | 40 |
 | `dbts_b1` 10bit | 8 | 8 | 8 | None | 24 | 40 |
@@ -4321,6 +4933,9 @@ series), TRUS (two) and the MR controls (two) are too few to name one.
 | `dbts_b3` 10bit | 1 | 12 | 8 | None | 16 | 40 |
 | `dbts_b3` 10bit | 16 | 12 | 8 | None | 16 | 40 |
 | `dbts_b3` 10bit | 8 | 12 | 8 | None | 16 | 40 |
+| `dbts_b4` 10bit | 1 | 12 | 8 | None | 16 | 56 |
+| `dbts_b4` 10bit | 16 | 12 | 8 | None | 16 | 40 |
+| `dbts_b4` 10bit | 8 | 12 | 8 | None | 16 | 40 |
 | `dbts_b5` 10bit | 1 | 8 | 4 | None | 16 | 40 |
 | `dbts_b5` 10bit | 16 | 8 | 4 | None | 16 | 40 |
 | `dbts_b5` 10bit | 8 | 8 | 4 | None | 16 | 40 |
@@ -4381,6 +4996,18 @@ series), TRUS (two) and the MR controls (two) are too few to name one.
 | `mr_ispy1` window | 1 | 32 | 16 | 1 | 56 | None |
 | `mr_ispy1` window | 16 | 32 | 16 | None | 56 | None |
 | `mr_ispy1` window | 8 | 32 | 16 | None | 56 | None |
+| `rf_fluoro` 12bit | 1 | 4 | 4 | 1 | 40 | 40 |
+| `rf_fluoro` 12bit | 16 | 4 | 4 | 1 | 40 | 40 |
+| `rf_fluoro` 12bit | 8 | 4 | 4 | 1 | 40 | 40 |
+| `rf_fluoro` top10 | 1 | 4 | 4 | None | 40 | 40 |
+| `rf_fluoro` top10 | 16 | 4 | 4 | None | 40 | 40 |
+| `rf_fluoro` top10 | 8 | 4 | 4 | None | 40 | 40 |
+| `rf_fluoro` window | 1 | 8 | 8 | None | 56 | None |
+| `rf_fluoro` window | 16 | 8 | 8 | None | 56 | None |
+| `rf_fluoro` window | 8 | 8 | 8 | None | 56 | None |
+| `us_liver` (provisional) rgb420 | 1 | 32 | 8 | None | 32 | 24 |
+| `us_liver` (provisional) rgb420 | 16 | 32 | 8 | None | 32 | 24 |
+| `us_liver` (provisional) rgb420 | 8 | 32 | 8 | None | 32 | 24 |
 | `usb_cine` (provisional) 8bit | 1 | None | None | None | 8 | 8 |
 | `usb_cine` (provisional) 8bit | 16 | None | None | None | 4 | 4 |
 | `usb_cine` (provisional) 8bit | 8 | None | None | None | 4 | 4 |
@@ -4428,9 +5055,7 @@ series), TRUS (two) and the MR controls (two) are too few to name one.
 
 </details>
 
-**Missing.** `collect.py` without `--partial` refuses: shard 3 pushed `rows/shard-3.checks.json` (18:42 UTC) and its 14
-control and 7 series rows (19:03 UTC), then nothing by 08:00 UTC the next day; no shard-3 section. So every lossy cell
-of `dbts_a3`, `dbts_a4`, `dbts_a5` (system A), `dbts_b4` (system B), `dbt10_d` (content 2), `us_liver` (provisional)
-and `rf_fluoro` (control) is missing; their HTJ2K and lossless AV1 bytes are in the controls table above. System A
-rests on two volumes of five, which is why its row in the owner's table is the weakest. Also not run, as §2 and §Shards
-say: `dbts_a_max`, `dbts_b_max`, `dbts_c_max`, G = whole, and §6's flicker test.
+**Not run**, as §2 and §Shards say: `dbts_a_max`, `dbts_b_max`, `dbts_c_max`, G = whole, and §6's flicker test; no
+breast ultrasound cine or ABUS exists in the fixtures. *Was* (2026-11-05): shard 3's seven series missing, every
+lossy cell of `dbts_a3`, `dbts_a4`, `dbts_a5`, `dbts_b4`, `dbt10_d`, `us_liver` and `rf_fluoro`; shard 3 ran them
+2026-11-07 (its section).

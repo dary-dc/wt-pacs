@@ -1470,17 +1470,18 @@ measured above.
 
 *The owner, 2026-11-02: most roles would scroll a cine-like series as a lossy AV1 stream meant to be visually
 lossless, and some could ask for the exact frame, never by default ([`../glossary.md`](../glossary.md), *quality
-profile*).* Measured, 2026-11-02 to 2026-11-05, in three places:
+profile*).* Measured, 2026-11-02 to 2026-11-08, in three places:
 
 * **Bytes** — [`lab/av1/profiles`](../../lab/av1/profiles/README.md) §Profiles bytes, measured; **decode** — the same
   file, §Profiles decode, measured (2026-11-04).
-* **Quality** — [`lab/av1/metrics`](../../lab/av1/metrics/README.md) §Quality metrics, measured (2026-11-05), three
-  of four shards: 20 series, 1 200 cells, every rung Q 1 … 56 at G 1, 8, 16. On DBT, stored form: the coding error
-  reaches the frame's own noise after Q 8 on systems B and C (A: Q 4), at 0.10–0.22 of HTJ2K's bytes (A: 0.27–0.28),
-  where the pixel metrics also bend; **no rung, not even Q 1, keeps every displayed grey level within 1**; the
-  preview's error stays below the step between neighbouring slices to Q 16 (B: 12–24), at 0.006–0.073 of HTJ2K's.
-  Nothing is called visually lossless: that needs readers (§6 there, not run). Claimed for the named fixtures only;
-  shard 3's seven series, breast ultrasound cine and ABUS are missing.
+* **Quality** — [`lab/av1/metrics`](../../lab/av1/metrics/README.md) §Quality metrics, measured (2026-11-08), all
+  four shards: 27 series, 1 650 cells, every rung Q 1 … 56 at G 1, 8, 16. On the 19 DBT volumes, stored form: the
+  coding error reaches the frame's own noise after Q 8 on system C, Q 8–12 on B, Q 4–8 on A, at 0.09–0.28 of
+  HTJ2K's bytes, where the pixel metrics also bend (B: Q 12); **no rung, not even Q 1, keeps every displayed grey
+  level within 1**; the VL view's error stays below the step between neighbouring slices to Q 16 (12–24 by series),
+  at 0.006–0.073 of HTJ2K's. Nothing is called visually lossless: that needs readers (§6 there, not run). Claimed
+  for the named fixtures only; breast ultrasound cine and ABUS are missing. Corrected in place: the 2026-11-05
+  reading had three shards (20 series), "A: Q 4" on two of A's five volumes, and called this error the preview's.
 
 ## Exactness risks and how they're checked
 
