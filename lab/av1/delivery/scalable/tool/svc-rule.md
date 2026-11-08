@@ -1,10 +1,10 @@
 # Part 5's rule, applied to every cell measured (2026-11-05; re-applied 2026-11-08, in progress)
 
-What was run: the 20 Mbit/s 2 % loss cells ([`svc-results-r20000-loss2.md`](svc-results-r20000-loss2.md), 2 of 10 rounds) and more 5 Mbit/s rounds ([`svc-results-r5000.md`](svc-results-r5000.md), 4 of 10), then part 5's pre-registered rule applied again, as written, to every cell measured: three DBT volumes (`dbts_a1`, `dbts_b1`, `dbts_c1`; EA1141) × 5, 20 and 50 Mbit/s, 20 Mbit/s with 2 % loss and 20 Mbit/s with ±20 ms jitter × 1× and 4× CPU × the seven layered variants, layer-major.
+What was run: the 20 Mbit/s 2 % loss cells ([`svc-results-r20000-loss2.md`](svc-results-r20000-loss2.md), 2 of 10 rounds) and more 5 Mbit/s rounds ([`svc-results-r5000.md`](svc-results-r5000.md), 5 of 10), then part 5's pre-registered rule applied again, as written, to every cell measured: three DBT volumes (`dbts_a1`, `dbts_b1`, `dbts_c1`; EA1141) × 5, 20 and 50 Mbit/s, 20 Mbit/s with 2 % loss and 20 Mbit/s with ±20 ms jitter × 1× and 4× CPU × the seven layered variants, layer-major.
 What it shows: the two-layer predicted variants `p2-q20` and `p2-q40` pass every clause on `dbts_a1` and `dbts_c1`, two of the three volumes, now including every 2 % loss cell, so on the cells measured the rule reads **interesting**. Every other variant fails on two or three volumes.
 What fails them: time to exact at 50 Mbit/s and 4× CPU, where the browser's decode, not the link, sets the last exact frame (`p2-*` on `dbts_b1`, the alone variants on `dbts_a1` and `dbts_b1`); for the three-layer variants, also the bytes test.
 What it rests on: three digital breast tomosynthesis (DBT) volumes only, `dbts_a1`, `dbts_b1` and `dbts_c1`, on 4-vCPU containers of one shape (the later rounds in another container than the earlier) and headless Chromium 153.0.8010.12. Nothing is claimed for breast ultrasound cine, ABUS or any other series, host or browser.
-What is left, so the verdict is not final: the 2 % loss cells stand at 2 of the protocol's 10 rounds (n = 2 a cell) and 5 Mbit/s at 4 of 10 (n = 2–4 a cell); and the breast ultrasound cine and ABUS rows, which have no fixture.
+What is left, so the verdict is not final: the 2 % loss cells stand at 2 of the protocol's 10 rounds (n = 2 a cell) and 5 Mbit/s at 5 of 10 (n = 3–5 a cell); and the breast ultrasound cine and ABUS rows, which have no fixture.
 
 **Terms.** *SVC*, scalable coding: one AV1 stream coded in layers. The **base** is a small lossy picture at quarter size. The **middle**, in the three-layer `p3-*` only, is a full-size lossy picture. The **top** is the exact (lossless) frame.
 *`k2`* is the shipped lossless payload: single-layer AV1 split on 12 bits at k = 2 ([`payload-format.md`](../../../../../docs/av1/payload-format.md)). *`htj2k`* is HTJ2K, exact. *`res`* is HTJ2K with its half-size prefix sent first.
@@ -29,7 +29,7 @@ One divergence: `rule()` cannot see rounds that never ran, so it does not mark a
 
 ## Verdict
 
-**On every cell measured: interesting, by `p2-q20` and `p2-q40`, predicted two-layer tops.** **Not final**, because the 2 % loss cells stand at 2 of the protocol's 10 rounds (n = 2 a cell) and 5 Mbit/s at 4 of 10 (n = 2–4 a cell).
+**On every cell measured: interesting, by `p2-q20` and `p2-q40`, predicted two-layer tops.** **Not final**, because the 2 % loss cells stand at 2 of the protocol's 10 rounds (n = 2 a cell) and 5 Mbit/s at 5 of 10 (n = 3–5 a cell).
 
 * **`p2-q20`, `p2-q40` pass every clause on `dbts_a1` and `dbts_c1`** in all ten cells of each volume:
   * every frame exact;
@@ -47,7 +47,7 @@ The closest margin among the passing cells is t_X on `dbts_a1` at 50 Mbit/s 4×:
 **The 2 % loss cells.** At n = 2 the `p2-*` shapes give t_X 0.984–0.997× `k2` on `dbts_a1` and `dbts_c1` (1.002–1.015× on `dbts_b1`) and bytes 0.989–0.994×; every frame exact. A/A resolution: unknown. At 2 % loss every exact fill is bound by the loss, not the CPU ([`svc-results-r20000-loss2.md`](svc-results-r20000-loss2.md), *Where the host saturates*), so t_X there follows bytes, and the `p3-*` variants fail it where their bytes do (`p3-m10` on `dbts_b1`, 1.167–1.174×).
 
 **What would reverse it.** A fail by both `p2-*` shapes on `dbts_a1` or `dbts_c1` in the 2 % loss or 5 Mbit/s rounds still to run leaves no shape passing on two volumes. The verdict would then be **not interesting**.
-At 5 Mbit/s the A/A resolution is unknown, ±0.1 %, ±0.2 % by cell; the `p2-*` cells there pass on their medians (t_X 0.989–1.009×).
+At 5 Mbit/s the A/A resolution is ±0.1 % by cell; the `p2-*` cells there pass on their medians (t_X 0.989–1.009×).
 
 ## Per shape and volume
 
@@ -73,8 +73,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `a2-q20` | `dbts_a1` | r20000 4× | 9 | yes | 0.017 | 53 · 0 of 56 | 1.001 · ±0.1 % | 1.001 |
 | `a2-q20` | `dbts_a1` | r50000 1× | 10 | yes | not a clause here | 54 · 31 of 56 | 1.002 · ±0.2 % | 1.001 |
 | `a2-q20` | `dbts_a1` | r50000 4× | 10 | yes | not a clause here | 52.5 · 29.5 of 56 | 1.115 · ±0.4 % **FAIL** | 1.001 |
-| `a2-q20` | `dbts_a1` | r5000 1× | 2 | yes | 0.002 | 54 · 0 of 56 | 1.001 · unknown | 1.001 |
-| `a2-q20` | `dbts_a1` | r5000 4× | 3 | yes | 0.004 | 53 · 0 of 56 | 1.001 · ±0.2 % | 1.001 |
+| `a2-q20` | `dbts_a1` | r5000 1× | 3 | yes | 0.002 | 54 · 0 of 56 | 1.001 · ±0.1 % | 1.001 |
+| `a2-q20` | `dbts_a1` | r5000 4× | 4 | yes | 0.004 | 53 · 0 of 56 | 1.001 · ±0.1 % | 1.001 |
 | `a2-q20` | `dbts_a1` | r20000-l2 1× | 2 | yes | not a clause here | 53 · 0 of 56 | 1.000 · unknown | 1.001 |
 | `a2-q20` | `dbts_a1` | r20000-l2 4× | 2 | yes | not a clause here | 52 · 0 of 56 | 1.006 · unknown | 1.001 |
 | `a2-q20` | `dbts_a1` | r20000-j20 1× | 9 | yes | not a clause here | 54 · 0 of 56 | 1.001 · ±0.1 % | 1.001 |
@@ -83,8 +83,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `a2-q20` | `dbts_b1` | r20000 4× | 10 | yes | 0.018 | 43 · 0 of 50 | 1.003 · ±0.1 % | 1.002 |
 | `a2-q20` | `dbts_b1` | r50000 1× | 9 | yes | not a clause here | 47 · 0 of 50 | 1.003 · ±0.3 % | 1.002 |
 | `a2-q20` | `dbts_b1` | r50000 4× | 10 | yes | not a clause here | 42 · 0 of 50 | 1.218 · ±0.3 % **FAIL** | 1.002 |
-| `a2-q20` | `dbts_b1` | r5000 1× | 4 | yes | 0.003 | 47 · 0 of 50 | 1.002 · ±0.1 % | 1.002 |
-| `a2-q20` | `dbts_b1` | r5000 4× | 3 | yes | 0.005 | 42 · 0 of 50 | 1.002 · ±0.1 % | 1.002 |
+| `a2-q20` | `dbts_b1` | r5000 1× | 5 | yes | 0.003 | 47 · 0 of 50 | 1.002 · ±0.1 % | 1.002 |
+| `a2-q20` | `dbts_b1` | r5000 4× | 4 | yes | 0.005 | 42 · 0 of 50 | 1.002 · ±0.1 % | 1.002 |
 | `a2-q20` | `dbts_b1` | r20000-l2 1× | 2 | yes | not a clause here | 47.5 · 0 of 50 | 1.004 · unknown | 1.002 |
 | `a2-q20` | `dbts_b1` | r20000-l2 4× | 2 | yes | not a clause here | 43 · 0 of 50 | 1.003 · unknown | 1.002 |
 | `a2-q20` | `dbts_b1` | r20000-j20 1× | 8 | yes | not a clause here | 47 · 0 of 50 | 1.003 · ±0.1 % | 1.002 |
@@ -93,8 +93,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `a2-q20` | `dbts_c1` | r20000 4× | 10 | yes | 0.018 | 66 · 0 of 69 | 1.002 · ±0.2 % | 1.001 |
 | `a2-q20` | `dbts_c1` | r50000 1× | 10 | yes | not a clause here | 67 · 54 of 69 | 1.001 · ±0.1 % | 1.001 |
 | `a2-q20` | `dbts_c1` | r50000 4× | 10 | yes | not a clause here | 65 · 52 of 69 | 1.076 · ±0.3 % | 1.001 |
-| `a2-q20` | `dbts_c1` | r5000 1× | 3 | yes | 0.003 | 67 · 0 of 69 | 1.001 · ±0.1 % | 1.001 |
-| `a2-q20` | `dbts_c1` | r5000 4× | 4 | yes | 0.005 | 64 · 0 of 69 | 1.001 · unknown | 1.001 |
+| `a2-q20` | `dbts_c1` | r5000 1× | 4 | yes | 0.003 | 67 · 0 of 69 | 1.001 · ±0.1 % | 1.001 |
+| `a2-q20` | `dbts_c1` | r5000 4× | 5 | yes | 0.005 | 65 · 0 of 69 | 1.001 · ±0.1 % | 1.001 |
 | `a2-q20` | `dbts_c1` | r20000-l2 1× | 2 | yes | not a clause here | 67 · 0 of 69 | 1.011 · unknown | 1.001 |
 | `a2-q20` | `dbts_c1` | r20000-l2 4× | 2 | yes | not a clause here | 64 · 0 of 69 | 1.017 · unknown | 1.001 |
 | `a2-q20` | `dbts_c1` | r20000-j20 1× | 9 | yes | not a clause here | 67 · 0 of 69 | 1.001 · ±0.1 % | 1.001 |
@@ -103,8 +103,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `a2-q40` | `dbts_a1` | r20000 4× | 10 | yes | 0.015 | 53 · 0 of 56 | 1.001 · ±0.1 % | 1.000 |
 | `a2-q40` | `dbts_a1` | r50000 1× | 10 | yes | not a clause here | 54 · 31 of 56 | 1.001 · ±0.2 % | 1.000 |
 | `a2-q40` | `dbts_a1` | r50000 4× | 9 | yes | not a clause here | 52 · 29.5 of 56 | 1.116 · ±0.4 % **FAIL** | 1.000 |
-| `a2-q40` | `dbts_a1` | r5000 1× | 3 | yes | 0.002 | 54 · 0 of 56 | 1.000 · unknown | 1.000 |
-| `a2-q40` | `dbts_a1` | r5000 4× | 2 | yes | 0.004 | 52 · 0 of 56 | 1.001 · ±0.2 % | 1.000 |
+| `a2-q40` | `dbts_a1` | r5000 1× | 4 | yes | 0.002 | 54 · 0 of 56 | 1.000 · ±0.1 % | 1.000 |
+| `a2-q40` | `dbts_a1` | r5000 4× | 3 | yes | 0.004 | 52 · 0 of 56 | 1.001 · ±0.1 % | 1.000 |
 | `a2-q40` | `dbts_a1` | r20000-l2 1× | 2 | yes | not a clause here | 53 · 0 of 56 | 1.008 · unknown | 1.000 |
 | `a2-q40` | `dbts_a1` | r20000-l2 4× | 2 | yes | not a clause here | 51.5 · 0 of 56 | 0.997 · unknown | 1.000 |
 | `a2-q40` | `dbts_a1` | r20000-j20 1× | 10 | yes | not a clause here | 53 · 0 of 56 | 1.001 · ±0.1 % | 1.000 |
@@ -113,8 +113,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `a2-q40` | `dbts_b1` | r20000 4× | 9 | yes | 0.017 | 43 · 0 of 50 | 1.001 · ±0.1 % | 1.000 |
 | `a2-q40` | `dbts_b1` | r50000 1× | 10 | yes | not a clause here | 46.5 · 0 of 50 | 1.000 · ±0.3 % | 1.000 |
 | `a2-q40` | `dbts_b1` | r50000 4× | 10 | yes | not a clause here | 42 · 0 of 50 | 1.198 · ±0.3 % **FAIL** | 1.000 |
-| `a2-q40` | `dbts_b1` | r5000 1× | 3 | yes | 0.003 | 47 · 0 of 50 | 1.000 · ±0.1 % | 1.000 |
-| `a2-q40` | `dbts_b1` | r5000 4× | 4 | yes | 0.005 | 43.5 · 0 of 50 | 1.000 · ±0.1 % | 1.000 |
+| `a2-q40` | `dbts_b1` | r5000 1× | 4 | yes | 0.003 | 47 · 0 of 50 | 1.000 · ±0.1 % | 1.000 |
+| `a2-q40` | `dbts_b1` | r5000 4× | 5 | yes | 0.006 | 43 · 0 of 50 | 1.000 · ±0.1 % | 1.000 |
 | `a2-q40` | `dbts_b1` | r20000-l2 1× | 2 | yes | not a clause here | 46.5 · 0 of 50 | 1.007 · unknown | 1.000 |
 | `a2-q40` | `dbts_b1` | r20000-l2 4× | 2 | yes | not a clause here | 42 · 0 of 50 | 0.991 · unknown | 1.000 |
 | `a2-q40` | `dbts_b1` | r20000-j20 1× | 8 | yes | not a clause here | 46 · 0 of 50 | 1.001 · ±0.1 % | 1.000 |
@@ -123,8 +123,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `a2-q40` | `dbts_c1` | r20000 4× | 10 | yes | 0.017 | 66 · 0 of 69 | 1.001 · ±0.2 % | 1.000 |
 | `a2-q40` | `dbts_c1` | r50000 1× | 10 | yes | not a clause here | 67 · 54 of 69 | 1.001 · ±0.1 % | 1.000 |
 | `a2-q40` | `dbts_c1` | r50000 4× | 10 | yes | not a clause here | 65 · 52 of 69 | 1.078 · ±0.3 % | 1.000 |
-| `a2-q40` | `dbts_c1` | r5000 1× | 4 | yes | 0.003 | 66.5 · 0 of 69 | 1.000 · ±0.1 % | 1.000 |
-| `a2-q40` | `dbts_c1` | r5000 4× | 4 | yes | 0.005 | 66 · 0 of 69 | 1.001 · unknown | 1.000 |
+| `a2-q40` | `dbts_c1` | r5000 1× | 5 | yes | 0.003 | 67 · 0 of 69 | 1.000 · ±0.1 % | 1.000 |
+| `a2-q40` | `dbts_c1` | r5000 4× | 5 | yes | 0.005 | 66 · 0 of 69 | 1.001 · ±0.1 % | 1.000 |
 | `a2-q40` | `dbts_c1` | r20000-l2 1× | 2 | yes | not a clause here | 66.5 · 0 of 69 | 0.994 · unknown | 1.000 |
 | `a2-q40` | `dbts_c1` | r20000-l2 4× | 2 | yes | not a clause here | 64.5 · 0 of 69 | 1.011 · unknown | 1.000 |
 | `a2-q40` | `dbts_c1` | r20000-j20 1× | 9 | yes | not a clause here | 66 · 0 of 69 | 1.001 · ±0.1 % | 1.000 |
@@ -133,8 +133,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `p2-q20` | `dbts_a1` | r20000 4× | 10 | yes | 0.016 | 53 · 0 of 56 | 0.991 · ±0.1 % | 0.992 |
 | `p2-q20` | `dbts_a1` | r50000 1× | 10 | yes | not a clause here | 54 · 31 of 56 | 0.992 · ±0.2 % | 0.992 |
 | `p2-q20` | `dbts_a1` | r50000 4× | 10 | yes | not a clause here | 52 · 29.5 of 56 | 1.069 · ±0.4 % | 0.992 |
-| `p2-q20` | `dbts_a1` | r5000 1× | 3 | yes | 0.002 | 54 · 0 of 56 | 0.992 · unknown | 0.992 |
-| `p2-q20` | `dbts_a1` | r5000 4× | 2 | yes | 0.005 | 52 · 0 of 56 | 0.992 · ±0.2 % | 0.992 |
+| `p2-q20` | `dbts_a1` | r5000 1× | 4 | yes | 0.003 | 54 · 0 of 56 | 0.992 · ±0.1 % | 0.992 |
+| `p2-q20` | `dbts_a1` | r5000 4× | 3 | yes | 0.005 | 52 · 0 of 56 | 0.992 · ±0.1 % | 0.992 |
 | `p2-q20` | `dbts_a1` | r20000-l2 1× | 2 | yes | not a clause here | 54 · 0 of 56 | 0.994 · unknown | 0.992 |
 | `p2-q20` | `dbts_a1` | r20000-l2 4× | 2 | yes | not a clause here | 52.5 · 0 of 56 | 0.997 · unknown | 0.992 |
 | `p2-q20` | `dbts_a1` | r20000-j20 1× | 9 | yes | not a clause here | 54 · 0 of 56 | 0.993 · ±0.1 % | 0.992 |
@@ -143,8 +143,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `p2-q20` | `dbts_b1` | r20000 4× | 10 | yes | 0.018 | 44 · 0 of 50 | 1.010 · ±0.1 % | 1.005 |
 | `p2-q20` | `dbts_b1` | r50000 1× | 10 | yes | not a clause here | 48 · 0 of 50 | 1.009 · ±0.3 % | 1.005 |
 | `p2-q20` | `dbts_b1` | r50000 4× | 10 | yes | not a clause here | 42 · 0 of 50 | 1.202 · ±0.3 % **FAIL** | 1.005 |
-| `p2-q20` | `dbts_b1` | r5000 1× | 4 | yes | 0.003 | 47.5 · 0 of 50 | 1.005 · ±0.1 % | 1.005 |
-| `p2-q20` | `dbts_b1` | r5000 4× | 4 | yes | 0.006 | 42 · 0 of 50 | 1.006 · ±0.1 % | 1.005 |
+| `p2-q20` | `dbts_b1` | r5000 1× | 5 | yes | 0.003 | 47 · 0 of 50 | 1.005 · ±0.1 % | 1.005 |
+| `p2-q20` | `dbts_b1` | r5000 4× | 5 | yes | 0.005 | 42 · 0 of 50 | 1.007 · ±0.1 % | 1.005 |
 | `p2-q20` | `dbts_b1` | r20000-l2 1× | 2 | yes | not a clause here | 47 · 0 of 50 | 1.004 · unknown | 1.005 |
 | `p2-q20` | `dbts_b1` | r20000-l2 4× | 2 | yes | not a clause here | 42 · 0 of 50 | 1.002 · unknown | 1.005 |
 | `p2-q20` | `dbts_b1` | r20000-j20 1× | 10 | yes | not a clause here | 47 · 0 of 50 | 1.006 · ±0.1 % | 1.005 |
@@ -153,8 +153,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `p2-q20` | `dbts_c1` | r20000 4× | 9 | yes | 0.018 | 66 · 0 of 69 | 0.988 · ±0.2 % | 0.989 |
 | `p2-q20` | `dbts_c1` | r50000 1× | 10 | yes | not a clause here | 67 · 54 of 69 | 0.989 · ±0.1 % | 0.989 |
 | `p2-q20` | `dbts_c1` | r50000 4× | 10 | yes | not a clause here | 65 · 52 of 69 | 1.026 · ±0.3 % | 0.989 |
-| `p2-q20` | `dbts_c1` | r5000 1× | 3 | yes | 0.003 | 67 · 0 of 69 | 0.989 · ±0.1 % | 0.989 |
-| `p2-q20` | `dbts_c1` | r5000 4× | 4 | yes | 0.006 | 64.5 · 0 of 69 | 0.989 · unknown | 0.989 |
+| `p2-q20` | `dbts_c1` | r5000 1× | 4 | yes | 0.003 | 67 · 0 of 69 | 0.989 · ±0.1 % | 0.989 |
+| `p2-q20` | `dbts_c1` | r5000 4× | 5 | yes | 0.005 | 65 · 0 of 69 | 0.989 · ±0.1 % | 0.989 |
 | `p2-q20` | `dbts_c1` | r20000-l2 1× | 2 | yes | not a clause here | 66.5 · 0 of 69 | 0.992 · unknown | 0.989 |
 | `p2-q20` | `dbts_c1` | r20000-l2 4× | 2 | yes | not a clause here | 63 · 0 of 69 | 0.993 · unknown | 0.989 |
 | `p2-q20` | `dbts_c1` | r20000-j20 1× | 9 | yes | not a clause here | 67 · 0 of 69 | 0.989 · ±0.1 % | 0.989 |
@@ -163,8 +163,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `p2-q40` | `dbts_a1` | r20000 4× | 10 | yes | 0.015 | 53 · 0 of 56 | 0.993 · ±0.1 % | 0.994 |
 | `p2-q40` | `dbts_a1` | r50000 1× | 10 | yes | not a clause here | 54 · 31 of 56 | 0.994 · ±0.2 % | 0.994 |
 | `p2-q40` | `dbts_a1` | r50000 4× | 10 | yes | not a clause here | 52 · 29.5 of 56 | 1.070 · ±0.4 % | 0.994 |
-| `p2-q40` | `dbts_a1` | r5000 1× | 4 | yes | 0.002 | 53.5 · 0 of 56 | 0.994 · unknown | 0.994 |
-| `p2-q40` | `dbts_a1` | r5000 4× | 3 | yes | 0.004 | 53 · 0 of 56 | 0.994 · ±0.2 % | 0.994 |
+| `p2-q40` | `dbts_a1` | r5000 1× | 5 | yes | 0.002 | 54 · 0 of 56 | 0.994 · ±0.1 % | 0.994 |
+| `p2-q40` | `dbts_a1` | r5000 4× | 4 | yes | 0.004 | 52.5 · 0 of 56 | 0.994 · ±0.1 % | 0.994 |
 | `p2-q40` | `dbts_a1` | r20000-l2 1× | 2 | yes | not a clause here | 52.5 · 0 of 56 | 0.984 · unknown | 0.994 |
 | `p2-q40` | `dbts_a1` | r20000-l2 4× | 2 | yes | not a clause here | 52 · 0 of 56 | 0.992 · unknown | 0.994 |
 | `p2-q40` | `dbts_a1` | r20000-j20 1× | 9 | yes | not a clause here | 53 · 0 of 56 | 0.994 · ±0.1 % | 0.994 |
@@ -173,8 +173,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `p2-q40` | `dbts_b1` | r20000 4× | 9 | yes | 0.017 | 43 · 0 of 50 | 1.012 · ±0.1 % | 1.007 |
 | `p2-q40` | `dbts_b1` | r50000 1× | 10 | yes | not a clause here | 46 · 0 of 50 | 1.010 · ±0.3 % | 1.007 |
 | `p2-q40` | `dbts_b1` | r50000 4× | 10 | yes | not a clause here | 42 · 0 of 50 | 1.232 · ±0.3 % **FAIL** | 1.007 |
-| `p2-q40` | `dbts_b1` | r5000 1× | 3 | yes | 0.003 | 47 · 0 of 50 | 1.008 · ±0.1 % | 1.007 |
-| `p2-q40` | `dbts_b1` | r5000 4× | 4 | yes | 0.005 | 42 · 0 of 50 | 1.009 · ±0.1 % | 1.007 |
+| `p2-q40` | `dbts_b1` | r5000 1× | 4 | yes | 0.003 | 47 · 0 of 50 | 1.008 · ±0.1 % | 1.007 |
+| `p2-q40` | `dbts_b1` | r5000 4× | 5 | yes | 0.005 | 42 · 0 of 50 | 1.009 · ±0.1 % | 1.007 |
 | `p2-q40` | `dbts_b1` | r20000-l2 1× | 2 | yes | not a clause here | 47 · 0 of 50 | 1.015 · unknown | 1.007 |
 | `p2-q40` | `dbts_b1` | r20000-l2 4× | 2 | yes | not a clause here | 42 · 0 of 50 | 1.002 · unknown | 1.007 |
 | `p2-q40` | `dbts_b1` | r20000-j20 1× | 9 | yes | not a clause here | 46 · 0 of 50 | 1.009 · ±0.1 % | 1.007 |
@@ -183,8 +183,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `p2-q40` | `dbts_c1` | r20000 4× | 10 | yes | 0.016 | 66 · 0 of 69 | 0.992 · ±0.2 % | 0.992 |
 | `p2-q40` | `dbts_c1` | r50000 1× | 10 | yes | not a clause here | 66 · 54 of 69 | 0.992 · ±0.1 % | 0.992 |
 | `p2-q40` | `dbts_c1` | r50000 4× | 9 | yes | not a clause here | 65 · 52 of 69 | 1.037 · ±0.3 % | 0.992 |
-| `p2-q40` | `dbts_c1` | r5000 1× | 4 | yes | 0.003 | 66 · 0 of 69 | 0.992 · ±0.1 % | 0.992 |
-| `p2-q40` | `dbts_c1` | r5000 4× | 4 | yes | 0.005 | 65 · 0 of 69 | 0.992 · unknown | 0.992 |
+| `p2-q40` | `dbts_c1` | r5000 1× | 5 | yes | 0.003 | 66 · 0 of 69 | 0.992 · ±0.1 % | 0.992 |
+| `p2-q40` | `dbts_c1` | r5000 4× | 5 | yes | 0.004 | 65 · 0 of 69 | 0.992 · ±0.1 % | 0.992 |
 | `p2-q40` | `dbts_c1` | r20000-l2 1× | 2 | yes | not a clause here | 67 · 0 of 69 | 0.987 · unknown | 0.992 |
 | `p2-q40` | `dbts_c1` | r20000-l2 4× | 2 | yes | not a clause here | 65 · 0 of 69 | 0.990 · unknown | 0.992 |
 | `p2-q40` | `dbts_c1` | r20000-j20 1× | 9 | yes | not a clause here | 66 · 0 of 69 | 0.992 · ±0.1 % | 0.992 |
@@ -193,8 +193,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `p3-m10` | `dbts_a1` | r20000 4× | 10 | yes | 0.015 | 53 · 0 of 56 | 1.039 · ±0.1 % | 1.040 **FAIL** |
 | `p3-m10` | `dbts_a1` | r50000 1× | 10 | yes | not a clause here | 54 · 31 of 56 | 1.040 · ±0.2 % | 1.040 **FAIL** |
 | `p3-m10` | `dbts_a1` | r50000 4× | 10 | yes | not a clause here | 52 · 29.5 of 56 | 1.247 · ±0.4 % **FAIL** | 1.040 **FAIL** |
-| `p3-m10` | `dbts_a1` | r5000 1× | 3 | yes | 0.002 | 54 · 0 of 56 | 1.040 · unknown | 1.040 **FAIL** |
-| `p3-m10` | `dbts_a1` | r5000 4× | 4 | yes | 0.004 | 52 · 0 of 56 | 1.040 · ±0.2 % | 1.040 **FAIL** |
+| `p3-m10` | `dbts_a1` | r5000 1× | 4 | yes | 0.002 | 53.5 · 0 of 56 | 1.040 · ±0.1 % | 1.040 **FAIL** |
+| `p3-m10` | `dbts_a1` | r5000 4× | 5 | yes | 0.004 | 52 · 0 of 56 | 1.040 · ±0.1 % | 1.040 **FAIL** |
 | `p3-m10` | `dbts_a1` | r20000-l2 1× | 2 | yes | not a clause here | 53.5 · 0 of 56 | 1.039 · unknown | 1.040 **FAIL** |
 | `p3-m10` | `dbts_a1` | r20000-l2 4× | 2 | yes | not a clause here | 52.5 · 0 of 56 | 1.040 · unknown | 1.040 **FAIL** |
 | `p3-m10` | `dbts_a1` | r20000-j20 1× | 10 | yes | not a clause here | 53.5 · 0 of 56 | 1.040 · ±0.1 % | 1.040 **FAIL** |
@@ -203,8 +203,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `p3-m10` | `dbts_b1` | r20000 4× | 10 | yes | 0.017 | 43 · 0 of 50 | 1.172 · ±0.1 % **FAIL** | 1.170 **FAIL** |
 | `p3-m10` | `dbts_b1` | r50000 1× | 10 | yes | not a clause here | 47 · 0 of 50 | 1.178 · ±0.3 % **FAIL** | 1.170 **FAIL** |
 | `p3-m10` | `dbts_b1` | r50000 4× | 10 | yes | not a clause here | 42 · 0 of 50 | 1.923 · ±0.3 % **FAIL** | 1.170 **FAIL** |
-| `p3-m10` | `dbts_b1` | r5000 1× | 4 | yes | 0.003 | 46 · 0 of 50 | 1.170 · ±0.1 % **FAIL** | 1.170 **FAIL** |
-| `p3-m10` | `dbts_b1` | r5000 4× | 4 | yes | 0.005 | 42 · 0 of 50 | 1.170 · ±0.1 % **FAIL** | 1.170 **FAIL** |
+| `p3-m10` | `dbts_b1` | r5000 1× | 5 | yes | 0.002 | 46 · 0 of 50 | 1.170 · ±0.1 % **FAIL** | 1.170 **FAIL** |
+| `p3-m10` | `dbts_b1` | r5000 4× | 5 | yes | 0.005 | 42 · 0 of 50 | 1.170 · ±0.1 % **FAIL** | 1.170 **FAIL** |
 | `p3-m10` | `dbts_b1` | r20000-l2 1× | 2 | yes | not a clause here | 46.5 · 0 of 50 | 1.174 · unknown **FAIL** | 1.170 **FAIL** |
 | `p3-m10` | `dbts_b1` | r20000-l2 4× | 2 | yes | not a clause here | 42 · 0 of 50 | 1.167 · unknown **FAIL** | 1.170 **FAIL** |
 | `p3-m10` | `dbts_b1` | r20000-j20 1× | 9 | yes | not a clause here | 46 · 0 of 50 | 1.172 · ±0.1 % **FAIL** | 1.170 **FAIL** |
@@ -213,8 +213,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `p3-m10` | `dbts_c1` | r20000 4× | 9 | yes | 0.017 | 66 · 0 of 69 | 1.053 · ±0.2 % | 1.055 **FAIL** |
 | `p3-m10` | `dbts_c1` | r50000 1× | 10 | yes | not a clause here | 66.5 · 54 of 69 | 1.052 · ±0.1 % | 1.055 **FAIL** |
 | `p3-m10` | `dbts_c1` | r50000 4× | 10 | yes | not a clause here | 65 · 52 of 69 | 1.375 · ±0.3 % **FAIL** | 1.055 **FAIL** |
-| `p3-m10` | `dbts_c1` | r5000 1× | 4 | yes | 0.003 | 67 · 0 of 69 | 1.055 · ±0.1 % | 1.055 **FAIL** |
-| `p3-m10` | `dbts_c1` | r5000 4× | 4 | yes | 0.005 | 65 · 0 of 69 | 1.054 · unknown | 1.055 **FAIL** |
+| `p3-m10` | `dbts_c1` | r5000 1× | 5 | yes | 0.003 | 67 · 0 of 69 | 1.054 · ±0.1 % | 1.055 **FAIL** |
+| `p3-m10` | `dbts_c1` | r5000 4× | 5 | yes | 0.005 | 65 · 0 of 69 | 1.054 · ±0.1 % | 1.055 **FAIL** |
 | `p3-m10` | `dbts_c1` | r20000-l2 1× | 2 | yes | not a clause here | 66.5 · 0 of 69 | 1.052 · unknown | 1.055 **FAIL** |
 | `p3-m10` | `dbts_c1` | r20000-l2 4× | 2 | yes | not a clause here | 65 · 0 of 69 | 1.073 · unknown | 1.055 **FAIL** |
 | `p3-m10` | `dbts_c1` | r20000-j20 1× | 9 | yes | not a clause here | 66 · 0 of 69 | 1.054 · ±0.1 % | 1.055 **FAIL** |
@@ -223,8 +223,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `p3-m20` | `dbts_a1` | r20000 4× | 9 | yes | 0.016 | 53 · 0 of 56 | 0.999 · ±0.1 % | 0.999 |
 | `p3-m20` | `dbts_a1` | r50000 1× | 10 | yes | not a clause here | 54 · 31 of 56 | 1.001 · ±0.2 % | 0.999 |
 | `p3-m20` | `dbts_a1` | r50000 4× | 10 | yes | not a clause here | 52 · 29.5 of 56 | 1.262 · ±0.4 % **FAIL** | 0.999 |
-| `p3-m20` | `dbts_a1` | r5000 1× | 3 | yes | 0.002 | 54 · 0 of 56 | 0.999 · unknown | 0.999 |
-| `p3-m20` | `dbts_a1` | r5000 4× | 3 | yes | 0.004 | 53 · 0 of 56 | 0.999 · ±0.2 % | 0.999 |
+| `p3-m20` | `dbts_a1` | r5000 1× | 4 | yes | 0.002 | 54 · 0 of 56 | 0.999 · ±0.1 % | 0.999 |
+| `p3-m20` | `dbts_a1` | r5000 4× | 4 | yes | 0.004 | 53 · 0 of 56 | 0.999 · ±0.1 % | 0.999 |
 | `p3-m20` | `dbts_a1` | r20000-l2 1× | 2 | yes | not a clause here | 53.5 · 0 of 56 | 1.002 · unknown | 0.999 |
 | `p3-m20` | `dbts_a1` | r20000-l2 4× | 2 | yes | not a clause here | 52.5 · 0 of 56 | 0.997 · unknown | 0.999 |
 | `p3-m20` | `dbts_a1` | r20000-j20 1× | 8 | yes | not a clause here | 54 · 0 of 56 | 1.000 · ±0.1 % | 0.999 |
@@ -233,8 +233,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `p3-m20` | `dbts_b1` | r20000 4× | 10 | yes | 0.017 | 44 · 0 of 50 | 1.050 · ±0.1 % | 1.044 **FAIL** |
 | `p3-m20` | `dbts_b1` | r50000 1× | 10 | yes | not a clause here | 46 · 0 of 50 | 1.053 · ±0.3 % | 1.044 **FAIL** |
 | `p3-m20` | `dbts_b1` | r50000 4× | 10 | yes | not a clause here | 42 · 0 of 50 | 1.816 · ±0.3 % **FAIL** | 1.044 **FAIL** |
-| `p3-m20` | `dbts_b1` | r5000 1× | 4 | yes | 0.003 | 46 · 0 of 50 | 1.045 · ±0.1 % | 1.044 **FAIL** |
-| `p3-m20` | `dbts_b1` | r5000 4× | 4 | yes | 0.005 | 42 · 0 of 50 | 1.050 · ±0.1 % | 1.044 **FAIL** |
+| `p3-m20` | `dbts_b1` | r5000 1× | 5 | yes | 0.003 | 46 · 0 of 50 | 1.045 · ±0.1 % | 1.044 **FAIL** |
+| `p3-m20` | `dbts_b1` | r5000 4× | 5 | yes | 0.005 | 42 · 0 of 50 | 1.048 · ±0.1 % | 1.044 **FAIL** |
 | `p3-m20` | `dbts_b1` | r20000-l2 1× | 2 | yes | not a clause here | 47 · 0 of 50 | 1.039 · unknown | 1.044 **FAIL** |
 | `p3-m20` | `dbts_b1` | r20000-l2 4× | 2 | yes | not a clause here | 42.5 · 0 of 50 | 1.039 · unknown | 1.044 **FAIL** |
 | `p3-m20` | `dbts_b1` | r20000-j20 1× | 10 | yes | not a clause here | 45 · 0 of 50 | 1.046 · ±0.1 % | 1.044 **FAIL** |
@@ -243,8 +243,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `p3-m20` | `dbts_c1` | r20000 4× | 10 | yes | 0.017 | 66 · 0 of 69 | 1.000 · ±0.2 % | 1.000 |
 | `p3-m20` | `dbts_c1` | r50000 1× | 10 | yes | not a clause here | 67 · 54 of 69 | 1.001 · ±0.1 % | 1.000 |
 | `p3-m20` | `dbts_c1` | r50000 4× | 10 | yes | not a clause here | 65 · 52 of 69 | 1.313 · ±0.3 % **FAIL** | 1.000 |
-| `p3-m20` | `dbts_c1` | r5000 1× | 4 | yes | 0.003 | 67 · 0 of 69 | 1.000 · ±0.1 % | 1.000 |
-| `p3-m20` | `dbts_c1` | r5000 4× | 4 | yes | 0.005 | 65 · 0 of 69 | 1.002 · unknown | 1.000 |
+| `p3-m20` | `dbts_c1` | r5000 1× | 5 | yes | 0.003 | 67 · 0 of 69 | 1.000 · ±0.1 % | 1.000 |
+| `p3-m20` | `dbts_c1` | r5000 4× | 5 | yes | 0.005 | 65 · 0 of 69 | 1.001 · ±0.1 % | 1.000 |
 | `p3-m20` | `dbts_c1` | r20000-l2 1× | 2 | yes | not a clause here | 67 · 0 of 69 | 0.995 · unknown | 1.000 |
 | `p3-m20` | `dbts_c1` | r20000-l2 4× | 2 | yes | not a clause here | 65.5 · 0 of 69 | 1.019 · unknown | 1.000 |
 | `p3-m20` | `dbts_c1` | r20000-j20 1× | 9 | yes | not a clause here | 66 · 0 of 69 | 1.000 · ±0.1 % | 1.000 |
@@ -253,8 +253,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `p3-m30` | `dbts_a1` | r20000 4× | 10 | yes | 0.014 | 53 · 0 of 56 | 0.997 · ±0.1 % | 0.997 |
 | `p3-m30` | `dbts_a1` | r50000 1× | 10 | yes | not a clause here | 54 · 31 of 56 | 0.999 · ±0.2 % | 0.997 |
 | `p3-m30` | `dbts_a1` | r50000 4× | 10 | yes | not a clause here | 53 · 29.5 of 56 | 1.261 · ±0.4 % **FAIL** | 0.997 |
-| `p3-m30` | `dbts_a1` | r5000 1× | 3 | yes | 0.003 | 54 · 0 of 56 | 0.998 · unknown | 0.997 |
-| `p3-m30` | `dbts_a1` | r5000 4× | 4 | yes | 0.005 | 52 · 0 of 56 | 0.998 · ±0.2 % | 0.997 |
+| `p3-m30` | `dbts_a1` | r5000 1× | 4 | yes | 0.003 | 54 · 0 of 56 | 0.998 · ±0.1 % | 0.997 |
+| `p3-m30` | `dbts_a1` | r5000 4× | 5 | yes | 0.005 | 52 · 0 of 56 | 0.997 · ±0.1 % | 0.997 |
 | `p3-m30` | `dbts_a1` | r20000-l2 1× | 2 | yes | not a clause here | 53 · 0 of 56 | 0.989 · unknown | 0.997 |
 | `p3-m30` | `dbts_a1` | r20000-l2 4× | 2 | yes | not a clause here | 52.5 · 0 of 56 | 0.996 · unknown | 0.997 |
 | `p3-m30` | `dbts_a1` | r20000-j20 1× | 9 | yes | not a clause here | 53 · 0 of 56 | 0.998 · ±0.1 % | 0.997 |
@@ -263,8 +263,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `p3-m30` | `dbts_b1` | r20000 4× | 10 | yes | 0.017 | 43 · 0 of 50 | 1.032 · ±0.1 % | 1.022 **FAIL** |
 | `p3-m30` | `dbts_b1` | r50000 1× | 10 | yes | not a clause here | 46 · 0 of 50 | 1.030 · ±0.3 % | 1.022 **FAIL** |
 | `p3-m30` | `dbts_b1` | r50000 4× | 10 | yes | not a clause here | 42 · 0 of 50 | 1.811 · ±0.3 % **FAIL** | 1.022 **FAIL** |
-| `p3-m30` | `dbts_b1` | r5000 1× | 3 | yes | 0.003 | 47 · 0 of 50 | 1.022 · ±0.1 % | 1.022 **FAIL** |
-| `p3-m30` | `dbts_b1` | r5000 4× | 3 | yes | 0.005 | 42 · 0 of 50 | 1.026 · ±0.1 % | 1.022 **FAIL** |
+| `p3-m30` | `dbts_b1` | r5000 1× | 4 | yes | 0.003 | 47 · 0 of 50 | 1.022 · ±0.1 % | 1.022 **FAIL** |
+| `p3-m30` | `dbts_b1` | r5000 4× | 4 | yes | 0.005 | 42 · 0 of 50 | 1.024 · ±0.1 % | 1.022 **FAIL** |
 | `p3-m30` | `dbts_b1` | r20000-l2 1× | 2 | yes | not a clause here | 47 · 0 of 50 | 1.018 · unknown | 1.022 **FAIL** |
 | `p3-m30` | `dbts_b1` | r20000-l2 4× | 2 | yes | not a clause here | 42.5 · 0 of 50 | 1.018 · unknown | 1.022 **FAIL** |
 | `p3-m30` | `dbts_b1` | r20000-j20 1× | 9 | yes | not a clause here | 46 · 0 of 50 | 1.026 · ±0.1 % | 1.022 **FAIL** |
@@ -273,8 +273,8 @@ Each clause's value per cell. A **FAIL** is a value outside the rule's bound. *t
 | `p3-m30` | `dbts_c1` | r20000 4× | 10 | yes | 0.016 | 66 · 0 of 69 | 0.995 · ±0.2 % | 0.994 |
 | `p3-m30` | `dbts_c1` | r50000 1× | 10 | yes | not a clause here | 67 · 54 of 69 | 0.995 · ±0.1 % | 0.994 |
 | `p3-m30` | `dbts_c1` | r50000 4× | 10 | yes | not a clause here | 65 · 52 of 69 | 1.311 · ±0.3 % **FAIL** | 0.994 |
-| `p3-m30` | `dbts_c1` | r5000 1× | 3 | yes | 0.003 | 67 · 0 of 69 | 0.995 · ±0.1 % | 0.994 |
-| `p3-m30` | `dbts_c1` | r5000 4× | 4 | yes | 0.004 | 64.5 · 0 of 69 | 0.996 · unknown | 0.994 |
+| `p3-m30` | `dbts_c1` | r5000 1× | 4 | yes | 0.003 | 67 · 0 of 69 | 0.994 · ±0.1 % | 0.994 |
+| `p3-m30` | `dbts_c1` | r5000 4× | 5 | yes | 0.005 | 65 · 0 of 69 | 0.995 · ±0.1 % | 0.994 |
 | `p3-m30` | `dbts_c1` | r20000-l2 1× | 2 | yes | not a clause here | 66 · 0 of 69 | 0.990 · unknown | 0.994 |
 | `p3-m30` | `dbts_c1` | r20000-l2 4× | 2 | yes | not a clause here | 65 · 0 of 69 | 1.013 · unknown | 0.994 |
 | `p3-m30` | `dbts_c1` | r20000-j20 1× | 9 | yes | not a clause here | 66 · 0 of 69 | 0.995 · ±0.1 % | 0.994 |
@@ -292,30 +292,30 @@ The `none` link is left out: there the host saturates at the relay, so its rows 
 
 | link, CPU | variant | first picture, s | every slice with a base, s | time to exact, s | bytes ÷ `k2` |
 | --- | --- | --- | --- | --- | --- |
-| r5000 1× | `htj2k` | 2.48–3.88 | no base | 110.5–175.1 | 1.055–1.065 |
+| r5000 1× | `htj2k` | 2.48–3.87 | no base | 110.5–175.0 | 1.055–1.065 |
 | r5000 1× | `res` | 0.61–1.07 | 30.0–47.5 (its half-size prefix) | 110.5–175.1 | 1.055–1.065 |
-| r5000 1× | `k2` | 2.54–3.84 | no base | 104.9–164.5 | 1.000 |
-| r5000 1× | `a2-q20` | 0.07–0.10 | 0.27–0.49 | 105.0–164.8 | 1.001–1.002 |
+| r5000 1× | `k2` | 2.55–3.82 | no base | 104.9–164.5 | 1.000 |
+| r5000 1× | `a2-q20` | 0.07–0.10 | 0.28–0.47 | 105.0–164.8 | 1.001–1.002 |
 | r5000 1× | `a2-q40` | 0.09–0.10 | 0.26–0.47 | 104.9–164.6 | 1.000 |
-| r5000 1× | `p2-q20` | 0.07–0.10 | 0.27–0.51 | 104.0–165.4 | 0.989–1.005 |
-| r5000 1× | `p2-q40` | 0.09–0.10 | 0.29–0.46 | 104.2–165.8 | 0.992–1.007 |
-| r5000 1× | `p3-m10` | 0.09–0.10 | 0.25–0.47 | 109.1–192.4 | 1.040–1.170 |
-| r5000 1× | `p3-m20` | 0.08–0.11 | 0.28–0.53 | 104.8–171.9 | 0.999–1.044 |
-| r5000 1× | `p3-m30` | 0.08–0.10 | 0.30–0.45 | 104.6–168.2 | 0.994–1.022 |
-| r5000 1× | `lossy-q20` | 0.08–0.11 | 0.29–0.51 | never exact | 0.001–0.002 |
+| r5000 1× | `p2-q20` | 0.07–0.10 | 0.28–0.48 | 104.0–165.3 | 0.989–1.005 |
+| r5000 1× | `p2-q40` | 0.09–0.10 | 0.26–0.45 | 104.2–165.8 | 0.992–1.007 |
+| r5000 1× | `p3-m10` | 0.09 | 0.28–0.43 | 109.1–192.4 | 1.040–1.170 |
+| r5000 1× | `p3-m20` | 0.08–0.11 | 0.27–0.50 | 104.8–171.8 | 0.999–1.044 |
+| r5000 1× | `p3-m30` | 0.08–0.10 | 0.29–0.48 | 104.6–168.1 | 0.994–1.022 |
+| r5000 1× | `lossy-q20` | 0.07–0.11 | 0.29–0.51 | never exact | 0.001–0.002 |
 | r5000 1× | `lossy-m20` | 0.09–0.10 | 0.27–0.47 | never exact | 0.008–0.036 |
-| r5000 4× | `htj2k` | 2.62–4.22 | no base | 110.6–175.3 | 1.055–1.065 |
+| r5000 4× | `htj2k` | 2.63–4.21 | no base | 110.6–175.3 | 1.055–1.065 |
 | r5000 4× | `res` | 0.69–1.19 | 30.0–47.6 (its half-size prefix) | 110.6–175.3 | 1.055–1.065 |
-| r5000 4× | `k2` | 2.84–4.42 | no base | 105.1–165.0 | 1.000 |
-| r5000 4× | `a2-q20` | 0.13–0.19 | 0.49–0.91 | 105.2–165.3 | 1.001–1.002 |
-| r5000 4× | `a2-q40` | 0.12–0.17 | 0.47–0.88 | 105.2–165.1 | 1.000 |
-| r5000 4× | `p2-q20` | 0.13–0.21 | 0.54–0.99 | 104.3–166.4 | 0.989–1.005 |
-| r5000 4× | `p2-q40` | 0.12–0.18 | 0.47–0.91 | 104.5–166.5 | 0.992–1.007 |
-| r5000 4× | `p3-m10` | 0.14–0.19 | 0.48–0.93 | 109.4–193.2 | 1.040–1.170 |
-| r5000 4× | `p3-m20` | 0.12–0.21 | 0.46–0.91 | 105.1–172.9 | 0.999–1.044 |
-| r5000 4× | `p3-m30` | 0.14–0.19 | 0.52–0.91 | 104.9–169.2 | 0.994–1.022 |
-| r5000 4× | `lossy-q20` | 0.12–0.20 | 0.54–0.95 | never exact | 0.001–0.002 |
-| r5000 4× | `lossy-m20` | 0.12–0.19 | 0.49–0.91 | never exact | 0.008–0.036 |
+| r5000 4× | `k2` | 2.86–4.46 | no base | 105.1–165.0 | 1.000 |
+| r5000 4× | `a2-q20` | 0.13–0.19 | 0.50–0.91 | 105.2–165.4 | 1.001–1.002 |
+| r5000 4× | `a2-q40` | 0.12–0.18 | 0.45–0.97 | 105.2–165.1 | 1.000 |
+| r5000 4× | `p2-q20` | 0.13–0.21 | 0.51–0.94 | 104.2–166.2 | 0.989–1.005 |
+| r5000 4× | `p2-q40` | 0.12–0.18 | 0.48–0.92 | 104.5–166.5 | 0.992–1.007 |
+| r5000 4× | `p3-m10` | 0.13–0.20 | 0.45–0.94 | 109.3–193.1 | 1.040–1.170 |
+| r5000 4× | `p3-m20` | 0.12–0.20 | 0.49–0.92 | 105.1–172.7 | 0.999–1.044 |
+| r5000 4× | `p3-m30` | 0.13–0.20 | 0.49–0.94 | 104.9–169.1 | 0.994–1.022 |
+| r5000 4× | `lossy-q20` | 0.13–0.19 | 0.56–1.02 | never exact | 0.001–0.002 |
+| r5000 4× | `lossy-m20` | 0.12–0.19 | 0.49–0.92 | never exact | 0.008–0.036 |
 | r20000 1× | `htj2k` | 0.73–1.12 | no base | 27.8–43.9 | 1.055–1.065 |
 | r20000 1× | `res` | 0.30–0.42 | 7.61–12.0 (its half-size prefix) | 27.8–43.9 | 1.055–1.065 |
 | r20000 1× | `k2` | 0.76–1.20 | no base | 26.4–41.3 | 1.000 |
@@ -417,9 +417,9 @@ The `none` link is left out: there the host saturates at the relay, so its rows 
 
 * Rows: [`svc-rows.jsonl`](svc-rows.jsonl), from [`svc-results.md`](svc-results.md): `none` and 20 Mbit/s, 10 rounds.
 * Rows: [`svc-rows-r50000.jsonl`](svc-rows-r50000.jsonl), from [`svc-results-r50000.md`](svc-results-r50000.md): 50 Mbit/s, 10 rounds.
-* The `jsonl` blocks inside [`svc-results-r5000.md`](svc-results-r5000.md) (5 Mbit/s, rounds 0–3), [`svc-results-r20000-jitter20.md`](svc-results-r20000-jitter20.md) (±20 ms jitter, 10 rounds) and [`svc-results-r20000-loss2.md`](svc-results-r20000-loss2.md) (2 % loss, rounds 0–1).
+* The `jsonl` blocks inside [`svc-results-r5000.md`](svc-results-r5000.md) (5 Mbit/s, rounds 0–4), [`svc-results-r20000-jitter20.md`](svc-results-r20000-jitter20.md) (±20 ms jitter, 10 rounds) and [`svc-results-r20000-loss2.md`](svc-results-r20000-loss2.md) (2 % loss, rounds 0–1).
 
-Read at branch commit `cacd6434`. From this directory:
+Read at branch commit `bf97c002`. From this directory:
 
 ```bash
 { cat svc-rows.jsonl svc-rows-r50000.jsonl
