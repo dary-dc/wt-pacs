@@ -30,6 +30,16 @@ the optimal-quality series is a series of its own, ingested beside its exact ser
 * **Not yet run:** a browser end to end on a real pair; any phone run. The web image (`deploy/nginx`) does not serve
   the exact series' two paths. A review of each branch is due as `<branch>-fixes`.
 
+## Terms (to move into `docs/glossary.md` when the two branches' entries are reconciled)
+
+* **source sample**: a pixel's value as stored in the series' DICOM pixel data; the exact frame carries it unchanged.
+* **D**: the series' stored bit depth, DICOM *Bits Stored* (0028,0101).
+* **OQ view** (optimal quality): the lossy AV1 view every viewer sees; **exact frame**: the HTJ2K frame of the
+  source samples, sent on request.
+* **Q**: the OQ view's quality level, libaom's quantizer (higher Q, more error); **G**: frames per keyframe.
+* **coding error**: OQ value − source sample. **Depth cut**: coding the OQ view from `round(sample / 2^(D−10))` at
+  10 bits so WebCodecs can decode a D > 10 series; it adds a **rounding error** of at most 2^(D−11).
+
 ## Open (ordered)
 
 1. `claude/core`'s CI `deploy` failure (the native crate, `claude/core:client/native`, not copied by
@@ -40,6 +50,10 @@ the optimal-quality series is a series of its own, ingested beside its exact ser
 4. Serve the exact series' paths from the web image.
 5. Phone runs: tethering for development and decode numbers; Wi-Fi plus netem for transport realism and the demo.
 6. The DICOM ingest codes optimal quality (today only the lab tool does).
+7. The depth cut for D > 10 (the OQ view through WebCodecs); D ≤ 10 needs none. Not built yet.
+8. Narrow windows show the coding error most: an explicit Lossless request now; an automatic exact request when the
+   window is narrow (or a reading mode) is an option to compare, with the threshold set by readers, not chosen here.
+9. Later: HTJ2K with resolution levels and tiles for large matrices and high D.
 
 ## Decisions (the owner's, 2026-11-09)
 
@@ -54,6 +68,9 @@ the optimal-quality series is a series of its own, ingested beside its exact ser
 * No per-build "how it works" pages: the design lives in the doc that owns it (`docs/av1/payload-format.md`
   §Optimal quality, `client/README.md` §A lossy series, exact on request).
 * The demo is built on `claude/core` and reaches `main` only after review, by 2026-11-13 at the latest.
+* The depth cut is used only for D > 10, to decode through WebCodecs; D ≤ 10 is coded at its own depth. Splitting
+  the OQ view's decoded samples into top and low streams is discarded: it needs a second encode, a lossy top cannot
+  be completed by the low bits, and the screen's content could no longer be controlled.
 
 ## Pointers
 
