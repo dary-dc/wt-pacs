@@ -252,3 +252,15 @@ beside its exact series, and the client pairs them by `exactSeries` ([`../glossa
   series' bundle is known by. No `representation`, `preset` or `digests`: a frame digest makes a frame `exact`
   ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests), so a lossy frame arrives `unchecked`.
 * **Built** in `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID`; the DICOM ingest does not code it yet.
+
+**Bytes** (`scripts/demo-series.sh`, 2026-11-09, one run on a 4-core x86-64 cloud host, 443 s in all with the
+tools already built): each `.sbnd` against its exact series'. The quality at each Q is not measured here.
+
+| series | frames | exact (HTJ2K) | Q 8 G 1 | Q 8 G 8 | Q 8 G 16 | Q 24 G 1 | Q 24 G 8 | Q 24 G 16 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `dbts_a1`, 1142 × 1785, 12-bit | 56 | 67 815 186 B | 0.0740 | 0.0742 | 0.0742 | 0.0057 | 0.0026 | 0.0024 |
+| `dbts_b1`, 2560 × 3328, 10-bit | 50 | 107 410 134 B | 0.2186 | 0.2161 | 0.2159 | 0.0246 | 0.0156 | 0.0152 |
+| `dbts_c1`, 976 × 2513, 12-bit | 69 | 70 668 114 B | 0.0959 | 0.0948 | 0.0947 | 0.0071 | 0.0031 | 0.0029 |
+
+G 16 against G 1: at Q 8, 1.2 % fewer bytes on `dbts_b1` and `dbts_c1`, 0.2 % more on `dbts_a1`; at Q 24, 0.41–0.42
+of G 1's bytes on `dbts_a1` and `dbts_c1`, 0.62 on `dbts_b1`.
