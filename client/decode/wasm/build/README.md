@@ -6,7 +6,7 @@ row 91, DECODERBUILD, [`docs/av1/queue.md`](../../../../docs/av1/queue.md)); wha
 what it measured is [`docs/decode/README.md`](../../../../docs/decode/README.md) §The build, as delivered.
 
 ```bash
-client/decode/wasm/build/build.sh            # ~3 min on 4 cores; needs docker, git, curl, python3 with pip
+client/decode/wasm/build/build.sh            # ~3 min on 4 cores; needs docker, git, curl, python3 with pip, npm
 UPDATE=1 client/decode/wasm/build/build.sh   # after a change to a pin, a flag or a wrapper: rewrite the manifest
 ```
 
@@ -15,6 +15,16 @@ with no network, the repository mounted at its own path. The outputs land in `cl
 refuses to finish unless their sha256 match [`manifest.sha256`](manifest.sha256). Nothing fetched or built is
 committed. The page checks what it loads against the same manifest (`wasm-glue.js`, `built()`), and so does
 `scripts/gate.sh`, which also calls a build stale when its recipe or a wrapper is newer.
+
+## The container
+
+It runs unlabelled (`--security-opt label=disable`). On an SELinux-enforcing host (Fedora, RHEL) a container may
+read only files labelled for containers, and a checkout in a home directory is not: the build stops at
+`inside.sh: Permission denied`. The other way in, `:z`, relabels the whole checkout, `.git` included, for every
+container on the host. What unlabelled gives up is SELinux's hold on this one container: under rootless podman
+it then has the user's own rights, as the script's fetches on the host already do; under a root daemon, SELinux is
+one of the walls between an escaped root process and the host. Its inputs are pinned and checked, and it has no
+network. Where SELinux is off the flag changes nothing.
 
 ## Pins
 
