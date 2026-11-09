@@ -10,6 +10,7 @@ What each target series is, per the DICOM standard and vendors' conformance stat
 The bit split against the literature, and the alternatives above 12 bits: [`split-prior-art.md`](split-prior-art.md).
 Whether frames are coded in groups (inter) or alone, the decision and its reasons: [`frame-groups.md`](frame-groups.md).
 Lossless coding published 2023–2026, and what of it a browser can decode exactly: [`lossless-literature.md`](lossless-literature.md).
+Which metrics may claim a lossy view visually lossless, at which windows, and what still needs readers: [`vl-metrics.md`](vl-metrics.md).
 
 **Every ultrasound number in this file is provisional (the provenance audit, queue row DATAGUARD, 2026-10-08).** `us_liver`'s header says it
 was coded lossily at 12.4:1 before it was archived, the breast cine are MPEG-4 Part 2 clips, and the stills a PNG
