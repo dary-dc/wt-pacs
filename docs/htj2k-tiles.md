@@ -206,3 +206,144 @@ round-paired ratios. "Phone zoom" is a zoom to 1:1 on the phone viewport after a
 | P11 | sets whose fit is level 0 (negative control) | every arm ties W at the fit within the A/A spread | any arm over 5 % faster | §3 |
 | P12 | `dbts_b1`, the exact ask at the fit under **L**, against the OQ view's first picture (Q 8, 0.22 of the bytes, WebCodecs at 10 bits) | ×0.8–1.6 of OQ's: the exact fit picture arrives about as soon | outside 0.6–2.0 | §7; OQ bytes |
 | P13 | level picture against the exact frame painted at the same size, FFDM | as on DBT: under 50 dB, most in-window codes off by more than one | over 99 % within ±1 under every window | §2 |
+
+## Protocol, pre-registered
+
+For a session given this section and nothing else. Code goes in `lab/htj2k-tiles/` (none exists yet), and so do the rows.
+`CLAUDE.md` §Measurement applies throughout: arms interleaved, every new check mutated, the store warm (disk is not
+the question; nothing is claimed cold), times quoted and not throughputs, the host's saturation stated.
+
+### Fixtures, and their limits
+
+From [`FIXTURES.md`](FIXTURES.md) §AV1 data (`lab/av1/fetch_data.sh`, pinned by digest):
+
+| role | sets | frame · D | stages |
+| --- | --- | --- | --- |
+| FFDM, 12 bits | `ffdm_d`, `ffdms_b1` · `ffdms_b2` · `ffdms_c2` | 3328×4096 · 2560×3328 · 2394×3062, 12 | 1, 2; `ffdm_d` and `ffdms_b2` in 3 |
+| FFDM for processing, 14 bits | `mgraw_b1` · `mgraw_b2` · `mgraw_c3` | 3328×4096 · 2560×3328 · 2394×3062, 14 | 1, 2; `mgraw_b1` and `mgraw_b2` in 3 |
+| DBT slices | `dbts_b1` (the first 8 slices in 2 and 3) | 2560×3328, 10 | 1, 2, 3 with the OQ arm |
+| synthesized 2D | `syn2ds_b1` | 2560×3328, 10 | 1 |
+| 16 bits | `mg16_cbis` | 4366×6871, 16 | 1, 2 |
+| negative controls (fit at level 0) | `dbts_c3`, `ffdms_a1` | 1147×2585, 1914×2294, 12 | 1, 2; `ffdms_a1` in 3 |
+
+**Limits, to be printed with every result:** all but `ffdm_d` and `mg16_cbis` come from one collection (EA1141), three
+vendors' systems; a four-view exam is four frames and a DBT set's slices share content, so frames are not independent
+samples; mammograms carry large air backgrounds, so a region's bytes depend on where it is, which is why positions are
+chosen from stage 1's distribution; frames are hung long side vertical (an assumption about the viewer); every set is
+grey and unsigned (`dbtproj_c`'s MONOCHROME1 is not used); **no sound 15- or 16-bit large frame exists** —
+`mg16_cbis` is digitized film, lossless-but-unrepresentative, so 16 bits rests on it alone and is in no verdict; no
+CR or DX set; no phone. Only `dbts_b1` among the DBT sets has a level to gain (§Theory 3).
+
+### Arms
+
+| arm | store | the fit | a zoom or pan | decoder |
+| --- | --- | --- | --- | --- |
+| **W**, **W′** | today's codestream, one entry a frame; W′ the same bytes under another name (A/A) | the whole frame | nothing more | the delivered build |
+| **L** | today's codestream cut at ℓ_fit: two entries a frame (ADR §7) | the prefix, `decodeSubResolution(ℓ)`, clamped | the rest, whole | delivered build plus the level binding (`claude/htj2k-progressive:lab/htj2k-progressive/wasm/levels.patch`, with its SIZ reset) |
+| **P** | one codestream, `-precincts {128,128},{256,256}` (and `{128,128}` throughout in stage 1 only), RPCL, one layer; entries: the fit prefix, then one entry per (resolution finer than the fit, precinct) in codestream order | the prefix | the region's precinct entries; the client splices (§Theory 5) | the same, on the spliced codestream at level 0, cropped |
+| **T3**, **T9** | three strips, a 3 × 3 grid, edges on multiples of 32 samples; each HTJ2K tile its own codestream in the served profile, banded and band-major (ADR §8.8) | every tile's level band | the level-0 bands of the tiles in view | the delivered build, one tile a decoder, k idle decoders |
+| **OQ** (reference, not exact) | the OQ series at Q 8, G 1 (`claude/oq-ingest:lab/av1/tools/ingest_coded.py --lossy 8 1`) | the whole AV1 payload | nothing more | the product's AV1 route for the depth |
+
+No wire change: every arm's entries are asked as frames are today, `stream_frames` for each contiguous run and
+`request_frame` otherwise; envelopes (8 bytes an entry) count in the bytes. The precinct size for stage 3 is the one of
+stage 1's two with fewer phone-zoom bytes at the median position, unless it costs more than +0.5 % in total bytes;
+on a tie, `{256,256}` (fewer entries).
+
+### A viewport's actions, modelled
+
+One frame per visit, one script, the same for every arm (*derived* rules in §Terms):
+
+1. **Open** at the fit (ℓ_fit for the viewport).
+2. **Zoom** to 1:1 at position p_med; 3. **pan** by half the viewport's width; 4. **zoom** to 2:1 there (no new
+   bytes in any arm: a check, not a timing); 5. **back** to the fit; 6. **zoom** to 1:1 at p_worst.
+7. **Backfill:** the rest of the frame, after action 6.
+
+Each action starts when the previous one's picture is screen-exact (stage 3), or at once (stage 1, bytes only).
+p_med and p_worst are the 1:1 viewport centres, on a 64-sample grid of the pan range, whose **P** zoom bytes are the
+median and the maximum over the grid in stage 1, taken per frame before stage 3 and used by every arm. Viewports:
+phone 1080×2400 in stages 2 and 3; in stage 1 also tablet 2048×2732, laptop 2560×1600, two side by side on the laptop
+(1280×1600 each) and 5 MP 2048×2560.
+
+### Stage 0, the tools and their checks
+
+* **Encode.** **P** and **T** with `ojph_compress` 0.31.0 from `ingest/tools.sh`; **W**'s codestream must equal the
+  ingest's sha256 on every frame. **The index**: (resolution, precinct) → byte range from parsing the packet headers
+  alone (`layers/shapes.py`'s parser, one layer); its ranges must tile the codestream exactly.
+* **The region map** from H.3.1.1's dependencies, level by level, from the visible rectangle out to precincts (or
+  HTJ2K tiles).
+* **Checks, every frame of every stage-1 set:** P1's segment identity; P4's fit pictures; for every action of the
+  script at p_med and p_worst on the phone, the spliced codestream's level-0 crop equal to the encoder's input and to
+  OpenJPEG 2.5.4 (`-d` for the area, `-r` for the level) decoding the same spliced bytes; every **T** tile at every
+  level against `witness.py`'s analysis of that tile's samples; the assembled level-0 frame against the frame digest.
+* **Mutants, each must be caught:** one precinct of the map dropped (the region not exact); the map shrunk by one
+  coefficient at an edge where H.3.1.1 needs it (not exact); an empty packet written as 0x80 (refused or not exact);
+  two HTJ2K tiles' bands swapped; every digest truth flipped; the SIZ reset removed from the level binding (a later
+  whole frame not exact).
+* `lab/decode-bench/parity.mjs` on the delivered build and on the lab build: `PARITY OK`.
+
+### Stage 1, bytes (offline)
+
+Every frame of every set, every layout and viewport: total bytes ÷ W's; the fit's bytes; for every grid position, the
+zoom's, the pan's and the 1:1 region's coverage (bytes fetched over bytes of the visible rectangle's own blocks);
+asks and entries an action; P13's display error (the progressive lab's stage-1 metrics: PSNR, max |Δ|, in-window codes
+off by > 1 under every window). Rows per frame and action, raw in `rows/`.
+
+### Stage 2, decode
+
+Headless Chromium (Playwright's, version printed), the lab build in module workers, 1× and 4×
+(`lab/scripts/cpu_throttle.mjs`), 10 rounds in a Williams order of the arms, the first 4 frames a set, 3 timed passes
+after a checking pass; a fresh browser per throttle and round. Per action: ms from its last byte in hand to its picture
+written (splice included), for **P** on one decoder, for **T** on k idle decoders and on one. × W's whole-frame decode,
+round-paired. Every picture's digest after the clock.
+
+### Stage 3, time on shaped links
+
+`lab/av1/delivery/total-time/run.mjs` and its rig, unchanged but for the script above: links `r5000`, `r20000`,
+`r50000`, `lte-good`; 1× and 4×; a fresh server, relay and browser a visit; cells in a Williams order each round and
+arms inside each cell the same way; `plain` not run (it `VOID`s on this rig, [`rig-limits.md`](rig-limits.md)). Per
+action: time from the action to its picture screen-exact; per visit: time from open to the full frame exact; bytes.
+**OQ** contributes its first picture and bytes only. Every picture checked after the clock; a visit with any picture
+not exact fails the arm in that cell. `VOID` visits as the rig defines them are reported both dropped and kept.
+
+**The host.** State cores, CPU, browser, and **where it saturates**: the cells whose W arm is decode-bound rather than
+link-bound (exact time at 4× over 1.05 × the 1× time) are named, and no ratio from them enters the rule's link-bound
+clauses. Nothing above 50 Mbit/s is claimed; nothing past k = 3 decoders is claimed on a 4-core host, so **T9**'s
+k-decoder arm runs k = min(tiles in view, 3).
+
+### The decision rule
+
+Per set and cell, a bound b is missed only past b × (1 + s), s the cell's p90 of |W′/W − 1|; strict readings are printed
+too. **Link-bound cells** are 5 and 20 Mbit/s and `lte-good`, minus any the host section names.
+
+* **R0, exact.** Every picture of an arm exact in every kept visit, by both witnesses where two exist. An arm failing it
+  is out, naming the cell.
+* **R1, the fit pays.** **L**'s fit ≤ ×0.50 of W's in every link-bound cell, on every stage-3 set whose fit is level 1.
+  If R1 fails, stop: **P** and **T** fetch at least **L**'s fit bytes, so none of them pays at the fit (*derived*).
+* **R2, the region pays.** A layout's zoom ≤ 0.60 × **L**'s at p_med and ≤ 0.80 × at p_worst, in at least two thirds of
+  the link-bound cells, on every stage-3 FFDM set of 2560×3328 or more.
+* **R3, no tax.** Total bytes ≤ ×1.01 of W's (**P**, **T3**) or ×1.03 (**T9**); the full frame exact ≤ ×1.03 of W's;
+  no action's decode at 4× over ×1.10 of W's whole frame.
+* **R4, the controls.** On `ffdms_a1` no arm differs from W at the fit beyond the spread; if one does, the rig is
+  suspect and no verdict is drawn.
+
+**Verdicts.** R1 ∧ R2 ∧ R3 for **P**: propose **P** for large exact frames, a store-format change for the owner — over
+**T9** when its zoom bytes are no more than **T9**'s and its zoom decode ≤ ×1.25 of **T9**'s on k decoders, otherwise
+**T9** (or **T3** by the same test). R1 ∧ R3 without R2: propose **L** alone, ADR §7's path, for the exact frame at
+the fit. R1 failing: whole frames stay. **For DBT:** if R1 holds on `dbts_b1`, the reader's Lossless ask is proposed
+level-first, the OQ view kept for scrolling, and P12's ratio printed beside it; the label's wording and the per-level
+digest are the owner's. 16 bits (`mg16_cbis`) is reported and in no verdict.
+
+### Shards, each ≤ 4.5 h
+
+| shard | content | estimate (*derived*) |
+| --- | --- | --- |
+| S0 | stage 0: encoders, index, splicer, region map, checks and mutants on every stage-1 frame | 2–3 h |
+| S1 | stage 1, every frame, every layout, viewport and grid position | 1.5–3 h |
+| S2 | stage 2, 9 sets × 4 frames × 10 rounds × 2 throttles | 2.5–4 h |
+| S3a, S3b | FFDM 12 bits (`ffdm_d`, `ffdms_b2`), rounds 1–6 · 7–12 | ~2–2.5 h each: 7 arms × 4 links × 2 throttles × 2 sets a round, ~10 s a visit |
+| S3c, S3d | 14 bits (`mgraw_b1`, `mgraw_b2`), rounds 1–6 · 7–12 | ~2.5–3 h each (larger frames) |
+| S3e, S3f | `dbts_b1` with OQ and `ffdms_a1`, rounds 1–6 · 7–12 | ~1.5–2 h each |
+
+Each S3 shard records its rounds and pins (commit, Chromium, the store's digests); the summary joins pairs with equal
+pins only. A shard that reaches 4.5 h stops at the round boundary and says how many rounds it kept; the rule then
+reads the n it has and prints it.
