@@ -114,7 +114,7 @@ span up to 2 048 rows) and need not here.
 
 * **HTJ2K tiles.** "tiling of the image actually creates tile-components that can be extracted or decoded
   independently of each other. This tile independence provides one of the methods for extracting a region of the
-  image" [S1, §5]. Each tile-component's transform extends its own edges ("This extension procedure is known as
+  image" [S1, §5.3]. Each tile-component's transform extends its own edges ("This extension procedure is known as
   'periodic symmetric extension'", [S1, F.3.7]), so level 0 is the same frame for any grid but a **level picture of a
   tiled frame differs from the untiled one near tile edges**: its digest is per layout (*derived*). Measured as three
   strips; a grid's bytes rise with its edge length (*derived*). Stored as independent codestreams (§8.3) the delivered
@@ -125,7 +125,7 @@ span up to 2 048 rows) and need not here.
   resolution level, used for limiting the size of packets"; "packet: A part of the bit stream comprising a packet
   header and the compressed image data from one layer of one precinct of one resolution level of one tile-component"
   [S1, 3.71, 3.68]; "Packets provide another method for extracting a spatial region independently from the
-  codestream" [S1, §5]. Precincts are anchored at multiples of 2^PP in each resolution [S1, B.6], and "at each
+  codestream" [S1, §5.3]. Precincts are anchored at multiples of 2^PP in each resolution [S1, B.6], and "at each
   resolution level, the code-block size is bounded by the precinct size", xcb′ = min(xcb, PPx − 1) for r > 0 [S1, B.7].
   With PP ≥ 7 the 64 × 64 block grid is unchanged, so **every code-block's bytes are today's and the level pictures
   are W's, bit for bit**; only packet headers and tag trees are added (*derived*). Proposed: `-precincts
@@ -184,3 +184,25 @@ the HTREV set", [S2, 8.7.2 NOTE 2]). More bits leave more noise in the finest su
 ratio and moves the level-1 share toward its ~25 % floor ([`decode/README.md`](decode/README.md) §A prefix draws a
 smaller image: the share tracks the ratio). D scales the seconds, not the ratios (*derived*). A level picture still
 needs the clamp to 2^D − 1, measured only on grey unsigned frames.
+
+## Predictions
+
+Written before anything is run. Shares are of the frame's bytes under W; ratios are × W's, the median of
+round-paired ratios. "Phone zoom" is a zoom to 1:1 on the phone viewport after a fit at level 1. Each line's basis is
+§Theory or the measurement it names; none is measured for this layout.
+
+| # | quantity | predicted | refuted if | basis |
+| --- | --- | --- | --- | --- |
+| P1 | **P**'s bytes | every code-block segment byte-identical to W's; total +0.02–0.3 % | any segment differs, or over +1.0 % | §5, B.7 |
+| P2 | **T3**, **T9** bytes | T3 +0.1–0.6 %; T9 +0.3–2 % | T9 over +3 % | P-TILE; edge length |
+| P3 | fit bytes at level 1 (and level 2 on `mg16_cbis`) | 24–30 % (6–9 %), the 14-bit sets included | level 1 outside 20–35 % on any set | §8; RESLEVEL |
+| P4 | fit picture | **P**'s equals W's bit for bit; **T**'s differs from W's only within a few samples of a tile edge | **P** differs anywhere | §5 |
+| P5 | phone zoom bytes, share of the frame | **L** 70–76 % (the rest); **P** 10–35 % at the median position, ≤ 45 % at the worst; **T9** 20–50 %; **T3** 35–75 % | **P** at the median over 0.6 × **L** | §3, §4 |
+| P6 | a pan by half a viewport after the zoom | **P** 4–20 %; **T9** 0–40 %, most often a whole row of HTJ2K tiles or nothing | **P** over **T9** at the median | §4 |
+| P7 | decode an ask at 4× | fit ×0.25–0.34; **P** zoom ×0.40–0.75 on one decoder; **T9** zoom ×0.15–0.45 on its k idle decoders; **T3** ×0.35–0.50 | **P** zoom over ×0.9 | §6; P-TILE |
+| P8 | time to the screen-exact picture, link-bound cells (5, 20 Mbit/s, `lte-good`) | fit ×0.25–0.40 for **L**, **P**, **T**; zoom after the fit: **P** ×0.15–0.50 of **L**'s | fit over ×0.45 at 5 or 20 Mbit/s; **P** zoom over 0.6 × **L**'s | bytes are the clock (§7 of the ADR) |
+| P9 | the same at 50 Mbit/s, 4× | ratios rise toward P7's; fit ≤ ×0.5 | fit over ×0.6 | decode-bound there (progressive lab) |
+| P10 | the full frame exact, with backfill | ×1.00–1.03 for every layout | over ×1.05 | the same bytes, more asks |
+| P11 | sets whose fit is level 0 (negative control) | every arm ties W at the fit within the A/A spread | any arm over 5 % faster | §3 |
+| P12 | `dbts_b1`, the exact ask at the fit under **L**, against the OQ view's first picture (Q 8, 0.22 of the bytes, WebCodecs at 10 bits) | ×0.8–1.6 of OQ's: the exact fit picture arrives about as soon | outside 0.6–2.0 | §7; OQ bytes |
+| P13 | level picture against the exact frame painted at the same size, FFDM | as on DBT: under 50 dB, most in-window codes off by more than one | over 99 % within ±1 under every window | §2 |
