@@ -1,8 +1,8 @@
 # HTJ2K resolution levels and regions for large frames
 
 *Row HTJ2K-TILES, 2026-11-09. Theory, predictions and a pre-registered protocol; **nothing here is run**. A
-separate approach beside the optimal-quality design (`docs/lines/optimal-quality.md` on
-`claude/docs-lines`, §Open 9), lower priority than the week's demo. Sources are [S1]–[S4] at the end; *derived* marks
+separate approach beside the optimal-quality design (`claude/docs-lines:docs/lines/optimal-quality.md`
+§Open 9), lower priority than the week's demo. Sources are [S1]–[S4] at the end; *derived* marks
 our arithmetic, *unverified* what no source here checks.*
 
 ## The question
@@ -164,7 +164,7 @@ tiles in view, on as many idle decoders as there are tiles (measured for strips)
 ### 7 · How it composes with the optimal-quality view
 
 * **DBT (cine-like, D ≤ 12): the exact path's delivery, not an alternative.** Scrolling stays the OQ view's (0.07–0.22
-  of HTJ2K's bytes, `docs/lines/codecs.md` on `claude/docs-lines`); the levels lost to it as a preview.
+  of HTJ2K's bytes, `claude/docs-lines:docs/lines/codecs.md`); the levels lost to it as a preview.
   What changes is the reader's Lossless ask: today the whole frame, here the fit level first (~27 % of the bytes at
   level 1) and the region on zoom. By §3 only `dbts_b1` has a level to gain on a phone or laptop. The label's
   *Lossless* rests on the frame digest today; at ℓ ≥ 1 it would need a digest per level (and per tile for **T**) and a
@@ -209,7 +209,7 @@ round-paired ratios. "Phone zoom" is a zoom to 1:1 on the phone viewport after a
 
 ## Protocol, pre-registered
 
-For a session given this section and nothing else. Code goes in `lab/htj2k-tiles/` (none exists yet), and so do the rows.
+For a session given this section and nothing else. Code and rows go in a new directory, lab/htj2k-tiles, which does not exist yet.
 `CLAUDE.md` §Measurement applies throughout: arms interleaved, every new check mutated, the store warm (disk is not
 the question; nothing is claimed cold), times quoted and not throughputs, the host's saturation stated.
 
@@ -363,6 +363,6 @@ Read 2026-11-09; quotations are verbatim, with the PDF's symbols restored where 
 
 Repository evidence is cited where it is used: [`decode/README.md`](decode/README.md),
 [`adr/resolution-fitting-for-large-frames.md`](adr/resolution-fitting-for-large-frames.md),
-[`codecs/htj2k.md`](codecs/htj2k.md), [`FIXTURES.md`](FIXTURES.md), and on branches `claude/htj2k-progressive`
-(`lab/htj2k-progressive/README.md`, its `docs/decode/README.md` §HTJ2K progressive) and `claude/docs-lines`
-(`docs/lines/codecs.md`, `docs/lines/optimal-quality.md`).
+[`codecs/htj2k.md`](codecs/htj2k.md), [`FIXTURES.md`](FIXTURES.md), and on branches:
+`claude/htj2k-progressive:lab/htj2k-progressive/README.md`, `claude/htj2k-progressive:docs/decode/README.md`
+§HTJ2K progressive, `claude/docs-lines:docs/lines/codecs.md`, `claude/docs-lines:docs/lines/optimal-quality.md`.
