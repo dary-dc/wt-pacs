@@ -2,8 +2,9 @@
 import assert from "node:assert/strict";
 import { checkPair, pairOf } from "./pair.js";
 
-const lossy = { frameCount: 3, codec: "av1", lossy: { q: 30, g: 8, depth: 10 }, exactSeries: "1.2.840.5" };
-const exact = { frameCount: 3, digests: { algorithm: "xxh3-64", frames: ["a", "b", "c"] } };
+const source = { frameCount: 3, width: 4, height: 2, bitsStored: 10, signed: false, framesSha256: "f00d" };
+const lossy = { ...source, codec: "av1", lossy: { q: 30, g: 8, depth: 10 }, exactSeries: "1.2.840.5" };
+const exact = { ...source, digests: { algorithm: "xxh3-64", frames: ["a", "b", "c"] } };
 
 /** A series without `lossy` is not paired: today's path, untouched. */
 assert.equal(pairOf({ frameCount: 3 }), null);
@@ -22,12 +23,18 @@ for (const [bad, why] of [
   [{ exactSeries: "../x" }, /exactSeries "\.\.\/x"/],
 ]) assert.throws(() => pairOf({ ...lossy, ...bad }), why);
 
-/** The exact series must be HTJ2K, the same frame count, and carry the digests a "Lossless" label needs. */
+/** The exact series must be HTJ2K, of the same source, and carry the digests a "Lossless" label needs. */
 checkPair(lossy, exact);
+checkPair({ ...lossy, framesSha256: undefined }, exact);
 for (const [bad, why] of [
   [{ codec: "av1" }, /not an HTJ2K series/],
   [{ lossy: { q: 1, g: 1, depth: 8 } }, /not an HTJ2K series/],
   [{ frameCount: 4 }, /4 frames, not 3/],
+  [{ width: 5 }, /is 5×2, not 4×2/],
+  [{ height: 3 }, /is 4×3, not 4×2/],
+  [{ bitsStored: 12 }, /bitsStored 12, not 10/],
+  [{ signed: true }, /signed true, not false/],
+  [{ framesSha256: "beef" }, /another source: framesSha256/],
   [{ digests: undefined }, /no xxh3-64 frame digests/],
   [{ digests: { algorithm: "sha256", frames: [] } }, /no xxh3-64 frame digests/],
 ]) assert.throws(() => checkPair(lossy, { ...exact, ...bad }), why);
