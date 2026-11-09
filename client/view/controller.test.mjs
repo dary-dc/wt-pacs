@@ -396,6 +396,17 @@ test("the label never says lossless before the checksum passes", async () => {
   assert.equal(slow.labels().at(-1), "lossless");
 });
 
+/** After a failed exact request, asking again on the same frame asks the exact series again, and can reach lossless. */
+test("a failed exact request can be asked again on the same frame", async () => {
+  let answers = [exactFrame(0, false), exactFrame(0)];
+  const r = lossyRig(() => Promise.resolve(answers.shift()));
+  await r.c.showExact();
+  assert.equal(r.labels().at(-1), "failed");
+  await r.c.showExact();
+  assert.deepEqual(r.exactAsks, [0, 0]);
+  assert.equal(r.labels().at(-1), "lossless");
+});
+
 /** A series that is not lossy has no label: the quality rule says nothing of an HTJ2K series. */
 test("a series that is not lossy carries no quality label", async () => {
   const { c, events } = rig({ held: [0] });

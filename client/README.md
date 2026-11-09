@@ -86,10 +86,11 @@ dispatch rig checks `client/contract/av1/scalable/`.
 AV1 frames — as any series is: fill, steps, cine. Its **exact series** is the HTJ2K series of the same source on its
 own server. `viewer/pair.js` reads its metadata at `/series/<id>/metadata` and its transport file at
 `/wt/<id>/dev-transport.json` (`server/dev-server.py --exact-metadata … --exact-transport …`), and refuses by name an
-exact series that is not HTJ2K, has another frame count, or has no XXH3-64 digests, since none of its frames could
-then be called lossless. A second downloader, one decoder and no fill, dials it once the lossy series is connected,
-in either view. The **lossless** button, or `l`, asks the controller for the current frame exact: frame *i* of the
-exact series is asked, held beside the frame store (never in it, never cached, nothing else asked or evicted), and
+exact series that is not HTJ2K, is not of the same source (another frame count, width, height, `bitsStored` or
+`signed`, or, when both carry it, another `framesSha256`), or has no XXH3-64 digests, since none of its frames could
+then be called lossless: a digest proves a frame is its own series', not that the series is this one's source. A
+second downloader, one decoder and no fill, dials it once the lossy series is connected, in either view. The
+**lossless** button, or `l`, asks the controller for the current frame exact: frame *i* of the exact series is asked, held beside the frame store (never in it, never cached, nothing else asked or evicted), and
 painted in place of the lossy frame once its digest matched; it stays until the reader steps off the frame or
 presses the button again. A lossy frame's own `exact` means its decode matched the encoder's reconstruction, not the
 source.
@@ -97,7 +98,7 @@ source.
 * **The label** (top right, always shown on a lossy series) says what is painted, decided in one place,
   `Controller.quality`: *Optimal quality*; *fetching lossless…* while asked; *Lossless* only on the `shown` that
   follows the exact frame's paint, and only when that frame's `exact` is `true`; *Lossless check failed* in red, the
-  lossy frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed.
+  lossy frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed; the button then asks again.
 * **Routes** are any AV1 series' (§Which decoder, per payload): ≤ 10 bits through WebCodecs where its probe passed,
   12 bits and any refused config through dav1d-WASM, the route in each frame's `info.path`.
 * **Groups.** `lossy.g` reaches the downloader as `groupLength` (§An AV1 series in groups): a jump mid-group decodes

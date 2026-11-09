@@ -175,7 +175,7 @@ export class Controller {
   /** The current frame from the exact series, painted in its place once checked; it stays until the reader leaves it. */
   async showExact() {
     const i = this.current;
-    if (!this.exactSource || this.#exact?.i === i) return;
+    if (!this.exactSource || (this.#exact?.i === i && !this.#exact.failed)) return;
     const e = (this.#exact = { i });
     this.repaint();
     if (!this.#exactAsks.has(i)) this.#exactAsks.set(i, this.exactSource.requestExactFrame(i).finally(() => this.#exactAsks.delete(i)));
