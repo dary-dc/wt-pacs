@@ -29,11 +29,19 @@ def slope(win):
 
 
 def residual(e, laplace=False):
-    """The in-window residual modelled as a zero-mean integer variable of RMS e: |j| and its probability."""
+    """The in-window residual modelled as a zero-mean integer variable of RMS e: |j| and its probability, the
+    continuous shape's scale solved so that the integer variable keeps RMS e."""
     j = np.arange(0, int(12 * e) + 3)
-    p = np.exp(-j * math.sqrt(2) / e) if laplace else np.exp(-j * j / (2 * e * e))
-    p = p * np.where(j == 0, 1, 2)
-    return j, p / p.sum()
+
+    def shape(scale):
+        p = np.exp(-j * math.sqrt(2) / scale) if laplace else np.exp(-j * j / (2 * scale * scale))
+        p = p * np.where(j == 0, 1, 2)
+        return p / p.sum()
+    lo, hi = 1e-3, 2 * e + 1
+    for _ in range(50):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if (shape(mid) * j * j).sum() < e * e else (lo, mid)
+    return j, shape((lo + hi) / 2)
 
 
 def moves(e, k, laplace=False):
