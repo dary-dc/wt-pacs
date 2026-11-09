@@ -1,0 +1,34 @@
+[
+ {
+  "set": "usb_cine",
+  "provenance": "lossy-sourced",
+  "dicom": false,
+  "member": "dataset/videos_full/class_2/5ef7aad7b6994046ae8da4ce6c27dd2e.avi",
+  "video": {
+   "codec_name": "mpeg4",
+   "codec_long_name": "MPEG-4 part 2",
+   "pix_fmt": "yuv420p"
+  }
+ },
+ {
+  "set": "usb_cine_rgb",
+  "provenance": "lossy-sourced",
+  "dicom": false,
+  "member": "dataset/videos_full/class_2/3ab6aee59bff4d7d9b644c83353dd400.avi",
+  "video": {
+   "codec_name": "mpeg4",
+   "codec_long_name": "MPEG-4 part 2",
+   "pix_fmt": "yuv420p"
+  }
+ },
+ {
+  "set": "us_liver",
+  "provenance": "lossy-sourced",
+  "lossy": "01",
+  "ratio": "12.4",
+  "method": null,
+  "transfer_syntax": "1.2.840.10008.1.2",
+  "transfer_syntax_name": "Implicit VR Little Endian",
+  "transfer_syntax_lossy": false
+ }
+]
