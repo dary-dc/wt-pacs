@@ -146,9 +146,20 @@ target/release/series-server --port 4433 --series target/my.sbnd \
 python3 server/dev-server.py --port 8765 --metadata target/my.metadata.json
 ```
 
+A lossy series and its exact series (client/README.md §A lossy series, exact on request) run as two servers, the
+static host naming the second by the id the lossy metadata gives:
+
+```bash
+target/release/series-server --port 4434 --series target/my-exact.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem   # beside the lossy series' on 4433
+sed 's/:4433/:4434/' client/dev-transport.json > target/exact-transport.json
+python3 server/dev-server.py --port 8765 --metadata target/my-lossy.metadata.json \
+  --exact-metadata target/my-exact.metadata.json --exact-transport target/exact-transport.json
+```
+
 Open `http://127.0.0.1:8765/`. The wheel and the arrow keys step; space or the button runs the cine; a drag moves
 window and level, a shift or right drag pans, ctrl-wheel and `+`/`-` zoom; `r` turns, `h` and `v` flip, `i`
-inverts, `0` resets; `?fill=0` asks each frame as it is stepped to instead of filling the series. Its check is
+inverts, `0` resets, `l` on a lossy series shows the frame lossless and back; `?fill=0` asks each frame as it is stepped to instead of filling the series. Its check is
 `client/viewer/check.mjs` ([`client/README.md`](client/README.md) §The viewer).
 
 Both clients and the TCP fallback are [`docs/CLIENTS.md`](docs/CLIENTS.md); the bytes they speak, [`docs/WIRE.md`](docs/WIRE.md).
