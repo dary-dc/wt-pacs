@@ -22,6 +22,15 @@ export class View {
     return this.#to.show(this.current);
   }
 
+  /** The current frame from the lossy series' exact series, until the reader leaves it or calls `lossy`. */
+  exact() {
+    return this.#to.showExact();
+  }
+
+  lossy() {
+    return this.#to.showLossy();
+  }
+
   setDisplay(d) {
     return this.#to.setDisplay(d);
   }
@@ -57,7 +66,7 @@ export class View {
 /** The view worker's page half: the canvas and one port to the downloader go to it, events come back. */
 export class ViewWorker {
   #worker;
-  #downloader = null;
+  #downloaders = [];
   #next = 0;
   #replies = new Map();
   #triggers = new AbortController();
@@ -93,20 +102,29 @@ export class ViewWorker {
 
   /** The downloader is the page's worker, linked to the view worker by one channel; after this the page never talks to it. */
   connect(url, certHash, opts, issuedAt) {
-    const { worker, ...config } = opts;
-    this.#downloader = new Worker(worker ?? new URL("../transport/downloader.js", import.meta.url), { type: "module" });
+    watchPage(() => this.#worker.postMessage({ kind: "trigger" }), this.#triggers.signal);
+    return this.#link("connect", url, certHash, opts, issuedAt);
+  }
+
+  /** A lossy series' exact series, on a second downloader linked the same way. */
+  connectExact(url, certHash, opts) {
+    return this.#link("connectExact", url, certHash, opts);
+  }
+
+  #link(kind, url, certHash, { worker, ...config }, issuedAt) {
+    const downloader = new Worker(worker ?? new URL("../transport/downloader.js", import.meta.url), { type: "module" });
+    this.#downloaders.push(downloader);
     const unstarted = Promise.withResolvers();
-    this.#downloader.onerror = (e) => {
+    downloader.onerror = (e) => {
       const reason = `the downloader did not start: ${e.message || "its script did not load"}`;
       this.#emit("failed", { scope: "series", reason });
       unstarted.reject(new Error(reason));
     };
-    if (this.#watch) this.#downloader.onmessage = ({ data }) => this.#watch(data, "downloader");
+    if (this.#watch) downloader.onmessage = ({ data }) => this.#watch(data, "downloader");
     const { port1, port2 } = new MessageChannel();
-    this.#downloader.postMessage({ kind: "link", port: port1 }, [port1]);
-    watchPage(() => this.#worker.postMessage({ kind: "trigger" }), this.#triggers.signal);
+    downloader.postMessage({ kind: "link", port: port1 }, [port1]);
     // The view worker's consumer hears nothing from a downloader that never ran, so the page ends the wait.
-    return Promise.race([this.#call("connect", { port: port2, url, certHash, opts: config, issuedAt }, [port2]), unstarted.promise]);
+    return Promise.race([this.#call(kind, { port: port2, url, certHash, opts: config, issuedAt }, [port2]), unstarted.promise]);
   }
 
   /** Fatal: the view is gone, said once, and every call still waiting fails with it. */
@@ -114,7 +132,7 @@ export class ViewWorker {
     if (this.#dead) return;
     this.#dead = reason;
     this.#worker.terminate();
-    this.#downloader?.terminate();
+    for (const d of this.#downloaders) d.terminate();
     this.#emit("failed", { scope: "worker", reason });
     for (const r of this.#replies.values()) r.reject(new Error(reason));
     this.#replies.clear();
@@ -131,6 +149,14 @@ export class ViewWorker {
 
   show(i) {
     this.#worker.postMessage({ kind: "show", i });
+  }
+
+  showExact() {
+    this.#worker.postMessage({ kind: "exact" });
+  }
+
+  showLossy() {
+    this.#worker.postMessage({ kind: "lossy" });
   }
 
   setDisplay(display) {
@@ -178,6 +204,6 @@ export class ViewWorker {
 
   close() {
     this.#triggers.abort();
-    this.#call("close").finally(() => setTimeout(() => this.#downloader?.terminate(), CLOSE_DEADLINE_MS));
+    this.#call("close").finally(() => setTimeout(() => this.#downloaders.forEach((d) => d.terminate()), CLOSE_DEADLINE_MS));
   }
 }
