@@ -3,6 +3,7 @@
 
 usage: noise_point.py BUILD WORK OUT_DIR DATA STEP      STEP: tables | predict | arms | sigma | tiles | noise | headers
 """
+import gzip
 import json
 import re
 import subprocess
@@ -281,7 +282,7 @@ def step_tiles(a):
     for name in TIMED:
         meta = display_windows(ROOT / "lab/av1/data.json", name, (a.data / name).parent)
         (a.work / f"{name}.display.json").write_text(json.dumps(meta))
-    with ProcessPoolExecutor(a.jobs) as pool, open(a.out / "tiles.jsonl", "w") as fh:
+    with ProcessPoolExecutor(a.jobs) as pool, gzip.open(a.out / "tiles.jsonl.gz", "wt") as fh:
         for r in pool.map(tiles_job, [(a, n, g) for n in TIMED for g in (1, 16)]):
             fh.write(json.dumps(r) + "\n")
             fh.flush()
@@ -466,24 +467,22 @@ def report_sigma(a):
 
 
 def report_tiles(a):
-    print("| series | G | Q | tiles | share > 1.03 | mask shifted one tile: share | σ ∝ signal^k, k | r(σ, signal) "
+    print("| series | G | Q | tiles | share > 1.03 | mask shifted one tile: share | tile σ, median by signal tercile low · mid · high | r(σ, signal) "
           "| share > 1.03 by signal tercile low · mid · high | edge tiles · interior |")
     print("| --- | --: | --: | --: | --: | --: | --: | --: | --- | --- |")
-    for line in (a.out / "tiles.jsonl").open():
+    for line in gzip.open(a.out / "tiles.jsonl.gz", "rt"):
         r = json.loads(line)
         t = np.array(r["tiles"], float)
         sh = np.array(r["shifted"], float)
         sig, e, sigal = t[:, 3], t[:, 4], t[:, 5]
         over = e / sig > LIMIT
-        good = sig > 0
-        k = np.polyfit(np.log(sigal[good & (sigal > 0)]), np.log(sig[good & (sigal > 0)]), 1)[0]
         ter = np.quantile(sigal, [1 / 3, 2 / 3])
         bins = np.digitize(sigal, ter)
         cells = {(int(f), int(rr), int(c)) for f, rr, c in t[:, :3]}
         edge = np.array([any((int(f), int(rr) + dr, int(c) + dc) not in cells for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)))
                          for f, rr, c in t[:, :3]])
         print(f"| `{r['set']}` | {r['g']} | {r['q']} | {len(t)} | {100 * over.mean():.1f} % | "
-              f"{100 * np.mean(sh[:, 4] / sh[:, 3] > LIMIT):.1f} % | {k:.2f} | {np.corrcoef(sig, sigal)[0, 1]:.2f} | "
+              f"{100 * np.mean(sh[:, 4] > LIMIT * sh[:, 3]):.1f} % | " + " · ".join(f"{np.median(sig[bins == b]):.2f}" for b in range(3)) + f" | {np.corrcoef(sig, sigal)[0, 1]:.2f} | "
               + " · ".join(f"{100 * over[bins == b].mean():.1f} %" for b in range(3)) +
               f" | {100 * over[edge].mean():.1f} % · {100 * over[~edge].mean():.1f} % |")
 
