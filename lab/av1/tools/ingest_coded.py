@@ -2,9 +2,11 @@
 """A set as lab/av1/fetch_data.py writes it (NNN.raw, NNN.sha256, metadata.json), coded through the product's
 ingest (ingest/coded-frames/ingest.py's `coded()`): OUT/NNN.av1 or OUT/NNN.htj2k, OUT/NNN.sha256 and
 OUT/metadata.json ("codec": "av1" for AV1), which pack-series bundles; nothing unless every frame decodes back.
+With --lossy Q G, optimal quality paired with the exact series --exact-series names.
 
 usage: ingest_coded.py BUILD SET_DIR OUT [--codec av1|htj2k] [--representation plain|optimized] [--split K]
-                       [--grey8 400|420] [--preset cpu0|good:N|allintra:N] [--frames N] [--jobs N]   — ingest/coded-frames/README.md
+                       [--grey8 400|420] [--preset cpu0|good:N|allintra:N] [--frames N] [--jobs N]
+                       [--lossy Q G --exact-series ID]   — ingest/coded-frames/README.md
 """
 import argparse
 import hashlib
@@ -32,28 +34,41 @@ def main():
     ap.add_argument("--preset", default="cpu0")
     ap.add_argument("--frames", type=int)
     ap.add_argument("--jobs", type=int, default=4)
+    ap.add_argument("--lossy", type=int, nargs=2, metavar=("Q", "G"))
+    ap.add_argument("--exact-series")
     a = ap.parse_args()
+    if bool(a.lossy) != bool(a.exact_series) or (a.lossy and a.codec != "av1"):
+        ap.error("--lossy Q G and --exact-series ID go together, with --codec av1")
     s = size.Set(a.set_dir)
     n = min(a.frames or s.n, s.n)
     try:
-        payloads = ingest.coded(a.build, s, n, a.codec, a.jobs, a.representation, a.split, a.preset, a.grey8)
+        payloads = ingest.coded(a.build, s, n, a.codec, a.jobs, a.representation, a.split, a.preset, a.grey8, a.lossy)
     except ingest.Refused as e:
         sys.exit(f"{a.set_dir.name}: nothing written — {e}")
     a.out.mkdir(parents=True, exist_ok=True)
     for i, data in payloads:
         (a.out / f"{i:03d}.{a.codec}").write_bytes(data)
-        shutil.copy(a.set_dir / f"{i:03d}.sha256", a.out / f"{i:03d}.sha256")
+        if not a.lossy:
+            shutil.copy(a.set_dir / f"{i:03d}.sha256", a.out / f"{i:03d}.sha256")
     meta = json.loads((a.set_dir / "metadata.json").read_text())
-    meta.update(frameCount=n, digests=ingest.digests(s, n, a.codec, a.representation, a.split, a.grey8))
-    if a.codec == "av1":
+    meta.update(frameCount=n)
+    if a.lossy:
+        q, g = a.lossy
+        meta.update(codec="av1", lossy=dict(q=q, g=g, depth=ingest.lossy_header(s, q, g)["depth"]), exactSeries=a.exact_series)
+    else:
+        meta.update(digests=ingest.digests(s, n, a.codec, a.representation, a.split, a.grey8))
+    if a.codec == "av1" and not a.lossy:
         meta.update(codec="av1", representation=a.representation)
     if a.codec == "av1" and a.split is not None:
         meta["split"] = a.split
     (a.out / "metadata.json").write_text(json.dumps(meta, indent=1) + "\n")
     total = sum(len(d) for _, d in payloads)
     digest = hashlib.sha256(b"".join(d for _, d in payloads)).hexdigest()[:12]
-    kind = a.representation if a.codec == "av1" else "htj2k"
-    print(f"{a.set_dir.name}: {n} payloads, {total} B, {kind}, every one exact ({digest})")
+    if a.lossy:
+        print(f"{a.set_dir.name}: {n} payloads, {total} B, optimal quality Q {q} G {a.lossy[1]}, every one decoded ({digest})")
+    else:
+        kind = a.representation if a.codec == "av1" else "htj2k"
+        print(f"{a.set_dir.name}: {n} payloads, {total} B, {kind}, every one exact ({digest})")
 
 
 if __name__ == "__main__":
