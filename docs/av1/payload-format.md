@@ -225,7 +225,7 @@ as today. No residual, and no server or wire change: the optimal-quality series 
 beside its exact series, and the client pairs them by `exactSeries` ([`../glossary.md`](../glossary.md)).
 
 * **Coding.** libaom 3.15.1 at a fixed quantizer, the AV1 lab's settings (`aomenc_args` in
-  `lab/av1/profiles/bytes.py` on `claude/av1-quality-profiles`, without alt-ref), `ingest.py`'s `lossy_args`:
+  `lab/av1/profiles/bytes.py` at `1232918d` on `claude/av1-quality-profiles`, without alt-ref), `ingest.py`'s `lossy_args`:
 
   ```
   aomenc --ivf --good --cpu-used=6 --threads=1 --passes=1 --tune=psnr --end-usage=q --cq-level=Q --min-q=Q --max-q=Q \
