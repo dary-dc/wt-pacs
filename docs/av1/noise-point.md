@@ -417,3 +417,15 @@ Read 2026-11-07.
 The §3 arithmetic, for a re-run. For every cell, every frame, in the stored and top-10 forms: x = ac_q(4Q, B) ÷ 8 ÷
 σ_frame and y = `err_noise_band` ÷ σ_frame, with both divided by 4 and B = 10 for the top-10 form. x\* is the smallest
 x with y > 1 over the DBT series at that G, and x_hi is the largest x with y ≤ 1.
+
+## Noise-point protocol, measured
+
+*Partial, 2026-11-09 14:45 UTC: the harness runs, the AC-table check and the predictions are in; the held-out arms,
+P2–P6 and the three mutations follow. Fixtures: DBT from EA1141 (systems A and C 12-bit, B 10-bit); no breast
+ultrasound cine or ABUS exists in the fixtures.*
+
+* **AC tables.** libaom v3.15.1's `ac_qlookup_QTX`, `_10_`, `_12_` equal the AV1 specification's `Ac_Qlookup`
+  entry by entry, 3 × 256 of 768. Moving one entry (12-bit, qindex 32, +1) makes the check fail at that entry.
+  `quantizer_to_qindex[Q]` = 4Q for Q 0 … 61. Rows: `lab/av1/metrics/rows/noise-point/ac-table.json`.
+* **Predictions.** Recomputed by `lab/av1/metrics/noise_point.py predict` from the shard-3 series rows, before any
+  encode: all five equal §8's table. Rows: `predict.json`.
