@@ -98,7 +98,7 @@ source.
 * **The label** (top right, always shown on a lossy series) says what is painted, decided in one place,
   `Controller.quality`: *Optimal quality*; *fetching lossless…* while asked; *Lossless* only on the `shown` that
   follows the exact frame's paint, and only when that frame's `exact` is `true`; *Lossless check failed* in red, the
-  lossy frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed.
+  lossy frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed; the button then asks again.
 * **Routes** are any AV1 series' (§Which decoder, per payload): ≤ 10 bits through WebCodecs where its probe passed,
   12 bits and any refused config through dav1d-WASM, the route in each frame's `info.path`.
 * **Groups.** `lossy.g` reaches the downloader as `groupLength` (§An AV1 series in groups): a jump mid-group decodes
