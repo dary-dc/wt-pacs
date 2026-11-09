@@ -1,8 +1,8 @@
 # HTJ2K resolution levels and regions for large frames
 
 *Row HTJ2K-TILES, 2026-11-09. Theory, predictions and a pre-registered protocol; **nothing here is run**. A
-separate approach beside the optimal-quality design ([`lines/optimal-quality.md`](lines/optimal-quality.md) on
-`claude/docs-lines`, §Open 9), lower priority than the week's demo. Sources are [S1]–[S8] at the end; *derived* marks
+separate approach beside the optimal-quality design (`docs/lines/optimal-quality.md` on
+`claude/docs-lines`, §Open 9), lower priority than the week's demo. Sources are [S1]–[S4] at the end; *derived* marks
 our arithmetic, *unverified* what no source here checks.*
 
 ## The question
@@ -32,26 +32,26 @@ frames to put an exact picture of what the screen shows on it first, and the ful
 | The proposal for the owner's large-frame rule: HTJ2K tiles, banded and band-major, no wire change | [`adr/resolution-fitting-for-large-frames.md`](adr/resolution-fitting-for-large-frames.md) §8 | TILEGRID and BANDS proposed, not run |
 
 The owner's rule of 2026-10-10 (frames over 12 bits fitted plus regions; 12 bits or fewer filled) and of 2026-10-11
-(device pixels) stand; this protocol is the measurement §8.8 says the proposal still needs, widened to precincts and
+(device pixels) stand; this protocol is the measurement the ADR's §8.8 says the proposal still needs, widened to precincts and
 to the OQ design of 2026-11-09.
 
 ## Terms
 
 The glossary's **tile** is the server's read of an asked frame, so a codec's tile is always an **HTJ2K tile** here.
 
-* **Level ℓ:** the picture after ℓ of the codestream's NL = 5 decompositions are left out, ⌈W/2^ℓ⌉ × ⌈H/2^ℓ⌉; level 0
+* **Level ℓ:** the picture after ℓ of the codestream's NL = 5 decompositions are left out, ⌈C/2^ℓ⌉ × ⌈R/2^ℓ⌉ for a frame of C columns and R rows; level 0
   is the frame. *Exact at level ℓ*: equal, sample for sample, to the reversible 5/3 analysis of the encoder's input
-  taken to ℓ levels and clamped to [0, 2^D − 1] (`lab/htj2k-progressive/witness.py`).
+  taken to ℓ levels and clamped to [0, 2^D − 1] (`witness.py` in `claude/htj2k-progressive:lab/htj2k-progressive/`).
 * **Viewport:** the client's drawing area in device pixels, w × h (device pixels decided 2026-10-11). **Zoom z:**
-  displayed pixels per frame sample. **Fit:** the frame whole in the viewport, z_fit = min(w/W, h/H).
+  displayed pixels per frame sample. **Fit:** the frame whole in the viewport, z_fit = min(w/C, h/R).
 * **The level an action needs:** ℓ(z) = min(NL, max(0, ⌊log2(1/z)⌋)), the most reduced level still at least as large
-  as what is displayed (*derived*; §8.2's rule).
+  as what is displayed (*derived*; ADR §8.2's rule).
 * **Screen-exact picture:** every viewport pixel painted from samples exact at ℓ(z) in the visible rectangle. Whether a
   level picture counts as exact for reading is the owner's ruling, not this doc's (§Theory 2).
 * **Region:** the visible rectangle in frame samples, w/z × h/z around the pan centre, clamped to the frame.
 * **Layouts:** **W**, today's whole codestream asked whole; **L**, the same codestream asked level-first; **P**, one
   codestream with precincts and an index; **T3** and **T9**, three strips and a 3 × 3 grid of HTJ2K tiles, each its
-  own codestream (§8.3's proposal).
+  own codestream (the ADR's §8.3 proposal).
 * **Backfill:** after an action's picture, the rest of the frame fetched behind it, so the frame ends exact whole.
 
 ## Theory
@@ -65,7 +65,7 @@ resolutions 0…NL − ℓ comes before any finer one, whatever the precincts or
 (1.2.840.10008.1.2.4.202) is written for this use: "allows for progressive display of images, as well as retrieval of
 thumbnail images. The progression order shall be RPCL … The Tile Length Markers (TLM) shall be present. This allows
 finding the resolution breakpoints to support smart streaming. The following parameters may improve decoding
-performance: Block Size: 64x64 Number of tiles: 1" [S4, §10.18.1]. It also says "The number of decompositions shall be
+performance: Block Size: 64x64 Number of tiles: 1" [S3, §10.18.1]. It also says "The number of decompositions shall be
 sufficient for the width or height of the base resolution to be <= 64"; the served profile's five decompositions leave
 a 104 × 128 base on 3328×4096, so those frames would need a sixth to be sent under that syntax unchanged (*derived*; the
 PCS's choice, not tested here).
@@ -96,8 +96,8 @@ Device pixels, the frame hung long side vertical; ℓ(z_fit) for each fixture si
 
 **Where the fit is level 0, the approach has nothing to give at the fit, and W already holds the whole frame for every
 zoom after it.** In device pixels that is every DBT slice set but `dbts_b1`, every 1914-wide mammogram, and every
-fixture on a tablet or a 5 MP display. The question is about the phone and the laptop on frames at least ~2 160
-samples wide or ~3 200 high (*derived*: twice the viewport's side).
+fixture but `mg16_cbis` on a tablet or a 5 MP display. The question is about frames of at least 2 160 columns on
+the phone or 3 200 rows on the laptop (*derived*: twice the viewport's side).
 
 ### 4 · What a region needs
 
@@ -117,7 +117,7 @@ span up to 2 048 rows) and need not here.
   image" [S1, §5.3]. Each tile-component's transform extends its own edges ("This extension procedure is known as
   'periodic symmetric extension'", [S1, F.3.7]), so level 0 is the same frame for any grid but a **level picture of a
   tiled frame differs from the untiled one near tile edges**: its digest is per layout (*derived*). Measured as three
-  strips; a grid's bytes rise with its edge length (*derived*). Stored as independent codestreams (§8.3) the delivered
+  strips; a grid's bytes rise with its edge length (*derived*). Stored as independent codestreams (the ADR's §8.3) the delivered
   OpenJPH build decodes each as it is; stored as one multi-tile codestream the tile data is the same when tile edges
   fall on multiples of 2^NL = 32 (*derived* from H.3.1.1's parity "relative to the origin of the reference grid"),
   and a client would rewrite a tile-part's SIZ to decode it alone (*unverified*).
@@ -130,21 +130,21 @@ span up to 2 048 rows) and need not here.
   With PP ≥ 7 the 64 × 64 block grid is unchanged, so **every code-block's bytes are today's and the level pictures
   are W's, bit for bit**; only packet headers and tag trees are added (*derived*). Proposed: `-precincts
   {128,128},{256,256}` (OpenJPH lists sizes "starting from the coarsest resolution; the last precinct is repeated for
-  all finer resolutions" [S6, `ojph_compress.cpp`]), which keeps the codestream in T.814's LOCAL set: "PPx + PPy ≤ 16,
+  all finer resolutions" [S4, `ojph_compress.cpp`]), which keeps the codestream in T.814's LOCAL set: "PPx + PPy ≤ 16,
   except in the lowest resolution level within each tile-component, where PPx + PPy ≤ 14" [S2, 8.6]. On 3328×4096
   that is about 286 packets a frame (*derived*), and the frame stays a one-tile codestream DICOM's HTJ2K syntaxes
   carry as stored.
 * **The standard's form of this, JPIP** (ISO/IEC 15444-9). DICOM references it: "a JPIP request for a 200 by 200
   pixel rendition of the entire image can be constructed … &fsiz=200,200", and "The JPIP server shall return a
-  Content-type of image/jp2, image/jpp-stream, image/jpt-stream, image/jph or image/jphc" [S4, §8.4.1], with JPIP
-  HTJ2K Referenced syntaxes 1.2.840.10008.1.2.4.204 and .205 [S4, A.11, A.12]. 15444-9 itself was not read; that
+  Content-type of image/jp2, image/jpp-stream, image/jpt-stream, image/jph or image/jphc" [S3, §8.4.1], with JPIP
+  HTJ2K Referenced syntaxes 1.2.840.10008.1.2.4.204 and .205 [S3, A.11, A.12]. 15444-9 itself was not read; that
   jpp-stream carries precinct data and jpt-stream tile data is *unverified* here. Neither is built: the server serves
   stored entries by index, and that does not change below.
 
 **What the client's decoder does.** OpenJPH writes precincts, tiles and TLM (`-precincts`, `-tile_size`,
-`-tlm_marker`, [S6]) but no PLT, and reading it skips PLT ("Skipping PLT marker segment;this should not cause any
-issues", [S6, `ojph_codestream_local.cpp`]). Its decode API restricts resolution only and pulls whole rows
-("restricts resolution decoding for a codestream"; "pull one row from the codestream", [S6, `ojph_codestream.h`]): no
+`-tlm_marker`, [S4]) but no PLT, and reading it skips PLT ("Skipping PLT marker segment;this should not cause any
+issues", [S4, `ojph_codestream_local.cpp`]). Its decode API restricts resolution only and pulls whole rows
+("restricts resolution decoding for a codestream"; "pull one row from the codestream", [S4, `ojph_codestream.h`]): no
 region. So **P** is decoded by splicing: the stored packets of the region, and for every other packet one empty
 packet, legal by "The first bit in the packet header denotes whether the packet has a length of zero (empty packet).
 The value 0 indicates a zero length; no code-blocks are included in this case" [S1, B.10.3], the last tile-part's
@@ -164,13 +164,13 @@ tiles in view, on as many idle decoders as there are tiles (measured for strips)
 ### 7 · How it composes with the optimal-quality view
 
 * **DBT (cine-like, D ≤ 12): the exact path's delivery, not an alternative.** Scrolling stays the OQ view's (0.07–0.22
-  of HTJ2K's bytes, [`lines/codecs.md`](lines/codecs.md) on `claude/docs-lines`); the levels lost to it as a preview.
+  of HTJ2K's bytes, `docs/lines/codecs.md` on `claude/docs-lines`); the levels lost to it as a preview.
   What changes is the reader's Lossless ask: today the whole frame, here the fit level first (~27 % of the bytes at
   level 1) and the region on zoom. By §3 only `dbts_b1` has a level to gain on a phone or laptop. The label's
   *Lossless* rests on the frame digest today; at ℓ ≥ 1 it would need a digest per level (and per tile for **T**) and a
   wording ("Lossless at this size") the owner sets.
 * **FFDM and synthesized 2D (not cine-like): the alternative to whole frames.** AV1's scope is cine-like series
-  (2026-10-30), so the exact frame is the only picture; §8.8's choice 4 (12-bit large frames keep the plain fill) waits
+  (2026-10-30), so the exact frame is the only picture; the ADR's §8.8 choice 4 (12-bit large frames keep the plain fill) waits
   on exactly this measurement. The OQ view of a mammogram (AV1, G 1) is an arm for reference only: its first picture
   and bytes show what exactness costs, and it cannot meet the rule's exactness clause.
 * **D > 12 (`mgraw_*`, the projections, `mg16_cbis`): HTJ2K only.** AV1's scope stops at 12 bits and WebCodecs at
@@ -339,7 +339,7 @@ digest are the owner's. 16 bits (`mg16_cbis`) is reported and in no verdict.
 | --- | --- | --- |
 | S0 | stage 0: encoders, index, splicer, region map, checks and mutants on every stage-1 frame | 2–3 h |
 | S1 | stage 1, every frame, every layout, viewport and grid position | 1.5–3 h |
-| S2 | stage 2, 9 sets × 4 frames × 10 rounds × 2 throttles | 2.5–4 h |
+| S2 | stage 2, 11 sets × 4 frames × 10 rounds × 2 throttles | 2.5–4 h |
 | S3a, S3b | FFDM 12 bits (`ffdm_d`, `ffdms_b2`), rounds 1–6 · 7–12 | ~2–2.5 h each: 7 arms × 4 links × 2 throttles × 2 sets a round, ~10 s a visit |
 | S3c, S3d | 14 bits (`mgraw_b1`, `mgraw_b2`), rounds 1–6 · 7–12 | ~2.5–3 h each (larger frames) |
 | S3e, S3f | `dbts_b1` with OQ and `ffdms_a1`, rounds 1–6 · 7–12 | ~1.5–2 h each |
@@ -347,3 +347,22 @@ digest are the owner's. 16 bits (`mg16_cbis`) is reported and in no verdict.
 Each S3 shard records its rounds and pins (commit, Chromium, the store's digests); the summary joins pairs with equal
 pins only. A shard that reaches 4.5 h stops at the round boundary and says how many rounds it kept; the rule then
 reads the n it has and prints it.
+
+## Sources
+
+Read 2026-11-09; quotations are verbatim, with the PDF's symbols restored where text extraction lost them (≤).
+
+* **[S1]** Rec. ITU-T T.800 (06/2019) | ISO/IEC 15444-1:2019, *JPEG 2000 image coding system: Core coding system*,
+  itu.int, PDF sha256 `9932e967462cd56a193db87117917e74734fb385913bf51d1f52fb0428924e1c`. The 07/2024 edition was not read.
+* **[S2]** Rec. ITU-T T.814 (06/2019) | ISO/IEC 15444-15:2019, *High-throughput JPEG 2000*, itu.int, PDF sha256
+  `3480bb5f636d9a0bd654ecd31d6c756c0ec5667fe767acfb2b6771de9ddc3542`.
+* **[S3]** DICOM PS3.5 2026d, *Data Structures and Encoding*, dicom.nema.org (`current`), §8.2.14, §8.4.1, §10.18,
+  A.11, A.12. ISO/IEC 15444-9 (JPIP) is cited through it and was not read.
+* **[S4]** OpenJPH tag 0.31.0 (`c68064d0`), github.com/aous72/OpenJPH: `src/apps/ojph_compress/ojph_compress.cpp`,
+  `src/core/openjph/ojph_codestream.h`, `src/core/codestream/ojph_codestream_local.cpp`, `docs/status.md`.
+
+Repository evidence is cited where it is used: [`decode/README.md`](decode/README.md),
+[`adr/resolution-fitting-for-large-frames.md`](adr/resolution-fitting-for-large-frames.md),
+[`codecs/htj2k.md`](codecs/htj2k.md), [`FIXTURES.md`](FIXTURES.md), and on branches `claude/htj2k-progressive`
+(`lab/htj2k-progressive/README.md`, its `docs/decode/README.md` §HTJ2K progressive) and `claude/docs-lines`
+(`docs/lines/codecs.md`, `docs/lines/optimal-quality.md`).
