@@ -5,6 +5,7 @@ usage: noise_point.py BUILD WORK OUT_DIR DATA STEP      STEP: tables | predict |
 """
 import json
 import re
+import subprocess
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -359,14 +360,14 @@ def step_headers(a):
             row["transfer_syntax_lossy"] = str(ds.file_meta.TransferSyntaxUID) not in LOSSLESS_TS
         else:
             member = spec["members"][0]["name"]
+            video = a.work / Path(member).name
             with zipfile.ZipFile(a.data / "archives" / Path(spec["archive"]["url"]).name) as z:
-                head = z.open(member).read(4096)
-            row.update(dicom=False, member=member, fourcc=sorted({head[i + 4:i + 8].decode("latin1")
-                                                                  for i in range(len(head) - 8)
-                                                                  if head[i:i + 4] == b"strf"}),
-                       container=head[8:12].decode("latin1"))
-            row["vids_handler"] = [head[i + 4:i + 8].decode("latin1") for i in range(len(head) - 8)
-                                   if head[i:i + 4] == b"vids"]
+                video.write_bytes(z.read(member))
+            probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                                    "stream=codec_name,codec_long_name,pix_fmt", "-of", "json", video],
+                                   capture_output=True, check=True)
+            row.update(dicom=False, member=member, video=json.loads(probe.stdout)["streams"][0])
+            video.unlink()
         out.append(row)
         print(row)
     (a.out / "headers.json").write_text(json.dumps(out, indent=1))
@@ -377,6 +378,141 @@ LOSSLESS_TS = {"1.2.840.10008.1.2", "1.2.840.10008.1.2.1", "1.2.840.10008.1.2.2"
                "1.2.840.10008.1.2.4.201", "1.2.840.10008.1.2.4.202"}
 
 
+def worst(r, s):
+    y = np.array([f["err_noise_band"] for f in r["frames"]]) / np.array(s["sigma"])
+    return y
+
+
+def report_arms(a, series, controls):
+    rows = [json.loads(x) for x in (a.out / "arms.jsonl").open()]
+    print("| series | G | Q | arm | x at σ_min | e_N ÷ σ worst · median | frames > 1.03 | bytes ÷ HTJ2K |")
+    print("| --- | --: | --: | --- | --: | --- | --: | --: |")
+    verdicts = []
+    for name in HELD_OUT:
+        s = series[name]
+        sig, depth = stream(s, form_names(s)[0])
+        g1, g16, i1, i16 = PREDICTED[name]
+        for g, ladder_q, int_q in ((1, g1, i1), (16, g16, i16)):
+            k = LADDER.index(ladder_q)
+            role = {LADDER[k - 1]: "rung below", ladder_q: "rule", LADDER[k + 1]: "rung above",
+                    LADDER[k + 2]: "two above"}
+            cells = sorted((r for r in rows if r["set"] == name and r["g"] == g), key=lambda r: r["q"])
+            by_q = {}
+            for r in cells:
+                y = worst(r, s)
+                arm = [role.get(r["q"])] + (["in-between"] if r["q"] == int_q else []) + \
+                      (["in-between + 1"] if r["q"] == int_q + 1 else [])
+                by_q[r["q"]] = (float(y.max()), sum(r["units"]) / controls[name])
+                print(f"| `{name}` | {g} | {r['q']} | {', '.join(x for x in arm if x)} | {delta(r['q'], depth) / sig:.2f} "
+                      f"| {y.max():.3f} · {np.median(y):.3f} | {int((y > LIMIT).sum())} of {len(y)} | "
+                      f"{by_q[r['q']][1]:.3f} |")
+            qs = sorted(by_q)
+            anc = collect.highest([dict(q=q, ok=by_q[q][0] <= 1) for q in qs], lambda p: p["ok"])
+            anc103 = collect.highest([dict(q=q, ok=by_q[q][0] <= LIMIT) for q in qs], lambda p: p["ok"])
+            verdicts.append(dict(set=name, g=g, rule=ladder_q, rule_worst=by_q[ladder_q][0],
+                                 p1=by_q[ladder_q][0] <= LIMIT, integer=int_q, integer_worst=by_q[int_q][0],
+                                 p3=by_q[int_q][0] <= LIMIT, saved=1 - by_q[int_q][1] / by_q[ladder_q][1],
+                                 anchor=anc, anchor_103=anc103, lowest=qs[0]))
+    print()
+    print("| series | G | rule Q · worst | P1 | in-between Q · worst | P3 | bytes saved vs rule Q | anchor e_N ≤ σ "
+          "(≤ 1.03), from the lowest arm up |")
+    print("| --- | --: | --- | --- | --- | --- | --: | --- |")
+    for v in verdicts:
+        print(f"| `{v['set']}` | {v['g']} | {v['rule']} · {v['rule_worst']:.3f} | {'holds' if v['p1'] else 'refuted'} | "
+              f"{v['integer']} · {v['integer_worst']:.3f} | {'holds' if v['p3'] else 'refuted'} | "
+              f"{100 * v['saved']:.1f} % | {v['anchor']} ({v['anchor_103']}), from Q {v['lowest']} |")
+    return rows, verdicts
+
+
+def report_refit(series, cells, arm_rows):
+    """P1's refutation step: x* recomputed with the held-out frames included, by §3's definition."""
+    pts = {1: [], 16: []}
+    for (name, form, q, g), r in cells.items():
+        if name in IN_SAMPLE and g in (1, 8, 16):
+            pts[1 if g == 1 else 16].append((name, form, q, r))
+    for r in arm_rows:
+        pts[r["g"]].append((r["set"], r["form"], r["q"], r))
+    out = {}
+    for g, cs in pts.items():
+        lo = []
+        for name, form, q, r in cs:
+            s = series[name]
+            div, depth = (2 ** (s["b"] - 10), 10) if form == "top10" else (1, stream(s, form)[1])
+            sig = np.array(s["sigma"]) / div
+            y = np.array([f["err_noise_band"] for f in r["frames"]]) / div / sig
+            x = delta(q, depth) / sig
+            lo += [(float(xx), name, form, q) for xx, yy in zip(x, y) if yy > 1]
+        out[g] = min(lo)
+        print(f"G {g}: x* with held-out frames = {out[g][0]:.5f} from {out[g][1:]}")
+    return out
+
+
+def report_sigma(a):
+    d = json.loads((a.out / "sigma-time.json").read_text())
+    print("| series | Mpx | every frame: CPU s, median of 5 (range) | every fourth | CPU s / Mpx, every frame | σ = rows |")
+    print("| --- | --: | --- | --- | --: | --- |")
+    for name in TIMED:
+        t = {e: [x for x in d["timings"] if x["set"] == name and x["every"] == e] for e in (1, 4)}
+        c = {e: [x["cpu"] for x in v] for e, v in t.items()}
+        mpx = t[1][0]["mpx"]
+        print(f"| `{name}` | {mpx:.0f} | {np.median(c[1]):.1f} ({min(c[1]):.1f}–{max(c[1]):.1f}) | "
+              f"{np.median(c[4]):.1f} ({min(c[4]):.1f}–{max(c[4]):.1f}) | {np.median(c[1]) / mpx:.3f} | "
+              f"{all(x['matches_rows'] for v in t.values() for x in v)} |")
+    p = d["picks"]
+    diff = [x for x in p if x["all"] != x["every4"]]
+    diff_int = [x for x in p if x["all_int"] != x["every4_int"]]
+    print(f"\npicks: {len(p)} (cell, G); ladder differ {len(diff)}: {diff}; integer differ {len(diff_int)}: {diff_int}")
+    return diff
+
+
+def report_tiles(a):
+    print("| series | G | Q | tiles | share > 1.03 | mask shifted one tile: share | σ ∝ signal^k, k | r(σ, signal) "
+          "| share > 1.03 by signal tercile low · mid · high | edge tiles · interior |")
+    print("| --- | --: | --: | --: | --: | --: | --: | --: | --- | --- |")
+    for line in (a.out / "tiles.jsonl").open():
+        r = json.loads(line)
+        t = np.array(r["tiles"], float)
+        sh = np.array(r["shifted"], float)
+        sig, e, sigal = t[:, 3], t[:, 4], t[:, 5]
+        over = e / sig > LIMIT
+        good = sig > 0
+        k = np.polyfit(np.log(sigal[good & (sigal > 0)]), np.log(sig[good & (sigal > 0)]), 1)[0]
+        ter = np.quantile(sigal, [1 / 3, 2 / 3])
+        bins = np.digitize(sigal, ter)
+        cells = {(int(f), int(rr), int(c)) for f, rr, c in t[:, :3]}
+        edge = np.array([any((int(f), int(rr) + dr, int(c) + dc) not in cells for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+                         for f, rr, c in t[:, :3]])
+        print(f"| `{r['set']}` | {r['g']} | {r['q']} | {len(t)} | {100 * over.mean():.1f} % | "
+              f"{100 * np.mean(sh[:, 4] / sh[:, 3] > LIMIT):.1f} % | {k:.2f} | {np.corrcoef(sig, sigal)[0, 1]:.2f} | "
+              + " · ".join(f"{100 * over[bins == b].mean():.1f} %" for b in range(3)) +
+              f" | {100 * over[edge].mean():.1f} % · {100 * over[~edge].mean():.1f} % |")
+
+
+def report_noise(a):
+    rows = [json.loads(x) for x in (a.out / "noise.jsonl").open()]
+    print("| σ_min × | σ added | σ_min measured | G | rule Q | Q | x at σ_min | e_N ÷ σ worst · median | bytes |")
+    print("| --: | --: | --: | --: | --: | --: | --: | --- | --: |")
+    for r in sorted(rows, key=lambda r: (r["k"], r["g"], r["q"])):
+        smin = min(r["sigma"])
+        y = np.array(r["nb_sigma"])
+        print(f"| {r['k']} | {r['add']:.2f} | {smin:.2f} | {r['g']} | {rule(smin, r['g'], 12)} | {r['q']} | "
+              f"{delta(r['q'], 12) / smin:.2f} | {y.max():.3f} · {np.median(y):.3f} | {r['bytes']} |")
+
+
+def step_report(a):
+    rows = HERE / "rows"
+    series, cells, controls = load_rows([rows / f"shard-{k}.jsonl" for k in (1, 2, 3, 4)])
+    for part in a.parts.split(","):
+        print(f"\n### {part}\n")
+        if part == "arms":
+            arm_rows, _ = report_arms(a, series, controls)
+            report_refit(series, cells, arm_rows)
+        elif part == "refit":
+            report_refit(series, cells, [])
+        else:
+            globals()[f"report_{part}"](a)
+
+
 def main():
     global AC, QINDEX
     import argparse
@@ -385,6 +521,7 @@ def main():
         ap.add_argument(k, type=lambda v: Path(v).resolve())
     ap.add_argument("step")
     ap.add_argument("--jobs", type=int, default=4)
+    ap.add_argument("--parts", default="arms")
     a = ap.parse_args()
     a.work.mkdir(parents=True, exist_ok=True)
     a.out.mkdir(parents=True, exist_ok=True)
