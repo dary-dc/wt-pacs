@@ -12,12 +12,12 @@ const frame = (i) => ({
 });
 
 /** A controller on a series of `frames`, its paints and the client's calls recorded; `held` frames already here; `wants`, the worker view's store. */
-function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint } = {}) {
+function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, lossy } = {}) {
   const painted = [];
   const calls = [];
   const events = [];
   const c = new Controller({
-    meta: { frameCount: frames, window: { center: [3], width: [6] } },
+    meta: { frameCount: frames, window: { center: [3], width: [6] }, ...(lossy && { codec: "av1", lossy, exactSeries: "s" }) },
     fillMode,
     size: { width: 2, height: 3, dpr: 1 },
     emit: (type, e) => events.push([type, e]),
@@ -303,6 +303,120 @@ test("the ledger's flip changes the digest, not the frame", async () => {
   const [again] = (await c.ledger()).frames;
   assert.notEqual(flipped.sha, plain.sha);
   assert.equal(again.sha, plain.sha);
+});
+
+/** Frame `i` of the exact series: other samples than the lossy one's, and `exact` as its decoder checked it. */
+const exactFrame = (i, exact = true) => ({ frameIndex: i, info: { ...frame(i).info, pixels: new Uint16Array([9, 9, 9, 9, 9, 9]).buffer, exact, path: "htj2k", reason: exact === false ? "digest" : undefined } });
+
+/** A lossy series' rig whose exact series answers each ask through `answer(i)`, the asks recorded. */
+function lossyRig(answer = (i) => Promise.resolve(exactFrame(i)), opts = {}) {
+  const r = rig({ held: [0, 1, 2, 3], lossy: { q: 30, g: 1, depth: 10 }, ...opts });
+  r.exactAsks = [];
+  r.c.exactSource = { requestExactFrame: (i) => (r.exactAsks.push(i), answer(i)) };
+  r.labels = () => r.events.filter(([t]) => t === "shown").map(([, e]) => e.quality);
+  return r;
+}
+
+/**
+ * The exact request paints frame i of the exact series in place of the lossy one and changes nothing else: the store
+ * keeps every lossy frame, the downloader is asked nothing, a step away and back paints the lossy frame again.
+ */
+test("the exact request paints the exact series' frame in place, and nothing else", async () => {
+  const { c, painted, calls, exactAsks, labels } = lossyRig();
+  const before = [...c.store.keys()].map((i) => c.store.get(i));
+  await c.show(1);
+  await c.showExact();
+  await c.repaint();
+  assert.deepEqual(exactAsks, [1]);
+  assert.equal(new Uint16Array(painted.at(-1).f.info.pixels)[0], 9);
+  assert.equal(labels().at(-1), "lossless");
+  assert.deepEqual([...c.store.keys()].map((i) => c.store.get(i)), before);
+  assert.equal(new Uint16Array(c.store.get(1).info.pixels)[0], 0);
+  assert.equal(c.received, 4);
+  await c.show(2);
+  assert.equal(painted.at(-1).f, c.store.get(2));
+  await c.show(1);
+  assert.equal(painted.at(-1).f, c.store.get(1));
+  assert.equal(labels().at(-1), "optimal");
+  await c.showExact();
+  await c.showLossy();
+  assert.equal(painted.at(-1).f, c.store.get(1));
+  assert.deepEqual(calls, []);
+});
+
+/**
+ * The label says "lossless" only once the exact frame is painted and its digest matched: never while it is asked,
+ * never for a frame whose check failed or had no digest, never for a lossy frame, never for a frame the reader left.
+ */
+test("the label never says lossless before the checksum passes", async () => {
+  const pending = Promise.withResolvers();
+  const r = lossyRig(() => pending.promise);
+  await r.c.repaint();
+  const shownBefore = r.labels().length;
+  const asked = r.c.showExact();
+  await r.c.repaint();
+  assert.deepEqual(r.labels().slice(shownBefore), ["asking", "asking"]);
+  pending.resolve(exactFrame(0, false));
+  await asked;
+  assert.equal(r.labels().at(-1), "failed");
+  assert.equal(r.painted.at(-1).f, r.c.store.get(0));
+  assert.ok(r.events.some(([t, e]) => t === "failed" && /lossless: not exact/.test(e.reason)));
+
+  const unchecked = lossyRig((i) => Promise.resolve(exactFrame(i, "unchecked")));
+  await unchecked.c.showExact();
+  assert.ok(!unchecked.labels().includes("lossless"), unchecked.labels().join());
+
+  const late = Promise.withResolvers();
+  const left = lossyRig(() => late.promise);
+  const leaving = left.c.showExact();
+  await left.c.show(1);
+  late.resolve(exactFrame(0));
+  await leaving;
+  await left.c.repaint();
+  assert.ok(!left.labels().includes("lossless"), left.labels().join());
+  assert.equal(left.painted.at(-1).f, left.c.store.get(1));
+  await left.c.show(0);
+  assert.equal(left.painted.at(-1).f, left.c.store.get(0));
+  assert.equal(left.labels().at(-1), "optimal");
+
+  const draws = [];
+  const slow = lossyRig(undefined, { paint: (f) => new Promise((done) => draws.push({ f, done })) });
+  const shown = slow.c.showExact();
+  for (let k = 0; k < 20 && !draws.some(({ f }) => f.info.path === "htj2k"); k++) {
+    draws.shift()?.done();
+    await new Promise(setImmediate);
+  }
+  assert.ok(draws.some(({ f }) => f.info.path === "htj2k"), "the exact frame's paint was started");
+  assert.ok(!slow.labels().includes("lossless"), "lossless before the exact frame's paint resolved");
+  while (draws.length) {
+    draws.shift().done();
+    await new Promise(setImmediate);
+  }
+  await shown;
+  assert.equal(slow.labels().at(-1), "lossless");
+});
+
+/** A series that is not lossy has no label: the quality rule says nothing of an HTJ2K series. */
+test("a series that is not lossy carries no quality label", async () => {
+  const { c, events } = rig({ held: [0] });
+  await c.repaint();
+  assert.equal(events.find(([t]) => t === "shown")[1].quality, null);
+});
+
+/** A jump mid-group then a scroll on through it: the group's frames arrived with the jump, so the scroll asks nothing. */
+test("a scroll through a group after a jump into it asks nothing", async () => {
+  for (const g of [1, 8, 16]) {
+    const { c, calls } = rig({ frames: 40, fillMode: false });
+    // The downloader's answer to an ask mid-group: the asked frame, the rest of its group as frames nobody waits on.
+    c.client.requestExactFrame = (i) => {
+      calls.push(`ask ${i}`);
+      for (let k = i - (i % g); k < Math.min(i - (i % g) + g, 40); k++) if (k !== i) c.take(frame(k));
+      return Promise.resolve(frame(i));
+    };
+    await c.show(21);
+    for (let i = 22; i < 21 - (21 % g) + g; i++) await c.show(i);
+    assert.deepEqual(calls, ["ask 21"], `G = ${g}`);
+  }
 });
 
 let failed = 0;
