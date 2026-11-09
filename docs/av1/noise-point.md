@@ -420,12 +420,239 @@ x with y > 1 over the DBT series at that G, and x_hi is the largest x with y ≤
 
 ## Noise-point protocol, measured
 
-*Partial, 2026-11-09 14:45 UTC: the harness runs, the AC-table check and the predictions are in; the held-out arms,
-P2–P6 and the three mutations follow. Fixtures: DBT from EA1141 (systems A and C 12-bit, B 10-bit); no breast
-ultrasound cine or ABUS exists in the fixtures.*
+Row NOISERUN, run 2026-11-09 on `claude/av1-noise-point`, from commit `972269c4` (§8 as pre-registered; nothing above
+this section changed). **Fixtures:** DBT from EA1141: systems A and C 12-bit, B 10-bit, and content-2 `dbt10_d`
+10-bit. No breast ultrasound cine or ABUS exists in the fixtures, so nothing here speaks for them.
 
-* **AC tables.** libaom v3.15.1's `ac_qlookup_QTX`, `_10_`, `_12_` equal the AV1 specification's `Ac_Qlookup`
-  entry by entry, 3 × 256 of 768. Moving one entry (12-bit, qindex 32, +1) makes the check fail at that entry.
-  `quantizer_to_qindex[Q]` = 4Q for Q 0 … 61. Rows: `lab/av1/metrics/rows/noise-point/ac-table.json`.
-* **Predictions.** Recomputed by `lab/av1/metrics/noise_point.py predict` from the shard-3 series rows, before any
-  encode: all five equal §8's table. Rows: `predict.json`.
+### Verdict
+
+**Claim.** On the five held-out DBT series of shard 3 (`dbts_a3`, `a4`, `a5`, `dbts_b4`, `dbt10_d`), the rule picked
+the predicted Q on all 10 (series, G) cells, and the worst frame at that Q is 0.888–0.969 ÷ σ: **P1 holds, 10 of 10**.
+The in-between Q holds too (worst 0.888–0.981, **P3 holds, 10 of 10**) and saves 14–57 % of the bytes on 3 of the 5
+series. σ on every fourth frame is **not adopted** (P2): it moves `dbts_b1` at G 16 from Q 8 to Q 12. The host-side
+cost of σ on every frame is 0.05–0.09 CPU s/Mpx.
+
+**Proof chain.**
+1. libaom v3.15.1's AC tables equal the AV1 specification's `Ac_Qlookup`, all 768 entries; the check fails when one
+   entry moves. qindex = 4Q for Q 0–61.
+2. The five predictions, recomputed from the shard-3 series rows before any encode, equal §8's table.
+3. 53 cells encoded with `aomenc_args` unchanged, every frame measured by `cell.measure`; every cell's `--q-hist` is
+   its Q alone. Worst frame at the rule's Q: 0.969, 0.958, 0.578, 0.956, 0.888 (G 1) and 0.969, 0.957, 0.578, 0.956,
+   0.887 (G 16).
+4. Against the measured anchor (e_N ≤ σ on every frame, ladder rungs from the lowest arm up): rule = anchor on 7 of
+   10 cells, one rung lower on 3 (`dbts_a5` G 16, `dbt10_d` G 1 and 16), higher on none.
+5. The three mutations each show: the 8-bit table moves the predictions to Q 24–40; the median σ makes `dbts_a2`
+   G 1 overshoot (Q 8 against its anchor 4); the shifted tile mask changes P4's share on 5 of 6 cells.
+
+**What it does not show.** The held-out frames lower the in-sample G 1 minimum: one frame of `dbts_a3` at Q 9 reads
+e_N ÷ σ 1.0001 at x 4.802, under x\* 4.929. No rule Q came near it (Q 9 was the arm above the in-between Q), and it
+is inside 1.03, so P1 is not refuted and x\* is not re-read. It does mean **x\* is not a strict bound on new series**:
+the bar the rule meets is 1.03, not 1.
+
+**What would change it:** a DBT series, from these or other systems, whose rule Q has a frame above 1.03; a reader
+study that sees the noise anchor (§6 flicker test, not run); a system whose noise is not white in the fine band.
+
+**Owed:** the §6 flicker test; an x\* for any modality but DBT; DBT from systems other than these; σ_min beyond
+14.8 (12-bit) and 5.6 (10-bit) on real acquisitions (P5 is synthetic); a decision on the tile excess (P4).
+
+**For the product.** The VL view will take its Q per series from this rule, at ingest, in the PCS. **For DBT from
+systems A, B and C, the rule as written is ready as a candidate Q,** with three conditions the run adds: σ over every
+frame, not a subset (P2); step 4's edge confirm kept, because the rule's margin is to 1.03, not to 1; and the integer
+Q (P3) is safe on these five series and saves bytes. It is **not ready for any other modality.** Before one uses it,
+calibrate on that modality's own coded frames: x\* at G 1 and G > 1 by §3's definition, x_hi, the σ floor below
+which there is no noise anchor (§5.1), and a lossy-history test that does not rely on (0028,2110) alone (P6: the
+breast cine fixtures have no DICOM header at all, and σ misses `usb_cine_rgb`); then a held-out check like this one.
+TRUS (one rung too high, §3) and MR (crosses near x 15) already show the DBT x\* does not carry over.
+
+### Method card
+
+* **Input.** The fetched sets of `lab/av1/data.json`, each checked against its pinned SHA-256 by
+  `lab/av1/fetch_data.sh`: held out `dbts_a3`, `dbts_a4`, `dbts_a5`, `dbts_b4`, `dbt10_d`; timed and tiled
+  `dbts_a1`, `dbts_b1`, `dbts_c1`; P6 `usb_cine`, `usb_cine_rgb`, `us_liver`. σ per frame and HTJ2K bytes from
+  `rows/shard-{1,2,3,4}.jsonl` as committed; the in-sample cells from shards 1, 2 and 4. Commit pin `972269c4`.
+* **Encode.** libaom 3.15.1 (`ingest/tools.sh`, tarball SHA-256 pinned), `aomenc -o OUT --limit=N --q-hist=64
+  --disable-warning-prompt` + `aomenc_args(form, Q, G, N)` of `lab/av1/profiles/bytes.py` unchanged: `--ivf --good
+  --cpu-used=6 --threads=1 --passes=1 --tune=psnr --end-usage=q --cq-level=Q --min-q=Q --max-q=Q --deltaq-mode=0
+  --aq-mode=0 --denoise-noise-level=0 --lag-in-frames=0 --auto-alt-ref=0`, `--kf-max-dist=0` at G 1 or
+  `--kf-min-dist=16 --kf-max-dist=16`, `--monochrome --profile={2 at 12 bits, 0 at 10} --bit-depth=B
+  --input-bit-depth=B`. Stored form only.
+* **Decode.** dav1d 1.5.4 (commit `54706fc`, meson release, bit depths 8 and 16), `dav1d -q --threads=1`.
+* **Clocks.** Encode and decode CPU: `getrusage` of the child, user + system. P2: `time.process_time()` of one
+  Python process around σ for the whole series, frame reads included, nothing else running.
+* **Bytes.** The sum of the IVF frame payloads (`ingest.ivf_units`), over the HTJ2K control's summed bytes for the same
+  series (`rows/shard-3.jsonl`). P4 and P5 count the IVF file.
+* **Metrics.** e_N = `quality.noise_band` of decoded − source over the first window's in-window samples; σ = the
+  series row's `quality.sigma` of that frame; worst = the maximum over frames of e_N ÷ σ. x = ac_q(4Q, B) ÷ 8 ÷ σ_min.
+  The anchor is `collect.highest` over the encoded ladder rungs with every frame ≤ 1.
+* **Host.** One 4-core Intel Xeon at 2.30 GHz, 15 GB, four cells in flight, one thread each; encode wall ÷ CPU 1.009
+  over the 53 cells (5 117 CPU s of encode, 72 of decode, 9 254 Mpx coded). Nothing is claimed past four cells in
+  flight on this host.
+* **Code.** `lab/av1/metrics/noise_point.py` (steps `tables`, `predict`, `arms`, `sigma`, `tiles`, `noise`, `headers`,
+  `report`). `checks.py` ran first, on `dbt10_d`, without the visibility model: every check held and each mutation was
+  seen (`rows/noise-point/checks.json`; `sigma_correlated` reports, as in the shards).
+
+### The AC table, and the predictions
+
+libaom's `ac_qlookup_QTX`, `_10_QTX` and `_12_QTX` against the specification's `Ac_Qlookup[3][256]` (read
+2026-11-09): 0 of 768 entries differ. Mutated (12-bit, qindex 32, +1): the check reports entry 32 and fails. Rows:
+`ac-table.json`. The predictions recomputed by `noise_point.py predict` equal §8's table on all five series and every
+column; the edge band runs on `dbts_a5`, `dbts_b4`, `dbt10_d` (x 5.23, 6.00, 6.26 at the next rung) and not on
+`dbts_a3` and `a4` (7.38, 7.15). Rows: `predict.json`.
+
+### Held-out arms, every cell
+
+Stored form; x at σ_min; worst and median frame. Where the in-between Q equals the rule's rung, the row carries both
+names; `dbts_a5`'s Q 8 is both the rung above and the in-between Q + 1. Rows: `arms.jsonl`.
+
+| series | G | Q | arm | x at σ_min | e_N ÷ σ worst · median | frames > 1.03 | bytes ÷ HTJ2K |
+| --- | --: | --: | --- | --: | --- | --: | --: |
+| `dbts_a3` | 1 | 4 | rung below | 1.79 | 0.497 · 0.474 | 0 of 43 | 0.300 |
+| `dbts_a3` | 1 | 8 | rule, in-between | 4.47 | 0.969 · 0.961 | 0 of 43 | 0.097 |
+| `dbts_a3` | 1 | 9 | in-between + 1 | 5.19 | 1.009 · 0.999 | 0 of 43 | 0.071 |
+| `dbts_a3` | 1 | 12 | rung above | 7.38 | 1.041 · 1.030 | 21 of 43 | 0.029 |
+| `dbts_a3` | 1 | 16 | two above | 10.28 | 1.044 · 1.033 | 33 of 43 | 0.013 |
+| `dbts_a3` | 16 | 4 | rung below | 1.79 | 0.497 · 0.470 | 0 of 43 | 0.299 |
+| `dbts_a3` | 16 | 8 | rule, in-between | 4.47 | 0.969 · 0.958 | 0 of 43 | 0.097 |
+| `dbts_a3` | 16 | 9 | in-between + 1 | 5.19 | 1.009 · 0.996 | 0 of 43 | 0.070 |
+| `dbts_a3` | 16 | 12 | rung above | 7.38 | 1.041 · 1.031 | 25 of 43 | 0.025 |
+| `dbts_a3` | 16 | 16 | two above | 10.28 | 1.044 · 1.032 | 32 of 43 | 0.008 |
+| `dbts_a4` | 1 | 4 | rung below | 1.74 | 0.497 · 0.463 | 0 of 69 | 0.300 |
+| `dbts_a4` | 1 | 8 | rule, in-between | 4.33 | 0.958 · 0.948 | 0 of 69 | 0.101 |
+| `dbts_a4` | 1 | 9 | in-between + 1 | 5.03 | 0.995 · 0.987 | 0 of 69 | 0.074 |
+| `dbts_a4` | 1 | 12 | rung above | 7.15 | 1.031 · 1.023 | 3 of 69 | 0.029 |
+| `dbts_a4` | 1 | 16 | two above | 9.96 | 1.035 · 1.026 | 13 of 69 | 0.011 |
+| `dbts_a4` | 16 | 4 | rung below | 1.74 | 0.497 · 0.464 | 0 of 69 | 0.299 |
+| `dbts_a4` | 16 | 8 | rule, in-between | 4.33 | 0.957 · 0.944 | 0 of 69 | 0.102 |
+| `dbts_a4` | 16 | 9 | in-between + 1 | 5.03 | 0.995 · 0.985 | 0 of 69 | 0.074 |
+| `dbts_a4` | 16 | 12 | rung above | 7.15 | 1.033 · 1.024 | 6 of 69 | 0.026 |
+| `dbts_a4` | 16 | 16 | two above | 9.96 | 1.035 · 1.026 | 13 of 69 | 0.007 |
+| `dbts_a5` | 1 | 2 | rung below | 0.86 | 0.239 · 0.221 | 0 of 71 | 0.489 |
+| `dbts_a5` | 1 | 4 | rule | 2.10 | 0.578 · 0.547 | 0 of 71 | 0.279 |
+| `dbts_a5` | 1 | 7 | in-between | 4.40 | 0.948 · 0.936 | 0 of 71 | 0.120 |
+| `dbts_a5` | 1 | 8 | rung above, in-between + 1 | 5.23 | 1.001 · 0.993 | 0 of 71 | 0.090 |
+| `dbts_a5` | 1 | 12 | two above | 8.63 | 1.071 · 1.057 | 71 of 71 | 0.031 |
+| `dbts_a5` | 16 | 2 | rung below | 0.86 | 0.254 · 0.233 | 0 of 71 | 0.472 |
+| `dbts_a5` | 16 | 4 | rule | 2.10 | 0.578 · 0.545 | 0 of 71 | 0.277 |
+| `dbts_a5` | 16 | 7 | in-between | 4.40 | 0.947 · 0.931 | 0 of 71 | 0.119 |
+| `dbts_a5` | 16 | 8 | rung above, in-between + 1 | 5.23 | 1.000 · 0.991 | 0 of 71 | 0.088 |
+| `dbts_a5` | 16 | 12 | two above | 8.63 | 1.071 · 1.057 | 71 of 71 | 0.026 |
+| `dbts_b4` | 1 | 8 | rung below | 2.74 | 0.751 · 0.748 | 0 of 84 | 0.185 |
+| `dbts_b4` | 1 | 12 | rule | 4.38 | 0.956 · 0.952 | 0 of 84 | 0.096 |
+| `dbts_b4` | 1 | 13 | in-between | 4.78 | 0.981 · 0.977 | 0 of 84 | 0.082 |
+| `dbts_b4` | 1 | 14 | in-between + 1 | 5.19 | 1.002 · 0.997 | 0 of 84 | 0.071 |
+| `dbts_b4` | 1 | 16 | rung above | 6.00 | 1.028 · 1.024 | 0 of 84 | 0.053 |
+| `dbts_b4` | 1 | 24 | two above | 9.19 | 1.061 · 1.056 | 84 of 84 | 0.021 |
+| `dbts_b4` | 16 | 8 | rung below | 2.74 | 0.751 · 0.729 | 0 of 84 | 0.182 |
+| `dbts_b4` | 16 | 12 | rule, in-between | 4.38 | 0.956 · 0.948 | 0 of 84 | 0.088 |
+| `dbts_b4` | 16 | 13 | in-between + 1 | 4.78 | 0.981 · 0.975 | 0 of 84 | 0.074 |
+| `dbts_b4` | 16 | 16 | rung above | 6.00 | 1.029 · 1.024 | 0 of 84 | 0.046 |
+| `dbts_b4` | 16 | 24 | two above | 9.19 | 1.062 · 1.057 | 84 of 84 | 0.014 |
+| `dbt10_d` | 1 | 4 | rung below | 1.77 | 0.527 · 0.525 | 0 of 48 | 0.414 |
+| `dbt10_d` | 1 | 8 | rule | 3.92 | 0.888 · 0.885 | 0 of 48 | 0.198 |
+| `dbt10_d` | 1 | 9 | in-between | 4.50 | 0.922 · 0.919 | 0 of 48 | 0.169 |
+| `dbt10_d` | 1 | 10 | in-between + 1 | 5.07 | 0.949 · 0.946 | 0 of 48 | 0.146 |
+| `dbt10_d` | 1 | 12 | rung above | 6.26 | 0.993 · 0.988 | 0 of 48 | 0.110 |
+| `dbt10_d` | 1 | 16 | two above | 8.57 | 1.028 · 1.023 | 0 of 48 | 0.069 |
+| `dbt10_d` | 16 | 4 | rung below | 1.77 | 0.526 · 0.513 | 0 of 48 | 0.408 |
+| `dbt10_d` | 16 | 8 | rule | 3.92 | 0.887 · 0.881 | 0 of 48 | 0.188 |
+| `dbt10_d` | 16 | 9 | in-between | 4.50 | 0.921 · 0.918 | 0 of 48 | 0.158 |
+| `dbt10_d` | 16 | 10 | in-between + 1 | 5.07 | 0.955 · 0.948 | 0 of 48 | 0.134 |
+| `dbt10_d` | 16 | 12 | rung above | 6.26 | 0.991 · 0.987 | 0 of 48 | 0.099 |
+| `dbt10_d` | 16 | 16 | two above | 8.57 | 1.030 · 1.025 | 0 of 48 | 0.055 |
+
+| series | G | rule Q · worst | P1 | in-between Q · worst | P3 | bytes saved, in-between against rule Q | anchor on the ladder, rule against it |
+| --- | --: | --- | --- | --- | --- | --: | --- |
+| `dbts_a3` | 1 | 8 · 0.969 | holds | 8 · 0.969 | holds | 0 % | 8, equal |
+| `dbts_a3` | 16 | 8 · 0.969 | holds | 8 · 0.969 | holds | 0 % | 8, equal |
+| `dbts_a4` | 1 | 8 · 0.958 | holds | 8 · 0.958 | holds | 0 % | 8, equal |
+| `dbts_a4` | 16 | 8 · 0.957 | holds | 8 · 0.957 | holds | 0 % | 8, equal |
+| `dbts_a5` | 1 | 4 · 0.578 | holds | 7 · 0.948 | holds | 56.9 % | 4 (Q 8 reads 1.001), equal |
+| `dbts_a5` | 16 | 4 · 0.578 | holds | 7 · 0.947 | holds | 57.1 % | 8 (Q 8 reads 1.000), one rung lower |
+| `dbts_b4` | 1 | 12 · 0.956 | holds | 13 · 0.981 | holds | 14.2 % | 12, equal |
+| `dbts_b4` | 16 | 12 · 0.956 | holds | 12 · 0.956 | holds | 0 % | 12, equal |
+| `dbt10_d` | 1 | 8 · 0.888 | holds | 9 · 0.922 | holds | 14.3 % | 12, one rung lower |
+| `dbt10_d` | 16 | 8 · 0.887 | holds | 9 · 0.921 | holds | 15.9 % | 12, one rung lower |
+
+The anchor reads from the lowest arm up; the rungs below it were not encoded. **x\* with the held-out frames
+included**, by §3's definition: G 1 drops from 4.929 to **4.802** (`dbts_a3`, Q 9, frame 32, σ 13.8, e_N ÷ σ
+1.0001); G 8 and 16 stay at 4.636 (`dbts_b1`, Q 12). P1 holds, so per §8 this is reported and the rule is not
+re-read.
+
+### P2 · σ's cost, and every fourth frame
+
+Williams order over the six (series, frames) units, five rounds, one process alone on the host. σ matched the
+series rows to 1e-9 on every frame of every run.
+
+| series | Mpx | every frame: CPU s, median of 5 (range) | every fourth frame | CPU s / Mpx, every frame |
+| --- | --: | --- | --- | --: |
+| `dbts_a1` | 114 | 5.6 (5.0–6.1) | 1.4 (1.4–1.5) | 0.049 |
+| `dbts_b1` | 426 | 37.0 (34.2–38.6) | 9.7 (8.7–10.8) | 0.087 |
+| `dbts_c1` | 169 | 8.2 (7.5–8.7) | 2.1 (1.9–2.3) | 0.049 |
+
+**Decision: not adopted.** Over 28 cells × G 1 and 16 (56 picks), every fourth frame (frames 0, 4, 8, …) changes one:
+`dbts_b1` at G 16, Q 8 → Q 12 on the ladder (11 → 12 in 0 … 61), because its σ_min frame (30 of 50, σ 5.258) is
+skipped (5.308). Q 12 is above that cell's measured anchor, 8. σ on every frame costs 0.05–0.09 CPU s/Mpx here,
+under §7's 0.3 ceiling: 6–37 s a series on one core.
+
+### P4 · Region, reported
+
+64 × 64 tiles wholly in-window, every frame, at each series' rule Q; σ and e_N per tile by the same functions as
+per frame, on the tile alone. "Edge" tiles have a missing neighbour (the window's border or the breast's).
+
+| series | G | Q | tiles | share > 1.03 | mask shifted one tile | tile σ, median by signal tercile low · mid · high | r(σ, signal) | share > 1.03 by signal tercile | edge · interior |
+| --- | --: | --: | --: | --: | --: | --- | --: | --- | --- |
+| `dbts_a1` | 1 | 4 | 16 867 | 0.0 % | 1.0 % | 10.29 · 11.51 · 12.73 | 0.78 | 0.0 · 0.0 · 0.0 % | 0.0 · 0.0 % |
+| `dbts_a1` | 16 | 4 | 16 867 | 0.0 % | 1.1 % | 10.29 · 11.51 · 12.73 | 0.78 | 0.0 · 0.0 · 0.0 % | 0.0 · 0.0 % |
+| `dbts_b1` | 1 | 12 | 33 200 | 1.1 % | 0.7 % | 4.88 · 5.27 · 6.09 | 0.58 | 2.1 · 1.1 · 0.2 % | 3.6 · 0.6 % |
+| `dbts_b1` | 16 | 8 | 33 200 | 0.0 % | 0.0 % | 4.88 · 5.27 · 6.09 | 0.58 | 0.0 · 0.0 · 0.0 % | 0.0 · 0.0 % |
+| `dbts_c1` | 1 | 8 | 15 996 | 0.7 % | 0.9 % | 11.06 · 13.25 · 17.98 | 0.90 | 1.4 · 0.5 · 0.2 % | 2.5 · 0.1 % |
+| `dbts_c1` | 16 | 4 | 15 996 | 0.0 % | 0.7 % | 11.06 · 13.25 · 17.98 | 0.90 | 0.0 · 0.0 · 0.0 % | 0.0 · 0.0 % |
+
+Noise rises with signal on all three (r 0.58–0.90). Where the rule Q sits near x\* (`dbts_b1` and `dbts_c1` at G 1),
+0.7–1.1 % of tiles exceed 1.03, mostly in the quietest third and at the edge, as §5.4 expected; at the rung below
+(the other four cells) none do. **The tile-mask mutation is seen on 5 of 6 cells and missed on `dbts_b1` G 16**, where
+both shares are 0. Whether this calls for a regional Q is the owner's design question. Rows: `tiles.jsonl.gz`.
+
+### P5 · Encoder side at raised noise
+
+`dbts_c1`'s middle 8 frames with white Gaussian noise added (seeded per frame), rounded and clipped to 12 bits, σ
+re-measured. G 16 here is one keyframe and seven inter frames. Rows: `noise.jsonl`.
+
+| σ_min × | σ added | σ_min measured | rule Q | Q | x | worst · median, G 1 | worst · median, G 16 | bytes G 1 · G 16 |
+| --: | --: | --: | --: | --: | --: | --- | --- | --- |
+| 1 | 0 | 12.69 | 8 | 4 | 1.80 | 0.509 · 0.502 | 0.509 · 0.502 | 2 387 505 · 2 391 260 |
+| 1 | 0 | 12.69 | 8 | 8 | 4.49 | 0.981 · 0.980 | 0.980 · 0.974 | 800 941 · 797 126 |
+| 1 | 0 | 12.69 | 8 | 12 | 7.42 | 1.074 · 1.073 | 1.074 · 1.073 | 274 689 · 242 445 |
+| 1 | 0 | 12.69 | 8 | 16 | 10.33 | 1.082 · 1.080 | 1.082 · 1.081 | 130 677 · 87 855 |
+| 2 | 21.98 | 25.65 | 12 | 8 | 2.22 | 0.677 · 0.674 | 0.674 · 0.661 | 1 458 787 · 1 475 972 |
+| 2 | 21.98 | 25.65 | 12 | 12 | 3.67 | 0.993 · 0.992 | 0.993 · 0.990 | 416 352 · 418 759 |
+| 2 | 21.98 | 25.65 | 12 | 16 | 5.11 | 1.010 · 1.009 | 1.010 · 1.009 | 155 154 · 122 070 |
+| 2 | 21.98 | 25.65 | 12 | 24 | 7.93 | 1.010 · 1.010 | 1.011 · 1.010 | 63 383 · 30 797 |
+| 4 | 49.14 | 50.95 | 24 | 16 | 2.57 | 0.859 · 0.856 | 0.858 · 0.846 | 671 780 · 695 142 |
+| 4 | 49.14 | 50.95 | 24 | 24 | 3.99 | 1.002 · 1.001 | 1.002 · 1.001 | 82 890 · 33 564 |
+| 4 | 49.14 | 50.95 | 24 | 32 | 6.86 | 1.002 · 1.001 | 1.002 · 1.001 | 35 547 · 13 875 |
+| 4 | 49.14 | 50.95 | 24 | 40 | 11.95 | 1.002 · 1.001 | 1.002 · 1.001 | 20 304 · 6 557 |
+
+**P5 holds under P1's rule** (worst at the rule Q 0.981, 0.993, 1.002). Two readings it adds. At 4× the rule Q's
+worst frame is 1.002: above 1, inside 1.03, and the strict anchor would be Q 16. And with white noise added, e_N ÷ σ
+levels off at 1.00–1.01 instead of the 1.04–1.08 of the real frames, so above x\* this arm cannot tell rungs apart: it
+tests the curve's rise, not its plateau. It is not a real high-noise acquisition.
+
+### P6 · Lossy-history fields
+
+| series | (0028,2110) · (0028,2112) · (0028,2114) | transfer syntax | σ_min under the Q 1 entry (8-bit, 0.28) | flagged by |
+| --- | --- | --- | --- | --- |
+| `usb_cine` | no DICOM: an AVI of MPEG-4 Part 2, yuv420p | none | 0.273: yes | σ, and the source being video |
+| `usb_cine_rgb` | no DICOM: an AVI of MPEG-4 Part 2, yuv420p | none | 0.782: no | only the source being video |
+| `us_liver` | 01 · 12.4 · absent | Implicit VR Little Endian (uncompressed) | 2.649: no | the attribute only |
+
+No series is caught by all three of §5.5's tests, and each test misses one of the three. Rows: `headers.json`.
+
+### Mutations
+
+| mutation | expected | seen |
+| --- | --- | --- |
+| AC table, one entry moved | the table check fails | fails at 12-bit qindex 32 |
+| Δ from the 8-bit table on a 12-bit (or 10-bit) stream | predictions move ≥ 2 rungs | `dbts_a3`, `a4`, `a5` 8 · 8 · 4 → 40; `dbts_b4` 12 → 32; `dbt10_d` 8 → 24 |
+| σ_min replaced by the median σ | `dbts_a2`'s in-sample cell overshoots | G 1, 12-bit: Q 8 against anchor 4 (also `dbts_b1` G 8 and 16, `dbts_c1` top-10 G 1, `dbts_c5` top-10 G 1) |
+| tile mask shifted one tile | P4's share changes | changes on 5 of 6 cells; not on `dbts_b1` G 16 (0 % both) |
