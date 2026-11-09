@@ -41,7 +41,7 @@ little-endian above, signed samples sign-extended to that width. The width is th
 `bitsStored`, an AV1 payload's `bits` ([`av1/payload-format.md`](av1/payload-format.md)), so a series stored in 16 bits whose values fit in 8
 hashes one byte a sample as AV1. The digest is taken from the encoder's input — the samples the `.sha256` was
 written from — never from a decoder's output. Metadata without `digests` is served as before; its frames
-arrive `unchecked` ([`../client/README.md`](../client/README.md) §A frame says whether it is exact).
+arrive `unchecked`, as an optimal-quality series' always do ([`../client/README.md`](../client/README.md) §A frame says whether it is exact).
 
 ## From DICOM
 
@@ -99,7 +99,10 @@ slowest's bytes:
   LINEAR when absent;
 * `min` and `max` of the stored samples;
 * `codec`, and for AV1 `representation` and `preset`;
-* `digests` (§Frame digests).
+* `digests` (§Frame digests);
+* for an optimal-quality series instead of `representation`, `preset` and `digests`: `lossy` `{q, g, depth}` and
+  `exactSeries`, the name of its exact series ([`av1/payload-format.md`](av1/payload-format.md) §Optimal quality).
+  `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID` writes them; this ingest does not code one yet.
 
 An enhanced object's per-frame functional group (Frame VOI LUT, Pixel Value Transformation) wins over its shared
 group, which wins over the object's own attributes. An attribute that differs between frames moves to `perFrame`,

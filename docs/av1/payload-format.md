@@ -213,3 +213,42 @@ what would reopen G > 1: [`frame-groups.md`](frame-groups.md) §1 and §5. HTJ2K
 
 Series the PCS could share are the owner's call ([`queue.md`](queue.md) §Blocked); the protocol they would run is
 [`gop-protocol.md`](gop-protocol.md).
+
+## Optimal quality
+
+*OQ-INGEST, 2026-11-09. Built; the bytes below are measured, the quality is not (the AV1 lab's
+`claude/av1-quality-profiles` measures it).*
+
+The design: every viewer sees a series' **optimal quality**, a visually lossless AV1 view; when a reader asks for
+lossless, the client fetches that frame whole from the **exact series**, the HTJ2K series of the same source, served
+as today. No residual, and no server or wire change: the optimal-quality series is a series of its own, ingested
+beside its exact series, and the client pairs them by `exactSeries` ([`../glossary.md`](../glossary.md)).
+
+* **Coding.** libaom 3.15.1 at a fixed quantizer, the AV1 lab's settings (`aomenc_args` in
+  `lab/av1/profiles/bytes.py` on `claude/av1-quality-profiles`, without alt-ref), `ingest.py`'s `lossy_args`:
+
+  ```
+  aomenc --ivf --good --cpu-used=6 --threads=1 --passes=1 --tune=psnr --end-usage=q --cq-level=Q --min-q=Q --max-q=Q \
+         --deltaq-mode=0 --aq-mode=0 --denoise-noise-level=0 --lag-in-frames=0 --auto-alt-ref=0 \
+         --kf-min-dist=G --kf-max-dist=G --monochrome --profile=P --bit-depth=D --input-bit-depth=D
+  ```
+
+  `--kf-max-dist=0` in place of both `--kf-*-dist` at G = 1; `--profile` 2 at 12 bits, 0 otherwise. Q is any of
+  0–63 and G any of 1 or more, per series, the PCS's choice; the ingest takes any value.
+* **Depth.** The source's: grey of b bits after the offset is coded at the smallest of 8, 10 and 12 holding b.
+  Refused: over 12 bits (a reduced-depth form is being designed, not built) and RGB.
+* **Payload.** §Payload as it is, one temporal unit a frame (n = 1, split 0): `bits` b, `depth` D, `flags` signed
+  and `offset` as for a lossless series. A decoded sample is anywhere in 0 … 2^D − 1 less the offset, not only
+  within the series' `min` … `max`.
+* **Groups.** Frame i's group starts at its keyframe k = i − (i mod G), a shown key frame with its sequence header.
+  Frame i is shown by decoding the units of frames k, k + 1, …, i in order on one decoder; no unit refers outside
+  its group, and the last group may be shorter. Nothing beyond G is recorded: `lossy.g` gives k for every frame.
+  Each group is one encoder run, so the bytes do not depend on `--jobs`.
+* **Checked at ingest:** every frame decoded in-process from its keyframe's unit on, at depth D and the series'
+  size, or nothing written. Not against its source: it is not exact. `ingest/coded-frames/lossy_test.py` checks a
+  synthetic set at depths 8, 10 and 12: every frame within 1 % of the range (RMS), never exact, worse at Q 24 than
+  at Q 8, decodable from its keyframe and not without it at G 1, 8 and 16, the same bytes at two `--jobs`.
+* **Metadata:** `"codec": "av1"`, `"lossy": {"q": Q, "g": G, "depth": D}` and `"exactSeries"`, the name its exact
+  series' bundle is known by. No `representation`, `preset` or `digests`: a frame digest makes a frame `exact`
+  ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests), so a lossy frame arrives `unchecked`.
+* **Built** in `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID`; the DICOM ingest does not code it yet.
