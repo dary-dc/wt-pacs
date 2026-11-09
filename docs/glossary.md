@@ -49,3 +49,4 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | golden payload | an AV1 payload the writer made from a synthetic source with a known checksum, kept in `client/contract/av1/payloads/` |
 | cell | one configuration a lab run measures: a link, a CPU throttle, a series, a schedule |
 | variant | one condition of a timed comparison, interleaved with the others in every round (`CLAUDE.md` §Measurement) |
+| display level | the 8-bit code a sample gets through a window as the product paints it; a source error e shows as e · 255 ÷ (W − 1) levels in a LINEAR window of width W ([`av1/window-q.md`](av1/window-q.md)) |
