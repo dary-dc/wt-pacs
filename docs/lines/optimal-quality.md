@@ -46,8 +46,8 @@ the optimal-quality series is a series of its own, ingested beside its exact ser
 * The design: optimal quality (visually lossless AV1) plus the exact HTJ2K frame on explicit request; the residual
   dropped.
 * G fixed per modality by measurement, no adaptive detector; Q per series by the noise rule
-  ([`codecs.md`](codecs.md)); the PCS chooses; our side handles any Q, G and depth. For the demo: Q 8 (the
-  visually lossless Q) and Q 24 (for contrast), G 1, 8 and 16, hard-coded.
+  ([`codecs.md`](codecs.md)); the PCS chooses; our side handles any Q, G and depth. For the demo: Q 8 (the noise
+  rule's candidate on DBT; not yet confirmed visually lossless by readers) and Q 24 (for contrast), G 1, 8 and 16, hard-coded.
 * The label says *Optimal quality* or *Lossless*, the latter only after the checksum passes; a developer overlay
   behind a toggle.
 * Phone: tethering for development and decode numbers; Wi-Fi plus netem for transport realism and the demo.
