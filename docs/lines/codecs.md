@@ -37,6 +37,10 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 
 ## Open (ordered)
 
+0. **G at equal quality** (`claude/av1-groups`, protocol then measurement): G has only been compared at equal Q. Open:
+   why G saves almost nothing at Q 8 on DBT, whether a lower Q at a larger G wins at equal fidelity, and whether our
+   low-delay encoder settings (no lookahead, no alt-ref frames, whose temporal filtering partly averages out noise)
+   suppress inter coding. Decode time in order matters more than jumps (sequential reading). No G is decided for DBT.
 1. Harvest and review the AV1 result chain into `av1-unified-mainbase`: #290 → #305 → #317, #312; #283 → #306 → #314
    → #316; #288, #315 (residual exactness across decoders, browser cells partial), #318 (WebCodecs profiles).
 2. Explore noise detection at ingest (σ_min, its estimator's timing on the three volumes), then hand it to the PCS team.

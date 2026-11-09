@@ -50,10 +50,15 @@ the optimal-quality series is a series of its own, ingested beside its exact ser
 4. Serve the exact series' paths from the web image.
 5. Phone runs: tethering for development and decode numbers; Wi-Fi plus netem for transport realism and the demo.
 6. The DICOM ingest codes optimal quality (today only the lab tool does).
-7. The depth cut for D > 10 (the OQ view through WebCodecs); D ≤ 10 needs none. Not built yet.
+7. The depth cut for D > 10 (the OQ view through WebCodecs, painted from its 10-bit codes through a window table, no
+   shift pass); D ≤ 10 needs none. Build `claude/oq-depth-cut` (stacks on the two OQ branches). Full fidelity is the
+   exact HTJ2K frame; a 12-bit OQ view through dav1d is the same lossy view at the stored depth, a decode alternative.
+10. Is Q 8 right for VL at the windows readers use (display-unit error per window width): `claude/av1-window-q`; how VL
+    is established and which metrics experts use (PSNR's limits, windows, guidelines): `claude/av1-vl-metrics`.
 8. Narrow windows show the coding error most: an explicit Lossless request now; an automatic exact request when the
    window is narrow (or a reading mode) is an option to compare, with the threshold set by readers, not chosen here.
-9. Later: HTJ2K with resolution levels and tiles for large matrices and high D.
+9. Later, a separate approach outside this sprint: HTJ2K with resolution levels and tiles for large matrices and high D
+   (protocol on `claude/htj2k-tiles`).
 
 ## Decisions (the owner's, 2026-11-09)
 
