@@ -6,6 +6,9 @@ export const FIT = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: fal
 
 export const asPainted = (info) => ({ pixels: info.pixels, width: info.width, height: info.height, bits: info.bits, components: info.components, signed: info.signed });
 
+/** What the developer overlay shows of a painted frame: its decode route, the bytes that crossed the link, its decode time. */
+const about = ({ path, wireBytes, stamps }) => ({ path, wireBytes, decodeMs: stamps?.decodeEnd && stamps.decodeEnd - stamps.decodeStart });
+
 export function samplesOf(info) {
   const { bits, components, signed } = info;
   const View = components === 3 || bits <= 8 ? (signed ? Int8Array : Uint8Array) : signed ? Int16Array : Uint16Array;
@@ -37,6 +40,10 @@ export class Controller {
   /** Each pending ask's frame and the step that made it; a cancel empties it. */
   #asks = new Map();
   #steps = 0;
+  /** Under a lossy series, the client of its exact series; `#exact`, the one frame asked exact, `{ i, frame?, failed? }`. */
+  exactSource = null;
+  #exact = null;
+  #exactAsks = new Map();
 
   /** `paint(frame, display, { read })` draws a held frame; `emit(type, event)` tells the page; `size` is the canvas's CSS size and DPR. */
   constructor({ meta, fillMode, paint, emit, size, budget }) {
@@ -90,7 +97,7 @@ export class Controller {
       while (this.#dirty) {
         this.#dirty = false;
         const i = this.current;
-        const f = this.store.get(i);
+        const f = this.#shownFrame(i);
         if (!f) continue;
         try {
           const d = this.display(i, f.info);
@@ -98,7 +105,7 @@ export class Controller {
           f.painted ??= at();
           this.paints += 1;
           if (this.firstShownMs === null && f.info.exact === true) this.firstShownMs = at() - this.issuedAt;
-          this.#emit("shown", { i, exact: f.info.exact, reason: f.info.reason, window: d.voi, firstShownMs: this.firstShownMs });
+          this.#emit("shown", { i, exact: f.info.exact, reason: f.info.reason, window: d.voi, firstShownMs: this.firstShownMs, quality: this.quality(i, f), about: about(f.info) });
         } catch (e) {
           this.#emit("failed", { scope: "worker", reason: `paint: ${e.message}` });
         }
@@ -112,6 +119,7 @@ export class Controller {
   async show(i) {
     const n = this.#n;
     this.current = (i + n) % n;
+    if (this.#exact?.i !== this.current) this.#exact = null;
     this.store.near = this.current;
     if (this.store.downloader) {
       this.store.want(this.want());
@@ -147,6 +155,49 @@ export class Controller {
     return order;
   }
 
+  /** The frame painted at `i`: its exact frame once that is here and checked, else the store's. */
+  #shownFrame(i) {
+    return (this.#exact?.i === i && this.#exact.frame) || this.store.get(i);
+  }
+
+  /**
+   * The label of frame `f` painted at `i`, null for a series that is not lossy. Clinical invariant: `lossless` only for
+   * the exact series' frame whose digest matched. client/README.md §A lossy series, exact on request
+   */
+  quality(i, f) {
+    if (!this.#meta.lossy) return null;
+    const e = this.#exact?.i === i ? this.#exact : null;
+    if (e?.frame === f && f.info.exact === true) return "lossless";
+    if (e?.failed) return "failed";
+    return e ? "asking" : "optimal";
+  }
+
+  /** The current frame from the exact series, painted in its place once checked; it stays until the reader leaves it. */
+  async showExact() {
+    const i = this.current;
+    if (!this.exactSource || this.#exact?.i === i) return;
+    const e = (this.#exact = { i });
+    this.repaint();
+    if (!this.#exactAsks.has(i)) this.#exactAsks.set(i, this.exactSource.requestExactFrame(i).finally(() => this.#exactAsks.delete(i)));
+    try {
+      const { info } = await this.#exactAsks.get(i);
+      if (info.exact === true) e.frame = { info, arrived: at() };
+      else e.failed = info.exact === false ? `not exact: ${info.reason}` : "the exact series has no digest for this frame";
+    } catch (err) {
+      e.failed = err.message;
+    }
+    if (this.#exact !== e) return;
+    if (e.failed) this.#emit("failed", { scope: "frame", i, reason: `lossless: ${e.failed}` });
+    return this.repaint();
+  }
+
+  /** Back to the optimal quality frame. */
+  showLossy() {
+    if (!this.#exact) return;
+    this.#exact = null;
+    return this.repaint();
+  }
+
   /** A frame the downloader could not deliver; index -1 is the series. */
   refused(i, reason) {
     if (i < 0) return this.#emit("failed", { scope: "series", reason });
@@ -170,7 +221,7 @@ export class Controller {
   /** The current frame's sample under CSS pixel (x, y) of the canvas, stored and through its rescale; null off the image. */
   async valueAt(x, y) {
     const i = this.current;
-    const f = this.store.get(i);
+    const f = this.#shownFrame(i);
     if (!f) return null;
     const [{ toSource }, { rescale }] = await Promise.all([import("../paint/reference.js"), import("../paint/voi.js")]);
     const { width, height, dpr } = this.size;

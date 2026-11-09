@@ -567,5 +567,38 @@ async function aHeadTheRunDeliversWithinKIsWaitedFor() {
 }
 await aHeadTheRunDeliversWithinKIsWaitedFor();
 
+/**
+ * A jump into a group, G = 1, 8 and 16, with no decoder state: the ask fetches the frame's whole group, and its keyframe
+ * then each frame after it reach one decoder in index order; every frame of the group is posted, so a scroll through it
+ * asks nothing more. docs/av1/adr-unit.md §3
+ */
+async function aJumpMidGroupDecodesFromItsKeyframe() {
+  for (const g of [1, 8, 16]) {
+    const fed = handFed();
+    const made = handDecoders();
+    const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // jump ${g}`;
+    await import(`./downloader.js?jump-${g}`);
+    await onmessage({ data: { kind: "start", config: { decoders: 3, perDecoder: 32, transport, decoderWorker: "x", survival: false, groupLength: g, frameCount: 40 } } });
+    await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+    const key = 21 - (21 % g);
+    const group = Array.from({ length: g }, (_, k) => key + k);
+    await onmessage({ data: { kind: "ask", index: 21 } });
+    check([...fed.asks.keys()].sort((x, y) => x - y).join() === group.join(), `G = ${g}: the jump to 21 asks its group ${group[0]}–${group.at(-1)} (${[...fed.asks.keys()]})`);
+    // The wire may deliver the group out of order: the asked frame first, its keyframe last.
+    for (const i of [21, ...group.filter((i) => i !== 21).reverse()]) fed.asks.get(i)?.(frame(i));
+    const decoded = [];
+    for (let k = 0; k < 4 * g; k++) {
+      await settle();
+      for (const [d, w] of made.entries()) {
+        w.toConsumer = { postMessage: (m) => decoded.push(`${m.index}@${d}`) };
+        if (w.decoding.length) w.finish();
+      }
+    }
+    const on = new Set(decoded.map((x) => x.split("@")[1]));
+    check(on.size === 1 && decoded.map((x) => x.split("@")[0]).join() === group.join(), `G = ${g}: one decoder decodes the group from its keyframe in order, and posts each frame (${decoded})`);
+  }
+}
+await aJumpMidGroupDecodesFromItsKeyframe();
+
 console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for: ok");
 process.exit(failed ? 1 : 0);

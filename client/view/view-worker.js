@@ -80,6 +80,11 @@ async function connect({ port, url, certHash, opts: { writer, holdEveryOther, ..
   if (held) fillAround(held);
 }
 
+/** A lossy series' exact series, on a downloader of its own: no fill, each frame asked when the reader asks it. */
+async function connectExact({ port, url, certHash, opts }) {
+  controller.exactSource = await DownloaderClient.connect(url, certHash, { ...opts, port });
+}
+
 /** The lab's half-held store: once the held frames are here, the rest are wanted and the fill is timed from that want. docs/adr/frame-path.md §Experiment 1 */
 async function fillAround(held) {
   await Promise.all(held.map((i) => controller.store.arrival(i)));
@@ -100,19 +105,22 @@ const INTENTS = {
   tick: ({ t, vsync }) => cine?.tick(t, vsync),
   pause: () => cine?.stop(),
   show: ({ i }) => controller.show(i),
+  exact: () => controller.showExact(),
+  lossy: () => controller.showLossy(),
   display: ({ display }) => controller.setDisplay(display),
   size: ({ size }) => controller.resize(size),
-  trigger: () => controller.client?.check(),
+  trigger: () => [controller.client, controller.exactSource].forEach((c) => c?.check()),
 };
 
 const CALLS = {
   connect,
+  connectExact,
   repaint: () => controller.repaint(),
   valueAt: ({ x, y }) => controller.valueAt(x, y),
   ledger: ({ flip }) => controller.ledger({ flip }),
   cine: () => cine?.log ?? [],
   check: async ({ phase, args }) => (await import("./check.js"))[phase]({ controller, port: downloader, ...args }),
-  close: () => controller.client.close(),
+  close: () => (controller.exactSource?.close(), controller.client.close()),
 };
 
 // Set after the paint module's own handler, which its import installed.
