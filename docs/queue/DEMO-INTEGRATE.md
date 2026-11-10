@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-10 21:23
-heartbeat: 2026-11-10 21:40
-outputs: claude/demo-fixes-0 2d566c67 (no PR yet)
+heartbeat: 2026-11-10 21:55
+outputs: claude/demo-fixes-0 2d566c67, draft PR #355 into claude/core
 ## Resume
 Demo tip was claude/core-next-fixes 9eee7181. Already in it: oq-ingest-fixes, oq-depth-cut (6f61ff0b, unmoved since
 04:08), oq-depth-cut-fixes, phone-setup-fixes, phone-pair. Merged --no-ff on claude/demo-fixes-0:
@@ -10,6 +10,6 @@ afd2e18b double-decode-check (conflicts downloader.js: the tip's #299 check kept
 tip's tests kept, aFrameAskedDuringAFillIsDecodedOnce added; mutant `if (!rec) return;` killed by it),
 2d566c67 demo-e2e-2 (DEMO-E2E-2's own fix of its one failure, the certificate renewal; no conflicts).
 gate.yml already runs on PRs into claude/core (O1). DEMO-E2E-2 recorded no other failure.
-Next: gate setup (dockerd, pip install meson==1.9.1, client/decode/wasm/build/build.sh, ingest/tools.sh), then
-scripts/gate.sh on claude/demo-fixes-0; then draft PR into claude/core with the merge record; then CI.
+Gate setup done here (build.sh refused by Docker Hub 429; committed decoders used; transport wasm built; fetch_openjph.sh run). Draft PR #355 open.
+Next: the full scripts/gate.sh on claude/demo-fixes-0 (running at 21:55), then PR #355 CI; record both.
 ## Result
