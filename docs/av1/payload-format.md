@@ -242,7 +242,10 @@ beside its exact series, and the client pairs them by `exactSeries` ([`../glossa
   ```
 
   `--kf-max-dist=0` in place of both `--kf-*-dist` at G = 1; `--profile` 2 at 12 bits, 0 otherwise. Q is any of
-  0–63 and G any of 1 or more, per series, the PCS's choice; the ingest takes any value.
+  1–63 and G any of 1 or more, per series, the PCS's choice; the ingest takes any such value. *Corrected
+  2026-11-10:* this said 0–63. Q 0 is qindex 0 with no delta-q, which the AV1 specification makes lossless
+  (`LosslessArray`), and measured on the synthetic 8, 10 and 12-bit sources of `lossy_test.py` at G 1 every frame
+  decodes exact: a lossless stream labelled lossy. The ingest refuses it by name.
 * **Depth.** The source's: grey of b bits after the offset is coded at the smallest of 8, 10 and 12 holding b.
   Refused: over 12 bits (a reduced-depth form is being designed, not built) and RGB.
 * **Payload.** §Payload as it is, one temporal unit a frame (n = 1, split 0): `bits` b, `depth` D, `flags` signed
