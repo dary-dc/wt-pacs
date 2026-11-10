@@ -303,3 +303,84 @@ almost nothing. What costs d′ is that the quantizer acts at every frequency (�
 So r ≤ 1 is a **necessary-looking but not sufficient** criterion for task performance. It is sound as a guard against
 added independent error at low Q. At the Q the rule picks, it is a measure of noise removal. Whether that removal
 costs detectability is an empirical question, which §5 sets out.
+
+## 3 · Is the finest band the right place to compare?
+
+**3.1 What the band is (*derived*).** The kernel N = [1 −2 1; −2 4 −2; 1 −2 1] is the outer product of
+(1, −2, 1) with itself. Its gain is H(u, v) = (2 − 2 cos u)(2 − 2 cos v) ÷ 6, with u and v in radians per pixel, and
+its mean power gain on white noise is 1. Three properties follow:
+
+* **It is zero along both axes.** Anything constant along rows or along columns passes with gain 0.
+* **It sits in the diagonal corner.** 85 % of its power lies where both |f_x| and |f_y| exceed 0.25 cycles/pixel.
+  Only 0.07 % lies below 0.25 cycles/pixel radially.
+* **So "the noise band" is the band of the highest diagonal frequencies.** In what it passes, error that is not white
+  shrinks against its full-band RMS e:
+
+| error | white | blurred by 0.5 px | by 1 px | by 2 px | constant 4 × 4 blocks | constant 8 × 8 blocks | stripes |
+| --- | --: | --: | --: | --: | --: | --: | --: |
+| e_N ÷ e | 1 | 0.47 | 0.084 | 0.007 | 0.17 | 0.084 | 0 |
+
+**An error of 8 × 8 constant blocks passes r ≤ 1 at a full-band RMS of up to 12σ.** A low-pass error of 1 px passes
+at the same size.
+
+**3.2 Why the band is right for measuring σ.** Breast anatomy has a steep power-law spectrum. Burgess and colleagues
+built their backgrounds to match it: "filtered noise backgrounds with the same average power spectrum, P(f)=B/f3"
+(Burgess 2001, doi:10.1118/1.1355308). In the corner, anatomy has the least power and noise the most. It is nearly
+the only band in which one frame gives σ without a second realisation. Measured that way, the estimator is checked
+to 3 % on synthetic frames ([`noise-point.md`](noise-point.md) §6), and §6 of that file says why it is preferred.
+This is the best reason for the band. It is a reason about *measuring the noise*, not about where error matters.
+
+**3.3 Why the band is weak for visibility (*derived*, under stated display assumptions).** At 1 : 1 on a display of
+pixel pitch p, viewed from distance D, one degree spans D · tan 1° ÷ p pixels. The values p = 0.165 mm (a 5 MP
+mammography display) and D = 600 mm are this file's assumptions, *unverified* against any standard. They give 63
+pixels a degree. Then:
+
+* the band's centre, near 0.5–0.7 cycles/pixel, is 32–45 cycles/degree;
+* the NPWE eye filter's peak at 4 cycles/degree (Burgess 1994, above) is 0.063 cycles/pixel.
+
+So at 1 : 1 the band lies past the eye's high-frequency falloff, and on the diagonal, where sensitivity is lowest
+(Campbell et al. 1966; Watson et al. 1997, §1.3). Error held there would be hard to see whether or not noise masks
+it. **Magnification changes this.** At 4× zoom the band maps to 8–11 cycles/degree, inside the range the eye resolves
+well. Error and noise scale together under zoom, so r does not change. That is the window argument of
+[`window-q.md`](window-q.md) §1 again, with zoom in place of window. The ratio is zoom-independent; what a reader can
+see of it is not.
+
+**3.4 Why the band is wrong for tasks.** §2.5: the band holds less than 1 % of the SNR² of any lesion wider than
+σ 1 px. For linear observers, the right place to compare error with noise is the signal's own band, weighted by
+how much the observer uses each frequency. To first order in W_e ≪ W_n, the Hotelling loss is (*derived*)
+
+Δd′² ÷ d′² ≈ − ∫ |S|² W_e ÷ W_n² df ÷ ∫ |S|² ÷ W_n df.
+
+This is a signal-weighted average of W_e ÷ W_n. The noise ratio is that same quantity with |S|² replaced by the
+Laplacian's |H|², and |H|² has its weight where |S|² has none.
+
+**3.5 DBT noise is not white.** The reconstruction shapes it:
+
+> "The shape of the NPS was affected by the reconstruction filters. [...] Aliasing increases the noise at high
+> frequencies, which causes degradation in DQE."
+> — Zhao B, Zhao W. Three-dimensional linear system analysis for breast tomosynthesis. *Med Phys* 35:5219–5232
+> (2008), doi:10.1118/1.2996014
+
+The study measured the consequence on this estimator. Noise blurred by 0.5 px reads 66 % of its σ, and on
+`dbt12_ea1141` Immerkær reads 11.4 where the Haar MAD reads 14.8 (`lab/av1/metrics/README.md` §4.4). Two things
+follow. σ is the noise in the corner, not the noise where lesions are. And with W_n not flat, a ratio that holds in the
+corner says nothing about W_e ÷ W_n one octave down (*derived*).
+
+**3.6 A better place, and its cost.** The band-by-band form of the criterion is r_b = e_b ÷ σ_b in each band b of a
+pyramid. e_b is easy, since the exact frame is known. σ_b is not, below the corner, because anatomy dominates a
+single frame there. One candidate estimator uses the stack: the second difference across slices,
+n̂ = I_k − (I_{k−1} + I_{k+1}) ÷ 2. It cancels anatomy that varies linearly in depth, and its noise variance is
+σ²(1.5 − 2ρ₁ + ρ₂ ÷ 2), where ρ₁ and ρ₂ are the noise correlations at one and two slices (*derived*). ρ₁ is
+0.11–0.27 on the fixtures (`docs/av1/frame-groups.md`). Whether 1 mm slices make anatomy close enough to linear in
+depth is *unverified*. §5 P5 measures it as an exploratory arm. Until then the per-band ratio is a proposal, not
+a criterion.
+
+**3.7 Answer.** The finest band is the right place to *measure the noise* and the wrong place to *judge the error*:
+
+* for tasks, it holds almost no lesion signal (§3.4);
+* for vision, it is the least visible band at 1 : 1 (§3.3);
+* it is blind to blocky, axis-aligned and low-pass error (§3.1).
+
+r ≤ 1 there is meaningful as a statement that the error is noise-like in size *and* lives where noise lives. It
+becomes a criterion only together with a guard against error elsewhere. §4 lists what such error looks like, and §5
+measures the task loss directly.
