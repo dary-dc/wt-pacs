@@ -21,7 +21,65 @@ script in `lab/av1/metrics/noise_ratio_theory.py`. An ***unverified*** claim is 
 
 ## Verdict
 
-To be completed with §1–§5.
+**Claim.** The noise ratio r is a sound guard and a weak criterion.
+
+* **Static invisibility.** The vision-science case for r ≤ 1 is real (§1). Noise raises thresholds in its own band,
+  and the Laplacian's band is the diagonal, highest-frequency corner, where the eye is least sensitive at 1 : 1.
+* **Not a bound on task loss.** r ≤ 1 bounds the loss only in two cases:
+  * **Independent, white error.** Then d′ ≥ 1 ÷ √2 of exact, which is the loss of halving the dose and not a
+    negligible one (§2.2).
+  * **Error under r² times the noise at every frequency the lesion occupies.** One band cannot show this (§2.6).
+* **At the Q the rule picks, the encoder is removing noise (*derived*, κ ≈ −0.7).** It is not adding error, so
+  "the band's noise rises by √2" was wrong there. That reading is corrected in place in `lab/av1/metrics/README.md`
+  §5 (a) and [`noise-point.md`](noise-point.md) §1 (§2.3).
+* **Removal costs signal.** A quantizer that removes noise of σ also removes faint signal spread thinly over its
+  coefficients. The model predicts no loss for masses and a possibly large one for small, faint calcifications
+  (§2.4). That prediction is *derived*, not measured, and §5 tests it.
+* **The band is right for measuring σ and wrong for judging error** (§3). It holds under 1 % of any lesion's SNR²
+  wider than σ 1 px. It is blind to blocky, axis-aligned and low-pass error: an 8 × 8 block error passes r ≤ 1 at a
+  full-band RMS of 12σ.
+* **Weakest under flicker.** The criterion is weakest under the alternation test the study planned, because the
+  noise is shared between the two frames and masks only as a pedestal (§1.4).
+
+So r ≤ 1 is the strongest candidate the fixtures can compute from one frame. It is not yet evidence of visual
+losslessness, or of task losslessness. It should be read together with three things:
+* κ, which says whether the error was added or the noise removed;
+* a full-band or low-band ratio, which catches structured error (§4.1);
+* the task test of §5.
+
+**Proof chain.**
+1. Primary sources, quoted in §1–§3, give: noise masking and its band tuning; contrast sensitivity by frequency and
+   orientation; quantization-noise visibility; and the observer models with their fit to human data.
+2. *Derived*, with `lab/av1/metrics/noise_ratio_theory.py` (run 2026-11-10, < 1 s, arithmetic only), this file
+   computes: the Laplacian's gain and blind spots; κ and r of a uniform quantizer on Gaussian noise; the zeroing
+   probabilities of §2.4; the band's share of lesion SNR²; d′ under independent error; and r under depth averaging.
+3. The model's r agrees with the rows' measured curve at x 1, 2 and 4–5 ([`noise-point.md`](noise-point.md) §3).
+   Its κ has not been measured.
+
+**What would change it.**
+* **§5 P1 finding κ > 0 at the rule's Q.** Then the error is added, not removed, and §2.2's bound governs.
+* **§5 P3 finding no calcification loss.** Then the removal worry does not carry over from the model to AV1.
+* **A reader study** (§5.7).
+
+**Owed.** Every item is §5 or §5.7: κ measured; the model-observer test; a low-band σ estimator; and the reader study.
+
+**Valid for:** the theory is general. Every number tied to fixtures concerns the DBT fixtures of
+[`noise-point.md`](noise-point.md) and [`window-q.md`](window-q.md) only. There is no breast ultrasound cine, ABUS or
+other modality here.
+
+## Fixtures
+
+Nothing in this file was run on a fixture. The numbers it quotes from fixtures come from committed rows:
+* the noise curve, σ ranges and tiles are from `lab/av1/metrics/rows/` through [`noise-point.md`](noise-point.md);
+* the window arithmetic is from [`window-q.md`](window-q.md).
+
+Their families, all from EA1141:
+* DBT systems A and C at 12 bits (σ_min 10.5–14.8);
+* DBT system B at 10 bits (σ_min 3.4–5.6);
+* the content-2 DBT sets.
+
+§5.0 lists the protocol's 19 volumes and their limits. There is no lossless breast ultrasound cine or ABUS among the
+fixtures.
 
 ## 1 · Why error below the image's noise could be invisible
 
@@ -585,3 +643,34 @@ the noise is not modulated by the lesion, and there are no DBT out-of-plane arte
   both enter the CI.
 * **Licensing.** A lossy DBT view as the interpreted image is a regulatory question
   ([`noise-point.md`](noise-point.md) §1, MQSA). No measurement here answers it.
+
+## Sources
+
+All read 2026-11-10, from the PubMed abstract unless stated otherwise. A paper whose body was not read is quoted from
+its abstract alone. Its equations, as used above, are *derived* here, not taken from it.
+
+* Abbey CK, Barrett HH. *J Opt Soc Am A* 18:473 (2001). doi:10.1364/JOSAA.18.000473
+* Barrett HH, Yao J, Rolland JP, Myers KJ. *Proc Natl Acad Sci USA* 90:9758 (1993). doi:10.1073/pnas.90.21.9758
+* Barrett HH, Myers KJ. *Foundations of Image Science*. Wiley (2004). Not read: *unverified*.
+* Burgess AE. *J Opt Soc Am A* 11:1237 (1994). doi:10.1364/JOSAA.11.001237
+* Burgess AE, Li X, Abbey CK. *J Opt Soc Am A* 14:2420 (1997). doi:10.1364/JOSAA.14.002420
+* Burgess AE, Jacobson FL, Judy PF. *Med Phys* 28:419 (2001). doi:10.1118/1.1355308
+* Campbell FW, Kulikowski JJ, Levinson J. *J Physiol* 187:427 (1966). doi:10.1113/jphysiol.1966.sp008100
+* Campbell FW, Robson JG. *J Physiol* 197:551 (1968). doi:10.1113/jphysiol.1968.sp008574
+* Gallas BD, Barrett HH. *J Opt Soc Am A* 20:1725 (2003). doi:10.1364/JOSAA.20.001725
+* Kingdom FAA, Hayes A, Field DJ. *Vision Res* 41:585 (2001). doi:10.1016/S0042-6989(00)00284-4
+* Lago MA, Abbey CK, Eckstein MP. *Proc SPIE* 10136:101360P (2017). doi:10.1117/12.2252952
+* Legge GE, Foley JM. *J Opt Soc Am* 70:1458 (1980). doi:10.1364/JOSA.70.001458
+* Morgan M, Chubb C, Solomon JA. *J Vis* 8(11):9 (2008). doi:10.1167/8.11.9
+* Myers KJ, Barrett HH. *J Opt Soc Am A* 4:2447 (1987). doi:10.1364/JOSAA.4.002447. Read, not quoted: the channel
+  mechanism that the CHO adds.
+* Pelli DG, Farell B. *J Opt Soc Am A* 16:647 (1999). doi:10.1364/JOSAA.16.000647. The (N + N_eq) equation is in the
+  body, which was not read: *unverified*.
+* Suryanarayanan S et al. *Proc SPIE* 5034:513 (2003). doi:10.1117/12.480363. Read from the catalogue page cited in
+  §2.4.
+* Watson AB, Yang GY, Solomon JA, Villasenor J. *IEEE Trans Image Process* 6:1164 (1997). doi:10.1109/83.605413
+* Zhang Y, Pham BT, Eckstein MP. *IEEE Trans Med Imaging* 23:459 (2004). doi:10.1109/TMI.2004.824153
+* Zhao B, Zhao W. *Med Phys* 35:5219 (2008). doi:10.1118/1.2996014
+* Not read, and so not relied on: Widrow B, Kollár I, Liu M-C. Statistical theory of quantization. *IEEE Trans
+  Instrum Meas* 45:353 (1996), doi:10.1109/19.492748. This is the classical source for the independence of fine-step
+  quantization error. §2.3 derives its own table instead.
