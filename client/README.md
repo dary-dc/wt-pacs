@@ -81,6 +81,40 @@ never receive a preview. A unit without its top fails by name after its preview.
 the exact frame and no preview. [`docs/av1/adr-unit.md`](../docs/av1/adr-unit.md) §6; the
 dispatch rig checks `client/contract/av1/scalable/`.
 
+**A lossy series, exact on request** (2026-11-09). A series whose metadata carries `"codec": "av1"`,
+`"lossy": {"q", "g", "depth"}` and `"exactSeries": "<id>"` is shown at **optimal quality** — its visually lossless
+AV1 frames — as any series is: fill, steps, cine. Its **exact series** is the HTJ2K series of the same source on its
+own server. `viewer/pair.js` reads its metadata at `/series/<id>/metadata` and its transport file at
+`/wt/<id>/dev-transport.json` (`server/dev-server.py --exact-metadata … --exact-transport …`), and refuses by name an
+exact series that is not HTJ2K, is not of the same source (another frame count, width, height, `bitsStored` or
+`signed`, or, when both carry it, another `framesSha256`), or has no XXH3-64 digests, since none of its frames could
+then be called lossless: a digest proves a frame is its own series', not that the series is this one's source. A
+second downloader, one decoder and no fill, dials it once the lossy series is connected, in either view. The
+**lossless** button, or `l`, asks the controller for the current frame exact: frame *i* of the exact series is asked, held beside the frame store (never in it, never cached, nothing else asked or evicted), and
+painted in place of the lossy frame once its digest matched; it stays until the reader steps off the frame or
+presses the button again. A lossy frame's own `exact` means its decode matched the encoder's reconstruction, not the
+source.
+
+* **The label** (top right, always shown on a lossy series) says what is painted, decided in one place,
+  `Controller.quality`: *Optimal quality*; *fetching lossless…* while asked; *Lossless* only on the `shown` that
+  follows the exact frame's paint, and only when that frame's `exact` is `true`; *Lossless check failed* in red, the
+  lossy frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed; the button then asks again.
+* **Routes** are any AV1 series' (§Which decoder, per payload): ≤ 10 bits through WebCodecs where its probe passed,
+  12 bits and any refused config through dav1d-WASM, the route in each frame's `info.path`.
+* **Groups.** `lossy.g` reaches the downloader as `groupLength` (§An AV1 series in groups): a jump mid-group decodes
+  from the group's keyframe on one decoder, and the whole group lands in the store, so a scroll through it asks and
+  decodes nothing more.
+* **`?overlay=1`**, off by default: the painted frame's route, wire bytes and decode time, and the series' Q, G and depth.
+* **Held by** `viewer/pair.test.mjs` (pairing and each refusal), `view/controller.test.mjs` (the exact frame painted
+  and nothing else changed; the label never *Lossless* before the check, for a frame the reader left, or before its
+  paint; a scroll after a jump at G = 1, 8, 16 asks nothing), `transport/downloader.test.mjs` (a jump at G = 1, 8, 16
+  asks the whole group and decodes it from the keyframe, in order, on one decoder) and `server/dev-server.test.py`;
+  21 of 22 mutants fail them; the one alive drops the label's own check that the frame is `exact`, which the
+  exact-frame slot already enforces by admitting no other frame.
+* **Not yet run:** a browser end to end on a real pair, which waits on the ingest's lossy series and the decoders'
+  build; the web image (`deploy/nginx`) does not serve the exact series' two paths. Assumed from the ingest: each
+  coded frame of the lossy series is an AV1 payload ([`docs/av1/payload-format.md`](../docs/av1/payload-format.md)).
+
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
 in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
 
@@ -307,7 +341,8 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   store worker (`viewer/store.js`), the decoders or the view worker — a series with digests is written there after each
   frame's paint, and read back checked on a later open. With no writer, the default, there is no cache, as on main
   ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §The core, assembled).
-* **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact.
+* **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact. A lossy
+  series adds its quality label and the lossless button (§A lossy series, exact on request).
 * **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the decoder per path, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name.
 * **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=`, `?origin=` and `?writer=` let a lab harness drive the
