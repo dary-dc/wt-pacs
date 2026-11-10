@@ -117,7 +117,8 @@ def within(v, lo, hi):
 
 def predictions(R, S, nu, names, eps, checks, dec, rows):
     out = []
-    say = lambda n, nums, ok: out.append(f"| {n} | {nums} | {'held' if ok else '**refuted**'} on {', '.join(names)} |")
+    word = lambda ok: "undecided (an encode failed)" if ok is None else "held" if ok else "**refuted**"
+    say = lambda n, nums, ok: out.append(f"| {n} | {nums} | {word(ok)} on {', '.join(names)} |")
     c = checks.get("dbts_b1", {})
     q1 = next((v for k, v in c.items() if k.startswith("Q1")), None)
     if q1:
