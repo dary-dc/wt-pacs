@@ -372,27 +372,27 @@ everything below, including `copyTo`'s RGB conversion, is in **both** TR and ED 
 Every value in the enum [F10]. "Integer values are unsigned" [F11]. Chroma planes have `ceil(codedWidth / 2)`
 samples per row where sub-sampled horizontally, and `ceil(codedHeight / 2)` rows where sub-sampled vertically [F12].
 
-| format | planes, in order | chroma sub-sampling | sample container | significant bits | `visibleRect` / `rect` offset | opaque equivalent | src |
-|---|---|---|---|---|---|---|---|
-| `I420` | Y, U, V | 2 × 2 | 8-bit | 8 | x, y even | itself | [F12] [F13] |
-| `I420P10` | Y, U, V | 2 × 2 | 16-bit little-endian | 10 | x, y even | itself | [F14] |
-| `I420P12` | Y, U, V | 2 × 2 | 16-bit little-endian | 12 | x, y even | itself | [F15] |
-| `I420A` | Y, U, V, A | 2 × 2 (A full) | 8-bit | 8 | x, y even | `I420` | [F16] |
-| `I420AP10` | Y, U, V, A | 2 × 2 (A full) | 16-bit LE | 10 | x, y even | `I420P10` | [F14] [F16] |
-| `I420AP12` | Y, U, V, A | 2 × 2 (A full) | 16-bit LE | 12 | x, y even | `I420P12` | [F15] [F16] |
-| `I422` | Y, U, V | 2 × 1 | 8-bit | 8 | x even | itself | [F17] |
-| `I422P10` | Y, U, V | 2 × 1 | 16-bit LE | 10 | x even | itself | [F14] [F17] |
-| `I422P12` | Y, U, V | 2 × 1 | 16-bit LE | 12 | x even | itself | [F15] [F17] |
-| `I422A` / `I422AP10` / `I422AP12` | Y, U, V, A | 2 × 1 (A full) | 8 / 16 LE / 16 LE | 8 / 10 / 12 | x even | `I422` / `I422P10` / `I422P12` | [F16] [F17] |
-| `I444` / `I444P10` / `I444P12` | Y, U, V | none | 8 / 16 LE / 16 LE | 8 / 10 / 12 | any | itself | [F18] |
-| `I444A` / `I444AP10` / `I444AP12` | Y, U, V, A | none | 8 / 16 LE / 16 LE | 8 / 10 / 12 | any | `I444` / `I444P10` / `I444P12` | [F16] [F18] |
-| `NV12` | Y, then UV interleaved (U first) | 2 × 2 | 8-bit | 8 | x, y even | itself | [F19] |
-| `RGBA` / `BGRA` | one plane, 4 components in the named order | none | 8-bit | 8 | any | `RGBX` / `BGRX` | [F20] |
-| `RGBX` / `BGRX` | one plane; fourth byte padding, "always fully opaque" | none | 8-bit | 8 | any | itself | [F21] |
+| format | planes, in order | chroma sub-sampling | sample container | significant bits | `visibleRect` / `rect` offset | opaque equivalent | label | src |
+|---|---|---|---|---|---|---|---|---|
+| `I420` | Y, U, V | 2 × 2 | 8-bit | 8 | x, y even | itself | S | [F12] [F13] |
+| `I420P10` | Y, U, V | 2 × 2 | 16-bit little-endian | 10 | x, y even | itself | S | [F14] |
+| `I420P12` | Y, U, V | 2 × 2 | 16-bit little-endian | 12 | x, y even | itself | S | [F15] |
+| `I420A` | Y, U, V, A | 2 × 2 (A full) | 8-bit | 8 | x, y even | `I420` | S | [F16] |
+| `I420AP10` | Y, U, V, A | 2 × 2 (A full) | 16-bit LE | 10 | x, y even | `I420P10` | S | [F14] [F16] |
+| `I420AP12` | Y, U, V, A | 2 × 2 (A full) | 16-bit LE | 12 | x, y even | `I420P12` | S | [F15] [F16] |
+| `I422` | Y, U, V | 2 × 1 | 8-bit | 8 | x even | itself | S | [F17] |
+| `I422P10` | Y, U, V | 2 × 1 | 16-bit LE | 10 | x even | itself | S | [F14] [F17] |
+| `I422P12` | Y, U, V | 2 × 1 | 16-bit LE | 12 | x even | itself | S | [F15] [F17] |
+| `I422A` / `I422AP10` / `I422AP12` | Y, U, V, A | 2 × 1 (A full) | 8 / 16 LE / 16 LE | 8 / 10 / 12 | x even | `I422` / `I422P10` / `I422P12` | S | [F16] [F17] |
+| `I444` / `I444P10` / `I444P12` | Y, U, V | none | 8 / 16 LE / 16 LE | 8 / 10 / 12 | any | itself | S | [F18] |
+| `I444A` / `I444AP10` / `I444AP12` | Y, U, V, A | none | 8 / 16 LE / 16 LE | 8 / 10 / 12 | any | `I444` / `I444P10` / `I444P12` | S | [F16] [F18] |
+| `NV12` | Y, then UV interleaved (U first) | 2 × 2 | 8-bit | 8 | x, y even | itself | S | [F19] |
+| `RGBA` / `BGRA` | one plane, 4 components in the named order | none | 8-bit | 8 | any | `RGBX` / `BGRX` | S | [F20] |
+| `RGBX` / `BGRX` | one plane; fourth byte padding, "always fully opaque" | none | 8-bit | 8 | any | itself | S | [F21] |
 
 | claim | label | src |
 |---|---|---|
-| For P10/P12 the spec says only "10 bits, encoded as a 16-bit integer in little-endian byte order"; it does **not** say whether the value sits in the low bits (0–1023) or is shifted to the top. Looked for "least significant", "MSB", "shift", "padding" in §9.8 of [F2]: none. | U | [F14] |
+| For P10/P12 the spec says only "10 bits, encoded as a 16-bit integer in little-endian byte order"; it does **not** say whether the value sits in the low bits (0–1023) or is shifted to the top. Searched §9.8 of [F2] for "least significant", "most significant", "MSB", "LSB", "shift", "upper bits", "lower bits": no match ("padding" appears only for the RGBX/BGRX fourth byte). | U | [F14] |
 | There is no 10/12-bit packed format (no P010, no 16-bit RGB) and no single-channel (grey) format in the enum: a monochrome decode must arrive as a YUV format or as null `format`. | D | [F10] |
 | `copyTo`'s byte width per plane is "the number of bytes per sample for plane, multiplied by the number of samples stored at each position" (2 for NV12's UV, 4 for RGBA). | S | [F22] |
 
@@ -430,12 +430,12 @@ samples per row where sub-sampled horizontally, and `ceil(codedHeight / 2)` rows
 
 All four members are nullable [F42]. Values [F43]:
 
-| member | values | H.273 code points |
-|---|---|---|
-| `primaries` | `bt709`, `bt470bg`, `smpte170m`, `bt2020`, `smpte432` (P3 D65) | 1, 5, 6, 9, 12 |
-| `transfer` | `bt709`, `smpte170m`, `iec61966-2-1` (sRGB), `linear`, `pq`, `hlg` | 1, 6, 13, 8, 16, 18 |
-| `matrix` | `rgb`, `bt709`, `bt470bg`, `smpte170m`, `bt2020-ncl` | 0, 1, 5, 6, 9 |
-| `fullRange` | `true` / `false` / null | — |
+| member | values | H.273 code points | label | src |
+|---|---|---|---|---|
+| `primaries` | `bt709`, `bt470bg`, `smpte170m`, `bt2020`, `smpte432` (P3 D65) | 1, 5, 6, 9, 12 | S | [F43] |
+| `transfer` | `bt709`, `smpte170m`, `iec61966-2-1` (sRGB), `linear`, `pq`, `hlg` | 1, 6, 13, 8, 16, 18 | S | [F43] |
+| `matrix` | `rgb`, `bt709`, `bt470bg`, `smpte170m`, `bt2020-ncl` | 0, 1, 5, 6, 9 | S | [F43] |
+| `fullRange` | `true` / `false` / null | — | S | [F42] |
 
 | claim | label | src |
 |---|---|---|
@@ -486,16 +486,16 @@ Every route except `copyTo()` without `format` passes the frame through a UA-cho
 conversion is explicitly disabled" [F62]; and "WebGPU does not provide color management" — its textures hold raw
 numbers, so the conversion happens at import [F75].
 
-| route | output | bit depth / format | where exactness can be lost | src |
-|---|---|---|---|---|
-| `frame.copyTo(buf)` (no `format`) | the frame's planes, its own `VideoPixelFormat` | 8-bit or 16-bit LE container, as the format says | nowhere in the algorithm (D: byte copy) | [F3] |
-| `frame.copyTo(buf, {format:'RGBA'…, colorSpace})` | one RGB plane, `visibleRect` size | 8-bit | unspecified YUV→RGB conversion; bit-depth reduction; `srgb` / `display-p3` only | [F35] [F37] [F39] |
-| 2D canvas `drawImage(frame, …)` | canvas backing store, at `displayWidth` × `displayHeight` | `unorm8` by default; `float16` with `colorType` | conversion to the canvas colour space; scaling to display size; filter "may use any filtering algorithm"; premultiplied alpha; 8-bit store | [F62] [F64] [F65] [F66] [F67] [F68] |
-| `getImageData()` after `drawImage` | `ImageData` | `rgba-unorm8` (`Uint8ClampedArray`) or `rgba-float16` | everything above, plus the readback format | [F69] |
-| `createImageBitmap(frame)` | `ImageBitmap` | not stated | "a copy of image's visible pixel data" (crop, optional resize with `resizeQuality`); bit depth unspecified | [F70] [F71] |
-| WebGL `texImage2D(…, frame)` | texture of the `format`/`type` asked | RGBA-derived; WebGL 2 allows 8-bit unorm, ≤ 8-bit uint, half float, float | conversion to `unpackColorSpace` (unless `NONE`); YUV→RGB always; precision guarantee only for 8-bit lossless images | [F72] [F73] [F74] [F76] |
-| WebGPU `importExternalTexture({source: frame, colorSpace})` | `GPUExternalTexture` (`texture_external`) | read as `vec4<f32>` | conversion to `srgb` (default) or `display-p3`; sampling before or after conversion is implementation-dependent; internal representation may vary per frame | [F79] [F80] [F81] [F82] [F83] |
-| WebGPU `copyExternalImageToTexture({source: frame}, {texture, colorSpace, premultipliedAlpha})` | a `GPUTexture` | unorm / unorm-srgb / float / ufloat formats, e.g. `rgba16float`; not uint or sint | "color-managed color value" of each pixel, re-encoded to the destination `colorSpace`; frame read at display size | [F84] [F85] [F86] [F87] [F88] |
+| route | output | bit depth / format | where exactness can be lost | label | src |
+|---|---|---|---|---|---|
+| `frame.copyTo(buf)` (no `format`) | the frame's planes, its own `VideoPixelFormat` | 8-bit or 16-bit LE container, as the format says | nowhere in the algorithm (D: byte copy) | D | [F3] |
+| `frame.copyTo(buf, {format:'RGBA'…, colorSpace})` | one RGB plane, `visibleRect` size | 8-bit | unspecified YUV→RGB conversion; bit-depth reduction; `srgb` / `display-p3` only | S | [F35] [F37] [F39] |
+| 2D canvas `drawImage(frame, …)` | canvas backing store, at `displayWidth` × `displayHeight` | `unorm8` by default; `float16` with `colorType` | conversion to the canvas colour space; scaling to display size; filter "may use any filtering algorithm"; premultiplied alpha; 8-bit store | S | [F62] [F64] [F65] [F66] [F67] [F68] |
+| `getImageData()` after `drawImage` | `ImageData` | `rgba-unorm8` (`Uint8ClampedArray`) or `rgba-float16` | everything above, plus the readback format | S | [F69] |
+| `createImageBitmap(frame)` | `ImageBitmap` | not stated | "a copy of image's visible pixel data" (crop, optional resize with `resizeQuality`); bit depth unspecified | S | [F70] [F71] |
+| WebGL `texImage2D(…, frame)` | texture of the `format`/`type` asked | RGBA-derived; WebGL 2 allows 8-bit unorm, ≤ 8-bit uint, half float, float | conversion to `unpackColorSpace` (unless `NONE`); YUV→RGB always; precision guarantee only for 8-bit lossless images | S | [F72] [F73] [F74] [F76] |
+| WebGPU `importExternalTexture({source: frame, colorSpace})` | `GPUExternalTexture` (`texture_external`) | read as `vec4<f32>` | conversion to `srgb` (default) or `display-p3`; sampling before or after conversion is implementation-dependent; internal representation may vary per frame | S | [F79] [F80] [F81] [F82] [F83] |
+| WebGPU `copyExternalImageToTexture({source: frame}, {texture, colorSpace, premultipliedAlpha})` | a `GPUTexture` | unorm / unorm-srgb / float / ufloat formats, e.g. `rgba16float`; not uint or sint | "color-managed color value" of each pixel, re-encoded to the destination `colorSpace`; frame read at display size | S | [F84] [F85] [F86] [F87] [F88] |
 
 ### 2D canvas
 
@@ -627,15 +627,15 @@ and [F101] differs only in the table of contents and reference dates).
 Status: "Draft Community Group Report, 2 August 2024"; "It is not a W3C Standard nor is it on the W3C Standards
 Track" [F130]. browser-compat-data: Chrome 83, Firefox 132, Safari 15.4 [F131].
 
-| `VideoFrameCallbackMetadata` field | meaning | src |
-|---|---|---|
-| `presentationTime` | when the UA submitted the frame for composition | [F132] |
-| `expectedDisplayTime` | when the UA expects the frame to be visible | [F132] |
-| `width` / `height` | frame size in media pixels ("visible decoded pixels, without pixel aspect ratio adjustments") | [F132] |
-| `mediaTime` | PTS in seconds of the presented frame; may be 0 for live / WebRTC | [F132] |
-| `presentedFrames` | count of frames submitted for composition; "MUST be monotonically increasing"; a gap means missed callbacks | [F132] |
-| `processingDuration` (optional) | seconds from submitting the encoded packet to the decoder until the frame was ready; may include YUV conversion and GPU staging | [F132] |
-| `captureTime`, `receiveTime`, `rtpTimestamp` (optional) | WebRTC / `getUserMedia` sources only | [F132] |
+| `VideoFrameCallbackMetadata` field | meaning | label | src |
+|---|---|---|---|
+| `presentationTime` | when the UA submitted the frame for composition | S | [F132] |
+| `expectedDisplayTime` | when the UA expects the frame to be visible | S | [F132] |
+| `width` / `height` | frame size in media pixels ("visible decoded pixels, without pixel aspect ratio adjustments") | S | [F132] |
+| `mediaTime` | PTS in seconds of the presented frame; may be 0 for live / WebRTC | S | [F132] |
+| `presentedFrames` | count of frames submitted for composition; "MUST be monotonically increasing"; a gap means missed callbacks | S | [F132] |
+| `processingDuration` (optional) | seconds from submitting the encoded packet to the decoder until the frame was ready; may include YUV conversion and GPU staging | S | [F132] |
+| `captureTime`, `receiveTime`, `rtpTimestamp` (optional) | WebRTC / `getUserMedia` sources only | S | [F132] |
 
 | claim | label | src |
 |---|---|---|
@@ -875,7 +875,7 @@ Every source read 2026-11-10 unless its row says otherwise; ids are prefixed by 
 | F85 | https://gpuweb.github.io/gpuweb/#dom-gpuqueue-copyexternalimagetotexture | 2026-11-10 | "unorm/unorm-srgb or float/ufloat format (not snorm, uint, or sint)." |
 | F86 | https://gpuweb.github.io/gpuweb/#dictdef-gpucopyexternalimagedestinfo | 2026-11-10 | "PredefinedColorSpace colorSpace = \"srgb\"; boolean premultipliedAlpha = false;" |
 | F87 | https://gpuweb.github.io/gpuweb/#dom-gpuqueue-copyexternalimagetotexture | 2026-11-10 | "Let srcColor be the color-managed color value of the pixel at (srcOrigin.x + x, srcOrigin.y + srcY) of source.source." |
-| F88 | https://gpuweb.github.io/gpuweb/#external-source-dimensions | 2026-11-10 | "VideoFrame \| VideoFrame.displayWidth, VideoFrame.displayHeight" |
+| F88 | https://gpuweb.github.io/gpuweb/#external-source-dimensions | 2026-11-10 | "VideoFrame.displayWidth, VideoFrame.displayHeight" |
 | F89 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/api/HTMLCanvasElement.json | 2026-11-10 | `"options_colorType_parameter"`: `"chrome": {"version_added": "137"}`, `"firefox": {"version_added": false}`, `"safari": {"version_added": false}` |
 | F90 | https://www.w3.org/TR/webgpu/ | 2026-11-10 | "W3C Candidate Recommendation Draft, 15 September 2026" |
 | F91 | https://gpuweb.github.io/gpuweb/#external-texture-creation | 2026-11-10 | "An external texture created from a VideoFrame expires (is destroyed) when, and only when, the source VideoFrame is closed" / "Garbage collection is unpredictable, so this may still stall the video decoder." |
