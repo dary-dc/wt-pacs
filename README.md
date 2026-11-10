@@ -5,7 +5,7 @@ WebTransport PACS — web-native medical imaging transport (MIT).
 ## Prerequisites
 
 Linux on x86-64 (the server's read path uses io_uring; the pinned `wasm-opt` is x86-64), Rust 1.88 or newer
-with `rustup`, Node 22 (`.nvmrc`), Python 3.11 to 3.13, and on PATH: git, curl, tar, patch, sha256sum,
+with `rustup`, Node 22 (`.nvmrc`), Python 3.11 to 3.13, and on PATH: git, curl, tar, sha256sum,
 openssl, jq, binutils' `nm` and `strings`, and docker, in which the full gate rebuilds the decoders (`--quick` skips it, and so does its absence, by name).
 The first builds fetch from crates.io, npm and GitHub.
 
