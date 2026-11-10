@@ -13,7 +13,7 @@ the optimal-quality series is a series of its own, ingested beside its exact ser
 
 | part | branch → base | state |
 | --- | --- | --- |
-| ingest | `claude/oq-ingest` → `claude/core` | built in `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID`; the DICOM ingest does not code it yet; `lossy_test.py` in the gate; `demo-series.sh` |
+| ingest | `claude/oq-ingest` → `claude/core` | built in `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID`; the DICOM ingest does not code it yet; `lossy_test.py` in the gate; `demo-series.sh`; reviewed 2026-11-10 on `claude/oq-ingest-fixes` (→ `claude/oq-ingest`): Q 0 refused (measured lossless at 8, 10, 12 bits), `--split` with `--lossy` refused; open: the ingest's own check of a lossy frame tests only its decoded shape, not its closeness |
 | client | `claude/oq-client` → `claude/core` | built: pairing (`pair.js`), the Lossless button (`l`), the quality label, `?overlay=1`; tests pass, 21 of 22 mutants killed |
 | phone | `claude/phone-setup` → `claude/core` | not on `origin` when read |
 
