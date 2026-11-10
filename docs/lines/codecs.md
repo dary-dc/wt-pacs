@@ -49,7 +49,7 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    suppress inter coding. Decode time in order matters more than jumps (sequential reading). No G is decided for DBT.
 1. Harvest and review the AV1 result chain into `av1-unified-mainbase`: #290 → #305 → #317, #312; #283 → #306 → #314
    → #316; #288, #315 (residual exactness across decoders, browser cells partial), #318 (WebCodecs profiles).
-1b. Run the noise-ratio protocol (`docs/av1/noise-ratio.md` §5 on `claude/av1-noise-ratio`): κ, and CHO/NPWE d′
+1b. Run the noise-ratio protocol (`claude/av1-noise-ratio:docs/av1/noise-ratio.md` §5): κ, and CHO/NPWE d′
    with inserted masses and calcifications, exact frame against the OQ view across Q.
 2. Explore noise detection at ingest (σ_min, its estimator's timing on the three volumes), then hand it to the PCS team.
 3. An idea raised 2026-11-09, undecided: code optimal quality, split its decoded samples into top and low bits, send
@@ -78,4 +78,4 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 `docs/av1/` (`payload-format.md`, `MAINBASE.md`, `queue.md`), `docs/decode/README.md`, `docs/FIXTURES.md`,
 `docs/transport/`, `docs/adr/disk-access.md`, `lab/`; branches `claude/av1-unified-mainbase`,
 `claude/av1-quality-metrics:lab/av1/metrics/README.md`, `claude/av1-quality-profiles:lab/av1/profiles/README.md`,
-`claude/av1-noise-point:docs/av1/noise-point.md`, `claude/av1-svc-preview`, `claude/line-server`.
+`claude/av1-noise-point:docs/av1/noise-point.md`, `claude/av1-noise-ratio:docs/av1/noise-ratio.md`, `claude/av1-svc-preview`, `claude/line-server`.
