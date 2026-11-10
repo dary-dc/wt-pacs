@@ -132,3 +132,81 @@ reads frame headers and could be extended to read these.
 | `--arnr-maxframes`, `--arnr-strength` | "AltRef max frames (0..15)", "AltRef filter strength (0..6)" (L1:301-304) | `7, // arnr_max_frames`, `5, // arnr_strength` (L2:270-271) | inert at lag 0. With lookahead, these two set how much the filter averages, so how much noise a filtered reference or shown frame loses. No arm varies them (§6) |
 | `--tile-columns` | "Number of tile columns to use, log2" (L1:325) | `0, // tile_columns` (L2:265) | One tile, so dav1d's threads cannot split a frame. Lossless, four tile columns cost +0.1–0.4 % bytes and cut one frame's decode to 0.37–0.44 of its time with 3 threads ([`README.md`](README.md), DECSPEED). For the lossy view this is *unverified* |
 | `--sharpness` | "Bias towards block sharpness in rate-distortion optimization of transform coefficients and (in all intra mode only) reduce block edge filtering for better sharpness (0..7), default is 0" (L1:289-293) | `0, // sharpness` (L2:260) | could keep more fine texture at the same Q (*unverified*) |
+
+## 4 · The lossless payload: `encoder_args`
+
+```
+aomenc --ivf --lossless=1 --bit-depth=B --input-bit-depth=B --kf-max-dist=0 --threads=1 --profile=P <preset> \
+       [--tune-content=screen --sb-size=64]   (the optimized representation)   --monochrome | <RGB labels>
+```
+
+The ingest runs this once a frame (`--limit=1`). `<preset>` is `--cpu-used=0` (`cpu0`), `--cpu-used=N` (`good:N`)
+or `--allintra --cpu-used=N` (`allintra:N`), the preset by content of [`../FIXTURES.md`](../FIXTURES.md) §From DICOM.
+
+| flag | what it does (quoted) | default | why the lab set it | theory, fit, and what it may bias |
+| --- | --- | --- | --- | --- |
+| `--lossless=1` | "Lossless mode (0: false (default), 1: true)" (L1:343-344); `rc_cfg->best_allowed_q = extra_cfg->lossless ? 0 : …`, likewise the worst (L2:1263-1266); "Only --aq_mode=0 can be used with --lossless=1." (L2:908-910) | `0, // lossless` (L2:286) | the exact form | q 0 on every frame. [S] makes a block lossless by `qindex == 0` with no delta-q. Bytes, not quality, are the only variable. This is the exact form, not the OQ view: it is kept outside the top ([`../lines/codecs.md`](../lines/codecs.md)) |
+| presets `cpu0`, `good:6`, `allintra:6`, `allintra:7` | `--cpu-used` as in §2a; `--allintra`: "Use all intra mode" (L1:168), and `aomenc` then forces one pass: "Enforcing one-pass encoding in all intra mode" (L3:751-754) | speed 0, good mode | "AV1's preset defaults by content to the fastest, in the encode-time measurement (queue row ENC), within 2 % of the slowest's bytes" ([`../FIXTURES.md`](../FIXTURES.md)) | Measured, not theory: within 2 % of the slowest preset's bytes. Results stated at `cpu0` and at `good:6` differ for that reason. The decode-settings measurement found no encoder setting that cuts a lossless frame's decode by more than 10 % ([`README.md`](README.md), DECSPEED) |
+| `--kf-max-dist=0` | as §2a, and it turns keyframe filtering off (L2:1395-1398) | 9999 | every frame alone (G 1) | Lag and alt-ref are left at their defaults (35, raised to 39, and 1), but each run codes one frame as a keyframe, so neither can act (*derived*) |
+| `--threads=1` | as §2a | 0 | POCGAP: bytes change by 0.02–0.06 % a frame at 4 threads | none |
+| `--tune-content=screen` | "Tune content type" (L1:628); values `default`, `screen`, `film` (L1:105-110). In good mode it sets `features->allow_screen_content_tools = 1;` and `features->allow_intrabc = … 1` (L9 `encoder.c`:2449-2452) | `AOM_CONTENT_DEFAULT` (L2:309) | "plus `--tune-content=screen --sb-size=64` for 0–1 %" (LLSIZE, [`README.md`](README.md)) | Screen tools add palette and intra block copy ([S]: "**allow_intrabc** equal to 1 indicates that intra block copy may be used in this frame."). They pay on few-valued content, and the 0–1 % gain is measured. Their effect on decode is *unverified* |
+| `--sb-size=64` | "Superblock size to use" (L1:637); `if (oxcf->tool_cfg.superblock_size == AOM_SUPERBLOCK_SIZE_64X64) { return BLOCK_64X64;` (L9 `encoder_utils.c`:962-963) | `AOM_SUPERBLOCK_SIZE_DYNAMIC` (L2:317) | as above | Smaller superblocks give finer partitions. Decode: "No encoder setting cuts it by more than 10 %: presets, 64² superblocks, and every optional intra tool off" (DECSPEED) |
+| `--monochrome`, or for RGB 4:4:4 `--color-primaries=bt709 --transfer-characteristics=srgb --matrix-coefficients=identity` | §2a; [S]: "If matrix_coefficients is equal to MC_IDENTITY, it is a requirement of bitstream conformance that subsampling_x is equal to 0 and subsampling_y is equal to 0." | — | the code's own note: "Identity under BT.709 primaries and the sRGB transfer is AV1's RGB signal: WebCodecs reports no matrix." | Labels only, and they must be 4:4:4. Since the reversible colour transform became the RGB representation (LLSIZE), the colour work is done before the encoder |
+
+## 5 · The SVC encoder: `svc_encoder_rtc`, patched
+
+```
+svc_encoder_rtc -o OUT -lm MODE -sl S -tl T -b 600000×S -bl 600000,… --min-q=0 --max-q=0 -k KEY -sp 7 -d D \
+                --profile=P --layer-q=q1,q2,… [--monochrome] [-r SCALES] IN.y4m
+```
+
+The patch changes only the example's command line: 12 bits, `--profile`, `--monochrome`, `--layer-q` and `--rgb`
+(`lab/av1/delivery/scalable/encoder/build.sh`: "the example's CLI only, the library untouched"). Everything else the
+example decides for itself, and it decides for real time:
+
+| setting | quoted from L11 | theory, fit, and what it may bias |
+| --- | --- | --- |
+| usage real time | `#define GOOD_QUALITY 0` (:46); `cfg.g_usage = AOM_USAGE_REALTIME;` (:1903) | The real-time mode's search, not good mode's. The same example builds for good quality with `GOOD_QUALITY` set to 1 (:1888-1890), which no run tried |
+| constant bitrate, far above need | `cfg.rc_end_usage = AOM_CBR;` (:1906); `-b`/`-bl` at `KBPS = 600_000` a layer, "far above any lossless frame, so rate control never drops one" (`lab/av1/delivery/scalable/encoder/svc.py`) | With `--layer-q` setting each layer's min and max q (the patch: `svc_params.max_quantizers[i] = svc_params.min_quantizers[i] = (int)q;`), rate control has nothing left to decide (*derived*). The check that every frame came out exact confirms no frame was dropped |
+| no lookahead | `cfg.g_lag_in_frames = 0;` (:1915) | as §2b: no temporal filter, no TPL |
+| speed 7 | `-sp 7`, "Speeds 7 (the example's default) and 10" (`lab/av1/delivery/scalable/encoder/README.md`) | the slowest speed the run used |
+| intra tools off | "// Settings to reduce key frame encoding time." then `AV1E_SET_ENABLE_CFL_INTRA, 0`, `AV1E_SET_ENABLE_SMOOTH_INTRA, 0`, `AV1E_SET_ENABLE_ANGLE_DELTA, 0`, `AV1E_SET_ENABLE_FILTER_INTRA, 0`, `AV1E_SET_INTRA_DEFAULT_TX_ONLY, 1` (:2060-2065) | **Bytes, measured:** "L1T1 at speed 7 is 1.067 of HTJ2K on fluoroscopy, 1.102 on MR and 1.581 on the ultrasound — above `aomenc`'s slowest intra (1.024, 1.034, 1.117)" (same README). Every SVC shape is compared with single-layer lossless from this same encoder (0.968–1.003), a fair test of the layering. But **SVC against HTJ2K or against `aomenc` lossless carries the example's real-time handicap**: that bears on "the payload keeps lossless AV1's size at this encoder's speed: 0.94 … to 1.59 … of HTJ2K's bytes" and on the decision to keep SVC outside the top |
+| other tools fixed | `AV1E_SET_ENABLE_CDEF, 1`, `AV1E_SET_LOOPFILTER_CONTROL, 1`, `AV1E_SET_ENABLE_WARPED_MOTION, 0`, `AV1E_SET_ENABLE_OBMC, 0`, `AV1E_SET_ENABLE_GLOBAL_MOTION, 0`, `AV1E_SET_ENABLE_ORDER_HINT, 0`, `AV1E_SET_ENABLE_TPL_MODEL, 0`, `AV1E_SET_DELTAQ_MODE, 0`, `AV1E_SET_AUTO_TILES, 1` (:2036-2067) | Inter tools that are off cost the temporal-layer shapes' bytes (*derived*). The lossy base layers (q 20 / 40 / 60) were coded under these too |
+| **fit for an offline encode** | — | None of the real-time choices is needed offline. If SVC is reopened, the first step is the example with `GOOD_QUALITY` 1 and its intra tools on |
+
+## 6 · The residual design's encoder: `encode.py`
+
+```
+aomenc -q --ivf -o OUT --end-usage=q --cq-level=CRF --cpu-used=6 --limit=N <colour> --kf-min-dist=8 --kf-max-dist=8 IN.y4m
+```
+
+"CRF" here is `--cq-level`, CRF 8, 20, 32 and 44, G 8 (row PREVIEW's settings, `lab/av1/delivery/residual/README.md`).
+No reason is recorded for any flag left out. The ones left out keep libaom's defaults, and those differ from the OQ
+view in every respect §2b found important (*derived* from the defaults quoted in §2a):
+
+| left at the default | value | what it can change |
+| --- | --- | --- |
+| `--passes` | two (L3:731-738) | keyframe and golden-frame structure, and rate allocation |
+| `--lag-in-frames`, `--auto-alt-ref` | 35, raised to 39; and 1 | temporal filter, hidden alt-refs, filtered keyframes on: the preview frames are partly temporal averages |
+| `--enable-tpl-model`, `--deltaq-mode` | 1, and objective | per-superblock q from TPL on alt-refs |
+| `--min-q`, `--max-q` | 0 and 63 | each frame's q free around cq-level: alt-refs and keyframes finer than inter frames |
+| `--threads` | 0 | bytes may depend on the thread count (POCGAP's 0.02–0.06 %) |
+
+So whether the residual design's preview frames carried alt-refs, and at what q, was not recorded (*unverified*).
+The residual made each frame exact whatever the preview was, so exactness holds. What the defaults can move is the
+split of bytes between preview and residual: row 17's sum "0.947–1.002 of HTJ2K at each series' best CRF". Any
+comparison of that sum with the profiles run's pinned-q lossy-plus-residual cells compares two encoder
+configurations, not two designs. The residual design was dropped on 2026-11-09, so this bears only on the record.
+
+## 7 · HTJ2K: `ojph_compress`
+
+```
+ojph_compress -i IN -o OUT -num_decomps 5 -block_size {64,64} -prog_order RPCL -reversible true
+```
+
+| flag | what it does (quoted from [J], `ojph_compress.cpp:542-569`) | default ([J]) | why the lab set it | theory, and what it may bias |
+| --- | --- | --- | --- | --- |
+| `-num_decomps 5` | "number of decompositions" | "(5)": restates the default | the served profile, "kept by the HTJ2K encoder-settings measurement (queue row HTJ2KENC) against 35 other settings" ([`../codecs/htj2k.md`](../codecs/htj2k.md)) | five wavelet levels, so six resolutions in each frame |
+| `-block_size {64,64}` | "{x,y} (64,64) where x and y are the height and width of a codeblock" | 64 × 64: restates the default | as above | the unit of HT block decoding |
+| `-prog_order RPCL` | "is the progression order, and can be one of: LRCP, RLCP, RPCL, PCRL, CPRL." | "(RPCL)": restates the default | as above; "RPCL with one layer puts each smaller resolution first, so a prefix of a frame is an exact smaller picture" ([`../codecs/htj2k.md`](../codecs/htj2k.md)) | only the order of the bytes changes: measured, LRCP's bytes equal RPCL's (HTJ2KENC) |
+| `-reversible true` | "If this is 'false', an irreversible or lossy compression is employed, using the 9/7 wavelet transform; if 'true', a reversible compression is performed, where the 5/3 wavelet is used." | "Default value is 'false'." | lossless | The one flag here that is not a default. Every "fraction of HTJ2K" in the AV1 line divides by this profile. HTJ2KENC measured it against 35 others: "No setting is 0.5 % under the served profile on any series but the 256² PET", and "LRCP's bytes equal RPCL's on every cell" ([`../decode/README.md`](../decode/README.md) §Encoder settings). So the denominator is within 0.5 % of the best OpenJPH setting on those nine series |
