@@ -1,23 +1,18 @@
-state: started
+state: done
 started: 2026-11-10 06:23
-heartbeat: 2026-11-10 06:32
-outputs: claude/phone-pair 78cbb579 (no PR yet)
+heartbeat: 2026-11-10 06:37
+outputs: claude/phone-pair 52b96463, draft PR #343 into claude/phone-setup
 ## Resume
-Done: 78cbb579 on claude/phone-pair (from claude/phone-setup; no phone-setup-fixes on origin): README §The viewer
-on an Android phone, step 3b (a pair, exact server on 4434, its transport file on the laptop's address,
-dev-server.py --exact-metadata/--exact-transport), firewalld 4434/udp, tcpdump and lab-build notes.
-Next: the namespace check. phone-setup's harness is not committed; rebuilt here: `apt-get install -y iproute2
-socat`; scratch worktree = origin/claude/oq-depth-cut + merge origin/claude/phone-pair (not pushed, phone-setup
-lacks the exact flags); a pair from the depth-cut browser test's fixture or demo-series.sh; netns `phone` with a
-veth to the host, socat tunnel for 8765 on the netns loopback, headless Chromium in the netns, press `l`, read
-the label and the digest. Then a README note of the check, draft PR into claude/phone-setup, line note.
-Harness pushed in docs/queue/PHONE-PAIR-harness/ (build.sh: dockerd, meson, venv, ingest/tools.sh, wasm build,
-cargo release, run from a worktree `mix` beside it; mkpair.py MIX OUT: 10-bit 256×192×24 synthetic pair, exact
-HTJ2K + Q 8 G 8; run.sh MIX OUT: netns phone, veth 10.77.0.1/.2, socat over a unix socket for adb reverse,
-servers on 4433/4434 with transport files on 10.77.0.1, page.mjs presses `l`). Builds started 06:50.
-06:32 first run (before the HTJ2K WASM was built): over the tunnel and the veth, 24 of 24 frames on av1-webcodecs,
-label *Optimal quality*; on `l` the 4434 server served 1 frame (tile_hits=1, rtt_us=263) and the label read *Lossless
-check failed* because client/decode/wasm/built/openjph is not the pinned build (the docker build got 429 from
-Docker Hub). Also needed: `bash client/transport/ts/build.sh` in mix. Next: retry
-`client/decode/wasm/build/build.sh` in mix, then run.sh again; then the README's checked note, PR, line note.
+Done. Commits on claude/phone-pair: 78cbb579 (README step 3b, a pair: exact server on 4434, transport files on the
+laptop's address, firewalld 4434/udp, dev-server.py --exact-metadata/--exact-transport), 52b96463 (the check's note).
+Harness in docs/queue/PHONE-PAIR-harness/ (build.sh, mkpair.py, run.sh, page.mjs); needs iproute2 and socat,
+`bash client/transport/ts/build.sh` and the pinned WASM build (Docker Hub answered 429 once; a retry worked).
 ## Result
+Checked in a network namespace standing in for the phone (veth as the tether, socat over a unix socket as adb
+reverse), on phone-pair merged onto oq-depth-cut (phone-setup's base, core, lacks the exact flags):
+24/24 frames av1-webcodecs from 4433, *Optimal quality*; `l` → frame from 4434 via htj2k, *Lossless* (digest matched).
+Mutants killed: an altered exact digest → *Lossless check failed*; exact transport on 127.0.0.1 → never *Lossless*.
+Fixture: synthetic 10-bit pair 256×192×24, Q 8 G 8; 4-core cloud host, no GPU, headless Chromium 153.
+Not checked: a real demo-series.sh pair, a depth cut, the phone, its Chrome, tethering, firewalld.
+Owner decision: none. DEMO-INTEGRATE merges claude/phone-pair, which brings the exact flags' README use together
+with the code that has them.
