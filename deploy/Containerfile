@@ -13,6 +13,7 @@ WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY common ./common
 COPY server ./server
+COPY client/native ./client/native
 COPY client/transport/wasm/Cargo.toml ./client/transport/wasm/Cargo.toml
 COPY client/transport/wasm/src ./client/transport/wasm/src
 COPY tools ./tools
