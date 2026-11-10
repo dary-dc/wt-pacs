@@ -24,6 +24,7 @@ ARMS = {
 }
 ORDER = ("O", "L", "A", "AT", "AD", "AQ")
 WITH_HIDDEN = {"A", "AT", "AD", "AQ", "AT3"}
+LOOKAHEAD = {"L", *WITH_HIDDEN}
 DROP = {"--lag-in-frames=0", "--auto-alt-ref=0", "--cpu-used=6"}
 
 

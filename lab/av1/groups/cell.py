@@ -212,7 +212,8 @@ def scheduled(pool, js, need, budget, most):
             yield f.result()
 
 
-MEASURE_GB_PER_FRAME_MPX = 0.15
+MEASURE_GB_PER_FRAME_MPX = 0.3
+WORKER_GB = 0.3
 
 
 def line(row):
@@ -260,14 +261,30 @@ def main():
         rho_todo = [(p, a.work) for p in a.sets if ("rho", Path(p).name) not in have]
         rho_futures = [pool.submit(rho, j) for j in rho_todo]
         rss = json.loads((HERE / "plan.json").read_text()).get("rss_gb_per_frame_mpx", {})
-        need = lambda j: rss.get(j[3]["arm"], 0.5) * plan.FRAME_MPX[Path(j[2]).name] / 1e6 + MEASURE_GB_PER_FRAME_MPX \
-            * plan.FRAME_MPX[Path(j[2]).name] / 1e6
+        family = lambda name, arm: (name, arm in arms.LOOKAHEAD)
+        seen = {}
+        for r in rows:
+            if r["kind"] == "cell":
+                k = family(r["set"], r["arm"])
+                seen[k] = max(seen.get(k, 0), r["encode_rss_kb"] / 1e6)
+
+        def need(j):
+            name, mpx = Path(j[2]).name, plan.FRAME_MPX[Path(j[2]).name] / 1e6
+            enc = seen.get(family(name, j[3]["arm"]), rss.get(j[3]["arm"], 0.5) * mpx)
+            return max(enc, MEASURE_GB_PER_FRAME_MPX * mpx) + WORKER_GB
+
         todo = [(a.build, a.work, p, c, a.vdp if c["vdp"] else None) for s in per for p, c in s[1:]
                 if plan.key(Path(p).name, c) not in done]
         print(f"{len(todo)} cells", flush=True)
         for row in scheduled(pool, todo, need, a.memory_gb, a.jobs):
             emit(fh, row)
             print(line(row), flush=True)
+            if row["kind"] == "cell":
+                k = family(row["set"], row["arm"])
+                seen[k] = max(seen.get(k, 0), row["encode_rss_kb"] / 1e6)
+            for f in [f for f in rho_futures if f.done()]:
+                emit(fh, f.result())
+                rho_futures.remove(f)
         for f in rho_futures:
             emit(fh, f.result())
 

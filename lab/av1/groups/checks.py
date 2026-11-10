@@ -3,6 +3,7 @@
 outcome and, beside it, the mutation that must change it. Writes CHECKS.json.
 
 usage: checks.py BUILD WORK PILOT_ROWS.jsonl PILOT_SETDIR CHECKS.json [--jobs 4]
+       checks.py --reproduce SHARD_ROWS.jsonl CHECKS.json     (O G 1 on a cut series against the quality study's)
 """
 import argparse
 import json
@@ -69,7 +70,35 @@ def synthetic():
     return out
 
 
+def reproduce(rows_path, out_path):
+    """Each O G 1 cell of a cut series against the quality study's units over the same slices; the mutation reads
+    them one slice later."""
+    rows = [json.loads(r) for r in open(rows_path)]
+    bits = {r["set"]: r["b"] for r in rows if r["kind"] == "series"}
+    ours = [r for r in rows if r["kind"] == "cell" and r["arm"] == "O" and r["g"] == 1 and r["src"] == "real"
+            and r["first"] > 0]
+    got = {}
+    for p in sorted(METRICS_ROWS.parent.glob("shard-*.jsonl")):
+        for line in p.open():
+            r = json.loads(line)
+            if r["kind"] != "cell" or r["g"] != 1:
+                continue
+            for o in ours:
+                if (o["set"], o["q"]) == (r["set"], r["q"]) and r["form"] == f"{bits[o['set']]}bit":
+                    n, f = o["n"], o["first"]
+                    got[f"{o['set']} Q {o['q']}"] = dict(holds=o["units"] == r["units"][f:f + n],
+                                                        mutation_holds=o["units"] != r["units"][f + 1:f + 1 + n])
+    out = json.loads(Path(out_path).read_text())
+    out["O reproduces the quality study on the cut series (each slice's unit, O G 1); mutation one slice later: "
+        "differs"] = dict(holds=bool(got) and all(v["holds"] for v in got.values()),
+                          mutation_holds=all(v["mutation_holds"] for v in got.values()), rungs=got)
+    Path(out_path).write_text(json.dumps(out, indent=1, default=str) + "\n")
+    print(json.dumps(got))
+
+
 def main():
+    if sys.argv[1] == "--reproduce":
+        return reproduce(*sys.argv[2:4])
     ap = argparse.ArgumentParser()
     ap.add_argument("build", type=Path)
     ap.add_argument("work", type=Path)

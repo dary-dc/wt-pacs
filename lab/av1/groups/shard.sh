@@ -11,6 +11,7 @@ DATA="${DATA:-$HERE/../data}"
 WORK="${WORK:-$HERE/../../.av1-work/groups}"
 VDP_PY="${VDP_PY:-$HERE/../metrics/.venv/bin/python}"
 K=$1
+export LD_LIBRARY_PATH="$BUILD/dav1d/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"  # the pinned libdav1d, not the system one
 ROWS="$HERE/rows"
 SETS=$("$PY" -c "import sys; sys.path.insert(0, sys.argv[1]); import plan; print(' '.join(s for s in plan.SHARDS[sys.argv[2]] if s != plan.PILOT))" "$HERE" "$K")
 mkdir -p "$WORK" "$ROWS"
