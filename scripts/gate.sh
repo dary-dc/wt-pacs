@@ -76,6 +76,9 @@ run 1 bash -c 'for p in lab/disk-access-bench/arms/*.patch; do git apply --check
 step "deploy: the server's seccomp profile is Docker's pinned default plus io_uring, nothing else"
 run 1 bash deploy/seccomp-uring.sh --check
 
+step "deploy: every module the web image's files name is in it"
+run 1 sh deploy/web-files_test.sh
+
 step "client: build bundles + unit tests"
 run 1 bash client/transport/ts/build.sh
 run 1 bash -c 'cd client/transport/ts && sha256sum -c --quiet manifest.sha256 && echo "session.js rebuilt to its pin" \

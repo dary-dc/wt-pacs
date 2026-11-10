@@ -25,12 +25,14 @@ await painter.paint(
 ## The contract
 
 **Input.** The frame as the consumer receives it. The samples upload to an integer texture straight from
-shared memory: `R8UI` for ≤ 8-bit grey, `R16UI` or `R16I` for 9–16 bits, `RGB8UI` for RGB. Nothing is copied
-on either thread. Painting the same frame object again skips the upload. Signed 8-bit, RGB over 8 bits and
-any other photometric interpretation are declined by name.
+shared memory: `R8UI` or `R8I` for ≤ 8-bit grey, `R16UI` or `R16I` for 9–16 bits, `RGB8UI` for RGB. Nothing is copied
+on either thread. Painting the same frame object again skips the upload. RGB over 8 bits and any other
+photometric interpretation are declined by name. *Corrected 2026-11-10:* signed ≤ 8-bit grey was declined too, so a
+signed series whose values fit Int8 (`av1-frame.js`'s rule) decoded and checked but never painted; the native
+painter (`client/native/src/paint.rs`) still declines it, so `native.mjs` leaves that frame out.
 
 **The pipeline** (DICOM PS3.3 2026d), evaluated in float64 on the CPU into a table indexed by stored code
-(`voi.js`). The table has 256 entries up to 8 bits and 65 536 above; a signed code s sits at s + 32 768.
+(`voi.js`). The table has 256 entries up to 8 bits and 65 536 above; a signed code s sits at s + 128 or s + 32 768.
 
 * **Modality LUT as rescale** (C.11.1): x = stored × slope + intercept. A missing, zero or non-finite slope
   is 1; a non-finite intercept is 0.
@@ -79,7 +81,8 @@ separately: its own placement, mapping each device pixel back to the source, its
 bilinear, and its own call for the table.
 
 * **Frames.** From `lab/scripts/gen_frame_pnm.py`, checked against its `.sha256`: 8-bit grey 64², 8-bit
-  RGB 61×40 (odd width), 16-bit 80×48 (not square), and signed 12-bit CT 64².
+  RGB 61×40 (odd width), 16-bit 80×48 (not square), signed 12-bit CT 64², and signed 8-bit 64² (since 2026-11-10; not
+  in the counts below).
 * **Exact cells.** Each window (identity, tight, a LINEAR_EXACT window of width 510 whose outputs land
   on .5, LINEAR_EXACT, SIGMOID, MONOCHROME1, invert, rescaled), each quarter turn, each flip, a turn
   with a flip, and a whole-pixel pan. All at 1:1, at DPR 1 and 2.

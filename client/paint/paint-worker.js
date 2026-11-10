@@ -66,7 +66,8 @@ function format(f) {
   }
   if (f.bits <= 8 && !f.signed) return { internal: gl.R8UI, fmt: gl.RED_INTEGER, type: gl.UNSIGNED_BYTE, sampler: "usampler2D", View: Uint8Array };
   if (f.bits <= 16 && !f.signed) return { internal: gl.R16UI, fmt: gl.RED_INTEGER, type: gl.UNSIGNED_SHORT, sampler: "usampler2D", View: Uint16Array };
-  if (f.bits <= 16 && f.signed && f.bits > 8) return { internal: gl.R16I, fmt: gl.RED_INTEGER, type: gl.SHORT, sampler: "isampler2D", View: Int16Array };
+  if (f.bits <= 8) return { internal: gl.R8I, fmt: gl.RED_INTEGER, type: gl.BYTE, sampler: "isampler2D", View: Int8Array };
+  if (f.bits <= 16) return { internal: gl.R16I, fmt: gl.RED_INTEGER, type: gl.SHORT, sampler: "isampler2D", View: Int16Array };
   throw new Error(`${f.bits}-bit ${f.signed ? "signed" : "unsigned"} samples are not painted`);
 }
 

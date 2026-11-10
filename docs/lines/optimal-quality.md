@@ -27,8 +27,12 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   refusal, named in the overlay. A WebCodecs failure inside a group is not recovered by dav1d (the owner's call).
 * **Label:** *Optimal quality*; *fetching lossless…*; *Lossless* only after the exact frame's digest matched and it
   was painted; *Lossless check failed* otherwise, the optimal-quality frame kept.
-* **Not yet run:** a browser end to end on the merged branch with real pairs (`demo-check.mjs` ran on `demo-e2e`
-  alone); any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
+* **Browser end to end on the merged branch** (CORE-NEXT-REVIEW, `3ddc0aed`, headless Chromium on SwiftShader, page
+  view, ts client): `demo-check.mjs` passed on `dbts_a1-q8-g8-cut`, `dbts_b1-q8-g8`, `dbts_c1-q8-g16-cut` (every frame
+  `av1-webcodecs`) and `dbts_a1-q8-g16-stored` (every frame `av1-dav1d` after WebCodecs refused), filled and with
+  `fill=0`; labels *Optimal quality* → *fetching lossless…* → *Lossless* → *Optimal quality*, and *Lossless check
+  failed* for a tampered digest. Not a GPU, not hardware decode, not a phone.
+* **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 ## Terms
 
@@ -42,7 +46,7 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
 
 1. Done 2026-11-10 on `claude/core-next`: the image build (`core-ci-deploy`) and the glossary (§Terms).
 2. The owner's merge words on `claude/core-next`, merge by merge ([`coordination.md`](coordination.md) §Open 2).
-3. The browser end to end on the merged branch, on pairs from `demo-series.sh` (the plan's D6).
+3. The browser end to end on the merged branch: done headless 2026-11-10 (State now); on a GPU and a phone, owed.
 4. Serve the exact series' paths from the web image.
 5. Phone runs: tethering for development and decode numbers; Wi-Fi plus netem for transport realism and the demo.
 6. The DICOM ingest codes optimal quality (today only the lab tool does).

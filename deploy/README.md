@@ -155,8 +155,8 @@ page and its modules, the page check's two (`?check=`), and row DECODERBUILD's d
 time; the TS bundles (`build.sh --product`); and the WASM client, its adapter copied and its glue and `.wasm` built
 in the `wasm` stage (row 277's `CLIENT` picks it): the `wasm32-unknown-unknown` target, `wasm-pack` 0.15.0 by
 `cargo install --locked` as CI installs it, and `build.sh`'s binaryen `version_117` by checksum. No test, TypeScript
-source or build script. Of the
-studies, only the smoke series.
+source or build script. Of the studies, only the smoke series. `web-files_test.sh` (in the gate) fails a module path
+that a copied file names and the list leaves out, as `paint/settle.js` (#289) and `view/clock.js` were until 2026-11-10.
 
 **Only what the page loads is reachable**: `/`, those files under `/client/`, `/series/metadata` and
 `/wt/dev-transport.json`. Everything else is a 404, the studies' bundles included.

@@ -14,7 +14,7 @@ async function frame(set, spec) {
   const bytes = new Uint8Array(await (await fetch(`frames/${set}.raw`)).arrayBuffer());
   const pixels = new SharedArrayBuffer(bytes.length);
   new Uint8Array(pixels).set(bytes);
-  const View = spec.components === 3 || spec.bits <= 8 ? Uint8Array : spec.signed ? Int16Array : Uint16Array;
+  const View = spec.components === 3 || spec.bits <= 8 ? (spec.signed ? Int8Array : Uint8Array) : spec.signed ? Int16Array : Uint16Array;
   const f = { pixels, width: spec.width, height: spec.height, bits: spec.bits, components: spec.components, signed: spec.signed };
   frames.set(set, { f, samples: new View(pixels) });
   return frames.get(set);
