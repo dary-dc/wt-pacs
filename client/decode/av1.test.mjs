@@ -213,6 +213,52 @@ const { parsePayload } = await import("./av1-payload.js");
   await take("no VideoDecoder, no WebCodecs", "plain", "g10", 10, 1, "dav1d");
 }
 
+/**
+ * An optimal-quality series takes WebCodecs first at any depth, and dav1d only after WebCodecs refused it, the refusal
+ * named on the frame; over 10 bits, where no probe is made, the first refusal sends the worker's later frames to dav1d.
+ */
+{
+  const calls = [];
+  let [depth, wcFails, probeOk] = [12, false, true];
+  const pic = () => ({ width: 1, height: 1, bits: depth, planes: [{ heap: Uint16Array.of(7), offset: 0, stride: 1 }] });
+  const stubs = {
+    "./av1-webcodecs.js": {
+      init: async () => {},
+      probe: async (layout) => (calls.push(`probe ${layout}`), probeOk),
+      picture: async () => {
+        calls.push("webcodecs");
+        if (wcFails) throw new Error("undecodable: not a key frame");
+        return pic();
+      },
+    },
+    "./av1-dav1d.js": { init: async () => {}, picture: () => (calls.push("dav1d"), pic()) },
+  };
+  globalThis.VideoDecoder = class {};
+  const make = async (tag) => {
+    const av1 = await import(`./av1.js?lossy-${tag}`);
+    await av1.init({ lossy: true }, async (path) => stubs[path]);
+    return av1;
+  };
+  const take = async (av1, what, name, d, want, path, why) => {
+    depth = d;
+    calls.length = 0;
+    const f = await av1.decodeFrame(golden("plain", name)).catch((e) => ({ path: e.message }));
+    check(calls.join() === want && f.path === path && why.test(f.refusal ?? ""), `lossy: ${what} (${calls.join()}; ${f.path}; ${f.refusal})`);
+  };
+  const taken = await make("taken");
+  await take(taken, "a 12-bit frame WebCodecs decodes stays there, dav1d untouched", "g12", 12, "webcodecs", "av1-webcodecs", /^$/);
+  await take(taken, "a 10-bit frame takes WebCodecs after its probe", "g10", 10, "probe g10,webcodecs", "av1-webcodecs", /^$/);
+  wcFails = true;
+  const refused = await make("refused");
+  await take(refused, "a 12-bit frame WebCodecs refuses goes to dav1d, the refusal named", "g12", 12, "webcodecs,dav1d", "av1-dav1d", /not a key frame/);
+  await take(refused, "and the next 12-bit frame goes to dav1d alone, with that refusal", "g12", 12, "dav1d", "av1-dav1d", /not a key frame/);
+  await take(refused, "a 10-bit frame WebCodecs fails goes to dav1d, the failure named", "g10", 10, "probe g10,webcodecs,dav1d", "av1-dav1d", /not a key frame/);
+  probeOk = false;
+  await take(refused, "a 10-bit frame whose probe failed goes to dav1d, the probe named", "g10", 10, "probe g10,dav1d", "av1-dav1d", /g10 probe failed/);
+  delete globalThis.VideoDecoder;
+  await take(await make("none"), "without VideoDecoder, dav1d, and that named", "g12", 12, "dav1d", "av1-dav1d", /no VideoDecoder/);
+}
+
 /** Init starts fetching every decoder the payload could need, so none waits for the first payload to land; a failure there costs no payload. */
 {
   const asked = [];

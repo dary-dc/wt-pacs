@@ -4,11 +4,15 @@ import { built } from "/client/decode/wasm-glue.js";
 import { Painter } from "/client/paint/painter.js";
 import { asPainted, Controller, FIT } from "/client/view/controller.js";
 import { View, ViewWorker } from "/client/view/view.js";
+import { checkPair, pairOf } from "/client/viewer/pair.js";
 
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById("view");
 const statusEl = document.getElementById("status");
 const markEl = document.getElementById("mark");
+const qualityEl = document.getElementById("quality");
+const losslessEl = document.getElementById("lossless");
+const overlayEl = document.getElementById("overlay");
 const at = () => performance.timeOrigin + performance.now();
 
 const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport])
@@ -27,6 +31,21 @@ if (lab.refused) {
 }
 const meta = await globalThis.viewerMetadata;
 const n = meta.frameCount;
+// A lossy series is shown at optimal quality, each frame exact on request from its exact series.
+const pair = await (async () => {
+  const p = pairOf(meta);
+  if (!p) return null;
+  const [exactMeta, exactTransport] = await Promise.all([p.metadata, p.transport].map((u) => fetch(u).then((r) => {
+    if (!r.ok) throw new Error(`refused: ${u} answered ${r.status}`);
+    return r.json();
+  })));
+  checkPair(meta, exactMeta);
+  return { ...p, meta: exactMeta, transport: exactTransport };
+})().catch((e) => {
+  statusEl.textContent = `error: ${e.message}`;
+  report({ error: e.message });
+  throw e;
+});
 const fillMode = q.get("fill") !== "0";
 const transport = lab.transport;
 // Absolute: the downloader's worker would resolve a relative URL against its own script.
@@ -62,6 +81,7 @@ const on = {
     shown = s;
     markEl.className = s.exact === true ? "" : s.exact === false ? "inexact" : "unchecked";
     markEl.textContent = s.exact === false ? `NOT EXACT — ${s.reason ?? ""}` : s.exact === true ? "" : "unchecked";
+    showQuality(s);
     status();
   },
   failed: ({ scope, i, reason }) => fail(scope === "frame" ? `frame ${i}: ${reason}` : `${scope}: ${reason}`),
@@ -89,6 +109,28 @@ if (where === "page") {
   worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settlePaint: Boolean(lab.settlePaint), watchWrites: Boolean(q.get("check")) });
 }
 
+const QUALITY = {
+  optimal: "Optimal quality",
+  asking: "Optimal quality · fetching lossless…",
+  lossless: "Lossless",
+  failed: "Lossless check failed · optimal quality shown",
+};
+/** The quality label says what is painted, as the controller judged it; the overlay, `?overlay=1`, how it got here. */
+function showQuality({ quality, about }) {
+  qualityEl.hidden = !quality;
+  qualityEl.className = quality ?? "";
+  qualityEl.textContent = QUALITY[quality] ?? "";
+  losslessEl.textContent = quality === "lossless" || quality === "asking" ? "optimal quality" : "lossless";
+  if (overlayEl.hidden) return;
+  const kb = about.wireBytes === undefined ? "?" : (about.wireBytes / 1024).toFixed(1);
+  const ms = about.decodeMs === undefined ? "?" : about.decodeMs.toFixed(1);
+  const cut = meta.lossy?.bitsStored ? ` depth cut of ${meta.lossy.bitsStored}` : "";
+  const series = meta.lossy ? ` · Q ${meta.lossy.q} · G ${meta.lossy.g} · ${meta.lossy.depth}-bit${cut}` : "";
+  const route = about.refusal ? `${about.path} after WebCodecs refused: ${about.refusal}` : about.path ?? "?";
+  overlayEl.textContent = `${route} · ${kb} KB · decode ${ms} ms${series}`;
+}
+overlayEl.hidden = q.get("overlay") !== "1";
+
 function status() {
   const soft = /swiftshader|llvmpipe|software|basic render/i.test(rendererName) ? " (software)" : "";
   const paths = Object.entries(progress.seen.paths).map(([p, k]) => `${p} ${k}`).join(", ") || "none yet";
@@ -106,8 +148,9 @@ function status() {
 }
 
 const options = lab.opts;
-const decoder = options.decoder ?? (meta.codec === "av1" ? { codec: "av1", ...(await built("dav1d")) } : await built("openjph"));
+const decoder = options.decoder ?? (meta.codec === "av1" ? { codec: "av1", lossy: meta.lossy !== undefined, ...(await built("dav1d")) } : await built("openjph"));
 const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : undefined;
+const groups = meta.lossy?.g > 1 ? { groupLength: meta.lossy.g, frameCount: n } : {};
 const all = [...Array(n).keys()];
 // A lab harness slows the CPU from here: lab/viewer/levers.js.
 await lab.started?.();
@@ -118,6 +161,7 @@ const connectOpts = {
   // The file follows a restarted server; a pair the lab named stays pinned.
   transportFile: lab.pinned ? undefined : transportFile,
   digests,
+  ...groups,
   ...options,
   decoder,
 };
@@ -139,6 +183,26 @@ try {
 }
 
 view = new View(n, controller ?? worker);
+if (pair) connectExact();
+
+/** The exact series on its own downloader: no fill, one decoder, a frame asked only when the reader asks it. */
+async function connectExact() {
+  const opts = {
+    transport: transport.module,
+    transportFile: new URL(`/wt/${pair.id}/dev-transport.json`, location).href,
+    digests: pair.meta.digests.frames,
+    decoders: 1,
+    decoder: await built("openjph"),
+  };
+  try {
+    if (worker) await worker.connectExact(pair.transport.wt_url, pair.transport.cert_sha256, opts);
+    else controller.exactSource = await DownloaderClient.connect(pair.transport.wt_url, pair.transport.cert_sha256, opts);
+    losslessEl.hidden = false;
+  } catch (e) {
+    fail(`lossless: ${e.message}`);
+  }
+}
+losslessEl.onclick = () => (/lossless|asking/.test(qualityEl.className) ? view.lossy() : view.exact());
 function show(i) {
   const step = view.show(i);
   status();
@@ -187,11 +251,12 @@ const KEYS = {
   h: () => ((pose = { ...pose, flipH: !pose.flipH }), display()),
   v: () => ((pose = { ...pose, flipV: !pose.flipV }), display()),
   i: () => ((invert = !invert), display()),
+  l: () => losslessEl.hidden || losslessEl.click(),
   0: reset, Escape: reset,
 };
 addEventListener("keydown", (e) => {
   const k = KEYS[e.key];
-  if (!k || e.target === cineEl) return;
+  if (!k || e.target === cineEl || e.target === losslessEl) return;
   e.preventDefault();
   k();
 });

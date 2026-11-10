@@ -42,7 +42,10 @@ export function tableShape({ bits, signed }) {
   return { entries, offset: signed ? entries / 2 : 0 };
 }
 
-/** Entry `s + offset` is stored code `s`'s byte; RGB's table is the identity, inverted if asked. */
+/**
+ * Entry `s + offset` is stored code `s`'s byte; RGB's table is the identity, inverted if asked. A depth cut's frame
+ * (`cut` = D − 10) holds 10-bit codes c, each windowed at its full-depth value c · 2^cut. docs/av1/payload-format.md §Depth cut
+ */
 export function windowTable(frame, display) {
   const { photometric = "MONOCHROME2", invert = false } = display;
   if (!PHOTOMETRIC.includes(photometric)) throw new Error(`photometric interpretation ${photometric} is not painted`);
@@ -51,6 +54,8 @@ export function windowTable(frame, display) {
   }
   const { entries, offset } = tableShape(frame);
   const flip = (photometric === "MONOCHROME1") !== Boolean(invert);
+  const cut = frame.cut ?? 0;
+  if (cut && (photometric === "RGB" || frame.signed)) throw new Error("a depth cut is painted as unsigned grey only");
   const table = new Uint8Array(entries);
   if (photometric === "RGB") {
     for (let i = 0; i < entries; i++) table[i] = flip ? 255 - (i & 255) : i & 255;
@@ -60,7 +65,7 @@ export function windowTable(frame, display) {
   const { center, width, function: fn = "LINEAR" } = display.voi;
   const y = voi(fn, center, width);
   for (let i = 0; i < entries; i++) {
-    const code = toCode(y((i - offset) * slope + intercept));
+    const code = toCode(y((i - offset) * 2 ** cut * slope + intercept));
     table[i] = flip ? 255 - code : code;
   }
   return table;

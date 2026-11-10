@@ -27,6 +27,8 @@ class Handler(SimpleHTTPRequestHandler):
     series_name: str = "us_cine_smoke"
     metadata: Path | None = None
     transport: Path | None = None
+    # A lossy series' exact series, by the id its metadata names: client/README.md §A lossy series, exact on request
+    exact: dict[str, Path] = {}
     log_requests = False
 
     def __init__(self, *args, **kwargs):
@@ -36,6 +38,8 @@ class Handler(SimpleHTTPRequestHandler):
         path = unquote(path.split("?", 1)[0])
         if path == "/":
             return super().translate_path("/client/viewer/index.html")
+        if path in self.exact:
+            return str(self.exact[path])
         if path.startswith("/series/metadata"):
             return str(self.metadata or ROOT / "fixtures" / self.series_name / "metadata.json")
         if path.startswith("/wt/dev-transport.json"):
@@ -50,7 +54,7 @@ class Handler(SimpleHTTPRequestHandler):
             # One write per line: `print` writes the newline apart, and the threads' lines interleaved.
             print(f"GET {self.path}\n", end="", flush=True)
         path = Path(self.translate_path(self.path))
-        if path in (self.metadata, self.transport):
+        if path in (self.metadata, self.transport, *self.exact.values()):
             return super().send_head()
         top = path.relative_to(ROOT).parts[:1] if path.is_relative_to(ROOT) else ()
         if not top or top[0] not in SERVED:
@@ -83,6 +87,8 @@ def main():
     parser.add_argument("--series", default="us_cine_smoke")
     parser.add_argument("--metadata", type=Path, help="serve this file as /series/metadata, in place of the series'")
     parser.add_argument("--transport", type=Path, help="serve this file as /wt/dev-transport.json")
+    parser.add_argument("--exact-metadata", type=Path, help="a lossy --metadata's exact series: its metadata")
+    parser.add_argument("--exact-transport", type=Path, help="and the transport file of the server that serves it")
     parser.add_argument("--log-requests", action="store_true", help="print each path asked for (client/viewer/check.mjs)")
     args = parser.parse_args()
     if not args.transport:
@@ -92,6 +98,13 @@ def main():
     Handler.metadata = args.metadata and args.metadata.resolve()
     Handler.transport = args.transport and args.transport.resolve()
     Handler.log_requests = args.log_requests
+    if args.exact_metadata or args.exact_transport:
+        if not (args.metadata and args.exact_metadata and args.exact_transport):
+            parser.error("--exact-metadata and --exact-transport go together, with a lossy --metadata")
+        sid = json.loads(args.metadata.read_text()).get("exactSeries")
+        if not sid:
+            parser.error(f"{args.metadata} names no exactSeries")
+        Handler.exact = {f"/series/{sid}/metadata": args.exact_metadata.resolve(), f"/wt/{sid}/dev-transport.json": args.exact_transport.resolve()}
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     port = server.server_address[1]
     print(f"port={port} http://127.0.0.1:{port}/ series={args.series}", flush=True)

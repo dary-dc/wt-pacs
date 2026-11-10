@@ -86,6 +86,20 @@ class DevServer(unittest.TestCase):
             finally:
                 dev_server.Handler.metadata = dev_server.Handler.transport = None
 
+    def test_an_exact_series_by_its_id(self):
+        """A lossy series' exact series answers under the id its metadata names, and no other id does."""
+        with tempfile.TemporaryDirectory() as other:
+            meta, transport = Path(other) / "m.json", Path(other) / "t.json"
+            meta.write_text('{"frameCount": 7}')
+            transport.write_text('{"wt_url": "y"}')
+            dev_server.Handler.exact = {"/series/s1/metadata": meta, "/wt/s1/dev-transport.json": transport}
+            try:
+                self.assertEqual(self.get("/series/s1/metadata")[2], b'{"frameCount": 7}')
+                self.assertEqual(self.get("/wt/s1/dev-transport.json")[2], b'{"wt_url": "y"}')
+                self.assertEqual(self.get("/wt/s2/dev-transport.json")[0], 404)
+            finally:
+                dev_server.Handler.exact = {}
+
     def test_a_catalog_and_a_page_are_revalidated(self):
         """Metadata and pages carry `no-cache` beside their validator; a module keeps heuristic caching."""
         for path, want in [("/series/metadata", "no-cache"), ("/client/page.html", "no-cache"), ("/client/module.js", None)]:

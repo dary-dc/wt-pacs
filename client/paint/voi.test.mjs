@@ -110,6 +110,41 @@ test("RGB as stored, others declined", () => {
   assert.throws(() => windowTable(grey(8, false), { photometric: "RGB" }), /RGB with 1 component/);
 });
 
+const CUT_WINDOWS = [
+  { voi: { center: 2048, width: 4096, function: "LINEAR" } },
+  { voi: { center: 1000, width: 11, function: "LINEAR" } },
+  { voi: { center: 1000, width: 10, function: "LINEAR_EXACT" } },
+  { voi: { center: 3000.5, width: 0.001, function: "LINEAR_EXACT" } },
+  { voi: { center: 700, width: 40, function: "SIGMOID" } },
+  { voi: { center: -300, width: 80, function: "SIGMOID" }, rescale: { slope: 0.5, intercept: -1024 } },
+  { voi: { center: 900, width: 37, function: "LINEAR" }, rescale: { slope: 0.7, intercept: 3.1 }, photometric: "MONOCHROME1" },
+  { voi: { center: 1500, width: 300, function: "LINEAR_EXACT" }, invert: true },
+];
+
+/** A depth cut's table, entry c, is the stored-depth table at c << (D − 10), for every 10-bit code, D 11, 12 and 16, and each window function. */
+test("a depth cut's table is shift-then-window on every code", () => {
+  for (const d of [11, 12, 16]) {
+    for (const display of CUT_WINDOWS) {
+      const want = windowTable(grey(16, false), display);
+      const got = windowTable({ ...grey(10, false), cut: d - 10 }, display);
+      for (let c = 0; c < 1024; c++) assert.equal(got[c], want[c << (d - 10)], `D ${d}, code ${c}, ${display.voi.function} ${display.voi.center}/${display.voi.width}`);
+    }
+  }
+});
+
+/** Scaling the window to the codes is not the same paint: LINEAR c 1000 w 11 at D 12 paints code 249 (996) 38, the scaled window 55. */
+test("a depth cut does not scale the window", () => {
+  assert.equal(code("LINEAR", 1000, 11, 249 << 2), 38);
+  assert.equal(code("LINEAR", 1000 / 4, 11 / 4, 249), 55);
+  assert.equal(windowTable({ ...grey(10, false), cut: 2 }, { voi: { center: 1000, width: 11 } })[249], 38);
+});
+
+/** A depth cut is unsigned grey: a signed or RGB frame carrying one is refused by name. */
+test("a signed or RGB depth cut is refused", () => {
+  assert.throws(() => windowTable({ ...grey(10, true), cut: 2 }, { voi: { center: 0, width: 4 } }), /unsigned grey only/);
+  assert.throws(() => windowTable({ bits: 8, signed: false, components: 3, cut: 2 }, { photometric: "RGB" }), /unsigned grey only/);
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try {

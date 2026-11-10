@@ -96,6 +96,7 @@ run 2 node client/decode/av1.test.mjs
 run 1 python3 server/dev-server.test.py
 run 1 node client/paint/voi.test.mjs
 run 1 node client/view/controller.test.mjs
+run 1 node client/viewer/pair.test.mjs
 run 1 node client/view/view.test.mjs
 run 1 node client/view/cache.test.mjs
 run 1 node client/viewer/store.test.mjs
@@ -119,6 +120,8 @@ if [[ $browser -eq 1 ]]; then
   run 20 bash client/viewer/run_check.sh
   step "lab: the frame clock's seven arms wired end to end in the view worker, a second each (headless Chromium, nothing timed)"
   run 1 node lab/frame-clock/check.mjs
+  step "client: a depth cut's 10-bit codes decode through WebCodecs, a group from its keyframe on, as dav1d's; a 12-bit stored form tried there first (headless Chromium)"
+  run 1 node client/decode/depth-cut.browser.mjs
   step "client: a crafted link to the viewer refused where lab/ is not served (headless Chromium)"
   run 1 node client/viewer/crafted.mjs
   step "client: the painter at 1:1 against its CPU reference (SwiftShader, ~3 s)"
@@ -164,6 +167,14 @@ if [[ -f "$INGEST_BUILD/payload/libdecode.so" && -x "$INGEST_BUILD/aom-3.15.1/bi
   run 1 "$PYTHON" ingest/from-dicom/end_to_end_test.py "$INGEST_BUILD"
 else
   skip "DICOM to .sbnd needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
+fi
+
+step "ingest: optimal quality — its metadata and pairing, every frame from its keyframe, close and not exact, at G 1, 8 and 16"
+if [[ -f "$INGEST_BUILD/payload/libdecode.so" && -x "$INGEST_BUILD/aom-3.15.1/bin/aomenc" ]] \
+  && "$PYTHON" -c "import numpy, xxhash" 2>/dev/null; then
+  run 1 "$PYTHON" ingest/coded-frames/lossy_test.py "$INGEST_BUILD"
+else
+  skip "optimal quality's test needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
 fi
 
 step "client: the native core's decode — every committed frame digest, through ingest/tools.sh's dav1d and OpenJPH — and its view module's want, store, credits and hand-over"
