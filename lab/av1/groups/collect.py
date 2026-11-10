@@ -245,7 +245,7 @@ def decode_tables(rows, names):
                 beyond = a["lo"] > AA_LIMIT or a["hi"] < -AA_LIMIT
                 res[(name, dec, "void")] = beyond
                 out.append(f"\nA/A ({dec}): O′ ÷ O mean {math.exp(a['med']):.3f} ({math.exp(a['lo']):.3f}–"
-                           f"{math.exp(a['hi']):.3f}); {'**beyond ±5 %: this series’ cells are void**' if beyond else 'inside ±5 %'}.")
+                           f"{math.exp(a['hi']):.3f}); {'**wholly beyond ±5 %: this series’ cells are void**' if beyond else 'not wholly beyond ±5 %, so not void'}; half-width a = {100 * (math.exp((a['hi'] - a['lo']) / 2) - 1):.1f} %.")
     return out, res
 
 
