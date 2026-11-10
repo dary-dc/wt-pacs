@@ -195,7 +195,8 @@ where each anchor falls on the ladder — the highest Q from Q 1 up at which eve
 * **(a) Visually lossless, by the frame's own noise:** e_N ≤ σ on every frame — the coding error in the noise band is
   no larger than the noise the exact frame already carries in that band (*derived* from the owner's "inside the
   frame's own noise"; at e_N = σ the band's total noise rises by √2, which is reported, not judged). And **displayed
-  levels**: every window's largest move ≤ 1 level on every frame. Where the two disagree, both are reported.
+  levels**: every window's largest move ≤ 1 level on every frame. Where the two disagree, both are reported. *Corrected 2026-11-10:* that holds only for error independent of the noise; at the anchor the quantizer removes
+  noise, so the band's noise falls (*derived*, [`docs/av1/noise-ratio.md`](../../../docs/av1/noise-ratio.md) §2.3).
 * **(b) Scrolling:** error ÷ step < 1 on every frame, in the band and at full resolution — the preview's error is
   smaller than the difference between neighbouring slices, so what moves on screen is the stack, not the coding.
   Per series, because the step is the series' own.
@@ -2171,7 +2172,8 @@ How to read it, and what it does not say:
 
 * **Inside the noise** on DBT is where the error first fills the fine band's noise: e_N ÷ σ saturates near 1.04
   above it (§8), because the quantizer has removed that noise. So Q 8 is the last rung that keeps part of the
-  noise, not a rung whose error is below it, and at e_N = σ the band's noise rises by √2 (*derived*, §5 a). The
+  noise, not a rung whose error is below it, and at e_N = σ the band's noise rises by √2 (*derived*, §5 a; *corrected 2026-11-10*: only for independent
+  error, and at this rung the band's noise falls instead, [`docs/av1/noise-ratio.md`](../../../docs/av1/noise-ratio.md) §2.3). The
   pixel metrics' knees fall on that same rung (below), and JOD there is 9.67–9.96 on DBT.
 * **No rung keeps every displayed level within 1** on any series: on DBT, Q 1 already moves 16–29 % of the first
   window's pixels by at least one level (median frame) and its largest move is 2–9 levels (every cell). The two

@@ -138,3 +138,168 @@ invisibility, under three conditions:
 It is no reason to expect invisibility under flicker, and none for structured error. No source read here gives a
 numeric r at which a perturbation added to a medical image becomes visible: that number is *unverified* in the
 literature, and has to be measured.
+
+## 2 · Task-based quality: what the error does to lesion detectability
+
+**2.1 The observers.** Medical imaging defines image quality by how well a task can be done with the image:
+
+> "Image quality can be defined objectively in terms of the performance of some "observer" (either a human or a
+> mathematical model) for some task of practical interest. [...] The mathematical observers considered include the
+> ideal Bayesian, the nonprewhitening matched filter, a model based on linear-discriminant analysis and referred to
+> as the Hotelling observer, and the Hotelling and Bayesian observers modified to account for the
+> spatial-frequency-selective channels in the human visual system. [...] Only the Hotelling model with channels is
+> mathematically tractable in all cases considered here and capable of accounting for all of these data."
+> — Barrett HH, Yao J, Rolland JP, Myers KJ. Model observers for assessment of image quality. *Proc Natl Acad Sci
+> USA* 90:9758–9765 (1993), doi:10.1073/pnas.90.21.9758
+
+> "An alternative to the ideal observer is the ideal linear observer, which can still be unmanageable. Our
+> alternative is the ideal linear observer constrained to a small set of channels: the channelized-Hotelling
+> observer."
+> — Gallas BD, Barrett HH. Validating the use of channels to estimate the ideal linear observer. *J Opt Soc Am A*
+> 20:1725–1738 (2003), doi:10.1364/JOSAA.20.001725
+
+> "the NPW model can also fit their data if a spatial frequency filter of a shape similar to the human
+> contrast-sensitivity function is added to the NPW observer model. The best fit is achieved by use of an eye-filter
+> model E(f) = f1.3 exp(-cf2), with c selected to yield a peak at 4 cycles/deg."
+> — Burgess AE. Statistically defined backgrounds: performance of a modified nonprewhitening observer model.
+> *J Opt Soc Am A* 11:1237–1242 (1994), doi:10.1364/JOSAA.11.001237 (the exponents are f^1.3 and cf², flattened by
+> the abstract's text)
+
+Take a signal-known-exactly (SKE) task with a signal s in stationary Gaussian noise of spectrum W(f), and let S(f) be
+the signal's transform. The standard forms of d′ are then (*derived*: the Fourier forms follow from d′² = sᵀK⁻¹s and
+from the NPW template being s itself; their printed form in Barrett and Myers, *Foundations of Image Science*
+(Wiley, 2004), is *unverified*, as the book was not read):
+
+| observer | d′² |
+| --- | --- |
+| Hotelling, which is ideal for Gaussian noise | ∫ \|S\|² ÷ W df |
+| NPW | (∫ \|S\|² df)² ÷ ∫ \|S\|² W df |
+| NPWE | (∫ \|S\|² E² df)² ÷ ∫ \|S\|² E⁴ W df |
+| CHO, with channel matrix T | (Tᵀs)ᵀ (TᵀKT)⁻¹ (Tᵀs) |
+
+Human data in mammographic backgrounds fall between these models. Burgess and colleagues, with lesions inserted
+digitally into real mammograms, found that "Human efficiency relative to these models was as high as 90%" for
+prewhitening models. They concluded: "in spite of the fact that mammographic backgrounds have nonstationary
+statistics, models based on statistical decision theory can still be applied successfully to estimate human
+performance" (Burgess AE, Jacobson FL, Judy PF. Human observer detection experiments with mammograms and power-law
+noise. *Med Phys* 28:419–437 (2001), doi:10.1118/1.1355308). For DBT, the closest primary source found warns that
+the standard models misrank signals in *search*:
+
+> "We evaluated current standard models observers (Hotelling; Channelized Hotelling; non-prewhitening matched filter
+> with eye filter, NPWE; and non-prewhitening matched filter model, NPW) and showed that they incorrectly predict the
+> relative detectability of the two signals in 3D search."
+> — Lago MA, Abbey CK, Eckstein MP. Foveated model observers to predict human performance in 3D images. *Proc SPIE*
+> 10136:101360P (2017), doi:10.1117/12.2252952
+
+So a model-observer test of the noise ratio (§5) speaks for location-known detection. It does not speak for search,
+which is what screening is.
+
+**2.2 Independent white error (*derived*).** Let the error be independent of both noise and signal, with spectrum
+W_e. Then every observer above sees a noise of W_n + W_e.
+
+* **The white-on-white case.** Take W_n = σ² and W_e = r²σ² at every f, so that e_N ÷ σ = r in every band, the
+  Laplacian's included. Then **d′ falls by the factor 1 ÷ √(1 + r²)** for Hotelling, NPW and NPWE alike. At r = 0.3
+  the factor is 0.958, at 0.5 it is 0.894, at 0.7 it is 0.819, and at 1.0 it is 0.707.
+* **What r = 1 means.** For a quantum-limited system the ideal d′² is proportional to dose. So independent white error
+  at r = 1 costs the ideal observer what **halving the dose** would. That is not small: in this reading, "the error
+  stays within the noise" bounds the loss to a 29 % fall in d′, but it does not make the loss negligible.
+* **A spectral bound, and why e_N alone does not give it.** If W_e(f) ≤ r² W_n(f) at every f where S(f) ≠ 0, each
+  integrand above falls by at most 1 ÷ (1 + r²). So d′_coded ÷ d′_exact ≥ 1 ÷ √(1 + r²), for Hotelling, NPW and NPWE.
+  e_N ≤ σ is a statement about *one band*, and the band holds essentially none of a lesion's energy (§2.5). It bounds
+  W_e there and nowhere else. Error at frequencies where the Laplacian has no gain passes the test at any size (§3).
+
+**2.3 The encoder removes noise: anticorrelated error (*derived*).** A quantizer does not add independent noise once
+its step is near σ. Write the error in a band as e = −a·n + u, with u independent of the noise n. The coded band
+then carries noise of variance
+
+σ_coded² = σ² + e_N² + 2 cov(e, n) = σ² (1 + κ r²), where κ = 1 + 2 cov(e, n) ÷ e_N².
+
+Independent error has κ = +1 and adds noise. Pure removal (u = 0, a = r ≤ 1) gives κ = 1 − 2 ÷ r and σ_coded =
+σ(1 − r): at r = 1, κ = −1 and the band is emptied. A uniform mid-tread quantizer on Gaussian noise of σ 1 gives:
+
+| x = Δ ÷ σ | 0.5 | 1 | 2 | 3 | 3.5 | 4 | 4.93 | 6 |
+| --- | --: | --: | --: | --: | --: | --: | --: | --: |
+| r | 0.144 | 0.289 | 0.575 | 0.805 | 0.880 | 0.930 | 0.978 | 0.995 |
+| κ | +1.00 | +1.00 | +0.91 | +0.31 | −0.02 | −0.32 | −0.70 | −0.91 |
+
+The model's r follows the rows' measured curve: 0.29, 0.54 and 0.99 at x 1, 2 and 4–5
+([`noise-point.md`](noise-point.md) §3). The model is not AV1: it has no rate-distortion optimisation, no trellis and
+no deadzone rounding. The rows' plateau of 1.04–1.08 above the anchor shows that AV1 removes noise and adds some error
+besides. So **at the anchor x\* ≈ 4.93 the OQ view is in the removal regime.** In this model the finest band's noise
+variance falls to about σ²(1 − 0.70 · 0.96) ≈ 0.33 σ². It does not rise by √2, as `lab/av1/metrics/README.md` §5 (a)
+and [`noise-point.md`](noise-point.md) §1 read it. That reading holds only for κ = +1, which is Q ≤ 4 on 12-bit DBT
+(x ≤ 2). Both places are corrected in place to point here. This file's κ is *derived* from a model. §5 P1 measures
+it on the fixtures from σ of the decoded frame.
+
+**What removal does to the observers.** The ideal observer loses no information from the removal of a band that
+holds only noise. It loses whatever part of the signal's SNR² was removed with that band. NPW and human observers can
+*gain*, because they do not prewhiten and the removed noise was hurting them. Abbey and Barrett saw both effects, on
+simulated reconstructions:
+
+> "In the regularization study, performance exhibits a mild peak at intermediate levels of regularization before
+> degrading at higher levels."
+> — Abbey CK, Barrett HH. Human- and model-observer performance in ramp-spectrum noise: effects of regularization
+> and object variability. *J Opt Soc Am A* 18:473–488 (2001), doi:10.1364/JOSAA.18.000473
+
+Model-observer studies of codecs show the same thing. Encoder settings move detectability at a fixed ratio, in both
+directions:
+
+> "Compared to the default JPEG 2000 encoder settings, the NPWE-optimized encoder settings improved the detection
+> performance of humans and the other three model observers for an SKEV task."
+> — Zhang Y, Pham BT, Eckstein MP. Automated optimization of JPEG 2000 encoder options based on model observer
+> performance for detecting variable signals in X-ray coronary angiograms. *IEEE Trans Med Imaging* 23:459–474
+> (2004), doi:10.1109/TMI.2004.824153
+
+**2.4 Removal also erases faint signals (*derived*).** A quantizer zeroes a coefficient whose value, signal plus
+noise, falls inside its zero bin. It does not know which part was signal. Take white noise, so that every orthonormal
+transform coefficient sees the same x. A signal spread over K coefficients, each of amplitude a·σ, has an exact-frame
+ideal d′ of a√K. At x 4.93 the zero bin is |c| < 2.465σ:
+
+| a | K | exact d′ | P(a coefficient is zeroed) |
+| --: | --: | --: | --: |
+| 1.0 | 9 | 3.00 | 0.93 |
+| 0.7 | 25 | 3.50 | 0.96 |
+| 1.5 | 4 | 3.00 | 0.83 |
+
+A lesion that the ideal observer finds easily in the exact frame is mostly deleted, together with the noise, wherever
+its energy is spread thin over coefficients. Two cases follow:
+* **A mass** concentrates its energy in a block's few lowest coefficients. In a 32 × 32 block, a mean offset of c·σ
+  gives a DC coefficient of 32·c·σ, which survives.
+* **A small, faint calcification** spreads its energy over many coefficients. Take one of peak A and Gaussian σ 1 px:
+  its energy is ≈ 2π A², and in an 8 × 8 block each coefficient carries ≈ 0.31 A. At A = 2σ its white-noise d′ is
+  ≈ 5. To survive the zero bin it would need A ≳ 8σ.
+
+This is the theory's central worry: **the regime where r reaches 1 is the regime in which a quantizer erases signals
+of per-coefficient amplitude below about 2.5σ.** That includes signals an ideal observer detects with d′ 3–5. Real
+AV1 differs from the model: rate-distortion optimisation weighs distortion per block, DC and AC steps differ, and DBT
+noise is not white. How much of this survives in AV1 is *unverified* and is what §5 measures. The one primary
+compression study of mammography with model observers found here agrees in direction: "a reduction in detection with
+increased compression for microcalcifications at 30:1 compression", with "almost no variation" for simulated masses.
+That source is Suryanarayanan S, Karellas A, Vedantham S, Ved H, D'Orsi CJ, Evaluation of detection in compressed
+digital mammograms using numerical observers, *Proc SPIE* 5034:513–521 (2003), doi:10.1117/12.480363. It was read
+from its catalogue page (<https://experts.arizona.edu/en/publications/evaluation-of-detection-in-compressed-digital-mammograms-using-nu/>),
+and only the first excerpt is verbatim. JPEG 2000 on 2D mammograms is not AV1 on DBT.
+
+**2.5 How much lesion signal the band holds (*derived*).** The share of a Gaussian signal's white-noise SNR² that lies
+in the Laplacian's band, weighted by the band's gain:
+
+| signal σ | 0.5 px | 1 px | 2 px | 5 px | 25 px |
+| --- | --: | --: | --: | --: | --: |
+| share in the band | 0.22 | 0.007 | < 10⁻⁴ | < 10⁻⁴ | < 10⁻⁴ |
+
+The band holds nearly nothing of any lesion wider than a pixel. Removing that band alone would cost an ideal observer
+almost nothing. What costs d′ is that the quantizer acts at every frequency (§2.4), while r looks at one band only.
+
+**2.6 Does "coding error ≤ noise" bound the loss? (*derived*).** Only under assumptions the OQ view does not meet:
+
+1. **If the error is independent and white on white noise,** r ≤ 1 bounds the fall in d′ to 1 ÷ √2 for every linear
+   observer. The bound is real, but it is the loss of halving the dose, not a negligible one.
+2. **If the error's spectrum stays under r² times the noise's at every frequency the signal occupies,** the same bound
+   holds whatever the spectra. e_N measures one band and cannot establish this.
+3. **At the anchor the error is anticorrelated (κ ≈ −0.7).** Here r says how much noise was removed, and it is silent
+   about the signal removed with it. The loss in d′ is not bounded by r. The model says it is small for masses and can
+   be large for faint, small signals.
+
+So r ≤ 1 is a **necessary-looking but not sufficient** criterion for task performance. It is sound as a guard against
+added independent error at low Q. At the Q the rule picks, it is a measure of noise removal. Whether that removal
+costs detectability is an empirical question, which §5 sets out.
