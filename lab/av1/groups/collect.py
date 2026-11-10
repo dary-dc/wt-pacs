@@ -445,9 +445,9 @@ def main():
             for src in ("real", "S", "X", "C"):
                 gs = " · ".join(pct(gain(S, n, q, src)) for q in (4, 8, 12))
                 sh = " · ".join(fmt(S[(n, "O", 1, q, src)]["bytes"] / S[(n, "O", 1, q, "real")]["bytes"], 3)
-                                if (n, "O", 1, q, src) in S else "—" for q in (4, 8, 12))
+                                if (n, "O", 1, q, src) in S and (n, "O", 1, q, "real") in S else "—" for q in (4, 8, 12))
                 out.append(f"| {src} | {gs} | {sh} |")
-            if (n, "O", 1, 8, "S") in S and (n, "O", 16, 8, "S") in S:
+            if all(k in S for k in ((n, "O", 1, 8, "S"), (n, "O", 16, 8, "S"), (n, "O", 1, 8, "real"))):
                 s_ = S[(n, "O", 1, 8, "S")]["bytes"] / S[(n, "O", 1, 8, "real")]["bytes"]
                 e_ = gain(S, n, 8, "S")
                 out.append(f"\ns = {s_:.3f}, e = {e_:.3f}, bound s · e = {100 * s_ * e_:.1f} % of O G 1's bytes at Q 8.")
