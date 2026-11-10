@@ -99,11 +99,12 @@ const { parsePayload } = await import("./av1-payload.js");
 
 /**
  * A signed 16-bit source of ≤ 8 bits after its offset comes back as its own numbers, read in the type the frame
- * reports, at k = 0 and 1 (docs/av1/payload-format.md §Built, *Corrected 2026-10-30*); −128…127 is the control.
+ * reports, at k = 0 and 1, under 8 bits too when its offset passes 128 (docs/av1/payload-format.md §Built,
+ * *Corrected 2026-10-30*); −128…127 is the control.
  */
 {
   const { begin, end } = await import("./av1-frame.js");
-  for (const [lo, hi] of [[-10, 200], [0, 200], [-200, 0], [-128, 127]]) {
+  for (const [lo, hi] of [[-10, 200], [0, 200], [-200, 0], [-200, -100], [-129, -100], [-128, 127]]) {
     const offset = lo < 0 ? -lo : 0;
     const bits = Math.max(1, (hi + offset).toString(2).length);
     const n = hi - lo + 1;

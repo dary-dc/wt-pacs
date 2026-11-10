@@ -28,7 +28,8 @@ export function begin(pic, payload) {
   const plainRgb = payload.bits === 8 && payload.depth === 8 && !payload.split && !payload.signed;
   if (!payload.rct && components === 3 && !plainRgb) refuse("three planes without rct");
   const { signed, offset } = payload;
-  const bits = signed && payload.bits === 8 && offset !== 128 ? 9 : payload.bits;
+  const fitsInt8 = offset <= 128 && (1 << payload.bits) - 1 - offset <= 127;
+  const bits = signed && payload.bits <= 8 && !fitsInt8 ? 9 : payload.bits;
   const wide = bits > 8;
   const sab = frameBuffer(pic.width * pic.height * components * (wide ? 2 : 1));
   const out = wide ? (signed ? new Int16Array(sab) : new Uint16Array(sab)) : signed ? new Int8Array(sab) : new Uint8Array(sab);

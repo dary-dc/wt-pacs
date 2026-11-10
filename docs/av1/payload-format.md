@@ -113,8 +113,11 @@ max(b − 8, 4), natively, in Node and in Chromium, Firefox and WebKitGTK, synth
 refusals matched by message. *Corrected 2026-10-30:* its signed sets are centred on 0, so a signed source of ≤ 8
 bits after the offset whose values leave −128…127 (a signed 16-bit series spanning −10…200, 0…200 or −200…0) was not
 shown exact, and wrapped in Int8, its frame digest wrapped the same way. Since 2026-10-31 such a payload (offset ≠ 128)
-is 9 bits, Int16, in the reader (`av1-frame.js`) and the digest (`ingest.py`'s `wide`); checked on the reader's merge
-(`client/decode/av1.test.mjs`) and the digest (`ingest/coded-frames/merge_test.py`), not through a decoder. The
+is 9 bits, Int16, in the reader (`av1-frame.js`) and the digest (`ingest.py`'s `wide`). *Corrected 2026-11-10:* that
+rule still left a signed source under 8 bits whose offset passes 128 (−200…−100) in Int8; the rule is now whether
+−offset … 2^bits − 1 − offset fits a byte, in the reader, the digest and the native decode (`decode.rs`'s `wide`).
+Checked on the reader's merge (`client/decode/av1.test.mjs`), the digest (`ingest/coded-frames/merge_test.py`) and the
+native rule, not through a decoder. The
 from-DICOM reader refuses High Bit < Bits Stored − 1 by name (PS3.5 §8.1.1). The reader's signed mask is now the output container's (0xFF, 0xFFFF): the old
 2^(depth + split) − 1 reports a wrong range for signed 8-bit with a split and for signed 16-bit at k = 5 and 7.
 **New limits:** `bits` ≤ 16, `split` ≤ 8, a top of at most 12 bits; a payload's `depth` is the smallest of 8, 10, 12
