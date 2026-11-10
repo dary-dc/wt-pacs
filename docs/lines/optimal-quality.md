@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-10 (branch tips read from `origin` that morning).
+Last verified 2026-11-10 (branch tips read from `origin` that evening).
 
 ## Goal
 
@@ -19,9 +19,11 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
 
 * **Contract.** Metadata of an optimal-quality series: `"codec": "av1"`, `"lossy": {"q", "g", "depth"}` (plus
   `bitsStored` for a depth cut), `"exactSeries": "<id>"`, no `digests`; its frames arrive `unchecked`.
-* **Bytes, measured** (`demo-series.sh`, one run on a 4-core cloud host), as a fraction of the exact
-  series' `.sbnd`: Q 8 is 0.074 (`dbts_a1`), 0.216–0.219 (`dbts_b1`), 0.095–0.096 (`dbts_c1`) at G 1, 8 and 16;
-  Q 24 is 0.002–0.025. The quality at each Q is **not measured** in this build. Fixtures: those three tomosynthesis
+* **Bytes, measured** (`demo-series.sh`, one run on a 4-core cloud host, the same to the byte in a second on
+  2026-11-10), as a fraction of the exact series' `.sbnd`, at G 1, 8 and 16: Q 8 is 0.0685–0.0687 (`dbts_a1`, the
+  depth cut), 0.216–0.219 (`dbts_b1`), 0.088–0.090 (`dbts_c1`, the depth cut); Q 24 is 0.003–0.025. *Corrected
+  2026-11-10:* this gave 0.074 and 0.095–0.096 for `dbts_a1` and `dbts_c1`, the stored forms' fractions, not the
+  cuts the demo shows. The quality at each Q is **not measured** in this build. Fixtures: those three tomosynthesis
   volumes only (56, 50 and 69 frames; 12, 10, 12 bits).
 * **Decode routes:** WebCodecs first for every optimal-quality frame, a depth cut included; dav1d-WASM only after a
   refusal, named in the overlay. A WebCodecs failure inside a group is not recovered by dav1d (the owner's call).
@@ -32,6 +34,12 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   `av1-webcodecs`) and `dbts_a1-q8-g16-stored` (every frame `av1-dav1d` after WebCodecs refused), filled and with
   `fill=0`; labels *Optimal quality* → *fetching lossless…* → *Lossless* → *Optimal quality*, and *Lossless check
   failed* for a tampered digest. Not a GPU, not hardware decode, not a phone.
+* **From a fresh clone** (DEMO-E2E-2, 2026-11-10, `claude/demo-e2e-2`): README §Demo word for word on one 4-core
+  cloud host, Chromium 141 headless on SwiftShader; all 20 optimal-quality series passed, label in order, *Lossless*
+  never before the exact frame's paint, no console error; numbers per series in `client/README.md` §Optimal quality,
+  exact on request. Fixed: a certificate ending within a day was renewed by the static host after the series
+  servers loaded the old one (no picture); README §Demo gained the steps before the demo from any state and the
+  phone pair for a demo series.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 ## Terms
@@ -46,7 +54,8 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
 
 1. Done 2026-11-10 on `claude/core-next`: the image build (`core-ci-deploy`) and the glossary (§Terms).
 2. The owner's merge words on `claude/core-next`, merge by merge ([`coordination.md`](coordination.md) §Open 2).
-3. The browser end to end on the merged branch: done headless 2026-11-10 (State now); on a GPU and a phone, owed.
+3. The browser end to end on the merged branch: done headless 2026-11-10, twice, the second from a fresh clone
+   (State now); on a GPU and a phone, owed: the owner's laptop and phone rehearsal, README §Demo.
 4. Serve the exact series' paths from the web image.
 5. Phone runs: tethering for development and decode numbers; Wi-Fi plus netem for transport realism and the demo.
 6. The DICOM ingest codes optimal quality (today only the lab tool does).

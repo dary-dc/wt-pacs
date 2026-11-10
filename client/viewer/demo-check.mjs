@@ -47,6 +47,9 @@ const run = (cmd, args) => {
 /** README §Demo's three servers; `exactMeta`, the exact series' metadata file the static host serves. */
 async function serve(exactMeta) {
   const cert = ["--cert-pem", "server/dev-cert/cert.pem", "--key-pem", "server/dev-cert/key.pem"];
+  // Renewed before the servers load it: the static host would renew it after, and the page would pin a hash they lack.
+  await new Promise((resolve, reject) => run("server/scripts/gen_dev_cert.sh", ["--if-needed"])
+    .once("exit", (c) => (c === 0 ? resolve() : reject(new Error(`gen_dev_cert.sh --if-needed exited ${c}`)))));
   const server = path.join(process.env.CARGO_TARGET_DIR || "target", "release/series-server");
   const lossy = run(server, ["--port", "4433", "--series", file(`${id}.sbnd`), ...cert]);
   const exact = run(server, ["--port", "4434", "--series", file(`${exactId}.sbnd`), ...cert]);
