@@ -40,6 +40,9 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   exact on request. Fixed: a certificate ending within a day was renewed by the static host after the series
   servers loaded the old one (no picture); README §Demo gained the steps before the demo from any state and the
   phone pair for a demo series.
+* **The demo build** (DEMO-INTEGRATE, 2026-11-10): `claude/demo-fixes-0` (#355 into `claude/core`) is the demo tip
+  `claude/core-next-fixes` plus `gate-cloud`, `double-decode-check` and `demo-e2e-2`, each a `--no-ff` merge; full
+  gate OK in a cloud session (skipped: lavapipe, GL display, Firefox, nginx); CI gate and deploy green.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 ## Terms
