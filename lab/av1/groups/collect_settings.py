@@ -98,7 +98,7 @@ def stream_lines(R, S, nu, name):
         ip = lambda p: "—" if p is None else f"Q {p[0]}, {p[2]} B"
         gd = guard(R, S, nu, name, arm, g) if (arm, g) != ("O", 1) else None
         gtxt = "—" if not gd else f"{collect.fmt(gd['nu'])} · {collect.fmt(gd['jod'])}"
-        b1 = "not monotone" if not r["monotone"] else "not bracketed" if r["b1"] is None else f"{r['b1'] / 1e6:.3f} MB"
+        b1 = "too few rungs" if len(r["rungs"]) < 2 else "not monotone" if not r["monotone"] else "not bracketed" if r["b1"] is None else f"{r['b1'] / 1e6:.3f} MB"
         out.append(f"| {arm} | {g} | {', '.join(map(str, r['rungs']))} | {b1} | {collect.fmt(r['nu1'], 3)} | "
                    f"{collect.pct(saving(R, name, arm, g), 2)} | {ip(r['at100'])} | {ip(r['at103'])} | "
                    f"{collect.pct(bd_psnr(S, name, arm, g), 2)} | {gtxt} |")
@@ -221,7 +221,10 @@ def main():
     if dec_lines:
         out += ["\n**Decode in order**, ms a frame, each stream at its integer point at 1.00, 1×, one host:"] + dec_lines
     out += ["\n| # | deciding numbers | outcome |", "| --- | --- | --- |"]
-    out += predictions(R, S, nu, names, eps, checks, dec, rows)
+    try:
+        out += predictions(R, S, nu, names, eps, checks, dec, rows)
+    except (KeyError, TypeError) as e:
+        out.append(f"| — | predictions stopped at a missing cell: {e!r} | — |")
     print("\n".join(out))
 
 
