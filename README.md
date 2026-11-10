@@ -24,8 +24,10 @@ python3 -m venv .venv && .venv/bin/pip install --require-hashes -r ingest/requir
                                                     # numpy, pydicom, xxhash, blake3 (CPython 3.11–3.13): PYTHON=.venv/bin/python
 ```
 
-In a cloud container, where nothing starts the Docker daemon and no `meson` is installed, three lines first:
-`(dockerd >/tmp/dockerd.log 2>&1 &)`, then wait until `docker info` answers, and `pip install meson==1.9.1`.
+In a cloud container, where nothing starts the Docker daemon and no `meson` is installed, first start the daemon,
+`(dockerd >/tmp/dockerd.log 2>&1 &)`, wait until `docker info` answers, and `pip install meson==1.9.1`. After a
+branch switch, run `ingest/tools.sh` again: the gate does not check `ingest/.build` for staleness, and a decoder
+built from another branch's `ingest/coded-frames/decode.cpp` fails the optimal-quality claims.
 
 With the first, the dispatch rig runs all 789 of its checks, the real-decode ones on npm's OpenJPH and on the
 product's build alike; without it, those that need the build are skipped by name. Without the second, the painter
