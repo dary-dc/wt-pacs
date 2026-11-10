@@ -1,6 +1,7 @@
 # Codecs and lab
 
-Last verified 2026-11-09 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09).
+Last verified 2026-11-10 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09, the
+quality audit of 2026-11-10).
 
 ## Goal
 
@@ -26,6 +27,11 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 * **Noise point** (`claude/av1-noise-point`, #317, 2026-11-09): a candidate Q per series from one number, the series'
   lowest frame noise σ_min. Valid for the DBT fixtures only; not for TRUS or MR. The latest commit reports the held-out
   test (P1, P3) holding on five DBT series, while the doc's Verdict still lists that test as owed: reconcile.
+* **Quality audit** (`claude/av1-audit-quality`, [`../av1/audit-quality.md`](../av1/audit-quality.md), 2026-11-10,
+  arithmetic on committed rows, no encode): the noise anchor is decided inside the estimator's 3 % error and the line
+  uses two bars (1.00, 1.03) that move 10 of 19 DBT volumes' Q; e_N ≤ σ passes wholesale noise removal; "G saves
+  nothing" is the Q 8 equal-Q reading (G 16 ÷ G 1 0.77–0.94 at Q 12, *derived*); lag 0 is not the lever by PSNR,
+  and alt-ref was never read on the noise measure. At the rule's Q the view is 0.10–0.28 of HTJ2K, not 0.07–0.22.
 * **Depth:** the client keeps full depth for windowing. WebCodecs gives no 12-bit samples; 12-bit goes through
   dav1d-WASM (full depth, slower).
 * **Out of the top, not discarded:** a two-layer SVC preview; lossless AV1 as the exact form.
@@ -37,6 +43,8 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 
 ## Open (ordered)
 
+00. **One bar for the noise anchor** (1.00 or 1.03), then integer-Q arms near it at G 1 and 16, and σ_out ÷ σ on the
+   existing cells (audit F1, F4); six alt-ref cells read by `cell.measure` (F3).
 0. **G at equal quality** (`claude/av1-groups`, protocol then measurement): G has only been compared at equal Q. Open:
    why G saves almost nothing at Q 8 on DBT, whether a lower Q at a larger G wins at equal fidelity, and whether our
    low-delay encoder settings (no lookahead, no alt-ref frames, whose temporal filtering partly averages out noise)
