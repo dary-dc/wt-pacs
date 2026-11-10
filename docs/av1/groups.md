@@ -1353,3 +1353,33 @@ reading any result, and the section that follows reports under these choices.*
    tried on one 12-bit stream of `dbts_a1` (O G 1 Q 8, 16 frames).
 10. **Mutations not in the harness's main path** (the decode hash and the 12-bit refusal) are run as their own
     rounds after the timed ones and written to `rows/groups-settings-1.decode-checks.json`.
+
+### Settings shard 1, measured — partial 2026-11-10 15:35 UTC (checks)
+
+*The checks of §S8, before any cell; the cells are running. `rows/groups-settings-1.checks.json`.*
+
+| check | expected | got | mutation | verdict |
+| --- | --- | --- | --- | --- |
+| arms are the table | AF−AD, AU−AT, AW−AT differ by exactly §S4's flags | exactly | AU without `--arnr-strength=0`: fails | holds |
+| reproduction | O G 16, AT G 16 at Q 8 = `rows/groups-1.jsonl` | byte-identical (14 981 915 B, 9 792 023 B) | `--cpu-used=5`: 14 976 080, 9 771 458 B | holds |
+| Q1 strength | AT at strength 4, 6 = 5 | 9 792 023 B all three | strength 3: 9 883 401 B | holds |
+| Q2 G 1 | AT, AF at G 1 = O G 1 (15 112 123 B) | **aomenc exits 1 on both**: "Error allocating buffers in smooth_filter_noise()" (AT; AF's stderr ends before the message) | AT at G 2: 13 994 703 B, differs | **undecided** |
+| AU's filter off | AU ≠ AT | 10 083 522 vs 9 792 023 B | — | holds |
+| AF's delta-q acts | AF ≠ AD | 9 444 210 vs 9 445 768 B (−0.02 %); `--q-hist` identical (31 at 0, 33 at 8) | — | holds, barely |
+| the cut | vector; O G 1 Q 0, c · 4, within [−2, +1] of the source | vector exact; **reconstruction − source spans [−1, +2]** | c · 2: [−1607, 0], fails | **miss as coded; see below** |
+| per-group form | AT G 16 Q 8 on `dbts_a1`, per group = whole | **differs**: 2 209 534 vs 2 182 147 B (+1.25 %) | — | difference reported |
+| equal quality | known crossing to 0.1 %; ln 0.9 → −10.0 % | 0.00 %, −10.00 % | x reversed against y: +113.5 % | holds |
+| ν | source vs itself 1.000; S < 0.3 | 1.000; 0.018 | source fed twice: 1.000 on S, fails | holds |
+| determinism | AU, AF at Q 8 G 16 twice identical | identical | `--cpu-used=5`: both differ | holds |
+
+* **Q2.** libaom 3.15.1 cannot code AT or AF at G 1 (`--kf-max-dist=0` with `--lag-in-frames=39`) on these 32 frames:
+  `pass2_strategy.c:3753-3757` mallocs `(last_stats − first_stats) × 8` bytes and fails on a null return; a
+  negative length is the only way `aom_malloc` returns null at that size (*derived* from `aom_mem.c`, not traced).
+  A 3-frame run of the same flags codes. Q2 is undecided on B, and "O G 1 stands for every arm's G 1" stands by
+  construction, since no lookahead arm has a G 1 stream.
+* **The cut.** depth_cut rounds half up, so v = 4k + 2 reconstructs as 4k + 4: reconstruction − source lies in
+  [−1, +2], source − reconstruction in [−2, +1], the interval §S4 derives. The check as coded took the first sign
+  and misses; the cut is exact to its rounding, the RMS (1.12 × 4 ÷ 4 … ≈ 1.15) is the same either way, and no
+  `dbts_a1` sample sits at 4094 or 4095 (the clamp would read −3). Reported as a miss, not re-run.
+* **Per-group form.** It differs, so by §S8 every cut-form stream of S2 is coded one encoder per group, as the
+  product does; `cell.py` gains that path before S2 starts.

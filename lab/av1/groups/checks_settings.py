@@ -18,7 +18,7 @@ import anchor  # noqa: E402
 import arms  # noqa: E402
 import cell  # noqa: E402
 import plan  # noqa: E402
-from cell import Source, run_cell, series, sigma_out  # noqa: E402
+from cell import Source, series, sigma_out  # noqa: E402
 
 CPU5 = ["--cpu-used=5"]
 B1 = {
@@ -47,7 +47,12 @@ def _spec(spec):
 
 
 def same(a, b):
-    return a["units"] == b["units"]
+    """None when either encode failed: the check is then undecided, and says which failed."""
+    return None if "units" not in a or "units" not in b else a["units"] == b["units"]
+
+
+def total(v):
+    return sum(v["units"]) if "units" in v else "failed"
 
 
 def flag_diff(a, b):
@@ -96,8 +101,8 @@ def main():
         (a.work / f"{name}.display.json").write_text(json.dumps(meta))
     js = [job(a.build, a.work, a.b1, t, s) for t, s in B1.items()] + [job(a.build, a.work, a.a1, t, s) for t, s in A1.items()]
     with ProcessPoolExecutor(a.jobs) as pool:
-        enc = dict(zip([*B1, *A1], pool.map(run_cell, js)))
-    proxy = enc["proxy"]
+        enc = dict(zip([*B1, *A1], pool.map(cell.run, js)))
+    failed = {k: v["error"] for k, v in enc.items() if v["kind"] == "failed"}
     out = {}
     got, holds = table_check({})
     mut, mut_holds = table_check({"AU": arms.AT})
@@ -111,15 +116,16 @@ def main():
         mutation_holds=enc["O16-cpu5"]["units"] != ref[("O", 16)] and enc["AT16-cpu5"]["units"] != ref[("AT", 16)])
     out["Q1 strength: AT at --arnr-strength 4 and 6 = AT (5); mutation strength 3: differs"] = dict(
         holds=same(enc["AT-s4"], enc["AT16"]) and same(enc["AT-s6"], enc["AT16"]),
-        mutation_holds=not same(enc["AT-s3"], enc["AT16"]),
-        bytes={k: sum(enc[k]["units"]) for k in ("AT16", "AT-s4", "AT-s6", "AT-s3")})
+        mutation_holds=same(enc["AT-s3"], enc["AT16"]) is False,
+        bytes={k: total(enc[k]) for k in ("AT16", "AT-s4", "AT-s6", "AT-s3")})
     out["Q2 G 1: AT and AF at G 1 = O G 1, Q 8; mutation AT at G 2: differs"] = dict(
-        holds=same(enc["AT1"], enc["O1"]) and same(enc["AF1"], enc["O1"]), mutation_holds=not same(enc["AT2"], enc["O1"]),
-        bytes={k: sum(enc[k]["units"]) for k in ("O1", "AT1", "AF1", "AT2")})
+        holds=same(enc["AT1"], enc["O1"]) and same(enc["AF1"], enc["O1"]), mutation_holds=same(enc["AT2"], enc["O1"]) is False,
+        bytes={k: total(enc[k]) for k in ("O1", "AT1", "AF1", "AT2")},
+        failed={k: failed[k][-200:] for k in ("AT1", "AF1") if k in failed})
     out["AU's filter off: AU ≠ AT at Q 8 G 16 (a tie voids AU)"] = dict(
-        holds=not same(enc["AU16"], enc["AT16"]), bytes={k: sum(enc[k]["units"]) for k in ("AU16", "AT16")})
+        holds=same(enc["AU16"], enc["AT16"]) is False, bytes={k: total(enc[k]) for k in ("AU16", "AT16")})
     out["AF's delta-q acts: AF ≠ AD at Q 8 G 16 (a tie voids AF)"] = dict(
-        holds=not same(enc["AF16"], enc["AD16"]), bytes={k: sum(enc[k]["units"]) for k in ("AF16", "AD16")},
+        holds=same(enc["AF16"], enc["AD16"]) is False, bytes={k: total(enc[k]) for k in ("AF16", "AD16")},
         q_hist={k: enc[k]["q_hist"] for k in ("AF16", "AD16")})
     vec = cell.depth_cut()(np.array([0, 1, 2, 5, 6, 4093, 4094, 4095]), 12).tolist()
     span, span2 = enc["cut-Q0"]["span"], enc["cut-Q0-x2"]["span"]
@@ -131,7 +137,7 @@ def main():
     out["per-group form: AT G 16 Q 8 on dbts_a1's cut form, one encoder a group, byte-identical to the whole-volume "
         "encode (a difference is reported)"] = dict(
         holds=same(enc["AT16-groups"], enc["AT16-whole"]),
-        bytes={k: sum(enc[k]["units"]) for k in ("AT16-whole", "AT16-groups")})
+        bytes={k: total(enc[k]) for k in ("AT16-whole", "AT16-groups")})
     err, offset = anchor.synthetic()
     _, flipped = anchor.synthetic(reverse=True)
     out["equal quality: B₁ reads a known curve to 0.1 %, ln 0.9 offset reads −10.0 %; mutation, x reversed against "
@@ -143,11 +149,11 @@ def main():
         mutation_holds=not mutated < 0.3)
     out["determinism: AU and AF at Q 8 G 16 coded twice identical; mutation --cpu-used=5: differs"] = dict(
         holds=same(enc["AU16"], enc["AU16-again"]) and same(enc["AF16"], enc["AF16-again"]),
-        mutation_holds=not same(enc["AU16"], enc["AU16-cpu5"]) and not same(enc["AF16"], enc["AF16-cpu5"]))
-    out["_encodes"] = {k: dict(bytes=sum(v["units"]), cpu=v.get("encode_cpu"), rss_kb=v.get("encode_rss_kb"),
+        mutation_holds=same(enc["AU16"], enc["AU16-cpu5"]) is False and same(enc["AF16"], enc["AF16-cpu5"]) is False)
+    out["_failed"] = failed
+    out["_encodes"] = {k: dict(bytes=total(v), cpu=v.get("encode_cpu"), rss_kb=v.get("encode_rss_kb"),
                                hidden=(v.get("headers") or {}).get("hidden"), q_hist=v.get("q_hist"))
                        for k, v in enc.items()}
-    out["_proxy_units"] = proxy["units"]
     a.out.write_text(json.dumps(out, indent=1, default=str) + "\n")
     for k, v in out.items():
         if not k.startswith("_"):

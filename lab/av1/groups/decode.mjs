@@ -53,7 +53,7 @@ async function inChromium(round) {
       const want = u.s.hashes.slice(0, u.s.sizes.length).map((h, i) => (MUTATE === "hash" && i === 1 ? `x${h}` : h));
       const matched = got.hashes ? got.hashes.filter((h, i) => h === want[i]).length : 0;
       rows.push({ round, set: e.name, unit: u.name, prev, arm: u.s.arm, g: u.s.g, q: u.s.q, why: u.s.why, dec: u.dec,
-        ms: got.ms ?? null, matched, frames: want.length, error: got.error ?? null });
+        ms: got.ms ?? null, matched, frames: want.length, error: got.error ?? null, wide: got.wide ?? null });
       if (got.error || matched !== want.length) console.error(`round ${round} ${e.name} ${u.name}: ${matched}/${want.length} ${got.error ?? ""}`);
       prev = u.name;
     }

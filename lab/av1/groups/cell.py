@@ -90,7 +90,8 @@ def encode(cmd):
     err = p.stderr.read()
     _, status, ru = os.wait4(p.pid, 0)
     if status:
-        raise RuntimeError(f"{cmd[0]}: {err.decode()[-400:]}")
+        lines = [x for x in err.decode().replace("\r", "\n").splitlines() if x.strip() and " fps " not in x]
+        raise RuntimeError(f"{Path(cmd[0]).name}: {' | '.join(lines)[-400:]}")
     return time.perf_counter() - t0, ru.ru_utime + ru.ru_stime, ru.ru_maxrss, err.decode()
 
 
