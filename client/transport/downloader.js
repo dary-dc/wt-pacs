@@ -217,8 +217,9 @@ function arrived(index, frame) {
   sessionBytes += frame.bytes.length + 8;
   if (cfg.recycleAtBytes && sessionBytes >= 0.75 * cfg.recycleAtBytes) recycling ??= recycle().finally(() => { recycling = null; });
   const rec = records.get(index);
-  // A late frame of an ended run, its record forgotten, is dropped but stays wanted: docs/adr/frame-path.md §Experiment 2, *Run*.
-  if (!rec) return;
+  // A late frame of an ended run, its record forgotten, is dropped but stays wanted: docs/adr/frame-path.md §Experiment 2, *Run*;
+  // so is a second copy of a frame in hand, a head that crossed on the run and on its ask.
+  if (rec?.state !== "wire") return;
   order.delete(index);
   if (rec.priority === "ask") forgetEnded();
   rec.stamps.lastByte = abs();

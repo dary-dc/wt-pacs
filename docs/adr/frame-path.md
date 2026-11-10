@@ -3838,6 +3838,44 @@ Checked and found as both sides meant: each merge resolution recorded on #250; t
 against main's viewer (cine period, steps, window drag, ledger shape); `span` 0 reproduces main's run; the downloader
 link's ordering; the cache's paint-first write, its re-ask of a failed read and its lock.
 
+### A second independent review of the core (2026-11-02)
+
+A read of the product code `claude/core-fold-2026-11-02` (#289) carries over `main` (`client/view`, `client/transport`,
+`client/decode`, `client/paint`, `client/viewer`, `server/src`, `common/fod`), on `claude/core-review2`.
+
+* **Fixed: a frame decoded twice.** A want's head that the ended run had in flight crosses twice, on the run and on
+  its ask. Whichever copy landed second re-queued the frame's record and sent it to a decoder again, so the frame on
+  screen was decoded twice, reached the consumer twice and was counted twice in `stats().exact`. Only a record still
+  on the wire takes bytes now (`downloader.js`, `arrived`). The test (`aHeadThatCrossesTwiceIsDecodedOnce`) failed on
+  the fold, the frame dispatched twice; it catches the old check (`!rec`) and a check that drops only a queued record.
+  An ask during a fill on `main` can cross twice the same way (`askFor`, by reading), and the fix covers it. How often
+  either happens is not measured.
+* **Proposed: the product's paint no longer waits for its draw.** `main`'s paint read one pixel after every draw.
+  The core's product paints unsettled (`settle` unset), so `drawn`, `firstShownMs` and `shown` stamp the draw's issue,
+  and the controller's one paint in flight no longer bounds what the GPU has queued. This default differs from
+  `main`'s and is not in the settings table above. Every §7 and settle arm ran settled (`fence` or `read`), so the
+  product's own setting is unmeasured. For the owner: a `settle` row in the table, whose default is either `main`'s
+  `read` (which waits on a busy page in Firefox, §7, *The pixel read under a busy page*) or the unsettled paint
+  recorded as decided. Before either, the unsettled paint as a sixth arm of that section's cine cell. No code changed.
+* **Proposed, names:** `client/view/store.js` is the frame store and `client/viewer/store.js` the store worker, two
+  concepts under one file name. The server's `media::frame_store::FrameStore`, the series bundle's reader, shares the
+  client frame store's name, and the glossary defines only the client's. Renames are structural, so not done.
+* **Proposed: the native ALPN in the product server.** `wt-pacs/1` is always on ([`../WIRE.md`](../WIRE.md) §The raw
+  QUIC mapping) while the native client is an experiment. Whether a deployment offers it is the owner's call.
+* Noted, not fixed: the memory window's budget is bytes in its design (§Proposed, lever 2) and frames in
+  `FrameStore`. Under a budget, the controller's `received` counts a frame again each time it is let go and comes
+  back, so `have` can pass `total`. No caller passes a budget. `ViewWorker.close()` on a view worker already ended
+  leaves its rejection unhandled. Only the viewer check closes.
+* Simplified: the close deadline is defined once, in the consumer. In the glossary, the fence settle polls on a 1 ms
+  timer, as `settle.js` does, not once a task.
+
+Checked by reading and found as meant: the server's endpoint, built by hand for two ALPNs, sets what wtransport 0.7.2's
+`ServerConfigBuilder::build` does (its crypto, the transport configuration, migration on; dual-stack, then IPv4 any).
+The FoD length check moved to `common/fod` unchanged. A per-frame stream's `finish` and `stopped` are what
+wtransport's `finish().await` did. The view worker's lifecycle under a fatal error, a downloader that does not load,
+and a session lost past its re-dials, under `?view=worker`: each said, and a later step's want re-dials. The default
+`?view=page` path is `main`'s viewer step for step (asks, cancel, cine, drag), but for the paint above.
+
 ### The core against main, timed (2026-10-30)
 
 Until now the core equals `main` by counts only (the gate's *perf: counts, not clocks*). The owner expects **throughput

@@ -1,8 +1,5 @@
 /** The page's view: intents to the controller, here or in the view worker. docs/adr/frame-path.md §3, *Built* */
-import { refuseUnstartable, startAndDial, watchPage } from "../transport/consumer.js";
-
-/** ms: the consumer's own close deadline, after which the page ends the downloader it started. */
-const CLOSE_DEADLINE_MS = 1_000;
+import { CLOSE_DEADLINE_MS, refuseUnstartable, startAndDial, watchPage } from "../transport/consumer.js";
 
 /** One paint at a time is the controller's; the page keeps only the index it last asked for and the cine's clock. */
 export class View {
@@ -225,6 +222,7 @@ export class ViewWorker {
 
   close() {
     this.#triggers.abort();
+    // Past the consumer's own close deadline, the page ends the downloaders it started.
     this.#call("close").finally(() => setTimeout(() => this.#downloaders.forEach((d) => d.terminate()), CLOSE_DEADLINE_MS));
   }
 }

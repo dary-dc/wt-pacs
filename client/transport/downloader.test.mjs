@@ -587,6 +587,32 @@ async function aLateFrameOfAnEndedRunIsStillWanted() {
 }
 await aLateFrameOfAnEndedRunIsStillWanted();
 
+/**
+ * A head the ended run had in flight crosses twice, once on the run and once on its ask: it is decoded and reaches
+ * the consumer once, whichever lands first.
+ */
+async function aHeadThatCrossesTwiceIsDecodedOnce() {
+  const dispatched = [];
+  globalThis.Worker = class {
+    postMessage(m) {
+      if (m.kind === "init") queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      if (m.kind === "decode") dispatched.push(m.index);
+    }
+    terminate() {}
+  };
+  const w = await wantWorld("head-twice", { decoders: 2, perDecoder: 8, decoderWorker: "x" });
+  await onmessage({ data: { kind: "want", indices: [...Array(10).keys()] } });
+  const run = w.onFill;
+  await onmessage({ data: { kind: "want", indices: [7, 8, 6, 9, 5, 4, 3, 2, 1, 0] } });
+  check(w.asks.join() === "7", `the head is asked while the run is in flight (${w.asks})`);
+  for (let i = 0; i <= 7; i++) run(frame(i));
+  await settle();
+  await w.serveOne();
+  const sevens = dispatched.filter((i) => i === 7).length;
+  check(sevens === 1, `frame 7 is dispatched to a decoder once, not ${sevens} times (${dispatched})`);
+}
+await aHeadThatCrossesTwiceIsDecodedOnce();
+
 /** The first frame dispatched carries the start's stamps, each taken, in the order the start passed them; no later frame carries them. */
 async function theFirstFrameCarriesTheStart() {
   const decoding = [];
@@ -686,5 +712,5 @@ async function aJumpMidGroupDecodesFromItsKeyframe() {
 }
 await aJumpMidGroupDecodesFromItsKeyframe();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted, the start's stamps on the first frame, a short want riding the dial, a jump into a group decoded from its keyframe: ok");
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted, the start's stamps on the first frame, a short want riding the dial, a head crossing twice decoded once, a jump into a group decoded from its keyframe: ok");
 process.exit(failed ? 1 : 0);
