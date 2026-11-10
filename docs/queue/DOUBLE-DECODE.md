@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-10 08:22
-heartbeat: 2026-11-10 09:00
+heartbeat: 2026-11-10 08:25
 outputs: claude/double-decode-check c83a7465 (test 59d61a4d, fix c83a7465); PR not yet opened
 ## Resume
 Done: traced on claude/core; the demo tip does not exist yet (none of demo-fixes-2/1/0, core-next-fixes, core-next
