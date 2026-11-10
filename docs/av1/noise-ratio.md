@@ -11,7 +11,7 @@ script in `lab/av1/metrics/noise_ratio_theory.py`. An ***unverified*** claim is 
   σ is the exact frame's noise and e_N is the coding error's RMS, each taken through the 3 × 3 Laplacian ÷ 6
   ([`../glossary.md`](../glossary.md)).
 * **OQ view.** The optimal-quality view: the lossy stream at the Q that the noise rule picks per series
-  ([`noise-point.md`](noise-point.md) §4). This is the design of 2026-11-09 (`docs/lines/codecs.md`).
+  ([`noise-point.md`](noise-point.md) §4). This is the design of 2026-11-09 (`main:docs/lines/codecs.md`).
 * **Exact frame.** The source frame, which HTJ2K returns bit for bit.
 * **Signal.** A lesion, or a model of one, that a reader or a model observer has to detect.
 * **d′.** Detectability: the difference between the observer's mean statistic with the signal and without it,
@@ -64,14 +64,14 @@ losslessness, or of task losslessness. It should be read together with three thi
 **Owed.** Every item is §5 or §5.7: κ measured; the model-observer test; a low-band σ estimator; and the reader study.
 
 **Valid for:** the theory is general. Every number tied to fixtures concerns the DBT fixtures of
-[`noise-point.md`](noise-point.md) and [`window-q.md`](window-q.md) only. There is no breast ultrasound cine, ABUS or
+[`noise-point.md`](noise-point.md) and `claude/av1-window-q:docs/av1/window-q.md` only. There is no breast ultrasound cine, ABUS or
 other modality here.
 
 ## Fixtures
 
 Nothing in this file was run on a fixture. The numbers it quotes from fixtures come from committed rows:
 * the noise curve, σ ranges and tiles are from `lab/av1/metrics/rows/` through [`noise-point.md`](noise-point.md);
-* the window arithmetic is from [`window-q.md`](window-q.md).
+* the window arithmetic is from `claude/av1-window-q:docs/av1/window-q.md`.
 
 Their families, all from EA1141:
 * DBT systems A and C at 12 bits (σ_min 10.5–14.8);
@@ -400,7 +400,7 @@ So at 1 : 1 the band lies past the eye's high-frequency falloff, and on the diag
 (Campbell et al. 1966; Watson et al. 1997, §1.3). Error held there would be hard to see whether or not noise masks
 it. **Magnification changes this.** At 4× zoom the band maps to 8–11 cycles/degree, inside the range the eye resolves
 well. Error and noise scale together under zoom, so r does not change. That is the window argument of
-[`window-q.md`](window-q.md) §1 again, with zoom in place of window. The ratio is zoom-independent; what a reader can
+`claude/av1-window-q:docs/av1/window-q.md` §1 again, with zoom in place of window. The ratio is zoom-independent; what a reader can
 see of it is not.
 
 **3.4 Why the band is wrong for tasks.** §2.5: the band holds less than 1 % of the SNR² of any lesion wider than
@@ -513,7 +513,7 @@ TRUS and MR already fall off the DBT curve ([`noise-point.md`](noise-point.md) �
 A later session runs this protocol unchanged. Nothing in it has been run. It tests the criterion "r ≤ 1 on every
 frame" against model observers. It does not test visibility.
 
-**5.0 Fixtures, split before any run.** The 19 DBT volumes of [`window-q.md`](window-q.md) §Fixtures, from EA1141, are
+**5.0 Fixtures, split before any run.** The 19 DBT volumes of `claude/av1-window-q:docs/av1/window-q.md` §Fixtures, from EA1141, are
 fetched by `lab/av1/fetch_data.sh` against their SHA-256 pins.
 
 * **Calibration set** (pilot and lesion amplitude only): `dbts_a1`, `dbts_b1`, `dbts_c1`.
