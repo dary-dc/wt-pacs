@@ -79,7 +79,8 @@ asks four things:
 * **No threshold exists to adopt.** The study found none in the literature for AV1 on 10–12-bit DBT. So x\* below is
   read from the rows, never set by hand.
 * **The anchor is a fine-band reading, not visibility.** At e_N = σ the band's noise rises by √2 (study §5 a,
-  *derived*). Above the anchor, e_N ÷ σ levels off near 1.04, because the noise has been removed (study §8). So the
+  *derived*; *corrected 2026-11-10*: only if the error is independent of the noise; at the anchor the quantizer removes
+  noise and the band's noise falls, [`noise-ratio.md`](noise-ratio.md) §2.3). Above the anchor, e_N ÷ σ levels off near 1.04, because the noise has been removed (study §8). So the
   anchor marks the last Q that keeps part of the noise. That is what the rule targets, and nothing more.
 * **MQSA.** A lossy DBT stream is never the interpreted frame in the US (study §1, quoting
   `docs/av1/visually-lossless.md` §1). The VL view's diagnostic use is a licensing question, and this file does not
