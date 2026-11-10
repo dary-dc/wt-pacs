@@ -126,17 +126,21 @@ def run_cell(job):
     y4m, ivf, dec = tmp / "in.y4m", tmp / "out.ivf", tmp / "dec.y4m"
     flags = arms.args(c["arm"], form, c["q"], c["g"], s.n, c.get("extra", ()))
     if c.get("per_group"):
-        return dict(kind="check", set=s.name, tag=c.get("tag"), flags=flags,
-                    units=[len(u) for u in per_group(build, tmp, s, form, c)])
-    write_y4m(s, form, y4m)
-    wall, cpu, rss, err = encode([build / f"aom-{AOM}/bin/aomenc", "-o", ivf, f"--limit={s.n}", "--q-hist=64",
-                                  "--disable-warning-prompt", *flags, y4m])
-    y4m.unlink()
+        wall, cpu, rss, hist = per_group(build, tmp, s, form, c, ivf)
+        if c.get("kind") == "check":
+            shutil.rmtree(tmp)
+            return dict(kind="check", set=s.name, tag=c.get("tag"), flags=flags, units=[len(u) for u in ingest.ivf_units(ivf)])
+    else:
+        write_y4m(s, form, y4m)
+        wall, cpu, rss, err = encode([build / f"aom-{AOM}/bin/aomenc", "-o", ivf, f"--limit={s.n}", "--q-hist=64",
+                                      "--disable-warning-prompt", *flags, y4m])
+        y4m.unlink()
+        hist = q_hist(err)
     units = ingest.ivf_units(ivf)
     dwall, dcpu, _, _ = encode([build / "dav1d/bin/dav1d", "-q", "--threads=1", "-i", ivf, "-o", dec])
     row = dict(kind=c.get("kind", "cell"), set=s.name, first=s.first, n=s.n, **{k: c[k] for k in ("arm", "g", "q", "src")},
                tag=c.get("tag"), flags=flags, units=[len(u) for u in units], headers=headers.summary(units),
-               q_hist=q_hist(err), encode_wall=wall, encode_cpu=cpu, encode_rss_kb=rss, decode_cpu=dcpu,
+               q_hist=hist, encode_wall=wall, encode_cpu=cpu, encode_rss_kb=rss, decode_cpu=dcpu,
                mpx=s.n * s.w * s.h * s.ch / 1e6)
     if c.get("kind") != "check":
         shown = {}
@@ -170,19 +174,28 @@ def run_cell(job):
     return row
 
 
-def per_group(build, tmp, s, form, c):
-    """The ingest's way (§S8): one encoder run per group of G frames, the units concatenated."""
-    out = []
+def per_group(build, tmp, s, form, c, ivf):
+    """The ingest's way (§S8): one encoder run per group of G frames, their units concatenated into one IVF; wall and
+    CPU summed, peak memory the largest, the --q-hist counts summed."""
+    units, wall, cpu, rss, hist, head = [], 0.0, 0.0, 0, {}, None
     for a in range(0, s.n, c["g"]):
         part = copy.copy(s)
         part.first, part.n = s.first + a, min(c["g"], s.n - a)
-        y4m, ivf = tmp / f"in{a}.y4m", tmp / f"out{a}.ivf"
+        y4m, out = tmp / f"in{a}.y4m", tmp / f"out{a}.ivf"
         write_y4m(part, form, y4m)
-        encode([build / f"aom-{AOM}/bin/aomenc", "-o", ivf, f"--limit={part.n}", "--disable-warning-prompt",
-                *arms.args(c["arm"], form, c["q"], c["g"], part.n, c.get("extra", ())), y4m])
-        out += ingest.ivf_units(ivf)
-    shutil.rmtree(tmp)
-    return out
+        w, u, r, e = encode([build / f"aom-{AOM}/bin/aomenc", "-o", out, f"--limit={part.n}", "--q-hist=64",
+                             "--disable-warning-prompt", *arms.args(c["arm"], form, c["q"], c["g"], part.n,
+                                                                    c.get("extra", ())), y4m])
+        wall, cpu, rss = wall + w, cpu + u, max(rss, r)
+        for k, v in q_hist(e).items():
+            hist[k] = hist.get(k, 0) + v
+        head = head or out.read_bytes()[:32]
+        units += ingest.ivf_units(out)
+        y4m.unlink()
+        out.unlink()
+    frames = b"".join(len(x).to_bytes(4, "little") + i.to_bytes(8, "little") + x for i, x in enumerate(units))
+    ivf.write_bytes(head[:24] + len(units).to_bytes(4, "little") + head[28:] + frames)
+    return wall, cpu, rss, hist
 
 
 def sigma_out(s, meta, form, decoded):

@@ -72,8 +72,8 @@ def settings_cells(name, ladder=None):
     out = [cell("O", 1, NOISE_PROXY_Q)] + [cell(a, g, q) for a, g in SETTINGS_STREAMS
                                             for q in ladder or SETTINGS_LADDER[name]]
     for c in out:
-        c.update(form=form, bands=False, keep=(c["arm"], c["g"]) in SETTINGS_TIMED,
-                 vdp=c["q"] != NOISE_PROXY_Q)
+        c.update(form=form, per_group=form == "cut" and c["g"] > 1, bands=False,
+                 keep=(c["arm"], c["g"]) in SETTINGS_TIMED, vdp=c["q"] != NOISE_PROXY_Q)
     return out
 
 
