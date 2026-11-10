@@ -1,12 +1,15 @@
 state: started
 started: 2026-11-10 05:21
-heartbeat: 2026-11-10 05:55
-outputs: claude/oq-ingest-fixes 68819a22 (no PR yet)
+heartbeat: 2026-11-10 06:15
+outputs: claude/oq-ingest-fixes (no PR yet)
 ## Resume
-Done: ingest/tools.sh built (BUILD must be absolute: a relative BUILD fails silently at dav1d's meson setup; use
-BUILD=$PWD/ingest/.build); lossy_test.py passes on 36508b0a. 3f29ce4b failing test for Q 0, 68819a22 the fix
-(lossy_header 1..63) and payload-format.md corrected in place; Q 0 measured exact at 8/10/12 bits G 1.
-Next: ingest_coded.py --split with --lossy writes "split" into a lossy series' metadata: failing test, then refuse
-it. Then mutate the new tests, draft PR into claude/oq-ingest, line doc on claude/work-ledger.
-Commands: cd wt-pacs; git checkout claude/oq-ingest-fixes; python3 ingest/coded-frames/lossy_test.py ingest/.build
+Done on claude/oq-ingest-fixes: Q 0 refused (test 3f29ce4b, fix 68819a22, payload-format.md corrected in place);
+--split with --lossy refused (test, fix); refusal checks write to their own dirs. Mutants all killed: Q 0 allowed,
+--split allowed, out dir made early, message, digests written, no exactSeries, every frame a keyframe, Q ignored,
+lossless coded, chunks off group boundaries, header bits, every payload the keyframe, decode.cpp shows the first
+picture (rebuild: BUILD=$PWD/ingest/.build ingest/coded-frames/build.sh).
+Finding not fixed: lossy()'s in-ingest check tests only the decoded shape (the decode.cpp mutant passes ingest);
+a closeness bound needs a threshold the owner sets. tools.sh with a relative BUILD fails silently (meson).
+Next: gate (dockerd, client/decode/wasm/build/build.sh, scripts/gate.sh), then draft PR into claude/oq-ingest,
+line doc note on claude/work-ledger docs/lines/optimal-quality.md.
 ## Result
