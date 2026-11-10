@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-10-29 (the design state); branches and PRs 2026-11-09.
+Last verified 2026-10-29 (the design state); branches and PRs 2026-11-09; the double decode 2026-11-10.
 
 ## Goal
 
@@ -27,6 +27,12 @@ on lossy wireless; bit-exact; fill and latency both count.
   Runs that need a quiet owner machine or a phone are owed, with their commands in each result.
 * Since 2026-10-30: #289 (a second fold, 15 sources), #299 (a frame decoded twice, fixed), #302 (a repaint before the
   frame is held no longer stops painting), #303 (one-pass AV1 merge ported); none merged into `core`.
+* 2026-11-10 (queue row DOUBLE-DECODE): #299's double decode **is reached by the default `?view=page`**. The page view
+  fills the series and asks a missing frame on a step (`client/viewer/viewer.js` → `client/view/controller.js`
+  `show` → `client/transport/consumer.js` `requestExactFrame` → `client/transport/downloader.js` `askFor` → `ask`);
+  a frame the run has on the wire then lands on the run and on its ask, and `arrived` dispatches it twice. The
+  `want`/`serveWant` path #299 tested is `?view=worker` only. Test and fix (#299's check) on
+  `claude/double-decode-check`; how often it happens is not measured.
 
 ## Open (ordered)
 
