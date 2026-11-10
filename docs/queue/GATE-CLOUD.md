@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-10 04:21
-heartbeat: 2026-11-10 05:10
+heartbeat: 2026-11-10 05:30
 outputs: claude/gate-cloud b1248805 (rig fix 91a3abd2, README b1248805); PR pending
 ## Resume
 Traced (main 017a3ca6): the 7 "exact … undefined" FAILs are dispatch-rig checks (client/contract/dispatch-rig.ts
@@ -13,7 +13,9 @@ Done: dockerd started by hand, build.sh OK (matches manifest), then dispatch ove
 line, 7 FAILs (the mutant). ingest/tools.sh built; .venv from ingest/requirements.txt; meson 1.9.1 via pip.
 Full gate on claude/gate-cloud (main + fix) GATE OK in 439 s; skipped only the viewer's cross-codec/Firefox arm
 and nginx (apt has no nginx reachable here). README cloud lines pushed b1248805.
-Next: `git checkout --detach origin/claude/oq-depth-cut`, rebuild clients (client/transport/wasm/build.sh,
-client/transport/ts/build.sh), `PYTHON=.venv/bin/python scripts/gate.sh`; then line file
-docs/lines/coordination.md on claude/gate-cloud; draft PR into main.
+oq-depth-cut 6f61ff0b gate run 1: browser steps all pass (789/789), but lossy_test.py failed 6 claims: the
+ingest/.build payload/libdecode.so was built from main's decode.cpp. After `ingest/tools.sh` on the branch, every
+claim holds. The gate checks the decoder WASM for staleness but not ingest/.build (finding for the owner).
+Next: wait for gate run 2 on oq-depth-cut (/tmp/claude-0/gate-dc2.log, lost if the session ends: rerun it);
+then README note on rebuilding ingest/tools.sh per branch, docs/lines/coordination.md, draft PR into main.
 ## Result
