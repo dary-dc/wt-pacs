@@ -205,7 +205,8 @@ meson, nasm and a C++ compiler for the coders; `python3.11`, or `PYTHON=` anothe
 rustup target add wasm32-unknown-unknown
 cargo install wasm-pack --version 0.15.0 --locked
 npm i -g playwright@1.56.1 && npx playwright install chromium   # demo-check.mjs only
-client/decode/wasm/build/build.sh                # the page's decoders, dav1d and OpenJPH as WASM (~5 min)
+# client/decode/wasm/build/build.sh              # optional: the page's decoders are committed; this rebuilds them in
+                                                 #   docker from Docker Hub's image and checks their hashes (~5 min)
 bash client/transport/wasm/build.sh && bash client/transport/ts/build.sh
 ./server/scripts/gen_dev_cert.sh                 # valid 10 days: make it again before the demo day
 cargo build --release -p series-server
@@ -213,14 +214,21 @@ scripts/demo-series.sh                           # ingest/tools.sh, the three vo
                                                  #   ~20 min on 4 cores; demo-series/ID.sbnd and ID.metadata.json
 ```
 
-**One series**, three terminals — the optimal-quality series, its exact series, the static host:
+**One series**, three terminals — the optimal-quality series, its exact series, the static host. Each terminal starts at
+the repository's root and sets `ID` first; the certificate is renewed, when it ends within a day, before any server
+loads it (the static host would renew it after, and the page would pin a hash the two servers do not have):
 
 ```bash
-ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}            # any demo-series/ID; its exact series is the part before the first -
+# Every terminal first — any demo-series/ID; its exact series is the part before the first -
+ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}
+# Terminal 1, before the others — the certificate, then the optimal-quality series
+./server/scripts/gen_dev_cert.sh --if-needed
 target/release/series-server --port 4433 --series demo-series/$ID.sbnd \
   --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+# Terminal 2 — its exact series
 target/release/series-server --port 4434 --series demo-series/$EXACT.sbnd \
   --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+# Terminal 3 — the static host, which hands the page the exact series' server on 4434
 sed 's/:4433/:4434/' client/dev-transport.json > target/exact-transport.json
 python3 server/dev-server.py --port 8765 --metadata demo-series/$ID.metadata.json \
   --exact-metadata demo-series/$EXACT.metadata.json --exact-transport target/exact-transport.json
@@ -233,14 +241,58 @@ Chromium as below, and fails by name a frame not painted, a decode route other t
 a stored form), a console error, a label out of order, an on-demand jump that asked other than whole groups, or
 *Lossless* shown for an exact frame whose digest was made wrong.
 
-**On a phone**: the laptop serves as above, the phone opens the page over USB; follow §The viewer on an Android phone,
-its step 3b for the pair, with `demo-series/$ID` and `demo-series/$EXACT` in place of `target/my-lossy` and
-`target/my-exact`.
+**Before the demo, from any state** — another branch checked out, stale builds, servers left running, an old
+certificate. On the laptop, at the repository's root, on the demo's branch:
+
+```bash
+pkill -f 'release/series-server' ; pkill -f 'server/dev-server.py' ; adb reverse --remove-all 2>/dev/null
+git status --short                               # nothing of yours uncommitted, then:
+git pull --rebase
+bash client/transport/wasm/build.sh && bash client/transport/ts/build.sh
+cargo build --release -p series-server
+[ -f demo-series/dbts_c1-q8-g16-stored.sbnd ] || scripts/demo-series.sh     # the last series it writes
+./server/scripts/gen_dev_cert.sh --if-needed
+for ID in $(ls demo-series | sed -n 's/\.metadata\.json$//p' | grep -- -q); do
+  R=; [[ $ID == *-stored ]] && R="--route av1-dav1d"
+  NODE_PATH=$(npm root -g) node client/viewer/demo-check.mjs demo-series $ID $R | tail -1
+done                                             # 20 lines, each "demo check: ID passed"; ~1 min a series
+```
+
+Then the one series above, three terminals, in Chrome on the laptop.
+
+**On a phone**: the laptop serves the pair, the phone opens the page over USB. Once per phone and laptop, and per
+plug-in, §The viewer on an Android phone, steps "Once", 1 and 2 (they write `target/phone.env`); then, in place of the
+three terminals above:
+
+```bash
+# Every terminal first
+. target/phone.env; ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}
+# Terminal 1, before the others — the certificate, both transport files naming the laptop's address, the series
+./server/scripts/gen_dev_cert.sh --if-needed
+HASH=$(openssl x509 -in server/dev-cert/cert.pem -outform DER | openssl dgst -sha256 | awk '{print $2}')
+for p in 4433 4434; do
+  printf '{"wt_url": "https://%s:%s/", "cert_sha256": "%s"}\n' "$LAPTOP_IP" "$p" "$HASH" > target/phone-transport-$p.json
+done
+target/release/series-server --port 4433 --series demo-series/$ID.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+# Terminal 2 — its exact series
+target/release/series-server --port 4434 --series demo-series/$EXACT.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+# Terminal 3 — the static host, then the page's port on the phone
+python3 server/dev-server.py --port 8765 --metadata demo-series/$ID.metadata.json \
+  --transport target/phone-transport-4433.json \
+  --exact-metadata demo-series/$EXACT.metadata.json --exact-transport target/phone-transport-4434.json
+# Terminal 4
+adb reverse tcp:8765 tcp:8765
+```
+
+On the phone, Chrome, `http://127.0.0.1:8765/?overlay=1`. Nothing arriving: that section's step 4 (`tcpdump`).
+Afterwards, `adb reverse --remove-all` and USB tethering off.
 
 **What to show, in order:**
 
 1. `dbts_a1-q8-g8-cut`. The picture arrives, the label top right says *Optimal quality*. Scroll with the wheel or the
-   arrows: every slice is already here. `End` jumps. Press `l`: *Optimal quality · fetching lossless…*, then
+   arrows: every slice is already here. `End` jumps to the last slice, mid-group at G 8 and 16. Press `l`: *Optimal quality · fetching lossless…*, then
    *Lossless* in green once the exact frame's digest matched and it was painted; `l` again goes back. Step off the frame
    and it is optimal quality again.
 2. A narrow window (drag left on the image) on the same frame, `l` and back: where the coding error would show, if
@@ -249,7 +301,7 @@ its step 3b for the pair, with `demo-series/$ID` and `demo-series/$EXACT` in pla
 4. `dbts_a1-q24-g8-cut` for contrast: a twentieth of Q 8's bytes; the same narrow window and `l` against it.
 5. `dbts_a1-q8-g16-stored`: the same view coded at 12 bits; the overlay shows `av1-dav1d after WebCodecs refused: …`,
    the fallback.
-6. With `?fill=0` added to the URL, nothing is asked ahead: a jump decodes its group from the keyframe and lands it whole,
+6. At `http://127.0.0.1:8765/?overlay=1&fill=0`, nothing is asked ahead: a jump decodes its group from the keyframe and lands it whole,
    and stepping through that group asks nothing more.
 7. The bytes: `scripts/demo-series.sh`'s last table, each series as a fraction of its exact series' bundle.
 

@@ -136,6 +136,48 @@ source.
   fail it: the label without the digest, 10-bit units to dav1d, groups dropped (the fill never completes), the demo
   script's metadata missing. Not run: a GPU, hardware decode, a phone, a real link, Firefox. The web image
   (`deploy/nginx`) does not serve the exact series' two paths.
+* **End to end from a fresh clone** (DEMO-E2E-2, 2026-11-10). README §Demo followed word for word from a fresh
+  clone of `claude/core-next-fixes` on one 4-core x86-64 cloud host (the decoders' docker rebuild refused by Docker Hub,
+  429, and not needed: the page's decoders are committed; meson 1.9.1 from pip): `demo-series.sh` wrote the 23 series in 736 s,
+  bytes equal to the byte to [`payload-format.md`](../docs/av1/payload-format.md)'s tables; `demo-check.mjs`, in a
+  copy that also kept each label write and paint time, passed on all 20 optimal-quality series in headless Chromium
+  141 (the README's `playwright@1.56.1`; the first run had 153), SwiftShader, loopback. Routes as the first run; the
+  stored forms' refusal on 141 reads *A key frame is required after configure() or flush()*, every frame. *Lossless*
+  was written in the same millisecond as the exact frame's paint, never before; a wrong digest never read
+  *Lossless*. No console error. One run each, from navigation, filled pass, Q 8 G 8: first picture 322, 548 and
+  307 ms (first run 473, 762, 474), every slice received by 1.7, 4.6 and 2.0 s (1.8, 5.1, 2.3), the exact frame 54,
+  164 and 65 ms after `l` (83, 239, 113); two containers, two Chromiums, so the difference is not a finding. On
+  demand, `End` — mid-group at G 8 and 16 on all three volumes — painted in 170–305 ms on `dbts_a1` and `dbts_c1` at
+  G 8 and 16 (35–44 ms at G 1), 463 and 1096 ms on `dbts_b1` (2560 × 3328 on SwiftShader). One fault found and fixed:
+  with a certificate ending within a day, the static host renewed it after the series servers had loaded the old
+  one, and the fill never came; README §Demo and `demo-check.mjs` now renew it first. Per series, one run each,
+  ms from navigation; *every slice* is the last frame received in the filled pass; *jump*, `End` under `?fill=0`;
+  *Lossless*, from `l` to the label, filled / on demand:
+
+  | series | route | frame 1 KB | first picture | every slice | KB, all | step, median | jump | Lossless |
+  | --- | --- | --: | --: | --: | --: | --: | --: | --: |
+  | `dbts_a1-q8-g1-cut` | av1-webcodecs | 82 | 345 | 1556 | 4548 | 10 | 35 | 61 / 59 |
+  | `dbts_a1-q8-g8-cut` | av1-webcodecs | 82 | 322 | 1678 | 4532 | 8 | 305 | 54 / 57 |
+  | `dbts_a1-q8-g16-cut` | av1-webcodecs | 82 | 269 | 1540 | 4533 | 11 | 276 | 62 / 68 |
+  | `dbts_a1-q24-g1-cut` | av1-webcodecs | 6 | 263 | 1175 | 423 | 10 | 42 | 65 / 64 |
+  | `dbts_a1-q24-g8-cut` | av1-webcodecs | 6 | 314 | 1213 | 206 | 9 | 170 | 56 / 62 |
+  | `dbts_a1-q24-g16-cut` | av1-webcodecs | 6 | 286 | 1158 | 196 | 7 | 179 | 59 / 60 |
+  | `dbts_a1-q8-g16-stored` | av1-dav1d | 89 | 381 | 2107 | 4911 | 9 | 596 | 55 / 55 |
+  | `dbts_b1-q8-g1` | av1-webcodecs | 457 | 610 | 4613 | 22928 | 126 | 201 | 167 / 202 |
+  | `dbts_b1-q8-g8` | av1-webcodecs | 457 | 548 | 4642 | 22663 | 117 | 463 | 164 / 212 |
+  | `dbts_b1-q8-g16` | av1-webcodecs | 457 | 553 | 4783 | 22649 | 115 | 1096 | 179 / 197 |
+  | `dbts_b1-q24-g1` | av1-webcodecs | 48 | 518 | 4002 | 2581 | 114 | 158 | 154 / 153 |
+  | `dbts_b1-q24-g8` | av1-webcodecs | 48 | 504 | 3765 | 1635 | 115 | 210 | 165 / 198 |
+  | `dbts_b1-q24-g16` | av1-webcodecs | 48 | 474 | 3697 | 1588 | 118 | 234 | 176 / 175 |
+  | `dbts_c1-q8-g1-cut` | av1-webcodecs | 94 | 286 | 2092 | 6198 | 11 | 44 | 65 / 65 |
+  | `dbts_c1-q8-g8-cut` | av1-webcodecs | 94 | 307 | 1984 | 6092 | 10 | 236 | 65 / 61 |
+  | `dbts_c1-q8-g16-cut` | av1-webcodecs | 94 | 306 | 2146 | 6085 | 9 | 175 | 53 / 64 |
+  | `dbts_c1-q24-g1-cut` | av1-webcodecs | 8 | 276 | 1725 | 556 | 10 | 29 | 73 / 49 |
+  | `dbts_c1-q24-g8-cut` | av1-webcodecs | 8 | 267 | 1570 | 266 | 9 | 127 | 50 / 54 |
+  | `dbts_c1-q24-g16-cut` | av1-webcodecs | 8 | 319 | 1685 | 252 | 9 | 120 | 62 / 51 |
+  | `dbts_c1-q8-g16-stored` | av1-dav1d | 100 | 367 | 2610 | 6533 | 9 | 465 | 64 / 48 |
+
+  Not run: a GPU, hardware decode, a phone, a real link, Chrome itself rather than Chromium.
 
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
 in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
