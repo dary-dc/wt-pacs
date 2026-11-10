@@ -806,3 +806,63 @@ them as L7 does. That is the owner's choice.
 
 Each candidate C1–C10 leaves the product, or stays in it for good, when its own decision lands. None of them
 moves before that.
+
+## Fourth round: the simplification sweep
+
+*2026-10-20, a design review at `5625dcf4`; nothing built, run or timed. Scope: product code in `server/`, `common/`
+and `client/`, the WASM client a product client since #99. Out of scope: test code apart from product logic and the
+lab code in the default build (`claude/test-separation`), and #96, #39, #37, #40, #41, #88.*
+
+**The theory.** A layer earns its place by a capability: something a doc claims or a test holds that the product
+loses without it. After rounds 1–3, what is left to cut falls into three kinds. A **forward** adds no capability
+(a wrapper, a second parse, an error that cannot happen) and goes with nothing to prove beyond the gate. A
+**duplicate** is a second mechanism for one job (two clocks for one silence): one of them goes, and the claim the
+other one held has to be shown to survive. A **build variant** is a binary that cannot do something. Removing it
+loses a posture, not a feature, so it is the owner's call.
+
+**The answer, in short.** Little dissolves. About 85 product lines go with no decision (U1–U8), and about 130 more
+need one (U9–U12), against a product nobody has counted here. Each large layer is held by a capability (the
+two readers by the fill's one-read bound, the `FramePipeline` seam by telemetry, the WebSocket by the TCP fallback,
+which is open) or by an open decision. The largest single cut, `--congestion bbr-bound` (`loss_bound.rs`, 261 lines),
+belongs to the congestion-controller review (`claude/design-congestion-controller`, its option D), so it is not
+counted here. Every count is from a sketch, not a diff. Risk is as in round 2: 1 is covered by the gate's tests,
+2 needs a check the gate does not run, 3 changes behaviour.
+
+| # | what goes (where) | capability check | lines · risk |
+| --- | --- | --- | --- |
+| U1 | **`Congestion::as_str`** repeats clap's value names (`server/src/transport/tuning.rs:44-54`); round 2's S22, unblocked since #48 merged | `describe()` is its one caller; the tuning tests read `congestion=cubic-restart`, `bbr-bound` | −9 · 1 |
+| U2 | **The FoD message parsed twice on WASM.** `decode_fod_msg` (`common/fod/src/lib.rs:40-48`) re-reads a length `session.rs:383` already read; the WASM client calls `decode_fod_body`, as the server does (`wire.rs:33`). `encode_fod_msg`'s `Result` cannot fail (u32, `Option<u32>`, `String` fields) | the browser contract against the real server; `cargo test -p fod` | −13 · 1 |
+| U3 | **The bundle's header parsed twice, its metadata returned to nobody.** `prefix_len` (`common/series-bundle/src/format.rs:101-110`) repeats `parse_layout_checked`'s reads; `ParsedLayout.metadata` is read by neither the server (`frame_store.rs:46-48`) nor the lab (`lab/container-bench/src/parse.rs:619`); [`disk-layout/README.md`](disk-layout/README.md) §The metadata, twice says "nobody" | [`FIXTURES.md`](FIXTURES.md)'s two refusals stay in the index loop; lost: refusing non-UTF-8 metadata, which nothing claims | −18 · 1 |
+| U4 | **The pipeline's frame names built twice.** A fill builds a `Vec<FrameSpan>` to take `.first()` (`pipeline.rs:67-73,121-137`); `FramePipeline::store()` serves one call, `Planner::new` (`server.rs:371`), which `serve` can feed from `self.store`; all three callers write `serve(sessions.pipeline(link), …)` | the telemetry seam is `read`/`write`/`refuse`/`finish` ([`adr/telemetry-server-pipeline.md`](adr/telemetry-server-pipeline.md)); `store()` is not in it. Fill: server reads stays 24 | −16 · 1 |
+| U5 | **`enum Ahead { Idle, Named }`** is an `Option` (`server/src/media/read_path.rs:126-130`) | `a_fill_never_holds_more_than_one_read_at_once`, `an_abandoned_read_ahead_gives_its_buffer_back_to_the_pool` | −6 · 1 |
+| U6 | **Two helpers each written twice in `link.rs`:** open-and-ready (`:60-66`, `:134-139`) and the two priorities (`:188-197`) | the link tests, the per-frame server tests | −7 · 1 |
+| U7 | **The WebSocket reads the PEM files a second time** (`websocket.rs:63-90`, `server.rs:83-84`) though `Identity` already holds them; built from it, both transports serve the certificate whose hash the banner prints | the WebSocket server tests, `run_wire.sh`; wtransport 0.7.2's DER accessors to be confirmed | −5 · 2 |
+| U8 | **The WASM refusal reason kept in a side map** (`SessionState.errors`, `client/transport/wasm/src/session.rs:326,413,698`) instead of sent as the waiter's `Err` | the refusal, truncation and closed-session clauses on the WASM rig; the reason strings byte for byte ([`CLIENTS.md`](CLIENTS.md)) | −10 · 1 |
+| U9 | **Three objects for one WASM session**: `session-adapter.js`, `lib.rs`'s `TransportSessionHandle` (seven forwards, `:28-86`) and `session.rs`'s `TransportSession`. One `#[wasm_bindgen(js_name = TransportSession)]` type; the adapter becomes init plus re-export | the seam's surface unchanged ([`CLIENTS.md`](CLIENTS.md) §The seam); `close()` keeps `&self`; the contract suite on the WASM rig | ~−45 · 2, the crate's layout |
+| U10 | **The `uring` cargo feature**: 41 `cfg` sites in `read_path.rs` and four elsewhere; the no-uring check in `scripts/gate.sh:174` | at run time `WTPACS_READ_PATH=pool` and a refused ring both fall to the pool ([`adr/disk-access.md`](adr/disk-access.md) §1). **Lost:** a binary with no io_uring code. That build is today the only one that makes no io_uring call, because the banner's ring probe (`banner.rs:20`) runs even under `pool` | ~−33 · 1, **owner** |
+| U11 | **One control-stream path in `handle_incoming`** (`server.rs:267-287`): the opening-ask path serves a session with no URL ask too, the reader forwarding `Failed` when `accept_bi` fails | **changes the wire order** without an opening ask: the shared stream opens before the control stream is accepted, against [`ARCHITECTURE.md`](ARCHITECTURE.md) §The opening ask's "a session with no URL ask behaves as before" | −11 · 3, **owner** |
+| U12 | **Two clocks for one silence.** The transport's per-ask `FRAME_TIMEOUT_MS` (`frame-session.ts:9,118-141,165-167`; `session.rs:23,706-733`) and the downloader's stall watch (`downloader.js:268-277`) both count "no byte since the last byte"; with survival on, the first only triggers the second's resume (`:241`). One clock in the downloader, capped at 15 s and failing owed work when survival is off | **changes a claimed capability**: [`CLIENTS.md`](CLIENTS.md) gives the timer "its own job", `aFrameIsLateOnlyWhenTheSessionGoesQuiet` holds it at the transport, and lab pages that drive `TransportSession` alone lose it | ~−40 · 3, **owner** |
+
+**A contradiction, not a cut.** The web image ships `ws-session.js` and `race-session.js` (`client/transport/ts/build.sh:15-18`,
+`deploy/Containerfile:79,86`), but the product page accepts only `ts` and `wasm` (`client/viewer/head.js:16-22`).
+So [`deploy/README.md`](../deploy/README.md)'s `--websocket` enables a server nothing in the product dials. Either
+the bundles leave the image (−2) or `head.js` names them (+2). Which one depends on the TCP fallback, which is open (§Open there).
+
+**Kept, with the reason.** The two disk readers merged into one: `TileReader` would hold two fill reads in flight,
+against `a_fill_never_holds_more_than_one_read_at_once` and [`adr/disk-access.md`](adr/disk-access.md) §11.
+`FramePipeline` with one shipped implementation is the telemetry seam. `per-frame` is [`adr/stream-shape.md`](adr/stream-shape.md)'s,
+kept by the owner. `htj2k.js`'s `finish()` fallback: the package build reaches it. All five decoder modules are
+reachable. The wire framing in both TS and Rust: two independent clients is the reason for keeping two.
+`shutdown_signal`'s fallback (`main.rs:35-48`, −6): it holds only in a case Linux does not produce, but it costs
+less than reasoning about it. `wire.rs::read_exact` as wtransport's would hide `NotConnected` from `closed_by_peer`.
+Round 2's and round 3's keeps still hold.
+
+**How each is shown before it lands.** `scripts/gate.sh` in full, without `--no-browser`, since U2, U7, U8 and
+U9 need the browser and `run_wire.sh` steps. `scripts/perf_counts.baseline` must come back unchanged: none of these
+changes an ask, a read or a byte. Each touched path gets one mutation (CLAUDE.md §Measurement). U5 and U10 also
+need `lab/scripts/read_path_ab.sh` with the variants interleaved, and the fill cells must tie. U12 also needs its
+clause moved to the dispatch rig and mutated there, and the ASKDEADLINE cells re-run with the variants interleaved.
+
+**Order.** `claude/test-separation` rewrites `server.rs`, `link.rs`, `pipeline.rs`, `read_path.rs`, `format.rs`
+and `fod`, so U1–U7 land after it merges, as one draft pull request. U8 stands alone and can start today. U9–U12
+wait on the owner's word.
