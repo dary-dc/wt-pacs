@@ -264,8 +264,8 @@ def lossy_header(s, q, g):
     """The payload header every frame of an optimal-quality series carries: grey at its native depth, no split."""
     if s.ch != 1:
         raise Refused("optimal quality is grey only")
-    if not (0 <= q <= MAX_Q and g >= 1):
-        raise Refused(f"Q {q} and G {g}: Q is 0 to {MAX_Q}, G at least 1")
+    if not (1 <= q <= MAX_Q and g >= 1):
+        raise Refused(f"Q {q} and G {g}: Q is 1 to {MAX_Q} (Q 0 codes a lossless stream), G at least 1")
     bits = max(1, int(s.hi + s.offset).bit_length())
     return dict(bits=bits, depth=container(bits), split=0, flags=FLAG_SIGNED if s.signed else 0, offset=s.offset)
 
