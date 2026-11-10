@@ -1384,7 +1384,7 @@ reading any result, and the section that follows reports under these choices.*
 * **Per-group form.** It differs, so by §S8 every cut-form stream of S2 is coded one encoder per group, as the
   product does; `cell.py` gains that path before S2 starts.
 
-### Settings shard 1, measured — partial 2026-11-10 17:45 UTC (every cell)
+### Settings shard 1, measured — partial 2026-11-10 17:39 UTC (every cell)
 
 *All 105 planned cells of `dbts_b1` (slices 9–40) written, none failed, no ladder extension needed (every stream
 bracketed 1.00). `collect_settings.py rows/groups-settings-1.jsonl --checks rows/groups-settings-1.checks.json`,
