@@ -1,11 +1,12 @@
 state: started
 started: 2026-11-10 05:21
-heartbeat: 2026-11-10 05:30
-outputs: claude/oq-ingest-fixes (at 36508b0a, nothing new yet)
+heartbeat: 2026-11-10 05:55
+outputs: claude/oq-ingest-fixes 68819a22 (no PR yet)
 ## Resume
-Branch claude/oq-ingest-fixes pushed at claude/oq-ingest's tip 36508b0a. Diff read (ingest.py lossy/lossy_header/
-coded, decode.cpp av1_decode over several units, lossy_test.py, ingest_coded.py --lossy, demo-series.sh, gate step).
-Next: pip install meson==1.9.1 numpy xxhash; BUILD=ingest/.build ingest/tools.sh (long); then
-python3 ingest/coded-frames/lossy_test.py ingest/.build; failing test for Q 0 in lossy_test.py, then fix in
-ingest.py lossy_header; mutate the new tests.
+Done: ingest/tools.sh built (BUILD must be absolute: a relative BUILD fails silently at dav1d's meson setup; use
+BUILD=$PWD/ingest/.build); lossy_test.py passes on 36508b0a. 3f29ce4b failing test for Q 0, 68819a22 the fix
+(lossy_header 1..63) and payload-format.md corrected in place; Q 0 measured exact at 8/10/12 bits G 1.
+Next: ingest_coded.py --split with --lossy writes "split" into a lossy series' metadata: failing test, then refuse
+it. Then mutate the new tests, draft PR into claude/oq-ingest, line doc on claude/work-ledger.
+Commands: cd wt-pacs; git checkout claude/oq-ingest-fixes; python3 ingest/coded-frames/lossy_test.py ingest/.build
 ## Result
