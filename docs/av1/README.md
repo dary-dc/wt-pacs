@@ -10,6 +10,7 @@ What each target series is, per the DICOM standard and vendors' conformance stat
 The bit split against the literature, and the alternatives above 12 bits: [`split-prior-art.md`](split-prior-art.md).
 Whether frames are coded in groups (inter) or alone, the decision and its reasons: [`frame-groups.md`](frame-groups.md).
 Lossless coding published 2023–2026, and what of it a browser can decode exactly: [`lossless-literature.md`](lossless-literature.md).
+What binds a lossy, "visually lossless" picture of a frame, and what its quality may be measured against: [`visually-lossless.md`](visually-lossless.md).
 
 **Every ultrasound number in this file is provisional (the provenance audit, queue row DATAGUARD, 2026-10-08).** `us_liver`'s header says it
 was coded lossily at 12.4:1 before it was archived, the breast cine are MPEG-4 Part 2 clips, and the stills a PNG
@@ -1347,7 +1348,9 @@ ultrasound cine, ABUS and angiography runs have no sound data here and get no de
 
 **A lossy picture first.** The rule is that every frame ends bit-exact; a lossy picture shown first and
 replaced by the exact frame keeps it. Whether a lossy first picture is acceptable in the product is
-the owner's ruling, not a measurement's. *Measured (the lossy-preview measurement, queue row PREVIEW; [`lab/av1/delivery/preview`](../../lab/av1/delivery/preview/README.md)),
+the owner's ruling, not a measurement's; who regulates or advises on lossy viewing, by modality and for the breast
+family, and the measures they validated, are in [`visually-lossless.md`](visually-lossless.md) (in the US, no lossy mammogram or DBT
+frame for primary interpretation). *Measured (the lossy-preview measurement, queue row PREVIEW; [`lab/av1/delivery/preview`](../../lab/av1/delivery/preview/README.md)),
 fluoroscopy and the ultrasound cine; no angiography run was available:*
 
 * **Bytes and quality, against the source.** Lossy AV1 (libaom 3.15.1, cpu6) at G = 8:
@@ -1772,4 +1775,6 @@ Open for the owner, one a line; the owner tracks them in [`queue.md`](queue.md) 
 * The mixed decode as the client's choice (queue row MIXDEC; §Samples over 12 bits).
 * Sound sources for breast ultrasound stills and cine, ABUS and angiography (the provenance audit, queue row
   DATAGUARD), without which their frame groups get no decision (§Frame groups).
+* Role-based quality profiles: the operating point, against what binds it and what no source settles
+  ([`visually-lossless.md`](visually-lossless.md) §3).
 * The two further 10-bit series the prior-gap check named, not CC BY or CC0 (§Prior evidence, not reproduced here).
