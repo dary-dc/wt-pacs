@@ -224,6 +224,164 @@ code stay.
   than 3's beyond the A/A spread in any cell. A tie adopts it, because it removes code. Worse in any cell makes it a
   trade-off for the owner, with those cells as its cost.
 
+*Measured 2026-10-16 (row 253): a trade-off for the owner*, its numbers and the designs after it in §Proposed: an ask
+during a fill, from its use cases.
+
+## Proposed: an ask during a fill, from its use cases
+
+*Proposed 2026-10-20, a design review: nothing built or timed here. Nothing changes before the owner's choices.
+It builds on §Proposed: one queue above, its measurement (row 253) and the two candidates still open, #96 and #39
+([`handoff/review-2026-10-16.md`](https://github.com/dary-dc/wt-pacs/blob/claude/project-thread-9uugfm/handoff/review-2026-10-16.md)
+rows C1, C2: "no winner yet; design first"). (D) marks a number derived here, not measured.*
+
+### Why it was parked, and what decides it
+
+The fill and the ask were each tuned alone: the fill for its time to all frames, the ask for one frame on an idle
+session. An ask *during* a fill was left at "the ask ends the fill and the client re-asks the rest" (§An ask during a
+fill). Two things set its wait, and only one of them is the planner's:
+
+```
+ask → last byte  ≈  RTT  +  (B + F) ÷ R          F the asked frame, R the link's rate,
+                                                 B the fill's bytes already handed to quinn
+ server                                quinn (send buffer)                       link
+ planner ── fill 41 42 43 44 45 ──►  [ 41 42 43 44 45 … up to 6 MiB ]  ──►  in flight: one cwnd
+         └─ ask 120 ─────────────►   written behind all of it, on the same stream
+```
+
+* **The planner** decides what happens to the fill: ended today, kept by the one queue.
+* **The transport** decides B. On the shared stream B is Chromium's 6 MiB stream credit once the fill has run a
+  little ([`transport/link-conditions.md`](transport/link-conditions.md) §Verdicts, item 9): **6 MiB ÷ R is 2.8 s at
+  18 Mbit/s, 0.49 s at 103** (item 9, D), and 16.8 s at the ~3 Mbit/s a 1 % loss leaves Cubic (D, the rate from
+  [`native/quic-compared.md`](native/quic-compared.md) §9.5).
+
+**Measured, the fact that decides most of this:** B is the whole story. Row 253 (below) put today's ask at
+2 569–3 655 ms at 18 Mbit/s and 437–539 ms at 103 — item 9's arithmetic — and the one queue alone (Q) moved it
+×0.988–1.267: nothing, or worse. Every gain came from shrinking B.
+
+### The use cases
+
+A reader asks for a frame the fill has not delivered. Frequencies are **not measured**: the repo has no usage data,
+so each row names what would set it. The latency the reader tolerates is **not measured** either; the common
+interaction rule of thumb (0.1 s feels immediate, 1 s keeps the flow) is outside knowledge, not the repo's. Below
+the design's reach is the floor RTT + F ÷ R: a 0.57 MB DBT slice is ~0.3 s at 18 Mbit/s and 46 ms, ~0.09 s at 103,
+~1.5 s under 1 % loss (D).
+
+| use case | who asks, and why | asks | what it needs | today |
+| --- | --- | --- | --- | --- |
+| **U1 scroll ahead of the fill** | DBT slices are "scrolled like cine" ([`av1/series.md`](av1/series.md) §1d); the viewer asks every step whose frame is missing (`client/viewer/viewer.js` `show`) | one per step. The fill delivers R ÷ S slices a second: 3.9 at 18 Mbit/s, 22 at 103 for `dbt10_ea1141`'s 0.57 MB (D), so a wheel outruns it on a slow link: **the common case there, not the rare one** (D) | the cursor's frame within the budget; the fill not slowed | every ask ends the fill and re-asks it; N steps, N restarts (**not measured** past one ask) |
+| **U2 jump to a slice** | a click on the scroll bar, Home/End, a finding's slice | one, a few per series | that frame | row 253's shape: 2.6–3.7 s at 18 Mbit/s |
+| **U3 a zoom into a tiled frame** | series over 12 bits get the fit plus tiles (decided); a zoom is a `request_frame` per tile in view during the fitted fill ([`adr/resolution-fitting-for-large-frames.md`](adr/resolution-fitting-for-large-frames.md) §8.4) | k at once | all k soon | the first ends the fill, the rest queue, then the re-ask |
+| **U4 a frame lost with its decoder** | the downloader re-asks it (ARCHITECTURE.md §The downloader) | one, rare | correctness, no deadline | ends the fill like any ask |
+| **U5 a second series, a comparison** | a prior, the other view | another series | its first frame soon | **not an ask during a fill**: one process serves one series ([`glossary.md`](glossary.md)), so it is a second session competing at the bottleneck (§9.4, *several connections*). Out of this design until a session carries several series |
+
+U1 and U2 drive the choice; U3 adds bursts; U4 only needs the fill not to be lost; U5 is named, not designed.
+
+### The levers
+
+| lever | values | what decides it |
+| --- | --- | --- |
+| **L1 the fill on an ask** (planner) | ended, the client re-asks (today) · kept, the ask goes first (one queue) | code (the re-ask is the client's: `refill`, `asksInFlight`, `onHead`) and U1's N restarts; row 253: ask a tie |
+| **L2 the bytes ahead of an ask** (transport) | the stream credit, 6 MiB (today) · send window = cwnd + M, M two of the largest frames (`--send-window-follows-cwnd`) · only what is in flight: the ask on a stream ranked above the fill | R, loss and frame size S: B ÷ R is the ask's wait |
+| **L3 the client's re-ask** | `head` (default, row 229) · `ask` · `landed` | exists only while L1 ends the fill |
+| **L4 what a scroll ahead asks** (client) | every step (today) · the cursor's frame only · the fill re-aimed at the cursor (`stream_frames` from it) | scroll rate against R ÷ S. Server-side ordering stays rejected ([`adr/reject-server-ordering.md`](adr/reject-server-ordering.md)) |
+
+**Frame size changes L2's middle value.** M is two of the series' largest frames, so for a mammogram, ~4.8 MB a frame
+(#96's open question 2, not measured), the window is ~9.6 MB, above the 6 MiB credit: it never binds and gives
+nothing (D). Whole uncropped DBT slices (`dbts_b1`, 50 × 2560×3328) sit between; their coded size is not quoted here.
+
+### The numbers the repo has
+
+| row | arms | the ask | the fill | source |
+| --- | --- | --- | --- | --- |
+| 229 | head re-ask (B) vs today | a tie everywhere | at 10 %: −28 to −256 ms; idle wire after the ask 53–141 ms → 4–79 ms | link-conditions.md §Re-measured, row 229 |
+| 253 | Q one queue; QW one queue + window; TW today + window; vs today T | Q ×0.988–1.267, worse in four 10 % cells (+24 to +684 ms, unexplained); **QW ×0.320–0.900, better in 25 of 28 cells**; TW within ±0.04 of QW | Q better in four 103 cells; **QW +45 ms (strict +54) at 103/92 FIFO 20 at 50 %, +14 ms at 103/46 CoDel at 50 % round-paired only**; TW +13 to +108 ms in six 103 cells | branch `claude/wip-253-ONEQUEUEMEASURE` at `144a2f29`, link-conditions.md §Re-measured, row 253 (#92, closed into #96) |
+| 180 | shared, window, per-frame, asks first (uncapped) | 18/46 FIFO 20: 3 118 · 1 025 · 3 115 · **314** ms; 1 % loss at 18: 20 954 · 5 315 · 21 353 · **1 792** ms | asks first within shared's spread in every 20 ms and loss cell; +0.1 to +2.5 % behind deep FIFOs | quic-compared.md §9.5 |
+| 211 | asks first + 6 MiB (#39) | ×0.18–0.31 of shared behind 20 ms and under loss | **+2 to +44 % in all nine cells**, +40–44 % under 1 % loss; 13 724 packets against 9 713–9 840; the 6 MiB window costs shared nothing | quic-compared.md §9.7 |
+
+All four: one container, server, relay and Chromium 141 on one host, which **saturates between 103 and 200 Mbit/s**;
+nothing past 103 is claimed. None ran on a phone. Row 253 ran no loss cell and no large frame.
+
+### The designs
+
+**A. Today plus the window** (row 253's TW). The fill still ends, the client still re-asks; the send window follows
+cwnd. Server: a flag made default. Client: unchanged, the re-ask stays. Measured: QW's ask, a fill cost in six cells.
+Large frames: the window does not bind (above). It keeps the code row 249 set out to remove.
+
+**B. One queue plus the window** (#96, QW). The ask goes first, the fill resumes behind it skipping what an ask
+served; the window follows cwnd.
+
+```
+ planner ── 41 42 [ask 120] 43 44 … ──►  quinn [ 41 42 120 … ≤ cwnd + M ]  ──►  link
+```
+
+Server +58 −37, client +37 −84, wire: a `request_frame` no longer ends a fill (#96's body). U1 and U3 cost no
+restarts. Measured: the table's QW row. Costs: the one fill cell, nothing under loss or with large frames measured,
+and `--send-window-bytes` no longer bounding memory (#96's question 1). Switching back: the planner's old branch.
+
+**C. Asks first on per-frame streams under 6 MiB** (#39). Measured to cost the fill +2 to +44 %, most under loss, the
+regime the product lives in; the direction counts the fill. **Not to pursue** unless row 211's extra packets are
+explained (§9.7, *Further rows*). Its result is what D builds on: the ask gain is the priority's, the fill cost is
+in per-frame streams.
+
+**D. One queue plus an ask stream** (new, theory only). The fill keeps the shared stream; the session opens a second
+uni stream that carries only asks, ranked above it (`set_priority`, as `per-frame-asks-first` does). quinn builds
+packets from the higher-ranked stream first, so an ask jumps every fill byte not yet sent:
+
+```
+ planner ── fill 41 42 43 … ──►  fill stream  [ 41 42 43 … ≤ 6 MiB credit ] ─┐
+         └─ ask 120 ─────────►  ask stream   [ 120 ]  ranked above ──────────┴─►  link: in flight ≤ one cwnd
+```
+
+* **Bytes ahead:** what is in flight, about a cwnd: ~0.15 MB, 66 ms, at 18 Mbit/s behind 46 + 20 ms (D), plus, with
+  today's one writer, the rest of the fill frame being written when the ask arrives, up to S ÷ R (0.25 s for a DBT
+  slice at 18, 2.1 s for a 4.8 MB mammogram; D). A second writer task removes that term, at more code.
+* **The fill:** it keeps the stream credit as its cap, so the controller sees what it sees today, and two streams
+  are not the many that row 211 found sending more, smaller packets. Both predicted, not measured.
+* **Under loss:** a lost fill packet no longer holds the ask, which is on another stream.
+* **Costs:** server, B's planner plus a second `open_uni` and a priority in `link.rs`, which already receives `ask`
+  per frame. Client: B's, and no new read (clients read every uni stream as envelopes, §Stream modes). Wire: B's. A
+  `--stream-mode` value, so switchable by configuration. The WebSocket keeps one ordered stream: there D is B
+  without the window, and the TCP buffer stays ahead of every ask in every design.
+
+**What decides across the band** (D, from the table and the formula):
+
+* **Fast link, short queue, small frames** (103 Mbit/s, 0.57 MB): B ÷ R is under 0.5 s in every design; B is measured
+  and ready, D adds a stream for little.
+* **Slow or lossy link** (18 Mbit/s, 1 % loss): B ÷ R dominates. The window leaves M ÷ R, 0.5 s at 18 and ~3 s at
+  3 Mbit/s for DBT (D); only an ask stream leaves just the flight. D's case.
+* **Large frames:** the window does not bind, so B ≈ A ≈ today; D keeps its gain, less the S ÷ R term.
+* **Deep FIFOs:** cwnd fills the queue; all designs tie on the ask (rows 180, 253); C loses the fill, D predicted not.
+
+### The measurement that would settle it (pre-registered, not run)
+
+* **Arms:** T (today, `refill: head`); T′ (T again, the A/A arm); QW (#96's build); QS (D on B's planner, one writer).
+* **Cells:** row 253's (18 and 103 Mbit/s × 46 and 92 ms × FIFO 20 and CoDel, the ask at 10 % and 50 %; FIFO 360 and
+  800 at 103/46, 50 %); 1 % loss at 18 and 103 (row 180's); `dbts_b1` at 18 and 103 behind FIFO 20.
+* **Shapes:** U2, one ask for the largest unreached frame, in every cell; U1, eight asks for consecutive unreached
+  frames 100 ms apart, and U3, four asks at once, at 18/46 FIFO 20, 103/46 FIFO 20 and 18 with 1 % loss.
+* **Measured:** each ask → its last byte; the fill's issue → its last frame; packets sent; server RSS; every frame
+  SHA-256-exact. ≥ 10 Williams-ordered rounds, read strict and round-paired by `lab/scripts/aa_rule.py`.
+* **Rule, fixed before the data:** QS is the candidate over QW if its asks are better than QW's beyond the A/A spread
+  in the loss or `dbts_b1` cells and no cell's ask or fill is worse than QW's; a tie keeps QW, which is built. The
+  candidate becomes the default if neither its asks nor its fills are worse than T's beyond the A/A spread in any
+  cell; a worse fill in any cell makes it a trade-off for the owner, those cells its cost (row 249's rule).
+* **Predictions:** (1) QS's U2 ask at 18/46 FIFO 20 within ±30 % of row 180's asks first (314 ms), and ≤ ×0.35 of T
+  under 1 % loss; (2) QS's fill within T's spread in every cell, deep FIFOs included; (3) QS's packets within 2 % of
+  T's; (4) QW's ask within T's spread in the `dbts_b1` cells, QS's ≤ ×0.5 of T's there; (5) under U1, T's fill longer
+  than QW's and QS's by at least one RTT per ask. A failed (4) by about S ÷ R names the one writer as the cause.
+* **Its check:** QS with the ask stream at the fill's rank brings its ask back within T's spread.
+* **Its limits:** the container rig, Chromium only, one session; nothing past 103 Mbit/s; a phone is not covered.
+
+### Questions for the owner
+
+1. **The use cases' order:** scroll ahead (U1) first, then the jump (U2), then tiles (U3), with the comparison (U5)
+   left until a session carries several series. Is that the product's order?
+2. **The scroll's behaviour (L4):** while the reader scrolls past the fill, should the viewer ask every step, only the
+   cursor's frame, or re-aim the fill at the cursor? It is product behaviour, and the measurement's U1 shape follows it.
+3. **Run the measurement above** (T, T′, QW, QS), or take B (#96) now at row 253's price and measure D after it?
+4. **#39:** close it with its results recorded here, or keep it until row 211's extra packets are explained?
+5. **The WebSocket** keeps its TCP buffer ahead of an ask in every design: accept that for the fallback?
+
 ## The opening ask
 
 On by default; `series-server --opening-ask false` turns it off. The session URL may carry
