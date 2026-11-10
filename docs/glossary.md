@@ -38,6 +38,8 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | preview | a lossy picture shown before its frame's exact one, and replaced by it |
 | optimal quality | a series' visually lossless view, the one every viewer sees: lossy AV1 at a fixed quantizer Q, G frames a group, at the source's depth; a series of its own whose metadata carries `lossy` ([`av1/payload-format.md`](av1/payload-format.md) §Optimal quality) |
 | exact series | the HTJ2K series of the same source as an optimal-quality series, whose frame the client fetches whole when a reader asks for lossless |
+| depth cut | an optimal-quality form of a D > 10 series coded from 10-bit codes `min((v + 2^(D−11)) >> (D−10), 1023)`, so WebCodecs decodes it; metadata `lossy.bitsStored` ([`av1/payload-format.md`](av1/payload-format.md) §Depth cut) |
+| stored form | an optimal-quality form of a D > 10 series coded at D itself, not cut: a comparison, decoded by dav1d-WASM only after WebCodecs refused it |
 | pairing | an optimal-quality series naming its exact series in `exactSeries`, by the name the exact series' bundle is known by; nothing else links the two |
 | view | where the viewer holds and paints its frames: `page` (the default) or `worker`, the page's `?view=` ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) |
 | view worker | under `?view=worker`, the worker that holds the controller, the frame store and the paint module; the page sends it intents and hears events, never a frame |

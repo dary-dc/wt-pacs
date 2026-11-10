@@ -1,12 +1,20 @@
 /** A lossy series and the HTJ2K series its exact frames come from: client/README.md §A lossy series, exact on request */
 
+const CUT_DEPTH = 10;
+
+/** D − 10 for a lossy series coded as its depth cut, else 0: docs/av1/payload-format.md §Depth cut */
+export const depthCut = (meta) => (meta.lossy?.bitsStored === undefined ? 0 : meta.lossy.bitsStored - meta.lossy.depth);
+
 /** Where the exact series of `meta` is served, or null when `meta` is not a lossy series; a malformed one is refused by name. */
 export function pairOf(meta) {
   if (meta.lossy === undefined) return null;
-  const { q, g, depth } = meta.lossy ?? {};
+  const { q, g, depth, bitsStored } = meta.lossy ?? {};
   if (meta.codec !== "av1") throw new Error(`refused: a lossy series of codec ${JSON.stringify(meta.codec)} — av1`);
   if (![q, g, depth].every(Number.isInteger) || g < 1 || depth < 8) {
     throw new Error(`refused: lossy ${JSON.stringify(meta.lossy)} — whole q, g ≥ 1 and depth ≥ 8`);
+  }
+  if (bitsStored !== undefined && !(depth === CUT_DEPTH && bitsStored > CUT_DEPTH && bitsStored <= 16 && bitsStored === meta.bitsStored)) {
+    throw new Error(`refused: a depth cut ${JSON.stringify(meta.lossy)} of bitsStored ${meta.bitsStored} — depth ${CUT_DEPTH} from the series' bitsStored, over ${CUT_DEPTH}`);
   }
   const id = meta.exactSeries;
   if (typeof id !== "string" || !/^[\w.-]+$/.test(id)) throw new Error(`refused: exactSeries ${JSON.stringify(id)} — a series id`);

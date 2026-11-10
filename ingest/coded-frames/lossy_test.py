@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Optimal quality, written by ingest_coded.py --lossy from a synthetic set and read back as the client would:
 the metadata's `lossy` and `exactSeries`, every frame decoded from its keyframe's unit on, close to its source
-and not exact, at G 1, 8 and 16 — docs/av1/payload-format.md §Optimal quality.
+and not exact, at G 1, 8 and 16; the depth cut of a 12-bit set, and none of a 10-bit one —
+docs/av1/payload-format.md §Optimal quality.
 
 usage: python3 ingest/coded-frames/lossy_test.py BUILD   — BUILD as ingest/tools.sh makes it
 """
@@ -51,9 +52,9 @@ def write_set(path, frames, bits):
     (path / "metadata.json").write_text(json.dumps(meta))
 
 
-def ingested(build, set_dir, out, q, g, jobs=2):
+def ingested(build, set_dir, out, q, g, jobs=2, *more):
     subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, set_dir, out, "--lossy", str(q), str(g),
-                    "--exact-series", "paired", "--jobs", str(jobs)], check=True, capture_output=True)
+                    "--exact-series", "paired", "--jobs", str(jobs), *more], check=True, capture_output=True)
     return json.loads((out / "metadata.json").read_text()), [(out / f"{i:03d}.av1").read_bytes() for i in range(N)]
 
 
@@ -81,10 +82,11 @@ def undecodable(build, unit):
         os.dup2(err, 2)
 
 
-def series_claims(build, frames, meta, payloads, q, g, depth):
+def series_claims(build, frames, meta, payloads, q, g, depth, lossy=None):
     """The metadata pairs the series and names its coding; each frame decodes from its keyframe on, and not before."""
-    check(meta.get("codec") == "av1" and meta.get("lossy") == dict(q=q, g=g, depth=depth),
-          f"Q {q} G {g}: metadata carries codec av1 and lossy {{q, g, depth {depth}}}, got {meta.get('lossy')}")
+    lossy = lossy or dict(q=q, g=g, depth=depth)
+    check(meta.get("codec") == "av1" and meta.get("lossy") == lossy,
+          f"Q {q} G {g}: metadata carries codec av1 and lossy {lossy}, got {meta.get('lossy')}")
     check(meta.get("exactSeries") == "paired", f"Q {q} G {g}: exactSeries names the paired series")
     check("digests" not in meta, f"Q {q} G {g}: no frame digests, which would call a lossy frame exact")
     units = [unit(p) for p in payloads]
@@ -101,6 +103,26 @@ def series_claims(build, frames, meta, payloads, q, g, depth):
         if i != k:
             check(undecodable(build, units[i][0]), f"Q {q} G {g}: frame {i} does not decode without its keyframe {k}")
     return max(errors, default=np.inf)
+
+
+def depth_cut_claims(build, tmp):
+    """A 12-bit set cut to 10-bit codes rounded half up and clamped at 1023, coded and decoded at 10 bits; a 10-bit one is never cut."""
+    v = np.array([0, 1, 2, 5, 6, 4093, 4094, 4095])
+    check(ingest.depth_cut(v, 12).tolist() == [0, 0, 1, 1, 2, 1023, 1023, 1023], f"the cut rounds half up and clamps: {ingest.depth_cut(v, 12).tolist()}")
+    check(ingest.depth_cut(np.array([31, 32, 65535]), 16).tolist() == [0, 1, 1023], "at D 16 the cut is by 64")
+    frames = [ingest.depth_cut(f.astype(np.int32), 12) for f in source(12)]
+    for g in (1, 8):
+        meta, payloads = ingested(build, tmp / "s12", tmp / f"s12-cut-g{g}", 8, g, 2, "--depth-cut")
+        worst = series_claims(build, frames, meta, payloads, 8, g, 10, dict(q=8, g=g, depth=10, bitsStored=12))
+        check(worst <= 1023 / 100, f"12-bit cut G {g}: every frame within 1 % of the codes' range, RMS (worst {worst:.2f})")
+        print(f"12-bit depth cut G {g}: worst RMS error {worst:.2f} of 1023 against the cut codes")
+        if g == 1:
+            bias = max(abs(np.mean(shown(build, [unit(p)[0]]).astype(float) - f)) for p, f in zip(payloads, frames))
+            check(bias < 0.25, f"12-bit cut: rounded, not truncated — mean coding error under 1/4 code (worst {bias:.3f})")
+    r = subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, tmp / "s10", tmp / "bad10",
+                        "--lossy", "8", "1", "--exact-series", "paired", "--depth-cut"], capture_output=True, text=True)
+    check(r.returncode != 0 and "only unsigned D over 10 is cut" in r.stderr and not (tmp / "bad10").exists(),
+          "a 10-bit set is never cut: refused by name, nothing written")
 
 
 def main():
@@ -130,6 +152,7 @@ def main():
         r = subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, tmp / "s12", tmp / "bad-split",
                             "--lossy", "8", "1", "--exact-series", "paired", "--split", "2"], capture_output=True, text=True)
         check(r.returncode != 0 and not (tmp / "bad-split").exists(), "--split with --lossy is refused: the payload has no split")
+        depth_cut_claims(build, tmp)
     print(f"optimal quality: {'every claim holds' if not failures else f'{len(failures)} claims fail'}")
     sys.exit(1 if failures else 0)
 

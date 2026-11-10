@@ -50,7 +50,9 @@ what is wrong, before or after decoding, and never as pixels.
 **Which decoder, per payload.** WebCodecs when every stream of the payload is ≤ 10 bits, `VideoDecoder`
 exists, and the probe for each stream's layout — grey 8 or 10-bit, 4:4:4 8 or 10-bit, told apart
 before decoding by the header and the unit's `seq_profile` — returned its samples, once per worker;
-dav1d-WASM otherwise, and for a payload WebCodecs fails on. Both modules are imported, and dav1d's
+dav1d-WASM otherwise, and for a payload WebCodecs fails on. A lossy series (`decoder.lossy`) takes WebCodecs first
+at any depth and dav1d only after WebCodecs refused the frame; over 10 bits the first refusal holds for the worker
+([`docs/av1/payload-format.md`](../docs/av1/payload-format.md) §Decoder choice, per payload). Both modules are imported, and dav1d's
 glue and WASM fetched, when the decoder starts, beside the dial; each is initialised on first use,
 and an import that fails is tried again on the next payload. Before, the first payload waited for all of
 it: **−1.0 serial round trips to the first exact frame through WebCodecs and −3.0 through dav1d on
@@ -99,18 +101,25 @@ source.
   `Controller.quality`: *Optimal quality*; *fetching lossless…* while asked; *Lossless* only on the `shown` that
   follows the exact frame's paint, and only when that frame's `exact` is `true`; *Lossless check failed* in red, the
   lossy frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed; the button then asks again.
-* **Routes** are any AV1 series' (§Which decoder, per payload): ≤ 10 bits through WebCodecs where its probe passed,
-  12 bits and any refused config through dav1d-WASM, the route in each frame's `info.path`.
+* **Routes**: WebCodecs first for every lossy series, a depth cut and a 12-bit stored form alike; dav1d-WASM only
+  after WebCodecs refused the frame or its probe failed, the route in each frame's `info.path` and the refusal in
+  `info.refusal` (§Which decoder, per payload). In headless Chromium a 12-bit unit is refused at `decode`.
 * **Groups.** `lossy.g` reaches the downloader as `groupLength` (§An AV1 series in groups): a jump mid-group decodes
   from the group's keyframe on one decoder, and the whole group lands in the store, so a scroll through it asks and
   decodes nothing more.
-* **`?overlay=1`**, off by default: the painted frame's route, wire bytes and decode time, and the series' Q, G and depth.
+* **`?overlay=1`**, off by default: the painted frame's route and, on dav1d, why WebCodecs refused it, wire bytes
+  and decode time, and the series' Q, G and depth, with *depth cut of D* for the cut form.
+* **A depth cut** (`lossy.bitsStored`, a D > 10 series' 10-bit form) decodes as any 10-bit series and is painted from
+  its codes through a table of their full-depth values, no shift pass; `pair.js` refuses one of D ≤ 10, not at 10 bits
+  or not of the series' `bitsStored` ([`docs/av1/payload-format.md`](../docs/av1/payload-format.md) §Depth cut).
 * **Held by** `viewer/pair.test.mjs` (pairing and each refusal), `view/controller.test.mjs` (the exact frame painted
   and nothing else changed; the label never *Lossless* before the check, for a frame the reader left, or before its
   paint; a scroll after a jump at G = 1, 8, 16 asks nothing), `transport/downloader.test.mjs` (a jump at G = 1, 8, 16
   asks the whole group and decodes it from the keyframe, in order, on one decoder) and `server/dev-server.test.py`;
   21 of 22 mutants fail them; the one alive drops the label's own check that the frame is `exact`, which the
-  exact-frame slot already enforces by admitting no other frame.
+  exact-frame slot already enforces by admitting no other frame. The route rule: `decode/av1.test.mjs` (§lossy, 7 of 7
+  mutants killed), `decode/depth-cut.browser.mjs` (Chromium's refusal of the stored form) and the overlay's data in
+  `view/controller.test.mjs`.
 * **Not yet run:** a browser end to end on a real pair, which waits on the ingest's lossy series and the decoders'
   build; the web image (`deploy/nginx`) does not serve the exact series' two paths. Assumed from the ingest: each
   coded frame of the lossy series is an AV1 payload ([`docs/av1/payload-format.md`](../docs/av1/payload-format.md)).

@@ -22,6 +22,7 @@ DECODERS = "dav1d 1.5.4-0-g54706fc, openjph 0.31.0"
 FLAG_SIGNED, FLAG_RCT = 1, 2
 MAX_BITS, MAX_SPLIT = 16, 8
 MAX_Q = 63
+CUT_DEPTH = 10
 HTJ2K_ARGS = ["-num_decomps", "5", "-block_size", "{64,64}", "-prog_order", "RPCL", "-reversible", "true"]
 
 
@@ -265,14 +266,25 @@ def lossy_args(q, g, depth):
             f"--profile={2 if depth == 12 else 0}", f"--bit-depth={depth}", f"--input-bit-depth={depth}"]
 
 
-def lossy_header(s, q, g):
-    """The payload header every frame of an optimal-quality series carries: grey at its native depth, no split."""
+def lossy_header(s, q, g, cut=False):
+    """The payload header every frame of an optimal-quality series carries: grey at its native depth, or its depth
+    cut's 10-bit codes, no split."""
     if s.ch != 1:
         raise Refused("optimal quality is grey only")
     if not (1 <= q <= MAX_Q and g >= 1):
         raise Refused(f"Q {q} and G {g}: Q is 1 to {MAX_Q} (Q 0 codes a lossless stream), G at least 1")
+    if cut and (s.stored <= CUT_DEPTH or s.signed):
+        raise Refused(f"a depth cut of {'signed ' if s.signed else ''}{s.stored}-bit stored samples: only unsigned D over {CUT_DEPTH} is cut")
+    if cut:
+        return dict(bits=CUT_DEPTH, depth=CUT_DEPTH, split=0, flags=0, offset=0)
     bits = max(1, int(s.hi + s.offset).bit_length())
     return dict(bits=bits, depth=container(bits), split=0, flags=FLAG_SIGNED if s.signed else 0, offset=s.offset)
+
+
+def depth_cut(v, d):
+    """D-bit samples as their 10-bit codes, rounded half up: docs/av1/payload-format.md §Optimal quality."""
+    s = d - CUT_DEPTH
+    return np.minimum((v + (1 << (s - 1))) >> s, (1 << CUT_DEPTH) - 1)
 
 
 def keyframe(i, g):
@@ -280,14 +292,15 @@ def keyframe(i, g):
     return i - i % g
 
 
-def lossy(build, s, work, a, b, q, g):
+def lossy(build, s, work, a, b, q, g, cut=False):
     """Frames [a, b), a starts a group: each group one encoder run, each frame decoded from its keyframe's unit on."""
-    header = lossy_header(s, q, g)
+    header = lossy_header(s, q, g, cut)
     depth, y4m, ivf = header["depth"], work / "in.y4m", work / "out.ivf"
+    coded_from = (lambda v: depth_cut(v, s.stored)) if cut else (lambda v: v + s.offset)
     out = []
     for k in range(a, b, g):
         n = min(g, b - k)
-        write_y4m(y4m, [s.frame(i).astype(np.int32) + s.offset for i in range(k, k + n)], depth, "400")
+        write_y4m(y4m, [coded_from(s.frame(i).astype(np.int32)) for i in range(k, k + n)], depth, "400")
         subprocess.run([build / f"aom-{AOM}/bin/aomenc", "-q", "-o", ivf, f"--limit={n}", *lossy_args(q, g, depth), y4m],
                        check=True, capture_output=True)
         units = ivf_units(ivf)
@@ -314,7 +327,7 @@ def chunk(job):
 
 def coded(build, s, n, codec, jobs, representation="optimized", split=None, preset="cpu0", grey8="400", lossy=None):
     """Frames [0, n) of a series coded, every one checked, in frame order; Refused if any is not exact.
-    `lossy` (q, g) codes optimal quality instead, whole groups to a worker."""
+    `lossy` (q, g) or (q, g, cut) codes optimal quality instead, whole groups to a worker."""
     g = lossy[1] if lossy else 1
     if lossy:
         lossy_header(s, *lossy)

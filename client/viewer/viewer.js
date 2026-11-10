@@ -124,8 +124,10 @@ function showQuality({ quality, about }) {
   if (overlayEl.hidden) return;
   const kb = about.wireBytes === undefined ? "?" : (about.wireBytes / 1024).toFixed(1);
   const ms = about.decodeMs === undefined ? "?" : about.decodeMs.toFixed(1);
-  const series = meta.lossy ? ` · Q ${meta.lossy.q} · G ${meta.lossy.g} · ${meta.lossy.depth}-bit` : "";
-  overlayEl.textContent = `${about.path ?? "?"} · ${kb} KB · decode ${ms} ms${series}`;
+  const cut = meta.lossy?.bitsStored ? ` depth cut of ${meta.lossy.bitsStored}` : "";
+  const series = meta.lossy ? ` · Q ${meta.lossy.q} · G ${meta.lossy.g} · ${meta.lossy.depth}-bit${cut}` : "";
+  const route = about.refusal ? `${about.path} after WebCodecs refused: ${about.refusal}` : about.path ?? "?";
+  overlayEl.textContent = `${route} · ${kb} KB · decode ${ms} ms${series}`;
 }
 overlayEl.hidden = q.get("overlay") !== "1";
 
@@ -146,7 +148,7 @@ function status() {
 }
 
 const options = lab.opts;
-const decoder = options.decoder ?? (meta.codec === "av1" ? { codec: "av1", ...(await built("dav1d")) } : await built("openjph"));
+const decoder = options.decoder ?? (meta.codec === "av1" ? { codec: "av1", lossy: meta.lossy !== undefined, ...(await built("dav1d")) } : await built("openjph"));
 const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : undefined;
 const groups = meta.lossy?.g > 1 ? { groupLength: meta.lossy.g, frameCount: n } : {};
 const all = [...Array(n).keys()];
