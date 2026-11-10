@@ -79,6 +79,9 @@ run 1 bash -c 'for p in lab/disk-access-bench/arms/*.patch; do git apply --check
 step "deploy: the server's seccomp profile is Docker's pinned default plus io_uring, nothing else"
 run 1 bash deploy/seccomp-uring.sh --check
 
+step "deploy: the server's THIRD_PARTY_NOTICES, written again from Cargo.lock, is the one committed"
+run 1 "$PYTHON" deploy/server_notices.py --check
+
 step "client: build bundles + unit tests"
 run 1 bash client/transport/ts/build.sh
 run 1 node client/transport/ts/test/run.mjs
