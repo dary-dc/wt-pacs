@@ -87,7 +87,7 @@ class DevServer(unittest.TestCase):
                 dev_server.Handler.metadata = dev_server.Handler.transport = None
 
     def test_an_exact_series_by_its_id(self):
-        """A lossy series' exact series answers under the id its metadata names, and no other id does."""
+        """An optimal-quality series' exact series answers under the id its metadata names, and no other id does."""
         with tempfile.TemporaryDirectory() as other:
             meta, transport = Path(other) / "m.json", Path(other) / "t.json"
             meta.write_text('{"frameCount": 7}')

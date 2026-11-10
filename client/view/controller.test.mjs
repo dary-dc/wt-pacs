@@ -354,7 +354,7 @@ test("the ledger's flip changes the digest, not the frame", async () => {
 /** Frame `i` of the exact series: other samples than the lossy one's, and `exact` as its decoder checked it. */
 const exactFrame = (i, exact = true) => ({ frameIndex: i, info: { ...frame(i).info, pixels: new Uint16Array([9, 9, 9, 9, 9, 9]).buffer, exact, path: "htj2k", reason: exact === false ? "digest" : undefined } });
 
-/** A lossy series' rig whose exact series answers each ask through `answer(i)`, the asks recorded. */
+/** An optimal-quality series' rig whose exact series answers each ask through `answer(i)`, the asks recorded. */
 function lossyRig(answer = (i) => Promise.resolve(exactFrame(i)), opts = {}) {
   const r = rig({ held: [0, 1, 2, 3], lossy: { q: 30, g: 1, depth: 10 }, ...opts });
   r.exactAsks = [];

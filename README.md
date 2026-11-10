@@ -144,12 +144,12 @@ target/release/series-server --port 4433 --series target/my.sbnd \
 python3 server/dev-server.py --port 8765 --metadata target/my.metadata.json
 ```
 
-A lossy series and its exact series (client/README.md §A lossy series, exact on request) run as two servers, the
+An optimal-quality series and its exact series (client/README.md §Optimal quality, exact on request) run as two servers, the
 static host naming the second by the id the lossy metadata gives:
 
 ```bash
 target/release/series-server --port 4434 --series target/my-exact.sbnd \
-  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem   # beside the lossy series' on 4433
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem   # beside the optimal-quality series' on 4433
 sed 's/:4433/:4434/' client/dev-transport.json > target/exact-transport.json
 python3 server/dev-server.py --port 8765 --metadata target/my-lossy.metadata.json \
   --exact-metadata target/my-exact.metadata.json --exact-transport target/exact-transport.json
@@ -157,7 +157,7 @@ python3 server/dev-server.py --port 8765 --metadata target/my-lossy.metadata.jso
 
 Open `http://127.0.0.1:8765/`. The wheel and the arrow keys step; space or the button runs the cine; a drag moves
 window and level, a shift or right drag pans, ctrl-wheel and `+`/`-` zoom; `r` turns, `h` and `v` flip, `i`
-inverts, `0` resets, `l` on a lossy series shows the frame lossless and back; `?fill=0` asks each frame as it is stepped to instead of filling the series. Its check is
+inverts, `0` resets, `l` on an optimal-quality series shows the frame lossless and back; `?fill=0` asks each frame as it is stepped to instead of filling the series. Its check is
 `client/viewer/check.mjs` ([`client/README.md`](client/README.md) §The viewer).
 
 Both clients and the TCP fallback are [`docs/CLIENTS.md`](docs/CLIENTS.md); the bytes they speak, [`docs/WIRE.md`](docs/WIRE.md).
@@ -186,7 +186,7 @@ decodes longer, a slower CPU or another engine; a schedule fires from the defaul
 ## Demo
 
 Optimal quality: every reader sees a series' visually lossless AV1 view, and a frame comes whole from its exact HTJ2K
-series only when **Lossless** is pressed ([`client/README.md`](client/README.md) §A lossy series, exact on request).
+series only when **Lossless** is pressed ([`client/README.md`](client/README.md) §Optimal quality, exact on request).
 The demo set is three breast tomosynthesis volumes, `dbts_a1` (56 frames, 12-bit), `dbts_b1` (50, 10-bit) and `dbts_c1`
 (69, 12-bit), each as its exact series and its optimal-quality series at Q 8 and Q 24, G 1, 8 and 16; the 12-bit two
 as depth cuts (`…-cut`, 10-bit codes WebCodecs decodes) plus one 12-bit stored form each (`…-q8-g16-stored`).
@@ -265,7 +265,7 @@ its step 3b for the pair, with `demo-series/$ID` and `demo-series/$EXACT` in pla
 **What a headless container cannot show**, and where the demo's own numbers come from: no GPU (Chromium paints on
 SwiftShader, *(software)* on the status line), no hardware decoder (WebCodecs' AV1 is Chrome's software decoder here
 and on the laptop: the product asks `prefer-software`), no phone, no real link (loopback), no reader's eye. What it ran,
-and its numbers, are in [`client/README.md`](client/README.md) §A lossy series, exact on request.
+and its numbers, are in [`client/README.md`](client/README.md) §Optimal quality, exact on request.
 
 ## The viewer on an Android phone
 

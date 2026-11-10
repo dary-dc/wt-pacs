@@ -1,4 +1,4 @@
-// The demo's check: a lossy series and its exact series from scripts/demo-series.sh, served by README §Demo's own
+// The demo's check: an optimal-quality series and its exact series from scripts/demo-series.sh, served by README §Demo's own
 // commands, opened as a reader would, and every claim of the demo failed by name. README.md §Demo
 //
 //   node client/viewer/demo-check.mjs DIR LOSSY_ID [--route av1-webcodecs|av1-dav1d] [--json]

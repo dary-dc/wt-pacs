@@ -52,7 +52,7 @@ export class Controller {
   /** Each pending ask's frame and the step that made it; a cancel empties it. */
   #asks = new Map();
   #steps = 0;
-  /** Under a lossy series, the client of its exact series; `#exact`, the one frame asked exact, `{ i, frame?, failed? }`. */
+  /** Under an optimal-quality series, the client of its exact series; `#exact`, the one frame asked exact, `{ i, frame?, failed? }`. */
   exactSource = null;
   #exact = null;
   #exactAsks = new Map();
@@ -174,7 +174,7 @@ export class Controller {
 
   /**
    * The label of frame `f` painted at `i`, null for a series that is not lossy. Clinical invariant: `lossless` only for
-   * the exact series' frame whose digest matched. client/README.md §A lossy series, exact on request
+   * the exact series' frame whose digest matched. client/README.md §Optimal quality, exact on request
    */
   quality(i, f) {
     if (!this.#meta.lossy) return null;

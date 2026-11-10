@@ -50,7 +50,7 @@ what is wrong, before or after decoding, and never as pixels.
 **Which decoder, per payload.** WebCodecs when every stream of the payload is ≤ 10 bits, `VideoDecoder`
 exists, and the probe for each stream's layout — grey 8 or 10-bit, 4:4:4 8 or 10-bit, told apart
 before decoding by the header and the unit's `seq_profile` — returned its samples, once per worker;
-dav1d-WASM otherwise, and for a payload WebCodecs fails on. A lossy series (`decoder.lossy`) takes WebCodecs first
+dav1d-WASM otherwise, and for a payload WebCodecs fails on. An optimal-quality series (`decoder.lossy`) takes WebCodecs first
 at any depth and dav1d only after WebCodecs refused the frame; over 10 bits the first refusal holds for the worker
 ([`docs/av1/payload-format.md`](../docs/av1/payload-format.md) §Decoder choice, per payload). Both modules are imported, and dav1d's
 glue and WASM fetched, when the decoder starts, beside the dial; each is initialised on first use,
@@ -83,7 +83,7 @@ never receive a preview. A unit without its top fails by name after its preview.
 the exact frame and no preview. [`docs/av1/adr-unit.md`](../docs/av1/adr-unit.md) §6; the
 dispatch rig checks `client/contract/av1/scalable/`.
 
-**A lossy series, exact on request** (2026-11-09). A series whose metadata carries `"codec": "av1"`,
+**Optimal quality, exact on request** (2026-11-09). A series whose metadata carries `"codec": "av1"`,
 `"lossy": {"q", "g", "depth"}` and `"exactSeries": "<id>"` is shown at **optimal quality** — its visually lossless
 AV1 frames — as any series is: fill, steps, cine. Its **exact series** is the HTJ2K series of the same source on its
 own server. `viewer/pair.js` reads its metadata at `/series/<id>/metadata` and its transport file at
@@ -91,17 +91,17 @@ own server. `viewer/pair.js` reads its metadata at `/series/<id>/metadata` and i
 exact series that is not HTJ2K, is not of the same source (another frame count, width, height, `bitsStored` or
 `signed`, or, when both carry it, another `framesSha256`), or has no XXH3-64 digests, since none of its frames could
 then be called lossless: a digest proves a frame is its own series', not that the series is this one's source. A
-second downloader, one decoder and no fill, dials it once the lossy series is connected, in either view. The
+second downloader, one decoder and no fill, dials it once the optimal-quality series is connected, in either view. The
 **lossless** button, or `l`, asks the controller for the current frame exact: frame *i* of the exact series is asked, held beside the frame store (never in it, never cached, nothing else asked or evicted), and
 painted in place of the lossy frame once its digest matched; it stays until the reader steps off the frame or
 presses the button again. A lossy frame's own `exact` means its decode matched the encoder's reconstruction, not the
 source.
 
-* **The label** (top right, always shown on a lossy series) says what is painted, decided in one place,
+* **The label** (top right, always shown on an optimal-quality series) says what is painted, decided in one place,
   `Controller.quality`: *Optimal quality*; *fetching lossless…* while asked; *Lossless* only on the `shown` that
   follows the exact frame's paint, and only when that frame's `exact` is `true`; *Lossless check failed* in red, the
   lossy frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed; the button then asks again.
-* **Routes**: WebCodecs first for every lossy series, a depth cut and a 12-bit stored form alike; dav1d-WASM only
+* **Routes**: WebCodecs first for every optimal-quality series, a depth cut and a 12-bit stored form alike; dav1d-WASM only
   after WebCodecs refused the frame or its probe failed, the route in each frame's `info.path` and the refusal in
   `info.refusal` (§Which decoder, per payload). In headless Chromium a 12-bit unit is refused at `decode`.
 * **Groups.** `lossy.g` reaches the downloader as `groupLength` (§An AV1 series in groups): a jump mid-group decodes
@@ -364,7 +364,7 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   frame's paint, and read back checked on a later open. With no writer, the default, there is no cache, as on main
   ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §The core, assembled).
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact. A lossy
-  series adds its quality label and the lossless button (§A lossy series, exact on request).
+  series adds its quality label and the lossless button (§Optimal quality, exact on request).
 * **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the decoder per path, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name.
 * **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=`, `?origin=` and `?writer=` let a lab harness drive the

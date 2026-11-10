@@ -1,4 +1,4 @@
-// node client/viewer/pair.test.mjs — a lossy series paired with its exact series, and every malformed pair refused by name.
+// node client/viewer/pair.test.mjs — an optimal-quality series paired with its exact series, and every malformed pair refused by name.
 import assert from "node:assert/strict";
 import { checkPair, depthCut, pairOf } from "./pair.js";
 
@@ -10,10 +10,10 @@ const exact = { ...source, digests: { algorithm: "xxh3-64", frames: ["a", "b", "
 assert.equal(pairOf({ frameCount: 3 }), null);
 assert.equal(pairOf({ frameCount: 3, codec: "av1" }), null);
 
-/** A lossy series names where its exact series' metadata and transport file are served, by its id. */
+/** An optimal-quality series names where its exact series' metadata and transport file are served, by its id. */
 assert.deepEqual(pairOf(lossy), { id: "1.2.840.5", metadata: "/series/1.2.840.5/metadata", transport: "/wt/1.2.840.5/dev-transport.json" });
 
-/** A lossy series that is not AV1, has a malformed `lossy`, or names no exact series by a plain id is refused. */
+/** An optimal-quality series that is not AV1, has a malformed `lossy`, or names no exact series by a plain id is refused. */
 for (const [bad, why] of [
   [{ codec: "htj2k" }, /codec "htj2k"/],
   [{ lossy: { q: 30, g: 0, depth: 10 } }, /g ≥ 1/],

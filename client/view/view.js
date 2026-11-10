@@ -19,7 +19,7 @@ export class View {
     return this.#to.show(this.current);
   }
 
-  /** The current frame from the lossy series' exact series, until the reader leaves it or calls `lossy`. */
+  /** The current frame from the optimal-quality series' exact series, until the reader leaves it or calls `lossy`. */
   exact() {
     return this.#to.showExact();
   }
@@ -118,7 +118,7 @@ export class ViewWorker {
     return this.#link("connect", url, certHash, opts, issuedAt);
   }
 
-  /** A lossy series' exact series, on a second downloader linked the same way. */
+  /** An optimal-quality series' exact series, on a second downloader linked the same way. */
   connectExact(url, certHash, opts) {
     return this.#link("connectExact", url, certHash, opts);
   }

@@ -27,7 +27,7 @@ class Handler(SimpleHTTPRequestHandler):
     series_name: str = "us_cine_smoke"
     metadata: Path | None = None
     transport: Path | None = None
-    # A lossy series' exact series, by the id its metadata names: client/README.md §A lossy series, exact on request
+    # An optimal-quality series' exact series, by the id its metadata names: client/README.md §Optimal quality, exact on request
     exact: dict[str, Path] = {}
     log_requests = False
 

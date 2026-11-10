@@ -31,7 +31,7 @@ function module(path) {
   }));
 }
 
-/** Why WebCodecs failed a lossy series' first frame over 10 bits, where no probe is made: dav1d's from then on, per worker. */
+/** Why WebCodecs failed an optimal-quality series' first frame over 10 bits, where no probe is made: dav1d's from then on, per worker. */
 let refusedDeep = null;
 
 /** `{ wc }`, the WebCodecs module once every layout's probe passed, or `{ refusal }`, why not. */

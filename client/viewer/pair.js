@@ -1,15 +1,15 @@
-/** A lossy series and the HTJ2K series its exact frames come from: client/README.md §A lossy series, exact on request */
+/** An optimal-quality series and the HTJ2K series its exact frames come from: client/README.md §Optimal quality, exact on request */
 
 const CUT_DEPTH = 10;
 
-/** D − 10 for a lossy series coded as its depth cut, else 0: docs/av1/payload-format.md §Depth cut */
+/** D − 10 for an optimal-quality series coded as its depth cut, else 0: docs/av1/payload-format.md §Depth cut */
 export const depthCut = (meta) => (meta.lossy?.bitsStored === undefined ? 0 : meta.lossy.bitsStored - meta.lossy.depth);
 
-/** Where the exact series of `meta` is served, or null when `meta` is not a lossy series; a malformed one is refused by name. */
+/** Where the exact series of `meta` is served, or null when `meta` is not an optimal-quality series; a malformed one is refused by name. */
 export function pairOf(meta) {
   if (meta.lossy === undefined) return null;
   const { q, g, depth, bitsStored } = meta.lossy ?? {};
-  if (meta.codec !== "av1") throw new Error(`refused: a lossy series of codec ${JSON.stringify(meta.codec)} — av1`);
+  if (meta.codec !== "av1") throw new Error(`refused: an optimal-quality series of codec ${JSON.stringify(meta.codec)} — av1`);
   if (![q, g, depth].every(Number.isInteger) || g < 1 || depth < 8) {
     throw new Error(`refused: lossy ${JSON.stringify(meta.lossy)} — whole q, g ≥ 1 and depth ≥ 8`);
   }
@@ -21,7 +21,7 @@ export function pairOf(meta) {
   return { id, metadata: `/series/${id}/metadata`, transport: `/wt/${id}/dev-transport.json` };
 }
 
-/** Refuses an exact series that is not this lossy series' source, or that could never show a frame as lossless. */
+/** Refuses an exact series that is not this optimal-quality series' source, or that could never show a frame as lossless. */
 export function checkPair(lossy, exact) {
   const why = (exact.codec ?? "htj2k") !== "htj2k" || exact.lossy !== undefined ? "is not an HTJ2K series"
     : exact.frameCount !== lossy.frameCount ? `has ${exact.frameCount} frames, not ${lossy.frameCount}`

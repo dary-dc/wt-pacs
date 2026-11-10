@@ -104,7 +104,7 @@ async function connect({ port, url, certHash, opts: { writer, holdEveryOther, ..
   if (held) fillAround(held);
 }
 
-/** A lossy series' exact series, on a downloader of its own: no fill, each frame asked when the reader asks it. */
+/** An optimal-quality series' exact series, on a downloader of its own: no fill, each frame asked when the reader asks it. */
 async function connectExact({ port, url, certHash, opts }) {
   controller.exactSource = await DownloaderClient.connect(url, certHash, { ...opts, port });
 }

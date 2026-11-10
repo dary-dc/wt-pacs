@@ -32,7 +32,7 @@ const meta = await globalThis.viewerMetadata;
 /** Epoch ms of the page's start, for the lab's ledger: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
 const boot = { metadata: at() };
 const n = meta.frameCount;
-// A lossy series is shown at optimal quality, each frame exact on request from its exact series.
+// An optimal-quality series is shown at optimal quality, each frame exact on request from its exact series.
 const pair = await (async () => {
   const p = pairOf(meta);
   if (!p) return null;
