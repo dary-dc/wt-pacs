@@ -198,7 +198,8 @@ meson, nasm and a C++ compiler for the coders; `python3.11`, or `PYTHON=` anothe
 rustup target add wasm32-unknown-unknown
 cargo install wasm-pack --version 0.15.0 --locked
 npm i -g playwright@1.56.1 && npx playwright install chromium   # demo-check.mjs only
-client/decode/wasm/build/build.sh                # the page's decoders, dav1d and OpenJPH as WASM (~5 min)
+# client/decode/wasm/build/build.sh              # optional: the page's decoders are committed; this rebuilds them in
+                                                 #   docker from Docker Hub's image and checks their hashes (~5 min)
 bash client/transport/wasm/build.sh && bash client/transport/ts/build.sh
 ./server/scripts/gen_dev_cert.sh                 # valid 10 days: make it again before the demo day
 cargo build --release -p series-server
@@ -206,14 +207,21 @@ scripts/demo-series.sh                           # ingest/tools.sh, the three vo
                                                  #   ~20 min on 4 cores; demo-series/ID.sbnd and ID.metadata.json
 ```
 
-**One series**, three terminals — the optimal-quality series, its exact series, the static host:
+**One series**, three terminals — the optimal-quality series, its exact series, the static host. Each terminal starts at
+the repository's root and sets `ID` first; the certificate is renewed, when it ends within a day, before any server
+loads it (the static host would renew it after, and the page would pin a hash the two servers do not have):
 
 ```bash
-ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}            # any demo-series/ID; its exact series is the part before the first -
+# Every terminal first — any demo-series/ID; its exact series is the part before the first -
+ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}
+# Terminal 1, before the others — the certificate, then the optimal-quality series
+./server/scripts/gen_dev_cert.sh --if-needed
 target/release/series-server --port 4433 --series demo-series/$ID.sbnd \
   --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+# Terminal 2 — its exact series
 target/release/series-server --port 4434 --series demo-series/$EXACT.sbnd \
   --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+# Terminal 3 — the static host, which hands the page the exact series' server on 4434
 sed 's/:4433/:4434/' client/dev-transport.json > target/exact-transport.json
 python3 server/dev-server.py --port 8765 --metadata demo-series/$ID.metadata.json \
   --exact-metadata demo-series/$EXACT.metadata.json --exact-transport target/exact-transport.json
