@@ -110,7 +110,12 @@ need their frames written as payloads; their readings stand as measured before i
 and the reader take grey of 8–16 bits after the offset, unsigned and signed, at any k ≤ 8 whose top fits a 12-bit
 stream; the defaults above are unchanged until the per-depth split measurement (queue row SPLITTIME). Checked exact at every b = 8…16 and every k = max(0, b − 12) …
 max(b − 8, 4), natively, in Node and in Chromium, Firefox and WebKitGTK, synthetic to 4096×5120 and real, and the old and new
-refusals matched by message. The reader's signed mask is now the output container's (0xFF, 0xFFFF): the old
+refusals matched by message. *Corrected 2026-10-30:* its signed sets are centred on 0, so a signed source of ≤ 8
+bits after the offset whose values leave −128…127 (a signed 16-bit series spanning −10…200, 0…200 or −200…0) was not
+shown exact, and wrapped in Int8, its frame digest wrapped the same way. Since 2026-10-31 such a payload (offset ≠ 128)
+is 9 bits, Int16, in the reader (`av1-frame.js`) and the digest (`ingest.py`'s `wide`); checked on the reader's merge
+(`client/decode/av1.test.mjs`) and the digest (`ingest/coded-frames/merge_test.py`), not through a decoder. The
+from-DICOM reader refuses High Bit < Bits Stored − 1 by name (PS3.5 §8.1.1). The reader's signed mask is now the output container's (0xFF, 0xFFFF): the old
 2^(depth + split) − 1 reports a wrong range for signed 8-bit with a split and for signed 16-bit at k = 5 and 7.
 **New limits:** `bits` ≤ 16, `split` ≤ 8, a top of at most 12 bits; a payload's `depth` is the smallest of 8, 10, 12
 holding its top.

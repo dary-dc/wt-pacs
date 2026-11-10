@@ -113,6 +113,11 @@ def pinned(build, codec):
     return True
 
 
+def wide(bits, signed, offset):
+    """Whether decodeFrame hands on two bytes a sample of an AV1 payload: client/decode/av1-frame.js's rule."""
+    return bits > 8 or bool(signed) and bits == 8 and offset != 128
+
+
 def frame_digest(px, wide):
     """XXH3-64 of a frame as decodeFrame hands it on: docs/FIXTURES.md §Frame digests."""
     signed = px.dtype.kind == "i"
@@ -275,8 +280,8 @@ def coded(build, s, n, codec, jobs, representation="optimized", split=None, pres
 
 def digests(s, n, codec, representation="optimized", split=None, grey8="400"):
     """`metadata.json`'s `digests`; decodeFrame hands on two bytes a sample over 8 bits, for AV1 the payload's bits."""
-    wide = plan(s, representation, split, grey8)[0]["bits"] > 8 if codec == "av1" else s.stored > 8
-    return dict(algorithm="xxh3-64", frames=[frame_digest(s.frame(i), wide) for i in range(n)])
+    two = wide(plan(s, representation, split, grey8)[0]["bits"], s.signed, s.offset) if codec == "av1" else s.stored > 8
+    return dict(algorithm="xxh3-64", frames=[frame_digest(s.frame(i), two) for i in range(n)])
 
 
 def metadata(s, display, codec, preset=None):
