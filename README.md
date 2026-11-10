@@ -24,7 +24,10 @@ python3 -m venv .venv && .venv/bin/pip install --require-hashes -r ingest/requir
                                                     # numpy, pydicom, xxhash, blake3 (CPython 3.11–3.13): PYTHON=.venv/bin/python
 ```
 
-With the first, the dispatch rig runs all 782 of its checks, the real-decode ones on npm's OpenJPH and on the
+In a cloud container, where nothing starts the Docker daemon and no `meson` is installed, three lines first:
+`(dockerd >/tmp/dockerd.log 2>&1 &)`, then wait until `docker info` answers, and `pip install meson==1.9.1`.
+
+With the first, the dispatch rig runs all 789 of its checks, the real-decode ones on npm's OpenJPH and on the
 product's build alike; without it, those that need the build are skipped by name. Without the second, the painter
 check, the split's merge and the DICOM reader do not run. The ingest's coders — libaom 3.15.1, dav1d 1.5.4 and
 OpenJPH 0.31.0, built from source at their pins into `ingest/.build` — need cmake, ninja, meson (1.9.1 here), nasm and
