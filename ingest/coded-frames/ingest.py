@@ -282,7 +282,7 @@ def lossy_header(s, q, g, cut=False):
 
 
 def depth_cut(v, d):
-    """D-bit samples as their 10-bit codes, rounded half up: docs/av1/payload-format.md §Optimal quality."""
+    """D-bit samples as their 10-bit codes, rounded half up: docs/av1/payload-format.md §Depth cut."""
     s = d - CUT_DEPTH
     return np.minimum((v + (1 << (s - 1))) >> s, (1 << CUT_DEPTH) - 1)
 

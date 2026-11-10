@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Optimal quality, written by ingest_coded.py --lossy from a synthetic set and read back as the client would:
 the metadata's `lossy` and `exactSeries`, every frame decoded from its keyframe's unit on, close to its source
-and not exact, at G 1, 8 and 16; the depth cut of a 12-bit set, and none of a 10-bit one —
+and not exact, at G 1, 8 and 16; the depth cut of a 12-bit set, and none of a 10-bit or signed one —
 docs/av1/payload-format.md §Optimal quality.
 
 usage: python3 ingest/coded-frames/lossy_test.py BUILD   — BUILD as ingest/tools.sh makes it
@@ -9,6 +9,7 @@ usage: python3 ingest/coded-frames/lossy_test.py BUILD   — BUILD as ingest/too
 import hashlib
 import json
 import os
+import shutil
 import struct
 import subprocess
 import sys
@@ -116,6 +117,7 @@ def depth_cut_claims(build, tmp):
         worst = series_claims(build, frames, meta, payloads, 8, g, 10, dict(q=8, g=g, depth=10, bitsStored=12))
         check(worst <= 1023 / 100, f"12-bit cut G {g}: every frame within 1 % of the codes' range, RMS (worst {worst:.2f})")
         print(f"12-bit depth cut G {g}: worst RMS error {worst:.2f} of 1023 against the cut codes")
+        check(meta.get("bitsStored") == 12, f"12-bit cut G {g}: the series keeps its own bitsStored 12, got {meta.get('bitsStored')}")
         if g == 1:
             bias = max(abs(np.mean(shown(build, [unit(p)[0]]).astype(float) - f)) for p, f in zip(payloads, frames))
             check(bias < 0.25, f"12-bit cut: rounded, not truncated — mean coding error under 1/4 code (worst {bias:.3f})")
@@ -123,6 +125,14 @@ def depth_cut_claims(build, tmp):
                         "--lossy", "8", "1", "--exact-series", "paired", "--depth-cut"], capture_output=True, text=True)
     check(r.returncode != 0 and "only unsigned D over 10 is cut" in r.stderr and not (tmp / "bad10").exists(),
           "a 10-bit set is never cut: refused by name, nothing written")
+    signed = tmp / "s12-signed"
+    shutil.copytree(tmp / "s12", signed)
+    meta = json.loads((signed / "metadata.json").read_text())
+    (signed / "metadata.json").write_text(json.dumps({**meta, "signed": True}))
+    r = subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, signed, tmp / "bad-signed",
+                        "--lossy", "8", "1", "--exact-series", "paired", "--depth-cut"], capture_output=True, text=True)
+    check(r.returncode != 0 and "a depth cut of signed 12-bit" in r.stderr and not (tmp / "bad-signed").exists(),
+          f"a signed 12-bit set is never cut: refused by name, nothing written ({r.stderr.strip()[-120:]})")
 
 
 def main():

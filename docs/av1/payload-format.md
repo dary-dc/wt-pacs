@@ -93,7 +93,9 @@ the frame.
 * **An optimal-quality series** (the decoder config's `lossy`, set from the metadata's `lossy`) takes WebCodecs first at
   any depth: ≤ 10 bits as above; over 10 bits, where no probe is made, each frame is tried until WebCodecs refuses
   one, and that refusal sends the worker's later frames to dav1d. Every dav1d frame of it carries the refusal
-  (`refusal` beside `path`), which the overlay shows. The owner's decision of 2026-11-09; §Depth cut.
+  (`refusal` beside `path`), which the overlay shows. The owner's decision of 2026-11-09; §Depth cut. A WebCodecs
+  failure on a frame inside a group (G > 1) after its keyframe decoded there is not recovered: dav1d never saw the
+  keyframe, so that frame and the rest of its group fail by name, up to the next keyframe (read from the code, not run).
 * **dav1d-WASM** (dav1d 1.5.4, emscripten 3.1.74, SIMD build) otherwise — an exact series' 12-bit top streams, no
   `VideoDecoder`, a failed probe, or a frame WebCodecs refused.
 * Both imported, and dav1d's glue and WASM fetched, when an AV1 series' decoder starts; each initialised on first use, memoised; an HTJ2K page fetches no AV1 code ([`lab/page-open/README.md`](../../lab/page-open/README.md) §Cold round trips by codec).
@@ -296,7 +298,9 @@ c = min((v + 2^(D−11)) >> (D−10), 1023)        D = Bits Stored (0028,0101), 
 ```
 
 at 10 bits, rounded half up, so it adds a rounding error of at most 2^(D−11) to the coding error. Code c stands for
-c · 2^(D−10), the centre of the samples that round to it.
+c · 2^(D−10), the centre of the samples that round to it. *Corrected 2026-11-10 (DEPTHCUT-REVIEW):* the clamp is the
+exception — the samples from 1023 · 2^(D−10) + 2^(D−11) up round to 1024 and are clamped to 1023, so the top
+2^(D−11) − 1 of them err by more, up to 2^(D−10) − 1 (3 at D 12, for 4095 alone).
 
 * **Which series.** Unsigned grey of D > 10 only; a D ≤ 10 series is coded at its own depth and never cut, and
   `--depth-cut` on one, or on a signed series, is refused by name. The ingest's option; the PCS chooses it. The
