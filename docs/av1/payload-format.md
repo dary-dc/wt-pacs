@@ -236,7 +236,7 @@ beside its exact series, and the client pairs them by `exactSeries` ([`../glossa
   `--kf-max-dist=0` in place of both `--kf-*-dist` at G = 1; `--profile` 2 at 12 bits, 0 otherwise. Q is any of
   0–63 and G any of 1 or more, per series, the PCS's choice; the ingest takes any value.
 * **Depth.** The source's: grey of b bits after the offset is coded at the smallest of 8, 10 and 12 holding b.
-  Refused: over 12 bits (a reduced-depth form is being designed, not built) and RGB.
+  Refused: over 12 bits, unless as its depth cut (§Depth cut), and RGB.
 * **Payload.** §Payload as it is, one temporal unit a frame (n = 1, split 0): `bits` b, `depth` D, `flags` signed
   and `offset` as for a lossless series. A decoded sample is anywhere in 0 … 2^D − 1 less the offset, not only
   within the series' `min` … `max`.
@@ -252,6 +252,7 @@ beside its exact series, and the client pairs them by `exactSeries` ([`../glossa
   series' bundle is known by. No `representation`, `preset` or `digests`: a frame digest makes a frame `exact`
   ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests), so a lossy frame arrives `unchecked`.
 * **Built** in `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID`; the DICOM ingest does not code it yet.
+  `--depth-cut` codes the depth cut instead (§Depth cut).
 
 **Bytes** (`scripts/demo-series.sh`, 2026-11-09, one run on a 4-core x86-64 cloud host, 443 s in all with the
 tools already built): each `.sbnd` against its exact series'. The quality at each Q is not measured here.
@@ -264,3 +265,41 @@ tools already built): each `.sbnd` against its exact series'. The quality at eac
 
 G 16 against G 1: at Q 8, 1.2 % fewer bytes on `dbts_b1` and `dbts_c1`, 0.2 % more on `dbts_a1`; at Q 24, 0.41–0.42
 of G 1's bytes on `dbts_a1` and `dbts_c1`, 0.62 on `dbts_b1`.
+
+
+### Depth cut
+
+*OQ-DEPTHCUT, 2026-11-10. Built and tested on synthetic sets and in headless Chromium; the bytes of the demo's cut
+series are below only if measured, and their quality is not.*
+
+No engine's WebCodecs returns 12-bit samples (`docs/av1/webcodecs-profiles.md` on `claude/av1-webcodecs-profiles`),
+so a D > 10 optimal-quality view would decode only through dav1d-WASM. The **depth cut** is the form that WebCodecs
+decodes: the OQ view coded from each source sample v's 10-bit **code**
+
+```
+c = min((v + 2^(D−11)) >> (D−10), 1023)        D = Bits Stored (0028,0101), over 10
+```
+
+at 10 bits, rounded half up, so it adds a rounding error of at most 2^(D−11) to the coding error. Code c stands for
+c · 2^(D−10), the centre of the samples that round to it.
+
+* **Which series.** Unsigned grey of D > 10 only; a D ≤ 10 series is coded at its own depth and never cut, and
+  `--depth-cut` on one, or on a signed series, is refused by name. The ingest's option; the PCS chooses it.
+* **Payload.** As §Optimal quality's at 10 bits: `bits` 10, `depth` 10, split 0, flags 0, offset 0; the samples a
+  decoder returns are the codes.
+* **Metadata.** `"lossy": {"q", "g", "depth": 10, "bitsStored": D}`: `bitsStored` marks the cut, is the series' own
+  `bitsStored`, and only a cut form carries it.
+* **Painted from its codes.** The client keeps the decoded codes as they are and paints them through a window table
+  built for them: entry c is the series' window function (LINEAR, LINEAR_EXACT, SIGMOID, as for any series) at
+  c · 2^(D−10) through the rescale, so no pass shifts the samples first. `client/paint/voi.test.mjs` holds the table
+  equal to shifting then windowing on every code, at D 11, 12 and 16, for the three functions; scaling the window's
+  centre and width to the codes instead paints otherwise (the same test). The prior evidence is PAINTDEPTH
+  (`docs/decode/paint-depth.md` on `claude/av1-paint-depth`). Its auto window, from a frame's decoded range, and the
+  sample under the cursor are at full depth.
+* **Decoded** through WebCodecs where its 10-bit probe passed, dav1d-WASM otherwise, as any 10-bit series:
+  `client/decode/depth-cut.browser.mjs` decodes a G 4 fixture (`client/contract/av1/payloads/depth-cut`, from
+  `ingest/coded-frames/make_golden.py --depth-cut`) on the WebCodecs path in headless Chromium, every frame dav1d's codes.
+* **Lossless** is unchanged: the exact frame comes from the exact series at the stored depth.
+* **Checked at ingest** as any optimal-quality series; `lossy_test.py` adds a 12-bit set cut at G 1 and 8 (within 1 %
+  of the codes' range, RMS; mean coding error under a quarter code, which a truncating cut fails), the cut's rounding
+  and clamp on chosen values, and the refusal of a 10-bit set.

@@ -104,7 +104,11 @@ source.
 * **Groups.** `lossy.g` reaches the downloader as `groupLength` (§An AV1 series in groups): a jump mid-group decodes
   from the group's keyframe on one decoder, and the whole group lands in the store, so a scroll through it asks and
   decodes nothing more.
-* **`?overlay=1`**, off by default: the painted frame's route, wire bytes and decode time, and the series' Q, G and depth.
+* **`?overlay=1`**, off by default: the painted frame's route, wire bytes and decode time, and the series' Q, G and
+  depth, with *depth cut of D* for the cut form.
+* **A depth cut** (`lossy.bitsStored`, a D > 10 series' 10-bit form) decodes as any 10-bit series and is painted from
+  its codes through a table of their full-depth values, no shift pass; `pair.js` refuses one of D ≤ 10, not at 10 bits
+  or not of the series' `bitsStored` ([`docs/av1/payload-format.md`](../docs/av1/payload-format.md) §Depth cut).
 * **Held by** `viewer/pair.test.mjs` (pairing and each refusal), `view/controller.test.mjs` (the exact frame painted
   and nothing else changed; the label never *Lossless* before the check, for a frame the reader left, or before its
   paint; a scroll after a jump at G = 1, 8, 16 asks nothing), `transport/downloader.test.mjs` (a jump at G = 1, 8, 16

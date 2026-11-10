@@ -15,10 +15,12 @@ $P lab/av1/tools/ingest_coded.py ingest/.build lab/av1/data/rf_fluoro OUT --repr
 target/release/pack-series --metadata OUT/metadata.json --frames OUT --output rf_fluoro.sbnd
 node ingest/coded-frames/check.mjs OUT                                  # every payload through the client's reader
 $P ingest/coded-frames/make_golden.py ingest/.build                     # the client's golden payloads and probes
+$P ingest/coded-frames/make_golden.py ingest/.build --depth-cut         # the depth cut's WebCodecs fixture alone
 $P ingest/coded-frames/merge_test.py                                    # the split and its merge, every value: the gate's step
 $P lab/av1/tools/ingest_coded.py ingest/.build SET OUT --lossy 8 16 --exact-series NAME   # optimal quality, paired
+$P lab/av1/tools/ingest_coded.py ingest/.build SET OUT --lossy 8 16 --exact-series NAME --depth-cut   # its 10-bit depth cut, D > 10
 $P ingest/coded-frames/lossy_test.py ingest/.build                      # optimal quality's claims: the gate's step
-scripts/demo-series.sh [OUT]                                            # three tomosynthesis series, exact and 18 optimal each
+scripts/demo-series.sh [OUT]                                            # three tomosynthesis series, exact and 18 optimal each, two 12-bit ones' cut at G 1 and 16
 ```
 
 `BUILD` (`ingest/.build` above, `lab/.av1-build` where `lab/av1/tools/tools.sh` built it) holds the coders and
@@ -43,7 +45,8 @@ probes fail and every colour payload goes to dav1d-WASM.
 
 **Optimal quality** (`--lossy Q G`, `ingest.py`'s `lossy`): lossy AV1 at cq-level Q, G frames a group, at the
 source's depth, every frame decoded in-process from its group's keyframe; `metadata.json` carries `lossy` and
-`exactSeries`, no `digests` ([`docs/av1/payload-format.md`](../../docs/av1/payload-format.md) §Optimal quality).
+`exactSeries`, no `digests` ([`docs/av1/payload-format.md`](../../docs/av1/payload-format.md) §Optimal quality);
+`--depth-cut` codes a D > 10 series' 10-bit codes instead (§Depth cut).
 `decode.cpp`'s `av1_decode` shows the last picture of the units it is given, one unit or a group's first few.
 
 **`pack-series`** takes `NNN.av1` when the metadata says `"codec": "av1"` and `NNN.htj2k` otherwise.
