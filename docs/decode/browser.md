@@ -661,6 +661,192 @@ Track" [F130]. browser-compat-data: Chrome 83, Firefox 132, Safari 15.4 [F131].
 | Any route onward from the captured frame (canvas, WebGL, WebGPU) adds the conversions of §From a VideoFrame to the screen. | D | [F62] |
 | For exact decoder samples, decode with WebCodecs `VideoDecoder` and `copyTo()` the outputs; `<video>`/MSE is a viewing route (D: rows above, [F3]). | D | [F3] |
 
+## Chromium
+
+Covers Chrome desktop, Chrome for Android and Android WebView. Edge, Opera and Samsung Internet come up only where
+they differ. In browser-compat-data (BCD) they are all `"mirror"` entries for every API below, which means BCD copies
+their data from Chrome or Chrome Android [C1]. Engine source is pinned to Chromium `main` at
+`81ba34d0f9102bff3e2062ce81389410a7c16bb3` (committed 2026-11-10, after tag 159.0.8153.x), and every source id below
+refers to that commit. A source fact describes the code at that commit, not any particular stable release.
+
+**What matters most for exact 10- and 12-bit samples:**
+
+* Only the software decoders (dav1d for AV1, libvpx for VP9) hand WebCodecs planar `I420P10` or `I420P12` frames that
+  `copyTo()` can read.
+* Hardware paths give NV12 (8-bit), RGB (Android), or a frame whose `format` is `null` (10-bit P010 or textures).
+* `hardwareAcceleration: "prefer-software"` is the only setting that keeps the hardware path out (§Which decoder).
+
+### Since which version
+
+BCD at commit `918d2d72…`. Every Chromium-family browser except Chrome desktop is `"mirror"` unless the table says
+otherwise.
+
+| API (BCD key) | chrome `version_added` | other Chromium browsers | label | src |
+|---|---|---|---|---|
+| `VideoDecoder` (and `configure`, `decode`, `decodeQueueSize`, `flush`, `reset`, `close`) | `"94"` | mirror | S | [C1] |
+| `VideoDecoder.isConfigSupported_static` | `"94"` | mirror | S | [C1] |
+| `VideoDecoder` `dequeue_event` | `"106"` | mirror | S | [C2] |
+| `VideoDecoder.configure` `flip_option`, `rotation_option` | `"138"` | mirror | S | [C2] |
+| `VideoFrame` (and `copyTo`, `allocationSize`, `format`, `clone`, `close`) | `"94"` | mirror | S | [C3] |
+| `VideoFrame.copyTo` `format_property` (convert to RGB) | `"127"` | mirror | S | [C3] |
+| `VideoFrame.metadata` | `"145"` | mirror | S | [C3] |
+| `EncodedVideoChunk` | `"94"` | mirror | S | [C4] |
+| `ImageDecoder` (and `isTypeSupported_static`) | `"94"` | mirror | S | [C4] |
+| `HTMLVideoElement.requestVideoFrameCallback` | `"83"` | mirror | S | [C5] |
+| `MediaCapabilities.decodingInfo` | `"66"`, with notes: "`codecs` string can contain any subset of optional parameters (should be all or none)." and "Errors if `codecs` string contains unexpected characters (should evaluate string up to character)." | mirror | S | [C5] |
+| `ManagedMediaSource` | `false` | mirror (so `false` everywhere) | S | [C6] |
+| `MediaSource` `worker_support`, `handle`, `canConstructInDedicatedWorker_static` | `"108"` | mirror | S | [C6] |
+| `webassembly.api` (`WebAssembly` JS API) | `"57"` | Edge `"16"`, others mirror | S | [C7] |
+| WebAssembly `fixed-width-SIMD` / `relaxed-SIMD` / `memory64` / `bulk-memory-operations` | `"91"` / `"114"` / `"133"` / `"75"` | mirror | S | [C7] |
+| WebAssembly `threads-and-atomics` | `"74"`; chrome_android `"88"`; **webview_android `false`** | Edge mirror | S | [C8] |
+| BCD has no `worker_support` entry for `VideoDecoder`, `VideoFrame` or `ImageDecoder` (the IDL exposure is under §Workers) | — | — | S | [C1][C3][C4] |
+| A WASM decoder that relies on threads (shared memory plus Atomics) has no BCD support in Android WebView: it must also run single-threaded | — | — | D | from [C8] |
+
+chromestatus.com entries:
+
+| feature (id) | milestone as read | label | src |
+|---|---|---|---|
+| WebCodecs (5669293909868544): "Provides efficient, low-level access to built-in (software and hardware) media encoders and decoders." | desktop 94, android 94, webview 94; origin trial 86–93 | S | [C9] |
+| ImageDecoder API extension for WebCodecs (4561928577875968) | desktop/android/webview 94 | S | [C10] |
+| Enable HEVC hardware decoding (5186511939567616) | desktop/android/webview 107 | S | [C11] |
+| Conversion to RGB in VideoFrame: copyTo() method (4668827056209920) | desktop 127, android 127, webview `null`; status text as read: "In developer trial (Behind a flag)" (BCD lists 127 as shipped [C3]) | S | [C12] |
+| MSE in Workers (5177263249162240) | desktop/android/webview 108 | S | [C13] |
+| Media Source Extensions for WebCodecs (5649291471224832) | "Origin trial", not shipped; flag `--enable-blink-features=MediaSourceExtensionsForWebCodecs` | S | [C14] |
+| WebGPU WebCodecs integration (5078348864159744): `VideoFrame` as a `GPUExternalTexture` source | "Origin trial" (stage 113–118) | S | [C15] |
+| HTMLVideoElement.requestVideoFrameCallback() (6335927192387584) | desktop 83, android 83, webview `null` (BCD mirrors 83 to WebView [C5]) | S | [C16] |
+
+### Which decoder backs each codec
+
+How a `VideoDecoder` picks its implementation. The renderer's software factory lists decoders in this order: the
+external (GPU-process) factory first, "since one will only exist if it is hardware accelerated", then libvpx, dav1d,
+dav2d (behind a flag) and FFmpeg [C17].
+
+| codec | software (bundled) | hardware / OS path | label | src |
+|---|---|---|---|---|
+| AV1 | dav1d (`enable_dav1d_decoder = use_blink`, `enable_av1_decoder = enable_dav1d_decoder`). dav1d is pinned in DEPS at `4e3ab21fbbf84a4bd283ea27f96287fcd7c228c1`. README.chromium says `Version: master` | Windows: D3D (`D3DVideoDecoder`); macOS: VideoToolbox (Main profile only); Linux: VA-API; ChromeOS: VA-API/V4L2; Android: MediaCodec | S | [C18][C19][C21][C22][C23][C24] |
+| VP9 | libvpx at `fb0a26ad923b58c3663aaa9523992cf779b1563b` (CPE `libvpx:1.17.0`). Profiles 2 and 3 only if libvpx reports `VPX_CODEC_CAP_HIGHBITDEPTH` | same platform decoders; macOS VideoToolbox supports profiles 0 and 2 only | S | [C20][C25][C23] |
+| VP8 | libvpx (`ConfigureDecoder` accepts `kVP8` and `kVP9`) | MediaCodec on Android if `IsVp8DecoderAvailable()` | S | [C26][C24] |
+| H.264 | FFmpeg: "We only build support for H.264." FFmpeg video decoders are left out on Android arm (`enable_ffmpeg_video_decoders = media_use_ffmpeg && (!is_android \|\| current_cpu != "arm")`) | D3D, VideoToolbox, VA-API, MediaCodec | S | [C27][C18] |
+| HEVC | **none bundled.** `IsDecoderBuiltInVideoCodec` lists only H.264 (FFmpeg), VP8/VP9 (libvpx), AV1 and the flagged AV2 | platform only, gated by `kPlatformHEVCDecoderSupport` (`FEATURE_ENABLED_BY_DEFAULT`). The build includes the HEVC hardware decoder for `is_win \|\| is_apple \|\| is_android \|\| is_linux`. chromestatus: "Android 5.0+, macOS 11+, with supported hardware on Windows 8+ and ChromeOS" | S | [C20][C28][C11] |
+| HEVC on macOS | the VideoToolbox path may use Apple's OS software decoder: "because we allow the OS software decoder we report the minimum possible HEVC encode size" | — | S | [C23] |
+| Android OS software codecs | MediaCodec's own software decoders (e.g. for AV1/VP9) are excluded when Chromium bundles one: "Don't allow OS software decoding for bundled software decoders unless the content is encrypted". VP9 profiles 2/3 are the exception. `kAllowMediaCodecSoftwareDecoder` is `FEATURE_DISABLED_BY_DEFAULT` | — | S | [C24][C28] |
+| Linux hardware decode | the `AcceleratedVideoDecoder` feature defaults to enabled only `#if BUILDFLAG(USE_VAAPI)`. `use_vaapi` is `is_linux && !is_castos && (ozone x11 or wayland) && (x86, x64 or arm64)` | — | S | [C21][C29] |
+| Windows D3D12 | `kD3D12VideoDecoder` is `FEATURE_DISABLED_BY_DEFAULT`, so D3D11 is the default | — | S | [C22][C28] |
+
+How `hardwareAcceleration` maps to source:
+
+| value | effect in source | label | src |
+|---|---|---|---|
+| `"no-preference"` | software factory wrapping the external (hardware) factory. The hardware decoder is tried first if the GPU reports decode acceleration, then the software decoders | S | [C30][C17] |
+| `"prefer-hardware"` | `decoder_factory_ = std::move(external_decoder_factory);` (hardware only). `isConfigSupported` asks the GPU factories, and any answer other than `kTrue` resolves `supported: false` | S | [C30][C31] |
+| `"prefer-software"` | the external factory is never built (`if (hardware_preference_ != HardwarePreference::kPreferSoftware)`). `isConfigSupported` returns `false` for codecs not built in, so **HEVC + `prefer-software` is always unsupported** | S, D (HEVC) | [C30][C31][C20] |
+| `"no-preference"` / `"prefer-software"` in `isConfigSupported` | resolves `true` once the codec string and config are valid and `IsDecoderSupportedVideoType` passes. No decoder is instantiated, so `configure()` can still fail | S (code), D (consequence) | [C31] |
+| H.264/HEVC configs that need software (decided by `RequiresSoftwareDecoder()`) + `prefer-hardware` | rejected: "This configuration is only supported by the software decoder." | S | [C32] |
+| no `codedWidth`/`codedHeight` in config | "Guess 720p if no coded size hint is provided. This choice should result in a preference for hardware decode." | S | [C32] |
+| `VideoDecoder.isConfigSupported` for AV1 on Android without the bundled decoder | needs `SDK_VERSION_Q` or later. In Chrome the bundled dav1d build flag is on (`use_blink`) | S | [C33][C18] |
+
+### Output formats and bit depths per path
+
+WebCodecs `VideoPixelFormat` values in this Chromium build: `I420`, `I420P10`, `I420P12`, `I420A`, `I420AP10`,
+`I422`, `I422P10`, `I422P12`, `I422A`, `I422AP10`, `I444`, `I444P10`, `I444P12`, `I444A`, `I444AP10`, `NV12`, `RGBA`,
+`RGBX`, `BGRA`, `BGRX` [C34]. There is no P010, no 16-bit, no monochrome and no 12-bit-with-alpha value.
+
+| path | 8-bit | 10-bit | 12-bit | 4:0:0 (monochrome) | label | src |
+|---|---|---|---|---|---|---|
+| AV1, dav1d (software) | `PIXEL_FORMAT_I420` → `"I420"` (also I422/I444) | `PIXEL_FORMAT_YUV420P10` → `"I420P10"` | `PIXEL_FORMAT_YUV420P12` → `"I420P12"`. dav1d is built twice, with `-DBITDEPTH=8` and `-DBITDEPTH=16` (`CONFIG_16BPC 1`) | reported as I420/P10/P12 with **synthesised** chroma: "Single plane monochrome images will be converted to standard 3 plane ones since Chromium doesn't support single Y plane images." U and V are filled with `(1 << bit_depth) / 2` (8-bit: `256 / 2`) | S | [C35][C36][C37] |
+| VP9, libvpx (software) | `VPX_IMG_FMT_I420` → I420 (I422/I444, plus A variants when there is alpha) | `I42016`, bit_depth 10 → `YUV420P10` | `I42016`, bit_depth 12 → `YUV420P12` (12-bit has no alpha variant) | not handled (no 4:0:0 case) | S | [C38] |
+| H.264, FFmpeg (software) | `AV_PIX_FMT_YUV420P` → I420 | `YUV420P10LE` → YUV420P10 (9-bit is treated as 10-bit) | `YUV420P12LE` → YUV420P12 | no `GRAY` case, so it falls to `default` (unsupported) | S (mapping), U (whether this FFmpeg build decodes H.264 above 8 bits: not checked) | [C39] |
+| H.264 4:4:4 GBR via FFmpeg | `AV_PIX_FMT_GBRP` maps to `PIXEL_FORMAT_I444` | `GBRP10LE` → YUV444P10 | `GBRP12LE` → YUV444P12 | — | S | [C39] |
+| Windows D3D (hardware) | NV12 (or ARGB if a copy is needed and NV12 is not supported) | `DXGI_FORMAT_P010` → `PIXEL_FORMAT_P010LE` (or XB30/ARGB) | `DXGI_FORMAT_P016` takes the same branch as P010: → `P010LE`, XB30 or ARGB | — | S | [C40] |
+| Android MediaCodec (hardware or OS software) | `VideoPixelFormat pixel_format = PIXEL_FORMAT_ABGR;` for every output (texture-backed, any bit depth) | same | same | — | S | [C41] |
+| macOS VideoToolbox | pixel format read from the IOSurface (`IOSurfacePixelFormatToSharedImageFormat`) | — | — | — | S (mechanism), U (which CoreVideo formats Chromium requests: not found in the files read) | [C42] |
+| Linux/ChromeOS VA-API/V4L2 | `VideoDecoderPipeline` with `MailboxVideoFrameConverter`, so output is a shared-image (texture) frame | — | — | — | S (mechanism), U (exact fourcc) | [C21] |
+
+How `VideoFrame.format` and `copyTo()` treat those frames (`CopyToFormat` in `video_frame.cc`):
+
+| rule | label | src |
+|---|---|---|
+| A frame neither CPU-mappable nor backed by a shared image has `format` `null`: "Operation is not supported when format is null." | S | [C43] |
+| A frame with no CPU mapping and bit depth other than 8 has `format` `null`: "Readback is not supported for high bit-depth formats." | S | [C43] |
+| A frame with no CPU mapping whose shared image prefers an external sampler reports `NV12`/`I420` if that is its format, otherwise `PIXEL_FORMAT_XRGB`, i.e. `"BGRX"` | S | [C43] |
+| `IsFormatEnabled` does not list `PIXEL_FORMAT_P010LE`, and `ToV8VideoPixelFormat` has no P010 case | S | [C44] |
+| So a Windows hardware 10-bit (or 12-bit) frame in P010LE always has `format === null`: CPU-mappable, it fails `IsFormatEnabled`; texture-only, it fails the 8-bit rule. Its samples reach script only through `copyTo({format: "RGBA"…})` or drawing, both 8-bit RGB | D | [C40][C43][C44] |
+| An Android hardware frame (ABGR) reports `"RGBA"` or `"BGRX"`, never a YUV format. YUV samples are not readable on that path | D | [C41][C43] |
+| `copyTo()` with an explicit `format` accepts only RGB targets: "copyTo() doesn't support explicit copy to non-RGB formats. Remove format parameter to use VideoFrame's pixel format." | S | [C45] |
+| The `colorSpace` option of `copyTo()` accepts only `srgb` and `display-p3`: "This pixel conversion to this color space is not supported." | S | [C45] |
+| Exact 10- and 12-bit samples in Chrome come only from the software paths (dav1d, libvpx, FFmpeg) with `copyTo()` and no `format` option. Use `hardwareAcceleration: "prefer-software"` to force them | D | rows above, [C30] |
+| Whether `copyTo()` of a 8-bit NV12 hardware texture is bit-exact against the decoder output | U: no statement found in the source read or in Chrome docs | — |
+
+### Limits
+
+| limit | value / behaviour | label | src |
+|---|---|---|---|
+| largest dimension for any video | `kMaxDimension = (1 << 15) - 1;  // 32767` | S | [C46] |
+| largest area | `kMaxCanvas = (1 << 29) - 1;  // 23170 x 23170`; dav1d is opened with `s.frame_size_limit = limits::kMaxCanvas;` | S | [C46][C35] |
+| software decode threads | `kMaxVideoDecodeThreads = 16` | S | [C46] |
+| macOS VideoToolbox coded size | H.264/VP9 `kLegacyMaxSize(4096, 4096)`; AV1/HEVC `kModernMaxSize(8192, 8192)` | S | [C23] |
+| Windows minimum size | `kMinResolution(64, 64)`; NVIDIA VP9/AV1 128×128, HEVC 144×144; Qualcomm 96×96 | S | [C47] |
+| `decodeQueueSize` | returns `num_pending_decodes_` | S | [C48] |
+| back-pressure inside Chromium | requests wait while `pending_decodes_.size() + 1 > GetMaxDecodeRequests()`. The broker defaults to `1` until a decoder is selected | S | [C48][C49] |
+| too many decoders | `kTooManyDecoders` closes the codec with `QuotaExceededError`: "Decoder initialization failed, too many decoders in use." After a flush: "…Close all pending frames and try again." | S | [C50] |
+| reclaiming hardware codecs | only platform (hardware) decoders apply "codec pressure". A codec is reclaimed after `base::Seconds(90)` of inactivity, and only when pressure is exceeded **and** the page is backgrounded | S | [C51][C52] |
+| pressure thresholds (per process) | Windows decoders `6`; ChromeOS `3`; macOS `24`; Android `4`; others `0` ("roughly 1/4th of the empirical lower limit at which we start getting errors") | S | [C53] |
+| frames not closed | console error: "A VideoFrame was garbage collected without being closed. Applications should call close() on frames when done with them to prevent stalls." | S | [C54] |
+| Android flush | the decoder is kept across `flush()` to work around "an issue with flushing on Android where the automatic call to Initialize() after Flush() destroys the codec; invalidating any unrendered output buffers" (crbug 474398415) | S | [C55] |
+| Android `isConfigSupported` with `prefer-hardware` | answered from `MediaCodecVideoDecoder::GetSupportedConfigs()`, which lists H.264/HEVC entries even for OS software codecs. "Supported" therefore does not guarantee a hardware codec on Android | S (code), D (consequence) | [C24][C31] |
+| MediaCodec instance count, GPU memory budget | U: no numeric limit found in the source read or in Chrome docs | — |
+| WebView-specific WebCodecs differences | U: none found in source read. chromestatus lists webview 94 for WebCodecs [C9]. WASM threads differ (BCD `false`) [C8] | — |
+
+### Workers, flags
+
+| item | label | src |
+|---|---|---|
+| `VideoDecoder`, `VideoFrame`: `Exposed=(Window,DedicatedWorker), SecureContext` | S | [C56] |
+| `ImageDecoder`: `Exposed=(Window,DedicatedWorker), SecureContext` | S | [C57] |
+| "WebCodecs API is only available in secure contexts, so detection will fail if self.isSecureContext is false." | S | [C58] |
+| MSE in a DedicatedWorker since 108 (chromestatus flag name `MediaSourceInWorkers`) | S | [C13][C6] |
+| `MediaSourceExtensionsForWebCodecs`: `status: "experimental"` in `runtime_enabled_features.json5`; command line `--enable-blink-features=MediaSourceExtensionsForWebCodecs` | S | [C59][C14] |
+| `--disable-accelerated-video-decode` (content switch; "used inside ChromeOS code to implement the DeviceHardwareVideoDecodingEnabled policy") | S | [C60] |
+| Linux: `--enable-features=AcceleratedVideoDecoder` / `--disable-features=AcceleratedVideoDecoder` (feature name of `kAcceleratedVideoDecodeLinux`) | D (standard `base::Feature` switch syntax applied to the name in [C21]) | [C21] |
+| Windows: `D3D12VideoDecoder` (disabled by default); Android: `AllowMediaCodecSoftwareDecoder` (disabled); all: `PlatformHEVCDecoderSupport` (enabled) | S (names and defaults as `BASE_FEATURE` declarations) | [C28][C22] |
+| ImageDecoder decodes only Blink's built-in image formats. The decoder directories at this commit are `avif`, `bmp`, `gif`, `ico`, `jpeg`, `jxl`, `png`, `webp`, so there is **no JPEG 2000 / HTJ2K** (WASM is needed) | S (listing), D (no J2K) | [C61][C10] |
+
+### Open bugs
+
+Issue tracker queries were run on 2026-11-10 with the tracker's own `status:open` / `status:closed` filters, so the
+status column reflects which filter returned the issue. Queries: `status:open componentid:1457007 <term>` for
+P010, "high bit depth", 10-bit, 12-bit, monochrome, copyTo, I420P10; plus unscoped `status:open WebCodecs …`.
+"monochrome", "4:0:0", "I420P10" and "dav1d 12-bit" returned nothing relevant.
+
+| id | title (as read) | status (by filter) | label | src |
+|---|---|---|---|---|
+| 570740224 | VideoDecoder.isConfigSupported() accepts VP9 codec strings whose bit depth or chroma subsampling contradicts the profile | open | S | [C62] |
+| 524008896 | VideoPixelFormat I444AP12 is not recognized | open | S | [C62] |
+| 422919705 | Incorrect chroma values in result of VideoFrame.copyTo() for uneven sized Video frames automation coverage needed for 409576884 | open | S | [C62] |
+| 409576884 | Incorrect chroma values in result of VideoFrame.copyTo() for uneven sized Video frames | closed | S | [C62] |
+| 40258906 | VideoDecoder shouldn't select the hardware decoder for interlaced content (or should support software fallback). | open | S | [C62] |
+| 471204163 | Mobile Chrome: WebCodecs VideoDecoder fails ("Decoder Failure") when decoding AV1 DataChannel stream approaches ~60 FPS; no actionable error detail | open | S | [C62] |
+| 425634684 | Make VideoFrame metadata match SharedImage metadata | open | S | [C62] |
+| 343014700 | GBR Video support (cited at the D3D 4:2:2/4:4:4 output branch) | open | S | [C62][C63] |
+| 40215121 | Implement HBD/HDR/WCG Decoding (cited at `ToOpaqueMediaPixelFormat` and the alpha readback TODO) | closed | S | [C62] |
+| 40267195 | Add pixel format conversion to VideoFrame.copyTo() | closed | S | [C62] |
+| 40225585 | WebCodecs VideoDecoder hardwareAcceleration "prefer-hardware" throws Unsupported configuration exception for certain video files | closed | S | [C62] |
+| 474398415 | When decoding a video, the last few frames are missing. (Android flush workaround, see §Limits) | closed | S | [C62] |
+| older ids in comments (1138680, 1214061, 1198324, 1311345, 897297, …) | not readable without signing in, or "does not exist" | — | U | [C63] |
+
+### Performance and resource guidance (Chrome's own docs)
+
+| guidance | label | src |
+|---|---|---|
+| Handle frames and chunks in a worker: "it is preferable to move handling of individual frames and encoded chunks into a web worker." | S | [C58] |
+| `VideoFrame` is transferable: "VideoFrame itself is transferable and may be moved between workers." | S | [C58] |
+| Close frames early: "Once a frame is no longer needed, call close() to release underlying memory before the garbage collector gets to it, this will reduce the average amount of memory used by the web application." | S | [C58] |
+| Return quickly from the decoder `output` callback: "It's better to make sure that the decoder output callback (handleFrame()) quickly returns." | S | [C58] |
+| Queue limit in the encoder sample: `if (encoder.encodeQueueSize > 2) {` drop the frame. The decode-side counterpart is `decodeQueueSize` plus the `dequeue` event (106) | S (sample), D (decode counterpart) | [C58][C2] |
+| Debug in DevTools: "Use the Media Panel in Chrome DevTools to view media logs and debug WebCodecs." The panel shows the chosen decoder name and whether it is a platform decoder (`kVideoDecoderName`, `kIsPlatformVideoDecoder`) | S | [C58][C64] |
+| Unclosed frames log a console error and can stall the decoder | S | [C54] |
+| Inactive hardware decoders in background tabs can be reclaimed after 90 s, so be ready to re-create the decoder on `QuotaExceededError` | D | [C51][C52] |
+
 ## WebKit
 
 This section covers Safari on macOS, iOS and iPadOS. Engine source is WebKit `main` pinned at commit
@@ -1075,6 +1261,75 @@ Every source read 2026-11-10 unless its row says otherwise; ids are prefixed by 
 | F133 | https://wicg.github.io/video-rvfc/#introduction | 2026-11-10 | "Best effort in this case means that, even with a normal work load, a callback can occasionally be fired one v-sync late, relative to when the new video frame was presented." / "if there is a heavy load on the main thread, we might not get a callback for every frame (as measured by a discontinuity in the presentedFrames)." |
 | F134 | https://wicg.github.io/video-rvfc/#procedures | 2026-11-10 | "a 25fps video playing in a browser that paints at 60Hz would fire callbacks at 25Hz; a 120fps video in that same 60Hz browser would fire callbacks at 60Hz." / "There are no strict timing guarantees when it comes to how soon callbacks are run after a new video frame has been presented." |
 | F135 | https://html.spec.whatwg.org/multipage/canvas.html#check-the-usability-of-the-image-argument | 2026-11-10 | "If image's readyState attribute is either HAVE_NOTHING or HAVE_METADATA, then return bad." |
+
+### C
+
+| id | URL | read | verbatim quote |
+|---|---|---|---|
+| C1 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/api/VideoDecoder.json | 2026-11-10 | `"chrome": { "version_added": "94" }, "chrome_android": "mirror", "edge": "mirror", … "opera": "mirror", … "samsunginternet_android": "mirror", "webview_android": "mirror"` (same for `isConfigSupported_static`, `decodeQueueSize`) |
+| C2 | same file | 2026-11-10 | `dequeue_event`: `"chrome": { "version_added": "106" }`; `configure.flip_option`: `"chrome": { "version_added": "138" }` |
+| C3 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/api/VideoFrame.json | 2026-11-10 | `copyTo`: `"chrome": { "version_added": "94" }`; `copyTo.format_property`: `"description": "\`format\` property" … "chrome": { "version_added": "127" }`; `metadata`: `"version_added": "145"` |
+| C4 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/api/EncodedVideoChunk.json and …/api/ImageDecoder.json | 2026-11-10 | `"chrome": { "version_added": "94" }` (both; `isTypeSupported_static` 94) |
+| C5 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/api/HTMLVideoElement.json and …/api/MediaCapabilities.json | 2026-11-10 | `requestVideoFrameCallback`: `"version_added": "83"`; `decodingInfo`: `"version_added": "66", "notes": ["\`codecs\` string can contain any subset of optional parameters (should be all or none).", "Errors if \`codecs\` string contains unexpected characters (should evaluate string up to character)."]` |
+| C6 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/api/ManagedMediaSource.json and …/api/MediaSource.json | 2026-11-10 | ManagedMediaSource: `"chrome": { "version_added": false }`; MediaSource `worker_support`: `"chrome": { "version_added": "108" }` |
+| C7 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/webassembly/api.json and …/webassembly/fixed-width-SIMD.json, relaxed-SIMD.json, memory64.json, bulk-memory-operations.json | 2026-11-10 | api: `"chrome": {"version_added":"57"}`, `"edge": {"version_added":"16"}`; `"91"`, `"114"`, `"133"`, `"75"` respectively |
+| C8 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/webassembly/threads-and-atomics.json | 2026-11-10 | `"chrome": { "version_added": "74" }, "chrome_android": { "version_added": "88" }, "edge": "mirror", … "webview_android": { "version_added": false }` |
+| C9 | https://chromestatus.com/api/v0/features/5669293909868544 | 2026-11-10 | `"summary": "Provides efficient, low-level access to built-in (software and hardware) media encoders and decoders."`, `"desktop": 94, "android": 94, "webview": 94` |
+| C10 | https://chromestatus.com/api/v0/features/4561928577875968 | 2026-11-10 | `"all_platforms_descr": "Reuses existing internal image decoders already available."`, `"desktop": 94, "android": 94, "webview": 94` |
+| C11 | https://chromestatus.com/api/v0/features/5186511939567616 | 2026-11-10 | "Enables support for decoding HEVC video on platforms where hardware (e.g., GPU, media accelerator, etc) for decoding HEVC is available (Android 5.0+, macOS 11+, with supported hardware on Windows 8+ and ChromeOS)." `"desktop": 107` |
+| C12 | https://chromestatus.com/api/v0/features/4668827056209920 | 2026-11-10 | "Specifying VideoFrameCopyToOptions.format and VideoFrameCopyToOptions.colorSpace make it possible to convert frames to RGB pixel format"; `"text": "In developer trial (Behind a flag)", … "desktop": 127, "android": 127, "webview": null` |
+| C13 | https://chromestatus.com/api/v0/features/5177263249162240 | 2026-11-10 | "MSE-in-Workers has since been relaunched on-by-default in M108 beginning with 108.0.5334.0."; `"flag_name": "MediaSourceInWorkers"` |
+| C14 | https://chromestatus.com/api/v0/features/5649291471224832 | 2026-11-10 | `"flag_name": "--enable-blink-features=MediaSourceExtensionsForWebCodecs"`, `"text": "Origin trial"` |
+| C15 | https://chromestatus.com/api/v0/features/5078348864159744 | 2026-11-10 | "This feature adds support for using a VideoFrame as the source for a GPUExternalTexture and a copyExternalImageToTexture call." `"text": "Origin trial"` |
+| C16 | https://chromestatus.com/api/v0/features/6335927192387584 | 2026-11-10 | `"desktop": 83, "android": 83, "webview": null` |
+| C17 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/renderers/default_decoder_factory.cc | 2026-11-10 | "Prefer an external decoder since one will only exist if it is hardware accelerated."; then `OffloadingVpxVideoDecoder`, `OffloadingDav1dVideoDecoder`, `OffloadingDav2dVideoDecoder` (if `kDav2dVideoDecoder`), `FFmpegVideoDecoder` |
+| C18 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/media_options.gni | 2026-11-10 | `enable_dav1d_decoder = use_blink`; `enable_av1_decoder = enable_dav1d_decoder`; `enable_ffmpeg_video_decoders = media_use_ffmpeg && (!is_android \|\| current_cpu != "arm")`; `enable_hevc_parser_and_hw_decoder = proprietary_codecs && (use_fuzzing_engine \|\| is_win \|\| is_apple \|\| is_android \|\| is_linux)` |
+| C19 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/DEPS and …/third_party/dav1d/README.chromium | 2026-11-10 | `'src/third_party/dav1d/libdav1d': Var('chromium_git') + '/external/github.com/videolan/dav1d.git' + '@' + '4e3ab21fbbf84a4bd283ea27f96287fcd7c228c1'`; README: "Version: master" |
+| C20 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/base/supported_types.cc | 2026-11-10 | `IsDecoderBuiltInVideoCodec`: `if (codec == VideoCodec::kVP8 \|\| codec == VideoCodec::kVP9) { return true; }` …; VP9: "High bit depth capabilities may be toggled via LibVPX config flags." `case VP9PROFILE_PROFILE2: case VP9PROFILE_PROFILE3: return vpx_supports_hbd;` |
+| C21 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/mojo/services/gpu_mojo_media_client_linux.cc, …/gpu_mojo_media_client_cros.cc, …/media/base/media_switches.cc | 2026-11-10 | "VaapiVideoDecoder flag is required for VaapiVideoDecoder."; cros: `case VideoDecoderType::kVaapi: case VideoDecoderType::kV4L2: { … MailboxVideoFrameConverter::Create(`; switches: `BASE_FEATURE(kAcceleratedVideoDecodeLinux, "AcceleratedVideoDecoder", #if BUILDFLAG(USE_VAAPI) base::FEATURE_ENABLED_BY_DEFAULT);` |
+| C22 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/mojo/services/gpu_mojo_media_client_win.cc | 2026-11-10 | `return D3DVideoDecoder::Create(`; `if (base::FeatureList::IsEnabled(kD3D12VideoDecoder)) {` |
+| C23 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/gpu/mac/video_toolbox_video_decoder.cc (and gpu_mojo_media_client_mac.cc) | 2026-11-10 | `constexpr gfx::Size kLegacyMaxSize(4096, 4096); constexpr gfx::Size kModernMaxSize(8192, 8192);`; AV1 `/*profile_min=*/AV1PROFILE_PROFILE_MAIN, /*profile_max=*/AV1PROFILE_PROFILE_MAIN`; "HEVC hardware decoding is limited to kMinSize, but because we allow the OS software decoder we report the minimum possible HEVC encode size." |
+| C24 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/gpu/android/media_codec_video_decoder.cc (and gpu_mojo_media_client_android.cc) | 2026-11-10 | "Don't allow OS software decoding for bundled software decoders unless the content is encrypted."; "Prioritize hardware decoder. Software decoder will be selected as a fallback option."; `return MediaCodecVideoDecoder::GetSupportedConfigs();` |
+| C25 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/libvpx/README.chromium | 2026-11-10 | "Revision: fb0a26ad923b58c3663aaa9523992cf779b1563b"; "CPEPrefix: cpe:/a:webmproject:libvpx:1.17.0" |
+| C26 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/filters/vpx_video_decoder.cc | 2026-11-10 | `if (config.codec() != VideoCodec::kVP8 && config.codec() != VideoCodec::kVP9) return false;` |
+| C27 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/filters/ffmpeg_video_decoder.cc | 2026-11-10 | "We only build support for H.264." `return codec == VideoCodec::kH264 && IsDecoderBuiltInVideoCodec(codec);` |
+| C28 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/base/media_switches.cc | 2026-11-10 | `BASE_FEATURE(kPlatformHEVCDecoderSupport, base::FEATURE_ENABLED_BY_DEFAULT);` `BASE_FEATURE(kAllowMediaCodecSoftwareDecoder, base::FEATURE_DISABLED_BY_DEFAULT);` `BASE_FEATURE(kD3D12VideoDecoder, base::FEATURE_DISABLED_BY_DEFAULT);` |
+| C29 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/gpu/args.gni | 2026-11-10 | `use_vaapi = is_linux && !is_castos && (ozone_platform_x11 \|\| ozone_platform_wayland) && (target_cpu == "x86" \|\| target_cpu == "x64" \|\| target_cpu == "arm64")` |
+| C30 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/modules/webcodecs/video_decoder_broker.cc | 2026-11-10 | `if (hardware_preference_ != HardwarePreference::kPreferSoftware) {` … `if (hardware_preference_ == HardwarePreference::kPreferHardware) { decoder_factory_ = std::move(external_decoder_factory); return; }` |
+| C31 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/modules/webcodecs/video_decoder.cc | 2026-11-10 | `if ((hw_pref == HardwarePreference::kPreferSoftware && !media::IsDecoderBuiltInVideoCodec(video_type->codec)) \|\| !media::IsDecoderSupportedVideoType(*video_type)) { support->setSupported(false);`; "If hardware is preferred, asynchronously check for a hardware decoder."; "Otherwise, the config is supported." |
+| C32 | same file | 2026-11-10 | "This configuration is only supported by the software decoder."; "Guess 720p if no coded size hint is provided. This choice should result in a preference for hardware decode." |
+| C33 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/base/supported_types.cc | 2026-11-10 | `#elif BUILDFLAG(IS_ANDROID) return base::android::android_info::sdk_int() >= base::android::android_info::SDK_VERSION_Q &&` |
+| C34 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/modules/webcodecs/video_pixel_format.idl | 2026-11-10 | `"I420", "I420P10", "I420P12",` … `"NV12",` … `"BGRX",` |
+| C35 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/filters/davxd_video_decoder_base.cc (and dav1d_video_decoder.cc) | 2026-11-10 | "Single plane monochrome images will be converted to standard 3 plane ones since Chromium doesn't support single Y plane images." `case 10: return PIXEL_FORMAT_YUV420P10; case 12: return PIXEL_FORMAT_YUV420P12;`; dav1d: `s.frame_size_limit = limits::kMaxCanvas;` |
+| C36 | same file as C35 | 2026-11-10 | `const uint16_t kBlankUV = (1 << bit_depth) / 2;`; `constexpr uint8_t kBlankUV = 256 / 2;` |
+| C37 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/dav1d/BUILD.gn and …/third_party/dav1d/config/linux/x64/config.h | 2026-11-10 | `static_library("dav1d_10bit") {` … `cflags += [ "-DBITDEPTH=16" ]`; `#define CONFIG_16BPC 1` |
+| C38 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/filters/vpx_video_decoder.cc | 2026-11-10 | `case VPX_IMG_FMT_I42016: switch (vpx_image->bit_depth) { case 10: … PIXEL_FORMAT_YUV420P10; break; case 12: codec_format = PIXEL_FORMAT_YUV420P12;` |
+| C39 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/ffmpeg/ffmpeg_common.cc | 2026-11-10 | `case AV_PIX_FMT_GBRP: return PIXEL_FORMAT_I444;` … `case AV_PIX_FMT_YUV420P12LE: return PIXEL_FORMAT_YUV420P12;` … "FFmpeg knows more pixel formats than Chromium cares about." |
+| C40 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/gpu/windows/d3d11_texture_selector.cc | 2026-11-10 | `case DXGI_FORMAT_P010: case DXGI_FORMAT_P016: {` … "If device support P010 zero copy, then try P010 firstly." `output_pixel_format = PIXEL_FORMAT_P010LE;` |
+| C41 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/gpu/android/video_frame_factory_impl.cc | 2026-11-10 | "Since we create all the textures/abstract textures as well as shared images for video to be of format RGBA, we need to use the pixel format as ABGR here(which corresponds to 32bpp RGBA)." `VideoPixelFormat pixel_format = PIXEL_FORMAT_ABGR;` |
+| C42 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/gpu/mac/video_toolbox_frame_converter.cc | 2026-11-10 | `OSType pixel_format = IOSurfaceGetPixelFormat(handle.io_surface().get());` `gfx::IOSurfacePixelFormatToSharedImageFormat(pixel_format);` |
+| C43 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/modules/webcodecs/video_frame.cc | 2026-11-10 | "Readback is not supported for high bit-depth formats." `if (!mappable && frame.BitDepth() != 8u) { return std::nullopt; }`; "Externally-sampled frames can be read back as YUV (NV12/I420) or RGB." `return media::PIXEL_FORMAT_XRGB;`; "Operation is not supported when format is null." |
+| C44 | same file | 2026-11-10 | `bool IsFormatEnabled(media::VideoPixelFormat fmt) { switch (fmt) { case media::PIXEL_FORMAT_I420:` … `case media::PIXEL_FORMAT_YUV444AP10: return true; default: return false;` (no `PIXEL_FORMAT_P010LE`) |
+| C45 | same file | 2026-11-10 | "copyTo() doesn't support explicit copy to non-RGB formats. Remove format parameter to use VideoFrame's pixel format."; "This pixel conversion to this color space is not supported." |
+| C46 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/base/limits.h | 2026-11-10 | `inline constexpr int kMaxDimension = (1 << 15) - 1;  // 32767`; `inline constexpr int kMaxCanvas = (1 << 29) - 1;  // 23170 x 23170`; `kMaxVideoDecodeThreads = 16;` |
+| C47 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/media/gpu/windows/supported_profile_helpers.cc | 2026-11-10 | `constexpr gfx::Size kMinResolution(64, 64); constexpr gfx::Size kMinVP9ResolutionForNvidia(128, 128); constexpr gfx::Size kMinAV1ResolutionForNvidia(128, 128); constexpr gfx::Size kMinHEVCResolutionForNvidia(144, 144); constexpr gfx::Size kMinResolutionForQualcomm(96, 96);` |
+| C48 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/modules/webcodecs/decoder_template.cc | 2026-11-10 | `uint32_t DecoderTemplate<Traits>::decodeQueueSize() { return num_pending_decodes_; }`; `pending_decodes_.size() + 1 > static_cast<size_t>(Traits::GetMaxDecodeRequests(*decoder()))` |
+| C49 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/modules/webcodecs/video_decoder_broker.cc | 2026-11-10 | `return decoder_details_ ? decoder_details_->max_decode_requests : 1;` |
+| C50 | same file as C48 | 2026-11-10 | "Unexpectedly ran out of decoders during initialize after flush. Close all pending frames and try again."; "Decoder initialization failed, too many decoders in use." |
+| C51 | same file as C48 | 2026-11-10 | `if (decoder()->IsPlatformDecoder()) ApplyCodecPressure(); else ReleaseCodecPressure();` |
+| C52 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/modules/webcodecs/reclaimable_codec.h and reclaimable_codec.cc | 2026-11-10 | "Use 1.5 minutes since some RDP clients are only ticking at 1 FPM." `base::Seconds(90)`; `return is_applying_pressure_ && global_pressure_exceeded_ && is_backgrounded_;` |
+| C53 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/modules/webcodecs/codec_pressure_gauge.cc | 2026-11-10 | "These numbers were picked as roughly 1/4th of the empirical lower limit at which we start getting errors when allocating new codecs." `constexpr int kDecoderPressureThreshold = 6;` … `#elif BUILDFLAG(IS_ANDROID) constexpr int kSharedPressureThreshold = 4;` |
+| C54 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/modules/webcodecs/webcodecs_logger.cc | 2026-11-10 | "A VideoFrame was garbage collected without being closed. Applications should call close() on frames when done with them to prevent stalls." |
+| C55 | same file as C49 | 2026-11-10 | "This also works around an issue with flushing on Android where the automatic call to Initialize() after Flush() destroys the codec; invalidating any unrendered output buffers. See https://crbug.com/474398415" |
+| C56 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/modules/webcodecs/video_decoder.idl and video_frame.idl | 2026-11-10 | `Exposed=(Window,DedicatedWorker), SecureContext,` |
+| C57 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/modules/webcodecs/image_decoder.idl | 2026-11-10 | `Exposed=(Window,DedicatedWorker), SecureContext, ImplementedAs=ImageDecoderExternal,` |
+| C58 | https://developer.chrome.com/docs/web-platform/best-practices/webcodecs (page "Last updated 2025-01-22 UTC") | 2026-11-10 | "it is preferable to move handling of individual frames and encoded chunks into a web worker."; "Once a frame is no longer needed, call close() to release underlying memory before the garbage collector gets to it"; `if (encoder.encodeQueueSize > 2) {`; "WebCodecs API is only available in secure contexts, so detection will fail if self.isSecureContext is false." |
+| C59 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/platform/runtime_enabled_features.json5 | 2026-11-10 | `name: "MediaSourceExtensionsForWebCodecs", status: "experimental", base_feature: "none", origin_trial_feature_name: "MediaSourceExtensionsForWebCodecs",` |
+| C60 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/content/public/common/content_switches.cc | 2026-11-10 | "Warning: do not remove or rename this flag, as it is used inside ChromeOS code to implement the DeviceHardwareVideoDecodingEnabled policy." `"disable-accelerated-video-decode"` |
+| C61 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/platform/image-decoders/?format=JSON | 2026-11-10 | directory entries: `avif`, `bmp`, `gif`, `ico`, `jpeg`, `jxl`, `png`, `skia`, `testing`, `webp` |
+| C62 | https://issues.chromium.org/action/issues/list (POST, query strings as in §Open bugs) and https://issues.chromium.org/issues/<id> | 2026-11-10 | titles as listed in the table, e.g. "VideoPixelFormat I444AP12 is not recognized"; "Implement HBD/HDR/WCG Decoding" |
+| C63 | https://issues.chromium.org/action/issues/343014700 and …/action/issues/1311345 | 2026-11-10 | "GBR Video support"; for old ids: "Unsigned-in user does not have permission to view issue 1311345." / "Issue 1138680 does not exist." |
+| C64 | same file as C31 | 2026-11-10 | `media_log->SetProperty<media::MediaLogProperty::kVideoDecoderName>(decoder.GetDecoderType()); media_log->SetProperty<media::MediaLogProperty::kIsPlatformVideoDecoder>(decoder.IsPlatformDecoder());` |
 
 ### K
 
