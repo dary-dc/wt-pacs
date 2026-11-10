@@ -965,3 +965,358 @@ the protocol's.*
 * **Fixtures and their limits.** `dbts_b1`'s middle 32 slices: one volume of system B, cut for time, its G 32 the
   whole cut. The three clips came from lossy video and support no verdict. No lossless breast ultrasound cine or ABUS
   exists among the fixtures.
+
+## Settings amendment, pre-registered
+
+*Row GROUPS-SETTINGS-PROTOCOL, written 2026-11-10 before anything in it ran. Theory and protocol only: nothing was
+encoded, decoded or timed for it. Every number in §S1–§S3 is quoted from a row already measured (named at each use),
+from libaom's source, or is labelled *derived*. It amends the protocol above and changes nothing in it or in the
+measured sections: a separate session runs §Settings shards from this section alone and reports every cell,
+including those that miss.*
+
+1. **Asked:** every G result so far used low-delay settings (`--lag-in-frames=0 --auto-alt-ref=0`: no lookahead, no
+   alt-ref frames, no temporal filter). Do they hide a saving at **equal quality as the quality line measures it**
+   (the noise anchor e_N/σ ≤ 1, not equal PSNR), and what would the alternative cost to decode in display order
+   through the product's routes?
+2. **Answer, as theory:** the filter is the only setting that can change the answer, and at the anchor it should cost
+   bytes rather than save them. In libaom 3.15.1 its weight strengthens 28–64-fold in its exponent from Q 4 to
+   Q 16 (§S2.2), so the filtered arms lose the source's noise at a lower Q than O does and reach e_N/σ = 1 sooner:
+   shard 1 shows exactly that on `dbts_b1` (§S1). An alt-ref with the filter off keeps the noise, and so it should
+   behave like O at G 16.
+3. **The numbers that decide it:** bytes interpolated at worst-frame e_N/σ = 1.00 on an integer-Q ladder, for O at
+   G 1, 8, 16 and 32 against four lookahead arms (two of them new), on the three DBT volumes, A and C coded by the
+   product's depth cut; a noise-retention guard; and in-order decode per frame through WebCodecs at 10 bits and
+   dav1d-WASM.
+4. **It rests on** `dbts_a1`, `dbts_b1` (slices 9–40), `dbts_c1`; libaom 3.15.1 at speed 6; the quality study's
+   `measure()`; the groups code (`lab/av1/groups/`) at its shard 1 state; one 4-core cloud host.
+5. **Left open:** readers (visual losslessness); other DBT systems and datasets; breast ultrasound cine and ABUS
+   (no lossless fixture); hardware decoders and phones; other speeds, tunes, two-pass (encoder settings §9 T3–T8).
+
+### S1 · What is already measured, and the gap
+
+From shard 1 (`dbts_b1` slices 9–40, §Groups shard 1, measured): at equal in-window PSNR the filtered alt-ref arms
+save 4.9–6.3 % against O G 1 (ε 0.76 %); at the noise anchor they save nothing, because they cross e_N/σ = 1
+between Q 8 (worst frame 0.968–0.982) and Q 10 (1.019–1.026) while O G 1 crosses at Q 12 (0.999). Interpolated in
+ln bytes between those rungs (*derived*, linear in worst-frame e_N/σ, from that section's rows): AT G 16 reaches
+1.00 at about 7.7 MB, O G 1 at about 6.9 MB, O G 16 at about 6.7 MB. So on this one volume the filtered arm costs
+about **+12 %** at the anchor and O G 16 saves about **3 %**, on a ladder too coarse (two Q a rung) to resolve either.
+
+What the protocol above leaves untested (encoder settings §9, `claude/av1-encoder-settings:docs/av1/encoder-settings.md`):
+
+* **an alt-ref without the filter**, which separates "lookahead and hidden frames" from "temporal denoising";
+* **the filter's strength** (T2); libaom's full default, which pairs TPL with **objective delta-q** (T1);
+* **alt-ref at G 8**, where a group caps how many frames the filter may average;
+* **the product's form for D > 10**: systems A and C coded by the depth cut at 10 bits, so that WebCodecs, the
+  product's route, can be timed on them (the protocol gives A and C no WebCodecs claim, §6.5);
+* **equal quality by the quality line's own metric**, on a ladder fine enough to resolve it.
+
+### S2 · Theory
+
+**S2.1 What an alt-ref is for.** The AV1 overview by libaom's authors [H]: an encoder may "synthesize a frame that
+can potentially reduce the collective prediction errors among several display frames. One example is to apply
+temporal filtering along the motion trajectories of consecutive original frames to build an ARF, which retains the
+common information with the acquisition noise on each individual frame largely removed. The encoder typically uses
+a relatively lower quantization step size to code the common information (i.e., ARF)". And its cost: "this results
+in an additional frame for decoders to process" [H §II.B]. On DBT the "acquisition noise" is the patient's image
+noise that the noise anchor is defined to keep (quality study §Terms), so the tool's purpose and the view's contract
+point in opposite directions (*derived*).
+
+**S2.2 How hard libaom's filter averages** (`av1/encoder/temporal_filter.c`, quoted; [L1] at the pin). Each 64 × 64
+block of the frame to filter is matched by motion search in each neighbour and averaged with weight
+`exp(-scaled_error) * TF_WEIGHT_SCALE`, where `scaled_error = combined_error * d_factor[subblock_idx] *
+decay_factor[plane]` and `decay_factor[plane] = 1 / (n_decay * q_decay * s_decay)` (`:943-948`, `:842`); the
+frame being filtered enters with the fixed weight `TF_WEIGHT_SCALE` (1000, `:679`). Then:
+
+* **q:** `double q_decay = pow((double)q_factor / TF_Q_DECAY_THRESHOLD, 2); q_decay = CLIP(q_decay, 1e-5, 1);`
+  (`:829-830`), with `#define TF_Q_DECAY_THRESHOLD 20` and its comment "when using a small q (high bitrate), we
+  would like to reduce the filtering strength such that more detailed information can be preserved"
+  (`temporal_filter.h:53-58`). In Q mode `q_factor` is `av1_convert_qindex_to_q(cq_level, bit_depth)` (`:173-176`),
+  the AC step ÷ 16 at 10 bits and ÷ 64 at 12 (`ratectrl.c:199-205`). From the AC tables (*derived*): q_factor is
+  3, 5, 7, 9, 12, 16 at Q 4, 6, 8, 10, 12, 16 (10-bit), so q_decay is 0.023, 0.063, 0.12, 0.20, 0.36, 0.64. The
+  exponent's scale therefore grows about 28× from Q 4 to Q 16 at 10 bits (about 64× at 12 bits, where Q 4 gives
+  q_factor 2), and it is constant only from Q ≈ 20 up. **The filter is weak at Q 4 and strong at Q 12–16: exactly
+  across the VL interval.**
+* **strength:** `double s_decay = pow((double)filter_strength / TF_STRENGTH_THRESHOLD, 2); s_decay = CLIP(s_decay,
+  1e-5, 1);` (`:837-838`) with `#define TF_STRENGTH_THRESHOLD 4`. So `--arnr-strength` 4, 5 (the default) and 6 all
+  give s_decay = 1, and **they should code identical streams** (*derived*; `arnr_strength` is read nowhere else in
+  `av1/encoder/`, checked by `grep`). Strength 2 gives 0.25, a filter four times weaker in its exponent. Strength 0
+  gives 1e-5: `scaled_error` hits its cap of 7, so every neighbour's weight is exp(−7) × 1000 ≈ 0.9, truncated to 0
+  or rounded to 1 by the approximate path, against the frame's own 1000. With the default `--arnr-maxframes` 7 plus libaom's adjustment of up to 6
+  (`:1335-1375`), at most 12 neighbours: **the filtered frame is the source frame** to within 1.2 % of its weight
+  (*derived*). That is the unfiltered
+  alt-ref of §S4.
+* **noise:** `const double n_decay = 0.5 + log(2 * noise_levels[plane] + 5.0);` "Larger noise -> larger filtering
+  weight." (`:840-841`).
+* **frames:** "Temporal filtering should not go beyond key frames" (`:1276`); `int num_frames =
+  AOMMAX(cpi->oxcf.algo_cfg.arnr_max_frames, 1);` (`:1270`), then adjusted by noise level and by the alt-ref's boost
+  (`:1335-1375`). So at **G 8 a keyframe-bounded group lets the filter average at most 8 frames**, and at G 1 none
+  (*derived*).
+* **what is shown:** a filtered alt-ref is shown directly, with no overlay coding the real frame, when
+  `mean < threshold && std < mean * 1.2` with `threshold = 0.7f * ac_q_step * ac_q_step` (`:1607-1609`), or always
+  if `!enable_overlay` (`:1594`). `--enable-overlay` defaults to 1 (`av1_cx_iface.c:360`). The shown frame is then
+  the filtered one where libaom judges the filter's change smaller than the quantizer's.
+
+**S2.3 What a filtered reference does to inter coding of a noisy, slowly changing volume.** The protocol's §2.2 gives
+the inter residual's noise term on a band as σ_b²[1 + (1 − κ_b) − 2ρ_b√(1 − κ_b)], with 1 − κ_b the share of the
+band's noise the reference still holds. A filtered alt-ref lowers 1 − κ_b on its own reference: averaging N frames
+of independent noise with weights w_i leaves the noise variance σ²·Σw_i²/(Σw_i)², σ²/N when equal (*derived*,
+elementary). Frames predicted from it pay σ_b² for their own noise either way and gain only on what neighbours
+share: structure (§2.5's bound s · e). On DBT the structure does not hold still: features finer than a slice's
+depth blur change from slice to slice (§2.3), so the average also blurs the shared structure in depth, and the
+motion search cannot undo that, because the change is not a motion (*derived*). The prediction is that the filtered
+arms buy their bytes from noise removal, which the anchor counts as error.
+
+**S2.4 What that predicts for bytes at equal quality.** e_N is the coding error in the Laplacian band; deleting the
+band's noise outright reads e_N = σ (audit F4, `claude/av1-audit-quality:docs/av1/audit-quality.md`). A shown
+filtered frame (a directly shown alt-ref, or a filtered keyframe) carries less of its noise than O's frame at the
+same Q, so its e_N is higher, and the q-dependence of S2.2 makes that gap grow with Q. At the anchor the filtered
+arms must therefore sit at a lower Q than O, where every frame costs more; the frames they save on are the
+predicted ones, at most s · e of the bytes (§2.5). Net: **filtered arms cost more than O G 1 at e_N/σ = 1**, by an
+amount that grows with σ (more noise, stronger filter) and so should be largest on A and C (σ 10–18) and smallest
+on B (σ 3.4–5.7). The unfiltered alt-ref keeps every reference's noise, so §2.2 makes it behave like O at the same
+G: hidden frames and a pyramid, but nothing that inter can use on noise (*derived*). Objective delta-q lowers q on
+the superblocks of alt-refs that many frames reference ("Note objective delta_q and tpl eligible frames are only
+altref frames currently", `encodeframe.c:2339-2340`): finer steps on a filtered frame, which spends bytes where the
+filter already removed the noise. Its sign at the anchor is not predicted by this theory beyond "small".
+
+**S2.5 What it predicts for decode in display order.** Every temporal unit holds one shown frame ([A1]), so the
+product's in-order model holds (§2.4). The work moves: the unit after a keyframe carries the alt-ref and internal
+alt-refs, and a `show_existing_frame` unit decodes nothing new. On shard 1's `dbts_b1` alt-ref streams, 12 hidden
+frames and 9 shown-existing units in 32 frames, i.e. 35 coded frames for 32 shown (*derived* from §Groups shard 1's
+table). The mean per shown frame should move little (fewer bits a frame against 9 % more frames), the slowest
+frame a lot (shard 1: slowest ÷ median 3.4–5.2 on dav1d-WASM at Q 8). A lower matched Q for the filtered arms
+means more bits a frame, so at equal quality their mean should rise, not fall (*derived*). [H] notes the same
+cost from the decoder's side: levels bound "the total number of samples in both displayable frames and ARFs that
+will not be used as a 'show existing frame'".
+
+### S3 · Predictions
+
+Written before any run; each is decided by the collector (§S7) using its refutation clause exactly as written.
+"Anchor bytes" is B₁ of §S6; "saving" is 1 − B₁(arm) ÷ B₁(O G 1) on the same volume.
+
+| # | prediction | refuted if |
+| --- | --- | --- |
+| **Q1** strength saturates | AT at `--arnr-strength` 4 and 6 is byte-identical to AT (strength 5) at Q 8, G 16 on every volume | any byte differs |
+| **Q2** G 1 has no lookahead tool | AT and AF at G 1 are byte-identical to O G 1 at Q 8 on every volume | any byte differs |
+| **Q3** the filter costs at the anchor | AT, AD and AF at G 16: saving in −30 … 0 % on every volume, most negative on A or C | any of them saves > ε on any volume |
+| **Q4** the filter saves at equal PSNR | AT, AD, AF at G 16: in-window PSNR BD-rate against O G 1 over the curves' overlap, −12 … −3 % on every volume | outside that range on any volume |
+| **Q5** unfiltered alt-ref ≈ O | AU G 16's saving within ±3 points of O G 16's on every volume; its worst-frame e_N/σ at Q 8 within ±0.03 of O G 16's | outside either on any volume |
+| **Q6** strength orders the arms | at Q 8, G 16 on every volume, ν (§S6) and anchor bytes order AU ≥ AW ≥ AT for ν and AU ≤ AW ≤ AT for bytes, each step larger than ε for bytes or 0.01 for ν | any pair out of order by more than those margins |
+| **Q7** the group caps the filter | AT G 8's saving lies between O G 8's and AT G 16's (within ε) on every volume; at Q 8 its ν is ≥ AT G 16's | outside on any volume |
+| **Q8** G alone, at the anchor | O G 8, 16, 32 savings in −1 … +6 % on B and −2 … +3 % on A and C; G 32 within 1 point of G 16 | outside on any volume |
+| **Q9** delta-q is small | AF G 16 within ±3 % of AD G 16 in bytes at every rung, and their anchor bytes within ±3 % | outside either |
+| **Q10** the depth cut costs little | on A and C: O G 1 at Q 0 on the cut form reads worst-frame e_N/σ ≤ 0.12 (its rounding alone, below); and its B₁ is within ±10 % of the full-depth O G 1's B₁ interpolated from the quality study's rows at Q 4, 8, 12 (`claude/av1-quality-metrics:lab/av1/metrics/rows/`; coarse, hence ±10 %) | either fails on either volume |
+| **Q11** decode in order, WebCodecs at 10 bits | at each stream's matched rung, mean per shown frame ÷ O G 1's: O G 8, 16 in 0.85–1.25; AT, AF, AU G 16 in 0.85–1.35; slowest ÷ median ≥ 2 for every alt-ref stream and ≤ 1.6 for O | any ratio outside its range |
+| **Q12** decode, dav1d-WASM | the same ratios in 0.8–1.4, slowest ÷ median ≥ 2 for alt-ref streams | outside |
+
+ν: σ_out ÷ σ of §S6. Q3 is the owner's question; Q4–Q7 say why; Q1, Q2, Q9, Q10 check the theory's reading of
+the source; Q11–Q12 are the decode cost. The ranges in Q3, Q8 and Q11 are wide on purpose: shard 1 is one volume,
+and the theory gives signs and orders, not sizes.
+
+### S4 · Arms
+
+Each arm is the protocol's base (§5) at `--cpu-used=6`, q pinned (`--min-q=Q --max-q=Q`, the view's one step),
+`--deltaq-mode=0` unless stated, `--enable-overlay` and `--arnr-maxframes` at libaom's defaults (1 and 7), built by
+`lab/av1/groups/arms.py`:
+
+| arm | flags over the base | what it isolates | in the protocol |
+| --- | --- | --- | --- |
+| **O** | `--lag-in-frames=0 --auto-alt-ref=0` | the settings used so far | yes |
+| **AT** | `--lag-in-frames=39 --auto-alt-ref=1 --enable-tpl-model=1 --enable-keyframe-filtering=0` | filtered alt-ref with TPL | yes |
+| **AD** | AT with `--enable-keyframe-filtering=1` | + filtered keyframes | yes |
+| **AF** | AD with `--deltaq-mode=1` | libaom's full default for all five knobs (T1) | new |
+| **AU** | AT with `--arnr-strength=0` | alt-ref and lookahead, filter off (S2.2) | new |
+| **AW** | AT with `--arnr-strength=2` | a filter four times weaker in its exponent (T2) | new |
+
+**The flags this amendment sets or varies,** verbatim from `av1/arg_defs.c` [L1] with libaom's default
+(`av1_cx_iface.c`, `default_extra_cfg`) and what each does here:
+
+| flag | help text (line) | default (line) | what it does here |
+| --- | --- | --- | --- |
+| `--lag-in-frames` | "Max number of frames to lag" (224) | `35` raised to 39 in good mode (§5) | 0: no filter, no TPL (§2.4); 39: one 32-frame group of lookahead |
+| `--auto-alt-ref` | "Enable automatic alt reference frames" (300) | `1` (257) | hidden alt-ref frames |
+| `--enable-tpl-model` | "RDO based on frame temporal dependency (0: off, 1: backward source based); required for --deltaq-mode=1" (330-333) | `1` (268) | needed by AF; inert at lag 0 |
+| `--enable-keyframe-filtering` | "Apply temporal filtering on key frame (0: no filter, 1: filter without overlay (default), 2: filter with overlay - experimental, may break random access in players)" (334-339) | `1` (269) | AD, AF: the shown keyframe is a filtered frame |
+| `--deltaq-mode` | "Delta qindex mode (0: off, 1: deltaq objective (default), 2: deltaq placeholder, 3: key frame visual quality, 4: user rating based visual quality optimization, 5: HDR video, 6: Variance Boost); --deltaq-mode=1 requires --enable-tpl-model=1" (560-564) | `DELTA_Q_OBJECTIVE` (305) | AF: per-superblock q on alt-refs, inside the pinned frame q (whether min/max q bound the deltas is *unverified*; Q9 and the q-hist check read it) |
+| `--arnr-strength` | "AltRef filter strength (0..6)" (304) | `5` (271) | AU 0, AW 2, the rest 5 (S2.2) |
+| `--arnr-maxframes` | "AltRef max frames (0..15)" (302) | `7` (270) | not varied; stated |
+| `--enable-overlay` | "Enable coding overlay frames (0: false, 1: true (default))" (454-455) | `1` (360) | not varied: a filtered alt-ref is shown directly only under S2.2's threshold |
+| `--kf-min-dist`, `--kf-max-dist` | "Minimum keyframe interval (frames)", "Maximum keyframe interval (frames)" (278-281) | `0`, `9999` | G; at G 1 `--kf-max-dist=0` also turns keyframe filtering off (encoder settings §2a) |
+
+**Streams per volume:** O at G 1, 8, 16, 32; AT and AF at G 8, 16, 32; AD, AU and AW at G 16 — 13 streams. G 1 of
+the lookahead arms is Q2's check only: if it holds, O G 1 stands for every arm's G 1. On `dbts_b1`, G 32 is the
+whole cut (§4).
+
+**Forms.** `dbts_b1` (D = 10) at its own depth. `dbts_a1` and `dbts_c1` (D = 12) in the **cut form** only: each
+sample through `depth_cut(v, 12)` of `claude/oq-depth-cut:ingest/coded-frames/ingest.py` (round half up to 10
+bits, clamped), imported unchanged, coded at `--bit-depth=10 --profile=0`, and measured against the 12-bit source
+after reconstructing each decoded code c as c · 4. The cut's rounding is uniform on [−2, +1], RMS ≈ 4 ÷ √12 ≈ 1.15
+sample units against σ ≥ 10 on A and C (*derived*). Equal Q is not equal step across forms: at Q 4, 8, 12 the 10-bit
+AC step times 4 is 1.20, 1.07 and 1.04 of the 12-bit step (`quant_common.c`, *derived*), so the forms compare only
+at equal quality (B₁). This is the form the product decodes through WebCodecs
+(`claude/docs-lines-3:docs/lines/optimal-quality.md` §Terms). σ is the 12-bit source's, as the quality study
+takes it.
+
+**Ladders,** every integer Q so the anchor is bracketed within one rung (four qindex): `dbts_b1` Q 6–12 and 14
+(8 rungs; its O G 1 crosses at Q 12, its alt-ref arms at Q 8–10, §S1); `dbts_a1`, `dbts_c1` Q 4–12 (9 rungs; their
+noise-rule Q is 4–8, `claude/docs-lines-3:docs/lines/codecs.md` §AV1 harvest). If an arm's worst-frame e_N/σ
+is not bracketed by its ladder, one rung outward is added and listed (the only extension allowed).
+
+Cells: 13 × 8 = 104 on `dbts_b1`, 13 × 9 = 117 each on A and C, plus the checks' cells (§S8): **338**.
+
+### S5 · Fixtures
+
+As `lab/av1/fetch_data.sh` writes them against `lab/av1/data.json` (`docs/FIXTURES.md` §AV1 data):
+
+| set | system · depth | frames · size | what a result may claim |
+| --- | --- | --- | --- |
+| `dbts_a1` | A · 12 (cut to 10) | 56 × 1142 × 1785 | this volume, in the cut form |
+| `dbts_b1` | B · 10 | slices 9–40 of 50 × 2560 × 3328 | those 32 slices |
+| `dbts_c1` | C · 12 (cut to 10) | 69 × 976 × 2513 | this volume, in the cut form |
+
+**Limits.** One volume per system, all three from the one EA1141 dataset; the quality study found system A's
+anchor spread over Q 4–8 across five volumes, so a verdict here is these volumes', not a system's. No lossless
+breast ultrasound cine or ABUS exists among the fixtures: nothing here speaks for them, and TRUS is not run (the
+protocol's shard 2 covers it). No full-depth (12-bit) arm is coded: the product codes D > 10 by the cut, and the
+protocol's shard 2 holds the 12-bit cells.
+
+### S6 · What is measured
+
+**Per cell,** the protocol's §6.1–§6.3 unchanged (bytes per unit, the quality study's `measure()` per frame, frame
+headers), plus **ν = σ_out ÷ σ**: σ_out is the same noise estimator `measure()` applies to the source, applied to
+the decoded frame, in-window; ν is its median over frames. ν near 1 says the frame kept the source's noise; it is the
+measure audit F4 names for "how much noise each Q keeps". Also recorded: `--q-hist` per cell, and the count of shown
+frames not coded from their own source (filtered keyframes and `show_existing_frame` units, §6.3).
+
+**Equal quality, the quality line's metric.** The quality line's anchor is e_N/σ ≤ 1 on every frame (quality study
+§Terms; the noise rule's P1). For each stream, x(Q) = worst-frame e_N/σ and y(Q) = ln bytes over its ladder, keeping
+rungs up to the first with x ≥ 1.02 (above it the plateau, 1.02–1.05, no longer resolves Q: audit F4). If x is not
+strictly increasing over the kept rungs, the stream is "not monotone" and only its integer point is read. Otherwise:
+
+* **B₁**, the anchor bytes: exp of the PCHIP interpolant of y against x, read at x = 1.00.
+* **The integer point**: the highest integer Q with x ≤ 1.00, and its bytes. This is what an ingest would code;
+  it is reported, and decides nothing, since adjacent integer rungs differ by about 15–20 % in bytes (§S1).
+* **ν₁**: ν interpolated in the same way at x = 1.00.
+* **At the 1.03 bar** (the owner's open decision 1, `claude/docs-lines-3:docs/lines/codecs.md`): the integer
+  point only, since 1.03 sits on the plateau.
+* **Secondary:** BD-rate on median in-window PSNR as the protocol's §7 computes it, over the two curves' overlap
+  within the ladder (the VL interval reaches below these ladders on B); reported, decides only Q4.
+
+**ε**, from the data, as §7 does: for O G 1 and O G 16 on each volume, B₁ recomputed with each kept rung dropped in
+turn; ε is the largest |ln change| over both streams and three volumes, as a percentage.
+
+**Decode in order,** with the protocol's §6.5 drivers unchanged (`decode.mjs`, `decode.js`, the profiles run's
+`decoders.js`): one unit in flight, the clock from handed in to the shown frame written, each frame hashed against
+native dav1d 1.5.4. **Streams timed**, each at its own **matched rung** (its integer point): O G 1 twice (O and O′,
+the A/A), O G 8, O G 16, AT G 16, AF G 16, AU G 16 — seven per volume. **Decoders:** WebCodecs
+`{ hardwareAcceleration: "prefer-software", optimizeForLatency: true }` on every stream, since all are 10-bit (the
+product's route); dav1d-WASM, one thread, `max_frame_delay` 1 (the product's fallback). **A unit:** a fresh decoder
+off the clock, then the stream's first 32 shown frames in order. **Figures:** mean per shown frame, median, 95th
+percentile, slowest, and the slowest frame's position in its group.
+
+### S7 · Decision rule
+
+**Saves at equal quality,** per (arm, G) on DBT: saving > ε on all three volumes, and the guards hold on all three.
+**Guards,** each against O G 1 on the same volume, each margin one integer rung of O G 1's own curve at its
+crossing, read from the data: ν₁ no lower than O G 1's ν₁ minus O G 1's change in ν over that rung; JOD and the
+first window's ≥ 2-level share as §7's quality guard, at the integer point.
+
+**Recommended** if it saves at equal quality and, at its matched rung, WebCodecs's in-order ratios to O G 1 (mean
+and 95th percentile per frame, paired by round, median over rounds) have 95 % upper bounds ≤ 1 + a, a the half-width
+of that volume's A/A interval. dav1d-WASM's ratios are reported beside it; a failure there is named, not decisive.
+**Filtered arms** (AT, AD, AF, AW) show and reference temporally averaged frames: they can be recommended only if
+the owner answers yes to "may the OQ view be temporally denoised" (decision 4, `claude/docs-lines-3:docs/lines/codecs.md`
+§Open). Until then each is reported as "would be recommended" or not. O at G > 1 and AU need no such
+answer (each shown frame is coded from its own source; AU's must be confirmed by Q5's e_N/σ reading).
+
+**Among recommended** streams the largest saving wins; within ε, the simpler in the order O < AU < AW < AT < AD <
+AF, then the smaller G. **If none is recommended, G 1 and lag 0 stay for DBT** on these fixtures, and Q3–Q7 say why.
+
+**Stopping.** The run ends when every planned cell and ≥ 10 decode rounds are written, or at its time limit with
+§S9's cuts. Nothing is re-run to change an outcome; the one ladder extension of §S4 is the only cell added. A decode
+round with a hash miss voids that round; fewer than 10 rounds void that volume's decode verdicts; an A/A interval
+wholly beyond ±ln 1.05 voids that volume's decode cells, reported. Every void and cut is listed.
+
+### S8 · Interleaving, repeats, host, and the checks
+
+**Interleaving.** Cells run in a Williams order over (arm, G, Q) per volume (`lab/scripts/order.py`). Encodes are
+deterministic (checked below), so order touches only times, which are reported and never compared across arms. Decode
+rounds: one fresh Chromium a round; volumes in a Williams row; within a volume the seven units in that round's
+Williams row (`lab/order.mjs`); the two decoders alternate first and second by round. Paired by round against O G 1.
+
+**Repeats.** One encode per cell (deterministic). Decode ≥ 10 rounds, as many as fit, at 1× only.
+
+**Host.** One 4-core, 15 GB cloud host per shard, headless, software decode, no GPU or phone. Shard 1 saturated on
+**memory**, not CPU, for `dbts_b1`'s lookahead cells (about 3.0 GB an `aomenc` at lag 39, 3–4 in flight); the
+scheduler's 13.5 GB budget stays. The cut forms of A and C are smaller frames and should run four in flight. Each
+shard reports cores busy (CPU ÷ wall), peak memory as `ps` reads it, and claims nothing past its host.
+
+**Checks** (to `rows/groups-settings-K.checks.json`; each is mutated, and the mutation must change what it says):
+
+| check | expected | mutation |
+| --- | --- | --- |
+| arms are the table | `arms.py`'s flag lists for AF, AU, AW differ from AD, AT, AT by exactly the flags of §S4 | drop `--arnr-strength=0` from AU: the check fails |
+| reproduction | O G 16 and AT G 16 at Q 8 on `dbts_b1` byte-identical to `rows/groups-1.jsonl` | `--cpu-used=5`: differs |
+| Q1 strength | AT at strength 4 and 6 = AT | strength 3: differs |
+| Q2 G 1 | AT and AF at G 1 = O G 1 at Q 8 | G 2: differs |
+| AU's filter off | AU ≠ AT at Q 8 G 16 (else strength 0 did nothing and AU is void) | — (a tie is reported) |
+| AF's delta-q acts | AF ≠ AD at Q 8 G 16; `--q-hist` entries reported (lookahead zeros read as §Groups shard 1 reads them) | — (a tie: AF void, "delta-q inert under pinned q") |
+| the cut | `depth_cut` on [0, 1, 2, 5, 6, 4093, 4094, 4095] = [0, 0, 1, 1, 2, 1023, 1023, 1023] (its own test); O G 1 at Q 0 on the cut form, reconstructed c · 4, within [−2, +1] of the source on every sample | reconstruct as c · 2: fails |
+| per-group form | AT G 16 Q 8 on `dbts_a1` coded one encoder per group (the ingest's way) byte-identical to the whole-volume encode | — (a difference is reported; then every cut-form stream is coded per group, as the product does) |
+| equal quality | B₁ on synthetic curves with a known crossing reads it to 0.1 %; ln bytes offset by ln 0.9 reads −10.0 % | x reversed: the sign flips |
+| ν | ν of the source against itself 1.000; of a frame with its noise replaced by zero (S of §5) < 0.3 | estimator fed the source twice: ν = 1 on S, check fails |
+| determinism | AU and AF at Q 8 G 16 coded twice: identical | `--cpu-used=5`: differs |
+| decode | every timed frame equal to native dav1d's (hash), on both decoders; WebCodecs' output format 10-bit; A/A within ±5 % on the first volume | one hash altered: the round voids; a 12-bit stream fed to WebCodecs: refused |
+
+### S9 · Settings shards
+
+| shard | series | cells | CPU s (est.) | setup h | encode h | decode h | total h (est.) |
+| --- | --- | --: | --: | --: | --: | --: | --: |
+| S1 | `dbts_b1` (slices 9–40) | 104 + checks | 104 × 272 Mpx × 0.95 ≈ 26 900 | 0.5 | 2.5 (3 in flight) | ≤ 1.0 | ≤ 4.0 |
+| S2 | `dbts_a1`, `dbts_c1` (cut form) | 234 + checks | 117 × (114 + 169) Mpx × 0.95 ≈ 31 500 | 0.5 | 2.2 (4 in flight) | ≤ 1.0 | ≤ 3.7 |
+
+0.95 CPU s a megapixel a cell is shard 1's measured mean (0.81 over its `dbts_b1` cells, *derived* from its 23 675
+CPU s) raised for this amendment's larger share of lookahead cells (*estimated*). Setup is shorter than the
+protocol's, since `lab/av1/groups/` exists: S1 adds AF, AU and AW to `arms.py`, the cut form and ν to `cell.py`,
+B₁ to `collect.py`, and the checks above, each with its mutation and inside `scripts/comment_budget.sh`; S2 pulls that
+code. **Cuts if a shard would pass 4.5 h**, in this order, each listed: AW; then AD; then the G 32 streams; then the
+decode unit shortened to its first 16 frames. Q6, Q9 and Q8's G 32 clause then read "not run".
+
+**Running one.** On `claude/av1-groups-settings`: the protocol's §Running one setup (tools, fetch, decoders, venvs),
+`git checkout origin/claude/oq-depth-cut -- ingest/coded-frames/ingest.py` into a scratch path for `depth_cut`
+(imported, not copied into the product tree), then `lab/av1/groups/shard.sh settings-K`. Rows:
+`rows/groups-settings-K.checks.json`, `rows/groups-settings-K.jsonl`, `rows/groups-settings-K.decode.json`. Push
+after the checks, then hourly, `git pull --rebase` first. Its section, at the end of this file:
+`### Settings shard K, measured (date)`, with the five plain lines, the host, the checks table, every cell, and every
+cut or void. The collector (S2's session, or a third) writes `## Settings amendment, measured (date)`: the cells, B₁
+and ν₁ with ε, the integer points at 1.00 and 1.03, the decode table, Q1–Q12 each held or refuted with its deciding
+numbers, and §S7's verdict.
+
+### S10 · What the result would change, and what it cannot settle
+
+**For the product (G per modality, decided 2026-11-09 by measurement).**
+
+* **O at G 8 or 16 recommended:** G for DBT becomes that G, with lag 0 unchanged; `lossy_args` and the client's
+  G > 1 path stay as built, and the PCS note (codecs line Open 5) says so. No structural change.
+* **AU recommended:** the OQ ingest's argument set gains lookahead and hidden frames. The product's group model
+  survives ([A1]: one shown frame per temporal unit), but a unit may carry several coded frames and the slowest
+  frame sets cine (§2.6). That is a structural change, proposed to the owner, not made here.
+* **A filtered arm "would be recommended":** nothing changes until the owner's decision 4. A yes also needs a new
+  noise rule, since the rule's Q assumes every shown frame is the source coded at one step.
+* **None:** G 1 and lag 0 stay for DBT on these fixtures, and the confound the 2026-11-10 decision names is closed
+  for them: the low-delay settings did not hide a saving at the quality line's equal quality.
+* **Q10 refuted:** the depth cut costs fidelity at the anchor, which reopens its own line (`claude/oq-depth-cut`).
+
+**What it cannot settle:** whether any of these streams is visually lossless (readers, the quality study's §6);
+whether the filter's removed noise mattered diagnostically (the noise-ratio protocol's model observer); any DBT
+system beyond one volume each, any other dataset, breast ultrasound cine or ABUS; libaom at other speeds, tunes or
+two passes, or another encoder; hardware decoders, phones, or any host but these.
+
+**Sources, added.**
+
+* [H] J. Han et al., *A Technical Overview of AV1*, arXiv:2008.06091v2 (8 Feb 2021), §II.B "Alternate Reference
+  Frame", read 2026-11-10 from `arxiv.org/pdf/2008.06091v2` (SHA-256 `57f5654f…7c45`).
+* [L1] as above, the libaom 3.15.1 tarball, its SHA-256 checked against `ingest/tools.sh` on 2026-11-10:
+  `av1/arg_defs.c`, `av1/av1_cx_iface.c:255-360`, `av1/encoder/temporal_filter.c:169-181, 815-860, 936-952,
+  1260-1375, 1590-1655`, `av1/encoder/temporal_filter.h:44-85`, `av1/encoder/ratectrl.c:199-209`,
+  `av1/encoder/encodeframe.c:346-350, 2336-2342`, `av1/common/quant_common.c` (the 10- and 12-bit AC tables).
