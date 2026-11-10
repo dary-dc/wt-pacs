@@ -88,6 +88,7 @@ run 1 node lab/client-telemetry/test/session.mjs
 run 1 node client/decode/htj2k.test.mjs
 run 1 node client/decode/wasm-glue.test.mjs
 run 1 node client/decode/xxh3.test.mjs
+run 1 node client/decode/decoder.test.mjs
 run 1 node client/transport/downloader.test.mjs
 run 1 node client/transport/consumer.test.mjs
 run 2 node client/decode/av1.test.mjs

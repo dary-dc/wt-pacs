@@ -101,12 +101,26 @@ function decoderFor(index) {
 /** A frame whose predecessor will never reach a decoder cannot decode: it fails by name. */
 const orphaned = (index) => !isKey(index) && !records.has(index - 1) && !decoders.some((d) => d.next === index);
 
+/** Lab flag `askJump`: an ask to the decoder whose current decode started first, an idle one before any, one past `perDecoder`. docs/decode/README.md §An ask behind the decoders */
+function jumpFor(index) {
+  if (!isKey(index)) return decoderFor(index);
+  const started = (d) => (d.outstanding === 0 ? -Infinity : d.since);
+  let best = null;
+  for (const d of decoders) {
+    if (!d.live || d.outstanding > cfg.perDecoder || holdsAGroup(d)) continue;
+    if (!best || started(d) < started(best)) best = d;
+  }
+  return best;
+}
+
 /** Never leave a decoder idle: up to `perDecoder` outstanding each. docs/decode/README.md §Dispatch */
 function pump() {
   if (!decodersUp) return;
   if (decoders.length === 0) return failQueued();
   for (const q of [queue.ask, queue.fill]) {
-    for (let at = 0; at < q.length && decoders.some((d) => d.outstanding < cfg.perDecoder); ) {
+    const jump = cfg.askJump && q === queue.ask;
+    const cap = jump ? cfg.perDecoder + 1 : cfg.perDecoder;
+    for (let at = 0; at < q.length && decoders.some((d) => d.outstanding < cap); ) {
       const index = q[at];
       const rec = records.get(index);
       if (!rec || rec.state !== "queued") {
@@ -118,7 +132,7 @@ function pump() {
         fail(index, `frame ${index - 1} of its group did not decode`);
         continue;
       }
-      const d = decoderFor(index);
+      const d = jump ? jumpFor(index) : decoderFor(index);
       if (!d) {
         at += 1;
         continue;
@@ -150,10 +164,14 @@ function dispatch(d, index, rec) {
   rec.stamps.dispatched = abs();
   rec.stamps.decoder = d.id;
   d.outstanding += 1;
-  if (d.outstanding === 1) arm(d);
+  if (d.outstanding === 1) {
+    arm(d);
+    d.since = rec.stamps.dispatched;
+  }
   d.next = index + 1;
+  const priority = cfg.askJump && rec.priority === "ask" ? { priority: "ask" } : {};
   d.worker.postMessage(
-    { kind: "decode", index, gen: generation, key: isKey(index), bytes: rec.bytes, stamps: rec.stamps },
+    { kind: "decode", index, gen: generation, key: isKey(index), bytes: rec.bytes, stamps: rec.stamps, ...priority },
     [rec.bytes.buffer],
   );
   rec.bytes = null;
@@ -379,6 +397,8 @@ async function resume() {
 
 function onDone(d) {
   d.outstanding -= 1;
+  // The decoder starts its next frame on this answer: what `jumpFor` reads as its current decode's start.
+  d.since = abs();
   arm(d);
   pump();
 }
@@ -419,7 +439,7 @@ async function again(index, rec, reason) {
 function spawn() {
   // The decoder is a seam like the transport: a test points it at a controllable stand-in.
   const worker = new Worker(cfg.decoderWorker ?? new URL("../decode/decoder.js", import.meta.url), { type: "module" });
-  const d = { worker, outstanding: 0, next: null, id: spawned++, live: false, deadline: null };
+  const d = { worker, outstanding: 0, next: null, id: spawned++, live: false, deadline: null, since: 0 };
   d.up = new Promise((r) => { d.ready = r; });
   const ch = new MessageChannel();
   // Firefox drops frames in flight once this object is collected: ARCHITECTURE.md §The downloader.
@@ -481,7 +501,7 @@ async function openSession(opening) {
   dialled = true;
   TransportSession ??= (await import(cfg.transport ?? DEFAULT_TRANSPORT)).TransportSession;
   // The ring is sized by what can be between the wire and a decoder. docs/decode/README.md §The wire buffer ring
-  const options = { wireBuffers: cfg.wireBuffers ?? cfg.decoders * cfg.perDecoder + 2 };
+  const options = { wireBuffers: cfg.wireBuffers ?? cfg.decoders * cfg.perDecoder + 2 + (cfg.askJump ? 1 : 0) };
   if (cfg.survival) options.dialMs = deadlines.dialMs;
   if (cfg.readMin) options.readMin = cfg.readMin;
   if (opening) options.fill = opening;
