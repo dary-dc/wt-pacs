@@ -384,3 +384,68 @@ a criterion.
 r ≤ 1 there is meaningful as a statement that the error is noise-like in size *and* lives where noise lives. It
 becomes a criterion only together with a guard against error elsewhere. §4 lists what such error looks like, and §5
 measures the task loss directly.
+
+## 4 · Known failure modes
+
+Each entry gives the mechanism, what the fixtures already show, and the guard it needs. All the mechanisms are
+*derived* from §1–§3 unless a measurement is cited.
+
+**4.1 Structured or blocky error.** Error that is block-constant, axis-aligned or low-pass escapes the band
+(§3.1). A reader sees it better than noise of equal variance:
+
+* it is coherent over a region, and the visual system's band-limited mechanisms integrate a coherent pattern
+  (Campbell and Robson 1968);
+* it is not Gaussian, and a kurtotic difference is discriminated more efficiently than a change of variance
+  (Kingdom et al. 2001).
+
+AV1's in-loop filters (deblocking, CDEF, loop restoration) reduce block edges. What they leave is *unverified* here.
+**Guard:** the full-band ratio e ÷ σ, which the study reports beside e_N ÷ σ, and a low-band ratio (§3.6).
+Neither is a criterion yet.
+
+**4.2 Error at edges.** The σ estimator leaves out the steepest 10 % of samples by gradient. e_N does not leave them
+out: `noise_band` takes every in-window sample. Even so, an edge region's error is averaged with the rest of the
+frame. Error there is partly masked by the edge's own contrast, with Legge and Foley's exponent near 0.6. But the
+edge of a lesion or a calcification *is* the signal, and §2.4 says faint edges are what the quantizer deletes.
+**Guard:** the tile reading of [`noise-point.md`](noise-point.md) P4, extended to edge tiles, with the inserted
+lesions of §5.
+
+**4.3 Low-noise regions.** Quantum noise rises with signal, so the quietest regions get error above their own noise
+even when the frame mean holds. Measured: at the rule's Q on `dbts_b1` and `dbts_c1` G 1, 0.7–1.1 % of 64 × 64 tiles
+exceed 1.03. Those tiles lie mostly in the lowest-signal third and at the breast's edge, where tile σ is 4.88 against
+6.09 (B) and 11.06 against 17.98 (C) from the lowest to the highest tercile ([`noise-point.md`](noise-point.md) P4).
+**Guard:** σ_min over tiles rather than frames, or AV1 segment delta-q. The owner has not decided this, and neither
+is proposed here.
+
+**4.4 Low-noise series.** As σ approaches the rounding floor √(1/12) ≈ 0.29, the denominator stops measuring
+acquisition noise. r then has no meaning, because there is no noise to mask anything. The rule already declines
+these: `usb_cine` (σ 0.27–0.41) and `mr9_ispy2` (0.56–0.93), [`noise-point.md`](noise-point.md) §5.1. A series that is
+heavily denoised at reconstruction lands in the same place without being lossy-sourced. **Guard:** the existing
+σ floor. For such a series, no noise-based criterion exists.
+
+**4.5 Lossy-sourced input.** On such input σ measures the earlier codec's leftovers, not acquisition noise, so the
+ratio compares two codecs' errors. `usb_cine_rgb` reads σ 0.78–1.10 and passes the floor. **Guard:** the three-way
+test of [`noise-point.md`](noise-point.md) §5.5 and P6. Each of its tests missed one of the three cine series, so
+the guard is incomplete.
+
+**4.6 Correlation in depth, slabs and scrolling.** At G > 1, inter prediction can carry one error pattern across
+slices, while the noise's neighbour correlation is only 0.11–0.27. A reader who scrolls, or a slab view that
+averages m slices, integrates the error coherently and the noise incoherently. In the limit of an error identical in
+depth and independent noise, r grows by √m: 1.73 for 3 slices, 2.24 for 5, 3.16 for 10 (*derived*). The criterion is
+read per frame, and it does not see this. **Guard:** r on m-slice means at G > 1, measured in §5 P4.
+
+**4.7 Flicker and comparison.** §1.4: the alternation test removes noise masking by uncertainty. The criterion is
+weakest exactly where the study's planned reader test is strongest.
+
+**4.8 Noise removal mistaken for fidelity.** At the anchor, r ≈ 1 means that the band was emptied (§2.3). The OQ
+view then looks *smoother* than the exact frame. A reader may prefer it or reject it, and an observer that does not
+prewhiten may do better with it. None of these is "lossless". **Guard:** report σ of the decoded frame beside r. The
+anticorrelation κ is the number that tells "error added" from "noise removed".
+
+**4.9 Outside the fixtures.** The fixtures do not cover any of the following, so nothing here applies to them:
+
+* σ_min above 14.8 (12-bit) or 5.6 (10-bit);
+* other DBT systems;
+* breast ultrasound cine and ABUS;
+* any modality but DBT.
+
+TRUS and MR already fall off the DBT curve ([`noise-point.md`](noise-point.md) §3).
