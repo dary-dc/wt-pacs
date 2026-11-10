@@ -1025,28 +1025,314 @@ formats, bit depth, AV1 and ImageDecoder. All are `NEW` unless marked. Every row
 
 ## Gecko
 
-Firefox desktop (Windows, macOS, Linux) and Firefox for Android. Engine source pinned at
-`mozilla-firefox/firefox@47f2a88cbab9072c8f8f156494b92d6891e488fb` (main, `browser/config/version.txt` = `162.0a1`).
+Firefox desktop (Windows, macOS, Linux) and Firefox for Android. Engine source is pinned at
+`mozilla-firefox/firefox@47f2a88cbab9072c8f8f156494b92d6891e488fb`, which is `main`, i.e. Nightly
+(`browser/config/version.txt` reads `162.0a1`) [G69]. A pref whose default is `@IS_NIGHTLY_BUILD@` is **on in Nightly
+only, off in Beta and Release**. Release notes were read for desktop and Android 130–160 and for MDN's developer
+notes 65–161.
+
+**Summary for this project.** Desktop Firefox has had WebCodecs `VideoDecoder` since 130. Firefox for Android does not
+ship it. AV1 is decoded in software by dav1d, or in hardware where the OS offers it. Whether you get exact 10- or
+12-bit planes back depends on how the frame comes back from the decoder process. A frame that comes back as a GPU
+texture reports `BGRX`, and `copyTo` cannot return YUV planes from it (bug 1969762, open). A frame that comes back as
+CPU planes reports `I420P10` or `I420P12` and copies out unchanged. Monochrome (4:0:0) AV1 is a gap: the fallback
+dav1d wrapper drops those frames.
 
 ### Since which version
 
 | claim | label | src |
 |---|---|---|
-| `VideoDecoder`, `EncodedVideoChunk` ship in desktop Firefox 130; browser-compat-data marks Firefox for Android as not supported | (S) | [G1] [G2] |
-| WebCodecs shipped on desktop in 130; Android was then Nightly-only | (S) | [G10] [G11] |
-| Android release builds still have WebCodecs video off at the pinned source: `dom.media.webcodecs.enabled` is `@IS_NIGHTLY_BUILD@` on `MOZ_WIDGET_ANDROID` | (S) | [G30] |
-| `VideoFrame` 130 on desktop; Android `"mirror"` (i.e. 130) because `VideoFrame` is also exposed when only the image-decoder pref is on | (S) | [G3] [G33] |
-| `VideoFrame` `flip`, `rotation`, `metadata` not supported (`metadata` tracked in bug 1802053) | (S) | [G3] |
-| `ImageDecoder` ships in 133, on main thread and in workers; Android `"mirror"` | (S) | [G4] [G12] [G13] |
-| `requestVideoFrameCallback` ships in 132 (Nightly-only behind `media.rvfc.enabled` in 130) | (S) | [G5] [G14] [G15] |
-| `MediaCapabilities` 63; before 101 `decodingInfo()` ignored `av01` codec-string parameters | (S) | [G6] |
-| `MediaSource` 42 desktop, 41 Android; not available in workers (`worker_support`, `handle`, `canConstructInDedicatedWorker` all `false`) | (S) | [G7] |
-| AV1 video: Windows 65 (default), macOS and Windows 66, Linux 67 with dav1d as default AV1 decoder, Android 113 (hardware when the device supports it) | (S) | [G16] [G17] [G18] [G19] |
-| AVIF images default on in 93; animated AVIF in 113 | (S) | [G20] [G19] |
-| HEVC: hardware playback on Windows 134, macOS 136; Linux (hardware and software) and Android (hardware) 137 | (S) | [G21] [G22] [G23] [G24] |
-| HEVC in WebCodecs is Nightly-only at the pinned source (`dom.media.webcodecs.h265.enabled` = `@IS_NIGHTLY_BUILD@`) | (S) | [G30] |
-| JPEG XL: experimental via Firefox Labs in 152 and 153; Rust (jxl-rs) decoder replaced the C++ one in 149 Nightly; enabled by default in 158 | (S) | [G25] [G26] [G27] |
-| No Firefox for Android release note through 160 mentions WebCodecs or JPEG XL (release notes 130–160 searched) | (U) | [G28] |
+| `VideoDecoder` and `EncodedVideoChunk` ship in desktop Firefox 130. Firefox for Android: not supported | (S) | [G1] [G2] |
+| Release notes: WebCodecs on by default on desktop in 130; on Android it was then on in Nightly only | (S) | [G10] [G11] |
+| WebCodecs video was first exposed in Nightly on Linux desktop in 123 | (S) | [G29] |
+| At the pinned source, the Android release build still has WebCodecs off: `dom.media.webcodecs.enabled` is `@IS_NIGHTLY_BUILD@` under `MOZ_WIDGET_ANDROID` | (S) | [G30] |
+| Even with the pref on, on Android `VideoDecoder.isConfigSupported()` answers false for every codec: `CanDecode` returns `false` when `IsOnAndroid()` | (S) | [G37] |
+| Bug "Ship Web Codecs on Android" is open (NEW) | (S) | [G64] |
+| No Firefox for Android release note from 130 to 160 mentions WebCodecs (searched for "WebCodecs", "Web Codecs") | (U) | — |
+| `VideoFrame`: desktop 130. Android `"mirror"`, i.e. also 130, because `VideoFrame` is exposed when the WebCodecs pref **or** the image-decoder pref is on | (S) | [G3] [G33] |
+| `VideoFrame` `flip`, `rotation` and `metadata` are not supported (`metadata` is tracked in bug 1802053) | (S) | [G3] |
+| `ImageDecoder` ships in 133, on the main thread and in workers. Android `"mirror"`; its pref has no Android condition | (S) | [G4] [G12] [G13] [G30] |
+| `requestVideoFrameCallback` ships in 132. In 130 it was on in Nightly only, behind `media.rvfc.enabled` | (S) | [G5] [G14] [G15] |
+| `MediaCapabilities` since 63. Before 101, `decodingInfo()` ignored `av01` codec-string parameters | (S) | [G6] |
+| `MediaSource`: desktop 42, Android 41. Not in workers (`worker_support`, `handle`, `canConstructInDedicatedWorker` are all `false`) | (S) | [G7] |
+| AV1 video: Windows 65; macOS and Windows 66; Linux 67, where dav1d became the default AV1 decoder; Android 113, using hardware where the device has it | (S) | [G16] [G17] [G18] [G19] |
+| AVIF images on by default in 93; animated AVIF in 113 | (S) | [G20] [G19] |
+| HEVC playback: Windows hardware 134; macOS hardware 136; Linux hardware and software 137; Android hardware 137 | (S) | [G21] [G22] [G23] [G24] |
+| HEVC in **WebCodecs** is Nightly-only and limited to macOS and Linux. Enabling it on Windows is bug 1942421, ASSIGNED | (S) | [G30] [G38] [G64] |
+| JPEG XL: Rust decoder (jxl-rs) replaced the C++ one in 149, Nightly only; experimental via Firefox Labs in 152–153; on by default in 158 | (S) | [G26] [G25] [G27] |
+| No Firefox for Android release note through 160 mentions JPEG XL | (U) | — |
+
+### Which decoder backs each codec
+
+How a WebCodecs decoder is chosen: `VideoDecoder` → `DecoderTemplate` → `DecoderAgent` → `PDMFactory::CreateDecoder`.
+The factory tries its platform decoder modules (PDMs) in order. It takes the first one whose `Supports()` answer is
+not empty and falls through to the next one if creation fails [G39] [G40] [G41]. In the content process the remote
+GPU-process module comes first when `media.gpu-process-decoder` is on (Windows: on; Android: Nightly; others: off),
+then the remote RDD (Remote Data Decoder) process [G42] [G31].
+
+| claim | label | src |
+|---|---|---|
+| `hardwareAcceleration: "prefer-software"` becomes `CreateDecoderParams::Option::HardwareDecoderNotAllowed`. `"prefer-hardware"` gets no special handling: it is the same as `"no-preference"` | (S) | [G39] [G40] |
+| With resist-fingerprinting (`MediaCapabilities` target) on, the hardware preference is reset to `No_preference` | (S) | [G72] |
+| `optimizeForLatency: true` becomes `Option::LowLatency`. dav1d then runs with `max_frame_delay = 1` | (S) | [G39] [G40] [G54] |
+| RDD process order: WMF (Windows) → Apple VideoToolbox (macOS) → bundled FFmpeg "FFVPX" → system FFmpeg (if built) → "Agnostic" (dav1d / libaom / libvpx) | (S) | [G43] |
+| GPU process (Windows): FFVPX with hardware only (`media.ffvpx-hw.enabled`, Nightly on Windows), then WMF. FFmpeg software decoding is refused in the GPU process | (S) | [G44] [G31] [G48] |
+| FFVPX is built with ffmpeg's `libdav1d` wrapper, VP8 and VP9, and with no H.264 or HEVC decoder (`CONFIG_H264_DECODER 0`, `CONFIG_HEVC_DECODER 0`) | (S) | [G46] |
+| So software AV1 on desktop goes through FFVPX's `libdav1d` wrapper in the RDD process. Gecko's own `DAV1DDecoder` (Agnostic, last in order) is only a fallback | (D) | [G43] [G46] [G45]: FFVPX comes before Agnostic, and FFVPX contains `libdav1d` |
+| Agnostic module: AV1 goes to dav1d when `media.av1.use-dav1d` is on (default on), otherwise to libaom; VP8/VP9 go to libvpx | (S) | [G45] [G31] |
+| Linux hardware decoding goes through FFmpeg device types in this order: Vulkan (if built), then VA-API, then V4L2. H.264 and HEVC hardware decoding need the **system** FFmpeg, not FFVPX | (S) | [G47] |
+| Windows hardware decoding goes through WMF/D3D11 (`media.wmf.dxva.d3d11.enabled` on). The AV1 MFT is used only with DXVA ("AV1 MFT requires DXVA"); AV1 also needs the AV1 extension ("Lacking of AV1 extension") | (S) | [G50] [G31] |
+| macOS: VideoToolbox. AV1 there is hardware-only (Apple silicon, macOS 14+), 8- or 10-bit, Main profile, not RGB, and refused under `HardwareDecoderNotAllowed` | (S) | [G49] |
+| Android: H.264 and HEVC are decoded only through MediaCodec, which may itself be software or hardware. Platform decoders must run in the GPU process unless it is disabled | (S) | [G70] [G71] |
+| What happens on each OS when `prefer-software` meets a module that can only decode in hardware (for example WMF AV1 in the GPU process) was not traced end to end | (U) | looked in [G41] [G50] [G48] |
+
+| codec (WebCodecs) | Windows | macOS | Linux | Android | label | src |
+|---|---|---|---|---|---|---|
+| AV1 `av01.*` | WMF hardware (DXVA + AV1 extension), else FFVPX/libdav1d | VideoToolbox hardware (Apple silicon, 14+), else FFVPX/libdav1d | FFVPX hardware (VA-API/Vulkan) or FFVPX/libdav1d | no WebCodecs | (D) | [G43] [G44] [G46] [G47] [G49] [G50] [G37]: module order plus each module's `Supports` |
+| VP8 `vp8`, VP9 `vp09.*` | WMF (VP9) or FFVPX | VideoToolbox (VP9 hardware) or FFVPX | FFVPX | no WebCodecs | (D) | [G43] [G46] [G49] |
+| H.264 `avc1`/`avc3` | WMF | VideoToolbox | system FFmpeg | no WebCodecs | (D) | [G43] [G46] [G47] |
+| HEVC `hev1`/`hvc1` | not in WebCodecs (bug 1942421) | VideoToolbox, Nightly only | system FFmpeg, Nightly only | no WebCodecs | (S) | [G38] [G30] |
+| Codec strings `av1…` or `vp9…` (not `av01`/`vp09`) | rejected | rejected | rejected | — | (S) | [G38] |
+
+### Output formats and bit depths per path
+
+The `VideoFrame.format` a decoded frame reports comes from `GuessVideoPixelFormat(image)`, which looks at the kind of
+`layers::Image` the decoder handed back [G73] [G56].
+
+| image kind and bit depth | `VideoFrame.format` | label | src |
+|---|---|---|---|
+| Planar YCbCr, 8-bit, 4:2:0 / 4:2:2 / 4:4:4 | `I420` / `I422` / `I444` (alpha: `I420A` …) | (S) | [G56] |
+| Planar YCbCr, 10-bit | `I420P10` / `I422P10` / `I444P10` | (S) | [G56] |
+| Planar YCbCr, 12-bit | `I420P12` / `I422P12` / `I444P12` | (S) | [G56] |
+| Planar YCbCr, 16-bit (`COLOR_16`) | none: `format` is `null` and `copyTo` throws `NotSupportedError` | (S) | [G56] [G58] |
+| Semi-planar (NV image) | `NV12` only for 8-bit 4:2:0 with no alpha; anything else (for example 10-bit P010) gives `null` | (S) | [G56] |
+| `GPU_VIDEO`, a frame left in another process as a GPU texture | `BGRX` ("This process only reads a remote image back as RGB.") | (S) | [G56] |
+| macOS IOSurface, Linux DMABUF | from the surface format: `YUV420`→`I420`, `YUV420P10`→`I420P10`, `YUV422P10`→`I422P10`, `NV12`→`NV12`, 8-bit RGB variants; other formats give `null` | (S) | [G56] |
+
+| claim | label | src |
+|---|---|---|
+| The decoder process sends a frame back as a GPU texture when it can create one for the compositor. Otherwise it copies the planar YCbCr planes into shared memory | (S) | [G57] |
+| WebCodecs passes the compositor (`ImageBridgeChild`) to the decoder, so the texture path is open to WebCodecs decodes | (S) | [G40] |
+| So the same 10-bit AV1 stream can report `BGRX` (texture path, colour converted to 8-bit RGB) or `I420P10` (shared-memory path). Which path a given OS/GPU takes was not measured | (D) | [G56] [G57] [G40] |
+| Open bug 1969762: "VideoFrame.format reports BGRX for remote-decoded frames and copyTo cannot return YUV planes (Chrome returns I420)" (ASSIGNED) | (S) | [G64] |
+| Fixed bug 2071132: "VideoFrame.format reports I420 for 10-bit planar frames …". In the release where 10-bit frames first reported `I420P10`, check `format` before reading samples; that release number was not found | (S) | [G64] |
+| Planar YCbCr `copyTo` is a plane-by-plane copy of `SampleBytes` per sample (1 byte at 8-bit, 2 at 10/12-bit). No value conversion | (S) | [G59] |
+| `copyTo({format})` accepts only `RGBA`, `RGBX`, `BGRA`, `BGRX` ("… is unsupported in ParseVideoFrameCopyToOptions"). YUV→RGB conversion happens; YUV→other-YUV and RGB→YUV do not ("The conversion between RGB and non-RGB is unsupported") | (S) | [G58] [G60] |
+| `copyTo` colour space defaults to `srgb` when not given | (S) | [G58] |
+| dav1d's high bit depth maps directly: `b.mColorDepth = gfx::ColorDepthForBitDepth(aPicture.p.bpc)`. It is narrowed to 8-bit only when `Output8BitPerChannel` is requested | (S) | [G53] |
+| FFVPX narrows to 8-bit only when `Output8BitPerChannel` is set, and only for `libdav1d` or `vp9` | (S) | [G51] |
+| `DecoderAgent` never sets `Output8BitPerChannel`, so WebCodecs is not narrowed to 8-bit on the CPU-plane path | (D) | [G40]: its option set is `HardwareDecoderNotAllowed`/`Default`, `LowLatency`, `KeepOriginalPts` only |
+| FFmpeg path maps `YUV4xxP10LE` → `COLOR_10` and `YUV4xxP12LE` → `COLOR_12` | (S) | [G52] |
+| Monochrome AV1 in Gecko's `DAV1DDecoder` (the Agnostic fallback): I400 pictures are **skipped** ("I400 picture: No chroma data to construct an image") and produce no frame | (S) | [G53] |
+| Monochrome AV1 through FFVPX: the `libdav1d` wrapper emits `AV_PIX_FMT_GRAY8/10/12`. `FFmpegVideoDecoder::GetColorDepth` has no `GRAY` case and hits `MOZ_ASSERT_UNREACHABLE("Not supported format?")` | (S) | [G55] [G52] |
+| The result for monochrome AV1 through FFVPX (error, wrong frame, or working) was not found in source or bugs (searched Bugzilla for "monochrome av1", "I400", "grayscale av1") | (U) | — |
+| `ImageDecoder` frames are imagelib surfaces wrapped as `SourceSurfaceImage`; the AVIF decoder converts to `B8G8R8A8`/`B8G8R8X8`. So `ImageDecoder` output is 8-bit RGB, whatever the bit depth of the source | (D) | [G61]: surface → `SurfaceFormatToPixelFormat` [G56]; AVIF writes BGRA/BGRX |
+| `ImageDecoder.isTypeSupported` answers from imagelib's MIME table (PNG, APNG, GIF, JPEG, BMP, ICO, WebP, AVIF; JXL only while `image.jxl.enabled` is on). JPEG 2000 and HTJ2K are not in it | (S) | [G62] |
+
+### Limits, workers, flags
+
+| pref (`StaticPrefList.yaml`) | default at pin | effect | label | src |
+|---|---|---|---|---|
+| `dom.media.webcodecs.enabled` | `true`; on Android `@IS_NIGHTLY_BUILD@` | exposes the WebCodecs codec interfaces | (S) | [G30] [G36] |
+| `dom.media.webcodecs.image-decoder.enabled` | `true` | exposes `ImageDecoder` (and `VideoFrame`) | (S) | [G30] [G33] |
+| `dom.media.webcodecs.h265.enabled` | `@IS_NIGHTLY_BUILD@` | HEVC in WebCodecs (macOS, Linux only) | (S) | [G30] [G38] |
+| `media.av1.enabled` / `media.av1.use-dav1d` | `true` / `true` | AV1 at all / dav1d rather than libaom in the Agnostic module | (S) | [G31] |
+| `media.av1.force-thread-count` | `0` | `> 0` overrides dav1d's thread count | (S) | [G31] [G54] |
+| `media.hevc.enabled` | `true` | HEVC in every module (there is no `media.wmf.hevc.enabled` in the file) | (S) | [G31] |
+| `media.hardware-video-decoding.enabled` | `true` (`mirror: once`, read at startup) | hardware video decoding | (S) | [G31] |
+| `media.hardware-video-decoding-vulkan.enabled` | `@IS_NIGHTLY_BUILD@` | Vulkan video decode on Linux | (S) | [G31] |
+| `media.ffvpx-hw.enabled` | GTK `true`; Windows and Android `@IS_NIGHTLY_BUILD@`; else `false` | hardware decoding through FFVPX | (S) | [G31] |
+| `media.gpu-process-decoder` | Windows `true`; Android `@IS_NIGHTLY_BUILD@`; else `false` | decode in the GPU process | (S) | [G31] |
+| `media.wmf.av1.enabled`, `media.wmf.vp9.enabled`, `media.wmf.dxva.d3d11.enabled` | `true` | WMF codecs and D3D11 hardware decoding | (S) | [G31] |
+| `media.wmf.force.allow-p010-format` | `false` | P010 output from WMF | (S) | [G31] |
+| `media.android-media-codec.enabled` / `.preferred` | `@IS_NOT_NIGHTLY_BUILD@` | MediaCodec PDM on Android | (S) | [G31] |
+| `image.avif.use-dav1d` | `true` | AVIF images through dav1d (else libaom). There is no `image.avif.enabled` in the file | (S) | [G32] |
+| `image.jxl.enabled` | `true` under `#ifdef MOZ_JXL`; `MOZ_JXL` is on unless built with `--disable-jxl`; Firefox Labs feature `jpeg-xl` sets the user pref | JPEG XL in imagelib and in `ImageDecoder` | (S) | [G32] [G68] [G67] [G62] |
+| `media.rvfc.enabled` | not in the file at the pin | named in the 130 notes only | (S) | [G15] [G31] |
+
+| claim | label | src |
+|---|---|---|
+| `VideoDecoder` is `[Exposed=(Window,DedicatedWorker), SecureContext]`: it needs HTTPS, works in dedicated workers, and is not exposed in shared or service workers | (S) | [G34] |
+| `ImageDecoder`, `ImageTrack` and `ImageTrackList` are `[Exposed=(Window,DedicatedWorker), SecureContext]` | (S) | [G35] |
+| `VideoFrame` is `[Exposed=(Window,DedicatedWorker)]` with no `SecureContext` | (S) | [G34] |
+| With resist-fingerprinting on for WebCodecs, the WebCodecs interfaces are hidden | (S) | [G36] |
+| dav1d threads (Agnostic path): 2, or 4 at a display width of 1024 or more, or 8 at 2048 or more, capped at the core count | (S) | [G54] |
+| A maximum decode size or concurrent-decoder limit specific to WebCodecs was not found (searched `dom/media/webcodecs/` and the prefs file) | (U) | — |
+| WMF hardware video has a cap: `media.wmf.dxva.max-videos` = `8` | (S) | [G31] |
+
+### Open bugs
+
+Read from bugzilla.mozilla.org on 2026-11-10. The Web Codecs component had 135 open bugs [G63]; the ones that bear on
+exact high-bit-depth decoding are listed here.
+
+| id | summary (verbatim) | status | label | src |
+|---|---|---|---|---|
+| 1969762 | VideoFrame.format reports BGRX for remote-decoded frames and copyTo cannot return YUV planes (Chrome returns I420) | ASSIGNED | (S) | [G64] |
+| 1934008 | Ship Web Codecs on Android | NEW | (S) | [G64] |
+| 1942421 | Enable H265 Decoder on Windows for WebCodecs | ASSIGNED | (S) | [G64] |
+| 1999168 | [Windows] VideoDecoder.isConfigSupported() return false for 'hev1.1.6.L123.00' but about:support indicates HEVC hardware decoding is available | NEW | (S) | [G63] |
+| 2021505 | Check bit depth for codec | NEW | (S) | [G64] |
+| 1968022 | Implement proper VideoDecoder.isConfigSupport w/ hardware support check | ASSIGNED | (S) | [G63] |
+| 1932392 | VideoDecoder.isConfigSupported() incorrectly reports true | UNCONFIRMED | (S) | [G63] |
+| 1915307 | HTMLMediaElement.canPlayType and MediaSource.isTypeSupported incorrectly reports AV1 12-bit HDR profiles as supported | UNCONFIRMED | (S) | [G63] |
+| 1779655 / 1779656 | Support I422 format for VideoFrame / Support I444 format for VideoFrame | NEW | (S) | [G63] |
+| 1909373 | Improve VideoFrame.copyTo performance | NEW | (S) | [G63] |
+| 1780656 | `VideoFrame::CopyTo` can do copy in thread pool | NEW | (S) | [G63] |
+| 2068332 | Support odd-sized subsampled VideoFrames in allocationSize() and copyTo() | NEW | (S) | [G63] |
+| 2089535 | Remove the size alignment check from VideoFrame.copyTo | NEW | (S) | [G63] |
+| 2073730 | VideoDecoder cannot report a decoded frame that fails to become a VideoFrame and dereferences a null image after a failed remote transfer | NEW | (S) | [G63] |
+| 2052255 | Predict VideoFrame pathways for remote decoding/encoding | NEW | (S) | [G63] |
+| 2081675 | Drawing software-decoded 4K VideoFrames with WebGL halves the page frame rate (60 → 30 fps) on Linux | NEW | (S) | [G63] |
+| 1966024 | Only allow an explicit list of image formats in ImageDecoder | ASSIGNED | (S) | [G63] |
+| 1929528 | ImageDecoder.decode from WebCodecs API doesn't support progressive JPEG | ASSIGNED | (S) | [G63] |
+| 1539075 | Implement support for JPEG XL (image/jxl): the JPEG XL umbrella bug, RESOLVED FIXED (so it is not open) | RESOLVED FIXED | (S) | [G64] |
+| — | No open bug found for monochrome/I400 AV1 output (searches above) | — | (U) | — |
+
+### Performance and resource guidance
+
+| claim | label | src |
+|---|---|---|
+| MDN: WebCodecs decodes "efficiently (using hardware acceleration)"; `hardwareAcceleration` is only "A hint" | (S) | [G65] |
+| Hardware video decoding is on for AMD GPUs on Linux since 136. Zero-copy playback of hardware-decoded video on AMD since 147, at parity with Intel and NVIDIA | (S) | [G22] [G66] |
+| In Gecko, `"prefer-hardware"` does not force hardware (see above). To get CPU planes, `"prefer-software"` is the only lever a page has | (D) | [G39] [G40] |
+| Rough performance numbers for Firefox WebCodecs decoding were not found in Mozilla's docs. firefox-source-docs `media/` holds only a MediaFormatReader page; support.mozilla.org returned a bot-check page | (U) | — |
+| Open performance bugs exist for copyTo and for a slow WebCodecs demo with "continuous readback on MediaSupervisor thread" (1926801) | (S) | [G63] |
+
+## ImageDecoder and image formats
+
+**Bottom line for exact 10/12/16-bit samples.** The only route found that hands a page integer samples above 8 bits
+from a browser-native image decoder is Chromium's `ImageDecoder` on a 10- or 12-bit **colour** AVIF that is still,
+has no alpha and is not 4:0:0. That AVIF arrives as an `I4xxP10`/`P12` `VideoFrame` and `copyTo()` gives the
+samples. Monochrome AVIF (which is what most medical greyscale would be), 16-bit PNG, JPEG XL, and every format in
+Gecko all come out at 8 bits. Canvas gives at most `float16`, and float16 cannot hold all 4096 12-bit levels. No
+engine decodes JPEG 2000 or HTJ2K. Exact medical samples therefore need a WASM decoder (see the Wasm section below).
+
+### ImageDecoder API (WebCodecs §10)
+
+The ImageDecoder section is the same in the Editor's Draft and in the W3C Working Draft of 9 November 2026 (D: diffed
+§10 of both texts on 2026-11-10 and found no difference [I1]).
+
+| claim | label | src |
+|---|---|---|
+| `ImageDecoder` exists in Window and dedicated workers, secure contexts only. | S | [I2] |
+| Members: `type`, `complete`, `completed` (a Promise), `tracks`, `decode(options)`, `reset()`, `close()`, static `isTypeSupported(type)`. | S | [I2] |
+| `ImageDecoderInit`: `type` and `data` are required. `data` is a BufferSource **or a `ReadableStream`**. The optional members are `colorSpaceConversion` (default `"default"`), `desiredWidth`/`desiredHeight`, `preferAnimation` and `transfer`. | S | [I3] |
+| `desiredWidth` and `desiredHeight` must be given together, or the init is invalid (TypeError). Resizing is best effort. | S | [I4] [I5] |
+| `colorSpaceConversion` has the same meaning as in `ImageBitmapOptions`, which is "converted or ignored". It does not choose a bit depth. | S | [I6] |
+| `preferAnimation` steers which track is selected first in a multi-track file. | S | [I7] |
+| `transfer`: if `data`'s ArrayBuffer is listed, the UA may use the bytes without copying them, and the buffer is detached afterwards. | S | [I8] |
+| With a `ReadableStream`, `complete` stays false until the stream closes. `completed` resolves at that point. | S | [I9] |
+| `tracks` is a live `ImageTrackList`. Each `ImageTrack` exposes `animated`, `frameCount`, `repetitionCount` and a settable `selected`. | S | [I10] |
+| `isTypeSupported` only asks whether the UA "can provide a codec". The spec requires no format. | S | [I11] |
+| `decode({frameIndex, completeFramesOnly})` resolves to `ImageDecodeResult {image: VideoFrame, complete}`. Setting `completeFramesOnly:false` lets a progressive image resolve early with less detail. | S | [I12] [I13] |
+| **The output pixel format is whatever the decoder emits.** If that is a recognised `VideoPixelFormat` the frame carries it, otherwise `format` is `null`. The spec never names a format for an image. | S | [I14] |
+| Every `VideoPixelFormat` with more than 8 bits is YUV (`I420P10`…`I444AP12`), stored as 16-bit little-endian integers. The RGB formats (`RGBA`, `RGBX`, `BGRA`, `BGRX`) are 8 bits per sample. There is no greyscale format and no high-bit-depth RGB format. | S | [I15] [I16] |
+| A 16-bit or greyscale image can therefore reach a `VideoFrame` only as YUV P10/P12, as 8-bit RGB, or as `format: null`. | D | from [I14]–[I16] |
+| `copyTo({format})` converts only to `RGBA`/`RGBX`/`BGRA`/`BGRX`. Any other target gives NotSupportedError. A `null`-format frame can be read only through that 8-bit RGB conversion. | S | [I17] |
+
+`ImageDecoder` support, as browser-compat-data `api/ImageDecoder.json` gives it:
+
+| engine | version | label | src |
+|---|---|---|---|
+| Chromium | `"chrome": { "version_added": "94" }` | S | [I18] |
+| Gecko | `"firefox": { "version_added": "133" }`. The `dom.media.webcodecs.image-decoder.enabled` pref defaults to true at the pinned source. | S | [I18] [I19] |
+| WebKit | `"safari": { "version_added": "preview" }`. At the pinned WebKit `main`, the `WebCodecsImageEnabled` preference is `status: stable`, `default: true`. | S | [I18] [I20] |
+
+### Format support per engine
+
+The `<img>` column comes from browser-compat-data `mediatypes/image/*.json`. `createImageBitmap` takes an image element
+or Blob and goes through the same engine decoders (D: the engine decoder sources below are shared code; no per-format
+`createImageBitmap` data exists in BCD). The `ImageDecoder` column is derived from engine source: both Chromium and
+Gecko create the WebCodecs decoder through the same factory that `<img>` uses [I31] [I44] [I51].
+
+| format | Chromium `<img>` | WebKit `<img>` | Gecko `<img>` | via `ImageDecoder` | label | src |
+|---|---|---|---|---|---|---|
+| AVIF (8/10/12-bit) | 85 | 16.4 (16.1 partial: macOS Ventura only) | 93 (animation 113) | Chromium, Gecko: yes. WebKit: in the MIME list where `HAVE(AVIF) \|\| USE(AVIF)` | S | [I21] [I25] [I31] [I35] [I44] |
+| JPEG XL | 155: jxl-rs decoder, `kJXLImageFormat` enabled by default | 17 (no animation, no progressive) | 158: `--disable-jxl` is opt-out, `image.jxl.enabled` defaults to true | Chromium, Gecko: yes (same factory, same gate). WebKit: in the MIME list where `HAVE(JPEGXL) \|\| USE(JPEGXL)` | S | [I22] [I24] [I26] [I29] [I30] [I31] [I32] [I33] [I34] [I35] |
+| WebP | 17 | 14 | 65 | yes in all three (same factories) | S / D | [I23] [I31] [I35] [I51] |
+| PNG (16-bit) | 1 | 1 | 1 | yes, but at 8 bits (see the next table) | S | [I27] |
+| JPEG 2000 (`.jp2`/`.j2k`) | no | **removed in Safari 18** | no | no | S (WebKit) / D (Chromium, Gecko: no JPEG 2000 branch in either decoder factory) | [I28] [I31] [I34] |
+| HTJ2K (JPEG 2000 Part 15) | no | no | no | no | D: follows from the JPEG 2000 row; BCD and MDN have no entry for it | [I28] [I31] [I34] |
+
+* JPEG XL in Chromium: chromestatus lists the feature as "in Blink using jxl-rs" with `"desktop": 155` (S [I29]). It
+  was removed in 2022 (Chrome 110), which this pass did not check against an official source (U).
+* MDN's image-format guide matches BCD for JPEG XL ("Chrome 155, Firefox 158, and Safari 17") and has no JPEG 2000
+  entry (S [I24]).
+* BCD has no `image/jp2` or `image/jxs` file at the pinned commit (D: listing of `mediatypes/image/`, [I21]).
+
+### What bit depth reaches the page
+
+| route | Chromium | WebKit | Gecko | label | src |
+|---|---|---|---|---|---|
+| `<img>` → 2D canvas → `getImageData()` (default) | 8-bit `Uint8ClampedArray` (`"rgba-unorm8"`) | same | same | S | [I36] |
+| `getImageData(..., {pixelFormat:"rgba-float16"})` on a `colorType:"float16"` canvas | 137 (BCD marks it `experimental`) | not supported | not supported (`impl_url` bug 1958830) | S | [I37] [I38] [I39] |
+| Can float16 hold exact 12- or 16-bit integers? | No for normalised 12-bit: binary16 values just below 1.0 are 2⁻¹¹ apart, wider than the 1/4095 step of 12-bit data | — | — | D: binary16 from [I40]; 1.0009765625 = 1 + 2⁻¹⁰ is the next value after 1, so the spacing below 1 is 2⁻¹¹ |  [I37] [I40] |
+| `createImageBitmap` options | `ImageBitmapOptions` has orientation, premultiply, `colorSpaceConversion` and resize, but **no bit-depth or pixel-format option** | same | same | S | [I41] |
+| `ImageDecoder`, 10/12-bit AVIF, colour, still, no alpha | `I420P10`/`P12` (or 422/444) with **unscaled** 16-bit containers, so the exact samples come through `copyTo()` | U (VideoFrame built from a `NativeImage`, whose format is not stated) | 8-bit: AVIF is converted with `ConvertYCbCrToRGB32` into `OS_RGBX`/`B8G8R8A8` | S (Chromium, Gecko), U (WebKit) | [I42] [I43] [I45] [I46] [I47] |
+| `ImageDecoder`, AVIF that is monochrome (4:0:0), has alpha, is animated, or needs a colour transform | 8-bit RGB: the YUV path is skipped and the RGB path decodes with `kDefaultBitDepth` (uint8) | U | 8-bit | S / D | [I42] [I43] [I44] [I45] |
+| `ImageDecoder`, 16-bit PNG | 8-bit (`kDefaultBitDepth`; PNG has no YUV path) | U | 8-bit (`png_set_scale_16`) | S (Gecko), D (Chromium) | [I42] [I43] [I48] |
+| `ImageDecoder`, JPEG XL > 8-bit | 8-bit (`kDefaultBitDepth`. The decoder goes to half float only when asked for `kHighBitDepthToHalfFloat`) | U | 8-bit (HDR is converted to u8 rows) | S | [I42] [I43] [I49] [I50] |
+| Any route giving **12- or 16-bit integer samples of a greyscale image** to the page | none found | none found | none found | D: from every row above | — |
+
+## Decoding in WebAssembly
+
+**Bottom line.** Fixed-width SIMD, threads with shared memory, and `instantiateStreaming` ship in all three
+engines. Threads need cross-origin isolation, which means COOP `same-origin` together with COEP `require-corp` or
+`credentialless`; Safari does not support `credentialless`. A wasm32 memory can reach 4 GiB on 64-bit builds of all
+three engines. Relaxed SIMD and memory64 ship in Chromium and Gecko, while Safari has them only in preview or behind a
+flag.
+
+### Feature support
+
+The WebAssembly CG table (`features.json`) and BCD disagree in two cells, and both values are shown there.
+
+| feature | Chromium | WebKit / Safari | Gecko / Firefox | label | src |
+|---|---|---|---|---|---|
+| Fixed-width SIMD (128-bit) | 91 | 16.4 | 89 | S | [A1] [A2] |
+| Relaxed SIMD | 114 | BCD `preview`; CG table: flag `useWebAssemblyRelaxedSIMD` | BCD 146; CG table 145 | S | [A1] [A3] |
+| Threads and atomics | 74 (Android 88) | BCD 15.2; CG table 14.1 desktop / 14.5 iOS | 79 | S | [A1] [A4] |
+| `WebAssembly.Memory({shared:true})` | 74 (Android 88) | 15.2: "gated behind COOP/COEP" | 78 | S | [A5] |
+| `SharedArrayBuffer` | 68 (Android 89) | 15.2 | 79 | S | [A6] |
+| `crossOriginIsolated` | 87 | 15.2 | 72 | S | [A7] |
+| COEP header / `credentialless` | 83 / 96 | 15.2 / **not supported** | 79 / 119 | S | [A8] |
+| COOP header | 83 | 15.2 | 79 | S | [A9] |
+| memory64 | 133 | BCD `preview`; CG table: Technology Preview 251 | 134 | S | [A1] [A10] |
+| `compileStreaming` / `instantiateStreaming` | 60 | 15 | 58 | S | [A11] |
+| `WebAssembly` in workers | exposed everywhere (`[Exposed=*]`), so dedicated, shared and service workers all have it | same | same | S (spec); per-engine worker data is not in BCD (U) | [A12] |
+
+### Cross-origin isolation (HTML)
+
+| claim | label | src |
+|---|---|---|
+| Unless the agent cluster is cross-origin isolated, the global `SharedArrayBuffer` constructor is deleted. A shared `WebAssembly.Memory` still exposes the constructor through `.buffer.constructor`. | S | [A13] |
+| `postMessage` of a SAB (and so of a shared `WebAssembly.Memory`) throws `DataCloneError` unless the sender has the cross-origin isolated capability. | S | [A14] [A20] |
+| Isolation needs **every top-level document to send `Cross-Origin-Opener-Policy: same-origin`** and **every document to send a COEP value that is "compatible with cross-origin isolation"**, which is `require-corp` or `credentialless`. | S | [A15] [A16] |
+| `require-corp`: a cross-origin subresource needs CORS or a `Cross-Origin-Resource-Policy` header. `credentialless`: no-CORS cross-origin requests are sent without credentials and need no CORP. | S | [A16] |
+| Only the "concrete" isolation mode grants the capability. "logical" applies the restrictions without granting it, on platforms that cannot provide the security. | S | [A17] |
+| `self.crossOriginIsolated` reports the capability, in both windows and workers. Read it before you create threads. | S | [A18] |
+| The `Atomics` object is available without isolation, and so are wasm atomic instructions. Only sharing memory between threads is gated. | S | [A20] |
+
+### Memory: limits, sharing, growth
+
+| claim | label | src |
+|---|---|---|
+| JS-API limits: a 32-bit memory may be at most 65,536 pages (4 GiB) at runtime. A 64-bit memory may be at most 262,144 pages (16 GiB). A page is 65,536 bytes. | S | [A19] |
+| V8 (Chrome): 4 GiB for wasm32 and 16 GiB for memory64 on 64-bit builds. On 32-bit builds both are 32,767 pages (2 GiB − 64 KiB). | S | [A21] |
+| Chrome moved from 2 GB to 4 GB in M83 ("Make sure to test on Chrome M83 … or later"). | S | [A22] |
+| SpiderMonkey (Firefox), 64-bit: wasm32 gets 65,536 pages (4 GiB), the smaller of the 2¹⁶-page validation cap and a 16 GB ArrayBuffer limit. memory64 gets 16 GiB, the smaller of 2³⁷−1 pages and 16 GB. 32-bit builds stop one page short of 2 GB. | D: min() applied to the constants in [A23] |
+| JavaScriptCore (Safari), 64-bit (`USE(LARGE_TYPED_ARRAYS)`): wasm32 gets 64 × 1024 pages (4 GiB). The memory64 buffer is capped at `MAX_ARRAY_BUFFER_SIZE` = 2³⁴ bytes (16 GiB). 32-bit builds get 2 GB. | S / D (16 GiB = 2³⁴) | [A24] |
+| These are upper bounds. "In practice, an implementation may run out of resources for valid modules below these limits." | S | [A19] |
+| A shared `WebAssembly.Memory` **must declare `maximum`**, or the constructor throws TypeError. | S | [A25] |
+| Growing an unshared memory detaches the old `ArrayBuffer`. A shared memory is not detached: the memory gets a new fixed-length `SharedArrayBuffer`, so `memory.buffer` must be read again and views rebuilt after `grow()`. | S (detach rule) / D (re-read) | [A25] |
+| `Memory.toResizableBuffer()` / `toFixedLengthBuffer()` are available: Chromium 144, Firefox 145, Safari 26.2. | S | [A5] |
+
+### Compilation tiers (only where official docs say)
+
+| engine | claim | label | src |
+|---|---|---|---|
+| V8 | Functions compile lazily with Liftoff, a baseline compiler, on their first call. Hot functions are compiled again with TurboFan. With `compileStreaming`, the TurboFan code is cached too. | S | [A26] |
+| JavaScriptCore | Safari 26 added an in-place interpreter for Wasm. | S | [A27] |
+| SpiderMonkey | Tiers not checked against firefox-source-docs. | U | — |
 
 ## Sources
 
@@ -1402,3 +1688,181 @@ below, i.e. `https://github.com/WebKit/WebKit/blob/5dbb0d4dcc9b3c87d4d457fabe6cf
 | K62 | …/5dbb0d4/Source/WebCore/Modules/webcodecs/WebCodecsVideoDecoder.cpp#L157 | 2026-11-10 | `.decoding = config.hardwareAcceleration == HardwareAcceleration::PreferSoftware ? VideoDecoder::HardwareAcceleration::No : VideoDecoder::HardwareAcceleration::Yes,` |
 | K63 | …/5dbb0d4/Source/WTF/Scripts/Preferences/UnifiedWebPreferences.yaml#L7636-L7645 | 2026-11-10 | `WebRTCVP9Profile2CodecEnabled: type: bool status: mature … defaultValue: "PLATFORM(COCOA)": true default: false` |
 | K64 | …/5dbb0d4/Source/WebCore/platform/VideoPixelFormat.cpp#L52-L76 | 2026-11-10 | `#elif USE(GSTREAMER) switch (format) { case GST_VIDEO_FORMAT_I420: return VideoPixelFormat::I420; case GST_VIDEO_FORMAT_A420: … case GST_VIDEO_FORMAT_Y42B: return VideoPixelFormat::I422; case GST_VIDEO_FORMAT_Y444: return VideoPixelFormat::I444; case GST_VIDEO_FORMAT_NV12: return VideoPixelFormat::NV12;` |
+
+### G
+
+Engine source base: `https://raw.githubusercontent.com/mozilla-firefox/firefox/47f2a88cbab9072c8f8f156494b92d6891e488fb/`
+(written `FX/` below). BCD base:
+`https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/api/` (written `BCD/`).
+
+| id | URL | read | verbatim quote |
+|---|---|---|---|
+| G1 | BCD/VideoDecoder.json | 2026-11-10 | `"firefox": { "version_added": "130" }, "firefox_android": { "version_added": false }` |
+| G2 | BCD/EncodedVideoChunk.json | 2026-11-10 | `"firefox": { "version_added": "130" }, "firefox_android": { "version_added": false }` |
+| G3 | BCD/VideoFrame.json | 2026-11-10 | `"firefox": { "version_added": "130" }, "firefox_android": "mirror"`; `metadata_option`: `"firefox": { "version_added": false, "impl_url": "https://bugzil.la/1802053" }`; `flip`, `rotation`: `"firefox": { "version_added": false }` |
+| G4 | BCD/ImageDecoder.json | 2026-11-10 | `"firefox": { "version_added": "133" }, "firefox_android": "mirror"` |
+| G5 | BCD/HTMLVideoElement.json (`requestVideoFrameCallback`) | 2026-11-10 | `"firefox": { "version_added": "132", "impl_url": ["https://bugzil.la/1800882", "https://bugzil.la/1908245"] }, "firefox_android": "mirror"` |
+| G6 | BCD/MediaCapabilities.json (`decodingInfo`) | 2026-11-10 | `"firefox": { "version_added": "63", "notes": "Before Firefox 101, \`decodingInfo()\` ignored \`codecs\` parameter options for \`av01\` codecs (treating them as \`av1\`)." }` |
+| G7 | BCD/MediaSource.json | 2026-11-10 | `"firefox": { "version_added": "42" }, "firefox_android": { "version_added": "41" }`; `worker_support`: `"firefox": { "version_added": false }` |
+| G10 | https://www.mozilla.org/en-US/firefox/130.0/releasenotes/ | 2026-11-10 | "Enabled the Web Codecs API on desktop platforms, allowing low-level access to audio and video encoders and decoders." |
+| G11 | https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/130 | 2026-11-10 | "The Web Codecs API is supported on desktop releases … Android support is enabled in the Nightly release." |
+| G12 | https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/133 | 2026-11-10 | "The ImageDecoder, ImageTrackList, and ImageTrack interfaces of the WebCodecs API are now supported, enabling the decoding images from the main and worker threads. (Firefox bug 1923755)." |
+| G13 | https://www.mozilla.org/en-US/firefox/133.0/releasenotes/ | 2026-11-10 | "Added support for image decoding as part of the WebCodecs API. This allows for decoding of images from the main and worker threads." |
+| G14 | https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/132 | 2026-11-10 | "The requestVideoFrameCallback() and cancelVideoFrameCallback() methods of the HTMLVideoElement interface are now supported." |
+| G15 | https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/130 | 2026-11-10 | "Request video frame callback: media.rvfc.enabled." … "Both methods are enabled by default on the nightly build. (Firefox bug 1800882)." |
+| G16 | https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/65 | 2026-11-10 | "The AV1 codec is now supported by default on Windows (Firefox bug 1452146)." |
+| G17 | https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/66 | 2026-11-10 | "The new AV1 video codec is now enabled by default on both macOS and Windows (for Intel processors). Linux support will come in Firefox 67" |
+| G18 | https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/67 | 2026-11-10 | "The AV1 video codec is now supported on Linux." "dav1d is now the default media decoder for AV1" |
+| G19 | https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/113 | 2026-11-10 | "The AV1 video codec is now enabled on Android. Hardware accelerated decoding is used if supported by the device (Firefox bug 1672276)." "Support for animated AVIF (AV1 Image Format files) images." |
+| G20 | https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/93 | 2026-11-10 | "Support for AVIF images is now enabled by default (Firefox bug 1682995)." |
+| G21 | https://www.mozilla.org/en-US/firefox/134.0/releasenotes/ | 2026-11-10 | "Hardware-accelerated playback of HEVC video content is now supported on Windows." |
+| G22 | https://www.mozilla.org/en-US/firefox/136.0/releasenotes/ | 2026-11-10 | "Hardware-accelerated playback of HEVC video content is now supported on macOS." "Hardware video decoding is now enabled for AMD GPUs on Linux." |
+| G23 | https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/137 | 2026-11-10 | "HEVC (H.265) is now hardware enabled on Android, and hardware and software enabled on Linux. This adds to existing hardware and software support on Windows and macOS. (Firefox bug 1950032)." |
+| G24 | https://www.mozilla.org/en-US/firefox/android/137.0/releasenotes/ | 2026-11-10 | "HEVC support is now supported on Android." |
+| G25 | https://www.mozilla.org/en-US/firefox/152.0/releasenotes/ (same text at 153.0) | 2026-11-10 | "Firefox now offers experimental support for the new JPEG XL image format … You can enable it from the Firefox Labs panel in Settings." |
+| G26 | https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/149 | 2026-11-10 | "JPEG XL image support: Rust-based decoder (Nightly only): image.jxl.enabled" "The previous C++ JPEG XL image decoder has been replaced with a new Rust-based implementation that uses the jxl-rs library. (Firefox bug 1986393)." |
+| G27 | https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/158 ; https://www.mozilla.org/en-US/firefox/158.0/releasenotes/ | 2026-11-10 | "Support for the JPEG XL image format (image/jxl) is now enabled by default. … (Firefox bug 2065096)." / "Firefox now supports the JPEG XL image format" |
+| G29 | https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/123 | 2026-11-10 | "Web Codecs API: dom.media.webcodecs.enabled. The video interfaces of the Web Codecs API are supported on Linux desktop on Nightly." |
+| G30 | FX/modules/libpref/init/StaticPrefList.yaml | 2026-11-10 | `- name: dom.media.webcodecs.enabled` `#if defined(MOZ_WIDGET_ANDROID)` `value: @IS_NIGHTLY_BUILD@` `#else` `value: true`; `- name: dom.media.webcodecs.image-decoder.enabled` `value: true`; `- name: dom.media.webcodecs.h265.enabled` `value: @IS_NIGHTLY_BUILD@` |
+| G31 | FX/modules/libpref/init/StaticPrefList.yaml | 2026-11-10 | `- name: media.av1.enabled` `value: true`; `- name: media.av1.use-dav1d` `value: true`; `- name: media.av1.force-thread-count` `value: 0`; `- name: media.hevc.enabled` `value: true`; `- name: media.hardware-video-decoding.enabled` `value: true` `mirror: once`; `- name: media.hardware-video-decoding-vulkan.enabled` `value: @IS_NIGHTLY_BUILD@`; `- name: media.ffvpx-hw.enabled` `#if defined(MOZ_WIDGET_GTK)` `value: true` `#elif defined(XP_WIN)` `value: @IS_NIGHTLY_BUILD@`; `- name: media.gpu-process-decoder` `#if defined(XP_WIN)` `value: true`; `name: media.wmf.av1.enabled` `value: true`; `name: media.wmf.dxva.max-videos` `value: 8`; `name: media.wmf.force.allow-p010-format` `value: false`; `name: media.android-media-codec.enabled` `value: @IS_NOT_NIGHTLY_BUILD@` |
+| G32 | FX/modules/libpref/init/StaticPrefList.yaml | 2026-11-10 | `# Whether we use dav1d (true) or libaom (false) to decode AVIF image` `- name: image.avif.use-dav1d` `value: true`; `#ifdef MOZ_JXL` `# Whether we attempt to decode JXL images or not.` `- name: image.jxl.enabled` `value: true` |
+| G33 | FX/dom/media/webcodecs/VideoFrame.cpp | 2026-11-10 | `return (StaticPrefs::dom_media_webcodecs_enabled() \|\| StaticPrefs::dom_media_webcodecs_image_decoder_enabled()) && !nsRFPService::IsWebCodecsRFPTargetEnabled(aCx);` |
+| G34 | FX/dom/webidl/VideoDecoder.webidl ; FX/dom/webidl/VideoFrame.webidl | 2026-11-10 | `[Exposed=(Window,DedicatedWorker), SecureContext, Func="nsRFPService::ExposeWebCodecsAPI"]` / `[Exposed=(Window,DedicatedWorker), Func="mozilla::dom::VideoFrame::PrefEnabled"]` |
+| G35 | FX/dom/webidl/ImageDecoder.webidl | 2026-11-10 | `[Exposed=(Window,DedicatedWorker), SecureContext, Func="nsRFPService::ExposeWebCodecsAPIImageDecoder"]` |
+| G36 | FX/toolkit/components/resistfingerprinting/nsRFPService.cpp | 2026-11-10 | `if (!StaticPrefs::dom_media_webcodecs_enabled()) { return false; } return !IsWebCodecsRFPTargetEnabled(aCx);` |
+| G37 | FX/dom/media/webcodecs/VideoDecoder.cpp | 2026-11-10 | `// TODO: Enable WebCodecs on Android (Bug 1840508)` `if (IsOnAndroid()) { return false; }` |
+| G38 | FX/dom/media/webcodecs/WebCodecsUtils.cpp | 2026-11-10 | `// H265 is supported only on MacOS in Nightly for now.` `return StaticPrefs::dom_media_webcodecs_h265_enabled() && StaticPrefs::media_hevc_enabled() && (IsOnMacOS() \|\| IsOnLinux());` … `if (StringBeginsWith(aCodec, u"vp9"_ns) \|\| StringBeginsWith(aCodec, u"av1"_ns)) { return false; }` |
+| G39 | FX/dom/media/webcodecs/DecoderTemplate.cpp | 2026-11-10 | `bool preferSW = mActiveConfig->mHardwareAcceleration == HardwareAcceleration::Prefer_software;` … `mAgent->Configure(preferSW, lowLatency)` |
+| G40 | FX/dom/media/webcodecs/DecoderAgent.cpp | 2026-11-10 | `aPreferSoftwareDecoder ? CreateDecoderParams::Option::HardwareDecoderNotAllowed : CreateDecoderParams::Option::Default), mInfo->GetType(), mImageContainer, knowsCompositor};` … `params.mOptions += CreateDecoderParams::Option::KeepOriginalPts;` |
+| G41 | FX/dom/media/platforms/PDMFactory.cpp | 2026-11-10 | `if (mCurrentPDMs[i]->Supports(params, nullptr /* diagnostic */).isEmpty()) { continue; }` … `// Try the next PDM.` |
+| G42 | FX/dom/media/platforms/PDMFactory.cpp (`CreateContentPDMs`) | 2026-11-10 | `if (StaticPrefs::media_gpu_process_decoder()) { StartupPDM(RemoteDecoderModule::Create(RemoteMediaIn::GpuProcess)); }` `if (StaticPrefs::media_rdd_process_enabled()) { StartupPDM(RemoteDecoderModule::Create(RemoteMediaIn::RddProcess)); }` |
+| G43 | FX/dom/media/platforms/PDMFactory.cpp (`CreateRddPDMs`) | 2026-11-10 | `StartupPDM(WMFDecoderModule::Create());` … `StartupPDM(AppleDecoderModule::Create());` … `StartupPDM(FFVPXRuntimeLinker::CreateDecoder());` … `StartupPDM(FFmpegRuntimeLinker::CreateDecoder(), preferSystemForVulkan)` … `StartupPDM(AgnosticDecoderModule::Create(), StaticPrefs::media_prefer_non_ffvpx());` |
+| G44 | FX/dom/media/platforms/PDMFactory.cpp (`CreateGpuPDMs`) | 2026-11-10 | `#ifdef XP_WIN if (StaticPrefs::media_ffvpx_hw_enabled()) { StartupPDM(FFVPXRuntimeLinker::CreateDecoder()); } if (StaticPrefs::media_wmf_enabled()) { StartupPDM(WMFDecoderModule::Create()); }` |
+| G45 | FX/dom/media/platforms/agnostic/AgnosticDecoderModule.cpp | 2026-11-10 | `if (StaticPrefs::media_av1_use_dav1d()) { m = new DAV1DDecoder(aParams); } else { m = new AOMDecoder(aParams); }` |
+| G46 | FX/media/ffvpx/config_components_audio_video.h ; FX/media/ffvpx/libavcodec/codec_list.c | 2026-11-10 | `#define CONFIG_H264_DECODER 0` `#define CONFIG_HEVC_DECODER 0` `#define CONFIG_LIBDAV1D_DECODER 1` `#define CONFIG_VP9_DECODER 1`; `#if CONFIG_LIBDAV1D` `&ff_libdav1d_decoder,` |
+| G47 | FX/dom/media/platforms/ffmpeg/FFmpegDecoderModule.h | 2026-11-10 | `AV_HWDEVICE_TYPE_VULKAN,` `AV_HWDEVICE_TYPE_VAAPI,` `AV_HWDEVICE_TYPE_NONE,  // Placeholder for V4L2.` … `// These proprietary video codecs can only be decoded via hardware by using the system ffmpeg, not supported by ffvpx.` |
+| G48 | FX/dom/media/platforms/ffmpeg/FFmpegDecoderModule.h | 2026-11-10 | `// FFmpeg SW decoding is not allowed in the GPU process.` |
+| G49 | FX/dom/media/platforms/apple/AppleDecoderModule.cpp | 2026-11-10 | `// AV1 HW is supported since 14.0 on Apple silicon.` … `CreateDecoderParams::Option::HardwareDecoderNotAllowed)) { return false; }` `// HW AV1 decoder only supports 8 or 10 bit color.` … `// HW AV1 decoder doesn't support RGB` |
+| G50 | FX/dom/media/platforms/wmf/WMFDecoderModule.cpp | 2026-11-10 | `// If this process cannot use DXVA, the AV1 decoder will not be used.` … `"AV1 MFT requires DXVA"` … `"Lacking of AV1 extension"` |
+| G51 | FX/dom/media/platforms/ffmpeg/FFmpegVideoDecoder.cpp | 2026-11-10 | `return 0 == strncmp(aCodec->name, "libdav1d", 8) \|\| 0 == strncmp(aCodec->name, "vp9", 3);` … `if (m8BitOutput && b.mColorDepth != gfx::ColorDepth::COLOR_8) { MediaResult ret = b.To8BitPerChannel(m8BitRecycleBin);`; FFmpegDecoderModule.h: `aParams.mOptions.contains(CreateDecoderParams::Option::Output8BitPerChannel)` |
+| G52 | FX/dom/media/platforms/ffmpeg/FFmpegVideoDecoder.cpp (`GetColorDepth`) | 2026-11-10 | `case AV_PIX_FMT_YUV420P10LE:` … `return gfx::ColorDepth::COLOR_10;` … `case AV_PIX_FMT_YUV420P12LE:` … `return gfx::ColorDepth::COLOR_12;` … `default: MOZ_ASSERT_UNREACHABLE("Not supported format?"); return gfx::ColorDepth::COLOR_8;` |
+| G53 | FX/dom/media/platforms/agnostic/DAV1DDecoder.cpp | 2026-11-10 | `if ((*picture).p.layout == DAV1D_PIXEL_LAYOUT_I400) { // Use NS_OK to indicate that this picture should be skipped.` … `"I400 picture: No chroma data to construct an image"`; `b.mColorDepth = gfx::ColorDepthForBitDepth(aPicture.p.bpc);`; `if (aPicture.p.bpc != 8 && m8bpcOutput) {` |
+| G54 | FX/dom/media/platforms/agnostic/DAV1DDecoder.cpp (`Init`) | 2026-11-10 | `if (mLowLatency) { settings.max_frame_delay = 1; } size_t decoder_threads = 2; if (mInfo.mDisplay.width >= 2048) { decoder_threads = 8; } else if (mInfo.mDisplay.width >= 1024) { decoder_threads = 4; }` |
+| G55 | FX/media/ffvpx/libavcodec/libdav1d.c | 2026-11-10 | `[DAV1D_PIXEL_LAYOUT_I400] = { AV_PIX_FMT_GRAY8,   AV_PIX_FMT_GRAY10,    AV_PIX_FMT_GRAY12 },` |
+| G56 | FX/dom/media/ImagePixelFormat.cpp | 2026-11-10 | `// 16-bit samples have no name.`; `case ColorDepth::COLOR_10:` … `ImagePixelFormat::I420P10`; `case ColorDepth::COLOR_12:` … `ImagePixelFormat::I420P12`; `aData.mColorDepth != ColorDepth::COLOR_8 \|\| aData.mAlpha.isSome()) { return Nothing(); }`; `case ImageFormat::GPU_VIDEO: // This process only reads a remote image back as RGB. return Some(ImagePixelFormat::BGRX);` |
+| G57 | FX/dom/media/ipc/RemoteVideoDecoder.cpp | 2026-11-10 | `texture = video->mImage->GetTextureClient(mKnowsCompositor);` … `// If failed to create a GPU accelerated surface descriptor, fall back to copying frames via shmem.` |
+| G58 | FX/dom/media/webcodecs/VideoFrame.cpp (`ParseVideoFrameCopyToOptions`, `CopyTo`) | 2026-11-10 | `error.Append(" is unsupported in ParseVideoFrameCopyToOptions");`; `aRv.ThrowNotSupportedError("VideoFrame's image format is unrecognized");`; `// By [1], if color space is not set, use "srgb".` |
+| G59 | FX/dom/media/webcodecs/VideoFrame.cpp (`Resource::CopyTo`, `SampleBytes`) | 2026-11-10 | `if (mImage->GetFormat() == ImageFormat::PLANAR_YCBCR) {` … `return CopyPlaneRegion(mFormat->SampleBytes(aPlane),`; `return 1;  // 8 bits/sample on the Y, U, V, A plane.` |
+| G60 | FX/dom/media/webcodecs/VideoFrame.cpp | 2026-11-10 | `LOGE("The conversion between RGB and non-RGB is unsupported");` |
+| G61 | FX/dom/media/webcodecs/ImageTrack.cpp ; FX/image/decoders/nsAVIFDecoder.cpp | 2026-11-10 | `auto image = MakeRefPtr<layers::SourceSurfaceImage>(size, f.mSurface); Maybe<VideoPixelFormat> format = GuessVideoPixelFormat(image);` / `// When we convert the data to rgb we always pass either B8G8R8A8 or B8G8R8X8 to ConvertYCbCrToRGB32.` |
+| G62 | FX/image/DecoderFactory.cpp ; FX/dom/media/webcodecs/ImageDecoder.cpp | 2026-11-10 | `else if (!strcmp(aMimeType, IMAGE_JXL) && StaticPrefs::image_jxl_enabled()) { type = DecoderType::JXL; }` / `promise->MaybeResolve(type != image::DecoderType::UNKNOWN);` |
+| G63 | https://bugzilla.mozilla.org/rest/bug?product=Core&component=Audio/Video:%20Web%20Codecs&resolution=---&include_fields=id,summary,status | 2026-11-10 | 135 bugs returned; e.g. `1999168 NEW "[Windows] VideoDecoder.isConfigSupported() return false for 'hev1.1.6.L123.00' but about:support indicates HEVC hardware decoding is available"` (each summary in the table is copied from this response) |
+| G64 | https://bugzilla.mozilla.org/rest/bug/1969762 (also /1934008, /1942421, /2021505, /2071132, /1539075) | 2026-11-10 | `1969762 ASSIGNED "VideoFrame.format reports BGRX for remote-decoded frames and copyTo cannot return YUV planes (Chrome returns I420)"`; `2071132 RESOLVED FIXED "VideoFrame.format reports I420 for 10-bit planar frames and BGRA for frames created from a video element"`; `1934008 NEW "Ship Web Codecs on Android"`; `1539075 RESOLVED FIXED "Implement support for JPEG XL (image/jxl)"` |
+| G65 | https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API ; https://developer.mozilla.org/en-US/docs/Web/API/VideoDecoder/configure | 2026-11-10 | "The WebCodecs API enables web developers to encode and decode video and audio in the browser efficiently (using hardware acceleration)" / "hardwareAcceleration Optional A hint as to the hardware acceleration method to use." |
+| G66 | https://www.mozilla.org/en-US/firefox/147.0/releasenotes/ | 2026-11-10 | "Improved video playback performance on systems with AMD GPUs by enabling zero-copy playback for hardware-decoded video where supported, bringing them to parity with Intel and NVIDIA GPUs." |
+| G67 | FX/toolkit/components/nimbus/FeatureManifest.yaml | 2026-11-10 | `jpeg-xl:` `description: "JPEG-XL"` … `setPref:` `branch: user` `pref: "image.jxl.enabled"` |
+| G68 | FX/toolkit/moz.configure | 2026-11-10 | `option("--disable-jxl", help="Disable jxl image support")` … `set_define("MOZ_JXL", jxl)` |
+| G69 | FX/browser/config/version.txt | 2026-11-10 | `162.0a1` |
+| G70 | FX/dom/media/platforms/ffmpeg/FFmpegDecoderModule.h | 2026-11-10 | `// These proprietary codecs can only be decoded via MediaCodec decoders, but the underlying implementation may be software or hardware.` |
+| G71 | FX/dom/media/ipc/RemoteDecoderModule.cpp | 2026-11-10 | `// Platform decoders must be used in the GPU process, unless it is disabled. Pure software decoding may still be performed in the RDD process since it is not permitted in the GPU process.` |
+| G72 | FX/dom/media/webcodecs/WebCodecsUtils.cpp | 2026-11-10 | `"Resist fingerprinting (MediaCapabilities) enabled, overriding "` `"hardware preference");` `aConfig->mHardwareAcceleration = HardwareAcceleration::No_preference;` |
+| G73 | FX/dom/media/webcodecs/VideoDecoder.cpp (`CreateVideoFrame`) | 2026-11-10 | `Maybe<VideoPixelFormat> format = GuessVideoPixelFormat(aData->mImage.get());` |
+
+### I
+
+Engine source is pinned to these commits: Chromium GitHub mirror `42b48607b5e4351a61742e83eb6d7ee99d483a86`, Gecko
+`mozilla-firefox/firefox` `47f2a88cbab9072c8f8f156494b92d6891e488fb`, WebKit `5dbb0d4dcc9b3c87d4d457fabe6cfb62be40cb40`,
+BCD `918d2d721cc80c26c2eed7e64c6fa43da59322fd`, mdn/content `edc9ab5479d1253d9edd93bfe90dd1d100605c26`.
+`CR` = `https://raw.githubusercontent.com/chromium/chromium/42b48607b5e4351a61742e83eb6d7ee99d483a86/`,
+`FF` = `https://raw.githubusercontent.com/mozilla-firefox/firefox/47f2a88cbab9072c8f8f156494b92d6891e488fb/`,
+`WK` = `https://raw.githubusercontent.com/WebKit/WebKit/5dbb0d4dcc9b3c87d4d457fabe6cfb62be40cb40/`,
+`BCD` = `https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/`.
+
+| id | URL | read | verbatim quote |
+|---|---|---|---|
+| I1 | https://www.w3.org/TR/webcodecs/ | 2026-11-10 | "W3C Working Draft, 9 November 2026" |
+| I2 | https://w3c.github.io/webcodecs/#imagedecoder-interface | 2026-11-10 | "[Exposed=(Window,DedicatedWorker), SecureContext] interface ImageDecoder {" … "static Promise<boolean> isTypeSupported(DOMString type);" |
+| I3 | https://w3c.github.io/webcodecs/#imagedecoderinit-interface | 2026-11-10 | "typedef (AllowSharedBufferSource or ReadableStream) ImageBufferSource;" |
+| I4 | https://w3c.github.io/webcodecs/#imagedecoderinit-interface | 2026-11-10 | "If desiredWidth exists and desiredHeight does not exist, return false." |
+| I5 | https://w3c.github.io/webcodecs/#dom-imagedecoderinit-desiredwidth | 2026-11-10 | "Implementation is best effort; decoding to a desired width MAY not be supported by all formats/ decoders." |
+| I6 | https://w3c.github.io/webcodecs/#dom-imagedecoderinit-colorspaceconversion | 2026-11-10 | "Controls whether decoded outputs' color space is converted or ignored, as defined by colorSpaceConversion in ImageBitmapOptions." |
+| I7 | https://w3c.github.io/webcodecs/#dom-imagedecoderinit-preferanimation | 2026-11-10 | "For images with multiple tracks, this indicates whether the initial track selection SHOULD prefer an animated track." |
+| I8 | https://w3c.github.io/webcodecs/#dom-imagedecoder-imagedecoder | 2026-11-10 | "If init.transfer contains an ArrayBuffer referenced by init.data the User Agent MAY choose to:" … "Perform DetachArrayBuffer on transferable" |
+| I9 | https://w3c.github.io/webcodecs/#dom-imagedecoder-completed | 2026-11-10 | "The promise used to signal when complete becomes true." |
+| I10 | https://w3c.github.io/webcodecs/#imagetrack-interface | 2026-11-10 | "Returns a live ImageTrackList, which provides metadata for the available tracks and a mechanism for selecting a track to decode." |
+| I11 | https://w3c.github.io/webcodecs/#dom-imagedecoder-imagedecoder | 2026-11-10 | "User Agents don’t have to support any particular type." |
+| I12 | https://w3c.github.io/webcodecs/#imagedecoderesult-interface | 2026-11-10 | "required VideoFrame image; required boolean complete;" |
+| I13 | https://w3c.github.io/webcodecs/#dom-imagedecodeoptions-completeframesonly | 2026-11-10 | "For Progressive Images, a value of false indicates that the decoder MAY output an image with reduced detail." |
+| I14 | https://w3c.github.io/webcodecs/#create-a-videoframe | 2026-11-10 | "If output uses a recognized VideoPixelFormat, assign that format to [[format]]. Otherwise, assign null to [[format]]." |
+| I15 | https://w3c.github.io/webcodecs/#enumdef-videopixelformat | 2026-11-10 | "Each sample in this format is 12 bits, encoded as a 16-bit integer in little-endian byte order." |
+| I16 | https://w3c.github.io/webcodecs/#dom-videopixelformat-rgba | 2026-11-10 | "Each sample in this format is 8 bits, and each pixel is therefore 32 bits." |
+| I17 | https://w3c.github.io/webcodecs/#dom-videoframe-copyto | 2026-11-10 | "Otherwise, if options.format is equal to one of RGBA, RGBX, BGRA, BGRX, then assign options.format to format, otherwise return NotSupportedError." |
+| I18 | BCD `api/ImageDecoder.json` | 2026-11-10 | `"chrome": { "version_added": "94" }`, `"firefox": { "version_added": "133" }`, `"safari": { "version_added": "preview" }` |
+| I19 | FF `modules/libpref/init/StaticPrefList.yaml` | 2026-11-10 | `- name: dom.media.webcodecs.image-decoder.enabled` `type: RelaxedAtomicBool` `value: true` |
+| I20 | WK `Source/WTF/Scripts/Preferences/UnifiedWebPreferences.yaml` | 2026-11-10 | `WebCodecsImageEnabled:` `type: bool` `status: stable` … `default: true` |
+| I21 | BCD `mediatypes/image/avif.json` | 2026-11-10 | `"chrome": { "version_added": "85" }`, `"firefox": { "version_added": "93" }`, `"safari": [ { "version_added": "16.4" }, { "version_added": "16.1", "version_removed": "16.4", "partial_implementation": true, "notes": [ "Only on macOS Ventura. Big Sur and Monterey are not supported."` |
+| I22 | BCD `mediatypes/image/jxl.json` | 2026-11-10 | `"chrome": { "version_added": "155" }`, `"firefox": { "version_added": "158" }`, `"safari": { "version_added": "17", "notes": "Animated images are not supported." }` |
+| I23 | BCD `mediatypes/image/webp.json` | 2026-11-10 | `"chrome": { "version_added": "17" }`, `"firefox": { "version_added": "65" }`, `"safari": { "version_added": "14" }` |
+| I24 | https://raw.githubusercontent.com/mdn/content/edc9ab5479d1253d9edd93bfe90dd1d100605c26/files/en-us/web/media/guides/formats/image_types/index.md | 2026-11-10 | "Chrome 155, Firefox 158, and Safari 17. Safari does not support progressive download of JPEG XL files (it can render them after complete download)." |
+| I25 | same as I24 (AVIF table) | 2026-11-10 | "Bits: 8/10/12-bit" |
+| I26 | https://developer.apple.com/documentation/safari-release-notes/safari-17-release-notes | 2026-11-10 | "Added support for JPEG XL." |
+| I27 | BCD `mediatypes/image/png.json` | 2026-11-10 | `"chrome": { "version_added": "1" }`, `"firefox": { "version_added": "1" }`, `"safari": { "version_added": "1" }` |
+| I28 | https://developer.apple.com/documentation/safari-release-notes/safari-18-release-notes | 2026-11-10 | "Removed support for JPEG2000." |
+| I29 | https://chromestatus.com/feature/5114042131808256 | 2026-11-10 | "Adds support for decoding JPEG XL (image/jxl) images in Blink using jxl-rs, a memory-safe pure Rust decoder"; `"desktop": 155` |
+| I30 | CR `third_party/blink/common/features.cc` | 2026-11-10 | `BASE_FEATURE(kJXLImageFormat, base::FEATURE_ENABLED_BY_DEFAULT);` |
+| I31 | CR `third_party/blink/renderer/platform/image-decoders/image_decoder.cc` | 2026-11-10 | `} else if (mime_type == "image/jxl" &&` `base::FeatureList::IsEnabled(features::kJXLImageFormat)) {` (branches: jpeg, png/apng, gif, webp, ico, bmp, avif, jxl) |
+| I32 | FF `toolkit/moz.configure` | 2026-11-10 | `option("--disable-jxl", help="Disable jxl image support")` |
+| I33 | FF `modules/libpref/init/StaticPrefList.yaml` | 2026-11-10 | `- name: image.jxl.enabled` `type: RelaxedAtomicBool` `value: true` |
+| I34 | FF `image/DecoderFactory.cpp` | 2026-11-10 | `else if (!strcmp(aMimeType, IMAGE_JXL) && StaticPrefs::image_jxl_enabled()) {` |
+| I35 | WK `Source/WebCore/platform/MIMETypeRegistry.cpp` | 2026-11-10 | `#if HAVE(JPEGXL) \|\| USE(JPEGXL)` `"image/jxl"_s,` (also `#if HAVE(AVIF) \|\| USE(AVIF)` `"image/avif"_s,`; no `jp2`) |
+| I36 | https://html.spec.whatwg.org/multipage/imagebitmap-and-animations.html#imagedatasettings | 2026-11-10 | `enum ImageDataPixelFormat { "rgba-unorm8", "rgba-float16" };` … `ImageDataPixelFormat pixelFormat = "rgba-unorm8";` |
+| I37 | https://html.spec.whatwg.org/multipage/canvas.html#canvascolortype | 2026-11-10 | "The "float16" value indicates that the type for all color components is 16-bit floating point." |
+| I38 | BCD `api/ImageData.json` (`settings_parameter.pixelFormat_option`) | 2026-11-10 | `"chrome": { "version_added": "137" }`, `"firefox": { "version_added": false, "impl_url": "https://bugzil.la/1958830" }`, `"safari": { "version_added": false, "impl_url": "https://webkit.org/b/291196" }`, `"experimental": true` |
+| I39 | BCD `api/HTMLCanvasElement.json` (`getContext` … `options_colorType_parameter`) | 2026-11-10 | `"chrome": { "version_added": "137" }`, `"firefox": { "version_added": false }`, `"safari": { "version_added": false }` |
+| I40 | https://tc39.es/ecma262/#sec-math.f16round | 2026-11-10 | "Let n16 be the result of converting n to IEEE 754-2019 binary16 format using roundTiesToEven mode." … "Math.f16round(k) is 1.0009765625𝔽" |
+| I41 | https://html.spec.whatwg.org/multipage/imagebitmap-and-animations.html#imagebitmapoptions | 2026-11-10 | `dictionary ImageBitmapOptions { ImageOrientation imageOrientation = "from-image"; PremultiplyAlpha premultiplyAlpha = "default"; ColorSpaceConversion colorSpaceConversion = "default"; [EnforceRange] unsigned long resizeWidth; [EnforceRange] unsigned long resizeHeight; ResizeQuality resizeQuality = "low"; };` |
+| I42 | CR `third_party/blink/renderer/platform/image-decoders/image_decoder.h` | 2026-11-10 | `// Decode everything to uint8 pixel format (kN32 channel order).` `kDefaultBitDepth,` `// Decode high bit depth images to half float pixel format.` `kHighBitDepthToHalfFloat` |
+| I43 | CR `third_party/blink/renderer/modules/webcodecs/image_decoder_core.cc` | 2026-11-10 | `ImageDecoder::HighBitDepthDecodingOption::kDefaultBitDepth,` … `case 12:` `return media::PIXEL_FORMAT_YUV420P12;` … `bit_depth > 8 ? kA16_unorm_SkColorType : kGray_8_SkColorType;` … `ImagePlanes::HighBitDepthOutputType::kUnscaled);` |
+| I44 | CR same file as I43 | 2026-11-10 | `// Due to implementation limitations YUV support for some formats is only` `// known once all data is received. Animated images are never supported.`; also `decoder_ = ImageDecoder::CreateByMimeType(` |
+| I45 | CR `third_party/blink/renderer/platform/image-decoders/avif/avif_image_decoder.cc` | 2026-11-10 | `allow_decode_to_yuv_ =` `avif_yuv_format_ != crabbyavif::AVIF_PIXEL_FORMAT_YUV400 &&` `!decoder_->alphaPresent && decoded_frame_count_ == 1 &&` … `!NeedsDecodeTimeColorTransform();` |
+| I46 | WK `Source/WebCore/Modules/webcodecs/WebCodecsImageDecoder.cpp`, `.../WebCodecsVideoFrame.cpp` | 2026-11-10 | `auto videoFrame = WebCodecsVideoFrame::create(*protect(scriptExecutionContext()), nativeImage.releaseNonNull(), WTF::move(init));`; `auto initialFormat = convertVideoFramePixelFormat(internalVideoFrame->pixelFormat());` |
+| I47 | FF `image/decoders/nsAVIFDecoder.cpp` | 2026-11-10 | `gfx::SurfaceFormat format = SurfaceFormat::OS_RGBX;` … `format = SurfaceFormat::B8G8R8A8;` … `nsresult result = gfx::ConvertYCbCrToRGB32(*decodedData, format, rgbBuf.get(),` |
+| I48 | FF `image/decoders/nsPNGDecoder.cpp` | 2026-11-10 | `if (bit_depth == 16) {` `png_set_scale_16(png_ptr);` |
+| I49 | FF `image/decoders/nsJXLDecoder.cpp` | 2026-11-10 | `// Per-row u8 scratch for all non-passthrough paths (gray, CMYK, HDR,`; `(Rgba16f via qcms_transform_data_rgba_f16_to_rgba_u8` |
+| I50 | CR `third_party/blink/renderer/platform/image-decoders/jxl/jxl_image_decoder.cc` | 2026-11-10 | `bool decode_to_half_float =` `ImageIsHighBitDepth() &&` `high_bit_depth_decoding_option_ == kHighBitDepthToHalfFloat;` |
+| I51 | FF `dom/media/webcodecs/ImageDecoder.cpp`, `ImageTrack.cpp` | 2026-11-10 | `promise->MaybeResolve(type != image::DecoderType::UNKNOWN);`; `Maybe<VideoPixelFormat> format = GuessVideoPixelFormat(image);` |
+
+### A
+
+Pins: WebAssembly/website `128c38126af305f53bc22b31c30aefa3f5efe824`, BCD `918d2d721cc80c26c2eed7e64c6fa43da59322fd`,
+V8 `f8e74b163471aba777cfe6b5e570465c8f8c238f`, Gecko and WebKit as in Sources (I). `BCD` as in Sources (I).
+
+| id | URL | read | verbatim quote |
+|---|---|---|---|
+| A1 | https://raw.githubusercontent.com/WebAssembly/website/128c38126af305f53bc22b31c30aefa3f5efe824/features.json (rendered at https://webassembly.org/features/) | 2026-11-10 | Chrome `"simd": "91", "relaxedSimd": "114", "threads": "74", "memory64": "133"`; Firefox `"simd": "89", "relaxedSimd": "145", "threads": "79", "memory64": "134"`; Safari `"simd": "16.4", "relaxedSimd": ["flag", "Requires JavaScriptCore flag `useWebAssemblyRelaxedSIMD`"], "threads": ["14.1", "Supported in desktop Safari since 14.1 and iOS Safari since 14.5"], "memory64": ["flag", "Supported in Safari Technical Preview 251"]` |
+| A2 | BCD `webassembly/fixed-width-SIMD.json` | 2026-11-10 | `"chrome": { "version_added": "91" }`, `"firefox": { "version_added": "89" }`, `"safari": { "version_added": "16.4" }` |
+| A3 | BCD `webassembly/relaxed-SIMD.json` | 2026-11-10 | `"chrome": { "version_added": "114" }`, `"firefox": { "version_added": "146" }`, `"safari": { "version_added": "preview" }` |
+| A4 | BCD `webassembly/threads-and-atomics.json` | 2026-11-10 | `"chrome": { "version_added": "74" }`, `"chrome_android": { "version_added": "88" }`, `"firefox": { "version_added": "79" }`, `"safari": { "version_added": "15.2" }` |
+| A5 | BCD `webassembly/api/Memory.json` | 2026-11-10 | `shared`: `"chrome": { "version_added": "74" }`, `"firefox": { "version_added": "78" }`, `"safari": { "version_added": "15.2", "notes": "Shared \`WebAssembly.Memory\` is gated behind COOP/COEP.` …; `toResizableBuffer`: `"chrome": { "version_added": "144" }`, `"firefox": { "version_added": "145" }`, `"safari": { "version_added": "26.2" }` |
+| A6 | BCD `javascript/builtins/SharedArrayBuffer.json` | 2026-11-10 | `"chrome": { "version_added": "68" }`, `"chrome_android": { "version_added": "89" }`, `"firefox": { "version_added": "79" }`, `"safari": { "version_added": "15.2" }` |
+| A7 | BCD `api/_globals/crossOriginIsolated.json` | 2026-11-10 | `"chrome": { "version_added": "87" }`, `"firefox": { "version_added": "72" }`, `"safari": { "version_added": "15.2" }` |
+| A8 | BCD `http/headers/Cross-Origin-Embedder-Policy.json` | 2026-11-10 | `"chrome": { "version_added": "83" }` …; `credentialless`: `"chrome": { "version_added": "96" }`, `"firefox": { "version_added": "119" }`, `"safari": { "version_added": false }` |
+| A9 | BCD `http/headers/Cross-Origin-Opener-Policy.json` | 2026-11-10 | `"chrome": { "version_added": "83" }`, `"firefox": { "version_added": "79" }`, `"safari": { "version_added": "15.2" }` |
+| A10 | BCD `webassembly/memory64.json` | 2026-11-10 | `"chrome": { "version_added": "133" }`, `"firefox": { "version_added": "134" }`, `"safari": { "version_added": "preview" }` |
+| A11 | BCD `webassembly/api.json` | 2026-11-10 | `instantiateStreaming_static`: `"chrome": { "version_added": "60" }`, `"firefox": { "version_added": "58" }`, `"safari": { "version_added": "15" }` |
+| A12 | https://webassembly.github.io/spec/js-api/ | 2026-11-10 | `[Exposed=*]` `namespace WebAssembly {` |
+| A13 | https://html.spec.whatwg.org/multipage/webappapis.html#creating-a-new-javascript-realm | 2026-11-10 | "If agent's agent cluster's cross-origin isolation mode is "none": Let global be realm's global object.Let status be ! global.[[Delete]]("SharedArrayBuffer")." … "new WebAssembly.Memory({ shared:true, initial:0, maximum:0 }).buffer.constructor." |
+| A14 | https://html.spec.whatwg.org/multipage/structured-data.html#structuredserializeinternal | 2026-11-10 | "If IsSharedArrayBuffer(value) is true: If the current settings object's cross-origin isolated capability is false, then throw a "DataCloneError" DOMException." |
+| A15 | https://html.spec.whatwg.org/multipage/document-sequences.html#cross-origin-isolation-mode | 2026-11-10 | "every top-level Document has `Cross-Origin-Opener-Policy: same-origin`, andevery Document has a `Cross-Origin-Embedder-Policy` header whose value is compatible with cross-origin isolation." |
+| A16 | https://html.spec.whatwg.org/multipage/browsers.html#embedder-policy-value | 2026-11-10 | "An embedder policy value is compatible with cross-origin isolation if it is "credentialless" or "require-corp"."; ""credentialless"When this value is used, fetching cross-origin no-CORS resources omits credentials. In exchange, an explicit `Cross-Origin-Resource-Policy` header is not required." |
+| A17 | https://html.spec.whatwg.org/multipage/document-sequences.html#cross-origin-isolation-mode | 2026-11-10 | "As a result, only "concrete" can grant access that capability." |
+| A18 | https://html.spec.whatwg.org/multipage/webappapis.html#dom-crossoriginisolated | 2026-11-10 | "The crossOriginIsolated getter steps are to return this's relevant settings object's cross-origin isolated capability." |
+| A19 | https://webassembly.github.io/spec/js-api/#limits | 2026-11-10 | "The maximum size of a 32-bit memory is 65,536 pages (4 GiB). The maximum size of a 64-bit memory is 262,144 pages (16 GiB)."; "In practice, an implementation may run out of resources for valid modules below these limits." |
+| A20 | https://raw.githubusercontent.com/mdn/content/edc9ab5479d1253d9edd93bfe90dd1d100605c26/files/en-us/web/javascript/reference/global_objects/sharedarraybuffer/index.md | 2026-11-10 | "The `Atomics` object is always available."; "the WebAssembly atomic instructions are also unconditionally allowed." |
+| A21 | https://raw.githubusercontent.com/v8/v8/f8e74b163471aba777cfe6b5e570465c8f8c238f/src/wasm/wasm-limits.h | 2026-11-10 | `constexpr size_t kV8MaxWasmMemory32Pages = kSystemPointerSize == 4` `? 32'767   // = 2 GiB - 64Kib` `: 65'536;  // = 4 GiB`; `kV8MaxWasmMemory64Pages` … `: 262'144;  // = 16 GiB` |
+| A22 | https://v8.dev/blog/4gb-wasm-memory | 2026-11-10 | "you can now use up to 4GB of memory in WebAssembly applications. That’s up from the previous limit of 2GB."; "Make sure to test on Chrome M83 (currently in Beta) or later." |
+| A23 | FF `js/src/wasm/WasmConstants.h`, `js/src/wasm/WasmMemory.cpp`, `js/src/vm/ArrayBufferObject.h` | 2026-11-10 | `static const uint64_t MaxMemory32StandardPagesValidation = uint64_t(1) << 16;`; `(uint64_t(1) << 37) - 1;`; `ArrayBufferObject::ByteLengthLimit / PageSizeInBytes(pageSize);` `return wasm::Pages::fromPageCount(std::min(desired, actual), pageSize);`; `size_t(16) * 1024 * 1024 * 1024;  // 16 GB.`; `// code is one wasm page less than 2GB.` |
+| A24 | WK `Source/JavaScriptCore/runtime/PageCount.h`, `Source/JavaScriptCore/wasm/WasmLimits.h` | 2026-11-10 | `#define MAX_ARRAY_BUFFER_SIZE (1ull << 34)`; `static constexpr uint32_t maxMemory32PageCount = 64 * 1024;`; `// So we are sticking with 2GB.`; `static_assert(maxBufferByteLength(AddressType { AddressType::I64 }) == maxPageAlignedArrayBufferBytes);` |
+| A25 | https://webassembly.github.io/threads/js-api/ | 2026-11-10 | "If share is shared and maximum is empty, throw a TypeError exception."; "If IsSharedArrayBuffer(buffer) is false, Perform ! DetachArrayBuffer(buffer, "WebAssembly.Memory"). Let newBuffer be the result of creating a fixed length memory buffer from memaddr." |
+| A26 | https://v8.dev/docs/wasm-compilation-pipeline | 2026-11-10 | "functions get compiled lazily with the baseline compiler Liftoff when the function gets called for the first time."; "hot functions, which are functions that get executed often, get re-compiled with TurboFan" |
+| A27 | https://developer.apple.com/documentation/safari-release-notes/safari-26-release-notes | 2026-11-10 | "Added support for an in-place interpreter for Wasm." |
