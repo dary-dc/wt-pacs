@@ -1379,7 +1379,7 @@ reading any result, and the section that follows reports under these choices.*
   construction, since no lookahead arm has a G 1 stream.
 * **The cut.** depth_cut rounds half up, so v = 4k + 2 reconstructs as 4k + 4: reconstruction − source lies in
   [−1, +2], source − reconstruction in [−2, +1], the interval §S4 derives. The check as coded took the first sign
-  and misses; the cut is exact to its rounding, the RMS (1.12 × 4 ÷ 4 … ≈ 1.15) is the same either way, and no
+  and misses; the cut is exact to its rounding, its RMS (≈ 1.15 sample units, §S4) is the same either way, and no
   `dbts_a1` sample sits at 4094 or 4095 (the clamp would read −3). Reported as a miss, not re-run.
 * **Per-group form.** It differs, so by §S8 every cut-form stream of S2 is coded one encoder per group, as the
   product does; `cell.py` gains that path before S2 starts.
