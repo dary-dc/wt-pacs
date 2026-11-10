@@ -219,14 +219,15 @@ printf 'IF=%s\nLAPTOP_IP=%s\n' "$IF" "$LAPTOP_IP" | tee target/phone.env   # `. 
 UDP over that link is ordinary IP — *derived*; *unverified* on the device, and the dial in step 4 is the check. Whether
 `adb devices` still lists the phone with tethering on is *unverified*: if it does not, use Wi-Fi.
 
-**2 · The firewall.** Fedora's firewalld may drop UDP 4433 on the zone that interface lands in; this opens it for 12 hours:
+**2 · The firewall.** Fedora's firewalld may drop UDP 4433, and 4434 for a pair's exact series, on the zone that
+interface lands in; this opens both for 12 hours:
 "the rule will be active for the specified amount of time and will be removed automatically afterwards" (`--add-port`, [firewall-cmd(1)](https://firewalld.org/documentation/man-pages/firewall-cmd.html)):
 
 ```bash
 . target/phone.env
 if sudo firewall-cmd --state >/dev/null 2>&1; then
   ZONE=$(sudo firewall-cmd --get-zone-of-interface="$IF" 2>/dev/null | grep -vx 'no zone') || ZONE=$(sudo firewall-cmd --get-default-zone)
-  sudo firewall-cmd --zone="$ZONE" --add-port=4433/udp --timeout=12h
+  sudo firewall-cmd --zone="$ZONE" --add-port=4433/udp --add-port=4434/udp --timeout=12h
 fi
 ```
 
@@ -248,12 +249,36 @@ python3 server/dev-server.py --port 8765 --metadata target/my.metadata.json --tr
 
 A new certificate is a new hash: after any renewal, write the file again and restart Terminal 2.
 
+**3b · A pair.** An optimal-quality series and its exact series (§The viewer on a DICOM series) run as two servers;
+the exact series' transport file names the laptop's address too, on 4434. In place of Terminals 1 and 2 above:
+
+```bash
+. target/phone.env
+./server/scripts/gen_dev_cert.sh --if-needed
+HASH=$(openssl x509 -in server/dev-cert/cert.pem -outform DER | openssl dgst -sha256 | awk '{print $2}')
+for p in 4433 4434; do
+  printf '{"wt_url": "https://%s:%s/", "cert_sha256": "%s"}\n' "$LAPTOP_IP" "$p" "$HASH" > target/phone-transport-$p.json
+done
+# Terminal 1 — the optimal-quality series
+target/release/series-server --port 4433 --series target/my-lossy.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+# Terminal 3 — its exact series
+target/release/series-server --port 4434 --series target/my-exact.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+# Terminal 2 — the static host, naming the exact series by the id the lossy metadata gives
+python3 server/dev-server.py --port 8765 --metadata target/my-lossy.metadata.json \
+  --transport target/phone-transport-4433.json \
+  --exact-metadata target/my-exact.metadata.json --exact-transport target/phone-transport-4434.json
+```
+
+`l` on the phone then fetches the frame from 4434; the label reads *Lossless* only once its digest matched.
+
 **4 · The page.** `adb reverse tcp:8765 tcp:8765`, then open `http://127.0.0.1:8765/` in Chrome on the phone. Without
 `adb reverse`, `chrome://inspect`'s port forwarding does the same: "a listening TCP port on your Android device that
 maps to a TCP port on your development machine" — **Port forwarding**, `8765` → `127.0.0.1:8765`, **Enable port
 forwarding** ([Chrome DevTools](https://developer.chrome.com/docs/devtools/remote-debugging/local-server)). The status
 line reads `received N, exact N` once frames arrive, and Terminal 1 logs `session path … rtt_us=` when the session
-closes. When nothing arrives, `sudo tcpdump -ni "$IF" udp port 4433 -c 5`: no packets, the phone is not reaching that
+closes. When nothing arrives, `sudo tcpdump -ni "$IF" udp port 4433 -c 5` (4434 when `l` stalls on a pair): no packets, the phone is not reaching that
 address (Wi-Fi isolation; the other link); packets but no session, the firewall or the server.
 
 **5 · The console.** On the laptop's Chrome, `chrome://inspect#devices`, "Make sure Discover USB devices is enabled",
@@ -303,6 +328,9 @@ target/levers/release/series-server --port 4433 --series target/my.sbnd --segmen
   --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
 ```
 
+For a pair, both servers are the lab build: `--port 4433` with the optimal-quality series, `--port 4434` with its exact
+series, each with `--segmentation-offload false`.
+
 The shaped round trip is Terminal 1's `rtt_us` per session. **Afterwards:** `cloud_netem.sh off` as above,
 `adb reverse --remove-all`, USB tethering off; the firewall's port closes itself.
 
@@ -311,6 +339,13 @@ The shaped round trip is Terminal 1's `rtt_us` per session. **Afterwards:** `clo
 delivered the cell's 3 frames of 3 and the viewer's session reached the server, dialing the veth's address on the dev
 certificate's hash. `netem` does not load in that container ("Specified qdisc kind is unknown"); iproute2 6.1 parsed
 netem's arguments as the script passes them, iid and `gemodel` (and refused a misspelt one, `What is "lxss"?`). The phone, its Chrome, the tether, firewalld and the Media panel were not checked.
+
+*A pair, checked the same way (2026-11-10):* step 3b's commands on a synthetic 10-bit pair (256×192, 24 frames,
+HTJ2K and Q 8 G 8, `lossy_test.py`'s pattern), on this branch merged onto `claude/oq-depth-cut`, which has the exact
+flags. Headless Chromium 153 in the namespace filled 24 of 24 frames through `av1-webcodecs` from 4433, *Optimal
+quality*; `l` fetched frame 1 from 4434 over the veth, decoded it through `htj2k` and read *Lossless*. One digest
+altered in the exact metadata read *Lossless check failed* instead; the exact transport file naming `127.0.0.1` never
+reached *Lossless*. Not checked: a real pair from `demo-series.sh`, a depth cut, and everything on the phone above.
 
 ## Docs
 
