@@ -185,6 +185,92 @@ frame ×1.015 worse, fill ×0.988 better). The fill there follows the link to 20
 between two trees that repeats on that runner, that series and that link: no number for another host, a series that
 decodes longer, a slower CPU or another engine; a schedule fires from the default branch's copy of the workflow only.
 
+## Demo
+
+Optimal quality: every reader sees a series' visually lossless AV1 view, and a frame comes whole from its exact HTJ2K
+series only when **Lossless** is pressed ([`client/README.md`](client/README.md) §A lossy series, exact on request).
+The demo set is three breast tomosynthesis volumes, `dbts_a1` (56 frames, 12-bit), `dbts_b1` (50, 10-bit) and `dbts_c1`
+(69, 12-bit), each as its exact series and its optimal-quality series at Q 8 and Q 24, G 1, 8 and 16; the 12-bit two
+as depth cuts (`…-cut`, 10-bit codes WebCodecs decodes) plus one 12-bit stored form each (`…-q8-g16-stored`).
+
+**Once, from a fresh checkout on a laptop** — §Prerequisites (Linux x86-64; docker for the decoders; cmake, ninja,
+meson, nasm and a C++ compiler for the coders; `python3.11`, or `PYTHON=` another 3.11–3.13, for the data's venv):
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack --version 0.15.0 --locked
+npm i -g playwright@1.56.1 && npx playwright install chromium   # demo-check.mjs only
+client/decode/wasm/build/build.sh                # the page's decoders, dav1d and OpenJPH as WASM (~5 min)
+bash client/transport/wasm/build.sh && bash client/transport/ts/build.sh
+./server/scripts/gen_dev_cert.sh                 # valid 10 days: make it again before the demo day
+cargo build --release -p series-server
+scripts/demo-series.sh                           # ingest/tools.sh, the three volumes fetched, 23 series coded:
+                                                 #   ~20 min on 4 cores; demo-series/ID.sbnd and ID.metadata.json
+```
+
+**One series**, three terminals — the optimal-quality series, its exact series, the static host:
+
+```bash
+ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}            # any demo-series/ID; its exact series is the part before the first -
+target/release/series-server --port 4433 --series demo-series/$ID.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+target/release/series-server --port 4434 --series demo-series/$EXACT.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+sed 's/:4433/:4434/' client/dev-transport.json > target/exact-transport.json
+python3 server/dev-server.py --port 8765 --metadata demo-series/$ID.metadata.json \
+  --exact-metadata demo-series/$EXACT.metadata.json --exact-transport target/exact-transport.json
+```
+
+Open `http://127.0.0.1:8765/?overlay=1` in Chrome; without `?overlay=1` the page is the reader's, label and status
+line only. To change series, stop the three and start them again with another `ID`. **A rehearsal**, with the three
+stopped: `NODE_PATH=$(npm root -g) node client/viewer/demo-check.mjs demo-series $ID` runs the commands above, opens the page in headless
+Chromium as below, and fails by name a frame not painted, a decode route other than WebCodecs (`--route av1-dav1d` for
+a stored form), a console error, a label out of order, an on-demand jump that asked other than whole groups, or
+*Lossless* shown for an exact frame whose digest was made wrong.
+
+**On a phone**: the laptop serves as above, the phone opens the page over USB; follow §The viewer on an Android phone
+(on `claude/phone-setup` until merged). The pair needs two changes to it: open `4434/udp` as well as `4433/udp` in
+step 2, and in step 3 write the exact series' transport file with the laptop's address too,
+`sed 's/:4433/:4434/' target/phone-transport.json > target/exact-transport.json`, then start the static host with
+`--transport target/phone-transport.json` and the three `--metadata`/`--exact-*` options above.
+
+**What to show, in order:**
+
+1. `dbts_a1-q8-g8-cut`. The picture arrives, the label top right says *Optimal quality*. Scroll with the wheel or the
+   arrows: every slice is already here. `End` jumps. Press `l`: *Optimal quality · fetching lossless…*, then
+   *Lossless* in green once the exact frame's digest matched and it was painted; `l` again goes back. Step off the frame
+   and it is optimal quality again.
+2. A narrow window (drag left on the image) on the same frame, `l` and back: where the coding error would show, if
+   anywhere.
+3. `dbts_b1-q8-g8`: a 10-bit volume coded at its own depth, 2560 × 3328, the largest frame.
+4. `dbts_a1-q24-g8-cut` for contrast: a twentieth of Q 8's bytes; the same narrow window and `l` against it.
+5. `dbts_a1-q8-g16-stored`: the same view coded at 12 bits; the overlay shows `av1-dav1d after WebCodecs refused: …`,
+   the fallback.
+6. With `?fill=0` added to the URL, nothing is asked ahead: a jump decodes its group from the keyframe and lands it whole,
+   and stepping through that group asks nothing more.
+7. The bytes: `scripts/demo-series.sh`'s last table, each series as a fraction of its exact series' bundle.
+
+**What is on screen:**
+
+* **The label**, top right: what is painted. *Optimal quality*, the AV1 view; *fetching lossless…* while the exact frame
+  is asked; *Lossless* only after that frame's XXH3-64 digest matched its exact series' metadata and it was painted;
+  *Lossless check failed* in red otherwise, the optimal-quality frame kept and the reason on the status line.
+* **The mark**, top left: *unchecked* on every optimal-quality frame, since a lossy frame has no digest to check; gone
+  under *Lossless*.
+* **The overlay** (`?overlay=1`): the painted frame's decode route (`av1-webcodecs`, Chrome's `VideoDecoder`; `av1-dav1d`,
+  the page's WASM, with WebCodecs' refusal), its bytes on the wire in KB, its decode time in ms, and the series' Q
+  (the encoder's quantizer: higher, more error), G (frames per keyframe) and depth (*depth cut of 12*: 10-bit codes of a
+  12-bit series).
+* **The status line**: the frame shown of the series; the transport client (`ts`); where frames are held (`page`);
+  frames received, of which exact, not exact and unchecked (an optimal-quality frame is unchecked; the exact frame does
+  not count here); frames per decode route; the codec; the GPU renderer, *(software)* when it is not a GPU; the fill's
+  time from the connect to the last frame received, or *on demand* under `?fill=0`; the last error.
+
+**What a headless container cannot show**, and where the demo's own numbers come from: no GPU (Chromium paints on
+SwiftShader, *(software)* on the status line), no hardware decoder (WebCodecs' AV1 is Chrome's software decoder here
+and on the laptop: the product asks `prefer-software`), no phone, no real link (loopback), no reader's eye. What it ran,
+and its numbers, are in [`client/README.md`](client/README.md) §A lossy series, exact on request.
+
 ## Docs
 
 Each subject has one owner; a claim lives there, corrected in place when it is wrong (`CLAUDE.md` §Docs).
