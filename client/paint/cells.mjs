@@ -7,12 +7,13 @@ import { createHash } from "node:crypto";
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const ROOT = path.resolve(HERE, "../..");
 
-/** Odd width, not square, RGB, 8 and 16 bits, signed CT; the last two only for timing. */
+/** Odd width, not square, RGB, 8 and 16 bits, signed CT and signed 8-bit; the last two only for timing. */
 export const SETS = {
   grey8: { width: 64, height: 64, components: 1, bits: 8, signed: false, maxval: 255, mode: "field" },
   rgb8: { width: 61, height: 40, components: 3, bits: 8, signed: false, maxval: 255, mode: "cine" },
   u16: { width: 80, height: 48, components: 1, bits: 16, signed: false, maxval: 65535, mode: "field" },
   ct12s: { width: 64, height: 64, components: 1, bits: 12, signed: true, maxval: 4095, mode: "ct" },
+  s8: { width: 64, height: 64, components: 1, bits: 8, signed: true, maxval: 255, mode: "ct" },
   ct512: { width: 512, height: 512, components: 1, bits: 12, signed: true, maxval: 4095, mode: "ct", timing: true },
   big16: { width: 4096, height: 3072, components: 1, bits: 16, signed: false, maxval: 65535, mode: "ct", timing: true },
 };
@@ -44,7 +45,7 @@ export function make(name, s) {
   for (let i = 0; i < le.length; i += wide ? 2 : 1) {
     const v = wide ? le.readUInt16LE(i) : le[i];
     values.push(s.signed ? v - (1 << (s.bits - 1)) : v);
-    if (s.signed) le.writeInt16LE(v - (1 << (s.bits - 1)), i);
+    if (s.signed) wide ? le.writeInt16LE(v - (1 << (s.bits - 1)), i) : le.writeInt8(v - (1 << (s.bits - 1)), i);
   }
   fs.writeFileSync(out, le);
   fs.rmSync(pnm);
