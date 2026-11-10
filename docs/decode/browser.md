@@ -663,17 +663,179 @@ Track" [F130]. browser-compat-data: Chrome 83, Firefox 132, Safari 15.4 [F131].
 
 ## WebKit
 
-Safari on macOS, iOS and iPadOS. Engine source is pinned at WebKit commit
-`5dbb0d4dcc9b3c87d4d457fabe6cfb62be40cb40` (committed 2026-11-09); browser-compat-data (BCD) at
-`918d2d721cc80c26c2eed7e64c6fa43da59322fd`. Release-note versions are as Apple publishes them on 2026-11-10,
-including Safari 27.3 **beta**.
+This section covers Safari on macOS, iOS and iPadOS. Engine source is WebKit `main` pinned at commit
+`5dbb0d4dcc9b3c87d4d457fabe6cfb62be40cb40` (committed 2026-11-09). Main can be ahead of the Safari that has
+shipped, so a source claim says what WebKit does now, not what every Safari version did. Browser-compat-data (BCD)
+is pinned at `918d2d721cc80c26c2eed7e64c6fa43da59322fd`. Release notes were read on 2026-11-10; the newest is
+Safari 27.3 **beta**.
 
-**Bottom line for this client.** On Safari, WebCodecs `VideoDecoder` decodes AV1 only where the device has an AV1
-hardware decoder unless a hidden flag is on, and its software AV1 path accepts only 8-bit 4:2:0. A 10-bit frame from
-any Safari decoder reports `format === null`, and `copyTo()` then either rejects or converts to 8-bit RGB. So the
-exact-sample 10- and 12-bit path on Safari is dav1d-WASM, not WebCodecs.
+**Bottom line for this client.** In Safari, a WebCodecs `VideoDecoder` decodes AV1 only when the device has an AV1
+hardware decoder (unless a hidden flag is turned on), and the software AV1 path accepts only 8-bit 4:2:0. A 10-bit
+frame from any Safari decoder reports `format === null`. `copyTo()` on such a frame either rejects it or converts it to
+8-bit RGB. No path outputs 12 bits. So on Safari, exact 10- and 12-bit samples come from dav1d-WASM, not from
+WebCodecs (D: from K29–K44 below).
 
-(draft in progress)
+### All iOS browsers use WebKit, and the EU and Japan exceptions
+
+| claim | label | src |
+|---|---|---|
+| App Store rule: apps that browse the web must use WebKit. An entitlement for another engine can be requested, and the rule points to the EU and Japan. | S | [K1] |
+| EU: other engines are allowed in dedicated browser apps and in in-app browsing, through two entitlements, on iOS 17.4 or later and iPadOS 18 or later, for EU users only. | S | [K2] |
+| EU: the app must be distributed only on iOS and/or iPadOS in the EU. | S | [K2] |
+| Japan: other engines are allowed from iOS 26.2. In-app browsing is limited to "apps from browser engine stewards". | S | [K4] |
+| BrowserEngineKit is available from iOS 17.4 and iPadOS 18.0. Apple's documentation lists exactly two regions, the European Union and Japan. In Japan the app must also adopt the `hardened-process.checked-allocations` entitlement. | S | [K3] |
+| So outside the EU and Japan, every iOS and iPadOS browser (Chrome, Firefox, Edge included) runs WebKit, and this section applies to all of them. Inside those two regions, a browser that has the entitlement may ship another engine. | D | K1–K4 |
+| Whether any non-WebKit browser actually ships on iOS in the EU or Japan today. | U | Apple's pages describe the entitlement only; no official list of shipped engines was found |
+
+### Since which version
+
+Columns are the BCD `safari` / `safari_ios` entries, verbatim. `"mirror"` means iOS takes the desktop value.
+
+| feature | `safari` | `safari_ios` | label | src |
+|---|---|---|---|---|
+| `VideoDecoder` (and `configure`, `decode`, `flush`, `isConfigSupported`, …) | `{"version_added": "16.4"}` | `"mirror"` | S | [K5] |
+| `VideoDecoder.configure` `flip` / `rotation` options | `{"version_added": false}` | `"mirror"` | S | [K5] |
+| `VideoFrame` (and `copyTo`, `allocationSize`, `format`, `colorSpace`) | `{"version_added": "16.4"}` | `"mirror"` | S | [K6] |
+| `VideoFrame.copyTo` `format` option (convert on copy) | `{"version_added": false}` | `"mirror"` | S | [K6] |
+| `VideoFrame.metadata`, `flip`, `rotation` | `{"version_added": false}` | `"mirror"` | S | [K6] |
+| `EncodedVideoChunk` | `{"version_added": "16.4"}` | `"mirror"` | S | [K7] |
+| `ImageDecoder` (all members) | `{"version_added": "preview"}` | `"mirror"` | S | [K8] |
+| `HTMLVideoElement.requestVideoFrameCallback` | `{"version_added": "15.4"}` | `"mirror"` | S | [K9] |
+| `MediaCapabilities.decodingInfo` | `{"version_added": "13"}` | `"mirror"` | S | [K10] |
+| `ManagedMediaSource` | `{"version_added": "17"}` | `{"version_added": "17.1"}` | S | [K11] |
+| `MediaSource` | `{"version_added": "8"}` | `{"version_added": "13", "impl_url": "https://webkit.org/b/200147", "partial_implementation": true, "notes": "Exposed in Mobile Safari on iPad but not on iPhone."}` | S | [K12] |
+| `MediaSource.worker_support` | `{"version_added": false}` | `"mirror"` | S | [K12] |
+| `MediaSource.handle`, `canConstructInDedicatedWorker` | `{"version_added": "18"}` | `{"version_added": "18", … "partial_implementation": true, "notes": "Exposed in Mobile Safari on iPad but not on iPhone."}` | S | [K12] |
+
+The release notes and webkit.org posts give the history. BCD has no row for which codecs `VideoDecoder` accepts.
+
+| version | what shipped | label | src |
+|---|---|---|---|
+| 16.4 | WebCodecs, video only: "Added video-only support for Web Codecs." | S | [K13], [K22] |
+| 16.4 | AVIF on macOS Monterey and Big Sur | S | [K21] |
+| 16.5 | Lockdown Mode: "Disabled WebCodecs API" | S | [K14] |
+| 17.0 | JPEG XL. Managed Media Source on macOS and iPadOS, and as a preview on iOS. AV1 in MediaCapabilities "for devices with hardware support". AV1 `<video>` playback only "on devices with hardware decoding support" | S | [K15], [K23] |
+| 17.4 | WebCodecs HEVC. VP8/VP9 and WebM on iOS and iPadOS | S | [K16] |
+| 17.5 | "Added support for WebCodecs AV1 when an AV1 hardware decoder is available." "Fixed WebCodecs to correctly use the VP9 hardware decoder." | S | [K17], [K25] |
+| 18.0 | Managed Media Source and MSE in workers. This conflicts with BCD `MediaSource.worker_support: false` above, while BCD dates `handle` and `canConstructInDedicatedWorker` to 18 | S | [K26], [K12] |
+| 26.0 | WebCodecs `AudioDecoder` and `AudioEncoder` | S | [K27] |
+| 26.4 | "Fixed an issue where WebCodecs VideoDecoder could output H264 frames in the wrong order." | S | [K18] |
+| 27.0 | A hardware `VideoDecoder`'s colour space can be overridden. Fixed B-frame output order | S | [K19], [K27] |
+| 27.3 beta | "Added support for the WebCodecs ImageDecoder API." This matches BCD `"preview"` | S | [K20], [K8] |
+| none | Release notes from 16.4 to 27.3 beta mention neither 10-bit nor high-bit-depth WebCodecs **decode** output. The only 10-bit item is an encoder fix in 27.3 beta | S | [K20] |
+
+### Which decoder backs each codec
+
+How a request is routed: `VideoDecoder` calls the creator hook that WebKit installs. That hook sends the codec to the
+**GPU process** (VideoToolbox) unless `shouldUseLocalDecoder` says otherwise. A local decoder (libwebrtc's libvpx,
+or dav1d) runs in the web content process.
+
+| codec string | which decoder | label | src |
+|---|---|---|---|
+| `avc1.*` (H.264) | GPU process, VideoToolbox (`GPUVideoDecoderVTB`). The GPU process accepts at most High profile, level 5.2 | S | [K31], [K38], [K58] |
+| `hev1.*` / `hvc1.*` (HEVC) | GPU process, VideoToolbox. Gated by `WebCodecsHEVCEnabled`, which is on for Cocoa | S | [K31], [K47], [K52] |
+| `vp09.0*`, VP9 hardware present | GPU process, VideoToolbox. On **macOS**, `hardwareAcceleration: "prefer-software"` sends VP9 to libvpx instead | S | [K30], [K31], [K62] |
+| `vp09.0*`, no VP9 hardware | libwebrtc `VP9Decoder`, which is `LibvpxVp9Decoder` (libvpx), in the web content process | S | [K31], [K29], [K34] |
+| `vp8` | libwebrtc VP8 decoder (libvpx), local | S | [K29], [K34] |
+| `av01.*`, AV1 hardware present (`VTIsHardwareDecodeSupported('av01')`) | GPU process, VideoToolbox | S | [K31], [K33] |
+| `av01.*`, no AV1 hardware | dav1d through `createLibWebRTCDav1dDecoder()`, local | S | [K29], [K34] |
+| WebCodecs accepts AV1 only with the prefix `av01.0` (AV1 Main profile, `seq_profile` 0). `av01.1` and `av01.2` fail `isConfigSupported` before any decoder is chosen | S | [K47] |
+| `WebCodecsAV1Enabled` is off by default on Cocoa (`status: preview`). WebKit turns it on for every page once it learns that an AV1 hardware decoder exists | S | [K51], [K32] |
+| So on a device with no AV1 hardware, the default Safari setting rejects `av01` in WebCodecs, and the dav1d path runs only when the Feature Flag is on (or in Safari Technology Preview, where `preview` features are on) | D | K51, K32, K56 |
+| Apple names AV1 hardware decoding on iPhone 15 Pro. No official per-device list of Apple chips with AV1 or VP9 hardware decoding was found | S / U | [K23]; searched developer.apple.com and webkit.org |
+| The VideoToolbox session sets `EnableHardwareAcceleratedVideoDecoder: @YES` (not `Require…`), so whether VideoToolbox may fall back to software is VideoToolbox's decision | S | [K39] |
+| GStreamer ports (WebKitGTK, WPE) skip all of this: every codec goes to `GStreamerVideoDecoder` | S | [K29] |
+
+### Output formats and bit depths per path
+
+| path | decoder output (CVPixelBuffer) | `VideoFrame.format` | label | src |
+|---|---|---|---|---|
+| VideoToolbox, 8-bit | `kCVPixelFormatType_420YpCbCr8BiPlanar{Full,Video}Range` | `"NV12"` | S | [K40], [K42] |
+| VideoToolbox, 10-bit | `kCVPixelFormatType_420YpCbCr10BiPlanar{Full,Video}Range` | `null`: this format has no case in `convertVideoFramePixelFormat` | S / D | [K40], [K42], [K43] |
+| VideoToolbox, 12-bit | Not supported. The pixel-buffer code does `ASSERT(bitDepth == 8 \|\| bitDepth == 10)`. Bug 329242 is open: "GPU process crashes when VideoDecoder decodes 12-bit HEVC" | S | [K40], [K61] |
+| libvpx VP8/VP9, 8-bit (I420/I422 from libvpx) | copied into an 8-bit **bi-planar** buffer | `"NV12"` (a 4:2:2 source is also stored as 4:2:0 NV12) | S / D | [K41], [K42] |
+| libvpx VP9 profile 2, 10-bit (I010) | `kCVPixelFormatType_420YpCbCr10BiPlanar…` | `null` | S / D | [K41], [K42] |
+| libvpx, more than 10 bits | rejected: `"VPx decoding of 12-bit content is not supported"` | n/a | S | [K35] |
+| VP9 codec strings | `isConfigSupported` accepts profile 0 at 8-bit 4:2:0, and profile 2 at 10-bit 4:2:0 (`WebRTCVP9Profile2CodecEnabled`, on for Cocoa). It rejects profiles 1 and 3 | S | [K48], [K63] |
+| dav1d AV1 software | `// Only accept I420 pixel format and 8 bit depth.` Any other picture returns `WEBRTC_VIDEO_CODEC_ERROR` | `"NV12"` for 8-bit 4:2:0; 10-bit, 12-bit, 4:2:2 and 4:4:4 give a decode error | S | [K36] |
+| `ImageDecoder` (types accepted are those ImageIO decodes, via UTI [K60]) | Builds the frame from a `NativeImage` through `ImageTransferSessionVT::create(kCVPixelFormatType_32ARGB, false)` | `"RGBA"`/`"RGBX"` (8-bit) | S / D | [K45], [K42] |
+
+What `copyTo()` does with these frames:
+
+| claim | label | src |
+|---|---|---|
+| If `format` is `null` and no `options.format` is passed, `copyTo` and `allocationSize` throw `NotSupportedError` "No format is available" | S | [K44] |
+| `options.format` can only be `RGBA`, `RGBX`, `BGRA` or `BGRX`. Anything else gives "Format is not supported" | S | [K44] |
+| So a 10-bit decoded frame can be read back only as 8-bit RGB, converted by VideoToolbox. On Safari, WebCodecs cannot return exact 10-bit samples (no `I420P10` comes out of any decoder). BCD also marks the `copyTo` `format` option `false`, which conflicts with the source at the pinned commit | D | K42, K44, K6 |
+| Building a `VideoFrame` from a buffer with `I420P10`/`I420P12`/… needs `WebCodecsHighBitDepthEnabled` (`status: testable`, default `false`). Even with it on, the constructor only builds `NV12`, `RGBA`, `RGBX`, `BGRA`, `BGRX`, `I420` and `I420A`; anything else throws "VideoPixelFormat is not supported" | S | [K46], [K53], [K59] |
+| Bug 325753 "WebCodecs add support for > 8bits per channel video" is open | S | [K61] |
+| GStreamer ports map `I420`, `I420A`, `I422`, `I444`, `NV12` and RGB formats, and no 10- or 12-bit format | S | [K64] |
+
+### Limits, workers, flags
+
+| claim | label | src |
+|---|---|---|
+| `VideoDecoder`, `VideoFrame` and `EncodedVideoChunk` are `Exposed=(Window,DedicatedWorker)` | S | [K49] |
+| `ImageDecoder` is `Exposed=(Window,DedicatedWorker)` and `SecureContext` | S | [K50] |
+| BCD has no `worker_support` row for these WebCodecs interfaces, so dedicated-worker support is sourced only from the engine IDL | S / U | [K5]–[K8] |
+| `WebCodecsVideoEnabled` has `status: mature`. Default on Cocoa: `WebKit::defaultPeerConnectionEnabledAvailable()`. `disableInLockdownMode: true` | S | [K55] |
+| `WebCodecsAV1Enabled` has `status: preview`, default `false` (on for GStreamer), `disableInLockdownMode: true` | S | [K51] |
+| `WebCodecsHEVCEnabled` has `status: mature`, default `true` for Cocoa and GStreamer | S | [K52] |
+| `WebCodecsHighBitDepthEnabled` ("Enable WebCodecs 10 and 12 bit video pixel formats") has `status: testable`, default `false` | S | [K53] |
+| `WebCodecsImageEnabled` (ImageDecoder) has `status: stable`, default `true` | S | [K54] |
+| Status legend: `preview` is "ON by default in Safari Technology Preview and test infrastructure. OFF by default elsewhere." `testable` is "OFF by default. Enabled in test infrastructure only." | S | [K56] |
+| The flags can be toggled in macOS Safari's Feature Flags panel (from 17.0; it replaced Develop › Experimental Features). It needs Developer Features enabled | S | [K23] |
+| Where the iOS/iPadOS Feature Flags setting lives | U | not found in Apple or webkit.org text read |
+| `ENABLE_AV1` is defined for macOS, iOS, Mac Catalyst and visionOS | S | [K57] |
+| dav1d runs with `n_threads = max(2, cores)` and `max_frame_delay = 1` | S | [K37] |
+| Lockdown Mode disables WebCodecs | S | [K14], [K55] |
+| Memory limits for web content on iOS/iPadOS (per tab, per frame pool) | U | no Apple document states one; searched developer.apple.com and webkit.org |
+| MSE on iPhone: BCD says only on iPad, and Managed Media Source from iOS 17.1 | S | [K12], [K11] |
+
+### Open bugs
+
+Bugs.webkit.org REST `quicksearch`, which returns open bugs only, read 2026-11-10 [K61]. Picked for decoding,
+formats, bit depth, AV1 and ImageDecoder. All are `NEW` unless marked. Every row is (S) [K61].
+
+| id | summary (as read) | component |
+|---|---|---|
+| 325753 | WebCodecs add support for > 8bits per channel video | Media |
+| 329242 | GPU process crashes when VideoDecoder decodes 12-bit HEVC | Media |
+| 329244 | WebGL: On macOS Sequoia, software upload of AV1 VideoDecoder output leaves the texture unchanged | WebGL |
+| 329235 | WebGL: Software upload of 10-bit video played through MediaSource is black | WebGL |
+| 329245 | webgl/video-formats upload path tests fail where the platform cannot play the test video or decodes it to another pixel format | WebGL |
+| 309518 | WebCodecs VideoDecoder reports incorrect VideoFrame.colorSpace for BT.2020/HLG (HDR) video | Media |
+| 318440 | WebCodecs: AV1 isConfigSupported returns false in windows opened from another page | Media |
+| 304668 | av1 not supported in webm containers, only in mp4 containers | Media |
+| 275206 | [MediaCapabilities] No support for AV1 codecs. | Media |
+| 262950 (REOPENED) | WebCodecs HEVC isSupported returns true but decoding failed | Media |
+| 276152 | Webcodecs HEVC decoded result is different from Chrome / FFMPEG | Media |
+| 297788 | VideoDecoder error when starting to decode an H.265 stream from a non-IDR CRA_NUT frame | Media |
+| 329241 | HEVC video with alpha loses its alpha through MediaSource and VideoDecoder | Media |
+| 325278 | VTB Decoders should set kVTDecompressionPropertyKey_RealTime when WebCodecsVideoDecoderConfig.optimizeForLatency is true | WebRTC |
+| 258569 | WebCodecs decoders should be able to decode synchronously two frames with the same timestamp | Media |
+| 246151 | Close WebCodecsVideo remote decoders in case of failure | Media |
+| 317761 | ArrayBuffer-backed I420/I420A/NV12 VideoFrame ignores non-zero visibleRect origin and crops from the coded top-left | Media |
+| 329786 | drawImage() and createImageBitmap() draw a VideoFrame whole, ignoring its visibleRect and the source rectangle | Canvas |
+| 286959 | VideoFrameBufferInit.codedHeight ignored when visibleRect is present | Media |
+| 293425 | WebCodecs VideoFrame constructor doesn't work with odd codedWidth/codedHeight | Media |
+| 325800 | VideoFrame should allow its clients to get its pixel buffer asynchronously | WebRTC |
+| 325914 | WebCodecs allows partial color spaces for video decoding/encoding | New Bugs |
+| 329734 | [WebCodecs] Use rgb matrix for srgb colorspace | Media |
+| 327666 | Add support for VideoDecoderConfig rotation and flip | Media |
+| 321709 | WebCodecsImageDecoder should take a SharedArrayBuffer as an input | Images |
+| 282299 | [HDR] Support HDR images | Images |
+
+### Performance and resource guidance
+
+| claim | label | src |
+|---|---|---|
+| Apple: hardware decoding "significantly impacts power usage and makes a battery last longer". From 17.4, `<video>` picks the best source rather than the first one it supports. "Video codecs with hardware decoding support on various Apple devices include VP9, h.264, HEVC and AV1." | S | [K24] |
+| AV1 in Safari 17.0 is limited to hardware: "Hardware encoding/decoding provides an efficient way support the video codec without an undesired impact on battery life." | S | [K23] |
+| Managed Media Source "can reduce power usage by telling the webpage when it's a good time to buffer more media data". MSE "was never made available on iPhones because we couldn't achieve with MSE the required battery savings." | S | [K28] |
+| So for AV1 on iPhone or iPad without AV1 hardware, a WASM decoder (dav1d) is the only AV1 path open by default, and Apple's own guidance says software decoding costs battery | D | K24, K51, K32 |
+| A WebCodecs-specific WWDC session or Apple performance guide | U | WWDC23–26 web session pages linked from webkit.org checked (10122, 2025/233, 2026/204, …); none covers WebCodecs |
+| Throughput figures for Safari's WebCodecs or dav1d decode | U | none published by Apple or WebKit; not measured here |
 
 ## Gecko
 
@@ -913,3 +1075,75 @@ Every source read 2026-11-10 unless its row says otherwise; ids are prefixed by 
 | F133 | https://wicg.github.io/video-rvfc/#introduction | 2026-11-10 | "Best effort in this case means that, even with a normal work load, a callback can occasionally be fired one v-sync late, relative to when the new video frame was presented." / "if there is a heavy load on the main thread, we might not get a callback for every frame (as measured by a discontinuity in the presentedFrames)." |
 | F134 | https://wicg.github.io/video-rvfc/#procedures | 2026-11-10 | "a 25fps video playing in a browser that paints at 60Hz would fire callbacks at 25Hz; a 120fps video in that same 60Hz browser would fire callbacks at 60Hz." / "There are no strict timing guarantees when it comes to how soon callbacks are run after a new video frame has been presented." |
 | F135 | https://html.spec.whatwg.org/multipage/canvas.html#check-the-usability-of-the-image-argument | 2026-11-10 | "If image's readyState attribute is either HAVE_NOTHING or HAVE_METADATA, then return bad." |
+
+### K
+
+All read 2026-11-10. WebKit links are pinned at `5dbb0d4dcc9b3c87d4d457fabe6cfb62be40cb40` (shortened as `…/5dbb0d4/`
+below, i.e. `https://github.com/WebKit/WebKit/blob/5dbb0d4dcc9b3c87d4d457fabe6cfb62be40cb40/`).
+
+| id | URL | read | verbatim quote |
+|---|---|---|---|
+| K1 | https://developer.apple.com/app-store/review/guidelines/#2.5.6 | 2026-11-10 | "2.5.6 Apps that browse the web must use the appropriate WebKit framework and WebKit JavaScript. You may apply for an entitlement to use an alternative web browser engine in your app. Learn more about these entitlements for the EU and Japan." |
+| K2 | https://developer.apple.com/support/alternative-browser-engines/ | 2026-11-10 | "iOS and iPadOS include capabilities that let apps use alternative browser engines — browser engines other than WebKit — for dedicated browser apps and apps providing in-app browsing experiences in the EU." … "These capabilities are available to EU users on devices running a minimum of iOS 17.4 or iPadOS 18." … "Be distributed solely on iOS and/or iPadOS in the European Union" |
+| K3 | https://developer.apple.com/documentation/browserenginekit (JSON: https://developer.apple.com/tutorials/data/documentation/browserenginekit.json) | 2026-11-10 | "Create a browser that renders content using an alternative browser engine." platforms `iOS 17.4`, `iPadOS 18.0`; "Support for alternative browser engines varies by geographic region:" European Union: "To request the entitlements in the EU for an iOS or iPadOS app, see …"; Japan: "To request the entitlements in Japan for an iOS app, see … Also, your app needs to adopt the … checked-allocations entitlement." |
+| K4 | https://developer.apple.com/support/alternative-browser-engines-jp/ | 2026-11-10 | "In iOS 26.2 and later, browser engines other than WebKit can be used in two types of apps for users in Japan: Dedicated browser apps that provide a full web browser experience, and apps from browser engine stewards that provide in-app browsing experiences using an embedded browser engine." |
+| K5 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/api/VideoDecoder.json | 2026-11-10 | `"safari": { "version_added": "16.4" }, "safari_ios": "mirror"`; `flip_option`/`rotation_option`: `"safari": { "version_added": false }` |
+| K6 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/api/VideoFrame.json | 2026-11-10 | `VideoFrame`, `copyTo`, `format`: `"safari": { "version_added": "16.4" }`; `copyTo.format_property`: `"safari": { "version_added": false }, "safari_ios": "mirror"` |
+| K7 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/api/EncodedVideoChunk.json | 2026-11-10 | `"safari": { "version_added": "16.4" }, "safari_ios": "mirror"` |
+| K8 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/api/ImageDecoder.json | 2026-11-10 | `"safari": { "version_added": "preview" }, "safari_ios": "mirror"` |
+| K9 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/api/HTMLVideoElement.json | 2026-11-10 | `requestVideoFrameCallback`: `"safari": { "version_added": "15.4" }, "safari_ios": "mirror"` |
+| K10 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/api/MediaCapabilities.json | 2026-11-10 | `decodingInfo`: `"safari": { "version_added": "13" }, "safari_ios": "mirror"` |
+| K11 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/api/ManagedMediaSource.json | 2026-11-10 | `"safari": { "version_added": "17" }, "safari_ios": { "version_added": "17.1" }` |
+| K12 | https://raw.githubusercontent.com/mdn/browser-compat-data/918d2d721cc80c26c2eed7e64c6fa43da59322fd/api/MediaSource.json | 2026-11-10 | `"safari_ios": { "version_added": "13", "impl_url": "https://webkit.org/b/200147", "partial_implementation": true, "notes": "Exposed in Mobile Safari on iPad but not on iPhone." }`; `worker_support`: `"safari": { "version_added": false }`; `handle`: `"safari": { "version_added": "18" }` |
+| K13 | https://developer.apple.com/documentation/safari-release-notes/safari-16_4-release-notes | 2026-11-10 | "Added video-only support for Web Codecs." |
+| K14 | https://developer.apple.com/documentation/safari-release-notes/safari-16_5-release-notes | 2026-11-10 | Lockdown Mode, New Restrictions: "Disabled WebCodecs API" |
+| K15 | https://developer.apple.com/documentation/safari-release-notes/safari-17-release-notes | 2026-11-10 | "Added support for JPEG XL. (100641584)"; "Added support for Managed Media Source on macOS and iPadOS, and added support as a preview on iOS. (30320350)"; "Added support for AV1 codec support to the MediaCapabilities API for devices with hardware support. (97803066)" |
+| K16 | https://developer.apple.com/documentation/safari-release-notes/safari-17_4-release-notes | 2026-11-10 | "Added support for VP8/VP9 and WebM on iOS and iPadOS. (64825245)"; "Added WebCodecs HEVC support. (112067287)" |
+| K17 | https://developer.apple.com/documentation/safari-release-notes/safari-17_5-release-notes | 2026-11-10 | "Added support for WebCodecs AV1 when an AV1 hardware decoder is available. (123433815)"; "Fixed WebCodecs to correctly use the VP9 hardware decoder. (123475343)" |
+| K18 | https://developer.apple.com/documentation/safari-release-notes/safari-26_4-release-notes | 2026-11-10 | "Fixed an issue where WebCodecs VideoDecoder could output H264 frames in the wrong order. (168046597)" |
+| K19 | https://developer.apple.com/documentation/safari-release-notes/safari-27-release-notes | 2026-11-10 | "Added support for overriding color space for hardware video decoders in WebCodecs. (178717498)"; "Fixed an issue where the WebCodecs VideoDecoder API output frames in an incorrect order for videos containing B-frames. (145093697)" |
+| K20 | https://developer.apple.com/documentation/safari-release-notes/safari-27_3-release-notes | 2026-11-10 | "Released November 3, 2026 — 27.3 beta"; "Added support for the WebCodecs ImageDecoder API. (184857272)"; "Fixed WebCodecs VP8, VP9, and AV1 encoders encoding uninitialized data for 10-bit frames. (189532957)"; "Fixed 8-bit YUV 4:2:2 VP9 frames from the software decoder being converted with the U and V planes swapped. (189584834)" |
+| K21 | https://developer.apple.com/documentation/safari-release-notes/safari-16_4-release-notes | 2026-11-10 | "Added support for AVIF on macOS Monterey and macOS Big Sur." |
+| K22 | https://webkit.org/blog/13966/webkit-features-in-safari-16-4/ | 2026-11-10 | "Safari 16.4 adds support for the video portion of Web Codecs API." |
+| K23 | https://webkit.org/blog/14445/webkit-features-in-safari-17-0/ | 2026-11-10 | "Safari 17.0 adds support for AV1 video on devices with hardware decoding support, like iPhone 15 Pro and iPhone 15 Pro Max."; "Hardware encoding/decoding provides an efficient way support the video codec without an undesired impact on battery life."; "The new Feature Flags panel replaces the previous Experimental Features section of the Develop menu" |
+| K24 | https://webkit.org/blog/15063/webkit-features-in-safari-17-4/ | 2026-11-10 | "It’s definitely a better user experience to use hardware decoding. Doing so significantly impacts power usage and makes a battery last longer." … "Video codecs with hardware decoding support on various Apple devices include VP9, h.264, HEVC and AV1." |
+| K25 | https://webkit.org/blog/15383/webkit-features-in-safari-17-5/ | 2026-11-10 | "WebKit for Safari 17.5 adds support for AV1 to WebCodecs when an AV1 hardware decoder is available." |
+| K26 | https://webkit.org/blog/15865/webkit-features-in-safari-18-0/ | 2026-11-10 | "WebKit for Safari 18.0 adds Workers support for both Managed Media Source (MMS) and Media Source Extensions (MSE)." |
+| K27 | https://webkit.org/blog/17333/webkit-features-in-safari-26-0/ ; https://webkit.org/blog/18325/webkit-features-for-safari-27-0/ | 2026-11-10 | 26.0: "Safari 26.0 expands support for WebCodecs API by adding AudioEncoder and AudioDecoder." 27.0: "Safari 27.0 lets you override the color space a hardware VideoDecoder uses when decoding video with WebCodecs." |
+| K28 | https://developer.apple.com/videos/play/wwdc2023/10122/ | 2026-11-10 | "Managed Media Source can reduce power usage by telling the webpage when it's a good time to buffer more media data."; "MSE was never made available on iPhones because we couldn't achieve with MSE the required battery savings." |
+| K29 | …/5dbb0d4/Source/WebCore/platform/VideoDecoder.cpp#L90-L118 | 2026-11-10 | `if (codecName.startsWith("vp09.02"_s)) { LibWebRTCVPXVideoDecoder::create(LibWebRTCVPXVideoDecoder::Type::VP9_P2, …` / `if (codecName.startsWith("av01."_s)) { LibWebRTCVPXVideoDecoder::create(LibWebRTCVPXVideoDecoder::Type::AV1, …` / `#elif USE(GSTREAMER) GStreamerVideoDecoder::create(codecName, config, …` |
+| K30 | …/5dbb0d4/Source/WebKit/WebProcess/GPU/media/RemoteVideoCodecFactory.cpp#L129-L151 | 2026-11-10 | `#if PLATFORM(MAC) if (*type == WebCore::VideoCodecType::VP9 && config.decoding == WebCore::VideoDecoder::HardwareAcceleration::No) return true;` |
+| K31 | …/5dbb0d4/Source/WebKit/WebProcess/GPU/webrtc/LibWebRTCCodecs.cpp#L105-L127 | 2026-11-10 | `if (codec.startsWith("vp09.0"_s)) { if (!isSupportingVP9HardwareDecoder()) return { };` … `if (codec.startsWith("av01."_s)) { if (!hasAV1HardwareDecoder()) return { };` |
+| K32 | …/5dbb0d4/Source/WebKit/WebProcess/GPU/webrtc/LibWebRTCCodecs.cpp#L129-L143 | 2026-11-10 | `void LibWebRTCCodecs::setHasAV1HardwareDecoder(bool hasAV1HardwareDecoder)` … `settings.setWebRTCAV1CodecEnabled(true); settings.setWebCodecsAV1Enabled(true);` |
+| K33 | …/5dbb0d4/Source/WebCore/platform/graphics/cocoa/AV1UtilitiesCocoa.mm#L234 | 2026-11-10 | `s_av1HardwareDecoderAvailableInProcess = canLoad_VideoToolbox_VTIsHardwareDecodeSupported() && VTIsHardwareDecodeSupported('av01');` |
+| K34 | …/5dbb0d4/Source/WebCore/platform/libwebrtc/LibWebRTCVPXVideoDecoder.cpp#L184-L192 ; …/5dbb0d4/Source/ThirdParty/libwebrtc/Source/webrtc/modules/video_coding/codecs/vp9/vp9.cc#L92-L94 | 2026-11-10 | `webrtc::CreateVp8Decoder(…)` / `webrtc::VP9Decoder::Create()` / `case LibWebRTCVPXVideoDecoder::Type::AV1: return createLibWebRTCDav1dDecoder();`; vp9.cc: `return std::make_unique<LibvpxVp9Decoder>();` |
+| K35 | …/5dbb0d4/Source/WebCore/platform/libwebrtc/LibWebRTCVPXVideoDecoder.cpp#L157-L158 | 2026-11-10 | `if (record->bitDepth > 10) return VideoDecoder::DecodePromise::createAndReject("VPx decoding of 12-bit content is not supported"_s);` |
+| K36 | …/5dbb0d4/Source/WebCore/platform/mediastream/libwebrtc/LibWebRTCDav1dDecoder.cpp#L207-L209 | 2026-11-10 | `// Only accept I420 pixel format and 8 bit depth. if (dav1dPicture.p.layout != DAV1D_PIXEL_LAYOUT_I420 \|\| dav1dPicture.p.bpc != 8) return WEBRTC_VIDEO_CODEC_ERROR;` |
+| K37 | …/5dbb0d4/Source/WebCore/platform/mediastream/libwebrtc/LibWebRTCDav1dDecoder.cpp#L124-L125 | 2026-11-10 | `s.n_threads = std::max(2, settings.number_of_cores()); s.max_frame_delay = 1;` |
+| K38 | …/5dbb0d4/Source/WebCore/platform/video-codecs/cocoa/GPUVideoDecoder.mm#L44-L47 | 2026-11-10 | `return makeUnique<GPUVideoDecoderVTB>(callback, WTF::move(queue), WTF::move(colorSpaceOverride));` |
+| K39 | …/5dbb0d4/Source/WebCore/platform/video-codecs/cocoa/VideoDecoderVTBSession.mm#L42 | 2026-11-10 | `auto videoDecoderSpecification = @{ (__bridge NSString *)kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder: @YES };` |
+| K40 | …/5dbb0d4/Source/WebCore/platform/video-codecs/cocoa/GPUVideoDecoderVTB.mm#L73-L81 | 2026-11-10 | `ASSERT(bitDepth == 8 \|\| bitDepth == 10);` … `if (bitDepth > 8) pixelFormatType = isFullRange ? kCVPixelFormatType_420YpCbCr10BiPlanarFullRange : kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange; else pixelFormatType = isFullRange ? kCVPixelFormatType_420YpCbCr8BiPlanarFullRange : …` |
+| K41 | …/5dbb0d4/Source/WebCore/platform/libwebrtc/LibWebRTCVPXVideoDecoder.cpp#L246-L251 | 2026-11-10 | `case webrtc::BufferType::I420: case webrtc::BufferType::I422: pixelBufferType = isFullRange ? kCVPixelFormatType_420YpCbCr8BiPlanarFullRange : …; case webrtc::BufferType::I010: pixelBufferType = isFullRange ? kCVPixelFormatType_420YpCbCr10BiPlanarFullRange : …` |
+| K42 | …/5dbb0d4/Source/WebCore/platform/VideoPixelFormat.cpp#L43-L51 | 2026-11-10 | `if (format == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange \|\| format == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange \|\| format == kCVPixelFormatType_Lossless_420YpCbCr8BiPlanarVideoRange) return VideoPixelFormat::NV12; if (format == kCVPixelFormatType_32BGRA) … if (format == kCVPixelFormatType_32ARGB) return shouldDiscardAlpha ? VideoPixelFormat::RGBX : VideoPixelFormat::RGBA;` |
+| K43 | …/5dbb0d4/Source/WebCore/Modules/webcodecs/WebCodecsVideoDecoder.cpp#L206-L207 | 2026-11-10 | `WebCodecsVideoFrame::BufferInit init { .format = convertVideoFramePixelFormat(frame->pixelFormat()),` |
+| K44 | …/5dbb0d4/Source/WebCore/Modules/webcodecs/WebCodecsVideoFrameAlgorithms.cpp#L322-L335 | 2026-11-10 | `if (!format) return Exception { ExceptionCode::NotSupportedError, "No format is available"_s };` … `if (options.format && *options.format != VideoPixelFormat::RGBA && *options.format != VideoPixelFormat::RGBX && *options.format != VideoPixelFormat::BGRA && *options.format != VideoPixelFormat::BGRX) return Exception { ExceptionCode::NotSupportedError, "Format is not supported"_s };` |
+| K45 | …/5dbb0d4/Source/WebCore/platform/graphics/cv/VideoFrameCV.mm#L62-L66 ; …/5dbb0d4/Source/WebCore/Modules/webcodecs/WebCodecsVideoFrame.cpp#L496 | 2026-11-10 | `RefPtr<VideoFrame> VideoFrame::fromNativeImage(NativeImage& image) { // FIXME: Set VideoFrame colorSpace. auto transferSession = ImageTransferSessionVT::create(kCVPixelFormatType_32ARGB, false);`; `auto internalVideoFrame = VideoFrame::fromNativeImage(image.get());` |
+| K46 | …/5dbb0d4/Source/WebCore/Modules/webcodecs/WebCodecsVideoFrame.cpp#L288-L289 | 2026-11-10 | `if (isHighBitDepthVideoPixelFormat(pixelFormat) && !context.settingsValues().webCodecsHighBitDepthEnabled) return Exception { ExceptionCode::TypeError, "VideoPixelFormat is not valid"_s };` |
+| K47 | …/5dbb0d4/Source/WebCore/Modules/webcodecs/WebCodecsVideoDecoder.cpp#L99-L106 | 2026-11-10 | `return codec.startsWith("vp8"_s) \|\| codec.startsWith("avc1."_s) \|\| (codec.startsWith("vp09."_s) && isSupportedVP9DecoderCodec(codec, settings)) \|\| (codec.startsWith("hev1."_s) && settings.webCodecsHEVCEnabled) \|\| (codec.startsWith("hvc1."_s) && settings.webCodecsHEVCEnabled) \|\| (codec.startsWith("av01.0"_s) && settings.webCodecsAV1Enabled);` |
+| K48 | …/5dbb0d4/Source/WebCore/Modules/webcodecs/WebCodecsVideoDecoder.cpp#L76-L95 | 2026-11-10 | `case 0: return parameters->bitDepth == 8 && is420;` … `case 2: return settings.webRTCVP9Profile2CodecEnabled && parameters->bitDepth == 10 && is420;` … `default: return false;` |
+| K49 | …/5dbb0d4/Source/WebCore/Modules/webcodecs/WebCodecsVideoDecoder.idl#L32 (also WebCodecsVideoFrame.idl, WebCodecsEncodedVideoChunk.idl) | 2026-11-10 | `EnabledBySetting=WebCodecsVideoEnabled, ExportMacro=WEBCORE_EXPORT, Exposed=(Window,DedicatedWorker), InterfaceName=VideoDecoder,` |
+| K50 | …/5dbb0d4/Source/WebCore/Modules/webcodecs/WebCodecsImageDecoder.idl#L32-L37 | 2026-11-10 | `EnabledBySetting=WebCodecsImageEnabled, ExportMacro=WEBCORE_EXPORT, Exposed=(Window,DedicatedWorker), InterfaceName=ImageDecoder, JSCustomMarkFunction, SecureContext` |
+| K51 | …/5dbb0d4/Source/WTF/Scripts/Preferences/UnifiedWebPreferences.yaml#L7223-L7234 | 2026-11-10 | `WebCodecsAV1Enabled: type: bool status: preview category: media humanReadableName: "WebCodecs AV1 codec" … defaultValue: "USE(GSTREAMER)": true default: false WebKitLegacy: false disableInLockdownMode: true` |
+| K52 | …/5dbb0d4/Source/WTF/Scripts/Preferences/UnifiedWebPreferences.yaml#L7247-L7258 | 2026-11-10 | `WebCodecsHEVCEnabled: type: bool status: mature … defaultValue: "USE(GSTREAMER)": true "PLATFORM(COCOA)": true default: false` |
+| K53 | …/5dbb0d4/Source/WTF/Scripts/Preferences/UnifiedWebPreferences.yaml#L7260-L7267 | 2026-11-10 | `WebCodecsHighBitDepthEnabled: type: bool status: testable category: media humanReadableName: "WebCodecs high bit depth video" humanReadableDescription: "Enable WebCodecs 10 and 12 bit video pixel formats" condition: ENABLE(WEB_CODECS) defaultValue: false` |
+| K54 | …/5dbb0d4/Source/WTF/Scripts/Preferences/UnifiedWebPreferences.yaml#L7269-L7278 | 2026-11-10 | `WebCodecsImageEnabled: type: bool status: stable … humanReadableName: "WebCodecs Image API" … defaultValue: default: true WebKitLegacy: false` |
+| K55 | …/5dbb0d4/Source/WTF/Scripts/Preferences/UnifiedWebPreferences.yaml#L7280-L7299 | 2026-11-10 | `WebCodecsVideoEnabled: type: bool status: mature … defaultValue: "USE(LIBWEBRTC) && PLATFORM(COCOA)": WebKit::defaultPeerConnectionEnabledAvailable() … disableInLockdownMode: true` |
+| K56 | …/5dbb0d4/Source/WTF/Scripts/Preferences/UnifiedWebPreferences.yaml#L31-L36 | 2026-11-10 | `# testable:: … OFF by default. Enabled in test infrastructure only. # preview:: # Ready to be used in beta contexts like Safari Technology Preview. # ON by default in Safari Technology Preview and test infrastructure. # OFF by default elsewhere. May be enabled automatically by clients.` |
+| K57 | …/5dbb0d4/Source/WTF/wtf/PlatformEnableCocoa.h#L1166-L1169 | 2026-11-10 | `#if !defined(ENABLE_AV1) && (PLATFORM(MAC) \|\| PLATFORM(IOS) \|\| PLATFORM(MACCATALYST) \|\| PLATFORM(VISION)) #define ENABLE_AV1 1` |
+| K58 | …/5dbb0d4/Source/WebKit/GPUProcess/webrtc/LibWebRTCCodecsProxy.mm#L178-L182 | 2026-11-10 | `// Limit to High Profile, level 5.2. return parameters && parameters->profileIDC <= 100 && parameters->levelIDC <= 52;` |
+| K59 | …/5dbb0d4/Source/WebCore/Modules/webcodecs/WebCodecsVideoFrame.cpp#L315-L338 | 2026-11-10 | `case VideoPixelFormat::NV12:` … `case VideoPixelFormat::I420A:` … `default: return Exception { ExceptionCode::NotSupportedError, "VideoPixelFormat is not supported"_s };` |
+| K60 | …/5dbb0d4/Source/WebCore/Modules/webcodecs/WebCodecsImageDecoder.cpp#L344-L351 | 2026-11-10 | `#if USE(CG) return isSupportedImageType(UTIFromMIMEType(type)); #else return MIMETypeRegistry::isSupportedImageMIMEType(type);` |
+| K61 | https://bugs.webkit.org/rest/bug?quicksearch=WebCodecs (also `VideoDecoder`, `VideoFrame`, `AV1`, `ImageDecoder`, `10-bit`, `copyTo`, `dav1d`, `high bit depth`) | 2026-11-10 | `{"summary":"WebCodecs add support for > 8bits per channel video","status":"NEW","id":325753}`; `{"summary":"GPU process crashes when VideoDecoder decodes 12-bit HEVC","status":"NEW","id":329242}` |
+| K62 | …/5dbb0d4/Source/WebCore/Modules/webcodecs/WebCodecsVideoDecoder.cpp#L157 | 2026-11-10 | `.decoding = config.hardwareAcceleration == HardwareAcceleration::PreferSoftware ? VideoDecoder::HardwareAcceleration::No : VideoDecoder::HardwareAcceleration::Yes,` |
+| K63 | …/5dbb0d4/Source/WTF/Scripts/Preferences/UnifiedWebPreferences.yaml#L7636-L7645 | 2026-11-10 | `WebRTCVP9Profile2CodecEnabled: type: bool status: mature … defaultValue: "PLATFORM(COCOA)": true default: false` |
+| K64 | …/5dbb0d4/Source/WebCore/platform/VideoPixelFormat.cpp#L52-L76 | 2026-11-10 | `#elif USE(GSTREAMER) switch (format) { case GST_VIDEO_FORMAT_I420: return VideoPixelFormat::I420; case GST_VIDEO_FORMAT_A420: … case GST_VIDEO_FORMAT_Y42B: return VideoPixelFormat::I422; case GST_VIDEO_FORMAT_Y444: return VideoPixelFormat::I444; case GST_VIDEO_FORMAT_NV12: return VideoPixelFormat::NV12;` |
