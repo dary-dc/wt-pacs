@@ -293,5 +293,39 @@
    "cpu": 10.066946,
    "rss_kb": 180504
   }
+ },
+ "O reproduces the quality study on the cut series (each slice's unit, O G 1); mutation one slice later: differs": {
+  "holds": true,
+  "mutation_holds": true,
+  "rungs": {
+   "dbts_b1 Q 2": {
+    "holds": true,
+    "mutation_holds": true
+   },
+   "dbts_b1 Q 4": {
+    "holds": true,
+    "mutation_holds": true
+   },
+   "dbts_b1 Q 8": {
+    "holds": true,
+    "mutation_holds": true
+   },
+   "dbts_b1 Q 32": {
+    "holds": true,
+    "mutation_holds": true
+   },
+   "dbts_b1 Q 12": {
+    "holds": true,
+    "mutation_holds": true
+   },
+   "dbts_b1 Q 24": {
+    "holds": true,
+    "mutation_holds": true
+   },
+   "dbts_b1 Q 16": {
+    "holds": true,
+    "mutation_holds": true
+   }
+  }
  }
 }
