@@ -212,7 +212,8 @@ function arrived(index, frame) {
   sessionBytes += frame.bytes.length + 8;
   if (cfg.recycleAtBytes && sessionBytes >= 0.75 * cfg.recycleAtBytes) recycling ??= recycle().finally(() => { recycling = null; });
   const rec = records.get(index);
-  if (!rec) return;
+  // A second copy of a frame in hand, one that crossed on a run and on its ask, is dropped.
+  if (rec?.state !== "wire") return;
   if (rec.priority === "ask") forgetEnded();
   rec.stamps.lastByte = abs();
   rec.stamps.mediaReads = session?.stats().mediaReads;
