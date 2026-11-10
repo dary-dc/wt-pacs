@@ -449,3 +449,139 @@ anticorrelation κ is the number that tells "error added" from "noise removed".
 * any modality but DBT.
 
 TRUS and MR already fall off the DBT curve ([`noise-point.md`](noise-point.md) §3).
+
+## 5 · Protocol, pre-registered
+
+A later session runs this protocol unchanged. Nothing in it has been run. It tests the criterion "r ≤ 1 on every
+frame" against model observers. It does not test visibility.
+
+**5.0 Fixtures, split before any run.** The 19 DBT volumes of [`window-q.md`](window-q.md) §Fixtures, from EA1141, are
+fetched by `lab/av1/fetch_data.sh` against their SHA-256 pins.
+
+* **Calibration set** (pilot and lesion amplitude only): `dbts_a1`, `dbts_b1`, `dbts_c1`.
+* **Test set** (the verdict): `dbts_a2`–`a5`, `dbts_b2`–`b5`, `dbts_c2`–`c5`, `dbt10_ea1141`, `dbt10_d`,
+  `dbt12_ea1141`, `dbt12_c`. That is 16 volumes.
+
+**The fixtures' limits:**
+* There are three systems, with σ_min 10.5–14.8 at 12 bits and 3.4–5.6 at 10 bits.
+* The fixtures hold reconstructed 1 mm slices only. There are no projections, so lesions go into the image domain.
+* Whether the volumes contain real findings is *unverified*. A real finding at a signal-absent site adds variance to
+  both arms alike.
+* The pixel spacing is not recorded in [`FIXTURES.md`](../FIXTURES.md). Step 1 reads Pixel Spacing (0028,0030),
+  or the enhanced object's Pixel Measures, from each source header and records it. A series without it is dropped
+  and named.
+* There is no breast ultrasound cine or ABUS, and no other modality. Nothing here speaks for them.
+
+**5.1 Stimuli.**
+1. **Frames.** Per series, the 16 contiguous slices centred on the middle slice. At G 16 they make one group.
+2. **Sites.** Positions are drawn with seed 20261110 + the series' index in the list above. Each site's whole ROI lies
+   in-window under the first header window and at least one ROI width from the border. Centres are at least two ROI
+   widths apart. ROIs are 64 × 64 px for calcifications and 128 × 128 px for masses. Alternate sites are signal-present
+   and signal-absent. The target is 200 sites of each kind, per lesion type and series. Fewer are allowed, down to
+   100, and the count achieved is reported.
+3. **Lesions.** Each is added in stored units *before* encoding, then rounded and clipped to 0 … peak.
+   * **Mass:** an in-plane Gaussian of FWHM 5 mm, with a Gaussian depth profile of σ_z 2 slices. Centres lie on
+     slices 5 and 11 of the 16.
+   * **Calcification:** an in-plane Gaussian of σ 0.1 mm on its slice, at half amplitude on the two neighbours.
+     Centres lie on slices 3–14.
+
+   Masses and calcifications go in separate volumes: V_m and V_c. V_0 is the unaltered volume. The depth profiles are
+   this protocol's choice, *unverified* against DBT's real out-of-plane spread.
+4. **Amplitude.** One amplitude per series and lesion type, found by bisection on exact frames at a separate
+   calibration seed, so that the CHO's d′ on exact frames is 2.0 ± 0.1. It is then frozen. Only exact frames enter
+   this step, so no coded result leaks into it.
+
+Image-domain insertion of digitised lesions into real backgrounds is the method of Burgess et al. 2001 ("hybrid images
+with digital images of tumors added to digitized normal backgrounds", doi:10.1118/1.1355308). Its limits are stated:
+the noise is not modulated by the lesion, and there are no DBT out-of-plane artefacts.
+
+**5.2 Arms.**
+* **Q:** 1, 2, 4, 8, 12 and 16, plus the rule's integer Q ([`noise-point.md`](noise-point.md) P3) where it is not a
+  rung.
+* **G:** G 1 on all 19 volumes; G 16 on the calibration three.
+* **Encoder and decoder:** `cell.py`'s `aomenc_args` unchanged, and dav1d decodes.
+* **Order:** cells are run in an order shuffled with seed 20261110, interleaved across series and Q (`CLAUDE.md`
+  §Measurement). Four cells are in flight, one thread each.
+* **Cost (*derived*, not timed):** about 460 encodes of 16 frames, of order a few CPU hours on the study's host,
+  from its 3.4–6.0 CPU s/Mpx over ten rungs (study §8). Nothing here is a timing, so no host limit binds.
+
+**5.3 Measured per cell.**
+* **(a) r per frame**, by `cell.measure`, on V_0.
+* **(b) κ per frame.** σ_dec = `quality.sigma` of the decoded V_0 frame, and κ = (σ_dec² − σ²) ÷ e_N².
+* **(c) Other error ratios.** e ÷ σ (full band). r on means of 3 and 5 slices at G 16, against the same means at
+  G 1 (§4.6).
+* **(d) Exploratory.** r_b on a 4-level Laplacian pyramid. σ_b comes from §3.6's depth second-difference, corrected
+  by the measured ρ₁ and ρ₂.
+* **(e) Observers, SKE, location known.** The template uses the inserted profile before rounding.
+  * **CHO** with 10 Laguerre–Gauss channels; channel 0's FWHM equals the lesion's in-plane FWHM. It is trained and
+    tested by 2-fold cross-validation over sites. Primary: trained on the arm's own images. Secondary: trained on
+    exact frames and applied to coded ones.
+  * **NPWE** with E(f) = f^1.3 exp(−c f²), peaking at 4 cycles/degree, at 63 px/degree (1 : 1, §3.3) and at
+    4× zoom.
+  * **NPW.**
+
+  Each observer's statistic gives d′ = (μ_p − μ_a) ÷ √((v_p + v_a) ÷ 2), with AUC (Mann–Whitney) beside it.
+  Signal-present ROIs come from V_m or V_c, and signal-absent ROIs from V_0 at the absent sites, both coded at the
+  same Q.
+* **(f) Ratio.** R = d′_Q ÷ d′_exact, with a 95 % percentile CI from 2 000 paired bootstrap resamples over sites
+  (seed 20261110).
+
+**5.4 Predictions (*derived* from §2–§4, fixed now).**
+* **P1, regime.** κ ≥ +0.8 at x ≤ 2, and κ ≤ 0 at the rule's Q, on every G 1 series. Refuted if κ > 0 at the rule's
+  Q on any series. That would mean the error is added, not removed, and §2.2's bound would apply instead.
+* **P2, masses.** At the rule's Q, the CHO's R holds (§5.5) on every test series.
+* **P3, calcifications.** At the rule's Q, the CHO's R *fails* on at least one system. If R holds on all of them,
+  §2.4's removal worry is refuted for AV1 at these settings.
+* **P4.** For calcifications at the rule's Q, R_NPWE at 1 : 1 ≥ R_CHO.
+* **P5, depth.** At G 16, r on 5-slice means exceeds r per frame by more than it does at G 1.
+* **P6, exploratory and unscored.** Whether r_b in the coarser bands stays ≤ 1 at the rule's Q.
+
+**5.5 Decision rule, its margin taken from the data.**
+* **The margin, per series, m_s = 1 − σ_p10 ÷ σ_p90.** The deciles are of σ over the series' own frames, computed from
+  exact frames before any encode. The reasoning: an ideal observer's d′ scales as 1 ÷ σ, so the series' quiet and
+  noisy slices already differ in d′ by that factor (*derived*). A coding loss smaller than that is within what the
+  acquisition itself gives. From the measured σ ranges (max ÷ min 1.01–1.08 on B, 1.17–1.33 on A and 1.21–1.24 on C;
+  [`noise-point.md`](noise-point.md) §5.3), m_s should come out near 0.01–0.07 on B and 0.1–0.2 on A and C (*derived*;
+  the deciles are narrower than the extremes).
+* **Per cell** (series, lesion, observer, Q):
+  * **holds** if the CI's lower limit is ≥ 1 − m_s;
+  * **fails** if its upper limit is < 1 − m_s;
+  * **undetermined** otherwise.
+
+  If the CI's half-width exceeds m_s, the site count is doubled once, where the volume allows. If it still exceeds
+  m_s, the cell stays undetermined. System B's small margin makes this likely there, and the result says so; it does
+  not loosen m_s.
+* **Verdict for each lesion type, from the CHO, primary training, G 1, at the rule's Q, on the 16 test series:**
+  * **supported** if the criterion holds on ≥ 15 series and fails on none. The one series allowed for is the
+    expected count outside 16 two-sided 95 % intervals, 0.8, rounded up.
+  * **refuted** if it fails on ≥ 2 series.
+  * **undetermined** otherwise.
+* **The data's own threshold.** Per series, Q_task is the highest Q at which the cell holds. Report the r and x at
+  Q_task, and the lowest r at a failing Q over all series. That lowest r is the noise-ratio bar that model observers
+  support, and it replaces 1 if the verdict says so. Q_task > rule Q everywhere means r ≤ 1 is conservative for the
+  task. Q_task < rule Q anywhere means it is unsafe there.
+
+**5.6 Checks, each mutated.**
+* **M1, insertion after coding.** The lesion is added to the *decoded* V_0 instead. R must then rise wherever proper
+  insertion shows a loss. This shows the pipeline sees the codec acting on the signal.
+* **M2, labels shuffled.** d′ must fall within ±0.2 of 0.
+* **M3, exact through the pipeline.** R must be 1 exactly.
+* **M4, synthetic white case.** A flat 12-bit background with white Gaussian noise of σ 10, and independent white
+  error at r 0.5 and 1. R_CHO must fall within its CI of 0.894 and 0.707 (§2.2). The mutation, error correlated with
+  the noise, must miss.
+* **M5, synthetic removal case.** The same background, quantized by the §2.3 model in an 8 × 8 orthonormal DCT at
+  x 4.93. κ must fall within 0.05 of −0.70. The mutation, a step of x 1, must give κ ≈ +1.
+
+**5.7 What a reader study would still have to confirm.** Model observers do not settle visual losslessness:
+
+* **Search.** Standard observers misrank signals in 3D search (Lago et al. 2017). Screening is search; this protocol
+  is location-known.
+* **Flicker against static reading.** §1.4. The owner has to choose which one "visually lossless" means, and test that
+  one: the study's §6 alternation test, or a static two-alternative test.
+* **Real lesions and real artefacts.** That needs projection-domain insertion or cases with findings, neither of
+  which the fixtures hold.
+* **Display and viewing.** A GSDF-calibrated display, the series' own windows, and zoom as readers use it.
+* **Readers and cases.** Breast imagers, with a multi-reader multi-case design, so that reader and case variance
+  both enter the CI.
+* **Licensing.** A lossy DBT view as the interpreted image is a regulatory question
+  ([`noise-point.md`](noise-point.md) §1, MQSA). No measurement here answers it.
