@@ -46,7 +46,7 @@ def main():
         s = SimpleNamespace(ch=1, hi=(1 << b) - 1 - lo, offset=lo, signed=False, frame=lambda i: np.zeros((1, 1, 1), np.int32))
         if (picked := ingest.plan(s, "optimized")[0]["split"]) != want:
             wrong.append(((b, False, None), f"the optimized rule picks k = {picked}, row SPLITTIME's is {want}"))
-    for lo, hi in ((-10, 200), (0, 200), (-200, 0), (-128, 127)):
+    for lo, hi in ((-10, 200), (0, 200), (-200, 0), (-200, -100), (-129, -100), (-128, 127)):
         v = np.arange(lo, hi + 1, dtype=np.int16).reshape(1, -1, 1)
         s = SimpleNamespace(ch=1, hi=hi, offset=max(0, -lo), signed=True, frame=lambda i: v)
         held = v.astype("i1" if lo >= -128 and hi <= 127 else "<i2")

@@ -115,7 +115,7 @@ def pinned(build, codec):
 
 def wide(bits, signed, offset):
     """Whether decodeFrame hands on two bytes a sample of an AV1 payload: client/decode/av1-frame.js's rule."""
-    return bits > 8 or bool(signed) and bits == 8 and offset != 128
+    return bits > 8 or bool(signed) and not (offset <= 128 and (1 << bits) - 1 - offset <= 127)
 
 
 def frame_digest(px, wide):
