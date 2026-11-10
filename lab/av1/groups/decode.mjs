@@ -33,7 +33,7 @@ const unitsOf = (e) => {
   const out = [];
   for (const dec of decoders) {
     for (const s of e.streams) out.push({ name: `${s.arm}|G${s.g}|Q${s.q}|${dec}`, dec, s });
-    const o = e.streams.find((s) => s.arm === "O" && s.g === 1 && s.why === "anchor");
+    const o = e.streams.find((s) => s.arm === "O" && s.g === 1 && s.why === (e.reference ?? "anchor"));
     out.push({ name: `O'|G1|Q${o.q}|${dec}`, dec, s: o });
   }
   return out;

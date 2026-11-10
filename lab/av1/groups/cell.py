@@ -3,8 +3,10 @@
 its headers parsed, decoded by dav1d and measured frame by frame with the quality study's own measure().
 
 usage: cell.py BUILD WORK OUT.jsonl SETDIR ... [--jobs 4] [--memory-gb 13.5] [--vdp TORCH_PYTHON] [--index K]
+               [--settings]     (the settings amendment's cells, §S4, and its one ladder extension)
 """
 import argparse
+import copy
 import hashlib
 import importlib.util
 import json
@@ -22,11 +24,12 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / "profiles"))
 sys.path.insert(0, str(HERE.parents[1] / "scripts"))
+import anchor  # noqa: E402
 import arms  # noqa: E402
 import bands  # noqa: E402
 import headers  # noqa: E402
 import plan  # noqa: E402
-from bytes import AOM, ROOT, Middle, forms, q_hist, write_y4m, y4m_frames  # noqa: E402
+from bytes import AOM, ROOT, Form, Middle, forms, q_hist, write_y4m, y4m_frames  # noqa: E402
 from order import order  # noqa: E402
 from voi import display_windows  # noqa: E402
 
@@ -36,6 +39,21 @@ import ingest  # noqa: E402
 _spec = importlib.util.spec_from_file_location("metrics_cell", HERE.parent / "metrics/cell.py")
 metrics = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(metrics)
+DEPTH_CUT = Path(os.environ.get("DEPTH_CUT", ROOT / "lab/.av1-work/depth-cut/ingest.py"))
+
+
+def depth_cut():
+    """claude/oq-depth-cut's depth_cut, imported unchanged from a scratch checkout of its ingest.py."""
+    spec = importlib.util.spec_from_file_location("depth_cut_ingest", DEPTH_CUT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.depth_cut
+
+
+def cut_form(s, scale=4):
+    """§S4's cut form, back as c · scale (4; 2 is the check's mutation)."""
+    cut = depth_cut()
+    return Form("cut", 10, 0, True, lambda v: [cut(v[..., 0], s.b)], lambda p: (p[0].astype(np.int32) * scale)[..., None])
 
 
 class Source(Middle):
@@ -101,12 +119,15 @@ def run_cell(job):
     before = os.times()
     s = Source(path, c["src"], work, c.get("shift"))
     meta = json.loads((Path(work) / f"{s.name}.display.json").read_text())
-    form = forms(s, meta["windows"])[0]
+    form = cut_form(s, c.get("scale", 4)) if c.get("form") == "cut" else forms(s, meta["windows"])[0]
     tmp = Path(work) / f"{s.name}-{name_of(c)}"
     tmp.mkdir(parents=True, exist_ok=True)
     y4m, ivf, dec = tmp / "in.y4m", tmp / "out.ivf", tmp / "dec.y4m"
-    write_y4m(s, form, y4m)
     flags = arms.args(c["arm"], form, c["q"], c["g"], s.n, c.get("extra", ()))
+    if c.get("per_group"):
+        return dict(kind="check", set=s.name, tag=c.get("tag"), flags=flags,
+                    units=[len(u) for u in per_group(build, tmp, s, form, c)])
+    write_y4m(s, form, y4m)
     wall, cpu, rss, err = encode([build / f"aom-{AOM}/bin/aomenc", "-o", ivf, f"--limit={s.n}", "--q-hist=64",
                                   "--disable-warning-prompt", *flags, y4m])
     y4m.unlink()
@@ -121,6 +142,7 @@ def run_cell(job):
         t1 = time.perf_counter()
         row["frames"] = metrics.measure(s, form, meta, y4m_frames(dec, s, form), shown=shown if vdp else None)
         row["clipped"] = s.clipped
+        row["sigma_out"] = sigma_out(s, meta, form, y4m_frames(dec, s, form))
         if c.get("bands") and s.S is not None and c["q"] != plan.NOISE_PROXY_Q:
             row["kappa"] = kappa(s, form, meta, y4m_frames(dec, s, form))
         row["vdp"] = metrics.visibility(vdp, tmp, shown) if vdp and shown else None
@@ -129,6 +151,10 @@ def run_cell(job):
         row["hashes"] = luma_hashes(dec, s, form)
     if c.get("kind") == "check":
         row["headers_late"] = headers.summary(units, late=1)
+    if c.get("span"):
+        d = [form.back(p)[..., 0] - s.frame(i)[..., 0].astype(np.int32) - s.offset
+             for i, p in enumerate(y4m_frames(dec, s, form))]
+        row["span"] = [int(min(x.min() for x in d)), int(max(x.max() for x in d))]
     if c.get("keep"):
         (Path(work) / "streams").mkdir(exist_ok=True)
         shutil.copy(ivf, Path(work) / "streams" / f"{s.name}-{name_of(c)}.ivf")
@@ -141,6 +167,31 @@ def run_cell(job):
                        + after.user + after.system - before.user - before.system)
     row["cell_wall"] = time.perf_counter() - t0
     return row
+
+
+def per_group(build, tmp, s, form, c):
+    """The ingest's way (§S8): one encoder run per group of G frames, the units concatenated."""
+    out = []
+    for a in range(0, s.n, c["g"]):
+        part = copy.copy(s)
+        part.first, part.n = s.first + a, min(c["g"], s.n - a)
+        y4m, ivf = tmp / f"in{a}.y4m", tmp / f"out{a}.ivf"
+        write_y4m(part, form, y4m)
+        encode([build / f"aom-{AOM}/bin/aomenc", "-o", ivf, f"--limit={part.n}", "--disable-warning-prompt",
+                *arms.args(c["arm"], form, c["q"], c["g"], part.n, c.get("extra", ())), y4m])
+        out += ingest.ivf_units(ivf)
+    shutil.rmtree(tmp)
+    return out
+
+
+def sigma_out(s, meta, form, decoded):
+    """σ of each decoded frame by the estimator σ is read with, over the source frame's in-window samples (§S6's ν)."""
+    table = metrics.display(meta, (1 << s.b) - 1)[0]
+    out = []
+    for i, p in enumerate(decoded):
+        v = s.frame(i)[..., 0].astype(np.int32) + s.offset
+        out.append(metrics.quality.sigma(form.back(p)[..., 0], (table[v - s.offset] > 0) & (table[v - s.offset] < 255)))
+    return out
 
 
 def kappa(s, form, meta, decoded):
@@ -187,11 +238,11 @@ def rho(job):
                 clipped={k: v.clipped for k, v in swap.items()}, samples=s.n * s.w * s.h * s.ch)
 
 
-def jobs(sets, index):
+def jobs(sets, index, cells=plan.cells):
     """Per series: its noise proxy first, then its cells in a Williams row, the cut-first ones (§9) last."""
     out = []
     for k, path in enumerate(sets):
-        cs = plan.cells(Path(path).name)
+        cs = cells(Path(path).name)
         rest = [c for c in cs[1:] if c["arm"] not in plan.LAST]
         out.append([(path, c) for c in cs[:1]] + [(path, c) for c in order(rest, index + k)]
                    + [(path, c) for c in cs[1:] if c["arm"] in plan.LAST])
@@ -233,7 +284,9 @@ def main():
     ap.add_argument("--memory-gb", type=float, default=13.5)
     ap.add_argument("--vdp", type=Path)
     ap.add_argument("--index", type=int, default=0)
+    ap.add_argument("--settings", action="store_true")
     a = ap.parse_args()
+    cells = plan.settings_cells if a.settings else plan.cells
     a.build, a.work = a.build.resolve(), a.work.resolve()
     a.work.mkdir(parents=True, exist_ok=True)
     rows = [json.loads(r) for r in a.out.open()] if a.out.exists() else []
@@ -249,7 +302,7 @@ def main():
         for row in pool.map(series, [(p, a.work) for p in todo]):
             emit(fh, row)
             print(row["set"], "series", flush=True)
-        per = jobs(a.sets, a.index)
+        per = jobs(a.sets, a.index, cells)
         first = [(p, c) for p, c in (s[0] for s in per)
                  if plan.key(Path(p).name, c) not in done or not (a.work / f"{Path(p).name}.S.npy").exists()]
         for row in pool.map(run, [(a.build, a.work, p, c, None) for p, c in first]):
@@ -258,7 +311,7 @@ def main():
             print(line(row), flush=True)
             if row["kind"] == "failed":
                 sys.exit("the noise proxy failed; nothing else can run")
-        rho_todo = [(p, a.work) for p in a.sets if ("rho", Path(p).name) not in have]
+        rho_todo = [] if a.settings else [(p, a.work) for p in a.sets if ("rho", Path(p).name) not in have]
         rho_futures = [pool.submit(rho, j) for j in rho_todo]
         rss = json.loads((HERE / "plan.json").read_text()).get("rss_gb_per_frame_mpx", {})
         family = lambda name, arm: (name, arm in arms.LOOKAHEAD)
@@ -287,6 +340,28 @@ def main():
                 rho_futures.remove(f)
         for f in rho_futures:
             emit(fh, f.result())
+        if a.settings:
+            rows = [json.loads(r) for r in a.out.open()]
+            more = [(a.build, a.work, p, c, a.vdp) for p in a.sets for c in extension(rows, Path(p).name)]
+            print(f"{len(more)} extension cells", flush=True)
+            for row in scheduled(pool, more, need, a.memory_gb, a.jobs):
+                emit(fh, row)
+                print(line(row), flush=True)
+
+
+def extension(rows, name):
+    """§S4's one rung outward for each stream whose worst-frame e_N/σ its ladder does not bracket."""
+    series = next(r for r in rows if r["kind"] == "series" and r["set"] == name)
+    ladder = plan.SETTINGS_LADDER[name]
+    have = {(r["arm"], r["g"], r["q"]) for r in rows if r["kind"] == "cell" and r["set"] == name}
+    out = []
+    for arm, g in plan.SETTINGS_STREAMS:
+        x = {r["q"]: anchor.worst(series, r) for r in rows if r["kind"] == "cell" and r["set"] == name
+             and (r["arm"], r["g"]) == (arm, g) and r["q"] in ladder}
+        q = anchor.outward(x, ladder)
+        if q is not None and (arm, g, q) not in have:
+            out += [c for c in plan.settings_cells(name, (q,))[1:] if (c["arm"], c["g"]) == (arm, g)]
+    return out
 
 if __name__ == "__main__":
     main()

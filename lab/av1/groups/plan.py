@@ -58,6 +58,25 @@ def cells(name):
     return out
 
 
+SETTINGS_LADDER = {"dbts_b1": (6, 7, 8, 9, 10, 11, 12, 14), "dbts_a1": tuple(range(4, 13)), "dbts_c1": tuple(range(4, 13))}
+SETTINGS_STREAMS = [("O", 1), ("O", 8), ("O", 16), ("O", 32), ("AT", 8), ("AT", 16), ("AT", 32), ("AF", 8),
+                    ("AF", 16), ("AF", 32), ("AD", 16), ("AU", 16), ("AW", 16)]
+SETTINGS_TIMED = {("O", 1), ("O", 8), ("O", 16), ("AT", 16), ("AF", 16), ("AU", 16)}
+SHARDS.update({"settings-1": ("dbts_b1",), "settings-2": ("dbts_a1", "dbts_c1")})
+CUT_FORM = {"dbts_a1", "dbts_c1"}
+
+
+def settings_cells(name, ladder=None):
+    """The settings amendment's cells (docs/av1/groups.md §S4), the noise proxy first."""
+    form = "cut" if name in CUT_FORM else None
+    out = [cell("O", 1, NOISE_PROXY_Q)] + [cell(a, g, q) for a, g in SETTINGS_STREAMS
+                                            for q in ladder or SETTINGS_LADDER[name]]
+    for c in out:
+        c.update(form=form, bands=False, keep=(c["arm"], c["g"]) in SETTINGS_TIMED,
+                 vdp=c["q"] != NOISE_PROXY_Q)
+    return out
+
+
 def key(set_name, c):
     return f"{set_name}|{c['arm']}|G{c['g']}|Q{c['q']}|{c['src']}"
 

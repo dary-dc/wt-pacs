@@ -1320,3 +1320,36 @@ two passes, or another encoder; hardware decoders, phones, or any host but these
   `av1/arg_defs.c`, `av1/av1_cx_iface.c:255-360`, `av1/encoder/temporal_filter.c:169-181, 815-860, 936-952,
   1260-1375, 1590-1655`, `av1/encoder/temporal_filter.h:44-85`, `av1/encoder/ratectrl.c:199-209`,
   `av1/encoder/encodeframe.c:346-350, 2336-2342`, `av1/common/quant_common.c` (the 10- and 12-bit AC tables).
+
+### Settings shard 1, choices (written before any cell was read)
+
+*Row GROUPS-SETTINGS-MEASURE, 2026-11-10. Where §S1–§S9 leave a choice open, this session made it here, before
+reading any result, and the section that follows reports under these choices.*
+
+1. **Which shard.** This session runs S1 (`dbts_b1`, slices 9–40) and writes the code S2 pulls. S2 (`dbts_a1`,
+   `dbts_c1`, cut form) runs after it if the session lasts; otherwise it is owed. Predictions "on every volume" read
+   on `dbts_b1` alone are reported as **held on B / refuted on B**, never as held.
+2. **Where the checks run.** The `dbts_b1` checks (reproduction, Q1, Q2, AU ≠ AT, AF ≠ AD, determinism, ν) are their
+   own encodes at Q 8 in `checks_settings.py`, before any cell. The cut and per-group checks run on `dbts_a1` here,
+   so that S2 starts from a tested form. Q1 and Q2 are decided from these encodes; S2 repeats them on A and C.
+3. **ν.** σ_out is `quality.sigma` (the estimator σ is read with) on the decoded frame, luma, over the *source*
+   frame's in-window samples (the mask σ uses), back at the source's depth (c · 4 on the cut form). ν per cell is the
+   median over frames of σ_out ÷ σ; ν on S is the noise proxy's decode (O G 1 Q 32) read the same way.
+4. **B₁.** Rungs in increasing Q, kept up to and including the first with x ≥ 1.02. "Not monotone" if x is not
+   strictly increasing over the kept rungs; "not bracketed" if 1.00 lies outside their x. PCHIP of ln bytes (and of
+   ν, for ν₁) against x, read at 1.00.
+5. **The one extension.** Below the ladder if every rung reads x > 1.00, above it if every rung reads x < 1.00; the
+   next integer Q (`dbts_b1`: Q 5 or Q 15). Q 13 is not added: 1.00 is bracketed by 12 and 14 when it falls there.
+6. **ε.** For O G 1 and O G 16, B₁ re-read with each kept rung dropped in turn and §S6's rule re-applied to the
+   rest (so the next rung up becomes the bracket when the top one is dropped); a drop that leaves 1.00 unbracketed
+   is listed and not counted. In S1, ε is `dbts_b1`'s alone and provisional.
+7. **Guard margins.** "One integer rung of O G 1's own curve at its crossing": the two kept rungs that bracket
+   x = 1.00. ν margin: |ν(lower) − ν(upper)|. JOD and ≥ 2-level margins as §7's `guard()`: O G 1's integer point
+   and the next rung up.
+8. **Q4's overlap.** In-window PSNR BD-rate (`bd.py`) with the interval set to the two curves' overlap over all
+   ladder rungs, the noise proxy excluded.
+9. **Decode.** 20 rounds (≥ 10 asked, "as many as fit" bounded by the session); each timed stream at its integer
+   point at 1.00 (its matched rung). "Slowest ÷ median" is per round, median over rounds. The 12-bit refusal is
+   tried on one 12-bit stream of `dbts_a1` (O G 1 Q 8, 16 frames).
+10. **Mutations not in the harness's main path** (the decode hash and the 12-bit refusal) are run as their own
+    rounds after the timed ones and written to `rows/groups-settings-1.decode-checks.json`.

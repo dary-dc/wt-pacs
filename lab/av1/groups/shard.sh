@@ -15,6 +15,20 @@ export LD_LIBRARY_PATH="$BUILD/dav1d/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"  
 ROWS="$HERE/rows"
 SETS=$("$PY" -c "import sys; sys.path.insert(0, sys.argv[1]); import plan; print(' '.join(s for s in plan.SHARDS[sys.argv[2]] if s != plan.PILOT))" "$HERE" "$K")
 mkdir -p "$WORK" "$ROWS"
+if [[ $K == settings-* ]]; then  # docs/av1/groups.md §S9: checks (S1), cells and the one extension, then decode
+  WORK="$WORK/$K"
+  mkdir -p "$WORK"
+  [[ $K != settings-1 || -f "$ROWS/groups-$K.checks.json" ]] || "$PY" "$HERE/checks_settings.py" "$BUILD" "$WORK" \
+    "$DATA/dbts_b1" "$DATA/dbts_a1" "$ROWS/groups-$K.checks.json"
+  # shellcheck disable=SC2086
+  "$PY" "$HERE/cell.py" "$BUILD" "$WORK" "$ROWS/groups-$K.jsonl" $(printf "$DATA/%s " $SETS) --vdp "$VDP_PY" \
+    --index "${K#settings-}" --settings
+  # shellcheck disable=SC2086
+  "$PY" "$HERE/streams.py" "$BUILD" "$WORK" "$ROWS/groups-$K.jsonl" $SETS --settings
+  source "$HERE/../../.av1-work/decode-env.sh"
+  exec node "$HERE/decode.mjs" --work "$WORK" --sets "$(tr ' ' , <<< "$SETS")" --rounds "${ROUNDS:-20}" \
+    --out "$ROWS/groups-$K.decode.json"
+fi
 if [[ $K == 1 ]]; then
   "$PY" "$HERE/cell.py" "$BUILD" "$WORK/pilot" "$ROWS/groups-pilot.jsonl" "$DATA/dbt12_ea1141" --vdp "$VDP_PY"
   [[ -f "$ROWS/groups-1.checks.json" ]] || "$PY" "$HERE/checks.py" "$BUILD" "$WORK/pilot" "$ROWS/groups-pilot.jsonl" \
