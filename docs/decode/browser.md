@@ -1,11 +1,68 @@
 # Decoding media in the browser
 
 A reference, built only on official sources, of every route a page has to decode images and video, what each hands
-back, and what each engine ships. Research only, read 2026-11-10; nothing here was built or measured. Each claim is
+back, and what each engine ships. Research only, read 2026-11-10: nothing here was built or measured. Each claim is
 labelled **(S)** sourced (a verbatim quote, in §Sources), **(D)** derived (the reasoning beside it) or **(U)** not
-found in an official source.
+found in an official source (what was searched beside it). Versions come from browser-compat-data or release notes.
 
-*In progress: sections are added as they are written.*
+## One screen: the routes, what each hands back, each engine
+
+### The routes
+
+```
+                     ┌─► <img>, CSS ───────────────┐
+                     ├─► createImageBitmap ────────┼─► an image the UA decoded ─► 2D canvas, WebGL, WebGPU
+ coded bytes ────────┤                             │        (RGB after the UA's colour conversion; getImageData: 8-bit or float16)
+ (fetched,           ├─► <video> (src or MSE) ─────┴─► the screen; one frame on demand:
+  WebTransport, …)   │        rVFC + new VideoFrame(video)  ──┐
+                     ├─► ImageDecoder (WebCodecs) ────────────┼─► VideoFrame ─┬─► copyTo() with no format: the planes as the
+                     ├─► VideoDecoder (WebCodecs) ────────────┘               │     decoder emitted them (the one exact read)
+                     │                                                        ├─► copyTo({format:'RGBA'…}): 8-bit RGB, converted
+                     │                                                        └─► drawImage, texImage2D, importExternalTexture,
+                     │                                                              copyExternalImageToTexture: RGB, converted
+                     └─► a decoder compiled to WebAssembly (dav1d, OpenJPH, …) ─► the page's own buffers, any depth
+```
+
+(D, from §VideoFrame, §From a VideoFrame to the screen, §The `<video>` and MSE route and §Decoding in WebAssembly.)
+
+| route | the page gets | can read the samples? | bit depth, sample format | exact samples? | label | where |
+|---|---|---|---|---|---|---|
+| `VideoDecoder` → `copyTo()`, no `format` | the decoder's planes, in the frame's `VideoPixelFormat` | yes, if `format` is not `null` | 8-bit, or 10/12-bit in 16-bit little-endian containers; YUV only above 8 bits | yes, byte copy, when the decoder hands back CPU planes | S / D | [F3] [F5] [F14] [F15] |
+| `VideoDecoder` → `copyTo({format})` | one RGB plane | yes | 8-bit `RGBA`/`RGBX`/`BGRA`/`BGRX`, conversion unspecified | no above 8 bits | S / D | [F35] [F39] |
+| `VideoFrame` → canvas, WebGL, WebGPU | pixels on a canvas or texture | through `getImageData`, texture read-back | 8-bit or float16 canvas; float textures; never > 8-bit integer from a frame | no: colour conversion, scaling | S / D | [F62] [F73] [F74] [F78] [F80] [F87] |
+| `ImageDecoder` → `VideoFrame` | as `VideoDecoder`, format chosen by the UA | as above | 8-bit RGB except Chromium's 10/12-bit colour AVIF (`I4xxP10`/`P12`) | only there | S / D | [I14] [I42] §ImageDecoder |
+| `<img>` / `createImageBitmap` → canvas | the canvas bitmap | `getImageData` | `rgba-unorm8`, or `rgba-float16` (Chromium only) | not above 8 bits | S | [I36] [I37] [I41] |
+| `<video>` / MSE → `new VideoFrame(video)` | the frame at the current playback position | as `VideoFrame` | whatever the media pipeline holds | no: frames may be dropped or skipped; no frame by index | S / D | [F59] [F121] [F133] |
+| WebAssembly decoder | the decoder's output, in WASM memory | yes | anything the decoder supports | yes, by construction (it is the decoder's own output) | D | §Decoding in WebAssembly |
+
+### Engine by engine
+
+Versions come from browser-compat-data at commit `918d2d72…` or the release notes cited; source at the pinned commits
+named in each engine's section. "Exact 10-bit" means `copyTo()` with no `format` returns `I4xxP10` planes.
+
+| question | Chromium (Chrome, Edge, Opera, Samsung Internet; Android; WebView) | WebKit (Safari macOS, iOS, iPadOS; every iOS browser outside the EU and Japan) | Gecko (Firefox) | src |
+|---|---|---|---|---|
+| `VideoDecoder` ships | 94, all Chromium browsers (BCD `mirror`) (S) | 16.4, macOS and iOS (S) | desktop 130; **Android: not shipped** (S) | [C1] [K5] [G1] [G37] |
+| AV1 through WebCodecs | dav1d in software everywhere; hardware where the GPU or OS offers it (S) | only where AV1 **hardware** exists, by default; Main profile (`av01.0`) only (S) | dav1d (FFmpeg's wrapper) in software; WMF, VideoToolbox, VA-API in hardware (S/D) | [C18] [K31] [K32] [K47] [G43] [G46] |
+| exact 10-bit samples | yes from the software decoders (`I420P10` …); `null` from hardware P010; RGB on Android hardware (S/D) | **no**: every 10-bit frame has `format` `null` (S/D) | `I420P10` when the frame comes back as CPU planes, `BGRX` when it comes back as a texture (S/D) | [C35] [C44] [C41] [K42] [K43] [G56] [G57] |
+| 12-bit | **AV1 refused** at the key-frame check (libgav1 built to 10 bits), though dav1d outputs `I420P12`; VP9 12-bit through libvpx (S/D) | no path (S) | `I420P12` on the CPU-plane path (S) | [X1]–[X4] [C35] [C38] [K35] [K40] [G56] |
+| 4:0:0 (monochrome) AV1 | `I420` with mid-grey chroma synthesised (S) | software dav1d refuses anything but 8-bit 4:2:0 (S) | dropped by Gecko's dav1d module; FFmpeg path has no grey format (S) | [C35] [C36] [K36] [G53] [G55] |
+| `ImageDecoder` | 94 (S) | 27.3 beta (S) | 133 (S) | [C4] [K20] [G4] |
+| AVIF / JPEG XL / JPEG 2000 in `<img>` | 85 / 155 / none (S/D) | 16.4 / 17 / removed in 18 (S) | 93 / 158 / none (S/D) | [I21] [I22] [I28] |
+| float16 canvas (`colorType`) | 137 (S) | no (S) | no (S) | [F89] [I37] |
+| WASM SIMD, threads | 91, 74 (Android 88; **WebView: no threads**) (S) | 16.4, 15.2; COEP `credentialless` not supported (S) | 89, 79 (S) | [A1] [A4] [C8] [A8] |
+
+**So, for exact 10- and 12-bit medical samples (D, from the rows above):** WebCodecs is exact only where the engine's
+software decoder hands back CPU planes: Chromium at ≤ 10 bits for AV1 (12 for VP9), and Gecko on its CPU-plane path.
+Safari gives no exact samples above 8 bits through any browser API. A WebAssembly decoder is exact in every engine.
+
+### How to read this document
+
+§WebCodecs VideoDecoder, §VideoFrame and §From a VideoFrame to the screen are the specification; §Codec strings is the
+registry; §Chromium, §WebKit and §Gecko are what each engine ships; §ImageDecoder and image formats, §Media
+Capabilities decodingInfo, §The `<video>` and MSE route and §Decoding in WebAssembly the other routes; §Performance and
+resource guidance and §How to test support are practice; §What it means for this repository compares this with the
+repository's own decode documents. Every id resolves in §Sources, which holds the quote.
 
 ## WebCodecs VideoDecoder
 
@@ -202,151 +259,6 @@ enum EncodedVideoChunkType { "key", "delta" };
 | `duration` is `null` when not given; `timestamp` and `duration` are in microseconds. | S | [V29], [V30] |
 | `copyTo(dest)` throws `TypeError` if `dest` is smaller than `byteLength`. | S | [V31] |
 | Chunks are serializable (`postMessage`) but not for storage. | S | [V32] |
-
-## Codec strings and the WebCodecs Codec Registry
-
-### Registry
-
-| claim | label | src |
-|---|---|---|
-| The registry is a W3C Registry Draft dated 24 September 2026, and "This registry is non-normative." | S | [V39] |
-| "Implementers of WebCodecs are not required to support any particular codec nor registry entry." | S | [V39] |
-| A valid codec string is valid per its codec's specification, describes one codec, and "is unambiguous about codec profile, level, and constraint bits for codecs that define these concepts". | S | [V28] |
-| Only the value of a `codecs=` parameter is accepted, not a MIME type. | S | [V28] |
-| Each registration defines: recognised codec strings, chunk internal data, `description` bytes, and what `type: "key"` means. | S | [V39] |
-| Registered video codecs: `av01.*` (AV1), `avc1.*`, `avc3.*` (AVC/H.264), `hev1.*`, `hvc1.*` (HEVC/H.265), `vp8`, `vp09.*` (VP9). No VVC entry. | S | [V40] |
-| Registered audio codecs (named only): `flac`, `mp3`, `mp4a.*` (AAC), `opus`, `vorbis`, `ulaw`, `alaw`, `pcm-*`. | S | [V40] |
-| The registry ED and each video registration's ED have the same content as the TR versions on 2026-11-10. | D | text diff of [V40] vs ED, [V41] etc. |
-
-### Per codec
-
-| codec | codec string | `description` | chunk data | `type: "key"` means | label | src |
-|---|---|---|---|---|---|---|
-| AV1 | `av01.` + suffix per Section 5 of AV1-ISOBMFF | **not used** | OBUs in low-overhead format forming one temporal unit; the leading temporal delimiter may be omitted | contains a sequence header OBU before the first frame header, and that frame is `KEY_FRAME`, `show_frame` 1, `show_existing_frame` 0 | S | [V41]–[V44] |
-| VP9 | `vp09.` + suffix per the "Codecs Parameter String" section of VP-ISOBMFF | not used | a frame (Section 6 of VP9) | frame with `frame_type` `KEY_FRAME` | S | [V53] |
-| VP8 | exactly `vp8` | not used | a frame (Section 4 and Annex A of VP8) | `key_frame` true | S | [V57] |
-| AVC | `avc1.` or `avc3.` + 6 characters (RFC 6381 §3.4; ISO/IEC 14496-15 §5.4.1) | present → `AVCDecoderConfigurationRecord` (avcC, 14496-15 §5.3.3.1) and the stream is `avc` format; **absent → Annex B** | one access unit | `avc`: an IDR picture; `annexb`: an IDR picture **plus** all parameter sets it needs | S | [V58]–[V60] |
-| HEVC | `hev1.` or `hvc1.` + four dot-separated fields (14496-15 Annex E.3) | present → `HEVCDecoderConfigurationRecord` (hvcC, 14496-15 §8.3.3.1), `hevc` format; **absent → Annex B** | one access unit | an IDR, CRA or BLA picture; in `annexb`, plus all parameter sets | S | [V63]–[V65] |
-
-AV1 takes no `description`: the av1C box of an MP4 file is not passed; the sequence header must travel in the key
-chunk instead (D, from [V43], [V44]).
-
-**Bitstream format options are encoder-only.** `VideoEncoderConfig.avc = { format: "annexb" | "avc" }` (default
-`"avc"`) and `VideoEncoderConfig.hevc = { format: "annexb" | "hevc" }` (default `"hevc"`); in `avc`/`hevc` format
-parameter sets go out in `EncodedVideoChunkMetadata.decoderConfig.description` (S) [V61], [V66]. On the decoder side
-the format is chosen only by whether `description` is present (S) [V59], [V64]. AV1, VP9 and AVC also add a
-per-frame `quantizer` encode option (S) [V41], [V53], [V61].
-
-### AV1 codec string (AV1-ISOBMFF §5)
-
-Grammar, verbatim (S) [V45]:
-
-```
-<sample entry 4CC>.<profile>.<level><tier>.<bitDepth>.<monochrome>.<chromaSubsampling>.
-<colorPrimaries>.<transferCharacteristics>.<matrixCoefficients>.<videoFullRangeFlag>
-```
-
-| field | digits | value | label | src |
-|---|---|---|---|---|
-| sample entry 4CC | — | `av01` | S | [V41] |
-| profile | 1 | `seq_profile`: 0 Main (8/10-bit 4:2:0 or mono), 1 High (adds 4:4:4), 2 Professional (adds 12-bit and 4:2:2) | S | [V46], [V50] |
-| level | 2 | `seq_level_idx[0]`; level X.Y with X = 2 + (idx >> 2), Y = idx & 3 (so `08` = 4.0, `13` = 5.1) | S / D | [V46], [V49] |
-| tier | 1 letter | `M` (seq_tier 0) or `H` (1) | S | [V46] |
-| bitDepth | 2 | `BitDepth`: `08`, `10`, or `12`; 12 exists only with profile 2 (`twelve_bit` is read only when `seq_profile == 2 && high_bitdepth`) | S | [V46], [V51] |
-| monochrome | 1 | `mono_chrome` | S | [V46] |
-| chromaSubsampling | 3 | subsampling_x, subsampling_y, then `chroma_sample_position` if both are 1, else 0; a monochrome stream has x = y = 1 and position `CSP_UNKNOWN` (0), so `110` | S / D | [V46], [V52] |
-| colorPrimaries, transferCharacteristics, matrixCoefficients | 2 each | CICP codes from `colr` box or the sequence header | S | [V46] |
-| videoFullRangeFlag | 1 | `color_range` | S | [V46] |
-
-| claim | label | src |
-|---|---|---|
-| 4CC, profile, level, tier and bitDepth are mandatory; the rest are optional and all-or-none, defaulting to `0.110.01.01.01.0` (non-mono, 4:2:0, BT.709 ×3, studio swing), and that default tail SHOULD be omitted. | S | [V47] |
-| WebCodecs therefore requires at least `av01.P.LLT.DD`; its validity rule asks for unambiguous profile and level, which those fields give. | D | [V28], [V47] |
-| `av01.0.04M.10.0.112.09.16.09.0` = Main, level 3.0, Main tier, 10-bit, 4:2:0 colocated, BT.2100 PQ, studio swing. | S | [V48] |
-| `av01.0.08M.10` = Main profile, level 4.0, Main tier, 10-bit, defaults for the rest. | D | [V46], [V47], [V49] |
-| 12-bit AV1 needs profile 2, e.g. `av01.2.08M.12`; 10-bit monochrome is `av01.0.08M.10.1.110.01.01.01.0` (full tail, since mono ≠ default). | D | [V47], [V50]–[V52] |
-| Whether a UA's `isConfigSupported()` rejects an unsupported bitDepth or monochrome value (rather than only profile/level). | U | spec names only profile/level/constraint bits [V25]; per-UA behaviour belongs to the engine sections |
-
-### VP9 codec string (VP-ISOBMFF)
-
-Grammar, verbatim (S) [V54]:
-
-```
-<sample entry 4CC>.<profile>.<level>.<bitDepth>.<chromaSubsampling>.
-<colourPrimaries>.<transferCharacteristics>.<matrixCoefficients>.
-<videoFullRangeFlag>
-```
-
-| claim | label | src |
-|---|---|---|
-| "All parameter values are expressed as double-digit decimals"; 4CC, profile, level, bitDepth are mandatory; the rest optional, all-or-none, default 4:2:0 colocated (`01`), BT.709, legal range. | S | [V54] |
-| Profile 0: 8-bit 4:2:0; 1: 8-bit 4:2:2/4:4:4; 2: 10/12-bit 4:2:0; 3: 10/12-bit 4:2:2/4:4:4. | S | [V55] |
-| Level is ten times the level number: `10` = 1, `41` = 4.1, `62` = 6.2. | S | [V56] |
-| `vp09.00.10.08` = profile 0, level 1, 8-bit; `vp09.00.41.08` = profile 0, level 4.1, 8-bit (the latter is the binding's own example). | D / S | [V55], [V56] |
-
-### AVC and HEVC codec strings
-
-| claim | label | src |
-|---|---|---|
-| AVC suffix = hex of three SPS bytes: `profile_idc`, the constraint_set flags byte, `level_idc` (`avcoti := 6(DIGIT / "A" / … / "F")`). | S | [V62] |
-| `avc1.42001E` = `profile_idc` 0x42 = 66, constraints 0x00, `level_idc` 0x1E = 30. | D | [V62] |
-| HEVC suffix layout (`hev1.1.6.L93.B0`: profile space/idc, compatibility flags, tier+level, constraint bytes) is defined in ISO/IEC 14496-15 Annex E.3, which is not freely published; not verified here. | U | looked for: an open copy of 14496-15 Annex E.3; the registration only points to it [V63] |
-| `hev1` vs `hvc1` and `avc1` vs `avc3` are both accepted; the registrations give no decoder-side difference between them. | D | [V58], [V63] |
-
-## How to test support
-
-### Feature detection
-
-| step | pattern | what it tells you | label | src |
-|---|---|---|---|---|
-| 1 | `isSecureContext` | `[SecureContext]` means the interface is exposed "only within a secure context" — on plain `http:` (other than what the platform counts as secure) `VideoDecoder` is simply absent | S | [V3], [V67] |
-| 2 | `'VideoDecoder' in self` (works in a window and in a dedicated worker; `self` exists in both) | the interface is exposed in this realm; MDN marks it secure-context, window and dedicated worker | S / D | [V3], [V68] |
-| 3 | `(await VideoDecoder.isConfigSupported(cfg)).supported` with the exact codec string, sizes and `hardwareAcceleration` you will use | the UA claims it can configure that config right now | S | [V24], [V25], [V26] |
-| 4 | compare the returned `config` with your input (e.g. `rotation`, `flip` missing) | which members the UA ignores | S | [V24] |
-| 5 | decode one known key chunk and compare output to a reference | the only check of what `isConfigSupported` does not promise (decode success, `format`, exact samples) | D | §"isConfigSupported" above |
-| — | `'ondequeue' in VideoDecoder.prototype` | `dequeue` support; BCD records it later than the interface in Chrome | D | [V71] |
-
-Not exposed in shared or service workers (D: `Exposed` lists only `Window` and `DedicatedWorker` [V3]). The spec
-encourages running media pipelines in a worker (S) [V74]. MDN's own `isConfigSupported` example probes
-`"avc1.42001E"`, `"hvc1.1.6.L123.00"`, `"vp8"`, `"vp09.00.10.08"`, `"av01.0.04M.08"` with both acceleration
-preferences (S) [V69]. Shipping versions per engine are owned by the engine sections; the BCD root entry reads
-`"chrome": { "version_added": "94" }`, `"firefox": { "version_added": "130" }`,
-`"firefox_android": { "version_added": false }` (S) [V70].
-
-### web-platform-tests
-
-| claim | label | src |
-|---|---|---|
-| WebCodecs tests live in one flat wpt directory, `/webcodecs/`: 320 test files in the latest aligned stable run (323 results returned by the search API for `q=webcodecs`, 3 outside the directory). | S / D | [V72], [V73] |
-| Decoder-specific files include `video-decoder.https.any.js`, `videoDecoder-codec-specific.https.any.js` (variants `?av1`, `?vp8`, `?vp9`, `?h264_avc`, `?h264_annexb`, `?h265_hevc`, `?h265_annexb`), `video-decoder-no-size-in-configure`, `videoDecoder-codec-specific-orientation`, `videoDecoder-444-h264`, `videoDecoder-h264-sei`, `videoDecoder-interlaced-h264`. | S | [V73] |
-
-Latest **aligned** stable run (all four at wpt revision `fea36e49ddda8a206a5d3489ac377c8b9f406af9`), subtests
-summed over every `/webcodecs/` result, as returned by `https://wpt.fyi/api/search?run_ids=…&q=webcodecs`
-(`legacy_status` passes/total) and cross-checked against each run's `summary_v2` file (S) [V72], [V73]:
-
-| browser | version | OS | run id | pass / total | % |
-|---|---|---|---|---|---|
-| Chrome | 157.0.8103.38 | linux 22.04 | 5070179567140864 | 3571 / 3920 | 91.1 |
-| Edge | 157.0.4341.42 | win 10.0 | 5167475038355456 | 3551 / 3920 | 90.6 |
-| Firefox | 159.0.1 | linux 22.04 | 5140459022974976 | 2810 / 3922 | 71.6 |
-| Safari | 27.2 (22625.2.8.11.9) | mac 27.2 | 5107094106406912 | 1603 / 3632 | 44.1 |
-
-Decoder rows that matter here (pass / total per subtest, same runs) (S) [V73]:
-
-| test | Chrome | Edge | Firefox | Safari |
-|---|---|---|---|---|
-| `video-decoder.https.any.html` | 33/33 | 33/33 | 33/33 | 30/33 |
-| `videoDecoder-codec-specific.https.any.html?av1` | 23/23 | 23/23 | 23/23 | 0/23 |
-| `…codec-specific…?vp9` | 23/23 | 23/23 | 23/23 | 22/23 |
-| `…codec-specific…?h264_avc` | 23/23 | 23/23 | 23/23 | 22/23 |
-| `…codec-specific…?h265_hevc` | 0/23 | 0/23 | 0/23 | 22/23 |
-| `videoDecoder-codec-specific-orientation.https.any.html?av1` | 2/2 | 2/2 | 0/2 | 0/2 |
-
-| claim | label | src |
-|---|---|---|
-| Fixtures and limits: one CI machine per browser (OS as listed), whatever codecs and hardware that machine has; a 0/23 row says that codec failed there, not why, and says nothing about other devices. | D | [V72] |
-| Safari's total is smaller (3632) because its run reports fewer subtests (13 files ended in harness `ERROR`, 1 `TIMEOUT`), so its % is not comparable subtest-for-subtest. | S / D | [V73] (status counts from the `summary_v2` file) |
-| Totals are raw subtest sums, not wpt.fyi's per-test-normalised "interop" score. | D | method above |
 
 ## VideoFrame
 
@@ -553,113 +465,95 @@ September 2026 were both read [F75] [F90]; the quotes below are in the ED.
 | Only `copyTo()` without `format` is specified as a byte copy of the decoder's planes; every other route above specifies a colour conversion, a scale to display size, a float or 8-bit store, or an unspecified intermediate. So `copyTo()` is the only route that can be relied on for exact 10/12-bit samples (D: rows above). | D | [F3] [F62] [F74] [F80] [F87] |
 | Rendering exact samples on screen: upload the `copyTo()` planes as data (`texImage2D` with an `ArrayBufferView`, or WebGPU `writeTexture`) and do the window/level in a shader. Not a spec statement; follows from the rows above. | D | [F3] [F78] [F75] |
 
-## Media Capabilities decodingInfo
+## Codec strings and the WebCodecs Codec Registry
 
-Working Draft and Editor's Draft, both 9 November 2026; their normative text is the same (D: text diff of [F100]
-and [F101] differs only in the table of contents and reference dates).
-
-### What the answer means
-
-| field | definition (verbatim) | label | src |
-|---|---|---|---|
-| `supported` | set true once the video and audio MIME types pass "check MIME type support" (and, with a key system, once access is granted) | S | [F102] |
-| `smooth` | "If the user agent is able to decode the media represented by configuration at the indicated framerate without dropping frames, set smooth to true. Otherwise set it to false." | S | [F102] |
-| `powerEfficient` | "If the user agent is able to decode the media represented by configuration in a power efficient manner, set powerEfficient to true." | S | [F102] |
-| power efficient | "Encoding or decoding is considered power efficient when the power draw is optimal. The definition of optimal power draw for encoding or decoding is left to the user agent." | S | [F103] |
-| `powerEfficient` is **not** "hardware" | "User agents SHOULD NOT mark hardware encoding or decoding as power efficient by default, as non-hardware-accelerated codecs can be just as efficient, particularly with low-resolution video." | S | [F103] |
-| `keySystemAccess` | a `MediaKeySystemAccess` when an encrypted configuration is supported, else null | S | [F104] |
-
-### `MediaDecodingConfiguration`
-
-| member | rule | label | src |
-|---|---|---|---|
-| `type` (required) | `file` (playback of sources other than MSE and `RTCPeerConnection`), `media-source`, `webrtc` | S | [F105] |
-| no `webcodecs` type | the enum has exactly the three values above in both TR and ED; "This specification supports MediaDecodingType values of file, media-source or webrtc". For WebCodecs, `VideoDecoder.isConfigSupported()` is the query (see §WebCodecs). | S | [F105] [F106] |
-| `video.contentType` (required) | "the MIME type of the video track"; a container type that allows several codecs needs exactly one codec in `codecs` | S | [F107] [F108] |
-| `video.width` / `height` (required) | "the visible horizontal and vertical encoded pixels in the encoded video frames" | S | [F107] |
-| `video.bitrate` (required) | bits per second; average for CBR, maximum for VBR | S | [F107] |
-| `video.framerate` (required) | frames per second, finite and > 0; maximum for variable frame rate | S | [F107] |
-| `hasAlphaChannel` | whether decoding yields per-pixel alpha | S | [F107] |
-| `hdrMetadataType` | `smpteSt2086`, `smpteSt2094-10`, `smpteSt2094-40`; only for `media-source` and `file` | S | [F109] |
-| `colorGamut` | `srgb`, `p3`, `rec2020`; only for `media-source` and `file` | S | [F109] |
-| `transferFunction` | `srgb`, `pq`, `hlg`; only for `media-source` and `file` | S | [F109] |
-| `scalabilityMode` | only for `MediaEncodingConfiguration` of type `webrtc` — giving it to `decodingInfo` makes the configuration invalid | S | [F110] |
-| `spatialScalability` | decoder can use frames of other resolutions as references; default false; for `media-source`, `file`, `webrtc` | S | [F110] |
-| `keySystemConfiguration` | `keySystem`, `initDataType`, `distinctiveIdentifier`, `persistentState`, `sessionTypes`, `audio`/`video` `{robustness, encryptionScheme}`; only with `media-source` or `file` | S | [F111] |
-| A member given for a type it does not apply to makes the configuration invalid, and `decodingInfo()` rejects with `TypeError`. | S | [F110] [F112] |
-| There is no bit-depth or chroma-format member: 10/12-bit or 4:4:4 can be asked only through the profile/level in the `codecs` string (D: member list [F107]). | D | [F107] |
-| `decodingInfo()` is on `Navigator` and `WorkerNavigator`; with a `keySystemConfiguration` it rejects in workers (`InvalidStateError`) and in insecure contexts (`SecurityError`). | S | [F112] [F113] |
-
-### Privacy
+### Registry
 
 | claim | label | src |
 |---|---|---|
-| The spec "provides easier access to some information that can be used to fingerprint users"; the entropy is expected to be small because device classes share capabilities. | S | [F114] |
-| `colorGamut`, `transferFunction` and `hdrMetadataType` "have the potential to add significant entropy". | S | [F114] |
-| Suggested mitigations: fake a fixed capability set, limit to top-level browsing contexts, a privacy budget that throttles calls. So answers may be deliberately coarse (D). | S | [F114] |
+| The registry is a W3C Registry Draft dated 24 September 2026, and "This registry is non-normative." | S | [V39] |
+| "Implementers of WebCodecs are not required to support any particular codec nor registry entry." | S | [V39] |
+| A valid codec string is valid per its codec's specification, describes one codec, and "is unambiguous about codec profile, level, and constraint bits for codecs that define these concepts". | S | [V28] |
+| Only the value of a `codecs=` parameter is accepted, not a MIME type. | S | [V28] |
+| Each registration defines: recognised codec strings, chunk internal data, `description` bytes, and what `type: "key"` means. | S | [V39] |
+| Registered video codecs: `av01.*` (AV1), `avc1.*`, `avc3.*` (AVC/H.264), `hev1.*`, `hvc1.*` (HEVC/H.265), `vp8`, `vp09.*` (VP9). No VVC entry. | S | [V40] |
+| Registered audio codecs (named only): `flac`, `mp3`, `mp4a.*` (AAC), `opus`, `vorbis`, `ulaw`, `alaw`, `pcm-*`. | S | [V40] |
+| The registry ED and each video registration's ED have the same content as the TR versions on 2026-11-10. | D | text diff of [V40] vs ED, [V41] etc. |
 
-## The `<video>` and MSE route
+### Per codec
 
-### What the element shows
+| codec | codec string | `description` | chunk data | `type: "key"` means | label | src |
+|---|---|---|---|---|---|---|
+| AV1 | `av01.` + suffix per Section 5 of AV1-ISOBMFF | **not used** | OBUs in low-overhead format forming one temporal unit; the leading temporal delimiter may be omitted | contains a sequence header OBU before the first frame header, and that frame is `KEY_FRAME`, `show_frame` 1, `show_existing_frame` 0 | S | [V41]–[V44] |
+| VP9 | `vp09.` + suffix per the "Codecs Parameter String" section of VP-ISOBMFF | not used | a frame (Section 6 of VP9) | frame with `frame_type` `KEY_FRAME` | S | [V53] |
+| VP8 | exactly `vp8` | not used | a frame (Section 4 and Annex A of VP8) | `key_frame` true | S | [V57] |
+| AVC | `avc1.` or `avc3.` + 6 characters (RFC 6381 §3.4; ISO/IEC 14496-15 §5.4.1) | present → `AVCDecoderConfigurationRecord` (avcC, 14496-15 §5.3.3.1) and the stream is `avc` format; **absent → Annex B** | one access unit | `avc`: an IDR picture; `annexb`: an IDR picture **plus** all parameter sets it needs | S | [V58]–[V60] |
+| HEVC | `hev1.` or `hvc1.` + four dot-separated fields (14496-15 Annex E.3) | present → `HEVCDecoderConfigurationRecord` (hvcC, 14496-15 §8.3.3.1), `hevc` format; **absent → Annex B** | one access unit | an IDR, CRA or BLA picture; in `annexb`, plus all parameter sets | S | [V63]–[V65] |
 
-| claim | label | src |
-|---|---|---|
-| While playing, the element "represents the frame of video at the continuously increasing "current" position"; when the position moves past the last rendered frame, "the new frame must be rendered". | S | [F120] |
-| "Which frame in a video stream corresponds to a particular playback position is defined by the video stream's format." | S | [F120] |
-| "when the playback rate is not exactly 1.0, hardware, software, or format limitations can cause video frames to be dropped". | S | [F121] |
-| Video is drawn letterboxed into the playback area, aspect ratio preserved: scaled to the element's size, not shown at sample resolution (D: scaled to "the largest possible size that fits"). | S | [F122] |
-| HTML says nothing about bit depth, colour conversion or scaling filter of the rendered video. Searched [F120]'s page for "bit", "color space", "colour", "filter": no requirement found. | U | [F120] |
-| `drawImage(video)` uses "the frame at the current playback position", sized to the natural size "after any aspect-ratio correction". | S | [F123] |
+AV1 takes no `description`: the av1C box of an MP4 file is not passed; the sequence header must travel in the key
+chunk instead (D, from [V43], [V44]).
 
-### Media Source Extensions
+**Bitstream format options are encoder-only.** `VideoEncoderConfig.avc = { format: "annexb" | "avc" }` (default
+`"avc"`) and `VideoEncoderConfig.hevc = { format: "annexb" | "hevc" }` (default `"hevc"`); in `avc`/`hevc` format
+parameter sets go out in `EncodedVideoChunkMetadata.decoderConfig.description` (S) [V61], [V66]. On the decoder side
+the format is chosen only by whether `description` is present (S) [V59], [V64]. AV1, VP9 and AVC also add a
+per-frame `quantizer` encode option (S) [V41], [V53], [V61].
 
-| claim | label | src |
-|---|---|---|
-| `MediaSource` and `ManagedMediaSource` are `[Exposed=(Window,DedicatedWorker)]`; `MediaSource.canConstructInDedicatedWorker` "Returns true". | S | [F124] |
-| A worker-built `MediaSource` attaches only through its `handle`: transfer the `MediaSourceHandle` to the Window and assign it to the element's `srcObject`. The element and its rendering stay on the Window (D). | S | [F125] |
-| `ManagedMediaSource` "is a MediaSource that actively manages its memory content": the UA can evict buffered content "for any reason". | S | [F126] |
-| browser-compat-data: `MediaSource.handle` — Chrome 108, Firefox not supported, Safari 18; `ManagedMediaSource` — Safari 17 (iOS 17.1), Chrome and Firefox not supported. | S | [F127] [F128] |
-| MSE takes encoded byte streams and has no API returning decoded frames; decoded pixels reach script only through the `<video>` element, `requestVideoFrameCallback` + `new VideoFrame(video)` or `drawImage` (D: interface list of [F124]). | D | [F124] |
-| Dropped-frame counting (`getVideoPlaybackQuality`) has left MSE for the Media Playback Quality spec. | S | [F129] |
+### AV1 codec string (AV1-ISOBMFF §5)
 
-### `requestVideoFrameCallback`
+Grammar, verbatim (S) [V45]:
 
-Status: "Draft Community Group Report, 2 August 2024"; "It is not a W3C Standard nor is it on the W3C Standards
-Track" [F130]. browser-compat-data: Chrome 83, Firefox 132, Safari 15.4 [F131].
+```
+<sample entry 4CC>.<profile>.<level><tier>.<bitDepth>.<monochrome>.<chromaSubsampling>.
+<colorPrimaries>.<transferCharacteristics>.<matrixCoefficients>.<videoFullRangeFlag>
+```
 
-| `VideoFrameCallbackMetadata` field | meaning | label | src |
-|---|---|---|---|
-| `presentationTime` | when the UA submitted the frame for composition | S | [F132] |
-| `expectedDisplayTime` | when the UA expects the frame to be visible | S | [F132] |
-| `width` / `height` | frame size in media pixels ("visible decoded pixels, without pixel aspect ratio adjustments") | S | [F132] |
-| `mediaTime` | PTS in seconds of the presented frame; may be 0 for live / WebRTC | S | [F132] |
-| `presentedFrames` | count of frames submitted for composition; "MUST be monotonically increasing"; a gap means missed callbacks | S | [F132] |
-| `processingDuration` (optional) | seconds from submitting the encoded packet to the decoder until the frame was ready; may include YUV conversion and GPU staging | S | [F132] |
-| `captureTime`, `receiveTime`, `rtpTimestamp` (optional) | WebRTC / `getUserMedia` sources only | S | [F132] |
-
-| claim | label | src |
-|---|---|---|
-| Callbacks are best effort: "a callback can occasionally be fired one v-sync late", and under main-thread load "we might not get a callback for every frame". | S | [F133] |
-| The callback rate is the lesser of video rate and display rate: a 120 fps video on a 60 Hz display fires at 60 Hz. | S | [F134] |
-| "There are no strict timing guarantees when it comes to how soon callbacks are run after a new video frame has been presented." | S | [F134] |
-
-### `new VideoFrame(video)`
+| field | digits | value | label | src |
+|---|---|---|---|---|
+| sample entry 4CC | — | `av01` | S | [V41] |
+| profile | 1 | `seq_profile`: 0 Main (8/10-bit 4:2:0 or mono), 1 High (adds 4:4:4), 2 Professional (adds 12-bit and 4:2:2) | S | [V46], [V50] |
+| level | 2 | `seq_level_idx[0]`; level X.Y with X = 2 + (idx >> 2), Y = idx & 3 (so `08` = 4.0, `13` = 5.1) | S / D | [V46], [V49] |
+| tier | 1 letter | `M` (seq_tier 0) or `H` (1) | S | [V46] |
+| bitDepth | 2 | `BitDepth`: `08`, `10`, or `12`; 12 exists only with profile 2 (`twelve_bit` is read only when `seq_profile == 2 && high_bitdepth`) | S | [V46], [V51] |
+| monochrome | 1 | `mono_chrome` | S | [V46] |
+| chromaSubsampling | 3 | subsampling_x, subsampling_y, then `chroma_sample_position` if both are 1, else 0; a monochrome stream has x = y = 1 and position `CSP_UNKNOWN` (0), so `110` | S / D | [V46], [V52] |
+| colorPrimaries, transferCharacteristics, matrixCoefficients | 2 each | CICP codes from `colr` box or the sequence header | S | [V46] |
+| videoFullRangeFlag | 1 | `color_range` | S | [V46] |
 
 | claim | label | src |
 |---|---|---|
-| It takes "the VideoFrame at the current playback position", sharing its media resource and metadata. | S | [F59] [F52] |
-| It throws `InvalidStateError` when `networkState` is `NETWORK_EMPTY`, or when `readyState` is `HAVE_NOTHING` / `HAVE_METADATA` (the usability check). | S | [F59] [F135] |
-| Its `format` is whatever the UA's pipeline holds; null if that layout is not a `VideoPixelFormat`, which blocks raw `copyTo()` (D: [F6], [F5]). | D | [F6] [F5] |
+| 4CC, profile, level, tier and bitDepth are mandatory; the rest are optional and all-or-none, defaulting to `0.110.01.01.01.0` (non-mono, 4:2:0, BT.709 ×3, studio swing), and that default tail SHOULD be omitted. | S | [V47] |
+| WebCodecs therefore requires at least `av01.P.LLT.DD`; its validity rule asks for unambiguous profile and level, which those fields give. | D | [V28], [V47] |
+| `av01.0.04M.10.0.112.09.16.09.0` = Main, level 3.0, Main tier, 10-bit, 4:2:0 colocated, BT.2100 PQ, studio swing. | S | [V48] |
+| `av01.0.08M.10` = Main profile, level 4.0, Main tier, 10-bit, defaults for the rest. | D | [V46], [V47], [V49] |
+| 12-bit AV1 needs profile 2, e.g. `av01.2.08M.12`; 10-bit monochrome is `av01.0.08M.10.1.110.01.01.01.0` (full tail, since mono ≠ default). | D | [V47], [V50]–[V52] |
+| Whether a UA's `isConfigSupported()` rejects an unsupported bitDepth or monochrome value (rather than only profile/level). | U | spec names only profile/level/constraint bits [V25]; per-UA behaviour belongs to the engine sections |
 
-### Why `<video>` pixels are not exact
+### VP9 codec string (VP-ISOBMFF)
 
-| reason | label | src |
+Grammar, verbatim (S) [V54]:
+
+```
+<sample entry 4CC>.<profile>.<level>.<bitDepth>.<chromaSubsampling>.
+<colourPrimaries>.<transferCharacteristics>.<matrixCoefficients>.
+<videoFullRangeFlag>
+```
+
+| claim | label | src |
 |---|---|---|
-| Presentation follows the clock, not the decode: frames may be dropped and rVFC may skip frames, so there is no guarantee to see every decoded frame. | S | [F121] [F133] |
-| The frame captured is the one at the current position when called, not a frame you chose by index (D: [F59], [F120]). | D | [F59] [F120] |
-| The UA may scale, letterbox and colour-convert for display, and HTML defines neither depth nor conversion (D: [F122], U row above). | D | [F122] |
-| Any route onward from the captured frame (canvas, WebGL, WebGPU) adds the conversions of §From a VideoFrame to the screen. | D | [F62] |
-| For exact decoder samples, decode with WebCodecs `VideoDecoder` and `copyTo()` the outputs; `<video>`/MSE is a viewing route (D: rows above, [F3]). | D | [F3] |
+| "All parameter values are expressed as double-digit decimals"; 4CC, profile, level, bitDepth are mandatory; the rest optional, all-or-none, default 4:2:0 colocated (`01`), BT.709, legal range. | S | [V54] |
+| Profile 0: 8-bit 4:2:0; 1: 8-bit 4:2:2/4:4:4; 2: 10/12-bit 4:2:0; 3: 10/12-bit 4:2:2/4:4:4. | S | [V55] |
+| Level is ten times the level number: `10` = 1, `41` = 4.1, `62` = 6.2. | S | [V56] |
+| `vp09.00.10.08` = profile 0, level 1, 8-bit; `vp09.00.41.08` = profile 0, level 4.1, 8-bit (the latter is the binding's own example). | D / S | [V55], [V56] |
+
+### AVC and HEVC codec strings
+
+| claim | label | src |
+|---|---|---|
+| AVC suffix = hex of three SPS bytes: `profile_idc`, the constraint_set flags byte, `level_idc` (`avcoti := 6(DIGIT / "A" / … / "F")`). | S | [V62] |
+| `avc1.42001E` = `profile_idc` 0x42 = 66, constraints 0x00, `level_idc` 0x1E = 30. | D | [V62] |
+| HEVC suffix layout (`hev1.1.6.L93.B0`: profile space/idc, compatibility flags, tier+level, constraint bytes) is defined in ISO/IEC 14496-15 Annex E.3, which is not freely published; not verified here. | U | looked for: an open copy of 14496-15 Annex E.3; the registration only points to it [V63] |
+| `hev1` vs `hvc1` and `avc1` vs `avc3` are both accepted; the registrations give no decoder-side difference between them. | D | [V58], [V63] |
 
 ## Chromium
 
@@ -753,7 +647,7 @@ WebCodecs `VideoPixelFormat` values in this Chromium build: `I420`, `I420P10`, `
 
 | path | 8-bit | 10-bit | 12-bit | 4:0:0 (monochrome) | label | src |
 |---|---|---|---|---|---|---|
-| AV1, dav1d (software) | `PIXEL_FORMAT_I420` → `"I420"` (also I422/I444) | `PIXEL_FORMAT_YUV420P10` → `"I420P10"` | `PIXEL_FORMAT_YUV420P12` → `"I420P12"`. dav1d is built twice, with `-DBITDEPTH=8` and `-DBITDEPTH=16` (`CONFIG_16BPC 1`) | reported as I420/P10/P12 with **synthesised** chroma: "Single plane monochrome images will be converted to standard 3 plane ones since Chromium doesn't support single Y plane images." U and V are filled with `(1 << bit_depth) / 2` (8-bit: `256 / 2`) | S | [C35][C36][C37] |
+| AV1, dav1d (software) | `PIXEL_FORMAT_I420` → `"I420"` (also I422/I444) | `PIXEL_FORMAT_YUV420P10` → `"I420P10"` | `PIXEL_FORMAT_YUV420P12` → `"I420P12"`, but a 12-bit AV1 key chunk is refused before dav1d (§12-bit AV1 below). dav1d is built twice, with `-DBITDEPTH=8` and `-DBITDEPTH=16` (`CONFIG_16BPC 1`) | reported as I420/P10/P12 with **synthesised** chroma: "Single plane monochrome images will be converted to standard 3 plane ones since Chromium doesn't support single Y plane images." U and V are filled with `(1 << bit_depth) / 2` (8-bit: `256 / 2`) | S | [C35][C36][C37] |
 | VP9, libvpx (software) | `VPX_IMG_FMT_I420` → I420 (I422/I444, plus A variants when there is alpha) | `I42016`, bit_depth 10 → `YUV420P10` | `I42016`, bit_depth 12 → `YUV420P12` (12-bit has no alpha variant) | not handled (no 4:0:0 case) | S | [C38] |
 | H.264, FFmpeg (software) | `AV_PIX_FMT_YUV420P` → I420 | `YUV420P10LE` → YUV420P10 (9-bit is treated as 10-bit) | `YUV420P12LE` → YUV420P12 | no `GRAY` case, so it falls to `default` (unsupported) | S (mapping), U (whether this FFmpeg build decodes H.264 above 8 bits: not checked) | [C39] |
 | H.264 4:4:4 GBR via FFmpeg | `AV_PIX_FMT_GBRP` maps to `PIXEL_FORMAT_I444` | `GBRP10LE` → YUV444P10 | `GBRP12LE` → YUV444P12 | — | S | [C39] |
@@ -810,6 +704,18 @@ How `VideoFrame.format` and `copyTo()` treat those frames (`CopyToFormat` in `vi
 | Linux: `--enable-features=AcceleratedVideoDecoder` / `--disable-features=AcceleratedVideoDecoder` (feature name of `kAcceleratedVideoDecodeLinux`) | D (standard `base::Feature` switch syntax applied to the name in [C21]) | [C21] |
 | Windows: `D3D12VideoDecoder` (disabled by default); Android: `AllowMediaCodecSoftwareDecoder` (disabled); all: `PlatformHEVCDecoderSupport` (enabled) | S (names and defaults as `BASE_FEATURE` declarations) | [C28][C22] |
 | ImageDecoder decodes only Blink's built-in image formats. The decoder directories at this commit are `avif`, `bmp`, `gif`, `ico`, `jpeg`, `jxl`, `png`, `webp`, so there is **no JPEG 2000 / HTJ2K** (WASM is needed) | S (listing), D (no J2K) | [C61][C10] |
+
+### 12-bit AV1: the key-frame check refuses it before dav1d
+
+Added in integration, from the same pinned commit.
+
+| claim | label | src |
+|---|---|---|
+| `decode()` classifies an AV1 key chunk by parsing it with libgav1's OBU parser; the chunk is key only if the parse returns `kStatusOk` and the frame is a key frame. | S | [X2] |
+| Chromium builds libgav1 with `LIBGAV1_MAX_BITDEPTH=10`, and DEPS pins libgav1 at `4ad43370…`, whose parser returns `kStatusUnimplemented` for a sequence header deeper than that. | S | [X1] [X4] [X5] |
+| A chunk marked key that is not classified key is refused: "A key frame is required after configure() or flush()." | S | [X3] |
+| So a 12-bit AV1 stream is refused at its first key chunk, though dav1d is built for 16-bit and maps 12-bit to `I420P12` [C35] [C37]. The 12-bit `I420P12` row of §Output formats holds for VP9 (libvpx), not for AV1 through `decode()`. | D | [X1]–[X4], [C35] |
+| The 10- and 12-bit planar formats are listed in `IsFormatEnabled` without a runtime flag at this commit. | S | [X6] |
 
 ### Open bugs
 
@@ -1274,6 +1180,114 @@ Gecko create the WebCodecs decoder through the same factory that `<img>` uses [I
 | `ImageDecoder`, JPEG XL > 8-bit | 8-bit (`kDefaultBitDepth`. The decoder goes to half float only when asked for `kHighBitDepthToHalfFloat`) | U | 8-bit (HDR is converted to u8 rows) | S | [I42] [I43] [I49] [I50] |
 | Any route giving **12- or 16-bit integer samples of a greyscale image** to the page | none found | none found | none found | D: from every row above | — |
 
+## Media Capabilities decodingInfo
+
+Working Draft and Editor's Draft, both 9 November 2026; their normative text is the same (D: text diff of [F100]
+and [F101] differs only in the table of contents and reference dates).
+
+### What the answer means
+
+| field | definition (verbatim) | label | src |
+|---|---|---|---|
+| `supported` | set true once the video and audio MIME types pass "check MIME type support" (and, with a key system, once access is granted) | S | [F102] |
+| `smooth` | "If the user agent is able to decode the media represented by configuration at the indicated framerate without dropping frames, set smooth to true. Otherwise set it to false." | S | [F102] |
+| `powerEfficient` | "If the user agent is able to decode the media represented by configuration in a power efficient manner, set powerEfficient to true." | S | [F102] |
+| power efficient | "Encoding or decoding is considered power efficient when the power draw is optimal. The definition of optimal power draw for encoding or decoding is left to the user agent." | S | [F103] |
+| `powerEfficient` is **not** "hardware" | "User agents SHOULD NOT mark hardware encoding or decoding as power efficient by default, as non-hardware-accelerated codecs can be just as efficient, particularly with low-resolution video." | S | [F103] |
+| `keySystemAccess` | a `MediaKeySystemAccess` when an encrypted configuration is supported, else null | S | [F104] |
+
+### `MediaDecodingConfiguration`
+
+| member | rule | label | src |
+|---|---|---|---|
+| `type` (required) | `file` (playback of sources other than MSE and `RTCPeerConnection`), `media-source`, `webrtc` | S | [F105] |
+| no `webcodecs` type | the enum has exactly the three values above in both TR and ED; "This specification supports MediaDecodingType values of file, media-source or webrtc". For WebCodecs, `VideoDecoder.isConfigSupported()` is the query (see §WebCodecs). | S | [F105] [F106] |
+| `video.contentType` (required) | "the MIME type of the video track"; a container type that allows several codecs needs exactly one codec in `codecs` | S | [F107] [F108] |
+| `video.width` / `height` (required) | "the visible horizontal and vertical encoded pixels in the encoded video frames" | S | [F107] |
+| `video.bitrate` (required) | bits per second; average for CBR, maximum for VBR | S | [F107] |
+| `video.framerate` (required) | frames per second, finite and > 0; maximum for variable frame rate | S | [F107] |
+| `hasAlphaChannel` | whether decoding yields per-pixel alpha | S | [F107] |
+| `hdrMetadataType` | `smpteSt2086`, `smpteSt2094-10`, `smpteSt2094-40`; only for `media-source` and `file` | S | [F109] |
+| `colorGamut` | `srgb`, `p3`, `rec2020`; only for `media-source` and `file` | S | [F109] |
+| `transferFunction` | `srgb`, `pq`, `hlg`; only for `media-source` and `file` | S | [F109] |
+| `scalabilityMode` | only for `MediaEncodingConfiguration` of type `webrtc` — giving it to `decodingInfo` makes the configuration invalid | S | [F110] |
+| `spatialScalability` | decoder can use frames of other resolutions as references; default false; for `media-source`, `file`, `webrtc` | S | [F110] |
+| `keySystemConfiguration` | `keySystem`, `initDataType`, `distinctiveIdentifier`, `persistentState`, `sessionTypes`, `audio`/`video` `{robustness, encryptionScheme}`; only with `media-source` or `file` | S | [F111] |
+| A member given for a type it does not apply to makes the configuration invalid, and `decodingInfo()` rejects with `TypeError`. | S | [F110] [F112] |
+| There is no bit-depth or chroma-format member: 10/12-bit or 4:4:4 can be asked only through the profile/level in the `codecs` string (D: member list [F107]). | D | [F107] |
+| `decodingInfo()` is on `Navigator` and `WorkerNavigator`; with a `keySystemConfiguration` it rejects in workers (`InvalidStateError`) and in insecure contexts (`SecurityError`). | S | [F112] [F113] |
+
+### Privacy
+
+| claim | label | src |
+|---|---|---|
+| The spec "provides easier access to some information that can be used to fingerprint users"; the entropy is expected to be small because device classes share capabilities. | S | [F114] |
+| `colorGamut`, `transferFunction` and `hdrMetadataType` "have the potential to add significant entropy". | S | [F114] |
+| Suggested mitigations: fake a fixed capability set, limit to top-level browsing contexts, a privacy budget that throttles calls. So answers may be deliberately coarse (D). | S | [F114] |
+
+## The `<video>` and MSE route
+
+### What the element shows
+
+| claim | label | src |
+|---|---|---|
+| While playing, the element "represents the frame of video at the continuously increasing "current" position"; when the position moves past the last rendered frame, "the new frame must be rendered". | S | [F120] |
+| "Which frame in a video stream corresponds to a particular playback position is defined by the video stream's format." | S | [F120] |
+| "when the playback rate is not exactly 1.0, hardware, software, or format limitations can cause video frames to be dropped". | S | [F121] |
+| Video is drawn letterboxed into the playback area, aspect ratio preserved: scaled to the element's size, not shown at sample resolution (D: scaled to "the largest possible size that fits"). | S | [F122] |
+| HTML says nothing about bit depth, colour conversion or scaling filter of the rendered video. Searched [F120]'s page for "bit", "color space", "colour", "filter": no requirement found. | U | [F120] |
+| `drawImage(video)` uses "the frame at the current playback position", sized to the natural size "after any aspect-ratio correction". | S | [F123] |
+
+### Media Source Extensions
+
+| claim | label | src |
+|---|---|---|
+| `MediaSource` and `ManagedMediaSource` are `[Exposed=(Window,DedicatedWorker)]`; `MediaSource.canConstructInDedicatedWorker` "Returns true". | S | [F124] |
+| A worker-built `MediaSource` attaches only through its `handle`: transfer the `MediaSourceHandle` to the Window and assign it to the element's `srcObject`. The element and its rendering stay on the Window (D). | S | [F125] |
+| `ManagedMediaSource` "is a MediaSource that actively manages its memory content": the UA can evict buffered content "for any reason". | S | [F126] |
+| browser-compat-data: `MediaSource.handle` — Chrome 108, Firefox not supported, Safari 18; `ManagedMediaSource` — Safari 17 (iOS 17.1), Chrome and Firefox not supported. | S | [F127] [F128] |
+| MSE takes encoded byte streams and has no API returning decoded frames; decoded pixels reach script only through the `<video>` element, `requestVideoFrameCallback` + `new VideoFrame(video)` or `drawImage` (D: interface list of [F124]). | D | [F124] |
+| Dropped-frame counting (`getVideoPlaybackQuality`) has left MSE for the Media Playback Quality spec. | S | [F129] |
+
+### `requestVideoFrameCallback`
+
+Status: "Draft Community Group Report, 2 August 2024"; "It is not a W3C Standard nor is it on the W3C Standards
+Track" [F130]. browser-compat-data: Chrome 83, Firefox 132, Safari 15.4 [F131].
+
+| `VideoFrameCallbackMetadata` field | meaning | label | src |
+|---|---|---|---|
+| `presentationTime` | when the UA submitted the frame for composition | S | [F132] |
+| `expectedDisplayTime` | when the UA expects the frame to be visible | S | [F132] |
+| `width` / `height` | frame size in media pixels ("visible decoded pixels, without pixel aspect ratio adjustments") | S | [F132] |
+| `mediaTime` | PTS in seconds of the presented frame; may be 0 for live / WebRTC | S | [F132] |
+| `presentedFrames` | count of frames submitted for composition; "MUST be monotonically increasing"; a gap means missed callbacks | S | [F132] |
+| `processingDuration` (optional) | seconds from submitting the encoded packet to the decoder until the frame was ready; may include YUV conversion and GPU staging | S | [F132] |
+| `captureTime`, `receiveTime`, `rtpTimestamp` (optional) | WebRTC / `getUserMedia` sources only | S | [F132] |
+
+| claim | label | src |
+|---|---|---|
+| Callbacks are best effort: "a callback can occasionally be fired one v-sync late", and under main-thread load "we might not get a callback for every frame". | S | [F133] |
+| The callback rate is the lesser of video rate and display rate: a 120 fps video on a 60 Hz display fires at 60 Hz. | S | [F134] |
+| "There are no strict timing guarantees when it comes to how soon callbacks are run after a new video frame has been presented." | S | [F134] |
+
+### `new VideoFrame(video)`
+
+| claim | label | src |
+|---|---|---|
+| It takes "the VideoFrame at the current playback position", sharing its media resource and metadata. | S | [F59] [F52] |
+| It throws `InvalidStateError` when `networkState` is `NETWORK_EMPTY`, or when `readyState` is `HAVE_NOTHING` / `HAVE_METADATA` (the usability check). | S | [F59] [F135] |
+| Its `format` is whatever the UA's pipeline holds; null if that layout is not a `VideoPixelFormat`, which blocks raw `copyTo()` (D: [F6], [F5]). | D | [F6] [F5] |
+
+### Why `<video>` pixels are not exact
+
+| reason | label | src |
+|---|---|---|
+| Presentation follows the clock, not the decode: frames may be dropped and rVFC may skip frames, so there is no guarantee to see every decoded frame. | S | [F121] [F133] |
+| The frame captured is the one at the current position when called, not a frame you chose by index (D: [F59], [F120]). | D | [F59] [F120] |
+| The UA may scale, letterbox and colour-convert for display, and HTML defines neither depth nor conversion (D: [F122], U row above). | D | [F122] |
+| Any route onward from the captured frame (canvas, WebGL, WebGPU) adds the conversions of §From a VideoFrame to the screen. | D | [F62] |
+| For exact decoder samples, decode with WebCodecs `VideoDecoder` and `copyTo()` the outputs; `<video>`/MSE is a viewing route (D: rows above, [F3]). | D | [F3] |
+
 ## Decoding in WebAssembly
 
 **Bottom line.** Fixed-width SIMD, threads with shared memory, and `instantiateStreaming` ship in all three
@@ -1333,6 +1347,126 @@ The WebAssembly CG table (`features.json`) and BCD disagree in two cells, and bo
 | V8 | Functions compile lazily with Liftoff, a baseline compiler, on their first call. Hot functions are compiled again with TurboFan. With `compileStreaming`, the TurboFan code is cached too. | S | [A26] |
 | JavaScriptCore | Safari 26 added an in-place interpreter for Wasm. | S | [A27] |
 | SpiderMonkey | Tiers not checked against firefox-source-docs. | U | — |
+
+## Performance and resource guidance
+
+What the vendors' own documents advise is stated once, in the section that owns it:
+
+| guidance | where |
+|---|---|
+| close every `VideoFrame` promptly, or the decoder stalls; clones and serialized copies hold the same resource | §VideoFrame, Memory model [F47] [F48] [F51] |
+| decode in a dedicated worker; transfer frames rather than clone them | §Chromium, Performance [C58]; §VideoFrame, Transfer [F53] |
+| keep the `output` callback short; watch `decodeQueueSize` and `dequeue` for back-pressure | §Chromium, Performance [C58]; §WebCodecs VideoDecoder, Control message queue [V15] [V17] |
+| a background or idle hardware decoder can be reclaimed (`QuotaExceededError`); be ready to build a new one | §WebCodecs VideoDecoder, Errors [V36] [V37]; §Chromium, Limits [C51] [C52] [C53] |
+| hardware decoding saves battery; Safari plays AV1 only with hardware | §WebKit, Performance [K23] [K24] |
+| `powerEfficient` is not "hardware" | §Media Capabilities decodingInfo [F103] |
+| WASM threads need cross-origin isolation; a shared memory needs `maximum` and a re-read of `buffer` after `grow()` | §Decoding in WebAssembly [A15] [A25] |
+
+No vendor document found gives decode throughput figures for WebCodecs in any engine (U: §WebKit and §Gecko,
+Performance, say what was searched).
+
+## How to test support
+
+### Feature detection
+
+| step | pattern | what it tells you | label | src |
+|---|---|---|---|---|
+| 1 | `isSecureContext` | `[SecureContext]` means the interface is exposed "only within a secure context" — on plain `http:` (other than what the platform counts as secure) `VideoDecoder` is simply absent | S | [V3], [V67] |
+| 2 | `'VideoDecoder' in self` (works in a window and in a dedicated worker; `self` exists in both) | the interface is exposed in this realm; MDN marks it secure-context, window and dedicated worker | S / D | [V3], [V68] |
+| 3 | `(await VideoDecoder.isConfigSupported(cfg)).supported` with the exact codec string, sizes and `hardwareAcceleration` you will use | the UA claims it can configure that config right now | S | [V24], [V25], [V26] |
+| 4 | compare the returned `config` with your input (e.g. `rotation`, `flip` missing) | which members the UA ignores | S | [V24] |
+| 5 | decode one known key chunk and compare output to a reference | the only check of what `isConfigSupported` does not promise (decode success, `format`, exact samples) | D | §"isConfigSupported" above |
+| — | `'ondequeue' in VideoDecoder.prototype` | `dequeue` support; BCD records it later than the interface in Chrome | D | [V71] |
+
+Not exposed in shared or service workers (D: `Exposed` lists only `Window` and `DedicatedWorker` [V3]). The spec
+encourages running media pipelines in a worker (S) [V74]. MDN's own `isConfigSupported` example probes
+`"avc1.42001E"`, `"hvc1.1.6.L123.00"`, `"vp8"`, `"vp09.00.10.08"`, `"av01.0.04M.08"` with both acceleration
+preferences (S) [V69]. Shipping versions per engine are owned by the engine sections; the BCD root entry reads
+`"chrome": { "version_added": "94" }`, `"firefox": { "version_added": "130" }`,
+`"firefox_android": { "version_added": false }` (S) [V70].
+
+### web-platform-tests
+
+| claim | label | src |
+|---|---|---|
+| WebCodecs tests live in one flat wpt directory, `/webcodecs/`: 320 test files in the latest aligned stable run (323 results returned by the search API for `q=webcodecs`, 3 outside the directory). | S / D | [V72], [V73] |
+| Decoder-specific files include `video-decoder.https.any.js`, `videoDecoder-codec-specific.https.any.js` (variants `?av1`, `?vp8`, `?vp9`, `?h264_avc`, `?h264_annexb`, `?h265_hevc`, `?h265_annexb`), `video-decoder-no-size-in-configure`, `videoDecoder-codec-specific-orientation`, `videoDecoder-444-h264`, `videoDecoder-h264-sei`, `videoDecoder-interlaced-h264`. | S | [V73] |
+
+Latest **aligned** stable run (all four at wpt revision `fea36e49ddda8a206a5d3489ac377c8b9f406af9`), subtests
+summed over every `/webcodecs/` result, as returned by `https://wpt.fyi/api/search?run_ids=…&q=webcodecs`
+(`legacy_status` passes/total) and cross-checked against each run's `summary_v2` file (S) [V72], [V73]:
+
+| browser | version | OS | run id | pass / total | % |
+|---|---|---|---|---|---|
+| Chrome | 157.0.8103.38 | linux 22.04 | 5070179567140864 | 3571 / 3920 | 91.1 |
+| Edge | 157.0.4341.42 | win 10.0 | 5167475038355456 | 3551 / 3920 | 90.6 |
+| Firefox | 159.0.1 | linux 22.04 | 5140459022974976 | 2810 / 3922 | 71.6 |
+| Safari | 27.2 (22625.2.8.11.9) | mac 27.2 | 5107094106406912 | 1603 / 3632 | 44.1 |
+
+Decoder rows that matter here (pass / total per subtest, same runs) (S) [V73]:
+
+| test | Chrome | Edge | Firefox | Safari |
+|---|---|---|---|---|
+| `video-decoder.https.any.html` | 33/33 | 33/33 | 33/33 | 30/33 |
+| `videoDecoder-codec-specific.https.any.html?av1` | 23/23 | 23/23 | 23/23 | 0/23 |
+| `…codec-specific…?vp9` | 23/23 | 23/23 | 23/23 | 22/23 |
+| `…codec-specific…?h264_avc` | 23/23 | 23/23 | 23/23 | 22/23 |
+| `…codec-specific…?h265_hevc` | 0/23 | 0/23 | 0/23 | 22/23 |
+| `videoDecoder-codec-specific-orientation.https.any.html?av1` | 2/2 | 2/2 | 0/2 | 0/2 |
+
+| claim | label | src |
+|---|---|---|
+| Fixtures and limits: one CI machine per browser (OS as listed), whatever codecs and hardware that machine has; a 0/23 row says that codec failed there, not why, and says nothing about other devices. | D | [V72] |
+| Safari's total is smaller (3632) because its run reports fewer subtests (13 files ended in harness `ERROR`, 1 `TIMEOUT`), so its % is not comparable subtest-for-subtest. | S / D | [V73] (status counts from the `summary_v2` file) |
+| Totals are raw subtest sums, not wpt.fyi's per-test-normalised "interop" score. | D | method above |
+
+## What it means for this repository
+
+Compared on 2026-11-10 with `docs/decode/README.md` §AV1 and §JPEG XL, `docs/decode/hardware.md` §4, and
+`origin/claude/av1-webcodecs-profiles:docs/av1/webcodecs-profiles.md`. Those files were not edited. They hold
+measurements (Chromium 141, Firefox 157, WebKitGTK 2.52.6, headless, no GPU) and source reads of their own dates;
+this document holds official sources of 2026-11-10, Chromium and Firefox at `main`. A disagreement can therefore be a
+version change rather than an error on either side; each row says which it looks like (D).
+
+### Where the sources disagree
+
+| # | the repository says (verbatim) | this document's source says (verbatim) | which it looks like (D) |
+|---|---|---|---|
+| 1 | Safari's WebCodecs AV1 is software only. `README.md` §Why, and what would make it exact: "Where it is on, it decodes in software through libwebrtc's dav1d (`LibWebRTCVPXVideoDecoder`, type AV1), which refuses anything but 8-bit 4:2:0 (`layout != I420 \|\| bpc != 8`) and returns `NV12`. No hardware decoder is on that path." `hardware.md` §4.3: "WebCodecs AV1 is behind `WebCodecsAV1Enabled`, off by default on Cocoa, and is libwebrtc's dav1d in software, refusing anything but 8-bit 4:2:0." | Safari 17.5 release notes: "Added support for WebCodecs AV1 when an AV1 hardware decoder is available." [K17]. WebKit source: `if (codec.startsWith("av01."_s)) {` routes to the GPU process when AV1 hardware exists [K31], and `setHasAV1HardwareDecoder` turns the AV1 setting on [K32]. | **The repository missed a path.** On a device with AV1 hardware, Safari's WebCodecs AV1 is on by default and goes to VideoToolbox; the dav1d path is the no-hardware case behind the flag. Its 10-bit output has `format` `null` [K42] [K43], so the repository's verdict (no exact 10-bit AV1 in Safari) still holds; the exactness of 8-bit `NV12` from VideoToolbox is not known (U). |
+| 2 | Firefox hands every frame back as 8-bit RGB. `README.md` §Why: "Everything that does decode reaches the page as 8-bit `BGRX`, whatever its depth or layout." and "Even a planar image would lose its depth: Gecko's image formats have no 10-bit YUV (`ImageUtils`)." `hardware.md` §4.2: "every frame reaches the page as 8-bit `BGRX`". `webcodecs-profiles.md`: "Every remote-decoded frame is `BGRX`, from a placeholder texture format". | Gecko `main` (162.0a1): `case ColorDepth::COLOR_10:` … `ImagePixelFormat::I420P10`; `case ColorDepth::COLOR_12:` … `ImagePixelFormat::I420P12` [G56]; "If failed to create a GPU accelerated surface descriptor, fall back to copying frames via shmem." [G57]; bug 2071132, RESOLVED FIXED: "VideoFrame.format reports I420 for 10-bit planar frames and BGRA for frames created from a video element" [G64]; bug 1969762, ASSIGNED: "VideoFrame.format reports BGRX for remote-decoded frames and copyTo cannot return YUV planes" [G64]. | **Probably a version change, partly.** The texture path still gives `BGRX` (bug 1969762 open), as the repository measured on 157. A frame that comes back as CPU planes now reports `I420P10`/`I420P12`, so "no 10-bit YUV" no longer holds at `main`. Which path a WebCodecs decode takes on a given OS and GPU was not established (U, §Gecko); a run on a current release would settle it. |
+| 3 | Chromium's 10/12-bit formats need a flag. `hardware.md` §4.1, gate 3: "The 10- and 12-bit planar formats are behind a runtime flag, `WebCodecsHBDFormatsEnabled`." | Chromium `main`, `IsFormatEnabled`: `case media::PIXEL_FORMAT_YUV420P10:` `case media::PIXEL_FORMAT_YUV420P12:` … `return true;`, with no flag in the function [X6]; no `WebCodecsHBDFormatsEnabled` entry in `runtime_enabled_features.json5` at that commit (D: searched [X6]'s companion file). | **A version change** (141 read then, `main` now). Either way a software 10-bit frame reaches the page as `I420P10`, which the repository measured. |
+| 4 | JPEG XL is off by default. `README.md` §JPEG XL: "Native JPEG XL decoding exists in Chromium 154 (jxl-rs, behind `JXLImageFormat`, off by default; none in Chromium 141) and Firefox 157.0.1 (behind `image.jxl.enabled`, off)". | BCD `mediatypes/image/jxl.json`: `"chrome": { "version_added": "155" }`, `"firefox": { "version_added": "158" }` [I22]; Firefox 158: "Support for the JPEG XL image format (image/jxl) is now enabled by default." [G27]. | **A version change**: both shipped on by default one release after the versions measured. The repository's conclusion (8-bit samples only) agrees with §ImageDecoder and image formats [I42] [I49] [I50]. |
+
+### Where they agree
+
+| the repository's claim | agreeing source here |
+|---|---|
+| Chromium refuses 12-bit AV1 at the key-frame check, libgav1 built to 10 bits (`README.md` §WebCodecs, what it decodes exactly; `webcodecs-profiles.md` [C4]) | [X1]–[X4] |
+| Chromium returns 4:0:0 as `I420` with mid-grey chroma | [C35] [C36] |
+| `isConfigSupported` does not promise bit depth, chroma, or that decoding works | [V25], §`isConfigSupported()` |
+| WebCodecs has no `P010` and no grey format; a hardware 10-bit frame has `format` `null` in Chromium | [F10] [C44] |
+| Android hardware frames come back as RGB in Chromium | [C41] |
+| WebCodecs only takes `av01.0` in WebKit; Safari's software AV1 is 8-bit 4:2:0 only | [K47] [K36] |
+| Firefox has no WebCodecs on Android | [G1] [G37] |
+| `<video>` AV1 on Apple devices is hardware only; Safari has JPEG XL since 17 | [K15] [I22] |
+
+### Consequences for the client (D)
+
+* The client's choice (WebCodecs for ≤ 10 bits where a per-layout probe decodes a known frame exactly, dav1d-WASM
+  otherwise) is what the specification supports: nothing short of decoding a frame tells the page the output format
+  or exactness ([V25], §How to test support row 5).
+* `prefer-software` is the one setting that keeps Chromium's hardware path, and its `null`-format 10-bit frames, out
+  ([C30]); Gecko treats it the same way ([G39]); WebKit honours it only for VP9 on macOS ([K30]).
+* Safari on an AV1-hardware device now reaches WebCodecs AV1 (row 1); the probe should fail its 10-bit layouts
+  (`format` `null`) and send them to dav1d-WASM. Its 8-bit grey-as-4:2:0 form through VideoToolbox is untested.
+* Firefox: the probe would pass a 10-bit layout wherever the CPU-plane path is taken (row 2). The engine read-back
+  check is owed on a current Firefox release before anything is inferred from it.
+* No browser route gives exact 12-bit (AV1) or 16-bit samples, and no engine decodes JPEG 2000 or HTJ2K: HTJ2K stays
+  on OpenJPH-WASM and 12-bit AV1 on dav1d-WASM.
+
+### Quote check
+
+*To be filled from the adversarial check.*
 
 ## Sources
 
@@ -1866,3 +2000,14 @@ V8 `f8e74b163471aba777cfe6b5e570465c8f8c238f`, Gecko and WebKit as in Sources (I
 | A25 | https://webassembly.github.io/threads/js-api/ | 2026-11-10 | "If share is shared and maximum is empty, throw a TypeError exception."; "If IsSharedArrayBuffer(buffer) is false, Perform ! DetachArrayBuffer(buffer, "WebAssembly.Memory"). Let newBuffer be the result of creating a fixed length memory buffer from memaddr." |
 | A26 | https://v8.dev/docs/wasm-compilation-pipeline | 2026-11-10 | "functions get compiled lazily with the baseline compiler Liftoff when the function gets called for the first time."; "hot functions, which are functions that get executed often, get re-compiled with TurboFan" |
 | A27 | https://developer.apple.com/documentation/safari-release-notes/safari-26-release-notes | 2026-11-10 | "Added support for an in-place interpreter for Wasm." |
+
+### X
+
+| id | URL | read | verbatim quote |
+|---|---|---|---|
+| X1 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/libgav1/BUILD.gn (line 17) | 2026-11-10 | `"LIBGAV1_MAX_BITDEPTH=10",` |
+| X2 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/modules/webcodecs/video_decoder.cc (lines 170–180) | 2026-11-10 | `libgav1::StatusCode status_code = parser.ParseOneFrame(&frame);` `*is_key_frame = status_code == libgav1::kStatusOk &&` `parser.frame_header().frame_type == libgav1::kFrameKey;` |
+| X3 | same file (lines 690–691) | 2026-11-10 | `"An EncodedVideoChunk was marked as type `key` but wasn't a key frame"` `". A key frame is required after configure() or flush()."` |
+| X4 | https://chromium.googlesource.com/codecs/libgav1/+/4ad433700e5d7c45df3d6146b7c92c8945c19e64/src/obu_parser.cc (lines 2879–2884) | 2026-11-10 | `if (sequence_header_.color_config.bitdepth > LIBGAV1_MAX_BITDEPTH) {` … `return kStatusUnimplemented;` |
+| X5 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/DEPS (lines 2329–2330) | 2026-11-10 | `'src/third_party/libgav1/src':` `Var('chromium_git') + '/codecs/libgav1.git' + '@' + '4ad433700e5d7c45df3d6146b7c92c8945c19e64',` |
+| X6 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/modules/webcodecs/video_frame.cc (lines 203–228); companion: …/third_party/blink/renderer/platform/runtime_enabled_features.json5 | 2026-11-10 | `bool IsFormatEnabled(media::VideoPixelFormat fmt) {` … `case media::PIXEL_FORMAT_YUV420P10:` `case media::PIXEL_FORMAT_YUV420P12:` … `return true;` |
