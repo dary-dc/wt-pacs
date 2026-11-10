@@ -1,6 +1,7 @@
 # Codecs and lab
 
-Last verified 2026-11-09 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09).
+Last verified 2026-11-10 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09, the
+noise-ratio theory of 2026-11-10).
 
 ## Goal
 
@@ -26,6 +27,11 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 * **Noise point** (`claude/av1-noise-point`, #317, 2026-11-09): a candidate Q per series from one number, the series'
   lowest frame noise σ_min. Valid for the DBT fixtures only; not for TRUS or MR. The latest commit reports the held-out
   test (P1, P3) holding on five DBT series, while the doc's Verdict still lists that test as owed: reconcile.
+* **Noise ratio, theory** (`claude/av1-noise-ratio`, #332, 2026-11-10; theory and protocol, nothing run): e_N ≤ σ is
+  a sound guard but bounds task loss only for independent white error (d′ ≥ 1/√2, a halved dose). At the rule's Q the
+  encoder removes the band's noise (*derived*, κ ≈ −0.7), so "the band's noise rises by √2" is corrected in place. The
+  model predicts that faint calcifications are erased with the noise, while masses are not. The Laplacian band is
+  blind to blocky and low-pass error. The pre-registered model-observer test on 19 DBT volumes is owed.
 * **Depth:** the client keeps full depth for windowing. WebCodecs gives no 12-bit samples; 12-bit goes through
   dav1d-WASM (full depth, slower).
 * **Out of the top, not discarded:** a two-layer SVC preview; lossless AV1 as the exact form.
@@ -43,6 +49,8 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    suppress inter coding. Decode time in order matters more than jumps (sequential reading). No G is decided for DBT.
 1. Harvest and review the AV1 result chain into `av1-unified-mainbase`: #290 → #305 → #317, #312; #283 → #306 → #314
    → #316; #288, #315 (residual exactness across decoders, browser cells partial), #318 (WebCodecs profiles).
+1b. Run the noise-ratio protocol (`docs/av1/noise-ratio.md` §5 on `claude/av1-noise-ratio`): κ, and CHO/NPWE d′
+   with inserted masses and calcifications, exact frame against the OQ view across Q.
 2. Explore noise detection at ingest (σ_min, its estimator's timing on the three volumes), then hand it to the PCS team.
 3. An idea raised 2026-11-09, undecided: code optimal quality, split its decoded samples into top and low bits, send
    the top, the low only on request (target: the optimal-quality image, not lossless).
