@@ -167,7 +167,7 @@ Owner: [`ARCHITECTURE.md`](ARCHITECTURE.md), [`decode/README.md`](decode/README.
 | Coalescing decoded frames across decoders | downloader-cost: 2 a message 0.385 → 0.212 ms at 4× | owner (cq §Open) | ARCHITECTURE.md §The hand-off |
 | A thread hop; the downloader worker | thread-hops, decode-tail: nothing to remove | held | ARCHITECTURE.md §What a thread hop costs |
 | Cancelling queued decodes out of band | — | never (conditional on a phone) | ARCHITECTURE.md §Open |
-| `readMin`, a 16 KB BYOB read | cq 94, 101: CPU −97 to −105 ms a fill, peak −37 MB, fill a tie; a cut-stream defect | owner (cq §Open); its liveness premise (< 44 kbit/s) weaker at row 162's rates | CLIENTS.md §Reading a frame whole |
+| `readMin`, a 16 KB BYOB read | cq 94, 101: CPU −97 to −105 ms a fill, peak −37 MB, fill a tie; its cut-stream defect fixed 2026-10-22 | owner (cq §Open); its liveness premise (< 44 kbit/s) weaker at row 162's rates | CLIENTS.md §Reading a frame whole |
 | WASM transport client against TS | both clients: fill 120 against 125 ms | held (TS the default) | CLIENTS.md §The implementations |
 | Receive CPU per client stack | row 135: Chromium 6.4–12.4 ms/MB | premise (link band: ~8–16 % of a desktop core at 103 Mbit/s) | native/quic.md §6 |
 | The browser's ask window depth | removed for pushed fills, its win never measured | never | [`adr/client-window-depth.md`](adr/client-window-depth.md) §Which depth ships — open |
@@ -271,7 +271,9 @@ row for the writer (hits and fill −24–32 %, [`disk-layout/README.md`](disk-l
 17. **PUBLISHSYNC** — what does `.partial` → fsync → rename add to a pack on ext4 or XFS? Durability at code cost,
     net if inside the spread of a 10–20 ms pack.
 18. **READMINFIX** — can `readMin` name a cut queued before the read, and does 16 KB then hold every dispatch clause?
-    Fixing the defect is net; it unblocks a −97 ms CPU, −37 MB a fill default for the owner.
+    Fixing the defect is net; it unblocks a −97 ms CPU, −37 MB a fill default for the owner. *Done 2026-10-22:* yes,
+    the errored read is now the cut (`aTruncatedFrameIsAFailureUnderReadMin`); at 16 KB every dispatch clause holds
+    but the slow-session one, the liveness trade (CLIENTS.md §Reading a frame whole). The default stays the owner's.
 19. **GATEPAR** — how much faster is the gate, warm and cold, with the three server test builds and the browser
     steps run concurrently? Tooling; row 118's step times suggest ~106 → ~60 s.
 20. Small, each one question: **FIRSTREADY** (does dispatching to the first ready decoder ever move frame 0 or a cold

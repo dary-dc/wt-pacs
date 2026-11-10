@@ -342,7 +342,10 @@ for large frames. On the target link none of this binds.
 `readMin` bytes or the frame's rest; unset, the default reader and its copy. WebTransport only. A
 stream that is not a byte stream is read the default way (`readMinWithoutByobFallsBack`). A cut
 stream's last read resolves done with the bytes it holds, so the frame is still named truncated with
-its count (`aCutFrameIsNamedWithItsBytes`).
+its count (`aCutFrameIsNamedWithItsBytes`). A cut whose end is already queued when a read is made errors that
+read instead (Chrome and Node alike: a pull-into the queue cannot fill to `min` once the close is queued), and
+the read keeps its buffer and the bytes it drew: the frame is named truncated all the same, its count only what
+earlier reads held (dispatch rig, `aTruncatedFrameIsAFailureUnderReadMin`).
 
 **Bound on K.** Each read moves `lastByteAt`, which the downloader's stall watch reads, so a read
 must resolve inside `stallMs` (3 s) at the slowest rate a session should survive, and across an
@@ -375,8 +378,10 @@ The container's +12 ms (4/11) does not reproduce. **What holds it back is livene
 two dispatch clauses fail. A session whose bytes come slower than 16 KB per `stallMs` (< 44 kbit/s)
 is re-dialled, since a read with `min` resolves only at `min` bytes (the bound above, made a default) — the
 owner's trade against −97 ms and −38 MB a fill. And a cut whose end is already queued when the read is
-made errors the stream (a pull-into it cannot fill), which is taken for a stream end, so the frame is
-not named — **a defect of the `readMin` path, to fix before any default**. The BYOB read's ~12 ms frame 0 (cloud
+made errored the stream (a pull-into it cannot fill), which was taken for a stream end, so the frame was
+not named — a defect of the `readMin` path. *Fixed 2026-10-22:* the errored read is the cut, and the frame
+is named. With `readMin` forced to 16 KB, the dispatch rig (Chromium, container) then fails one clause,
+the slow session's (`aSessionWhoseBytesKeepComingIsKept`): the liveness trade is what is left for the owner. The BYOB read's ~12 ms frame 0 (cloud
 queue row 5) is the WASM client's retired path ([`decode/README.md`](decode/README.md) §The BYOB read path).
 
 ## ACK frequency, by browser
@@ -643,8 +648,8 @@ self-check in `client/`, which would have split one route across two trees. `doc
 
 Each item below is the owner's to decide, and is tracked here.
 
-* **`readMin` at 16 KB by default** — frame 0 ties; the cost is re-dials below 44 kbit/s, and the `readMin` path's
-  defect is fixed first (§Reading a frame whole).
+* **`readMin` at 16 KB by default** — frame 0 ties; the cost is re-dials below 44 kbit/s. The `readMin` path's
+  cut-stream defect is fixed (2026-10-22, §Reading a frame whole).
 * **The WASM client as a product client** — the shape (selected by configuration, no fallback) and rows 3–4 of
   §Proposed: the WASM client as a second product client; and whether row 228's dav1d half moves.
 * **Known defects** — each found by reading the code (2026-10-16 review); *corrected 2026-10-18:*
