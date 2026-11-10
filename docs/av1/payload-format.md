@@ -316,12 +316,15 @@ c · 2^(D−10), the centre of the samples that round to it.
 **Bytes** (the demo script's cut series, run alone on 2026-11-10 on a 4-core x86-64 cloud host; the exact bundles
 came out at the bytes of §Optimal quality's table): each `.sbnd` against its exact series', beside the same Q uncut.
 
-| series | Q 8 G 1 cut | Q 8 G 16 cut | Q 8 G 1 at 12 bits | Q 8 G 16 at 12 bits |
-| --- | --- | --- | --- | --- |
-| `dbts_a1` | 0.0687 | 0.0685 | 0.0740 | 0.0742 |
-| `dbts_c1` | 0.0898 | 0.0882 | 0.0959 | 0.0947 |
+| series | Q 8 G 1 cut | Q 8 G 8 cut | Q 8 G 16 cut | Q 24 G 1 cut | Q 24 G 8 cut | Q 24 G 16 cut | Q 8 G 1 at 12 bits | Q 8 G 16 at 12 bits |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `dbts_a1` | 0.0687 | 0.0685 | 0.0685 | 0.0064 | 0.0031 | 0.0030 | 0.0740 | 0.0742 |
+| `dbts_c1` | 0.0898 | 0.0883 | 0.0882 | 0.0081 | 0.0039 | 0.0037 | 0.0959 | 0.0947 |
 
-The cut is 6–8 % fewer bytes than the 12-bit view at the same Q; it is not the same view (codes at a quarter of the
+At Q 8 the cut is 6–8 % fewer bytes than the 12-bit view; it is not the same view (codes at a quarter of the
 precision, then the coding error), so the bytes say nothing of its quality. Since OQ-WEBCODECS-DEFAULT the demo
 script codes `dbts_a1` and `dbts_c1` as cuts at Q 8 and 24, G 1, 8 and 16 (ids `…-cut`), with one stored-form
-series each, `…-q8-g16-stored`; the Q 24 and G 8 cuts are **not measured** (the script has not been run since).
+series each, `…-q8-g16-stored`. *Corrected 2026-11-10 (DEMO-E2E):* this said the Q 24 and G 8 cuts were not measured;
+the script in that form, run twice on a 4-core x86-64 cloud host (903 s building the coders and fetching the volumes first, 565 s with both done), wrote the bytes in
+the table above both times, the Q 8 G 1 and G 16 cuts and both stored forms as before. At Q 24 the cut is 1.12–1.28 times
+the 12-bit view's bytes (§Optimal quality's table, 2026-11-09; from the rounded fractions), more, not fewer.

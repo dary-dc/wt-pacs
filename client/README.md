@@ -120,9 +120,22 @@ source.
   exact-frame slot already enforces by admitting no other frame. The route rule: `decode/av1.test.mjs` (§lossy, 7 of 7
   mutants killed), `decode/depth-cut.browser.mjs` (Chromium's refusal of the stored form) and the overlay's data in
   `view/controller.test.mjs`.
-* **Not yet run:** a browser end to end on a real pair, which waits on the ingest's lossy series and the decoders'
-  build; the web image (`deploy/nginx`) does not serve the exact series' two paths. Assumed from the ingest: each
-  coded frame of the lossy series is an AV1 payload ([`docs/av1/payload-format.md`](../docs/av1/payload-format.md)).
+* **End to end** (DEMO-E2E, 2026-11-10; *corrected in place*: this said it was not yet run). `viewer/demo-check.mjs`
+  serves a pair from `scripts/demo-series.sh` by README §Demo's commands and drives the page in headless Chromium
+  (Chrome for Testing 153, SwiftShader, loopback, one 4-core x86-64 cloud host): fill, every frame stepped in order,
+  `End`, `l` and `l`; then `?fill=0`, 13 steps and `End`; then the exact series' last digest made wrong. It passed
+  on all 20 optimal-quality series of the demo set (`dbts_a1`, `dbts_b1`, `dbts_c1`; Q 8 and 24; G 1, 8, 16; the two
+  stored forms). Every cut and 10-bit frame painted through WebCodecs; both stored forms through dav1d, every frame
+  with WebCodecs' refusal named (*marked as type `key` but wasn't a key frame*); the label *Optimal quality* →
+  *fetching lossless…* → *Lossless* → *Optimal quality* every time, and *Lossless check failed*, never *Lossless*,
+  on the wrong digest; on demand, whole groups asked and nothing else (24 frames on `dbts_a1` at G 8 and 16); no
+  console error. From navigation, Q 8 G 8, one run each: the first picture at 473, 762 and 474 ms and the last frame
+  of the fill at 1.8, 5.1 and 2.3 s on `dbts_a1`, `dbts_b1` and `dbts_c1`; the exact frame painted 83, 239 and 113 ms
+  after `l`. Wire bytes are the bundle's (4532 KB over `dbts_a1`'s 56 frames at Q 8 G 8). `dbts_b1`'s steps take
+  ~130 ms each with every frame held: SwiftShader painting 2560 × 3328, not a GPU's number. Its four mutants each
+  fail it: the label without the digest, 10-bit units to dav1d, groups dropped (the fill never completes), the demo
+  script's metadata missing. Not run: a GPU, hardware decode, a phone, a real link, Firefox. The web image
+  (`deploy/nginx`) does not serve the exact series' two paths.
 
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
 in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
