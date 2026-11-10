@@ -166,6 +166,14 @@ else
   skip "DICOM to .sbnd needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
 fi
 
+step "ingest: optimal quality — its metadata and pairing, every frame from its keyframe, close and not exact, at G 1, 8 and 16"
+if [[ -f "$INGEST_BUILD/payload/libdecode.so" && -x "$INGEST_BUILD/aom-3.15.1/bin/aomenc" ]] \
+  && "$PYTHON" -c "import numpy, xxhash" 2>/dev/null; then
+  run 1 "$PYTHON" ingest/coded-frames/lossy_test.py "$INGEST_BUILD"
+else
+  skip "optimal quality's test needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
+fi
+
 step "client: the native core's decode — every committed frame digest, through ingest/tools.sh's dav1d and OpenJPH — and its view module's want, store, credits and hand-over"
 if [[ -f "$INGEST_BUILD/payload/libdecode.so" ]]; then
   run 1 cargo test -p native-client --features decode --quiet -- decode:: view::
