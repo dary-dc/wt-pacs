@@ -272,7 +272,7 @@ of G 1's bytes on `dbts_a1` and `dbts_c1`, 0.62 on `dbts_b1`.
 *OQ-DEPTHCUT, 2026-11-10. Built and tested on synthetic sets and in headless Chromium; the bytes below are measured,
 the quality is not.*
 
-No engine's WebCodecs returns 12-bit samples (`docs/av1/webcodecs-profiles.md` on `claude/av1-webcodecs-profiles`),
+No engine's WebCodecs returns 12-bit samples (`docs/av1/webcodecs-profiles.md` at `87640e5d` on `claude/av1-webcodecs-profiles`),
 so a D > 10 optimal-quality view would decode only through dav1d-WASM. The **depth cut** is the form that WebCodecs
 decodes: the OQ view coded from each source sample v's 10-bit **code**
 
@@ -294,7 +294,7 @@ c · 2^(D−10), the centre of the samples that round to it.
   c · 2^(D−10) through the rescale, so no pass shifts the samples first. `client/paint/voi.test.mjs` holds the table
   equal to shifting then windowing on every code, at D 11, 12 and 16, for the three functions; scaling the window's
   centre and width to the codes instead paints otherwise (the same test). The prior evidence is PAINTDEPTH
-  (`docs/decode/paint-depth.md` on `claude/av1-paint-depth`). Its auto window, from a frame's decoded range, and the
+  (`docs/decode/paint-depth.md` at `1e96552d` on `claude/av1-paint-depth`). Its auto window, from a frame's decoded range, and the
   sample under the cursor are at full depth.
 * **Decoded** through WebCodecs where its 10-bit probe passed, dav1d-WASM otherwise, as any 10-bit series:
   `client/decode/depth-cut.browser.mjs` decodes a G 4 fixture (`client/contract/av1/payloads/depth-cut`, from
