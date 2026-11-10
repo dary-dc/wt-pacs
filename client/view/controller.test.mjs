@@ -1,6 +1,7 @@
 // node client/view/controller.test.mjs — the controller and the frame store, with a recording paint and a fake downloader client.
 import assert from "node:assert/strict";
-import { Controller } from "./controller.js";
+import { asPainted, Controller } from "./controller.js";
+import { windowTable } from "../paint/voi.js";
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -426,6 +427,17 @@ test("a depth cut's frames are painted with their shift, the exact frame without
   const plain = lossyRig();
   await plain.c.repaint();
   assert.equal(plain.painted.at(-1).f.info.cut, undefined);
+});
+
+/** What the painter is handed of a depth cut's frame keeps its shift: code 249 of D 12 is windowed at 996, not at 249. */
+test("a depth cut's frame reaches the painter windowed at full depth", async () => {
+  const r = lossyRig(undefined, { lossy: { q: 8, g: 1, depth: 10, bitsStored: 12 }, bitsStored: 12 });
+  await r.c.repaint();
+  const { f, display } = r.painted.at(-1);
+  const painted = asPainted({ ...f.info, bits: 10 });
+  const full = windowTable({ bits: 12, signed: false }, display);
+  const got = windowTable(painted, display);
+  for (let c = 0; c < 1024; c++) assert.equal(got[c], full[c << 2], `code ${c}`);
 });
 
 /** A series that is not lossy has no label: the quality rule says nothing of an HTJ2K series. */
