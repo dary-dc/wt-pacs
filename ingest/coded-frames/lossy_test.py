@@ -124,12 +124,12 @@ def main():
             check(worst[24, 8] > worst[8, 8], f"{bits}-bit: Q 24 errs more than Q 8")
             print(f"{bits}-bit: worst RMS error {', '.join(f'Q {q} G {g} {e:.2f}' for (q, g), e in worst.items())} of {span}")
         for q, claim in (("64", "Q 64 is refused by name"), ("0", "Q 0, a lossless stream, is refused as lossy by name")):
-            r = subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, tmp / "s12", tmp / "bad",
+            r = subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, tmp / "s12", tmp / f"bad-q{q}",
                                 "--lossy", q, "1", "--exact-series", "paired"], capture_output=True, text=True)
-            check(r.returncode != 0 and "Q is 1 to 63" in r.stderr and not (tmp / "bad").exists(), claim)
-        r = subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, tmp / "s12", tmp / "bad",
+            check(r.returncode != 0 and "Q is 1 to 63" in r.stderr and not (tmp / f"bad-q{q}").exists(), claim)
+        r = subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, tmp / "s12", tmp / "bad-split",
                             "--lossy", "8", "1", "--exact-series", "paired", "--split", "2"], capture_output=True, text=True)
-        check(r.returncode != 0 and not (tmp / "bad").exists(), "--split with --lossy is refused: the payload has no split")
+        check(r.returncode != 0 and not (tmp / "bad-split").exists(), "--split with --lossy is refused: the payload has no split")
     print(f"optimal quality: {'every claim holds' if not failures else f'{len(failures)} claims fail'}")
     sys.exit(1 if failures else 0)
 
