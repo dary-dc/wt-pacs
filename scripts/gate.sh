@@ -120,6 +120,8 @@ if [[ $browser -eq 1 ]]; then
   run 20 bash client/viewer/run_check.sh
   step "lab: the frame clock's seven arms wired end to end in the view worker, a second each (headless Chromium, nothing timed)"
   run 1 node lab/frame-clock/check.mjs
+  step "client: a depth cut's 10-bit codes decode through WebCodecs, a group from its keyframe on, as dav1d's (headless Chromium)"
+  run 1 node client/decode/depth-cut.browser.mjs
   step "client: a crafted link to the viewer refused where lab/ is not served (headless Chromium)"
   run 1 node client/viewer/crafted.mjs
   step "client: the painter at 1:1 against its CPU reference (SwiftShader, ~3 s)"
