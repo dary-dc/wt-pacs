@@ -289,8 +289,10 @@ including "ECDSA with the secp256r1 (NIST P-256) named group" (*ibid.*, *custom 
 the spec's requirements name no host — *derived*; checked in Chromium 153, which dialed the laptop's other address on
 it.
 
-**Once, on the phone:** Settings > About phone > Software information > Build number, tapped "seven times until you
-see the message `You are now a developer!`", then Developer options > USB debugging on
+**Once, on the phone:** the **Build number** option (Settings > About phone > Build number on a Pixel; Settings >
+About phone > Software information > Build number on a Samsung Galaxy S8 and later; other makers in the source's
+table), tapped "seven times until you see the message `You are now a developer!`", then, on Android 9 and higher,
+Settings > System > Advanced > Developer Options > USB debugging on
 ([Android developers](https://developer.android.com/studio/debug/dev-options)). **Once, on the laptop**, with the
 decoder builds of §Prerequisites (the page refuses one it does not have, by name) and §The viewer on a DICOM series'
 bundle; the package names are Fedora's, *unverified*:
@@ -310,7 +312,8 @@ see each other, or the laptop joined to the phone's hotspot); `adb` stays on the
 IF=$(for d in /sys/class/net/*; do case $(readlink -f "$d/device/driver") in */rndis_host|*/cdc_ncm|*/cdc_ether) echo "${d##*/}";; esac; done | head -1)
 [ -n "$IF" ] || IF=$(nmcli -t -f DEVICE,TYPE,STATE device | awk -F: '$2=="wifi" && $3=="connected" {print $1; exit}')
 LAPTOP_IP=$(ip -4 -o addr show dev "$IF" | awk '{print $4}' | cut -d/ -f1 | head -1)
-printf 'IF=%s\nLAPTOP_IP=%s\n' "$IF" "$LAPTOP_IP" | tee target/phone.env   # `. target/phone.env` in each terminal
+[ -n "$LAPTOP_IP" ] && printf 'IF=%s\nLAPTOP_IP=%s\n' "$IF" "$LAPTOP_IP" | tee target/phone.env ||
+  echo "no tether or Wi-Fi interface with an IPv4 address: target/phone.env not written" >&2   # else `. target/phone.env` in each terminal
 ```
 
 UDP over that link is ordinary IP — *derived*; *unverified* on the device, and the dial in step 4 is the check. Whether
