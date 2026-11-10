@@ -498,9 +498,9 @@ Read 2026-11-09.
    AQ −5.7 %) and O G 16 / G 32 cost **2.5 % fewer**, against a method resolution ε of 0.76 %. At equal Q, as the
    quality study found, G 16 saves 0.9 % at Q 8. The noise swap places the cause in the slices' own noise: one shared
    noise pattern (C) lets G 16 save 75 % at Q 8, a shuffled one (X) changes nothing (−1.0 % against real's +0.9 %).
-   Decoding in order costs the alt-ref arms a slowest frame of about 0.52–0.67 s on dav1d-WASM, about 4× their median.
+   Decoding in order costs the alt-ref arms a slowest frame of about 0.52–0.63 s on dav1d-WASM at Q 8, 3.4–5.2× their median.
 3. **The numbers that decide it** are below: every cell, the BD-rates, the swap, the decode, and P1–P8 and P10 as their
-   clauses read them. P1–P4, P6 and P8 are refuted on this volume, P7 held, P5 neither, and P10 is given below.
+   clauses read them. P1–P4, P6 and P8 are refuted on this volume, P10 is held on dav1d-WASM and refuted on WebCodecs (the arms' mean ÷ O at the same G is 0.89–0.90, under 0.9), P7 held, P5 neither held nor refuted.
 4. **It rests on** `dbts_b1` slices 9–40 alone (system B, 10-bit, one volume), libaom 3.15.1 at cpu-used 6 (3 for
    O3/AT3), native dav1d 1.5.4 for every measure, dav1d-WASM and WebCodecs in headless Chromium for the timing, and the
    quality study's measures unchanged.
@@ -804,81 +804,97 @@ VL interval 39.26–41.19 dB (in-window PSNR of O G 1 at Q 12 and Q 4).
 
 **Decode in order**, ms a frame (handed in to shown frame copied out), 1×, one host:
 
-**`dbts_b1`**, 1 rounds kept, 0 void.
+**`dbts_b1`**, 46 rounds kept, 0 void.
 
 | stream | decoder | ms a frame: mean · median · p95 · slowest (medians over rounds) | slowest at group position | mean ÷ O G 1 (95 % interval) | p95 ÷ O G 1 (95 % interval) |
 | --- | --- | --- | --- | --: | --: |
-| AD|G16|Q6 | dav1d | 150.7 · 143.9 · 470.7 · 581.9 | 1 | — | — |
-| AD|G16|Q8 | dav1d | 130.7 · 112.1 · 403.9 · 520.9 | 1 | — | — |
-| AT|G16|Q6 | dav1d | 148.9 · 144.6 · 464.7 · 563.5 | 1 | — | — |
-| AT|G16|Q8 | dav1d | 138.9 · 121.8 · 444.0 · 567.7 | 1 | — | — |
-| AT|G32|Q6 | dav1d | 150.5 · 148.2 · 432.9 · 669.2 | 1 | — | — |
-| AT|G32|Q8 | dav1d | 126.1 · 117.0 · 360.9 · 565.4 | 1 | — | — |
-| O'|G1|Q8 | dav1d | 129.7 · 127.4 · 145.0 · 154.9 | 0 | — | — |
-| O|G16|Q8 | dav1d | 139.3 · 138.4 · 151.2 · 156.2 | 1 | — | — |
-| O|G1|Q8 | dav1d | 124.4 · 121.3 · 143.4 · 160.5 | 0 | — | — |
-| O|G32|Q8 | dav1d | 141.9 · 140.0 · 163.0 · 168.3 | 19 | — | — |
-| AD|G16|Q6 | webcodecs | 102.0 · 97.3 · 275.3 · 345.7 | 1 | — | — |
-| AD|G16|Q8 | webcodecs | 85.2 · 77.4 · 227.0 · 254.8 | 1 | — | — |
-| AT|G16|Q6 | webcodecs | 104.2 · 98.3 · 289.5 · 340.8 | 1 | — | — |
-| AT|G16|Q8 | webcodecs | 88.5 · 79.1 · 229.3 · 259.7 | 1 | — | — |
-| AT|G32|Q6 | webcodecs | 105.7 · 99.9 · 258.5 · 429.0 | 1 | — | — |
-| AT|G32|Q8 | webcodecs | 85.5 · 78.6 · 205.1 · 297.7 | 1 | — | — |
-| O'|G1|Q8 | webcodecs | 92.6 · 90.9 · 103.5 · 107.3 | 0 | — | — |
-| O|G16|Q8 | webcodecs | 94.2 · 94.1 · 100.8 · 115.6 | 0 | — | — |
-| O|G1|Q8 | webcodecs | 88.8 · 88.0 · 97.5 · 108.8 | 0 | — | — |
-| O|G32|Q8 | webcodecs | 96.6 · 96.8 · 102.8 · 104.6 | 15 | — | — |
+| AD|G16|Q6 | dav1d | 161.6 · 152.8 · 502.4 · 622.8 | 1 | 1.205 (1.184–1.220) | 3.304 (3.204–3.459) |
+| AD|G16|Q8 | dav1d | 136.6 · 121.4 · 438.6 · 515.5 | 1 | 1.024 (1.000–1.033) | 2.854 (2.758–3.012) |
+| AT|G16|Q6 | dav1d | 160.9 · 154.0 · 501.2 · 606.9 | 1 | 1.193 (1.169–1.213) | 3.258 (3.180–3.429) |
+| AT|G16|Q8 | dav1d | 138.5 · 124.9 · 426.8 · 520.7 | 1 | 1.021 (1.006–1.042) | 2.874 (2.720–2.990) |
+| AT|G32|Q6 | dav1d | 161.6 · 155.7 · 442.4 · 740.4 | 1 | 1.195 (1.175–1.211) | 2.926 (2.812–3.021) |
+| AT|G32|Q8 | dav1d | 136.4 · 121.0 · 379.7 · 625.2 | 1 | 0.999 (0.990–1.018) | 2.560 (2.400–2.651) |
+| O'|G1|Q8 | dav1d | 136.0 · 132.7 · 150.8 · 167.1 | 0 | 1.007 (0.975–1.019) | 1.007 (0.985–1.054) |
+| O|G16|Q8 | dav1d | 150.7 · 148.4 · 175.2 · 194.9 | 6 | 1.119 (1.100–1.129) | 1.148 (1.102–1.203) |
+| O|G1|Q8 | dav1d | 135.0 · 132.3 · 153.4 · 169.4 | 0 | 1.000 (1.000–1.000) | 1.000 (1.000–1.000) |
+| O|G32|Q8 | dav1d | 150.6 · 147.6 · 173.4 · 195.9 | 11 | 1.120 (1.106–1.133) | 1.147 (1.086–1.206) |
 
-**`usb_cine`**, 1 rounds kept, 0 void.
+A/A (dav1d): O′ ÷ O mean 1.007 (0.975–1.019); not wholly beyond ±5 %, so not void; half-width a = 2.2 %.
+| AD|G16|Q6 | webcodecs | 109.5 · 104.2 · 305.1 · 355.4 | 1 | 1.133 (1.127–1.146) | 2.883 (2.824–2.912) |
+| AD|G16|Q8 | webcodecs | 90.5 · 82.5 · 243.8 · 277.0 | 1 | 0.944 (0.928–0.953) | 2.334 (2.286–2.352) |
+| AT|G16|Q6 | webcodecs | 110.6 · 106.3 · 303.6 · 353.4 | 1 | 1.134 (1.128–1.148) | 2.892 (2.834–2.924) |
+| AT|G16|Q8 | webcodecs | 90.9 · 83.8 · 239.9 · 280.7 | 1 | 0.942 (0.931–0.954) | 2.299 (2.255–2.346) |
+| AT|G32|Q6 | webcodecs | 108.6 · 106.0 · 267.6 · 421.7 | 1 | 1.133 (1.120–1.141) | 2.548 (2.517–2.609) |
+| AT|G32|Q8 | webcodecs | 91.0 · 85.4 · 220.6 · 332.0 | 1 | 0.941 (0.927–0.948) | 2.096 (2.053–2.123) |
+| O'|G1|Q8 | webcodecs | 95.8 · 95.7 · 105.0 · 110.0 | 0 | 0.997 (0.983–1.011) | 1.005 (0.984–1.028) |
+| O|G16|Q8 | webcodecs | 101.3 · 101.1 · 110.9 · 115.9 | 6 | 1.061 (1.042–1.077) | 1.059 (1.041–1.083) |
+| O|G1|Q8 | webcodecs | 97.1 · 96.6 · 105.1 · 109.6 | 0 | 1.000 (1.000–1.000) | 1.000 (1.000–1.000) |
+| O|G32|Q8 | webcodecs | 101.7 · 101.6 · 110.7 · 114.5 | 12 | 1.056 (1.050–1.070) | 1.055 (1.040–1.075) |
 
-| stream | decoder | ms a frame: mean · median · p95 · slowest (medians over rounds) | slowest at group position | mean ÷ O G 1 (95 % interval) | p95 ÷ O G 1 (95 % interval) |
-| --- | --- | --- | --- | --: | --: |
-| AT|G16|Q4 | dav1d | 4.1 · 2.4 · 11.8 · 33.9 | 1 | — | — |
-| AT|G16|Q8 | dav1d | 3.8 · 1.9 · 11.4 · 33.3 | 1 | — | — |
-| O'|G1|Q8 | dav1d | 5.4 · 5.2 · 7.1 · 7.6 | 0 | — | — |
-| O|G16|Q4 | dav1d | 3.8 · 3.0 · 7.2 · 8.8 | 2 | — | — |
-| O|G16|Q8 | dav1d | 3.4 · 2.8 · 6.1 · 8.0 | 1 | — | — |
-| O|G1|Q8 | dav1d | 6.3 · 6.2 · 8.3 · 8.7 | 0 | — | — |
-| AT|G16|Q4 | webcodecs | 2.5 · 1.9 · 6.6 · 11.4 | 1 | — | — |
-| AT|G16|Q8 | webcodecs | 2.1 · 1.5 · 5.2 · 8.9 | 1 | — | — |
-| O'|G1|Q8 | webcodecs | 2.9 · 2.8 · 3.4 · 3.8 | 0 | — | — |
-| O|G16|Q4 | webcodecs | 2.4 · 2.2 · 3.7 · 3.9 | 0 | — | — |
-| O|G16|Q8 | webcodecs | 2.0 · 1.9 · 3.0 · 3.4 | 0 | — | — |
-| O|G1|Q8 | webcodecs | 2.9 · 2.9 · 3.3 · 3.3 | 0 | — | — |
+A/A (webcodecs): O′ ÷ O mean 0.997 (0.983–1.011); not wholly beyond ±5 %, so not void; half-width a = 1.4 %.
 
-**`usb_cine_rgb`**, 1 rounds kept, 0 void.
+**`usb_cine`**, 46 rounds kept, 0 void.
 
 | stream | decoder | ms a frame: mean · median · p95 · slowest (medians over rounds) | slowest at group position | mean ÷ O G 1 (95 % interval) | p95 ÷ O G 1 (95 % interval) |
 | --- | --- | --- | --- | --: | --: |
-| AT|G16|Q4 | dav1d | 10.3 · 9.1 · 29.0 · 55.4 | 1 | — | — |
-| AT|G16|Q8 | dav1d | 9.0 · 7.8 · 26.2 · 49.2 | 1 | — | — |
-| O'|G1|Q8 | dav1d | 9.0 · 8.8 · 10.8 · 13.9 | 0 | — | — |
-| O|G16|Q4 | dav1d | 9.7 · 10.0 · 11.4 · 12.1 | 2 | — | — |
-| O|G16|Q8 | dav1d | 8.8 · 8.7 · 10.4 · 12.5 | 2 | — | — |
-| O|G1|Q8 | dav1d | 8.9 · 8.7 · 10.4 · 14.8 | 0 | — | — |
-| AT|G16|Q4 | webcodecs | 4.5 · 3.7 · 12.9 · 18.4 | 1 | — | — |
-| AT|G16|Q8 | webcodecs | 4.0 · 3.3 · 11.4 · 15.4 | 1 | — | — |
-| O'|G1|Q8 | webcodecs | 4.4 · 4.4 · 4.9 · 5.1 | 0 | — | — |
-| O|G16|Q4 | webcodecs | 4.7 · 4.7 · 5.5 · 5.8 | 14 | — | — |
-| O|G16|Q8 | webcodecs | 3.6 · 3.5 · 4.4 · 5.6 | 14 | — | — |
-| O|G1|Q8 | webcodecs | 4.2 · 4.1 · 4.9 · 5.0 | 0 | — | — |
+| AT|G16|Q4 | dav1d | 4.7 · 2.7 · 13.5 · 39.8 | 1 | 0.784 (0.749–0.806) | 1.664 (1.543–1.735) |
+| AT|G16|Q8 | dav1d | 4.1 · 2.0 · 11.8 · 36.6 | 1 | 0.668 (0.640–0.692) | 1.430 (1.353–1.535) |
+| O'|G1|Q8 | dav1d | 6.0 · 5.6 · 8.2 · 9.8 | 0 | 0.993 (0.963–1.032) | 0.980 (0.928–1.087) |
+| O|G16|Q4 | dav1d | 4.1 · 3.3 · 7.9 · 8.9 | 1 | 0.684 (0.663–0.714) | 0.981 (0.896–1.041) |
+| O|G16|Q8 | dav1d | 3.7 · 3.0 · 7.7 · 9.6 | 1 | 0.629 (0.598–0.658) | 0.926 (0.858–1.010) |
+| O|G1|Q8 | dav1d | 6.0 · 5.6 · 8.2 · 9.9 | 0 | 1.000 (1.000–1.000) | 1.000 (1.000–1.000) |
 
-**`us_liver`**, 1 rounds kept, 0 void.
+A/A (dav1d): O′ ÷ O mean 0.993 (0.963–1.032); not wholly beyond ±5 %, so not void; half-width a = 3.5 %.
+| AT|G16|Q4 | webcodecs | 2.7 · 2.1 · 7.5 · 12.2 | 1 | 0.795 (0.767–0.810) | 1.772 (1.701–1.858) |
+| AT|G16|Q8 | webcodecs | 2.4 · 1.8 · 6.3 · 9.9 | 1 | 0.660 (0.648–0.695) | 1.426 (1.395–1.515) |
+| O'|G1|Q8 | webcodecs | 3.5 · 3.4 · 4.3 · 4.6 | 0 | 1.015 (0.956–1.047) | 1.026 (0.967–1.066) |
+| O|G16|Q4 | webcodecs | 2.5 · 2.2 · 3.8 · 4.4 | 0 | 0.735 (0.697–0.753) | 0.901 (0.839–0.997) |
+| O|G16|Q8 | webcodecs | 2.3 · 2.1 · 3.3 · 4.2 | 0 | 0.649 (0.632–0.668) | 0.787 (0.740–0.822) |
+| O|G1|Q8 | webcodecs | 3.5 · 3.4 · 4.3 · 4.5 | 0 | 1.000 (1.000–1.000) | 1.000 (1.000–1.000) |
+
+A/A (webcodecs): O′ ÷ O mean 1.015 (0.956–1.047); not wholly beyond ±5 %, so not void; half-width a = 4.6 %.
+
+**`usb_cine_rgb`**, 46 rounds kept, 0 void.
 
 | stream | decoder | ms a frame: mean · median · p95 · slowest (medians over rounds) | slowest at group position | mean ÷ O G 1 (95 % interval) | p95 ÷ O G 1 (95 % interval) |
 | --- | --- | --- | --- | --: | --: |
-| AT|G16|Q4 | dav1d | 15.1 · 13.5 · 49.9 · 75.1 | 1 | — | — |
-| AT|G16|Q8 | dav1d | 13.1 · 12.4 · 36.1 · 57.3 | 1 | — | — |
-| O'|G1|Q8 | dav1d | 11.9 · 11.1 · 15.7 · 24.4 | 0 | — | — |
-| O|G16|Q4 | dav1d | 15.0 · 14.1 · 24.3 · 25.0 | 0 | — | — |
-| O|G16|Q8 | dav1d | 13.6 · 12.9 · 19.0 · 22.6 | 6 | — | — |
-| O|G1|Q8 | dav1d | 12.2 · 11.9 · 16.0 · 18.8 | 0 | — | — |
-| AT|G16|Q4 | webcodecs | 8.6 · 8.2 · 22.4 · 32.9 | 1 | — | — |
-| AT|G16|Q8 | webcodecs | 6.8 · 6.5 · 18.6 · 24.8 | 1 | — | — |
-| O'|G1|Q8 | webcodecs | 7.4 · 7.2 · 8.7 · 10.0 | 0 | — | — |
-| O|G16|Q4 | webcodecs | 8.4 · 8.5 · 9.8 · 11.2 | 0 | — | — |
-| O|G16|Q8 | webcodecs | 7.2 · 7.3 · 8.1 · 10.2 | 0 | — | — |
-| O|G1|Q8 | webcodecs | 6.9 · 6.8 · 8.4 · 9.3 | 0 | — | — |
+| AT|G16|Q4 | dav1d | 11.1 · 9.7 · 32.0 · 58.6 | 1 | 1.156 (1.131–1.183) | 2.624 (2.436–2.925) |
+| AT|G16|Q8 | dav1d | 9.8 · 8.0 · 27.8 · 57.4 | 1 | 1.019 (1.000–1.058) | 2.455 (2.220–2.687) |
+| O'|G1|Q8 | dav1d | 9.6 · 9.5 · 11.3 · 15.3 | 0 | 1.004 (0.981–1.025) | 1.005 (0.889–1.104) |
+| O|G16|Q4 | dav1d | 10.8 · 10.7 · 12.9 · 16.3 | 1 | 1.130 (1.103–1.157) | 1.130 (1.062–1.228) |
+| O|G16|Q8 | dav1d | 9.4 · 9.1 · 11.6 · 13.9 | 2 | 0.972 (0.929–0.990) | 0.997 (0.919–1.020) |
+| O|G1|Q8 | dav1d | 9.6 · 9.4 · 11.8 · 15.6 | 0 | 1.000 (1.000–1.000) | 1.000 (1.000–1.000) |
+
+A/A (dav1d): O′ ÷ O mean 1.004 (0.981–1.025); not wholly beyond ±5 %, so not void; half-width a = 2.3 %.
+| AT|G16|Q4 | webcodecs | 5.2 · 4.2 · 15.3 · 22.0 | 1 | 1.072 (1.051–1.090) | 2.750 (2.600–2.796) |
+| AT|G16|Q8 | webcodecs | 4.2 · 3.4 · 12.1 · 17.3 | 1 | 0.876 (0.840–0.888) | 2.147 (2.059–2.208) |
+| O'|G1|Q8 | webcodecs | 4.9 · 4.7 · 5.7 · 6.1 | 0 | 0.996 (0.973–1.020) | 0.993 (0.953–1.048) |
+| O|G16|Q4 | webcodecs | 5.5 · 5.5 · 6.7 · 7.6 | 6 | 1.139 (1.102–1.152) | 1.191 (1.131–1.244) |
+| O|G16|Q8 | webcodecs | 4.0 · 3.9 · 4.8 · 5.5 | 0 | 0.819 (0.795–0.846) | 0.855 (0.821–0.895) |
+| O|G1|Q8 | webcodecs | 4.8 · 4.7 · 5.6 · 6.3 | 0 | 1.000 (1.000–1.000) | 1.000 (1.000–1.000) |
+
+A/A (webcodecs): O′ ÷ O mean 0.996 (0.973–1.020); not wholly beyond ±5 %, so not void; half-width a = 2.4 %.
+
+**`us_liver`**, 46 rounds kept, 0 void.
+
+| stream | decoder | ms a frame: mean · median · p95 · slowest (medians over rounds) | slowest at group position | mean ÷ O G 1 (95 % interval) | p95 ÷ O G 1 (95 % interval) |
+| --- | --- | --- | --- | --: | --: |
+| AT|G16|Q4 | dav1d | 15.3 · 14.0 · 43.6 · 67.5 | 1 | 1.187 (1.169–1.226) | 2.637 (2.493–2.720) |
+| AT|G16|Q8 | dav1d | 14.2 · 13.0 · 39.9 · 63.7 | 1 | 1.112 (1.086–1.138) | 2.403 (2.303–2.550) |
+| O'|G1|Q8 | dav1d | 13.1 · 12.2 · 17.7 · 20.7 | 0 | 1.012 (0.981–1.050) | 1.013 (0.957–1.077) |
+| O|G16|Q4 | dav1d | 15.1 · 14.1 · 19.9 · 22.7 | 2 | 1.150 (1.129–1.190) | 1.162 (1.086–1.244) |
+| O|G16|Q8 | dav1d | 13.7 · 13.1 · 18.4 · 20.5 | 3 | 1.068 (1.042–1.102) | 1.098 (1.015–1.158) |
+| O|G1|Q8 | dav1d | 12.9 · 12.1 · 16.4 · 19.5 | 0 | 1.000 (1.000–1.000) | 1.000 (1.000–1.000) |
+
+A/A (dav1d): O′ ÷ O mean 1.012 (0.981–1.050); not wholly beyond ±5 %, so not void; half-width a = 3.4 %.
+| AT|G16|Q4 | webcodecs | 9.2 · 8.8 · 25.3 · 34.6 | 1 | 1.199 (1.154–1.248) | 2.672 (2.508–2.782) |
+| AT|G16|Q8 | webcodecs | 7.7 · 7.2 · 20.2 · 29.1 | 1 | 0.989 (0.970–1.014) | 2.138 (2.061–2.290) |
+| O'|G1|Q8 | webcodecs | 7.8 · 7.4 · 9.6 · 10.3 | 0 | 1.003 (0.969–1.040) | 1.008 (0.965–1.063) |
+| O|G16|Q4 | webcodecs | 9.1 · 9.0 · 11.3 · 12.3 | 6 | 1.193 (1.142–1.209) | 1.183 (1.126–1.240) |
+| O|G16|Q8 | webcodecs | 7.7 · 7.5 · 9.8 · 10.5 | 5 | 0.997 (0.962–1.029) | 1.022 (0.975–1.067) |
+| O|G1|Q8 | webcodecs | 7.8 · 7.4 · 9.6 · 10.1 | 0 | 1.000 (1.000–1.000) | 1.000 (1.000–1.000) |
+
+A/A (webcodecs): O′ ÷ O mean 1.003 (0.969–1.040); not wholly beyond ±5 %, so not void; half-width a = 3.6 %.
 
 | # | series | deciding numbers | outcome |
 | --- | --- | --- | --- |
@@ -890,5 +906,62 @@ VL interval 39.26–41.19 dB (in-window PSNR of O G 1 at Q 12 and Q 4).
 | P6 | `dbts_b1` | AT ÷ A − 1, ΔPSNR in: Q 2 -0.4 %, -0.10 dB; Q 4 -1.2 %, -0.24 dB; Q 6 -3.2 %, -0.35 dB; Q 8 -6.8 %, -0.41 dB; Q 10 -8.9 %, -0.38 dB; Q 12 -9.1 %, -0.30 dB; Q 16 -5.0 %, -0.10 dB; Q 24 +0.3 %, +0.01 dB | **refuted** |
 | P7 | `dbts_b1` | G 32 ÷ G 16 − 1, P/K (G 16): Q 2 -0.0 %, 0.987; Q 4 -0.1 %, 0.986; Q 6 -0.0 %, 0.988; Q 8 -0.0 %, 0.992; P/K at Q 24 0.596 | held |
 | P8 | `dbts_b1` | I vs O G 1 +6.5 %; R G 16 vs O G 16 —; O3 G 16 gain at Q 8 +2.8 %; AT3 ÷ AT − 1 -4.3 % | **refuted** |
-| P10 | `dbts_b1`, dav1d | ÷ O G 1 mean: O|G16 —; O|G32 —; AT|G16 —; AT|G32 —; AD|G16 —; ARF ÷ O same G: AT|G16 0.997; AT|G32 0.888; AD|G16 0.938; slowest ÷ median: AT|G16 4.66; AT|G32 4.83; AD|G16 4.65 | **refuted** |
-| P10 | `dbts_b1`, webcodecs | ÷ O G 1 mean: O|G16 —; O|G32 —; AT|G16 —; AT|G32 —; AD|G16 —; ARF ÷ O same G: AT|G16 0.940; AT|G32 0.885; AD|G16 0.905; slowest ÷ median: AT|G16 3.28; AT|G32 3.79; AD|G16 3.29 | **refuted** |
+| P10 | `dbts_b1`, dav1d | ÷ O G 1 mean: O|G16 1.119; O|G32 1.120; AT|G16 1.021; AT|G32 0.999; AD|G16 1.024; ARF ÷ O same G: AT|G16 0.919; AT|G32 0.906; AD|G16 0.907; slowest ÷ median: AT|G16 4.17; AT|G32 5.17; AD|G16 4.25 | held |
+| P10 | `dbts_b1`, webcodecs | ÷ O G 1 mean: O|G16 1.061; O|G32 1.056; AT|G16 0.942; AT|G32 0.941; AD|G16 0.944; ARF ÷ O same G: AT|G16 0.897; AT|G32 0.895; AD|G16 0.893; slowest ÷ median: AT|G16 3.35; AT|G32 3.89; AD|G16 3.36 | **refuted** |
+
+**Decode, read.** 46 rounds fit before 4.4 h of the session (≥ 10 required), none void; every frame of every kept
+unit matched native dav1d 1.5.4's hash. On `dbts_b1` at Q 8 the alt-ref arms' **mean** per frame is no slower than
+O G 1's (dav1d 1.00–1.02, WebCodecs 0.94), because they code fewer bytes, but their frames are not even: the unit
+after each keyframe carries the ARF and the internal ARFs (4 coded frames, 1.35–1.49 MB against O's 0.47 MB), so the
+slowest frame, at group position 1 (the median position over rounds), takes **about 0.52–0.63 s on dav1d-WASM and 0.28–0.33 s on WebCodecs**, 3.4–5.2×
+the median frame, and their 95th percentile is 2.1–2.9× O G 1's. Every stream on `dbts_b1`, O G 1 included (132 ms
+median on dav1d, 97 ms on WebCodecs), is slower than the 66.7 ms of 15 slices/s on this host; that bar is the quality
+study's reference interval, not this protocol's. O G 16 and G 32 cost 12 % more per frame than G 1 on dav1d and 6 % on
+WebCodecs. At the matched rung (Q 6: the arms reach O G 1 Q 8's in-window PSNR only one rung finer) their mean rises to
+1.13–1.21× O G 1's, with 95 % upper bounds well past 1 + a (a = 2.2 % on dav1d, 1.4 % on WebCodecs), so on this volume
+**no alt-ref arm meets §7 (2)**, whatever shard 2 finds for (1). The clips' tables are above and are reported apart.
+
+## Groups, measured (2026-11-10 — shard 1 of 2; shard 2 owed)
+
+*Collected by `lab/av1/groups/collect.py rows/groups-1.jsonl --decode rows/groups-1.decode.json --partial`, the only
+shard that has run. §7's rule needs all three DBT volumes; with one, every verdict below is that volume's and none is
+the protocol's.*
+
+**Method card.**
+
+| | |
+| --- | --- |
+| input and pin | `dbts_b1` slices 9–40 of 50 (2560 × 3328, 10-bit, system B), and `usb_cine`, `usb_cine_rgb`, `us_liver` (lossy-sourced, apart), as `lab/av1/fetch_data.sh` writes them against the SHA-256s in `lab/av1/data.json`; protocol at `7534b5c1`, code and rows on `claude/av1-groups` from `05186de5` |
+| encoder, per arm | `aomenc` libaom 3.15.1 (the tarball `ingest/tools.sh` pins), one thread, `--limit=n --q-hist=64` and `arms.py`'s flags: the base `--ivf --good --threads=1 --passes=1 --tune=psnr --end-usage=q --cq-level=Q --min-q=Q --max-q=Q --deltaq-mode=0 --aq-mode=0 --denoise-noise-level=0 --kf-min-dist=G --kf-max-dist=G` (G 1: `--kf-max-dist=0`) `--monochrome --profile=0 --bit-depth=10 --input-bit-depth=10 --cpu-used=6`, then O `--lag-in-frames=0 --auto-alt-ref=0`; L `--lag-in-frames=39 --auto-alt-ref=0 --enable-tpl-model=0 --enable-keyframe-filtering=0`; A as L with `--auto-alt-ref=1`; AT as A with `--enable-tpl-model=1`; AD as AT with `--enable-keyframe-filtering=1`; AQ as AT without `--min-q`/`--max-q`; I `--allintra --lag-in-frames=0`, G 1; R `--rt` with O's flags; O3, AT3 with `--cpu-used=3` (RGB clips: `--bit-depth=8 --profile=0` and BT.601 tags in place of the monochrome flags) |
+| decoders | native `dav1d` 1.5.4 (`54706fc`, `LD_LIBRARY_PATH` on the built library) for every measure and every reference hash; dav1d-WASM (one thread, `max_frame_delay` 1) and WebCodecs (`prefer-software`, `optimizeForLatency`) from `lab/av1/profiles/decoders.js`, built per `client/decode/wasm/build` (manifest checked), in headless Chromium from Playwright 1.56.1 |
+| clocks | encode: `wait4` user + system CPU of `aomenc`; a cell: CPU of the worker and its children, encode to last measure; decode: `performance.now()` in a worker per unit, from handing the unit in to its shown frame's luma copied out, hashing after the clock stops; a fresh decoder per stream, opened and primed off the clock |
+| bytes | the sum of the IVF frame payloads (`ingest.ivf_units`, IVF headers excluded); ÷ HTJ2K against the quality study's lossless control on the same slices |
+| metrics | the quality study's `measure()` unchanged: PSNR over the frame and in-window, e_N/σ (σ from the real source), displayed-level moves under the first window, JOD from ColorVideoVDP 0.5.7 on the middle 8 frames (grey only); κ_ℓ and ρ_ℓ from `bands.py` (§6.4); BD-rate per §7 (`bd.py`, PCHIP, 0.01 dB grid, ≥ 70 % overlap) |
+| host | 4 vCPU Xeon @ 2.10 GHz, 15.7 GB, one host; encode saturates memory on `dbts_b1`'s lookahead arms (≈ 3.0 GB an encode, 3–4 in flight), decode ran alone at 1×; nothing past this host is claimed |
+
+**Verdict, one screen.**
+
+* **Claim (`dbts_b1`'s 32 slices, one 4-core host).** At equal in-window PSNR across the VL interval, libaom's filtered
+  alt-ref saves **4.9–6.3 % of O G 1's bytes** (O G 16: 2.5 %; ε 0.76 %), with the quality guard holding; it does not
+  save bytes at the OQ point, where its rung (Q 8, 9.4–10.5 MB) costs more than O G 1's (Q 12, 7.05 MB); and it makes
+  in-order decoding uneven, its slowest frame 3.4–5.2× its median. No arm is recommended over O G 1 on this volume: none
+  passes §7 (2) at its matched rung. **G 1 stays** until shard 2 says otherwise for §7 (1).
+* **Proof chain.** O reproduces the quality study byte for byte (pilot, and `dbts_b1` slices 9–40 at seven rungs) → the
+  arms are distinct, deterministic and pinned at Q (§Checks; q-hist's zero entries read) → per-cell measures with the
+  study's code → BD-rate on PCHIP curves, ε from the data → decode hashed frame by frame against native dav1d, paired
+  by round, A/A inside its rule.
+* **Why, as far as these cells show.** The swap says the slices' own noise blocks inter coding at Q 2–12: a shared noise
+  (C) lets G 16 save 69–77 % at Q 4–12; a shuffled one (X) leaves it at −1.0 to +0.1 %, where the real source gains +0.9 to +6.0 % — so at Q 12 the real neighbours' own noise correlation is what G 16 uses. κ_ℓ says that at Q 8 every band still
+  carries most of the noise (κ_0 0.27, κ_3 0.03) and that it is gone first in the finest band (κ_0 0.80 at Q 16), and
+  G 16's gain switches on as κ_0 rises (+2.8 % at Q 10, +6.0 % at Q 12, +18 % at Q 16). Yet ρ_ℓ rises to 0.60 at ℓ 2,
+  above §2.2's threshold √(1 − κ)/2 ≈ 0.49, with no gain: §2.2's per-band inequality does not predict this volume. P2
+  and P3 are refuted. P1 and P4 are refuted by a swap source that is not what §5 assumed (S carries Q 32's own error).
+* **What would change it.** Shard 2: `dbts_a1` and `dbts_c1` decide §7 (1) for systems A and C, and the TRUS sweeps P9;
+  then a breast ultrasound cine or ABUS fixture, more volumes per system, a finer ladder at Q 8–12 (where the OQ point
+  and the ARF arms' crossing of e_N/σ = 1 both sit), a reader study, and another host for the decode.
+* **What is owed.** Shard 2 whole (305 cells, its decode, the alt-ref reproduction check); then this section collected
+  again without `--partial`. A structure-only source that carries no coding error of its own, if P1 and the s · e bound
+  are to test what §2.5 meant. A shift-invariant band filter, if ρ_ℓ is ever measured on moving content.
+* **Fixtures and their limits.** `dbts_b1`'s middle 32 slices: one volume of system B, cut for time, its G 32 the
+  whole cut. The three clips came from lossy video and support no verdict. No lossless breast ultrasound cine or ABUS
+  exists among the fixtures.
