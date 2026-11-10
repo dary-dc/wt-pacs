@@ -271,6 +271,144 @@ SwiftShader, *(software)* on the status line), no hardware decoder (WebCodecs' A
 and on the laptop: the product asks `prefer-software`), no phone, no real link (loopback), no reader's eye. What it ran,
 and its numbers, are in [`client/README.md`](client/README.md) §A lossy series, exact on request.
 
+## The viewer on an Android phone
+
+Chrome on the phone, the two servers on a Fedora laptop, one USB cable. The page comes over `adb reverse` and the
+session over an IP link between the two, because adb carries TCP and nothing else: `adb help` lists, after "reverse
+socket connection using:", `tcp:<port>`, `localabstract:`, `localreserved:` and `localfilesystem:`, and no UDP for
+`forward` either ([adb's own help](https://android.googlesource.com/platform/packages/modules/adb/+/refs/heads/main/client/commandline.cpp);
+its sockets are `SOCK_STREAM`, `socket_spec.cpp` beside it), and WebTransport is QUIC, over UDP. The page at
+`http://127.0.0.1:8765` is a secure context — "If origin’s host matches one of the CIDR notations 127.0.0.0/8 or ::1/128
+[RFC4632], return "Potentially Trustworthy"" ([Secure Contexts](https://www.w3.org/TR/secure-contexts/)) — which
+`WebTransport`, `[Exposed=(Window,Worker), SecureContext]`, needs ([WebTransport](https://www.w3.org/TR/webtransport/)).
+The dev certificate is pinned by hash, and pinning asks: "the certificate MUST be an X.509v3 certificate […], the key
+used in the Subject Public Key field MUST be one of the allowed public key algorithms, the current time MUST be within
+the validity period […] and the total length of the validity period MUST NOT exceed two weeks", the algorithms
+including "ECDSA with the secp256r1 (NIST P-256) named group" (*ibid.*, *custom certificate requirements*).
+`gen_dev_cert.sh` makes a P-256 certificate for 10 days; no flag is needed. The certificate names `127.0.0.1` only, and
+the spec's requirements name no host — *derived*; checked in Chromium 153, which dialed the laptop's other address on
+it.
+
+**Once, on the phone:** Settings > About phone > Software information > Build number, tapped "seven times until you
+see the message `You are now a developer!`", then Developer options > USB debugging on
+([Android developers](https://developer.android.com/studio/debug/dev-options)). **Once, on the laptop**, with the
+decoder builds of §Prerequisites (the page refuses one it does not have, by name) and §The viewer on a DICOM series'
+bundle; the package names are Fedora's, *unverified*:
+
+```bash
+sudo dnf install -y android-tools iproute-tc tcpdump kernel-modules-extra   # adb; tc; netem lives in -extra
+adb devices                                       # the phone asks "Allow USB debugging?": allow; then "device"
+```
+
+**1 · The link.** Plug in, then on the phone "swipe down from the top of the screen", "Touch and hold Hotspot", "Turn
+on **USB tethering**" ([Android help](https://support.google.com/android/answer/9059108)). NetworkManager brings the
+new interface up with an address from the phone (*unverified*); that address faces the phone. The interface is found by its USB network
+driver, and Wi-Fi is the fallback when tethering is off or the phone lacks it (both on one network that lets clients
+see each other, or the laptop joined to the phone's hotspot); `adb` stays on the cable either way:
+
+```bash
+IF=$(for d in /sys/class/net/*; do case $(readlink -f "$d/device/driver") in */rndis_host|*/cdc_ncm|*/cdc_ether) echo "${d##*/}";; esac; done | head -1)
+[ -n "$IF" ] || IF=$(nmcli -t -f DEVICE,TYPE,STATE device | awk -F: '$2=="wifi" && $3=="connected" {print $1; exit}')
+LAPTOP_IP=$(ip -4 -o addr show dev "$IF" | awk '{print $4}' | cut -d/ -f1 | head -1)
+printf 'IF=%s\nLAPTOP_IP=%s\n' "$IF" "$LAPTOP_IP" | tee target/phone.env   # `. target/phone.env` in each terminal
+```
+
+UDP over that link is ordinary IP — *derived*; *unverified* on the device, and the dial in step 4 is the check. Whether
+`adb devices` still lists the phone with tethering on is *unverified*: if it does not, use Wi-Fi.
+
+**2 · The firewall.** Fedora's firewalld may drop UDP 4433 on the zone that interface lands in; this opens it for 12 hours:
+"the rule will be active for the specified amount of time and will be removed automatically afterwards" (`--add-port`, [firewall-cmd(1)](https://firewalld.org/documentation/man-pages/firewall-cmd.html)):
+
+```bash
+. target/phone.env
+if sudo firewall-cmd --state >/dev/null 2>&1; then
+  ZONE=$(sudo firewall-cmd --get-zone-of-interface="$IF" 2>/dev/null | grep -vx 'no zone') || ZONE=$(sudo firewall-cmd --get-default-zone)
+  sudo firewall-cmd --zone="$ZONE" --add-port=4433/udp --timeout=12h
+fi
+```
+
+**3 · The servers.** The page dials the transport file's URL and hash, so the phone gets its own file naming the
+laptop's address; `--transport` turns off the static host's own renewal, so the certificate is renewed first and the
+hash read after:
+
+```bash
+. target/phone.env
+./server/scripts/gen_dev_cert.sh --if-needed
+HASH=$(openssl x509 -in server/dev-cert/cert.pem -outform DER | openssl dgst -sha256 | awk '{print $2}')
+printf '{"wt_url": "https://%s:4433/", "cert_sha256": "%s"}\n' "$LAPTOP_IP" "$HASH" > target/phone-transport.json
+# Terminal 1 — the server binds every address by default
+target/release/series-server --port 4433 --series target/my.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+# Terminal 2 — the static host, on the laptop's loopback alone
+python3 server/dev-server.py --port 8765 --metadata target/my.metadata.json --transport target/phone-transport.json
+```
+
+A new certificate is a new hash: after any renewal, write the file again and restart Terminal 2.
+
+**4 · The page.** `adb reverse tcp:8765 tcp:8765`, then open `http://127.0.0.1:8765/` in Chrome on the phone. Without
+`adb reverse`, `chrome://inspect`'s port forwarding does the same: "a listening TCP port on your Android device that
+maps to a TCP port on your development machine" — **Port forwarding**, `8765` → `127.0.0.1:8765`, **Enable port
+forwarding** ([Chrome DevTools](https://developer.chrome.com/docs/devtools/remote-debugging/local-server)). The status
+line reads `received N, exact N` once frames arrive, and Terminal 1 logs `session path … rtt_us=` when the session
+closes. When nothing arrives, `sudo tcpdump -ni "$IF" udp port 4433 -c 5`: no packets, the phone is not reaching that
+address (Wi-Fi isolation; the other link); packets but no session, the firewall or the server.
+
+**5 · The console.** On the laptop's Chrome, `chrome://inspect#devices`, "Make sure Discover USB devices is enabled",
+and **Inspect** beside the page ([Chrome DevTools](https://developer.chrome.com/docs/devtools/remote-debugging));
+Chrome also lists the phone through the running adb server (`AdbDeviceProvider`, port 5037, in Chromium's
+`devtools_android_bridge.cc`). The frame overlay: "Open the Rendering tab and enable the Frame rendering stats checkbox"
+([Chrome DevTools](https://developer.chrome.com/docs/devtools/rendering/performance)). A DevTools session changes what
+the browser does: close it before a timed run ([`docs/devices.md`](docs/devices.md) §3).
+
+**6 · Which AV1 decoder.** The status line's `decoders:` counts frames per path: `av1-webcodecs` (Chrome's
+`VideoDecoder`), `av1-dav1d` (the page's own WASM), `htj2k`. The product configures WebCodecs with
+`hardwareAcceleration: "prefer-software"` (`client/decode/av1-webcodecs.js`), and under it Chrome builds no platform
+decoder: `if (hardware_preference_ != HardwarePreference::kPreferSoftware)` guards the `MojoDecoderFactory`
+([Chromium, `video_decoder_broker.cc`](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/third_party/blink/renderer/modules/webcodecs/video_decoder_broker.cc))
+— so expect software (*derived*). To read Chrome's own record: `chrome://media-internals` gets a decoder's log only
+from a window — "For chrome://media-internals. This should only be created in the main Window context, and not from a
+worker context" ([Chromium, `renderer_blink_platform_impl.cc`](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/content/renderer/renderer_blink_platform_impl.cc))
+— and the product decodes in workers, so read DevTools' Media panel instead ("More Options > More tools > Media",
+[Chrome DevTools](https://developer.chrome.com/docs/devtools/media-panel)), which a worker logs to as well (the same
+function, *derived*): the decoder's
+properties `kVideoDecoderName` — `Dav1dVideoDecoder` is software, `MediaCodecVideoDecoder` Android's platform decoder
+([Chromium, `media/base/decoder.cc`](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/media/base/decoder.cc))
+— and `kIsPlatformVideoDecoder`. Whether the panel lists a worker's decoder on the phone, and under what label, is
+*unverified*.
+
+**7 · Shaping the link.** The lab's shaping, on the laptop's egress toward the phone: one `netem` with delay, rate and
+loss, the profile naming the round trip and each packet delayed half of it, iid loss or Gilbert–Elliott
+(`lab/scripts/cloud_netem.sh`, which takes the interface from `IFACE`; [`docs/rig-limits.md`](docs/rig-limits.md) §3).
+netem's own example reads "Delay all outgoing packets on device eth0" ([tc-netem(8)](https://man7.org/linux/man-pages/man8/tc-netem.8.html)),
+so the phone's packets to the laptop are not shaped:
+
+```bash
+. target/phone.env
+sudo modprobe sch_netem                                            # "Specified qdisc kind is unknown" without it
+sudo env IFACE="$IF" RATE=20mbit lab/scripts/cloud_netem.sh 60 1           # 30 ms each way, 20 Mbit/s, 1 % iid
+sudo env IFACE="$IF" RATE=20mbit lab/scripts/cloud_netem.sh 60 1 gemodel   # loss in bursts, GE_P/GE_R
+tc -s qdisc show dev "$IF"                                         # netem 10: with its delay, rate, loss and drops
+sudo env IFACE="$IF" lab/scripts/cloud_netem.sh off                # back to the interface's default
+```
+
+Under loss, netem on the sending host drops a whole GSO batch as one packet, so the server for a loss cell is the lab
+build with each datagram sent alone (§3 again):
+
+```bash
+cargo build --release -p series-server --features lab-levers --target-dir target/levers
+target/levers/release/series-server --port 4433 --series target/my.sbnd --segmentation-offload false \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+```
+
+The shaped round trip is Terminal 1's `rtt_us` per session. **Afterwards:** `cloud_netem.sh off` as above,
+`adb reverse --remove-all`, USB tethering off; the firewall's port closes itself.
+
+*Checked in a container (2026-11-09):* the page over a TCP tunnel to a network namespace's loopback, standing in for
+`adb reverse`, and the session over a veth pair, standing in for the tether: headless Chromium 153 in the namespace
+delivered the cell's 3 frames of 3 and the viewer's session reached the server, dialing the veth's address on the dev
+certificate's hash. `netem` does not load in that container ("Specified qdisc kind is unknown"); iproute2 6.1 parsed
+netem's arguments as the script passes them, iid and `gemodel` (and refused a misspelt one, `What is "lxss"?`). The phone, its Chrome, the tether, firewalld and the Media panel were not checked.
+
 ## Docs
 
 Each subject has one owner; a claim lives there, corrected in place when it is wrong (`CLAUDE.md` §Docs).
