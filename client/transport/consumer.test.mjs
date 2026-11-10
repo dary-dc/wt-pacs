@@ -82,6 +82,29 @@ async function aDeliveredFrameIsNotFailed() {
 }
 await aDeliveredFrameIsNotFailed();
 
+/** A frame's bytes are a Uint8Array over its pixels, whether they came shared or transferred. */
+async function bytesOverEitherBuffer() {
+  let worker;
+  globalThis.Worker = class {
+    constructor() {
+      worker = this;
+    }
+    postMessage(m) {
+      if (m.kind === "dial") queueMicrotask(() => this.onmessage({ data: { kind: "started" } }));
+    }
+    terminate() {}
+  };
+  const got = [];
+  const client = await DownloaderClient.connect("https://x.invalid/", "ab", { onFrame: (f) => got.push(f.bytes) });
+  const port = {};
+  worker.onmessage({ data: { kind: "pixel-port", port, decoder: 0 } });
+  const buffers = [new SharedArrayBuffer(2), new ArrayBuffer(2)];
+  buffers.forEach((pixels, index) => port.onmessage({ data: { index, gen: 0, pixels } }));
+  check(got.length === 2 && got.every((b, k) => b instanceof Uint8Array && b.buffer === buffers[k]), `bytes over each buffer (${got.map((b) => b?.constructor.name)})`);
+  client.close();
+}
+await bytesOverEitherBuffer();
+
 /** A downloader whose script does not load ends `connect` with the reason, where it used to wait for ever. */
 async function scriptThatDoesNotLoad() {
   globalThis.Worker = class {
@@ -98,5 +121,5 @@ async function scriptThatDoesNotLoad() {
 }
 await scriptThatDoesNotLoad();
 
-console.log(failed ? `${failed} failed` : "consumer refusals, acks, unreadable deliveries, a delivered frame not failed, a worker that does not load: ok");
+console.log(failed ? `${failed} failed` : "consumer refusals, acks, unreadable deliveries, a delivered frame not failed, bytes over either buffer, a worker that does not load: ok");
 process.exit(failed ? 1 : 0);

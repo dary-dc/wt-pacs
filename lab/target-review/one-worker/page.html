@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>one worker</title>
+<canvas id="c" width="512" height="512"></canvas>
+<script>
+  const worker = new Worker("worker.js");
+  const pending = new Map();
+  let id = 0;
+  window.pings = [];
+  worker.onmessage = ({ data }) => {
+    if (data.kind === "ping") return window.pings.push({ sent: data.t, received: performance.now() });
+    const { resolve, reject } = pending.get(data.id);
+    pending.delete(data.id);
+    data.error ? reject(new Error(data.error)) : resolve(data.result);
+  };
+  window.call = (kind, args = {}, transfer = []) => new Promise((resolve, reject) => {
+    pending.set(++id, { resolve, reject });
+    worker.postMessage({ id, kind, ...args }, transfer);
+  });
+  const canvas = document.getElementById("c").transferControlToOffscreen();
+  window.ready = window.call("start", { canvas }, [canvas]);
+</script>

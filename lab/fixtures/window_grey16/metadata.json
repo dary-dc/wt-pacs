@@ -1,0 +1,1 @@
+{"frameCount": 4, "width": 64, "height": 48, "channels": 1, "bitsStored": 16, "signed": false, "photometric": "MONOCHROME2", "window": {"center": [1024], "width": [2048], "function": "LINEAR"}, "codec": "av1", "representation": "plain", "digests": {"algorithm": "xxh3-64", "frames": ["0b1b4600144223fa", "b2be3105c885cf40", "c7c0fceac4b58dcf", "88875fe8f0c7beb1"]}}

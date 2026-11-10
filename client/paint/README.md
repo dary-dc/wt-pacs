@@ -6,9 +6,10 @@ grayscale pipeline, with fit, zoom, pan, quarter turns and flips. One module, tw
 | file | runs in | does |
 | --- | --- | --- |
 | `painter.js` | the page | places nothing itself: transfers the canvas (`transferControlToOffscreen`) to the worker and answers each `paint()` with one promise |
-| `paint-worker.js` | the paint worker | WebGL2: uploads the frame, windows it, places it |
+| `paint-worker.js` | the paint worker, or the view worker as a module (`start`, `paint`) | WebGL2: uploads the frame, windows it, places it |
 | `voi.js` | both | the window table, from PS3.3 |
-| `reference.js` | the check | the same contract a second time on the CPU |
+| `reference.js` | the check, and a view's `valueAt` (`toSource`) | the same contract a second time on the CPU |
+| `cells.mjs` | the check | the frames and cells, shared with the native painter's check (`native.mjs`) |
 
 ```js
 import { Painter } from "./client/paint/painter.js";
@@ -86,7 +87,8 @@ bilinear, and its own call for the table.
 
 On **SwiftShader** (Chromium 141's ANGLE over Vulkan; the cloud has no GPU), 2026-10-08:
 
-* **Every exact cell equals the reference to the code**: 50 cells × 2 DPRs, edges included.
+* **Every exact cell equals the reference to the code**: 54 cells × 2 DPRs, edges included. *Was* "50": the
+  suite has 15 on each grey frame and 9 on RGB.
 * **The fractional cells differ, as measured, not claimed**: at most 1 code on fit and zooms 2 and 0.5,
   1–2 on zoom 1.37 (0.45–4.0 % of samples), and 1–5 on the fractional pan (0.6–4.0 %). Filtering
   weights in fixed point would explain this; not checked.
@@ -105,6 +107,10 @@ On **SwiftShader** (Chromium 141's ANGLE over Vulkan; the cloud has no GPU), 202
 renderer string first (headless defaults to software). Every exact cell must still equal the
 reference to the code. The fractional cells must stay within the same bounds as above, or the
 difference must be explained. **Until that run, the fractional zooms are unproved.**
+
+The native painter (`client/native`, wgpu) runs the same cells against the same reference with
+`node client/paint/native.mjs [--zoom1 | mutants]`, which needs lavapipe or a GPU. Its result is
+[`docs/native/README.md`](../../docs/native/README.md) §6 M1.
 
 ## What it costs
 

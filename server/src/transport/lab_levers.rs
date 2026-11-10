@@ -3,7 +3,8 @@
 use crate::media::frame_store::FrameStore;
 use crate::transport::server::ServeConfig;
 use tracing::warn;
-use wtransport::endpoint::IncomingSession;
+use wtransport::endpoint::IncomingSessionFuture;
+use wtransport::quinn;
 
 #[derive(clap::Args, Clone, Debug, PartialEq)]
 pub struct LabLevers {
@@ -53,8 +54,8 @@ pub(super) fn apply(mut config: ServeConfig) -> ServeConfig {
     config
 }
 
-pub(super) async fn hold_session(incoming: IncomingSession) {
-    if let Ok(_unanswered) = incoming.await {
+pub(super) async fn hold_session(incoming: quinn::Incoming) {
+    if let Ok(_unanswered) = IncomingSessionFuture::with_quic_incoming(incoming).await {
         std::future::pending::<()>().await;
     }
 }

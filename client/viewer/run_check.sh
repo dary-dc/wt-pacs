@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The viewer's page check in headless Chromium on a series the gate can make, filled with a cine and on demand, on each
-# client: the contract's 16-bit grey codestream three times, with its digest. The cross-codec arm and Firefox need the DICOM ingest's bundles:
+# client, the frames on the page and in the view worker, and the view worker's cache under each writer: the contract's
+# 16-bit grey codestream three times, with its digest. The cross-codec arm and Firefox need the DICOM ingest's bundles:
 # client/README.md §The viewer.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -21,8 +22,14 @@ cat >"$T/metadata.json" <<JSON
  "digests": {"algorithm": "xxh3-64", "frames": ["$d", "$d", "$d"]}}
 JSON
 "${CARGO_TARGET_DIR:-target}/release/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/grey.sbnd" >/dev/null
-for client in ts wasm; do
-  node client/viewer/check.mjs --series "$T/grey.sbnd" --decoder htj2k --client $client --cine
-  node client/viewer/check.mjs --series "$T/grey.sbnd" --decoder htj2k --client $client --fill 0
+for view in page worker; do
+  for client in ts wasm; do
+    node client/viewer/check.mjs --series "$T/grey.sbnd" --decoder htj2k --client $client --view $view --cine
+    node client/viewer/check.mjs --series "$T/grey.sbnd" --decoder htj2k --client $client --view $view --fill 0
+  done
+done
+# The view worker's cache across tabs, under each writer: docs/adr/frame-path.md §3, *Built*.
+for writer in store decoders view; do
+  node client/viewer/check.mjs --series "$T/grey.sbnd" --decoder htj2k --view worker --cine --writer $writer --tabs
 done
 echo "SKIPPED: the viewer's cross-codec arm and Firefox — they need the DICOM ingest's bundles and a GL display (client/README.md §The viewer)"

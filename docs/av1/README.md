@@ -8,6 +8,7 @@ carries, in its plain and optimized representations — is [`payload-format.md`]
 2026-10-04 and built end to end at `20c3674`.
 What each target series is, per the DICOM standard and vendors' conformance statements: [`series.md`](series.md).
 The bit split against the literature, and the alternatives above 12 bits: [`split-prior-art.md`](split-prior-art.md).
+Whether frames are coded in groups (inter) or alone, the decision and its reasons: [`frame-groups.md`](frame-groups.md).
 Lossless coding published 2023–2026, and what of it a browser can decode exactly: [`lossless-literature.md`](lossless-literature.md).
 
 **Every ultrasound number in this file is provisional (the provenance audit, queue row DATAGUARD, 2026-10-08).** `us_liver`'s header says it
@@ -1287,6 +1288,8 @@ HTJ2K's does. What a group G > 1 would cost and whether it pays:
 **One frame, or a group of frames, as the unit.** Inter prediction (a frame coded from its
 neighbours) is where AV1 is expected to beat HTJ2K on size; intra-only AV1 against lossless HTJ2K is
 not expected to win by much. *Expected, not measured* — the lossless-bytes measurement (queue row SIZE) measures it.
+*Measured since: inter does not pay on any target series measured, and the decision, G = 1 on every type, is
+[`frame-groups.md`](frame-groups.md).*
 
 What inter costs is **random access**, and a viewer has it even with no timeline: a stack is
 scrolled both ways and jumped across (a reference line clicked, a linked series, a key image, the
@@ -1324,7 +1327,7 @@ settings*; whether it pays on DBT is asked again, theory first (the frame-group 
 systems, every series under the 20 % line (best +1.51 %), because adjacent slices share little noise (median ρ
 0.11–0.22, against the ½ inter needs); the encoder variants that gain at all (alt-ref on, SVT-AV1, up to +3.2 %) are
 lossless only on one system's 8-bit tops. Cine, ABUS and angiography stay open for want of sound data (the frame-group measurement
-below; the review is [`gop-theory.md`](gop-theory.md) §4a).*
+below; the review is [`frame-groups.md`](frame-groups.md) §T4a).*
 
 **Frame groups, to a rule fixed before the data (the frame-group measurement, 2026-10-08,
 [`lab/av1/bytes/frame-groups`](../../lab/av1/bytes/frame-groups/README.md)).** On the middle 16 slices of 15 sound DBT volumes, five

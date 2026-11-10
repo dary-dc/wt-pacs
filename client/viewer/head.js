@@ -2,7 +2,7 @@
 // The metadata names the codec: only that codec's modules and WASM are fetched ahead (lab/page-open/codec.html).
 {
   const q = new URLSearchParams(location.search);
-  const asked = ["opts", "wt", "hash", "metadata", "post", "origin"].filter((k) => q.has(k));
+  const asked = ["opts", "wt", "hash", "metadata", "post", "origin", "writer"].filter((k) => q.has(k));
   globalThis.viewerLab = !asked.length ? Promise.resolve({ opts: {} }) : import("/lab/viewer/levers.js").then((m) => m.levers(q), () => {
     throw new Error(`refused: ?${asked.join(", ?")} — lab parameters, which this host does not honour`);
   });

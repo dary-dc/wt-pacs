@@ -1,7 +1,7 @@
 // The base against the head on the total-time harness, the base again as the A/A arm, judged by lab/scripts/aa_rule.py
 // with a confirming campaign: only a difference that repeats is flagged. README.md §Quick start, step 5.
 //   NODE_PATH=$(npm root -g) node scripts/perf_nightly.mjs BASE_TREE HEAD_TREE [--rounds 12] [--frames 48] [--link r50000]
-// Each tree needs its decoder and hasher fetched (fetch_openjph.sh, fetch_xxh3.sh); exits 1 when a cell is worse.
+// Each tree needs its decoders built (wasm/build/build.sh) and fetched (fetch_openjph.sh, fetch_xxh3.sh); exits 1 when a cell is worse.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
@@ -19,6 +19,16 @@ const LINK = arg("--link", "r50000");
 const GREY_SHA256 = "8364984ae3ff1fb10788edba60dc13a441bf121e63fffcf1f87d23b9f5b359d9";
 const T = mkdtempSync(path.join(tmpdir(), "perf-nightly-"));
 process.on("exit", () => rmSync(T, { recursive: true, force: true }));
+
+// A tree without its decoder builds serves the page a 404 body, which the page then refuses as not the pinned build.
+for (const tree of new Set([BASE, HEAD])) {
+  try {
+    execFileSync("sha256sum", ["-c", "--quiet", "../build/manifest.sha256"], { cwd: path.join(tree, "client/decode/wasm/built"), stdio: "pipe" });
+  } catch {
+    console.log(`${tree}: client/decode/wasm/built is not the build its manifest pins; client/decode/wasm/build/build.sh`);
+    process.exit(1);
+  }
+}
 
 function build(tree, name) {
   // Cargo keys a workspace crate's freshness on its sources' mtimes, not on the tree they sit in.

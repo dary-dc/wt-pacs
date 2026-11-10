@@ -4,7 +4,7 @@
 
 use crate::transport::link::Link;
 use crate::transport::server::{forward, parse_opening_ask, Sessions};
-use crate::transport::wire::MAX_FOD_LEN;
+use fod::MAX_FOD_LEN;
 use anyhow::{bail, Context, Result};
 use bytes::Bytes;
 use fod::{decode_fod_body, FodMsg};
