@@ -1,13 +1,13 @@
 # Coordination
 
-Last verified 2026-11-09 (branches and PRs read from `origin`).
+Last verified 2026-11-10 (branches and PRs read from `origin`).
 
 ## Goal
 
 Get finished, reviewed work from the lines into `main`, keep `main` deployment-ready, and keep the branch and PR set
 small enough that every open item has an owner and a next step.
 
-## State now (2026-11-09)
+## State now (2026-11-10)
 
 * `main` is at #319 (`patch_crate.sh` with `git apply`); before it, #184 (rustls 0.23.46, rustls-webpki 0.103.16,
   tokio 1.53.3 for RustSec advisories, 2026-10-26).
@@ -20,8 +20,14 @@ small enough that every open item has an owner and a next step.
 * On 2026-10-30 the drafts were folded into one branch per line: `claude/core` (#250, client and native),
   `claude/line-server` (#254), `claude/line-hygiene` (#256), `claude/line-pacs` (#258, not for merge yet),
   `claude/line-viewer` (#255, parked). Most older drafts are carried by one of these and need closing, not review.
-* **CI `deploy` fails on `claude/core`**: the root `Cargo.toml` lists `claude/core:client/native`, which
-  `deploy/Containerfile` does not copy. `main` would stop being deployment-ready if `core` merged as it is.
+* **The path into `main` is one branch**, `claude/core-next` (draft PR into `claude/core`), each step its own `--no-ff`
+  merge with its conflicts recorded in the PR body: `gate.yml` gives PRs into `claude/core` CI (the plan's O1); then
+  `core-ci-deploy` (the image copies `client/native`), `core-int8` and its fixes, the demo branches (`oq-ingest`,
+  `oq-client-fixes`, `oq-depth-cut`, `demo-e2e`, `phone-setup`, `phone-pair`, with their fixes), #289, #299, #302,
+  `claude/av1-unified-mainbase` (in place of #303) and `main`. The order is `claude/plan:docs/lines/plan.md`'s (the
+  demo first, the fold's merges after it), which differs from §Open 2's.
+* The glossary has one row each for *optimal quality*, *exact series*, *depth cut* and *pairing*; *lossy series* is
+  gone as a second name, in code comments and docs too.
 * 89 open PR bodies carry a "Generated with/by" line and a session link, and many commits a Co-Authored-By trailer
   (listed in the inventory). New work must not add either (`CLAUDE.md` §Agents).
 
@@ -29,7 +35,8 @@ small enough that every open item has an owner and a next step.
 
 1. The owner decides the inventory's proposed actions (merge, keep, archive, delete, close).
 2. The demo path into `main` by 2026-11-13 ([`optimal-quality.md`](optimal-quality.md)), each step reviewed by a
-   session that did not write it, gate and CI green:
+   session that did not write it, gate and CI green; all merged on `claude/core-next` (State now), awaiting the
+   owner's words, merge by merge. As first written:
    fix `core`'s image build → #289 into `core`, then #299, then #302 rebased → `av1-unified-mainbase` into `core`
    (resolving the four `client/decode/av1*` files once, instead of #303) and `main`'s newer commits → the demo
    branches → one approving review of #250 → merge with `--no-ff`.
@@ -48,7 +55,7 @@ that unsupervised work starts from one clear state. For the sessions that take i
    index line).
 2. One path into `main` (§Open 2–3), each merge reviewed by a session that did not write it; nothing else merges.
 3. One name per concept: reconcile `docs/glossary.md` across the merged branches (e.g. *exact series*, *optimal
-   quality*, *pairing*, *lossy series*), and rename in code where two names mean one thing.
+   quality*, *pairing*, *lossy series*; done for these on `claude/core-next`), and rename in code where two names mean one thing.
 4. One implementation per job: where two branches or two clients do the same work, keep one and record the other's
    removal; experiment flags that no line still uses leave `main`; lab code stays on its line branch.
 5. Every line file in `docs/lines/` reflects the unified state; stale lines say so.

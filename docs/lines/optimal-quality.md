@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-09 (branch tips read from `origin` that evening).
+Last verified 2026-11-10 (branch tips read from `origin` that morning).
 
 ## Goal
 
@@ -9,44 +9,40 @@ sees a series' **optimal quality** (visually lossless AV1), and a reader's expli
 frame whole from its **exact series** (the HTJ2K series of the same source). No residual, no server or wire change:
 the optimal-quality series is a series of its own, ingested beside its exact series, and the client pairs them.
 
-## State now (2026-11-09)
+## State now (2026-11-10)
 
-| part | branch → base | state |
-| --- | --- | --- |
-| ingest | `claude/oq-ingest` → `claude/core` | built in `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID`; the DICOM ingest does not code it yet; `lossy_test.py` in the gate; `demo-series.sh` |
-| client | `claude/oq-client` → `claude/core` | built: pairing (`pair.js`), the Lossless button (`l`), the quality label, `?overlay=1`; tests pass, 21 of 22 mutants killed |
-| phone | `claude/phone-setup` → `claude/core` | not on `origin` when read |
+Every part is merged on `claude/core-next` (draft PR into `claude/core`; its body is the merge record, merge by merge),
+after the image build fix and the signed Int8 rule: `oq-ingest` and its fixes (Q 0 and `--split` refused),
+`oq-client-fixes`, `oq-depth-cut` and its fixes, `demo-e2e` (`demo-check.mjs`, README §Demo), `phone-setup` and its
+fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #289, #299, #302,
+`claude/av1-unified-mainbase` and `main`.
 
-* **Contract.** Metadata of an optimal-quality series: `"codec": "av1"`, `"lossy": {"q", "g", "depth"}`,
-  `"exactSeries": "<id>"`, no `digests`; its frames arrive `unchecked`. No top-10-bit form yet.
+* **Contract.** Metadata of an optimal-quality series: `"codec": "av1"`, `"lossy": {"q", "g", "depth"}` (plus
+  `bitsStored` for a depth cut), `"exactSeries": "<id>"`, no `digests`; its frames arrive `unchecked`.
 * **Bytes, measured** (`demo-series.sh`, one run on a 4-core cloud host), as a fraction of the exact
   series' `.sbnd`: Q 8 is 0.074 (`dbts_a1`), 0.216–0.219 (`dbts_b1`), 0.095–0.096 (`dbts_c1`) at G 1, 8 and 16;
   Q 24 is 0.002–0.025. The quality at each Q is **not measured** in this build. Fixtures: those three tomosynthesis
   volumes only (56, 50 and 69 frames; 12, 10, 12 bits).
-* **Decode routes:** ≤ 10 bits through WebCodecs where its probe passed; 12 bits and any refused config through
-  dav1d-WASM; the route in each frame's `info.path`. A jump into a group decodes from its keyframe on one decoder.
+* **Decode routes:** WebCodecs first for every optimal-quality frame, a depth cut included; dav1d-WASM only after a
+  refusal, named in the overlay. A WebCodecs failure inside a group is not recovered by dav1d (the owner's call).
 * **Label:** *Optimal quality*; *fetching lossless…*; *Lossless* only after the exact frame's digest matched and it
-  was painted; *Lossless check failed* otherwise, the lossy frame kept.
-* **Not yet run:** a browser end to end on a real pair; any phone run. The web image (`deploy/nginx`) does not serve
-  the exact series' two paths. A review of each branch is due as `<branch>-fixes`.
+  was painted; *Lossless check failed* otherwise, the optimal-quality frame kept.
+* **Not yet run:** a browser end to end on the merged branch with real pairs (`demo-check.mjs` ran on `demo-e2e`
+  alone); any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
-## Terms (to move into `docs/glossary.md` when the two branches' entries are reconciled)
+## Terms
 
-* **source sample**: a pixel's value as stored in the series' DICOM pixel data; the exact frame carries it unchanged.
-* **D**: the series' stored bit depth, DICOM *Bits Stored* (0028,0101).
-* **OQ view** (optimal quality): the lossy AV1 view every viewer sees; **exact frame**: the HTJ2K frame of the
-  source samples, sent on request.
-* **Q**: the OQ view's quality level, libaom's quantizer (higher Q, more error); **G**: frames per keyframe.
-* **coding error**: OQ value − source sample. **Depth cut**: coding the OQ view from `round(sample / 2^(D−10))` at
-  10 bits so WebCodecs can decode a D > 10 series; it adds a **rounding error** of at most 2^(D−11).
+One row each in [`docs/glossary.md`](../glossary.md) since 2026-11-10 (`claude/core-next`): *optimal quality* (and the
+optimal-quality series that holds it; *lossy series* is no longer a second name), *exact series* and *exact frame*,
+*depth cut*, *pairing*, *stored form*, *source sample*, *D*, *Q, G* and *coding error*. *Corrected 2026-11-10:* this
+section said the depth cut adds a rounding error of at most 2^(D−11); at the clamp it is up to 2^(D−10) − 1 (3 at D 12,
+for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
 
 ## Open (ordered)
 
-1. `claude/core`'s CI `deploy` failure (the native crate, `claude/core:client/native`, not copied by
-   `deploy/Containerfile`); [`coordination.md`](coordination.md) §Open 2 has the reviewed path into `main`.
-2. Reconcile `docs/glossary.md`: both branches add **exact series**, worded differently; ingest adds
-   **optimal quality** and **pairing**, client **lossy series, optimal quality**. One concept, one name.
-3. Review both branches; merge into `core`; then the browser end to end on a pair from `demo-series.sh`.
+1. Done 2026-11-10 on `claude/core-next`: the image build (`core-ci-deploy`) and the glossary (§Terms).
+2. The owner's merge words on `claude/core-next`, merge by merge ([`coordination.md`](coordination.md) §Open 2).
+3. The browser end to end on the merged branch, on pairs from `demo-series.sh` (the plan's D6).
 4. Serve the exact series' paths from the web image.
 5. Phone runs: tethering for development and decode numbers; Wi-Fi plus netem for transport realism and the demo.
 6. The DICOM ingest codes optimal quality (today only the lab tool does).
@@ -71,7 +67,7 @@ the optimal-quality series is a series of its own, ingested beside its exact ser
   behind a toggle.
 * Phone: tethering for development and decode numbers; Wi-Fi plus netem for transport realism and the demo.
 * No per-build "how it works" pages: the design lives in the doc that owns it (`docs/av1/payload-format.md`
-  §Optimal quality, `client/README.md` §A lossy series, exact on request).
+  §Optimal quality, `client/README.md` §Optimal quality, exact on request).
 * The demo is built on `claude/core` and reaches `main` only after review, by 2026-11-13 at the latest.
 * The depth cut is used only for D > 10, to decode through WebCodecs; D ≤ 10 is coded at its own depth. Splitting
   the OQ view's decoded samples into top and low streams is discarded: it needs a second encode, a lossy top cannot
@@ -80,6 +76,6 @@ the optimal-quality series is a series of its own, ingested beside its exact ser
 ## Pointers
 
 `claude/oq-ingest:docs/av1/payload-format.md` §Optimal quality, `claude/oq-ingest:ingest/coded-frames/`,
-`claude/oq-ingest:scripts/demo-series.sh`; `claude/oq-client:client/README.md` §A lossy series, exact on request,
+`claude/oq-ingest:scripts/demo-series.sh`; `claude/oq-client:client/README.md` §Optimal quality, exact on request,
 `claude/oq-client:client/viewer/pair.js`, `claude/oq-client:client/view/controller.js`,
 `claude/oq-client:server/dev-server.py` (`--exact-metadata`, `--exact-transport`).
