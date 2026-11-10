@@ -1470,9 +1470,9 @@ version change rather than an error on either side; each row says which it looks
 
 ## Sources
 
-Every source read 2026-11-10 unless its row says otherwise; ids are prefixed by the section that cites them.
+Every source read 2026-11-10 unless its row says otherwise; ids are prefixed by the section that wrote them: V the decoder, codec strings and testing; F `VideoFrame`, the screen, Media Capabilities and `<video>`; C Chromium; K WebKit; G Gecko; I images; A WebAssembly; X added in integration.
 
-### V
+### Sources (V)
 
 | id | URL | read | verbatim quote |
 |---|---|---|---|
@@ -1552,7 +1552,7 @@ Every source read 2026-11-10 unless its row says otherwise; ids are prefixed by 
 | V74 | https://www.w3.org/TR/webcodecs/#best-practices-developers | 2026-11-10 | "authors working with realtime media or in contended main thread environments are encouraged to ensure their media pipelines operate in worker contexts" |
 | V75 | https://www.w3.org/TR/webcodecs/#privacy-considerations | 2026-11-10 | "13. Privacy Considerations This section is non-normative." |
 
-### F
+### Sources (F)
 
 | id | URL | read | verbatim quote |
 |---|---|---|---|
@@ -1682,7 +1682,7 @@ Every source read 2026-11-10 unless its row says otherwise; ids are prefixed by 
 | F134 | https://wicg.github.io/video-rvfc/#procedures | 2026-11-10 | "a 25fps video playing in a browser that paints at 60Hz would fire callbacks at 25Hz; a 120fps video in that same 60Hz browser would fire callbacks at 60Hz." / "There are no strict timing guarantees when it comes to how soon callbacks are run after a new video frame has been presented." |
 | F135 | https://html.spec.whatwg.org/multipage/canvas.html#check-the-usability-of-the-image-argument | 2026-11-10 | "If image's readyState attribute is either HAVE_NOTHING or HAVE_METADATA, then return bad." |
 
-### C
+### Sources (C)
 
 | id | URL | read | verbatim quote |
 |---|---|---|---|
@@ -1751,7 +1751,7 @@ Every source read 2026-11-10 unless its row says otherwise; ids are prefixed by 
 | C63 | https://issues.chromium.org/action/issues/343014700 and …/action/issues/1311345 | 2026-11-10 | "GBR Video support"; for old ids: "Unsigned-in user does not have permission to view issue 1311345." / "Issue 1138680 does not exist." |
 | C64 | same file as C31 | 2026-11-10 | `media_log->SetProperty<media::MediaLogProperty::kVideoDecoderName>(decoder.GetDecoderType()); media_log->SetProperty<media::MediaLogProperty::kIsPlatformVideoDecoder>(decoder.IsPlatformDecoder());` |
 
-### K
+### Sources (K)
 
 All read 2026-11-10. WebKit links are pinned at `5dbb0d4dcc9b3c87d4d457fabe6cfb62be40cb40` (shortened as `…/5dbb0d4/`
 below, i.e. `https://github.com/WebKit/WebKit/blob/5dbb0d4dcc9b3c87d4d457fabe6cfb62be40cb40/`).
@@ -1823,7 +1823,7 @@ below, i.e. `https://github.com/WebKit/WebKit/blob/5dbb0d4dcc9b3c87d4d457fabe6cf
 | K63 | …/5dbb0d4/Source/WTF/Scripts/Preferences/UnifiedWebPreferences.yaml#L7636-L7645 | 2026-11-10 | `WebRTCVP9Profile2CodecEnabled: type: bool status: mature … defaultValue: "PLATFORM(COCOA)": true default: false` |
 | K64 | …/5dbb0d4/Source/WebCore/platform/VideoPixelFormat.cpp#L52-L76 | 2026-11-10 | `#elif USE(GSTREAMER) switch (format) { case GST_VIDEO_FORMAT_I420: return VideoPixelFormat::I420; case GST_VIDEO_FORMAT_A420: … case GST_VIDEO_FORMAT_Y42B: return VideoPixelFormat::I422; case GST_VIDEO_FORMAT_Y444: return VideoPixelFormat::I444; case GST_VIDEO_FORMAT_NV12: return VideoPixelFormat::NV12;` |
 
-### G
+### Sources (G)
 
 Engine source base: `https://raw.githubusercontent.com/mozilla-firefox/firefox/47f2a88cbab9072c8f8f156494b92d6891e488fb/`
 (written `FX/` below). BCD base:
@@ -1902,7 +1902,7 @@ Engine source base: `https://raw.githubusercontent.com/mozilla-firefox/firefox/4
 | G72 | FX/dom/media/webcodecs/WebCodecsUtils.cpp | 2026-11-10 | `"Resist fingerprinting (MediaCapabilities) enabled, overriding "` `"hardware preference");` `aConfig->mHardwareAcceleration = HardwareAcceleration::No_preference;` |
 | G73 | FX/dom/media/webcodecs/VideoDecoder.cpp (`CreateVideoFrame`) | 2026-11-10 | `Maybe<VideoPixelFormat> format = GuessVideoPixelFormat(aData->mImage.get());` |
 
-### I
+### Sources (I)
 
 Engine source is pinned to these commits: Chromium GitHub mirror `42b48607b5e4351a61742e83eb6d7ee99d483a86`, Gecko
 `mozilla-firefox/firefox` `47f2a88cbab9072c8f8f156494b92d6891e488fb`, WebKit `5dbb0d4dcc9b3c87d4d457fabe6cfb62be40cb40`,
@@ -1966,7 +1966,7 @@ BCD `918d2d721cc80c26c2eed7e64c6fa43da59322fd`, mdn/content `edc9ab5479d1253d9ed
 | I50 | CR `third_party/blink/renderer/platform/image-decoders/jxl/jxl_image_decoder.cc` | 2026-11-10 | `bool decode_to_half_float =` `ImageIsHighBitDepth() &&` `high_bit_depth_decoding_option_ == kHighBitDepthToHalfFloat;` |
 | I51 | FF `dom/media/webcodecs/ImageDecoder.cpp`, `ImageTrack.cpp` | 2026-11-10 | `promise->MaybeResolve(type != image::DecoderType::UNKNOWN);`; `Maybe<VideoPixelFormat> format = GuessVideoPixelFormat(image);` |
 
-### A
+### Sources (A)
 
 Pins: WebAssembly/website `128c38126af305f53bc22b31c30aefa3f5efe824`, BCD `918d2d721cc80c26c2eed7e64c6fa43da59322fd`,
 V8 `f8e74b163471aba777cfe6b5e570465c8f8c238f`, Gecko and WebKit as in Sources (I). `BCD` as in Sources (I).
@@ -2001,7 +2001,7 @@ V8 `f8e74b163471aba777cfe6b5e570465c8f8c238f`, Gecko and WebKit as in Sources (I
 | A26 | https://v8.dev/docs/wasm-compilation-pipeline | 2026-11-10 | "functions get compiled lazily with the baseline compiler Liftoff when the function gets called for the first time."; "hot functions, which are functions that get executed often, get re-compiled with TurboFan" |
 | A27 | https://developer.apple.com/documentation/safari-release-notes/safari-26-release-notes | 2026-11-10 | "Added support for an in-place interpreter for Wasm." |
 
-### X
+### Sources (X)
 
 | id | URL | read | verbatim quote |
 |---|---|---|---|
