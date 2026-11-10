@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Three breast tomosynthesis series, each as its exact HTJ2K series and six optimal-quality ones paired with it
 # (Q 8 and 24, G 1, 8 and 16), depth cuts on the two 12-bit sets, which also keep one stored-form series to compare:
-# every bundle's bytes, as a ratio of its exact series'. docs/av1/payload-format.md §Optimal quality, §Depth cut.
+# every bundle's bytes, as a ratio of its exact series'; each bundle's metadata beside it, ID.metadata.json, for the static
+# host (README.md §Demo). docs/av1/payload-format.md §Optimal quality, §Depth cut.
 #
 #   scripts/demo-series.sh [OUT]     default OUT demo-series; BUILD=... as ingest/tools.sh, default ingest/.build
 set -euo pipefail
@@ -26,6 +27,7 @@ ingest() {  # SET ID [ingest_coded.py's options]
   rm -rf "$OUT/$id"
   "$PY" "$ROOT/lab/av1/tools/ingest_coded.py" "$BUILD" "$DATA/$set" "$OUT/$id" --jobs "$(nproc)" "$@" >/dev/null
   "$ROOT/target/release/pack-series" --metadata "$OUT/$id/metadata.json" --frames "$OUT/$id" --output "$OUT/$id.sbnd" >/dev/null
+  mv "$OUT/$id/metadata.json" "$OUT/$id.metadata.json"
   rm -rf "${OUT:?}/$id"
   echo "$id $((SECONDS - t))" >>"$OUT/seconds"
 }

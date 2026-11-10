@@ -74,3 +74,6 @@ lab/.av1-work/
 lab/.traces/
 lab/recv-cost/target/
 lab/frame-clock/runs/
+
+# scripts/demo-series.sh output
+/demo-series/
