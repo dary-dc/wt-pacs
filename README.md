@@ -228,11 +228,9 @@ Chromium as below, and fails by name a frame not painted, a decode route other t
 a stored form), a console error, a label out of order, an on-demand jump that asked other than whole groups, or
 *Lossless* shown for an exact frame whose digest was made wrong.
 
-**On a phone**: the laptop serves as above, the phone opens the page over USB; follow §The viewer on an Android phone
-(on `claude/phone-setup` until merged). The pair needs two changes to it: open `4434/udp` as well as `4433/udp` in
-step 2, and in step 3 write the exact series' transport file with the laptop's address too,
-`sed 's/:4433/:4434/' target/phone-transport.json > target/exact-transport.json`, then start the static host with
-`--transport target/phone-transport.json` and the three `--metadata`/`--exact-*` options above.
+**On a phone**: the laptop serves as above, the phone opens the page over USB; follow §The viewer on an Android phone,
+its step 3b for the pair, with `demo-series/$ID` and `demo-series/$EXACT` in place of `target/my-lossy` and
+`target/my-exact`.
 
 **What to show, in order:**
 
