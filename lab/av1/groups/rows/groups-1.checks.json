@@ -1,0 +1,297 @@
+{
+ "O reproduces the quality study (pilot, Q 8, G 1 and 16); mutation --cpu-used=5: differ": {
+  "holds": true,
+  "mutation_holds": true
+ },
+ "TPL needs lag: O with --enable-tpl-model=0 byte-identical to O; mutation, both at lag 39: differ": {
+  "holds": true,
+  "mutation_holds": true,
+  "bytes": [
+   1055063,
+   1114747
+  ]
+ },
+ "the filter needs lag: O with keyframe filtering and arnr-maxframes 0 identical to O; mutation at lag 39: differ": {
+  "holds": true,
+  "mutation_holds": true,
+  "bytes": [
+   979589,
+   1057443
+  ]
+ },
+ "arms are distinct: L \u2260 A \u2260 AT \u2260 AD at Q 8 G 16": {
+  "holds": true,
+  "identical": []
+ },
+ "q pinned: every coded frame of O, L, A, AT, AD at Q; mutation, AQ's histogram: entries off Q": {
+  "holds": false,
+  "got": {
+   "O": {
+    "8": 30
+   },
+   "L": {
+    "0": 29,
+    "8": 30
+   },
+   "A": {
+    "0": 29,
+    "8": 30
+   },
+   "AT": {
+    "0": 29,
+    "8": 30
+   },
+   "AD": {
+    "0": 29,
+    "8": 30
+   }
+  },
+  "AQ": {
+   "0": 29,
+   "7": 1,
+   "8": 29
+  },
+  "mutation_holds": true
+ },
+ "headers: O G 16 n shown, 0 hidden, keyframes at multiples of 16; the alt-ref arm's \u2264 16-byte units all show_existing_frame; mutation, show_frame one bit late: counts change": {
+  "holds": true,
+  "O16": {
+   "units": 29,
+   "coded": 29,
+   "hidden": 0,
+   "shown_existing": 0,
+   "coded_per_unit_max": 1,
+   "coded_per_unit_mean": 1.0,
+   "keyframes": [
+    0,
+    16
+   ],
+   "shown_per_unit": null,
+   "existing_units": []
+  },
+  "altref": {
+   "units": 29,
+   "coded": 30,
+   "hidden": 12,
+   "shown_existing": 11,
+   "coded_per_unit_max": 4,
+   "coded_per_unit_mean": 1.0344827586206897,
+   "keyframes": [
+    0,
+    16
+   ],
+   "shown_per_unit": null,
+   "existing_units": [
+    3,
+    5,
+    7,
+    10,
+    12,
+    14,
+    18,
+    20,
+    22,
+    24,
+    26
+   ]
+  },
+  "altref_small_units": [
+   3,
+   5,
+   7,
+   10,
+   12,
+   14,
+   18,
+   20,
+   22,
+   24,
+   26
+  ],
+  "mutation": {
+   "units": 29,
+   "coded": 30,
+   "hidden": 19,
+   "shown_existing": 11,
+   "coded_per_unit_max": 4,
+   "coded_per_unit_mean": 1.0344827586206897,
+   "keyframes": [],
+   "shown_per_unit": null,
+   "existing_units": [
+    3,
+    5,
+    7,
+    10,
+    12,
+    14,
+    18,
+    20,
+    22,
+    24,
+    26
+   ]
+  },
+  "mutation_holds": true
+ },
+ "swap identity: S + r = source (max |\u0394| 0); X at offset 0 byte-identical to O Q 8 G 16; mutation offset 1: differs": {
+  "max_abs": 0,
+  "clipped": 0,
+  "holds": true,
+  "mutation_holds": true
+ },
+ "determinism: AT coded twice byte-identical; mutation --cpu-used=5: differs": {
+  "holds": true,
+  "mutation_holds": true
+ },
+ "bands: independent white noise, |\u03c1| < 0.02 (offset 0 \u00b7 best offset)": {
+  "expected": "< 0.02",
+  "got": [
+   [
+    -0.002,
+    -0.001,
+    -0.007,
+    null
+   ],
+   [
+    0.048,
+    0.047,
+    0.044,
+    null
+   ]
+  ],
+  "holds": true
+ },
+ "bands: identical frames read 1.00": {
+  "got": [
+   1.0,
+   1.0,
+   1.0,
+   null
+  ],
+  "holds": true
+ },
+ "bands: shifted 3 px reads 1.00 at its offset; mutation, offset search removed: < 0.3": {
+  "got": [
+   0.833,
+   0.424,
+   0.58,
+   null
+  ],
+  "mutation": [
+   -0.0,
+   -0.083,
+   0.124,
+   0.553
+  ],
+  "even_shifts": {
+   "2": [
+    1.0,
+    0.834,
+    0.41,
+    null
+   ],
+   "4": [
+    1.0,
+    1.0,
+    0.836,
+    null
+   ],
+   "8": [
+    1.0,
+    1.0,
+    1.0,
+    null
+   ]
+  },
+  "holds": false,
+  "mutation_holds": true
+ },
+ "bands: \u03ba of an exact frame is 0": {
+  "got": [
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "holds": true
+ },
+ "BD-rate: ln bytes offset by ln 0.9 reads \u221210.0 % (\u00b10.1), identical 0; mutation, axes swapped: sign flips": {
+  "got": -0.09999999999999998,
+  "identical": 0.0,
+  "mutation": 0.2241695789177398,
+  "holds": true,
+  "mutation_holds": true
+ },
+ "_encodes": {
+  "O": {
+   "bytes": 1394903,
+   "cpu": 10.175856999999999,
+   "rss_kb": 105728
+  },
+  "cpu5": {
+   "bytes": 1408589,
+   "cpu": 12.747827,
+   "rss_kb": 105560
+  },
+  "O1-cpu5": {
+   "bytes": 1402193,
+   "cpu": 33.250284,
+   "rss_kb": 78312
+  },
+  "tpl0": {
+   "bytes": 1394903,
+   "cpu": 10.068548,
+   "rss_kb": 105740
+  },
+  "lag-tpl1": {
+   "bytes": 1055063,
+   "cpu": 12.364954000000001,
+   "rss_kb": 428628
+  },
+  "lag-tpl0": {
+   "bytes": 1114747,
+   "cpu": 11.207919,
+   "rss_kb": 423624
+  },
+  "nofilter": {
+   "bytes": 1394903,
+   "cpu": 9.862583,
+   "rss_kb": 119740
+  },
+  "lag-filter": {
+   "bytes": 979589,
+   "cpu": 11.531196999999999,
+   "rss_kb": 428576
+  },
+  "lag-nofilter": {
+   "bytes": 1057443,
+   "cpu": 11.363686999999999,
+   "rss_kb": 418668
+  },
+  "altref": {
+   "bytes": 725329,
+   "cpu": 12.679572,
+   "rss_kb": 291276
+  },
+  "AT-again": {
+   "bytes": 788873,
+   "cpu": 13.363662000000001,
+   "rss_kb": 405796
+  },
+  "AT-cpu5": {
+   "bytes": 801553,
+   "cpu": 16.681118,
+   "rss_kb": 407384
+  },
+  "X0": {
+   "bytes": 1394903,
+   "cpu": 9.798316,
+   "rss_kb": 178780
+  },
+  "X1": {
+   "bytes": 1443279,
+   "cpu": 10.066946,
+   "rss_kb": 180504
+  }
+ }
+}
