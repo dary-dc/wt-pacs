@@ -37,8 +37,8 @@ def main():
     ap.add_argument("--lossy", type=int, nargs=2, metavar=("Q", "G"))
     ap.add_argument("--exact-series")
     a = ap.parse_args()
-    if bool(a.lossy) != bool(a.exact_series) or (a.lossy and a.codec != "av1"):
-        ap.error("--lossy Q G and --exact-series ID go together, with --codec av1")
+    if bool(a.lossy) != bool(a.exact_series) or (a.lossy and (a.codec != "av1" or a.split is not None)):
+        ap.error("--lossy Q G and --exact-series ID go together, with --codec av1 and no --split")
     s = size.Set(a.set_dir)
     n = min(a.frames or s.n, s.n)
     try:
