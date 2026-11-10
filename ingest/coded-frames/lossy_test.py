@@ -127,6 +127,9 @@ def main():
             r = subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, tmp / "s12", tmp / "bad",
                                 "--lossy", q, "1", "--exact-series", "paired"], capture_output=True, text=True)
             check(r.returncode != 0 and "Q is 1 to 63" in r.stderr and not (tmp / "bad").exists(), claim)
+        r = subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, tmp / "s12", tmp / "bad",
+                            "--lossy", "8", "1", "--exact-series", "paired", "--split", "2"], capture_output=True, text=True)
+        check(r.returncode != 0 and not (tmp / "bad").exists(), "--split with --lossy is refused: the payload has no split")
     print(f"optimal quality: {'every claim holds' if not failures else f'{len(failures)} claims fail'}")
     sys.exit(1 if failures else 0)
 
