@@ -340,6 +340,13 @@ delivered the cell's 3 frames of 3 and the viewer's session reached the server, 
 certificate's hash. `netem` does not load in that container ("Specified qdisc kind is unknown"); iproute2 6.1 parsed
 netem's arguments as the script passes them, iid and `gemodel` (and refused a misspelt one, `What is "lxss"?`). The phone, its Chrome, the tether, firewalld and the Media panel were not checked.
 
+*A pair, checked the same way (2026-11-10):* step 3b's commands on a synthetic 10-bit pair (256×192, 24 frames,
+HTJ2K and Q 8 G 8, `lossy_test.py`'s pattern), on this branch merged onto `claude/oq-depth-cut`, which has the exact
+flags. Headless Chromium 153 in the namespace filled 24 of 24 frames through `av1-webcodecs` from 4433, *Optimal
+quality*; `l` fetched frame 1 from 4434 over the veth, decoded it through `htj2k` and read *Lossless*. One digest
+altered in the exact metadata read *Lossless check failed* instead; the exact transport file naming `127.0.0.1` never
+reached *Lossless*. Not checked: a real pair from `demo-series.sh`, a depth cut, and everything on the phone above.
+
 ## Docs
 
 Each subject has one owner; a claim lives there, corrected in place when it is wrong (`CLAUDE.md` §Docs).
