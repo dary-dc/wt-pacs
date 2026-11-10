@@ -1,7 +1,8 @@
 /**
  * A depth cut's frames decode through WebCodecs in headless Chromium: every frame of the fixture, a group of four
- * from its keyframe on, comes back on the av1-webcodecs path as 10-bit codes equal to native dav1d's.
- * client/contract/av1/payloads/depth-cut, made by ingest/coded-frames/make_golden.py --depth-cut.
+ * from its keyframe on, comes back on the av1-webcodecs path as 10-bit codes equal to native dav1d's; and a 12-bit
+ * stored-form lossy frame is tried through WebCodecs first, refused, the refusal named, and only then handed to dav1d.
+ * client/contract/av1/payloads/depth-cut, made by ingest/coded-frames/make_golden.py --depth-cut; plain/g12, 64×48.
  *
  *   NODE_PATH=$(npm root -g) node client/decode/depth-cut.browser.mjs
  */
@@ -55,9 +56,27 @@ try {
     console.log(`${ok ? "ok  " : "FAIL"} frame ${i}: ${r.error ?? `${r.path}, ${r.bits}-bit, max ${r.max}, ${r.sha === want[i] ? "dav1d's codes" : `sha ${r.sha}, not ${want[i]}`}`}`);
   }
   if (got.length !== meta.frameCount) failed++;
+  const stored = await page.evaluate(async (file) => {
+    const calls = [];
+    const dav1d = { init: async () => {}, picture: () => (calls.push("dav1d"), { width: 64, height: 48, bits: 12, planes: [{ heap: new Uint16Array(64 * 48), offset: 0, stride: 64 }] }) };
+    const av1 = await import("/client/decode/av1.js?stored");
+    await av1.init({ lossy: true }, async (p) => (p === "./av1-dav1d.js" ? dav1d : import(new URL(p, new URL("/client/decode/", location.href)).href)));
+    const bytes = new Uint8Array(await (await fetch(file)).arrayBuffer());
+    const out = [];
+    for (let i = 0; i < 2; i++) {
+      const r = await av1.decodeFrame(bytes).catch((e) => ({ path: e.message }));
+      out.push({ path: r.path, refusal: r.refusal, calls: calls.splice(0).join() });
+    }
+    return out;
+  }, "/client/contract/av1/payloads/plain/g12.av1");
+  for (const [i, r] of stored.entries()) {
+    const ok = r.path === "av1-dav1d" && /undecodable/.test(r.refusal ?? "") && r.calls === "dav1d";
+    if (!ok) failed++;
+    console.log(`${ok ? "ok  " : "FAIL"} 12-bit stored form, frame ${i}: ${r.path} after WebCodecs refused: ${r.refusal}`);
+  }
 } finally {
   await browser.close();
   host.close();
 }
-console.log(`depth cut through WebCodecs: ${failed ? `${failed} failed` : `${names.length} frames, every one dav1d's codes`}`);
+console.log(`depth cut through WebCodecs: ${failed ? `${failed} failed` : `${names.length} frames, every one dav1d's codes; the 12-bit stored form refused by it, then dav1d's`}`);
 process.exit(failed ? 1 : 0);

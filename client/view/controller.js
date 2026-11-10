@@ -7,8 +7,8 @@ export const FIT = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: fal
 
 export const asPainted = (info) => ({ pixels: info.pixels, width: info.width, height: info.height, bits: info.bits, components: info.components, signed: info.signed, cut: info.cut });
 
-/** What the developer overlay shows of a painted frame: its decode route, the bytes that crossed the link, its decode time. */
-const about = ({ path, wireBytes, stamps }) => ({ path, wireBytes, decodeMs: stamps?.decodeEnd && stamps.decodeEnd - stamps.decodeStart });
+/** What the developer overlay shows of a painted frame: its decode route and why WebCodecs refused it, the bytes that crossed the link, its decode time. */
+const about = ({ path, refusal, wireBytes, stamps }) => ({ path, refusal, wireBytes, decodeMs: stamps?.decodeEnd && stamps.decodeEnd - stamps.decodeStart });
 
 export function samplesOf(info) {
   const { bits, components, signed } = info;

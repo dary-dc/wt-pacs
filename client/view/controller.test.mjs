@@ -452,6 +452,16 @@ test("a scroll through a group after a jump into it asks nothing", async () => {
 });
 
 let failed = 0;
+/** The overlay's data for a painted frame names its decode route and, after a refusal, why WebCodecs refused it. */
+test("a shown frame's route and WebCodecs refusal reach the overlay", async () => {
+  const { c, events } = rig({ lossy: { q: 8, g: 1, depth: 12 } });
+  c.take({ frameIndex: 0, info: { ...frame(0).info, path: "av1-dav1d", refusal: "undecodable: not a key frame", wireBytes: 2048 } });
+  await c.repaint();
+  const { about } = events.filter(([t]) => t === "shown").at(-1)[1];
+  assert.equal(about.path, "av1-dav1d");
+  assert.equal(about.refusal, "undecodable: not a key frame");
+});
+
 for (const [name, fn] of tests) {
   try {
     await fn();

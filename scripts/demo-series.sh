@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Three breast tomosynthesis series, each as its exact HTJ2K series and eighteen optimal-quality ones paired
-# with it (Q 8 and 24, G 1, 8 and 16 a series each), and the 12-bit two's depth cut at Q 8, G 1 and 16: every
-# bundle's bytes, as a ratio of its exact series'.
-# docs/av1/payload-format.md §Optimal quality.
+# Three breast tomosynthesis series, each as its exact HTJ2K series and six optimal-quality ones paired with it
+# (Q 8 and 24, G 1, 8 and 16), depth cuts on the two 12-bit sets, which also keep one stored-form series to compare:
+# every bundle's bytes, as a ratio of its exact series'. docs/av1/payload-format.md §Optimal quality, §Depth cut.
 #
 #   scripts/demo-series.sh [OUT]     default OUT demo-series; BUILD=... as ingest/tools.sh, default ingest/.build
 set -euo pipefail
@@ -14,7 +13,6 @@ SETS=(dbts_a1 dbts_b1 dbts_c1)
 QS=(8 24)
 GS=(1 8 16)
 CUT_SETS=(dbts_a1 dbts_c1)
-CUT_GS=(1 16)
 start=$SECONDS
 
 [[ -x "$BUILD/aom-3.15.1/bin/aomenc" && -f "$BUILD/payload/libdecode.so" ]] || BUILD="$BUILD" "$ROOT/ingest/tools.sh"
@@ -32,26 +30,24 @@ ingest() {  # SET ID [ingest_coded.py's options]
   echo "$id $((SECONDS - t))" >>"$OUT/seconds"
 }
 
+series() {  # SET: each optimal-quality series as "ID Q G [--depth-cut]"; a 12-bit set also keeps one stored-form series
+  local cut=$([[ " ${CUT_SETS[*]} " == *" $1 "* ]] && echo --depth-cut)
+  for q in "${QS[@]}"; do for g in "${GS[@]}"; do echo "$1-q$q-g$g${cut:+-cut} $q $g $cut"; done; done
+  [[ -z $cut ]] || echo "$1-q8-g16-stored 8 16"
+}
+
 rm -f "$OUT/seconds"
 for set in "${SETS[@]}"; do
   ingest "$set" "$set" --codec htj2k
-  for q in "${QS[@]}"; do
-    for g in "${GS[@]}"; do
-      ingest "$set" "$set-q$q-g$g" --lossy "$q" "$g" --exact-series "$set"
-    done
-  done
-done
-for set in "${CUT_SETS[@]}"; do
-  for g in "${CUT_GS[@]}"; do
-    ingest "$set" "$set-q8-g$g-cut" --lossy 8 "$g" --exact-series "$set" --depth-cut
-  done
+  while read -r id q g cut; do
+    ingest "$set" "$id" --lossy "$q" "$g" --exact-series "$set" $cut
+  done < <(series "$set")
 done
 
 printf '%-18s %14s %9s %6s\n' series bytes "of exact" s
 for set in "${SETS[@]}"; do
   exact=$(stat -c %s "$OUT/$set.sbnd")
-  cuts=$([[ " ${CUT_SETS[*]} " == *" $set "* ]] && for g in "${CUT_GS[@]}"; do echo "$set-q8-g$g-cut"; done)
-  for id in "$set" $(for q in "${QS[@]}"; do for g in "${GS[@]}"; do echo "$set-q$q-g$g"; done; done) $cuts; do
+  for id in "$set" $(series "$set" | cut -d" " -f1); do
     bytes=$(stat -c %s "$OUT/$id.sbnd")
     awk -v id="$id" -v b="$bytes" -v e="$exact" -v s="$(awk -v id="$id" '$1 == id {print $2}' "$OUT/seconds")" \
       'BEGIN { printf "%-18s %14d %9.4f %6d\n", id, b, b / e, s }'

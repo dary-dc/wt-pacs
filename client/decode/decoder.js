@@ -17,7 +17,7 @@ let cache = null;
 
 const abs = () => performance.timeOrigin + performance.now();
 
-/** Both codec modules: `init(config)`, then `decodeFrame(bytes, unit, preview, avoid)` → `{ info, sab, byteCount, range, path }`, `avoid` a path not to take. */
+/** Both codec modules: `init(config)`, then `decodeFrame(bytes, unit, preview, avoid)` → `{ info, sab, byteCount, range, path, refusal }`, `avoid` a path not to take. */
 async function init(m) {
   transferFrames(m.pixels === "transfer");
   // Only an AV1 series loads AV1 code; which decoder takes a payload is chosen per payload. docs/av1/payload-format.md
@@ -90,7 +90,7 @@ async function decode(m) {
   }
 }
 
-function picture(m, { info, sab, byteCount, range, path, exact, reason, mismatchOn }, stamps) {
+function picture(m, { info, sab, byteCount, range, path, refusal, exact, reason, mismatchOn }, stamps) {
   return {
     kind: "frame",
     index: m.index,
@@ -105,6 +105,7 @@ function picture(m, { info, sab, byteCount, range, path, exact, reason, mismatch
     max: range.max,
     byteCount,
     path,
+    refusal,
     exact,
     reason,
     mismatchOn,
