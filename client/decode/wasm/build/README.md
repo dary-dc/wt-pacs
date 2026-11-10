@@ -5,16 +5,20 @@ AV1; and, since the frame check's speed measurement, its XXH3-64 from xxHash. Bu
 row 91, DECODERBUILD, [`docs/av1/queue.md`](../../../../docs/av1/queue.md)); what each build is for and
 what it measured is [`docs/decode/README.md`](../../../../docs/decode/README.md) §The build, as delivered.
 
+The outputs are committed in `client/decode/wasm/built/` (owner's decision D2, 2026-10-21): a clone or a `git archive`
+deploys them as they are, and building them is a way to verify or change them, not a deploy step.
+
 ```bash
 client/decode/wasm/build/build.sh            # ~3 min on 4 cores; needs docker, git, curl, python3 with pip
-UPDATE=1 client/decode/wasm/build/build.sh   # after a change to a pin, a flag or a wrapper: rewrite the manifest
+UPDATE=1 client/decode/wasm/build/build.sh   # after a change to a pin, a flag or a wrapper: rewrite the manifest, commit both
 ```
 
 `build.sh` fetches every input into `.cache/` and checks each by commit or sha256, then builds in a container
 with no network, the repository mounted at its own path. The outputs land in `client/decode/wasm/built/`; it
-refuses to finish unless their sha256 match [`manifest.sha256`](manifest.sha256). Nothing fetched or built is
-committed. The page checks what it loads against the same manifest (`wasm-glue.js`, `built()`), and so does
-`scripts/gate.sh`, which also calls a build stale when its recipe or a wrapper is newer.
+refuses to finish unless their sha256 match [`manifest.sha256`](manifest.sha256). Nothing fetched is committed.
+The page checks what it loads against the same manifest (`wasm-glue.js`, `built()`). `scripts/gate.sh` checks the
+committed bytes against it, every file and no other; in full (not `--quick`) it rebuilds into `build/.rebuilt` and
+fails unless the rebuild is the committed bytes, so an input edited without a rebuild is caught by content, not mtime.
 
 ## Pins
 

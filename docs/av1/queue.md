@@ -2078,8 +2078,10 @@ code its page runs.
 * **dav1d's SIMD arm**, as `client/decode/wasm/dav1d/build.sh` builds it.
 * **Reproducible builds.** Every source path the binaries embed is mapped with `-ffile-prefix-map` (OpenJPH's
   assertions carry `__FILE__`), so two builds in different directories give the same bytes. Each output's sha256 is
-  pinned in a manifest beside the recipe. Built outputs are not committed (the queue's rule). The page and the gate
-  check what they load against the manifest, and row 86's stale-build guard names the build command.
+  pinned in a manifest beside the recipe. ~~Built outputs are not committed (the queue's rule).~~ *Corrected
+  2026-10-22, decision D2:* they are committed, so an archive of the tree is the deploy. The page and the gate
+  check what they load against the manifest; ~~row 86's stale-build guard names the build command~~ the gate's
+  full run rebuilds them and compares bytes, which replaced the mtime guard.
 * **Notices.** Each build's licence files sit beside it. One `THIRD_PARTY_NOTICES` lists everything the page loads:
   OpenJPH (BSD-2-Clause), dav1d (BSD-2-Clause, with the AOM patent licence), Emscripten's runtime and musl, and row
   88's XXH3. It is served with the client, and the licensing doc is updated.
