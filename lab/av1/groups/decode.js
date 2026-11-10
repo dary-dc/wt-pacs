@@ -14,13 +14,15 @@ onmessage = async ({ data: o }) => {
     await d.fresh();
     const ms = [];
     const hashes = [];
+    let wide = true;
     for (const u of units) {
       const t0 = performance.now();
       const px = await d.decode(u);
       ms.push(performance.now() - t0);
+      wide &&= px instanceof Uint16Array;
       hashes.push(await hex(px));
     }
-    postMessage({ ms, hashes });
+    postMessage({ ms, hashes, wide });
   } catch (e) {
     postMessage({ error: String(e?.message ?? e) });
   }

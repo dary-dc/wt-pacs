@@ -10,12 +10,16 @@ LAG = ["--lag-in-frames=39"]
 OFF = ["--lag-in-frames=0", "--auto-alt-ref=0"]
 A = [*LAG, "--auto-alt-ref=1", "--enable-tpl-model=0", "--enable-keyframe-filtering=0"]
 AT = [*LAG, "--auto-alt-ref=1", "--enable-tpl-model=1", "--enable-keyframe-filtering=0"]
+AD = [*AT[:-1], "--enable-keyframe-filtering=1"]
 ARMS = {
     "O": OFF,
     "L": [*LAG, "--auto-alt-ref=0", "--enable-tpl-model=0", "--enable-keyframe-filtering=0"],
     "A": A,
     "AT": AT,
-    "AD": [*AT[:-1], "--enable-keyframe-filtering=1"],
+    "AD": AD,
+    "AF": [*AD, "--deltaq-mode=1"],
+    "AU": [*AT, "--arnr-strength=0"],
+    "AW": [*AT, "--arnr-strength=2"],
     "AQ": AT,
     "I": ["--lag-in-frames=0"],
     "R": OFF,
@@ -23,7 +27,7 @@ ARMS = {
     "AT3": [*AT, "--cpu-used=3"],
 }
 ORDER = ("O", "L", "A", "AT", "AD", "AQ")
-WITH_HIDDEN = {"A", "AT", "AD", "AQ", "AT3"}
+WITH_HIDDEN = {"A", "AT", "AD", "AQ", "AT3", "AF", "AU", "AW"}
 LOOKAHEAD = {"L", *WITH_HIDDEN}
 DROP = {"--lag-in-frames=0", "--auto-alt-ref=0", "--cpu-used=6"}
 

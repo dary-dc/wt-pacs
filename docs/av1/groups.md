@@ -965,3 +965,676 @@ the protocol's.*
 * **Fixtures and their limits.** `dbts_b1`'s middle 32 slices: one volume of system B, cut for time, its G 32 the
   whole cut. The three clips came from lossy video and support no verdict. No lossless breast ultrasound cine or ABUS
   exists among the fixtures.
+
+## Settings amendment, pre-registered
+
+*Row GROUPS-SETTINGS-PROTOCOL, written 2026-11-10 before anything in it ran. Theory and protocol only: nothing was
+encoded, decoded or timed for it. Every number in §S1–§S3 is quoted from a row already measured (named at each use),
+from libaom's source, or is labelled *derived*. It amends the protocol above and changes nothing in it or in the
+measured sections: a separate session runs §Settings shards from this section alone and reports every cell,
+including those that miss.*
+
+1. **Asked:** every G result so far used low-delay settings (`--lag-in-frames=0 --auto-alt-ref=0`: no lookahead, no
+   alt-ref frames, no temporal filter). Do they hide a saving at **equal quality as the quality line measures it**
+   (the noise anchor e_N/σ ≤ 1, not equal PSNR), and what would the alternative cost to decode in display order
+   through the product's routes?
+2. **Answer, as theory:** the filter is the only setting that can change the answer, and at the anchor it should cost
+   bytes rather than save them. In libaom 3.15.1 its weight strengthens 28–64-fold in its exponent from Q 4 to
+   Q 16 (§S2.2), so the filtered arms lose the source's noise at a lower Q than O does and reach e_N/σ = 1 sooner:
+   shard 1 shows exactly that on `dbts_b1` (§S1). An alt-ref with the filter off keeps the noise, and so it should
+   behave like O at G 16.
+3. **The numbers that decide it:** bytes interpolated at worst-frame e_N/σ = 1.00 on an integer-Q ladder, for O at
+   G 1, 8, 16 and 32 against four lookahead arms (two of them new), on the three DBT volumes, A and C coded by the
+   product's depth cut; a noise-retention guard; and in-order decode per frame through WebCodecs at 10 bits and
+   dav1d-WASM.
+4. **It rests on** `dbts_a1`, `dbts_b1` (slices 9–40), `dbts_c1`; libaom 3.15.1 at speed 6; the quality study's
+   `measure()`; the groups code (`lab/av1/groups/`) at its shard 1 state; one 4-core cloud host.
+5. **Left open:** readers (visual losslessness); other DBT systems and datasets; breast ultrasound cine and ABUS
+   (no lossless fixture); hardware decoders and phones; other speeds, tunes, two-pass (encoder settings §9 T3–T8).
+
+### S1 · What is already measured, and the gap
+
+From shard 1 (`dbts_b1` slices 9–40, §Groups shard 1, measured): at equal in-window PSNR the filtered alt-ref arms
+save 4.9–6.3 % against O G 1 (ε 0.76 %); at the noise anchor they save nothing, because they cross e_N/σ = 1
+between Q 8 (worst frame 0.968–0.982) and Q 10 (1.019–1.026) while O G 1 crosses at Q 12 (0.999). Interpolated in
+ln bytes between those rungs (*derived*, linear in worst-frame e_N/σ, from that section's rows): AT G 16 reaches
+1.00 at about 7.7 MB, O G 1 at about 6.9 MB, O G 16 at about 6.7 MB. So on this one volume the filtered arm costs
+about **+12 %** at the anchor and O G 16 saves about **3 %**, on a ladder too coarse (two Q a rung) to resolve either.
+
+What the protocol above leaves untested (encoder settings §9, `claude/av1-encoder-settings:docs/av1/encoder-settings.md`):
+
+* **an alt-ref without the filter**, which separates "lookahead and hidden frames" from "temporal denoising";
+* **the filter's strength** (T2); libaom's full default, which pairs TPL with **objective delta-q** (T1);
+* **alt-ref at G 8**, where a group caps how many frames the filter may average;
+* **the product's form for D > 10**: systems A and C coded by the depth cut at 10 bits, so that WebCodecs, the
+  product's route, can be timed on them (the protocol gives A and C no WebCodecs claim, §6.5);
+* **equal quality by the quality line's own metric**, on a ladder fine enough to resolve it.
+
+### S2 · Theory
+
+**S2.1 What an alt-ref is for.** The AV1 overview by libaom's authors [H]: an encoder may "synthesize a frame that
+can potentially reduce the collective prediction errors among several display frames. One example is to apply
+temporal filtering along the motion trajectories of consecutive original frames to build an ARF, which retains the
+common information with the acquisition noise on each individual frame largely removed. The encoder typically uses
+a relatively lower quantization step size to code the common information (i.e., ARF)". And its cost: "this results
+in an additional frame for decoders to process" [H §II.B]. On DBT the "acquisition noise" is the patient's image
+noise that the noise anchor is defined to keep (quality study §Terms), so the tool's purpose and the view's contract
+point in opposite directions (*derived*).
+
+**S2.2 How hard libaom's filter averages** (`av1/encoder/temporal_filter.c`, quoted; [L1] at the pin). Each 64 × 64
+block of the frame to filter is matched by motion search in each neighbour and averaged with weight
+`exp(-scaled_error) * TF_WEIGHT_SCALE`, where `scaled_error = combined_error * d_factor[subblock_idx] *
+decay_factor[plane]` and `decay_factor[plane] = 1 / (n_decay * q_decay * s_decay)` (`:943-948`, `:842`); the
+frame being filtered enters with the fixed weight `TF_WEIGHT_SCALE` (1000, `:679`). Then:
+
+* **q:** `double q_decay = pow((double)q_factor / TF_Q_DECAY_THRESHOLD, 2); q_decay = CLIP(q_decay, 1e-5, 1);`
+  (`:829-830`), with `#define TF_Q_DECAY_THRESHOLD 20` and its comment "when using a small q (high bitrate), we
+  would like to reduce the filtering strength such that more detailed information can be preserved"
+  (`temporal_filter.h:53-58`). In Q mode `q_factor` is `av1_convert_qindex_to_q(cq_level, bit_depth)` (`:173-176`),
+  the AC step ÷ 16 at 10 bits and ÷ 64 at 12 (`ratectrl.c:199-205`). From the AC tables (*derived*): q_factor is
+  3, 5, 7, 9, 12, 16 at Q 4, 6, 8, 10, 12, 16 (10-bit), so q_decay is 0.023, 0.063, 0.12, 0.20, 0.36, 0.64. The
+  exponent's scale therefore grows about 28× from Q 4 to Q 16 at 10 bits (about 64× at 12 bits, where Q 4 gives
+  q_factor 2), and it is constant only from Q ≈ 20 up. **The filter is weak at Q 4 and strong at Q 12–16: exactly
+  across the VL interval.**
+* **strength:** `double s_decay = pow((double)filter_strength / TF_STRENGTH_THRESHOLD, 2); s_decay = CLIP(s_decay,
+  1e-5, 1);` (`:837-838`) with `#define TF_STRENGTH_THRESHOLD 4`. So `--arnr-strength` 4, 5 (the default) and 6 all
+  give s_decay = 1, and **they should code identical streams** (*derived*; `arnr_strength` is read nowhere else in
+  `av1/encoder/`, checked by `grep`). Strength 2 gives 0.25, a filter four times weaker in its exponent. Strength 0
+  gives 1e-5: `scaled_error` hits its cap of 7, so every neighbour's weight is exp(−7) × 1000 ≈ 0.9, truncated to 0
+  or rounded to 1 by the approximate path, against the frame's own 1000. With the default `--arnr-maxframes` 7 plus libaom's adjustment of up to 6
+  (`:1335-1375`), at most 12 neighbours: **the filtered frame is the source frame** to within 1.2 % of its weight
+  (*derived*). That is the unfiltered
+  alt-ref of §S4.
+* **noise:** `const double n_decay = 0.5 + log(2 * noise_levels[plane] + 5.0);` "Larger noise -> larger filtering
+  weight." (`:840-841`).
+* **frames:** "Temporal filtering should not go beyond key frames" (`:1276`); `int num_frames =
+  AOMMAX(cpi->oxcf.algo_cfg.arnr_max_frames, 1);` (`:1270`), then adjusted by noise level and by the alt-ref's boost
+  (`:1335-1375`). So at **G 8 a keyframe-bounded group lets the filter average at most 8 frames**, and at G 1 none
+  (*derived*).
+* **what is shown:** a filtered alt-ref is shown directly, with no overlay coding the real frame, when
+  `mean < threshold && std < mean * 1.2` with `threshold = 0.7f * ac_q_step * ac_q_step` (`:1607-1609`), or always
+  if `!enable_overlay` (`:1594`). `--enable-overlay` defaults to 1 (`av1_cx_iface.c:360`). The shown frame is then
+  the filtered one where libaom judges the filter's change smaller than the quantizer's.
+
+**S2.3 What a filtered reference does to inter coding of a noisy, slowly changing volume.** The protocol's §2.2 gives
+the inter residual's noise term on a band as σ_b²[1 + (1 − κ_b) − 2ρ_b√(1 − κ_b)], with 1 − κ_b the share of the
+band's noise the reference still holds. A filtered alt-ref lowers 1 − κ_b on its own reference: averaging N frames
+of independent noise with weights w_i leaves the noise variance σ²·Σw_i²/(Σw_i)², σ²/N when equal (*derived*,
+elementary). Frames predicted from it pay σ_b² for their own noise either way and gain only on what neighbours
+share: structure (§2.5's bound s · e). On DBT the structure does not hold still: features finer than a slice's
+depth blur change from slice to slice (§2.3), so the average also blurs the shared structure in depth, and the
+motion search cannot undo that, because the change is not a motion (*derived*). The prediction is that the filtered
+arms buy their bytes from noise removal, which the anchor counts as error.
+
+**S2.4 What that predicts for bytes at equal quality.** e_N is the coding error in the Laplacian band; deleting the
+band's noise outright reads e_N = σ (audit F4, `claude/av1-audit-quality:docs/av1/audit-quality.md`). A shown
+filtered frame (a directly shown alt-ref, or a filtered keyframe) carries less of its noise than O's frame at the
+same Q, so its e_N is higher, and the q-dependence of S2.2 makes that gap grow with Q. At the anchor the filtered
+arms must therefore sit at a lower Q than O, where every frame costs more; the frames they save on are the
+predicted ones, at most s · e of the bytes (§2.5). Net: **filtered arms cost more than O G 1 at e_N/σ = 1**, by an
+amount that grows with σ (more noise, stronger filter) and so should be largest on A and C (σ 10–18) and smallest
+on B (σ 3.4–5.7). The unfiltered alt-ref keeps every reference's noise, so §2.2 makes it behave like O at the same
+G: hidden frames and a pyramid, but nothing that inter can use on noise (*derived*). Objective delta-q lowers q on
+the superblocks of alt-refs that many frames reference ("Note objective delta_q and tpl eligible frames are only
+altref frames currently", `encodeframe.c:2339-2340`): finer steps on a filtered frame, which spends bytes where the
+filter already removed the noise. Its sign at the anchor is not predicted by this theory beyond "small".
+
+**S2.5 What it predicts for decode in display order.** Every temporal unit holds one shown frame ([A1]), so the
+product's in-order model holds (§2.4). The work moves: the unit after a keyframe carries the alt-ref and internal
+alt-refs, and a `show_existing_frame` unit decodes nothing new. On shard 1's `dbts_b1` alt-ref streams, 12 hidden
+frames and 9 shown-existing units in 32 frames, i.e. 35 coded frames for 32 shown (*derived* from §Groups shard 1's
+table). The mean per shown frame should move little (fewer bits a frame against 9 % more frames), the slowest
+frame a lot (shard 1: slowest ÷ median 3.4–5.2 on dav1d-WASM at Q 8). A lower matched Q for the filtered arms
+means more bits a frame, so at equal quality their mean should rise, not fall (*derived*). [H] notes the same
+cost from the decoder's side: levels bound "the total number of samples in both displayable frames and ARFs that
+will not be used as a 'show existing frame'".
+
+### S3 · Predictions
+
+Written before any run; each is decided by the collector (§S7) using its refutation clause exactly as written.
+"Anchor bytes" is B₁ of §S6; "saving" is 1 − B₁(arm) ÷ B₁(O G 1) on the same volume.
+
+| # | prediction | refuted if |
+| --- | --- | --- |
+| **Q1** strength saturates | AT at `--arnr-strength` 4 and 6 is byte-identical to AT (strength 5) at Q 8, G 16 on every volume | any byte differs |
+| **Q2** G 1 has no lookahead tool | AT and AF at G 1 are byte-identical to O G 1 at Q 8 on every volume | any byte differs |
+| **Q3** the filter costs at the anchor | AT, AD and AF at G 16: saving in −30 … 0 % on every volume, most negative on A or C | any of them saves > ε on any volume |
+| **Q4** the filter saves at equal PSNR | AT, AD, AF at G 16: in-window PSNR BD-rate against O G 1 over the curves' overlap, −12 … −3 % on every volume | outside that range on any volume |
+| **Q5** unfiltered alt-ref ≈ O | AU G 16's saving within ±3 points of O G 16's on every volume; its worst-frame e_N/σ at Q 8 within ±0.03 of O G 16's | outside either on any volume |
+| **Q6** strength orders the arms | at Q 8, G 16 on every volume, ν (§S6) and anchor bytes order AU ≥ AW ≥ AT for ν and AU ≤ AW ≤ AT for bytes, each step larger than ε for bytes or 0.01 for ν | any pair out of order by more than those margins |
+| **Q7** the group caps the filter | AT G 8's saving lies between O G 8's and AT G 16's (within ε) on every volume; at Q 8 its ν is ≥ AT G 16's | outside on any volume |
+| **Q8** G alone, at the anchor | O G 8, 16, 32 savings in −1 … +6 % on B and −2 … +3 % on A and C; G 32 within 1 point of G 16 | outside on any volume |
+| **Q9** delta-q is small | AF G 16 within ±3 % of AD G 16 in bytes at every rung, and their anchor bytes within ±3 % | outside either |
+| **Q10** the depth cut costs little | on A and C: O G 1 at Q 0 on the cut form reads worst-frame e_N/σ ≤ 0.12 (its rounding alone, below); and its B₁ is within ±10 % of the full-depth O G 1's B₁ interpolated from the quality study's rows at Q 4, 8, 12 (`claude/av1-quality-metrics:lab/av1/metrics/rows/`; coarse, hence ±10 %) | either fails on either volume |
+| **Q11** decode in order, WebCodecs at 10 bits | at each stream's matched rung, mean per shown frame ÷ O G 1's: O G 8, 16 in 0.85–1.25; AT, AF, AU G 16 in 0.85–1.35; slowest ÷ median ≥ 2 for every alt-ref stream and ≤ 1.6 for O | any ratio outside its range |
+| **Q12** decode, dav1d-WASM | the same ratios in 0.8–1.4, slowest ÷ median ≥ 2 for alt-ref streams | outside |
+
+ν: σ_out ÷ σ of §S6. Q3 is the owner's question; Q4–Q7 say why; Q1, Q2, Q9, Q10 check the theory's reading of
+the source; Q11–Q12 are the decode cost. The ranges in Q3, Q8 and Q11 are wide on purpose: shard 1 is one volume,
+and the theory gives signs and orders, not sizes.
+
+### S4 · Arms
+
+Each arm is the protocol's base (§5) at `--cpu-used=6`, q pinned (`--min-q=Q --max-q=Q`, the view's one step),
+`--deltaq-mode=0` unless stated, `--enable-overlay` and `--arnr-maxframes` at libaom's defaults (1 and 7), built by
+`lab/av1/groups/arms.py`:
+
+| arm | flags over the base | what it isolates | in the protocol |
+| --- | --- | --- | --- |
+| **O** | `--lag-in-frames=0 --auto-alt-ref=0` | the settings used so far | yes |
+| **AT** | `--lag-in-frames=39 --auto-alt-ref=1 --enable-tpl-model=1 --enable-keyframe-filtering=0` | filtered alt-ref with TPL | yes |
+| **AD** | AT with `--enable-keyframe-filtering=1` | + filtered keyframes | yes |
+| **AF** | AD with `--deltaq-mode=1` | libaom's full default for all five knobs (T1) | new |
+| **AU** | AT with `--arnr-strength=0` | alt-ref and lookahead, filter off (S2.2) | new |
+| **AW** | AT with `--arnr-strength=2` | a filter four times weaker in its exponent (T2) | new |
+
+**The flags this amendment sets or varies,** verbatim from `av1/arg_defs.c` [L1] with libaom's default
+(`av1_cx_iface.c`, `default_extra_cfg`) and what each does here:
+
+| flag | help text (line) | default (line) | what it does here |
+| --- | --- | --- | --- |
+| `--lag-in-frames` | "Max number of frames to lag" (224) | `35` raised to 39 in good mode (§5) | 0: no filter, no TPL (§2.4); 39: one 32-frame group of lookahead |
+| `--auto-alt-ref` | "Enable automatic alt reference frames" (300) | `1` (257) | hidden alt-ref frames |
+| `--enable-tpl-model` | "RDO based on frame temporal dependency (0: off, 1: backward source based); required for --deltaq-mode=1" (330-333) | `1` (268) | needed by AF; inert at lag 0 |
+| `--enable-keyframe-filtering` | "Apply temporal filtering on key frame (0: no filter, 1: filter without overlay (default), 2: filter with overlay - experimental, may break random access in players)" (334-339) | `1` (269) | AD, AF: the shown keyframe is a filtered frame |
+| `--deltaq-mode` | "Delta qindex mode (0: off, 1: deltaq objective (default), 2: deltaq placeholder, 3: key frame visual quality, 4: user rating based visual quality optimization, 5: HDR video, 6: Variance Boost); --deltaq-mode=1 requires --enable-tpl-model=1" (560-564) | `DELTA_Q_OBJECTIVE` (305) | AF: per-superblock q on alt-refs, inside the pinned frame q (whether min/max q bound the deltas is *unverified*; Q9 and the q-hist check read it) |
+| `--arnr-strength` | "AltRef filter strength (0..6)" (304) | `5` (271) | AU 0, AW 2, the rest 5 (S2.2) |
+| `--arnr-maxframes` | "AltRef max frames (0..15)" (302) | `7` (270) | not varied; stated |
+| `--enable-overlay` | "Enable coding overlay frames (0: false, 1: true (default))" (454-455) | `1` (360) | not varied: a filtered alt-ref is shown directly only under S2.2's threshold |
+| `--kf-min-dist`, `--kf-max-dist` | "Minimum keyframe interval (frames)", "Maximum keyframe interval (frames)" (278-281) | `0`, `9999` | G; at G 1 `--kf-max-dist=0` also turns keyframe filtering off (encoder settings §2a) |
+
+**Streams per volume:** O at G 1, 8, 16, 32; AT and AF at G 8, 16, 32; AD, AU and AW at G 16 — 13 streams. G 1 of
+the lookahead arms is Q2's check only: if it holds, O G 1 stands for every arm's G 1. On `dbts_b1`, G 32 is the
+whole cut (§4).
+
+**Forms.** `dbts_b1` (D = 10) at its own depth. `dbts_a1` and `dbts_c1` (D = 12) in the **cut form** only: each
+sample through `depth_cut(v, 12)` of `claude/oq-depth-cut:ingest/coded-frames/ingest.py` (round half up to 10
+bits, clamped), imported unchanged, coded at `--bit-depth=10 --profile=0`, and measured against the 12-bit source
+after reconstructing each decoded code c as c · 4. The cut's rounding is uniform on [−2, +1], RMS ≈ 4 ÷ √12 ≈ 1.15
+sample units against σ ≥ 10 on A and C (*derived*). Equal Q is not equal step across forms: at Q 4, 8, 12 the 10-bit
+AC step times 4 is 1.20, 1.07 and 1.04 of the 12-bit step (`quant_common.c`, *derived*), so the forms compare only
+at equal quality (B₁). This is the form the product decodes through WebCodecs
+(`claude/docs-lines-3:docs/lines/optimal-quality.md` §Terms). σ is the 12-bit source's, as the quality study
+takes it.
+
+**Ladders,** every integer Q so the anchor is bracketed within one rung (four qindex): `dbts_b1` Q 6–12 and 14
+(8 rungs; its O G 1 crosses at Q 12, its alt-ref arms at Q 8–10, §S1); `dbts_a1`, `dbts_c1` Q 4–12 (9 rungs; their
+noise-rule Q is 4–8, `claude/docs-lines-3:docs/lines/codecs.md` §AV1 harvest). If an arm's worst-frame e_N/σ
+is not bracketed by its ladder, one rung outward is added and listed (the only extension allowed).
+
+Cells: 13 × 8 = 104 on `dbts_b1`, 13 × 9 = 117 each on A and C, plus the checks' cells (§S8): **338**.
+
+### S5 · Fixtures
+
+As `lab/av1/fetch_data.sh` writes them against `lab/av1/data.json` (`docs/FIXTURES.md` §AV1 data):
+
+| set | system · depth | frames · size | what a result may claim |
+| --- | --- | --- | --- |
+| `dbts_a1` | A · 12 (cut to 10) | 56 × 1142 × 1785 | this volume, in the cut form |
+| `dbts_b1` | B · 10 | slices 9–40 of 50 × 2560 × 3328 | those 32 slices |
+| `dbts_c1` | C · 12 (cut to 10) | 69 × 976 × 2513 | this volume, in the cut form |
+
+**Limits.** One volume per system, all three from the one EA1141 dataset; the quality study found system A's
+anchor spread over Q 4–8 across five volumes, so a verdict here is these volumes', not a system's. No lossless
+breast ultrasound cine or ABUS exists among the fixtures: nothing here speaks for them, and TRUS is not run (the
+protocol's shard 2 covers it). No full-depth (12-bit) arm is coded: the product codes D > 10 by the cut, and the
+protocol's shard 2 holds the 12-bit cells.
+
+### S6 · What is measured
+
+**Per cell,** the protocol's §6.1–§6.3 unchanged (bytes per unit, the quality study's `measure()` per frame, frame
+headers), plus **ν = σ_out ÷ σ**: σ_out is the same noise estimator `measure()` applies to the source, applied to
+the decoded frame, in-window; ν is its median over frames. ν near 1 says the frame kept the source's noise; it is the
+measure audit F4 names for "how much noise each Q keeps". Also recorded: `--q-hist` per cell, and the count of shown
+frames not coded from their own source (filtered keyframes and `show_existing_frame` units, §6.3).
+
+**Equal quality, the quality line's metric.** The quality line's anchor is e_N/σ ≤ 1 on every frame (quality study
+§Terms; the noise rule's P1). For each stream, x(Q) = worst-frame e_N/σ and y(Q) = ln bytes over its ladder, keeping
+rungs up to the first with x ≥ 1.02 (above it the plateau, 1.02–1.05, no longer resolves Q: audit F4). If x is not
+strictly increasing over the kept rungs, the stream is "not monotone" and only its integer point is read. Otherwise:
+
+* **B₁**, the anchor bytes: exp of the PCHIP interpolant of y against x, read at x = 1.00.
+* **The integer point**: the highest integer Q with x ≤ 1.00, and its bytes. This is what an ingest would code;
+  it is reported, and decides nothing, since adjacent integer rungs differ by about 15–20 % in bytes (§S1).
+* **ν₁**: ν interpolated in the same way at x = 1.00.
+* **At the 1.03 bar** (the owner's open decision 1, `claude/docs-lines-3:docs/lines/codecs.md`): the integer
+  point only, since 1.03 sits on the plateau.
+* **Secondary:** BD-rate on median in-window PSNR as the protocol's §7 computes it, over the two curves' overlap
+  within the ladder (the VL interval reaches below these ladders on B); reported, decides only Q4.
+
+**ε**, from the data, as §7 does: for O G 1 and O G 16 on each volume, B₁ recomputed with each kept rung dropped in
+turn; ε is the largest |ln change| over both streams and three volumes, as a percentage.
+
+**Decode in order,** with the protocol's §6.5 drivers unchanged (`decode.mjs`, `decode.js`, the profiles run's
+`decoders.js`): one unit in flight, the clock from handed in to the shown frame written, each frame hashed against
+native dav1d 1.5.4. **Streams timed**, each at its own **matched rung** (its integer point): O G 1 twice (O and O′,
+the A/A), O G 8, O G 16, AT G 16, AF G 16, AU G 16 — seven per volume. **Decoders:** WebCodecs
+`{ hardwareAcceleration: "prefer-software", optimizeForLatency: true }` on every stream, since all are 10-bit (the
+product's route); dav1d-WASM, one thread, `max_frame_delay` 1 (the product's fallback). **A unit:** a fresh decoder
+off the clock, then the stream's first 32 shown frames in order. **Figures:** mean per shown frame, median, 95th
+percentile, slowest, and the slowest frame's position in its group.
+
+### S7 · Decision rule
+
+**Saves at equal quality,** per (arm, G) on DBT: saving > ε on all three volumes, and the guards hold on all three.
+**Guards,** each against O G 1 on the same volume, each margin one integer rung of O G 1's own curve at its
+crossing, read from the data: ν₁ no lower than O G 1's ν₁ minus O G 1's change in ν over that rung; JOD and the
+first window's ≥ 2-level share as §7's quality guard, at the integer point.
+
+**Recommended** if it saves at equal quality and, at its matched rung, WebCodecs's in-order ratios to O G 1 (mean
+and 95th percentile per frame, paired by round, median over rounds) have 95 % upper bounds ≤ 1 + a, a the half-width
+of that volume's A/A interval. dav1d-WASM's ratios are reported beside it; a failure there is named, not decisive.
+**Filtered arms** (AT, AD, AF, AW) show and reference temporally averaged frames: they can be recommended only if
+the owner answers yes to "may the OQ view be temporally denoised" (decision 4, `claude/docs-lines-3:docs/lines/codecs.md`
+§Open). Until then each is reported as "would be recommended" or not. O at G > 1 and AU need no such
+answer (each shown frame is coded from its own source; AU's must be confirmed by Q5's e_N/σ reading).
+
+**Among recommended** streams the largest saving wins; within ε, the simpler in the order O < AU < AW < AT < AD <
+AF, then the smaller G. **If none is recommended, G 1 and lag 0 stay for DBT** on these fixtures, and Q3–Q7 say why.
+
+**Stopping.** The run ends when every planned cell and ≥ 10 decode rounds are written, or at its time limit with
+§S9's cuts. Nothing is re-run to change an outcome; the one ladder extension of §S4 is the only cell added. A decode
+round with a hash miss voids that round; fewer than 10 rounds void that volume's decode verdicts; an A/A interval
+wholly beyond ±ln 1.05 voids that volume's decode cells, reported. Every void and cut is listed.
+
+### S8 · Interleaving, repeats, host, and the checks
+
+**Interleaving.** Cells run in a Williams order over (arm, G, Q) per volume (`lab/scripts/order.py`). Encodes are
+deterministic (checked below), so order touches only times, which are reported and never compared across arms. Decode
+rounds: one fresh Chromium a round; volumes in a Williams row; within a volume the seven units in that round's
+Williams row (`lab/order.mjs`); the two decoders alternate first and second by round. Paired by round against O G 1.
+
+**Repeats.** One encode per cell (deterministic). Decode ≥ 10 rounds, as many as fit, at 1× only.
+
+**Host.** One 4-core, 15 GB cloud host per shard, headless, software decode, no GPU or phone. Shard 1 saturated on
+**memory**, not CPU, for `dbts_b1`'s lookahead cells (about 3.0 GB an `aomenc` at lag 39, 3–4 in flight); the
+scheduler's 13.5 GB budget stays. The cut forms of A and C are smaller frames and should run four in flight. Each
+shard reports cores busy (CPU ÷ wall), peak memory as `ps` reads it, and claims nothing past its host.
+
+**Checks** (to `rows/groups-settings-K.checks.json`; each is mutated, and the mutation must change what it says):
+
+| check | expected | mutation |
+| --- | --- | --- |
+| arms are the table | `arms.py`'s flag lists for AF, AU, AW differ from AD, AT, AT by exactly the flags of §S4 | drop `--arnr-strength=0` from AU: the check fails |
+| reproduction | O G 16 and AT G 16 at Q 8 on `dbts_b1` byte-identical to `rows/groups-1.jsonl` | `--cpu-used=5`: differs |
+| Q1 strength | AT at strength 4 and 6 = AT | strength 3: differs |
+| Q2 G 1 | AT and AF at G 1 = O G 1 at Q 8 | G 2: differs |
+| AU's filter off | AU ≠ AT at Q 8 G 16 (else strength 0 did nothing and AU is void) | — (a tie is reported) |
+| AF's delta-q acts | AF ≠ AD at Q 8 G 16; `--q-hist` entries reported (lookahead zeros read as §Groups shard 1 reads them) | — (a tie: AF void, "delta-q inert under pinned q") |
+| the cut | `depth_cut` on [0, 1, 2, 5, 6, 4093, 4094, 4095] = [0, 0, 1, 1, 2, 1023, 1023, 1023] (its own test); O G 1 at Q 0 on the cut form, reconstructed c · 4, within [−2, +1] of the source on every sample | reconstruct as c · 2: fails |
+| per-group form | AT G 16 Q 8 on `dbts_a1` coded one encoder per group (the ingest's way) byte-identical to the whole-volume encode | — (a difference is reported; then every cut-form stream is coded per group, as the product does) |
+| equal quality | B₁ on synthetic curves with a known crossing reads it to 0.1 %; ln bytes offset by ln 0.9 reads −10.0 % | x reversed: the sign flips |
+| ν | ν of the source against itself 1.000; of a frame with its noise replaced by zero (S of §5) < 0.3 | estimator fed the source twice: ν = 1 on S, check fails |
+| determinism | AU and AF at Q 8 G 16 coded twice: identical | `--cpu-used=5`: differs |
+| decode | every timed frame equal to native dav1d's (hash), on both decoders; WebCodecs' output format 10-bit; A/A within ±5 % on the first volume | one hash altered: the round voids; a 12-bit stream fed to WebCodecs: refused |
+
+### S9 · Settings shards
+
+| shard | series | cells | CPU s (est.) | setup h | encode h | decode h | total h (est.) |
+| --- | --- | --: | --: | --: | --: | --: | --: |
+| S1 | `dbts_b1` (slices 9–40) | 104 + checks | 104 × 272 Mpx × 0.95 ≈ 26 900 | 0.5 | 2.5 (3 in flight) | ≤ 1.0 | ≤ 4.0 |
+| S2 | `dbts_a1`, `dbts_c1` (cut form) | 234 + checks | 117 × (114 + 169) Mpx × 0.95 ≈ 31 500 | 0.5 | 2.2 (4 in flight) | ≤ 1.0 | ≤ 3.7 |
+
+0.95 CPU s a megapixel a cell is shard 1's measured mean (0.81 over its `dbts_b1` cells, *derived* from its 23 675
+CPU s) raised for this amendment's larger share of lookahead cells (*estimated*). Setup is shorter than the
+protocol's, since `lab/av1/groups/` exists: S1 adds AF, AU and AW to `arms.py`, the cut form and ν to `cell.py`,
+B₁ to `collect.py`, and the checks above, each with its mutation and inside `scripts/comment_budget.sh`; S2 pulls that
+code. **Cuts if a shard would pass 4.5 h**, in this order, each listed: AW; then AD; then the G 32 streams; then the
+decode unit shortened to its first 16 frames. Q6, Q9 and Q8's G 32 clause then read "not run".
+
+**Running one.** On `claude/av1-groups-settings`: the protocol's §Running one setup (tools, fetch, decoders, venvs),
+`git checkout origin/claude/oq-depth-cut -- ingest/coded-frames/ingest.py` into a scratch path for `depth_cut`
+(imported, not copied into the product tree), then `lab/av1/groups/shard.sh settings-K`. Rows:
+`rows/groups-settings-K.checks.json`, `rows/groups-settings-K.jsonl`, `rows/groups-settings-K.decode.json`. Push
+after the checks, then hourly, `git pull --rebase` first. Its section, at the end of this file:
+`### Settings shard K, measured (date)`, with the five plain lines, the host, the checks table, every cell, and every
+cut or void. The collector (S2's session, or a third) writes `## Settings amendment, measured (date)`: the cells, B₁
+and ν₁ with ε, the integer points at 1.00 and 1.03, the decode table, Q1–Q12 each held or refuted with its deciding
+numbers, and §S7's verdict.
+
+### S10 · What the result would change, and what it cannot settle
+
+**For the product (G per modality, decided 2026-11-09 by measurement).**
+
+* **O at G 8 or 16 recommended:** G for DBT becomes that G, with lag 0 unchanged; `lossy_args` and the client's
+  G > 1 path stay as built, and the PCS note (codecs line Open 5) says so. No structural change.
+* **AU recommended:** the OQ ingest's argument set gains lookahead and hidden frames. The product's group model
+  survives ([A1]: one shown frame per temporal unit), but a unit may carry several coded frames and the slowest
+  frame sets cine (§2.6). That is a structural change, proposed to the owner, not made here.
+* **A filtered arm "would be recommended":** nothing changes until the owner's decision 4. A yes also needs a new
+  noise rule, since the rule's Q assumes every shown frame is the source coded at one step.
+* **None:** G 1 and lag 0 stay for DBT on these fixtures, and the confound the 2026-11-10 decision names is closed
+  for them: the low-delay settings did not hide a saving at the quality line's equal quality.
+* **Q10 refuted:** the depth cut costs fidelity at the anchor, which reopens its own line (`claude/oq-depth-cut`).
+
+**What it cannot settle:** whether any of these streams is visually lossless (readers, the quality study's §6);
+whether the filter's removed noise mattered diagnostically (the noise-ratio protocol's model observer); any DBT
+system beyond one volume each, any other dataset, breast ultrasound cine or ABUS; libaom at other speeds, tunes or
+two passes, or another encoder; hardware decoders, phones, or any host but these.
+
+**Sources, added.**
+
+* [H] J. Han et al., *A Technical Overview of AV1*, arXiv:2008.06091v2 (8 Feb 2021), §II.B "Alternate Reference
+  Frame", read 2026-11-10 from `arxiv.org/pdf/2008.06091v2` (SHA-256 `57f5654f…7c45`).
+* [L1] as above, the libaom 3.15.1 tarball, its SHA-256 checked against `ingest/tools.sh` on 2026-11-10:
+  `av1/arg_defs.c`, `av1/av1_cx_iface.c:255-360`, `av1/encoder/temporal_filter.c:169-181, 815-860, 936-952,
+  1260-1375, 1590-1655`, `av1/encoder/temporal_filter.h:44-85`, `av1/encoder/ratectrl.c:199-209`,
+  `av1/encoder/encodeframe.c:346-350, 2336-2342`, `av1/common/quant_common.c` (the 10- and 12-bit AC tables).
+
+### Settings shard 1, choices (written before any cell was read)
+
+*Row GROUPS-SETTINGS-MEASURE, 2026-11-10. Where §S1–§S9 leave a choice open, this session made it here, before
+reading any result, and the section that follows reports under these choices.*
+
+1. **Which shard.** This session runs S1 (`dbts_b1`, slices 9–40) and writes the code S2 pulls. S2 (`dbts_a1`,
+   `dbts_c1`, cut form) runs after it if the session lasts; otherwise it is owed. Predictions "on every volume" read
+   on `dbts_b1` alone are reported as **held on B / refuted on B**, never as held.
+2. **Where the checks run.** The `dbts_b1` checks (reproduction, Q1, Q2, AU ≠ AT, AF ≠ AD, determinism, ν) are their
+   own encodes at Q 8 in `checks_settings.py`, before any cell. The cut and per-group checks run on `dbts_a1` here,
+   so that S2 starts from a tested form. Q1 and Q2 are decided from these encodes; S2 repeats them on A and C.
+3. **ν.** σ_out is `quality.sigma` (the estimator σ is read with) on the decoded frame, luma, over the *source*
+   frame's in-window samples (the mask σ uses), back at the source's depth (c · 4 on the cut form). ν per cell is the
+   median over frames of σ_out ÷ σ; ν on S is the noise proxy's decode (O G 1 Q 32) read the same way.
+4. **B₁.** Rungs in increasing Q, kept up to and including the first with x ≥ 1.02. "Not monotone" if x is not
+   strictly increasing over the kept rungs; "not bracketed" if 1.00 lies outside their x. PCHIP of ln bytes (and of
+   ν, for ν₁) against x, read at 1.00.
+5. **The one extension.** Below the ladder if every rung reads x > 1.00, above it if every rung reads x < 1.00; the
+   next integer Q (`dbts_b1`: Q 5 or Q 15). Q 13 is not added: 1.00 is bracketed by 12 and 14 when it falls there.
+6. **ε.** For O G 1 and O G 16, B₁ re-read with each kept rung dropped in turn and §S6's rule re-applied to the
+   rest (so the next rung up becomes the bracket when the top one is dropped); a drop that leaves 1.00 unbracketed
+   is listed and not counted. In S1, ε is `dbts_b1`'s alone and provisional.
+7. **Guard margins.** "One integer rung of O G 1's own curve at its crossing": the two kept rungs that bracket
+   x = 1.00. ν margin: |ν(lower) − ν(upper)|. JOD and ≥ 2-level margins as §7's `guard()`: O G 1's integer point
+   and the next rung up.
+8. **Q4's overlap.** In-window PSNR BD-rate (`bd.py`) with the interval set to the two curves' overlap over all
+   ladder rungs, the noise proxy excluded.
+9. **Decode.** 20 rounds (≥ 10 asked, "as many as fit" bounded by the session); each timed stream at its integer
+   point at 1.00 (its matched rung). "Slowest ÷ median" is per round, median over rounds. The 12-bit refusal is
+   tried on one 12-bit stream of `dbts_a1` (O G 1 Q 8, 16 frames).
+10. **Mutations not in the harness's main path** (the decode hash and the 12-bit refusal) are run as their own
+    rounds after the timed ones and written to `rows/groups-settings-1.decode-checks.json`.
+
+### Settings shard 1, measured — partial 2026-11-10 15:35 UTC (checks)
+
+*The checks of §S8, before any cell; the cells are running. `rows/groups-settings-1.checks.json`.*
+
+| check | expected | got | mutation | verdict |
+| --- | --- | --- | --- | --- |
+| arms are the table | AF−AD, AU−AT, AW−AT differ by exactly §S4's flags | exactly | AU without `--arnr-strength=0`: fails | holds |
+| reproduction | O G 16, AT G 16 at Q 8 = `rows/groups-1.jsonl` | byte-identical (14 981 915 B, 9 792 023 B) | `--cpu-used=5`: 14 976 080, 9 771 458 B | holds |
+| Q1 strength | AT at strength 4, 6 = 5 | 9 792 023 B all three | strength 3: 9 883 401 B | holds |
+| Q2 G 1 | AT, AF at G 1 = O G 1 (15 112 123 B) | **aomenc exits 1 on both**: "Error allocating buffers in smooth_filter_noise()" (AT; AF's stderr ends before the message) | AT at G 2: 13 994 703 B, differs | **undecided** |
+| AU's filter off | AU ≠ AT | 10 083 522 vs 9 792 023 B | — | holds |
+| AF's delta-q acts | AF ≠ AD | 9 444 210 vs 9 445 768 B (−0.02 %); `--q-hist` identical (31 at 0, 33 at 8) | — | holds, barely |
+| the cut | vector; O G 1 Q 0, c · 4, within [−2, +1] of the source | vector exact; **reconstruction − source spans [−1, +2]** | c · 2: [−1607, 0], fails | **miss as coded; see below** |
+| per-group form | AT G 16 Q 8 on `dbts_a1`, per group = whole | **differs**: 2 209 534 vs 2 182 147 B (+1.25 %) | — | difference reported |
+| equal quality | known crossing to 0.1 %; ln 0.9 → −10.0 % | 0.00 %, −10.00 % | x reversed against y: +113.5 % | holds |
+| ν | source vs itself 1.000; S < 0.3 | 1.000; 0.018 | source fed twice: 1.000 on S, fails | holds |
+| determinism | AU, AF at Q 8 G 16 twice identical | identical | `--cpu-used=5`: both differ | holds |
+
+* **Q2.** libaom 3.15.1 cannot code AT or AF at G 1 (`--kf-max-dist=0` with `--lag-in-frames=39`) on these 32 frames:
+  `pass2_strategy.c:3753-3757` mallocs `(last_stats − first_stats) × 8` bytes and fails on a null return; a
+  negative length is the only way `aom_malloc` returns null at that size (*derived* from `aom_mem.c`, not traced).
+  A 3-frame run of the same flags codes. Q2 is undecided on B, and "O G 1 stands for every arm's G 1" stands by
+  construction, since no lookahead arm has a G 1 stream.
+* **The cut.** depth_cut rounds half up, so v = 4k + 2 reconstructs as 4k + 4: reconstruction − source lies in
+  [−1, +2], source − reconstruction in [−2, +1], the interval §S4 derives. The check as coded took the first sign
+  and misses; the cut is exact to its rounding, its RMS (≈ 1.15 sample units, §S4) is the same either way, and no
+  `dbts_a1` sample sits at 4094 or 4095 (the clamp would read −3). Reported as a miss, not re-run.
+* **Per-group form.** It differs, so by §S8 every cut-form stream of S2 is coded one encoder per group, as the
+  product does; `cell.py` gains that path before S2 starts.
+
+### Settings shard 1, measured — partial 2026-11-10 17:39 UTC (every cell)
+
+*All 105 planned cells of `dbts_b1` (slices 9–40) written, none failed, no ladder extension needed (every stream
+bracketed 1.00). `collect_settings.py rows/groups-settings-1.jsonl --checks rows/groups-settings-1.checks.json`,
+verbatim below. Decode rounds are running; Q10 is S2's; Q11–Q12 and the verdict follow.*
+
+**Host.** 4 cores, 15 GB, one cloud host, headless. Cells 15:35–17:38 UTC: 28 391 CPU s over about 7 400 s wall,
+3.8 cores busy (CPU-bound); peak `aomenc` resident memory 0.66 GB (O G 1), 1.65 GB (O G 8), 2.64–2.86 GB
+(lookahead at G 8–16), 3.03 GB (AT G 32); at most four in flight under the 13.5 GB budget.
+
+*105 cells, 0 failed rows.*
+
+#### `dbts_b1` (32 frames from 9, 2560 × 3328, 10-bit; σ median 5.45)
+
+| arm | G | Q | bytes | e_N/σ worst · median | ν | PSNR in, median | JOD | ≥ 2 levels, worst | hidden · shown existing | q-hist entries |
+| --- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --- |
+| O | 1 | 6 | 21828519 | 0.607 · 0.584 | 0.841 | 50.37 | 9.98 | 0.3403 | 0 · 0 | 6: 33 |
+| O | 1 | 7 | 18261541 | 0.720 · 0.695 | 0.725 | 48.73 | 9.97 | 0.4273 | 0 · 0 | 7: 33 |
+| O | 1 | 8 | 15112123 | 0.820 · 0.798 | 0.594 | 47.32 | 9.96 | 0.4991 | 0 · 0 | 8: 33 |
+| O | 1 | 9 | 12482526 | 0.894 · 0.876 | 0.473 | 46.16 | 9.94 | 0.5529 | 0 · 0 | 9: 33 |
+| O | 1 | 10 | 10250652 | 0.946 · 0.934 | 0.367 | 45.18 | 9.92 | 0.5967 | 0 · 0 | 10: 33 |
+| O | 1 | 11 | 8466103 | 0.978 · 0.972 | 0.285 | 44.38 | 9.89 | 0.6293 | 0 · 0 | 11: 33 |
+| O | 1 | 12 | 7047133 | 0.999 · 0.995 | 0.222 | 43.72 | 9.86 | 0.6538 | 0 · 0 | 12: 33 |
+| O | 1 | 14 | 5008242 | 1.023 · 1.021 | 0.138 | 42.72 | 9.79 | 0.6881 | 0 · 0 | 14: 33 |
+| O | 1 | 32 | 822767 | 1.048 · 1.043 | 0.018 | 39.44 | — | 0.7779 | 0 · 0 | 32: 33 |
+| O | 8 | 6 | 21584007 | 0.606 · 0.580 | 0.852 | 50.37 | 9.98 | 0.3401 | 0 · 0 | 6: 33 |
+| O | 8 | 7 | 18104062 | 0.718 · 0.689 | 0.752 | 48.80 | 9.97 | 0.4273 | 0 · 0 | 7: 33 |
+| O | 8 | 8 | 14988836 | 0.819 · 0.787 | 0.631 | 47.45 | 9.96 | 0.4991 | 0 · 0 | 8: 33 |
+| O | 8 | 9 | 12294326 | 0.894 · 0.868 | 0.510 | 46.27 | 9.94 | 0.5527 | 0 · 0 | 9: 33 |
+| O | 8 | 10 | 9976447 | 0.945 · 0.931 | 0.395 | 45.28 | 9.92 | 0.5959 | 0 · 0 | 10: 33 |
+| O | 8 | 11 | 8105059 | 0.980 · 0.971 | 0.314 | 44.49 | 9.89 | 0.6278 | 0 · 0 | 11: 33 |
+| O | 8 | 12 | 6632176 | 1.000 · 0.995 | 0.251 | 43.87 | 9.86 | 0.6516 | 0 · 0 | 12: 33 |
+| O | 8 | 14 | 4468740 | 1.024 · 1.021 | 0.156 | 42.86 | 9.79 | 0.6856 | 0 · 0 | 14: 33 |
+| O | 16 | 6 | 21569941 | 0.601 · 0.580 | 0.852 | 50.37 | 9.98 | 0.3393 | 0 · 0 | 6: 33 |
+| O | 16 | 7 | 18099095 | 0.710 · 0.689 | 0.752 | 48.80 | 9.97 | 0.4264 | 0 · 0 | 7: 33 |
+| O | 16 | 8 | 14981915 | 0.808 · 0.788 | 0.632 | 47.44 | 9.96 | 0.4991 | 0 · 0 | 8: 33 |
+| O | 16 | 9 | 12289327 | 0.885 · 0.868 | 0.509 | 46.27 | 9.94 | 0.5527 | 0 · 0 | 9: 33 |
+| O | 16 | 10 | 9961962 | 0.942 · 0.931 | 0.396 | 45.28 | 9.92 | 0.5959 | 0 · 0 | 10: 33 |
+| O | 16 | 11 | 8097894 | 0.980 · 0.971 | 0.314 | 44.50 | 9.89 | 0.6278 | 0 · 0 | 11: 33 |
+| O | 16 | 12 | 6623228 | 1.001 · 0.997 | 0.252 | 43.87 | 9.86 | 0.6516 | 0 · 0 | 12: 33 |
+| O | 16 | 14 | 4446569 | 1.024 · 1.022 | 0.158 | 42.87 | 9.79 | 0.6856 | 0 · 0 | 14: 33 |
+| O | 32 | 6 | 21564194 | 0.601 · 0.580 | 0.852 | 50.37 | 9.98 | 0.3391 | 0 · 0 | 6: 33 |
+| O | 32 | 7 | 18095578 | 0.711 · 0.688 | 0.752 | 48.80 | 9.97 | 0.4249 | 0 · 0 | 7: 33 |
+| O | 32 | 8 | 14981053 | 0.809 · 0.787 | 0.633 | 47.45 | 9.95 | 0.4991 | 0 · 0 | 8: 33 |
+| O | 32 | 9 | 12291712 | 0.886 · 0.867 | 0.510 | 46.27 | 9.94 | 0.5527 | 0 · 0 | 9: 33 |
+| O | 32 | 10 | 9961396 | 0.944 · 0.931 | 0.398 | 45.28 | 9.92 | 0.5959 | 0 · 0 | 10: 33 |
+| O | 32 | 11 | 8082941 | 0.979 · 0.971 | 0.315 | 44.50 | 9.89 | 0.6278 | 0 · 0 | 11: 33 |
+| O | 32 | 12 | 6613062 | 1.001 · 0.996 | 0.253 | 43.88 | 9.86 | 0.6516 | 0 · 0 | 12: 33 |
+| O | 32 | 14 | 4432925 | 1.025 · 1.022 | 0.160 | 42.87 | 9.79 | 0.6856 | 0 · 0 | 14: 33 |
+| AU | 16 | 6 | 17566386 | 0.768 · 0.717 | 0.726 | 48.74 | 9.98 | 0.4411 | 12 · 9 | 0: 31, 6: 33 |
+| AU | 16 | 7 | 13517947 | 0.892 · 0.846 | 0.575 | 46.85 | 9.96 | 0.5341 | 12 · 9 | 0: 31, 7: 33 |
+| AU | 16 | 8 | 10083522 | 0.971 · 0.941 | 0.427 | 45.31 | 9.94 | 0.6016 | 12 · 9 | 0: 31, 8: 33 |
+| AU | 16 | 9 | 7546150 | 1.009 · 0.990 | 0.311 | 44.22 | 9.91 | 0.6441 | 12 · 9 | 0: 31, 9: 33 |
+| AU | 16 | 10 | 5624582 | 1.026 · 1.016 | 0.223 | 43.35 | 9.87 | 0.6728 | 12 · 9 | 0: 31, 10: 33 |
+| AU | 16 | 11 | 4305508 | 1.033 · 1.025 | 0.170 | 42.75 | 9.83 | 0.6918 | 12 · 9 | 0: 31, 11: 33 |
+| AU | 16 | 12 | 3366311 | 1.037 · 1.030 | 0.135 | 42.28 | 9.78 | 0.7064 | 12 · 9 | 0: 31, 12: 33 |
+| AU | 16 | 14 | 2147944 | 1.039 · 1.033 | 0.086 | 41.59 | 9.66 | 0.7262 | 12 · 9 | 0: 31, 14: 33 |
+| AW | 16 | 6 | 17568533 | 0.768 · 0.717 | 0.726 | 48.73 | 9.98 | 0.4420 | 12 · 9 | 0: 31, 6: 33 |
+| AW | 16 | 7 | 13507299 | 0.893 · 0.846 | 0.575 | 46.85 | 9.96 | 0.5345 | 12 · 9 | 0: 31, 7: 33 |
+| AW | 16 | 8 | 10063614 | 0.972 · 0.940 | 0.427 | 45.31 | 9.94 | 0.6013 | 12 · 9 | 0: 31, 8: 33 |
+| AW | 16 | 9 | 7506728 | 1.009 · 0.990 | 0.305 | 44.22 | 9.91 | 0.6440 | 12 · 9 | 0: 31, 9: 33 |
+| AW | 16 | 10 | 5565375 | 1.026 · 1.015 | 0.216 | 43.35 | 9.87 | 0.6733 | 12 · 9 | 0: 31, 10: 33 |
+| AW | 16 | 11 | 4216095 | 1.033 · 1.025 | 0.159 | 42.74 | 9.83 | 0.6920 | 12 · 9 | 0: 31, 11: 33 |
+| AW | 16 | 12 | 3283898 | 1.037 · 1.029 | 0.130 | 42.27 | 9.78 | 0.7063 | 12 · 9 | 0: 31, 12: 33 |
+| AW | 16 | 14 | 2082688 | 1.039 · 1.033 | 0.085 | 41.53 | 9.65 | 0.7264 | 12 · 9 | 0: 31, 14: 33 |
+| AT | 8 | 6 | 17691766 | 0.779 · 0.725 | 0.715 | 48.70 | 9.97 | 0.4566 | 8 · 4 | 0: 23, 6: 33 |
+| AT | 8 | 7 | 13445301 | 0.918 · 0.859 | 0.560 | 46.81 | 9.95 | 0.5654 | 8 · 4 | 0: 23, 7: 33 |
+| AT | 8 | 8 | 9979065 | 0.985 · 0.950 | 0.406 | 45.28 | 9.93 | 0.6273 | 8 · 4 | 0: 23, 8: 33 |
+| AT | 8 | 9 | 7508928 | 1.011 · 0.996 | 0.294 | 44.19 | 9.89 | 0.6613 | 8 · 4 | 0: 23, 9: 33 |
+| AT | 8 | 10 | 5646480 | 1.024 · 1.017 | 0.211 | 43.31 | 9.84 | 0.6846 | 8 · 4 | 0: 23, 10: 33 |
+| AT | 8 | 11 | 4382842 | 1.031 · 1.026 | 0.156 | 42.69 | 9.78 | 0.7000 | 8 · 4 | 0: 23, 11: 33 |
+| AT | 8 | 12 | 3464534 | 1.035 · 1.030 | 0.122 | 42.21 | 9.72 | 0.7129 | 8 · 4 | 0: 23, 12: 33 |
+| AT | 8 | 14 | 2264816 | 1.038 · 1.033 | 0.086 | 41.52 | 9.58 | 0.7301 | 8 · 4 | 0: 23, 14: 33 |
+| AT | 16 | 6 | 17323108 | 0.781 · 0.720 | 0.719 | 48.69 | 9.98 | 0.4718 | 12 · 9 | 0: 31, 6: 33 |
+| AT | 16 | 7 | 13204633 | 0.917 · 0.854 | 0.563 | 46.80 | 9.96 | 0.5708 | 12 · 9 | 0: 31, 7: 33 |
+| AT | 16 | 8 | 9792023 | 0.982 · 0.946 | 0.407 | 45.26 | 9.94 | 0.6262 | 12 · 9 | 0: 31, 8: 33 |
+| AT | 16 | 9 | 7342236 | 1.009 · 0.994 | 0.297 | 44.13 | 9.91 | 0.6564 | 12 · 9 | 0: 31, 9: 33 |
+| AT | 16 | 10 | 5484575 | 1.026 · 1.017 | 0.215 | 43.26 | 9.87 | 0.6801 | 12 · 9 | 0: 31, 10: 33 |
+| AT | 16 | 11 | 4239342 | 1.033 · 1.025 | 0.159 | 42.67 | 9.83 | 0.6932 | 12 · 9 | 0: 31, 11: 33 |
+| AT | 16 | 12 | 3328637 | 1.037 · 1.028 | 0.130 | 42.19 | 9.78 | 0.7075 | 12 · 9 | 0: 31, 12: 33 |
+| AT | 16 | 14 | 2116734 | 1.039 · 1.033 | 0.085 | 41.53 | 9.65 | 0.7284 | 12 · 9 | 0: 31, 14: 33 |
+| AT | 32 | 6 | 17102484 | 0.792 · 0.728 | 0.703 | 48.69 | 9.98 | 0.4779 | 11 · 9 | 0: 32, 6: 33 |
+| AT | 32 | 7 | 13004721 | 0.914 · 0.854 | 0.548 | 46.83 | 9.96 | 0.5660 | 11 · 9 | 0: 32, 7: 33 |
+| AT | 32 | 8 | 9603150 | 0.969 · 0.946 | 0.397 | 45.29 | 9.94 | 0.6123 | 11 · 9 | 0: 32, 8: 33 |
+| AT | 32 | 9 | 7149488 | 1.005 · 0.993 | 0.291 | 44.19 | 9.92 | 0.6445 | 11 · 9 | 0: 32, 9: 33 |
+| AT | 32 | 10 | 5307038 | 1.022 · 1.016 | 0.210 | 43.30 | 9.88 | 0.6750 | 11 · 9 | 0: 32, 10: 33 |
+| AT | 32 | 11 | 4233753 | 1.030 · 1.024 | 0.168 | 42.83 | 9.85 | 0.6908 | 11 · 9 | 0: 32, 11: 33 |
+| AT | 32 | 12 | 3303405 | 1.034 · 1.030 | 0.128 | 42.32 | 9.80 | 0.7061 | 11 · 9 | 0: 32, 12: 33 |
+| AT | 32 | 14 | 2171947 | 1.038 · 1.034 | 0.082 | 41.67 | 9.69 | 0.7264 | 11 · 9 | 0: 32, 14: 33 |
+| AD | 16 | 6 | 17151804 | 0.780 · 0.722 | 0.704 | 48.68 | 9.97 | 0.4719 | 12 · 9 | 0: 31, 6: 33 |
+| AD | 16 | 7 | 12921271 | 0.917 · 0.854 | 0.546 | 46.67 | 9.96 | 0.5711 | 12 · 9 | 0: 31, 7: 33 |
+| AD | 16 | 8 | 9445768 | 0.981 · 0.946 | 0.389 | 45.11 | 9.93 | 0.6323 | 12 · 9 | 0: 31, 8: 33 |
+| AD | 16 | 9 | 6977548 | 1.008 · 0.994 | 0.281 | 44.05 | 9.90 | 0.6825 | 12 · 9 | 0: 31, 9: 33 |
+| AD | 16 | 10 | 5149292 | 1.025 · 1.017 | 0.200 | 43.21 | 9.85 | 0.7141 | 12 · 9 | 0: 31, 10: 33 |
+| AD | 16 | 11 | 3947701 | 1.034 · 1.025 | 0.155 | 42.62 | 9.77 | 0.7525 | 12 · 9 | 0: 31, 11: 33 |
+| AD | 16 | 12 | 3073035 | 1.038 · 1.030 | 0.123 | 42.15 | 9.70 | 0.7646 | 12 · 9 | 0: 31, 12: 33 |
+| AD | 16 | 14 | 1960572 | 1.039 · 1.034 | 0.082 | 41.45 | 9.55 | 0.7816 | 12 · 9 | 0: 31, 14: 33 |
+| AF | 8 | 6 | 17350239 | 0.778 · 0.726 | 0.698 | 48.67 | 9.97 | 0.4566 | 8 · 4 | 0: 23, 6: 33 |
+| AF | 8 | 7 | 12865171 | 0.918 · 0.859 | 0.534 | 46.67 | 9.95 | 0.5655 | 8 · 4 | 0: 23, 7: 33 |
+| AF | 8 | 8 | 9247980 | 0.986 · 0.950 | 0.378 | 45.12 | 9.92 | 0.6323 | 8 · 4 | 0: 23, 8: 33 |
+| AF | 8 | 9 | 6742536 | 1.011 · 0.995 | 0.272 | 44.05 | 9.88 | 0.6828 | 8 · 4 | 0: 23, 9: 33 |
+| AF | 8 | 10 | 4951998 | 1.023 · 1.017 | 0.191 | 43.19 | 9.82 | 0.7144 | 8 · 4 | 0: 23, 10: 33 |
+| AF | 8 | 11 | 3756104 | 1.032 · 1.026 | 0.146 | 42.59 | 9.75 | 0.7486 | 8 · 4 | 0: 23, 11: 33 |
+| AF | 8 | 12 | 2935827 | 1.036 · 1.030 | 0.111 | 42.11 | 9.68 | 0.7606 | 8 · 4 | 0: 23, 12: 33 |
+| AF | 8 | 14 | 1902235 | 1.037 · 1.034 | 0.071 | 41.43 | 9.52 | 0.7765 | 8 · 4 | 0: 23, 14: 33 |
+| AF | 16 | 6 | 17153096 | 0.780 · 0.721 | 0.704 | 48.68 | 9.97 | 0.4719 | 12 · 9 | 0: 31, 6: 33 |
+| AF | 16 | 7 | 12920125 | 0.917 · 0.854 | 0.546 | 46.67 | 9.96 | 0.5709 | 12 · 9 | 0: 31, 7: 33 |
+| AF | 16 | 8 | 9444210 | 0.981 · 0.946 | 0.389 | 45.11 | 9.93 | 0.6323 | 12 · 9 | 0: 31, 8: 33 |
+| AF | 16 | 9 | 6987031 | 1.008 · 0.994 | 0.281 | 44.06 | 9.90 | 0.6825 | 12 · 9 | 0: 31, 9: 33 |
+| AF | 16 | 10 | 5150108 | 1.025 · 1.017 | 0.199 | 43.21 | 9.85 | 0.7136 | 12 · 9 | 0: 31, 10: 33 |
+| AF | 16 | 11 | 3941320 | 1.033 · 1.025 | 0.154 | 42.62 | 9.77 | 0.7527 | 12 · 9 | 0: 31, 11: 33 |
+| AF | 16 | 12 | 3080727 | 1.037 · 1.030 | 0.123 | 42.16 | 9.71 | 0.7645 | 12 · 9 | 0: 31, 12: 33 |
+| AF | 16 | 14 | 1961675 | 1.039 · 1.033 | 0.083 | 41.46 | 9.55 | 0.7810 | 12 · 9 | 0: 31, 14: 33 |
+| AF | 32 | 6 | 17018118 | 0.791 · 0.728 | 0.702 | 48.69 | 9.98 | 0.4777 | 11 · 9 | 0: 32, 6: 33 |
+| AF | 32 | 7 | 12861775 | 0.912 · 0.855 | 0.545 | 46.81 | 9.96 | 0.5650 | 11 · 9 | 0: 32, 7: 33 |
+| AF | 32 | 8 | 9409284 | 0.969 · 0.946 | 0.394 | 45.28 | 9.94 | 0.6323 | 11 · 9 | 0: 32, 8: 33 |
+| AF | 32 | 9 | 6954906 | 1.004 · 0.993 | 0.287 | 44.17 | 9.92 | 0.6825 | 11 · 9 | 0: 32, 9: 33 |
+| AF | 32 | 10 | 5123465 | 1.023 · 1.016 | 0.209 | 43.28 | 9.88 | 0.7138 | 11 · 9 | 0: 32, 10: 33 |
+| AF | 32 | 11 | 4071673 | 1.032 · 1.025 | 0.164 | 42.82 | 9.85 | 0.7520 | 11 · 9 | 0: 32, 11: 33 |
+| AF | 32 | 12 | 3155570 | 1.035 · 1.030 | 0.124 | 42.30 | 9.80 | 0.7625 | 11 · 9 | 0: 32, 12: 33 |
+| AF | 32 | 14 | 2095838 | 1.038 · 1.034 | 0.083 | 41.67 | 9.69 | 0.7780 | 11 · 9 | 0: 32, 14: 33 |
+
+**At the noise anchor** (worst-frame e_N/σ = 1.00):
+
+| arm | G | kept rungs | B₁ | ν₁ | saving vs O G 1 | integer point at 1.00 | at 1.03 | in-window PSNR BD-rate vs O G 1 | guards: ν₁ · JOD and ≥ 2 |
+| --- | --: | --- | --: | --: | --: | --- | --- | --: | --- |
+| O | 1 | 6, 7, 8, 9, 10, 11, 12, 14 | 6.964 MB | 0.218 | +0.00 % | Q 12, 7047133 B | Q 14, 5008242 B | +0.00 % | — |
+| O | 8 | 6, 7, 8, 9, 10, 11, 12, 14 | 6.671 MB | 0.253 | +4.20 % | Q 11, 8105059 B | Q 14, 4468740 B | -4.70 % | True · True |
+| O | 16 | 6, 7, 8, 9, 10, 11, 12, 14 | 6.669 MB | 0.254 | +4.23 % | Q 11, 8097894 B | Q 14, 4446569 B | -4.82 % | True · True |
+| O | 32 | 6, 7, 8, 9, 10, 11, 12, 14 | 6.655 MB | 0.255 | +4.44 % | Q 11, 8082941 B | Q 14, 4432925 B | -4.90 % | True · True |
+| AT | 8 | 6, 7, 8, 9, 10 | 8.680 MB | 0.347 | -24.64 % | Q 8, 9979065 B | Q 10, 5646480 B | -5.20 % | True · True |
+| AT | 16 | 6, 7, 8, 9, 10 | 8.247 MB | 0.337 | -18.42 % | Q 8, 9792023 B | Q 10, 5484575 B | -6.51 % | True · True |
+| AT | 32 | 6, 7, 8, 9, 10 | 7.544 MB | 0.308 | -8.33 % | Q 8, 9603150 B | Q 11, 4233753 B | -9.29 % | True · True |
+| AF | 8 | 6, 7, 8, 9, 10 | 7.983 MB | 0.325 | -14.63 % | Q 8, 9247980 B | Q 10, 4951998 B | -9.02 % | True · True |
+| AF | 16 | 6, 7, 8, 9, 10 | 7.747 MB | 0.314 | -11.24 % | Q 8, 9444210 B | Q 10, 5150108 B | -7.64 % | True · True |
+| AF | 32 | 6, 7, 8, 9, 10 | 7.283 MB | 0.301 | -4.58 % | Q 8, 9409284 B | Q 10, 5123465 B | -10.67 % | True · True |
+| AD | 16 | 6, 7, 8, 9, 10 | 7.788 MB | 0.317 | -11.83 % | Q 8, 9445768 B | Q 10, 5149292 B | -7.60 % | True · True |
+| AU | 16 | 6, 7, 8, 9, 10 | 8.255 MB | 0.344 | -18.54 % | Q 8, 10083522 B | Q 10, 5624582 B | -5.71 % | True · True |
+| AW | 16 | 6, 7, 8, 9, 10 | 8.246 MB | 0.340 | -18.41 % | Q 8, 10063614 B | Q 10, 5565375 B | -6.10 % | True · True |
+
+**ε** = 2.18 % (largest |ln B₁ change| over 15 thinnings of O G 1 and O G 16; unreadable: dbts_b1 G 1 without Q 14).
+
+| # | deciding numbers | outcome |
+| --- | --- | --- |
+| Q1 | bytes {'AT16': 9792023, 'AT-s4': 9792023, 'AT-s6': 9792023, 'AT-s3': 9883401} | held on dbts_b1 |
+| Q2 | bytes {'O1': 15112123, 'AT1': 'failed', 'AF1': 'failed', 'AT2': 13994703} | undecided (an encode failed) on dbts_b1 |
+| Q3 | AT G 16 -18.42 %; AD G 16 -11.83 %; AF G 16 -11.24 %; ε 2.18 % | held on dbts_b1 |
+| Q4 | AT -6.51 %; AD -7.60 %; AF -7.64 % | held on dbts_b1 |
+| Q5 | saving AU − O G 16 -22.77 %, worst e_N/σ at Q 8 Δ +0.163 | **refuted** on dbts_b1 |
+| Q6 | ν at Q 8 AU 0.427 · AW 0.427 · AT 0.407; B₁ AU 8.255 MB · AW 8.246 MB · AT 8.247 MB | held on dbts_b1 |
+| Q7 | AT G 8 -24.64 % between O G 8 +4.20 % and AT G 16 -18.42 %; ν at Q 8 AT G 8 0.406 vs G 16 0.407 | **refuted** on dbts_b1 |
+| Q8 | O G 8 +4.20 %; O G 16 +4.23 %; O G 32 +4.44 % | held on dbts_b1 |
+| Q9 | AF ÷ AD − 1 per rung Q 6 +0.01 %, Q 7 -0.01 %, Q 8 -0.02 %, Q 9 +0.14 %, Q 10 +0.02 %, Q 11 -0.16 %, Q 12 +0.25 %, Q 14 +0.06 %; anchor -0.53 % | held on dbts_b1 |
+
+### Settings shard 1, measured (2026-11-10)
+
+*Row GROUPS-SETTINGS-MEASURE. Every planned cell of S1 and 20 decode rounds; S2 (`dbts_a1`, `dbts_c1`) is owed, so
+every prediction below is read on `dbts_b1` alone.*
+
+* **Ran:** 105 cells on `dbts_b1` slices 9–40 (13 streams × 8 rungs, Q 6–12 and 14, plus the noise proxy), §S8's
+  checks (23 encodes, two on `dbts_a1`), 20 in-order decode rounds of seven units on WebCodecs and dav1d-WASM, and
+  the two decode mutations. Nothing cut, nothing extended, nothing re-run to change an outcome.
+* **Found:** no lookahead arm reaches the noise anchor cheaper than O G 1: the filtered arms cost 11–25 % more, and
+  so does the *unfiltered* alt-ref (AU −18.5 %), which refutes the theory's "the filter is the only setting that can
+  change the answer". O at G 8, 16, 32 saves 4.2–4.4 % (ε 2.18 %) but decodes 19–21 % slower a frame on WebCodecs.
+* **Verdict (§S7):** nothing is recommended, and nothing could be after S2: AT, AD, AF, AU and AW cost bytes on B
+  (saving must exceed ε on all three volumes), and O G 8 and 16 fail the decode bound on B (95 % upper bounds 1.228
+  and 1.248 against 1 + a = 1.049). **G 1 and lag 0 stay for DBT on these fixtures.**
+* **Limits:** one 32-slice cut of one system-B volume; one 4-core cloud host, CPU-bound (3.8 cores busy), software
+  decode in headless Chromium, no GPU, no phone; libaom 3.15.1 at speed 6 only.
+* **Owed:** S2 (Q3's "most negative on A or C", Q8 and Q11 on A and C, Q10), and with it ε over three volumes.
+
+**What the checks' mutations did** (table in the partial above): AU without its flag fails the table check;
+`--cpu-used=5` changed O, AT, AU and AF streams; strength 3 changed AT; AT at G 2 differs from O G 1; reversing x
+against y turned −10.0 % into +113.5 %; ν fed the source twice read 1.000 on S; c · 2 spread the cut to
+[−1607, 0]. Decode: one altered hash voided its round (31/32 on every unit, `rows/groups-settings-1.decode-check-hash.json`);
+a 12-bit `dbts_a1` stream (O G 1 Q 8, profile 2, 16 frames) gave WebCodecs 0 of 16 frames ("A key frame is
+required after configure() or flush()": the configure fails and closes the decoder) while dav1d-WASM matched 16 of
+16 (`rows/groups-settings-1.decode-check12.json`). WebCodecs' output was 10-bit on every timed unit.
+
+**Predictions, on B.** Held or refuted by the clause as written; "on B" because each says "every volume".
+
+| # | deciding numbers | outcome |
+| --- | --- | --- |
+| Q1 | AT at strength 4, 5, 6: 9 792 023 B each; 3: 9 883 401 B | held on B |
+| Q2 | aomenc 3.15.1 exits 1 for AT and AF at G 1 (`smooth_filter_noise`); O G 1 15 112 123 B | **undecided** |
+| Q3 | savings AT −18.42 %, AD −11.83 %, AF −11.24 % at G 16; none > ε 2.18 % | held on B (the "most negative on A or C" clause needs S2) |
+| Q4 | in-window PSNR BD-rate AT −6.51 %, AD −7.60 %, AF −7.64 % | held on B |
+| Q5 | AU G 16 −18.54 % vs O G 16 +4.23 % (−22.8 points); worst e_N/σ at Q 8 0.971 vs 0.808 (+0.163) | **refuted** |
+| Q6 | ν at Q 8: AU 0.427, AW 0.427, AT 0.407; B₁ 8.255, 8.246, 8.247 MB | held on B by its clause; the byte steps are within ε, so it orders nothing |
+| Q7 | AT G 8 −24.64 %, outside [AT G 16 −18.42 %, O G 8 +4.20 %]; ν 0.406 < 0.407 | **refuted** |
+| Q8 | O G 8 +4.20 %, G 16 +4.23 %, G 32 +4.44 % (in −1 … +6 %; G 32 − G 16 0.21 points) | held on B |
+| Q9 | AF ÷ AD per rung −0.16 … +0.25 %; at the anchor −0.53 % | held on B |
+| Q10 | — | S2's |
+| Q11 | WebCodecs mean ÷ O G 1: O G 8 1.207, G 16 1.192; AT 1.338, AF 1.303, AU 1.309; slowest ÷ median 3.36–3.42 for alt-ref, 1.17–1.18 for O | held on B |
+| Q12 | dav1d-WASM: AT 1.374, AF 1.377, AU 1.358, but **O G 8 1.655, O G 16 1.819** (range 0.8–1.4); slowest ÷ median 4.27–4.51 for alt-ref | **refuted** |
+
+**Why, as far as the numbers go.** The G 16 alt-ref streams show 12 hidden frames and 9 `show_existing_frame` units in 32
+whatever the filter strength. With the filter off (AU) the worst frame at Q 8 still reads e_N/σ 0.971 against O's
+0.81–0.82 and ν 0.427 against 0.594–0.631, the same as AW and close to AT (0.407): what loses the noise is
+lookahead coding itself — hidden frames shown again and frames predicted from them — not the temporal filter
+(*derived* from these cells; which tool does it is not isolated). At G 8 the filter is capped yet AT costs more
+than at G 16 (Q7 refuted): more keyframes and alt-refs per frame shown. On dav1d-WASM, inter frames of O at
+G 8–16 cost 1.7–1.8× a keyframe-only frame at the matched rung, so the 4 % byte saving is paid for in decode time on
+both routes.
+
+**Detail** (`collect_settings.py rows/groups-settings-1.jsonl --checks rows/groups-settings-1.checks.json --decode
+rows/groups-settings-1.decode.json`), the stream and decode tables:
+
+**At the noise anchor** (worst-frame e_N/σ = 1.00):
+
+| arm | G | kept rungs | B₁ | ν₁ | saving vs O G 1 | integer point at 1.00 | at 1.03 | in-window PSNR BD-rate vs O G 1 | guards: ν₁ · JOD and ≥ 2 |
+| --- | --: | --- | --: | --: | --: | --- | --- | --: | --- |
+| O | 1 | 6, 7, 8, 9, 10, 11, 12, 14 | 6.964 MB | 0.218 | +0.00 % | Q 12, 7047133 B | Q 14, 5008242 B | +0.00 % | — |
+| O | 8 | 6, 7, 8, 9, 10, 11, 12, 14 | 6.671 MB | 0.253 | +4.20 % | Q 11, 8105059 B | Q 14, 4468740 B | -4.70 % | True · True |
+| O | 16 | 6, 7, 8, 9, 10, 11, 12, 14 | 6.669 MB | 0.254 | +4.23 % | Q 11, 8097894 B | Q 14, 4446569 B | -4.82 % | True · True |
+| O | 32 | 6, 7, 8, 9, 10, 11, 12, 14 | 6.655 MB | 0.255 | +4.44 % | Q 11, 8082941 B | Q 14, 4432925 B | -4.90 % | True · True |
+| AT | 8 | 6, 7, 8, 9, 10 | 8.680 MB | 0.347 | -24.64 % | Q 8, 9979065 B | Q 10, 5646480 B | -5.20 % | True · True |
+| AT | 16 | 6, 7, 8, 9, 10 | 8.247 MB | 0.337 | -18.42 % | Q 8, 9792023 B | Q 10, 5484575 B | -6.51 % | True · True |
+| AT | 32 | 6, 7, 8, 9, 10 | 7.544 MB | 0.308 | -8.33 % | Q 8, 9603150 B | Q 11, 4233753 B | -9.29 % | True · True |
+| AF | 8 | 6, 7, 8, 9, 10 | 7.983 MB | 0.325 | -14.63 % | Q 8, 9247980 B | Q 10, 4951998 B | -9.02 % | True · True |
+| AF | 16 | 6, 7, 8, 9, 10 | 7.747 MB | 0.314 | -11.24 % | Q 8, 9444210 B | Q 10, 5150108 B | -7.64 % | True · True |
+| AF | 32 | 6, 7, 8, 9, 10 | 7.283 MB | 0.301 | -4.58 % | Q 8, 9409284 B | Q 10, 5123465 B | -10.67 % | True · True |
+| AD | 16 | 6, 7, 8, 9, 10 | 7.788 MB | 0.317 | -11.83 % | Q 8, 9445768 B | Q 10, 5149292 B | -7.60 % | True · True |
+| AU | 16 | 6, 7, 8, 9, 10 | 8.255 MB | 0.344 | -18.54 % | Q 8, 10083522 B | Q 10, 5624582 B | -5.71 % | True · True |
+| AW | 16 | 6, 7, 8, 9, 10 | 8.246 MB | 0.340 | -18.41 % | Q 8, 10063614 B | Q 10, 5565375 B | -6.10 % | True · True |
+
+**ε** = 2.18 % (largest |ln B₁ change| over 15 thinnings of O G 1 and O G 16; unreadable: dbts_b1 G 1 without Q 14).
+
+**Decode in order**, ms a frame, each stream at its integer point at 1.00, 1×, one host:
+
+**`dbts_b1`**, 20 rounds kept, 0 void.
+
+| stream | decoder | ms a frame: mean · median · p95 · slowest (medians over rounds) | slowest at group position | mean ÷ O G 1 (95 % interval) | p95 ÷ O G 1 (95 % interval) |
+| --- | --- | --- | --- | --: | --: |
+| AF|G16|Q8 | dav1d | 113.2 · 96.7 · 340.8 · 423.6 | 1 | 1.377 (1.352–1.467) | 3.445 (3.106–3.796) |
+| AT|G16|Q8 | dav1d | 111.3 · 97.6 · 332.7 · 443.0 | 1 | 1.374 (1.335–1.405) | 3.448 (3.270–3.720) |
+| AU|G16|Q8 | dav1d | 109.4 · 98.2 · 342.3 · 428.4 | 1 | 1.358 (1.300–1.394) | 3.344 (3.157–3.969) |
+| O'|G1|Q12 | dav1d | 81.8 · 77.9 · 109.2 · 116.1 | 0 | 0.994 (0.952–1.047) | 1.001 (0.866–1.159) |
+| O|G16|Q11 | dav1d | 147.8 · 145.6 · 204.0 · 217.9 | 10 | 1.819 (1.749–1.911) | 1.890 (1.754–2.373) |
+| O|G1|Q12 | dav1d | 81.2 · 77.8 · 100.9 · 111.2 | 0 | 1.000 (1.000–1.000) | 1.000 (1.000–1.000) |
+| O|G8|Q11 | dav1d | 133.3 · 133.0 · 171.2 · 190.6 | 7 | 1.655 (1.610–1.685) | 1.816 (1.605–1.903) |
+
+A/A (dav1d): O′ ÷ O mean 0.994 (0.952–1.047); not wholly beyond ±5 %, so not void; half-width a = 4.9 %.
+| AF|G16|Q8 | webcodecs | 86.8 · 78.0 · 225.0 · 261.8 | 1 | 1.303 (1.290–1.383) | 3.100 (2.927–3.213) |
+| AT|G16|Q8 | webcodecs | 87.6 · 79.0 · 226.5 · 267.8 | 1 | 1.338 (1.282–1.374) | 3.060 (2.898–3.195) |
+| AU|G16|Q8 | webcodecs | 85.3 · 79.2 · 227.1 · 271.3 | 1 | 1.309 (1.279–1.359) | 3.069 (2.962–3.181) |
+| O'|G1|Q12 | webcodecs | 64.9 · 63.9 · 75.0 · 76.9 | 0 | 0.993 (0.946–1.041) | 1.000 (0.953–1.078) |
+| O|G16|Q11 | webcodecs | 76.7 · 76.3 · 86.2 · 92.8 | 6 | 1.192 (1.138–1.248) | 1.183 (1.122–1.286) |
+| O|G1|Q12 | webcodecs | 66.8 · 66.3 · 75.2 · 78.3 | 0 | 1.000 (1.000–1.000) | 1.000 (1.000–1.000) |
+| O|G8|Q11 | webcodecs | 77.4 · 76.5 · 86.0 · 90.8 | 6 | 1.207 (1.147–1.228) | 1.169 (1.086–1.248) |
+
+A/A (webcodecs): O′ ÷ O mean 0.993 (0.946–1.041); not wholly beyond ±5 %, so not void; half-width a = 4.9 %.
+

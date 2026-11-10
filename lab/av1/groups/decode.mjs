@@ -33,7 +33,7 @@ const unitsOf = (e) => {
   const out = [];
   for (const dec of decoders) {
     for (const s of e.streams) out.push({ name: `${s.arm}|G${s.g}|Q${s.q}|${dec}`, dec, s });
-    const o = e.streams.find((s) => s.arm === "O" && s.g === 1 && s.why === "anchor");
+    const o = e.streams.find((s) => s.arm === "O" && s.g === 1 && s.why === (e.reference ?? "anchor"));
     out.push({ name: `O'|G1|Q${o.q}|${dec}`, dec, s: o });
   }
   return out;
@@ -53,7 +53,7 @@ async function inChromium(round) {
       const want = u.s.hashes.slice(0, u.s.sizes.length).map((h, i) => (MUTATE === "hash" && i === 1 ? `x${h}` : h));
       const matched = got.hashes ? got.hashes.filter((h, i) => h === want[i]).length : 0;
       rows.push({ round, set: e.name, unit: u.name, prev, arm: u.s.arm, g: u.s.g, q: u.s.q, why: u.s.why, dec: u.dec,
-        ms: got.ms ?? null, matched, frames: want.length, error: got.error ?? null });
+        ms: got.ms ?? null, matched, frames: want.length, error: got.error ?? null, wide: got.wide ?? null });
       if (got.error || matched !== want.length) console.error(`round ${round} ${e.name} ${u.name}: ${matched}/${want.length} ${got.error ?? ""}`);
       prev = u.name;
     }
