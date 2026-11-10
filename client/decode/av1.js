@@ -4,13 +4,13 @@
  * docs/av1/payload-format.md §Decoder choice, per payload
  */
 import { layouts, parsePayload, units } from "./av1-payload.js";
-import { begin, end } from "./av1-frame.js";
+import { begin, end, merge } from "./av1-frame.js";
 
 let cfg = null;
 let importer = (path) => import(path);
 const loaded = {};
 
-/** `d` is the series' decoder config: dav1d's `glue`, `wasm` and `dir`, `groupLength`, `lossy` for an optimal-quality series, and `mixed`: a top over 10 bits to dav1d, its low to WebCodecs (lab/av1/decode/mixed). */
+/** `d` is the series' decoder config: dav1d's `glue`, `wasm` and `dir`, `groupLength`, `lossy` for an optimal-quality series, `mixed`: a top over 10 bits to dav1d, its low to WebCodecs (lab/av1/decode/mixed), `onePass`, on unless `false`: a WebCodecs split frame merged in one pass and a `mono_chrome` stream's chroma not checked (docs/decode/README.md §JS passes protocol, pre-registered), and `reuseCopyBuffer`: each WebCodecs stream copies every frame into one buffer (§Merge-free protocol, pre-registered). */
 export async function init(d, load) {
   cfg = d;
   if (load) importer = load;
@@ -58,7 +58,7 @@ export async function decodeFrame(bytes, unit = { key: true }, preview, avoid) {
   if (wc) {
     try {
       const [t, l] = await Promise.all([wc.picture(top, unit), low && wc.picture(low, { key: true }, "low")]);
-      return { ...end(begin(t, payload), l), path: "av1-webcodecs" };
+      return { ...(cfg.onePass !== false && l ? merge(t, l, payload) : end(begin(t, payload), l)), path: "av1-webcodecs" };
     } catch (e) {
       if (avoid === "av1-dav1d") throw e;
       refusal = e?.message ?? String(e);
