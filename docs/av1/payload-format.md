@@ -269,8 +269,8 @@ of G 1's bytes on `dbts_a1` and `dbts_c1`, 0.62 on `dbts_b1`.
 
 ### Depth cut
 
-*OQ-DEPTHCUT, 2026-11-10. Built and tested on synthetic sets and in headless Chromium; the bytes of the demo's cut
-series are below only if measured, and their quality is not.*
+*OQ-DEPTHCUT, 2026-11-10. Built and tested on synthetic sets and in headless Chromium; the bytes below are measured,
+the quality is not.*
 
 No engine's WebCodecs returns 12-bit samples (`docs/av1/webcodecs-profiles.md` on `claude/av1-webcodecs-profiles`),
 so a D > 10 optimal-quality view would decode only through dav1d-WASM. The **depth cut** is the form that WebCodecs
@@ -303,3 +303,14 @@ c · 2^(D−10), the centre of the samples that round to it.
 * **Checked at ingest** as any optimal-quality series; `lossy_test.py` adds a 12-bit set cut at G 1 and 8 (within 1 %
   of the codes' range, RMS; mean coding error under a quarter code, which a truncating cut fails), the cut's rounding
   and clamp on chosen values, and the refusal of a 10-bit set.
+
+**Bytes** (the demo script's cut series, run alone on 2026-11-10 on a 4-core x86-64 cloud host; the exact bundles
+came out at the bytes of §Optimal quality's table): each `.sbnd` against its exact series', beside the same Q uncut.
+
+| series | Q 8 G 1 cut | Q 8 G 16 cut | Q 8 G 1 at 12 bits | Q 8 G 16 at 12 bits |
+| --- | --- | --- | --- | --- |
+| `dbts_a1` | 0.0687 | 0.0685 | 0.0740 | 0.0742 |
+| `dbts_c1` | 0.0898 | 0.0882 | 0.0959 | 0.0947 |
+
+The cut is 6–8 % fewer bytes than the 12-bit view at the same Q; it is not the same view (codes at a quarter of the
+precision, then the coding error), so the bytes say nothing of its quality.
