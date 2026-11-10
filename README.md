@@ -24,7 +24,14 @@ python3 -m venv .venv && .venv/bin/pip install --require-hashes -r ingest/requir
                                                     # numpy, pydicom, xxhash, blake3 (CPython 3.11–3.13): PYTHON=.venv/bin/python
 ```
 
-Without it, the painter checks, the split's merge and the DICOM reader do not run; the native painter's also needs Mesa's lavapipe
+In a cloud container, where nothing starts the Docker daemon and no `meson` is installed, first start the daemon,
+`(dockerd >/tmp/dockerd.log 2>&1 &)`, wait until `docker info` answers, and `pip install meson==1.9.1`. After a
+branch switch, run `ingest/tools.sh` again: the gate does not check `ingest/.build` for staleness, and a decoder
+built from another branch's `ingest/coded-frames/decode.cpp` fails the optimal-quality claims.
+
+With the first, the dispatch rig runs all of its checks, the real-decode ones on npm's OpenJPH and on the
+product's build alike; without it, those that need the build are skipped by name. Without the second, the painter
+checks, the split's merge and the DICOM reader do not run; the native painter's also needs Mesa's lavapipe
 (`mesa-vulkan-drivers` on Debian and Ubuntu), and the native window's also `xvfb`, `xdotool` and `libxkbcommon-x11-0`. The ingest's coders — libaom 3.15.1, dav1d 1.5.4 and
 OpenJPH 0.31.0, built from source at their pins into `ingest/.build` — need cmake, ninja, meson (1.9.1 here), nasm and
 a C++ compiler: `ingest/tools.sh`. The DICOM ingest needs them, and the gate's comparison of the two ingests and its

@@ -28,6 +28,14 @@ small enough that every open item has an owner and a next step.
   demo first, the fold's merges after it), which differs from §Open 2's.
 * The glossary has one row each for *optimal quality*, *exact series*, *depth cut* and *pairing*; *lossy series* is
   gone as a second name, in code comments and docs too.
+* **CI `deploy` fails on `claude/core`**: the root `Cargo.toml` lists `claude/core:client/native`, which
+  `deploy/Containerfile` does not copy. `main` would stop being deployment-ready if `core` merged as it is. *Fixed on `claude/core-next`* by
+  `core-ci-deploy` (the image copies `client/native`).
+* **The gate in a fresh cloud session** (2026-11-10, `claude/gate-cloud`): the "exact … undefined" failures were the
+  HTJ2K frame check run without `client/decode/wasm/built/xxh3`, which needs `build.sh`'s Docker, and the daemon is
+  not started there. That check now skips by name like the AV1 one; with the README's cloud lines the full gate is
+  OK on `main` and on `claude/oq-depth-cut`, skipping only nginx and the GL-display arms. `ingest/.build` is not
+  checked for staleness: one built from another branch fails `lossy_test.py`.
 * 89 open PR bodies carry a "Generated with/by" line and a session link, and many commits a Co-Authored-By trailer
   (listed in the inventory). New work must not add either (`CLAUDE.md` §Agents).
 
