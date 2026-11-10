@@ -46,6 +46,8 @@ export class Controller {
   #invert = false;
   #pose = FIT;
   #painting = null;
+  /** Set before the paint loop starts, cleared as it ends: the loop can end before its promise is stored. */
+  #looping = false;
   #dirty = false;
   /** Each pending ask's frame and the step that made it; a cancel empties it. */
   #asks = new Map();
@@ -106,7 +108,8 @@ export class Controller {
   /** Paints the current frame, coalescing requests: at most one paint in flight and one waiting. */
   repaint() {
     this.#dirty = true;
-    if (this.#painting) return this.#painting;
+    if (this.#looping) return this.#painting;
+    this.#looping = true;
     this.#painting = (async () => {
       while (this.#dirty) {
         this.#dirty = false;
@@ -125,7 +128,7 @@ export class Controller {
           this.#emit("failed", { scope: "worker", reason: `paint: ${e.message}` });
         }
       }
-      this.#painting = null;
+      this.#looping = false;
     })();
     return this.#painting;
   }
