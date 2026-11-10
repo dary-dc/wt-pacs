@@ -124,7 +124,8 @@ function showQuality({ quality, about }) {
   if (overlayEl.hidden) return;
   const kb = about.wireBytes === undefined ? "?" : (about.wireBytes / 1024).toFixed(1);
   const ms = about.decodeMs === undefined ? "?" : about.decodeMs.toFixed(1);
-  const series = meta.lossy ? ` · Q ${meta.lossy.q} · G ${meta.lossy.g} · ${meta.lossy.depth}-bit` : "";
+  const cut = meta.lossy?.bitsStored ? ` depth cut of ${meta.lossy.bitsStored}` : "";
+  const series = meta.lossy ? ` · Q ${meta.lossy.q} · G ${meta.lossy.g} · ${meta.lossy.depth}-bit${cut}` : "";
   overlayEl.textContent = `${about.path ?? "?"} · ${kb} KB · decode ${ms} ms${series}`;
 }
 overlayEl.hidden = q.get("overlay") !== "1";

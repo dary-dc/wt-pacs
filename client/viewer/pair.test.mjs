@@ -1,6 +1,6 @@
 // node client/viewer/pair.test.mjs — a lossy series paired with its exact series, and every malformed pair refused by name.
 import assert from "node:assert/strict";
-import { checkPair, pairOf } from "./pair.js";
+import { checkPair, depthCut, pairOf } from "./pair.js";
 
 const source = { frameCount: 3, width: 4, height: 2, bitsStored: 10, signed: false, framesSha256: "f00d" };
 const lossy = { ...source, codec: "av1", lossy: { q: 30, g: 8, depth: 10 }, exactSeries: "1.2.840.5" };
@@ -38,5 +38,22 @@ for (const [bad, why] of [
   [{ digests: undefined }, /no xxh3-64 frame digests/],
   [{ digests: { algorithm: "sha256", frames: [] } }, /no xxh3-64 frame digests/],
 ]) assert.throws(() => checkPair(lossy, { ...exact, ...bad }), why);
+
+/** A depth cut is 10-bit codes of the series' own bitsStored, over 10: its shift is D − 10, and a lossy form uncut is 0. */
+const cut = { ...lossy, bitsStored: 12, lossy: { q: 8, g: 16, depth: 10, bitsStored: 12 } };
+assert.equal(pairOf(cut).id, "1.2.840.5");
+assert.equal(depthCut(cut), 2);
+assert.equal(depthCut({ ...cut, bitsStored: 16, lossy: { ...cut.lossy, bitsStored: 16 } }), 6);
+assert.equal(depthCut(lossy), 0);
+assert.equal(depthCut({ frameCount: 3 }), 0);
+
+/** A D ≤ 10 series is never cut, and a cut not to 10 bits or not of the series' bitsStored is refused. */
+for (const [bad, why] of [
+  [{ bitsStored: 10, lossy: { ...cut.lossy, bitsStored: 10 } }, /over 10/],
+  [{ bitsStored: 9, lossy: { ...cut.lossy, bitsStored: 9 } }, /over 10/],
+  [{ lossy: { ...cut.lossy, depth: 12 } }, /depth 10/],
+  [{ lossy: { ...cut.lossy, bitsStored: 14 } }, /bitsStored 12/],
+  [{ bitsStored: 17, lossy: { ...cut.lossy, bitsStored: 17 } }, /depth cut/],
+]) assert.throws(() => pairOf({ ...cut, ...bad }), why);
 
 console.log("pair: ok");

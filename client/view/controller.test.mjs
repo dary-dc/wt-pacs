@@ -12,12 +12,12 @@ const frame = (i) => ({
 });
 
 /** A controller on a series of `frames`, its paints and the client's calls recorded; `held` frames already here; `wants`, the worker view's store. */
-function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, lossy } = {}) {
+function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, lossy, bitsStored, window = { center: [3], width: [6] } } = {}) {
   const painted = [];
   const calls = [];
   const events = [];
   const c = new Controller({
-    meta: { frameCount: frames, window: { center: [3], width: [6] }, ...(lossy && { codec: "av1", lossy, exactSeries: "s" }) },
+    meta: { frameCount: frames, bitsStored, ...(window && { window }), ...(lossy && { codec: "av1", lossy, exactSeries: "s" }) },
     fillMode,
     size: { width: 2, height: 3, dpr: 1 },
     emit: (type, e) => events.push([type, e]),
@@ -405,6 +405,27 @@ test("a failed exact request can be asked again on the same frame", async () => 
   await r.c.showExact();
   assert.deepEqual(r.exactAsks, [0, 0]);
   assert.equal(r.labels().at(-1), "lossless");
+});
+
+/**
+ * A depth cut's frames reach the painter with their shift, the exact frame painted in place without one; its window
+ * from the decoded range and the sample under the cursor are at full depth.
+ */
+test("a depth cut's frames are painted with their shift, the exact frame without", async () => {
+  const r = lossyRig(undefined, { lossy: { q: 8, g: 1, depth: 10, bitsStored: 12 }, bitsStored: 12, window: null });
+  await r.c.repaint();
+  assert.equal(r.painted.at(-1).f.info.cut, 2);
+  assert.deepEqual(r.painted.at(-1).display.voi, { center: 10, width: 21, function: "LINEAR" });
+  r.c.size = { width: 3, height: 2, dpr: 1 };
+  assert.deepEqual((await r.c.valueAt(2.5, 1.5)).stored, [20]);
+  await r.c.showExact();
+  assert.equal(r.painted.at(-1).f.info.path, "htj2k");
+  assert.equal(r.painted.at(-1).f.info.cut, undefined);
+  assert.equal(r.labels().at(-1), "lossless");
+
+  const plain = lossyRig();
+  await plain.c.repaint();
+  assert.equal(plain.painted.at(-1).f.info.cut, undefined);
 });
 
 /** A series that is not lossy has no label: the quality rule says nothing of an HTJ2K series. */

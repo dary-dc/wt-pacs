@@ -214,7 +214,7 @@ export function paint({ frame, same, display, width, height, dpr, read, settle =
   }
   const f = format(frame);
   const fresh = upload(frame, f, same);
-  const key = JSON.stringify([display.photometric, display.invert, display.rescale, display.voi]);
+  const key = JSON.stringify([display.photometric, display.invert, display.rescale, display.voi, frame.cut]);
   if (fresh || cached.table !== key) {
     windowPass(frame, display, f);
     cached.table = key;

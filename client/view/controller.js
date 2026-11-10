@@ -1,10 +1,11 @@
 /** The view's controller: the current frame, what it wants and in what order, and its paint. docs/adr/frame-path.md §3, *Built* */
 import { FrameStore } from "./store.js";
+import { depthCut } from "../viewer/pair.js";
 
 const at = () => performance.timeOrigin + performance.now();
 export const FIT = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false };
 
-export const asPainted = (info) => ({ pixels: info.pixels, width: info.width, height: info.height, bits: info.bits, components: info.components, signed: info.signed });
+export const asPainted = (info) => ({ pixels: info.pixels, width: info.width, height: info.height, bits: info.bits, components: info.components, signed: info.signed, cut: info.cut });
 
 /** What the developer overlay shows of a painted frame: its decode route, the bytes that crossed the link, its decode time. */
 const about = ({ path, wireBytes, stamps }) => ({ path, wireBytes, decodeMs: stamps?.decodeEnd && stamps.decodeEnd - stamps.decodeStart });
@@ -44,6 +45,7 @@ export class Controller {
   exactSource = null;
   #exact = null;
   #exactAsks = new Map();
+  #cut;
 
   /** `paint(frame, display, { read })` draws a held frame; `emit(type, event)` tells the page; `size` is the canvas's CSS size and DPR. */
   constructor({ meta, fillMode, paint, emit, size, budget }) {
@@ -51,6 +53,7 @@ export class Controller {
     this.store.painted = () => this.#painting;
     this.#meta = meta;
     this.#n = meta.frameCount;
+    this.#cut = depthCut(meta);
     this.#fillMode = fillMode;
     this.paint = paint;
     this.#emit = emit;
@@ -59,7 +62,8 @@ export class Controller {
 
   /** `f.ack`, when the consumer leaves the ack to the store; `f.write`, when its decoder writes the cache. */
   take(f) {
-    this.store.put(f.frameIndex, { info: f.info, arrived: at(), write: f.write }, f.ack);
+    const info = this.#cut ? { ...f.info, cut: this.#cut } : f.info;
+    this.store.put(f.frameIndex, { info, arrived: at(), write: f.write }, f.ack);
   }
 
   #arrived(i, { info }) {
@@ -80,9 +84,10 @@ export class Controller {
     const w = per.window?.[i] ?? meta.window;
     let voi = this.#voi ?? (w && { center: w.center[0], width: w.width[0], function: w.function ?? "LINEAR" });
     if (!voi) {
-      // No window in the metadata: the frame's decoded range, through its rescale.
-      const lo = info.min * rescale.slope + rescale.intercept;
-      const hi = info.max * rescale.slope + rescale.intercept;
+      // No window in the metadata: the frame's decoded range, at full depth, through its rescale.
+      const full = 2 ** (info.cut ?? 0);
+      const lo = info.min * full * rescale.slope + rescale.intercept;
+      const hi = info.max * full * rescale.slope + rescale.intercept;
       voi = { center: (lo + hi) / 2, width: Math.max(1, Math.abs(hi - lo) + 1), function: "LINEAR" };
     }
     const photometric = meta.photometric ?? (info.components === 3 ? "RGB" : "MONOCHROME2");
@@ -229,7 +234,8 @@ export class Controller {
     if (!p) return null;
     const { width: w, height: h, components } = f.info;
     const [col, row] = [Math.min(w - 1, Math.floor(p[0])), Math.min(h - 1, Math.floor(p[1]))];
-    const stored = [...samplesOf(f.info).subarray((row * w + col) * components, (row * w + col + 1) * components)];
+    const full = 2 ** (f.info.cut ?? 0);
+    const stored = [...samplesOf(f.info).subarray((row * w + col) * components, (row * w + col + 1) * components)].map((s) => s * full);
     const { slope, intercept } = rescale(this.display(i, f.info).rescale);
     return { i, x: col, y: row, stored, modality: stored.map((s) => s * slope + intercept) };
   }
