@@ -16,14 +16,14 @@ of G > 1.
 
 | short name | branch | document | harness |
 | --- | --- | --- | --- |
-| profiles decode (amended) | `claude/av1-quality-profiles` | `lab/av1/profiles/README.md` §Profiles decode, measured (amended) | `decode_block.js`, `decode_block.mjs`, `decoders.js`, `shared.js` |
+| profiles decode (amended) | `claude/av1-quality-profiles` | `claude/av1-quality-profiles:lab/av1/profiles/README.md` §Profiles decode, measured (amended) | `decode_block.js`, `decode_block.mjs`, `decoders.js`, `shared.js` |
 | residual apart | `claude/av1-residual-apart` | `lab/av1/delivery/residual/README.md` §Residual apart | `apart.js` |
-| profile carriers, its audit and review | `claude/av1-profile-carriers` | `docs/av1/profile-carriers{,-audit,-review}.md` | `lab/av1/delivery/carriers/ask.js`, `amended.js` |
-| SNR preview | `claude/av1-snr-preview` | `docs/av1/snr-preview.md` | `lab/av1/delivery/snr/snr.js`, `rule.py` |
+| profile carriers, its audit and review | `claude/av1-profile-carriers` | `docs/av1/profile-carriers{,-audit,-review}.md` | `claude/av1-profile-carriers:lab/av1/delivery/carriers/ask.js`, `amended.js` |
+| SNR preview | `claude/av1-snr-preview` | `claude/av1-snr-preview:docs/av1/snr-preview.md` | `claude/av1-snr-preview:lab/av1/delivery/snr/snr.js`, `rule.py` |
 | SVC preview and its rule | `claude/av1-svc-preview` | `lab/av1/delivery/scalable/tool/svc-results*.md`, `svc-rule.md` | `bench.mjs`, `total-time/page.js`, `run.mjs` |
-| pixel work (JS passes) | `claude/av1-unified-mainbase` | `docs/decode/README.md` §JS passes protocol | `lab/av1/decode/passes/` |
-| grey path (merge-free) | `claude/av1-unified-mainbase` | `docs/decode/README.md` §Merge-free protocol | `lab/av1/decode/merge-free/` |
-| decode notes | `claude/av1-unified-mainbase` | `docs/decode/README.md` §AV1, §Decode time against HTJ2K | `lab/av1/decode/breakdown/`, `per-frame/` |
+| pixel work (JS passes) | `claude/av1-unified-mainbase` | `docs/decode/README.md` §JS passes protocol | `claude/av1-unified-mainbase:lab/av1/decode/passes/` |
+| grey path (merge-free) | `claude/av1-unified-mainbase` | `docs/decode/README.md` §Merge-free protocol | `claude/av1-unified-mainbase:lab/av1/decode/merge-free/` |
+| decode notes | `claude/av1-unified-mainbase` | `docs/decode/README.md` §AV1, §Decode time against HTJ2K | `claude/av1-unified-mainbase:lab/av1/decode/breakdown/`, `per-frame/` |
 
 The task named "pixel-work" and "grey-path" studies; they are read here as the JS passes and merge-free studies on
 `claude/av1-unified-mainbase`, the two that time JavaScript passes over the samples (*unverified* that this is the
@@ -50,7 +50,7 @@ own build was ×0.715–0.732 of the package on a cold ask (`:281-282`). Absolut
 `dbts_a1` at 1× is 12.6 ms in profiles shard 2, 25.0 ms in residual apart (`rows/dbt-summary.txt`), 31.5 ms in the
 breakdown. **A ratio from one row of this table cannot be set beside a ratio from another**, yet
 `docs/lines/codecs.md` (main) puts the exact ask's "1.01–1.03 HTJ2K frames" beside the view's "1.05–2.04", and
-`docs/av1/profile-carriers.md:84-86` sets residual apart's 0.97–1.00 against package-build ratios. The product ships the
+`claude/av1-profile-carriers:docs/av1/profile-carriers.md:84-86` sets residual apart's 0.97–1.00 against package-build ratios. The product ships the
 first row's build with its range in the pack and a digest on the exact frame; no study times exactly that.
 
 ## Findings
