@@ -210,3 +210,45 @@ ojph_compress -i IN -o OUT -num_decomps 5 -block_size {64,64} -prog_order RPCL -
 | `-block_size {64,64}` | "{x,y} (64,64) where x and y are the height and width of a codeblock" | 64 × 64: restates the default | as above | the unit of HT block decoding |
 | `-prog_order RPCL` | "is the progression order, and can be one of: LRCP, RLCP, RPCL, PCRL, CPRL." | "(RPCL)": restates the default | as above; "RPCL with one layer puts each smaller resolution first, so a prefix of a frame is an exact smaller picture" ([`../codecs/htj2k.md`](../codecs/htj2k.md)) | only the order of the bytes changes: measured, LRCP's bytes equal RPCL's (HTJ2KENC) |
 | `-reversible true` | "If this is 'false', an irreversible or lossy compression is employed, using the 9/7 wavelet transform; if 'true', a reversible compression is performed, where the 5/3 wavelet is used." | "Default value is 'false'." | lossless | The one flag here that is not a default. Every "fraction of HTJ2K" in the AV1 line divides by this profile. HTJ2KENC measured it against 35 others: "No setting is 0.5 % under the served profile on any series but the 256² PET", and "LRCP's bytes equal RPCL's on every cell" ([`../decode/README.md`](../decode/README.md) §Encoder settings). So the denominator is within 0.5 % of the best OpenJPH setting on those nine series |
+
+## 8 · Where the studies differ, and what each difference can change
+
+No one list of the studies' encoder settings existed. This one is built from each study's own text and code
+(§1-§7). Rows that share a configuration are grouped.
+
+| studies | encoder configuration | differs from the OQ view by | what the difference can change |
+| --- | --- | --- | --- |
+| profiles main arm; quality study; noise point; window study; groups arm O; OQ ingest | §2 | — (the OQ view) | Within this group: bytes.py feeds 4:2:0 with neutral chroma under `--monochrome`, while the ingest feeds 4:0:0. bytes.py codes a series in one run, the ingest one run per group. Neither should change the bitstream (*derived*); the demo's ratios agree to three digits |
+| profiles **alt-ref arm** (`results/altref.jsonl`) | §2 with `--lag-in-frames=19 --auto-alt-ref=1` | lookahead 19, so the temporal filter, TPL and keyframe filtering run at their defaults (§3); q still pinned; `--deltaq-mode=0` | Shown keyframes were filtered frames (keyframe units 31.6–305.9 kB against 91.2–467.8 at Q 8), so it was "smaller … but not at equal quality". It tested lookahead and keyframe filtering together, with q pinned, at one G. A lag of 19 is under libaom's 32-frame maximum golden-frame interval (`MAX_GF_INTERVAL 32`, cited in groups §5), and how far an alt-ref can sit beyond the lookahead is *unverified* |
+| groups arms L, A, AT, AD, AQ | §2 with lag 39 and the knobs of `claude/av1-groups:lab/av1/groups/arms.py` | as each arm states; all keep `--deltaq-mode=0` | §9 T1: AD is not libaom's whole default |
+| residual design (rows PREVIEW, 17, RESIDAPART) | §6 | two passes, lookahead 39, alt-ref, TPL and keyframe filtering on, objective delta-q, q free in 0–63, threads unset | Its preview and residual bytes come from a different encoder configuration. Its residual totals do not compare with the profiles run's pinned-q cells (§6) |
+| lossless: LLSIZE onward, the per-depth split, DBTSCALE | §4, with the preset by content or `cpu0` | lossless, so only bytes and decode move; preset `cpu0`, `good:6` or `allintra:6`/`7` | Bytes across presets differ by up to 2 % by construction (ENC's rule). DBTSCALE ran at `allintra` 7, LLSIZE at the slowest preset: compare their ratios only with the preset named |
+| lossless groups (`gop-protocol.md`, rows CONTENT, BREAST) | §4 with G > 1, alt-ref off; alt-ref on at G 8 and 16 "used only where every frame is exact" | lossless, plus the alt-ref arm | "libaom 3.15.1 still temporally filters its alt-ref in lossless mode" ([`gop-theory.md`](gop-theory.md)). P6 was "refuted on system B; untestable on A and C", where alt-ref on was not lossless at all |
+| POCGAP | libaom 3.8.2 and 3.15.1, cpu6, lossless | the libaom version, the thread count | "libaom 3.8.2 against 3.15.1 at cpu6 by 0.5–0.7" points, and 0.02–0.06 % a frame from threads: two reasons why a number from another libaom or thread count does not carry over |
+| SVC shapes and preview | §5 | real-time mode, speed 7, intra tools and several inter tools off | SVC against HTJ2K or `aomenc` carries the real-time handicap (lossless single layer 1.067–1.581 of HTJ2K against 1.024–1.117) |
+
+## 9 · Settings worth testing, and the measurement that would decide each
+
+**Already covered by the groups protocol** (`claude/av1-groups:docs/av1/groups.md` §5; not duplicated here):
+lookahead alone (arm L), filtered alt-ref (A), TPL (AT), keyframe filtering (AD), an unpinned q (AQ), all-intra (I),
+real time (R), and `--cpu-used=3` at Q 8 (O3, AT3), with bytes, in-window PSNR, e_N/σ and JOD over the VL interval
+and in-order decode per frame. Its predictions P4 (alt-ref at equal quality), P5 (keyframe filter), P6 (TPL), P8
+(modes and speed) and P10 (decode) answer the owner's question about `--lag-in-frames=0 --auto-alt-ref=0`. The
+tests below fill its gaps. Each runs on the groups protocol's fixtures, `dbts_a1`, `dbts_b1` (middle 32 slices)
+and `dbts_c1`, and makes no claim beyond them. Each interleaves its variants (`CLAUDE.md` §Measurement) and names
+the host's saturation.
+
+| # | setting | the measurement that decides it | overlap with the groups protocol | worth it when |
+| --- | --- | --- | --- | --- |
+| T1 | `--deltaq-mode=1` with lookahead (libaom's real default pairs it with TPL) | arm AD with `--deltaq-mode=1`, G 16, Q 2–24: BD-rate against O G 1 and AD in the VL interval; the spread of per-superblock q, read from the frame headers' delta-q; each frame's e_N/σ, worst frame included | adds one arm to §5's table. Without it, "libaom's own defaults for all four knobs" leaves out the fifth | P4 finds that alt-ref gains |
+| T2 | `--arnr-strength` 0–6, `--arnr-maxframes` | arm AT at G 16, Q 4–12, strength 0, 2, 5 (the default): the e_N/σ of shown and keyframes and BD-rate. It decides whether a weaker filter keeps the noise texture and the gain together | none: the protocol varies no filter strength | P4 or P5 finds that filtering costs fidelity |
+| T3 | `--cpu-used` 0, 2, 4, 6 | O at G 1 and 16 across Q 4–12, plus CPU seconds per frame of encode: BD-rate against speed 6, and the encode time the PCS would pay | extends O3 and AT3 (Q 8 only, speed 3 only) to a ladder | always: this is the PCS's preset choice, made offline |
+| T4 | `--enable-cdef=0`, `--enable-restoration=0` | first, cheaply, read the existing O streams' frame headers for CDEF and loop-restoration use at Q 4–12. If used: O G 1 with each filter off and both off, giving bytes, e_N/σ, JOD, and the time to decode a frame in dav1d-WASM and WebCodecs at 1× and 4× | none. P10 times decode but varies no decode-side tool | the headers show the filters on. Decode time is AV1's weak point here (1.05–2.04 HTJ2K frames through WebCodecs) |
+| T5 | `--tune` `ssim`, `iq`, `ssimulacra2` against `psnr` | O G 1, Q 2–24: bytes against e_N/σ, in-window PSNR and JOD. A tune that wins on JOD at fewer bytes then goes to the readers' test (quality study §6) | none | the readers' test is scheduled. A tune change moves the mapping from Q to quality, so the noise rule would be refitted |
+| T6 | `--passes=2` | O and AT at G 16, Q 4–12: bytes at equal Q (q pinned, so nearly equal quality) | none | cheap. Expected under 1 % (*derived*); dropped if it is |
+| T7 | `--tile-columns` 1, 2 | O G 1 at Q 8: bytes, and the latency of one frame's decode with dav1d threads | the lossy form of DECSPEED's lossless result | a single frame's latency matters (a jump), not a fill's |
+| T8 | `--enable-qm=1` | O G 1, Q 4–12: bytes and e_N/σ | none | last. It breaks the flat step that the noise rule's Δ(Q) assumes (§3) |
+
+**Not worth testing:** `--denoise-noise-level` > 0. It replaces the patient's noise with synthesised grain, and
+decoders need not agree on it (§2b). `--threads` is measured already (POCGAP). The SVC example's settings matter
+only if SVC is reopened: the first step would then be its good-quality build with its intra tools on (§5).
