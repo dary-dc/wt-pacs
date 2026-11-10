@@ -96,6 +96,7 @@ run 2 node client/decode/av1.test.mjs
 run 1 python3 server/dev-server.test.py
 run 1 node client/paint/voi.test.mjs
 run 1 node client/view/controller.test.mjs
+run 1 node client/viewer/pair.test.mjs
 run 1 node client/view/view.test.mjs
 run 1 node client/view/cache.test.mjs
 run 1 node client/viewer/store.test.mjs
