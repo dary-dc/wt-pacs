@@ -567,5 +567,32 @@ async function aHeadTheRunDeliversWithinKIsWaitedFor() {
 }
 await aHeadTheRunDeliversWithinKIsWaitedFor();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for: ok");
+/**
+ * The default page view's step to a frame the fill has on the wire asks it, and the run's copy and the ask's copy both
+ * land: the frame is dispatched to a decoder once, not twice.
+ */
+async function aFrameAskedDuringAFillIsDecodedOnce() {
+  const dispatched = [];
+  globalThis.Worker = class {
+    postMessage(m) {
+      if (m.kind === "init") queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      if (m.kind === "decode") dispatched.push(m.index);
+    }
+    terminate() {}
+  };
+  const w = await wantWorld("ask-in-fill", { decoders: 2, perDecoder: 8, decoderWorker: "x" });
+  await onmessage({ data: { kind: "fill", indices: [...Array(10).keys()] } });
+  const run = w.onFill;
+  for (const i of [0, 1, 2]) run(frame(i));
+  await onmessage({ data: { kind: "ask", index: 5 } });
+  check(w.asks.join() === "5", `frame 5 is asked while the run is in flight (${w.asks})`);
+  for (const i of [3, 4, 5]) run(frame(i));
+  await settle();
+  await w.serveOne();
+  const fives = dispatched.filter((i) => i === 5).length;
+  check(fives === 1, `frame 5 is dispatched to a decoder once, not ${fives} times (${dispatched})`);
+}
+await aFrameAskedDuringAFillIsDecodedOnce();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a frame asked during a fill decoded once: ok");
 process.exit(failed ? 1 : 0);
