@@ -1537,3 +1537,104 @@ verbatim below. Decode rounds are running; Q10 is S2's; Q11–Q12 and the verdic
 | Q7 | AT G 8 -24.64 % between O G 8 +4.20 % and AT G 16 -18.42 %; ν at Q 8 AT G 8 0.406 vs G 16 0.407 | **refuted** on dbts_b1 |
 | Q8 | O G 8 +4.20 %; O G 16 +4.23 %; O G 32 +4.44 % | held on dbts_b1 |
 | Q9 | AF ÷ AD − 1 per rung Q 6 +0.01 %, Q 7 -0.01 %, Q 8 -0.02 %, Q 9 +0.14 %, Q 10 +0.02 %, Q 11 -0.16 %, Q 12 +0.25 %, Q 14 +0.06 %; anchor -0.53 % | held on dbts_b1 |
+
+### Settings shard 1, measured (2026-11-10)
+
+*Row GROUPS-SETTINGS-MEASURE. Every planned cell of S1 and 20 decode rounds; S2 (`dbts_a1`, `dbts_c1`) is owed, so
+every prediction below is read on `dbts_b1` alone.*
+
+* **Ran:** 105 cells on `dbts_b1` slices 9–40 (13 streams × 8 rungs, Q 6–12 and 14, plus the noise proxy), §S8's
+  checks (23 encodes, two on `dbts_a1`), 20 in-order decode rounds of seven units on WebCodecs and dav1d-WASM, and
+  the two decode mutations. Nothing cut, nothing extended, nothing re-run to change an outcome.
+* **Found:** no lookahead arm reaches the noise anchor cheaper than O G 1: the filtered arms cost 11–25 % more, and
+  so does the *unfiltered* alt-ref (AU −18.5 %), which refutes the theory's "the filter is the only setting that can
+  change the answer". O at G 8, 16, 32 saves 4.2–4.4 % (ε 2.18 %) but decodes 19–21 % slower a frame on WebCodecs.
+* **Verdict (§S7):** nothing is recommended, and nothing could be after S2: AT, AD, AF, AU and AW cost bytes on B
+  (saving must exceed ε on all three volumes), and O G 8 and 16 fail the decode bound on B (95 % upper bounds 1.228
+  and 1.248 against 1 + a = 1.049). **G 1 and lag 0 stay for DBT on these fixtures.**
+* **Limits:** one 32-slice cut of one system-B volume; one 4-core cloud host, CPU-bound (3.8 cores busy), software
+  decode in headless Chromium, no GPU, no phone; libaom 3.15.1 at speed 6 only.
+* **Owed:** S2 (Q3's "most negative on A or C", Q8 and Q11 on A and C, Q10), and with it ε over three volumes.
+
+**What the checks' mutations did** (table in the partial above): AU without its flag fails the table check;
+`--cpu-used=5` changed O, AT, AU and AF streams; strength 3 changed AT; AT at G 2 differs from O G 1; reversing x
+against y turned −10.0 % into +113.5 %; ν fed the source twice read 1.000 on S; c · 2 spread the cut to
+[−1607, 0]. Decode: one altered hash voided its round (31/32 on every unit, `rows/groups-settings-1.decode-check-hash.json`);
+a 12-bit `dbts_a1` stream (O G 1 Q 8, profile 2, 16 frames) gave WebCodecs 0 of 16 frames ("A key frame is
+required after configure() or flush()": the configure fails and closes the decoder) while dav1d-WASM matched 16 of
+16 (`rows/groups-settings-1.decode-check12.json`). WebCodecs' output was 10-bit on every timed unit.
+
+**Predictions, on B.** Held or refuted by the clause as written; "on B" because each says "every volume".
+
+| # | deciding numbers | outcome |
+| --- | --- | --- |
+| Q1 | AT at strength 4, 5, 6: 9 792 023 B each; 3: 9 883 401 B | held on B |
+| Q2 | aomenc 3.15.1 exits 1 for AT and AF at G 1 (`smooth_filter_noise`); O G 1 15 112 123 B | **undecided** |
+| Q3 | savings AT −18.42 %, AD −11.83 %, AF −11.24 % at G 16; none > ε 2.18 % | held on B (the "most negative on A or C" clause needs S2) |
+| Q4 | in-window PSNR BD-rate AT −6.51 %, AD −7.60 %, AF −7.64 % | held on B |
+| Q5 | AU G 16 −18.54 % vs O G 16 +4.23 % (−22.8 points); worst e_N/σ at Q 8 0.971 vs 0.808 (+0.163) | **refuted** |
+| Q6 | ν at Q 8: AU 0.427, AW 0.427, AT 0.407; B₁ 8.255, 8.246, 8.247 MB | held on B by its clause; the byte steps are within ε, so it orders nothing |
+| Q7 | AT G 8 −24.64 %, outside [AT G 16 −18.42 %, O G 8 +4.20 %]; ν 0.406 < 0.407 | **refuted** |
+| Q8 | O G 8 +4.20 %, G 16 +4.23 %, G 32 +4.44 % (in −1 … +6 %; G 32 − G 16 0.21 points) | held on B |
+| Q9 | AF ÷ AD per rung −0.16 … +0.25 %; at the anchor −0.53 % | held on B |
+| Q10 | — | S2's |
+| Q11 | WebCodecs mean ÷ O G 1: O G 8 1.207, G 16 1.192; AT 1.338, AF 1.303, AU 1.309; slowest ÷ median 3.36–3.42 for alt-ref, 1.17–1.18 for O | held on B |
+| Q12 | dav1d-WASM: AT 1.374, AF 1.377, AU 1.358, but **O G 8 1.655, O G 16 1.819** (range 0.8–1.4); slowest ÷ median 4.27–4.51 for alt-ref | **refuted** |
+
+**Why, as far as the numbers go.** The G 16 alt-ref streams show 12 hidden frames and 9 `show_existing_frame` units in 32
+whatever the filter strength. With the filter off (AU) the worst frame at Q 8 still reads e_N/σ 0.971 against O's
+0.81–0.82 and ν 0.427 against 0.594–0.631, the same as AW and close to AT (0.407): what loses the noise is
+lookahead coding itself — hidden frames shown again and frames predicted from them — not the temporal filter
+(*derived* from these cells; which tool does it is not isolated). At G 8 the filter is capped yet AT costs more
+than at G 16 (Q7 refuted): more keyframes and alt-refs per frame shown. On dav1d-WASM, inter frames of O at
+G 8–16 cost 1.7–1.8× a keyframe-only frame at the matched rung, so the 4 % byte saving is paid for in decode time on
+both routes.
+
+**Detail** (`collect_settings.py rows/groups-settings-1.jsonl --checks rows/groups-settings-1.checks.json --decode
+rows/groups-settings-1.decode.json`), the stream and decode tables:
+
+**At the noise anchor** (worst-frame e_N/σ = 1.00):
+
+| arm | G | kept rungs | B₁ | ν₁ | saving vs O G 1 | integer point at 1.00 | at 1.03 | in-window PSNR BD-rate vs O G 1 | guards: ν₁ · JOD and ≥ 2 |
+| --- | --: | --- | --: | --: | --: | --- | --- | --: | --- |
+| O | 1 | 6, 7, 8, 9, 10, 11, 12, 14 | 6.964 MB | 0.218 | +0.00 % | Q 12, 7047133 B | Q 14, 5008242 B | +0.00 % | — |
+| O | 8 | 6, 7, 8, 9, 10, 11, 12, 14 | 6.671 MB | 0.253 | +4.20 % | Q 11, 8105059 B | Q 14, 4468740 B | -4.70 % | True · True |
+| O | 16 | 6, 7, 8, 9, 10, 11, 12, 14 | 6.669 MB | 0.254 | +4.23 % | Q 11, 8097894 B | Q 14, 4446569 B | -4.82 % | True · True |
+| O | 32 | 6, 7, 8, 9, 10, 11, 12, 14 | 6.655 MB | 0.255 | +4.44 % | Q 11, 8082941 B | Q 14, 4432925 B | -4.90 % | True · True |
+| AT | 8 | 6, 7, 8, 9, 10 | 8.680 MB | 0.347 | -24.64 % | Q 8, 9979065 B | Q 10, 5646480 B | -5.20 % | True · True |
+| AT | 16 | 6, 7, 8, 9, 10 | 8.247 MB | 0.337 | -18.42 % | Q 8, 9792023 B | Q 10, 5484575 B | -6.51 % | True · True |
+| AT | 32 | 6, 7, 8, 9, 10 | 7.544 MB | 0.308 | -8.33 % | Q 8, 9603150 B | Q 11, 4233753 B | -9.29 % | True · True |
+| AF | 8 | 6, 7, 8, 9, 10 | 7.983 MB | 0.325 | -14.63 % | Q 8, 9247980 B | Q 10, 4951998 B | -9.02 % | True · True |
+| AF | 16 | 6, 7, 8, 9, 10 | 7.747 MB | 0.314 | -11.24 % | Q 8, 9444210 B | Q 10, 5150108 B | -7.64 % | True · True |
+| AF | 32 | 6, 7, 8, 9, 10 | 7.283 MB | 0.301 | -4.58 % | Q 8, 9409284 B | Q 10, 5123465 B | -10.67 % | True · True |
+| AD | 16 | 6, 7, 8, 9, 10 | 7.788 MB | 0.317 | -11.83 % | Q 8, 9445768 B | Q 10, 5149292 B | -7.60 % | True · True |
+| AU | 16 | 6, 7, 8, 9, 10 | 8.255 MB | 0.344 | -18.54 % | Q 8, 10083522 B | Q 10, 5624582 B | -5.71 % | True · True |
+| AW | 16 | 6, 7, 8, 9, 10 | 8.246 MB | 0.340 | -18.41 % | Q 8, 10063614 B | Q 10, 5565375 B | -6.10 % | True · True |
+
+**ε** = 2.18 % (largest |ln B₁ change| over 15 thinnings of O G 1 and O G 16; unreadable: dbts_b1 G 1 without Q 14).
+
+**Decode in order**, ms a frame, each stream at its integer point at 1.00, 1×, one host:
+
+**`dbts_b1`**, 20 rounds kept, 0 void.
+
+| stream | decoder | ms a frame: mean · median · p95 · slowest (medians over rounds) | slowest at group position | mean ÷ O G 1 (95 % interval) | p95 ÷ O G 1 (95 % interval) |
+| --- | --- | --- | --- | --: | --: |
+| AF|G16|Q8 | dav1d | 113.2 · 96.7 · 340.8 · 423.6 | 1 | 1.377 (1.352–1.467) | 3.445 (3.106–3.796) |
+| AT|G16|Q8 | dav1d | 111.3 · 97.6 · 332.7 · 443.0 | 1 | 1.374 (1.335–1.405) | 3.448 (3.270–3.720) |
+| AU|G16|Q8 | dav1d | 109.4 · 98.2 · 342.3 · 428.4 | 1 | 1.358 (1.300–1.394) | 3.344 (3.157–3.969) |
+| O'|G1|Q12 | dav1d | 81.8 · 77.9 · 109.2 · 116.1 | 0 | 0.994 (0.952–1.047) | 1.001 (0.866–1.159) |
+| O|G16|Q11 | dav1d | 147.8 · 145.6 · 204.0 · 217.9 | 10 | 1.819 (1.749–1.911) | 1.890 (1.754–2.373) |
+| O|G1|Q12 | dav1d | 81.2 · 77.8 · 100.9 · 111.2 | 0 | 1.000 (1.000–1.000) | 1.000 (1.000–1.000) |
+| O|G8|Q11 | dav1d | 133.3 · 133.0 · 171.2 · 190.6 | 7 | 1.655 (1.610–1.685) | 1.816 (1.605–1.903) |
+
+A/A (dav1d): O′ ÷ O mean 0.994 (0.952–1.047); not wholly beyond ±5 %, so not void; half-width a = 4.9 %.
+| AF|G16|Q8 | webcodecs | 86.8 · 78.0 · 225.0 · 261.8 | 1 | 1.303 (1.290–1.383) | 3.100 (2.927–3.213) |
+| AT|G16|Q8 | webcodecs | 87.6 · 79.0 · 226.5 · 267.8 | 1 | 1.338 (1.282–1.374) | 3.060 (2.898–3.195) |
+| AU|G16|Q8 | webcodecs | 85.3 · 79.2 · 227.1 · 271.3 | 1 | 1.309 (1.279–1.359) | 3.069 (2.962–3.181) |
+| O'|G1|Q12 | webcodecs | 64.9 · 63.9 · 75.0 · 76.9 | 0 | 0.993 (0.946–1.041) | 1.000 (0.953–1.078) |
+| O|G16|Q11 | webcodecs | 76.7 · 76.3 · 86.2 · 92.8 | 6 | 1.192 (1.138–1.248) | 1.183 (1.122–1.286) |
+| O|G1|Q12 | webcodecs | 66.8 · 66.3 · 75.2 · 78.3 | 0 | 1.000 (1.000–1.000) | 1.000 (1.000–1.000) |
+| O|G8|Q11 | webcodecs | 77.4 · 76.5 · 86.0 · 90.8 | 6 | 1.207 (1.147–1.228) | 1.169 (1.086–1.248) |
+
+A/A (webcodecs): O′ ÷ O mean 0.993 (0.946–1.041); not wholly beyond ±5 %, so not void; half-width a = 4.9 %.
+
