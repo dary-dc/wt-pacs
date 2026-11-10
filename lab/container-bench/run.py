@@ -128,7 +128,7 @@ def payload_samples(build, data, s):
         units = [frame]
     pictures = [ingest.decoded(build, "av1", u, s.h * s.w * s.ch)[0] for u in units]
     merged = ingest.merge(dict(split=split, flags=flags), pictures)[:s.h, :s.w]
-    return (merged.astype("int32") - offset).astype(s.dtype), bits > 8
+    return (merged.astype("int32") - offset).astype(s.dtype), ingest.wide(bits, flags & ingest.FLAG_SIGNED, offset)
 
 
 def verify(work, sets):
