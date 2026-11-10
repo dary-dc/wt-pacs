@@ -1,6 +1,7 @@
 // node client/view/controller.test.mjs — the controller and the frame store, with a recording paint and a fake downloader client.
 import assert from "node:assert/strict";
-import { Controller } from "./controller.js";
+import { asPainted, Controller } from "./controller.js";
+import { windowTable } from "../paint/voi.js";
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -12,12 +13,12 @@ const frame = (i) => ({
 });
 
 /** A controller on a series of `frames`, its paints and the client's calls recorded; `held` frames already here; `wants`, the worker view's store. */
-function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint } = {}) {
+function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, lossy, bitsStored, window = { center: [3], width: [6] } } = {}) {
   const painted = [];
   const calls = [];
   const events = [];
   const c = new Controller({
-    meta: { frameCount: frames, window: { center: [3], width: [6] } },
+    meta: { frameCount: frames, bitsStored, ...(window && { window }), ...(lossy && { codec: "av1", lossy, exactSeries: "s" }) },
     fillMode,
     size: { width: 2, height: 3, dpr: 1 },
     emit: (type, e) => events.push([type, e]),
@@ -66,6 +67,25 @@ test("a window change repaints the same frame with the new window", async () => 
   assert.deepEqual(painted.at(-1).display.voi, { center: 3, width: 6, function: "LINEAR" });
 });
 
+/** A frame's first paint and the first exact frame are timed at the draw's own end, where the paint gives one. */
+test("a paint's own end times the frame's first paint", async () => {
+  const { c } = rig({ held: [0], paint: () => ({ uploaded: true, drawn: 1234 }) });
+  c.issuedAt = 1000;
+  await c.repaint();
+  assert.equal(c.store.get(0).painted, 1234);
+  assert.equal(c.firstShownMs, 234);
+});
+
+/** A display change before the current frame is held does not leave the paint in flight: the frame is painted when it comes. */
+test("a repaint with no frame held does not stop the next paint", async () => {
+  const { c, painted } = rig();
+  await c.setDisplay({ window: { center: 1, width: 2, function: "LINEAR" } });
+  assert.equal(painted.length, 0);
+  c.take(frame(0));
+  await c.repaint();
+  assert.equal(painted.at(-1)?.f, c.store.get(0));
+});
+
 /** A frame arriving twice is counted and painted once. */
 test("a frame already here is not taken again", async () => {
   const { c, painted, events } = rig({ held: [0] });
@@ -98,6 +118,31 @@ test("the memory window lets the farthest frame go", async () => {
   await c.show(3);
   assert.deepEqual(calls, ["ask 3"]);
   assert.deepEqual([...c.store.keys()].sort(), [1, 3]);
+});
+
+/** At equal distance from the current frame the earlier one goes, as the want ranks it last; the frame the want ranks first stays. */
+test("the memory window lets go what the want ranks last", () => {
+  const { c } = rig({ frames: 4, budget: 2 });
+  c.store.near = 1;
+  for (const i of [1, 2, 0]) c.take(frame(i));
+  assert.deepEqual([...c.store.keys()].sort(), [1, 2]);
+});
+
+/** Under the worker view a frame that arrived and was let go is no longer owed: a step to it asks the downloader again, and is owed no longer once here. */
+test("worker view: a frame let go past the budget is asked again", async () => {
+  const wants = [];
+  const { c } = rig({ frames: 3, budget: 2, wants });
+  c.show(0);
+  for (const i of [0, 1, 2]) c.take(frame(i));
+  assert.deepEqual([...c.store.keys()].sort(), [0, 1]);
+  c.show(2);
+  assert.deepEqual(wants, ["0,1,2", "2"]);
+  const sent = [];
+  const all = rig({ frames: 3, wants: sent }).c;
+  all.show(0);
+  for (const i of [0, 1, 2]) all.take(frame(i));
+  all.show(1);
+  assert.deepEqual(sent, ["0,1,2"]);
 });
 
 /** Under the worker view a step to a held frame paints it and sends the downloader nothing, on demand and filling. */
@@ -173,18 +218,19 @@ test("each failure is said with its scope", async () => {
   assert.deepEqual(wants, ["3", "3"]);
 });
 
-/** The ledger hands a lab harness the fill's time once every frame is here and none before, and the session's reads at each frame. */
+/** The ledger hands a lab harness the fill's time once every frame is here and none before, and each frame's reads and decode end. */
 test("the ledger carries the fill's time and each frame's media reads", async () => {
   const { c } = rig({ frames: 2 });
   c.client.stats = () => ({ resumedAt: [] });
   c.issuedAt = performance.timeOrigin + performance.now() - 40;
-  const take = (i) => c.take({ ...frame(i), info: { ...frame(i).info, stamps: { lastByte: 1, mediaReads: 7 + i } } });
+  const take = (i) => c.take({ ...frame(i), info: { ...frame(i).info, stamps: { lastByte: 1, mediaReads: 7 + i, decodeEnd: 50 + i } } });
   take(0);
   assert.equal((await c.ledger()).fillMs, null);
   take(1);
   const { fillMs, frames } = await c.ledger();
   assert.ok(fillMs >= 40 && fillMs < 1000, `fill ${fillMs} ms`);
   assert.deepEqual(frames.map((f) => f.mediaReads), [7, 8]);
+  assert.deepEqual(frames.map((f) => f.decoded), [50, 51]);
 });
 
 /** A cache holding `present`, whose reads answer `read(i)` (null: the check failed) and whose writes are logged in `log`. */
@@ -305,7 +351,174 @@ test("the ledger's flip changes the digest, not the frame", async () => {
   assert.equal(again.sha, plain.sha);
 });
 
+/** Frame `i` of the exact series: other samples than the lossy one's, and `exact` as its decoder checked it. */
+const exactFrame = (i, exact = true) => ({ frameIndex: i, info: { ...frame(i).info, pixels: new Uint16Array([9, 9, 9, 9, 9, 9]).buffer, exact, path: "htj2k", reason: exact === false ? "digest" : undefined } });
+
+/** An optimal-quality series' rig whose exact series answers each ask through `answer(i)`, the asks recorded. */
+function lossyRig(answer = (i) => Promise.resolve(exactFrame(i)), opts = {}) {
+  const r = rig({ held: [0, 1, 2, 3], lossy: { q: 30, g: 1, depth: 10 }, ...opts });
+  r.exactAsks = [];
+  r.c.exactSource = { requestExactFrame: (i) => (r.exactAsks.push(i), answer(i)) };
+  r.labels = () => r.events.filter(([t]) => t === "shown").map(([, e]) => e.quality);
+  return r;
+}
+
+/**
+ * The exact request paints frame i of the exact series in place of the lossy one and changes nothing else: the store
+ * keeps every lossy frame, the downloader is asked nothing, a step away and back paints the lossy frame again.
+ */
+test("the exact request paints the exact series' frame in place, and nothing else", async () => {
+  const { c, painted, calls, exactAsks, labels } = lossyRig();
+  const before = [...c.store.keys()].map((i) => c.store.get(i));
+  await c.show(1);
+  await c.showExact();
+  await c.repaint();
+  assert.deepEqual(exactAsks, [1]);
+  assert.equal(new Uint16Array(painted.at(-1).f.info.pixels)[0], 9);
+  assert.equal(labels().at(-1), "lossless");
+  assert.deepEqual([...c.store.keys()].map((i) => c.store.get(i)), before);
+  assert.equal(new Uint16Array(c.store.get(1).info.pixels)[0], 0);
+  assert.equal(c.received, 4);
+  await c.show(2);
+  assert.equal(painted.at(-1).f, c.store.get(2));
+  await c.show(1);
+  assert.equal(painted.at(-1).f, c.store.get(1));
+  assert.equal(labels().at(-1), "optimal");
+  await c.showExact();
+  await c.showLossy();
+  assert.equal(painted.at(-1).f, c.store.get(1));
+  assert.deepEqual(calls, []);
+});
+
+/**
+ * The label says "lossless" only once the exact frame is painted and its digest matched: never while it is asked,
+ * never for a frame whose check failed or had no digest, never for a lossy frame, never for a frame the reader left.
+ */
+test("the label never says lossless before the checksum passes", async () => {
+  const pending = Promise.withResolvers();
+  const r = lossyRig(() => pending.promise);
+  await r.c.repaint();
+  const shownBefore = r.labels().length;
+  const asked = r.c.showExact();
+  await r.c.repaint();
+  assert.deepEqual(r.labels().slice(shownBefore), ["asking", "asking"]);
+  pending.resolve(exactFrame(0, false));
+  await asked;
+  assert.equal(r.labels().at(-1), "failed");
+  assert.equal(r.painted.at(-1).f, r.c.store.get(0));
+  assert.ok(r.events.some(([t, e]) => t === "failed" && /lossless: not exact/.test(e.reason)));
+
+  const unchecked = lossyRig((i) => Promise.resolve(exactFrame(i, "unchecked")));
+  await unchecked.c.showExact();
+  assert.ok(!unchecked.labels().includes("lossless"), unchecked.labels().join());
+
+  const late = Promise.withResolvers();
+  const left = lossyRig(() => late.promise);
+  const leaving = left.c.showExact();
+  await left.c.show(1);
+  late.resolve(exactFrame(0));
+  await leaving;
+  await left.c.repaint();
+  assert.ok(!left.labels().includes("lossless"), left.labels().join());
+  assert.equal(left.painted.at(-1).f, left.c.store.get(1));
+  await left.c.show(0);
+  assert.equal(left.painted.at(-1).f, left.c.store.get(0));
+  assert.equal(left.labels().at(-1), "optimal");
+
+  const draws = [];
+  const slow = lossyRig(undefined, { paint: (f) => new Promise((done) => draws.push({ f, done })) });
+  const shown = slow.c.showExact();
+  for (let k = 0; k < 20 && !draws.some(({ f }) => f.info.path === "htj2k"); k++) {
+    draws.shift()?.done();
+    await new Promise(setImmediate);
+  }
+  assert.ok(draws.some(({ f }) => f.info.path === "htj2k"), "the exact frame's paint was started");
+  assert.ok(!slow.labels().includes("lossless"), "lossless before the exact frame's paint resolved");
+  while (draws.length) {
+    draws.shift().done();
+    await new Promise(setImmediate);
+  }
+  await shown;
+  assert.equal(slow.labels().at(-1), "lossless");
+});
+
+/** After a failed exact request, asking again on the same frame asks the exact series again, and can reach lossless. */
+test("a failed exact request can be asked again on the same frame", async () => {
+  let answers = [exactFrame(0, false), exactFrame(0)];
+  const r = lossyRig(() => Promise.resolve(answers.shift()));
+  await r.c.showExact();
+  assert.equal(r.labels().at(-1), "failed");
+  await r.c.showExact();
+  assert.deepEqual(r.exactAsks, [0, 0]);
+  assert.equal(r.labels().at(-1), "lossless");
+});
+
+/**
+ * A depth cut's frames reach the painter with their shift, the exact frame painted in place without one; its window
+ * from the decoded range and the sample under the cursor are at full depth.
+ */
+test("a depth cut's frames are painted with their shift, the exact frame without", async () => {
+  const r = lossyRig(undefined, { lossy: { q: 8, g: 1, depth: 10, bitsStored: 12 }, bitsStored: 12, window: null });
+  await r.c.repaint();
+  assert.equal(r.painted.at(-1).f.info.cut, 2);
+  assert.deepEqual(r.painted.at(-1).display.voi, { center: 10, width: 21, function: "LINEAR" });
+  r.c.size = { width: 3, height: 2, dpr: 1 };
+  assert.deepEqual((await r.c.valueAt(2.5, 1.5)).stored, [20]);
+  await r.c.showExact();
+  assert.equal(r.painted.at(-1).f.info.path, "htj2k");
+  assert.equal(r.painted.at(-1).f.info.cut, undefined);
+  assert.equal(r.labels().at(-1), "lossless");
+
+  const plain = lossyRig();
+  await plain.c.repaint();
+  assert.equal(plain.painted.at(-1).f.info.cut, undefined);
+});
+
+/** What the painter is handed of a depth cut's frame keeps its shift: code 249 of D 12 is windowed at 996, not at 249. */
+test("a depth cut's frame reaches the painter windowed at full depth", async () => {
+  const r = lossyRig(undefined, { lossy: { q: 8, g: 1, depth: 10, bitsStored: 12 }, bitsStored: 12 });
+  await r.c.repaint();
+  const { f, display } = r.painted.at(-1);
+  const painted = asPainted({ ...f.info, bits: 10 });
+  const full = windowTable({ bits: 12, signed: false }, display);
+  const got = windowTable(painted, display);
+  for (let c = 0; c < 1024; c++) assert.equal(got[c], full[c << 2], `code ${c}`);
+});
+
+/** A series that is not lossy has no label: the quality rule says nothing of an HTJ2K series. */
+test("a series that is not lossy carries no quality label", async () => {
+  const { c, events } = rig({ held: [0] });
+  await c.repaint();
+  assert.equal(events.find(([t]) => t === "shown")[1].quality, null);
+});
+
+/** A jump mid-group then a scroll on through it: the group's frames arrived with the jump, so the scroll asks nothing. */
+test("a scroll through a group after a jump into it asks nothing", async () => {
+  for (const g of [1, 8, 16]) {
+    const { c, calls } = rig({ frames: 40, fillMode: false });
+    // The downloader's answer to an ask mid-group: the asked frame, the rest of its group as frames nobody waits on.
+    c.client.requestExactFrame = (i) => {
+      calls.push(`ask ${i}`);
+      for (let k = i - (i % g); k < Math.min(i - (i % g) + g, 40); k++) if (k !== i) c.take(frame(k));
+      return Promise.resolve(frame(i));
+    };
+    await c.show(21);
+    for (let i = 22; i < 21 - (21 % g) + g; i++) await c.show(i);
+    assert.deepEqual(calls, ["ask 21"], `G = ${g}`);
+  }
+});
+
 let failed = 0;
+/** The overlay's data for a painted frame names its decode route and, after a refusal, why WebCodecs refused it. */
+test("a shown frame's route and WebCodecs refusal reach the overlay", async () => {
+  const { c, events } = rig({ lossy: { q: 8, g: 1, depth: 12 } });
+  c.take({ frameIndex: 0, info: { ...frame(0).info, path: "av1-dav1d", refusal: "undecodable: not a key frame", wireBytes: 2048 } });
+  await c.repaint();
+  const { about } = events.filter(([t]) => t === "shown").at(-1)[1];
+  assert.equal(about.path, "av1-dav1d");
+  assert.equal(about.refusal, "undecodable: not a key frame");
+});
+
 for (const [name, fn] of tests) {
   try {
     await fn();

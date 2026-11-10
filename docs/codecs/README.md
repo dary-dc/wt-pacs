@@ -109,6 +109,19 @@ Keys: **A-** [`../av1/README.md`](../av1/README.md): *bytes* §Bytes; *stands* �
 **PS3.5**, **PS3.6** §Specifications below. Times are a container's, never a phone's; the ultrasound's numbers are
 provisional (a lossy-sourced set, [`../av1/README.md`](../av1/README.md)).
 
+### AV1 at G = 1 on DBT, with and without the split
+
+The middle 16 slices of one volume a system, libaom `good` 6 (row 100,
+[`lab/av1/bytes/frame-groups`](../../lab/av1/bytes/frame-groups/README.md) §Bytes and §Decode cost of an ask). ms a
+frame is the median over 10 rounds, headless Chromium 141; 4× as [`../decode/README.md`](../decode/README.md) §A slow
+CPU, emulated. Only the split was timed; the plain representation never was.
+
+| volume | bytes against HTJ2K, split · plain | ms a frame, 1× · 4×: HTJ2K | WebCodecs, split | dav1d-WASM, split |
+| --- | --: | --: | --: | --: |
+| `dbts_a1` | 0.945 · 1.052 | 35.0 · 145.4 | 115.4 · 465.9 | 216.9 · 929.3 |
+| `dbts_b1` | 0.939 · 0.973 | 111.9 · 449.4 | 243.2 · 946.9 | 486.6 · 2083.9 |
+| `dbts_c1` | 0.943 · 1.064 | 35.8 · 146.6 | 114.2 · 452.9 | 193.8 · 852.1 |
+
 ## Why HTJ2K is the default, and what would reopen it
 
 HTJ2K decodes every frame faster than any exact AV1 path, exactly, in every engine measured; it holds every target
@@ -187,7 +200,7 @@ queue number.
 | JPEG-LS (CharLS) | 58, 125: 0.91–0.94 of HTJ2K by one third-party table, a DICOM syntax, a WASM build exists; decode cost unknown | **never** | [`decode`](../decode/README.md) §Not yet tried |
 | JPEG 2000 Part 1 | 22: 0.93–0.96 of HTJ2K, decode 6–12× | evidence | [`jpeg2000.md`](jpeg2000.md) |
 | AV2 (AVM) | 32: 0.937–0.964 of HTJ2K on grey to 13 bits but CT, no browser decoder | evidence | [`av2.md`](av2.md) |
-| LCEVC | 19: no open encoder, no exact samples back in the browser, not exact at 14 bits | evidence | [`../av1/README.md`](../av1/README.md) §Preview |
+| LCEVC | 19: no open encoder (*wrong, corrected 2026-10-31*: MPEG's test model LTM 5.5 is one, BSD, no AV1 base without a patch), no exact samples back in the browser, not exact at 14 bits | evidence | [`../av1/README.md`](../av1/README.md) §Preview |
 | learned coders: Tomoz, TCT | 58: Tomoz WASM on npm (`@zeroxshot/tomoz` 0.2.0, 2026-10-02), self-reported 0.73–0.85 of HTJ2K on volumes, unreviewed; TCT no code | never | [`../av1/lossless-literature.md`](../av1/lossless-literature.md) |
 
 ### Releases since the pins
@@ -198,7 +211,7 @@ Read 2026-10-13 from each project's tags (tag dates from the repositories) and i
 | --- | --- | --- | --- |
 | OpenJPH | 0.31.0 (the build), 0.32.0 measured | 0.32.0 (2026-09-17) | nothing new since row 57: NLT markers, a CLI `raw_in` fix for > 8-bit input, POWER and AVX-512 build fixes, truncated streams decoded gracefully |
 | dav1d | 1.5.4 | 1.5.4 (2026-07-14) | none newer |
-| libaom | 3.15.1 | 3.15.2 (2026-10-09) | bug and fuzz fixes only (CHANGELOG) |
+| libaom | 3.15.1 | 3.15.3 (2026-10-20), after 3.15.2 (2026-10-06; 2026-10-09 here before, corrected from the CHANGELOG) | bug and fuzz fixes only; none reaches the decoder, lossless or the alt-ref fault, not re-pinned — [`../av1/README.md`](../av1/README.md) §Exactness and the decoders |
 | SVT-AV1 | v4.2.0 | v4.2.0 (2026-07-13); `v4.2.0-cqp-extended` 2026-08-04 | fixes; unreleased on master, high-bit-depth intra SSE4.1 and an all-intra Hadamard overflow fix — row 1's inexact 10-bit inter not addressed by name |
 | libjxl | 0.12.0 | 0.12.0 (2026-07-01) | none newer |
 | jxl-rs | 0.6 (inside Chromium 154, row 63) | 0.7.4 (2026-09-17) | **0.7.0: 16-bit modular buffers end to end (RCT, palette, squeeze, 16-bit SIMD)** — the lossless path's speed and memory; 0.7.3 smaller stack use, which a WASM stack feels. Blink's JPEG XL through jxl-rs is "Proposed" for M155 (chromestatus 5114042131808256). Reopens row JXLRS below |
@@ -206,11 +219,11 @@ Read 2026-10-13 from each project's tags (tag dates from the repositories) and i
 | emscripten | 3.1.74 (the build), 6.0.11 measured | 6.0.12 (2026-10-08) | 6.0.12 itself nothing on SIMD; since 3.1.74, `memory.copy` and BigInt by default (4.0.0), `GROWABLE_ARRAYBUFFERS` by default (6.0.2, less overhead for threads with memory growth), relaxed-SIMD FMA (6.0.3); 6.0.2 also dropped `wasmBinary` from the default module API (row 134) |
 | WebCodecs, Chromium | 141, 154, 155 measured | — | no chromestatus entry on high bit depth or 4:0:0; its dav1d path still turns 4:0:0 into I420 with made-up chroma; 12-bit refused through 155 (row 57) |
 | WebCodecs, Firefox | 157 measured | — | Bugzilla 2071132 (assigned, not landed): 10-bit frames reported as I420; 1779656 (I444 `VideoFrame`) and 2021505 (bit-depth check) still new — row 74's verdict stands |
-| LCEVC | LCEVCdec 4.2.2 | 4.2.2 (2026-09-10) | **still no open encoder** (V-Nova's encoder SDK is a proprietary trial); no lossless mode in the decoder source — row 19 stands |
+| LCEVC | LCEVCdec 4.2.2 | 4.2.2 (2026-09-10) | **still no open encoder** (V-Nova's encoder SDK is a proprietary trial); no lossless mode in the decoder source — row 19 stands. *Corrected 2026-10-31:* MPEG's reference encoder (LTM, BSD) was open throughout and was not looked for; LCEVCdec 4.3.1 (2026-10-27) changes no residual-path file ([`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Re-checked 2026-10-31) |
 | AV2 | AVM v1.0.0 (row 32) | dav2d 0.0.1 (2026-04-30, VideoLAN) | a dav1d-style AV2 decoder, 8/10-bit, AVX2 and NEON; its CI builds WASM but nothing is distributed. AV2 stays without a browser decoder |
 
 Of these, only jxl-rs 0.7 bears on a lever enough to reopen it; emscripten 6.0.12 adds nothing to row 134's 6.0.11 that
-a frame would see, and libaom 3.15.2 is fixes only by its changelog.
+a frame would see, and libaom 3.15.2 and 3.15.3 are fixes only, read commit by commit (2026-10-31).
 
 ### Left, ranked
 
@@ -242,6 +255,69 @@ less likely on the faster links): dav1d's entropy decoder in WASM SIMD, REMAP bu
 * **Grey as 4:2:0** — Firefox's WebCodecs exact on 8-bit grey, every Chromium fill slower (row 80).
 * **The HTJ2K bit split** — 0.9–1.6 % fewer bytes at 1.02–1.69× the decode (row 36).
 * **JPEG XL at effort 1** — 0.94–1.03 of HTJ2K's bytes at 1.03–1.91× its decode (row 63).
+
+### Beside lossless AV1, on cine-like breast series
+
+*The owner, 2026-10-31: besides LCEVC (row 19) and the scalable preview (rows 18, 24–26, 31, 40; its own branch),
+what complements lossless AV1 on frames along one axis — DBT slices, breast ultrasound cine, ABUS — at ≤ 12 bits,
+exact, decoded in a phone's browser over lossy wireless? Theory: nothing built or run. Repo claims by row, file and
+commit; outside ones [V1]–[V7] below; inference* derived*, the rest* unverified.*
+
+**Short.** On data the lab has, one family moves a number by more than a few per cent: **a lossy AV1 base plus a
+lossless HTJ2K residual**, a picture 14–124× sooner for bytes that tie, paid for in the exact frame's decode — and
+how much of that decode is the residual's has never been timed. The one large predicted bytes gain, AV1's own inter on
+speckle, is in native ultrasound cine and ABUS, which have no sound data. The rest is ≤ 4 % of bytes, an ask that
+costs several frames, or no browser decoder.
+
+**Link and CPU.** A fill takes about max(bytes ÷ link, frames × decode ÷ decoders) (*derived*; [`../av1/README.md`](../av1/README.md)
+§Total time): a byte saving shows only where the wire is the clock (slow link, fast CPU), a decode cost only where
+decode is (fast link, a phone's CPU, the 4× cells); the first picture is the first unit's bytes ÷ link plus one decode.
+Loss retransmits whatever is late: a small base ahead of its residual keeps the picture and delays only the exact
+frame (*derived*); a group or a pair holds back the frames that need the late one
+([`../av1/frame-groups.md`](../av1/frame-groups.md) §5a).
+
+Ranked by expected net effect:
+
+| # | approach | complements | exact, at which depths | browser path today | bytes · decode a frame · first picture | the repo knows | what decides it |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | **lossy AV1 base + HTJ2K residual** (source − base) | AV1's 12-bit WebCodecs refusal; HTJ2K's want of a small first picture | **yes at every depth**: base 8 or 10 bits, residual to HTJ2K's 38; a conforming decoder's lossy output is fixed [V1], measured 13 440/13 440 | base WebCodecs (Chromium) or dav1d-WASM; residual OpenJPH-WASM — all exist | bytes **0.947–1.002** of HTJ2K's (12-bit DBT 1.002); exact frame **1.31–1.89×** HTJ2K at 1×, 1.23–1.74× at 4×, base and residual together; preview playable 14–124× sooner at 5 Mbit/s — wins most on slow links, loses by the decode ratio on fast links and slow CPUs | row 17 (`688db3f`, [`lab/av1/delivery/residual`](../../lab/av1/delivery/residual/README.md) §Decode time: "not timed apart"), row PREVIEW; parked 2026-10-03 ([`../av1/README.md`](../av1/README.md) §Preview); on HEVC, −7.3 % against single-layer lossless ([`../av1/split-prior-art.md`](../av1/split-prior-art.md) §2, Heindel et al.) | the residual and the add timed apart from the base (row RESIDAPART); then the owner's ruling on a lossy first picture |
+| 2 | **AV1 inter (G > 1) on native B-mode cine and ABUS** | intra AV1, where frames repeat speckle | yes, libaom low-delay to 12 bits | WebCodecs ≤ 10 bits; dav1d-WASM fails every split group today | **≥ 20 % fewer bytes predicted (P8), *unverified***; decode a frame unchanged, an ask (G + 1)/2 decodes, the first pass on fewer decoders | rows 46, 100 (`cbbdf06`), [`../av1/frame-groups.md`](../av1/frame-groups.md) §T3, §5, §5b; DBT closed at G = 1 | sound native cine and ABUS (the owner's, queue row DATAGUARD), then row CINESOUND |
+| 3 | **the reversible pair step across frames** (row 213) **before AV1** | intra AV1's want of an inter-slice term at G = 1 | yes; the high band needs one bit more (*derived*): 8-bit ultrasound to 9 (WebCodecs' 10), 10-bit DBT to 11 and 12-bit to 13, both then split | AV1's, plus the inverse (JS today) | before HTJ2K ×0.978 (`dbt10_ea1141`), ×0.994 (`dbt12_ea1141`), ×0.965 (`xa_dynact16`); before AV1 less expected (*derived*: AV1 intra is already 0.942 of HTJ2K on DBT, and the extra bit costs a split); decode +19–39 % a pair; an ask and the first picture cost a pair | row 213 (`d3d3e521`, §Measured: INTERSLICE above); [`../av1/frame-groups.md`](../av1/frame-groups.md) §4 point 11 | row PAIRAV1 |
+| 4 | **VVC lossless in AV1's place** (Main 10: transform-skip residual coding, BDPCM, palette, intra block copy) | AV1 at ≤ 10 bits a stream; deeper, split as AV1 | the reference software has a lossless configuration [V4]; 10 bits a stream [V5]; VVenC's lossless output exact *unverified* [V7] | VVdeC builds for the browser in WASM [V5]; no native browser path known (*unverified*) | **unknown**: no lossless VVC figure on medical images found (*unverified*); its screen-content tools are measured on screen content [V6], not on noise-bound frames; decode unknown | never | row VVCLOSSLESS |
+| 5 | **three slices as the planes of one 4:4:4 picture** | the same want as 3, inside one decode | yes, ≤ 10 bits through WebCodecs' `I444P10` (Chromium; Firefox not, row 74; [`../decode/README.md`](../decode/README.md) §WebCodecs, what it decodes exactly) | AV1's colour path | lossless chroma-from-luma only on 4×4 chroma blocks [V2, V3]; bounded by row 194's inter-slice predictor (×0.962 on `dbt10_ea1141` at best) and likely under row 213's step (*derived*); decode a sample unchanged; an ask costs three slices | never; row 194's ceilings above | row PLANES444 |
+| 6 | **AV2 (AVM) in AV1's place** | AV1's bytes | yes, 10 bits a stream, deeper split | none: dav2d 0.0.1 builds WASM in CI, distributes none | 0.4–4.7 % under libaom on grey to 13 bits but CT; native decode 3.1–6.5× dav1d's; encode 50–110× | row 32 (`eea24ce`), [`av2.md`](av2.md), §Releases since the pins | a distributed browser decoder; no row until then |
+| 7 | **the split's variants, value maps, the low bits deflated, a general compressor on the payload** | the split's overhead | yes | AV1's | split's ceiling 1–2 % (row 36); the target is dense, maps ≈ 1.00 (row 185, `8a9713ea`); deflated low bits ±0.6 % (row 36); a general compressor over an arithmetic-coded payload ≈ 1.00 (*derived*); REMAP only over 12 bits (row 64, `6fbb753`) | rows 36, 64, 185 | closed |
+| 8 | **JPEG-LS or JPEG XL as the residual's codec** | 1's residual | yes | WASM | JPEG-LS ×2.7–3.4 OpenJPH's decode, serial by construction (row 188, `f2b591d6`); no JPEG XL setting both smaller and as fast (row 186, `1365b749`); a residual is a frame-sized decode, so neither beats HTJ2K's (*derived*) | rows 186, 188 | closed |
+
+**Proposed rows** (not queued; one question each):
+
+| row | question | deciding measurement |
+| --- | --- | --- |
+| **RESIDAPART** | With the base already on screen, does the residual's decode plus the add cost more than HTJ2K's whole frame? | row 17's encodings unchanged; the residual's OpenJPH decode and the add timed apart from the base, interleaved against HTJ2K alone, 1× and 4×, n ≥ 15, DBT sets first. *Predicted* 0.9–1.1× (*derived*: the residual is 0.95–1.0 of HTJ2K's bytes; that HTJ2K's decode tracks its bytes is *unverified*). Within spread, the base costs the exact fill only its own decode, and the choice is the lossy first picture alone |
+| **CINESOUND** | On native B-mode cine and ABUS, does inter or the pair step pay? | once sourced: G ∈ {1, 8, F} in AV1 and the pair step before AV1 and HTJ2K — bytes, then total time on a wire-bound and a decode-bound cell |
+| **PAIRAV1** | Does row 213's pair step gain before AV1 what it gained before HTJ2K? | bytes against intra AV1 on `dbt10_ea1141`, `dbt12_ea1141`, `xa_dynact16`, the high band split where it needs; decode only where ≤ 0.97 |
+| **VVCLOSSLESS** | Is lossless VVC smaller than lossless AV1 on DBT, and does VVdeC-WASM return it exactly? | VTM's lossless configuration against libaom on `dbt10_ea1141` and the 10-bit top of `dbt12_ea1141`, exact; VVdeC-WASM's exactness and decode against dav1d-WASM and WebCodecs only where ≤ 0.95 |
+| **PLANES444** | Does a slice predicted from its neighbour through chroma-from-luma save bytes? | `dbt10_ea1141` three slices to a 4:4:4 picture, libaom lossless, against 4:0:0 intra; continue only at ≤ 0.98 |
+
+**Sources** (read 2026-10-31):
+
+* [V1] AV1 Bitstream & Decoding Process Specification, §7.2, the editors' HTML edition (the approved PDF not re-read),
+  <https://aomediacodec.github.io/av1-spec/>: "When film_grain_params_present is equal to 0, decoders shall produce
+  output frames that are identical in all respects and have the same output order as those produced by the decoding process specified herein."
+* [V2] The same, uv_mode's CDF: "If Lossless is equal to 1 and get_plane_residual_size( MiSize, 1 ) is equal to
+  BLOCK_4X4, the cdf is given by TileUVModeCflAllowedCdf[ YMode ]."
+* [V3] libaom v3.15.1, `av1/common/cfl.h:24–25`,
+  <https://aomedia.googlesource.com/aom/+/refs/tags/v3.15.1/av1/common/cfl.h>: "In lossless, CfL is available when
+  the partition size is equal to the transform size."
+* [V4] VTM, `cfg/lossless/lossless.cfg` on master,
+  <https://vcgit.hhi.fraunhofer.de/jvet/VVCSoftware_VTM/-/raw/master/cfg/lossless/lossless.cfg>: "CostMode : lossless"
+  … "DeblockingFilterDisable : 1".
+* [V5] VVdeC README, <https://github.com/fraunhoferhhi/vvdec>: "supporting **all features** of the **VVC Main10**
+  profile", with a "Browser (WASM)" column.
+* [V6] Nguyen et al., "Overview of the Screen Content Support in VVC", IEEE TCSVT 31(10), 2021,
+  doi:10.1109/TCSVT.2021.3074312, abstract: "using the Main 10 profile for 4:2:0 screen content test sequences."
+* [V7] VVenC, `source/Lib/apputils/VVEncAppCfg.h`, <https://github.com/fraunhoferhhi/vvenc>: "'lossless' (which
+  forces QP to …"; no exactness claim found.
 
 ## Beside the codec
 

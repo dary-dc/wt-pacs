@@ -2,13 +2,17 @@
 import { DownloaderClient } from "/client/transport/consumer.js";
 import { built } from "/client/decode/wasm-glue.js";
 import { Painter } from "/client/paint/painter.js";
-import { asPainted, Controller, FIT } from "/client/view/controller.js";
+import { asPainted, Controller, FIT, wantFrom } from "/client/view/controller.js";
 import { View, ViewWorker } from "/client/view/view.js";
+import { checkPair, pairOf } from "/client/viewer/pair.js";
 
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById("view");
 const statusEl = document.getElementById("status");
 const markEl = document.getElementById("mark");
+const qualityEl = document.getElementById("quality");
+const losslessEl = document.getElementById("lossless");
+const overlayEl = document.getElementById("overlay");
 const at = () => performance.timeOrigin + performance.now();
 
 const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport])
@@ -16,17 +20,33 @@ const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport]
 // Where the frames are held and painted: on the page, or in the view worker. docs/adr/frame-path.md §3, *Built*
 const where = q.get("view") ?? "page";
 if (!lab.refused && !["page", "worker"].includes(where)) lab.refused = `refused: view ${JSON.stringify(where)} — page or worker`;
-// Who writes the OPFS cache under `worker`, a lab lever; none by default, as main: docs/adr/frame-path.md §The core, assembled
+// Who writes the OPFS cache under `worker`, a lab lever refused where it cannot hold; none by default, as main: lab/viewer/levers.js
 const writer = lab.writer;
-if (!lab.refused && writer !== undefined && !["store", "decoders", "view"].includes(writer)) lab.refused = `refused: writer ${JSON.stringify(writer)} — store, decoders or view`;
-if (!lab.refused && writer === "decoders" && lab.opts?.pixels === "transfer") lab.refused = "refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred";
 if (lab.refused) {
   statusEl.textContent = `error: ${lab.refused}`;
   report({ error: lab.refused });
   throw new Error(lab.refused);
 }
+const booted = where === "worker" && lab.opts.viewWorkerFirst ? ViewWorker.boot() : undefined;
 const meta = await globalThis.viewerMetadata;
+/** Epoch ms of the page's start, for the lab's ledger: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
+const boot = { metadata: at() };
 const n = meta.frameCount;
+// An optimal-quality series is shown at optimal quality, each frame exact on request from its exact series.
+const pair = await (async () => {
+  const p = pairOf(meta);
+  if (!p) return null;
+  const [exactMeta, exactTransport] = await Promise.all([p.metadata, p.transport].map((u) => fetch(u).then((r) => {
+    if (!r.ok) throw new Error(`refused: ${u} answered ${r.status}`);
+    return r.json();
+  })));
+  checkPair(meta, exactMeta);
+  return { ...p, meta: exactMeta, transport: exactTransport };
+})().catch((e) => {
+  statusEl.textContent = `error: ${e.message}`;
+  report({ error: e.message });
+  throw e;
+});
 const fillMode = q.get("fill") !== "0";
 const transport = lab.transport;
 // Absolute: the downloader's worker would resolve a relative URL against its own script.
@@ -62,6 +82,7 @@ const on = {
     shown = s;
     markEl.className = s.exact === true ? "" : s.exact === false ? "inexact" : "unchecked";
     markEl.textContent = s.exact === false ? `NOT EXACT — ${s.reason ?? ""}` : s.exact === true ? "" : "unchecked";
+    showQuality(s);
     status();
   },
   failed: ({ scope, i, reason }) => fail(scope === "frame" ? `frame ${i}: ${reason}` : `${scope}: ${reason}`),
@@ -82,12 +103,36 @@ const watch = seen && ((data, from) => {
 let controller = null;
 let worker = null;
 if (where === "page") {
-  const painter = new Painter(canvas, { onLost: (why) => fail(`painter: ${why}`) });
-  painter.renderer.then((r) => emit("renderer", { renderer: r }), (e) => emit("renderer", { error: e.message }));
+  const painter = new Painter(canvas, { onLost: (why) => fail(`painter: ${why}`), settle: lab.settle });
+  painter.renderer.then((r) => ((boot.gl = at()), emit("renderer", { renderer: r })), (e) => emit("renderer", { error: e.message }));
   controller = new Controller({ meta, fillMode, emit, size: size(), paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
 } else {
-  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settlePaint: Boolean(lab.settlePaint), watchWrites: Boolean(q.get("check")) });
+  boot.viewWorker = at();
+  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settle: lab.settle, watchWrites: Boolean(q.get("check")),
+    booted, glAfterDial: Boolean(lab.opts.glAfterDial) });
 }
+
+const QUALITY = {
+  optimal: "Optimal quality",
+  asking: "Optimal quality · fetching lossless…",
+  lossless: "Lossless",
+  failed: "Lossless check failed · optimal quality shown",
+};
+/** The quality label says what is painted, as the controller judged it; the overlay, `?overlay=1`, how it got here. */
+function showQuality({ quality, about }) {
+  qualityEl.hidden = !quality;
+  qualityEl.className = quality ?? "";
+  qualityEl.textContent = QUALITY[quality] ?? "";
+  losslessEl.textContent = quality === "lossless" || quality === "asking" ? "optimal quality" : "lossless";
+  if (overlayEl.hidden) return;
+  const kb = about.wireBytes === undefined ? "?" : (about.wireBytes / 1024).toFixed(1);
+  const ms = about.decodeMs === undefined ? "?" : about.decodeMs.toFixed(1);
+  const cut = meta.lossy?.bitsStored ? ` depth cut of ${meta.lossy.bitsStored}` : "";
+  const series = meta.lossy ? ` · Q ${meta.lossy.q} · G ${meta.lossy.g} · ${meta.lossy.depth}-bit${cut}` : "";
+  const route = about.refusal ? `${about.path} after WebCodecs refused: ${about.refusal}` : about.path ?? "?";
+  overlayEl.textContent = `${route} · ${kb} KB · decode ${ms} ms${series}`;
+}
+overlayEl.hidden = q.get("overlay") !== "1";
 
 function status() {
   const soft = /swiftshader|llvmpipe|software|basic render/i.test(rendererName) ? " (software)" : "";
@@ -106,23 +151,28 @@ function status() {
 }
 
 const options = lab.opts;
-const decoder = options.decoder ?? (meta.codec === "av1" ? { codec: "av1", ...(await built("dav1d")) } : await built("openjph"));
+const decoder = options.decoder ?? (meta.codec === "av1" ? { codec: "av1", lossy: meta.lossy !== undefined, ...(await built("dav1d")) } : await built("openjph"));
 const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : undefined;
+const groups = meta.lossy?.g > 1 ? { groupLength: meta.lossy.g, frameCount: n } : {};
 const all = [...Array(n).keys()];
 // A lab harness slows the CPU from here: lab/viewer/levers.js.
 await lab.started?.();
 issuedAt = at();
+boot.connect = issuedAt;
 const connectOpts = {
   transport: transport.module,
   ...(fillMode && { fill: all }),
   // The file follows a restarted server; a pair the lab named stays pinned.
   transportFile: lab.pinned ? undefined : transportFile,
   digests,
+  ...groups,
   ...options,
   decoder,
 };
 try {
-  if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer }, issuedAt);
+  // What the page dials with, under the lab's `pageDials`: the view worker's first want, unless a cache or a half-held store shapes it.
+  const firstWant = options.pageDials && !writer && !options.holdEveryOther ? wantFrom(0, n, fillMode, Boolean(options.waitAhead)) : undefined;
+  if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer, firstWant }, issuedAt);
   else {
     controller.issuedAt = issuedAt;
     controller.client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {
@@ -139,6 +189,26 @@ try {
 }
 
 view = new View(n, controller ?? worker);
+if (pair) connectExact();
+
+/** The exact series on its own downloader: no fill, one decoder, a frame asked only when the reader asks it. */
+async function connectExact() {
+  const opts = {
+    transport: transport.module,
+    transportFile: new URL(`/wt/${pair.id}/dev-transport.json`, location).href,
+    digests: pair.meta.digests.frames,
+    decoders: 1,
+    decoder: await built("openjph"),
+  };
+  try {
+    if (worker) await worker.connectExact(pair.transport.wt_url, pair.transport.cert_sha256, opts);
+    else controller.exactSource = await DownloaderClient.connect(pair.transport.wt_url, pair.transport.cert_sha256, opts);
+    losslessEl.hidden = false;
+  } catch (e) {
+    fail(`lossless: ${e.message}`);
+  }
+}
+losslessEl.onclick = () => (/lossless|asking/.test(qualityEl.className) ? view.lossy() : view.exact());
 function show(i) {
   const step = view.show(i);
   status();
@@ -164,9 +234,10 @@ const traced = lab.trace && (async () => {
 })();
 
 const cineEl = document.getElementById("cine");
+const cineFps = 1000 / (meta.frameTimeMs ?? (meta.cineRate ? 1000 / meta.cineRate : 100));
 function toggleCine() {
   if (view.playing) view.pause();
-  else view.play(1000 / (meta.frameTimeMs ?? (meta.cineRate ? 1000 / meta.cineRate : 100)));
+  else view.play(cineFps);
   cineEl.textContent = view.playing ? "❚❚ cine" : "▶ cine";
 }
 cineEl.onclick = toggleCine;
@@ -187,11 +258,12 @@ const KEYS = {
   h: () => ((pose = { ...pose, flipH: !pose.flipH }), display()),
   v: () => ((pose = { ...pose, flipV: !pose.flipV }), display()),
   i: () => ((invert = !invert), display()),
+  l: () => losslessEl.hidden || losslessEl.click(),
   0: reset, Escape: reset,
 };
 addEventListener("keydown", (e) => {
   const k = KEYS[e.key];
-  if (!k || e.target === cineEl) return;
+  if (!k || e.target === cineEl || e.target === losslessEl) return;
   e.preventDefault();
   k();
 });
@@ -242,6 +314,7 @@ if (q.get("check") || lab.finished) {
       }
     }, 20);
   });
+  await lab.filled?.();
   await view.repaint();
   const check = worker ? (phase, args) => worker.check(phase, args)
     : async (phase, args) => (await import("/client/view/check.js"))[phase]({ controller, ...args });
@@ -254,7 +327,8 @@ if (q.get("check") || lab.finished) {
       show(i);
       await until(() => shown?.i === i || errors.length);
     }
-    const { frames, firstShownMs, fillMs, stats } = await (worker ?? controller).ledger({ flip: q.get("mutate") === "sample" });
-    lab.finished({ issuedAt, firstShownMs, fillMs, frames, errors, stats, stepped });
+    const cine = await lab.cine?.({ worker, controller, fps: cineFps });
+    const ledger = await (worker ?? controller).ledger({ flip: q.get("mutate") === "sample" });
+    lab.finished({ ...ledger, boot: { ...boot, ...ledger.boot }, issuedAt, errors, stepped, cine });
   }
 }

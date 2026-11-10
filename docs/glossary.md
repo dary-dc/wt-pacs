@@ -34,6 +34,15 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | representation | how an AV1 payload holds its samples: **plain**, as an encoder codes them out of the box (the control), or **optimized**, split by depth and RGB through the RCT ([`av1/payload-format.md`](av1/payload-format.md)) |
 | client cache | the page's frames in OPFS, decoded and checked, one file per series kept by a **store worker**; the **memory window** is the frames held in memory around the current index, within a byte budget (built, [`adr/frame-path.md`](adr/frame-path.md) §Proposed: the client cache in OPFS). Proposed 2026-10-28: the **view worker** holds the store, the controller and the paint; a **slot** is a frame-sized span of one shared buffer the store lends a decoder for one frame (§Proposed, *Who owns a frame's memory*) (§Proposed, *M5 amended*, for its **credits**) |
 | preview | a lossy picture shown before its frame's exact one, and replaced by it |
+| optimal quality | a series' visually lossless view, the one every viewer sees, and the series that holds it (an **optimal-quality series**): lossy AV1 at a fixed quantizer Q, G frames a group, at its stored depth D when D ≤ 10, else as its depth cut; its metadata carries `lossy` and names its exact series ([`av1/payload-format.md`](av1/payload-format.md) §Optimal quality; [`client/README.md`](../client/README.md) §Optimal quality, exact on request) |
+| exact series | the HTJ2K series of the same source as an optimal-quality series, served beside it; its frame *i*, checked against its frame digest, is the **exact frame** the client fetches whole and paints when a reader asks for lossless |
+| depth cut | an optimal-quality form of a D > 10 series coded from 10-bit codes `min((v + 2^(D−11)) >> (D−10), 1023)`, so WebCodecs decodes it, adding a **rounding error** of at most 2^(D−11), up to 2^(D−10) − 1 at the clamp; metadata `lossy.bitsStored` ([`av1/payload-format.md`](av1/payload-format.md) §Depth cut) |
+| source sample | a pixel's value as stored in the series' DICOM pixel data; the exact frame carries it unchanged |
+| D | a series' stored bit depth, DICOM *Bits Stored* (0028,0101) |
+| Q, G | an optimal-quality series' quantizer, libaom's (higher Q, more error), and its frames per keyframe |
+| coding error | an optimal-quality value minus its source sample |
+| stored form | an optimal-quality form of a D > 10 series coded at D itself, not cut: a comparison, decoded by dav1d-WASM only after WebCodecs refused it |
+| pairing | an optimal-quality series naming its exact series in `exactSeries`, by the name the exact series' bundle is known by; nothing else links the two |
 | view | where the viewer holds and paints its frames: `page` (the default) or `worker`, the page's `?view=` ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) |
 | view worker | under `?view=worker`, the worker that holds the controller, the frame store and the paint module; the page sends it intents and hears events, never a frame |
 | controller | the view's current frame, what it wants and in what order, and its paint (`client/view/controller.js`) |
@@ -47,8 +56,9 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | `wt-pacs/1` | the native client's ALPN: the session's streams on raw QUIC, without HTTP/3 or WebTransport ([`WIRE.md`](WIRE.md) §The raw QUIC mapping) |
 | span | the frames a consumer holds that one run may cross so the misses around them stay one run; a lab setting, default 0 ([`adr/frame-path.md`](adr/frame-path.md) §Experiment 1) |
 | paint worker | under `?view=page`, the worker the page posts each frame's handle to, which paints it with WebGL2 on the transferred canvas (`client/paint/paint-worker.js`); in the view worker, the same module is its paint |
+| settle | what a paint waits for before it reports, so its `drawn` stamp is when the draw executed: `fence`, a sync object polled on a 1 ms timer, or `read`, a one-pixel `readPixels`, which in Firefox ≥ 145 waits for the page's thread. A lab's setting only; the product paints unsettled, its `drawn` the draw's issue ([`../client/paint/README.md`](../client/paint/README.md) §When a paint has executed) |
 | cine | the frames shown one after another at a rate; the product's is ticked by a page `setInterval` (`client/view/view.js`) |
-| cine clock | what ticks cine, on the page or in the view worker; each of the lab's clocks shows the frame due at its tick (`client/view/clock.js`, [`adr/frame-path.md`](adr/frame-path.md) §A frame clock in the view worker) |
+| cine clock | what ticks cine, on the page or in the view worker; each of the lab's clocks shows the frame due at its tick (`client/view/clock.js`, [`adr/frame-path.md`](adr/frame-path.md) §A frame clock in the view worker); natively, a timer on the paint thread (`client/native/src/clock.rs`), a frame **late** when its paint has not ended by the time the next is due |
 | Tap | the client's telemetry recorder, outside the product build ([`adr/telemetry-instrument-clients-from-outside.md`](adr/telemetry-instrument-clients-from-outside.md)) |
 
 ## Testing and measuring
@@ -60,3 +70,5 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | golden payload | an AV1 payload the writer made from a synthetic source with a known checksum, kept in `client/contract/av1/payloads/` |
 | cell | one configuration a lab run measures: a link, a CPU throttle, a series, a schedule |
 | variant | one condition of a timed comparison, interleaved with the others in every round (`CLAUDE.md` §Measurement) |
+| busy-UI loop | the lab's block of the UI thread: it spins for a set time on a fixed schedule, so what waits on that thread slips (`client/native/src/clock.rs`; [`native/README.md`](native/README.md) §The comparison, pre-registered, metric 4) |
+| hop | one message between two threads; its **hop stamp** is its send → receive time (`client/native/src/count.rs`) |
