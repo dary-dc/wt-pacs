@@ -258,8 +258,8 @@ at *Lossless*; the run stopped at its session's time limit 28 runs into round 4,
 **Interim, not a verdict:** after 3 rounds the rule is not met (`dbts_b1` clean 0.92×, `dbts_a1` at the 20-packet
 queue 0.91×; the rule asks ≤ 0.9×), and no cell is above 1.05×. Against the prediction (−5 to −25 % clean), the clean
 cells read −8 to −13 %, inside the band. Under 1 % loss the frames' ratios scatter (0.36–1.30): with 9 runs a cell, a
-loss in the first flights decides a run. The 20-packet queue cost no loss to the 38 400 arm (prediction: a loss in
-the 10-packet cell, not run here). Rounds 4–7 decide it. **Limits:** as P1's.
+loss in the first flights decides a run. At the 20-packet queue both arms overflow it on the exact session, alike (the relay's count over 27
+runs each: 5 025 datagrams at quinn's default, 4 699 at 38 400), so the larger first flight added no loss there. Rounds 4–7 decide it. **Limits:** as P1's.
 
 ### P5. The exact session dialled after the first picture
 
