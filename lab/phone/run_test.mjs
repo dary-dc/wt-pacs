@@ -30,10 +30,11 @@ for (const [port, cc, id] of [[4433, "cubic-restart", "synth-q8-g8"], [4434, "cu
   servers[port] = await run("target/release/series-server", ["--port", String(port), "--congestion", cc, "--series", `${dir}/${id}.sbnd`, ...cert], /transport=/);
   writeFileSync(`${dir}/t-${port}.json`, JSON.stringify({ wt_url: `https://127.0.0.1:${port}/`, cert_sha256: hash }));
 }
-const log = `${dir}/beacon.jsonl`;
-for (const bind of ["127.0.0.1", "127.0.0.2"]) {
+const BINDS = { tether: "127.0.0.1", wifi: "127.0.0.2" };
+const log = (bind) => `${dir}/beacon-${bind}.jsonl`;
+for (const bind of Object.values(BINDS)) {
   for (const [page, lossy, exact] of [[8765, 4433, 4434], [8766, 4443, 4444]]) {
-    await run("python3", ["server/dev-server.py", "--bind", bind, "--port", String(page), "--beacon-log", log,
+    await run("python3", ["server/dev-server.py", "--bind", bind, "--port", String(page), "--beacon-log", log(bind),
       "--metadata", `${dir}/synth-q8-g8.metadata.json`, "--transport", `${dir}/t-${lossy}.json`,
       "--exact-metadata", `${dir}/synth.metadata.json`, "--exact-transport", `${dir}/t-${exact}.json`], /port=/);
   }
@@ -44,8 +45,9 @@ const page = await browser.newPage();
 page.on("console", (m) => m.type() === "error" && console.log(`page console: ${m.text()}`));
 page.on("pageerror", (e) => console.log(`page error: ${e.message}`));
 
-/** The start page with `loads`, Start pressed; the runner's last banner once it says done or stopped. */
+/** The start page with `loads`, Start pressed, each pause continued; the runner's last banner once it says done or stopped, and the pauses met. */
 async function runPlan(loads) {
+  const pauses = [];
   const q = new URLSearchParams({ tether: "127.0.0.1", wifi: "127.0.0.2", gap: "1", fill: "60", series: "synth-q8-g8", loads });
   await page.goto(`http://127.0.0.1:8765/lab/phone/?${q}`);
   await page.click("#start");
@@ -54,26 +56,35 @@ async function runPlan(loads) {
     const text = await page.locator("#phone-run").textContent({ timeout: 1000 }).catch(() => "");
     if (/run done|stopped/.test(text)) {
       if (/stopped/.test(text)) console.log(`status: ${await page.locator("#status").textContent()}`);
-      return text;
+      return { end: text, pauses };
+    }
+    if (/waits: /.test(text) && !pauses.includes(text)) {
+      pauses.push(text);
+      await page.click("#phone-run-continue");
     }
     await new Promise((r) => setTimeout(r, 250));
   }
-  return "no end in 180 s";
+  return { end: "no end in 180 s", pauses };
 }
-const records = () => readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+/** Every record either static host appended, each with the address that took it. */
+const records = () => Object.values(BINDS).flatMap((bind) => readFileSync(log(bind), "utf8").split("\n").filter(Boolean)
+  .map((l) => ({ ...JSON.parse(l), host: bind })));
+const clearLogs = () => Object.values(BINDS).forEach((bind) => writeFileSync(log(bind), ""));
 
-/** A plan across both links and both controllers runs whole: each load filled, checked, pressed twice, and recorded. */
-writeFileSync(log, "");
-const plan = ["tether cubic-restart page warm-up", "wifi bbr worker", "tether bbr page", "wifi cubic-restart worker"];
-const end = await runPlan(plan.join("\n"));
+/** A plan across both links and both controllers runs whole, each step at its own origin, holding at its pause: each load filled, checked, pressed twice, and recorded. */
+clearLogs();
+const plan = ["tether cubic-restart page warm-up", "wifi cubic-restart page warm-up", "pause read the counters", "wifi bbr worker", "tether bbr page"];
+const { end, pauses } = await runPlan(plan.join("\n"));
 check(end === "run done: 4 loads", `the plan ran whole (${end})`);
+check(pauses.join() === "load 2 of 4 passed; load 3 waits: read the counters", `it held once, before load 3 (${pauses.join(" | ")})`);
 await new Promise((r) => setTimeout(r, 500));
 const all = records();
 const loads = all.filter((r) => r.kind === "load").sort((a, b) => a.step - b.step);
-check(loads.map((l) => `${l.link} ${l.controller} ${l.view}`).join() === plan.map((l) => l.replace(" warm-up", "")).join(),
+check(loads.map((l) => `${l.link} ${l.controller} ${l.view}`).join() === plan.filter((l) => !l.startsWith("pause")).map((l) => l.replace(" warm-up", "")).join(),
   `each load ran on its link, controller and view, in order (${loads.map((l) => `${l.step}:${l.link}/${l.port}/${l.view}`).join(" ")})`);
-check(loads.map((l) => l.port).join() === "8765,8766,8766,8765", "each controller's page port");
-check(loads.map((l) => l.counted).join() === "false,true,true,true", "the warm-up is not counted");
+check(loads.map((l) => l.port).join() === "8765,8765,8766,8766", "each controller's page port");
+check(loads.every((l) => l.host === BINDS[l.link]), `each load's records reached its own link's address (${loads.map((l) => l.host).join(" ")})`);
+check(loads.map((l) => l.counted).join() === "false,false,true,true", "the warm-ups are not counted");
 for (const l of loads) {
   const mine = all.filter((r) => r.load === l.load);
   const labels = mine.filter((r) => r.kind === "label").map((r) => r.quality).join(" ");
@@ -86,13 +97,13 @@ for (const l of loads) {
 }
 
 /** With an exact series' server gone, the first load fails, says why, and the run stops there. */
-writeFileSync(log, "");
+clearLogs();
 servers[4444].kill("SIGKILL");
-const stopped = await runPlan("wifi bbr page\ntether cubic-restart page");
+const { end: stopped } = await runPlan("wifi bbr page\ntether cubic-restart page");
 await new Promise((r) => setTimeout(r, 3000));
 const after = records();
 const verdict = after.find((r) => r.kind === "verdict");
-check(/^stopped at load 1 of 2: /.test(stopped), `the run stopped at load 1 (${stopped})`);
+check(/^stopped at load 1 of 2: .*; not rerun: the start page at load 2$/.test(stopped), `the run stopped at load 1 and names the next (${stopped})`);
 check(verdict && !verdict.ok && /lossless/.test(verdict.why), `its verdict names the cause (${verdict?.why})`);
 check(!after.some((r) => r.step === 1), "load 2 never ran");
 

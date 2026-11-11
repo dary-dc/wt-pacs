@@ -11,15 +11,16 @@
   #why { color: #b00020; }
 </style>
 <h1>Phone run</h1>
-<p>docs/devices.md §7: each load of the plan in turn, lossless pressed twice, a fixed gap, stopped on any failure.</p>
+<p>docs/devices.md §7, Second amendment: each load of the plan at its own origin, lossless pressed twice, a fixed gap, stopped on any failure.</p>
 <label>Tether address <input id="tether" inputmode="decimal"></label>
-<label>Wi-Fi address <input id="wifi" inputmode="decimal"></label>
+<label>Wi-Fi arm's address (the laptop's wired one) <input id="wifi" inputmode="decimal"></label>
 <label>Series (as served, for the records) <input id="series" value="dbts_b1-q8-g8"></label>
-<label>Gap between loads, s <input id="gap" type="number" value="10" min="0"></label>
-<label>A fill that has not ended by, s <input id="fill" type="number" value="120" min="1"></label>
+<label>Gap between loads, s <input id="gap" type="number" min="0"></label>
+<label>A fill that has not ended by, s <input id="fill" type="number" min="1"></label>
 <label>Start at load <input id="at" type="number" value="1" min="1"></label>
-<label>Loads: <code>&lt;tether|wifi&gt; &lt;cubic-restart|bbr&gt; &lt;page|worker&gt; [warm-up]</code>
+<label>Loads: <code>&lt;tether|wifi&gt; &lt;cubic-restart|bbr&gt; &lt;page|worker&gt; [warm-up]</code> or <code>pause &lt;why&gt;</code>
   <textarea id="loads" spellcheck="false"></textarea></label>
+<button id="octets">Octets (links alternated)</button> <button id="blocks">Blocks (the fallback)</button>
 <button id="start">Start</button>
 <p id="why"></p>
 <script type="module" src="start.js"></script>
