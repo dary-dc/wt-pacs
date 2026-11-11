@@ -21,7 +21,10 @@ over the first (`stream_frames` pushed at session open, `fill: all`, three decod
 its keyframe); the exact series has its own session, dialled at page start, one OpenJPH decoder, no fill, a frame
 asked only on `l` (`client/viewer/viewer.js` `connectExact`). Sizes (R, `docs/av1/payload-format.md` tables): an
 exact frame is 1.02, 1.21 and 2.15 MB on average (`dbts_c1`, `dbts_a1`, `dbts_b1`); the OQ series at Q 8 is 4.5, 6.3
-and 23 MB. Loopback, headless Chromium on SwiftShader, 4-core host (R, `client/README.md` §Optimal quality,
+and 23 MB. *Corrected 2026-11-11 (REDTEAM-PROPOSALS):* in that order the OQ sizes are 6.2, 4.7 and 23.2 MB: `dbts_c1`
+is the larger cut (`payload-format.md` tables, 0.0883 and 0.0687 of 70.7 and 67.8 MB; MEASURE-1's relay counted 4.73
+MB for `dbts_a1`), and the loopback fills below are `dbts_a1` 1.7, `dbts_b1` 4.6, `dbts_c1` 2.0 s (`client/README.md`
+lists them in that order). The decode-bound reading stands: `dbts_a1`'s 4.7 MB in 1.7 s is 22 Mbit/s. Loopback, headless Chromium on SwiftShader, 4-core host (R, `client/README.md` §Optimal quality,
 DEMO-E2E-2): every slice by 1.7, 2.0 and 4.6 s; a jump mid-group at G 8 and 16 170–305 ms against 35–44 ms at G 1;
 the exact frame 54–164 ms after `l`. **On loopback the fill is decode-bound**: 4.5 MB in 1.7 s is 21 Mbit/s, about
 the demo link's rate, so at 20 Mbit the fill of `dbts_a1` sits near this host's decode ceiling and nothing past it
@@ -134,6 +137,26 @@ ms during the fill in every cell, where Cubic's is ~1 ms under 1 % loss and 250�
 `dbts_c1` BBR overflowed 12 % of its datagrams. A jump during the fill waits behind that queue; this protocol did not
 time one. **Limits:** three DBT volumes of one dataset; a userspace relay, not a radio, with loss each direction;
 one 4-core cloud host without a GPU; SwiftShader paints; headless Chromium, page view, ts client.
+
+**Red team (REDTEAM-PROPOSALS, 2026-11-11): corrected in place; not "adopt" for FIX-2.** The rule was met as written
+and the rows support it, with three corrections. (1) *The `l` ratio on `dbts_a1` at 1 % is fragile.* Its five Cubic
+runs span 872–3 407 ms. P4's default arm is the same configuration (`cubic-restart` on both servers, the same link,
+frame 0, 10 s of quiet), and its seven runs give a median of 1 147 ms. Against that, BBR's 716 ms is 0.55×, not
+0.29×; pooled over the 12 runs it is 0.37×. The rule (≤ 0.7×) still holds there, but "better than the band" holds
+only on `dbts_b1` (0.16–0.17× against either arm) and `dbts_c1` (0.16× against P1, 0.22× against P4's 3 027 ms).
+With five runs a side, a heavy-tailed `l` under loss gives no ratio better than about ±0.2.
+(2) *The deciding cell is an assumption about the radio.* Every gain comes from the 1 % iid cell: loss at the IP
+layer, independent of the sender's rate, and applied in both directions. The burst cell is 0.64–0.89×; the clean cell
+is 0.84–0.99× (there, Cubic's slow start overflowed the 1 000-packet queue). Nothing here measures how much of a
+phone link's loss is random and how much is congestive. Under congestive loss, BBR's 85–260 ms standing queue and its
+12 % self-overflow on `dbts_c1` are costs that these cells cannot price. That is the owner's decision of 13:30 and
+`transport-conclusions.md` §1; PHONE-AMEND's controller arm is the row that decides it.
+(3) *The total effect is not all measured.* A jump during the fill, which waits behind BBR's queue, was not timed. So
+the claim "faster fill and lower on-demand latency" holds for `l` after the fill and for the fill itself, not for the
+on-demand ask made during it. *Checked and clean:* the arms are fair (fresh processes, alternated, the same relay).
+BBR delivered 0.2–1.6 % more datagrams, which is not a byte cost worth naming. No fill is at the host's ceiling.
+*Verdict:* survives for its cells. The owner's decision keeps `cubic-restart` the default, and FIX-2 is told not to
+take P1. Owed: a jump timed during the fill under both controllers, and the phone run.
 
 ### P2. Tiles in the optimal-quality encode
 
@@ -272,6 +295,22 @@ replaced within one task, or the label really skips it under load (not traced he
 headless Chromium's software dav1d, not a phone's. The phone row (decode per frame on the owner's phone, tethered) is
 still owed and decides alone if it disagrees. Three DBT volumes of one dataset.
 
+**Red team (REDTEAM-PROPOSALS, 2026-11-11): corrected in place; the rule's verdict stands, adoption waits on a
+quality cell.** (1) *The arms are compared at the same Q, not at the same quality.* The demo is "visually lossless AV1"
+at the Q chosen by e_N ÷ σ (§Integrity I2). Tiles change the reconstruction. Prediction and entropy contexts stop at
+tile edges, so at the same cq-level the coding error can move; the bytes moved by only +0.01 to +0.65 %. The rule
+checks bytes and time but never the coding error. Until each 2 × 2 series' e_N ÷ σ (or RMS e) is shown to be within
+the 1 × 1 series' value, "meets its rule" does not mean the demo's quality is unchanged. That cell costs no browser
+time: re-encode the six series and run the quality study's metric on both arms. (2) *Exactness was dropped from the
+rule.* The registered rule required "the encoder's reconstruction equals dav1d's" for every arm. Amendment 1 says the
+ingest has no such check for a lossy series and claims none. The rule was therefore applied without that condition.
+I1's reconstruction digest would supply it. (3) *The fixture is not the demo's for `dbts_c1`.* The demo pair codes
+`dbts_c1` at G 16 (P1, P3–P5). P2 timed it at G 8, so the demo's longest jump, mid-group at G 16, was not measured
+with tiles. (4) *The margin.* `dbts_b1`'s jump is 0.84× against a bar of 0.85×, on 5 runs a side, so it rests on one
+series. *Checked and clean:* the arms were interleaved and rotated; the one-tile arm was byte-equal to the demo's
+bundles; the 2-core rows decide nothing, as registered. *Verdict:* survives as the leading decode lever. It is not
+"adopt": the owner put tiles after the demo (13:30), and the quality cell above is owed before any adoption.
+
 ### P3. A wake on `pointerdown`, before `l` asks
 
 **Mechanism.** After the fill the page is silent; *by report*, carriers drop a radio to idle after 5–10.5 s without
@@ -344,6 +383,26 @@ the ask is the first packet after the quiet; P3 is not decided here; the decidin
 cellular, as registered, and on a phone the same ping would hide the promotion from any `l` it precedes. **Limits:**
 the relay's radio is a model; one host; the three DBT volumes of one dataset.
 
+**Red team (REDTEAM-PROPOSALS, 2026-11-11): corrected in place; open, and the phone protocol needs an
+amendment before it runs.** (1) *The measured arm is not the proposed mechanism.* The proposal sends `end_stream`.
+`p3_arm.sh` calls `controller.exactSource?.cancel()`, and the downloader's `cancel` (`client/transport/downloader.js`,
+`m.kind === "cancel"`) also raises the generation, drops every record, ask and want, and posts `cancelled` to the
+consumer. On an idle session the two are the same on the wire, which is all the plumbing cell exercised. With an `l`
+already in flight (a second tap, or a tap during a slow `l`), `cancel` throws away that ask's bookkeeping. Whether
+the click's re-ask then reuses the frame on the wire (`requestOnce`) or the label state is disturbed was not traced.
+The build must send `end_stream` alone. Its owed unit test should cover this case beside "never on the
+optimal-quality session": a tap during an `l` loses nothing. (2) *The phone row as registered is confounded by the
+browser's ping.* "A browser pings every 15 s" (R, `transport-conclusions.md`, the native session's note). The relay
+check above shows such a packet paying the promotion. The registered phone row uses dwells of 15 s, the ping's own
+period, so each `l` falls at a fixed phase of it, either just after a ping (radio up, no gain possible) or just
+before one. Before that row runs, an amendment should spread the dwell over a range (for instance 6–14 s after the
+last packet, read from the server's path line) and record the time since the session's last packet for each `l`.
+(3) *The expected gain shrinks by the ping.* If the radio drops after 5–10.5 s of quiet and a ping comes every
+15 s, the radio is idle for only 4.5–10 s of each 15. An `l` at a random moment gains min(P, L) with probability
+0.3–0.67, so the expected gain is 0–100 ms, not 0–150 ms (assumption, from the figures by report above). *Verdict:*
+the plumbing survives (max(0, P − L) reproduced where the ask is the first packet). The proposal stays open for the
+phone row once amended. It is not for FIX-2.
+
 ### P4. A 32-packet initial window on the exact server only
 
 **Mechanism.** The exact session never fills, so every `l` starts from the initial window. "Endpoints SHOULD use an
@@ -406,6 +465,15 @@ there, so that cell passed then and passes now (0.90×). At the 20-packet queue 
 session alike (the relay's overflow count over rounds 1–3, 27 runs each: 5 025 datagrams at quinn's default, 4 699 at 38 400), so the larger first flight
 added no loss there. **Limits:** as P1's.
 
+**Red team (REDTEAM-PROPOSALS, 2026-11-11): the verdict stands, rejected by its rule.** The analysis is correct
+that the rejecting cell is noise around a tie: `dbts_a1` at 1 % spans 756–3 544 ms over 21 runs, which is the same
+tail that makes P1's five-run ratio fragile. `dbts_b1` clean at 0.92× is a real miss of the 0.9× bar, with tight
+quartiles. *Unfair arms:* none found; both arms ran the same OQ server and alternated. *Total effect:* every cell is
+≤ 1.06×. So P4 does no harm; it fails a bar set to demand a clear gain. *Not tested:* P4 together with P1's BBR,
+whose startup also opens from the initial window. If OPT-ROUND-2 takes P4 up again, the combination with P1 is the
+cell that matters, and the rule should be read on pooled frames with at least 21 runs a cell, which this run showed is
+the least that settles a 1 % cell. *Verdict:* withdrawn, as its rule says.
+
 ### P5. The exact session dialled after the first picture
 
 **Mechanism.** `connectExact` runs at page start, beside the OQ session's dial and before the first frame: a second
@@ -467,6 +535,13 @@ against 4 080 ms). Why is not measured here; one candidate is that the late hand
 on the shared link and starts the exact session with a larger RTT estimate. A run that names the exact session's
 `session path` RTT in both arms would settle it. **Limits:** as P1's; the throttle slows the main thread only
 (amendment 1), and a phone's radio is not modelled.
+
+**Red team (REDTEAM-PROPOSALS, 2026-11-11): the verdict stands, dropped as inert.** The throttle reached only the
+main thread, which amendment 1 found and said. The added 2-core cell moves no series by 30 ms either, so the drop does
+not rest on a cell that missed the workers. The `l` slowdown (1.03–1.10×), which was not predicted, is a cost of the
+dropped arm, so it bears on nothing that remains. Its use is as an A/A floor: two page builds that differ by three
+lines moved the first picture by +1 to +30 ms on 9 runs a side. Any rule that asks a first picture within 10 ms (P6)
+sits below that floor. *Verdict:* withdrawn.
 
 ### Sources
 
