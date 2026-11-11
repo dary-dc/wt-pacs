@@ -148,6 +148,11 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   which `dev-server.py` does not offer yet (it binds 127.0.0.1 and its CSP names only that); netem needs root. Fedora
   Workstation's zone admits UDP and TCP 1025 to 65535; which zone the phone's link lands in is the owner's check.
 
+* **The page after CLEAN-PRODUCT** (2026-11-11, `claude/clean-product`): `viewer.js` holds no check or lab code;
+  `?check=` is a lab parameter, refused on the web image like the others, and the check's modules load from
+  `lab/viewer/` through `head.js`'s lab gate (`lab/viewer/hooks.js`). `check.mjs --url` serves `lab/` to the page
+  from the checkout, Chromium alone.
+
 ## Terms
 
 One row each in [`docs/glossary.md`](../glossary.md) since 2026-11-10 (`claude/core-next`): *optimal quality* (and the
