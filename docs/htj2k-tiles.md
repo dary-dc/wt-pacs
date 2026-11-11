@@ -552,6 +552,41 @@ all from one dataset (EA1141), slices of a volume not independent samples; only 
 sideways reach level 1; no breast ultrasound cine; 4-core cloud hosts without a GPU, so WebCodecs is software here and
 no phone's decoder is measured; the phone's viewports are assumed, not read from a device.
 
+### Review (row HTJ2K-REVIEW, 2026-11-11)
+
+*By a session that wrote none of the above. Corrections are in place, each marked; this lists what was checked and
+what the section missed. Nothing is run.*
+
+**Checked and standing.** DICOM PS3.5's §10.18.1, §8.4.1 and A.11 quotes, verbatim against the current HTML (the
+elisions drop only sentences). OpenJPH 0.31.0's `-precincts` help, `restrict_input_resolution`'s and `pull`'s
+comments and the PLT skip, verbatim [S4]. T.800 and T.814 were not re-read (no copy here): those quotes stand on the
+2026-11-09 reading. Every ℓ_fit in the viewport table; the series' MB from `stage3-volumes` (rate × the `htj2k` arm's
+time, r5000 and r20000 within 1 %); every bytes-table cell but the break-even row; the level-1 share 26.90–27.29 %
+(`stage1-levels`); the `fit` arm's 12.0 and 47.5 s; `dbts_b1`'s 268–286 and 74–81 ms; §Theory 2's display error.
+
+**Fairness.** Same lossless end state: yes, the Lossless row prices it. Same content: no, and it favours D's bytes: on
+`dbts_a1` and `dbts_c1` S's scroll is the 12-bit exact frame, D's a depth-cut lossy picture; a verdict must say so.
+The phone sizes are assumptions; the 1440-wide phone already takes `dbts_b1` to level 0, so the one volume with a level
+to gain loses it on a large phone.
+
+**Missed.**
+* **The measured tiling, for the Lossless decode in both approaches.** Row TILEMEASURE
+  ([`decode/README.md`](decode/README.md) P-TILE, `lab/av1/decode/tile`) decoded three strips on three idle workers
+  at ×0.388–0.448 of the whole frame at 4× on the large series, bytes +0.12–0.59 %; Layout 1 is the store's proposal
+  built on it. A `dbts_b1` Lossless frame's 268–286 ms would be about 105–130 ms (*derived*; 2560×3328 was not in the
+  run, and a phone's three idle cores are an assumption). It shortens D's and S's Lossless ask alike, so it changes
+  the decode-bound cells, not R3's ratio where the link is the clock.
+* **Level offsets from the main header.** OpenJPH 0.31.0 writes "tilepart divisions at each resolution, indicated by
+  the letter R" (`-tileparts R`) and "a TLM marker" (`-tlm_marker true`) [S4, `ojph_compress.cpp`]. Under RPCL each
+  level's prefix would then end on a tile-part boundary whose offset TLM lists, so the ingest needs no decode or packet
+  parse to find it, and the codestream meets the RPCL syntax's TLM clause (*derived*, not tried; it costs a tile-part
+  header a resolution). For HTJ2K-IMPROVE.
+* **The PCS's input**, corrected in place above: the profile S relies on is ours, not known to be the PCS's.
+* **What changes the answer.** By the break-even row S pays only for a reader who asks Lossless on most slices of a
+  volume; the review found nothing that moves that. What could: a phone whose WebCodecs is slow at 10 bits (the decode
+  side, owed to a phone), or a reading practice that asks Lossless on most slices, which no fixture or record here
+  shows.
+
 ## Sources
 
 Read 2026-11-09; quotations are verbatim, with the PDF's symbols restored where text extraction lost them (≤).

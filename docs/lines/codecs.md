@@ -1,7 +1,7 @@
 # Codecs and lab
 
 Last verified 2026-11-09 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09; HTJ2K at screen
-resolution against the demo's approach, theory, 2026-11-11).
+resolution against the demo's approach, theory and its review, 2026-11-11).
 
 ## Goal
 
@@ -61,7 +61,9 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    §Screen resolution): on an upright phone only `dbts_b1` of the three timed volumes has a level to gain, so serving
    HTJ2K at the screen's level is today's exact fill on `dbts_a1` and `dbts_c1`; it costs 1.2–10× the OQ view's bytes
    to the first picture and the scroll (*derived*) and pays only when a reader asks Lossless on most slices. Its
-   protocol is pre-registered there, not run.
+   protocol is pre-registered there, not run. Reviewed 2026-11-11 (row HTJ2K-REVIEW, §Review there): sources and
+   arithmetic hold but for corrections in place; missed were the measured three-strip tiling for the Lossless decode
+   and level offsets from tile-parts and TLM; the HTJ2K profile S relies on is ours, not known to be the PCS's.
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).
