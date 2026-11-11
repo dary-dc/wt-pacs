@@ -90,8 +90,14 @@ the frame.
   reports the string's colour on the frame, not the stream's, so whether a 4:4:4 stream is identity (matrix 0) is
   read from the sequence header, as for dav1d-WASM. Which engines accept which strings:
   [`lab/av1/exact/codec-string`](../../lab/av1/exact/codec-string/README.md).
-* **dav1d-WASM** (dav1d 1.5.4, emscripten 3.1.74, SIMD build) otherwise — 12-bit top streams, no `VideoDecoder`,
-  or a failed probe.
+* **An optimal-quality series** (the decoder config's `lossy`, set from the metadata's `lossy`) takes WebCodecs first at
+  any depth: ≤ 10 bits as above; over 10 bits, where no probe is made, each frame is tried until WebCodecs refuses
+  one, and that refusal sends the worker's later frames to dav1d. Every dav1d frame of it carries the refusal
+  (`refusal` beside `path`), which the overlay shows. The owner's decision of 2026-11-09; §Depth cut. A WebCodecs
+  failure on a frame inside a group (G > 1) after its keyframe decoded there is not recovered: dav1d never saw the
+  keyframe, so that frame and the rest of its group fail by name, up to the next keyframe (read from the code, not run).
+* **dav1d-WASM** (dav1d 1.5.4, emscripten 3.1.74, SIMD build) otherwise — an exact series' 12-bit top streams, no
+  `VideoDecoder`, a failed probe, or a frame WebCodecs refused.
 * Both imported, and dav1d's glue and WASM fetched, when an AV1 series' decoder starts; each initialised on first use, memoised; an HTJ2K page fetches no AV1 code ([`lab/page-open/README.md`](../../lab/page-open/README.md) §Cold round trips by codec).
 
 ## Built (`20c3674`)
@@ -110,7 +116,15 @@ need their frames written as payloads; their readings stand as measured before i
 and the reader take grey of 8–16 bits after the offset, unsigned and signed, at any k ≤ 8 whose top fits a 12-bit
 stream; the defaults above are unchanged until the per-depth split measurement (queue row SPLITTIME). Checked exact at every b = 8…16 and every k = max(0, b − 12) …
 max(b − 8, 4), natively, in Node and in Chromium, Firefox and WebKitGTK, synthetic to 4096×5120 and real, and the old and new
-refusals matched by message. The reader's signed mask is now the output container's (0xFF, 0xFFFF): the old
+refusals matched by message. *Corrected 2026-10-30:* its signed sets are centred on 0, so a signed source of ≤ 8
+bits after the offset whose values leave −128…127 (a signed 16-bit series spanning −10…200, 0…200 or −200…0) was not
+shown exact, and wrapped in Int8 (§Is the split safe?, P4), its frame digest wrapped the same way. Since 2026-10-31 such a payload (offset ≠ 128)
+is 9 bits, Int16, in the reader (`av1-frame.js`) and the digest (`ingest.py`'s `wide`). *Corrected 2026-11-10:* that
+rule still left a signed source under 8 bits whose offset passes 128 (−200…−100) in Int8; the rule is now whether
+−offset … 2^bits − 1 − offset fits a byte, in the reader, the digest and the native decode (`decode.rs`'s `wide`).
+Checked on the reader's merge (`client/decode/av1.test.mjs`), the digest (`ingest/coded-frames/merge_test.py`) and the
+native rule, not through a decoder. The
+from-DICOM reader refuses High Bit < Bits Stored − 1 by name (PS3.5 §8.1.1). The reader's signed mask is now the output container's (0xFF, 0xFFFF): the old
 2^(depth + split) − 1 reports a wrong range for signed 8-bit with a split and for signed 16-bit at k = 5 and 7.
 **New limits:** `bits` ≤ 16, `split` ≤ 8, a top of at most 12 bits; a payload's `depth` is the smallest of 8, 10, 12
 holding its top.
@@ -157,6 +171,103 @@ series (README §Total time, *The split per depth*); the grey rows of §Represen
 
 The format did not change: `split` and `depth` already carried every k (the split exactness check), and the reader decodes each
 layout exactly (§Built; golden `optimized/g9` and `optimized/s13`).
+
+## Is the split safe? (audit, 2026-10-30)
+
+*Theory and audit; only cases 1 and 2 of §5 were run (2026-10-31), on the reader's merge and the writer's digest. The literature is [`split-prior-art.md`](split-prior-art.md);
+G > 1 is [`frame-groups.md`](frame-groups.md) §2, §5.*
+
+**Verdict.** G = 1: **safe with conditions** — the arithmetic is exact for every in-range sample, each frame is shown
+exact at ingest, and the client checks every frame; one container defect (P4, now fixed) was outside both checks. G > 1: **not
+shown** — dav1d-WASM fails every split group, and a 12-bit top has no other browser path.
+
+**1 · The arithmetic** (*derived*). For integers 0 ≤ v < 2^b and 0 ≤ k, Euclidean division by 2^k gives
+v = t·2^k + l with t = v ≫ k and 0 ≤ l = v & (2^k − 1) < 2^k. The low k bits of t·2^k are zero, so
+`(t << k) | l` = t·2^k + l = v. Also 0 ≤ t < 2^(b−k): each part is a sample of its stream when b − k ≤ the top's depth
+and k ≤ 8. The merge is the split's inverse iff each stream comes back unchanged and the output holds v − offset.
+
+| precondition | enforced by |
+| --- | --- |
+| P1 v ≥ 0: offset = −min when min < 0 | `ingest/from-dicom/dicom_series.py:32`; b = bit length of max + offset, `ingest/coded-frames/ingest.py:47` |
+| P2 b ≤ 16, k ≤ 8, b − k ≤ 12, depth the smallest of 8/10/12 holding it | writer `ingest.py:26-30, 58-66`; reader `client/decode/av1-payload.js:31-36` |
+| P3 the header's offset is the one added | `ingest.py:211`, and the ingest gate (`:221`) |
+| P4 the output type holds v − offset | `av1-frame.js:32` picks Int8/Uint8 for b ≤ 8, 16-bit above. *Was not enforced:* a signed source whose b ≤ 8 after the offset but whose values leave −128…127 (a 16-bit signed series spanning, say, −10…200) wrapped in Int8 (reproduced 2026-10-31). Now a signed 8-bit payload not centred on 0 (offset ≠ 128) is 9 bits, Int16, in the reader (`av1-frame.js`) and the digest (`ingest.py`'s `wide`). *Corrected 2026-11-10:* that rule left a signed source under 8 bits whose offset passes 128 (−200…−100) in Int8; the rule is now whether −offset … 2^bits − 1 − offset fits a byte (§Built) |
+| P5 the stored value, not the 16-bit word: Bits Stored taken at High Bit, sign-extended | `dicom_series.py:95-99`. PS3.5 2026d §8.1.1: "High Bit (0028,0102) shall be one less than Bits Stored (0028,0101)"; the ingest checked only High Bit < Bits Allocated (`:84`), so High Bit < Bits Stored − 1 was not refused (reproduced 2026-10-31); it is now refused by name. High Bit > Bits Stored − 1, the retired layout the shift reads, is still taken |
+| P6 padding values and MONOCHROME1 | nothing needed: a padding value is a sample within min…max, and MONOCHROME1's inversion is applied "after any VOI gray scale transformations" (PS3.3 2026d C.7.6.3.1.2), after the merge |
+| P7 each stream returns its samples unchanged | §2 below, and the gate per frame |
+
+P4 escaped both checks (reproduced 2026-10-31): the ingest gate compares in the source's type (`ingest.py:221`), the
+frame digest is cast to the same 8 bits (`ingest.py:119`; NumPy 2.4.6 wraps there, 200 to −56, and does not raise),
+and the client hashes bytes (`client/decode/decoder.js:25`), which are equal; the value read as Int8 is not. The
+split exactness check's signed sets are all centred on 0 (`lab/av1/exact/split/make_sets.py:34`), so it never met
+this case. It is not split-specific: k = 0 has it too.
+
+**2 · The codec contract.** AV1 specification at `5e04f3f`
+([github.com/AOMediaCodec/av1-spec](https://github.com/AOMediaCodec/av1-spec)):
+
+* Lossless is per segment: `LosslessArray[segmentId] = qindex == 0 && DeltaQYDc == 0 && …` (§5.9.2); "It is a
+  requirement of bitstream conformance that delta_q_present is equal to 0 when CodedLossless is equal to 1" (§6.8.2).
+  CodedLossless turns off the loop filter and CDEF (§5.9.11, §5.9.19); AllLossless also needs FrameWidth =
+  UpscaledWidth, and only it turns off loop restoration (§5.9.20): superres would not be lossless.
+* Reconstruction clips: "Clip1( CurrFrame[ plane ][ y + yy ][ x + xx ] + Residual[ i ][ j ] )" (§7.12.3), and
+  Clip1(x) = Clip3(0, 2^BitDepth − 1, x) (§4.7) — the identity on 0 … 2^BitDepth − 1. The spec binds the decoder, not
+  the encoder: the source comes back only if the encoder wrote it so, which is why the ingest gate decodes each frame.
+* "When film_grain_params_present is equal to 0, decoders shall produce output frames that are identical in all
+  respects" (§7.2); with it 1, a decoder may instead produce grain that is only perceptually alike. Nothing in the
+  ingest or reader reads the flag (*not found*); `encoder_args` asks for no grain (`ingest.py:123`), and grain would
+  fail the gate and the per-frame check.
+* Colour range is signalling: "this specification does not enforce the range when signaled as Studio swing"
+  (§6.4.2), and output is the arrays "where the bit depth for each sample is BitDepth … further processing (such as
+  color conversion) is outside the scope" (§7.18.1). Monochrome is allowed in profile 0 at 8 and 10 bits and profile 2
+  at 12 (§6.4.1).
+
+W3C WebCodecs, Editor's Draft 26 October 2026 ([w3c.github.io/webcodecs](https://w3c.github.io/webcodecs/)):
+`copyTo`: "The format of the data is options.format, if it exists or this VideoFrame's format otherwise" (§9.4.5); RGB
+conversion runs only when `format` names RGBA, RGBX, BGRA or BGRX. The client passes no `format`
+(`client/decode/av1-webcodecs.js:136, 153, 169`), and I420P10 is "10 bits, encoded as a 16-bit integer" (§9.8). The
+spec says nothing on whether the decoded resource equals the codec's output (*not found*: no "bit-exact"), and
+`prefer-software` is a hint "User Agents may ignore … for any reason" (§7.9). Firefox converts to `BGRX` regardless
+([`../decode/README.md`](../decode/README.md) §Why, and what would make it exact).
+
+**3 · Others' evidence.** AOM's Argon streams claim "complete coverage of every equation in the core specification
+… every extreme value in the pixel processing pipeline" ([aomedia.org](https://aomedia.org/av1-video-decoder-verification-tool/));
+dav1d's README (1.5.4, §Decoder conformance tests) expects "2763 files successfully verified" on them. Whether those
+include lossless 4:0:0 at 10 and 12 bits, and any published dav1d-WASM or browser run of them: *not found*. Encoders
+do break lossless: SVT-AV1 #2260 "Lossless is broken" (v3.0.2, closed;
+[gitlab.com](https://gitlab.com/AOMediaCodec/SVT-AV1/-/issues/2260)), and libaom with alt-ref at 10 and 12 bits here
+(row 100). No published bit-exactness test of lossless AV1 at 10 or 12 bits, and no split study beyond
+`split-prior-art.md` §1, was found.
+
+**4 · What is verified, per path.** Rows and commits are [`queue.md`](queue.md)'s.
+
+| | native dav1d | dav1d-WASM | WebCodecs | mixed |
+| --- | --- | --- | --- | --- |
+| G = 1 | every b 8–16, every k, both signs, synthetic, large and nine real series (row 43, `95b80dc`); every written frame by the gate | the same matrix in Node, Chromium, Firefox, WebKitGTK (row 43); nine series (row 37, `653f6d7`) | Chromium 141, every payload with streams ≤ 10 bits (row 43); Firefox refuses 4:0:0, WebKitGTK decodes no AV1: dav1d-WASM takes them; 12 bits refused | Chromium, Firefox, WebKitGTK (row 47, `f434b72`); off by default; the row-43 matrix not run through it |
+| G > 1 | 159/159 libaom cells, alt-ref off, 8- and 10-bit tops, k = 2 (row 100, `cbbdf06`); 12-bit tops, other k: not run; alt-ref on not lossless | **fails every split group** (row 100), not fixed | 8- and 10-bit G = 8 streams (row 30, `5e693b6`), row 100's timed frames 5 760/5 760; 12 bits refused | not run; separate instances avoid the flush (*derived*), the dav1d-WASM fallback may not |
+| every cell | P4's signed sources: the reader's merge in Node and the writer's digest only (§5, case 1); not through a codec or an engine | | | |
+
+The per-frame check ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §2) covers a wrong
+decoder, engine, grain or flush: the frame is decoded again or shown as failed, never as exact — but only where the
+metadata carries digests (`decoder.js:10, 29-30`), and it could not see P4. So the real risk is that at G > 1 that a 12-bit
+top's only browser path fails (an availability loss the check turns into failed frames, not wrong ones).
+
+**5 · Protocol, for a separate session (cases 1 and 2 run 2026-10-31, the rest not).** Every frame against the SHA-256 of its source, compared as
+numbers in the source's type, not as bytes.
+
+1. *P4:* signed 16-bit sources spanning −10…200, 0…200, −200…0 and −128…127 (the control), k = 0 and 1, through every
+   path. Prediction: the first three wrong, the control exact. *Run* on the reader's merge (`client/decode/av1.test.mjs`)
+   and the digest (`ingest/coded-frames/merge_test.py`), not through a decoder: as predicted, then all four exact.
+2. *P5:* a source with High Bit < Bits Stored − 1: the ingest must refuse it by name. *Run*: it was not; it is now
+   (`ingest/from-dicom/from_dicom_test.py`).
+3. *Mixed:* row 43's synthetic and real matrix through `mixed` in the three engines.
+4. *G > 1:* row 100's DBT payloads at G ∈ {2, 8, 16}, plus the 14-bit projections at k = 2 (12-bit tops), through
+   native dav1d, dav1d-WASM (one instance a stream), WebCodecs (≤ 10 bits) and mixed.
+
+Mutations, each to be caught: the output typed 8-bit for a 9-bit source; the signed mask dropped; top and low swapped;
+one dav1d-WASM instance shared by both streams at G > 1; a group's frames reordered; one sample of a frame's digest
+flipped; a unit with film grain parameters. **Rule:** G = 1 is safe once case 1 is fixed (typed by the
+source's range, 2026-10-31) and cases 1–3 are exact with every mutation caught. A path is a candidate at G > 1 only if every frame of case
+4 is exact on it at every G and every mutation is caught; a failing path is refused for groups.
 
 ## 8-bit grey as 4:2:0, not adopted
 
@@ -213,3 +324,153 @@ what would reopen G > 1: [`frame-groups.md`](frame-groups.md) §1 and §5. HTJ2K
 
 Series the PCS could share are the owner's call ([`queue.md`](queue.md) §Blocked); the protocol they would run is
 [`gop-protocol.md`](gop-protocol.md).
+
+## Optimal quality
+
+*OQ-INGEST, 2026-11-09. Built; the bytes below are measured, the quality is not (the AV1 lab's
+`claude/av1-quality-profiles` measures it).*
+
+The design: every viewer sees a series' **optimal quality**, a visually lossless AV1 view; when a reader asks for
+lossless, the client fetches that frame whole from the **exact series**, the HTJ2K series of the same source, served
+as today. No residual, and no server or wire change: the optimal-quality series is a series of its own, ingested
+beside its exact series, and the client pairs them by `exactSeries` ([`../glossary.md`](../glossary.md)).
+
+* **Coding.** libaom 3.15.1 at a fixed quantizer, the AV1 lab's settings (`aomenc_args` in
+  `lab/av1/profiles/bytes.py` at `1232918d` on `claude/av1-quality-profiles`, without alt-ref), `ingest.py`'s `lossy_args`:
+
+  ```
+  aomenc --ivf --good --cpu-used=6 --threads=1 --passes=1 --tune=psnr --end-usage=q --cq-level=Q --min-q=Q --max-q=Q \
+         --deltaq-mode=0 --aq-mode=0 --denoise-noise-level=0 --lag-in-frames=0 --auto-alt-ref=0 \
+         --kf-min-dist=G --kf-max-dist=G --monochrome --profile=P --bit-depth=D --input-bit-depth=D
+  ```
+
+  `--kf-max-dist=0` in place of both `--kf-*-dist` at G = 1; `--profile` 2 at 12 bits, 0 otherwise. Q is any of
+  1–63 and G any of 1 or more, per series, the PCS's choice; the ingest takes any such value. *Corrected
+  2026-11-10:* this said 0–63. Q 0 is qindex 0 with no delta-q, which the AV1 specification makes lossless
+  (`LosslessArray`), and measured on the synthetic 8, 10 and 12-bit sources of `lossy_test.py` at G 1 every frame
+  decodes exact: a lossless stream labelled lossy. The ingest refuses it by name.
+* **Depth.** The source's: grey of b bits after the offset is coded at the smallest of 8, 10 and 12 holding b.
+  Refused: over 12 bits, unless as its depth cut (§Depth cut), and RGB.
+* **Payload.** §Payload as it is, one temporal unit a frame (n = 1, split 0): `bits` b, `depth` D, `flags` signed
+  and `offset` as for a lossless series. A decoded sample is anywhere in 0 … 2^D − 1 less the offset, not only
+  within the series' `min` … `max`.
+* **Groups.** Frame i's group starts at its keyframe k = i − (i mod G), a shown key frame with its sequence header.
+  Frame i is shown by decoding the units of frames k, k + 1, …, i in order on one decoder; no unit refers outside
+  its group, and the last group may be shorter. Nothing beyond G is recorded: `lossy.g` gives k for every frame.
+  Each group is one encoder run, so the bytes do not depend on `--jobs`.
+* **Checked at ingest:** every frame decoded in-process from its keyframe's unit on, at depth D and the series'
+  size, or nothing written. Not against its source: it is not exact. `ingest/coded-frames/lossy_test.py` checks a
+  synthetic set at depths 8, 10 and 12: every frame within 1 % of the range (RMS), never exact, worse at Q 24 than
+  at Q 8, decodable from its keyframe and not without it at G 1, 8 and 16, the same bytes at two `--jobs`.
+* **Metadata:** `"codec": "av1"`, `"lossy": {"q": Q, "g": G, "depth": D}`, `"exactSeries"`, the name its exact
+  series' bundle is known by, and the `"sourceFingerprint"` both series carry (§Source fingerprint). No `representation`, `preset` or `digests`: a frame digest makes a frame `exact`
+  ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests), so a lossy frame arrives `unchecked`.
+* **Built** in `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID`; the DICOM ingest does not code it yet.
+  `--depth-cut` codes the depth cut instead (§Depth cut).
+
+**Bytes** (`scripts/demo-series.sh`, 2026-11-09, one run on a 4-core x86-64 cloud host, 443 s in all with the
+tools already built): each `.sbnd` against its exact series'. The quality at each Q is not measured here.
+
+| series | frames | exact (HTJ2K) | Q 8 G 1 | Q 8 G 8 | Q 8 G 16 | Q 24 G 1 | Q 24 G 8 | Q 24 G 16 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `dbts_a1`, 1142 × 1785, 12-bit | 56 | 67 815 186 B | 0.0740 | 0.0742 | 0.0742 | 0.0057 | 0.0026 | 0.0024 |
+| `dbts_b1`, 2560 × 3328, 10-bit | 50 | 107 410 134 B | 0.2186 | 0.2161 | 0.2159 | 0.0246 | 0.0156 | 0.0152 |
+| `dbts_c1`, 976 × 2513, 12-bit | 69 | 70 668 114 B | 0.0959 | 0.0948 | 0.0947 | 0.0071 | 0.0031 | 0.0029 |
+
+G 16 against G 1: at Q 8, 1.2 % fewer bytes on `dbts_b1` and `dbts_c1`, 0.2 % more on `dbts_a1`; at Q 24, 0.41–0.42
+of G 1's bytes on `dbts_a1` and `dbts_c1`, 0.62 on `dbts_b1`.
+
+
+### Depth cut
+
+*OQ-DEPTHCUT, 2026-11-10. Built and tested on synthetic sets and in headless Chromium; the bytes below are measured,
+the quality is not.*
+
+No engine's WebCodecs returns 12-bit samples (`docs/av1/webcodecs-profiles.md` at `87640e5d` on `claude/av1-webcodecs-profiles`),
+so a D > 10 optimal-quality view would decode only through dav1d-WASM. The **depth cut** is the form that WebCodecs
+decodes: the OQ view coded from each source sample v's 10-bit **code**
+
+```
+c = min((v + 2^(D−11)) >> (D−10), 1023)        D = Bits Stored (0028,0101), over 10
+```
+
+at 10 bits, rounded half up, so it adds a rounding error of at most 2^(D−11) to the coding error. Code c stands for
+c · 2^(D−10), the centre of the samples that round to it. *Corrected 2026-11-10 (DEPTHCUT-REVIEW):* the clamp is the
+exception — the samples from 1023 · 2^(D−10) + 2^(D−11) up round to 1024 and are clamped to 1023, so the top
+2^(D−11) − 1 of them err by more, up to 2^(D−10) − 1 (3 at D 12, for 4095 alone).
+
+* **Which series.** Unsigned grey of D > 10 only; a D ≤ 10 series is coded at its own depth and never cut, and
+  `--depth-cut` on one, or on a signed series, is refused by name. The ingest's option; the PCS chooses it. The
+  owner's decision (2026-11-09): for D > 10 the OQ view is the cut; a 12-bit **stored form** (the OQ view coded at
+  D) is a comparison, decoded by dav1d only after WebCodecs refused it. The owner's decision (2026-11-11): on the demo
+  and product path D > 10 is always the cut; the stored form is a lab option (`STORED_FORM=1 scripts/demo-series.sh`),
+  never on the demo's show list.
+* **Payload.** As §Optimal quality's at 10 bits: `bits` 10, `depth` 10, split 0, flags 0, offset 0; the samples a
+  decoder returns are the codes.
+* **Metadata.** `"lossy": {"q", "g", "depth": 10, "bitsStored": D}`: `bitsStored` marks the cut, is the series' own
+  `bitsStored`, and only a cut form carries it.
+* **Painted from its codes.** The client keeps the decoded codes as they are and paints them through a window table
+  built for them: entry c is the series' window function (LINEAR, LINEAR_EXACT, SIGMOID, as for any series) at
+  c · 2^(D−10) through the rescale, so no pass shifts the samples first. `client/paint/voi.test.mjs` holds the table
+  equal to shifting then windowing on every code, at D 11, 12 and 16, for the three functions; scaling the window's
+  centre and width to the codes instead paints otherwise (the same test). The prior evidence is PAINTDEPTH
+  (`docs/decode/paint-depth.md` at `1e96552d` on `claude/av1-paint-depth`). Its auto window, from a frame's decoded range, and the
+  sample under the cursor are at full depth.
+* **Decoded** through WebCodecs where its 10-bit probe passed, dav1d-WASM otherwise, as any 10-bit series:
+  `client/decode/depth-cut.browser.mjs` decodes a G 4 fixture (`client/contract/av1/payloads/depth-cut`, from
+  `ingest/coded-frames/make_golden.py --depth-cut`) on the WebCodecs path in headless Chromium, every frame dav1d's codes.
+  The same check hands a 12-bit stored-form frame (`plain/g12`, 64 × 48) to WebCodecs first: headless Chrome for
+  Testing 153 accepts the config in `isConfigSupported` and then refuses the unit at `decode` (*marked as type `key`
+  but wasn't a key frame*), so the refusal is known only by trying; the frame and the next go to dav1d with it named.
+* **Lossless** is unchanged: the exact frame comes from the exact series at the stored depth.
+* **Checked at ingest** as any optimal-quality series; `lossy_test.py` adds a 12-bit set cut at G 1 and 8 (within 1 %
+  of the codes' range, RMS; mean coding error under a quarter code, which a truncating cut fails), the cut's rounding
+  and clamp on chosen values, and the refusal of a 10-bit set.
+
+**Bytes** (the demo script's cut series, run alone on 2026-11-10 on a 4-core x86-64 cloud host; the exact bundles
+came out at the bytes of §Optimal quality's table): each `.sbnd` against its exact series', beside the same Q uncut.
+
+| series | Q 8 G 1 cut | Q 8 G 8 cut | Q 8 G 16 cut | Q 24 G 1 cut | Q 24 G 8 cut | Q 24 G 16 cut | Q 8 G 1 at 12 bits | Q 8 G 16 at 12 bits |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `dbts_a1` | 0.0687 | 0.0685 | 0.0685 | 0.0064 | 0.0031 | 0.0030 | 0.0740 | 0.0742 |
+| `dbts_c1` | 0.0898 | 0.0883 | 0.0882 | 0.0081 | 0.0039 | 0.0037 | 0.0959 | 0.0947 |
+
+At Q 8 the cut is 6–8 % fewer bytes than the 12-bit view; it is not the same view (codes at a quarter of the
+precision, then the coding error), so the bytes say nothing of its quality. Since OQ-WEBCODECS-DEFAULT the demo
+script codes `dbts_a1` and `dbts_c1` as cuts at Q 8 and 24, G 1, 8 and 16 (ids `…-cut`), with one stored-form
+series each, `…-q8-g16-stored`. *Corrected 2026-11-10 (DEMO-E2E):* this said the Q 24 and G 8 cuts were not measured;
+the script in that form, run twice on a 4-core x86-64 cloud host (903 s building the coders and fetching the volumes first, 565 s with both done), wrote the bytes in
+the table above both times, the Q 8 G 1 and G 16 cuts and both stored forms as before. At Q 24 the cut is 1.12–1.28 times
+the 12-bit view's bytes (§Optimal quality's table, 2026-11-09; from the rounded fractions), more, not fewer.
+### Source fingerprint
+
+*SOURCE-FINGERPRINT, 2026-11-11. Built and tested on synthetic sets; nothing timed.*
+
+The pairing's same-source check (the owner, 2026-11-11: it stays, belongs in the ingest and uses XXH3). Every series
+the ingest writes, exact and optimal-quality alike, carries **`sourceFingerprint`**: the canonical XXH3-64, 16
+lowercase hex digits, of its source's frame digests in frame order, each the 16-hex XXH3-64 of a frame's samples as
+an HTJ2K series' frame digest takes them (`docs/FIXTURES.md` §Frame digests: one byte a sample at 8 bits or fewer,
+two little-endian above, sign-extended), concatenated as text.
+
+* **Why over the frame digests.** An HTJ2K exact series already carries exactly those digests, so its fingerprint
+  costs one hash over n × 16 bytes and no second pass over the samples. An optimal-quality series has no frame
+  digests (a lossy frame is not exact), and an AV1 lossless series' are taken at its payload's width, which can
+  differ from the source's (a signed 8-bit source widened to 9 bits); either hashes the source samples once more at
+  ingest, XXH3 beside an AV1 encode of the same frames (not timed).
+* **Why both ingests agree.** Both compute it from the same source samples by the same function
+  (`ingest.py`'s `source_fingerprint`, the Rust ingest's `source_fingerprint` over its own frame digests), whatever
+  they code: the depth cut, Q, G and the representation never reach it. `lossy_test.py` holds the exact series, four
+  optimal-quality series and two cuts of one set to one value, and three sets to three; `end_to_end_test.py` holds
+  the DICOM ingest's HTJ2K and AV1 bundles of a 12-bit signed and an 8-bit signed series to one value each;
+  `same_test.py` holds the Rust and Python bundles byte-identical.
+* **The threat it covers:** an accidental mispairing, an `exactSeries` naming the bundle of another source with the
+  same frame count, size, depth and sign. Not an adversary: anyone who can write the metadata can write the
+  fingerprint, and nothing signs it. Two sources share a value only by an XXH3-64 collision.
+* **Checked by the client:** `checkPair` (`client/viewer/pair.js`) refuses an exact series whose `sourceFingerprint`
+  is not the optimal-quality series', or a series without one, by name.
+* **`framesSha256`** stays what it was, the lab fetcher's pin of a set's samples (`lab/av1/fetch_data.py`, the
+  SHA-256 of the frames' SHA-256 hex digests), checked at download. The lab's command no longer copies it into the
+  series it writes, and no client reads it. `lab/av1/bytes/prior-gap/pocgap.py` writes its own `framesSha256` into
+  the lab sets it makes; those never reach the pairing.
+* **What it changes:** every bundle's metadata gains one key, so every series written before it fails the pairing
+  check until written again (`scripts/demo-series.sh`).

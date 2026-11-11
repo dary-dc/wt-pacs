@@ -5,7 +5,7 @@ the same binary, on the development certificate and on an ECDSA chain. Protocol,
 [`docs/transport/transport-conclusions.md`](../../docs/transport/transport-conclusions.md) §3 *Proposed row: IRTTMEASURE*.
 
 ```bash
-cargo build --release -p series-server -p window-harness -p pack-series
+cargo build --release -p series-server -p window-harness -p pack-series --features series-server/lab-levers
 export FIREFOX_PATH=.../FirefoxApp/firefox TRACES=dir/with/Verizon-LTE-short.down
 lab/irtt/run.py --phase a --rounds 20 --out a.jsonl     # cells A (swallow 40, 80, 150) and clean 40, 80, 150
 lab/irtt/run.py --phase c --rounds 20 --out c.jsonl     # cells C: 300, 400, 600, 1 000 ms and LTE-loaded

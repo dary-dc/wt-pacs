@@ -41,7 +41,7 @@ little-endian above, signed samples sign-extended to that width. The width is th
 `bitsStored`, an AV1 payload's `bits` ([`av1/payload-format.md`](av1/payload-format.md)), so a series stored in 16 bits whose values fit in 8
 hashes one byte a sample as AV1. The digest is taken from the encoder's input — the samples the `.sha256` was
 written from — never from a decoder's output. Metadata without `digests` is served as before; its frames
-arrive `unchecked` ([`../client/README.md`](../client/README.md) §A frame says whether it is exact).
+arrive `unchecked`, as an optimal-quality series' always do ([`../client/README.md`](../client/README.md) §A frame says whether it is exact).
 
 ## From DICOM
 
@@ -99,7 +99,12 @@ slowest's bytes:
   LINEAR when absent;
 * `min` and `max` of the stored samples;
 * `codec`, and for AV1 `representation` and `preset`;
-* `digests` (§Frame digests).
+* `digests` (§Frame digests);
+* `sourceFingerprint`, XXH3-64 over the source's frame digests, the same in every series of one source
+  ([`av1/payload-format.md`](av1/payload-format.md) §Source fingerprint);
+* for an optimal-quality series instead of `representation`, `preset` and `digests`: `lossy` `{q, g, depth}` and
+  `exactSeries`, the name of its exact series ([`av1/payload-format.md`](av1/payload-format.md) §Optimal quality).
+  `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID` writes them; this ingest does not code one yet.
 
 An enhanced object's per-frame functional group (Frame VOI LUT, Pixel Value Transformation) wins over its shared
 group, which wins over the object's own attributes. An attribute that differs between frames moves to `perFrame`,
@@ -754,7 +759,7 @@ names a later row on sound target data that has already decided the same questio
 
 | row | decision fed | rests on | weakness | since | class |
 | --- | --- | --- | --- | --- | --- |
-| 6 SIZE, 10 CONTENT, 46 BREAST (DBT half) | AV1 frame groups | fluoroscopy, MR, `us_liver` (6); two DBT volumes (10); four at G = 8, 16 (46) | off-target or lossy; one encoder, alt-ref off, few G | 100 GOPMEASURE: 15 sound volumes, G = 1 by its pre-stated rule (best inter gain +1.51 %; decode 4.6–24.6× over the bound) | critical, settled for DBT |
+| 6 SIZE, 10 CONTENT, 46 BREAST (DBT half) | AV1 frame groups | fluoroscopy, MR, `us_liver` (6); two DBT volumes (10); four at G = 8, 16 (46) | off-target or lossy; one encoder, alt-ref off, few G | 100 GOPMEASURE: 15 sound volumes, G = 1 (best inter gain +1.51 % on 1 of 15; an ask at 4× 4.6–24.6× its break-even, [`av1/frame-groups.md`](av1/frame-groups.md) §1) | critical, settled for DBT |
 | 46 BREAST (cine half), 28 LLSIZE ("inter pays on the ultrasound") | AV1 frame groups, ultrasound | `usb_cine` (MPEG-4 clip), `us_liver` | lossy-sourced: the gain is the clip's coding | none | **critical, open** (below) |
 | 80 GREY420 | ultrasound handling: the ingest keeps 4:0:0, Firefox needs 4:2:0 | `usb_cine`, `usb_still` only | lossy-sourced and unknown; no sound 8-bit grey series | none | **critical, open** |
 | 9 SPEED, 11 FILL (WebCodecs on 8 bits) | codec choice for 8-bit grey | `us_liver` alone | lossy-sourced, off-target | none for 8-bit grey | **critical, open** |

@@ -132,15 +132,17 @@ async function read(frame, seq) {
   // From the header, as dav1d's path: the frame's colorSpace echoes the codec string, not the stream.
   if (components === 3 && seq.mc !== 0) throw new Error(`4:4:4 with matrix ${seq.mc}`);
   if (RGB[frame.format]) return planar(frame, RGB[frame.format]);
-  const buf = new ArrayBuffer(frame.allocationSize());
+  const size = frame.allocationSize();
+  const buf = new ArrayBuffer(size);
   const layout = await frame.copyTo(buf);
-  const heap = bits > 8 ? new Uint16Array(buf) : new Uint8Array(buf);
   const shift = bits > 8 ? 1 : 0;
+  const heap = new (bits > 8 ? Uint16Array : Uint8Array)(buf, 0, size >> shift);
   // copyTo's layout is in bytes.
   const planes = layout.map(({ offset, stride }) => ({ heap, offset: offset >> shift, stride: stride >> shift }));
   const { width, height } = frame.visibleRect;
   // 4:0:0 comes back as 4:2:0 with every chroma sample mid-grey; colour 4:2:0 is not lossless.
-  if (components === 1 && !neutral(planes.slice(1), (width + 1) >> 1, (height + 1) >> 1, 1 << (bits - 1))) {
+  // mono_chrome: "does not contain U and V color planes" (AV1 §Color config semantics), so its 4:2:0 chroma is the decoder's own.
+  if (components === 1 && !seq.mono && !neutral(planes.slice(1), (width + 1) >> 1, (height + 1) >> 1, 1 << (bits - 1))) {
     throw new Error("4:2:0 with chroma");
   }
   return { width, height, bits, planes: planes.slice(0, components) };

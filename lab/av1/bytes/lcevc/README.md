@@ -4,7 +4,9 @@ Row LCEVC's answer: whether MPEG-5 Part 2 (LCEVC) can carry a lossy AV1 base plu
 that ends **exact**, and whether this project could ship it. The verdict lives in
 [`../../../../docs/av1/README.md`](../../../../docs/av1/README.md) §Preview, the licences in
 [`../../../../docs/av1/licensing.md`](../../../../docs/av1/licensing.md); this says how it was found.
-**No trial ran**: there is no open encoder to make a stream with (below).
+**No trial ran.** *Corrected 2026-10-31:* this first said there is no open encoder to make a stream
+with; MPEG's own reference encoder is free to download under BSD (§Re-checked 2026-10-31). FFmpeg
+decodes LCEVC through LCEVCdec and encodes none (§Re-checked 2026-11-02).
 
 ```bash
 python3 lab/av1/bytes/lcevc/reach.py   # ~10 s, exits 1 if a result moves
@@ -18,6 +20,9 @@ Read, not built or run (the container refused to build the decoder):
 | --- | --- | --- | --- |
 | LCEVCdec (the decoder SDK) | 4.2.2 | `17804ac54db8fbb42717f3275b1e73f3c0b067d3` | licence, transforms, dequantisation, the add |
 | LCEVCdecJS (the web decoder) | 1.3.0 | `50e4f35c7d82b1b1a9cca434ccca544622f38e11` | licence, how it renders |
+| LCEVCdec | 4.3.1 (2026-10-27) | `e295d8438ba554bc541fb269baa9cbd567b626a8` | the re-check: the nine files below are byte-identical to 4.2.2's |
+| LTM, the MPEG-5 Part 2 test model (ISO/IEC 23094-3 Amd 1 electronic insert) | 5.5 (`LTM_v5_5.zip`, 2024-09-09) | SHA-256 `62f2cfab…0fe360b` | the re-check: licence, the encoder, the decoder's fixed point |
+| FFmpeg | tags `n7.1`, `n8.1`, `n9.0`; branch `release/9.1` (`47b9284`, no `n9.1` tag on 2026-11-02); `master` | `5d5a38a7e46be296eab75982c0986054f731e19e` (2026-11-02) | the FFmpeg re-check: Changelog, `configure`, the LCEVC decode hook, filter, parser, bitstream filters, muxers |
 
 SHA-256 of the files read:
 
@@ -52,6 +57,10 @@ So a sample offset d is reachable when some lattice point falls in the box 2^f·
 
 Whether those fixed-point formats are what ISO/IEC 23094-2 itself specifies, or this decoder's
 choice, is **not confirmed**: the standard is not freely available and was not read.
+*Updated 2026-10-31:* MPEG's reference decoder (LTM 5.5) uses the same shifts, 7/5/3/1 at 8/10/12/14
+bits, and adds every residual before a single rounding out (`decoder/src/Convert.cpp:105–121`,
+`decoder/src/Decoder.cpp:304, 364, 426–429, 482`) — two implementations, one of them the conformance
+reference, so the formats are *derived* to be the standard's; the text itself is still unread.
 
 ## Result (`reach.py`)
 
@@ -84,9 +93,195 @@ Each mutation ran on a copy; the script's own check (expected counts) caught six
 
 * **No encoder.** No LCEVC encoder under an open licence was found; the licensor's encoder is a
   commercial SDK. A trial would mean writing an encoder for the bitstream from the standard, which is
-  not freely available.
+  not freely available. **Wrong, corrected 2026-10-31:** the MPEG reference software (LTM) carries an
+  encoder under BSD and has been a free download from ISO since 2022 (below); it was not looked for.
 * **The browser decoder is not an exact path.** LCEVCdecJS uploads the base from a `<video>`
   element as an 8-bit RGBA WebGL texture, applies residuals in shaders and draws to a canvas: no
   samples come back, and nothing above 8 bits or outside the browser's colour conversion survives.
   LCEVCdec's own WASM wrapper says it is "not complete yet".
 * **No patent grant** comes with either decoder (below), unlike AV1's royalty-free licence.
+
+## Re-checked 2026-10-31
+
+The owner asked again, for lossless breast cine-like series (DBT slices, ultrasound cine, ABUS; 8–12
+bits; bit-exact). Read, not built or run. Each claim: a source, or *derived*, or *unverified*.
+
+**1. An open encoder — changed.** MPEG's reference software ships an encoder and is a free download:
+ISO/IEC 23094-3 [ed-1 insert](https://standards.iso.org/iso-iec/23094/-3/ed-1/en/ReferenceSoftwareLTM/)
+(`lcevc_test_model.zip`, LTM 4.1.3, 2022-09-14) and its
+[Amd 1 insert](https://standards.iso.org/iso-iec/23094/-3/ed-1/en/amd/1/ReferenceSoftwareLTM/)
+(`LTM_v5_5.zip`, 2024-09-09). Its `COPYING` (identical in both):
+
+> The copyright in this software is being made available under the BSD License, included below. This
+> software may be subject to other third party and contributor rights, including patent rights, and no such rights are granted
+
+The ISO portal adds that inserts are used "in their original format without any modifications for the
+purposes specified"; which governs a modified build is *unverified*. Its limits, from source (LTM 5.5,
+the last resort): bases are AVC, HEVC, EVC or VVC elementary streams — the encoder opens the base as
+one (`encoder/src/FileEncoder.cpp:358`) and has no YUV-base path (no `BaseCoding_YUV` under
+`encoder/`), while the decoder takes a prepared YUV base (`src/ModelDecoderApp.cpp:200`). So **no AV1
+base without a patch**. Its forward 2×2 transform truncates, `( … ) / 4`
+(`encoder/src/TransformDD.cpp:65–69`), so at step width 1 it does not pick an exact residual
+(*derived*). Step widths: "range: [1, 32767]" in the code (`src/ModelEncoderApp.cpp:164–165`),
+"[4, 32767]" in its manual — they disagree; *unverified* until built. Formats `y`, `y10`, `y12`, `y14`
+are offered, though its README says "either 8 bpp or 10 bpp". The licensor's encoder SDK is still
+commercial, and LCEVCdec still says nothing of an encoder.
+
+**2. A lossless mode or profile — unchanged.** The one amendment is "Amendment 1: Additional levels"
+([ISO/IEC 23094-2:2021/Amd 1:2024](https://committee.iso.org/standard/86436.html), published 2024-01-22);
+no second edition was found. MPEG's
+[white paper](https://www.lcevc.org/wp-content/uploads/Whitepaper-on-Low-Complexity-Enhancement-Video-Coding-LCEVC-MPEG-meeting-137-January-2022.pdf)
+(SC 29/AG 3 N0058, 2022-01-23) claims reach, not a mode:
+
+> offering an efficient method of encoding residual data and providing up to mathematically
+> lossless picture reconstruction.
+
+It names no bit depth; the 14-bit result above stands against it for a base at the output size (a
+base upsampled to fractional values was not modelled).
+
+**3. Decoders that return samples — unchanged.** LCEVCdecJS is still 1.3.0 at the same commit
+(`50e4f35`, its HEAD on 2026-10-31). LCEVCdec 4.3.0 (2026-10-14) and 4.3.1 (2026-10-27) are Vulkan,
+Android and RISC-V work; their notes name no WASM, encoder or lossless change
+([releases](https://github.com/v-novaltd/LCEVCdec/releases)), and the WASM wrapper still reads "The WASM
+port of `enhancement` and `pixel_processing` functions is not complete yet" (`wrappers/wasm/README.md:3`,
+4.3.1). No browser decodes LCEVC natively: at W3C's Media & Entertainment IG
+([2025-11-10](https://www.w3.org/2025/11/10-me-minutes.html)) the licensor asked for a native path, the
+chair answered "this group can't work on specifications, we have to focus on use cases", and WebKit's
+"support in hardware is generally a requirement for us". No WebCodecs path exists (*unverified* beyond
+those minutes).
+
+**4. Licence and patents — clarified, no pool.** The licensor licenses alone, not through a pool, in
+two programmes. [Video distribution](https://v-nova.com/licensing-lcevc-vdlp/):
+
+> The Video Distribution Licensing Program grants a single, convenient license to patents essential
+> to MPEG-5 LCEVC
+
+— royalties by tier, $0 up to 1.14M monthly active video users, "Royalties for free-to-air
+broadcasting are waived", early-adopter rates before 31 December 2026.
+[Consumer devices](https://v-nova.com/licensing-lcevc-dlp/): "A royalty is due upon the sale of a
+Consumer Device implementing MPEG-5 LCEVC" ($0.20–0.70 a unit). Whether a PACS viewer is a "Video
+Distribution Service", defined as "any branded media & entertainment service", is *unverified*:
+the owner would ask licensing@v-nova.com. Row 19's "royalty-bearing per service, unconfirmed" is now
+confirmed from the licensor's own pages.
+
+**5. Published lossless or medical results — none found.** Searches for LCEVC with lossless, medical,
+ultrasound, tomosynthesis or radiology found no paper; the nearest is the white paper's claim above.
+
+**6. AV1 base + LCEVC exact end to end — *derived*, not run.**
+
+* The base is any decoded picture: the reference decoder takes a YUV base as is. An AV1 decoder's
+  output is fixed by the AV1 specification (*unverified* here, not re-read), so exactness rests on
+  the enhancement alone.
+* Every residual — sub-layer 1, sub-layer 2, the temporal buffer — is added in the S*n*.*f* domain
+  before one rounding (`Decoder.cpp` above); sums of lattice points stay on the lattice, so the
+  reach table above holds with temporal prediction and both sub-layers.
+* So, with the base at the output size, step width 1, no dithering, and an encoder that solves for
+  coefficients rather than truncating: **exact at 8 and 10 bits** with either transform, **at 12 bits
+  with the 2×2**, the 4×4 at 12 not proven, **not at 14**.
+* The base may be shallower than the output — LCEVC encodes "a lower resolution (and potentially also
+  lower bit depth) version" (white paper) and LTM shifts between them (`Convert.cpp:141`) — so a
+  12-bit series could take a 10-bit AV1 base, which WebCodecs decodes exactly (row 13). *Derived*.
+* Nothing returns exact samples in a browser (3), so "end to end" means natively, today.
+
+### Verdict
+
+**A trial is possible now, natively and offline, for exactness and bytes** — an open encoder exists —
+but not with the encoder as shipped: it needs two patches (a YUV base, and exact coefficients at step
+width 1). It is **not a product path**: no browser decoder returns samples, and the patents are
+royalty-bearing under terms that may or may not reach a PACS.
+
+### Protocol, pre-registered for a separate session
+
+1. Pin `LTM_v5_5.zip` (SHA-256 `62f2cfab386d4ece281ff2f57ab72f5e162f23333469926a37aedc0df0fe360b`),
+   LCEVCdec 4.3.1 (`e295d84`), the lab's libaom and dav1d (`lab/av1/tools/tools.sh`). Build natively.
+2. Patch the LTM encoder, smallest diff, kept as a file: P1 a `yuv` base read from a decoded
+   AV1 file with the enhancement as its own elementary stream; P2 at step width 1, 2×2 transform,
+   choose integer coefficients whose inverse lands each sample's box (`reach.py`'s construction), and
+   fail loudly where none exists.
+3. Series: `dbts_a1` (12-bit DBT slices), `dbt10_ea1141` (10-bit), one plane of `us_liver` (8-bit
+   cine; no open breast cine exists, `docs/FIXTURES.md`). The base: AV1 lossy at the output size at
+   two quality points; for the 12-bit series also a 10-bit base.
+4. Exact means every frame byte-identical to the source **from both decoders**, LTM's and LCEVCdec's;
+   a disagreement between them is a finding, not a retry.
+5. Predicted before running: exact at 8, 10 and 12 with the 2×2; P2 never fails at those depths.
+6. Bytes: base + enhancement against single-layer lossless AV1 and HTJ2K of the same frames (bytes are
+   deterministic; no timing claimed). Gain only if smaller than lossless HTJ2K.
+7. Mutate: one coefficient ±1, and P2 replaced by LTM's truncation — exactness must fail in both.
+8. Stop at the first hard no and record it here.
+
+## Re-checked 2026-11-02: FFmpeg
+
+The owner asked whether FFmpeg's recent releases change the above. Read from FFmpeg's own tree
+(pinned above), not built or run. Each claim: a source, or *derived*, or *unverified*.
+
+**What the Changelog says, verbatim, by release.**
+
+| release | entry |
+| --- | --- |
+| 7.1 (`n7.1`, 2024-09-29) | "LCEVC enhancement data exporting in H.26x and MP4/ISOBMFF"; "LCEVC filter" |
+| 8.1 (`n8.1`, 2026-03-16) | "LCEVC metadata bitstream filter"; "LCEVC parser"; "LCEVC enhancement layer exporting in MPEG-TS" |
+| 9.0 (`n9.0`, 2026-07-22) | "LCEVC track muxing support in MP4 muxer" |
+| 9.1 (`release/9.1`, not tagged on 2026-11-02) | "LCEVC payload merging bitstream filter" (`f2b3888`, "avcodec/bsf: add an LCEVC stream merging bsf") |
+| `<next>` (`master`) | "LCEVC raw demuxer and muxer" (`ba7a998`, "avformat: add a raw LCEVC demuxer", 2026-10-29) |
+
+`configure` at `master`: `--enable-liblcevc-dec    enable LCEVC decoding via liblcevc-dec [no]` and
+`require_pkg_config liblcevc_dec "lcevc_dec >= 4.2.0" "LCEVC/lcevc_dec.h" LCEVC_CreateDecoder`.
+*Correction to the question:* `>= 4.2.0` is `master` only (`fd6dfa6`, 2026-10-25); every release
+asks less — `"lcevc_dec >= 2.0.0"` in 7.1, `"lcevc_dec >= 4.0.0"` in 8.1, 9.0 and `release/9.1`. The
+bitstream filters have no section in `doc/bitstream_filters.texi`; the filter's whole entry in
+`doc/filters.texi` is "Low Complexity Enhancement Video Codec filter based on liblcevc_dec".
+
+**1. Encode or decode — decode only, through LCEVCdec.** No LCEVC encoder is registered
+(`libavcodec/allcodecs.c` names none; `AV_CODEC_ID_LCEVC` exists in `codec_id.h` for stream copy),
+and `configure` names no LCEVC encoding library — `liblcevc_dec` is the only one. Everything else is
+bitstream plumbing: a parser, a CBS reader, `lcevc_metadata` (rewrites VUI fields and can "Delete all
+filler"), `lcevc_merge` (attaches an enhancement stream's packets to the base's as
+`AV_PKT_DATA_LCEVC`), MP4/MPEG-TS export and muxing, a raw muxer. Decoding is a hook in
+`libavcodec/decode.c` that hands any decoder's frame carrying `AV_FRAME_DATA_LCEVC` to LCEVCdec,
+unless the caller sets `AV_CODEC_EXPORT_DATA_ENHANCEMENTS` ("Do not apply picture enhancement
+layers, export them instead.", `avcodec.h`); `vf_lcevc` does the same as a filter.
+
+**2. Bit depths and output — 8 to 14 bits, samples back, natively.** The hook's `map_format`
+(`libavcodec/lcevcdec.c`) takes YUV 4:2:0, 4:2:2, 4:4:4 at 8, 10, 12 and 14 bits and grey
+`AV_PIX_FMT_GRAY8` … `AV_PIX_FMT_GRAY14LE` (14-bit since `3a2eae1`, "avcodec/lcevcdec: add 14bit pixel
+formats", in 9.0; 8.1 maps only `YUV420P`, `YUV420P10`, `NV12`, `NV21`, `GRAY8`); base and
+enhancement may differ in depth (`757cc97`, in 9.0). The filter stops at 12 (`GRAY12LE`,
+`YUV444P12LE`). LCEVCdec writes into the `AVFrame`'s own planes (`LCEVC_AllocPictureExternal` over
+`frame->data[i]`), so the caller gets samples in memory — the first LCEVC path seen here that does.
+Its options default `{ "allow_dithering", "Allow dithering", … { .i64 = 1 } … }`; set through
+`-lcevc-dec-params` (`e0e6ca1`, in `release/9.1`, not in 9.0). An exact read wants
+`allow_dithering=0` (*derived*: dithering adds noise after the residuals; whether it fires on a
+stream that does not signal it is *unverified*).
+
+**3. An AV1 base — wired, not run.** libdav1d's T.35 metadata goes through
+`ff_itut_t35_parse_payload_to_frame` (`libdav1d.c`), which turns the licensor's T.35 payload into
+`AV_FRAME_DATA_LCEVC` (`itut35.c`), so the hook enhances an AV1 picture like any other. FATE carries
+one such stream, `lcevc/L_AV1_854x480p_8bit8bit_2D_dd.mkv`, tested only by demux and remux with
+`"-c:v copy"` (`tests/fate/matroska.mak`) — no decode test. *Derived*, not run.
+
+**4. A lossless path — no.** FFmpeg adds no mode or setting; the decoder is LCEVCdec's, so the reach
+table above is unchanged, and its 14-bit formats do not move the 14-bit result — that is the
+residual arithmetic, not a missing format (*derived*).
+
+**5. A browser path that returns samples — none found.** FFmpeg ships no WASM build. The best-known
+one, ffmpeg.wasm (`main` `f876f90`), builds `ENV FFMPEG_VERSION=n5.1.4` — before 7.1, so before any
+LCEVC code — and its Dockerfile names no LCEVC library. A WASM build with `--enable-liblcevc-dec`
+would need LCEVCdec under emscripten, whose port is "not complete yet" (§Re-checked 2026-10-31, 3). Whether anyone
+has built one is *unverified*.
+
+**6. An encoder for the pre-registered trial — no; a second harness, maybe.** FFmpeg cannot make the
+enhancement; the trial still needs patched LTM. What it could add (*derived*, not run): decode the
+dav1d base and apply an LTM enhancement in one process, from an MP4 or TS with two tracks (or, from
+`master`, a raw `.lcevc` file through `lcevc_merge`), returning 8–14-bit samples to compare. It is
+LCEVCdec underneath, so it is **not** an independent third decoder for protocol step 4 — it tests
+the carriage, not the arithmetic. The lab's FFmpeg is the distribution's 6.1.1, which has none of this.
+
+**7. Licence — unchanged in kind.** `liblcevc_dec` sits in `configure`'s plain
+`EXTERNAL_LIBRARY_LIST`, not the GPL or non-free lists, so an LGPL build may enable it; LCEVCdec's
+BSD-3-Clause-Clear still grants no patents (§Why no trial; [`licensing.md`](../../../../docs/av1/licensing.md)).
+
+### Verdict, 2026-11-02
+
+FFmpeg changes the plumbing, not the conclusions: no encoder, no lossless mode, no browser path. It
+gives the first **native** LCEVC decode that returns samples (8–14 bits, YUV and grey) with an AV1
+base wired through dav1d — a convenience for the offline trial's decode side, not a product path.

@@ -6,17 +6,19 @@
   client/contract/av1/payloads/*/NAME.xxh3                  its frame digest (docs/FIXTURES.md §Frame digests)
   client/contract/av1/payloads/grey420/g8.av1                 8-bit grey coded 4:2:0 at full range
   client/contract/av1/payloads/matrix/b{B}k{K}{u,s}.av1       every (bits, split, sign) a rule could pick
+  client/contract/av1/payloads/depth-cut/NNN.av1            a 12-bit series' depth cut, Q 8, G 4; NNN.sha256 of its codes
   client/decode/av1-probe.js                              a 16×16 unit per layout WebCodecs may take
 
 Every source is written with the checksum of its samples before anything codes it; ingest.py
 writes a payload only if it decodes back to that. A probe's FNV-1a is of its coded planes as made
 here, checked against native dav1d before it is written.
 
-usage: make_golden.py BUILD [--matrix]   — ingest/coded-frames/README.md; --matrix writes only the matrix's
+usage: make_golden.py BUILD [--matrix | --depth-cut]   — ingest/coded-frames/README.md; either writes only its own
 """
 import base64
 import hashlib
 import json
+import struct
 import subprocess
 import sys
 import tempfile
@@ -112,6 +114,30 @@ def matrix(build, work):
                 keep(out, dst, f"b{b}k{k}{name[-1]}")
 
 
+def depth_cut(build, work):
+    """Eight frames of 12-bit grey as their depth cut, each NNN.sha256 of the 16-bit codes dav1d decodes from its keyframe on."""
+    src, out, dst = work / "cut", work / "cut.out", PAYLOADS / "depth-cut"
+    src.mkdir()
+    frames = [content(1, 0, 4095, 200 + i).astype("<u2") for i in range(8)]
+    for i, px in enumerate(frames):
+        px.tofile(src / f"{i:03d}.raw")
+        (src / f"{i:03d}.sha256").write_text(hashlib.sha256(px.tobytes()).hexdigest() + "\n")
+    meta = dict(frameCount=8, width=W, height=H, channels=1, bitsStored=12, signed=False, min=0, max=4095)
+    (src / "metadata.json").write_text(json.dumps(meta) + "\n")
+    subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, src, out, "--lossy", "8", "4",
+                    "--exact-series", "cut", "--depth-cut", "--jobs", "1"], check=True)
+    dst.mkdir(parents=True, exist_ok=True)
+    units = []
+    for i in range(8):
+        data = (out / f"{i:03d}.av1").read_bytes()
+        (dst / f"{i:03d}.av1").write_bytes(data)
+        n = struct.unpack_from("<I", data, 16)[0]
+        units = (units if i % 4 else []) + [data[20:20 + n]]
+        codes, _ = ingest.decoded(build, "av1", b"".join(units), W * H)
+        (dst / f"{i:03d}.sha256").write_text(hashlib.sha256(codes.astype("<u2").tobytes()).hexdigest() + "\n")
+    (dst / "metadata.json").write_text((out / "metadata.json").read_text())
+
+
 def fnv(planes):
     h = 0x811C9DC5
     for p in planes:
@@ -146,6 +172,8 @@ def probes(build, work):
 def main():
     build = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory() as tmp:
+        if "--depth-cut" in sys.argv:
+            return depth_cut(build, Path(tmp))
         if "--matrix" not in sys.argv:
             payloads(build, Path(tmp))
             probes(build, Path(tmp))
