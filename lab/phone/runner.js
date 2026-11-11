@@ -143,6 +143,7 @@ export function runHooks(q) {
         ?? (await pressesFailure(document.getElementById("quality"), document.getElementById("lossless")));
       if (why) return stop(why);
       hooks.report.add({ verdict: { ok: true } });
+      hooks.report.end();
       if (k + 1 === plan.loads.length) return banner(`run done: ${plan.loads.length} loads`, false);
       const pause = plan.loads[k + 1].pauseBefore;
       if (pause) return banner(`${of} passed; load ${k + 2} waits: ${pause}`, false, loadUrl(plan, k + 1));
