@@ -39,3 +39,22 @@ cd lab/htj2k-tiles/improve
 with its own ingest build (its `ingest/coded-frames/decode.cpp` differs from this branch's); the exact series and Q 8
 at G 1 and G 16 (the depth cut on `dbts_a1`, `dbts_c1`) are the arms' inputs. Their bytes equal FREEZE-E2E's run of
 the same script; digests in [`rows/stage3-d-series.json`](rows/stage3-d-series.json).
+
+**Stage 3, time on links** ([`stage3/`](stage3/)): one lab page for every arm ([`page.js`](stage3/page.js)) on the
+product's `DownloaderClient`: the D arms fill the OQ series through the product's AV1 route (WebCodecs first), S★
+fills the strip series' bands at the fit with `decode: false`, and the strips decode on three lab workers (strip t on
+worker t; whole on the delivered build, a level on the lab binding). Once every slice is pictured, the Lossless
+request on the middle slice: D and D′ on a second client on the exact series, the others by the strips' entries.
+Every picture is hashed after the clock against `frames.json`; OQ pictures have no truth, so a visit's are joined into
+one digest that must agree across a volume's D visits. The pictures and S★'s coded bands go to the lab store
+([`store.js`](stage3/store.js), OPFS) after the clock, and the page is reopened in the same tab (J10). The driver
+([`run.mjs`](stage3/run.mjs)) runs from a tree of the demo commit `157b7109` with this directory copied in, one
+server and relay per series of a visit; [`summary.py`](stage3/summary.py) reads the rows against the rule. Mutants
+(`--mutate`): `bands-dropped`, `preview`, `truth`, `sample`, each must be caught ([`rows/stage3-mutants.jsonl`](rows/stage3-mutants.jsonl)).
+
+```bash
+cd TREE   # 157b7109, lab/htj2k-tiles/improve copied in, lab/.demo-series -> the D series, lab/.av1-work/htj2k-improve -> the strip series
+NODE_PATH=$(npm root -g) node lab/htj2k-tiles/improve/stage3/run.mjs --series lab/.demo-series --bands lab/.av1-work/htj2k-improve \
+  --rounds 2 --first-round 0 --out rows.jsonl
+python3 lab/htj2k-tiles/improve/stage3/summary.py rows.jsonl
+```
