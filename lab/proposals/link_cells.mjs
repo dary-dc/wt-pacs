@@ -1,11 +1,14 @@
-// One run of a link protocol in docs/lines/proposals.md §Optimize (P1, P4, P5): a pair served as README §Demo serves it, both
+// One run of a link protocol in docs/lines/proposals.md §Optimize (P1, P3, P4, P5): a pair served as README §Demo serves it, both
 // sessions through lab/scripts/link_impair.py, one fresh headless Chromium; the fill's last frame, then `l` after a quiet.
 //
 //   node lab/proposals/link_cells.mjs TIP DIR LOSSY_ID --link "OPTIONS" [--lossy-args "..."] [--exact-args "..."]
 //        [--quiet-ms 10000] [--frame first|middle|last] [--host ROOT] [--cpu-throttle RATE]
+//        [--exact-only] [--lead-ms L]
 //     TIP: a checkout of the demo tip with its client, series-server and dev certificate built
 //     ROOT: where dev-server.py serves the page from, TIP by default (P5's arm: lab/proposals/p5_arm.sh)
 //     RATE: Emulation.setCPUThrottlingRate on the page target; Chromium applies it to the main thread only
+//     --exact-only: only the exact session through the relay, which --idle-promote needs; --lead-ms: ask by the
+//     button, its pointerdown L ms before its click (P3), instead of the `l` key
 //   prints one JSON row; times are ms on the page's clock, from navigation
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -43,9 +46,10 @@ const server = path.join(tip, "target/release/series-server");
 const lossy = run(server, ["--port", "4433", "--series", path.join(dir, `${id}.sbnd`), ...cert, ...words(arg("--lossy-args"))]);
 const exact = run(server, ["--port", "4434", "--series", path.join(dir, `${exactId}.sbnd`), ...cert, ...words(arg("--exact-args"))]);
 const transport = readFileSync(path.join(tip, "client/dev-transport.json"), "utf8");
-writeFileSync(`${T}/transport.json`, transport.replace(":4433", ":5433"));
+const exactOnly = process.argv.includes("--exact-only");
+writeFileSync(`${T}/transport.json`, exactOnly ? transport : transport.replace(":4433", ":5433"));
 writeFileSync(`${T}/exact-transport.json`, transport.replace(":4433", ":5434"));
-const relay = run("python3", ["lab/scripts/link_impair.py", "--udp", "5433:4433", "--udp", "5434:4434", ...words(arg("--link"))]);
+const relay = run("python3", ["lab/scripts/link_impair.py", ...(exactOnly ? [] : ["--udp", "5433:4433"]), "--udp", "5434:4434", ...words(arg("--link"))]);
 const host = run("python3", [path.join(arg("--host", tip), "server/dev-server.py"), "--port", "8765", "--metadata", path.join(dir, `${id}.metadata.json`),
   "--transport", `${T}/transport.json`, "--exact-metadata", path.join(dir, `${exactId}.metadata.json`),
   "--exact-transport", `${T}/exact-transport.json`]);
@@ -62,7 +66,7 @@ function watch() {
   });
 }
 
-const row = { id, exactId, host: arg("--host", tip), cpuThrottle: Number(arg("--cpu-throttle", 1)), link: arg("--link"), lossyArgs: arg("--lossy-args", ""), exactArgs: arg("--exact-args", ""), frame: FRAME };
+const row = { id, exactId, host: arg("--host", tip), cpuThrottle: Number(arg("--cpu-throttle", 1)), link: arg("--link"), exactOnly, leadMs: arg("--lead-ms") === undefined ? null : Number(arg("--lead-ms")), lossyArgs: arg("--lossy-args", ""), exactArgs: arg("--exact-args", ""), frame: FRAME };
 const browser = await createRequire(import.meta.url)("playwright").chromium.launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
@@ -88,14 +92,20 @@ try {
     if (FRAME === "middle") for (let i = 0; i < Math.floor(n / 2); i++) await page.keyboard.press("ArrowRight");
     if (key) await page.keyboard.press(key);
     await page.waitForTimeout(QUIET);
+    if (row.leadMs !== null) {
+      await page.dispatchEvent("#lossless", "pointerdown");
+      await page.waitForTimeout(row.leadMs);
+    }
     const pressed = await page.evaluate(() => performance.now());
-    await page.keyboard.press("l");
+    if (row.leadMs !== null) await page.dispatchEvent("#lossless", "click");
+    else await page.keyboard.press("l");
     const quality = (l) => l.findLast((e) => e.id === "quality")?.text ?? "";
     row.lossless = await until((l) => /^Lossless/.test(quality(l)), 120000);
     const done = (await log()).findLast((e) => e.id === "quality");
     row.losslessMs = row.lossless ? Math.round(done.t - pressed) : null;
     row.label = quality(await log());
     row.shown = status(await log()).match(/^frame (\d+)/)?.[1];
+    row.statusAfter = status(await log());
   }
 } catch (e) {
   row.error = e.message;
