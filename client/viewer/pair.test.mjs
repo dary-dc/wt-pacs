@@ -4,7 +4,7 @@ import { checkPair, depthCut, pairOf } from "./pair.js";
 
 const source = { frameCount: 3, width: 4, height: 2, bitsStored: 10, signed: false, framesSha256: "f00d" };
 const lossy = { ...source, codec: "av1", lossy: { q: 30, g: 8, depth: 10 }, exactSeries: "1.2.840.5" };
-const exact = { ...source, digests: { algorithm: "xxh3-64", frames: ["a", "b", "c"] } };
+const exact = { ...source, digests: { algorithm: "xxh3-64", frames: ["0123456789abcdef", "123456789abcdef0", "23456789abcdef01"] } };
 
 /** A series without `lossy` is not paired: today's path, untouched. */
 assert.equal(pairOf({ frameCount: 3 }), null);

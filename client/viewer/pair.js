@@ -21,6 +21,8 @@ export function pairOf(meta) {
   return { id, metadata: `/series/${id}/metadata`, transport: `/wt/${id}/dev-transport.json` };
 }
 
+const wholeDigests = (frames, n) => Array.isArray(frames) && frames.length === n && frames.every((d) => /^[0-9a-f]{16}$/.test(d));
+
 /** Refuses an exact series that is not this optimal-quality series' source, or that could never show a frame as lossless. */
 export function checkPair(lossy, exact) {
   const why = (exact.codec ?? "htj2k") !== "htj2k" || exact.lossy !== undefined ? "is not an HTJ2K series"
@@ -30,6 +32,7 @@ export function checkPair(lossy, exact) {
     : exact.signed !== lossy.signed ? `is signed ${exact.signed}, not ${lossy.signed}`
     : exact.framesSha256 && lossy.framesSha256 && exact.framesSha256 !== lossy.framesSha256 ? "is of another source: framesSha256 differs"
     : exact.digests?.algorithm !== "xxh3-64" ? "has no xxh3-64 frame digests, so no frame of it could be shown as lossless"
+    : !wholeDigests(exact.digests.frames, exact.frameCount) ? `has no 16-hex digest for each of its ${exact.frameCount} frames, so not every frame could be shown as lossless`
     : null;
   if (why) throw new Error(`refused: exact series ${JSON.stringify(lossy.exactSeries)} ${why}`);
 }
