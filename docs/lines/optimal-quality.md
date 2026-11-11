@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-11 01:40 UTC (branch tips and the work queue read from `origin`).
+Last verified 2026-11-11 06:00 UTC (branch tips and the work queue read from `origin`).
 
 ## Goal
 
@@ -65,6 +65,11 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   `unchecked` mark beside a label, no Q/G on the exact frame, a passed retry clears its failure), C5 (`--codec lossy`
   refused), S1. Answered, not changed: C4, D1, D2 (owner calls), S2–S4, D3 (no change asked). Node tests only for the
   fixes; the browser check not re-run on a demo series here.
+* **End to end on round 1** (E2E-3, 2026-11-11, `claude/demo-fixes-1` at `9e2ef4ef`, the rehearsal commit):
+  `demo-series.sh` to the byte as before; `demo-check.mjs` on all 20 series under the page view, the view worker, and
+  the page view under #362's stricter check, interleaved by series: 60 of 60 passed, headless on one cloud host
+  ([`docs/reviews/e2e-3.md`](../reviews/e2e-3.md), with the owner's rehearsal list). #362 (the check's Home and
+  *Lossless*-paint fixes) is not in `demo-fixes-1`: without it the check stalled 30 s on 12 of 28 a1/c1 runs.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
