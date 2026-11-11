@@ -6,6 +6,7 @@ import ipaddress
 import json
 import subprocess
 import sys
+import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote
@@ -38,6 +39,9 @@ class Handler(SimpleHTTPRequestHandler):
     exact: dict[str, Path] = {}
     log_requests = False
     csp = policy("127.0.0.1")
+    # Where the lab's client beacon is appended as JSONL, None to refuse it: lab/phone/README.md
+    beacon: Path | None = None
+    beacon_lock = threading.Lock()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -70,6 +74,22 @@ class Handler(SimpleHTTPRequestHandler):
             return None
         return super().send_head()
 
+    def do_POST(self):
+        if not self.beacon or self.path != "/lab/beacon":
+            self.send_error(404)
+            return
+        try:
+            records = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+        except ValueError:
+            records = None
+        if not isinstance(records, list) or not all(isinstance(r, dict) for r in records):
+            self.send_error(400, "a JSON list of records")
+            return
+        with self.beacon_lock, self.beacon.open("a") as f:
+            f.write("".join(json.dumps(r, separators=(",", ":")) + "\n" for r in records))
+        self.send_response(204)
+        self.end_headers()
+
     def send_header(self, keyword, value):
         super().send_header(keyword, value)
         if keyword.lower() == "content-type" and value.split(";")[0].strip() in REVALIDATED:
@@ -99,6 +119,7 @@ def main():
     parser.add_argument("--transport", type=Path, help="serve this file as /wt/dev-transport.json")
     parser.add_argument("--exact-metadata", type=Path, help="a lossy --metadata's exact series: its metadata")
     parser.add_argument("--exact-transport", type=Path, help="and the transport file of the server that serves it")
+    parser.add_argument("--beacon", type=Path, metavar="FILE", help="append the lab's client beacon here as JSONL (lab/phone/README.md)")
     parser.add_argument("--log-requests", action="store_true", help="print each path asked for (client/viewer/check.mjs)")
     args = parser.parse_args()
     if args.bind.is_unspecified:
@@ -110,6 +131,7 @@ def main():
     Handler.metadata = args.metadata and args.metadata.resolve()
     Handler.transport = args.transport and args.transport.resolve()
     Handler.log_requests = args.log_requests
+    Handler.beacon = args.beacon and args.beacon.resolve()
     Handler.csp = policy(str(args.bind))
     if args.exact_metadata or args.exact_transport:
         if not (args.metadata and args.exact_metadata and args.exact_transport):

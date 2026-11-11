@@ -581,6 +581,32 @@ series, each with `--segmentation-offload false`.
 The shaped round trip is Terminal 1's `rtt_us` per session. **Afterwards:** `cloud_netem.sh off` as above,
 `adb reverse --remove-all`, USB tethering off; the firewall's port closes itself.
 
+**8 · Which read path.** Each server says at start which way it reads the series, and each session which way it
+read ([`docs/adr/disk-access.md`](docs/adr/disk-access.md) §1 and §In a container). This is the phone session's to run
+on the laptop, after the series servers start: whether SELinux in a container changes the path is not verified from a
+cloud session, which has neither the laptop's SELinux nor its podman. For the containers of `docs/devices.md` §7's
+Second amendment (`srv-<port>`), every one running, or those named:
+
+```bash
+lab/phone/read-path.sh                     # one line a container: read_fast_path, read_ring, io_uring refusals, sessions' rings; then SELinux's mode
+lab/phone/read-path.sh srv-4433 srv-4434   # the named containers only
+```
+
+It exits 1, saying so, when the servers do not all read the same way: the Second amendment stops the run there. For
+servers run on the laptop itself, their logs are the files their output went to (the Amendment's
+`target/phone-run/server-<port>.log`): `grep -hE '^(read_fast_path|read_ring)=' target/phone-run/server-*.log`.
+
+`read_fast_path=preadv2` is the fast path, `pooled_pread` every frame through the blocking pool; `read_ring=available`
+or `refused (<why>)`. A fill never builds a ring (`ring=false` on the optimal-quality series is expected); the exact
+series' **lossless** asks are on-demand, so a miss there takes the ring where it is available. What picks the path is
+the process's confinement and the series' file, not the disk: a server run on the laptop itself (the run's
+`target/telemetry/release/series-server`) is in the host's unconfined SELinux domain, which may set up a ring. In a
+container the ring needs `deploy/seccomp-uring.json` and, under SELinux enforcing (Fedora), the domain's
+`io_uring { allowed }`, which container-selinux grants nowhere, so rootless podman reads tile misses through the pool
+(`EACCES`); and a series inside the image's own layer refuses `RWF_NOWAIT` (overlayfs), so mount it (`-v`).
+`--network host` changes the network namespace only, not seccomp, SELinux or the mount, so it leaves the read path as
+it was. Not measured here: which way the laptop's own servers take; the commands above say it.
+
 *Checked in a container (2026-11-09):* the page over a TCP tunnel to a network namespace's loopback, standing in for
 `adb reverse`, and the session over a veth pair, standing in for the tether: headless Chromium 153 in the namespace
 delivered the cell's 3 frames of 3 and the viewer's session reached the server, dialing the veth's address on the dev

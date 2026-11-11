@@ -27,8 +27,20 @@ move because of anything here. TCP 4433 is published for the WebSocket fallback,
 From a fresh clone or a `git archive` of one, with docker (or podman; every `docker` below reads `podman` as well):
 
 ```bash
-docker compose -f deploy/compose.yml build
+REVISION=$(git rev-parse HEAD) docker compose -f deploy/compose.yml build
 STUDIES=/path/to/studies SERIES=ct docker compose -f deploy/compose.yml up -d
+```
+
+Each image carries the commit it was built from as `org.opencontainers.image.revision` (`unknown` without
+`REVISION`): `docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' wt-pacs-server`.
+
+**A test-only server image** with the lab's server telemetry (`lab/server-telemetry`, the phone run's
+`docs/devices.md` §7 amendment): the build argument `FEATURES` names `series-server`'s cargo features, none by default,
+and the image's label `dev.wt-pacs.features` says which. Under its own name, so the product's image is untouched:
+
+```bash
+docker build -f deploy/Containerfile --target server --build-arg FEATURES=telemetry \
+  --build-arg REVISION=$(git rev-parse HEAD) -t wt-pacs-server-telemetry .
 ```
 
 The decoders, the frame check's hasher and their notices (`client/decode/wasm/built/`) and the page's TS client
