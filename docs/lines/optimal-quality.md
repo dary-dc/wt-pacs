@@ -138,7 +138,7 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   MERGE-PLAN, DEMO-NETWORK. Waiting on inputs: FREEZE-E2E, PHONE-BLIND-READ, HTJ2K-VERDICT; at fixed times
   BRIEF-WED, FABLE-DESIGN (11-12 15:00), BRIEF-THU, PRE-DEMO (11-13 07:00), QUEUE-CLOSE.
 * **The phone run** is a separate local session on the owner's laptop. It runs on the commit the coordinator names,
-  keeps `docs/queue/PHONE-RUN.md`, and pushes raw rows, the blind read's findings and its analysis and decisions with
+  keeps `claude/work-ledger:docs/queue/PHONE-RUN.md`, and pushes raw rows, the blind read's findings and its analysis and decisions with
   the owner to `claude/phone-rows`. Its setup, the owner's decisions of 2026-11-11 evening: adb user-only in the home
   directory (no root); demo series built in a throwaway container from the local `rust` image and kept on the laptop,
   labelled by commit and encoder versions; images from the run commit with `--network host` for timed loads; the
