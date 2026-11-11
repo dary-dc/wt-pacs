@@ -235,31 +235,39 @@ loss options, and the fourth cell is `--queue-pkts 20` with no loss. The pair's 
 or the last (`End`), and `l` is pressed after 10 s of quiet on a filled page. Driver `lab/proposals/link_cells.mjs`,
 order `lab/proposals/p4.sh`. Rule unchanged.
 
-**Measured in part (MEASURE-1, 2026-11-11 05:19–07:15, per amendment 1): 3 of 7 rounds.** 216 runs, every one ending
-at *Lossless*; the run stopped at its session's time limit 28 runs into round 4, whose rows are kept apart
-(`lab/proposals/rows/p4-round4-stopped.jsonl`) and are rerun whole. Rows `lab/proposals/rows/p4.jsonl`, table
-`lab/proposals/p4_summary.py`; a cell is a link cell and series, its three frames pooled (median of 9).
+**Measured (MEASURE-1, 2026-11-11, per amendment 1): 7 of 7 rounds; reject.** Rounds 1–3 ran 05:19–07:15 and
+rounds 4–7 08:40–11:00, on the same code (the demo tip 9e2ef4ef; `claude/demo-fixes-1` had moved to bdbbac84, docs
+only). 504 runs, every one ending at *Lossless*. Round 4's first, stopped attempt is kept apart
+(`lab/proposals/rows/p4-round4-stopped.jsonl`) and was rerun whole. Rows `lab/proposals/rows/p4.jsonl`, table
+`lab/proposals/p4_summary.py`; a cell is a link cell and series, its three frames pooled (median of 21).
 
 | cell | series | `l` default ms | `l` 38 400 ms | ratio | first · middle · last ratios | n |
 | --- | --- | ---: | ---: | ---: | --- | --- |
-| 0 | dbts_a1-q8-g8-cut | 800 | 703 | 0.88 | 0.88 · 0.88 · 0.87 | 9 and 9 |
-| 0 | dbts_b1-q8-g8 | 1238 | 1134 | 0.92 | 0.91 · 0.92 · 0.92 | 9 and 9 |
-| 0 | dbts_c1-q8-g16-cut | 722 | 626 | 0.87 | 0.86 · 0.87 · 0.86 | 9 and 9 |
-| iid1 | dbts_a1-q8-g8-cut | 1147 | 1125 | 0.98 | 1.23 · 0.78 · 0.43 | 9 and 9 |
-| iid1 | dbts_b1-q8-g8 | 5680 | 5116 | 0.90 | 0.87 · 0.84 · 0.87 | 9 and 9 |
-| iid1 | dbts_c1-q8-g16-cut | 3027 | 1960 | 0.65 | 1.30 · 0.36 · 0.39 | 9 and 9 |
-| ge | dbts_a1-q8-g8-cut | 873 | 723 | 0.83 | 0.83 · 0.79 · 0.83 | 9 and 9 |
-| ge | dbts_b1-q8-g8 | 1244 | 1152 | 0.93 | 0.92 · 0.93 · 0.93 | 9 and 9 |
-| ge | dbts_c1-q8-g16-cut | 730 | 629 | 0.86 | 0.92 · 0.86 · 0.86 | 9 and 9 |
-| q20 | dbts_a1-q8-g8-cut | 841 | 763 | 0.91 | 0.91 · 0.91 · 0.87 | 9 and 9 |
-| q20 | dbts_b1-q8-g8 | 1361 | 1284 | 0.94 | 0.93 · 0.92 · 0.93 | 9 and 9 |
-| q20 | dbts_c1-q8-g16-cut | 755 | 660 | 0.87 | 0.89 · 0.87 · 0.83 | 9 and 9 |
+| 0 | dbts_a1-q8-g8-cut | 804 | 710 | 0.88 | 0.87 · 0.90 · 0.87 | 21 and 21 |
+| 0 | dbts_b1-q8-g8 | 1265 | 1168 | 0.92 | 0.97 · 0.92 · 0.92 | 21 and 21 |
+| 0 | dbts_c1-q8-g16-cut | 733 | 634 | 0.86 | 0.87 · 0.86 · 0.84 | 21 and 21 |
+| iid1 | dbts_a1-q8-g8-cut | 1147 | 1214 | 1.06 | 1.04 · 0.96 · 0.88 | 21 and 21 |
+| iid1 | dbts_b1-q8-g8 | 6990 | 5581 | 0.80 | 0.79 · 0.83 · 0.96 | 21 and 21 |
+| iid1 | dbts_c1-q8-g16-cut | 3027 | 1872 | 0.62 | 0.81 · 0.41 · 0.80 | 21 and 21 |
+| ge | dbts_a1-q8-g8-cut | 910 | 745 | 0.82 | 0.83 · 0.83 · 0.83 | 21 and 21 |
+| ge | dbts_b1-q8-g8 | 1264 | 1177 | 0.93 | 0.88 · 0.93 · 0.96 | 21 and 21 |
+| ge | dbts_c1-q8-g16-cut | 741 | 631 | 0.85 | 0.87 · 0.83 · 0.86 | 21 and 21 |
+| q20 | dbts_a1-q8-g8-cut | 846 | 760 | 0.90 | 0.90 · 0.90 · 0.88 | 21 and 21 |
+| q20 | dbts_b1-q8-g8 | 1380 | 1284 | 0.93 | 0.94 · 0.93 · 0.92 | 21 and 21 |
+| q20 | dbts_c1-q8-g16-cut | 764 | 660 | 0.86 | 0.89 · 0.87 · 0.83 | 21 and 21 |
 
-**Interim, not a verdict:** after 3 rounds the rule is not met (`dbts_b1` clean 0.92×, `dbts_a1` at the 20-packet
-queue 0.91×; the rule asks ≤ 0.9×), and no cell is above 1.05×. Against the prediction (−5 to −25 % clean), the clean
-cells read −8 to −13 %, inside the band. Under 1 % loss the frames' ratios scatter (0.36–1.30): with 9 runs a cell, a
-loss in the first flights decides a run. At the 20-packet queue both arms overflow it on the exact session, alike (the relay's count over 27
-runs each: 5 025 datagrams at quinn's default, 4 699 at 38 400), so the larger first flight added no loss there. Rounds 4–7 decide it. **Limits:** as P1's.
+**Verdict by the rule: reject.** `dbts_a1` under 1 % loss is 1.06× (above 1.05×), and `dbts_b1` clean is 0.92×
+(above 0.9×). Every other cell is at or below 0.93×. Against the prediction (−5 to −25 % clean, the gain falling
+toward 0 under 1 % loss): the clean cells read −8 to −14 %, inside the band. Under loss the band is not met in one
+cell and beaten in two (`dbts_c1` 0.62×, `dbts_b1` 0.80×). The rejecting cell is noise around a tie, not a
+measured cost: its 21 runs a side span 756–3 544 ms and 630–2 937 ms, the 38 400 arm's quartiles (962–1 509 ms)
+sit inside the default's (882–2 158 ms), and its frames' own ratios are 1.04 · 0.96 · 0.88. After 3 rounds the same
+cell read 0.98×. With 21 runs a cell, one loss in the first flights decides a run. The rule was written so that a
+cell like this rejects, and it stands. **Correction to the interim** (written after 3 rounds): it said `dbts_a1` at
+the 20-packet queue (0.91×) missed the rule's ≤ 0.9×. The rule asks ≤ 0.9× only in the clean cell, and ≤ 1.0×
+there, so that cell passed then and passes now (0.90×). At the 20-packet queue both arms overflow it on the exact
+session alike (the relay's overflow count over rounds 1–3, 27 runs each: 5 025 datagrams at quinn's default, 4 699 at 38 400), so the larger first flight
+added no loss there. **Limits:** as P1's.
 
 ### P5. The exact session dialled after the first picture
 
