@@ -3,7 +3,7 @@
 // `lossy.reconstruction`), the arms and the CPU throttles interleaved per round by lab/order.mjs. One JSON row per fill.
 //
 //   node lab/oq-integrity/run.mjs DIR OUT.jsonl [--rounds 7] [--throttles 1,4] [--ids a,b] [--arms on,off] [--route dav1d]
-//     DIR as `INTEGRITY=1 scripts/demo-series.sh DIR` wrote it; --route dav1d hides VideoDecoder from the page's workers
+//     DIR as `INTEGRITY=1 scripts/demo-series.sh DIR` wrote it; --route dav1d serves a WebCodecs module whose every probe fails
 import { spawn } from "node:child_process";
 import { appendFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -72,6 +72,7 @@ function watch() {
 /** One fill: its time from the status line, the first picture from the first overlay write, and every frame's outcome. */
 async function fill(browser, arm, throttle) {
   const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+  if (DAV1D) await page.route("**/decode/av1-webcodecs.js", (r) => r.fulfill({ contentType: "text/javascript", body: REFUSING }));
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.addInitScript(watch);
@@ -91,8 +92,8 @@ async function fill(browser, arm, throttle) {
   };
 }
 
-const args = DAV1D ? ["--disable-blink-features=WebCodecs"] : [];
-const browser = await createRequire(import.meta.url)("playwright").chromium.launch({ args });
+const REFUSING = "export const init = async () => {}; export const probe = async () => false; export const picture = async () => { throw new Error('refused'); };";
+const browser = await createRequire(import.meta.url)("playwright").chromium.launch();
 const cells = THROTTLES.flatMap((throttle) => ARMS.map((arm) => ({ arm, throttle })));
 try {
   for (const id of ids) {
