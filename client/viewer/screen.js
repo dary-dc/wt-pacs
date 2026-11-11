@@ -6,12 +6,12 @@ export const markOf = (s) =>
   : s.exact === false ? { className: "inexact", text: `NOT EXACT — ${s.reason ?? ""}` }
   : { className: "unchecked", text: "unchecked" };
 
-/** The overlay's line: the route, the wire bytes and the decode time of `about`, then the optimal-quality series `lossy`'s parameters. */
+/** The overlay's line: the route, the wire bytes and the decode time of `about`, then, on its own frames, the optimal-quality series `lossy`'s parameters. */
 export function overlayText(about, quality, lossy) {
   const kb = about.wireBytes === undefined ? "?" : (about.wireBytes / 1024).toFixed(1);
   const ms = about.decodeMs === undefined ? "?" : about.decodeMs.toFixed(1);
   const cut = lossy?.bitsStored ? ` depth cut of ${lossy.bitsStored}` : "";
-  const series = lossy ? ` · Q ${lossy.q} · G ${lossy.g} · ${lossy.depth}-bit${cut}` : "";
+  const series = lossy && quality !== "lossless" ? ` · Q ${lossy.q} · G ${lossy.g} · ${lossy.depth}-bit${cut}` : "";
   const route = about.refusal ? `${about.path} after WebCodecs refused: ${about.refusal}` : about.path ?? "?";
   return `${route} · ${kb} KB · decode ${ms} ms${series}`;
 }
