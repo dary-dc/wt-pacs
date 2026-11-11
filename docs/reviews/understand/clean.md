@@ -24,7 +24,7 @@ The page is 334 lines. About 110 of them serve a check or a lab harness rather t
 | 217–235 | `stepped`, `until`, `traced`: the lab's sawtooth trace | `lab/viewer/trace.js` |
 | 298–333 | `report`, the fill-end poll, `check-page.js`'s run, the lab's steps, cine and `ledger`, `?mutate=sample` | check, lab |
 
-* **Where it belongs.** One module beside the page, `client/viewer/hooks.js` (name to be checked against
+* **Where it belongs.** One new module beside the page, viewer/hooks.js (proposed; name to be checked against
   `docs/glossary.md`), loaded only when `?check=` is set or `head.js` resolved `viewerLab` from `/lab/viewer/levers.js`.
   It would own `report`, the fill-end wait, the trace, the steps, the ledger and `?mutate=`. The page keeps one call:
   `if (hooks) await hooks.run({ view, controller, worker, progress, errors, … })`.
@@ -127,7 +127,7 @@ default build refuses each lab flag (`main.rs:126`), and the gate checks the tel
   source — if the frame cache's line has concluded (`docs/adr/disk-access.md` §13), it goes to its line branch and an
   archive tag. The four lab-only crates without a server dependency (`container-bench`, `window-harness`,
   `telemetry-bench`, `disk-access-bench` once the cache leaves) can leave the workspace (`exclude`, each its own
-  lockfile or a `lab/Cargo.toml` workspace), and the Containerfile's 8 lab `COPY` lines with them.
+  lockfile or a workspace of their own under lab/), and the Containerfile's 8 lab `COPY` lines with them.
 * **What proves.** `cargo test -p series-server` default and per feature as `scripts/gate.sh:221–262` runs them,
   `check_telemetry_absent.sh`, the image's build, `deploy/check_equivalence.sh`.
 * **Size.** Workspace: ~10 manifest lines, 8 Containerfile lines, the gate's line 251. Frame cache: ~80 lines and a
@@ -137,7 +137,7 @@ default build refuses each lab flag (`main.rs:126`), and the gate checks the tel
 ## 7. Smaller: lab pointers in product comments
 
 `decode/av1-webcodecs.js:55, 131`, `av1-payload.js:171`, `av1-frame.js:112`, `htj2k.js:1`, `av1.js:13, 17`,
-`consumer.js:44` point to `lab/…` folders for their reason. `CLAUDE.md` §Comments asks for a one-line pointer to the
+`consumer.js:44` point to folders under lab/ for their reason. `CLAUDE.md` §Comments asks for a one-line pointer to the
 document that explains why; these point at the experiment rather than the doc that owns the result. Where
 `docs/decode/README.md` or an ADR holds it, point there. Size: ~8 one-line edits; no proof beyond
 `scripts/comment_budget.sh` and `check_links.py`. Risk: none. Saves: a reader follows one link to a conclusion,
