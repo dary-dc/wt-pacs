@@ -4,7 +4,7 @@ import { checkPair, pairOf } from "./pair.js";
 
 const source = { frameCount: 3, width: 4, height: 2, bitsStored: 12, signed: false };
 const lossy = { ...source, codec: "av1", lossy: { q: 8, g: 8, depth: 10, bitsStored: 12 }, exactSeries: "1.2.840.5" };
-const exact = { ...source, digests: { algorithm: "xxh3-64", frames: ["a", "b", "c"] } };
+const exact = { ...source, digests: { algorithm: "xxh3-64", frames: ["0123456789abcdef", "123456789abcdef0", "23456789abcdef01"] } };
 const failures = [];
 const claim = (what, fn) => {
   try {
@@ -47,6 +47,19 @@ claim("an exact series read otherwise than this series is refused", () => {
  */
 claim("an exactSeries of dot segments is not a series id", () => {
   for (const id of [".", ".."]) assert.throws(() => pairOf({ ...lossy, exactSeries: id }), /exactSeries/, id);
+});
+
+/**
+ * Finding: `checkPair` says it refuses an exact series "that could never show a frame as lossless", but it reads only
+ * `digests.algorithm`: `frames` empty, short or not of 16 hex digits passes, the lossless button is offered, and every
+ * press ends in *Lossless check failed*.
+ */
+claim("an exact series without a digest for every frame is refused", () => {
+  const named = { ...lossy, framesSha256: "f00d" };
+  const same = { ...exact, framesSha256: "f00d" };
+  for (const frames of [[], ["a", "b"], [1, 2, 3], ["0123456789abcdef", "0123456789abcdef", ""]]) {
+    assert.throws(() => checkPair(named, { ...same, digests: { algorithm: "xxh3-64", frames } }), /digest/, JSON.stringify(frames));
+  }
 });
 
 if (failures.length) {
