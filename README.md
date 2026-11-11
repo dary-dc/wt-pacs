@@ -581,6 +581,27 @@ series, each with `--segmentation-offload false`.
 The shaped round trip is Terminal 1's `rtt_us` per session. **Afterwards:** `cloud_netem.sh off` as above,
 `adb reverse --remove-all`, USB tethering off; the firewall's port closes itself.
 
+**8 · Which read path.** Each server says at start which way it reads the series, and each session which way it
+read ([`docs/adr/disk-access.md`](docs/adr/disk-access.md) §1 and §In a container). On the laptop, after the servers
+start (the log's path is where their output went, `target/phone-run/server-<port>.log` in `docs/devices.md` §7):
+
+```bash
+grep -hE '^(read_fast_path|read_ring|telemetry)=' target/phone-run/server-*.log   # at start, per server
+grep -h 'session reads' target/phone-run/server-*.log | grep -o 'ring=[a-z]*' | sort | uniq -c
+grep -h 'io_uring refused' target/phone-run/server-*.log                         # once per process, with its errno
+```
+
+`read_fast_path=preadv2` is the fast path, `pooled_pread` every frame through the blocking pool; `read_ring=available`
+or `refused (<why>)`. A fill never builds a ring (`ring=false` on the optimal-quality series is expected); the exact
+series' **lossless** asks are on-demand, so a miss there takes the ring where it is available. What picks the path is
+the process's confinement and the series' file, not the disk: a server run on the laptop itself (the run's
+`target/telemetry/release/series-server`) is in the host's unconfined SELinux domain, which may set up a ring. In a
+container the ring needs `deploy/seccomp-uring.json` and, under SELinux enforcing (Fedora), the domain's
+`io_uring { allowed }`, which container-selinux grants nowhere, so rootless podman reads tile misses through the pool
+(`EACCES`); and a series inside the image's own layer refuses `RWF_NOWAIT` (overlayfs), so mount it (`-v`).
+`--network host` changes the network namespace only, not seccomp, SELinux or the mount, so it leaves the read path as
+it was. Not measured here: which way the laptop's own servers take; the commands above say it.
+
 *Checked in a container (2026-11-09):* the page over a TCP tunnel to a network namespace's loopback, standing in for
 `adb reverse`, and the session over a veth pair, standing in for the tether: headless Chromium 153 in the namespace
 delivered the cell's 3 frames of 3 and the viewer's session reached the server, dialing the veth's address on the dev
