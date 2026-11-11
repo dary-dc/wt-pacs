@@ -1,0 +1,8 @@
+{
+ "servedTree": "157b7109 plus lab/htj2k-tiles/improve of this branch at the shard's start",
+ "branch": "6a4dde46",
+ "chromium": "153.0.8010.12",
+ "host": "Intel(R) Xeon(R) Processor @ 2.10GHz, 4 cores",
+ "levelsWasmSha256": "09756bcff28a1b87bf2b159cd385fbb9ac0155653101d2f2c1f3f5630f8b8180",
+ "series": "rows/stage3-d-series.json (Q 8 G 16 and the exact series) and rows/stage3-series.json, both re-checked equal this session"
+}
