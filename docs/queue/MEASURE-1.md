@@ -1,12 +1,12 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 09:50
+heartbeat: 2026-11-11 09:51
 outputs: claude/proposals bf35fcca (P1 measured: adopt; P4 3 of 7 rounds; drivers, rows); no PR yet (#358 is OPT-THEORY's draft into main from this branch)
 ## Resume
 Resumed 2026-11-11 08:23 by a new session (stalled at 07:17). 08:25: setup started at 9e2ef4ef (demo-fixes-1 is
 bdbbac84, docs only on top, so the code under rounds 4-7 matches rounds 1-3); then P4 rounds 4-5, 6-7, each pair one
 background command, rows pushed every ~10 min by a loop that only commits lab/proposals/rows/p4.jsonl.
-08:40: setup done (813 s demo-series). 08:41: rounds 4-5 started (rows 217-360). If stalled: count rows in
+08:40: setup done (813 s demo-series). 08:41: rounds 4-5 started; 09:50 done, 360 rows pushed (b69edb9f). 09:51: rounds 6-7 started (rows 361-504). If stalled: count rows in
 p4.jsonl; drop a partial round's rows to a *-stopped file and rerun that round whole.
 Order (most promising first): P1 BBR, P4 initial window, then P2 tiles, P5, P3 plumbing, then audit protocols B
 (B0 first, zero encodes), A (shares B's cells), C (claude/av1-corrections:docs/av1/audit-protocols.md).
