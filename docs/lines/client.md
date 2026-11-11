@@ -27,6 +27,9 @@ on lossy wireless; bit-exact; fill and latency both count.
   Runs that need a quiet owner machine or a phone are owed, with their commands in each result.
 * Since 2026-10-30: #289 (a second fold, 15 sources), #299 (a frame decoded twice, fixed), #302 (a repaint before the
   frame is held no longer stops painting), #303 (one-pass AV1 merge ported); none merged into `core`.
+* 2026-11-11, `claude/demo-view-worker`: `demo-check.mjs --view worker` passes all 20 demo series under both views
+  ([`docs/reviews/view-worker-check.md`](../reviews/view-worker-check.md)); correctness only, which view the demo
+  shows is the owner's.
 
 ## Open (ordered)
 
