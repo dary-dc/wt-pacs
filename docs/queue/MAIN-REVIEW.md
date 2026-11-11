@@ -1,13 +1,13 @@
 state: done
 started: 2026-11-11T16:24Z
-heartbeat: 2026-11-11T16:50Z
+heartbeat: 2026-11-11T17:13Z
 outputs: claude/demo-fixes-2 4ba95e1b (from the demo tip claude/demo-fixes-1 daee0d1d), draft PR #367 into claude/core; comment on PR 250 (issuecomment-6801733265)
 ## Resume
 Done. Commits on claude/demo-fixes-2: c210a26b (check first), b3419cbd (S1 fix), 959c3547 (line file; it also dropped
 client/decode/wasm/built by mistake, `commit -a` during a rebuild), 4ba95e1b (built/ restored byte for byte).
 CI on #367 (4ba95e1b): deploy built the image and check_equivalence.sh passed on it with the pair; then both jobs
 failed at apt (the runner could not resolve the Ubuntu mirror), gate before any test. Re-run once (run 43059711188),
-explained in a #367 comment. If the re-run is red again for the same cause, nothing is left for this row.
+explained in a #367 comment; the re-run is green (gate and deploy, 17:13 UTC). Nothing left for this row.
 ## Result
 * Verdict on PR 250: ready for main once #367 is in the demo tip; one blocker, S1, fixed in #367.
 * S1: compose `exact` service (`--profile pair`, host 4434), nginx locations for EXACT_SERIES, connect-src naming
