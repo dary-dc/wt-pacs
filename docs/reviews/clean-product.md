@@ -38,7 +38,18 @@ unverified.
 
 ## Absence check
 
-Running at this commit; the result replaces this line.
+`c7c799e9`'s `scripts/check_lab_absent.sh` and `server/scripts/check_telemetry_absent.sh`, run on each tree, each
+tree with its own `CARGO_TARGET_DIR`:
+
+| tree | `check_lab_absent.sh` | `check_telemetry_absent.sh` |
+| --- | --- | --- |
+| `d46811c6` (old) | FAIL: the web image ships `client/view/check.js`, `client/viewer/check-page.js` | FAIL: `per-frame-asks-first`, `reply-repeated-initial`, `send-window-follows-cwnd` in the default build |
+| `c7c799e9` (new) | OK | OK |
+
+On the old tree the deploy-image and lab-source halves pass: `05247e22` narrowed the image check to the shipped
+stages, and the old default build compiled no lab source either. A first run here shared one `CARGO_TARGET_DIR`
+across the two worktrees and passed the old tree's server check wrongly: cargo judged the new tree's binary fresh
+for the old sources (one hash, older mtimes). Compare trees with a target directory each.
 
 ## Findings for the owner
 
