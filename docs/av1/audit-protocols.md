@@ -1,0 +1,262 @@
+# Three protocols for the audits' findings on optimal quality, pre-registered
+
+*Row AV1-CORRECT, written 2026-11-11 before anything in it ran. Theory and protocol only: nothing was encoded,
+decoded or timed for it. Every number in it is quoted from a committed row or an audit (named at each use), or is
+labelled *derived* (arithmetic here on quoted numbers) or *assumption*. A different session runs it (queue row
+MEASURE-1), changes nothing above its "measured" sections, and reports every cell, including those that miss. An
+amendment is written and pushed before the run it changes.*
+
+The audits each name three findings that matter most for optimal quality (OQ):
+`claude/av1-audit-quality:docs/av1/audit-quality.md` §The three (QA F4; F1; F2 with F3) and
+`claude/av1-audit-decode:docs/av1/audit-decode.md` §The three (DA 1; 2 with 13; the HTJ2K unit). Three protocols
+cover all six:
+
+| protocol | findings | asks | encodes | browser |
+| --- | --- | --- | --- | --- |
+| **A · Noise kept** | QA F4 | how much of the source's fine-band noise the OQ view keeps at the rule's Q | shares B's cells | no |
+| **B · One bar** | QA F1, F2, F6, F9 | how finely e_N ÷ σ resolves a rung, and the noise anchor and G at integer Q within that resolution | 19 volumes, integer Q | no |
+| **C · Decode on one unit** | DA 1, 2, 13, the HTJ2K unit | what the OQ view and the exact frame cost to decode, on the product's own HTJ2K path, on a core-capped host | none | yes |
+
+QA F3 (alt-ref at equal quality on the noise measure) is already pre-registered and half run:
+`claude/av1-groups-settings:docs/av1/groups.md` §Settings amendment, whose shard S1 (`dbts_b1`) found no lookahead arm
+cheaper than O G 1 at the noise anchor, and whose shard S2 (`dbts_a1`, `dbts_c1`, cut form) is owed. Nothing here
+repeats it. Protocol B's G 16 arms cover the other 16 DBT volumes at lag 0 only.
+
+**Fixtures, for all three.** 19 DBT volumes, all from the one EA1141 dataset (systems A, B, C, five each, and content
+2's `dbt12_c`, `dbt12_ea1141`, `dbt10_d`, `dbt10_ea1141`), fetched by `lab/av1/fetch_data.sh` and checked against
+`lab/av1/data.json`; three of them (`dbts_a1`, `dbts_b1`, `dbts_c1`) timed. There is no second dataset or vendor, no
+lossless breast ultrasound cine and no ABUS. Hosts are 4-core cloud hosts without a GPU. Nothing here speaks for
+another scanner, for ultrasound, or for a phone.
+
+**Terms.** As `lab/av1/metrics/README.md` §Terms (on `claude/av1-quality-metrics`) and `docs/av1/groups.md` §Terms
+(on `claude/av1-groups`).
+* **σ**: a frame's noise by Immerkær's estimator, `quality.sigma`: √(π/2) · mean |Laplacian| ÷ 6 over in-window
+  samples without the steepest 10 % by Sobel gradient, less 1/12.
+* **e_N**: the coding error's RMS in the same Laplacian band, `quality.noise_band`, over every in-window sample.
+* **x**: the AC step over σ_min (noise point §Terms).
+* **ν**: σ of the decoded frame by the same estimator, over the source frame's in-window samples, divided by σ, with
+  its median over frames (groups §S6's `sigma_out`).
+* **The rule's Q**: the noise rule's candidate (noise point §4, x\* 4.9293 at G 1 and 4.6359 at G > 1).
+* **Bar**: the worst-frame e_N ÷ σ an anchor must stay under, 1.00 or 1.03.
+* **δ**: protocol B's resolution of the worst frame's e_N ÷ σ.
+
+## Shared cells (protocols A and B)
+
+**Arm.** O of `lab/av1/groups/arms.py` at the state of `claude/av1-groups-settings` (`0e0e58c8`):
+`--lag-in-frames=0 --auto-alt-ref=0`, q pinned (`--min-q=Q --max-q=Q --cq-level=Q`), `--deltaq-mode=0
+--aq-mode=0`, `--cpu-used=6`, one thread, libaom 3.15.1 as `ingest/tools.sh` pins it. Stored form, at each volume's
+own depth. Decoded by native dav1d 1.5.4.
+
+**Cells.**
+* 12-bit volumes (A, C, `dbt12_c`, `dbt12_ea1141`; 12 volumes): Q 4–12, every integer.
+* 10-bit volumes (B, `dbt10_d`, `dbt10_ea1141`; 7 volumes): Q 6–16, every integer.
+* Both at G 1, and at G 16 except on the three timed volumes, which groups §S4 covers. That is
+  12 × 9 + 7 × 11 = 185 cells at G 1 and 185 − 9 − 9 − 11 = 156 at G 16. These ladders bracket every anchor of QA F1's
+  table at both bars. If a volume's worst frame is not bracketed, one rung outward is added and listed; that is the
+  only extension allowed.
+* Every series is read whole, as the quality study read it.
+
+**Per cell:** the groups `measure()` unchanged (e_N per frame, PSNR in-window, the displayed-level moves), `sigma_out`
+(ν), bytes as the sum of IVF payloads. JOD is off (`vdp=False`): it does not decide anything here, and it was the
+quality study's largest cost.
+
+**Code.** One function `audit_cells(name)` in `lab/av1/groups/plan.py` beside `settings_cells`, and a flag `--audit`
+in `cell.py` beside `--settings`. `MPX` and `FRAME_MPX` gain the 16 new volumes from `lab/av1/data.json`.
+
+**Check, before the run.** O G 1 at Q 4, 8, 12 (and 16 on 10-bit) must reproduce the quality study's bytes per
+cell exactly (`claude/av1-quality-metrics:lab/av1/metrics/rows/shard-{1,2,3,4}.jsonl`), as groups shard 1 did. A
+mismatch stops the run. **Mutation:** the check fed `--cpu-used=5` must fail.
+
+**Order and cost.** Volumes are interleaved by system (A, B, C, content 2, repeat), with G 1 before G 16 and the three
+timed volumes first. Cost estimate (*derived*): the noise point's held-out run took 5 117 encode CPU s for 53 cells
+over five series of 867 Mpx in all (noise point §Method card, §8), about 0.56 CPU s a megapixel-frame coded at lag 0.
+The 341 cells at about 200 Mpx a series on average (*assumption*) come to about 38 000 encode CPU s, so 3–4 h on 4 cores
+with the measures. Memory is left to `cell.py`'s scheduler (`--memory-gb`). If time runs out, cut G 16 first, then
+the content-2 volumes. Name each cut.
+
+## A · Noise kept (QA F4)
+
+**Asked.** e_N ≤ σ is passed by a coding that deletes the fine-band noise outright (QA F4). How much of the noise
+does the OQ view keep at the rule's Q, on every DBT volume? And at what Q and bytes would it keep at least half?
+
+**Theory.**
+1. Model a decoded frame in the band as y = s + (1 − k) n + q. Here s is the signal (about 0 in the finest band away
+   from edges), n is the source's noise with power σ², k is the share of n the coding removed, and q is the
+   quantizer's added error, uncorrelated with n, with power r²σ². Then (e_N ÷ σ)² = k² + r² and ν² = (1 − k)² + r².
+   Solving gives k = (1 + (e_N ÷ σ)² − ν²) ÷ 2 (*derived*; it assumes Gaussian n, uncorrelated q, and σ and e_N on
+   the same samples, which they are not: σ drops the steepest 10 %).
+2. Read on the one volume where both are measured (groups §Settings shard 1, `dbts_b1` slices 9–40, O G 1):
+   * at the noise anchor, e_N ÷ σ = 1.00 and ν₁ 0.218 give k ≈ 0.98 and r ≈ 0.22;
+   * at Q 8, worst frame 0.81–0.82 and ν 0.594–0.631 give k ≈ 0.6–0.65 (*derived*, mixing a worst frame with a
+     median, so a rough figure).
+   So at the anchor the "error" is almost entirely the deleted noise, as QA F4 argued.
+3. The noise point's derivation (§2) says e_N ÷ σ depends only on x for white noise in the band. The same argument
+   applies to ν: a deadzone quantizer zeroes transform coefficients below about one step, and white noise's
+   coefficients have σ in every basis. So ν should fall on one curve of x across systems. Since the rule puts every
+   series just under x\* ≈ 4.8, ν at the rule's Q should be about the same everywhere (*derived*).
+
+**Predictions** (bands are *assumptions*, set from theory point 2):
+* **A1.** ν falls monotonically with Q on every volume at G 1. *Refuted* by any volume with ν rising by more than
+  0.02 between adjacent integer rungs.
+* **A2.** At the rule's Q at G 1, ν is in 0.15–0.45 on every DBT volume: the OQ view keeps under half the fine-band
+  noise's amplitude, and so under a quarter of its power. *Refuted* by any volume outside the band. If it is above,
+  the view keeps more noise than the criterion's critique assumed.
+* **A3.** ν against x collapses onto one curve: at equal x (binned 0.25 wide), ν's spread across systems is ≤ 0.08.
+  *Refuted* by a wider spread in any bin with ≥ 3 systems.
+* **A4.** At the highest integer Q with median-frame ν ≥ 0.5 (call it Q_ν), bytes are 1.3–3× the rule's Q bytes
+  (*assumption*: one to two integer rungs below, near the cliff).
+
+**Decision rule.** This decides wording and an owner's option, not a Q:
+* If A2 holds, the line's description of the OQ view changes. "Keeps part of the noise" (`lab/av1/metrics`
+  §Quality metrics, measured) becomes "keeps ν of the fine-band noise", with the measured range, in
+  `docs/lines/codecs.md` and `docs/lines/optimal-quality.md`. "Also for diagnosis" is then marked as resting on a
+  view that removes most of the finest noise, until a reader test (quality study §6) runs.
+* Q_ν and its bytes per volume are reported as the option "keep at least half", for the owner's decision 1 or 9 in
+  `claude/docs-lines-3:docs/lines/codecs.md` §Open 0.
+* If A2 is refuted, the bar's critique (QA F4) is corrected in place with the measured ν.
+
+**What it cannot settle.** Whether removing that noise is visible, or costs a diagnosis. That takes the flicker test
+or the noise-ratio branch's model observer (`claude/av1-noise-ratio:docs/av1/noise-ratio.md` §5). It does not settle
+the cut form either: the cut's rounding adds RMS 1.15 against σ ≥ 10 on A and C (groups §S4, *derived*), about 1 %
+of the power. Groups §S2 reads ν in the cut form on `dbts_a1` and `dbts_c1`.
+
+## B · One bar, at the estimator's resolution (QA F1, F2, F6, F9)
+
+**Asked.** The noise anchor's rung, and with it 2–3× in bytes, turns on worst-frame differences of 0.001 against an
+estimator error quoted as 3 % (QA F1). The line uses two bars, 1.00 and 1.03. How finely does the worst frame's
+e_N ÷ σ actually resolve? Within that resolution, where are each volume's anchor and its G 16 bytes?
+
+**Theory.**
+1. **Random error.** σ is √(π/2) times a mean of |Laplacian| over N in-window samples. For Gaussian noise,
+   Var|z| ÷ (E|z|)² = π/2 − 1 ≈ 0.571, so σ's relative standard error is about √(0.571 ÷ N_eff). The 3 × 3
+   Laplacian correlates neighbours, so N_eff ≈ N ÷ 9 (*assumption*). On `dbts_a1`, with about 10⁶ in-window samples a
+   frame, that is about 0.2 % (*derived*), and e_N's is similar. So the random part of "3 %" is a few tenths of a per
+   cent.
+2. **Bias.** The "3 %" of the quality study §4.4 was measured on integer frames of known σ with synthetic scenes.
+   On real DBT frames, the noise rises with the signal (r 0.58–0.90 by tile, noise point §P4). σ also drops the
+   steepest 10 % by gradient, and e_N does not. So e_N ÷ σ carries a bias that depends on content. A frame with its
+   noise deleted reads e_N ÷ σ 1.02–1.09 on the plateau (QA F4), which bounds that bias at a few per cent from above.
+   Injecting a known noise measures it.
+3. **Resolution.** δ = max(2 · s_split, |b|), where s_split is the worst frame's split-half standard error (B1) and b
+   is the injected-noise bias (B2). A rung whose worst frame lies in [1 − δ, 1 + δ] is *unresolved*.
+
+**Stages.**
+* **B0, zero encodes** (committed rows: the quality study's `shard-{1,2,3,4}.jsonl`, the noise point's held-out rows).
+  1. Reproduce QA F1's table: anchors at 1.00 and 1.03, G 1 and G 16, 19 volumes.
+  2. Recompute x\* once over the G 1 and G 16 frames together, and separately per stream depth (10-bit, 12-bit), with
+     the held-out frames in (QA F6, F9).
+  3. Recompute every (series, G) cell's rule Q under each x\*.
+* **B1, split-half.** On every frame of the shared cells, split the in-window samples by a checkerboard of 64 × 64
+  tiles. Compute σ and e_N on each half and record both halves' e_N ÷ σ. s_split is the standard deviation of the
+  half-difference ÷ 2 at each cell's worst frame, pooled per volume.
+* **B2, injected noise.** On the middle 8 frames of each volume, add seeded Gaussian noise of σ_add = 0.5 σ and 1.0 σ
+  (that frame's σ), round and clip at the stored depth, then re-estimate σ. Then b = σ̂(x + n)² − σ̂(x)² compared with
+  σ_add² + 1/12, as a ratio minus 1. This is the noise point's P5 method on the real frames.
+* **B3, integer Q.** The shared cells at G 1 and G 16. Per volume, Q_lo is the highest integer Q with worst frame
+  ≤ 1 − δ, and Q_hi the highest with worst frame ≤ 1 + δ. Report the bytes at each, both bars' integer points, and,
+  at G 16, bytes at worst-frame e_N ÷ σ = 1.00, interpolated in ln bytes with PCHIP (groups §S6's B₁, the same code).
+
+**Predictions** (*assumptions* where marked):
+* **B-1.** s_split ≤ 0.5 % on every volume. *Refuted* by any volume above 1 %.
+* **B-2.** |b| ≤ 3 % on every volume, and b < 0 (σ underestimated once the edges are dropped) on A and C, whose
+  noise rises most with signal (r 0.78–0.90). *Refuted* by |b| > 5 % anywhere, or b > 0 on two A or C volumes.
+* **B-3.** δ is 1–3 %, so 1.00 and 1.03 fall in or at the edge of one resolution band. The anchor is unresolved on
+  the ten volumes QA F1 lists within 3 % of 1 (`dbts_a1`, `a2`, `a5`, `b1`, `b2`, `b3`, `b4`, `b5`, `dbt10_d`,
+  `dbt10_ea1141`), and resolved on system C, `dbts_a3`, `dbts_a4` and the 12-bit content-2 volumes (first failing rung
+  1.031–1.090). *Refuted* by two or more volumes on the other side.
+* **B-4.** Q_hi − Q_lo ≤ 2 integer rungs on 12-bit volumes and ≤ 4 on 10-bit ones, whose plateau starts at
+  1.02 (*assumption*).
+* **B-5.** At equal worst frame 1.00, G 16 ÷ G 1 bytes is 0.97–1.01 on 12-bit volumes and 0.88–0.96 on 10-bit
+  ones. That is QA F2's 0–1 % and 6–10 % near the anchor, and N's arms read 0.99–1.00 on A and 0.90–0.94 on 10-bit
+  (noise point §Held-out arms). *Refuted* by any volume outside its band by more than ε, where ε is computed as
+  groups §S6 does.
+* **B-6.** The per-depth x\* for 12-bit streams is ≥ 4.8, and the pooled x\* is 4.636 (*derived*: the minimum over the
+  union is the G > 1 minimum).
+
+**Decision rule.**
+* If B-3 holds, the line stops quoting one bar's Q as the anchor. It quotes the anchor per (series, G) as
+  [Q_lo, Q_hi], with bytes at both ends. The choice inside the band goes to the owner with A's ν beside it (decision 1
+  in `claude/docs-lines-3:docs/lines/codecs.md` §Open 0).
+* If B-3 is refuted (δ < 0.5 %), 1.00 is resolvable, and the line uses 1.00 with integer Q.
+* B0's x\* replaces the noise point's two x\* values if the G 1 and G > 1 values differ by less than δ. Otherwise both
+  stay, with δ beside them.
+* B-5's G 16 ratios are the "G at equal quality" figures for 16 DBT volumes at lag 0. Groups §S2 gives the three
+  timed volumes, cut form, with lookahead arms. No G is decided here: groups §S7 decides G, on its decode bound.
+
+**What it cannot settle.** Visibility (A's limit), other datasets, ultrasound, and anything lookahead changes
+(groups §S2).
+
+## C · Decode on one HTJ2K unit, on a core-capped host (DA 1, 2, 13, the unit)
+
+**Asked.** Four "HTJ2K frame" units have been used (DA §The HTJ2K frame is not one unit), and the product's own
+path is timed in none. The only evidence that WebCodecs decodes in under one frame on a slow device comes from a
+throttle that caps threads, not cores (DA 1). The lossy clock carries a discarded JavaScript pass (DA 2). So: on one
+Chromium and one host, what do the OQ view and the exact frame cost to decode, against the product's own HTJ2K path,
+at 1× and on a host capped to 1 and 2 slowed cores?
+
+**Arms, each one decoder in its own worker, one frame in flight:**
+
+| arm | what its clock spans, from the frame handed in to … | source |
+| --- | --- | --- |
+| **Hp** | … the product's `decodeFrame` returning, plus `xxh3` on the result and the digest compared: what a Lossless request runs | `client/decode/htj2k.js`, `client/decode/xxh3.js` of the demo tip, built by `client/decode/wasm/build/build.sh` |
+| **Hb** | … the bare product build's decode and one `slice()` copy (profiles' unit) | `claude/av1-quality-profiles:lab/av1/profiles/decoders.js:95-104` |
+| **Hk** | … the package's `decodeFrame` with its range pass (carriers', SNR's and SVC's unit) | `@cornerstonejs/codec-openjph` 2.4.11, as `claude/av1-profile-carriers:lab/av1/delivery/carriers/ask.js:10` loads it |
+| **W** | … the WebCodecs output's luma copied out: the product's `av1-webcodecs.js` read, no `back()` | `client/decode/av1-webcodecs.js` of the demo tip, `prefer-software`, one decoder kept and flushed at a group's end as the product does |
+| **Wb** | … as W, then profiles' `back()` on the clock | `claude/av1-quality-profiles:lab/av1/profiles/shared.js:13-17` |
+| **D** | … dav1d-WASM's frame out, one thread | `client/decode/av1-dav1d.js` of the demo tip |
+
+**Streams.** The demo's OQ form, as `scripts/demo-series.sh` codes it on the demo tip (`claude/demo-fixes-0` or newer,
+per the queue's demo-tip rule): `dbts_b1` at its own 10 bits; `dbts_a1` and `dbts_c1` cut to 10 bits; Q 8 and the
+noise rule's Q for that form (noise point §3's table: stored form for `dbts_b1`, top-10 form for the other two; B0's
+recomputed Q if B0 has run first), G 1; the middle 16 frames. Each volume's exact series
+(`.sbnd`) gives the same 16 frames to Hp, Hb and Hk.
+
+**Throttles.** 1×; 4× per thread with no core cap (the studies' setting, kept to reproduce them); 4× with
+`{ cores: 1 }` and with `{ cores: 2 }` (`lab/scripts/cpu_throttle.mjs`, `throttleTree`).
+
+**Interleaving.** A round is every (volume, stream, throttle, arm) once. Within a round, throttles in a Williams order
+rotated each round, and arms in a Williams order within each throttle. A fresh worker and decoder for each arm and
+stream, opened and primed off the clock. At least 15 rounds, and up to 30 if time allows.
+
+**Checks.**
+* Every W, Wb and D frame is hashed against native dav1d. Every Hp, Hb and Hk frame is hashed against the exact
+  series' XXH3. A miss voids that round.
+* An A/A arm Hp′ (a second Hp), and an A/A interval wholly beyond ±5 % voids that throttle's cells.
+* **Known-cost mutation** (DA 14): a dummy JavaScript pass over every sample added to Hb must move Hb ÷ Hp by its
+  own separately timed cost, within the A/A half-width; otherwise the clocks are not what this protocol says.
+* `throttleTree --check` (as residual apart's §Host ran it) once per host, with and without `cores`.
+
+**Predictions** (bands are *assumptions* from the audit's *derived* figures):
+* **C1.** (Wb − W) ÷ Hb at 1× is 0.20–0.32 on every volume, matching DA 2's 0.23–0.29. *Refuted* outside 0.15–0.40.
+* **C2.** Hk ÷ Hb at 1× is 1.25–1.50 (the range pass's 21–31 % plus the copy into shared memory). Hp ÷ Hb is
+  1.00–1.10: the pack's range adds nothing on the clock, and XXH3 on 2–9 MB is a few per cent (*assumption*). *Refuted*
+  by Hp ÷ Hb > 1.15.
+* **C3.** W ÷ Hp at Q 8, 1× is 1.4–1.9 on `dbts_a1` and `dbts_c1` (DA 2's ~1.55–1.81) and 1.2–1.8 on `dbts_b1`.
+  *Refuted* by any volume ≤ 1.0.
+* **C4.** At 4× with no core cap, W ÷ Hp is ≥ 0.15 below its 1× value, reproducing the studies' fall. At 4× with
+  `cores: 1`, W ÷ Hp is within ±0.15 of its 1× value or above it: one slowed core takes away WebCodecs' threads. At
+  `cores: 2` it lies between the two. *Refuted* if W ÷ Hp at `cores: 1` is ≤ 1.0 on two volumes.
+* **C5.** W ÷ Hp rises as Q falls (more bytes to entropy-decode): at a stream's rule Q below 8 it is higher than at
+  Q 8, and at a rule Q above 8 lower. *Refuted* by the opposite order on two volumes whose rule Q differs from 8.
+
+**Decision rule.**
+* The line quotes the OQ view's decode only as W ÷ Hp, with its throttle, stream form, Q and host. That replaces
+  every "× an HTJ2K frame" for the view in `docs/lines/codecs.md`. Hp, the product's path, is the unit.
+* "WebCodecs decodes under one HTJ2K frame on a slow device" is claimed only if W ÷ Hp has a 95 % upper bound < 1 at
+  both `cores: 1` and `cores: 2` on all three volumes. Otherwise the line says that a core-capped host does not show
+  it, and that a phone is owed.
+* Hp ÷ Hb and Hk ÷ Hb are recorded as conversion factors, so every earlier study's ratio can be restated in Hp, each
+  marked *derived*.
+* No route changes: WebCodecs first is a decided approach. This decides only what may be said about its speed.
+
+**Host and saturation.** One 4-core host, headless Chromium as `lab/av1/profiles` pins it (the version is recorded
+per round, DA 12). At 1×, Hp, Hb, Hk and D use one core; W uses Chromium's decoder threads, up to four (*assumption*).
+The host saturates for W at 1×, so C3's W figures hold for a 4-core host only. At `cores: 1` and `cores: 2` the cap
+itself is the limit. A capped cloud core is not a phone core (its cache, memory bandwidth and SIMD differ), so
+nothing here is a phone claim.
+
+**Cost.** 3 volumes × 2 streams × 4 throttles × 6 arms (+ A/A) × 16 frames a round. At 4× a frame costs 4–8× its 1×
+time (about 25–150 ms at 1×, DA's tables), so a round is about 8–12 min and 15 rounds about 2–3 h (*derived*).
+
+**What it cannot settle.** A phone, a GPU or hardware decoder (DA 11), concurrent decodes, or the fill's network
+time.
