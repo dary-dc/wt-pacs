@@ -1,9 +1,11 @@
-// One run of a link protocol in docs/lines/proposals.md §Optimize (P1, P4): a pair served as README §Demo serves it, both
+// One run of a link protocol in docs/lines/proposals.md §Optimize (P1, P4, P5): a pair served as README §Demo serves it, both
 // sessions through lab/scripts/link_impair.py, one fresh headless Chromium; the fill's last frame, then `l` after a quiet.
 //
 //   node lab/proposals/link_cells.mjs TIP DIR LOSSY_ID --link "OPTIONS" [--lossy-args "..."] [--exact-args "..."]
-//        [--quiet-ms 10000] [--frame first|middle|last]
+//        [--quiet-ms 10000] [--frame first|middle|last] [--host ROOT] [--cpu-throttle RATE]
 //     TIP: a checkout of the demo tip with its client, series-server and dev certificate built
+//     ROOT: where dev-server.py serves the page from, TIP by default (P5's arm: lab/proposals/p5_arm.sh)
+//     RATE: Emulation.setCPUThrottlingRate on the page target; Chromium applies it to the main thread only
 //   prints one JSON row; times are ms on the page's clock, from navigation
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -44,7 +46,7 @@ const transport = readFileSync(path.join(tip, "client/dev-transport.json"), "utf
 writeFileSync(`${T}/transport.json`, transport.replace(":4433", ":5433"));
 writeFileSync(`${T}/exact-transport.json`, transport.replace(":4433", ":5434"));
 const relay = run("python3", ["lab/scripts/link_impair.py", "--udp", "5433:4433", "--udp", "5434:4434", ...words(arg("--link"))]);
-const host = run("python3", ["server/dev-server.py", "--port", "8765", "--metadata", path.join(dir, `${id}.metadata.json`),
+const host = run("python3", [path.join(arg("--host", tip), "server/dev-server.py"), "--port", "8765", "--metadata", path.join(dir, `${id}.metadata.json`),
   "--transport", `${T}/transport.json`, "--exact-metadata", path.join(dir, `${exactId}.metadata.json`),
   "--exact-transport", `${T}/exact-transport.json`]);
 await Promise.all([started(lossy, /transport=/), started(exact, /transport=/), started(host, /port=8765/), started(relay, /READY/)]);
@@ -60,17 +62,21 @@ function watch() {
   });
 }
 
-const row = { id, exactId, link: arg("--link"), lossyArgs: arg("--lossy-args", ""), exactArgs: arg("--exact-args", ""), frame: FRAME };
+const row = { id, exactId, host: arg("--host", tip), cpuThrottle: Number(arg("--cpu-throttle", 1)), link: arg("--link"), lossyArgs: arg("--lossy-args", ""), exactArgs: arg("--exact-args", ""), frame: FRAME };
 const browser = await createRequire(import.meta.url)("playwright").chromium.launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
   await page.addInitScript(watch);
+  if (row.cpuThrottle !== 1) await (await page.context().newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: row.cpuThrottle });
   await page.goto("http://127.0.0.1:8765/?overlay=1&view=page");
   const log = () => page.evaluate(() => globalThis.__log);
   const until = async (pred, ms) => {
     for (const end = Date.now() + ms; Date.now() < end; await page.waitForTimeout(20)) if (pred(await log())) return true;
     return false;
   };
+  const picture = (l) => l.find((e) => e.id === "quality" && e.text);
+  await until(picture, 600000);
+  row.firstPictureMs = Math.round(picture(await log())?.t) || null;
   const status = (l) => l.findLast((e) => e.id === "status")?.text ?? "";
   row.filled = await until((l) => /fill \d+ ms/.test(status(l)), 600000);
   const n = lossyMeta.frameCount;
