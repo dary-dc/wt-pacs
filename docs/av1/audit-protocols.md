@@ -291,3 +291,59 @@ The protocol names its inputs but not every reading of them. Fixed here, before 
   (4.92935 at G 1, 4.63596 at G 16, over its 14 volumes) and its held-out G 1 value with the arms in (4.802), and
   QA F1's table where QA quotes it. **Mutation:** the 8-bit AC table in place of the stream's must fail the check.
 * **Code.** `lab/av1/audit/b0.py` on `claude/audit-measure`; its output `lab/av1/audit/rows/b0.json`.
+
+### B0 · measured, 2026-11-11 16:55 UTC
+
+Run as amendment 1 fixes it: `lab/av1/audit/b0.py` at `8cc5fe78`, rows `lab/av1/audit/rows/b0.json`. Zero encodes; every
+number is arithmetic on the committed rows. **Fixtures:** the 19 DBT volumes, all from the one EA1141 dataset; ladder
+Q 1–56 at G 1 and 16 on all 19, plus the noise point's 53 integer-Q arms on five of them. Nothing here speaks for
+another dataset, ultrasound or a phone.
+
+**Check.** The script reproduces the noise point's in-sample x\* (4.92935 at G 1, 4.63596 at G 16), its held-out G 1
+value with the arms in (4.80244), and QA F1's table at both bars on all 19 volumes, every Q and every bytes ratio. The
+arms and the ladder agree byte for byte wherever they share a cell. With the 8-bit AC table in place of the stream's,
+the check fails (x\* 0.383 everywhere): the mutation is seen.
+
+**1 · QA F1's table, reproduced.** Unchanged from `claude/av1-audit-quality:docs/av1/audit-quality.md` §Notes, F1.
+The worst frames at the rungs that decide it: `dbts_a1` Q 8 1.0107 · 1.0076, `a2` 1.0075 · 1.0060, `a5` Q 8 G 1 1.0008
+(G 16 0.9996), `b1` Q 12 G 16 1.0004 (G 1 0.9989), `b5` Q 12 1.0071 · 1.0069.
+
+**2 · x\* recomputed** (smallest x with e_N ÷ σ > 1; stored and top-10 forms; truncated to four decimals):
+
+| reading | frames | x\* | set by (volume, form, Q, G, frame: e_N ÷ σ) | x_hi |
+| --- | --- | --: | --- | --: |
+| noise point, G 1 | 14 in-sample volumes | 4.9293 | `dbts_c1` top-10, Q 8 | 6.689 |
+| G 1, all 19 | ladder and arms | **4.7584** | `dbts_a5` top-10, Q 8, G 1, frame 70: 1.0036 | 6.689 |
+| G 8, all 19 | ladder | 4.6359 | `dbts_b1` 10-bit, Q 12, G 8, frame 30: 1.0004 | 6.693 |
+| G 16, all 19 | ladder and arms | 4.6359 | `dbts_b1` 10-bit, Q 12, G 16, frame 30: 1.0004 | 6.693 |
+| **pooled**, G 1 and 16 | all 19 | **4.6359** | as G 16 (G 8 in: the same) | 6.693 |
+| **per depth**, B 10 | 10-bit stored and every top-10 | **4.6359** | as G 16 | 6.693 |
+| **per depth**, B 12 | 12-bit stored | **4.8024** | `dbts_a3` 12-bit, Q 9, G 1, frame 32: 1.0001 | 5.326 |
+
+The held-out volumes' ladder cells lower the G 1 minimum again, from 4.802 to 4.758, on a top-10 frame. G 1 and
+G > 1 now differ by 2.6 % (4.7584 against 4.6359), not 6 %.
+
+**3 · Rule Q under each x\*,** 62 (volume, form, G) cells, G 1 and 16, stored and top-10; rows `rules` in `b0.json`.
+
+| x\* | ladder Q against the 1.00 anchor: equal · lower · higher | against the 1.03 anchor | ladder picks changed against the noise point | integer picks changed |
+| --- | --- | --- | --: | --: |
+| noise point (4.9293 · 4.6359) | 49 · 13 · 0 | 26 · 36 · 0 | — | — |
+| pooled 4.6359 | 45 · 17 · 0 | 22 · 40 · 0 | 4 | 14 |
+| per depth (4.6359 · 4.8024) | 49 · 13 · 0 | 26 · 36 · 0 | 4 | 14 |
+
+No reading picks a ladder rung above either anchor on any cell. Where an integer pick was coded, its worst frame is
+0.921–0.999. The ladder picks that move, with bytes ÷ HTJ2K:
+* **pooled**, all four at G 1, one rung down: `dbts_a3` top-10 8 → 4 (0.091 → 0.262), `dbts_b1` 12 → 8 (0.101 →
+  0.219), `dbts_c1` 12-bit 8 → 4 (0.096 → 0.285), `dbts_c5` 12-bit 8 → 4 (0.096 → 0.288).
+* **per depth**: `dbts_a3` top-10 G 1 and `dbts_b1` G 1 as pooled; `dbts_c1` and `dbts_c5` 12-bit **G 16 up** 4 → 8
+  (0.284 → 0.095, 0.289 → 0.096), each now equal to its anchor. F6's 3× G 16 cost on `dbts_c1` goes; `dbts_b1`'s
+  G 16 cost does not, and its G 1 cell now pays it too.
+
+**Against the predictions.** **B-6 holds:** the per-depth x\* for 12-bit streams is 4.8024 (≥ 4.8, by 0.05 %), and
+the pooled x\* is 4.6359. B-1 to B-5 need B1–B3.
+
+**Decision rule, so far.** Whether B0's x\* replaces the noise point's two turns on δ, which B1 and B2 measure.
+Until then: the G 1 x\* the rows support is 4.7584, not 4.9293 (the noise point's value predates shard 3's ladder
+cells); the G 1 and G > 1 values differ by 2.6 %; and the per-depth reading reproduces the anchor on as many cells
+as the noise point's while removing F6's `dbts_c1` and `dbts_c5` G 16 penalty. B-3's prediction (δ 1–3 %) would put
+that 2.6 % inside the resolution.
