@@ -3,7 +3,7 @@ OpenJPH 0.31.0, each strip's TLM prefix at every level decoded by OpenJPEG 2.5.4
 held against witness.py, the strips stacked against the frame digest, Layout 1's bands cut at TLM's boundaries, and
 the bytes. One JSON row a frame. lab/htj2k-tiles/improve/README.md
 
-    offline.py BUILD OPJ_BIN DATA VOLUME OUT.jsonl [--frames N] [--mutate NAME]
+    offline.py BUILD OPJ_BIN DATA VOLUME OUT.jsonl [--first I] [--frames N] [--mutate NAME]
 """
 import argparse
 import hashlib
@@ -204,6 +204,7 @@ def main():
     ap.add_argument("volume")
     ap.add_argument("out", type=Path)
     ap.add_argument("--frames", type=int)
+    ap.add_argument("--first", type=int, default=0)
     ap.add_argument("--mutate", choices=MUTANTS)
     a = ap.parse_args()
     meta = json.loads((a.data / a.volume / "metadata.json").read_text())
@@ -211,7 +212,7 @@ def main():
     nl = decompositions(w, h)
     n = min(a.frames or meta["frameCount"], meta["frameCount"])
     with tempfile.TemporaryDirectory() as tmp, open(a.out, "a") as out:
-        for i in range(n):
+        for i in range(a.first, n):
             raw = (a.data / a.volume / f"{i:03d}.raw").read_bytes()
             digest = (a.data / a.volume / f"{i:03d}.sha256").read_text().split()[0]
             samples = np.frombuffer(raw, "<u2").reshape(h, w).astype(np.int64)
