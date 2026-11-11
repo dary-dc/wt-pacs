@@ -588,6 +588,32 @@ test("a shown frame's route and WebCodecs refusal reach the overlay", async () =
   assert.equal(about.refusal, "undecodable: not a key frame");
 });
 
+/** An optimal-quality frame whose reconstruction digest matched is labelled as coded and counted so; one with none stays optimal. docs/lines/proposals.md §I3 */
+test("a frame checked as coded is labelled so, one unchecked is not", async () => {
+  const r = rig({ lossy: { q: 8, g: 1, depth: 10 } });
+  r.c.take({ frameIndex: 0, info: { ...frame(0).info, exact: "unchecked", asCoded: true, mismatchOn: "av1-webcodecs" } });
+  r.c.take({ frameIndex: 1, info: { ...frame(1).info, exact: "unchecked" } });
+  await r.c.repaint();
+  const shown = r.events.filter(([t]) => t === "shown").at(-1)[1];
+  assert.equal(shown.quality, "asCoded");
+  assert.equal(shown.about.asCoded, true);
+  assert.equal(shown.about.mismatchOn, "av1-webcodecs");
+  assert.deepEqual([r.c.seen.asCoded, r.c.seen.unchecked, r.c.seen.exact], [1, 1, 0]);
+  await r.c.show(1);
+  assert.equal(r.events.filter(([t]) => t === "shown").at(-1)[1].quality, "optimal");
+});
+
+/** A frame whose reconstruction matched on no route is never painted: refused by name, as a depth cut's frame at the wrong depth. */
+test("a frame not as coded is refused, not painted", async () => {
+  const r = rig({ lossy: { q: 8, g: 1, depth: 10 } });
+  r.c.take({ frameIndex: 0, info: { ...frame(0).info, exact: "unchecked", asCoded: false, reason: "av1-webcodecs gave 1, not 2" } });
+  await r.c.repaint();
+  assert.equal(r.painted.length, 0);
+  assert.equal(r.c.store.has(0), false);
+  const failed = r.events.find(([t]) => t === "failed")[1];
+  assert.deepEqual(failed, { scope: "frame", i: 0, reason: "not as coded: av1-webcodecs gave 1, not 2" });
+});
+
 for (const [name, fn] of tests) {
   try {
     await fn();
