@@ -84,6 +84,14 @@ class DemoNetwork(unittest.TestCase):
         self.socks[0].close()
         self.assertRefused(self.run_check(), f"tcp {self.page}")
 
+    def test_a_connection_left_on_the_page_port_is_refused(self):
+        """A stopped page whose last connection still holds its port is not listening: refused."""
+        client = socket.create_connection((HOST, self.page))
+        accepted, _ = self.socks[0].accept()
+        self.socks[0].close()
+        self.socks += [client, accepted]
+        self.assertRefused(self.run_check(), f"tcp {self.page}")
+
     def test_a_listener_on_another_address_is_refused(self):
         """A series bound to another address than the one the phone dials fails: loopback is not the Wi-Fi address."""
         self.files[1] = self.transport(self.series[1], self.hash, host="127.0.0.2")
