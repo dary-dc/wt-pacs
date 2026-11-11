@@ -75,7 +75,11 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   `sourceFingerprint`, XXH3-64 over the source's frame digests as its HTJ2K series carries them; `checkPair` requires
   the same 16 hex digits in both series instead of `framesSha256`, which stays the fetcher's download pin and is no
   longer copied into a series ([`../av1/payload-format.md`](../av1/payload-format.md) §Source fingerprint). Synthetic
-  sets and node tests, every new test mutated.
+  sets and node tests, every new test mutated. `demo-series.sh` run again (one 4-core cloud host, 685 s with the
+  coders built): every exact bundle 43 B smaller (`framesSha256` out, `sourceFingerprint` in), each optimal-quality
+  bundle the same size; each set's eight or seven series carry one fingerprint, the three sets three; `checkPair`
+  accepts all 20 pairs and refuses each against the other two sets' exact series by source (a node script over the
+  metadata; no browser run on these series).
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
