@@ -905,6 +905,21 @@ clear; the wake ending nothing; the wake posted to the optimal-quality client. *
 tip's label, `✓ Lossless` (its `^Lossless` matched the old label and the failed one). *Phone row:* not run here; its
 seeded dwell list is written when a phone session takes it.
 
+**Measured, plumbing (MEASURE-2, 2026-11-11 20:56–21:17, per amendment 1): the plumbing rule holds.** 42 runs,
+`lab/proposals/rows/r3.jsonl`; table `lab/proposals/r3_summary.py`. Medians of 7 runs per variant; every run ended at
+*✓ Lossless* with the optimal-quality series whole; the relay promoted the radio once in every run.
+
+| series | off ms | on 100 ms | A/A ms | on − off | tolerance | n off/on/aa | promoted per run | failed |
+| --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
+| dbts_a1-q8-g8-cut | 1104 | 1001 | 1112 | -103 | 15 | 7/7/7 | [1] | 0 |
+| dbts_c1-q8-g16-cut | 1045 | 940 | 1043 | -105 | 15 | 7/7/7 | [1] | 0 |
+
+`on 100` − `off` is −103 and −105 ms, inside −100 ± 15 (the A/A arm moved 8 and 2 ms, under the registered 15).
+Rebuilt on `end_stream` alone, the wake takes the promotion off as P3's `cancel` arm did (−88 and −105 ms), with
+the run-to-run spread of `on 100` 4–37 ms. *Not settled here:* the deciding row is the owner's phone on cellular;
+its seeded dwell list is written when a phone session takes it. *Limits:* the relay's radio is a model (`--idle-promote
+5:300`); headless Chromium on one 4-core host; two DBT volumes of one dataset.
+
 ### R4. The 32-packet initial window under BBR (P1 + P4)
 
 **Mechanism.** P4 was measured under Cubic only (R, P4 §Measured; red team P4, *Not tested*). Clean, its gain was
