@@ -373,6 +373,23 @@ const { parsePayload } = await import("./av1-payload.js");
   await again("after dav1d, a failing WebCodecs is not dav1d again", "g10", 10, "av1-dav1d", "probe g10,webcodecs", "undecodable");
   wcFails = false;
   await again("inside a group, none", "g10", 10, "av1-webcodecs", "", "a frame inside a group", { key: false });
+  // A mismatched frame inside a group is decoded again from its keyframe on the other path: proposals.md §I1
+  const regroup = async (what, earlier, avoid, want, outcome) => {
+    [depth, planes] = [10, 1];
+    calls.length = 0;
+    const units = [];
+    const dav1d = stubs["./av1-dav1d.js"].picture;
+    stubs["./av1-dav1d.js"].picture = (b, unit, ...rest) => (units.push(`${unit.index}${unit.key ? "k" : ""}`), dav1d(b, unit, ...rest));
+    const got = await av1.decodeAgain(earlier, golden("plain", "g10"), { key: false, gen: 3, index: 6 }, avoid).then((r) => r.path, (e) => String(e.message));
+    stubs["./av1-dav1d.js"].picture = dav1d;
+    check(calls.join() === want && got.startsWith(outcome), `group again: ${what} (${calls.join()}; ${units.join()}; ${got.slice(0, 50)})`);
+    return units.join();
+  };
+  const g10 = golden("plain", "g10");
+  const order = await regroup("after WebCodecs, the group's frames on dav1d from its keyframe", [g10, g10], "av1-webcodecs", "dav1d,dav1d,dav1d", "av1-dav1d");
+  check(order === "4k,5,6", `group again: the keyframe first, then each frame in order, under the frame's own generation (${order})`);
+  await regroup("without the group's payloads, none", null, "av1-webcodecs", "", "frame 6's group was not kept from its keyframe");
+  await regroup("after dav1d, none: WebCodecs keeps its own group's state", [g10], "av1-dav1d", "", "a group is decoded again on dav1d only");
   const mixed = await import("./av1.js?mixed");
   await mixed.init({ mixed: true }, load);
   const split = (avoid) => mixed.decodeFrame(golden("optimized", "g14"), { key: true }, null, avoid).then((r) => r.path, (e) => String(e.message));
