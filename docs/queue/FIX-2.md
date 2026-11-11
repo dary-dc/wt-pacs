@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11T17:50Z
-heartbeat: 2026-11-11T18:55Z
+heartbeat: 2026-11-11T19:12Z
 outputs: claude/demo-fixes-2 (from 4ba95e1b, MAIN-REVIEW's S1 fix)
 ## Resume
 Done on claude/demo-fixes-2 (pushed): ee04ef57 merge demo-ux, 935c5374 merge source-fingerprint, 2d2af731 merge
