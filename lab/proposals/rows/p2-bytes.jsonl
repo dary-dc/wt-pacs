@@ -1,20 +1,3 @@
-dbts_a1: 56 payloads, 4656434 B, optimal quality Q 8 G 1 cut to 10 bits, every one decoded (0be64dfc1d08)
-dbts_a1: 56 payloads, 4686505 B, optimal quality Q 8 G 1 cut to 10 bits, every one decoded (3e39b0741fea)
-dbts_a1: 56 payloads, 4672084 B, optimal quality Q 8 G 1 cut to 10 bits, every one decoded (d2e75a44a17c)
-dbts_a1: 56 payloads, 4657464 B, optimal quality Q 8 G 8 cut to 10 bits, every one decoded (65201c7dec6d)
-dbts_a1: 56 payloads, 4649833 B, optimal quality Q 8 G 8 cut to 10 bits, every one decoded (2656ab801ebb)
-dbts_b1: 50 payloads, 23477974 B, optimal quality Q 8 G 1, every one decoded (5c76049be0ed)
-dbts_b1: 50 payloads, 23481158 B, optimal quality Q 8 G 1, every one decoded (eb1495f9cd89)
-dbts_b1: 50 payloads, 23485112 B, optimal quality Q 8 G 1, every one decoded (41b10573db7d)
-dbts_b1: 50 payloads, 23206924 B, optimal quality Q 8 G 8, every one decoded (fab049033b2e)
-dbts_b1: 50 payloads, 23219419 B, optimal quality Q 8 G 8, every one decoded (e6dc6a6d5a4b)
-dbts_b1: 50 payloads, 23210248 B, optimal quality Q 8 G 8, every one decoded (11a92033baef)
-dbts_c1: 69 payloads, 6347095 B, optimal quality Q 8 G 1 cut to 10 bits, every one decoded (c31105739326)
-dbts_c1: 69 payloads, 6363447 B, optimal quality Q 8 G 1 cut to 10 bits, every one decoded (089e2cbcf113)
-dbts_c1: 69 payloads, 6344477 B, optimal quality Q 8 G 1 cut to 10 bits, every one decoded (3fa7cc87a477)
-dbts_c1: 69 payloads, 6238085 B, optimal quality Q 8 G 8 cut to 10 bits, every one decoded (916cf9970be3)
-dbts_c1: 69 payloads, 6253297 B, optimal quality Q 8 G 8 cut to 10 bits, every one decoded (cc14db74310b)
-dbts_c1: 69 payloads, 6237481 B, optimal quality Q 8 G 8 cut to 10 bits, every one decoded (799b862fbb79)
 {"protocol":"P2","cell":"bytes","id":"dbts_a1-q8-g1-cut","arm":"one","bytes":4657942,"ratio":1.0000}
 {"protocol":"P2","cell":"bytes","id":"dbts_a1-q8-g1-cut","arm":"2x2","bytes":4688013,"ratio":1.0065}
 {"protocol":"P2","cell":"bytes","id":"dbts_a1-q8-g1-cut","arm":"2x1","bytes":4673592,"ratio":1.0034}
