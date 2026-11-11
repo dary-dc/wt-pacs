@@ -1,7 +1,7 @@
 state: done
 started: 2026-11-11 03:21
-heartbeat: 2026-11-11 03:48
-outputs: claude/demo-fixes-1 9e2ef4ef, draft PR #363 into claude/core
+heartbeat: 2026-11-11 04:06
+outputs: claude/demo-fixes-1 9e2ef4ef, draft PR #363 into claude/core (CI gate and deploy green, mergeable)
 ## Resume
 Done. Merges 579206f0; fixes c6d13a48, 15c0235f, 671bdd6f, c9bfa15b, fdbf8f89, d122dec1, 7d93e030, 1a038e04,
 54ecfe31, 515a36ad, c11a2536, c9dc75ae; gate lines 053321b2; docs/lines/optimal-quality.md 9e2ef4ef. PR #363 maps each.
