@@ -812,6 +812,19 @@ is lower by ≥ 30 ms, with R0's A/A pair (off against off, 10 dwells) setting t
 the relay's radio is a model; the phone row is one device on one carrier; the ping's period is by report (R,
 `transport-conclusions.md`).
 
+**Amendment 1 (MEASURE-2, 2026-11-11 20:15, written before any run).** *Arm:* `lab/proposals/r3_arm.sh TIP ROOT`
+copies the demo tip's client (`d46811c6`) beside it and makes three edits: the downloader answers `wake` with
+`session.endStream()` and nothing else; the consumer gains `wake()`, which posts it; the viewer's lossless button's
+`pointerdown` calls `controller.exactSource?.wake()`. *Lab test* `lab/proposals/r3_arm.test.mjs ROOT`: the viewer
+wakes the exact session only, and a wake during an ask in flight ends the stream once while the ask's frame still
+reaches the page, uncancelled. Mutants killed (each fails the test): the wake doing the cancel's generation bump and
+clear; the wake ending nothing; the wake posted to the optimal-quality client. *Plumbing cell*
+(`lab/proposals/r3.sh`): P3 amendment 1's link (`--idle-promote 5:300`, `--exact-only`), `dbts_a1-q8-g8-cut` and
+`dbts_c1-q8-g16-cut`, variants `off` (the tip, button), `on 100` (the arm, `pointerdown` 100 ms before the click) and
+`off` again (A/A, R0), rotated one place a round, 7 rounds, 42 runs. *Driver:* `link_cells.mjs` now waits for the demo
+tip's label, `✓ Lossless` (its `^Lossless` matched the old label and the failed one). *Phone row:* not run here; its
+seeded dwell list is written when a phone session takes it.
+
 ### R4. The 32-packet initial window under BBR (P1 + P4)
 
 **Mechanism.** P4 was measured under Cubic only (R, P4 §Measured; red team P4, *Not tested*). Clean, its gain was
@@ -832,6 +845,17 @@ against default) in the 1 % cell. *Fixtures, link, frames, order:* P4's amendmen
 `q20` and `ge` cells read as clean), the three frames pooled: 7 rounds, 21 runs a cell (R0). *Measured:* `l` to
 *Lossless* after 10 s of quiet, and the exact session's path RTT at the ask. *Limits:* as P1's. This waits on the
 phone runs: unless they move the default to BBR, it informs only a lab option.
+
+**Amendment 1 (MEASURE-2, 2026-11-11 20:15, written before any run).** *Read from the code:* the demo tip's
+`server/src/transport/tuning.rs:27-31` gives `--initial-window-bytes` to both the Cubic and the BBR configs, so R4
+is not void. *Path RTT:* the demo tip's server prints no path RTT and the exact session's `WebTransport` lives in a
+worker, out of the driver's reach, so the controller's RTT at the ask is not recorded. In its place
+(`link_cells.mjs --windows`) the relay's `window` tallies give the exact flow's sojourn p50/p99 over the 10 s quiet
+and over the `l`; the path RTT is 60 ms plus the two directions' sojourn. *Order* (`lab/proposals/r4.sh`): P4's
+amendment 1 for cells 0 and iid1, the three series and three frames, 7 rounds; per series and frame the default and
+38 400 alternating, the first alternating between rounds; in iid1 the default again (A/A), the three rotated one
+place a round; both servers `--congestion bbr`. 315 runs. *Read:* medians over the three frames pooled, 21 runs a
+cell and arm.
 
 ### R5. P6 with its A/A arm
 

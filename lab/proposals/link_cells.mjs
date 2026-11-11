@@ -3,13 +3,14 @@
 //
 //   node lab/proposals/link_cells.mjs TIP DIR LOSSY_ID --link "OPTIONS" [--lossy-args "..."] [--exact-args "..."]
 //        [--quiet-ms 10000] [--frame first|middle|last] [--host ROOT] [--cpu-throttle RATE]
-//        [--exact-only] [--lead-ms L] [--jump-after-ms J]
+//        [--exact-only] [--lead-ms L] [--jump-after-ms J] [--windows]
 //     TIP: a checkout of the demo tip with its client, series-server and dev certificate built
 //     ROOT: where dev-server.py serves the page from, TIP by default (P5's arm: lab/proposals/p5_arm.sh)
 //     RATE: Emulation.setCPUThrottlingRate on the page target; Chromium applies it to the main thread only
 //     --exact-only: only the exact session through the relay, which --idle-promote needs; --lead-ms: ask by the
 //     button, its pointerdown L ms before its click (P3), instead of the `l` key; --jump-after-ms: `End` J ms after the
-//     first picture, during the fill, the relay's flows tallied over the jump alone, and no `l` (R2)
+//     first picture, during the fill, the relay's flows tallied over the jump alone, and no `l` (R2); --windows: the
+//     relay's flows tallied over the quiet, then over the `l` (R4)
 //   prints one JSON row; times are ms on the page's clock, from navigation
 import { spawn } from "node:child_process";
 import dgram from "node:dgram";
@@ -25,6 +26,7 @@ const QUIET = Number(arg("--quiet-ms", 10000));
 const FRAME = arg("--frame", "first");
 const JUMP = arg("--jump-after-ms");
 const CONTROL = 5556;
+const WINDOWS = JUMP !== undefined || process.argv.includes("--windows");
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const T = mkdtempSync(path.join(tmpdir(), "link-cells-"));
 const children = [];
@@ -54,7 +56,7 @@ const transport = readFileSync(path.join(tip, "client/dev-transport.json"), "utf
 const exactOnly = process.argv.includes("--exact-only");
 writeFileSync(`${T}/transport.json`, exactOnly ? transport : transport.replace(":4433", ":5433"));
 writeFileSync(`${T}/exact-transport.json`, transport.replace(":4433", ":5434"));
-const relay = run("python3", [path.join(HERE, "../scripts/link_impair.py"), ...(JUMP ? ["--control-port", String(CONTROL)] : []), ...(exactOnly ? [] : ["--udp", "5433:4433"]), "--udp", "5434:4434", ...words(arg("--link"))]);
+const relay = run("python3", [path.join(HERE, "../scripts/link_impair.py"), ...(WINDOWS ? ["--control-port", String(CONTROL)] : []), ...(exactOnly ? [] : ["--udp", "5433:4433"]), "--udp", "5434:4434", ...words(arg("--link"))]);
 const host = run("python3", [path.join(arg("--host", tip), "server/dev-server.py"), "--port", "8765", "--metadata", path.join(dir, `${id}.metadata.json`),
   "--transport", `${T}/transport.json`, "--exact-metadata", path.join(dir, `${exactId}.metadata.json`),
   "--exact-transport", `${T}/exact-transport.json`]);
@@ -115,18 +117,21 @@ try {
     const key = { first: null, middle: null, last: "End" }[FRAME];
     if (FRAME === "middle") for (let i = 0; i < Math.floor(n / 2); i++) await page.keyboard.press("ArrowRight");
     if (key) await page.keyboard.press(key);
+    if (WINDOWS) await control("window");
     await page.waitForTimeout(QUIET);
     if (row.leadMs !== null) {
       await page.dispatchEvent("#lossless", "pointerdown");
       await page.waitForTimeout(row.leadMs);
     }
+    if (WINDOWS) await control("window");
     const pressed = await page.evaluate(() => performance.now());
     if (row.leadMs !== null) await page.dispatchEvent("#lossless", "click");
     else await page.keyboard.press("l");
     const quality = (l) => l.findLast((e) => e.id === "quality")?.text ?? "";
-    row.lossless = await until((l) => /^Lossless/.test(quality(l)), 120000);
+    row.lossless = await until((l) => /^(✓ )?Lossless$/.test(quality(l)), 120000);
     const done = (await log()).findLast((e) => e.id === "quality");
     row.losslessMs = row.lossless ? Math.round(done.t - pressed) : null;
+    if (WINDOWS) await control("window");
     row.label = quality(await log());
     row.shown = status(await log()).match(/^frame (\d+)/)?.[1];
     row.statusAfter = status(await log());
