@@ -366,7 +366,8 @@ beside its exact series, and the client pairs them by `exactSeries` ([`../glossa
   series' bundle is known by, and the `"sourceFingerprint"` both series carry (§Source fingerprint). No `representation`, `preset` or `digests`: a frame digest makes a frame `exact`
   ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests), so a lossy frame arrives `unchecked`.
 * **Built** in `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID`; the DICOM ingest does not code it yet.
-  `--depth-cut` codes the depth cut instead (§Depth cut).
+  `--depth-cut` codes the depth cut instead (§Depth cut); `--integrity` adds `lossy.reconstruction` and
+  `lossy.codingError` (§Integrity).
 
 **Bytes** (`scripts/demo-series.sh`, 2026-11-09, one run on a 4-core x86-64 cloud host, 443 s in all with the
 tools already built): each `.sbnd` against its exact series'. The quality at each Q is not measured here.
@@ -471,3 +472,37 @@ two little-endian above, sign-extended), concatenated as text.
   series it writes, and no client reads it.
 * **What it changes:** every bundle's metadata gains one key, so every series written before it fails the pairing
   check until written again (`scripts/demo-series.sh`).
+
+### Integrity
+
+*OQ-INTEGRITY-BUILD, 2026-11-11. A proposal, off unless the ingest is asked: built and tested on synthetic sets and
+stand-in decoders; its cost is the protocol's (`docs/lines/proposals.md` §I1 on `claude/oq-integrity`).*
+
+`ingest_coded.py --integrity` (with `--lossy`; `scripts/demo-series.sh` under `INTEGRITY=1`) writes two per-frame
+lists into `lossy`. Without it nothing changes: the same bytes, the same metadata, every frame `unchecked`.
+
+* **`reconstruction`**, `{"algorithm": "xxh3-64", "frames": [...]}`: each frame's **reconstruction digest**, the
+  XXH3-64 of the picture dav1d gives decoding its keyframe's unit to its own, which the ingest already decodes
+  (§Optimal quality, *Checked at ingest*), taken as `decodeFrame` hands it on (§Frame digests of `../FIXTURES.md`:
+  the stored values, two bytes a sample above 8 bits; for a depth cut, the 10-bit codes, not the rescaled values).
+  AV1 §7.2 makes that picture every conforming decoder's when no film grain is signalled, and `lossy_args` signals
+  none. Not `digests`: a frame digest makes a frame `exact`, and this one never does.
+* **`codingError`**, `{"rms": [...], "max": [...], "noiseBandRatio": [...]}`: against the source sample, in source
+  units (a cut's code c counted as c · 2^(D−10), so the cut's rounding is in it): the RMS, the largest \|Δ\|, and
+  the RMS of Δ through the 3 × 3 Laplacian difference ÷ 6 over the frame's σ by Immerkær's estimator with the
+  steepest 10 % of samples left out and rounding's 1/12 taken off (`ingest/coded-frames/coding_error.py`, the
+  quality study's `sigma` and `noise_band` without scipy, `claude/av1-vl-metrics:lab/av1/metrics/README.md` §4.4;
+  `null` for a frame without noise). Frame-pooled numbers, stated, never a verdict: no reader test has shown any of
+  them visually lossless on DBT.
+* **The client** checks a frame against its reconstruction digest wherever the metadata carries one, in the decoder
+  worker's `checked()` as an exact frame's: matched, `asCoded` and the label **Optimal quality ✓**; not matched,
+  decoded once more on the other route (a frame inside a group: its group again on dav1d-WASM from its keyframe,
+  after WebCodecs only, `av1.js` `decodeAgain`), and on a second mismatch refused by name, not painted
+  (`not as coded: …` on the status line). Under `?overlay=1` the overlay adds the check's outcome and the frame's
+  coding error, its RMS also in display levels at a LINEAR window, e · \|slope\| · 255 ÷ (W − 1).
+* **Tested:** `lossy_test.py` (each digest is the decoded picture's, each error the picture's against its source, the
+  same bytes with and without, at 8 and 12 bits, G 1 and 8, a cut), `coding_error_test.py` (σ within 3 % of a known
+  σ 0.5–16 on a smooth scene and on a 300-unit edge), `decoder.test.mjs`, `av1.test.mjs`, `controller.test.mjs`,
+  `screen.test.mjs`; each new test mutated (the PR's body lists the mutants).
+* **What it does not cover:** the paint (the window, the GPU), a hostile server (it serves the digests), and quality
+  itself: a perfect reconstruction of a Q 63 stream passes the check; `codingError` is what states quality.

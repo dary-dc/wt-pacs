@@ -4,7 +4,8 @@
 # every bundle's bytes, as a ratio of its exact series'; each bundle's metadata beside it, ID.metadata.json, for the static
 # host (README.md §Demo). docs/av1/payload-format.md §Optimal quality, §Depth cut.
 #
-#   scripts/demo-series.sh [OUT]     default OUT demo-series; BUILD=... as ingest/tools.sh, default ingest/.build
+#   scripts/demo-series.sh [OUT]     default OUT demo-series; BUILD=... as ingest/tools.sh, default ingest/.build;
+#                                    INTEGRITY=1 writes each frame's reconstruction digest and coding error (§Integrity)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$(mkdir -p "${1:-demo-series}" && cd "${1:-demo-series}" && pwd)"
@@ -42,7 +43,7 @@ rm -f "$OUT/seconds"
 for set in "${SETS[@]}"; do
   ingest "$set" "$set" --codec htj2k
   while read -r id q g cut; do
-    ingest "$set" "$id" --lossy "$q" "$g" --exact-series "$set" $cut
+    ingest "$set" "$id" --lossy "$q" "$g" --exact-series "$set" $cut ${INTEGRITY:+--integrity}
   done < <(series "$set")
 done
 

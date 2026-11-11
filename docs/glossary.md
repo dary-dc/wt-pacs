@@ -40,7 +40,8 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | source sample | a pixel's value as stored in the series' DICOM pixel data; the exact frame carries it unchanged |
 | D | a series' stored bit depth, DICOM *Bits Stored* (0028,0101) |
 | Q, G | an optimal-quality series' quantizer, libaom's (higher Q, more error), and its frames per keyframe |
-| coding error | an optimal-quality value minus its source sample |
+| coding error | an optimal-quality value minus its source sample; per frame, with `--integrity`, `lossy.codingError`: its RMS and max \|Δ\| in source units, and its **noise-band ratio**, its RMS through the noise estimator's Laplacian over the frame's own noise σ ([`av1/payload-format.md`](av1/payload-format.md) §Integrity) |
+| reconstruction digest | the XXH3-64 of an optimal-quality frame's samples as the AV1 decoding process gives them from its keyframe on, written by the ingest in `lossy.reconstruction`; a frame that matches it is **as coded**, never `exact` ([`av1/payload-format.md`](av1/payload-format.md) §Integrity) |
 | stored form | an optimal-quality form of a D > 10 series coded at D itself, not cut: a comparison, decoded by dav1d-WASM only after WebCodecs refused it |
 | pairing | an optimal-quality series naming its exact series in `exactSeries`, by the name the exact series' bundle is known by; nothing else links the two |
 | source fingerprint | `sourceFingerprint`, the XXH3-64 of a source's frame digests that every series of it carries; the pairing refuses two series whose fingerprints differ ([`av1/payload-format.md`](av1/payload-format.md) §Source fingerprint) |

@@ -95,13 +95,20 @@ then not be called lossless: a digest proves a frame is its own series', not tha
 second downloader, one decoder and no fill, dials it once the optimal-quality series is connected, in either view. The
 **lossless** button, or `l`, asks the controller for the current frame exact: frame *i* of the exact series is asked, held beside the frame store (never in it, never cached, nothing else asked or evicted), and
 painted in place of the lossy frame once its digest matched; it stays until the reader steps off the frame or
-presses the button again. A lossy frame's own `exact` means its decode matched the encoder's reconstruction, not the
-source.
+presses the button again. *Corrected 2026-11-11 (OQ-INTEGRITY-BUILD):* this said a lossy frame's own `exact` means its
+decode matched the encoder's reconstruction; no digest of a reconstruction existed, and a lossy frame's `exact` is
+always `unchecked`. With the ingest's `--integrity` a series carries one, and the frame that matches it is `asCoded`,
+never `exact` (below).
 
 * **The label** (top right, always shown on an optimal-quality series) says what is painted, decided in one place,
   `Controller.quality`: *Optimal quality*; *fetching lossless…* while asked; *Lossless* only on the `shown` that
   follows the exact frame's paint, and only when that frame's `exact` is `true`; *Lossless check failed* in red, the
   lossy frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed; the button then asks again.
+* **As coded** (a proposal, OQ-INTEGRITY-BUILD): a series ingested with `--integrity` carries each frame's
+  reconstruction digest; the decoder checks it as a frame digest, the label says *Optimal quality ✓* on a frame that
+  matched, a frame that matched on neither route is refused by name, and `?overlay=1` adds the check and the frame's
+  coding error ([`docs/av1/payload-format.md`](../docs/av1/payload-format.md) §Integrity). A series without it shows
+  as before.
 * **Routes**: WebCodecs first for every optimal-quality series, a depth cut and a 12-bit stored form alike; dav1d-WASM only
   after WebCodecs refused the frame or its probe failed, the route in each frame's `info.path` and the refusal in
   `info.refusal` (§Which decoder, per payload). In headless Chromium a 12-bit unit is refused at `decode`.

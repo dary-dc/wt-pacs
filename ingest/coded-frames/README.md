@@ -20,6 +20,7 @@ $P ingest/coded-frames/merge_test.py                                    # the sp
 $P lab/av1/tools/ingest_coded.py ingest/.build SET OUT --lossy 8 16 --exact-series NAME   # optimal quality, paired
 $P lab/av1/tools/ingest_coded.py ingest/.build SET OUT --lossy 8 16 --exact-series NAME --depth-cut   # its 10-bit depth cut, D > 10
 $P ingest/coded-frames/lossy_test.py ingest/.build                      # optimal quality's claims: the gate's step
+$P ingest/coded-frames/coding_error_test.py                             # the coding error's noise estimate
 scripts/demo-series.sh [OUT]                                            # three tomosynthesis series, exact and 18 optimal each, two 12-bit ones' cut at G 1 and 16
 ```
 
@@ -47,7 +48,8 @@ probes fail and every colour payload goes to dav1d-WASM.
 source's depth, every frame decoded in-process from its group's keyframe; `metadata.json` carries `lossy` and
 `exactSeries`, no `digests` ([`docs/av1/payload-format.md`](../../docs/av1/payload-format.md) §Optimal quality);
 every series carries its source's `sourceFingerprint` (§Source fingerprint);
-`--depth-cut` codes a D > 10 series' 10-bit codes instead (§Depth cut).
+`--depth-cut` codes a D > 10 series' 10-bit codes instead (§Depth cut); `--integrity` adds each frame's
+reconstruction digest and coding error to `lossy` (`coding_error.py`; payload-format §Integrity).
 `decode.cpp`'s `av1_decode` shows the last picture of the units it is given, one unit or a group's first few.
 
 **`pack-series`** takes `NNN.av1` when the metadata says `"codec": "av1"` and `NNN.htj2k` otherwise.
