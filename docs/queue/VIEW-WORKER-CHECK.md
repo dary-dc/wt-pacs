@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11 01:34
-heartbeat: 2026-11-11 01:58
+heartbeat: 2026-11-11 02:03
 outputs: claude/demo-view-worker (from claude/demo-fixes-0 618e13c8)
 ## Resume
 * claude/demo-view-worker: 66521fc5 the failing check (failed under --view worker before the fix, shown on
