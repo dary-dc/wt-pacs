@@ -29,3 +29,25 @@ pass at the tip.
 
 **Verdict:** every FIX-1 fix is load-bearing for its own test. Each revert fails the assertion that names its
 finding, and nothing else fails. No finding.
+
+## 2. Docs claims against the recorded rows (FIX-1, E2E-3, TEST-MOBILE)
+
+* **Byte fractions.** Checked: `docs/lines/optimal-quality.md` §State now, `docs/reviews/e2e-3.md` step 2, and
+  `docs/av1/payload-format.md`'s two byte tables. Each was computed again from E2E-3's per-series KB (KiB) and the
+  exact series' bytes in `payload-format.md` (67 815 186, 107 410 134 and 70 668 114 B). All 20 series agree with
+  the tables to within the last digit's rounding (at most 0.0001). The line file's ranges hold: 0.0685–0.0687,
+  0.216–0.219, 0.088–0.090, and Q 24 at 0.003–0.025.
+* **E2E-3's counts.** 60 = 20 series × 3 arms. The 28 runs that could stall are `dbts_a1`'s and `dbts_c1`'s 14
+  series × page and worker. The 14 stricter runs are those series once. The arithmetic holds.
+* **TEST-MOBILE in the line file.** The line file says "36 s, Lossless 3–6 s, `dbts_b1` did not fill in 120 s".
+  That is the no-jitter 40 ms 2 % cells of `docs/reviews/demo-tests-mobile.md`: 36 189 ms, 5 884 / 2 757 ms, and 33
+  of 50 frames. With jitter, *Lossless* took up to 17 s (its §2). The line file omits that, so a reader takes 3–6 s
+  as the cost at 2 % loss. **Finding D1 (docs, minor):** say "3–6 s without jitter, up to 17 s with ±10 ms".
+* **FIX-1's `framesSha256` claim.** The claim is "the demo set carries it: `fetch_data.py` writes it,
+  `ingest_coded.py` copies it into both". It is true at `daee0d1d`. `fetch_data.py:164` writes it, and
+  `ingest_coded.py` loads the set's `metadata.json`, changes it and writes it out. E2E-3's 60 passes ran on a tip
+  with fdbf8f89, which bears it out. SOURCE-FINGERPRINT (#364) retires it (§3).
+* **FIX-1's README text** (fdbf8f89, 7d93e030) states the rule the code enforces: the `checkPair` arms in order, and
+  the mark rule in `screen.js`.
+* **FIX-1's mutant counts.** Not re-run. The three reverts of `screen.js` above each fail a different
+  `screen.test.mjs` assertion, which is consistent with "six killed" but does not prove it.
