@@ -5,6 +5,7 @@ import { Painter } from "/client/paint/painter.js";
 import { asPainted, Controller, FIT, wantFrom } from "/client/view/controller.js";
 import { View, ViewWorker } from "/client/view/view.js";
 import { checkPair, pairOf } from "/client/viewer/pair.js";
+import { lastError, markOf, overlayText } from "/client/viewer/screen.js";
 
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById("view");
@@ -80,8 +81,9 @@ const on = {
   progress: (p) => ((progress = p), status()),
   shown: (s) => {
     shown = s;
-    markEl.className = s.exact === true ? "" : s.exact === false ? "inexact" : "unchecked";
-    markEl.textContent = s.exact === false ? `NOT EXACT — ${s.reason ?? ""}` : s.exact === true ? "" : "unchecked";
+    const mark = markOf(s);
+    markEl.className = mark.className;
+    markEl.textContent = mark.text;
     showQuality(s);
     status();
   },
@@ -124,13 +126,7 @@ function showQuality({ quality, about }) {
   qualityEl.className = quality ?? "";
   qualityEl.textContent = QUALITY[quality] ?? "";
   losslessEl.textContent = quality === "lossless" || quality === "asking" ? "optimal quality" : "lossless";
-  if (overlayEl.hidden) return;
-  const kb = about.wireBytes === undefined ? "?" : (about.wireBytes / 1024).toFixed(1);
-  const ms = about.decodeMs === undefined ? "?" : about.decodeMs.toFixed(1);
-  const cut = meta.lossy?.bitsStored ? ` depth cut of ${meta.lossy.bitsStored}` : "";
-  const series = meta.lossy ? ` · Q ${meta.lossy.q} · G ${meta.lossy.g} · ${meta.lossy.depth}-bit${cut}` : "";
-  const route = about.refusal ? `${about.path} after WebCodecs refused: ${about.refusal}` : about.path ?? "?";
-  overlayEl.textContent = `${route} · ${kb} KB · decode ${ms} ms${series}`;
+  if (!overlayEl.hidden) overlayEl.textContent = overlayText(about, quality, meta.lossy);
 }
 overlayEl.hidden = q.get("overlay") !== "1";
 
@@ -146,7 +142,7 @@ function status() {
     `codec ${meta.codec ?? "htj2k"}`,
     `renderer ${rendererName}${soft}`,
     progress.fillMs !== null ? `fill ${Math.round(progress.fillMs)} ms` : fillMode ? "filling" : "on demand",
-    ...errors.slice(-1).map((e) => `error: ${e}`),
+    ...[lastError(errors, shown)].filter(Boolean).map((e) => `error: ${e}`),
   ].join(" · ");
 }
 
