@@ -101,7 +101,7 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   blue, a failed check red); a tap unfolds the status line on a phone; the stored form off the show list
   (`STORED_FORM=1 scripts/demo-series.sh` keeps it), dav1d's browser check through the lab's `refuseWebCodecs` on a
   10-bit series; SLICE-TOUCH's slice slider in both views; `client/README.md`'s *exact* sentence corrected. Results:
-  the queue's `docs/queue/DEMO-UX.md`.
+  `claude/work-ledger:docs/queue/DEMO-UX.md`.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
