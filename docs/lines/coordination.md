@@ -82,8 +82,14 @@ steps 3 and 4.
   stays out of product functions.
 * 2026-10-28: wt-pacs's choices are the owner's; the PCS's are its team's, so the two may differ by design (XXH3
   here, BLAKE3 at the PCS).
-* 2026-11-04: experiments live in a line branch while still used; `main` is deployment-ready only; a dropped
-  experiment becomes an `archive/<name>` tag and one index line.
+* 2026-11-04, corrected 2026-11-11: nothing reaches `main` uncleaned. An experiment still in use stays on its line's
+  unified branch, which reaches `main` only once clean; one no longer in use is removed with a commit and recovered
+  from history if needed again (`git log --diff-filter=D -- <path>`), not from a kept branch or tag (the 11-04 text
+  said an `archive/<name>` tag and an index line). `lab/` on `main` is the measurement harness only: product code
+  never imports `lab/`, no lab code sits inside product modules, nothing from `lab/` enters the deploy image or the
+  default build; `scripts/check_lab_absent.sh` enforces it in the gate. `lab/` off `main` entirely is a proposal for
+  after the demo. The demo date is fixed and `main`'s is not: if the tip is not clean and green by the freeze, the
+  demo is given from the frozen tip and `main` waits.
 * 2026-11-09: nothing reaches `main` without review; the demo is built on `claude/core`.
 * 2026-11-11: wt-pacs stays self-contained: line state lives in `docs/lines/`, the private notes keep only rules such
   as forbidden topics and strings. The work queue's rows run in parallel while the usage window is free.
