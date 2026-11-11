@@ -239,7 +239,8 @@ line only. To change series, stop the three and start them again with another `I
 stopped: `NODE_PATH=$(npm root -g) node client/viewer/demo-check.mjs demo-series $ID` runs the commands above, opens the page in headless
 Chromium as below, and fails by name a frame not painted, a decode route other than WebCodecs (`--route av1-dav1d` for
 a stored form), a console error, a label out of order, an on-demand jump that asked other than whole groups, or
-*Lossless* shown for an exact frame whose digest was made wrong.
+*Lossless* shown for an exact frame whose digest was made wrong. `--view worker` runs the same passes with the frames held in the view worker (`?view=worker`);
+the default is `page`.
 
 **Before the demo, from any state** — another branch checked out, stale builds, servers left running, an old
 certificate. On the laptop, at the repository's root, on the demo's branch:
