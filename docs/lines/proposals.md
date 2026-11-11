@@ -952,6 +952,27 @@ amendment 1 for cells 0 and iid1, the three series and three frames, 7 rounds; p
 place a round; both servers `--congestion bbr`. 315 runs. *Read:* medians over the three frames pooled, 21 runs a
 cell and arm.
 
+**Measured (MEASURE-2, 2026-11-11 21:22–22:51, per amendment 1): withdrawn for BBR too.** 315 runs,
+`lab/proposals/rows/r4.jsonl`; table `lab/proposals/r4_summary.py`. Medians of 21 runs (7 rounds × 3 frames pooled);
+every run ended at *✓ Lossless*. Sojourn: the exact flow's server-to-client p50 over the `l` (relay port 5434).
+
+| cell | series | default `l` ms | 38 400 `l` ms | ratio | bar | A/A | sojourn p50 ms d / 38 400 | n | failed |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
+| 0 | dbts_a1-q8-g8-cut | 689 | 785 | 1.14 | 0.92 | — | 8.8 / 11.1 | 21/21/0 | 0 |
+| 0 | dbts_b1-q8-g8 | 1099 | 1233 | 1.12 | 0.92 | — | 73.5 / 91.6 | 21/21/0 | 0 |
+| 0 | dbts_c1-q8-g16-cut | 582 | 733 | 1.26 | 0.92 | — | 4.7 / 5.4 | 21/21/0 | 0 |
+| iid1 | dbts_a1-q8-g8-cut | 711 | 797 | 1.12 | 1.03 | 0.97 | 6.7 / 7.4 | 21/21/21 | 0 |
+| iid1 | dbts_b1-q8-g8 | 1162 | 1271 | 1.09 | 1.02 | 0.98 | 46.6 / 59.7 | 21/21/21 | 0 |
+| iid1 | dbts_c1-q8-g16-cut | 604 | 746 | 1.24 | 1.02 | 1.02 | 4.8 / 5.7 | 21/21/21 | 0 |
+
+38 400 B made `l` slower in every cell, 1.09–1.26×, where 0.85–0.95× clean and a tie under loss were predicted: the
+prediction fails in sign. The A/A arm moved 2–3 %, so the loss-cell bar was 1.02–1.03. The clean cell under BBR is
+the opposite of P4's under Cubic (−8 to −14 %, R). The sojourn rose with the larger window in five of six cells,
+by 1–18 ms, which is far less than the 96–151 ms the `l` lost; the queue does not explain it. *Not explained:*
+why a larger first flight is slower under BBR here; quinn's BBR pacing of a larger initial window is the next thing
+to read, in code, not assumed. The path RTT the protocol asked for is not recorded (amendment 1). *Limits:* as P1's;
+both servers on BBR, which is not the default.
+
 ### R5. P6 with its A/A arm
 
 P6's rule as the red team corrected it (§Red team, *Corrections to §P6*): arm (a′), the tip against itself, is
