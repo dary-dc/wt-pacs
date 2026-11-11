@@ -162,6 +162,47 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
 * wt-pacs stays self-contained: the state of its lines lives in `docs/lines/`; the private notes keep only rules such
   as the forbidden topics and strings.
 
+## Decisions (the owner's, 2026-11-11, afternoon)
+
+* The demo is given from `main`: the approaches chosen with the team are the product's candidates. After the freeze
+  the owner merges the demo tip into `claude/core`, then `claude/core` into `main` (PR 250), as merge commits, never
+  squashed: history is preserved.
+* The optimal-quality series is always ≤ 10 bits: D > 10 is always the depth cut, so WebCodecs decodes it; dav1d is
+  only the fallback where WebCodecs refuses or fails at ≤ 10 bits ("it doesn't make sense to pay for a slow decoding
+  for the preview, which is intended to be fast"). The stored form leaves the demo's show list.
+* Congestion control: `cubic-restart` stays the default and both controllers are kept. MEASURE-1's "adopt" for BBR
+  holds only in its cells (random loss, a 1 000-packet buffer); congestive loss, a neighbour and a jump during the
+  fill were not tested ([`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §1). The
+  phone runs use both controllers on real links, because simulations may differ from a real-world link.
+* The pairing's same-source check stays and belongs in the ingest, with XXH3 like the frame check, not SHA-256. Beyond
+  the source, an optimal-quality frame's quality should be guaranteed to be what the screen says: investigated as
+  theory first.
+* The quality mark: green beside *Optimal quality*; *Lossless* distinct. The status line can be opened by a tap on a
+  phone. Slices step by touch as established viewers do; the UX keeps changing as it is iterated.
+* The page view is not removed; the phone runs decide between the views, in a separate local session, while the
+  coordinating session keeps the queue.
+* The application loads while the series loads, as when a reader opens a study's URL directly; no listing view is
+  built for the demo. Loading dav1d only when WebCodecs refuses is investigated.
+* Tiles in the AV1 encode wait until after the demo; HTJ2K with tiles and resolution levels matched to the screen,
+  for DBT and other large matrices, is investigated, formalized and compared with the demo's approach.
+
+## Known before the demo, fixed after it
+
+What a presenter should know, from the reviews of 2026-11-11 (`claude/demo-understand:docs/reviews/understand/`,
+`claude/demo-pre-main-review:docs/reviews/pre-main.md`):
+
+* The code calls every frame request `requestExactFrame`, optimal-quality frames included, and the optimal-quality
+  state `showLossy` (`View.lossy`, the intent `lossy`) where the screen says *Optimal quality* (NAMES-FIND 1, 3).
+* The web image ships the check hooks (`check-page.js`, `view/check.js`), so `?check=` works in production; on the
+  lab host `?opts=` can switch the exactness check off from the URL (DEFAULTS-FIND 1, 4).
+* About 110 of `viewer.js`'s 334 lines are check and lab hooks (CLEAN-FIND).
+* PR 250 brings to `main` new `lab/` directories (about 5 100 lines, `lab/target-review` among them) and
+  `client/native` (+3 303); moving any off `main` names each item and waits for the owner's yes (PRE-MAIN-REVIEW §4).
+* The decoders' WASM is committed and the gate checks it rebuilds to the same bytes; that is what lets the laptop
+  without installs run the page without Docker.
+* `framesSha256` is written only by the lab fixture fetcher, so a pair made by any other ingest fails the pairing
+  check until the ingest writes the source fingerprint (row SOURCE-FINGERPRINT).
+
 ## Pointers
 
 `claude/oq-ingest:docs/av1/payload-format.md` §Optimal quality, `claude/oq-ingest:ingest/coded-frames/`,
