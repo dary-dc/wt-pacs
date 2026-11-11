@@ -178,6 +178,27 @@ encoder's reconstruction equals dav1d's, `ingest.py`). *Saturation:* SwiftShader
 the decoder alone; the page cells name it. *Limits:* x86-64 cores, not a phone's; the phone row (decode per frame on
 the owner's phone, tethered) is owed and decides alone if it disagrees.
 
+**Amendment 1 (MEASURE-1, 2026-11-11 11:45, written before any run).** *Encodes:* `lab/proposals/p2_encode.py` runs
+`lab/av1/tools/ingest_coded.py` on the demo tip (9e2ef4ef) with `lossy_args` given the arm's tile options at its end,
+nothing else changed; the arms are *one tile* (today's arguments, re-encoded through the same wrapper and checked equal
+to the byte to `demo-series.sh`'s bundle), *2 × 2* and *2 × 1*. The six series are Q 8 at G 1 and G 8 of each volume,
+cut on `dbts_a1` and `dbts_c1`; 18 encodes. *Exactness:* ingest's own check stands (every unit decodes natively, from
+its keyframe on, to the series' size and depth); ingest has no reconstruction-equals-decode check for a lossy series,
+so none is claimed. *Decode cell* (`lab/proposals/p2_decode.mjs`): one fresh headless Chromium per round, series and
+arm; on the page, the product's `client/decode/av1.js` (`decodeFrame`, `groupLength` G, `lossy`), every frame of the
+series in order, one at a time, timed by `performance.now()` around the call (payload in, picture copied out, no
+paint), the first frame's configure included; every frame must come back by `av1-webcodecs` at the series' size, or
+the run fails. A cell's figure is the median over all frames of 5 rounds. Order: per round, the series in turn, the
+three arms one after another on each series, the arms' order rotated per round; the 4-core and the
+`taskset -c 0,1` runs alternate per round. *Page cell:* `client/viewer/demo-check.mjs DIR ID --json` on the G 8
+series only (the rule reads the jump at G 8), loopback, the same order and both core sets, 5 rounds: the fill is the
+status line's `fill N ms` of its filling pass, the jump its `&fill=0` pass's `jumpMs`, and every check of demo-check
+must pass. *Rule, read as:* the per-frame condition (≤ 0.8×) on `dbts_a1` and `dbts_b1`, on 4 cores, at G 1 and at
+G 8 each; the jump ≤ 0.85× on the three G 8 series, 4 cores; bytes ≤ 1.03× on all six; the fill ≤ 1.05× on the three
+G 8 series, 4 cores. The 2-core rows are reported beside and decide nothing. *Saturation:* the decode cell runs one
+decoder on an idle 4-core host; the page cell's fill runs three decoder workers and SwiftShader paint on the same
+4 cores, so a fill that is CPU-bound there says nothing about a phone's.
+
 ### P3. A wake on `pointerdown`, before `l` asks
 
 **Mechanism.** After the fill the page is silent; *by report*, carriers drop a radio to idle after 5–10.5 s without
