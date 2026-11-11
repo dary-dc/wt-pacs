@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-11T17:48Z
-heartbeat: 2026-11-11T18:49Z
-outputs: claude/clean-product c2f6886c (from claude/demo-fixes-2 4ba95e1b)
+heartbeat: 2026-11-11T18:57Z
+outputs: claude/clean-product f866da46
 ## Resume
 Part 1 done, 63140f29: scripts/check_lab_absent.sh in gate.sh's absence checks, plus the three lab flags of item 15
 in server/scripts/check_telemetry_absent.sh. Fails today on: Containerfile's lab COPYs (item 16), the web image's
@@ -19,4 +19,16 @@ Part 2 started: FIX-2 done; merged --no-ff origin/claude/demo-fixes-2 into
 claude/clean-product, and items 11-16 of claude/demo-clean:docs/reviews/experiments-off.md one commit each,
 failing test first; coordination.md §Decisions correction; full gate; demo-check.mjs both views; draft PR.
 Commands: git fetch origin; git checkout claude/clean-product; bash scripts/check_lab_absent.sh (~80 s cold).
+Part 2 progress (pushed):
+* 0eee2ad1 merge of claude/demo-fixes-2 d46811c6.
+* 05247e22 check narrowed to the deploy images' stages (server, web): cargo must load the server's optional lab deps
+  (with sources) to resolve, so the build stage can't drop lab crates without a workspace split -> item 16 is a
+  proposal for the owner (structural), not done here. Mutants: lab COPY in server and web stage caught.
+* f866da46 item 15: the three flags behind lab-levers; test first (failed on --send-window-follows-cwnd); mutants
+  M1 tuning flag back to #[arg(long)] and M2 variant ungated both caught. server absence check OK.
+Next: items 13+14 together (check and lab hooks out of viewer.js into one lab/ module loaded by head.js's gate;
+check-page.js and view/check.js out of the web image; view worker's check import by a URL the lab object gives;
+lab settings into one lab object; onePass on / reuseCopyBuffer off reduced). Then item 11's removal commit +
+revert, line file, full gate (INGEST_BUILD=$PWD/ingest/.build; dockerd started), demo-series + demo-check both views,
+draft PR into claude/demo-fixes-2.
 ## Result
