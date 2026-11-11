@@ -2,11 +2,12 @@
 """A set as lab/av1/fetch_data.py writes it (NNN.raw, NNN.sha256, metadata.json), coded through the product's
 ingest (ingest/coded-frames/ingest.py's `coded()`): OUT/NNN.av1 or OUT/NNN.htj2k, OUT/NNN.sha256 and
 OUT/metadata.json ("codec": "av1" for AV1), which pack-series bundles; nothing unless every frame decodes back.
-With --lossy Q G, optimal quality paired with the exact series --exact-series names; --depth-cut codes it at 10 bits.
+With --lossy Q G, optimal quality paired with the exact series --exact-series names; --depth-cut codes it at 10 bits;
+--integrity adds each frame's reconstruction digest and coding error (docs/av1/payload-format.md §Integrity).
 
 usage: ingest_coded.py BUILD SET_DIR OUT [--codec av1|htj2k] [--representation plain|optimized] [--split K]
                        [--grey8 400|420] [--preset cpu0|good:N|allintra:N] [--frames N] [--jobs N]
-                       [--lossy Q G --exact-series ID [--depth-cut]]   — ingest/coded-frames/README.md
+                       [--lossy Q G --exact-series ID [--depth-cut] [--integrity]]   — ingest/coded-frames/README.md
 """
 import argparse
 import hashlib
@@ -37,19 +38,20 @@ def main():
     ap.add_argument("--lossy", type=int, nargs=2, metavar=("Q", "G"))
     ap.add_argument("--exact-series")
     ap.add_argument("--depth-cut", action="store_true")
+    ap.add_argument("--integrity", action="store_true")
     a = ap.parse_args()
     if bool(a.lossy) != bool(a.exact_series) or (a.lossy and (a.codec != "av1" or a.split is not None)):
         ap.error("--lossy Q G and --exact-series ID go together, with --codec av1 and no --split")
-    if a.depth_cut and not a.lossy:
-        ap.error("--depth-cut is a form of --lossy")
+    if (a.depth_cut or a.integrity) and not a.lossy:
+        ap.error("--depth-cut and --integrity are forms of --lossy")
     s = size.Set(a.set_dir)
     n = min(a.frames or s.n, s.n)
     try:
-        payloads = ingest.coded(a.build, s, n, a.codec, a.jobs, a.representation, a.split, a.preset, a.grey8, a.lossy and (*a.lossy, a.depth_cut))
+        payloads = ingest.coded(a.build, s, n, a.codec, a.jobs, a.representation, a.split, a.preset, a.grey8, a.lossy and (*a.lossy, a.depth_cut, a.integrity))
     except ingest.Refused as e:
         sys.exit(f"{a.set_dir.name}: nothing written — {e}")
     a.out.mkdir(parents=True, exist_ok=True)
-    for i, data in payloads:
+    for i, data, *_ in payloads:
         (a.out / f"{i:03d}.{a.codec}").write_bytes(data)
         if not a.lossy:
             shutil.copy(a.set_dir / f"{i:03d}.sha256", a.out / f"{i:03d}.sha256")
@@ -61,6 +63,8 @@ def main():
         lossy = dict(q=q, g=g, depth=ingest.lossy_header(s, q, g, a.depth_cut)["depth"])
         if a.depth_cut:
             lossy["bitsStored"] = s.stored
+        if a.integrity:
+            lossy.update(ingest.lossy_checks([c for _, _, c in payloads]))
         meta.update(codec="av1", lossy=lossy, exactSeries=a.exact_series, sourceFingerprint=ingest.source_fingerprint(s, n))
     else:
         d = ingest.digests(s, n, a.codec, a.representation, a.split, a.grey8)
@@ -70,8 +74,8 @@ def main():
     if a.codec == "av1" and a.split is not None:
         meta["split"] = a.split
     (a.out / "metadata.json").write_text(json.dumps(meta, indent=1) + "\n")
-    total = sum(len(d) for _, d in payloads)
-    digest = hashlib.sha256(b"".join(d for _, d in payloads)).hexdigest()[:12]
+    total = sum(len(d) for _, d, *_ in payloads)
+    digest = hashlib.sha256(b"".join(d for _, d, *_ in payloads)).hexdigest()[:12]
     if a.lossy:
         print(f"{a.set_dir.name}: {n} payloads, {total} B, optimal quality Q {q} G {a.lossy[1]}{' cut to 10 bits' if a.depth_cut else ''}, every one decoded ({digest})")
     else:

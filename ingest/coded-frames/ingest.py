@@ -16,6 +16,8 @@ from pathlib import Path
 import numpy as np
 import xxhash
 
+import coding_error
+
 ROOT = Path(__file__).resolve().parents[2]
 AOM = "3.15.1"
 DECODERS = "dav1d 1.5.4-0-g54706fc, openjph 0.31.0"
@@ -292,8 +294,16 @@ def keyframe(i, g):
     return i - i % g
 
 
-def lossy(build, s, work, a, b, q, g, cut=False):
-    """Frames [a, b), a starts a group: each group one encoder run, each frame decoded from its keyframe's unit on."""
+def integrity(s, header, i, px, cut):
+    """Frame i's reconstruction digest and coding error: docs/av1/payload-format.md §Integrity."""
+    stored = px[..., 0] if cut else px[..., 0] - s.offset
+    digest = frame_digest(stored.astype(s.dtype), wide(header["bits"], s.signed, s.offset))
+    return {"digest": digest, **coding_error.coding_error(s.frame(i)[..., 0], stored, s.stored - CUT_DEPTH if cut else 0)}
+
+
+def lossy(build, s, work, a, b, q, g, cut=False, checks=False):
+    """Frames [a, b), a starts a group: each group one encoder run, each frame decoded from its keyframe's unit on;
+    with `checks`, (i, payload, integrity) instead of (i, payload)."""
     header = lossy_header(s, q, g, cut)
     depth, y4m, ivf = header["depth"], work / "in.y4m", work / "out.ivf"
     coded_from = (lambda v: depth_cut(v, s.stored)) if cut else (lambda v: v + s.offset)
@@ -307,10 +317,10 @@ def lossy(build, s, work, a, b, q, g, cut=False):
         if len(units) != n:
             raise Refused(f"frames {k}–{k + n - 1}: {len(units)} units for {n} frames")
         for j in range(n):
-            _, shape = decoded(build, "av1", b"".join(units[:j + 1]), s.h * s.w)
+            px, shape = decoded(build, "av1", b"".join(units[:j + 1]), s.h * s.w)
             if (shape.h, shape.w, shape.planes, shape.bits) != (s.h, s.w, 1, depth):
                 raise Refused(f"frame {k + j} decoded from frame {k} as {shape.w}×{shape.h}×{shape.planes} at {shape.bits} bits")
-            out.append((k + j, payload(header, [units[j]])))
+            out.append((k + j, payload(header, [units[j]]), *([integrity(s, header, k + j, px, cut)] if checks else [])))
     return out
 
 
@@ -327,10 +337,10 @@ def chunk(job):
 
 def coded(build, s, n, codec, jobs, representation="optimized", split=None, preset="cpu0", grey8="400", lossy=None):
     """Frames [0, n) of a series coded, every one checked, in frame order; Refused if any is not exact.
-    `lossy` (q, g) or (q, g, cut) codes optimal quality instead, whole groups to a worker."""
+    `lossy` (q, g), (q, g, cut) or (q, g, cut, checks) codes optimal quality instead, whole groups to a worker."""
     g = lossy[1] if lossy else 1
     if lossy:
-        lossy_header(s, *lossy)
+        lossy_header(s, *lossy[:3])
     per = -(-n // jobs)
     per += -per % g
     piece = s.part if hasattr(s, "part") else lambda a, b: s
@@ -354,6 +364,12 @@ def source_fingerprint(s, n, exact=None):
     """XXH3-64 over the source's frame digests as its HTJ2K series carries them (`exact`, else hashed): docs/av1/payload-format.md §Source fingerprint."""
     frames = exact or digests(s, n, "htj2k")["frames"]
     return xxhash.xxh3_64_hexdigest("".join(frames).encode())
+
+
+def lossy_checks(frames):
+    """`lossy`'s reconstruction digests and coding errors, from lossy()'s third element per frame."""
+    return {"reconstruction": {"algorithm": "xxh3-64", "frames": [f["digest"] for f in frames]},
+            "codingError": {k: [f[k] for f in frames] for k in ("rms", "max", "noiseBandRatio")}}
 
 
 def metadata(s, display, codec, preset=None):
