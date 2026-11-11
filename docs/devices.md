@@ -514,3 +514,53 @@ included; a session line's timestamp places it among `blocks.log`'s lines. A loa
 adds or drops a session: note it on the sheet. Afterwards, USB tethering off; `pkill -f 'release/series-server' ; pkill
 -f 'server/dev-server.py'`. `target/phone-run/` (session lines, the two traces per server, the blocks' times) names
 the laptop's addresses: strip them before anything is committed (§4).
+
+## 8. The demo room's network
+
+The demo's page dials both servers of the pair over WebTransport, which is QUIC, over UDP; nothing on the demo path
+falls back to TCP. The spec would allow one — `requireUnreliable` "When set to true, the WebTransport session cannot
+be established over an HTTP/2 connection if an HTTP/3 connection is not possible" ([WebTransport, W3C Candidate
+Recommendation Snapshot, 30 July 2026](https://www.w3.org/TR/webtransport/), §6.9 Configuration) — but
+`series-server` answers WebTransport over HTTP/3 alone, and its TCP path, WebSocket, is off unless `--websocket` and
+not dialed by the page (`server/Cargo.toml`, [`WIRE.md`](WIRE.md) §The WebSocket mapping). So a room that drops UDP
+shows the page and no picture.
+
+**What a room's network may do**, from the IETF's own guidance on QUIC:
+
+* Block UDP: "Measurement studies have shown between 3% [Trammell16] and 5% [Swett16] of networks block all UDP
+  traffic […] all applications running on top of QUIC must either be prepared to accept connectivity failure on such
+  networks or be engineered to fall back to some other transport protocol" ([RFC 9308](https://www.rfc-editor.org/rfc/rfc9308)
+  §2).
+* Throttle it: "One possible response to this threat is to throttle UDP traffic on the network, allocating a fixed
+  portion of the network capacity to UDP and blocking UDP datagrams over that cap" ([RFC 9312](https://www.rfc-editor.org/rfc/rfc9312)
+  §4.6), and "blocking a random fraction of QUIC packets across 4-tuples will allow many QUIC handshakes to complete,
+  preventing TCP fallback, but these connections will suffer from severe packet loss" (*ibid.*). A throttled room
+  fills, slowly: the status line's fill time against the rehearsal's on the same link is the only sign.
+* Isolate clients: many access points keep Wi-Fi clients from reaching each other. That is a vendor setting, not a
+  standard's behaviour; *not sourced*. The phone then cannot load the page at all.
+
+**The check** has two halves. On the laptop, [`scripts/demo-network.py`](../scripts/demo-network.py): the page's TCP
+port and both series' UDP ports listening on the address the phone dials, both transport files pinning the
+certificate's hash, and the certificate within the spec's two weeks and valid past `--until` (a day from now by
+default); its test, `scripts/demo-network.test.py`, runs in the gate. It cannot see the room: no packet from the
+phone reaches a check without root on the laptop, and the phone's browser sends UDP only as WebTransport. So the
+phone's half is the page itself, read as README.md §Demo's *On arrival* table does: no page is TCP or isolation; the
+page with `error: connect:` and nothing received is UDP to the optimal-quality server; no **Lossless** button and
+`error: lossless:` is UDP to the exact server; *✓ Lossless* in blue is the room carrying the pair. *Unverified* on a
+phone in a room: the readings come from the page's code (`client/viewer/viewer.js`'s `connect:` and `lossless:`
+failures), and the namespace check of §Demo's no-install block.
+
+**The fallbacks, in order**: the phone's own hotspot with the laptop joined to it (one radio hop the phone controls;
+no room in between); the tether over the cable; the screen recording made at the rehearsal. Each change of link
+changes the laptop's address, so the transport files, the static host's `--bind` and the phone's flag follow it.
+
+**What expires.** The dev certificate is pinned by hash, and pinning requires "the current time MUST be within the
+validity period of the certificate […] and the total length of the validity period MUST NOT exceed two weeks"
+(WebTransport, *custom certificate requirements*; the spec's reason: "the expiry period is limited to two weeks"
+as "a balance between setting the expiry limit as low as possible to minimize consequences of a key compromise, and
+maintaining it sufficiently high to accomodate for clock skew across devices", §14.4). `gen_dev_cert.sh`
+makes one for 10 days, starting the moment it runs. Renew it at the rehearsal, a day or more before the demo and at
+most nine: then it holds through the demo, `--if-needed` leaves it alone on the day, and its start is hours behind
+the phone's clock, not seconds — a certificate made on arrival fails on a phone whose clock runs behind the laptop's,
+*derived* from "the current time MUST be within the validity period", not tried. A renewal changes the hash: the
+transport files are written again and both servers restarted, as §Demo's blocks do in that order.
