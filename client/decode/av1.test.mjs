@@ -173,7 +173,7 @@ const { parsePayload } = await import("./av1-payload.js");
   }
 }
 
-/** `onePass`, on unless `false`, takes a WebCodecs split frame through merge() and every other payload as before: same bytes and range. */
+/** A WebCodecs split frame is read in one pass, through merge(), and every other payload in two, whatever a config's retired `onePass` says. */
 {
   const reads = [];
   const make = async (onePass) => {
@@ -220,14 +220,13 @@ const { parsePayload } = await import("./av1-payload.js");
     const [a, b, c] = [await before(rep, name), await after(rep, name), await unset(rep, name)];
     const split = parsePayload(golden(rep, name)).split > 0;
     const passes = (r) => r.slice(0, r.indexOf(" av1-"));
-    check(a.endsWith(b.slice(b.indexOf(" av1-"))) && b.includes(" av1-webcodecs "), `one pass: ${what} (${rep} ${name}) decodes to the same bytes and range`);
-    check(passes(a) === "two passes" && passes(b) === (split ? "one pass" : "two passes"), `one pass: ${what} is read ${split ? "in one pass under onePass" : "as before"} (${passes(a)}; ${passes(b)})`);
-    check(c === b, `one pass: ${what} is read as under onePass when the config does not name it`);
+    check(b.includes(" av1-webcodecs ") && a === b && c === b, `one pass: ${what} (${rep} ${name}) is read alike under every config`);
+    check(passes(b) === (split ? "one pass" : "two passes"), `one pass: ${what} is read ${split ? "in one pass" : "in two"} (${passes(b)})`);
   }
   delete globalThis.VideoDecoder;
 }
 
-/** Under `onePass` only a `mono_chrome` stream's chroma goes unchecked: a 4:2:0 stream with `mono_chrome` 0 and chroma is refused. */
+/** Only a `mono_chrome` stream's chroma goes unchecked, whatever a config's retired `onePass` says: a 4:2:0 stream with `mono_chrome` 0 and chroma is refused. */
 {
   const { PROBES } = await import("./av1-probe.js");
   const { sequence } = await import("./av1-payload.js");
@@ -256,7 +255,6 @@ const { parsePayload } = await import("./av1-payload.js");
   };
   let gen = 0;
   for (const onePass of [false, true, undefined]) {
-    const on = onePass !== false;
     const wc = await import(`./av1-webcodecs.js?chroma-${onePass}`);
     await wc.init({ onePass });
     const read = (layout) => wc.picture(unit(layout), { key: true, gen: gen++, index: 0 }).then((p) => `grey ${p.planes[0].heap[w + 1]}`, (e) => e.message);
@@ -265,7 +263,7 @@ const { parsePayload } = await import("./av1-payload.js");
     tint = 129;
     check(/4:2:0 with chroma/.test(await read("g8f")), `chroma: onePass ${onePass}, mono_chrome 0 with a tinted chroma sample is refused`);
     const mono = await read("g8");
-    check(on ? mono === "grey 5" : /4:2:0 with chroma/.test(mono), `chroma: onePass ${onePass}, mono_chrome 1 with a tinted chroma sample is ${on ? "not checked" : "refused"} (${mono})`);
+    check(mono === "grey 5", `chroma: onePass ${onePass}, mono_chrome 1 with a tinted chroma sample is not checked (${mono})`);
   }
   delete globalThis.VideoDecoder;
   delete globalThis.EncodedVideoChunk;
@@ -670,8 +668,8 @@ else {
 }
 
 /**
- * Under `reuseCopyBuffer` a stream copies every frame into one buffer, grown when a frame needs more, and a split frame's
- * top and low never share one; every frame reads back its own samples, as without it, through sizes and depths that change.
+ * Every frame is copied into a buffer of its own, whatever a config's retired `reuseCopyBuffer` says, and reads back its
+ * own samples through sizes and depths that change; a split frame's top and low never share one.
  */
 {
   const { PROBES } = await import("./av1-probe.js");
@@ -720,8 +718,7 @@ else {
     check(reads.every((r) => r === true), `reuse ${reuse}: every frame reads back its own samples through a smaller, larger, odd-sized and 10-bit frame (${reads})`);
     // Frame 1 is the largest (103 B, odd): the buffer grows there and is kept for every frame after it, 10-bit ones included.
     const same = into.map((b, i) => i > 0 && b === into[i - 1]);
-    const expect = reuse ? [false, false, true, true, true] : [false, false, false, false, false];
-    check(JSON.stringify(same) === JSON.stringify(expect), `reuse ${reuse}: the copy buffer is ${reuse ? "kept from the largest frame on" : "new every frame"} (${same})`);
+    check(same.every((s) => !s), `reuse ${reuse}: the copy buffer is new every frame (${same})`);
     into.length = 0;
     shape = shapes[0];
     await Promise.all([wc.picture(unit("g8"), { key: true, gen: gen++, index: 0 }), wc.picture(unit("g8"), { key: true, gen: gen++, index: 0 }, "low")]);

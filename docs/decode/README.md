@@ -2169,6 +2169,8 @@ W's ms a frame is the median over rounds. The ratios are the round-paired median
 held in all 8 cells.** **The rule is met.** In each DBT cell W2 ÷ W's interval lies below 1.00, with medians of
 0.879–0.930. The ultrasound's upper ends are 1.012 and 1.014. **`onePass` is the default**: `av1.js` and
 `av1-webcodecs.js` take it as on unless the config sets `onePass: false`, with tests that fail if it is off.
+*Since 2026-11-11 the flag is retired (CLEAN-PRODUCT): one pass is the only WebCodecs path, a config naming
+`onePass` changes nothing, and the two-pass arm W is in git history before that change.*
 These times are 17–25 % above 2026-10-31's W on the same bytes, on a different container. Only the round-paired
 ratios are compared.
 
@@ -2257,7 +2259,8 @@ wanted on the CPU:
 
 S keeps every one of those as it is. That is why S ranks first: most of G's saving, with no change to the contract,
 the store, the range or the check. R and M are the non-structural part. W2 already holds M, and R stacks with it. R is built behind
-`reuseCopyBuffer`, off by default. `av1.test.mjs` shows every frame reads back its own samples through a smaller, a
+`reuseCopyBuffer`, off by default (*retired 2026-11-11 with its rule's verdict below, CLEAN-PRODUCT: every frame is
+copied into a buffer of its own and R is in git history before that change*). `av1.test.mjs` showed every frame reads back its own samples through a smaller, a
 larger, an odd-sized and a 10-bit frame, that the buffer is kept from the largest frame on, and that a split frame's
 two streams never share one. Each claim was broken on purpose and failed: the flag ignored, the buffer never grown,
 the view taken over the whole buffer, and one buffer for every stream.
