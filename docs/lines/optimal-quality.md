@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-10 (branch tips read from `origin` that evening).
+Last verified 2026-11-11 01:40 UTC (branch tips and the work queue read from `origin`).
 
 ## Goal
 
@@ -45,6 +45,24 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   gate OK in a cloud session (skipped: lavapipe, GL display, Firefox, nginx); CI gate and deploy green.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
+* **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
+  twelve): running REDTEAM-DEMO, REVIEW-BLIND, TEST-MOBILE, AV1-CORRECT, OPT-THEORY, and the rows added that night:
+  VIEW-WORKER-CHECK (`demo-check.mjs --view page|worker`, all 20 series under both views, headless), PHONE-NO-INSTALL
+  (the phone run on a laptop without installs), and five findings-only rows for understanding: OPT-SIMPLIFY,
+  CLEAN-FIND, NAMES-FIND, DEFAULTS-FIND, ESSENTIALS. FIX-1, MEASURE-1, REDTEAM-PROPOSALS and E2E-3 follow as their
+  inputs finish. Two Fable 5.2 sessions, proposals only: FABLE-SIMPLIFY (11-11 16:00 UTC, `claude/fable-simplify`) and
+  FABLE-DESIGN (11-12 15:00 UTC, on the unified tip, `claude/fable-design`). Each row writes its result to
+  `docs/queue/<ROW>.md` on `claude/work-ledger`.
+* **The laptop for the phone run** may not install anything (the owner, 2026-11-11). Present: cargo and rustc 1.97,
+  Python 3.15, git, curl, jq, gcc, `tc`, podman with a local `rust` image (it has `openssl`) and the wt-pacs images,
+  Firefox. Absent: the `openssl` command, `adb`, node and npm, cmake, meson, nasm, ninja, Python 3.11 to 3.13, Chrome,
+  root. What that leaves (read on the machine, not yet run): the page needs no build (the ts bundle and the decoders
+  are committed); `series-server` builds with cargo; `dev-server.py` is standard library only; the certificate can
+  be made in the `rust` image; the demo series cannot be coded there (the coders and the ingest venv need what is
+  absent), so they are coded elsewhere and copied; without `adb` the phone needs the page on the laptop's address,
+  which `dev-server.py` does not offer yet (it binds 127.0.0.1 and its CSP names only that); netem needs root. Fedora
+  Workstation's zone admits UDP and TCP 1025 to 65535; which zone the phone's link lands in is the owner's check.
+
 ## Terms
 
 One row each in [`docs/glossary.md`](../glossary.md) since 2026-11-10 (`claude/core-next`): *optimal quality* (and the
@@ -60,7 +78,18 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
 3. The browser end to end on the merged branch: done headless 2026-11-10, twice, the second from a fresh clone
    (State now); on a GPU and a phone, owed: the owner's laptop and phone rehearsal, README §Demo.
 4. Serve the exact series' paths from the web image.
-5. Phone runs: tethering for development and decode numbers; Wi-Fi plus netem for transport realism and the demo.
+5. Phone runs: the owner is ready to run them at any time. On the laptop without installs (State now), after
+   PHONE-NO-INSTALL lands, the owner answers: (a) what counts as installing: crates fetched by cargo into the home
+   directory, podman images already present, a portable binary such as `adb` in the home directory; (b) how the
+   demo series reach the laptop (their sizes come from PHONE-NO-INSTALL); (c) which laptop and phone; (d) the
+   demo's loss and delay without netem (root), or netem dropped for it. The owner runs
+   `sudo firewall-cmd --get-default-zone; sudo firewall-cmd --get-active-zones`, again with tethering on.
+11. Understanding before 11-13: the findings of OPT-SIMPLIFY, CLEAN-FIND, NAMES-FIND, DEFAULTS-FIND, ESSENTIALS and
+    FABLE-SIMPLIFY, each ranked by what it saves a presenter; the owner chooses what goes in before the demo and what
+    after. Then a reading pass with the owner, ESSENTIALS' points first, deeper only where time allows.
+12. Which view the demo shows: the view worker is the target (`client.md`, 2026-10-28); VIEW-WORKER-CHECK says only
+    whether it meets the page view's correctness bar headless; on the phone both views run on the same series,
+    alternated; the owner chooses. If the worker is shown, the page view's removal is the first simplification after.
 6. The DICOM ingest codes optimal quality (today only the lab tool does).
 7. The depth cut for D > 10 (the OQ view through WebCodecs, painted from its 10-bit codes through a window table, no
    shift pass); D ≤ 10 needs none. Build `claude/oq-depth-cut` (stacks on the two OQ branches). Full fidelity is the
@@ -88,6 +117,23 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
 * The depth cut is used only for D > 10, to decode through WebCodecs; D ≤ 10 is coded at its own depth. Splitting
   the OQ view's decoded samples into top and low streams is discarded: it needs a second encode, a lossy top cannot
   be completed by the low bits, and the screen's content could no longer be controlled.
+
+## Decisions (the owner's, 2026-11-11)
+
+* The unification is done as part of building the demo, limited to what the demo touches: one path into `main`, one
+  name per concept and one implementation per job on the demo path. The rest of the repository's unification
+  ([`coordination.md`](coordination.md) §Unification) follows after 2026-11-13.
+* "I cannot show to the team something that I don't know what it's doing, or I cannot explain": understanding is a
+  requirement of the demo, so that the team can keep contributing and steering. Simplification, cleaning, names,
+  defaults and an essentials-first explanation are investigated first, findings only; the owner decides what goes
+  in and when, by results, impact and importance.
+* The reading pass starts from the essential points and goes deeper only if time allows or when convenient.
+* Two Fable 5.2 sessions: simplification, and design improvement once the stack is unified; proposals only.
+* The phone run's laptop takes no installs: find the minimum from what is present. Checks that need elevation are
+  handed to the owner; the work goes on without them until their output comes.
+* The usage window is free: the queue's rows run in parallel.
+* wt-pacs stays self-contained: the state of its lines lives in `docs/lines/`; the private notes keep only rules such
+  as the forbidden topics and strings.
 
 ## Pointers
 

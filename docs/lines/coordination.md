@@ -68,6 +68,11 @@ that unsupervised work starts from one clear state. For the sessions that take i
    removal; experiment flags that no line still uses leave `main`; lab code stays on its line branch.
 5. Every line file in `docs/lines/` reflects the unified state; stale lines say so.
 
+*2026-11-11 (the owner):* this is done as part of the demo, limited to the demo path, before 2026-11-13; the rest
+after it ([`optimal-quality.md`](optimal-quality.md) §Decisions, 2026-11-11). Understanding comes with it: the
+findings-only rows of the night of 11-11 (OPT-SIMPLIFY, CLEAN-FIND, NAMES-FIND, DEFAULTS-FIND, ESSENTIALS) feed
+steps 3 and 4.
+
 ## Decisions (the owner's)
 
 * 2026-10-03: push any branch but `main`; never force-push or rewrite pushed history.
@@ -80,6 +85,8 @@ that unsupervised work starts from one clear state. For the sessions that take i
 * 2026-11-04: experiments live in a line branch while still used; `main` is deployment-ready only; a dropped
   experiment becomes an `archive/<name>` tag and one index line.
 * 2026-11-09: nothing reaches `main` without review; the demo is built on `claude/core`.
+* 2026-11-11: wt-pacs stays self-contained: line state lives in `docs/lines/`, the private notes keep only rules such
+  as forbidden topics and strings. The work queue's rows run in parallel while the usage window is free.
 
 ## Pointers
 
