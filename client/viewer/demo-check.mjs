@@ -116,6 +116,7 @@ async function pass(browser, query) {
   const l = await log();
   await page.close();
   const overlays = l.filter((e) => e.id === "overlay" && e.text);
+  const lossless = l.findIndex((e) => e.id === "quality" && e.text === "Lossless");
   const received = [];
   for (const e of l.filter((e) => e.id === "status")) {
     const k = Number(e.text.match(/received (\d+)/)?.[1] ?? 0);
@@ -126,7 +127,7 @@ async function pass(browser, query) {
     labels: l.filter((e) => e.id === "quality" && e.text).map((e) => e.text).filter((t, k, a) => t !== a[k - 1]),
     firstPictureMs: Math.round(overlays[0]?.t), receivedMs: received,
     frames: Object.values(Object.fromEntries(overlays.filter((e) => !e.text.startsWith("htj2k")).map((e) => [e.frame, e.text]))),
-    exactPainted: overlays.some((e) => e.text.startsWith("htj2k")),
+    paintedWithLossless: lossless < 0 ? null : l.slice(lossless + 1).find((e) => e.id === "overlay")?.text,
     status: l.findLast((e) => e.id === "status")?.text,
   };
 }
@@ -136,7 +137,8 @@ const FAILED = "Lossless check failed · optimal quality shown";
 const routeOf = (overlay) => overlay.match(/^(\S+)( after WebCodecs refused: (.*?))? · ([\d.]+) KB · decode ([\d.]+) ms/);
 
 function judge(r) {
-  check(r.exactPainted, `${r.query}: no exact frame painted on Lossless`);
+  // The label and the overlay are written by one paint, the label first: the overlay after it names what was painted.
+  check(r.paintedWithLossless?.startsWith("htj2k"), `${r.query}: Lossless written with ${r.paintedWithLossless ?? "no paint"}, not the exact frame's`);
   check(r.errors.length === 0, `${r.query}: console errors ${JSON.stringify(r.errors)}`);
   for (const f of r.frames) {
     const m = routeOf(f);
