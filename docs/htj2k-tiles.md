@@ -94,6 +94,9 @@ Device pixels, the frame hung long side vertical; ℓ(z_fit) for each fixture si
 | DBT systems A and C, up to 1147×2585 | L0 | L0 | L0 | L0 | 87–100 % |
 | 4366×6871 (`mg16_cbis`) | L2 | L1 | L2 | L1 | 9 % |
 
+The progressive lab's "fit" is a 1 000-sample long side, not a viewport in device pixels: its stage-1 rows mark level 1
+"(fit)" on, among others, `dbts_c1`, `dbts_a2`–`a5` and `dbts_b2`, which fit at level 0 on a phone held upright (§Screen resolution, below).
+
 **Where the fit is level 0, the approach has nothing to give at the fit, and W already holds the whole frame for every
 zoom after it.** In device pixels that is every DBT slice set but `dbts_b1`, every 1914-wide mammogram, and every
 fixture but `mg16_cbis` on a tablet or a 5 MP display. The question is about frames of at least 2 160 columns on
@@ -163,8 +166,11 @@ tiles in view, on as many idle decoders as there are tiles (measured for strips)
 
 ### 7 · How it composes with the optimal-quality view
 
-* **DBT (cine-like, D ≤ 12): the exact path's delivery, not an alternative.** Scrolling stays the OQ view's (0.07–0.22
-  of HTJ2K's bytes, `claude/docs-lines:docs/lines/codecs.md`); the levels lost to it as a preview.
+* **DBT (cine-like, D ≤ 12): the exact path's delivery, not an alternative.** Scrolling stays the OQ view's (0.10–0.28
+  of HTJ2K's bytes at the noise rule's Q, [`lines/codecs.md`](lines/codecs.md)); the levels lost to it as a preview.
+  *Corrected 2026-11-11:* this read 0.07–0.22, Q 8's figures, which is not the rule's Q on the volumes
+  (`claude/av1-audit-quality:docs/av1/audit-quality.md` F7). The OQ view is at most 10 bits on the product path (the
+  owner, 2026-11-11), so D > 10 is the depth cut there and HTJ2K alone carries the stored depth.
   What changes is the reader's Lossless ask: today the whole frame, here the fit level first (~27 % of the bytes at
   level 1) and the region on zoom. By §3 only `dbts_b1` has a level to gain on a phone or laptop. The label's
   *Lossless* rests on the frame digest today; at ℓ ≥ 1 it would need a digest per level (and per tile for **T**) and a
@@ -187,7 +193,9 @@ needs the clamp to 2^D − 1, measured only on grey unsigned frames.
 
 ## Predictions
 
-Written before anything is run. Shares are of the frame's bytes under W; ratios are × W's, the median of
+Written before anything is run. *Amended 2026-11-11, before any run (row HTJ2K-SCREEN):* P12 read "Q 8, 0.22 of the
+bytes", ×0.8–1.6, refuted outside 0.6–2.0; Q 8 is not the rule's Q on `dbts_b1` (quality audit F7), and the bytes alone
+put the ratio at 1.2–2.7. Shares are of the frame's bytes under W; ratios are × W's, the median of
 round-paired ratios. "Phone zoom" is a zoom to 1:1 on the phone viewport after a fit at level 1. Each line's basis is
 §Theory or the measurement it names; none is measured for this layout.
 
@@ -204,7 +212,7 @@ round-paired ratios. "Phone zoom" is a zoom to 1:1 on the phone viewport after a
 | P9 | the same at 50 Mbit/s, 4× | ratios rise toward P7's; fit ≤ ×0.5 | fit over ×0.6 | decode-bound there (progressive lab) |
 | P10 | the full frame exact, with backfill | ×1.00–1.03 for every layout | over ×1.05 | the same bytes, more asks |
 | P11 | sets whose fit is level 0 (negative control) | every arm ties W at the fit within the A/A spread | any arm over 5 % faster | §3 |
-| P12 | `dbts_b1`, the exact ask at the fit under **L**, against the OQ view's first picture (Q 8, 0.22 of the bytes, WebCodecs at 10 bits) | ×0.8–1.6 of OQ's: the exact fit picture arrives about as soon | outside 0.6–2.0 | §7; OQ bytes |
+| P12 | `dbts_b1`, the exact ask at the fit under **L**, against the OQ view's first picture (the rule's Q: 0.10 of the bytes at G 1, 0.22 at G 16; WebCodecs at 10 bits) | ×1.2–2.7 of OQ's in link-bound cells (0.27 of a frame against 0.10–0.22) | outside 0.9–3.5 | §7; OQ bytes |
 | P13 | level picture against the exact frame painted at the same size, FFDM | as on DBT: under 50 dB, most in-window codes off by more than one | over 99 % within ±1 under every window | §2 |
 
 ## Protocol, pre-registered
