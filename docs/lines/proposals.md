@@ -834,6 +834,8 @@ run. *Saturation bar:* rounds 1, 4 and 7 open with `demo-check.mjs` on each seri
 median there is reported as decode-bound, no ratio claimed. *Read:* the medians of 7 runs per arm, cell and series;
 in iid1 the A/A ratio |Cubic-again ÷ Cubic − 1| is added to both bars (R0). A run whose jump never paints in 120 s is
 a miss, counted and named.
+*Smoke* (20:05, not kept): `dbts_a1-q8-g8-cut` in iid1, one run per arm: both jumps painted, both fills ended, the two
+`window` groups and the exit tally printed.
 
 ### R3. The wake rebuilt on `end_stream` alone (P3)
 
