@@ -1,14 +1,15 @@
-state: started
+state: running
 started: 2026-11-11T15:20Z
-heartbeat: 2026-11-11T20:45Z
+heartbeat: 2026-11-11T20:53Z
 outputs: claude/phone-rows (from run commit 962226e8; raw rows to come); claude/phone-devtools eb028344 (request 4b)
 ## Resume
-Run commit 962226e8 (PHONE-TOOLS-2), protocol claude/phone-protocol ecd31836 (Second amendment + its memlock Note).
-Setup done: tether never-default, laptop Wi-Fi off, default route on the wired device; firewalld: both devices in
-FedoraWorkstation (1025-65535 tcp/udp); adb authorised; flag set with the four origins. Eye check on c6da7275 (setup):
-owner "no difference seen, brief look"; servers 56/56 fill frames, rtt 8.8 ms, 0 lost. Series: the c6da7275 set
-(no change under ingest/, lab/av1/, scripts/demo-series.sh, common/ to 962226e8). Now: the telemetry image rebuilt at
-962226e8; then the eye check at the run commit, read-path.sh, the runner. Chrome's DevTools socket not seen yet
-(Chrome open?); not needed for counted loads.
+Timed run started 20:53Z on 962226e8 (image label 962226e8), protocol ecd31836, memlock 8388608 per its Note; series
+dbts_b1-q8-g8 (23,208,296 B) and dbts_b1, the c6da7275 set. Eye check at the run commit (runner, tether, cubic,
+not counted): page and worker each 56/56 av1-webcodecs, fill 1.06 / 1.05 s, Lossless 0.10 / 0.08 s, verdict ok, 0
+errors, 0 lost. read-path.sh: all four preadv2, ring refused, SELinux Enforcing. Device counters logged every 0.5 s
+(target/phone-run/counters.log) for the link check. adb server stopped for the run. Earlier heartbeat 20:45Z was
+wrong (written ~20:20Z).
+Proposed to the owner (pending his word): this session owns the phone tooling branches (phone-devtools, phone-rows,
+lab/phone fixes) and runs local helpers; protocol amendments and the blind read stay outside it.
 ## Result
 (pending)
