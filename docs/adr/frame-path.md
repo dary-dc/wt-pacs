@@ -1798,7 +1798,7 @@ table, no backpressure and no new failure mode. Also: the ring losing fill time 
 slots); a hanging protocol putting series of different frame sizes on screen at once, which wants a byte allocator,
 not slots; a budget under four of a series' frames (three decoders and the frame shown), which (c) cannot serve.
 
-**Protocol, M5, pre-registered 2026-10-28, before any build or data** (amended 2026-10-29, *M5 amended* below). M2's rig (`lab/opfs-cache/run.mjs`, cell `m2`)
+**Protocol, M5, pre-registered 2026-10-28, before any build or data** (amended 2026-10-29, *M5 amended* below). M2's rig (`lab/opfs-cache/run.mjs` at `0920153d`, cell `m2`)
 and its rules carry over: the 4-vCPU container, the 80 × 3328×4096 series (2.03 GiB) on loopback, a 256 MiB window,
 a fresh profile an arm, the browser tree's PSS each second, peak less the value before the dial; every frame checked
 by the decoder's XXH3 and the rig's SHA-256; arms ordered per round by `lab/order.mjs`; ≥ 7 rounds; each arm's
@@ -1921,7 +1921,7 @@ the most frames waiting in its port at once (from each frame's decode-end and re
 * **Rule.** The simplest arm that qualifies on both engines is chosen: `disk` (no frame memory), then `transfer` (no
   table), `transfer-k`, `ring`. None: lever 2 returns to the owner with the numbers. `m5-busy` rules credits: needed for
   `transfer` if there `transfer` misses the memory bar and `transfer-k` meets it with never more than K waiting.
-  `lab/opfs-cache/summary.py` applies both.
+  `lab/opfs-cache/summary.py` (at `0920153d`) applies both.
 
 **Predicted, from the sources** (cited above and below; *floor* is an engine's growth with no frame held, which
 `disk` measures):
@@ -2192,9 +2192,9 @@ engines. The first run's VOID rows in `rows/m5/` stand as run.
   That is a change to the protocol after data, and so a new pre-registration; read that way, the four profiled fills
   put `ring` at or under `today` on Firefox.
 
-**How the ring works**, in plain words, as M5 built it in the lab: [`arms-slots.js`](../../lab/opfs-cache/arms-slots.js)
-(the table), [`arms-decoder.js`](../../lab/opfs-cache/arms-decoder.js) (who takes a slot),
-[`arms-view.js`](../../lab/opfs-cache/arms-view.js) (who frees one).
+**How the ring works**, in plain words, as M5 built it in the lab: [`arms-slots.js`](https://github.com/dary-dc/wt-pacs/tree/0920153d2a44916c6832a9d8dd0befabc0923681/lab/opfs-cache/arms-slots.js)
+(the table), [`arms-decoder.js`](https://github.com/dary-dc/wt-pacs/tree/0920153d2a44916c6832a9d8dd0befabc0923681/lab/opfs-cache/arms-decoder.js) (who takes a slot),
+[`arms-view.js`](https://github.com/dary-dc/wt-pacs/tree/0920153d2a44916c6832a9d8dd0befabc0923681/lab/opfs-cache/arms-view.js) (who frees one).
 
 * **The slots.** At the fill's start the view worker carves one `SharedArrayBuffer` into as many frame-sized slots as
   the 256 MiB budget holds: 9 for a 3328×4096 frame (234 MiB). Beside it sits a small table, shared too: per slot a
