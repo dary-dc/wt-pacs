@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-11 19:40 UTC (branch tips and the work queue read from `origin`).
+Last verified 2026-11-11 20:00 UTC (branch tips and the work queue read from `origin`).
 
 ## Goal
 
@@ -130,23 +130,20 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   only, nothing timed. After FIX-2 only blockers change the demo tip (the freeze); FREEZE-E2E follows.
 * **Not yet run:** any phone run.
 
-* **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
-  twelve): running REDTEAM-DEMO, REVIEW-BLIND, TEST-MOBILE, AV1-CORRECT, OPT-THEORY, and the rows added that night:
-  VIEW-WORKER-CHECK (`demo-check.mjs --view page|worker`, all 20 series under both views, headless), PHONE-NO-INSTALL
-  (the phone run on a laptop without installs), and five findings-only rows for understanding: OPT-SIMPLIFY,
-  CLEAN-FIND, NAMES-FIND, DEFAULTS-FIND, ESSENTIALS. FIX-1, MEASURE-1, REDTEAM-PROPOSALS and E2E-3 follow as their
-  inputs finish. Two Fable 5.2 sessions, proposals only: FABLE-SIMPLIFY (11-11 16:00 UTC, `claude/fable-simplify`) and
-  FABLE-DESIGN (11-12 15:00 UTC, on the unified tip, `claude/fable-design`). Each row writes its result to
-  `docs/queue/<ROW>.md` on `claude/work-ledger`.
-* **The laptop for the phone run** may not install anything (the owner, 2026-11-11). Present: cargo and rustc 1.97,
-  Python 3.15, git, curl, jq, gcc, `tc`, podman with a local `rust` image (it has `openssl`) and the wt-pacs images,
-  Firefox. Absent: the `openssl` command, `adb`, node and npm, cmake, meson, nasm, ninja, Python 3.11 to 3.13, Chrome,
-  root. What that leaves (read on the machine, not yet run): the page needs no build (the ts bundle and the decoders
-  are committed); `series-server` builds with cargo; `dev-server.py` is standard library only; the certificate can
-  be made in the `rust` image; the demo series cannot be coded there (the coders and the ingest venv need what is
-  absent), so they are coded elsewhere and copied; without `adb` the phone needs the page on the laptop's address,
-  which `dev-server.py` does not offer yet (it binds 127.0.0.1 and its CSP names only that); netem needs root. Fedora
-  Workstation's zone admits UDP and TCP 1025 to 65535; which zone the phone's link lands in is the owner's check.
+* **In flight, 2026-11-11 20:00 UTC** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, each row's result
+  in `docs/queue/<ROW>.md` there): CLEAN-PRODUCT (the gate's absence check for `lab/`, then the lab hooks out of
+  product modules; FREEZE-E2E merges it if green), PHONE-TOOLS-2 (the runner and beacon aligned with
+  `docs/devices.md` §7's second amendment, FIX-2 merged in; it names the phone run's commit), TELEMETRY-CLIENT
+  (client telemetry as a product module, a proposal), MEASURE-1 and MEASURE-2, HTJ2K-MEASURE, OQ-INTEGRITY-REVIEW,
+  MERGE-PLAN, DEMO-NETWORK. Waiting on inputs: FREEZE-E2E, PHONE-BLIND-READ, HTJ2K-VERDICT; at fixed times
+  BRIEF-WED, FABLE-DESIGN (11-12 15:00), BRIEF-THU, PRE-DEMO (11-13 07:00), QUEUE-CLOSE.
+* **The phone run** is a separate local session on the owner's laptop. It runs on the commit the coordinator names,
+  keeps `docs/queue/PHONE-RUN.md`, and pushes raw rows, the blind read's findings and its analysis and decisions with
+  the owner to `claude/phone-rows`. Its setup, the owner's decisions of 2026-11-11 evening: adb user-only in the home
+  directory (no root); demo series built in a throwaway container from the local `rust` image and kept on the laptop,
+  labelled by commit and encoder versions; images from the run commit with `--network host` for timed loads; the
+  Wi-Fi arm is "server wired, phone on Wi-Fi"; a run through the userspace relay is labelled simulated; a Galaxy S23
+  (Android 16, Chrome 157). Its requests are recorded whole in the queue (row PHONE-TOOLS-2).
 
 ## Terms
 
@@ -159,22 +156,20 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
 ## Open (ordered)
 
 1. Done 2026-11-10 on `claude/core-next`: the image build (`core-ci-deploy`) and the glossary (§Terms).
-2. The owner's merge words on `claude/core-next`, merge by merge ([`coordination.md`](coordination.md) §Open 2).
+2. The owner's two merge words after FREEZE-E2E, as merge commits: PR 367 (the demo tip into `claude/core`), then
+   PR 250 (`claude/core` into `main`); the checks before each and what the two carry: MERGE-PLAN
+   (`claude/merge-plan:docs/reviews/merge-plan.md`). Nothing reaches `main` uncleaned: if the tip is not clean and
+   green by the freeze, the demo is given from the frozen tip and `main` waits.
 3. The browser end to end on the merged branch: done headless 2026-11-10, twice, the second from a fresh clone
    (State now); on a GPU and a phone, owed: the owner's laptop and phone rehearsal, README §Demo.
 4. Done 2026-11-11 on `claude/demo-fixes-2`: the web image serves the exact series' paths (State now).
-5. Phone runs: the owner is ready to run them at any time. On the laptop without installs (State now), after
-   PHONE-NO-INSTALL lands, the owner answers: (a) what counts as installing: crates fetched by cargo into the home
-   directory, podman images already present, a portable binary such as `adb` in the home directory; (b) how the
-   demo series reach the laptop (their sizes come from PHONE-NO-INSTALL); (c) which laptop and phone; (d) the
-   demo's loss and delay without netem (root), or netem dropped for it. The owner runs
-   `sudo firewall-cmd --get-default-zone; sudo firewall-cmd --get-active-zones`, again with tethering on.
+5. Phone runs: in the local phone session (State now) on PHONE-TOOLS-2's run commit, tonight; the decisions are taken
+   there with the owner after PHONE-BLIND-READ.
 11. Understanding before 11-13: the findings of OPT-SIMPLIFY, CLEAN-FIND, NAMES-FIND, DEFAULTS-FIND, ESSENTIALS and
     FABLE-SIMPLIFY, each ranked by what it saves a presenter; the owner chooses what goes in before the demo and what
     after. Then a reading pass with the owner, ESSENTIALS' points first, deeper only where time allows.
-12. Which view the demo shows: the view worker is the target (`client.md`, 2026-10-28); VIEW-WORKER-CHECK says only
-    whether it meets the page view's correctness bar headless; on the phone both views run on the same series,
-    alternated; the owner chooses. If the worker is shown, the page view's removal is the first simplification after.
+12. Which view the demo shows, and whether the page view is ever removed: decided after the phone runs (the owner,
+    2026-11-11). No measurement yet shows the view worker faster; both pass every correctness check.
 6. The DICOM ingest codes optimal quality (today only the lab tool does).
 7. The depth cut for D > 10 (the OQ view through WebCodecs, painted from its 10-bit codes through a window table, no
    shift pass); D ≤ 10 needs none. Build `claude/oq-depth-cut` (stacks on the two OQ branches). Full fidelity is the
@@ -183,8 +178,16 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
     is established and which metrics experts use (PSNR's limits, windows, guidelines): `claude/av1-vl-metrics`.
 8. Narrow windows show the coding error most: an explicit Lossless request now; an automatic exact request when the
    window is narrow (or a reading mode) is an option to compare, with the threshold set by readers, not chosen here.
-9. Later, a separate approach outside this sprint: HTJ2K with resolution levels and tiles for large matrices and high D
-   (protocol on `claude/htj2k-tiles`).
+9. HTJ2K with tiles and resolution levels matched to the screen, for DBT and other large matrices: theory, review and
+   improvement done 2026-11-11 (`claude/htj2k-tiles`, PR 324); HTJ2K-MEASURE then HTJ2K-VERDICT in the queue.
+13. The deck for the team and the presenter notes (what can be claimed, what not, likely questions with sourced
+    answers): waiting on two owner answers, where the deck lives and how the demo is shown (in the room or on a call;
+    from the laptop or a deployed host).
+14. The rehearsal from `main` on the laptop and the phone, with FREEZE-E2E's list and DEMO-NETWORK's on-arrival check;
+    a screen recording made then as the fallback.
+15. After the demo, the owner's calls on the proposals: client telemetry (sample rate, sink, retention), the optimal
+    quality's integrity check (#368 and its review), the phone tools (#369), AV1 tiles, BBR after the phone runs, and
+    `lab/` off `main` entirely (QUEUE-CLOSE writes it up).
 
 ## Decisions (the owner's, 2026-11-09)
 

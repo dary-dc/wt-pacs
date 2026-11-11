@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-10 (branches and PRs read from `origin`).
+Last verified 2026-11-11 20:00 UTC (branches and PRs read from `origin`).
 
 ## Goal
 
@@ -42,12 +42,11 @@ small enough that every open item has an owner and a next step.
 ## Open (ordered)
 
 1. The owner decides the inventory's proposed actions (merge, keep, archive, delete, close).
-2. The demo path into `main` by 2026-11-13 ([`optimal-quality.md`](optimal-quality.md)), each step reviewed by a
-   session that did not write it, gate and CI green; all merged on `claude/core-next` (State now), awaiting the
-   owner's words, merge by merge. As first written:
-   fix `core`'s image build → #289 into `core`, then #299, then #302 rebased → `av1-unified-mainbase` into `core`
-   (resolving the four `client/decode/av1*` files once, instead of #303) and `main`'s newer commits → the demo
-   branches → one approving review of #250 → merge with `--no-ff`.
+2. The demo path into `main` by 2026-11-13: the demo tip is `claude/demo-fixes-2` (PR 367 into `claude/core`), built
+   on `claude/core-next` (PR 351), `claude/demo-fixes-0` (PR 355) and `claude/demo-fixes-1` (PR 363), each carried by
+   the next. After FREEZE-E2E the owner gives two merge words, PR 367 then PR 250, as merge commits; the PRs and
+   branches they carry in full are listed by MERGE-PLAN (`claude/merge-plan:docs/reviews/merge-plan.md`) and closed
+   or deleted after. Nothing reaches `main` uncleaned ([`optimal-quality.md`](optimal-quality.md) §Open 2).
 3. The proposed order into `main` after that: `av1-unified-mainbase` ← `line-hygiene` ← `line-server` ← `core` ←
    `line-pacs`; `line-viewer` stays parked.
 4. Where the archive index lives (33 `archive/*` tags exist, no index file on `main`; `docs/archive.md` is a candidate).
