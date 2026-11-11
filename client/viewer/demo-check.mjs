@@ -1,7 +1,7 @@
 // The demo's check: an optimal-quality series and its exact series from scripts/demo-series.sh, served by README §Demo's own
 // commands, opened as a reader would, and every claim of the demo failed by name. README.md §Demo
 //
-//   node client/viewer/demo-check.mjs DIR LOSSY_ID [--route av1-webcodecs|av1-dav1d] [--json]
+//   node client/viewer/demo-check.mjs DIR LOSSY_ID [--route av1-webcodecs|av1-dav1d] [--view page|worker] [--json]
 //     DIR as demo-series.sh wrote it: ID.sbnd and ID.metadata.json for LOSSY_ID and its exactSeries
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -13,6 +13,7 @@ const ROOT = new URL("../..", import.meta.url).pathname;
 const [dir, id] = process.argv.slice(2);
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ROUTE = arg("--route", "av1-webcodecs");
+const VIEW = arg("--view", "page");
 const T = mkdtempSync(path.join(tmpdir(), "demo-check-"));
 const children = [];
 const stop = () => { for (const c of children.splice(0)) c.kill("SIGKILL"); };
@@ -136,6 +137,7 @@ const routeOf = (overlay) => overlay.match(/^(\S+)( after WebCodecs refused: (.*
 
 function judge(r) {
   check(r.exactPainted, `${r.query}: no exact frame painted on Lossless`);
+  check(r.status?.includes(` · view ${VIEW} · `), `${r.query}: the frames held in ${r.status?.match(/view (\w+)/)?.[1]}, not ${VIEW}`);
   check(r.errors.length === 0, `${r.query}: console errors ${JSON.stringify(r.errors)}`);
   for (const f of r.frames) {
     const m = routeOf(f);
