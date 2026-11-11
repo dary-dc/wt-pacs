@@ -837,6 +837,35 @@ a miss, counted and named.
 *Smoke* (20:01, not kept): `dbts_a1-q8-g8-cut` in iid1, one run per arm: both jumps painted, both fills ended, the two
 `window` groups and the exit tally printed.
 
+**Measured (MEASURE-2, 2026-11-11 20:02–20:55, per amendment 1): P1's claim stands for the jump during the fill.**
+156 rows (147 timed runs, 9 loopback references), `lab/proposals/rows/r2.jsonl`; table `lab/proposals/r2_summary.py`.
+Medians of 7 runs per arm (14 runs a series and cell counted in *misses*; none missed). Sojourn: the relay's
+server-to-client p50 on the optimal-quality flow over the jump's window.
+
+| cell | series | Cubic jump ms | BBR jump ms | ratio | bar | sojourn p50 ms C / B | fill ms C / B | misses |
+| --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- |
+| 0 | dbts_a1-q8-g8-cut | 1733 | 1486 | 0.86 | 1.25 | 544.8 / 214.8 | 2787 / 2418 | 0 of 14 |
+| 0 | dbts_b1-q8-g8 | 2450 | 2263 | 0.92 | 1.25 | 480.5 / 115.5 | 10046 / 9876 | 0 of 14 |
+| 0 | dbts_c1-q8-g16-cut | 2444 | 2114 | 0.86 | 1.25 | 577.5 / 136.4 | 3630 / 3034 | 0 of 14 |
+| iid1 | dbts_a1-q8-g8-cut | 19637 | 1760 | 0.09 | 1.00 (A/A 1.00) | 1.8 / 320.4 | 20800 / 2695 | 0 of 14 |
+| iid1 | dbts_b1-q8-g8 | 28541 | 2318 | 0.08 | 1.01 (A/A 0.99) | 1.2 / 175.8 | 93825 / 10160 | 0 of 14 |
+| iid1 | dbts_c1-q8-g16-cut | 25490 | 2174 | 0.09 | 1.02 (A/A 0.98) | 1.2 / 139.7 | 26866 / 3140 | 0 of 14 |
+| ge | dbts_a1-q8-g8-cut | 1622 | 1449 | 0.89 | 1.25 | 351.7 / 209.7 | 2677 / 2339 | 0 of 14 |
+| ge | dbts_b1-q8-g8 | 2459 | 2363 | 0.96 | 1.25 | 343.8 / 215.4 | 16617 / 9952 | 0 of 14 |
+| ge | dbts_c1-q8-g16-cut | 2304 | 2193 | 0.95 | 1.25 | 352.9 / 211.8 | 3478 / 3100 | 0 of 14 |
+
+Loopback `&fill=0` jump (slider), medians of 3: `dbts_a1` 325, `dbts_b1` 494, `dbts_c1` 407 ms; no cell is within
+1.1× of it, so none is decode-bound. *Against the prediction:* in 1 % iid BBR's jump is 0.08–0.09× Cubic's, under the
+band's 0.2–0.6× (a miss, in BBR's favour); clean and in bursts 0.86–0.96×, inside 0.8–1.3×. The A/A arm moved at most
+2 %. *Mechanism, read from the rows:* under 1 % loss Cubic's queue is near empty (p50 1–2 ms) and its jump paints
+only ~1.2 s before its fill ends (a1: jump 19.6 s, fill 20.8 s), so the asked group waits behind the fill's slow
+transfer, not behind a queue; BBR's standing queue (140–320 ms p50) costs less than that. Clean, Cubic's queue during
+the jump is the larger (480–580 ms against 115–215 ms). The predicted cost of BBR's queue did not appear in any cell.
+*Verdict:* P1's claim "faster fill and lower on-demand latency" holds for a jump 500 ms into the fill, on every series
+and cell. It decides no adoption (the owner keeps `cubic-restart`; the phone runs decide). *Limits:* a userspace relay
+with loss in both directions, not a radio; no congestive loss and no neighbour; three DBT volumes of one dataset; one
+4-core host without a GPU, SwiftShader.
+
 ### R3. The wake rebuilt on `end_stream` alone (P3)
 
 **Mechanism, corrected.** As P3, with the red team's two corrections built in. The wake sends `end_stream` on the
