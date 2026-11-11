@@ -967,8 +967,8 @@ every run ended at *✓ Lossless*. Sojourn: the exact flow's server-to-client p5
 
 38 400 B made `l` slower in every cell, 1.09–1.26×, where 0.85–0.95× clean and a tie under loss were predicted: the
 prediction fails in sign. The A/A arm moved 2–3 %, so the loss-cell bar was 1.02–1.03. The clean cell under BBR is
-the opposite of P4's under Cubic (−8 to −14 %, R). The sojourn rose with the larger window in five of six cells,
-by 1–18 ms, which is far less than the 96–151 ms the `l` lost; the queue does not explain it. *Not explained:*
+the opposite of P4's under Cubic (−8 to −14 %, R). The sojourn rose with the larger window in all six cells,
+by 0.7–18 ms, far less than the 86–151 ms the `l` lost; the queue does not explain it. *Not explained:*
 why a larger first flight is slower under BBR here; quinn's BBR pacing of a larger initial window is the next thing
 to read, in code, not assumed. The path RTT the protocol asked for is not recorded (amendment 1). *Limits:* as P1's;
 both servers on BBR, which is not the default.
