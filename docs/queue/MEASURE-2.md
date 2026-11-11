@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11T19:00Z
-heartbeat: 2026-11-11T19:20Z
+heartbeat: 2026-11-11T19:33Z
 outputs: claude/proposals d143c942 (amendments 1 of R1 d5a3e396, R2 362bbc2c, R3 and R4 d143c942; drivers r1*, r2.sh, r3*, r4.sh; link_cells.mjs --jump-after-ms/--windows; link_impair.py `window`), docs/lines/proposals.md §Round 2; no PR yet
 ## Resume
 2026-11-11T19:01Z: setup started (log /home/user/logs/setup.log): worktrees ../proposals (claude/proposals 8fb23876), ../tip
@@ -23,6 +23,12 @@ Amendments written before any run: R1, R2, R3 (arm r3_arm.sh + r3_arm.test.mjs, 
 P6's arms (b), (c) built from claude/dav1d-lazy and a shaped static host: last, likely a later session).
 19:18 setup done (demo-series 728 s); ../integ built and linked. 19:21 R1 encodes running (r1_encodes.sh as above;
 the one-tile check is on bundles packed with the demo tip's metadata, afd7c08f).
+19:31 R1 encodes done, all 7 one-tile bundles equal to the demo tip's; rows r1-bytes.jsonl, r1-quality/ (6671249b);
+19:34 condition (2) holds, 14 of 14 fills as coded on av1-webcodecs (r1-correct.jsonl, e5f3d41e). 19:35 jump cell
+running: /home/user/r1/jump.jsonl (copy to lab/proposals/rows/r1-jump.jsonl as it lands). If stopped: a fresh session
+reruns r1_encodes.sh (~12 min, skips nothing it has not got) and r1.sh from the first incomplete round (a round is 6
+rows). Then: python3 lab/proposals/r1_summary.py /home/user/r1 rows/r1-bytes.jsonl rows/r1-correct.jsonl
+rows/r1-jump.jsonl → §R1 Measured; then R2.
 Runs, in order, each one background command, rows pushed by hand or a loop every ~10 min:
   R1 (encodes, condition (2), jump: see above); R2: TIP=/home/user/tip DIR=/home/user/tip/demo-series
   lab/proposals/r2.sh lab/proposals/rows/r2.jsonl [FIRST_ROUND] (~75 min; stop mid-round: move the partial round's
