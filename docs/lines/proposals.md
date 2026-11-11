@@ -1,7 +1,7 @@
 # Proposals
 
 Proposals for the optimal-quality demo path, each with the measurement that decides it. This branch
-(`claude/proposals`) holds §Optimize, the optimizer's part; §Simplify is on `claude/demo-simplify`, and the two meet
+(`claude/proposals`) holds §Optimize, the optimizer's part, and `claude/oq-integrity` adds §Integrity; §Simplify is on `claude/demo-simplify`, and the two meet
 when the owner takes them.
 
 ## Optimize
@@ -443,6 +443,193 @@ on the shared link and starts the exact session with a larger RTT estimate. A ru
 `session path` RTT in both arms would settle it. **Limits:** as P1's; the throttle slows the main thread only
 (amendment 1), and a phone's radio is not modelled.
 
+## Integrity
+
+*Row OQ-INTEGRITY, theory and pre-registered protocols, written 2026-11-11 against the demo tip `claude/demo-fixes-1`
+at `daee0d1d`. Nothing here is built, measured or changed; every cost is **an assumption** labelled as one, and the
+protocol under each item is what turns it into a finding. Labels as §Optimize's: (S), (R), (D).*
+
+**The owner's question.** An optimal-quality frame is not lossless, but its quality must be what the screen says.
+Today it arrives `unchecked`: its metadata states `lossy: {q, g, depth}` (and `bitsStored` for a depth cut) and no
+digest, "a frame digest makes a frame `exact`, … so a lossy frame arrives `unchecked`" (R, `docs/av1/payload-format.md`
+§Optimal quality). Q, G and depth are encoder settings, not an error. Two separate claims are owed, and one check
+cannot carry both:
+
+* **Integrity** (I1): the samples the client paints are the frame's **reconstruction**, the samples the AV1 decoding
+  process gives for its units, bit for bit. A fault anywhere between the ingest and the page (a store, a cache, a
+  browser's decoder, the copy out of a `VideoFrame`, memory) breaks it.
+* **Quality** (I2): how far that reconstruction is from the source samples, measured once, at the ingest, where both
+  are in hand, and written into the metadata. Integrity is what lets the client repeat that number for the frame it
+  paints: without I1, I2 describes a frame the reader may not be seeing.
+
+| # | proposal | serves | cost (assumption) | guarantees | change |
+| --- | --- | --- | --- | --- | --- |
+| I1 | a **reconstruction digest** per frame, written by the ingest and checked by the client | integrity | ingest ≈ 0; client one XXH3 a frame, 1.2–5.2 ms on this host, 5–52 ms on a phone, 1–10 % of a frame's decode | the painted samples are dav1d's for those units | ingest + metadata + `decoder.js`'s existing check |
+| I2 | the **coding error** per frame measured at the ingest: RMS e, max \|Δ\| and e_N ÷ σ | quality | ingest ≤ 0.27 CPU s a megapixel; client 0 | a stated number for each frame, against its source | ingest + metadata |
+| I3 | the label and the overlay say each, in that order | the screen | client ~20 lines | nothing beyond I1 and I2 | client |
+
+I1 first: it is the one that makes the others true of the painted frame, and the client already does it for every
+exact series.
+
+### I1. A reconstruction digest
+
+**Mechanism.** The AV1 specification makes the reconstruction one thing, whichever conforming decoder makes it:
+"When film_grain_params_present is equal to 0, decoders shall produce output frames that are identical in all respects
+and have the same output order as those produced by the decoding process specified herein" (S, AV1 §7.2 *General decoding process*). The ingest
+codes with `--denoise-noise-level=0` (R, `lossy_args`), so no film grain is signalled and the clause applies: dav1d at
+the ingest, Chromium's dav1d behind WebCodecs and dav1d-WASM in the page must return the same samples, or one of them
+is wrong. For contrast, the clause's other branch: with film grain, "a conformant decoder shall satisfy at least one of
+the following two options", the second of which binds only the frames before grain synthesis — the reason the ingest
+must keep grain off (S, same).
+
+* **The ingest has the reconstruction already.** `ingest.py`'s `lossy()` decodes every frame through dav1d from its
+  keyframe's unit on and refuses the series unless each comes back at depth D and the series' size (R, demo tip). I1
+  is one XXH3-64 of each of those pictures as `decodeFrame` hands it on (`frame_digest`, two bytes a sample above 8
+  bits; for a depth cut, the 10-bit codes, not the rescaled values), written into the metadata. The decoder's
+  output, not the encoder's own reconstruction: a lossless path here once came out not exact, libaom 3.8.2's inter
+  10- and 12-bit frames (R, `docs/decode/README.md` §AV1), so the digest must be the normative decode's.
+* **WebCodecs promises the decoder, not the decoder's kind.** `hardwareAcceleration` "prefer-hardware and
+  prefer-software are hints. While User Agents SHOULD respect these values when possible, User Agents may ignore these
+  values in some or all circumstances for any reason" (S, WebCodecs §7.9). The specification of `VideoDecoder` says
+  nothing about bit exactness; that comes only from AV1 §7.1 through whichever decoder the browser picks. Chromium's
+  software decoder is dav1d, opened with `dav1d_default_settings` (S, Chromium `dav1d_video_decoder.cc`
+  `OpenDecoder`); measured here, its output is exact at 8 and 10 bits, 4:0:0 included, with `no-preference` and
+  `prefer-software`, and refused at 12 (R, `docs/decode/README.md` §AV1, Chromium 141). No hardware decoder was
+  measured (no GPU on the lab's hosts), and the demo's phones may use one: that is the case a digest covers and
+  nothing else does.
+* **The copy out keeps the samples.** `copyTo` without `options.format` copies each plane row by row in the frame's
+  own format; only an RGB `options.format` runs "the Convert to RGB frame algorithm" (S, WebCodecs §9.4,
+  `copyTo(destination, options)`). The client never passes a format (R, `av1-webcodecs.js` `read`). `I420P10` is
+  "10 bits, encoded as a 16-bit integer in little-endian byte order" (S, WebCodecs §9.8), the layout the digest is
+  taken over.
+* **The client already checks.** `decoder.js`'s `checked()` hashes the picture it hands on against the series'
+  `digests` and, on a mismatch, decodes once more on the other path before it says anything (R,
+  `docs/adr/exactness-in-production.md` §2). A reconstruction digest goes through the same function. On a WebCodecs
+  mismatch the second decode is dav1d-WASM, which is the decided route: dav1d after WebCodecs "fails to decode" (the
+  queue's §Decided approaches); a mismatch is a failure. *Its gap at G > 1:* "a frame inside a group decodes on its
+  group's decoder alone" (R, `client/decode/av1.js` `decodeFrame`), so a second decode of an inter frame throws and
+  the frame stays `false`, with no recovery (R, `exactness-in-production.md` §Built, *What it does not cover*). For
+  the exact series that gap was accepted; here every demo series at G 8 and 16 has it. The recovery that keeps the
+  decided route is to decode the group again on dav1d-WASM from its keyframe up to the frame; at most G − 1 extra
+  decodes, only after a mismatch. It is part of I1, not a separate proposal.
+
+**The name.** It must not be `digests`: a frame digest "makes a frame `exact`" (R, `docs/glossary.md`), and an
+optimal-quality frame is never exact. Proposed: **reconstruction digest**, metadata
+`lossy.reconstruction: {"algorithm": "xxh3-64", "frames": [...]}`, one glossary row; the decoder's outcome on it a
+fourth value beside `true`, `false` and `"unchecked"`, named by I3. This also settles NAMES-FIND item 2: the sentence
+that a lossy frame's `exact` "matched the encoder's reconstruction" describes I1, which does not exist yet.
+
+**Cost (assumption).** At the ingest: one XXH3 over a picture already in memory, against an encode and G decodes a
+frame; ≈ 0. Metadata: 16 hex digits a frame, ≤ 1.2 KB a series. On the client the copy out of the `VideoFrame` is
+paid already, since the picture is read for windowing; I1 adds the hash alone. Frames are 4.1, 17.0 and 4.9 MB at two
+bytes a sample (D, 1142 × 1785, 2560 × 3328, 976 × 2513; the 4:2:0 chroma `read` discards is not hashed). XXH3 here is
+3.3 GB/s in the decoder worker (R, `exactness-in-production.md` §10), so 1.2, 5.2 and 1.5 ms; on a phone 4–10×
+slower (assumption, the lab's 4× throttle being the only stand-in), 5–52 ms. Against a frame's decode — the loopback
+fill's 2.0, 4.6 and 1.7 s over three workers is about 107, 276 and 74 ms a frame (D, §Optimize's path) — that is
+1–2 % here; on a phone the decode slows too, so the share holds unless the hash slows more than the decode
+(assumption: 1–10 %). The exact series measured 0–15 % of a decode-bound fill (R, same, §3).
+
+**Sampling.** Not proposed. Inside a group every frame is decoded from its predecessors, so a fault in frame k
+reaches every later frame of the group: checking only keyframes misses a fault in an inter frame, checking only the
+shown frame misses nothing it paints. The exactness ADR rejects sampling at XXH3's cost (R, §4: "saves at most XXH3's
+1–10 % and lets a fault in an unsampled frame through"); the same numbers hold here. If the phone row below costs
+more than its rule allows, the sample that keeps the guarantee for what is on screen is "the shown frame always, the
+fill's other frames at a rate", not "every k-th frame".
+
+**What it guarantees, and not.** It guarantees that the samples the decoder worker hands on are those dav1d 1.5.4
+gave at the ingest for the same units. It does not cover painting (the window, the GPU, the display), as the exact
+check does not (R, `exactness-in-production.md` §7, *What it does not cover*); nor a hostile server, which serves the
+digests over the same session; nor quality: a perfect reconstruction of a Q 63 stream passes it.
+
+**Protocol (pre-registered).** *Rule first:* adopt I1 with every frame checked if (1) every frame of every cell matches
+on both routes and every mutant fails, and (2) the check's cost on the fill is ≤ 10 % at 4× on this host; else adopt
+with the shown-frame sample above, and say so. *Cells:* `dbts_a1`, `dbts_b1`, `dbts_c1`; Q 8 and Q 24; G 1, 8, 16; the
+cut on `dbts_a1` and `dbts_c1` (the 18 series of `scripts/demo-series.sh`, ingested once with the digest). *Correctness:*
+headless Chromium, every frame through WebCodecs and, forced, through dav1d-WASM: every frame `true`. *Mutants, each
+must fail:* one sample flipped in the copy, one digest wrong in the metadata, one byte of one inter unit flipped (the
+group's later frames must fail too, and the group's re-decode on dav1d-WASM must not mend them, since the unit is
+wrong), one sample of an inter frame flipped in the WebCodecs copy only (the re-decode must mend it), the digest taken over the rescaled cut instead of the codes. *Cost:* fill and
+first picture, check on and off, interleaved per round by `lab/order.mjs`, ≥ 7 rounds, 1× and 4×, three decoder
+workers on a 4-core host; quote the fill's time, not its rate. *Phone row (the owner's, optional):* the same pair on
+the owner's phone, on and off alternated, 5 fills each; it decides only the sample, not the check. *Limits:* three DBT
+volumes of one dataset; no hardware AV1 decoder in any cell, so the case the digest exists for on a phone is not
+exercised here — only its plumbing and its cost are.
+
+### I2. The coding error, measured at the ingest
+
+**Mechanism.** The ingest holds the source frame and its reconstruction side by side (I1). It measures, per frame,
+over every sample, against the source sample (for a depth cut, code c standing for c · 2^(D−10), so the rounding
+error is counted in):
+
+* **e**, the RMS coding error in source units;
+* **max \|Δ\|**, the largest, in source units;
+* **e_N ÷ σ**, the coding error against the frame's own noise, both in the noise band: σ by the quality study's
+  estimator (Immerkær's Laplacian with edges and rounding taken out), e_N the residual through the same filter (R,
+  `claude/av1-vl-metrics:lab/av1/metrics/README.md` §4.4).
+
+**Why these three.** No guideline states a limit as a metric, and "PSNR alone cannot claim VL: its peak and pooling
+are global and it does not see the window" (R, `claude/av1-vl-metrics:docs/av1/vl-metrics.md` §Answer and §4).
+e_N ÷ σ is the criterion Q 8 was chosen by, and it does not depend on the window: "A window scales e_N and σ by the
+same k, so a test that holds at one width holds at every width" (R, `claude/av1-window-q:docs/av1/window-q.md`
+§Verdict). It is the one number the screen can state without knowing the reader's window. e carries the window: a
+LINEAR window of width W moves the picture by about k · e display levels, k = 255 ÷ (W − 1) (R, same, §Terms), so the
+overlay can convert it live for the window on screen. max \|Δ\| is the near-lossless bound DICOM defines, with "no
+visibility threshold" known for it (R, `vl-metrics.md` §4 table): stated, not judged. PSNR, SSIM, MS-SSIM and JOD stay
+in the lab: each needs a peak, a scale or a viewing model the label would have to explain, and none is validated on
+DBT (R, same).
+
+**What it guarantees, and not.** A measured, stated number for each frame against its own source — never "visually
+lossless", which only a reader test establishes (R, `vl-metrics.md` §4, *What a VL claim here could honestly say*).
+Frame-pooled: a region can fail while the frame passes (R, same, *What it lacks* item 3; a tile-wise worst is the
+named remedy, not proposed here). e converted to display levels is the frame's, not the in-window RMS that
+`window-q.md` read; on a narrow window off the frame's median it is an estimate (D).
+
+**Cost (assumption).** The quality study's whole measurement, SSIM, MS-SSIM and the displayed levels included, costs
+0.27 CPU s a megapixel (R, `lab/av1/metrics/README.md` §Plan); these three are a subset, so ≤ 0.27: on the three
+fixtures' 114, 426 and 169 megapixels a cell (D), ≤ 31, 115 and 46 CPU s. Metadata: three numbers a frame.
+
+**Protocol (pre-registered).** *Rule first:* adopt if (1) the ingest's values equal the quality study's committed rows
+for the same cells within rounding (e, max \|Δ\|) and within 1 % (e_N ÷ σ), and (2) the ingest's wall clock grows by
+≤ 10 % on `scripts/demo-series.sh`. *Cells:* the quality study's rows that share a series and a (Q, G) with the demo
+(`dbts_a1`, `dbts_b1`, `dbts_c1`; Q 8 and Q 24; G 1 and 16), stored form only, since the rows hold no depth cut; for
+the cut, a synthetic set whose cut and coding error are known (a smooth ramp with Gaussian noise of known σ, as §4.4's
+check). *Mutants, each must fail:* σ without the rounding term, e taken against the code c instead of c · 2^(D−10), the
+error of frame i written at i + 1. *Cost:* `scripts/demo-series.sh` with and without, interleaved, 3 rounds; quote
+wall clock on the 4-core host. *Limits:* the noise estimator's primary text was not readable (R, §4.4); its fitness
+rests on the synthetic check. One dataset.
+
+### I3. What the label and the overlay say
+
+The label is for the reader; the overlay for whoever explains the demo. Each says integrity first, then quality, and
+never more than I1 and I2 measured.
+
+| decoder's outcome | label (with DEMO-UX's colours) | overlay appends |
+| --- | --- | --- |
+| reconstruction digest matched | **Optimal quality ✓** (green) | `as coded · error e = … (… levels at W …) · e_N ÷ σ = … · max |Δ| …` |
+| matched after a second decode (a keyframe; an inter frame by its group's re-decode) | **Optimal quality ✓** (green) | as above, plus `<first route> did not match; <second route>`, as an exact frame's `mismatchOn` |
+| did not match on either route | **Optimal quality — not as coded**, the frame not painted (the exact check's choice: block, R, `exactness-in-production.md` §4) | both routes' digests |
+| no reconstruction digest (a series ingested before I1) | **Optimal quality · unchecked** (grey) | `no reconstruction digest` |
+| *Lossless*, as today | unchanged | unchanged |
+
+* **The green mark rests on I1.** DEMO-UX item 1 builds a green mark beside *Optimal quality* on a paired frame
+  (`docs/queue/DEMO-UX.md`). Today nothing about that frame has been checked; with I1, the mark means the check
+  passed, and a series without the digest keeps the grey *unchecked*. Until I1 is built the green mark claims more
+  than the client knows — the owner's call whether the demo shows it before I1.
+* **Quality is a number, never a verdict.** The label never says "visually lossless"; the overlay states e, its
+  display levels at the current window, e_N ÷ σ and max \|Δ\| as measured, and `client/README.md` §Optimal quality
+  says what each is and that no reader test has confirmed VL on DBT (R, `vl-metrics.md` §2).
+* **Cost.** The overlay's line is built per shown frame already (`screen.js` `overlayText`); the conversion is one
+  multiply. No measurement decides I3; a `demo-check.mjs` check per state, each mutated, holds it.
+
+### Integrity: what is not proposed
+
+* **A digest of the painted canvas.** It would cover the window and the GPU, but a canvas readback is per browser and
+  per GPU, and the window changes it; nothing here could pin it.
+* **Signing the digests.** It covers a hostile server, which is out of scope (`exactness-in-production.md` §7,
+  *What it does not cover*, names it as the step that would).
+* **A per-frame quality gate at the ingest** (refuse a series whose e_N ÷ σ exceeds 1 on any frame). It turns I2 into
+  a verdict the sources do not support; the PCS chooses Q. Named only.
+
 ### Sources
 
 Each official source read on 2026-11-11; the SHA-256 prefix is of the copy read.
@@ -454,3 +641,8 @@ Each official source read on 2026-11-11; the SHA-256 prefix is of the copy read.
 * Chromium `463745830f5ed9085d719a959b967c2fcca172b1`: `media/filters/davxd_video_decoder_base.cc` (`246fd0000402`),
   `media/filters/dav1d_video_decoder.cc` (main, the same day).
 * libaom v3.15.1 `av1/arg_defs.c` (`9f0a8ad3363e`), aomedia.googlesource.com.
+* AV1 Bitstream & Decoding Process Specification, §7.2 *General decoding process*, aomediacodec.github.io/av1-spec/
+  (`acf58a3fdb82`).
+* WebCodecs, the same draft: §7.9, §9.4 `copyTo(destination, options)`, §9.8 `I420P10` (`0fa152953edb`).
+* Chromium `463745830f5ed9085d719a959b967c2fcca172b1`: `media/filters/dav1d_video_decoder.cc` `OpenDecoder`
+  (`bd41ddccf7ce`).
