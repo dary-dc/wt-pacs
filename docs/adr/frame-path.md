@@ -3646,7 +3646,7 @@ Neither is done here. Until then both settings stay in the core at their default
 *Theory and a harness; nothing measured. The question is difference 2 above: does a WebTransport receive loop keep
 the fill's rate when it shares one dedicated worker's thread with OPFS reads, XXH3 checks, uploads and paints?
 Sources at the pins in [`frame-path-sources.txt`](frame-path-sources.txt) under 2026-10-29, line numbers as fetched.
-The harness is [`../../lab/recv-loop/`](../../lab/recv-loop/README.md); the protocol's runs are a separate row.*
+The harness is [`../../lab/recv-loop/`](https://github.com/dary-dc/wt-pacs/tree/cf38708b2c4f1b5743e15c7cee89a7d5778abad4/lab/recv-loop/README.md); the protocol's runs are a separate row.*
 
 #### Where received bytes wait while the worker's thread is busy
 
@@ -3768,7 +3768,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 | frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241; Firefox re-run, #264 | **run on both engines (#264): "none qualifies on Firefox, so none on both engines: lever 2 returns to the owner. Chromium's verdict stands: `ring`."** Credits not shown needed; *How the ring works* written for the owner |
 | `?writer=`, who writes the OPFS cache | `none`: no cache, as main | `store`, `decoders`, `view` | OPFS arms, #227/#242; #244 | **run on Chromium 153 and Firefox 159 (`claude/opfs-arms-run`): "no arm passes on either engine, so the result goes to the owner as measured"** (§Arm D, Results). Chromium's D fails only rule 3, its clock at S1 4×; Firefox's D fails rules 2 and 3 |
 | frame clock | the page's timer | worker rAF, timer to a schedule, `MessageChannel`, `Atomics.wait` | #225 | harness built (#249) and smoked: the guard saturates every cell but 512² at 30/s, quiet, 1×; the run not started |
-| receive loop, the downloader in the view worker | its own worker | merged | #237 | rig in `lab/recv-loop` only; needs a GPU host |
+| receive loop, the downloader in the view worker | its own worker | merged | #237 | rig in `lab/recv-loop` at `cf38708b` (`claude/recv-loop`) only; needs a GPU host |
 | native `--paint-thread`; `--credits`, `--budget` | `ui` | `view`, `core`; `K` 4, 64 MiB | NATIVERUN, #247 | built and reviewed (#253); the run's own pieces not built |
 
 Each run writes its verdict in its own section.
