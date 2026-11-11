@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11T19:00Z
-heartbeat: 2026-11-11T21:43Z
+heartbeat: 2026-11-11T22:03Z
 outputs: claude/proposals d6a89617 (§R1 measured 90c3e3e3, §R2 measured 1eee0579, §R3 plumbing 76ab875d; earlier: (amendments 1 of R1 d5a3e396, R2 362bbc2c, R3 and R4 d143c942; drivers r1*, r2.sh, r3*, r4.sh; link_cells.mjs --jump-after-ms/--windows; link_impair.py `window`), docs/lines/proposals.md §Round 2; no PR yet
 ## Resume
 2026-11-11T19:01Z: setup started (log /home/user/logs/setup.log): worktrees ../proposals (claude/proposals 8fb23876), ../tip
@@ -42,6 +42,8 @@ stopped: a round is 6 rows; rerun from the first incomplete round. Next R4 (r4.s
 /home/user/r4.pid; TIP=/home/user/tip DIR=/home/user/tip/demo-series lab/proposals/r4.sh /home/user/r4.jsonl 1 3),
 a pusher (pid-keyed) copies rows to lab/proposals/rows/r4.jsonl every 10 min. A round is 45 rows. Then rounds 4-7
 (r4.sh OUT 4 7). If stopped: move a partial round to r4-stopped.jsonl, rerun from it.
+22:04 R4: r4.sh takes only FIRST_ROUND (it runs to 7), so the one command runs all 7 rounds (nohup, pid as above;
+rounds 1-3 done at 22:00, 135 rows). Next: python3 lab/proposals/r4_summary.py lab/proposals/rows/r4.jsonl → §R4.
 Runs, in order, each one background command, rows pushed by hand or a loop every ~10 min:
   R1 (encodes, condition (2), jump: see above); R2: TIP=/home/user/tip DIR=/home/user/tip/demo-series
   lab/proposals/r2.sh lab/proposals/rows/r2.jsonl [FIRST_ROUND] (~75 min; stop mid-round: move the partial round's
