@@ -80,6 +80,10 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
     `requestExactFrame` asks optimal-quality frames too; the mark's *unchecked* on every optimal-quality frame, and
     `client/README.md` claiming a lossy frame's `exact` (no digests exist); `showLossy` (R1); *view* for the picture;
     the decode route as `path`, `route` and `decoders:`; `depthCut` a shift count; eight words with no glossary row.
+13. What the demo's page and servers read, findings only, each waiting for the owner's yes
+    ([`../reviews/understand/defaults.md`](../reviews/understand/defaults.md), 2026-11-11): `?check=`, `?deadline=`,
+    `?trace=`, `?settle=`, `?after=` outside the lab gate; `?cine=` one name for two levers; `?opts=` able to override
+    the digests; three "Lab only" server choices in the default build.
 
 ## Decisions (the owner's, 2026-11-09)
 
