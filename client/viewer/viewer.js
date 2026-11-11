@@ -144,7 +144,9 @@ function status() {
 }
 
 const options = lab.opts;
-const decoder = options.decoder ?? (meta.codec === "av1" ? { codec: "av1", lossy: meta.lossy !== undefined, ...(await built("dav1d")) } : await built("openjph"));
+const decoder = options.decoder ?? (meta.codec === "av1"
+  ? { codec: "av1", lossy: meta.lossy !== undefined, refuseWebCodecs: options.refuseWebCodecs, ...(await built("dav1d")) }
+  : await built("openjph"));
 const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : undefined;
 const groups = meta.lossy?.g > 1 ? { groupLength: meta.lossy.g, frameCount: n } : {};
 const all = [...Array(n).keys()];

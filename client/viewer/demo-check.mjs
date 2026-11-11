@@ -1,8 +1,9 @@
 // The demo's check: an optimal-quality series and its exact series from scripts/demo-series.sh, served by README §Demo's own
 // commands, opened as a reader would, and every claim of the demo failed by name. README.md §Demo
 //
-//   node client/viewer/demo-check.mjs DIR LOSSY_ID [--route av1-webcodecs|av1-dav1d] [--view page|worker] [--link "OPTIONS"] [--json]
+//   node client/viewer/demo-check.mjs DIR LOSSY_ID [--route av1-webcodecs|av1-dav1d] [--refuse-webcodecs] [--view page|worker] [--link "OPTIONS"] [--json]
 //     DIR as demo-series.sh wrote it: ID.sbnd and ID.metadata.json for LOSSY_ID and its exactSeries
+//     --refuse-webcodecs: the lab's refuseWebCodecs lever, so every frame must reach dav1d with that refusal named
 //     --link: both series' sessions through one lab/scripts/link_impair.py with OPTIONS, a phone on lossy wireless
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -13,7 +14,9 @@ import path from "node:path";
 const ROOT = new URL("../..", import.meta.url).pathname;
 const [dir, id] = process.argv.slice(2);
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
-const ROUTE = arg("--route", "av1-webcodecs");
+const REFUSE = process.argv.includes("--refuse-webcodecs");
+const ROUTE = REFUSE ? "av1-dav1d" : arg("--route", "av1-webcodecs");
+const LEVERS = REFUSE ? `&opts=${encodeURIComponent(JSON.stringify({ refuseWebCodecs: true }))}` : "";
 const VIEW = arg("--view", "page");
 const LINK = arg("--link");
 const T = mkdtempSync(path.join(tmpdir(), "demo-check-"));
@@ -97,7 +100,7 @@ async function pass(browser, query) {
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   page.on("pageerror", (e) => errors.push(e.message));
   await page.addInitScript(watch);
-  await page.goto(`http://127.0.0.1:8765/?overlay=1&view=${VIEW}${query}`);
+  await page.goto(`http://127.0.0.1:8765/?overlay=1&view=${VIEW}${LEVERS}${query}`);
   const log = () => page.evaluate(() => globalThis.__log);
   const now = () => page.evaluate(() => performance.now());
   const until = async (pred, ms = 60000) => {
@@ -165,6 +168,7 @@ function judge(r) {
     const m = routeOf(f);
     check(m?.[1] === ROUTE, `${r.query}: a frame decoded by ${m?.[1]}, not ${ROUTE}: ${f}`);
     check(m?.[1] !== "av1-dav1d" || m[3], `${r.query}: dav1d without WebCodecs' refusal named: ${f}`);
+    check(!REFUSE || /refuseWebCodecs/.test(m?.[3]), `${r.query}: the lab's refusal not named: ${f}`);
   }
 }
 

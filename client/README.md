@@ -107,7 +107,10 @@ matched the encoder's reconstruction; no such digest exists).
   lossy frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed; the button then asks again.
 * **Routes**: WebCodecs first for every optimal-quality series, a depth cut and a 12-bit stored form alike; dav1d-WASM only
   after WebCodecs refused the frame or its probe failed, the route in each frame's `info.path` and the refusal in
-  `info.refusal` (§Which decoder, per payload). In headless Chromium a 12-bit unit is refused at `decode`.
+  `info.refusal` (§Which decoder, per payload). In headless Chromium a 12-bit unit is refused at `decode`. The demo shows
+  no stored form (the owner, 2026-11-11: a lab option); the fallback keeps its browser check through the lab's
+  `refuseWebCodecs` (`?opts={"refuseWebCodecs":true}`, `demo-check.mjs --refuse-webcodecs`), which refuses WebCodecs on a
+  ≤ 10-bit series by name.
 * **Groups.** `lossy.g` reaches the downloader as `groupLength` (§An AV1 series in groups): a jump mid-group decodes
   from the group's keyframe on one decoder, and the whole group lands in the store, so a scroll through it asks and
   decodes nothing more.

@@ -196,7 +196,8 @@ Optimal quality: every reader sees a series' visually lossless AV1 view, and a f
 series only when **Lossless** is pressed ([`client/README.md`](client/README.md) §Optimal quality, exact on request).
 The demo set is three breast tomosynthesis volumes, `dbts_a1` (56 frames, 12-bit), `dbts_b1` (50, 10-bit) and `dbts_c1`
 (69, 12-bit), each as its exact series and its optimal-quality series at Q 8 and Q 24, G 1, 8 and 16; the 12-bit two
-as depth cuts (`…-cut`, 10-bit codes WebCodecs decodes) plus one 12-bit stored form each (`…-q8-g16-stored`).
+as depth cuts (`…-cut`, 10-bit codes WebCodecs decodes): on the demo a series over 10 bits is always the depth cut. The
+stored form (`…-q8-g16-stored`, coded at 12 bits) is a lab option, `STORED_FORM=1 scripts/demo-series.sh`, never shown.
 
 **Once, from a fresh checkout on a laptop** — §Prerequisites (Linux x86-64; docker for the decoders; cmake, ninja,
 meson, nasm and a C++ compiler for the coders; `python3.11`, or `PYTHON=` another 3.11–3.13, for the data's venv):
@@ -237,8 +238,9 @@ python3 server/dev-server.py --port 8765 --metadata demo-series/$ID.metadata.jso
 Open `http://127.0.0.1:8765/?overlay=1` in Chrome; without `?overlay=1` the page is the reader's, label and status
 line only. To change series, stop the three and start them again with another `ID`. **A rehearsal**, with the three
 stopped: `NODE_PATH=$(npm root -g) node client/viewer/demo-check.mjs demo-series $ID` runs the commands above, opens the page in headless
-Chromium as below, and fails by name a frame not painted, a decode route other than WebCodecs (`--route av1-dav1d` for
-a stored form), a console error, a label out of order, an on-demand jump that asked other than whole groups, or
+Chromium as below, and fails by name a frame not painted, a decode route other than WebCodecs (`--refuse-webcodecs`:
+the lab's lever refuses WebCodecs on a 10-bit series, so dav1d must take every frame with that refusal named, the
+fallback's check; `--route av1-dav1d` for a stored form), a console error, a label out of order, an on-demand jump that asked other than whole groups, or
 *Lossless* shown for an exact frame whose digest was made wrong. `--view worker` runs the same passes with the frames held in the view worker (`?view=worker`);
 the default is `page`.
 
@@ -251,11 +253,11 @@ git status --short                               # nothing of yours uncommitted,
 git pull --rebase
 bash client/transport/wasm/build.sh && bash client/transport/ts/build.sh
 cargo build --release -p series-server
-[ -f demo-series/dbts_c1-q8-g16-stored.sbnd ] || scripts/demo-series.sh     # the last series it writes
+[ -f demo-series/dbts_c1-q24-g16-cut.sbnd ] || scripts/demo-series.sh     # the last series it writes
 ./server/scripts/gen_dev_cert.sh --if-needed
-for ID in $(ls demo-series | sed -n 's/\.metadata\.json$//p' | grep -- -q); do
-  R=; [[ $ID == *-stored ]] && R="--route av1-dav1d"
-  NODE_PATH=$(npm root -g) node client/viewer/demo-check.mjs demo-series $ID $R | tail -1
+for ID in $(ls demo-series | sed -n 's/\.metadata\.json$//p' | grep -- -q | grep -v -- -stored) \
+    "dbts_a1-q8-g16-cut --refuse-webcodecs" "dbts_c1-q8-g16-cut --refuse-webcodecs"; do
+  NODE_PATH=$(npm root -g) node client/viewer/demo-check.mjs demo-series $ID | tail -1
 done                                             # 20 lines, each "demo check: ID passed"; ~1 min a series
 ```
 
@@ -303,21 +305,20 @@ and [`flag_descriptions.h`](https://chromium.googlesource.com/chromium/src/+/463
 `dev-server.py --bind` serves the page on that address alone, and its policy connects there. The certificate is made by
 the `rust` image's `openssl` (`OPENSSL=` in `gen_dev_cert.sh`) and its hash read from the transport file it writes.
 The series are coded on a machine with §Prerequisites, `scripts/demo-series.sh`, and copied. What §What to show
-needs, from one run on a 4-core cloud host (2026-11-11): six bundles, 208 MB in all, 175 MB of it the two exact series
-(all 23 series: 368 MB):
+needs, from one run on a 4-core cloud host (2026-11-11): five bundles, 203 MB in all, 175 MB of it the two exact series
+(all 23 series of that run, the two stored forms among them: 368 MB):
 
 | `demo-series/` | bytes |
 | --- | ---: |
 | `dbts_a1-q8-g8-cut.sbnd` | 4,642,336 |
 | `dbts_b1-q8-g8.sbnd` | 23,208,339 |
 | `dbts_a1-q24-g8-cut.sbnd` | 212,383 |
-| `dbts_a1-q8-g16-stored.sbnd` | 5,030,258 |
 | `dbts_a1.sbnd` (exact) | 67,815,186 |
 | `dbts_b1.sbnd` (exact) | 107,410,134 |
 
 Each with its `ID.metadata.json` beside it (about 2 KB for an exact series, 0.8 KB otherwise). Once, on the machine
 that codes them, from the repository's root: `mkdir -p demo-series && scripts/demo-series.sh | tee demo-series/table.txt` (§What to show's
-item 7 is its last table); then copy `demo-series/` to the laptop's checkout, all of it or the files above.
+item 6 is its last table); then copy `demo-series/` to the laptop's checkout, all of it or the files above.
 
 **Once per laptop**, at the repository's root on the demo's branch:
 
@@ -387,11 +388,9 @@ browser honors it. Not checked: the phone, its Chrome's flags page, the tether, 
    anywhere.
 3. `dbts_b1-q8-g8`: a 10-bit volume coded at its own depth, 2560 × 3328, the largest frame.
 4. `dbts_a1-q24-g8-cut` for contrast: a twentieth of Q 8's bytes; the same narrow window and `l` against it.
-5. `dbts_a1-q8-g16-stored`: the same view coded at 12 bits; the overlay shows `av1-dav1d after WebCodecs refused: …`,
-   the fallback.
-6. At `http://127.0.0.1:8765/?overlay=1&fill=0`, nothing is asked ahead: a jump decodes its group from the keyframe and lands it whole,
+5. At `http://127.0.0.1:8765/?overlay=1&fill=0`, nothing is asked ahead: a jump decodes its group from the keyframe and lands it whole,
    and stepping through that group asks nothing more.
-7. The bytes: `scripts/demo-series.sh`'s last table, each series as a fraction of its exact series' bundle.
+6. The bytes: `scripts/demo-series.sh`'s last table, each series as a fraction of its exact series' bundle.
 
 **What is on screen:**
 

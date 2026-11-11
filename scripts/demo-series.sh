@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Three breast tomosynthesis series, each as its exact HTJ2K series and six optimal-quality ones paired with it
-# (Q 8 and 24, G 1, 8 and 16), depth cuts on the two 12-bit sets, which also keep one stored-form series to compare:
+# (Q 8 and 24, G 1, 8 and 16), depth cuts on the two 12-bit sets (STORED_FORM=1 adds the lab's 12-bit stored form of each):
 # every bundle's bytes, as a ratio of its exact series'; each bundle's metadata beside it, ID.metadata.json, for the static
 # host (README.md §Demo). docs/av1/payload-format.md §Optimal quality, §Depth cut.
 #
-#   scripts/demo-series.sh [OUT]     default OUT demo-series; BUILD=... as ingest/tools.sh, default ingest/.build
+#   [STORED_FORM=1] scripts/demo-series.sh [OUT]     default OUT demo-series; BUILD=... as ingest/tools.sh, default ingest/.build
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$(mkdir -p "${1:-demo-series}" && cd "${1:-demo-series}" && pwd)"
@@ -32,10 +32,10 @@ ingest() {  # SET ID [ingest_coded.py's options]
   echo "$id $((SECONDS - t))" >>"$OUT/seconds"
 }
 
-series() {  # SET: each optimal-quality series as "ID Q G [--depth-cut]"; a 12-bit set also keeps one stored-form series
+series() {  # SET: each optimal-quality series as "ID Q G [--depth-cut]"
   local cut=$([[ " ${CUT_SETS[*]} " == *" $1 "* ]] && echo --depth-cut)
   for q in "${QS[@]}"; do for g in "${GS[@]}"; do echo "$1-q$q-g$g${cut:+-cut} $q $g $cut"; done; done
-  [[ -z $cut ]] || echo "$1-q8-g16-stored 8 16"
+  [[ -z $cut || -z ${STORED_FORM:-} ]] || echo "$1-q8-g16-stored 8 16"
 }
 
 rm -f "$OUT/seconds"
