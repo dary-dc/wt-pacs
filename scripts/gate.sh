@@ -97,6 +97,7 @@ run 1 node client/decode/xxh3.test.mjs
 run 1 node client/transport/downloader.test.mjs
 run 1 node client/transport/consumer.test.mjs
 run 1 node client/viewer/store.test.mjs
+run 1 node client/viewer/load-report.test.mjs
 run 2 node client/decode/av1.test.mjs
 run 1 python3 server/dev-server.test.py
 run 1 bash server/scripts/gen_dev_cert_test.sh

@@ -121,29 +121,28 @@ export function runHooks(q) {
   const plan = decode(q.get("run"));
   const k = Number(q.get("at"));
   const load = plan.loads[k];
-  const { recorder, finished } = beaconHooks(q, { series: plan.series, link: load?.link, counted: load?.counted, step: k });
+  const hooks = beaconHooks(q, { series: plan.series, link: load?.link, counted: load?.counted, step: k });
   const of = `load ${k + 1} of ${plan.loads.length}`;
   const stop = (why) => {
-    recorder.record("verdict", { ok: false, why });
-    recorder.flush({ leaving: true });
+    hooks.report?.add({ verdict: { ok: false, why } });
+    hooks.report?.end();
     const next = k + 1 < plan.loads.length ? `; not rerun: the start page at load ${k + 2}` : "";
     banner(`stopped at ${of}: ${why}${next}`, true);
   };
   const expected = load && new URL(loadUrl(plan, k));
   if (!expected || expected.origin !== location.origin || expected.search !== location.search) {
     stop(`this page is not ${of} of its plan`);
-    return { finished: async () => {} };
+    return { ...hooks, finished: async () => {} };
   }
   const late = setTimeout(() => stop(`no fill in ${plan.fillS} s`), plan.fillS * 1000);
   return {
+    ...hooks,
     async finished(ledger) {
       clearTimeout(late);
-      await finished(ledger);
       const why = fillFailure(ledger, (await globalThis.viewerMetadata).frameCount)
         ?? (await pressesFailure(document.getElementById("quality"), document.getElementById("lossless")));
       if (why) return stop(why);
-      recorder.record("verdict", { ok: true });
-      recorder.flush();
+      hooks.report.add({ verdict: { ok: true } });
       if (k + 1 === plan.loads.length) return banner(`run done: ${plan.loads.length} loads`, false);
       const pause = plan.loads[k + 1].pauseBefore;
       if (pause) return banner(`${of} passed; load ${k + 2} waits: ${pause}`, false, loadUrl(plan, k + 1));

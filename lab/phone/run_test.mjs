@@ -66,7 +66,7 @@ async function runPlan(loads) {
   }
   return { end: "no end in 180 s", pauses };
 }
-/** Every record either static host appended, each with the address that took it. */
+/** Every load report either static host appended, each with the address that took it. */
 const records = () => Object.values(BINDS).flatMap((bind) => readFileSync(log(bind), "utf8").split("\n").filter(Boolean)
   .map((l) => ({ ...JSON.parse(l), host: bind })));
 const clearLogs = () => Object.values(BINDS).forEach((bind) => writeFileSync(log(bind), ""));
@@ -79,24 +79,25 @@ check(end === "run done: 4 loads", `the plan ran whole (${end})`);
 check(pauses.join() === "load 2 of 4 passed; load 3 waits: read the counters Continue", `it held once, before load 3 (${pauses.join(" | ")})`);
 await new Promise((r) => setTimeout(r, 500));
 const all = records();
-const loads = all.filter((r) => r.kind === "load").sort((a, b) => a.step - b.step);
+const loads = [...all].sort((a, b) => a.step - b.step);
 check(loads.map((l) => `${l.link} ${l.controller} ${l.view}`).join() === plan.filter((l) => !l.startsWith("pause")).map((l) => l.replace(" warm-up", "")).join(),
   `each load ran on its link, controller and view, in order (${loads.map((l) => `${l.step}:${l.link}/${l.port}/${l.view}`).join(" ")})`);
 check(loads.map((l) => l.port).join() === "8765,8765,8766,8766", "each controller's page port");
-check(loads.every((l) => l.host === BINDS[l.link]), `each load's records reached its own link's address (${loads.map((l) => l.host).join(" ")})`);
+check(loads.every((l) => l.host === BINDS[l.link]), `each load's report reached its own link's address (${loads.map((l) => l.host).join(" ")})`);
 check(loads.map((l) => l.counted).join() === "false,false,true,true", "the warm-ups are not counted");
 for (const l of loads) {
-  const mine = all.filter((r) => r.load === l.load);
-  const labels = mine.filter((r) => r.kind === "label").map((r) => r.quality).join(" ");
+  check(all.filter((r) => r.load === l.load).length === 1, `load ${l.step}: one report`);
+  const labels = l.labels.map((r) => r.quality).join(" ");
   check(l.received === 20 && l.frames.every((f) => f.route === "av1-webcodecs" && f.kb > 0 && f.decodeMs >= 0)
     && JSON.stringify(l.routes) === '{"av1-webcodecs":20}', `load ${l.step}: 20 frames through WebCodecs, counted per route, each with KB and decode ms`);
   // The status line's fill starts at the page's issue, before the downloader dials: it is the longer of the two.
   check(l.fillFrom > 1e12 && l.fillTo - l.fillFrom === l.fillMs && l.fillMs > 0 && l.fillMs <= l.statusFillMs,
     `load ${l.step}: the fill from the dial to the last frame stored, epoch ms, ${Math.round(l.fillMs)} ms (status line ${Math.round(l.statusFillMs)} ms)`);
   check(/optimal.* asking.* lossless.* optimal/.test(labels), `load ${l.step}: labels in order (${labels})`);
-  check(mine.filter((r) => r.kind === "lossless").length === 2, `load ${l.step}: lossless pressed twice`);
-  check(mine.some((r) => r.kind === "verdict" && r.ok), `load ${l.step}: passed`);
-  check(mine.every((r) => r.kind !== "error"), `load ${l.step}: no error recorded`);
+  check(l.presses.length === 2, `load ${l.step}: lossless pressed twice`);
+  check(l.verdict?.ok === true, `load ${l.step}: passed`);
+  check(l.errors.length === 0, `load ${l.step}: no error recorded (${JSON.stringify(l.errors)})`);
+  check(l.source && l.lossy?.q === 8 && l.frameCount === 20 && !l.truncated, `load ${l.step}: the series as its source fingerprint, its Q, its N`);
 }
 
 /** A load's page opened at another link's address than its step's stops there: each step is bound to its full origin. */
@@ -113,7 +114,7 @@ servers[4444].kill("SIGKILL");
 const { end: stopped } = await runPlan("wifi bbr page\ntether cubic-restart page");
 await new Promise((r) => setTimeout(r, 3000));
 const after = records();
-const verdict = after.find((r) => r.kind === "verdict");
+const verdict = after.find((r) => r.verdict)?.verdict;
 check(/^stopped at load 1 of 2: .*; not rerun: the start page at load 2$/.test(stopped), `the run stopped at load 1 and names the next (${stopped})`);
 check(verdict && !verdict.ok && /lossless/.test(verdict.why), `its verdict names the cause (${verdict?.why})`);
 check(!after.some((r) => r.step === 1), "load 2 never ran");
