@@ -39,7 +39,7 @@ class Handler(SimpleHTTPRequestHandler):
     exact: dict[str, Path] = {}
     log_requests = False
     csp = policy("127.0.0.1")
-    # Where the lab's client beacon is appended as JSONL, None to refuse it: lab/phone/README.md
+    # Where test pages' load reports are appended as JSONL, None to refuse them: docs/adr/telemetry-in-production.md §8
     beacon: Path | None = None
     beacon_lock = threading.Lock()
 
@@ -79,14 +79,14 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_error(404)
             return
         try:
-            records = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+            report = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
         except ValueError:
-            records = None
-        if not isinstance(records, list) or not all(isinstance(r, dict) for r in records):
-            self.send_error(400, "a JSON list of records")
+            report = None
+        if not isinstance(report, dict):
+            self.send_error(400, "one load report, a JSON object")
             return
         with self.beacon_lock, self.beacon.open("a") as f:
-            f.write("".join(json.dumps(r, separators=(",", ":")) + "\n" for r in records))
+            f.write(json.dumps(report, separators=(",", ":")) + "\n")
         self.send_response(204)
         self.end_headers()
 
@@ -119,7 +119,7 @@ def main():
     parser.add_argument("--transport", type=Path, help="serve this file as /wt/dev-transport.json")
     parser.add_argument("--exact-metadata", type=Path, help="a lossy --metadata's exact series: its metadata")
     parser.add_argument("--exact-transport", type=Path, help="and the transport file of the server that serves it")
-    parser.add_argument("--beacon", type=Path, metavar="FILE", help="append the lab's client beacon here as JSONL (lab/phone/README.md)")
+    parser.add_argument("--beacon", type=Path, metavar="FILE", help="append test pages' load reports here as JSONL (docs/adr/telemetry-in-production.md §8)")
     parser.add_argument("--log-requests", action="store_true", help="print each path asked for (client/viewer/check.mjs)")
     args = parser.parse_args()
     if args.bind.is_unspecified:
