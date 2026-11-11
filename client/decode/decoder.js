@@ -11,7 +11,12 @@ let toConsumer = null;
 let queue = Promise.resolve();
 /** The series' XXH3-64 per frame, 16 hex digits, and the hasher; absent, every frame is unchecked. docs/FIXTURES.md §Frame digests */
 let digests = null;
+/** An optimal-quality series' XXH3-64 of each frame's reconstruction, checked as `digests` are but never making a frame exact. docs/av1/payload-format.md §Integrity */
+let reconstruction = null;
 let xxh3 = null;
+/** The payloads of the group in flight from its keyframe, kept under `reconstruction` for decodeAgain. */
+let group = null;
+let groupLength = 1;
 /** Under the cache writer `decoders`: the series' directory, and each exact frame kept until the view asks its write. */
 let cache = null;
 
@@ -24,7 +29,10 @@ async function init(m) {
   codec = await import(m.decoder?.codec === "av1" ? "./av1.js" : "./htj2k.js");
   await codec.init({ ...m.decoder, groupLength: m.groupLength });
   digests = m.digests ?? null;
-  if (digests) xxh3 = await hasher();
+  reconstruction = m.reconstruction ?? null;
+  groupLength = m.groupLength ?? 1;
+  group = null;
+  if (digests || reconstruction) xxh3 = await hasher();
   // Without OPFS the decoder still decodes: the view's cache stops at the first write it asks for.
   if (m.cache && digests) cache = await seriesDir(m.cache.key).then((dir) => ({ dir, kept: new Map() }), () => null);
 }
@@ -39,20 +47,29 @@ async function write(index) {
 
 const hash = (sab) => xxh3.init().update(new Uint8Array(sab)).digest("hex");
 
+/** The payloads before frame `m` in its group, from its keyframe; `m`'s kept after them. Frames of a group arrive in order (av1-payload.js `continues`). */
+function groupBefore(m) {
+  if (!reconstruction || groupLength < 2) return null;
+  const kept = m.key ? [] : group;
+  group = kept && [...kept, m.bytes.slice()];
+  return kept;
+}
+
 /** A mismatch is decoded once more on another path, never asked again: docs/adr/exactness-in-production.md §2 */
-async function checked(m, r) {
-  const want = digests?.[m.index];
+async function checked(m, r, earlier) {
+  const want = (digests ?? reconstruction)?.[m.index];
   if (!want) return { ...r, exact: "unchecked" };
+  const verdict = (ok) => (digests ? { exact: ok } : { exact: "unchecked", asCoded: ok });
   const got = hash(r.sab);
-  if (got === want) return { ...r, exact: true };
+  if (got === want) return { ...r, ...verdict(true) };
   const first = `${r.path} gave ${got}, not ${want}`;
   try {
-    const again = await codec.decodeFrame(m.bytes, m, null, r.path);
+    const again = await (m.key === false && codec.decodeAgain ? codec.decodeAgain(earlier, m.bytes, m, r.path) : codec.decodeFrame(m.bytes, m, null, r.path));
     const second = hash(again.sab);
-    if (second === want) return { ...again, exact: true, mismatchOn: r.path };
-    return { ...r, exact: false, reason: `${first}; ${again.path} gave ${second}` };
+    if (second === want) return { ...again, ...verdict(true), mismatchOn: r.path };
+    return { ...r, ...verdict(false), reason: `${first}; ${again.path} gave ${second}` };
   } catch (err) {
-    return { ...r, exact: false, reason: `${first}; no second decode: ${err?.message ?? err}` };
+    return { ...r, ...verdict(false), reason: `${first}; no second decode: ${err?.message ?? err}` };
   }
 }
 
@@ -77,7 +94,8 @@ async function decode(m) {
   const stamps = { ...m.stamps, decodeStart: abs() };
   const preview = (r) => toConsumer.postMessage({ ...picture(m, r, { ...stamps, decodeEnd: abs() }), preview: true }, transferOf(r.sab));
   try {
-    const r = await checked(m, await codec.decodeFrame(m.bytes, m, preview));
+    const earlier = groupBefore(m);
+    const r = await checked(m, await codec.decodeFrame(m.bytes, m, preview), earlier);
     stamps.decodeEnd = abs();
     const p = picture(m, r, stamps);
     if (cache && p.exact === true) cache.kept.set(m.index, Object.assign(p, { writable: true }));
@@ -90,7 +108,7 @@ async function decode(m) {
   }
 }
 
-function picture(m, { info, sab, byteCount, range, path, refusal, exact, reason, mismatchOn }, stamps) {
+function picture(m, { info, sab, byteCount, range, path, refusal, exact, asCoded, reason, mismatchOn }, stamps) {
   return {
     kind: "frame",
     index: m.index,
@@ -107,6 +125,7 @@ function picture(m, { info, sab, byteCount, range, path, refusal, exact, reason,
     path,
     refusal,
     exact,
+    asCoded,
     reason,
     mismatchOn,
     wireBytes: m.bytes.length,

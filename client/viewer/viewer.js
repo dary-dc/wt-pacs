@@ -149,6 +149,7 @@ function status() {
 const options = lab.opts;
 const decoder = options.decoder ?? (meta.codec === "av1" ? { codec: "av1", lossy: meta.lossy !== undefined, ...(await built("dav1d")) } : await built("openjph"));
 const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : undefined;
+const reconstruction = meta.lossy?.reconstruction?.algorithm === "xxh3-64" ? meta.lossy.reconstruction.frames : undefined;
 const groups = meta.lossy?.g > 1 ? { groupLength: meta.lossy.g, frameCount: n } : {};
 const all = [...Array(n).keys()];
 // A lab harness slows the CPU from here: lab/viewer/levers.js.
@@ -161,6 +162,7 @@ const connectOpts = {
   // The file follows a restarted server; a pair the lab named stays pinned.
   transportFile: lab.pinned ? undefined : transportFile,
   digests,
+  reconstruction,
   ...groups,
   ...options,
   decoder,
