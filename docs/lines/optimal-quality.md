@@ -48,6 +48,10 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   `lab/scripts/link_impair.py` (no `sch_netem` in the cloud kernel). Correct wherever it finished; at 40 ms one way
   and 2 % loss `dbts_a1`'s cut filled in 36 s and Lossless took 3–6 s, and `dbts_b1` did not fill in 120 s
   ([`docs/reviews/demo-tests-mobile.md`](../reviews/demo-tests-mobile.md); one run per cell, one cloud host).
+* **Red team** (REDTEAM-DEMO, 2026-11-11, `claude/demo-redteam`, node tests only): five failing tests, one finding
+  without a test ([`docs/reviews/demo-redteam.md`](../reviews/demo-redteam.md)). The pair's source check is
+  geometry alone (no ingest writes `framesSha256`); photometric and rescale are not compared; a cut series shifts a
+  frame of any bits; an empty digest list passes; the overlay gives the exact frame the series' Q, G and cut.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
