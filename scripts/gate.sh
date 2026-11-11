@@ -194,6 +194,14 @@ else
   skip "optimal quality's test needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
 fi
 
+step "lab: the phone run's runner and beacon, headless on a synthetic pair across two controllers and two links"
+if [[ $browser -eq 1 && -f "$INGEST_BUILD/payload/libdecode.so" && -x "$INGEST_BUILD/aom-3.15.1/bin/aomenc" ]] \
+  && "$PYTHON" -c "import numpy, xxhash" 2>/dev/null; then
+  run 1 env PYTHON="$PYTHON" BUILD="$INGEST_BUILD" bash lab/phone/run_test.sh
+else
+  skip "the phone runner's browser test needs the browser, ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
+fi
+
 step "client: the native core's decode — every committed frame digest, through ingest/tools.sh's dav1d and OpenJPH — and its view module's want, store, credits and hand-over"
 if [[ -f "$INGEST_BUILD/payload/libdecode.so" ]]; then
   run 1 cargo test -p native-client --features decode --quiet -- decode:: view::

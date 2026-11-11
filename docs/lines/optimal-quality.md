@@ -102,6 +102,13 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   (`STORED_FORM=1 scripts/demo-series.sh` keeps it), dav1d's browser check through the lab's `refuseWebCodecs` on a
   10-bit series; SLICE-TOUCH's slice slider in both views; `client/README.md`'s *exact* sentence corrected. Results:
   `claude/work-ledger:docs/queue/DEMO-UX.md`.
+* **Tools for the phone run** (PHONE-TOOLS, 2026-11-11, `claude/phone-tools`, draft PR into `claude/demo-fixes-2`, not
+  for the demo): each image labelled with its commit (`REVISION`, OCI `revision`); a test-only server image with the
+  telemetry feature (`FEATURES=telemetry`, the default image unchanged; both built here and inspected); README step 8,
+  which read path a running server took; under `lab/phone/`, loaded only through the lab gate, a client beacon
+  (`?beacon=`, sent after the fill or on page hide; `dev-server.py --beacon-log`) and a runner page that walks §7's
+  loads across the two origins, presses **lossless** twice, waits a fixed gap and stops on any failure. Checked
+  headless on loopback on a synthetic pair (`lab/phone/run_test.sh`); not on a phone.
 * **Not yet run:** any phone run.
 * **The web image serves a pair** (MAIN-REVIEW, 2026-11-11, `claude/demo-fixes-2`): `--profile pair` with
   `EXACT_SERIES` starts a second server on 4434 for the exact series, and web answers its metadata and transport file
