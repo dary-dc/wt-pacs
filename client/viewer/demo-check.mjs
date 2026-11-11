@@ -1,8 +1,9 @@
 // The demo's check: an optimal-quality series and its exact series from scripts/demo-series.sh, served by README §Demo's own
 // commands, opened as a reader would, and every claim of the demo failed by name. README.md §Demo
 //
-//   node client/viewer/demo-check.mjs DIR LOSSY_ID [--route av1-webcodecs|av1-dav1d] [--view page|worker] [--json]
+//   node client/viewer/demo-check.mjs DIR LOSSY_ID [--route av1-webcodecs|av1-dav1d] [--view page|worker] [--link "OPTIONS"] [--json]
 //     DIR as demo-series.sh wrote it: ID.sbnd and ID.metadata.json for LOSSY_ID and its exactSeries
+//     --link: both series' sessions through one lab/scripts/link_impair.py with OPTIONS, a phone on lossy wireless
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -14,6 +15,7 @@ const [dir, id] = process.argv.slice(2);
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ROUTE = arg("--route", "av1-webcodecs");
 const VIEW = arg("--view", "page");
+const LINK = arg("--link");
 const T = mkdtempSync(path.join(tmpdir(), "demo-check-"));
 const children = [];
 const stop = () => { for (const c of children.splice(0)) c.kill("SIGKILL"); };
@@ -55,10 +57,23 @@ async function serve(exactMeta) {
   const lossy = run(server, ["--port", "4433", "--series", file(`${id}.sbnd`), ...cert]);
   const exact = run(server, ["--port", "4434", "--series", file(`${exactId}.sbnd`), ...cert]);
   const transport = readFileSync(path.join(ROOT, "client/dev-transport.json"), "utf8");
-  writeFileSync(`${T}/exact-transport.json`, transport.replace(":4433", ":4434"));
+  // Under --link the page dials the relay, 1000 above each server's port.
+  const [toLossy, toExact] = LINK ? [":5433", ":5434"] : [":4433", ":4434"];
+  if (LINK) writeFileSync(`${T}/transport.json`, transport.replace(":4433", toLossy));
+  writeFileSync(`${T}/exact-transport.json`, transport.replace(":4433", toExact));
+  const link = LINK && run("python3", ["lab/scripts/link_impair.py", "--udp", "5433:4433", "--udp", "5434:4434", ...LINK.split(/\s+/)]);
   const host = run("python3", ["server/dev-server.py", "--port", "8765", "--metadata", path.join(dir, `${id}.metadata.json`),
-    "--exact-metadata", exactMeta, "--exact-transport", `${T}/exact-transport.json`]);
-  await Promise.all([started(lossy, /transport=/), started(exact, /transport=/), started(host, /port=8765/)]);
+    ...(LINK ? ["--transport", `${T}/transport.json`] : []), "--exact-metadata", exactMeta, "--exact-transport", `${T}/exact-transport.json`]);
+  await Promise.all([started(lossy, /transport=/), started(exact, /transport=/), started(host, /port=8765/), link && started(link, /READY/)]);
+}
+
+/** The relay's own count of what crossed it, read as it stops. */
+async function tally() {
+  const relay = children.find((c) => c.spawnargs.includes("lab/scripts/link_impair.py"));
+  let out = "";
+  relay.stdout.on("data", (d) => (out += d));
+  await new Promise((done) => (relay.once("exit", done), relay.kill("SIGTERM")));
+  return out.trim().split("\n");
 }
 
 /** Each write to the label, the overlay and the status line, timed on the page's clock; the overlay is written on every paint. */
@@ -92,7 +107,8 @@ async function pass(browser, query) {
   const shown = (i, after) => until((l) => l.some((e) => e.id === "overlay" && e.text && e.frame === i + 1 && e.t > after), 30000);
   const n = lossyMeta.frameCount;
   const filling = !query.includes("fill=0");
-  if (filling) must(await until((l) => /fill \d+ ms/.test(l.findLast((e) => e.id === "status")?.text), 120000), `${query}: the fill completes`);
+  const status = async () => (await log()).findLast((e) => e.id === "status")?.text;
+  if (filling) must(await until((l) => /fill \d+ ms/.test(l.findLast((e) => e.id === "status")?.text), 120000), `${query}: the fill completes in 120 s: ${await status()}`);
   must(await shown(0, 0), `${query}: frame 1 painted`);
   const steps = [];
   for (let i = 1; i < (filling ? n : Math.min(n, 13)); i++) {
@@ -111,8 +127,11 @@ async function pass(browser, query) {
   await page.keyboard.press("l");
   await until((l) => /^Lossless/.test(l.findLast((e) => e.id === "quality")?.text), 30000);
   const losslessMs = Math.round((await log()).findLast((e) => e.id === "quality").t - pressed);
+  const labelled = (l) => l.filter((e) => e.id === "quality");
+  const writes = labelled(await log()).length;
   await page.keyboard.press("l");
-  await until((l) => l.findLast((e) => e.id === "quality")?.text === "Optimal quality", 10000);
+  // Settled: back at optimal quality, or, after a failed check, the retry answered.
+  await until((l) => labelled(l).length > writes && !/fetching/.test(labelled(l).at(-1).text), 60000);
   const l = await log();
   await page.close();
   const overlays = l.filter((e) => e.id === "overlay" && e.text);
@@ -162,6 +181,7 @@ try {
     }
     report.passes.push(r);
   }
+  if (LINK) report.link = await tally();
   stop();
   // The exact frame's digest made wrong: the label must say the check failed, and never Lossless.
   const bad = JSON.parse(readFileSync(exactMetaPath));
@@ -170,7 +190,9 @@ try {
   writeFileSync(`${T}/bad.json`, JSON.stringify(bad));
   await serve(`${T}/bad.json`);
   const r = await pass(browser, "&fill=0");
-  check(r.labels.includes(FAILED) && !r.labels.includes("Lossless"), `a wrong digest: the label ran ${JSON.stringify(r.labels)}`);
+  // The pass's second `l` lands on the failed label, so it asks again (the retry) and fails again.
+  const RETRIED = [LABELS[0], LABELS[1], FAILED, LABELS[1], FAILED];
+  check(JSON.stringify(r.labels) === JSON.stringify(RETRIED), `a wrong digest, \`l\` and its retry: the label ran ${JSON.stringify(r.labels)}, not ${JSON.stringify(RETRIED)}`);
   report.tampered = r.labels;
 } catch (e) {
   failures.push(e.message);
@@ -186,6 +208,7 @@ else {
       `${kb.toFixed(0)} KB over ${r.frames.length} frames painted, jump ${r.jumpMs} ms, lossless ${r.losslessMs} ms`);
   }
 }
+for (const line of report.link ?? []) console.log(`link: ${line}`);
 for (const f of failures) console.log(`FAIL ${f}`);
 console.log(failures.length ? `demo check: ${failures.length} failed` : `demo check: ${id} passed`);
 process.exit(failures.length ? 1 : 0);
