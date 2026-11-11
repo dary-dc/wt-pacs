@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11T19:00Z
-heartbeat: 2026-11-11T20:02Z
+heartbeat: 2026-11-11T20:15Z
 outputs: claude/proposals d143c942 (amendments 1 of R1 d5a3e396, R2 362bbc2c, R3 and R4 d143c942; drivers r1*, r2.sh, r3*, r4.sh; link_cells.mjs --jump-after-ms/--windows; link_impair.py `window`), docs/lines/proposals.md §Round 2; no PR yet
 ## Resume
 2026-11-11T19:01Z: setup started (log /home/user/logs/setup.log): worktrees ../proposals (claude/proposals 8fb23876), ../tip
