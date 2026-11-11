@@ -16,6 +16,18 @@ export function overlayText(about, quality, lossy) {
   return `${route} · ${kb} KB · decode ${ms} ms${series}`;
 }
 
+/** The overlay's word on optimal-quality frame `shown.i`'s reconstruction check and coding error, under `slope`, the rescale's; empty without the check. docs/lines/proposals.md §I3 */
+export function integrityText({ i, about, quality, window }, lossy, slope = 1) {
+  if (!lossy?.reconstruction || quality === "lossless") return "";
+  const check = about.asCoded ? `as coded${about.mismatchOn ? ` after ${about.mismatchOn} did not match` : ""}` : "unchecked";
+  const e = lossy.codingError;
+  if (!e) return check;
+  const linear = /^LINEAR/.test(window?.function ?? "") && window.width > 1;
+  const levels = linear ? ` (${((e.rms[i] * Math.abs(slope) * 255) / (window.width - 1)).toFixed(2)} levels at W ${window.width})` : "";
+  const ratio = e.noiseBandRatio[i] === null ? "—" : e.noiseBandRatio[i].toFixed(2);
+  return `${check} · error RMS ${e.rms[i].toFixed(2)}${levels} · e_N ÷ σ ${ratio} · max |Δ| ${e.max[i]}`;
+}
+
 /** The error the status line ends with, of `errors` as the page collected them, while `shown` is painted: not a lossless check its frame has since passed. */
 export const lastError = (errors, shown) =>
   errors.findLast((e) => !(shown?.quality === "lossless" && e.startsWith(`frame ${shown.i}: lossless: `)));

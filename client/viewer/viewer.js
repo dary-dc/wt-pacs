@@ -5,7 +5,7 @@ import { Painter } from "/client/paint/painter.js";
 import { asPainted, Controller, FIT, wantFrom } from "/client/view/controller.js";
 import { View, ViewWorker } from "/client/view/view.js";
 import { checkPair, pairOf } from "/client/viewer/pair.js";
-import { lastError, markOf, overlayText } from "/client/viewer/screen.js";
+import { integrityText, lastError, markOf, overlayText } from "/client/viewer/screen.js";
 
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById("view");
@@ -116,17 +116,21 @@ if (where === "page") {
 
 const QUALITY = {
   optimal: "Optimal quality",
+  asCoded: "Optimal quality ✓",
   asking: "Optimal quality · fetching lossless…",
   lossless: "Lossless",
   failed: "Lossless check failed · optimal quality shown",
 };
 /** The quality label says what is painted, as the controller judged it; the overlay, `?overlay=1`, how it got here. */
-function showQuality({ quality, about }) {
+function showQuality(shown) {
+  const { quality, about } = shown;
   qualityEl.hidden = !quality;
   qualityEl.className = quality ?? "";
   qualityEl.textContent = QUALITY[quality] ?? "";
   losslessEl.textContent = quality === "lossless" || quality === "asking" ? "optimal quality" : "lossless";
-  if (!overlayEl.hidden) overlayEl.textContent = overlayText(about, quality, meta.lossy);
+  const slope = meta.perFrame?.rescale?.[shown.i]?.slope ?? meta.rescale?.slope;
+  const checked = integrityText(shown, meta.lossy, slope);
+  if (!overlayEl.hidden) overlayEl.textContent = overlayText(about, quality, meta.lossy) + (checked && ` · ${checked}`);
 }
 overlayEl.hidden = q.get("overlay") !== "1";
 
@@ -137,7 +141,7 @@ function status() {
     `frame ${(view?.current ?? 0) + 1} of ${n}`,
     `client ${transport.client}`,
     `view ${where}`,
-    `received ${progress.have}, exact ${progress.seen.exact}, not exact ${progress.seen.inexact}, unchecked ${progress.seen.unchecked}`,
+    `received ${progress.have}, exact ${progress.seen.exact}, not exact ${progress.seen.inexact}, ${meta.lossy?.reconstruction ? `as coded ${progress.seen.asCoded}, ` : ""}unchecked ${progress.seen.unchecked}`,
     `decoders: ${paths}`,
     `codec ${meta.codec ?? "htj2k"}`,
     `renderer ${rendererName}${soft}`,
