@@ -1,8 +1,9 @@
 state: started
 started: 2026-11-11 18:59 UTC
-heartbeat: 2026-11-11 21:35 UTC
+heartbeat: 2026-11-11 23:21 UTC
 outputs: `claude/htj2k-tiles` e7b44077 (rows, docs; draft PR #324 into main, already open: the commits land in it)
 ## Resume
+Session 3 resumed 2026-11-11 23:21 UTC (stalled since 21:35), from `e7b44077`.
 Stages 0–2 done (19:33, `947bb3b9`). Session 2 (21:22–21:40): stage 3's inputs built and pushed; the lab client is next.
 Done, session 2: `4224e96e` `stage3_prep.py` + `stage3_check.py` (every frame's three strips cut into Layout 1's
 band-major entries, `e = b·N·T + f·T + t`, bands = levels 2, 1, 0; 294/294 pictures exact read back from the entries;
