@@ -34,6 +34,15 @@ STUDIES=/path/to/studies SERIES=ct docker compose -f deploy/compose.yml up -d
 Each image carries the commit it was built from as `org.opencontainers.image.revision` (`unknown` without
 `REVISION`): `docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' wt-pacs-server`.
 
+**A test-only server image** with the lab's server telemetry (`lab/server-telemetry`, the phone run's
+`docs/devices.md` §7 amendment): the build argument `FEATURES` names `series-server`'s cargo features, none by default,
+and the image's label `dev.wt-pacs.features` says which. Under its own name, so the product's image is untouched:
+
+```bash
+docker build -f deploy/Containerfile --target server --build-arg FEATURES=telemetry \
+  --build-arg REVISION=$(git rev-parse HEAD) -t wt-pacs-server-telemetry .
+```
+
 The decoders, the frame check's hasher and their notices (`client/decode/wasm/built/`) and the page's TS client
 (`client/transport/ts/dist/session.js`) are committed, each pinned by a manifest that `scripts/gate.sh` checks and
 rebuilds them against (owner's decision D2, 2026-10-21), so the deploy host builds no decoder.
