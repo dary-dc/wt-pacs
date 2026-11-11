@@ -5,7 +5,7 @@ import { Painter } from "/client/paint/painter.js";
 import { asPainted, Controller, FIT, wantFrom } from "/client/view/controller.js";
 import { View, ViewWorker } from "/client/view/view.js";
 import { checkPair, pairOf } from "/client/viewer/pair.js";
-import { labelOf, lastError, markOf, overlayText } from "/client/viewer/screen.js";
+import { labelOf, lastError, markOf, overlayText, unfoldOnTap } from "/client/viewer/screen.js";
 
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById("view");
@@ -14,6 +14,8 @@ const markEl = document.getElementById("mark");
 const qualityEl = document.getElementById("quality");
 const losslessEl = document.getElementById("lossless");
 const overlayEl = document.getElementById("overlay");
+const barEl = document.getElementById("bar");
+statusEl.onclick = qualityEl.onclick = (e) => unfoldOnTap(barEl, e);
 const at = () => performance.timeOrigin + performance.now();
 
 const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport])

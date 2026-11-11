@@ -28,3 +28,6 @@ const LABELS = {
 };
 /** The quality label of what is painted, `{ className, text }`: the class gives its colour, the text says the same. */
 export const labelOf = (quality) => ({ className: quality ?? "", text: LABELS[quality] ?? "" });
+
+/** A tap on the label or the status line unfolds the status bar to its whole line, wrapped; the next folds it. */
+export const unfoldOnTap = (bar, e) => e.pointerType === "touch" && bar.classList.toggle("unfolded");

@@ -1,6 +1,6 @@
 // node client/viewer/screen.test.mjs — what the page writes of a shown frame says one thing of it.
 import assert from "node:assert/strict";
-import { labelOf, lastError, markOf, overlayText } from "./screen.js";
+import { labelOf, lastError, markOf, overlayText, unfoldOnTap } from "./screen.js";
 
 const lossy = { q: 8, g: 16, depth: 10, bitsStored: 12 };
 const about = { path: "htj2k", wireBytes: 2048, decodeMs: 3 };
@@ -34,5 +34,17 @@ assert.deepEqual(labelOf("asking"), { className: "asking", text: "Optimal qualit
 assert.deepEqual(labelOf("lossless"), { className: "lossless", text: "✓ Lossless" });
 assert.deepEqual(labelOf("failed"), { className: "failed", text: "Lossless check failed · optimal quality shown" });
 assert.deepEqual(labelOf(null), { className: "", text: "" });
+
+/** A tap unfolds the status bar and the next tap folds it; a mouse click leaves it as it is, so the desktop is unchanged. */
+const bar = { classList: new Set() };
+bar.classList.toggle = (c) => (bar.classList.has(c) ? bar.classList.delete(c) : bar.classList.add(c));
+unfoldOnTap(bar, { pointerType: "touch" });
+assert.ok(bar.classList.has("unfolded"));
+unfoldOnTap(bar, { pointerType: "mouse" });
+assert.ok(bar.classList.has("unfolded"));
+unfoldOnTap(bar, { pointerType: undefined });
+assert.ok(bar.classList.has("unfolded"));
+unfoldOnTap(bar, { pointerType: "touch" });
+assert.ok(!bar.classList.has("unfolded"));
 
 console.log("screen: ok");

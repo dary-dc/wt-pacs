@@ -509,7 +509,9 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   series adds its quality label and the lossless button (§Optimal quality, exact on request); the label then stands
   for an unchecked frame's mark, and only *NOT EXACT* is marked beside it.
 * **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the decoder per path, the
-  codec, the renderer (marked software when it is), the fill's time, and the last error by name.
+  codec, the renderer (marked software when it is), the fill's time, and the last error by name. A tap
+  (touch only; a mouse click does nothing) on it or on the quality label unfolds it whole, wrapped; the next folds it
+  (`viewer/screen.js` `unfoldOnTap`).
 * **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=`, `?origin=` and `?writer=` let a lab harness drive the
   same page. They load from `lab/viewer/levers.js`, which only the dev host serves: on the web image a link carrying
   any of them is refused, by name on the status line, before the page fetches, imports or dials anything.
