@@ -645,3 +645,169 @@ B0 (`claude/audit-measure` at `33cb6b3d`, arithmetic on committed rows) survives
 the noise point and QA F1, and its 8-bit mutation fails. But its x\* is the smallest x over the frames seen, and it
 has fallen each time volumes were added (4.9293 → 4.8024 → 4.7584 at G 1). It is a sample extreme that has not yet
 converged, not a bound, and B's δ is what may set the rule on it.
+
+## Round 2
+
+*Row OPT-ROUND-2, 2026-11-11, a session that wrote and measured none of §Optimize, §P6, §Integrity or §Red team.
+Theory and pre-registered protocols only; nothing built or measured. MEASURE-2 runs them, with an amendment before
+any run where the host forces one.* Read against MEASURE-1's rows at `4ab3ee0d` and the red team at `8527047e`; the
+demo tip is now `claude/demo-fixes-2` at `4ba95e1b`. Every decided approach is kept: `cubic-restart` stays the
+default and tiles wait until after the demo (the owner, 13:30), so every protocol here informs a decision after the
+demo or the phone runs, and none is for FIX-2. Labels as §Optimize: (S), (R), (D); every band is **an assumption**.
+
+| # | from | serves | expected effect (assumption) | runs (D) | order |
+| --- | --- | --- | --- | --- | --- |
+| R0 | the red team's P4, P5 and P6 notes | every rule | — | +1 A/A arm each | with each |
+| R1 | P2's owed cells (I1, I2) | jump, step, phone decode | tiles' coding error within ±1 % of one tile's; the G 16 jump 0.70–0.85× | 7 encodes, ~60 page runs | 1 |
+| R2 | P1's owed cell | the on-demand ask during the fill | BBR's jump 0.2–0.6× of Cubic's at 1 % loss, 0.8–1.3× clean and in bursts | ~150 | 2 |
+| R3 | P3, rebuilt | `l` after a dwell | 0–100 ms on cellular | 28 here; the phone row | 3 |
+| R4 | P1 + P4 | `l` | `l` 0.85–0.95× clean under BBR, a tie under loss | ~250 | 4 |
+| R5 | P6 | bytes, first picture | P6's bands, unchanged | P6's + 1 arm | 5 |
+
+Most promising first. R1 costs no browser time for its deciding cell and P2 is the only measured lever on the
+decode. R2 completes the total effect of the one proposal whose gain is an order of magnitude, and it feeds the
+phone runs' controller arm. R3 depends on a phone. R4 matters only if the phone runs move the default to BBR.
+
+### R0. An A/A arm in every rule
+
+**Why (R).** Two page builds three lines apart, neither touching the first picture, differed by +1 to +30 ms over
+9 runs a side (P5). The same arm in the same cell, hours apart, gave `dbts_a1`'s clean fill 2 548 and 2 694 ms (P1
+against P4, 1.06×). One `l` cell under 1 % loss spans 756–3 544 ms over 21 runs (P4). A bar set under that spread
+rejects a tie by chance (P4's `dbts_a1` at 1.06×), and with 5 runs a side a ratio carries about ±0.2 (P1).
+**Rule for every protocol below.** (1) An A/A arm, the reference run against itself, interleaved in the same
+rotation in at least the cell with the widest spread. (2) Each time tolerance is the larger of the registered value
+and the A/A arm's |ratio − 1| in that cell. (3) An `l` under loss is read on at least 21 runs a cell, pooled over
+frames where the protocol has several. (4) Every pass and every miss is reported, as in round 1.
+
+### R1. Tiles at equal quality, and the G 16 jump (P2, I1, I2)
+
+**Mechanism.** P2 met its rule at the same cq-level, not at the same quality. Tile edges stop prediction and reset
+entropy contexts (P2 §Mechanism), so the coding error can move while the bytes barely do (+0.01 to +0.65 %, R, P2
+§Bytes). The demo's Q was chosen by e_N ÷ σ (R, §Integrity I2), and I2 measures exactly that at the ingest. The
+registered exactness condition, that the encoder's reconstruction equals the decoder's, was dropped because the ingest
+had no such check (R, P2 amendment 1); I1's reconstruction digest is that check (R, §Integrity I1, being built on
+`claude/oq-integrity-build`). The demo codes `dbts_c1` at G 16, and P2 timed G 8 only, so the demo's longest jump
+has not been timed with tiles (R, red team P2 (3)).
+
+**Expected effect (assumption).** e, max |Δ| and e_N ÷ σ of a 2 × 2 series within ±1 % of the one-tile series at the
+same Q, from the bytes having moved less than 1 % (D, a weak inference, which is why this is measured). The jump
+mid-group at G 16 is 0.70–0.85× of one tile's. At G 8 it was 0.73–0.84× (R). At G 16 there are about twice the
+sequential decodes per jump, so decode is a larger share and the ratio moves toward the per-frame 0.64–0.72× (D).
+**Cost.** None to the demo. Seven encodes (P2's six arms' 2 × 2 series exist under `P2_OUT`; add
+`dbts_c1-q8-g16-cut` in both arms), I2's metric at ≤ 0.27 CPU s a megapixel (R).
+
+**Protocol (pre-registered).** *Rule first:* 2 × 2 is ready for adoption after the demo if (1) on each of the seven
+series, its e and e_N ÷ σ are each ≤ 1.02× the one-tile series' (frame median and frame maximum both), and its max
+|Δ| does not rise by more than one source unit at the median frame; (2) every frame of both arms passes I1's digest
+through the product's WebCodecs route; (3) the jump on `dbts_c1-q8-g16-cut` (`End` under `&fill=0`) is ≤ 0.85×
+one tile's on 4 cores, with R0's tolerance; (4) P2's measured conditions stand. If (1) fails, the cell that would
+recover it is the 2 × 2 arm at the Q with equal e_N ÷ σ, with its bytes and decode time. That is a new protocol for
+round 3, not an amendment here. If I1 is not built when MEASURE-2 runs, (2) is reported as missing and the verdict
+waits on it; it is not dropped. *Arms:* one tile and 2 × 2 (`--tile-columns=1 --tile-rows=1`), P2's encoder
+wrapper `lab/proposals/p2_encode.py` unchanged; the one-tile arm byte-equal to `demo-series.sh`'s bundles, as P2
+checked. *Quality cell:* I2's three metrics computed by the quality study's code (`claude/av1-vl-metrics:lab/av1/metrics/`)
+on both arms' reconstructions, against the source. For the depth cut, code c stands for c · 2^(D−10), as I2 states.
+*Jump cell:* `demo-check.mjs DIR ID --json` on the demo tip as P2's page cell, `dbts_c1-q8-g16-cut` only, 7 rounds,
+the arms alternating and the first arm alternating between rounds, plus an A/A pair (one tile against itself) in the
+same rotation; 4 cores, then the same under `taskset -c 0,1`, which is reported and decides nothing. *Recorded
+beside, deciding nothing:* `navigator.hardwareConcurrency` in each page run. P2's 2-core fill gain fell to
+0.94–1.00× (R), and the decoder count is `min(3, navigator.hardwareConcurrency || 3)` (R, `client/README.md` §How
+many decoders); whether `taskset` reaches that value is not known, and the reading says whether three decoders and
+the tile threads shared two cores there. *Limits:* x86-64 cores under headless Chromium's software dav1d, not a
+phone's; three DBT volumes of one dataset; a frame-pooled metric can pass a frame while a region fails (R, I2).
+
+### R2. A jump during the fill, under BBR and under Cubic (P1)
+
+**Mechanism.** During the fill BBR held a standing queue of 85–260 ms on the optimal-quality session in every cell,
+where Cubic's was ~1 ms under 1 % loss and 250–480 ms clean (R, P1 §Measured, the relay's sojourn). A jump during the
+fill asks a group on that session. Whatever order the server sends in, its frames cross the same bottleneck queue
+(D). Under 1 % loss Cubic's window is small: its fill ran at about 0.11–0.12× of BBR's speed (R), so a group's
+transfer is slow. Clean, both controllers queue. A group at G 8 of `dbts_a1-q8-g8-cut` is about 0.7 MB (D: 4.7 MB
+over 56 frames, × 8). At P1's Cubic rate under loss (2.6 Mbit/s, R §1) that is ~2 s. At 20 Mbit/s it is ~0.3 s, plus
+BBR's queue.
+
+**Expected effect (assumption).** BBR's jump during the fill 0.2–0.6× of Cubic's at 1 % iid loss, 0.8–1.3× clean
+and in bursts, where the two queues are of the same order.
+
+**Protocol (pre-registered).** *Rule first:* this protocol decides no adoption (the owner keeps `cubic-restart` and
+the phone runs decide the controller). It decides P1's claim. If BBR's median jump is ≤ 1.0× Cubic's in the 1 % cell
+and ≤ 1.25× in the clean and burst cells on every series, P1's claim "faster fill and lower on-demand latency" stands
+for the jump during the fill too. Otherwise P1's verdict is corrected in place to name the cell and the ratio by
+which the jump is slower. *Arms:* both servers `--congestion cubic-restart` and both `--congestion bbr`, plus an A/A
+arm (Cubic against Cubic) in the 1 % cell, R0. *Fixtures:* P1's three series and their exact series. *Link:* P1's
+amendment 1 (`link_impair.py`, 30 ms each way, 20 Mbit, 1 000 packets), cells 0, iid1, ge. *Driver:*
+`lab/proposals/link_cells.mjs` gains a jump during the fill: `End` pressed a fixed 500 ms after the first picture
+(inside every fill P1 measured, the shortest 2.2 s). That is a lab driver change, written and smoke-tested in the
+amendment before any run. *Measured:* the key to the last frame's picture (the jump's own timing, as `demo-check.mjs`'s
+`jumpMs`), the fill's last frame, and the relay's sojourn on the optimal-quality session over the jump's window.
+Latency only. 7 rounds, the arms alternating within a round and the first arm alternating between rounds, fresh
+processes per run. *Saturation:* a jump within 10 % of the same series' jump under `&fill=0` on loopback is
+decode-bound and is reported so, no ratio claimed. *Limits:* a userspace relay with loss in both directions, not a
+radio; nothing here prices congestive loss or a neighbour, which the phone runs' controller arm reads
+(`docs/devices.md` §7 amendment); three DBT volumes of one dataset; one 4-core host without a GPU; SwiftShader.
+
+### R3. The wake rebuilt on `end_stream` alone (P3)
+
+**Mechanism, corrected.** As P3, with the red team's two corrections built in. The wake sends `end_stream` on the
+exact session and nothing else: it does not call the downloader's `cancel`, which also drops the bookkeeping of an
+`l` in flight (R, red team P3 (1)). The phone row spreads its dwells off the browser's 15 s ping, which otherwise
+pays or hides the promotion at a fixed phase (R, P3 §Measured, the ping check; red team P3 (2)).
+
+**Expected effect (assumption).** 0–100 ms on an `l` after a dwell, on cellular. The radio is idle for only 4.5–10 s
+of each 15 s ping period, so min(P, L) is gained with probability 0.3–0.67 (R, red team P3 (3)). Nothing on Wi-Fi or
+in a container.
+
+**Protocol (pre-registered).** *Plumbing, here.* The arm is a lab copy of the demo tip's page, never the tip, built
+as `lab/proposals/p3_arm.sh` is. Its downloader gains a `wake` message that calls the exact session's `endStream()`
+(`client/transport/ts/frame-session.ts`) and nothing else, and the lossless button's `pointerdown` posts it. A lab
+test, mutated, shows that the `wake` never reaches the optimal-quality session and that a tap during an `l` still
+ends at *Lossless*. P3 amendment 1's cell on `dbts_a1-q8-g8-cut` and `dbts_c1-q8-g16-cut` (`dbts_b1` is excluded:
+its `l` falls past the ping, R), with variants `off` and `on 100`, 7 rounds. *Rule (plumbing):* `on 100` − `off` is
+−100 ± 15 ms on both series (P3 measured −88 and −105 with `cancel`). *The deciding row, the owner's phone on
+cellular:* 20 dwells per arm, wake on and off alternating; each dwell's length is drawn in advance, uniformly over
+6–14 s after the session's last packet (a seeded list written into the amendment). For each `l`, record the time
+since the session's last packet from the exact server's path line. *Rule (phone):* adopt if the on arm's median `l`
+is lower by ≥ 30 ms, with R0's A/A pair (off against off, 10 dwells) setting the floor, and no `l` fails. *Limits:*
+the relay's radio is a model; the phone row is one device on one carrier; the ping's period is by report (R,
+`transport-conclusions.md`).
+
+### R4. The 32-packet initial window under BBR (P1 + P4)
+
+**Mechanism.** P4 was measured under Cubic only (R, P4 §Measured; red team P4, *Not tested*). Clean, its gain was
+−8 to −14 % on `l` (R), from the first flights of a session that never fills. BBR's startup also opens from the
+initial window (D). Whether the server's `--initial-window-bytes` reaches its BBR controller is read from the server's
+code in the amendment; if it does not, R4 is void and says so. P5's unexplained `l` slowdown (1.03–1.10×, R) shows
+that the exact session's state at the moment of `l` moves it, so this protocol records the exact session's path RTT
+in every run.
+
+**Expected effect (assumption).** `l` 0.85–0.95× clean under BBR, a tie under 1 % loss, where BBR does not end its
+startup at the first loss as Cubic does (R, P1 §Mechanism, BBR's loss threshold).
+
+**Protocol (pre-registered).** *Rule first:* `--initial-window-bytes 38400` on the exact server becomes a documented
+option beside `--congestion bbr` if, with both servers on BBR, its median `l` is ≤ 0.92× in the clean cell on every
+series and ≤ 1.0× (R0's tolerance added) in the 1 % cell; else it is withdrawn for BBR too. It changes no default.
+*Arms:* both servers `--congestion bbr`; the exact server at quinn's default window against 38 400; A/A (default
+against default) in the 1 % cell. *Fixtures, link, frames, order:* P4's amendment 1, cells 0 and iid1 only (P4's
+`q20` and `ge` cells read as clean), the three frames pooled: 7 rounds, 21 runs a cell (R0). *Measured:* `l` to
+*Lossless* after 10 s of quiet, and the exact session's path RTT at the ask. *Limits:* as P1's. This waits on the
+phone runs: unless they move the default to BBR, it informs only a lab option.
+
+### R5. P6 with its A/A arm
+
+P6's rule as the red team corrected it (§Red team, *Corrections to §P6*): arm (a′), the tip against itself, is
+added in the same rotation, and each time tolerance is the A/A spread or the registered value, whichever is larger,
+read on the cells pooled. The bytes rule (1) stays the gain. Nothing else in P6 changes. *Recorded beside:* whether
+`dev-server.py`'s responses give the workers' refetches a heuristic cache hit, read from the request log, as the red
+team left open.
+
+### Round 2: MEASURE-1's data read, nothing proposed
+
+* *Cubic's slow start overflowed the 1 000-packet queue clean* (10–24 % of the optimal-quality server's datagrams,
+  R, P1). A gentler startup for Cubic would change the default controller's behaviour, which the owner holds until
+  the phone runs. It is named here, not proposed.
+* *P5's late dial slowed `l`.* That supports today's early dial. R4 records the exact session's RTT, which would
+  explain it.
+* *P2's three failed page runs* (the label never seen at *fetching lossless…* under 2-core load, R) are a
+  `demo-check.mjs` or label finding, not a proposal. They are FIX-2's and REVIEW-2's.
+* *B0's x\** is a sample extreme that has not converged (R, red team). Audit protocol B's δ sets it; MEASURE-1 is
+  still running B.
