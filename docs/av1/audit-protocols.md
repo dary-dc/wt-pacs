@@ -390,3 +390,19 @@ The protocol names the cells and the readings but not the code or every reading.
 * **Rows.** `lab/av1/audit/rows/b.jsonl`, committed about every 10 minutes while the run lasts.
 * **Host.** One 4-core cloud host without a GPU, 15 GB; `--jobs 4`, `--memory-gb 13.5`. Encode CPU seconds are
   reported per cell; nothing here is timed for a verdict.
+
+### B · amendment 2, written 2026-11-12 00:20 UTC before any extra rung was coded
+
+The protocol allows one rung outward where a volume's worst frame is not bracketed (§Shared cells), and names no test
+for "bracketed". Fixed here, after G 1's 185 cells landed and before any extra encode:
+
+* **Bracketed.** A (volume, G) ladder is bracketed when one rung's worst frame is ≤ 1 − δ and one is > max(1 + δ,
+  1.03), so that Q_lo, Q_hi and both bars' integer points each fall inside the ladder. δ is the volume's (B1, B2; it
+  does not depend on G).
+* **The extension.** Each (volume, G) not bracketed above gains the next integer Q (13 on 12-bit, 17 on 10-bit);
+  not bracketed below, the one under (3 on 12-bit, 5 on 10-bit). Once, never further, decided on the ladder's rows
+  alone. One still not bracketed is reported *censored*: Q_hi or the bar's point is then "≥ the top rung".
+* **Seen at G 1, before this was written** (a reading of `lab/av1/audit/summary.py` on the rows, nothing coded):
+  no volume is short below; above, six 10-bit volumes are short: `dbts_b2` (worst 1.028 at most), `dbts_b3` (1.024),
+  `dbts_b4` (1.028), `dbts_b5` (1.033, δ 3.8 %), `dbt10_d` (1.028) and `dbt10_ea1141` (1.016). Their Q 17 at G 1, and
+  whatever G 16 shows short by the same test, are coded after G 16's ladder, by `cells.py --extra NAME:G:Q`.
