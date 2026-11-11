@@ -73,3 +73,4 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | variant | one condition of a timed comparison, interleaved with the others in every round (`CLAUDE.md` §Measurement) |
 | busy-UI loop | the lab's block of the UI thread: it spins for a set time on a fixed schedule, so what waits on that thread slips (`client/native/src/clock.rs`; [`native/README.md`](native/README.md) §The comparison, pre-registered, metric 4) |
 | hop | one message between two threads; its **hop stamp** is its send → receive time (`client/native/src/count.rs`) |
+| page hooks | what the viewer check and a lab harness do with the product's page (`lab/viewer/hooks.js`): reached only through `head.js`'s lab gate, so absent wherever `lab/` is not served |

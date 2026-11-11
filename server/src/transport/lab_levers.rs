@@ -21,11 +21,26 @@ pub struct LabLevers {
     /// not whole GSO batches (docs/rig-limits.md §3).
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
     pub segmentation_offload: bool,
+    /// Lab only: before each frame, the send window is the congestion window plus two of the series' largest frames.
+    /// docs/transport/link-conditions.md §ASKAHEAD
+    #[arg(long, default_value_t = false)]
+    pub send_window_follows_cwnd: bool,
+    /// Lab only: answer a client's repeated Initial with the unacknowledged handshake flight,
+    /// once a connection. docs/transport/transport-conclusions.md §3, Answering a repeated Initial.
+    #[arg(long, default_value_t = false)]
+    pub reply_repeated_initial: bool,
 }
 
 impl Default for LabLevers {
     fn default() -> Self {
-        Self { force_pool_reads: false, hold_sessions: false, stall_after_bytes: None, segmentation_offload: true }
+        Self {
+            force_pool_reads: false,
+            hold_sessions: false,
+            stall_after_bytes: None,
+            segmentation_offload: true,
+            send_window_follows_cwnd: false,
+            reply_repeated_initial: false,
+        }
     }
 }
 
@@ -50,7 +65,11 @@ pub(super) fn apply(mut config: ServeConfig) -> ServeConfig {
     if let Some(bytes) = lab.stall_after_bytes {
         warn!(bytes, "--stall-after-bytes: every session stalls; this is a lab flag, not a deployment one");
     }
+    if lab.reply_repeated_initial {
+        warn!("--reply-repeated-initial: a repeated Initial is answered; this is a lab flag, not a deployment one");
+    }
     config.tuning.segmentation_offload = lab.segmentation_offload;
+    config.tuning.reply_repeated_initial |= lab.reply_repeated_initial;
     config
 }
 

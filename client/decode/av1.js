@@ -10,7 +10,7 @@ let cfg = null;
 let importer = (path) => import(path);
 const loaded = {};
 
-/** `d`: dav1d's `glue`, `wasm` and `dir`, `groupLength`, `lossy`; the lab's `mixed`, `onePass`, `reuseCopyBuffer` and `refuseWebCodecs`: docs/decode/README.md §JS passes protocol. */
+/** `d`: dav1d's `glue`, `wasm` and `dir`, `groupLength`, `lossy`; the lab's `mixed` and `refuseWebCodecs`: docs/decode/README.md §JS passes protocol. */
 export async function init(d, load) {
   cfg = d;
   if (load) importer = load;
@@ -59,7 +59,7 @@ export async function decodeFrame(bytes, unit = { key: true }, preview, avoid) {
   if (wc) {
     try {
       const [t, l] = await Promise.all([wc.picture(top, unit), low && wc.picture(low, { key: true }, "low")]);
-      return { ...(cfg.onePass !== false && l ? merge(t, l, payload) : end(begin(t, payload), l)), path: "av1-webcodecs" };
+      return { ...(l ? merge(t, l, payload) : end(begin(t, payload), l)), path: "av1-webcodecs" };
     } catch (e) {
       if (avoid === "av1-dav1d") throw e;
       refusal = e?.message ?? String(e);

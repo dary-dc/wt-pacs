@@ -83,12 +83,11 @@ export class ViewWorker {
   }
 
   /**
-   * `emit(type, event)` hears renderer, progress, shown and failed `{scope: frame | series | cache | worker, reason}`;
-   * `watch(data, from)`, when given, every message the page receives; `settle`, a lab's wait for each draw (client/paint/paint-worker.js);
-   * `watchWrites`, the viewer check's, that the view worker count the cache writes on its own thread; `booted`, a worker
-   * from `boot`; `glAfterDial`, the lab's setting that the WebGL2 context waits for the dial.
+   * `emit(type, event)` hears renderer, progress, shown and failed `{scope: frame | series | cache | worker, reason}`.
+   * `lab`, none in the product: lab/viewer/levers.js names its fields.
    */
-  constructor(canvas, { meta, fillMode, size, emit, watch, settle, watchWrites = false, booted, glAfterDial = false }) {
+  constructor(canvas, { meta, fillMode, size, emit, lab = {} }) {
+    const { watch, settle, check, booted, glAfterDial = false } = lab;
     this.#worker = booted ?? new Worker(SCRIPT, { type: "module" });
     this.#worker.onerror = (e) => this.#end(this.#started ? `the view worker failed: ${e.message}` : `the view worker did not start: ${e.message || "its script did not load"}`);
     this.#worker.onmessageerror = () => this.#end("a message from the view worker could not be read");
@@ -102,7 +101,7 @@ export class ViewWorker {
       else r.resolve(data.value);
     };
     const offscreen = canvas.transferControlToOffscreen();
-    this.#worker.postMessage({ kind: "start", canvas: offscreen, meta, fillMode, size, settle, watchWrites, glAfterDial }, [offscreen]);
+    this.#worker.postMessage({ kind: "start", canvas: offscreen, meta, fillMode, size, lab: { settle, check, glAfterDial } }, [offscreen]);
     this.#emit = emit;
     this.#watch = watch;
     if (booted?.unloaded) this.#end(`the view worker did not start: ${booted.unloaded}`);
@@ -215,7 +214,7 @@ export class ViewWorker {
     return this.#call("cine");
   }
 
-  /** The viewer check's in-worker half, phase by phase: client/view/check.js. */
+  /** The viewer check's in-worker half, phase by phase, from the module `lab.check` named. */
   check(phase, args) {
     return this.#call("check", { phase, args });
   }

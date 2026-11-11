@@ -145,6 +145,11 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   Wi-Fi arm is "server wired, phone on Wi-Fi"; a run through the userspace relay is labelled simulated; a Galaxy S23
   (Android 16, Chrome 157). Its requests are recorded whole in the queue (row PHONE-TOOLS-2).
 
+* **The page after CLEAN-PRODUCT** (2026-11-11, `claude/clean-product`): `viewer.js` holds no check or lab code;
+  `?check=` is a lab parameter, refused on the web image like the others, and the check's modules load from
+  `lab/viewer/` through `head.js`'s lab gate (`lab/viewer/hooks.js`). `check.mjs --url` serves `lab/` to the page
+  from the checkout, Chromium alone.
+
 ## Terms
 
 One row each in [`docs/glossary.md`](../glossary.md) since 2026-11-10 (`claude/core-next`): *optimal quality* (and the

@@ -32,7 +32,7 @@ A 4× cell slows every thread of the browser with `lab/scripts/cpu_throttle.mjs`
 Every arm shows, on each tick, **the frame due at the tick's time**, `floor((tick − t0) / T)`, once; a tick late by a
 long task skips the frames it missed rather than showing them late one by one. The page starts the arm by sending the
 view worker `play` (`client/view/view.js`); the page's arms then post `tick`s. The worker paints through the
-controller, so each frame is uploaded on its tick, as the paint worker does today. `client/view/check.js`'s `hold`
+controller, so each frame is uploaded on its tick, as the paint worker does today. `lab/viewer/check-view.js`'s `hold`
 makes the series' frames in the view worker before the clock starts: no network, no decode.
 
 ## Phase

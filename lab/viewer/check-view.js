@@ -1,7 +1,7 @@
 /** The viewer check's half that runs beside the controller, on the page or in the view worker. client/viewer/check.mjs */
-import { sha256Hex } from "../decode/wasm-glue.js";
-import { paintReference } from "../paint/reference.js";
-import { asPainted, samplesOf } from "./controller.js";
+import { sha256Hex } from "../../client/decode/wasm-glue.js";
+import { paintReference } from "../../client/paint/reference.js";
+import { asPainted, samplesOf } from "../../client/view/controller.js";
 
 /** What goes to the downloader until `undo`: an ask as its index, a want as `want` and its indices, anything else by its kind. */
 function listen(controller, port) {
