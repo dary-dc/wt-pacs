@@ -79,7 +79,7 @@ was reverted at the tip and the tests were run again. All node tests pass at the
 
 | change | reverted | result |
 | --- | --- | --- |
-| 1 the label in colour (1952131f) | `labelOf` back to plain text: the hunk taken out by hand, since 4222d27b follows it | `screen.test.mjs`'s label assertions fail |
+| 1 the label in colour (1952131f) | `labelOf` is new in this commit, so it was mutated in place: its class set to "", then the ✓ dropped | `screen.test.mjs:32` and `:34` fail. The colour itself is CSS in `index.html` and no node test covers it (DEMO-UX cites a Chromium check) |
 | 2 a tap unfolds the status line (4222d27b) | `screen.js` reverted | `screen.test.mjs` fails (the `unfoldOnTap` import is gone). Mutant "ignore `pointerType`": killed by the mouse-click assertion |
 | 3 the stored form off the show list (faf03c2f) | `av1.js` and `viewer.js` reverted | `av1.test.mjs`: "refuseWebCodecs true: webcodecs; av1-webcodecs" |
 | 4 the slice slider (93293abb) | `slider.js` reverted | `slider.test.mjs` fails. With only the module's import, that proves little, so its assertions were read too: the span, the far jump to the last slice, pause before show, follow, and the keys a focused range takes |
