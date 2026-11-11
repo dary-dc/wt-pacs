@@ -1,16 +1,13 @@
 state: started
 started: 2026-11-11 03:21
-heartbeat: 2026-11-11 03:26
-outputs: claude/demo-fixes-1 fdbf8f89 (from claude/demo-fixes-0 36d286cd)
+heartbeat: 2026-11-11 03:30
+outputs: claude/demo-fixes-1 9e2ef4ef (from claude/demo-fixes-0 36d286cd)
 ## Resume
-Done (claude/demo-fixes-1): 579206f0 merges demo-view-worker, demo-tests-mobile, demo-redteam, demo-review-blind;
-c6d13a48 red team 3 (controller refuses a cut frame not at 10 bits); then red team 5 (dot ids), 4 (16-hex digest per
-frame), 2 (photometric/rescale/perFrame compared), 1 (framesSha256 required on both; evidence: fetch_data.py:164
-writes it, ingest_coded.py copies set metadata into both) — the last at fdbf8f89. pair-source and depth-cut tests pass.
-Next: blind C5 (ingest_coded.py --codec choices, a check in ingest/coded-frames/lossy_test.py), C1-C3 in viewer.js
-(mark under a label, lossless failure cleared from the status line, overlay without the lossy series' Q/G on a
-lossless frame; checks via demo-check.mjs or a node seam), S1 av1.js docstring; add pair-source.test.mjs and
-depth-cut.test.mjs to scripts/gate.sh; docs/lines/optimal-quality.md line; gate (setup README §Prerequisites +
-ingest/tools.sh building in background); draft PR into claude/core.
-Continue: git fetch origin; git checkout -B claude/demo-fixes-1 origin/claude/demo-fixes-1
+Done (claude/demo-fixes-1 at 9e2ef4ef): merges 579206f0; red team 3 c6d13a48, 5 15c0235f, 4 671bdd6f, 2 c9bfa15b,
+1 fdbf8f89; blind C1-C3 d122dec1 (screen.js + failing test), 7d93e030, 1a038e04, 54ecfe31; C5 515a36ad/c11a2536;
+S1 c9dc75ae; gate lines 053321b2; docs/lines/optimal-quality.md. All mutants killed (pair 3+3, screen 6).
+Next: full scripts/gate.sh (setup: README §Prerequisites cloud lines; ingest/tools.sh), then draft PR into
+claude/core with finding -> commit map, then status done.
+Continue: git fetch origin; git checkout -B claude/demo-fixes-1 origin/claude/demo-fixes-1; (dockerd &); ingest/tools.sh;
+scripts/gate.sh 2>&1 | tee gate.log
 ## Result
