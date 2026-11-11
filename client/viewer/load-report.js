@@ -19,6 +19,7 @@ export function loadReport(config, fields, { random = Math.random, send = sendBe
     press: (text) => report.presses.push({ at: now(), text }),
     error: (source, message) => report.errors.push({ at: now(), source, message: withoutUrls(message) }),
     progress: (have) => (report.received = have),
+    add: (more) => Object.assign(report, more),
     /** The fill's end: `dial` and `issuedAt` epoch ms, `fillMs` from `issuedAt` to the last frame stored. */
     filled({ dial, issuedAt, fillMs, frames }) {
       report.frames = frames.map(frameRow);
