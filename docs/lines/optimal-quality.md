@@ -70,7 +70,12 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   the page view under #362's stricter check, interleaved by series: 60 of 60 passed, headless on one cloud host
   ([`docs/reviews/e2e-3.md`](../reviews/e2e-3.md), with the owner's rehearsal list). #362 (the check's Home and
   *Lossless*-paint fixes) is not in `demo-fixes-1`: without it the check stalled 30 s on 12 of 28 a1/c1 runs.
-* **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
+* **Not yet run:** any phone run.
+* **The web image serves a pair** (MAIN-REVIEW, 2026-11-11, `claude/demo-fixes-2`): `--profile pair` with
+  `EXACT_SERIES` starts a second server on 4434 for the exact series, and web answers its metadata and transport file
+  and names both origins in its policy (`deploy/README.md` §Run it). `check_equivalence.sh --local` now serves the
+  smoke series as a pair's exact series and passes; five template mutants fail it. Not run: the image itself (CI's
+  job), and a browser on an image-served pair.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
   twelve): running REDTEAM-DEMO, REVIEW-BLIND, TEST-MOBILE, AV1-CORRECT, OPT-THEORY, and the rows added that night:
@@ -104,7 +109,7 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
 2. The owner's merge words on `claude/core-next`, merge by merge ([`coordination.md`](coordination.md) §Open 2).
 3. The browser end to end on the merged branch: done headless 2026-11-10, twice, the second from a fresh clone
    (State now); on a GPU and a phone, owed: the owner's laptop and phone rehearsal, README §Demo.
-4. Serve the exact series' paths from the web image.
+4. Done 2026-11-11 on `claude/demo-fixes-2`: the web image serves the exact series' paths (State now).
 5. Phone runs: the owner is ready to run them at any time. On the laptop without installs (State now), after
    PHONE-NO-INSTALL lands, the owner answers: (a) what counts as installing: crates fetched by cargo into the home
    directory, podman images already present, a portable binary such as `adb` in the home directory; (b) how the
