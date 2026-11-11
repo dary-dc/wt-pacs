@@ -605,7 +605,7 @@ never more than I1 and I2 measured.
 
 | decoder's outcome | label (with DEMO-UX's colours) | overlay appends |
 | --- | --- | --- |
-| reconstruction digest matched | **Optimal quality ✓** (green) | `as coded · error e = … (… levels at W …) · e_N ÷ σ = … · max |Δ| …` |
+| reconstruction digest matched | **Optimal quality ✓** (green) | `as coded · error e = … (… levels at W …) · e_N ÷ σ = … · max \|Δ\| …` |
 | matched after a second decode (a keyframe; an inter frame by its group's re-decode) | **Optimal quality ✓** (green) | as above, plus `<first route> did not match; <second route>`, as an exact frame's `mismatchOn` |
 | did not match on either route | **Optimal quality — not as coded**, the frame not painted (the exact check's choice: block, R, `exactness-in-production.md` §4) | both routes' digests |
 | no reconstruction digest (a series ingested before I1) | **Optimal quality · unchecked** (grey) | `no reconstruction digest` |
