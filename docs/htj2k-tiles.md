@@ -409,8 +409,12 @@ MB are *derived* from the table above.
 | first picture, S | 1.23 MB, the frame | 0.59 MB, level 1 | 1.05 MB, the frame |
 | the whole scroll at screen resolution, D · S | 18.6 · **69** MB | 10.9–24.0 · **29.6** MB | 7.0–20.2 · **72** MB |
 | one frame at full fidelity after the scroll, D · S | 1.23 · **0** MB | 2.19 · 1.60 MB | 1.05 · **0** MB |
-| S's total ≤ D's once the reader asks Lossless on more than (*derived*) | 41 of 56 frames | 32 of 50 (G 1) · 10 of 50 (G 16) | 62 of 69 (G 1) · 49 of 69 (G 16) |
+| S's total ≤ D's once the reader asks Lossless on at least (*derived*) | 41 of 56 frames | 32 of 50 (G 1) · 10 of 50 (G 16) | 63 of 69 (G 1) · 50 of 69 (G 16) |
 | stored, D · S | 1.27 · 1.00 | 1.10–1.22 · 1.00 | 1.10–1.28 · 1.00 |
+
+*Corrected 2026-11-11 (HTJ2K-REVIEW):* the break-even row read "more than … 62 · 49" on `dbts_c1`, rounded from
+1.05 MB a frame; it does not depend on the MB: n ≥ (1 − q)·F where the fit is level 0 and n ≥ (s₁ − q)/s₁·F at level 1
+(q D's share, s₁ = 0.271 the level-1 share, F the frames), which gives 63 and 50 there and leaves the others.
 
 S costs 1.2–10× D's bytes to the first picture and to the scroll (*derived*, the table's ranges); it pays only for a reader who asks Lossless
 on most slices. On a link-bound phone the time is the bytes (§Theory 7 of the ADR): the progressive lab's `fit` arm,
@@ -421,12 +425,20 @@ predicted), against S's 73 % rest.
 ### Decode on a phone
 
 No phone is measured; the host at 4× CPU throttling stands in, an **assumption** about a mid-range phone. From the
-progressive lab's stage-3 decode sums divided by frames (*derived*): a whole frame 93–107 ms (`dbts_a1`), 94–103 ms
-(`dbts_c1`), 268–286 ms (`dbts_b1`); a `dbts_b1` level-1 prefix 74–81 ms, ×0.26–0.30 of its whole frame. S is WASM on
+progressive lab's stage-3 decode sums divided by frames (*derived*): a whole frame 93–107 ms (`dbts_a1`), 93–103 ms
+(`dbts_c1`, *corrected 2026-11-11 (HTJ2K-REVIEW)* from 94–103: the `htj2k-aa` arm at r20000 reads 93.2), 268–286 ms (`dbts_b1`); a `dbts_b1` level-1 prefix 74–81 ms, ×0.26–0.30 of its whole frame. S is WASM on
 the CPU in the decoders the client already runs. D's OQ view through WebCodecs decodes in about 1.55–1.81 HTJ2K frames
-on this host without a GPU (`dbts_a1`, `dbts_c1`, Q 8, 1×, [`lines/codecs.md`](lines/codecs.md)); on a phone WebCodecs
+on this host without a GPU (`dbts_a1`, `dbts_c1`, Q 8, 1×). *Corrected 2026-11-11 (HTJ2K-REVIEW):* this was cited to
+[`lines/codecs.md`](lines/codecs.md), which says 1.05–2.04; 1.55–1.81 is
+`claude/av1-audit-decode:docs/av1/audit-decode.md` finding 2's *derived* figure with a discarded JS pass taken off the
+clock, timed on another host, so it is not measured. At 4× the same audit reads 0.81–0.97 HTJ2K frame on `a1` and `c1`
+and attributes it to WebCodecs' threads each getting a quarter CPU while OpenJPH has one (its finding 1). On a phone WebCodecs
 may take a hardware decoder, which would leave the CPU free, and whether it does at 10 bits on these sizes is owed to a
 phone (codecs line, Open 4). Decoded pictures stay in the OPFS cache, so each frame is decoded once.
+*Corrected 2026-11-11 (HTJ2K-REVIEW):* not under S at ℓ ≥ 1. OpenJPH decodes a codestream from its start, so the rest
+of a `dbts_b1` frame is decoded as a whole frame again: the progressive lab's `fit` arm, which is S's level-first fill,
+reads 74–81 ms for the prefix and 273–296 ms for the whole at 4× (stage3-volumes), so a Lossless ask under S costs a
+whole-frame decode, as under D, and the level's decode is spent once more.
 
 ### What *Lossless* means in each
 
@@ -450,16 +462,25 @@ it is the protocol's R4.
 
 * **D:** the PCS encodes each source twice, the exact HTJ2K series and the OQ AV1 series (Q by the noise rule, G per
   modality, the depth cut); two `.sbnd` files, paired by the source fingerprint (row SOURCE-FINGERPRINT).
+  *Corrected 2026-11-11 (HTJ2K-REVIEW):* the PCS delivers HTJ2K as `mf.mxf` and AV1 as `mf.mp4`, not `.sbnd`; who
+  builds the `.sbnd` is open ([`lines/metadata.md`](lines/metadata.md) §Open 1).
 * **S:** one encode, today's codestream (RPCL, one layer, one HTJ2K tile, five levels), unchanged. The ingest adds,
   per frame, the byte offset of each level's smallest exact prefix (found by decoding, as the lab does, or by parsing
   packet headers, `claude/htj2k-progressive:lab/htj2k-progressive/layers/shapes.py`) and the per-level digest. In
   version 1 of the `.sbnd` the lab's layout already works with no format change: 2F entries, every prefix first, then
   every rest ([`FIXTURES.md`](FIXTURES.md) §SBND series bundle); version 2's band entries are
-  [`disk-layout/target.md`](disk-layout/target.md) §Layout 1. No wire change (ADR §8.4). DICOM's HTJ2K Lossless RPCL
+  [`disk-layout/target.md`](disk-layout/target.md) §Layout 1. No wire change (ADR §8.4).
+  *Corrected 2026-11-11 (HTJ2K-REVIEW):* "RPCL, one layer, one HTJ2K tile, five levels" is our ingest's profile
+  (`HTJ2K_ARGS`, `ingest/coded-frames/ingest.py`), not a known property of the PCS's `mf.mxf`. S needs the PCS's
+  codestreams resolution-major; if they are not, "one encode, unchanged" becomes a re-encode at the PACS. Unverified;
+  a question for the PCS team. Our profile writes no TLM, which DICOM's RPCL syntax requires (§Theory 1). DICOM's HTJ2K Lossless RPCL
   syntax is written for this use and asks a base resolution of at most 64 [S3, §10.18.1]: five decompositions leave
   `dbts_b1` 80×104, so it would need a sixth to be sent under that syntax unchanged (*derived*).
 * **S+R:** **P** changes the PCS's encode (`-precincts`) and keeps one codestream a frame; **T9** stores each HTJ2K tile
-  as its own codestream, so a DICOM frame is reassembled on export (§Theory 5).
+  as its own codestream, so a DICOM frame is reassembled on export (§Theory 5). *Added 2026-11-11 (HTJ2K-REVIEW):* the
+  store's own proposal for large frames is **T3**, [`disk-layout/target.md`](disk-layout/target.md) §Layout 1 (three
+  strips × bands, each strip its own codestream), on the one measured tiling (row TILEMEASURE, below); **T9** is not
+  measured.
 * **The client, for S:** the render path must take a picture smaller than the frame (ADR §4, still the blocker); a
   level binding with the SIZ reset the progressive lab found missing in OpenJPH 0.31.0; the clamp to 2^D − 1; a label
   state for an exact level picture.
