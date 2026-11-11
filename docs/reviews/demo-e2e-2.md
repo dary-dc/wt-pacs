@@ -16,3 +16,6 @@ breast ultrasound cine.
 * **Once block**: every command ran as written; `demo-series.sh` wrote the 23 series in 658 s; every byte count
   equal to the record's fractions (Q 8: 0.0685–0.0687 `dbts_a1` cut, 0.2159–0.2186 `dbts_b1`, 0.0882–0.0898
   `dbts_c1` cut; stored forms 0.0742 and 0.0947).
+* **Before the demo, from any state**: the loop as written (with the `NODE_PATH` above); all 20 optimal-quality
+  series printed `demo check: ID passed`. Each took 16–78 s, not "~1 min a series" in general: 17 s when the check
+  did not stall, about 30 s more when it did (finding 2).
