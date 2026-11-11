@@ -504,5 +504,71 @@ lists into `lossy`. Without it nothing changes: the same bytes, the same metadat
   same bytes with and without, at 8 and 12 bits, G 1 and 8, a cut), `coding_error_test.py` (σ within 3 % of a known
   σ 0.5–16 on a smooth scene and on a 300-unit edge), `decoder.test.mjs`, `av1.test.mjs`, `controller.test.mjs`,
   `screen.test.mjs`; each new test mutated (the PR's body lists the mutants).
+* **I1's protocol, run** (2026-11-11, `lab/oq-integrity/run.mjs`, rows in `lab/oq-integrity/rows/`; one 4-core cloud
+  host without a GPU, headless Chromium on SwiftShader, page view, three decoder workers, loopback; the 18 series of
+  `INTEGRITY=1 scripts/demo-series.sh`, three DBT volumes of one dataset; no hardware AV1 decoder in any cell, so the
+  case the digest exists for on a phone is not exercised, only its plumbing and its cost).
+  * *Correctness:* every frame of the 18 series as coded through WebCodecs, and through dav1d-WASM with WebCodecs'
+    probes made to fail (`correct.jsonl`, 36 fills, no error).
+  * *Mutants,* on `dbts_a1-q8-g8-cut` (`mutants.jsonl`): one digest wrong at keyframe 0 and at inter frame 55,
+    refused on both routes; one byte of inter unit 50 flipped, frames 50–55 never as coded on either route; one
+    sample of frame 55 flipped on every route, refused; one sample of inter frame 55 flipped in the WebCodecs copy
+    only, **mended** by the group's re-decode on dav1d (454 ms for its group of 8). The digest over the rescaled cut
+    is `lossy_test.py`'s mutant. Every one caught.
+  * *Cost,* the check on (the metadata as written) against off (the same metadata without `reconstruction`),
+    interleaved per round with the throttle by `lab/order.mjs`, 7 rounds, the fill's time (`cost.jsonl`, 504
+    fills): median Δ fill +3.7 % at 1× (−3.5 to +7.5 % across series) and +1.9 % at 4× (−0.7 to +7.8 %); first
+    picture +0 to +13 %. Per series, medians:
+
+| series | throttle | n | fill on / off, median ms | Δ fill | first picture on / off, median ms | Δ first |
+    | --- | --- | --- | --- | --- | --- | --- |
+    | `dbts_a1-q24-g1-cut` | 1× | 7 | 1223 / 1182 | +3.5% | 303 / 294 | +3.1% |
+    | `dbts_a1-q24-g1-cut` | 4× | 7 | 1328 / 1295 | +2.5% | 466 / 433 | +7.6% |
+    | `dbts_a1-q24-g16-cut` | 1× | 7 | 1280 / 1195 | +7.1% | 328 / 299 | +9.7% |
+    | `dbts_a1-q24-g16-cut` | 4× | 7 | 1447 / 1447 | +0.0% | 475 / 484 | -1.9% |
+    | `dbts_a1-q24-g8-cut` | 1× | 7 | 1238 / 1154 | +7.3% | 318 / 295 | +7.8% |
+    | `dbts_a1-q24-g8-cut` | 4× | 7 | 1373 / 1320 | +4.0% | 462 / 462 | +0.0% |
+    | `dbts_a1-q8-g1-cut` | 1× | 7 | 1467 / 1413 | +3.8% | 336 / 298 | +12.8% |
+    | `dbts_a1-q8-g1-cut` | 4× | 7 | 1634 / 1602 | +2.0% | 500 / 490 | +2.0% |
+    | `dbts_a1-q8-g16-cut` | 1× | 7 | 1644 / 1549 | +6.1% | 340 / 315 | +7.9% |
+    | `dbts_a1-q8-g16-cut` | 4× | 7 | 1780 / 1777 | +0.2% | 487 / 489 | -0.4% |
+    | `dbts_a1-q8-g8-cut` | 1× | 7 | 1551 / 1583 | -2.0% | 344 / 312 | +10.3% |
+    | `dbts_a1-q8-g8-cut` | 4× | 7 | 1773 / 1774 | -0.1% | 494 / 472 | +4.7% |
+    | `dbts_b1-q24-g1` | 1× | 7 | 4034 / 4164 | -3.1% | 481 / 521 | -7.7% |
+    | `dbts_b1-q24-g1` | 4× | 7 | 4601 / 4376 | +5.1% | 678 / 673 | +0.7% |
+    | `dbts_b1-q24-g16` | 1× | 7 | 3801 / 3536 | +7.5% | 508 / 495 | +2.6% |
+    | `dbts_b1-q24-g16` | 4× | 7 | 4356 / 4039 | +7.8% | 707 / 675 | +4.7% |
+    | `dbts_b1-q24-g8` | 1× | 7 | 3827 / 3704 | +3.3% | 510 / 484 | +5.4% |
+    | `dbts_b1-q24-g8` | 4× | 7 | 4142 / 3996 | +3.7% | 688 / 680 | +1.2% |
+    | `dbts_b1-q8-g1` | 1× | 7 | 5251 / 5106 | +2.8% | 596 / 590 | +1.0% |
+    | `dbts_b1-q8-g1` | 4× | 7 | 5594 / 5533 | +1.1% | 784 / 755 | +3.8% |
+    | `dbts_b1-q8-g16` | 1× | 7 | 5239 / 4937 | +6.1% | 587 / 520 | +12.9% |
+    | `dbts_b1-q8-g16` | 4× | 7 | 5397 / 5334 | +1.2% | 757 / 705 | +7.4% |
+    | `dbts_b1-q8-g8` | 1× | 7 | 4897 / 5073 | -3.5% | 599 / 553 | +8.3% |
+    | `dbts_b1-q8-g8` | 4× | 7 | 5489 / 5388 | +1.9% | 797 / 716 | +11.3% |
+    | `dbts_c1-q24-g1-cut` | 1× | 7 | 1547 / 1593 | -2.9% | 321 / 293 | +9.6% |
+    | `dbts_c1-q24-g1-cut` | 4× | 7 | 1765 / 1759 | +0.3% | 449 / 445 | +0.9% |
+    | `dbts_c1-q24-g16-cut` | 1× | 7 | 1688 / 1601 | +5.4% | 311 / 304 | +2.3% |
+    | `dbts_c1-q24-g16-cut` | 4× | 7 | 1928 / 1874 | +2.9% | 478 / 450 | +6.2% |
+    | `dbts_c1-q24-g8-cut` | 1× | 7 | 1663 / 1607 | +3.5% | 333 / 309 | +7.8% |
+    | `dbts_c1-q24-g8-cut` | 4× | 7 | 1758 / 1750 | +0.5% | 486 / 472 | +3.0% |
+    | `dbts_c1-q8-g1-cut` | 1× | 7 | 2059 / 1972 | +4.4% | 351 / 342 | +2.6% |
+    | `dbts_c1-q8-g1-cut` | 4× | 7 | 2249 / 2197 | +2.4% | 524 / 508 | +3.1% |
+    | `dbts_c1-q8-g16-cut` | 1× | 7 | 2234 / 2166 | +3.1% | 350 / 338 | +3.6% |
+    | `dbts_c1-q8-g16-cut` | 4× | 7 | 2432 / 2450 | -0.7% | 541 / 504 | +7.3% |
+    | `dbts_c1-q8-g8-cut` | 1× | 7 | 2093 / 1977 | +5.9% | 359 / 329 | +9.1% |
+    | `dbts_c1-q8-g8-cut` | 4× | 7 | 2160 / 2038 | +6.0% | 500 / 480 | +4.2% |
+
+  * *The rule* (both routes match everywhere, every mutant fails, ≤ 10 % at 4×) holds: **adopt with every frame
+    checked**, no sample. *Limits:* Chromium's 4× CPU throttle moved the fill by about a tenth here (1182 → 1295 ms
+    on `dbts_a1-q24-g1-cut`), so it reaches the page's thread and hardly the decoder workers: it is no stand-in for
+    a phone's decoders, and the phone row the protocol names stays owed. The spread between series (±4 %) is of the
+    size of the effect, so a single cell's sign means nothing. The fill is decode-bound on three workers of 4 cores;
+    nothing is claimed past that.
+* **Found, not fixed: the noise-band ratio reads 1.25–2.35 on every demo series**, Q 8 included, which the quality
+  study chose by this ratio. `coding_error.py` takes σ over every sample of the frame; the study took it over the
+  in-window samples (§4.4), and a DBT frame's flat background outside the breast pulls σ down. I2's own protocol
+  (its values against the study's rows) is what would decide the mask; it was not run here. Until then the ratio is
+  not comparable with the study's.
 * **What it does not cover:** the paint (the window, the GPU), a hostile server (it serves the digests), and quality
   itself: a perfect reconstruction of a Q 63 stream passes the check; `codingError` is what states quality.
