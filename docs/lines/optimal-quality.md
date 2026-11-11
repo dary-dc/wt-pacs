@@ -46,7 +46,14 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   never before the exact frame's paint, no console error; numbers per series in `client/README.md` §Optimal quality,
   exact on request. Fixed: a certificate ending within a day was renewed by the static host after the series
   servers loaded the old one (no picture); README §Demo gained the steps before the demo from any state and the
-  phone pair for a demo series.
+  phone pair for a demo series. *Corrected 2026-11-11 (REVIEW-E2E2):* "*Lossless* never before the exact frame's
+  paint" was measured in an uncommitted copy; `demo-check.mjs` did not check it, and passed a page that wrote it
+  first. It checks it now, and `Home`'s paint, which it skipped after a 30 s wait on most runs
+  (`docs/reviews/demo-e2e-2.md`, `claude/demo-e2e-2-fixes`).
+* **Reviewed from a fresh clone** (REVIEW-E2E2, 2026-11-11, `claude/demo-fixes-0` at `36d286cd`): README §Demo word
+  for word, Playwright 1.63's Chromium in place of 1.56.1's; bytes equal to the record's; all 20 series passed;
+  `demo-check.mjs` mutated, the certificate renewal's mutant killed; two on-demand mutants that ask a group ahead
+  survived, cause not traced. Not a GPU, not hardware decode, not a phone.
 * **The demo build** (DEMO-INTEGRATE, 2026-11-10): `claude/demo-fixes-0` (#355 into `claude/core`) is the demo tip
   `claude/core-next-fixes` plus `gate-cloud`, `double-decode-check` and `demo-e2e-2`, each a `--no-ff` merge; full
   gate OK in a cloud session (skipped: lavapipe, GL display, Firefox, nginx); CI gate and deploy green.
