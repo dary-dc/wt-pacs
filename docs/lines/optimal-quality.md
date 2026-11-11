@@ -34,6 +34,13 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   `av1-webcodecs`) and `dbts_a1-q8-g16-stored` (every frame `av1-dav1d` after WebCodecs refused), filled and with
   `fill=0`; labels *Optimal quality* → *fetching lossless…* → *Lossless* → *Optimal quality*, and *Lossless check
   failed* for a tampered digest. Not a GPU, not hardware decode, not a phone.
+* **A laptop without installs** (PHONE-NO-INSTALL, 2026-11-11, `claude/phone-no-install`): README §Demo's variant
+  serves the page over the tether at the laptop's address (`dev-server.py --bind`, loopback alone by default), made a
+  secure context on the phone by Chrome's flag *Insecure origins treated as secure* (built for Android: `kOsAll` in
+  `about_flags.cc`); the certificate is made by `openssl` in a container (`OPENSSL=` in `gen_dev_cert.sh`). Checked
+  in a network namespace on `dbts_a1-q8-g8-cut`, `dbts_b1-q8-g8`, `dbts_a1-q8-g16-stored`: every frame filled,
+  `l` *Lossless*; without the flag, no `WebTransport`. Not on a phone. The show list's six bundles are 208 MB, its
+  two exact series 175 MB; a `demo-series.sh` run gave the same fractions as above.
 * **From a fresh clone** (DEMO-E2E-2, 2026-11-10, `claude/demo-e2e-2`): README §Demo word for word on one 4-core
   cloud host, Chromium 141 headless on SwiftShader; all 20 optimal-quality series passed, label in order, *Lossless*
   never before the exact frame's paint, no console error; numbers per series in `client/README.md` §Optimal quality,
