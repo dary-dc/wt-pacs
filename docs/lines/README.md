@@ -16,6 +16,7 @@ decision, and the date at the top. Something learned for another line goes into 
 | PACS receive and metadata | receive what the PCS sends, build and update each study's store, serve by UID | [`metadata.md`](metadata.md) | 2026-10-29; branches 2026-11-09 |
 | 2D viewer | a 2D DICOM viewer product on the client, breast reading first (paused) | [`viewer.md`](viewer.md) | 2026-10-27; branches 2026-11-09 |
 | native | a native client on raw QUIC, without the browser's limits | [`native.md`](native.md) | 2026-10-27; branches 2026-11-09 |
+| proposals | proposals for the optimal-quality demo path's fill and on-demand latency, each with its deciding measurement | [`proposals.md`](proposals.md) | 2026-11-11 |
 
 "Last verified" is the newest date the line's state was checked; "branches" means only the branch and PR state was
 read again on that date, not the line's findings.

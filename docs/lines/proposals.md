@@ -1,0 +1,215 @@
+# Proposals
+
+Proposals for the optimal-quality demo path, each with the measurement that decides it. This branch
+(`claude/proposals`) holds §Optimize, the optimizer's part; §Simplify is on `claude/demo-simplify`, and the two meet
+when the owner takes them.
+
+## Optimize
+
+*Theory only, written 2026-11-11 against the demo tip `claude/demo-fixes-0` at `618e13c8`. Nothing here is measured,
+built or changed.* The aim: a faster fill and a lower on-demand latency for the OQ demo path on a phone over lossy
+wireless, every decided approach kept (`docs/queue-2026-11-10.md` on `claude/work-ledger`, §Decided approaches).
+Every expected effect below is **an assumption**, a band derived from the numbers it names; the protocol under each
+is what turns it into a finding. A different session runs the protocols (MEASURE-1).
+
+**Labels.** **(S)** an official source, quoted, pinned in §Sources; **(R)** this repository's measured record, with
+its section; **(D)** derived here from those; *by report* — public reports this repository has read but not
+verified.
+
+**The path, as it bears on time** (`618e13c8`). Two series servers, two WebTransport sessions: the OQ series fills
+over the first (`stream_frames` pushed at session open, `fill: all`, three decoder workers, a group asked whole from
+its keyframe); the exact series has its own session, dialled at page start, one OpenJPH decoder, no fill, a frame
+asked only on `l` (`client/viewer/viewer.js` `connectExact`). Sizes (R, `docs/av1/payload-format.md` tables): an
+exact frame is 1.02, 1.21 and 2.15 MB on average (`dbts_c1`, `dbts_a1`, `dbts_b1`); the OQ series at Q 8 is 4.5, 6.3
+and 23 MB. Loopback, headless Chromium on SwiftShader, 4-core host (R, `client/README.md` §Optimal quality,
+DEMO-E2E-2): every slice by 1.7, 2.0 and 4.6 s; a jump mid-group at G 8 and 16 170–305 ms against 35–44 ms at G 1;
+the exact frame 54–164 ms after `l`. **On loopback the fill is decode-bound**: 4.5 MB in 1.7 s is 21 Mbit/s, about
+the demo link's rate, so at 20 Mbit the fill of `dbts_a1` sits near this host's decode ceiling and nothing past it
+is claimed.
+
+**The demo's link** (R, `README.md` §7 on the demo tip): netem, 30 ms each way, 20 Mbit/s, 1 % iid loss, or loss in
+bursts (`gemodel`). The phone itself, its radio and its decoder are not modelled by any arm below.
+
+| # | proposal | serves | expected effect (assumption) | change | measurable here |
+| --- | --- | --- | --- | --- | --- |
+| P1 | BBR on the pair's two series servers | fill and `l` | fill 0.1–0.5× and `l` 0.2–0.6× of Cubic's time at 1 % iid loss, 0.45–0.8× in bursts; a tie to +5 % clean | a flag per server | yes, through netem |
+| P2 | tiles in the optimal-quality encode | jump, step, phone decode | per-frame decode 0.4–0.9× on a 4–8-core phone; bytes +0.5–3 % | ingest arguments | yes, indicative (x86) |
+| P3 | a wake on `pointerdown`, before `l` asks | `l` after a dwell | − min(P, L) on a promoted radio: 0–150 ms | client, ~10 lines | plumbing only |
+| P4 | a 32-packet initial window on the exact server only | `l` | `l` −5 to −25 % on a clean link | a flag | yes, through netem |
+| P5 | the exact session dialled after the first picture | first picture | 0 to −100 ms on a phone; nothing measurable on this host | client, ~3 lines | barely |
+
+Most promising first: P1's band is the widest by an order of magnitude and needs no code; P2 is the only lever on
+the decode, which bounds the fill on a fast link and every jump; P3–P5 are smaller and cheap.
+
+**Considered and set aside.** Fetching the shown frame's exact frame before `l` (it spends 1–2 MB a dwell on a
+mobile link, against "remove work"; Open item 8 of `optimal-quality.md` keeps an automatic exact request as an
+option for readers to set, not this). Hardware AV1 decode in the browser (R, `docs/decode/hardware.md` §1: Chromium's
+hardware front end refuses 4:0:0, and a 10-bit hardware frame cannot be read back). 0-RTT, connection pooling,
+per-frame streams (closed, `docs/transport/transport-conclusions.md` §9). One session for both series (it would take
+the exact frame on the fill's grown window, but it is a server and wire change the design rules out, and P1 and P4
+reach most of the same time).
+
+### P1. BBR on the pair's two series servers
+
+**Mechanism.** Both servers run `cubic-restart` by default (R, `transport-conclusions.md` §The answer). Cubic reads
+every loss as congestion and cuts its window; BBR models the bottleneck's rate and round trip and tolerates loss up
+to a threshold: "BBR.LossThresh: A constant specifying the maximum tolerated per-round-trip packet loss rate when
+probing for bandwidth (the default is 2%)" (S, draft-ietf-ccwg-bbr-07, its list of constants). quinn's BBR is an older form, read
+against BBRv1 (R, §1 *quinn's BBR read against the published BBRv1*). On the OQ path both transfers that matter are
+loss-bound on the demo link: the fill (4.5–23 MB) and the exact frame on a session that has never grown its window
+(1–2.2 MB, slow start from 12 000 B, R §3 *The first ask on an idle session*).
+
+**Expected effect (assumption).** (R) the control profile — 20 Mbit, 50 ms, 1 % uniform, the demo link's shape —
+fills at 2.59 Mbit/s under Cubic and 18.91 under BBR (§1 *Link profiles close to a phone*); through the product's
+client under 1–5 % loss BBR fills in 0.04–0.74 of Cubic's time, 1.01–1.04 on a clean 5 Mbit link (§1 *Under 1–5 %
+loss*); in a browser under 1–3 % random loss 12–19× faster (§1 *Priced in a browser*). (D) For `dbts_a1` at Q 8:
+4.5 MB at 2.6 Mbit/s is ~14 s against ~2 s, where the decode ceiling above takes over; for `dbts_b1` ~70 s against
+~10 s. The exact frame, 1.2 MB, at Cubic's rate after its first losses, is seconds; under BBR, under one. So the
+band: fill 0.1–0.5×, `l` 0.2–0.6×, at 1 % iid loss; a tie to +5 % on a clean link. Loss in bursts narrows it: on
+the phone-like profiles, Gilbert–Elliott bursts of 3.5 packets, BBR's fill is 1.29–2.26× Cubic's rate (R, the same
+section), so 0.45–0.8× of its time.
+
+**Cost.** BBR's queue: 27–294 ms standing, ~45 % of its datagrams overflowing a 120 ms buffer, 99 % of a shallow
+FIFO taken from a TCP neighbour (R, §1 *A neighbour behind fq_codel*). On this path a jump during the fill waits
+behind that queue; after the fill the queue drains, so `l` does not pay it. It is the owner's open call (R, §9 item 2):
+this proposal asks it only for the two servers of the demo pair, where the record's costs can be read in the demo's
+own cells.
+
+**Protocol (pre-registered).** *Arms:* both servers `--congestion cubic-restart` (today) against both `--congestion
+bbr`; the client and series unchanged. *Fixtures:* `dbts_a1-q8-g8-cut`, `dbts_b1-q8-g8`, `dbts_c1-q8-g16-cut` and
+their exact series, from `scripts/demo-series.sh`. *Link:* `lab/scripts/cloud_netem.sh` on loopback's egress at 20
+Mbit, 30 ms each way, in three cells: 0 %, 1 % iid, `gemodel` (README §7's commands); the netem-drops-a-GSO-batch
+caveat of README §7 applies to the server, so the loss cells run the lab's server build named there. *Driver:*
+`client/viewer/demo-check.mjs` in headless Chromium, page view, ts client. *Order:* 5 rounds, the two arms
+alternating within each round and the first arm alternating between rounds, a fresh page and fresh server processes
+per run. *Measured:* the fill's last frame received (ms from navigation, the check's *every slice*), and separately,
+on a filled page after 10 s of quiet, `l` to *Lossless* (ms); latency only, no throughput quoted. *Rule:* adopt for
+the demo pair if BBR's median fill and median `l` are each ≤ 0.7× Cubic's in the 1 % cell on all three series, and
+its median fill is ≤ 1.05× in the 0 % cell; else reject. Report every cell, the misses included. *Saturation:* a
+fill whose BBR arm comes within 10 % of the same series' loopback fill (1.7, 4.6, 2.0 s) is decode-bound and is
+reported as "at the host's ceiling", with no ratio claimed. *Limits:* three DBT volumes of one dataset; netem, not
+a radio; a 4-core cloud host without a GPU; SwiftShader paints.
+
+### P2. Tiles in the optimal-quality encode
+
+**Mechanism.** The encoder codes each frame as one tile: `lossy_args` sets no tile option and `--threads=1`
+(`ingest/coded-frames/ingest.py:260`). libaom offers "--tile-columns … Number of tile columns to use, log2" and
+"--tile-rows … Number of tile rows to use, log2" (S, libaom v3.15.1 `av1/arg_defs.c:325–327`). Tiles are decoded
+independently, so a decoder may run them on separate threads. Chromium's WebCodecs software AV1 decoder is dav1d
+(R, `docs/decode/hardware.md` §4.1; this client asks `prefer-software`), and Chromium sizes its threads by coded
+height: "if (coded_height >= 700) { *tile_threads = 4; … *frame_threads = 3;" and opens dav1d with
+"VideoDecoder::GetRecommendedThreadCount( frame_threads * (tile_threads + 1))" (S, Chromium
+`media/filters/davxd_video_decoder_base.cc` at `463745830f5e`, `GetDecoderThreadCounts` and `Initialize`); and the
+client's `optimizeForLatency: true` makes it "We only want 1 frame thread in low delay mode" — `s.max_frame_delay =
+1` (S, `media/filters/dav1d_video_decoder.cc`, `OpenDecoder`). WebCodecs defines that hint as "Hint that the selected
+decoder SHOULD be configured to minimize the number of EncodedVideoChunks that have to be decoded before a VideoFrame
+is output" (S, WebCodecs WD 2026-11-09, §7.6 `optimizeForLatency`). (D) With one frame in flight and one tile,
+the entropy decode of a frame runs on one thread whatever the pool; every demo volume is 1 785 rows tall or more, so
+Chromium already gives the pool the threads, and only the bitstream withholds the work. dav1d-WASM, the fallback,
+is one thread and gains nothing.
+
+**Expected effect (assumption).** Per-frame decode 0.4–0.9× with 2 × 2 tiles on a 4–8-core phone, the low end for
+`dbts_b1` (8.5 M samples), the high end where loop filtering, which dav1d already threads by rows, dominates. It
+reaches the jump mid-group (R: 170–305 ms at G 8 and 16, ~8 sequential decodes, against 35–44 ms at G 1), every step
+on demand, and the fill wherever it is decode-bound (loopback today; a phone's slower cores, likely). The fill gains
+less than a single frame: three decoder workers already decode in parallel, so its threads are partly taken. Bytes
++0.5–3 % at Q 8 (tile edges break prediction and reset entropy contexts); not measured.
+
+**Cost.** New demo series (an ingest change, `demo-series.sh` rerun, 736 s on this host, R); bytes as above; on a
+small phone, tile threads compete with the three decoder workers, which the protocol's per-frame cell separates
+from the fill cell.
+
+**Protocol (pre-registered).** *Arms:* `lossy_args` as today against the same with `--tile-columns=1
+--tile-rows=1` (2 × 2), and a third arm `--tile-columns=1 --tile-rows=0` (2 × 1), every other argument equal.
+*Fixtures:* the three volumes, Q 8, G 1 and G 8, the cut for `dbts_a1` and `dbts_c1`. *Bytes:* each series' total,
+every arm, one encode (bytes are deterministic, R: equal to the byte across runs). *Decode:* in headless Chromium,
+one `VideoDecoder` configured as `av1-webcodecs.js` does, each frame of each series decoded alone (decode to output,
+`performance.now()`), 5 rounds, arms interleaved per series and their order rotated per round; then
+`demo-check.mjs`'s jump (`End` under `?fill=0`) and fill on the page. Run once with all 4 cores and once under
+`taskset -c 0,1` to stand in for a phone's share. *Rule:* adopt the 2 × 2 (or 2 × 1) arm if its median per-frame
+decode is ≤ 0.8× today's on `dbts_a1` and `dbts_b1` on 4 cores, its jump at G 8 ≤ 0.85×, its bytes ≤ 1.03×, and
+the fill no slower than 1.05×; else reject. Every frame of every arm must still pass the exactness of ingest (the
+encoder's reconstruction equals dav1d's, `ingest.py`). *Saturation:* SwiftShader paint time is excluded by timing
+the decoder alone; the page cells name it. *Limits:* x86-64 cores, not a phone's; the phone row (decode per frame on
+the owner's phone, tethered) is owed and decides alone if it disagrees.
+
+### P3. A wake on `pointerdown`, before `l` asks
+
+**Mechanism.** After the fill the page is silent; *by report*, carriers drop a radio to idle after 5–10.5 s without
+traffic, and promotion costs 190–396 ms on 4G and 341–1 907 ms on 5G (R, `transport-conclusions.md` §9 item 4, *by
+report*). The relay's idle model shows a promotion costs P once, and a packet sent L ahead takes L off it:
+"max(0, P − L) within 4 ms" (R, §3 *The idle radio*). That section left the page's wake unbuilt because "a
+control-stream message would end a running fill" (WIRE.md). The exact session never has a fill, and `end_stream`
+"Without a fill, nothing" (R, `docs/WIRE.md` §FoD messages); the ts client already has `endStream()`
+(`client/transport/ts/frame-session.ts:268`). So: on `pointerdown` on the lossless button (and on the `l` key's
+`keydown`, already the ask), send `end_stream` on the exact session; ask on `click` as today. No wire or server
+change.
+
+**Expected effect (assumption).** L is a tap's down-to-click time, about 50–150 ms; so `l` after a dwell past the
+radio's timer gains min(P, L), 0–150 ms, on a phone over cellular; nothing on Wi-Fi beyond its power save, nothing
+in a container. A variant that keeps the radio up — the exact server's existing `--keep-alive-interval-ms` at
+≤ 5 s — would take all of P off but spends the radio's energy the whole time the page is open (R,
+`docs/adr/transport-idle-sessions.md`); it is the owner's, and only named here.
+
+**Cost.** One small client method on both views; 1 FoD message a tap; a tap that turns into a scroll sends a wake
+and nothing more.
+
+**Protocol (pre-registered).** *Plumbing, here:* the relay's `--idle-promote 5:300` cell of `first_ask_cells.sh`
+driven by the page, the wake on and off, 7 rounds interleaved, `pointerdown` scripted L = 0, 50, 100 ms before the
+click; rule: the wake arm's median `l` is within 10 ms of max(0, 300 − L) above the unpromoted `l`, and the off arm
+pays +300 ± 10. Plus a unit test that the wake never reaches the OQ session (it would end its fill), mutated. *The
+deciding row, the owner's phone on cellular:* 10 dwells of 15 s, wake on and off alternating, `l` to *Lossless*
+read from the page; rule: adopt if the on arm's median is lower by ≥ 50 ms. *Limits:* the relay's radio is a
+model; the phone row is one device on one carrier.
+
+### P4. A 32-packet initial window on the exact server only
+
+**Mechanism.** The exact session never fills, so every `l` starts from the initial window. "Endpoints SHOULD use an
+initial congestion window of ten times the maximum datagram size (max_datagram_size), while limiting the window to
+the larger of 14,720 bytes or twice the maximum datagram size" (S, RFC 9002 §7.2); quinn's is 12 000 B (R). The
+server already takes `--initial-window-bytes 38400` (R, §3 *A 32-packet initial window*, opt-in, not merged: the
+owner's, row 191). On the exact server alone it touches only the one transfer the reader waits on, and never the
+fill's competition with other traffic.
+
+**Expected effect (assumption).** (R) on a fresh session: −28 to −33 % at 50–250 KB unshaped; −16 to −33 % behind a
+queue of 20 packets or more; +11.8 % in one cell (250 KB, 80 ms, a 10-packet queue). (D) At 1–2 MB the window's
+opening is a smaller share: 1.7 fewer doublings of ~7, so −5 to −25 % on a clean link; under 1 % loss slow start
+ends at the first loss either way and the gain shrinks toward 0; with P1, the same. **Cost:** a 38.4 KB burst on the
+first flight; in the 10-packet-queue cell, a loss (R).
+
+**Protocol (pre-registered).** *Arms:* the exact server at quinn's default against `--initial-window-bytes 38400`,
+the OQ server unchanged. *Fixtures:* the three exact series, frames 0, n/2 and n − 1. *Link:* P1's three netem cells,
+plus 20 Mbit with a 20-packet `limit`. *Measured:* on a filled page after 10 s of quiet, `l` to *Lossless*; 7 rounds,
+arms alternating, fresh processes per run. *Rule:* adopt if the 38 400 arm's median is ≤ 0.9× in the 0 % cell on all
+three series and ≤ 1.0× in every other cell; any cell above 1.05× rejects. *Limits:* as P1.
+
+### P5. The exact session dialled after the first picture
+
+**Mechanism.** `connectExact` runs at page start, beside the OQ session's dial and before the first frame: a second
+QUIC handshake, the exact metadata with its digests, and a worker that compiles OpenJPH's WASM, all while the first
+OQ frame is decoded (`viewer.js` `connectExact`, `pair.js` `pairOf`). On a phone those compete for the radio and for
+cores. Started from the first `shown` instead, it would still be up long before a reader's first `l`.
+
+**Expected effect (assumption).** First picture 0 to −100 ms on a phone with 4 slow cores; within noise on this host
+(first picture 307–548 ms on loopback, R). `l` unchanged unless pressed in the first second.
+
+**Cost.** Three lines; a reader pressing `l` before the dial finishes waits for it (the button stays hidden until the
+session is up, as today).
+
+**Protocol (pre-registered).** *Arms:* today against the dial on the first `shown`. *Fixtures:* the three Q 8 G 8
+series. *Measured:* first picture from navigation, under Chromium's CPU throttling ×4 (DevTools protocol
+`Emulation.setCPUThrottlingRate`) and the demo link's 0 % netem cell; 9 rounds, arms alternating. *Rule:* adopt if
+the median first picture is lower by ≥ 30 ms with no `l` slower; else drop it as inert. *Limits:* throttling stands in
+for a phone's cores, not its radio.
+
+### Sources
+
+Each official source read on 2026-11-11; the SHA-256 prefix is of the copy read.
+
+* draft-ietf-ccwg-bbr-07, the constants' list, datatracker.ietf.org/doc/html/draft-ietf-ccwg-bbr (`86ef8217dbc4`).
+* RFC 9002 §7.2, rfc-editor.org/rfc/rfc9002.txt.
+* WebCodecs, W3C Working Draft 9 November 2026, §7.6 and §7.9, w3.org/TR/2026/WD-webcodecs-20261109/
+  (`0fa152953edb`).
+* Chromium `463745830f5ed9085d719a959b967c2fcca172b1`: `media/filters/davxd_video_decoder_base.cc` (`246fd0000402`),
+  `media/filters/dav1d_video_decoder.cc` (main, the same day).
+* libaom v3.15.1 `av1/arg_defs.c` (`9f0a8ad3363e`), aomedia.googlesource.com.
