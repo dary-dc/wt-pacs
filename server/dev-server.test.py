@@ -182,27 +182,28 @@ class Beacon(unittest.TestCase):
             return e.code
 
     def test_no_beacon_by_default(self):
-        """Without --beacon the page's beacon is refused, and nothing is written."""
+        """Without --beacon the page's load report is refused, and nothing is written."""
         with started() as url:
-            self.assertEqual(self.post(url, b'[{"kind": "load"}]'), 404)
+            self.assertEqual(self.post(url, b'{"load": "L"}'), 404)
 
-    def test_each_record_appended_as_one_line(self):
-        """--beacon FILE appends each record a beacon carries as one JSON line, after what the file held."""
+    def test_each_report_appended_as_one_line(self):
+        """--beacon FILE appends each load report, one JSON object, as one line, after what the file held."""
         with tempfile.TemporaryDirectory() as d:
             log = Path(d) / "beacon.jsonl"
-            log.write_text('{"kind": "earlier"}\n')
+            log.write_text('{"load": "earlier"}\n')
             with started("--beacon", str(log)) as url:
-                self.assertEqual(self.post(url, b'[{"kind": "load", "n": 1}, {"kind": "label", "to": "lossless"}]'), 204)
-                self.assertEqual(self.post(url, b'[{"kind": "error"}]'), 204)
+                self.assertEqual(self.post(url, b'{"load": "A", "labels": [{"quality": "lossless"}]}'), 204)
+                self.assertEqual(self.post(url, b'{"load": "B"}'), 204)
             lines = [json.loads(line) for line in log.read_text().splitlines()]
-            self.assertEqual([r["kind"] for r in lines], ["earlier", "load", "label", "error"])
+            self.assertEqual([r["load"] for r in lines], ["earlier", "A", "B"])
+            self.assertEqual(lines[1]["labels"], [{"quality": "lossless"}])
 
-    def test_a_body_not_a_list_of_records_is_refused_whole(self):
-        """A beacon that is not a JSON list of objects is refused, and the log is left as it was."""
+    def test_a_body_not_one_report_is_refused_whole(self):
+        """A body that is not one JSON object is refused, and the log is left as it was."""
         with tempfile.TemporaryDirectory() as d:
             log = Path(d) / "beacon.jsonl"
             with started("--beacon", str(log)) as url:
-                for body in [b'[{"kind": "load"}', b'{"kind": "load"}', b'[{"kind": "load"}, 3]']:
+                for body in [b'{"load": "L"', b'[{"load": "L"}]', b'3']:
                     with self.subTest(body=body):
                         self.assertEqual(self.post(url, body), 400)
             self.assertEqual(log.read_text() if log.exists() else "", "")
