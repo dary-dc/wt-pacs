@@ -8,10 +8,10 @@ export class Painter {
   #last = null;
   #settle;
 
-  /** `renderer` resolves to the WebGL renderer string, or rejects with why nothing can be painted; `settle`, a lab's. */
-  constructor(canvas, { onLost = () => {}, settle } = {}) {
+  /** `renderer` resolves to the WebGL renderer string, or rejects with why nothing can be painted; `lab.settle`, a lab's. */
+  constructor(canvas, { onLost = () => {}, lab = {} } = {}) {
     this.#canvas = canvas;
-    this.#settle = settle;
+    this.#settle = lab.settle;
     this.#worker = new Worker(new URL("./paint-worker.js", import.meta.url), { type: "module" });
     const offscreen = canvas.transferControlToOffscreen();
     this.renderer = new Promise((resolve, reject) => {

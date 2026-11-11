@@ -222,7 +222,7 @@ pixel port and no copy in script beyond the write; `view`, none, and the write o
 entry posts; imported, its handler is replaced by the view worker's. The consumer made its own worker: it takes a
 `port`, ends a port by closing it, and the page triggers it forwarded are `watchPage`, exported. The downloader posted
 to its global; it now posts to whatever `link` names. The check read pixels on the page — the readbacks against the
-CPU reference, a spy on the client — so its half that needs frames runs beside the controller (`client/view/check.js`),
+CPU reference, a spy on the client — so its half that needs frames runs beside the controller (`lab/viewer/check-view.js`),
 and the total-time harness's frame hashes are the controller's `ledger()`. A drag starts from the frame's default
 window and only the frame knows it, so `shown` carries it; the canvas's CSS size is the page's, so a resize is an
 intent.

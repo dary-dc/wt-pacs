@@ -18,8 +18,9 @@ let downloader = null;
 let lastPainted = null;
 let progress = null;
 let latest = null;
-/** A lab's settle (client/paint/paint-worker.js); none in the product. */
+/** A lab's settle (client/paint/paint-worker.js) and the viewer check's module; none in the product. */
 let settle;
+let checks;
 let cine = null;
 /** Resolves once the paint module holds its WebGL2 context: at `start`, or under the lab's `glAfterDial` once the dial has gone. */
 const gl = Promise.withResolvers();
@@ -48,13 +49,14 @@ function paint(frame, display, { read = false } = {}) {
   return gl.ready ? draw() : gl.promise.then(draw);
 }
 
-/** `watchWrites`, the viewer check's: every cache write on this thread is counted from the start. */
-function start({ canvas, meta, fillMode, size, settle: lab, watchWrites, glAfterDial }) {
+/** Under the viewer check, `lab.check` its module, every cache write on this thread is counted from the start. */
+function start({ canvas, meta, fillMode, size, lab = {} }) {
   boot.viewStart = at();
   controller = new Controller({ meta, fillMode, paint, emit, size });
-  settle = lab;
-  if (watchWrites) import("./check.js").then((m) => m.watchWrites());
-  if (glAfterDial) gl.canvas = canvas;
+  settle = lab.settle;
+  checks = lab.check && import(lab.check);
+  checks?.then((m) => m.watchWrites());
+  if (lab.glAfterDial) gl.canvas = canvas;
   else startPainter(canvas);
 }
 
@@ -151,7 +153,7 @@ const CALLS = {
     return { ...l, boot: { ...boot, ...l.boot } };
   },
   cine: () => cine?.log ?? [],
-  check: async ({ phase, args }) => (await import("./check.js"))[phase]({ controller, port: downloader, ...args }),
+  check: async ({ phase, args }) => (await checks)[phase]({ controller, port: downloader, ...args }),
   close: () => (controller.exactSource?.close(), controller.client.close()),
 };
 

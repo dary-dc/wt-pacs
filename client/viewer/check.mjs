@@ -4,7 +4,7 @@
 //   NODE_PATH=$(npm root -g) node client/viewer/check.mjs --series X.sbnd --decoder htj2k [--pair Y.sbnd --pair-decoder D]
 //     [--engine chromium|firefox] [--cine] [--fill 0] [--client ts|wasm] [--view page|worker] [--opts JSON] [--writer store|decoders|view] [--tabs]
 //   --tabs: the cache across tabs, Chromium only: a second tab refused while the first holds it, a reopen, a corrupted entry
-//   ... --url http://host/ --decoder htj2k [--client C]   (a host already running, such as the deploy image, whose transport
+//   ... --url http://host/ --decoder htj2k [--client C]   (Chromium alone: a host already running, such as the deploy image, whose transport
 //     file names C; no request log, so no code check)
 //   ... --url http://host/ --fill 0 --restart CMD   (CMD restarts the host's server and prints its `transport=` line)
 import { execFileSync, spawn } from "node:child_process";
@@ -85,9 +85,12 @@ const pageOf = (url) => `${url}?${new URLSearchParams({ check: "1", ...(process.
   ...(arg("--fill") && { fill: arg("--fill") }), ...(VIEW !== "page" && { view: VIEW }), ...(arg("--writer") && { writer: WRITER }), ...(arg("--opts") && { opts: arg("--opts") }) })}`;
 const noResult = () => new Promise((resolve) => setTimeout(() => resolve({ error: "no result in 300 s" }), 300000).unref());
 
+/** Under `--url` the host serves no lab/, as the image does not: the check's modules come from this checkout instead. */
 async function chromium() {
   const browser = await createRequire(import.meta.url)("playwright").chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
-  return { browser, context: await browser.newContext({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 }) };
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 });
+  if (arg("--url")) await context.route("**/lab/**", (route) => route.fulfill({ path: path.join(ROOT, new URL(route.request().url()).pathname) }));
+  return { browser, context };
 }
 
 /** A tab of `context` on the page, and the page's own result. */

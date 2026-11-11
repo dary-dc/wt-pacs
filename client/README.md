@@ -277,8 +277,9 @@ before it is called not exact (`decoder.js` `checked`; [`docs/adr/exactness-in-p
   label, DEMO-UX made the label green.
 * Two views, two want paths and two fill orders: under `page` the controller asks misses and the fill is every
   frame in index order; under `worker` the store sends misses and the first want, nearest first, replaces the fill.
-* `viewer/viewer.js` holds the check's, the lab's and the trace's code beside the product's (`check`, `deadline`,
-  `mutate`, `lab.settle`, `trace`, `ledger`): a presenter reading it cannot tell which part runs on the demo.
+* `viewer/viewer.js` held the check's, the lab's and the trace's code beside the product's (`check`, `deadline`,
+  `mutate`, `lab.settle`, `trace`, `ledger`); since resolved: CLEAN-PRODUCT moved it to `lab/viewer/hooks.js`, the
+  page hooks, which the page reaches only through the lab gate.
 * The failed label reads *Lossless check failed · optimal quality shown* on screen, *Lossless check failed* in README
   §Demo.
 * The stored form's dav1d route: each decoder worker tries WebCodecs once, on its first frame over 10 bits, before
@@ -529,11 +530,15 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   dialled, and on a host serving `lab/` shows `?wt=` and `?metadata=` honoured; it fails too if a transport file
   naming an unknown client is not refused by name with no WASM code fetched and nothing dialled. `?post=` (with `?origin=`) gives the
   page the total-time harness's protocol as two hooks, `started()` and `finished(result)`, which it calls only when
-  present; the page watches for the fill's end only for that hook or `?check=`. `?check=`, `?cine=`, `?fill=`, `?view=` and `?deadline=` are the page's own.
+  present; the page watches for the fill's end only for that hook or `?check=`. `?check=` (with `?deadline=` and
+  `?mutate=`) is a lab parameter too: the viewer check's modules, `lab/viewer/check-page.js` and `check-view.js`,
+  load through `lab/viewer/hooks.js`, and the view worker imports the latter by the URL its `lab` setting names.
+  `?cine=`, `?fill=` and `?view=` are the page's own.
 * **Its policy.** The page and every script it loads carry a Content-Security-Policy ([`deploy/README.md`](../deploy/README.md)
   §What must be preserved exactly): scripts from the page's origin alone, connections to it and the transport.
 
-**Its check**, `viewer/check.mjs`, takes a bundle (or `--url`, a host already running). It serves the bundle, opens
+**Its check**, `viewer/check.mjs`, takes a bundle (or `--url`, a host already running, whose `lab/` requests it answers
+from the checkout, in Chromium alone, since no image serves `lab/`). It serves the bundle, opens
 the page with `?check=1` in headless Chromium, or in a stock Firefox (`--engine firefox`, `FIREFOX_PATH`), and the
 page itself runs the protocol after the fill: an ask of a delivered frame, a fill cancelled at once, then an ask
 after the cancel. With `--fill 0` it first steps the page itself: to the middle frame, the last and the middle again

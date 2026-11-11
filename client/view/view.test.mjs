@@ -131,10 +131,10 @@ test("under pageDials the page starts and dials the downloader", async () => {
 test("a booted view worker is the one started", () => {
   made.length = 0;
   const booted = ViewWorker.boot();
-  new ViewWorker(canvas, { meta: { frameCount: 3 }, fillMode: true, size: {}, emit: () => {}, booted, glAfterDial: true });
+  new ViewWorker(canvas, { meta: { frameCount: 3 }, fillMode: true, size: {}, emit: () => {}, lab: { booted, glAfterDial: true } });
   assert.equal(made.length, 1);
   assert.equal(booted.sent[0].kind, "start");
-  assert.equal(booted.sent[0].glAfterDial, true);
+  assert.equal(booted.sent[0].lab.glAfterDial, true);
 });
 
 /** A worker booted early whose script failed before the page had its metadata fails as not started. */
@@ -143,7 +143,7 @@ test("a booted view worker that did not load is said", () => {
   const booted = ViewWorker.boot();
   booted.onerror({ message: "" });
   const events = [];
-  new ViewWorker(canvas, { meta: { frameCount: 3 }, fillMode: true, size: {}, emit: (type, e) => events.push(`${type} ${e.scope}: ${e.reason}`), booted });
+  new ViewWorker(canvas, { meta: { frameCount: 3 }, fillMode: true, size: {}, emit: (type, e) => events.push(`${type} ${e.scope}: ${e.reason}`), lab: { booted } });
   assert.deepEqual(events, ["failed worker: the view worker did not start: its script did not load"]);
   assert.equal(booted.terminated, true);
 });

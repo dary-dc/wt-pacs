@@ -1,6 +1,7 @@
 /** The viewer's lab parameters, honoured only on a host that serves this file: client/README.md §The viewer */
 import { Cine, now } from "../../client/view/clock.js";
 import { busyPage } from "../frame-clock/busy.js";
+import { pageHooks } from "./hooks.js";
 import { sawtooth, STEP_MS, waits } from "./trace.js";
 
 /** Settings the page view would ignore, or under `pixels` copy each paint: docs/adr/frame-path.md §The core, assembled. */
@@ -21,7 +22,7 @@ export function levers(q) {
   // docs/adr/frame-path.md §7: the page busy from here, and after the fill a cine of `cine` seconds.
   const tasks = q.get("busy") === "1" ? busyPage() : [];
   const seconds = Number(q.get("cine") ?? 0);
-  return {
+  const lab = {
     opts,
     transport: q.get("wt") ? { wt_url: q.get("wt"), cert_sha256: q.get("hash") } : undefined,
     metadata: q.get("metadata") ?? undefined,
@@ -30,6 +31,7 @@ export function levers(q) {
     ...(seconds && { cine: cineOf(seconds * 1000) }),
     ...(q.get("trace") && { trace: { steps: sawtooth, everyMs: STEP_MS } }),
   };
+  return { ...lab, hooks: pageHooks(q, lab) };
 }
 
 /**
