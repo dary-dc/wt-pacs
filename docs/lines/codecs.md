@@ -1,7 +1,7 @@
 # Codecs and lab
 
 Last verified 2026-11-11 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09; HTJ2K at screen
-resolution against the demo's approach, theory, its review and its improvement, 2026-11-11).
+resolution against the demo's approach, theory, its review and its improvement, 2026-11-11; measured, stages 0–2, 2026-11-11).
 
 ## Goal
 
