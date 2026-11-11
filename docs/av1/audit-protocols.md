@@ -28,8 +28,8 @@ repeats it. Protocol B's G 16 arms cover the other 16 DBT volumes at lag 0 only.
 lossless breast ultrasound cine and no ABUS. Hosts are 4-core cloud hosts without a GPU. Nothing here speaks for
 another scanner, for ultrasound, or for a phone.
 
-**Terms.** As `lab/av1/metrics/README.md` §Terms (on `claude/av1-quality-metrics`) and `docs/av1/groups.md` §Terms
-(on `claude/av1-groups`).
+**Terms.** As `claude/av1-quality-metrics:lab/av1/metrics/README.md` §Terms and `claude/av1-groups:docs/av1/groups.md`
+§Terms.
 * **σ**: a frame's noise by Immerkær's estimator, `quality.sigma`: √(π/2) · mean |Laplacian| ÷ 6 over in-window
   samples without the steepest 10 % by Sobel gradient, less 1/12.
 * **e_N**: the coding error's RMS in the same Laplacian band, `quality.noise_band`, over every in-window sample.
@@ -60,7 +60,7 @@ own depth. Decoded by native dav1d 1.5.4.
 (ν), bytes as the sum of IVF payloads. JOD is off (`vdp=False`): it does not decide anything here, and it was the
 quality study's largest cost.
 
-**Code.** One function `audit_cells(name)` in `lab/av1/groups/plan.py` beside `settings_cells`, and a flag `--audit`
+**Code.** One function `audit_cells(name)` in `claude/av1-groups-settings:lab/av1/groups/plan.py` beside `settings_cells`, and a flag `--audit`
 in `cell.py` beside `--settings`. `MPX` and `FRAME_MPX` gain the 16 new volumes from `lab/av1/data.json`.
 
 **Check, before the run.** O G 1 at Q 4, 8, 12 (and 16 on 10-bit) must reproduce the quality study's bytes per
@@ -107,7 +107,7 @@ does the OQ view keep at the rule's Q, on every DBT volume? And at what Q and by
   (*assumption*: one to two integer rungs below, near the cliff).
 
 **Decision rule.** This decides wording and an owner's option, not a Q:
-* If A2 holds, the line's description of the OQ view changes. "Keeps part of the noise" (`lab/av1/metrics`
+* If A2 holds, the line's description of the OQ view changes. "Keeps part of the noise" (`claude/av1-quality-metrics:lab/av1/metrics/README.md`
   §Quality metrics, measured) becomes "keeps ν of the fine-band noise", with the measured range, in
   `docs/lines/codecs.md` and `docs/lines/optimal-quality.md`. "Also for diagnosis" is then marked as resting on a
   view that removes most of the finest noise, until a reader test (quality study §6) runs.
@@ -205,7 +205,7 @@ at 1× and on a host capped to 1 and 2 slowed cores?
 | **Wb** | … as W, then profiles' `back()` on the clock | `claude/av1-quality-profiles:lab/av1/profiles/shared.js:13-17` |
 | **D** | … dav1d-WASM's frame out, one thread | `client/decode/av1-dav1d.js` of the demo tip |
 
-**Streams.** The demo's OQ form, as `scripts/demo-series.sh` codes it on the demo tip (`claude/demo-fixes-0` or newer,
+**Streams.** The demo's OQ form, as `claude/demo-fixes-0:scripts/demo-series.sh` codes it on the demo tip (`claude/demo-fixes-0` or newer,
 per the queue's demo-tip rule): `dbts_b1` at its own 10 bits; `dbts_a1` and `dbts_c1` cut to 10 bits; Q 8 and the
 noise rule's Q for that form (noise point §3's table: stored form for `dbts_b1`, top-10 form for the other two; B0's
 recomputed Q if B0 has run first), G 1; the middle 16 frames. Each volume's exact series
@@ -249,7 +249,7 @@ stream, opened and primed off the clock. At least 15 rounds, and up to 30 if tim
   marked *derived*.
 * No route changes: WebCodecs first is a decided approach. This decides only what may be said about its speed.
 
-**Host and saturation.** One 4-core host, headless Chromium as `lab/av1/profiles` pins it (the version is recorded
+**Host and saturation.** One 4-core host, headless Chromium as `claude/av1-quality-profiles:lab/av1/profiles/README.md` pins it (the version is recorded
 per round, DA 12). At 1×, Hp, Hb, Hk and D use one core; W uses Chromium's decoder threads, up to four (*assumption*).
 The host saturates for W at 1×, so C3's W figures hold for a 4-core host only. At `cores: 1` and `cores: 2` the cap
 itself is the limit. A capped cloud core is not a phone core (its cache, memory bandwidth and SIMD differ), so
