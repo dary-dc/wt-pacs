@@ -9,6 +9,7 @@ carries, in its plain and optimized representations — is [`payload-format.md`]
 What each target series is, per the DICOM standard and vendors' conformance statements: [`series.md`](series.md).
 The bit split against the literature, and the alternatives above 12 bits: [`split-prior-art.md`](split-prior-art.md).
 Lossless coding published 2023–2026, and what of it a browser can decode exactly: [`lossless-literature.md`](lossless-literature.md).
+The two audits' corrections, by study branch: [`corrections.md`](corrections.md); their three pre-registered protocols: [`audit-protocols.md`](audit-protocols.md).
 
 **Every ultrasound number in this file is provisional (the provenance audit, queue row DATAGUARD, 2026-10-08).** `us_liver`'s header says it
 was coded lossily at 12.4:1 before it was archived, the breast cine are MPEG-4 Part 2 clips, and the stills a PNG

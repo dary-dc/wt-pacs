@@ -1,6 +1,7 @@
 # Codecs and lab
 
-Last verified 2026-11-09 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09).
+Last verified 2026-11-11 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09; the
+audits' corrections of 2026-11-11, [`../av1/corrections.md`](../av1/corrections.md)).
 
 ## Goal
 
@@ -12,23 +13,34 @@ measured, and every result names its fixtures.
 ## State now
 
 **Fixtures.** Every AV1 timing rests on three EA1141 breast tomosynthesis volumes, `dbts_a1`, `dbts_b1`, `dbts_c1`
-(systems A and C 12-bit, noise σ 13–18; B 10-bit, σ 4.4–6.7); the quality study covers 20 series, 14 of them DBT. No
+(systems A and C 12-bit, B 10-bit; noise by Immerkær's estimator, the noise rule's, A and C 10–18 and B 3.4–5.7 by
+frame. *Corrected 2026-11-11:* this read "σ 13–18 … σ 4.4–6.7", the profiles run's Haar MAD, which differs from it by
+1.08–1.44×, quality audit F13); the quality study covers 20 series, 14 of them DBT. No
 breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../FIXTURES.md)).
 
 * **Design chosen (2026-11-09):** every viewer sees the series' **optimal quality**, a visually lossless AV1 view
   (also for diagnosis, not a preview); a reader's explicit request fetches the **exact** HTJ2K frame whole. The
   residual design (view + HTJ2K residual) is dropped. Its build is [`optimal-quality.md`](optimal-quality.md).
-* **Measured, Q 8, G 1, on the three volumes:** the view is 0.07–0.22 of HTJ2K's bytes; view plus the whole exact
-  frame 1.07–1.22×; the exact ask decodes in 1.01–1.03 HTJ2K frames. The lossy view decodes in 1.05–2.04 HTJ2K frames
-  through WebCodecs and 1.9–4.7 through dav1d-WASM: AV1 saves bytes, not decode time.
+* **Measured on the three volumes:** at Q 8, G 1 the view is 0.07–0.22 of HTJ2K's bytes and view plus the whole
+  exact frame 1.07–1.22×; at the noise rule's Q, 0.10–0.28 and 1.10–1.28× (*derived*, quality audit F7). *Corrected
+  2026-11-11:* this quoted Q 8's figures as the design's, and Q 8 is the rule's Q on none of them at G 1 but `dbts_c1`.
+  The exact ask decodes in 1.01–1.03 HTJ2K frames. Through WebCodecs at Q 8 the view decodes in about 1.55–1.81 HTJ2K
+  frames (`dbts_a1`, `dbts_c1`, top-10-bit stream, 1×, one host, with a discarded JavaScript pass taken off the
+  clock, *derived*; `dbts_b1` has no Q 8 cell); through dav1d-WASM in 1.9–4.7. AV1 saves bytes, not decode time, at
+  Q 8 at 1× on this host. *Corrected 2026-11-11 (decode audit 2, 13):* this read "1.05–2.04 HTJ2K frames, Q 8", a range
+  that spans three rungs a set and carries that pass. These ratios divide by different HTJ2K units; the product's own
+  path is timed in none (decode audit §The HTJ2K frame is not one unit).
 * **Quality** (`claude/av1-quality-metrics`, 20 series, one shard missing): the coding error reaches the noise at
-  Q 8 (system A: Q 4); no Q keeps every displayed level within 1; visual losslessness needs readers, not run.
+  Q 8 (system A: Q 4) at the bar 1.00, which sits inside the estimator's 3 % error; at the noise rule's bar of 1.03
+  every 12-bit volume reads Q 8 and the 10-bit ones Q 12–16, and either bar passes a coding that deletes the fine-band
+  noise (*corrected* 2026-11-11, quality audit F1, F4); no Q keeps every displayed level within 1; visual losslessness needs readers, not run.
 * **Noise point** (`claude/av1-noise-point`, #317, 2026-11-09): a candidate Q per series from one number, the series'
   lowest frame noise σ_min. Valid for the DBT fixtures only; not for TRUS or MR. Held-out test (2026-11-09): the rule
   picked the predicted Q on 10 of 10 (series, G) cells of five unseen DBT series, worst frame 0.89–0.97 of σ; σ costs
   0.05–0.09 CPU s/Mpx at ingest and must be taken on every frame (every fourth moved one cell by a rung).
 * **Q against window width** (`claude/av1-window-q`, 2026-11-09): a window scales coding error and noise alike, so
-  "coding error within the noise" holds at every width once it holds: Q 8 meets it on DBT, a higher Q does not. "Error
+  "coding error within the noise" holds at every width once it holds: Q 8 meets it on DBT. *Corrected 2026-11-11:* this added "a higher Q does not";
+  the anchor is Q 12 on 3 of system B's 5 volumes and integer-Q arms hold at Q 9–13 (quality audit F11). "Error
   under one display level at the header windows" would need Q 1–2 on 12-bit DBT (0.64 of HTJ2K's bytes against about
   0.10 at Q 8), Q 4 on 10-bit DBT and TRUS. Which reading is visually lossless needs readers.
 * **Depth and decode route:** WebCodecs decodes the OQ view; dav1d-WASM is a fallback only. D ≤ 10 is coded at its
@@ -44,8 +56,14 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 
 ## Open (ordered)
 
+00. **The audits' corrections and protocols** (row AV1-CORRECT, 2026-11-11): each study branch applies its entry of
+   [`../av1/corrections.md`](../av1/corrections.md) in place; [`../av1/audit-protocols.md`](../av1/audit-protocols.md)
+   pre-registers A (noise kept, ν, QA F4), B (one bar at the estimator's resolution, integer Q, QA F1, F2) and C (decode
+   on the product's HTJ2K unit, core-capped, decode audit 1, 2, 13) for a session that did not write them.
 0. **G at equal quality** (`claude/av1-groups`, protocol then measurement): G has only been compared at equal Q. Open:
-   why G saves almost nothing at Q 8 on DBT, whether a lower Q at a larger G wins at equal fidelity, and whether our
+   why G saves almost nothing at Q 8 on DBT (an equal-Q reading at the rung below the byte cliff: G 16 ÷ G 1 is
+   0.93–1.01 at Q 8 and 0.77–0.94 at Q 12, quality audit F2; groups shard 1 measures 4.2–4.4 % at the noise anchor on
+   `dbts_b1`), whether a lower Q at a larger G wins at equal fidelity, and whether our
    low-delay encoder settings (no lookahead, no alt-ref frames, whose temporal filtering partly averages out noise)
    suppress inter coding. Decode time in order matters more than jumps (sequential reading). No G is decided for DBT.
 1. Harvest and review the AV1 result chain into `av1-unified-mainbase`: #290 → #305 → #317, #312; #283 → #306 → #314
