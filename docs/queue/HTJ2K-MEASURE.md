@@ -1,8 +1,9 @@
 state: started
 started: 2026-11-11 18:59 UTC
-heartbeat: 2026-11-11 19:34 UTC
+heartbeat: 2026-11-11 21:21 UTC
 outputs: `claude/htj2k-tiles` 947bb3b9 (rows, docs; draft PR #324 into main, already open: the commits land in it)
 ## Resume
+*Resumed 2026-11-11 21:21 UTC by a queue-worker session (stalled since 19:34): continuing at stage 3's setup.*
 Stages 0–2 done and pushed; stage 3 (shards S3a–S3c) is next and needs a build first. Done: `lab/htj2k-tiles/improve/`
 (offline.py stages 0–1, stage2_prep.py, decode/ worker, page, run.mjs, summary.py, levels_check.mjs, build_levels.sh),
 rows `rows/stage0-<vol>.jsonl` (175 frames) and `rows/stage2.jsonl` (10 rounds), `docs/htj2k-tiles.md` §Improve,
