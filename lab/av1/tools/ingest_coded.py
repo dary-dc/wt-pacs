@@ -27,7 +27,7 @@ def main():
     ap.add_argument("build", type=Path)
     ap.add_argument("set_dir", type=Path)
     ap.add_argument("out", type=Path)
-    ap.add_argument("--codec", choices=list(ingest.CODECS), default="av1")
+    ap.add_argument("--codec", choices=["av1", "htj2k"], default="av1")
     ap.add_argument("--representation", choices=["plain", "optimized"], default="optimized")
     ap.add_argument("--split", type=int)
     ap.add_argument("--grey8", choices=["400", "420"], default="400")
