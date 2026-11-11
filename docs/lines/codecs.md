@@ -60,6 +60,9 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    [`../av1/corrections.md`](../av1/corrections.md) in place; [`../av1/audit-protocols.md`](../av1/audit-protocols.md)
    pre-registers A (noise kept, ν, QA F4), B (one bar at the estimator's resolution, integer Q, QA F1, F2) and C (decode
    on the product's HTJ2K unit, core-capped, decode audit 1, 2, 13) for a session that did not write them.
+   B0 measured (row MEASURE-1, `claude/audit-measure`, 2026-11-11): QA F1's table reproduced; over all 19 volumes x\*
+   is 4.7584 at G 1 (not 4.9293), 4.6359 pooled and at G > 1, 4.8024 for 12-bit streams; no reading overshoots an
+   anchor. Which x\* the rule takes waits on δ (B1, B2). B, A, C not run.
 0. **G at equal quality** (`claude/av1-groups`, protocol then measurement): G has only been compared at equal Q. Open:
    why G saves almost nothing at Q 8 on DBT (an equal-Q reading at the rung below the byte cliff: G 16 ÷ G 1 is
    0.93–1.01 at Q 8 and 0.77–0.94 at Q 12, quality audit F2; groups shard 1 measures 4.2–4.4 % at the noise anchor on
