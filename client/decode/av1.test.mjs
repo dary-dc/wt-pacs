@@ -373,7 +373,7 @@ const { parsePayload } = await import("./av1-payload.js");
   await again("after dav1d, a failing WebCodecs is not dav1d again", "g10", 10, "av1-dav1d", "probe g10,webcodecs", "undecodable");
   wcFails = false;
   await again("inside a group, none", "g10", 10, "av1-webcodecs", "", "a frame inside a group", { key: false });
-  // A mismatched frame inside a group is decoded again from its keyframe on the other path: proposals.md §I1
+  // A mismatched frame inside a group is decoded again from its keyframe on the other path: docs/av1/payload-format.md §Integrity
   const regroup = async (what, earlier, avoid, want, outcome) => {
     [depth, planes] = [10, 1];
     calls.length = 0;
