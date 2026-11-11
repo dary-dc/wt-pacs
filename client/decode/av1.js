@@ -50,8 +50,17 @@ function route(payload, top, avoid) {
   return refusedDeep ? { refusal: refusedDeep } : webcodecs([]);
 }
 
-export async function decodeFrame(bytes, unit = { key: true }, preview, avoid) {
-  if (avoid && !unit.key) throw new Error("a frame inside a group decodes on its group's decoder alone");
+/** Frame `unit` decoded again on dav1d after WebCodecs, from its group's keyframe on: `earlier`, the group's payloads before it, null if not kept. */
+export async function decodeAgain(earlier, bytes, unit, avoid) {
+  if (!earlier) throw new Error(`frame ${unit.index}'s group was not kept from its keyframe`);
+  if (avoid !== "av1-webcodecs") throw new Error("a group is decoded again on dav1d only, after WebCodecs");
+  const key = unit.index - earlier.length;
+  for (const [j, b] of earlier.entries()) await decodeFrame(b, { key: j === 0, gen: unit.gen, index: key + j }, null, avoid, true);
+  return decodeFrame(bytes, { ...unit, key: earlier.length === 0 }, null, avoid, true);
+}
+
+export async function decodeFrame(bytes, unit = { key: true }, preview, avoid, regroup = false) {
+  if (avoid && !unit.key && !regroup) throw new Error("a frame inside a group decodes on its group's decoder alone");
   const payload = parsePayload(bytes);
   const [top, low] = units(payload.frames[0], payload.split);
   let { wc, refusal } = await route(payload, top, avoid);
