@@ -43,6 +43,11 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
 * **The demo build** (DEMO-INTEGRATE, 2026-11-10): `claude/demo-fixes-0` (#355 into `claude/core`) is the demo tip
   `claude/core-next-fixes` plus `gate-cloud`, `double-decode-check` and `demo-e2e-2`, each a `--no-ff` merge; full
   gate OK in a cloud session (skipped: lavapipe, GL display, Firefox, nginx); CI gate and deploy green.
+* **Tests for a phone on lossy wireless** (TEST-MOBILE, 2026-11-11, `claude/demo-tests-mobile`): the label through a
+  failed ask and its retry, the route rule by depth and in a group, `demo-check.mjs --link` through
+  `lab/scripts/link_impair.py` (no `sch_netem` in the cloud kernel). Correct wherever it finished; at 40 ms one way
+  and 2 % loss `dbts_a1`'s cut filled in 36 s and Lossless took 3–6 s, and `dbts_b1` did not fill in 120 s
+  ([`docs/reviews/demo-tests-mobile.md`](../reviews/demo-tests-mobile.md); one run per cell, one cloud host).
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 ## Terms
