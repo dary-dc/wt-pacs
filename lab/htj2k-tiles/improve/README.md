@@ -34,3 +34,8 @@ cd lab/htj2k-tiles/improve
 ../../av1/.venv/bin/python stage3_prep.py ../../../ingest/.build DATA ../../../lab/.av1-work/htj2k-improve dbts_a1 dbts_b1 dbts_c1
 ../../av1/.venv/bin/python stage3_check.py ../../../ingest/.build ../../../lab/.av1-work/htj2k-improve/dbts_b1-bands [--mutate NAME]
 ```
+
+**Stage 3's D series**: the demo commit `157b7109`'s own `scripts/demo-series.sh`, run in a worktree of that commit
+with its own ingest build (its `ingest/coded-frames/decode.cpp` differs from this branch's); the exact series and Q 8
+at G 1 and G 16 (the depth cut on `dbts_a1`, `dbts_c1`) are the arms' inputs. Their bytes equal FREEZE-E2E's run of
+the same script; digests in [`rows/stage3-d-series.json`](rows/stage3-d-series.json).
