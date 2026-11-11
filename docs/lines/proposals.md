@@ -319,6 +319,31 @@ variants per series rotated one place each round. *Rule, as registered, per seri
 lab copy cannot carry it. In its place every `on` run must end with the optimal-quality series fully received, no
 `error:` on the status line, and *Lossless*; a run that does not is reported and fails the rule.
 
+**Measured (MEASURE-1, 2026-11-11 14:19–14:46, per amendment 1): the plumbing cell, 7 of 7 rounds; the rule as
+registered is refuted, the wake itself works.** 105 runs, every one ending at *Lossless* with its optimal-quality
+series whole and no error; the relay promoted once in every promoted run and never in `unpromoted`. Rows
+`lab/proposals/rows/p3.jsonl`, table `lab/proposals/p3_summary.py`; medians of 7, `l` above `unpromoted`'s:
+
+| series | `unpromoted` ms | `off` | `on 0` | `on 50` | `on 100` |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| expected | | +300 | +300 | +250 | +200 |
+| dbts_a1-q8-g8-cut | 826 | +288 | +284 | +244 | +200 |
+| dbts_b1-q8-g8 | 1251 | +13 | +17 | +32 | +9 |
+| dbts_c1-q8-g16-cut | 755 | +295 | +291 | +247 | +190 |
+
+**By the rule: refuted**, on `dbts_b1` wholly and on `dbts_a1`'s `off` and `on 0` (12 and 16 ms short of 300, the
+tolerance 10). On `dbts_a1` and `dbts_c1` the wake takes the lead off the promotion as the relay's model says: `on L`
+against `off` is −4, −44, −88 ms and −4, −48, −105 ms for L = 0, 50, 100. **`dbts_b1` is the rig, not the wake:** its
+fill ends 5.6–6.8 s after navigation against 1.8–2.7 s for the other two, so `l` comes 15–17 s into the exact
+session's life, and something other than the ask wakes the relay's radio first. A check outside the protocol, 2 runs
+a variant (`lab/proposals/rows/p3-ping-check.jsonl`): `dbts_b1` after 6 s of quiet pays the promotion (`off` 1 573 and
+1 680 ms against `unpromoted` 1 237 and 1 343), and `dbts_a1` after 14 s pays none (`off` 820 and 832 against 835 and
+830). That fits a packet sent about 15 s into the session, such as the browser's 15 s ping (`transport-conclusions.md`
+§9 item 4); which packet it is was not read. **Against the prediction:** the plumbing reproduces max(0, P − L) where
+the ask is the first packet after the quiet; P3 is not decided here; the deciding row is the owner's phone on
+cellular, as registered, and on a phone the same ping would hide the promotion from any `l` it precedes. **Limits:**
+the relay's radio is a model; one host; the three DBT volumes of one dataset.
+
 ### P4. A 32-packet initial window on the exact server only
 
 **Mechanism.** The exact session never fills, so every `l` starts from the initial window. "Endpoints SHOULD use an
