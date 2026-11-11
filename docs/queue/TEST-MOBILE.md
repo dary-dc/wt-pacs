@@ -1,12 +1,15 @@
 state: started
 started: 2026-11-11 01:34
-heartbeat: 2026-11-11 01:35
+heartbeat: 2026-11-11 01:40
 outputs: claude/demo-tests-mobile (from claude/demo-fixes-0 618e13c8)
 ## Resume
-Branch claude/demo-tests-mobile pushed at 618e13c8 (nothing of its own yet). Plan: (a) node tests of the label and `l`
-in client/view/controller.test.mjs (passing ones) and client/view/mobile.test.mjs (failing ones, outside the gate, as
-REDTEAM-DEMO did); (b) client/viewer/lossy-link.sh: demo-check.mjs run in a network namespace whose loopback carries
-netem delay and loss, on dbts_a1 (exact + q8-g8-cut) and dbts_b1 (exact + q8-g8, D 10). Building in the background:
-cargo series-server pack-series; ingest/tools.sh; client/transport/wasm/build.sh + ts/build.sh; playwright 1.56.1.
-To continue: the same builds (README §Demo), then the lossy-link run.
+On claude/demo-tests-mobile (from claude/demo-fixes-0 618e13c8): 4397519b controller tests (label through a failed ask
+and its retry, unchecked, `l` before connect, one ask per frame, window change; 10 mutants killed); 37f13e82 av1 route
+tests (≤ 10 bits not sticky, > 10 sticky, in-group stays on WebCodecs; 2 of 3 mutants killed, the third equivalent);
+f33c272f demo-check.mjs: the wrong digest's `l` retry asserted in order, and `--link "OPTIONS"` through
+lab/scripts/link_impair.py (this kernel has no sch_netem: `tc qdisc add … netem` → "Specified qdisc kind is unknown").
+Next: once built (cargo series-server pack-series, ingest/tools.sh, client/transport/wasm/build.sh + ts/build.sh,
+lab/av1/fetch_data.sh dbts_a1 dbts_b1, gen_dev_cert.sh), ingest dbts_a1, dbts_a1-q8-g8-cut, dbts_b1, dbts_b1-q8-g8
+as scripts/demo-series.sh does into demo-series/, then run demo-check.mjs with no link, then --link at
+"--delay-ms 40 --jitter-ms 10 --loss 2" and "--delay-ms 80 --jitter-ms 20 --loss 5", interleaved per series.
 ## Result
