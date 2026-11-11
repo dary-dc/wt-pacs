@@ -36,7 +36,7 @@ Part 2 progress (pushed):
   the removal); 24b80bcd restores it (tree = c2034cb3). Owner's yes = `git revert 24b80bcd`.
 * c7c799e9 line files (coordination: item 16 proposal, item 11 yes), glossary row "page hooks".
 * Full gate GATE OK in 532 s on 24b80bcd+docs (skipped: native painter/window, cross-codec+Firefox, nginx).
-NOW (long): demo-series.sh then demo-check.mjs 20 runs x {page, worker} (README §Demo loop). Was: full gate: dockerd running; INGEST_BUILD=$PWD/ingest/.build PYTHON=<venv> scripts/gate.sh; then
+NOW (long): demo-series.sh done (21 series, 438 s); running demo-check.mjs 20 runs x {page, worker} (README §Demo loop). Was: full gate: dockerd running; INGEST_BUILD=$PWD/ingest/.build PYTHON=<venv> scripts/gate.sh; then
 scripts/demo-series.sh and demo-check.mjs on every series both views (as FIX-2 did); line file; draft PR.
 Was next: items 13+14 together (check and lab hooks out of viewer.js into one lab/ module loaded by head.js's gate;
 check-page.js and view/check.js out of the web image; view worker's check import by a URL the lab object gives;
