@@ -36,7 +36,7 @@ bursts (`gemodel`). The phone itself, its radio and its decoder are not modelled
 | P2 | tiles in the optimal-quality encode | jump, step, phone decode | per-frame decode 0.4–0.9× on a 4–8-core phone; bytes +0.5–3 % | ingest arguments | yes, indicative (x86) |
 | P3 | a wake on `pointerdown`, before `l` asks | `l` after a dwell | − min(P, L) on a promoted radio: 0–150 ms | client, ~10 lines | plumbing only |
 | P4 | a 32-packet initial window on the exact server only | `l` | `l` −5 to −25 % on a clean link | a flag | yes, through netem |
-| P5 | the exact session dialled after the first picture | first picture | 0 to −100 ms on a phone; nothing measurable on this host | client, ~3 lines | barely; measured: drop as inert, `l` 1.03–1.10× |
+| P5 | the exact session dialled after the first picture | first picture | 0 to −100 ms on a phone; nothing measurable on this host | client, ~3 lines | barely |
 
 Most promising first: P1's band is the widest by an order of magnitude and needs no code; P2 is the only lever on
 the decode, which bounds the fill on a fast link and every jump; P3–P5 are smaller and cheap.
