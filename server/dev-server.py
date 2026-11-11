@@ -6,6 +6,7 @@ import ipaddress
 import json
 import subprocess
 import sys
+import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote
@@ -38,6 +39,9 @@ class Handler(SimpleHTTPRequestHandler):
     exact: dict[str, Path] = {}
     log_requests = False
     csp = policy("127.0.0.1")
+    # Where test pages' load reports are appended as JSONL, None to refuse them: docs/adr/telemetry-in-production.md §8
+    beacon: Path | None = None
+    beacon_lock = threading.Lock()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -70,6 +74,22 @@ class Handler(SimpleHTTPRequestHandler):
             return None
         return super().send_head()
 
+    def do_POST(self):
+        if not self.beacon or self.path != "/lab/beacon":
+            self.send_error(404)
+            return
+        try:
+            report = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+        except ValueError:
+            report = None
+        if not isinstance(report, dict):
+            self.send_error(400, "one load report, a JSON object")
+            return
+        with self.beacon_lock, self.beacon.open("a") as f:
+            f.write(json.dumps(report, separators=(",", ":")) + "\n")
+        self.send_response(204)
+        self.end_headers()
+
     def send_header(self, keyword, value):
         super().send_header(keyword, value)
         if keyword.lower() == "content-type" and value.split(";")[0].strip() in REVALIDATED:
@@ -99,6 +119,7 @@ def main():
     parser.add_argument("--transport", type=Path, help="serve this file as /wt/dev-transport.json")
     parser.add_argument("--exact-metadata", type=Path, help="a lossy --metadata's exact series: its metadata")
     parser.add_argument("--exact-transport", type=Path, help="and the transport file of the server that serves it")
+    parser.add_argument("--beacon", type=Path, metavar="FILE", help="append test pages' load reports here as JSONL (docs/adr/telemetry-in-production.md §8)")
     parser.add_argument("--log-requests", action="store_true", help="print each path asked for (client/viewer/check.mjs)")
     args = parser.parse_args()
     if args.bind.is_unspecified:
@@ -110,6 +131,7 @@ def main():
     Handler.metadata = args.metadata and args.metadata.resolve()
     Handler.transport = args.transport and args.transport.resolve()
     Handler.log_requests = args.log_requests
+    Handler.beacon = args.beacon and args.beacon.resolve()
     Handler.csp = policy(str(args.bind))
     if args.exact_metadata or args.exact_transport:
         if not (args.metadata and args.exact_metadata and args.exact_transport):

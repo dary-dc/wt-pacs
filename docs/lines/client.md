@@ -30,6 +30,11 @@ on lossy wireless; bit-exact; fill and latency both count.
 * 2026-11-11, `claude/demo-view-worker`: `demo-check.mjs --view worker` passes all 20 demo series under both views
   ([`docs/reviews/view-worker-check.md`](../reviews/view-worker-check.md)); correctness only, which view the demo
   shows is the owner's.
+* 2026-11-11, `claude/telemetry-client` (row TELEMETRY-CLIENT, a proposal, not for the demo): the **load report**,
+  client telemetry in the product, off unless the transport file sets `telemetry: {rate, url}`; one JSON object per
+  sampled load, sent once when the page hides ([`../adr/telemetry-in-production.md`](../adr/telemetry-in-production.md)
+  §8). The phone run's beacon is now a switch over it. Owed: the owner's rate, sink and retention; §5's cost and
+  delivery runs.
 
 ## Open (ordered)
 

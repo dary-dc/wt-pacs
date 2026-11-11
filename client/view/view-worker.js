@@ -150,6 +150,7 @@ const CALLS = {
     const l = await controller.ledger({ flip });
     return { ...l, boot: { ...boot, ...l.boot } };
   },
+  summary: () => controller.summary(),
   cine: () => cine?.log ?? [],
   check: async ({ phase, args }) => (await import("./check.js"))[phase]({ controller, port: downloader, ...args }),
   close: () => (controller.exactSource?.close(), controller.client.close()),

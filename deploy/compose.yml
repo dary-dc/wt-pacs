@@ -1,6 +1,6 @@
 # Both halves, unattended. The browser reaches the page on 8765 (or 443 over TLS) and the transport on 4433
 # directly: nginx is not in the transport's path and cannot be. Variables: deploy/README.md.
-x-build: &build { context: .., dockerfile: deploy/Containerfile, args: { REGISTRY: "${REGISTRY:-docker.io/library}" }, secrets: [build_ca] }
+x-build: &build { context: .., dockerfile: deploy/Containerfile, args: { REGISTRY: "${REGISTRY:-docker.io/library}", REVISION: "${REVISION:-unknown}" }, secrets: [build_ca] }
 services:
   server:
     image: wt-pacs-server

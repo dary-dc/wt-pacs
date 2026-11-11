@@ -251,6 +251,13 @@ export class Controller {
     return { i, x: col, y: row, stored, modality: stored.map((s) => s * slope + intercept) };
   }
 
+  /** Each frame here as the overlay shows it, the fill and the downloader's dial, with no digest: the load report's. */
+  async summary() {
+    const held = [...this.store.keys()].map((i) => [i, this.store.get(i).info]);
+    const frames = held.map(([i, info]) => ({ i, ...about(info) }));
+    return { frames, fillMs: this.fillMs, dial: held.find(([, info]) => info.stamps?.boot)?.[1].stamps.boot.dial };
+  }
+
   /** Each frame here, its digest taken where it is held, for a lab harness; `flip`, one sample bit flipped first. lab/viewer/levers.js */
   async ledger({ flip = false } = {}) {
     const { sha256Hex } = await import("../decode/wasm-glue.js");
@@ -261,7 +268,7 @@ export class Controller {
       boot ??= info.stamps?.boot;
       const samples = new Uint8Array(info.pixels).slice();
       if (flip) samples[samples.length >> 1] ^= 1;
-      frames.push({ i, page: arrived, lastByte: info.stamps?.lastByte, decoded: info.stamps?.decodeEnd, mediaReads: info.stamps?.mediaReads, exact: info.exact, path: info.path, painted, writeAsked, written, sha: await sha256Hex(samples) });
+      frames.push({ i, page: arrived, lastByte: info.stamps?.lastByte, decoded: info.stamps?.decodeEnd, mediaReads: info.stamps?.mediaReads, exact: info.exact, ...about(info), painted, writeAsked, written, sha: await sha256Hex(samples) });
     }
     return { frames, firstShownMs: this.firstShownMs, fillMs: this.fillMs, stats: this.client.stats(), boot };
   }

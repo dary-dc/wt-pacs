@@ -79,6 +79,9 @@ run 1 bash deploy/seccomp-uring.sh --check
 step "deploy: every module the web image's files name is in it"
 run 1 sh deploy/web-files_test.sh
 
+step "deploy: the images carry the commit they were built from"
+run 1 sh deploy/image_args_test.sh
+
 step "client: build bundles + unit tests"
 run 1 bash client/transport/ts/build.sh
 run 1 bash -c 'cd client/transport/ts && sha256sum -c --quiet manifest.sha256 && echo "session.js rebuilt to its pin" \
@@ -94,6 +97,7 @@ run 1 node client/decode/xxh3.test.mjs
 run 1 node client/transport/downloader.test.mjs
 run 1 node client/transport/consumer.test.mjs
 run 1 node client/viewer/store.test.mjs
+run 1 node client/viewer/load-report.test.mjs
 run 2 node client/decode/av1.test.mjs
 run 1 python3 server/dev-server.test.py
 run 1 bash server/scripts/gen_dev_cert_test.sh
@@ -188,6 +192,14 @@ else
   skip "optimal quality's test needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
 fi
 
+step "lab: the phone run's runner and beacon, headless on a synthetic pair across two controllers and two links"
+if [[ $browser -eq 1 && -f "$INGEST_BUILD/payload/libdecode.so" && -x "$INGEST_BUILD/aom-3.15.1/bin/aomenc" ]] \
+  && "$PYTHON" -c "import numpy, xxhash" 2>/dev/null; then
+  run 1 env PYTHON="$PYTHON" BUILD="$INGEST_BUILD" bash lab/phone/run_test.sh
+else
+  skip "the phone runner's browser test needs the browser, ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
+fi
+
 step "client: the native core's decode — every committed frame digest, through ingest/tools.sh's dav1d and OpenJPH — and its view module's want, store, credits and hand-over"
 if [[ -f "$INGEST_BUILD/payload/libdecode.so" ]]; then
   run 1 cargo test -p native-client --features decode --quiet -- decode:: view::
@@ -203,6 +215,9 @@ run 1 node scripts/perf_campaign.test.mjs
 
 step "lab: the viewer's levers — a fill's time and reads, steps on demand, the sawtooth trace, Experiment 2's rule over rows"
 run 1 node lab/viewer/levers.test.mjs
+run 1 node lab/phone/beacon.test.mjs
+run 1 node lab/phone/runner.test.mjs
+run 1 sh lab/phone/read-path_test.sh
 run 1 node lab/viewer/trace.test.mjs
 
 step "lab: the device kit's plan, bundle reader, collector and server start; the prebuilt recipe's server stage is the Containerfile's"

@@ -3,6 +3,10 @@
 ARG REGISTRY=docker.io/library
 
 FROM ${REGISTRY}/debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS server
+ARG REVISION=unknown
+LABEL org.opencontainers.image.revision="${REVISION}"
+ARG FEATURES=
+LABEL dev.wt-pacs.features="${FEATURES}"
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 RUN useradd -r -u 10001 wtpacs && install -d -o 10001 -g 10001 -m 0700 /certs && install -d -o 10001 -g 10001 -m 0755 /run/wt-pacs
 COPY series-server /usr/local/bin/series-server

@@ -4,6 +4,7 @@ import { built } from "/client/decode/wasm-glue.js";
 import { Painter } from "/client/paint/painter.js";
 import { asPainted, Controller, FIT, wantFrom } from "/client/view/controller.js";
 import { View, ViewWorker } from "/client/view/view.js";
+import { loadReport } from "/client/viewer/load-report.js";
 import { checkPair, pairOf } from "/client/viewer/pair.js";
 import { labelOf, lastError, markOf, overlayText, unfoldOnTap } from "/client/viewer/screen.js";
 import { RANGE_KEYS, sliceSlider } from "/client/viewer/slider.js";
@@ -37,6 +38,15 @@ const meta = await globalThis.viewerMetadata;
 /** Epoch ms of the page's start, for the lab's ledger: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
 const boot = { metadata: at() };
 const n = meta.frameCount;
+// Sampled loads only, off unless the transport file or the lab sets a rate: docs/adr/telemetry-in-production.md §8
+const telemetry = loadReport(lab.telemetry ?? lab.transport.telemetry, { load: crypto.randomUUID(), view: where, client: lab.transport.client,
+  codec: meta.codec ?? "htj2k", source: meta.sourceFingerprint ?? null, lossy: meta.lossy ?? null, frameCount: n, ...lab.telemetry?.fields });
+if (telemetry) {
+  lab.reported?.(telemetry);
+  addEventListener("error", (e) => telemetry.error("onerror", e.message));
+  addEventListener("unhandledrejection", (e) => telemetry.error("unhandledrejection", e.reason?.message ?? e.reason));
+  document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && telemetry.end());
+}
 // An optimal-quality series is shown at optimal quality, each frame exact on request from its exact series.
 const pair = await (async () => {
   const p = pairOf(meta);
@@ -77,13 +87,20 @@ const follow = sliceSlider(sliceEl, n, { show, pause: () => view.playing && togg
 
 function fail(why) {
   errors.push(why);
+  telemetry?.error("page", why);
   status();
 }
 
 /** What the controller tells the page, from here or from the view worker: never a frame. */
 const on = {
   renderer: ({ renderer, error }) => ((rendererName = renderer ?? error), status()),
-  progress: (p) => ((progress = p), status()),
+  progress: (p) => {
+    const filled = progress.fillMs === null && p.fillMs !== null;
+    progress = p;
+    telemetry?.progress(p.have);
+    if (filled && telemetry) (worker ?? controller).summary().then((s) => telemetry.filled({ ...s, issuedAt }));
+    status();
+  },
   shown: (s) => {
     shown = s;
     const mark = markOf(s);
@@ -120,10 +137,13 @@ if (where === "page") {
     booted, glAfterDial: Boolean(lab.opts.glAfterDial) });
 }
 
+let shownQuality;
 /** The quality label says what is painted, as the controller judged it; the overlay, `?overlay=1`, how it got here. */
 function showQuality({ quality, about }) {
-  qualityEl.hidden = !quality;
   const label = labelOf(quality);
+  if (quality !== shownQuality) telemetry?.label(label.className, label.text);
+  shownQuality = quality;
+  qualityEl.hidden = !quality;
   qualityEl.className = label.className;
   qualityEl.textContent = label.text;
   losslessEl.textContent = quality === "lossless" || quality === "asking" ? "optimal quality" : "lossless";
@@ -208,7 +228,11 @@ async function connectExact() {
     fail(`lossless: ${e.message}`);
   }
 }
-losslessEl.onclick = () => (/lossless|asking/.test(qualityEl.className) ? view.lossy() : view.exact());
+losslessEl.onclick = () => {
+  telemetry?.press(losslessEl.textContent);
+  if (/lossless|asking/.test(qualityEl.className)) view.lossy();
+  else view.exact();
+};
 function show(i) {
   const step = view.show(i);
   follow(view.current);

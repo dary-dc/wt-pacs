@@ -60,6 +60,7 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | settle | what a paint waits for before it reports, so its `drawn` stamp is when the draw executed: `fence`, a sync object polled on a 1 ms timer, or `read`, a one-pixel `readPixels`, which in Firefox ≥ 145 waits for the page's thread. A lab's setting only; the product paints unsettled, its `drawn` the draw's issue ([`../client/paint/README.md`](../client/paint/README.md) §When a paint has executed) |
 | cine | the frames shown one after another at a rate; the product's is ticked by a page `setInterval` (`client/view/view.js`) |
 | cine clock | what ticks cine, on the page or in the view worker; each of the lab's clocks shows the frame due at its tick (`client/view/clock.js`, [`adr/frame-path.md`](adr/frame-path.md) §A frame clock in the view worker); natively, a timer on the paint thread (`client/native/src/clock.rs`), a frame **late** when its paint has not ended by the time the next is due |
+| load report | one JSON object per sampled page load, sent once when the page turns hidden: the product's client telemetry ([`adr/telemetry-in-production.md`](adr/telemetry-in-production.md) §8); the phone run's beacon turns it on |
 | Tap | the client's telemetry recorder, outside the product build ([`adr/telemetry-instrument-clients-from-outside.md`](adr/telemetry-instrument-clients-from-outside.md)) |
 
 ## Testing and measuring
