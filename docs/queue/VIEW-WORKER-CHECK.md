@@ -1,12 +1,13 @@
 state: started
 started: 2026-11-11 01:34
-heartbeat: 2026-11-11 01:45
+heartbeat: 2026-11-11 01:58
 outputs: claude/demo-view-worker (from claude/demo-fixes-0 618e13c8)
 ## Resume
-* 66521fc5 on claude/demo-view-worker: the failing check (status line must name `view <--view>`); the fix (put
-  `&view=${VIEW}` in pass()'s URL) not yet committed. view/clock.js is already in deploy/web-files.sh: nothing to add.
-* Next: setup (dockerd; pip install meson==1.9.1; ingest/tools.sh; client/transport/wasm/build.sh and ts/build.sh;
-  client/decode/wasm/fetch_openjph.sh; gen_dev_cert.sh; cargo build --release -p series-server; README venv;
-  PYTHON=.venv/bin/python scripts/demo-series.sh), then show the check failing under --view worker on one series,
-  commit the fix, mutate, run 20 series x {page, worker} interleaved by series (README §Demo's loop, --view added).
+* claude/demo-view-worker: 66521fc5 the failing check (failed under --view worker before the fix, shown on
+  dbts_a1-q8-g8-cut), then the fix (`&view=${VIEW}` in pass()'s URL), passing. Mutants killed: no view in the URL;
+  the URL hardcoded to worker under --view page. view/clock.js is already in deploy/web-files.sh.
+* Setup done in this container (/tmp/claude-0/setup.sh). Running now: 20 series x {page, worker}, order alternating
+  by series, rows appended to docs/reviews/view-worker-check.md on the branch and pushed every few series.
+* To continue: skip series already in that file; for the rest, as README §Demo's loop with `--view page` and
+  `--view worker`. Then README §Demo mention of --view, docs/lines/client.md note, draft PR into claude/demo-fixes-0.
 ## Result
