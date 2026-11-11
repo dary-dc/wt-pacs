@@ -196,6 +196,13 @@ plus 20 Mbit with a 20-packet `limit`. *Measured:* on a filled page after 10 s o
 arms alternating, fresh processes per run. *Rule:* adopt if the 38 400 arm's median is ≤ 0.9× in the 0 % cell on all
 three series and ≤ 1.0× in every other cell; any cell above 1.05× rejects. *Limits:* as P1.
 
+**Amendment 1 (MEASURE-1, 2026-11-11 05:00, written before any run).** As P1's amendment 1: the link is
+`link_impair.py`, 30 ms each way and 20 Mbit each direction; the three cells take P1's queue of 1 000 packets and its
+loss options, and the fourth cell is `--queue-pkts 20` with no loss. The pair's optimal-quality series is the Q 8 G 8
+(G 16 for `dbts_c1`) series of P1, its server at its default; the frame is the first, the middle (n/2 steps right)
+or the last (`End`), and `l` is pressed after 10 s of quiet on a filled page. Driver `lab/proposals/link_cells.mjs`,
+order `lab/proposals/p4.sh`. Rule unchanged.
+
 ### P5. The exact session dialled after the first picture
 
 **Mechanism.** `connectExact` runs at page start, beside the OQ session's dial and before the first frame: a second
