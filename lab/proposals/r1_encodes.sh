@@ -11,23 +11,22 @@ for s in "${SERIES[@]}"; do
   read -r set id _ <<<"$s"
   for arm in one 2x2; do
     [[ -f $R1_OUT/$arm/$id.sbnd ]] || "$INTEG/lab/av1/.venv/bin/python" "$HERE/r1_encode.py" "$INTEG" "$arm" $s
+    # A bundle carries its metadata: the jump cell's is packed with the demo tip's form, the integrity keys removed.
+    mkdir -p "$R1_OUT/jump-$arm"
+    python3 -c 'import json, sys; m = json.load(open(sys.argv[1])); [m["lossy"].pop(k) for k in ("reconstruction", "codingError")]
+open(sys.argv[2], "w").write(json.dumps(m, indent=1) + "\n")' "$R1_OUT/$arm/$id.metadata.json" "$R1_OUT/jump-$arm/$id.metadata.json"
+    "$TIP/target/release/pack-series" --metadata "$R1_OUT/jump-$arm/$id.metadata.json" --frames "$R1_OUT/$arm/$id" \
+      --output "$R1_OUT/jump-$arm/$id.sbnd" >/dev/null
   done
-  cmp -s "$R1_OUT/one/$id.sbnd" "$TIP/demo-series/$id.sbnd" || { echo "$id: one tile differs from the demo tip's"; exit 1; }
+  cmp -s "$R1_OUT/jump-one/$id.sbnd" "$TIP/demo-series/$id.sbnd" || { echo "$id: one tile differs from the demo tip's"; exit 1; }
 done
 for arm in one 2x2; do
-  mkdir -p "$R1_OUT/jump-$arm"
-  for s in "${SERIES[@]}"; do
-    read -r set id _ <<<"$s"
-    ln -sf "$R1_OUT/$arm/$id.sbnd" "$R1_OUT/jump-$arm/"
-    jq 'del(.lossy.reconstruction, .lossy.codingError)' "$R1_OUT/$arm/$id.metadata.json" >"$R1_OUT/jump-$arm/$id.metadata.json"
-  done
   ln -sf "$TIP"/demo-series/dbts_?1.{sbnd,metadata.json} "$R1_OUT/jump-$arm/"
   ln -sf "$TIP"/demo-series/dbts_?1.{sbnd,metadata.json} "$R1_OUT/$arm/"
 done
 for s in "${SERIES[@]}"; do
   read -r _ id _ <<<"$s"
-  cmp -s "$R1_OUT/jump-one/$id.metadata.json" <(jq . "$TIP/demo-series/$id.metadata.json") || echo "$id: one tile's metadata differs from the demo tip's (reported)"
-  one=$(stat -c %s "$R1_OUT/one/$id.sbnd")
-  b=$(stat -c %s "$R1_OUT/2x2/$id.sbnd")
+  one=$(stat -c %s "$R1_OUT/jump-one/$id.sbnd")
+  b=$(stat -c %s "$R1_OUT/jump-2x2/$id.sbnd")
   echo "{\"protocol\":\"R1\",\"cell\":\"bytes\",\"id\":\"$id\",\"one\":$one,\"2x2\":$b,\"ratio\":$(awk -v b="$b" -v o="$one" 'BEGIN{printf "%.4f", b/o}')}"
 done

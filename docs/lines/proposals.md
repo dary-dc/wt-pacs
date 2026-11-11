@@ -721,7 +721,9 @@ phone's; three DBT volumes of one dataset; a frame-pooled metric can pass a fram
 (draft PR 368, off by default), which the demo tip does not carry, so the encodes and condition (2) run on a worktree
 of `08bf659e`, and the jump cell on the demo tip. Its diff against the demo tip's merge base touches the ingest only
 to add `--integrity`; the coded bitstream is unchanged, and the one-tile arm is checked equal to the byte to the demo
-tip's `demo-series.sh` bundle for each of the seven series, or the run stops. *Encodes* (`lab/proposals/r1_encode.py`,
+tip's `demo-series.sh` bundle for each of the seven series, or the run stops. A bundle carries its metadata, so the
+bundle compared, timed and counted is the arm's frames packed with the metadata the demo tip reads (the integrity
+keys removed); the first check, on the integrity bundle, differed by those keys alone (added 19:21, before any timed run). *Encodes* (`lab/proposals/r1_encode.py`,
 P2's wrapper with `--integrity` added, nothing else changed): the seven series (P2's six and
 `dbts_c1-q8-g16-cut`), arms *one tile* and *2 × 2*, 14 encodes. *Quality cell:* the ingest computes each frame's
 error against its source where both are in hand (`ingest.py` `integrity()`); the wrapper also passes the same two
