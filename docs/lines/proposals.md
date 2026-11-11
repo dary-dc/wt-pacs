@@ -77,10 +77,10 @@ own cells.
 
 **Protocol (pre-registered).** *Arms:* both servers `--congestion cubic-restart` (today) against both `--congestion
 bbr`; the client and series unchanged. *Fixtures:* `dbts_a1-q8-g8-cut`, `dbts_b1-q8-g8`, `dbts_c1-q8-g16-cut` and
-their exact series, from `scripts/demo-series.sh`. *Link:* `lab/scripts/cloud_netem.sh` on loopback's egress at 20
+their exact series, from `claude/demo-fixes-0:scripts/demo-series.sh`. *Link:* `lab/scripts/cloud_netem.sh` on loopback's egress at 20
 Mbit, 30 ms each way, in three cells: 0 %, 1 % iid, `gemodel` (README §7's commands); the netem-drops-a-GSO-batch
 caveat of README §7 applies to the server, so the loss cells run the lab's server build named there. *Driver:*
-`client/viewer/demo-check.mjs` in headless Chromium, page view, ts client. *Order:* 5 rounds, the two arms
+`claude/demo-fixes-0:client/viewer/demo-check.mjs` in headless Chromium, page view, ts client. *Order:* 5 rounds, the two arms
 alternating within each round and the first arm alternating between rounds, a fresh page and fresh server processes
 per run. *Measured:* the fill's last frame received (ms from navigation, the check's *every slice*), and separately,
 on a filled page after 10 s of quiet, `l` to *Lossless* (ms); latency only, no throughput quoted. *Rule:* adopt for
