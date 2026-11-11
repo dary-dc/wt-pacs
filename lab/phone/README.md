@@ -45,3 +45,21 @@ phone; `run_test.sh` runs both plans below in headless Chromium on loopback.
 four servers and four static hosts (two controllers, two links as 127.0.0.1 and 127.0.0.2); a four-load plan across
 both must run whole with every record right, and with one exact series' server stopped the run must stop at its
 first load and say why.
+
+## DevTools over adb, `devtools.py`
+
+For a diagnosis load only, never a counted one (§7's Second amendment: adb shares the tether's cable). The laptop has
+no Chrome, so no DevTools window: `devtools.py` speaks the DevTools protocol to Chrome on the phone through
+`adb forward tcp:9222 localabstract:chrome_devtools_remote`, with the standard library alone. Needs adb (`--adb`,
+default `~/opt/platform-tools/adb`) and USB debugging on.
+
+```bash
+python3 lab/phone/devtools.py tabs                                  # the phone's tabs: id and URL
+python3 lab/phone/devtools.py console --url "$ORIGIN/?overlay=1&view=worker" --seconds 60 > target/phone-run/console.jsonl
+python3 lab/phone/devtools.py eval 'document.getElementById("status").textContent'
+python3 lab/phone/devtools.py trace --url "$ORIGIN/?overlay=1&view=page" --seconds 20 --out target/phone-run/page.json
+```
+
+`console` opens a fresh tab and prints one JSON line per console call, exception and log entry; the others act on the
+first tab (`--tab ID` for another). A trace opens in Perfetto's UI (ui.perfetto.dev) in any browser. Close the tab a
+diagnosis used before counting resumes.

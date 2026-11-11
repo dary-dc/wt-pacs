@@ -216,6 +216,7 @@ step "lab: the viewer's levers — a fill's time and reads, steps on demand, the
 run 1 node lab/viewer/levers.test.mjs
 run 1 node lab/phone/beacon.test.mjs
 run 1 node lab/phone/runner.test.mjs
+run 1 python3 lab/phone/devtools_test.py
 run 1 node lab/viewer/trace.test.mjs
 
 step "lab: the device kit's plan, bundle reader, collector and server start; the prebuilt recipe's server stage is the Containerfile's"
