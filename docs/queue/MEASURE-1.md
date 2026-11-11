@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 12:20
+heartbeat: 2026-11-11 12:25
 outputs: claude/proposals a98a4319 (P1 measured: adopt; P4 7 rounds: reject; P2 5 rounds: 2x2 meets its rule); no PR yet (#358 is OPT-THEORY's draft into main from this branch)
 ## Resume
 Resumed 2026-11-11 08:23 by a new session (stalled at 07:17). 08:25: setup started at 9e2ef4ef (demo-fixes-1 is
@@ -13,7 +13,13 @@ P2: amendment 1 written 11:04 (4619adb6). 11:10 encodes running: lab/proposals/p
 byte-equal to demo-series). Encodes done 11:12, bytes rows pushed; tiles checked on keyframes with ffmpeg
 (1x1, 2x2, 2 columns). Each arm dir needs the exact series linked in: ln -sf $TIP/demo-series/dbts_?1.{sbnd,metadata.json}
 $P2_OUT/<arm>/. 11:17-12:14 rounds 1-5 done, 270 rows; §P2 measured (a98a4319): 2x2 meets its rule, 2x1 rejected.
-Next: P5, P3, then B0, B, A, C, each with its amendment before any run. If stalled: count rows in
+12:25: this session stopped before P5 (context), nothing unpushed. Next session: resume at P5.
+Next: P5 (a client arm: dial the exact session on the first `shown`, a lab copy of the tip's viewer.js, never
+the tip itself; amendment first: CPU throttle via CDP Emulation.setCPUThrottlingRate 4, link_impair.py's 0 % cell
+as in P4's amendment, 9 rounds, the three Q 8 G 8 series of demo-series), then P3, then B0, B, A, C
+(claude/av1-corrections:docs/av1/audit-protocols.md), each with its amendment before any run.
+Fresh-session setup: as above (git worktree add ../proposals claude/proposals; ../tip at 9e2ef4ef, built as listed,
+~25 min with demo-series). P2's drivers need only ../tip and the P2_OUT encodes if P2 is ever rerun. If stalled: count rows in
 p4.jsonl; drop a partial round's rows to a *-stopped file and rerun that round whole.
 Order (most promising first): P1 BBR, P4 initial window, then P2 tiles, P5, P3 plumbing, then audit protocols B
 (B0 first, zero encodes), A (shares B's cells), C (claude/av1-corrections:docs/av1/audit-protocols.md).
