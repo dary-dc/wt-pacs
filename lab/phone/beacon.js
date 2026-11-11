@@ -9,10 +9,7 @@ const sendBeacon = (body) => navigator.sendBeacon(BEACON_PATH, new Blob([body], 
 export const frameRow = ({ i, path, refusal, wireBytes, decodeMs }) =>
   ({ i, route: path, ...(refusal && { refusal }), kb: wireBytes === undefined ? null : +(wireBytes / 1024).toFixed(1), decodeMs: decodeMs ?? null });
 
-/**
- * Records of the load `load` (its fields head every record), queued and handed to `send` as one JSON list:
- * nothing before the fill ends, then at its end, then whenever `flush` is called (the page hidden, or the runner).
- */
+/** Records of the load `load`, queued and sent as one JSON list: none before the fill ends, then at its end and each `flush`. */
 export function recorder(load, { send = sendBeacon, now = epochMs } = {}) {
   const queued = [];
   let filled = false;
@@ -24,10 +21,7 @@ export function recorder(load, { send = sendBeacon, now = epochMs } = {}) {
   return {
     record,
     flush,
-    /**
-     * The fill's end, from viewer.js's `lab.finished`: each frame's route, bytes and decode time, and the fill as
-     * docs/devices.md §7's Second amendment defines it, from the downloader's dial to the last frame stored, epoch ms.
-     */
+    /** The fill's end, from viewer.js's `lab.finished`: the fill as §7's Second amendment defines it, lab/phone/README.md. */
     filled({ error, fillMs = null, issuedAt, boot, frames = [], errors = [] }, meta) {
       const fillFrom = boot?.dial ?? null;
       const fillTo = error || fillMs === null ? null : issuedAt + fillMs;
