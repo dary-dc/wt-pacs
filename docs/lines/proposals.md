@@ -640,4 +640,8 @@ optimal-quality frame is unchecked. That is S4 done, and the owner's decision (1
 **Limits of this review.** Nothing was rerun. P1–P5 rest on MEASURE-1's rows: three DBT volumes of one dataset
 (`dbts_a1`, `dbts_b1`, `dbts_c1`), a userspace relay, not a radio, one 4-core cloud host without a GPU, SwiftShader,
 headless Chromium, the page view. MEASURE-1 is still running (audit protocols B, A and C). This section covers the
-rows standing at `4ab3ee0d`. The audit rows are attacked when MEASURE-1 says done.
+rows standing at `4ab3ee0d`. The audit rows are attacked when MEASURE-1 says done, with one standing now:
+B0 (`claude/audit-measure` at `33cb6b3d`, arithmetic on committed rows) survives as arithmetic: its check reproduces
+the noise point and QA F1, and its 8-bit mutation fails. But its x\* is the smallest x over the frames seen, and it
+has fallen each time volumes were added (4.9293 → 4.8024 → 4.7584 at G 1). It is a sample extreme that has not yet
+converged, not a bound, and B's δ is what may set the rule on it.
