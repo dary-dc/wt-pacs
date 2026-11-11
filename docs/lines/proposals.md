@@ -716,6 +716,30 @@ many decoders); whether `taskset` reaches that value is not known, and the readi
 the tile threads shared two cores there. *Limits:* x86-64 cores under headless Chromium's software dav1d, not a
 phone's; three DBT volumes of one dataset; a frame-pooled metric can pass a frame while a region fails (R, I2).
 
+**Amendment 1 (MEASURE-2, 2026-11-11 19:40, written before any run).** *Builds:* the demo tip is
+`claude/demo-fixes-2` at `d46811c6` (frozen). I1 and I2 are built on `claude/oq-integrity-build` at `08bf659e`
+(draft PR 368, off by default), which the demo tip does not carry, so the encodes and condition (2) run on a worktree
+of `08bf659e`, and the jump cell on the demo tip. Its diff against the demo tip's merge base touches the ingest only
+to add `--integrity`; the coded bitstream is unchanged, and the one-tile arm is checked equal to the byte to the demo
+tip's `demo-series.sh` bundle for each of the seven series, or the run stops. *Encodes* (`lab/proposals/r1_encode.py`,
+P2's wrapper with `--integrity` added, nothing else changed): the seven series (P2's six and
+`dbts_c1-q8-g16-cut`), arms *one tile* and *2 × 2*, 14 encodes. *Quality cell:* the ingest computes each frame's
+error against its source where both are in hand (`ingest.py` `integrity()`); the wrapper also passes the same two
+arrays to the quality study's `lab/av1/metrics/quality.py` (`claude/av1-vl-metrics` at `b86628d6`): e = `rms(d)`,
+max |Δ| = `max|d|`, e_N ÷ σ = `noise_band(d)` ÷ `sigma(source)`, d in source units (code c of a cut as
+c · 2^(D−10)). Those three decide; I2's built values (`coding_error.py`) are recorded beside and their agreement
+reported. A frame with σ = 0 has no e_N ÷ σ and is named. *Condition (2):* `lab/oq-integrity/run.mjs` on
+`08bf659e`, each arm's seven series, one fill each with the check on and CPU throttle 1, WebCodecs route: it holds if
+`asCoded` equals `received` equals the frame count and every frame's path is `av1-webcodecs`. *Jump cell:*
+`client/viewer/demo-check.mjs DIR ID --json` on the demo tip, its `&fill=0` pass's `jumpMs`; the metadata the demo
+tip reads, i.e. each arm's without `lossy.reconstruction` and `lossy.codingError`. Arms *one*, *2 × 2* and *A/A*
+(the one-tile series again, under its own label); per round the 4-core block, then the `taskset -c 0,1` block, the
+three arms' order rotated per round (`lab/proposals/r1.sh`). *R0's tolerance on (3):* the bar is 0.85 plus the A/A
+arm's |ratio − 1| on 4 cores (no tolerance was registered for this bar). *`navigator.hardwareConcurrency`*: read by a
+separate headless Chromium under the same pin once per block, so the timed driver is unchanged. *(4):* P2's measured
+conditions (decode, G 8 jump, fill) are not rerun; they stand as MEASURE-1 measured and the red team corrected them;
+the bytes of all seven series are recorded and held to P2's ≤ 1.03×.
+
 ### R2. A jump during the fill, under BBR and under Cubic (P1)
 
 **Mechanism.** During the fill BBR held a standing queue of 85–260 ms on the optimal-quality session in every cell,
