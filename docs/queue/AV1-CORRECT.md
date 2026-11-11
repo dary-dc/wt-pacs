@@ -1,9 +1,9 @@
 state: started
 started: 2026-11-11 01:35
-heartbeat: 2026-11-11 02:20
-outputs: claude/av1-corrections 2e4efdfc
+heartbeat: 2026-11-11 02:50
+outputs: claude/av1-corrections 0bb65c3f
 ## Resume
-Done: step 1 pushed (2e4efdfc: docs/av1/corrections.md, docs/lines/codecs.md in place). Next: step 2.
+Done: step 1 pushed (2e4efdfc: docs/av1/corrections.md, docs/lines/codecs.md in place). Step 2 pushed (0bb65c3f: docs/av1/audit-protocols.md, codecs Open 00, av1 README). Next: gate (--quick --no-browser, docs only), draft PR into main, result.
 Branch claude/av1-corrections from origin/main 017a3ca6 (local only so far). Plan:
 1. docs/av1/corrections.md: per study branch (the table in claude/docs-lines-3:docs/lines/codecs.md §AV1 harvest (2)),
    the line as it stands quoted and the corrected text to put in its place (disk-access §11 model); main's own
