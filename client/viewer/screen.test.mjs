@@ -1,6 +1,6 @@
 // node client/viewer/screen.test.mjs — what the page writes of a shown frame says one thing of it.
 import assert from "node:assert/strict";
-import { lastError, markOf, overlayText } from "./screen.js";
+import { labelOf, lastError, markOf, overlayText } from "./screen.js";
 
 const lossy = { q: 8, g: 16, depth: 10, bitsStored: 12 };
 const about = { path: "htj2k", wireBytes: 2048, decodeMs: 3 };
@@ -27,5 +27,12 @@ assert.equal(lastError([failed], { i: 2, quality: "lossless" }), undefined);
 assert.equal(lastError([failed], { i: 2, quality: "failed" }), failed);
 assert.equal(lastError([failed], { i: 3, quality: "optimal" }), failed);
 assert.equal(lastError(["frame 2: refused"], { i: 2, quality: "lossless" }), "frame 2: refused");
+
+/** The label's colour is its class, and its text says the same beside it: green optimal quality, blue Lossless with a check mark, red a failed check; none on a series without a pair. */
+assert.deepEqual(labelOf("optimal"), { className: "optimal", text: "Optimal quality" });
+assert.deepEqual(labelOf("asking"), { className: "asking", text: "Optimal quality · fetching lossless…" });
+assert.deepEqual(labelOf("lossless"), { className: "lossless", text: "✓ Lossless" });
+assert.deepEqual(labelOf("failed"), { className: "failed", text: "Lossless check failed · optimal quality shown" });
+assert.deepEqual(labelOf(null), { className: "", text: "" });
 
 console.log("screen: ok");

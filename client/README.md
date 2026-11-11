@@ -99,7 +99,8 @@ presses the button again. A lossy frame's own `exact` means its decode matched t
 source.
 
 * **The label** (top right, always shown on an optimal-quality series) says what is painted, decided in one place,
-  `Controller.quality`: *Optimal quality*; *fetching lossless…* while asked; *Lossless* only on the `shown` that
+  `Controller.quality`, and written by `viewer/screen.js` `labelOf`, its colour beside its words: *Optimal quality*
+  in green; *fetching lossless…* while asked; *✓ Lossless* in blue only on the `shown` that
   follows the exact frame's paint, and only when that frame's `exact` is `true`; *Lossless check failed* in red, the
   lossy frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed; the button then asks again.
 * **Routes**: WebCodecs first for every optimal-quality series, a depth cut and a 12-bit stored form alike; dav1d-WASM only
@@ -248,9 +249,9 @@ series of a pair, under the default view (`?view=page`, no URL flags):
    `l` asks again. Held by `view/controller.test.mjs` (*the label never says lossless before the checksum passes*; *a
    failed exact request can be asked again on the same frame*) and, in Chromium, `viewer/demo-check.mjs` (a wrong
    digest never reads *Lossless*).
-8. **The mark says *unchecked* on every optimal-quality frame.** Its metadata carries no digests, since there is no
-   source to check a lossy frame against; the mark goes only under *Lossless*. The status line's *unchecked* count is
-   the same fact.
+8. **No mark beside an optimal-quality frame; the label is green.** Its metadata carries no digests, since there is no
+   source to check a lossy frame against; the label says what it is, so only *NOT EXACT* is marked beside it
+   (`viewer/screen.test.mjs`). The status line's *unchecked* count is the same fact.
 
 One level down, where a point needs it: a frame whose digest does not match is decoded once more on another path
 before it is called not exact (`decoder.js` `checked`; [`docs/adr/exactness-in-production.md`](../docs/adr/exactness-in-production.md)
@@ -266,7 +267,8 @@ before it is called not exact (`decoder.js` `checked`; [`docs/adr/exactness-in-p
 * The sentence above that *a lossy frame's own `exact` means its decode matched the encoder's reconstruction*
   describes a case the demo never shows: an optimal-quality series has no digests, so its frames are `unchecked`.
 * Two indicators of quality on one screen, the label (top right) and the mark (top left), which disagree in words on
-  every optimal-quality frame (*Optimal quality* beside *unchecked*).
+  every optimal-quality frame (*Optimal quality* beside *unchecked*); since resolved: FIX-1 dropped the mark beside a
+  label, DEMO-UX made the label green.
 * Two views, two want paths and two fill orders: under `page` the controller asks misses and the fill is every
   frame in index order; under `worker` the store sends misses and the first want, nearest first, replaces the fill.
 * `viewer/viewer.js` holds the check's, the lab's and the trace's code beside the product's (`check`, `deadline`,

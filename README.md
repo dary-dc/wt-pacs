@@ -379,9 +379,9 @@ browser honors it. Not checked: the phone, its Chrome's flags page, the tether, 
 
 **What to show, in order:**
 
-1. `dbts_a1-q8-g8-cut`. The picture arrives, the label top right says *Optimal quality*. Scroll with the wheel or the
+1. `dbts_a1-q8-g8-cut`. The picture arrives, the label top right says *Optimal quality* in green. Scroll with the wheel or the
    arrows: every slice is already here. `End` jumps to the last slice, mid-group at G 8 and 16. Press `l`: *Optimal quality · fetching lossless…*, then
-   *Lossless* in green once the exact frame's digest matched and it was painted; `l` again goes back. Step off the frame
+   *✓ Lossless* in blue once the exact frame's digest matched and it was painted; `l` again goes back. Step off the frame
    and it is optimal quality again.
 2. A narrow window (drag left on the image) on the same frame, `l` and back: where the coding error would show, if
    anywhere.
@@ -395,11 +395,12 @@ browser honors it. Not checked: the phone, its Chrome's flags page, the tether, 
 
 **What is on screen:**
 
-* **The label**, top right: what is painted. *Optimal quality*, the AV1 view; *fetching lossless…* while the exact frame
-  is asked; *Lossless* only after that frame's XXH3-64 digest matched its exact series' metadata and it was painted;
-  *Lossless check failed* in red otherwise, the optimal-quality frame kept and the reason on the status line.
-* **The mark**, top left: *unchecked* on every optimal-quality frame, since a lossy frame has no digest to check; gone
-  under *Lossless*.
+* **The label**, top right: what is painted, its colour and its words saying the same. *Optimal quality* in green, the
+  AV1 view; *fetching lossless…* while the exact frame is asked; *✓ Lossless* in blue only after that frame's XXH3-64
+  digest matched its exact series' metadata and it was painted; *Lossless check failed* in red otherwise, the
+  optimal-quality frame kept and the reason on the status line.
+* **The mark**, top left: none on a paired series unless a frame is *NOT EXACT* (red); a lossy frame has no digest to
+  check, and the label says what it is.
 * **The overlay** (`?overlay=1`): the painted frame's decode route (`av1-webcodecs`, Chrome's `VideoDecoder`; `av1-dav1d`,
   the page's WASM, with WebCodecs' refusal), its bytes on the wire in KB, its decode time in ms, and the series' Q
   (the encoder's quantizer: higher, more error), G (frames per keyframe) and depth (*depth cut of 12*: 10-bit codes of a

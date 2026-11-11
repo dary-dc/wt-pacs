@@ -126,7 +126,7 @@ async function pass(browser, query) {
   const jumpMs = Math.round((await log()).findLast((e) => e.id === "overlay").t - before);
   const pressed = await now();
   await page.keyboard.press("l");
-  await until((l) => /^Lossless/.test(l.findLast((e) => e.id === "quality")?.text), 30000);
+  await until((l) => /^✓ Lossless/.test(l.findLast((e) => e.id === "quality")?.text), 30000);
   const losslessMs = Math.round((await log()).findLast((e) => e.id === "quality").t - pressed);
   const labelled = (l) => l.filter((e) => e.id === "quality");
   const writes = labelled(await log()).length;
@@ -136,7 +136,7 @@ async function pass(browser, query) {
   const l = await log();
   await page.close();
   const overlays = l.filter((e) => e.id === "overlay" && e.text);
-  const lossless = l.findIndex((e) => e.id === "quality" && e.text === "Lossless");
+  const lossless = l.findIndex((e) => e.id === "quality" && e.text === LABELS[2]);
   const received = [];
   for (const e of l.filter((e) => e.id === "status")) {
     const k = Number(e.text.match(/received (\d+)/)?.[1] ?? 0);
@@ -152,7 +152,7 @@ async function pass(browser, query) {
   };
 }
 
-const LABELS = ["Optimal quality", "Optimal quality · fetching lossless…", "Lossless", "Optimal quality"];
+const LABELS = ["Optimal quality", "Optimal quality · fetching lossless…", "✓ Lossless", "Optimal quality"];
 const FAILED = "Lossless check failed · optimal quality shown";
 const routeOf = (overlay) => overlay.match(/^(\S+)( after WebCodecs refused: (.*?))? · ([\d.]+) KB · decode ([\d.]+) ms/);
 

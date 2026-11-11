@@ -5,7 +5,7 @@ import { Painter } from "/client/paint/painter.js";
 import { asPainted, Controller, FIT, wantFrom } from "/client/view/controller.js";
 import { View, ViewWorker } from "/client/view/view.js";
 import { checkPair, pairOf } from "/client/viewer/pair.js";
-import { lastError, markOf, overlayText } from "/client/viewer/screen.js";
+import { labelOf, lastError, markOf, overlayText } from "/client/viewer/screen.js";
 
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById("view");
@@ -114,17 +114,12 @@ if (where === "page") {
     booted, glAfterDial: Boolean(lab.opts.glAfterDial) });
 }
 
-const QUALITY = {
-  optimal: "Optimal quality",
-  asking: "Optimal quality · fetching lossless…",
-  lossless: "Lossless",
-  failed: "Lossless check failed · optimal quality shown",
-};
 /** The quality label says what is painted, as the controller judged it; the overlay, `?overlay=1`, how it got here. */
 function showQuality({ quality, about }) {
   qualityEl.hidden = !quality;
-  qualityEl.className = quality ?? "";
-  qualityEl.textContent = QUALITY[quality] ?? "";
+  const label = labelOf(quality);
+  qualityEl.className = label.className;
+  qualityEl.textContent = label.text;
   losslessEl.textContent = quality === "lossless" || quality === "asking" ? "optimal quality" : "lossless";
   if (!overlayEl.hidden) overlayEl.textContent = overlayText(about, quality, meta.lossy);
 }
