@@ -43,6 +43,10 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
 * **The demo build** (DEMO-INTEGRATE, 2026-11-10): `claude/demo-fixes-0` (#355 into `claude/core`) is the demo tip
   `claude/core-next-fixes` plus `gate-cloud`, `double-decode-check` and `demo-e2e-2`, each a `--no-ff` merge; full
   gate OK in a cloud session (skipped: lavapipe, GL display, Firefox, nginx); CI gate and deploy green.
+* **The phone run's protocol** (PHONE-PROTOCOL, 2026-11-11, `claude/phone-protocol`): [`docs/devices.md`](../devices.md)
+  §7, page view against view worker alternated, tether against Wi-Fi in blocks, the decision rules and the commands
+  for the laptop without installs. Found while writing it: the status line is cut at the phone's width, so the fill
+  time and the last error are not visible (Part B waits on a change, the owner's call); touch cannot step slices.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to

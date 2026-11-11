@@ -201,3 +201,122 @@ row's tree, the four arms in Docker, the collector over TLS; `dry_run.mjs` drove
   Encrypt certificate and is D0's to confirm.
 * **Not tested:** a phone, Firefox, WebKit, the Oracle machine and its security list.
 
+
+## 7. The demo's phone run: page view against view worker, tether against Wi-Fi
+
+*Row PHONE-PROTOCOL, 2026-11-11. Theory and a pre-registered protocol, written before anyone measures; nothing here
+was run on a phone. The owner runs it on the laptop without installs (README §Demo, "On a phone, from a laptop without
+installs", on `claude/phone-no-install`); the commands below need that branch in the demo's (`dev-server.py --bind`,
+`OPENSSL=` in `gen_dev_cert.sh`).*
+
+**What it compares.** Two arms, `?view=page` (the frames held and painted on the page, today's default) and
+`?view=worker` (the view worker, the client's target, [`lines/client.md`](lines/client.md)), on the same series and
+link, alternated load by load. Two links, USB tethering and Wi-Fi, in blocks, since a link change restarts the static
+host. Series: `dbts_a1-q8-g8-cut` (the show list's first, 4.6 MB), then `dbts_b1-q8-g8` (its largest frame, 23 MB).
+
+**Theory.** Both arms run the same downloader, decoder workers and WebCodecs route; they differ in where the frame
+map, the controller and the WebGL painter live (the page's thread, or one worker). On a phone the page's thread is
+also the browser's input and layout thread, so the worker should not be slower; whether it is faster depends on how
+much of the fill the page's thread holds up, which nothing measured here says (*an assumption, no band*). Bytes on
+the wire are the same in both arms. Tether against Wi-Fi: USB is a wired link with no airtime contention; Wi-Fi as it
+comes. Neither difference is predicted in size.
+
+**What the phone can show, and what it cannot** (checked on the demo tip's `client/viewer/index.html`, not on a
+phone):
+
+* **The overlay** (`?overlay=1`) wraps, so it shows whole: the painted frame's route, wire KB, decode ms, and Q, G and
+  depth.
+* **The status line is one line, cut with an ellipsis** (`#bar` `white-space: nowrap`, `#status` `text-overflow:
+  ellipsis`). With the page's CSS in headless Chromium (desktop fonts; a phone's differ), a 205-character status line
+  showed its first 49 characters at 412 px wide, `frame 1 of 56 · client ts · view worker · receiv`, and stopped at
+  `… decoders: av1-webcodecs 56 · codec a` at 915 px. Portrait shows the view; landscape adds the received, exact,
+  unchecked and per-route counts. **The fill time, the renderer and the last error are visible in neither.**
+* **Touch cannot step slices**: stepping is the wheel and the keys; a drag is window and level. A phone without a
+  keyboard has the cine button, the **lossless** button and the drag; `End`, a jump mid-group and the `?fill=0` jump
+  of the show list are not reachable.
+* **The laptop** reads each session's path when it closes, in Terminal 1: `session path` with `rtt_us`, `sent` and
+  `lost` (`server/src/transport/server.rs`, `report_path`), one line per page load.
+* **The eye** judges what no reading carries: the label's order, the picture (no blank, no blocks or stripes; the
+  narrow window under *Optimal quality* against *Lossless*).
+
+So the run has two parts. **Part A** (correctness and the eye) runs on today's page. **Part B** (fill time) needs the
+status line shown whole, a change to the page for the owner's word (FIX-1); until it lands Part B is not run, and Part
+A claims nothing about speed.
+
+**Each load records**, from one screenshot in landscape after the fill (power and volume-down), transcribed afterwards
+(the screenshots name the laptop's address: keep them off the repository): link, view (the status line's `view …`),
+`received N` of the series' N, the per-route counts, the overlay's route, KB and decode ms for frame 1; Part B, the
+`fill … ms`; then **lossless** pressed: the label's states as seen, and **lossless** again; Terminal 1's `rtt_us`,
+`sent`, `lost` for that load (it prints when the next load closes the session).
+
+**Order.** Per series and link, a block: one warm-up load (`view=page`, not counted: it fills the browser's cache of
+the page's files), then ten counted loads, `page worker worker page page worker worker page page worker`, five pairs
+of adjacent loads with each arm first in alternate pairs. Blocks in the order tether, Wi-Fi, Wi-Fi, tether: ten pairs
+per link per series, forty counted loads a series.
+
+**What decides what** (written now; a run may only tighten it):
+
+* **Correctness, per load.** A load passes when every frame is received, every frame takes `av1-webcodecs`, the label
+  reads *Optimal quality*, **lossless** gives *fetching lossless…* then *Lossless*, and **lossless** again gives
+  *Optimal quality*. The worker meets the page's bar on this phone when no load of it fails in a way no load of the
+  page does. A failure in both arms alike is the link's or the series', not a view's, and is reported as such.
+* **Fill (Part B), per link and series.** The ten paired ratios worker / page. *Worker faster*: at least nine of ten
+  below 1 (a sign test, two-sided p = 0.021) and the median at most 0.95; *page faster* the mirror; otherwise *no
+  difference shown at n = 10*, with the median and range. Decode ms of frame 1 the same way, reported, not deciding
+  (one frame a load).
+* **The view the demo shows** stays the owner's. This run gives it: whether the worker met the page's bar, and Part
+  B's verdict per link. A worker that fails where the page does not, or is slower on either link, is not proposed.
+* **The link the demo uses.** Tethering, unless it fails a load where Wi-Fi fails none; with Part B, the page view's
+  median fill per link is quoted beside it, not compared by a rule (the links are not interleaved load by load).
+* **The eye.** One verdict per block: the label's order as seen on every load, and the picture, "no difference seen"
+  or what was seen, on which frame and window.
+
+**Where a phone run shows nothing.** One phone and one Chrome version (D0 names them); three DBT volumes of one
+dataset, two series of them here, no ultrasound cine; two links at one place and hour, unshaped (no root on the
+laptop, so no `netem`, and lossy wireless is the link as it comes, not a controlled loss); software decode (the product
+asks `prefer-software`, README §The viewer on an Android phone, step 6), so nothing about hardware decode; no console
+(DevTools needs adb). The link's rate is not measured, so a fill time cannot be split into wire and decode, and no
+rate is claimed. Ten pairs see a consistent direction only; a small difference reads *no difference shown*.
+
+**The commands, from any state**, at the repository's root on the demo's branch with `claude/phone-no-install` in it,
+after its "Once per laptop" (the `rust` image, `series-server` built, `demo-series/` copied). The phone on the
+laptop's Wi-Fi network, one that lets clients see each other, and plugged in with USB tethering on:
+
+```bash
+# Every terminal first
+tether_if() { for d in /sys/class/net/*; do case $(readlink -f "$d/device/driver") in */rndis_host|*/cdc_ncm|*/cdc_ether) echo "${d##*/}";; esac; done | head -1; }
+wifi_if() { nmcli -t -f DEVICE,TYPE,STATE device | awk -F: '$2=="wifi" && $3=="connected" {print $1; exit}'; }
+addr() { [ -n "$1" ] && ip -4 -o addr show dev "$1" | awk '{print $4}' | cut -d/ -f1 | head -1; }
+ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}; mkdir -p target/phone-run server/dev-cert
+# Terminal 1, before the others, once per series — leftovers stopped, the certificate, the optimal-quality series
+pkill -f 'release/series-server' ; pkill -f 'server/dev-server.py'
+OPENSSL="podman run --rm -i --network none -v $PWD/server/dev-cert:$PWD/server/dev-cert:z rust openssl" \
+  ./server/scripts/gen_dev_cert.sh --if-needed
+echo "flag origins: http://$(addr "$(tether_if)"):8765,http://$(addr "$(wifi_if)"):8765"
+target/release/series-server --port 4433 --series demo-series/$ID.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem 2>&1 | tee -a target/phone-run/$ID-4433.log
+# Terminal 2, once per series — its exact series
+target/release/series-server --port 4434 --series demo-series/$EXACT.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem 2>&1 | tee -a target/phone-run/$ID-4434.log
+# Terminal 3, once per block — LINK=tether with USB tethering on, LINK=wifi with it off
+LINK=tether
+pkill -f 'server/dev-server.py'
+IF=$([ "$LINK" = tether ] && tether_if || wifi_if); LAPTOP_IP=$(addr "$IF")
+[ -n "$LAPTOP_IP" ] || echo "no $LINK interface with an IPv4 address" >&2
+HASH=$(jq -r .cert_sha256 client/dev-transport.json)
+for p in 4433 4434; do
+  printf '{"wt_url": "https://%s:%s/", "cert_sha256": "%s"}\n' "$LAPTOP_IP" "$p" "$HASH" > target/phone-transport-$p.json
+done
+echo "$(date -u +%FT%TZ) $ID $LINK http://$LAPTOP_IP:8765" | tee -a target/phone-run/blocks.log
+python3 server/dev-server.py --bind "$LAPTOP_IP" --port 8765 --metadata demo-series/$ID.metadata.json \
+  --transport target/phone-transport-4433.json \
+  --exact-metadata demo-series/$EXACT.metadata.json --exact-transport target/phone-transport-4434.json
+```
+
+On the phone, once per run: `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, the two origins Terminal 1
+printed, comma-separated (the flag takes a list), **Enabled**, **Relaunch**. Each load: the block's origin with
+`/?overlay=1&view=page` or `/?overlay=1&view=worker`, in the order above. When a block prints an origin the flag does
+not hold (the tether may give another address on another plug-in), enter it in the flag again. For the second series,
+stop the three terminals, set `ID=dbts_b1-q8-g8` in each, and start again from Terminal 1. Afterwards, USB tethering
+off; `target/phone-run/` keeps the session lines and the blocks' times, which name the laptop's addresses: strip them
+before anything is committed (§4). Nothing arriving: README §Demo's variant, its last paragraph.
