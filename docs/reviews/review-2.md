@@ -51,3 +51,23 @@ finding, and nothing else fails. No finding.
   the mark rule in `screen.js`.
 * **FIX-1's mutant counts.** Not re-run. The three reverts of `screen.js` above each fail a different
   `screen.test.mjs` assertion, which is consistent with "six killed" but does not prove it.
+
+## 3. SOURCE-FINGERPRINT (#364, `claude/source-fingerprint` at `c02b5f32`)
+
+* **`checkPair`, fix 8e7027a5 reverted** (back to `framesSha256`). Both pair tests fail. `pair.test.mjs` fails on its
+  accepted pair, which carries only `sourceFingerprint`. `pair-source.test.mjs` fails on "an exact series without
+  a digest for every frame is refused": its fixtures fall at the old `framesSha256` arm instead, with the wrong
+  message. The refusal tests ("names no shared source", "differs") pass reverted, because the old rule also refuses
+  a pair without `framesSha256` with a message holding "source". Only the accepting assertions kill the revert.
+  That is enough, but it is worth knowing.
+* **Three more mutants of the new rule**, all killed. The 16-hex test was dropped (both tests), weakened to a
+  truthy test (`pair.test.mjs`), and the comparison was dropped (both).
+* **The ingest's fingerprint** (`ingest.py` `source_fingerprint`). It hashes the source samples' frame digests,
+  taken as the HTJ2K series takes them: two bytes a sample over 8 bits, whatever the representation or split. So an
+  exact series' own `digests` and an AV1 series' second pass reach the same string, as the PR argues. The reverts
+  against `lossy_test.py` and `end_to_end_test.py` are in §3.1.
+* **`framesSha256`.** No series writer keeps it any more: `ingest_coded.py:57` drops it, and `lossy_test.py`
+  checks that. `fetch_data.py` still writes it as the download pin. `lab/av1/bytes/prior-gap/pocgap.py:45` still
+  writes a `framesSha256` into its own lab sets. That is harmless, since it is not on the pairing path, but it is a
+  third writer that the PR body does not name. **Finding F1 (docs, minor):** name it, or say it is the lab's own.
+* **Glossary.** One row, `source fingerprint`, as the brief asks.
