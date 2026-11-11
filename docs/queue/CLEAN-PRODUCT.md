@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11T17:48Z
-heartbeat: 2026-11-11T18:19Z
+heartbeat: 2026-11-11T18:44Z
 outputs: claude/clean-product c2f6886c (from claude/demo-fixes-2 4ba95e1b)
 ## Resume
 Part 1 done, 63140f29: scripts/check_lab_absent.sh in gate.sh's absence checks, plus the three lab flags of item 15
