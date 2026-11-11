@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-11T17:48Z
-heartbeat: 2026-11-11T19:09Z
-outputs: claude/clean-product 24b80bcd
+heartbeat: 2026-11-11T19:19Z
+outputs: claude/clean-product c7c799e9
 ## Resume
 Part 1 done, 63140f29: scripts/check_lab_absent.sh in gate.sh's absence checks, plus the three lab flags of item 15
 in server/scripts/check_telemetry_absent.sh. Fails today on: Containerfile's lab COPYs (item 16), the web image's
@@ -34,7 +34,9 @@ Part 2 progress (pushed):
   one buffer kept: all caught); docs/decode/README.md corrected in place.
 * dd2c3902 = item 11's removal of the frame clock's experiment part (its message is wrong: it reads as a revert but IS
   the removal); 24b80bcd restores it (tree = c2034cb3). Owner's yes = `git revert 24b80bcd`.
-NOW (long): full gate: dockerd running; INGEST_BUILD=$PWD/ingest/.build PYTHON=<venv> scripts/gate.sh; then
+* c7c799e9 line files (coordination: item 16 proposal, item 11 yes), glossary row "page hooks".
+* Full gate GATE OK in 532 s on 24b80bcd+docs (skipped: native painter/window, cross-codec+Firefox, nginx).
+NOW (long): demo-series.sh then demo-check.mjs 20 runs x {page, worker} (README §Demo loop). Was: full gate: dockerd running; INGEST_BUILD=$PWD/ingest/.build PYTHON=<venv> scripts/gate.sh; then
 scripts/demo-series.sh and demo-check.mjs on every series both views (as FIX-2 did); line file; draft PR.
 Was next: items 13+14 together (check and lab hooks out of viewer.js into one lab/ module loaded by head.js's gate;
 check-page.js and view/check.js out of the web image; view worker's check import by a URL the lab object gives;
