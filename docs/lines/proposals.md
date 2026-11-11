@@ -36,7 +36,7 @@ bursts (`gemodel`). The phone itself, its radio and its decoder are not modelled
 | P2 | tiles in the optimal-quality encode | jump, step, phone decode | per-frame decode 0.4–0.9× on a 4–8-core phone; bytes +0.5–3 % | ingest arguments | yes, indicative (x86) |
 | P3 | a wake on `pointerdown`, before `l` asks | `l` after a dwell | − min(P, L) on a promoted radio: 0–150 ms | client, ~10 lines | plumbing only |
 | P4 | a 32-packet initial window on the exact server only | `l` | `l` −5 to −25 % on a clean link | a flag | yes, through netem |
-| P5 | the exact session dialled after the first picture | first picture | 0 to −100 ms on a phone; nothing measurable on this host | client, ~3 lines | barely |
+| P5 | the exact session dialled after the first picture | first picture | 0 to −100 ms on a phone; nothing measurable on this host | client, ~3 lines | barely; measured: drop as inert, `l` 1.03–1.10× |
 
 Most promising first: P1's band is the widest by an order of magnitude and needs no code; P2 is the only lever on
 the decode, which bounds the fill on a fast link and every jump; P3–P5 are smaller and cheap.
@@ -419,6 +419,29 @@ both cells and the three series once, the arms alternating and the first arm alt
 registered, made exact:* in the throttled 4-core cell, adopt if the dial-after arm's median first picture is lower
 by ≥ 30 ms on every series and its median `l` is ≤ 1.05× today's on every series (P4's tolerance); else drop it as
 inert. A run that does not end at *Lossless* is reported and counts against its arm.
+
+**Measured (MEASURE-1, 2026-11-11 13:44–14:17, per amendment 1): 9 of 9 rounds; drop as inert.** 108 runs, every one
+ending at *Lossless*, none with an error. Rows `lab/proposals/rows/p5.jsonl`, table `lab/proposals/p5_summary.py`;
+medians of 9 a side.
+
+| cores | series | first picture today ms | after ms | after − today | `l` today ms | after ms | ratio |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 4 | dbts_a1-q8-g8-cut | 691 | 692 | +1 | 879 | 909 | 1.03 |
+| 4 | dbts_b1-q8-g8 | 1087 | 1117 | +30 | 1348 | 1476 | 1.09 |
+| 4 | dbts_c1-q8-g16-cut | 704 | 717 | +13 | 807 | 860 | 1.07 |
+| 2 | dbts_a1-q8-g8-cut | 800 | 806 | +6 | 917 | 966 | 1.05 |
+| 2 | dbts_b1-q8-g8 | 1243 | 1245 | +2 | 1422 | 1531 | 1.08 |
+| 2 | dbts_c1-q8-g16-cut | 821 | 799 | −22 | 845 | 930 | 1.10 |
+
+**Verdict by the rule: drop as inert.** The first picture is not lower on any series of the deciding 4-core cell
+(+1 to +30 ms), and `l` is above 1.05× on two of them. Against the prediction (0 to −100 ms on a phone, within noise
+here): within noise, as predicted for this host; the 2-core cell, which the throttle could not stand in for, moves no
+series by 30 ms either. **Not predicted:** `l` after 10 s of quiet is slower with the late dial on all six cells,
+1.03–1.10×, pooled quartiles 877–1 446 ms against 817–1 314 ms on 4 cores. The fill is unchanged (median 4 092
+against 4 080 ms). Why is not measured here; one candidate is that the late handshake runs under the fill's queue
+on the shared link and starts the exact session with a larger RTT estimate. A run that names the exact session's
+`session path` RTT in both arms would settle it. **Limits:** as P1's; the throttle slows the main thread only
+(amendment 1), and a phone's radio is not modelled.
 
 ### Sources
 
