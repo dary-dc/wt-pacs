@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11 02:03 UTC
-heartbeat: 2026-11-11 02:45 UTC
+heartbeat: 2026-11-11 02:21 UTC
 outputs: claude/demo-e2e-2-fixes 268545f2 (from claude/demo-fixes-0 36d286cd)
 ## Resume
 Done: fresh clone /home/user/fresh (not persisted) of claude/demo-fixes-0 36d286cd; README §Demo Once block ran as
