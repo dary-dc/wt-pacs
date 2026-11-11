@@ -48,6 +48,7 @@ struct Metadata {
     max: i32,
     codec: &'static str,
     digests: Digests,
+    source_fingerprint: String,
 }
 
 #[derive(Serialize)]
@@ -95,6 +96,7 @@ fn ingest(args: &Args) -> Result<String> {
     let coded = coded.into_iter().map(|(i, c)| c.with_context(|| format!("frame {i}"))).collect::<Result<Vec<_>>>()?;
 
     let f = &s.frame;
+    let frame_digests: Vec<String> = coded.iter().map(|c| format!("{:016x}", c.digest)).collect();
     let meta = Metadata {
         frame_count: s.count,
         width: f.w,
@@ -108,12 +110,18 @@ fn ingest(args: &Args) -> Result<String> {
         min: coded.iter().map(|c| c.min).min().unwrap_or(0),
         max: coded.iter().map(|c| c.max).max().unwrap_or(0),
         codec: "htj2k",
-        digests: Digests { algorithm: "xxh3-64", frames: coded.iter().map(|c| format!("{:016x}", c.digest)).collect() },
+        source_fingerprint: source_fingerprint(&frame_digests),
+        digests: Digests { algorithm: "xxh3-64", frames: frame_digests },
     };
     let frames: Vec<&[u8]> = coded.iter().map(|c| c.codestream.as_slice()).collect();
     series_bundle::write_bundle(&args.output, &metadata_json(&meta)?, &frames)?;
     let bytes: usize = frames.iter().map(|c| c.len()).sum();
     Ok(format!("{} frames, {bytes} B htj2k, every one exact → {}", s.count, args.output.display()))
+}
+
+/// XXH3-64 over the frame digests in order: docs/av1/payload-format.md §Source fingerprint.
+fn source_fingerprint(frame_digests: &[String]) -> String {
+    format!("{:016x}", xxh3_64(frame_digests.concat().as_bytes()))
 }
 
 /// `json.dumps(meta, indent=1) + "\n"`, as `from_dicom.py` writes it.

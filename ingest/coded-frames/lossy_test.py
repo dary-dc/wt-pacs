@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Optimal quality, written by ingest_coded.py --lossy from a synthetic set and read back as the client would:
-the metadata's `lossy` and `exactSeries`, every frame decoded from its keyframe's unit on, close to its source
+the metadata's `lossy`, `exactSeries` and the exact series' `sourceFingerprint`, every frame decoded from its keyframe's unit on, close to its source
 and not exact, at G 1, 8 and 16; the depth cut of a 12-bit set, and none of a 10-bit or signed one —
 docs/av1/payload-format.md §Optimal quality.
 
@@ -17,6 +17,7 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
+import xxhash
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -49,7 +50,7 @@ def write_set(path, frames, bits):
         (path / f"{i:03d}.raw").write_bytes(raw)
         (path / f"{i:03d}.sha256").write_text(hashlib.sha256(raw).hexdigest() + "\n")
     meta = dict(frameCount=N, width=W, height=H, channels=1, bitsStored=bits, signed=False,
-                min=int(min(f.min() for f in frames)), max=int(max(f.max() for f in frames)))
+                min=int(min(f.min() for f in frames)), max=int(max(f.max() for f in frames)), framesSha256="f00d")
     (path / "metadata.json").write_text(json.dumps(meta))
 
 
@@ -57,6 +58,18 @@ def ingested(build, set_dir, out, q, g, jobs=2, *more):
     subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, set_dir, out, "--lossy", str(q), str(g),
                     "--exact-series", "paired", "--jobs", str(jobs), *more], check=True, capture_output=True)
     return json.loads((out / "metadata.json").read_text()), [(out / f"{i:03d}.av1").read_bytes() for i in range(N)]
+
+
+def fingerprint(frames, bits):
+    """XXH3-64 over the frames' XXH3-64 hex digests in order, each of its samples as stored: one byte, or two over 8 bits."""
+    each = [xxhash.xxh3_64_hexdigest(np.ascontiguousarray(f, "<u2" if bits > 8 else "u1").tobytes()) for f in frames]
+    return xxhash.xxh3_64_hexdigest("".join(each).encode())
+
+
+def exact_series(build, set_dir, out):
+    subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, set_dir, out, "--codec", "htj2k",
+                    "--jobs", "2"], check=True, capture_output=True)
+    return json.loads((out / "metadata.json").read_text())
 
 
 def unit(payload):
@@ -83,9 +96,12 @@ def undecodable(build, unit):
         os.dup2(err, 2)
 
 
-def series_claims(build, frames, meta, payloads, q, g, depth, lossy=None):
-    """The metadata pairs the series and names its coding; each frame decodes from its keyframe on, and not before."""
+def series_claims(build, frames, meta, payloads, q, g, depth, lossy=None, source=None):
+    """The metadata pairs the series, names its coding and its source; each frame decodes from its keyframe on, and not before."""
     lossy = lossy or dict(q=q, g=g, depth=depth)
+    check(source is not None and meta.get("sourceFingerprint") == source,
+          f"Q {q} G {g}: sourceFingerprint {meta.get('sourceFingerprint')} is the exact series' {source}")
+    check("framesSha256" not in meta, f"Q {q} G {g}: the set's framesSha256 is not carried into the series")
     check(meta.get("codec") == "av1" and meta.get("lossy") == lossy,
           f"Q {q} G {g}: metadata carries codec av1 and lossy {lossy}, got {meta.get('lossy')}")
     check(meta.get("exactSeries") == "paired", f"Q {q} G {g}: exactSeries names the paired series")
@@ -112,9 +128,10 @@ def depth_cut_claims(build, tmp):
     check(ingest.depth_cut(v, 12).tolist() == [0, 0, 1, 1, 2, 1023, 1023, 1023], f"the cut rounds half up and clamps: {ingest.depth_cut(v, 12).tolist()}")
     check(ingest.depth_cut(np.array([31, 32, 65535]), 16).tolist() == [0, 1, 1023], "at D 16 the cut is by 64")
     frames = [ingest.depth_cut(f.astype(np.int32), 12) for f in source(12)]
+    exact = fingerprint(source(12), 12)
     for g in (1, 8):
         meta, payloads = ingested(build, tmp / "s12", tmp / f"s12-cut-g{g}", 8, g, 2, "--depth-cut")
-        worst = series_claims(build, frames, meta, payloads, 8, g, 10, dict(q=8, g=g, depth=10, bitsStored=12))
+        worst = series_claims(build, frames, meta, payloads, 8, g, 10, dict(q=8, g=g, depth=10, bitsStored=12), exact)
         check(worst <= 1023 / 100, f"12-bit cut G {g}: every frame within 1 % of the codes' range, RMS (worst {worst:.2f})")
         print(f"12-bit depth cut G {g}: worst RMS error {worst:.2f} of 1023 against the cut codes")
         check(meta.get("bitsStored") == 12, f"12-bit cut G {g}: the series keeps its own bitsStored 12, got {meta.get('bitsStored')}")
@@ -139,14 +156,20 @@ def main():
     build = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
+        sources = set()
         for bits, depth in ((8, 8), (10, 10), (12, 12)):
             frames = source(bits)
             write_set(tmp / f"s{bits}", frames, bits)
+            exact = exact_series(build, tmp / f"s{bits}", tmp / f"s{bits}-exact")
+            check(exact.get("sourceFingerprint") == fingerprint(frames, bits),
+                  f"{bits}-bit exact series: sourceFingerprint {exact.get('sourceFingerprint')} is XXH3-64 over its frames' XXH3-64 digests")
+            check("framesSha256" not in exact, f"{bits}-bit exact series: the set's framesSha256 is not carried into the series")
+            sources.add(exact.get("sourceFingerprint"))
             worst = {}
             for q, g in ((8, 1), (8, 8), (8, 16), (24, 8)):
                 out = tmp / f"s{bits}-q{q}-g{g}"
                 meta, payloads = ingested(build, tmp / f"s{bits}", out, q, g)
-                worst[q, g] = series_claims(build, frames, meta, payloads, q, g, depth)
+                worst[q, g] = series_claims(build, frames, meta, payloads, q, g, depth, source=exact.get("sourceFingerprint"))
                 if (q, g) == (8, 8):
                     _, again = ingested(build, tmp / f"s{bits}", tmp / f"s{bits}-jobs", q, g, jobs=3)
                     check(again == payloads, f"{bits}-bit G 8: the same bytes at --jobs 2 and 3")
@@ -155,6 +178,7 @@ def main():
                   f"{bits}-bit: every frame within 1 % of the range, RMS (worst {max(worst.values()):.2f} of {span})")
             check(worst[24, 8] > worst[8, 8], f"{bits}-bit: Q 24 errs more than Q 8")
             print(f"{bits}-bit: worst RMS error {', '.join(f'Q {q} G {g} {e:.2f}' for (q, g), e in worst.items())} of {span}")
+        check(len(sources) == 3, f"three sources, three fingerprints: {sources}")
         for q, claim in (("64", "Q 64 is refused by name"), ("0", "Q 0, a lossless stream, is refused as lossy by name")):
             r = subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, tmp / "s12", tmp / f"bad-q{q}",
                                 "--lossy", q, "1", "--exact-series", "paired"], capture_output=True, text=True)

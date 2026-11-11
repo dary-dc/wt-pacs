@@ -54,15 +54,17 @@ def main():
         if not a.lossy:
             shutil.copy(a.set_dir / f"{i:03d}.sha256", a.out / f"{i:03d}.sha256")
     meta = json.loads((a.set_dir / "metadata.json").read_text())
+    meta.pop("framesSha256", None)  # the fetch's download pin, not the series': sourceFingerprint names the source
     meta.update(frameCount=n)
     if a.lossy:
         q, g = a.lossy
         lossy = dict(q=q, g=g, depth=ingest.lossy_header(s, q, g, a.depth_cut)["depth"])
         if a.depth_cut:
             lossy["bitsStored"] = s.stored
-        meta.update(codec="av1", lossy=lossy, exactSeries=a.exact_series)
+        meta.update(codec="av1", lossy=lossy, exactSeries=a.exact_series, sourceFingerprint=ingest.source_fingerprint(s, n))
     else:
-        meta.update(digests=ingest.digests(s, n, a.codec, a.representation, a.split, a.grey8))
+        d = ingest.digests(s, n, a.codec, a.representation, a.split, a.grey8)
+        meta.update(digests=d, sourceFingerprint=ingest.source_fingerprint(s, n, d["frames"] if a.codec == "htj2k" else None))
     if a.codec == "av1" and not a.lossy:
         meta.update(codec="av1", representation=a.representation)
     if a.codec == "av1" and a.split is not None:

@@ -46,6 +46,7 @@ probes fail and every colour payload goes to dav1d-WASM.
 **Optimal quality** (`--lossy Q G`, `ingest.py`'s `lossy`): lossy AV1 at cq-level Q, G frames a group, at the
 source's depth, every frame decoded in-process from its group's keyframe; `metadata.json` carries `lossy` and
 `exactSeries`, no `digests` ([`docs/av1/payload-format.md`](../../docs/av1/payload-format.md) §Optimal quality);
+every series carries its source's `sourceFingerprint` (§Source fingerprint);
 `--depth-cut` codes a D > 10 series' 10-bit codes instead (§Depth cut).
 `decode.cpp`'s `av1_decode` shows the last picture of the units it is given, one unit or a group's first few.
 
