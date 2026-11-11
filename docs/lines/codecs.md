@@ -58,6 +58,9 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    radiology (`claude/av1-vl-metrics`, landed); HTJ2K with resolution levels and tiles, a separate approach outside
    the demo (`claude/htj2k-tiles`, protocol landed).
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms.
+5. One place for the coded sets (2026-11-11, findings, [`../reviews/dataset-hub.md`](../reviews/dataset-hub.md)):
+   a recipe key and a pin file; release assets on this repository lead. Owed: the same bundle digests on two hosts,
+   and the owner's choice of who uploads.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).
 
