@@ -2,6 +2,7 @@
 import { Cine, now } from "../../client/view/clock.js";
 import { busyPage } from "../frame-clock/busy.js";
 import { beaconHooks } from "../phone/beacon.js";
+import { runHooks } from "../phone/runner.js";
 import { sawtooth, STEP_MS, waits } from "./trace.js";
 
 /** Settings the page view would ignore, or under `pixels` copy each paint: docs/adr/frame-path.md §The core, assembled. */
@@ -17,7 +18,8 @@ export function levers(q) {
   if (writer !== undefined && !["store", "decoders", "view"].includes(writer)) throw new Error(`refused: writer ${JSON.stringify(writer)} — store, decoders or view`);
   if (writer === "decoders" && opts.pageDials) throw new Error("refused: writer decoders with pageDials — the decoders are told to keep frames only once the cache is open");
   if (writer === "decoders" && opts.pixels === "transfer") throw new Error("refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred");
-  if (q.get("post") && q.has("beacon")) throw new Error("refused: post with beacon — one harness reads the fill's end");
+  if (q.get("post") && (q.has("beacon") || q.has("run"))) throw new Error("refused: post with beacon or run — one harness reads the fill's end");
+  if (q.has("run") && !q.get("beacon")) throw new Error("refused: run without beacon — the runner's loads name their controller");
   const settle = q.get("settle") ?? "fence";
   if (!["fence", "read"].includes(settle)) throw new Error(`refused: settle ${JSON.stringify(settle)} — fence or read`);
   // docs/adr/frame-path.md §7: the page busy from here, and after the fill a cine of `cine` seconds.
@@ -30,7 +32,7 @@ export function levers(q) {
     writer,
     ...(q.get("post") && totalTime(q.get("post"), q.get("origin"), settle, opts, q.get("fill") === "0" ? Number(q.get("after") ?? 0) : 0, Boolean(q.get("trace")), tasks)),
     ...(seconds && { cine: cineOf(seconds * 1000) }),
-    ...(q.get("beacon") && beaconHooks(q)),
+    ...(q.get("beacon") && (q.has("run") ? runHooks(q) : beaconHooks(q))),
     ...(q.get("trace") && { trace: { steps: sawtooth, everyMs: STEP_MS } }),
   };
 }
