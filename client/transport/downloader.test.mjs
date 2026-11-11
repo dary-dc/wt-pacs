@@ -567,5 +567,177 @@ async function aHeadTheRunDeliversWithinKIsWaitedFor() {
 }
 await aHeadTheRunDeliversWithinKIsWaitedFor();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for: ok");
+/**
+ * A frame the ended run delivers after its record was forgotten stays wanted: it is asked in its turn, so every frame
+ * of the want reaches the consumer though no new want is sent.
+ */
+async function aLateFrameOfAnEndedRunIsStillWanted() {
+  const w = await wantWorld("late-ended", { decode: false, decoders: 0 });
+  await onmessage({ data: { kind: "want", indices: [...Array(10).keys()] } });
+  const run = w.onFill;
+  run(frame(0));
+  await settle();
+  await onmessage({ data: { kind: "want", indices: [9, 8, 7, 6, 5, 4, 3, 2, 1] } });
+  await w.serveOne();
+  run(frame(1));
+  await settle();
+  while (w.owed.length) await w.serveOne();
+  const got = new Set(posted.filter((m) => m.kind === "frame").map((m) => m.index));
+  check(got.size === 10, `every frame of the want reaches the consumer (${[...got].sort((a, b) => a - b)})`);
+}
+await aLateFrameOfAnEndedRunIsStillWanted();
+
+/**
+ * A head the ended run had in flight crosses twice, once on the run and once on its ask: it is decoded and reaches
+ * the consumer once, whichever lands first.
+ */
+async function aHeadThatCrossesTwiceIsDecodedOnce() {
+  const dispatched = [];
+  globalThis.Worker = class {
+    postMessage(m) {
+      if (m.kind === "init") queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      if (m.kind === "decode") dispatched.push(m.index);
+    }
+    terminate() {}
+  };
+  const w = await wantWorld("head-twice", { decoders: 2, perDecoder: 8, decoderWorker: "x" });
+  await onmessage({ data: { kind: "want", indices: [...Array(10).keys()] } });
+  const run = w.onFill;
+  await onmessage({ data: { kind: "want", indices: [7, 8, 6, 9, 5, 4, 3, 2, 1, 0] } });
+  check(w.asks.join() === "7", `the head is asked while the run is in flight (${w.asks})`);
+  for (let i = 0; i <= 7; i++) run(frame(i));
+  await settle();
+  await w.serveOne();
+  const sevens = dispatched.filter((i) => i === 7).length;
+  check(sevens === 1, `frame 7 is dispatched to a decoder once, not ${sevens} times (${dispatched})`);
+}
+await aHeadThatCrossesTwiceIsDecodedOnce();
+
+/** The first frame dispatched carries the start's stamps, each taken, in the order the start passed them; no later frame carries them. */
+async function theFirstFrameCarriesTheStart() {
+  const decoding = [];
+  globalThis.Worker = class {
+    postMessage(m) {
+      if (m.kind === "init") queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      if (m.kind === "decode") decoding.push(m);
+    }
+    terminate() {}
+  };
+  const w = await wantWorld("boot-stamps", { decoders: 1, perDecoder: 2, decoderWorker: "x" });
+  await onmessage({ data: { kind: "want", indices: [0, 1, 2, 3] } });
+  w.onFill(frame(0));
+  w.onFill(frame(1));
+  await settle();
+  const b = decoding[0]?.stamps.boot ?? {};
+  const order = ["downloaderEvaluated", "downloaderStart", "dialReceived", "dial", "sessionOpen", "firstIn"];
+  const inOrder = order.every((k, j) => typeof b[k] === "number" && (j === 0 || b[order[j - 1]] <= b[k]));
+  check(inOrder && b.decodersReady >= b.downloaderStart, `the first frame's start stamps, in order (${JSON.stringify(b)})`);
+  check(decoding.length === 2 && decoding[1].stamps.boot === undefined, `the second frame carries none (${decoding.length} dispatched)`);
+}
+await theFirstFrameCarriesTheStart();
+
+/** The run the dial carries, if any, and the asks after it, for a want that rides `start`. */
+async function openingOf(name, config) {
+  const w = { opening: null, asks: [] };
+  globalThis.fakeTransport = {
+    connect: async (_url, _hash, options) => ((w.opening = options.fill ? [options.fill.from, options.fill.to] : null), {
+      requestExactFrame: (i) => (w.asks.push(i), new Promise(() => {})),
+      stats: () => ({ closed: null, lastByteAt: performance.now() }),
+      fillFrames() {},
+      endStream: async () => {},
+      close() {},
+    }),
+  };
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // ${name}`;
+  await import(`./downloader.js?${name}`);
+  await onmessage({ data: { kind: "start", config: { transport, survival: false, decode: false, decoders: 0, ...config } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  return w;
+}
+
+/**
+ * Under `shortRuns`, a want shorter than D_min that ascends whole rides the dial as its run, as the page's fill does;
+ * one that does not ascend, one with a gap span 0 does not cross, and any want once the session is up, stay asks.
+ */
+async function aShortWantRidesTheDial() {
+  const off = await openingOf("short-off", { want: [0] });
+  check(off.opening === null && off.asks.join() === "0", `by default one frame is asked after the dial (${off.opening}, asks ${off.asks})`);
+  const one = await openingOf("short-one", { want: [0], shortRuns: true });
+  check(one.opening?.join() === "0,0" && one.asks.length === 0, `one frame rides the dial (${one.opening}, asks ${one.asks})`);
+  const three = await openingOf("short-three", { want: [0, 1, 2], shortRuns: true });
+  check(three.opening?.join() === "0,2", `three ascending ride it (${three.opening})`);
+  const down = await openingOf("short-down", { want: [2, 1, 0], shortRuns: true });
+  check(down.opening === null && down.asks.join() === "2,1,0", `a descending want stays asks (${down.opening}, asks ${down.asks})`);
+  const gap = await openingOf("short-gap", { want: [1, 3], shortRuns: true });
+  check(gap.opening === null && gap.asks.join() === "1,3", `a gap span 0 does not cross stays asks (${gap.opening}, asks ${gap.asks})`);
+  const spanned = await openingOf("short-span", { want: [1, 3], shortRuns: true, span: 1 });
+  check(spanned.opening?.join() === "1,3", `span 1 crosses it as it would a long run (${spanned.opening})`);
+  const after = await openingOf("short-after", { shortRuns: true });
+  await onmessage({ data: { kind: "want", indices: [5] } });
+  check(after.opening === null && after.asks.join() === "5", `once the session is up a short want is an ask (${after.asks})`);
+}
+await aShortWantRidesTheDial();
+
+
+/**
+ * A jump into a group, G = 1, 8 and 16, with no decoder state: the ask fetches the frame's whole group, and its keyframe
+ * then each frame after it reach one decoder in index order; every frame of the group is posted, so a scroll through it
+ * asks nothing more. docs/av1/adr-unit.md §3
+ */
+async function aJumpMidGroupDecodesFromItsKeyframe() {
+  for (const g of [1, 8, 16]) {
+    const fed = handFed();
+    const made = handDecoders();
+    const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // jump ${g}`;
+    await import(`./downloader.js?jump-${g}`);
+    await onmessage({ data: { kind: "start", config: { decoders: 3, perDecoder: 32, transport, decoderWorker: "x", survival: false, groupLength: g, frameCount: 40 } } });
+    await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+    const key = 21 - (21 % g);
+    const group = Array.from({ length: g }, (_, k) => key + k);
+    await onmessage({ data: { kind: "ask", index: 21 } });
+    check([...fed.asks.keys()].sort((x, y) => x - y).join() === group.join(), `G = ${g}: the jump to 21 asks its group ${group[0]}–${group.at(-1)} (${[...fed.asks.keys()]})`);
+    // The wire may deliver the group out of order: the asked frame first, its keyframe last.
+    for (const i of [21, ...group.filter((i) => i !== 21).reverse()]) fed.asks.get(i)?.(frame(i));
+    const decoded = [];
+    for (let k = 0; k < 4 * g; k++) {
+      await settle();
+      for (const [d, w] of made.entries()) {
+        w.toConsumer = { postMessage: (m) => decoded.push(`${m.index}@${d}`) };
+        if (w.decoding.length) w.finish();
+      }
+    }
+    const on = new Set(decoded.map((x) => x.split("@")[1]));
+    check(on.size === 1 && decoded.map((x) => x.split("@")[0]).join() === group.join(), `G = ${g}: one decoder decodes the group from its keyframe in order, and posts each frame (${decoded})`);
+  }
+}
+await aJumpMidGroupDecodesFromItsKeyframe();
+
+/**
+ * The default page view's step to a frame the fill has on the wire asks it, and the run's copy and the ask's copy both
+ * land: the frame is dispatched to a decoder once, not twice.
+ */
+async function aFrameAskedDuringAFillIsDecodedOnce() {
+  const dispatched = [];
+  globalThis.Worker = class {
+    postMessage(m) {
+      if (m.kind === "init") queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      if (m.kind === "decode") dispatched.push(m.index);
+    }
+    terminate() {}
+  };
+  const w = await wantWorld("ask-in-fill", { decoders: 2, perDecoder: 8, decoderWorker: "x" });
+  await onmessage({ data: { kind: "fill", indices: [...Array(10).keys()] } });
+  const run = w.onFill;
+  for (const i of [0, 1, 2]) run(frame(i));
+  await onmessage({ data: { kind: "ask", index: 5 } });
+  check(w.asks.join() === "5", `frame 5 is asked while the run is in flight (${w.asks})`);
+  for (const i of [3, 4, 5]) run(frame(i));
+  await settle();
+  await w.serveOne();
+  const fives = dispatched.filter((i) => i === 5).length;
+  check(fives === 1, `frame 5 is dispatched to a decoder once, not ${fives} times (${dispatched})`);
+}
+await aFrameAskedDuringAFillIsDecodedOnce();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted, the start's stamps on the first frame, a short want riding the dial, a head crossing twice decoded once, a jump into a group decoded from its keyframe, a frame asked during a fill decoded once: ok");
 process.exit(failed ? 1 : 0);

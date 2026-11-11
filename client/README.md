@@ -50,7 +50,9 @@ what is wrong, before or after decoding, and never as pixels.
 **Which decoder, per payload.** WebCodecs when every stream of the payload is ≤ 10 bits, `VideoDecoder`
 exists, and the probe for each stream's layout — grey 8 or 10-bit, 4:4:4 8 or 10-bit, told apart
 before decoding by the header and the unit's `seq_profile` — returned its samples, once per worker;
-dav1d-WASM otherwise, and for a payload WebCodecs fails on. Both modules are imported, and dav1d's
+dav1d-WASM otherwise, and for a payload WebCodecs fails on. An optimal-quality series (`decoder.lossy`) takes WebCodecs first
+at any depth and dav1d only after WebCodecs refused the frame; over 10 bits the first refusal holds for the worker
+([`docs/av1/payload-format.md`](../docs/av1/payload-format.md) §Decoder choice, per payload). Both modules are imported, and dav1d's
 glue and WASM fetched, when the decoder starts, beside the dial; each is initialised on first use,
 and an import that fails is tried again on the next payload. Before, the first payload waited for all of
 it: **−1.0 serial round trips to the first exact frame through WebCodecs and −3.0 through dav1d on
@@ -80,6 +82,102 @@ dav1d-WASM twice from the same bytes: the base reaches `opts.onPreview` as a fra
 never receive a preview. A unit without its top fails by name after its preview. WebCodecs returns
 the exact frame and no preview. [`docs/av1/adr-unit.md`](../docs/av1/adr-unit.md) §6; the
 dispatch rig checks `client/contract/av1/scalable/`.
+
+**Optimal quality, exact on request** (2026-11-09). A series whose metadata carries `"codec": "av1"`,
+`"lossy": {"q", "g", "depth"}` and `"exactSeries": "<id>"` is shown at **optimal quality** — its visually lossless
+AV1 frames — as any series is: fill, steps, cine. Its **exact series** is the HTJ2K series of the same source on its
+own server. `viewer/pair.js` reads its metadata at `/series/<id>/metadata` and its transport file at
+`/wt/<id>/dev-transport.json` (`server/dev-server.py --exact-metadata … --exact-transport …`), and refuses by name an
+exact series that is not HTJ2K, is not of the same source (another frame count, width, height, `bitsStored` or
+`signed`, or, when both carry it, another `framesSha256`), or has no XXH3-64 digests, since none of its frames could
+then be called lossless: a digest proves a frame is its own series', not that the series is this one's source. A
+second downloader, one decoder and no fill, dials it once the optimal-quality series is connected, in either view. The
+**lossless** button, or `l`, asks the controller for the current frame exact: frame *i* of the exact series is asked, held beside the frame store (never in it, never cached, nothing else asked or evicted), and
+painted in place of the lossy frame once its digest matched; it stays until the reader steps off the frame or
+presses the button again. A lossy frame's own `exact` means its decode matched the encoder's reconstruction, not the
+source.
+
+* **The label** (top right, always shown on an optimal-quality series) says what is painted, decided in one place,
+  `Controller.quality`: *Optimal quality*; *fetching lossless…* while asked; *Lossless* only on the `shown` that
+  follows the exact frame's paint, and only when that frame's `exact` is `true`; *Lossless check failed* in red, the
+  lossy frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed; the button then asks again.
+* **Routes**: WebCodecs first for every optimal-quality series, a depth cut and a 12-bit stored form alike; dav1d-WASM only
+  after WebCodecs refused the frame or its probe failed, the route in each frame's `info.path` and the refusal in
+  `info.refusal` (§Which decoder, per payload). In headless Chromium a 12-bit unit is refused at `decode`.
+* **Groups.** `lossy.g` reaches the downloader as `groupLength` (§An AV1 series in groups): a jump mid-group decodes
+  from the group's keyframe on one decoder, and the whole group lands in the store, so a scroll through it asks and
+  decodes nothing more.
+* **`?overlay=1`**, off by default: the painted frame's route and, on dav1d, why WebCodecs refused it, wire bytes
+  and decode time, and the series' Q, G and depth, with *depth cut of D* for the cut form.
+* **A depth cut** (`lossy.bitsStored`, a D > 10 series' 10-bit form) decodes as any 10-bit series and is painted from
+  its codes through a table of their full-depth values, no shift pass; `pair.js` refuses one of D ≤ 10, not at 10 bits
+  or not of the series' `bitsStored` ([`docs/av1/payload-format.md`](../docs/av1/payload-format.md) §Depth cut).
+* **Held by** `viewer/pair.test.mjs` (pairing and each refusal), `view/controller.test.mjs` (the exact frame painted
+  and nothing else changed; the label never *Lossless* before the check, for a frame the reader left, or before its
+  paint; a scroll after a jump at G = 1, 8, 16 asks nothing), `transport/downloader.test.mjs` (a jump at G = 1, 8, 16
+  asks the whole group and decodes it from the keyframe, in order, on one decoder) and `server/dev-server.test.py`;
+  21 of 22 mutants fail them; the one alive drops the label's own check that the frame is `exact`, which the
+  exact-frame slot already enforces by admitting no other frame. The route rule: `decode/av1.test.mjs` (§lossy, 7 of 7
+  mutants killed), `decode/depth-cut.browser.mjs` (Chromium's refusal of the stored form) and the overlay's data in
+  `view/controller.test.mjs`.
+* **End to end** (DEMO-E2E, 2026-11-10; *corrected in place*: this said it was not yet run). `viewer/demo-check.mjs`
+  serves a pair from `scripts/demo-series.sh` by README §Demo's commands and drives the page in headless Chromium
+  (Chrome for Testing 153, SwiftShader, loopback, one 4-core x86-64 cloud host): fill, every frame stepped in order,
+  `End`, `l` and `l`; then `?fill=0`, 13 steps and `End`; then the exact series' last digest made wrong. It passed
+  on all 20 optimal-quality series of the demo set (`dbts_a1`, `dbts_b1`, `dbts_c1`; Q 8 and 24; G 1, 8, 16; the two
+  stored forms). Every cut and 10-bit frame painted through WebCodecs; both stored forms through dav1d, every frame
+  with WebCodecs' refusal named (*marked as type `key` but wasn't a key frame*); the label *Optimal quality* →
+  *fetching lossless…* → *Lossless* → *Optimal quality* every time, and *Lossless check failed*, never *Lossless*,
+  on the wrong digest; on demand, whole groups asked and nothing else (24 frames on `dbts_a1` at G 8 and 16); no
+  console error. From navigation, Q 8 G 8, one run each: the first picture at 473, 762 and 474 ms and the last frame
+  of the fill at 1.8, 5.1 and 2.3 s on `dbts_a1`, `dbts_b1` and `dbts_c1`; the exact frame painted 83, 239 and 113 ms
+  after `l`. Wire bytes are the bundle's (4532 KB over `dbts_a1`'s 56 frames at Q 8 G 8). `dbts_b1`'s steps take
+  ~130 ms each with every frame held: SwiftShader painting 2560 × 3328, not a GPU's number. Its four mutants each
+  fail it: the label without the digest, 10-bit units to dav1d, groups dropped (the fill never completes), the demo
+  script's metadata missing. Not run: a GPU, hardware decode, a phone, a real link, Firefox. The web image
+  (`deploy/nginx`) does not serve the exact series' two paths.
+* **End to end from a fresh clone** (DEMO-E2E-2, 2026-11-10). README §Demo followed word for word from a fresh
+  clone of `claude/core-next-fixes` on one 4-core x86-64 cloud host (the decoders' docker rebuild refused by Docker Hub,
+  429, and not needed: the page's decoders are committed; meson 1.9.1 from pip): `demo-series.sh` wrote the 23 series in 736 s,
+  bytes equal to the byte to [`payload-format.md`](../docs/av1/payload-format.md)'s tables; `demo-check.mjs`, in a
+  copy that also kept each label write and paint time, passed on all 20 optimal-quality series in headless Chromium
+  141 (the README's `playwright@1.56.1`; the first run had 153), SwiftShader, loopback. Routes as the first run; the
+  stored forms' refusal on 141 reads *A key frame is required after configure() or flush()*, every frame. *Lossless*
+  was written in the same millisecond as the exact frame's paint, never before; a wrong digest never read
+  *Lossless*. No console error. One run each, from navigation, filled pass, Q 8 G 8: first picture 322, 548 and
+  307 ms (first run 473, 762, 474), every slice received by 1.7, 4.6 and 2.0 s (1.8, 5.1, 2.3), the exact frame 54,
+  164 and 65 ms after `l` (83, 239, 113); two containers, two Chromiums, so the difference is not a finding. On
+  demand, `End` — mid-group at G 8 and 16 on all three volumes — painted in 170–305 ms on `dbts_a1` and `dbts_c1` at
+  G 8 and 16 (35–44 ms at G 1), 463 and 1096 ms on `dbts_b1` (2560 × 3328 on SwiftShader). One fault found and fixed:
+  with a certificate ending within a day, the static host renewed it after the series servers had loaded the old
+  one, and the fill never came; README §Demo and `demo-check.mjs` now renew it first. Per series, one run each,
+  ms from navigation; *every slice* is the last frame received in the filled pass; *jump*, `End` under `?fill=0`;
+  *Lossless*, from `l` to the label, filled / on demand:
+
+  | series | route | frame 1 KB | first picture | every slice | KB, all | step, median | jump | Lossless |
+  | --- | --- | --: | --: | --: | --: | --: | --: | --: |
+  | `dbts_a1-q8-g1-cut` | av1-webcodecs | 82 | 345 | 1556 | 4548 | 10 | 35 | 61 / 59 |
+  | `dbts_a1-q8-g8-cut` | av1-webcodecs | 82 | 322 | 1678 | 4532 | 8 | 305 | 54 / 57 |
+  | `dbts_a1-q8-g16-cut` | av1-webcodecs | 82 | 269 | 1540 | 4533 | 11 | 276 | 62 / 68 |
+  | `dbts_a1-q24-g1-cut` | av1-webcodecs | 6 | 263 | 1175 | 423 | 10 | 42 | 65 / 64 |
+  | `dbts_a1-q24-g8-cut` | av1-webcodecs | 6 | 314 | 1213 | 206 | 9 | 170 | 56 / 62 |
+  | `dbts_a1-q24-g16-cut` | av1-webcodecs | 6 | 286 | 1158 | 196 | 7 | 179 | 59 / 60 |
+  | `dbts_a1-q8-g16-stored` | av1-dav1d | 89 | 381 | 2107 | 4911 | 9 | 596 | 55 / 55 |
+  | `dbts_b1-q8-g1` | av1-webcodecs | 457 | 610 | 4613 | 22928 | 126 | 201 | 167 / 202 |
+  | `dbts_b1-q8-g8` | av1-webcodecs | 457 | 548 | 4642 | 22663 | 117 | 463 | 164 / 212 |
+  | `dbts_b1-q8-g16` | av1-webcodecs | 457 | 553 | 4783 | 22649 | 115 | 1096 | 179 / 197 |
+  | `dbts_b1-q24-g1` | av1-webcodecs | 48 | 518 | 4002 | 2581 | 114 | 158 | 154 / 153 |
+  | `dbts_b1-q24-g8` | av1-webcodecs | 48 | 504 | 3765 | 1635 | 115 | 210 | 165 / 198 |
+  | `dbts_b1-q24-g16` | av1-webcodecs | 48 | 474 | 3697 | 1588 | 118 | 234 | 176 / 175 |
+  | `dbts_c1-q8-g1-cut` | av1-webcodecs | 94 | 286 | 2092 | 6198 | 11 | 44 | 65 / 65 |
+  | `dbts_c1-q8-g8-cut` | av1-webcodecs | 94 | 307 | 1984 | 6092 | 10 | 236 | 65 / 61 |
+  | `dbts_c1-q8-g16-cut` | av1-webcodecs | 94 | 306 | 2146 | 6085 | 9 | 175 | 53 / 64 |
+  | `dbts_c1-q24-g1-cut` | av1-webcodecs | 8 | 276 | 1725 | 556 | 10 | 29 | 73 / 49 |
+  | `dbts_c1-q24-g8-cut` | av1-webcodecs | 8 | 267 | 1570 | 266 | 9 | 127 | 50 / 54 |
+  | `dbts_c1-q24-g16-cut` | av1-webcodecs | 8 | 319 | 1685 | 252 | 9 | 120 | 62 / 51 |
+  | `dbts_c1-q8-g16-stored` | av1-dav1d | 100 | 367 | 2610 | 6533 | 9 | 465 | 64 / 48 |
+
+  Not run: a GPU, hardware decode, a phone, a real link, Chrome itself rather than Chromium.
 
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
 in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
@@ -307,7 +405,8 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   store worker (`viewer/store.js`), the decoders or the view worker — a series with digests is written there after each
   frame's paint, and read back checked on a later open. With no writer, the default, there is no cache, as on main
   ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §The core, assembled).
-* **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact.
+* **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact. A lossy
+  series adds its quality label and the lossless button (§Optimal quality, exact on request).
 * **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the decoder per path, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name.
 * **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=`, `?origin=` and `?writer=` let a lab harness drive the

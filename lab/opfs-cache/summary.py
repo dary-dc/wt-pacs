@@ -9,8 +9,13 @@ from pathlib import Path
 DECODE_MS = {"512x512": 3.0, "3328x4096": 69.0}
 
 
+SET_ASIDE = "--set-aside-start-hangs" in sys.argv
+
+
 def rows(path):
-    return [r for r in map(json.loads, path.read_text().splitlines()) if not r.get("settings")] if path.exists() else []
+    """A cell's rows; with --set-aside-start-hangs, not the pre-registered rule, M5's runs that never received a frame dropped."""
+    rs = [r for r in map(json.loads, path.read_text().splitlines()) if not r.get("settings")] if path.exists() else []
+    return [r for r in rs if not (SET_ASIDE and r.get("cell", "").startswith("m5") and r.get("received") == 0)]
 
 
 def m1(rs):
@@ -189,6 +194,8 @@ def mutants(rs, name):
 
 
 d = Path(sys.argv[1])
+if SET_ASIDE:
+    print("M5 with the runs that never received a frame set aside: descriptive, not the pre-registered rule")
 m1(rows(d / "m1.jsonl"))
 for f, name in (("m2.jsonl", "M2 2 GiB"), ("m2-13g.jsonl", "M2 13 GiB")):
     if rows(d / f):

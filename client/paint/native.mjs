@@ -16,7 +16,8 @@ import { paintReference } from "./reference.js";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const argv = process.argv.slice(2);
-const sets = Object.entries(SETS).filter(([, s]) => !s.timing);
+// The native painter declines signed ≤ 8-bit grey (client/paint/README.md, *Input*).
+const sets = Object.entries(SETS).filter(([, s]) => !s.timing && !(s.signed && s.bits <= 8));
 const ALL = sets.flatMap(([n, s]) => cells(n, s, make(n, s)));
 
 function samples(cell) {

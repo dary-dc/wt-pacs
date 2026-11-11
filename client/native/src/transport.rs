@@ -91,8 +91,9 @@ impl Session {
     /// `None` once the session has ended and every frame read has been handed on.
     pub async fn next(&mut self) -> Option<Result<Event>> {
         let event = self.events.recv().await;
-        if let Some(Ok(Event::Frame { index, .. })) = &event {
+        if let Some(Ok(Event::Frame { index, at, .. })) = &event {
             crate::count::hop(*index);
+            crate::count::stamp("stream", *at);
         }
         event
     }

@@ -489,6 +489,12 @@ identical ([`../lab/worker-leak/run.mjs`](../lab/worker-leak/run.mjs), Chromium 
 10–12 of 40 downloader workers stayed alive, script dead, thread and memory held — a race
 `client/contract/drive_page.cjs` checks for by counting leftover workers after every page.
 
+**The check still trips, rarely, with the decoders left alone** (2026-10-30, the gate's four browser rigs repeated in a
+shared 4-core container): 1 of 15 runs left one downloader alive after its client closed, 3 of 15 with four busy loops
+on the cores, always in `dispatch`, from a different clause each time it was traced; 1 of 20 loaded on a tree before
+[`adr/frame-path.md`](adr/frame-path.md) §Experiment 1's `span`. The first traced clause alone: 0 of 100 loaded. Not fixed:
+[`adr/frame-path.md`](adr/frame-path.md) §Experiment 1: independent review.
+
 ## Capabilities
 
 Every row passed on the downloader before the harness's path was removed (2026-10-03); its column is the record. **contract** is
@@ -742,7 +748,7 @@ to one ask moves the median only when it crosses a 16.7 ms line.
 The product's page (queue row VIEWER), built on the downloader, the decoders, the frame check and the painter
 together ([`../client/README.md`](../client/README.md) §The viewer). It opens with the whole series as the opening
 fill and paints each frame as it arrives. Frames stay in memory on the page by default; in the view worker under
-`?view=worker`, with an OPFS cache behind them under a lab `?writer=`, not timed ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*).
+`?view=worker`, with an OPFS cache behind them under a lab `?writer=` ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*); the page stays the default by §7's run of 2026-10-30, the cache not timed.
 
 **The page check holds it** on the three series the DICOM-to-bundle ingest (queue row 89, INGEST) made from the lab's sets, each as HTJ2K and as AV1:
 `ct_nlst` (a windowed, signed CT, 76 frames), `us_liver` (an RGB cine, 70 frames, cine run) and `dbt12_ea1141`
@@ -888,9 +894,11 @@ driver on it once the ClientHello is whole — on both of the library's server e
 so a `SessionRequest` exists only after a completed handshake, and early data stays off. **On by default.** *Corrected in place:* this was first
 said to halve the round trip and to need a fork; it removes the whole of it — Chrome sends its CONNECT
 with its Finished once it holds the SETTINGS — and is carried as a build-time patch:
-[`../scripts/patch_crate.sh`](../scripts/patch_crate.sh) applies it with `--fuzz=0` to the
-checksum-verified crates.io tarball, behind a `[patch.crates-io]` shim in `patched/wtransport/`;
-dropping it is deleting that line. `settings_ride_the_handshake_flight` and
+[`../scripts/patch_crate.sh`](../scripts/patch_crate.sh) applies it with `git apply` (exact context, every hunk
+or none) to the checksum-verified crates.io tarball, behind a `[patch.crates-io]` shim in `patched/wtransport/`;
+dropping it is deleting that line. Patches are applied with `git apply` rather than GNU `patch`: git is already a
+prerequisite, so `patch` is not one. The one exception is the lab's libaom SVC encoder build
+(`lab/av1/delivery/scalable/encoder/build.sh`). `settings_ride_the_handshake_flight` and
 `settings_ride_the_handshake_flight_from_a_quic_connecting` hold it, one test an entry point (mutants
 caught: the driver started after the handshake fails both; the patch before 2026-09-28 fails the
 second). *Corrected in place:* until then the patch covered only `Endpoint::accept`; a server that

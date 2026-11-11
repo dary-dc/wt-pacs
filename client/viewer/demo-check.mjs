@@ -1,0 +1,189 @@
+// The demo's check: an optimal-quality series and its exact series from scripts/demo-series.sh, served by README §Demo's own
+// commands, opened as a reader would, and every claim of the demo failed by name. README.md §Demo
+//
+//   node client/viewer/demo-check.mjs DIR LOSSY_ID [--route av1-webcodecs|av1-dav1d] [--json]
+//     DIR as demo-series.sh wrote it: ID.sbnd and ID.metadata.json for LOSSY_ID and its exactSeries
+import { spawn } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+const ROOT = new URL("../..", import.meta.url).pathname;
+const [dir, id] = process.argv.slice(2);
+const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
+const ROUTE = arg("--route", "av1-webcodecs");
+const T = mkdtempSync(path.join(tmpdir(), "demo-check-"));
+const children = [];
+const stop = () => { for (const c of children.splice(0)) c.kill("SIGKILL"); };
+process.on("exit", () => { stop(); rmSync(T, { recursive: true, force: true }); });
+const failures = [];
+const check = (ok, claim) => ok || (failures.push(claim), false);
+/** A claim the rest of a pass waits on: the check ends there. */
+const must = (ok, claim) => { if (!ok) throw new Error(claim); };
+
+const file = (name) => {
+  const p = path.join(dir, name);
+  if (!existsSync(p)) throw new Error(`${p} missing: run scripts/demo-series.sh ${dir}`);
+  return p;
+};
+const lossyMeta = JSON.parse(readFileSync(file(`${id}.metadata.json`)));
+const exactId = lossyMeta.exactSeries;
+const exactMetaPath = file(`${exactId}.metadata.json`);
+
+const started = (child, re) => new Promise((resolve, reject) => {
+  let out = "";
+  const read = (d) => { out += d; if (re.test(out)) resolve(); };
+  child.stdout.on("data", read);
+  child.stderr.on("data", read);
+  child.once("exit", (c) => reject(new Error(`exited ${c}: ${out}`)));
+});
+const run = (cmd, args) => {
+  const child = spawn(cmd, args, { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"] });
+  children.push(child);
+  return child;
+};
+
+/** README §Demo's three servers; `exactMeta`, the exact series' metadata file the static host serves. */
+async function serve(exactMeta) {
+  const cert = ["--cert-pem", "server/dev-cert/cert.pem", "--key-pem", "server/dev-cert/key.pem"];
+  // Renewed before the servers load it: the static host would renew it after, and the page would pin a hash they lack.
+  await new Promise((resolve, reject) => run("server/scripts/gen_dev_cert.sh", ["--if-needed"])
+    .once("exit", (c) => (c === 0 ? resolve() : reject(new Error(`gen_dev_cert.sh --if-needed exited ${c}`)))));
+  const server = path.join(process.env.CARGO_TARGET_DIR || "target", "release/series-server");
+  const lossy = run(server, ["--port", "4433", "--series", file(`${id}.sbnd`), ...cert]);
+  const exact = run(server, ["--port", "4434", "--series", file(`${exactId}.sbnd`), ...cert]);
+  const transport = readFileSync(path.join(ROOT, "client/dev-transport.json"), "utf8");
+  writeFileSync(`${T}/exact-transport.json`, transport.replace(":4433", ":4434"));
+  const host = run("python3", ["server/dev-server.py", "--port", "8765", "--metadata", path.join(dir, `${id}.metadata.json`),
+    "--exact-metadata", exactMeta, "--exact-transport", `${T}/exact-transport.json`]);
+  await Promise.all([started(lossy, /transport=/), started(exact, /transport=/), started(host, /port=8765/)]);
+}
+
+/** Each write to the label, the overlay and the status line, timed on the page's clock; the overlay is written on every paint. */
+function watch() {
+  globalThis.__log = [];
+  addEventListener("DOMContentLoaded", () => {
+    for (const id of ["quality", "overlay", "status"]) {
+      const el = document.getElementById(id);
+      new MutationObserver(() => {
+        const frame = Number(document.getElementById("status").textContent.match(/^frame (\d+)/)?.[1]);
+        globalThis.__log.push({ t: performance.now(), id, text: el.hidden ? "" : el.textContent, frame });
+      }).observe(el, { childList: true, characterData: true, subtree: true, attributes: true });
+    }
+  });
+}
+
+/** One reader's pass: open, scroll in order, Home, End (a jump), `l` and `l` again. */
+async function pass(browser, query) {
+  const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+  const errors = [];
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(watch);
+  await page.goto(`http://127.0.0.1:8765/?overlay=1${query}`);
+  const log = () => page.evaluate(() => globalThis.__log);
+  const now = () => page.evaluate(() => performance.now());
+  const until = async (pred, ms = 60000) => {
+    for (const end = Date.now() + ms; Date.now() < end; await page.waitForTimeout(20)) if (await pred(await log())) return true;
+    return false;
+  };
+  const shown = (i, after) => until((l) => l.some((e) => e.id === "overlay" && e.text && e.frame === i + 1 && e.t > after), 30000);
+  const n = lossyMeta.frameCount;
+  const filling = !query.includes("fill=0");
+  if (filling) must(await until((l) => /fill \d+ ms/.test(l.findLast((e) => e.id === "status")?.text), 120000), `${query}: the fill completes`);
+  must(await shown(0, 0), `${query}: frame 1 painted`);
+  const steps = [];
+  for (let i = 1; i < (filling ? n : Math.min(n, 13)); i++) {
+    const t = await now();
+    await page.keyboard.press("ArrowRight");
+    must(await shown(i, t), `${query}: frame ${i + 1} painted after its step`);
+    steps.push(Math.round((await log()).findLast((e) => e.id === "overlay").t - t));
+  }
+  await page.keyboard.press("Home");
+  await shown(0, await now());
+  const before = await now();
+  await page.keyboard.press("End");
+  must(await shown(n - 1, before), `${query}: the jump to frame ${n} painted`);
+  const jumpMs = Math.round((await log()).findLast((e) => e.id === "overlay").t - before);
+  const pressed = await now();
+  await page.keyboard.press("l");
+  await until((l) => /^Lossless/.test(l.findLast((e) => e.id === "quality")?.text), 30000);
+  const losslessMs = Math.round((await log()).findLast((e) => e.id === "quality").t - pressed);
+  await page.keyboard.press("l");
+  await until((l) => l.findLast((e) => e.id === "quality")?.text === "Optimal quality", 10000);
+  const l = await log();
+  await page.close();
+  const overlays = l.filter((e) => e.id === "overlay" && e.text);
+  const received = [];
+  for (const e of l.filter((e) => e.id === "status")) {
+    const k = Number(e.text.match(/received (\d+)/)?.[1] ?? 0);
+    while (received.length < k) received.push(Math.round(e.t));
+  }
+  return {
+    query, errors, steps, jumpMs, losslessMs,
+    labels: l.filter((e) => e.id === "quality" && e.text).map((e) => e.text).filter((t, k, a) => t !== a[k - 1]),
+    firstPictureMs: Math.round(overlays[0]?.t), receivedMs: received,
+    frames: Object.values(Object.fromEntries(overlays.filter((e) => !e.text.startsWith("htj2k")).map((e) => [e.frame, e.text]))),
+    exactPainted: overlays.some((e) => e.text.startsWith("htj2k")),
+    status: l.findLast((e) => e.id === "status")?.text,
+  };
+}
+
+const LABELS = ["Optimal quality", "Optimal quality · fetching lossless…", "Lossless", "Optimal quality"];
+const FAILED = "Lossless check failed · optimal quality shown";
+const routeOf = (overlay) => overlay.match(/^(\S+)( after WebCodecs refused: (.*?))? · ([\d.]+) KB · decode ([\d.]+) ms/);
+
+function judge(r) {
+  check(r.exactPainted, `${r.query}: no exact frame painted on Lossless`);
+  check(r.errors.length === 0, `${r.query}: console errors ${JSON.stringify(r.errors)}`);
+  for (const f of r.frames) {
+    const m = routeOf(f);
+    check(m?.[1] === ROUTE, `${r.query}: a frame decoded by ${m?.[1]}, not ${ROUTE}: ${f}`);
+    check(m?.[1] !== "av1-dav1d" || m[3], `${r.query}: dav1d without WebCodecs' refusal named: ${f}`);
+  }
+}
+
+const browser = await createRequire(import.meta.url)("playwright").chromium.launch();
+const report = { id, exactId, passes: [] };
+try {
+  await serve(exactMetaPath);
+  for (const query of ["", "&fill=0"]) {
+    const r = await pass(browser, query);
+    judge(r);
+    check(JSON.stringify(r.labels) === JSON.stringify(LABELS), `${query}: the label ran ${JSON.stringify(r.labels)}, not ${JSON.stringify(LABELS)}`);
+    if (query) {
+      const g = lossyMeta.lossy.g;
+      const groups = new Set([...Array(13).keys()].map((i) => Math.floor(i / g))).add(Math.floor((lossyMeta.frameCount - 1) / g));
+      const want = [...groups].reduce((s, k) => s + Math.min(g, lossyMeta.frameCount - k * g), 0);
+      check(r.status.includes(`received ${want},`), `${query}: on demand, 13 steps and a jump asked the whole groups, ${want} frames: ${r.status}`);
+    }
+    report.passes.push(r);
+  }
+  stop();
+  // The exact frame's digest made wrong: the label must say the check failed, and never Lossless.
+  const bad = JSON.parse(readFileSync(exactMetaPath));
+  const last = bad.digests.frames.length - 1;
+  bad.digests.frames[last] = bad.digests.frames[last].replace(/^./, (c) => (c === "0" ? "1" : "0"));
+  writeFileSync(`${T}/bad.json`, JSON.stringify(bad));
+  await serve(`${T}/bad.json`);
+  const r = await pass(browser, "&fill=0");
+  check(r.labels.includes(FAILED) && !r.labels.includes("Lossless"), `a wrong digest: the label ran ${JSON.stringify(r.labels)}`);
+  report.tampered = r.labels;
+} catch (e) {
+  failures.push(e.message);
+} finally {
+  await browser.close();
+  stop();
+}
+if (process.argv.includes("--json")) console.log(JSON.stringify(report));
+else {
+  for (const r of report.passes) {
+    const kb = r.frames.reduce((s, f) => s + Number(routeOf(f)?.[4] ?? 0), 0);
+    console.log(`${id}${r.query || " (fill)"}: first picture ${r.firstPictureMs} ms, ${r.receivedMs.length} frames by ${r.receivedMs.at(-1)} ms, ` +
+      `${kb.toFixed(0)} KB over ${r.frames.length} frames painted, jump ${r.jumpMs} ms, lossless ${r.losslessMs} ms`);
+  }
+}
+for (const f of failures) console.log(`FAIL ${f}`);
+console.log(failures.length ? `demo check: ${failures.length} failed` : `demo check: ${id} passed`);
+process.exit(failures.length ? 1 : 0);
