@@ -89,7 +89,7 @@ def main():
              for _, b in v["g"][g]["thinned"] if b is not None and v["g"][g]["b1"] is not None]
     out["epsilon"] = max(map(abs, parts)) if parts else None
     out["predictions"] = predictions(out)
-    out_path.write_text(json.dumps(out, indent=1) + "\n")
+    out_path.write_text(json.dumps(out, indent=1, default=lambda o: o.item()) + "\n")
     print(report(out))
 
 
