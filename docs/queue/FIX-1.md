@@ -17,3 +17,5 @@ Done. Merges 579206f0; fixes c6d13a48, 15c0235f, 671bdd6f, c9bfa15b, fdbf8f89, d
 * Fixtures: no demo series run here (E2E-3's); dbts_a1/b1/c1 from one dataset; no ultrasound cine; 4-core, no GPU.
 * Owner decisions: framesSha256 now required on both series (fdbf8f89 reverses a deliberate acceptance; revert if
   unwanted); C4/D2 the stored-form series in the demo list; D1 dav1d preloaded on every AV1 page.
+* CI on daee0d1d (another session's docs commit on #363): gate failed twice, re-run once, at apt-get: the runner could
+  not resolve the Ubuntu mirror; no test ran. deploy timed out at 25 min the first time. Code as on bdbbac84, green.
