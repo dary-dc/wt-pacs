@@ -6,10 +6,11 @@
  *   NODE_PATH=$(npm root -g) node lab/htj2k-tiles/improve/stage3/run.mjs --series DIR --bands DIR --out rows.jsonl
  *     [--rounds 6] [--first-round 0] [--cells r5000,r20000,lte-good,wifi-home,r20000:l1] [--throttles 1,4]
  *     [--sets dbts_a1/phone,...] [--arms D,D′,D+T3,D+L★,S★] [--oq q8-g16] [--mutate sample|truth|preview|bands-dropped]
- *   Run from the served tree (the demo commit plus lab/htj2k-tiles/improve); its target/release has the servers.
+ *   Run from the served tree (the demo commit plus lab/htj2k-tiles/improve; lab/.demo-series the series dir); its target/release has the servers.
  */
 import { spawn, execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -141,7 +142,7 @@ async function visit(set, arm, cell, throttle, round) {
   debug("served", Object.keys(servers));
   const key = `${round}-${vol}-${viewport}-${arm}-${Date.now()}`;
   const cfg = { debug: Boolean(process.env.DEBUG), arm, key, N, fit, mid, mutate: MUTATE, frames: `/lab/.av1-work/htj2k-improve/${vol}-bands/frames.json`,
-    ...(servers.oq && { oq: { url: servers.oq.url, hash: HASH, meta: `/demo-series/${inp.oqId}.metadata.json` } }),
+    ...(servers.oq && { oq: { url: servers.oq.url, hash: HASH, meta: `/lab/.demo-series/${inp.oqId}.metadata.json` } }),
     ...(servers.exact && { exact: { url: servers.exact.url, hash: HASH, digests: inp.exactDigests } }),
     ...(servers.bands && { bands: { url: servers.bands.url, hash: HASH } }) };
   const errors = [];
@@ -180,6 +181,11 @@ async function visit(set, arm, cell, throttle, round) {
     congestion: Object.values(servers)[0].congestion, relays, void: Object.values(relays).some((r) => r.void), errors }, fill, again, inp.frames);
 }
 
+const oqDigest = (sha) => {
+  const oq = Object.entries(sha).filter(([k]) => k.endsWith(".oq")).sort(([a], [b]) => parseInt(a) - parseInt(b)).map(([, v]) => v);
+  return oq.length ? createHash("sha256").update(oq.join("")).digest("hex").slice(0, 16) : null;
+};
+
 /** A visit's row: times from the fill's issue or the request, and every picture against its truth. */
 function figures(row, r, again, frames) {
   if (!r?.allAt) return { ...row, failed: r ? `not every slice pictured; ${r.failures?.[0]?.reason ?? ""}` : "no result" };
@@ -200,7 +206,8 @@ function figures(row, r, again, frames) {
     levelMs: r.levelAt && Math.round(r.levelAt - r.askAt),
     losslessMs: r.losslessAt && Math.round(r.losslessAt - r.askAt),
     fillBytes: r.fillBytes, bytes: r.bytes, asks: r.asks, decodes: r.decodes,
-    oq: r.oq, exact, owed, losslessExact: r.sha[`${row.mid}.0`] === truth(row.mid, "0"), failures: r.nFailures, failure: r.failures[0]?.reason,
+    // OQ pictures have no truth (lossy, no digests in their metadata): one digest of them all, equal across a set's D visits.
+    oq: r.oq, oqDigest: oqDigest(r.sha), exact, owed, losslessExact: r.sha[`${row.mid}.0`] === truth(row.mid, "0"), failures: r.nFailures, failure: r.failures[0]?.reason,
     reopen: again && { allMs: Math.round(again.allAt - again.issuedAt), wouldAsk: again.wouldAsk, bandsAgain: again.bandsAgain, decodes: again.decodes,
       same: reopenSame, of: row.N, failures: again.failures.length },
   };

@@ -25,6 +25,7 @@ let queue = Promise.resolve();
 onmessage = ({ data: m }) => (queue = queue.then(() => handle(m)));
 
 async function handle(m) {
+  if (m.debug) console.log("store", m.op, m.name ?? "");
   try {
     if (m.op === "open") dir = await (await navigator.storage.getDirectory()).getDirectoryHandle(m.key, { create: true });
     if (m.op === "put") await put(m.name, new Uint8Array(m.bytes));

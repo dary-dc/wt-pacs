@@ -41,7 +41,7 @@ function stored(m, transfer = []) {
       data.error ? reject(new Error(data.error)) : resolve(data);
     };
     store.addEventListener("message", done);
-    store.postMessage({ ...m, id }, transfer);
+    store.postMessage({ ...m, id, debug: C.debug }, transfer);
   });
 }
 const keep = (name, bytes) => {
@@ -197,7 +197,7 @@ async function visit() {
     const g = oqMeta.lossy?.g ?? 1;
     issuedAt = at();
     oqClient = await DownloaderClient.connect(C.oq.url, C.oq.hash, {
-      decoder, digests: oqMeta.digests.frames, ...(g > 1 && { groupLength: g, frameCount: C.N }),
+      decoder, digests: oqMeta.digests?.frames, ...(g > 1 && { groupLength: g, frameCount: C.N }),
       onFrame: (fr) => {
         counts.bytes += fr.info.wireBytes ?? 0;
         oqInfo[fr.info.exact === true ? "exact" : fr.info.exact === false ? "inexact" : "unchecked"] += 1;
