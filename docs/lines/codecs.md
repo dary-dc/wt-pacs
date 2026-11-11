@@ -32,8 +32,8 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
   under one display level at the header windows" would need Q 1–2 on 12-bit DBT (0.64 of HTJ2K's bytes against about
   0.10 at Q 8), Q 4 on 10-bit DBT and TRUS. Which reading is visually lossless needs readers.
 * **Depth and decode route:** WebCodecs decodes the OQ view; dav1d-WASM is a fallback only. D ≤ 10 is coded at its
-  own depth; D > 10 by the depth cut to 10 bits, because WebCodecs gives no 12-bit samples in any engine
-  (`claude/av1-webcodecs-profiles`). At Q 8 the cut costs about 0.3 dB and saves 6–7 % of the bytes at equal Q
+  own depth; D > 10 by the depth cut to 10 bits, because no engine is shown to give 12-bit AV1 video through
+  WebCodecs' `VideoDecoder` ([`../av1/webcodecs-profiles.md`](../av1/webcodecs-profiles.md)). At Q 8 the cut costs about 0.3 dB and saves 6–7 % of the bytes at equal Q
   (`dbts_a1`, `dbts_c1`), i.e. no real gain at equal quality: it is there for the decode route.
 * **Out of the top, not discarded:** a two-layer SVC preview; lossless AV1 as the exact form.
 * **Discarded:** a layered three-layer carrier; preview and view as quality layers of one stream; top-first; HTJ2K

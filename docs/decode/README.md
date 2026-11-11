@@ -6,6 +6,9 @@ samples live. How to run each bench is in its own directory, `lab/decode-bench/R
 this file holds the numbers and the reasons. Every millisecond here is container-measured unless it
 says otherwise — §What these numbers are not.
 
+What the browser itself offers a decoder (the routes, WebCodecs, each engine's support), from official sources
+only: [`browser.md`](browser.md).
+
 ## The decoder
 
 OpenJPH, through the `@cornerstonejs/codec-openjph` WASM build (wrapper MIT, OpenJPH BSD-2-Clause).

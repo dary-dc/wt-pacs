@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-10-29 (the design state); branches and PRs 2026-11-09.
+Last verified 2026-10-29 (the design state); branches and PRs 2026-11-09; the browser decode reference 2026-11-10.
 
 ## Goal
 
@@ -27,6 +27,12 @@ on lossy wireless; bit-exact; fill and latency both count.
   Runs that need a quiet owner machine or a phone are owed, with their commands in each result.
 * Since 2026-10-30: #289 (a second fold, 15 sources), #299 (a frame decoded twice, fixed), #302 (a repaint before the
   frame is held no longer stops painting), #303 (one-pass AV1 merge ported); none merged into `core`.
+* **Browser decode reference** (`claude/browser-decoding`, #339, draft, 2026-11-10, sources only):
+  [`docs/decode/browser.md`](../decode/browser.md), with AV1 profiles, depths and chroma per engine in
+  [`docs/av1/webcodecs-profiles.md`](../av1/webcodecs-profiles.md). Both passed an independent check on 2026-11-10,
+  with its fixes applied. `browser.md` differs from `docs/decode/` in four places, listed in its last section:
+  Safari's WebCodecs AV1 on VideoToolbox where hardware exists, 10-bit planes from Firefox 160's CPU path, Chromium's
+  high-bit-depth formats no longer flagged, and JPEG XL on by default (Chrome 155, Firefox 158).
 
 ## Open (ordered)
 
@@ -38,7 +44,8 @@ on lossy wireless; bit-exact; fill and latency both count.
    context; AV1 groups and previews in the store; a read-back that throws; phones' decoder count.
 4. The owner's calls: a series without digests (store `unchecked`, or decode again); exactness after a mismatch
    (block, mark or reveal); the cache's retention policy.
-5. The WebGL painter proved on a real GPU.
+5. The WebGL painter proved on a real GPU. The engine read-back check re-run on Firefox 160, and on
+   Safari on an AV1-hardware device ([`../decode/browser.md`](../decode/browser.md) §What it means for this repository).
 6. From the PCS contract: `sf.jxl` needs a JPEG XL decoder unless the PACS transcodes; G > 1 for AV1 cine is asked
    of the PCS team ([`codecs.md`](codecs.md)).
 
