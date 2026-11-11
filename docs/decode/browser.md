@@ -44,17 +44,19 @@ named in each engine's section. "Exact 10-bit" means `copyTo()` with no `format`
 |---|---|---|---|---|
 | `VideoDecoder` ships | 94, all Chromium browsers (BCD `mirror`) (S) | 16.4, macOS and iOS (S) | desktop 130; **Android: not shipped** (S) | [C1] [K5] [G1] [G37] |
 | AV1 through WebCodecs | dav1d in software everywhere; hardware where the GPU or OS offers it (S) | only where AV1 **hardware** exists, by default; Main profile (`av01.0`) only (S) | dav1d (FFmpeg's wrapper) in software; WMF, VideoToolbox, VA-API in hardware (S/D) | [C18] [K31] [K32] [K47] [G43] [G46] |
-| exact 10-bit samples | yes from the software decoders (`I420P10` …); `null` from hardware P010; RGB on Android hardware (S/D) | **no**: every 10-bit frame has `format` `null` (S/D) | `I420P10` when the frame comes back as CPU planes, `BGRX` when it comes back as a texture (S/D) | [C35] [C44] [C41] [K42] [K43] [G56] [G57] |
-| 12-bit | **AV1 refused** at the key-frame check (libgav1 built to 10 bits), though dav1d outputs `I420P12`; VP9 12-bit through libvpx (S/D) | no path (S) | `I420P12` on the CPU-plane path (S) | [X1]–[X4] [C35] [C38] [K35] [K40] [G56] |
-| 4:0:0 (monochrome) AV1 | `I420` with mid-grey chroma synthesised (S) | software dav1d refuses anything but 8-bit 4:2:0 (S) | dropped by Gecko's dav1d module; FFmpeg path has no grey format (S) | [C35] [C36] [K36] [G53] [G55] |
+| exact 10-bit samples | yes from the software decoders (`I420P10` …); `null` from hardware P010; RGB on Android hardware (S/D) | **no**: every 10-bit frame has `format` `null` (S/D) | `I420P10` when the frame comes back as CPU planes (from 160), `BGRX` when it comes back as a texture (S/D) | [C35] [C44] [C41] [K42] [K43] [G56] [G57] |
+| 12-bit | **AV1 refused** at the key-frame check (libgav1 built to 10 bits), though dav1d outputs `I420P12`; VP9 12-bit through libvpx (S/D) | no path (S) | `I420P12` on the CPU-plane path, from 160 (S) | [X1]–[X4] [C35] [C38] [K35] [K40] [G56] [G64] |
+| 4:0:0 (monochrome) AV1 | `I420` with mid-grey chroma synthesised (S) | software dav1d refuses anything but 8-bit 4:2:0 (S) | dropped by Gecko's dav1d module; FFmpeg emits `GRAY`, Gecko's mapping has no grey case (S) | [C35] [C36] [K36] [G52] [G53] [G55] |
 | `ImageDecoder` | 94 (S) | 27.3 beta (S) | 133 (S) | [C4] [K20] [G4] |
 | AVIF / JPEG XL / JPEG 2000 in `<img>` | 85 / 155 / none (S/D) | 16.4 / 17 / removed in 18 (S) | 93 / 158 / none (S/D) | [I21] [I22] [I28] |
 | float16 canvas (`colorType`) | 137 (S) | no (S) | no (S) | [F89] [I37] |
-| WASM SIMD, threads | 91, 74 (Android 88; **WebView: no threads**) (S) | 16.4, 15.2; COEP `credentialless` not supported (S) | 89, 79 (S) | [A1] [A4] [C8] [A8] |
+| WASM SIMD, threads | 91, 74 (Android 88; **WebView: no threads**) (S) | 16.4; threads 14.1 desktop / 14.5 iOS (webassembly.org) or 15.2 (BCD); COEP `credentialless` not supported (S) | 89, 79 (S) | [A1] [A4] [C8] [A8] |
 
 **So, for exact 10- and 12-bit medical samples (D, from the rows above):** WebCodecs is exact only where the engine's
-software decoder hands back CPU planes: Chromium at ≤ 10 bits for AV1 (12 for VP9), and Gecko on its CPU-plane path.
-Safari gives no exact samples above 8 bits through any browser API. A WebAssembly decoder is exact in every engine.
+software decoder hands back CPU planes: Chromium at ≤ 10 bits for AV1 video through `VideoDecoder` (12 for VP9), and
+Gecko on its CPU-plane path from 160. Chromium's `ImageDecoder` returns still colour AVIF at 12 bits (`I4xxP12`) [X7],
+but not 4:0:0. Safari gives no exact samples above 8 bits through any browser API. A WebAssembly decoder is exact in
+every engine.
 
 ### How to read this document
 
@@ -389,7 +391,7 @@ All four members are nullable [F42]. Values [F43]:
 | A non-origin-clean image throws `SecurityError`. | S | [F58] |
 | From an `HTMLVideoElement` it takes "the VideoFrame at the current playback position" (see §The `<video>` and MSE route). | S | [F59] |
 | `init.alpha = "discard"` swaps the format for its opaque equivalent. | S | [F60] |
-| Spec defect: the buffer constructor's `defaultRect` sets `"height" → init.codedWidth`; the frame's visible size is set later from `visibleRect` or the coded size, so the slip affects only the alignment check of a default rect (D: steps in [F61]). | D | [F61] |
+| Spec defect: the buffer constructor's `defaultRect` sets `"height" → init.codedWidth`. The slip has no observable effect: the alignment check reads only `x` and `y`, which are 0 in `defaultRect`; the bounds checks run only when an `overrideRect` is given; and the frame's visible size is set later from `visibleRect` or the coded size (D: steps in [F61]). | D | [F61] |
 
 ## From a VideoFrame to the screen
 
@@ -647,7 +649,7 @@ WebCodecs `VideoPixelFormat` values in this Chromium build: `I420`, `I420P10`, `
 
 | path | 8-bit | 10-bit | 12-bit | 4:0:0 (monochrome) | label | src |
 |---|---|---|---|---|---|---|
-| AV1, dav1d (software) | `PIXEL_FORMAT_I420` → `"I420"` (also I422/I444) | `PIXEL_FORMAT_YUV420P10` → `"I420P10"` | `PIXEL_FORMAT_YUV420P12` → `"I420P12"`, but a 12-bit AV1 key chunk is refused before dav1d (§12-bit AV1 below). dav1d is built twice, with `-DBITDEPTH=8` and `-DBITDEPTH=16` (`CONFIG_16BPC 1`) | reported as I420/P10/P12 with **synthesised** chroma: "Single plane monochrome images will be converted to standard 3 plane ones since Chromium doesn't support single Y plane images." U and V are filled with `(1 << bit_depth) / 2` (8-bit: `256 / 2`) | S | [C35][C36][C37] |
+| AV1, dav1d (software) | `PIXEL_FORMAT_I420` → `"I420"` (also I422/I444) | `PIXEL_FORMAT_YUV420P10` → `"I420P10"` | `PIXEL_FORMAT_YUV420P12` → `"I420P12"`, but a 12-bit AV1 key chunk is refused before dav1d (§12-bit AV1 below) | I420/P10/P12 with mid-grey chroma synthesised; quotes in [`webcodecs-profiles.md`](../av1/webcodecs-profiles.md) §Chromium | S | [C35][C36][C37] |
 | VP9, libvpx (software) | `VPX_IMG_FMT_I420` → I420 (I422/I444, plus A variants when there is alpha) | `I42016`, bit_depth 10 → `YUV420P10` | `I42016`, bit_depth 12 → `YUV420P12` (12-bit has no alpha variant) | not handled (no 4:0:0 case) | S | [C38] |
 | H.264, FFmpeg (software) | `AV_PIX_FMT_YUV420P` → I420 | `YUV420P10LE` → YUV420P10 (9-bit is treated as 10-bit) | `YUV420P12LE` → YUV420P12 | no `GRAY` case, so it falls to `default` (unsupported) | S (mapping), U (whether this FFmpeg build decodes H.264 above 8 bits: not checked) | [C39] |
 | H.264 4:4:4 GBR via FFmpeg | `AV_PIX_FMT_GBRP` maps to `PIXEL_FORMAT_I444` | `GBRP10LE` → YUV444P10 | `GBRP12LE` → YUV444P12 | — | S | [C39] |
@@ -711,10 +713,7 @@ Added in integration, from the same pinned commit.
 
 | claim | label | src |
 |---|---|---|
-| `decode()` classifies an AV1 key chunk by parsing it with libgav1's OBU parser; the chunk is key only if the parse returns `kStatusOk` and the frame is a key frame. | S | [X2] |
-| Chromium builds libgav1 with `LIBGAV1_MAX_BITDEPTH=10`, and DEPS pins libgav1 at `4ad43370…`, whose parser returns `kStatusUnimplemented` for a sequence header deeper than that. | S | [X1] [X4] [X5] |
-| A chunk marked key that is not classified key is refused: "A key frame is required after configure() or flush()." | S | [X3] |
-| So a 12-bit AV1 stream is refused at its first key chunk, though dav1d is built for 16-bit and maps 12-bit to `I420P12` [C35] [C37]. The 12-bit `I420P12` row of §Output formats holds for VP9 (libvpx), not for AV1 through `decode()`. | D | [X1]–[X4], [C35] |
+| `decode()` classifies each AV1 key chunk with libgav1, built to 10 bits, so a 12-bit stream is refused at its first key chunk; the `I420P12` row of §Output formats holds for VP9, not AV1. The mechanism and its quotes: [`webcodecs-profiles.md`](../av1/webcodecs-profiles.md) §Chromium, "Why 12 bits fails". | S / D | [X1]–[X5] |
 | The 10- and 12-bit planar formats are listed in `IsFormatEnabled` without a runtime flag at this commit. | S | [X6] |
 
 ### Open bugs
@@ -756,7 +755,7 @@ P010, "high bit depth", 10-bit, 12-bit, monochrome, copyTo, I420P10; plus unscop
 ## WebKit
 
 This section covers Safari on macOS, iOS and iPadOS. Engine source is WebKit `main` pinned at commit
-`5dbb0d4dcc9b3c87d4d457fabe6cfb62be40cb40` (committed 2026-11-09). Main can be ahead of the Safari that has
+`5dbb0d4dcc9b3c87d4d457fabe6cfb62be40cb40` (committed 2026-11-10 UTC). Main can be ahead of the Safari that has
 shipped, so a source claim says what WebKit does now, not what every Safari version did. Browser-compat-data (BCD)
 is pinned at `918d2d721cc80c26c2eed7e64c6fa43da59322fd`. Release notes were read on 2026-11-10; the newest is
 Safari 27.3 **beta**.
@@ -831,7 +830,7 @@ or dav1d) runs in the web content process.
 | `vp8` | libwebrtc VP8 decoder (libvpx), local | S | [K29], [K34] |
 | `av01.*`, AV1 hardware present (`VTIsHardwareDecodeSupported('av01')`) | GPU process, VideoToolbox | S | [K31], [K33] |
 | `av01.*`, no AV1 hardware | dav1d through `createLibWebRTCDav1dDecoder()`, local | S | [K29], [K34] |
-| WebCodecs accepts AV1 only with the prefix `av01.0` (AV1 Main profile, `seq_profile` 0). `av01.1` and `av01.2` fail `isConfigSupported` before any decoder is chosen | S | [K47] |
+| WebCodecs accepts AV1 only with the prefix `av01.0` (AV1 Main profile, `seq_profile` 0), so `av01.1` and `av01.2` fail `isConfigSupported` before any decoder is chosen ([`webcodecs-profiles.md`](../av1/webcodecs-profiles.md) §WebKit) | S | [K47] |
 | `WebCodecsAV1Enabled` is off by default on Cocoa (`status: preview`). WebKit turns it on for every page once it learns that an AV1 hardware decoder exists | S | [K51], [K32] |
 | So on a device with no AV1 hardware, the default Safari setting rejects `av01` in WebCodecs, and the dav1d path runs only when the Feature Flag is on (or in Safari Technology Preview, where `preview` features are on) | D | K51, K32, K56 |
 | Apple names AV1 hardware decoding on iPhone 15 Pro. No official per-device list of Apple chips with AV1 or VP9 hardware decoding was found | S / U | [K23]; searched developer.apple.com and webkit.org |
@@ -843,13 +842,13 @@ or dav1d) runs in the web content process.
 | path | decoder output (CVPixelBuffer) | `VideoFrame.format` | label | src |
 |---|---|---|---|---|
 | VideoToolbox, 8-bit | `kCVPixelFormatType_420YpCbCr8BiPlanar{Full,Video}Range` | `"NV12"` | S | [K40], [K42] |
-| VideoToolbox, 10-bit | `kCVPixelFormatType_420YpCbCr10BiPlanar{Full,Video}Range` | `null`: this format has no case in `convertVideoFramePixelFormat` | S / D | [K40], [K42], [K43] |
+| VideoToolbox, 10-bit | `kCVPixelFormatType_420YpCbCr10BiPlanar{Full,Video}Range` | `null`: this format has no case in `convertVideoFramePixelFormat` | S / D | [K40], [K42], [K43], [K65] |
 | VideoToolbox, 12-bit | Not supported. The pixel-buffer code does `ASSERT(bitDepth == 8 \|\| bitDepth == 10)`. Bug 329242 is open: "GPU process crashes when VideoDecoder decodes 12-bit HEVC" | S | [K40], [K61] |
 | libvpx VP8/VP9, 8-bit (I420/I422 from libvpx) | copied into an 8-bit **bi-planar** buffer | `"NV12"` (a 4:2:2 source is also stored as 4:2:0 NV12) | S / D | [K41], [K42] |
 | libvpx VP9 profile 2, 10-bit (I010) | `kCVPixelFormatType_420YpCbCr10BiPlanar…` | `null` | S / D | [K41], [K42] |
 | libvpx, more than 10 bits | rejected: `"VPx decoding of 12-bit content is not supported"` | n/a | S | [K35] |
 | VP9 codec strings | `isConfigSupported` accepts profile 0 at 8-bit 4:2:0, and profile 2 at 10-bit 4:2:0 (`WebRTCVP9Profile2CodecEnabled`, on for Cocoa). It rejects profiles 1 and 3 | S | [K48], [K63] |
-| dav1d AV1 software | `// Only accept I420 pixel format and 8 bit depth.` Any other picture returns `WEBRTC_VIDEO_CODEC_ERROR` | `"NV12"` for 8-bit 4:2:0; 10-bit, 12-bit, 4:2:2 and 4:4:4 give a decode error | S | [K36] |
+| dav1d AV1 software | 8-bit 4:2:0 only ([`webcodecs-profiles.md`](../av1/webcodecs-profiles.md) §WebKit) | `"NV12"` for 8-bit 4:2:0; anything else gives a decode error | S | [K36] |
 | `ImageDecoder` (types accepted are those ImageIO decodes, via UTI [K60]) | Builds the frame from a `NativeImage` through `ImageTransferSessionVT::create(kCVPixelFormatType_32ARGB, false)` | `"RGBA"`/`"RGBX"` (8-bit) | S / D | [K45], [K42] |
 
 What `copyTo()` does with these frames:
@@ -861,6 +860,7 @@ What `copyTo()` does with these frames:
 | So a 10-bit decoded frame can be read back only as 8-bit RGB, converted by VideoToolbox. On Safari, WebCodecs cannot return exact 10-bit samples (no `I420P10` comes out of any decoder). BCD also marks the `copyTo` `format` option `false`, which conflicts with the source at the pinned commit | D | K42, K44, K6 |
 | Building a `VideoFrame` from a buffer with `I420P10`/`I420P12`/… needs `WebCodecsHighBitDepthEnabled` (`status: testable`, default `false`). Even with it on, the constructor only builds `NV12`, `RGBA`, `RGBX`, `BGRA`, `BGRX`, `I420` and `I420A`; anything else throws "VideoPixelFormat is not supported" | S | [K46], [K53], [K59] |
 | Bug 325753 "WebCodecs add support for > 8bits per channel video" is open | S | [K61] |
+| Bug 329735's report shows it on release Safari 27.0 (M3, hardware AV1): an AV1 Main 10-bit key frame decodes with `frame.format=null`. A WebKit engineer answered that "only STP is affected (or via enabling the feature flag)"; the code (§Which decoder, `setHasAV1HardwareDecoder`) explains the report, and the comment is not reconciled with it (U). The bug is RESOLVED FIXED, 2026-11-05 (325858@main), as a WebGPU chroma bug | S | [K65] |
 | GStreamer ports map `I420`, `I420A`, `I422`, `I444`, `NV12` and RGB formats, and no 10- or 12-bit format | S | [K64] |
 
 ### Limits, workers, flags
@@ -1021,7 +1021,7 @@ The `VideoFrame.format` a decoded frame reports comes from `GuessVideoPixelForma
 | WebCodecs passes the compositor (`ImageBridgeChild`) to the decoder, so the texture path is open to WebCodecs decodes | (S) | [G40] |
 | So the same 10-bit AV1 stream can report `BGRX` (texture path, colour converted to 8-bit RGB) or `I420P10` (shared-memory path). Which path a given OS/GPU takes was not measured | (D) | [G56] [G57] [G40] |
 | Open bug 1969762: "VideoFrame.format reports BGRX for remote-decoded frames and copyTo cannot return YUV planes (Chrome returns I420)" (ASSIGNED) | (S) | [G64] |
-| Fixed bug 2071132: "VideoFrame.format reports I420 for 10-bit planar frames …". In the release where 10-bit frames first reported `I420P10`, check `format` before reading samples; that release number was not found | (S) | [G64] |
+| Fixed bug 2071132: "VideoFrame.format reports I420 for 10-bit planar frames …", fixed in 160 (`cf_status_firefox160: fixed`, target "160 Branch"). Before 160 a 10- or 12-bit CPU-plane frame reported `I420`, so check `format` before reading samples | (S) | [G64] |
 | Planar YCbCr `copyTo` is a plane-by-plane copy of `SampleBytes` per sample (1 byte at 8-bit, 2 at 10/12-bit). No value conversion | (S) | [G59] |
 | `copyTo({format})` accepts only `RGBA`, `RGBX`, `BGRA`, `BGRX` ("… is unsupported in ParseVideoFrameCopyToOptions"). YUV→RGB conversion happens; YUV→other-YUV and RGB→YUV do not ("The conversion between RGB and non-RGB is unsupported") | (S) | [G58] [G60] |
 | `copyTo` colour space defaults to `srgb` when not given | (S) | [G58] |
@@ -1029,9 +1029,7 @@ The `VideoFrame.format` a decoded frame reports comes from `GuessVideoPixelForma
 | FFVPX narrows to 8-bit only when `Output8BitPerChannel` is set, and only for `libdav1d` or `vp9` | (S) | [G51] |
 | `DecoderAgent` never sets `Output8BitPerChannel`, so WebCodecs is not narrowed to 8-bit on the CPU-plane path | (D) | [G40]: its option set is `HardwareDecoderNotAllowed`/`Default`, `LowLatency`, `KeepOriginalPts` only |
 | FFmpeg path maps `YUV4xxP10LE` → `COLOR_10` and `YUV4xxP12LE` → `COLOR_12` | (S) | [G52] |
-| Monochrome AV1 in Gecko's `DAV1DDecoder` (the Agnostic fallback): I400 pictures are **skipped** ("I400 picture: No chroma data to construct an image") and produce no frame | (S) | [G53] |
-| Monochrome AV1 through FFVPX: the `libdav1d` wrapper emits `AV_PIX_FMT_GRAY8/10/12`. `FFmpegVideoDecoder::GetColorDepth` has no `GRAY` case and hits `MOZ_ASSERT_UNREACHABLE("Not supported format?")` | (S) | [G55] [G52] |
-| The result for monochrome AV1 through FFVPX (error, wrong frame, or working) was not found in source or bugs (searched Bugzilla for "monochrome av1", "I400", "grayscale av1") | (U) | — |
+| Monochrome AV1 gives no frame: Gecko's `DAV1DDecoder` skips I400 pictures; FFVPX's `libdav1d` emits `GRAY8/10/12`, which `GetColorDepth` has no case for. The measured refusal and its reason: [`webcodecs-profiles.md`](../av1/webcodecs-profiles.md) §Firefox | (S) | [G52] [G53] [G55] |
 | `ImageDecoder` frames are imagelib surfaces wrapped as `SourceSurfaceImage`; the AVIF decoder converts to `B8G8R8A8`/`B8G8R8X8`. So `ImageDecoder` output is 8-bit RGB, whatever the bit depth of the source | (D) | [G61]: surface → `SurfaceFormatToPixelFormat` [G56]; AVIF writes BGRA/BGRX |
 | `ImageDecoder.isTypeSupported` answers from imagelib's MIME table (PNG, APNG, GIF, JPEG, BMP, ICO, WebP, AVIF; JXL only while `image.jxl.enabled` is on). JPEG 2000 and HTJ2K are not in it | (S) | [G62] |
 
@@ -1423,7 +1421,8 @@ Decoder rows that matter here (pass / total per subtest, same runs) (S) [V73]:
 ## What it means for this repository
 
 Compared on 2026-11-10 with `docs/decode/README.md` §AV1 and §JPEG XL, `docs/decode/hardware.md` §4, and
-`origin/claude/av1-webcodecs-profiles:docs/av1/webcodecs-profiles.md`. Those files were not edited. They hold
+[`docs/av1/webcodecs-profiles.md`](../av1/webcodecs-profiles.md). The first two were not edited; the third was corrected
+after this comparison, so its quotes below are its 2026-11-07 text. They hold
 measurements (Chromium 141, Firefox 157, WebKitGTK 2.52.6, headless, no GPU) and source reads of their own dates;
 this document holds official sources of 2026-11-10, Chromium and Firefox at `main`. A disagreement can therefore be a
 version change rather than an error on either side; each row says which it looks like (D).
@@ -1433,7 +1432,7 @@ version change rather than an error on either side; each row says which it looks
 | # | the repository says (verbatim) | this document's source says (verbatim) | which it looks like (D) |
 |---|---|---|---|
 | 1 | Safari's WebCodecs AV1 is software only. `README.md` §Why, and what would make it exact: "Where it is on, it decodes in software through libwebrtc's dav1d (`LibWebRTCVPXVideoDecoder`, type AV1), which refuses anything but 8-bit 4:2:0 (`layout != I420 \|\| bpc != 8`) and returns `NV12`. No hardware decoder is on that path." `hardware.md` §4.3: "WebCodecs AV1 is behind `WebCodecsAV1Enabled`, off by default on Cocoa, and is libwebrtc's dav1d in software, refusing anything but 8-bit 4:2:0." | Safari 17.5 release notes: "Added support for WebCodecs AV1 when an AV1 hardware decoder is available." [K17]. WebKit source: `if (codec.startsWith("av01."_s)) {` routes to the GPU process when AV1 hardware exists [K31], and `setHasAV1HardwareDecoder` turns the AV1 setting on [K32]. | **The repository missed a path.** On a device with AV1 hardware, Safari's WebCodecs AV1 is on by default and goes to VideoToolbox; the dav1d path is the no-hardware case behind the flag. Its 10-bit output has `format` `null` [K42] [K43], so the repository's verdict (no exact 10-bit AV1 in Safari) still holds; the exactness of 8-bit `NV12` from VideoToolbox is not known (U). |
-| 2 | Firefox hands every frame back as 8-bit RGB. `README.md` §Why: "Everything that does decode reaches the page as 8-bit `BGRX`, whatever its depth or layout." and "Even a planar image would lose its depth: Gecko's image formats have no 10-bit YUV (`ImageUtils`)." `hardware.md` §4.2: "every frame reaches the page as 8-bit `BGRX`". `webcodecs-profiles.md`: "Every remote-decoded frame is `BGRX`, from a placeholder texture format". | Gecko `main` (162.0a1): `case ColorDepth::COLOR_10:` … `ImagePixelFormat::I420P10`; `case ColorDepth::COLOR_12:` … `ImagePixelFormat::I420P12` [G56]; "If failed to create a GPU accelerated surface descriptor, fall back to copying frames via shmem." [G57]; bug 2071132, RESOLVED FIXED: "VideoFrame.format reports I420 for 10-bit planar frames and BGRA for frames created from a video element" [G64]; bug 1969762, ASSIGNED: "VideoFrame.format reports BGRX for remote-decoded frames and copyTo cannot return YUV planes" [G64]. | **Probably a version change, partly.** The texture path still gives `BGRX` (bug 1969762 open), as the repository measured on 157. A frame that comes back as CPU planes now reports `I420P10`/`I420P12`, so "no 10-bit YUV" no longer holds at `main`. Which path a WebCodecs decode takes on a given OS and GPU was not established (U, §Gecko); a run on a current release would settle it. |
+| 2 | Firefox hands every frame back as 8-bit RGB. `README.md` §Why: "Everything that does decode reaches the page as 8-bit `BGRX`, whatever its depth or layout." and "Even a planar image would lose its depth: Gecko's image formats have no 10-bit YUV (`ImageUtils`)." `hardware.md` §4.2: "every frame reaches the page as 8-bit `BGRX`". `webcodecs-profiles.md` (2026-11-07, since corrected): "Every remote-decoded frame is `BGRX`, from a placeholder texture format". | Gecko `main` (162.0a1): `case ColorDepth::COLOR_10:` … `ImagePixelFormat::I420P10`; `case ColorDepth::COLOR_12:` … `ImagePixelFormat::I420P12` [G56]; "If failed to create a GPU accelerated surface descriptor, fall back to copying frames via shmem." [G57]; bug 2071132, RESOLVED FIXED in 160: "VideoFrame.format reports I420 for 10-bit planar frames and BGRA for frames created from a video element" [G64]; bug 1969762, ASSIGNED: "VideoFrame.format reports BGRX for remote-decoded frames and copyTo cannot return YUV planes" [G64]. | **Probably a version change, partly.** The texture path still gives `BGRX` (bug 1969762 open), as the repository measured on 157. From 160 a frame that comes back as CPU planes reports `I420P10`/`I420P12`, so "no 10-bit YUV" no longer holds. Which path a WebCodecs decode takes on a given OS and GPU was not established (U, §Gecko); a run on Firefox 160 would settle it. |
 | 3 | Chromium's 10/12-bit formats need a flag. `hardware.md` §4.1, gate 3: "The 10- and 12-bit planar formats are behind a runtime flag, `WebCodecsHBDFormatsEnabled`." | Chromium `main`, `IsFormatEnabled`: `case media::PIXEL_FORMAT_YUV420P10:` `case media::PIXEL_FORMAT_YUV420P12:` … `return true;`, with no flag in the function [X6]; no `WebCodecsHBDFormatsEnabled` entry in `runtime_enabled_features.json5` at that commit (D: searched [X6]'s companion file). | **A version change** (141 read then, `main` now). Either way a software 10-bit frame reaches the page as `I420P10`, which the repository measured. |
 | 4 | JPEG XL is off by default. `README.md` §JPEG XL: "Native JPEG XL decoding exists in Chromium 154 (jxl-rs, behind `JXLImageFormat`, off by default; none in Chromium 141) and Firefox 157.0.1 (behind `image.jxl.enabled`, off)". | BCD `mediatypes/image/jxl.json`: `"chrome": { "version_added": "155" }`, `"firefox": { "version_added": "158" }` [I22]; Firefox 158: "Support for the JPEG XL image format (image/jxl) is now enabled by default." [G27]. | **A version change**: both shipped on by default one release after the versions measured. The repository's conclusion (8-bit samples only) agrees with §ImageDecoder and image formats [I42] [I49] [I50]. |
 
@@ -1441,14 +1440,14 @@ version change rather than an error on either side; each row says which it looks
 
 | the repository's claim | agreeing source here |
 |---|---|
-| Chromium refuses 12-bit AV1 at the key-frame check, libgav1 built to 10 bits (`README.md` §WebCodecs, what it decodes exactly; `webcodecs-profiles.md` [C4]) | [X1]–[X4] |
+| Chromium refuses 12-bit AV1 at the key-frame check, libgav1 built to 10 bits (`README.md` §WebCodecs, what it decodes exactly; [`webcodecs-profiles.md`](../av1/webcodecs-profiles.md) §Chromium, "Why 12 bits fails") | [X1]–[X4] |
 | Chromium returns 4:0:0 as `I420` with mid-grey chroma | [C35] [C36] |
 | `isConfigSupported` does not promise bit depth, chroma, or that decoding works | [V25], §`isConfigSupported()` |
 | WebCodecs has no `P010` and no grey format; a hardware 10-bit frame has `format` `null` in Chromium | [F10] [C44] |
 | Android hardware frames come back as RGB in Chromium | [C41] |
 | WebCodecs only takes `av01.0` in WebKit; Safari's software AV1 is 8-bit 4:2:0 only | [K47] [K36] |
 | Firefox has no WebCodecs on Android | [G1] [G37] |
-| `<video>` AV1 on Apple devices is hardware only; Safari has JPEG XL since 17 | [K15] [I22] |
+| Safari's AV1 came for devices with AV1 hardware: in MediaCapabilities [K15], and in `<video>` in 17.0 [K23]; Safari has JPEG XL since 17 | [K15] [K23] [I22] |
 
 ### Consequences for the client (D)
 
@@ -1460,9 +1459,11 @@ version change rather than an error on either side; each row says which it looks
 * Safari on an AV1-hardware device now reaches WebCodecs AV1 (row 1); the probe should fail its 10-bit layouts
   (`format` `null`) and send them to dav1d-WASM. Its 8-bit grey-as-4:2:0 form through VideoToolbox is untested.
 * Firefox: the probe would pass a 10-bit layout wherever the CPU-plane path is taken (row 2). The engine read-back
-  check is owed on a current Firefox release before anything is inferred from it.
-* No browser route gives exact 12-bit (AV1) or 16-bit samples, and no engine decodes JPEG 2000 or HTJ2K: HTJ2K stays
-  on OpenJPH-WASM and 12-bit AV1 on dav1d-WASM.
+  check is owed on Firefox 160, the first release with bug 2071132's fix, before anything is inferred from it.
+* No browser route is shown to give exact 12-bit AV1 video through `VideoDecoder`: Chromium refuses it, Safari has no
+  12-bit path, Gecko refuses 4:0:0, and Gecko's CPU-plane `I420P12` from 160 is not run. Chromium's `ImageDecoder`
+  returns still colour AVIF at 12 bits (`I4xxP12`) [X7], but not 4:0:0. No route gives 16-bit samples, and no engine
+  decodes JPEG 2000 or HTJ2K: HTJ2K stays on OpenJPH-WASM and 12-bit AV1 on dav1d-WASM.
 
 ### Quote check
 
@@ -1477,7 +1478,9 @@ F 14, C 12, K 15, G 15, I 15, A 10) and checked each quote against the fetched t
 | does not support the claim | 2 (F93, F94) | corrected: Chrome has had both WebGPU external-image routes since 113 on ChromeOS, macOS and Windows; 144 added Linux |
 
 The X sources were added in integration after that pass and were read by the integrator, not by the checker. 388
-sources were not re-fetched; their quotes stand on their authors' reading alone.
+sources were not re-fetched; their quotes stand on their authors' reading alone. A second independent check, of this
+file and `webcodecs-profiles.md` on 2026-11-10, found eight points here; each source was re-fetched and the claim
+corrected in place (K65 and X7 were added then).
 
 ## Sources
 
@@ -1833,6 +1836,7 @@ below, i.e. `https://github.com/WebKit/WebKit/blob/5dbb0d4dcc9b3c87d4d457fabe6cf
 | K62 | …/5dbb0d4/Source/WebCore/Modules/webcodecs/WebCodecsVideoDecoder.cpp#L157 | 2026-11-10 | `.decoding = config.hardwareAcceleration == HardwareAcceleration::PreferSoftware ? VideoDecoder::HardwareAcceleration::No : VideoDecoder::HardwareAcceleration::Yes,` |
 | K63 | …/5dbb0d4/Source/WTF/Scripts/Preferences/UnifiedWebPreferences.yaml#L7636-L7645 | 2026-11-10 | `WebRTCVP9Profile2CodecEnabled: type: bool status: mature … defaultValue: "PLATFORM(COCOA)": true default: false` |
 | K64 | …/5dbb0d4/Source/WebCore/platform/VideoPixelFormat.cpp#L52-L76 | 2026-11-10 | `#elif USE(GSTREAMER) switch (format) { case GST_VIDEO_FORMAT_I420: return VideoPixelFormat::I420; case GST_VIDEO_FORMAT_A420: … case GST_VIDEO_FORMAT_Y42B: return VideoPixelFormat::I422; case GST_VIDEO_FORMAT_Y444: return VideoPixelFormat::I444; case GST_VIDEO_FORMAT_NV12: return VideoPixelFormat::NV12;` |
+| K65 | https://bugs.webkit.org/rest/bug/329735 (and `/comment`) | 2026-11-10 | `"status":"RESOLVED"`, `"resolution":"FIXED"`, `"component":"WebGPU"`, `"summary":"WebGPU importExternalTexture garbles the chroma of hardware-decoded 10-bit AV1 VideoFrames; 2D canvas and <video> draw them right"`; comment 0: "Safari 27.0 (21625.1.29.18.28), macOS 26.6 (25G72), MacBook Air 15-inch M3 (2024), hardware AV1 decoding" … "isConfigSupported(no-preference): true" "frame.format=null coded 1920x1080"; comment 2: "It does appear the AV1 is still in Preview stage at the moment, so only STP is affected (or via enabling the feature flag)"; comment 5 (2026-11-05): "Committed 325858@main (cdb22289ed15)" |
 
 ### Sources (G)
 
@@ -1902,7 +1906,7 @@ Engine source base: `https://raw.githubusercontent.com/mozilla-firefox/firefox/4
 | G61 | FX/dom/media/webcodecs/ImageTrack.cpp ; FX/image/decoders/nsAVIFDecoder.cpp | 2026-11-10 | `auto image = MakeRefPtr<layers::SourceSurfaceImage>(size, f.mSurface); Maybe<VideoPixelFormat> format = GuessVideoPixelFormat(image);` / `// When we convert the data to rgb we always pass either B8G8R8A8 or B8G8R8X8 to ConvertYCbCrToRGB32.` |
 | G62 | FX/image/DecoderFactory.cpp ; FX/dom/media/webcodecs/ImageDecoder.cpp | 2026-11-10 | `else if (!strcmp(aMimeType, IMAGE_JXL) && StaticPrefs::image_jxl_enabled()) { type = DecoderType::JXL; }` / `promise->MaybeResolve(type != image::DecoderType::UNKNOWN);` |
 | G63 | https://bugzilla.mozilla.org/rest/bug?product=Core&component=Audio/Video:%20Web%20Codecs&resolution=---&include_fields=id,summary,status | 2026-11-10 | 135 bugs returned; e.g. `1999168 NEW "[Windows] VideoDecoder.isConfigSupported() return false for 'hev1.1.6.L123.00' but about:support indicates HEVC hardware decoding is available"` (each summary in the table is copied from this response) |
-| G64 | https://bugzilla.mozilla.org/rest/bug/1969762 (also /1934008, /1942421, /2021505, /2071132, /1539075) | 2026-11-10 | `1969762 ASSIGNED "VideoFrame.format reports BGRX for remote-decoded frames and copyTo cannot return YUV planes (Chrome returns I420)"`; `2071132 RESOLVED FIXED "VideoFrame.format reports I420 for 10-bit planar frames and BGRA for frames created from a video element"`; `1934008 NEW "Ship Web Codecs on Android"`; `1539075 RESOLVED FIXED "Implement support for JPEG XL (image/jxl)"` |
+| G64 | https://bugzilla.mozilla.org/rest/bug/1969762 (also /1934008, /1942421, /2021505, /2071132, /1539075) | 2026-11-10 | `1969762 ASSIGNED "VideoFrame.format reports BGRX for remote-decoded frames and copyTo cannot return YUV planes (Chrome returns I420)"`; `2071132 RESOLVED FIXED "VideoFrame.format reports I420 for 10-bit planar frames and BGRA for frames created from a video element"`, `"cf_status_firefox160":"fixed"`, `"target_milestone":"160 Branch"`, comment 0: "a 10-bit or 12-bit planar frame is reported as `I420`"; `1934008 NEW "Ship Web Codecs on Android"`; `1539075 RESOLVED FIXED "Implement support for JPEG XL (image/jxl)"` |
 | G65 | https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API ; https://developer.mozilla.org/en-US/docs/Web/API/VideoDecoder/configure | 2026-11-10 | "The WebCodecs API enables web developers to encode and decode video and audio in the browser efficiently (using hardware acceleration)" / "hardwareAcceleration Optional A hint as to the hardware acceleration method to use." |
 | G66 | https://www.mozilla.org/en-US/firefox/147.0/releasenotes/ | 2026-11-10 | "Improved video playback performance on systems with AMD GPUs by enabling zero-copy playback for hardware-decoded video where supported, bringing them to parity with Intel and NVIDIA GPUs." |
 | G67 | FX/toolkit/components/nimbus/FeatureManifest.yaml | 2026-11-10 | `jpeg-xl:` `description: "JPEG-XL"` … `setPref:` `branch: user` `pref: "image.jxl.enabled"` |
@@ -2022,3 +2026,4 @@ V8 `f8e74b163471aba777cfe6b5e570465c8f8c238f`, Gecko and WebKit as in Sources (I
 | X4 | https://chromium.googlesource.com/codecs/libgav1/+/4ad433700e5d7c45df3d6146b7c92c8945c19e64/src/obu_parser.cc (lines 2879–2884) | 2026-11-10 | `if (sequence_header_.color_config.bitdepth > LIBGAV1_MAX_BITDEPTH) {` … `return kStatusUnimplemented;` |
 | X5 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/DEPS (lines 2329–2330) | 2026-11-10 | `'src/third_party/libgav1/src':` `Var('chromium_git') + '/codecs/libgav1.git' + '@' + '4ad433700e5d7c45df3d6146b7c92c8945c19e64',` |
 | X6 | https://chromium.googlesource.com/chromium/src/+/81ba34d0f9102bff3e2062ce81389410a7c16bb3/third_party/blink/renderer/modules/webcodecs/video_frame.cc (lines 203–228); companion: …/third_party/blink/renderer/platform/runtime_enabled_features.json5 | 2026-11-10 | `bool IsFormatEnabled(media::VideoPixelFormat fmt) {` … `case media::PIXEL_FORMAT_YUV420P10:` `case media::PIXEL_FORMAT_YUV420P12:` … `return true;` |
+| X7 | https://chromium.googlesource.com/chromium/src/+/8dbf9b29ca11919c07ec84c4117eed2bc201259a/third_party/blink/renderer/modules/webcodecs/image_decoder_external_test.cc (`DecodeYuv12Bit`) | 2026-11-10 | `"images/resources/avif/red-full-range-420-12bpc.avif",` … `EXPECT_EQ(frame->format(), V8VideoPixelFormat::Enum::kI420P12);` |
