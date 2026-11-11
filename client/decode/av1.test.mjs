@@ -427,6 +427,15 @@ const { parsePayload } = await import("./av1-payload.js");
   await take(refused, "a 12-bit frame WebCodecs refuses goes to dav1d, the refusal named", "g12", 12, "webcodecs,dav1d", "av1-dav1d", /not a key frame/);
   await take(refused, "and the next 12-bit frame goes to dav1d alone, with that refusal", "g12", 12, "dav1d", "av1-dav1d", /not a key frame/);
   await take(refused, "a 10-bit frame WebCodecs fails goes to dav1d, the failure named", "g10", 10, "probe g10,webcodecs,dav1d", "av1-dav1d", /not a key frame/);
+  wcFails = false;
+  await take(refused, "the next 10-bit frame WebCodecs decodes stays there: below 11 bits a failure is the frame's own", "g10", 10, "probe g10,webcodecs", "av1-webcodecs", /^$/);
+  await take(refused, "a 12-bit frame after the refusal stays on dav1d, though WebCodecs would now decode it", "g12", 12, "dav1d", "av1-dav1d", /not a key frame/);
+  depth = 10;
+  calls.length = 0;
+  const inGroup = await refused.decodeFrame(golden("plain", "g10"), { key: false, gen: 0, index: 1 });
+  check(calls.join() === "probe g10,webcodecs" && inGroup.path === "av1-webcodecs" && inGroup.refusal === undefined,
+    `lossy: a frame inside a group WebCodecs decodes never reaches dav1d (${calls.join()}; ${inGroup.path})`);
+  wcFails = true;
   probeOk = false;
   await take(refused, "a 10-bit frame whose probe failed goes to dav1d, the probe named", "g10", 10, "probe g10,dav1d", "av1-dav1d", /g10 probe failed/);
   delete globalThis.VideoDecoder;
