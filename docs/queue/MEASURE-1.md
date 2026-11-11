@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 23:02
+heartbeat: 2026-11-11 23:12
 outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure 7840fd4b (B0 measured; B amendment 1, driver, G 1 rows 101 of 185); no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
 ## Resume
 22:29: setup done; mutation rerun differs (83da3b86, a second cpu5 check row, kept as raw); b.sh 1 started (log /home/user/logs/b1.log). Next: when it ends, b.sh 1 again if short of 185, then b.sh 16.
