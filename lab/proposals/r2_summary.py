@@ -28,7 +28,7 @@ def sojourn(runs):
     """The optimal-quality flow's sojourn p50 over the jump (the second WINDOW group), median over runs."""
     p50 = []
     for u in runs:
-        w = [s for s in u.get("relay", []) if s.startswith("WINDOW") and ":4433" in s]
+        w = [s for s in u.get("relay", []) if s.startswith("WINDOW flow client") and ":5433 " in s]
         if w:
             p50.append(float(re.search(r"p50 ([\d.]+)", w[-1]).group(1)))
     return statistics.median(p50) if p50 else None
