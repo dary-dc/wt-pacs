@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-11 06:00 UTC (branch tips and the work queue read from `origin`).
+Last verified 2026-11-11 15:30 UTC (branch tips and the work queue read from `origin`).
 
 ## Goal
 
@@ -96,6 +96,12 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
 * **For a presenter** (ESSENTIALS, 2026-11-11, `claude/demo-essentials`, proposed): `client/README.md` §Optimal
   quality, for a presenter: a frame's path through the modules for both series, eight points each with its test,
   and eight things that could not be explained simply (for OPT-SIMPLIFY and NAMES-FIND). Read from code; nothing run.
+* **The demo's UX** (DEMO-UX, 2026-11-11, `claude/demo-ux`, draft PR into `claude/demo-fixes-1`): merges #360, #362,
+  #359 (PHONE-AMEND included) and #356; the label in colour beside its words (*Optimal quality* green, *✓ Lossless*
+  blue, a failed check red); a tap unfolds the status line on a phone; the stored form off the show list
+  (`STORED_FORM=1 scripts/demo-series.sh` keeps it), dav1d's browser check through the lab's `refuseWebCodecs` on a
+  10-bit series; SLICE-TOUCH's slice slider in both views; `client/README.md`'s *exact* sentence corrected. Results:
+  the queue's `docs/queue/DEMO-UX.md`.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
