@@ -5,7 +5,8 @@ import { Painter } from "/client/paint/painter.js";
 import { asPainted, Controller, FIT, wantFrom } from "/client/view/controller.js";
 import { View, ViewWorker } from "/client/view/view.js";
 import { checkPair, pairOf } from "/client/viewer/pair.js";
-import { lastError, markOf, overlayText } from "/client/viewer/screen.js";
+import { labelOf, lastError, markOf, overlayText, unfoldOnTap } from "/client/viewer/screen.js";
+import { RANGE_KEYS, sliceSlider } from "/client/viewer/slider.js";
 
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById("view");
@@ -14,6 +15,9 @@ const markEl = document.getElementById("mark");
 const qualityEl = document.getElementById("quality");
 const losslessEl = document.getElementById("lossless");
 const overlayEl = document.getElementById("overlay");
+const barEl = document.getElementById("bar");
+const sliceEl = document.getElementById("slice");
+statusEl.onclick = qualityEl.onclick = (e) => unfoldOnTap(barEl, e);
 const at = () => performance.timeOrigin + performance.now();
 
 const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport])
@@ -69,6 +73,7 @@ let userVoi = null;
 let pose = FIT;
 let invert = false;
 let view = null;
+const follow = sliceSlider(sliceEl, n, { show, pause: () => view.playing && toggleCine() });
 
 function fail(why) {
   errors.push(why);
@@ -85,6 +90,7 @@ const on = {
     markEl.className = mark.className;
     markEl.textContent = mark.text;
     showQuality(s);
+    follow(view?.current ?? s.i);
     status();
   },
   failed: ({ scope, i, reason }) => fail(scope === "frame" ? `frame ${i}: ${reason}` : `${scope}: ${reason}`),
@@ -114,17 +120,12 @@ if (where === "page") {
     booted, glAfterDial: Boolean(lab.opts.glAfterDial) });
 }
 
-const QUALITY = {
-  optimal: "Optimal quality",
-  asking: "Optimal quality · fetching lossless…",
-  lossless: "Lossless",
-  failed: "Lossless check failed · optimal quality shown",
-};
 /** The quality label says what is painted, as the controller judged it; the overlay, `?overlay=1`, how it got here. */
 function showQuality({ quality, about }) {
   qualityEl.hidden = !quality;
-  qualityEl.className = quality ?? "";
-  qualityEl.textContent = QUALITY[quality] ?? "";
+  const label = labelOf(quality);
+  qualityEl.className = label.className;
+  qualityEl.textContent = label.text;
   losslessEl.textContent = quality === "lossless" || quality === "asking" ? "optimal quality" : "lossless";
   if (!overlayEl.hidden) overlayEl.textContent = overlayText(about, quality, meta.lossy);
 }
@@ -147,7 +148,9 @@ function status() {
 }
 
 const options = lab.opts;
-const decoder = options.decoder ?? (meta.codec === "av1" ? { codec: "av1", lossy: meta.lossy !== undefined, ...(await built("dav1d")) } : await built("openjph"));
+const decoder = options.decoder ?? (meta.codec === "av1"
+  ? { codec: "av1", lossy: meta.lossy !== undefined, refuseWebCodecs: options.refuseWebCodecs, ...(await built("dav1d")) }
+  : await built("openjph"));
 const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : undefined;
 const groups = meta.lossy?.g > 1 ? { groupLength: meta.lossy.g, frameCount: n } : {};
 const all = [...Array(n).keys()];
@@ -185,6 +188,7 @@ try {
 }
 
 view = new View(n, controller ?? worker);
+sliceEl.hidden = false;
 if (pair) connectExact();
 
 /** The exact series on its own downloader: no fill, one decoder, a frame asked only when the reader asks it. */
@@ -207,6 +211,7 @@ async function connectExact() {
 losslessEl.onclick = () => (/lossless|asking/.test(qualityEl.className) ? view.lossy() : view.exact());
 function show(i) {
   const step = view.show(i);
+  follow(view.current);
   status();
   return step;
 }
@@ -259,7 +264,7 @@ const KEYS = {
 };
 addEventListener("keydown", (e) => {
   const k = KEYS[e.key];
-  if (!k || e.target === cineEl || e.target === losslessEl) return;
+  if (!k || e.target === cineEl || e.target === losslessEl || (e.target === sliceEl && RANGE_KEYS.has(e.key))) return;
   e.preventDefault();
   k();
 });

@@ -10,7 +10,7 @@ let cfg = null;
 let importer = (path) => import(path);
 const loaded = {};
 
-/** `d`: dav1d's `glue`, `wasm` and `dir`, `groupLength`, `lossy`; the lab's `mixed`, `onePass` and `reuseCopyBuffer`: docs/decode/README.md §JS passes protocol. */
+/** `d`: dav1d's `glue`, `wasm` and `dir`, `groupLength`, `lossy`; the lab's `mixed`, `onePass`, `reuseCopyBuffer` and `refuseWebCodecs`: docs/decode/README.md §JS passes protocol. */
 export async function init(d, load) {
   cfg = d;
   if (load) importer = load;
@@ -36,6 +36,7 @@ let refusedDeep = null;
 
 /** `{ wc }`, the WebCodecs module once every layout's probe passed, or `{ refusal }`, why not. */
 async function webcodecs(streams) {
+  if (cfg.refuseWebCodecs) return { refusal: "refused by the lab's refuseWebCodecs" };
   if (typeof VideoDecoder !== "function") return { refusal: "no VideoDecoder" };
   const wc = await module("./av1-webcodecs.js").catch(() => null);
   if (!wc) return { refusal: "av1-webcodecs.js did not load" };

@@ -402,7 +402,9 @@ exception — the samples from 1023 · 2^(D−10) + 2^(D−11) up round to 1024 
 * **Which series.** Unsigned grey of D > 10 only; a D ≤ 10 series is coded at its own depth and never cut, and
   `--depth-cut` on one, or on a signed series, is refused by name. The ingest's option; the PCS chooses it. The
   owner's decision (2026-11-09): for D > 10 the OQ view is the cut; a 12-bit **stored form** (the OQ view coded at
-  D) is a comparison, decoded by dav1d only after WebCodecs refused it.
+  D) is a comparison, decoded by dav1d only after WebCodecs refused it. The owner's decision (2026-11-11): on the demo
+  and product path D > 10 is always the cut; the stored form is a lab option (`STORED_FORM=1 scripts/demo-series.sh`),
+  never on the demo's show list.
 * **Payload.** As §Optimal quality's at 10 bits: `bits` 10, `depth` 10, split 0, flags 0, offset 0; the samples a
   decoder returns are the codes.
 * **Metadata.** `"lossy": {"q", "g", "depth": 10, "bitsStored": D}`: `bitsStored` marks the cut, is the series' own
