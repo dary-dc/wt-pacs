@@ -606,8 +606,10 @@ server across the Internet adds a path this run does not have.
 feature (PHONE-TOOLS item 2), with the production image's seccomp profile and limits (`deploy/compose.yml`), the
 **Amendment**'s three environment variables, its own certificate per container, and its traces in a mounted
 directory. Host networking takes rootless podman's port forwarder out of the timed path, so the reading is the
-server's, not the forwarder's. The disk path each server took (io_uring or the thread pool, PHONE-TOOLS item 3's
-command) is recorded for all four; they must agree, or the run stops. The static hosts stay `server/dev-server.py` on
+server's, not the forwarder's. The read path each server took (README's phone section, step 8, its greps over `podman logs
+srv-<port>`) is recorded for all four; they must agree, or the run stops. In a rootless container under SELinux a tile
+miss reads through the pool, not a ring (step 8), unlike the **Amendment**'s server on the laptop: it touches the
+exact series' on-demand asks, not a fill, and **lossless**'s time is not a reading here. The static hosts stay `server/dev-server.py` on
 the laptop, since its option collects the beacon; the web image serves no byte of a fill.
 
 **A prod-like check, not counted**: after the counted octets, on Wi-Fi only, the `cubic-restart` pair restarted with
@@ -625,8 +627,9 @@ a fresh tab opened before counting resumes. No load is timed with a Chrome trace
 file, never pooled with the tether or Wi-Fi, and it decides nothing in this run. The run as written uses none.
 
 **The commands, from any state**, replacing the **Amendment**'s two terminals; its one-off steps stand (the four
-`demo-series/` files and their metadata, the certificate tool). At the run commit, once: the test-only series-server
-image as the run commit's README says (PHONE-TOOLS item 2), tagged `wt-pacs-server:telemetry`. The beacon's
+`demo-series/` files and their metadata, the certificate tool). At the run commit, once, the test-only series-server
+image (PHONE-TOOLS item 2, `deploy/README.md`): `podman build -f deploy/Containerfile --target server --build-arg
+FEATURES=telemetry --build-arg REVISION=$(git rev-parse HEAD) -t wt-pacs-server-telemetry .` The beacon's
 collecting option of `dev-server.py` is PHONE-TOOLS's (`--beacon FILE` is assumed here; `python3
 server/dev-server.py --help` at the run commit names it, and its name is the only edit allowed). The laptop on
 Ethernet, the phone on the same network's Wi-Fi with clients able to see each other, and plugged in with USB
@@ -637,7 +640,7 @@ tethering on:
 tether_if() { for d in /sys/class/net/*; do case $(readlink -f "$d/device/driver") in */rndis_host|*/cdc_ncm|*/cdc_ether) echo "${d##*/}";; esac; done | head -1; }
 wired_if() { nmcli -t -f DEVICE,TYPE,STATE device | awk -F: -v t="$(tether_if)" '$2=="ethernet" && $3=="connected" && $1!=t {print $1; exit}'; }
 addr() { [ -n "$1" ] && ip -4 -o addr show dev "$1" | awk '{print $4}' | cut -d/ -f1 | head -1; }
-IMAGE=wt-pacs-server:telemetry; ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}   # ID=dbts_b1-q8-g8 for the timed run, in both terminals
+IMAGE=wt-pacs-server-telemetry; ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}   # ID=dbts_b1-q8-g8 for the timed run, in both terminals
 serve() {  # PORT CONGESTION SERIES [PUBLISH_ADDR] — one series server in its image; traces and transport file in target/phone-run/<its name>
   n=srv-$1${4:+-published}; d=target/phone-run/$n; mkdir -p "$d"; podman unshare chown 10001:10001 "$d"
   net="--network host"; [ -n "$4" ] && net="-p $4:$1:$1/udp"
@@ -658,7 +661,7 @@ nmcli radio wifi off
 TIF=$(tether_if); EIF=$(wired_if); [ -n "$TIF" ] && [ -n "$EIF" ] || echo "tether '$TIF' or wired '$EIF' missing: stop" >&2
 nmcli device modify "$TIF" ipv4.never-default yes ipv6.never-default yes
 ip route get 1.1.1.1 | grep -q "dev $EIF " && echo "default route on $EIF: ok" || echo "default route not on $EIF: stop" >&2
-echo "run commit $(git rev-parse HEAD), image $(podman image inspect --format '{{index .Labels "org.opencontainers.image.revision"}}' "$IMAGE")"
+echo "run commit $(git rev-parse HEAD), image $(podman image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$IMAGE")"
 echo "== $(date -u +%FT%TZ) $ID" >> target/phone-run/blocks.log
 serve 4433 cubic-restart "$ID"; serve 4434 cubic-restart "$EXACT"; serve 4443 bbr "$ID"; serve 4444 bbr "$EXACT"
 sleep 3; for p in 4433 4434 4443 4444; do podman logs "srv-$p" 2>&1 | grep '^transport='; done   # each names its controller
