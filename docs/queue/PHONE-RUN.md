@@ -1,15 +1,18 @@
 state: started
 started: 2026-11-11T15:20Z
-heartbeat: 2026-11-11T17:45Z
-outputs: claude/phone-run 48f554a6 (claude/demo-fixes-1 daee0d1d + --no-ff phone-no-install, demo-e2e-2-fixes, phone-protocol 03c9345b)
+heartbeat: 2026-11-11T19:20Z
+outputs: claude/phone-devtools 4fd55e5c (request 4b: lab/phone/devtools.py, from c6da7275); claude/phone-run 48f554a6 (replaced, left as is)
 ## Resume
-Local session on the owner's laptop. Owner's decisions (2026-11-11): branches are the coordinator's (prompt handed to
-the owner); analysis and decisions here with the owner, after one blind read; images from the run commit with
---network host for timed loads; Wi-Fi arm = server wired (ethernet), phone on Wi-Fi; beacon (client telemetry) yes;
-automation for the bulk; adb wanted. Done here: rust image tagged `rust` (local, no download); adb platform-tools
-37.0.1 in ~/opt/platform-tools (user only; systemd 70-uaccess covers ADB). Demo series coded 17:32-17:38Z in a throwaway
-container (rust image + cmake/meson/nasm/ninja inside it) on claude/phone-run 48f554a6, stored form left out: 21
-series, bytes equal to README's table and optimal-quality.md's fractions. Certificate made with the image's openssl.
-Next: the owner's firewall output, adb on the phone, eye check of one series. No timed load before the run commit and the amendment.
+Coordinator's message of 18:50Z received: set up on c6da7275, no timed load until PHONE-TOOLS-2 names the run commit.
+Done on c6da7275: wt-pacs-server-telemetry built locally (labels revision=c6da72751b9e, features=telemetry; two cores);
+request 4b on claude/phone-devtools 4fd55e5c (tabs, console, eval, trace over adb forward; loopback test, 9 mutants
+killed, added to the gate; not yet run against the phone). adb 37.0.1 user-only in ~/opt/platform-tools.
+Running: demo series at c6da7275 (with sourceFingerprint) in a throwaway container, 2 cores, output kept under the
+home directory in wt-pacs-data/demo-series/c6da7275-aom3.15.1-ojph0.31.0-dav1d1.5.4 (sources and coders beside it).
+Waiting on the owner: firewall zones with tethering on; USB debugging. Next: README step 8's read-path check with
+the image; the eye check. At the run commit: rebuild the image (revision label) and reuse the series only if
+`git diff c6da7275 <run> -- ingest/ lab/av1/ scripts/demo-series.sh` is empty.
+Note for the commands: the Second amendment's `nmcli radio wifi off` and `nmcli device modify ... never-default` go
+through NetworkManager's polkit; this session hands them to the owner rather than running them.
 ## Result
 (pending)
