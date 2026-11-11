@@ -1,8 +1,9 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 07:17
+heartbeat: 2026-11-11 08:23
 outputs: claude/proposals bf35fcca (P1 measured: adopt; P4 3 of 7 rounds; drivers, rows); no PR yet (#358 is OPT-THEORY's draft into main from this branch)
 ## Resume
+Resumed 2026-11-11 08:23 by a new session (stalled at 07:17); setting up, then P4 rounds 4-7.
 Order (most promising first): P1 BBR, P4 initial window, then P2 tiles, P5, P3 plumbing, then audit protocols B
 (B0 first, zero encodes), A (shares B's cells), C (claude/av1-corrections:docs/av1/audit-protocols.md).
 Done: P1, 90 runs 04:37-05:14, docs/lines/proposals.md §P1 Measured (3a61ac00, e936037f): adopt.
