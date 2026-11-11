@@ -1,8 +1,8 @@
 /** What the page writes of a shown frame: its mark, the overlay's line and the status line's error. client/README.md §The page */
 
-/** The mark beside a frame `s` as the controller's `shown` event gives it: `{ className, text }`. */
+/** The mark beside a frame `s` as the controller's `shown` event gives it, `{ className, text }`; a labelled frame unchecked has none. */
 export const markOf = (s) =>
-  s.exact === true ? { className: "", text: "" }
+  s.exact === true || (s.quality && s.exact !== false) ? { className: "", text: "" }
   : s.exact === false ? { className: "inexact", text: `NOT EXACT — ${s.reason ?? ""}` }
   : { className: "unchecked", text: "unchecked" };
 

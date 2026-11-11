@@ -407,7 +407,8 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   frame's paint, and read back checked on a later open. With no writer, the default, there is no cache, as on main
   ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §The core, assembled).
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact. A lossy
-  series adds its quality label and the lossless button (§Optimal quality, exact on request).
+  series adds its quality label and the lossless button (§Optimal quality, exact on request); the label then stands
+  for an unchecked frame's mark, and only *NOT EXACT* is marked beside it.
 * **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the decoder per path, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name.
 * **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=`, `?origin=` and `?writer=` let a lab harness drive the
