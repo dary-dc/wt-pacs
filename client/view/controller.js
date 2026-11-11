@@ -8,7 +8,7 @@ export const FIT = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: fal
 export const asPainted = (info) => ({ pixels: info.pixels, width: info.width, height: info.height, bits: info.bits, components: info.components, signed: info.signed, cut: info.cut });
 
 /** What the developer overlay shows of a painted frame: its decode route and why WebCodecs refused it, the bytes that crossed the link, its decode time. */
-const about = ({ path, refusal, wireBytes, stamps }) => ({ path, refusal, wireBytes, decodeMs: stamps?.decodeEnd && stamps.decodeEnd - stamps.decodeStart });
+const about = ({ path, refusal, wireBytes, stamps, asCoded, mismatchOn }) => ({ path, refusal, wireBytes, decodeMs: stamps?.decodeEnd && stamps.decodeEnd - stamps.decodeStart, asCoded, mismatchOn });
 
 export function samplesOf(info) {
   const { bits, components, signed } = info;
@@ -32,7 +32,7 @@ export class Controller {
   ascending = false;
   current = 0;
   received = 0;
-  seen = { exact: 0, inexact: 0, unchecked: 0, paths: {} };
+  seen = { exact: 0, inexact: 0, asCoded: 0, unchecked: 0, paths: {} };
   issuedAt = 0;
   fillMs = null;
   firstShownMs = null;
@@ -77,6 +77,10 @@ export class Controller {
       f.ack?.();
       return this.refused(f.frameIndex, `a depth cut's frame decoded at ${f.info.bits} bits, not ${CUT_DEPTH}`);
     }
+    if (f.info.asCoded === false) {
+      f.ack?.();
+      return this.refused(f.frameIndex, `not as coded: ${f.info.reason}`);
+    }
     const info = this.#cut ? { ...f.info, cut: this.#cut } : f.info;
     this.store.put(f.frameIndex, { info, arrived: at(), write: f.write }, f.ack);
   }
@@ -84,7 +88,7 @@ export class Controller {
   #arrived(i, { info }) {
     this.received += 1;
     const e = info.exact;
-    this.seen[e === true ? "exact" : e === false ? "inexact" : "unchecked"]++;
+    this.seen[e === true ? "exact" : e === false ? "inexact" : info.asCoded ? "asCoded" : "unchecked"]++;
     if (info.path) this.seen.paths[info.path] = (this.seen.paths[info.path] ?? 0) + 1;
     if (this.#fillMode && this.fillMs === null && this.received === this.#n) this.fillMs = at() - this.issuedAt;
     if (i === this.current) this.repaint();
@@ -185,7 +189,7 @@ export class Controller {
     const e = this.#exact?.i === i ? this.#exact : null;
     if (e?.frame === f && f.info.exact === true) return "lossless";
     if (e?.failed) return "failed";
-    return e ? "asking" : "optimal";
+    return e ? "asking" : f.info.asCoded ? "asCoded" : "optimal";
   }
 
   /** The current frame from the exact series, painted in its place once checked; it stays until the reader leaves it. */
