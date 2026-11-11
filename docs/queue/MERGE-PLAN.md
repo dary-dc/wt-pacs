@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-11T19:48Z
-heartbeat: 2026-11-11T19:48Z
-outputs: claude/merge-plan (docs/reviews/merge-plan.md)
+heartbeat: 2026-11-11T19:52Z
+outputs: claude/merge-plan 969e964e (docs/reviews/merge-plan.md), no PR (docs only)
 ## Resume
-Claimed. Next: gather PR 367/250 state, open PRs, remote branches; ancestry with git merge-base --is-ancestor; write docs/reviews/merge-plan.md on claude/merge-plan.
+Done: docs/reviews/merge-plan.md pushed (969e964e). Next: docs/lines/coordination.md on claude/merge-plan (state now + open), then state: done.
 ## Result
