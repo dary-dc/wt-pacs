@@ -6,26 +6,27 @@ that does not serve `lab/` (the web image) refuses them, and a page without thei
 
 ## The beacon, `?beacon=<controller>`
 
-The controller the page's servers run (`cubic-restart` or `bbr`), which the page cannot see. Per load it sends, as
-JSON records sharing one `load` id:
+The controller the page's servers run (`cubic-restart` or `bbr`), which the page cannot see. The beacon is a switch:
+it turns on the product's **load report** ([`docs/adr/telemetry-in-production.md`](../../docs/adr/telemetry-in-production.md)
+§8, `client/viewer/load-report.js`) at rate 1, sends it to `/lab/beacon`, and adds the controller, the page's port and,
+under the runner, the series' name, the link, `counted`, the step and the runner's `verdict`. It also records
+`console.error`, which the product does not watch. Every field and its definition is §8's: one JSON object per load,
+with the fill as §7's Second amendment defines it (`fillFrom`, the downloader's dial just before it builds the
+optimal-quality session's `WebTransport`, to `fillTo`, the last frame stored, both on `performance.timeOrigin +
+performance.now()`; `fillMs` between them; `statusFillMs`, the status line's, beside it, deciding nothing), `routes`,
+per frame its route, KB and decode ms, `labels` (each change: `optimal`, `asking`, `lossless`, `failed`), `presses`,
+`errors`.
 
-* `load`, at the fill's end: view, port, controller, the series' `exactSeries` and `lossy`, frame count, frames
-  received, the count per route (`routes`), per frame its route, KB on the wire and decode ms (the overlay's three),
-  and the fill as §7's Second amendment defines it: `fillFrom`, the downloader's dial just before it builds the
-  optimal-quality session's `WebTransport`, to `fillTo`, the last frame stored in the frame map (the controller's
-  `received === n`), both on `performance.timeOrigin + performance.now()`, and `fillMs` between them. `statusFillMs`
-  is the status line's `fill … ms`, beside it, deciding nothing: it starts at the page's issue, before the downloader
-  dials, so it is the longer;
-* `label` at each change of the quality label (its class: `optimal`, `asking`, `lossless`, `failed`), `lossless` at each
-  press of the **lossless** button, `error` for `window.onerror`, `unhandledrejection` and `console.error`.
+Nothing is sent during the load: the report leaves in one `navigator.sendBeacon` when the page turns hidden (the
+runner's navigation to the next load, or a stopped run's end). *Changed 2026-11-11 (TELEMETRY-CLIENT):* it was a list
+of records, the first at the fill's end, and the series named by `exactSeries`; the series is now its `source`
+fingerprint, and the runner's `series` names it for the run. The runner still reads the fill's end through the lab's
+`finished` hook, which polls every 20 ms and, after the fill, takes each frame's SHA-256 for the ledger: the same in
+every arm.
 
-Nothing is sent during the fill: records wait for its end, then leave in one `navigator.sendBeacon`; later ones wait
-for the page to be hidden (or the runner's flush). The page reads the fill's end through the lab's `finished` hook,
-which polls every 20 ms and, after the fill, takes each frame's SHA-256 for the ledger: the same in every arm.
-
-`server/dev-server.py --beacon FILE` (the Second amendment's name) appends each record as one JSON line to FILE; without it the beacon's POST
-is refused (404). Two static hosts (8765 and 8766) may append to one file. The records name no address; `port` and
-`link` say which origin.
+`server/dev-server.py --beacon FILE` (the Second amendment's name) appends each report as one JSON line to FILE;
+without it the POST is refused (404). Two static hosts (8765 and 8766) may append to one file. The reports name no
+address; `port` and `link` say which origin.
 
 ## The runner, `lab/phone/`
 
