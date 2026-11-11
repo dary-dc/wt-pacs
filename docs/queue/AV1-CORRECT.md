@@ -1,7 +1,7 @@
 state: done
 started: 2026-11-11 01:35
-heartbeat: 2026-11-11 03:05
-outputs: claude/av1-corrections 0bb65c3f, draft PR #357 into main
+heartbeat: 2026-11-11 03:15
+outputs: claude/av1-corrections 664a6179 (CI link-check fix), draft PR #357 into main
 ## Resume
 Done. Commits 2e4efdfc (corrections, codecs line in place), 0bb65c3f (protocols, pointers). Line file:
 docs/lines/codecs.md on the branch (Last verified 2026-11-11, Open 00).
