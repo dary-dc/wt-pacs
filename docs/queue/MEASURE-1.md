@@ -1,21 +1,19 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 05:06
-outputs: claude/proposals b1d8a9ae (P1, P4 amendments 1, drivers)
+heartbeat: 2026-11-11 05:16
+outputs: claude/proposals e936037f (P1 measured: adopt; P4 amendment 1; drivers, rows)
 ## Resume
-Order (most promising first): P1 BBR, P4 initial window (same rig as P1), then P2 tiles, P5, P3 plumbing, then
-audit protocols B (B0 first, zero encodes), A (shares B's cells), C. One session cannot run all; each later session
-resumes at the first protocol without a "measured" section on claude/proposals.
-Host finding (04:25): this container has no sch_netem (`tc qdisc add dev lo root netem` -> "qdisc kind is unknown",
-iproute2 installed by apt). P1/P4 name netem; the substitute is lab/scripts/link_impair.py (docs/rig-limits.md
-§3), written as an amendment in docs/lines/proposals.md before any run.
-Done: P1 amendment 1 + lab/proposals/link_cells.mjs, p1.sh at 313ccc66. Building in ../tip (demo-fixes-1):
-wasm-pack 0.15.0, transport wasm/ts, cert, series-server, PYTHON=python3.11 scripts/demo-series.sh demo-series (meson via pip).
-P4 amendment 1 + p4.sh at b1d8a9ae. Driver smoke-tested (one BBR run, discarded: encode shared the CPU).
-Series built (637 s, 23 series, bytes as demo-series.sh's table). P1 running since 04:37 (90 runs).
-If stalled: rows pushed in lab/proposals/rows/p1.jsonl on claude/proposals; resume at the first round not complete
-(18 rows a round) with p1.sh OUT ROUND after deleting that round's partial rows. Then: then TIP=../tip DIR=../tip/demo-series lab/proposals/p1.sh
-lab/proposals/rows/p1.jsonl [FIRST_ROUND]; push rows each round. Was: worktree claude/proposals at ../proposals; demo tip claude/demo-fixes-1 9e2ef4ef at ../tip; follow
-claude/gate-cloud setup; build decoders, ingest/tools.sh, series-server; scripts/demo-series.sh; P1 amendment; run.
+Order (most promising first): P1 BBR, P4 initial window (same rig), then P2 tiles, P5, P3 plumbing, then audit
+protocols B (B0 first, zero encodes), A (shares B's cells), C (claude/av1-corrections:docs/av1/audit-protocols.md).
+Done: P1, 90 runs 04:37-05:14, measured section in docs/lines/proposals.md §P1 (3a61ac00, e936037f): adopt.
+Host: no sch_netem here; the link is lab/scripts/link_impair.py per each protocol's amendment 1.
+Setup (fresh session): worktrees claude/proposals at ../proposals, demo tip claude/demo-fixes-1 9e2ef4ef at ../tip;
+in ../tip: cargo install wasm-pack --version 0.15.0 --locked; rustup target add wasm32-unknown-unknown;
+pip install meson==1.9.1; bash client/transport/wasm/build.sh && bash client/transport/ts/build.sh &&
+./server/scripts/gen_dev_cert.sh && cargo build --release -p series-server && PYTHON=python3.11 scripts/demo-series.sh demo-series (637 s).
+Running since 05:16: P4, TIP=../tip DIR=../tip/demo-series lab/proposals/p4.sh lab/proposals/rows/p4.jsonl (504 runs,
+72 a round). If stalled: delete the partial round's rows, rerun p4.sh OUT ROUND. Push rows with git pull --rebase --autostash.
+Then P2 (needs an ingest arm: lossy_args with --tile-columns/--tile-rows, amendment first), P5, P3, B0, B, A, C.
 ## Result
+
 (pending)
