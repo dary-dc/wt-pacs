@@ -3,14 +3,16 @@
 //
 //   node lab/proposals/link_cells.mjs TIP DIR LOSSY_ID --link "OPTIONS" [--lossy-args "..."] [--exact-args "..."]
 //        [--quiet-ms 10000] [--frame first|middle|last] [--host ROOT] [--cpu-throttle RATE]
-//        [--exact-only] [--lead-ms L]
+//        [--exact-only] [--lead-ms L] [--jump-after-ms J]
 //     TIP: a checkout of the demo tip with its client, series-server and dev certificate built
 //     ROOT: where dev-server.py serves the page from, TIP by default (P5's arm: lab/proposals/p5_arm.sh)
 //     RATE: Emulation.setCPUThrottlingRate on the page target; Chromium applies it to the main thread only
 //     --exact-only: only the exact session through the relay, which --idle-promote needs; --lead-ms: ask by the
-//     button, its pointerdown L ms before its click (P3), instead of the `l` key
+//     button, its pointerdown L ms before its click (P3), instead of the `l` key; --jump-after-ms: `End` J ms after the
+//     first picture, during the fill, the relay's flows tallied over the jump alone, and no `l` (R2)
 //   prints one JSON row; times are ms on the page's clock, from navigation
 import { spawn } from "node:child_process";
+import dgram from "node:dgram";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -21,6 +23,9 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const words = (s) => (s ? s.split(/\s+/).filter(Boolean) : []);
 const QUIET = Number(arg("--quiet-ms", 10000));
 const FRAME = arg("--frame", "first");
+const JUMP = arg("--jump-after-ms");
+const CONTROL = 5556;
+const HERE = path.dirname(new URL(import.meta.url).pathname);
 const T = mkdtempSync(path.join(tmpdir(), "link-cells-"));
 const children = [];
 const stop = () => { for (const c of children.splice(0)) c.kill("SIGKILL"); };
@@ -49,7 +54,7 @@ const transport = readFileSync(path.join(tip, "client/dev-transport.json"), "utf
 const exactOnly = process.argv.includes("--exact-only");
 writeFileSync(`${T}/transport.json`, exactOnly ? transport : transport.replace(":4433", ":5433"));
 writeFileSync(`${T}/exact-transport.json`, transport.replace(":4433", ":5434"));
-const relay = run("python3", ["lab/scripts/link_impair.py", ...(exactOnly ? [] : ["--udp", "5433:4433"]), "--udp", "5434:4434", ...words(arg("--link"))]);
+const relay = run("python3", [path.join(HERE, "../scripts/link_impair.py"), ...(JUMP ? ["--control-port", String(CONTROL)] : []), ...(exactOnly ? [] : ["--udp", "5433:4433"]), "--udp", "5434:4434", ...words(arg("--link"))]);
 const host = run("python3", [path.join(arg("--host", tip), "server/dev-server.py"), "--port", "8765", "--metadata", path.join(dir, `${id}.metadata.json`),
   "--transport", `${T}/transport.json`, "--exact-metadata", path.join(dir, `${exactId}.metadata.json`),
   "--exact-transport", `${T}/exact-transport.json`]);
@@ -60,13 +65,20 @@ function watch() {
   addEventListener("DOMContentLoaded", () => {
     for (const id of ["quality", "overlay", "status"]) {
       const el = document.getElementById(id);
-      new MutationObserver(() => globalThis.__log.push({ t: performance.now(), id, text: el.hidden ? "" : el.textContent }))
+      new MutationObserver(() => globalThis.__log.push({ t: performance.now(), id, text: el.hidden ? "" : el.textContent,
+        frame: Number(document.getElementById("status").textContent.match(/^frame (\d+)/)?.[1]) }))
         .observe(el, { childList: true, characterData: true, subtree: true, attributes: true });
     }
   });
 }
 
-const row = { id, exactId, host: arg("--host", tip), cpuThrottle: Number(arg("--cpu-throttle", 1)), link: arg("--link"), exactOnly, leadMs: arg("--lead-ms") === undefined ? null : Number(arg("--lead-ms")), lossyArgs: arg("--lossy-args", ""), exactArgs: arg("--exact-args", ""), frame: FRAME };
+async function control(cmd) {
+  const s = dgram.createSocket("udp4");
+  await new Promise((done) => s.send(cmd, CONTROL, "127.0.0.1", done));
+  s.close();
+}
+
+const row = { id, jumpAfterMs: JUMP === undefined ? null : Number(JUMP), exactId, host: arg("--host", tip), cpuThrottle: Number(arg("--cpu-throttle", 1)), link: arg("--link"), exactOnly, leadMs: arg("--lead-ms") === undefined ? null : Number(arg("--lead-ms")), lossyArgs: arg("--lossy-args", ""), exactArgs: arg("--exact-args", ""), frame: FRAME };
 const browser = await createRequire(import.meta.url)("playwright").chromium.launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
@@ -81,13 +93,25 @@ try {
   const picture = (l) => l.find((e) => e.id === "quality" && e.text);
   await until(picture, 600000);
   row.firstPictureMs = Math.round(picture(await log())?.t) || null;
+  if (JUMP !== undefined && row.firstPictureMs) {
+    const n = lossyMeta.frameCount;
+    await page.waitForTimeout(Number(JUMP));
+    await control("window");
+    const before = await page.evaluate(() => performance.now());
+    await page.keyboard.press("End");
+    const painted = (l) => l.find((e) => e.id === "overlay" && e.text && e.frame === n && e.t > before);
+    row.jumped = await until(painted, 120000);
+    row.jumpAt = Math.round(before);
+    row.jumpMs = row.jumped ? Math.round(painted(await log()).t - before) : null;
+    await control("window");
+  }
   const status = (l) => l.findLast((e) => e.id === "status")?.text ?? "";
   row.filled = await until((l) => /fill \d+ ms/.test(status(l)), 600000);
   const n = lossyMeta.frameCount;
   const all = (await log()).find((e) => e.id === "status" && new RegExp(`received ${n}\\b`).test(e.text));
   row.fillMs = all ? Math.round(all.t) : null;
   row.status = status(await log());
-  if (row.filled) {
+  if (row.filled && JUMP === undefined) {
     const key = { first: null, middle: null, last: "End" }[FRAME];
     if (FRAME === "middle") for (let i = 0; i < Math.floor(n / 2); i++) await page.keyboard.press("ArrowRight");
     if (key) await page.keyboard.press(key);

@@ -770,6 +770,23 @@ decode-bound and is reported so, no ratio claimed. *Limits:* a userspace relay w
 radio; nothing here prices congestive loss or a neighbour, which the phone runs' controller arm reads
 (`docs/devices.md` §7 amendment); three DBT volumes of one dataset; one 4-core host without a GPU; SwiftShader.
 
+**Amendment 1 (MEASURE-2, 2026-11-11 20:00, written before any run).** *Tip:* the demo tip `claude/demo-fixes-2` at
+`d46811c6`, its `demo-series.sh` series. *Driver change:* `lab/proposals/link_cells.mjs --jump-after-ms 500`: after the
+first picture (the quality label's first text, as P1) the driver waits 500 ms, sends `window` to the relay, presses
+`End`, and times the key to the overlay's first write while the status line names the last frame (`jumpMs`, the
+moment `demo-check.mjs`'s `jumpMs` reads); then `window` again, and the fill runs on to its last frame (`fillMs`, as
+P1). No `l`. The relay (`lab/scripts/link_impair.py`) gains one control command, `window`: each flow's tally since the
+last `window` (packets, bytes, sojourn p50 and p99), then cleared; the second `window`'s lines are the sojourn over the
+jump's window, per flow, the optimal-quality session's flow being its server port 4433. The driver now runs the relay
+from its own checkout (the same file as the tip's but for that command). *Order* (`lab/proposals/r2.sh`): 7 rounds;
+per round the cells 0, iid1, ge; per cell the three series; per series Cubic and BBR, the first arm alternating
+between rounds; in iid1 the three arms Cubic, BBR and Cubic again (A/A) rotated one place a round; fresh processes per
+run. *Saturation bar:* rounds 1, 4 and 7 open with `demo-check.mjs` on each series over loopback, its `&fill=0`
+`jumpMs` (the slider's jump, the on-demand jump the demo makes); a cell's median jump within 1.1× of that series'
+median there is reported as decode-bound, no ratio claimed. *Read:* the medians of 7 runs per arm, cell and series;
+in iid1 the A/A ratio |Cubic-again ÷ Cubic − 1| is added to both bars (R0). A run whose jump never paints in 120 s is
+a miss, counted and named.
+
 ### R3. The wake rebuilt on `end_stream` alone (P3)
 
 **Mechanism, corrected.** As P3, with the red team's two corrections built in. The wake sends `end_stream` on the
