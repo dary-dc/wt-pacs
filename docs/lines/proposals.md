@@ -554,3 +554,90 @@ Each official source read on 2026-11-11; the SHA-256 prefix is of the copy read.
 * Chromium `463745830f5ed9085d719a959b967c2fcca172b1`: `media/filters/davxd_video_decoder_base.cc` (`246fd0000402`),
   `media/filters/dav1d_video_decoder.cc` (main, the same day).
 * libaom v3.15.1 `av1/arg_defs.c` (`9f0a8ad3363e`), aomedia.googlesource.com.
+
+## Red team
+
+*Row REDTEAM-PROPOSALS, 2026-11-11 16:27–, a session that wrote and measured none of these.* Every proposal and measured
+result on this branch, on `claude/demo-simplify` (§Simplify), and the two later proposal sections branched from here
+(`claude/dav1d-lazy` §P6, `claude/oq-integrity` §Integrity). Each was checked for a wrong mechanism, unfair arms,
+saturation, fixtures that cannot carry the claim, a broken decided approach, and a negative total effect. P1–P5's
+reasons are under each section. The branches this row may not push (§Simplify, §P6, §Integrity) are corrected here,
+quoting the text they correct. Read against the demo tip `claude/demo-fixes-1` at `daee0d1d` and `claude/demo-ux`
+at `14605f41`. Nothing was measured here: every verdict reads MEASURE-1's rows (`lab/proposals/rows/`) or the code.
+
+| # | verdict | for FIX-2 | the reason, in one line |
+| --- | --- | --- | --- |
+| P1 BBR | survives for its cells, corrected | no (owner, 13:30) | the gain is the 1 % iid cell's; `dbts_a1`'s `l` 0.29× is 0.37–0.55× against P4's identical arm; jump during the fill untimed |
+| P2 tiles | survives, corrected | no (after the demo) | same Q, not same quality: the coding error per arm is owed; `dbts_c1` timed at G 8, the demo's is G 16 |
+| P3 wake | open, corrected | no | the lab arm calls `cancel()`, not `end_stream` alone; the phone row's 15 s dwell sits on the browser's 15 s ping |
+| P4 initial window | withdrawn (its rule) | no | a tie under loss, a real miss clean on `dbts_b1`; P1 + P4 untested |
+| P5 late dial | withdrawn (its rule) | no | inert; serves as an A/A floor of ±30 ms on the first picture |
+| P6 lazy dav1d | survives, rule corrected | no (unmeasured) | its 10 ms and 1.02× bars sit under P5's measured A/A spread |
+| I1 reconstruction digest | survives, cost corrected | no (proposal, OQ-INTEGRITY-BUILD) | the hash is ~4 % of a measured decode here, not 1–2 % |
+| I2 coding error | survives | no | also the cell P2 owes |
+| I3 label | survives | no | — |
+| S1 lab harness out of `viewer.js` | survives, corrected | no (after 11-13) | ~110 lines, not ~90 (CLEAN-FIND) |
+| S2 one view | survives, its condition met for correctness | no (owner: after the phone runs) | 40 of 40 both views twice (VIEW-WORKER-CHECK, DEMO-UX); nothing timed |
+| S3 one starter | survives | no (after 11-13) | — |
+| S4 `unchecked` mark | done elsewhere, corrected | done (FIX-1 C1) | the green that replaced it claims a check no one ran until I1 |
+| S5 status line | corrected | no | its evidence is stale: `demo-check.mjs` now requires `view` on the status line |
+| S6 WS/race out of the image | survives | candidate, owner's word | the claims check out at `daee0d1d` |
+| S7 lab levers out of connect options | survives | no (after 11-13) | — |
+| S8 `wasm` client | survives (nothing proposed) | — | — |
+
+**Nothing is marked "adopt" for FIX-2.** The two proposals that met their rules are P1 and P2. The owner's
+decisions of 13:30 keep both off the demo, and each has an owed cell besides (above). S6 is the only item that is
+small, regresses nothing and touches the demo tip's build. It is a removal, so it waits for the owner's yes
+(§Decided approaches: "a removal names its items and waits"). It does not wait on this row.
+
+### Corrections to §P6 (`claude/dav1d-lazy` at `7cf46ef7`)
+
+*The mechanism survives:* a page that WebCodecs serves fetches 636 484 B of dav1d and never compiles it, and form (c)
+hides the fetch in the dial on a device that refuses. *The rule cannot pass a neutral change.* It reads: "the median
+first picture is no more than 10 ms above (a)'s and the median fill's end no more than 1.02× (a)'s", on "every series
+and every link cell", "Any cell outside rejects". The same driver measured an arm that changed nothing on the first
+picture (P5) at +1 to +30 ms over 9 runs a side. The same arm and cell run hours apart gave a clean fill 2 548 ms
+(P1, 5 runs) and 2 694 ms (P4, 21 runs) on `dbts_a1`, which is 1.06×. Across 3 series × 2 links × 2 static hosts,
+a 10 ms and 1.02× bar rejects a tie by chance. **Correction:** before the run, measure an A/A pair (the tip against
+itself) in the same rotation, and set each tolerance at the A/A spread or the registered value, whichever is larger,
+with the rule read on all cells pooled. Otherwise keep the bytes rule (1) as the gain, as the section already says.
+*Not checked here:* whether `dev-server.py`'s `Last-Modified` gives the workers' refetches a heuristic cache hit (RFC
+9111 §4.2.2). The protocol's request log settles it either way.
+
+### Corrections to §Integrity (`claude/oq-integrity` at `39a7bdd3`)
+
+*I1's cost share.* It reads: "the loopback fill's 2.0, 4.6 and 1.7 s over three workers is about 107, 276 and 74 ms a
+frame … that is 1–2 % here". That is a fill's wall time per frame, not a decode. It also swaps `dbts_a1` and
+`dbts_c1`, as §Optimize did (corrected there). P2 measured the decode itself, one frame through the product's
+`av1.js`: 32–35, 131–133 and 36–37 ms (4 cores, one tile). Against those, a hash of 1.2, 5.2 and 1.5 ms is **3.6–4.2 %
+here**, and the phone band (assumption) should start from that figure. The rule's ≤ 10 % at 4× is unchanged and may
+now be tight. *Its sampling fallback* ("the shown frame always, the fill's other frames at a rate") is the right
+order of fallback. *Its mechanism* (AV1 §7.2, no film grain; WebCodecs §7.9 hints only) survives. *I1 is also P2's
+missing exactness condition*, and *I2 is P2's missing quality cell*: build order, I1 before tiles.
+*The green mark* (I3): DEMO-UX item 1 shipped *Optimal quality* in green (`claude/demo-ux` `screen.js` `labelOf`), and
+FIX-1's `markOf` drops the grey *unchecked* on every labelled frame. Together they remove the only signal that an
+optimal-quality frame is unchecked. That is S4 done, and the owner's decision (1) of OQ-INTEGRITY still owed.
+
+### Corrections to §Simplify (`claude/demo-simplify` at `d70ccb9f`)
+
+* **S1** reads "About 90 of its 334 lines". CLEAN-FIND counted ~110 (`claude/demo-understand`). EXPERIMENTS-OFF left
+  the lab hooks in product modules for after FREEZE-E2E. The proposal stands; after 11-13.
+* **S2** reads that it should be decided "after VIEW-WORKER-CHECK". That check passed 40 of 40, page and worker
+  interleaved, and DEMO-UX's loop passed 40 of 40 again. The view worker meets the page's correctness bar on the
+  demo's series. No latency was compared between the views, and the owner decided (13:30) that the page view stays
+  until the phone runs. Survives, waiting on those runs.
+* **S4** is done: FIX-1 (REVIEW-BLIND C1, `screen.js` `markOf`) drops the mark on a labelled frame, and DEMO-UX
+  colours the label. Correction: S4 said the label "then says what is painted". It says what was asked for, not
+  what was checked (§Integrity above).
+* **S5** reads "`demo-check.mjs` parses only `frame N` from the status line". Since VIEW-WORKER-CHECK,
+  `demo-check.mjs:159` requires `· view <page|worker> ·` on the status line, and DEMO-UX's tap shows the whole line
+  to a phone reader. Moving `view` to the overlay now moves that check too, and every MEASURE-1 row that stored the
+  status line would read differently. Survives with that added to its cost.
+* **S3, S6, S7, S8** survive as written. For S6 at `daee0d1d`: `head.js` `CLIENTS` names only `ts` and `wasm`;
+  `ts/build.sh --product` still bundles `ws-session.js` and `race-session.js` (`deploy/Containerfile:80`); no product
+  module imports them.
+
+**Limits of this review.** Nothing was rerun. P1–P5 rest on MEASURE-1's rows: three DBT volumes of one dataset
+(`dbts_a1`, `dbts_b1`, `dbts_c1`), a userspace relay, not a radio, one 4-core cloud host without a GPU, SwiftShader,
+headless Chromium, the page view. MEASURE-1 is still running (audit protocols B, A and C). This section covers the
+rows standing at `4ab3ee0d`. The audit rows are attacked when MEASURE-1 says done.
