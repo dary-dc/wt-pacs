@@ -1,0 +1,25 @@
+series                      bytes  of exact      s
+dbts_a1                  67815186    1.0000      1
+dbts_a1-q8-g1-cut         4657942    0.0687     23
+dbts_a1-q8-g8-cut         4642336    0.0685     17
+dbts_a1-q8-g16-cut        4643219    0.0685     16
+dbts_a1-q24-g1-cut         434952    0.0064     11
+dbts_a1-q24-g8-cut         212383    0.0031      7
+dbts_a1-q24-g16-cut         201717    0.0030      7
+dbts_a1-q8-g16-stored        5030258    0.0742     19
+dbts_b1                 107410134    1.0000      3
+dbts_b1-q8-g1            23479389    0.2186     58
+dbts_b1-q8-g8            23208339    0.2161     67
+dbts_b1-q8-g16           23193423    0.2159     50
+dbts_b1-q24-g1            2645043    0.0246     40
+dbts_b1-q24-g8            1675910    0.0156     23
+dbts_b1-q24-g16           1628217    0.0152     23
+dbts_c1                  70668114    1.0000      2
+dbts_c1-q8-g1-cut         6348751    0.0898     28
+dbts_c1-q8-g8-cut         6239741    0.0883     24
+dbts_c1-q8-g16-cut        6232849    0.0882     30
+dbts_c1-q24-g1-cut         571229    0.0081     13
+dbts_c1-q24-g8-cut         273853    0.0039      9
+dbts_c1-q24-g16-cut         260398    0.0037     12
+dbts_c1-q8-g16-stored        6691694    0.0947     32
+710 s in all on 4 cores, x86_64, Intel(R) Xeon(R) Processor @ 2.10GHz
