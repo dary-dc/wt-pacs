@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-11 06:00 UTC (branch tips and the work queue read from `origin`).
+Last verified 2026-11-11 15:30 UTC (branch tips and the work queue read from `origin`).
 
 ## Goal
 
@@ -34,12 +34,26 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   `av1-webcodecs`) and `dbts_a1-q8-g16-stored` (every frame `av1-dav1d` after WebCodecs refused), filled and with
   `fill=0`; labels *Optimal quality* → *fetching lossless…* → *Lossless* → *Optimal quality*, and *Lossless check
   failed* for a tampered digest. Not a GPU, not hardware decode, not a phone.
+* **A laptop without installs** (PHONE-NO-INSTALL, 2026-11-11, `claude/phone-no-install`): README §Demo's variant
+  serves the page over the tether at the laptop's address (`dev-server.py --bind`, loopback alone by default), made a
+  secure context on the phone by Chrome's flag *Insecure origins treated as secure* (built for Android: `kOsAll` in
+  `about_flags.cc`); the certificate is made by `openssl` in a container (`OPENSSL=` in `gen_dev_cert.sh`). Checked
+  in a network namespace on `dbts_a1-q8-g8-cut`, `dbts_b1-q8-g8`, `dbts_a1-q8-g16-stored`: every frame filled,
+  `l` *Lossless*; without the flag, no `WebTransport`. Not on a phone. The show list's six bundles are 208 MB, its
+  two exact series 175 MB; a `demo-series.sh` run gave the same fractions as above.
 * **From a fresh clone** (DEMO-E2E-2, 2026-11-10, `claude/demo-e2e-2`): README §Demo word for word on one 4-core
   cloud host, Chromium 141 headless on SwiftShader; all 20 optimal-quality series passed, label in order, *Lossless*
   never before the exact frame's paint, no console error; numbers per series in `client/README.md` §Optimal quality,
   exact on request. Fixed: a certificate ending within a day was renewed by the static host after the series
   servers loaded the old one (no picture); README §Demo gained the steps before the demo from any state and the
-  phone pair for a demo series.
+  phone pair for a demo series. *Corrected 2026-11-11 (REVIEW-E2E2):* "*Lossless* never before the exact frame's
+  paint" was measured in an uncommitted copy; `demo-check.mjs` did not check it, and passed a page that wrote it
+  first. It checks it now, and `Home`'s paint, which it skipped after a 30 s wait on most runs
+  (`docs/reviews/demo-e2e-2.md`, `claude/demo-e2e-2-fixes`).
+* **Reviewed from a fresh clone** (REVIEW-E2E2, 2026-11-11, `claude/demo-fixes-0` at `36d286cd`): README §Demo word
+  for word, Playwright 1.63's Chromium in place of 1.56.1's; bytes equal to the record's; all 20 series passed;
+  `demo-check.mjs` mutated, the certificate renewal's mutant killed; two on-demand mutants that ask a group ahead
+  survived, cause not traced. Not a GPU, not hardware decode, not a phone.
 * **The demo build** (DEMO-INTEGRATE, 2026-11-10): `claude/demo-fixes-0` (#355 into `claude/core`) is the demo tip
   `claude/core-next-fixes` plus `gate-cloud`, `double-decode-check` and `demo-e2e-2`, each a `--no-ff` merge; full
   gate OK in a cloud session (skipped: lavapipe, GL display, Firefox, nginx); CI gate and deploy green.
@@ -70,6 +84,24 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   the page view under #362's stricter check, interleaved by series: 60 of 60 passed, headless on one cloud host
   ([`docs/reviews/e2e-3.md`](../reviews/e2e-3.md), with the owner's rehearsal list). #362 (the check's Home and
   *Lossless*-paint fixes) is not in `demo-fixes-1`: without it the check stalled 30 s on 12 of 28 a1/c1 runs.
+* **The phone run's protocol** (PHONE-PROTOCOL, 2026-11-11, `claude/phone-protocol`): [`docs/devices.md`](../devices.md)
+  §7, page view against view worker alternated, tether against Wi-Fi in blocks, the decision rules and the commands
+  for the laptop without installs. Found while writing it: the status line is cut at the phone's width, so the fill
+  time and the last error are not visible (Part B waits on a change, the owner's call); touch cannot step slices.
+  *Amended* (PHONE-AMEND, 2026-11-11, before any run): a controller arm, `cubic-restart` against `bbr` on four
+  servers chosen by the page's port, crossed with the views in Williams quads; the server's loss reading from a
+  `--features telemetry` build (session line, a loss trace, path rows every 250 ms), the mix read from
+  `cubic-restart`'s sessions alone; one timed series (`dbts_b1-q8-g8`) and an eye check of `dbts_a1-q8-g8-cut`, 56
+  loads, about two hours (an assumption); the stored form out. The controller verdict changes no default alone.
+* **For a presenter** (ESSENTIALS, 2026-11-11, `claude/demo-essentials`, proposed): `client/README.md` §Optimal
+  quality, for a presenter: a frame's path through the modules for both series, eight points each with its test,
+  and eight things that could not be explained simply (for OPT-SIMPLIFY and NAMES-FIND). Read from code; nothing run.
+* **The demo's UX** (DEMO-UX, 2026-11-11, `claude/demo-ux`, draft PR into `claude/demo-fixes-1`): merges #360, #362,
+  #359 (PHONE-AMEND included) and #356; the label in colour beside its words (*Optimal quality* green, *✓ Lossless*
+  blue, a failed check red); a tap unfolds the status line on a phone; the stored form off the show list
+  (`STORED_FORM=1 scripts/demo-series.sh` keeps it), dav1d's browser check through the lab's `refuseWebCodecs` on a
+  10-bit series; SLICE-TOUCH's slice slider in both views; `client/README.md`'s *exact* sentence corrected. Results:
+  `claude/work-ledger:docs/queue/DEMO-UX.md`.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to

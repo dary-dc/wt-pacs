@@ -196,7 +196,8 @@ Optimal quality: every reader sees a series' visually lossless AV1 view, and a f
 series only when **Lossless** is pressed ([`client/README.md`](client/README.md) §Optimal quality, exact on request).
 The demo set is three breast tomosynthesis volumes, `dbts_a1` (56 frames, 12-bit), `dbts_b1` (50, 10-bit) and `dbts_c1`
 (69, 12-bit), each as its exact series and its optimal-quality series at Q 8 and Q 24, G 1, 8 and 16; the 12-bit two
-as depth cuts (`…-cut`, 10-bit codes WebCodecs decodes) plus one 12-bit stored form each (`…-q8-g16-stored`).
+as depth cuts (`…-cut`, 10-bit codes WebCodecs decodes): on the demo a series over 10 bits is always the depth cut. The
+stored form (`…-q8-g16-stored`, coded at 12 bits) is a lab option, `STORED_FORM=1 scripts/demo-series.sh`, never shown.
 
 **Once, from a fresh checkout on a laptop** — §Prerequisites (Linux x86-64; docker for the decoders; cmake, ninja,
 meson, nasm and a C++ compiler for the coders; `python3.11`, or `PYTHON=` another 3.11–3.13, for the data's venv):
@@ -237,8 +238,9 @@ python3 server/dev-server.py --port 8765 --metadata demo-series/$ID.metadata.jso
 Open `http://127.0.0.1:8765/?overlay=1` in Chrome; without `?overlay=1` the page is the reader's, label and status
 line only. To change series, stop the three and start them again with another `ID`. **A rehearsal**, with the three
 stopped: `NODE_PATH=$(npm root -g) node client/viewer/demo-check.mjs demo-series $ID` runs the commands above, opens the page in headless
-Chromium as below, and fails by name a frame not painted, a decode route other than WebCodecs (`--route av1-dav1d` for
-a stored form), a console error, a label out of order, an on-demand jump that asked other than whole groups, or
+Chromium as below, and fails by name a frame not painted, a decode route other than WebCodecs (`--refuse-webcodecs`:
+the lab's lever refuses WebCodecs on a 10-bit series, so dav1d must take every frame with that refusal named, the
+fallback's check; `--route av1-dav1d` for a stored form), a console error, a label out of order, an on-demand jump that asked other than whole groups, or
 *Lossless* shown for an exact frame whose digest was made wrong. `--view worker` runs the same passes with the frames held in the view worker (`?view=worker`);
 the default is `page`.
 
@@ -251,11 +253,11 @@ git status --short                               # nothing of yours uncommitted,
 git pull --rebase
 bash client/transport/wasm/build.sh && bash client/transport/ts/build.sh
 cargo build --release -p series-server
-[ -f demo-series/dbts_c1-q8-g16-stored.sbnd ] || scripts/demo-series.sh     # the last series it writes
+[ -f demo-series/dbts_c1-q24-g16-cut.sbnd ] || scripts/demo-series.sh     # the last series it writes
 ./server/scripts/gen_dev_cert.sh --if-needed
-for ID in $(ls demo-series | sed -n 's/\.metadata\.json$//p' | grep -- -q); do
-  R=; [[ $ID == *-stored ]] && R="--route av1-dav1d"
-  NODE_PATH=$(npm root -g) node client/viewer/demo-check.mjs demo-series $ID $R | tail -1
+for ID in $(ls demo-series | sed -n 's/\.metadata\.json$//p' | grep -- -q | grep -v -- -stored) \
+    "dbts_a1-q8-g16-cut --refuse-webcodecs" "dbts_c1-q8-g16-cut --refuse-webcodecs"; do
+  NODE_PATH=$(npm root -g) node client/viewer/demo-check.mjs demo-series $ID | tail -1
 done                                             # 20 lines, each "demo check: ID passed"; ~1 min a series
 ```
 
@@ -290,29 +292,117 @@ adb reverse tcp:8765 tcp:8765
 On the phone, Chrome, `http://127.0.0.1:8765/?overlay=1`. Nothing arriving: that section's step 4 (`tcpdump`).
 Afterwards, `adb reverse --remove-all` and USB tethering off.
 
+**On a phone, from a laptop without installs** — no `openssl` command, no adb, no node, no ingest coders, no root:
+the laptop needs git, cargo, Python 3 (its standard library), jq and podman with a local `rust` image, which carries
+`openssl`. Three things differ from the block above. The page comes over the tether, at the laptop's address, in place
+of `adb reverse`; Chrome on the phone treats that one origin as secure through its flag **Insecure origins treated as
+secure**, which Chromium builds for Android too: `{"unsafely-treat-insecure-origin-as-secure",
+flag_descriptions::kTreatInsecureOriginAsSecureName, flag_descriptions::kTreatInsecureOriginAsSecureDescription,
+kOsAll, …}`, `kOsAll = kOsMac | kOsWin | kOsLinux | kOsCrOS | kOsAndroid`, described as "Treat given (insecure) origins
+as secure origins. Multiple origins can be supplied as a comma-separated list. Origins must have their protocol
+specified e.g. "http://example.com"" ([Chromium, `about_flags.cc`](https://chromium.googlesource.com/chromium/src/+/463745830f5ed9085d719a959b967c2fcca172b1/chrome/browser/about_flags.cc)
+and [`flag_descriptions.h`](https://chromium.googlesource.com/chromium/src/+/463745830f5ed9085d719a959b967c2fcca172b1/chrome/browser/flag_descriptions.h)).
+`dev-server.py --bind` serves the page on that address alone, and its policy connects there. The certificate is made by
+the `rust` image's `openssl` (`OPENSSL=` in `gen_dev_cert.sh`) and its hash read from the transport file it writes.
+The series are coded on a machine with §Prerequisites, `scripts/demo-series.sh`, and copied. What §What to show
+needs, from one run on a 4-core cloud host (2026-11-11): five bundles, 203 MB in all, 175 MB of it the two exact series
+(all 23 series of that run, the two stored forms among them: 368 MB):
+
+| `demo-series/` | bytes |
+| --- | ---: |
+| `dbts_a1-q8-g8-cut.sbnd` | 4,642,336 |
+| `dbts_b1-q8-g8.sbnd` | 23,208,339 |
+| `dbts_a1-q24-g8-cut.sbnd` | 212,383 |
+| `dbts_a1.sbnd` (exact) | 67,815,186 |
+| `dbts_b1.sbnd` (exact) | 107,410,134 |
+
+Each with its `ID.metadata.json` beside it (about 2 KB for an exact series, 0.8 KB otherwise). Once, on the machine
+that codes them, from the repository's root: `mkdir -p demo-series && scripts/demo-series.sh | tee demo-series/table.txt` (§What to show's
+item 6 is its last table); then copy `demo-series/` to the laptop's checkout, all of it or the files above.
+
+**Once per laptop**, at the repository's root on the demo's branch:
+
+```bash
+podman image exists rust && podman run --rm --network none rust openssl version   # else: podman images
+cargo build --release -p series-server                # gcc alone; fetches crates.io
+ls demo-series/dbts_a1-q8-g8-cut.sbnd demo-series/dbts_a1.sbnd    # copied, as above
+```
+
+**Each time, from any state.** Plug in and turn on USB tethering on the phone (§The viewer on an Android phone, step
+1; no USB debugging needed), then, on the laptop:
+
+```bash
+# Every terminal first
+IF=$(for d in /sys/class/net/*; do case $(readlink -f "$d/device/driver") in */rndis_host|*/cdc_ncm|*/cdc_ether) echo "${d##*/}";; esac; done | head -1)
+[ -n "$IF" ] || IF=$(nmcli -t -f DEVICE,TYPE,STATE device | awk -F: '$2=="wifi" && $3=="connected" {print $1; exit}')
+LAPTOP_IP=$(ip -4 -o addr show dev "$IF" | awk '{print $4}' | cut -d/ -f1 | head -1); echo "phone opens http://$LAPTOP_IP:8765"
+ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}
+# Terminal 1, before the others — servers left running stopped, the certificate made in the rust image, both
+#   transport files naming the laptop's address, then the optimal-quality series
+pkill -f 'release/series-server' ; pkill -f 'server/dev-server.py'
+mkdir -p server/dev-cert target
+OPENSSL="podman run --rm -i --network none -v $PWD/server/dev-cert:$PWD/server/dev-cert:z rust openssl" \
+  ./server/scripts/gen_dev_cert.sh --if-needed
+HASH=$(jq -r .cert_sha256 client/dev-transport.json)
+for p in 4433 4434; do
+  printf '{"wt_url": "https://%s:%s/", "cert_sha256": "%s"}\n' "$LAPTOP_IP" "$p" "$HASH" > target/phone-transport-$p.json
+done
+target/release/series-server --port 4433 --series demo-series/$ID.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+# Terminal 2 — its exact series
+target/release/series-server --port 4434 --series demo-series/$EXACT.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+# Terminal 3 — the static host, on the laptop's address toward the phone alone
+python3 server/dev-server.py --bind "$LAPTOP_IP" --port 8765 --metadata demo-series/$ID.metadata.json \
+  --transport target/phone-transport-4433.json \
+  --exact-metadata demo-series/$EXACT.metadata.json --exact-transport target/phone-transport-4434.json
+```
+
+On the phone, in Chrome: `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, the origin the first terminal
+printed (`http://` the address `:8765`, no path), **Enabled**, **Relaunch**; then that origin with `/?overlay=1`. The
+tether may hand the laptop another address on another plug-in: when the printed origin changes, enter it in the flag
+again. The ports, 8765/tcp and 4433–4434/udp, lie inside the 1025–65535 that Fedora Workstation's default zone admits;
+whether the tether's interface lands in that zone is *unverified* — `firewall-cmd --get-zone-of-interface="$IF"`
+names it (without root, *unverified*), and when nothing arrives on another zone, use Wi-Fi as step 1 does. Nothing
+arriving, without root for `tcpdump`: the page not loading is TCP 8765 not reaching the laptop; the page loading but
+`received 0` with no `session` line in Terminal 1 is UDP 4433. Afterwards, USB tethering off; the flag may stay, as it
+names that one origin.
+No console: DevTools on the phone needs adb (step 5).
+
+*Checked in a container (2026-11-11):* these commands in a network namespace standing in for the phone, a veth pair for
+the tether, `docker run … rust:1 openssl` for the podman line, on `dbts_a1-q8-g8-cut`, `dbts_b1-q8-g8` and
+`dbts_a1-q8-g16-stored` with their exact series, the page's files as committed (no client build). Chromium 153 in the
+namespace, launched with `--unsafely-treat-insecure-origin-as-secure=http://<address>:8765`, opened the page at the
+laptop's address as a secure context, cross-origin isolated, and filled every frame (56, 50, 56: `av1-webcodecs`, and
+`av1-dav1d after WebCodecs refused` on the stored form); `l` read *Lossless* from 4434 each time. Without the flag:
+not a secure context, `WebTransport is not defined`, no frame. Playwright's headless shell ignores the flag; the full
+browser honors it. Not checked: the phone, its Chrome's flags page, the tether, firewalld's zone, podman.
+
 **What to show, in order:**
 
-1. `dbts_a1-q8-g8-cut`. The picture arrives, the label top right says *Optimal quality*. Scroll with the wheel or the
-   arrows: every slice is already here. `End` jumps to the last slice, mid-group at G 8 and 16. Press `l`: *Optimal quality · fetching lossless…*, then
-   *Lossless* in green once the exact frame's digest matched and it was painted; `l` again goes back. Step off the frame
+1. `dbts_a1-q8-g8-cut`. The picture arrives, the label top right says *Optimal quality* in green. Scroll with the wheel, the
+   arrows or the slider on the right edge: every slice is already here. `End` jumps to the last slice, mid-group at G 8 and 16. Press `l`: *Optimal quality · fetching lossless…*, then
+   *✓ Lossless* in blue once the exact frame's digest matched and it was painted; `l` again goes back. Step off the frame
    and it is optimal quality again.
 2. A narrow window (drag left on the image) on the same frame, `l` and back: where the coding error would show, if
    anywhere.
 3. `dbts_b1-q8-g8`: a 10-bit volume coded at its own depth, 2560 × 3328, the largest frame.
 4. `dbts_a1-q24-g8-cut` for contrast: a twentieth of Q 8's bytes; the same narrow window and `l` against it.
-5. `dbts_a1-q8-g16-stored`: the same view coded at 12 bits; the overlay shows `av1-dav1d after WebCodecs refused: …`,
-   the fallback.
-6. At `http://127.0.0.1:8765/?overlay=1&fill=0`, nothing is asked ahead: a jump decodes its group from the keyframe and lands it whole,
+5. At `http://127.0.0.1:8765/?overlay=1&fill=0`, nothing is asked ahead: a jump decodes its group from the keyframe and lands it whole,
    and stepping through that group asks nothing more.
-7. The bytes: `scripts/demo-series.sh`'s last table, each series as a fraction of its exact series' bundle.
+6. The bytes: `scripts/demo-series.sh`'s last table, each series as a fraction of its exact series' bundle.
 
 **What is on screen:**
 
-* **The label**, top right: what is painted. *Optimal quality*, the AV1 view; *fetching lossless…* while the exact frame
-  is asked; *Lossless* only after that frame's XXH3-64 digest matched its exact series' metadata and it was painted;
-  *Lossless check failed* in red otherwise, the optimal-quality frame kept and the reason on the status line.
-* **The mark**, top left: *unchecked* on every optimal-quality frame, since a lossy frame has no digest to check; gone
-  under *Lossless*.
+* **The label**, top right: what is painted, its colour and its words saying the same. *Optimal quality* in green, the
+  AV1 view; *fetching lossless…* while the exact frame is asked; *✓ Lossless* in blue only after that frame's XXH3-64
+  digest matched its exact series' metadata and it was painted; *Lossless check failed* in red otherwise, the
+  optimal-quality frame kept and the reason on the status line.
+* **The mark**, top left: none on a paired series unless a frame is *NOT EXACT* (red); a lossy frame has no digest to
+  check, and the label says what it is.
+* **The slice slider**, along the right edge: drag it to step slice by slice, or set it anywhere for a far jump (its
+  end is `End`); the way through the slices on a phone, where there is no wheel or key. Keys, the wheel and cine move
+  it; moving it pauses cine.
 * **The overlay** (`?overlay=1`): the painted frame's decode route (`av1-webcodecs`, Chrome's `VideoDecoder`; `av1-dav1d`,
   the page's WASM, with WebCodecs' refusal), its bytes on the wire in KB, its decode time in ms, and the series' Q
   (the encoder's quantizer: higher, more error), G (frames per keyframe) and depth (*depth cut of 12*: 10-bit codes of a
@@ -320,7 +410,8 @@ Afterwards, `adb reverse --remove-all` and USB tethering off.
 * **The status line**: the frame shown of the series; the transport client (`ts`); where frames are held (`page`);
   frames received, of which exact, not exact and unchecked (an optimal-quality frame is unchecked; the exact frame does
   not count here); frames per decode route; the codec; the GPU renderer, *(software)* when it is not a GPU; the fill's
-  time from the connect to the last frame received, or *on demand* under `?fill=0`; the last error.
+  time from the connect to the last frame received, or *on demand* under `?fill=0`; the last error. On a phone the line is cut at
+  the screen's width: a tap on the label or the status line shows it whole, wrapped, and another tap folds it.
 
 **What a headless container cannot show**, and where the demo's own numbers come from: no GPU (Chromium paints on
 SwiftShader, *(software)* on the status line), no hardware decoder (WebCodecs' AV1 is Chrome's software decoder here

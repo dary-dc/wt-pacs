@@ -19,3 +19,15 @@ export function overlayText(about, quality, lossy) {
 /** The error the status line ends with, of `errors` as the page collected them, while `shown` is painted: not a lossless check its frame has since passed. */
 export const lastError = (errors, shown) =>
   errors.findLast((e) => !(shown?.quality === "lossless" && e.startsWith(`frame ${shown.i}: lossless: `)));
+
+const LABELS = {
+  optimal: "Optimal quality",
+  asking: "Optimal quality · fetching lossless…",
+  lossless: "✓ Lossless",
+  failed: "Lossless check failed · optimal quality shown",
+};
+/** The quality label of what is painted, `{ className, text }`: the class gives its colour, the text says the same. */
+export const labelOf = (quality) => ({ className: quality ?? "", text: LABELS[quality] ?? "" });
+
+/** A tap on the label or the status line unfolds the status bar to its whole line, wrapped; the next folds it. */
+export const unfoldOnTap = (bar, e) => e.pointerType === "touch" && bar.classList.toggle("unfolded");

@@ -96,11 +96,13 @@ run 1 node client/transport/consumer.test.mjs
 run 1 node client/viewer/store.test.mjs
 run 2 node client/decode/av1.test.mjs
 run 1 python3 server/dev-server.test.py
+run 1 bash server/scripts/gen_dev_cert_test.sh
 run 1 node client/paint/voi.test.mjs
 run 1 node client/view/controller.test.mjs
 run 1 node client/viewer/pair.test.mjs
 run 1 node client/viewer/pair-source.test.mjs
 run 1 node client/viewer/screen.test.mjs
+run 1 node client/viewer/slider.test.mjs
 run 1 node client/view/depth-cut.test.mjs
 run 1 node client/view/view.test.mjs
 run 1 node client/view/view-worker.test.mjs
