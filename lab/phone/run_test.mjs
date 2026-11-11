@@ -34,7 +34,7 @@ const BINDS = { tether: "127.0.0.1", wifi: "127.0.0.2" };
 const log = (bind) => `${dir}/beacon-${bind}.jsonl`;
 for (const bind of Object.values(BINDS)) {
   for (const [page, lossy, exact] of [[8765, 4433, 4434], [8766, 4443, 4444]]) {
-    await run("python3", ["server/dev-server.py", "--bind", bind, "--port", String(page), "--beacon-log", log(bind),
+    await run("python3", ["server/dev-server.py", "--bind", bind, "--port", String(page), "--beacon", log(bind),
       "--metadata", `${dir}/synth-q8-g8.metadata.json`, "--transport", `${dir}/t-${lossy}.json`,
       "--exact-metadata", `${dir}/synth.metadata.json`, "--exact-transport", `${dir}/t-${exact}.json`], /port=/);
   }
@@ -88,8 +88,11 @@ check(loads.map((l) => l.counted).join() === "false,false,true,true", "the warm-
 for (const l of loads) {
   const mine = all.filter((r) => r.load === l.load);
   const labels = mine.filter((r) => r.kind === "label").map((r) => r.quality).join(" ");
-  check(l.received === 20 && l.frames.every((f) => f.route === "av1-webcodecs" && f.kb > 0 && f.decodeMs >= 0) && l.fillMs > 0,
-    `load ${l.step}: 20 frames through WebCodecs, each with KB and decode ms, fill ${Math.round(l.fillMs)} ms`);
+  check(l.received === 20 && l.frames.every((f) => f.route === "av1-webcodecs" && f.kb > 0 && f.decodeMs >= 0)
+    && JSON.stringify(l.routes) === '{"av1-webcodecs":20}', `load ${l.step}: 20 frames through WebCodecs, counted per route, each with KB and decode ms`);
+  // The status line's fill starts at the page's issue, before the downloader dials: it is the longer of the two.
+  check(l.fillFrom > 1e12 && l.fillTo - l.fillFrom === l.fillMs && l.fillMs > 0 && l.fillMs <= l.statusFillMs,
+    `load ${l.step}: the fill from the dial to the last frame stored, epoch ms, ${Math.round(l.fillMs)} ms (status line ${Math.round(l.statusFillMs)} ms)`);
   check(/optimal.* asking.* lossless.* optimal/.test(labels), `load ${l.step}: labels in order (${labels})`);
   check(mine.filter((r) => r.kind === "lossless").length === 2, `load ${l.step}: lossless pressed twice`);
   check(mine.some((r) => r.kind === "verdict" && r.ok), `load ${l.step}: passed`);

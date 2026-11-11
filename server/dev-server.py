@@ -119,7 +119,7 @@ def main():
     parser.add_argument("--transport", type=Path, help="serve this file as /wt/dev-transport.json")
     parser.add_argument("--exact-metadata", type=Path, help="a lossy --metadata's exact series: its metadata")
     parser.add_argument("--exact-transport", type=Path, help="and the transport file of the server that serves it")
-    parser.add_argument("--beacon-log", type=Path, help="append the lab's client beacon here as JSONL (lab/phone/README.md)")
+    parser.add_argument("--beacon", type=Path, metavar="FILE", help="append the lab's client beacon here as JSONL (lab/phone/README.md)")
     parser.add_argument("--log-requests", action="store_true", help="print each path asked for (client/viewer/check.mjs)")
     args = parser.parse_args()
     if args.bind.is_unspecified:
@@ -131,7 +131,7 @@ def main():
     Handler.metadata = args.metadata and args.metadata.resolve()
     Handler.transport = args.transport and args.transport.resolve()
     Handler.log_requests = args.log_requests
-    Handler.beacon = args.beacon_log and args.beacon_log.resolve()
+    Handler.beacon = args.beacon and args.beacon.resolve()
     Handler.csp = policy(str(args.bind))
     if args.exact_metadata or args.exact_transport:
         if not (args.metadata and args.exact_metadata and args.exact_transport):

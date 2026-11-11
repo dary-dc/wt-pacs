@@ -24,11 +24,19 @@ export function recorder(load, { send = sendBeacon, now = epochMs } = {}) {
   return {
     record,
     flush,
-    /** The fill's end, from viewer.js's `lab.finished`: its time, each frame's route, bytes and decode time. */
-    filled({ error, fillMs, frames = [], errors = [] }, meta) {
+    /**
+     * The fill's end, from viewer.js's `lab.finished`: each frame's route, bytes and decode time, and the fill as
+     * docs/devices.md §7's Second amendment defines it, from the downloader's dial to the last frame stored, epoch ms.
+     */
+    filled({ error, fillMs = null, issuedAt, boot, frames = [], errors = [] }, meta) {
+      const fillFrom = boot?.dial ?? null;
+      const fillTo = error || fillMs === null ? null : issuedAt + fillMs;
+      const routes = {};
+      for (const f of frames) routes[f.path] = (routes[f.path] ?? 0) + 1;
       queued.unshift({ ...load, kind: "load", at: now(), exactSeries: meta.exactSeries ?? null, lossy: meta.lossy ?? null,
-        frameCount: meta.frameCount, received: frames.length, fillMs: error ? null : fillMs,
-        frames: frames.map(frameRow), errors: error ? [error, ...errors] : errors });
+        frameCount: meta.frameCount, received: frames.length, fillFrom, fillTo,
+        fillMs: fillFrom === null || fillTo === null ? null : fillTo - fillFrom, statusFillMs: error ? null : fillMs,
+        routes, frames: frames.map(frameRow), errors: error ? [error, ...errors] : errors });
       filled = true;
       flush();
     },

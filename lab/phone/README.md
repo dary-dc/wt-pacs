@@ -10,8 +10,12 @@ The controller the page's servers run (`cubic-restart` or `bbr`), which the page
 JSON records sharing one `load` id:
 
 * `load`, at the fill's end: view, port, controller, the series' `exactSeries` and `lossy`, frame count, frames
-  received, the fill time (`fillMs`, from the connect to the last frame, the controller's own), and per frame its
-  route, KB on the wire and decode ms (the overlay's three);
+  received, the count per route (`routes`), per frame its route, KB on the wire and decode ms (the overlay's three),
+  and the fill as §7's Second amendment defines it: `fillFrom`, the downloader's dial just before it builds the
+  optimal-quality session's `WebTransport`, to `fillTo`, the last frame stored in the frame map (the controller's
+  `received === n`), both on `performance.timeOrigin + performance.now()`, and `fillMs` between them. `statusFillMs`
+  is the status line's `fill … ms`, beside it, deciding nothing: it starts at the page's issue, before the downloader
+  dials, so it is the longer;
 * `label` at each change of the quality label (its class: `optimal`, `asking`, `lossless`, `failed`), `lossless` at each
   press of the **lossless** button, `error` for `window.onerror`, `unhandledrejection` and `console.error`.
 
@@ -19,7 +23,7 @@ Nothing is sent during the fill: records wait for its end, then leave in one `na
 for the page to be hidden (or the runner's flush). The page reads the fill's end through the lab's `finished` hook,
 which polls every 20 ms and, after the fill, takes each frame's SHA-256 for the ledger: the same in every arm.
 
-`server/dev-server.py --beacon-log FILE` appends each record as one JSON line to FILE; without it the beacon's POST
+`server/dev-server.py --beacon FILE` (the Second amendment's name) appends each record as one JSON line to FILE; without it the beacon's POST
 is refused (404). Two static hosts (8765 and 8766) may append to one file. The records name no address; `port` and
 `link` say which origin.
 
