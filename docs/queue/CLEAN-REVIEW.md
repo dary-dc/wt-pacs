@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-11T21:25Z
-heartbeat: 2026-11-11T22:10Z
-outputs: claude/clean-product (docs/reviews/clean-product.md)
+heartbeat: 2026-11-11T21:32Z
+outputs: claude/clean-product fc3dd468 (docs/reviews/clean-product.md), c3874913 (line file)
 ## Resume
 FREEZE-E2E already merged claude/clean-product c7c799e9 into claude/demo-fixes-2 (157b7109); review range d46811c6..c7c799e9.
 Read so far (by reading the diff): server flags (f866da46), decode flags (c2034cb3), viewer hooks (1ab25a58), web-files.sh,
@@ -14,7 +14,10 @@ Done 22:10Z (worktrees /home/user/cr-new=c7c799e9, cr-old=d46811c6, lost on rest
 cargo test -p series-server new tree: default 127+6+1 ok, lab-levers 132+6+1 ok; decode revert (old av1*.js on new) -> 6 of 723
 fail; viewer revert (old viewer/view/painter/head/web-files on new) -> crafted.mjs FAIL ?check not refused, web image ships
 client/view/check.js + client/viewer/check-page.js. F4 coordination.md §Unification 1 and §Open 4 still say archive tags.
-Running: absence checks on both trees (logs /home/user/cr-abs-{new,old}.log). Was next: cargo test (default + lab-levers) and node client tests on old and new tree; per change, revert the code only
+(Earlier heartbeats 21:45Z/22:10Z were guessed ahead; the clock read 21:30Z.) Draft review pushed fc3dd468, line file c3874913.
+New tree absence checks: both OK. Old tree first run INVALID (shared CARGO_TARGET_DIR reused the new binary); web half FAIL as
+expected. Rerunning old tree with CARGO_TARGET_DIR=/home/user/cr-target-old -> /home/user/cr-abs-old2.log. Then fill
+§Absence check in docs/reviews/clean-product.md (line "Running at this commit..."), set done. Was: absence checks on both trees (logs /home/user/cr-abs-{new,old}.log). Was next: cargo test (default + lab-levers) and node client tests on old and new tree; per change, revert the code only
 and run the new tests + scripts/check_lab_absent.sh; absence check on d46811c6 (fail) and c7c799e9 (pass); coordination
 rule once; write docs/reviews/clean-product.md on claude/clean-product; line file; PR? (none: findings on #371's branch).
 Commands: git worktree add ../old d46811c6; cargo test -p series-server [--features lab-levers]; bash scripts/check_lab_absent.sh
