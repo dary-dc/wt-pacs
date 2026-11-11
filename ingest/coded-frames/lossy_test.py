@@ -152,6 +152,34 @@ def depth_cut_claims(build, tmp):
           f"a signed 12-bit set is never cut: refused by name, nothing written ({r.stderr.strip()[-120:]})")
 
 
+def integrity_claims(build, tmp):
+    """--integrity adds each frame's reconstruction digest (XXH3-64 of the picture dav1d gives from its keyframe on, as
+    decodeFrame hands it on) and its coding error against the source to `lossy`, and codes the same bytes."""
+    for name, bits, g, cut in (("8-bit G 8", 8, 8, False), ("12-bit G 1", 12, 1, False), ("12-bit cut G 8", 12, 8, True)):
+        frames = source(bits)
+        more = ["--depth-cut"] if cut else []
+        meta, payloads = ingested(build, tmp / f"s{bits}", tmp / f"i{bits}-{g}-{cut}", 8, g, 2, "--integrity", *more)
+        _, plain = ingested(build, tmp / f"s{bits}", tmp / f"p{bits}-{g}-{cut}", 8, g, 2, *more)
+        check(payloads == plain, f"{name}: --integrity codes the same bytes")
+        lossy = meta.get("lossy", {})
+        rec, err = lossy.get("reconstruction", {}), lossy.get("codingError", {})
+        check(rec.get("algorithm") == "xxh3-64" and len(rec.get("frames", [])) == N, f"{name}: an xxh3-64 reconstruction digest per frame")
+        check(all(len(err.get(k, [])) == N for k in ("rms", "max", "noiseBandRatio")), f"{name}: rms, max and noiseBandRatio per frame")
+        if len(rec.get("frames", [])) != N or not all(len(err.get(k, [])) == N for k in ("rms", "max", "noiseBandRatio")):
+            continue
+        units = [unit(p)[0] for p in payloads]
+        wide = cut or bits > 8
+        for i in range(N):
+            got = shown(build, units[ingest.keyframe(i, g):i + 1])[..., 0]
+            want = xxhash.xxh3_64_hexdigest(np.ascontiguousarray(got, "<u2" if wide else "u1").tobytes())
+            check(rec["frames"][i] == want, f"{name}: frame {i}'s reconstruction digest is its decoded picture's")
+            d = (got.astype(np.int64) << (2 if cut else 0)) - frames[i][..., 0]
+            check(abs(err["rms"][i] - np.sqrt(np.mean(d.astype(float) ** 2))) < 1e-3, f"{name}: frame {i}'s rms in source units")
+            check(err["max"][i] == np.abs(d).max(), f"{name}: frame {i}'s max |Δ| in source units")
+        check(len(set(rec["frames"])) == N, f"{name}: no two frames share a digest")
+        check(all(r is not None and r > 0 for r in err["noiseBandRatio"]), f"{name}: every frame has a noise-band ratio")
+
+
 def main():
     build = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory() as tmp:
@@ -191,6 +219,7 @@ def main():
         check(r.returncode == 2 and "invalid choice" in r.stderr and not (tmp / "bad-codec").exists(),
               "--codec lossy is refused by argparse: optimal quality is --lossy Q G")
         depth_cut_claims(build, tmp)
+        integrity_claims(build, tmp)
     print(f"optimal quality: {'every claim holds' if not failures else f'{len(failures)} claims fail'}")
     sys.exit(1 if failures else 0)
 
