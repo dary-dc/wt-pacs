@@ -301,6 +301,24 @@ deciding row, the owner's phone on cellular:* 10 dwells of 15 s, wake on and off
 read from the page; rule: adopt if the on arm's median is lower by ≥ 50 ms. *Limits:* the relay's radio is a
 model; the phone row is one device on one carrier.
 
+**Amendment 1 (MEASURE-1, 2026-11-11 14:00, written before any run).** *The plumbing cell only*; the phone row is
+the owner's. *Arms:* five variants. `unpromoted`: today's page (the demo tip `9e2ef4ef`), no promotion. `off`:
+today's page, `--idle-promote 5:300`. `on 0`, `on 50`, `on 100`: a lab copy of the tip's page, never the tip, built
+by `lab/proposals/p3_arm.sh`, whose lossless button's `pointerdown` calls the exact downloader's `cancel()` (it sends
+`end_stream` on the exact session, `client/transport/downloader.js` `cancel`), with `--idle-promote 5:300` and
+`pointerdown` scripted 0, 50 or 100 ms before the `click`. Every variant asks by the button (`pointerdown`, then the
+`click`; L = 0 for the two today's variants), not by the `l` key. *Link:* the exact session alone through
+`link_impair.py --delay-ms 30 --rate-kbit 20000 --queue-pkts 1000` (P1's clean cell), plus `--idle-promote 5:300`
+where named: the relay takes one `--udp` under `--idle-promote`, so the optimal-quality session goes direct on
+loopback. *Fixtures:* the three series of P5's amendment. *Measured:* on a filled page, 10 s of quiet on frame 0
+(past S = 5 s), `l` from the `click` to *Lossless*, and the relay's `promoted` count. Driver
+`lab/proposals/link_cells.mjs` with `--exact-only` and `--lead-ms`, order `lab/proposals/p3.sh`: 7 rounds, the five
+variants per series rotated one place each round. *Rule, as registered, per series:* `off`'s median `l` is
+300 ± 10 ms above `unpromoted`'s, and each `on L`'s is within 10 ms of max(0, 300 − L) above it. *The unit test*
+(the wake never reaches the optimal-quality session) is owed with the product change, where the wake would live; the
+lab copy cannot carry it. In its place every `on` run must end with the optimal-quality series fully received, no
+`error:` on the status line, and *Lossless*; a run that does not is reported and fails the rule.
+
 ### P4. A 32-packet initial window on the exact server only
 
 **Mechanism.** The exact session never fills, so every `l` starts from the initial window. "Endpoints SHOULD use an
