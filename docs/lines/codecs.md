@@ -24,10 +24,17 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 * **Quality** (`claude/av1-quality-metrics`, 20 series, one shard missing): the coding error reaches the noise at
   Q 8 (system A: Q 4); no Q keeps every displayed level within 1; visual losslessness needs readers, not run.
 * **Noise point** (`claude/av1-noise-point`, #317, 2026-11-09): a candidate Q per series from one number, the series'
-  lowest frame noise σ_min. Valid for the DBT fixtures only; not for TRUS or MR. The latest commit reports the held-out
-  test (P1, P3) holding on five DBT series, while the doc's Verdict still lists that test as owed: reconcile.
-* **Depth:** the client keeps full depth for windowing. WebCodecs gives no 12-bit samples; 12-bit goes through
-  dav1d-WASM (full depth, slower).
+  lowest frame noise σ_min. Valid for the DBT fixtures only; not for TRUS or MR. Held-out test (2026-11-09): the rule
+  picked the predicted Q on 10 of 10 (series, G) cells of five unseen DBT series, worst frame 0.89–0.97 of σ; σ costs
+  0.05–0.09 CPU s/Mpx at ingest and must be taken on every frame (every fourth moved one cell by a rung).
+* **Q against window width** (`claude/av1-window-q`, 2026-11-09): a window scales coding error and noise alike, so
+  "coding error within the noise" holds at every width once it holds: Q 8 meets it on DBT, a higher Q does not. "Error
+  under one display level at the header windows" would need Q 1–2 on 12-bit DBT (0.64 of HTJ2K's bytes against about
+  0.10 at Q 8), Q 4 on 10-bit DBT and TRUS. Which reading is visually lossless needs readers.
+* **Depth and decode route:** WebCodecs decodes the OQ view; dav1d-WASM is a fallback only. D ≤ 10 is coded at its
+  own depth; D > 10 by the depth cut to 10 bits, because WebCodecs gives no 12-bit samples in any engine
+  (`claude/av1-webcodecs-profiles`). At Q 8 the cut costs about 0.3 dB and saves 6–7 % of the bytes at equal Q
+  (`dbts_a1`, `dbts_c1`), i.e. no real gain at equal quality: it is there for the decode route.
 * **Out of the top, not discarded:** a two-layer SVC preview; lossless AV1 as the exact form.
 * **Discarded:** a layered three-layer carrier; preview and view as quality layers of one stream; top-first; HTJ2K
   resolution ladder and quality layers; lossless G > 1; a lossy top plus low stream; key parsing in place of
@@ -44,8 +51,12 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 1. Harvest and review the AV1 result chain into `av1-unified-mainbase`: #290 → #305 → #317, #312; #283 → #306 → #314
    → #316; #288, #315 (residual exactness across decoders, browser cells partial), #318 (WebCodecs profiles).
 2. Explore noise detection at ingest (σ_min, its estimator's timing on the three volumes), then hand it to the PCS team.
-3. An idea raised 2026-11-09, undecided: code optimal quality, split its decoded samples into top and low bits, send
-   the top, the low only on request (target: the optimal-quality image, not lossless).
+3. Running (2026-11-10): every encoder setting the line used, sourced and explained, with what it may have biased
+   (`claude/av1-encoder-settings`); independent audits of the quality/bytes results (`claude/av1-audit-quality`) and
+   of the decode/timing results (`claude/av1-audit-decode`); the theory of coding error against the image's noise as
+   the visually-lossless criterion, with model observers (`claude/av1-noise-ratio`); how VL is established in
+   radiology (`claude/av1-vl-metrics`, landed); HTJ2K with resolution levels and tiles, a separate approach outside
+   the demo (`claude/htj2k-tiles`, protocol landed).
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).
@@ -63,7 +74,12 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 * 2026-11-06: a preview, if any, is the small full-size stream only; reduced-resolution previews not considered now.
 * 2026-11-09: optimal quality plus the exact HTJ2K frame on request; the residual dropped. G fixed per modality by
   measurement (no adaptive detector); Q per series by the noise rule; the PCS chooses both, and our side handles any
-  Q, G and depth.
+  Q, G and depth. Splitting the OQ view's decoded samples into top and low streams: discarded (it needs a second
+  encode, a lossy top cannot be completed by low bits, and what the screen shows could no longer be controlled).
+* 2026-11-10: the browser decodes the OQ view through WebCodecs; dav1d only as a fallback when there is no choice.
+  D ≤ 10 at its own depth, the depth cut only for D > 10; no reduced-depth (8-bit) preview. Every encoder setting
+  used must be known, sourced and backed by theory before its results count; results are audited for confounds of
+  that kind (the low-delay settings without lookahead or alt-ref frames, used in every G result so far).
 
 ## Pointers
 
