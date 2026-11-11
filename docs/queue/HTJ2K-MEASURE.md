@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11 18:59 UTC
-heartbeat: 2026-11-11 23:24 UTC
+heartbeat: 2026-11-11 23:30 UTC
 outputs: `claude/htj2k-tiles` e7b44077 (rows, docs; draft PR #324 into main, already open: the commits land in it)
 ## Resume
 Session 3 plan (2026-11-11 23:24 UTC), the client's design fixed before any run:
@@ -12,6 +12,14 @@ Session 3 plan (2026-11-11 23:24 UTC), the client's design fixed before any run:
   OQ fill and the exact or band ask), each behind its own relay of the same link and seed, started together; the ask
   is issued only after the fill ends, so the two never carry at once. The reopen runs in every visit through the lab
   store (J10 judged on S★ and D+L★); it stands in for the product store plus I4's two record kinds.
+* Pushed: `c00d9959` the page, store and driver (untested). Container set up as the Resume above says (D series Q 8
+  G 16 only: `sed -i 's/^QS=(8 24)/QS=(8)/; s/^GS=(1 8 16)/GS=(16)/'` on the demo worktree's script, reverted after;
+  sbnd and metadata digests equal `rows/stage3-d-series.json`; strip series' frames.json equal). The served tree is
+  `/home/user/demo` (157b7109) with `lab/htj2k-tiles/improve` copied in (`cp -r`, re-copied after each edit),
+  `demo-series` and `lab/.av1-work/htj2k-improve` symlinked, `lab/.traces/TMobile-LTE-short.down`, levels.* built
+  there by build_levels.sh. Next: a smoke visit per arm, then the mutants, then S3a:
+  `cd /home/user/demo && NODE_PATH=$(npm root -g) node lab/htj2k-tiles/improve/stage3/run.mjs --series demo-series
+  --bands lab/.av1-work/htj2k-improve --rounds 2 --first-round 0 --out /home/user/s3a.jsonl`.
 Session 3 resumed 2026-11-11 23:21 UTC (stalled since 21:35), from `e7b44077`.
 Stages 0–2 done (19:33, `947bb3b9`). Session 2 (21:22–21:40): stage 3's inputs built and pushed; the lab client is next.
 Done, session 2: `4224e96e` `stage3_prep.py` + `stage3_check.py` (every frame's three strips cut into Layout 1's
