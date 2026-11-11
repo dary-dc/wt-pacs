@@ -39,7 +39,8 @@ named series; "old" is the check as merged, "new" with the two fixes below.
 | *Lossless* written with the optimal-quality frame, then the exact frame painted | `dbts_a1-q8-g8-cut` | **survived** | killed: *Lossless written with av1-webcodecs …* (finding 1) |
 | the same with 300 ms between | `dbts_a1-q8-g8-cut` | killed only because `l` came within the gap | killed |
 | `Home` shows frame 2 | `dbts_a1-q24-g16-cut` | **survived** | killed: *Home painted frame 1* (finding 2) |
-| on demand, `wantFrom` adds `c + 1` or `c + 8` | `dbts_a1-q8-g8-cut` | — | survived, equivalent: the page view's on-demand ask does not read `wantFrom` |
+| on demand, `wantFrom` adds `c + 1` | `dbts_a1-q8-g8-cut` | — | survived, equivalent: `c + 1` lies in a group the pass asks anyway |
+| on demand, `wantFrom` adds `c + 8`; or `show()` also asks frame `want + 8` | `dbts_a1-q8-g8-cut` | — | **survived**, 24 frames received as unmutated (finding 6) |
 
 ## Findings
 
@@ -50,8 +51,8 @@ named series; "old" is the check as merged, "new" with the two fixes below.
    check. Now the overlay written by the paint that wrote *Lossless* must name `htj2k`; the paint writes the label
    first, then the overlay (`client/viewer/viewer.js`, `showQuality`).
 2. **`Home`'s paint was awaited from a clock read after the key** (fixed, `8c410843`). When the paint landed before
-   the read, `shown()` waited its whole 30 s and the pass went on without checking it: 13 of the 20 rehearsal runs
-   took about 30 s more (16–78 s), and a broken `Home` passed. Now the clock is read before the key and the paint is
+   the read, `shown()` waited its whole 30 s and the pass went on without checking it: 9 of the 14 `dbts_a1` and
+   `dbts_c1` rehearsal runs took about 30 s more (46–50 s against 16–21 s; 78 s, two stalls), and a broken `Home` passed. Now the clock is read before the key and the paint is
    a `must`.
 3. **The rehearsal loop prints only `tail -1`** (README §Demo, *Before the demo*). A failure reads `demo check: N
    failed` with the claim that failed cut off. Smallest fix: `| grep -E '^(FAIL|demo check)'`. Not applied: README
@@ -60,8 +61,12 @@ named series; "old" is the check as merged, "new" with the two fixes below.
    `demo-series.sh` stopped while packing that last series leaves the file partial and the guard satisfied; the
    rehearsal then fails on that series rather than saying why. Smallest fix: guard on its `.metadata.json`, which is
    moved in only after the bundle is written. Not applied, as 3.
-5. **"~1 min a series"**: 16–50 s here once finding 2 is gone (17 s on the runs without the stall, 26–32 s for
-   `dbts_b1`). Not a defect; the README's figure is an upper bound.
+5. **"~1 min a series"**: see the loop's second run with the fixed check, below.
+6. **Two on-demand mutants that ask a group ahead survived**: the check's *asked the whole groups* count (24 at
+   `dbts_a1-q8-g8-cut`) was unchanged. Cause not traced (time-boxed): either the ask never reached the wire (the
+   store's want replaced on the next step, or the downloader dropping it) — then the mutants are equivalent — or the
+   count misses frames asked and not taken. Owed to REDTEAM-DEMO or FIX-1: a mutant that provably sends one extra
+   group, and whether `received N,` can see it.
 
 Not checked: the phone block (no phone; PHONE-PAIR's and PHONE-NO-INSTALL's harnesses own it), Chrome itself, a
 GPU, hardware decode, the decoders' docker rebuild.
