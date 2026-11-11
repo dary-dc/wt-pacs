@@ -178,7 +178,7 @@ encoder's reconstruction equals dav1d's, `ingest.py`). *Saturation:* SwiftShader
 the decoder alone; the page cells name it. *Limits:* x86-64 cores, not a phone's; the phone row (decode per frame on
 the owner's phone, tethered) is owed and decides alone if it disagrees.
 
-**Amendment 1 (MEASURE-1, 2026-11-11 11:45, written before any run).** *Encodes:* `lab/proposals/p2_encode.py` runs
+**Amendment 1 (MEASURE-1, 2026-11-11 11:04, written before any run).** *Encodes:* `lab/proposals/p2_encode.py` runs
 `lab/av1/tools/ingest_coded.py` on the demo tip (9e2ef4ef) with `lossy_args` given the arm's tile options at its end,
 nothing else changed; the arms are *one tile* (today's arguments, re-encoded through the same wrapper and checked equal
 to the byte to `demo-series.sh`'s bundle), *2 × 2* and *2 × 1*. The six series are Q 8 at G 1 and G 8 of each volume,
