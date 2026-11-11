@@ -582,14 +582,19 @@ The shaped round trip is Terminal 1's `rtt_us` per session. **Afterwards:** `clo
 `adb reverse --remove-all`, USB tethering off; the firewall's port closes itself.
 
 **8 · Which read path.** Each server says at start which way it reads the series, and each session which way it
-read ([`docs/adr/disk-access.md`](docs/adr/disk-access.md) §1 and §In a container). On the laptop, after the servers
-start (the log's path is where their output went, `target/phone-run/server-<port>.log` in `docs/devices.md` §7):
+read ([`docs/adr/disk-access.md`](docs/adr/disk-access.md) §1 and §In a container). This is the phone session's to run
+on the laptop, after the series servers start: whether SELinux in a container changes the path is not verified from a
+cloud session, which has neither the laptop's SELinux nor its podman. For the containers of `docs/devices.md` §7's
+Second amendment (`srv-<port>`), every one running, or those named:
 
 ```bash
-grep -hE '^(read_fast_path|read_ring|telemetry)=' target/phone-run/server-*.log   # at start, per server
-grep -h 'session reads' target/phone-run/server-*.log | grep -o 'ring=[a-z]*' | sort | uniq -c
-grep -h 'io_uring refused' target/phone-run/server-*.log                         # once per process, with its errno
+lab/phone/read-path.sh                     # one line a container: read_fast_path, read_ring, io_uring refusals, sessions' rings; then SELinux's mode
+lab/phone/read-path.sh srv-4433 srv-4434   # the named containers only
 ```
+
+It exits 1, saying so, when the servers do not all read the same way: the Second amendment stops the run there. For
+servers run on the laptop itself, their logs are the files their output went to (the Amendment's
+`target/phone-run/server-<port>.log`): `grep -hE '^(read_fast_path|read_ring)=' target/phone-run/server-*.log`.
 
 `read_fast_path=preadv2` is the fast path, `pooled_pread` every frame through the blocking pool; `read_ring=available`
 or `refused (<why>)`. A fill never builds a ring (`ring=false` on the optimal-quality series is expected); the exact

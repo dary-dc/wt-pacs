@@ -55,3 +55,9 @@ headless Chromium on loopback.
 four servers and four static hosts (two controllers, two links as 127.0.0.1 and 127.0.0.2, each host its own beacon
 file); a four-load plan across both, with a pause, must run whole, each load's records at its own link's address, and
 with one exact series' server stopped the run must stop at its first load, say why and name the next.
+
+## The read path, `read-path.sh`
+
+README §The viewer on an Android phone, step 8: on the laptop, each `srv-*` container's read path and its sessions'
+rings, from its own log, and SELinux's mode; exit 1 when the servers disagree. `read-path_test.sh` runs it against a
+stub `podman`. Not run against a real container under SELinux: that is the phone session's, on the laptop.
