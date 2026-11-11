@@ -3,6 +3,7 @@
 // `lossy.reconstruction`), the arms and the CPU throttles interleaved per round by lab/order.mjs. One JSON row per fill.
 //
 //   node lab/oq-integrity/run.mjs DIR OUT.jsonl [--rounds 7] [--throttles 1,4] [--ids a,b] [--arms on,off] [--route dav1d]
+//                                  [--tamper K] [--end]   K: frame K's digest made wrong; --end: the last frame's overlay
 //     DIR as `INTEGRITY=1 scripts/demo-series.sh DIR` wrote it; --route dav1d serves a WebCodecs module whose every probe fails
 import { spawn } from "node:child_process";
 import { appendFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -18,6 +19,8 @@ const ROUNDS = Number(arg("--rounds", 7));
 const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
 const ARMS = arg("--arms", "on,off").split(",");
 const DAV1D = arg("--route") === "dav1d";
+const TAMPER = arg("--tamper");
+const END = process.argv.includes("--end");
 const ids = arg("--ids")?.split(",") ?? readdirSync(dir).filter((f) => /-q\d+-g\d+(-cut)?\.metadata\.json$/.test(f)).map((f) => f.replace(".metadata.json", ""));
 const T = mkdtempSync(path.join(tmpdir(), "oq-integrity-"));
 const children = [];
@@ -44,6 +47,8 @@ async function serve(id) {
   const { reconstruction, ...lossy } = meta.lossy;
   if (!reconstruction) throw new Error(`${id}: no lossy.reconstruction: INTEGRITY=1 scripts/demo-series.sh`);
   writeFileSync(`${T}/off.json`, JSON.stringify({ ...meta, lossy }));
+  const frames = reconstruction.frames.map((d, i) => (String(i) === TAMPER ? d.replace(/^./, (c) => (c === "0" ? "1" : "0")) : d));
+  writeFileSync(`${T}/on.json`, JSON.stringify({ ...meta, lossy: { ...meta.lossy, reconstruction: { ...reconstruction, frames } } }));
   const cert = ["--cert-pem", "server/dev-cert/cert.pem", "--key-pem", "server/dev-cert/key.pem"];
   const server = path.join(process.env.CARGO_TARGET_DIR || "target", "release/series-server");
   const lossyServer = run(server, ["--port", "4433", "--series", path.join(dir, `${id}.sbnd`), ...cert]);
@@ -51,7 +56,7 @@ async function serve(id) {
   writeFileSync(`${T}/exact-transport.json`, readFileSync(path.join(ROOT, "client/dev-transport.json"), "utf8").replace(":4433", ":4434"));
   const host = (port, file) => run("python3", ["server/dev-server.py", "--port", String(port), "--metadata", file,
     "--exact-metadata", path.join(dir, `${meta.exactSeries}.metadata.json`), "--exact-transport", `${T}/exact-transport.json`]);
-  const on = host(8765, path.join(dir, `${id}.metadata.json`));
+  const on = host(8765, `${T}/on.json`);
   const off = host(8766, `${T}/off.json`);
   await Promise.all([started(lossyServer, /transport=/), started(exact, /transport=/), started(on, /port=8765/), started(off, /port=8766/)]);
   return meta;
@@ -80,7 +85,11 @@ async function fill(browser, arm, throttle) {
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle });
   await page.goto(`http://127.0.0.1:${arm === "on" ? 8765 : 8766}/?overlay=1&view=page`);
   const status = () => page.evaluate(() => globalThis.__log.findLast((e) => e.id === "status")?.text ?? "");
-  for (const end = Date.now() + 300000; Date.now() < end && !/fill \d+ ms/.test(await status()); ) await page.waitForTimeout(50);
+  for (const end = Date.now() + 300000; Date.now() < end && !/fill \d+ ms|error: /.test(await status()); ) await page.waitForTimeout(50);
+  if (END) {
+    await page.keyboard.press("End");
+    await page.waitForTimeout(2000);
+  }
   const log = await page.evaluate(() => globalThis.__log);
   await page.close();
   const s = log.findLast((e) => e.id === "status")?.text ?? "";
@@ -89,6 +98,7 @@ async function fill(browser, arm, throttle) {
     fillMs: n(/fill (\d+) ms/), firstPictureMs: Math.round(log.find((e) => e.id === "overlay" && e.text)?.t ?? NaN),
     received: n(/received (\d+)/), asCoded: n(/as coded (\d+)/), unchecked: n(/unchecked (\d+)/),
     paths: s.match(/decoders: ([^·]*)/)?.[1].trim(), errors: [...errors, ...(s.match(/error: .*/g) ?? [])],
+    ...(END && { lastOverlay: log.findLast((e) => e.id === "overlay")?.text }),
   };
 }
 
@@ -101,7 +111,7 @@ try {
     for (let round = 0; round < ROUNDS; round++) {
       for (const [k, { arm, throttle }] of order(cells, round).entries()) {
         const r = await fill(browser, arm, throttle);
-        const row = { id, frames: meta.frameCount, g: meta.lossy.g, route: DAV1D ? "dav1d" : "default", round, position: k, arm, throttle, ...r };
+        const row = { id, frames: meta.frameCount, g: meta.lossy.g, route: DAV1D ? "dav1d" : "default", tamper: TAMPER, mutant: process.env.MUTANT, round, position: k, arm, throttle, ...r };
         appendFileSync(out, JSON.stringify(row) + "\n");
         console.log(`${id} r${round} ${arm} ${throttle}x fill ${r.fillMs} ms first ${r.firstPictureMs} ms as coded ${r.asCoded}/${r.received} ${r.paths} ${r.errors.join("; ").slice(0, 120)}`);
       }
