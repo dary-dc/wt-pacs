@@ -1,8 +1,17 @@
 state: started
 started: 2026-11-11 18:59 UTC
-heartbeat: 2026-11-11 23:21 UTC
+heartbeat: 2026-11-11 23:24 UTC
 outputs: `claude/htj2k-tiles` e7b44077 (rows, docs; draft PR #324 into main, already open: the commits land in it)
 ## Resume
+Session 3 plan (2026-11-11 23:24 UTC), the client's design fixed before any run:
+* `lab/htj2k-tiles/improve/stage3/`: `page.js` (one lab page, every arm), `store.js` (a lab OPFS store worker: level
+  pictures, coded bands, OQ pictures, by key), `run.mjs` (the driver, on 157b7109's total-time rig: Williams cells,
+  arms inside), `summary.py`. Product never imports it.
+* Amendment, before any run: D and D′ are Q 8 G 16 (the depth cut on a1, c1), D′ the same series under another name;
+  G 1 not run (the Improve protocol names no G; time). Two series-servers a visit where the arm needs two series (the
+  OQ fill and the exact or band ask), each behind its own relay of the same link and seed, started together; the ask
+  is issued only after the fill ends, so the two never carry at once. The reopen runs in every visit through the lab
+  store (J10 judged on S★ and D+L★); it stands in for the product store plus I4's two record kinds.
 Session 3 resumed 2026-11-11 23:21 UTC (stalled since 21:35), from `e7b44077`.
 Stages 0–2 done (19:33, `947bb3b9`). Session 2 (21:22–21:40): stage 3's inputs built and pushed; the lab client is next.
 Done, session 2: `4224e96e` `stage3_prep.py` + `stage3_check.py` (every frame's three strips cut into Layout 1's
