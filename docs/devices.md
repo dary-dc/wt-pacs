@@ -207,7 +207,8 @@ row's tree, the four arms in Docker, the collector over TLS; `dry_run.mjs` drove
 *Row PHONE-PROTOCOL, 2026-11-11. Theory and a pre-registered protocol, written before anyone measures; nothing here
 was run on a phone. The owner runs it on the laptop without installs (README §Demo, "On a phone, from a laptop without
 installs", on `claude/phone-no-install`); the commands below need that branch in the demo's (`dev-server.py --bind`,
-`OPENSSL=` in `gen_dev_cert.sh`).*
+`OPENSSL=` in `gen_dev_cert.sh`).* *Amended before any run (row PHONE-AMEND, 2026-11-11): a controller arm, one timed
+series, and new commands; where the two differ, **Amendment** at the end of this section holds.*
 
 **What it compares.** Two arms, `?view=page` (the frames held and painted on the page, today's default) and
 `?view=worker` (the view worker, the client's target, [`lines/client.md`](lines/client.md)), on the same series and
@@ -320,3 +321,196 @@ not hold (the tether may give another address on another plug-in), enter it in t
 stop the three terminals, set `ID=dbts_b1-q8-g8` in each, and start again from Terminal 1. Afterwards, USB tethering
 off; `target/phone-run/` keeps the session lines and the blocks' times, which name the laptop's addresses: strip them
 before anything is committed (§4). Nothing arriving: README §Demo's variant, its last paragraph.
+
+### Amendment: the controller arm, the run's size, the commands
+
+*Row PHONE-AMEND, 2026-11-11, written before any phone run by a session that will not run it. Nothing here was run on a
+phone; the build line below was compiled in a cloud container. It changes §7's series, pair counts and commands, and
+adds an arm; §7's readings, eye checks, correctness rule and "where a phone run shows nothing" stand.*
+
+**The controller arm.** Both servers of the pair, the optimal-quality one and its exact one, run under
+`--congestion cubic-restart` (the default) in one arm and `--congestion bbr` in the other, on the same real links,
+tether and Wi-Fi, with no `netem`. The owner's decision of 2026-11-11 keeps `cubic-restart` the default until
+real-world runs with both decide; P1's "adopt" covered random loss on a 1 000-packet buffer only
+([`transport/transport-conclusions.md`](transport/transport-conclusions.md) §1). Each arm has its own two servers and
+its own static host, so the controller is chosen by the page's port, `8765` for `cubic-restart` and `8766` for `bbr`,
+and the arms alternate load by load with no restart. Each arm is the option as shipped: quinn's BBR is BBRv1 and starts
+at quinn's 240 000-byte window, the Cubic arms at 12 000 ([`../lab/cc-classify/README.md`](../lab/cc-classify/README.md),
+*The arms*), so a `bbr` win on a link that lost nothing is its start and pacing, not its answer to loss.
+
+**The 2 × 2, in quads.** Arms A = page·`cubic-restart`, B = worker·`cubic-restart`, C = worker·`bbr`,
+D = page·`bbr`. A quad is four counted loads in one row of the Williams square for four, so each arm takes each position
+once and follows each other arm once:
+
+| row | loads |
+| --- | --- |
+| 1 | A B D C |
+| 2 | B C A D |
+| 3 | C D B A |
+| 4 | D A C B |
+
+A block is two warm-up loads (`8765/?overlay=1&view=page`, then `8766/?overlay=1&view=page`, not counted: each origin
+has its own cache of the page's files) and three quads. Blocks tether, Wi-Fi, Wi-Fi, tether, with rows 1 2 3, 1 2 3,
+4 1 2, 4 1 2. Per link that is six quads, which give twelve worker / page ratios (six under each controller) and twelve
+`bbr` / `cubic-restart` ratios (six under each view).
+
+**The server's reading of each session.** Every arm runs one build, `series-server` with the lab feature `telemetry`
+([`../lab/server-telemetry`](../lab/server-telemetry)), and the same three environment variables:
+
+* the `session path` line every build prints when a session closes (`server/src/transport/server.rs`,
+  `report_path`): `rtt_us` (smoothed, at the close), `cwnd`, `sent`, `lost` (packets), `congestion_events`, `mtu`;
+* `WTPACS_LOSS_TRACE`: one JSON line per congestion event (`cc_trace.rs`, `Loss`): `rtt_latest_us` (the last
+  acknowledged packet's round trip before the event), `srtt_us`, `min_rtt_us`, `lost_bytes`, the window before and
+  after;
+* `WTPACS_PATH_TELEMETRY=1` with `WTPACS_PATH_TELEMETRY_MS=250`: a row every 250 ms per session (`path.rs`), with
+  `rtt_us`, `min_rtt_us` and the cumulative `sent_packets`, `lost_packets`, `congestion_events`, so the round trip's
+  course before each loss can be read, and the wire time of a fill to within 250 ms.
+
+`WTPACS_CC_TRACE` (a line per batch of acknowledgements) stays unset: it is the one recorder whose writes grow with the
+traffic. The frame tap (`WTPACS_TELEMETRY`) stays unset too.
+
+**Whether the recording changes the timing.** With these variables set, the controller sits behind the trace wrapper,
+which copies three round-trip values on every acknowledgement and returns before writing on every batch; it writes one
+line, under a mutex on the connection's thread, per congestion event; the sampler wakes once per 250 ms on the
+server's runtime and appends one line. *Assumption, not measured:* well under 1 % of a fill that takes seconds. It
+cannot favour an arm, since every arm, both views included, runs the same build with the same variables; it moves
+every absolute time alike, so this run's fill times are the telemetry build's, and only its ratios decide.
+
+**Each loss, random or congestive.** Per congestion event, the queue it met, `q = rtt_latest_us − min_rtt_us`, against
+`q* = max(4 ms, min_rtt/8)`, RFC 9406's threshold and row LOSSCLASS's: *congestive* when `q ≥ q*` (the round trip rose
+before the loss), *random* when under it (flat). On the relay, with the truth known, that rule erred little under
+`cubic-restart` (congestive read as random 0 %, random read as congestive 1–2 %) and badly under `bbr`, which keeps a
+queue standing (random read as congestive 30–41 % on shallow queues)
+([`transport/transport-conclusions.md`](transport/transport-conclusions.md) §1, *R2 LOSSCLASS*). So **the loss mix is
+read from the `cubic-restart` sessions alone**; the `bbr` sessions' events are counted, not classed. Wi-Fi's own
+delay jitter above `q*` (4 ms while the minimum round trip is under 32 ms) reads a random loss as congestive, so the
+reading errs toward Cubic's case.
+
+**What one home link, one phone and minutes of runs can tell about the loss mix, and what not.**
+
+* **The tether carries no radio.** USB tethering joins the phone to the laptop by cable; the phone's cellular radio is
+  not on the path. A loss there is a queue's (a USB network adapter's or a host's) or none: the tether is the run's
+  control, not a lossy link.
+* **Wi-Fi is the run's one wireless link**: one access point, one channel, one room, one hour. It can show whether a
+  23 MB fill on it loses packets at all, how many of the losses met a queue, and whether either controller fills
+  faster there. It cannot give the mix of a population of links, of other access points, or of busier hours.
+* **Nothing about cellular.** Neither link uses the phone's radio, so §1's inverted prior (LTE and 5G losing to queues,
+  not to the radio) is neither confirmed nor refuted.
+* **No neighbour.** No other flow shares the bottleneck, so BBR's cost to a neighbour in a shallow FIFO (§1, 1.2 % of
+  a 5 Mbit link left to kernel TCP) cannot appear, and whether the access point's queue is a FIFO or fq_codel is not
+  known.
+* **Counts, not rates.** Each controller has 12 counted sessions per link. Fewer than about 20 events give a count
+  ("3 of 5 random"), not a share. With no loss in N sessions the run says so, and puts the chance that a session loses
+  anything under 3/N (the rule of three, 95 %).
+
+**What decides what** (written now; a run may only tighten it). §7's rules hold, with these changes:
+
+* **Correctness, per load**, as §7, over four arms. A failure in one controller's loads alone is that controller's.
+* **Fill (Part B), per link.** For a comparison of twelve paired ratios: *the numerator faster* when at least ten of
+  twelve are below 1 (sign test, two-sided p = 0.039) and the median is at most 0.95; the mirror for the denominator;
+  otherwise *no difference shown at n = 12*, with the median and range. The view: worker / page, the two controllers'
+  ratios pooled. The controller: `bbr` / `cubic-restart`, the two views' ratios pooled. If the six ratios under each
+  level of the other factor have medians on opposite sides of 1, the verdict is *depends on* that factor, and none is
+  pooled. Each level's six are reported, never deciding (six of six is p = 0.031, the only result they could show).
+* **What a controller verdict can change.** Nothing in the default from this run alone. A `bbr` load failing where
+  `cubic-restart` does not withdraws `bbr` from what the next runs try. `bbr` faster on Wi-Fi with random losses read in
+  the `cubic-restart` sessions asks for the same arm on more links (cellular, another home) before the default is
+  reopened; `bbr` faster with no loss read is its start, reported as such. `cubic-restart` faster or no difference is
+  this link's evidence for the default.
+* **The loss reading** decides nothing; per link and controller: sessions with any loss, `sent`, `lost`,
+  `congestion_events`, and for `cubic-restart` the events classed random and congestive, by count.
+* **Part B still waits** on the status line shown whole (§7). Without it, the server's wire time from the path rows
+  (the first and last 250 ms rows in which `sent_packets` grows) is reported as a stand-in, labelled so, never
+  deciding: it omits the phone's decode and paint.
+
+**Size: about two hours.** *Assumption:* a counted load takes about 60 s of the owner's hands (open the address, the
+fill, a screenshot, **lossless** twice) and 30 s of transcription afterwards; setup, four link changes and packing up
+take about 30 minutes. §7 as written, with the controller arm added, would be 2 series × 4 arms × 2 links × 10 pairs
+= 160 counted loads and 16 warm-ups, about 4.4 hours and the overheads. The cuts, series and pairs first, no arm and no
+link:
+
+1. **One timed series, `dbts_b1-q8-g8`** (10-bit at its own depth, 50 frames, 23.2 MB, the largest frame). It keeps
+   about five times the packets of `dbts_a1-q8-g8-cut`, so a fill has more to lose, and a fill long enough to weigh a
+   controller's steady state more than its start. *What the cut costs:* no fill verdict on the show list's first series,
+   on the depth cut, or on a 4.6 MB fill, where the start (and so `bbr`'s larger first window) weighs most.
+   `dbts_a1-q8-g8-cut` keeps an eye check: two loads (page, worker; `cubic-restart`; tether) before the timed blocks,
+   for correctness and the picture of the cut, not counted. Saves 88 loads.
+2. **Twelve ratios per link per comparison**, pooled over the other factor, in place of ten per arm level. *What the cut
+   costs:* each level of the other factor alone has six, which can show a direction only at six of six; pooling assumes
+   the other factor does not reverse the effect, which the opposite-medians rule checks. Saves 32 loads against ten per
+   level.
+
+That leaves 4 blocks × (2 warm-ups + 12) = **56 loads, about 84 minutes, and about 30 minutes of the rest: about 1 h
+55 min**. If the first block takes longer than 20 minutes (from its line in `blocks.log` to the next block's), drop each later block's third quad:
+eight ratios per link, and the rule becomes eight of eight (p = 0.0078; seven of eight is p = 0.070).
+
+**The stored form is out of the run**, timed and eye check alike (the owner, 2026-11-11: the optimal-quality series is
+always ≤ 10 bits on the demo path). The run needs four files of `demo-series/` and their `.metadata.json`:
+`dbts_b1-q8-g8.sbnd`, `dbts_b1.sbnd`, `dbts_a1-q8-g8-cut.sbnd` and `dbts_a1.sbnd` (README §Demo's variant lists
+their sizes); not `dbts_a1-q8-g16-stored`.
+
+**The commands, from any state**, replacing §7's. At the repository's root on the demo's branch with
+`claude/phone-no-install` in it, after its "Once per laptop", plus this build, once (gcc and crates.io, as the
+product's; its own target directory, so the product's binary is untouched):
+
+```bash
+cargo build --release -p series-server --features telemetry --target-dir target/telemetry
+```
+
+The phone on the laptop's Wi-Fi network, one that lets clients see each other, and plugged in with USB tethering on:
+
+```bash
+# Every terminal first
+tether_if() { for d in /sys/class/net/*; do case $(readlink -f "$d/device/driver") in */rndis_host|*/cdc_ncm|*/cdc_ether) echo "${d##*/}";; esac; done | head -1; }
+wifi_if() { nmcli -t -f DEVICE,TYPE,STATE device | awk -F: '$2=="wifi" && $3=="connected" {print $1; exit}'; }
+addr() { [ -n "$1" ] && ip -4 -o addr show dev "$1" | awk '{print $4}' | cut -d/ -f1 | head -1; }
+serve() {  # PORT CONGESTION SERIES — one series server, its session lines and traces under target/phone-run/
+  echo "== $(date -u +%FT%TZ) $3 $2" >> target/phone-run/server-$1.log
+  WTPACS_LOSS_TRACE=target/phone-run/loss-$1.jsonl WTPACS_PATH_TELEMETRY=1 WTPACS_PATH_TELEMETRY_MS=250 \
+  WTPACS_PATH_TELEMETRY_PATH=target/phone-run/path-$1.jsonl \
+    target/telemetry/release/series-server --port "$1" --congestion "$2" --series "demo-series/$3.sbnd" \
+      --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem >> target/phone-run/server-$1.log 2>&1 &
+}
+mkdir -p target/phone-run server/dev-cert
+ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}   # the eye check; ID=dbts_b1-q8-g8 for the timed blocks, in both terminals
+# Terminal 1, once per series
+pkill -f 'release/series-server' ; pkill -f 'server/dev-server.py' ; sleep 1
+OPENSSL="podman run --rm -i --network none -v $PWD/server/dev-cert:$PWD/server/dev-cert:z rust openssl" \
+  ./server/scripts/gen_dev_cert.sh --if-needed
+serve 4433 cubic-restart "$ID"; serve 4434 cubic-restart "$EXACT"; serve 4443 bbr "$ID"; serve 4444 bbr "$EXACT"
+sleep 2; grep -h '^transport=' target/phone-run/server-44{33,34,43,44}.log | tail -4   # each names its controller
+T=$(addr "$(tether_if)"); W=$(addr "$(wifi_if)")
+echo "flag origins: http://$T:8765,http://$T:8766,http://$W:8765,http://$W:8766"
+# Terminal 2, once per block, after Terminal 1 — LINK=tether with USB tethering on, LINK=wifi with it off
+LINK=tether
+pkill -f 'server/dev-server.py' ; sleep 1
+IF=$([ "$LINK" = tether ] && tether_if || wifi_if); LAPTOP_IP=$(addr "$IF")
+[ -n "$LAPTOP_IP" ] || echo "no $LINK interface with an IPv4 address" >&2
+HASH=$(jq -r .cert_sha256 client/dev-transport.json)
+for p in 4433 4434 4443 4444; do
+  printf '{"wt_url": "https://%s:%s/", "cert_sha256": "%s"}\n' "$LAPTOP_IP" "$p" "$HASH" > target/phone-transport-$p.json
+done
+static() {  # PAGE_PORT SERIES_PORT EXACT_PORT
+  python3 server/dev-server.py --bind "$LAPTOP_IP" --port "$1" --metadata demo-series/$ID.metadata.json \
+    --transport target/phone-transport-$2.json \
+    --exact-metadata demo-series/$EXACT.metadata.json --exact-transport target/phone-transport-$3.json &
+}
+static 8765 4433 4434; static 8766 4443 4444
+echo "$(date -u +%FT%TZ) $ID $LINK cubic-restart http://$LAPTOP_IP:8765 bbr http://$LAPTOP_IP:8766" | tee -a target/phone-run/blocks.log
+```
+
+On the phone, once per run: `chrome://flags/#unsafely-treat-insecure-origin-as-secure`,
+the four origins Terminal 1 printed, comma-separated, **Enabled**, **Relaunch**. The eye check first: Terminal 1 with
+`ID=dbts_a1-q8-g8-cut`, Terminal 2 with `LINK=tether`, then `http://<tether address>:8765/?overlay=1&view=page` and
+`…&view=worker`, each with **lossless** twice. Then `ID=dbts_b1-q8-g8; EXACT=${ID%%-*}` in both terminals and Terminal 1 again (it stops every server and
+starts the four anew, so each server's sessions count from the timed run's first), and the blocks, each from Terminal 2
+with its `LINK`: its two warm-ups, then its three quads' loads, arm A at `:8765/?overlay=1&view=page`, B at
+`:8765/?overlay=1&view=worker`, C at `:8766/?overlay=1&view=worker`, D at `:8766/?overlay=1&view=page`. The address
+bar's port names the controller on each screenshot. When a block prints an origin the flag does not hold, enter it in
+the flag again.
+
+Each server's `k`-th session after its `==` line is the `k`-th load of its controller in the order above, warm-ups
+included; a session line's timestamp places it among `blocks.log`'s lines. A load that shows `received 0` or a reload
+adds or drops a session: note it on the sheet. Afterwards, USB tethering off; `pkill -f 'release/series-server' ; pkill
+-f 'server/dev-server.py'`. `target/phone-run/` (session lines, the two traces per server, the blocks' times) names
+the laptop's addresses: strip them before anything is committed (§4).
