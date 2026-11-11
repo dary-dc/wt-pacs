@@ -1,10 +1,11 @@
 state: started
 started: 2026-11-11T20:22Z
-heartbeat: 2026-11-11T20:30Z
+heartbeat: 2026-11-11T20:44Z
 outputs: claude/demo-fixes-2 157b7109 (merge of claude/clean-product c7c799e9; record to come)
 ## Resume
 Done: 157b7109 = merge --no-ff of claude/clean-product (clean, pushed). Next: setup, gate, E2E-3 run.
-Now: setup (long). Commands: (dockerd >/tmp/dockerd.log 2>&1 &); pip install meson==1.9.1; rustup target add
+Setup done 20:43 (tools, transport builds, series-server, cert). Now: demo-series.sh running (~10-20 min).
+Was: setup. Commands: (dockerd >/tmp/dockerd.log 2>&1 &); pip install meson==1.9.1; rustup target add
 wasm32-unknown-unknown; cargo install wasm-pack --version 0.15.0 --locked; fetch_openjph.sh, fetch_xxh3.sh; transport
 builds; cargo build --release -p series-server; venv from ingest/requirements.txt; PYTHON=.venv/bin/python
 scripts/demo-series.sh; demo-check.mjs loop (README §Demo, both views, interleaved by series); scripts/gate.sh.
