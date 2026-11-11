@@ -6,14 +6,14 @@ import { windowTable } from "../paint/voi.js";
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
 
-/** A 3×2 16-bit grey frame whose samples are their own index, 0 to 5, row by row. */
-const frame = (i) => ({
+/** A 3×2 grey frame of `bits` bits whose samples are their own index, 0 to 5, row by row. */
+const frame = (i, bits = 16) => ({
   frameIndex: i,
-  info: { pixels: new Uint16Array([0, 1, 2, 3, 4, 5]).buffer, width: 3, height: 2, bits: 16, components: 1, signed: false, min: 0, max: 5, exact: true, stamps: {} },
+  info: { pixels: new Uint16Array([0, 1, 2, 3, 4, 5]).buffer, width: 3, height: 2, bits, components: 1, signed: false, min: 0, max: 5, exact: true, stamps: {} },
 });
 
 /** A controller on a series of `frames`, its paints and the client's calls recorded; `held` frames already here; `wants`, the worker view's store. */
-function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, lossy, bitsStored, window = { center: [3], width: [6] } } = {}) {
+function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, lossy, bitsStored, bits, window = { center: [3], width: [6] } } = {}) {
   const painted = [];
   const calls = [];
   const events = [];
@@ -30,7 +30,7 @@ function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, los
     cancel: () => (calls.push("cancel"), Promise.resolve()),
     fill: (all) => calls.push(`fill ${all}`),
   };
-  for (const i of held) c.take(frame(i));
+  for (const i of held) c.take(frame(i, bits));
   if (wants) c.store.downloader = { want: (misses) => wants.push(misses.join()) };
   return { c, painted, calls, events };
 }
@@ -458,7 +458,7 @@ test("a failed exact request can be asked again on the same frame", async () => 
  * from the decoded range and the sample under the cursor are at full depth.
  */
 test("a depth cut's frames are painted with their shift, the exact frame without", async () => {
-  const r = lossyRig(undefined, { lossy: { q: 8, g: 1, depth: 10, bitsStored: 12 }, bitsStored: 12, window: null });
+  const r = lossyRig(undefined, { lossy: { q: 8, g: 1, depth: 10, bitsStored: 12 }, bitsStored: 12, bits: 10, window: null });
   await r.c.repaint();
   assert.equal(r.painted.at(-1).f.info.cut, 2);
   assert.deepEqual(r.painted.at(-1).display.voi, { center: 10, width: 21, function: "LINEAR" });
@@ -476,7 +476,7 @@ test("a depth cut's frames are painted with their shift, the exact frame without
 
 /** What the painter is handed of a depth cut's frame keeps its shift: code 249 of D 12 is windowed at 996, not at 249. */
 test("a depth cut's frame reaches the painter windowed at full depth", async () => {
-  const r = lossyRig(undefined, { lossy: { q: 8, g: 1, depth: 10, bitsStored: 12 }, bitsStored: 12 });
+  const r = lossyRig(undefined, { lossy: { q: 8, g: 1, depth: 10, bitsStored: 12 }, bitsStored: 12, bits: 10 });
   await r.c.repaint();
   const { f, display } = r.painted.at(-1);
   const painted = asPainted({ ...f.info, bits: 10 });

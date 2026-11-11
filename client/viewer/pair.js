@@ -1,6 +1,6 @@
 /** An optimal-quality series and the HTJ2K series its exact frames come from: client/README.md §Optimal quality, exact on request */
 
-const CUT_DEPTH = 10;
+export const CUT_DEPTH = 10;
 
 /** D − 10 for an optimal-quality series coded as its depth cut, else 0: docs/av1/payload-format.md §Depth cut */
 export const depthCut = (meta) => (meta.lossy?.bitsStored === undefined ? 0 : meta.lossy.bitsStored - meta.lossy.depth);

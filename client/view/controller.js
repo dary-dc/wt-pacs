@@ -1,6 +1,6 @@
 /** The view's controller: the current frame, what it wants and in what order, and its paint. docs/adr/frame-path.md §3, *Built* */
 import { FrameStore } from "./store.js";
-import { depthCut } from "../viewer/pair.js";
+import { CUT_DEPTH, depthCut } from "../viewer/pair.js";
 
 const at = () => performance.timeOrigin + performance.now();
 export const FIT = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false };
@@ -73,6 +73,10 @@ export class Controller {
 
   /** `f.ack`, when the consumer leaves the ack to the store; `f.write`, when its decoder writes the cache. */
   take(f) {
+    if (this.#cut && f.info.bits !== CUT_DEPTH) {
+      f.ack?.();
+      return this.refused(f.frameIndex, `a depth cut's frame decoded at ${f.info.bits} bits, not ${CUT_DEPTH}`);
+    }
     const info = this.#cut ? { ...f.info, cut: this.#cut } : f.info;
     this.store.put(f.frameIndex, { info, arrived: at(), write: f.write }, f.ack);
   }
