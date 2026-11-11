@@ -190,7 +190,7 @@ series in order, one at a time, timed by `performance.now()` around the call (pa
 paint), the first frame's configure included; every frame must come back by `av1-webcodecs` at the series' size, or
 the run fails. A cell's figure is the median over all frames of 5 rounds. Order: per round, the series in turn, the
 three arms one after another on each series, the arms' order rotated per round; the 4-core and the
-`taskset -c 0,1` runs alternate per round. *Page cell:* `client/viewer/demo-check.mjs DIR ID --json` on the G 8
+`taskset -c 0,1` runs alternate per round. *Page cell:* `claude/demo-fixes-1:client/viewer/demo-check.mjs DIR ID --json` on the G 8
 series only (the rule reads the jump at G 8), loopback, the same order and both core sets, 5 rounds: the fill is the
 status line's `fill N ms` of its filling pass, the jump its `&fill=0` pass's `jumpMs`, and every check of demo-check
 must pass. *Rule, read as:* the per-frame condition (≤ 0.8×) on `dbts_a1` and `dbts_b1`, on 4 cores, at G 1 and at
