@@ -260,3 +260,34 @@ time (about 25–150 ms at 1×, DA's tables), so a round is about 8–12 min and
 
 **What it cannot settle.** A phone, a GPU or hardware decoder (DA 11), concurrent decodes, or the fill's network
 time.
+
+## Measured (row MEASURE-1)
+
+### B0 · amendment 1, written 2026-11-11 16:40 UTC before any B0 arithmetic ran
+
+The protocol names its inputs but not every reading of them. Fixed here, before the run:
+
+* **Rows.** `claude/av1-quality-metrics` at `2f04f648`: `lab/av1/metrics/rows/shard-{1,2,3,4}.jsonl`. Its shard 3
+  carries the ladder cells (Q 1–56, G 1, 8, 16) of the five volumes the noise point held out, coded after that
+  branch was cut. The noise point's held-out arms: `claude/av1-noise-point` at `991c298b`,
+  `lab/av1/metrics/rows/noise-point/arms.jsonl` (stored form, integer Q, G 1 and 16). Where an arm and a ladder cell
+  share (volume, Q, G), their bytes must be equal; any difference is listed and the ladder cell is used.
+* **Volumes.** The 19 DBT volumes of the protocol's fixtures, by the rows' `set` names.
+* **Forms.** Stored and, for 12-bit volumes, top-10, as the noise point §3 defines x\*. The `window` form is left out,
+  as there. Stream depth B: 12 for a 12-bit stored form; 10 for 10-bit stored and every top-10 form.
+* **Frame point.** As the noise point's §Sources gives it: x = ac_q(4Q, B) ÷ 8 ÷ σ_frame (σ ÷ 4 for top-10),
+  y = `err_noise_band` ÷ σ_frame. ac_q from libaom v3.15.1 `av1/common/quant_common.c`, read from its tag.
+* **x\*.** The smallest x with y > 1, truncated to four decimals as noise point §4 step 3 does. Recomputed (a) per G
+  as the noise point had it, over all 19 volumes, as a check against 4.9293 and 4.6359; (b) pooled over the G 1 and
+  G 16 frames; (c) pooled over G 1 and G 16, per stream depth B. G 8 frames are left out of (b) and (c), as the
+  protocol names G 1 and G 16; x\* with G 8 in is reported beside them, not used.
+* **Anchors (step 1).** Stored form, ladder rungs only, the highest rung from the bottom up whose worst frame is
+  ≤ the bar (`collect.highest`), at bars 1.00 and 1.03, G 1 and G 16, with bytes ÷ the HTJ2K control's bytes.
+* **Rule Q (step 3).** Every (volume, form, G ∈ {1, 16}) cell: the highest Q with Δ ÷ σ_min < x\*, on the ladder
+  and on integer Q 1–61, under the noise point's two x\*, the pooled x\* and the per-depth x\*. Each ladder pick is
+  set against the 1.00 and 1.03 anchors (equal, lower, higher). An integer pick is read against measured rows only
+  where its Q was coded.
+* **Check, before the reading.** The script must reproduce, from these rows, the noise point's in-sample x\*
+  (4.92935 at G 1, 4.63596 at G 16, over its 14 volumes) and its held-out G 1 value with the arms in (4.802), and
+  QA F1's table where QA quotes it. **Mutation:** the 8-bit AC table in place of the stream's must fail the check.
+* **Code.** `lab/av1/audit/b0.py` on `claude/audit-measure`; its output `lab/av1/audit/rows/b0.json`.
