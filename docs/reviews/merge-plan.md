@@ -30,7 +30,7 @@ Why this order works without a conflict, read from the graph at writing:
 ## 2. The checks before each word
 
 Run from any clone (`git fetch origin --prune` first). `$DEMO` is the demo commit FREEZE-E2E recorded in
-`docs/queue/FREEZE-E2E.md` on `claude/work-ledger`.
+`claude/work-ledger:docs/queue/FREEZE-E2E.md`.
 
 **Before word 1 (#367 into `claude/core`):**
 
