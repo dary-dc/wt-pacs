@@ -36,6 +36,7 @@ const RELEASE = path.join(ROOT, "target/release");
 const BROWSER_CORES = "0-2";
 const RIG_CORE = "3";
 const ONE_WAY = 20;
+const debug = (...a) => process.env.DEBUG && console.error("debug:", ...a);
 const port = () => 20000 + ((Math.random() * 25000) | 0);
 
 /** The rig's links, as lab/av1/delivery/total-time/run.mjs at the demo commit defines them. */
@@ -75,6 +76,7 @@ const collector = createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
+    debug("collector", req.url);
     if (req.url === "/hello") waiting.hello?.();
     if (req.url === "/result") waiting.result?.(JSON.parse(body));
     res.writeHead(200, { "Access-Control-Allow-Origin": "*" }).end();
@@ -131,12 +133,14 @@ async function visit(set, arm, cell, throttle, round) {
   const fit = inp.frames.fit[viewport];
   const N = inp.frames.N;
   const mid = N >> 1;
+  debug("inputs", vol);
   const servers = {};
   if (arm !== "S★") servers.oq = await serve(arm === "D′" ? inp.twin : inp.oq, cell, round);
   if (arm === "D" || arm === "D′") servers.exact = await serve(inp.exact, cell, round);
   else servers.bands = await serve(inp.bands, cell, round);
+  debug("served", Object.keys(servers));
   const key = `${round}-${vol}-${viewport}-${arm}-${Date.now()}`;
-  const cfg = { arm, key, N, fit, mid, mutate: MUTATE, frames: `/lab/.av1-work/htj2k-improve/${vol}-bands/frames.json`,
+  const cfg = { debug: Boolean(process.env.DEBUG), arm, key, N, fit, mid, mutate: MUTATE, frames: `/lab/.av1-work/htj2k-improve/${vol}-bands/frames.json`,
     ...(servers.oq && { oq: { url: servers.oq.url, hash: HASH, meta: `/demo-series/${inp.oqId}.metadata.json` } }),
     ...(servers.exact && { exact: { url: servers.exact.url, hash: HASH, digests: inp.exactDigests } }),
     ...(servers.bands && { bands: { url: servers.bands.url, hash: HASH } }) };
@@ -144,7 +148,9 @@ async function visit(set, arm, cell, throttle, round) {
   const browser = await chromium.launchServer({ executablePath: `${T}/chrome.sh` });
   const client = await chromium.connect(browser.wsEndpoint());
   const tab = await client.newPage();
-  tab.on("pageerror", (e) => errors.push(e.message));
+  debug("browser up");
+  tab.on("pageerror", (e) => (errors.push(e.message), debug("pageerror", e.message)));
+  if (process.env.DEBUG) tab.on("console", (m) => console.error(`page: ${m.text()}`));
   let stop = () => {};
   const page = (c) => {
     const r = new Promise((resolve, reject) => {
@@ -158,6 +164,7 @@ async function visit(set, arm, cell, throttle, round) {
   let again = null;
   try {
     fill = await page(cfg);
+    if (fill.error) throw new Error(fill.error);
     again = await page({ ...cfg, reopen: true });
   } catch (e) {
     errors.push(String(e.message).split("\n")[0]);

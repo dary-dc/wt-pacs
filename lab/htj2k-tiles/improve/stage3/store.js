@@ -20,7 +20,11 @@ async function get(name) {
   }
 }
 
-onmessage = async ({ data: m }) => {
+let queue = Promise.resolve();
+// One operation at a time: a sync access handle is exclusive.
+onmessage = ({ data: m }) => (queue = queue.then(() => handle(m)));
+
+async function handle(m) {
   try {
     if (m.op === "open") dir = await (await navigator.storage.getDirectory()).getDirectoryHandle(m.key, { create: true });
     if (m.op === "put") await put(m.name, new Uint8Array(m.bytes));
@@ -38,4 +42,4 @@ onmessage = async ({ data: m }) => {
   } catch (e) {
     postMessage({ id: m.id, error: String(e?.message ?? e) });
   }
-};
+}

@@ -10,6 +10,7 @@ import { built } from "/client/decode/wasm-glue.js";
 
 const C = JSON.parse(new URLSearchParams(location.search).get("cfg"));
 const POST = new URLSearchParams(location.search).get("post");
+const log = (...a) => C.debug && console.log(...a);
 const at = () => performance.timeOrigin + performance.now();
 /** Layout 1: three strips, bands = levels 2, 1, 0, entry e = b·N·T + f·T + t. docs/disk-layout/target.md §Layout 1 */
 const T = 3;
@@ -58,6 +59,7 @@ async function sha256(px) {
 
 /** A picture: "oq", or an exact level; a level coarser than the viewport's is a preview, refused (the owner's rule). */
 function picture(f, level, px, from = "decode") {
+  log("picture", f, level, pictured.size);
   if (level !== "oq" && level > C.fit) return void failures.push({ f, reason: `level ${level} below the viewport's ${C.fit}: a preview, refused` });
   const was = pictured.get(f);
   if (was && rank(was.level) <= rank(level)) return;
@@ -87,7 +89,7 @@ if (C.reopen) {
   for (const [f, { level }] of pictured) sha[f] = await sha256(pixels.get(`${f}.${level}`));
   await report({ kind: "result", reopen: true, issuedAt, allAt, wouldAsk, bandsAgain, decodes: counts.decodes, pictured: Object.fromEntries([...pictured].map(([f, p]) => [f, p.level])), sha, failures });
 } else {
-  await visit();
+  await visit().catch((e) => report({ kind: "result", error: String(e?.stack ?? e) }));
 }
 
 // ---- the decoders: strip t on worker t, the delivered build whole, the lab binding at a level ----
@@ -166,6 +168,7 @@ function strips(decode) {
 
 async function visit() {
   const decode = C.arm === "D" || C.arm === "D′" ? null : await decoders();
+  log("decoders up");
   const S = decode && strips(decode);
   const bandsClient = C.bands && await DownloaderClient.connect(C.bands.url, C.bands.hash, {
     decode: false, onFrame: (fr) => S.landed(fr.frameIndex, fr.bytes), onError: (e) => failures.push({ e: e.frameIndex, reason: e.reason }) });
@@ -173,6 +176,7 @@ async function visit() {
     counts.asks += list.length;
     for (const e of list) bandsClient.requestExactFrame(e).then((fr) => S.landed(e, fr.bytes), (err) => failures.push({ e, reason: String(err.message ?? err) }));
   };
+  log("bands client", Boolean(bandsClient));
   const exactClient = C.exact && await DownloaderClient.connect(C.exact.url, C.exact.hash, {
     decoders: 1, decoder: await built("openjph"), digests: C.exact.digests });
   const oqInfo = { exact: 0, inexact: 0, unchecked: 0, paths: {} };
@@ -207,6 +211,7 @@ async function visit() {
     counts.asks += C.N;
     oqClient.fill([...Array(C.N).keys()]);
   }
+  log("fill issued");
   const allAt = await Promise.race([allPictured, new Promise((r) => setTimeout(() => r(null), 540000))]);
   const firstAt = Math.min(...[...pictured.values()].map((p) => p.at));
   const fillBytes = counts.bytes;
@@ -250,6 +255,7 @@ async function visit() {
   const endAt = at();
 
   // ---- after the clock: the store written (off the clock in every arm), every picture hashed ----
+  log("after the clock");
   for (const [k, px] of pixels) {
     const [i, level] = k.split(".");
     if (level === "oq") keep(`q${i}`, px);
@@ -257,6 +263,7 @@ async function visit() {
   }
   if (C.arm === "S★" && C.mutate !== "bands-dropped") for (const [k, bands] of S.coded) if (Number(k.split(".")[0]) !== f) bands.forEach((b, j) => b && keep(`b${k}.${j}`, b));
   await Promise.all(writes);
+  log("stored", writes.length);
   oqClient?.close();
   bandsClient?.close();
   exactClient?.close();
