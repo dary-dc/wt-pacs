@@ -70,6 +70,12 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   the page view under #362's stricter check, interleaved by series: 60 of 60 passed, headless on one cloud host
   ([`docs/reviews/e2e-3.md`](../reviews/e2e-3.md), with the owner's rehearsal list). #362 (the check's Home and
   *Lossless*-paint fixes) is not in `demo-fixes-1`: without it the check stalled 30 s on 12 of 28 a1/c1 runs.
+* **Source fingerprint** (SOURCE-FINGERPRINT, 2026-11-11, `claude/source-fingerprint` from `claude/demo-fixes-1`,
+  not merged): every series the ingests write (`ingest_coded.py`, `from_dicom.py`, the Rust ingest) carries
+  `sourceFingerprint`, XXH3-64 over the source's frame digests as its HTJ2K series carries them; `checkPair` requires
+  the same 16 hex digits in both series instead of `framesSha256`, which stays the fetcher's download pin and is no
+  longer copied into a series ([`../av1/payload-format.md`](../av1/payload-format.md) §Source fingerprint). Synthetic
+  sets and node tests, every new test mutated.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
@@ -201,7 +207,10 @@ What a presenter should know, from the reviews of 2026-11-11 (`claude/demo-under
 * The decoders' WASM is committed and the gate checks it rebuilds to the same bytes; that is what lets the laptop
   without installs run the page without Docker.
 * `framesSha256` is written only by the lab fixture fetcher, so a pair made by any other ingest fails the pairing
-  check until the ingest writes the source fingerprint (row SOURCE-FINGERPRINT).
+  check until the ingest writes the source fingerprint (row SOURCE-FINGERPRINT). *Built 2026-11-11 on
+  `claude/source-fingerprint`, not in the demo:* every ingest writes `sourceFingerprint` and `checkPair` compares it
+  in place of `framesSha256`; it enters the demo only with the owner's word, since every demo series must be written
+  again.
 
 ## Pointers
 
