@@ -1,8 +1,9 @@
 state: started
 started: 2026-11-11 01:35
-heartbeat: 2026-11-11 01:50
-outputs: claude/av1-corrections (not yet pushed)
+heartbeat: 2026-11-11 02:20
+outputs: claude/av1-corrections 2e4efdfc
 ## Resume
+Done: step 1 pushed (2e4efdfc: docs/av1/corrections.md, docs/lines/codecs.md in place). Next: step 2.
 Branch claude/av1-corrections from origin/main 017a3ca6 (local only so far). Plan:
 1. docs/av1/corrections.md: per study branch (the table in claude/docs-lines-3:docs/lines/codecs.md §AV1 harvest (2)),
    the line as it stands quoted and the corrected text to put in its place (disk-access §11 model); main's own
