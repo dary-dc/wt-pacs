@@ -100,8 +100,9 @@ async function pass(browser, query) {
     must(await shown(i, t), `${query}: frame ${i + 1} painted after its step`);
     steps.push(Math.round((await log()).findLast((e) => e.id === "overlay").t - t));
   }
+  const home = await now();
   await page.keyboard.press("Home");
-  await shown(0, await now());
+  must(await shown(0, home), `${query}: Home painted frame 1`);
   const before = await now();
   await page.keyboard.press("End");
   must(await shown(n - 1, before), `${query}: the jump to frame ${n} painted`);
