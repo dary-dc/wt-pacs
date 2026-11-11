@@ -382,6 +382,26 @@ series. *Measured:* first picture from navigation, under Chromium's CPU throttli
 the median first picture is lower by ≥ 30 ms with no `l` slower; else drop it as inert. *Limits:* throttling stands in
 for a phone's cores, not its radio.
 
+**Amendment 1 (MEASURE-1, 2026-11-11 13:40, written before any run).** *Arms:* today is the demo tip's page
+(`claude/demo-fixes-1` at `9e2ef4ef`, the code P1, P2 and P4 ran); the other arm is a lab copy of it, never the tip
+itself, built by `lab/proposals/p5_arm.sh`: `viewer.js` without the start's `connectExact()` and with the dial on the
+first `shown`, three lines, everything else the tip's. *Fixtures:* the three series P1 and P4 ran, the Q 8 G 8
+(G 16 for `dbts_c1`) series with the cut on a1 and c1, and their exact series. *Link:* P1's amendment, the 0 % cell:
+`link_impair.py --delay-ms 30 --rate-kbit 20000 --queue-pkts 1000`. *Throttle:* `Emulation.setCPUThrottlingRate`
+rate 4 on the page target before navigation. **It slows the page's main thread only:** Chromium 153 answers
+"Operation is only supported for pages, not workers" when it is sent to a dedicated worker's target, and a busy loop
+in a worker took the same time under rate 1 and rate 4 (222–231 ms against 225–266 ms; the main thread's loop
+275–314 ms against 1 048–1 057 ms). The decoders and the exact series' OpenJPH compile run in workers, so this cell
+models a slow main thread, not slow cores. *Added cell:* the same run under `taskset -c 0,1` (as P2's 2-core arm),
+so the exact dial's worker and the fill's three decoders share two cores; reported beside the verdict, not part of
+it. *Measured:* first picture, the page's clock from navigation to the quality label's first text (it is set on the
+first `shown`); then, as P1, the fill's last frame and `l` on frame 0 after 10 s of quiet, to *Lossless*. Driver
+`lab/proposals/link_cells.mjs` with `--host` and `--cpu-throttle`, order `lab/proposals/p5.sh`: 9 rounds, each round
+both cells and the three series once, the arms alternating and the first arm alternating between rounds. *Rule, as
+registered, made exact:* in the throttled 4-core cell, adopt if the dial-after arm's median first picture is lower
+by ≥ 30 ms on every series and its median `l` is ≤ 1.05× today's on every series (P4's tolerance); else drop it as
+inert. A run that does not end at *Lossless* is reported and counts against its arm.
+
 ### Sources
 
 Each official source read on 2026-11-11; the SHA-256 prefix is of the copy read.
