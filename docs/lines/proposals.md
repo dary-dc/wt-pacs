@@ -103,6 +103,38 @@ headless Chromium; the fill's last frame received, then `l` on the shown first f
 `lab/proposals/p1.sh`. The relay's own CPU bounds it at ~100 Mbit; 20 Mbit is under that. Arms, cells, rounds, rule
 and saturation test are unchanged.
 
+**Measured (MEASURE-1, 2026-11-11 05:40–06:30, per amendment 1).** 90 runs, 5 rounds × 3 cells × 3 series × 2 arms,
+each passing: every fill complete, every `l` ending at *Lossless*. Rows `lab/proposals/rows/p1.jsonl`, table
+`lab/proposals/p1_summary.py`. Medians of 5; fill is the last frame received, `l` the time from the key to *Lossless*
+on the first frame after 10 s of quiet, both from the page's clock; latency only.
+
+| cell | series | Cubic fill ms | BBR fill ms | ratio | Cubic `l` ms | BBR `l` ms | ratio | n |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 0 | dbts_a1-q8-g8-cut | 2548 | 2180 | 0.86 | 799 | 718 | 0.90 | 5/5 BBR, 5/5 Cubic |
+| 0 | dbts_b1-q8-g8 | 9974 | 9840 | 0.99 | 1217 | 1103 | 0.91 | 5/5 BBR, 5/5 Cubic |
+| 0 | dbts_c1-q8-g16-cut | 3392 | 2842 | 0.84 | 738 | 657 | 0.89 | 5/5 BBR, 5/5 Cubic |
+| iid1 | dbts_a1-q8-g8-cut | 21113 | 2343 | 0.11 | 2470 | 716 | 0.29 | 5/5 BBR, 5/5 Cubic |
+| iid1 | dbts_b1-q8-g8 | 94716 | 10024 | 0.11 | 6711 | 1165 | 0.17 | 5/5 BBR, 5/5 Cubic |
+| iid1 | dbts_c1-q8-g16-cut | 27172 | 3257 | 0.12 | 4247 | 666 | 0.16 | 5/5 BBR, 5/5 Cubic |
+| ge | dbts_a1-q8-g8-cut | 2502 | 2196 | 0.88 | 909 | 693 | 0.76 | 5/5 BBR, 5/5 Cubic |
+| ge | dbts_b1-q8-g8 | 15395 | 9813 | 0.64 | 1220 | 1108 | 0.91 | 5/5 BBR, 5/5 Cubic |
+| ge | dbts_c1-q8-g16-cut | 3378 | 3017 | 0.89 | 736 | 657 | 0.89 | 5/5 BBR, 5/5 Cubic |
+
+**Verdict: adopt for the demo pair** by the pre-registered rule: in the 1 % cell BBR's fill is 0.11–0.12× and its `l`
+0.16–0.29× of Cubic's on all three series; clean, its fill is 0.84–0.99×. **Against the predictions:** the 1 % fill
+(0.1–0.5×) holds, at its low edge; `l` (0.2–0.6×) holds on `dbts_a1` and is better than the band on `dbts_b1` and
+`dbts_c1` (a miss, favourable); the burst cell's fill (0.45–0.8×) holds on `dbts_b1` (0.64) and misses on the two
+cut series (0.88, 0.89), whose 4.6 and 6.2 MB fills meet few bursts at `cloud_netem.sh`'s ~0.5 % mean; "a tie to
++5 % clean" misses favourably: BBR is 1–16 % faster, Cubic's slow start overflowing the 1 000-packet queue
+(10–24 % of the OQ server's datagrams) where BBR's overflowed none. **Saturation:** no BBR fill came within 10 % of
+the loopback fill (1.7, 4.6, 2.0 s); BBR's clean fills sit at the 20 Mbit link's own time (4.6, 23.2, 6.2 MB:
+1.9, 9.3, 2.5 s), so the link, not the host, bounds them, and nothing past 20 Mbit is claimed. **The cost, read in
+these cells** (the relay's sojourn on the OQ session, median of per-run p50): BBR holds a standing queue of 85–260
+ms during the fill in every cell, where Cubic's is ~1 ms under 1 % loss and 250–480 ms clean; under 1 % loss on
+`dbts_c1` BBR overflowed 12 % of its datagrams. A jump during the fill waits behind that queue; this protocol did not
+time one. **Limits:** three DBT volumes of one dataset; a userspace relay, not a radio, with loss each direction;
+one 4-core cloud host without a GPU; SwiftShader paints; headless Chromium, page view, ts client.
+
 ### P2. Tiles in the optimal-quality encode
 
 **Mechanism.** The encoder codes each frame as one tile: `lossy_args` sets no tile option and `--threads=1`
