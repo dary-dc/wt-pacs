@@ -76,7 +76,7 @@ clearLogs();
 const plan = ["tether cubic-restart page warm-up", "wifi cubic-restart page warm-up", "pause read the counters", "wifi bbr worker", "tether bbr page"];
 const { end, pauses } = await runPlan(plan.join("\n"));
 check(end === "run done: 4 loads", `the plan ran whole (${end})`);
-check(pauses.join() === "load 2 of 4 passed; load 3 waits: read the counters", `it held once, before load 3 (${pauses.join(" | ")})`);
+check(pauses.join() === "load 2 of 4 passed; load 3 waits: read the counters Continue", `it held once, before load 3 (${pauses.join(" | ")})`);
 await new Promise((r) => setTimeout(r, 500));
 const all = records();
 const loads = all.filter((r) => r.kind === "load").sort((a, b) => a.step - b.step);
@@ -98,6 +98,14 @@ for (const l of loads) {
   check(mine.some((r) => r.kind === "verdict" && r.ok), `load ${l.step}: passed`);
   check(mine.every((r) => r.kind !== "error"), `load ${l.step}: no error recorded`);
 }
+
+/** A load's page opened at another link's address than its step's stops there: each step is bound to its full origin. */
+clearLogs();
+await page.goto(`http://127.0.0.1:8765/lab/phone/?${new URLSearchParams({ tether: "127.0.0.1", wifi: "127.0.0.2", gap: "60", loads: "tether cubic-restart page" })}`);
+await Promise.all([page.waitForURL(/[?&]at=0/), page.click("#start")]);
+await page.goto(page.url().replace("127.0.0.1", "127.0.0.2"));
+const moved = await page.locator("#phone-run").textContent({ timeout: 30000 }).catch(() => "");
+check(/^stopped at load 1 of 1: this page is not load 1 of 1 of its plan/.test(moved), `a step at the wrong address stops (${moved})`);
 
 /** With an exact series' server gone, the first load fails, says why, and the run stops there. */
 clearLogs();
