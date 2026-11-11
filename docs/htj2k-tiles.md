@@ -477,7 +477,7 @@ The fixtures cannot carry more than this: three volumes of one collection; two o
 
 ### Protocol, pre-registered
 
-For a session given this section, §Protocol above and nothing else. Code and rows in `lab/htj2k-tiles/screen/`.
+For a session given this section, §Protocol above and nothing else. Code and rows in a new directory, lab/htj2k-tiles/screen, which does not exist yet.
 `CLAUDE.md` §Measurement throughout: arms interleaved, every new check mutated, the store warm, times quoted and not
 throughputs, the host's saturation stated.
 
@@ -498,20 +498,21 @@ change for the owner. Otherwise, R0 ∧ R3 on `dbts_b1`: D+L is proposed, D's sc
 level-first, for volumes whose fit is level 1. Otherwise D stays. R4 is reported with every verdict and decides
 nothing alone; the reading of a level picture is the owner's.
 
-**Arms.** **D** and **D′**: the demo's series from `scripts/demo-series.sh` on the demo tip, Q 8 at G 1 and at G 16,
-the depth cut on `dbts_a1` and `dbts_c1`, through the product's AV1 route; the Lossless request is the exact series'
-frame whole. Q 8 is the demo's and the rule's Q only on `dbts_c1` at G 1 (F7), so the run's D is lighter than the bytes
-table's on the other two; both are printed. **S**: the exact series split at ℓ_fit by `claude/htj2k-progressive:lab/htj2k-progressive/delivery/make_frames.py`
-(level-first, prefix entries then rests), decoded by its `delivery/decoder.js`; where ℓ_fit is 0, S is the exact
-series whole. **D+L**: D's scroll, then S's prefix and rest for the requested frame. Viewports: 1080×2100 and
-2400×950, so that `dbts_c1` is run at both levels.
+**Arms.** **D** and **D′**: the demo's series from `claude/demo-fixes-1:scripts/demo-series.sh` (the demo tip on
+2026-11-11), Q 8 at G 1 and at G 16, the depth cut on `dbts_a1` and `dbts_c1`, through the product's AV1 route; the
+Lossless request is the exact series' frame whole. Q 8 is the demo's and the rule's Q only on `dbts_c1` at G 1 (F7),
+so the run's D is lighter than the bytes table's on the other two; both are printed. **S**: the exact series split at
+ℓ_fit by `claude/htj2k-progressive:lab/htj2k-progressive/delivery/make_frames.py` (level-first, prefix entries then
+rests), decoded by its `delivery/decoder.js`; where ℓ_fit is 0, S is the exact series whole. **D+L**: D's scroll, then
+S's prefix and rest for the requested frame. Viewports: 1080×2100 and 2400×950, so that `dbts_c1` is run at both
+levels.
 
 **A visit.** Open at the first slice; the fill runs; the scroll is pictured when every slice is; then a Lossless request
 on the middle slice; then a zoom to 1:1 at the slice's centre (S+R's bytes from stage 1 of §Protocol above, not timed
 here). Per visit: time to the first picture, to every slice pictured, from the request to the Lossless picture; bytes.
 
 **Stage 0, checks and mutants.** The split's prefixes against `witness.py` and OpenJPEG, every frame of the three
-volumes; the D series' bytes and digests against `demo-series.sh`'s table. Mutants, each caught: a prefix one byte
+volumes; the D series' bytes and digests against that script's table. Mutants, each caught: a prefix one byte
 short; the clamp removed; the SIZ reset removed (a later whole frame not exact); every digest truth flipped.
 
 **Stage 1, the screen (offline).** For every frame of `dbts_b1`, and of `dbts_c1` at 2400×950: S's level picture and
