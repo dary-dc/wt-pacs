@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11T20:22Z
-heartbeat: 2026-11-11T20:58Z
+heartbeat: 2026-11-11T21:03Z
 outputs: claude/demo-fixes-2 157b7109 (merge of claude/clean-product c7c799e9; record to come)
 ## Resume
 Done: 157b7109 = merge --no-ff of claude/clean-product (clean, pushed). Next: setup, gate, E2E-3 run.

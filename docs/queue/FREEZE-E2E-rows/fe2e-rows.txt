@@ -1,0 +1,6 @@
+page | dbts_a1-q24-g1-cut | 37s | demo check: dbts_a1-q24-g1-cut passed
+worker | dbts_a1-q24-g1-cut | 37s | demo check: dbts_a1-q24-g1-cut passed
+page | dbts_a1-q24-g16-cut | 37s | demo check: dbts_a1-q24-g16-cut passed
+worker | dbts_a1-q24-g16-cut | 36s | demo check: dbts_a1-q24-g16-cut passed
+page | dbts_a1-q24-g8-cut | 36s | demo check: dbts_a1-q24-g8-cut passed
+worker | dbts_a1-q24-g8-cut | 36s | demo check: dbts_a1-q24-g8-cut passed

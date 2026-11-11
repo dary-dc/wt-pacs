@@ -1,0 +1,24 @@
+dbts_a1: 56 frames 1142x1785x1, 12-bit stored, range 0..3213
+dbts_b1: 50 frames 2560x3328x1, 10-bit stored, range 0..1023
+dbts_c1: 69 frames 976x2513x1, 12-bit stored, range 0..4095
+dbts_a1                  67815143    1.0000      1
+dbts_a1-q8-g1-cut         4657899    0.0687     19
+dbts_a1-q8-g8-cut         4642293    0.0685     14
+dbts_a1-q8-g16-cut        4643176    0.0685     14
+dbts_a1-q24-g1-cut         434909    0.0064      9
+dbts_a1-q24-g8-cut         212340    0.0031      6
+dbts_a1-q24-g16-cut         201674    0.0030      6
+dbts_b1                 107410091    1.0000      3
+dbts_b1-q8-g1            23479346    0.2186     47
+dbts_b1-q8-g8            23208296    0.2161     40
+dbts_b1-q8-g16           23193380    0.2159     41
+dbts_b1-q24-g1            2645000    0.0246     32
+dbts_b1-q24-g8            1675867    0.0156     23
+dbts_b1-q24-g16           1628174    0.0152     22
+dbts_c1                  70668071    1.0000      1
+dbts_c1-q8-g1-cut         6348708    0.0898     23
+dbts_c1-q8-g8-cut         6239698    0.0883     20
+dbts_c1-q8-g16-cut        6232806    0.0882     27
+dbts_c1-q24-g1-cut         571186    0.0081     12
+dbts_c1-q24-g8-cut         273810    0.0039      9
+dbts_c1-q24-g16-cut         260355    0.0037     11
