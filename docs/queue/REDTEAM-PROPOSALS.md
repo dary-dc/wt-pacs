@@ -9,7 +9,7 @@ claude/proposals. check_links.py 0 unresolved; no gate (docs only); nothing meas
 ## Result
 * Verdicts in claude/proposals:docs/lines/proposals.md, under each P and in §Red team (one table, 17 rows).
 * Nothing is "adopt" for FIX-2: P1 and P2 met their rules, but the owner's 13:30 decisions keep both off the demo and each owes a cell.
-* P1 corrected: dbts_a1's 1 %  0.29x is 0.37-0.55x against P4's identical default arm (5 runs too few); all gain is the
+* P1 corrected: dbts_a1's 1 % `l` 0.29x is 0.37-0.55x against P4's identical default arm (5 runs too few); all gain is the
   1 % iid cell; a jump during the fill under BBR's 85-260 ms queue untimed.
 * P2 corrected: arms at equal Q, not equal quality (coding error per arm owed); exactness dropped from its rule; dbts_c1 at G 8, demo's is G 16.
 * P3 open: the lab arm used cancel() (generation bump), not end_stream alone; the phone row's 15 s dwells sit on the browser's 15 s ping.
