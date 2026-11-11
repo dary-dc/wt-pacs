@@ -363,7 +363,7 @@ visit that failed, or whose fill stopped short, is re-run as a `VOID` one is, no
 * *Review, amended before data:* a cell whose trace does not climb past k (k ≥ ⌊n/3⌋, `dbt10_ea1141` at k = 8)
   gives that k no vote, for k\* or for adoption: there `on` never asks within the trace, which measures no ask at
   all rather than a wait within k. *The on-demand cells within the A/A spread:* their paired median `missingMs`
-  against `off` within the larger of 8 ms and that cell's A/A. `lab/viewer/wait-ahead-summary.mjs` applies the
+  against `off` within the larger of 8 ms and that cell's A/A. `lab/viewer/wait-ahead-summary.mjs` (at `0920153d`) applies the
   guards and this rule to the rows.
 
 **Built and checked** (2026-10-29). Each check was mutated and its mutant failed:
@@ -401,7 +401,7 @@ behaviour (#238), and it bounds both this lever and Experiment 1's `span`: each 
 it is structural, and the owner's: for instance, start a run when the want's head ascends D_min unsent frames
 although asks are owed. **Not built.**
 
-*Predictions.* `lab/viewer/want-model.mjs` is a model, not a measurement. It drives the real downloader against a
+*Predictions.* `lab/viewer/want-model.mjs` (at `0920153d`) is a model, not a measurement. It drives the real downloader against a
 simulated server and one FIFO link:
 
 * the server recites a run and ends it at a frame boundary for any message in hand, and serves asks in order;
@@ -461,7 +461,7 @@ The relay's queue occupancy, not the round trip, moves the answer. The run decid
 | the ledger's `fillMs` and lab flip | `client/view/controller.js`, `controller.test.mjs` | 4 of 4 |
 | the trace driven from frame 0 on screen, each step on time | `client/viewer/viewer.js` | smoke only |
 | a variant's `opts`, `--trace`, a link's own round trip, the trace in each row | `lab/av1/delivery/total-time/run.mjs` | smoke only |
-| the guards and the rule | `lab/viewer/wait-ahead-summary.mjs`, `wait-ahead-summary.test.mjs` | 20 of 20 |
+| the guards and the rule | `lab/viewer/wait-ahead-summary.mjs` (at `0920153d`), `wait-ahead-summary.test.mjs` | 20 of 20 |
 
 *Smoke*, Chromium, one round per arm. The set was the contract's 16-bit grey frame ×30, behind
 `r5000rtt46`/`rtt92`; it shows the rig, and no result is read from it:
@@ -727,7 +727,7 @@ the rig or by what the core is, and says why.
   store worker is in neither: the core's cache is off by default (`?writer=` unset, §The core, assembled), so A is
   today's path without it. **Cell 4 is out of this run:** with no cache on by default there is nothing to time, and
   who writes it is the OPFS-arms run's to decide (§The cache I/O in the view worker).
-* **Series:** row INGEST's three, through the product's ingest as HTJ2K (`lab/viewer/view_frames.py`) — `ct_nlst` (76 ×
+* **Series:** row INGEST's three, through the product's ingest as HTJ2K (`lab/viewer/view_frames.py` (at `0920153d`)) — `ct_nlst` (76 ×
   512², signed), `us_liver` (70, RGB), `dbt12_ea1141` (29 × 614×1359) — and `ffdm_a`'s first view (one 2560×3328
   frame). One frame has no asks and no cine, so the mammogram is in cells 1, 3 and (2)'s first frame alone.
 * **Link:** §7 named none; `r50000` (50 Mbit/s, 40 ms round trip, total-time's), behind the relay. Rig core 3,
@@ -752,7 +752,7 @@ certain, and extra rounds would otherwise loosen "9 of 12"*); a cell with fewer 
   **VOID** when `pageaa` and `page` differ, median over paired rounds, by more than: the fill ×0.98–1.02 or the first
   frame by 16.7 ms (quiet); arrival → screen by 8 ms (asks); 2 points of late frames or 16.7 ms of gap p99 (cine).
   A cine cell is **saturated** when `page`'s draw p99, median over rounds, passes half the period.
-* **The rule, read before any data** (`lab/viewer/view-summary.mjs`): B′ is adopted if every frame is exact, and in
+* **The rule, read before any data** (`lab/viewer/view-summary.mjs` (at `0920153d`)): B′ is adopted if every frame is exact, and in
   every decided cell of both engines at 1× and 4×: quiet, B′'s fill ÷ A's median in ×0.98–1.02 and its first frame
   less than 16.7 ms later; asks, B′'s median arrival → screen ≥ 16.7 ms below A's in ≥ 9 of 12 rounds; cine, where
   A's median late exceeds 2 points, B′'s is at most 2 with a median gap p99 ≤ 2 periods; and each engine has an asks
@@ -1075,7 +1075,7 @@ the settle polls on a timer because a poll every task spun its thread and slowed
 (its series `ct_nlst`, `us_liver`, `dbt12_ea1141`; `r50000` behind the relay on core 3, the browsers on cores 0–2;
 §7's busy page from navigation, the fill, then 10 s of cine at the series' rate, frame 0 due mid display interval;
 late and gap p99 from the draw log against the vsync log), on the code of this branch, with five arms, each a
-`lab/viewer/view_frames.py` variant: `page` and `worker` settling by the fence, `pageaa` (A again, the A/A pair), and
+`lab/viewer/view_frames.py` (at `0920153d`) variant: `page` and `worker` settling by the fence, `pageaa` (A again, the A/A pair), and
 `page-read` and `worker-read` settling by the one-pixel read as §7's run did (the rig's `?settle=`; §7's arms all
 settled by the read). Chromium (Playwright's, headless, SwiftShader) and Firefox (Playwright's 155, headed under Xvfb,
 llvmpipe); `lab/order.mjs` interleaves the cells and the arms in each round; **12 rounds kept, 1×**, then 4× only for
