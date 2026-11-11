@@ -231,8 +231,18 @@ sends nothing; §5's delivery runs say how often that is. The lab's runner ends 
   kibibytes", the bytes of every keepalive request of the page still in flight counted together.
 
 **Size, and what a `false` does.** The report's bytes for each demo series, the per-frame rows its largest part, are
-stated by its test from a report filled with every frame and the protocol's label changes and presses (§8's table
-below, filled by the build). A `false` means the page's keepalive budget is taken. `fetch` with `keepalive` is not the
+stated by its test (`client/viewer/load-report.test.mjs`) from a report filled with every frame, each with the longest
+route, a refusal, a seven-digit byte count and an unrounded decode time, plus the protocol's four label changes and two
+presses, a worst case:
+
+| series | frames | report bytes, worst case |
+| --- | --- | --- |
+| `dbts_a1` and its optimal-quality series | 56 | 5 447 |
+| `dbts_b1` | 50 | 4 938 |
+| `dbts_c1` | 69 | 6 554 |
+
+About a tenth of Fetch's 64 KiB; the test fails over 16 KiB. Not measured: the bytes a real load sends, which errors
+and its own route strings decide. A `false` means the page's keepalive budget is taken. `fetch` with `keepalive` is not the
 fallback: Fetch counts it against the same 64 KiB, so it fails where the beacon did. The report is sent again once
 without its per-frame rows (`frames: null`, `truncated: true`), a few hundred bytes, so the load's fill and counts
 still arrive; a second `false` drops it. Nothing is retried later: nothing is stored (§1).
