@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-11 18:59 UTC
-heartbeat: 2026-11-11 23:30 UTC
-outputs: `claude/htj2k-tiles` e7b44077 (rows, docs; draft PR #324 into main, already open: the commits land in it)
+heartbeat: 2026-11-11 23:50 UTC
+outputs: `claude/htj2k-tiles` 6a4dde46 (rows, docs; draft PR #324 into main, already open: the commits land in it)
 ## Resume
 Session 3 plan (2026-11-11 23:24 UTC), the client's design fixed before any run:
 * `lab/htj2k-tiles/improve/stage3/`: `page.js` (one lab page, every arm), `store.js` (a lab OPFS store worker: level
@@ -20,6 +20,14 @@ Session 3 plan (2026-11-11 23:24 UTC), the client's design fixed before any run:
   there by build_levels.sh. Next: a smoke visit per arm, then the mutants, then S3a:
   `cd /home/user/demo && NODE_PATH=$(npm root -g) node lab/htj2k-tiles/improve/stage3/run.mjs --series demo-series
   --bands lab/.av1-work/htj2k-improve --rounds 2 --first-round 0 --out /home/user/s3a.jsonl`.
+* Done since: the client works in every arm (smoke visits, not kept: all exact, every reopen 0 asks 0 decodes);
+  `ebbaeaeb`, `8ee94f69` fixes (store serialised; OQ series carry no digests, so OQ pictures are unchecked as in the
+  viewer, and a visit's OQ pictures get one digest, equal across D visits). Also needed: `ln -s /home/user/demo-series
+  /home/user/demo/lab/.demo-series` (dev-server serves only its top dirs). `6a4dde46` the cache mutants and two more,
+  each caught (`rows/stage3-mutants.jsonl`). parity.mjs: needs `client/decode/wasm/fetch_openjph.sh` and
+  `PATH=lab/av1/.venv/bin:$PATH lab/scripts/gen_htj2k_fixtures.sh g160 g256 g512 c512 g8 g1024 g2048 s512 s12` first;
+  then `VARIANTS=$PWD/client/decode/wasm/built/openjph VARIANT=openjph` and `VARIANTS=$PWD/lab/.openjph-build/wasm
+  VARIANT=levels`. Never run two drivers at once (they share cores and the collector's ports).
 Session 3 resumed 2026-11-11 23:21 UTC (stalled since 21:35), from `e7b44077`.
 Stages 0–2 done (19:33, `947bb3b9`). Session 2 (21:22–21:40): stage 3's inputs built and pushed; the lab client is next.
 Done, session 2: `4224e96e` `stage3_prep.py` + `stage3_check.py` (every frame's three strips cut into Layout 1's
