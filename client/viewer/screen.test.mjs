@@ -33,7 +33,7 @@ console.log("screen: ok");
 /**
  * The overlay says what the reconstruction check found, then the frame's coding error as the ingest measured it, the RMS
  * also in display levels at a LINEAR window (k = 255 ÷ (W − 1), the rescale's slope applied); nothing for a series
- * without the check or for the exact frame. docs/lines/proposals.md §I3
+ * without the check or for the exact frame. docs/av1/payload-format.md §Integrity
  */
 {
   const checked = { ...lossy, reconstruction: { algorithm: "xxh3-64", frames: ["a", "b"] },

@@ -1,4 +1,4 @@
-// I1's protocol (docs/lines/proposals.md §I1, claude/oq-integrity): each optimal-quality series of DIR filled in headless
+// I1's protocol (docs/av1/payload-format.md §Integrity, claude/oq-integrity): each optimal-quality series of DIR filled in headless
 // Chromium with its reconstruction check on (its metadata as written) and off (the same metadata without
 // `lossy.reconstruction`), the arms and the CPU throttles interleaved per round by lab/order.mjs. One JSON row per fill.
 //

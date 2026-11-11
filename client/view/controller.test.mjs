@@ -588,7 +588,7 @@ test("a shown frame's route and WebCodecs refusal reach the overlay", async () =
   assert.equal(about.refusal, "undecodable: not a key frame");
 });
 
-/** An optimal-quality frame whose reconstruction digest matched is labelled as coded and counted so; one with none stays optimal. docs/lines/proposals.md §I3 */
+/** An optimal-quality frame whose reconstruction digest matched is labelled as coded and counted so; one with none stays optimal. docs/av1/payload-format.md §Integrity */
 test("a frame checked as coded is labelled so, one unchecked is not", async () => {
   const r = rig({ lossy: { q: 8, g: 1, depth: 10 } });
   r.c.take({ frameIndex: 0, info: { ...frame(0).info, exact: "unchecked", asCoded: true, mismatchOn: "av1-webcodecs" } });

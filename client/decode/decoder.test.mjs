@@ -79,7 +79,7 @@ check((await frameUnder(undefined)).m.pixels instanceof SharedArrayBuffer, "a la
 /**
  * An optimal-quality frame with a reconstruction digest: matched, `asCoded` true and `exact` still "unchecked"; not matched,
  * `asCoded` false with the route's digest named. Inside a group the decoder keeps the group's payloads from its keyframe for
- * the second decode. docs/lines/proposals.md §I1
+ * the second decode. docs/av1/payload-format.md §Integrity
  */
 {
   const { hasher } = await import("./xxh3.js");

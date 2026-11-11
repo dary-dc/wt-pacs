@@ -476,7 +476,7 @@ two little-endian above, sign-extended), concatenated as text.
 ### Integrity
 
 *OQ-INTEGRITY-BUILD, 2026-11-11. A proposal, off unless the ingest is asked: built and tested on synthetic sets and
-stand-in decoders; its cost is the protocol's (`docs/lines/proposals.md` §I1 on `claude/oq-integrity`).*
+stand-in decoders; its cost is the protocol's (`claude/oq-integrity:docs/lines/proposals.md` §I1).*
 
 `ingest_coded.py --integrity` (with `--lossy`; `scripts/demo-series.sh` under `INTEGRITY=1`) writes two per-frame
 lists into `lossy`. Without it nothing changes: the same bytes, the same metadata, every frame `unchecked`.
