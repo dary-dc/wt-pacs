@@ -2066,7 +2066,7 @@ entropy coder keeps AV1 at ≥ ~2×.
   cores and claims nothing for fills, concurrency or phones.
 
 **Measured (2026-10-31)**, the protocol as written:
-[`lab/av1/decode/breakdown`](../../lab/av1/decode/breakdown/README.md), which has every table. It ran on 4 vCPUs of a
+[`lab/av1/decode/breakdown`](https://github.com/dary-dc/wt-pacs/tree/696c15d6327bf2a2d338f1903128536357f2a082/lab/av1/decode/breakdown/README.md), which has every table. It ran on 4 vCPUs of a
 container, one ask at a time, on headless Chromium 141.0.7390.37 at 1× and 4×, with 10 rounds in Williams order.
 **12 480 of 12 480 frames were exact** by the worker's XXH3 and the page's SHA-256, first time on the arm's own
 path. `--mutate` read 0 of 624 exact, and each broken lever 0 of 48. The stamps cover 99.6–100 % of every frame.
@@ -2098,7 +2098,7 @@ Saturation was not measured, and nothing is claimed for fills, concurrency or ph
   for an ask only, on idle cores.
 
 **Why it is not conclusive (2026-11-02)**, from the code, the run's own ranges and exploratory profiles, in
-[`lab/av1/decode/breakdown`](../../lab/av1/decode/breakdown/README.md) §Why the result is not conclusive. The A/A did
+[`lab/av1/decode/breakdown`](https://github.com/dary-dc/wt-pacs/tree/696c15d6327bf2a2d338f1903128536357f2a082/lab/av1/decode/breakdown/README.md) §Why the result is not conclusive. The A/A did
 not catch the stamps. They cost about 1–30 µs a frame. Its 2 % line sat inside the noise of 10 rounds: 7.9 of 18
 cells were expected outside it with no effect at all, and 7 were. The JS passes cost 3.6–4.1 ns a sample a pass
 plus `neutral()`'s full read, not the read-only range pass's ~1.6 ns. That is the same milliseconds as on D, over
@@ -2147,7 +2147,7 @@ WebCodecs default. The flush (W1) is decided elsewhere and stays as the product 
   frame, latency only.
 
 **Measured (2026-11-02)**, the protocol as written, by a session given the protocol alone:
-[`lab/av1/decode/passes`](../../lab/av1/decode/passes/README.md), which has every table. Headless Chromium
+[`lab/av1/decode/passes`](https://github.com/dary-dc/wt-pacs/tree/696c15d6327bf2a2d338f1903128536357f2a082/lab/av1/decode/passes/README.md), which has every table. Headless Chromium
 141.0.7390.37 on 4 vCPUs of a container (Xeon, 2.8 GHz, one thread a core), one ask at a time, 150 rounds at 1× and
 42 at 4×. **36 864 of 36 864 frames were exact** by the worker's XXH3 and the page's SHA-256, first time on WebCodecs
 and none rescued. `--mutate` read 0 of 192 exact. With `merge()`'s shift one short, W2 read 0 of 48 on the DBT sets,
@@ -2234,7 +2234,7 @@ How the savings are derived:
 * **S.** It leaves only memory traffic: read top and low, write the output, then copy it out. That is ~9 B a sample.
   At ~5 GB/s on one core (*unverified* on this host) that is 1.8 ns a sample, against W2's 3.6–4.1 ns a pass and
   the 3.9 ns floor for a JS single pass into a reused buffer (`b1`, 32–34 ms,
-  [`breakdown`](../../lab/av1/decode/breakdown/README.md) §Why the JS passes cost 17–30 %). That is ~4, 15 and 4 ms
+  [`breakdown`](https://github.com/dary-dc/wt-pacs/tree/696c15d6327bf2a2d338f1903128536357f2a082/lab/av1/decode/breakdown/README.md) §Why the JS passes cost 17–30 %). That is ~4, 15 and 4 ms
   on `a1`, `b1` and `c1`, against the rebuild's 21, 68 and 24.
 * **G.** It removes the whole rebuild. The per-stream digests read 3 B a sample on a 10-bit top, against the merged
   digest's 2, so the digest share rises by half (+0.5–1 point) on `a1` and `c1`, and not at all on `b1`.
@@ -2290,7 +2290,7 @@ G's numbers for their structural review. It builds nothing in the product.
   A round's value for an arm is the median of its 16 frames after one warm-up frame.
 * **Cells**: `dbts_a1`, `dbts_b1` and `dbts_c1` in the 2026-10-31 codings: the middle 16 slices, G = 1, k = 2, one
   tile. The fourth set is a small split frame: `mr_ispy1`, 512², 11 bits, k = 2 over a 10-bit top. Its middle 16
-  slices are coded as `lab/av1/decode/passes/codings.py` codes a set. There a per-frame fixed cost (the kernel call,
+  slices are coded as `lab/av1/decode/passes/codings.py` (at `696c15d6`) codes a set. There a per-frame fixed cost (the kernel call,
   the buffer, the upload) is the largest share. Each set runs at 1× and 4× (`lab/scripts/cpu_throttle.mjs`), so there
   are 8 cells.
 * **Order**: a fresh headless Chromium 141.0.7390.37 per round × throttle. Inside it the sets, then the arms, each in
@@ -2301,7 +2301,7 @@ G's numbers for their structural review. It builds nothing in the product.
   95 % interval to exclude 1 at a true 0.97 *derived*. The count is fixed here and is not revised from the run.
 * **Effect and interval**: per cell, each round's ln(arm ÷ reference) is paired within that round's browser. The
   effect is the median over rounds, as a ratio. The 95 % interval is the k-th and (n − k + 1)-th ordered values,
-  with k the largest for which P(Binomial(n, ½) ≤ k − 1) ≤ 0.025 (`lab/av1/decode/passes/report.mjs` computes it).
+  with k the largest for which P(Binomial(n, ½) ≤ k − 1) ≤ 0.025 (`lab/av1/decode/passes/report.mjs` (at `696c15d6`) computes it).
   Each arm is compared to W and to W2. S and G are also compared to each other.
 * **Exact**: a frame counts only when its digest matched on the arm's own path the first time, with no fallback.
   That is the worker's XXH3 for W–S. For G it is both per-stream digests, and outside the timed span, a readback of
@@ -2320,12 +2320,12 @@ G's numbers for their structural review. It builds nothing in the product.
     G is proposed over S only if G ÷ S lies entirely below 0.97 in every DBT cell on the GPU host.
   * Otherwise the report names the cell and how it failed. No round count and no line on a point estimate alone
     decides anything.
-* **Host**: one ask at a time, two `VideoDecoder`s at most. `lab/av1/decode/passes/busy.sh` records the CPUs. The
+* **Host**: one ask at a time, two `VideoDecoder`s at most. `lab/av1/decode/passes/busy.sh` (at `696c15d6`) records the CPUs. The
   report says where the host saturates if it measures that, and claims nothing for fills, concurrency or phones. A
   phone's reading needs its own run. Each cell is quoted in ms a frame, latency only.
 
 *Measured (2026-11-03)*, by a separate session given only the protocol
-([`merge-free`](../../lab/av1/decode/merge-free/README.md) §Measured). 150 rounds at 1×, 40 at 4×, Chromium
+([`merge-free`](https://github.com/dary-dc/wt-pacs/tree/696c15d6327bf2a2d338f1903128536357f2a082/lab/av1/decode/merge-free/README.md) §Measured). 150 rounds at 1×, 40 at 4×, Chromium
 141.0.7390.37 on 4 vCPUs. **60 800 of 60 800 frames exact**. Every broken copy read 0 exact (`--mutate`, S's
 shift one short, R's buffer never grown), and the control read all exact. **G was not run**: the host's WebGL2
 renderer is SwiftShader. The run was cut after 149 browsers and resumed from its rows on a slower host of the same

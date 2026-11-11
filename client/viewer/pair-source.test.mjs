@@ -21,8 +21,8 @@ const claim = (what, fn) => {
  */
 claim("a pair that names no shared source is refused", () => {
   assert.throws(() => checkPair(lossy, exact), /source/);
-  assert.throws(() => checkPair({ ...lossy, framesSha256: "f00d" }, exact), /source/);
-  assert.throws(() => checkPair(lossy, { ...exact, framesSha256: "f00d" }), /source/);
+  assert.throws(() => checkPair({ ...lossy, sourceFingerprint: "00000000f00df00d" }, exact), /source/);
+  assert.throws(() => checkPair(lossy, { ...exact, sourceFingerprint: "00000000f00df00d" }), /source/);
 });
 
 /**
@@ -31,8 +31,8 @@ claim("a pair that names no shared source is refused", () => {
  * at other modality values than its own series states.
  */
 claim("an exact series read otherwise than this series is refused", () => {
-  const named = { ...lossy, framesSha256: "f00d" };
-  const same = { ...exact, framesSha256: "f00d" };
+  const named = { ...lossy, sourceFingerprint: "00000000f00df00d" };
+  const same = { ...exact, sourceFingerprint: "00000000f00df00d" };
   for (const bad of [
     { photometric: "MONOCHROME1" },
     { rescale: { slope: 2, intercept: 0 } },
@@ -55,8 +55,8 @@ claim("an exactSeries of dot segments is not a series id", () => {
  * press ends in *Lossless check failed*.
  */
 claim("an exact series without a digest for every frame is refused", () => {
-  const named = { ...lossy, framesSha256: "f00d" };
-  const same = { ...exact, framesSha256: "f00d" };
+  const named = { ...lossy, sourceFingerprint: "00000000f00df00d" };
+  const same = { ...exact, sourceFingerprint: "00000000f00df00d" };
   for (const frames of [[], ["a", "b"], [1, 2, 3], ["0123456789abcdef", "0123456789abcdef", ""]]) {
     assert.throws(() => checkPair(named, { ...same, digests: { algorithm: "xxh3-64", frames } }), /digest/, JSON.stringify(frames));
   }

@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-11 06:00 UTC (branch tips and the work queue read from `origin`).
+Last verified 2026-11-11 19:40 UTC (branch tips and the work queue read from `origin`).
 
 ## Goal
 
@@ -34,19 +34,34 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   `av1-webcodecs`) and `dbts_a1-q8-g16-stored` (every frame `av1-dav1d` after WebCodecs refused), filled and with
   `fill=0`; labels *Optimal quality* → *fetching lossless…* → *Lossless* → *Optimal quality*, and *Lossless check
   failed* for a tampered digest. Not a GPU, not hardware decode, not a phone.
+* **A laptop without installs** (PHONE-NO-INSTALL, 2026-11-11, `claude/phone-no-install`): README §Demo's variant
+  serves the page over the tether at the laptop's address (`dev-server.py --bind`, loopback alone by default), made a
+  secure context on the phone by Chrome's flag *Insecure origins treated as secure* (built for Android: `kOsAll` in
+  `about_flags.cc`); the certificate is made by `openssl` in a container (`OPENSSL=` in `gen_dev_cert.sh`). Checked
+  in a network namespace on `dbts_a1-q8-g8-cut`, `dbts_b1-q8-g8`, `dbts_a1-q8-g16-stored`: every frame filled,
+  `l` *Lossless*; without the flag, no `WebTransport`. Not on a phone. The show list's six bundles are 208 MB, its
+  two exact series 175 MB; a `demo-series.sh` run gave the same fractions as above.
 * **From a fresh clone** (DEMO-E2E-2, 2026-11-10, `claude/demo-e2e-2`): README §Demo word for word on one 4-core
   cloud host, Chromium 141 headless on SwiftShader; all 20 optimal-quality series passed, label in order, *Lossless*
   never before the exact frame's paint, no console error; numbers per series in `client/README.md` §Optimal quality,
   exact on request. Fixed: a certificate ending within a day was renewed by the static host after the series
   servers loaded the old one (no picture); README §Demo gained the steps before the demo from any state and the
-  phone pair for a demo series.
+  phone pair for a demo series. *Corrected 2026-11-11 (REVIEW-E2E2):* "*Lossless* never before the exact frame's
+  paint" was measured in an uncommitted copy; `demo-check.mjs` did not check it, and passed a page that wrote it
+  first. It checks it now, and `Home`'s paint, which it skipped after a 30 s wait on most runs
+  (`docs/reviews/demo-e2e-2.md`, `claude/demo-e2e-2-fixes`).
+* **Reviewed from a fresh clone** (REVIEW-E2E2, 2026-11-11, `claude/demo-fixes-0` at `36d286cd`): README §Demo word
+  for word, Playwright 1.63's Chromium in place of 1.56.1's; bytes equal to the record's; all 20 series passed;
+  `demo-check.mjs` mutated, the certificate renewal's mutant killed; two on-demand mutants that ask a group ahead
+  survived, cause not traced. Not a GPU, not hardware decode, not a phone.
 * **The demo build** (DEMO-INTEGRATE, 2026-11-10): `claude/demo-fixes-0` (#355 into `claude/core`) is the demo tip
   `claude/core-next-fixes` plus `gate-cloud`, `double-decode-check` and `demo-e2e-2`, each a `--no-ff` merge; full
   gate OK in a cloud session (skipped: lavapipe, GL display, Firefox, nginx); CI gate and deploy green.
 * **Tests for a phone on lossy wireless** (TEST-MOBILE, 2026-11-11, `claude/demo-tests-mobile`): the label through a
   failed ask and its retry, the route rule by depth and in a group, `demo-check.mjs --link` through
   `lab/scripts/link_impair.py` (no `sch_netem` in the cloud kernel). Correct wherever it finished; at 40 ms one way
-  and 2 % loss `dbts_a1`'s cut filled in 36 s and Lossless took 3–6 s, and `dbts_b1` did not fill in 120 s
+  and 2 % loss `dbts_a1`'s cut filled in 36 s and Lossless took 3–6 s (up to 17 s
+  with ±10 ms jitter, its §2; *corrected 2026-11-11*, REVIEW-2 D1: this gave 3–6 s alone), and `dbts_b1` did not fill in 120 s
   ([`docs/reviews/demo-tests-mobile.md`](../reviews/demo-tests-mobile.md); one run per cell, one cloud host).
 * **Red team** (REDTEAM-DEMO, 2026-11-11, `claude/demo-redteam`, node tests only): five failing tests, one finding
   without a test ([`docs/reviews/demo-redteam.md`](../reviews/demo-redteam.md)). The pair's source check is
@@ -70,12 +85,50 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   the page view under #362's stricter check, interleaved by series: 60 of 60 passed, headless on one cloud host
   ([`docs/reviews/e2e-3.md`](../reviews/e2e-3.md), with the owner's rehearsal list). #362 (the check's Home and
   *Lossless*-paint fixes) is not in `demo-fixes-1`: without it the check stalled 30 s on 12 of 28 a1/c1 runs.
-* **Not yet run:** any phone run.
+* **The phone run's protocol** (PHONE-PROTOCOL, 2026-11-11, `claude/phone-protocol`): [`docs/devices.md`](../devices.md)
+  §7, page view against view worker alternated, tether against Wi-Fi in blocks, the decision rules and the commands
+  for the laptop without installs. Found while writing it: the status line is cut at the phone's width, so the fill
+  time and the last error are not visible (Part B waits on a change, the owner's call); touch cannot step slices.
+  *Amended* (PHONE-AMEND, 2026-11-11, before any run): a controller arm, `cubic-restart` against `bbr` on four
+  servers chosen by the page's port, crossed with the views in Williams quads; the server's loss reading from a
+  `--features telemetry` build (session line, a loss trace, path rows every 250 ms), the mix read from
+  `cubic-restart`'s sessions alone; one timed series (`dbts_b1-q8-g8`) and an eye check of `dbts_a1-q8-g8-cut`, 56
+  loads, about two hours (an assumption); the stored form out. The controller verdict changes no default alone.
+* **For a presenter** (ESSENTIALS, 2026-11-11, `claude/demo-essentials`, proposed): `client/README.md` §Optimal
+  quality, for a presenter: a frame's path through the modules for both series, eight points each with its test,
+  and eight things that could not be explained simply (for OPT-SIMPLIFY and NAMES-FIND). Read from code; nothing run.
+* **The demo's UX** (DEMO-UX, 2026-11-11, `claude/demo-ux`, draft PR into `claude/demo-fixes-1`): merges #360, #362,
+  #359 (PHONE-AMEND included) and #356; the label in colour beside its words (*Optimal quality* green, *✓ Lossless*
+  blue, a failed check red); a tap unfolds the status line on a phone; the stored form off the show list
+  (`STORED_FORM=1 scripts/demo-series.sh` keeps it), dav1d's browser check through the lab's `refuseWebCodecs` on a
+  10-bit series; SLICE-TOUCH's slice slider in both views; `client/README.md`'s *exact* sentence corrected. Results:
+  `claude/work-ledger:docs/queue/DEMO-UX.md`.
 * **The web image serves a pair** (MAIN-REVIEW, 2026-11-11, `claude/demo-fixes-2`): `--profile pair` with
   `EXACT_SERIES` starts a second server on 4434 for the exact series, and web answers its metadata and transport file
   and names both origins in its policy (`deploy/README.md` §Run it). `check_equivalence.sh --local` now serves the
   smoke series as a pair's exact series and passes; five template mutants fail it. Not run: the image itself (CI's
   job), and a browser on an image-served pair.
+* **Source fingerprint** (SOURCE-FINGERPRINT, 2026-11-11, `claude/source-fingerprint` from `claude/demo-fixes-1`,
+  merged into `claude/demo-fixes-2` by FIX-2): every series the ingests write (`ingest_coded.py`, `from_dicom.py`, the Rust ingest) carries
+  `sourceFingerprint`, XXH3-64 over the source's frame digests as its HTJ2K series carries them; `checkPair` requires
+  the same 16 hex digits in both series instead of `framesSha256`, which stays the fetcher's download pin and is no
+  longer copied into a series ([`../av1/payload-format.md`](../av1/payload-format.md) §Source fingerprint). Synthetic
+  sets and node tests, every new test mutated. `demo-series.sh` run again (one 4-core cloud host, 685 s with the
+  coders built): every exact bundle 43 B smaller (`framesSha256` out, `sourceFingerprint` in), each optimal-quality
+  bundle the same size; each set's eight or seven series carry one fingerprint, the three sets three; `checkPair`
+  accepts all 20 pairs and refuses each against the other two sets' exact series by source (a node script over the
+  metadata; no browser run on these series).
+* **Fixes, round 2** (FIX-2, 2026-11-11, `claude/demo-fixes-2`, #367 into `claude/core`): on MAIN-REVIEW's S1 fix,
+  `--no-ff` merges of `claude/demo-ux` (#365, with #360, #362, #359, #356), `claude/source-fingerprint` (#364, the
+  owner's word) and `claude/demo-clean` (EXPERIMENTS-OFF's items 1–9, the owner's yes; no archive tags); REVIEW-2's
+  F1 and D1 corrected in place, U1 and U2 left to CLEAN-PRODUCT and the phone run; no proposal was marked *adopt*;
+  E2E-3 recorded no failure. Full gate OK (650 s; skipped: lavapipe, Xvfb, Firefox and the cross-codec arm), and
+  `check_equivalence.sh --local` on nginx 1.29-alpine. `demo-series.sh` wrote every series again from the merged
+  tip (21 series, 527 s): three source fingerprints, seven series each, no `framesSha256`. `demo-check.mjs` on all
+  20 runs of README §Demo × {page, worker}, interleaved by series: 40 of 40 passed (REVIEW-2's C1). Headless
+  Chromium (Playwright 1.63) on SwiftShader, one 4-core cloud host, no GPU, loopback; one run per cell; correctness
+  only, nothing timed. After FIX-2 only blockers change the demo tip (the freeze); FREEZE-E2E follows.
+* **Not yet run:** any phone run.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
   twelve): running REDTEAM-DEMO, REVIEW-BLIND, TEST-MOBILE, AV1-CORRECT, OPT-THEORY, and the rows added that night:
@@ -201,12 +254,19 @@ What a presenter should know, from the reviews of 2026-11-11 (`claude/demo-under
 * The web image ships the check hooks (`check-page.js`, `view/check.js`), so `?check=` works in production; on the
   lab host `?opts=` can switch the exactness check off from the URL (DEFAULTS-FIND 1, 4).
 * About 110 of `viewer.js`'s 334 lines are check and lab hooks (CLEAN-FIND).
-* PR 250 brings to `main` new `lab/` directories (about 5 100 lines, `lab/target-review` among them) and
+* PR 250 brings to `main` new `lab/` directories (about 5 100 lines, lab/target-review among them) and
   `client/native` (+3 303); moving any off `main` names each item and waits for the owner's yes (PRE-MAIN-REVIEW §4).
+  EXPERIMENTS-OFF (2026-11-11) lists every item in [`docs/reviews/experiments-off.md`](../reviews/experiments-off.md):
+  nine removals prepared on `claude/demo-clean` (−8 273 lines, each folder kept byte for byte on its line branch),
+  seven listed and not prepared (`client/native` is the native line's product, not an experiment; the lab hooks in
+  product modules are a refactor after FREEZE-E2E). FIX-2 merges only the items the owner says yes to.
 * The decoders' WASM is committed and the gate checks it rebuilds to the same bytes; that is what lets the laptop
   without installs run the page without Docker.
 * `framesSha256` is written only by the lab fixture fetcher, so a pair made by any other ingest fails the pairing
-  check until the ingest writes the source fingerprint (row SOURCE-FINGERPRINT).
+  check until the ingest writes the source fingerprint (row SOURCE-FINGERPRINT). *Built 2026-11-11 on
+  `claude/source-fingerprint`, not in the demo:* every ingest writes `sourceFingerprint` and `checkPair` compares it
+  in place of `framesSha256`; it enters the demo only with the owner's word, since every demo series must be written
+  again.
 
 ## Pointers
 

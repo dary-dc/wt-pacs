@@ -100,6 +100,8 @@ slowest's bytes:
 * `min` and `max` of the stored samples;
 * `codec`, and for AV1 `representation` and `preset`;
 * `digests` (§Frame digests);
+* `sourceFingerprint`, XXH3-64 over the source's frame digests, the same in every series of one source
+  ([`av1/payload-format.md`](av1/payload-format.md) §Source fingerprint);
 * for an optimal-quality series instead of `representation`, `preset` and `digests`: `lossy` `{q, g, depth}` and
   `exactSeries`, the name of its exact series ([`av1/payload-format.md`](av1/payload-format.md) §Optimal quality).
   `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID` writes them; this ingest does not code one yet.

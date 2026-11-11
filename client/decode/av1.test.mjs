@@ -442,6 +442,26 @@ const { parsePayload } = await import("./av1-payload.js");
   await take(await make("none"), "without VideoDecoder, dav1d, and that named", "g12", 12, "dav1d", "av1-dav1d", /no VideoDecoder/);
 }
 
+/** The lab's `refuseWebCodecs` sends a ≤ 10-bit optimal-quality frame WebCodecs would decode to dav1d, the lever named as the refusal; without it, WebCodecs. */
+{
+  const calls = [];
+  const pic = () => ({ width: 1, height: 1, bits: 10, planes: [{ heap: Uint16Array.of(7), offset: 0, stride: 1 }] });
+  const stubs = {
+    "./av1-webcodecs.js": { init: async () => {}, probe: async () => true, picture: async () => (calls.push("webcodecs"), pic()) },
+    "./av1-dav1d.js": { init: async () => {}, picture: () => (calls.push("dav1d"), pic()) },
+  };
+  globalThis.VideoDecoder = class {};
+  for (const refuseWebCodecs of [true, false]) {
+    const av1 = await import(`./av1.js?refuse-${refuseWebCodecs}`);
+    await av1.init({ lossy: true, refuseWebCodecs }, async (path) => stubs[path]);
+    calls.length = 0;
+    const f = await av1.decodeFrame(golden("plain", "g10"));
+    check(refuseWebCodecs ? calls.join() === "dav1d" && f.path === "av1-dav1d" && /refuseWebCodecs/.test(f.refusal) : calls.join() === "webcodecs" && f.path === "av1-webcodecs",
+      `refuseWebCodecs ${refuseWebCodecs}: ${calls.join()}; ${f.path}; ${f.refusal}`);
+  }
+  delete globalThis.VideoDecoder;
+}
+
 /** Init starts fetching every decoder the payload could need, so none waits for the first payload to land; a failure there costs no payload. */
 {
   const asked = [];

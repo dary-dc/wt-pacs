@@ -1,8 +1,9 @@
 // The demo's check: an optimal-quality series and its exact series from scripts/demo-series.sh, served by README §Demo's own
 // commands, opened as a reader would, and every claim of the demo failed by name. README.md §Demo
 //
-//   node client/viewer/demo-check.mjs DIR LOSSY_ID [--route av1-webcodecs|av1-dav1d] [--view page|worker] [--link "OPTIONS"] [--json]
+//   node client/viewer/demo-check.mjs DIR LOSSY_ID [--route av1-webcodecs|av1-dav1d] [--refuse-webcodecs] [--view page|worker] [--link "OPTIONS"] [--json]
 //     DIR as demo-series.sh wrote it: ID.sbnd and ID.metadata.json for LOSSY_ID and its exactSeries
+//     --refuse-webcodecs: the lab's refuseWebCodecs lever, so every frame must reach dav1d with that refusal named
 //     --link: both series' sessions through one lab/scripts/link_impair.py with OPTIONS, a phone on lossy wireless
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -13,7 +14,9 @@ import path from "node:path";
 const ROOT = new URL("../..", import.meta.url).pathname;
 const [dir, id] = process.argv.slice(2);
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
-const ROUTE = arg("--route", "av1-webcodecs");
+const REFUSE = process.argv.includes("--refuse-webcodecs");
+const ROUTE = REFUSE ? "av1-dav1d" : arg("--route", "av1-webcodecs");
+const LEVERS = REFUSE ? `&opts=${encodeURIComponent(JSON.stringify({ refuseWebCodecs: true }))}` : "";
 const VIEW = arg("--view", "page");
 const LINK = arg("--link");
 const T = mkdtempSync(path.join(tmpdir(), "demo-check-"));
@@ -90,14 +93,14 @@ function watch() {
   });
 }
 
-/** One reader's pass: open, scroll in order, Home, End (a jump), `l` and `l` again. */
+/** One reader's pass: open, scroll in order, Home, End or the slider (a jump), `l` and `l` again. */
 async function pass(browser, query) {
   const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
   const errors = [];
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   page.on("pageerror", (e) => errors.push(e.message));
   await page.addInitScript(watch);
-  await page.goto(`http://127.0.0.1:8765/?overlay=1&view=${VIEW}${query}`);
+  await page.goto(`http://127.0.0.1:8765/?overlay=1&view=${VIEW}${LEVERS}${query}`);
   const log = () => page.evaluate(() => globalThis.__log);
   const now = () => page.evaluate(() => performance.now());
   const until = async (pred, ms = 60000) => {
@@ -117,15 +120,19 @@ async function pass(browser, query) {
     must(await shown(i, t), `${query}: frame ${i + 1} painted after its step`);
     steps.push(Math.round((await log()).findLast((e) => e.id === "overlay").t - t));
   }
+  const home = await now();
   await page.keyboard.press("Home");
-  await shown(0, await now());
+  must(await shown(0, home), `${query}: Home painted frame 1`);
   const before = await now();
-  await page.keyboard.press("End");
+  // On demand the far jump is the slice slider's, as a finger would make it; filled, End's, which must move the slider too.
+  if (query) await page.locator("#slice").fill(String(n - 1));
+  else await page.keyboard.press("End");
   must(await shown(n - 1, before), `${query}: the jump to frame ${n} painted`);
+  check(await page.locator("#slice").inputValue() === String(n - 1), `${query}: the slider not at frame ${n} after the jump`);
   const jumpMs = Math.round((await log()).findLast((e) => e.id === "overlay").t - before);
   const pressed = await now();
   await page.keyboard.press("l");
-  await until((l) => /^Lossless/.test(l.findLast((e) => e.id === "quality")?.text), 30000);
+  await until((l) => /^✓ Lossless/.test(l.findLast((e) => e.id === "quality")?.text), 30000);
   const losslessMs = Math.round((await log()).findLast((e) => e.id === "quality").t - pressed);
   const labelled = (l) => l.filter((e) => e.id === "quality");
   const writes = labelled(await log()).length;
@@ -135,6 +142,7 @@ async function pass(browser, query) {
   const l = await log();
   await page.close();
   const overlays = l.filter((e) => e.id === "overlay" && e.text);
+  const lossless = l.findIndex((e) => e.id === "quality" && e.text === LABELS[2]);
   const received = [];
   for (const e of l.filter((e) => e.id === "status")) {
     const k = Number(e.text.match(/received (\d+)/)?.[1] ?? 0);
@@ -145,23 +153,25 @@ async function pass(browser, query) {
     labels: l.filter((e) => e.id === "quality" && e.text).map((e) => e.text).filter((t, k, a) => t !== a[k - 1]),
     firstPictureMs: Math.round(overlays[0]?.t), receivedMs: received,
     frames: Object.values(Object.fromEntries(overlays.filter((e) => !e.text.startsWith("htj2k")).map((e) => [e.frame, e.text]))),
-    exactPainted: overlays.some((e) => e.text.startsWith("htj2k")),
+    paintedWithLossless: lossless < 0 ? null : l.slice(lossless + 1).find((e) => e.id === "overlay")?.text,
     status: l.findLast((e) => e.id === "status")?.text,
   };
 }
 
-const LABELS = ["Optimal quality", "Optimal quality · fetching lossless…", "Lossless", "Optimal quality"];
+const LABELS = ["Optimal quality", "Optimal quality · fetching lossless…", "✓ Lossless", "Optimal quality"];
 const FAILED = "Lossless check failed · optimal quality shown";
 const routeOf = (overlay) => overlay.match(/^(\S+)( after WebCodecs refused: (.*?))? · ([\d.]+) KB · decode ([\d.]+) ms/);
 
 function judge(r) {
-  check(r.exactPainted, `${r.query}: no exact frame painted on Lossless`);
+  // The label and the overlay are written by one paint, the label first: the overlay after it names what was painted.
+  check(r.paintedWithLossless?.startsWith("htj2k"), `${r.query}: Lossless written with ${r.paintedWithLossless ?? "no paint"}, not the exact frame's`);
   check(r.status?.includes(` · view ${VIEW} · `), `${r.query}: the frames held in ${r.status?.match(/view (\w+)/)?.[1]}, not ${VIEW}`);
   check(r.errors.length === 0, `${r.query}: console errors ${JSON.stringify(r.errors)}`);
   for (const f of r.frames) {
     const m = routeOf(f);
     check(m?.[1] === ROUTE, `${r.query}: a frame decoded by ${m?.[1]}, not ${ROUTE}: ${f}`);
     check(m?.[1] !== "av1-dav1d" || m[3], `${r.query}: dav1d without WebCodecs' refusal named: ${f}`);
+    check(!REFUSE || /refuseWebCodecs/.test(m?.[3]), `${r.query}: the lab's refusal not named: ${f}`);
   }
 }
 

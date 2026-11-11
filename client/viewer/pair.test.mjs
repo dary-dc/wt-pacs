@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { checkPair, depthCut, pairOf } from "./pair.js";
 
-const source = { frameCount: 3, width: 4, height: 2, bitsStored: 10, signed: false, framesSha256: "f00d" };
+const source = { frameCount: 3, width: 4, height: 2, bitsStored: 10, signed: false, sourceFingerprint: "00000000f00df00d" };
 const lossy = { ...source, codec: "av1", lossy: { q: 30, g: 8, depth: 10 }, exactSeries: "1.2.840.5" };
 const exact = { ...source, digests: { algorithm: "xxh3-64", frames: ["0123456789abcdef", "123456789abcdef0", "23456789abcdef01"] } };
 
@@ -25,7 +25,8 @@ for (const [bad, why] of [
 
 /** The exact series must be HTJ2K, of the same source, and carry the digests a "Lossless" label needs. */
 checkPair(lossy, exact);
-assert.throws(() => checkPair({ ...lossy, framesSha256: undefined }, exact), /not shown to be of this source/);
+assert.throws(() => checkPair({ ...lossy, sourceFingerprint: undefined }, exact), /not shown to be of this source/);
+assert.throws(() => checkPair({ ...lossy, sourceFingerprint: "f00d" }, { ...exact, sourceFingerprint: "f00d" }), /not shown to be of this source/);
 for (const [bad, why] of [
   [{ codec: "av1" }, /not an HTJ2K series/],
   [{ lossy: { q: 1, g: 1, depth: 8 } }, /not an HTJ2K series/],
@@ -34,8 +35,9 @@ for (const [bad, why] of [
   [{ height: 3 }, /is 4×3, not 4×2/],
   [{ bitsStored: 12 }, /bitsStored 12, not 10/],
   [{ signed: true }, /signed true, not false/],
-  [{ framesSha256: "beef" }, /this source: framesSha256 beef, not f00d/],
-  [{ framesSha256: undefined }, /this source: framesSha256 undefined/],
+  [{ sourceFingerprint: "00000000beefbeef" }, /this source: sourceFingerprint 00000000beefbeef, not 00000000f00df00d/],
+  [{ sourceFingerprint: undefined }, /this source: sourceFingerprint undefined/],
+  [{ framesSha256: "f00d", sourceFingerprint: undefined }, /this source: sourceFingerprint undefined/],
   [{ digests: undefined }, /no xxh3-64 frame digests/],
   [{ digests: { algorithm: "sha256", frames: [] } }, /no xxh3-64 frame digests/],
 ]) assert.throws(() => checkPair(lossy, { ...exact, ...bad }), why);

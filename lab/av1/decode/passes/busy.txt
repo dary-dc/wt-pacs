@@ -1,2 +1,0 @@
-1×: 149 browsers; mean busy 38 %–40 % (median 38 %); busiest second 53 %; browsers with a second at ≥ 95 %: 0
-4×: 42 browsers; mean busy 21 %–24 % (median 22 %); busiest second 41 %; browsers with a second at ≥ 95 %: 0
