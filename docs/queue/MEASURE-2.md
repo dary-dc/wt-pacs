@@ -66,7 +66,7 @@ Runs, in order, each one background command, rows pushed by hand or a loop every
   code step of 4). I1's digest: every frame as coded on WebCodecs, both arms. G 16 jump 0.37x on 4 cores (band
   0.70-0.85x missed, in its favour); 0.99x under taskset -c 0,1, where the one-tile jump is itself half (199 vs 406 ms).
 * R2 jump 500 ms into the fill: P1's claim stands. BBR 0.08-0.09x of Cubic's at 1 % loss (band 0.2-0.6x missed, in
-  BBR's favour), 0.86-0.96x clean and in bursts; under Cubic at 1 % the jump paints when the fill's last frame lands.
+  BBR's favour), 0.86-0.96x clean and in bursts; under Cubic at 1 % on a1 and c1 the jump paints when the fill's last frame lands.
 * R3 wake on end_stream alone, plumbing: holds, -103 and -105 ms (rule -100 +-15; A/A 8 and 2 ms). Phone row owed.
 * R4 38 400 B window under BBR: withdrawn, `l` 1.09-1.26x slower in every cell (predicted 0.85-0.95x clean).
 * R5: not started (see Resume). Every rule carried R0's A/A arm.
