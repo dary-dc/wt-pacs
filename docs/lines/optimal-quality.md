@@ -84,6 +84,10 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   the page view under #362's stricter check, interleaved by series: 60 of 60 passed, headless on one cloud host
   ([`docs/reviews/e2e-3.md`](../reviews/e2e-3.md), with the owner's rehearsal list). #362 (the check's Home and
   *Lossless*-paint fixes) is not in `demo-fixes-1`: without it the check stalled 30 s on 12 of 28 a1/c1 runs.
+* **The phone run's protocol** (PHONE-PROTOCOL, 2026-11-11, `claude/phone-protocol`): [`docs/devices.md`](../devices.md)
+  §7, page view against view worker alternated, tether against Wi-Fi in blocks, the decision rules and the commands
+  for the laptop without installs. Found while writing it: the status line is cut at the phone's width, so the fill
+  time and the last error are not visible (Part B waits on a change, the owner's call); touch cannot step slices.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
