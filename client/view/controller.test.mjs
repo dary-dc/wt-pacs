@@ -509,6 +509,75 @@ test("a scroll through a group after a jump into it asks nothing", async () => {
 });
 
 let failed = 0;
+/**
+ * One reader's `l` and its retry run the label through every state in order: optimal, asking, failed when the exact
+ * series' ask fails (the reason said as a frame failure), asking again on `l`, lossless once checked and painted, optimal
+ * on the way back; the retry asks the exact series a second time.
+ */
+test("the label runs every state through a failed ask, its retry and the way back", async () => {
+  const asks = [Promise.reject(new Error("session closed")), Promise.resolve(exactFrame(2))];
+  asks[0].catch(() => {});
+  const r = lossyRig(() => asks.shift());
+  await r.c.show(2);
+  await r.c.showExact();
+  const reason = r.events.findLast(([t]) => t === "failed")?.[1];
+  assert.deepEqual(reason, { scope: "frame", i: 2, reason: "lossless: session closed" });
+  assert.equal(r.painted.at(-1).f, r.c.store.get(2));
+  await r.c.showExact();
+  await r.c.showLossy();
+  const runs = r.labels().filter((q, k, a) => q !== a[k - 1]);
+  assert.deepEqual(runs, ["optimal", "asking", "failed", "asking", "lossless", "optimal"]);
+  assert.deepEqual(r.exactAsks, [2, 2]);
+});
+
+/** A frame of the exact series that arrives unchecked is labelled failed, never lossless, and the reason names the missing digest. */
+test("an unchecked exact frame is labelled failed with its reason", async () => {
+  const r = lossyRig((i) => Promise.resolve(exactFrame(i, "unchecked")));
+  await r.c.showExact();
+  assert.equal(r.labels().at(-1), "failed");
+  assert.match(r.events.findLast(([t]) => t === "failed")[1].reason, /no digest/);
+  assert.equal(r.painted.at(-1).f, r.c.store.get(0));
+});
+
+/** `l` before the exact series is connected asks nothing and leaves the label at optimal quality. */
+test("lossless before the exact series is connected asks nothing", async () => {
+  const r = lossyRig();
+  r.c.exactSource = null;
+  await r.c.repaint();
+  await r.c.showExact();
+  await r.c.repaint();
+  assert.deepEqual(r.labels().filter((q, k, a) => q !== a[k - 1]), ["optimal"]);
+});
+
+/**
+ * While a frame is asked exact, `l` again and a cancel then `l` again send no second ask: the one in flight is answered
+ * once, and the label reaches lossless from it.
+ */
+test("a frame asked exact is asked once however often the reader presses", async () => {
+  const pending = Promise.withResolvers();
+  const r = lossyRig(() => pending.promise);
+  const first = r.c.showExact();
+  const again = r.c.showExact();
+  r.c.showLossy();
+  const third = r.c.showExact();
+  pending.resolve(exactFrame(0));
+  await Promise.all([first, again, third]);
+  await r.c.repaint();
+  assert.deepEqual(r.exactAsks, [0]);
+  assert.equal(r.labels().at(-1), "lossless");
+});
+
+/** A window change while lossless paints the exact frame again under the new window and keeps the label lossless. */
+test("a window change keeps the exact frame and its label", async () => {
+  const r = lossyRig();
+  await r.c.showExact();
+  const exact = r.painted.at(-1).f;
+  await r.c.setDisplay({ window: { center: 1, width: 2, function: "LINEAR" } });
+  assert.equal(r.painted.at(-1).f, exact);
+  assert.equal(r.painted.at(-1).display.voi.center, 1);
+  assert.equal(r.labels().at(-1), "lossless");
+});
+
 /** The overlay's data for a painted frame names its decode route and, after a refusal, why WebCodecs refused it. */
 test("a shown frame's route and WebCodecs refusal reach the overlay", async () => {
   const { c, events } = rig({ lossy: { q: 8, g: 1, depth: 12 } });
