@@ -24,7 +24,7 @@ P6's arms (b), (c) built from claude/dav1d-lazy and a shaped static host: last, 
 19:18 setup done (demo-series 728 s); ../integ built and linked. 19:21 R1 encodes running (r1_encodes.sh as above;
 the one-tile check is on bundles packed with the demo tip's metadata, afd7c08f).
 19:31 R1 encodes done, all 7 one-tile bundles equal to the demo tip's; rows r1-bytes.jsonl, r1-quality/ (6671249b);
-19:34 condition (2) holds, 14 of 14 fills as coded on av1-webcodecs (r1-correct.jsonl, e5f3d41e). 19:35 jump cell
+19:32 condition (2) holds, 14 of 14 fills as coded on av1-webcodecs (r1-correct.jsonl, e5f3d41e). 19:32 jump cell
 running: /home/user/r1/jump.jsonl (copy to lab/proposals/rows/r1-jump.jsonl as it lands). If stopped: a fresh session
 reruns r1_encodes.sh (~12 min, skips nothing it has not got) and r1.sh from the first incomplete round (a round is 6
 rows). Then: python3 lab/proposals/r1_summary.py /home/user/r1 rows/r1-bytes.jsonl rows/r1-correct.jsonl
