@@ -1,8 +1,9 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 14:49
+heartbeat: 2026-11-11 16:23
 outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); no PR yet (#358 is OPT-THEORY's draft into main from this branch)
 ## Resume
+Resumed 2026-11-11 16:23 by a new session (stalled at 14:49). Starting B0 (read the audit protocols first).
 2026-11-11 14:49: this session stopped after P5 and P3 (nothing unpushed, no process left running). Next session: B0.
 P5 (13:44-14:17, 108 rows, 03e64ebf): drop as inert. P3 (14:19-14:46, 105 rows, plus a 8-run ping check outside the
 protocol, 4ab3ee0d): rule refuted; the wake takes L off on a1 and c1; dbts_b1's ask follows a ~15 s packet that pays
