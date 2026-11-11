@@ -196,7 +196,7 @@ What a presenter should know, from the reviews of 2026-11-11 (`claude/demo-under
 * The web image ships the check hooks (`check-page.js`, `view/check.js`), so `?check=` works in production; on the
   lab host `?opts=` can switch the exactness check off from the URL (DEFAULTS-FIND 1, 4).
 * About 110 of `viewer.js`'s 334 lines are check and lab hooks (CLEAN-FIND).
-* PR 250 brings to `main` new `lab/` directories (about 5 100 lines, `lab/target-review` among them) and
+* PR 250 brings to `main` new `lab/` directories (about 5 100 lines, lab/target-review among them) and
   `client/native` (+3 303); moving any off `main` names each item and waits for the owner's yes (PRE-MAIN-REVIEW §4).
 * The decoders' WASM is committed and the gate checks it rebuilds to the same bytes; that is what lets the laptop
   without installs run the page without Docker.

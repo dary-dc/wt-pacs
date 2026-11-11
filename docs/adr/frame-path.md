@@ -2729,7 +2729,7 @@ GPU); the samples written once, as today.
 and the branches that work on it: `claude/opfs-cache-fixes` (OCF), `claude/opfs-arms` (ARMS), `claude/frame-memory`
 (FM), `claude/worker-clock` (WC), `claude/ask-patterns-map` (MAP) and `claude/view-worker` (VW), cited
 `branch:path:line`. Engine sources are pinned in [`frame-path-sources.txt`](frame-path-sources.txt) under
-*Review*. Three throwaway probes are in [`../../lab/target-review/`](../../lab/target-review/README.md). Their numbers
+*Review*. Three throwaway probes are in [`../../lab/target-review/`](https://github.com/dary-dc/wt-pacs/tree/7f335cc0c80100017ccb3800c40a871c9fabc3f6/lab/target-review/README.md). Their numbers
 come from a shared container and are **indicative, not claims**. Nothing here was run on a phone, in WebKit, or in
 Firefox. Every fix below is **proposed, not made**. Four helper agents did the reading and the probes.
 
@@ -2908,7 +2908,7 @@ I/O. Each has a small fix and a measurement that settles it.
 *Written blind, from the constraints and from `main` alone, before the owner's target design was read; the comparison
 follows it as its own section, so the order is auditable. Nothing here is built or timed; every figure is one of
 §2–§6's measurements, a reading of the code, or marked as a prediction. The probes under
-[`../../lab/target-review/`](../../lab/target-review/README.md) are indicative only (a container, not a phone).*
+[`../../lab/target-review/`](https://github.com/dary-dc/wt-pacs/tree/7f335cc0c80100017ccb3800c40a871c9fabc3f6/lab/target-review/README.md) are indicative only (a container, not a phone).*
 
 **The constraints, as given.** Mobile on lossy wireless; the fill's throughput and the on-demand latency both count,
 and a real viewer is a hybrid of the two by modality, study size and link; every shown frame lossless, bit-exact, checked
@@ -3310,7 +3310,7 @@ if either fails, the target's split stands and the independent design's items 3 
 
 #### The probes, indicative only
 
-Run in this container's headless Chromium 153 on software GL, 4 cores, [`../../lab/target-review/`](../../lab/target-review/README.md);
+Run in this container's headless Chromium 153 on software GL, 4 cores, [`../../lab/target-review/`](https://github.com/dary-dc/wt-pacs/tree/7f335cc0c80100017ccb3800c40a871c9fabc3f6/lab/target-review/README.md);
 no Firefox binary here, no WebKit. A number below is this host's, not a phone's, and nothing is claimed past it.
 
 * **A file per frame costs ~1.7 ms of handle calls a write** (`getFileHandle` 0.8, `createSyncAccessHandle` 0.5,
@@ -3541,7 +3541,7 @@ pinned source to re-fetch. Every citation they do make is in-repo or `branch:pat
 | claim | where | verdict |
 | --- | --- | --- |
 | a run is issued when the last one's final frame lands | `client/transport/downloader.js:290` on `main` | holds; VW's head has it at :293 (corrected) |
-| 38 runs for 76 frames; 1.7 and 3.4 s idle | [`../../lab/target-review/README.md`](../../lab/target-review/README.md), `want-order.mjs` (b) | holds: 1702 = 37 × 46 ms, the first run not idle |
+| 38 runs for 76 frames; 1.7 and 3.4 s idle | [`../../lab/target-review/README.md`](https://github.com/dary-dc/wt-pacs/tree/7f335cc0c80100017ccb3800c40a871c9fabc3f6/lab/target-review/README.md), `want-order.mjs` (b) | holds: 1702 = 37 × 46 ms, the first run not idle |
 | M1's 29 ms a frame | OPFSARMS's M1, F 7.49 s for 256 × 512² over 20 Mbit | holds as 7.49 s / 256; a 512² frame, not a cell's (corrected) |
 | a scattered want is up to D_min asks, topped up as each lands | `serveWant`, called from `arrived` on each frame's last byte | holds |
 | *a want arrives in its order* | `client/transport/downloader.test.mjs:425` | holds |
