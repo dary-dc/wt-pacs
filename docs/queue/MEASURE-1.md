@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 12:14
-outputs: claude/proposals 46db2cb3 (P1 measured: adopt; P4 measured, 7 rounds: reject); no PR yet (#358 is OPT-THEORY's draft into main from this branch)
+heartbeat: 2026-11-11 12:20
+outputs: claude/proposals a98a4319 (P1 measured: adopt; P4 7 rounds: reject; P2 5 rounds: 2x2 meets its rule); no PR yet (#358 is OPT-THEORY's draft into main from this branch)
 ## Resume
 Resumed 2026-11-11 08:23 by a new session (stalled at 07:17). 08:25: setup started at 9e2ef4ef (demo-fixes-1 is
 bdbbac84, docs only on top, so the code under rounds 4-7 matches rounds 1-3); then P4 rounds 4-5, 6-7, each pair one
@@ -12,8 +12,8 @@ P2: amendment 1 written 11:04 (4619adb6). 11:10 encodes running: lab/proposals/p
 (page cell) per the amendment. A fresh session reruns the encodes (~15 min; the one-tile arm checks itself
 byte-equal to demo-series). Encodes done 11:12, bytes rows pushed; tiles checked on keyframes with ffmpeg
 (1x1, 2x2, 2 columns). Each arm dir needs the exact series linked in: ln -sf $TIP/demo-series/dbts_?1.{sbnd,metadata.json}
-$P2_OUT/<arm>/. 11:25: rounds 1-5 started: TIP=$TIP P2_OUT=$P2_OUT lab/proposals/p2.sh lab/proposals/rows/p2.jsonl 1 5
-(a stopped round: move its rows to p2-round<N>-stopped.jsonl, rerun from N). If stalled: count rows in
+$P2_OUT/<arm>/. 11:17-12:14 rounds 1-5 done, 270 rows; §P2 measured (a98a4319): 2x2 meets its rule, 2x1 rejected.
+Next: P5, P3, then B0, B, A, C, each with its amendment before any run. If stalled: count rows in
 p4.jsonl; drop a partial round's rows to a *-stopped file and rerun that round whole.
 Order (most promising first): P1 BBR, P4 initial window, then P2 tiles, P5, P3 plumbing, then audit protocols B
 (B0 first, zero encodes), A (shares B's cells), C (claude/av1-corrections:docs/av1/audit-protocols.md).
@@ -38,7 +38,10 @@ Then P2 (an ingest arm: amendment first), P5, P3, B0, B, A, C, each with its ame
 * P4 38 400 B initial window on the exact server: reject by its rule after 7 rounds, 504 of 504 runs at Lossless.
   dbts_a1 at 1 % loss 1.06x (noise around a tie: quartiles overlap, frames 1.04/0.96/0.88); dbts_b1 clean 0.92x
   (bar 0.9x). Clean -8 to -14 %, inside the predicted band; under loss 0.62-0.80x on b1 and c1.
-* Not started yet: P2, P5, P3, audit protocols A, B, C.
+* P2 tiles: 2x2 meets its rule on 4 cores (per-frame decode 0.64-0.72x, jump 0.73-0.84x, bytes <= 1.0065x, fill
+  0.87-0.92x); 2x1 rejected (decode 0.84-0.94x). 3 page runs failed on 2 cores, one per arm incl. one tile: the
+  tampered-digest pass missed the label's first "fetching lossless" (never said Lossless); a finding for FIX-2.
+* Not started yet: P5, P3, audit protocols A, B, C.
 * Fixtures: dbts_a1-q8-g8-cut, dbts_b1-q8-g8, dbts_c1-q8-g16-cut and their exact series (demo tip 9e2ef4ef), three
   DBT volumes of one dataset; userspace relay (no netem on this host), loss each direction; one 4-core cloud host,
   no GPU, SwiftShader; headless Chromium, page view.
