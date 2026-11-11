@@ -71,6 +71,10 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
    window is narrow (or a reading mode) is an option to compare, with the threshold set by readers, not chosen here.
 9. Later, a separate approach outside this sprint: HTJ2K with resolution levels and tiles for large matrices and high D
    (protocol on `claude/htj2k-tiles`).
+11. Lab and check code on the demo's product paths, findings only, each waiting for the owner's yes
+    ([`../reviews/understand/clean.md`](../reviews/understand/clean.md), 2026-11-11 on `claude/demo-understand`):
+    viewer.js's ~110 lines of check and lab hooks, five lab settings through the view worker's signatures, `onePass` and
+    `reuseCopyBuffer` decided but still flags, the web image shipping `?check=`'s halves, L1 (38 paths, not 40).
 
 ## Decisions (the owner's, 2026-11-09)
 

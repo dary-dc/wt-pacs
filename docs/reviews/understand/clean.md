@@ -81,15 +81,14 @@ itself: product). `decode/av1.js`: `mixed` (72, 81, the path `av1-mixed`), `oneP
 
 ## 4. The web image ships the check's in-page halves
 
-`deploy/web-files.sh:10–14` copies `viewer/check-page.js`, `view/check.js` and `paint/reference.js` into the web
-image ("load on `?check=` alone"), so a production page honours `?check=1`: it loads them, runs the check protocol
+`deploy/web-files.sh:10–14` copies `viewer/check-page.js` and `view/check.js` into the web image ("load on
+`?check=` alone"), so a production page honours `?check=1`: it loads them, runs the check protocol
 against the live server and logs `viewer-result`. Nothing in `deploy/`, `scripts/` or `.github/` opens the image's
 page with `?check=` (grep, 2026-11-11). `viewer/store.js` is listed twice (lines 10 and 14).
 
 * **Where it belongs.** The check's halves are served by the dev host only, as `lab/` is: the page asks for them
   only under `?check=`, so leaving them out makes `?check=` refuse on the image, as `head.js` refuses lab
-  parameters. `paint/reference.js` stays if `valueAt` needs it on the product path (`controller.js:234`; check
-  before moving). The duplicate `viewer/store.js`: drop one.
+  parameters. `paint/reference.js` stays: the product's `valueAt` imports it (`controller.js:238`). The duplicate `viewer/store.js`: drop one.
 * **What proves.** `deploy/check_equivalence.sh` and `web-files_test.sh` (the image's file list), the page check on
   the dev host, and a new test that the image's page under `?check=1` reports a refusal, mutated by putting the
   files back.
