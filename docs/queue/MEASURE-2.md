@@ -1,8 +1,18 @@
 state: started
 started: 2026-11-11T19:00Z
-heartbeat: 2026-11-11T22:24Z
-outputs: claude/proposals d6a89617 (§R1 measured 90c3e3e3, §R2 measured 1eee0579, §R3 plumbing 76ab875d; earlier: (amendments 1 of R1 d5a3e396, R2 362bbc2c, R3 and R4 d143c942; drivers r1*, r2.sh, r3*, r4.sh; link_cells.mjs --jump-after-ms/--windows; link_impair.py `window`), docs/lines/proposals.md §Round 2; no PR yet
+heartbeat: 2026-11-11T22:52Z
+outputs: claude/proposals 603875d5, docs/lines/proposals.md §Round 2 (amendments 1 of R1-R4; Measured R1 90c3e3e3, R2 1eee0579, R3 76ab875d, R4 1609aad4), rows lab/proposals/rows/r1-*, r2, r3, r4.jsonl; docs and lab drivers only; no PR (PR #358, OPT-THEORY's draft into main, carries claude/proposals)
 ## Resume
+22:52: R1-R4 done and pushed, nothing unpushed, nothing running. This session stops before R5 (context); left
+`started` so the next worker resumes it once the heartbeat is an hour old.
+Next: R5 (§R5: P6's rule with an A/A arm, the tip against itself). Owed before any run: an amendment, and P6's arms
+built as P6 (claude/dav1d-lazy 7cf46ef7, docs/lines/proposals.md §P6) says: (b) and (c) as lab copies of the demo
+tip built like lab/proposals/p5_arm.sh, ~15 lines in av1.js and head.js; the forced-refusal and mid-group-failure
+levers; dev-server.py --log-requests and the nginx (gzip) harness, the static host's TCP through link_impair.py --tcp;
+9 rounds, arms rotated, (a') the A/A arm added; then the heuristic-cache question from the request log.
+Fresh-session setup (~25 min): git worktree add ../proposals claude/proposals; ../tip detached at
+claude/demo-fixes-2 d46811c6 built with /home/user/setup.sh's steps (listed in the first entry below).
+--- this session's log ---
 2026-11-11T19:01Z: setup started (log /home/user/logs/setup.log): worktrees ../proposals (claude/proposals 8fb23876), ../tip
 detached at the demo tip claude/demo-fixes-2 d46811c6 (frozen), built as MEASURE-1's Resume lists (/home/user/setup.sh:
 rustup wasm32 target; wasm-pack 0.15.0; meson 1.9.1; transport wasm+ts; dev cert; series-server release;
@@ -51,3 +61,17 @@ Runs, in order, each one background command, rows pushed by hand or a loop every
   TIP=.. DIR=.. ARM=/home/user/r3-wake lab/proposals/r3.sh lab/proposals/rows/r3.jsonl (~20 min); R4: r4.sh, same
   form (~2.8 h, 45 runs a round: run rounds in pieces under the 2 h background limit).
 ## Result
+* R1 tiles (2x2) at equal quality: not ready by its rule. e and e_N/sigma 0.997-1.002x of one tile's (holds); max |D| at
+  the median frame +5 source units on dbts_a1-q8-g8-cut against a 1-unit bar (fails; -5 to +1 elsewhere, under one
+  code step of 4). I1's digest: every frame as coded on WebCodecs, both arms. G 16 jump 0.37x on 4 cores (band
+  0.70-0.85x missed, in its favour); 0.99x under taskset -c 0,1, where the one-tile jump is itself half (199 vs 406 ms).
+* R2 jump 500 ms into the fill: P1's claim stands. BBR 0.08-0.09x of Cubic's at 1 % loss (band 0.2-0.6x missed, in
+  BBR's favour), 0.86-0.96x clean and in bursts; under Cubic at 1 % the jump paints when the fill's last frame lands.
+* R3 wake on end_stream alone, plumbing: holds, -103 and -105 ms (rule -100 +-15; A/A 8 and 2 ms). Phone row owed.
+* R4 38 400 B window under BBR: withdrawn, `l` 1.09-1.26x slower in every cell (predicted 0.85-0.95x clean).
+* R5: not started (see Resume). Every rule carried R0's A/A arm.
+* Fixtures: dbts_a1/b1/c1 Q 8 (R1: G 1, 8, 16 with the cut on a1 and c1), three DBT volumes of one dataset; demo tip
+  d46811c6, I1/I2 on claude/oq-integrity-build 08bf659e; userspace relay, not a radio; one 4-core cloud host, no GPU,
+  SwiftShader, headless Chromium; 2-core cells are taskset, not a phone. Gate not run: docs and lab drivers only
+  (check_links 0 unresolved, comment budget ok). Wake arm's test: 3 of 3 mutants killed.
+* Owner: none new. R1 and R4 inform only decisions after the demo; R2 adds to the BBR call the phone runs decide.
