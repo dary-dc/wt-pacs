@@ -80,6 +80,14 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   bundle the same size; each set's eight or seven series carry one fingerprint, the three sets three; `checkPair`
   accepts all 20 pairs and refuses each against the other two sets' exact series by source (a node script over the
   metadata; no browser run on these series).
+* **Integrity, a proposal** (OQ-INTEGRITY-BUILD, 2026-11-11, `claude/oq-integrity-build` from
+  `claude/source-fingerprint`, not for the demo): OQ-INTEGRITY's I1–I3 built behind one switch, the ingest's
+  `--integrity` (`demo-series.sh` under `INTEGRITY=1`), off by default. The ingest writes each frame's reconstruction
+  digest and coding error into `lossy`; the decoder checks the digest (`asCoded`, never `exact`), decodes a
+  mismatched frame inside a group again from its keyframe on dav1d-WASM after WebCodecs, and the controller refuses a
+  frame matched on neither route; the label says *Optimal quality ✓* on a matched frame, the overlay the check and
+  the error ([`../av1/payload-format.md`](../av1/payload-format.md) §Integrity). Synthetic sets and stand-in decoders
+  in the tests; I1's protocol run in §Integrity. The owner decides whether and when.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
