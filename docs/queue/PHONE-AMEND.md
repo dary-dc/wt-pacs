@@ -1,5 +1,5 @@
 state: done
-started: 
+started: 2026-11-11T14:40Z
 heartbeat: 2026-11-11T14:47Z
 outputs: claude/phone-protocol 9bbf77e6 (docs/devices.md §7 Amendment), 03c9345b (docs/lines/optimal-quality.md); draft PR #359 (existing, into claude/demo-fixes-0)
 ## Resume
