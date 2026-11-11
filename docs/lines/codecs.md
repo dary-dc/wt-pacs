@@ -1,6 +1,6 @@
 # Codecs and lab
 
-Last verified 2026-11-09 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09; HTJ2K at screen
+Last verified 2026-11-11 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09; HTJ2K at screen
 resolution against the demo's approach, theory, its review and its improvement, 2026-11-11).
 
 ## Goal
@@ -67,7 +67,10 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    2026-11-11 (row HTJ2K-IMPROVE, §Improve there, theory): no change moves S's bytes, so S still does not pay for a
    scroll; resolution tile-parts with TLM (DICOM's RPCL syntax), three strips on the client's three decoders, bands at
    the viewport's level and a cache that fetches nothing twice shorten a reader's Lossless wait (D+T3 ×0.79–0.95 of
-   D's at 4× on a link, *derived*). One consolidated protocol is pre-registered there for HTJ2K-MEASURE.
+   D's at 4× on a link, *derived*). One consolidated protocol is pre-registered there for HTJ2K-MEASURE. Measured 2026-11-11, stages 0–2 (row HTJ2K-MEASURE, §Improve,
+   measured there): exact on 175/175 frames, and 17 920/17 920 decoded pictures; I1's TLM prefixes decode on OpenJPEG
+   and OpenJPH; the strips cost +0.11–0.14 % in bytes (−0.2 % on `dbts_b1` at six decompositions); one Lossless decode on
+   three workers is ×0.43–0.48 of the whole frame's at 4× (R2 holds). Stage 3, on links (R3–R7), is not run yet.
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).

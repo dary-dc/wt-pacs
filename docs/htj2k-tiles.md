@@ -810,6 +810,99 @@ host's loss models, not a phone's radio. **What only a phone can show** and this
 WebCodecs at 10 bits (hardware or not), its cores free for three decoders beside the page, its storage speed for the
 OPFS reopen, and a real radio's loss.
 
+### Improve, measured: stages 0–2 (row HTJ2K-MEASURE, 2026-11-11)
+
+*Run by a session that wrote none of the protocol. The run follows the protocol as written, except for the
+deviations named below. Code and raw rows are in [`lab/htj2k-tiles/improve/`](../lab/htj2k-tiles/improve/README.md).
+Stage 3 is **not run yet**, so no verdict that needs it (R3–R7) is drawn here.*
+
+**Fixtures and host, with every result:** three timed DBT volumes (`dbts_a1` 56 × 1142×1785, 12 bits; `dbts_b1` 50 ×
+2560×3328, 10 bits; `dbts_c1` 69 × 976×2513, 12 bits), all from one dataset (EA1141), slices not independent samples;
+only `dbts_b1` upright and `dbts_c1` sideways reach level 1; no breast ultrasound cine; a 4-core cloud host (Intel
+Xeon, 2.1 GHz) without a GPU, headless Chromium 153.0.8010.12 (Playwright's), three decoder workers beside the page,
+so nothing past three decoders is claimed; 4× is `lab/scripts/cpu_throttle.mjs`'s cgroup cap standing in for a phone
+(*assumption*; its own check on this host read page ×4.0, worker ×2.7). Nothing here runs on a link, so no cell is
+link-bound or decode-bound yet. Nothing on the list of **what only a phone can show** (§Protocol above) is claimed.
+
+**Stage 0, every frame of the three volumes (175).** I1's profile (`-tileparts R -tlm_marker true`, NL 5; NL 6 on
+`dbts_b1`, whose base at five is 80×104) and I2's three strips (rows 0/608/1216/1785, 0/1152/2304/3328, 0/864/1728/2513).
+**R0 holds on 175/175 frames:**
+
+* every TLM length equals its SOT's Psot;
+* every level's TLM prefix, with EOC appended, decodes by OpenJPEG 2.5.4 (`-r ℓ -allow-partial`) and by OpenJPH
+  0.31.0's `ojph_expand -skip_res ℓ,ℓ` to the 5/3 witness of its strip (ℓ = NL … 0) and of the whole frame
+  (ℓ = NL … 1);
+* the level-0 strips stacked equal the frame's sha256;
+* Layout 1's three bands tile each strip at TLM boundaries.
+
+I1's open question was whether a TLM prefix decodes without EOC and with tile-parts missing. It does, on both
+decoders, once EOC is appended. The lab binding (`levels.patch`, built with the delivered build's toolchain and flags)
+was checked on the first 8 frames: every strip, at every level and then whole, on one decoder, 456/456 exact. The
+delivered build was built on the host from its checked cache, because this host has no container daemon; it matched
+`manifest.sha256`. **Mutants, each caught:**
+
+* every TLM length one byte short: both decoders refuse the prefix;
+* strips stacked in reverse: the digest fails;
+* a strip's level truth taken from the untiled frame: levels ≥ 1 differ;
+* every truth flipped: 0/456, and 0 of 175 frames;
+* the SIZ reset removed: 72/456 whole strips are not exact after a level.
+
+**Deviations:**
+
+* The stage-2 bench never decodes a whole codestream on the level decoder; the delivered build does that. So the
+  SIZ-reset mutant passes the bench (896/896 in one round) and is caught by the binding's own check instead.
+* `lab/decode-bench/parity.mjs` and the cache's two mutants (bands dropped, band 0 painted) are not run, because
+  there is no S★ client yet; that client is part of stage 3.
+
+**Stage 1, bytes (every frame).**
+
+| volume | J1: I1 ÷ today − 1 | J2: three strips ÷ today − 1 | level bytes at the phone's fit | 1:1 zoom at the centre, strips in view |
+| --- | --- | --- | --- | --- |
+| `dbts_a1` | +0.009 … +0.011 % | +0.107 … +0.144 % | L0, the frame | nothing to fetch (L0) |
+| `dbts_b1` | **−0.303 … −0.267 %** | **−0.242 … −0.198 %** | L1, 0.267–0.271 of the strips | 0.729–0.733 of the strips: all three |
+| `dbts_c1` | +0.010 … +0.013 % | +0.106 … +0.138 % | L0 (sideways L1, 0.272–0.275) | nothing to fetch (L0) |
+
+* **J1 holds** (refuted over +0.2 %): +112 B a frame at NL 5, as derived. On `dbts_b1` it falls under its band. The
+  sixth decomposition, which DICOM's base ≤ 64 asks for, *saves* 0.27–0.30 %; I1 had put it at ±0.1 % (*assumption*,
+  missed).
+* **J2 holds** (refuted over +1.0 %): within +0.1–0.6 % on `dbts_a1` and `dbts_c1`, and under the band on `dbts_b1`
+  for the same reason. **R1 holds, and so does R2's bytes clause.**
+* The zoom reading decides nothing. At the centre of `dbts_b1`, an upright 1:1 viewport (2 100 rows) spans all three
+  strips, so I2 saves none of a zoom's rest there; this is the lower end of I5's "0–⅓". The precinct reading (I5,
+  `{128,128},{256,256}`) is **not run**.
+
+**Stage 2, decode.** The first 8 frames of each volume, 10 rounds, a fresh browser per throttle in a Williams order,
+and arms W, S, D+T3 and S★ in a Williams order per frame and pass, with a checking pass and then 3 timed passes.
+**17 920/17 920 pictures exact.** Each figure below is, per set and throttle, the median of the rounds' medians.
+s is the p90 of |S's Lossless ÷ W − 1|: the same bytes on the same build, used as this stage's A/A pair. That is a
+*deviation*: the rule names D′/D, which is a stage-3 pair.
+
+| set | W's decode, 1× · 4× | s, 1× · 4× | J3, three strips on three workers ÷ W, 4× (1×) | rounds ≤ ×0.60, 4× | three strips on one worker ÷ W, 4× | J9, S★'s first picture ÷ S's, 4× (1×) |
+| --- | --- | --- | --- | --- | --- | --- |
+| `dbts_a1` upright | 17.0 · 65.5 ms | 0.069 · 0.093 | **×0.426** [0.358–0.467] (×0.453) | 10/10 | ×0.997 | ×0.416 (×0.464) |
+| `dbts_b1` upright | 47.2 · 191.1 ms | 0.047 · 0.025 | **×0.461** [0.419–0.494] (×0.473) | 10/10 | ×0.976 | ×0.566 (×0.596) |
+| `dbts_c1` upright | 16.7 · 64.2 ms | 0.087 · 0.046 | **×0.475** [0.408–0.544] (×0.513) | 10/10 | ×1.036 | ×0.445 (×0.498) |
+| `dbts_c1` sideways | 16.7 · 65.6 ms | 0.044 · 0.082 | ×0.452 [0.402–0.500] (×0.515) | 10/10 | ×1.008 | ×0.433 (×0.529) |
+
+* **J3 holds on every volume**: predicted ×0.38–0.50 on `dbts_b1` and ×0.40–0.55 on the others. **R2 holds**: J3 is
+  ≤ ×0.60 at 4× in 10/10 rounds on every volume, both strictly and with s. **D+T3, D+L★ and S★ therefore stay in
+  stage 3.**
+* **J9 holds where it means something**, the sets whose fit is level 1: predicted ×0.40–0.60 of the decode, measured
+  ×0.566 on `dbts_b1` and ×0.433 on `dbts_c1` sideways. Where the fit is level 0, J9 measures the same thing as J3.
+* One worker decodes the three strips in 0.98–1.04 of the frame's time. Strips add no decode cost; they only spread
+  it across workers.
+* W's whole `dbts_b1` decode takes 191 ms at 4× here, against §Screen resolution's 268–286 ms. The host and the
+  throttle differ, so the ratios carry over and the times do not.
+
+**Owed, for stage 3** (shards S3a–S3c, the next session):
+
+* the D arms' series, from the demo tip's `scripts/demo-series.sh`;
+* the five arms' series, packed with Layout 1's band-major entries;
+* a lab client for D+T3, D+L★ and S★: level-first asks, I4's store of bands and level pictures and its reopen, and
+  stage 0's two cache mutants;
+* `parity.mjs` on both builds;
+* then §Protocol's stage 3 as written, and R3–R7.
+
 ## Sources
 
 Read 2026-11-09; quotations are verbatim, with the PDF's symbols restored where text extraction lost them (≤).
