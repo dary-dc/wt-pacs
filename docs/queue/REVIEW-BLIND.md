@@ -1,6 +1,6 @@
 state: done
 started: 2026-11-11 01:33
-heartbeat: 2026-11-11 01:58
+heartbeat: 2026-11-11 01:37
 outputs: claude/demo-review-blind c9ffd76d (from claude/demo-fixes-0 618e13c8; no PR: findings only)
 ## Resume
 Done. 7d1749d0 docs/reviews/demo-blind.md; c9ffd76d docs/lines/optimal-quality.md (State now, the review's line).
