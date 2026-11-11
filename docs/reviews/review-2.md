@@ -71,3 +71,55 @@ finding, and nothing else fails. No finding.
   writes a `framesSha256` into its own lab sets. That is harmless, since it is not on the pairing path, but it is a
   third writer that the PR body does not name. **Finding F1 (docs, minor):** name it, or say it is the lab's own.
 * **Glossary.** One row, `source fingerprint`, as the brief asks.
+
+## 4. DEMO-UX (#365, `claude/demo-ux` at `14605f41`)
+
+Each change's test and fix are one commit. The history cannot show "failing test first", so here each fix's source
+was reverted at the tip and the tests were run again. All node tests pass at the tip.
+
+| change | reverted | result |
+| --- | --- | --- |
+| 1 the label in colour (1952131f) | `labelOf` back to plain text: the hunk taken out by hand, since 4222d27b follows it | `screen.test.mjs`'s label assertions fail |
+| 2 a tap unfolds the status line (4222d27b) | `screen.js` reverted | `screen.test.mjs` fails (the `unfoldOnTap` import is gone). Mutant "ignore `pointerType`": killed by the mouse-click assertion |
+| 3 the stored form off the show list (faf03c2f) | `av1.js` and `viewer.js` reverted | `av1.test.mjs`: "refuseWebCodecs true: webcodecs; av1-webcodecs" |
+| 4 the slice slider (93293abb) | `slider.js` reverted | `slider.test.mjs` fails. With only the module's import, that proves little, so its assertions were read too: the span, the far jump to the last slice, pause before show, follow, and the keys a focused range takes |
+| 5 the `exact` sentence (bc5d2f54) | docs only | the corrected sentence matches `screen.js`: an optimal-quality frame has no digest |
+
+* **The decoders' restore (8e572058).** `client/decode/wasm/built/` at `14605f41` is identical to the demo tip's.
+  `git diff --stat` against `daee0d1d` is empty, so 93293abb's accidental removal is fully undone.
+* **The colours** are in `index.html`: green `#1a5e2a` for *Optimal quality* and *fetching lossless…*, blue `#1f4fa0`
+  for *✓ Lossless*, red `#b00` for a failed check. The words always sit beside the colour (`labelOf`). That matches
+  the brief.
+* **Finding U1 (low; the brief asked for it).** `refuseWebCodecs` is a new lab lever in a product module
+  (`client/decode/av1.js:39`). It is reachable from any page's URL through `?opts=`, so anyone with a link can force
+  the dav1d route. The overlay names it ("refused by the lab's refuseWebCodecs"), so nothing is mislabelled. But it
+  adds to EXPERIMENTS-OFF item 13, lab levers in product modules. Record it there, so the levers refactor after the
+  demo takes it too.
+* **Finding U2 (owner, unverified).** The tap rule reads `pointerType` on a `click`. That works where `click` is a
+  `PointerEvent`, which is Chrome's case. It was checked only through Playwright's touch emulation on a Pixel 7
+  profile, not on a phone. DEMO-UX says so too.
+* **Docs claims.** README's "laptop without installs" bytes were checked against `payload-format.md`:
+  4 642 336 / 67 815 186 = 0.0685, 23 208 339 / 107 410 134 = 0.2161 and 212 383 / 67 815 186 = 0.0031. The five
+  bundles total 203 MB, 175 MB of it the two exact series. All hold. "40 of 40" is 18 series plus 2
+  `--refuse-webcodecs` runs, under 2 views. Not re-run here.
+
+## 5. `claude/demo-clean`'s removals (EXPERIMENTS-OFF, at `abbb441d`)
+
+* **Byte for byte.** Each removed folder's git tree hash at the demo tip `daee0d1d` was compared with the commit
+  the list names:
+  * `lab/target-review` at 7f335cc0;
+  * `lab/recv-loop` at cf38708b;
+  * `lab/opfs-arms`, `lab/native-fill`, `lab/paint-read`, `lab/viewer` and `lab/opfs-cache` at 0920153d;
+  * `lab/scripts/native_cache_cells.sh` at 0920153d and at a237cf3e;
+  * `lab/av1/decode/{breakdown,merge-free,passes}` at 696c15d6.
+
+  Every hash is equal. Each named commit is on an origin branch: the line branches named, and the fold or demo
+  branches. `lab/native-fill` is not at a237cf3e, but the list names a237cf3e only for the script.
+* **Each commit removes only its item.** It also touches its doc pointers and, where it says so, `scripts/gate.sh`
+  (items 5, 7 and 8). Item 6 is 38 files: 11 `breakdown`, 15 `merge-free`, 12 `passes`. `lab/av1/decode/tile` and
+  the other 15 folders stay, as on `main`.
+* **No reference left.** Outside `docs/` and `*.md`, nothing at `abbb441d` names a removed path (`git grep`, 11
+  patterns). `scripts/check_links.py` at `abbb441d`: 206 files, 2 307 links, 0 unresolved.
+* **Not re-run:** the full gate (the list claims GATE OK in 395 s on `1ef93a6e`) and `demo-check.mjs`, which the
+  list itself says was not run. **Finding C1 (before FIX-2 merges any yes):** a removal reaches the demo tip without
+  any browser check of the demo. Run `demo-check.mjs` on the merged tip, as FREEZE-E2E will.
