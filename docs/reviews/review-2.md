@@ -66,6 +66,7 @@ finding, and nothing else fails. No finding.
   taken as the HTJ2K series takes them: two bytes a sample over 8 bits, whatever the representation or split. So an
   exact series' own `digests` and an AV1 series' second pass reach the same string, as the PR argues. The reverts
   against `lossy_test.py` and `end_to_end_test.py` are in §3.1.
+* **The ingest's fix 64a42e19 reverted** (§3.1).
 * **`framesSha256`.** No series writer keeps it any more: `ingest_coded.py:57` drops it, and `lossy_test.py`
   checks that. `fetch_data.py` still writes it as the download pin. `lab/av1/bytes/prior-gap/pocgap.py:45` still
   writes a `framesSha256` into its own lab sets. That is harmless, since it is not on the pairing path, but it is a
@@ -123,3 +124,34 @@ was reverted at the tip and the tests were run again. All node tests pass at the
 * **Not re-run:** the full gate (the list claims GATE OK in 395 s on `1ef93a6e`) and `demo-check.mjs`, which the
   list itself says was not run. **Finding C1 (before FIX-2 merges any yes):** a removal reaches the demo tip without
   any browser check of the demo. Run `demo-check.mjs` on the merged tip, as FREEZE-E2E will.
+
+### 3.1 The ingest's half of #364, run
+
+These ran at `c02b5f32`, with `ingest/tools.sh` built from its pins (aomenc 3.15.1, dav1d 1.5.4, OpenJPH 0.31.0)
+and `pack-series` and `from-parser` built `--release`.
+
+| run | `lossy_test.py` | `end_to_end_test.py` | `same_test.py` |
+| --- | --- | --- | --- |
+| the tip | every claim holds | ok | 0 failing |
+| 64a42e19's Python half reverted | fails: "sourceFingerprint None is the exact series' None", and `framesSha256` carried | fails: `test_source_fingerprint`, `_8_bit` | — |
+| its Rust half reverted (`from-parser`) | — | — | fails: the two ingests' bundles differ (4498 B against 4456 B) |
+| mutant: the AV1 series' fingerprint over its own AV1 digests | **passes** | fails `test_source_fingerprint_8_bit` (`54edb2…` against `133af1…`) | — |
+
+The mutant shows that `lossy_test.py` alone cannot tell the HTJ2K digests from the AV1 ones. On its 12-bit and
+10-bit sets the two are equal. Only a widened 8-bit source separates them, and `end_to_end_test.py` (bb56c1dc)
+covers that case. The gate runs both. No finding.
+
+## Summary
+
+| # | where | finding | severity | for |
+| --- | --- | --- | --- | --- |
+| D1 | `docs/lines/optimal-quality.md` §State now, TEST-MOBILE | "Lossless took 3–6 s" omits the jitter cells' 16–17 s | docs, minor | FIX-2 or the line's next writer |
+| F1 | #364 | `lab/av1/bytes/prior-gap/pocgap.py` still writes `framesSha256` into its lab sets, unnamed in the PR | docs, minor | #364's body |
+| U1 | #365, `client/decode/av1.js:39` | `refuseWebCodecs`: a lab lever in a product module, reachable from `?opts=` | low; the brief asked for it | EXPERIMENTS-OFF item 13 |
+| U2 | #365 | the tap rule (`pointerType` on `click`) is checked only in emulation | owner | the phone run |
+| C1 | `claude/demo-clean` | no `demo-check.mjs` run on the removals | before FIX-2 merges a yes | FIX-2 / FREEZE-E2E |
+
+Every fix of FIX-1, DEMO-UX and SOURCE-FINGERPRINT that has a test fails that test when reverted. No correctness
+finding. Not run here: any browser check, the full gate, any demo series. Fixtures: the tests' own synthetic sets.
+No `dbts_a1`, `dbts_b1` or `dbts_c1` run (one dataset; no ultrasound cine). Host: one 4-core cloud container without
+a GPU.

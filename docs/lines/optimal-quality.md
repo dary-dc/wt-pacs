@@ -70,6 +70,13 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   the page view under #362's stricter check, interleaved by series: 60 of 60 passed, headless on one cloud host
   ([`docs/reviews/e2e-3.md`](../reviews/e2e-3.md), with the owner's rehearsal list). #362 (the check's Home and
   *Lossless*-paint fixes) is not in `demo-fixes-1`: without it the check stalled 30 s on 12 of 28 a1/c1 runs.
+* **Review, round 2** (REVIEW-2, 2026-11-11, `claude/demo-review-2`,
+  [`docs/reviews/review-2.md`](../reviews/review-2.md)): every fix of FIX-1, DEMO-UX (#365) and SOURCE-FINGERPRINT
+  (#364) was reverted on its own, and each failed its test. That covers #364's ingest in Python and Rust, run with
+  the coders built. `claude/demo-clean`'s removed folders are byte-identical at the commits it names, and no link
+  is left unresolved. No correctness finding; two minor docs findings (D1, F1). U1 is a new lab lever,
+  `refuseWebCodecs`, in `av1.js`. U2 is the tap, checked only in emulation. C1: no demo check of the removals yet.
+  No browser check, gate or demo series was run.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
