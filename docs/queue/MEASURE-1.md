@@ -12,7 +12,9 @@ Fresh-session setup (~10 min): see lab/av1/audit/README.md §B (worktree ../gs a
 of the 19 volumes to $HOME/data, pip install lab/av1/profiles/requirements.txt into ../gs/lab/av1/.venv). Then in a
 worktree of claude/audit-measure: export GROUPS_DIR BUILD DATA WORK PY as the README says; lab/av1/audit/b.sh 1
 (resumes from the pushed rows; a `failed` row is coded again), then b.sh 16. Cut G 16 first, then content 2.
-Summary script pushed (f8e7bc24, lab/av1/audit/summary.py; smoke-tested). Next after the rows: run it as GROUPS_DIR=... $PY lab/av1/audit/summary.py lab/av1/audit/rows/b.jsonl lab/av1/audit/rows/b0.json
+19:15: an autostash (git pull --autostash while the driver wrote) replaced rows/b.jsonl's inode at 18:30; the
+driver kept writing to the unlinked file; recovered from /proc/<pid>/fd/3 (bb437465, 21 cells). /home/user/bin/sync.sh now copies
+it back every minute. Never pull --autostash in ../audit while the driver runs. Summary script pushed (f8e7bc24, lab/av1/audit/summary.py; smoke-tested). Next after the rows: run it as GROUPS_DIR=... $PY lab/av1/audit/summary.py lab/av1/audit/rows/b.jsonl lab/av1/audit/rows/b0.json
 ../gs/lab/.av1-build/aom-3.15.1-src/av1/common/quant_common.c lab/av1/audit/rows/b-summary.json (B1 s_split, B2 b, δ, B3 Q_lo/Q_hi and bytes, B-5 ratios; A on the same rows,
 under B0's pooled and per-depth rule Q), then §B measured and §A measured under the amendment, codecs line, Result.
 2026-11-11 17:00: this session did B0 and stopped (nothing unpushed, nothing running). Next session: B.
