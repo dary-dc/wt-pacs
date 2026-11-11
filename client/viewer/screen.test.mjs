@@ -1,6 +1,6 @@
 // node client/viewer/screen.test.mjs — what the page writes of a shown frame says one thing of it.
 import assert from "node:assert/strict";
-import { lastError, markOf, overlayText } from "./screen.js";
+import { integrityText, lastError, markOf, overlayText } from "./screen.js";
 
 const lossy = { q: 8, g: 16, depth: 10, bitsStored: 12 };
 const about = { path: "htj2k", wireBytes: 2048, decodeMs: 3 };
@@ -29,3 +29,24 @@ assert.equal(lastError([failed], { i: 3, quality: "optimal" }), failed);
 assert.equal(lastError(["frame 2: refused"], { i: 2, quality: "lossless" }), "frame 2: refused");
 
 console.log("screen: ok");
+
+/**
+ * The overlay says what the reconstruction check found, then the frame's coding error as the ingest measured it, the RMS
+ * also in display levels at a LINEAR window (k = 255 ÷ (W − 1), the rescale's slope applied); nothing for a series
+ * without the check or for the exact frame. docs/lines/proposals.md §I3
+ */
+{
+  const checked = { ...lossy, reconstruction: { algorithm: "xxh3-64", frames: ["a", "b"] },
+    codingError: { rms: [1.5, 3], max: [9, 12], noiseBandRatio: [0.42, null] } };
+  const at = (i, about, quality = "asCoded", window = { center: 500, width: 256, function: "LINEAR" }) => ({ i, about, quality, window });
+  assert.equal(integrityText(at(0, { asCoded: true }), checked), "as coded · error RMS 1.50 (1.50 levels at W 256) · e_N ÷ σ 0.42 · max |Δ| 9");
+  assert.equal(integrityText(at(1, { asCoded: true, mismatchOn: "av1-webcodecs" }), checked, 2),
+    "as coded after av1-webcodecs did not match · error RMS 3.00 (6.00 levels at W 256) · e_N ÷ σ — · max |Δ| 12");
+  assert.equal(integrityText(at(0, { asCoded: true }, "asCoded", { center: 0, width: 256, function: "SIGMOID" }), checked),
+    "as coded · error RMS 1.50 · e_N ÷ σ 0.42 · max |Δ| 9");
+  assert.equal(integrityText(at(0, {}, "optimal"), checked), "unchecked · error RMS 1.50 (1.50 levels at W 256) · e_N ÷ σ 0.42 · max |Δ| 9");
+  assert.equal(integrityText(at(0, { asCoded: true }, "lossless"), checked), "");
+  assert.equal(integrityText(at(0, {}, "optimal"), lossy), "");
+  assert.equal(integrityText(at(0, { asCoded: true }), { ...lossy, reconstruction: checked.reconstruction }), "as coded");
+  assert.deepEqual(markOf({ exact: "unchecked", quality: "asCoded" }), { className: "", text: "" });
+}
