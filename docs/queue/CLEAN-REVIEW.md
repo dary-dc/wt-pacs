@@ -1,10 +1,16 @@
 state: started
 started: 2026-11-11T21:25Z
-heartbeat: 2026-11-11T21:25Z
+heartbeat: 2026-11-11T21:45Z
 outputs: claude/clean-product (docs/reviews/clean-product.md)
 ## Resume
-Claimed. Note: FREEZE-E2E already merged claude/clean-product c7c799e9 into claude/demo-fixes-2 as 157b7109, so the
-review is of the merged range (old tree = demo-fixes-2 d46811c6 merged in at 0eee2ad1, new = c7c799e9).
-Next: per-commit revert checks (63140f29, 05247e22, f866da46, 1ab25a58, c2034cb3, dd2c3902/24b80bcd, c2f6886c, c7c799e9),
-absence check on old vs new tree, line-use check, coordination.md 11-04 rule once.
-## Result
+FREEZE-E2E already merged claude/clean-product c7c799e9 into claude/demo-fixes-2 (157b7109); review range d46811c6..c7c799e9.
+Read so far (by reading the diff): server flags (f866da46), decode flags (c2034cb3), viewer hooks (1ab25a58), web-files.sh,
+check_lab_absent.sh. CI on #367 tip b196f009: deploy job (check.mjs --url) SUCCESS 21:18Z; gate job in progress.
+Findings so far: F1 lab/devices/arms.json's `asksfirst` arm passes --stream-mode per-frame-asks-first to the deploy
+image (default build), which now refuses it: D2's device kit breaks (docs/devices.md §D2 says "the same binary").
+F2 check.mjs --url is Chromium-only now (Firefox under --url lost; no CI/script uses it).
+F3 on a host without lab/, a ?check= page gets no __viewerResult on refusal (hooks undefined), check.mjs waits 300 s.
+Next: cargo test (default + lab-levers) and node client tests on old and new tree; per change, revert the code only
+and run the new tests + scripts/check_lab_absent.sh; absence check on d46811c6 (fail) and c7c799e9 (pass); coordination
+rule once; write docs/reviews/clean-product.md on claude/clean-product; line file; PR? (none: findings on #371's branch).
+Commands: git worktree add ../old d46811c6; cargo test -p series-server [--features lab-levers]; bash scripts/check_lab_absent.sh
