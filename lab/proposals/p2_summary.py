@@ -58,5 +58,6 @@ for arm in ARMS[1:]:
     why += [f"jump {s} {ratio(jump, s, arm):.2f}×" for s in G8 if ratio(jump, s, arm) > 0.85]
     why += [f"bytes {s} {nbytes[(s, arm)]:.4f}×" for s in SERIES if nbytes[(s, arm)] > 1.03]
     why += [f"fill {s} {ratio(fill, s, arm):.2f}×" for s in G8 if ratio(fill, s, arm) > 1.05]
-    print(f"\n{arm}: {'adopt' if not why and not bad else 'reject: ' + '; '.join(why or ['a failed run'])}")
-print(f"\nfailed runs: {len(bad)}", *bad[:10], sep="\n")
+    why += [f"a failed run, round {b[0]}" for b in bad if b[1] == 4 and b[3] == arm]
+    print(f"\n{arm}: {'adopt' if not why else 'reject: ' + '; '.join(why)}")
+print(f"\nfailed runs (2-core ones decide nothing): {len(bad)}", *bad[:10], sep="\n")

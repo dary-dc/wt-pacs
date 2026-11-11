@@ -199,6 +199,79 @@ G 8 series, 4 cores. The 2-core rows are reported beside and decide nothing. *Sa
 decoder on an idle 4-core host; the page cell's fill runs three decoder workers and SwiftShader paint on the same
 4 cores, so a fill that is CPU-bound there says nothing about a phone's.
 
+**Measured (MEASURE-1, 2026-11-11 11:17–12:14, per amendment 1): 2 × 2 meets its rule; 2 × 1 rejected.** 18 encodes
+(the one-tile arm byte-equal to `demo-series.sh`'s bundles; tiles read from each keyframe's header with ffmpeg's
+`trace_headers`: 1 × 1, 2 × 2, 2 columns), 180 decode runs and 90 page runs over 5 rounds. Every decoded frame came
+back by `av1-webcodecs` at its series' size. Rows `lab/proposals/rows/p2.jsonl` and `p2-bytes.jsonl`, table
+`lab/proposals/p2_summary.py`, drivers `p2_encodes.sh`, `p2_decode.mjs`, `p2.sh`.
+
+**Per-frame decode**, median over every frame of every round:
+
+| cores | series | one tile ms | 2 × 2 | 2 × 1 | n |
+| ---: | --- | ---: | ---: | ---: | --- |
+| 4 | dbts_a1-q8-g1-cut | 32 | 21 (0.67×) | 27 (0.84×) | 280 a side |
+| 4 | dbts_a1-q8-g8-cut | 35 | 23 (0.64×) | 30 (0.84×) | 280 a side |
+| 4 | dbts_b1-q8-g1 | 131 | 94 (0.72×) | 124 (0.94×) | 250 a side |
+| 4 | dbts_b1-q8-g8 | 133 | 94 (0.71×) | 122 (0.91×) | 250 a side |
+| 4 | dbts_c1-q8-g1-cut | 36 | 25 (0.69×) | 31 (0.86×) | 345 a side |
+| 4 | dbts_c1-q8-g8-cut | 37 | 26 (0.70×) | 32 (0.85×) | 345 a side |
+| 2 | dbts_a1-q8-g1-cut | 30 | 24 (0.79×) | 25 (0.85×) | 280 a side |
+| 2 | dbts_a1-q8-g8-cut | 34 | 25 (0.76×) | 27 (0.82×) | 280 a side |
+| 2 | dbts_b1-q8-g1 | 133 | 95 (0.71×) | 124 (0.94×) | 250 a side |
+| 2 | dbts_b1-q8-g8 | 131 | 95 (0.73×) | 122 (0.93×) | 250 a side |
+| 2 | dbts_c1-q8-g1-cut | 34 | 27 (0.79×) | 29 (0.86×) | 345 a side |
+| 2 | dbts_c1-q8-g8-cut | 36 | 27 (0.75×) | 30 (0.84×) | 345 a side |
+
+**Jump** (`End` under `&fill=0`), median of rounds:
+
+| cores | series | one tile ms | 2 × 2 | 2 × 1 | n |
+| ---: | --- | ---: | ---: | ---: | --- |
+| 4 | dbts_a1-q8-g8-cut | 355 | 286 (0.81×) | 282 (0.79×) | 5 a side |
+| 4 | dbts_b1-q8-g8 | 574 | 484 (0.84×) | 522 (0.91×) | 5 a side |
+| 4 | dbts_c1-q8-g8-cut | 263 | 193 (0.73×) | 234 (0.89×) | 5 a side |
+| 2 | dbts_a1-q8-g8-cut | 304 | 246 (0.81×) | 315 (1.04×) | 5 a side |
+| 2 | dbts_b1-q8-g8 | 473 | 411 (0.87×) | 414 (0.88×) | 5 a side |
+| 2 | dbts_c1-q8-g8-cut | 217 | 191 (0.88×) | 203 (0.94×) | 5 a side |
+
+**Fill** (the status line's `fill N ms`), median of rounds:
+
+| cores | series | one tile ms | 2 × 2 | 2 × 1 | n |
+| ---: | --- | ---: | ---: | ---: | --- |
+| 4 | dbts_a1-q8-g8-cut | 1602 | 1460 (0.91×) | 1529 (0.95×) | 5 a side |
+| 4 | dbts_b1-q8-g8 | 5430 | 4725 (0.87×) | 5624 (1.04×) | 5 a side |
+| 4 | dbts_c1-q8-g8-cut | 2079 | 1909 (0.92×) | 1965 (0.95×) | 5 a side |
+| 2 | dbts_a1-q8-g8-cut | 2047 | 1926 (0.94×) | 2025 (0.99×) | 5 a side |
+| 2 | dbts_b1-q8-g8 | 6654 | 6637 (1.00×) | 6792 (1.02×) | 5 a side |
+| 2 | dbts_c1-q8-g8-cut | 2676 | 2544 (0.95×) | 2661 (0.99×) | 5 a side |
+
+**Bytes**, each bundle against one tile's (one encode, deterministic):
+
+| series | 2 × 2 bytes | 2 × 1 bytes |
+| --- | ---: | ---: |
+| dbts_a1-q8-g1-cut | 1.0065× | 1.0034× |
+| dbts_a1-q8-g8-cut | 1.0036× | 1.0019× |
+| dbts_b1-q8-g1 | 1.0001× | 1.0003× |
+| dbts_b1-q8-g8 | 1.0005× | 1.0001× |
+| dbts_c1-q8-g1-cut | 1.0026× | 0.9996× |
+| dbts_c1-q8-g8-cut | 1.0024× | 0.9999× |
+
+**Verdict by the rule (4 cores).** *2 × 2 meets every condition:* per-frame decode 0.64–0.72× on `dbts_a1` and
+`dbts_b1` at G 1 and G 8 (bar 0.8×), jump 0.73–0.84× (bar 0.85×), bytes at most 1.0065× (bar 1.03×), fill 0.87–0.92×
+(bar 1.05×). Its narrowest margin is `dbts_b1`'s jump, 0.84×, on 5 runs a side (416–533 ms against 553–637 ms, no
+overlap). *2 × 1 is rejected:* per-frame decode 0.84–0.94×. Against the prediction: decode 0.64–0.72×, inside
+0.4–0.9×; bytes +0.01 to +0.65 %, at and below the band's low end (+0.5–3 %); the fill gained less than a single frame,
+as predicted. On 2 cores (deciding nothing) 2 × 2 decodes at 0.71–0.79× and jumps at 0.81–0.88×; the fill's gain
+falls to 0.94–1.00× there, where three decoder workers and SwiftShader share two cores.
+
+**Three page runs failed, none of them deciding.** All three ran on 2 cores with `dbts_b1`, one in each arm, the
+one-tile arm included (rounds 3, 4, 5). All three failed in demo-check's tampered pass (the exact frame's digest made
+wrong): the label ran *Optimal quality* → *Lossless check failed* → …, and the observer never saw the first
+*fetching lossless…*. In no run did the label say *Lossless*. The exact series is the same in every arm, so this is
+not a tile effect. It is a finding for FIX-2's reader: either demo-check misses a label state that is written and
+replaced within one task, or the label really skips it under load (not traced here). *Limits:* x86-64 cores under
+headless Chromium's software dav1d, not a phone's. The phone row (decode per frame on the owner's phone, tethered) is
+still owed and decides alone if it disagrees. Three DBT volumes of one dataset.
+
 ### P3. A wake on `pointerdown`, before `l` asks
 
 **Mechanism.** After the fill the page is silent; *by report*, carriers drop a radio to idle after 5–10.5 s without
