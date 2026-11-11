@@ -501,7 +501,7 @@ nothing alone; the reading of a level picture is the owner's.
 **Arms.** **D** and **D′**: the demo's series from `claude/demo-fixes-1:scripts/demo-series.sh` (the demo tip on
 2026-11-11), Q 8 at G 1 and at G 16, the depth cut on `dbts_a1` and `dbts_c1`, through the product's AV1 route; the
 Lossless request is the exact series' frame whole. Q 8 is the demo's and the rule's Q only on `dbts_c1` at G 1 (F7),
-so the run's D is lighter than the bytes table's on the other two; both are printed. **S**: the exact series split at
+so the run's D differs from the bytes table's on the other two; both are printed. **S**: the exact series split at
 ℓ_fit by `claude/htj2k-progressive:lab/htj2k-progressive/delivery/make_frames.py` (level-first, prefix entries then
 rests), decoded by its `delivery/decoder.js`; where ℓ_fit is 0, S is the exact series whole. **D+L**: D's scroll, then
 S's prefix and rest for the requested frame. Viewports: 1080×2100 and 2400×950, so that `dbts_c1` is run at both
