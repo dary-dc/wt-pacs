@@ -1,17 +1,15 @@
 state: started
 started: 2026-11-11T14:42Z
-heartbeat: 2026-11-11T14:55Z
+heartbeat: 2026-11-11T15:40Z
 outputs: claude/source-fingerprint (from claude/demo-fixes-1 daee0d1d)
 ## Resume
-Design (not yet pushed): `sourceFingerprint` = XXH3-64 hex over the concatenated hex per-frame XXH3-64 digests of the
-source samples in the HTJ2K exact series' layout (`frame_digest(s.frame(i), s.stored > 8)`); for an HTJ2K exact series
-that is its own `digests.frames`, so no second pass; an optimal-quality or AV1 series hashes the samples once.
-Writers: ingest/coded-frames/ingest.py (`metadata()`, from_dicom), lab/av1/tools/ingest_coded.py (demo series),
-ingest/from-parser/src/main.rs (same.py compares bundles byte for byte). checkPair (client/viewer/pair.js) compares it;
-framesSha256 stays the set's download pin, no longer copied into a series.
-Next: venv (.venv, ingest/requirements.txt), ingest/tools.sh in background; failing tests first (pair.test.mjs,
-pair-source.test.mjs, lossy_test.py, same_test.py/from_dicom); then docs (glossary, payload-format, client/README,
-docs/lines/optimal-quality.md); gate; draft PR into claude/demo-fixes-1.
-Commands: cd wt-pacs; git checkout claude/source-fingerprint (or -B from origin/claude/demo-fixes-1).
+Pushed on claude/source-fingerprint: f93e6f2f (pair tests) + 8e7027a5 (checkPair on sourceFingerprint; mutants 3 of 4
+killed, 1 equivalent); ingest tests + 64a42e19 (ingest.py source_fingerprint, ingest_coded.py drops framesSha256,
+from-parser main.rs); 8-bit signed e2e test. lossy_test, end_to_end_test, same_test pass with ingest/.build built.
+Mutants killed: AV1 over own digests, separator (py, rs), dropped frame, framesSha256 carried, none on OQ, rs field gone.
+Next: docs (glossary row, payload-format §Source fingerprint, client/README, ingest/coded-frames/README,
+docs/lines/optimal-quality.md, scripts/demo-series.sh header), run demo-series.sh check of one pair if time, gate,
+draft PR into claude/demo-fixes-1.
+Commands: cd wt-pacs; git checkout claude/source-fingerprint; .venv (ingest/requirements.txt); ingest/tools.sh.
 ## Result
 (pending)
