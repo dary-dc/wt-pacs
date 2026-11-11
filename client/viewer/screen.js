@@ -16,5 +16,6 @@ export function overlayText(about, quality, lossy) {
   return `${route} · ${kb} KB · decode ${ms} ms${series}`;
 }
 
-/** The error the status line ends with, of `errors` as the page collected them, while `shown` is painted. */
-export const lastError = (errors, shown) => errors.at(-1);
+/** The error the status line ends with, of `errors` as the page collected them, while `shown` is painted: not a lossless check its frame has since passed. */
+export const lastError = (errors, shown) =>
+  errors.findLast((e) => !(shown?.quality === "lossless" && e.startsWith(`frame ${shown.i}: lossless: `)));
