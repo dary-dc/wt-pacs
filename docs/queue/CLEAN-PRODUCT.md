@@ -1,7 +1,7 @@
-state: started
+state: done
 started: 2026-11-11T17:48Z
-heartbeat: 2026-11-11T19:34Z
-outputs: claude/clean-product c7c799e9
+heartbeat: 2026-11-11T19:58Z
+outputs: claude/clean-product c7c799e9, draft PR #371 into claude/demo-fixes-2
 ## Resume
 Part 1 done, 63140f29: scripts/check_lab_absent.sh in gate.sh's absence checks, plus the three lab flags of item 15
 in server/scripts/check_telemetry_absent.sh. Fails today on: Containerfile's lab COPYs (item 16), the web image's
@@ -36,7 +36,7 @@ Part 2 progress (pushed):
   the removal); 24b80bcd restores it (tree = c2034cb3). Owner's yes = `git revert 24b80bcd`.
 * c7c799e9 line files (coordination: item 16 proposal, item 11 yes), glossary row "page hooks".
 * Full gate GATE OK in 532 s on 24b80bcd+docs (skipped: native painter/window, cross-codec+Firefox, nginx).
-NOW (long): demo-series.sh done (21 series, 438 s); running demo-check.mjs 20 runs x {page, worker} (README §Demo loop). Was: full gate: dockerd running; INGEST_BUILD=$PWD/ingest/.build PYTHON=<venv> scripts/gate.sh; then
+Done. demo-series.sh done (21 series, 438 s); running demo-check.mjs 20 runs x {page, worker} (README §Demo loop). Was: full gate: dockerd running; INGEST_BUILD=$PWD/ingest/.build PYTHON=<venv> scripts/gate.sh; then
 scripts/demo-series.sh and demo-check.mjs on every series both views (as FIX-2 did); line file; draft PR.
 Was next: items 13+14 together (check and lab hooks out of viewer.js into one lab/ module loaded by head.js's gate;
 check-page.js and view/check.js out of the web image; view worker's check import by a URL the lab object gives;
@@ -44,3 +44,14 @@ lab settings into one lab object; onePass on / reuseCopyBuffer off reduced) -- d
 revert, line file, full gate (INGEST_BUILD=$PWD/ingest/.build; dockerd started), demo-series + demo-check both views,
 draft PR into claude/demo-fixes-2.
 ## Result
+* Gate check scripts/check_lab_absent.sh (63140f29, 05247e22): failed on the pre-PR tree; 7 mutants caught. Plus the
+  server absence check refuses the 3 lab flags. "Product" = what ships; gate test tooling under client/ unchecked.
+* Items 13+14 (1ab25a58): page hooks in lab/viewer/hooks.js; check modules out of the web image; one `lab` object for
+  ViewWorker/Painter; check.mjs --url serves lab/ from the checkout. Item 13 flags (c2034cb3). Item 15 (f866da46).
+* Item 11: frame clock = experiment; removal dd2c3902 (message wrongly reads as a revert), restored 24b80bcd.
+  Item 12: harness, stays. Item 16: not done, structural proposal (coordination.md §Open 6).
+* Full gate GATE OK 532 s (skipped: native painter/window, cross-codec + Firefox, nginx — check_equivalence not run).
+  demo-series.sh 21 series; demo-check 20 runs x {page, worker} interleaved: 39/40; the worker run of
+  dbts_a1-q8-g16-cut failed once (claim not captured), passed 6 of 6 reruns. CI deploy job (check.mjs --url) unverified.
+* Fixtures: dbts_a1/b1/c1, one dataset; no ultrasound cine; 4-core cloud host, no GPU, SwiftShader; nothing timed.
+* Owner decisions: item 11 yes -> `git revert 24b80bcd`; item 16 workspace split, yes/no.
