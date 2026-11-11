@@ -61,9 +61,9 @@ def through(build, work, name, px, codec, **tags):
     return f"{same}/{n} frames as written"
 
 
-def fingerprint(px):
+def fingerprint(px, dtype="<i2"):
     """XXH3-64 over each frame's XXH3-64 hex digest in order, its samples as stored, two bytes each over 8 bits."""
-    each = [xxhash.xxh3_64_hexdigest(np.ascontiguousarray(f, "<i2").tobytes()) for f in px]
+    each = [xxhash.xxh3_64_hexdigest(np.ascontiguousarray(f, dtype).tobytes()) for f in px]
     return xxhash.xxh3_64_hexdigest("".join(each).encode())
 
 
@@ -94,6 +94,12 @@ def main():
         got = {c: json.loads((work / f"ct-{c}.metadata.json").read_text()).get("sourceFingerprint") for c in ("htj2k", "av1")}
         t.check(got == {"htj2k": fingerprint(ct), "av1": fingerprint(ct)},
                 f"test_source_fingerprint: both codecs write the signed CT's one source fingerprint ({got}, want {fingerprint(ct)})")
+        narrow = rng.integers(-100, 128, (2, 16, 24, 1))
+        for codec in ("htj2k", "av1"):
+            through(build, work, "s8", narrow, codec, bits=8, stored=8, signed=True, modality="OT")
+        got = {c: json.loads((work / f"s8-{c}.metadata.json").read_text()).get("sourceFingerprint") for c in ("htj2k", "av1")}
+        t.check(got == {"htj2k": fingerprint(narrow, "i1"), "av1": fingerprint(narrow, "i1")},
+                f"test_source_fingerprint_8_bit: an AV1 payload widened past 8 bits keeps the one-byte source's fingerprint ({got})")
         said, left = failed_pack(build, work, ct & 0x7FF)
         t.check(said and left == ["refused.sbnd"],
                 f"test_failed_pack: refused as nothing written, no sidecar, no partial ({said}, {left})")
