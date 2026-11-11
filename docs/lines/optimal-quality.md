@@ -52,6 +52,11 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   without a test ([`docs/reviews/demo-redteam.md`](../reviews/demo-redteam.md)). The pair's source check is
   geometry alone (no ingest writes `framesSha256`); photometric and rescale are not compared; a cut series shifts a
   frame of any bits; an empty digest list passes; the overlay gives the exact frame the series' Q, G and cut.
+* **Blind review** (REVIEW-BLIND, 2026-11-11, `claude/demo-review-blind`): [`docs/reviews/demo-blind.md`](../reviews/demo-blind.md),
+  code paths only, no fixture run. Five correctness findings, none paints a wrong frame as *Lossless*: the `unchecked`
+  mark on every optimal-quality frame beside its label, a lossless failure left on the status line after a passing
+  retry, the overlay's Q/G on the exact frame, the stored form admitted by `pairOf`, `--codec lossy` accepted; owner
+  calls: the stored form in the demo list, and dav1d's 623 KB preloaded on every AV1 page though WebCodecs is first.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
