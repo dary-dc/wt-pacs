@@ -88,3 +88,16 @@ PR 250 lands, beside the product:
 **Commit metadata.** In `origin/main..36d286cd`, 93 of 311 commits are authored `Claude <noreply@anthropic.com>`
 and 9 `darian`, and 57 messages carry a `Co-Authored-By` trailer, against `CLAUDE.md` §Agents. History is not
 rewritten here (no force-push); whether PR 250 lands squashed is the owner's.
+
+## 5. The gate on the demo tip
+
+`scripts/gate.sh` in full on `36d286cd`, in a fresh 4-core cloud container without a GPU, 2026-11-11: **GATE OK in
+649 s**, rc 0, tree clean after. Built first: `client/decode/wasm/build/build.sh` (rc 0, 5 min), `ingest/tools.sh`
+(libaom 3.15.1, dav1d 1.5.4, OpenJPH 0.31.0), the WASM and TypeScript clients, `fetch_openjph.sh`, `fetch_xxh3.sh`,
+the ingest venv (`PYTHON=.venv/bin/python`), dockerd and meson 1.9.1 as `README.md` §Prerequisites says. The
+decoders rebuilt from their pins are the committed bytes. Skipped by name: the native painter and window checks (no
+Mesa lavapipe, Xvfb, xdotool), the viewer's cross-codec arm and Firefox (no DICOM bundles, no GL display), and the
+web host's equivalence check (no nginx), so S1's nginx paths are not exercised here. CI runs those.
+
+Setup nit: the gate refuses at the first missing prerequisite, so a fresh container meets them one run at a time
+(wasm-pack, then the decoder vendor); the cloud paragraph of §Prerequisites could say "every command above, then".
