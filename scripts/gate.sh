@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Before pushing, fail-fast. What it needs: README.md §Prerequisites.
-#   scripts/gate.sh [--quick] [--no-browser]   --quick skips the decoders' rebuild and the two absence checks; no docker skips the rebuild by name
+#   scripts/gate.sh [--quick] [--no-browser]   --quick skips the decoders' rebuild and the absence checks; no docker skips the rebuild by name
 # CARGO_TARGET_DIR is respected; the server absence check builds a default-feature release.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -295,8 +295,10 @@ if [[ $quick -eq 0 ]]; then
   run 1 bash client/scripts/check_telemetry_absent.sh
   step "server: absence check (default release binary carries no Tap and no lab controller)"
   run 1 bash server/scripts/check_telemetry_absent.sh
+  step "absence check (the images and the default build carry no lab code)"
+  run 1 bash scripts/check_lab_absent.sh
 else
-  skip "the decoders' rebuild and the two absence checks (--quick): the committed builds were checked against their manifests alone"
+  skip "the decoders' rebuild and the three absence checks (--quick): the committed builds were checked against their manifests alone"
 fi
 [[ $browser -eq 1 ]] || skip "every browser step (--no-browser)"
 

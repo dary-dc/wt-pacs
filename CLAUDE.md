@@ -78,6 +78,6 @@ Every agent working here, supervised or not:
 
 ```bash
 scripts/gate.sh          # client bundles, type-check, server tests, decoders rebuilt, absence checks
-scripts/gate.sh --quick  # skip the decoders' rebuild (docker) and the two absence checks
+scripts/gate.sh --quick  # skip the decoders' rebuild (docker) and the three absence checks
 scripts/gate.sh --no-browser  # skip the browser steps, and say so
 ```

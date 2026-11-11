@@ -64,7 +64,7 @@ cargo run --release -p series-server -- \
 #    Terminal 2 — the static host
 python3 server/dev-server.py --port 8765 --series us_cine_smoke
 
-# 5. Before pushing: the gate (about 330 s on 4 cores, warm builds, 150 s of it the decoders' rebuild); --no-browser skips the browser steps, --quick the rebuild and two absence checks
+# 5. Before pushing: the gate (about 330 s on 4 cores, warm builds, 150 s of it the decoders' rebuild); --no-browser skips the browser steps, --quick the rebuild and three absence checks
 scripts/gate.sh
 ```
 
