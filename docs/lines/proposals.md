@@ -916,7 +916,7 @@ seeded dwell list is written when a phone session takes it.
 
 `on 100` − `off` is −103 and −105 ms, inside −100 ± 15 (the A/A arm moved 8 and 2 ms, under the registered 15).
 Rebuilt on `end_stream` alone, the wake takes the promotion off as P3's `cancel` arm did (−88 and −105 ms), with
-the run-to-run spread of `on 100` 4–37 ms. *Not settled here:* the deciding row is the owner's phone on cellular;
+the run-to-run spread of `on 100` 12 and 37 ms. *Not settled here:* the deciding row is the owner's phone on cellular;
 its seeded dwell list is written when a phone session takes it. *Limits:* the relay's radio is a model (`--idle-promote
 5:300`); headless Chromium on one 4-core host; two DBT volumes of one dataset.
 
