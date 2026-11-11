@@ -12,7 +12,11 @@ const GLUE = `var OpenJPHModule = () => ({ HTJ2KDecoder: class {
 const DAV1D = `var Dav1dModule = () => ({ HEAPU8: new Uint8Array(1 << 16), HEAPU16: Uint16Array.of(7), _malloc: () => 0, _free() {},
   _av1_open: () => 0, _av1_flush() {}, _av1_decode: () => 0, _av1_top_layer: () => 0, _av1_layer: () => 0, _av1_layout: () => 0,
   _av1_bits: () => 10, _av1_plane: () => 0, _av1_stride: () => 1, _av1_width: () => 1, _av1_height: () => 1, _av1_matrix: () => 0 });`;
-globalThis.fetch = async (url) => new Response(String(url).includes("dav1d") ? DAV1D : GLUE);
+// The frame check's hasher and the build manifest are the repository's own files.
+globalThis.fetch = async (url) => {
+  const path = String(url).replace(/^file:\/\//, "");
+  return new Response(path.startsWith("/") ? readFileSync(path) : path.includes("dav1d") ? DAV1D : GLUE);
+};
 
 let failed = 0;
 const check = (ok, what) => {
@@ -70,6 +74,43 @@ check((await frameUnder(undefined)).m.pixels instanceof SharedArrayBuffer, "a la
   const d = await done;
   check(d.kind === "done", `the optimal-quality frame decodes (${d.reason})`);
   check(sent[0]?.path === "av1-dav1d" && sent[0]?.refusal === "no VideoDecoder", `its frame names the route and the refusal (${sent[0]?.path}; ${sent[0]?.refusal})`);
+}
+
+/**
+ * An optimal-quality frame with a reconstruction digest: matched, `asCoded` true and `exact` still "unchecked"; not matched,
+ * `asCoded` false with the route's digest named. Inside a group the decoder keeps the group's payloads from its keyframe for
+ * the second decode. docs/lines/proposals.md §I1
+ */
+{
+  const { hasher } = await import("./xxh3.js");
+  const seven = (await hasher()).init().update(Uint8Array.of(7, 0)).digest("hex");
+  const wrong = "0123456789abcdef";
+  const bytes = new Uint8Array(readFileSync(new URL("../contract/av1/payloads/plain/g10.av1", import.meta.url)));
+  const run = async (checks, frames, groupLength = 1) => {
+    const sent = [];
+    const ready = next();
+    onmessage({ data: { kind: "init", toConsumer: { postMessage: (m) => sent.push(m) }, decoder: { codec: "av1", lossy: true, glue: "dav1d.js", wasm: "dav1d.wasm" }, groupLength, ...checks } });
+    await ready;
+    for (const [index, key] of frames) {
+      const done = next();
+      onmessage({ data: { kind: "decode", index, gen: 0, key, bytes: bytes.slice(), stamps: {} } });
+      await done;
+    }
+    return sent.at(-1) ?? {};
+  };
+  let f = await run({ reconstruction: [seven] }, [[0, true]]);
+  check(f.asCoded === true && f.exact === "unchecked", `a matched reconstruction digest: as coded, still not exact (${f.asCoded}, ${f.exact})`);
+  f = await run({ reconstruction: [wrong] }, [[0, true]]);
+  check(f.asCoded === false && f.exact === "unchecked" && f.reason?.includes(`av1-dav1d gave ${seven}, not ${wrong}`) && f.reason?.includes("no WebCodecs decoder"),
+    `an unmatched one: not as coded, each route named (${f.asCoded}; ${f.reason})`);
+  f = await run({}, [[0, true]]);
+  check(f.asCoded === undefined && f.exact === "unchecked", `no reconstruction digest: unchecked, nothing said of coding (${f.asCoded}, ${f.exact})`);
+  f = await run({ digests: [seven] }, [[0, true]]);
+  check(f.exact === true && f.asCoded === undefined, `a frame digest still makes a frame exact, and says nothing of coding (${f.exact}, ${f.asCoded})`);
+  f = await run({ reconstruction: [seven, wrong, seven, wrong] }, [[0, true], [1, false]], 4);
+  check(f.asCoded === false && f.reason?.includes("decoded again on dav1d only"), `inside a group, its payloads were kept for the second decode (${f.reason})`);
+  f = await run({ digests: [seven, wrong] }, [[0, true], [1, false]], 4);
+  check(f.exact === false && f.reason?.includes("group was not kept"), `without a reconstruction digest no group is kept (${f.reason})`);
 }
 
 console.log(failed ? `${failed} failed` : "decoder frame buffer: ok");
