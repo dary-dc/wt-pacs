@@ -356,6 +356,180 @@ Each S3 shard records its rounds and pins (commit, Chromium, the store's digests
 pins only. A shard that reaches 4.5 h stops at the round boundary and says how many rounds it kept; the rule then
 reads the n it has and prints it.
 
+## Screen resolution against the demo's approach (row HTJ2K-SCREEN, 2026-11-11)
+
+*Theory and a pre-registered protocol; **nothing here is run**. The owner asked to compare one lossless HTJ2K
+codestream served at the resolution the client's screen shows, completed to full resolution on a zoom or a request,
+with the demo's approach, for DBT and other large frames. It is not a preview (none is decided): every picture is
+exact at its level, at least as many samples as the viewport shows. Sources are [S1]–[S4]; *derived* marks our
+arithmetic, *assumption* a band no measurement here backs.*
+
+### The approaches
+
+* **D, the demo.** The optimal-quality (OQ) AV1 series fills the scroll (≤ 10 bits: D > 10 by the depth cut; WebCodecs,
+  dav1d only as its fallback); an explicit Lossless request fetches the exact HTJ2K frame whole
+  ([`lines/optimal-quality.md`](lines/optimal-quality.md)).
+* **S, screen level.** Today's HTJ2K codestream, nothing re-encoded. The fill sends each frame's prefix at ℓ_fit for
+  the viewport (§Terms), level-first as layout **L** (two store entries a frame, prefixes first); a zoom or a Lossless
+  request fetches that frame's rest. A level is a prefix by the progression order (§Theory 1).
+* **S+R.** S, with the rest fetched by region on a zoom: layout **P** (precincts) or **T9** (HTJ2K tiles), §Theory 5.
+  A Lossless request still fetches the whole rest.
+* **D+L.** D's scroll, with the Lossless request served level-first (§Theory 7's DBT case).
+
+For frames AV1 does not serve (not cine-like: FFDM, synthesized 2D; or over 12 bits), D does not exist: the demo's
+equivalent is the whole HTJ2K frame, W, and the comparison is this file's protocol above. What follows is DBT.
+
+### What a phone screen needs from the three DBT fixtures
+
+Viewports in device pixels (decided 2026-10-11), the frame hung long side vertical, **assumed**: a phone of
+1080×2400 with the browser's bars leaving 1080×2100; a smaller phone, 720×1600 → 720×1400; a larger one, 1440×3120 →
+1440×2800; the first held sideways, 2400×950. ℓ_fit from §Terms (*derived*):
+
+| fixture | frames × C×R, D | HTJ2K series · a frame (*derived*) | 1080×2100 | 720×1400 | 1440×2800 | 2400×950 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `dbts_a1` | 56 × 1142×1785, 12 | ≈ 69 MB · 1.23 MB | L0 | L0 | L0 | L0 |
+| `dbts_b1` | 50 × 2560×3328, 10 | ≈ 109 MB · 2.19 MB | **L1** | **L1** | L0 | **L1** |
+| `dbts_c1` | 69 × 976×2513, 12 | ≈ 72 MB · 1.05 MB | L0 | L0 | L0 | **L1** |
+
+The series' bytes are the link's rate times the plain HTJ2K arm's link-bound time, envelopes and transport included
+(`claude/htj2k-progressive:lab/htj2k-progressive/rows/stage3-volumes.md`, `htj2k` at r5000 and r20000, which agree
+within 1 %). **On a phone held upright, S sends `dbts_a1` and `dbts_c1` whole: S there is today's exact fill.** Only
+`dbts_b1` has a level to gain, and not on the larger phone. Level 1 is 26.9–27.3 % of a `dbts_b1` frame (ibid.,
+stage1-levels).
+
+### Bytes
+
+Shares of the exact series. D at the noise rule's Q: `dbts_a1` 0.27 (Q 4), `dbts_b1` 0.10 · 0.22 (G 1 · 16),
+`dbts_c1` 0.096 · 0.28 (`claude/av1-audit-quality:docs/av1/audit-quality.md` F7). S at the upright 1080×2100 phone.
+MB are *derived* from the table above.
+
+| | `dbts_a1` | `dbts_b1` | `dbts_c1` |
+| --- | --- | --- | --- |
+| first picture, D (one frame's share; a key frame is above its group's mean, not measured) | ≥ 0.33 MB | ≥ 0.22–0.48 MB | ≥ 0.10–0.29 MB |
+| first picture, S | 1.23 MB, the frame | 0.59 MB, level 1 | 1.05 MB, the frame |
+| the whole scroll at screen resolution, D · S | 18.6 · **69** MB | 10.9–24.0 · **29.6** MB | 7.0–20.2 · **72** MB |
+| one frame at full fidelity after the scroll, D · S | 1.23 · **0** MB | 2.19 · 1.60 MB | 1.05 · **0** MB |
+| S's total ≤ D's once the reader asks Lossless on more than (*derived*) | 41 of 56 frames | 32 of 50 (G 1) · 10 of 50 (G 16) | 62 of 69 (G 1) · 49 of 69 (G 16) |
+| stored, D · S | 1.27 · 1.00 | 1.10–1.22 · 1.00 | 1.10–1.28 · 1.00 |
+
+S costs 1.2–10× D's bytes to the first picture and to the scroll (*derived*, the table's ranges); it pays only for a reader who asks Lossless
+on most slices. On a link-bound phone the time is the bytes (§Theory 7 of the ADR): the progressive lab's `fit` arm,
+which is S at level 1, pictured every `dbts_b1` frame in 12.0 s at 20 Mbit/s and 47.5 s at 5 (stage3-volumes). S+R
+changes only the zoom: a 1:1 region on the phone is 10–35 % of a frame under **P** at the median position (P5,
+predicted), against S's 73 % rest.
+
+### Decode on a phone
+
+No phone is measured; the host at 4× CPU throttling stands in, an **assumption** about a mid-range phone. From the
+progressive lab's stage-3 decode sums divided by frames (*derived*): a whole frame 93–107 ms (`dbts_a1`), 94–103 ms
+(`dbts_c1`), 268–286 ms (`dbts_b1`); a `dbts_b1` level-1 prefix 74–81 ms, ×0.26–0.30 of its whole frame. S is WASM on
+the CPU in the decoders the client already runs. D's OQ view through WebCodecs decodes in about 1.55–1.81 HTJ2K frames
+on this host without a GPU (`dbts_a1`, `dbts_c1`, Q 8, 1×, [`lines/codecs.md`](lines/codecs.md)); on a phone WebCodecs
+may take a hardware decoder, which would leave the CPU free, and whether it does at 10 bits on these sizes is owed to a
+phone (codecs line, Open 4). Decoded pictures stay in the OPFS cache, so each frame is decoded once.
+
+### What *Lossless* means in each
+
+* **D.** The OQ picture is never Lossless: its label is *Optimal quality*, its error the coding's, within the noise at
+  the rule's Q. *Lossless* is the explicit request: the whole HTJ2K frame, at its stored depth, its XXH3 against the
+  ingest's frame digest, bit for bit.
+* **S at level 0** (`dbts_a1`, `dbts_c1` upright). Every scrolled picture is the exact frame at its stored depth (12
+  bits, no depth cut), checked by today's frame digest: *Lossless* from the first picture, with no request.
+* **S at level ℓ ≥ 1** (`dbts_b1`). The picture is the reversible 5/3 low band, clamped: exact against the codestream
+  and equal on every conforming decoder, but neither the frame nor the frame resampled to that size (on `dbts_b1` the
+  level-1 picture against the area-resampled frame differs by more than one code on most in-window samples,
+  §Theory 2). It is not *Lossless*; a per-level digest written by the ingest makes it checkable, and its wording is the
+  owner's. It becomes *Lossless* when the rest arrives and the frame digest matches.
+* **S+R.** A zoomed region at level 0 is the frame's own samples, but the frame digest covers only the whole frame: a
+  region needs a digest per precinct or HTJ2K tile (ADR §8.3), and its label ("Lossless in view") is the owner's.
+
+Which of D's and S's level-1 pictures is nearer to the exact frame *as painted at the viewport's size* is not known;
+it is the protocol's R4.
+
+### How each fits the PCS's input and the `.sbnd` layout
+
+* **D:** the PCS encodes each source twice, the exact HTJ2K series and the OQ AV1 series (Q by the noise rule, G per
+  modality, the depth cut); two `.sbnd` files, paired by the source fingerprint (row SOURCE-FINGERPRINT).
+* **S:** one encode, today's codestream (RPCL, one layer, one HTJ2K tile, five levels), unchanged. The ingest adds,
+  per frame, the byte offset of each level's smallest exact prefix (found by decoding, as the lab does, or by parsing
+  packet headers, `claude/htj2k-progressive:lab/htj2k-progressive/layers/shapes.py`) and the per-level digest. In
+  version 1 of the `.sbnd` the lab's layout already works with no format change: 2F entries, every prefix first, then
+  every rest ([`FIXTURES.md`](FIXTURES.md) §SBND series bundle); version 2's band entries are
+  [`disk-layout/target.md`](disk-layout/target.md) §Layout 1. No wire change (ADR §8.4). DICOM's HTJ2K Lossless RPCL
+  syntax is written for this use and asks a base resolution of at most 64 [S3, §10.18.1]: five decompositions leave
+  `dbts_b1` 80×104, so it would need a sixth to be sent under that syntax unchanged (*derived*).
+* **S+R:** **P** changes the PCS's encode (`-precincts`) and keeps one codestream a frame; **T9** stores each HTJ2K tile
+  as its own codestream, so a DICOM frame is reassembled on export (§Theory 5).
+* **The client, for S:** the render path must take a picture smaller than the frame (ADR §4, still the blocker); a
+  level binding with the SIZ reset the progressive lab found missing in OpenJPH 0.31.0; the clamp to 2^D − 1; a label
+  state for an exact level picture.
+
+### What theory predicts, before any run
+
+| # | quantity, link-bound cells, upright phone | predicted | refuted if |
+| --- | --- | --- | --- |
+| Q1 | S's first picture ÷ D's | `dbts_a1` 2–8, `dbts_c1` 2–15, `dbts_b1` 1.1–4 (the bytes' ratio, compressed toward 1 by the round trip; wider than the table because the run's D is Q 8) | under 1.0 on any volume |
+| Q2 | S's every frame pictured ÷ D's | `dbts_a1` 3–8, `dbts_c1` 3–15, `dbts_b1` 1.1–4 | under 1.0 on any volume |
+| Q3 | Lossless after the scroll, S ÷ D | 0 on `dbts_a1`, `dbts_c1`; 0.70–0.78 on `dbts_b1` | over 0.9 on `dbts_b1` |
+| Q4 | in-window codes within ±1 of the exact frame painted at the viewport, S's level-1 picture and D's picture, `dbts_b1` | not predicted: both are filters of the frame the paint does not use | — |
+
+The fixtures cannot carry more than this: three volumes of one collection; two of them never leave level 0 upright.
+
+### Protocol, pre-registered
+
+For a session given this section, §Protocol above and nothing else. Code and rows in `lab/htj2k-tiles/screen/`.
+`CLAUDE.md` §Measurement throughout: arms interleaved, every new check mutated, the store warm, times quoted and not
+throughputs, the host's saturation stated.
+
+**The rule, stated first.** Per volume and cell; a bound b is missed only past b × (1 + s), s the cell's p90 of
+|D′/D − 1| (D′ the same series under another name), strict readings printed too. Link-bound cells are 5 and
+20 Mbit/s and `lte-good`, minus any the host names as decode-bound (§Protocol, the host).
+
+* **R0, exact.** Every S picture equals its witness (the frame digest at level 0; `witness.py` and OpenJPEG at
+  ℓ ≥ 1) and every Lossless picture the frame digest, in every kept visit. An arm failing it is out.
+* **R1, the first picture.** S's ≤ 1.5 × D's.
+* **R2, the scroll.** S's every frame pictured ≤ 1.25 × D's.
+* **R3, Lossless.** From the request after the scroll to the exact picture, S's ≤ 0.5 × D's.
+* **R4, the screen.** S's picture's share of in-window codes within ±1 of the exact frame painted at the viewport's
+  size, under every header window, ≥ D's, on every frame.
+
+**Verdicts.** R0 ∧ R1 ∧ R2 on at least two of the three volumes: S is proposed for DBT on phones, a store-format
+change for the owner. Otherwise, R0 ∧ R3 on `dbts_b1`: D+L is proposed, D's scroll kept and the Lossless request
+level-first, for volumes whose fit is level 1. Otherwise D stays. R4 is reported with every verdict and decides
+nothing alone; the reading of a level picture is the owner's.
+
+**Arms.** **D** and **D′**: the demo's series from `scripts/demo-series.sh` on the demo tip, Q 8 at G 1 and at G 16,
+the depth cut on `dbts_a1` and `dbts_c1`, through the product's AV1 route; the Lossless request is the exact series'
+frame whole. Q 8 is the demo's and the rule's Q only on `dbts_c1` at G 1 (F7), so the run's D is lighter than the bytes
+table's on the other two; both are printed. **S**: the exact series split at ℓ_fit by `claude/htj2k-progressive:lab/htj2k-progressive/delivery/make_frames.py`
+(level-first, prefix entries then rests), decoded by its `delivery/decoder.js`; where ℓ_fit is 0, S is the exact
+series whole. **D+L**: D's scroll, then S's prefix and rest for the requested frame. Viewports: 1080×2100 and
+2400×950, so that `dbts_c1` is run at both levels.
+
+**A visit.** Open at the first slice; the fill runs; the scroll is pictured when every slice is; then a Lossless request
+on the middle slice; then a zoom to 1:1 at the slice's centre (S+R's bytes from stage 1 of §Protocol above, not timed
+here). Per visit: time to the first picture, to every slice pictured, from the request to the Lossless picture; bytes.
+
+**Stage 0, checks and mutants.** The split's prefixes against `witness.py` and OpenJPEG, every frame of the three
+volumes; the D series' bytes and digests against `demo-series.sh`'s table. Mutants, each caught: a prefix one byte
+short; the clamp removed; the SIZ reset removed (a later whole frame not exact); every digest truth flipped.
+
+**Stage 1, the screen (offline).** For every frame of `dbts_b1`, and of `dbts_c1` at 2400×950: S's level picture and
+D's picture decoded by dav1d, each painted at the viewport's size by `client/paint`'s
+resampling and window, against the exact frame painted the same way; R4's share, PSNR and max |Δcode| per window.
+
+**Stage 2, time.** `lab/av1/delivery/total-time/run.mjs` and its rig: links r5000, r20000, r50000, `lte-good`; 1× and
+4×; a fresh server, relay and browser a visit; cells in a Williams order each round, arms inside each cell the same
+way; 6 rounds in two shards of 3. Every picture checked after the clock. **The host:** cores, CPU, browser; a cell whose D arm's time at 4×
+exceeds 1.05 × its 1× time is decode-bound, named, and kept out of R1–R3. Nothing above 50 Mbit/s is claimed. A shard
+~2.5–3 h on a 4-core host (*derived* from the stage-3 visit times: S whole takes 110–175 s a visit at 5 Mbit/s, ~45–55
+min a round over 5 arms, 4 links, 2 throttles, 3 volumes and the sideways viewport where it changes a level).
+
+**Fixtures, and their limits, printed with every result:** three timed DBT volumes (`dbts_a1`, `dbts_b1`, `dbts_c1`),
+all from one dataset (EA1141), slices of a volume not independent samples; only `dbts_b1` upright and `dbts_c1`
+sideways reach level 1; no breast ultrasound cine; 4-core cloud hosts without a GPU, so WebCodecs is software here and
+no phone's decoder is measured; the phone's viewports are assumed, not read from a device.
+
 ## Sources
 
 Read 2026-11-09; quotations are verbatim, with the PDF's symbols restored where text extraction lost them (≤).
