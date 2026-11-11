@@ -1,13 +1,13 @@
 state: started
 started: 2026-11-11 02:05 UTC
-heartbeat: 2026-11-11 02:25 UTC
-outputs: claude/demo-pre-main-review (not yet pushed)
+heartbeat: 2026-11-11 02:50 UTC
+outputs: claude/demo-pre-main-review 1bcfa34e (docs/reviews/pre-main.md, in progress)
 ## Resume
-Claimed (1705b421). Demo tip claude/demo-fixes-0 at 36d286cd (gate-cloud merged in it). Review branch
-claude/demo-pre-main-review from 36d286cd. Running now: dockerd, pip install meson==1.9.1,
-client/decode/wasm/build/build.sh, ingest/tools.sh, scripts/gate.sh (log not pushed; rerun if lost).
-Three review subagents running (server/common/deploy; client transport/decode; client view/viewer); off-path
-inventory done by hand (lab dirs new to main, client/native +3303). Review scope: git diff origin/main...origin/claude/demo-fixes-0 -- server common client/transport client/decode
-client/view client/viewer deploy (64 files, +6772). Findings go to docs/reviews/pre-main.md.
+Done: claim; docs/reviews/pre-main.md §1 (server/common/deploy, from a subagent, S1 spot-checked) and §4 (off the
+default path) at 1bcfa34e. Decoders and ingest/tools.sh built (rc 0, decoders byte-identical to committed). Gate run
+1 stopped at prerequisites: wasm-pack missing; now running rustup target add wasm32-unknown-unknown, cargo install
+wasm-pack 0.15.0 --locked, client/transport/{wasm,ts}/build.sh, scripts/gate.sh in a worktree of
+claude/demo-pre-main-review. Two subagents still reviewing client/transport+decode and client/view+viewer; their
+findings become §2 and §3. Next: §5 gate result, docs/lines/coordination.md line, status done.
 ## Result
 (pending)
