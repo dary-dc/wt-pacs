@@ -4,6 +4,7 @@ cells, §B amendment 1), on the groups protocol's own cell code at claude/av1-gr
 
 usage: GROUPS_DIR=<checkout of 0e0e58c8>/lab/av1/groups cells.py BUILD WORK OUT.jsonl SETDIR ... [--g 1 16]
        [--jobs 4] [--memory-gb 13.5] [--mutate]     (--mutate: only the check's --cpu-used=5 encode, then exit)
+       [--extra NAME:G:Q ...]                      (amendment 2's rungs outward, coded after the ladder)
 """
 import argparse
 import json
@@ -30,11 +31,15 @@ STUDY = "2f04f648"
 MUTANT = ("dbt12_ea1141", 8)
 
 
+def rung(g, q):
+    return dict(arm="O", g=g, q=q, src="real", bands=False, keep=False, vdp=False)
+
+
 def audit_cells(name, b, g):
     """The protocol's ladder for one volume at one G; the timed volumes have no G 16 (groups §S4 covers them)."""
     if g > 1 and name in TIMED:
         return []
-    return [dict(arm="O", g=g, q=q, src="real", bands=False, keep=False, vdp=False) for q in LADDER[b]]
+    return [rung(g, q) for q in LADDER[b]]
 
 
 def halves(shape):
@@ -134,6 +139,7 @@ def main():
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--memory-gb", type=float, default=13.5)
     ap.add_argument("--mutate", action="store_true")
+    ap.add_argument("--extra", nargs="*", default=[])
     a = ap.parse_args()
     a.build, a.work = a.build.resolve(), a.work.resolve()
     a.work.mkdir(parents=True, exist_ok=True)
@@ -163,7 +169,9 @@ def main():
             for row in pool.map(fn, todo):
                 emit(fh, row)
                 print(row["set"], kind, flush=True)
-        todo = [(a.build, a.work, p, c, None) for p, c in order(a.sets, depth, a.g)
+        by_name = {Path(p).name: p for p in a.sets}
+        extra = [(by_name[n], rung(int(g), int(q))) for n, g, q in (e.split(":") for e in a.extra)]
+        todo = [(a.build, a.work, p, c, None) for p, c in order(a.sets, depth, a.g) + extra
                 if plan.key(Path(p).name, c) not in done]
         need = lambda j: (max(0.5, cell.MEASURE_GB_PER_FRAME_MPX) * plan.FRAME_MPX[Path(j[2]).name] / 1e6
                           + cell.WORKER_GB)
