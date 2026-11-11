@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-11 04:22
 heartbeat: 2026-11-11 20:31
-outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure bea1000d (B0 measured; B amendment 1, driver, G 1 rows 101 of 185); no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
+outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure 7840fd4b (B0 measured; B amendment 1, driver, G 1 rows 101 of 185); no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
 ## Resume
 2026-11-11 20:31: this session stopped (the driver's one background command reached the 2 h limit, the longest
 allowed; nothing running, nothing unpushed). Rows bea1000d: 101 of 185 G 1 cells, 10 volumes whole (a1 b1 c1 dbt12_c a2 b2 c2
