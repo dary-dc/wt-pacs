@@ -9,7 +9,7 @@ not counted): page and worker each 56/56 av1-webcodecs, fill 1.06 / 1.05 s, Loss
 errors, 0 lost. read-path.sh: all four preadv2, ring refused, SELinux Enforcing. Device counters logged every 0.5 s
 (target/phone-run/counters.log) for the link check. adb server stopped for the run. Earlier heartbeat 20:45Z was
 wrong (written ~20:20Z).
-Proposed to the owner (pending his word): this session owns the phone tooling branches (phone-devtools, phone-rows,
+Proposed to the owner (pending the owner's word): this session owns the phone tooling branches (phone-devtools, phone-rows,
 lab/phone fixes) and runs local helpers; protocol amendments and the blind read stay outside it.
 ## Result
 (pending)
