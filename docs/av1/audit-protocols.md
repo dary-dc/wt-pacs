@@ -347,3 +347,46 @@ Until then: the G 1 x\* the rows support is 4.7584, not 4.9293 (the noise point'
 cells); the G 1 and G > 1 values differ by 2.6 %; and the per-depth reading reproduces the anchor on as many cells
 as the noise point's while removing F6's `dbts_c1` and `dbts_c5` G 16 penalty. B-3's prediction (δ 1–3 %) would put
 that 2.6 % inside the resolution.
+
+### B · amendment 1, written 2026-11-11 18:50 UTC before any B encode ran
+
+The protocol names the cells and the readings but not the code or every reading. Fixed here, before the run:
+
+* **Code.** `lab/av1/audit/cells.py` on `claude/audit-measure`, not a new `audit_cells` in the groups branch's
+  `plan.py` and a flag in its `cell.py`: it imports `claude/av1-groups-settings` at `0e0e58c8`
+  (`lab/av1/groups/`, a detached checkout named by `GROUPS`) unchanged and runs its `run_cell`, `series` and
+  scheduler, so the arm, `measure()` and `sigma_out` are that commit's byte for byte. Its `audit_cells(name, b, g)`
+  is the protocol's ladder; the 16 new volumes' frame sizes are read from the data, not typed in. `plan.MIDDLE` is
+  emptied, so `dbts_b1` is read whole (50 frames), as the quality study read it; groups shard S1 read 32.
+* **B1.** The checkerboard: sample (y, x) is in half 0 when ⌊y ÷ 64⌋ + ⌊x ÷ 64⌋ is even. Per frame, σ on each half
+  is `quality.sigma` with the window mask ANDed with the half (the steepest 10 % dropped within that half); e_N on
+  each half is `quality.noise_band` of the same coding error with the same AND. σ halves are per volume (a `split`
+  row, no encode); e_N halves ride on each cell's frames (`err_noise_band_halves`). For a cell, r_h = e_N,h ÷ σ_h at
+  the cell's worst frame (by the whole frame's e_N ÷ σ). **s_split** of a volume is the RMS over its cells of
+  (r_0 − r_1) ÷ 2, divided by the mean worst frame: the halves are exchangeable, so the RMS about zero is the
+  standard error the protocol means, and it is quoted relative, as B-1's bands are.
+* **B2.** In the same `split` row, on the middle 8 frames (from ⌊(n − 8) ÷ 2⌋): Gaussian noise with σ_add = 0.5 σ
+  and 1.0 σ (σ: that frame's `quality.sigma` over its window), seeded by (CRC-32 of the volume name, frame,
+  arm), rounded to integers, added, clipped to 0 … 2^b − 1 (clipped samples counted), σ re-estimated with the source
+  frame's window mask. b = (σ̂(x + n)² − σ̂(x)²) ÷ (σ_add² + 1/12) − 1, per frame and arm; a volume's b is the mean
+  over its 16 readings, with their range beside it. **δ** of a volume = max(2 · s_split, |b|).
+* **B3.** Worst frame as `anchor.worst`. Q_lo and Q_hi per (volume, G) as the protocol defines them; "both bars'
+  integer points" are `anchor.integer_point` at 1.00 and 1.03; G 16's bytes at 1.00 by `anchor.read` (PCHIP in ln
+  bytes, rungs up to the first ≥ 1.02), with ε by `anchor.thinned` as groups §S6. B-5's ratio divides G 16's B₁ by
+  G 1's B₁ read the same way. Bytes are the sum of the cell's units.
+* **A, on the same rows.** ν per cell as `anchor.nu`. "The rule's Q" for A2 is the integer Q under the pooled x\*
+  4.6359 and, beside it, the per-depth x\* (B0's two readings), each from B0's `rules`; A2 is judged under both and
+  says so. A3 bins x by 0.25 with x as B0's frame point at each cell's median frame. Q_ν uses median-frame ν.
+* **Check, before the run.** The first cells coded are the check rungs (O G 1 at Q 4, 8, 12, and 16 on 10-bit) of
+  the three timed volumes, then the rest. Every check rung on every volume is compared, as it lands, with
+  `claude/av1-quality-metrics` at `2f04f648`, `lab/av1/metrics/rows/shard-{1,2,3,4}.jsonl` (stored form, G 1, same
+  Q): its unit sizes must be equal, frame for frame. A mismatch stops the run. **Mutation:** one extra encode,
+  `dbt12_ea1141` O G 1 Q 8 with `--cpu-used=5`, compared the same way, must differ; it is a `check` row and no cell.
+* **Order and cut.** Volumes in the order `dbts_a1`, `b1`, `c1`, `dbt12_c`, `a2`, `b2`, `c2`, `dbt12_ea1141`, `a3`,
+  `b3`, `c3`, `dbt10_d`, `a4`, `b4`, `c4`, `dbt10_ea1141`, `a5`, `b5`, `c5`; G 1 for all, then G 16. One background
+  command stops at 2 h on this host, so the run is a sequence of commands that each resume from the rows file
+  (finished cells are skipped). If the session's time runs out, G 16 is cut first, then content 2, and the cut is
+  named in the result.
+* **Rows.** `lab/av1/audit/rows/b.jsonl`, committed about every 10 minutes while the run lasts.
+* **Host.** One 4-core cloud host without a GPU, 15 GB; `--jobs 4`, `--memory-gb 13.5`. Encode CPU seconds are
+  reported per cell; nothing here is timed for a verdict.
