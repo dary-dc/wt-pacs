@@ -14,5 +14,6 @@
   "depth": 10,
   "bitsStored": 12
  },
- "exactSeries": "cut"
+ "exactSeries": "cut",
+ "sourceFingerprint": "97abf41a132582a1"
 }
