@@ -17,12 +17,15 @@ const summary = {
   issuedAt: 1000,
   fillMs: 812.5,
   dial: 1100.25,
-  frames: [{ i: 0, path: "av1-webcodecs", wireBytes: 2560, decodeMs: 3.25 }, { i: 1, path: "av1-dav1d", refusal: "codec", wireBytes: 1536 }],
+  frames: [{ i: 0, path: "av1-webcodecs", wireBytes: 2560, decodeMs: 3.25 }, { i: 1, path: "av1-dav1d", refusal: "codec", wireBytes: 1536 },
+    { i: 2, path: "av1-webcodecs", wireBytes: 1024, decodeMs: 2 }],
 };
 
 /** Off by default: no configuration, a rate of 0, or no endpoint draws nothing and records nothing. */
 test("off unless the configuration sets a rate and an endpoint", () => {
-  for (const config of [undefined, {}, { rate: 0, url: "/telemetry" }, { rate: 1 }]) assert.equal(rig(config).r, null, JSON.stringify(config));
+  for (const config of [undefined, {}, { rate: 0, url: "/telemetry" }, { rate: 1 }]) {
+    assert.equal(loadReport(config, fields, { random: () => 0, send: () => assert.fail("sent") }), null, JSON.stringify(config));
+  }
 });
 
 /** The draw is once per load, against the rate: a draw under it samples the load, one at or over it does not. */
@@ -63,8 +66,9 @@ test("the report carries the fill, the routes and each frame", () => {
   r.end();
   const b = sent[0].body;
   assert.deepEqual({ fillFrom: b.fillFrom, fillTo: b.fillTo, fillMs: b.fillMs, statusFillMs: b.statusFillMs }, { fillFrom: 1100.25, fillTo: 1812.5, fillMs: 712.25, statusFillMs: 812.5 });
-  assert.deepEqual(b.routes, { "av1-webcodecs": 1, "av1-dav1d": 1 });
-  assert.deepEqual(b.frames, [{ i: 0, route: "av1-webcodecs", kb: 2.5, decodeMs: 3.25 }, { i: 1, route: "av1-dav1d", refusal: "codec", kb: 1.5, decodeMs: null }]);
+  assert.deepEqual(b.routes, { "av1-webcodecs": 2, "av1-dav1d": 1 });
+  assert.deepEqual(b.frames, [{ i: 0, route: "av1-webcodecs", kb: 2.5, decodeMs: 3.25 }, { i: 1, route: "av1-dav1d", refusal: "codec", kb: 1.5, decodeMs: null },
+    { i: 2, route: "av1-webcodecs", kb: 1, decodeMs: 2 }]);
   assert.equal(b.received, 2);
   assert.equal(b.rate, 1);
   assert.equal(b.truncated, false);
@@ -78,6 +82,15 @@ test("a load ended before its fill reports a null fill", () => {
   r.end();
   const b = sent[0].body;
   assert.deepEqual([b.fillFrom, b.fillTo, b.fillMs, b.statusFillMs, b.frames, b.received], [null, null, null, null, [], 1]);
+});
+
+/** Frames stored without the fill's end (on demand, or a fill cut short) are listed, and the fill stays null. */
+test("frames without the fill's end leave the fill null", () => {
+  const { r, sent } = rig();
+  r.filled({ ...summary, fillMs: null });
+  r.end();
+  const b = sent[0].body;
+  assert.deepEqual([b.fillFrom, b.fillTo, b.fillMs, b.statusFillMs, b.frames.length], [null, null, null, null, 3]);
 });
 
 /** Labels, presses and errors keep their order and their times; an error's URLs are removed, so no address or query leaves. */
