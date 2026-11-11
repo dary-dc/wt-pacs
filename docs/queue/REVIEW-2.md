@@ -1,9 +1,10 @@
 state: started
 started: 2026-11-11T16:25Z
-heartbeat: 2026-11-11T16:25Z
+heartbeat: 2026-11-11T16:28Z
 outputs: claude/demo-review-2 (from the demo tip claude/demo-fixes-1 daee0d1d); findings in docs/reviews/review-2.md
 ## Resume
-Claimed. Plan: (1) FIX-1 (#363): for each fix commit, revert it on a scratch tree and run its test, expect a fail;
-(2) docs claims of FIX-1, E2E-3 and the line file against the recorded rows; (3) DEMO-UX #365, SOURCE-FINGERPRINT
-#364, claude/demo-clean's removals, the same two checks. Findings pushed to claude/demo-review-2 as each part lands.
+Done: (1) FIX-1 reverted fix by fix, every test fails without its fix: claude/demo-review-2 e084d574,
+docs/reviews/review-2.md §1. Next: (2) docs claims against rows (FIX-1 body, E2E-3 record, line file);
+(3) #365 DEMO-UX, #364 SOURCE-FINGERPRINT, claude/demo-clean, the same checks. Continue: git worktree add
+<dir> origin/claude/demo-review-2; node 22 runs the client tests; a venv with numpy, xxhash for ingest_coded.py.
 ## Result
