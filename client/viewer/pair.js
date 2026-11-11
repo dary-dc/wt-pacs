@@ -17,7 +17,7 @@ export function pairOf(meta) {
     throw new Error(`refused: a depth cut ${JSON.stringify(meta.lossy)} of bitsStored ${meta.bitsStored} — depth ${CUT_DEPTH} from the series' bitsStored, over ${CUT_DEPTH}`);
   }
   const id = meta.exactSeries;
-  if (typeof id !== "string" || !/^[\w.-]+$/.test(id)) throw new Error(`refused: exactSeries ${JSON.stringify(id)} — a series id`);
+  if (typeof id !== "string" || !/^[\w.-]+$/.test(id) || /^\.\.?$/.test(id)) throw new Error(`refused: exactSeries ${JSON.stringify(id)} — a series id`);
   return { id, metadata: `/series/${id}/metadata`, transport: `/wt/${id}/dev-transport.json` };
 }
 
