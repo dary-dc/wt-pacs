@@ -64,6 +64,6 @@ A tag, if wanted: `git tag archive/<name> <commit> && git push origin archive/<n
 decoders rebuilt from their pins to the committed bytes, with `INGEST_BUILD` and `PYTHON` set and the Docker daemon
 started as README §Prerequisites says for a cloud container. Skipped by name: the native painter and window (no
 Mesa lavapipe, Xvfb or xdotool), the viewer's cross-codec arm and Firefox (no DICOM bundles, no GL display), the web
-host's nginx check (no nginx). `demo-check.mjs` was not run (§ top). A fresh 4-core cloud container without a GPU.
+host's nginx check (no nginx). `demo-check.mjs` was not run (why: the first section). A fresh 4-core cloud container without a GPU.
 
 Fixtures: none timed; nothing here measures. Read from one commit (`daee0d1d`) and its git history.
