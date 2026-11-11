@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-11T17:48Z
-heartbeat: 2026-11-11T18:57Z
-outputs: claude/clean-product f866da46
+heartbeat: 2026-11-11T19:07Z
+outputs: claude/clean-product 1ab25a58
 ## Resume
 Part 1 done, 63140f29: scripts/check_lab_absent.sh in gate.sh's absence checks, plus the three lab flags of item 15
 in server/scripts/check_telemetry_absent.sh. Fails today on: Containerfile's lab COPYs (item 16), the web image's
@@ -26,9 +26,13 @@ Part 2 progress (pushed):
   proposal for the owner (structural), not done here. Mutants: lab COPY in server and web stage caught.
 * f866da46 item 15: the three flags behind lab-levers; test first (failed on --send-window-follows-cwnd); mutants
   M1 tuning flag back to #[arg(long)] and M2 variant ungated both caught. server absence check OK.
-Next: items 13+14 together (check and lab hooks out of viewer.js into one lab/ module loaded by head.js's gate;
+* 1ab25a58 items 13+14: lab/viewer/hooks.js (page hooks via levers.js), check modules -> lab/viewer/, out of the web
+  image; ViewWorker/Painter take one `lab` object; check.mjs --url routes lab/ from the checkout. Test first: crafted
+  ?check=1 failed. Mutants caught: check off head's gate (crafted), worker not given the check module, watchWrites
+  dropped (check.mjs). run_check.sh green; frame-clock check green; check_lab_absent.sh OK.
+Was next: items 13+14 together (check and lab hooks out of viewer.js into one lab/ module loaded by head.js's gate;
 check-page.js and view/check.js out of the web image; view worker's check import by a URL the lab object gives;
-lab settings into one lab object; onePass on / reuseCopyBuffer off reduced). Then item 11's removal commit +
+lab settings into one lab object; onePass on / reuseCopyBuffer off reduced) -- done but the flags. Next: the flags. Then item 11's removal commit +
 revert, line file, full gate (INGEST_BUILD=$PWD/ingest/.build; dockerd started), demo-series + demo-check both views,
 draft PR into claude/demo-fixes-2.
 ## Result
