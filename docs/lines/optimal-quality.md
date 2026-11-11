@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-11 15:30 UTC (branch tips and the work queue read from `origin`).
+Last verified 2026-11-11 19:40 UTC (branch tips and the work queue read from `origin`).
 
 ## Goal
 
@@ -118,13 +118,33 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   bundle the same size; each set's eight or seven series carry one fingerprint, the three sets three; `checkPair`
   accepts all 20 pairs and refuses each against the other two sets' exact series by source (a node script over the
   metadata; no browser run on these series).
+* **Fixes, round 2** (FIX-2, 2026-11-11, `claude/demo-fixes-2`, #367 into `claude/core`): on MAIN-REVIEW's S1 fix,
+  `--no-ff` merges of `claude/demo-ux` (#365, with #360, #362, #359, #356), `claude/source-fingerprint` (#364, the
+  owner's word) and `claude/demo-clean` (EXPERIMENTS-OFF's items 1–9, the owner's yes; no archive tags); REVIEW-2's
+  F1 and D1 corrected in place, U1 and U2 left to CLEAN-PRODUCT and the phone run; no proposal was marked *adopt*;
+  E2E-3 recorded no failure. Full gate OK (650 s; skipped: lavapipe, Xvfb, Firefox and the cross-codec arm), and
+  `check_equivalence.sh --local` on nginx 1.29-alpine. `demo-series.sh` wrote every series again from the merged
+  tip (21 series, 527 s): three source fingerprints, seven series each, no `framesSha256`. `demo-check.mjs` on all
+  20 runs of README §Demo × {page, worker}, interleaved by series: 40 of 40 passed (REVIEW-2's C1). Headless
+  Chromium (Playwright 1.63) on SwiftShader, one 4-core cloud host, no GPU, loopback; one run per cell; correctness
+  only, nothing timed. After FIX-2 only blockers change the demo tip (the freeze); FREEZE-E2E follows.
 * **Tools for the phone run** (PHONE-TOOLS, 2026-11-11, `claude/phone-tools`, draft PR into `claude/demo-fixes-2`, not
   for the demo): each image labelled with its commit (`REVISION`, OCI `revision`); a test-only server image with the
   telemetry feature (`FEATURES=telemetry`, the default image unchanged; both built here and inspected); README step 8,
   which read path a running server took; under `lab/phone/`, loaded only through the lab gate, a client beacon
-  (`?beacon=`, sent after the fill or on page hide; `dev-server.py --beacon-log`) and a runner page that walks §7's
+  (`?beacon=`, sent after the fill or on page hide; `dev-server.py --beacon`) and a runner page that walks §7's
   loads across the two origins, presses **lossless** twice, waits a fixed gap and stops on any failure. Checked
   headless on loopback on a synthetic pair (`lab/phone/run_test.sh`); not on a phone.
+  *PHONE-TOOLS-2* (2026-11-11, same branch) made it match `docs/devices.md` §7's Second amendment: the runner walks
+  its octets (four warm-ups, then the links alternated load by load, the tether's rows 1 2 3 4 1 2 and Wi-Fi's 3 4 1 2
+  3 4), each step bound to its full origin, the 15 s gap, *Lossless* within 30 s and *Optimal quality* within 10 s, a
+  failed load not rerun, the Amendment's blocks kept as the fallback; the beacon's `fillMs` is the amendment's (the
+  downloader's dial to the last frame stored, epoch ms), the status line's beside it, a count per route; the option
+  is `--beacon FILE`, the amendment's name; README step 8 is `lab/phone/read-path.sh`, run on the laptop. It merges
+  `claude/demo-fixes-2` at FIX-2's end, so the run commit carries the source fingerprint and the removals. The
+  amendment's aside that the beacon's fill adds the handshake to the status line's is the other way round as built:
+  the status line starts at the page's issue, before the downloader dials, so it is the longer (by 12–30 ms on
+  loopback, `run_test.sh`); ratios are unaffected. Headless on loopback only; not on a phone, not under SELinux.
 * **Not yet run:** any phone run.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to

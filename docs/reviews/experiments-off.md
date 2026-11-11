@@ -21,20 +21,23 @@ index lines (`docs/lines/coordination.md` §Open 4 names it as the candidate).
 
 | # | item | lines | needed by a running line or row | lives after (byte for byte) | proposed tag, under archive/ | commit | owner |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `lab/target-review/`, three throwaway probes ("indicative only, not claims", its README) | −1 015 | no | `claude/view-worker-target-rev` `7f335cc0` | target-review-2026-10 | `adc69a37` | |
-| 2 | `lab/recv-loop/`, the receive loop's rig (`docs/adr/frame-path.md`, needs a GPU host) | −527 | no | `claude/recv-loop` `cf38708b` | recv-loop-2026-10 | `45aff07c` | |
-| 3 | `lab/opfs-arms/`, the OPFS writer arms (concluded in `frame-path.md`) | −750 | no | `claude/core-fold-2026-11-02` `0920153d` | opfs-arms-2026-10 | `35d05b14` | |
-| 4 | `lab/native-fill/`, `lab/scripts/native_cache_cells.sh`, native M2 and cache runs | −507 | no | `0920153d`; `claude/native-cache` `a237cf3e` | native-runs-2026-10 | `3a4a5922` | |
-| 5 | `lab/paint-read/`, the busy-page pixel-read probe, and its gate line | −388 | no | `0920153d` | paint-read-2026-10 | `614033bd` | |
-| 6 | `lab/av1/decode/{breakdown,merge-free,passes}/`, 38 files (the brief's L1; CLEAN-FIND 5) | −3 132 | no | `claude/av1-unified-mainbase` `696c15d6` | av1-decode-passes-2026-10 | `05eab56b` | |
-| 7 | `lab/viewer/`'s settle, view and wait-ahead runs and summaries, `want-model.mjs`, three gate lines | −763 | no | `0920153d` | viewer-runs-2026-10 | `d1aa8c60` | |
-| 8 | `lab/opfs-cache/`'s M1–M5 harness (arms, reopen, run, summaries, one gate line); `browser.mjs` stays (item 12) | −1 125 | no | `0920153d` | opfs-cache-2026-10 | `13f1edb7` | |
-| 9 | `lab/README.md`: the rows of items 4 and 5 | −2 | goes with 4 and 5 | — | — | `b0d8381a` | |
+| 1 | `lab/target-review/`, three throwaway probes ("indicative only, not claims", its README) | −1 015 | no | `claude/view-worker-target-rev` `7f335cc0` | target-review-2026-10 | `adc69a37` || yes |
+| 2 | `lab/recv-loop/`, the receive loop's rig (`docs/adr/frame-path.md`, needs a GPU host) | −527 | no | `claude/recv-loop` `cf38708b` | recv-loop-2026-10 | `45aff07c` || yes |
+| 3 | `lab/opfs-arms/`, the OPFS writer arms (concluded in `frame-path.md`) | −750 | no | `claude/core-fold-2026-11-02` `0920153d` | opfs-arms-2026-10 | `35d05b14` || yes |
+| 4 | `lab/native-fill/`, `lab/scripts/native_cache_cells.sh`, native M2 and cache runs | −507 | no | `0920153d`; `claude/native-cache` `a237cf3e` | native-runs-2026-10 | `3a4a5922` || yes |
+| 5 | `lab/paint-read/`, the busy-page pixel-read probe, and its gate line | −388 | no | `0920153d` | paint-read-2026-10 | `614033bd` || yes |
+| 6 | `lab/av1/decode/{breakdown,merge-free,passes}/`, 38 files (the brief's L1; CLEAN-FIND 5) | −3 132 | no | `claude/av1-unified-mainbase` `696c15d6` | av1-decode-passes-2026-10 | `05eab56b` || yes |
+| 7 | `lab/viewer/`'s settle, view and wait-ahead runs and summaries, `want-model.mjs`, three gate lines | −763 | no | `0920153d` | viewer-runs-2026-10 | `d1aa8c60` || yes |
+| 8 | `lab/opfs-cache/`'s M1–M5 harness (arms, reopen, run, summaries, one gate line); `browser.mjs` stays (item 12) | −1 125 | no | `0920153d` | opfs-cache-2026-10 | `13f1edb7` || yes |
+| 9 | `lab/README.md`: the rows of items 4 and 5 | −2 | goes with 4 and 5 | — | — | `b0d8381a` || yes |
 
 Total: −8 273 lines in 110 files; `main...claude/demo-clean` is +23 774 −1 097 in 210 files. "Running" is read
 from the queue's status files at 16:50 UTC (DEMO-UX, MEASURE-1, PHONE-RUN started): none of their branches touched
 these paths since 11-09, and no queue row names one. Each line branch keeps its copy whatever is merged.
 A tag, if wanted: `git tag archive/<name> <commit> && git push origin archive/<name>`.
+
+*The owner, 2026-11-11 17:30:* yes on items 1–9, merged into `claude/demo-fixes-2` by FIX-2; no archive tags. A removed
+item comes back from history when a line resumes it (`git log --diff-filter=D -- <path>`).
 
 ## 2. Listed, not prepared
 
