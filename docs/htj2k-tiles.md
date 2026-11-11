@@ -587,6 +587,229 @@ to gain loses it on a large phone.
   side, owed to a phone), or a reading practice that asks Lossless on most slices, which no fixture or record here
   shows.
 
+## Improve, for a phone on lossy wireless (row HTJ2K-IMPROVE, 2026-11-11)
+
+*By a session that wrote neither §Screen resolution nor its review. Theory, predictions and one consolidated protocol;
+**nothing here is run**. Every decided approach is kept: no reduced-resolution preview (a level below the viewport's
+is never painted), the lossless end state, no wire change, the OPFS cache with no re-decoding, the OQ view through
+WebCodecs. Sources [S1]–[S4]; *derived* marks our arithmetic, *assumption* a band no measurement here backs.*
+
+**What cannot be improved, said first.** At the viewport's level an exact picture costs its level's bytes: 26.9–27.3 %
+of a `dbts_b1` frame at level 1, the whole frame at level 0 on `dbts_a1` and `dbts_c1` upright (§Screen resolution).
+Nothing below changes those bytes by more than +0.6 %, so S's first picture and scroll stay 1.2–10× D's on a link-bound
+phone and the break-even counts stand. What can be improved is the time an ask waits on decode, what is fetched or
+decoded twice, and the profile's fit to DICOM and the PCS. The improved S is called **S★**; the same changes applied to
+D's Lossless request give **D+T3** and **D+L★**.
+
+### I1 · The profile: tile-parts at resolutions, TLM, and the base DICOM asks
+
+* **Mechanism.** OpenJPH under RPCL with `-tileparts R` writes one tile-part a resolution: for each r it writes an SOT
+  with `(ui8)r, (ui8)(max_decompositions + 1)` and then that resolution's precincts [S4, `ojph_tile.cpp`]; `-tlm_marker
+  true` writes, in the main header, a TLM segment of 6 bytes plus, per tile-part, `Ttlm` (2 bytes) and `Ptlm` (4 bytes)
+  [S4, `ojph_params.cpp`, `param_tlm::write`]. Level ℓ's prefix is then the main header plus the first NL + 1 − ℓ
+  tile-parts, its length read from TLM alone: no decode and no packet-header parse at ingest. DICOM's RPCL syntax asks
+  exactly this: "The Tile Length Markers (TLM) shall be present. This allows finding the resolution breakpoints to support
+  smart streaming", and "The number of decompositions shall be sufficient for the width or height of the base resolution
+  to be <= 64" [S3, §10.18.1]. Five decompositions leave `dbts_b1` 80×104, so it takes six (40×52); `dbts_a1` (36×56)
+  and `dbts_c1` (31×79, its width ≤ 64) already meet it (*derived*). A level ℓ ≤ 5 picture is the same 5/3 low band
+  whatever NL is (*derived*: deeper decompositions only split it further, reversibly).
+* **Expected effect.** Bytes +112 B a frame at NL = 5 (five more SOT and SOD, 14 B each, and TLM's 6 + 6 × 6 B;
+  *derived* from [S4]), +132 B at NL = 6: ≤ 0.02 % of a DBT frame; the sixth decomposition ±0.1 % (*assumption*). The
+  ingest's level offsets cost nothing; the codestream meets the DICOM RPCL syntax that is written for this use, so a
+  PCS that writes that syntax needs no re-encode at the PACS for S (the review's open question becomes one: does it).
+* **Cost.** An encoder option; a reader that finds tile-parts (OpenJPH reads tile-parts in order, `next_tile_part`
+  [S4, `ojph_tile.cpp`]). A prefix ends without EOC and with TNsot naming tile-parts it lacks; whether OpenJPH 0.31.0
+  decodes it under `restrict_input_resolution` with an EOC appended, as the lab's prefixes are, is *unverified* and is
+  stage 0's first check.
+
+### I2 · Three strips, decoded on the decoders the client already runs
+
+* **Mechanism.** Layout 1's tiling ([`disk-layout/target.md`](disk-layout/target.md) §Layout 1): three horizontal
+  strips, each its own codestream in the profile of I1, strip height a multiple of 2^NL (32, or 64 at NL = 6: 1 152
+  rows on `dbts_b1`). "tiling of the image actually creates tile-components that can be extracted or decoded independently
+  of each other" [S1, §5.3]. The client already runs min(3, `hardwareConcurrency`) decoders
+  (`client/transport/downloader.js`), so k = 3 strips match them; a 3 × 3 grid would put nine codestreams on three
+  decoders and pay more edge bytes (P2), for no decode gain.
+* **Expected effect.** Measured (row TILEMEASURE, [`decode/README.md`](decode/README.md) P-TILE): bytes +0.12–0.59 %;
+  one ask on three idle workers ×0.388–0.448 of the whole frame at 4× on 1914×2572 to 3328×4096, ×0.476 on 931×2124.
+  *Derived* for the fixtures: a `dbts_b1` Lossless decode 268–286 ms → 104–128 ms at 4×; `dbts_a1` and `dbts_c1`
+  93–107 ms → 38–54 ms (*assumption*: their sizes sit between the measured 931×2124 and 1914×2572). **Over a link the
+  gain is larger than the decode's alone**, because strips arrive one after another and each decodes as it lands: the
+  time after the last byte is one strip's decode, not the frame's. A `dbts_b1` Lossless ask at 20 Mbit/s, 4×: 2.19 MB in
+  0.88 s, then 268–286 ms whole against ~90–105 ms for the last strip, so ×0.84–0.86 of D's Lossless; at 5 Mbit/s
+  ×0.95 (*derived*, *assumption* that a strip decodes in a third of the frame's time on one worker, TILEMEASURE's
+  one-worker ×0.996–1.08). **During the fill it changes nothing**: three decoders are already busy on three frames.
+* **What it changes in *Lossless*.** The three level-0 strips stacked are the frame and hash to today's frame digest;
+  a level picture is per strip, its truth the strip's own analysis, near an edge not the untiled level picture
+  (§Theory 5); Layout 1 carries a samples hash per tile and band.
+* **Cost.** Layout 1 is a proposal, not built; three entries a frame-band; the client assembles three strips into
+  one frame; a DICOM export of the frame needs the strips joined into one codestream (§Theory 5, *unverified*) or
+  re-encoded.
+
+### I3 · Bands at the viewport's level, asked by index
+
+* **Mechanism.** Layout 1's bands are levels 2, 1 and 0, band-major, `e = b · N · T + f · T + t`
+  ([`disk-layout/target.md`](disk-layout/target.md) §Layout 1). S★ keeps that format unchanged and asks bands 0..b_fit
+  together, b_fit = 2 − ℓ_fit: the fill at the fit is one contiguous run, entries [0, (b_fit + 1) · N · T), sent as
+  `stream_frames` asks it today; the opened slice's entries are asked ahead of the run, as a step to a frame not yet
+  here is today (`client/README.md` §Frames); a Lossless or zoom ask on frame f is its T entries of each finer band,
+  contiguous. **Band 0 alone (level 2) is never painted on a phone**: it is below the viewport, a reduced-resolution
+  preview the owner ruled out. Turned sideways, ℓ_fit can only fall (L1 → L0 on `dbts_c1`): the finer band is asked,
+  nothing is fetched twice.
+* **Expected effect.** No bytes beyond I1 and I2; asks a frame 3 (b1 at the fit) or 6 (a1, c1 whole) entries, all in
+  runs; envelopes 8 B an entry (*derived*).
+* **Cost.** None beyond Layout 1.
+
+### I4 · The cache: nothing fetched twice, a level decoded once
+
+* **Mechanism.** The OPFS store keeps frames checked `true` (`claude/demo-fixes-2:client/viewer/store.js`). S★ adds two things to it, per
+  frame: the **coded bands received** while its rest has not come, and the **decoded level picture** once every strip's
+  level hash matches, kept under its level. A reopen paints the level picture without a decode and asks only the
+  missing bands; when the rest arrives, the stored bands join it and the frame is decoded whole; once the frame
+  digest matches, the frame enters today's store and both are dropped. A level picture is never stored or shown as
+  *Lossless*.
+* **What it cannot remove.** OpenJPH decodes from the codestream's start and restricts only how many fine resolutions
+  it skips ("reading and decoding is not performed for this number of fine resolutions", [S4, `ojph_codestream.h`]);
+  it has no call that resumes from a decoded low band. So at a Lossless ask the coarse levels' blocks are decoded
+  again: on `dbts_b1` the level's 74–81 ms at 4× on one worker, inside the whole decode's 273–296 ms (§Screen
+  resolution, the review's correction), about 30–50 ms a strip under I2 (*assumption*). A patched decoder that takes
+  the low band in hand would save that; it is **not proposed**: a fork of a pinned decoder for at most a quarter of
+  one decode a Lossless ask, which I2 already shortens more.
+* **Expected effect.** A reopened series fetches and decodes nothing it holds (*derived*). Space on `dbts_b1`: a level
+  picture is 1 280 × 1 664 × 2 B = 4.3 MB, its bands 0.59 MB, against 17.0 MB a whole frame (*derived*).
+* **Cost.** A second record kind in the store, keyed by level; a per-strip level hash check before a level picture is
+  kept.
+
+### I5 · Precincts and code-blocks: kept as they are for DBT
+
+* **Code-blocks** stay 64 × 64, DICOM's "Block Size: 64x64" that "may improve decoding performance" [S3, §10.18.1];
+  smaller blocks give a finer region at level 1 for more headers and a slower HT decode, and no arm here needs them.
+* **Precincts inside each strip** (§Theory 5's **P**, PP ≥ 7, every block's bytes unchanged) would let a zoom fetch
+  its region rather than whole strips. On an upright phone a 1:1 region of `dbts_b1` is 1 080 × 2 100 samples, which
+  spans two or all three strips of 1 152 rows, so I2 alone saves 0–⅓ of a zoom's rest (*derived*); **P** would save
+  more (P5: 10–35 % of a frame against 73 %). It is **not proposed for DBT now**: its splice decode is *unverified*
+  (§Theory 5), and how often a phone reader zooms past the fit is not known. Stage 1 below reports its zoom bytes as a
+  reading; §Protocol's R2 decides **P** for FFDM.
+
+### I6 · Window and zoom changes
+
+A window change asks no bytes and no decode in any arm (*derived*: the paint maps samples already held). Under S★ at
+level 0 the samples are the frame's own at its stored depth (12 bits on `dbts_a1`, `dbts_c1`); under D they are the
+cut 10 bits, lossy. That is a difference in what a window shows, not in time, and the protocol reads none of it. A
+zoom under S★ asks the strips in view of the finer bands (I3); a zoom under D shows the OQ picture enlarged until a
+Lossless request.
+
+### Combined, and what is predicted
+
+| arm | scroll | Lossless request on frame f | changes |
+| --- | --- | --- | --- |
+| **D** | the demo's OQ view | the HTJ2K frame whole | — |
+| **D+T3** | D's | f's three level-0 strips, each decoded as it lands | I1, I2 |
+| **D+L★** | D's | f's strips' bands at ℓ_fit first (an exact level picture, then painted), then the rest | I1–I4 |
+| **S★** | every frame's bands at ℓ_fit, strips | f's finer bands | I1–I4 |
+
+D+L★ differs from D+T3 only where ℓ_fit ≥ 1 (`dbts_b1` upright, `dbts_c1` sideways); elsewhere it is D+T3.
+
+| # | quantity (link-bound cells: 5, 20 Mbit/s, `lte-good`, `wifi-home`) | predicted | refuted if |
+| --- | --- | --- | --- |
+| J1 | I1's bytes, every frame | +0.005–0.1 % of today's; each level's TLM prefix decodes to the smallest exact prefix's picture | over +0.2 %, or any picture differs |
+| J2 | I2's bytes, three volumes | +0.1–0.6 % | over +1.0 % |
+| J3 | one Lossless decode at 4×, three strips on three workers ÷ the whole frame on one | ×0.38–0.50 (`dbts_b1`); ×0.40–0.55 (`dbts_a1`, `dbts_c1`) | over ×0.60 on any volume |
+| J4 | Lossless after the scroll, D+T3 ÷ D, 4× | `dbts_b1` ×0.79–0.95; `dbts_a1`, `dbts_c1` ×0.85–0.97 | over ×1.0 in any link-bound cell |
+| J5 | the same at 1× | ×0.93–1.00 | over ×1.03 |
+| J6 | D+L★'s level picture ÷ D's Lossless, `dbts_b1` upright | ×0.22–0.40 | over ×0.50 |
+| J7 | D+L★'s Lossless ÷ D+T3's | ×1.00–1.08 (the level's decode again, I4) | over ×1.15 |
+| J8 | S★ ÷ D, first picture and every frame pictured | Q1, Q2 unchanged within 10 % (bytes the clock) | under 1.0 on `dbts_a1` or `dbts_c1` |
+| J9 | S★'s first picture ÷ S's (stage 2, decode only, 4×) | ×0.40–0.60 of the decode; ×0.85–1.00 of the time on a link | — (a reading) |
+| J10 | reopen after a complete fill, S★ and D+L★ | 0 bytes asked, 0 decodes | any |
+| J11 | `r20000` with 1 % loss each way: every ratio above | within ±5 % of its clean `r20000` value | outside ±10 % |
+
+The predicted standing: **S★ still does not pay for a scroll** (J8); its gains are a reader's Lossless wait and a
+reopen. The candidate this predicts is **D+T3** for every Lossless ask, and **D+L★** where a level is to be had, if the
+owner rules that an exact level picture may be shown before the frame.
+
+### Protocol, pre-registered, for HTJ2K-MEASURE
+
+For a session given this section, §Screen resolution's protocol and §Protocol above, and nothing else; where they
+differ, this one rules. Code and rows in a new directory, lab/htj2k-tiles/improve, which does not exist yet.
+`CLAUDE.md` §Measurement throughout: arms interleaved, every new check mutated, the store warm, times quoted and not
+throughputs, the host's saturation stated, nothing past it claimed.
+
+**The rule, stated first.** Per volume and cell, a bound b is missed only past b × (1 + s), s the cell's p90 of
+|D′/D − 1|, strict readings printed too. Link-bound cells: `r5000`, `r20000`, `lte-good`, `wifi-home`, minus any the
+host names as decode-bound (a cell whose D arm at 4× exceeds 1.05 × its 1× time).
+
+* **R0, exact.** Every level picture equals its strip's witness (`witness.py` on the strip's samples, and OpenJPEG on
+  the same bytes), every Lossless picture the frame digest, in every kept visit. An arm failing it is out.
+* **R1, the profile (offline).** J1's bound on every frame of the three volumes. If it fails, I1 is withdrawn and the
+  arms run on prefixes found as §Protocol's stage 0 finds them; say so.
+* **R2, the strips.** J2's bound, and J3's ×0.60 at 4× on every volume in at least 8 of 10 rounds. If it fails, D+T3,
+  D+L★ and S★ are withdrawn and nothing below is run but D, D′ and S (§Screen resolution's protocol, as written).
+* **R3, the Lossless ask.** D+T3 ≤ ×0.92 of D at 4× on `dbts_b1` in at least two thirds of the link-bound cells, and
+  ≤ ×1.02 of D in every cell of every volume: **D+T3 is proposed for the Lossless request**, Layout 1 for DBT, a
+  store-format change for the owner.
+* **R4, the level first.** On `dbts_b1` upright: D+L★'s level picture ≤ ×0.40 of D+T3's Lossless, and its Lossless
+  ≤ ×1.08 of D+T3's, in at least two thirds of the link-bound cells: **D+L★ is proposed beside D+T3**; whether a level
+  picture may be shown, and its words, are the owner's.
+* **R5, the scroll.** §Screen resolution's R1 and R2 for S★ against D (first picture ≤ 1.5×, every frame pictured
+  ≤ 1.25×) on at least two of three volumes: S★ is proposed for DBT on phones. Otherwise S stays withdrawn for the scroll.
+* **R6, the cache.** J10 in every visit that reopens; a miss withdraws I4 and names the arm.
+* **R7, loss.** J11 is reported with every verdict and decides nothing alone; a ratio outside ±10 % on the lossy cell
+  is named in the verdict.
+
+**Arms.** **D**, **D′**: the demo's series from the demo tip's `claude/demo-fixes-2:scripts/demo-series.sh` (or its successor's) at the commit
+printed, through the product's AV1 route; the Lossless request is today's frame
+whole. **D+T3**, **D+L★**, **S★**: the exact series re-encoded by `ojph_compress` 0.31.0 from `ingest/tools.sh`
+per strip as I1 and I2 say (`-prog_order RPCL -reversible true -num_decomps` 5, 6 on `dbts_b1`, `-tileparts R
+-tlm_marker true`), cut into Layout 1's band-major entries at TLM's boundaries, decoded by a lab worker that decodes a
+strip's prefix at its level with the lab level binding (`claude/htj2k-progressive:lab/htj2k-progressive/wasm/levels.patch`,
+its SIZ reset kept) and a strip whole with the product's build, and assembles the strips into one frame. Stage 2
+also runs **S** (§Screen resolution, today's codestream, level-first) and **W** (today's whole frame) as decode
+references. Viewports 1080×2100, and 2400×950 for `dbts_c1`.
+
+**Stage 0, checks and mutants.** On every frame of the three volumes: the strips stacked equal the encoder's input and
+the frame digest; each strip's TLM prefix at each level decoded by the lab binding and by OpenJPEG 2.5.4 (`-r`) equals
+`witness.py`'s analysis of the strip; the cut entries tile each strip codestream exactly; the store's reopen asks
+nothing it holds. `lab/decode-bench/parity.mjs` on both builds: `PARITY OK`. Mutants, each must be caught: a TLM
+length off by one (a prefix short); strips stacked in the wrong order; one strip's level hash taken from the untiled
+frame (the edge rows differ); the SIZ reset removed (a later whole strip not exact); the cache's coded bands dropped
+(the reopen asks a band again); band 0 painted on the phone viewport (a preview, refused); every digest truth flipped.
+
+**Stage 1, bytes (offline).** Per frame and arm: total bytes ÷ today's; the level's bytes; J1, J2; a 1:1 zoom's bytes at
+the frame's centre on the phone, under strips (I2) and under precincts in each strip (I5, `{128,128},{256,256}`), a
+reading that decides nothing.
+
+**Stage 2, decode.** Headless Chromium (version printed), 1× and 4× (`lab/scripts/cpu_throttle.mjs`), 10 rounds in a
+Williams order of W, S, D+T3 and S★, the first 8 frames a volume, 3 timed passes after a checking pass, a fresh
+browser per throttle and round: per ask, ms from its last byte in hand to its picture, on three idle workers and on
+one; J3, J9.
+
+**Stage 3, time on links.** `lab/av1/delivery/total-time/run.mjs` and its rig: `--links r5000,r20000,lte-good,wifi-home`
+clean, and `r20000` with `--impairs l1`; `--throttles 1,4`; a fresh server, relay and browser a visit; cells in a
+Williams order each round and the five arms (D, D′, D+T3, D+L★, S★) inside each cell the same way; 6 rounds. A visit:
+open at the first slice; the fill; a Lossless request on the middle slice once every slice is pictured; then close
+and reopen the page and wait for every slice (J10). Per visit: time to the first picture, to every slice pictured,
+from the request to the level picture (D+L★) and to the Lossless picture; bytes; a reopen's asks and decodes. Every
+picture checked after the clock. `lte-good` and `wifi-home` carry their profile's own burst loss (0.01 % and 0.5 %,
+run.mjs's defaults); `l1` adds 1 % each way on `r20000`.
+
+**The host.** Cores, CPU, browser; the cells named decode-bound; nothing above 20 Mbit/s on a fixed rate, and nothing
+past three decoders on a 4-core host, is claimed.
+
+**Shards, each ≤ 4.5 h** (*derived* from §Screen resolution's visit times; S★ is S's bytes): S0 stage 0 and 1, 2–3 h;
+S2 stage 2, ~2 h; S3a–S3c stage 3, rounds 1–2, 3–4, 5–6, ~3 h each (about 1.5 h a round: S★ takes 110–175 s a visit at
+5 Mbit/s on `dbts_a1` and `dbts_c1`, the four D arms 20–50 s). Each shard prints its pins (commit, Chromium, the
+series' digests); the summary joins rounds with equal pins only. A shard that reaches 4.5 h stops at a round's end and
+says how many it kept.
+
+**Fixtures, and their limits, printed with every result:** three timed DBT volumes (`dbts_a1`, `dbts_b1`, `dbts_c1`),
+all from one dataset (EA1141), slices of a volume not independent samples; only `dbts_b1` upright and `dbts_c1`
+sideways reach level 1; no breast ultrasound cine; a 4-core cloud host without a GPU, so WebCodecs is software, 4×
+throttling stands in for a phone (*assumption*), and the phone's viewports are assumed; the links are emulated, one
+host's loss models, not a phone's radio. **What only a phone can show** and this run claims nothing about: a phone's
+WebCodecs at 10 bits (hardware or not), its cores free for three decoders beside the page, its storage speed for the
+OPFS reopen, and a real radio's loss.
+
 ## Sources
 
 Read 2026-11-09; quotations are verbatim, with the PDF's symbols restored where text extraction lost them (≤).
@@ -598,7 +821,8 @@ Read 2026-11-09; quotations are verbatim, with the PDF's symbols restored where 
 * **[S3]** DICOM PS3.5 2026d, *Data Structures and Encoding*, dicom.nema.org (`current`), §8.2.14, §8.4.1, §10.18,
   A.11, A.12. ISO/IEC 15444-9 (JPIP) is cited through it and was not read.
 * **[S4]** OpenJPH tag 0.31.0 (`c68064d0`), github.com/aous72/OpenJPH: `src/apps/ojph_compress/ojph_compress.cpp`,
-  `src/core/openjph/ojph_codestream.h`, `src/core/codestream/ojph_codestream_local.cpp`, `docs/status.md`.
+  `src/core/openjph/ojph_codestream.h`, `src/core/codestream/ojph_codestream_local.cpp`, `docs/status.md`; and, read
+  2026-11-11 for §Improve, `src/core/codestream/ojph_tile.cpp` and `src/core/codestream/ojph_params.cpp`.
 
 Repository evidence is cited where it is used: [`decode/README.md`](decode/README.md),
 [`adr/resolution-fitting-for-large-frames.md`](adr/resolution-fitting-for-large-frames.md),
