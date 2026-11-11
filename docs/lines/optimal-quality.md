@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-11 19:40 UTC (branch tips and the work queue read from `origin`).
+Last verified 2026-11-11 20:25 UTC (branch tips and the work queue read from `origin`).
 
 ## Goal
 
@@ -128,6 +128,13 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   20 runs of README §Demo × {page, worker}, interleaved by series: 40 of 40 passed (REVIEW-2's C1). Headless
   Chromium (Playwright 1.63) on SwiftShader, one 4-core cloud host, no GPU, loopback; one run per cell; correctness
   only, nothing timed. After FIX-2 only blockers change the demo tip (the freeze); FREEZE-E2E follows.
+* **The room's network** (DEMO-NETWORK, 2026-11-11, `claude/demo-network`, draft PR into `claude/demo-fixes-2`, not
+  a blocker): README §Demo *On arrival*, the links in order (the room's Wi-Fi, the phone's hotspot, the tether, the
+  rehearsal's screen recording) and what the phone's page says for each failure; `scripts/demo-network.py`, the
+  laptop's half (ports listening on the dialed address, the transport files' hash, the certificate within two weeks
+  and past `--until`), its test in the gate, eight mutants killed; [`../devices.md`](../devices.md) §8 quotes what
+  blocks QUIC and the certificate rule, and renews it at the rehearsal, never on arrival. Not run in a room or on a
+  phone.
 * **Not yet run:** any phone run.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
