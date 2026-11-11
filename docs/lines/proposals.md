@@ -742,6 +742,52 @@ separate headless Chromium under the same pin once per block, so the timed drive
 conditions (decode, G 8 jump, fill) are not rerun; they stand as MEASURE-1 measured and the red team corrected them;
 the bytes of all seven series are recorded and held to P2's ≤ 1.03×.
 
+**Measured (MEASURE-2, 2026-11-11 19:18–20:01, per amendment 1): 2 × 2 is not ready by its rule; (1) misses on max
+|Δ| alone.** 14 encodes on `claude/oq-integrity-build` `08bf659e`, each one-tile bundle equal to the byte to the demo
+tip's (`d46811c6`). Rows `lab/proposals/rows/r1-bytes.jsonl`, `r1-quality/`, `r1-correct.jsonl`, `r1-jump.jsonl`;
+table `lab/proposals/r1_summary.py`.
+
+*(1) Quality*, the study's code (I2's built values agree on every frame: rms to 10⁻³, max exactly, e_N ÷ σ to 1 %; no
+frame has σ = 0). Each cell is one tile / 2 × 2:
+
+| series | e one / 2×2 (median, max) | e_N÷σ one / 2×2 (median, max) | max |Δ| median one / 2×2 | built agrees | bytes |
+| --- | --- | --- | --- | --- | ---: |
+| dbts_a1-q8-g1-cut | 13.357, 13.477 / 13.352, 13.468 | 1.271, 1.417 / 1.270, 1.416 | 111 / 106 | yes | 1.0065 |
+| dbts_a1-q8-g8-cut | 13.166, 13.473 / 13.134, 13.447 | 1.271, 1.416 / 1.271, 1.416 | 109 / 114 | yes | 1.0036 |
+| dbts_b1-q8-g1 | 2.588, 2.615 / 2.588, 2.615 | 1.763, 1.815 / 1.763, 1.815 | 46 / 47 | yes | 1.0001 |
+| dbts_b1-q8-g8 | 2.556, 2.611 / 2.551, 2.612 | 1.741, 1.800 / 1.736, 1.802 | 49 / 50 | yes | 1.0005 |
+| dbts_c1-q8-g1-cut | 11.238, 11.411 / 11.262, 11.419 | 1.681, 1.936 / 1.682, 1.936 | 131 / 130 | yes | 1.0026 |
+| dbts_c1-q8-g8-cut | 11.115, 11.407 / 11.108, 11.403 | 1.674, 1.931 / 1.676, 1.932 | 129 / 128 | yes | 1.0024 |
+| dbts_c1-q8-g16-cut | 11.112, 11.407 / 11.092, 11.403 | 1.674, 1.931 / 1.676, 1.932 | 134 / 131 | yes | 1.0019 |
+
+e and e_N ÷ σ hold on all seven series (2 × 2 at 0.997–1.002× one tile's, median and maximum frame; the prediction,
+within ±1 %, holds). Max |Δ| at the median frame rises by 5 source units on `dbts_a1-q8-g8-cut` (109 → 114; the
+summary prints the median rounded, 114.5 unrounded), where the rule allows 1: **(1) fails there**, by its letter. On
+the other series it moves −5 to +1, and on `dbts_a1-q8-g1-cut` it falls by 5, so on these rows the frame's largest
+error moves a few source units either way under tiles, with no direction; that is a reading, not a change of rule.
+A cut series' code step is 4 source units on these 12-bit volumes, so a one-unit bar on a cut series is under one
+code step. The registered recovery cell (2 × 2 at the Q of equal e_N ÷ σ) does not apply: e_N ÷ σ is already equal.
+What would decide is a round-3 protocol with a max |Δ| bar stated in code steps; none is proposed here.
+*(2) Integrity:* 14 of 14 fills, every frame as coded (`asCoded` = `received` = frames) on `av1-webcodecs`. Holds.
+*(3) Jump* on `dbts_c1-q8-g16-cut`, `&fill=0`, 7 rounds, every run's demo check passed:
+
+| cores | one ms | 2×2 ms | A/A ms | 2×2 ÷ one | A/A ÷ one | hardwareConcurrency |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| 4 | 406 | 152 | 386 | 0.37 | 0.95 | [4] | n 7/7/7
+| 2 | 199 | 198 | 198 | 0.99 | 0.99 | [2] | n 7/7/7
+
+0.37× on 4 cores against a bar of 0.90 (0.85 plus the A/A arm's 0.05): **holds, and misses the band** (0.70–0.85×
+predicted, from G 8's 0.73–0.84×). The prediction was wrong in its mechanism: at G 16 the gain is larger, not between
+G 8's and the per-frame ratio. *Not predicted and not explained:* under `taskset -c 0,1` the one-tile jump is 199 ms,
+half its 406 ms on 4 cores, and 2 × 2 ties it (0.99×). `navigator.hardwareConcurrency` read 2 there (4 on all
+cores), so the page ran two decoders, not three, under the pin. The 4-core one-tile figure is the slow one;
+which of the decoder count or the tile threads makes it slow is not separated here.
+*(4)* Bytes 1.0001–1.0065×, under 1.03×; P2's other measured conditions stand as MEASURE-1 measured them.
+*Verdict:* not ready by the rule, on (1)'s max |Δ| on one series of seven; the jump's gain is about 2.7× larger than
+predicted on 4 cores and nil under the 2-core pin. Tiles wait until after the demo regardless (the owner, 13:30).
+*Fixtures and limits:* three DBT volumes of one dataset; Q 8; one 4-core x86-64 cloud host without a GPU, headless
+Chromium's software decode, SwiftShader; the 2-core cell is `taskset`, not a phone.
+
 ### R2. A jump during the fill, under BBR and under Cubic (P1)
 
 **Mechanism.** During the fill BBR held a standing queue of 85–260 ms on the optimal-quality session in every cell,
