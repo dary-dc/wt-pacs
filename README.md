@@ -380,8 +380,8 @@ browser honors it. Not checked: the phone, its Chrome's flags page, the tether, 
 
 **What to show, in order:**
 
-1. `dbts_a1-q8-g8-cut`. The picture arrives, the label top right says *Optimal quality* in green. Scroll with the wheel or the
-   arrows: every slice is already here. `End` jumps to the last slice, mid-group at G 8 and 16. Press `l`: *Optimal quality · fetching lossless…*, then
+1. `dbts_a1-q8-g8-cut`. The picture arrives, the label top right says *Optimal quality* in green. Scroll with the wheel, the
+   arrows or the slider on the right edge: every slice is already here. `End` jumps to the last slice, mid-group at G 8 and 16. Press `l`: *Optimal quality · fetching lossless…*, then
    *✓ Lossless* in blue once the exact frame's digest matched and it was painted; `l` again goes back. Step off the frame
    and it is optimal quality again.
 2. A narrow window (drag left on the image) on the same frame, `l` and back: where the coding error would show, if
@@ -400,6 +400,9 @@ browser honors it. Not checked: the phone, its Chrome's flags page, the tether, 
   optimal-quality frame kept and the reason on the status line.
 * **The mark**, top left: none on a paired series unless a frame is *NOT EXACT* (red); a lossy frame has no digest to
   check, and the label says what it is.
+* **The slice slider**, along the right edge: drag it to step slice by slice, or set it anywhere for a far jump (its
+  end is `End`); the way through the slices on a phone, where there is no wheel or key. Keys, the wheel and cine move
+  it; moving it pauses cine.
 * **The overlay** (`?overlay=1`): the painted frame's decode route (`av1-webcodecs`, Chrome's `VideoDecoder`; `av1-dav1d`,
   the page's WASM, with WebCodecs' refusal), its bytes on the wire in KB, its decode time in ms, and the series' Q
   (the encoder's quantizer: higher, more error), G (frames per keyframe) and depth (*depth cut of 12*: 10-bit codes of a

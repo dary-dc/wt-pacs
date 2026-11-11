@@ -6,6 +6,7 @@ import { asPainted, Controller, FIT, wantFrom } from "/client/view/controller.js
 import { View, ViewWorker } from "/client/view/view.js";
 import { checkPair, pairOf } from "/client/viewer/pair.js";
 import { labelOf, lastError, markOf, overlayText, unfoldOnTap } from "/client/viewer/screen.js";
+import { RANGE_KEYS, sliceSlider } from "/client/viewer/slider.js";
 
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById("view");
@@ -15,6 +16,7 @@ const qualityEl = document.getElementById("quality");
 const losslessEl = document.getElementById("lossless");
 const overlayEl = document.getElementById("overlay");
 const barEl = document.getElementById("bar");
+const sliceEl = document.getElementById("slice");
 statusEl.onclick = qualityEl.onclick = (e) => unfoldOnTap(barEl, e);
 const at = () => performance.timeOrigin + performance.now();
 
@@ -71,6 +73,7 @@ let userVoi = null;
 let pose = FIT;
 let invert = false;
 let view = null;
+const follow = sliceSlider(sliceEl, n, { show, pause: () => view.playing && toggleCine() });
 
 function fail(why) {
   errors.push(why);
@@ -87,6 +90,7 @@ const on = {
     markEl.className = mark.className;
     markEl.textContent = mark.text;
     showQuality(s);
+    follow(view?.current ?? s.i);
     status();
   },
   failed: ({ scope, i, reason }) => fail(scope === "frame" ? `frame ${i}: ${reason}` : `${scope}: ${reason}`),
@@ -184,6 +188,7 @@ try {
 }
 
 view = new View(n, controller ?? worker);
+sliceEl.hidden = false;
 if (pair) connectExact();
 
 /** The exact series on its own downloader: no fill, one decoder, a frame asked only when the reader asks it. */
@@ -206,6 +211,7 @@ async function connectExact() {
 losslessEl.onclick = () => (/lossless|asking/.test(qualityEl.className) ? view.lossy() : view.exact());
 function show(i) {
   const step = view.show(i);
+  follow(view.current);
   status();
   return step;
 }
@@ -258,7 +264,7 @@ const KEYS = {
 };
 addEventListener("keydown", (e) => {
   const k = KEYS[e.key];
-  if (!k || e.target === cineEl || e.target === losslessEl) return;
+  if (!k || e.target === cineEl || e.target === losslessEl || (e.target === sliceEl && RANGE_KEYS.has(e.key))) return;
   e.preventDefault();
   k();
 });

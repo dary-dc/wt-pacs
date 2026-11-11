@@ -93,7 +93,7 @@ function watch() {
   });
 }
 
-/** One reader's pass: open, scroll in order, Home, End (a jump), `l` and `l` again. */
+/** One reader's pass: open, scroll in order, Home, End or the slider (a jump), `l` and `l` again. */
 async function pass(browser, query) {
   const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
   const errors = [];
@@ -124,8 +124,11 @@ async function pass(browser, query) {
   await page.keyboard.press("Home");
   must(await shown(0, home), `${query}: Home painted frame 1`);
   const before = await now();
-  await page.keyboard.press("End");
+  // On demand the far jump is the slice slider's, as a finger would make it; filled, End's, which must move the slider too.
+  if (query) await page.locator("#slice").fill(String(n - 1));
+  else await page.keyboard.press("End");
   must(await shown(n - 1, before), `${query}: the jump to frame ${n} painted`);
+  check(await page.locator("#slice").inputValue() === String(n - 1), `${query}: the slider not at frame ${n} after the jump`);
   const jumpMs = Math.round((await log()).findLast((e) => e.id === "overlay").t - before);
   const pressed = await now();
   await page.keyboard.press("l");

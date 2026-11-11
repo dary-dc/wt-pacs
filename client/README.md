@@ -514,6 +514,10 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact. A lossy
   series adds its quality label and the lossless button (§Optimal quality, exact on request); the label then stands
   for an unchecked frame's mark, and only *NOT EXACT* is marked beside it.
+* **The slice slider** (`viewer/slider.js`), upright along the canvas's right edge: a finger steps or jumps through
+  the slices, the touch gesture taking nothing the canvas uses (one finger stays window/level; the choice and its
+  sources: `claude/slice-touch:docs/reviews/slice-touch.md`). Moving it pauses cine; every slice shown otherwise moves
+  it; a focused slider answers the stepping keys itself, so the page skips them. Both views alike.
 * **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the decoder per path, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name. A tap
   (touch only; a mouse click does nothing) on it or on the quality label unfolds it whole, wrapped; the next folds it
