@@ -857,9 +857,10 @@ server-to-client p50 on the optimal-quality flow over the jump's window.
 Loopback `&fill=0` jump (slider), medians of 3: `dbts_a1` 325, `dbts_b1` 494, `dbts_c1` 407 ms; no cell is within
 1.1× of it, so none is decode-bound. *Against the prediction:* in 1 % iid BBR's jump is 0.08–0.09× Cubic's, under the
 band's 0.2–0.6× (a miss, in BBR's favour); clean and in bursts 0.86–0.96×, inside 0.8–1.3×. The A/A arm moved at most
-2 %. *Mechanism, read from the rows:* under 1 % loss Cubic's queue is near empty (p50 1–2 ms) and its jump paints
-only ~1.2 s before its fill ends (a1: jump 19.6 s, fill 20.8 s), so the asked group waits behind the fill's slow
-transfer, not behind a queue; BBR's standing queue (140–320 ms p50) costs less than that. Clean, Cubic's queue during
+2 %. *Mechanism, read from the rows:* under 1 % loss Cubic's queue is near empty (p50 1–2 ms), and on `dbts_a1` and
+`dbts_c1` its jump paints 4–11 ms after the fill's last frame arrives in every run: the last group comes when the
+fill brings it, the ask does not move it ahead. On `dbts_b1` it paints 60–65 s before the fill ends, still 28.5 s
+after the key. So the asked group waits behind the fill's slow transfer, not behind a queue; BBR's standing queue (140–320 ms p50) costs less than that. Clean, Cubic's queue during
 the jump is the larger (480–580 ms against 115–215 ms). The predicted cost of BBR's queue did not appear in any cell.
 *Verdict:* P1's claim "faster fill and lower on-demand latency" holds for a jump 500 ms into the fill, on every series
 and cell. It decides no adoption (the owner keeps `cubic-restart`; the phone runs decide). *Limits:* a userspace relay
