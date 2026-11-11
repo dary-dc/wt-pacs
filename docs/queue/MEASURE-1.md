@@ -1,11 +1,19 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 18:31
+heartbeat: 2026-11-11 18:29
 outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure 33cb6b3d (B0 measured, from claude/av1-corrections); no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
 ## Resume
-Resumed 2026-11-11 18:24 by a new session (stalled at 17:00), at B: amendment 1 first.
-18:31: setup started in background (worktree /home/user/gs at 0e0e58c8; OUT=/home/user/data lab/av1/fetch_data.sh <19 DBT>;
-BUILD=/home/user/gs/lab/.av1-build ingest/tools.sh; logs /home/user/logs/). Nothing pushed yet but this note.
+Resumed 2026-11-11 18:24 by a new session (stalled at 17:00), at B.
+Done: B amendment 1 1f149a02 (docs/av1/audit-protocols.md §B amendment 1); driver lab/av1/audit/cells.py + b.sh, and
+the check's --cpu-used=5 mutation row (differs: seen) 26ba08c4; smoke on dbt12_ea1141 (not kept): check rungs equal.
+2026-11-11 18:29: G 1 started (185 cells, ~3 h on 4 cores; the 2 h background limit stops it, rerun resumes). A loop
+(/home/user/bin/loop.sh) commits lab/av1/audit/rows/b.jsonl and this heartbeat every 10 min.
+Fresh-session setup (~10 min): see lab/av1/audit/README.md §B (worktree ../gs at 0e0e58c8, tools.sh, fetch_data.sh
+of the 19 volumes to $HOME/data, pip install lab/av1/profiles/requirements.txt into ../gs/lab/av1/.venv). Then in a
+worktree of claude/audit-measure: export GROUPS_DIR BUILD DATA WORK PY as the README says; lab/av1/audit/b.sh 1
+(resumes from the pushed rows; a `failed` row is coded again), then b.sh 16. Cut G 16 first, then content 2.
+Next after the rows: a summary script (B1 s_split, B2 b, δ, B3 Q_lo/Q_hi and bytes, B-5 ratios; A on the same rows,
+under B0's pooled and per-depth rule Q), then §B measured and §A measured under the amendment, codecs line, Result.
 2026-11-11 17:00: this session did B0 and stopped (nothing unpushed, nothing running). Next session: B.
 B0 on claude/audit-measure (from claude/av1-corrections): amendment 1 67187d0b, script + check + 8-bit mutation
 8cc5fe78 (lab/av1/audit/b0.py, README has the commands), §B0 measured 462ebab0, codecs line 33cb6b3d.
