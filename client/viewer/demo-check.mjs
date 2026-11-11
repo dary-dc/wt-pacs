@@ -106,7 +106,8 @@ async function pass(browser, query) {
   const shown = (i, after) => until((l) => l.some((e) => e.id === "overlay" && e.text && e.frame === i + 1 && e.t > after), 30000);
   const n = lossyMeta.frameCount;
   const filling = !query.includes("fill=0");
-  if (filling) must(await until((l) => /fill \d+ ms/.test(l.findLast((e) => e.id === "status")?.text), 120000), `${query}: the fill completes`);
+  const status = async () => (await log()).findLast((e) => e.id === "status")?.text;
+  if (filling) must(await until((l) => /fill \d+ ms/.test(l.findLast((e) => e.id === "status")?.text), 120000), `${query}: the fill completes in 120 s: ${await status()}`);
   must(await shown(0, 0), `${query}: frame 1 painted`);
   const steps = [];
   for (let i = 1; i < (filling ? n : Math.min(n, 13)); i++) {
@@ -125,8 +126,11 @@ async function pass(browser, query) {
   await page.keyboard.press("l");
   await until((l) => /^Lossless/.test(l.findLast((e) => e.id === "quality")?.text), 30000);
   const losslessMs = Math.round((await log()).findLast((e) => e.id === "quality").t - pressed);
+  const labelled = (l) => l.filter((e) => e.id === "quality");
+  const writes = labelled(await log()).length;
   await page.keyboard.press("l");
-  await until((l) => l.findLast((e) => e.id === "quality")?.text === "Optimal quality", 10000);
+  // Settled: back at optimal quality, or, after a failed check, the retry answered.
+  await until((l) => labelled(l).length > writes && !/fetching/.test(labelled(l).at(-1).text), 60000);
   const l = await log();
   await page.close();
   const overlays = l.filter((e) => e.id === "overlay" && e.text);
