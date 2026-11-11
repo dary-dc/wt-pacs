@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-11T19:00Z
-heartbeat: 2026-11-11T19:03Z
-outputs: claude/proposals e6209866 (d5a3e396 §R1 amendment 1; e6209866 R1 drivers), docs/lines/proposals.md §Round 2; no PR yet
+heartbeat: 2026-11-11T19:07Z
+outputs: claude/proposals d143c942 (amendments 1 of R1 d5a3e396, R2 362bbc2c, R3 and R4 d143c942; drivers r1*, r2.sh, r3*, r4.sh; link_cells.mjs --jump-after-ms/--windows; link_impair.py `window`), docs/lines/proposals.md §Round 2; no PR yet
 ## Resume
 2026-11-11T19:01Z: setup started (log /home/user/logs/setup.log): worktrees ../proposals (claude/proposals 8fb23876), ../tip
 detached at the demo tip claude/demo-fixes-2 d46811c6 (frozen), built as MEASURE-1's Resume lists (/home/user/setup.sh:
@@ -18,4 +18,13 @@ QUALITY=/home/user/metrics R1_OUT=/home/user/r1 lab/proposals/r1_encodes.sh > la
 (reruns skip finished bundles); copy /home/user/r1/*/*.quality.jsonl to lab/proposals/rows/r1-quality/. (c) condition
 (2): in ../integ, node lab/oq-integrity/run.mjs /home/user/r1/ARM OUT --rounds 1 --throttles 1 --arms on --ids <7>.
 (d) TIP=/home/user/tip R1_OUT=/home/user/r1 lab/proposals/r1.sh lab/proposals/rows/r1-jump.jsonl 0 6 (~35 min).
+Amendments written before any run: R1, R2, R3 (arm r3_arm.sh + r3_arm.test.mjs, 3 of 3 mutants killed), R4
+(initial window reaches BBR, tuning.rs:31; path RTT replaced by the relay's window tallies). R5 not started (needs
+P6's arms (b), (c) built from claude/dav1d-lazy and a shaped static host: last, likely a later session).
+Runs, in order, each one background command, rows pushed by hand or a loop every ~10 min:
+  R1 (encodes, condition (2), jump: see above); R2: TIP=/home/user/tip DIR=/home/user/tip/demo-series
+  lab/proposals/r2.sh lab/proposals/rows/r2.jsonl [FIRST_ROUND] (~75 min; stop mid-round: move the partial round's
+  rows to r2-stopped.jsonl and rerun the round); R3: lab/proposals/r3_arm.sh /home/user/tip /home/user/r3-wake, then
+  TIP=.. DIR=.. ARM=/home/user/r3-wake lab/proposals/r3.sh lab/proposals/rows/r3.jsonl (~20 min); R4: r4.sh, same
+  form (~2.8 h, 45 runs a round: run rounds in pieces under the 2 h background limit).
 ## Result
