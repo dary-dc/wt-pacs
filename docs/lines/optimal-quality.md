@@ -130,6 +130,10 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   only, nothing timed. After FIX-2 only blockers change the demo tip (the freeze); FREEZE-E2E follows.
 * **Not yet run:** any phone run.
 
+* **The freeze** (FREEZE-E2E, 2026-11-11 21:20): `claude/clean-product` merged into `claude/demo-fixes-2` as
+  `157b7109`, **the demo commit**. On it: 21 series written again, README §Demo's check loop under both views 40 of 40
+  passed, full gate OK (no nginx, lavapipe, Xvfb or Firefox); CI on #367 still owed. Record and rehearsal list:
+  [`docs/reviews/freeze-e2e.md`](../reviews/freeze-e2e.md). From here only blockers change this branch.
 * **In flight, 2026-11-11 20:00 UTC** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, each row's result
   in `docs/queue/<ROW>.md` there): CLEAN-PRODUCT (the gate's absence check for `lab/`, then the lab hooks out of
   product modules; FREEZE-E2E merges it if green), PHONE-TOOLS-2 (the runner and beacon aligned with
