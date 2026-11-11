@@ -107,6 +107,17 @@ test("labels, presses and errors are kept in order, URLs removed", () => {
   assert.deepEqual(b.errors, [{ at: 4, source: "page", message: "connect: <url> failed, then <url>" }]);
 });
 
+/** Fields a test page adds (the runner's verdict) ride in the same report, and cannot be added after it is sent. */
+test("a test page's fields join the report until it is sent", () => {
+  const { r, sent } = rig();
+  r.add({ verdict: { ok: true } });
+  r.end();
+  r.add({ late: 1 });
+  r.end();
+  assert.deepEqual(sent[0].body.verdict, { ok: true });
+  assert.equal(sent.length, 1);
+});
+
 /** A refused beacon (the keepalive budget taken) is sent again once without the per-frame rows, marked truncated; a second refusal drops it. */
 test("a refused report is sent again once without its frames", () => {
   const { r, sent } = rig(on, { accept: () => false });
