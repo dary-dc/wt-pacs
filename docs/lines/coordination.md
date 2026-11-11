@@ -48,7 +48,7 @@ small enough that every open item has an owner and a next step.
    fix `core`'s image build → #289 into `core`, then #299, then #302 rebased → `av1-unified-mainbase` into `core`
    (resolving the four `client/decode/av1*` files once, instead of #303) and `main`'s newer commits → the demo
    branches → one approving review of #250 → merge with `--no-ff`.
-   Pre-main review of `main...claude/demo-fixes-0` (2026-11-11, for MAIN-REVIEW): no blocker, 12 should-fix, the
+   Pre-main review of `main...claude/demo-fixes-0` (2026-11-11, for MAIN-REVIEW): no blocker, 11 should-fix, the
    gate green; `claude/demo-pre-main-review:docs/reviews/pre-main.md`.
 3. The proposed order into `main` after that: `av1-unified-mainbase` ← `line-hygiene` ← `line-server` ← `core` ←
    `line-pacs`; `line-viewer` stays parked.
