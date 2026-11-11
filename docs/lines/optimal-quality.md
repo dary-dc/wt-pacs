@@ -75,6 +75,11 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
     ([`../reviews/understand/clean.md`](../reviews/understand/clean.md), 2026-11-11 on `claude/demo-understand`):
     viewer.js's ~110 lines of check and lab hooks, five lab settings through the view worker's signatures, `onePass` and
     `reuseCopyBuffer` decided but still flags, the web image shipping `?check=`'s halves, L1 (38 paths, not 40).
+12. Names on the demo path against the glossary, findings only, each waiting for the owner's yes
+    ([`../reviews/understand/names.md`](../reviews/understand/names.md), 2026-11-11 on `claude/demo-understand`):
+    `requestExactFrame` asks optimal-quality frames too; the mark's *unchecked* on every optimal-quality frame, and
+    `client/README.md` claiming a lossy frame's `exact` (no digests exist); `showLossy` (R1); *view* for the picture;
+    the decode route as `path`, `route` and `decoders:`; `depthCut` a shift count; eight words with no glossary row.
 
 ## Decisions (the owner's, 2026-11-09)
 
