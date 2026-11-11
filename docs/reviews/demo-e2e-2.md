@@ -70,5 +70,10 @@ named series; "old" is the check as merged, "new" with the two fixes below.
    count misses frames asked and not taken. Owed to REDTEAM-DEMO or FIX-1: a mutant that provably sends one extra
    group, and whether `received N,` can see it.
 
+**Gate** on this branch, in the same clone: the full `scripts/gate.sh` stopped at the decoders' docker rebuild,
+Docker Hub refusing the base image's pull with 429 (the host's network, as in the record); `scripts/gate.sh --quick`
+passed (GATE OK, 236 s), skipping by name the rebuild and the absence checks, the native painter and window (no
+lavapipe or Xvfb), the cross-codec arm and Firefox, and the web host's check (no nginx).
+
 Not checked: the phone block (no phone; PHONE-PAIR's and PHONE-NO-INSTALL's harnesses own it), Chrome itself, a
 GPU, hardware decode, the decoders' docker rebuild.
