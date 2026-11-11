@@ -233,6 +233,20 @@ test("the ledger carries the fill's time and each frame's media reads", async ()
   assert.deepEqual(frames.map((f) => f.decoded), [50, 51]);
 });
 
+/** The ledger gives each frame what the overlay shows of it: its route, a refusal, its wire bytes and its decode time. */
+test("the ledger carries each frame's route, wire bytes and decode time", async () => {
+  const { c } = rig({ frames: 2 });
+  c.client.stats = () => ({ resumedAt: [] });
+  const take = (i, more) => c.take({ ...frame(i), info: { ...frame(i).info, wireBytes: 1000 + i, stamps: { decodeStart: 10, decodeEnd: 13 + i }, ...more } });
+  take(0, { path: "av1-webcodecs" });
+  take(1, { path: "av1-dav1d", refusal: "codec" });
+  const { frames } = await c.ledger();
+  assert.deepEqual(frames.map(({ path, refusal, wireBytes, decodeMs }) => ({ path, refusal, wireBytes, decodeMs })), [
+    { path: "av1-webcodecs", refusal: undefined, wireBytes: 1000, decodeMs: 3 },
+    { path: "av1-dav1d", refusal: "codec", wireBytes: 1001, decodeMs: 4 },
+  ]);
+});
+
 /** A cache holding `present`, whose reads answer `read(i)` (null: the check failed) and whose writes are logged in `log`. */
 function cacheOf(present, log, read = (i) => frame(i).info) {
   return {

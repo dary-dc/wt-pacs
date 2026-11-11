@@ -209,6 +209,7 @@ run 1 node scripts/perf_campaign.test.mjs
 
 step "lab: the viewer's levers — a fill's time and reads, steps on demand, the sawtooth trace, Experiment 2's rule over rows"
 run 1 node lab/viewer/levers.test.mjs
+run 1 node lab/phone/beacon.test.mjs
 run 1 node lab/viewer/trace.test.mjs
 run 1 node lab/viewer/wait-ahead-summary.test.mjs
 
