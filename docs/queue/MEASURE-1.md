@@ -1,8 +1,20 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 14:29
-outputs: claude/proposals a98a4319 (P1 measured: adopt; P4 7 rounds: reject; P2 5 rounds: 2x2 meets its rule); no PR yet (#358 is OPT-THEORY's draft into main from this branch)
+heartbeat: 2026-11-11 14:49
+outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); no PR yet (#358 is OPT-THEORY's draft into main from this branch)
 ## Resume
+2026-11-11 14:49: this session stopped after P5 and P3 (nothing unpushed, no process left running). Next session: B0.
+P5 (13:44-14:17, 108 rows, 03e64ebf): drop as inert. P3 (14:19-14:46, 105 rows, plus a 8-run ping check outside the
+protocol, 4ab3ee0d): rule refuted; the wake takes L off on a1 and c1; dbts_b1's ask follows a ~15 s packet that pays
+the promotion first.
+Next: the audit protocols in claude/av1-corrections:docs/av1/audit-protocols.md, in order B0 (zero encodes: committed
+rows claude/av1-quality-metrics:lab/av1/metrics/rows/shard-{1,2,3,4}.jsonl and curves.tsv, the noise point's held-out
+rows on claude/av1-noise-point; reproduce QA F1's table, recompute x* pooled and per depth, recompute each cell's
+rule Q), then B (19 volumes via lab/av1/fetch_data.sh, 3-4 h of encodes: write the amendment and the Resume first),
+A (shares B's cells), C (browser decode on a core-capped host). Each with its amendment, pushed before any run;
+measured sections go under that document's own sections on a branch of this row (claude/proposals holds §Optimize).
+Setup for B0: none (Python over committed rows). The tip at 9e2ef4ef is needed again only for C.
+--- earlier sessions ---
 Resumed 2026-11-11 13:26 by a new session (stalled at 12:25). 13:24: setup started at 9e2ef4ef in /home/user/tip
 (as listed below, log in /home/user/logs/setup.log). P5 amendment 1 pushed (89436c33; the CDP throttle reaches the main thread only, so a 2-core taskset cell is added
 beside the verdict); driver pushed (link_cells.mjs --host/--cpu-throttle, p5_arm.sh, p5.sh). Setup done 13:43 (demo-series 832 s); arm built, smoke run per arm reached Lossless (not kept). 2026-11-11 13:44: P5 rounds
@@ -49,17 +61,19 @@ edit nothing, start p4.sh at 6 after round 5's 72 rows land). Push rows with git
 Then replace §P4's "Measured in part" with the 7-round table and verdict (python3 lab/proposals/p4_summary.py).
 Then P2 (an ingest arm: amendment first), P5, P3, B0, B, A, C, each with its amendment before any run.
 ## Result
-* P1 BBR on the demo pair: adopt by its rule. 1 % iid: fill 0.11-0.12x, `l` 0.16-0.29x of Cubic's; clean fill
-  0.84-0.99x; bursts 0.64-0.89x. BBR's standing queue 85-260 ms during the fill. 90 of 90 runs passed.
-* P4 38 400 B initial window on the exact server: reject by its rule after 7 rounds, 504 of 504 runs at Lossless.
-  dbts_a1 at 1 % loss 1.06x (noise around a tie: quartiles overlap, frames 1.04/0.96/0.88); dbts_b1 clean 0.92x
-  (bar 0.9x). Clean -8 to -14 %, inside the predicted band; under loss 0.62-0.80x on b1 and c1.
-* P2 tiles: 2x2 meets its rule on 4 cores (per-frame decode 0.64-0.72x, jump 0.73-0.84x, bytes <= 1.0065x, fill
-  0.87-0.92x); 2x1 rejected (decode 0.84-0.94x). 3 page runs failed on 2 cores, one per arm incl. one tile: the
-  tampered-digest pass missed the label's first "fetching lossless" (never said Lossless); a finding for FIX-2.
-* Not started yet: P5, P3, audit protocols A, B, C.
+* P1 BBR on the demo pair: adopt by its rule (1 % iid: fill 0.11-0.12x, `l` 0.16-0.29x; clean 0.84-0.99x).
+* P4 38 400 B initial window on the exact server: reject after 7 rounds (a1 at 1 % loss 1.06x, noise around a tie;
+  b1 clean 0.92x against the 0.9x bar); clean cells -8 to -14 %, inside the band.
+* P2 tiles: 2x2 meets its rule on 4 cores (decode 0.64-0.72x, jump 0.73-0.84x, bytes <= 1.0065x); 2x1 rejected.
+  3 page runs on 2 cores missed the label's "fetching lossless" on a tampered digest: a finding for FIX-2.
+* P5 late exact dial: drop as inert (first picture +1 to +30 ms); not predicted: `l` 1.03-1.10x slower with it.
+  The CDP throttle reaches the page's main thread only (Chromium refuses it on workers), so a 2-core cell was added.
+* P3 wake on pointerdown, plumbing: rule refuted; on a1 and c1 the wake takes L off (-4/-44/-88, -4/-48/-105 ms for
+  L 0/50/100); on b1 the ask comes ~15 s into the session and an earlier packet pays the promotion (check: 6 s quiet
+  pays it, 14 s on a1 does not). The deciding row is the owner's phone.
+* Not started: audit protocols B0, B, A, C.
 * Fixtures: dbts_a1-q8-g8-cut, dbts_b1-q8-g8, dbts_c1-q8-g16-cut and their exact series (demo tip 9e2ef4ef), three
-  DBT volumes of one dataset; userspace relay (no netem on this host), loss each direction; one 4-core cloud host,
-  no GPU, SwiftShader; headless Chromium, page view. P2 adds the Q 8 G 1 and G 8 series of each volume (cut on a1, c1)
-  in three tile arms; its 2-core arm is taskset, not a phone.
-* Owner decision: BBR for the demo pair's two servers (transport-conclusions §9 item 2 is yours).
+  DBT volumes of one dataset; userspace relay, no netem; one 4-core cloud host, no GPU, SwiftShader; headless
+  Chromium, page view. P2 adds G 1 and G 8 series in three tile arms; 2-core cells are taskset, not a phone.
+* Owner decisions: BBR for the pair's two servers (transport-conclusions §9 item 2); whether a phone run of P3 is worth
+  taking, given that a browser ping near 15 s can hide the radio's promotion.
