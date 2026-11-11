@@ -1,18 +1,11 @@
 state: started
 started: 2026-11-11T18:39Z
-heartbeat: 2026-11-11T18:45Z
-outputs: claude/phone-tools abd622b9 (item 1), ae4c644e (item 2)
+heartbeat: 2026-11-11T18:49Z
+outputs: claude/phone-tools abd622b9 (1), ae4c644e (2), 0fec15ad (3), a4667a46, and the run_test fix
 ## Resume
-Pushed: abd622b9 item 1 (runner; 12 node mutants killed), ae4c644e item 2 (beacon fill/routes, --beacon; 7 killed).
-Not yet run: run_test.sh headless (needs the decoder build, running in the background). Plan, one commit each, failing test first, mutated:
-1 runner (lab/phone/runner.js, start.js, index.html, runner.test.mjs, run_test.mjs): the Second amendment's octets
-  (4 warm-ups page at the 4 origins; 6 octets, links alternating load by load, tether first in odd octets, tether rows
-  1 2 3 4 1 2, wifi rows 3 4 1 2 3 4); each step carries its full origin; gap 15 s; Lossless within 30 s of the press,
-  Optimal within 10 s of the second; the stop banner names the next load to restart at; blocks plan kept as fallback.
-2 beacon (lab/phone/beacon.js): fill = boot.dial (downloader, just before new WebTransport) to issuedAt+fillMs
-  (controller's received===n), epoch; statusFillMs beside; per-route counts; dev-server.py --beacon-log -> --beacon
-  (the amendment's name wins).
-3 README step 8: lab/phone/read-path.sh over podman logs srv-<port>, run on the laptop; test with a stub podman.
-Then gate (claude/gate-cloud setup), run_test.sh, status file run commit. Step 0: FIX-2 not done -> recheck at end.
+Items 1-3 pushed and tested (node + headless run_test.sh ok; mutants killed). Toolchain set up in this container
+(dockerd, meson, decoders built, ingest/tools.sh with .venv). Now (long): scripts/gate.sh full on claude/phone-tools;
+if cut off, re-run `PYTHON=.venv/bin/python scripts/gate.sh` after the README cloud setup. Then step 0 recheck
+(FIX-2 done? merge claude/demo-fixes-2 --no-ff), line file docs/lines/optimal-quality.md, run commit, Result.
 ## Result
 (pending)
