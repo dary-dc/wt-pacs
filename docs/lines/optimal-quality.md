@@ -88,6 +88,9 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   frame matched on neither route; the label says *Optimal quality ✓* on a matched frame, the overlay the check and
   the error ([`../av1/payload-format.md`](../av1/payload-format.md) §Integrity). Synthetic sets and stand-in decoders
   in the tests; I1's protocol run in §Integrity. The owner decides whether and when.
+  Reviewed (OQ-INTEGRITY-REVIEW, [`../reviews/oq-integrity.md`](../reviews/oq-integrity.md)): each test fails
+  without its change; open are a refused frame keeping the last frame's ✓, the mended frame and the page's wiring
+  not held by the gate, and the inter-unit mutant caught by a decode failure rather than the digest.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
