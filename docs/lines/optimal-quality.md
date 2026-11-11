@@ -43,6 +43,11 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
 * **The demo build** (DEMO-INTEGRATE, 2026-11-10): `claude/demo-fixes-0` (#355 into `claude/core`) is the demo tip
   `claude/core-next-fixes` plus `gate-cloud`, `double-decode-check` and `demo-e2e-2`, each a `--no-ff` merge; full
   gate OK in a cloud session (skipped: lavapipe, GL display, Firefox, nginx); CI gate and deploy green.
+* **Blind review** (REVIEW-BLIND, 2026-11-11, `claude/demo-review-blind`): [`docs/reviews/demo-blind.md`](../reviews/demo-blind.md),
+  code paths only, no fixture run. Five correctness findings, none paints a wrong frame as *Lossless*: the `unchecked`
+  mark on every optimal-quality frame beside its label, a lossless failure left on the status line after a passing
+  retry, the overlay's Q/G on the exact frame, the stored form admitted by `pairOf`, `--codec lossy` accepted; owner
+  calls: the stored form in the demo list, and dav1d's 623 KB preloaded on every AV1 page though WebCodecs is first.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 ## Terms
