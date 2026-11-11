@@ -1,22 +1,22 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 16:42
-outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); no PR yet (#358 is OPT-THEORY's draft into main from this branch)
+heartbeat: 2026-11-11 17:00
+outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure 33cb6b3d (B0 measured, from claude/av1-corrections); no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
 ## Resume
-Resumed 2026-11-11 16:23 by a new session (stalled at 14:49). B0 amendment 1 pushed on claude/audit-measure (67187d0b, from claude/av1-corrections),
-docs/av1/audit-protocols.md §Measured. Next: lab/av1/audit/b0.py (rows: av1-quality-metrics 2f04f648 shards, noise-point
-991c298b arms.jsonl; libaom v3.15.1 quant_common.c from its tag), its check and 8-bit mutation, then §B0 measured.
-2026-11-11 14:49: this session stopped after P5 and P3 (nothing unpushed, no process left running). Next session: B0.
-P5 (13:44-14:17, 108 rows, 03e64ebf): drop as inert. P3 (14:19-14:46, 105 rows, plus a 8-run ping check outside the
-protocol, 4ab3ee0d): rule refuted; the wake takes L off on a1 and c1; dbts_b1's ask follows a ~15 s packet that pays
-the promotion first.
-Next: the audit protocols in claude/av1-corrections:docs/av1/audit-protocols.md, in order B0 (zero encodes: committed
-rows claude/av1-quality-metrics:lab/av1/metrics/rows/shard-{1,2,3,4}.jsonl and curves.tsv, the noise point's held-out
-rows on claude/av1-noise-point; reproduce QA F1's table, recompute x* pooled and per depth, recompute each cell's
-rule Q), then B (19 volumes via lab/av1/fetch_data.sh, 3-4 h of encodes: write the amendment and the Resume first),
-A (shares B's cells), C (browser decode on a core-capped host). Each with its amendment, pushed before any run;
-measured sections go under that document's own sections on a branch of this row (claude/proposals holds §Optimize).
-Setup for B0: none (Python over committed rows). The tip at 9e2ef4ef is needed again only for C.
+2026-11-11 17:00: this session did B0 and stopped (nothing unpushed, nothing running). Next session: B.
+B0 on claude/audit-measure (from claude/av1-corrections): amendment 1 67187d0b, script + check + 8-bit mutation
+8cc5fe78 (lab/av1/audit/b0.py, README has the commands), §B0 measured 462ebab0, codecs line 33cb6b3d.
+Next: B (B1 split-half, B2 injected noise, B3 integer Q on the shared cells; A reads ν from the same cells).
+1. Write B's amendment 1 under docs/av1/audit-protocols.md §Measured on claude/audit-measure and push it BEFORE any
+   encode: where audit_cells/--audit live (the protocol names claude/av1-groups-settings 0e0e58c8:
+   lab/av1/groups/plan.py and cell.py; build on a worktree of that commit, push the code to claude/audit-measure under
+   lab/av1/audit/ or to a branch from 0e0e58c8, and say which), the B1 checkerboard and B2 injection code, the
+   pre-run byte check (O G 1 at Q 4, 8, 12, 16 equal to the quality study's bytes) and its --cpu-used=5 mutation.
+2. Setup: lab/av1/fetch_data.sh for the 19 DBT volumes; ingest/tools.sh (libaom 3.15.1, dav1d 1.5.4).
+3. Run: 185 cells at G 1, 156 at G 16 (~38 000 encode CPU s, 3-4 h on 4 cores); background commands stop at 2 h, so
+   run in two halves (G 1, then G 16), rows committed every ~10 min by a loop. Cut G 16 first, then content 2, if
+   time runs out, and name the cut.
+4. Then A (ν, Q_ν) on the same rows, then C (browser decode, demo tip, core-capped).
 --- earlier sessions ---
 Resumed 2026-11-11 13:26 by a new session (stalled at 12:25). 13:24: setup started at 9e2ef4ef in /home/user/tip
 (as listed below, log in /home/user/logs/setup.log). P5 amendment 1 pushed (89436c33; the CDP throttle reaches the main thread only, so a 2-core taskset cell is added
@@ -74,7 +74,10 @@ Then P2 (an ingest arm: amendment first), P5, P3, B0, B, A, C, each with its ame
 * P3 wake on pointerdown, plumbing: rule refuted; on a1 and c1 the wake takes L off (-4/-44/-88, -4/-48/-105 ms for
   L 0/50/100); on b1 the ask comes ~15 s into the session and an earlier packet pays the promotion (check: 6 s quiet
   pays it, 14 s on a1 does not). The deciding row is the owner's phone.
-* Not started: audit protocols B0, B, A, C.
+* B0 (zero encodes): QA F1's table reproduced exactly; x* over all 19 volumes 4.7584 at G 1 (not 4.9293), 4.6359
+  pooled and at G > 1, 4.8024 for 12-bit streams: B-6 holds. No reading overshoots an anchor; per-depth x* lifts
+  dbts_c1 and c5 G 16 from Q 4 to 8 (0.28 -> 0.10 of HTJ2K). Which x* the rule takes waits on delta (B1, B2).
+* Not started: audit protocols B, A, C.
 * Fixtures: dbts_a1-q8-g8-cut, dbts_b1-q8-g8, dbts_c1-q8-g16-cut and their exact series (demo tip 9e2ef4ef), three
   DBT volumes of one dataset; userspace relay, no netem; one 4-core cloud host, no GPU, SwiftShader; headless
   Chromium, page view. P2 adds G 1 and G 8 series in three tile arms; 2-core cells are taskset, not a phone.
