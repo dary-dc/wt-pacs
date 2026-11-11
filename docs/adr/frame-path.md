@@ -1134,9 +1134,7 @@ Firefox's `worker-read` draw p99 213–228 ms against `worker`'s 39–65 ms, the
 
 ### A frame clock in the view worker (2026-10-28)
 
-*Theory and a pre-registered protocol; the harness built 2026-10-30 (`lab/frame-clock/`) and smoke-run, nothing timed as a result; its arms, page and driver
-removed 2026-11-11 as an experiment no line runs (CLEAN-PRODUCT), in git history; its score, busy page and phase stay,
-which the lab's viewer levers and the nightly use.* The owner's next client shape: the page holds no
+*Theory and a pre-registered protocol; the harness built 2026-10-30 ([`../../lab/frame-clock/`](../../lab/frame-clock/README.md)) and smoke-run, nothing timed as a result.* The owner's next client shape: the page holds no
 frame; one dedicated **view worker**, started by the page, holds the frame store, a controller and the WebGL2 paint on a
 transferred `OffscreenCanvas`. How its frames reach the screen without the page is §2's last bullet; this section asks
 only **which clock** the worker can run cine on. Sources are pinned as in §9, plus MDN's compat data and page, all in

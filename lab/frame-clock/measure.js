@@ -29,7 +29,7 @@ function nextVsync(vsyncs, t) {
   return vsyncs[lo];
 }
 
-/** Frames not on their tick, the gap p99 and the draw p99: docs/adr/frame-path.md §A frame clock in the view worker. */
+/** Frames not on their tick, the gap p99 and the draw p99: lab/frame-clock/README.md §Scoring. */
 export function score({ draws, vsyncs = [], t0, period, ms }) {
   // Frames due before t0 + ms; the epsilon keeps 1000 / (1000 / 60) from rounding to 59.
   const due = Math.ceil(ms / period - 1e-9);
@@ -79,7 +79,7 @@ export function verdict(rows, { period, busy }) {
   return out;
 }
 
-/** The engine's clock from its cells' verdicts, `{ series, busy, ...verdict }`: docs/adr/frame-path.md §A frame clock in the view worker. */
+/** The engine's clock from its cells' verdicts, `{ series, busy, ...verdict }`: lab/frame-clock/README.md §The rule. */
 export function rule(cells) {
   const decide = cells.filter((c) => c.series === "s512" && !c.void && !c.saturated);
   if (!decide.length) return { clock: null, why: "no 512² cell is neither VOID nor saturated" };
