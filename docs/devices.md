@@ -700,3 +700,12 @@ port and time. Afterwards: `stop` (every server's session lines
 into `target/phone-run/`), `pkill -f 'server/dev-server.py'`, `nmcli radio wifi on`, USB
 tethering off. `target/phone-run/` names the laptop's and the phone's addresses: strip them before anything is
 committed (§4).
+
+**Note to the Second amendment** (2026-11-11, before any timed load, by the coordinating session, which runs none of
+it): `serve()`'s `--ulimit memlock=67108864:67108864` is refused on the run's laptop: rootless crun answers
+"setrlimit RLIMIT_MEMLOCK: Operation not permitted", the user's hard limit being 8 MiB (`ulimit -Hl` 8192). The run
+uses `--ulimit memlock=8388608:8388608`, this laptop's hard limit, the same in every arm, as `deploy/README.md`'s
+`MEMLOCK` row allows ("the server's locked-memory limit"). It changes no read path here: README step 8's check at
+`c6da7275` with that limit gave `read_fast_path=preadv2` and `read_ring=refused` (io_uring setup: Permission denied),
+since SELinux refuses the ring to the container whatever the limit (`deploy/README.md` §Container settings). Nothing
+else in the amendment changes.
