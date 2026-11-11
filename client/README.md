@@ -95,8 +95,10 @@ then not be called lossless: a digest proves a frame is its own series', not tha
 second downloader, one decoder and no fill, dials it once the optimal-quality series is connected, in either view. The
 **lossless** button, or `l`, asks the controller for the current frame exact: frame *i* of the exact series is asked, held beside the frame store (never in it, never cached, nothing else asked or evicted), and
 painted in place of the lossy frame once its digest matched; it stays until the reader steps off the frame or
-presses the button again. A lossy frame's own `exact` means its decode matched the encoder's reconstruction, not the
-source.
+presses the button again. An optimal-quality frame has no digest (the ingest writes none for it,
+`ingest/coded-frames/lossy_test.py`), so its `exact` is `"unchecked"`: nothing checks it against the encoder's
+reconstruction or the source (*corrected 2026-11-11, DEMO-UX, NAMES-FIND item 2*: this said its `exact` meant its decode
+matched the encoder's reconstruction; no such digest exists).
 
 * **The label** (top right, always shown on an optimal-quality series) says what is painted, decided in one place,
   `Controller.quality`, and written by `viewer/screen.js` `labelOf`, its colour beside its words: *Optimal quality*
@@ -265,7 +267,8 @@ before it is called not exact (`decoder.js` `checked`; [`docs/adr/exactness-in-p
 * *Lossy* in the code (`meta.lossy`, `showLossy`, `view.lossy()`) beside *Optimal quality* on the
   screen; the glossary retired *lossy series* as a name.
 * The sentence above that *a lossy frame's own `exact` means its decode matched the encoder's reconstruction*
-  describes a case the demo never shows: an optimal-quality series has no digests, so its frames are `unchecked`.
+  describes a case the demo never shows: an optimal-quality series has no digests, so its frames are `unchecked`. Since
+  corrected in place (DEMO-UX).
 * Two indicators of quality on one screen, the label (top right) and the mark (top left), which disagree in words on
   every optimal-quality frame (*Optimal quality* beside *unchecked*); since resolved: FIX-1 dropped the mark beside a
   label, DEMO-UX made the label green.
