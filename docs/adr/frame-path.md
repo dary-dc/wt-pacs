@@ -2130,7 +2130,7 @@ the same. Both are changes to the protocol after data, and so a new pre-registra
   ([`live-pages.jsonl`](https://github.com/dary-dc/wt-pacs/tree/91069eb31e8816bcd4460322e38e8f719a5c0c07/lab/opfs-cache/rows/m5-start/live-pages.jsonl)); the rule set for those (BiDi ≥ 3)
   was not met, so they alone decide nothing.
 * **The fix.** The rigs drive Firefox over Marionette, which registers no listener
-  ([`browser.mjs`](../../lab/opfs-cache/browser.mjs)); `lab/opfs-arms` shares the driver.
+  ([`browser.mjs`](../../lab/opfs-cache/browser.mjs)); `lab/opfs-arms` (at `0920153d`) shares the driver.
   [`browser.test.mjs`](../../lab/opfs-cache/browser.test.mjs) checks its framing and, with `FIREFOX_PATH`, the 300 nested
   workers; the gate runs it. Both mutants were caught: framing that counts characters, not bytes, and the driver put
   back on BiDi (stopped at 3 of 300).
@@ -2308,7 +2308,7 @@ standard volume capacity; how often a phone's free disk binds before its quota.
 
 ### The cache I/O in the view worker: sync, async, or a store worker (2026-10-28)
 
-**Status:** theory and a pre-registered protocol; the harness is built (`lab/opfs-arms/`) and smoke-run once per arm,
+**Status:** theory and a pre-registered protocol; the harness is built (`lab/opfs-arms/` (at `0920153d`)) and smoke-run once per arm,
 **no cell is run**: nothing below is measured unless it says *run once*, and the smoke's numbers are not results.
 *Corrected 2026-10-30:* the protocol as amended is run on Chromium and Firefox; **no arm passes on either engine**, so
 the result goes to the owner as measured (§Arm D, Results). The predictions above stand as written, judged there.
@@ -2397,7 +2397,7 @@ container, so the `none` arm may miss ticks at S3, 4×; nothing is claimed for a
 
 #### Protocol, pre-registered 2026-10-28
 
-Rig: `lab/opfs-arms/` (README there), on the 4-vCPU agent container; Chromium 153 and Firefox 159 on Xvfb; **WebKit not
+Rig: `lab/opfs-arms/` (at `0920153d`) (README there), on the 4-vCPU agent container; Chromium 153 and Firefox 159 on Xvfb; **WebKit not
 run: no WebKit build in the container.** A feeder worker stands in for the decoders: it posts checked frames as
 `SharedArrayBuffer`s, 4 distinct fields cycled, at 125 MB/s or on credit (*three feeders since 2026-10-29*, §Arm D). The view worker paints from memory at its own
 `requestAnimationFrame`, the shown frame changing every tick at S1 and every 6th at S2–S3 (an upload from memory),
@@ -2429,7 +2429,7 @@ their order over 14 rounds (`lab/order.mjs`), so 12 leave it slightly unbalanced
    only if its median in every R cell is ≤ 0.9 × A's and its median in every W cell ≥ 0.9 × A's; else A. Within
    an arm, paint first wins unless only on-arrival passes. If no arm passes, the result goes to the owner as measured.
 
-`lab/opfs-arms/summary.mjs` applies this rule to the rows.
+`lab/opfs-arms/summary.mjs` (at `0920153d`) applies this rule to the rows.
 
 **Mutants, each run before its cell is believed.** *write-before-paint*: the paint-first arm draining its whole queue
 before the paint. At S3, 4×, it must miss ticks, and at least Σ ⌊block / period⌋ of its own measured blocks; a
@@ -2554,7 +2554,7 @@ and B stay in the cells, reported, not chosen):
    display period or more after A's in some R cell; then A paint first; then C. If none passes, the result goes to the
    owner as measured.
 
-`lab/opfs-arms/summary.mjs` applies it. *Corrected 2026-10-29, independent review:* it failed rule 3 for D in any W cell
+`lab/opfs-arms/summary.mjs` (at `0920153d`) applies it. *Corrected 2026-10-29, independent review:* it failed rule 3 for D in any W cell
 with no measured decode (S3), so D could not be picked once S3 ran; a cell rule 3 does not judge now passes it.
 
 **Smoke, 2026-10-29** (one round per arm, Chromium 153 and Firefox 159; not results): L, W and R at S1 and G at S2 ran
