@@ -90,7 +90,7 @@ fill whose BBR arm comes within 10 % of the same series' loopback fill (1.7, 4.6
 reported as "at the host's ceiling", with no ratio claimed. *Limits:* three DBT volumes of one dataset; netem, not
 a radio; a 4-core cloud host without a GPU; SwiftShader paints.
 
-**Amendment 1 (MEASURE-1, 2026-11-11 04:50, written before any run).** The measuring host has no `sch_netem`: `tc
+**Amendment 1 (MEASURE-1, 2026-11-11 04:25, written before any run).** The measuring host has no `sch_netem`: `tc
 qdisc add dev lo root netem …` answers "Specified qdisc kind is unknown", as README §7 records for a container. The
 link is therefore `lab/scripts/link_impair.py` (`docs/rig-limits.md` §3, read back against arithmetic there), in front
 of both sessions as `demo-check.mjs --link` puts it: `--delay-ms 30 --rate-kbit 20000 --queue-pkts 1000` (netem's
@@ -103,7 +103,7 @@ headless Chromium; the fill's last frame received, then `l` on the shown first f
 `lab/proposals/p1.sh`. The relay's own CPU bounds it at ~100 Mbit; 20 Mbit is under that. Arms, cells, rounds, rule
 and saturation test are unchanged.
 
-**Measured (MEASURE-1, 2026-11-11 05:40–06:30, per amendment 1).** 90 runs, 5 rounds × 3 cells × 3 series × 2 arms,
+**Measured (MEASURE-1, 2026-11-11 04:37–05:14, per amendment 1).** 90 runs, 5 rounds × 3 cells × 3 series × 2 arms,
 each passing: every fill complete, every `l` ending at *Lossless*. Rows `lab/proposals/rows/p1.jsonl`, table
 `lab/proposals/p1_summary.py`. Medians of 5; fill is the last frame received, `l` the time from the key to *Lossless*
 on the first frame after 10 s of quiet, both from the page's clock; latency only.
@@ -228,7 +228,7 @@ plus 20 Mbit with a 20-packet `limit`. *Measured:* on a filled page after 10 s o
 arms alternating, fresh processes per run. *Rule:* adopt if the 38 400 arm's median is ≤ 0.9× in the 0 % cell on all
 three series and ≤ 1.0× in every other cell; any cell above 1.05× rejects. *Limits:* as P1.
 
-**Amendment 1 (MEASURE-1, 2026-11-11 05:00, written before any run).** As P1's amendment 1: the link is
+**Amendment 1 (MEASURE-1, 2026-11-11 04:25, written before any run).** As P1's amendment 1: the link is
 `link_impair.py`, 30 ms each way and 20 Mbit each direction; the three cells take P1's queue of 1 000 packets and its
 loss options, and the fourth cell is `--queue-pkts 20` with no loss. The pair's optimal-quality series is the Q 8 G 8
 (G 16 for `dbts_c1`) series of P1, its server at its default; the frame is the first, the middle (n/2 steps right)
