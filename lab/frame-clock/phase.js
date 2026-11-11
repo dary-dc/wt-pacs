@@ -1,4 +1,4 @@
-/** The display's phase: a worker's rAF times, on `now()`'s clock, painting nothing. lab/frame-clock/README.md §Phase */
+/** The display's phase: a worker's rAF times, on `now()`'s clock, painting nothing. docs/adr/frame-path.md §A frame clock in the view worker */
 const times = [];
 let on = true;
 const frame = (t) => {

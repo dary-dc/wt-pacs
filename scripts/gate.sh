@@ -109,7 +109,6 @@ run 1 node client/view/view-worker.test.mjs
 run 1 node client/view/cache.test.mjs
 run 1 node client/viewer/store.test.mjs
 run 1 node client/view/clock.test.mjs
-run 1 node lab/frame-clock/arms.test.mjs
 run 1 node lab/frame-clock/measure.test.mjs
 run 1 node lab/viewer/start-summary.test.mjs
 
@@ -127,8 +126,6 @@ if [[ $browser -eq 1 ]]; then
   run 12 bash client/contract/run_browser.sh
   step "client: the viewer's page check — a complete, exact, drawn page, and the view worker's cache across tabs (headless Chromium)"
   run 20 bash client/viewer/run_check.sh
-  step "lab: the frame clock's seven arms wired end to end in the view worker, a second each (headless Chromium, nothing timed)"
-  run 1 node lab/frame-clock/check.mjs
   step "client: a depth cut's 10-bit codes decode through WebCodecs, a group from its keyframe on, as dav1d's; a 12-bit stored form tried there first (headless Chromium)"
   run 1 node client/decode/depth-cut.browser.mjs
   step "client: a crafted link to the viewer refused where lab/ is not served (headless Chromium)"
