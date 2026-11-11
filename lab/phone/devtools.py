@@ -10,6 +10,7 @@ counted one (docs/devices.md §7, Second amendment). Standard library only; lab/
 import argparse
 import base64
 import hashlib
+import http.client
 import json
 import os
 import socket
@@ -225,7 +226,12 @@ def main(argv=None) -> int:
 
     if not a.no_forward:
         forward(a.adb, a.port)
-    pages = tabs(a.port)
+    try:
+        pages = tabs(a.port)
+    except (OSError, http.client.HTTPException) as e:
+        print(f"no DevTools at the forwarded port ({e!r}): open Chrome on the phone, USB debugging on",
+              file=sys.stderr)
+        return 1
     if a.cmd == "tabs":
         for p in pages:
             print(p["id"], p.get("url", ""))
