@@ -61,7 +61,9 @@ named series; "old" is the check as merged, "new" with the two fixes below.
    `demo-series.sh` stopped while packing that last series leaves the file partial and the guard satisfied; the
    rehearsal then fails on that series rather than saying why. Smallest fix: guard on its `.metadata.json`, which is
    moved in only after the bundle is written. Not applied, as 3.
-5. **"~1 min a series"**: see the loop's second run with the fixed check, below.
+5. **"~1 min a series"** is an upper bound: with the two fixes, the loop again passed all 20, in 16–19 s a series
+   for `dbts_a1` and `dbts_c1` (22 s for `dbts_c1-q8-g16-stored`) and 26–32 s for `dbts_b1`; no run stalled. One run
+   each, this host only.
 6. **Two on-demand mutants that ask a group ahead survived**: the check's *asked the whole groups* count (24 at
    `dbts_a1-q8-g8-cut`) was unchanged. Cause not traced (time-boxed): either the ask never reached the wire (the
    store's want replaced on the next step, or the downloader dropping it) — then the mutants are equivalent — or the
