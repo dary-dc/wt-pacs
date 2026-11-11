@@ -1,9 +1,10 @@
 state: started
 started: 2026-11-11T18:39Z
-heartbeat: 2026-11-11T18:41Z
-outputs: claude/phone-tools (from c6da7275)
+heartbeat: 2026-11-11T18:45Z
+outputs: claude/phone-tools abd622b9 (item 1), ae4c644e (item 2)
 ## Resume
-Plan (nothing pushed to claude/phone-tools yet), one commit each, failing test first, mutated:
+Pushed: abd622b9 item 1 (runner; 12 node mutants killed), ae4c644e item 2 (beacon fill/routes, --beacon; 7 killed).
+Not yet run: run_test.sh headless (needs the decoder build, running in the background). Plan, one commit each, failing test first, mutated:
 1 runner (lab/phone/runner.js, start.js, index.html, runner.test.mjs, run_test.mjs): the Second amendment's octets
   (4 warm-ups page at the 4 origins; 6 octets, links alternating load by load, tether first in odd octets, tether rows
   1 2 3 4 1 2, wifi rows 3 4 1 2 3 4); each step carries its full origin; gap 15 s; Lossless within 30 s of the press,
