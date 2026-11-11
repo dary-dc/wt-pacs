@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-11 15:30 UTC (branch tips and the work queue read from `origin`).
+Last verified 2026-11-11 19:40 UTC (branch tips and the work queue read from `origin`).
 
 ## Goal
 
@@ -118,6 +118,16 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   bundle the same size; each set's eight or seven series carry one fingerprint, the three sets three; `checkPair`
   accepts all 20 pairs and refuses each against the other two sets' exact series by source (a node script over the
   metadata; no browser run on these series).
+* **Fixes, round 2** (FIX-2, 2026-11-11, `claude/demo-fixes-2`, #367 into `claude/core`): on MAIN-REVIEW's S1 fix,
+  `--no-ff` merges of `claude/demo-ux` (#365, with #360, #362, #359, #356), `claude/source-fingerprint` (#364, the
+  owner's word) and `claude/demo-clean` (EXPERIMENTS-OFF's items 1–9, the owner's yes; no archive tags); REVIEW-2's
+  F1 and D1 corrected in place, U1 and U2 left to CLEAN-PRODUCT and the phone run; no proposal was marked *adopt*;
+  E2E-3 recorded no failure. Full gate OK (650 s; skipped: lavapipe, Xvfb, Firefox and the cross-codec arm), and
+  `check_equivalence.sh --local` on nginx 1.29-alpine. `demo-series.sh` wrote every series again from the merged
+  tip (21 series, 527 s): three source fingerprints, seven series each, no `framesSha256`. `demo-check.mjs` on all
+  20 runs of README §Demo × {page, worker}, interleaved by series: 40 of 40 passed (REVIEW-2's C1). Headless
+  Chromium (Playwright 1.63) on SwiftShader, one 4-core cloud host, no GPU, loopback; one run per cell; correctness
+  only, nothing timed. After FIX-2 only blockers change the demo tip (the freeze); FREEZE-E2E follows.
 * **Not yet run:** any phone run.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
