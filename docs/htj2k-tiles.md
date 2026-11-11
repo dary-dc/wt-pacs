@@ -898,10 +898,44 @@ s is the p90 of |S's Lossless ÷ W − 1|: the same bytes on the same build, use
 
 * ~~the D arms' series~~ built from the demo commit `157b7109`'s `scripts/demo-series.sh`, equal byte for byte to FREEZE-E2E's run;
 * ~~the strip arms' series~~ cut into Layout 1's band-major entries; checked from the entries alone, 294/294 pictures exact, three mutants caught ([`stage3_check.py`](../lab/htj2k-tiles/improve/stage3_check.py));
-* a lab client for D+T3, D+L★ and S★: level-first asks, I4's store of bands and level pictures and its reopen, and
-  stage 0's two cache mutants;
-* `parity.mjs` on both builds;
-* then §Protocol's stage 3 as written, and R3–R7.
+* ~~a lab client for D+T3, D+L★ and S★~~ built ([`stage3/`](../lab/htj2k-tiles/improve/stage3/)), with I4's store and its reopen; stage 0's two cache mutants caught (below);
+* ~~`parity.mjs` on both builds~~ PARITY OK on the delivered build and on the lab level binding, nine fixtures, 87 frames each ([`rows/stage3-parity.txt`](../lab/htj2k-tiles/improve/rows/stage3-parity.txt));
+* then §Protocol's stage 3 as written, and R3–R7: running, shard by shard (below).
+
+### Improve, measured: stage 3 (row HTJ2K-MEASURE, 2026-11-12)
+
+*Same session rules as stages 0–2. Fixtures and host as above; the links are emulated by the rig's relay. Rows land
+in [`rows/stage3-s3a.jsonl`](../lab/htj2k-tiles/improve/rows/stage3-s3a.jsonl) (rounds 0–1) and its successors as
+they are measured; the readings below are written only once a shard ends.*
+
+**Amendments, written before any run:**
+
+* **D's series.** The protocol names "the demo's series" and no G; §Screen resolution's names Q 8 at G 1 and at
+  G 16. The run takes **Q 8 at G 16** (the depth cut on `dbts_a1`, `dbts_c1`), and **D′** is the same bundle under a
+  second name; G 1 is not run, for time.
+* **Two series a visit.** The rig serves one series per server, and D needs the OQ series and the exact one (D+T3
+  and D+L★ need the OQ and the strip series). Each series gets its own server behind its own relay, on the cell's
+  link with the round's seed, both started together. The Lossless request is issued only once the fill is over, so
+  the two relays never carry at the same time; a real phone would share one radio.
+* **The store.** The reopen goes through a lab OPFS store ([`store.js`](../lab/htj2k-tiles/improve/stage3/store.js))
+  that keeps every arm's pictures and S★'s coded bands. It stands in for the product store plus I4's two record kinds.
+  It is written after the clock in every arm, so no time measured includes a store write. J10 is judged on S★ and
+  D+L★; the other arms' reopens are reported too.
+* **The OQ pictures have no truth.** A lossy series' metadata carries no digests, and the viewer leaves those frames
+  unchecked. The run does the same, and joins a visit's OQ pictures into one digest, which must agree across a
+  volume's D visits. Every exact and level picture is checked against `frames.json`.
+* **J10's bands.** "Asks nothing it holds" is read two ways. Nothing is asked to picture every slice again. And for
+  every S★ frame not yet Lossless, its fit bands are held, so a later Lossless ask fetches only the finer bands
+  (`bandsAgain`). The `bands-dropped` mutant must turn the second reading on.
+
+**Stage 0's cache mutants, and two more** (S★ on `dbts_c1` sideways, `r20000`, 1×), each caught:
+
+* bands dropped: 408 bands would be fetched again;
+* band 0 painted: refused as a preview;
+* every truth flipped: 0/70 exact;
+* one sample flipped: 0/70 exact.
+
+The unmutated smoke visits (not kept) were exact in every arm, with 0 asks and 0 decodes on every reopen.
 
 ## Sources
 
