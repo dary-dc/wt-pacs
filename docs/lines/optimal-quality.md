@@ -57,6 +57,14 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   mark on every optimal-quality frame beside its label, a lossless failure left on the status line after a passing
   retry, the overlay's Q/G on the exact frame, the stored form admitted by `pairOf`, `--codec lossy` accepted; owner
   calls: the stored form in the demo list, and dav1d's 623 KB preloaded on every AV1 page though WebCodecs is first.
+* **Fixes, round 1** (FIX-1, 2026-11-11, `claude/demo-fixes-1`, merging `demo-view-worker` and the three finding
+  branches): the red team's five tests pass and run in the gate. A depth cut's frame not decoded at 10 bits is refused
+  by name; `checkPair` requires the same `framesSha256` in both series (the demo set carries it: `fetch_data.py`
+  writes it, `ingest_coded.py` copies it into both), the same `photometric`, `rescale` and `perFrame`, and a 16-hex
+  digest per frame; dot-segment ids are refused. The blind review's C1–C3 as `viewer/screen.js` with a node test (no
+  `unchecked` mark beside a label, no Q/G on the exact frame, a passed retry clears its failure), C5 (`--codec lossy`
+  refused), S1. Answered, not changed: C4, D1, D2 (owner calls), S2–S4, D3 (no change asked). Node tests only for the
+  fixes; the browser check not re-run on a demo series here.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
