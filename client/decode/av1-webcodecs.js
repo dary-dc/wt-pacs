@@ -8,11 +8,15 @@ import { codecString, continues, sequence } from "./av1-payload.js";
 import { PROBES } from "./av1-probe.js";
 
 let groupLength = 1;
+let onePass = true;
+let reuseCopyBuffer = false;
 const streams = {};
 const probed = {};
 
 export async function init(d) {
   groupLength = d.groupLength ?? 1;
+  onePass = d.onePass !== false;
+  reuseCopyBuffer = !!d.reuseCopyBuffer;
 }
 
 /** Whether a tiny unit of `layout` comes back with the samples it was coded from, once per worker. */
@@ -59,6 +63,9 @@ function decoder(length) {
   let stamp = 0;
   let codec = null;
   let seq = null;
+  let kept = null;
+  // A picture's planes view this buffer until the next frame of the same stream is copied over it.
+  const buffer = (size) => (!reuseCopyBuffer ? new ArrayBuffer(size) : kept?.byteLength >= size ? kept : (kept = new ArrayBuffer(size)));
   const open = () => {
     // A frame of an earlier unit, flushed late, is not this unit's: only the stamp it was sent with is taken.
     const output = (f) => {
@@ -98,7 +105,7 @@ function decoder(length) {
         if (!got && vd.state === "configured") await vd.flush();
         if (vd.state === "closed") throw failed ?? new Error("decoder closed");
         if (!got) throw new Error("no frame");
-        const p = await read(got, seq);
+        const p = await read(got, seq, buffer);
         if (length > 1 && (unit.index + 1) % length) {
           last = { gen: unit.gen, index: unit.index };
         } else {
@@ -125,22 +132,24 @@ const FORMATS = { I420: [8, 1], I420P10: [10, 1], I444: [8, 3], I444P10: [10, 3]
 const RGB = { RGBX: [1, 2, 0], BGRX: [1, 0, 2] };
 
 /** The frame's planes as a picture, if it is grey (4:0:0, or 4:2:0 with mid-grey chroma) or 4:4:4 identity; `seq` its sequence header's fields. */
-async function read(frame, seq) {
+async function read(frame, seq, buffer) {
   const [bits, components] = FORMATS[frame.format] ?? [];
   if (!bits) throw new Error(`format ${frame.format}`);
   if (RGB[frame.format] && seq.ss[0]) return grey(frame, seq);
   // From the header, as dav1d's path: the frame's colorSpace echoes the codec string, not the stream.
   if (components === 3 && seq.mc !== 0) throw new Error(`4:4:4 with matrix ${seq.mc}`);
   if (RGB[frame.format]) return planar(frame, RGB[frame.format]);
-  const buf = new ArrayBuffer(frame.allocationSize());
+  const size = frame.allocationSize();
+  const buf = buffer(size);
   const layout = await frame.copyTo(buf);
-  const heap = bits > 8 ? new Uint16Array(buf) : new Uint8Array(buf);
   const shift = bits > 8 ? 1 : 0;
+  const heap = new (bits > 8 ? Uint16Array : Uint8Array)(buf, 0, size >> shift);
   // copyTo's layout is in bytes.
   const planes = layout.map(({ offset, stride }) => ({ heap, offset: offset >> shift, stride: stride >> shift }));
   const { width, height } = frame.visibleRect;
   // 4:0:0 comes back as 4:2:0 with every chroma sample mid-grey; colour 4:2:0 is not lossless.
-  if (components === 1 && !neutral(planes.slice(1), (width + 1) >> 1, (height + 1) >> 1, 1 << (bits - 1))) {
+  // mono_chrome: "does not contain U and V color planes" (AV1 §Color config semantics), so its 4:2:0 chroma is the decoder's own.
+  if (components === 1 && !(onePass && seq.mono) && !neutral(planes.slice(1), (width + 1) >> 1, (height + 1) >> 1, 1 << (bits - 1))) {
     throw new Error("4:2:0 with chroma");
   }
   return { width, height, bits, planes: planes.slice(0, components) };

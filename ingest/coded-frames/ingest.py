@@ -1,5 +1,6 @@
 """A series as AV1 payloads (docs/av1/payload-format.md), plain or optimized, or as the served HTJ2K, and
-nothing at all unless every frame decodes back, in-process, to the samples its checksum was written from.
+nothing at all unless every frame decodes back, in-process, to the samples its checksum was written from;
+or as optimal quality, lossy AV1 whose every frame decodes from its group's keyframe (§Optimal quality).
 
 `coded()` is the entry: ingest/from-dicom codes through it; the lab's command is lab/av1/tools/ingest_coded.py.
 """
@@ -20,6 +21,8 @@ AOM = "3.15.1"
 DECODERS = "dav1d 1.5.4-0-g54706fc, openjph 0.31.0"
 FLAG_SIGNED, FLAG_RCT = 1, 2
 MAX_BITS, MAX_SPLIT = 16, 8
+MAX_Q = 63
+CUT_DEPTH = 10
 HTJ2K_ARGS = ["-num_decomps", "5", "-block_size", "{64,64}", "-prog_order", "RPCL", "-reversible", "true"]
 
 
@@ -99,7 +102,7 @@ def matches(s, raw, samples):
 @functools.cache
 def pinned(build, codec):
     """The codec's encoder and both decoders as ingest/tools.sh pins them, or Refused naming the one that is not."""
-    if codec == "av1":
+    if codec != "htj2k":
         aomenc = build / f"aom-{AOM}/bin/aomenc"
         aom = subprocess.run([aomenc, "--help"], capture_output=True, text=True).stdout if aomenc.exists() else ""
         if f"AV1 Encoder v{AOM}" not in aom:
@@ -111,6 +114,11 @@ def pinned(build, codec):
     if (got := lib.decoder_versions().decode()) != DECODERS:
         raise Refused(f"the in-process decoders are {got}, not {DECODERS} (ingest/coded-frames/build.sh)")
     return True
+
+
+def wide(bits, signed, offset):
+    """Whether decodeFrame hands on two bytes a sample of an AV1 payload: client/decode/av1-frame.js's rule."""
+    return bits > 8 or bool(signed) and not (offset <= 128 and (1 << bits) - 1 - offset <= 127)
 
 
 def frame_digest(px, wide):
@@ -249,7 +257,64 @@ def htj2k(build, s, work, a, b, *_):
     return out
 
 
-CODECS = {"av1": av1, "htj2k": htj2k}
+def lossy_args(q, g, depth):
+    """The AV1 lab's settings (lab/av1/profiles/bytes.py's aomenc_args, without alt-ref) at cq-level q, g frames a group."""
+    group = ["--kf-max-dist=0"] if g == 1 else [f"--kf-min-dist={g}", f"--kf-max-dist={g}"]
+    return ["--ivf", "--disable-warning-prompt", "--good", "--cpu-used=6", "--threads=1", "--passes=1", "--tune=psnr", "--end-usage=q",
+            f"--cq-level={q}", f"--min-q={q}", f"--max-q={q}", "--deltaq-mode=0", "--aq-mode=0",
+            "--denoise-noise-level=0", "--lag-in-frames=0", "--auto-alt-ref=0", *group, "--monochrome",
+            f"--profile={2 if depth == 12 else 0}", f"--bit-depth={depth}", f"--input-bit-depth={depth}"]
+
+
+def lossy_header(s, q, g, cut=False):
+    """The payload header every frame of an optimal-quality series carries: grey at its native depth, or its depth
+    cut's 10-bit codes, no split."""
+    if s.ch != 1:
+        raise Refused("optimal quality is grey only")
+    if not (1 <= q <= MAX_Q and g >= 1):
+        raise Refused(f"Q {q} and G {g}: Q is 1 to {MAX_Q} (Q 0 codes a lossless stream), G at least 1")
+    if cut and (s.stored <= CUT_DEPTH or s.signed):
+        raise Refused(f"a depth cut of {'signed ' if s.signed else ''}{s.stored}-bit stored samples: only unsigned D over {CUT_DEPTH} is cut")
+    if cut:
+        return dict(bits=CUT_DEPTH, depth=CUT_DEPTH, split=0, flags=0, offset=0)
+    bits = max(1, int(s.hi + s.offset).bit_length())
+    return dict(bits=bits, depth=container(bits), split=0, flags=FLAG_SIGNED if s.signed else 0, offset=s.offset)
+
+
+def depth_cut(v, d):
+    """D-bit samples as their 10-bit codes, rounded half up: docs/av1/payload-format.md §Depth cut."""
+    s = d - CUT_DEPTH
+    return np.minimum((v + (1 << (s - 1))) >> s, (1 << CUT_DEPTH) - 1)
+
+
+def keyframe(i, g):
+    """The frame whose unit starts frame i's group: docs/av1/payload-format.md §Optimal quality."""
+    return i - i % g
+
+
+def lossy(build, s, work, a, b, q, g, cut=False):
+    """Frames [a, b), a starts a group: each group one encoder run, each frame decoded from its keyframe's unit on."""
+    header = lossy_header(s, q, g, cut)
+    depth, y4m, ivf = header["depth"], work / "in.y4m", work / "out.ivf"
+    coded_from = (lambda v: depth_cut(v, s.stored)) if cut else (lambda v: v + s.offset)
+    out = []
+    for k in range(a, b, g):
+        n = min(g, b - k)
+        write_y4m(y4m, [coded_from(s.frame(i).astype(np.int32)) for i in range(k, k + n)], depth, "400")
+        subprocess.run([build / f"aom-{AOM}/bin/aomenc", "-q", "-o", ivf, f"--limit={n}", *lossy_args(q, g, depth), y4m],
+                       check=True, capture_output=True)
+        units = ivf_units(ivf)
+        if len(units) != n:
+            raise Refused(f"frames {k}–{k + n - 1}: {len(units)} units for {n} frames")
+        for j in range(n):
+            _, shape = decoded(build, "av1", b"".join(units[:j + 1]), s.h * s.w)
+            if (shape.h, shape.w, shape.planes, shape.bits) != (s.h, s.w, 1, depth):
+                raise Refused(f"frame {k + j} decoded from frame {k} as {shape.w}×{shape.h}×{shape.planes} at {shape.bits} bits")
+            out.append((k + j, payload(header, [units[j]])))
+    return out
+
+
+CODECS = {"av1": av1, "htj2k": htj2k, "lossy": lossy}
 
 
 def chunk(job):
@@ -260,14 +325,20 @@ def chunk(job):
         return CODECS[codec](build, s, Path(tmp), *rest)
 
 
-def coded(build, s, n, codec, jobs, representation="optimized", split=None, preset="cpu0", grey8="400"):
-    """Frames [0, n) of a series coded, every one checked, in frame order; Refused if any is not exact."""
+def coded(build, s, n, codec, jobs, representation="optimized", split=None, preset="cpu0", grey8="400", lossy=None):
+    """Frames [0, n) of a series coded, every one checked, in frame order; Refused if any is not exact.
+    `lossy` (q, g) or (q, g, cut) codes optimal quality instead, whole groups to a worker."""
+    g = lossy[1] if lossy else 1
+    if lossy:
+        lossy_header(s, *lossy)
     per = -(-n // jobs)
+    per += -per % g
     piece = s.part if hasattr(s, "part") else lambda a, b: s
-    work = [(build.resolve(), piece(i, min(i + per, n)), codec, i, min(i + per, n), representation, split, preset, grey8)
+    rest = lossy or (representation, split, preset, grey8)
+    work = [(build.resolve(), piece(i, min(i + per, n)), "lossy" if lossy else codec, i, min(i + per, n), *rest)
             for i in range(0, n, per)]
     pinned(build.resolve(), codec)
-    if codec == "av1":
+    if codec == "av1" and not lossy:
         plan(s, representation, split, grey8)
     with ProcessPoolExecutor(jobs) as pool:
         return [x for part in pool.map(chunk, work) for x in part]
@@ -275,8 +346,8 @@ def coded(build, s, n, codec, jobs, representation="optimized", split=None, pres
 
 def digests(s, n, codec, representation="optimized", split=None, grey8="400"):
     """`metadata.json`'s `digests`; decodeFrame hands on two bytes a sample over 8 bits, for AV1 the payload's bits."""
-    wide = plan(s, representation, split, grey8)[0]["bits"] > 8 if codec == "av1" else s.stored > 8
-    return dict(algorithm="xxh3-64", frames=[frame_digest(s.frame(i), wide) for i in range(n)])
+    two = wide(plan(s, representation, split, grey8)[0]["bits"], s.signed, s.offset) if codec == "av1" else s.stored > 8
+    return dict(algorithm="xxh3-64", frames=[frame_digest(s.frame(i), two) for i in range(n)])
 
 
 def metadata(s, display, codec, preset=None):

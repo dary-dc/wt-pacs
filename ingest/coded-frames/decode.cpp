@@ -39,9 +39,10 @@ int threads = 1;
 // dav1d's thread count for every later av1_decode; 0 is one per core. The ingest check keeps 1.
 extern "C" void av1_threads(int n) { threads = n; }
 
-// 0, -1 if dav1d gave no picture, -2 if `out` holds fewer than its samples, -3 for a layout that
-// is neither 4:0:0, 4:4:4, nor 4:2:0 with every chroma sample mid-grey (grey, one plane out).
-extern "C" int av1_decode(const uint8_t* unit, size_t len, int32_t* out, size_t cap, Shape* shape) {
+// The last picture of `units`, one or more temporal units in order: 0, -1 if dav1d gave none or failed
+// on any, -2 if `out` holds fewer than its samples, -3 for a layout that is neither 4:0:0, 4:4:4,
+// nor 4:2:0 with every chroma sample mid-grey (grey, one plane out).
+extern "C" int av1_decode(const uint8_t* units, size_t len, int32_t* out, size_t cap, Shape* shape) {
   Dav1dSettings settings;
   dav1d_default_settings(&settings);
   settings.n_threads = threads;
@@ -49,16 +50,23 @@ extern "C" int av1_decode(const uint8_t* unit, size_t len, int32_t* out, size_t 
   Dav1dContext* ctx = nullptr;
   if (dav1d_open(&ctx, &settings)) return -1;
   Dav1dData data = {};
-  std::memcpy(dav1d_data_create(&data, len), unit, len);
-  Dav1dPicture pic = {};
-  int r;
-  do {
-    r = dav1d_send_data(ctx, &data);
-    if (r < 0 && r != DAV1D_ERR(EAGAIN)) break;
-    r = dav1d_get_picture(ctx, &pic);
-  } while (r == DAV1D_ERR(EAGAIN) && data.sz > 0);
-  if (r == DAV1D_ERR(EAGAIN)) r = dav1d_get_picture(ctx, &pic);
+  std::memcpy(dav1d_data_create(&data, len), units, len);
+  Dav1dPicture pic = {}, next = {};
+  bool shown = false;
+  int r = 0;
+  while (r == 0) {
+    if (data.sz > 0 && (r = dav1d_send_data(ctx, &data)) < 0 && r != DAV1D_ERR(EAGAIN)) break;
+    r = dav1d_get_picture(ctx, &next);
+    if (r == 0) {
+      if (shown) dav1d_picture_unref(&pic);
+      pic = next, shown = true;
+    } else if (r == DAV1D_ERR(EAGAIN) && data.sz > 0) {
+      r = 0;
+    }
+  }
   if (data.sz > 0) dav1d_data_unref(&data);
+  r = shown && r == DAV1D_ERR(EAGAIN) ? 0 : -1;
+  if (r != 0 && shown) dav1d_picture_unref(&pic);
   if (r == 0) {
     const bool grey = pic.p.layout == DAV1D_PIXEL_LAYOUT_I400 ||
                       (pic.p.layout == DAV1D_PIXEL_LAYOUT_I420 && neutral(pic));

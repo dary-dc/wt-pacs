@@ -1,0 +1,52 @@
+ok   codec as built
+ok   digest as built
+ok   dav1d.copyin as built
+ok   dav1d.flush as built
+ok   dav1d.decode as built
+ok   dav1d.held as built
+ok   place1 as built
+ok   place2 as built
+ok   fused as built
+ok   config as built
+ok   copyTo as built
+ok   neutral as built
+ok   flush as built
+ok   z.inflate as built
+FAIL z.unpack as built: Z_D top.decode moved 48.2 ms; Z_D z.inflate moved 51.8 ms
+ok   decode as built
+ok   parse as built
+caught codec:s moved: H off covers 4.0 %
+caught codec:e moved: H off covers 3.9 %
+caught digest:s moved: H digest grew 0.0 ms, not 100
+caught digest:e moved: H digest grew 0.0 ms, not 100
+caught dav1d.copyin:s moved: D top.copyin grew 0.0 ms, not 100
+caught dav1d.copyin:e moved: D top.copyin grew 0.0 ms, not 100
+caught dav1d.flush:s moved: D top.flush grew 0.0 ms, not 100
+caught dav1d.flush:e moved: D top.flush grew 0.0 ms, not 100
+caught dav1d.decode:s moved: D top.decode grew 0.0 ms, not 100
+caught dav1d.decode:e moved: D top.decode grew 0.0 ms, not 100
+caught dav1d.held:s moved: D top.held grew 0.0 ms, not 100
+caught dav1d.held:e moved: D top.held grew 0.0 ms, not 100
+caught place1:s moved: D place1 grew 0.0 ms, not 100
+caught place1:e moved: D place1 grew 0.0 ms, not 100
+caught place2:s moved: D place2 grew 0.0 ms, not 100
+caught place2:e moved: D place2 grew 0.0 ms, not 100
+caught fused:s moved: W2 fused grew -0.0 ms, not 100
+caught fused:e moved: W2 fused grew 0.0 ms, not 100
+caught config:s moved: W top.config grew 0.0 ms, not 100
+caught config:e moved: W top.config grew 0.0 ms, not 100
+caught copyTo:s moved: W top.copyTo grew 0.0 ms, not 100
+caught copyTo:e moved: W top.copyTo grew 0.0 ms, not 100
+caught neutral:s moved: W top.neutral grew 0.0 ms, not 100
+caught neutral:e moved: W top.neutral grew 0.0 ms, not 100
+caught flush:s moved: W top.flush grew 0.0 ms, not 100
+caught flush:e moved: W top.flush grew 0.0 ms, not 100
+caught z.inflate:s moved: Z_D z.inflate grew 0.0 ms, not 100
+caught z.inflate:e moved: Z_D z.inflate grew 0.0 ms, not 100
+caught z.unpack:s moved: Z_D z.unpack grew 0.0 ms, not 100
+caught z.unpack:e moved: Z_D top.decode moved 25.9 ms
+caught decode:s moved: W has no top.decode
+caught decode:e moved: W top.decode grew 0.0 ms, not 100
+caught parse:s moved: D parse grew 0.0 ms, not 100
+caught parse:e moved: D parse grew 0.0 ms, not 100
+1 wrong

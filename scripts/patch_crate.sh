@@ -46,7 +46,7 @@ src="$OUT/${CRATE}-${VERSION}"
 rm -rf "$src"
 tar -xzf "$crate" -C "$OUT"
 for what in $WHAT; do
-  patch -p1 --forward --batch --fuzz=0 --quiet -d "$src" < "$ROOT/patches/${CRATE}-${VERSION}-${what}.patch"
+  git -C "$src" apply "$ROOT/patches/${CRATE}-${VERSION}-${what}.patch"
 done
 
 # include! makes a crate's inner `//!` and `#![..]` outer, so the body goes without them.

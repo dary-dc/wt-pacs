@@ -98,7 +98,7 @@ impl Decoder {
         if !p.rct {
             out.iter_mut().for_each(|v| *v = v.wrapping_sub(p.offset));
         }
-        Ok(narrow(out.into_iter(), p.bits > 8))
+        Ok(narrow(out.into_iter(), p.wide()))
     }
 
     /// One unit or codestream decoded alone into `samples`, which grows to the first frame's size; its shape and length.
@@ -135,6 +135,14 @@ struct Payload<'a> {
     rct: bool,
     offset: i32,
     frame: &'a [u8],
+}
+
+impl Payload<'_> {
+    /// Two bytes a sample when the samples leave a byte's type: `av1-frame.js`'s rule.
+    fn wide(&self) -> bool {
+        let fits_i8 = self.offset <= 128 && (1 << self.bits) - 1 - self.offset <= 127;
+        self.bits > 8 || self.signed && !fits_i8
+    }
 }
 
 /// One frame's payload, every refusal `av1-payload.js` makes, by its words.
@@ -189,6 +197,18 @@ mod tests {
 
     fn av1() -> Decoder {
         Decoder::new(r#"{"codec": "av1"}"#).unwrap()
+    }
+
+    /// **A signed payload is two bytes a sample exactly when its values leave −128…127**, as `av1-frame.js` and
+    /// `ingest.py`'s `wide` type it (`docs/av1/payload-format.md` §Built, *Corrected 2026-10-30*).
+    #[test]
+    fn a_signed_payload_is_wide_when_its_values_leave_a_byte() {
+        for (lo, hi) in [(-10, 200), (0, 200), (-200, 0), (-200, -100), (-129, -100), (-128, 127), (-5, 100)] {
+            let offset = if lo < 0 { -lo } else { 0 };
+            let bits = 32 - ((hi + offset) as u32).leading_zeros().min(31) as i32;
+            let p = Payload { bits, depth: 8, split: 0, signed: true, rct: false, offset, frame: &[] };
+            assert_eq!(p.wide(), lo < -128 || hi > 127, "{lo}…{hi}");
+        }
     }
 
     /// **Every committed frame digest holds natively.** Both HTJ2K contract codestreams and every AV1 golden and

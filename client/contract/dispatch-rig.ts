@@ -819,6 +819,7 @@ const COLOUR8_XXH3 = "5f99dd7c0b2fc5e9";
  * docs/adr/exactness-in-production.md §2
  */
 async function aFrameSaysWhetherItIsExact(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
+  if (!(await served(HASHER))) return void log(`  SKIPPED: the frame check — no ${HASHER} (client/decode/wasm/build/build.sh)`);
   const grey = await fetched("/client/contract/frames/grey-16.j2c");
   const colour = await fetched("/client/contract/frames/colour-8.j2c");
   const run = async (glue: string, digests: (string | null)[], codestreams: Uint8Array[], decoder: RealDecoder) => {
