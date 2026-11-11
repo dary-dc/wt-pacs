@@ -76,9 +76,8 @@ pub struct TransportTuning {
     /// quinn default: 333 ms.
     #[arg(long)]
     pub initial_rtt_ms: Option<u64>,
-    /// Lab only: answer a client's repeated Initial with the unacknowledged handshake flight,
-    /// once a connection. docs/transport/transport-conclusions.md §3, Answering a repeated Initial.
-    #[arg(long)]
+    /// Lab only: set by `--reply-repeated-initial`, a flag of the `lab-levers` build.
+    #[arg(skip)]
     pub reply_repeated_initial: bool,
     /// Lab only: set by `--segmentation-offload`, a flag of the `lab-levers` build.
     #[arg(skip = true)]

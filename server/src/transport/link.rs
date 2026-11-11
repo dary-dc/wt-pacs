@@ -68,6 +68,7 @@ impl Link {
         let media = match mode {
             StreamMode::Shared => Media::Shared(connection.open_uni().await?),
             StreamMode::PerFrame => Media::PerFrame { acks: JoinSet::new(), seq: 0, asks: None },
+            #[cfg(feature = "lab-levers")]
             StreamMode::PerFrameAsksFirst => Media::PerFrame { acks: JoinSet::new(), seq: 0, asks: Some(0) },
         };
         Ok(Self::Quic { media, control, connection, stall_left, cwnd_ahead })

@@ -40,7 +40,7 @@ pub struct ServeConfig {
     pub cert_pem: PathBuf,
     #[arg(long, default_value = "server/dev-cert/key.pem")]
     pub key_pem: PathBuf,
-    /// How frames reach the client: `shared` or `per-frame` (lab only: `per-frame-asks-first`).
+    /// How frames reach the client: `shared` or `per-frame`; a `lab-levers` build adds a third, `transport/stream_mode.rs`.
     #[arg(long = "stream-mode", value_name = "STREAM_MODE", value_enum, default_value_t = StreamMode::Shared)]
     pub mode: StreamMode,
     /// Bind address for the QUIC endpoint. Default: dual-stack `[::]`, falling back to `0.0.0.0`
@@ -52,10 +52,6 @@ pub struct ServeConfig {
     /// Honour `?ask=frame:N` / `?ask=fill:A-B` in the session URL; `--opening-ask false` turns it off. docs/ARCHITECTURE.md
     #[arg(long, default_value_t = true, num_args = 0..=1, default_missing_value = "true", action = clap::ArgAction::Set)]
     pub opening_ask: bool,
-    /// Lab only: before each frame, the send window is the congestion window plus two of the series' largest frames.
-    /// docs/transport/link-conditions.md §ASKAHEAD
-    #[arg(long, default_value_t = false)]
-    pub send_window_follows_cwnd: bool,
     /// Also serve the same envelopes over a WebSocket, TCP on `--port`. docs/WIRE.md §The WebSocket mapping
     #[arg(long, default_value_t = false)]
     pub websocket: bool,
@@ -143,10 +139,13 @@ pub(super) struct Sessions {
 impl Sessions {
     /// Warns for each lab lever that is on, so a lab flag is never mistaken for a deployment.
     fn new(config: &ServeConfig, store: Arc<FrameStore>) -> Self {
-        let cwnd_ahead = config.send_window_follows_cwnd.then(|| {
+        #[cfg(feature = "lab-levers")]
+        let cwnd_ahead = config.lab.send_window_follows_cwnd.then(|| {
             let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
             2 * u64::from(largest)
         });
+        #[cfg(not(feature = "lab-levers"))]
+        let cwnd_ahead = None;
         if let Some(bytes) = cwnd_ahead {
             warn!(bytes, "--send-window-follows-cwnd: the send window is cwnd + this; a lab flag, not a deployment one");
         }
@@ -495,7 +494,6 @@ mod tests {
                 bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
                 tuning: TransportTuning::default(),
                 opening_ask: false,
-                send_window_follows_cwnd: false,
                 websocket: false,
                 #[cfg(feature = "lab-levers")]
                 lab: LabLevers::default(),
@@ -1482,12 +1480,13 @@ mod tests {
     /// cwnd, two frames, and the frame the window cut — not behind the 1.25 MB the client's
     /// credit lets the server queue. The server hears no ACK while the client asks, so nothing
     /// written leaves the window. `docs/transport/link-conditions.md` §ASKAHEAD.
+    #[cfg(feature = "lab-levers")]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn an_ask_during_a_fill_waits_behind_no_more_than_the_send_window() {
         const CWND_ALLOWANCE: usize = 64 * 1024;
         let frames = 32u32;
         let fx = Fixture::new(frames);
-        let server = tokio::spawn(run_server(ServeConfig { send_window_follows_cwnd: true, ..fx.config() }));
+        let server = tokio::spawn(run_server(ServeConfig { lab: LabLevers { send_window_follows_cwnd: true, ..LabLevers::default() }, ..fx.config() }));
         until_bound(fx.port, Duration::from_secs(5)).await;
 
         // The server's datagrams are dropped while `dark`; the client's always pass.
