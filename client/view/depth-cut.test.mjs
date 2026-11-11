@@ -1,4 +1,4 @@
-// node client/view/depth-cut.test.mjs — a depth cut's shift is applied only to frames decoded at the cut's 10 bits.
+// node client/view/depth-cut.test.mjs — a depth cut's shift is applied only to frames of the cut's 10 bits.
 import assert from "node:assert/strict";
 import { Controller } from "./controller.js";
 
@@ -9,9 +9,10 @@ const frame = (i, bits) => ({
 });
 
 /**
- * Finding: `Controller.take` gives every frame of a depth-cut series the shift D − 10, whatever depth the frame
- * decoded at. A cut series' payload decoded at 12 (or 8) bits is painted ×4 — the wrong depth after the cut — and
- * labelled *Optimal quality*, with no failure on the status line. The frame should be refused by name.
+ * Finding: `Controller.take` gives every frame of a depth-cut series the shift D − 10, whatever the frame's bits.
+ * Every cut payload is 10 bits (`ingest.py` `lossy_header`), so a frame of other bits is not the cut: the stored
+ * form's 12-bit frames served under the cut's metadata (both are in the demo set) are painted ×4 — the wrong depth
+ * after the cut — and labelled *Optimal quality*, with no failure on the status line. It should be refused by name.
  */
 const painted = [];
 const events = [];

@@ -1,6 +1,6 @@
 // node client/viewer/pair-source.test.mjs — an exact series is accepted only when it is shown to be this series' source, read as this series is read.
 import assert from "node:assert/strict";
-import { checkPair } from "./pair.js";
+import { checkPair, pairOf } from "./pair.js";
 
 const source = { frameCount: 3, width: 4, height: 2, bitsStored: 12, signed: false };
 const lossy = { ...source, codec: "av1", lossy: { q: 8, g: 8, depth: 10, bitsStored: 12 }, exactSeries: "1.2.840.5" };
@@ -38,6 +38,15 @@ claim("an exact series read otherwise than this series is refused", () => {
     { rescale: { slope: 2, intercept: 0 } },
     { perFrame: { rescale: [{ slope: 1, intercept: -1024 }, { slope: 1, intercept: -1024 }, { slope: 1, intercept: -1024 }] } },
   ]) assert.throws(() => checkPair(named, { ...same, ...bad }), Error, JSON.stringify(bad));
+});
+
+/**
+ * Finding: `pairOf`'s id rule `/^[\w.-]+$/` admits "." and "..", which the browser resolves to other paths:
+ * "/series/./metadata" is "/series/metadata", this series' own metadata on `dev-server.py`. `checkPair` refuses
+ * that one as AV1 today; the id should be refused by name before anything is fetched.
+ */
+claim("an exactSeries of dot segments is not a series id", () => {
+  for (const id of [".", ".."]) assert.throws(() => pairOf({ ...lossy, exactSeries: id }), /exactSeries/, id);
 });
 
 if (failures.length) {
