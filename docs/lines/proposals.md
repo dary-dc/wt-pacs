@@ -37,6 +37,7 @@ bursts (`gemodel`). The phone itself, its radio and its decoder are not modelled
 | P3 | a wake on `pointerdown`, before `l` asks | `l` after a dwell | − min(P, L) on a promoted radio: 0–150 ms | client, ~10 lines | plumbing only |
 | P4 | a 32-packet initial window on the exact server only | `l` | `l` −5 to −25 % on a clean link | a flag | yes, through netem |
 | P5 | the exact session dialled after the first picture | first picture | 0 to −100 ms on a phone; nothing measurable on this host | client, ~3 lines | barely |
+| P6 | dav1d fetched only where WebCodecs refuses | first picture, bytes | −0.24 to −0.64 MB a cold page; first picture 0 to −250 ms where WebCodecs takes it, 0 to +150 ms where it refuses | client, ~15 lines | yes, through netem and a forced refusal |
 
 Most promising first: P1's band is the widest by an order of magnitude and needs no code; P2 is the only lever on
 the decode, which bounds the fill on a fast link and every jump; P3–P5 are smaller and cheap.
@@ -443,6 +444,106 @@ on the shared link and starts the exact session with a larger RTT estimate. A ru
 `session path` RTT in both arms would settle it. **Limits:** as P1's; the throttle slows the main thread only
 (amendment 1), and a phone's radio is not modelled.
 
+### P6. dav1d fetched only where WebCodecs refuses
+
+*Theory and a pre-registered protocol, written 2026-11-11 (row DAV1D-LAZY) against the demo tip
+`claude/demo-fixes-1` at `daee0d1d`. Nothing built or measured; a different session runs the protocol.*
+
+**Mechanism.** Every AV1 page fetches dav1d whether or not it decodes a frame with it, three ways. (1)
+`client/viewer/head.js` preloads `av1-dav1d.js`, `dav1d.js` and `dav1d.wasm` once the metadata says `codec: "av1"`.
+(2) Each decoder worker's `av1.js` `init` imports `av1-dav1d.js` and fetches the glue and the WASM again, "Fetched
+while the session dials, compiled only on first use" (its comment; lab/page-open/README.md §Cold round trips by codec). (3)
+dav1d is instantiated only on first use (`av1.js` `module`), so a page WebCodecs serves pays bytes, not compile or
+heap: FOOTPRINT's 31.6 MB a dav1d worker (R, `docs/av1/queue.md` row 38) is never spent there. The preload warms
+only the HTTP cache for the workers: the Fetch Standard consumes a preloaded response only when "request's
+client's global object is a Window object" (S, Fetch, the fetch algorithm), and the HTML Standard keys it to the page: "A
+Document has a map of preloaded resources" (S, HTML §4.6.8.20). Whether the three workers' fetches are then served
+from the cache, or each reaches the host, is not established here: `dev-server.py` sends no `Cache-Control` on
+`.wasm` (R, `server/dev-server.py` `send_header`); the protocol counts the requests.
+
+The bytes (R, the tree at `daee0d1d`; gzip at level 6, the deploy template's): `dav1d.wasm` 623 146, `dav1d.js`
+10 779, `av1-dav1d.js` 2 559, **636 484 B raw, 243 481 B gzipped**. `dev-server.py`, which the phone protocol
+serves from, does not compress. `wasm-glue.js` stays either way (the exact series' OpenJPH uses it).
+
+**Who needs it** (the owner's decision of 2026-11-11 13:30: the optimal-quality series is ≤ 10 bits on the demo
+path). A ≤ 10-bit unit goes to WebCodecs once its layouts' probe passes (`av1.js` `route`, `av1-probe.js`), to
+dav1d after a refusal or a failure. WebCodecs may refuse anything: "User Agents don't have to support any
+particular codec type or configuration" (S, WebCodecs §4.5 `configure()`). Measured refusals (R): Firefox 157's
+WebCodecs "refused every grey payload" (`docs/adr/exactness-in-production.md` §Built · 2026-10-09), and WebKit's takes
+8-bit 4:2:0 only, "every AV1 frame on an iPhone" goes to dav1d (§Frames with no second path; `docs/av1/queue.md`
+row 29); Chromium 141's took every layout of row 37. No phone's WebCodecs has been probed here (row 37: "desktop
+engines in a container, not phones"). Outside the demo path dav1d is needed from the start: an exact AV1 series
+over 10 bits "goes to dav1d alone" (`av1.js`), and Chromium's WebCodecs refused 12 bits (R, row 31), the lab's stored
+form (`lossy.depth` > 10).
+
+**The forms.**
+
+* **(a) Today.** Preload and fetch at start, compile on first use.
+* **(b) On refusal (the brief's form).** No preload, no fetch at start; `av1.js` imports and fetches dav1d at the
+  first refusal or failure. A refusing device then waits, after its first payload, for the chain COLDRTT measured:
+  dav1d `-before` 11.93 round trips to the first frame against `-pre` 7.96 (R, lab/page-open/README.md §Cold round
+  trips by codec), **+4.0 round trips**, plus the probe, which runs only on the first payload.
+* **(c) Probe at start.** No preload. Each worker's `init` runs the probe of the layouts the metadata implies (a
+  `lossy.depth` of 8 or 10, `g8` beside it when split) while the session dials, and fetches dav1d at once if it
+  refuses, if `VideoDecoder` is absent, or if the series is over 10 bits (exact, or the stored form). The fetch
+  then overlaps the dial (7.0 round trips cold, R, COLDRTT's *cold session*) instead of following the first
+  payload. A failure later (a decode error, a refusal on a later payload) starts the fetch too. The decision rests
+  on the metadata, not on a guess: `lossy.depth` is already there (`docs/av1/payload-format.md` §Optimal quality).
+  This is COLDRTT's "**Not built:** a depth hint in the decoder config that would skip dav1d's WASM on a ≤ 10-bit
+  series", with the probe made the hint.
+
+(c) is the form proposed; (b) is measured beside it only to show what the start-time probe buys.
+
+**The failure inside a group.** A WebCodecs decode error closes the decoder ("queue a task to run the Close
+VideoDecoder algorithm with EncodingError", S, WebCodecs §4.5 `decode()`). On frame k > 0 of a group, `av1.js`
+falls to dav1d, which refuses a unit whose predecessor it did not decode (`av1-payload.js` `continues`:
+"undecodable: frame k−1 was not decoded before it here"); the frame fails, and so do the rest of the group's, in
+every form, loaded or not. dav1d is reached again only at a keyframe WebCodecs also fails. So (b) and (c) cost
+nothing inside the group and, by fetching at the first failure, have dav1d in hand by the next keyframe unless
+that keyframe fails before the fetch (2–3 round trips plus the transfer) lands; then it waits for it, once. The frames lost inside the group are a gap that
+exists today and is not this proposal's: the wire buffer of the group's keyframe is back in the ring by then.
+
+**Expected effect (assumption).** On the demo's link (30 ms each way, 20 Mbit/s):
+
+| device | form | dav1d bytes a cold page | first picture | fill's end |
+| --- | --- | --- | --- | --- |
+| WebCodecs takes it | (b), (c) | −0.64 MB raw, −0.24 MB gzipped; up to 4× that if the workers' fetches miss the cache | 0 to −250 ms raw, 0 to −100 ms gzipped | 0 to −250 ms raw, 0 to −100 ms gzipped where the link bounds the fill; 0 where decode does |
+| WebCodecs refuses | (b) | 0 | **+0.3 to +0.5 s** (4.0 × 60 ms, plus 95–250 ms of transfer, plus the probe); +0.5 to +0.7 s at a 100 ms phone round trip | the same, once |
+| WebCodecs refuses | (c) | 0 | 0 to +150 ms: the probe (a worker ready in 28–39 ms at 1×, 84–93 ms at 4×, R row 38), the fetch hidden in the dial while probe + 2–3 round trips + transfer < 7 round trips | 0 |
+
+(D) The time bands are the bytes' link time at 20 Mbit/s (243 KB 95 ms, 636 KB 250 ms) taken as an upper bound
+and 0 as the lower: the transfer runs while the dial does, and costs the first picture only where it still holds
+the link when the first payload arrives. COLDRTT's whole `-after` change on the WebCodecs path read +67 ms at 0 ms
+and −20 ms at 40 ms (R), its share from dav1d's WASM not separated. A warm page ties in every form. The fill's
+4.5–23 MB (R) makes the bytes 1–5 % of a gzipped fill, 3–14 % of a raw one. **Cost:** (c) moves the probe from the
+first payload to the start (once per worker, as today); about 15 lines in `av1.js` and `head.js`; one more state
+to test (a fetch in flight when the first refusal arrives).
+
+**Protocol (pre-registered).** *Rule first:* adopt (c) if, on every series and every link cell, (1) on a route
+WebCodecs takes, cold, no `dav1d` file reaches the static host, the median first picture is no more than 10 ms
+above (a)'s and the median fill's end no more than 1.02× (a)'s; (2) on a forced refusal, cold, the median first
+picture is no more than 50 ms above (a)'s and every frame is painted by `av1-dav1d` with the label (a) gives; (3)
+under a forced mid-group failure, the frames that fail and the route of every other frame are those of (a). Any
+cell outside rejects. (b) is judged by the same rule; it is expected to fail (2). The bytes are the gain; the time
+is reported, not required.
+
+*Arms:* (a) the demo tip's page; (b) and (c), lab copies of it, never the tip, built as P5's arm is
+(`lab/proposals/p5_arm.sh`). *Fixtures:* the three series of P5's amendment (`dbts_a1-q8-g8-cut`, `dbts_b1-q8-g8`,
+`dbts_c1-q8-g16-cut`, each with its exact series). *Routes:* WebCodecs taken, headless Chromium as P1–P5; a forced
+refusal on a ≤ 10-bit series through DEMO-UX item 3's test lever (absent: a lab lever that makes the probe
+return false, named in the result); a forced decode error on frame 3 of a group mid-series (a lab lever on
+`av1-webcodecs.js` `picture`). *Link:* `link_impair.py --delay-ms 30 --rate-kbit 20000 --queue-pkts 1000`, clean
+and `--loss 1`, with the static host's TCP behind the same shaping (COLDRTT's nginx harness gzips; `dev-server.py`
+does not — run both, report apart; if the static host cannot be shaped, say so: the cell then cannot show the
+bytes' time and decides only (1)'s byte count and (2)'s correctness). *Cache:* a fresh profile per run (cold), and
+a second navigation in the same profile (warm, reported, not in the rule). *Measured:* the static host's request
+log (`dev-server.py --log-requests`, or nginx's access log): every `dav1d` request and its bytes; first picture as
+P5 (navigation to the quality label's first text); the fill's last frame as P1; the route of every frame from
+`?overlay=1`. 9 rounds, the arms rotated one place a round, as P5. *Limits:* headless Chromium on a 4-core host
+without a GPU stands in for a phone; the forced refusal is a lever, not a refusing engine (add a Firefox cell where
+the host runs it, its refusal real: R row 37); one dataset's three DBT volumes; the 20 Mbit link is netem, not
+radio.
+
 ### Sources
 
 Each official source read on 2026-11-11; the SHA-256 prefix is of the copy read.
@@ -454,3 +555,7 @@ Each official source read on 2026-11-11; the SHA-256 prefix is of the copy read.
 * Chromium `463745830f5ed9085d719a959b967c2fcca172b1`: `media/filters/davxd_video_decoder_base.cc` (`246fd0000402`),
   `media/filters/dav1d_video_decoder.cc` (main, the same day).
 * libaom v3.15.1 `av1/arg_defs.c` (`9f0a8ad3363e`), aomedia.googlesource.com.
+* Fetch Standard, the fetch algorithm's preload step, fetch.spec.whatwg.org (`63b0a018753c`).
+* HTML Standard §4.6.8.20 and the map of preloaded resources, html.spec.whatwg.org/multipage/links.html
+  (`6d8990691efd`).
+* WebCodecs, the same Working Draft, §4.5 `configure()` and `decode()`.
