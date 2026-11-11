@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The product carries no lab code: nothing of lab/ in the server image, its default build or the web image, and
+# The product carries no lab code: nothing of lab/ in the deploy images or the default build, and
 # no check module in the web image. head.js's lab gate is the one path to lab/. docs/lines/coordination.md §Decisions
 # Prints every breach, then fails if there was one.
 set -euo pipefail
@@ -7,8 +7,10 @@ cd "$(dirname "$0")/.."
 breaches=0
 breach() { echo "FAIL: $*"; breaches=$((breaches + 1)); }
 
-copies=$(grep -HnE '^COPY +([^ ]+ +)*lab/' deploy/Containerfile deploy/Containerfile.prebuilt || true)
-[[ -z "$copies" ]] || breach "the server image copies lab/:"$'\n'"$copies"
+# The shipped stages only: the build stage copies the workspace's lab members, which cargo must load to resolve.
+copies=$(awk '/^FROM / { stage = $NF } stage ~ /^(server|web)$/ && /^COPY +([^ ]+ +)*lab\// { print FILENAME ":" FNR ": " $0 }' \
+  deploy/Containerfile deploy/Containerfile.prebuilt)
+[[ -z "$copies" ]] || breach "a deploy image copies lab/:"$'\n'"$copies"
 
 members=$(sed -n '/^default-members/,/]/p' Cargo.toml | grep -oE '"lab/[^"]*"' || true)
 [[ -z "$members" ]] || breach "the default workspace builds a lab crate: $members"
