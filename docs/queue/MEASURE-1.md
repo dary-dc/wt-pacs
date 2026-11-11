@@ -1,12 +1,12 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 13:38
+heartbeat: 2026-11-11 13:44
 outputs: claude/proposals a98a4319 (P1 measured: adopt; P4 7 rounds: reject; P2 5 rounds: 2x2 meets its rule); no PR yet (#358 is OPT-THEORY's draft into main from this branch)
 ## Resume
 Resumed 2026-11-11 13:26 by a new session (stalled at 12:25). 13:24: setup started at 9e2ef4ef in /home/user/tip
 (as listed below, log in /home/user/logs/setup.log). P5 amendment 1 pushed (89436c33; the CDP throttle reaches the main thread only, so a 2-core taskset cell is added
-beside the verdict); driver pushed (link_cells.mjs --host/--cpu-throttle, p5_arm.sh, p5.sh). Next: after setup,
-lab/proposals/p5_arm.sh /home/user/tip /home/user/p5-after; one smoke run per arm; then in ../proposals
+beside the verdict); driver pushed (link_cells.mjs --host/--cpu-throttle, p5_arm.sh, p5.sh). Setup done 13:43 (demo-series 832 s); arm built, smoke run per arm reached Lossless (not kept). 2026-11-11 13:44: P5 rounds
+1-9 started; a loop commits lab/proposals/rows/p5.jsonl every 10 min. To restart: in ../proposals
 TIP=/home/user/tip DIR=/home/user/tip/demo-series ARM=/home/user/p5-after lab/proposals/p5.sh lab/proposals/rows/p5.jsonl
 (background; ~40 s a run, 12 a round). If stalled: count rows per round in p5.jsonl, move a partial round to
 p5-stopped.jsonl, rerun from that round (second argument).
