@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 06:19
+heartbeat: 2026-11-11 06:25
 outputs: claude/proposals e936037f (P1 measured: adopt; P4 amendment 1; drivers, rows)
 ## Resume
 Order (most promising first): P1 BBR, P4 initial window (same rig), then P2 tiles, P5, P3 plumbing, then audit
