@@ -197,6 +197,10 @@ export class ViewWorker {
     return this.#call("ledger", lab);
   }
 
+  summary() {
+    return this.#call("summary");
+  }
+
   /** Cine on the view worker's own `source`, or on the page's `tick`s with `posted`, frame 0 due at `t0`: lab/frame-clock. */
   play(fps, t0, source) {
     this.#worker.postMessage({ kind: "play", fps, t0, source });
