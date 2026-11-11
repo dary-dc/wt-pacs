@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 11:15
+heartbeat: 2026-11-11 11:25
 outputs: claude/proposals 46db2cb3 (P1 measured: adopt; P4 measured, 7 rounds: reject); no PR yet (#358 is OPT-THEORY's draft into main from this branch)
 ## Resume
 Resumed 2026-11-11 08:23 by a new session (stalled at 07:17). 08:25: setup started at 9e2ef4ef (demo-fixes-1 is
@@ -10,7 +10,10 @@ background command, rows pushed every ~10 min by a loop that only commits lab/pr
 P2: amendment 1 written 11:04 (4619adb6). 11:10 encodes running: lab/proposals/p2_encodes.sh to /home/user/p2
 (TIP=/home/user/tip P2_OUT=<dir>; reruns skip finished bundles), then p2_decode.mjs (decode cell) and demo-check
 (page cell) per the amendment. A fresh session reruns the encodes (~15 min; the one-tile arm checks itself
-byte-equal to demo-series). If stalled: count rows in
+byte-equal to demo-series). Encodes done 11:12, bytes rows pushed; tiles checked on keyframes with ffmpeg
+(1x1, 2x2, 2 columns). Each arm dir needs the exact series linked in: ln -sf $TIP/demo-series/dbts_?1.{sbnd,metadata.json}
+$P2_OUT/<arm>/. 11:25: rounds 1-5 started: TIP=$TIP P2_OUT=$P2_OUT lab/proposals/p2.sh lab/proposals/rows/p2.jsonl 1 5
+(a stopped round: move its rows to p2-round<N>-stopped.jsonl, rerun from N). If stalled: count rows in
 p4.jsonl; drop a partial round's rows to a *-stopped file and rerun that round whole.
 Order (most promising first): P1 BBR, P4 initial window, then P2 tiles, P5, P3 plumbing, then audit protocols B
 (B0 first, zero encodes), A (shares B's cells), C (claude/av1-corrections:docs/av1/audit-protocols.md).
