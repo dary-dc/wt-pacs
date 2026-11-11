@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 13:44
+heartbeat: 2026-11-11 13:50
 outputs: claude/proposals a98a4319 (P1 measured: adopt; P4 7 rounds: reject; P2 5 rounds: 2x2 meets its rule); no PR yet (#358 is OPT-THEORY's draft into main from this branch)
 ## Resume
 Resumed 2026-11-11 13:26 by a new session (stalled at 12:25). 13:24: setup started at 9e2ef4ef in /home/user/tip
@@ -10,6 +10,10 @@ beside the verdict); driver pushed (link_cells.mjs --host/--cpu-throttle, p5_arm
 TIP=/home/user/tip DIR=/home/user/tip/demo-series ARM=/home/user/p5-after lab/proposals/p5.sh lab/proposals/rows/p5.jsonl
 (background; ~40 s a run, 12 a round). If stalled: count rows per round in p5.jsonl, move a partial round to
 p5-stopped.jsonl, rerun from that round (second argument).
+After P5: P3, amendment 1 pushed (e85ad24e), p3_arm.sh and p3.sh pushed (459486d6). Its driver edit waits for P5
+to end (each P5 run reloads link_cells.mjs): python3 docs/queue/MEASURE-1-p3_driver.py (this branch; edit its path),
+commit, then lab/proposals/p3_arm.sh /home/user/tip /home/user/p3-wake; smoke one on50 run; then TIP=... DIR=...
+ARM=/home/user/p3-wake lab/proposals/p3.sh lab/proposals/rows/p3.jsonl (105 runs, ~35 min).
 Resumed 2026-11-11 08:23 by a new session (stalled at 07:17). 08:25: setup started at 9e2ef4ef (demo-fixes-1 is
 bdbbac84, docs only on top, so the code under rounds 4-7 matches rounds 1-3); then P4 rounds 4-5, 6-7, each pair one
 background command, rows pushed every ~10 min by a loop that only commits lab/proposals/rows/p4.jsonl.
