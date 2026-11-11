@@ -107,6 +107,16 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   and names both origins in its policy (`deploy/README.md` §Run it). `check_equivalence.sh --local` now serves the
   smoke series as a pair's exact series and passes; five template mutants fail it. Not run: the image itself (CI's
   job), and a browser on an image-served pair.
+* **Source fingerprint** (SOURCE-FINGERPRINT, 2026-11-11, `claude/source-fingerprint` from `claude/demo-fixes-1`,
+  merged into `claude/demo-fixes-2` by FIX-2): every series the ingests write (`ingest_coded.py`, `from_dicom.py`, the Rust ingest) carries
+  `sourceFingerprint`, XXH3-64 over the source's frame digests as its HTJ2K series carries them; `checkPair` requires
+  the same 16 hex digits in both series instead of `framesSha256`, which stays the fetcher's download pin and is no
+  longer copied into a series ([`../av1/payload-format.md`](../av1/payload-format.md) §Source fingerprint). Synthetic
+  sets and node tests, every new test mutated. `demo-series.sh` run again (one 4-core cloud host, 685 s with the
+  coders built): every exact bundle 43 B smaller (`framesSha256` out, `sourceFingerprint` in), each optimal-quality
+  bundle the same size; each set's eight or seven series carry one fingerprint, the three sets three; `checkPair`
+  accepts all 20 pairs and refuses each against the other two sets' exact series by source (a node script over the
+  metadata; no browser run on these series).
 * **Not yet run:** any phone run.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
@@ -238,7 +248,10 @@ What a presenter should know, from the reviews of 2026-11-11 (`claude/demo-under
 * The decoders' WASM is committed and the gate checks it rebuilds to the same bytes; that is what lets the laptop
   without installs run the page without Docker.
 * `framesSha256` is written only by the lab fixture fetcher, so a pair made by any other ingest fails the pairing
-  check until the ingest writes the source fingerprint (row SOURCE-FINGERPRINT).
+  check until the ingest writes the source fingerprint (row SOURCE-FINGERPRINT). *Built 2026-11-11 on
+  `claude/source-fingerprint`, not in the demo:* every ingest writes `sourceFingerprint` and `checkPair` compares it
+  in place of `framesSha256`; it enters the demo only with the owner's word, since every demo series must be written
+  again.
 
 ## Pointers
 

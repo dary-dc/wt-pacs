@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
+import xxhash
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -60,6 +61,12 @@ def through(build, work, name, px, codec, **tags):
     return f"{same}/{n} frames as written"
 
 
+def fingerprint(px, dtype="<i2"):
+    """XXH3-64 over each frame's XXH3-64 hex digest in order, its samples as stored, two bytes each over 8 bits."""
+    each = [xxhash.xxh3_64_hexdigest(np.ascontiguousarray(f, dtype).tobytes()) for f in px]
+    return xxhash.xxh3_64_hexdigest("".join(each).encode())
+
+
 def failed_pack(build, work, px):
     """A pack refused at its last step, the rename (a directory holds the name): what it left beside the name."""
     src = t.save(t.obj(px), work / "refused.dcm")
@@ -84,6 +91,15 @@ def main():
             t.check(said == "3/3 frames as written", f"test_signed_ct_{codec}: 12-bit signed CT out of the bundle ({said})")
             said = through(build, work, "rgb", rgb, codec, bits=8, stored=8, photometric="RGB", modality="XC")
             t.check(said == "2/2 frames as written", f"test_rgb_{codec}: 8-bit RGB out of the bundle ({said})")
+        got = {c: json.loads((work / f"ct-{c}.metadata.json").read_text()).get("sourceFingerprint") for c in ("htj2k", "av1")}
+        t.check(got == {"htj2k": fingerprint(ct), "av1": fingerprint(ct)},
+                f"test_source_fingerprint: both codecs write the signed CT's one source fingerprint ({got}, want {fingerprint(ct)})")
+        narrow = rng.integers(-100, 128, (2, 16, 24, 1))
+        for codec in ("htj2k", "av1"):
+            through(build, work, "s8", narrow, codec, bits=8, stored=8, signed=True, modality="OT")
+        got = {c: json.loads((work / f"s8-{c}.metadata.json").read_text()).get("sourceFingerprint") for c in ("htj2k", "av1")}
+        t.check(got == {"htj2k": fingerprint(narrow, "i1"), "av1": fingerprint(narrow, "i1")},
+                f"test_source_fingerprint_8_bit: an AV1 payload widened past 8 bits keeps the one-byte source's fingerprint ({got})")
         said, left = failed_pack(build, work, ct & 0x7FF)
         t.check(said and left == ["refused.sbnd"],
                 f"test_failed_pack: refused as nothing written, no sidecar, no partial ({said}, {left})")
