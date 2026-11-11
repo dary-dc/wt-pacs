@@ -14,12 +14,8 @@ cargo build -q --release -p series-server -p pack-series
 import sys
 from pathlib import Path
 sys.path.insert(0, "ingest/coded-frames")
-import json
 import lossy_test
-out = Path(sys.argv[1])
-lossy_test.write_set(out, lossy_test.source(10), 10)
-meta = json.loads((out / "metadata.json").read_text())
-(out / "metadata.json").write_text(json.dumps({**meta, "framesSha256": "synthetic"}))  # the pair's same-source check
+lossy_test.write_set(Path(sys.argv[1]), lossy_test.source(10), 10)
 PY
 pack() {  # ID [ingest_coded.py's options]
   local id=$1
