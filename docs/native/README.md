@@ -227,7 +227,7 @@ none queued; each states its predictions and rule before any data and runs in a 
   made on the cache, background work and phones alone; if P3 holds, the gain on large frames is costed for phones by
   M4. Say where the container saturates.
 
-  *Run 2026-10-28, this container (4 vCPU), from this protocol:* [`lab/native-fill/run.py`](../../lab/native-fill/run.py),
+  *Run 2026-10-28, this container (4 vCPU), from this protocol:* [`lab/native-fill/run.py`](https://github.com/dary-dc/wt-pacs/tree/0920153d2a44916c6832a9d8dd0befabc0923681/lab/native-fill/run.py),
   rows in [`rows.jsonl`](https://github.com/dary-dc/wt-pacs/tree/2e6fa5b225396a1431035f853cefaf6acbe1f428/lab/native-fill/rows.jsonl) at `claude/core@2e6fa5b2`, not in this tree. M1 passed, so its painter is in.
   * **Arms, every setting printed in each row.** *Browser:* the viewer, `client/viewer/`, in headless Chrome for
     Testing 153 with the TS client, OpenJPH-WASM from the pinned build, and the gl painter on SwiftShader. Its fill is timed
@@ -301,7 +301,7 @@ none queued; each states its predictions and rule before any data and runs in a 
   after every kill each frame is either absent or passes its check, 100 of 100; a byte flipped on disk is refused on
   read and fetched again. Rule: all three hold, or the cache's design is revised before any phone run.
 
-  *Run 2026-10-28* ([`../../lab/scripts/native_cache_cells.sh`](../../lab/scripts/native_cache_cells.sh), container,
+  *Run 2026-10-28* ([`../../lab/scripts/native_cache_cells.sh`](https://github.com/dary-dc/wt-pacs/tree/a237cf3e77b2976802cc3d6f1df1eac9eeeeb689/lab/scripts/native_cache_cells.sh), container,
   4 cores, ext4). **All three hold: the design stands** (*corrected 2026-10-28*: the reopen's prediction holds warm
   only, from the page cache; cold, as after a reboot, is not measured, so ≤ 0.5 s is not shown for a real reopen).
   Settings: `native-fill` release with `decode` (dav1d 1.5.4, OpenJPH 0.31.0), Chromium's windows, one `series-server` release build in `shared`; a synthetic series of 87 HTJ2K

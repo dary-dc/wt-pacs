@@ -243,8 +243,12 @@ What a presenter should know, from the reviews of 2026-11-11 (`claude/demo-under
 * The web image ships the check hooks (`check-page.js`, `view/check.js`), so `?check=` works in production; on the
   lab host `?opts=` can switch the exactness check off from the URL (DEFAULTS-FIND 1, 4).
 * About 110 of `viewer.js`'s 334 lines are check and lab hooks (CLEAN-FIND).
-* PR 250 brings to `main` new `lab/` directories (about 5 100 lines, `lab/target-review` among them) and
+* PR 250 brings to `main` new `lab/` directories (about 5 100 lines, lab/target-review among them) and
   `client/native` (+3 303); moving any off `main` names each item and waits for the owner's yes (PRE-MAIN-REVIEW §4).
+  EXPERIMENTS-OFF (2026-11-11) lists every item in [`docs/reviews/experiments-off.md`](../reviews/experiments-off.md):
+  nine removals prepared on `claude/demo-clean` (−8 273 lines, each folder kept byte for byte on its line branch),
+  seven listed and not prepared (`client/native` is the native line's product, not an experiment; the lab hooks in
+  product modules are a refactor after FREEZE-E2E). FIX-2 merges only the items the owner says yes to.
 * The decoders' WASM is committed and the gate checks it rebuilds to the same bytes; that is what lets the laptop
   without installs run the page without Docker.
 * `framesSha256` is written only by the lab fixture fetcher, so a pair made by any other ingest fails the pairing

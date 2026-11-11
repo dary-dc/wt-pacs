@@ -363,7 +363,7 @@ visit that failed, or whose fill stopped short, is re-run as a `VOID` one is, no
 * *Review, amended before data:* a cell whose trace does not climb past k (k ≥ ⌊n/3⌋, `dbt10_ea1141` at k = 8)
   gives that k no vote, for k\* or for adoption: there `on` never asks within the trace, which measures no ask at
   all rather than a wait within k. *The on-demand cells within the A/A spread:* their paired median `missingMs`
-  against `off` within the larger of 8 ms and that cell's A/A. `lab/viewer/wait-ahead-summary.mjs` applies the
+  against `off` within the larger of 8 ms and that cell's A/A. `lab/viewer/wait-ahead-summary.mjs` (at `0920153d`) applies the
   guards and this rule to the rows.
 
 **Built and checked** (2026-10-29). Each check was mutated and its mutant failed:
@@ -401,7 +401,7 @@ behaviour (#238), and it bounds both this lever and Experiment 1's `span`: each 
 it is structural, and the owner's: for instance, start a run when the want's head ascends D_min unsent frames
 although asks are owed. **Not built.**
 
-*Predictions.* `lab/viewer/want-model.mjs` is a model, not a measurement. It drives the real downloader against a
+*Predictions.* `lab/viewer/want-model.mjs` (at `0920153d`) is a model, not a measurement. It drives the real downloader against a
 simulated server and one FIFO link:
 
 * the server recites a run and ends it at a frame boundary for any message in hand, and serves asks in order;
@@ -461,7 +461,7 @@ The relay's queue occupancy, not the round trip, moves the answer. The run decid
 | the ledger's `fillMs` and lab flip | `client/view/controller.js`, `controller.test.mjs` | 4 of 4 |
 | the trace driven from frame 0 on screen, each step on time | `client/viewer/viewer.js` | smoke only |
 | a variant's `opts`, `--trace`, a link's own round trip, the trace in each row | `lab/av1/delivery/total-time/run.mjs` | smoke only |
-| the guards and the rule | `lab/viewer/wait-ahead-summary.mjs`, `wait-ahead-summary.test.mjs` | 20 of 20 |
+| the guards and the rule | `lab/viewer/wait-ahead-summary.mjs` (at `0920153d`), `wait-ahead-summary.test.mjs` | 20 of 20 |
 
 *Smoke*, Chromium, one round per arm. The set was the contract's 16-bit grey frame ×30, behind
 `r5000rtt46`/`rtt92`; it shows the rig, and no result is read from it:
@@ -727,7 +727,7 @@ the rig or by what the core is, and says why.
   store worker is in neither: the core's cache is off by default (`?writer=` unset, §The core, assembled), so A is
   today's path without it. **Cell 4 is out of this run:** with no cache on by default there is nothing to time, and
   who writes it is the OPFS-arms run's to decide (§The cache I/O in the view worker).
-* **Series:** row INGEST's three, through the product's ingest as HTJ2K (`lab/viewer/view_frames.py`) — `ct_nlst` (76 ×
+* **Series:** row INGEST's three, through the product's ingest as HTJ2K (`lab/viewer/view_frames.py` (at `0920153d`)) — `ct_nlst` (76 ×
   512², signed), `us_liver` (70, RGB), `dbt12_ea1141` (29 × 614×1359) — and `ffdm_a`'s first view (one 2560×3328
   frame). One frame has no asks and no cine, so the mammogram is in cells 1, 3 and (2)'s first frame alone.
 * **Link:** §7 named none; `r50000` (50 Mbit/s, 40 ms round trip, total-time's), behind the relay. Rig core 3,
@@ -752,7 +752,7 @@ certain, and extra rounds would otherwise loosen "9 of 12"*); a cell with fewer 
   **VOID** when `pageaa` and `page` differ, median over paired rounds, by more than: the fill ×0.98–1.02 or the first
   frame by 16.7 ms (quiet); arrival → screen by 8 ms (asks); 2 points of late frames or 16.7 ms of gap p99 (cine).
   A cine cell is **saturated** when `page`'s draw p99, median over rounds, passes half the period.
-* **The rule, read before any data** (`lab/viewer/view-summary.mjs`): B′ is adopted if every frame is exact, and in
+* **The rule, read before any data** (`lab/viewer/view-summary.mjs` (at `0920153d`)): B′ is adopted if every frame is exact, and in
   every decided cell of both engines at 1× and 4×: quiet, B′'s fill ÷ A's median in ×0.98–1.02 and its first frame
   less than 16.7 ms later; asks, B′'s median arrival → screen ≥ 16.7 ms below A's in ≥ 9 of 12 rounds; cine, where
   A's median late exceeds 2 points, B′'s is at most 2 with a median gap p99 ≤ 2 periods; and each engine has an asks
@@ -988,7 +988,7 @@ follows. *The `viewWorker` stamp* is taken where the page makes the `ViewWorker`
 
 ### The pixel read under a busy page (2026-10-30)
 
-*Pre-registered 2026-10-30, before any data; the probe is [`../../lab/paint-read/`](../../lab/paint-read/README.md).*
+*Pre-registered 2026-10-30, before any data; the probe is [`../../lab/paint-read/`](https://github.com/dary-dc/wt-pacs/tree/0920153d2a44916c6832a9d8dd0befabc0923681/lab/paint-read/README.md).*
 
 **Why, read from source and not yet measured.** Since Firefox 145, `ClientWebGLContext::ReadPixels` asks
 `GetCanvasExtractDataPermission` after every read (`dom/canvas/ClientWebGLContext.cpp` near line 5451 at
@@ -1075,7 +1075,7 @@ the settle polls on a timer because a poll every task spun its thread and slowed
 (its series `ct_nlst`, `us_liver`, `dbt12_ea1141`; `r50000` behind the relay on core 3, the browsers on cores 0–2;
 §7's busy page from navigation, the fill, then 10 s of cine at the series' rate, frame 0 due mid display interval;
 late and gap p99 from the draw log against the vsync log), on the code of this branch, with five arms, each a
-`lab/viewer/view_frames.py` variant: `page` and `worker` settling by the fence, `pageaa` (A again, the A/A pair), and
+`lab/viewer/view_frames.py` (at `0920153d`) variant: `page` and `worker` settling by the fence, `pageaa` (A again, the A/A pair), and
 `page-read` and `worker-read` settling by the one-pixel read as §7's run did (the rig's `?settle=`; §7's arms all
 settled by the read). Chromium (Playwright's, headless, SwiftShader) and Firefox (Playwright's 155, headed under Xvfb,
 llvmpipe); `lab/order.mjs` interleaves the cells and the arms in each round; **12 rounds kept, 1×**, then 4× only for
@@ -1798,7 +1798,7 @@ table, no backpressure and no new failure mode. Also: the ring losing fill time 
 slots); a hanging protocol putting series of different frame sizes on screen at once, which wants a byte allocator,
 not slots; a budget under four of a series' frames (three decoders and the frame shown), which (c) cannot serve.
 
-**Protocol, M5, pre-registered 2026-10-28, before any build or data** (amended 2026-10-29, *M5 amended* below). M2's rig (`lab/opfs-cache/run.mjs`, cell `m2`)
+**Protocol, M5, pre-registered 2026-10-28, before any build or data** (amended 2026-10-29, *M5 amended* below). M2's rig (`lab/opfs-cache/run.mjs` at `0920153d`, cell `m2`)
 and its rules carry over: the 4-vCPU container, the 80 × 3328×4096 series (2.03 GiB) on loopback, a 256 MiB window,
 a fresh profile an arm, the browser tree's PSS each second, peak less the value before the dial; every frame checked
 by the decoder's XXH3 and the rig's SHA-256; arms ordered per round by `lab/order.mjs`; ≥ 7 rounds; each arm's
@@ -1921,7 +1921,7 @@ the most frames waiting in its port at once (from each frame's decode-end and re
 * **Rule.** The simplest arm that qualifies on both engines is chosen: `disk` (no frame memory), then `transfer` (no
   table), `transfer-k`, `ring`. None: lever 2 returns to the owner with the numbers. `m5-busy` rules credits: needed for
   `transfer` if there `transfer` misses the memory bar and `transfer-k` meets it with never more than K waiting.
-  `lab/opfs-cache/summary.py` applies both.
+  `lab/opfs-cache/summary.py` (at `0920153d`) applies both.
 
 **Predicted, from the sources** (cited above and below; *floor* is an engine's growth with no frame held, which
 `disk` measures):
@@ -2130,7 +2130,7 @@ the same. Both are changes to the protocol after data, and so a new pre-registra
   ([`live-pages.jsonl`](https://github.com/dary-dc/wt-pacs/tree/91069eb31e8816bcd4460322e38e8f719a5c0c07/lab/opfs-cache/rows/m5-start/live-pages.jsonl)); the rule set for those (BiDi ≥ 3)
   was not met, so they alone decide nothing.
 * **The fix.** The rigs drive Firefox over Marionette, which registers no listener
-  ([`browser.mjs`](../../lab/opfs-cache/browser.mjs)); `lab/opfs-arms` shares the driver.
+  ([`browser.mjs`](../../lab/opfs-cache/browser.mjs)); `lab/opfs-arms` (at `0920153d`) shares the driver.
   [`browser.test.mjs`](../../lab/opfs-cache/browser.test.mjs) checks its framing and, with `FIREFOX_PATH`, the 300 nested
   workers; the gate runs it. Both mutants were caught: framing that counts characters, not bytes, and the driver put
   back on BiDi (stopped at 3 of 300).
@@ -2192,9 +2192,9 @@ engines. The first run's VOID rows in `rows/m5/` stand as run.
   That is a change to the protocol after data, and so a new pre-registration; read that way, the four profiled fills
   put `ring` at or under `today` on Firefox.
 
-**How the ring works**, in plain words, as M5 built it in the lab: [`arms-slots.js`](../../lab/opfs-cache/arms-slots.js)
-(the table), [`arms-decoder.js`](../../lab/opfs-cache/arms-decoder.js) (who takes a slot),
-[`arms-view.js`](../../lab/opfs-cache/arms-view.js) (who frees one).
+**How the ring works**, in plain words, as M5 built it in the lab: [`arms-slots.js`](https://github.com/dary-dc/wt-pacs/tree/0920153d2a44916c6832a9d8dd0befabc0923681/lab/opfs-cache/arms-slots.js)
+(the table), [`arms-decoder.js`](https://github.com/dary-dc/wt-pacs/tree/0920153d2a44916c6832a9d8dd0befabc0923681/lab/opfs-cache/arms-decoder.js) (who takes a slot),
+[`arms-view.js`](https://github.com/dary-dc/wt-pacs/tree/0920153d2a44916c6832a9d8dd0befabc0923681/lab/opfs-cache/arms-view.js) (who frees one).
 
 * **The slots.** At the fill's start the view worker carves one `SharedArrayBuffer` into as many frame-sized slots as
   the 256 MiB budget holds: 9 for a 3328×4096 frame (234 MiB). Beside it sits a small table, shared too: per slot a
@@ -2308,7 +2308,7 @@ standard volume capacity; how often a phone's free disk binds before its quota.
 
 ### The cache I/O in the view worker: sync, async, or a store worker (2026-10-28)
 
-**Status:** theory and a pre-registered protocol; the harness is built (`lab/opfs-arms/`) and smoke-run once per arm,
+**Status:** theory and a pre-registered protocol; the harness is built (`lab/opfs-arms/` (at `0920153d`)) and smoke-run once per arm,
 **no cell is run**: nothing below is measured unless it says *run once*, and the smoke's numbers are not results.
 *Corrected 2026-10-30:* the protocol as amended is run on Chromium and Firefox; **no arm passes on either engine**, so
 the result goes to the owner as measured (§Arm D, Results). The predictions above stand as written, judged there.
@@ -2397,7 +2397,7 @@ container, so the `none` arm may miss ticks at S3, 4×; nothing is claimed for a
 
 #### Protocol, pre-registered 2026-10-28
 
-Rig: `lab/opfs-arms/` (README there), on the 4-vCPU agent container; Chromium 153 and Firefox 159 on Xvfb; **WebKit not
+Rig: `lab/opfs-arms/` (at `0920153d`) (README there), on the 4-vCPU agent container; Chromium 153 and Firefox 159 on Xvfb; **WebKit not
 run: no WebKit build in the container.** A feeder worker stands in for the decoders: it posts checked frames as
 `SharedArrayBuffer`s, 4 distinct fields cycled, at 125 MB/s or on credit (*three feeders since 2026-10-29*, §Arm D). The view worker paints from memory at its own
 `requestAnimationFrame`, the shown frame changing every tick at S1 and every 6th at S2–S3 (an upload from memory),
@@ -2429,7 +2429,7 @@ their order over 14 rounds (`lab/order.mjs`), so 12 leave it slightly unbalanced
    only if its median in every R cell is ≤ 0.9 × A's and its median in every W cell ≥ 0.9 × A's; else A. Within
    an arm, paint first wins unless only on-arrival passes. If no arm passes, the result goes to the owner as measured.
 
-`lab/opfs-arms/summary.mjs` applies this rule to the rows.
+`lab/opfs-arms/summary.mjs` (at `0920153d`) applies this rule to the rows.
 
 **Mutants, each run before its cell is believed.** *write-before-paint*: the paint-first arm draining its whole queue
 before the paint. At S3, 4×, it must miss ticks, and at least Σ ⌊block / period⌋ of its own measured blocks; a
@@ -2554,7 +2554,7 @@ and B stay in the cells, reported, not chosen):
    display period or more after A's in some R cell; then A paint first; then C. If none passes, the result goes to the
    owner as measured.
 
-`lab/opfs-arms/summary.mjs` applies it. *Corrected 2026-10-29, independent review:* it failed rule 3 for D in any W cell
+`lab/opfs-arms/summary.mjs` (at `0920153d`) applies it. *Corrected 2026-10-29, independent review:* it failed rule 3 for D in any W cell
 with no measured decode (S3), so D could not be picked once S3 ran; a cell rule 3 does not judge now passes it.
 
 **Smoke, 2026-10-29** (one round per arm, Chromium 153 and Firefox 159; not results): L, W and R at S1 and G at S2 ran
@@ -2729,7 +2729,7 @@ GPU); the samples written once, as today.
 and the branches that work on it: `claude/opfs-cache-fixes` (OCF), `claude/opfs-arms` (ARMS), `claude/frame-memory`
 (FM), `claude/worker-clock` (WC), `claude/ask-patterns-map` (MAP) and `claude/view-worker` (VW), cited
 `branch:path:line`. Engine sources are pinned in [`frame-path-sources.txt`](frame-path-sources.txt) under
-*Review*. Three throwaway probes are in [`../../lab/target-review/`](../../lab/target-review/README.md). Their numbers
+*Review*. Three throwaway probes are in [`../../lab/target-review/`](https://github.com/dary-dc/wt-pacs/tree/7f335cc0c80100017ccb3800c40a871c9fabc3f6/lab/target-review/README.md). Their numbers
 come from a shared container and are **indicative, not claims**. Nothing here was run on a phone, in WebKit, or in
 Firefox. Every fix below is **proposed, not made**. Four helper agents did the reading and the probes.
 
@@ -2908,7 +2908,7 @@ I/O. Each has a small fix and a measurement that settles it.
 *Written blind, from the constraints and from `main` alone, before the owner's target design was read; the comparison
 follows it as its own section, so the order is auditable. Nothing here is built or timed; every figure is one of
 §2–§6's measurements, a reading of the code, or marked as a prediction. The probes under
-[`../../lab/target-review/`](../../lab/target-review/README.md) are indicative only (a container, not a phone).*
+[`../../lab/target-review/`](https://github.com/dary-dc/wt-pacs/tree/7f335cc0c80100017ccb3800c40a871c9fabc3f6/lab/target-review/README.md) are indicative only (a container, not a phone).*
 
 **The constraints, as given.** Mobile on lossy wireless; the fill's throughput and the on-demand latency both count,
 and a real viewer is a hybrid of the two by modality, study size and link; every shown frame lossless, bit-exact, checked
@@ -3310,7 +3310,7 @@ if either fails, the target's split stands and the independent design's items 3 
 
 #### The probes, indicative only
 
-Run in this container's headless Chromium 153 on software GL, 4 cores, [`../../lab/target-review/`](../../lab/target-review/README.md);
+Run in this container's headless Chromium 153 on software GL, 4 cores, [`../../lab/target-review/`](https://github.com/dary-dc/wt-pacs/tree/7f335cc0c80100017ccb3800c40a871c9fabc3f6/lab/target-review/README.md);
 no Firefox binary here, no WebKit. A number below is this host's, not a phone's, and nothing is claimed past it.
 
 * **A file per frame costs ~1.7 ms of handle calls a write** (`getFileHandle` 0.8, `createSyncAccessHandle` 0.5,
@@ -3541,7 +3541,7 @@ pinned source to re-fetch. Every citation they do make is in-repo or `branch:pat
 | claim | where | verdict |
 | --- | --- | --- |
 | a run is issued when the last one's final frame lands | `client/transport/downloader.js:290` on `main` | holds; VW's head has it at :293 (corrected) |
-| 38 runs for 76 frames; 1.7 and 3.4 s idle | [`../../lab/target-review/README.md`](../../lab/target-review/README.md), `want-order.mjs` (b) | holds: 1702 = 37 × 46 ms, the first run not idle |
+| 38 runs for 76 frames; 1.7 and 3.4 s idle | [`../../lab/target-review/README.md`](https://github.com/dary-dc/wt-pacs/tree/7f335cc0c80100017ccb3800c40a871c9fabc3f6/lab/target-review/README.md), `want-order.mjs` (b) | holds: 1702 = 37 × 46 ms, the first run not idle |
 | M1's 29 ms a frame | OPFSARMS's M1, F 7.49 s for 256 × 512² over 20 Mbit | holds as 7.49 s / 256; a 512² frame, not a cell's (corrected) |
 | a scattered want is up to D_min asks, topped up as each lands | `serveWant`, called from `arrived` on each frame's last byte | holds |
 | *a want arrives in its order* | `client/transport/downloader.test.mjs:425` | holds |
@@ -3646,7 +3646,7 @@ Neither is done here. Until then both settings stay in the core at their default
 *Theory and a harness; nothing measured. The question is difference 2 above: does a WebTransport receive loop keep
 the fill's rate when it shares one dedicated worker's thread with OPFS reads, XXH3 checks, uploads and paints?
 Sources at the pins in [`frame-path-sources.txt`](frame-path-sources.txt) under 2026-10-29, line numbers as fetched.
-The harness is [`../../lab/recv-loop/`](../../lab/recv-loop/README.md); the protocol's runs are a separate row.*
+The harness is [`../../lab/recv-loop/`](https://github.com/dary-dc/wt-pacs/tree/cf38708b2c4f1b5743e15c7cee89a7d5778abad4/lab/recv-loop/README.md); the protocol's runs are a separate row.*
 
 #### Where received bytes wait while the worker's thread is busy
 
@@ -3768,7 +3768,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 | frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241; Firefox re-run, #264 | **run on both engines (#264): "none qualifies on Firefox, so none on both engines: lever 2 returns to the owner. Chromium's verdict stands: `ring`."** Credits not shown needed; *How the ring works* written for the owner |
 | `?writer=`, who writes the OPFS cache | `none`: no cache, as main | `store`, `decoders`, `view` | OPFS arms, #227/#242; #244 | **run on Chromium 153 and Firefox 159 (`claude/opfs-arms-run`): "no arm passes on either engine, so the result goes to the owner as measured"** (§Arm D, Results). Chromium's D fails only rule 3, its clock at S1 4×; Firefox's D fails rules 2 and 3 |
 | frame clock | the page's timer | worker rAF, timer to a schedule, `MessageChannel`, `Atomics.wait` | #225 | harness built (#249) and smoked: the guard saturates every cell but 512² at 30/s, quiet, 1×; the run not started |
-| receive loop, the downloader in the view worker | its own worker | merged | #237 | rig in `lab/recv-loop` only; needs a GPU host |
+| receive loop, the downloader in the view worker | its own worker | merged | #237 | rig in `lab/recv-loop` at `cf38708b` (`claude/recv-loop`) only; needs a GPU host |
 | native `--paint-thread`; `--credits`, `--budget` | `ui` | `view`, `core`; `K` 4, 64 MiB | NATIVERUN, #247 | built and reviewed (#253); the run's own pieces not built |
 
 Each run writes its verdict in its own section.

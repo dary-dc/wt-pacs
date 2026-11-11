@@ -111,10 +111,7 @@ run 1 node client/viewer/store.test.mjs
 run 1 node client/view/clock.test.mjs
 run 1 node lab/frame-clock/arms.test.mjs
 run 1 node lab/frame-clock/measure.test.mjs
-run 1 node lab/paint-read/measure.test.mjs
-run 1 node lab/viewer/view-summary.test.mjs
 run 1 node lab/viewer/start-summary.test.mjs
-run 1 node lab/viewer/settle-summary.test.mjs
 
 step "client: worker-safe (no artifact reaches for window)"
 run 1 bash client/scripts/check_worker_safe.sh
@@ -207,7 +204,6 @@ run 1 node scripts/perf_campaign.test.mjs
 step "lab: the viewer's levers — a fill's time and reads, steps on demand, the sawtooth trace, Experiment 2's rule over rows"
 run 1 node lab/viewer/levers.test.mjs
 run 1 node lab/viewer/trace.test.mjs
-run 1 node lab/viewer/wait-ahead-summary.test.mjs
 
 step "lab: the device kit's plan, bundle reader, collector and server start; the prebuilt recipe's server stage is the Containerfile's"
 run 1 node lab/devices/plan.test.mjs
@@ -215,7 +211,6 @@ run 1 python3 lab/devices/collector_test.py
 run 1 sh deploy/server_start_test.sh
 
 step "lab: M5's rule on made-up rows: each in-hand path barred on its own, the busy cell's A/A"
-run 1 python3 lab/opfs-cache/summary_test.py
 
 step "lab: the rigs' Firefox driver reads Marionette's framing; with FIREFOX_PATH, a worker starts 300 workers under it"
 run 1 env NODE_PATH="$(npm root -g)" node lab/opfs-cache/browser.test.mjs
