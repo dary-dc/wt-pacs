@@ -354,7 +354,7 @@ The protocol names the cells and the readings but not the code or every reading.
 
 * **Code.** `lab/av1/audit/cells.py` on `claude/audit-measure`, not a new `audit_cells` in the groups branch's
   `plan.py` and a flag in its `cell.py`: it imports `claude/av1-groups-settings` at `0e0e58c8`
-  (`lab/av1/groups/`, a detached checkout named by `GROUPS`) unchanged and runs its `run_cell`, `series` and
+  (`lab/av1/groups/`, a detached checkout named by `GROUPS_DIR`) unchanged and runs its `run_cell`, `series` and
   scheduler, so the arm, `measure()` and `sigma_out` are that commit's byte for byte. Its `audit_cells(name, b, g)`
   is the protocol's ladder; the 16 new volumes' frame sizes are read from the data, not typed in. `plan.MIDDLE` is
   emptied, so `dbts_b1` is read whole (50 frames), as the quality study read it; groups shard S1 read 32.
