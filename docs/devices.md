@@ -208,7 +208,9 @@ row's tree, the four arms in Docker, the collector over TLS; `dry_run.mjs` drove
 was run on a phone. The owner runs it on the laptop without installs (README §Demo, "On a phone, from a laptop without
 installs", on `claude/phone-no-install`); the commands below need that branch in the demo's (`dev-server.py --bind`,
 `OPENSSL=` in `gen_dev_cert.sh`).* *Amended before any run (row PHONE-AMEND, 2026-11-11): a controller arm, one timed
-series, and new commands; where the two differ, **Amendment** at the end of this section holds.*
+series, and new commands; where the two differ, **Amendment** at the end of this section holds. Amended again before any timed load (row
+PHONE-AMEND-2): the runner, the beacon's fill, links alternated load by load, the server images; **Second amendment**
+holds over both.*
 
 **What it compares.** Two arms, `?view=page` (the frames held and painted on the page, today's default) and
 `?view=worker` (the view worker, the client's target, [`lines/client.md`](lines/client.md)), on the same series and
@@ -514,3 +516,184 @@ included; a session line's timestamp places it among `blocks.log`'s lines. A loa
 adds or drops a session: note it on the sheet. Afterwards, USB tethering off; `pkill -f 'release/series-server' ; pkill
 -f 'server/dev-server.py'`. `target/phone-run/` (session lines, the two traces per server, the blocks' times) names
 the laptop's addresses: strip them before anything is committed (§4).
+
+### Second amendment: the runner, the beacon's fill, links alternated, the images
+
+*Row PHONE-AMEND-2, 2026-11-11, written before any timed phone load by a session that will not run it. Nothing here
+was run on a phone or on the laptop; it was written against PHONE-TOOLS's brief while that row was still building
+(its branch held only its merge of `claude/demo-fixes-2`). Where it differs from §7 or the **Amendment**, this holds;
+the four arms, the quads' rows, the series, the counts of twelve, the loss reading and what a verdict can change
+stand.*
+
+**The run commit.** Every timed load runs PHONE-TOOLS's tip (`run commit` in its status file), not the demo commit:
+the demo tip of the day with the runner, the beacon and the test-only server image added, all under `lab/` or behind a
+build argument. What that limits: the verdicts are the run commit's; they carry to the demo commit only where
+`git diff --stat <run commit> <demo commit> -- client/ server/ common/` changes no file the fill passes through
+(`client/transport/`, `client/view/`, `client/viewer/`, `client/decode/`, `server/src/`), and the result lists every
+file that diff names. The lab modules load in every timed load and never on the demo's page, so absolute times are
+the run commit's with them loaded; only ratios decide, as the **Amendment** says. Each image's commit label
+(`org.opencontainers.image.revision`) must name the run commit, checked before the first load; a mismatch stops the run.
+
+**Loads by the runner.** PHONE-TOOLS's runner page walks the steps, presses **lossless** through the check hooks,
+and waits a fixed gap between loads, so the owner's hands leave the phone during timed loads. Pre-registered:
+
+* The runner presses **lossless** only after the fill has ended (the beacon's last-frame mark), then again once the
+  label reads *Lossless*; neither press can fall inside the fill reading. A label that does not reach *Lossless*
+  within 30 s, or *Optimal quality* again within 10 s of the second press, fails the load.
+* **The gap**: 15 s from the second press's *Optimal quality* to the next navigation, the same for every load. A
+  runner whose fixed gap differs is used as built, the value named in the result; it must be one value for all loads.
+* The runner stops on any failure. The owner notes the step and restarts it at the next step, never the failed one:
+  a failed load is a correctness result, not rerun, and the ratios it would enter are **missing** (below).
+* The phone stays awake and charging for the whole run (Developer options, *Stay awake*); the owner does not touch it
+  during a counted load.
+
+**What each load records** is now the beacon's line (PHONE-TOOLS item 4), not a screenshot: series, view,
+controller (the page's port), frame count, per frame the route, KB and decode ms, the fill time, the label's changes
+and the presses with their times, and errors. §7's correctness rule is read from it: `frames` equals the series' N,
+every frame's route is `av1-webcodecs`, the label changes *Optimal quality* → *fetching lossless…* → *Lossless* →
+*Optimal quality*, and no error. A load with no beacon line is **missing**, not failed. **The eye** still judges what
+the beacon cannot see, the picture and that the label shown matches the one set: the owner watches the eye check's
+loads and the first octet (below), one verdict per link.
+
+**Part B's reading is the beacon's fill**, and Part B runs: it no longer waits on the status line. Defined before any
+run: from just before the optimal-quality session's `WebTransport` is constructed to the moment the series' last
+frame is stored in the frame map (the controller's `received === n`, the status line's own end mark), both on
+`performance.timeOrigin + performance.now()`, so a start taken on the page and an end taken in the view worker are on
+one clock. Against the status line's `fill … ms` (from the fill's issue to that same end) it adds the connection's
+handshake, about one round trip, alike in every arm; it pulls every ratio slightly toward 1, never past it. The
+status line's value is reported beside it when the beacon carries it, not deciding. If the beacon at the run commit
+marks either end elsewhere, a note under this amendment says where, written before the first timed load by a
+session that will not run it; the reading is then the beacon's as built. The path rows' wire time stays reported,
+labelled, never deciding.
+
+**Links alternated load by load.** Both addresses stay up for the whole run: the laptop's wired address and its
+tether address, with the phone on Wi-Fi and USB tethering on at once. The phone routes by destination, each address
+on its own directly connected link, so the origin a load opens picks its link with no change of setting. That keeps
+the arms' conditions alike better than blocks: the hour, the access point's other traffic and the phone's warmth
+drift over the run and now fall on both links in turn; the tethered cable and the Wi-Fi association are present in
+every load of both. Two things could break it, each checked before the first counted load:
+
+1. **The laptop's own traffic moving onto the tether**, and from there across the phone's Wi-Fi upstream, which would
+   load both links in the tether's arm alone: the tether device takes no default route (`never-default`, below) and
+   `ip route get 1.1.1.1` must name the wired device.
+2. **A load crossing links**: the device counters of the two interfaces, read around one warm-up load per link,
+   must grow on that link's device by about the series' size and on the other by under 1 % of it.
+
+Either check failing, or the runner unable to carry a step to a full origin (address and port), puts the run back in
+the **Amendment**'s blocks (tether off for Wi-Fi blocks), with the runner, and the result says which check failed.
+
+**The order.** An **octet** is eight counted loads, the links alternating load by load, the tether first in odd
+octets and Wi-Fi first in even ones. Within an octet each link plays one quad row of the **Amendment**'s Williams
+square in order (arms A to D unchanged): six octets, the tether's rows 1 2 3 4 1 2, Wi-Fi's 3 4 1 2 3 4. Per link that
+is six quads, as before: twelve worker / page ratios and twelve `bbr` / `cubic-restart` ratios, each within its quad.
+Before the first octet, four warm-ups, not counted: `view=page` at each of the four origins.
+
+**Missing loads.** A missing or failed load removes the ratios it would enter. The rule's threshold follows the
+ratios left, at two-sided p ≤ 0.05: 12 or 11 ratios, at least 10 below 1; 10, at least 9; 9, at least 8; 8, all 8;
+fewer than 8, *not decided*. The median at most 0.95 stays. The count left is in the result.
+
+**Size.** *Assumption:* a load takes about 40 s with the runner (the page, a fill of 23 MB, the exact frame, the
+gap). 4 warm-ups, 48 counted loads, 2 eye-check loads and 4 prod-like loads are about 40 minutes unattended, plus the
+setup. If octet 1 takes more than 10 minutes, the run stops after octet 4: eight ratios per link, eight of eight.
+The time saved is not spent on more octets in this run; a longer run is a new protocol.
+
+**The Wi-Fi arm is "server wired, phone on Wi-Fi"**: the laptop on Ethernet to the home router, its own Wi-Fi radio
+off, the phone on that router's Wi-Fi. One radio hop, the phone's, and the router's switch; no second radio on the
+path and no laptop radio sharing the channel. What it limits: the Wi-Fi arm is one hop to a server one switch away; a
+server across the Internet adds a path this run does not have.
+
+**The series servers run as images, `--network host`, for timed loads**: the test-only image with the `telemetry`
+feature (PHONE-TOOLS item 2), with the production image's seccomp profile and limits (`deploy/compose.yml`), the
+**Amendment**'s three environment variables, its own certificate per container, and its traces in a mounted
+directory. Host networking takes rootless podman's port forwarder out of the timed path, so the reading is the
+server's, not the forwarder's. The disk path each server took (io_uring or the thread pool, PHONE-TOOLS item 3's
+command) is recorded for all four; they must agree, or the run stops. The static hosts stay `server/dev-server.py` on
+the laptop, since its option collects the beacon; the web image serves no byte of a fill.
+
+**A prod-like check, not counted**: after the counted octets, on Wi-Fi only, the `cubic-restart` pair restarted with
+rootless podman's publish (`-p`) in place of host networking, and four loads, A B B A. Their fills are reported beside
+the timed loads' Wi-Fi medians for A and B, labelled *rootless publish*, deciding nothing.
+
+**No debugger in a timed load, and no trace.** adb runs over the same USB cable as the tether, so a DevTools client
+(`adb forward`, `chrome://inspect`) or `adb logcat` would load the tether's arm alone; it cannot be made alike in
+every arm. During counted loads adb runs nothing; the beacon carries the errors a console would. A diagnosis load is
+its own step, after the octets or after a stop, marked `diagnosis` on the sheet, never counted; DevTools is closed and
+a fresh tab opened before counting resumes. No load is timed with a Chrome trace or Performance recording, and
+`WTPACS_CC_TRACE` and `WTPACS_TELEMETRY` stay unset, as the **Amendment** says.
+
+**Anything through `lab/scripts/link_impair.py` is simulated**: labelled `simulated` on its sheet line and its beacon
+file, never pooled with the tether or Wi-Fi, and it decides nothing in this run. The run as written uses none.
+
+**The commands, from any state**, replacing the **Amendment**'s two terminals; its one-off steps stand (the four
+`demo-series/` files and their metadata, the certificate tool). At the run commit, once: the test-only series-server
+image as the run commit's README says (PHONE-TOOLS item 2), tagged `wt-pacs-server:telemetry`. The beacon's
+collecting option of `dev-server.py` is PHONE-TOOLS's (`--beacon FILE` is assumed here; `python3
+server/dev-server.py --help` at the run commit names it, and its name is the only edit allowed). The laptop on
+Ethernet, the phone on the same network's Wi-Fi with clients able to see each other, and plugged in with USB
+tethering on:
+
+```bash
+# Every terminal first
+tether_if() { for d in /sys/class/net/*; do case $(readlink -f "$d/device/driver") in */rndis_host|*/cdc_ncm|*/cdc_ether) echo "${d##*/}";; esac; done | head -1; }
+wired_if() { nmcli -t -f DEVICE,TYPE,STATE device | awk -F: -v t="$(tether_if)" '$2=="ethernet" && $3=="connected" && $1!=t {print $1; exit}'; }
+addr() { [ -n "$1" ] && ip -4 -o addr show dev "$1" | awk '{print $4}' | cut -d/ -f1 | head -1; }
+IMAGE=wt-pacs-server:telemetry; ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}   # ID=dbts_b1-q8-g8 for the timed run, in both terminals
+serve() {  # PORT CONGESTION SERIES [PUBLISH_ADDR] — one series server in its image; traces and transport file in target/phone-run/<its name>
+  n=srv-$1${4:+-published}; d=target/phone-run/$n; mkdir -p "$d"; podman unshare chown 10001:10001 "$d"
+  net="--network host"; [ -n "$4" ] && net="-p $4:$1:$1/udp"
+  podman run -d --name "$n" $net --security-opt seccomp="$PWD/deploy/seccomp-uring.json" \
+    --ulimit memlock=67108864:67108864 --ulimit nofile=65535:65535 -e SERIES="$3" \
+    -e WTPACS_LOSS_TRACE=/run/wt-pacs/loss.jsonl -e WTPACS_PATH_TELEMETRY=1 -e WTPACS_PATH_TELEMETRY_MS=250 \
+    -e WTPACS_PATH_TELEMETRY_PATH=/run/wt-pacs/path.jsonl \
+    -v "$PWD/demo-series:/studies:ro,z" -v "$PWD/$d:/run/wt-pacs:z" "$IMAGE" --port "$1" --congestion "$2" >/dev/null
+}
+stop() {  # [NAME...] — the named series servers, or all: their session lines kept in target/phone-run/<name>.log
+  for n in ${@:-$(podman ps -a --format '{{.Names}}' | grep '^srv-')}; do
+    podman logs "$n" >> "target/phone-run/$n.log" 2>&1; podman rm -f "$n" >/dev/null
+  done
+}
+# Terminal 1, once per series
+mkdir -p target/phone-run; stop; pkill -f 'server/dev-server.py'
+nmcli radio wifi off
+TIF=$(tether_if); EIF=$(wired_if); [ -n "$TIF" ] && [ -n "$EIF" ] || echo "tether '$TIF' or wired '$EIF' missing: stop" >&2
+nmcli device modify "$TIF" ipv4.never-default yes ipv6.never-default yes
+ip route get 1.1.1.1 | grep -q "dev $EIF " && echo "default route on $EIF: ok" || echo "default route not on $EIF: stop" >&2
+echo "run commit $(git rev-parse HEAD), image $(podman image inspect --format '{{index .Labels "org.opencontainers.image.revision"}}' "$IMAGE")"
+echo "== $(date -u +%FT%TZ) $ID" >> target/phone-run/blocks.log
+serve 4433 cubic-restart "$ID"; serve 4434 cubic-restart "$EXACT"; serve 4443 bbr "$ID"; serve 4444 bbr "$EXACT"
+sleep 3; for p in 4433 4434 4443 4444; do podman logs "srv-$p" 2>&1 | grep '^transport='; done   # each names its controller
+T=$(addr "$TIF"); E=$(addr "$EIF")
+echo "flag origins: http://$T:8765,http://$T:8766,http://$E:8765,http://$E:8766"
+# Terminal 2, once per series, after Terminal 1 — the four static hosts, both links at once
+pkill -f 'server/dev-server.py' ; sleep 1
+static() {  # LINK ADDR PAGE_PORT SERIES_PORT EXACT_PORT
+  for p in $4 $5; do
+    printf '{"wt_url": "https://%s:%s/", "cert_sha256": "%s"}\n' "$2" "$p" \
+      "$(jq -r .cert_sha256 target/phone-run/srv-$p$SUFFIX/dev-transport.json)" > target/phone-transport-$1-$p.json
+  done
+  python3 server/dev-server.py --bind "$2" --port "$3" --metadata demo-series/$ID.metadata.json \
+    --transport target/phone-transport-$1-$4.json \
+    --exact-metadata demo-series/$EXACT.metadata.json --exact-transport target/phone-transport-$1-$5.json \
+    --beacon target/phone-run/beacon-$1-$3$SUFFIX.jsonl &
+}
+T=$(addr "$(tether_if)"); E=$(addr "$(wired_if)")
+static tether "$T" 8765 4433 4434; static tether "$T" 8766 4443 4444
+static wifi "$E" 8765 4433 4434; static wifi "$E" 8766 4443 4444
+bytes() { echo "tether $(cat /sys/class/net/$(tether_if)/statistics/tx_bytes) wired $(cat /sys/class/net/$(wired_if)/statistics/tx_bytes)"; }
+bytes   # again after one warm-up per link: the link's own device grows, the other under 1 % of it
+```
+
+On the phone, once per run: the four origins Terminal 1 printed in `chrome://flags/#unsafely-treat-insecure-origin-as-secure`,
+**Enabled**, **Relaunch**. The eye check first (Terminals 1 and 2 with `ID=dbts_a1-q8-g8-cut`): `view=page` and
+`view=worker` at `http://<tether address>:8765/?overlay=1`, **lossless** twice each, watched. Then both terminals again
+with `ID=dbts_b1-q8-g8` (Terminal 1 stops every server and starts the four anew), `bytes` around the first two
+warm-ups, and the runner for the four warm-ups and six octets, each step a full origin: arm A `:8765` page, B `:8765`
+worker, C `:8766` worker, D `:8766` page, at the tether's or the wired address. Then the prod-like check:
+`stop srv-4433 srv-4434; serve 4433 cubic-restart "$ID" "$E"; serve 4434 cubic-restart "$EXACT" "$E"` in Terminal 1,
+`pkill -f 'server/dev-server.py'; sleep 1; SUFFIX=-published static wifi "$E" 8765 4433 4434` in Terminal 2 (the two
+certificates are new), and A B B A at `http://<wired address>:8765`. Each container's log starts with its series, so its `k`-th session line
+is the `k`-th load at its port in the runner's order, warm-ups included, and a beacon line names the same load by its
+port and time. Afterwards: `stop` (every server's session lines
+into `target/phone-run/`), `pkill -f 'server/dev-server.py'`, `nmcli radio wifi on`, USB
+tethering off. `target/phone-run/` names the laptop's and the phone's addresses: strip them before anything is
+committed (§4).
