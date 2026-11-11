@@ -28,6 +28,11 @@ on lossy wireless; bit-exact; fill and latency both count.
 * Since 2026-10-30: #289 (a second fold, 15 sources), #299 (a frame decoded twice, fixed), #302 (a repaint before the
   frame is held no longer stops painting), #303 (one-pass AV1 merge ported); none merged into `core`.
 
+* 2026-11-11, `claude/fable-simplify`: [`docs/proposals/simplify-fable.md`](../proposals/simplify-fable.md), the demo
+  path's simplest shape and eleven proposals, read from `claude/demo-fixes-1` `daee0d1d`; nothing implemented, nothing
+  run. Two are safe before 2026-11-13 (one command starts a pair; three doc statements corrected); the rest wait for
+  the freeze and the owner's yes.
+
 ## Open (ordered)
 
 1. The reviewed path of `core` into `main` ([`coordination.md`](coordination.md) §Open 2), carrying the demo work
