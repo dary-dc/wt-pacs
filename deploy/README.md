@@ -46,12 +46,24 @@ PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/t
   STUDIES=... SERIES=... docker compose -f deploy/compose.yml up -d     # https://203.0.113.7/
 ```
 
+An optimal-quality series ([`../client/README.md`](../client/README.md) §Optimal quality, exact on request) is
+served with its exact series, by a second server on 4434 under the `pair` profile; both series are in `STUDIES`, and
+`EXACT_SERIES` is the id the optimal-quality series' metadata names as `exactSeries` (web refuses to start otherwise):
+
+```bash
+STUDIES=... SERIES=dbts_a1-q8-g8-cut EXACT_SERIES=dbts_a1 docker compose -f deploy/compose.yml --profile pair up -d
+```
+
+Off this host, add `EXACT_WT_URL=https://203.0.113.7:4434/` beside `WT_URL`.
+
 | variable | default | what |
 | --- | --- | --- |
 | `STUDIES` | `../fixtures/us_cine_smoke` | the host directory mounted read-only at `/studies` in both containers |
 | `SERIES` | `us_cine_smoke` | the series served: `$STUDIES/$SERIES.sbnd` and `$SERIES.metadata.json` |
-| `PUBLISH_ADDR` | `127.0.0.1` | the address 8765, 443 and 4433 (UDP and TCP) are published on |
-| `WT_URL` | `https://127.0.0.1:4433/` | the address the transport file tells the browser to dial, and the one origin besides the page's that web's policy lets it connect to |
+| `PUBLISH_ADDR` | `127.0.0.1` | the address 8765, 443, 4433 and 4434 (UDP and TCP) are published on |
+| `WT_URL` | `https://127.0.0.1:4433/` | the address the transport file tells the browser to dial, and an origin besides the page's that web's policy lets it connect to |
+| `EXACT_SERIES` | none | with `--profile pair`, the exact series of the optimal-quality `SERIES`, served by the `exact` service on 4434 |
+| `EXACT_WT_URL` | `https://127.0.0.1:4434/` | the `exact` service's `WT_URL`, the second origin web's policy names when `EXACT_SERIES` is set |
 | `TLS_DIR` | `./no-tls` (none) | `cert.pem` (the chain) and `key.pem` for the page; absent, web speaks HTTP on 8765 alone |
 | `TLS_PORT` | `443` | the host port published for web's 443 |
 | `RESTART_AFTER` | `9d` | the server exits after this and is restarted with a new certificate |
@@ -178,10 +190,11 @@ than failing, since the downloader refuses to start without it. Pages and the me
 
 ```
 default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;
-connect-src 'self' ${WT_ORIGIN}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'
+connect-src 'self' ${WT_ORIGINS}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'
 ```
 
-`WT_ORIGIN` is `WT_URL`'s scheme, host and port, which the page dials over WebTransport.
+`WT_ORIGINS` is `WT_URL`'s scheme, host and port, which the page dials over WebTransport, and `EXACT_WT_URL`'s when
+`EXACT_SERIES` is set.
 `'unsafe-eval'` is the decoders' glue, evaluated through `new Function` (`client/decode/wasm-glue.js`), and lets
 WebAssembly compile; the inline `<style>` is the page's. `dev-server.py` sends the same policy on the viewer's page
 alone, connecting anywhere on loopback, where the lab's relays and collectors listen; the lab's pages, which share
@@ -191,17 +204,18 @@ the viewer's workers and run inline scripts, carry none. The page's lab paramete
 ## The checks
 
 `check_equivalence.sh [STUDIES SERIES]` runs `dev-server.py` and the web image side by side, given the same studies
-and the same transport file. It checks five things:
+and the same transport files, `SERIES` served as the exact series of an optimal-quality series made from its
+metadata. It checks five things:
 
 * status, the three isolation headers, content type, `Cache-Control` and body bytes are equal on every path the
-  viewer loads (11);
-* 20 paths that must not be served are 404: the lab and its viewer parameters, the fixtures, the checkout, a study's
-  bundle, the transport directory, and the files of `client/` the page does not load (the check pages, a test, a
+  viewer loads (13, the exact series' metadata and transport file among them);
+* 22 paths that must not be served are 404: the lab and its viewer parameters, the fixtures, the checkout, a study's
+  bundle, the transport directory, the pair's paths under another series' id, and the files of `client/` the page does not load (the check pages, a test, a
   TypeScript and a Rust source, two build scripts, the WASM client's manifest and its package's, a README);
 * the WASM client's glue and `.wasm`, built in the image and so not compared with the tree's, answer 200 with the
   isolation headers, as `text/javascript` and `application/wasm` (`--local` serves the tree's build);
 * gzip on a module, the WASM and the metadata;
-* the policy on the page and on the downloader's script, connecting to the transport, and the dev host's on the page
+* the policy on the page and on the downloader's script, connecting to both servers of the pair, and the dev host's on the page
   equal to it but for `connect-src`;
 * `Server` carries no version.
 
