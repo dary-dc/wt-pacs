@@ -89,7 +89,7 @@ AV1 frames — as any series is: fill, steps, cine. Its **exact series** is the 
 own server. `viewer/pair.js` reads its metadata at `/series/<id>/metadata` and its transport file at
 `/wt/<id>/dev-transport.json` (`server/dev-server.py --exact-metadata … --exact-transport …`), and refuses by name an
 exact series that is not HTJ2K, is not of the same source (another frame count, width, height, `bitsStored` or
-`signed`, or a `framesSha256` missing from either or not the same), is read otherwise (another `photometric`,
+`signed`, or a `sourceFingerprint` missing from either or not the same, [`docs/av1/payload-format.md`](../docs/av1/payload-format.md) §Source fingerprint), is read otherwise (another `photometric`,
 `rescale` or `perFrame`), or has no XXH3-64 digest for each frame, since a frame without one could
 then not be called lossless: a digest proves a frame is its own series', not that the series is this one's source. A
 second downloader, one decoder and no fill, dials it once the optimal-quality series is connected, in either view. The

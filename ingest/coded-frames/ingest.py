@@ -350,9 +350,16 @@ def digests(s, n, codec, representation="optimized", split=None, grey8="400"):
     return dict(algorithm="xxh3-64", frames=[frame_digest(s.frame(i), two) for i in range(n)])
 
 
+def source_fingerprint(s, n, exact=None):
+    """XXH3-64 over the source's frame digests as its HTJ2K series carries them (`exact`, else hashed): docs/av1/payload-format.md §Source fingerprint."""
+    frames = exact or digests(s, n, "htj2k")["frames"]
+    return xxhash.xxh3_64_hexdigest("".join(frames).encode())
+
+
 def metadata(s, display, codec, preset=None):
     """A bundle's `metadata.json`: the series' `display` keys, then what its coded frames decide."""
+    d = digests(s, s.n, codec)
     return {"frameCount": s.n, **display, "min": s.lo, "max": s.hi, "codec": codec,
             **({"representation": "optimized", "preset": preset} if codec == "av1" else {}),
-            "digests": digests(s, s.n, codec)}
+            "digests": d, "sourceFingerprint": source_fingerprint(s, s.n, d["frames"] if codec == "htj2k" else None)}
 

@@ -362,8 +362,8 @@ beside its exact series, and the client pairs them by `exactSeries` ([`../glossa
   size, or nothing written. Not against its source: it is not exact. `ingest/coded-frames/lossy_test.py` checks a
   synthetic set at depths 8, 10 and 12: every frame within 1 % of the range (RMS), never exact, worse at Q 24 than
   at Q 8, decodable from its keyframe and not without it at G 1, 8 and 16, the same bytes at two `--jobs`.
-* **Metadata:** `"codec": "av1"`, `"lossy": {"q": Q, "g": G, "depth": D}` and `"exactSeries"`, the name its exact
-  series' bundle is known by. No `representation`, `preset` or `digests`: a frame digest makes a frame `exact`
+* **Metadata:** `"codec": "av1"`, `"lossy": {"q": Q, "g": G, "depth": D}`, `"exactSeries"`, the name its exact
+  series' bundle is known by, and the `"sourceFingerprint"` both series carry (§Source fingerprint). No `representation`, `preset` or `digests`: a frame digest makes a frame `exact`
   ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests), so a lossy frame arrives `unchecked`.
 * **Built** in `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID`; the DICOM ingest does not code it yet.
   `--depth-cut` codes the depth cut instead (§Depth cut).
@@ -442,3 +442,35 @@ series each, `…-q8-g16-stored`. *Corrected 2026-11-10 (DEMO-E2E):* this said t
 the script in that form, run twice on a 4-core x86-64 cloud host (903 s building the coders and fetching the volumes first, 565 s with both done), wrote the bytes in
 the table above both times, the Q 8 G 1 and G 16 cuts and both stored forms as before. At Q 24 the cut is 1.12–1.28 times
 the 12-bit view's bytes (§Optimal quality's table, 2026-11-09; from the rounded fractions), more, not fewer.
+### Source fingerprint
+
+*SOURCE-FINGERPRINT, 2026-11-11. Built and tested on synthetic sets; nothing timed.*
+
+The pairing's same-source check (the owner, 2026-11-11: it stays, belongs in the ingest and uses XXH3). Every series
+the ingest writes, exact and optimal-quality alike, carries **`sourceFingerprint`**: the canonical XXH3-64, 16
+lowercase hex digits, of its source's frame digests in frame order, each the 16-hex XXH3-64 of a frame's samples as
+an HTJ2K series' frame digest takes them (`docs/FIXTURES.md` §Frame digests: one byte a sample at 8 bits or fewer,
+two little-endian above, sign-extended), concatenated as text.
+
+* **Why over the frame digests.** An HTJ2K exact series already carries exactly those digests, so its fingerprint
+  costs one hash over n × 16 bytes and no second pass over the samples. An optimal-quality series has no frame
+  digests (a lossy frame is not exact), and an AV1 lossless series' are taken at its payload's width, which can
+  differ from the source's (a signed 8-bit source widened to 9 bits); either hashes the source samples once more at
+  ingest, XXH3 beside an AV1 encode of the same frames (not timed).
+* **Why both ingests agree.** Both compute it from the same source samples by the same function
+  (`ingest.py`'s `source_fingerprint`, the Rust ingest's `source_fingerprint` over its own frame digests), whatever
+  they code: the depth cut, Q, G and the representation never reach it. `lossy_test.py` holds the exact series, four
+  optimal-quality series and two cuts of one set to one value, and three sets to three; `end_to_end_test.py` holds
+  the DICOM ingest's HTJ2K and AV1 bundles of a 12-bit signed and an 8-bit signed series to one value each;
+  `same_test.py` holds the Rust and Python bundles byte-identical.
+* **The threat it covers:** an accidental mispairing, an `exactSeries` naming the bundle of another source with the
+  same frame count, size, depth and sign. Not an adversary: anyone who can write the metadata can write the
+  fingerprint, and nothing signs it. Two sources share a value only by an XXH3-64 collision.
+* **Checked by the client:** `checkPair` (`client/viewer/pair.js`) refuses an exact series whose `sourceFingerprint`
+  is not the optimal-quality series', or a series without one, by name.
+* **`framesSha256`** stays what it was, the lab fetcher's pin of a set's samples (`lab/av1/fetch_data.py`, the
+  SHA-256 of the frames' SHA-256 hex digests), checked at download. The lab's command no longer copies it into the
+  series it writes, and no client reads it. `lab/av1/bytes/prior-gap/pocgap.py` writes its own `framesSha256` into
+  the lab sets it makes; those never reach the pairing.
+* **What it changes:** every bundle's metadata gains one key, so every series written before it fails the pairing
+  check until written again (`scripts/demo-series.sh`).

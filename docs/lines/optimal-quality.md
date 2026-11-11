@@ -60,7 +60,8 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
 * **Tests for a phone on lossy wireless** (TEST-MOBILE, 2026-11-11, `claude/demo-tests-mobile`): the label through a
   failed ask and its retry, the route rule by depth and in a group, `demo-check.mjs --link` through
   `lab/scripts/link_impair.py` (no `sch_netem` in the cloud kernel). Correct wherever it finished; at 40 ms one way
-  and 2 % loss `dbts_a1`'s cut filled in 36 s and Lossless took 3–6 s, and `dbts_b1` did not fill in 120 s
+  and 2 % loss `dbts_a1`'s cut filled in 36 s and Lossless took 3–6 s (up to 17 s
+  with ±10 ms jitter, its §2; *corrected 2026-11-11*, REVIEW-2 D1: this gave 3–6 s alone), and `dbts_b1` did not fill in 120 s
   ([`docs/reviews/demo-tests-mobile.md`](../reviews/demo-tests-mobile.md); one run per cell, one cloud host).
 * **Red team** (REDTEAM-DEMO, 2026-11-11, `claude/demo-redteam`, node tests only): five failing tests, one finding
   without a test ([`docs/reviews/demo-redteam.md`](../reviews/demo-redteam.md)). The pair's source check is
@@ -102,6 +103,21 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   (`STORED_FORM=1 scripts/demo-series.sh` keeps it), dav1d's browser check through the lab's `refuseWebCodecs` on a
   10-bit series; SLICE-TOUCH's slice slider in both views; `client/README.md`'s *exact* sentence corrected. Results:
   `claude/work-ledger:docs/queue/DEMO-UX.md`.
+* **The web image serves a pair** (MAIN-REVIEW, 2026-11-11, `claude/demo-fixes-2`): `--profile pair` with
+  `EXACT_SERIES` starts a second server on 4434 for the exact series, and web answers its metadata and transport file
+  and names both origins in its policy (`deploy/README.md` §Run it). `check_equivalence.sh --local` now serves the
+  smoke series as a pair's exact series and passes; five template mutants fail it. Not run: the image itself (CI's
+  job), and a browser on an image-served pair.
+* **Source fingerprint** (SOURCE-FINGERPRINT, 2026-11-11, `claude/source-fingerprint` from `claude/demo-fixes-1`,
+  merged into `claude/demo-fixes-2` by FIX-2): every series the ingests write (`ingest_coded.py`, `from_dicom.py`, the Rust ingest) carries
+  `sourceFingerprint`, XXH3-64 over the source's frame digests as its HTJ2K series carries them; `checkPair` requires
+  the same 16 hex digits in both series instead of `framesSha256`, which stays the fetcher's download pin and is no
+  longer copied into a series ([`../av1/payload-format.md`](../av1/payload-format.md) §Source fingerprint). Synthetic
+  sets and node tests, every new test mutated. `demo-series.sh` run again (one 4-core cloud host, 685 s with the
+  coders built): every exact bundle 43 B smaller (`framesSha256` out, `sourceFingerprint` in), each optimal-quality
+  bundle the same size; each set's eight or seven series carry one fingerprint, the three sets three; `checkPair`
+  accepts all 20 pairs and refuses each against the other two sets' exact series by source (a node script over the
+  metadata; no browser run on these series).
 * **Tools for the phone run** (PHONE-TOOLS, 2026-11-11, `claude/phone-tools`, draft PR into `claude/demo-fixes-2`, not
   for the demo): each image labelled with its commit (`REVISION`, OCI `revision`); a test-only server image with the
   telemetry feature (`FEATURES=telemetry`, the default image unchanged; both built here and inspected); README step 8,
@@ -110,11 +126,6 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   loads across the two origins, presses **lossless** twice, waits a fixed gap and stops on any failure. Checked
   headless on loopback on a synthetic pair (`lab/phone/run_test.sh`); not on a phone.
 * **Not yet run:** any phone run.
-* **The web image serves a pair** (MAIN-REVIEW, 2026-11-11, `claude/demo-fixes-2`): `--profile pair` with
-  `EXACT_SERIES` starts a second server on 4434 for the exact series, and web answers its metadata and transport file
-  and names both origins in its policy (`deploy/README.md` §Run it). `check_equivalence.sh --local` now serves the
-  smoke series as a pair's exact series and passes; five template mutants fail it. Not run: the image itself (CI's
-  job), and a browser on an image-served pair.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
   twelve): running REDTEAM-DEMO, REVIEW-BLIND, TEST-MOBILE, AV1-CORRECT, OPT-THEORY, and the rows added that night:
@@ -240,12 +251,19 @@ What a presenter should know, from the reviews of 2026-11-11 (`claude/demo-under
 * The web image ships the check hooks (`check-page.js`, `view/check.js`), so `?check=` works in production; on the
   lab host `?opts=` can switch the exactness check off from the URL (DEFAULTS-FIND 1, 4).
 * About 110 of `viewer.js`'s 334 lines are check and lab hooks (CLEAN-FIND).
-* PR 250 brings to `main` new `lab/` directories (about 5 100 lines, `lab/target-review` among them) and
+* PR 250 brings to `main` new `lab/` directories (about 5 100 lines, lab/target-review among them) and
   `client/native` (+3 303); moving any off `main` names each item and waits for the owner's yes (PRE-MAIN-REVIEW §4).
+  EXPERIMENTS-OFF (2026-11-11) lists every item in [`docs/reviews/experiments-off.md`](../reviews/experiments-off.md):
+  nine removals prepared on `claude/demo-clean` (−8 273 lines, each folder kept byte for byte on its line branch),
+  seven listed and not prepared (`client/native` is the native line's product, not an experiment; the lab hooks in
+  product modules are a refactor after FREEZE-E2E). FIX-2 merges only the items the owner says yes to.
 * The decoders' WASM is committed and the gate checks it rebuilds to the same bytes; that is what lets the laptop
   without installs run the page without Docker.
 * `framesSha256` is written only by the lab fixture fetcher, so a pair made by any other ingest fails the pairing
-  check until the ingest writes the source fingerprint (row SOURCE-FINGERPRINT).
+  check until the ingest writes the source fingerprint (row SOURCE-FINGERPRINT). *Built 2026-11-11 on
+  `claude/source-fingerprint`, not in the demo:* every ingest writes `sourceFingerprint` and `checkPair` compares it
+  in place of `framesSha256`; it enters the demo only with the owner's word, since every demo series must be written
+  again.
 
 ## Pointers
 
