@@ -896,8 +896,8 @@ s is the p90 of |S's Lossless ÷ W − 1|: the same bytes on the same build, use
 
 **Owed, for stage 3** (shards S3a–S3c, the next session):
 
-* the D arms' series, from the demo tip's `claude/demo-fixes-2:scripts/demo-series.sh`;
-* the five arms' series, packed with Layout 1's band-major entries;
+* ~~the D arms' series~~ built from the demo commit `157b7109`'s `scripts/demo-series.sh`, equal byte for byte to FREEZE-E2E's run;
+* ~~the strip arms' series~~ cut into Layout 1's band-major entries; checked from the entries alone, 294/294 pictures exact, three mutants caught ([`stage3_check.py`](../lab/htj2k-tiles/improve/stage3_check.py));
 * a lab client for D+T3, D+L★ and S★: level-first asks, I4's store of bands and level pictures and its reopen, and
   stage 0's two cache mutants;
 * `parity.mjs` on both builds;
