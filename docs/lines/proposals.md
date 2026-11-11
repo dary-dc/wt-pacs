@@ -235,6 +235,32 @@ loss options, and the fourth cell is `--queue-pkts 20` with no loss. The pair's 
 or the last (`End`), and `l` is pressed after 10 s of quiet on a filled page. Driver `lab/proposals/link_cells.mjs`,
 order `lab/proposals/p4.sh`. Rule unchanged.
 
+**Measured in part (MEASURE-1, 2026-11-11 05:19–07:15, per amendment 1): 3 of 7 rounds.** 216 runs, every one ending
+at *Lossless*; the run stopped at its session's time limit 28 runs into round 4, whose rows are kept apart
+(`lab/proposals/rows/p4-round4-stopped.jsonl`) and are rerun whole. Rows `lab/proposals/rows/p4.jsonl`, table
+`lab/proposals/p4_summary.py`; a cell is a link cell and series, its three frames pooled (median of 9).
+
+| cell | series | `l` default ms | `l` 38 400 ms | ratio | first · middle · last ratios | n |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| 0 | dbts_a1-q8-g8-cut | 800 | 703 | 0.88 | 0.88 · 0.88 · 0.87 | 9 and 9 |
+| 0 | dbts_b1-q8-g8 | 1238 | 1134 | 0.92 | 0.91 · 0.92 · 0.92 | 9 and 9 |
+| 0 | dbts_c1-q8-g16-cut | 722 | 626 | 0.87 | 0.86 · 0.87 · 0.86 | 9 and 9 |
+| iid1 | dbts_a1-q8-g8-cut | 1147 | 1125 | 0.98 | 1.23 · 0.78 · 0.43 | 9 and 9 |
+| iid1 | dbts_b1-q8-g8 | 5680 | 5116 | 0.90 | 0.87 · 0.84 · 0.87 | 9 and 9 |
+| iid1 | dbts_c1-q8-g16-cut | 3027 | 1960 | 0.65 | 1.30 · 0.36 · 0.39 | 9 and 9 |
+| ge | dbts_a1-q8-g8-cut | 873 | 723 | 0.83 | 0.83 · 0.79 · 0.83 | 9 and 9 |
+| ge | dbts_b1-q8-g8 | 1244 | 1152 | 0.93 | 0.92 · 0.93 · 0.93 | 9 and 9 |
+| ge | dbts_c1-q8-g16-cut | 730 | 629 | 0.86 | 0.92 · 0.86 · 0.86 | 9 and 9 |
+| q20 | dbts_a1-q8-g8-cut | 841 | 763 | 0.91 | 0.91 · 0.91 · 0.87 | 9 and 9 |
+| q20 | dbts_b1-q8-g8 | 1361 | 1284 | 0.94 | 0.93 · 0.92 · 0.93 | 9 and 9 |
+| q20 | dbts_c1-q8-g16-cut | 755 | 660 | 0.87 | 0.89 · 0.87 · 0.83 | 9 and 9 |
+
+**Interim, not a verdict:** after 3 rounds the rule is not met (`dbts_b1` clean 0.92×, `dbts_a1` at the 20-packet
+queue 0.91×; the rule asks ≤ 0.9×), and no cell is above 1.05×. Against the prediction (−5 to −25 % clean), the clean
+cells read −8 to −13 %, inside the band. Under 1 % loss the frames' ratios scatter (0.36–1.30): with 9 runs a cell, a
+loss in the first flights decides a run. The 20-packet queue cost no loss to the 38 400 arm (prediction: a loss in
+the 10-packet cell, not run here). Rounds 4–7 decide it. **Limits:** as P1's.
+
 ### P5. The exact session dialled after the first picture
 
 **Mechanism.** `connectExact` runs at page start, beside the OQ session's dial and before the first frame: a second
