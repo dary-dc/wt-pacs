@@ -52,6 +52,12 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   `--features telemetry` build (session line, a loss trace, path rows every 250 ms), the mix read from
   `cubic-restart`'s sessions alone; one timed series (`dbts_b1-q8-g8`) and an eye check of `dbts_a1-q8-g8-cut`, 56
   loads, about two hours (an assumption); the stored form out. The controller verdict changes no default alone.
+  *Amended again* (PHONE-AMEND-2, 2026-11-11, before any timed load): PHONE-TOOLS's runner presses **lossless** after
+  the fill with a fixed 15 s gap; Part B runs on the beacon's fill (WebTransport construction to the last frame
+  stored, on `timeOrigin + now`); tether and Wi-Fi alternate load by load in six octets, both addresses up, if the
+  tether takes no default route and no load crosses links (else the blocks); the Wi-Fi arm is the server wired, the
+  phone on Wi-Fi; the series servers run as the telemetry image on the host network, four loads through rootless
+  publish reported only; no adb, DevTools or trace in a timed load; verdicts are the run commit's.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
