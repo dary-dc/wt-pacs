@@ -34,7 +34,7 @@ export function checkPair(lossy, exact) {
     : exact.bitsStored !== lossy.bitsStored ? `has bitsStored ${exact.bitsStored}, not ${lossy.bitsStored}`
     : exact.signed !== lossy.signed ? `is signed ${exact.signed}, not ${lossy.signed}`
     : readOtherwise ? `is read otherwise: its ${readOtherwise} differs`
-    : exact.framesSha256 && lossy.framesSha256 && exact.framesSha256 !== lossy.framesSha256 ? "is of another source: framesSha256 differs"
+    : !lossy.framesSha256 || exact.framesSha256 !== lossy.framesSha256 ? `is not shown to be of this source: framesSha256 ${exact.framesSha256}, not ${lossy.framesSha256}`
     : exact.digests?.algorithm !== "xxh3-64" ? "has no xxh3-64 frame digests, so no frame of it could be shown as lossless"
     : !wholeDigests(exact.digests.frames, exact.frameCount) ? `has no 16-hex digest for each of its ${exact.frameCount} frames, so not every frame could be shown as lossless`
     : null;

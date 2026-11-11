@@ -25,7 +25,7 @@ for (const [bad, why] of [
 
 /** The exact series must be HTJ2K, of the same source, and carry the digests a "Lossless" label needs. */
 checkPair(lossy, exact);
-checkPair({ ...lossy, framesSha256: undefined }, exact);
+assert.throws(() => checkPair({ ...lossy, framesSha256: undefined }, exact), /not shown to be of this source/);
 for (const [bad, why] of [
   [{ codec: "av1" }, /not an HTJ2K series/],
   [{ lossy: { q: 1, g: 1, depth: 8 } }, /not an HTJ2K series/],
@@ -34,7 +34,8 @@ for (const [bad, why] of [
   [{ height: 3 }, /is 4×3, not 4×2/],
   [{ bitsStored: 12 }, /bitsStored 12, not 10/],
   [{ signed: true }, /signed true, not false/],
-  [{ framesSha256: "beef" }, /another source: framesSha256/],
+  [{ framesSha256: "beef" }, /this source: framesSha256 beef, not f00d/],
+  [{ framesSha256: undefined }, /this source: framesSha256 undefined/],
   [{ digests: undefined }, /no xxh3-64 frame digests/],
   [{ digests: { algorithm: "sha256", frames: [] } }, /no xxh3-64 frame digests/],
 ]) assert.throws(() => checkPair(lossy, { ...exact, ...bad }), why);
