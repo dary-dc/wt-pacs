@@ -1,9 +1,11 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 18:24
+heartbeat: 2026-11-11 18:31
 outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure 33cb6b3d (B0 measured, from claude/av1-corrections); no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
 ## Resume
 Resumed 2026-11-11 18:24 by a new session (stalled at 17:00), at B: amendment 1 first.
+18:31: setup started in background (worktree /home/user/gs at 0e0e58c8; OUT=/home/user/data lab/av1/fetch_data.sh <19 DBT>;
+BUILD=/home/user/gs/lab/.av1-build ingest/tools.sh; logs /home/user/logs/). Nothing pushed yet but this note.
 2026-11-11 17:00: this session did B0 and stopped (nothing unpushed, nothing running). Next session: B.
 B0 on claude/audit-measure (from claude/av1-corrections): amendment 1 67187d0b, script + check + 8-bit mutation
 8cc5fe78 (lab/av1/audit/b0.py, README has the commands), §B0 measured 462ebab0, codecs line 33cb6b3d.
