@@ -27,14 +27,40 @@ services:
       interval: 2s
       timeout: 2s
       retries: 15
+  # SERIES' exact series, when SERIES is an optimal-quality series: `--profile pair`, deploy/README.md §An optimal-quality series.
+  exact:
+    image: wt-pacs-server
+    build: { <<: *build, target: server }
+    profiles: [pair]
+    restart: unless-stopped
+    security_opt: ["seccomp=./seccomp-uring.json"]
+    ulimits:
+      memlock: "${MEMLOCK:-67108864}"
+      nofile: "${NOFILE:-65535}"
+    environment:
+      SERIES: "${EXACT_SERIES:-}"
+      WT_URL: "${EXACT_WT_URL:-https://127.0.0.1:4434/}"
+      RESTART_AFTER: "${RESTART_AFTER:-9d}"
+      CLIENT: "${CLIENT:-ts}"
+    volumes:
+      - "${STUDIES:-../fixtures/us_cine_smoke}:/studies:ro,z"
+      - "exact-transport:/run/wt-pacs:z"
+    ports:
+      - "${PUBLISH_ADDR:-127.0.0.1}:4434:4433/udp"
+      - "${PUBLISH_ADDR:-127.0.0.1}:4434:4433/tcp"
   web:
     image: wt-pacs-web
     build: { <<: *build, target: web }
     restart: unless-stopped
-    environment: { SERIES: "${SERIES:-us_cine_smoke}", WT_URL: "${WT_URL:-https://127.0.0.1:4433/}" }
+    environment:
+      SERIES: "${SERIES:-us_cine_smoke}"
+      WT_URL: "${WT_URL:-https://127.0.0.1:4433/}"
+      EXACT_SERIES: "${EXACT_SERIES:-}"
+      EXACT_WT_URL: "${EXACT_WT_URL:-https://127.0.0.1:4434/}"
     volumes:
       - "${STUDIES:-../fixtures/us_cine_smoke}:/studies:ro,z"
       - "transport:/srv/wt-pacs/wt:ro,z"
+      - "exact-transport:/srv/wt-pacs/exact-wt:ro,z"
       - "${TLS_DIR:-./no-tls}:/tls:ro,z"
     ports:
       - "${PUBLISH_ADDR:-127.0.0.1}:8765:8765"
@@ -48,5 +74,6 @@ services:
       retries: 15
 volumes:
   transport:
+  exact-transport:
 secrets:
   build_ca: { file: "${BUILD_CA:-/dev/null}" }
