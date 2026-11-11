@@ -289,6 +289,93 @@ adb reverse tcp:8765 tcp:8765
 On the phone, Chrome, `http://127.0.0.1:8765/?overlay=1`. Nothing arriving: that section's step 4 (`tcpdump`).
 Afterwards, `adb reverse --remove-all` and USB tethering off.
 
+**On a phone, from a laptop without installs** — no `openssl` command, no adb, no node, no ingest coders, no root:
+the laptop needs git, cargo, Python 3 (its standard library), jq and podman with a local `rust` image, which carries
+`openssl`. Three things differ from the block above. The page comes over the tether, at the laptop's address, in place
+of `adb reverse`; Chrome on the phone treats that one origin as secure through its flag **Insecure origins treated as
+secure**, which Chromium builds for Android too: `{"unsafely-treat-insecure-origin-as-secure",
+flag_descriptions::kTreatInsecureOriginAsSecureName, flag_descriptions::kTreatInsecureOriginAsSecureDescription,
+kOsAll, …}`, `kOsAll = kOsMac | kOsWin | kOsLinux | kOsCrOS | kOsAndroid`, described as "Treat given (insecure) origins
+as secure origins. Multiple origins can be supplied as a comma-separated list. Origins must have their protocol
+specified e.g. "http://example.com"" ([Chromium, `about_flags.cc`](https://chromium.googlesource.com/chromium/src/+/463745830f5ed9085d719a959b967c2fcca172b1/chrome/browser/about_flags.cc)
+and [`flag_descriptions.h`](https://chromium.googlesource.com/chromium/src/+/463745830f5ed9085d719a959b967c2fcca172b1/chrome/browser/flag_descriptions.h)).
+`dev-server.py --bind` serves the page on that address alone, and its policy connects there. The certificate is made by
+the `rust` image's `openssl` (`OPENSSL=` in `gen_dev_cert.sh`) and its hash read from the transport file it writes.
+The series are coded on a machine with §Prerequisites, `scripts/demo-series.sh`, and copied. What §What to show
+needs, from one run on a 4-core cloud host (2026-11-11): six bundles, 208 MB in all, 175 MB of it the two exact series
+(all 23 series: 368 MB):
+
+| `demo-series/` | bytes |
+| --- | ---: |
+| `dbts_a1-q8-g8-cut.sbnd` | 4,642,336 |
+| `dbts_b1-q8-g8.sbnd` | 23,208,339 |
+| `dbts_a1-q24-g8-cut.sbnd` | 212,383 |
+| `dbts_a1-q8-g16-stored.sbnd` | 5,030,258 |
+| `dbts_a1.sbnd` (exact) | 67,815,186 |
+| `dbts_b1.sbnd` (exact) | 107,410,134 |
+
+Each with its `ID.metadata.json` beside it (about 2 KB for an exact series, 0.8 KB otherwise). Once, on the machine
+that codes them, from the repository's root: `mkdir -p demo-series && scripts/demo-series.sh | tee demo-series/table.txt` (§What to show's
+item 7 is its last table); then copy `demo-series/` to the laptop's checkout, all of it or the files above.
+
+**Once per laptop**, at the repository's root on the demo's branch:
+
+```bash
+podman image exists rust && podman run --rm --network none rust openssl version   # else: podman images
+cargo build --release -p series-server                # gcc alone; fetches crates.io
+ls demo-series/dbts_a1-q8-g8-cut.sbnd demo-series/dbts_a1.sbnd    # copied, as above
+```
+
+**Each time, from any state.** Plug in and turn on USB tethering on the phone (§The viewer on an Android phone, step
+1; no USB debugging needed), then, on the laptop:
+
+```bash
+# Every terminal first
+IF=$(for d in /sys/class/net/*; do case $(readlink -f "$d/device/driver") in */rndis_host|*/cdc_ncm|*/cdc_ether) echo "${d##*/}";; esac; done | head -1)
+[ -n "$IF" ] || IF=$(nmcli -t -f DEVICE,TYPE,STATE device | awk -F: '$2=="wifi" && $3=="connected" {print $1; exit}')
+LAPTOP_IP=$(ip -4 -o addr show dev "$IF" | awk '{print $4}' | cut -d/ -f1 | head -1); echo "phone opens http://$LAPTOP_IP:8765"
+ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}
+# Terminal 1, before the others — servers left running stopped, the certificate made in the rust image, both
+#   transport files naming the laptop's address, then the optimal-quality series
+pkill -f 'release/series-server' ; pkill -f 'server/dev-server.py'
+mkdir -p server/dev-cert target
+OPENSSL="podman run --rm -i --network none -v $PWD/server/dev-cert:$PWD/server/dev-cert:z rust openssl" \
+  ./server/scripts/gen_dev_cert.sh --if-needed
+HASH=$(jq -r .cert_sha256 client/dev-transport.json)
+for p in 4433 4434; do
+  printf '{"wt_url": "https://%s:%s/", "cert_sha256": "%s"}\n' "$LAPTOP_IP" "$p" "$HASH" > target/phone-transport-$p.json
+done
+target/release/series-server --port 4433 --series demo-series/$ID.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+# Terminal 2 — its exact series
+target/release/series-server --port 4434 --series demo-series/$EXACT.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+# Terminal 3 — the static host, on the laptop's address toward the phone alone
+python3 server/dev-server.py --bind "$LAPTOP_IP" --port 8765 --metadata demo-series/$ID.metadata.json \
+  --transport target/phone-transport-4433.json \
+  --exact-metadata demo-series/$EXACT.metadata.json --exact-transport target/phone-transport-4434.json
+```
+
+On the phone, in Chrome: `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, the origin the first terminal
+printed (`http://` the address `:8765`, no path), **Enabled**, **Relaunch**; then that origin with `/?overlay=1`. The
+tether may hand the laptop another address on another plug-in: when the printed origin changes, enter it in the flag
+again. The ports, 8765/tcp and 4433–4434/udp, lie inside the 1025–65535 that Fedora Workstation's default zone admits;
+whether the tether's interface lands in that zone is *unverified* — `firewall-cmd --get-zone-of-interface="$IF"`
+names it (without root, *unverified*), and when nothing arrives on another zone, use Wi-Fi as step 1 does. Nothing
+arriving, without root for `tcpdump`: the page not loading is TCP 8765 not reaching the laptop; the page loading but
+`received 0` with no `session` line in Terminal 1 is UDP 4433. Afterwards, USB tethering off; the flag may stay, as it
+names that one origin.
+No console: DevTools on the phone needs adb (step 5).
+
+*Checked in a container (2026-11-11):* these commands in a network namespace standing in for the phone, a veth pair for
+the tether, `docker run … rust:1 openssl` for the podman line, on `dbts_a1-q8-g8-cut`, `dbts_b1-q8-g8` and
+`dbts_a1-q8-g16-stored` with their exact series, the page's files as committed (no client build). Chromium 153 in the
+namespace, launched with `--unsafely-treat-insecure-origin-as-secure=http://<address>:8765`, opened the page at the
+laptop's address as a secure context, cross-origin isolated, and filled every frame (56, 50, 56: `av1-webcodecs`, and
+`av1-dav1d after WebCodecs refused` on the stored form); `l` read *Lossless* from 4434 each time. Without the flag:
+not a secure context, `WebTransport is not defined`, no frame. Playwright's headless shell ignores the flag; the full
+browser honors it. Not checked: the phone, its Chrome's flags page, the tether, firewalld's zone, podman.
+
 **What to show, in order:**
 
 1. `dbts_a1-q8-g8-cut`. The picture arrives, the label top right says *Optimal quality*. Scroll with the wheel or the
