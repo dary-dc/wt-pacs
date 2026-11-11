@@ -716,7 +716,7 @@ many decoders); whether `taskset` reaches that value is not known, and the readi
 the tile threads shared two cores there. *Limits:* x86-64 cores under headless Chromium's software dav1d, not a
 phone's; three DBT volumes of one dataset; a frame-pooled metric can pass a frame while a region fails (R, I2).
 
-**Amendment 1 (MEASURE-2, 2026-11-11 19:40, written before any run).** *Builds:* the demo tip is
+**Amendment 1 (MEASURE-2, 2026-11-11 19:02, written before any run).** *Builds:* the demo tip is
 `claude/demo-fixes-2` at `d46811c6` (frozen). I1 and I2 are built on `claude/oq-integrity-build` at `08bf659e`
 (draft PR 368, off by default), which the demo tip does not carry, so the encodes and condition (2) run on a worktree
 of `08bf659e`, and the jump cell on the demo tip. Its diff against the demo tip's merge base touches the ingest only
@@ -770,7 +770,7 @@ decode-bound and is reported so, no ratio claimed. *Limits:* a userspace relay w
 radio; nothing here prices congestive loss or a neighbour, which the phone runs' controller arm reads
 (`docs/devices.md` §7 amendment); three DBT volumes of one dataset; one 4-core host without a GPU; SwiftShader.
 
-**Amendment 1 (MEASURE-2, 2026-11-11 20:00, written before any run).** *Tip:* the demo tip `claude/demo-fixes-2` at
+**Amendment 1 (MEASURE-2, 2026-11-11 19:05, written before any run).** *Tip:* the demo tip `claude/demo-fixes-2` at
 `d46811c6`, its `demo-series.sh` series. *Driver change:* `lab/proposals/link_cells.mjs --jump-after-ms 500`: after the
 first picture (the quality label's first text, as P1) the driver waits 500 ms, sends `window` to the relay, presses
 `End`, and times the key to the overlay's first write while the status line names the last frame (`jumpMs`, the
@@ -812,7 +812,7 @@ is lower by ≥ 30 ms, with R0's A/A pair (off against off, 10 dwells) setting t
 the relay's radio is a model; the phone row is one device on one carrier; the ping's period is by report (R,
 `transport-conclusions.md`).
 
-**Amendment 1 (MEASURE-2, 2026-11-11 20:15, written before any run).** *Arm:* `lab/proposals/r3_arm.sh TIP ROOT`
+**Amendment 1 (MEASURE-2, 2026-11-11 19:07, written before any run).** *Arm:* `lab/proposals/r3_arm.sh TIP ROOT`
 copies the demo tip's client (`d46811c6`) beside it and makes three edits: the downloader answers `wake` with
 `session.endStream()` and nothing else; the consumer gains `wake()`, which posts it; the viewer's lossless button's
 `pointerdown` calls `controller.exactSource?.wake()`. *Lab test* `lab/proposals/r3_arm.test.mjs ROOT`: the viewer
@@ -846,7 +846,7 @@ against default) in the 1 % cell. *Fixtures, link, frames, order:* P4's amendmen
 *Lossless* after 10 s of quiet, and the exact session's path RTT at the ask. *Limits:* as P1's. This waits on the
 phone runs: unless they move the default to BBR, it informs only a lab option.
 
-**Amendment 1 (MEASURE-2, 2026-11-11 20:15, written before any run).** *Read from the code:* the demo tip's
+**Amendment 1 (MEASURE-2, 2026-11-11 19:07, written before any run).** *Read from the code:* the demo tip's
 `server/src/transport/tuning.rs:27-31` gives `--initial-window-bytes` to both the Cubic and the BBR configs, so R4
 is not void. *Path RTT:* the demo tip's server prints no path RTT and the exact session's `WebTransport` lives in a
 worker, out of the driver's reach, so the controller's RTT at the ask is not recorded. In its place
