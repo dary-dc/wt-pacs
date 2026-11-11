@@ -109,7 +109,6 @@ run 1 node client/viewer/store.test.mjs
 run 1 node client/view/clock.test.mjs
 run 1 node lab/frame-clock/arms.test.mjs
 run 1 node lab/frame-clock/measure.test.mjs
-run 1 node lab/paint-read/measure.test.mjs
 run 1 node lab/viewer/view-summary.test.mjs
 run 1 node lab/viewer/start-summary.test.mjs
 run 1 node lab/viewer/settle-summary.test.mjs

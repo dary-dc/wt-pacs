@@ -988,7 +988,7 @@ follows. *The `viewWorker` stamp* is taken where the page makes the `ViewWorker`
 
 ### The pixel read under a busy page (2026-10-30)
 
-*Pre-registered 2026-10-30, before any data; the probe is [`../../lab/paint-read/`](../../lab/paint-read/README.md).*
+*Pre-registered 2026-10-30, before any data; the probe is [`../../lab/paint-read/`](https://github.com/dary-dc/wt-pacs/tree/0920153d2a44916c6832a9d8dd0befabc0923681/lab/paint-read/README.md).*
 
 **Why, read from source and not yet measured.** Since Firefox 145, `ClientWebGLContext::ReadPixels` asks
 `GetCanvasExtractDataPermission` after every read (`dom/canvas/ClientWebGLContext.cpp` near line 5451 at
