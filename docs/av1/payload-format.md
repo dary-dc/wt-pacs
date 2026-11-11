@@ -470,6 +470,7 @@ two little-endian above, sign-extended), concatenated as text.
   is not the optimal-quality series', or a series without one, by name.
 * **`framesSha256`** stays what it was, the lab fetcher's pin of a set's samples (`lab/av1/fetch_data.py`, the
   SHA-256 of the frames' SHA-256 hex digests), checked at download. The lab's command no longer copies it into the
-  series it writes, and no client reads it.
+  series it writes, and no client reads it. `lab/av1/bytes/prior-gap/pocgap.py` writes its own `framesSha256` into
+  the lab sets it makes; those never reach the pairing.
 * **What it changes:** every bundle's metadata gains one key, so every series written before it fails the pairing
   check until written again (`scripts/demo-series.sh`).

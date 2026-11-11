@@ -60,7 +60,8 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
 * **Tests for a phone on lossy wireless** (TEST-MOBILE, 2026-11-11, `claude/demo-tests-mobile`): the label through a
   failed ask and its retry, the route rule by depth and in a group, `demo-check.mjs --link` through
   `lab/scripts/link_impair.py` (no `sch_netem` in the cloud kernel). Correct wherever it finished; at 40 ms one way
-  and 2 % loss `dbts_a1`'s cut filled in 36 s and Lossless took 3–6 s, and `dbts_b1` did not fill in 120 s
+  and 2 % loss `dbts_a1`'s cut filled in 36 s and Lossless took 3–6 s (up to 17 s
+  with ±10 ms jitter, its §2; *corrected 2026-11-11*, REVIEW-2 D1: this gave 3–6 s alone), and `dbts_b1` did not fill in 120 s
   ([`docs/reviews/demo-tests-mobile.md`](../reviews/demo-tests-mobile.md); one run per cell, one cloud host).
 * **Red team** (REDTEAM-DEMO, 2026-11-11, `claude/demo-redteam`, node tests only): five failing tests, one finding
   without a test ([`docs/reviews/demo-redteam.md`](../reviews/demo-redteam.md)). The pair's source check is
