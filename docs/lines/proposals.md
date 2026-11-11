@@ -90,6 +90,19 @@ fill whose BBR arm comes within 10 % of the same series' loopback fill (1.7, 4.6
 reported as "at the host's ceiling", with no ratio claimed. *Limits:* three DBT volumes of one dataset; netem, not
 a radio; a 4-core cloud host without a GPU; SwiftShader paints.
 
+**Amendment 1 (MEASURE-1, 2026-11-11 04:50, written before any run).** The measuring host has no `sch_netem`: `tc
+qdisc add dev lo root netem …` answers "Specified qdisc kind is unknown", as README §7 records for a container. The
+link is therefore `lab/scripts/link_impair.py` (`docs/rig-limits.md` §3, read back against arithmetic there), in front
+of both sessions as `demo-check.mjs --link` puts it: `--delay-ms 30 --rate-kbit 20000 --queue-pkts 1000` (netem's
+default limit), each direction, as netem on loopback's egress shapes both; the 1 % cell adds `--loss 1` (iid, each
+direction), the burst cell `--loss-model ge --ge-p 0.07 --ge-r 14` (`cloud_netem.sh`'s `gemodel` defaults). The relay
+sees every datagram, so the GSO-batch caveat does not arise and the product's server build runs in every cell. The
+fixtures and driver are the demo tip's (`claude/demo-fixes-1` at `9e2ef4ef`, built on `claude/demo-fixes-0`, per the
+queue's demo-tip rule). The driver is `lab/proposals/link_cells.mjs` (one run: fresh servers, relay, static host and
+headless Chromium; the fill's last frame received, then `l` on the shown first frame after 10 s of quiet), ordered by
+`lab/proposals/p1.sh`. The relay's own CPU bounds it at ~100 Mbit; 20 Mbit is under that. Arms, cells, rounds, rule
+and saturation test are unchanged.
+
 ### P2. Tiles in the optimal-quality encode
 
 **Mechanism.** The encoder codes each frame as one tile: `lossy_args` sets no tile option and `--threads=1`

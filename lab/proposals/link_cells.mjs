@@ -1,0 +1,103 @@
+// One run of a link protocol in docs/lines/proposals.md §Optimize (P1, P4): a pair served as README §Demo serves it, both
+// sessions through lab/scripts/link_impair.py, one fresh headless Chromium; the fill's last frame, then `l` after a quiet.
+//
+//   node lab/proposals/link_cells.mjs TIP DIR LOSSY_ID --link "OPTIONS" [--lossy-args "..."] [--exact-args "..."]
+//        [--quiet-ms 10000] [--frame first|middle|last]
+//     TIP: a checkout of the demo tip with its client, series-server and dev certificate built
+//   prints one JSON row; times are ms on the page's clock, from navigation
+import { spawn } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+const [tip, dir, id] = process.argv.slice(2);
+const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
+const words = (s) => (s ? s.split(/\s+/).filter(Boolean) : []);
+const QUIET = Number(arg("--quiet-ms", 10000));
+const FRAME = arg("--frame", "first");
+const T = mkdtempSync(path.join(tmpdir(), "link-cells-"));
+const children = [];
+const stop = () => { for (const c of children.splice(0)) c.kill("SIGKILL"); };
+process.on("exit", () => { stop(); rmSync(T, { recursive: true, force: true }); });
+
+const lossyMeta = JSON.parse(readFileSync(path.join(dir, `${id}.metadata.json`)));
+const exactId = lossyMeta.exactSeries;
+const run = (cmd, args) => {
+  const child = spawn(cmd, args, { cwd: tip, stdio: ["ignore", "pipe", "pipe"] });
+  child.out = "";
+  child.stdout.on("data", (d) => (child.out += d));
+  child.stderr.on("data", (d) => (child.out += d));
+  children.push(child);
+  return child;
+};
+const started = (child, re) => new Promise((resolve, reject) => {
+  const t = setInterval(() => re.test(child.out) && (clearInterval(t), resolve()), 20);
+  child.once("exit", (c) => (clearInterval(t), reject(new Error(`exited ${c}: ${child.out}`))));
+});
+
+const cert = ["--cert-pem", "server/dev-cert/cert.pem", "--key-pem", "server/dev-cert/key.pem"];
+const server = path.join(tip, "target/release/series-server");
+const lossy = run(server, ["--port", "4433", "--series", path.join(dir, `${id}.sbnd`), ...cert, ...words(arg("--lossy-args"))]);
+const exact = run(server, ["--port", "4434", "--series", path.join(dir, `${exactId}.sbnd`), ...cert, ...words(arg("--exact-args"))]);
+const transport = readFileSync(path.join(tip, "client/dev-transport.json"), "utf8");
+writeFileSync(`${T}/transport.json`, transport.replace(":4433", ":5433"));
+writeFileSync(`${T}/exact-transport.json`, transport.replace(":4433", ":5434"));
+const relay = run("python3", ["lab/scripts/link_impair.py", "--udp", "5433:4433", "--udp", "5434:4434", ...words(arg("--link"))]);
+const host = run("python3", ["server/dev-server.py", "--port", "8765", "--metadata", path.join(dir, `${id}.metadata.json`),
+  "--transport", `${T}/transport.json`, "--exact-metadata", path.join(dir, `${exactId}.metadata.json`),
+  "--exact-transport", `${T}/exact-transport.json`]);
+await Promise.all([started(lossy, /transport=/), started(exact, /transport=/), started(host, /port=8765/), started(relay, /READY/)]);
+
+function watch() {
+  globalThis.__log = [];
+  addEventListener("DOMContentLoaded", () => {
+    for (const id of ["quality", "overlay", "status"]) {
+      const el = document.getElementById(id);
+      new MutationObserver(() => globalThis.__log.push({ t: performance.now(), id, text: el.hidden ? "" : el.textContent }))
+        .observe(el, { childList: true, characterData: true, subtree: true, attributes: true });
+    }
+  });
+}
+
+const row = { id, exactId, link: arg("--link"), lossyArgs: arg("--lossy-args", ""), exactArgs: arg("--exact-args", ""), frame: FRAME };
+const browser = await createRequire(import.meta.url)("playwright").chromium.launch();
+try {
+  const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+  await page.addInitScript(watch);
+  await page.goto("http://127.0.0.1:8765/?overlay=1&view=page");
+  const log = () => page.evaluate(() => globalThis.__log);
+  const until = async (pred, ms) => {
+    for (const end = Date.now() + ms; Date.now() < end; await page.waitForTimeout(20)) if (pred(await log())) return true;
+    return false;
+  };
+  const status = (l) => l.findLast((e) => e.id === "status")?.text ?? "";
+  row.filled = await until((l) => /fill \d+ ms/.test(status(l)), 600000);
+  const n = lossyMeta.frameCount;
+  const all = (await log()).find((e) => e.id === "status" && new RegExp(`received ${n}\\b`).test(e.text));
+  row.fillMs = all ? Math.round(all.t) : null;
+  row.status = status(await log());
+  if (row.filled) {
+    const key = { first: null, middle: null, last: "End" }[FRAME];
+    if (FRAME === "middle") for (let i = 0; i < Math.floor(n / 2); i++) await page.keyboard.press("ArrowRight");
+    if (key) await page.keyboard.press(key);
+    await page.waitForTimeout(QUIET);
+    const pressed = await page.evaluate(() => performance.now());
+    await page.keyboard.press("l");
+    const quality = (l) => l.findLast((e) => e.id === "quality")?.text ?? "";
+    row.lossless = await until((l) => /^Lossless/.test(quality(l)), 120000);
+    const done = (await log()).findLast((e) => e.id === "quality");
+    row.losslessMs = row.lossless ? Math.round(done.t - pressed) : null;
+    row.label = quality(await log());
+    row.shown = status(await log()).match(/^frame (\d+)/)?.[1];
+  }
+} catch (e) {
+  row.error = e.message;
+} finally {
+  await browser.close();
+}
+await new Promise((done) => (relay.once("exit", done), relay.kill("SIGTERM")));
+row.relay = relay.out.trim().split("\n").filter((s) => !/^READY/.test(s));
+stop();
+console.log(JSON.stringify(row));
+process.exit(0);
