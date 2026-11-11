@@ -1,8 +1,15 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 20:24
-outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure 33cb6b3d (B0 measured, from claude/av1-corrections); no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
+heartbeat: 2026-11-11 20:31
+outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure bea1000d (B0 measured; B amendment 1, driver, G 1 rows 101 of 185); no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
 ## Resume
+2026-11-11 20:31: this session stopped (the driver's one background command reached the 2 h limit, the longest
+allowed; nothing running, nothing unpushed). Rows bea1000d: 101 of 185 G 1 cells, 10 volumes whole (a1 b1 c1 dbt12_c a2 b2 c2
+dbt12_ea1141 a3 b3) and dbts_c3 5 of 9; 19 series and 19 split rows; 33 check rungs equal to the study, the cpu5 mutation
+row differs (seen). Rate ~2.6 Mpx/s: the G 1 rest ~1.5 h, G 16 ~3 h, so one 2 h command each, then a third for G 16's tail.
+Next session: setup (README §B, ~10 min), then `lab/av1/audit/b.sh 1` (resumes), then `b.sh 16`; start sync/commit
+loops first (the scripts below are not in the repo: write a 10-min loop that commits rows/b.jsonl with plain
+`git pull --rebase`, never --autostash, and bumps this heartbeat). Then summary.py, §B and §A measured, codecs line.
 Resumed 2026-11-11 18:24 by a new session (stalled at 17:00), at B.
 Done: B amendment 1 1f149a02 (docs/av1/audit-protocols.md §B amendment 1); driver lab/av1/audit/cells.py + b.sh, and
 the check's --cpu-used=5 mutation row (differs: seen) 26ba08c4; smoke on dbt12_ea1141 (not kept): check rungs equal.
@@ -91,7 +98,8 @@ Then P2 (an ingest arm: amendment first), P5, P3, B0, B, A, C, each with its ame
 * B0 (zero encodes): QA F1's table reproduced exactly; x* over all 19 volumes 4.7584 at G 1 (not 4.9293), 4.6359
   pooled and at G > 1, 4.8024 for 12-bit streams: B-6 holds. No reading overshoots an anchor; per-depth x* lifts
   dbts_c1 and c5 G 16 from Q 4 to 8 (0.28 -> 0.10 of HTJ2K). Which x* the rule takes waits on delta (B1, B2).
-* Not started: audit protocols B, A, C.
+* B in progress: amendment 1 (1f149a02) and driver (26ba08c4); G 1 rows 101 of 185 (bea1000d), every check rung
+  equal to the quality study, the --cpu-used=5 mutation differs. A and C not started.
 * Fixtures: dbts_a1-q8-g8-cut, dbts_b1-q8-g8, dbts_c1-q8-g16-cut and their exact series (demo tip 9e2ef4ef), three
   DBT volumes of one dataset; userspace relay, no netem; one 4-core cloud host, no GPU, SwiftShader; headless
   Chromium, page view. P2 adds G 1 and G 8 series in three tile arms; 2-core cells are taskset, not a phone.
