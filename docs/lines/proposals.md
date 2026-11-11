@@ -658,7 +658,7 @@ demo or the phone runs, and none is for FIX-2. Labels as §Optimize: (S), (R), (
 | # | from | serves | expected effect (assumption) | runs (D) | order |
 | --- | --- | --- | --- | --- | --- |
 | R0 | the red team's P4, P5 and P6 notes | every rule | — | +1 A/A arm each | with each |
-| R1 | P2's owed cells (I1, I2) | jump, step, phone decode | tiles' coding error within ±1 % of one tile's; the G 16 jump 0.70–0.85× | 7 encodes, ~60 page runs | 1 |
+| R1 | P2's owed cells (I1, I2) | jump, step, phone decode | tiles' coding error within ±1 % of one tile's; the G 16 jump 0.70–0.85× | 14 encodes, ~60 page runs | 1 |
 | R2 | P1's owed cell | the on-demand ask during the fill | BBR's jump 0.2–0.6× of Cubic's at 1 % loss, 0.8–1.3× clean and in bursts | ~150 | 2 |
 | R3 | P3, rebuilt | `l` after a dwell | 0–100 ms on cellular | 28 here; the phone row | 3 |
 | R4 | P1 + P4 | `l` | `l` 0.85–0.95× clean under BBR, a tie under loss | ~250 | 4 |
@@ -693,8 +693,8 @@ has not been timed with tiles (R, red team P2 (3)).
 same Q, from the bytes having moved less than 1 % (D, a weak inference, which is why this is measured). The jump
 mid-group at G 16 is 0.70–0.85× of one tile's. At G 8 it was 0.73–0.84× (R). At G 16 there are about twice the
 sequential decodes per jump, so decode is a larger share and the ratio moves toward the per-frame 0.64–0.72× (D).
-**Cost.** None to the demo. Seven encodes (P2's six arms' 2 × 2 series exist under `P2_OUT`; add
-`dbts_c1-q8-g16-cut` in both arms), I2's metric at ≤ 0.27 CPU s a megapixel (R).
+**Cost.** None to the demo. Fourteen encodes: P2's six series and `dbts_c1-q8-g16-cut`, in both arms
+(`p2_encodes.sh`, ~15 min for P2's 18, R; P2's encodes were not kept). I2's metric at ≤ 0.27 CPU s a megapixel (R).
 
 **Protocol (pre-registered).** *Rule first:* 2 × 2 is ready for adoption after the demo if (1) on each of the seven
 series, its e and e_N ÷ σ are each ≤ 1.02× the one-tile series' (frame median and frame maximum both), and its max
