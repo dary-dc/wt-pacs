@@ -88,6 +88,9 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   §7, page view against view worker alternated, tether against Wi-Fi in blocks, the decision rules and the commands
   for the laptop without installs. Found while writing it: the status line is cut at the phone's width, so the fill
   time and the last error are not visible (Part B waits on a change, the owner's call); touch cannot step slices.
+* **For a presenter** (ESSENTIALS, 2026-11-11, `claude/demo-essentials`, proposed): `client/README.md` §Optimal
+  quality, for a presenter: a frame's path through the modules for both series, eight points each with its test,
+  and eight things that could not be explained simply (for OPT-SIMPLIFY and NAMES-FIND). Read from code; nothing run.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
