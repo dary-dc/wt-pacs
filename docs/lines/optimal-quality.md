@@ -127,6 +127,9 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
    window is narrow (or a reading mode) is an option to compare, with the threshold set by readers, not chosen here.
 9. Later, a separate approach outside this sprint: HTJ2K with resolution levels and tiles for large matrices and high D
    (protocol on `claude/htj2k-tiles`).
+13. Touch slice stepping on the phone (2026-11-11, SLICE-TOUCH, `docs/reviews/slice-touch.md` on
+    `claude/slice-touch`): today a finger only moves window/level; recommended, a slice slider at the canvas's right
+    edge as OHIF's, no gesture taken; DEMO-UX builds it, and the phone run says whether single steps land.
 
 ## Decisions (the owner's, 2026-11-09)
 
