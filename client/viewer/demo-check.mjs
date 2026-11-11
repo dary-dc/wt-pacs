@@ -82,7 +82,7 @@ async function pass(browser, query) {
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   page.on("pageerror", (e) => errors.push(e.message));
   await page.addInitScript(watch);
-  await page.goto(`http://127.0.0.1:8765/?overlay=1${query}`);
+  await page.goto(`http://127.0.0.1:8765/?overlay=1&view=${VIEW}${query}`);
   const log = () => page.evaluate(() => globalThis.__log);
   const now = () => page.evaluate(() => performance.now());
   const until = async (pred, ms = 60000) => {
