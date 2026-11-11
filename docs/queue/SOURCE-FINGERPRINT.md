@@ -1,15 +1,18 @@
-state: started
+state: done
 started: 2026-11-11T14:42Z
-heartbeat: 2026-11-11T16:30Z
-outputs: claude/source-fingerprint (from claude/demo-fixes-1 daee0d1d)
+heartbeat: 2026-11-11T17:05Z
+outputs: claude/source-fingerprint c02b5f32 (from claude/demo-fixes-1 daee0d1d), draft PR #364 into claude/demo-fixes-1
 ## Resume
-Pushed on claude/source-fingerprint: f93e6f2f (pair tests) + 8e7027a5 (checkPair on sourceFingerprint; mutants 3 of 4
-killed, 1 equivalent); ingest tests + 64a42e19 (ingest.py source_fingerprint, ingest_coded.py drops framesSha256,
-from-parser main.rs); 8-bit signed e2e test. lossy_test, end_to_end_test, same_test pass with ingest/.build built.
-Mutants killed: AV1 over own digests, separator (py, rs), dropped frame, framesSha256 carried, none on OQ, rs field gone.
-Docs pushed (payload-format §Source fingerprint, glossary, FIXTURES, READMEs, the line); depth-cut fixture regenerated.
-demo-series.sh done: 20 of 20 pairs accepted, every cross-source pair refused (recorded in the line).
-Next: scripts/gate.sh (setup done: wasm-pack, transport wasm, vendor), draft PR into claude/demo-fixes-1, status done.
-Commands: cd wt-pacs; git checkout claude/source-fingerprint; .venv (ingest/requirements.txt); ingest/tools.sh.
+Done. Tests f93e6f2f, 1a24a0db, bb56c1dc; fixes 8e7027a5 (checkPair), 64a42e19 (the three ingests); docs 65ba6df3,
+c02b5f32; depth-cut fixture 8c67a26d.
 ## Result
-(pending)
+* Every ingest writes `sourceFingerprint`: XXH3-64 over the source's per-frame XXH3-64 digests, taken as an HTJ2K
+  series takes them (no second pass for an exact HTJ2K series). Exact, optimal-quality, cut and stored form share it.
+* `checkPair` requires the same 16 hex digits in both series instead of `framesSha256`, which stays the fetcher's
+  download pin and is no longer copied into a series. One glossary row; payload-format §Source fingerprint.
+* Threat: an accidental mispairing, not an adversary.
+* Mutants: 11 killed, 1 equivalent. Full gate OK, 698 s (skipped: lavapipe, Xvfb, Firefox, nginx).
+* demo-series.sh run again: 20 of 20 pairs accepted; each refused against the other sets' exact series by source.
+  No browser run on these series. Fixtures: synthetic sets; dbts_a1/b1/c1 (one dataset). Nothing timed.
+* Owner decision: whether #364 enters the demo (FIX-2 takes it only with the owner's word recorded in the queue).
+  Every demo series must then be written again.
