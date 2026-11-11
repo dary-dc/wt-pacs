@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 11:38
+heartbeat: 2026-11-11 11:48
 outputs: claude/proposals 46db2cb3 (P1 measured: adopt; P4 measured, 7 rounds: reject); no PR yet (#358 is OPT-THEORY's draft into main from this branch)
 ## Resume
 Resumed 2026-11-11 08:23 by a new session (stalled at 07:17). 08:25: setup started at 9e2ef4ef (demo-fixes-1 is
