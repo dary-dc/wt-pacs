@@ -88,6 +88,11 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   §7, page view against view worker alternated, tether against Wi-Fi in blocks, the decision rules and the commands
   for the laptop without installs. Found while writing it: the status line is cut at the phone's width, so the fill
   time and the last error are not visible (Part B waits on a change, the owner's call); touch cannot step slices.
+  *Amended* (PHONE-AMEND, 2026-11-11, before any run): a controller arm, `cubic-restart` against `bbr` on four
+  servers chosen by the page's port, crossed with the views in Williams quads; the server's loss reading from a
+  `--features telemetry` build (session line, a loss trace, path rows every 250 ms), the mix read from
+  `cubic-restart`'s sessions alone; one timed series (`dbts_b1-q8-g8`) and an eye check of `dbts_a1-q8-g8-cut`, 56
+  loads, about two hours (an assumption); the stored form out. The controller verdict changes no default alone.
 * **For a presenter** (ESSENTIALS, 2026-11-11, `claude/demo-essentials`, proposed): `client/README.md` §Optimal
   quality, for a presenter: a frame's path through the modules for both series, eight points each with its test,
   and eight things that could not be explained simply (for OPT-SIMPLIFY and NAMES-FIND). Read from code; nothing run.
