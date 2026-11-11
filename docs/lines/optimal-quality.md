@@ -189,12 +189,9 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
    window is narrow (or a reading mode) is an option to compare, with the threshold set by readers, not chosen here.
 9. HTJ2K with tiles and resolution levels matched to the screen, for DBT and other large matrices: theory, review and
    improvement done 2026-11-11 (`claude/htj2k-tiles`, PR 324); HTJ2K-MEASURE then HTJ2K-VERDICT in the queue.
-13. The deck for the team and the presenter notes (what can be claimed, what not, likely questions with sourced
-    answers): waiting on two owner answers, where the deck lives and how the demo is shown (in the room or on a call;
-    from the laptop or a deployed host).
-14. The rehearsal from `main` on the laptop and the phone, with FREEZE-E2E's list and DEMO-NETWORK's on-arrival check;
-    a screen recording made then as the fallback.
-15. After the demo, the owner's calls on the proposals: client telemetry (sample rate, sink, retention), the optimal
+13. Dropped 2026-11-11 evening, the demo being suspended: the deck, the presenter notes and the rehearsal
+    ([`coordination.md`](coordination.md) §Decisions, 2026-11-11 evening).
+15. The owner's calls, on Friday 2026-11-13 or after on the proposals: client telemetry (sample rate, sink, retention), the optimal
     quality's integrity check (#368 and its review), the phone tools (#369), AV1 tiles, BBR after the phone runs, and
     `lab/` off `main` entirely (QUEUE-CLOSE writes it up).
 

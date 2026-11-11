@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 20:00 UTC (branches and PRs read from `origin`).
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`).
 
 ## Goal
 
@@ -104,12 +104,19 @@ steps 3 and 4.
   from history if needed again (`git log --diff-filter=D -- <path>`), not from a kept branch or tag (the 11-04 text
   said an `archive/<name>` tag and an index line). `lab/` on `main` is the measurement harness only: product code
   never imports `lab/`, no lab code sits inside product modules, nothing from `lab/` enters the deploy image or the
-  default build; `scripts/check_lab_absent.sh` enforces it in the gate. `lab/` off `main` entirely is a proposal for
-  after the demo. The demo date is fixed and `main`'s is not: if the tip is not clean and green by the freeze, the
-  demo is given from the frozen tip and `main` waits.
+  default build; `scripts/check_lab_absent.sh` enforces it in the gate. `lab/` off `main` entirely is a proposal
+  (row LAB-OFF-MAIN).
 * 2026-11-09: nothing reaches `main` without review; the demo is built on `claude/core`.
 * 2026-11-11: wt-pacs stays self-contained: line state lives in `docs/lines/`, the private notes keep only rules such
   as forbidden topics and strings. The work queue's rows run in parallel while the usage window is free.
+* 2026-11-11 evening: the demo is suspended; the product goes on, and the core design is closed with what it has.
+  Before the owner's return (2026-11-13, about 21:00 UTC) agents build one unified proposal branch per line
+  (`claude/unified-<line>`), each reviewed by another session; the owner reviews them, asks for minimal fixes and
+  schedules the merges into each line's unified branch; the merge into `main` (PR 367, then PR 250) follows the next
+  week or the weekend. Then about two weeks with almost no steering: **no merges anywhere**, except those the owner
+  names; each question is one branch and one draft PR with a review row; building the proposal branches is the one
+  merge agents do. The work queue (`claude/work-ledger:docs/queue-2026-11-10.md`, the owner's decisions of 21:15 and
+  21:30 UTC) holds the rows and the defaults until the owner decides them.
 
 ## Pointers
 
