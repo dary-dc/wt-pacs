@@ -50,5 +50,6 @@ Then P2 (an ingest arm: amendment first), P5, P3, B0, B, A, C, each with its ame
 * Not started yet: P5, P3, audit protocols A, B, C.
 * Fixtures: dbts_a1-q8-g8-cut, dbts_b1-q8-g8, dbts_c1-q8-g16-cut and their exact series (demo tip 9e2ef4ef), three
   DBT volumes of one dataset; userspace relay (no netem on this host), loss each direction; one 4-core cloud host,
-  no GPU, SwiftShader; headless Chromium, page view.
+  no GPU, SwiftShader; headless Chromium, page view. P2 adds the Q 8 G 1 and G 8 series of each volume (cut on a1, c1)
+  in three tile arms; its 2-core arm is taskset, not a phone.
 * Owner decision: BBR for the demo pair's two servers (transport-conclusions §9 item 2 is yours).
