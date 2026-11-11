@@ -14,8 +14,9 @@ rows = [json.loads(line) for line in open(sys.argv[1])]
 ms, failed, promoted = {}, {}, {}
 for r in rows:
     u, key = r["run"], (r["run"]["id"], r["variant"])
-    whole = re.search(r"received (\d+)", u.get("statusAfter") or "")
-    ok = u.get("lossless") and "error:" not in (u.get("statusAfter") or "") and whole and int(whole[1]) > 0
+    after = u.get("statusAfter") or ""
+    whole = re.search(r" of (\d+) .* received (\d+)", after)
+    ok = u.get("lossless") and "error:" not in after and whole and whole[1] == whole[2]
     if ok:
         ms.setdefault(key, []).append(u["losslessMs"])
     else:
