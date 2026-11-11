@@ -369,6 +369,38 @@ arriving, without root for `tcpdump`: the page not loading is TCP 8765 not reach
 names that one origin.
 No console: DevTools on the phone needs adb (step 5).
 
+**On arrival, in the room** — whether the room's network carries the pair over UDP, before anything is shown
+([`docs/devices.md`](docs/devices.md) §8: what blocks QUIC, why there is no TCP fallback, the certificate's expiry).
+The certificate is renewed at the rehearsal, a day or more before (`./server/scripts/gen_dev_cert.sh`, the `OPENSSL=`
+of the block above in front), never on arrival. Try the links in this order, each from any state:
+
+1. **The room's Wi-Fi**, phone and laptop joined to the same network, USB tethering off.
+2. **The phone's hotspot**, the laptop joined to it, USB tethering off ([Android help](https://support.google.com/android/answer/9059108):
+   "Touch and hold Hotspot").
+3. **The tether**: plug in, USB tethering on.
+4. **The screen recording** made at the rehearsal, on the phone ("Swipe down twice from the top of your screen", then
+   *Screen record*: [Android help](https://support.google.com/android/answer/9075928)), for when no link carries it.
+
+For each of 1–3: on the laptop, *Each time, from any state* above, its three terminals (it takes the tether when one
+is up, else the Wi-Fi; the address it prints is that link's); then, in a fourth, its *Every terminal first* lines and
+
+```bash
+python3 scripts/demo-network.py "http://$LAPTOP_IP:8765"    # "laptop ready", else FAIL: what, on the laptop
+```
+
+On the phone, the flag set to the origin the check printed (again whenever the address changes), then that page:
+
+| the phone shows | it means | then |
+| --- | --- | --- |
+| no page | TCP 8765 does not reach the laptop: clients isolated, another network, or the flag's origin | the next link |
+| the page, `error: connect: …`, `received 0` | UDP 4433 does not reach the laptop, or nothing comes back | the next link |
+| frames, a fill far slower than the rehearsal's on that link | UDP throttled | the next link |
+| frames, no **lossless** button in the bottom bar, `error: lossless: …` | UDP 4434 blocked | the next link |
+| tap **lossless**: the label *✓ Lossless*, in blue | the room carries the pair | §What to show |
+
+With adb, the page is `http://127.0.0.1:8765` and the check takes that origin: `python3 scripts/demo-network.py
+http://127.0.0.1:8765`; the table holds as it is.
+
 *Checked in a container (2026-11-11):* these commands in a network namespace standing in for the phone, a veth pair for
 the tether, `docker run … rust:1 openssl` for the podman line, on `dbts_a1-q8-g8-cut`, `dbts_b1-q8-g8` and
 `dbts_a1-q8-g16-stored` with their exact series, the page's files as committed (no client build). Chromium 153 in the

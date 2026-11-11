@@ -545,7 +545,7 @@ certificate's hash, and the certificate within the spec's two weeks and valid pa
 default); its test, `scripts/demo-network.test.py`, runs in the gate. It cannot see the room: no packet from the
 phone reaches a check without root on the laptop, and the phone's browser sends UDP only as WebTransport. So the
 phone's half is the page itself, read as README.md §Demo's *On arrival* table does: no page is TCP or isolation; the
-page with `error: connect:` and nothing received is UDP to the optimal-quality server; no **Lossless** button and
+page with `error: connect:` and nothing received is UDP to the optimal-quality server; no **lossless** button and
 `error: lossless:` is UDP to the exact server; *✓ Lossless* in blue is the room carrying the pair. *Unverified* on a
 phone in a room: the readings come from the page's code (`client/viewer/viewer.js`'s `connect:` and `lossless:`
 failures), and the namespace check of §Demo's no-install block.
