@@ -60,8 +60,10 @@ A tag, if wanted: `git tag archive/<name> <commit> && git push origin archive/<n
 
 ## 4. The gate
 
-See the queue's status file for this row (docs/queue/EXPERIMENTS-OFF.md on `claude/work-ledger`) for the run on this branch's
-tip; it is copied here when it lands.
+`scripts/gate.sh` in full on `1ef93a6e` (this branch with every removal and this list): **GATE OK in 395 s**, the
+decoders rebuilt from their pins to the committed bytes, with `INGEST_BUILD` and `PYTHON` set and the Docker daemon
+started as README §Prerequisites says for a cloud container. Skipped by name: the native painter and window (no
+Mesa lavapipe, Xvfb or xdotool), the viewer's cross-codec arm and Firefox (no DICOM bundles, no GL display), the web
+host's nginx check (no nginx). `demo-check.mjs` was not run (§ top). A fresh 4-core cloud container without a GPU.
 
-Fixtures: none timed; nothing here measures. Read from one commit (`daee0d1d`) and its git history; a 4-core cloud
-host without a GPU.
+Fixtures: none timed; nothing here measures. Read from one commit (`daee0d1d`) and its git history.
