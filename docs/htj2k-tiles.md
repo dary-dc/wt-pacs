@@ -905,7 +905,7 @@ s is the p90 of |S's Lossless ÷ W − 1|: the same bytes on the same build, use
 ### Improve, measured: stage 3 (row HTJ2K-MEASURE, 2026-11-12)
 
 *Same session rules as stages 0–2. Fixtures and host as above; the links are emulated by the rig's relay. Rows land
-in [`rows/stage3-s3a.jsonl`](../lab/htj2k-tiles/improve/rows/stage3-s3a.jsonl) (rounds 0–1) and its successors as
+in lab/htj2k-tiles/improve/rows/stage3-s3a.jsonl (rounds 0–1, linked once committed) and its successors as
 they are measured; the readings below are written only once a shard ends.*
 
 **Amendments, written before any run:**
