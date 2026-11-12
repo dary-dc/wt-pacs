@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-12T14:21Z
-heartbeat: 2026-11-12T14:28Z
+heartbeat: 2026-11-12T14:30Z
 outputs: claude/unified-server f00b0da7 (from claude/line-server 7242d0bd), draft PR #380 into claude/line-server
 ## Resume
 Found (LINES-READY §3, #254's index, each PR's reviews and comments): #254 already carries #41 #88 #102 #103 #122 #123 #137 #139 #140.
