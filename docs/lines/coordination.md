@@ -105,7 +105,7 @@ steps 3 and 4.
   said an `archive/<name>` tag and an index line). `lab/` on `main` is the measurement harness only: product code
   never imports `lab/`, no lab code sits inside product modules, nothing from `lab/` enters the deploy image or the
   default build; `scripts/check_lab_absent.sh` enforces it in the gate. `lab/` off `main` entirely is a proposal
-  (row LAB-OFF-MAIN).
+  (row LAB-OFF-MAIN, `docs/reviews/lab-off-main.md`: options A–E, E recommended first).
 * 2026-11-09: nothing reaches `main` without review; the demo is built on `claude/core`.
 * 2026-11-11: wt-pacs stays self-contained: line state lives in `docs/lines/`, the private notes keep only rules such
   as forbidden topics and strings. The work queue's rows run in parallel while the usage window is free.
