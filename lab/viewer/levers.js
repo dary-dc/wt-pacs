@@ -10,6 +10,7 @@ const WORKER_ONLY = ["writer", "waitAhead", "holdEveryOther", "pixels", "pageDia
 export function levers(q) {
   if (q.get("trace") && q.get("trace") !== "sawtooth") throw new Error(`refused: trace ${JSON.stringify(q.get("trace"))} — sawtooth`);
   const opts = q.get("opts") ? JSON.parse(q.get("opts")) : {};
+  if ("digests" in opts && !(Array.isArray(opts.digests) && opts.digests.length)) throw new Error("refused: opts.digests — a list of the frames' digests; the frame check cannot be turned off");
   const writer = q.get("writer") ?? undefined;
   const set = { ...opts, writer, pixels: opts.pixels === "transfer" };
   const ignored = (q.get("view") ?? "page") === "page" && WORKER_ONLY.find((k) => set[k]);
