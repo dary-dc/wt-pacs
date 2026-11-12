@@ -1,7 +1,7 @@
-state: started
+state: done
 started: 2026-11-11 18:59 UTC
-heartbeat: 2026-11-12 14:22 UTC
-outputs: `claude/htj2k-tiles` 46b31101 (rows, docs; draft PR #324 into main, already open: the commits land in it)
+heartbeat: 2026-11-12 14:25 UTC
+outputs: `claude/htj2k-tiles` ef5adda2 (lab/htj2k-tiles/improve/stage3/, rows/stage3-*.jsonl, docs/htj2k-tiles.md §Improve, measured: stage 3; draft PR #324 into main, already open)
 ## Resume
 Session 4 resumed 2026-11-12 13:25 UTC (stalled since 12:03, S3c at 153 visits of round 4, `cc035d06`): fresh container; setup as below, then S3c rounds 4–5 again into `rows/stage3-s3c-4.jsonl` (the 153 rows of round 4 are incomplete, so not kept). Setup done 13:45 as below (MANIFEST OK on the delivered build; levels.wasm sha256 equals the pins' 09756bcf; strip series 294/294 exact again).
   **S3c rerun running** from about 13:50: `/home/user/demo`, `--first-round 4 --rounds 2 --out /home/user/s3c4.jsonl`; `/home/user/pusher.sh` copies it to `rows/stage3-s3c-4.jsonl`, pushes and bumps this heartbeat every 15 min. **To resume:** keep only complete rounds (200 rows each) of `rows/stage3-s3c-4.jsonl`; set the container up again; run what is missing (`--first-round 5 --rounds 1` into `rows/stage3-s3c-5.jsonl` if round 4 is complete); then `python3 lab/htj2k-tiles/improve/stage3/summary.py rows/stage3-s3a.jsonl rows/stage3-s3b.jsonl <S3c's complete rounds>`, the readings R3–R7 in `docs/htj2k-tiles.md` §Improve, measured, `docs/lines/codecs.md`, this Result, done. `rows/stage3-s3c.jsonl` (153 rows of round 4, session 3) is incomplete and not kept.
@@ -91,17 +91,20 @@ HTJ2K-VERDICT waits on this row.
   which the retry recovers). The retry test's 24 visits and the mutant ran beside a stray debug driver, so they count
   as checks only. **S3c running from 10:33** (rounds 4–5, `/home/user/s3c.jsonl`, the pusher on s3c). After it:
   `summary.py rows/stage3-s3{a,b,c}.jsonl`, the readings R3–R7 in docs, `docs/lines/codecs.md`, this Result, done.
+* **Done** 2026-11-12 14:25 UTC: S3c complete (`9d622d3e`), readings `ef5adda2`. Nothing left to resume; HTJ2K-VERDICT is next.
 ## Result
-* Stages 0–2 of `docs/htj2k-tiles.md` §Improve's protocol run; stage 3's inputs built (strip series 294/294 exact from
-  the entries; D series from `157b7109`, equal to FREEZE-E2E's), its client and runs not yet, so R3–R7 are undecided.
-* R0 holds: 175/175 frames exact at every level on OpenJPEG 2.5.4 and OpenJPH 0.31.0. The lab binding is exact on
-  456/456 pictures, and stage 2 on 17 920/17 920. I1's TLM prefixes decode, which answers its "unverified" check.
-* J1 and J2 hold: I1 adds +0.01 % (+112 B a frame) and the three strips +0.11–0.14 %. On dbts_b1, six decompositions
-  save 0.27–0.30 %, a miss under the predicted band. R1 holds.
-* J3 and R2 hold: one Lossless decode on three workers is ×0.43–0.48 of the whole frame at 4×, ≤ ×0.60 in 10/10 rounds
-  on every volume. J9 is ×0.57 on dbts_b1 and ×0.43 on dbts_c1 sideways. One worker decodes the strips in ×0.98–1.04.
-* Mutants caught: TLM short, strip order, untiled truth, truth flipped, SIZ reset removed (the last only by the
-  binding check, not the bench). Not run: parity.mjs, the precinct reading, the two cache mutants (no client yet).
+* Stages 0–3 of §Improve's protocol run. Stage 3: 1 200 visits over 6 rounds, 1 053 kept (125 void, 22 stalled in the
+  lab store after the clock); R0 exact in every kept visit; PARITY OK on both builds; the cache mutants are caught.
+* The decode-bound test as written leaves `r5000` the only link-bound cell (the software AV1 fill slows D at 4×).
+* R3 holds with s on that cell: D+T3's Lossless is ×0.923 of D's on `dbts_b1` at 4× (×0.73–0.92 in cells that decide
+  nothing), and ≤ ×1.02(1+s) of D in 40/40 groups. So D+T3 is proposed for the Lossless request (Layout 1).
+* R4 holds: D+L★'s level picture is ×0.29 of D+T3's Lossless, its Lossless ×1.00–1.01. D+L★ is proposed beside D+T3.
+* R5: S★ is withdrawn for the scroll; it is ×5.8–20 later to every slice where the fit is level 0.
+* R6 holds: every reopen asks and decodes nothing (1 053/1 053). Outside the rule, 18 `dbts_b1` reopens read one 17 MB
+  OQ picture back differently from the lab store.
+* R7: the lossy cell moves ratios by ×0.4–4 (s up to 3.9); named, deciding nothing.
+* Amendments before any run: D is Q 8 G 16; two relays a visit; the store is written after the clock.
 * Fixtures: three timed DBT volumes of one dataset (EA1141); no breast US cine; 4-core host, no GPU, headless Chromium
-  153; 4× cgroup throttle (worker ×2.7 on its own check); no links yet; no phone, so nothing a phone alone shows.
-* Owner: none yet; R3/R4's store-format and level-picture questions arise only after stage 3.
+  153, software WebCodecs; 4× cgroup throttle; emulated links. Nothing that only a phone can show is claimed.
+* Owner: whether Layout 1 (three strips, band-major) becomes the DBT store format for the Lossless request; whether
+  an exact level picture may be shown before the frame (D+L★), and in what words.
