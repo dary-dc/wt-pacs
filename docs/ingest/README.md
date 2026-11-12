@@ -79,7 +79,7 @@ The client's checks stay on by default.
 | The upload's shape (S3-style multipart, tus, per-file PUT, rsync) | open | [`link.md`](link.md) §7, §9 |
 | Site host tuning, the server's kernel, the site's congestion controller | open | [`link.md`](link.md) §4, §9 |
 | How the parser ships with the ingest | open | [`../FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site |
-| The parser hashes the bytes it writes | open | §5 below |
+| The parser hashes the bytes it writes | **fixed upstream** at `e105214` (`e21160f`; *corrected 2026-10-28:* this row said open) | §5 below |
 | Streaming the pack: code on arrival; frames as records only under a quiet period | recommended | [`design.md`](design.md) §11 |
 | The catalog's engine | deferred | — |
 
@@ -92,6 +92,7 @@ parser's author.
   with nothing saying so.
 * **Three of the four group hashes cover a length taken before the UTF-8 conversion** (series, instance, private; the
   exam group's is right). A group whose text changed length in the conversion fails a recompute while intact.
+  *Corrected 2026-10-28:* fixed upstream at `e105214` (`e21160f` hashes the bytes actually written).
 * **Frame files are named with five digits**, so a series over 99 999 frames cannot be written.
 * **The variable `comp` holds samples per pixel (0028,0002)**, though its comment says planar configuration.
 
@@ -99,6 +100,8 @@ parser's author.
 
 * [`design.md`](design.md) — each part of this pipeline against its alternatives, with the prior art.
 * [`link.md`](link.md) — why the link is TCP, and what QUIC would have to show.
+* [`pcs-pacs-options.md`](pcs-pacs-options.md) — the PCS → PACS path as parts, each with its options and a default
+  (Proposed, 2026-10-28).
 * [`contract.md`](contract.md) — the parser's directory output as the ingest reads it, and what phase 1 reads of it.
 * [`../FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site — today's Python ingest and the plan for the
   compiled one.
