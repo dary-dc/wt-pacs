@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11T19:00Z
-heartbeat: 2026-11-12T01:37Z
+heartbeat: 2026-11-12T01:43Z
 outputs: claude/proposals 603875d5, docs/lines/proposals.md §Round 2 (amendments 1 of R1-R4; Measured R1 90c3e3e3, R2 1eee0579, R3 76ab875d, R4 1609aad4), rows lab/proposals/rows/r1-*, r2, r3, r4.jsonl; docs and lab drivers only; no PR (PR #358, OPT-THEORY's draft into main, carries claude/proposals)
 ## Resume
 2026-11-12T00:24Z: resumed (stalled) by a new session for R5; setup next.
@@ -23,6 +23,10 @@ the 9-round run at 240 taken rows and starts /home/user/bin/runall2.sh (LAST=5: 
 script pushed (21755f3e): python3 lab/proposals/r5_summary.py rows/r5-taken.jsonl rows/r5-refused.jsonl
 rows/r5-failed.jsonl. Expected end ~09:30. If stopped: rerun with LAST=5 from the first incomplete round.
 (Times before 00:58 in this entry were written ahead of the clock; the commits carry the true ones.)
+2026-11-12T01:43Z: the container restarted at ~01:40 and killed the runs (files kept). Round 1 of taken whole (48 rows);
+round 2's 18 rows moved to rows/r5-taken-stopped.jsonl, not read. Restarted: FIRST=2 /home/user/bin/runall2.sh
+(LAST=5) and the pusher. After a restart: count rows per round, move the partial round aside, rerun the same way
+(a route's .done file under /home/user marks it complete; nginx and the builds survive a restart).
 22:52: R1-R4 done and pushed, nothing unpushed, nothing running. This session stops before R5 (context); left
 `started` so the next worker resumes it once the heartbeat is an hour old.
 Next: R5 (§R5: P6's rule with an A/A arm, the tip against itself). Owed before any run: an amendment, and P6's arms
