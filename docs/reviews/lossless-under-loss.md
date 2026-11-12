@@ -84,6 +84,25 @@ not show (the 30 s of point 1 is a lower bound).
 * The beacon records neither the failure's reason nor the label after the load's own beacon, so a run cannot tell
   which branch of the table above a failure took (RUNNER-AUTO's beacon could carry the `failed` event's `reason`).
 
-## The reproduction, simulated
+## Reproduced on a simulated link
 
-See §Reproduced on a simulated link below, once written; until then this section is owed.
+*Simulated*, not a phone: `lab/lossless-under-loss/run.sh 3 45000` on one 4-core cloud host without a GPU, headless
+Chromium 153 (Playwright 1.63), loopback through `lab/scripts/link_impair.py`: 5 ms each way, 100 Mbit/s, a
+200-packet queue, 7 % iid loss each way on both sessions. Two `series-server`s (`--congestion bbr`, quinn's 30 s idle
+timeout, no keep-alive) serve one packed series of 50 random 460 KB frames: one session fills it, the other is the
+exact session, idle until asked. The page (`page.html`) runs the product's `Controller` and `DownloaderClient` with
+`decode: false`; a frame that arrives stands in for one whose digest matched, so the check itself is not under test.
+After the fill, a 45 s `blackout` drops every datagram both ways on both sessions, and `l` is pressed a second into
+it. The two arms are the same code, the re-asks on (`retry`) or off (`off`, `exactRetryMs: []`), interleaved over
+three rounds. Raw rows: `lab/lossless-under-loss/rows/2026-11-12-blackout-45s.jsonl`.
+
+| arm | rounds | the downloader fails the ask | re-asks | label at the end | after the press |
+| --- | --- | --- | --- | --- | --- |
+| `off` | 3 | 28.2 s, *could not be re-dialled* | none | *Lossless check failed*, 3 of 3 | 28.2 s |
+| `retry` | 3 | 28.2 s, the same | at +1 s and +4 s each fail (*Opening handshake failed*), at +16 s succeeds | *Lossless*, 3 of 3 | 57.9–58.7 s |
+
+The silence is load 6's shape: the ask goes onto a session the client still holds, the downloader's resume spends
+its budget inside the outage, and with the re-asks off the reader is left on *Lossless check failed* once the link is
+back. With them on, the frame comes on the first re-ask after the link returns. A 45 s outage and one rig, three
+rounds per arm: the timings depend on the outage's length and decide nothing about the schedule; nothing here was
+near saturating the host.
