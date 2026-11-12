@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11T19:00Z
-heartbeat: 2026-11-12T03:44Z
+heartbeat: 2026-11-12T03:54Z
 outputs: claude/proposals 603875d5, docs/lines/proposals.md §Round 2 (amendments 1 of R1-R4; Measured R1 90c3e3e3, R2 1eee0579, R3 76ab875d, R4 1609aad4), rows lab/proposals/rows/r1-*, r2, r3, r4.jsonl; docs and lab drivers only; no PR (PR #358, OPT-THEORY's draft into main, carries claude/proposals)
 ## Resume
 2026-11-12T00:24Z: resumed (stalled) by a new session for R5; setup next.
