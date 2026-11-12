@@ -70,7 +70,7 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    D's at 4× on a link, *derived*). One consolidated protocol is pre-registered there for HTJ2K-MEASURE. Measured 2026-11-11, stages 0–2 (row HTJ2K-MEASURE, §Improve,
    measured there): exact on 175/175 frames, and 17 920/17 920 decoded pictures; I1's TLM prefixes decode on OpenJPEG
    and OpenJPH; the strips cost +0.11–0.14 % in bytes (−0.2 % on `dbts_b1` at six decompositions); one Lossless decode on
-   three workers is ×0.43–0.48 of the whole frame's at 4× (R2 holds). Stage 3, on links (R3–R7), is not run yet; its inputs are built (the strip series, 294/294 pictures exact from the entries alone, and the D series from the demo commit `157b7109`), and its lab client is next.
+   three workers is ×0.43–0.48 of the whole frame's at 4× (R2 holds). Stage 3, on links (R3–R7), is running from 2026-11-11 23:52 (shard S3a, rounds 0–1; S3b, S3c after). Its lab client (`lab/htj2k-tiles/improve/stage3/`) is built and exact in every arm, the cache mutants are caught, and PARITY OK holds on both builds. The amendments are written before any run: D is Q 8 at G 16, and there are two relays a visit. No verdict yet.
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).
