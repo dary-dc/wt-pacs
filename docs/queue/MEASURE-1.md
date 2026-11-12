@@ -1,8 +1,19 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-12 01:29
-outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure 7840fd4b (B0 measured; B amendment 1, driver, G 1 rows 101 of 185); no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
+heartbeat: 2026-11-12 01:31
+outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure da85fae9 (B0, B and A measured: docs/av1/audit-protocols.md §B, §A measured d3071269, rows/b.jsonl and b-summary.json 03c1597d, codecs line da85fae9); C not started; no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
 ## Resume
+2026-11-12 01:31: this session stopped after B and A (nothing running, nothing unpushed). Done: B amendment 2 (055633ef),
+--extra (82a6f18a), 352 cells (03c1597d), §B and §A measured (7eddac91, d3071269), codecs line (da85fae9).
+**Next: C only** (docs/av1/audit-protocols.md §C, on claude/audit-measure). Its amendment 1 first, pushed before any
+run: the demo tip (claude/demo-fixes-2, the demo commit 157b7109 or newer) and its build (client/decode/wasm/build/build.sh,
+scripts/demo-series.sh for the Q 8 streams, plus the rule-Q streams: dbts_b1 stored Q 11 or 12 by B0's integer pick,
+dbts_a1 and dbts_c1 top-10 by B0's `rules`), the six arms' sources (Hb, Wb from claude/av1-quality-profiles; Hk from
+@cornerstonejs/codec-openjph 2.4.11 as claude/av1-profile-carriers loads it), the driver under lab/av1/audit/, the
+throttles via lab/scripts/cpu_throttle.mjs throttleTree (--check once, with and without cores), the A/A arm Hp',
+the known-cost mutation on Hb, and the hash checks. 15 rounds (~2-3 h): one background command stops at 2 h, so the
+driver must resume from its rows file; a loop commits the rows every 10 min (plain git pull --rebase, never
+--autostash; see the B notes below). B's setup is not needed for C.
 2026-11-12 01:29: B and A rows complete: 341 ladder cells + 11 rungs outward (03c1597d, rows/b-summary.json). Nothing running. Next: §B measured and §A measured in docs/av1/audit-protocols.md from b-summary.json, codecs line, Result. C not started.
 2026-11-11 23:47: B amendment 2 (055633ef: one rung outward, six 10-bit volumes short at G 1) and cells.py --extra (82a6f18a); summary.py JSON fix (754110cf). G 16 running. Next: when G 16 ends, run summary.py, list (volume, G) short by amendment 2, EXTRA="dbts_b2:1:17 dbts_b3:1:17 dbts_b4:1:17 dbts_b5:1:17 dbt10_d:1:17 dbt10_ea1141:1:17 <G 16 ones>" lab/av1/audit/b.sh 16 (G list irrelevant: finished cells skip), then summary.py to lab/av1/audit/rows/b-summary.json, §B and §A measured.
 23:45: G 1 complete, 185 cells, no failed row; b.sh 16 started (log /home/user/logs/b16.log; rerun resumes). Next: summary.py, §B and §A measured.
@@ -103,10 +114,14 @@ Then P2 (an ingest arm: amendment first), P5, P3, B0, B, A, C, each with its ame
 * B0 (zero encodes): QA F1's table reproduced exactly; x* over all 19 volumes 4.7584 at G 1 (not 4.9293), 4.6359
   pooled and at G > 1, 4.8024 for 12-bit streams: B-6 holds. No reading overshoots an anchor; per-depth x* lifts
   dbts_c1 and c5 G 16 from Q 4 to 8 (0.28 -> 0.10 of HTJ2K). Which x* the rule takes waits on delta (B1, B2).
-* B in progress: amendment 1 (1f149a02) and driver (26ba08c4); G 1 rows 101 of 185 (bea1000d), every check rung
-  equal to the quality study, the --cpu-used=5 mutation differs. A and C not started.
+* B (352 cells, 19 volumes, G 1 and 16): s_split <= 0.25 % (B-1 holds); injected bias -3.8 to +5.5 % (B-2 refuted);
+  delta 0.1-5.5 %, anchor unresolved on 15 of 19 (B-3 refuted, wide side); Q_hi - Q_lo up to >= 8 on 10-bit (B-4
+  refuted); G 16 / G 1 at equal quality 0.954-0.986 (12-bit), 0.855-0.907 (10-bit) (B-5 holds). Both x* stay.
+* A: nu at the rule's Q 0.286-0.495 (A2 refuted at the top), not one curve of x (A3 refuted); Q_nu 1.16-1.92x bytes.
+  C not started (past its latest; the next session).
 * Fixtures: dbts_a1-q8-g8-cut, dbts_b1-q8-g8, dbts_c1-q8-g16-cut and their exact series (demo tip 9e2ef4ef), three
   DBT volumes of one dataset; userspace relay, no netem; one 4-core cloud host, no GPU, SwiftShader; headless
   Chromium, page view. P2 adds G 1 and G 8 series in three tile arms; 2-core cells are taskset, not a phone.
-* Owner decisions: BBR for the pair's two servers (transport-conclusions §9 item 2); whether a phone run of P3 is worth
+* Owner decisions: quote the OQ anchor as [Q_lo, Q_hi] with nu beside it, and "keep at least half" (Q_nu) as an
+  option (codecs §Open 0, decision 1 or 9); BBR for the pair's two servers (transport-conclusions §9 item 2); whether a phone run of P3 is worth
   taking, given that a browser ping near 15 s can hide the radio's promotion.
