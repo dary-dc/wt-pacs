@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-12T14:43Z
-heartbeat: 2026-11-12T15:45Z
+heartbeat: 2026-11-12T16:20Z
 outputs: "Review" sections on claude/lossless-under-loss and claude/hidden-page-decode; PR 376/377/378 bodies
 ## Resume
 PR 378 (ffc407de): fix reverted fails 2 of 4 new tests (39/41; 2 are guards); my mutants killed: no leave check, no
