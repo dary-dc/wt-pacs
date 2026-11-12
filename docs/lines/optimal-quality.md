@@ -151,7 +151,12 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   *depends on the controller*; `bbr` / `cubic-restart` no difference shown at n = 11. Wi-Fi: 22 passed, 2 failed, both
   `bbr` (a *Lossless* never fetched after a lossy fill; a fill whose page was likely hidden); worker / page no
   difference shown at n = 10; **`cubic-restart` faster** (9 of 10, median ratio 1.084). Every Wi-Fi loss Cubic met
-  was congestive. Not blind-read yet; one phone, one home link, one evening, one series of one dataset.
+  was congestive. One phone, one home link, one evening, one series of one dataset. *Blind-read* (PHONE-BLIND-READ,
+  2026-11-12, [`docs/reviews/phone-blind-read.md`](../reviews/phone-blind-read.md)): the same counts and six-octet
+  verdicts, but octet 1 took 99 minutes, so the Second amendment's 10-minute rule stops the run after octet 4 and
+  leaves every fill comparison *not decided*; the run commit differs from the demo commit `157b7109` in 20 files of
+  the fill's path, so by the run-commit rule no verdict carries to it; loads 6 and 10 were slow on the phone's decode,
+  not the wire. The owner decides which reading stands.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
   twelve): running REDTEAM-DEMO, REVIEW-BLIND, TEST-MOBILE, AV1-CORRECT, OPT-THEORY, and the rows added that night:
