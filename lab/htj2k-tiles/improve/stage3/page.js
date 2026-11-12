@@ -62,7 +62,7 @@ async function retried(m) {
     store.terminate();
     store = new Worker("/lab/htj2k-tiles/improve/stage3/store.js");
     await once({ op: "open", key: C.key });
-    return once(m);
+    return once({ ...m, hang: false });
   }
 }
 /** One operation at a time, each kept until answered so that it can be sent again. */
@@ -71,8 +71,10 @@ function stored(m) {
   storeChain = p.catch(() => {});
   return p;
 }
+let hang = C.mutate === "store-hang";
 const keep = (name, bytes) => {
-  writes.push(stored({ op: "put", name, bytes: new Uint8Array(bytes).buffer }).finally(() => settledWrites++));
+  writes.push(stored({ op: "put", name, bytes: new Uint8Array(bytes).buffer, hang }).finally(() => settledWrites++));
+  hang = false;
 };
 await stored({ op: "open", key: C.key });
 
