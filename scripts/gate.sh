@@ -79,6 +79,9 @@ run 1 bash deploy/seccomp-uring.sh --check
 step "deploy: every module the web image's files name is in it"
 run 1 sh deploy/web-files_test.sh
 
+step "scripts: README §Demo's pair starter serves the pair whole and stops with it"
+run 1 bash scripts/demo-pair_test.sh
+
 step "client: build bundles + unit tests"
 run 1 bash client/transport/ts/build.sh
 run 1 bash -c 'cd client/transport/ts && sha256sum -c --quiet manifest.sha256 && echo "session.js rebuilt to its pin" \
