@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-12T14:01Z
-heartbeat: 2026-11-12T14:35Z
+heartbeat: 2026-11-12T14:36Z
 outputs: claude/unified-client 95dc4733 (no PR yet)
 ## Resume
 Done, pushed on claude/unified-client (from claude/demo-fixes-2 18d2d1ff): 2b531f6c merge claude/clean-product (CLEAN-REVIEW's
@@ -8,7 +8,9 @@ docs, 56bfc38f); a96520f4 merge claude/clean-2 (#375, 18f96938); 95dc4733 merge 
 textual conflicts. Residues of old names present on names-1 too (not merge-made): client/README.md:268,271,
 lab/faultbench/index.html:28 (info.path), docs/lines/optimal-quality.md:261-262 -> findings for UNIFY-REVIEW.
 Left out: #376, #378 (await PHONE-FIX-REVIEW), #377/#369/#370/#368 (separate), #372 and LINES-READY §7's rest.
-Running (14:35, ~45 min): setup done (README §Prerequisites' cloud lines, .venv); then transport builds, demo-series.sh,
+On 95dc4733: demo-series.sh 21 series OK (745 s); full gate GATE OK in 850 s (skipped: native painter/window,
+cross-codec + Firefox, nginx); comment budget ok. Running now: demo-check 20 runs x {page, worker} (~35 min).
+Was: running (~45 min): setup done (README §Prerequisites' cloud lines, .venv); then transport builds, demo-series.sh,
 full gate, demo-check 20 runs x {page, worker}. If this session ends: rerun them on 95dc4733 as listed below.
 Was next: build decoders (client/decode/wasm/build/build.sh) and ingest/tools.sh, scripts/gate.sh; demo-series.sh;
 demo-check.mjs 20 runs x {page, worker} (README §Demo loop); comment budget; line file; draft PR into claude/core.
