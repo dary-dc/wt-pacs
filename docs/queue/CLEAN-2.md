@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-12T07:05Z
-heartbeat: 2026-11-12T07:20Z
-outputs: claude/clean-2 (not yet pushed)
+heartbeat: 2026-11-12T08:05Z
+outputs: claude/clean-2 603da24d (no PR yet)
 ## Resume
 Claimed by the session started for DIRECTION-COORD (already done). Branch claude/clean-2 from claude/demo-fixes-2 18d2d1ff.
 Scope (what CLEAN-PRODUCT, PR 371, did not do): S3 one starter for a pair (scripts/demo-pair.sh used by demo-check.mjs
@@ -11,4 +11,8 @@ settle, after outside head.js's gate); CLEAN-FIND §4 duplicate viewer/store.js 
 product comments. Each one commit, failing test first, mutated. Then gate, demo-series.sh, demo-check.mjs both views.
 Setup (long, in background): dockerd; pip install meson==1.9.1; venv from ingest/requirements.txt; ingest/tools.sh;
 client wasm+ts builds; cargo build --release -p series-server; gen_dev_cert.sh; scripts/demo-series.sh.
+Pushed on claude/clean-2: 7b7ab20f S6 (product_test.sh); 215156f9 web-files dup; 5414aa1a trace/settle/after gated
+(crafted.mjs + levers.test); 603da24d opts.digests never off. S7 removals: none (every lever is named by a check or rig).
+Next: cine rename (check.mjs sends check=cine, uncommitted test edit; then check-page reads it); then S3
+scripts/demo-pair.sh; then line doc, gate, demo-check both views, draft PR, review row in docs/queue-2026-11-14.md.
 ## Result
