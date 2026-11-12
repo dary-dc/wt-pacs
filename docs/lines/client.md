@@ -42,6 +42,10 @@ on lossy wireless; bit-exact; fill and latency both count.
   `?after=` behind `head.js`'s lab gate; the check's cine as `?check=cine`, so `?cine=` is the lab's alone; a lab
   `?opts=` can no longer turn the frame check off. No lab lever removed: each is named by a check or a rig
   (`client/viewer/run_check.sh`, `lab/av1/delivery/total-time/run.mjs`), so none is S7's candidate yet.
+* 2026-11-12, `claude/unified-client` (UNIFY-CLIENT, a proposal into `claude/core`): the line's unified branch,
+  from the demo tip `claude/demo-fixes-2` (`18d2d1ff`), with `claude/clean-product`'s review record, CLEAN-2 (#375) and
+  NAMES-1 (#374) merged `--no-ff`, NAMES-1 last; no conflicts. Left out with their reasons in its PR body: #376 and
+  #378 (await their review), #368–#370 and #377 (separate proposals), and the rest of LINES-READY §7.
 
 ## Open (ordered)
 
