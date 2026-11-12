@@ -639,6 +639,10 @@ D's Lossless request give **D+T3** and **D+L★**.
   0.88 s, then 268–286 ms whole against ~90–105 ms for the last strip, so ×0.84–0.86 of D's Lossless; at 5 Mbit/s
   ×0.95 (*derived*, *assumption* that a strip decodes in a third of the frame's time on one worker, TILEMEASURE's
   one-worker ×0.996–1.08). **During the fill it changes nothing**: three decoders are already busy on three frames.
+  *Corrected by HTJ2K-VERDICT (2026-11-12):* the mechanism holds in stage 2 (J3), but on a link it explains at most
+  a third of the measured gain. On `r5000` D+T3 saves 47–51 ms at 1× and 139–311 ms at 4× against D, with the same
+  bytes (±0.2 %). That is 2.5–3× the frame's whole decode (stage 2: 17–47 ms at 1×, 64–191 ms at 4×), and strips can
+  save at most two thirds of it. The rest is unattributed (§Verdict, A1).
 * **What it changes in *Lossless*.** The three level-0 strips stacked are the frame and hash to today's frame digest;
   a level picture is per strip, its truth the strip's own analysis, near an edge not the untiled level picture
   (§Theory 5); Layout 1 carries a samples hash per tile and band.
@@ -720,9 +724,11 @@ D+L★ differs from D+T3 only where ℓ_fit ≥ 1 (`dbts_b1` upright, `dbts_c1` 
 | J6 | D+L★'s level picture ÷ D's Lossless, `dbts_b1` upright | ×0.22–0.40 | over ×0.50 |
 | J7 | D+L★'s Lossless ÷ D+T3's | ×1.00–1.08 (the level's decode again, I4) | over ×1.15 |
 | J8 | S★ ÷ D, first picture and every frame pictured | Q1, Q2 unchanged within 10 % (bytes the clock) | under 1.0 on `dbts_a1` or `dbts_c1` |
+| | *verdict* | not refuted; band missed twice: `dbts_a1` every slice ×14 (Q2 3–8), `dbts_b1` first ×0.67–0.90 (Q1 1.1–4) | |
 | J9 | S★'s first picture ÷ S's (stage 2, decode only, 4×) | ×0.40–0.60 of the decode; ×0.85–1.00 of the time on a link | — (a reading) |
 | J10 | reopen after a complete fill, S★ and D+L★ | 0 bytes asked, 0 decodes | any |
 | J11 | `r20000` with 1 % loss each way: every ratio above | within ±5 % of its clean `r20000` value | outside ±10 % |
+| | *verdict* | **refuted**: ×0.39–4.1 of clean; s 0.5–3.9 on that cell, so six rounds cannot resolve it | |
 
 The predicted standing: **S★ still does not pay for a scroll** (J8); its gains are a reader's Lossless wait and a
 reopen. The candidate this predicts is **D+T3** for every Lossless ask, and **D+L★** where a level is to be had, if the
