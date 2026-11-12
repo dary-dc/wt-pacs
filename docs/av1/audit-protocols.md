@@ -503,7 +503,7 @@ per volume, the option "keep at least half", are in `b-summary.json` (`q_nu`, an
 decision 1 or 9 in `claude/docs-lines-3:docs/lines/codecs.md` §Open 0. What A cannot settle stands: whether the
 removed noise is visible or costs a diagnosis.
 
-### C · amendment 1, written 2026-11-12 03:50 UTC before any C decode was timed
+### C · amendment 1, written 2026-11-12 03:24 UTC before any C decode was timed
 
 The protocol names the arms, streams and checks but not the code or every reading. Fixed here, before the run:
 
