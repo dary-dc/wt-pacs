@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-09 (branch tips read from `origin` that evening).
+Last verified 2026-11-09 (branch tips read from `origin` that evening); one note added 2026-11-10 (Open 6).
 
 ## Goal
 
@@ -49,7 +49,9 @@ the optimal-quality series is a series of its own, ingested beside its exact ser
 3. Review both branches; merge into `core`; then the browser end to end on a pair from `demo-series.sh`.
 4. Serve the exact series' paths from the web image.
 5. Phone runs: tethering for development and decode numbers; Wi-Fi plus netem for transport realism and the demo.
-6. The DICOM ingest codes optimal quality (today only the lab tool does).
+6. The DICOM ingest codes optimal quality (today only the lab tool does). When it does: `lossy_args` takes any Q of 0–63, but Q 0 is qindex 0
+   with no delta-q, which the AV1 specification defines as lossless, so it would write a lossless stream labelled
+   lossy (*derived*, [`../av1/encoder-settings.md`](../av1/encoder-settings.md) §2b). Refuse Q 0, or label it.
 7. The depth cut for D > 10 (the OQ view through WebCodecs, painted from its 10-bit codes through a window table, no
    shift pass); D ≤ 10 needs none. Build `claude/oq-depth-cut` (stacks on the two OQ branches). Full fidelity is the
    exact HTJ2K frame; a 12-bit OQ view through dav1d is the same lossy view at the stored depth, a decode alternative.

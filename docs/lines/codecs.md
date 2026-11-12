@@ -1,6 +1,7 @@
 # Codecs and lab
 
-Last verified 2026-11-09 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09).
+Last verified 2026-11-09 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09);
+the encoder-settings inventory added 2026-11-10.
 
 ## Goal
 
@@ -39,6 +40,12 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 * **Discarded:** a layered three-layer carrier; preview and view as quality layers of one stream; top-first; HTJ2K
   resolution ladder and quality layers; lossless G > 1; a lossy top plus low stream; key parsing in place of
   WebCodecs' flush (tag `archive/av1-keyparse`); LCEVC.
+* **Encoder settings** (ENCODER-SETTINGS, 2026-11-10, theory only, [`../av1/encoder-settings.md`](../av1/encoder-settings.md)):
+  every flag of every AV1 and HTJ2K invocation, quoted from libaom 3.15.1, the AV1 spec and OpenJPH 0.31.0. *G saves
+  almost nothing at Q 8 on DBT* holds for low-delay libaom only: lag 0 also switches off the temporal filter, TPL and
+  keyframe filtering; q is pinned; speed 6 prunes inter. Most other OQ flags restate libaom's defaults. The SVC and
+  residual studies ran other configurations (real time; libaom's defaults with lookahead), so their bytes do not
+  compare with the OQ view's.
 * **Server and transport:** `claude/line-server` (#254) holds 13 results (congestion and disk designs, PGO, tail
   ping, GSO, and others); no default changed.
 
@@ -48,6 +55,8 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    why G saves almost nothing at Q 8 on DBT, whether a lower Q at a larger G wins at equal fidelity, and whether our
    low-delay encoder settings (no lookahead, no alt-ref frames, whose temporal filtering partly averages out noise)
    suppress inter coding. Decode time in order matters more than jumps (sequential reading). No G is decided for DBT.
+   Gaps the protocol leaves (`encoder-settings.md` §9): objective delta-q with TPL, the alt-ref filter's strength, a
+   speed ladder beyond Q 8, and the in-loop filters' decode cost.
 1. Harvest and review the AV1 result chain into `av1-unified-mainbase`: #290 → #305 → #317, #312; #283 → #306 → #314
    → #316; #288, #315 (residual exactness across decoders, browser cells partial), #318 (WebCodecs profiles).
 2. Explore noise detection at ingest (σ_min, its estimator's timing on the three volumes), then hand it to the PCS team.
@@ -83,7 +92,7 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 
 ## Pointers
 
-`docs/av1/` (`payload-format.md`, `MAINBASE.md`, `queue.md`), `docs/decode/README.md`, `docs/FIXTURES.md`,
+`docs/av1/` (`payload-format.md`, `encoder-settings.md`, `MAINBASE.md`, `queue.md`), `docs/decode/README.md`, `docs/FIXTURES.md`,
 `docs/transport/`, `docs/adr/disk-access.md`, `lab/`; branches `claude/av1-unified-mainbase`,
 `claude/av1-quality-metrics:lab/av1/metrics/README.md`, `claude/av1-quality-profiles:lab/av1/profiles/README.md`,
 `claude/av1-noise-point:docs/av1/noise-point.md`, `claude/av1-svc-preview`, `claude/line-server`.
