@@ -1,8 +1,9 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-12 01:31
+heartbeat: 2026-11-12 03:25
 outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure da85fae9 (B0, B and A measured: docs/av1/audit-protocols.md §B, §A measured d3071269, rows/b.jsonl and b-summary.json 03c1597d, codecs line da85fae9); C not started; no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
 ## Resume
+Resumed 2026-11-12 03:25 by a new session (stalled at 01:31), at C: amendment 1 first, then setup and the run.
 2026-11-12 01:31: this session stopped after B and A (nothing running, nothing unpushed). Done: B amendment 2 (055633ef),
 --extra (82a6f18a), 352 cells (03c1597d), §B and §A measured (7eddac91, d3071269), codecs line (da85fae9).
 **Next: C only** (docs/av1/audit-protocols.md §C, on claude/audit-measure). Its amendment 1 first, pushed before any
