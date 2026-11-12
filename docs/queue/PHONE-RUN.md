@@ -32,3 +32,14 @@ The next round's protocol (an amendment by a session that will not run it) waits
 cover: the show list's first series (dbts_a1-q8-g8-cut, where the start weighs most) beside dbts_b1-q8-g8; a fresh
 Chrome profile or closed tabs; the phone untouched; a cellular arm only if a server the phone reaches over the
 Internet is in scope.
+## Result
+docs/phone-rows/README.md on claude/phone-rows (4e492c92). By the pre-registered rules, before the blind read:
+tether 23 passed, 1 missing (load 7: the tether's address changed); worker/page depends on the controller;
+bbr/cubic-restart no difference shown (n = 11). Wi-Fi (server wired): 22 passed, 2 failed, both bbr (load 6:
+Lossless never fetched after a fill with 7 % loss; load 13: decode lost, page likely hidden by the owner in Settings
+at this session's request, server lost 0); worker/page no difference shown (n = 10); cubic-restart faster (9 of 10,
+median 1.084). Loss: all of Cubic's Wi-Fi losses congestive (89 events, 0 random); the tether lost under Cubic only.
+Deviations: reruns of loads 6 and 8 and an interrupted load 9 left out by id; a gap of 20 minutes before load 12
+(screen asleep); the owner touched the phone during counted loads; prod-like check not run. Product findings: a failed
+Lossless is not retried; a hidden page's fill does not recover its decoder; the runner is not hands-off.
+Decisions: none yet (the owner's, after PHONE-BLIND-READ).
