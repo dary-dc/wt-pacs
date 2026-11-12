@@ -34,6 +34,8 @@ on lossy wireless; bit-exact; fill and latency both count.
   downloader's 10 s decode deadline firing late on a stopped page and replacing decoders mid-group; a deadline that
   fires over 1 s late is now given again. The beacon's visibility record is on `claude/hidden-page-decode-beacon`
   ([`docs/reviews/hidden-page-decode.md`](../reviews/hidden-page-decode.md)).
+  Reviewed 2026-11-12 (PHONE-FIX-REVIEW): test fails without the fix, theory matches the trace, gate and
+  `demo-check.mjs` in both views pass; one finding (any thread stop over 1 s re-arms, bounded).
 
 ## Open (ordered)
 
