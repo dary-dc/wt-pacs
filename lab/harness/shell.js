@@ -115,7 +115,7 @@ function runOndemand(client, steps, interval, stats) {
         if (inflight.has(frame)) break;
         due.shift();
         inflight.add(frame);
-        client.requestExactFrame(frame).then(
+        client.requestFrame(frame).then(
           (r) => {
             touch(r.bytes);
             stats.delivered += 1;
@@ -204,7 +204,7 @@ async function boot() {
     if (telemetry) globalThis.__wtpacsTelemetry = harvestTelemetry;
 
     const frame0 = async () => {
-      const r = await client.requestExactFrame(0);
+      const r = await client.requestFrame(0);
       touch(r.bytes);
       log("frame0 bytes", r.bytes.length);
     };

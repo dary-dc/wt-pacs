@@ -260,7 +260,8 @@ What a presenter should know, from the reviews of 2026-11-11 (`claude/demo-under
 
 * The code calls every frame request `requestExactFrame`, optimal-quality frames included, and the optimal-quality
   state `showLossy` (`View.lossy`, the intent `lossy`) where the screen says *Optimal quality* (NAMES-FIND 1, 3);
-  the second since renamed `showOptimal` (`View.optimal`, the intent `optimal`) on `claude/names-1`.
+  both since renamed on `claude/names-1`: `requestFrame`, the wire's `request_frame`, and `showOptimal` (`View.optimal`,
+  the intent `optimal`).
 * The web image ships the check hooks (`check-page.js`, `view/check.js`), so `?check=` works in production; on the
   lab host `?opts=` can switch the exactness check off from the URL (DEFAULTS-FIND 1, 4).
 * About 110 of `viewer.js`'s 334 lines are check and lab hooks (CLEAN-FIND).

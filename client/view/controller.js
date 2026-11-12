@@ -159,7 +159,7 @@ export class Controller {
     }
     this.#asks.set(want, step);
     try {
-      this.take(await this.client.requestExactFrame(want));
+      this.take(await this.client.requestFrame(want));
     } catch (e) {
       if (this.#asks.get(want) === step) this.#emit("failed", { scope: "frame", i: want, reason: e.message });
     } finally {
@@ -194,7 +194,7 @@ export class Controller {
     if (!this.exactSource || (this.#exact?.i === i && !this.#exact.failed)) return;
     const e = (this.#exact = { i });
     this.repaint();
-    if (!this.#exactAsks.has(i)) this.#exactAsks.set(i, this.exactSource.requestExactFrame(i).finally(() => this.#exactAsks.delete(i)));
+    if (!this.#exactAsks.has(i)) this.#exactAsks.set(i, this.exactSource.requestFrame(i).finally(() => this.#exactAsks.delete(i)));
     try {
       const { info } = await this.#exactAsks.get(i);
       if (info.exact === true) e.frame = { info, arrived: at() };

@@ -440,7 +440,7 @@ bytes where the wire is the clock.
 
 Does asking the frames a reader needs first shorten the time to them without costing the fill? The order is
 the client's, never the server's ([`../adr/reject-server-ordering.md`](../adr/reject-server-ordering.md)):
-`prio` asks the useful frames with `requestExactFrame`, most needed first, then posts the same whole-series
+`prio` asks the useful frames with `requestFrame`, most needed first, then posts the same whole-series
 fill as `seq`. **Useful**, per content: on tomosynthesis the centre slice and two either side (the slice a
 reader starts on is this measurement's premise, not a measured reading pattern); on a four-view screening
 mammogram the MLO pair — IHE's mammography display test hangs all four current views at once, MLOs on the

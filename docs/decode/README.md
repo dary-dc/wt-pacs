@@ -865,7 +865,7 @@ beside them — not as 0 pixels, which is what a *fresh* decoder returns.
 **The check is the header, not the length.** `decodeFrame` computes `width x height x components x
 (bits > 8 ? 2 : 1)` and throws when that is zero or the decoded buffer is shorter; the worker's
 `catch` posts `failed` with the index and generation, so it reaches the consumer as `onError({
-frameIndex, reason, generation })` or a rejected `requestExactFrame`, never as a frame. A check on
+frameIndex, reason, generation })` or a rejected `requestFrame`, never as a frame. A check on
 the length alone catches nothing: the length is the previous frame's. A fresh decoder per frame buys
 only what this check buys and gives up reuse; zero-filling the output before each decode is the pass
 D10 removed. Neither is taken.

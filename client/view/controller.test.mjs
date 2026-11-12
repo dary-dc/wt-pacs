@@ -26,7 +26,7 @@ function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, los
     budget,
   });
   c.client = {
-    requestExactFrame: (i) => (calls.push(`ask ${i}`), Promise.resolve(frame(i))),
+    requestFrame: (i) => (calls.push(`ask ${i}`), Promise.resolve(frame(i))),
     cancel: () => (calls.push("cancel"), Promise.resolve()),
     fill: (all) => calls.push(`fill ${all}`),
   };
@@ -358,7 +358,7 @@ const exactFrame = (i, exact = true) => ({ frameIndex: i, info: { ...frame(i).in
 function optimalRig(answer = (i) => Promise.resolve(exactFrame(i)), opts = {}) {
   const r = rig({ held: [0, 1, 2, 3], lossy: { q: 30, g: 1, depth: 10 }, ...opts });
   r.exactAsks = [];
-  r.c.exactSource = { requestExactFrame: (i) => (r.exactAsks.push(i), answer(i)) };
+  r.c.exactSource = { requestFrame: (i) => (r.exactAsks.push(i), answer(i)) };
   r.labels = () => r.events.filter(([t]) => t === "shown").map(([, e]) => e.quality);
   return r;
 }
@@ -497,7 +497,7 @@ test("a scroll through a group after a jump into it asks nothing", async () => {
   for (const g of [1, 8, 16]) {
     const { c, calls } = rig({ frames: 40, fillMode: false });
     // The downloader's answer to an ask mid-group: the asked frame, the rest of its group as frames nobody waits on.
-    c.client.requestExactFrame = (i) => {
+    c.client.requestFrame = (i) => {
       calls.push(`ask ${i}`);
       for (let k = i - (i % g); k < Math.min(i - (i % g) + g, 40); k++) if (k !== i) c.take(frame(k));
       return Promise.resolve(frame(i));

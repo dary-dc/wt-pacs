@@ -159,7 +159,7 @@ export class DownloaderClient {
     return new Promise((resolve, reject) => this.#waiters.set(index, { resolve, reject }));
   }
 
-  requestExactFrame(index) {
+  requestFrame(index) {
     const p = this.#waitFor(index);
     this.#worker.postMessage({ kind: "ask", index });
     return p;

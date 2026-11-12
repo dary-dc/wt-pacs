@@ -14,10 +14,10 @@ function listen(controller, port) {
   // On the page the port is the downloader's worker, inside the consumer: its asks and cancels are heard instead.
   const client = controller.client;
   const own = (k, label) => (client[k] = (...a) => (sent.push(label(...a)), Object.getPrototypeOf(client)[k].apply(client, a)));
-  own("requestExactFrame", (i) => i);
+  own("requestFrame", (i) => i);
   own("cancel", () => "cancel");
   own("fill", () => "fill");
-  return { sent, undo: () => ["requestExactFrame", "cancel", "fill"].forEach((k) => delete client[k]) };
+  return { sent, undo: () => ["requestFrame", "cancel", "fill"].forEach((k) => delete client[k]) };
 }
 
 /**
@@ -86,13 +86,13 @@ export async function protocol({ controller, port, n, onDemand }) {
       out[name] = { error: String(e?.message ?? e) };
     }
   };
-  await step("askDelivered", async () => (await client.requestExactFrame(n >> 1)).info.exact);
+  await step("askDelivered", async () => (await client.requestFrame(n >> 1)).info.exact);
   await step("cancelledFill", async () => {
     client.fill([...Array(n).keys()]);
     await client.cancel();
     return "cancelled";
   });
-  await step("askAfterCancel", async () => (await client.requestExactFrame(n - 1)).info.exact);
+  await step("askAfterCancel", async () => (await client.requestFrame(n - 1)).info.exact);
   return out;
 }
 

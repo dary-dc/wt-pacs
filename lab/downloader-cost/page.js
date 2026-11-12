@@ -90,7 +90,7 @@ async function downloaderVariant(cfg, decode) {
       };
       c.fill(Array.from({ length: FILL }, (_, i) => i));
     },
-    ask: async (i) => (await c.requestExactFrame(i)).bytes,
+    ask: async (i) => (await c.requestFrame(i)).bytes,
     stats: () => ({ ...c.stats(), mediaReads }),
     close: () => c.close(),
   };

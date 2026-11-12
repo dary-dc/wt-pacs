@@ -87,7 +87,7 @@ different points, because it is the same code stamping.
 - It does **not** fix the event-loop timing confound; only D would.
 - **What it cannot see.** A session over the WebSocket fallback (no `WebTransport` to patch). The
   downloader's pushed fill is seen since 2026-10-03: the wrapper wraps `fillFrames` and an opening fill.
-  *Corrected 2026-10-16 (row 274):* the wrapper dropped `requestExactFrame`'s second argument, `onHead`, so
+  *Corrected 2026-10-16 (row 274):* the wrapper dropped `requestFrame`'s second argument, `onHead`, so
   under telemetry the downloader's `refill: "head"` never fired and a fill's remainder waited for the asked frame
   to land, as `refill: "landed"` does. It is passed through; `lab/client-telemetry/test/run.ts` holds it.
 

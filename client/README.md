@@ -266,7 +266,8 @@ before it is called not exact (`decoder.js` `checked`; [`docs/adr/exactness-in-p
 **What could not be explained simply**, candidates for simplification (OPT-SIMPLIFY) and naming (NAMES-FIND):
 
 * `requestExactFrame` asks one frame of *any* series: the optimal-quality series' on-demand steps call it too
-  (`Controller.show`), so *exact* names both "asked, not filled" and "the exact series".
+  (`Controller.show`), so *exact* names both "asked, not filled" and "the exact series". Since renamed (NAMES-1):
+  `requestFrame`, the wire's `request_frame`.
 * *Lossy* in the code (`meta.lossy`, `showLossy`, `view.lossy()`) beside *Optimal quality* on the
   screen; the glossary retired *lossy series* as a name. Since renamed (NAMES-1): `showOptimal`, `view.optimal()`;
   the metadata key `lossy` stays, a format.

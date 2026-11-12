@@ -184,7 +184,7 @@ follow, each measured on its own:
   ([`native/quic-compared.md`](native/quic-compared.md) §9.7).
 
 The client carries the rebuild: with row 229 in, `asksInFlight` and its gate on the fill, the hold-and-release in
-`ask()`, three `refill` modes, and a head callback through `requestExactFrame`.
+`ask()`, three `refill` modes, and a head callback through `requestFrame`.
 
 **Candidate 1, one queue (the owner's).** The server holds what the client wants as one ordered queue. A fill
 appends its run, and an ask moves its frame to the front, or puts it there if the fill did not hold it. An ask never
