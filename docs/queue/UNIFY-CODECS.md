@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-12T14:16Z
-heartbeat: 2026-11-12T15:00Z
-outputs: claude/unified-codecs 6dd2a094 (no PR yet)
+heartbeat: 2026-11-12T15:10Z
+outputs: claude/unified-codecs 33439fae, draft PR #379 into claude/av1-unified-mainbase
 ## Resume
 Pushed on claude/unified-codecs (from claude/av1-unified-mainbase 696c15d6): ae6e0ced merge #350 (docs-lines-3 14ad30c3);
 6dd2a094 merge #340 (docs-lines-oq-webcodecs 31dd62ef), conflict in docs/lines/optimal-quality.md resolved as
