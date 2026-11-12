@@ -3,7 +3,7 @@
 export const CUT_DEPTH = 10;
 
 /** D − 10 for an optimal-quality series coded as its depth cut, else 0: docs/av1/payload-format.md §Depth cut */
-export const depthCut = (meta) => (meta.lossy?.bitsStored === undefined ? 0 : meta.lossy.bitsStored - meta.lossy.depth);
+export const cutShift = (meta) => (meta.lossy?.bitsStored === undefined ? 0 : meta.lossy.bitsStored - meta.lossy.depth);
 
 /** Where the exact series of `meta` is served, or null when `meta` is not an optimal-quality series; a malformed one is refused by name. */
 export function pairOf(meta) {

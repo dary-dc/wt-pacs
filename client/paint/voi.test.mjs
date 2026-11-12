@@ -126,7 +126,7 @@ test("a depth cut's table is shift-then-window on every code", () => {
   for (const d of [11, 12, 16]) {
     for (const display of CUT_WINDOWS) {
       const want = windowTable(grey(16, false), display);
-      const got = windowTable({ ...grey(10, false), cut: d - 10 }, display);
+      const got = windowTable({ ...grey(10, false), cutShift: d - 10 }, display);
       for (let c = 0; c < 1024; c++) assert.equal(got[c], want[c << (d - 10)], `D ${d}, code ${c}, ${display.voi.function} ${display.voi.center}/${display.voi.width}`);
     }
   }
@@ -136,13 +136,13 @@ test("a depth cut's table is shift-then-window on every code", () => {
 test("a depth cut does not scale the window", () => {
   assert.equal(code("LINEAR", 1000, 11, 249 << 2), 38);
   assert.equal(code("LINEAR", 1000 / 4, 11 / 4, 249), 55);
-  assert.equal(windowTable({ ...grey(10, false), cut: 2 }, { voi: { center: 1000, width: 11 } })[249], 38);
+  assert.equal(windowTable({ ...grey(10, false), cutShift: 2 }, { voi: { center: 1000, width: 11 } })[249], 38);
 });
 
 /** A depth cut is unsigned grey: a signed or RGB frame carrying one is refused by name. */
 test("a signed or RGB depth cut is refused", () => {
-  assert.throws(() => windowTable({ ...grey(10, true), cut: 2 }, { voi: { center: 0, width: 4 } }), /unsigned grey only/);
-  assert.throws(() => windowTable({ bits: 8, signed: false, components: 3, cut: 2 }, { photometric: "RGB" }), /unsigned grey only/);
+  assert.throws(() => windowTable({ ...grey(10, true), cutShift: 2 }, { voi: { center: 0, width: 4 } }), /unsigned grey only/);
+  assert.throws(() => windowTable({ bits: 8, signed: false, components: 3, cutShift: 2 }, { photometric: "RGB" }), /unsigned grey only/);
 });
 
 let failed = 0;

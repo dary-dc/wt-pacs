@@ -1,6 +1,6 @@
 // node client/viewer/pair.test.mjs — an optimal-quality series paired with its exact series, and every malformed pair refused by name.
 import assert from "node:assert/strict";
-import { checkPair, depthCut, pairOf } from "./pair.js";
+import { checkPair, cutShift, pairOf } from "./pair.js";
 
 const source = { frameCount: 3, width: 4, height: 2, bitsStored: 10, signed: false, sourceFingerprint: "00000000f00df00d" };
 const optimal = { ...source, codec: "av1", lossy: { q: 30, g: 8, depth: 10 }, exactSeries: "1.2.840.5" };
@@ -45,10 +45,10 @@ for (const [bad, why] of [
 /** A depth cut is 10-bit codes of the series' own bitsStored, over 10: its shift is D − 10, and a lossy form uncut is 0. */
 const cut = { ...optimal, bitsStored: 12, lossy: { q: 8, g: 16, depth: 10, bitsStored: 12 } };
 assert.equal(pairOf(cut).id, "1.2.840.5");
-assert.equal(depthCut(cut), 2);
-assert.equal(depthCut({ ...cut, bitsStored: 16, lossy: { ...cut.lossy, bitsStored: 16 } }), 6);
-assert.equal(depthCut(optimal), 0);
-assert.equal(depthCut({ frameCount: 3 }), 0);
+assert.equal(cutShift(cut), 2);
+assert.equal(cutShift({ ...cut, bitsStored: 16, lossy: { ...cut.lossy, bitsStored: 16 } }), 6);
+assert.equal(cutShift(optimal), 0);
+assert.equal(cutShift({ frameCount: 3 }), 0);
 
 /** A D ≤ 10 series is never cut, and a cut not to 10 bits or not of the series' bitsStored is refused. */
 for (const [bad, why] of [

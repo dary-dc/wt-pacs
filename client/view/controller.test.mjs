@@ -460,18 +460,18 @@ test("a failed exact request can be asked again on the same frame", async () => 
 test("a depth cut's frames are painted with their shift, the exact frame without", async () => {
   const r = optimalRig(undefined, { lossy: { q: 8, g: 1, depth: 10, bitsStored: 12 }, bitsStored: 12, bits: 10, window: null });
   await r.c.repaint();
-  assert.equal(r.painted.at(-1).f.info.cut, 2);
+  assert.equal(r.painted.at(-1).f.info.cutShift, 2);
   assert.deepEqual(r.painted.at(-1).display.voi, { center: 10, width: 21, function: "LINEAR" });
   r.c.size = { width: 3, height: 2, dpr: 1 };
   assert.deepEqual((await r.c.valueAt(2.5, 1.5)).stored, [20]);
   await r.c.showExact();
   assert.equal(r.painted.at(-1).f.info.route, "htj2k");
-  assert.equal(r.painted.at(-1).f.info.cut, undefined);
+  assert.equal(r.painted.at(-1).f.info.cutShift, undefined);
   assert.equal(r.labels().at(-1), "lossless");
 
   const plain = optimalRig();
   await plain.c.repaint();
-  assert.equal(plain.painted.at(-1).f.info.cut, undefined);
+  assert.equal(plain.painted.at(-1).f.info.cutShift, undefined);
 });
 
 /** What the painter is handed of a depth cut's frame keeps its shift: code 249 of D 12 is windowed at 996, not at 249. */
