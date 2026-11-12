@@ -1,8 +1,9 @@
 state: started
 started: 2026-11-11 18:59 UTC
-heartbeat: 2026-11-12 12:03 UTC
+heartbeat: 2026-11-12 13:25 UTC
 outputs: `claude/htj2k-tiles` 46b31101 (rows, docs; draft PR #324 into main, already open: the commits land in it)
 ## Resume
+Session 4 resumed 2026-11-12 13:25 UTC (stalled since 12:03, S3c at 153 visits of round 4, `cc035d06`): fresh container; setup as below, then S3c rounds 4–5 again into `rows/stage3-s3c-4.jsonl` (the 153 rows of round 4 are incomplete, so not kept).
 Session 3 plan (2026-11-11 23:24 UTC), the client's design fixed before any run:
 * `lab/htj2k-tiles/improve/stage3/`: `page.js` (one lab page, every arm), `store.js` (a lab OPFS store worker: level
   pictures, coded bands, OQ pictures, by key), `run.mjs` (the driver, on 157b7109's total-time rig: Williams cells,
