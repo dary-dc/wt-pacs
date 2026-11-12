@@ -69,6 +69,21 @@ function settingsTheViewCannotHonourAreRefused() {
 }
 settingsTheViewCannotHonourAreRefused();
 
+/** A lab URL may hand the page other digests, as the rig's digest mutant does, but never turn the frame check off. */
+function theFrameCheckStaysOn() {
+  for (const digests of [null, false, {}, "", []]) {
+    let refused = null;
+    try {
+      levers(new URLSearchParams({ opts: JSON.stringify({ digests }) }));
+    } catch (e) {
+      refused = e.message;
+    }
+    check(refused === "refused: opts.digests — a list of the frames' digests; the frame check cannot be turned off", `digests ${JSON.stringify(digests)}: ${refused}`);
+  }
+  check(levers(new URLSearchParams({ opts: JSON.stringify({ digests: ["00", "01"] }) })).opts.digests.length === 2, "a list of digests taken");
+}
+theFrameCheckStaysOn();
+
 /** The rig's paint settles by a fence unless a visit names the read; anything else is refused, and a page without the rig has none. */
 function theRigsSettle() {
   check(lab({}).settle === "fence", `the rig's settle by default: ${lab({}).settle}`);
@@ -81,6 +96,15 @@ function theRigsSettle() {
   }
   check(said === 'refused: settle "finish" — fence or read', `settle finish: ${said}`);
   check(levers(new URLSearchParams({})).settle === undefined, "no rig, no settle");
+  for (const query of [{ settle: "read" }, { fill: "0", after: "3" }]) {
+    let refused = null;
+    try {
+      levers(new URLSearchParams(query));
+    } catch (e) {
+      refused = e.message;
+    }
+    check(refused === `refused: ?${Object.keys(query).at(-1)} without ?post — the rig's`, `${JSON.stringify(query)} without the rig: ${refused}`);
+  }
 }
 theRigsSettle();
 

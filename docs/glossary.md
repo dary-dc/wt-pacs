@@ -43,6 +43,7 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | coding error | an optimal-quality value minus its source sample |
 | stored form | an optimal-quality form of a D > 10 series coded at D itself, not cut: a comparison, decoded by dav1d-WASM only after WebCodecs refused it |
 | pairing | an optimal-quality series naming its exact series in `exactSeries`, by the name the exact series' bundle is known by; nothing else links the two |
+| demo pair | an optimal-quality series and its exact series served together, two `series-server`s (4433, 4434) and the static host (8765), as `scripts/demo-pair.sh` starts them (README §Demo) |
 | source fingerprint | `sourceFingerprint`, the XXH3-64 of a source's frame digests that every series of it carries; the pairing refuses two series whose fingerprints differ ([`av1/payload-format.md`](av1/payload-format.md) §Source fingerprint) |
 | view | where the viewer holds and paints its frames: `page` (the default) or `worker`, the page's `?view=` ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) |
 | view worker | under `?view=worker`, the worker that holds the controller, the frame store and the paint module; the page sends it intents and hears events, never a frame |

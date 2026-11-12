@@ -1,12 +1,12 @@
 // The demo's check: an optimal-quality series and its exact series from scripts/demo-series.sh, served by README §Demo's own
-// commands, opened as a reader would, and every claim of the demo failed by name. README.md §Demo
+// starter (scripts/demo-pair.sh), opened as a reader would, and every claim of the demo failed by name. README.md §Demo
 //
 //   node client/viewer/demo-check.mjs DIR LOSSY_ID [--route av1-webcodecs|av1-dav1d] [--refuse-webcodecs] [--view page|worker] [--link "OPTIONS"] [--json]
 //     DIR as demo-series.sh wrote it: ID.sbnd and ID.metadata.json for LOSSY_ID and its exactSeries
 //     --refuse-webcodecs: the lab's refuseWebCodecs lever, so every frame must reach dav1d with that refusal named
 //     --link: both series' sessions through one lab/scripts/link_impair.py with OPTIONS, a phone on lossy wireless
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -21,7 +21,7 @@ const VIEW = arg("--view", "page");
 const LINK = arg("--link");
 const T = mkdtempSync(path.join(tmpdir(), "demo-check-"));
 const children = [];
-const stop = () => { for (const c of children.splice(0)) c.kill("SIGKILL"); };
+const stop = () => { for (const c of children.splice(0)) try { process.kill(-c.pid, "SIGKILL"); } catch {} };
 process.on("exit", () => { stop(); rmSync(T, { recursive: true, force: true }); });
 const failures = [];
 const check = (ok, claim) => ok || (failures.push(claim), false);
@@ -44,30 +44,19 @@ const started = (child, re) => new Promise((resolve, reject) => {
   child.stderr.on("data", read);
   child.once("exit", (c) => reject(new Error(`exited ${c}: ${out}`)));
 });
-const run = (cmd, args) => {
-  const child = spawn(cmd, args, { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"] });
+// Each in its own process group, so a stop reaches the starter's servers too.
+const run = (cmd, args, env = {}) => {
+  const child = spawn(cmd, args, { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"], detached: true, env: { ...process.env, ...env } });
   children.push(child);
   return child;
 };
 
-/** README §Demo's three servers; `exactMeta`, the exact series' metadata file the static host serves. */
-async function serve(exactMeta) {
-  const cert = ["--cert-pem", "server/dev-cert/cert.pem", "--key-pem", "server/dev-cert/key.pem"];
-  // Renewed before the servers load it: the static host would renew it after, and the page would pin a hash they lack.
-  await new Promise((resolve, reject) => run("server/scripts/gen_dev_cert.sh", ["--if-needed"])
-    .once("exit", (c) => (c === 0 ? resolve() : reject(new Error(`gen_dev_cert.sh --if-needed exited ${c}`)))));
-  const server = path.join(process.env.CARGO_TARGET_DIR || "target", "release/series-server");
-  const lossy = run(server, ["--port", "4433", "--series", file(`${id}.sbnd`), ...cert]);
-  const exact = run(server, ["--port", "4434", "--series", file(`${exactId}.sbnd`), ...cert]);
-  const transport = readFileSync(path.join(ROOT, "client/dev-transport.json"), "utf8");
+/** README §Demo's pair through its own starter, scripts/demo-pair.sh, from `from`: a folder holding the pair's four files. */
+async function serve(from) {
   // Under --link the page dials the relay, 1000 above each server's port.
-  const [toLossy, toExact] = LINK ? [":5433", ":5434"] : [":4433", ":4434"];
-  if (LINK) writeFileSync(`${T}/transport.json`, transport.replace(":4433", toLossy));
-  writeFileSync(`${T}/exact-transport.json`, transport.replace(":4433", toExact));
+  const pair = run("scripts/demo-pair.sh", [from, id], { ...(LINK && { DIAL_PORTS: "5433 5434" }) });
   const link = LINK && run("python3", ["lab/scripts/link_impair.py", "--udp", "5433:4433", "--udp", "5434:4434", ...LINK.split(/\s+/)]);
-  const host = run("python3", ["server/dev-server.py", "--port", "8765", "--metadata", path.join(dir, `${id}.metadata.json`),
-    ...(LINK ? ["--transport", `${T}/transport.json`] : []), "--exact-metadata", exactMeta, "--exact-transport", `${T}/exact-transport.json`]);
-  await Promise.all([started(lossy, /transport=/), started(exact, /transport=/), started(host, /port=8765/), link && started(link, /READY/)]);
+  await Promise.all([started(pair, /demo pair ready/), link && started(link, /READY/)]);
 }
 
 /** The relay's own count of what crossed it, read as it stops. */
@@ -178,7 +167,7 @@ function judge(r) {
 const browser = await createRequire(import.meta.url)("playwright").chromium.launch();
 const report = { id, exactId, passes: [] };
 try {
-  await serve(exactMetaPath);
+  await serve(dir);
   for (const query of ["", "&fill=0"]) {
     const r = await pass(browser, query);
     judge(r);
@@ -197,8 +186,9 @@ try {
   const bad = JSON.parse(readFileSync(exactMetaPath));
   const last = bad.digests.frames.length - 1;
   bad.digests.frames[last] = bad.digests.frames[last].replace(/^./, (c) => (c === "0" ? "1" : "0"));
-  writeFileSync(`${T}/bad.json`, JSON.stringify(bad));
-  await serve(`${T}/bad.json`);
+  for (const f of [`${id}.sbnd`, `${id}.metadata.json`, `${exactId}.sbnd`]) symlinkSync(path.resolve(file(f)), `${T}/${f}`);
+  writeFileSync(`${T}/${exactId}.metadata.json`, JSON.stringify(bad));
+  await serve(T);
   const r = await pass(browser, "&fill=0");
   // The pass's second `l` lands on the failed label, so it asks again (the retry) and fails again.
   const RETRIED = [LABELS[0], LABELS[1], FAILED, LABELS[1], FAILED];

@@ -109,7 +109,7 @@ function place(f, pic, shift, last) {
   }
 }
 
-/** JPEG 2000's reversible colour transform undone: planes Y, B − G + 256, R − G + 256 to R, G, B. lab/av1/bytes/represented */
+/** JPEG 2000's reversible colour transform undone: planes Y, B − G + 256, R − G + 256 to R, G, B. docs/av1/payload-format.md §Representation at ingest */
 function unrct(f, pic) {
   const { out } = f;
   const { width, height, planes: [y, cb, cr] } = pic;

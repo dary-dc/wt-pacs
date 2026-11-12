@@ -55,6 +55,9 @@ const LINKS = {
   post: { post: `${base}crafted/` },
   origin: { origin: "navigation" },
   check: { check: "1" },
+  trace: { trace: "sawtooth" },
+  settle: { settle: "read" },
+  after: { fill: "0", after: "3" },
 };
 
 const { chromium } = createRequire(import.meta.url)("playwright");

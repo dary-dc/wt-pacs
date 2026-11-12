@@ -215,29 +215,19 @@ scripts/demo-series.sh                           # ingest/tools.sh, the three vo
                                                  #   ~20 min on 4 cores; demo-series/ID.sbnd and ID.metadata.json
 ```
 
-**One series**, three terminals — the optimal-quality series, its exact series, the static host. Each terminal starts at
-the repository's root and sets `ID` first; the certificate is renewed, when it ends within a day, before any server
-loads it (the static host would renew it after, and the page would pin a hash the two servers do not have):
+**One series**, one command — `scripts/demo-pair.sh` stops servers left running, renews the certificate when it ends
+within a day (before any server loads it, so the page pins the hash both servers have), then starts the
+optimal-quality series on 4433, its exact series on 4434 and the static host on 8765, and keeps them up until Ctrl-C
+or until one stops (their logs in `target/demo-pair/`):
 
 ```bash
-# Every terminal first — any demo-series/ID; its exact series is the part before the first -
-ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}
-# Terminal 1, before the others — the certificate, then the optimal-quality series
-./server/scripts/gen_dev_cert.sh --if-needed
-target/release/series-server --port 4433 --series demo-series/$ID.sbnd \
-  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
-# Terminal 2 — its exact series
-target/release/series-server --port 4434 --series demo-series/$EXACT.sbnd \
-  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
-# Terminal 3 — the static host, which hands the page the exact series' server on 4434
-sed 's/:4433/:4434/' client/dev-transport.json > target/exact-transport.json
-python3 server/dev-server.py --port 8765 --metadata demo-series/$ID.metadata.json \
-  --exact-metadata demo-series/$EXACT.metadata.json --exact-transport target/exact-transport.json
+ID=dbts_a1-q8-g8-cut                             # any demo-series/ID with a -q in it; its exact series is named inside
+scripts/demo-pair.sh demo-series $ID
 ```
 
 Open `http://127.0.0.1:8765/?overlay=1` in Chrome; without `?overlay=1` the page is the reader's, label and status
-line only. To change series, stop the three and start them again with another `ID`. **A rehearsal**, with the three
-stopped: `NODE_PATH=$(npm root -g) node client/viewer/demo-check.mjs demo-series $ID` runs the commands above, opens the page in headless
+line only. To change series, Ctrl-C and start it again with another `ID`. **A rehearsal**, with the pair
+stopped: `NODE_PATH=$(npm root -g) node client/viewer/demo-check.mjs demo-series $ID` runs the same starter, opens the page in headless
 Chromium as below, and fails by name a frame not painted, a decode route other than WebCodecs (`--refuse-webcodecs`:
 the lab's lever refuses WebCodecs on a 10-bit series, so dav1d must take every frame with that refusal named, the
 fallback's check; `--route av1-dav1d` for a stored form), a console error, a label out of order, an on-demand jump that asked other than whole groups, or
@@ -261,39 +251,22 @@ for ID in $(ls demo-series | sed -n 's/\.metadata\.json$//p' | grep -- -q | grep
 done                                             # 20 lines, each "demo check: ID passed"; ~1 min a series
 ```
 
-Then the one series above, three terminals, in Chrome on the laptop.
+Then the one series above, `scripts/demo-pair.sh`, in Chrome on the laptop.
 
 **On a phone**: the laptop serves the pair, the phone opens the page over USB. Once per phone and laptop, and per
 plug-in, §The viewer on an Android phone, steps "Once", 1 and 2 (they write `target/phone.env`); then, in place of the
-three terminals above:
+one command above:
 
 ```bash
-# Every terminal first
-. target/phone.env; ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}
-# Terminal 1, before the others — the certificate, both transport files naming the laptop's address, the series
-./server/scripts/gen_dev_cert.sh --if-needed
-HASH=$(openssl x509 -in server/dev-cert/cert.pem -outform DER | openssl dgst -sha256 | awk '{print $2}')
-for p in 4433 4434; do
-  printf '{"wt_url": "https://%s:%s/", "cert_sha256": "%s"}\n' "$LAPTOP_IP" "$p" "$HASH" > target/phone-transport-$p.json
-done
-target/release/series-server --port 4433 --series demo-series/$ID.sbnd \
-  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
-# Terminal 2 — its exact series
-target/release/series-server --port 4434 --series demo-series/$EXACT.sbnd \
-  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
-# Terminal 3 — the static host, then the page's port on the phone
-python3 server/dev-server.py --port 8765 --metadata demo-series/$ID.metadata.json \
-  --transport target/phone-transport-4433.json \
-  --exact-metadata demo-series/$EXACT.metadata.json --exact-transport target/phone-transport-4434.json
-# Terminal 4
-adb reverse tcp:8765 tcp:8765
+. target/phone.env; adb reverse tcp:8765 tcp:8765   # the page's port on the phone
+DIAL=$LAPTOP_IP scripts/demo-pair.sh demo-series dbts_a1-q8-g8-cut   # both servers dialled at the laptop's address
 ```
 
 On the phone, Chrome, `http://127.0.0.1:8765/?overlay=1`. Nothing arriving: that section's step 4 (`tcpdump`).
 Afterwards, `adb reverse --remove-all` and USB tethering off.
 
 **On a phone, from a laptop without installs** — no `openssl` command, no adb, no node, no ingest coders, no root:
-the laptop needs git, cargo, Python 3 (its standard library), jq and podman with a local `rust` image, which carries
+the laptop needs git, cargo, Python 3 (its standard library) and podman with a local `rust` image, which carries
 `openssl`. Three things differ from the block above. The page comes over the tether, at the laptop's address, in place
 of `adb reverse`; Chrome on the phone treats that one origin as secure through its flag **Insecure origins treated as
 secure**, which Chromium builds for Android too: `{"unsafely-treat-insecure-origin-as-secure",
@@ -332,44 +305,28 @@ ls demo-series/dbts_a1-q8-g8-cut.sbnd demo-series/dbts_a1.sbnd    # copied, as a
 1; no USB debugging needed), then, on the laptop:
 
 ```bash
-# Every terminal first
 IF=$(for d in /sys/class/net/*; do case $(readlink -f "$d/device/driver") in */rndis_host|*/cdc_ncm|*/cdc_ether) echo "${d##*/}";; esac; done | head -1)
 [ -n "$IF" ] || IF=$(nmcli -t -f DEVICE,TYPE,STATE device | awk -F: '$2=="wifi" && $3=="connected" {print $1; exit}')
 LAPTOP_IP=$(ip -4 -o addr show dev "$IF" | awk '{print $4}' | cut -d/ -f1 | head -1); echo "phone opens http://$LAPTOP_IP:8765"
-ID=dbts_a1-q8-g8-cut; EXACT=${ID%%-*}
-# Terminal 1, before the others — servers left running stopped, the certificate made in the rust image, both
-#   transport files naming the laptop's address, then the optimal-quality series
-pkill -f 'release/series-server' ; pkill -f 'server/dev-server.py'
+# The certificate made in the rust image; the static host on the laptop's address toward the phone alone
 mkdir -p server/dev-cert target
 OPENSSL="podman run --rm -i --network none -v $PWD/server/dev-cert:$PWD/server/dev-cert:z rust openssl" \
-  ./server/scripts/gen_dev_cert.sh --if-needed
-HASH=$(jq -r .cert_sha256 client/dev-transport.json)
-for p in 4433 4434; do
-  printf '{"wt_url": "https://%s:%s/", "cert_sha256": "%s"}\n' "$LAPTOP_IP" "$p" "$HASH" > target/phone-transport-$p.json
-done
-target/release/series-server --port 4433 --series demo-series/$ID.sbnd \
-  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
-# Terminal 2 — its exact series
-target/release/series-server --port 4434 --series demo-series/$EXACT.sbnd \
-  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
-# Terminal 3 — the static host, on the laptop's address toward the phone alone
-python3 server/dev-server.py --bind "$LAPTOP_IP" --port 8765 --metadata demo-series/$ID.metadata.json \
-  --transport target/phone-transport-4433.json \
-  --exact-metadata demo-series/$EXACT.metadata.json --exact-transport target/phone-transport-4434.json
+  DIAL=$LAPTOP_IP BIND=$LAPTOP_IP scripts/demo-pair.sh demo-series dbts_a1-q8-g8-cut
 ```
 
-On the phone, in Chrome: `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, the origin the first terminal
-printed (`http://` the address `:8765`, no path), **Enabled**, **Relaunch**; then that origin with `/?overlay=1`. The
+On the phone, in Chrome: `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, the origin printed
+above (`http://` the address `:8765`, no path), **Enabled**, **Relaunch**; then that origin with `/?overlay=1`. The
 tether may hand the laptop another address on another plug-in: when the printed origin changes, enter it in the flag
 again. The ports, 8765/tcp and 4433–4434/udp, lie inside the 1025–65535 that Fedora Workstation's default zone admits;
 whether the tether's interface lands in that zone is *unverified* — `firewall-cmd --get-zone-of-interface="$IF"`
 names it (without root, *unverified*), and when nothing arrives on another zone, use Wi-Fi as step 1 does. Nothing
 arriving, without root for `tcpdump`: the page not loading is TCP 8765 not reaching the laptop; the page loading but
-`received 0` with no `session` line in Terminal 1 is UDP 4433. Afterwards, USB tethering off; the flag may stay, as it
+`received 0` with no `session` line in `target/demo-pair/lossy.log` is UDP 4433. Afterwards, USB tethering off; the flag may stay, as it
 names that one origin.
 No console: DevTools on the phone needs adb (step 5).
 
-*Checked in a container (2026-11-11):* these commands in a network namespace standing in for the phone, a veth pair for
+*Checked in a container (2026-11-11), as the three terminals `scripts/demo-pair.sh` now runs (not checked again
+through it; its own test, `scripts/demo-pair_test.sh`, checks the transport files it writes):* these commands in a network namespace standing in for the phone, a veth pair for
 the tether, `docker run … rust:1 openssl` for the podman line, on `dbts_a1-q8-g8-cut`, `dbts_b1-q8-g8` and
 `dbts_a1-q8-g16-stored` with their exact series, the page's files as committed (no client build). Chromium 153 in the
 namespace, launched with `--unsafely-treat-insecure-origin-as-secure=http://<address>:8765`, opened the page at the

@@ -14,7 +14,7 @@ const loaded = {};
 export async function init(d, load) {
   cfg = d;
   if (load) importer = load;
-  // Fetched while the session dials, compiled only on first use: lab/page-open/README.md §Cold round trips by codec
+  // Fetched while the session dials, compiled only on first use: docs/av1/payload-format.md §Decoder choice, per payload
   importer("./av1-dav1d.js").catch(() => {});
   if (typeof VideoDecoder === "function") importer("./av1-webcodecs.js").catch(() => {});
   for (const url of [d.glue, d.wasm]) if (url) fetch(url).then((r) => r.arrayBuffer()).catch(() => {});
