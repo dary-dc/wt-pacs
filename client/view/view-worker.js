@@ -137,7 +137,7 @@ const INTENTS = {
   pause,
   show: ({ i }) => controller.show(i),
   exact: () => controller.showExact(),
-  lossy: () => controller.showLossy(),
+  optimal: () => controller.showOptimal(),
   display: ({ display }) => controller.setDisplay(display),
   size: ({ size }) => controller.resize(size),
   trigger: () => [controller.client, controller.exactSource].forEach((c) => c?.check()),

@@ -62,7 +62,7 @@ check((await frameUnder(undefined)).m.pixels instanceof SharedArrayBuffer, "a la
 {
   const sent = [];
   const ready = next();
-  onmessage({ data: { kind: "init", toConsumer: { postMessage: (m) => sent.push(m) }, decoder: { codec: "av1", lossy: true, glue: "dav1d.js", wasm: "dav1d.wasm" } } });
+  onmessage({ data: { kind: "init", toConsumer: { postMessage: (m) => sent.push(m) }, decoder: { codec: "av1", optimal: true, glue: "dav1d.js", wasm: "dav1d.wasm" } } });
   check((await ready).kind === "ready", "an optimal-quality AV1 decoder starts");
   const bytes = new Uint8Array(readFileSync(new URL("../contract/av1/payloads/plain/g10.av1", import.meta.url)));
   const done = next();

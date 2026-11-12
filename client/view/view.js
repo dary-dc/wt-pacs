@@ -19,13 +19,13 @@ export class View {
     return this.#to.show(this.current);
   }
 
-  /** The current frame from the optimal-quality series' exact series, until the reader leaves it or calls `lossy`. */
+  /** The current frame from the optimal-quality series' exact series, until the reader leaves it or calls `optimal`. */
   exact() {
     return this.#to.showExact();
   }
 
-  lossy() {
-    return this.#to.showLossy();
+  optimal() {
+    return this.#to.showOptimal();
   }
 
   setDisplay(d) {
@@ -172,8 +172,8 @@ export class ViewWorker {
     this.#worker.postMessage({ kind: "exact" });
   }
 
-  showLossy() {
-    this.#worker.postMessage({ kind: "lossy" });
+  showOptimal() {
+    this.#worker.postMessage({ kind: "optimal" });
   }
 
   setDisplay(display) {

@@ -10,7 +10,7 @@ let cfg = null;
 let importer = (path) => import(path);
 const loaded = {};
 
-/** `d`: dav1d's `glue`, `wasm` and `dir`, `groupLength`, `lossy`; the lab's `mixed` and `refuseWebCodecs`: docs/decode/README.md §JS passes protocol. */
+/** `d`: dav1d's `glue`, `wasm` and `dir`, `groupLength`, `optimal`; the lab's `mixed` and `refuseWebCodecs`: docs/decode/README.md §JS passes protocol. */
 export async function init(d, load) {
   cfg = d;
   if (load) importer = load;
@@ -47,7 +47,7 @@ async function webcodecs(streams) {
 function route(payload, top, avoid) {
   if (avoid === "av1-webcodecs") return {};
   if (payload.depth <= 10) return webcodecs(layouts(payload, top));
-  if (!cfg.lossy) return {};
+  if (!cfg.optimal) return {};
   return refusedDeep ? { refusal: refusedDeep } : webcodecs([]);
 }
 

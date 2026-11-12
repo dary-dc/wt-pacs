@@ -60,7 +60,7 @@ try {
     const calls = [];
     const dav1d = { init: async () => {}, picture: () => (calls.push("dav1d"), { width: 64, height: 48, bits: 12, planes: [{ heap: new Uint16Array(64 * 48), offset: 0, stride: 64 }] }) };
     const av1 = await import("/client/decode/av1.js?stored");
-    await av1.init({ lossy: true }, async (p) => (p === "./av1-dav1d.js" ? dav1d : import(new URL(p, new URL("/client/decode/", location.href)).href)));
+    await av1.init({ optimal: true }, async (p) => (p === "./av1-dav1d.js" ? dav1d : import(new URL(p, new URL("/client/decode/", location.href)).href)));
     const bytes = new Uint8Array(await (await fetch(file)).arrayBuffer());
     const out = [];
     for (let i = 0; i < 2; i++) {

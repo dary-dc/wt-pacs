@@ -351,11 +351,11 @@ test("the ledger's flip changes the digest, not the frame", async () => {
   assert.equal(again.sha, plain.sha);
 });
 
-/** Frame `i` of the exact series: other samples than the lossy one's, and `exact` as its decoder checked it. */
+/** Frame `i` of the exact series: other samples than the optimal-quality one's, and `exact` as its decoder checked it. */
 const exactFrame = (i, exact = true) => ({ frameIndex: i, info: { ...frame(i).info, pixels: new Uint16Array([9, 9, 9, 9, 9, 9]).buffer, exact, route: "htj2k", reason: exact === false ? "digest" : undefined } });
 
 /** An optimal-quality series' rig whose exact series answers each ask through `answer(i)`, the asks recorded. */
-function lossyRig(answer = (i) => Promise.resolve(exactFrame(i)), opts = {}) {
+function optimalRig(answer = (i) => Promise.resolve(exactFrame(i)), opts = {}) {
   const r = rig({ held: [0, 1, 2, 3], lossy: { q: 30, g: 1, depth: 10 }, ...opts });
   r.exactAsks = [];
   r.c.exactSource = { requestExactFrame: (i) => (r.exactAsks.push(i), answer(i)) };
@@ -364,11 +364,11 @@ function lossyRig(answer = (i) => Promise.resolve(exactFrame(i)), opts = {}) {
 }
 
 /**
- * The exact request paints frame i of the exact series in place of the lossy one and changes nothing else: the store
- * keeps every lossy frame, the downloader is asked nothing, a step away and back paints the lossy frame again.
+ * The exact request paints frame i of the exact series in place of the optimal-quality one and changes nothing else: the store
+ * keeps every optimal-quality frame, the downloader is asked nothing, a step away and back paints the optimal-quality frame again.
  */
 test("the exact request paints the exact series' frame in place, and nothing else", async () => {
-  const { c, painted, calls, exactAsks, labels } = lossyRig();
+  const { c, painted, calls, exactAsks, labels } = optimalRig();
   const before = [...c.store.keys()].map((i) => c.store.get(i));
   await c.show(1);
   await c.showExact();
@@ -385,18 +385,18 @@ test("the exact request paints the exact series' frame in place, and nothing els
   assert.equal(painted.at(-1).f, c.store.get(1));
   assert.equal(labels().at(-1), "optimal");
   await c.showExact();
-  await c.showLossy();
+  await c.showOptimal();
   assert.equal(painted.at(-1).f, c.store.get(1));
   assert.deepEqual(calls, []);
 });
 
 /**
  * The label says "lossless" only once the exact frame is painted and its digest matched: never while it is asked,
- * never for a frame whose check failed or had no digest, never for a lossy frame, never for a frame the reader left.
+ * never for a frame whose check failed or had no digest, never for an optimal-quality frame, never for a frame the reader left.
  */
 test("the label never says lossless before the checksum passes", async () => {
   const pending = Promise.withResolvers();
-  const r = lossyRig(() => pending.promise);
+  const r = optimalRig(() => pending.promise);
   await r.c.repaint();
   const shownBefore = r.labels().length;
   const asked = r.c.showExact();
@@ -408,12 +408,12 @@ test("the label never says lossless before the checksum passes", async () => {
   assert.equal(r.painted.at(-1).f, r.c.store.get(0));
   assert.ok(r.events.some(([t, e]) => t === "failed" && /lossless: not exact/.test(e.reason)));
 
-  const unchecked = lossyRig((i) => Promise.resolve(exactFrame(i, "unchecked")));
+  const unchecked = optimalRig((i) => Promise.resolve(exactFrame(i, "unchecked")));
   await unchecked.c.showExact();
   assert.ok(!unchecked.labels().includes("lossless"), unchecked.labels().join());
 
   const late = Promise.withResolvers();
-  const left = lossyRig(() => late.promise);
+  const left = optimalRig(() => late.promise);
   const leaving = left.c.showExact();
   await left.c.show(1);
   late.resolve(exactFrame(0));
@@ -426,7 +426,7 @@ test("the label never says lossless before the checksum passes", async () => {
   assert.equal(left.labels().at(-1), "optimal");
 
   const draws = [];
-  const slow = lossyRig(undefined, { paint: (f) => new Promise((done) => draws.push({ f, done })) });
+  const slow = optimalRig(undefined, { paint: (f) => new Promise((done) => draws.push({ f, done })) });
   const shown = slow.c.showExact();
   for (let k = 0; k < 20 && !draws.some(({ f }) => f.info.route === "htj2k"); k++) {
     draws.shift()?.done();
@@ -445,7 +445,7 @@ test("the label never says lossless before the checksum passes", async () => {
 /** After a failed exact request, asking again on the same frame asks the exact series again, and can reach lossless. */
 test("a failed exact request can be asked again on the same frame", async () => {
   let answers = [exactFrame(0, false), exactFrame(0)];
-  const r = lossyRig(() => Promise.resolve(answers.shift()));
+  const r = optimalRig(() => Promise.resolve(answers.shift()));
   await r.c.showExact();
   assert.equal(r.labels().at(-1), "failed");
   await r.c.showExact();
@@ -458,7 +458,7 @@ test("a failed exact request can be asked again on the same frame", async () => 
  * from the decoded range and the sample under the cursor are at full depth.
  */
 test("a depth cut's frames are painted with their shift, the exact frame without", async () => {
-  const r = lossyRig(undefined, { lossy: { q: 8, g: 1, depth: 10, bitsStored: 12 }, bitsStored: 12, bits: 10, window: null });
+  const r = optimalRig(undefined, { lossy: { q: 8, g: 1, depth: 10, bitsStored: 12 }, bitsStored: 12, bits: 10, window: null });
   await r.c.repaint();
   assert.equal(r.painted.at(-1).f.info.cut, 2);
   assert.deepEqual(r.painted.at(-1).display.voi, { center: 10, width: 21, function: "LINEAR" });
@@ -469,14 +469,14 @@ test("a depth cut's frames are painted with their shift, the exact frame without
   assert.equal(r.painted.at(-1).f.info.cut, undefined);
   assert.equal(r.labels().at(-1), "lossless");
 
-  const plain = lossyRig();
+  const plain = optimalRig();
   await plain.c.repaint();
   assert.equal(plain.painted.at(-1).f.info.cut, undefined);
 });
 
 /** What the painter is handed of a depth cut's frame keeps its shift: code 249 of D 12 is windowed at 996, not at 249. */
 test("a depth cut's frame reaches the painter windowed at full depth", async () => {
-  const r = lossyRig(undefined, { lossy: { q: 8, g: 1, depth: 10, bitsStored: 12 }, bitsStored: 12, bits: 10 });
+  const r = optimalRig(undefined, { lossy: { q: 8, g: 1, depth: 10, bitsStored: 12 }, bitsStored: 12, bits: 10 });
   await r.c.repaint();
   const { f, display } = r.painted.at(-1);
   const painted = asPainted({ ...f.info, bits: 10 });
@@ -485,8 +485,8 @@ test("a depth cut's frame reaches the painter windowed at full depth", async () 
   for (let c = 0; c < 1024; c++) assert.equal(got[c], full[c << 2], `code ${c}`);
 });
 
-/** A series that is not lossy has no label: the quality rule says nothing of an HTJ2K series. */
-test("a series that is not lossy carries no quality label", async () => {
+/** A series that is not optimal quality has no label: the quality rule says nothing of an HTJ2K series. */
+test("a series that is not optimal quality carries no quality label", async () => {
   const { c, events } = rig({ held: [0] });
   await c.repaint();
   assert.equal(events.find(([t]) => t === "shown")[1].quality, null);
@@ -517,14 +517,14 @@ let failed = 0;
 test("the label runs every state through a failed ask, its retry and the way back", async () => {
   const asks = [Promise.reject(new Error("session closed")), Promise.resolve(exactFrame(2))];
   asks[0].catch(() => {});
-  const r = lossyRig(() => asks.shift());
+  const r = optimalRig(() => asks.shift());
   await r.c.show(2);
   await r.c.showExact();
   const reason = r.events.findLast(([t]) => t === "failed")?.[1];
   assert.deepEqual(reason, { scope: "frame", i: 2, reason: "lossless: session closed" });
   assert.equal(r.painted.at(-1).f, r.c.store.get(2));
   await r.c.showExact();
-  await r.c.showLossy();
+  await r.c.showOptimal();
   const runs = r.labels().filter((q, k, a) => q !== a[k - 1]);
   assert.deepEqual(runs, ["optimal", "asking", "failed", "asking", "lossless", "optimal"]);
   assert.deepEqual(r.exactAsks, [2, 2]);
@@ -532,7 +532,7 @@ test("the label runs every state through a failed ask, its retry and the way bac
 
 /** A frame of the exact series that arrives unchecked is labelled failed, never lossless, and the reason names the missing digest. */
 test("an unchecked exact frame is labelled failed with its reason", async () => {
-  const r = lossyRig((i) => Promise.resolve(exactFrame(i, "unchecked")));
+  const r = optimalRig((i) => Promise.resolve(exactFrame(i, "unchecked")));
   await r.c.showExact();
   assert.equal(r.labels().at(-1), "failed");
   assert.match(r.events.findLast(([t]) => t === "failed")[1].reason, /no digest/);
@@ -541,7 +541,7 @@ test("an unchecked exact frame is labelled failed with its reason", async () => 
 
 /** `l` before the exact series is connected asks nothing and leaves the label at optimal quality. */
 test("lossless before the exact series is connected asks nothing", async () => {
-  const r = lossyRig();
+  const r = optimalRig();
   r.c.exactSource = null;
   await r.c.repaint();
   await r.c.showExact();
@@ -555,10 +555,10 @@ test("lossless before the exact series is connected asks nothing", async () => {
  */
 test("a frame asked exact is asked once however often the reader presses", async () => {
   const pending = Promise.withResolvers();
-  const r = lossyRig(() => pending.promise);
+  const r = optimalRig(() => pending.promise);
   const first = r.c.showExact();
   const again = r.c.showExact();
-  r.c.showLossy();
+  r.c.showOptimal();
   const third = r.c.showExact();
   pending.resolve(exactFrame(0));
   await Promise.all([first, again, third]);
@@ -569,7 +569,7 @@ test("a frame asked exact is asked once however often the reader presses", async
 
 /** A window change while lossless paints the exact frame again under the new window and keeps the label lossless. */
 test("a window change keeps the exact frame and its label", async () => {
-  const r = lossyRig();
+  const r = optimalRig();
   await r.c.showExact();
   const exact = r.painted.at(-1).f;
   await r.c.setDisplay({ window: { center: 1, width: 2, function: "LINEAR" } });

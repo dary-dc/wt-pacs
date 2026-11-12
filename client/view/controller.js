@@ -177,7 +177,7 @@ export class Controller {
   }
 
   /**
-   * The label of frame `f` painted at `i`, null for a series that is not lossy. Clinical invariant: `lossless` only for
+   * The label of frame `f` painted at `i`, null for a series that is not optimal quality. Clinical invariant: `lossless` only for
    * the exact series' frame whose digest matched. client/README.md §Optimal quality, exact on request
    */
   quality(i, f) {
@@ -207,8 +207,8 @@ export class Controller {
     return this.repaint();
   }
 
-  /** Back to the optimal quality frame. */
-  showLossy() {
+  /** Back to the optimal-quality frame. */
+  showOptimal() {
     if (!this.#exact) return;
     this.#exact = null;
     return this.repaint();

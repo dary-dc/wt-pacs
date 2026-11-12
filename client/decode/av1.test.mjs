@@ -407,15 +407,15 @@ const { parsePayload } = await import("./av1-payload.js");
   };
   globalThis.VideoDecoder = class {};
   const make = async (tag) => {
-    const av1 = await import(`./av1.js?lossy-${tag}`);
-    await av1.init({ lossy: true }, async (path) => stubs[path]);
+    const av1 = await import(`./av1.js?optimal-${tag}`);
+    await av1.init({ optimal: true }, async (path) => stubs[path]);
     return av1;
   };
   const take = async (av1, what, name, d, want, route, why) => {
     depth = d;
     calls.length = 0;
     const f = await av1.decodeFrame(golden("plain", name)).catch((e) => ({ route: e.message }));
-    check(calls.join() === want && f.route === route && why.test(f.refusal ?? ""), `lossy: ${what} (${calls.join()}; ${f.route}; ${f.refusal})`);
+    check(calls.join() === want && f.route === route && why.test(f.refusal ?? ""), `optimal: ${what} (${calls.join()}; ${f.route}; ${f.refusal})`);
   };
   const taken = await make("taken");
   await take(taken, "a 12-bit frame WebCodecs decodes stays there, dav1d untouched", "g12", 12, "webcodecs", "av1-webcodecs", /^$/);
@@ -432,7 +432,7 @@ const { parsePayload } = await import("./av1-payload.js");
   calls.length = 0;
   const inGroup = await refused.decodeFrame(golden("plain", "g10"), { key: false, gen: 0, index: 1 });
   check(calls.join() === "probe g10,webcodecs" && inGroup.route === "av1-webcodecs" && inGroup.refusal === undefined,
-    `lossy: a frame inside a group WebCodecs decodes never reaches dav1d (${calls.join()}; ${inGroup.route})`);
+    `optimal: a frame inside a group WebCodecs decodes never reaches dav1d (${calls.join()}; ${inGroup.route})`);
   wcFails = true;
   probeOk = false;
   await take(refused, "a 10-bit frame whose probe failed goes to dav1d, the probe named", "g10", 10, "probe g10,dav1d", "av1-dav1d", /g10 probe failed/);
@@ -451,7 +451,7 @@ const { parsePayload } = await import("./av1-payload.js");
   globalThis.VideoDecoder = class {};
   for (const refuseWebCodecs of [true, false]) {
     const av1 = await import(`./av1.js?refuse-${refuseWebCodecs}`);
-    await av1.init({ lossy: true, refuseWebCodecs }, async (path) => stubs[path]);
+    await av1.init({ optimal: true, refuseWebCodecs }, async (path) => stubs[path]);
     calls.length = 0;
     const f = await av1.decodeFrame(golden("plain", "g10"));
     check(refuseWebCodecs ? calls.join() === "dav1d" && f.route === "av1-dav1d" && /refuseWebCodecs/.test(f.refusal) : calls.join() === "webcodecs" && f.route === "av1-webcodecs",

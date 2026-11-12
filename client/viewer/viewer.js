@@ -135,7 +135,7 @@ function status() {
 
 const options = lab.opts;
 const decoder = options.decoder ?? (meta.codec === "av1"
-  ? { codec: "av1", lossy: meta.lossy !== undefined, refuseWebCodecs: options.refuseWebCodecs, ...(await built("dav1d")) }
+  ? { codec: "av1", optimal: meta.lossy !== undefined, refuseWebCodecs: options.refuseWebCodecs, ...(await built("dav1d")) }
   : await built("openjph"));
 const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : undefined;
 const groups = meta.lossy?.g > 1 ? { groupLength: meta.lossy.g, frameCount: n } : {};
@@ -193,7 +193,7 @@ async function connectExact() {
     fail(`lossless: ${e.message}`);
   }
 }
-losslessEl.onclick = () => (/lossless|asking/.test(qualityEl.className) ? view.lossy() : view.exact());
+losslessEl.onclick = () => (/lossless|asking/.test(qualityEl.className) ? view.optimal() : view.exact());
 function show(i) {
   const step = view.show(i);
   follow(view.current);
