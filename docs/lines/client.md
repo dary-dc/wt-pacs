@@ -31,6 +31,13 @@ on lossy wireless; bit-exact; fill and latency both count.
   ([`docs/reviews/view-worker-check.md`](../reviews/view-worker-check.md)); correctness only, which view the demo
   shows is the owner's.
 
+* 2026-11-12, `claude/clean-2` (CLEAN-2, a draft for after the core merge): what CLEAN-FIND, DEFAULTS-FIND and
+  OPT-SIMPLIFY found that CLEAN-PRODUCT left: one starter for the demo pair (`scripts/demo-pair.sh`, which
+  `demo-check.mjs` runs too); the product build bundles the WebTransport session alone; `?trace=`, `?settle=` and
+  `?after=` behind `head.js`'s lab gate; the check's cine as `?check=cine`, so `?cine=` is the lab's alone; a lab
+  `?opts=` can no longer turn the frame check off. No lab lever removed: each is named by a check or a rig
+  (`client/viewer/run_check.sh`, `lab/av1/delivery/total-time/run.mjs`), so none is S7's candidate yet.
+
 ## Open (ordered)
 
 1. The reviewed path of `core` into `main` ([`coordination.md`](coordination.md) §Open 2), carrying the demo work
