@@ -8,7 +8,7 @@ export async function run({ q, n, check, errors, report, rendererName, toggleCin
     status: document.getElementById("status").textContent,
     preloaded: performance.getEntriesByType("resource").filter((e) => e.initiatorType === "link").map((e) => new URL(e.name).pathname) };
 
-  if (q.get("cine")) {
+  if (q.get("check") === "cine") {
     const shown = new Set();
     toggleCine();
     const t0 = performance.now();

@@ -534,7 +534,8 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   present; the page watches for the fill's end only for that hook or `?check=`. `?check=` (with `?deadline=` and
   `?mutate=`) is a lab parameter too: the viewer check's modules, `lab/viewer/check-page.js` and `check-view.js`,
   load through `lab/viewer/hooks.js`, and the view worker imports the latter by the URL its `lab` setting names.
-  `?cine=`, `?fill=` and `?view=` are the page's own.
+  `?check=cine` adds a 1.5 s cine to the check; `?cine=` is the lab's (N seconds after the fill, `lab/viewer/levers.js`).
+  `?fill=`, `?view=` and `?overlay=` are the page's own.
 * **Its policy.** The page and every script it loads carry a Content-Security-Policy ([`deploy/README.md`](../deploy/README.md)
   §What must be preserved exactly): scripts from the page's origin alone, connections to it and the transport.
 
