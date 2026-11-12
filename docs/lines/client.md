@@ -30,6 +30,11 @@ on lossy wireless; bit-exact; fill and latency both count.
 * 2026-11-11, `claude/demo-view-worker`: `demo-check.mjs --view worker` passes all 20 demo series under both views
   ([`docs/reviews/view-worker-check.md`](../reviews/view-worker-check.md)); correctness only, which view the demo
   shows is the owner's.
+* 2026-11-12, `claude/names-1` (NAMES-1, for after the merge): NAMES-FIND's renames, one per commit. Glossary rows
+  for downloader, consumer, refusal, route, quality label, mark, overlay and status line; the optimal-quality
+  *picture*, never a *view*; `info.path` → `info.route` (status line `routes:`); `showLossy` → `showOptimal` (the
+  metadata key `lossy` stays); `depthCut`/`cut` → `cutShift`; `requestExactFrame` → `requestFrame`. Nothing decoded,
+  checked or painted changes; the gate and `demo-check.mjs` in both views are its evidence.
 
 * 2026-11-12, `claude/clean-2` (CLEAN-2, a draft for after the core merge): what CLEAN-FIND, DEFAULTS-FIND and
   OPT-SIMPLIFY found that CLEAN-PRODUCT left: one starter for the demo pair (`scripts/demo-pair.sh`, which

@@ -92,7 +92,7 @@ HTJ2K and the adopted optimized payload (`k2`: k = 2, WebCodecs), made with row 
 | order | the page | useful |
 | --- | --- | --- |
 | `seq` | `fill(0 … N−1)`, as today | — |
-| `prio` | `requestExactFrame` for each useful frame, most needed first, then the same fill | tomosynthesis: the centre slice ⌊N/2⌋ and two either side; mammograms: the MLO pair (2, 3) |
+| `prio` | `requestFrame` for each useful frame, most needed first, then the same fill | tomosynthesis: the centre slice ⌊N/2⌋ and two either side; mammograms: the MLO pair (2, 3) |
 
 *Centre* is the first useful frame on the page, *useful* the last of them, both from the fill's issue.
 The downloader takes asks before the fill and serves a fill as contiguous runs, lowest first
@@ -150,7 +150,7 @@ way — iid on a fixed rate; on `lte-good` its Gilbert–Elliott bursts of 3.5 p
 place of its 0.01 % — and `j<ms>` is ± that jitter each way, `--jitter-mode ordered` (one radio leg:
 nothing overtaken); the relay's tally of server → client packets lost is kept a visit (`s2c`) and read
 1.00–1.10 %, 2.04–2.13 %, 5.03–5.21 % a cell. A visit fills frames 0–3 (`--fill`), then once they are on the
-page asks frames 4–7 one at a time (`--asks-after`), each timed from `requestExactFrame` to its pixels;
+page asks frames 4–7 one at a time (`--asks-after`), each timed from `requestFrame` to its pixels;
 every frame of both hashed against its truth. `--mutate sample` and `--mutate truth` each turned both
 variants to 0 of 12 exact (`--fill 8 --asks-after 4`, `l1` on 50 Mbit). The server's controller is its default, `cubic-restart`. The reading is in
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Under loss and jitter.

@@ -1,14 +1,14 @@
 /** The view's controller: the current frame, what it wants and in what order, and its paint. docs/adr/frame-path.md §3, *Built* */
 import { FrameStore } from "./store.js";
-import { CUT_DEPTH, depthCut } from "../viewer/pair.js";
+import { CUT_DEPTH, cutShift } from "../viewer/pair.js";
 
 const at = () => performance.timeOrigin + performance.now();
 export const FIT = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false };
 
-export const asPainted = (info) => ({ pixels: info.pixels, width: info.width, height: info.height, bits: info.bits, components: info.components, signed: info.signed, cut: info.cut });
+export const asPainted = (info) => ({ pixels: info.pixels, width: info.width, height: info.height, bits: info.bits, components: info.components, signed: info.signed, cutShift: info.cutShift });
 
 /** What the developer overlay shows of a painted frame: its decode route and why WebCodecs refused it, the bytes that crossed the link, its decode time. */
-const about = ({ path, refusal, wireBytes, stamps }) => ({ path, refusal, wireBytes, decodeMs: stamps?.decodeEnd && stamps.decodeEnd - stamps.decodeStart });
+const about = ({ route, refusal, wireBytes, stamps }) => ({ route, refusal, wireBytes, decodeMs: stamps?.decodeEnd && stamps.decodeEnd - stamps.decodeStart });
 
 export function samplesOf(info) {
   const { bits, components, signed } = info;
@@ -32,7 +32,7 @@ export class Controller {
   ascending = false;
   current = 0;
   received = 0;
-  seen = { exact: 0, inexact: 0, unchecked: 0, paths: {} };
+  seen = { exact: 0, inexact: 0, unchecked: 0, routes: {} };
   issuedAt = 0;
   fillMs = null;
   firstShownMs = null;
@@ -56,7 +56,7 @@ export class Controller {
   exactSource = null;
   #exact = null;
   #exactAsks = new Map();
-  #cut;
+  #cutShift;
 
   /** `paint(frame, display, { read })` draws a held frame; `emit(type, event)` tells the page; `size` is the canvas's CSS size and DPR. */
   constructor({ meta, fillMode, paint, emit, size, budget }) {
@@ -64,7 +64,7 @@ export class Controller {
     this.store.painted = () => this.#painting;
     this.#meta = meta;
     this.#n = meta.frameCount;
-    this.#cut = depthCut(meta);
+    this.#cutShift = cutShift(meta);
     this.#fillMode = fillMode;
     this.paint = paint;
     this.#emit = emit;
@@ -73,11 +73,11 @@ export class Controller {
 
   /** `f.ack`, when the consumer leaves the ack to the store; `f.write`, when its decoder writes the cache. */
   take(f) {
-    if (this.#cut && f.info.bits !== CUT_DEPTH) {
+    if (this.#cutShift && f.info.bits !== CUT_DEPTH) {
       f.ack?.();
       return this.refused(f.frameIndex, `a depth cut's frame decoded at ${f.info.bits} bits, not ${CUT_DEPTH}`);
     }
-    const info = this.#cut ? { ...f.info, cut: this.#cut } : f.info;
+    const info = this.#cutShift ? { ...f.info, cutShift: this.#cutShift } : f.info;
     this.store.put(f.frameIndex, { info, arrived: at(), write: f.write }, f.ack);
   }
 
@@ -85,7 +85,7 @@ export class Controller {
     this.received += 1;
     const e = info.exact;
     this.seen[e === true ? "exact" : e === false ? "inexact" : "unchecked"]++;
-    if (info.path) this.seen.paths[info.path] = (this.seen.paths[info.path] ?? 0) + 1;
+    if (info.route) this.seen.routes[info.route] = (this.seen.routes[info.route] ?? 0) + 1;
     if (this.#fillMode && this.fillMs === null && this.received === this.#n) this.fillMs = at() - this.issuedAt;
     if (i === this.current) this.repaint();
     this.#emit("progress", { have: this.received, total: this.#n, seen: this.seen, fillMs: this.fillMs, at: at() });
@@ -100,7 +100,7 @@ export class Controller {
     let voi = this.#voi ?? (w && { center: w.center[0], width: w.width[0], function: w.function ?? "LINEAR" });
     if (!voi) {
       // No window in the metadata: the frame's decoded range, at full depth, through its rescale.
-      const full = 2 ** (info.cut ?? 0);
+      const full = 2 ** (info.cutShift ?? 0);
       const lo = info.min * full * rescale.slope + rescale.intercept;
       const hi = info.max * full * rescale.slope + rescale.intercept;
       voi = { center: (lo + hi) / 2, width: Math.max(1, Math.abs(hi - lo) + 1), function: "LINEAR" };
@@ -159,7 +159,7 @@ export class Controller {
     }
     this.#asks.set(want, step);
     try {
-      this.take(await this.client.requestExactFrame(want));
+      this.take(await this.client.requestFrame(want));
     } catch (e) {
       if (this.#asks.get(want) === step) this.#emit("failed", { scope: "frame", i: want, reason: e.message });
     } finally {
@@ -177,7 +177,7 @@ export class Controller {
   }
 
   /**
-   * The label of frame `f` painted at `i`, null for a series that is not lossy. Clinical invariant: `lossless` only for
+   * The label of frame `f` painted at `i`, null for a series that is not optimal quality. Clinical invariant: `lossless` only for
    * the exact series' frame whose digest matched. client/README.md §Optimal quality, exact on request
    */
   quality(i, f) {
@@ -194,7 +194,7 @@ export class Controller {
     if (!this.exactSource || (this.#exact?.i === i && !this.#exact.failed)) return;
     const e = (this.#exact = { i });
     this.repaint();
-    if (!this.#exactAsks.has(i)) this.#exactAsks.set(i, this.exactSource.requestExactFrame(i).finally(() => this.#exactAsks.delete(i)));
+    if (!this.#exactAsks.has(i)) this.#exactAsks.set(i, this.exactSource.requestFrame(i).finally(() => this.#exactAsks.delete(i)));
     try {
       const { info } = await this.#exactAsks.get(i);
       if (info.exact === true) e.frame = { info, arrived: at() };
@@ -207,8 +207,8 @@ export class Controller {
     return this.repaint();
   }
 
-  /** Back to the optimal quality frame. */
-  showLossy() {
+  /** Back to the optimal-quality frame. */
+  showOptimal() {
     if (!this.#exact) return;
     this.#exact = null;
     return this.repaint();
@@ -245,7 +245,7 @@ export class Controller {
     if (!p) return null;
     const { width: w, height: h, components } = f.info;
     const [col, row] = [Math.min(w - 1, Math.floor(p[0])), Math.min(h - 1, Math.floor(p[1]))];
-    const full = 2 ** (f.info.cut ?? 0);
+    const full = 2 ** (f.info.cutShift ?? 0);
     const stored = [...samplesOf(f.info).subarray((row * w + col) * components, (row * w + col + 1) * components)].map((s) => s * full);
     const { slope, intercept } = rescale(this.display(i, f.info).rescale);
     return { i, x: col, y: row, stored, modality: stored.map((s) => s * slope + intercept) };
@@ -261,7 +261,7 @@ export class Controller {
       boot ??= info.stamps?.boot;
       const samples = new Uint8Array(info.pixels).slice();
       if (flip) samples[samples.length >> 1] ^= 1;
-      frames.push({ i, page: arrived, lastByte: info.stamps?.lastByte, decoded: info.stamps?.decodeEnd, mediaReads: info.stamps?.mediaReads, exact: info.exact, path: info.path, painted, writeAsked, written, sha: await sha256Hex(samples) });
+      frames.push({ i, page: arrived, lastByte: info.stamps?.lastByte, decoded: info.stamps?.decodeEnd, mediaReads: info.stamps?.mediaReads, exact: info.exact, route: info.route, painted, writeAsked, written, sha: await sha256Hex(samples) });
     }
     return { frames, firstShownMs: this.firstShownMs, fillMs: this.fillMs, stats: this.client.stats(), boot };
   }

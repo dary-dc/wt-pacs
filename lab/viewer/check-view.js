@@ -14,10 +14,10 @@ function listen(controller, port) {
   // On the page the port is the downloader's worker, inside the consumer: its asks and cancels are heard instead.
   const client = controller.client;
   const own = (k, label) => (client[k] = (...a) => (sent.push(label(...a)), Object.getPrototypeOf(client)[k].apply(client, a)));
-  own("requestExactFrame", (i) => i);
+  own("requestFrame", (i) => i);
   own("cancel", () => "cancel");
   own("fill", () => "fill");
-  return { sent, undo: () => ["requestExactFrame", "cancel", "fill"].forEach((k) => delete client[k]) };
+  return { sent, undo: () => ["requestFrame", "cancel", "fill"].forEach((k) => delete client[k]) };
 }
 
 /**
@@ -78,7 +78,7 @@ export async function protocol({ controller, port, n, onDemand }) {
   out.heldStep = await heldStep(controller, port);
   out.windowStep = await windowStep(controller, port);
   Object.assign(out, { received: controller.received, exact: controller.seen.exact, inexact: controller.seen.inexact,
-    unchecked: controller.seen.unchecked, paths: controller.seen.paths, fillMs: controller.fillMs, firstShownMs: controller.firstShownMs });
+    unchecked: controller.seen.unchecked, routes: controller.seen.routes, fillMs: controller.fillMs, firstShownMs: controller.firstShownMs });
   const step = async (name, fn) => {
     try {
       out[name] = await fn();
@@ -86,13 +86,13 @@ export async function protocol({ controller, port, n, onDemand }) {
       out[name] = { error: String(e?.message ?? e) };
     }
   };
-  await step("askDelivered", async () => (await client.requestExactFrame(n >> 1)).info.exact);
+  await step("askDelivered", async () => (await client.requestFrame(n >> 1)).info.exact);
   await step("cancelledFill", async () => {
     client.fill([...Array(n).keys()]);
     await client.cancel();
     return "cancelled";
   });
-  await step("askAfterCancel", async () => (await client.requestExactFrame(n - 1)).info.exact);
+  await step("askAfterCancel", async () => (await client.requestFrame(n - 1)).info.exact);
   return out;
 }
 
@@ -135,7 +135,7 @@ export function watchWrites() {
 export async function cache({ controller }) {
   const { store } = controller;
   const frames = () => [...store.keys()].map((i) => [i, store.get(i)]);
-  const settled = () => frames().every(([, f]) => f.written || f.info.path === "cache" || f.info.exact !== true);
+  const settled = () => frames().every(([, f]) => f.written || f.info.route === "cache" || f.info.exact !== true);
   for (const t = performance.now(); store.cache && !settled() && performance.now() - t < 10_000; ) await new Promise((r) => setTimeout(r, 20));
   return {
     held: frames().length,

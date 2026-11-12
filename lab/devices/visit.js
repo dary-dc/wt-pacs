@@ -32,7 +32,7 @@ function fillAndAsk(arm, frames) {
         keep(f.frameIndex, f.bytes);
         if (!askAt && landed.size >= n / 2) {
           askAt = performance.now();
-          client.requestExactFrame(ask).then((g) => {
+          client.requestFrame(ask).then((g) => {
             askMs = performance.now() - askAt;
             keep(ask, g.bytes);
             maybeDone();
@@ -54,7 +54,7 @@ async function freshAsk(arm, frames) {
   const t0 = performance.now();
   const client = await DownloaderClient.connect(arm.wt_url, arm.cert_sha256, { decode: false, decoders: 0, onFrame: () => {}, onError: () => {} });
   const dialMs = performance.now() - t0;
-  const g = await client.requestExactFrame(i);
+  const g = await client.requestFrame(i);
   const freshMs = performance.now() - t0;
   client.close();
   return { dialMs, freshMs, freshWrong: same(new Uint8Array(g.bytes), frames[i]) ? 0 : 1 };

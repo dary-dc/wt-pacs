@@ -24,7 +24,7 @@
 
       // A frame before the hold, so "alive after" is a change and not a first attempt.
       try {
-        await s.requestExactFrame(0);
+        await s.requestFrame(0);
         log("before hold: frame 0 arrived");
       } catch (e) {
         log("before hold: FAILED " + e.message);
@@ -39,7 +39,7 @@
       let alive = false;
       let why = "";
       try {
-        await s.requestExactFrame(1);
+        await s.requestFrame(1);
         alive = true;
       } catch (e) {
         why = e.message;

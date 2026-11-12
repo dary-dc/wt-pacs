@@ -65,8 +65,8 @@
         const warm = {};
         for (const arm of ARMS) warm[arm] = await arms[arm].decode(0, coded[0], { ...extra, fault: arm === "fault" });
         // A payload this path never takes (a top over 10 bits has no WebCodecs decoder) is not this path's to time.
-        if (warm.off.path !== path) {
-          rows.push({ round, set, path, arm: "skipped", took: warm.off.path ?? warm.off.failed });
+        if (warm.off.route !== path) {
+          rows.push({ round, set, path, arm: "skipped", took: warm.off.route ?? warm.off.failed });
           Object.values(arms).forEach((a) => a.close());
           continue;
         }
@@ -80,7 +80,7 @@
               const copy = new Uint8Array(f.pixels.byteLength);
               copy.set(new Uint8Array(f.pixels));
               const sha = hex(await crypto.subtle.digest("SHA-256", copy));
-              rows.push({ ...row, ms: f.stamps.decodeEnd - f.stamps.decodeStart, took: f.path, exact: f.exact,
+              rows.push({ ...row, ms: f.stamps.decodeEnd - f.stamps.decodeStart, took: f.route, exact: f.exact,
                           mismatchOn: f.mismatchOn ?? null, reason: f.reason ?? null, truth: sha === truth[i],
                           width: f.width, height: f.height, bits: f.bits, bytes: f.pixels.byteLength });
               if (arm === "off") {

@@ -60,11 +60,11 @@ test("a write hands the store worker a copy", async () => {
 
 /** A read-back that fails its check is a miss, and a good one comes back exact, from the cache. */
 test("a read is the frame checked, or null", async () => {
-  storeWorker((kind, m) => (kind === "open" ? { present: [0, 1] } : m.index === 0 ? { miss: "its digest did not match" } : { info: { ...frame.info, path: "store" } }));
+  storeWorker((kind, m) => (kind === "open" ? { present: [0, 1] } : m.index === 0 ? { miss: "its digest did not match" } : { info: { ...frame.info, route: "store" } }));
   const { cache } = await opened();
   assert.equal(await cache.read(0), null);
   const info = await cache.read(1);
-  assert.deepEqual([info.exact, info.path], [true, "cache"]);
+  assert.deepEqual([info.exact, info.route], [true, "cache"]);
 });
 
 let failed = 0;

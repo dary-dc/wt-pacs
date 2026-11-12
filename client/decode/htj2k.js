@@ -72,5 +72,5 @@ function decodeWith(dec, bytes) {
   const range = unranged(info)
     ? { min: 0, max: 255 }
     : dec.getRange ? dec.getRange() : finish(view, info.bitsPerSample, info.isSigned);
-  return { info, sab, byteCount: out.length, range, path: "htj2k" };
+  return { info, sab, byteCount: out.length, range, route: "htj2k" };
 }

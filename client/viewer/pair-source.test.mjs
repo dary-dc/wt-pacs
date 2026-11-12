@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { checkPair, pairOf } from "./pair.js";
 
 const source = { frameCount: 3, width: 4, height: 2, bitsStored: 12, signed: false };
-const lossy = { ...source, codec: "av1", lossy: { q: 8, g: 8, depth: 10, bitsStored: 12 }, exactSeries: "1.2.840.5" };
+const optimal = { ...source, codec: "av1", lossy: { q: 8, g: 8, depth: 10, bitsStored: 12 }, exactSeries: "1.2.840.5" };
 const exact = { ...source, digests: { algorithm: "xxh3-64", frames: ["0123456789abcdef", "123456789abcdef0", "23456789abcdef01"] } };
 const failures = [];
 const claim = (what, fn) => {
@@ -20,9 +20,9 @@ const claim = (what, fn) => {
  * its frames, matching their own digests, are labelled *Lossless* over this series' optimal quality.
  */
 claim("a pair that names no shared source is refused", () => {
-  assert.throws(() => checkPair(lossy, exact), /source/);
-  assert.throws(() => checkPair({ ...lossy, sourceFingerprint: "00000000f00df00d" }, exact), /source/);
-  assert.throws(() => checkPair(lossy, { ...exact, sourceFingerprint: "00000000f00df00d" }), /source/);
+  assert.throws(() => checkPair(optimal, exact), /source/);
+  assert.throws(() => checkPair({ ...optimal, sourceFingerprint: "00000000f00df00d" }, exact), /source/);
+  assert.throws(() => checkPair(optimal, { ...exact, sourceFingerprint: "00000000f00df00d" }), /source/);
 });
 
 /**
@@ -31,7 +31,7 @@ claim("a pair that names no shared source is refused", () => {
  * at other modality values than its own series states.
  */
 claim("an exact series read otherwise than this series is refused", () => {
-  const named = { ...lossy, sourceFingerprint: "00000000f00df00d" };
+  const named = { ...optimal, sourceFingerprint: "00000000f00df00d" };
   const same = { ...exact, sourceFingerprint: "00000000f00df00d" };
   for (const bad of [
     { photometric: "MONOCHROME1" },
@@ -46,7 +46,7 @@ claim("an exact series read otherwise than this series is refused", () => {
  * that one as AV1 today; the id should be refused by name before anything is fetched.
  */
 claim("an exactSeries of dot segments is not a series id", () => {
-  for (const id of [".", ".."]) assert.throws(() => pairOf({ ...lossy, exactSeries: id }), /exactSeries/, id);
+  for (const id of [".", ".."]) assert.throws(() => pairOf({ ...optimal, exactSeries: id }), /exactSeries/, id);
 });
 
 /**
@@ -55,7 +55,7 @@ claim("an exactSeries of dot segments is not a series id", () => {
  * press ends in *Lossless check failed*.
  */
 claim("an exact series without a digest for every frame is refused", () => {
-  const named = { ...lossy, sourceFingerprint: "00000000f00df00d" };
+  const named = { ...optimal, sourceFingerprint: "00000000f00df00d" };
   const same = { ...exact, sourceFingerprint: "00000000f00df00d" };
   for (const frames of [[], ["a", "b"], [1, 2, 3], ["0123456789abcdef", "0123456789abcdef", ""]]) {
     assert.throws(() => checkPair(named, { ...same, digests: { algorithm: "xxh3-64", frames } }), /digest/, JSON.stringify(frames));

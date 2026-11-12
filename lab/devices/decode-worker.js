@@ -21,7 +21,7 @@ onmessage = async ({ data: { arm, meta, frames, mutate } }) => {
       const out = new Uint8Array(f.sab);
       if (mutate) out[out.length >> 1] ^= 1;
       const got = xxh3.init().update(out).digest("hex");
-      rows.push({ i, ms, path: f.path, exact: want[i] ? got === want[i] : "unchecked" });
+      rows.push({ i, ms, path: f.route, exact: want[i] ? got === want[i] : "unchecked" });
     }
     postMessage({ rows });
   } catch (e) {

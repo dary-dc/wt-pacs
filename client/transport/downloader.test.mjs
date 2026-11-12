@@ -47,7 +47,7 @@ async function aTimedOutAskIsResumed() {
     connect: async () => {
       const dial = ++dials;
       return {
-        requestExactFrame: (i) => dial === 1
+        requestFrame: (i) => dial === 1
           ? Promise.reject(Object.assign(new Error(`timeout waiting for frame ${i}: no byte for 15000 ms`), { name: "FrameTimeoutError" }))
           : Promise.resolve({ frameIndex: i, bytes: new Uint8Array(4), timing: {} }),
         stats: () => ({ closed: null, lastByteAt: performance.now() }),
@@ -74,7 +74,7 @@ function handFed() {
   const fed = { fill: null, asks: new Map() };
   globalThis.fakeTransport = {
     connect: async () => ({
-      requestExactFrame: (i) => new Promise((resolve) => fed.asks.set(i, resolve)),
+      requestFrame: (i) => new Promise((resolve) => fed.asks.set(i, resolve)),
       stats: () => ({ closed: null, lastByteAt: performance.now() }),
       fillFrames: (from, to, onFrame) => (fed.fill = onFrame),
       endStream: async () => {},
@@ -307,7 +307,7 @@ async function anAskAgainAfterACancelIsServed() {
   const owed = new Map();
   globalThis.fakeTransport = {
     connect: async () => ({
-      requestExactFrame: async (i) => {
+      requestFrame: async (i) => {
         if (owed.has(i)) throw new Error(`frame ${i} already requested`);
         return new Promise((resolve) => owed.set(i, (f) => (owed.delete(i), resolve(f))));
       },
@@ -344,7 +344,7 @@ async function theRemainderIsReissuedOnce() {
     let onFrame;
     globalThis.fakeTransport = {
       connect: async () => ({
-        requestExactFrame: (i, onHead) => new Promise((resolve) => asks.set(i, { resolve, onHead })),
+        requestFrame: (i, onHead) => new Promise((resolve) => asks.set(i, { resolve, onHead })),
         stats: () => ({ closed: null, lastByteAt: performance.now() }),
         fillFrames: (from, to, f) => {
           fills.push(`${from}-${to}`);
@@ -411,7 +411,7 @@ function servedInOrder() {
   const w = { fills: [], asks: [], owed: [], onFill: null };
   globalThis.fakeTransport = {
     connect: async () => ({
-      requestExactFrame: (i) => new Promise((resolve) => (w.asks.push(i), w.owed.push(() => resolve(frame(i))))),
+      requestFrame: (i) => new Promise((resolve) => (w.asks.push(i), w.owed.push(() => resolve(frame(i))))),
       stats: () => ({ closed: null, lastByteAt: performance.now() }),
       fillFrames: (from, to, onFrame) => (w.fills.push([from, to]), (w.onFill = onFrame)),
       endStream: async () => {},
@@ -641,7 +641,7 @@ async function openingOf(name, config) {
   const w = { opening: null, asks: [] };
   globalThis.fakeTransport = {
     connect: async (_url, _hash, options) => ((w.opening = options.fill ? [options.fill.from, options.fill.to] : null), {
-      requestExactFrame: (i) => (w.asks.push(i), new Promise(() => {})),
+      requestFrame: (i) => (w.asks.push(i), new Promise(() => {})),
       stats: () => ({ closed: null, lastByteAt: performance.now() }),
       fillFrames() {},
       endStream: async () => {},

@@ -67,7 +67,7 @@
       log(`started, dialled and decoders up in ${(performance.now() - t0).toFixed(0)} ms\n`);
 
       // 1 — a single ask, decoded, against the encoder's input
-      const one = await c.requestExactFrame(3);
+      const one = await c.requestFrame(3);
       const v1 = await check(one);
       log(`single ask   frame 3: ${one.info.width}x${one.info.height}x${one.info.components} ` +
           `${one.info.bits}-bit signed=${one.info.signed} range ${one.info.min}..${one.info.max} ` +
@@ -104,7 +104,7 @@
       fillFrames.length = 0;
       c.fill(want);
       await c.cancel();
-      const after = await c.requestExactFrame(5);
+      const after = await c.requestFrame(5);
       const v3 = await check(after);
       log(`\ncancel:      the session still serves frame 5 afterwards: ${v3.ok ? "ok" : "MISMATCH"}`);
 
@@ -115,7 +115,7 @@
         decoders: 1,
         decoder,
       });
-      const v5 = await check(await again.requestExactFrame(1));
+      const v5 = await check(await again.requestFrame(1));
       log(`re-dial:     a session opened after a closure serves frame 1: ${v5.ok ? "ok" : "MISMATCH"}`);
       again.close();
 

@@ -205,7 +205,7 @@ Each holds today and is named so that nothing relying on it is changed by accide
 1. **A frame decodes alone** ([`ARCHITECTURE.md`](../ARCHITECTURE.md) §The decoders). First-free
    dispatch of any frame to any decoder, and the reason it beats round-robin
    ([`decode/README.md`](../decode/README.md) §Dispatch), hold per group, not per frame.
-2. **One ask, one frame.** `requestExactFrame(N)` puts up to G frames on the wire and costs up to G
+2. **One ask, one frame.** `requestFrame(N)` puts up to G frames on the wire and costs up to G
    serial decodes; an ask behind it waits for its whole batch ([`WIRE.md`](../WIRE.md): "an ask sent
    after a 200-frame batch waits for all 200"). A fast scroll across groups pays G per step.
 3. **Frames are decoded once** — only while a group's decoder keeps its state; otherwise up to G − 1
@@ -303,7 +303,7 @@ whether one decoder at operating point 0 also returns a base fed alone is the sc
 * **The wire and the server: nothing.** The envelope's `display_index` is the entry index; the
   server serves entries by index as now. The opening ask's `?ask=fill:A-B` names entries.
 * **The downloader** maps. The consumer keeps naming frames: `fill([…])` wants entries {i, F + i},
-  `requestExactFrame(N)` asks F + N only — an ask is for the exact frame, so its base is not fetched
+  `requestFrame(N)` asks F + N only — an ask is for the exact frame, so its base is not fetched
   for it. Frame N's base leaves the wanted set once N's exact unit is delivered. Groups (§3, G > 1)
   are index arithmetic on `i mod F`: a base group decodes from its base keyframe and an exact group
   from its own, each on one decoder, independent of each other.
@@ -372,7 +372,7 @@ frame came back as its base.
   `spatial layer 0 of 1 is the unit's last`.
 * `decoder.js` posts a preview to the consumer as a frame message with **`preview: true`**, at the
   base's own `width` and `height`, before the exact frame's message on the same port.
-* `consumer.js` hands a preview to **`opts.onPreview`** and never to a waiter: `requestExactFrame`
+* `consumer.js` hands a preview to **`opts.onPreview`** and never to a waiter: `requestFrame`
   resolves with the exact frame only, and `onFrame` receives exact frames only.
 
 **What holds, and why.** A frame's preview and its exact pixels leave one decoder in order on one

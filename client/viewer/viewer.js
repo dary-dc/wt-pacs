@@ -60,7 +60,7 @@ const transport = lab.transport;
 const transportFile = new URL("/wt/dev-transport.json", location).href;
 
 hooks?.arm(() => ({ received: progress.have, errors }));
-let progress = { have: 0, total: n, seen: { exact: 0, inexact: 0, unchecked: 0, paths: {} }, fillMs: null };
+let progress = { have: 0, total: n, seen: { exact: 0, inexact: 0, unchecked: 0, routes: {} }, fillMs: null };
 let shown = null;
 const errors = [];
 let issuedAt = 0;
@@ -119,13 +119,13 @@ overlayEl.hidden = q.get("overlay") !== "1";
 
 function status() {
   const soft = /swiftshader|llvmpipe|software|basic render/i.test(rendererName) ? " (software)" : "";
-  const paths = Object.entries(progress.seen.paths).map(([p, k]) => `${p} ${k}`).join(", ") || "none yet";
+  const routes = Object.entries(progress.seen.routes).map(([p, k]) => `${p} ${k}`).join(", ") || "none yet";
   statusEl.textContent = [
     `frame ${(view?.current ?? 0) + 1} of ${n}`,
     `client ${transport.client}`,
     `view ${where}`,
     `received ${progress.have}, exact ${progress.seen.exact}, not exact ${progress.seen.inexact}, unchecked ${progress.seen.unchecked}`,
-    `decoders: ${paths}`,
+    `routes: ${routes}`,
     `codec ${meta.codec ?? "htj2k"}`,
     `renderer ${rendererName}${soft}`,
     progress.fillMs !== null ? `fill ${Math.round(progress.fillMs)} ms` : fillMode ? "filling" : "on demand",
@@ -135,7 +135,7 @@ function status() {
 
 const options = lab.opts;
 const decoder = options.decoder ?? (meta.codec === "av1"
-  ? { codec: "av1", lossy: meta.lossy !== undefined, refuseWebCodecs: options.refuseWebCodecs, ...(await built("dav1d")) }
+  ? { codec: "av1", optimal: meta.lossy !== undefined, refuseWebCodecs: options.refuseWebCodecs, ...(await built("dav1d")) }
   : await built("openjph"));
 const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : undefined;
 const groups = meta.lossy?.g > 1 ? { groupLength: meta.lossy.g, frameCount: n } : {};
@@ -193,7 +193,7 @@ async function connectExact() {
     fail(`lossless: ${e.message}`);
   }
 }
-losslessEl.onclick = () => (/lossless|asking/.test(qualityEl.className) ? view.lossy() : view.exact());
+losslessEl.onclick = () => (/lossless|asking/.test(qualityEl.className) ? view.optimal() : view.exact());
 function show(i) {
   const step = view.show(i);
   follow(view.current);

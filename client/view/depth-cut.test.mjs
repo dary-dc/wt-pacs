@@ -5,7 +5,7 @@ import { Controller } from "./controller.js";
 /** A 2×1 grey frame of `bits` bits, as a decoder hands it to the controller. */
 const frame = (i, bits) => ({
   frameIndex: i,
-  info: { pixels: new Uint16Array([0, 4095]).buffer, width: 2, height: 1, bits, components: 1, signed: false, min: 0, max: 4095, exact: "unchecked", path: "av1-dav1d", stamps: {} },
+  info: { pixels: new Uint16Array([0, 4095]).buffer, width: 2, height: 1, bits, components: 1, signed: false, min: 0, max: 4095, exact: "unchecked", route: "av1-dav1d", stamps: {} },
 });
 
 /**
@@ -28,8 +28,8 @@ c.take(frame(1, 10));
 await c.repaint();
 await c.show(1);
 await c.show(0);
-const wrong = painted.filter((f) => f.info.cut && f.info.bits !== 10);
+const wrong = painted.filter((f) => f.info.cutShift && f.info.bits !== 10);
 assert.deepEqual(wrong.map((f) => f.info.bits), [], "a frame not decoded at 10 bits was painted as the cut");
 assert.ok(events.some(([t, e]) => t === "failed" && e.i === 0), "the 12-bit frame of a cut series is refused by name");
-assert.ok(painted.some((f) => f.info.bits === 10 && f.info.cut === 2), "the 10-bit frame is painted as the cut");
+assert.ok(painted.some((f) => f.info.bits === 10 && f.info.cutShift === 2), "the 10-bit frame is painted as the cut");
 console.log("depth-cut: ok");

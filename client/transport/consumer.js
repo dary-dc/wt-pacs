@@ -26,7 +26,7 @@ export class DownloaderClient {
   #recycledAt = [];
   #triggers = new AbortController();
   #ending = null;
-  /** Per decoder path, frames delivered `exact` true, false and unchecked. docs/adr/exactness-in-production.md */
+  /** Per route, frames delivered `exact` true, false and unchecked. docs/adr/exactness-in-production.md */
   #exact = {};
   /** Frames delivered since last filled: a failure of one is a decoder lost before the ack, dropped. docs/ARCHITECTURE.md §The downloader */
   #delivered = new Set();
@@ -114,8 +114,8 @@ export class DownloaderClient {
     else frame.ack = ack;
     if (m.writable) frame.write = () => new Promise((resolve) => (this.#writes.set(m.index, resolve), port.postMessage({ kind: "write", index: m.index })));
     this.#delivered.add(m.index);
-    if (m.path) {
-      const n = (this.#exact[m.path] ??= { true: 0, false: 0, unchecked: 0 });
+    if (m.route) {
+      const n = (this.#exact[m.route] ??= { true: 0, false: 0, unchecked: 0 });
       n[m.exact] += 1;
     }
     if (w) {
@@ -159,7 +159,7 @@ export class DownloaderClient {
     return new Promise((resolve, reject) => this.#waiters.set(index, { resolve, reject }));
   }
 
-  requestExactFrame(index) {
+  requestFrame(index) {
     const p = this.#waitFor(index);
     this.#worker.postMessage({ kind: "ask", index });
     return p;

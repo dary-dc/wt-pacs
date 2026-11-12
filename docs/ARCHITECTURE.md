@@ -465,7 +465,7 @@ variant, `?view=worker`, not timed and not the default (its §3, *Built*). There
 given the `port` the page linked to the downloader, and the page forwards its triggers to it.
 
 `DownloaderClient.connect(url, certHash, { onFrame, onError, fill, openingAsk, survival, … })` →
-`requestExactFrame(index)`, `fill(indices)`, `want(indices)`, `cancel()`, `stats()`, `close()`. Every delivered frame
+`requestFrame(index)`, `fill(indices)`, `want(indices)`, `cancel()`, `stats()`, `close()`. Every delivered frame
 carries its `generation`; `cancel()` resolves once the downloader has ended the stream and dropped
 that request's work. A refused **fill** frame has no waiter, so it reaches the consumer through
 `onError({ frameIndex, reason, generation })`; a refused *asked* frame rejects its own promise. The
@@ -1321,9 +1321,9 @@ Each item below is the owner's to decide, and is tracked here.
   check before enabling, the recycling cost, the shaped A/B).
 * **Known defects** — each found by reading the code (2026-10-16 review), not reproduced as first written here. *Corrected
   2026-10-18:* one fixed, one shown not reachable:
-  * *Fixed 2026-10-18.* `refill: "ask"` on the WASM client: the async `requestExactFrame` reached the wire after the
+  * *Fixed 2026-10-18.* `refill: "ask"` on the WASM client: the async `requestFrame` reached the wire after the
     sync `fillFrames`, so the server ended the fill it had just started and nothing re-asked the rest until the stall
-    timer (`client/transport/downloader.js:235–236`). The WASM ask is now on the wire before `requestExactFrame`
+    timer (`client/transport/downloader.js:235–236`). The WASM ask is now on the wire before `requestFrame`
     returns, as the TypeScript one is: `anAskIsOnTheWireBeforeItReturns` ([`CLIENTS.md`](CLIENTS.md) §The contract
     suite), which read `stream_frames,request_frame` on WASM before. Seen at the session, not through the downloader.
   * *Not reachable, 2026-10-18 (row 286).* A `set_nodelay` or keep-alive failure on one accepted socket counts as an
