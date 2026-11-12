@@ -22,8 +22,8 @@ second (the rerun's exact frame: pressed at 22:20:29 on the phone, 2.85 MB on th
 | 21:14:41.6 | the optimal-quality session (4443) ends **timed out**, `sent=17549 lost=1255` | `raw/servers/srv-4443.log` |
 | 22:20:2x | the next session on 4444: the rerun, which reached *Lossless* | `raw/servers/srv-4444.log`, beacon |
 
-Read with the server's settings (no keep-alive, quinn's 30 s idle timeout: the run's `run-env.sh` passes neither
-`--max-idle-timeout-ms` nor `--keep-alive-interval-ms`):
+Read with the server's settings (no keep-alive, quinn's 30 s idle timeout: neither `run-env.sh` nor the image passes
+`--max-idle-timeout-ms` or `--keep-alive-interval-ms`):
 
 1. **Both sessions timed out within half a second of each other, 30 s after the fill's bytes left.** A QUIC endpoint
    restarts its idle timer on every packet it receives from its peer (RFC 9000 §10.1). So from about 21:14:11 no
