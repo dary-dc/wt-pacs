@@ -32,7 +32,7 @@ No line branch is superseded as a whole, and none merges onto the tip without co
 ## 2. `claude/line-hygiene` (#256): product work, the hygiene line
 
 Of the 132 files it changes, 48 the tip changed too, 1 is identical, 1 the tip moved away
-(`client/viewer/check-page.js`, now `lab/viewer/check-page.js`), and 82 the tip never touched. The conflicts sit
+(its `check-page.js`, now `lab/viewer/check-page.js`), and 82 the tip never touched. The conflicts sit
 where the demo rewrote: `client/viewer/*`, `client/transport/{consumer,downloader}.js`, `server/src/transport/*`,
 `server/dev-server.py`, `deploy/{Containerfile,README.md,compose.yml,nginx/*}`, `scripts/gate.sh`,
 `docs/{ARCHITECTURE,glossary}.md`.
@@ -41,9 +41,10 @@ where the demo rewrote: `client/viewer/*`, `client/transport/{consumer,downloade
 
 * #112, tests out of the product files: 20 `foo/tests.rs` files in `server/`, `common/`, `ingest/`; the tip still
   has 16 server files with an inline `mod tests {` and no `tests.rs`. Server line.
-* #131, licence notices: `deploy/THIRD_PARTY_NOTICES`, `deploy/server_notices.py`, `deploy/licence-texts/`, the
+* #131, licence notices: `claude/line-hygiene:deploy/THIRD_PARTY_NOTICES`, `claude/line-hygiene:deploy/server_notices.py`,
+  `claude/line-hygiene:deploy/licence-texts/`, the
   patched quinn crates' licences; none is in the tip. Deploy.
-* #117, `deploy/build-arm64.sh` and its CI job; not in the tip.
+* #117, `claude/line-hygiene:deploy/build-arm64.sh` and its CI job; not in the tip.
 * #213, `uring_reader` registers its fd through `AsyncFd::register_with_interest`, and server tests hand the
   fixture's bound sockets over; the tip's `uring_reader.rs` is unchanged since the fork, so the fix is absent.
 * #200 and #202, the fifth audit round's safe-now items: V3 (one `.dockerignore`; the tip still has
@@ -90,9 +91,10 @@ partly done in the tip by `f866da46` and CLEAN-PRODUCT; the merge keeps the stri
 289 files: 252 added, 20 changed that the tip never touched, 17 the tip changed too. The trial merge conflicts in `Cargo.toml`,
 `Cargo.lock`, `.gitignore`, `docs/adr/README.md`, `server/src/transport/{server,websocket}.rs`.
 
-* **Product work, proposed, for the PACS line:** `ingest/receiver` (#163), `carrier` and `carrier/sender` (#164,
-  #177), `common/from-disk`, `common/study-db`, `tools/pacs-verify` (#160), and serve-by-UID (#162:
-  `server/src/media/series_tree.rs`, `server.rs`, `websocket.rs`, the client sessions and the contract). All six
+* **Product work, proposed, for the PACS line:** `claude/line-pacs:ingest/receiver` (#163), `carrier` and `carrier/sender` (#164,
+  #177), `claude/line-pacs:common/from-disk`, `claude/line-pacs:common/study-db`,
+  `claude/line-pacs:tools/pacs-verify` (#160), and serve-by-UID (#162:
+  `claude/line-pacs:server/src/media/series_tree.rs`, `server.rs`, `websocket.rs`, the client sessions and the contract). All six
   crates become default workspace members. The PR says "not for merge yet", and `metadata.md` §Open 3 lists the
   owner decisions they wait on (hash column, reply, carrier, study-DB layout, viewer metadata, DB engine, study
   index, serving defaults, verdict travel). Serve-by-UID changes the serving path, and its `<Study>/<Series>.sbnd`
@@ -118,7 +120,7 @@ Running when this was first pushed; the rows follow once each build lands.
 
 ## 6. `claude/line-viewer` (#255): parked
 
-10 files: the viewer's requirements (`docs/viewer/requirements.md`, `README.md`; #193), the requirement fixes (#210)
+10 files: the viewer's requirements (`claude/line-viewer:docs/viewer/requirements.md`; #193), the requirement fixes (#210)
 and viewer A's step 1, the 1:1 mode (#215). The trial merge conflicts in `client/viewer/{viewer.js,check.mjs,
 run_check.sh}`, `client/README.md`, `server/dev-server.py`, and the tip moved `check-page.js` under `lab/viewer/`.
 Not on it: #297 and #300 (the seam inside Cornerstone3D), #251 (the cine never skips), #214 (a throwaway spike).
@@ -131,8 +133,8 @@ Product work for the viewer line, which is paused: it stays parked, with no unif
 | `client.md`, `optimal-quality.md` | `claude/unified-client` | the demo tip after FREEZE-E2E (into `claude/core`) | CLEAN-2 and NAMES-1, last, each its own merge (review rows in the two-week queue). The `claude/core` drafts not in the tip, #260–#267, #273, #275–#276, #294, #296, #301, #303, are runs and harnesses whose decisions #289's fold (in the tip) recorded; #303's `onePass` was retired by CLEAN-PRODUCT. #133 is the same decoders commit as #260. #285, #259, #249 (the frame clock, item 11, the owner's), #204/#197/#187/#207 (the OPFS cache chain), #203, #208, #135 are measurements or designs, unreviewed as product. #368, #369, #370 stay separate PRs. |
 | `native.md` | none of its own: rides `claude/unified-client` | — | #277 (parity) and #278 (window timed), on the 10-30 fold, unreviewed; #211, a lab check. `client/native` is already in the tip. |
 | `codecs.md`, AV1 and HTJ2K | `claude/unified-codecs` | `claude/av1-unified-mainbase` (an ancestor of the tip, so it carries only what the tip lacks) | Almost none: the 30-odd open AV1 and HTJ2K PRs are theory, protocols and audits. Product files in #309 (paint depth, behind a flag, lab) and one file each in #306, #314, #316. #357 (the audits' corrections) and #350, #335, #340, #347 (line docs). |
-| `codecs.md`, server and transport | `claude/unified-server` | `claude/line-server` | §3's docs and rows; not its three arms. No line doc of its own: proposed, `docs/lines/server.md` split out of `codecs.md` §State (*Server and transport*), for DIRECTION-CODECS to say yes or no. |
-| none | `claude/unified-hygiene` | `claude/line-hygiene` | §2's list. No line doc: proposed, the hygiene line kept in `coordination.md` §Unification (steps 3 and 4 are its work), or `docs/lines/hygiene.md` if the owner wants one. #129 (deploy dry run) says "not to merge". |
+| `codecs.md`, server and transport | `claude/unified-server` | `claude/line-server` | §3's docs and rows; not its three arms. No line doc of its own: proposed, a `server.md` line file split out of `codecs.md` §State (*Server and transport*), for DIRECTION-CODECS to say yes or no. |
+| none | `claude/unified-hygiene` | `claude/line-hygiene` | §2's list. No line doc: proposed, the hygiene line kept in `coordination.md` §Unification (steps 3 and 4 are its work), or a `hygiene.md` line file if the owner wants one. #129 (deploy dry run) says "not to merge". |
 | `metadata.md` | `claude/unified-pacs` | `claude/line-pacs` | #168, #167, #230, #233, #234 (their missing commits, §4). Reviewed only as theory; the crates are proposals awaiting the owner. |
 | `viewer.md` | none: `claude/line-viewer` stays parked | — | #297, #300, #251 |
 | `coordination.md` | none (process) | — | #257, #217, #205 ("not to merge" records), #338 (the plan) |
