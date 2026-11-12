@@ -1,7 +1,7 @@
-state: started
+state: done
 started: 2026-11-11T19:00Z
-heartbeat: 2026-11-12T08:26Z
-outputs: claude/proposals 603875d5, docs/lines/proposals.md §Round 2 (amendments 1 of R1-R4; Measured R1 90c3e3e3, R2 1eee0579, R3 76ab875d, R4 1609aad4), rows lab/proposals/rows/r1-*, r2, r3, r4.jsonl; docs and lab drivers only; no PR (PR #358, OPT-THEORY's draft into main, carries claude/proposals)
+heartbeat: 2026-11-12T08:35Z
+outputs: claude/proposals b6e4b47d (R5: amendments d083e46c, 0735659c; measured b6e4b47d; rows lab/proposals/rows/r5-*.jsonl, r5-summary.txt), docs/lines/proposals.md §Round 2 (amendments 1 of R1-R4; Measured R1 90c3e3e3, R2 1eee0579, R3 76ab875d, R4 1609aad4), rows lab/proposals/rows/r1-*, r2, r3, r4.jsonl; docs and lab drivers only; no PR (PR #358, OPT-THEORY's draft into main, carries claude/proposals)
 ## Resume
 2026-11-12T00:24Z: resumed (stalled) by a new session for R5; setup next.
 00:58: setup running (/home/user/bin/setup.sh: worktrees ../tip detached at claude/demo-fixes-2 18d2d1ff, the demo
@@ -27,6 +27,7 @@ rows/r5-failed.jsonl. Expected end ~09:30. If stopped: rerun with LAST=5 from th
 round 2's 18 rows moved to rows/r5-taken-stopped.jsonl, not read. Restarted: FIRST=2 /home/user/bin/runall2.sh
 (LAST=5) and the pusher. After a restart: count rows per round, move the partial round aside, rerun the same way
 (a route's .done file under /home/user marks it complete; nginx and the builds survive a restart).
+2026-11-12T08:35Z: R5 done, 507 counted rows; §R5 measured (b6e4b47d). Nothing running, nothing unpushed. Row done.
 22:52: R1-R4 done and pushed, nothing unpushed, nothing running. This session stops before R5 (context); left
 `started` so the next worker resumes it once the heartbeat is an hour old.
 Next: R5 (§R5: P6's rule with an A/A arm, the tip against itself). Owed before any run: an amendment, and P6's arms
@@ -93,9 +94,13 @@ Runs, in order, each one background command, rows pushed by hand or a loop every
   BBR's favour), 0.86-0.96x clean and in bursts; under Cubic at 1 % on a1 and c1 the jump paints when the fill's last frame lands.
 * R3 wake on end_stream alone, plumbing: holds, -103 and -105 ms (rule -100 +-15; A/A 8 and 2 ms). Phone row owed.
 * R4 38 400 B window under BBR: withdrawn, `l` 1.09-1.26x slower in every cell (predicted 0.85-0.95x clean).
-* R5: not started (see Resume). Every rule carried R0's A/A arm.
+* R5 P6 (dav1d fetched only where WebCodecs refuses): **(c) meets the rule, (b) fails (2)**. Taken: 0 dav1d
+  requests in (b) and (c) (a: 636 KB raw, 244 KB gzipped), first picture -104/-129 ms pooled, fill 0.98x. Forced
+  refusal: all frames on dav1d, label as (a); (b) +193 ms pooled (tolerance +50, 11 of 12 cells over), (c) -128 ms.
+  Mid-group failure: same missing frames, routes and error in every arm. Heuristic cache: yes on both hosts.
+  Amendment 2 cut 9 rounds to 5 (host rate) before any row was read; static host's TCP not on the UDP queue.
 * Fixtures: dbts_a1/b1/c1 Q 8 (R1: G 1, 8, 16 with the cut on a1 and c1), three DBT volumes of one dataset; demo tip
   d46811c6, I1/I2 on claude/oq-integrity-build 08bf659e; userspace relay, not a radio; one 4-core cloud host, no GPU,
   SwiftShader, headless Chromium; 2-core cells are taskset, not a phone. Gate not run: docs and lab drivers only
   (check_links 0 unresolved, comment budget ok). Wake arm's test: 3 of 3 mutants killed.
-* Owner: none new. R1 and R4 inform only decisions after the demo; R2 adds to the BBR call the phone runs decide.
+* Owner: whether to build (c) (P6) after the demo, ~13 lines; R1 and R4 inform only decisions after the demo; R2 adds to the BBR call the phone runs decide.
