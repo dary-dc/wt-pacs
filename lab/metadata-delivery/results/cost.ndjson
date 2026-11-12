@@ -1,0 +1,15 @@
+{"cpu_us_p50":1748.819,"cpu_us_p90":2079.821,"rounds":300,"variant":"a-instances/ct","wall_us_p50":1753.334,"wall_us_p90":2151.316}
+{"cpu_us_p50":822.588,"cpu_us_p90":1004.175,"rounds":300,"variant":"a-ready/ct","wall_us_p50":826.629,"wall_us_p90":1013.663}
+{"cpu_us_p50":1130.506,"cpu_us_p90":1336.418,"rounds":300,"variant":"a-instances-kept/ct","wall_us_p50":1132.377,"wall_us_p90":1350.377}
+{"cpu_us_p50":422.436,"cpu_us_p90":532.364,"rounds":300,"variant":"a-ready-kept/ct","wall_us_p50":423.214,"wall_us_p90":560.609}
+{"cpu_us_p50":336.418,"cpu_us_p90":410.021,"rounds":300,"variant":"gzip-only/ct","wall_us_p50":336.878,"wall_us_p90":414.76}
+{"cpu_us_p50":16.797,"cpu_us_p90":22.936,"rounds":300,"variant":"b/ct","wall_us_p50":16.805,"wall_us_p90":23.177}
+{"cpu_us_p50":10.67,"cpu_us_p90":15.001,"rounds":300,"variant":"c/ct","wall_us_p50":10.716,"wall_us_p90":14.904}
+{"cpu_us_p50":9040.14,"cpu_us_p90":10326.791,"rounds":300,"variant":"a-instances/ct2000","wall_us_p50":9081.591,"wall_us_p90":10670.11}
+{"cpu_us_p50":4029.834,"cpu_us_p90":4536.602,"rounds":300,"variant":"a-ready/ct2000","wall_us_p50":4040.596,"wall_us_p90":4877.459}
+{"cpu_us_p50":7620.874,"cpu_us_p90":8554.327,"rounds":300,"variant":"a-instances-kept/ct2000","wall_us_p50":7650.56,"wall_us_p90":8977.94}
+{"cpu_us_p50":3644.098,"cpu_us_p90":4161.077,"rounds":300,"variant":"a-ready-kept/ct2000","wall_us_p50":3653.821,"wall_us_p90":4495.615}
+{"cpu_us_p50":3252.782,"cpu_us_p90":3621.777,"rounds":300,"variant":"gzip-only/ct2000","wall_us_p50":3267.154,"wall_us_p90":3856.651}
+{"cpu_us_p50":35.581,"cpu_us_p90":44.259,"rounds":300,"variant":"b/ct2000","wall_us_p50":35.685,"wall_us_p90":44.198}
+{"cpu_us_p50":14.84,"cpu_us_p90":19.836,"rounds":300,"variant":"c/ct2000","wall_us_p50":14.892,"wall_us_p90":19.91}
+{"cpu_us_p50":92.697,"cpu_us_p90":124.81,"rounds":300,"variant":"open-only","wall_us_p50":92.82,"wall_us_p90":125.083}

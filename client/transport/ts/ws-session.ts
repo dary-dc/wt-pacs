@@ -49,7 +49,7 @@ export class TransportSession extends FrameSession {
       else media.enqueue(new Uint8Array(e.data as ArrayBuffer));
     };
     this.socket.onclose = (e) => {
-      closed = closedReasonOf({ closeCode: e.code, reason: e.reason });
+      closed = closedReasonOf({ closeCode: seriesRefusalCode(e.code), reason: e.reason });
       media.close();
     };
     // Bytes already here are read before the session is failed, so a frame the close cut short
@@ -67,4 +67,8 @@ export class TransportSession extends FrameSession {
   close() {
     this.socket.close(1000);
   }
+}
+
+function seriesRefusalCode(code: number): number {
+  return code > 4000 && code < 5000 ? code - 4000 : code;
 }

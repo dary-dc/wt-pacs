@@ -2,11 +2,13 @@
 
 use crate::media::frame_store::FrameStore;
 use crate::media::read_path::ring_probe;
-use crate::transport::server::ServeConfig;
+use crate::transport::server::{ServeConfig, Series};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::Path;
 use tracing::{info, warn};
 
-pub(super) fn print(config: &ServeConfig, store: &FrameStore, bound: &str, cert_sha256: &str) {
+/// Under `--root` a series' lines are not printed: no series is open until a session names one.
+pub(super) fn print(config: &ServeConfig, series: &Series, bound: &str, cert_sha256: &str) {
     let host = url_host(config.bind, config.wt_port);
     let wt_url = format!("https://{host}/");
     println!("wt_url={wt_url}");
@@ -14,10 +16,20 @@ pub(super) fn print(config: &ServeConfig, store: &FrameStore, bound: &str, cert_
         println!("ws_url=wss://{host}/");
     }
     println!("cert_sha256={cert_sha256}");
-    println!("series={}", config.series_path.display());
-    println!("frames={}", store.frame_count());
-    println!("read_fast_path={}", read_fast_path(store));
-    println!("read_ring={}", ring_probe(store));
+    let serving = match series {
+        Series::One(store) => {
+            let path = config.series_path.as_deref().unwrap_or(Path::new("")).display();
+            println!("series={path}");
+            println!("frames={}", store.frame_count());
+            println!("read_fast_path={}", read_fast_path(store));
+            println!("read_ring={}", ring_probe(store));
+            path.to_string()
+        }
+        Series::Tree(tree) => {
+            println!("root={}", tree.root().display());
+            tree.root().display().to_string()
+        }
+    };
     println!("stream_mode={}", config.mode);
     println!("bind={bound}");
     println!("transport={}", config.tuning.describe());
@@ -27,7 +39,7 @@ pub(super) fn print(config: &ServeConfig, store: &FrameStore, bound: &str, cert_
     println!("telemetry=absent");
     info!(
         %wt_url,
-        series = %config.series_path.display(),
+        series = %serving,
         stream_mode = %config.mode,
         "series-server ready (Media-complete)"
     );

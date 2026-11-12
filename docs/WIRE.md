@@ -235,6 +235,47 @@ The TypeScript client sends it for
 `connect(url, hash, { fill })` and arms the fill without sending `stream_frames`. Why:
 [`ARCHITECTURE.md`](ARCHITECTURE.md), session open.
 
+## Naming the series
+
+`series-server --series x.sbnd` serves that one series and never reads the URL's path. `series-server --root DIR`
+serves many: a session's URL is `https://host:port/<Study>/<Series>`, each segment a **coded UID**, the study's and
+the series' UID in the coding of [`ingest/contract.md`](ingest/contract.md) (§The layout, *The coding*): the alphabet
+`0-9 A-Z _ a-z ~`, an even length from 2 to 44 (a 64-character UID codes to 44). Anything else is refused before any
+file is touched; no segment can spell `.`, `/` or `%`. The series is the file `DIR/<Study>/<Series>.sbnd`
+(`series_path`, the one function that knows the layout; provisional, since the disk layout is not decided:
+[`disk-layout/target.md`](disk-layout/target.md), #152). The two flags are exclusive, and `--root` takes neither
+`--send-window-follows-cwnd` nor `--force-pool-reads`, which size or set one store at start.
+
+The query may carry `?digest=`, the bundle's digest from the metadata the page holds; the server reads only `ask`
+and `digest`. A v1 bundle has no digest, so a session naming one is refused "series changed". Why each of these:
+[`adr/serving-by-uid.md`](adr/serving-by-uid.md).
+
+## Refusing a series
+
+Under `--root` a session the server will not serve is accepted, then closed with a code and a reason, never
+answered with an HTTP status, which a page cannot read:
+
+| code | reason | when | the client should |
+| ---: | --- | --- | --- |
+| 1 | `bad series name` | a segment is not a coded UID, or the path is not two segments | not retry |
+| 2 | `series not found` | no file at the name, or no study folder; a `.partial` is never opened | not retry |
+| 3 | `series changed` | `?digest=` is not the bundle's, after one reopen; any digest against a v1 bundle | refetch the metadata, dial again |
+| 4 | `series unreadable` | the file is not a bundle this server reads, or open fails otherwise | not retry |
+| 5 | `server busy` | out of descriptors or memory at open | retry with a backoff |
+
+Over QUIC the code is the application close code and the reason its reason bytes. Over a WebSocket it is a Close
+with 4000 + the code (RFC 6455 §7.4.2's private range) and the reason. Both clients report either as
+`session closed (code N): reason`, from `connect` when the close lands before the control stream opens, else from
+each ask; a contract-suite clause holds every implementation to it (`aRefusedSeriesIsNamedByItsCode`). 1, 2 and 3 are
+logged at INFO, 4 and 5 at WARN.
+
+**Measured 2026-10-26, headless Chromium 153: the QUIC close code does not reach the page.** `wtransport` 0.7
+closes the whole QUIC connection; the browser rejects `closed` with a `WebTransportError` "Connection lost." and no
+code, so over WebTransport a page sees `session closed: Connection lost.`. A page sees `closeCode` only from a
+`CLOSE_WEBTRANSPORT_SESSION` capsule on the CONNECT stream, which this `wtransport` cannot send; that is a crate
+patch, proposed in [`adr/serving-by-uid.md`](adr/serving-by-uid.md) §6 and not built. The same run over a WebSocket
+showed 4001, 4002 and 4003 with their reasons.
+
 ## The WebSocket mapping
 
 Off by default; `series-server --websocket` also serves one WebSocket per session beside QUIC. The

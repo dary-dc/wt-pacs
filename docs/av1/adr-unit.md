@@ -137,6 +137,9 @@ proposal below:
   reached a decoder is failed by the downloader. A frame refused for its order leaves the state.
 * **A series in groups decodes through dav1d-WASM**, whatever its depth: the WebCodecs module
   flushes after every frame, and a flush makes the next chunk a keyframe. A split series is G = 1.
+  *Changed since: WebCodecs keeps a decoder a stream and decodes the top in groups, the low intra
+  (`client/decode/av1-webcodecs.js`); dav1d-WASM fails every split group at G > 1 (the frame-group measurement,
+  queue row GOPMEASURE; [`frame-groups.md`](frame-groups.md) §5).*
 * Not built: an ask served from a held state (an ask always starts at its keyframe unless its
   frames are already in hand), the wire ring's re-size (invariant 6), the compressed-group cache.
 

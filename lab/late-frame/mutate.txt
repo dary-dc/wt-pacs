@@ -1,0 +1,8 @@
+caught: the Durations left unpatched -> mxf2raw: exit 0, duration not 263, or an error
+caught: body-partition index offsets from 0, not the stream's end -> mxf2raw: exit 1, duration not 272, or an error
+caught: a new sample's chunk offset one byte off -> 260 frames, 263 expected
+caught: a new fragment's decode time one frame early -> ffmpeg exit -6: Assertion pkt failed at src/fftools/ffmpeg_dec.c:597
+caught: the mdat of a rewritten file placed 8 bytes late -> [libdav1d @ 0x55b61a72c140] Unknown OBU type 12 of size
+caught: a GOP-30 frame inserted in the middle without re-encoding its group -> presentation times are not evenly spaced
+caught: a .sbnd frame merged one entry early -> 2 frames wrong, first at 130
+7 of 7 caught
