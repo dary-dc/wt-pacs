@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-12T14:21Z
 heartbeat: 2026-11-12T14:24Z
-outputs: claude/unified-server f00b0da7 (from claude/line-server 7242d0bd), draft PR pending
+outputs: claude/unified-server f00b0da7 (from claude/line-server 7242d0bd), draft PR #380 into claude/line-server
 ## Resume
 Found (LINES-READY §3, #254's index, each PR's reviews and comments): #254 already carries #41 #88 #102 #103 #122 #123 #137 #139 #140.
 The other server PRs have no review on record (#96 #130 #136 #138; #37 #39 #40 are do-not-merge flips), or belong to another
