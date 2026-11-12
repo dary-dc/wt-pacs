@@ -502,3 +502,62 @@ noise anchor itself (worst frame 1.00) ν is lower (`dbts_b1` 0.22 at Q 12, `dbt
 per volume, the option "keep at least half", are in `b-summary.json` (`q_nu`, and A4's ratios above) for the owner's
 decision 1 or 9 in `claude/docs-lines-3:docs/lines/codecs.md` §Open 0. What A cannot settle stands: whether the
 removed noise is visible or costs a diagnosis.
+
+### C · amendment 1, written 2026-11-12 03:50 UTC before any C decode was timed
+
+The protocol names the arms, streams and checks but not the code or every reading. Fixed here, before the run:
+
+* **Demo tip and builds.** `claude/demo-fixes-2` at `18d2d1ff` (the demo commit `157b7109` with docs only on top),
+  as a detached worktree. Its decoder builds are the committed `client/decode/wasm/built/` (openjph, dav1d, xxh3,
+  checked by `wasm-glue.js` against `manifest.sha256` at every load); `build.sh` is not rerun (no Docker daemon is
+  needed for files the tip already pins). Hk's build is `client/decode/wasm/fetch_openjph.sh` (npm
+  `@cornerstonejs/codec-openjph` 2.4.11), as carriers loaded it.
+* **Streams.** `lab/av1/audit/c_streams.sh`: the tip's `lab/av1/tools/ingest_coded.py` (the coder `demo-series.sh`
+  runs) writes frame files, not bundles: each volume's exact series (`--codec htj2k`) and `--lossy Q 1 --exact-series`
+  at Q 8 and at the rule's Q, `--depth-cut` on `dbts_a1` and `dbts_c1`. The rule's Q is B0's integer pick under the
+  pooled x\* (`rows/b0.json` `rules`, as A read it): `dbts_a1` top-10 Q 6, `dbts_b1` 10-bit Q 11, `dbts_c1` top-10
+  Q 7. All three are below 8, so C5 is judged on "higher than at Q 8" only. Frames: the middle 16, from
+  ⌊(n − 16) ÷ 2⌋.
+* **One H block per (volume, throttle).** Hp, Hp′, Hb, Hk and the mutation decode the exact series, which does not
+  depend on the stream; each runs once per (volume, throttle) in a round, and both streams' W, Wb and D are divided
+  by that round's Hp. A round is then, per throttle, three volumes of 5 H arms and 2 × 3 W arms; per volume, its 11
+  arm-runs in a Williams order (`lab/order.mjs`) of 11 units rotated by round, and the volumes in a Williams order
+  of 3. Throttles in a Williams order of 4 rotated by round, as the protocol says.
+* **Clocks** (`performance.now()` in the arm's worker, per frame, one frame in flight; an arm's time is the sum over
+  its 16 frames):
+  * Hp: the tip's `htj2k.js` `decodeFrame(bytes)` on its `built("openjph")`, then the tip's `xxh3.js` hasher over the
+    result's buffer and the digest compared with the frame's XXH3-64: `decoder.js` `checked()` without its second
+    decode.
+  * Hb: profiles' `openjph()` (`decoders.js:95-104`) on the tip's `built("openjph")`: decode, `getDecodedBuffer()`,
+    one `slice()`.
+  * Hk: the tip's `htj2k.js` `init()` and `decodeFrame(bytes)` on the npm build (no `getRange`, so `finish()`'s range
+    pass runs) — the same module as Hp, on carriers' build.
+  * Hm (the known-cost mutation): Hb, then a JavaScript pass summing every 16-bit sample into an accumulator that
+    is returned, on Hb's clock; the pass alone is also timed on a clock of its own around it (`pass`).
+  * W: the tip's `av1-webcodecs.js` `init({ groupLength: 1 })` and `picture(bytes, { key: true, gen: 0, index })`,
+    whose `read()` is the product's copy of the luma out (`copyTo`); its own decoder, kept and flushed at a
+    group's end, as the product does.
+  * Wb: W, then profiles' `back()` (`shared.js:13-17`) over the luma plane's samples with shift = stored depth − 10
+    (2 on `dbts_a1` and `dbts_c1`, 0 on `dbts_b1`, where the loop still runs).
+  * D: the tip's `av1-dav1d.js` `init({ ...built("dav1d"), threads: 1 })` and `picture()`.
+  Off every clock: the worker is created, the module loaded and the decoder opened, and one frame (the first of
+  the 16) decoded once to prime it; then the 16 are timed.
+* **Checks as coded.** After each frame's clock, off it: Hp, Hb, Hk and Hm hash their samples with the tip's XXH3
+  against the exact series' frame digest (Hp already compared on its clock); W, Wb and D take SHA-256 of the luma
+  samples (row by row, little-endian) against native dav1d 1.5.4 (`ingest/.build`) on the same unit. A miss voids
+  that round, as the protocol says. The A/A interval and the known-cost check: per (volume, throttle), over rounds,
+  the mean of Hp′ ÷ Hp with its t 95 % interval; known cost holds when (Hm − Hb) ÷ Hp and pass ÷ Hp differ by less
+  than the A/A half-width. `throttleTree --check` once (no cores); with cores, `lab/av1/audit/c.mjs --check` runs
+  four worker loops at once under 4× with `cores` 1 and 2 and reports their time against 1× (expected 16× and 8×).
+* **Readings.** Every ratio (W ÷ Hp, Wb, D, Hb, Hk, Hp′ over Hp, and (Wb − W) ÷ Hb) is taken per round from the arm
+  sums, then quoted as the mean over rounds with its t 95 % interval; C4's falls and C5's orders compare those
+  means. The decision rule's "95 % upper bound" is the interval's upper end.
+* **Rounds and cut.** 15 rounds, more up to 30 if time allows. One background command stops at 2 h, so the driver
+  resumes from its rows file (a round whose rows are partial is run again whole, its partial rows moved to
+  `rows/c-stopped.jsonl`). If a round at 4× runs far over the protocol's 8–12 min, the cut is fewer rounds (never
+  fewer than 10), named in the result, not fewer arms or throttles.
+* **Rows.** `lab/av1/audit/rows/c.jsonl`, one row per arm-run (round, throttle, volume, stream, arm, 16 frame times,
+  hash results, the Chromium version), committed about every 10 minutes. Driver `lab/av1/audit/c.mjs`, worker
+  `lab/av1/audit/c_arm.js`, summary `lab/av1/audit/c_summary.py`. A smoke run before round 1 checks the driver and is
+  not kept.
+* **Host.** One 4-core cloud host without a GPU, cgroup v1 `cpu`, the pre-installed headless Chromium of Playwright.
