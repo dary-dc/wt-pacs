@@ -45,7 +45,7 @@ def timed(route, rs, fp_bar, fill_bar):
         print("  " + "; ".join(line))
     aa_fp = abs(med(per["aa"]["fp"]))
     aa_fill = abs(med(per["aa"]["fill"]) - 1)
-    fp_tol, fill_tol = max(fp_bar, aa_fp), max(fill_bar, aa_fill)
+    fp_tol, fill_tol = max(fp_bar, aa_fp), max(fill_bar or 0, aa_fill)
     print(f"  A/A pooled: fp {med(per['aa']['fp']):+.1f} ms, fill {med(per['aa']['fill']):.3f}x; "
           f"tolerances fp {fp_tol:.1f} ms, fill {1 + fill_tol:.3f}x")
     out = {}
