@@ -981,6 +981,43 @@ read on the cells pooled. The bytes rule (1) stays the gain. Nothing else in P6 
 `dev-server.py`'s responses give the workers' refetches a heuristic cache hit, read from the request log, as the red
 team left open.
 
+**Amendment 1 (MEASURE-2, 2026-11-12, written before any counted run).** What the host forces, and nothing else:
+
+* *Tip.* The demo commit `157b7109` (`claude/demo-fixes-2` at `18d2d1ff`, docs on top), not `daee0d1d`: CLEAN-PRODUCT
+  moved the lab hooks, not `head.js`'s preload or `av1.js`'s `init`, which are as §P6 quotes them.
+* *Arms* (`lab/proposals/r5_arm.sh`, lab copies of the tip): (a) and (a′) are the tip itself, served from its checkout;
+  (b) `lazy` drops `av1-dav1d.js` and dav1d's glue and WASM from `head.js`'s preload and the three fetches from
+  `av1.js` `init`, so dav1d is fetched on first use; (c) `probe` drops the same preloads and, in `init`, probes the
+  layouts the metadata implies (`g<lossy.depth>`, `g8` beside it when split; every series here is coded
+  `--monochrome`, so `g8f` and `c8` do not arise) and fetches dav1d at once on a refusal, when `VideoDecoder` is absent
+  or `lossy.depth` > 10 (no layouts given). 13 lines of `av1.js`, `head.js` and `viewer.js` in all.
+* *Levers.* The forced refusal is the tip's own `refuseWebCodecs` (`?opts={"refuseWebCodecs":true}`, DEMO-UX item 3),
+  so it reaches every arm through `head.js`'s lab gate alike; (c) reads it in `init` too. The mid-group failure is a lab
+  lever on `av1-webcodecs.js` `picture`: the frame of index `G·⌊n/(2G)⌋ + 3` (frame 3 of the group around the middle)
+  is rejected once per worker before it reaches the decoder, which then fails the group's next frames by
+  `continues`, as a closed decoder would; every arm carries it on that route, (a) included.
+* *Static host.* Both hosts behind the relay's TCP plane (`--tcp 8443:8765 --tcp-rate shared`), the delay and rate of
+  the cell. The relay's `--loss` acts on the UDP plane only, so the `--loss 1` cell is lossy for the sessions and
+  clean for the static host; and the TCP plane does not share the UDP plane's queue (only `--tun` would, which
+  needs a network namespace Chromium is not run in here), so dav1d's bytes never compete with the fill on the link.
+  This understates any gain of (b) and (c) on the fill's end and on the first picture: the time read here is the
+  static host's own share. nginx is the deploy template (gzip 6) with an access log of each request's body bytes and
+  `/lab/` served for the lab gate; `dev-server.py` runs with `--log-requests` and no compression (bytes from the
+  file sizes).
+* *Runs.* Route *taken*: 9 rounds × 2 hosts × 2 links × 3 series × 4 arms, each a cold load then a warm load in the
+  same profile (warm reported, not in the rule). Route *refused*: the same cells and loads, the lever on in every arm. Route *failed*: 3 rounds × 3 series × 3 arms, clean link,
+  dev host, cold, then every frame stepped and its overlay route kept: the rule (3) is a correctness rule, and the
+  route of a frame does not depend on the link.
+* *Reading.* Rule (1) and (2)'s times as the red team corrected them: the tolerance of each is max(registered, the
+  A/A arm's |median ratio − 1| over the pooled cells of that route), read pooled over cells, every cell also
+  reported. Rule (2)'s routes and label from the status line's `decoders:` tally and the last quality label; rule (3)
+  from the frames' overlay routes and the `error:` the status line ends with.
+  The failure index is 27 on `dbts_a1-q8-g8-cut` (56 frames) and `dbts_b1-q8-g8` (50), 35 on `dbts_c1-q8-g16-cut` (69).
+* *Smoke.* Seven runs across the arms and routes before this amendment, not kept and not read against the rule, to
+  check that each arm loads, each lever bites and how long a run takes (5–25 s; the failed route 30 s more, since its
+  fill never ends). The rotation: arms (today, lazy, probe, aa) shifted one place a round, cells in the order
+  host × link × series of `lab/proposals/r5.sh`.
+
 ### Round 2: MEASURE-1's data read, nothing proposed
 
 * *Cubic's slow start overflowed the 1 000-packet queue clean* (10–24 % of the optimal-quality server's datagrams,

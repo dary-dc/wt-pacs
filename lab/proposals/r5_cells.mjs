@@ -7,7 +7,7 @@
 //     ROOT: the page's host root (lab/proposals/r5_arm.sh's, or TIP); --refuse: the lab's refuseWebCodecs;
 //     --frames: after the cold fill, step through every frame and keep the overlay's route of each (no warm load)
 //   prints one JSON row; times are ms on the page's clock, from navigation
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -23,7 +23,12 @@ const FRAMES = process.argv.includes("--frames");
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const T = mkdtempSync(path.join(tmpdir(), "r5-cells-"));
 const children = [];
-const stop = () => { for (const c of children.splice(0)) c.kill("SIGKILL"); };
+let nginxConf = null;
+// nginx's workers outlive a killed master: it is stopped by its own signal first.
+const stop = () => {
+  if (nginxConf) spawnSync("nginx", ["-s", "stop", "-c", nginxConf]), (nginxConf = null);
+  for (const c of children.splice(0)) c.kill("SIGKILL");
+};
 process.on("exit", () => { stop(); rmSync(T, { recursive: true, force: true }); });
 
 const lossyMeta = JSON.parse(readFileSync(path.join(dir, `${id}.metadata.json`)));
@@ -76,6 +81,7 @@ if (STATIC === "dev") {
     ["client_body", "proxy", "fastcgi", "uwsgi", "scgi"].map((d) => `  ${d}_temp_path ${T}/tmp;\n`).join("") +
     `  include ${T}/server.conf;\n}\n`);
   host = run("nginx", ["-c", `${T}/nginx.conf`, "-g", "daemon off;"]);
+  nginxConf = `${T}/nginx.conf`;
   await new Promise((r) => setTimeout(r, 300));
   requests = () => {
     let s = "";
@@ -117,7 +123,8 @@ try {
     const picture = (l) => l.find((e) => e.id === "quality" && e.text);
     await until(picture, 300000);
     out.firstPictureMs = Math.round(picture(await log())?.t) || null;
-    out.filled = await until((l) => /fill \d+ ms/.test(status(l)), 300000);
+    // A forced failure leaves frames unfilled: the fill never ends, so that route waits 30 s, not 300.
+    out.filled = await until((l) => /fill \d+ ms/.test(status(l)), FRAMES ? 30000 : 300000);
     const all = (await log()).find((e) => e.id === "status" && new RegExp(`received ${n}\\b`).test(e.text));
     out.fillMs = all ? Math.round(all.t) : null;
     out.status = status(await log());
@@ -135,7 +142,7 @@ try {
     await page.keyboard.press("Home");
     for (let i = 0; i < n; i++) {
       await page.waitForTimeout(150);
-      row.routes.push(await page.evaluate(() => [document.getElementById("status").textContent.match(/^frame (\d+)/)?.[1], document.getElementById("overlay").textContent]));
+      row.routes.push(await page.evaluate(() => [document.getElementById("status").textContent.match(/^frame (\d+)/)?.[1], document.getElementById("overlay").textContent, document.getElementById("status").textContent.match(/error: (.*)$/)?.[1] ?? null]));
       await page.keyboard.press("ArrowRight");
     }
     row.statusAfter = status(await log());
