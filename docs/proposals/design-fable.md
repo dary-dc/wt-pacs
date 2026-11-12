@@ -29,7 +29,7 @@ less deeply than the client. The phone run's rows (`claude/phone-rows`) were not
 ## 1. A Lossless frame, once fetched, is held
 
 **The problem.** The controller keeps one exact frame, `#exact = { i, frame?, failed? }`, and drops it whenever the
-reader is somewhere else (`client/view/controller.js`):
+reader is somewhere else (`claude/demo-fixes-2:client/view/controller.js`):
 
 * a step away clears it: `if (this.#exact?.i !== this.current) this.#exact = null` (line 144);
 * a frame that lands after the reader left is thrown away: `if (this.#exact !== e) return` (line 205);
@@ -40,7 +40,7 @@ So every return to a frame costs a whole exact frame again. What one costs (R): 
 (`dbts_c1`, `dbts_a1`, `dbts_b1`; `docs/av1/payload-format.md` tables); from the key to *Lossless*, medians of 5,
 0.7–1.2 s on a clean 20 Mbit/s link at 30 ms each way and 2.5–6.7 s at 1 % loss under `cubic-restart`
 (`claude/proposals:docs/lines/proposals.md` §P1, *Measured*); 2.8–5.9 s at 40 ms and 2 %, 16–17 s with jitter, one
-run a cell (`docs/reviews/demo-tests-mobile.md` on the tip). A reader comparing a
+run a cell (`claude/demo-fixes-2:docs/reviews/demo-tests-mobile.md`). A reader comparing a
 finding across neighbouring slices, stepping away and back, pays that each time. A wait of seconds also invites the
 second press, which discards the fetch.
 
@@ -116,8 +116,8 @@ least one round trip of the cell and no Lossless time is later.
 series as what every viewer sees (2026-11-09). On the tip the two do not meet:
 
 * an optimal-quality series carries no `digests`, so its frames arrive `unchecked` (`optimal-quality.md`, Contract);
-* the cache opens only for a series with digests (`client/view/view-worker.js` line 87) and writes only a frame
-  checked `true` (`client/view/store.js` line 112), as `docs/adr/frame-path.md` §5 rules.
+* the cache opens only for a series with digests (`view-worker.js` line 87, beside `controller.js`) and writes
+  only a frame checked `true` (`store.js` line 112, there too), as `docs/adr/frame-path.md` §5 rules.
 
 So with any writer turned on, the series the product shows by default is never cached, and a reopen pays the whole
 fill again. The same gap leaves memory without a bound that works: nobody passes the store a budget
@@ -204,12 +204,12 @@ Each was a candidate from the read and is already answered in the repository:
   does nothing to it" (R, `docs/decode/README.md` §Instantiating by streaming).
 * *Hardware AV1 decode:* Chromium's hardware front end refuses 4:0:0 (R, `docs/decode/hardware.md`).
 * *A group whose frames predict from its keyframe alone, so a jump decodes two frames:* read in
-  `docs/av1/frame-groups.md`.
+  `claude/demo-fixes-2:docs/av1/frame-groups.md`.
 * *A slider scrub asking every frame it crosses, each ask ending the running fill* (`controller.js` `show`,
   `docs/WIRE.md` §An ask during a fill): the want under `claude/fable-simplify`'s P4 replaces itself at each step,
   and `proposals.md` R2 times the jump during a fill.
 * *BBR, tiles, the radio wake, the initial window, dav1d loaded on need, one view, one start order, one cache
-  writer:* `proposals.md` and `docs/proposals/simplify-fable.md` (`claude/fable-simplify`), not repeated.
+  writer:* `proposals.md` and `claude/fable-simplify:docs/proposals/simplify-fable.md`, not repeated.
 
 ## 7. Sources
 
