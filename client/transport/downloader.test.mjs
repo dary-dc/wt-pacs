@@ -227,6 +227,29 @@ async function aHangIsRecovered() {
 }
 await aHangIsRecovered();
 
+/**
+ * A deadline that fires late found the downloader's own thread stopped, as a hidden or frozen page stops it: the
+ * decoder had no time either, so it is given its deadline again, not replaced, and its group stays whole.
+ * docs/reviews/hidden-page-decode.md
+ */
+async function aFrozenPageKeepsItsDecoder() {
+  const { fed, made, failed } = await lossWorld("frozen", { decodeMs: 30, frozenMs: 100, stallMs: 60_000 });
+  fed.fill(frame(0));
+  await settle();
+  const until = performance.now() + 300;
+  while (performance.now() < until);
+  await settle();
+  check(!made[0].terminated && made.length === 1, `a decoder the page's freeze held up is kept (${made.length} made)`);
+  made[0].finish();
+  fed.fill(frame(1));
+  await settle();
+  check(made[0].decoding.map((m) => m.index).join() === "1", `and takes the next frame of its group (${made[0].decoding.map((m) => m.index)})`);
+  check(failed().length === 0, `nothing fails (${failed().map((m) => `${m.index}: ${m.reason}`)})`);
+  await new Promise((r) => setTimeout(r, 60));
+  check(made[0].terminated, "a decoder still silent a deadline later, the page running, is replaced");
+}
+await aFrozenPageKeepsItsDecoder();
+
 /** A frame lost twice fails by name, through `failed`, and is not asked a third time. */
 async function lostTwiceFailsLoudly() {
   const { fed, made, failed } = await lossWorld("twice");
