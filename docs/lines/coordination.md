@@ -45,6 +45,9 @@ small enough that every open item has an owner and a next step.
   `docs/reviews/experiments-off.md` (on `claude/demo-clean`): the page hooks in `lab/viewer/hooks.js`, the check's
   modules out of the web image, the server's three lab flags behind `lab-levers`, `onePass` and `reuseCopyBuffer`
   retired. Not done: item 16 (below); item 11's removal waits for the owner.
+  CLEAN-REVIEW (2026-11-11, after FREEZE-E2E's merge `157b7109`): no blocker; each change reverted is caught, the
+  absence check fails on the old tree; F1–F5 for the owner in [`docs/reviews/clean-product.md`](../reviews/clean-product.md)
+  (F1: the device kit's `asksfirst` arm needs a `lab-levers` image).
 
 ## Open (ordered)
 
