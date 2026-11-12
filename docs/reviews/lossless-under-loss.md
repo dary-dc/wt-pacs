@@ -106,3 +106,27 @@ its budget inside the outage, and with the re-asks off the reader is left on *Lo
 back. With them on, the frame comes on the first re-ask after the link returns. A 45 s outage and one rig, three
 rounds per arm: the timings depend on the outage's length and decide nothing about the schedule; nothing here was
 near saturating the host.
+
+## Review (PHONE-FIX-REVIEW, 2026-11-12)
+
+By a session that wrote neither fix, on `ffc407de`.
+
+* **The tests fail without the fix.** `client/view/controller.js` reverted to `claude/demo-fixes-2`: 39/41, the two
+  re-ask tests fail; the other two new tests (a failed check is not asked again; leaving ends the re-asks) pass on
+  both, as guards should. Mutants of my own, each killed: the leave check after the wait removed; no re-ask (fail at
+  once); no wait between asks.
+* **The fix changes nothing else in the product**: `client/view/controller.js` only (a constructor option with the
+  schedule as default, the ask loop, `#askExact`), plus `client/README.md` and the line doc. The old test that pins a
+  failed ask and its manual retry now runs with `exactRetryMs: []`, so it still pins that path.
+* **The theory matches the trace**: both servers timed out within 0.5 s of each other 30 s after the fill's bytes,
+  the exact session at `sent=10`; the reading (no packet from the phone reached either server) follows from RFC 9000
+  §10.1 as quoted. Why the phone's UDP went silent stays not shown, as the doc says.
+* **Finding: every rejection is re-asked, not only a lost transport.** The loop retries any rejected ask; a refusal
+  that will repeat (e.g. the downloader's `no decoder: …`) shows *asking* for about 21 s before *failed*. Bounded and
+  harmless to the frame; whether to retry only transport losses is the owner's call with the schedule.
+* **Finding: the cleaning rule.** `lab/lossless-under-loss/` (rig and raw rows) rides a PR into the demo tip's branch;
+  under the owner's 2026-11-11 rule it stays off the product path (its line branch) when this merges.
+* Comment budget ok. Gate on `ffc407de`, `scripts/gate.sh --no-browser --quick` on a 4-core cloud host: OK; then the
+  three absence checks alone, each OK. Not run: the decoders' rebuild (Docker Hub refused it, 429, on PR 376's
+  branch the same hour), every browser step, the frame check's hasher (no xxh3 build), numpy/pydicom checks,
+  lavapipe, Xvfb, Firefox, nginx.
