@@ -1,15 +1,34 @@
-state: running
+state: done (raw rows complete; analysis and decisions wait for the blind read)
 started: 2026-11-11T15:20Z
-heartbeat: 2026-11-11T20:53Z
-outputs: claude/phone-rows (from run commit 962226e8; raw rows to come); claude/phone-devtools eb028344 (request 4b)
+heartbeat: 2026-11-12T01:05Z
+outputs: claude/phone-rows 4e492c92 (docs/phone-rows/: raw rows, server traces, README with the result; lab/phone/rows.py, losses.py); claude/phone-devtools eb028344 (request 4b)
 ## Resume
-Timed run started 20:53Z on 962226e8 (image label 962226e8), protocol ecd31836, memlock 8388608 per its Note; series
-dbts_b1-q8-g8 (23,208,296 B) and dbts_b1, the c6da7275 set. Eye check at the run commit (runner, tether, cubic,
-not counted): page and worker each 56/56 av1-webcodecs, fill 1.06 / 1.05 s, Lossless 0.10 / 0.08 s, verdict ok, 0
-errors, 0 lost. read-path.sh: all four preadv2, ring refused, SELinux Enforcing. Device counters logged every 0.5 s
-(target/phone-run/counters.log) for the link check. adb server stopped for the run. Earlier heartbeat 20:45Z was
-wrong (written ~20:20Z).
-Proposed to the owner (pending the owner's word): this session owns the phone tooling branches (phone-devtools, phone-rows,
-lab/phone fixes) and runs local helpers; protocol amendments and the blind read stay outside it.
-## Result
-(pending)
+The run is closed (2026-11-11, 20:53-00:30Z); servers stopped. RAW ROWS COMPLETE: PHONE-BLIND-READ may start on
+claude/phone-rows (docs/phone-rows/raw/, README's Reproduce; the README's readings are this session's, so give the
+blind reader raw/ and docs/devices.md section 7 first). The owner stopped for other topics: no further phone loads
+until the next round, not today.
+
+Next round, theory first (the owner, 2026-11-12: "theory should guide us"). Rows asked of the coordinator, one
+question each; use this run's traces as calibration data wherever they apply:
+1. HOSTNET-THEORY: production's network mode for series-server, host networking vs published ports (rootless
+   podman's pasta relay, rootful NAT): per-packet cost, what each does to the congestion controller's view and the
+   per-session telemetry, the isolation given up, sourced; a proposal for deploy/. The prod-like check was not run.
+2. LOSSLESS-UNDER-LOSS: why load 6's Lossless was never fetched (exact session: handshake only, 10 packets, after a
+   fill with 7 % loss): the exact session's lifecycle and errors in the client, theory first, then a reproduction
+   through lab/scripts/link_impair.py labelled simulated, then a fix proposal (retry, reconnect).
+3. HIDDEN-PAGE-DECODE: Chrome's WebCodecs codec reclamation for hidden pages (official sources), what the client does
+   when a decoder is lost mid-group (load 13: keyframes at ~18 s, then the group refused), a fix proposal; and the
+   beacon recording visibility so a run can tell interference from failure.
+4. LINK-CALIBRATION: a "home Wi-Fi, server wired" profile for link_impair.py/netem from this run's path rows and loss
+   traces (base RTT, queue growth in ms, losses all congestive, a bottleneck-rate estimate), compared with the lab's
+   profiles; and why the same link's min RTT differs by controller (cable: 6.1 ms Cubic, 2.2 ms BBR).
+5. FILL-SPLIT: what bounds a fill on the phone: wire time (path rows) is 0.5-1.0 s of a 2.4-3.3 s fill; split the
+   rest from the beacon's per-frame decode times; say where the phone saturates.
+This session's own (phone tooling, before the next round): RUNNER-AUTO, a runner needing no hands (auto-start from
+the launched URL, no counter pauses when the laptop records the counters, Screen Wake Lock so the timers do not stop,
+visibility and interruptions in the beacon, robust to a tether address change); the DevTools socket that does not
+answer (Chrome 157); adb authorisation that does not persist.
+The next round's protocol (an amendment by a session that will not run it) waits for 1-5 and RUNNER-AUTO, and should
+cover: the show list's first series (dbts_a1-q8-g8-cut, where the start weighs most) beside dbts_b1-q8-g8; a fresh
+Chrome profile or closed tabs; the phone untouched; a cellular arm only if a server the phone reaches over the
+Internet is in scope.
