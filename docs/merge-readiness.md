@@ -165,7 +165,7 @@ the viewer check takes a UDP port it found free, as B7's tests do, and the paint
 | # | item | evidence | verdict | size |
 | --- | --- | --- | --- | --- |
 | C1 | `server/README.md`: "Lab only" lists 3 levers out of about 10, says the default build carries no telemetry (L1 shows otherwise), names `Sessions` fields that do not exist, and leaves `LossBound` and `Traced` out of its object table | `server/README.md:18,126,134-137` | finish | ~12 |
-| C2 | `docs/cloud-queue.md` §Open owner decisions is stale: "GSO cap, 24 or 45" (24 was adopted), v3's bound "the candidate" (it failed). Two product docs still name it as the tracker. | `docs/ARCHITECTURE.md:1175`; `docs/CLIENTS.md:382` | finish: repoint both lines to each doc's §Open. `cloud-queue.md` itself is not this queue's to edit. | 2 |
+| C2 | `docs/cloud-queue.md` §Open owner decisions is stale: "GSO cap, 24 or 45" (24 was adopted; *marked decided in place 2026-10-24*), v3's bound "the candidate" (it failed). Two product docs still name it as the tracker. | `docs/ARCHITECTURE.md:1175`; `docs/CLIENTS.md:382` | finish: repoint both lines to each doc's §Open. `cloud-queue.md` itself is not this queue's to edit. | 2 |
 | C3 | `docs/av1/MERGE.md` describes conflicts the rebuild removed | `MERGE.md:16-23,73` | **remove**, folding what is still true into the pull request | −83 |
 | C4 | `docs/handoff-2026-10-04.md` (to a finished branch) and `docs/server-design-proposal.md` (R4, never built, with line references pinned to old commits) | — | **remove**. Keep R4 as one line in ARCHITECTURE §Open, and the container tips in README if they still hold. | −714 |
 | C5 | `docs/adr/disk-access.md` §5 says the `uring` read lever is "kept as a lab flag"; §1 says it was removed on 2026-10-03, and `ReadMode` has only `auto\|pool` | `disk-access.md:51,169` | finish: correct §5 in place | 1 |
@@ -347,8 +347,8 @@ of them gains must displace one.
 * **Parking the ring on its own fd** (S19): a measured tie, ~30 lines and 2 `unsafe` fewer, one fd a session. The
   only one that is also a simplification.
 * **PGO** (`scripts/pgo_build.sh`): −13 to −20 % server CPU per ask, no cell against (TC §4); the image is built
-  without it. Measured on the lab host, not on the image at the target's rates: `levers.md` §Proposed rows 3
-  (PGOSHIP) is the measurement first. Not a build row.
+  without it. *Measured at the target's rates 2026-10-22* (`levers.md` §Proposed rows 3, PGOSHIP): −13 % CPU per MB
+  through the relay at 103 and 18 Mbit/s, A/A ±1 %, held. Putting it in the image is the owner's call. Not a build row.
 * **`MALLOC_MMAP_THRESHOLD_` at 1 MiB**: RSS at rest −46 to −57 %, CPU a tie to +5 % (disk-access §8, row 51); a
   trade-off left with the owner and in no §Blocked line. For the owner, not a row.
 * Every other lever `docs/levers.md` lists as measured and won is the default already, or is one of the open
@@ -734,7 +734,7 @@ Lines are at `a9fd5bd6`.
 | C7 | `--congestion bbr` as the default; `--initial-window-bytes 38400` | quinn's own, one line each | the owner's: row 75 (§Blocked); row 181 put 38 400 first, opt-in ([link-conditions §Verdicts](transport/link-conditions.md#verdicts-that-rest-on-the-band) item 3) |
 | C8 | `startOnNeed`, AV1's `mixed`, `readMin` | `downloader.js:44-45,131-140,452`; `client/decode/av1.js:13,60-70`; `client/transport/ts/frame-session.ts:21,101-105,188-191` | H3: the owner's |
 | C9 | `recycleAtBytes` | `downloader.js:198,344-` | a fallback for iOS, off. The device measurement it owes is not run ([ARCHITECTURE §The measurement this owes](ARCHITECTURE.md#the-measurement-this-owes)) |
-| C10 | `scripts/pgo_build.sh` | as named | opt-in. Its measurement comes first: [`levers.md`](levers.md) §Proposed rows 3, PGOSHIP |
+| C10 | `scripts/pgo_build.sh` | as named | opt-in. Measured 2026-10-22, held: −13 % server CPU per MB at 103 and 18 Mbit/s through the relay, A/A ±1 % ([`levers.md`](levers.md) §Proposed rows 3, PGOSHIP). Into the image or not: the owner's |
 
 **These are seams, not the lab's, and they stay:**
 * the client's `transport`, `decoderWorker`, `worker`, `survival` overrides and `decode: false`. The contract suite

@@ -68,3 +68,18 @@ $P lab/disk-access-bench/idle_buffers_ab.py make W
 $P lab/disk-access-bench/idle_buffers_ab.py time W 16
 $P lab/disk-access-bench/idle_buffers_ab.py summary W/idle_buffers.jsonl
 ```
+
+## Tile names past the slots (row 259)
+
+T0, T0′ and T1 (`series-server --advise-tile-names`, a `lab-levers` build: one `WILLNEED` per tile name past the reader's slots), each run
+on its own fresh `writer_bench direct` copy, so cold without eviction: [`docs/adr/disk-access.md`](../../docs/adr/disk-access.md)
+§9, *Measured (row 259)*. `server_ab --burst 16` reports each 16-tile burst's wall in place of each ask's latency,
+and `--disjoint` keeps sessions off each other's frames.
+
+```bash
+cargo build --release -p series-server -p disk-access-bench -p container-bench -p pack-series --features series-server/lab-levers
+python3 lab/disk-access-bench/tile_advice_ab.py make W          # 16 KiB and 250 kB series of random frames
+python3 lab/disk-access-bench/tile_advice_ab.py calibrate W     # the smallest stride that misses ≥ 95 % today
+python3 lab/disk-access-bench/tile_advice_ab.py time W 12
+python3 lab/disk-access-bench/tile_advice_ab.py summary W/tile_advice.jsonl
+```

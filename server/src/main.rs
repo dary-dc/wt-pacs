@@ -124,7 +124,7 @@ mod tests {
     #[cfg(not(feature = "lab-levers"))]
     #[test]
     fn the_default_build_refuses_every_lab_lever() {
-        for flag in [&["--force-pool-reads"][..], &["--hold-sessions"], &["--stall-after-bytes", "1"], &["--segmentation-offload", "false"]] {
+        for flag in [&["--force-pool-reads"][..], &["--hold-sessions"], &["--stall-after-bytes", "1"], &["--segmentation-offload", "false"], &["--advise-tile-names"]] {
             assert!(Args::try_parse_from([&["series-server", "--series", "s.sbnd"], flag].concat()).is_err(), "{flag:?} parsed");
         }
     }
@@ -135,8 +135,14 @@ mod tests {
     fn every_lab_lever_parses_under_its_feature() {
         use series_server::LabLevers;
         assert_eq!(parse(&[]).lab, LabLevers::default());
-        let flags = ["--force-pool-reads", "--hold-sessions", "--stall-after-bytes", "7", "--segmentation-offload", "false"];
-        let lab = LabLevers { force_pool_reads: true, hold_sessions: true, stall_after_bytes: Some(7), segmentation_offload: false };
+        let flags = ["--force-pool-reads", "--hold-sessions", "--stall-after-bytes", "7", "--segmentation-offload", "false", "--advise-tile-names"];
+        let lab = LabLevers {
+            force_pool_reads: true,
+            hold_sessions: true,
+            stall_after_bytes: Some(7),
+            segmentation_offload: false,
+            advise_tile_names: true,
+        };
         assert_eq!(parse(&flags).lab, lab);
     }
 }

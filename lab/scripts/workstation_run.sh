@@ -2,7 +2,7 @@
 # The read path on this machine, in one command and one report to send back: docs/adr/disk-access.md §12, *On the
 # workstation*, says what each part answers.
 #
-#   lab/scripts/workstation_run.sh [--quick] [--plan] [--only PART]... [--work DIR] [--exec-gap BIN_DIR]
+#   lab/scripts/workstation_run.sh [--quick] [--plan] [--only PART]... [--work DIR] [--exec-gap BIN_DIR|build]
 #
 # PART is host, ring, readers, server or execgap; --exec-gap adds execgap. Nothing here runs as root.
 set -euo pipefail
@@ -16,7 +16,7 @@ while (($#)); do
     --plan) plan=1 ;;
     --only) parts+=("$2"); shift ;;
     --work) WORK="$(realpath -m "$2")"; shift ;;
-    --exec-gap) exec_gap="$(cd "$2" && pwd)"; shift ;;
+    --exec-gap) [[ $2 == build ]] && exec_gap=build || exec_gap="$(cd "$2" && pwd)"; shift ;;
     *) sed -n '5,7p' "$0" >&2; exit 2 ;;
   esac
   shift
@@ -351,12 +351,12 @@ exec_gap_run() {
   local series="$GAP_SERIES"
   echo "== execgap: $script, BIN_DIR=$exec_gap"
   [[ -x "$script" && -n "$exec_gap" ]] || {
-    echo "execgap: needs --exec-gap BIN_DIR and $script (row 258's branch, or EXEC_GAP_SCRIPT): skipped"
+    echo "execgap: needs --exec-gap BIN_DIR|build and $script (row 258's branch, or EXEC_GAP_SCRIPT): skipped"
     return 0
   }
   [[ -f "$series" ]] || OUT_ROOT="$WORK/fixtures" NAME=frames_499k_past_ram BYTES=499000 FRAMES="$PAST_RAM_FRAMES" \
     lab/scripts/gen_live_cell_fixture.sh
-  BIN_DIR="$exec_gap" ROUNDS="$ROUNDS" "$script" "$series" "$REPORT/execgap" $( ((quick)) && echo --quick) ||
+  BIN_DIR="${exec_gap#build}" ROUNDS="$ROUNDS" "$script" "$series" "$REPORT/execgap" $( ((quick)) && echo --quick) ||
     echo "execgap: exit $? (its output is above and in $REPORT/execgap)"
   mark execgap
 }
