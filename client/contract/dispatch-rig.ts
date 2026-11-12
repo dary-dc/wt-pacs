@@ -836,8 +836,8 @@ async function aFrameSaysWhetherItIsExact(DownloaderClient: DownloaderCtor, chec
   const decoders = await realDecoders(log, "the frame check");
   for (const [name, decoder] of decoders) {
     const r = await run(decoder.glue, [GREY16_XXH3, wrong, null, COLOUR8_XXH3], [grey, grey, grey, colour], decoder);
-    const said = (i: number) => `${r.info(i)?.path} ${r.info(i)?.exact} ${r.info(i)?.reason ?? ""}`;
-    check(r.info(0)?.exact === true && r.info(0)?.path === "htj2k", `exact, ${name}: a 16-bit grey frame matching its digest is true (${said(0)})`);
+    const said = (i: number) => `${r.info(i)?.route} ${r.info(i)?.exact} ${r.info(i)?.reason ?? ""}`;
+    check(r.info(0)?.exact === true && r.info(0)?.route === "htj2k", `exact, ${name}: a 16-bit grey frame matching its digest is true (${said(0)})`);
     check(r.info(3)?.exact === true, `exact, ${name}: an 8-bit colour frame matching its digest is true (${said(3)})`);
     check(r.info(1)?.exact === false && /^htj2k gave 750932eabd34755e, not 0123456789abcdef; htj2k gave 750932eabd34755e$/.test(r.info(1)?.reason ?? ""),
       `exact, ${name}: a mismatch is decoded again, and still false names both decodes (${said(1)})`);
