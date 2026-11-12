@@ -489,8 +489,8 @@ integer pick under the pooled x\* (4.6359) and the per-depth x\* (4.6359 · 4.80
   (0.495, Q 9) and `dbts_c5` (0.450, Q 7) are above 0.45; under the per-depth x\*, `dbt10_ea1141` only. The other 17
   are inside 0.15–0.45. So the OQ view keeps 29–50 % of the fine-band noise's amplitude at the rule's Q (8–25 % of
   its power), and the upper end is at the band's edge, not well inside it.
-* **A3 refuted:** at equal x (bins 0.25 wide, ≥ 3 systems), ν's spread across systems is 0.005–0.07 for x < 2.75
-  and 0.09–0.24 from 2.75 up (15 of 23 bins over 0.08). ν is not one curve of x across systems in the range the rule
+* **A3 refuted:** at equal x (bins 0.25 wide, ≥ 3 systems), ν's spread across systems is 0.005–0.045 for x < 2.75
+  and 0.03–0.24 from 2.75 up, over 0.08 in 15 of those 18 bins (0.11–0.13 at x 4.50–4.75). ν is not one curve of x across systems in the range the rule
   uses (x near 4.6–4.8): theory point 3's white-noise argument does not carry to these volumes.
 * **A4 refuted on three volumes:** Q_ν (the highest Q with median ν ≥ 0.5) is one to three rungs under the pooled
   rule's Q, and costs 1.30–1.92× its bytes on 16 volumes; `dbts_c2` 1.295, `dbts_b5` 1.20 and `dbt10_ea1141` 1.16 are
