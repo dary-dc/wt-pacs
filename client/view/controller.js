@@ -3,6 +3,8 @@ import { FrameStore } from "./store.js";
 import { CUT_DEPTH, depthCut } from "../viewer/pair.js";
 
 const at = () => performance.timeOrigin + performance.now();
+/** ms before each new ask of an exact frame the transport lost; a frame that failed its check is not asked again. docs/reviews/lossless-under-loss.md */
+const EXACT_RETRY_MS = [1000, 4000, 16000];
 export const FIT = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false };
 
 export const asPainted = (info) => ({ pixels: info.pixels, width: info.width, height: info.height, bits: info.bits, components: info.components, signed: info.signed, cut: info.cut });
@@ -56,10 +58,11 @@ export class Controller {
   exactSource = null;
   #exact = null;
   #exactAsks = new Map();
+  #exactRetryMs;
   #cut;
 
   /** `paint(frame, display, { read })` draws a held frame; `emit(type, event)` tells the page; `size` is the canvas's CSS size and DPR. */
-  constructor({ meta, fillMode, paint, emit, size, budget }) {
+  constructor({ meta, fillMode, paint, emit, size, budget, exactRetryMs = EXACT_RETRY_MS }) {
     this.store = new FrameStore({ arrived: (i, frame) => this.#arrived(i, frame), budget });
     this.store.painted = () => this.#painting;
     this.#meta = meta;
@@ -69,6 +72,7 @@ export class Controller {
     this.paint = paint;
     this.#emit = emit;
     this.size = size;
+    this.#exactRetryMs = exactRetryMs;
   }
 
   /** `f.ack`, when the consumer leaves the ack to the store; `f.write`, when its decoder writes the cache. */
@@ -194,17 +198,29 @@ export class Controller {
     if (!this.exactSource || (this.#exact?.i === i && !this.#exact.failed)) return;
     const e = (this.#exact = { i });
     this.repaint();
-    if (!this.#exactAsks.has(i)) this.#exactAsks.set(i, this.exactSource.requestExactFrame(i).finally(() => this.#exactAsks.delete(i)));
-    try {
-      const { info } = await this.#exactAsks.get(i);
-      if (info.exact === true) e.frame = { info, arrived: at() };
-      else e.failed = info.exact === false ? `not exact: ${info.reason}` : "the exact series has no digest for this frame";
-    } catch (err) {
-      e.failed = err.message;
+    for (let tries = 0; ; tries++) {
+      try {
+        const { info } = await this.#askExact(i);
+        if (info.exact === true) e.frame = { info, arrived: at() };
+        else e.failed = info.exact === false ? `not exact: ${info.reason}` : "the exact series has no digest for this frame";
+        break;
+      } catch (err) {
+        if (tries === this.#exactRetryMs.length) {
+          e.failed = err.message;
+          break;
+        }
+        await new Promise((r) => setTimeout(r, this.#exactRetryMs[tries]));
+        if (this.#exact !== e) return;
+      }
     }
     if (this.#exact !== e) return;
     if (e.failed) this.#emit("failed", { scope: "frame", i, reason: `lossless: ${e.failed}` });
     return this.repaint();
+  }
+
+  #askExact(i) {
+    if (!this.#exactAsks.has(i)) this.#exactAsks.set(i, this.exactSource.requestExactFrame(i).finally(() => this.#exactAsks.delete(i)));
+    return this.#exactAsks.get(i);
   }
 
   /** Back to the optimal quality frame. */

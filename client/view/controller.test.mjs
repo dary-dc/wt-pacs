@@ -467,9 +467,12 @@ const lost = () => {
  */
 test("an exact ask the transport failed is asked again, the label asking until the frame comes", async () => {
   const answers = [lost(), lost(), Promise.resolve(exactFrame(1))];
-  const r = lossyRig(() => answers.shift(), { exactRetryMs: [0, 0] });
+  const r = lossyRig(() => answers.shift(), { exactRetryMs: [20, 20] });
   await r.c.show(1);
-  await r.c.showExact();
+  const asked = r.c.showExact();
+  await new Promise((done) => setTimeout(done, 5));
+  await r.c.repaint();
+  await asked;
   assert.deepEqual(r.exactAsks, [1, 1, 1]);
   const runs = r.labels().filter((q, k, a) => q !== a[k - 1]);
   assert.deepEqual(runs, ["optimal", "asking", "lossless"]);
