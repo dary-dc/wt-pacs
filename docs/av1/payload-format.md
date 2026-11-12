@@ -330,7 +330,7 @@ Series the PCS could share are the owner's call ([`queue.md`](queue.md) §Blocke
 *OQ-INGEST, 2026-11-09. Built; the bytes below are measured, the quality is not (the AV1 lab's
 `claude/av1-quality-profiles` measures it).*
 
-The design: every viewer sees a series' **optimal quality**, a visually lossless AV1 view; when a reader asks for
+The design: every viewer sees a series' **optimal quality**, a visually lossless AV1 picture; when a reader asks for
 lossless, the client fetches that frame whole from the **exact series**, the HTJ2K series of the same source, served
 as today. No residual, and no server or wire change: the optimal-quality series is a series of its own, ingested
 beside its exact series, and the client pairs them by `exactSeries` ([`../glossary.md`](../glossary.md)).
@@ -387,8 +387,8 @@ of G 1's bytes on `dbts_a1` and `dbts_c1`, 0.62 on `dbts_b1`.
 the quality is not.*
 
 No engine's WebCodecs returns 12-bit samples (`docs/av1/webcodecs-profiles.md` at `87640e5d` on `claude/av1-webcodecs-profiles`),
-so a D > 10 optimal-quality view would decode only through dav1d-WASM. The **depth cut** is the form that WebCodecs
-decodes: the OQ view coded from each source sample v's 10-bit **code**
+so a D > 10 optimal-quality picture would decode only through dav1d-WASM. The **depth cut** is the form that WebCodecs
+decodes: the optimal-quality picture coded from each source sample v's 10-bit **code**
 
 ```
 c = min((v + 2^(D−11)) >> (D−10), 1023)        D = Bits Stored (0028,0101), over 10
@@ -401,7 +401,7 @@ exception — the samples from 1023 · 2^(D−10) + 2^(D−11) up round to 1024 
 
 * **Which series.** Unsigned grey of D > 10 only; a D ≤ 10 series is coded at its own depth and never cut, and
   `--depth-cut` on one, or on a signed series, is refused by name. The ingest's option; the PCS chooses it. The
-  owner's decision (2026-11-09): for D > 10 the OQ view is the cut; a 12-bit **stored form** (the OQ view coded at
+  owner's decision (2026-11-09): for D > 10 optimal quality is the cut; a 12-bit **stored form** (the optimal-quality picture coded at
   D) is a comparison, decoded by dav1d only after WebCodecs refused it. The owner's decision (2026-11-11): on the demo
   and product path D > 10 is always the cut; the stored form is a lab option (`STORED_FORM=1 scripts/demo-series.sh`),
   never on the demo's show list.
@@ -435,7 +435,7 @@ came out at the bytes of §Optimal quality's table): each `.sbnd` against its ex
 | `dbts_a1` | 0.0687 | 0.0685 | 0.0685 | 0.0064 | 0.0031 | 0.0030 | 0.0740 | 0.0742 |
 | `dbts_c1` | 0.0898 | 0.0883 | 0.0882 | 0.0081 | 0.0039 | 0.0037 | 0.0959 | 0.0947 |
 
-At Q 8 the cut is 6–8 % fewer bytes than the 12-bit view; it is not the same view (codes at a quarter of the
+At Q 8 the cut is 6–8 % fewer bytes than the 12-bit stored form; it is not the same picture (codes at a quarter of the
 precision, then the coding error), so the bytes say nothing of its quality. Since OQ-WEBCODECS-DEFAULT the demo
 script codes `dbts_a1` and `dbts_c1` as cuts at Q 8 and 24, G 1, 8 and 16 (ids `…-cut`), with one stored-form
 series each, `…-q8-g16-stored`. *Corrected 2026-11-10 (DEMO-E2E):* this said the Q 24 and G 8 cuts were not measured;

@@ -180,9 +180,9 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
 12. Which view the demo shows, and whether the page view is ever removed: decided after the phone runs (the owner,
     2026-11-11). No measurement yet shows the view worker faster; both pass every correctness check.
 6. The DICOM ingest codes optimal quality (today only the lab tool does).
-7. The depth cut for D > 10 (the OQ view through WebCodecs, painted from its 10-bit codes through a window table, no
+7. The depth cut for D > 10 (the optimal-quality picture through WebCodecs, painted from its 10-bit codes through a window table, no
    shift pass); D ≤ 10 needs none. Build `claude/oq-depth-cut` (stacks on the two OQ branches). Full fidelity is the
-   exact HTJ2K frame; a 12-bit OQ view through dav1d is the same lossy view at the stored depth, a decode alternative.
+   exact HTJ2K frame; a 12-bit stored form through dav1d is the same lossy picture at the stored depth, a decode alternative.
 10. Is Q 8 right for VL at the windows readers use (display-unit error per window width): `claude/av1-window-q`; how VL
     is established and which metrics experts use (PSNR's limits, windows, guidelines): `claude/av1-vl-metrics`.
 8. Narrow windows show the coding error most: an explicit Lossless request now; an automatic exact request when the
@@ -209,7 +209,7 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
   §Optimal quality, `client/README.md` §Optimal quality, exact on request).
 * The demo is built on `claude/core` and reaches `main` only after review, by 2026-11-13 at the latest.
 * The depth cut is used only for D > 10, to decode through WebCodecs; D ≤ 10 is coded at its own depth. Splitting
-  the OQ view's decoded samples into top and low streams is discarded: it needs a second encode, a lossy top cannot
+  the optimal-quality picture's decoded samples into top and low streams is discarded: it needs a second encode, a lossy top cannot
   be completed by the low bits, and the screen's content could no longer be controlled.
 
 ## Decisions (the owner's, 2026-11-11)
