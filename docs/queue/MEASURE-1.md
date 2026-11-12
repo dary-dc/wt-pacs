@@ -1,8 +1,12 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-12 04:15
+heartbeat: 2026-11-12 04:35
 outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure da85fae9 (B0, B and A measured: docs/av1/audit-protocols.md §B, §A measured d3071269, rows/b.jsonl and b-summary.json 03c1597d, codecs line da85fae9); C not started; no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
 ## Resume
+2026-11-12 04:33: C rounds 0-14 started (log /home/user/logs/c.log); streams done, smoke on all three volumes hash-ok,
+cores lever 4.11x / 8.14x / 15.51x (rows/c-check.txt), amendment corrected before the run (ceae2ab7: b1's rule Q 11 is
+above 8). loop.sh commits rows/c.jsonl every 10 min. If stalled: rebuild the streams (below), rerun the same c.mjs
+command (it resumes), then the summary.
 Resumed 2026-11-12 03:25 by a new session (stalled at 01:31), at C. 03:50: C amendment 1 pushed (9dd58017, with
 lab/av1/audit/c_streams.sh). Setup: git worktree add --detach ../tip origin/claude/demo-fixes-2 (18d2d1ff); in ../tip
 bash client/decode/wasm/fetch_openjph.sh; pip install meson==1.9.1 ninja; TIP=$PWD OUT=$HOME/cstreams
