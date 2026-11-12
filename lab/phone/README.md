@@ -21,7 +21,7 @@ JSON records sharing one `load` id:
 * `visibility` with its `event` (`start`, `visibilitychange`, `freeze`, `resume`, `pagehide`) and the page's `state`
   (`document.visibilityState`) then: a load whose page was hidden or frozen is interference, not a failure
   ([`docs/reviews/hidden-page-decode.md`](../../docs/reviews/hidden-page-decode.md)). The record is the page's; a
-  freeze is seen only by browsers that fire Page Lifecycle's `freeze` (Chrome).
+  freeze is seen only where the browser fires Page Lifecycle's `freeze` event.
 
 Nothing is sent during the fill: records wait for its end, then leave in one `navigator.sendBeacon`; later ones wait
 for the page to be hidden (or the runner's flush). The page reads the fill's end through the lab's `finished` hook,
