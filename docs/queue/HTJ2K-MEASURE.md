@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-11 18:59 UTC
-heartbeat: 2026-11-12 06:17 UTC
-outputs: `claude/htj2k-tiles` 3ec91da1 (rows, docs; draft PR #324 into main, already open: the commits land in it)
+heartbeat: 2026-11-12 06:37 UTC
+outputs: `claude/htj2k-tiles` f11800dd (rows, docs; draft PR #324 into main, already open: the commits land in it)
 ## Resume
 Session 3 plan (2026-11-11 23:24 UTC), the client's design fixed before any run:
 * `lab/htj2k-tiles/improve/stage3/`: `page.js` (one lab page, every arm), `store.js` (a lab OPFS store worker: level
@@ -79,6 +79,12 @@ HTJ2K-VERDICT waits on this row.
   driver names the differing frames (sync it into the tree first: `/home/user/sync.sh`). The pre-registered
   decode-bound test (D's every-slice at 4× > 1.05 × 1×) names 13 of 20 (set, link) pairs, which leaves mostly
   `r5000` link-bound; to be stated in the readings, not amended.
+* **S3a complete** (`a168d0c3`, 400 rows, 350 kept, 17 failed, 33 void; facts in docs, `f11800dd`). The stall: an
+  OPFS write in the lab store never returns, after the clock (reproduced under debug). `f11800dd` restarts the store
+  after 30 s and resends the operation, counting `storeRetries`; it is being tested (24 visits, `/home/user/repro2.jsonl`).
+  Next: S3b, `/home/user/sync.sh` first, then from `/home/user/demo`: `NODE_PATH=$(npm root -g) node
+  lab/htj2k-tiles/improve/stage3/run.mjs --series demo-series --bands lab/.av1-work/htj2k-improve --rounds 2
+  --first-round 2 --out /home/user/s3b.jsonl`, with the pusher's paths changed to s3b.
 ## Result
 * Stages 0–2 of `docs/htj2k-tiles.md` §Improve's protocol run; stage 3's inputs built (strip series 294/294 exact from
   the entries; D series from `157b7109`, equal to FREEZE-E2E's), its client and runs not yet, so R3–R7 are undecided.
