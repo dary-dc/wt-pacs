@@ -22,7 +22,8 @@ let session = null;
  */
 let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true, refill: "head", askDepth: 4, span: 0 };
 /** ms, and how many re-dials. `cfg.survival` as an object overrides them; `false` turns all but `decodeMs` off. */
-const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000, decodeMs: 10_000 };
+// A decode deadline firing `frozenMs` late found this thread stopped (a hidden page): docs/reviews/hidden-page-decode.md
+const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000, decodeMs: 10_000, frozenMs: 1000 };
 /** A frame lost with its decoder this many times fails by name. docs/ARCHITECTURE.md §The downloader */
 const ATTEMPTS = 2;
 let dial = null;
@@ -457,10 +458,15 @@ function onDone(d) {
   pump();
 }
 
-/** A decoder that owes a frame and answers nothing for `decodeMs` is replaced: the clock restarts at each answer. */
+/** A decoder that owes a frame and answers nothing for `decodeMs` of running time is replaced: the clock restarts at each answer. */
 function arm(d) {
   clearTimeout(d.deadline);
-  if (d.outstanding > 0) d.deadline = setTimeout(() => replace(d, `decoder ${d.id} answered nothing in ${deadlines.decodeMs} ms`), deadlines.decodeMs);
+  if (d.outstanding === 0) return;
+  const due = performance.now() + deadlines.decodeMs;
+  d.deadline = setTimeout(() => {
+    if (performance.now() - due > deadlines.frozenMs) return arm(d);
+    replace(d, `decoder ${d.id} answered nothing in ${deadlines.decodeMs} ms`);
+  }, deadlines.decodeMs);
 }
 
 /** A crashed or hung decoder, or one whose delivery the page could not read: a fresh one in its place, and every frame it holds unacknowledged asked again. */
