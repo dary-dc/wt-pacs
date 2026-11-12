@@ -94,4 +94,6 @@ python3 lab/phone/rows.py docs/phone-rows/raw dbts_b1-q8-g8 --exclude $X
 python3 lab/phone/losses.py docs/phone-rows/raw dbts_b1-q8-g8 --exclude $X --orphan 4443:10
 ```
 
-Both scripts are read-only over `raw/` and have no test of their own yet.
+Both scripts are read-only over `raw/` and have no test of their own yet. [`run-env.sh`](run-env.sh) is the shell
+functions the run was served with (the Second amendment's, memlock 8 MiB per its Note, `--beacon`), sourced with
+`RUN=target/phone-run` in both terminals.
