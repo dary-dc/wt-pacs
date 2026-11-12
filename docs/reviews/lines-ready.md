@@ -116,7 +116,15 @@ partly done in the tip by `f866da46` and CLEAN-PRODUCT; the merge keeps the stri
 `deploy/web-files.sh`). The Containerfile check gives the same answer on all four and on the tip: only the
 `workspace` build stage copies `lab/` crates, which the rule allows.
 
-Running when this was first pushed; the rows follow once each build lands.
+| branch | `cargo build --release -p series-server` | lab crates in `default-members` | lab sources in its dependency file |
+| --- | --- | --- | --- |
+| `line-pacs` | ok, 80 s | none | none |
+| `line-server` | ok, 43 s | none | none |
+| `line-hygiene` | ok, 43 s | none | none |
+
+The check can fail: `line-server` built with `--features lab-frame-cache` lists
+`lab/disk-access-bench/src/frame_cache.rs`. `line-viewer` changes no Rust and was not built. Builds share one
+target directory, so the times after the first are incremental.
 
 ## 6. `claude/line-viewer` (#255): parked
 
