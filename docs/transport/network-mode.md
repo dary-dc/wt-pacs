@@ -63,7 +63,7 @@ The controller sees only what reaches quinn: acknowledgements, losses and their 
   accounting holds back the sender as in host mode (*derived* from the source, not observed).
 * **Delay that is the host's** (*derived*). Every round trip through pasta includes its wait to be scheduled and its
   queue, in both directions (the data out, the acknowledgement in). It enters `rtt`, `min_rtt` and therefore BBR's
-  model of the path and the queue-growth rule `lab/phone/losses.py` uses to call a loss congestive
+  model of the path and the queue-growth rule `claude/phone-rows:lab/phone/losses.py` uses to call a loss congestive
   (q ≥ max(4 ms, min_rtt/8)). The run's minimum round trips were 2.2–18.7 ms (*measured*, host mode); a scheduling
   delay of a millisecond is a large fraction of the smallest. Not measured.
 * **No ECN** (*sourced*). pasta writes `tos = 0` in every IPv4 header it builds toward the container (`tap.c`,
