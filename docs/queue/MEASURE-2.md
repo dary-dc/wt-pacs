@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11T19:00Z
-heartbeat: 2026-11-12T00:58Z
+heartbeat: 2026-11-12T00:47Z
 outputs: claude/proposals 603875d5, docs/lines/proposals.md §Round 2 (amendments 1 of R1-R4; Measured R1 90c3e3e3, R2 1eee0579, R3 76ab875d, R4 1609aad4), rows lab/proposals/rows/r1-*, r2, r3, r4.jsonl; docs and lab drivers only; no PR (PR #358, OPT-THEORY's draft into main, carries claude/proposals)
 ## Resume
 2026-11-12T00:24Z: resumed (stalled) by a new session for R5; setup next.
@@ -8,6 +8,16 @@ outputs: claude/proposals 603875d5, docs/lines/proposals.md §Round 2 (amendment
 commit 157b7109 plus docs, and ../proposals; meson, wasm32, wasm-pack, transport builds, dev cert, series-server,
 demo-series; apt-get install nginx). R5 drivers pushed (2bea9dab: lab/proposals/r5_arm.sh, r5_cells.mjs, r5.sh;
 not yet smoked). Next: smoke one run per arm (not kept), amendment 1 of R5 in §R5, then r5.sh taken, refused, failed.
+2026-11-12T00:47Z: setup done (demo-series needed lab/av1/.venv filled first: pip install --require-hashes -r
+lab/av1/requirements.txt; 584 s). Smoke (7 runs, not kept); R5 amendment 1 pushed (d083e46c, §R5). Counted runs
+started: /home/user/bin/runall.sh runs, in ../proposals with TIP=/home/user/tip DIR=/home/user/tip/demo-series
+ROOTS=/home/user/r5roots, lab/proposals/r5.sh taken /home/user/r5-taken.jsonl, then refused, then failed (432, 432,
+27 rows; ~1.5 h, ~1.5 h, ~25 min). Roots: lab/proposals/r5_arm.sh TIP ROOTS/lazy lazy; ROOTS/probe probe; and for
+failed ROOTS/{today,lazy,probe}-<id> with FAIL 27 (a1, b1) or 35 (c1). A pusher (/home/user/bin/pusher.sh) copies
+rows to lab/proposals/rows/r5-<route>.jsonl and bumps this heartbeat every 10 min. nginx from apt (apt-get update;
+apt-get install -y nginx). If stopped: a taken/refused round is 48 rows, a failed round 9; move a partial round
+aside (r5-<route>-stopped.jsonl) and rerun r5.sh ROUTE OUT FIRST_ROUND. Then a summary (r5_summary.py, to write)
+→ §R5 Measured, the Result, the codecs/optimal-quality line note.
 22:52: R1-R4 done and pushed, nothing unpushed, nothing running. This session stops before R5 (context); left
 `started` so the next worker resumes it once the heartbeat is an hour old.
 Next: R5 (§R5: P6's rule with an A/A arm, the tip against itself). Owed before any run: an amendment, and P6's arms
