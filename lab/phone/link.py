@@ -31,7 +31,7 @@ def queue_ms(event: dict) -> float:
 
 
 def sessions(run: str, series: str, srv: str, port: str, exclude: set, orphans: set) -> list:
-    """(link, path rows, congestion events) of each counted session, matched to loads as losses.py matches them."""
+    """(load, path rows, congestion events) of each counted session, matched to loads as losses.py matches them."""
     rows, events = {}, {}
     for r in losses.last_process(f"{run}/servers/srv-{srv}-path.jsonl"):
         rows.setdefault(r["session_id"], []).append(r)
@@ -41,7 +41,7 @@ def sessions(run: str, series: str, srv: str, port: str, exclude: set, orphans: 
     loads = losses.port_loads(run, series, port)
     if len(ids) != len(loads):
         raise SystemExit(f"{srv}: {len(ids)} sessions, {len(loads)} loads at {port}: name the orphan sessions")
-    return [(load["link"], rows[sid], events.get(sid, [])) for sid, load in zip(ids, loads)
+    return [(load, rows[sid], events.get(sid, [])) for sid, load in zip(ids, loads)
             if load["counted"] and load["id"] not in exclude]
 
 
@@ -71,7 +71,7 @@ def main() -> None:
     for srv, (port, controller) in losses.SERVERS.items():
         by_link = {}
         for s in sessions(a.run, a.series, srv, port, set(a.exclude), orphans):
-            by_link.setdefault(s[0], []).append(s)
+            by_link.setdefault(s[0]["link"], []).append(s)
         for link, counted in sorted(by_link.items()):
             print(f"{link:6} {controller:13} {summary(counted)}")
 
