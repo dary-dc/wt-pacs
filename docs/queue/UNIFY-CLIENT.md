@@ -1,6 +1,6 @@
 state: done
 started: 2026-11-12T14:01Z
-heartbeat: 2026-11-12T15:08Z
+heartbeat: 2026-11-12T15:23Z
 outputs: claude/unified-client e3bf1a10 (code tip 95dc4733), draft PR #382 into claude/core
 ## Resume
 Done; nothing left for this row. UNIFY-REVIEW reviews claude/unified-client (#382).
@@ -14,5 +14,5 @@ Done; nothing left for this row. UNIFY-REVIEW reviews claude/unified-client (#38
 * demo-series.sh 21 series (745 s); full gate GATE OK 850 s (skipped: native painter/window, cross-codec + Firefox,
   nginx); comment budget ok; demo-check 20 runs x {page, worker}, interleaved by series: 40/40 passed.
 * Fixtures: dbts_a1/b1/c1, one dataset; no ultrasound cine; one 4-core cloud host, no GPU, headless Chromium on
-  SwiftShader, loopback; one run per cell; correctness only, nothing timed; no phone. CI on #382 not read.
+  SwiftShader, loopback; one run per cell; correctness only, nothing timed; no phone. CI on #382 (gate, deploy) at e3bf1a10: suite completed, none failed.
 * Owner: whether the branch carries CLEAN-2 and NAMES-1 (merged on the brief's word, neither reviewed yet).
