@@ -100,7 +100,7 @@ Runs, in order, each one background command, rows pushed by hand or a loop every
   Mid-group failure: same missing frames, routes and error in every arm. Heuristic cache: yes on both hosts.
   Amendment 2 cut 9 rounds to 5 (host rate) before any row was read; static host's TCP not on the UDP queue.
 * Fixtures: dbts_a1/b1/c1 Q 8 (R1: G 1, 8, 16 with the cut on a1 and c1), three DBT volumes of one dataset; demo tip
-  d46811c6, I1/I2 on claude/oq-integrity-build 08bf659e; userspace relay, not a radio; one 4-core cloud host, no GPU,
+  d46811c6 (R5: the demo commit 157b7109), I1/I2 on claude/oq-integrity-build 08bf659e; userspace relay, not a radio; one 4-core cloud host, no GPU,
   SwiftShader, headless Chromium; 2-core cells are taskset, not a phone. Gate not run: docs and lab drivers only
   (check_links 0 unresolved, comment budget ok). Wake arm's test: 3 of 3 mutants killed.
 * Owner: whether to build (c) (P6) after the demo, ~13 lines; R1 and R4 inform only decisions after the demo; R2 adds to the BBR call the phone runs decide.
