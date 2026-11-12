@@ -106,7 +106,7 @@ matched the encoder's reconstruction; no such digest exists).
   follows the exact frame's paint, and only when that frame's `exact` is `true`; *Lossless check failed* in red, the
   lossy frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed; the button then asks again.
 * **Routes**: WebCodecs first for every optimal-quality series, a depth cut and a 12-bit stored form alike; dav1d-WASM only
-  after WebCodecs refused the frame or its probe failed, the route in each frame's `info.path` and the refusal in
+  after WebCodecs refused the frame or its probe failed, the route in each frame's `info.route` and the refusal in
   `info.refusal` (§Which decoder, per payload). In headless Chromium a 12-bit unit is refused at `decode`. The demo shows
   no stored form (the owner, 2026-11-11: a lab option); the fallback keeps its browser check through the lab's
   `refuseWebCodecs` (`?opts={"refuseWebCodecs":true}`, `demo-check.mjs --refuse-webcodecs`), which refuses WebCodecs on a
@@ -357,11 +357,11 @@ harness's per-frame `.sha256` is what sees that.
 `digests.frames` when its `algorithm` is `xxh3-64` ([`docs/FIXTURES.md`](../docs/FIXTURES.md) §Frame digests) —
 each decoder worker hashes every frame it decodes before handing it on, and the frame carries
 `info.exact`: `true` when its XXH3-64 matches, `"unchecked"` when the series or the frame has no digest.
-A mismatch is decoded once more on another path (`info.path`: `htj2k` in a decoder object of its own,
+A mismatch is decoded once more on another route (`info.route`: `htj2k` in a decoder object of its own,
 `av1-webcodecs` ⇄ `av1-dav1d`, `av1-mixed` → `av1-dav1d`; inside a group there is none) and is `true`
-only if that matches, with `info.mismatchOn` naming the path that missed; otherwise `false`, its
+only if that matches, with `info.mismatchOn` naming the route that missed; otherwise `false`, its
 `info.reason` naming both decodes. A frame is never asked again for it: the same bytes would come back.
-`stats().exact` counts frames per path as `{ true, false, unchecked }`. The hasher is xxHash's XXH3 with SIMD128
+`stats().exact` counts frames per route as `{ true, false, unchecked }`. The hasher is xxHash's XXH3 with SIMD128
 (`decode/xxh3.js`, built by `decode/wasm/build`), held to hash-wasm's digests by `decode/xxh3.test.mjs`; a
 worker given digests that cannot load it fails its start. What it costs
 and why it is on: [`docs/adr/exactness-in-production.md`](../docs/adr/exactness-in-production.md).
@@ -519,7 +519,7 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   the slices, the touch gesture taking nothing the canvas uses (one finger stays window/level; the choice and its
   sources: `claude/slice-touch:docs/reviews/slice-touch.md`). Moving it pauses cine; every slice shown otherwise moves
   it; a focused slider answers the stepping keys itself, so the page skips them. Both views alike.
-* **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the decoder per path, the
+* **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the frames per route, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name. A tap
   (touch only; a mouse click does nothing) on it or on the quality label unfolds it whole, wrapped; the next folds it
   (`viewer/screen.js` `unfoldOnTap`).

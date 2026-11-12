@@ -78,7 +78,7 @@ export async function protocol({ controller, port, n, onDemand }) {
   out.heldStep = await heldStep(controller, port);
   out.windowStep = await windowStep(controller, port);
   Object.assign(out, { received: controller.received, exact: controller.seen.exact, inexact: controller.seen.inexact,
-    unchecked: controller.seen.unchecked, paths: controller.seen.paths, fillMs: controller.fillMs, firstShownMs: controller.firstShownMs });
+    unchecked: controller.seen.unchecked, routes: controller.seen.routes, fillMs: controller.fillMs, firstShownMs: controller.firstShownMs });
   const step = async (name, fn) => {
     try {
       out[name] = await fn();
@@ -135,7 +135,7 @@ export function watchWrites() {
 export async function cache({ controller }) {
   const { store } = controller;
   const frames = () => [...store.keys()].map((i) => [i, store.get(i)]);
-  const settled = () => frames().every(([, f]) => f.written || f.info.path === "cache" || f.info.exact !== true);
+  const settled = () => frames().every(([, f]) => f.written || f.info.route === "cache" || f.info.exact !== true);
   for (const t = performance.now(); store.cache && !settled() && performance.now() - t < 10_000; ) await new Promise((r) => setTimeout(r, 20));
   return {
     held: frames().length,

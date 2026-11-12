@@ -17,7 +17,7 @@ let cache = null;
 
 const abs = () => performance.timeOrigin + performance.now();
 
-/** Both codec modules: `init(config)`, then `decodeFrame(bytes, unit, preview, avoid)` → `{ info, sab, byteCount, range, path, refusal }`, `avoid` a path not to take. */
+/** Both codec modules: `init(config)`, then `decodeFrame(bytes, unit, preview, avoid)` → `{ info, sab, byteCount, range, route, refusal }`, `avoid` a route not to take. */
 async function init(m) {
   transferFrames(m.pixels === "transfer");
   // Only an AV1 series loads AV1 code; which decoder takes a payload is chosen per payload. docs/av1/payload-format.md
@@ -39,18 +39,18 @@ async function write(index) {
 
 const hash = (sab) => xxh3.init().update(new Uint8Array(sab)).digest("hex");
 
-/** A mismatch is decoded once more on another path, never asked again: docs/adr/exactness-in-production.md §2 */
+/** A mismatch is decoded once more on another route, never asked again: docs/adr/exactness-in-production.md §2 */
 async function checked(m, r) {
   const want = digests?.[m.index];
   if (!want) return { ...r, exact: "unchecked" };
   const got = hash(r.sab);
   if (got === want) return { ...r, exact: true };
-  const first = `${r.path} gave ${got}, not ${want}`;
+  const first = `${r.route} gave ${got}, not ${want}`;
   try {
-    const again = await codec.decodeFrame(m.bytes, m, null, r.path);
+    const again = await codec.decodeFrame(m.bytes, m, null, r.route);
     const second = hash(again.sab);
-    if (second === want) return { ...again, exact: true, mismatchOn: r.path };
-    return { ...r, exact: false, reason: `${first}; ${again.path} gave ${second}` };
+    if (second === want) return { ...again, exact: true, mismatchOn: r.route };
+    return { ...r, exact: false, reason: `${first}; ${again.route} gave ${second}` };
   } catch (err) {
     return { ...r, exact: false, reason: `${first}; no second decode: ${err?.message ?? err}` };
   }
@@ -90,7 +90,7 @@ async function decode(m) {
   }
 }
 
-function picture(m, { info, sab, byteCount, range, path, refusal, exact, reason, mismatchOn }, stamps) {
+function picture(m, { info, sab, byteCount, range, route, refusal, exact, reason, mismatchOn }, stamps) {
   return {
     kind: "frame",
     index: m.index,
@@ -104,7 +104,7 @@ function picture(m, { info, sab, byteCount, range, path, refusal, exact, reason,
     min: range.min,
     max: range.max,
     byteCount,
-    path,
+    route,
     refusal,
     exact,
     reason,

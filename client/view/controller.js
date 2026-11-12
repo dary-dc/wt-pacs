@@ -8,7 +8,7 @@ export const FIT = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: fal
 export const asPainted = (info) => ({ pixels: info.pixels, width: info.width, height: info.height, bits: info.bits, components: info.components, signed: info.signed, cut: info.cut });
 
 /** What the developer overlay shows of a painted frame: its decode route and why WebCodecs refused it, the bytes that crossed the link, its decode time. */
-const about = ({ path, refusal, wireBytes, stamps }) => ({ path, refusal, wireBytes, decodeMs: stamps?.decodeEnd && stamps.decodeEnd - stamps.decodeStart });
+const about = ({ route, refusal, wireBytes, stamps }) => ({ route, refusal, wireBytes, decodeMs: stamps?.decodeEnd && stamps.decodeEnd - stamps.decodeStart });
 
 export function samplesOf(info) {
   const { bits, components, signed } = info;
@@ -32,7 +32,7 @@ export class Controller {
   ascending = false;
   current = 0;
   received = 0;
-  seen = { exact: 0, inexact: 0, unchecked: 0, paths: {} };
+  seen = { exact: 0, inexact: 0, unchecked: 0, routes: {} };
   issuedAt = 0;
   fillMs = null;
   firstShownMs = null;
@@ -85,7 +85,7 @@ export class Controller {
     this.received += 1;
     const e = info.exact;
     this.seen[e === true ? "exact" : e === false ? "inexact" : "unchecked"]++;
-    if (info.path) this.seen.paths[info.path] = (this.seen.paths[info.path] ?? 0) + 1;
+    if (info.route) this.seen.routes[info.route] = (this.seen.routes[info.route] ?? 0) + 1;
     if (this.#fillMode && this.fillMs === null && this.received === this.#n) this.fillMs = at() - this.issuedAt;
     if (i === this.current) this.repaint();
     this.#emit("progress", { have: this.received, total: this.#n, seen: this.seen, fillMs: this.fillMs, at: at() });
@@ -261,7 +261,7 @@ export class Controller {
       boot ??= info.stamps?.boot;
       const samples = new Uint8Array(info.pixels).slice();
       if (flip) samples[samples.length >> 1] ^= 1;
-      frames.push({ i, page: arrived, lastByte: info.stamps?.lastByte, decoded: info.stamps?.decodeEnd, mediaReads: info.stamps?.mediaReads, exact: info.exact, path: info.path, painted, writeAsked, written, sha: await sha256Hex(samples) });
+      frames.push({ i, page: arrived, lastByte: info.stamps?.lastByte, decoded: info.stamps?.decodeEnd, mediaReads: info.stamps?.mediaReads, exact: info.exact, route: info.route, painted, writeAsked, written, sha: await sha256Hex(samples) });
     }
     return { frames, firstShownMs: this.firstShownMs, fillMs: this.fillMs, stats: this.client.stats(), boot };
   }

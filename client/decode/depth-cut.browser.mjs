@@ -43,7 +43,7 @@ try {
       try {
         const r = await av1.decodeFrame(bytes, { key: i % g === 0, index: i, gen: 0 });
         const sha = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(r.sab).slice())), (b) => b.toString(16).padStart(2, "0")).join("");
-        out.push({ path: r.path, bits: r.info.bitsPerSample, max: r.range.max, sha });
+        out.push({ route: r.route, bits: r.info.bitsPerSample, max: r.range.max, sha });
       } catch (e) {
         out.push({ error: e.message });
       }
@@ -51,9 +51,9 @@ try {
     return out;
   }, { dir: FIXTURE, names, g: meta.lossy.g });
   for (const [i, r] of got.entries()) {
-    const ok = r.path === "av1-webcodecs" && r.bits === 10 && r.max <= 1023 && r.sha === want[i];
+    const ok = r.route === "av1-webcodecs" && r.bits === 10 && r.max <= 1023 && r.sha === want[i];
     if (!ok) failed++;
-    console.log(`${ok ? "ok  " : "FAIL"} frame ${i}: ${r.error ?? `${r.path}, ${r.bits}-bit, max ${r.max}, ${r.sha === want[i] ? "dav1d's codes" : `sha ${r.sha}, not ${want[i]}`}`}`);
+    console.log(`${ok ? "ok  " : "FAIL"} frame ${i}: ${r.error ?? `${r.route}, ${r.bits}-bit, max ${r.max}, ${r.sha === want[i] ? "dav1d's codes" : `sha ${r.sha}, not ${want[i]}`}`}`);
   }
   if (got.length !== meta.frameCount) failed++;
   const stored = await page.evaluate(async (file) => {
@@ -64,15 +64,15 @@ try {
     const bytes = new Uint8Array(await (await fetch(file)).arrayBuffer());
     const out = [];
     for (let i = 0; i < 2; i++) {
-      const r = await av1.decodeFrame(bytes).catch((e) => ({ path: e.message }));
-      out.push({ path: r.path, refusal: r.refusal, calls: calls.splice(0).join() });
+      const r = await av1.decodeFrame(bytes).catch((e) => ({ route: e.message }));
+      out.push({ route: r.route, refusal: r.refusal, calls: calls.splice(0).join() });
     }
     return out;
   }, "/client/contract/av1/payloads/plain/g12.av1");
   for (const [i, r] of stored.entries()) {
-    const ok = r.path === "av1-dav1d" && /undecodable/.test(r.refusal ?? "") && r.calls === "dav1d";
+    const ok = r.route === "av1-dav1d" && /undecodable/.test(r.refusal ?? "") && r.calls === "dav1d";
     if (!ok) failed++;
-    console.log(`${ok ? "ok  " : "FAIL"} 12-bit stored form, frame ${i}: ${r.path} after WebCodecs refused: ${r.refusal}`);
+    console.log(`${ok ? "ok  " : "FAIL"} 12-bit stored form, frame ${i}: ${r.route} after WebCodecs refused: ${r.refusal}`);
   }
 } finally {
   await browser.close();

@@ -535,7 +535,7 @@ Chrome also lists the phone through the running adb server (`AdbDeviceProvider`,
 ([Chrome DevTools](https://developer.chrome.com/docs/devtools/rendering/performance)). A DevTools session changes what
 the browser does: close it before a timed run ([`docs/devices.md`](docs/devices.md) §3).
 
-**6 · Which AV1 decoder.** The status line's `decoders:` counts frames per path: `av1-webcodecs` (Chrome's
+**6 · Which AV1 decoder.** The status line's `routes:` counts frames per route: `av1-webcodecs` (Chrome's
 `VideoDecoder`), `av1-dav1d` (the page's own WASM), `htj2k`. The product configures WebCodecs with
 `hardwareAcceleration: "prefer-software"` (`client/decode/av1-webcodecs.js`), and under it Chrome builds no platform
 decoder: `if (hardware_preference_ != HardwarePreference::kPreferSoftware)` guards the `MojoDecoderFactory`

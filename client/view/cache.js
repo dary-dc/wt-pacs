@@ -18,7 +18,7 @@ export async function openCache({ writer, key, digests, emit }) {
   let stopped = false;
   return {
     present: new Set(cache.present),
-    read: (i) => cache.read(i).then((info) => (info ? { ...info, exact: true, path: "cache" } : null), () => null),
+    read: (i) => cache.read(i).then((info) => (info ? { ...info, exact: true, route: "cache" } : null), () => null),
     /** Paint first: the frame store calls this once the frame's paint has drawn. */
     async write(i, frame) {
       if (stopped) return false;

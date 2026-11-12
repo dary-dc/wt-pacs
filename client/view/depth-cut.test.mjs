@@ -5,7 +5,7 @@ import { Controller } from "./controller.js";
 /** A 2×1 grey frame of `bits` bits, as a decoder hands it to the controller. */
 const frame = (i, bits) => ({
   frameIndex: i,
-  info: { pixels: new Uint16Array([0, 4095]).buffer, width: 2, height: 1, bits, components: 1, signed: false, min: 0, max: 4095, exact: "unchecked", path: "av1-dav1d", stamps: {} },
+  info: { pixels: new Uint16Array([0, 4095]).buffer, width: 2, height: 1, bits, components: 1, signed: false, min: 0, max: 4095, exact: "unchecked", route: "av1-dav1d", stamps: {} },
 });
 
 /**

@@ -73,7 +73,7 @@ const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
   onFrame: (f) => {
     const i = f.frameIndex - (LAYERS - 1) * F;
     const { lastByte, decoder, decodeStart: start, decodeEnd: end } = f.info.stamps;
-    frames.push({ i, page: at(), lastByte, decoder, start, end, exact: f.info.exact, path: f.info.path });
+    frames.push({ i, page: at(), lastByte, decoder, start, end, exact: f.info.exact, path: f.info.route });
     pixels.set(i, f.bytes);
     settled(client);
   },

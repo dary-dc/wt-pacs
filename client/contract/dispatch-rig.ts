@@ -10,7 +10,7 @@ const enc = new TextEncoder();
 /** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
 const text = (b?: Uint8Array) => (b ? new TextDecoder().decode(Uint8Array.from(b)) : "");
 
-type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { width?: number; height?: number; bits?: number; components?: number; signed?: boolean; preview?: boolean; decodeSeq?: number; maxInFlight?: number; byteCount?: number; wireBytes?: number; min?: number; max?: number; path?: string; exact?: boolean | string; reason?: string; mismatchOn?: string; stamps?: { decodeStart?: number; decodeEnd?: number; decoder?: number } } };
+type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { width?: number; height?: number; bits?: number; components?: number; signed?: boolean; preview?: boolean; decodeSeq?: number; maxInFlight?: number; byteCount?: number; wireBytes?: number; min?: number; max?: number; route?: string; exact?: boolean | string; reason?: string; mismatchOn?: string; stamps?: { decodeStart?: number; decodeEnd?: number; decoder?: number } } };
 type Fail = { frameIndex: number; reason: string; generation: number };
 type Downloader = {
   requestExactFrame(index: number): Promise<Frame>;
@@ -1126,7 +1126,7 @@ async function anAv1FrameEitherDecoderCannotReturnExactlyIsAFailure(DownloaderCl
 
 const HASHER = "/client/decode/wasm/built/xxh3/xxh3.wasm";
 const digestOf = async (base: string) => (await (await fetch(`${base}.xxh3`)).text()).trim();
-const verdicts = (got: Frame[]) => [...got].sort((a, b) => a.frameIndex - b.frameIndex).map((f) => `${f.info.path}:${f.info.exact}`).join() || "none";
+const verdicts = (got: Frame[]) => [...got].sort((a, b) => a.frameIndex - b.frameIndex).map((f) => `${f.info.route}:${f.info.exact}`).join() || "none";
 
 /**
  * AV1 payloads checked against the writer's digests (`NAME.xxh3`, Python's xxhash): every golden shape and

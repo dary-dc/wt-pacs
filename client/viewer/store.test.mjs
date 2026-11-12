@@ -195,7 +195,7 @@ const fresh = () => ((disk = new Disk()), disk);
   const { info } = await call("read", { index: 2 });
   const want = frame("a", 2);
   check(info && String(new Uint8Array(info.pixels)) === String(new Uint8Array(want.pixels)), "frame 2 read back with other bytes");
-  check(info?.min === 2 && info?.max === 102 && info?.width === 2 && info?.bits === 16 && info?.exact === true && info?.path === "store",
+  check(info?.min === 2 && info?.max === 102 && info?.width === 2 && info?.bits === 16 && info?.exact === true && info?.route === "store",
     `frame 2's info ${JSON.stringify({ ...info, pixels: undefined })}`);
 }
 

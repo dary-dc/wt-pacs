@@ -59,7 +59,7 @@ export async function decodeFrame(bytes, unit = { key: true }, preview, avoid) {
   if (wc) {
     try {
       const [t, l] = await Promise.all([wc.picture(top, unit), low && wc.picture(low, { key: true }, "low")]);
-      return { ...(l ? merge(t, l, payload) : end(begin(t, payload), l)), path: "av1-webcodecs" };
+      return { ...(l ? merge(t, l, payload) : end(begin(t, payload), l)), route: "av1-webcodecs" };
     } catch (e) {
       if (avoid === "av1-dav1d") throw e;
       refusal = e?.message ?? String(e);
@@ -79,6 +79,5 @@ export async function decodeFrame(bytes, unit = { key: true }, preview, avoid) {
     await pending; // in flight, it would be taken as the next payload's low
   }
   const lowPic = low && (await pending);
-  const path = lowPic ? "av1-mixed" : "av1-dav1d";
-  return { ...end(f, low && (lowPic || dav1d.picture(low, { key: true }))), path, refusal };
+  return { ...end(f, low && (lowPic || dav1d.picture(low, { key: true }))), route: lowPic ? "av1-mixed" : "av1-dav1d", refusal };
 }

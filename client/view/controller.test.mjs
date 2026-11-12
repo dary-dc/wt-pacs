@@ -237,7 +237,7 @@ test("the ledger carries the fill's time and each frame's media reads", async ()
 function cacheOf(present, log, read = (i) => frame(i).info) {
   return {
     present: new Set(present),
-    read: async (i) => (log.push(`read ${i}`), read(i) && { ...read(i), path: "cache" }),
+    read: async (i) => (log.push(`read ${i}`), read(i) && { ...read(i), route: "cache" }),
     write: async (i) => (log.push(`write ${i}`), true),
   };
 }
@@ -254,7 +254,7 @@ test("cache: a frame on disk is painted with no downloader message", async () =>
   assert.deepEqual(wants, []);
   assert.deepEqual(log, ["read 2"]);
   assert.equal(painted.at(-1).f, c.store.get(2));
-  assert.equal(c.store.get(2).info.path, "cache");
+  assert.equal(c.store.get(2).info.route, "cache");
 });
 
 /** A read-back that fails its check is asked of the downloader at its own place in the want, and painted when it comes. */
@@ -269,7 +269,7 @@ test("cache: a corrupted entry is asked again at its want position", async () =>
   c.take(frame(1));
   c.show(1);
   await c.repaint();
-  assert.equal(painted.at(-1).f.info.path, undefined);
+  assert.equal(painted.at(-1).f.info.route, undefined);
   assert.equal(painted.at(-1).f, c.store.get(1));
 });
 
@@ -277,7 +277,7 @@ test("cache: a corrupted entry is asked again at its want position", async () =>
 test("cache: the write lands after the paint", async () => {
   const log = [];
   const draw = Promise.withResolvers();
-  const { c } = rig({ held: [], paint: async (f) => (await draw.promise, log.push(`painted ${f.info.path ?? "wire"}`)), wants: [] });
+  const { c } = rig({ held: [], paint: async (f) => (await draw.promise, log.push(`painted ${f.info.route ?? "wire"}`)), wants: [] });
   c.store.cache = cacheOf([1], log);
   c.store.want(c.want());
   c.take(frame(0));
@@ -352,7 +352,7 @@ test("the ledger's flip changes the digest, not the frame", async () => {
 });
 
 /** Frame `i` of the exact series: other samples than the lossy one's, and `exact` as its decoder checked it. */
-const exactFrame = (i, exact = true) => ({ frameIndex: i, info: { ...frame(i).info, pixels: new Uint16Array([9, 9, 9, 9, 9, 9]).buffer, exact, path: "htj2k", reason: exact === false ? "digest" : undefined } });
+const exactFrame = (i, exact = true) => ({ frameIndex: i, info: { ...frame(i).info, pixels: new Uint16Array([9, 9, 9, 9, 9, 9]).buffer, exact, route: "htj2k", reason: exact === false ? "digest" : undefined } });
 
 /** An optimal-quality series' rig whose exact series answers each ask through `answer(i)`, the asks recorded. */
 function lossyRig(answer = (i) => Promise.resolve(exactFrame(i)), opts = {}) {
@@ -428,11 +428,11 @@ test("the label never says lossless before the checksum passes", async () => {
   const draws = [];
   const slow = lossyRig(undefined, { paint: (f) => new Promise((done) => draws.push({ f, done })) });
   const shown = slow.c.showExact();
-  for (let k = 0; k < 20 && !draws.some(({ f }) => f.info.path === "htj2k"); k++) {
+  for (let k = 0; k < 20 && !draws.some(({ f }) => f.info.route === "htj2k"); k++) {
     draws.shift()?.done();
     await new Promise(setImmediate);
   }
-  assert.ok(draws.some(({ f }) => f.info.path === "htj2k"), "the exact frame's paint was started");
+  assert.ok(draws.some(({ f }) => f.info.route === "htj2k"), "the exact frame's paint was started");
   assert.ok(!slow.labels().includes("lossless"), "lossless before the exact frame's paint resolved");
   while (draws.length) {
     draws.shift().done();
@@ -465,7 +465,7 @@ test("a depth cut's frames are painted with their shift, the exact frame without
   r.c.size = { width: 3, height: 2, dpr: 1 };
   assert.deepEqual((await r.c.valueAt(2.5, 1.5)).stored, [20]);
   await r.c.showExact();
-  assert.equal(r.painted.at(-1).f.info.path, "htj2k");
+  assert.equal(r.painted.at(-1).f.info.route, "htj2k");
   assert.equal(r.painted.at(-1).f.info.cut, undefined);
   assert.equal(r.labels().at(-1), "lossless");
 
@@ -581,10 +581,10 @@ test("a window change keeps the exact frame and its label", async () => {
 /** The overlay's data for a painted frame names its decode route and, after a refusal, why WebCodecs refused it. */
 test("a shown frame's route and WebCodecs refusal reach the overlay", async () => {
   const { c, events } = rig({ lossy: { q: 8, g: 1, depth: 12 } });
-  c.take({ frameIndex: 0, info: { ...frame(0).info, path: "av1-dav1d", refusal: "undecodable: not a key frame", wireBytes: 2048 } });
+  c.take({ frameIndex: 0, info: { ...frame(0).info, route: "av1-dav1d", refusal: "undecodable: not a key frame", wireBytes: 2048 } });
   await c.repaint();
   const { about } = events.filter(([t]) => t === "shown").at(-1)[1];
-  assert.equal(about.path, "av1-dav1d");
+  assert.equal(about.route, "av1-dav1d");
   assert.equal(about.refusal, "undecodable: not a key frame");
 });
 

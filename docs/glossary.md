@@ -47,7 +47,7 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | stored form | an optimal-quality form of a D > 10 series coded at D itself, not cut: a comparison, decoded by dav1d-WASM only after WebCodecs refused it |
 | pairing | an optimal-quality series naming its exact series in `exactSeries`, by the name the exact series' bundle is known by; nothing else links the two |
 | source fingerprint | `sourceFingerprint`, the XXH3-64 of a source's frame digests that every series of it carries; the pairing refuses two series whose fingerprints differ ([`av1/payload-format.md`](av1/payload-format.md) §Source fingerprint) |
-| route | the decoder a frame took: `av1-webcodecs`, `av1-dav1d` or `htj2k` (the lab's `av1-mixed`); a frame's `info.path`, the overlay's first word, the status line's `decoders:` |
+| route | where a frame's pixels came from: the decoder, `av1-webcodecs`, `av1-dav1d` or `htj2k` (the lab's `av1-mixed`), or the client cache, `cache` or `store`; a frame's `info.route`, the overlay's first word, the status line's `routes:` |
 | quality label | top right on an optimal-quality series, what is painted, its colour beside its words (`client/viewer/screen.js` `labelOf`): `optimal` *Optimal quality*, `asking` *Optimal quality · fetching lossless…*, `lossless` *✓ Lossless*, `failed` *Lossless check failed · optimal quality shown* |
 | mark | top left, a frame's check on a series without a quality label: none when exact, *NOT EXACT* and the reason, or *unchecked* (`markOf`) |
 | overlay | `?overlay=1`: the painted frame's route, wire KB and decode ms, and on an optimal-quality frame its Q, G and depth |

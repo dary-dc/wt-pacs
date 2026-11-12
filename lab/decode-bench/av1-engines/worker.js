@@ -16,7 +16,7 @@ onmessage = async ({ data: { payloads, mutate } }) => {
         if (mutate) out[out.length >> 1] ^= 1;
         const got = hex(await crypto.subtle.digest("SHA-256", out));
         const want = new TextDecoder().decode(await bytes(`${p}.sha256`)).trim();
-        rows.push({ payload: p, exact: got === want, path: f.path });
+        rows.push({ payload: p, exact: got === want, path: f.route });
       } catch (e) {
         rows.push({ payload: p, exact: false, error: String(e?.message ?? e) });
       }

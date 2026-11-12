@@ -69,7 +69,7 @@ check((await frameUnder(undefined)).m.pixels instanceof SharedArrayBuffer, "a la
   onmessage({ data: { kind: "decode", index: 0, gen: 0, key: true, bytes, stamps: {} } });
   const d = await done;
   check(d.kind === "done", `the optimal-quality frame decodes (${d.reason})`);
-  check(sent[0]?.path === "av1-dav1d" && sent[0]?.refusal === "no VideoDecoder", `its frame names the route and the refusal (${sent[0]?.path}; ${sent[0]?.refusal})`);
+  check(sent[0]?.route === "av1-dav1d" && sent[0]?.refusal === "no VideoDecoder", `its frame names the route and the refusal (${sent[0]?.route}; ${sent[0]?.refusal})`);
 }
 
 console.log(failed ? `${failed} failed` : "decoder frame buffer: ok");
