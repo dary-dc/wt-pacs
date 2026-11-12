@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-12 03:38
+heartbeat: 2026-11-12 03:40
 outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure da85fae9 (B0, B and A measured: docs/av1/audit-protocols.md §B, §A measured d3071269, rows/b.jsonl and b-summary.json 03c1597d, codecs line da85fae9); C not started; no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
 ## Resume
 2026-11-12 03:30: C rounds 0-14 started (6.2 min a round, round 0 hash-clean) (log /home/user/logs/c.log); streams done, smoke on all three volumes hash-ok,
