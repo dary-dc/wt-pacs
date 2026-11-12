@@ -57,3 +57,6 @@ on lossy wireless; bit-exact; fill and latency both count.
 `client/`, `client/README.md`, `docs/ARCHITECTURE.md`, `docs/CLIENTS.md`, `docs/WIRE.md`, `docs/decode/`;
 `docs/adr/frame-path.md` (§Target: the view worker, §The core, assembled on `claude/core`);
 `claude/core:client/view/`, `claude/core:lab/opfs-arms/`; PRs #250, #289, #299, #302, #303, #298.
+
+Design proposals from a read of the unified demo path (2026-11-12, theory only):
+[`docs/proposals/design-fable.md`](../proposals/design-fable.md).
