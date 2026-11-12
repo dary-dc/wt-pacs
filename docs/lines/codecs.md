@@ -81,6 +81,9 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
     (*derived*, decode audit 2, 13). `dbts_b1` has no Q 8 cell there.
   * The exact ask's "1.01–1.03 HTJ2K frames" and the view's ratio divide by different HTJ2K units, on two Chromium
     versions; the unit the product ships is timed nowhere (decode audit, §The HTJ2K frame is not one unit).
+  * Withdrawn: the former state line's "1.9–4.7 HTJ2K frames through dav1d-WASM". It times the 12-bit stored stream,
+    not the top-10-bit view WebCodecs decodes, on a dav1d-WASM build without assembly or threads (decode audit 10,
+    13); it is no figure for the fallback's cost on the view.
   * Groups shard 1 timed `dbts_b1` O G 1 at Q 8 through WebCodecs at a mean 97 ms a frame on one host at 1×
     (*measured*); no ratio to an HTJ2K frame is taken there.
 * **The depth cut's cost.** "About 0.3 dB and 6–7 % fewer bytes at equal Q" is the top-10 study's one Q 8 row, on

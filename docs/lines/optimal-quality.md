@@ -2,6 +2,8 @@
 
 Last verified 2026-11-10 (`claude/oq-depth-cut` at `6f61ff0b`; other tips as read on 2026-11-09); the AV1
 harvest's effect on the demo's claims added 2026-11-10 (§What the harvest changes), branch states not re-read.
+§State now describes the morning of 2026-11-10: `claude/oq-depth-cut` `6f61ff0b` has since been merged into
+`claude/demo-fixes-0` (DEMO-INTEGRATE).
 
 ## Goal
 
@@ -37,8 +39,8 @@ the optimal-quality series is a series of its own, ingested beside its exact ser
 * **Label:** *Optimal quality*; *fetching lossless…*; *Lossless* only after the exact frame's digest matched and it
   was painted; *Lossless check failed* otherwise, the lossy frame kept.
 * **Not yet run:** a browser end to end on a real pair; any phone run; the dispatch rig and the page check on a
-  host with `client/decode/wasm/built/` (the 2026-11-10 gate ran there without it: those steps fail identically
-  with and without the route change). The web image (`deploy/nginx`) does not serve
+  host with `client/decode/wasm/built/` (the 2026-11-10 gate ran there without it; the identical failures with and
+  without the route change were the missing `built/xxh3` hasher, traced in #341, whose rig skips that check by name). The web image (`deploy/nginx`) does not serve
   the exact series' two paths. A review of each branch is due as `<branch>-fixes`.
 
 ## What the harvest changes (2026-11-10)
