@@ -1,11 +1,18 @@
-state: started
+state: done
 started: 2026-11-12T06:21Z
-heartbeat: 2026-11-12T06:22Z
-outputs: claude/direction (docs/lines/metadata.md), no PR (the owner reviews claude/direction on Friday)
+heartbeat: 2026-11-12T06:24Z
+outputs: claude/direction b2134e5a (docs/lines/metadata.md, docs/lines/README.md row), no PR (the owner reviews claude/direction on Friday)
 ## Resume
-Inputs read: metadata.md on claude/direction (10-29 text), client.md as the shape; LINES-READY §4/§7/§8 (line-pacs,
-unified-pacs mapping); INGEST-OQ (docs/reviews/ingest-oq.md §8: R/P, S1/S2, P1, I3, F1-F3); SOURCE-FINGERPRINT,
-DATASET-HUB, MERGE-PLAN results; open PRs #113-#234, #258; demo tip 18d2d1ff: docs/ingest/README.md §4/§7, P4 fixed
-(docs/av1/payload-format.md). Next: write docs/lines/metadata.md in six parts in ../direction (claude/direction),
-README.md row date, check_links, commit, pull --rebase, push; then state done.
+Done. Nothing left for this row.
 ## Result
+* docs/lines/metadata.md in the six parts, read against the demo tip 18d2d1ff, claude/line-pacs (#258), the status
+  files and the open PRs; nothing run or measured; line-pacs's design records not re-read past 10-29.
+* On main after the merge: the ingests (Python, from-dicom, Rust phase 1), .sbnd, sourceFingerprint, P4's fix;
+  none of the receive side (receiver, carrier, study DB, pacs-verify, serve-by-UID stay on #258).
+* Corrected in place: the 10-29 text said P4 was not on the core path; it is on the demo tip.
+* Decided: 14 rows, 10-11 to 11-11 21:30, each with where it is recorded.
+* Open, ranked: rsync delivery (mirror vs incoming, hash bridge, P3/E, layout, who builds the .sbnd); sync protocol
+  and two conflicting records; the crates' owner decisions; PCS questions; INGEST-OQ's pair writer (R/P, signed gap
+  S1/S2, P1, I3); F1-F3 names under serving by UID; bad instance/duplicate; a receive-side range check; the hub.
+* check_links (0 unresolved), check_personal_paths pass. Fixtures named in §4.
+* Owner: the same decisions as before (pacs-receive-design §14), plus INGEST-OQ §8 and DATASET-HUB's.
