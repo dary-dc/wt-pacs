@@ -962,6 +962,20 @@ six rounds, so no verdict is drawn here. Rows are in
   4× exceeds 1.05 × its time at 1×, because D's fill is decoded by software WebCodecs on this host. So `r5000` and the
   lossy cell are most of what stays link-bound. This is reported with the verdict and is not amended.
 
+**Shard S3b, rounds 2–3 (2026-11-12 06:42 to 10:32; 400 visits),** with the store retry. Facts only, as for S3a. Rows
+are in [`rows/stage3-s3b.jsonl`](../lab/htj2k-tiles/improve/rows/stage3-s3b.jsonl).
+
+* **Kept: 354.** 44 visits are void (the relay ran late) and 2 failed. The store retry never fired (0 retries).
+* **Why 2 failed.** Both on `dbts_b1` at 4× (D+T3 on `r20000` `l1`, D+L★ on `lte-good`). A store write was refused
+  with "The operation failed because it would cause the application to exceed its storage quota", and the page then
+  did not picture every slice. Both relays had carried the whole fill. As in S3a, no time measured is affected.
+* **R0 holds in every kept visit,** and the OQ digest agrees across each volume's D visits.
+* **J10.** Every reopen of S★ and D+L★ asked 0 bands and decoded nothing (144/144). One of them (D+L★, `dbts_b1`,
+  `r5000`, 4×) gave one picture that differs from its filled copy: frame 49's OQ picture, the volume's last. All
+  three differing reopens of S3a and S3b are D+L★ on `dbts_b1`. The one named is an OQ picture, not a level or a
+  Lossless one.
+* **The decode-bound test** names 11 of the 20 (set, link) pairs in S3b alone.
+
 **Stage 3, all six rounds (S3a–S3c, 11-11 23:52 to 11-12 ~14:30; 1 200 visits).** Rows:
 [`rows/stage3-s3a.jsonl`](../lab/htj2k-tiles/improve/rows/stage3-s3a.jsonl), `-s3b`, `-s3c`. Readings come from
 [`summary.py`](../lab/htj2k-tiles/improve/stage3/summary.py) over all three files. Fixtures and host are as above
@@ -1008,19 +1022,16 @@ cell's p90 of |D′/D − 1| on the denominator's quantity.
   S★ ÷ D moves ×1.1–4.1. s on the lossy cell reaches 0.5–3.9, so one lossy round can move a ratio more than the arms
   differ.
 
-**Shard S3b, rounds 2–3 (2026-11-12 06:42 to 10:32; 400 visits),** with the store retry. Facts only, as for S3a. Rows
-are in [`rows/stage3-s3b.jsonl`](../lab/htj2k-tiles/improve/rows/stage3-s3b.jsonl).
-
-* **Kept: 354.** 44 visits are void (the relay ran late) and 2 failed. The store retry never fired (0 retries).
-* **Why 2 failed.** Both on `dbts_b1` at 4× (D+T3 on `r20000` `l1`, D+L★ on `lte-good`). A store write was refused
-  with "The operation failed because it would cause the application to exceed its storage quota", and the page then
-  did not picture every slice. Both relays had carried the whole fill. As in S3a, no time measured is affected.
-* **R0 holds in every kept visit,** and the OQ digest agrees across each volume's D visits.
-* **J10.** Every reopen of S★ and D+L★ asked 0 bands and decoded nothing (144/144). One of them (D+L★, `dbts_b1`,
-  `r5000`, 4×) gave one picture that differs from its filled copy: frame 49's OQ picture, the volume's last. All
-  three differing reopens of S3a and S3b are D+L★ on `dbts_b1`. The one named is an OQ picture, not a level or a
-  Lossless one.
-* **The decode-bound test** names 11 of the 20 (set, link) pairs in S3b alone.
+**A replicate of rounds 4–5, outside the rule and the verdict.** A session resumed this row at 13:25, while it was
+still running, and ran S3c's rounds 4–5 again whole, in a fresh container with equal pins (2026-11-12 13:34 to 17:50;
+[`rows/stage3-s3c-4.jsonl`](../lab/htj2k-tiles/improve/rows/stage3-s3c-4.jsonl), its summary with S3a and S3b in
+[`rows/stage3-s3c-4-summary.txt`](../lab/htj2k-tiles/improve/rows/stage3-s3c-4-summary.txt)). It kept 268 of 400 (131
+void, 1 failed on the storage quota). With it in place of S3c, every reading above holds alike except one clause.
+D+T3 on `dbts_b1` `r5000` at 4× is ×0.924 (s 0.016), and R4, R5 and R0 read the same. The exception is R3's
+"≤ ×1.02 in every cell": the lossy cell's `dbts_c1` sideways at 1× is ×1.35 (s 0.164), over the bound with s, where
+S3c gave ×1.171 within it. So that clause's pass depends on which run of rounds 4–5 is taken, on the lossy cell
+alone. Two more D+L★ reopens on `dbts_b1` read an OQ picture back differently (frames 49 and 47). It is a duplicate,
+not new rounds, and decides nothing here.
 
 ## Verdict (row HTJ2K-VERDICT, 2026-11-12)
 
