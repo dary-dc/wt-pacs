@@ -61,6 +61,11 @@ pub struct ServeConfig {
     /// Also serve the same envelopes over a WebSocket, TCP on `--port`. docs/WIRE.md §The WebSocket mapping
     #[arg(long, default_value_t = false)]
     pub websocket: bool,
+    /// Bound already: served in place of binding `--port`, so the port is never released.
+    #[arg(skip)]
+    pub(crate) udp: Option<std::net::UdpSocket>,
+    #[arg(skip)]
+    pub(crate) tcp: Option<std::net::TcpListener>,
     #[cfg(feature = "lab-levers")]
     #[command(flatten)]
     pub lab: LabLevers,
@@ -80,7 +85,8 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
 
     let (endpoint, bound) = build_endpoint(&config, &identity)?;
     let websocket = if config.websocket {
-        Some(websocket::bind(config.bind, config.wt_port, &config.cert_pem, &config.key_pem).await?)
+        let held = config.tcp.as_ref();
+        Some(websocket::bind(config.bind, config.wt_port, held, &config.cert_pem, &config.key_pem).await?)
     } else {
         None
     };
@@ -224,9 +230,12 @@ fn build_endpoint(
     identity: &Identity,
 ) -> Result<(Endpoint<endpoint_side::Server>, String)> {
     let port = config.wt_port;
-    let binds = match config.bind {
-        Some(ip) => vec![(ServerConfig::builder().with_bind_address(SocketAddr::new(ip, port)), ip.to_string())],
-        None => vec![
+    let binds = match (&config.udp, config.bind) {
+        (Some(udp), _) => {
+            vec![(ServerConfig::builder().with_bind_socket(udp.try_clone()?), udp.local_addr()?.to_string())]
+        }
+        (None, Some(ip)) => vec![(ServerConfig::builder().with_bind_address(SocketAddr::new(ip, port)), ip.to_string())],
+        (None, None) => vec![
             (ServerConfig::builder().with_bind_default(port), "[::] dual-stack".to_string()),
             (
                 ServerConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4, port),
@@ -427,7 +436,7 @@ mod tests {
     type Ws = tokio_tungstenite::WebSocketStream<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>;
 
     /// A series of `frames` frames and a dev certificate in a temp dir of its own, removed on
-    /// drop; a port free for UDP and TCP alike; the crypto provider installed.
+    /// drop; a UDP socket and a TCP listener held on one port; the crypto provider installed.
     struct Fixture {
         dir: PathBuf,
         series: PathBuf,
@@ -435,6 +444,8 @@ mod tests {
         key_pem: PathBuf,
         cert_hash: [u8; 32],
         port: u16,
+        udp: std::net::UdpSocket,
+        tcp: std::net::TcpListener,
     }
 
     impl Fixture {
@@ -446,10 +457,12 @@ mod tests {
             let series = write_series(&dir, frames);
             let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
             let _ = rustls::crypto::ring::default_provider().install_default();
-            Self { dir, series, cert_pem, key_pem, cert_hash, port: free_port_for_both() }
+            let (udp, tcp) = bound_for_both();
+            let port = udp.local_addr().expect("UDP addr").port();
+            Self { dir, series, cert_pem, key_pem, cert_hash, port, udp, tcp }
         }
 
-        /// A server on loopback `port`: shared streams, every lab flag off, no opening ask.
+        /// A server on the fixture's sockets: shared streams, every lab flag off, no opening ask.
         fn config(&self) -> ServeConfig {
             ServeConfig {
                 wt_port: self.port,
@@ -462,6 +475,8 @@ mod tests {
                 opening_ask: false,
                 send_window_follows_cwnd: false,
                 websocket: false,
+                udp: Some(self.udp.try_clone().expect("dup UDP socket")),
+                tcp: Some(self.tcp.try_clone().expect("dup TCP listener")),
                 #[cfg(feature = "lab-levers")]
                 lab: LabLevers::default(),
             }
@@ -811,7 +826,7 @@ mod tests {
         let sessions = plain_sessions(&fx.series);
         let localhost = Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
         let (listener, tls) =
-            websocket::bind(localhost, 0, &fx.cert_pem, &fx.key_pem).await.expect("bind");
+            websocket::bind(localhost, 0, None, &fx.cert_pem, &fx.key_pem).await.expect("bind");
         let port = listener.local_addr().expect("addr").port();
         let server = tokio::spawn(async move {
             let (tcp, _) = listener.accept().await.expect("accept");
@@ -971,30 +986,14 @@ mod tests {
         ws
     }
 
-    /// A port nobody is listening on right now. Racy in principle; the alternative is a
-    /// fixed port, which collides with a developer running the server.
-    fn free_port() -> u16 {
-        std::net::UdpSocket::bind("127.0.0.1:0")
-            .and_then(|s| s.local_addr())
-            .expect("free port")
-            .port()
-    }
-
-    /// Until the server holds `port`: a server that never binds fails the test rather than hangs it.
-    async fn until_bound(port: u16, deadline: Duration) {
-        let give_up = tokio::time::Instant::now() + deadline;
-        while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
-            assert!(tokio::time::Instant::now() < give_up, "the server never bound port {port}");
-            tokio::time::sleep(Duration::from_millis(20)).await;
-        }
-    }
-
-    /// A port free for UDP and TCP alike, for a server that also binds its WebSocket on it.
-    fn free_port_for_both() -> u16 {
+    /// A loopback UDP socket and a TCP listener on the same port, for a server that also serves
+    /// its WebSocket there.
+    fn bound_for_both() -> (std::net::UdpSocket, std::net::TcpListener) {
         loop {
-            let port = free_port();
-            if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
-                return port;
+            let udp = std::net::UdpSocket::bind("127.0.0.1:0").expect("UDP port");
+            let port = udp.local_addr().expect("UDP addr").port();
+            if let Ok(tcp) = std::net::TcpListener::bind(("127.0.0.1", port)) {
+                return (udp, tcp);
             }
         }
     }
@@ -1024,16 +1023,14 @@ mod tests {
     async fn a_server_that_cannot_listen_fails_with_its_own_error() {
         let fx = Fixture::new(1);
         let port = fx.port;
-        let held = std::net::TcpListener::bind(("127.0.0.1", port)).expect("hold the TCP port");
-        assert!(std::net::TcpListener::bind(("127.0.0.1", port)).is_err(), "the hold took nothing");
-        let server = tokio::spawn(run_server(ServeConfig { websocket: true, ..fx.config() }));
+        // The fixture's own listener is the hold: the server is left to bind TCP itself.
+        let server = tokio::spawn(run_server(ServeConfig { websocket: true, tcp: None, ..fx.config() }));
         let client = async move {
             let _tcp = connect_tcp(port).await;
             std::future::pending::<()>().await;
         };
         let raced = tokio::spawn(against(server, client));
         let ended = tokio::time::timeout(Duration::from_secs(5), raced).await;
-        drop(held);
         let panic = ended.expect("the race outlived the server's end").expect_err("the server's end passed");
         let why = panic.into_panic();
         let why = why.downcast_ref::<String>().cloned().unwrap_or_default();
@@ -1062,16 +1059,6 @@ mod tests {
             "the client saw {closed:?}, not the server's close"
         );
         server.join().expect("server thread").expect("server");
-    }
-
-    /// The wait for the server's port has a deadline: on a port nobody binds it panics, it does not spin.
-    #[tokio::test]
-    async fn the_wait_for_a_port_fails_rather_than_hangs() {
-        let wait = tokio::spawn(until_bound(free_port(), Duration::from_millis(200)));
-        let joined = tokio::time::timeout(Duration::from_secs(5), wait)
-            .await
-            .expect("the wait for a port has no deadline");
-        assert!(joined.expect_err("a port nobody bound passed the wait").is_panic());
     }
 
     /// Read one length-prefixed envelope off the shared media stream.
@@ -1244,7 +1231,7 @@ mod tests {
     async fn a_failing_websocket_accept_is_retried_at_a_pace() {
         let fx = Fixture::new(1);
         let localhost = Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
-        let (listener, tls) = websocket::bind(localhost, 0, &fx.cert_pem, &fx.key_pem).await.expect("bind");
+        let (listener, tls) = websocket::bind(localhost, 0, None, &fx.cert_pem, &fx.key_pem).await.expect("bind");
         socket2::SockRef::from(&listener).shutdown(std::net::Shutdown::Read).expect("shut the listener");
         let warned = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let lines = Arc::clone(&warned);
@@ -1431,7 +1418,6 @@ mod tests {
         let frames = 32u32;
         let fx = Fixture::new(frames);
         let server = tokio::spawn(run_server(ServeConfig { send_window_follows_cwnd: true, ..fx.config() }));
-        until_bound(fx.port, Duration::from_secs(5)).await;
 
         // The server's datagrams are dropped while `dark`; the client's always pass.
         let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
@@ -1500,7 +1486,6 @@ mod tests {
     async fn settings_ride_the_handshake_flight() {
         let fx = Fixture::new(1);
         let server = tokio::spawn(run_server(fx.config()));
-        until_bound(fx.port, Duration::from_secs(5)).await;
         assert_settings_before_the_handshake(fx.port, fx.cert_hash).await;
         server.abort();
     }
@@ -1587,7 +1572,6 @@ mod tests {
         let fx = Fixture::new(1);
         let port = fx.port;
         let server = tokio::spawn(run_server(fx.config()));
-        until_bound(port, Duration::from_secs(5)).await;
 
         // Every datagram is delayed ONE_WAY; the server's burst in the first ONE_WAY after its
         // first datagram — its first flight — is dropped.
@@ -1666,7 +1650,6 @@ mod tests {
         let fx = Fixture::new(1);
         let port = fx.port;
         let server = tokio::spawn(run_server(ServeConfig { tuning, ..fx.config() }));
-        until_bound(port, Duration::from_secs(5)).await;
 
         let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
         let relay = front.local_addr().expect("relay addr");
@@ -1769,7 +1752,6 @@ mod tests {
         let fx = Fixture::new(1);
         let port = fx.port;
         let server = tokio::spawn(run_server(fx.config()));
-        until_bound(port, Duration::from_secs(5)).await;
 
         // The client's second datagram is held 100 ms; every other passes at once.
         let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
@@ -1819,7 +1801,6 @@ mod tests {
         const DIALS: usize = 40;
         let fx = Fixture::new(1);
         let server = tokio::spawn(run_server(fx.config()));
-        until_bound(fx.port, Duration::from_secs(5)).await;
         let mut flights = Vec::new();
         for _ in 0..DIALS {
             flights.push(half_rtt_datagrams(fx.port, fx.cert_hash).await);
