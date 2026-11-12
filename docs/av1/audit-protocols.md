@@ -406,3 +406,99 @@ for "bracketed". Fixed here, after G 1's 185 cells landed and before any extra e
   no volume is short below; above, six 10-bit volumes are short: `dbts_b2` (worst 1.028 at most), `dbts_b3` (1.024),
   `dbts_b4` (1.028), `dbts_b5` (1.033, δ 3.8 %), `dbt10_d` (1.028) and `dbt10_ea1141` (1.016). Their Q 17 at G 1, and
   whatever G 16 shows short by the same test, are coded after G 16's ladder, by `cells.py --extra NAME:G:Q`.
+
+### B · measured, 2026-11-12 01:40 UTC
+
+Run as amendments 1 and 2 fix it: `lab/av1/audit/cells.py` at `82a6f18a` on `claude/av1-groups-settings` `0e0e58c8`,
+rows `lab/av1/audit/rows/b.jsonl`, read by `lab/av1/audit/summary.py` into `lab/av1/audit/rows/b-summary.json`.
+**Fixtures:** the 19 DBT volumes, all from the one EA1141 dataset, read whole, stored form; 185 cells at G 1, 156 at
+G 16, and amendment 2's 11 rungs outward (Q 17 on `dbts_b2` G 1; `dbts_b3`, `b4`, `b5`, `dbt10_d`, `dbt10_ea1141` at
+G 1 and 16), 352 in all; no cut. One 4-core cloud host, libaom 3.15.1, dav1d 1.5.4. Nothing here speaks for another
+dataset, the cut form, ultrasound or a phone.
+
+**Check.** All 57 check rungs (O G 1 at Q 4, 8, 12, and 16 on 10-bit, every volume) equal the quality study's unit
+sizes frame for frame. The `--cpu-used=5` mutation differs, in both sessions that ran it (two `check` rows).
+
+**Per volume** (s_split relative; b the mean of 16 injected readings; δ = max(2 · s_split, |b|); Q_lo · Q_hi at
+1 ∓ δ; ν at the integer rule Q under B0's pooled and per-depth x\*):
+
+| volume | s_split | b (range) | δ | G 1: Q_lo · Q_hi | at 1.00 · 1.03 | G 16: Q_lo · Q_hi | ν at rule Q (pooled · per depth) |
+| --- | --: | --- | --: | --- | --- | --- | --- |
+| `dbts_a1` | 0.13 % | +0.5 % (−1.1 … +1.5) | 0.5 % | 7 · 7 | 7 · 9 | — | 0.318 (Q 7) · 0.318 (Q 7) |
+| `dbts_b1` | 0.05 % | −2.0 % (−4.6 … −0.3) | 2.0 % | 11 · 13 | 12 · 15 | — | 0.286 (Q 11) · 0.286 (Q 11) |
+| `dbts_c1` | 0.25 % | −1.0 % (−4.0 … +0.8) | 1.0 % | 7 · 8 | 8 · 8 | — | 0.447 (Q 7) · 0.322 (Q 8) |
+| `dbt12_c` | 0.16 % | +2.7 % (+2.1 … +4.0) | 2.7 % | 8 · 9 | 8 · 9 | 8 · 9 | 0.375 (Q 8) · 0.375 (Q 8) |
+| `dbts_a2` | 0.08 % | −0.5 % (−2.7 … +0.7) | 0.5 % | 7 · 7 | 7 · 8 | 7 · 7 | 0.400 (Q 7) · 0.400 (Q 7) |
+| `dbts_b2` | 0.05 % | −2.3 % (−4.3 … −1.0) | 2.3 % | 8 · 13 | 10 · ≥ 17 | 8 · 13 | 0.339 (Q 8) · 0.339 (Q 8) |
+| `dbts_c2` | 0.14 % | +5.5 % (+3.6 … +8.5) | 5.5 % | 7 · 10 | 8 · 9 | 8 · 10 | 0.415 (Q 8) · 0.292 (Q 9) |
+| `dbt12_ea1141` | 0.22 % | +2.1 % (+0.8 … +3.4) | 2.1 % | 7 · 9 | 8 · 9 | 7 · 9 | 0.427 (Q 7) · 0.427 (Q 7) |
+| `dbts_a3` | 0.07 % | −0.1 % (−2.0 … +1.8) | 0.1 % | 8 · 8 | 8 · 10 | 8 · 8 | 0.326 (Q 8) · 0.326 (Q 8) |
+| `dbts_b3` | 0.08 % | −2.2 % (−4.2 … −0.4) | 2.2 % | 12 · 15 | 13 · ≥ 17 | 12 · 15 | 0.340 (Q 12) · 0.340 (Q 12) |
+| `dbts_c3` | 0.08 % | +1.8 % (+0.9 … +2.4) | 1.8 % | 8 · 9 | 8 · 9 | 8 · 9 | 0.389 (Q 8) · 0.389 (Q 8) |
+| `dbt10_d` | 0.13 % | −2.9 % (−5.0 … −0.8) | 2.9 % | 10 · 16 | 12 · 16 | 10 · 15 | 0.434 (Q 9) · 0.434 (Q 9) |
+| `dbts_a4` | 0.08 % | +0.7 % (−0.5 … +1.5) | 0.7 % | 8 · 9 | 9 · 11 | 8 · 9 | 0.350 (Q 8) · 0.350 (Q 8) |
+| `dbts_b4` | 0.11 % | −3.5 % (−6.6 … −1.1) | 3.5 % | 12 · 16 | 13 · 16 | 12 · 16 | 0.362 (Q 12) · 0.362 (Q 12) |
+| `dbts_c4` | 0.13 % | +2.7 % (+1.5 … +4.1) | 2.7 % | 8 · 10 | 9 · 10 | 8 · 10 | 0.346 (Q 9) · 0.346 (Q 9) |
+| `dbt10_ea1141` | 0.17 % | −1.1 % (−3.2 … +0.5) | 1.1 % | 12 · 15 | 13 · ≥ 17 | 12 · 14 | 0.495 (Q 9) · 0.495 (Q 9) |
+| `dbts_a5` | 0.15 % | +0.7 % (−0.3 … +1.6) | 0.7 % | 7 · 8 | 7 · 8 | 7 · 8 | 0.398 (Q 7) · 0.398 (Q 7) |
+| `dbts_b5` | 0.04 % | −3.8 % (−6.4 … −1.3) | 3.8 % | 9 · ≥ 17 | 11 · 15 | 9 · ≥ 17 | 0.423 (Q 8) · 0.423 (Q 8) |
+| `dbts_c5` | 0.12 % | −0.9 % (−2.8 … +0.9) | 0.9 % | 8 · 8 | 8 · 9 | 8 · 8 | 0.450 (Q 7) · 0.323 (Q 8) |
+
+**Censored after amendment 2** (worst frame still ≤ max(1 + δ, 1.03) at Q 17): `dbts_b2` G 1 (1.0298), `dbts_b3`
+G 1 and 16 (1.0292, 1.0300), `dbt10_ea1141` G 1 and 16 (1.0228, 1.0300), `dbts_b5` G 1 and 16 (1.0366, 1.0371).
+Their "≥ 17" is a floor. Bytes at every rung are in `b-summary.json`.
+
+**Against the predictions.**
+* **B-1 holds:** s_split 0.04–0.25 %, under 0.5 % on every volume.
+* **B-2 refuted**, on both counts: |b| is above 5 % on `dbts_c2` (+5.5 %), and b > 0 on six A or C volumes (`a1`,
+  `a4`, `a5`, `c2`, `c3`, `c4`), not < 0. Where b is largest it is the 10-bit B volumes that read negative (−2.0 to
+  −3.8 %), and system C splits both ways. Not predicted: the 16 readings per volume span 2–6 points, so b is a
+  frame-dependent bias, not one number. 173 million injected samples were clipped at 0 or 2^b − 1 over all volumes;
+  the protocol did not ask how many of them fall inside the window, and this run did not count it.
+* **B-3 refuted**, on the other side from the one its decision rule names: δ is 0.1–5.5 % (median 2.0 %), not
+  1–3 % on every volume, and the anchor is unresolved (Q_lo ≠ Q_hi at G 1) on 15 of 19 volumes, not 10. Resolved:
+  `dbts_a1`, `a2`, `a3`, `c5`. Against the prediction, 9 volumes are on the other side: `a1` and `a2` resolve
+  (δ 0.5 %), while system C's `c1`–`c4`, `a4`, `dbt12_c` and `dbt12_ea1141` do not.
+* **B-4 refuted:** Q_hi − Q_lo is 0–3 on 12-bit volumes (3 on `dbts_c2` G 1, over the bound of 2) and 2–≥ 8 on
+  10-bit ones (`dbts_b2` 5, `dbt10_d` 6 and 5, `dbts_b5` ≥ 8 at both G, over 4). The 10-bit plateau near 1.02–1.03
+  that the prediction assumed is real, and wider than assumed.
+* **B-5 holds** by its rule (ε 5.4 % by `anchor.thinned`): G 16 ÷ G 1 bytes at worst frame 1.00 is 0.954–0.986 on
+  12-bit volumes and 0.855–0.907 on 10-bit ones. Six are outside the bare band but within ε: `dbts_c2` 0.964,
+  `dbt12_ea1141` 0.954, `dbts_c4` 0.957 (under 0.97), and `dbts_b3` 0.869, `dbt10_d` 0.879, `dbt10_ea1141` 0.855
+  (under 0.88). G 16 saves 1–5 % at equal quality on 12-bit volumes and 9–15 % on 10-bit ones, at lag 0.
+
+**Decision rule.**
+* B-3 is refuted, but not by δ < 0.5 %, the case its second branch names: that branch's premise (1.00 resolvable)
+  holds only on `dbts_a1`, `a2` and `a3`. On the other 16 volumes the first branch's reason holds more strongly than
+  predicted. *This session's reading, for the owner:* the line stops quoting one bar's Q as the anchor and quotes
+  [Q_lo, Q_hi] per (series, G) with bytes at both ends and A's ν beside them, as the first branch says, because the
+  refutation widens the bands rather than closing them. Decision 1 in `claude/docs-lines-3:docs/lines/codecs.md`
+  §Open 0 is the owner's.
+* B0's x\* against δ: the G 1 and G > 1 x\* differ by 2.6 %; that is under δ on six volumes (`dbts_b4`, `b5`,
+  `c2`, `dbt10_d`, `dbt12_c`, `c4`) and over it on 13, and over the median δ (2.0 %). By the rule's "otherwise",
+  both x\* stay (4.7584 at G 1, 4.6359 at G > 1, B0's values), with δ beside them.
+* B-5's ratios are the "G at equal quality" figures for 16 DBT volumes at lag 0. No G is decided here.
+
+### A · measured, 2026-11-12 01:40 UTC
+
+On B's rows (amendment 1 fixes A's readings there): ν per cell by `anchor.nu`, median frame; the rule's Q is B0's
+integer pick under the pooled x\* (4.6359) and the per-depth x\* (4.6359 · 4.8024). Fixtures as B's.
+
+* **A1 holds:** ν falls with Q on every volume at G 1; no adjacent pair rises at all (the bound was 0.02).
+* **A2 refuted, by one or two volumes:** ν at the rule's Q is 0.286–0.495. Under the pooled x\*, `dbt10_ea1141`
+  (0.495, Q 9) and `dbts_c5` (0.450, Q 7) are above 0.45; under the per-depth x\*, `dbt10_ea1141` only. The other 17
+  are inside 0.15–0.45. So the OQ view keeps 29–50 % of the fine-band noise's amplitude at the rule's Q (8–25 % of
+  its power), and the upper end is at the band's edge, not well inside it.
+* **A3 refuted:** at equal x (bins 0.25 wide, ≥ 3 systems), ν's spread across systems is 0.005–0.07 for x < 2.75
+  and 0.09–0.24 from 2.75 up (15 of 23 bins over 0.08). ν is not one curve of x across systems in the range the rule
+  uses (x near 4.6–4.8): theory point 3's white-noise argument does not carry to these volumes.
+* **A4 refuted on three volumes:** Q_ν (the highest Q with median ν ≥ 0.5) is one to three rungs under the pooled
+  rule's Q, and costs 1.30–1.92× its bytes on 16 volumes; `dbts_c2` 1.295, `dbts_b5` 1.20 and `dbt10_ea1141` 1.16 are
+  under 1.3 (where the rule's Q already sits near ν 0.5).
+
+**Decision rule.** A2 is refuted, so the bar's critique (QA F4) is corrected in place with the measured ν: at the
+rule's Q the view keeps 29–50 % of the fine-band noise's amplitude on these 19 volumes, not "almost none"; at the
+noise anchor itself (worst frame 1.00) ν is lower (`dbts_b1` 0.22 at Q 12, `dbts_c1` 0.32 at Q 8). Q_ν and its bytes
+per volume, the option "keep at least half", are in `b-summary.json` (`q_nu`, and A4's ratios above) for the owner's
+decision 1 or 9 in `claude/docs-lines-3:docs/lines/codecs.md` §Open 0. What A cannot settle stands: whether the
+removed noise is visible or costs a diagnosis.
