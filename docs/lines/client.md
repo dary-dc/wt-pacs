@@ -46,6 +46,8 @@ on lossy wireless; bit-exact; fill and latency both count.
   from the demo tip `claude/demo-fixes-2` (`18d2d1ff`), with `claude/clean-product`'s review record, CLEAN-2 (#375) and
   NAMES-1 (#374) merged `--no-ff`, NAMES-1 last; no conflicts. Left out with their reasons in its PR body: #376 and
   #378 (await their review), #368–#370 and #377 (separate proposals), and the rest of LINES-READY §7.
+  UNIFY-REVIEW (2026-11-12): the merge record holds, CLEAN-2's code reaches the tip unchanged, no old name in it;
+  one NAMES-1 miss, `lab/faultbench/index.html` reading `info.path` (now `info.route`), left as a finding in #382.
 
 ## Open (ordered)
 
