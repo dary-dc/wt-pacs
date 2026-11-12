@@ -15,7 +15,7 @@ decision, and the date at the top. Something learned for another line goes into 
 | client | the browser client: transport, decode, cache, paint, telemetry | [`client.md`](client.md) | 2026-11-12 |
 | PACS receive and metadata | receive what the PCS sends, build and update each study's store, serve by UID | [`metadata.md`](metadata.md) | 2026-11-12 |
 | 2D viewer | a 2D DICOM viewer product on the client, breast reading first (paused) | [`viewer.md`](viewer.md) | 2026-10-27; branches 2026-11-09 |
-| native | a native client on raw QUIC, without the browser's limits | [`native.md`](native.md) | 2026-10-27; branches 2026-11-09 |
+| native | a native client on raw QUIC, without the browser's limits | [`native.md`](native.md) | 2026-11-12 |
 
 "Last verified" is the newest date the line's state was checked; "branches" means only the branch and PR state was
 read again on that date, not the line's findings.
