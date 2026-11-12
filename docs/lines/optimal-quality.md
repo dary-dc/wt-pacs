@@ -180,6 +180,11 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
 12. Which view the demo shows, and whether the page view is ever removed: decided after the phone runs (the owner,
     2026-11-11). No measurement yet shows the view worker faster; both pass every correctness check.
 6. The DICOM ingest codes optimal quality (today only the lab tool does).
+   *Designed 2026-11-12, not built* (INGEST-OQ, [`../reviews/ingest-oq.md`](../reviews/ingest-oq.md) on
+   `claude/ingest-oq`): the Rust ingest's phase 2 writes the pair, held byte-identical to `ingest.py`'s `lossy`; the
+   exact series first, the optimal-quality series never alone. Owner calls: which ingest, signed sources over 10
+   bits (no form on the product path today), where Q and G come from; for the PACS line, `pairOf` refuses a
+   PCS-coded id with `~`.
 7. The depth cut for D > 10 (the OQ view through WebCodecs, painted from its 10-bit codes through a window table, no
    shift pass); D ≤ 10 needs none. Build `claude/oq-depth-cut` (stacks on the two OQ branches). Full fidelity is the
    exact HTJ2K frame; a 12-bit OQ view through dav1d is the same lossy view at the stored depth, a decode alternative.
