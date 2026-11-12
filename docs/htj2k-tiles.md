@@ -937,6 +937,25 @@ they are measured; the readings below are written only once a shard ends.*
 
 The unmutated smoke visits (not kept) were exact in every arm, with 0 asks and 0 decodes on every reopen.
 
+**Shard S3a, rounds 0–1 (2026-11-11 23:52 to 11-12 06:22; 400 visits).** These are facts only. The ratios need all
+six rounds, so no verdict is drawn here. Rows are in
+[`rows/stage3-s3a.jsonl`](../lab/htj2k-tiles/improve/rows/stage3-s3a.jsonl), and the readings are produced by
+[`summary.py`](../lab/htj2k-tiles/improve/stage3/summary.py).
+
+* **Kept: 350.** 33 visits are void (the relay ran late) and 17 failed.
+* **Why 17 failed.** Every failed visit had received all its bytes (the relays' packet counts are full) and never
+  reported. Round 1's stall report places them all after the clock, in the lab store: one OPFS write through a sync
+  access handle never returned. A debug run reproduced it once in 7 visits. No time measured is affected, but the
+  visit is lost. From S3b the page restarts the store after 30 s and sends the operation again; the row counts the
+  retries (`storeRetries`).
+* **R0 holds in every kept visit:** every level and Lossless picture is exact. The OQ pictures' digest agrees across
+  the D visits of each volume.
+* **J10.** 0 asks and 0 decodes hold in 140/140 reopens of S★ and D+L★. Two D+L★ reopens on `dbts_b1` each gave one
+  picture that differs from its filled copy; which one is not recorded in S3a. From S3b the row names it.
+* **The decode-bound test, as pre-registered,** names 12 of the 20 (set, link) pairs. In those, D's every-slice time at
+  4× exceeds 1.05 × its time at 1×, because D's fill is decoded by software WebCodecs on this host. So `r5000` and the
+  lossy cell are most of what stays link-bound. This is reported with the verdict and is not amended.
+
 ## Sources
 
 Read 2026-11-09; quotations are verbatim, with the PDF's symbols restored where text extraction lost them (≤).

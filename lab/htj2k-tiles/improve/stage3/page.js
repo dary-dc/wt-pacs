@@ -34,22 +34,45 @@ const report = (r) => fetch(`${POST}${r.kind}`, { method: "POST", body: JSON.str
 await fetch(`${POST}hello`, { method: "POST" });
 
 let storeId = 0;
-const store = new Worker("/lab/htj2k-tiles/improve/stage3/store.js");
-function stored(m, transfer = []) {
+let store = new Worker("/lab/htj2k-tiles/improve/stage3/store.js");
+let storeChain = Promise.resolve();
+let storeRetries = 0;
+/** A store write in OPFS now and then never returns (Chromium 153 here): past this, the store is restarted and the operation sent again. */
+const STORE_MS = 30000;
+function once(m) {
   return new Promise((resolve, reject) => {
     const id = storeId++;
+    const timer = setTimeout(() => (store.removeEventListener("message", done), reject(new Error("store timeout"))), STORE_MS);
     const done = ({ data }) => {
       if (data.id !== id) return;
+      clearTimeout(timer);
       store.removeEventListener("message", done);
       data.error ? reject(new Error(data.error)) : resolve(data);
     };
     store.addEventListener("message", done);
-    store.postMessage({ ...m, id, debug: C.debug }, transfer);
+    store.postMessage({ ...m, id, debug: C.debug });
   });
 }
+async function retried(m) {
+  try {
+    return await once(m);
+  } catch (e) {
+    if (e.message !== "store timeout") throw e;
+    storeRetries += 1;
+    store.terminate();
+    store = new Worker("/lab/htj2k-tiles/improve/stage3/store.js");
+    await once({ op: "open", key: C.key });
+    return once(m);
+  }
+}
+/** One operation at a time, each kept until answered so that it can be sent again. */
+function stored(m) {
+  const p = storeChain.then(() => retried(m));
+  storeChain = p.catch(() => {});
+  return p;
+}
 const keep = (name, bytes) => {
-  const copy = new Uint8Array(bytes);
-  writes.push(stored({ op: "put", name, bytes: copy.buffer }, [copy.buffer]).finally(() => settledWrites++));
+  writes.push(stored({ op: "put", name, bytes: new Uint8Array(bytes).buffer }).finally(() => settledWrites++));
 };
 await stored({ op: "open", key: C.key });
 
@@ -91,7 +114,7 @@ if (C.reopen) {
   const allAt = at();
   const sha = {};
   for (const [f, { level }] of pictured) sha[f] = await sha256(pixels.get(`${f}.${level}`));
-  await report({ kind: "result", reopen: true, issuedAt, allAt, wouldAsk, bandsAgain, decodes: counts.decodes, pictured: Object.fromEntries([...pictured].map(([f, p]) => [f, p.level])), sha, failures });
+  await report({ kind: "result", reopen: true, issuedAt, allAt, wouldAsk, bandsAgain, decodes: counts.decodes, storeRetries, pictured: Object.fromEntries([...pictured].map(([f, p]) => [f, p.level])), sha, failures });
 } else {
   await visit().catch((e) => report({ kind: "result", error: String(e?.stack ?? e) }));
 }
@@ -277,7 +300,7 @@ async function visit() {
   log("hashing");
   for (const [k, px] of pixels) sha[k] = await sha256(px);
   await report({ kind: "result", issuedAt, firstAt, allAt, askAt, levelAt, losslessAt, endAt, fillBytes, bytes: counts.bytes, asks: counts.asks,
-    decodes: counts.decodes, oq: oqInfo, sha, failures: failures.slice(0, 20), nFailures: failures.length });
+    decodes: counts.decodes, storeRetries, oq: oqInfo, sha, failures: failures.slice(0, 20), nFailures: failures.length });
 }
 
 function range(a, b) {

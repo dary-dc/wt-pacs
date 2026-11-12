@@ -208,7 +208,7 @@ function figures(row, r, again, frames) {
     allMs: Math.round(r.allAt - r.issuedAt),
     levelMs: r.levelAt && Math.round(r.levelAt - r.askAt),
     losslessMs: r.losslessAt && Math.round(r.losslessAt - r.askAt),
-    fillBytes: r.fillBytes, bytes: r.bytes, asks: r.asks, decodes: r.decodes,
+    fillBytes: r.fillBytes, bytes: r.bytes, asks: r.asks, decodes: r.decodes, storeRetries: r.storeRetries + (again?.storeRetries ?? 0),
     // OQ pictures have no truth (lossy, no digests in their metadata): one digest of them all, equal across a set's D visits.
     oq: r.oq, oqDigest: oqDigest(r.sha), exact, owed, losslessExact: r.sha[`${row.mid}.0`] === truth(row.mid, "0"), failures: r.nFailures, failure: r.failures[0]?.reason,
     reopen: again && { allMs: Math.round(again.allAt - again.issuedAt), wouldAsk: again.wouldAsk, bandsAgain: again.bandsAgain, decodes: again.decodes,
