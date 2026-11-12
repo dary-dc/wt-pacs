@@ -1,0 +1,106 @@
+wt_url=https://127.0.0.1:4434/
+cert_sha256=2841398b6fb93d399c9f00ed9dd6f22d9ba9c682092e7c3c155fff7e0a4d91e3
+series=/studies/dbts_a1.sbnd
+frames=56
+read_fast_path=preadv2
+read_ring=refused (io_uring setup: Permission denied (os error 13))
+stream_mode=shared
+bind=[::] dual-stack
+transport=congestion=cubic-restart
+telemetry=compile-time
+2026-11-11T20:19:41.963082Z  INFO series_server::transport::banner: series-server ready (Media-complete) wt_url=https://127.0.0.1:4434/ series=/studies/dbts_a1.sbnd stream_mode=shared
+2026-11-11T20:31:11.629705Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=4595 cwnd=12000 sent=15 lost=0 congestion_events=0 datagrams_tx=14 sendmsg=14
+2026-11-11T20:31:11.630440Z  WARN series_server::transport::server: session ended err=connection lost: timed out
+2026-11-11T20:51:18.527664Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T20:51:18.528311Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=6520 cwnd=1055988 sent=893 lost=0 congestion_events=0 datagrams_tx=893 sendmsg=84
+2026-11-11T20:51:18.528330Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T20:52:05.116067Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T20:52:05.116310Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=6582 cwnd=1032756 sent=894 lost=0 congestion_events=0 datagrams_tx=893 sendmsg=88
+2026-11-11T20:52:05.116327Z  WARN series_server::transport::server: session ended err=connection lost: timed out
+wt_url=https://127.0.0.1:4434/
+cert_sha256=5cce4654e1a0aeefc30500c86c641c3a386741b20558ef268b2599a02cfa2f66
+series=/studies/dbts_b1.sbnd
+frames=50
+read_fast_path=preadv2
+read_ring=refused (io_uring setup: Permission denied (os error 13))
+stream_mode=shared
+bind=[::] dual-stack
+transport=congestion=cubic-restart
+telemetry=compile-time
+2026-11-11T20:52:23.395460Z  INFO series_server::transport::banner: series-server ready (Media-complete) wt_url=https://127.0.0.1:4434/ series=/studies/dbts_b1.sbnd stream_mode=shared
+2026-11-11T21:00:50.700072Z  WARN series_server::media::read_path: io_uring refused; tile misses go to the pool (warned once) err=io_uring setup
+2026-11-11T21:01:50.708397Z  INFO series_server::transport::pipeline: session reads hits=0 misses=1 miss_rate=1.0 fill_hits=0 fill_misses=0 tile_hits=0 tile_misses=1 named=1 in_flight=1 ring=false fills=0
+2026-11-11T21:01:50.708435Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=6338 cwnd=1918476 sent=1494 lost=0 congestion_events=0 datagrams_tx=1493 sendmsg=113
+2026-11-11T21:01:50.708454Z  WARN series_server::transport::server: session ended err=connection lost: timed out
+2026-11-11T21:12:37.006685Z  INFO series_server::transport::pipeline: session reads hits=0 misses=1 miss_rate=1.0 fill_hits=0 fill_misses=0 tile_hits=0 tile_misses=1 named=1 in_flight=1 ring=false fills=0
+2026-11-11T21:12:37.007009Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=11095 cwnd=1163436 sent=1494 lost=0 congestion_events=0 datagrams_tx=1494 sendmsg=87
+2026-11-11T21:12:37.007017Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T21:14:10.683980Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T21:14:10.684375Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=6235 cwnd=1982364 sent=1493 lost=0 congestion_events=0 datagrams_tx=1493 sendmsg=121
+2026-11-11T21:14:10.684387Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T22:30:06.471274Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T22:30:06.471695Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=29420 cwnd=1154724 sent=1495 lost=0 congestion_events=0 datagrams_tx=1494 sendmsg=93
+2026-11-11T22:30:06.471714Z  WARN series_server::transport::server: session ended err=connection lost: timed out
+2026-11-11T22:53:06.939486Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T22:53:06.940029Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=12839 cwnd=1320252 sent=1496 lost=0 congestion_events=0 datagrams_tx=1496 sendmsg=97
+2026-11-11T22:53:06.940042Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:04:35.160772Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:04:35.161244Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=5712 cwnd=2017212 sent=1492 lost=0 congestion_events=0 datagrams_tx=1492 sendmsg=119
+2026-11-11T23:04:35.161256Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:04:55.558330Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:04:55.558687Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=10186 cwnd=1269432 sent=1498 lost=0 congestion_events=0 datagrams_tx=1498 sendmsg=101
+2026-11-11T23:04:55.558702Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:05:56.244334Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:05:56.244387Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=6858 cwnd=2046252 sent=1493 lost=0 congestion_events=0 datagrams_tx=1493 sendmsg=119
+2026-11-11T23:05:56.244401Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:06:15.988993Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:06:15.989051Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=13656 cwnd=1118424 sent=1495 lost=0 congestion_events=0 datagrams_tx=1495 sendmsg=88
+2026-11-11T23:06:15.989063Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:07:15.423962Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:07:15.424176Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=12342 cwnd=1085028 sent=1498 lost=0 congestion_events=0 datagrams_tx=1498 sendmsg=92
+2026-11-11T23:07:15.424185Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:07:54.758229Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:07:54.758261Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=12792 cwnd=1288308 sent=1496 lost=0 congestion_events=0 datagrams_tx=1496 sendmsg=92
+2026-11-11T23:07:54.758270Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:08:14.151672Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:08:14.151721Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=6204 cwnd=1946064 sent=1493 lost=0 congestion_events=0 datagrams_tx=1493 sendmsg=117
+2026-11-11T23:08:14.151729Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:08:53.461326Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:08:53.461343Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=6192 cwnd=1988172 sent=1494 lost=0 congestion_events=0 datagrams_tx=1494 sendmsg=122
+2026-11-11T23:08:53.461350Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:09:32.734096Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:09:32.734111Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=10540 cwnd=1279596 sent=1496 lost=0 congestion_events=0 datagrams_tx=1496 sendmsg=98
+2026-11-11T23:09:32.734117Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:10:31.741581Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:10:31.741772Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=6374 cwnd=1967844 sent=1493 lost=0 congestion_events=0 datagrams_tx=1493 sendmsg=118
+2026-11-11T23:10:31.741783Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:10:51.206609Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:10:51.206631Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=13129 cwnd=1192476 sent=1496 lost=0 congestion_events=0 datagrams_tx=1496 sendmsg=91
+2026-11-11T23:10:51.206639Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:11:50.881074Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:11:50.881106Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=6269 cwnd=1908312 sent=1494 lost=0 congestion_events=0 datagrams_tx=1494 sendmsg=126
+2026-11-11T23:11:50.881115Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:12:10.338473Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:12:10.338526Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=6720 cwnd=2024472 sent=1493 lost=0 congestion_events=0 datagrams_tx=1493 sendmsg=116
+2026-11-11T23:12:10.338544Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:12:51.040874Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:12:51.040904Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=6507 cwnd=2034636 sent=1493 lost=0 congestion_events=0 datagrams_tx=1493 sendmsg=119
+2026-11-11T23:12:51.040919Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:13:50.525188Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:13:50.525257Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=11347 cwnd=1192476 sent=1495 lost=0 congestion_events=0 datagrams_tx=1495 sendmsg=93
+2026-11-11T23:13:50.525265Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:14:29.609784Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:14:29.609803Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=13738 cwnd=1259268 sent=1497 lost=0 congestion_events=0 datagrams_tx=1497 sendmsg=95
+2026-11-11T23:14:29.609810Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:15:09.403645Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:15:09.403665Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=6430 cwnd=2004144 sent=1493 lost=0 congestion_events=0 datagrams_tx=1493 sendmsg=120
+2026-11-11T23:15:09.403670Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:15:28.812443Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:15:28.812741Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=11799 cwnd=1103904 sent=1496 lost=0 congestion_events=0 datagrams_tx=1496 sendmsg=91
+2026-11-11T23:15:28.812753Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:16:29.942018Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:16:29.942039Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=6354 cwnd=1995432 sent=1494 lost=0 congestion_events=0 datagrams_tx=1494 sendmsg=111
+2026-11-11T23:16:29.942047Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed
+2026-11-11T23:16:49.934924Z  INFO series_server::transport::pipeline: session reads hits=1 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=1 tile_misses=0 named=1 in_flight=0 ring=false fills=0
+2026-11-11T23:16:49.934969Z  INFO series_server::transport::server: session path mtu=1452 rtt_us=9450 cwnd=1372524 sent=1493 lost=0 congestion_events=0 datagrams_tx=1493 sendmsg=90
+2026-11-11T23:16:49.934976Z  INFO series_server::transport::server: session closed by peer err=connection lost: closed

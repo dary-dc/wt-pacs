@@ -145,7 +145,13 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   amendment's aside that the beacon's fill adds the handshake to the status line's is the other way round as built:
   the status line starts at the page's issue, before the downloader dials, so it is the longer (by 12–30 ms on
   loopback, `run_test.sh`); ratios are unaffected. Headless on loopback only; not on a phone, not under SELinux.
-* **Not yet run:** any phone run.
+* **The first phone run** (PHONE-RUN, 2026-11-11, run commit `962226e8`, `claude/phone-rows`:
+  [`docs/phone-rows/README.md`](../phone-rows/README.md)): §7 as twice amended, `dbts_b1-q8-g8`, one Galaxy S23, tether
+  and Wi-Fi (server wired) alternated load by load, 48 counted loads. Tether: 23 passed, 1 missing; worker / page
+  *depends on the controller*; `bbr` / `cubic-restart` no difference shown at n = 11. Wi-Fi: 22 passed, 2 failed, both
+  `bbr` (a *Lossless* never fetched after a lossy fill; a fill whose page was likely hidden); worker / page no
+  difference shown at n = 10; **`cubic-restart` faster** (9 of 10, median ratio 1.084). Every Wi-Fi loss Cubic met
+  was congestive. Not blind-read yet; one phone, one home link, one evening, one series of one dataset.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
   twelve): running REDTEAM-DEMO, REVIEW-BLIND, TEST-MOBILE, AV1-CORRECT, OPT-THEORY, and the rows added that night:
@@ -180,12 +186,10 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
 3. The browser end to end on the merged branch: done headless 2026-11-10, twice, the second from a fresh clone
    (State now); on a GPU and a phone, owed: the owner's laptop and phone rehearsal, README §Demo.
 4. Done 2026-11-11 on `claude/demo-fixes-2`: the web image serves the exact series' paths (State now).
-5. Phone runs: the owner is ready to run them at any time. On the laptop without installs (State now), after
-   PHONE-NO-INSTALL lands, the owner answers: (a) what counts as installing: crates fetched by cargo into the home
-   directory, podman images already present, a portable binary such as `adb` in the home directory; (b) how the
-   demo series reach the laptop (their sizes come from PHONE-NO-INSTALL); (c) which laptop and phone; (d) the
-   demo's loss and delay without netem (root), or netem dropped for it. The owner runs
-   `sudo firewall-cmd --get-default-zone; sudo firewall-cmd --get-active-zones`, again with tethering on.
+5. Phone runs: the first ran on 2026-11-11 (State now). Before decisions: the blind read (PHONE-BLIND-READ).
+   Before the next round, theory first: production's network mode (HOSTNET-THEORY), the two product failures
+   (LOSSLESS-UNDER-LOSS, HIDDEN-PAGE-DECODE), a link profile from this run's traces (LINK-CALIBRATION), what bounds
+   a fill on the phone (FILL-SPLIT), and a runner that needs no hands (RUNNER-AUTO, the phone session's).
 11. Understanding before 11-13: the findings of OPT-SIMPLIFY, CLEAN-FIND, NAMES-FIND, DEFAULTS-FIND, ESSENTIALS and
     FABLE-SIMPLIFY, each ranked by what it saves a presenter; the owner chooses what goes in before the demo and what
     after. Then a reading pass with the owner, ESSENTIALS' points first, deeper only where time allows.
