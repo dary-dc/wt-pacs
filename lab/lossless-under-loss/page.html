@@ -1,0 +1,51 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>lossless under loss</title>
+<script type="module">
+// The phone run's load 6 on a simulated link: docs/reviews/lossless-under-loss.md §Reproduced on a simulated link.
+import { DownloaderClient } from "/client/transport/consumer.js";
+import { Controller } from "/client/view/controller.js";
+
+const q = new URLSearchParams(location.search);
+const n = Number(q.get("frames"));
+const t0 = performance.now();
+const log = (k, x = {}) => console.log(JSON.stringify({ t: Math.round(performance.now() - t0), k, ...x }));
+const grey = { pixels: new Uint16Array(6).buffer, width: 3, height: 2, bits: 16, components: 1, signed: false, min: 0, max: 5, stamps: {} };
+
+const controller = new Controller({
+  meta: { frameCount: n, codec: "av1", lossy: { q: 8, g: 1, depth: 10 }, exactSeries: "exact" },
+  fillMode: false,
+  size: { width: 3, height: 2, dpr: 1 },
+  paint: () => ({}),
+  emit: (type, e) => log(type, { quality: e.quality, reason: e.reason }),
+  ...(q.get("retry") === "off" && { exactRetryMs: [] }),
+});
+controller.take({ frameIndex: 0, info: grey });
+
+let filled = 0;
+const fillDone = new Promise((done) => {
+  globalThis.fillClient = DownloaderClient.connect(q.get("fill"), q.get("hash"), {
+    decode: false,
+    fill: [...Array(n).keys()],
+    onFrame: () => ++filled === n && done(),
+  });
+});
+const exact = await DownloaderClient.connect(q.get("exact"), q.get("hash"), { decode: false, decoders: 1 });
+// The digest check is not under test: a frame that arrives stands in for one that matched.
+controller.exactSource = {
+  requestExactFrame: (i) => {
+    log("ask");
+    return exact.requestExactFrame(i).then(
+      (f) => (log("arrived", { bytes: f.bytes.length }), { ...f, info: { ...grey, exact: true, path: "htj2k" } }),
+      (e) => (log("rejected", { reason: e.message }), Promise.reject(e)),
+    );
+  },
+};
+await fillDone;
+log("filled");
+globalThis.press = async () => {
+  log("press");
+  await controller.showExact();
+  log("settled");
+};
+</script>

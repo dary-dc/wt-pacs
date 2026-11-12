@@ -13,7 +13,7 @@ const frame = (i, bits = 16) => ({
 });
 
 /** A controller on a series of `frames`, its paints and the client's calls recorded; `held` frames already here; `wants`, the worker view's store. */
-function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, lossy, bitsStored, bits, window = { center: [3], width: [6] } } = {}) {
+function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, lossy, bitsStored, bits, window = { center: [3], width: [6] }, exactRetryMs } = {}) {
   const painted = [];
   const calls = [];
   const events = [];
@@ -24,6 +24,7 @@ function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, los
     emit: (type, e) => events.push([type, e]),
     paint: paint ?? ((f, display) => (painted.push({ f, display }), { uploaded: painted.at(-2)?.f !== f })),
     budget,
+    exactRetryMs,
   });
   c.client = {
     requestExactFrame: (i) => (calls.push(`ask ${i}`), Promise.resolve(frame(i))),
@@ -453,6 +454,59 @@ test("a failed exact request can be asked again on the same frame", async () => 
   assert.equal(r.labels().at(-1), "lossless");
 });
 
+/** A rejected ask without a frame. */
+const lost = () => {
+  const p = Promise.reject(new Error("the session was lost and could not be re-dialled"));
+  p.catch(() => {});
+  return p;
+};
+
+/**
+ * An exact ask the transport failed (no frame came) is asked again while the reader stays on the frame, and the label
+ * says asking, never failed, until one comes: phone run load 6, docs/reviews/lossless-under-loss.md.
+ */
+test("an exact ask the transport failed is asked again, the label asking until the frame comes", async () => {
+  const answers = [lost(), lost(), Promise.resolve(exactFrame(1))];
+  const r = lossyRig(() => answers.shift(), { exactRetryMs: [20, 20] });
+  await r.c.show(1);
+  const asked = r.c.showExact();
+  await new Promise((done) => setTimeout(done, 5));
+  await r.c.repaint();
+  await asked;
+  assert.deepEqual(r.exactAsks, [1, 1, 1]);
+  const runs = r.labels().filter((q, k, a) => q !== a[k - 1]);
+  assert.deepEqual(runs, ["optimal", "asking", "lossless"]);
+  assert.ok(!r.events.some(([t]) => t === "failed"));
+});
+
+/** The re-asks are bounded: after the last, the label is failed with the transport's reason. */
+test("an exact ask the transport keeps failing is failed after the last re-ask", async () => {
+  const r = lossyRig(lost, { exactRetryMs: [0, 0] });
+  await r.c.showExact();
+  assert.deepEqual(r.exactAsks, [0, 0, 0]);
+  assert.equal(r.labels().at(-1), "failed");
+  assert.match(r.events.findLast(([t]) => t === "failed")[1].reason, /could not be re-dialled/);
+});
+
+/** A frame that came and failed its check is a verdict, not a lost ask: it is not asked again. */
+test("an exact frame that failed its check is not asked again", async () => {
+  const r = lossyRig((i) => Promise.resolve(exactFrame(i, false)), { exactRetryMs: [0, 0] });
+  await r.c.showExact();
+  assert.deepEqual(r.exactAsks, [0]);
+  assert.equal(r.labels().at(-1), "failed");
+});
+
+/** A reader who leaves the frame, or goes back to optimal quality, ends the re-asks. */
+test("leaving the frame ends the re-asks of a lost exact ask", async () => {
+  const r = lossyRig(lost, { exactRetryMs: [20, 20] });
+  const asked = r.c.showExact();
+  await new Promise((done) => setTimeout(done, 5));
+  r.c.showLossy();
+  await asked;
+  assert.deepEqual(r.exactAsks, [0]);
+  assert.equal(r.labels().at(-1), "optimal");
+});
+
 /**
  * A depth cut's frames reach the painter with their shift, the exact frame painted in place without one; its window
  * from the decoded range and the sample under the cursor are at full depth.
@@ -517,7 +571,7 @@ let failed = 0;
 test("the label runs every state through a failed ask, its retry and the way back", async () => {
   const asks = [Promise.reject(new Error("session closed")), Promise.resolve(exactFrame(2))];
   asks[0].catch(() => {});
-  const r = lossyRig(() => asks.shift());
+  const r = lossyRig(() => asks.shift(), { exactRetryMs: [] });
   await r.c.show(2);
   await r.c.showExact();
   const reason = r.events.findLast(([t]) => t === "failed")?.[1];
