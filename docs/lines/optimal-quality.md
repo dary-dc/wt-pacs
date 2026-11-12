@@ -202,7 +202,9 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
     and the label named the transport failure *Lossless check failed* with nothing asking again. Proposed: a lost
     exact ask asked again after 1, 4 and 16 s while the reader stays; reproduced on a simulated link
     (`lab/lossless-under-loss/`). Owed to the owner: the schedule, a separate label for a fetch that failed, server
-    keep-alive. PHONE-FIX-REVIEW reviews it.
+    keep-alive. Reviewed 2026-11-12 (PHONE-FIX-REVIEW): tests fail without the fix, theory matches the trace, gate and
+    `demo-check.mjs` in both views pass; findings: every rejection is re-asked, and `lab/lossless-under-loss/` stays
+    off the product path.
 
 ## Decisions (the owner's, 2026-11-09)
 
