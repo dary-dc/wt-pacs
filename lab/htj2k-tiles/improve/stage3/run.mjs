@@ -200,7 +200,8 @@ function figures(row, r, again, frames) {
     owed += 1;
     exact += sha === truth(Number(f), level);
   }
-  const reopenSame = again ? Object.entries(again.sha).filter(([f, sha]) => sha === r.sha[`${f}.${again.pictured[f] === "oq" ? "oq" : again.pictured[f]}`]).length : 0;
+  const differs = again ? Object.entries(again.sha).filter(([f, sha]) => sha !== r.sha[`${f}.${again.pictured[f]}`]).map(([f]) => `${f}.${again.pictured[f]}`) : [];
+  const reopenSame = again ? Object.keys(again.sha).length - differs.length : 0;
   return {
     ...row,
     firstMs: Math.round(r.firstAt - r.issuedAt),
@@ -211,7 +212,7 @@ function figures(row, r, again, frames) {
     // OQ pictures have no truth (lossy, no digests in their metadata): one digest of them all, equal across a set's D visits.
     oq: r.oq, oqDigest: oqDigest(r.sha), exact, owed, losslessExact: r.sha[`${row.mid}.0`] === truth(row.mid, "0"), failures: r.nFailures, failure: r.failures[0]?.reason,
     reopen: again && { allMs: Math.round(again.allAt - again.issuedAt), wouldAsk: again.wouldAsk, bandsAgain: again.bandsAgain, decodes: again.decodes,
-      same: reopenSame, of: row.N, failures: again.failures.length },
+      same: reopenSame, of: row.N, ...(differs.length && { differs }), failures: again.failures.length },
   };
 }
 
