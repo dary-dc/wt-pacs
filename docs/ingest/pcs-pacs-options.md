@@ -314,6 +314,14 @@ PCS: sender --profile P EXAM_DIR S           PACS: carrier                      
 **Built code:** all of it. Owed before it fits (design state §14): one reply vocabulary and place (D3), the audit
 row's "who", one study-DB schema (D1).
 
+### 4.3 Package over rsync (a bridge)
+
+The tar package delivered by rsync over ssh, the reply a status file pulled back. rsync writes a temporary name and
+renames it when whole ("creating a new copy of the file and moving it into place when it is complete", rsync(1)
+`--inplace`), so the arrival by rename still triggers; #163's scan already skips names starting with `.` (read in its
+code), and a `--partial-dir` piece is a directory. It reuses the sender's build and the receiver unchanged, replaces
+only the carrier and `send-package.sh`, and keeps one file to keep and resend whole. It costs QUIC (*inference*).
+
 ### 4.4 A kept mirror of the PCS's tree
 
 *Proposed 2026-10-29, the owner's model; theory only.* rsync as it is meant: a directory kept in step with the PCS's
@@ -364,14 +372,6 @@ tree (one filesystem, no blocks); if the PACS builds the `.sbnd` from frame file
 excludes them (`--exclude`, which also keeps them from `--delete`) and they travel by `--files-from` as in §4.1. The
 mirror and the study DB are backed up and restored together. Comparing the mirror (BLAKE3 names) with the study DB
 (XXH3) needs the PCS's name per row, or the bridge's option (a) (§1).
-
-### 4.3 Package over rsync (a bridge)
-
-The tar package delivered by rsync over ssh, the reply a status file pulled back. rsync writes a temporary name and
-renames it when whole ("creating a new copy of the file and moving it into place when it is complete", rsync(1)
-`--inplace`), so the arrival by rename still triggers; #163's scan already skips names starting with `.` (read in its
-code), and a `--partial-dir` piece is a directory. It reuses the sender's build and the receiver unchanged, replaces
-only the carrier and `send-package.sh`, and keeps one file to keep and resend whole. It costs QUIC (*inference*).
 
 ## 5 · What does not combine
 
