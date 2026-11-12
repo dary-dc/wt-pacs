@@ -41,7 +41,7 @@ export class DownloaderClient {
     this.#onPreview = opts.onPreview ?? (() => {});
     this.#onError = opts.onError ?? (() => {});
     this.#heldAcks = Boolean(opts.heldAcks);
-    // The worker's script is a seam: a page may boot it from a bundle or a blob. lab/page-open/README.md
+    // The worker's script is a seam: a page may boot it from a bundle or a blob. docs/ARCHITECTURE.md §The session open
     // Given a port, the downloader is a page's own, linked to the view worker: docs/adr/frame-path.md §3, *Built*.
     this.#worker = opts.port ?? new Worker(opts.worker ?? new URL("./downloader.js", import.meta.url), { type: "module" });
     this.#worker.onmessage = (e) => this.#fromDownloader(e.data);

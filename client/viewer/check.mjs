@@ -81,7 +81,7 @@ async function host(sbnd, name) {
   return { url: `http://127.0.0.1:${p}/`, requests, key: `https://127.0.0.1:${port}/` };
 }
 
-const pageOf = (url) => `${url}?${new URLSearchParams({ check: "1", ...(process.argv.includes("--cine") && { cine: "1" }),
+const pageOf = (url) => `${url}?${new URLSearchParams({ check: process.argv.includes("--cine") ? "cine" : "1",
   ...(arg("--fill") && { fill: arg("--fill") }), ...(VIEW !== "page" && { view: VIEW }), ...(arg("--writer") && { writer: WRITER }), ...(arg("--opts") && { opts: arg("--opts") }) })}`;
 const noResult = () => new Promise((resolve) => setTimeout(() => resolve({ error: "no result in 300 s" }), 300000).unref());
 

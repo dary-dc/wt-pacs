@@ -524,16 +524,18 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   (touch only; a mouse click does nothing) on it or on the quality label unfolds it whole, wrapped; the next folds it
   (`viewer/screen.js` `unfoldOnTap`).
 * **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=`, `?origin=` and `?writer=` let a lab harness drive the
-  same page. They load from `lab/viewer/levers.js`, which only the dev host serves: on the web image a link carrying
+  same page; `?opts=` may hand it other frame digests, never none (the frame check stays on). They load from `lab/viewer/levers.js`, which only the dev host serves: on the web image a link carrying
   any of them is refused, by name on the status line, before the page fetches, imports or dials anything.
   `viewer/crafted.mjs`, run by the gate, opens each on a host shaped like the image and fails if one is fetched or
   dialled, and on a host serving `lab/` shows `?wt=` and `?metadata=` honoured; it fails too if a transport file
-  naming an unknown client is not refused by name with no WASM code fetched and nothing dialled. `?post=` (with `?origin=`) gives the
+  naming an unknown client is not refused by name with no WASM code fetched and nothing dialled. `?trace=sawtooth` steps the page
+  on the lab's trace (`lab/viewer/trace.js`). `?post=` (with `?origin=`, and `?settle=` and `?after=`, refused without it) gives the
   page the total-time harness's protocol as two hooks, `started()` and `finished(result)`, which it calls only when
   present; the page watches for the fill's end only for that hook or `?check=`. `?check=` (with `?deadline=` and
   `?mutate=`) is a lab parameter too: the viewer check's modules, `lab/viewer/check-page.js` and `check-view.js`,
   load through `lab/viewer/hooks.js`, and the view worker imports the latter by the URL its `lab` setting names.
-  `?cine=`, `?fill=` and `?view=` are the page's own.
+  `?check=cine` adds a 1.5 s cine to the check; `?cine=` is the lab's (N seconds after the fill, `lab/viewer/levers.js`).
+  `?fill=`, `?view=` and `?overlay=` are the page's own.
 * **Its policy.** The page and every script it loads carry a Content-Security-Policy ([`deploy/README.md`](../deploy/README.md)
   §What must be preserved exactly): scripts from the page's origin alone, connections to it and the transport.
 
