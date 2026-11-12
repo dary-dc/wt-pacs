@@ -156,7 +156,7 @@ session's; reader studies are no agent's.
 
 `docs/av1/payload-format.md`, `docs/av1/MAINBASE.md`, `docs/av1/queue.md`, `docs/decode/README.md`,
 `docs/FIXTURES.md`, `docs/transport/transport-conclusions.md`, `docs/adr/disk-access.md`, `lab/`; branches
-`claude/av1-unified-mainbase`, `claude/av1-corrections` (`docs/av1/corrections.md`, `audit-protocols.md`),
+`claude/av1-unified-mainbase`, `claude/av1-corrections:docs/av1/corrections.md` (and its `audit-protocols.md`),
 `claude/audit-measure`, `claude/docs-lines-3` (the harvest), `claude/av1-quality-metrics:lab/av1/metrics/README.md`,
 `claude/av1-quality-profiles:lab/av1/profiles/README.md`, `claude/av1-noise-point:docs/av1/noise-point.md`,
 `claude/av1-window-q`, `claude/av1-vl-metrics`, `claude/av1-noise-ratio`, `claude/av1-encoder-settings`,
