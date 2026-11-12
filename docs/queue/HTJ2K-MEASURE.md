@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-11 18:59 UTC
-heartbeat: 2026-11-12 02:53 UTC
-outputs: `claude/htj2k-tiles` bc27fe97 (rows, docs; draft PR #324 into main, already open: the commits land in it)
+heartbeat: 2026-11-12 03:02 UTC
+outputs: `claude/htj2k-tiles` 3ec91da1 (rows, docs; draft PR #324 into main, already open: the commits land in it)
 ## Resume
 Session 3 plan (2026-11-11 23:24 UTC), the client's design fixed before any run:
 * `lab/htj2k-tiles/improve/stage3/`: `page.js` (one lab page, every arm), `store.js` (a lab OPFS store worker: level
@@ -70,6 +70,15 @@ HTJ2K-VERDICT waits on this row.
   `--first-round K --rounds 2-K` into a new file `rows/stage3-s3a-K.jsonl`; then S3b (`--first-round 2 --rounds 2`),
   S3c (`--first-round 4 --rounds 2`), each ≤ 4.5 h, stopping at a round's end. Then `summary.py` over all kept rows
   and the readings R3–R7 in docs §Improve, measured: stage 3, `docs/lines/codecs.md`, this Result.
+* **S3a round 0 complete** (23:52–03:00, 3.1 h; `bd3252bb`, 200 rows in `rows/stage3-s3a.jsonl`): 180 kept, 13 void
+  (relay late), 7 failed, all "no result in 720 s" after every byte had arrived (the relays' packet counts are full),
+  so the page stalls after the transfer, cause unknown. Round 1 runs from 03:01 with `f606474f` (the same timed
+  paths, plus a stall report: the page's stage and counts, read on timeout); the pins name each round's client. R0
+  holds in every kept visit; the OQ digest agrees across D visits on every volume. J10's 0 asks and 0 decodes hold
+  70/70; two D+L★ reopens on `dbts_b1` gave one picture in 50 different from its filled copy. From S3b, `3ec91da1`'s
+  driver names the differing frames (sync it into the tree first: `/home/user/sync.sh`). The pre-registered
+  decode-bound test (D's every-slice at 4× > 1.05 × 1×) names 13 of 20 (set, link) pairs, which leaves mostly
+  `r5000` link-bound; to be stated in the readings, not amended.
 ## Result
 * Stages 0–2 of `docs/htj2k-tiles.md` §Improve's protocol run; stage 3's inputs built (strip series 294/294 exact from
   the entries; D series from `157b7109`, equal to FREEZE-E2E's), its client and runs not yet, so R3–R7 are undecided.
