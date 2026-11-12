@@ -1,27 +1,24 @@
-state: started
+state: done
 started: 2026-11-12T09:22Z
-heartbeat: 2026-11-12T11:20Z
-outputs: claude/hidden-page-decode 9d7e8a5a (b495c649 failing test, 5afb9734 fix, test tightened, docs/reviews/hidden-page-decode.md); claude/hidden-page-decode-beacon (off claude/phone-tools: 4230419c failing tests, 0efeba4c visibility record, README); no PRs yet
+heartbeat: 2026-11-12T12:05Z
+outputs: claude/hidden-page-decode a66e9890, draft PR 376 -> claude/demo-fixes-2; claude/hidden-page-decode-beacon (off claude/phone-tools) 38e1906c+, draft PR 377 -> claude/phone-tools
 ## Resume
-Branch claude/hidden-page-decode from claude/demo-fixes-2 (18d2d1ff), worktree /home/user/hpd (not yet pushed).
-Theory so far, from claude/phone-rows raw/beacon-wifi-8766.jsonl load 2ed36cb0 (load 13): keyframes 0, 8, 16 were
-DELIVERED via av1-webcodecs with decodeMs 17.6-18.1 s (decodeStart..decodeEnd inside the decoder worker), and every
-other frame of their groups failed "frame N-1 of its group did not decode" = downloader.js pump()'s orphaned(). Groups
-24-49 decoded normally (~110-220 ms). Not a WebCodecs reclamation error (that would fail the keyframe as
-"undecodable: ... closed"). Reading: the page was frozen/throttled ~18 s; on resume the downloader's decodeMs
-watchdog (10 s, downloader.js arm/replace) replaced the decoder that held each group; the new decoder has next=null,
-record N-1 is acked/gone, so orphaned() fails the rest of the group instead of asking it again from its keyframe.
-DONE: sources read (W3C WebCodecs ED §11 Resource Reclamation; Chromium main reclaimable_codec.cc/.h 90 s,
-backgrounded + global pressure, decoder_template.cc pressure only IsPlatformDecoder; codec_pressure_gauge.cc
-Android threshold 4) => our prefer-software decoders are not reclaimed by Chromium; load 13 is not reclamation.
-Fix: downloader arm() re-arms a deadline that fires > deadlines.frozenMs (1000) late; test
-aFrozenPageKeepsItsDecoder; mutants killed: no check, no re-arm, threshold ignored, due at arming, always re-arm,
-no default, default 5 s. DONE also: beacon visibility on claude/hidden-page-decode-beacon (9 mutants killed, install() wiring survives in node),
-docs/reviews/hidden-page-decode.md, docs/lines/client.md. NEXT: gate per claude/gate-cloud setup on /home/user/hpd
-(scripts/gate.sh, --no-browser if browser fails; setup in this session: dockerd, meson 1.9.1, wasm build.sh, ingest/tools.sh,
-rustup wasm32 + cargo install wasm-pack 0.15.0, client/transport/wasm/build.sh), then two draft PRs (-> claude/demo-fixes-2, -> claude/phone-tools).
-OLD PLAN: sources (WebCodecs spec §Codec reclamation; Chromium reclaimable_codec.cc; Page Lifecycle freeze), a failing
-downloader test (replace a decoder holding a group after its keyframe was delivered -> rest of group must still
-arrive), fix (re-ask the group from its keyframe on a fresh decoder), mutate, beacon visibility on claude/phone-tools
-or the tip's lab beacon, docs/reviews/hidden-page-decode.md, gate, draft PR into claude/demo-fixes-2.
+Done. PHONE-FIX-REVIEW reviews PR 376 (and 377). Branch commits: b495c649 failing test, 5afb9734 fix, test tightened,
+9d7e8a5a/a66e9890 docs/reviews/hidden-page-decode.md + docs/lines/client.md. Beacon: 4230419c failing tests, 0efeba4c change, README.
+Gate setup used here: dockerd, pip meson==1.9.1, client/decode/wasm/build/build.sh, ingest/tools.sh, rustup target add
+wasm32-unknown-unknown, cargo install wasm-pack --version 0.15.0 --locked, client/transport/wasm/build.sh,
+client/decode/wasm/fetch_openjph.sh, then scripts/gate.sh.
 ## Result
+Load 13 was not WebCodecs reclamation: Chromium reclaims only platform decoders, backgrounded, under pressure, after
+90 s idle (reclaimable_codec.cc/.h, decoder_template.cc); the client uses prefer-software. The trace: keyframes 0/8/16
+delivered after ~18 s inside the decoder, the rest of their groups failed as orphaned. Reading: the page was stopped;
+on resume the downloader's 10 s decode deadline fired late and replaced decoders that had just delivered a keyframe.
+Fix (PR 376): a deadline firing > frozenMs (1 s) late is given again; a decoder silent through a running deadline is
+still replaced. Test fails pre-fix; 7 mutants killed. Beacon (PR 377): visibility/freeze/resume/pagehide records with
+visibilityState; 9 mutants killed, the install() wiring survives in node (DOM).
+Gate OK (577 s) on PR 376's branch, with its own skips (native window, numpy checks, ingest compare, Firefox, nginx).
+Limits: one load, one phone, one evening; visibility unrecorded in that run; nothing run on a phone.
+Deviation: the beacon change is on a second branch (claude/hidden-page-decode-beacon) because lab/phone lives only on
+claude/phone-tools; it overlaps the phone session's RUNNER-AUTO.
+Owner decisions: whether a replaced decoder's group is asked again from its keyframe (the contract rig pins "rest
+fails by name" today); merging 376/377 after PHONE-FIX-REVIEW.
