@@ -162,7 +162,7 @@ A container test of a deployment of this shape found each one (the deployment te
     which the lab runs against `dev-server.py`.
 
 **What the web image carries.** The files of `client/` the viewer loads, which `web-files.sh` lists and copies: the
-page and its modules, the page check's two (`?check=`), and row DECODERBUILD's decoder builds with their notices
+page and its modules (the page check's are `lab/`'s, which no image serves), and row DECODERBUILD's decoder builds with their notices
 (`client/decode/wasm/built/`, the frame check's hasher among them), checked against `build/manifest.sha256` at build
 time; the TS client's WebTransport bundle (`build.sh --product`); and the WASM client, its adapter copied and its glue and `.wasm` built
 in the `wasm` stage (row 277's `CLIENT` picks it): the `wasm32-unknown-unknown` target, `wasm-pack` 0.15.0 by
