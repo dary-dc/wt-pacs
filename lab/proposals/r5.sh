@@ -4,7 +4,7 @@
 # rotated one place a round. ROUTE `failed`: today, lazy and probe on each series' forced mid-group failure, clean
 # link, dev host, 3 rounds. ROOTS holds r5_arm.sh's roots: lazy, probe, and today-ID, lazy-ID, probe-ID for `failed`.
 #
-#   TIP=... DIR=... ROOTS=... lab/proposals/r5.sh ROUTE OUT [FIRST_ROUND]
+#   TIP=... DIR=... ROOTS=... [LAST=9] lab/proposals/r5.sh ROUTE OUT [FIRST_ROUND]
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROUTE=$1 OUT=$2
@@ -27,7 +27,7 @@ if [[ $ROUTE == failed ]]; then
   exit 0
 fi
 flag=(); [[ $ROUTE == refused ]] && flag=(--refuse)
-for round in $(seq "${3:-1}" 9); do
+for round in $(seq "${3:-1}" "${LAST:-9}"); do
   arms=(today lazy probe aa); k=$(((round - 1) % 4)); arms=("${arms[@]:$k}" "${arms[@]:0:$k}")
   for static in dev nginx; do
     for link in "" "--loss 1"; do

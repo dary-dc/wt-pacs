@@ -1018,6 +1018,14 @@ team left open.
   fill never ends). The rotation: arms (today, lazy, probe, aa) shifted one place a round, cells in the order
   host × link × series of `lab/proposals/r5.sh`.
 
+**Amendment 2 (MEASURE-2, 2026-11-12 01:30, during route *taken*'s round 1, before any row is read).** The host runs
+1.07 rows a minute, not the smoke's 4–8: a cold and a warm fill each run, and `dbts_b1` and `dbts_c1` carry 11 and
+23 MB at 20 Mbit/s. Nine rounds of both routes are 14 h. Each of *taken* and *refused* is cut to its first **5
+rounds** (240 rows each; 5 runs an arm a cell, 60 an arm pooled over the 12 cells), the rotation unchanged
+(`LAST=5 lab/proposals/r5.sh`). What it costs: a cell's median rests on 5 runs, so the per-cell table is reported
+and not read for the rule, which reads the pooled values only, as amendment 1 already says; the A/A arm's spread is
+measured on the same 5 rounds, so the tolerance widens with the noise rather than rejecting a tie.
+
 ### Round 2: MEASURE-1's data read, nothing proposed
 
 * *Cubic's slow start overflowed the 1 000-packet queue clean* (10–24 % of the optimal-quality server's datagrams,
