@@ -1,11 +1,15 @@
 state: started
 started: 2026-11-12 05:01
-heartbeat: 2026-11-12 05:20
+heartbeat: 2026-11-12 05:55
 outputs: claude/lines-ready (findings, docs only)
 ## Resume
-Done (not yet pushed as a doc): cherry and trial merges onto the demo tip 18d2d1ff in a scratch worktree (aborted):
-none of line-hygiene (29 conflicted files), line-server (3), line-pacs (6), line-viewer (6) merges cleanly; git cherry
-shows no commit of any line already in the tip by patch. Next: classify each branch's commits (product worth bringing,
-experiment in use, superseded), cleaning-rule check, PR mapping, write docs/reviews/lines-ready.md on claude/lines-ready.
+Done, raw (scratch only, not yet in the doc): cherry and trial merges onto the demo tip 18d2d1ff, aborted: none of
+line-hygiene (29 conflicted files), line-server (3), line-pacs (6), line-viewer (6) merges cleanly; no commit of any
+line is in the tip by patch; 10-30 CI on each line PR head (gate green on all four; deploy red on #258 only); open
+PR containment computed (240 open PRs, 63 carried by the tip, 103 by neither the tip nor a line branch).
+Running: the default series-server build of each line branch, checked for lab sources (as check_lab_absent.sh does).
+Next: write docs/reviews/lines-ready.md on claude/lines-ready (per branch: content, merge, gate, cleaning rule,
+verdict; then the line doc -> unified branch mapping with PRs), update docs/lines/coordination.md, push, draft PR? no:
+findings only, no PR named in the row; status done.
 Recompute: for b in line-hygiene line-server line-pacs line-viewer; do git cherry origin/claude/demo-fixes-2 origin/claude/$b; done
 ## Result
