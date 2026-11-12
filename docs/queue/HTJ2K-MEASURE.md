@@ -1,6 +1,6 @@
 state: done
 started: 2026-11-11 18:59 UTC
-heartbeat: 2026-11-12 14:37 UTC
+heartbeat: 2026-11-12 14:52 UTC
 outputs: `claude/htj2k-tiles` ef5adda2 (lab/htj2k-tiles/improve/stage3/, rows/stage3-*.jsonl, docs/htj2k-tiles.md §Improve, measured: stage 3; draft PR #324 into main, already open)
 ## Resume
 Session 4 resumed 2026-11-12 13:25 UTC (stalled since 12:03, S3c at 153 visits of round 4, `cc035d06`): fresh container; setup as below, then S3c rounds 4–5 again into `rows/stage3-s3c-4.jsonl` (the 153 rows of round 4 are incomplete, so not kept). Setup done 13:45 as below (MANIFEST OK on the delivered build; levels.wasm sha256 equals the pins' 09756bcf; strip series 294/294 exact again).
