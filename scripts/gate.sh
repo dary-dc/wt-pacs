@@ -84,6 +84,7 @@ run 1 bash client/transport/ts/build.sh
 run 1 bash -c 'cd client/transport/ts && sha256sum -c --quiet manifest.sha256 && echo "session.js rebuilt to its pin" \
   || { echo "the rebuilt dist/session.js is not its pin: commit it and sha256sum dist/session.js >manifest.sha256"; exit 1; }'
 run 1 node client/transport/ts/test/run.mjs
+run 1 bash client/transport/ts/product_test.sh
 run 1 bash lab/client-telemetry/build.sh
 run 1 node lab/client-telemetry/test/run.mjs
 run 1 node lab/client-telemetry/test/session.mjs

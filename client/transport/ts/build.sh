@@ -12,10 +12,10 @@ bundle() {
   npx esbuild "$1" --bundle --format=esm --outfile="$2" --platform="$3" --target="$target"
 }
 bundle session.ts dist/session.js browser
+# --product: the one transport a page loads (head.js's `ts`), nothing for the contract, the lab or the tests (deploy/Containerfile).
+[[ "${1:-}" == "--product" ]] && { echo "wrote dist/session.js"; exit 0; }
 bundle ws-session.ts dist/ws-session.js browser
 bundle race-session.ts dist/race-session.js browser
-# --product: the transports a page loads, and nothing for the lab or the tests (deploy/Containerfile).
-[[ "${1:-}" == "--product" ]] && { echo "wrote dist/session.js dist/ws-session.js dist/race-session.js"; exit 0; }
 bundle ../../contract/run.ts ../../contract/run.mjs node
 bundle ../../contract/fake-session.ts ../../contract/dist/fake-session.js browser
 bundle ../../contract/downloader-rig.ts ../../contract/dist/downloader-rig.js browser

@@ -164,7 +164,7 @@ A container test of a deployment of this shape found each one (the deployment te
 **What the web image carries.** The files of `client/` the viewer loads, which `web-files.sh` lists and copies: the
 page and its modules, the page check's two (`?check=`), and row DECODERBUILD's decoder builds with their notices
 (`client/decode/wasm/built/`, the frame check's hasher among them), checked against `build/manifest.sha256` at build
-time; the TS bundles (`build.sh --product`); and the WASM client, its adapter copied and its glue and `.wasm` built
+time; the TS client's WebTransport bundle (`build.sh --product`); and the WASM client, its adapter copied and its glue and `.wasm` built
 in the `wasm` stage (row 277's `CLIENT` picks it): the `wasm32-unknown-unknown` target, `wasm-pack` 0.15.0 by
 `cargo install --locked` as CI installs it, and `build.sh`'s binaryen `version_117` by checksum. No test, TypeScript
 source or build script. Of the studies, only the smoke series. `web-files_test.sh` (in the gate) fails a module path
