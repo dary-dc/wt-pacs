@@ -99,7 +99,7 @@ three rounds. Raw rows: `lab/lossless-under-loss/rows/2026-11-12-blackout-45s.js
 | arm | rounds | the downloader fails the ask | re-asks | label at the end | after the press |
 | --- | --- | --- | --- | --- | --- |
 | `off` | 3 | 28.2 s, *could not be re-dialled* | none | *Lossless check failed*, 3 of 3 | 28.2 s |
-| `retry` | 3 | 28.2 s, the same | at +1 s and +4 s each fail (*Opening handshake failed*), at +16 s succeeds | *Lossless*, 3 of 3 | 57.9–58.7 s |
+| `retry` | 3 | 28.2 s, the same | at +1 s and +4 s each fail (*Opening handshake failed*), at +16 s succeeds | *Lossless*, 3 of 3 | 58.1–58.7 s |
 
 The silence is load 6's shape: the ask goes onto a session the client still holds, the downloader's resume spends
 its budget inside the outage, and with the re-asks off the reader is left on *Lossless check failed* once the link is
