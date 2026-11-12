@@ -1,6 +1,6 @@
 /** node lab/phone/beacon.test.mjs — what the beacon sends, and when. */
 import assert from "node:assert/strict";
-import { recorder } from "./beacon.js";
+import { recorder, watchLifecycle } from "./beacon.js";
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -83,6 +83,40 @@ test("a fill without both marks has no fill time", () => {
     r.filled({ ...ledger, ...missing }, meta);
     assert.equal(sent[0][0].fillMs, null);
   }
+});
+
+const page = (state = "visible") => {
+  const doc = Object.assign(new EventTarget(), { visibilityState: state });
+  return { doc, win: new EventTarget() };
+};
+const turn = (doc, state) => ((doc.visibilityState = state), doc.dispatchEvent(new Event("visibilitychange")));
+
+/**
+ * Every visibility change, freeze and resume is recorded with the page's state, in order from the load's start, so a
+ * run tells a hidden or frozen page from a failure; turning hidden sends what is held, mid-fill too.
+ */
+test("the page's visibility and freezes are recorded, and hidden sends them", () => {
+  const { r, sent } = rig();
+  const { doc, win } = page();
+  watchLifecycle(r, doc, win);
+  turn(doc, "hidden");
+  assert.deepEqual(sent[0].map((x) => [x.kind, x.event, x.state]), [["visibility", "start", "visible"], ["visibility", "visibilitychange", "hidden"]]);
+  doc.dispatchEvent(new Event("freeze"));
+  doc.dispatchEvent(new Event("resume"));
+  turn(doc, "visible");
+  r.filled(ledger, meta);
+  assert.deepEqual(sent[1].slice(1).map((x) => [x.event, x.state]), [["freeze", "hidden"], ["resume", "hidden"], ["visibilitychange", "visible"]]);
+  win.dispatchEvent(new Event("pagehide"));
+  assert.deepEqual(sent[2].map((x) => [x.event, x.state]), [["pagehide", "visible"]]);
+});
+
+/** A page that starts hidden says so in its first record. */
+test("a page loaded hidden is recorded hidden from its start", () => {
+  const { r, sent } = rig();
+  const { doc, win } = page("hidden");
+  watchLifecycle(r, doc, win);
+  r.filled(ledger, meta);
+  assert.deepEqual([sent[0][1].event, sent[0][1].state], ["start", "hidden"]);
 });
 
 let failed = 0;
