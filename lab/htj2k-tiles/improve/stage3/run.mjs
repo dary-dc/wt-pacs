@@ -163,12 +163,14 @@ async function visit(set, arm, cell, throttle, round) {
   };
   let fill = null;
   let again = null;
+  let stalled = null;
   try {
     fill = await page(cfg);
     if (fill.error) throw new Error(fill.error);
     again = await page({ ...cfg, reopen: true });
   } catch (e) {
     errors.push(String(e.message).split("\n")[0]);
+    stalled = await Promise.race([tab.evaluate(() => globalThis.__stage ?? null), new Promise((r) => setTimeout(() => r("no answer"), 5000))]).catch((x) => String(x.message));
   } finally {
     stop();
     waiting = {};
@@ -178,7 +180,7 @@ async function visit(set, arm, cell, throttle, round) {
   const relays = {};
   for (const [k, s] of Object.entries(servers)) relays[k] = await s.stop();
   return figures({ round, set, vol, viewport, fit, arm, link: cell.link, impairment: cell.impairment, throttle, mid, N,
-    congestion: Object.values(servers)[0].congestion, relays, void: Object.values(relays).some((r) => r.void), errors }, fill, again, inp.frames);
+    congestion: Object.values(servers)[0].congestion, relays, ...(stalled && { stalled }), void: Object.values(relays).some((r) => r.void), errors }, fill, again, inp.frames);
 }
 
 const oqDigest = (sha) => {

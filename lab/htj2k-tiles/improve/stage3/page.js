@@ -10,7 +10,9 @@ import { built } from "/client/decode/wasm-glue.js";
 
 const C = JSON.parse(new URLSearchParams(location.search).get("cfg"));
 const POST = new URLSearchParams(location.search).get("post");
-const log = (...a) => C.debug && console.log(...a);
+/** Where the visit is, for the driver to read when a visit never reports: lab/htj2k-tiles/improve/README.md §Stage 3 */
+const stage = (name) => (globalThis.__stage = { name, pictured: pictured.size, failures: failures.length, writes: writes.length, settled: settledWrites, ...counts });
+const log = (...a) => (C.debug && console.log(...a), typeof a[0] === "string" && !a[0].startsWith("picture") && stage(a[0]));
 const at = () => performance.timeOrigin + performance.now();
 /** Layout 1: three strips, bands = levels 2, 1, 0, entry e = b·N·T + f·T + t. docs/disk-layout/target.md §Layout 1 */
 const T = 3;
@@ -24,6 +26,7 @@ const failures = [];
 const pictured = new Map();
 const pixels = new Map();
 const writes = [];
+let settledWrites = 0;
 const counts = { decodes: 0, bytes: 0, asks: 0 };
 let issuedAt = 0;
 
@@ -46,7 +49,7 @@ function stored(m, transfer = []) {
 }
 const keep = (name, bytes) => {
   const copy = new Uint8Array(bytes);
-  writes.push(stored({ op: "put", name, bytes: copy.buffer }, [copy.buffer]));
+  writes.push(stored({ op: "put", name, bytes: copy.buffer }, [copy.buffer]).finally(() => settledWrites++));
 };
 await stored({ op: "open", key: C.key });
 
@@ -72,6 +75,7 @@ const rank = (level) => (level === "oq" ? Infinity : level);
 
 // ---- the reopen: every slice from the store, nothing asked, nothing decoded ----
 if (C.reopen) {
+  log("reopen");
   issuedAt = at();
   const names = new Set((await stored({ op: "names" })).names);
   let wouldAsk = 0;
@@ -219,6 +223,7 @@ async function visit() {
   // ---- the Lossless request on the middle slice ----
   const f = C.mid;
   const askAt = at();
+  log("lossless asked");
   let levelAt = null;
   let losslessAt = null;
   if (allAt !== null) {
@@ -253,6 +258,7 @@ async function visit() {
     for (const n of [`p${f}.L${C.fit}`, ...[0, 1, 2].flatMap((t) => range(0, B).map((b) => `b${f}.${t}.${b}`))]) if (n !== `p${f}.L0`) writes.push(stored({ op: "drop", name: n }));
   }
   const endAt = at();
+  log("lossless done");
 
   // ---- after the clock: the store written (off the clock in every arm), every picture hashed ----
   log("after the clock");
@@ -268,6 +274,7 @@ async function visit() {
   bandsClient?.close();
   exactClient?.close();
   const sha = {};
+  log("hashing");
   for (const [k, px] of pixels) sha[k] = await sha256(px);
   await report({ kind: "result", issuedAt, firstAt, allAt, askAt, levelAt, losslessAt, endAt, fillBytes, bytes: counts.bytes, asks: counts.asks,
     decodes: counts.decodes, oq: oqInfo, sha, failures: failures.slice(0, 20), nFailures: failures.length });
