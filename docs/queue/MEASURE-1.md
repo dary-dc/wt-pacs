@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-11 23:53
+heartbeat: 2026-11-12 00:03
 outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure 7840fd4b (B0 measured; B amendment 1, driver, G 1 rows 101 of 185); no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
 ## Resume
 2026-11-11 23:47: B amendment 2 (055633ef: one rung outward, six 10-bit volumes short at G 1) and cells.py --extra (82a6f18a); summary.py JSON fix (754110cf). G 16 running. Next: when G 16 ends, run summary.py, list (volume, G) short by amendment 2, EXTRA="dbts_b2:1:17 dbts_b3:1:17 dbts_b4:1:17 dbts_b5:1:17 dbt10_d:1:17 dbt10_ea1141:1:17 <G 16 ones>" lab/av1/audit/b.sh 16 (G list irrelevant: finished cells skip), then summary.py to lab/av1/audit/rows/b-summary.json, §B and §A measured.
