@@ -1,8 +1,10 @@
-state: started
+state: done
 started: 2026-11-11 04:22
-heartbeat: 2026-11-12 05:34
-outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure da85fae9 (B0, B and A measured: docs/av1/audit-protocols.md §B, §A measured d3071269, rows/b.jsonl and b-summary.json 03c1597d, codecs line da85fae9); C not started; no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
+heartbeat: 2026-11-12 05:58
+outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure e5f8fff3 (B0, B, A, C measured: docs/av1/audit-protocols.md §Measured, rows under lab/av1/audit/rows/, codecs line), draft PR #373 into claude/av1-corrections; #358 is OPT-THEORY's draft into main from claude/proposals
 ## Resume
+2026-11-12 05:58: done. C: amendment 1 (9dd58017, corrected before the run ceae2ab7, 42515e3f), 15 rounds whole
+(c639b57d), §C measured (2d180dcd), codecs line (e5f8fff3), draft PR #373. Nothing running, nothing unpushed.
 2026-11-12 03:44: the container restarted at 03:42 in round 1 (rows 36453cfd: round 0 whole, 117 of round 1);
 c.mjs rerun, it moves round 1's partial rows to rows/c-stopped.jsonl and reruns it. Streams and worktrees survived.
 2026-11-12 03:30: C rounds 0-14 started (6.2 min a round, round 0 hash-clean) (log /home/user/logs/c.log); streams done, smoke on all three volumes hash-ok,
@@ -118,16 +120,16 @@ edit nothing, start p4.sh at 6 after round 5's 72 rows land). Push rows with git
 Then replace §P4's "Measured in part" with the 7-round table and verdict (python3 lab/proposals/p4_summary.py).
 Then P2 (an ingest arm: amendment first), P5, P3, B0, B, A, C, each with its amendment before any run.
 ## Result
-* P1 BBR on the pair: adopt by its rule (1 % iid: fill 0.11-0.12x, `l` 0.16-0.29x; clean 0.84-0.99x).
-* P4 38 400 B initial window: reject after 7 rounds (a tie under loss; b1 clean 0.92x against the 0.9x bar).
-* P2 tiles: 2x2 meets its rule on 4 cores (decode 0.64-0.72x, jump 0.73-0.84x); 2x1 rejected; 3 page runs on 2 cores
-  missed "fetching lossless" on a tampered digest (a finding for FIX-2). P5 late exact dial: drop as inert.
-* P3 wake on pointerdown: rule refuted (wake takes L off on a1, c1; b1's ask comes late); the phone decides.
-* B0: QA F1 reproduced; x* 4.7584 at G 1, 4.6359 pooled and G > 1, 4.8024 for 12-bit (B-6 holds).
-* B (352 cells): delta 0.1-5.5 %, anchor unresolved on 15 of 19, Q_hi - Q_lo up to >= 8 on 10-bit (B-2, B-3, B-4
-  refuted; B-1 holds); G 16 / G 1 at equal quality 0.954-0.986 (12-bit), 0.855-0.907 (10-bit) (B-5 holds).
-* A: nu at the rule's Q 0.286-0.495 (A1 holds; A2, A3, A4 refuted at their edges). C not started: the next session.
-* Fixtures: three DBT volumes of one dataset for P1-P5 (demo tip 9e2ef4ef), userspace relay, no netem; B and A on 19
-  DBT volumes of the same dataset, stored form; one 4-core cloud host, no GPU, headless Chromium; nothing for a phone.
-* Owner decisions: the OQ anchor quoted as [Q_lo, Q_hi] with nu beside, and "keep at least half" (Q_nu) as an option
-  (codecs §Open 0); BBR for the pair's servers; whether a phone run of P3 is worth taking.
+* P1 BBR on the pair: adopt (1 % iid: fill 0.11-0.12x). P4 initial window: reject. P2 tiles: 2x2 meets its rule on 4 cores.
+  P5 late exact dial: drop as inert. P3 wake on pointerdown: rule refuted; the phone decides.
+* B0: x* 4.7584 at G 1, 4.6359 pooled, 4.8024 for 12-bit. B (352 cells): delta 0.1-5.5 %, anchor unresolved on 15 of 19,
+  G 16 / G 1 at equal quality 0.954-0.986 (12-bit), 0.855-0.907 (10-bit). A: nu at the rule's Q 0.286-0.495.
+* C (15 rounds, no void): in the product's HTJ2K unit Hp (decode + XXH3; 19.8-57.1 ms a frame at 1x) the WebCodecs view
+  is 1.24-1.74 Hp at Q 8, 1x; 0.68-1.12 at 4x on four or two slowed cores; 1.16-1.58 on one. C4, C5 hold; C1-C3 not
+  refuted, bands missed. "Under one HTJ2K frame on a slow device" not claimed; a phone is owed. Hp = 1.03-1.08 Hb.
+* Gate on claude/audit-measure: comment budget ok; gate.sh --quick --no-browser stops at its prerequisites (no transport
+  wasm build here), not run; the change is lab/ and docs/ only.
+* Fixtures: three DBT volumes of one dataset for P1-P5 and C (C: middle 16 frames, G 1); 19 for B and A; one 4-core
+  cloud host, no GPU, headless Chromium, software WebCodecs; nothing for a phone.
+* Owner decisions: the OQ anchor as [Q_lo, Q_hi] with nu beside, "keep at least half" (Q_nu) as an option; BBR for the
+  pair's servers; whether a phone run of P3 and of C's decode is worth taking.
