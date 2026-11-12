@@ -26,6 +26,9 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | generation | a request's identity, moved by `cancel`; **epoch**, a session's, moved by a resume |
 | resume, recycle | a dead session replaced, owing what the records owe; a live one replaced before a byte budget |
 | transport file | `dev-transport.json`, served at `/wt/`: the server's `wt_url` and the `cert_sha256` it pins, rewritten at each start; the consumer's `transportFile` ([`ARCHITECTURE.md`](ARCHITECTURE.md) §An open page follows a server restart) |
+| downloader | the worker that owns a series' session, every frame's record and the queue (`client/transport/downloader.js`, [`ARCHITECTURE.md`](ARCHITECTURE.md)); one per series, so a pair runs two |
+| consumer | what a downloader hands its frames to, the page or the view worker; on the page side, `DownloaderClient` (`client/transport/consumer.js`, [`ARCHITECTURE.md`](ARCHITECTURE.md) §The consumer) |
+| refusal | said of three things, each named in full: the server's, a FoD message ([`WIRE.md`](WIRE.md) §FoD messages); a decoder's, WebCodecs refusing a frame, which then goes to dav1d (`info.refusal`, `client/decode/av1.js`); the page's, an input it will not run on, an error that begins `refused:` |
 | decoder | a worker that decodes; **codec module**, the code it loads per codec (`htj2k.js`, `av1.js`) |
 | group | G frames from a keyframe, decoded in order on one decoder; **unit**, one AV1 temporal unit |
 | split | a sample as a top stream (v ≫ k) and a low one (v & (2^k − 1)), each coded losslessly |
@@ -44,6 +47,11 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | stored form | an optimal-quality form of a D > 10 series coded at D itself, not cut: a comparison, decoded by dav1d-WASM only after WebCodecs refused it |
 | pairing | an optimal-quality series naming its exact series in `exactSeries`, by the name the exact series' bundle is known by; nothing else links the two |
 | source fingerprint | `sourceFingerprint`, the XXH3-64 of a source's frame digests that every series of it carries; the pairing refuses two series whose fingerprints differ ([`av1/payload-format.md`](av1/payload-format.md) §Source fingerprint) |
+| route | the decoder a frame took: `av1-webcodecs`, `av1-dav1d` or `htj2k` (the lab's `av1-mixed`); a frame's `info.path`, the overlay's first word, the status line's `decoders:` |
+| quality label | top right on an optimal-quality series, what is painted, its colour beside its words (`client/viewer/screen.js` `labelOf`): `optimal` *Optimal quality*, `asking` *Optimal quality · fetching lossless…*, `lossless` *✓ Lossless*, `failed` *Lossless check failed · optimal quality shown* |
+| mark | top left, a frame's check on a series without a quality label: none when exact, *NOT EXACT* and the reason, or *unchecked* (`markOf`) |
+| overlay | `?overlay=1`: the painted frame's route, wire KB and decode ms, and on an optimal-quality frame its Q, G and depth |
+| status line | the bar's line: the frame, the client, the view, frames received and their checks, the routes, the codec, the renderer, the fill's time (or *on demand*, `?fill=0`: no fill, every frame asked) and the last error |
 | view | where the viewer holds and paints its frames: `page` (the default) or `worker`, the page's `?view=` ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) |
 | view worker | under `?view=worker`, the worker that holds the controller, the frame store and the paint module; the page sends it intents and hears events, never a frame |
 | controller | the view's current frame, what it wants and in what order, and its paint (`client/view/controller.js`) |
