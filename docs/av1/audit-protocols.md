@@ -516,7 +516,7 @@ The protocol names the arms, streams and checks but not the code or every readin
   runs) writes frame files, not bundles: each volume's exact series (`--codec htj2k`) and `--lossy Q 1 --exact-series`
   at Q 8 and at the rule's Q, `--depth-cut` on `dbts_a1` and `dbts_c1`. The rule's Q is B0's integer pick under the
   pooled x\* (`rows/b0.json` `rules`, as A read it): `dbts_a1` top-10 Q 6, `dbts_b1` 10-bit Q 11, `dbts_c1` top-10
-  Q 7. All three are below 8, so C5 is judged on "higher than at Q 8" only. Frames: the middle 16, from
+  Q 7. Two are below 8 and one (`dbts_b1`) above it, so C5 is judged both ways. Frames: the middle 16, from
   ⌊(n − 16) ÷ 2⌋.
 * **One H block per (volume, throttle).** Hp, Hp′, Hb, Hk and the mutation decode the exact series, which does not
   depend on the stream; each runs once per (volume, throttle) in a round, and both streams' W, Wb and D are divided
@@ -559,5 +559,6 @@ The protocol names the arms, streams and checks but not the code or every readin
 * **Rows.** `lab/av1/audit/rows/c.jsonl`, one row per arm-run (round, throttle, volume, stream, arm, 16 frame times,
   hash results, the Chromium version), committed about every 10 minutes. Driver `lab/av1/audit/c.mjs`, worker
   `lab/av1/audit/c_arm.js`, summary `lab/av1/audit/c_summary.py`. A smoke run before round 1 checks the driver and is
-  not kept.
+  not kept; `C_TAMPER=1` (one frame's reference changed) must give every arm one miss. The cores lever's check is
+  `rows/c-check.txt`.
 * **Host.** One 4-core cloud host without a GPU, cgroup v1 `cpu`, the pre-installed headless Chromium of Playwright.
