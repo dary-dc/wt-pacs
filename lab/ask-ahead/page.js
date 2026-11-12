@@ -56,7 +56,7 @@ client = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
       landedBeforeAsk = landed.size;
       before = [...landed.keys()];
       askAt = at();
-      client.requestExactFrame(ASK).then((g) => {
+      client.requestFrame(ASK).then((g) => {
         askDoneAt = at();
         keep(ASK, g.bytes);
         maybeDone();

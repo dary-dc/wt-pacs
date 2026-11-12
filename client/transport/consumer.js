@@ -4,7 +4,7 @@
  * docs/ARCHITECTURE.md §The consumer
  */
 /** How long a closed client waits for the downloader's answer before ending it anyway. */
-const CLOSE_DEADLINE_MS = 1_000;
+export const CLOSE_DEADLINE_MS = 1_000;
 /** What `opts.decoder.codec` may name; absent is HTJ2K. docs/av1/adr-unit.md §1 */
 const CODECS = ["htj2k", "av1"];
 
@@ -26,7 +26,7 @@ export class DownloaderClient {
   #recycledAt = [];
   #triggers = new AbortController();
   #ending = null;
-  /** Per decoder path, frames delivered `exact` true, false and unchecked. docs/adr/exactness-in-production.md */
+  /** Per route, frames delivered `exact` true, false and unchecked. docs/adr/exactness-in-production.md */
   #exact = {};
   /** Frames delivered since last filled: a failure of one is a decoder lost before the ack, dropped. docs/ARCHITECTURE.md §The downloader */
   #delivered = new Set();
@@ -41,7 +41,7 @@ export class DownloaderClient {
     this.#onPreview = opts.onPreview ?? (() => {});
     this.#onError = opts.onError ?? (() => {});
     this.#heldAcks = Boolean(opts.heldAcks);
-    // The worker's script is a seam: a page may boot it from a bundle or a blob. lab/page-open/README.md
+    // The worker's script is a seam: a page may boot it from a bundle or a blob. docs/ARCHITECTURE.md §The session open
     // Given a port, the downloader is a page's own, linked to the view worker: docs/adr/frame-path.md §3, *Built*.
     this.#worker = opts.port ?? new Worker(opts.worker ?? new URL("./downloader.js", import.meta.url), { type: "module" });
     this.#worker.onmessage = (e) => this.#fromDownloader(e.data);
@@ -54,26 +54,13 @@ export class DownloaderClient {
     });
   }
 
-  /** Every option but the page's own four goes to the downloader, so each must survive structured clone. */
+  /** Every option but the page's own goes to the downloader, so must survive structured clone; `dialled`: the page started it (docs/adr/frame-path.md §3). */
   static async connect(url, certHash, opts = {}) {
-    // A frame handed to the wrong decoder can decode to something: refused before anything starts.
-    const codec = opts.decoder?.codec ?? "htj2k";
-    if (!CODECS.includes(codec)) throw new Error(`unknown codec "${codec}"`);
-    // A group is asked whole, so its last frame has to be known. docs/av1/adr-unit.md §3
-    const g = opts.groupLength ?? 1;
-    if (!Number.isInteger(g) || g < 1 || (g > 1 && !Number.isInteger(opts.frameCount))) {
-      throw new Error(`groupLength ${g} needs a whole number ≥ 1, and above 1 the series' frameCount`);
-    }
-    if (!globalThis.crossOriginIsolated && opts.decode !== false) {
-      throw new Error("the downloader writes pixels into a SharedArrayBuffer: serve the page cross-origin isolated");
-    }
-    const { onFrame, onPreview, onError, worker, port, heldAcks, ...config } = opts;
+    refuseUnstartable(opts);
+    const { onFrame, onPreview, onError, worker, port, heldAcks, dialled, ...config } = opts;
     const c = new DownloaderClient({ onFrame, onPreview, onError, worker, port, heldAcks });
     try {
-      c.#worker.postMessage({ kind: "start", config });
-      // Only the dial needs the URL, so the worker graph is booted before it: `url` and `certHash`
-      // may be promises. docs/ARCHITECTURE.md
-      c.#worker.postMessage({ kind: "dial", url: await url, certHash: await certHash });
+      if (!dialled) await startAndDial(c.#worker, url, certHash, config);
       await c.#ready;
     } catch (e) {
       // No client comes back to close, so what it started ends here.
@@ -127,8 +114,8 @@ export class DownloaderClient {
     else frame.ack = ack;
     if (m.writable) frame.write = () => new Promise((resolve) => (this.#writes.set(m.index, resolve), port.postMessage({ kind: "write", index: m.index })));
     this.#delivered.add(m.index);
-    if (m.path) {
-      const n = (this.#exact[m.path] ??= { true: 0, false: 0, unchecked: 0 });
+    if (m.route) {
+      const n = (this.#exact[m.route] ??= { true: 0, false: 0, unchecked: 0 });
       n[m.exact] += 1;
     }
     if (w) {
@@ -172,7 +159,7 @@ export class DownloaderClient {
     return new Promise((resolve, reject) => this.#waiters.set(index, { resolve, reject }));
   }
 
-  requestExactFrame(index) {
+  requestFrame(index) {
     const p = this.#waitFor(index);
     this.#worker.postMessage({ kind: "ask", index });
     return p;
@@ -224,6 +211,27 @@ export class DownloaderClient {
   #watchPage() {
     watchPage(() => this.check(), this.#triggers.signal);
   }
+}
+
+/** Throws what no downloader can start with, before anything starts. */
+export function refuseUnstartable(opts) {
+  // A frame handed to the wrong decoder can decode to something.
+  const codec = opts.decoder?.codec ?? "htj2k";
+  if (!CODECS.includes(codec)) throw new Error(`unknown codec "${codec}"`);
+  // A group is asked whole, so its last frame has to be known. docs/av1/adr-unit.md §3
+  const g = opts.groupLength ?? 1;
+  if (!Number.isInteger(g) || g < 1 || (g > 1 && !Number.isInteger(opts.frameCount))) {
+    throw new Error(`groupLength ${g} needs a whole number ≥ 1, and above 1 the series' frameCount`);
+  }
+  if (!globalThis.crossOriginIsolated && opts.decode !== false) {
+    throw new Error("the downloader writes pixels into a SharedArrayBuffer: serve the page cross-origin isolated");
+  }
+}
+
+/** Only the dial needs the URL, so the worker graph boots before it: `url` and `certHash` may be promises. docs/ARCHITECTURE.md */
+export async function startAndDial(downloader, url, certHash, config) {
+  downloader.postMessage({ kind: "start", config });
+  downloader.postMessage({ kind: "dial", url: await url, certHash: await certHash });
 }
 
 /** The triggers a worker cannot see; the downloader decides whether any of them means anything. */

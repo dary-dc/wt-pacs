@@ -53,7 +53,7 @@
         : { glue: "/client/decode/wasm/vendor/openjph/openjphjs.js", wasm: "/client/decode/wasm/vendor/openjph/openjphjs.wasm", dir: "/client/decode/wasm/vendor/openjph" };
       const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, { decoders: 3, decoder });
       mark("session");
-      const f = await c.requestExactFrame(0);
+      const f = await c.requestFrame(0);
       const digest = await crypto.subtle.digest("SHA-256", f.bytes.slice());
       const sha = [...new Uint8Array(digest)].map((x) => x.toString(16).padStart(2, "0")).join("");
       if (sha !== q.get("sha")) throw new Error(`frame 0 hashes to ${sha}, not the source's ${q.get("sha")}`);

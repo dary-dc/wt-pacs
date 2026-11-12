@@ -5,13 +5,13 @@
 set -euo pipefail
 DEST="$(mkdir -p "$1" && cd "$1" && pwd)/client"
 cd "$(dirname "$0")/../client"
-# check-page.js and view/check.js load on `?check=` alone, paint/reference.js on it and on a view's `valueAt`.
+# paint/reference.js loads on a view's `valueAt`; the viewer check's modules are lab/'s, which no image serves.
 FILES=(
-  viewer/index.html viewer/head.js viewer/viewer.js viewer/store.js viewer/check-page.js
+  viewer/index.html viewer/head.js viewer/viewer.js viewer/pair.js viewer/screen.js viewer/slider.js viewer/store.js
   transport/consumer.js transport/downloader.js transport/wasm/session-adapter.js
   decode/*.js decode/wasm/build/manifest.sha256 decode/wasm/built
-  paint/painter.js paint/paint-worker.js paint/voi.js paint/reference.js
-  view/controller.js view/store.js view/view.js view/view-worker.js view/check.js view/cache.js view/frame-file.js viewer/store.js
+  paint/painter.js paint/paint-worker.js paint/settle.js paint/voi.js paint/reference.js
+  view/clock.js view/controller.js view/store.js view/view.js view/view-worker.js view/cache.js view/frame-file.js
 )
 for f in "${FILES[@]}"; do
   mkdir -p "$DEST/$(dirname "$f")"

@@ -50,7 +50,9 @@ what is wrong, before or after decoding, and never as pixels.
 **Which decoder, per payload.** WebCodecs when every stream of the payload is ≤ 10 bits, `VideoDecoder`
 exists, and the probe for each stream's layout — grey 8 or 10-bit, 4:4:4 8 or 10-bit, told apart
 before decoding by the header and the unit's `seq_profile` — returned its samples, once per worker;
-dav1d-WASM otherwise, and for a payload WebCodecs fails on. Both modules are imported, and dav1d's
+dav1d-WASM otherwise, and for a payload WebCodecs fails on. An optimal-quality series (`decoder.optimal`) takes WebCodecs first
+at any depth and dav1d only after WebCodecs refused the frame; over 10 bits the first refusal holds for the worker
+([`docs/av1/payload-format.md`](../docs/av1/payload-format.md) §Decoder choice, per payload). Both modules are imported, and dav1d's
 glue and WASM fetched, when the decoder starts, beside the dial; each is initialised on first use,
 and an import that fails is tried again on the next payload. Before, the first payload waited for all of
 it: **−1.0 serial round trips to the first exact frame through WebCodecs and −3.0 through dav1d on
@@ -80,6 +82,211 @@ dav1d-WASM twice from the same bytes: the base reaches `opts.onPreview` as a fra
 never receive a preview. A unit without its top fails by name after its preview. WebCodecs returns
 the exact frame and no preview. [`docs/av1/adr-unit.md`](../docs/av1/adr-unit.md) §6; the
 dispatch rig checks `client/contract/av1/scalable/`.
+
+**Optimal quality, exact on request** (2026-11-09). A series whose metadata carries `"codec": "av1"`,
+`"lossy": {"q", "g", "depth"}` and `"exactSeries": "<id>"` is shown at **optimal quality** — its visually lossless
+AV1 frames — as any series is: fill, steps, cine. Its **exact series** is the HTJ2K series of the same source on its
+own server. `viewer/pair.js` reads its metadata at `/series/<id>/metadata` and its transport file at
+`/wt/<id>/dev-transport.json` (`server/dev-server.py --exact-metadata … --exact-transport …`), and refuses by name an
+exact series that is not HTJ2K, is not of the same source (another frame count, width, height, `bitsStored` or
+`signed`, or a `sourceFingerprint` missing from either or not the same, [`docs/av1/payload-format.md`](../docs/av1/payload-format.md) §Source fingerprint), is read otherwise (another `photometric`,
+`rescale` or `perFrame`), or has no XXH3-64 digest for each frame, since a frame without one could
+then not be called lossless: a digest proves a frame is its own series', not that the series is this one's source. A
+second downloader, one decoder and no fill, dials it once the optimal-quality series is connected, in either view. The
+**lossless** button, or `l`, asks the controller for the current frame exact: frame *i* of the exact series is asked, held beside the frame store (never in it, never cached, nothing else asked or evicted), and
+painted in place of the optimal-quality frame once its digest matched; it stays until the reader steps off the frame or
+presses the button again. An optimal-quality frame has no digest (the ingest writes none for it,
+`ingest/coded-frames/lossy_test.py`), so its `exact` is `"unchecked"`: nothing checks it against the encoder's
+reconstruction or the source (*corrected 2026-11-11, DEMO-UX, NAMES-FIND item 2*: this said its `exact` meant its decode
+matched the encoder's reconstruction; no such digest exists).
+
+* **The label** (top right, always shown on an optimal-quality series) says what is painted, decided in one place,
+  `Controller.quality`, and written by `viewer/screen.js` `labelOf`, its colour beside its words: *Optimal quality*
+  in green; *fetching lossless…* while asked; *✓ Lossless* in blue only on the `shown` that
+  follows the exact frame's paint, and only when that frame's `exact` is `true`; *Lossless check failed* in red, the
+  optimal-quality frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed; the button then asks again.
+* **Routes**: WebCodecs first for every optimal-quality series, a depth cut and a 12-bit stored form alike; dav1d-WASM only
+  after WebCodecs refused the frame or its probe failed, the route in each frame's `info.route` and the refusal in
+  `info.refusal` (§Which decoder, per payload). In headless Chromium a 12-bit unit is refused at `decode`. The demo shows
+  no stored form (the owner, 2026-11-11: a lab option); the fallback keeps its browser check through the lab's
+  `refuseWebCodecs` (`?opts={"refuseWebCodecs":true}`, `demo-check.mjs --refuse-webcodecs`), which refuses WebCodecs on a
+  ≤ 10-bit series by name.
+* **Groups.** `lossy.g` reaches the downloader as `groupLength` (§An AV1 series in groups): a jump mid-group decodes
+  from the group's keyframe on one decoder, and the whole group lands in the store, so a scroll through it asks and
+  decodes nothing more.
+* **`?overlay=1`**, off by default: the painted frame's route and, on dav1d, why WebCodecs refused it, wire bytes
+  and decode time, and the series' Q, G and depth, with *depth cut of D* for the cut form.
+* **A depth cut** (`lossy.bitsStored`, a D > 10 series' 10-bit form) decodes as any 10-bit series and is painted from
+  its codes through a table of their full-depth values, no shift pass; `pair.js` refuses one of D ≤ 10, not at 10 bits
+  or not of the series' `bitsStored` ([`docs/av1/payload-format.md`](../docs/av1/payload-format.md) §Depth cut).
+* **Held by** `viewer/pair.test.mjs` (pairing and each refusal), `view/controller.test.mjs` (the exact frame painted
+  and nothing else changed; the label never *Lossless* before the check, for a frame the reader left, or before its
+  paint; a scroll after a jump at G = 1, 8, 16 asks nothing), `transport/downloader.test.mjs` (a jump at G = 1, 8, 16
+  asks the whole group and decodes it from the keyframe, in order, on one decoder) and `server/dev-server.test.py`;
+  21 of 22 mutants fail them; the one alive drops the label's own check that the frame is `exact`, which the
+  exact-frame slot already enforces by admitting no other frame. The route rule: `decode/av1.test.mjs` (§optimal, 7 of 7
+  mutants killed), `decode/depth-cut.browser.mjs` (Chromium's refusal of the stored form) and the overlay's data in
+  `view/controller.test.mjs`.
+* **End to end** (DEMO-E2E, 2026-11-10; *corrected in place*: this said it was not yet run). `viewer/demo-check.mjs`
+  serves a pair from `scripts/demo-series.sh` by README §Demo's commands and drives the page in headless Chromium
+  (Chrome for Testing 153, SwiftShader, loopback, one 4-core x86-64 cloud host): fill, every frame stepped in order,
+  `End`, `l` and `l`; then `?fill=0`, 13 steps and `End`; then the exact series' last digest made wrong. It passed
+  on all 20 optimal-quality series of the demo set (`dbts_a1`, `dbts_b1`, `dbts_c1`; Q 8 and 24; G 1, 8, 16; the two
+  stored forms). Every cut and 10-bit frame painted through WebCodecs; both stored forms through dav1d, every frame
+  with WebCodecs' refusal named (*marked as type `key` but wasn't a key frame*); the label *Optimal quality* →
+  *fetching lossless…* → *Lossless* → *Optimal quality* every time, and *Lossless check failed*, never *Lossless*,
+  on the wrong digest; on demand, whole groups asked and nothing else (24 frames on `dbts_a1` at G 8 and 16); no
+  console error. From navigation, Q 8 G 8, one run each: the first picture at 473, 762 and 474 ms and the last frame
+  of the fill at 1.8, 5.1 and 2.3 s on `dbts_a1`, `dbts_b1` and `dbts_c1`; the exact frame painted 83, 239 and 113 ms
+  after `l`. Wire bytes are the bundle's (4532 KB over `dbts_a1`'s 56 frames at Q 8 G 8). `dbts_b1`'s steps take
+  ~130 ms each with every frame held: SwiftShader painting 2560 × 3328, not a GPU's number. Its four mutants each
+  fail it: the label without the digest, 10-bit units to dav1d, groups dropped (the fill never completes), the demo
+  script's metadata missing. Not run: a GPU, hardware decode, a phone, a real link, Firefox. The web image
+  (`deploy/nginx`) does not serve the exact series' two paths.
+* **End to end from a fresh clone** (DEMO-E2E-2, 2026-11-10). README §Demo followed word for word from a fresh
+  clone of `claude/core-next-fixes` on one 4-core x86-64 cloud host (the decoders' docker rebuild refused by Docker Hub,
+  429, and not needed: the page's decoders are committed; meson 1.9.1 from pip): `demo-series.sh` wrote the 23 series in 736 s,
+  bytes equal to the byte to [`payload-format.md`](../docs/av1/payload-format.md)'s tables; `demo-check.mjs`, in a
+  copy that also kept each label write and paint time, passed on all 20 optimal-quality series in headless Chromium
+  141 (the README's `playwright@1.56.1`; the first run had 153), SwiftShader, loopback. Routes as the first run; the
+  stored forms' refusal on 141 reads *A key frame is required after configure() or flush()*, every frame. *Lossless*
+  was written in the same millisecond as the exact frame's paint, never before; a wrong digest never read
+  *Lossless*. No console error. One run each, from navigation, filled pass, Q 8 G 8: first picture 322, 548 and
+  307 ms (first run 473, 762, 474), every slice received by 1.7, 4.6 and 2.0 s (1.8, 5.1, 2.3), the exact frame 54,
+  164 and 65 ms after `l` (83, 239, 113); two containers, two Chromiums, so the difference is not a finding. On
+  demand, `End` — mid-group at G 8 and 16 on all three volumes — painted in 170–305 ms on `dbts_a1` and `dbts_c1` at
+  G 8 and 16 (35–44 ms at G 1), 463 and 1096 ms on `dbts_b1` (2560 × 3328 on SwiftShader). One fault found and fixed:
+  with a certificate ending within a day, the static host renewed it after the series servers had loaded the old
+  one, and the fill never came; README §Demo and `demo-check.mjs` now renew it first. Per series, one run each,
+  ms from navigation; *every slice* is the last frame received in the filled pass; *jump*, `End` under `?fill=0`;
+  *Lossless*, from `l` to the label, filled / on demand:
+
+  | series | route | frame 1 KB | first picture | every slice | KB, all | step, median | jump | Lossless |
+  | --- | --- | --: | --: | --: | --: | --: | --: | --: |
+  | `dbts_a1-q8-g1-cut` | av1-webcodecs | 82 | 345 | 1556 | 4548 | 10 | 35 | 61 / 59 |
+  | `dbts_a1-q8-g8-cut` | av1-webcodecs | 82 | 322 | 1678 | 4532 | 8 | 305 | 54 / 57 |
+  | `dbts_a1-q8-g16-cut` | av1-webcodecs | 82 | 269 | 1540 | 4533 | 11 | 276 | 62 / 68 |
+  | `dbts_a1-q24-g1-cut` | av1-webcodecs | 6 | 263 | 1175 | 423 | 10 | 42 | 65 / 64 |
+  | `dbts_a1-q24-g8-cut` | av1-webcodecs | 6 | 314 | 1213 | 206 | 9 | 170 | 56 / 62 |
+  | `dbts_a1-q24-g16-cut` | av1-webcodecs | 6 | 286 | 1158 | 196 | 7 | 179 | 59 / 60 |
+  | `dbts_a1-q8-g16-stored` | av1-dav1d | 89 | 381 | 2107 | 4911 | 9 | 596 | 55 / 55 |
+  | `dbts_b1-q8-g1` | av1-webcodecs | 457 | 610 | 4613 | 22928 | 126 | 201 | 167 / 202 |
+  | `dbts_b1-q8-g8` | av1-webcodecs | 457 | 548 | 4642 | 22663 | 117 | 463 | 164 / 212 |
+  | `dbts_b1-q8-g16` | av1-webcodecs | 457 | 553 | 4783 | 22649 | 115 | 1096 | 179 / 197 |
+  | `dbts_b1-q24-g1` | av1-webcodecs | 48 | 518 | 4002 | 2581 | 114 | 158 | 154 / 153 |
+  | `dbts_b1-q24-g8` | av1-webcodecs | 48 | 504 | 3765 | 1635 | 115 | 210 | 165 / 198 |
+  | `dbts_b1-q24-g16` | av1-webcodecs | 48 | 474 | 3697 | 1588 | 118 | 234 | 176 / 175 |
+  | `dbts_c1-q8-g1-cut` | av1-webcodecs | 94 | 286 | 2092 | 6198 | 11 | 44 | 65 / 65 |
+  | `dbts_c1-q8-g8-cut` | av1-webcodecs | 94 | 307 | 1984 | 6092 | 10 | 236 | 65 / 61 |
+  | `dbts_c1-q8-g16-cut` | av1-webcodecs | 94 | 306 | 2146 | 6085 | 9 | 175 | 53 / 64 |
+  | `dbts_c1-q24-g1-cut` | av1-webcodecs | 8 | 276 | 1725 | 556 | 10 | 29 | 73 / 49 |
+  | `dbts_c1-q24-g8-cut` | av1-webcodecs | 8 | 267 | 1570 | 266 | 9 | 127 | 50 / 54 |
+  | `dbts_c1-q24-g16-cut` | av1-webcodecs | 8 | 319 | 1685 | 252 | 9 | 120 | 62 / 51 |
+  | `dbts_c1-q8-g16-stored` | av1-dav1d | 100 | 367 | 2610 | 6533 | 9 | 465 | 64 / 48 |
+
+  Not run: a GPU, hardware decode, a phone, a real link, Chrome itself rather than Chromium.
+
+**Optimal quality, for a presenter** (*proposed*, 2026-11-11, on `claude/demo-fixes-0`). What someone who shows the
+demo must be able to explain, essentials first. One frame's path, from the page's request to the label, for both
+series of a pair, under the default view (`?view=page`, no URL flags):
+
+```text
+ server/dev-server.py :8765  ── /  /series/metadata  /wt/dev-transport.json            (the optimal-quality series)
+                              ── /series/<exactSeries>/metadata  /wt/<exactSeries>/dev-transport.json  (its exact series)
+        │
+ viewer/head.js            fetches the metadata and transport file, preloads the codec's code
+ viewer/viewer.js          pair.js: pairOf + checkPair, or refused by name before anything dials
+        │                                            │
+        ▼ optimal-quality series (AV1)               ▼ exact series (HTJ2K), dialled once the first is connected
+ transport/consumer.js     DownloaderClient          DownloaderClient: no fill, one decoder
+ transport/downloader.js   worker: fill every frame;  asks frame i only on `l`
+                           a group asked whole from its keyframe
+        │  WebTransport       series-server :4433    series-server :4434
+        ▼
+ decode/decoder.js         decoder workers (≤ 3)     one decoder worker
+   decode/av1.js             WebCodecs first;          decode/htj2k.js
+                             dav1d-WASM after a refusal
+   decode/xxh3.js            no digests: `unchecked`   XXH3-64 against the exact series' digest: `exact` true or false
+        │  pixels straight to the consumer's port, in a SharedArrayBuffer
+        ▼                                            ▼
+ view/controller.js        take → FrameStore (by index)   showExact: held beside the store, never in it, never cached
+                           repaint: the store's frame, or the exact frame once checked
+                           quality(i, f): optimal | asking | lossless | failed
+        │
+ paint/painter.js + paint-worker.js (WebGL), paint/voi.js: the window table; a depth cut's code c windowed at c · 2^(D−10)
+        │
+ viewer.js showQuality     the label top right; the mark top left; `?overlay=1`: route, KB, decode ms, Q, G, depth
+```
+
+1. **One view for every reader, the exact frame on request.** An optimal-quality series is a series of its own
+   (visually lossless AV1 at a fixed Q and G), served beside its exact series (the HTJ2K series of the same source)
+   by a second server. The client pairs them; the server and the wire are unchanged. `viewer/pair.js` refuses, by
+   name, a pair whose exact series is not HTJ2K, not of the same source (frames, size, `bitsStored`, `signed`,
+   `framesSha256`) or has no XXH3-64 digests. Held by `viewer/pair.test.mjs`.
+2. **The fill brings the whole series.** On open, the optimal-quality series' downloader is started with every frame
+   as its fill, so scrolling paints from memory and asks nothing. Held by `view/controller.test.mjs` (*a held frame is
+   painted without a word to the downloader*).
+3. **Groups.** G frames share one keyframe; a frame inside a group decodes only after the frames before it, on one
+   decoder. A jump asks its whole group (`downloader.js` `wholeGroups`), decodes it from the keyframe, and lands it
+   whole, so a scroll through it asks nothing more. Held by `transport/downloader.test.mjs`
+   (`aJumpMidGroupDecodesFromItsKeyframe`, G 1, 8, 16) and `view/controller.test.mjs` (*a scroll through a group after
+   a jump into it asks nothing*).
+4. **The route: WebCodecs first, dav1d-WASM only after a refusal.** `decode/av1.js` `route` and `decodeFrame`: a
+   payload of 10 bits or fewer goes to WebCodecs once its layout's probe passed; a deeper one (the stored form) tries
+   WebCodecs, and after its first refusal that decoder worker sends every such frame to dav1d, naming the refusal in
+   `info.refusal`, which the overlay shows. Held by `decode/av1.test.mjs` (the `optimal:` cases),
+   `decode/decoder.test.mjs` (the refusal reaches the consumer) and `decode/depth-cut.browser.mjs` (Chromium's own
+   refusal of a 12-bit unit).
+5. **The depth cut, for D > 10 only.** WebCodecs decodes AV1 up to 10 bits, so a 12-bit series' view is coded from its
+   10-bit codes; the painter windows code c at its full-depth value c · 2^(D−10) through one table, no shift pass.
+   D ≤ 10 is coded at its own depth: `pairOf` refuses a cut that is not 10 bits from a `bitsStored` over 10. Held by
+   `paint/voi.test.mjs` (*a depth cut's table is shift-then-window on every code*), `view/controller.test.mjs` (*a
+   depth cut's frame reaches the painter windowed at full depth*; *… the exact frame without*) and
+   `viewer/pair.test.mjs`.
+6. **Lossless is fetched, checked, then painted.** `l` or the button calls `Controller.showExact`: frame *i* is asked
+   of the exact series, decoded, and its XXH3-64 compared with the exact series' metadata in the decoder worker
+   (`decode/decoder.js` `checked`); only a match is painted, in place of the optimal-quality frame, until the reader
+   steps off or presses `l` again. Held by `view/controller.test.mjs` (*the exact request paints the exact series'
+   frame in place, and nothing else*).
+7. **The label is decided in one place.** `Controller.quality(i, f)`: *Lossless* only for the exact series' frame,
+   checked `true`, on the `shown` that follows its paint; *fetching lossless…* while asked; *Lossless check failed*
+   (red, the optimal-quality frame kept, the reason on the status line) on a mismatch, no digest or a failed ask, and
+   `l` asks again. Held by `view/controller.test.mjs` (*the label never says lossless before the checksum passes*; *a
+   failed exact request can be asked again on the same frame*) and, in Chromium, `viewer/demo-check.mjs` (a wrong
+   digest never reads *Lossless*).
+8. **No mark beside an optimal-quality frame; the label is green.** Its metadata carries no digests, since there is no
+   source to check an optimal-quality frame against; the label says what it is, so only *NOT EXACT* is marked beside it
+   (`viewer/screen.test.mjs`). The status line's *unchecked* count is the same fact.
+
+One level down, where a point needs it: a frame whose digest does not match is decoded once more on another path
+before it is called not exact (`decoder.js` `checked`; [`docs/adr/exactness-in-production.md`](../docs/adr/exactness-in-production.md)
+§2); a WebCodecs failure inside a group is not recovered by dav1d ([`docs/lines/optimal-quality.md`](../docs/lines/optimal-quality.md)
+§State now).
+
+**What could not be explained simply**, candidates for simplification (OPT-SIMPLIFY) and naming (NAMES-FIND):
+
+* `requestExactFrame` asks one frame of *any* series: the optimal-quality series' on-demand steps call it too
+  (`Controller.show`), so *exact* names both "asked, not filled" and "the exact series". Since renamed (NAMES-1):
+  `requestFrame`, the wire's `request_frame`.
+* *Lossy* in the code (`meta.lossy`, `showLossy`, `view.lossy()`) beside *Optimal quality* on the
+  screen; the glossary retired *lossy series* as a name. Since renamed (NAMES-1): `showOptimal`, `view.optimal()`;
+  the metadata key `lossy` stays, a format.
+* The sentence above that *a lossy frame's own `exact` means its decode matched the encoder's reconstruction*
+  describes a case the demo never shows: an optimal-quality series has no digests, so its frames are `unchecked`. Since
+  corrected in place (DEMO-UX).
+* Two indicators of quality on one screen, the label (top right) and the mark (top left), which disagree in words on
+  every optimal-quality frame (*Optimal quality* beside *unchecked*); since resolved: FIX-1 dropped the mark beside a
+  label, DEMO-UX made the label green.
+* Two views, two want paths and two fill orders: under `page` the controller asks misses and the fill is every
+  frame in index order; under `worker` the store sends misses and the first want, nearest first, replaces the fill.
+* `viewer/viewer.js` held the check's, the lab's and the trace's code beside the product's (`check`, `deadline`,
+  `mutate`, `lab.settle`, `trace`, `ledger`); since resolved: CLEAN-PRODUCT moved it to `lab/viewer/hooks.js`, the
+  page hooks, which the page reaches only through the lab gate.
+* The failed label reads *Lossless check failed · optimal quality shown* on screen, *Lossless check failed* in README
+  §Demo.
+* The stored form's dav1d route: each decoder worker tries WebCodecs once, on its first frame over 10 bits, before
+  it remembers the refusal; that first frame's decode time includes the attempt (not measured), and the overlay
+  shows the same refusal on every frame after it.
 
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
 in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
@@ -152,11 +359,11 @@ harness's per-frame `.sha256` is what sees that.
 `digests.frames` when its `algorithm` is `xxh3-64` ([`docs/FIXTURES.md`](../docs/FIXTURES.md) §Frame digests) —
 each decoder worker hashes every frame it decodes before handing it on, and the frame carries
 `info.exact`: `true` when its XXH3-64 matches, `"unchecked"` when the series or the frame has no digest.
-A mismatch is decoded once more on another path (`info.path`: `htj2k` in a decoder object of its own,
+A mismatch is decoded once more on another route (`info.route`: `htj2k` in a decoder object of its own,
 `av1-webcodecs` ⇄ `av1-dav1d`, `av1-mixed` → `av1-dav1d`; inside a group there is none) and is `true`
-only if that matches, with `info.mismatchOn` naming the path that missed; otherwise `false`, its
+only if that matches, with `info.mismatchOn` naming the route that missed; otherwise `false`, its
 `info.reason` naming both decodes. A frame is never asked again for it: the same bytes would come back.
-`stats().exact` counts frames per path as `{ true, false, unchecked }`. The hasher is xxHash's XXH3 with SIMD128
+`stats().exact` counts frames per route as `{ true, false, unchecked }`. The hasher is xxHash's XXH3 with SIMD128
 (`decode/xxh3.js`, built by `decode/wasm/build`), held to hash-wasm's digests by `decode/xxh3.test.mjs`; a
 worker given digests that cannot load it fails its start. What it costs
 and why it is on: [`docs/adr/exactness-in-production.md`](../docs/adr/exactness-in-production.md).
@@ -307,21 +514,35 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   store worker (`viewer/store.js`), the decoders or the view worker — a series with digests is written there after each
   frame's paint, and read back checked on a later open. With no writer, the default, there is no cache, as on main
   ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §The core, assembled).
-* **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact.
-* **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the decoder per path, the
-  codec, the renderer (marked software when it is), the fill's time, and the last error by name.
+* **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact. A lossy
+  series adds its quality label and the lossless button (§Optimal quality, exact on request); the label then stands
+  for an unchecked frame's mark, and only *NOT EXACT* is marked beside it.
+* **The slice slider** (`viewer/slider.js`), upright along the canvas's right edge: a finger steps or jumps through
+  the slices, the touch gesture taking nothing the canvas uses (one finger stays window/level; the choice and its
+  sources: `claude/slice-touch:docs/reviews/slice-touch.md`). Moving it pauses cine; every slice shown otherwise moves
+  it; a focused slider answers the stepping keys itself, so the page skips them. Both views alike.
+* **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the frames per route, the
+  codec, the renderer (marked software when it is), the fill's time, and the last error by name. A tap
+  (touch only; a mouse click does nothing) on it or on the quality label unfolds it whole, wrapped; the next folds it
+  (`viewer/screen.js` `unfoldOnTap`).
 * **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=`, `?origin=` and `?writer=` let a lab harness drive the
-  same page. They load from `lab/viewer/levers.js`, which only the dev host serves: on the web image a link carrying
+  same page; `?opts=` may hand it other frame digests, never none (the frame check stays on). They load from `lab/viewer/levers.js`, which only the dev host serves: on the web image a link carrying
   any of them is refused, by name on the status line, before the page fetches, imports or dials anything.
   `viewer/crafted.mjs`, run by the gate, opens each on a host shaped like the image and fails if one is fetched or
   dialled, and on a host serving `lab/` shows `?wt=` and `?metadata=` honoured; it fails too if a transport file
-  naming an unknown client is not refused by name with no WASM code fetched and nothing dialled. `?post=` (with `?origin=`) gives the
+  naming an unknown client is not refused by name with no WASM code fetched and nothing dialled. `?trace=sawtooth` steps the page
+  on the lab's trace (`lab/viewer/trace.js`). `?post=` (with `?origin=`, and `?settle=` and `?after=`, refused without it) gives the
   page the total-time harness's protocol as two hooks, `started()` and `finished(result)`, which it calls only when
-  present; the page watches for the fill's end only for that hook or `?check=`. `?check=`, `?cine=`, `?fill=`, `?view=` and `?deadline=` are the page's own.
+  present; the page watches for the fill's end only for that hook or `?check=`. `?check=` (with `?deadline=` and
+  `?mutate=`) is a lab parameter too: the viewer check's modules, `lab/viewer/check-page.js` and `check-view.js`,
+  load through `lab/viewer/hooks.js`, and the view worker imports the latter by the URL its `lab` setting names.
+  `?check=cine` adds a 1.5 s cine to the check; `?cine=` is the lab's (N seconds after the fill, `lab/viewer/levers.js`).
+  `?fill=`, `?view=` and `?overlay=` are the page's own.
 * **Its policy.** The page and every script it loads carry a Content-Security-Policy ([`deploy/README.md`](../deploy/README.md)
   §What must be preserved exactly): scripts from the page's origin alone, connections to it and the transport.
 
-**Its check**, `viewer/check.mjs`, takes a bundle (or `--url`, a host already running). It serves the bundle, opens
+**Its check**, `viewer/check.mjs`, takes a bundle (or `--url`, a host already running, whose `lab/` requests it answers
+from the checkout, in Chromium alone, since no image serves `lab/`). It serves the bundle, opens
 the page with `?check=1` in headless Chromium, or in a stock Firefox (`--engine firefox`, `FIREFOX_PATH`), and the
 page itself runs the protocol after the fill: an ask of a delivered frame, a fill cancelled at once, then an ask
 after the cancel. With `--fill 0` it first steps the page itself: to the middle frame, the last and the middle again

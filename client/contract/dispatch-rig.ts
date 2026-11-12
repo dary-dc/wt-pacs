@@ -10,10 +10,10 @@ const enc = new TextEncoder();
 /** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
 const text = (b?: Uint8Array) => (b ? new TextDecoder().decode(Uint8Array.from(b)) : "");
 
-type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { width?: number; height?: number; bits?: number; components?: number; signed?: boolean; preview?: boolean; decodeSeq?: number; maxInFlight?: number; byteCount?: number; wireBytes?: number; min?: number; max?: number; path?: string; exact?: boolean | string; reason?: string; mismatchOn?: string; stamps?: { decodeStart?: number; decodeEnd?: number; decoder?: number } } };
+type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { width?: number; height?: number; bits?: number; components?: number; signed?: boolean; preview?: boolean; decodeSeq?: number; maxInFlight?: number; byteCount?: number; wireBytes?: number; min?: number; max?: number; route?: string; exact?: boolean | string; reason?: string; mismatchOn?: string; stamps?: { decodeStart?: number; decodeEnd?: number; decoder?: number } } };
 type Fail = { frameIndex: number; reason: string; generation: number };
 type Downloader = {
-  requestExactFrame(index: number): Promise<Frame>;
+  requestFrame(index: number): Promise<Frame>;
   fill(indices: number[]): void;
   cancel(): Promise<void>;
   close(): void;
@@ -146,7 +146,7 @@ async function askBeatsQueuedFill(DownloaderClient: DownloaderCtor, check: Check
   await until(() => hold.holding() >= perDecoder);
 
   const askIndex = 50;
-  const askPromise = c.requestExactFrame(askIndex);
+  const askPromise = c.requestFrame(askIndex);
   await onTheWire(fake, `request_frame ${askIndex}`);
   await fake.pushFrame(askIndex, enc.encode("ask-50"));
   // A round trip to the worker: it has taken the frame by the time it answers.
@@ -185,9 +185,9 @@ async function promoteBeatsQueuedFill(DownloaderClient: DownloaderCtor, check: C
   for (const i of fillN) await fake.pushFrame(i, enc.encode(`fill-${i}`));
   await until(() => hold.holding() >= perDecoder);
 
-  const promotedP = c.requestExactFrame(7);
+  const promotedP = c.requestFrame(7);
   // Commands are taken in order, so an ask that reaches the wire was taken after it.
-  c.requestExactFrame(99).catch(() => {});
+  c.requestFrame(99).catch(() => {});
   await onTheWire(fake, "request_frame 99");
   hold.release();
   const promoted = await promotedP;
@@ -236,7 +236,7 @@ async function reissuesAfterAsk(DownloaderClient: DownloaderCtor, check: Check) 
   for (const i of [0, 1, 2, 3]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
   await until(() => captured.length >= 4);
 
-  const askP = c.requestExactFrame(50);
+  const askP = c.requestFrame(50);
   let landed = false;
   void askP.then(() => (landed = true), () => {});
   await settle();
@@ -270,7 +270,7 @@ async function asksTheWireForAnOwedFrame(DownloaderClient: DownloaderCtor, check
   for (const i of [0, 1]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
   await until(() => captured.length >= 2);
 
-  const askP = c.requestExactFrame(5);
+  const askP = c.requestFrame(5);
   await settle();
   let wire = wireOf((await fake.controlMessages()) as Wire[]);
   check(wire.includes("request_frame 5"), `owed: an ask for a frame the fill still owes goes to the wire`);
@@ -353,7 +353,7 @@ async function cancelCompletesAndUnblocksTheNextFill(DownloaderClient: Downloade
   c.fill([0, 1, 2, 3, 4, 5, 6, 7]);
   await settle();
   let abort = "";
-  c.requestExactFrame(50).catch((e: Error) => { abort = String(e.message); });
+  c.requestFrame(50).catch((e: Error) => { abort = String(e.message); });
   await settle();
 
   const finished = await cancelled(c);
@@ -376,7 +376,7 @@ async function cancelCompletesAndUnblocksTheNextFill(DownloaderClient: Downloade
   await settle();
   c.fill([20, 21, 30]);
   await settle();
-  c.requestExactFrame(50).catch(() => {});
+  c.requestFrame(50).catch(() => {});
   await settle();
   for (const i of [20, 21]) await fake.pushFrame(i, enc.encode(`new-${i}`));
   await settle(100);
@@ -406,7 +406,7 @@ async function aRefusedFillReachesTheConsumer(DownloaderClient: DownloaderCtor, 
   check(failures.every((f) => f.reason.includes("no such frame")), `refusal: with the server's reason`);
 
   let rejected = "";
-  c.requestExactFrame(9).catch((e: Error) => { rejected = String(e.message); });
+  c.requestFrame(9).catch((e: Error) => { rejected = String(e.message); });
   await settle();
   await fake.pushRefusal(9, "no such frame");
   await until(() => rejected !== "");
@@ -430,7 +430,7 @@ async function aRefusalInTheRunSparesTheFrameAnAskCarries(DownloaderClient: Down
 
   let asked = -1;
   let rejected = "";
-  c.requestExactFrame(3).then((f) => { asked = f.frameIndex; }, (e: Error) => { rejected = String(e.message); });
+  c.requestFrame(3).then((f) => { asked = f.frameIndex; }, (e: Error) => { rejected = String(e.message); });
   await onTheWire(fake, "request_frame 3");
   await fake.pushFrame(4, enc.encode("fill-4"));
   await until(() => captured.length >= 4);
@@ -819,6 +819,7 @@ const COLOUR8_XXH3 = "5f99dd7c0b2fc5e9";
  * docs/adr/exactness-in-production.md §2
  */
 async function aFrameSaysWhetherItIsExact(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
+  if (!(await served(HASHER))) return void log(`  SKIPPED: the frame check — no ${HASHER} (client/decode/wasm/build/build.sh)`);
   const grey = await fetched("/client/contract/frames/grey-16.j2c");
   const colour = await fetched("/client/contract/frames/colour-8.j2c");
   const run = async (glue: string, digests: (string | null)[], codestreams: Uint8Array[], decoder: RealDecoder) => {
@@ -835,8 +836,8 @@ async function aFrameSaysWhetherItIsExact(DownloaderClient: DownloaderCtor, chec
   const decoders = await realDecoders(log, "the frame check");
   for (const [name, decoder] of decoders) {
     const r = await run(decoder.glue, [GREY16_XXH3, wrong, null, COLOUR8_XXH3], [grey, grey, grey, colour], decoder);
-    const said = (i: number) => `${r.info(i)?.path} ${r.info(i)?.exact} ${r.info(i)?.reason ?? ""}`;
-    check(r.info(0)?.exact === true && r.info(0)?.path === "htj2k", `exact, ${name}: a 16-bit grey frame matching its digest is true (${said(0)})`);
+    const said = (i: number) => `${r.info(i)?.route} ${r.info(i)?.exact} ${r.info(i)?.reason ?? ""}`;
+    check(r.info(0)?.exact === true && r.info(0)?.route === "htj2k", `exact, ${name}: a 16-bit grey frame matching its digest is true (${said(0)})`);
     check(r.info(3)?.exact === true, `exact, ${name}: an 8-bit colour frame matching its digest is true (${said(3)})`);
     check(r.info(1)?.exact === false && /^htj2k gave 750932eabd34755e, not 0123456789abcdef; htj2k gave 750932eabd34755e$/.test(r.info(1)?.reason ?? ""),
       `exact, ${name}: a mismatch is decoded again, and still false names both decodes (${said(1)})`);
@@ -1125,7 +1126,7 @@ async function anAv1FrameEitherDecoderCannotReturnExactlyIsAFailure(DownloaderCl
 
 const HASHER = "/client/decode/wasm/built/xxh3/xxh3.wasm";
 const digestOf = async (base: string) => (await (await fetch(`${base}.xxh3`)).text()).trim();
-const verdicts = (got: Frame[]) => [...got].sort((a, b) => a.frameIndex - b.frameIndex).map((f) => `${f.info.path}:${f.info.exact}`).join() || "none";
+const verdicts = (got: Frame[]) => [...got].sort((a, b) => a.frameIndex - b.frameIndex).map((f) => `${f.info.route}:${f.info.exact}`).join() || "none";
 
 /**
  * AV1 payloads checked against the writer's digests (`NAME.xxh3`, Python's xxhash): every golden shape and
@@ -1283,7 +1284,7 @@ async function anAskForAFrameAsksItsWholeGroup(
     decoders: 2, perDecoder: 2, delayMs: 0, realDecoder: AV1, groupLength: 8, frameCount: 20,
     onFrame: (f) => got.push(f),
   });
-  const asked = c.requestExactFrame(11);
+  const asked = c.requestFrame(11);
   await until(async () => (await fake.controlMessages()).length >= 8);
   check(wireOf(await fake.controlMessages()).join() === range(8, 15).map((i) => `request_frame ${i}`).join(),
     `group: an ask for 11 asks 8..15 in order (${wireOf(await fake.controlMessages()).join()})`);
@@ -1293,7 +1294,7 @@ async function anAskForAFrameAsksItsWholeGroup(
   const ask = eleven ? [...got, eleven] : got;
   check((await inexact(G8, ask, range(8, 15))) === "none",
     `group: pushed last to first, 8..15 still decode to their sources (inexact: ${await inexact(G8, ask, range(8, 15))})`);
-  const tail = c.requestExactFrame(17);
+  const tail = c.requestFrame(17);
   await until(async () => (await fake.controlMessages()).length >= 12);
   check(wireOf(await fake.controlMessages()).slice(8).join() === range(16, 19).map((i) => `request_frame ${i}`).join(),
     `group: the last group is asked to the series' end (${wireOf(await fake.controlMessages()).slice(8).join()})`);
@@ -1325,7 +1326,7 @@ async function askMidFill(DownloaderClient: DownloaderCtor, check: (c: boolean, 
   });
   c.fill(range(0, 19));
   for (const i of range(0, 3)) await fake.pushFrame(i, await unit(G8, i));
-  const asked = c.requestExactFrame(13);
+  const asked = c.requestFrame(13);
   await until(async () => (await fake.controlMessages()).length >= 9);
   for (const i of range(8, 15)) await fake.pushFrame(i, await unit(G8, i));
   await until(async () => wireOf(await fake.controlMessages()).includes("stream_frames 4-7"));
@@ -1363,7 +1364,7 @@ async function aFailedFrameFailsTheRestOfItsGroup(
     });
     const rejected: [number, string][] = [];
     const asks = range(0, 15).map((i) =>
-      c.requestExactFrame(i).then((f) => void got.push(f), (e) => void rejected.push([i, String(e?.message ?? e)])));
+      c.requestFrame(i).then((f) => void got.push(f), (e) => void rejected.push([i, String(e?.message ?? e)])));
     await until(async () => (await fake.controlMessages()).length >= 16);
     // Refused last, on a quiet wire: 4..7 wait on 3, so its failure itself has to reach them.
     const order = how === "undecodable" ? range(0, 15) : [0, 1, 2, ...range(4, 15), 3];
@@ -1443,7 +1444,7 @@ async function scalableThrough(
   });
   const reasons = new Map<number, string>();
   const asks = opts.ask
-    ? range(0, n - 1).map((i) => c.requestExactFrame(i).then(
+    ? range(0, n - 1).map((i) => c.requestFrame(i).then(
       (f) => { seen.push(`f${i}`); frames.push(f); shown(f); },
       (e) => { seen.push(`x${i}`); reasons.set(i, String(e?.message ?? e)); }))
     : (c.fill(range(0, n - 1)), []);
@@ -1666,7 +1667,7 @@ async function aRedialAfterTheHashChangedConnects(DownloaderClient: DownloaderCt
   await fake.pin(RESTARTED);
   await fake.serverClose(0, "the server restarted");
   await settle();
-  const asked = c.requestExactFrame(7).then((f) => text(f.bytes), (e: Error) => `failed: ${e.message}`);
+  const asked = c.requestFrame(7).then((f) => text(f.bytes), (e: Error) => `failed: ${e.message}`);
   if (await onTheWire(fake, "request_frame 7")) await fake.pushFrame(7, enc.encode("step-7"));
   const step = await Promise.race([asked, settle(2000).then(() => "never")]);
   check(step === "step-7", `restart, on demand: a step after it is served (${step})`);
@@ -1676,7 +1677,7 @@ async function aRedialAfterTheHashChangedConnects(DownloaderClient: DownloaderCt
 /** An ask outstanding when the session dies is re-asked on the new one, on its own promise. */
 async function anOwedAskIsReaskedAfterAResume(DownloaderClient: DownloaderCtor, check: Check) {
   const { c, fake } = await stalledFill(DownloaderClient, { survival: { ...QUICK, stallMs: 30_000 } });
-  const asked = c.requestExactFrame(50);
+  const asked = c.requestFrame(50);
   await settle();
   await fake.serverClose(0, "the server went away");
 
@@ -1819,7 +1820,7 @@ async function aClosedClientEndsEveryWorkerItStarted(DownloaderClient: Downloade
 async function aDownloaderThatNeverAnswersIsEndedAnyway(DownloaderClient: DownloaderCtor, check: Check) {
   const { c, fake } = await open(DownloaderClient, { decoders: 2 });
   await until(async () => (await fake.alive()).decoder === 2);
-  const asked = c.requestExactFrame(7).then(() => "delivered", (e: Error) => e.message);
+  const asked = c.requestFrame(7).then(() => "delivered", (e: Error) => e.message);
   await settle();
   await fake.block(8000);
   const t0 = performance.now();
@@ -1848,7 +1849,7 @@ async function aFailedRedialNamesWhatItWasAskedFor(DownloaderClient: DownloaderC
   await fake.serverClose(0, "the server went away");
   await settle();
   await fake.failDials(5);
-  const asked = c.requestExactFrame(7).then(() => "delivered", (e: Error) => e.message);
+  const asked = c.requestFrame(7).then(() => "delivered", (e: Error) => e.message);
   const reason = await Promise.race([asked, settle(3000).then(() => "still pending at 3 s")]);
   check(/dial refused/.test(reason), `failed re-dial: the ask rejects with the dial's reason (${reason})`);
   c.fill([1, 2, 3]);
@@ -1896,7 +1897,7 @@ async function aCancelDuringARedialDropsWhatWasAsked(DownloaderClient: Downloade
   await fake.serverClose(0, "the server went away");
   await settle();
   await fake.openAfterMs(300);
-  c.requestExactFrame(7).catch(() => {});
+  c.requestFrame(7).catch(() => {});
   c.fill([8]);
   await settle();
   await cancelled(c);
@@ -2058,7 +2059,7 @@ async function aFrameLostTwiceFailsByName(DownloaderClient: DownloaderCtor, chec
 /** An ask alone on a session that closes under it is asked again on a new one, not failed. */
 async function anAskAloneOnAClosedSessionIsReasked(DownloaderClient: DownloaderCtor, check: Check) {
   const { c, fake } = await open(DownloaderClient, { decode: false, survival: { ...QUICK, stallMs: 30_000 } });
-  const asked = c.requestExactFrame(50).then((f) => text(f.bytes), (e: Error) => `failed: ${e.message}`);
+  const asked = c.requestFrame(50).then((f) => text(f.bytes), (e: Error) => `failed: ${e.message}`);
   await onTheWire(fake, "request_frame 50");
   await fake.serverClose(0, "the server went away");
   const redialled = await until(async () => (await fake.dials()) >= 2 && (await fake.controlMessages()).length > 0);
@@ -2072,7 +2073,7 @@ async function anAskAloneOnAClosedSessionIsReasked(DownloaderClient: DownloaderC
 /** A silent session owing only an ask is condemned like one owing a fill. */
 async function aSilentSessionOwingAnAskIsRedialled(DownloaderClient: DownloaderCtor, check: Check) {
   const { c, fake } = await open(DownloaderClient, { decode: false, survival: QUICK });
-  const asked = c.requestExactFrame(50).catch(() => null);
+  const asked = c.requestFrame(50).catch(() => null);
   const redialled = await until(async () => (await fake.dials()) >= 2, 2000);
   check(redialled, `survival: a silent session owing an ask is re-dialled (${await fake.dials()} dials)`);
   await fake.pushFrame(50, enc.encode("ask-50"));
@@ -2091,7 +2092,7 @@ async function aRecycledSessionTakesTheOwedAsk(DownloaderClient: DownloaderCtor,
   await settle();
   for (const i of [0, 1]) await fake.pushFrame(i, body(i));
   await until(() => got.length >= 2);
-  const asked = c.requestExactFrame(50).then((f) => text(f.bytes), (e: Error) => `failed: ${e.message}`);
+  const asked = c.requestFrame(50).then((f) => text(f.bytes), (e: Error) => `failed: ${e.message}`);
   await onTheWire(fake, "request_frame 50");
   // The third frame crosses three quarters of the budget while the ask is still owed.
   await fake.pushFrame(2, body(2));
@@ -2119,7 +2120,7 @@ async function aCancelBetweenRedialsEndsThem(DownloaderClient: DownloaderCtor, c
 /** Once the re-dials run out an outstanding ask is named too, rejecting the promise the page holds. */
 async function whenTheRedialsRunOutAnOwedAskIsNamed(DownloaderClient: DownloaderCtor, check: Check) {
   const { c, fake } = await open(DownloaderClient, { decode: false, survival: { ...QUICK, stallMs: 30_000 } });
-  const asked = c.requestExactFrame(50).then(() => "delivered", (e: Error) => e.message);
+  const asked = c.requestFrame(50).then(() => "delivered", (e: Error) => e.message);
   await onTheWire(fake, "request_frame 50");
   await fake.failDials(QUICK.tries);
   await fake.serverClose(0, "the server went away");
@@ -2168,7 +2169,7 @@ async function aCommandDuringAResumeDialsNoSessionOfItsOwn(DownloaderClient: Dow
   await fake.failDials(1);
   await fake.serverClose(0, "the server went away");
   await until(async () => (await fake.dials()) >= 2);
-  const asked = c.requestExactFrame(50).then((f) => text(f.bytes), (e: Error) => `failed: ${e.message}`);
+  const asked = c.requestFrame(50).then((f) => text(f.bytes), (e: Error) => `failed: ${e.message}`);
   await settle(800);
   check((await fake.dials()) === 3, `survival: an ask during a resumption dials no session of its own (${await fake.dials()} dials)`);
   await onTheWire(fake, "request_frame 50");
@@ -2243,8 +2244,8 @@ async function aCancelReleasesTheGroupADecoderHeld(DownloaderClient: DownloaderC
 /** A second ask for a frame already asked rejects at once, and the first still settles. */
 async function aSecondAskForTheSameFrameIsRefused(DownloaderClient: DownloaderCtor, check: Check) {
   const { c, fake } = await open(DownloaderClient, { decode: false });
-  const first = c.requestExactFrame(5).then((f) => text(f.bytes), (e: Error) => `failed: ${e.message}`);
-  const second = await c.requestExactFrame(5).then(() => "delivered", (e: Error) => e.message);
+  const first = c.requestFrame(5).then((f) => text(f.bytes), (e: Error) => `failed: ${e.message}`);
+  const second = await c.requestFrame(5).then(() => "delivered", (e: Error) => e.message);
   check(/already requested/.test(second), `ask: a second ask for the same frame rejects at once (${second})`);
   await onTheWire(fake, "request_frame 5");
   await fake.pushFrame(5, enc.encode("ask-5"));
@@ -2260,7 +2261,7 @@ async function anAskAfterCloseRejectsAtOnce(DownloaderClient: DownloaderCtor, ch
   });
   await fake.block(3000);
   c.close();
-  const asked = c.requestExactFrame(7).then(() => "delivered", (e: Error) => e.message);
+  const asked = c.requestFrame(7).then(() => "delivered", (e: Error) => e.message);
   const reason = await Promise.race([asked, settle(200).then(() => "still pending")]);
   check(/closed by the consumer/.test(reason), `close: an ask after it rejects at once (${reason})`);
 }

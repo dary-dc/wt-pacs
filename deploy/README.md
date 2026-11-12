@@ -24,13 +24,17 @@ move because of anything here. TCP 4433 is published for the WebSocket fallback,
 
 ## Run it
 
-From a fresh clone, with docker (or podman; every `docker` below reads `podman` as well):
+From a fresh clone or a `git archive` of one, with docker (or podman; every `docker` below reads `podman` as well):
 
 ```bash
-bash client/decode/wasm/build/build.sh        # the decoders and the frame check's hasher, checked against their manifest
 docker compose -f deploy/compose.yml build
 STUDIES=/path/to/studies SERIES=ct docker compose -f deploy/compose.yml up -d
 ```
+
+The decoders, the frame check's hasher and their notices (`client/decode/wasm/built/`) and the page's TS client
+(`client/transport/ts/dist/session.js`) are committed, each pinned by a manifest that `scripts/gate.sh` checks and
+rebuilds them against (owner's decision D2, 2026-10-21), so the deploy host builds no decoder.
+`client/decode/wasm/build/build.sh` verifies them or makes new ones; it is not a deploy step.
 
 `STUDIES` holds what the DICOM ingest writes, `$SERIES.sbnd` and `$SERIES.metadata.json`
 ([`../docs/FIXTURES.md`](../docs/FIXTURES.md) §From DICOM); without it, the 151-byte smoke series baked into both
@@ -42,12 +46,24 @@ PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/t
   STUDIES=... SERIES=... docker compose -f deploy/compose.yml up -d     # https://203.0.113.7/
 ```
 
+An optimal-quality series ([`../client/README.md`](../client/README.md) §Optimal quality, exact on request) is
+served with its exact series, by a second server on 4434 under the `pair` profile; both series are in `STUDIES`, and
+`EXACT_SERIES` is the id the optimal-quality series' metadata names as `exactSeries` (web refuses to start otherwise):
+
+```bash
+STUDIES=... SERIES=dbts_a1-q8-g8-cut EXACT_SERIES=dbts_a1 docker compose -f deploy/compose.yml --profile pair up -d
+```
+
+Off this host, add `EXACT_WT_URL=https://203.0.113.7:4434/` beside `WT_URL`.
+
 | variable | default | what |
 | --- | --- | --- |
 | `STUDIES` | `../fixtures/us_cine_smoke` | the host directory mounted read-only at `/studies` in both containers |
 | `SERIES` | `us_cine_smoke` | the series served: `$STUDIES/$SERIES.sbnd` and `$SERIES.metadata.json` |
-| `PUBLISH_ADDR` | `127.0.0.1` | the address 8765, 443 and 4433 (UDP and TCP) are published on |
-| `WT_URL` | `https://127.0.0.1:4433/` | the address the transport file tells the browser to dial, and the one origin besides the page's that web's policy lets it connect to |
+| `PUBLISH_ADDR` | `127.0.0.1` | the address 8765, 443, 4433 and 4434 (UDP and TCP) are published on |
+| `WT_URL` | `https://127.0.0.1:4433/` | the address the transport file tells the browser to dial, and an origin besides the page's that web's policy lets it connect to |
+| `EXACT_SERIES` | none | with `--profile pair`, the exact series of the optimal-quality `SERIES`, served by the `exact` service on 4434 |
+| `EXACT_WT_URL` | `https://127.0.0.1:4434/` | the `exact` service's `WT_URL`, the second origin web's policy names when `EXACT_SERIES` is set |
 | `TLS_DIR` | `./no-tls` (none) | `cert.pem` (the chain) and `key.pem` for the page; absent, web speaks HTTP on 8765 alone |
 | `TLS_PORT` | `443` | the host port published for web's 443 |
 | `RESTART_AFTER` | `9d` | the server exits after this and is restarted with a new certificate |
@@ -146,13 +162,13 @@ A container test of a deployment of this shape found each one (the deployment te
     which the lab runs against `dev-server.py`.
 
 **What the web image carries.** The files of `client/` the viewer loads, which `web-files.sh` lists and copies: the
-page and its modules, the page check's two (`?check=`), and row DECODERBUILD's decoder builds with their notices
+page and its modules (the page check's are `lab/`'s, which no image serves), and row DECODERBUILD's decoder builds with their notices
 (`client/decode/wasm/built/`, the frame check's hasher among them), checked against `build/manifest.sha256` at build
-time; the TS bundles (`build.sh --product`); and the WASM client, its adapter copied and its glue and `.wasm` built
+time; the TS client's WebTransport bundle (`build.sh --product`); and the WASM client, its adapter copied and its glue and `.wasm` built
 in the `wasm` stage (row 277's `CLIENT` picks it): the `wasm32-unknown-unknown` target, `wasm-pack` 0.15.0 by
 `cargo install --locked` as CI installs it, and `build.sh`'s binaryen `version_117` by checksum. No test, TypeScript
-source or build script. Of the
-studies, only the smoke series.
+source or build script. Of the studies, only the smoke series. `web-files_test.sh` (in the gate) fails a module path
+that a copied file names and the list leaves out, as `paint/settle.js` (#289) and `view/clock.js` were until 2026-11-10.
 
 **Only what the page loads is reachable**: `/`, those files under `/client/`, `/series/metadata` and
 `/wt/dev-transport.json`. Everything else is a 404, the studies' bundles included.
@@ -174,10 +190,11 @@ than failing, since the downloader refuses to start without it. Pages and the me
 
 ```
 default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;
-connect-src 'self' ${WT_ORIGIN}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'
+connect-src 'self' ${WT_ORIGINS}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'
 ```
 
-`WT_ORIGIN` is `WT_URL`'s scheme, host and port, which the page dials over WebTransport.
+`WT_ORIGINS` is `WT_URL`'s scheme, host and port, which the page dials over WebTransport, and `EXACT_WT_URL`'s when
+`EXACT_SERIES` is set.
 `'unsafe-eval'` is the decoders' glue, evaluated through `new Function` (`client/decode/wasm-glue.js`), and lets
 WebAssembly compile; the inline `<style>` is the page's. `dev-server.py` sends the same policy on the viewer's page
 alone, connecting anywhere on loopback, where the lab's relays and collectors listen; the lab's pages, which share
@@ -187,17 +204,18 @@ the viewer's workers and run inline scripts, carry none. The page's lab paramete
 ## The checks
 
 `check_equivalence.sh [STUDIES SERIES]` runs `dev-server.py` and the web image side by side, given the same studies
-and the same transport file. It checks five things:
+and the same transport files, `SERIES` served as the exact series of an optimal-quality series made from its
+metadata. It checks five things:
 
 * status, the three isolation headers, content type, `Cache-Control` and body bytes are equal on every path the
-  viewer loads (11);
-* 20 paths that must not be served are 404: the lab and its viewer parameters, the fixtures, the checkout, a study's
-  bundle, the transport directory, and the files of `client/` the page does not load (the check pages, a test, a
+  viewer loads (13, the exact series' metadata and transport file among them);
+* 22 paths that must not be served are 404: the lab and its viewer parameters, the fixtures, the checkout, a study's
+  bundle, the transport directory, the pair's paths under another series' id, and the files of `client/` the page does not load (the check pages, a test, a
   TypeScript and a Rust source, two build scripts, the WASM client's manifest and its package's, a README);
 * the WASM client's glue and `.wasm`, built in the image and so not compared with the tree's, answer 200 with the
   isolation headers, as `text/javascript` and `application/wasm` (`--local` serves the tree's build);
 * gzip on a module, the WASM and the metadata;
-* the policy on the page and on the downloader's script, connecting to the transport, and the dev host's on the page
+* the policy on the page and on the downloader's script, connecting to both servers of the pair, and the dev host's on the page
   equal to it but for `connect-src`;
 * `Server` carries no version.
 
@@ -205,8 +223,7 @@ Each new assertion was mutated and seen to fail it: `server_tokens on`, JSON out
 that serves and lists, and a page cached otherwise than `dev-server.py`; and for the policy (row VIEWERLOCK), nginx's
 `connect-src` without the transport (both paths `MISS`) and the dev host's `script-src` allowing inline (`DIFF`).
 `--local` runs a host nginx on the template instead of the image, its root the files `web-files.sh` copies;
-`scripts/gate.sh` runs it where nginx is on PATH and the decoder builds are present, and names it
-SKIPPED otherwise. Mutated: a root of all of `client/`, as the image carried before row IMAGESLIM (the nine
+`scripts/gate.sh` runs it where nginx is on PATH, and names it SKIPPED otherwise. Mutated: a root of all of `client/`, as the image carried before row IMAGESLIM (the nine
 `client/` paths answer 200), and `viewer.js` left out of the list (its path differs and loses gzip); each fails it.
 
 **A stale image is refused** (exit 2) before anything is compared: every file the image carries from `client/`
@@ -413,7 +430,8 @@ server's (with no `ulimits` set they are the daemon's). **Proposed, not built:**
 | ~~a stale server binary~~ *closed by row BUILDCACHE, 2026-10-15* | the build stage's `target` cache mount is shared by every build on the daemon; cargo trusts mtimes, so a tree whose sources are older than the cache's last build ships the old binary, silently (row 231: its `read_ring=` line was missing until the sources were touched and the build ran with `--no-cache-filter build,server`) | closed: the build touches every source it copied before `cargo build` (§5), proved in §Verified *Row BUILDCACHE* |
 | studies by name | one server serves one series (`SERIES`) | a study index, proposed in `docs/FIXTURES.md` §From DICOM |
 | HTTP/3 for the page, and a `dns-prefetch` to the transport's origin | each takes a round trip off a cold open ([`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §What production adds) | nginx's QUIC listener; one `<link>` in the viewer |
-| the decoders are built on the host | the image checks them against the manifest but does not make them | the decoder build's container (`client/decode/wasm/build/`) as a stage, once it runs inside BuildKit |
+| the image builds its own `session.js` | the committed one is pinned and the gate's rebuild reproduces it, yet the `bundles` stage still runs `npm ci` and builds it | the web stage copying the committed file, so the stage needs no npm: proposed, not done |
+| ~~the decoders are built on the host~~ *closed by decision D2, 2026-10-21* | the image checks them against the manifest but does not make them | closed: they are committed, and the gate rebuilds them and compares (§Run it) |
 
 **A measurement flag.** Page-load timing is part of the page clock. A comparison spanning a switch from one host
 to the other is not comparable across it: take a before and after in one interleaved run.

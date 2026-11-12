@@ -2,6 +2,7 @@
 # The web image must answer exactly as server/dev-server.py does: same status, same three
 # isolation headers, same content type, same bytes, on every path the viewer loads; everything
 # else a 404; gzip, and no version in its Server header. And the transport's PEM must carry its own chain.
+# SERIES is served as the exact series of an optimal-quality series made from its metadata, so the pair's paths are checked too.
 # usage: deploy/check_equivalence.sh [--local] [STUDIES_DIR SERIES]   (default: the smoke series)
 #        deploy/check_equivalence.sh --cert [PEM]        the PEM check alone
 # IMAGE names the web image; RUNTIME is podman, else docker.
@@ -56,22 +57,27 @@ if [ "$LOCAL" -eq 0 ]; then
 fi
 PY_PORT=18765
 NG_PORT=18766
-WT="$(mktemp -d)"
+WT="$(mktemp -d)" EXACT_WT="$(mktemp -d)" PAIR="$(mktemp -d)"
 printf '{"wt_url": "https://127.0.0.1:4433/", "cert_sha256": "%064d"}\n' 0 > "$WT/dev-transport.json"
-chmod 0755 "$WT"
+printf '{"wt_url": "https://127.0.0.1:4434/", "cert_sha256": "%064d"}\n' 1 > "$EXACT_WT/dev-transport.json"
+cp "$STUDIES/$SERIES.metadata.json" "$PAIR/"
+python3 -c 'import json, sys; m = json.load(open(sys.argv[1])); print(json.dumps({**m, "codec": "av1", "lossy": {"q": 8, "g": 1, "depth": 8}, "exactSeries": sys.argv[2]}))' \
+  "$STUDIES/$SERIES.metadata.json" "$SERIES" > "$PAIR/$SERIES-oq.metadata.json"
+chmod 0755 "$WT" "$EXACT_WT" "$PAIR"
 PATHS=(/ /client/viewer/index.html /client/viewer/viewer.js /client/transport/downloader.js /client/decode/decoder.js
        /client/transport/wasm/session-adapter.js
        /client/decode/wasm/built/openjph/openjph.wasm /client/decode/wasm/build/manifest.sha256
-       /wt/dev-transport.json /series/metadata /nope-404)
-# What the image must not answer: the dev server's lab routes, the checkout, the studies themselves.
+       /wt/dev-transport.json /series/metadata "/series/$SERIES/metadata" "/wt/$SERIES/dev-transport.json" /nope-404)
+# What the image must not answer: the dev server's lab routes, the checkout, the studies themselves, a series not of the pair.
 HIDDEN=(/harness/ /lab/order.mjs /lab/viewer/levers.js /fixtures/us_cine_smoke/metadata.json /server/dev-cert/key.pem /deploy/compose.yml
-        "/studies/$SERIES.sbnd" /wt/ /client/contract/run.mjs /client/paint/check.html
+        "/studies/$SERIES.sbnd" /wt/ "/series/$SERIES-oq/metadata" "/wt/$SERIES-oq/dev-transport.json" /client/contract/run.mjs /client/paint/check.html
         /client/viewer/check.mjs /lab/client-telemetry/tap.ts /client/transport/ts/session.ts /client/decode/av1.test.mjs
         /client/decode/wasm/build/build.sh /client/transport/wasm/src/session.rs /client/transport/wasm/Cargo.toml
         /client/transport/wasm/build.sh /client/transport/wasm/pkg/package.json /client/README.md)
 
-python3 "$ROOT/server/dev-server.py" --port "$PY_PORT" --metadata "$STUDIES/$SERIES.metadata.json" \
-  --transport "$WT/dev-transport.json" >/dev/null 2>&1 &
+python3 "$ROOT/server/dev-server.py" --port "$PY_PORT" --metadata "$PAIR/$SERIES-oq.metadata.json" \
+  --transport "$WT/dev-transport.json" --exact-metadata "$PAIR/$SERIES.metadata.json" \
+  --exact-transport "$EXACT_WT/dev-transport.json" >/dev/null 2>&1 &
 PY=$!
 if [ "$LOCAL" -eq 1 ]; then
   NG=$(mktemp -d)
@@ -82,18 +88,21 @@ if [ "$LOCAL" -eq 1 ]; then
   install -D -m 0644 -t "$NG/root/client/transport/wasm/pkg" "$ROOT"/client/transport/wasm/pkg/transport_wasm{.js,_bg.wasm} \
     || { kill $PY; exit 2; }
   ln -s "$WT" "$NG/root/wt"
-  sed -e 's#\${SERIES}#'"$SERIES"'#g' -e 's#\${TLS_LISTEN}##' -e 's#\${WT_ORIGIN}#https://127.0.0.1:4433#' -e "s#/srv/wt-pacs#$NG/root#g" -e "s#/studies/#$STUDIES/#g" \
+  ln -s "$EXACT_WT" "$NG/root/exact-wt"
+  sed -e 's#\${SERIES}#'"$SERIES-oq"'#g' -e 's#\${EXACT_SERIES}#'"$SERIES"'#g' -e 's#\${TLS_LISTEN}##' \
+    -e 's#\${WT_ORIGINS}#https://127.0.0.1:4433 https://127.0.0.1:4434#' -e "s#/srv/wt-pacs#$NG/root#g" -e "s#/studies/#$PAIR/#g" \
     -e "s/listen  *8765;/listen 127.0.0.1:$NG_PORT;/" "$ROOT/deploy/nginx/wt-pacs.conf.template" > "$NG/server.conf"
   printf 'pid %s/nginx.pid;\nerror_log %s/error.log error;\nevents {}\nhttp {\n  access_log off;\n  default_type application/octet-stream;\n' "$NG" "$NG" > "$NG/nginx.conf"
   for d in client_body proxy fastcgi uwsgi scgi; do printf '  %s_temp_path %s/tmp;\n' "$d" "$NG"; done >> "$NG/nginx.conf"
   printf '  include %s/server.conf;\n}\n' "$NG" >> "$NG/nginx.conf"
   nginx -c "$NG/nginx.conf" || { kill $PY; exit 2; }
-  trap 'kill $PY 2>/dev/null; nginx -s stop -c "$NG/nginx.conf" 2>/dev/null; rm -rf "$NG" "$WT"' EXIT
+  trap 'kill $PY 2>/dev/null; nginx -s stop -c "$NG/nginx.conf" 2>/dev/null; rm -rf "$NG" "$WT" "$EXACT_WT" "$PAIR"' EXIT
 else
   "$RUNTIME" rm -f wtpacs-web-check >/dev/null 2>&1
-  "$RUNTIME" run -d --rm --name wtpacs-web-check -e SERIES="$SERIES" -p "127.0.0.1:$NG_PORT:8765" \
-    -v "$STUDIES:/studies:ro,z" -v "$WT:/srv/wt-pacs/wt:ro,z" "$IMAGE" >/dev/null || { kill $PY; exit 2; }
-  trap 'kill $PY 2>/dev/null; "$RUNTIME" rm -f wtpacs-web-check >/dev/null 2>&1; rm -rf "$WT"' EXIT
+  "$RUNTIME" run -d --rm --name wtpacs-web-check -e SERIES="$SERIES-oq" -e EXACT_SERIES="$SERIES" \
+    -e EXACT_WT_URL=https://127.0.0.1:4434/ -p "127.0.0.1:$NG_PORT:8765" -v "$PAIR:/studies:ro,z" \
+    -v "$WT:/srv/wt-pacs/wt:ro,z" -v "$EXACT_WT:/srv/wt-pacs/exact-wt:ro,z" "$IMAGE" >/dev/null || { kill $PY; exit 2; }
+  trap 'kill $PY 2>/dev/null; "$RUNTIME" rm -f wtpacs-web-check >/dev/null 2>&1; rm -rf "$WT" "$EXACT_WT" "$PAIR"' EXIT
 fi
 
 for port in "$PY_PORT" "$NG_PORT"; do
@@ -145,12 +154,12 @@ for p in /client/viewer/viewer.js /client/decode/wasm/built/openjph/openjph.wasm
   else printf '  MISS %-38s gzip, got "%s"\n' "$p" "$enc"; fail=1; fi
 done
 [ $large -eq 1 ] || printf '  skip %-38s under 1 KiB, sent as it is\n' "/series/metadata gzip"
-# The policy on the page and on a worker's script, naming the transport; the dev host's page differs in connect-src alone.
+# The policy on the page and on a worker's script, naming both servers of the pair; the dev host's page differs in connect-src alone.
 csp() { curl -sS -o /dev/null -D- "http://127.0.0.1:$1$2" | grep -i '^content-security-policy:' | tr -d '\r' | cut -d' ' -f2-; }
 for p in / /client/transport/downloader.js; do
   case $(csp "$NG_PORT" "$p") in
-    *"connect-src 'self' https://127.0.0.1:4433;"*) printf '  ok   %-38s CSP, connecting to the transport\n' "$p" ;;
-    *) printf '  MISS %-38s CSP naming the transport, got "%s"\n' "$p" "$(csp "$NG_PORT" "$p")"; fail=1 ;;
+    *"connect-src 'self' https://127.0.0.1:4433 https://127.0.0.1:4434;"*) printf '  ok   %-38s CSP, connecting to the pair\n' "$p" ;;
+    *) printf '  MISS %-38s CSP naming both servers, got "%s"\n' "$p" "$(csp "$NG_PORT" "$p")"; fail=1 ;;
   esac
 done
 if [ "$(csp "$PY_PORT" / | sed 's/connect-src [^;]*;//')" = "$(csp "$NG_PORT" / | sed 's/connect-src [^;]*;//')" ]; then

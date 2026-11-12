@@ -1,0 +1,19 @@
+{
+ "frameCount": 8,
+ "width": 64,
+ "height": 48,
+ "channels": 1,
+ "bitsStored": 12,
+ "signed": false,
+ "min": 0,
+ "max": 4095,
+ "codec": "av1",
+ "lossy": {
+  "q": 8,
+  "g": 4,
+  "depth": 10,
+  "bitsStored": 12
+ },
+ "exactSeries": "cut",
+ "sourceFingerprint": "97abf41a132582a1"
+}

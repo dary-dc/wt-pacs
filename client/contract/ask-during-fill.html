@@ -67,7 +67,7 @@
         let askAt = 0;
         s.fillFrames(0, FILL - 1, (f) => {
           got.push(f.frameIndex);
-          if (got.length === AT && !askP) { askAt = performance.now(); askP = s.requestExactFrame(ASK); }
+          if (got.length === AT && !askP) { askAt = performance.now(); askP = s.requestFrame(ASK); }
         });
         await until(() => askP, `${client}: ${AT} frames of the fill arrive`);
         const asked = await served(askP);
@@ -88,7 +88,7 @@
           decode: false,
           decoders: 0,
           transport: SESSIONS[carrier],
-          onFrame: (f) => { got.push(f.frameIndex); if (got.length === AT && !askP) askP = c.requestExactFrame(ASK); },
+          onFrame: (f) => { got.push(f.frameIndex); if (got.length === AT && !askP) askP = c.requestFrame(ASK); },
         });
         c.fill(Array.from({ length: FILL }, (_, i) => i));
         await until(() => askP, `${client}: ${AT} frames of the fill arrive`);

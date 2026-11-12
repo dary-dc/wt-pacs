@@ -4,7 +4,7 @@
 //   NODE_PATH=$(npm root -g) node client/viewer/check.mjs --series X.sbnd --decoder htj2k [--pair Y.sbnd --pair-decoder D]
 //     [--engine chromium|firefox] [--cine] [--fill 0] [--client ts|wasm] [--view page|worker] [--opts JSON] [--writer store|decoders|view] [--tabs]
 //   --tabs: the cache across tabs, Chromium only: a second tab refused while the first holds it, a reopen, a corrupted entry
-//   ... --url http://host/ --decoder htj2k [--client C]   (a host already running, such as the deploy image, whose transport
+//   ... --url http://host/ --decoder htj2k [--client C]   (Chromium alone: a host already running, such as the deploy image, whose transport
 //     file names C; no request log, so no code check)
 //   ... --url http://host/ --fill 0 --restart CMD   (CMD restarts the host's server and prints its `transport=` line)
 import { execFileSync, spawn } from "node:child_process";
@@ -81,13 +81,16 @@ async function host(sbnd, name) {
   return { url: `http://127.0.0.1:${p}/`, requests, key: `https://127.0.0.1:${port}/` };
 }
 
-const pageOf = (url) => `${url}?${new URLSearchParams({ check: "1", ...(process.argv.includes("--cine") && { cine: "1" }),
+const pageOf = (url) => `${url}?${new URLSearchParams({ check: process.argv.includes("--cine") ? "cine" : "1",
   ...(arg("--fill") && { fill: arg("--fill") }), ...(VIEW !== "page" && { view: VIEW }), ...(arg("--writer") && { writer: WRITER }), ...(arg("--opts") && { opts: arg("--opts") }) })}`;
 const noResult = () => new Promise((resolve) => setTimeout(() => resolve({ error: "no result in 300 s" }), 300000).unref());
 
+/** Under `--url` the host serves no lab/, as the image does not: the check's modules come from this checkout instead. */
 async function chromium() {
   const browser = await createRequire(import.meta.url)("playwright").chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
-  return { browser, context: await browser.newContext({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 }) };
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 });
+  if (arg("--url")) await context.route("**/lab/**", (route) => route.fulfill({ path: path.join(ROOT, new URL(route.request().url()).pathname) }));
+  return { browser, context };
 }
 
 /** A tab of `context` on the page, and the page's own result. */
@@ -119,7 +122,8 @@ async function open(url) {
       ff.stdout.on("data", (d) => {
         out += d;
         const m = /^console\.log: (".*viewer-result .*")\n/m.exec(out);
-        if (m) resolve(JSON.parse(JSON.parse(m[1]).slice("viewer-result ".length)));
+        // Firefox quotes a Latin-1 character as \xNN, which JSON spells \u00NN.
+        if (m) resolve(JSON.parse(JSON.parse(m[1].replace(/\\x([0-9a-fA-F]{2})/g, "\\u00$1")).slice("viewer-result ".length)));
       });
     });
     try {
@@ -210,9 +214,9 @@ function judge(name, r, requests, codec, decoder, cached = 0) {
   say(r.askDelivered === true, `an ask of a delivered frame: ${JSON.stringify(r.askDelivered)}`);
   say(r.cancelledFill === "cancelled", `a fill cancelled at once: ${JSON.stringify(r.cancelledFill)}`);
   say(r.askAfterCancel === true, `an ask after the cancel: ${JSON.stringify(r.askAfterCancel)}`);
-  const paths = Object.keys(r.paths).filter((p) => p !== "cache");
-  if (decoder && cached < want) say(paths.length === 1 && paths[0] === decoder, `decoded by ${paths.join(", ") || "none"}, not ${decoder} alone`);
-  say((r.paths.cache ?? 0) === cached, `${r.paths.cache ?? 0} frames read from the cache, not ${cached}`);
+  const routes = Object.keys(r.routes).filter((p) => p !== "cache");
+  if (decoder && cached < want) say(routes.length === 1 && routes[0] === decoder, `decoded by ${routes.join(", ") || "none"}, not ${decoder} alone`);
+  say((r.routes.cache ?? 0) === cached, `${r.routes.cache ?? 0} frames read from the cache, not ${cached}`);
   // The cache: docs/adr/frame-path.md §3, *Built*. A frame on disk reaches the store with no message to the downloader.
   if (VIEW === "worker" && WRITER) {
     const c = r.cache;
@@ -224,7 +228,7 @@ function judge(name, r, requests, codec, decoder, cached = 0) {
     if (cached) say(c.asked.length === want - cached && delivered === want - cached,
       `a reopen asked the downloader for ${c.asked} and it delivered ${delivered}, not the ${want - cached} not on disk`);
   }
-  if (codec === "av1") say(paths.length > 0 && paths.every((p) => p.startsWith("av1-")), `an AV1 page whose frames were decoded by ${paths.join(", ")}`);
+  if (codec === "av1") say(routes.length > 0 && routes.every((p) => p.startsWith("av1-")), `an AV1 page whose frames were decoded by ${routes.join(", ")}`);
   say(r.status.includes(`client ${CLIENT}`), `the status line does not name client ${CLIENT}: ${r.status}`);
   say(r.status.includes(`view ${VIEW}`), `the status line does not name view ${VIEW}: ${r.status}`);
   say(r.heldStep === "painted 1, sent nothing", `a step to a held frame: ${r.heldStep}, not one paint and nothing sent`);
@@ -246,7 +250,7 @@ function judge(name, r, requests, codec, decoder, cached = 0) {
   if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine showed ${r.cine} frames in 1.5 s`);
 }
 
-const summary = (name, r) => `${name}, client ${CLIENT}, view ${VIEW}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +
+const summary = (name, r) => `${name}, client ${CLIENT}, view ${VIEW}: ${r.received}/${r.n} received, ${r.exact} exact, routes ${JSON.stringify(r.routes)}, renderer ${r.renderer}, ` +
   `${r.fillMs === null ? "on demand" : `fill ${Math.round(r.fillMs)} ms`}, first exact on screen ${Math.round(r.firstShownMs)} ms, readbacks ${(r.readbacks ?? []).map((b) => `${b.i}:${b.worst}`).join(" ")}` +
   `${r.cine !== undefined ? `, cine ${r.cine} frames` : ""}${r.page ? `, page heard ${r.page.messages} messages, ${r.page.pixels} with pixels` : ""}` +
   `${r.cache ? `, cache: ${r.cache.present?.length} on disk, asked [${r.cache.asked}], ${r.cache.writesHere} writes on the view thread` : ""}`;

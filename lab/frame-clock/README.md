@@ -32,7 +32,7 @@ A 4× cell slows every thread of the browser with `lab/scripts/cpu_throttle.mjs`
 Every arm shows, on each tick, **the frame due at the tick's time**, `floor((tick − t0) / T)`, once; a tick late by a
 long task skips the frames it missed rather than showing them late one by one. The page starts the arm by sending the
 view worker `play` (`client/view/view.js`); the page's arms then post `tick`s. The worker paints through the
-controller, so each frame is uploaded on its tick, as the paint worker does today. `client/view/check.js`'s `hold`
+controller, so each frame is uploaded on its tick, as the paint worker does today. `lab/viewer/check-view.js`'s `hold`
 makes the series' frames in the view worker before the clock starts: no network, no decode.
 
 ## Phase
@@ -53,8 +53,9 @@ vsync (ADR, row (a)), so the log there is no phase and must be dropped.
   followed within one display interval is counted superseded: an upper bound on late frames.
 * **late**: frames due in the run minus frames on their tick, as a percentage of frames due.
 * **gap p99**: between the vsyncs that would show successive frames on their tick.
-* **draw p99**: of each paint's end − start; the paint waits for the draw to execute
-  (`client/paint/paint-worker.js`).
+* **draw p99**: of each paint's end − start; the paint waits for the draw to execute, settled by the fence
+  (`client/paint/README.md` §When a paint has executed). *Corrected 2026-10-30:* until then `page.js` named no settle,
+  so the smoke's draw p99 was the draw's issue, not its execution.
 
 Per cell: a busy run whose shortest long task was under 200 ms is dropped as void; the cell is **VOID** when the
 median over rounds of |`page-raf` − `page-raf′`| exceeds 2 points of late frames or reaches 16.7 ms in gap p99;

@@ -22,17 +22,7 @@ export function neutral(planes, width, height, mid) {
 
 /** The top picture checked against the payload's header and placed. */
 export function begin(pic, payload) {
-  const components = pic.planes.length;
-  if (pic.bits !== payload.depth) refuse(`top stream ${pic.bits}-bit, header says ${payload.depth}`);
-  if (payload.rct && components !== 3) refuse(`top stream of ${components} planes under rct, not three`);
-  const plainRgb = payload.bits === 8 && payload.depth === 8 && !payload.split && !payload.signed;
-  if (!payload.rct && components === 3 && !plainRgb) refuse("three planes without rct");
-  const { bits, signed } = payload;
-  const wide = bits > 8;
-  const sab = frameBuffer(pic.width * pic.height * components * (wide ? 2 : 1));
-  const out = wide ? (signed ? new Int16Array(sab) : new Uint16Array(sab)) : signed ? new Int8Array(sab) : new Uint8Array(sab);
-  const mask = wide ? 0xffff : 0xff;
-  const f = { pic, out, sab, components, bits, signed, mask, offset: payload.offset, range: { min: Infinity, max: -Infinity } };
+  const f = output(pic, payload);
   if (payload.rct) unrct(f, pic);
   else place(f, pic, payload.split, !payload.split);
   return f;
@@ -40,13 +30,54 @@ export function begin(pic, payload) {
 
 /** The contract's return, the low picture OR-ed in first when the frame is split. */
 export function end(f, low) {
-  if (low) {
-    if (low.bits !== 8) refuse(`low stream ${low.bits}-bit, not 8`);
-    if (low.planes.length !== 1 || low.width !== f.pic.width || low.height !== f.pic.height) {
-      refuse(`a low picture of ${low.width}x${low.height}x${low.planes.length} under ${f.pic.width}x${f.pic.height}`);
+  if (low) place(f, lowChecked(f, low), 0, true);
+  return result(f);
+}
+
+/** begin() and end() of a split frame as one pass: each sample read from both pictures, merged, ranged, written once. */
+export function merge(pic, low, payload) {
+  const f = output(pic, payload);
+  const [t] = pic.planes;
+  const [b] = lowChecked(f, low).planes;
+  const { out, mask, offset, range } = f;
+  const k = payload.split;
+  for (let y = 0, o = 0; y < pic.height; y++) {
+    for (let x = 0, s = t.offset + y * t.stride, q = b.offset + y * b.stride; x < pic.width; x++, s++, q++, o++) {
+      // The mask is the two passes' wrap of the shifted top in `out`.
+      const v = (((t.heap[s] << k) & mask) | b.heap[q]) - offset;
+      out[o] = v;
+      if (v < range.min) range.min = v;
+      if (v > range.max) range.max = v;
     }
-    place(f, low, 0, true);
   }
+  return result(f);
+}
+
+function output(pic, payload) {
+  const components = pic.planes.length;
+  if (pic.bits !== payload.depth) refuse(`top stream ${pic.bits}-bit, header says ${payload.depth}`);
+  if (payload.rct && components !== 3) refuse(`top stream of ${components} planes under rct, not three`);
+  const plainRgb = payload.bits === 8 && payload.depth === 8 && !payload.split && !payload.signed;
+  if (!payload.rct && components === 3 && !plainRgb) refuse("three planes without rct");
+  const { signed, offset } = payload;
+  const fitsInt8 = offset <= 128 && (1 << payload.bits) - 1 - offset <= 127;
+  const bits = signed && payload.bits <= 8 && !fitsInt8 ? 9 : payload.bits;
+  const wide = bits > 8;
+  const sab = frameBuffer(pic.width * pic.height * components * (wide ? 2 : 1));
+  const out = wide ? (signed ? new Int16Array(sab) : new Uint16Array(sab)) : signed ? new Int8Array(sab) : new Uint8Array(sab);
+  const mask = wide ? 0xffff : 0xff;
+  return { pic, out, sab, components, bits, signed, mask, offset, range: { min: Infinity, max: -Infinity } };
+}
+
+function lowChecked(f, low) {
+  if (low.bits !== 8) refuse(`low stream ${low.bits}-bit, not 8`);
+  if (low.planes.length !== 1 || low.width !== f.pic.width || low.height !== f.pic.height) {
+    refuse(`a low picture of ${low.width}x${low.height}x${low.planes.length} under ${f.pic.width}x${f.pic.height}`);
+  }
+  return low;
+}
+
+function result(f) {
   const { width, height } = f.pic;
   const info = { width, height, bitsPerSample: f.bits, componentCount: f.components, isSigned: f.signed };
   // As decoder.js's unranged(): an 8-bit colour frame's window is its sample type's.
@@ -78,7 +109,7 @@ function place(f, pic, shift, last) {
   }
 }
 
-/** JPEG 2000's reversible colour transform undone: planes Y, B − G + 256, R − G + 256 to R, G, B. lab/av1/bytes/represented */
+/** JPEG 2000's reversible colour transform undone: planes Y, B − G + 256, R − G + 256 to R, G, B. docs/av1/payload-format.md §Representation at ingest */
 function unrct(f, pic) {
   const { out } = f;
   const { width, height, planes: [y, cb, cr] } = pic;

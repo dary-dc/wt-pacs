@@ -39,8 +39,8 @@ Here it is lossless only, one frame a payload, in this project's own format. The
   HTJ2K on five of seven series in Chromium and Firefox) and HTJ2K wherever a slow CPU meets a fast link (Firefox
   1.33–2.53 at 4× on 50 Mbit). By the whole-round total-time measurement's rule (queue row TOTAL4) — AV1 only where it fills first in both engines on every cell —
   no series qualifies, and ingest keeps HTJ2K — §Total time.
-* **Frame groups: G = 1.** Inter coding does not pay on DBT, conclusively by a rule fixed before the data (15
-  volumes, best +1.51 %); cine, ABUS and angiography have no sound data — §Frame groups.
+* **Frame groups: G = 1.** Inter coding does not pay on DBT (15 volumes, best +1.51 % on one, every other
+  larger at every G > 1); cine and ABUS have no sound data — §Frame groups, [`frame-groups.md`](frame-groups.md) §1.
 * **Preview: measured, not adopted.** Whether a lossy picture may come first is the owner's ruling — §Preview.
 
 **Focus (owner, 2026-10-03): AV1 alone**, not combined with HTJ2K — that is what the coming real-time stack is expected to
@@ -440,7 +440,7 @@ bytes where the wire is the clock.
 
 Does asking the frames a reader needs first shorten the time to them without costing the fill? The order is
 the client's, never the server's ([`../adr/reject-server-ordering.md`](../adr/reject-server-ordering.md)):
-`prio` asks the useful frames with `requestExactFrame`, most needed first, then posts the same whole-series
+`prio` asks the useful frames with `requestFrame`, most needed first, then posts the same whole-series
 fill as `seq`. **Useful**, per content: on tomosynthesis the centre slice and two either side (the slice a
 reader starts on is this measurement's premise, not a measured reading pattern); on a four-view screening
 mammogram the MLO pair — IHE's mammography display test hangs all four current views at once, MLOs on the
@@ -1323,8 +1323,9 @@ or angiography is open. What was measured on DBT, and no more: libaom 3.15.1 alo
 it), a keyframe at exactly every G, two presets; G = 1, 2, 4, 8, 16 and whole on two volumes coded whole (the tomosynthesis measurement),
 G = 8 and 16 only on the k = 2 split (the breast-family measurement). "Inter does not pay" in this file means *on those volumes, at those
 settings*; whether it pays on DBT is asked again, theory first (the frame-group theory, measurement and review, queue rows GOPTHEORY, GOPMEASURE, GOPREVIEW). *Answered
-(the frame-group review): on DBT it does not, conclusively by the rule fixed before the data — 15 sound volumes from three
-systems, every series under the 20 % line (best +1.51 %), because adjacent slices share little noise (median ρ
+(the frame-group review): on DBT it does not — 15 sound volumes from three systems, the best gain +1.51 % on one and
+every other larger at every G > 1 (*corrected 2026-10-30*: this read "under the 20 % line", a bar that is not a
+finding, [`frame-groups.md`](frame-groups.md) §3), because adjacent slices share little noise (median ρ
 0.11–0.22, against the ½ inter needs); the encoder variants that gain at all (alt-ref on, SVT-AV1, up to +3.2 %) are
 lossless only on one system's 8-bit tops. Cine, ABUS and angiography stay open for want of sound data (the frame-group measurement
 below; the review is [`frame-groups.md`](frame-groups.md) §T4a).*
@@ -1332,9 +1333,11 @@ below; the review is [`frame-groups.md`](frame-groups.md) §T4a).*
 **Frame groups, to a rule fixed before the data (the frame-group measurement, 2026-10-08,
 [`lab/av1/bytes/frame-groups`](../../lab/av1/bytes/frame-groups/README.md)).** On the middle 16 slices of 15 sound DBT volumes, five
 from each of systems A, B and C, libaom `good` 6 with alt-ref off makes every G ≤ 16 larger than intra on 14 series;
-the one gain is +1.51 % (cpu0 on three series: at most +0.13 %), against the 20 % the rule asks. **DBT stays at
-G = 1, conclusively by the rule.** Alt-ref on and SVT-AV1 inter are not lossless on a 10-bit top; on system B's 8-bit
-streams they gain at most +3.19 % and +2.43 %. Every G > 1 also misses the rule's decode bound at 4×, and the client's dav1d-WASM path cannot
+the one gain is +1.51 % (cpu0 on three series: at most +0.13 %). **DBT stays at G = 1**, on those numbers against
+what a group costs ([`frame-groups.md`](frame-groups.md) §3; *corrected 2026-10-30*: this read "conclusively by the
+rule", whose 20 % is not a finding). Alt-ref on and SVT-AV1 inter are not lossless on a 10-bit top; on system B's 8-bit
+streams they gain at most +3.19 % and +2.43 %. At 4× ([`../decode/README.md`](../decode/README.md) §A slow CPU, emulated) an ask at every G > 1 also takes longer than one
+HTJ2K decode plus the wire time its saved bytes buy, and the client's dav1d-WASM path cannot
 decode a split series in groups at all (its low unit flushes the top's references). Breast
 ultrasound cine, ABUS and angiography runs have no sound data here and get no decision.
 
@@ -1459,8 +1462,20 @@ width 1 its dequantisation is the identity and its residuals are added at 2^−f
 transform and at 12 bits with the 2×2 (256/256 offset classes; the 4×4 not proven, 36/36 patterns
 tried reachable). **At 14 bits it is not**: 128 of 256 offset classes of a 2×2 block are
 unreachable, and the decoder stops at 14, so the 13-bit CT and cone-beam cannot end exact. No trial
-is possible: **no open LCEVC encoder exists**, the web decoder draws 8-bit RGBA through WebGL with no
-samples back, and the decoder's BSD-3-Clause-Clear licence grants no patents ([`licensing.md`](licensing.md)).
+was possible then: **no open LCEVC encoder exists** — *wrong, corrected 2026-10-31:* MPEG's reference
+software (LTM 5.5, ISO/IEC 23094-3 Amd 1) carries an encoder under BSD, free from ISO, though it takes
+no AV1 base and does not choose exact residuals without a patch; its decoder uses the same fixed
+point, so the reach above holds for AV1 + LCEVC at 8–12 bits (*derived*). An offline trial is now
+possible, a product path is not: the web decoder draws 8-bit RGBA through WebGL with no samples back,
+and both codes' BSD licences grant no patents, which the licensor licenses alone for royalties
+([`licensing.md`](licensing.md); the re-check and a pre-registered protocol in
+[`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Re-checked 2026-10-31). *Re-checked
+2026-11-02 for FFmpeg:* it encodes no LCEVC; it decodes through LCEVCdec (`--enable-liblcevc-dec`),
+and from 9.0 hands back samples at 8–14 bits, YUV and grey, with an AV1 base wired through dav1d's
+T.35 metadata (not run). That is the first native decode returning samples — a convenience for the
+offline trial, not an independent decoder for it, not an encoder, not lossless, and not a browser
+path: no FFmpeg WASM build with LCEVC was found (*unverified* that none exists)
+([`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Re-checked 2026-11-02).
 
 *Parked by the owner on 2026-10-03, kept for the decision later* (the owner's focus, §Where AV1 stands): the
 preview plus an HTJ2K residual, the separate preview then exact HTJ2K, the embedded intra codecs and LCEVC — each
@@ -1475,10 +1490,61 @@ libaom fault of §Prior evidence reproduces, and **3.15.1 has it too**: with def
 at 10 and 12 bits came back wrong on 1–8 of 16 frames (|Δ| ≤ 2 at 10 bits, ≤ 11 at 12), never on a
 keyframe, identically from dav1d and aomdec. It goes with the alt-ref frames: with
 `--auto-alt-ref=0` every cell — grey 8/10/12 as 4:0:0 and RGB 8 as 4:4:4, intra and inter, both
-versions, two presets — is exact. libaom 3.15.1 is pinned. SVT-AV1 v4.2.0 codes 4:2:0 at 8 and 10
+versions, two presets — is exact. libaom 3.15.1 is pinned.
+
+**It is known upstream, and open:** AOM issue [387472912](https://aomedia.issues.chromium.org/issues/387472912),
+"Output differs from 10-bit input when --lossless=1" (Assigned, P3; "Still happens with aom v3.13.2", comment #9,
+2026-03-24). It is bisected there to "Skip_mode improvement" (`21d45ae5`, 2023-06-13), and partly reverting that
+commit's high-bit-depth SSE makes the test pass (comment #6). Why that fits every one of our cells (*derived*):
+* a skip-mode block codes no residual (`if ( skip_mode ) skip = 1`, AV1 spec §5.11.18), yet the frame stays
+  `CodedLossless`, which tests only the quantiser (§5.9.2): the block is exact only if its prediction is;
+* libaom shifts a skip-mode block's SSE right by (bit depth − 8)·2 bits, rounding (`rdopt.c:1850`), so an SSE ≤ 7
+  at 10 bits and ≤ 127 at 12 costs as exact: |Δ| ≤ 2 and ≤ 11, the maxima measured; no shift at 8 bits;
+* libaom turns skip mode off when every reference is in the past and it looks ahead (`encodeframe.c:1688`): every
+  inter frame with alt-ref off.
+
+The last two rest on libaom 3.15.1's source alone. The issue has neither 12 bits nor the alt-ref switch; a comment
+adding them is drafted in the pull request that added this paragraph, not posted. libaom's own lossless tests code
+8-bit sources only (`test/lossless_test.cc:104-157`, source).
+
+SVT-AV1 v4.2.0 codes 4:2:0 at 8 and 10
 bits only, and its 10-bit inter stays inexact under every setting tried; rav1e 0.7.1 has no lossless
 mode. 12-bit 4:4:4 behaves alike on 3.8.2; 3.15.1's `aomenc` cannot encode it at all. Every lossless-bytes
 encode of the public series (queue rows SIZE, DATA) re-checks exactness on real content.
+
+**The pin against 3.15.2 and 3.15.3 (read 2026-10-31; nothing built or run).** 3.15.1 is tag commit `44d0a577`.
+Two releases followed, both fixes only, per the [CHANGELOG at v3.15.3](https://aomedia.googlesource.com/aom/+/refs/tags/v3.15.3/CHANGELOG):
+
+| release | CHANGELOG item, verbatim | its commits ([v3.15.1..v3.15.2](https://aomedia.googlesource.com/aom/+log/v3.15.1..v3.15.2), [v3.15.2..v3.15.3](https://aomedia.googlesource.com/aom/+log/v3.15.2..v3.15.3)) | on the product's path |
+| --- | --- | --- | --- |
+| 3.15.2, 2026-10-06 | "Bug 42302352: A larger frame is forced to be a key frame." | `b2717946` (real-time, "g_lag_in_frames == 0 and g_pass == AOM_RC_ONE_PASS", a forced maximum frame size), `d080fa23` (`GOOD_QUALITY` upscaling) | no: only when a frame grows past the last coded size; a series' frames share one size *(derived)* |
+| | "Bug 555350218: libaom encoder allows frame width/height to be different from max frame width/height when reduced_still_picture_header is 1." | `1dfb7a15`: `bitstream.c` now reports an error where it wrote a non-conforming size | no: an error where there was an invalid stream; equal sizes write as before *(derived)* |
+| | "Bug oss-fuzz:559019046: … Bad-cast to PixelLevelGradientInfo…" | `6258cbce` ("In very rare cases, the work thread data needs to be re-allocated"), `23236152` (test) | memory safety in threaded encodes; the ingest runs `--threads=1` *(derived)* |
+| | "Bug oss-fuzz:566951534: Integer-overflow in linsolve_wiener." | `ab7db409`, Wiener loop restoration in `pickrst.c` | no: the [AV1 spec](https://aomediacodec.github.io/av1-spec/) §Loop restoration params syntax: "if ( AllLossless \|\| allow_intrabc \|\| !enable_restoration ) { FrameRestorationType[0] = RESTORE_NONE" |
+| | "Bug 568044446: Fix stale search_site_config in IntraBC motion search. Fix y_stride_src in init_motion_estimation()." | `51c3d8cf`, `af52815f` ("lookahead->buf[0], which can hold a stale stride from an earlier slot") | **the one on it**: IntraBC is a screen-content intra tool and the product codes `--tune-content=screen`; but the ingest runs one `aomenc` per frame (queue row INGEST1), so no earlier slot exists *(derived)*; the bug itself is not public (*unverified*) |
+| | (none) | `fa6b080f` "Simplify ref_yv12[2] in av1_joint_motion_search()" | no: compound inter search |
+| 3.15.3, 2026-10-20 | "Bug oss-fuzz:572842743: Integer-overflow in av1_choose_var_based_partitioning." | `e803b78e` (`int64_t` sums; "I only fixed the symptom"), `da53e539`, `b141d9c4` (its test "requires 12-bit support") | not at `good` 6 or cpu0: variance partitioning is set only for `--allintra` ≥ 7 and real time (source, last resort: `av1/encoder/speed_features.c:567–571, 2014, 2134` at v3.15.2) — **it is on the `allintra` 7 projections' and row 15's 12-bit paths**, where bytes could move *(derived)* |
+
+Every changed file is under `av1/encoder/`, `av1/av1_cx_iface.c`, `test/`, `CHANGELOG` or `CMakeLists.txt`: **`aomdec` and the
+decoder are untouched**, and no commit names lossless, monochrome, alt-ref or the temporal filter (high bit depth only 3.15.3's test).
+Every 3.15.2 fix is a cherry-pick whose original is an ancestor of `4cea455c`, the head row VERSIONS found writing
+3.15.1's bytes on all 22 breast and control cells (§Encoding) — so 3.15.2 is expected to write the same bytes *(derived)*.
+
+The alt-ref fault above is [AOM issue 387472912](https://issues.chromium.org/issues/387472912), "Output differs from
+10-bit input when --lossless=1", filed 2025-01-03 against `v3.11.0-161`, last modified 2026-03-25, **assigned, not
+fixed** (status read from the tracker's public data, *derived*). Its one change is
+[Gerrit 209441](https://aomedia-review.googlesource.com/c/aom/+/209441), "Fix lossless, use full precision in
+tx_search" (2026-03-25, `tx_search.c` only), **open and unmerged**; its reviewer: "I don't think AV1_XFORM_QUANT_FP is do
+any better than AV1_XFORM_QUANT_B." Neither release touches `tx_search.c`, and main (`d55e6b33`, 2026-10-30) still calls
+`AV1_XFORM_QUANT_B` unconditionally there (source, last resort: `av1/encoder/tx_search.c:1198`). `--auto-alt-ref=0` stays required.
+
+**Not re-pinned.** Neither release changes the decoder, the lossless path or the alt-ref fault; the one fix on the
+product's path cannot arise one frame per run. A re-pin for the encoder's fuzz fixes would go straight to 3.15.3 and
+must first re-run: the client's golden payloads (`ingest/coded-frames/make_golden.py`, compared by the gate), row
+VERSIONS' 22 cells (`lab/av1/tools/newer/aom_bytes.py`) against the new pin, row TOOL's synthetic matrix
+([`lab/av1`](../../lab/av1/README.md) §The cells, the only inter cells), and, for 3.15.3, the `allintra` 7 bytes
+(the projections of rows 14 and 33, DBTSCALE) and row 15's 12-bit layers. Byte-identical there, every other byte and exactness result carries
+over unchanged; decode, transport and HTJ2K results need nothing in either case, and row ENC's times stay 3.15.1's.
 
 **Which decoder for which frame.** WebCodecs' `VideoDecoder` is native (on Chromium without an
 AV1 hardware decoder it is dav1d in the browser process) and dav1d compiled to WASM runs everywhere.

@@ -2,6 +2,7 @@
 """Minimal static host for the viewer at /, the harness, WASM pkg, series metadata, and dev-transport.json."""
 
 import argparse
+import ipaddress
 import json
 import subprocess
 import sys
@@ -14,12 +15,18 @@ ROOT = Path(__file__).resolve().parents[1]
 SERVED = {"client", "fixtures", "lab"}
 # A re-packed catalog or an edited page must not be read stale from a heuristic cache.
 REVALIDATED = {"text/html", "application/json"}
-# The viewer's policy as deploy/nginx sends it, but connecting anywhere on loopback, where the lab's relays listen.
-CSP = (
-    "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
-    "connect-src 'self' http://127.0.0.1:* https://127.0.0.1:*; object-src 'none'; base-uri 'none'; "
-    "frame-ancestors 'none'; form-action 'none'"
-)
+
+
+def policy(host: str) -> str:
+    """The viewer's policy as deploy/nginx sends it, but connecting anywhere on loopback, where the lab's relays
+    listen, and on the address the page is served from."""
+    hosts = " ".join(f"{scheme}://{h}:*" for h in dict.fromkeys(["127.0.0.1", host]) for scheme in ("http", "https"))
+    return (
+        "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+        f"connect-src 'self' {hosts}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+    )
+
+
 VIEWER = {"/", "/client/viewer/index.html"}
 
 
@@ -27,7 +34,10 @@ class Handler(SimpleHTTPRequestHandler):
     series_name: str = "us_cine_smoke"
     metadata: Path | None = None
     transport: Path | None = None
+    # An optimal-quality series' exact series, by the id its metadata names: client/README.md §Optimal quality, exact on request
+    exact: dict[str, Path] = {}
     log_requests = False
+    csp = policy("127.0.0.1")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -36,6 +46,8 @@ class Handler(SimpleHTTPRequestHandler):
         path = unquote(path.split("?", 1)[0])
         if path == "/":
             return super().translate_path("/client/viewer/index.html")
+        if path in self.exact:
+            return str(self.exact[path])
         if path.startswith("/series/metadata"):
             return str(self.metadata or ROOT / "fixtures" / self.series_name / "metadata.json")
         if path.startswith("/wt/dev-transport.json"):
@@ -50,7 +62,7 @@ class Handler(SimpleHTTPRequestHandler):
             # One write per line: `print` writes the newline apart, and the threads' lines interleaved.
             print(f"GET {self.path}\n", end="", flush=True)
         path = Path(self.translate_path(self.path))
-        if path in (self.metadata, self.transport):
+        if path in (self.metadata, self.transport, *self.exact.values()):
             return super().send_head()
         top = path.relative_to(ROOT).parts[:1] if path.is_relative_to(ROOT) else ()
         if not top or top[0] not in SERVED:
@@ -70,7 +82,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Cross-Origin-Resource-Policy", "same-origin")
         # The viewer's page alone: the lab's pages share its workers and run inline scripts.
         if unquote(self.path.split("?", 1)[0]) in VIEWER:
-            self.send_header("Content-Security-Policy", CSP)
+            self.send_header("Content-Security-Policy", self.csp)
         super().end_headers()
 
     def log_message(self, fmt, *args):
@@ -80,11 +92,17 @@ class Handler(SimpleHTTPRequestHandler):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8765, help="0 picks a free one")
+    parser.add_argument("--bind", type=ipaddress.IPv4Address, default=ipaddress.IPv4Address("127.0.0.1"),
+                        help="the address to serve on, the laptop's toward a phone (README.md §Demo)")
     parser.add_argument("--series", default="us_cine_smoke")
     parser.add_argument("--metadata", type=Path, help="serve this file as /series/metadata, in place of the series'")
     parser.add_argument("--transport", type=Path, help="serve this file as /wt/dev-transport.json")
+    parser.add_argument("--exact-metadata", type=Path, help="a lossy --metadata's exact series: its metadata")
+    parser.add_argument("--exact-transport", type=Path, help="and the transport file of the server that serves it")
     parser.add_argument("--log-requests", action="store_true", help="print each path asked for (client/viewer/check.mjs)")
     args = parser.parse_args()
+    if args.bind.is_unspecified:
+        parser.error("--bind takes one address: 0.0.0.0 would serve the page on every network the host is on")
     if not args.transport:
         # The page dials the dev certificate's hash: one made, or renewed when it ends within a day.
         subprocess.run([ROOT / "server/scripts/gen_dev_cert.sh", "--if-needed"], check=True, stdout=sys.stderr)
@@ -92,9 +110,17 @@ def main():
     Handler.metadata = args.metadata and args.metadata.resolve()
     Handler.transport = args.transport and args.transport.resolve()
     Handler.log_requests = args.log_requests
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    Handler.csp = policy(str(args.bind))
+    if args.exact_metadata or args.exact_transport:
+        if not (args.metadata and args.exact_metadata and args.exact_transport):
+            parser.error("--exact-metadata and --exact-transport go together, with a lossy --metadata")
+        sid = json.loads(args.metadata.read_text()).get("exactSeries")
+        if not sid:
+            parser.error(f"{args.metadata} names no exactSeries")
+        Handler.exact = {f"/series/{sid}/metadata": args.exact_metadata.resolve(), f"/wt/{sid}/dev-transport.json": args.exact_transport.resolve()}
+    server = ThreadingHTTPServer((str(args.bind), args.port), Handler)
     port = server.server_address[1]
-    print(f"port={port} http://127.0.0.1:{port}/ series={args.series}", flush=True)
+    print(f"port={port} http://{args.bind}:{port}/ series={args.series}", flush=True)
     server.serve_forever()
 
 

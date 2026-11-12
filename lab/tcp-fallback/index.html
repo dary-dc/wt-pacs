@@ -33,7 +33,7 @@
         transport: bundle && `/client/transport/ts/dist/${bundle}`,
         onFrame: (f) => {
           keep(f);
-          if (frames.size === at && !asks) asks = Promise.all(during.map((i) => c.requestExactFrame(i).then(keep, () => {})));
+          if (frames.size === at && !asks) asks = Promise.all(during.map((i) => c.requestFrame(i).then(keep, () => {})));
         },
       });
       c.fill(Array.from({ length: fill }, (_, i) => i));
@@ -41,7 +41,7 @@
       while (frames.size < fill + during.length && performance.now() - t0 < 60000) await sleep(20);
       await asks;
       // A frame that failed is missing from `frames`, and counted as not bit-exact.
-      await Promise.all(after.map((i) => c.requestExactFrame(i).then((f) => frames.set(`after-${i}`, f.bytes), () => {})));
+      await Promise.all(after.map((i) => c.requestFrame(i).then((f) => frames.set(`after-${i}`, f.bytes), () => {})));
       c.close();
 
       const exact = async (key, index) => frames.has(key) && (await hex(frames.get(key))) === expected[index];

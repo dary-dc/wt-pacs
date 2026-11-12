@@ -865,7 +865,7 @@ beside them — not as 0 pixels, which is what a *fresh* decoder returns.
 **The check is the header, not the length.** `decodeFrame` computes `width x height x components x
 (bits > 8 ? 2 : 1)` and throws when that is zero or the decoded buffer is shorter; the worker's
 `catch` posts `failed` with the index and generation, so it reaches the consumer as `onError({
-frameIndex, reason, generation })` or a rejected `requestExactFrame`, never as a frame. A check on
+frameIndex, reason, generation })` or a rejected `requestFrame`, never as a frame. A check on
 the length alone catches nothing: the length is the previous frame's. A fresh decoder per frame buys
 only what this check buys and gives up reuse; zero-filling the output before each decode is the pass
 D10 removed. Neither is taken.
@@ -1693,13 +1693,23 @@ Queue row WCLAT ([`lab/av1/decode/latency`](../../lab/av1/decode/latency/README.
 With `optimizeForLatency: true` **each unit gives its frame before the next is sent, exact**. That
 held on every depth and layout WebCodecs takes (8 and 10 bits; 4:0:0, 4:2:0, 4:2:2, 4:4:4), intra
 and G = 8, and on 1, 2 and 4 tile columns: 784 of 784 frames against the encoder's input. With
-neither the option nor a flush, no unit gave its frame. Those are the frames held until `flush()` (§WebCodecs, what it decodes exactly). A flush per unit
-cannot carry a group: after a flush the next unit must be a keyframe.
+neither the option nor a flush, no unit gave its frame. WebCodecs allows both: a decoder "MAY emit new outputs only
+when new inputs are provided" and "MUST emit all outputs in response to a flush" ([S24] §1, *Internal Pending
+Output*), and `optimizeForLatency` is a hint that the decoder "SHOULD be configured to minimize the number of
+EncodedVideoChunks that have to be decoded before a VideoFrame is output" ([S24] §7.6). A frame per unit without a
+flush is therefore Chromium 141's behaviour, not a promise; inside a group the client already relies on it, and a
+decoder that held each frame would reach the 2 s stall guard below on every unit but the group's last (*derived*).
+A flush per unit cannot carry a group: `flush()` sets `[[key chunk required]]`, and `decode()` then throws a
+`DataError` for a chunk whose type is not `key` ([S24] §4.5). Sources: [`../av1/frame-groups.md`](../av1/frame-groups.md) §6.
 
 Skipping the flush makes a frame 7–20 % faster at 1× and 3–28 % at 4×, intra, 10 interleaved rounds
-(every frame exact). A keyframe still needs one, though, or a unit labelled key that is not a
-keyframe decodes against the frame before it. That is how `inter.av1` passed as pixels in the first
-build. Flushing before every keyframe costs what flushing after did, and 5–15 % more at 4× on tiled
+(every frame exact). *Corrected 2026-11-04: those arms also differed in `optimizeForLatency`; the flush alone waits
+1.3–2.0 ms a frame at 1× (§keyParse, measured and not adopted).* A keyframe still needs one, though, or a unit
+labelled key that is not a keyframe decodes against the frame before it. That is how `inter.av1` passed as pixels in the first
+build. The specification checks a key only while `[[key chunk required]]` is true, after construction,
+`configure`, `flush` or `reset`: then "Implementers SHOULD inspect the chunk’s [[internal data]] to verify that it
+is truly a key chunk" ([S24] §4.5). Otherwise the chunk's type is not checked, and what a decoder does with a
+mislabelled key is not found in official sources. A parse in the client can check it instead (*Safety without the flush*, below). Flushing before every keyframe costs what flushing after did, and 5–15 % more at 4× on tiled
 frames. So **the decoder flushes at a group's end**, which at G = 1 is every frame, as before. It
 flushes before a keyframe only when a cut group is still held, and never inside a group. Tiles help
 here too: Chromium gives dav1d 2–4 threads by coded height, and 4 tile columns take a frame from 33
@@ -1719,6 +1729,72 @@ dispatch variant checks four things, each through WebCodecs and through dav1d-WA
 Taking groups away from WebCodecs, dropping the stall guard, and dropping the flush before a held
 keyframe each failed a check. Dropping the flush at a group's end failed none, and is not meant to:
 the flush before the next keyframe then covers it, at the cost measured above.
+
+#### Safety without the flush, from the specifications
+
+Theory, 2026-10-30; nothing here is measured. Sources are [S1], [S24] and [S25] of
+[`../av1/frame-groups.md`](../av1/frame-groups.md) §6. The flush does two things only: it makes the decoder "emit
+all internal pending outputs" and sets `[[key chunk required]]` ([S24] §4.5). It resets no codec state, and its key
+check is a "SHOULD" (above), so it guarantees less than its name suggests (*derived*). What a flush could guard
+against, and what the client can check in its place:
+
+| failure | check in the client | complete? | source |
+| --- | --- | --- | --- |
+| a unit labelled key that is a delta, intra-only, `show_existing_frame` or unshown key frame | walk the OBUs: a sequence header before the first frame header; that header's first bits `show_existing_frame` 0, `frame_type` `KEY_FRAME`, `show_frame` 1; no OBU extension, so no frame header is dropped by operating point | yes, for any input: it decides the definition itself | [S25] §4; [S1] §5.3.1 `drop_obu`, §5.9.2, §7.5 |
+| state of earlier frames: references, CDFs, segmentation, loop-filter deltas, film grain | none needed: such a unit sets `RefValid` to 0, `primary_ref_frame` to none, so "init_non_coeff_cdfs( ) setup_past_independence( )", refreshes all eight slots, and `update_grain` is 1 | for a conforming unit: "Starting at a key frame random access point is trivial" and its output is fixed by a "shall". A non-conforming unit has no defined output | [S1] §5.9.2, §5.9.30, §6.8.2, §7.6.3, §7.2 |
+| a changed sequence header | the same parse: the unit starts a new coded video sequence; the client reconfigures when the codec string changes | for AV1, "A new coded video sequence is required if the sequence header parameters change"; an in-band change under the same codec string is not found in [S24] | [S1] §7.5 |
+| a frame held in the decoder | wait, then flush: a codec "MUST emit all outputs in response to a flush"; match the frame by its chunk's timestamp | yes for release and matching; the wait is unbounded, `optimizeForLatency` being a "SHOULD" | [S24] §1, §4.6 *Output VideoFrames*, §7.6 |
+| a cut unit | OBU sizes summing to the unit's length ("obu_has_size_field must be equal to 1") | a cut OBU only. A dropped tile-group OBU, or a cut or corrupt tile payload, escapes: [S24] says only "If decoding results in an error", not which inputs do | [S1] §5.2; [S24] §4.5 |
+| an error surfacing on a later chunk | `EncodingError` closes the decoder; reopen, fail that unit | the specification ties an error to the chunk being decoded, not the one that caused it | [S24] §4.5, §4.6 |
+| a delimiter-only unit | G = 1: the key parse. G > 1: a shown frame header in the unit ("exactly one shown frame") | a unit with no frame header only; one with a header and no data can still stall | [S1] §7.5 |
+| a well-formed wrong unit: another series, a foreign sequence header, a reordered unit | none from a specification: it decodes exactly, to the wrong picture | no; nor does a flush catch it | — |
+
+The digest check closes every row that says no (`docs/adr/exactness-in-production.md` §2): it compares the samples,
+not the decoder, so any wrong picture fails it whatever the input, but a 64-bit hash misses one in 2⁶⁴, and a series
+without digests is unchecked (`client/decode/decoder.js:10`). Its cost is 0–15 % of a decode-bound fill (*ibid.* §3).
+
+**Verdict (*derived*).** At G = 1 the key parse, the OBU-size walk, the timestamp match, the stall timer then a
+flush, and the per-frame digest cover what the flush guards: no input shows a wrong picture, at 2⁻⁶⁴. Without the
+digest, a non-conforming unit escapes, and escapes the flush too. So the flush adds no guarantee these lack.
+Remaining risks: a series without digests, the digest's 2⁻⁶⁴, and liveness, unbounded since neither
+specification bounds the release of a frame or a `flush()`: `close()` "Immediately aborts all pending work"
+([S24] §4.5), so a second timer that closes is the bound, and the client's flush after a stall
+(`client/decode/av1-webcodecs.js:98`) has none. The speed is Chromium 141's alone: an engine that holds each frame
+pays the stall timer each frame. At G > 1 nothing new: inside a group no flush runs today, deltas rest on order
+(`continues`) and the digest, and the group-end flush's only guard is the next key, which the parse replaces.
+
+**Test protocol, pre-registered**, amended and run since (§keyParse, measured and not adopted). Mutations, each at
+G = 1 and G = 8: a delta, an intra-only frame, a
+`show_existing_frame` unit and an unshown key frame, each labelled key; a unit cut mid-OBU, and one without its last
+tile group; a flipped tile byte; a delimiter-only unit; another series' key unit with a different sequence header;
+one with the same; two units swapped; a unit with an OBU extension. Each must be refused by name or fail its digest,
+and no stall may last past its timer. Clean frames must all be exact. Arms: today's flush per unit against no flush
+with the checks, interleaved in each of 10 rounds, a fresh browser each, at 1× and 4×, in row WCLAT's harness.
+Browsers: Chromium 141 and current, and Firefox and WebKit where their `VideoDecoder` decodes AV1 (§AV1 in WebKit
+and Firefox). Mutate each new check to fail. Decision: drop the flush if every mutation is caught in every browser
+and the no-flush arm is faster in at least 9 of 10 paired rounds at both throttles. Otherwise keep it, per browser.
+Dropping the flush is a candidate to build and measure under this protocol; nothing of it is built.
+
+#### keyParse, measured and not adopted
+
+2026-11-04. `keyParse` (PR #287) checked a G = 1 unit's key by parsing it, and never flushed. The protocol above,
+amended so the mutation clause is judged against the shipped flush and speed by a 95 % paired-*t* interval, ran 24
+rounds on 2026-11-02 and 11-03: **89 856 of 89 856 frames exact**, and the mutation clause held in all four
+browsers. keyParse ÷ flush over all streams:
+
+| browser | 1× | 4× |
+| --- | --- | --- |
+| Chromium 141.0.7390.37 | ×0.941 [0.935–0.948] | ×0.966 [0.960–0.971] |
+| Chromium 156.0.8078.80 | ×0.953 [0.947–0.959] | ×0.975 [0.969–0.981], but `dbts_b1` ×1.030 [1.016–1.043] |
+| Firefox 159.0 | ×1.002 [0.994–1.010] | ×0.998 [0.990–1.005]: every frame through dav1d-WASM, no flush in either arm |
+| WebKitGTK 2.52.6 | inert: no unit reaches `VideoDecoder` | |
+
+The gain is small because the flush itself waits only 1.3–2.0 ms a frame at 1× (2.1–5.3 ms at 4×). Row WCLAT's
+7–20 % (above) compared arms that also differed in `optimizeForLatency`, which the product sets in both. **Not
+adopted** (the owner, 2026-11-04): no default may depend on the browser version; it adds a code path that applies
+only at G = 1; and it regressed `dbts_b1` at 4× in Chromium 156. It rests on `dbts_a1`, `b1` and `c1` and the
+fluoroscopy and ultrasound units only. Restore from tag `archive/av1-keyparse`; its record is
+`git show archive/av1-keyparse:lab/av1/decode/key-parse/README.md`.
 
 ### A split payload through two decoders
 
@@ -1891,6 +1967,389 @@ HTJ2K, paired by round:
   decoders in parallel were not run, and the fill figures in `docs/av1/README.md` §Total time multiply a
   single decoder's time out by arithmetic. *Since measured (queue row FILL):* three decoders through the downloader,
   `docs/av1/README.md` §Total time — the arithmetic's verdict holds, its sizes were optimistic.
+
+### Where a G = 1 frame's time goes, predicted
+
+Theory only (2026-10-31), nothing run. Row 100 measured lossless AV1 at G = 1 at 2.1–3.3× HTJ2K's time per frame
+through WebCodecs and 4.3–6.4× through dav1d-WASM, at 1× and 4×, on DBT volumes split into a 10- or 8-bit top and a
+2-bit low ([`lab/av1/bytes/frame-groups/README.md`](../../lab/av1/bytes/frame-groups/README.md) §Decode cost of an
+ask, at `ab5f1f2d`). That is 115, 243 and 114 ms against 35, 112 and 36 at 1× on `dbts_a1`, `b1` and `c1`. Repo
+sources below are at `ab5f1f2d`, and external ones were read 2026-10-31. A share is of the worker's
+`decodeStart`→`decodeEnd` (`client/decode/decoder.js`). Row 100 passed no digests, so its times hold no hash. Worker
+messaging falls outside both stamps.
+
+**Why the gap is the entropy coder.** In a lossless frame the AV1 spec turns off every loop filter
+(§Loop filter params syntax `if ( CodedLossless || allow_intrabc ) {`, the same in §CDEF params syntax, and
+`AllLossless` in §Loop restoration params syntax). The transform is a 4×4 WHT (`txSz = Lossless ? TX_4X4 : …`;
+"If Lossless is equal to 1, invoke the Inverse WHT process", §7.13.2.10;
+[AV1 spec](https://aomediacodec.github.io/av1-spec/)). What is left is every residual sample as a coefficient
+through an adaptive arithmetic decoder, re-initialised per tile (`init_symbol( tileSize )`, §Tile group OBU syntax)
+and serial inside it. A profile measured it at 66–84 % of a dav1d-WASM frame (row DECSPEED,
+[`lab/av1/decode/settings`](../../lab/av1/decode/settings/README.md) §Profile). HTJ2K's block coder was specified to
+"provide substantially higher throughput than the existing block coding algorithm on a given platform" (WG1
+[N75031](https://jpeg.org/downloads/htj2k/HTJ2K_draft_cfp.pdf) §1.2). Here it takes 55–70 % of an OpenJPH frame
+(§Faster HTJ2K in the browser). *Derived:* dav1d-WASM's entropy decoding alone, 0.66–0.84 × 194–487 ms, is
+2.9–5.2× HTJ2K's whole frame. No lever outside the entropy decoder brings that path near HTJ2K.
+
+**The stages, with predicted shares of a DBT frame at 1×.** *d* means derived and *m* means measured, on other
+content where it says so.
+
+| stage | dav1d-WASM (`av1-dav1d.js`) | WebCodecs (`av1-webcodecs.js`) | source |
+| --- | --- | --- | --- |
+| top decode | 50–75 % *d* | ≥ 55 % of the frame is `max(top, low)` *d* | the rest, after the rows below |
+| low decode | 18–45 % *d*, after the top on one instance | in parallel with the top, on a second `VideoDecoder` | ~0.043 µs a sample at k = 2 (row MIXDEC, [`mixed`](../../lab/av1/decode/mixed/README.md)) × ~2 Mpx ≈ 86 ms over 194–487 *d* |
+| flush per frame | < 1 % *d*: `_av1_flush`, synchronous | 7–28 % *m*, as an async round trip per stream. *Refuted 2026-10-31*: 1.2–1.8 % on the 10-bit tops, 6.6–7.3 % on `b1` | §WebCodecs without a flush (other content) |
+| `copyTo` | none: it reads the WASM heap | 2–5 % *d*: three planes, ~9 MB a frame | WebCodecs §9.5, "If layout is not undefined and its length does not equal numPlanes, throw a TypeError" ([W3C WD](https://www.w3.org/TR/webcodecs/)); 9.8 MB copied in 5.6 ms (§Faster HTJ2K) |
+| chroma check + merge `(top << k) \| low` + range | 3–8 % *d* | 5–12 % *d*: `neutral()` over both streams' chroma, then two `place()` passes. *Refuted 2026-10-31*: 17–30 % | `av1-frame.js`; 1–3 % merge (row MIXDEC); interleave + range 6–12 % (§Decode time against HTJ2K); ~1.6 ns a sample a pass (§The range pass) |
+| XXH3 digest | 0.3–1.3 % *d* | 0.5–2 % *d* | rows CHECKCOST, HASHMEASURE (×0.65), [`exactness-in-production.md`](../adr/exactness-in-production.md) §9–10 |
+| threads, SIMD | 1 thread (`threads ?? 1`), auto-vectorised only, `-Denable_asm=false` | Chromium's dav1d with its hand-written msac, 2–4 threads that a one-tile frame cannot use | [`wasm/dav1d`](../../client/decode/wasm/dav1d/README.md) §The build; §WebCodecs without a flush; `ingest.py` sets no tiles |
+
+The HTJ2K side, by the same stamps: the HT block decoder is 61 %, the wavelet 7 %, the wrapper's pack 6 % and the
+copy out 14 % on the tomosynthesis (§Faster HTJ2K). On top of that, the range pass is 21–31 % of a frame (§The
+decode tail on a slow CPU). There is one thread, and SIMD is already on (§The decoder).
+
+**Levers, ranked by what survives a phone.** A phone-class CPU adds no decoders. A lever that only spreads the same
+work over more cores helps an ask on an idle phone, never a fill.
+
+1. **No flush at G = 1** (WebCodecs). A shown keyframe refreshes every reference (`( frame_type == KEY_FRAME &&
+   show_frame ) ) { refresh_frame_flags = allFrames`, §Uncompressed header syntax). A parsed `frame_type` +
+   `show_frame` check can therefore replace the flush's guard against a mislabelled key. Removing the flush measured
+   −7 to −20 % at 1× and −3 to −28 % at 4×, exact (row WCLAT, other content). *Phone: holds*, because it removes a
+   wait and adds no work.
+2. **The JS passes cut** (WebCodecs). Skip `neutral()` when the sequence header says `mono_chrome` ("does not contain
+   U and V color planes", §Color config semantics). Fuse the two `place()` passes. Predicted −3 to −8 % *d*.
+   `copyTo` cannot skip the chroma (WebCodecs §9.5, above). *Phone: holds*: it is fewer memory passes.
+3. **The low bits deflated, not AV1**: −0.2 to +0.5 points of bytes. dav1d-WASM took 0.64–0.83× at 1× (row ENCX,
+   [`low-stream`](../../lab/av1/bytes/low-stream/README.md)). Predicted −18 to −45 % on dav1d-WASM *d*. On
+   WebCodecs it is near 0 on a container, but it takes a decoder thread off every frame. *Phone: holds, and
+   matters more there.* It changes what the store holds, so it is the owner's call.
+4. **Four tile columns, with threads**: +0.1–0.4 % bytes. Measured at 0.37–0.44 of a dav1d-WASM frame at 3 threads
+   (row DECSPEED), and 33 → 15 ms through WebCodecs (row WCLAT), and in a fill nothing at 4×. *Phone: an ask only*,
+   on cores that are free. That is *unverified* on a big.LITTLE part.
+5. **A WASM SIMD128 msac** (the CDF search, as dav1d's x86 and ARM code does). dav1d's
+   [NEWS](https://raw.githubusercontent.com/videolan/dav1d/1.5.0/NEWS) at 0.2.2: "Large improvement on MSAC
+   decoding with SSE, bringing 4-6% speed increase", which was on lossy content. On lossless *unverified*. *Phone:
+   holds* (SIMD128 runs on NEON), but it is a port with no upstream.
+6. **`disable_cdf_update`** ("whether the CDF update in the symbol decoding process should be disabled",
+   §Uncompressed header semantics). This drops the adaptation from every symbol at a bytes cost. Both the cost and
+   which libaom option sets it are *unverified*.
+
+*Derived:* levers 1 and 2 leave WebCodecs at ~1.3–3.0× HTJ2K's frame. Levers 1–4 take an ask on idle cores near
+1×, until HTJ2K takes its own lever (code-blocks on threads, 0.70–0.84 at 2 threads). At equal parallelism the
+entropy coder keeps AV1 at ≥ ~2×.
+
+**Protocol, pre-registered for a later session (do not run here).** *Since run: Measured, below.*
+
+* **Arms**: H (HTJ2K, the package); D (dav1d-WASM); W (WebCodecs); W1 (W without the flush, with the `frame_type`
+  check); W2 (W with the passes cut); W12 (W1 and W2 together); and Z_D and Z_W (D and W with the low deflated, as row
+  ENCX codes it). T_D at 3 threads and T_W are the 4-tile codings (row DECSPEED's `t4`). Every arm runs through the
+  product's `decoder.js`, with digests passed. D is W with `VideoDecoder` deleted, as row 100 did. Lab flags only:
+  no product default changes.
+* **Stamps**: `performance.now()` in the worker at parse, then per stream at decode sent, frame out, flush settled
+  and `copyTo` settled (or `_av1_flush`, `_av1_decode`, `held()`), then `neutral`, each `place()`, the digest and
+  `decodeEnd`. The consumer port's receipt is stamped too. Each stream's own time is recorded, and their sum stands
+  in for a phone's CPU. An A/A arm with the stamps off must sit within 2 % of on, or the breakdown is void. So must
+  stages that sum within 3 % of the total.
+* **Order and cells**: `dbts_a1`, `dbts_b1`, `dbts_c1`, the middle 16 slices at G = 1 (row 100's
+  `payloads.py`). Use 1× and 4× via `lab/scripts/cpu_throttle.mjs`, with a fresh headless Chromium 141 per round ×
+  throttle. Order the arms by Williams (`lab/order.mjs`) inside every round, with n = 10. Quote ms a frame as
+  the median of the round medians, [range].
+* **Exact**: every frame passes the worker's XXH3 against the ingest's digest and the page's SHA-256 against the
+  fetch checksum. `--mutate` flips one sample, and every arm must then read 0 exact. Each new lever is broken once
+  and seen to fail.
+* **Refutation**: a stage's prediction is refuted when its median share is outside the predicted range by > 5
+  points in ≥ 8 of 10 rounds, on any set or throttle. "The gap is the entropy coder" is refuted if dav1d-WASM's
+  `_av1_decode` is < 50 % of D's frame.
+* **Decision**: build a client lever (W1, W2) as the default when it is faster in ≥ 9 of 10 paired rounds by ≥ 5 %
+  median on all three sets at 1× and 4×, every frame exact, with no thread added. Store levers (Z, T) go to the owner
+  with their bytes and times and are not built. T is reported for an ask only. The run is one ask at a time on 4
+  cores and claims nothing for fills, concurrency or phones.
+
+**Measured (2026-10-31)**, the protocol as written:
+[`lab/av1/decode/breakdown`](https://github.com/dary-dc/wt-pacs/tree/696c15d6327bf2a2d338f1903128536357f2a082/lab/av1/decode/breakdown/README.md), which has every table. It ran on 4 vCPUs of a
+container, one ask at a time, on headless Chromium 141.0.7390.37 at 1× and 4×, with 10 rounds in Williams order.
+**12 480 of 12 480 frames were exact** by the worker's XXH3 and the page's SHA-256, first time on the arm's own
+path. `--mutate` read 0 of 624 exact, and each broken lever 0 of 48. The stamps cover 99.6–100 % of every frame.
+Spinning a stage for 100 ms lands on that stage alone, and all 34 stamps moved across their work were caught.
+Saturation was not measured, and nothing is claimed for fills, concurrency or phones.
+
+* **A/A voids 7 of 18 cells.** Stamped ÷ unstamped is outside 2 % for H at 1× `a1` and `c1` and at 4× `a1`
+  (1.04–1.07), for D at 1× `a1` and 4× `b1`, `c1` (1.02–1.04), and for W at 4× `b1` (0.971). Every cell's
+  round range crosses 1. Applied per cell, the readings below hold where the A/A held. Read as the whole run, the
+  breakdown is void.
+* **The gap is the entropy coder: not refuted.** `_av1_decode`, top and low, is 87.6–93.5 % of a dav1d-WASM frame.
+  D's frame is 186–454 ms at 1×, against H's 31–92. The rest is `place()` (6–11 %) and the digest (≤ 1 %); the
+  flush, parse and heap copy are ≤ 0.1 % each.
+* **D's stage predictions all held.** Top 49–56 %, low 36–39 %, merge + range 5.9–11.3 %, digest 0.3–0.9 %; no
+  round was outside a range by > 5 points.
+* **W's flush and its JS passes: refuted.** The flush is 1.2–1.8 % on the 10-bit tops, out by > 5 points in 10 of
+  10 rounds at 1× `a1` and `c1`, 9 of 10 at 4× `c1` and 7 of 10 at 4× `a1`. On `b1`'s 8-bit top it is 6.6–7.3 %. The chroma check + merge + range is 17–30 %, out
+  in 10 of 10 rounds in every cell but 4× `a1` (6 of 10). The two `place()` passes take 12–25 points of it and
+  `neutral()` 5–7. The decode, `max(top, low)`, is 64–79 % (predicted ≥ 55, held), `copyTo` 3.0–7.6 % (held) and the
+  digest 0.9–2.1 % (held). The two streams' own times sum to 1.35–1.47× the frame.
+* **Decision rule: neither client lever is built.** W1 (no flush) ÷ W is 0.921–1.024 and is faster in 2 of 10
+  rounds at 4× `b1`. W2 (no `neutral()` on `mono_chrome`, one fused pass) is 0.901–0.950 and is faster in 8 of 10
+  at 1× `a1`; 4× `a1`'s median sits at 0.950, the line, not past it. *Since built behind `onePass`, off by default, for §JS passes protocol, pre-registered, and on by default since that protocol's run (2026-11-02).* W12, which the rule does not name, is
+  0.873–0.913, faster in 8–10 of 10, every frame exact. That leaves WebCodecs at 1.9–3.3× H's frame, against the
+  1.3–3.0× derived above.
+* **Store levers, for the owner, not built.** The low deflated (Z) costs +0.23 to +0.36 % bytes. It takes
+  dav1d-WASM to 0.63–0.71× of its time (predicted 0.55–0.82) and leaves WebCodecs at 0.99–1.06×. Four tile columns
+  (T) cost +0.04 to +0.09 % bytes and take dav1d-WASM at 3 threads to 0.40–0.58× and WebCodecs to 0.49–0.77×. T is
+  for an ask only, on idle cores.
+
+**Why it is not conclusive (2026-11-02)**, from the code, the run's own ranges and exploratory profiles, in
+[`lab/av1/decode/breakdown`](https://github.com/dary-dc/wt-pacs/tree/696c15d6327bf2a2d338f1903128536357f2a082/lab/av1/decode/breakdown/README.md) §Why the result is not conclusive. The A/A did
+not catch the stamps. They cost about 1–30 µs a frame. Its 2 % line sat inside the noise of 10 rounds: 7.9 of 18
+cells were expected outside it with no effect at all, and 7 were. The JS passes cost 3.6–4.1 ns a sample a pass
+plus `neutral()`'s full read, not the read-only range pass's ~1.6 ns. That is the same milliseconds as on D, over
+a frame half as long. W2 is built behind `onePass`, off by default (on by default since 2026-11-02, §JS passes protocol, pre-registered, *Measured*). No cheaper exact form beat it.
+
+### JS passes protocol, pre-registered
+
+Written 2026-11-02 for a separate session. It is not run here. It decides one lever: `onePass` (W2) as the
+WebCodecs default. The flush (W1) is decided elsewhere and stays as the product has it.
+
+* **Arms**, each a worker of the product's own `client/decode/*.js`, unmodified, behind `decoder.js`. W is the
+  default config. W′ is the same config in a second worker, the A/A. W2 is `onePass: true`. There are no stage
+  stamps and no lab flags. The only difference between arms is the decoder config.
+* **Time**: a frame's time is the product's `decodeStart`→`decodeEnd`. A round's value for an arm is the median of
+  its 16 frames after one warm-up frame. The page's post → consumer-port receipt is recorded as a check and not
+  decided on.
+* **Cells**: `dbts_a1`, `dbts_b1` and `dbts_c1` use the 2026-10-31 codings: middle 16 slices, G = 1, k = 2, one
+  tile. The fourth set is a small frame: row WCLAT's ultrasound cine (760×421, RGB 8), its middle 16 frames, coded
+  as `codings.py` codes a set, at G = 1. In the optimized representation that is an RCT payload, so `onePass`
+  changes nothing on its path, and it is the control. Each set runs at 1× and 4× (`lab/scripts/cpu_throttle.mjs`).
+  That is 8 cells.
+* **Order**: a fresh headless Chromium 141.0.7390.37 per round × throttle. Inside it the sets and then the arms
+  each run in a Williams order (`lab/order.mjs`; 3 arms is odd, so the period is 6 rounds).
+* **Rounds, by power** from the 2026-10-31 spread. σ of a round-paired log ratio is taken as its 10-round range ÷
+  3.078, the largest at each throttle over W ÷ W0 and W2 ÷ W: 0.105 at 1× (W2 ÷ W, `a1`) and 0.053 at 4× (W ÷ W0,
+  `c1`). The effect is the median of rounds, whose standard error is 1.2533 σ ÷ √n. For 80 % power for a 95 %
+  interval to exclude 1 at a true 0.97, n = 1.571 × (2.8016 σ ÷ ln(1 ÷ 0.97))², which gives 147 at 1× and 38 at
+  4×. Rounded up to the order's period: **150 rounds at 1×, 42 at 4×**. That is power 0.81 and 0.84 *derived*.
+  Heavy tails make range ÷ 3.078 overstate σ, so these are upper counts. The count is fixed here and is not
+  revised from the run.
+* **Effect and interval**: per cell, each round's ln(arm ÷ W) is paired within that round's browser. The effect is
+  the median over rounds, reported as a ratio. The 95 % interval is distribution-free: the k-th and (n − k + 1)-th
+  ordered round values, with k the largest for which P(Binomial(n, ½) ≤ k − 1) ≤ 0.025.
+* **Exact**: a frame counts only when the worker's XXH3 matched the ingest's digest on the arm's own path the first
+  time, with no fallback (`mismatchOn`), and the page's SHA-256 matched the fetch checksum. Every frame of every arm
+  must be exact, or the run is void. `--mutate` flips one sample, and every arm must then read 0 exact. A copy with
+  `merge()`'s shift one short must read 0 exact on W2: this also shows `merge()` is on W2's path.
+* **A/A**: W′ ÷ W's interval contains 1 in each cell. With 8 cells at 95 %, one miss happens by chance in a third
+  of runs. The run is void if two or more cells miss (P ≈ 0.057 by chance *derived*).
+* **Decision**: `onePass` becomes the default when two conditions hold, every frame exact. In each of the 6 DBT
+  cells, W2 ÷ W's interval lies entirely below 1.00 and its median is ≤ 0.97. On the ultrasound at both
+  throttles, the interval's upper end is ≤ 1.02. Otherwise it stays off, and the report names the cell and how it
+  failed. The rule is the effect and its interval. No count of rounds and no line on a point estimate alone.
+* **Host**: one ask at a time on the host's cores, two `VideoDecoder`s at most. The report says where the host
+  saturates, if it measures that, and claims nothing for fills, concurrency or phones. Each cell is quoted in ms a
+  frame, latency only.
+
+**Measured (2026-11-02)**, the protocol as written, by a session given the protocol alone:
+[`lab/av1/decode/passes`](https://github.com/dary-dc/wt-pacs/tree/696c15d6327bf2a2d338f1903128536357f2a082/lab/av1/decode/passes/README.md), which has every table. Headless Chromium
+141.0.7390.37 on 4 vCPUs of a container (Xeon, 2.8 GHz, one thread a core), one ask at a time, 150 rounds at 1× and
+42 at 4×. **36 864 of 36 864 frames were exact** by the worker's XXH3 and the page's SHA-256, first time on WebCodecs
+and none rescued. `--mutate` read 0 of 192 exact. With `merge()`'s shift one short, W2 read 0 of 48 on the DBT sets,
+and the ultrasound read 16 of 16, since its RCT payload never reaches `merge()`. The host was 38–40 % busy over a
+1× browser (busiest second 53 %) and 21–24 % at 4× (41 %). It did not saturate, and nothing is claimed past one ask.
+
+| throttle | set | W, ms a frame | W′ ÷ W (A/A) | W2 ÷ W |
+| --- | --- | --: | --: | --: |
+| 1× | `dbts_a1` | 132.3 | 1.004 [0.987–1.020] | 0.930 [0.920–0.940] |
+| 1× | `dbts_b1` | 291.7 | 1.001 [0.986–1.010] | 0.899 [0.887–0.905] |
+| 1× | `dbts_c1` | 131.7 | 1.007 [0.995–1.017] | 0.928 [0.915–0.941] |
+| 1× | ultrasound | 41.7 | 0.999 [0.979–1.017] | 0.998 [0.981–1.012] |
+| 4× | `dbts_a1` | 514.7 | 0.990 [0.968–1.005] | 0.923 [0.908–0.935] |
+| 4× | `dbts_b1` | 1145.0 | 0.998 [0.979–1.015] | 0.879 [0.867–0.895] |
+| 4× | `dbts_c1` | 503.4 | 0.989 [0.972–1.001] | 0.917 [0.902–0.933] |
+| 4× | ultrasound | 155.5 | 0.985 [0.957–1.015] | 0.997 [0.968–1.014] |
+
+W's ms a frame is the median over rounds. The ratios are the round-paired median with its 95 % interval. **The A/A
+held in all 8 cells.** **The rule is met.** In each DBT cell W2 ÷ W's interval lies below 1.00, with medians of
+0.879–0.930. The ultrasound's upper ends are 1.012 and 1.014. **`onePass` is the default**: `av1.js` and
+`av1-webcodecs.js` take it as on unless the config sets `onePass: false`, with tests that fail if it is off.
+*Since 2026-11-11 the flag is retired (CLEAN-PRODUCT): one pass is the only WebCodecs path, a config naming
+`onePass` changes nothing, and the two-pass arm W is in git history before that change.*
+These times are 17–25 % above 2026-10-31's W on the same bytes, on a different container. Only the round-paired
+ratios are compared.
+
+### The split's rebuild without JavaScript, in theory
+
+Theory only (2026-11-02): one candidate is built behind a flag and none is timed. The question is whether a split
+frame's JS rebuild can be removed, or done for much less than W2. The rebuild is `neutral()` and the two `place()`
+passes (one `merge()` under `onePass`). Shares are of a WebCodecs frame (W) and a dav1d-WASM frame (D) at 1×, from
+the 2026-10-31 breakdown (§Where a G = 1 frame's time goes, *Measured*). Its A/A failed, so each share stands as a
+prediction, not a reading. On W the rebuild is 18.4, 29.1 and 21.7 % of a 113, 233 and 112 ms frame on `dbts_a1`,
+`b1` and `c1`. That is `neutral()` 5–7 points and the two passes 12–25. `copyTo` is 3.0–7.6 % and the digest 0.9–2.1 %.
+On D, `place()` is 5.9–11.3 % and the digest 0.3–0.9 %. D runs no `neutral()` on a 4:0:0 stream (`av1-dav1d.js`
+checks layout 1 only). A *saving* below is a share of that arm's frame, and every one is *derived*.
+
+Sources, fetched 2026-11-02:
+[WebCodecs](https://www.w3.org/TR/webcodecs/) (W3C WD);
+[GLSL ES 3.00](https://github.com/KhronosGroup/OpenGL-Registry/blob/main/specs/es/3.0/GLSL_ES_Specification_3.00.pdf);
+[WebGL 2.0 IDL](https://github.com/KhronosGroup/WebGL/blob/main/specs/latest/2.0/webgl2.idl);
+[WGSL](https://www.w3.org/TR/WGSL/);
+[WebAssembly 3.0 instructions](https://webassembly.github.io/spec/core/syntax/instructions.html);
+[xxHash 0.8.3 `xxhash.h`](https://github.com/Cyan4973/xxHash/blob/v0.8.3/xxhash.h).
+
+**What the specifications allow.**
+
+* `copyTo` cannot shift, interleave or drop a plane. Its options are `rect`, `layout`, `format` and `colorSpace`.
+  "If layout is not undefined and its length does not equal numPlanes, throw a TypeError". Of the planes: "It is
+  invalid to specify planes that overlap". The only conversion is to RGB: "Potential values are: RGBA, RGBX, BGRA,
+  BGRX". RGB is 8 bits a channel, so it is not exact above 8 bits. The destination may be shared memory:
+  `copyTo( AllowSharedBufferSource destination, optional VideoFrameCopyToOptions options = {})`. And "If
+  destination.byteLength is less than combinedLayout’s allocationSize, return a promise rejected with a TypeError."
+* A WebGL2 shader can merge exactly. GLSL ES 3.00 §4.5.1: "All integral types are assumed to be implemented as
+  integers and so may not be emulated by floating point values. Highp signed integers are represented as
+  twos-complement 32-bit signed integers. Highp unsigned integers are represented as unsigned 32-bit integers." The
+  fragment default is narrower ("precision mediump int;", §4.5.4), which guarantees only 16 bits. So the merge must be
+  `highp`, as `paint-worker.js`'s window pass already is. `R8UI`, `R16UI` and `R16I` textures upload from
+  `[AllowShared] ArrayBufferView srcData` with a `srcOffset`, and `UNPACK_ROW_LENGTH` takes a plane's stride.
+* No GPU language here has the integers XXH3 needs. XXH3 keeps `XXH_ACC_NB` 64-bit accumulators over
+  `XXH_STRIPE_LEN 64`-byte stripes, and each lane does `xacc[lane] = XXH_mult32to64_add64(…)` (`XXH3_scalarRound`).
+  GLSL ES 3.00 stops at 32 bits (above). WGSL: "The scalar types are bool, AbstractInt, AbstractFloat, i32, u32, f32,
+  and f16". Each stripe adds into the accumulators of the stripe before it, so the hash is serial over the frame
+  *derived*.
+* WebAssembly has the SIMD a merge needs: "Vector instructions (also known as SIMD instructions, single instruction
+  multiple data) provide basic operations over values of vector type". The vector shift group is `shl | shr_sx`.
+  The client's XXH3 is already a SIMD128 build (`xxh3.js`).
+
+**The candidates, ranked** by saving on W, then by what they cost the owner and a phone:
+
+| # | candidate | saving on W | on D | structural | exactness | phone |
+| --: | --- | --- | --- | --- | --- | --- |
+| 1 | **S — a WASM SIMD merge.** `copyTo` straight into a WASM memory. One kernel does shift, OR, offset and min/max (`i16x8`), then the frame is copied out to its `SharedArrayBuffer`. The chroma check comes from the header, as in `onePass` | 15–23 % (×0.77–0.85) | 4–9 %, as C in `dav1d_wrap.c` on dav1d's own planes | **yes, in the build**: a new artifact pinned in `manifest.sha256`. The frame contract is unchanged | unchanged: the frame's XXH3 still covers the output, so a kernel bug is a mismatch, decoded again | holds where SIMD128 runs, with W2 as the fallback. It costs one resident memory per decoder, top + low + output (~42 MB on `b1`) |
+| 2 | **G — the merge in the paint shader.** Two integer textures, `((top << k) \| low) − offset` in `highp`, so no JS touches a sample | 17–29 % (×0.71–0.83) | 5–11 %: the planes still leave dav1d's heap by a copy | **yes, across the product**: the frame contract (two planes, not one), per-stream digests and a per-frame range from ingest (a metadata change), the painter, the OPFS entry, and the check page | weaker. The frame's digest covers the streams, not the merge. The merge is checked only by a per-context probe (a known pair painted and read back) and by `check.mjs` | moves the work to the GPU, where a phone has room. It holds 1.5× the memory and uploads 1.5× the bytes on a 10-bit top, 1× on an 8-bit one |
+| 3 | **R — the `copyTo` buffer reused** per stream (`reuseCopyBuffer`, built) | 2–6 %: no 9.2–25.6 MB allocation and first touch a frame | 0 | no | unchanged; the tests show no stale sample through changing sizes and depths | holds: less churn, though one buffer a stream stays resident |
+| 4 | **M — the chroma check from the sequence header only** (`mono_chrome`, part of `onePass`) | 5–7 %, `neutral()`'s share | 0 | no; built | a `mono_chrome` stream's chroma is not the stream's ("does not contain U and V color planes"), so nothing exact is skipped | holds |
+| 5 | **F — the digest fused** into the merge, XXH3 updated a row at a time while the row is in cache | ≤ 1 %: at most the digest's re-read | ≤ 0.5 % | no, but the codec would return the digest, and `decoder.js` would compare it | unchanged | holds; below what 150 rounds resolve |
+| 6 | **Rg — the range from ingest metadata**, two numbers a frame | 0–2 %: two compares a sample, which did not separate from the spread in the exploratory profiles | ≤ 1 % | yes: metadata | the range is then the ingest's, versioned with the digests, and not read from the decoded samples | holds; it pays only as G's enabler |
+| 7 | **L — a `copyTo` layout** that lands planes where they are needed | 0 on a split frame: `copyTo` cannot shift or interleave (above) | — | — | — | — |
+| 8 | **K0 — no split at 10 bits** (`b1`), one 10-bit stream | ~15–20 % on `b1` alone, less what a 10-bit top decodes over an 8-bit one, which is *unverified* | — | yes: ingest | unchanged | already measured slower end to end: 0.97–1.15 of HTJ2K against k = 2's 0.95–0.99, at +2.7–2.9 % bytes ([`split-rule`](../../lab/av1/delivery/split-rule/README.md) §Bytes) |
+| 9 | **D12 — the dav1d-WASM 12-bit path** (`a1`, `c1`) as one 12-bit stream | negative: D's frame is 1.6–2.0× W's | the merge's 6–11 %, against the low stream's whole decode | yes: ingest | unchanged | measured slower: 1.02–1.09 of HTJ2K against 0.94–0.97, and 1.52–1.54 at 4× on 50 Mbit, at +8–10 % bytes (same source) |
+| 10 | **a GPU digest** | — | — | yes | XXH3 does not map to the GPU (above). A parallel digest would be a new digest | not pursued |
+
+How the savings are derived:
+
+* **S.** It leaves only memory traffic: read top and low, write the output, then copy it out. That is ~9 B a sample.
+  At ~5 GB/s on one core (*unverified* on this host) that is 1.8 ns a sample, against W2's 3.6–4.1 ns a pass and
+  the 3.9 ns floor for a JS single pass into a reused buffer (`b1`, 32–34 ms,
+  [`breakdown`](https://github.com/dary-dc/wt-pacs/tree/696c15d6327bf2a2d338f1903128536357f2a082/lab/av1/decode/breakdown/README.md) §Why the JS passes cost 17–30 %). That is ~4, 15 and 4 ms
+  on `a1`, `b1` and `c1`, against the rebuild's 21, 68 and 24.
+* **G.** It removes the whole rebuild. The per-stream digests read 3 B a sample on a 10-bit top, against the merged
+  digest's 2, so the digest share rises by half (+0.5–1 point) on `a1` and `c1`, and not at all on `b1`.
+* **R.** It is the allocation and first touch: 7–9 ms touched 17 MB on `b1` in node (*exploratory*). How
+  Chromium's allocator and GC charge it to a frame is *unverified*.
+
+G is the larger saving but the larger change. It moves the exactness claim from "the samples handed on are the
+source's" to "the streams are, and the shader merged them". It also has a cost everywhere a merged sample is
+wanted on the CPU:
+
+* **Range.** The default window needs min and max. From ingest metadata (Rg) that is a format change. A GPU
+  reduction is several render passes and a readback (*unverified* cost). The top alone bounds it only to within
+  2^k − 1, which is not exact.
+* **OPFS** ([`frame-path.md`](../adr/frame-path.md) §4–5). An entry would hold two planes and two digests (a store
+  format change). Or the store worker would merge on the CPU, off the decode clock, and check the merged digest. That
+  still spends a core a fill shares on a phone.
+* **CPU fallbacks.** These are the check page's `reference.js`, any later CPU reader (a value under the cursor is one
+  merge a pixel, and a region is a lazy `merge()`), and a stream whose digest fails, which `decoder.js` decodes again
+  on the other path per stream.
+
+S keeps every one of those as it is. That is why S ranks first: most of G's saving, with no change to the contract,
+the store, the range or the check. R and M are the non-structural part. W2 already holds M, and R stacks with it. R is built behind
+`reuseCopyBuffer`, off by default (*retired 2026-11-11 with its rule's verdict below, CLEAN-PRODUCT: every frame is
+copied into a buffer of its own and R is in git history before that change*). `av1.test.mjs` showed every frame reads back its own samples through a smaller, a
+larger, an odd-sized and a 10-bit frame, that the buffer is kept from the largest frame on, and that a split frame's
+two streams never share one. Each claim was broken on purpose and failed: the flag ignored, the buffer never grown,
+the view taken over the whole buffer, and one buffer for every stream.
+
+### Merge-free protocol, pre-registered
+
+Written 2026-11-02 for a separate session. It is not run here. It decides R as a default and gives the owner S's and
+G's numbers for their structural review. It builds nothing in the product.
+
+* **Arms.** Every arm is a worker behind `decoder.js`, one frame in flight, digests passed.
+  * **W**: `onePass: false`, the default config when this was written.
+  * **W′**: the same config in a second worker, the A/A.
+  * **W2**: `onePass: true`.
+  * **R**: `onePass` and `reuseCopyBuffer`.
+  * **S**: a lab copy of `av1-frame.js` and `av1-webcodecs.js` in a lab directory of its own. It is W2 with
+    the merge done by a C kernel built with the product's emscripten 3.1.74 at `-O3 -msimd128`, and `copyTo` writing
+    into its memory.
+  * **G**: a lab copy of the worker and the painter. The worker hands the paint worker the two planes. The window
+    pass merges, the range comes from a per-frame table the harness computes at coding time, and the digest is
+    per stream, also computed at coding time.
+
+  W, W′, W2 and R are the product's files unmodified. S and G change only what their names say.
+* **Time**: end to end, with no stage stamps.
+  * W, W′, W2, R and S: the page's post of the bytes → the consumer port's receipt of the frame.
+  * G is end to end only when it is painted, so on a host with a hardware GPU every arm's time is the page's post →
+    a `fenceSync` after the paint worker's window pass of that frame, waited with `clientWaitSync`. The fence time
+    then decides for all six arms.
+  * On a host whose WebGL2 renderer is SwiftShader, G is not run, and the report says so.
+
+  A round's value for an arm is the median of its 16 frames after one warm-up frame.
+* **Cells**: `dbts_a1`, `dbts_b1` and `dbts_c1` in the 2026-10-31 codings: the middle 16 slices, G = 1, k = 2, one
+  tile. The fourth set is a small split frame: `mr_ispy1`, 512², 11 bits, k = 2 over a 10-bit top. Its middle 16
+  slices are coded as `lab/av1/decode/passes/codings.py` (at `696c15d6`) codes a set. There a per-frame fixed cost (the kernel call,
+  the buffer, the upload) is the largest share. Each set runs at 1× and 4× (`lab/scripts/cpu_throttle.mjs`), so there
+  are 8 cells.
+* **Order**: a fresh headless Chromium 141.0.7390.37 per round × throttle. Inside it the sets, then the arms, each in
+  a Williams order (`lab/order.mjs`). Six arms have a period of 6. Without G, five arms have a period of 10.
+* **Rounds, by power to resolve 3 %**: σ of a round-paired log ratio is 0.105 at 1× and 0.053 at 4× (the 2026-10-31
+  spread, as §JS passes protocol, pre-registered derives it). n = 1.571 × (2.8016 σ ÷ ln(1 ÷ 0.97))² gives 147 and
+  38. Rounded up to the period: **150 at 1× and 42 at 4× with G, 150 and 40 without**. That is power ≥ 0.80 for a
+  95 % interval to exclude 1 at a true 0.97 *derived*. The count is fixed here and is not revised from the run.
+* **Effect and interval**: per cell, each round's ln(arm ÷ reference) is paired within that round's browser. The
+  effect is the median over rounds, as a ratio. The 95 % interval is the k-th and (n − k + 1)-th ordered values,
+  with k the largest for which P(Binomial(n, ½) ≤ k − 1) ≤ 0.025 (`lab/av1/decode/passes/report.mjs` (at `696c15d6`) computes it).
+  Each arm is compared to W and to W2. S and G are also compared to each other.
+* **Exact**: a frame counts only when its digest matched on the arm's own path the first time, with no fallback.
+  That is the worker's XXH3 for W–S. For G it is both per-stream digests, and outside the timed span, a readback of
+  the merged frame from an `R32UI` target hashed against the frame's digest (that `readPixels` reads one with
+  `RGBA_INTEGER` in Chromium 141 is *unverified*). The page's SHA-256 must also match the
+  fetch checksum. Every frame of every arm must be exact, or the run is void.
+  * `--mutate` flips one sample, and every arm must then read 0 exact.
+  * Broken copies must read 0 exact: S's kernel and G's shader with the shift one short, and R with its buffer never
+    grown, on a frame larger than the one before.
+* **A/A**: W′ ÷ W's interval must contain 1. The run is void if two or more of the 8 cells miss.
+* **Decision**, every frame exact:
+  * **R becomes the default** with `onePass` when R ÷ W2's interval lies entirely below 1.00 and its median is
+    ≤ 0.97 in each DBT cell, and the interval's upper end is ≤ 1.02 on `mr_ispy1` at both throttles.
+  * **S and G go to the owner** with every cell's effect against W and W2. Either is proposed for building only if
+    its ratio to W2 lies entirely below 0.90 in every DBT cell, the measured form of "much more cheaply than W2".
+    G is proposed over S only if G ÷ S lies entirely below 0.97 in every DBT cell on the GPU host.
+  * Otherwise the report names the cell and how it failed. No round count and no line on a point estimate alone
+    decides anything.
+* **Host**: one ask at a time, two `VideoDecoder`s at most. `lab/av1/decode/passes/busy.sh` (at `696c15d6`) records the CPUs. The
+  report says where the host saturates if it measures that, and claims nothing for fills, concurrency or phones. A
+  phone's reading needs its own run. Each cell is quoted in ms a frame, latency only.
+
+*Measured (2026-11-03)*, by a separate session given only the protocol
+([`merge-free`](https://github.com/dary-dc/wt-pacs/tree/696c15d6327bf2a2d338f1903128536357f2a082/lab/av1/decode/merge-free/README.md) §Measured). 150 rounds at 1×, 40 at 4×, Chromium
+141.0.7390.37 on 4 vCPUs. **60 800 of 60 800 frames exact**. Every broken copy read 0 exact (`--mutate`, S's
+shift one short, R's buffer never grown), and the control read all exact. **G was not run**: the host's WebGL2
+renderer is SwiftShader. The run was cut after 149 browsers and resumed from its rows on a slower host of the same
+shape (2.80 → 2.10 GHz). Each ratio is paired within one browser, and each half alone gives the same verdict.
+
+| throttle | set | W2 ms | R ÷ W2 | S ÷ W2 | S ÷ W |
+| --- | --- | --: | --: | --: | --: |
+| 1× | `dbts_a1` | 110.3 | 0.968 [0.958–0.978] | 0.877 [0.867–0.886] | 0.824 [0.815–0.833] |
+| 1× | `dbts_b1` | 222.1 | 0.932 [0.926–0.940] | 0.778 [0.771–0.788] | 0.697 [0.689–0.702] |
+| 1× | `dbts_c1` | 109.0 | 0.951 [0.940–0.966] | 0.849 [0.839–0.861] | 0.784 [0.778–0.796] |
+| 1× | `mr_ispy1` | 19.9 | 0.976 [0.967–0.998] | 0.909 [0.890–0.926] | 0.869 [0.850–0.893] |
+| 4× | `dbts_a1` | 433.1 | 0.964 [0.943–0.976] | 0.891 [0.881–**0.908**] | 0.837 [0.820–0.847] |
+| 4× | `dbts_b1` | 876.9 | 0.936 [0.926–0.944] | 0.773 [0.758–0.784] | 0.686 [0.675–0.695] |
+| 4× | `dbts_c1` | 417.8 | 0.968 [0.936–0.984] | 0.868 [0.852–0.883] | 0.788 [0.774–0.804] |
+| 4× | `mr_ispy1` | 61.1 | 0.986 [0.950–**1.024**] | 0.946 [0.923–0.996] | 0.913 [0.883–0.946] |
+
+The A/A missed in 1 cell of 8 (`dbts_b1` at 1×), which the protocol allows. **By the rule as written, R does not
+become the default.** It meets its line in all six DBT cells, but on `mr_ispy1` at 4× its upper end is 1.024 > 1.02.
+**S is not proposed for building.** Its ratio to W2 lies below 0.90 in five DBT cells, but at 4× on `dbts_a1` the
+interval reaches 0.908. S and G go to the owner with these numbers, and G has none. The host did not saturate: no
+second reached 95 % of the 4 CPUs, and the busiest reached 49 %. Nothing is claimed for fills, concurrency or phones.
 
 ## Hardware decode
 

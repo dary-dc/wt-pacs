@@ -8,6 +8,9 @@
 <link rel="preload" href="/series/metadata" as="fetch" crossorigin>
 <link rel="preload" href="/wt/dev-transport.json" as="fetch" crossorigin>
 <link rel="modulepreload" href="/client/viewer/viewer.js">
+<link rel="modulepreload" href="/client/viewer/pair.js">
+<link rel="modulepreload" href="/client/viewer/screen.js">
+<link rel="modulepreload" href="/client/viewer/slider.js">
 <link rel="modulepreload" href="/client/transport/consumer.js">
 <link rel="modulepreload" href="/client/paint/painter.js">
 <link rel="modulepreload" href="/client/view/controller.js">
@@ -25,15 +28,26 @@
     padding: 0 0.6em; background: #111; white-space: nowrap; overflow: hidden; }
   #bar button { font: inherit; }
   #status { overflow: hidden; text-overflow: ellipsis; }
+  #bar.unfolded { height: auto; min-height: 2.2em; white-space: normal; flex-wrap: wrap; padding: 0.4em 0.6em; }
   #mark { position: absolute; top: 0.6em; left: 0.6em; padding: 0.2em 0.5em; border-radius: 3px; display: none; }
   #mark.inexact { display: block; background: #b00; color: #fff; }
   #mark.unchecked { display: block; background: #555; color: #fff; }
+  #quality { position: absolute; top: 0.6em; right: 0.6em; padding: 0.2em 0.5em; border-radius: 3px; background: #333; color: #fff; }
+  #quality.optimal, #quality.asking { background: #1a5e2a; }
+  #quality.lossless { background: #1f4fa0; }
+  #quality.failed { background: #b00; }
+  #quality[hidden], #overlay[hidden], #bar button[hidden], #slice[hidden] { display: none; }
+  #slice { position: absolute; top: 2.4em; bottom: 2.8em; right: 0.3em; width: 2em; margin: 0; writing-mode: vertical-lr; }
+  #overlay { position: absolute; top: 2.4em; right: 2.8em; padding: 0.2em 0.5em; background: #000a; font: 12px/1.4 ui-monospace, monospace; }
 </style>
 </head>
 <body>
 <canvas id="view"></canvas>
 <div id="mark"></div>
-<div id="bar"><button id="cine" type="button">▶ cine</button><span id="status">loading…</span></div>
+<div id="quality" hidden></div>
+<div id="overlay" hidden></div>
+<input id="slice" type="range" min="0" max="0" step="1" value="0" aria-label="Slice" hidden>
+<div id="bar"><button id="cine" type="button">▶ cine</button><button id="lossless" type="button" hidden>lossless</button><span id="status">loading…</span></div>
 <script type="module" src="/client/viewer/viewer.js"></script>
 </body>
 </html>

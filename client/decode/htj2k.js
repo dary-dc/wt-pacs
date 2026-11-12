@@ -1,4 +1,4 @@
-/** An HTJ2K codestream through OpenJPH-WASM, one decoder object reused (lab/decode-bench/parity.mjs): docs/decode/README.md §A build of our own */
+/** An HTJ2K codestream through OpenJPH-WASM, one decoder object reused: docs/decode/README.md §A build of our own */
 import { frameBuffer } from "./frame-buffer.js";
 import { instantiate } from "./wasm-glue.js";
 
@@ -72,5 +72,5 @@ function decodeWith(dec, bytes) {
   const range = unranged(info)
     ? { min: 0, max: 255 }
     : dec.getRange ? dec.getRange() : finish(view, info.bitsPerSample, info.isSigned);
-  return { info, sab, byteCount: out.length, range, path: "htj2k" };
+  return { info, sab, byteCount: out.length, range, route: "htj2k" };
 }

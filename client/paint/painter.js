@@ -6,10 +6,12 @@ export class Painter {
   #pending = new Map();
   #lost = null;
   #last = null;
+  #settle;
 
-  /** `renderer` resolves to the WebGL renderer string, or rejects with why nothing can be painted. */
-  constructor(canvas, { onLost = () => {} } = {}) {
+  /** `renderer` resolves to the WebGL renderer string, or rejects with why nothing can be painted; `lab.settle`, a lab's. */
+  constructor(canvas, { onLost = () => {}, lab = {} } = {}) {
     this.#canvas = canvas;
+    this.#settle = lab.settle;
     this.#worker = new Worker(new URL("./paint-worker.js", import.meta.url), { type: "module" });
     const offscreen = canvas.transferControlToOffscreen();
     this.renderer = new Promise((resolve, reject) => {
@@ -30,7 +32,7 @@ export class Painter {
         const p = this.#pending.get(data.id);
         this.#pending.delete(data.id);
         if (data.error) p.reject(new Error(data.error));
-        else p.resolve({ ms: data.ms, uploaded: data.uploaded, pixels: data.pixels });
+        else p.resolve({ ms: data.ms, uploaded: data.uploaded, pixels: data.pixels, drawn: data.drawn });
       };
     });
     this.#worker.postMessage({ kind: "start", canvas: offscreen }, [offscreen]);
@@ -50,7 +52,7 @@ export class Painter {
     this.#last = frame;
     return new Promise((resolve, reject) => {
       this.#pending.set(id, { resolve, reject });
-      this.#worker.postMessage({ kind: "paint", id, frame, same, display, width, height, dpr, read });
+      this.#worker.postMessage({ kind: "paint", id, frame, same, display, width, height, dpr, read, settle: this.#settle });
     });
   }
 

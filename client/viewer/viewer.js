@@ -2,13 +2,22 @@
 import { DownloaderClient } from "/client/transport/consumer.js";
 import { built } from "/client/decode/wasm-glue.js";
 import { Painter } from "/client/paint/painter.js";
-import { asPainted, Controller, FIT } from "/client/view/controller.js";
+import { asPainted, Controller, FIT, wantFrom } from "/client/view/controller.js";
 import { View, ViewWorker } from "/client/view/view.js";
+import { checkPair, pairOf } from "/client/viewer/pair.js";
+import { labelOf, lastError, markOf, overlayText, unfoldOnTap } from "/client/viewer/screen.js";
+import { RANGE_KEYS, sliceSlider } from "/client/viewer/slider.js";
 
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById("view");
 const statusEl = document.getElementById("status");
 const markEl = document.getElementById("mark");
+const qualityEl = document.getElementById("quality");
+const losslessEl = document.getElementById("lossless");
+const overlayEl = document.getElementById("overlay");
+const barEl = document.getElementById("bar");
+const sliceEl = document.getElementById("slice");
+statusEl.onclick = qualityEl.onclick = (e) => unfoldOnTap(barEl, e);
 const at = () => performance.timeOrigin + performance.now();
 
 const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport])
@@ -16,30 +25,42 @@ const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport]
 // Where the frames are held and painted: on the page, or in the view worker. docs/adr/frame-path.md §3, *Built*
 const where = q.get("view") ?? "page";
 if (!lab.refused && !["page", "worker"].includes(where)) lab.refused = `refused: view ${JSON.stringify(where)} — page or worker`;
-// Who writes the OPFS cache under `worker`, a lab lever; none by default, as main: docs/adr/frame-path.md §The core, assembled
+// Who writes the OPFS cache under `worker`, a lab lever refused where it cannot hold; none by default, as main: lab/viewer/levers.js
 const writer = lab.writer;
-if (!lab.refused && writer !== undefined && !["store", "decoders", "view"].includes(writer)) lab.refused = `refused: writer ${JSON.stringify(writer)} — store, decoders or view`;
-if (!lab.refused && writer === "decoders" && lab.opts?.pixels === "transfer") lab.refused = "refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred";
+/** The viewer check's and a lab harness's: none in the product. lab/viewer/hooks.js */
+const hooks = lab.hooks;
 if (lab.refused) {
   statusEl.textContent = `error: ${lab.refused}`;
-  report({ error: lab.refused });
+  hooks?.report({ error: lab.refused });
   throw new Error(lab.refused);
 }
+const booted = where === "worker" && lab.opts.viewWorkerFirst ? ViewWorker.boot() : undefined;
 const meta = await globalThis.viewerMetadata;
+/** Epoch ms of the page's start, for the lab's ledger: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
+const boot = { metadata: at() };
 const n = meta.frameCount;
+// An optimal-quality series is shown at optimal quality, each frame exact on request from its exact series.
+const pair = await (async () => {
+  const p = pairOf(meta);
+  if (!p) return null;
+  const [exactMeta, exactTransport] = await Promise.all([p.metadata, p.transport].map((u) => fetch(u).then((r) => {
+    if (!r.ok) throw new Error(`refused: ${u} answered ${r.status}`);
+    return r.json();
+  })));
+  checkPair(meta, exactMeta);
+  return { ...p, meta: exactMeta, transport: exactTransport };
+})().catch((e) => {
+  statusEl.textContent = `error: ${e.message}`;
+  hooks?.report({ error: e.message });
+  throw e;
+});
 const fillMode = q.get("fill") !== "0";
 const transport = lab.transport;
 // Absolute: the downloader's worker would resolve a relative URL against its own script.
 const transportFile = new URL("/wt/dev-transport.json", location).href;
 
-if (q.get("check")) {
-  // A page that stops short still says why, and when.
-  const stop = (why) => globalThis.__viewerResult || report({ error: why, received: progress.have, errors });
-  addEventListener("error", (e) => stop(`uncaught: ${e.message}`));
-  addEventListener("unhandledrejection", (e) => stop(`unhandled: ${e.reason?.message ?? e.reason}`));
-  setTimeout(() => stop(`no result in ${q.get("deadline") ?? 120} s`), (q.get("deadline") ?? 120) * 1000);
-}
-let progress = { have: 0, total: n, seen: { exact: 0, inexact: 0, unchecked: 0, paths: {} }, fillMs: null };
+hooks?.arm(() => ({ received: progress.have, errors }));
+let progress = { have: 0, total: n, seen: { exact: 0, inexact: 0, unchecked: 0, routes: {} }, fillMs: null };
 let shown = null;
 const errors = [];
 let issuedAt = 0;
@@ -48,6 +69,7 @@ let userVoi = null;
 let pose = FIT;
 let invert = false;
 let view = null;
+const follow = sliceSlider(sliceEl, n, { show, pause: () => view.playing && toggleCine() });
 
 function fail(why) {
   errors.push(why);
@@ -60,8 +82,11 @@ const on = {
   progress: (p) => ((progress = p), status()),
   shown: (s) => {
     shown = s;
-    markEl.className = s.exact === true ? "" : s.exact === false ? "inexact" : "unchecked";
-    markEl.textContent = s.exact === false ? `NOT EXACT — ${s.reason ?? ""}` : s.exact === true ? "" : "unchecked";
+    const mark = markOf(s);
+    markEl.className = mark.className;
+    markEl.textContent = mark.text;
+    showQuality(s);
+    follow(view?.current ?? s.i);
     status();
   },
   failed: ({ scope, i, reason }) => fail(scope === "frame" ? `frame ${i}: ${reason}` : `${scope}: ${reason}`),
@@ -69,60 +94,70 @@ const on = {
 const emit = (type, event) => on[type](event);
 const size = () => ({ width: canvas.clientWidth, height: canvas.clientHeight, dpr: self.devicePixelRatio || 1 });
 
-/** The worker variant's check counts what reaches the page, and any pixel or port among it. */
-const seen = q.get("check") && where === "worker" ? { messages: 0, pixels: 0, fromDownloader: 0 } : null;
-const carriesPixels = (v) => v instanceof SharedArrayBuffer || v instanceof ArrayBuffer || ArrayBuffer.isView(v) || v instanceof MessagePort ||
-  (typeof v === "object" && v !== null && Object.values(v).some(carriesPixels));
-const watch = seen && ((data, from) => {
-  seen.messages += 1;
-  if (carriesPixels(data)) seen.pixels += 1;
-  if (from === "downloader") seen.fromDownloader += 1;
-});
-
 let controller = null;
 let worker = null;
 if (where === "page") {
-  const painter = new Painter(canvas, { onLost: (why) => fail(`painter: ${why}`) });
-  painter.renderer.then((r) => emit("renderer", { renderer: r }), (e) => emit("renderer", { error: e.message }));
+  const painter = new Painter(canvas, { onLost: (why) => fail(`painter: ${why}`), lab: { settle: lab.settle } });
+  painter.renderer.then((r) => ((boot.gl = at()), emit("renderer", { renderer: r })), (e) => emit("renderer", { error: e.message }));
   controller = new Controller({ meta, fillMode, emit, size: size(), paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
 } else {
-  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settlePaint: Boolean(lab.settlePaint), watchWrites: Boolean(q.get("check")) });
+  boot.viewWorker = at();
+  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit,
+    lab: { watch: hooks?.watch, settle: lab.settle, check: hooks?.check, booted, glAfterDial: Boolean(lab.opts.glAfterDial) } });
 }
+
+/** The quality label says what is painted, as the controller judged it; the overlay, `?overlay=1`, how it got here. */
+function showQuality({ quality, about }) {
+  qualityEl.hidden = !quality;
+  const label = labelOf(quality);
+  qualityEl.className = label.className;
+  qualityEl.textContent = label.text;
+  losslessEl.textContent = quality === "lossless" || quality === "asking" ? "optimal quality" : "lossless";
+  if (!overlayEl.hidden) overlayEl.textContent = overlayText(about, quality, meta.lossy);
+}
+overlayEl.hidden = q.get("overlay") !== "1";
 
 function status() {
   const soft = /swiftshader|llvmpipe|software|basic render/i.test(rendererName) ? " (software)" : "";
-  const paths = Object.entries(progress.seen.paths).map(([p, k]) => `${p} ${k}`).join(", ") || "none yet";
+  const routes = Object.entries(progress.seen.routes).map(([p, k]) => `${p} ${k}`).join(", ") || "none yet";
   statusEl.textContent = [
     `frame ${(view?.current ?? 0) + 1} of ${n}`,
     `client ${transport.client}`,
     `view ${where}`,
     `received ${progress.have}, exact ${progress.seen.exact}, not exact ${progress.seen.inexact}, unchecked ${progress.seen.unchecked}`,
-    `decoders: ${paths}`,
+    `routes: ${routes}`,
     `codec ${meta.codec ?? "htj2k"}`,
     `renderer ${rendererName}${soft}`,
     progress.fillMs !== null ? `fill ${Math.round(progress.fillMs)} ms` : fillMode ? "filling" : "on demand",
-    ...errors.slice(-1).map((e) => `error: ${e}`),
+    ...[lastError(errors, shown)].filter(Boolean).map((e) => `error: ${e}`),
   ].join(" · ");
 }
 
 const options = lab.opts;
-const decoder = options.decoder ?? (meta.codec === "av1" ? { codec: "av1", ...(await built("dav1d")) } : await built("openjph"));
+const decoder = options.decoder ?? (meta.codec === "av1"
+  ? { codec: "av1", optimal: meta.lossy !== undefined, refuseWebCodecs: options.refuseWebCodecs, ...(await built("dav1d")) }
+  : await built("openjph"));
 const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : undefined;
+const groups = meta.lossy?.g > 1 ? { groupLength: meta.lossy.g, frameCount: n } : {};
 const all = [...Array(n).keys()];
 // A lab harness slows the CPU from here: lab/viewer/levers.js.
 await lab.started?.();
 issuedAt = at();
+boot.connect = issuedAt;
 const connectOpts = {
   transport: transport.module,
   ...(fillMode && { fill: all }),
   // The file follows a restarted server; a pair the lab named stays pinned.
   transportFile: lab.pinned ? undefined : transportFile,
   digests,
+  ...groups,
   ...options,
   decoder,
 };
 try {
-  if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer }, issuedAt);
+  // What the page dials with, under the lab's `pageDials`: the view worker's first want, unless a cache or a half-held store shapes it.
+  const firstWant = options.pageDials && !writer && !options.holdEveryOther ? wantFrom(0, n, fillMode, Boolean(options.waitAhead)) : undefined;
+  if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer, firstWant }, issuedAt);
   else {
     controller.issuedAt = issuedAt;
     controller.client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {
@@ -133,40 +168,45 @@ try {
   }
 } catch (e) {
   fail(`connect: ${e.message}`);
-  report({ error: String(e.message) });
-  lab.finished?.({ error: String(e.message) });
+  hooks?.failed(String(e.message));
   throw e;
 }
 
 view = new View(n, controller ?? worker);
+sliceEl.hidden = false;
+if (pair) connectExact();
+
+/** The exact series on its own downloader: no fill, one decoder, a frame asked only when the reader asks it. */
+async function connectExact() {
+  const opts = {
+    transport: transport.module,
+    transportFile: new URL(`/wt/${pair.id}/dev-transport.json`, location).href,
+    digests: pair.meta.digests.frames,
+    decoders: 1,
+    decoder: await built("openjph"),
+  };
+  try {
+    if (worker) await worker.connectExact(pair.transport.wt_url, pair.transport.cert_sha256, opts);
+    else controller.exactSource = await DownloaderClient.connect(pair.transport.wt_url, pair.transport.cert_sha256, opts);
+    losslessEl.hidden = false;
+  } catch (e) {
+    fail(`lossless: ${e.message}`);
+  }
+}
+losslessEl.onclick = () => (/lossless|asking/.test(qualityEl.className) ? view.optimal() : view.exact());
 function show(i) {
   const step = view.show(i);
+  follow(view.current);
   status();
   return step;
 }
 if (!fillMode) show(0);
 
-/** The lab's trace: from frame 0 on screen, one step every `everyMs`, each on time however the last went. lab/viewer/trace.js */
-const stepped = [];
-const until = (done) => new Promise((resolve) => {
-  const poll = setInterval(() => done() && (clearInterval(poll), resolve()), 5);
-});
-const traced = lab.trace && (async () => {
-  await until(() => shown?.i === 0 || errors.length);
-  const t0 = performance.now();
-  for (const [k, i] of lab.trace.steps(n).entries()) {
-    await new Promise((r) => setTimeout(r, t0 + (k + 1) * lab.trace.everyMs - performance.now()));
-    stepped.push({ i, at: at() });
-    show(i);
-  }
-  // On demand a frame the reader left may never be asked, so the trace ends on its last step's frame.
-  await until(() => shown?.i === stepped.at(-1)?.i || errors.length);
-})();
-
 const cineEl = document.getElementById("cine");
+const cineFps = 1000 / (meta.frameTimeMs ?? (meta.cineRate ? 1000 / meta.cineRate : 100));
 function toggleCine() {
   if (view.playing) view.pause();
-  else view.play(1000 / (meta.frameTimeMs ?? (meta.cineRate ? 1000 / meta.cineRate : 100)));
+  else view.play(cineFps);
   cineEl.textContent = view.playing ? "❚❚ cine" : "▶ cine";
 }
 cineEl.onclick = toggleCine;
@@ -187,11 +227,12 @@ const KEYS = {
   h: () => ((pose = { ...pose, flipH: !pose.flipH }), display()),
   v: () => ((pose = { ...pose, flipV: !pose.flipV }), display()),
   i: () => ((invert = !invert), display()),
+  l: () => losslessEl.hidden || losslessEl.click(),
   0: reset, Escape: reset,
 };
 addEventListener("keydown", (e) => {
   const k = KEYS[e.key];
-  if (!k || e.target === cineEl) return;
+  if (!k || e.target === cineEl || e.target === losslessEl || (e.target === sliceEl && RANGE_KEYS.has(e.key))) return;
   e.preventDefault();
   k();
 });
@@ -224,37 +265,5 @@ canvas.addEventListener("pointercancel", () => (drag = null));
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 addEventListener("resize", () => view.resize(size()));
 
-function report(result) {
-  globalThis.__viewerResult = result;
-  // Read off the page in Chromium and off stdout in Firefox: client/viewer/check.mjs.
-  if (q.get("check")) console.log(`viewer-result ${JSON.stringify(result)}`);
-}
-
-// Only the check and a lab harness read the fill's end, so a product page does not poll for it.
-if (q.get("check") || lab.finished) {
-  const giveUp = q.get("check") ? performance.now() + 60000 : Infinity;
-  await new Promise((resolve) => {
-    const poll = setInterval(() => {
-      // The check judges a fill that stops short rather than waiting on it.
-      if (progress.have + errors.length >= n || (!fillMode && progress.have) || performance.now() > giveUp) {
-        clearInterval(poll);
-        resolve();
-      }
-    }, 20);
-  });
-  await view.repaint();
-  const check = worker ? (phase, args) => worker.check(phase, args)
-    : async (phase, args) => (await import("/client/view/check.js"))[phase]({ controller, ...args });
-  if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, check, errors, report, rendererName, toggleCine,
-    current: () => view.current, seen, close: () => (worker ?? controller.client).close() });
-  else {
-    await traced;
-    for (const i of lab.steps ?? []) {
-      stepped.push({ i, at: at() });
-      show(i);
-      await until(() => shown?.i === i || errors.length);
-    }
-    const { frames, firstShownMs, fillMs, stats } = await (worker ?? controller).ledger({ flip: q.get("mutate") === "sample" });
-    lab.finished({ issuedAt, firstShownMs, fillMs, frames, errors, stats, stepped });
-  }
-}
+await hooks?.run({ n, fillMode, view, worker, controller, progress: () => progress, errors, shown: () => shown, show, toggleCine, cineFps,
+  rendererName: () => rendererName, boot, issuedAt, at });
