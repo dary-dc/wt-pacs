@@ -1,13 +1,14 @@
 state: done
 started: 2026-11-12 15:01
-heartbeat: 2026-11-12 15:10
-outputs: claude/fable-design 9edcb3e7 (from origin/main 017a3ca6), draft PR #383 into main (docs only)
+heartbeat: 2026-11-12 15:14
+outputs: claude/fable-design 7946ad7c (from origin/main 017a3ca6), draft PR #383 into main (docs only)
 ## Resume
 Done. 9edcb3e7: docs/proposals/design-fable.md and a pointer in docs/lines/client.md. Read first, alone:
 docs/lines/client.md, docs/lines/optimal-quality.md, docs/adr/frame-path.md (§1–§6, §8, §Target, §The core,
 assembled) and client/ on claude/demo-fixes-2 18d2d1ff; then claude/proposals:docs/lines/proposals.md (b6e4b47d) and
 claude/fable-simplify:docs/proposals/simplify-fable.md, to drop what they hold. Nothing implemented or measured;
-scripts/check_links.py 0 unresolved; the gate not run (no code changed).
+scripts/check_links.py 0 unresolved at 7946ad7c (CI's gate failed it at 9edcb3e7: six paths not on main, now named
+by their branch; the first local run had not seen the untracked file); the gate not run locally.
 ## Result
 * P1 A Lossless frame, once fetched, is held: the controller's one slot is emptied by a step, a second press while
   fetching, or a late arrival, so a return pays 1.0–2.2 MB again (0.7–6.7 s on the measured links). A frame store
