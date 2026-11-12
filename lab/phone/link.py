@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""The phone run's link as the optimal-quality servers saw it, for a link profile (docs/transport/link-calibration.md):
+"""The phone run's link as the optimal-quality servers saw it, for a link profile
+(docs/transport/transport-conclusions.md §1 *A home Wi-Fi link, measured*):
 per link and controller, over the counted sessions, the path's minimum round trip (the loss trace's, quinn's own
 minimum), the minimum the path rows report (of their smoothed samples), the smoothed round trip while sending, the
 queue at each congestion event, and the fastest 250 ms of sending.

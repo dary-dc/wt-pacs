@@ -42,7 +42,7 @@ path. Counts, not rates (Amendment): one access point, one evening.
 **Round trip and wire time** (path rows every 250 ms, reported, not deciding; the wire time counts the rows in which
 the server sent, so it is coarse by 250 ms):
 
-| link | controller | min RTT, median | RTT while filling, p50 / p90 | wire time, median |
+| link | controller | min RTT, median (*corrected below*) | RTT while filling, p50 / p90 | wire time, median |
 | --- | --- | --- | --- | --- |
 | tether | `cubic-restart` | 6.1 ms | 6.7 / 15.6 ms | 0.75 s |
 | tether | `bbr` | 2.2 ms | 2.2 / 2.9 ms | 1.00 s |
@@ -51,7 +51,11 @@ the server sent, so it is coarse by 250 ms):
 
 Two things this table raises and does not explain: the wire time is a fifth to a third of the fill (2.4–3.3 s), so
 most of a fill is spent on the phone, not on the link; and the same link's minimum RTT differs by controller
-(6.1 ms against 2.2 ms on the cable), which a minimum should not. Both are open (FILL-SPLIT, LINK-CALIBRATION).
+(6.1 ms against 2.2 ms on the cable), which a minimum should not. *Corrected (LINK-CALIBRATION, 2026-11-12):* the
+column is the smallest 250 ms sample of quinn's smoothed RTT, which freezes when the fill stops, so it reads each
+controller's queue at the fill's end; the path's minimum, from the loss trace, is 0.61–0.78 ms on the cable and
+1.5–2.5 ms on Wi-Fi (`docs/transport/transport-conclusions.md` §1 *A home Wi-Fi link, measured*). The wire time is
+open (FILL-SPLIT).
 
 ## The run's checks
 
@@ -92,8 +96,9 @@ most of a fill is spent on the phone, not on the link; and the same link's minim
 X=$(cat docs/phone-rows/raw/excluded-ids.txt)
 python3 lab/phone/rows.py docs/phone-rows/raw dbts_b1-q8-g8 --exclude $X
 python3 lab/phone/losses.py docs/phone-rows/raw dbts_b1-q8-g8 --exclude $X --orphan 4443:10
+python3 lab/phone/link.py docs/phone-rows/raw dbts_b1-q8-g8 --exclude $X --orphan 4443:10
 ```
 
-Both scripts are read-only over `raw/` and have no test of their own yet. [`run-env.sh`](run-env.sh) is the shell
+All three are read-only over `raw/`; `link.py` has a test (`link_test.py`), the other two none yet. [`run-env.sh`](run-env.sh) is the shell
 functions the run was served with (the Second amendment's, memlock 8 MiB per its Note, `--beacon`), sourced with
 `RUN=target/phone-run` in both terminals.
