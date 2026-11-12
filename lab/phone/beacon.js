@@ -50,8 +50,7 @@ function install(q, fields) {
   addEventListener("unhandledrejection", (e) => r.record("error", { source: "unhandledrejection", message: String(e.reason?.message ?? e.reason) }));
   const consoleError = console.error;
   console.error = (...a) => (r.record("error", { source: "console.error", message: a.map(String).join(" ") }), consoleError.apply(console, a));
-  addEventListener("pagehide", () => r.flush({ leaving: true }));
-  document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && r.flush({ leaving: true }));
+  watchLifecycle(r, document, globalThis);
   const watch = () => {
     const quality = document.getElementById("quality");
     new MutationObserver(() => r.record("label", { quality: quality.hidden ? null : quality.className, text: quality.textContent }))
@@ -61,4 +60,16 @@ function install(q, fields) {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", watch);
   else watch();
   return r;
+}
+
+/** The page's visibility, freezes and resumes as records, so a run tells interference from failure: docs/reviews/hidden-page-decode.md */
+export function watchLifecycle(r, doc, win) {
+  const note = (event) => r.record("visibility", { event, state: doc.visibilityState });
+  note("start");
+  for (const event of ["freeze", "resume"]) doc.addEventListener(event, () => note(event));
+  doc.addEventListener("visibilitychange", () => {
+    note("visibilitychange");
+    if (doc.visibilityState === "hidden") r.flush({ leaving: true });
+  });
+  win.addEventListener("pagehide", () => (note("pagehide"), r.flush({ leaving: true })));
 }
