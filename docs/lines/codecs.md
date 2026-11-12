@@ -194,3 +194,7 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
 `claude/av1-encoder-settings:docs/av1/encoder-settings.md`, `claude/av1-audit-quality:docs/av1/audit-quality.md`,
 `claude/av1-audit-decode:docs/av1/audit-decode.md`, `claude/av1-groups:docs/av1/groups.md`, `claude/av1-svc-preview`,
 `claude/line-server`.
+
+**The unified branch** (2026-11-12): `claude/unified-codecs`, from `claude/av1-unified-mainbase`, holds the two
+reviewed line-doc PRs, #350 and #340. Every other PR of the line's chain waits for a review row; its draft PR's body
+lists each with the reason.
