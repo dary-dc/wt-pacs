@@ -1,11 +1,9 @@
 state: done
 started: 2026-11-11 18:59 UTC
-heartbeat: 2026-11-12 17:52 UTC
-outputs: `claude/htj2k-tiles` ef5adda2 (lab/htj2k-tiles/improve/stage3/, rows/stage3-*.jsonl, docs/htj2k-tiles.md §Improve, measured: stage 3; draft PR #324 into main, already open)
+heartbeat: 2026-11-12 18:05 UTC
+outputs: `claude/htj2k-tiles` ef5adda2 (lab/htj2k-tiles/improve/stage3/, rows/stage3-*.jsonl, docs/htj2k-tiles.md §Improve, measured: stage 3; draft PR #324 into main, already open); session 4's replicate 585e4834, 3f339d29, 13d62d26
 ## Resume
-**S3c complete 17:50** (`585e4834`, 400 rows, rounds 4–5, `rows/stage3-s3c-4.jsonl`). Next: `summary.py` over S3a, S3b, S3c-4; readings R3–R7 in docs §Improve, measured: stage 3; `docs/lines/codecs.md`; this Result; done. No more runs.
-Session 4 resumed 2026-11-12 13:25 UTC (stalled since 12:03, S3c at 153 visits of round 4, `cc035d06`): fresh container; setup as below, then S3c rounds 4–5 again into `rows/stage3-s3c-4.jsonl` (the 153 rows of round 4 are incomplete, so not kept). Setup done 13:45 as below (MANIFEST OK on the delivered build; levels.wasm sha256 equals the pins' 09756bcf; strip series 294/294 exact again).
-  **S3c rerun running** from about 13:50: `/home/user/demo`, `--first-round 4 --rounds 2 --out /home/user/s3c4.jsonl`; `/home/user/pusher.sh` copies it to `rows/stage3-s3c-4.jsonl`, pushes and bumps this heartbeat every 15 min. **To resume:** keep only complete rounds (200 rows each) of `rows/stage3-s3c-4.jsonl`; set the container up again; run what is missing (`--first-round 5 --rounds 1` into `rows/stage3-s3c-5.jsonl` if round 4 is complete); then `python3 lab/htj2k-tiles/improve/stage3/summary.py rows/stage3-s3a.jsonl rows/stage3-s3b.jsonl <S3c's complete rounds>`, the readings R3–R7 in `docs/htj2k-tiles.md` §Improve, measured, `docs/lines/codecs.md`, this Result, done. `rows/stage3-s3c.jsonl` (153 rows of round 4, session 3) is incomplete and not kept.
+Session 4 (2026-11-12 13:25–18:05) resumed the row on a stale heartbeat (12:03) while session 3 was still running; session 3 finished it (`9d622d3e`, readings `ef5adda2`, state done). Session 4's run of rounds 4–5 is a duplicate, outside the rule and HTJ2K-VERDICT: `rows/stage3-s3c-4.jsonl` (`585e4834`), written up as a replicate in docs §Improve, measured (`3f339d29`) and `docs/lines/codecs.md` (`13d62d26`). It also moved S3b's facts (`f09c9d3d`) into order. Nothing to resume.
 Session 3 plan (2026-11-11 23:24 UTC), the client's design fixed before any run:
 * `lab/htj2k-tiles/improve/stage3/`: `page.js` (one lab page, every arm), `store.js` (a lab OPFS store worker: level
   pictures, coded bands, OQ pictures, by key), `run.mjs` (the driver, on 157b7109's total-time rig: Williams cells,
@@ -109,3 +107,4 @@ HTJ2K-VERDICT waits on this row.
   153, software WebCodecs; 4× cgroup throttle; emulated links. Nothing that only a phone can show is claimed.
 * Owner: whether Layout 1 (three strips, band-major) becomes the DBT store format for the Lossless request; whether
   an exact level picture may be shown before the frame (D+L★), and in what words.
+* Replicate (session 4, outside the rule): rounds 4–5 again in a fresh container, 268/400 kept (131 void). Every reading is alike except R3's "≤ ×1.02 in every cell", which fails on the lossy cell (`dbts_c1` sideways 1×, ×1.35, s 0.164; S3c gave ×1.171). Owner: R3's second clause depends on which run is taken, on the lossy cell alone.
