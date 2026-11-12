@@ -1,124 +1,184 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`).
+Last verified 2026-11-12 07:20 UTC against the demo tip `claude/demo-fixes-2` `18d2d1ff` (the demo commit `157b7109`
+plus docs; PR 367), `main` `017a3ca6`, `claude/core` `2e6fa5b2`, the work queue's status files on
+`claude/work-ledger`, `claude/merge-plan`, `claude/lines-ready`, `claude/lab-off-main`, `claude/clean-product` and the
+open PRs (241).
 
-## Goal
+## 1. Goal
 
 Get finished, reviewed work from the lines into `main`, keep `main` deployment-ready, and keep the branch and PR set
-small enough that every open item has an owner and a next step.
+small enough that every open item has an owner and a next step. For the two weeks from 2026-11-14 the owner only
+dispatches agents: this file holds the rules they follow across lines (§5).
 
-## State now (2026-11-10)
+## 2. On `main` after this week's merge
 
-* `main` is at #319 (`patch_crate.sh` with `git apply`); before it, #184 (rustls 0.23.46, rustls-webpki 0.103.16,
-  tokio 1.53.3 for RustSec advisories, 2026-10-26).
-* About 230 remote branches and about 190 open PRs, nearly all drafts. The full table, with a proposed action per
-  branch, is `docs/inventory-2026-11-09.md` on `claude/repo-inventory` (temporary, no PR; it is removed once the
-  owner has decided).
-* `claude/av1-unified-mainbase` is the de-facto integration branch: 62 commits ahead of `main`, 3 behind; 65 open PRs
-  target it. Its product change is small (`client/decode/av1*.js`: one-pass merge on by default, a signed 8-bit range
-  fix; two `ingest/` fixes); the rest is `lab/av1` and `docs/`.
-* On 2026-10-30 the drafts were folded into one branch per line: `claude/core` (#250, client and native),
-  `claude/line-server` (#254), `claude/line-hygiene` (#256), `claude/line-pacs` (#258, not for merge yet),
-  `claude/line-viewer` (#255, parked). Most older drafts are carried by one of these and need closing, not review.
-* **The path into `main` is one branch**, `claude/core-next` (draft PR into `claude/core`), each step its own `--no-ff`
-  merge with its conflicts recorded in the PR body: `gate.yml` gives PRs into `claude/core` CI (the plan's O1); then
-  `core-ci-deploy` (the image copies `client/native`), `core-int8` and its fixes, the demo branches (`oq-ingest`,
-  `oq-client-fixes`, `oq-depth-cut`, `demo-e2e`, `phone-setup`, `phone-pair`, with their fixes), #289, #299, #302,
-  `claude/av1-unified-mainbase` (in place of #303) and `main`. The order is `claude/plan:docs/lines/plan.md`'s (the
-  demo first, the fold's merges after it), which differs from §Open 2's.
-* The glossary has one row each for *optimal quality*, *exact series*, *depth cut* and *pairing*; *lossy series* is
-  gone as a second name, in code comments and docs too.
-* **CI `deploy` fails on `claude/core`**: the root `Cargo.toml` lists `claude/core:client/native`, which
-  `deploy/Containerfile` does not copy. `main` would stop being deployment-ready if `core` merged as it is. *Fixed on `claude/core-next`* by
-  `core-ci-deploy` (the image copies `client/native`).
-* **The gate in a fresh cloud session** (2026-11-10, `claude/gate-cloud`): the "exact … undefined" failures were the
-  HTJ2K frame check run without `client/decode/wasm/built/xxh3`, which needs `build.sh`'s Docker, and the daemon is
-  not started there. That check now skips by name like the AV1 one; with the README's cloud lines the full gate is
-  OK on `main` and on `claude/oq-depth-cut`, skipping only nginx and the GL-display arms. `ingest/.build` is not
-  checked for staleness: one built from another branch fails `lossy_test.py`.
-* 89 open PR bodies carry a "Generated with/by" line and a session link, and many commits a Co-Authored-By trailer
-  (listed in the inventory). New work must not add either (`CLAUDE.md` §Agents).
+Nothing is merged yet. `main` is at #319 (`patch_crate.sh` with `git apply`); before it, #184 (rustls 0.23.46,
+rustls-webpki 0.103.16, tokio 1.53.3 for RustSec advisories, 2026-10-26).
 
-* **CLEAN-PRODUCT (2026-11-11)**, `claude/clean-product` into `claude/demo-fixes-2`: the gate's absence check
-  `scripts/check_lab_absent.sh` (the deploy images' stages copy nothing from `lab/`, the default build compiles no
-  lab source, the web image ships no check or lab module, only `head.js` names a `lab/` module), and items 11–15 of
-  `docs/reviews/experiments-off.md` (on `claude/demo-clean`): the page hooks in `lab/viewer/hooks.js`, the check's
-  modules out of the web image, the server's three lab flags behind `lab-levers`, `onePass` and `reuseCopyBuffer`
-  retired. Not done: item 16 (below); item 11's removal waits for the owner.
+* **The two merge words** (the owner's, after FREEZE-E2E; the week of 2026-11-16 or the weekend before): #367
+  (`claude/demo-fixes-2` into `claude/core`), then #250 (`claude/core` into `main`), merge commits, never squashed.
+  `main` and `claude/core` are both ancestors of the tip (re-read 2026-11-12), so neither word resolves anything and
+  `main` ends with the tip's tree. The order, the checks before each word and what PRE-DEMO's check of `main` runs
+  after: `claude/merge-plan:docs/reviews/merge-plan.md` §1–3. Its hashes are from 2026-11-11 19:55 (tip `d46811c6`);
+  read them again before each word.
+* **The demo commit** `157b7109` (FREEZE-E2E, [`../reviews/freeze-e2e.md`](../reviews/freeze-e2e.md)): the full gate
+  OK, README §Demo's check loop 40 of 40 in both views. CI on #367's tip `b196f009`: the deploy job green (CLEAN-REVIEW);
+  read #367's checks on its head again before word 1.
+* **The cleaning rule, enforced**: `scripts/check_lab_absent.sh` in the gate's absence checks (CLEAN-PRODUCT, merged
+  in `157b7109`): the deploy images' stages copy nothing from `lab/`, the default build compiles no lab source, the
+  web image ships no check or lab module, only `head.js` names a `lab/` module. Items 11–15 of
+  `docs/reviews/experiments-off.md`: the page hooks in `lab/viewer/hooks.js`, the check's modules out of the web image,
+  the server's three lab flags behind `lab-levers`, `onePass` and `reuseCopyBuffer` retired. CLEAN-REVIEW: no
+  blocker, each change reverted is caught, the check fails on the old tree; its findings F1–F5 are §4 item 6.
+* **CI**: `gate.yml` runs on pushes to and PRs into `claude/core` and `main`; a green `gate` job is the full
+  `scripts/gate.sh`, absence checks included. The `deploy` failure on `claude/core` `2e6fa5b2` (the image did not copy
+  `client/native`) is fixed in the tip by `core-ci-deploy` (#336).
+* **The gate in a fresh cloud session** (`claude/gate-cloud`, #341, carried): README's cloud lines; the HTJ2K frame
+  check skips by name without `client/decode/wasm/built/xxh3`. `ingest/.build` is not checked for staleness: one
+  built from another branch fails `lossy_test.py`, so rebuild it per branch.
+* **Terms**: [`../glossary.md`](../glossary.md) has one row each for *optimal quality*, *exact series*, *depth cut*,
+  *pairing*; *lossy series* is gone as a second name.
 
-## Open (ordered)
+## 3. Decided (never reopened by an agent)
 
-1. The owner decides the inventory's proposed actions (merge, keep, archive, delete, close).
-2. The demo path into `main` by 2026-11-13: the demo tip is `claude/demo-fixes-2` (PR 367 into `claude/core`), built
-   on `claude/core-next` (PR 351), `claude/demo-fixes-0` (PR 355) and `claude/demo-fixes-1` (PR 363), each carried by
-   the next. After FREEZE-E2E the owner gives two merge words, PR 367 then PR 250, as merge commits; the PRs and
-   branches they carry in full are listed by MERGE-PLAN (`claude/merge-plan:docs/reviews/merge-plan.md`) and closed
-   or deleted after. Nothing reaches `main` uncleaned ([`optimal-quality.md`](optimal-quality.md) §Open 2).
-3. The proposed order into `main` after that: `av1-unified-mainbase` ← `line-hygiene` ← `line-server` ← `core` ←
-   `line-pacs`; `line-viewer` stays parked.
-4. Where the archive index lives (33 `archive/*` tags exist, no index file on `main`; `docs/archive.md` is a candidate).
-5. Strip "Generated by" lines from the PR bodies listed in the inventory; trailers stay in history unless the owner
-   approves a rewrite.
-6. **The lab crates out of the root workspace** (experiments-off item 16), a structural proposal for the owner: the
-   image's build stage copies the six `lab/` crates because they are workspace members, and cargo must load
-   `lab/cc-classify` and `lab/server-telemetry`, sources included, to resolve `series-server` even with their features
-   off (tried 2026-11-11: without them `cargo build --locked -p series-server` fails to read their manifests). The
-   change: a workspace manifest of its own under `lab/` (proposed, not written) for the four crates no product feature names, its own lock file,
-   the gate's `cargo test` steps for them run there; the two crates `series-server`'s lab features name stay
-   members, or those features move behind a path the image does not copy. Decides: whether one lock file across
-   product and lab is worth the copy. No deploy image carries a lab crate today (the absence check).
-7. **Item 11, the frame clock** (the owner's yes): `dd2c3902` on `claude/clean-product` removes its arms, page and
-   driver (a protocol built and smoke-run on 2026-10-30, never run, run by no line); `24b80bcd` restores them.
-   On a yes, `git revert 24b80bcd`. `dd2c3902`'s message reads as a revert by mistake; it is the removal.
+| decision | date | recorded |
+| --- | --- | --- |
+| Push any branch but `main`; never force-push or rewrite pushed history | 2026-10-03 | this file |
+| An independent product, fully MIT; author `dary-dc <crespoydelgado@gmail.com>`, no trailers, no "Generated by" line or session link | 2026-10-07 | this file; `CLAUDE.md` §Agents |
+| A work branch takes finished work only; every merge needs the owner's explicit word per PR | 2026-10-14, 10-17 | this file |
+| Direction, not destination: designs show what decides each choice and stay switchable; test-only code stays out of product functions | 2026-10-18 | this file |
+| wt-pacs's choices are the owner's, the PCS's its team's, and may differ by design (XXH3 here, BLAKE3 at the PCS) | 2026-10-28 | this file |
+| Nothing reaches `main` without review | 2026-11-09 | this file |
+| Nothing reaches `main` uncleaned: an experiment in use stays on its line's unified branch until clean; one no longer in use is removed with a commit and recovered from history (`git log --diff-filter=D -- <path>`), not from a kept branch or tag; no new archive tags. `lab/` on `main` is the measurement harness only (product never imports `lab/`, no lab code in product modules, nothing from `lab/` in the deploy image or default build), enforced by `scripts/check_lab_absent.sh` | 2026-11-04, corrected 2026-11-11 17:30 | this file (corrected in place once; the 11-04 text said an `archive/<name>` tag and an index line); the queue file, the owner's decisions of 13:30 |
+| wt-pacs is self-contained: line state lives in `docs/lines/`; the private notes keep only rules (forbidden topics and strings) | 2026-11-11 | this file |
+| The demo is suspended; the product goes on; the core design is closed with what it has: the two words, #367 then #250, merge commits | 2026-11-11 21:15 | `claude/work-ledger:docs/queue-2026-11-10.md`, the owner's decisions |
+| One unified proposal branch per line (`claude/unified-<line>`), built by agents, reviewed by another session; the owner reviews them 2026-11-13, dispatches minimal fixes and schedules their merges; building them is the one merge agents do | 2026-11-11 21:30 | same |
+| About two weeks with no steering after that: the rules of §5 | 2026-11-11 21:15 | same |
+| Defaults until the owner decides: telemetry off (rate 0); CLEAN-PRODUCT's item 11 (the frame clock) kept, item 16 (the workspace split) not done; #368, #369, #370 stay separate PRs outside the unified branches | 2026-11-11 21:30 | same |
+
+## 4. Open, ranked
+
+1. **The two merge words** (§2). Matters: until they land, every two-week branch would start from a `main` without the
+   core design. Deciding check: merge-plan §2's, re-run before each word (CI green on that head, `main` and
+   `claude/core` unchanged and inside the tip, the absence steps green in the run's log). Owner only.
+2. **Closing and deleting what the words carry**, for the owner's yes, after word 2 (§4.1 below). Matters: 241 open
+   PRs and 312 remote branches; most are carried and need closing, not review. Deciding check: merge-plan §5's
+   ancestry, re-run against `origin/main` after word 2; a branch that moved since is no longer carried in full.
+3. **The unified branches' merges** (2026-11-13): LINES-READY's mapping (`claude/lines-ready:docs/reviews/lines-ready.md`
+   §7): client, optimal quality and native → `claude/unified-client` (from the demo tip after FREEZE-E2E; CLEAN-2 and
+   NAMES-1 last, each its own merge); codecs → `claude/unified-codecs` (from `claude/av1-unified-mainbase`); server →
+   `claude/unified-server` (from `claude/line-server`); hygiene → `claude/unified-hygiene` (from `claude/line-hygiene`);
+   metadata → `claude/unified-pacs` (from `claude/line-pacs`); viewer none (`claude/line-viewer` parked). None of the four
+   line branches merges onto the tip without conflicts (hygiene 29 files, server 3, pacs 6, viewer 6), and none is
+   carried by it, by patch. Inputs: rows UNIFY-*, UNIFY-REVIEW, BRIEF-FRI. The proposed order into `main` after the
+   core: `av1-unified-mainbase` ← `line-hygiene` ← `line-server` ← `core` ← `line-pacs`, now through each unified branch.
+4. **Line docs for server and hygiene** (LINES-READY §8): DIRECTION-CODECS proposes a `server.md` split out of
+   [`codecs.md`](codecs.md); hygiene, LINES-READY proposes, stays here as §Unification steps 3 and 4. Owner.
+5. **`lab/` off `main` entirely** (row LAB-OFF-MAIN, `claude/lab-off-main:docs/reviews/lab-off-main.md`): five options
+   A–E against today's rule, E recommended first; eight ties T1–T8 (workspace members, server features, the viewer's
+   lab gate, product tests using lab helpers, the optimal-quality writer, gate and CI, 1 441 doc mentions). Structural:
+   owner.
+6. **CLEAN-PRODUCT's open items** (`claude/clean-product:docs/reviews/clean-product.md`, #371's branch; its last three
+   docs commits are not in the tip):
+   * **Item 16, the lab crates out of the root workspace**, a structural proposal: the image's build stage copies the
+     six `lab/` crates because they are workspace members, and cargo must load `lab/cc-classify` and
+     `lab/server-telemetry`, sources included, to resolve `series-server` even with their features off (tried
+     2026-11-11: without them `cargo build --locked -p series-server` fails to read their manifests). The change: a
+     workspace manifest of its own under `lab/` (proposed, not written) for the four crates no product feature names,
+     its own lock file, the gate's `cargo test` steps for them run there; the two crates `series-server`'s lab
+     features name stay members, or those features move behind a path the image does not copy. Decides: whether one
+     lock file across product and lab is worth the copy. No deploy image carries a lab crate today.
+   * **Item 11, the frame clock** (the owner's yes): `dd2c3902` removes its arms, page and driver (built and smoke-run
+     2026-10-30, never run, run by no line); `24b80bcd` restores them; on a yes, `git revert 24b80bcd`. `dd2c3902`'s
+     message reads as a revert by mistake; it is the removal (F5).
+   * **F1**: the device kit's `asksfirst` arm (`lab/devices/arms.json`) is refused by a default image built after the
+     merge: a `lab-levers` image, or drop the arm. **F2**: `?check` with a refused transport gives no result (300 s
+     wait). **F3**: `check.mjs --url` is Chromium only.
+7. **Branch and PR hygiene that remains** (§5's rules keep it from growing): the inventory's proposed actions
+   (`claude/repo-inventory:docs/inventory-2026-11-09.md`, 2026-11-09, ~230 branches then) are the owner's; its
+   *archive* action is superseded by the 11-11 rule (§3): a branch the words carry is closed and deleted, an
+   experiment is removed with a commit. 34 `archive/*` tags exist and stay (no tag is deleted); whether they get an
+   index (`docs/archive.md` was the candidate) is the owner's, and no new one is made. PR bodies: FOOTERS-CHECK and
+   FOOTERS-NEW left 0 "Generated by" footers in PRs opened since 2026-11-10 07:00; the older bodies the inventory
+   lists, and the Co-Authored-By trailers in history, stay unless the owner approves a rewrite.
+
+### 4.1 Close and delete after word 2, for the owner's yes
+
+From merge-plan §4.1 (read at tip `d46811c6`), re-run here against the tip `18d2d1ff` on 2026-11-12 07:10: 83 remote
+branches carried in full (the plan's 76 plus the 7 already in `main`), the same set as the plan's; 229 not.
+`claude/clean-product` is **not** carried in full (3 docs commits, CLEAN-REVIEW's, after the merge).
+
+* **Open PRs carried** (63, with #367 and #250): #367, #365, #364, #363, #362, #361, #360, #356, #355, #354, #353,
+  #351, #349, #348, #346, #345, #344, #343, #342, #341, #337, #336, #330, #328, #327, #321, #320, #302, #299, #289,
+  #253, #252, #250, #247, #246, #245, #244, #243, #242, #241, #240, #239, #238, #237, #236, #235, #232, #231, #229,
+  #228, #227, #226, #225, #218, #216, #212, #209, #206, #201, #198, #189, #132, #124. GitHub marks those into
+  `claude/core` and `main` merged by itself; the rest are closed by hand, saying they landed in `main` with word 2.
+* **Branches without an open PR, carried**: `claude/av1-complementary`, `av1-lcevc-2026`, `av1-unified-mainbase`,
+  `demo-clean`, `demo-redteam`, `demo-review-blind`, `demo-tests-mobile`, `jxl-single-frames`, `nightly-xxh3-pin`,
+  `rustls-advisories-mainbase`, `viewer-architecture`, `viewer-integration`, `viewer-survey`.
+* **Already in `main`** (deletable now): `claude/deploy-prebuilt-server`, `docs-lines`, `docs-lines-2`,
+  `lab-out-of-product-2yftz0`, `rustls-advisories-main`, `tidy-open-prs-ljtmay`.
+* **Keep while it is the base of an open PR the words do not carry** (deleting it closes that PR):
+  `claude/av1-unified-mainbase` (63 PRs; also `claude/unified-codecs`'s base), `claude/core` (14: #260–#267, #273,
+  #294, #296, #298, #301, #303), `claude/demo-fixes-2` (#368, #369, #370), `claude/demo-fixes-0` (#359),
+  `claude/frame-memory-m5` (#259), `claude/native-core-2` (#211), `claude/opfs-arms-d` (#285),
+  `claude/opfs-persist-sources` (#187), `claude/viewer-architecture` (#214), `claude/vw-exp-1` (#248),
+  `claude/worker-clock` (#249). Close or retarget those PRs first, or keep the branch.
+* Not carried, each the owner's on its own evidence (merge-plan §4.2): #368–#370 (proposals on the tip), the docs and
+  lab PRs into `main` (#357, #358, #366 and others), the `claude/core` drafts above, and the earlier lines and studies.
+
+## 5. Unsupervised
+
+**The two-week rules** (2026-11-14 to about 11-28; the owner, 2026-11-11 21:15 and 21:30):
+
+* **No merges anywhere**, except those the owner names. Building a unified proposal branch was the one merge agents
+  did, and it ends 2026-11-13.
+* **One question, one branch, one draft PR**, branched from `main` once it holds the core design (word 2), or from
+  the line's unified branch where a line experiment in use needs it. Its PR body names the question, the deciding
+  measurement and the line doc it answers to.
+* **A review row per build**, by a session that did not write it: each test fails without its change, the change
+  touches nothing else, the gate.
+* **A weekly brief**, each Friday, `docs/reviews-<date>.md` on `claude/reviews-<date>`: what each row produced, the
+  owner decisions owed, the PR and branch counts against last week's.
+* **Hygiene that keeps the count from growing**: open no PR for a question that already has one (search the open PRs
+  first); a fix to a draft goes on its branch, not a new PR; a findings-only or docs-only row writes to its line doc
+  or one review file, with no PR unless its brief asks; a superseded PR is listed in the brief for the owner to close
+  (agents never close); no branch or tag is deleted; the brief reports open PRs and remote branches each week.
+* The work queue (row QUEUE-2W: `claude/work-ledger:docs/queue-2026-11-14.md`, which the owner starts or not)
+  holds the rows; each follows its brief, its line doc and `CLAUDE.md` §Agents.
+
+**An agent may, without the owner**: re-read and re-run merge-plan §2 and §5 and report; review a PR as a review
+row; keep this file and `docs/lines/README.md`'s dates current; list PRs and branches for closing or deleting, with
+the ancestry that shows them carried.
+
+**Waits for the owner**: any merge (the two words included); closing a PR or deleting a branch (§4.1 is a list for
+the yes, not a licence); any removal; the inventory's actions; anything structural (§4 items 4–6); any change to §3.
+
+## 6. Pointers
+
+`CLAUDE.md`, `README.md`, `scripts/gate.sh`, `scripts/check_lab_absent.sh`; `docs/merge-readiness.md`;
+[`README.md`](README.md) (the line files); `claude/work-ledger:docs/queue-2026-11-10.md` (the owner's decisions, the
+rows) and its status files, `claude/work-ledger:docs/queue/<ROW>.md`; `claude/merge-plan:docs/reviews/merge-plan.md`; `claude/lines-ready:docs/reviews/lines-ready.md`;
+`claude/lab-off-main:docs/reviews/lab-off-main.md`; `claude/clean-product:docs/reviews/clean-product.md`;
+`claude/repo-inventory:docs/inventory-2026-11-09.md`; the line branches `claude/core` (#250), `claude/line-server`
+(#254), `claude/line-hygiene` (#256), `claude/line-pacs` (#258), `claude/line-viewer` (#255, parked).
 
 ## Unification (the owner, 2026-11-09)
 
 Every build adds code paths, tests and terms; before the owner steps back from steering, the repository is unified so
-that unsupervised work starts from one clear state. For the sessions that take it on, in order:
+that unsupervised work starts from one clear state. In order:
 
-1. Decide the inventory line by line (§Open 1), then archive or delete what it settles (`archive/<name>` tag plus one
-   index line).
-2. One path into `main` (§Open 2–3), each merge reviewed by a session that did not write it; nothing else merges.
-3. One name per concept: reconcile `docs/glossary.md` across the merged branches (e.g. *exact series*, *optimal
-   quality*, *pairing*, *lossy series*; done for these on `claude/core-next`), and rename in code where two names mean one thing.
-4. One implementation per job: where two branches or two clients do the same work, keep one and record the other's
-   removal; experiment flags that no line still uses leave `main`; lab code stays on its line branch.
+1. Decide the inventory line by line (§4 item 7); what it settles is closed or deleted once carried, or removed with
+   a commit (the 11-11 rule; no archive tags).
+2. One path into `main` (§4 items 1 and 3), each merge reviewed by a session that did not write it.
+3. One name per concept: reconcile [`../glossary.md`](../glossary.md) across the merged branches (done for *exact
+   series*, *optimal quality*, *pairing*, *lossy series*), and rename in code where two names mean one thing
+   (NAMES-1).
+4. One implementation per job: where two branches or clients do the same work, keep one and record the other's
+   removal; experiment flags no line uses leave `main`; lab code stays on its line branch (CLEAN-PRODUCT, CLEAN-2).
 5. Every line file in `docs/lines/` reflects the unified state; stale lines say so.
 
-*2026-11-11 (the owner):* this is done as part of the demo, limited to the demo path, before 2026-11-13; the rest
-after it ([`optimal-quality.md`](optimal-quality.md) §Decisions, 2026-11-11). Understanding comes with it: the
-findings-only rows of the night of 11-11 (OPT-SIMPLIFY, CLEAN-FIND, NAMES-FIND, DEFAULTS-FIND, ESSENTIALS) feed
-steps 3 and 4.
-
-## Decisions (the owner's)
-
-* 2026-10-03: push any branch but `main`; never force-push or rewrite pushed history.
-* 2026-10-07: an independent product, fully MIT; author `dary-dc <crespoydelgado@gmail.com>`, no trailers.
-* 2026-10-14: a work branch takes finished work only. 2026-10-17: every merge needs the owner's explicit word per PR.
-* 2026-10-18: direction, not destination: designs show what decides each choice and stay switchable; test-only code
-  stays out of product functions.
-* 2026-10-28: wt-pacs's choices are the owner's; the PCS's are its team's, so the two may differ by design (XXH3
-  here, BLAKE3 at the PCS).
-* 2026-11-04, corrected 2026-11-11: nothing reaches `main` uncleaned. An experiment still in use stays on its line's
-  unified branch, which reaches `main` only once clean; one no longer in use is removed with a commit and recovered
-  from history if needed again (`git log --diff-filter=D -- <path>`), not from a kept branch or tag (the 11-04 text
-  said an `archive/<name>` tag and an index line). `lab/` on `main` is the measurement harness only: product code
-  never imports `lab/`, no lab code sits inside product modules, nothing from `lab/` enters the deploy image or the
-  default build; `scripts/check_lab_absent.sh` enforces it in the gate. `lab/` off `main` entirely is a proposal
-  (row LAB-OFF-MAIN).
-* 2026-11-09: nothing reaches `main` without review; the demo is built on `claude/core`.
-* 2026-11-11: wt-pacs stays self-contained: line state lives in `docs/lines/`, the private notes keep only rules such
-  as forbidden topics and strings. The work queue's rows run in parallel while the usage window is free.
-* 2026-11-11 evening: the demo is suspended; the product goes on, and the core design is closed with what it has.
-  Before the owner's return (2026-11-13, about 21:00 UTC) agents build one unified proposal branch per line
-  (`claude/unified-<line>`), each reviewed by another session; the owner reviews them, asks for minimal fixes and
-  schedules the merges into each line's unified branch; the merge into `main` (PR 367, then PR 250) follows the next
-  week or the weekend. Then about two weeks with almost no steering: **no merges anywhere**, except those the owner
-  names; each question is one branch and one draft PR with a review row; building the proposal branches is the one
-  merge agents do. The work queue (`claude/work-ledger:docs/queue-2026-11-10.md`, the owner's decisions of 21:15 and
-  21:30 UTC) holds the rows and the defaults until the owner decides them.
-
-## Pointers
-
-`CLAUDE.md`, `README.md`, `scripts/gate.sh`; `claude/repo-inventory:docs/inventory-2026-11-09.md`; the line branches
-above; `docs/merge-readiness.md`.
+*2026-11-11 (the owner):* done within the demo path before 2026-11-13, the rest after; the findings-only rows
+(OPT-SIMPLIFY, CLEAN-FIND, NAMES-FIND, DEFAULTS-FIND, ESSENTIALS) feed steps 3 and 4. Steps 3 and 4 are the hygiene
+line's work (LINES-READY's proposal, §4 item 4).

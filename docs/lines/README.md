@@ -9,7 +9,7 @@ decision, and the date at the top. Something learned for another line goes into 
 
 | line | goal | file | last verified |
 | --- | --- | --- | --- |
-| coordination | merges, review order, branch and PR hygiene across the lines | [`coordination.md`](coordination.md) | 2026-11-09 |
+| coordination | merges, review order, branch and PR hygiene across the lines | [`coordination.md`](coordination.md) | 2026-11-12 |
 | codecs and lab | HTJ2K and AV1, server, transport and disk, measured to `CLAUDE.md` §Measurement | [`codecs.md`](codecs.md) | 2026-11-12 |
 | optimal quality | an optimal-quality AV1 series every viewer sees, the exact HTJ2K frame on an explicit Lossless request | [`optimal-quality.md`](optimal-quality.md) | 2026-11-12 |
 | client | the browser client: transport, decode, cache, paint, telemetry | [`client.md`](client.md) | 2026-11-12 |
