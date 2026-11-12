@@ -562,3 +562,59 @@ The protocol names the arms, streams and checks but not the code or every readin
   not kept; `C_TAMPER=1` (one frame's reference changed) must give every arm one miss. The cores lever's check is
   `rows/c-check.txt`.
 * **Host.** One 4-core cloud host without a GPU, cgroup v1 `cpu`, the pre-installed headless Chromium of Playwright.
+
+### C · measured, 2026-11-12 05:50 UTC
+
+Under amendment 1: 15 rounds of 132 arm-runs, 03:30–05:41 UTC (round 1 rerun whole after a container restart, its
+117 partial rows in `rows/c-stopped.jsonl`), no hash miss and no void round; Chromium 153.0.8010.12, headless, the
+demo tip `18d2d1ff`. Rows `lab/av1/audit/rows/c.jsonl`, readings `rows/c-summary.json` and `c-summary.txt`
+(`c_summary.py`), the cores lever `rows/c-check.txt` (four loops: 4.11× at 4×, 8.14× at `cores: 2`, 15.51× at
+`cores: 1`, against 4, 8 and 16). Every figure: mean over 15 rounds (t 95 % interval).
+
+**Checks.** A/A Hp′ ÷ Hp is 0.96–1.02 in every (volume, throttle); no interval lies wholly beyond ±5 %, so no cell
+is void. Known cost: (Hm − Hb) ÷ Hp and pass ÷ Hp differ by 0.002–0.042, under the A/A half-width (0.022–0.086) in
+all 12 (volume, throttle): the clocks are what the protocol says. The checks' mutation (`C_TAMPER=1`) gave each arm
+its one miss.
+
+**The unit.** Hp at 1×: 19.8 (18.0–21.5) ms a frame on `dbts_a1`, 57.1 (53.8–60.4) on `dbts_b1`, 20.1 (18.2–21.9)
+on `dbts_c1`.
+
+| reading at 1× | `dbts_a1` | `dbts_b1` | `dbts_c1` | prediction | verdict |
+| --- | --- | --- | --- | --- | --- |
+| (Wb − W) ÷ Hb, Q 8 · rule Q | 0.27 · 0.26 | 0.37 · 0.37 | 0.34 · 0.34 | C1: 0.20–0.32; refuted outside 0.15–0.40 | not refuted; band missed on `b1`, `c1` |
+| Hk ÷ Hb | 1.36 (1.28–1.43) | 1.61 (1.52–1.70) | 1.52 (1.46–1.57) | C2: 1.25–1.50 | band missed on `b1`, `c1` (above) |
+| Hp ÷ Hb | 1.03 (0.94–1.13) | 1.06 (0.99–1.13) | 1.08 (1.00–1.17) | C2: 1.00–1.10; refuted > 1.15 | holds |
+| W ÷ Hp, Q 8 | 1.24 (1.18–1.30) | 1.74 (1.66–1.81) | 1.36 (1.27–1.45) | C3: 1.4–1.9 (`a1`, `c1`), 1.2–1.8 (`b1`); refuted ≤ 1.0 | not refuted; band missed on `a1`, `c1` (below) |
+
+W ÷ Hp by throttle (rule Q: `a1` 6, `b1` 11, `c1` 7):
+
+| stream | 1× | 4× | 4×, `cores: 2` | 4×, `cores: 1` |
+| --- | --- | --- | --- | --- |
+| `dbts_a1` Q 8 | 1.24 (1.18–1.30) | 0.68 (0.63–0.72) | 0.74 (0.69–0.78) | 1.16 (1.10–1.23) |
+| `dbts_a1` Q 6 | 1.72 (1.63–1.80) | 1.12 (1.04–1.20) | 1.12 (1.06–1.18) | 1.56 (1.49–1.63) |
+| `dbts_b1` Q 8 | 1.74 (1.66–1.81) | 1.06 (1.02–1.09) | 1.07 (1.02–1.11) | 1.58 (1.50–1.66) |
+| `dbts_b1` Q 11 | 1.29 (1.24–1.34) | 0.69 (0.65–0.74) | 0.74 (0.72–0.76) | 1.21 (1.15–1.27) |
+| `dbts_c1` Q 8 | 1.36 (1.27–1.45) | 0.70 (0.66–0.74) | 0.75 (0.71–0.80) | 1.23 (1.15–1.31) |
+| `dbts_c1` Q 7 | 1.53 (1.43–1.62) | 0.86 (0.78–0.94) | 0.89 (0.83–0.95) | 1.39 (1.31–1.47) |
+
+D ÷ Hp (dav1d-WASM, one thread) is 1.86–2.89 on every stream and throttle; it barely moves with the throttle, as a
+one-thread arm divided by a one-thread arm should.
+
+* **C4 holds.** Uncapped 4× takes 0.52–0.68 off W ÷ Hp on every stream (≥ 0.15). At `cores: 1` W ÷ Hp is within
+  0.08–0.16 below its 1× value, inside ±0.15 on four streams and 0.01 outside it on two (`a1` Q 6, `b1` Q 8: −0.16);
+  never ≤ 1.0. `cores: 2` lies between, but within 0.00–0.06 of uncapped 4×: two slowed cores give WebCodecs
+  nearly all it takes from four.
+* **C5 holds** at every throttle: below Q 8 (`a1` Q 6, `c1` Q 7) W ÷ Hp is higher than at Q 8; above it (`b1` Q 11)
+  lower.
+* **Decision rule.** W ÷ Hp's upper bound is above 1 at `cores: 1` on all three volumes (1.23–1.66), and at `cores: 2`
+  above 1 on `dbts_a1` Q 6 and `dbts_b1` Q 8. So "WebCodecs decodes under one HTJ2K frame on a slow device" is not
+  claimed: a core-capped host does not show it, and a phone is owed. With four slowed cores and two, the view at the
+  Q 8 and rule-Q streams `a1` Q 8, `b1` Q 11, `c1` Q 8 and Q 7 decodes in 0.68–0.89 of the product's HTJ2K frame.
+* **Conversion factors** (for restating earlier studies in Hp, *derived*): Hp = 1.03–1.08 Hb; Hk = 1.36–1.61 Hb, so
+  Hk = 1.26–1.52 Hp at 1×.
+
+Saturation: at 1× W uses up to four cores and the others one, so its 1× ratios hold for a 4-core host only; at
+`cores: 1` and `cores: 2` the cap is the limit. Fixtures: three timed DBT volumes (`dbts_a1`, `dbts_b1`, `dbts_c1`)
+of one dataset, the middle 16 frames, G 1 only; one 4-core cloud host without a GPU; software WebCodecs
+(`prefer-software`). A capped cloud core is not a phone core: nothing here is a phone claim, and nothing speaks for
+G > 1, hardware decode or concurrent decodes.
