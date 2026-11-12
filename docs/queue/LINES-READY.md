@@ -1,17 +1,22 @@
-state: started
+state: done
 started: 2026-11-12 05:01
-heartbeat: 2026-11-12 06:15
-outputs: claude/lines-ready ea9c2e2d+ (docs/reviews/lines-ready.md, docs/lines/coordination.md), no PR (findings, docs only)
+heartbeat: 2026-11-12 06:35
+outputs: claude/lines-ready 96d33ad0 (docs/reviews/lines-ready.md; docs/lines/coordination.md §Open 3), no PR (findings, docs only)
 ## Resume
-Done, raw (scratch only, not yet in the doc): cherry and trial merges onto the demo tip 18d2d1ff, aborted: none of
-line-hygiene (29 conflicted files), line-server (3), line-pacs (6), line-viewer (6) merges cleanly; no commit of any
-line is in the tip by patch; 10-30 CI on each line PR head (gate green on all four; deploy red on #258 only); open
-PR containment computed (240 open PRs, 63 carried by the tip, 103 by neither the tip nor a line branch).
-Running: the default series-server build of each line branch, checked for lab sources (as check_lab_absent.sh does).
-Pushed: docs/reviews/lines-ready.md (ea9c2e2d) and the coordination.md line. Next: fill §5 from
-/tmp/claude-0/lrdata/labbuild.out (re-run: cargo build --release -p series-server on each line branch, grep its .d for
-lab/), then status done. Earlier plan was: write docs/reviews/lines-ready.md on claude/lines-ready (per branch: content, merge, gate, cleaning rule,
-verdict; then the line doc -> unified branch mapping with PRs), update docs/lines/coordination.md, push, draft PR? no:
-findings only, no PR named in the row; status done.
-Recompute: for b in line-hygiene line-server line-pacs line-viewer; do git cherry origin/claude/demo-fixes-2 origin/claude/$b; done
+Done; nothing left for this row. The UNIFY rows read docs/reviews/lines-ready.md §7 (the mapping) and §2–§4 (per branch).
 ## Result
+* Read at 05:00–06:10 UTC against the demo tip claude/demo-fixes-2 18d2d1ff. Nothing merged; trial merges in a scratch worktree, aborted.
+* No line branch is in the tip by patch, and none merges onto it cleanly: hygiene 29 conflicted files, server 3, pacs 6, viewer 6.
+* Gate on the merged tree not run (resolving conflicts = preparing a merge). In its place: each PR's 10-30 CI (gate green on #254,
+  #255, #256, #258; deploy red on #258 only) and each branch's default series-server built: no lab source, no lab default member
+  (the check shown to fire with --features lab-frame-cache).
+* line-hygiene (#256): product hygiene worth bringing, mostly absent from the tip (tests.rs split, licence notices, arm64 build,
+  AsyncFd fix, fifth-round V3/V9/V10); V8 superseded.
+* line-server (#254): docs and rows worth bringing; rows 258-260's arms sit in product modules, not adopted: leave in history.
+* line-pacs (#258): crates and serve-by-UID are proposals awaiting metadata.md §Open 3; labs done; 6 commits of #167/#168/#230/
+  #233/#234 missing from it.
+* line-viewer (#255): parked; #297, #300, #251 not on it.
+* Mapping (§7): client+OQ+native -> unified-client; codecs -> unified-codecs (from av1-unified-mainbase); server and hygiene have no
+  line doc; metadata -> unified-pacs; viewer and coordination none.
+* Fixtures and limits: one read of origin; no gate on any merged tree; review state from titles, bases and status files only.
+* Owner: line docs for server and hygiene or not; hygiene's V1 (seven lab dirs) and #116 (no default series); line-server's arms.
