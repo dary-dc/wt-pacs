@@ -60,6 +60,11 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).
+7. The series server's network mode in `deploy/` (2026-11-12, row HOSTNET-THEORY, `claude/hostnet-theory`): theory in
+   [`../transport/network-mode.md`](../transport/network-mode.md) proposes host networking for `server` and `exact`
+   (rootless pasta's publish drops at the host what the controller reads as congestion, carries no ECN and splits
+   every GSO send); unmeasured. Its §6 is the check that decides, owed to the next phone round, written by a session
+   that will not run it.
 
 ## Decisions (the owner's)
 

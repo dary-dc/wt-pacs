@@ -22,6 +22,10 @@ and nginx has no QUIC upstream, so the browser dials it directly, as in developm
 move because of anything here. TCP 4433 is published for the WebSocket fallback, but `server-start.sh` passes no
 `--websocket`, so nothing answers there unless the `server` service is given `command: ["--websocket"]`.
 
+**The network mode is open.** `ports:` puts rootless podman's pasta, a userspace hop, between the path and the
+server; host networking for `server` and `exact` is proposed, unmeasured, in
+[`../docs/transport/network-mode.md`](../docs/transport/network-mode.md), with the check that would decide it.
+
 ## Run it
 
 From a fresh clone or a `git archive` of one, with docker (or podman; every `docker` below reads `podman` as well):
