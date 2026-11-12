@@ -162,6 +162,10 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   ~2 ms base round trip, at least ~600 Mbit/s, a tail-drop queue that loses at 22–96 ms, no random loss; the tether
   ~0.7 ms and ~265 Mbit/s. The README's "min RTT" by controller was the fill's smoothed RTT, corrected in place. The
   relay cannot run this link (checked to 100 Mbit); `netem` can, on a host with the cores. Fitted once, one link.
+  *What bounds its fills* (FILL-SPLIT, 2026-11-12, `claude/fill-split`, [`docs/phone-rows/README.md`](../phone-rows/README.md)
+  *What bounds a fill*): the phone's decode. The frames' decode time over the three decoders is 0.76–0.94 of every fill
+  (median ~0.90; 133–135 ms a frame on every link and controller); the wire is done within the first second. Where the
+  phone saturates is not shown: the run varied neither the decoder count nor the decoder Chrome took.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
   twelve): running REDTEAM-DEMO, REVIEW-BLIND, TEST-MOBILE, AV1-CORRECT, OPT-THEORY, and the rows added that night:
@@ -199,7 +203,7 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
 5. Phone runs: the first ran on 2026-11-11 (State now). Before decisions: the blind read (PHONE-BLIND-READ).
    Before the next round, theory first: production's network mode (HOSTNET-THEORY), the two product failures
    (LOSSLESS-UNDER-LOSS, HIDDEN-PAGE-DECODE), a link profile from this run's traces (LINK-CALIBRATION, done), what bounds
-   a fill on the phone (FILL-SPLIT), and a runner that needs no hands (RUNNER-AUTO, the phone session's).
+   a fill on the phone (FILL-SPLIT, done: the decode), and a runner that needs no hands (RUNNER-AUTO, the phone session's).
 11. Understanding before 11-13: the findings of OPT-SIMPLIFY, CLEAN-FIND, NAMES-FIND, DEFAULTS-FIND, ESSENTIALS and
     FABLE-SIMPLIFY, each ranked by what it saves a presenter; the owner chooses what goes in before the demo and what
     after. Then a reading pass with the owner, ESSENTIALS' points first, deeper only where time allows.
