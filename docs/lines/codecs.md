@@ -29,7 +29,12 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
   clock, *derived*; `dbts_b1` has no Q 8 cell); through dav1d-WASM in 1.9–4.7. AV1 saves bytes, not decode time, at
   Q 8 at 1× on this host. *Corrected 2026-11-11 (decode audit 2, 13):* this read "1.05–2.04 HTJ2K frames, Q 8", a range
   that spans three rungs a set and carries that pass. These ratios divide by different HTJ2K units; the product's own
-  path is timed in none (decode audit §The HTJ2K frame is not one unit).
+  path is timed in none (decode audit §The HTJ2K frame is not one unit). *Measured 2026-11-12* (`../av1/audit-protocols.md`
+  §C measured), in the product's own unit Hp (its HTJ2K decode plus the XXH3 check, what a Lossless request runs):
+  the view decodes in 1.24 (`dbts_a1`), 1.74 (`dbts_b1`), 1.36 (`dbts_c1`) Hp at Q 8, G 1, 1×, and in 1.72, 1.29,
+  1.53 Hp at the rule's Q (6, 11, 7); dav1d-WASM in 1.9–2.9 Hp. On a host capped to one slowed core it stays above
+  1 Hp (1.16–1.58); WebCodecs under one HTJ2K frame on a slow device is not shown. One 4-core host, software
+  WebCodecs, three DBT volumes, the middle 16 frames.
 * **Quality** (`claude/av1-quality-metrics`, 20 series, one shard missing): the coding error reaches the noise at
   Q 8 (system A: Q 4) at the bar 1.00, which sits inside the estimator's 3 % error; at the noise rule's bar of 1.03
   every 12-bit volume reads Q 8 and the 10-bit ones Q 12–16, and either bar passes a coding that deletes the fine-band
@@ -73,7 +78,11 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    (A1), sits at 0.286–0.495 at the rule's Q (A2 refuted at the top, `dbt10_ea1141`), is not one curve of x (A3
    refuted), and Q_ν costs 1.16–1.92× the rule's bytes (A4 refuted on 3). Owed to the owner: quote the anchor as
    [Q_lo, Q_hi] with ν beside (decision 1 of `claude/docs-lines-3:docs/lines/codecs.md` §Open 0), and "keep at least
-   half" (Q_ν) as an option. C not run.
+   half" (Q_ν) as an option. C measured (2026-11-12, 15 rounds, demo tip `18d2d1ff`, Chromium 153, amendment 1):
+   on the product's HTJ2K path Hp (decode plus XXH3, 19.8–57.1 ms a frame at 1×) as the unit, the view through
+   WebCodecs at 1× decodes in 1.24–1.74 Hp at Q 8 and 1.29–1.72 at the rule's Q; under 4× it falls to 0.68–1.12 with
+   four or two slowed cores and rises back to 1.16–1.58 with one (C4, C5 hold; C1–C3 not refuted, bands missed).
+   The decision rule does not claim "under one HTJ2K frame on a slow device": a phone is owed.
 0. **G at equal quality** (`claude/av1-groups`, protocol then measurement): G has only been compared at equal Q. Open:
    why G saves almost nothing at Q 8 on DBT (an equal-Q reading at the rung below the byte cliff: G 16 ÷ G 1 is
    0.93–1.01 at Q 8 and 0.77–0.94 at Q 12, quality audit F2; groups shard 1 measures 4.2–4.4 % at the noise anchor on
