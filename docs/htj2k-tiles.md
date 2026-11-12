@@ -900,7 +900,7 @@ s is the p90 of |S's Lossless ÷ W − 1|: the same bytes on the same build, use
 * ~~the strip arms' series~~ cut into Layout 1's band-major entries; checked from the entries alone, 294/294 pictures exact, three mutants caught ([`stage3_check.py`](../lab/htj2k-tiles/improve/stage3_check.py));
 * ~~a lab client for D+T3, D+L★ and S★~~ built ([`stage3/`](../lab/htj2k-tiles/improve/stage3/)), with I4's store and its reopen; stage 0's two cache mutants caught (below);
 * ~~`parity.mjs` on both builds~~ PARITY OK on the delivered build and on the lab level binding, nine fixtures, 87 frames each ([`rows/stage3-parity.txt`](../lab/htj2k-tiles/improve/rows/stage3-parity.txt));
-* then §Protocol's stage 3 as written, and R3–R7: running, shard by shard (below).
+* ~~then §Protocol's stage 3 as written, and R3–R7~~ run, six rounds (below).
 
 ### Improve, measured: stage 3 (row HTJ2K-MEASURE, 2026-11-12)
 
@@ -955,6 +955,52 @@ six rounds, so no verdict is drawn here. Rows are in
 * **The decode-bound test, as pre-registered,** names 12 of the 20 (set, link) pairs. In those, D's every-slice time at
   4× exceeds 1.05 × its time at 1×, because D's fill is decoded by software WebCodecs on this host. So `r5000` and the
   lossy cell are most of what stays link-bound. This is reported with the verdict and is not amended.
+
+**Stage 3, all six rounds (S3a–S3c, 11-11 23:52 to 11-12 ~14:30; 1 200 visits).** Rows:
+[`rows/stage3-s3a.jsonl`](../lab/htj2k-tiles/improve/rows/stage3-s3a.jsonl), `-s3b`, `-s3c`. Readings come from
+[`summary.py`](../lab/htj2k-tiles/improve/stage3/summary.py) over all three files. Fixtures and host are as above
+(Chromium 153.0.8010.12; WebCodecs decoded every OQ frame, in software), and the links are emulated. Nothing on the
+list of what only a phone can show is claimed. Each ratio is the median of six round-paired ratios, and s is the
+cell's p90 of |D′/D − 1| on the denominator's quantity.
+
+* **Kept: 1 053.** 125 visits are void (the relay ran late) and 22 failed: 17 in S3a, then 2 and 3 once the store
+  retry was in. Every failed visit had received all its bytes and stalled in the lab store, after the clock.
+* **R0 holds** in every kept visit: every level and Lossless picture is exact, and the OQ digest agrees across each
+  volume's D visits.
+* **Decode-bound cells, by the rule as written.** In 13 of the 20 (set, link) pairs, D's every-slice time at 4×
+  exceeds 1.05 × its time at 1×; the software AV1 fill is the cause. **The only link-bound cell left on every volume
+  is `r5000`.** The rule's "two thirds of the link-bound cells" is therefore one cell of one. The readings below
+  name it, and give the other cells as readings that decide nothing.
+
+| reading (4× unless said) | `dbts_b1` `r5000` (link-bound) | the other cells, clean | the lossy cell `r20000 l1` |
+| --- | --- | --- | --- |
+| D+T3's Lossless ÷ D's | ×0.923 (s 0.016); 1× ×0.972 | `dbts_b1` ×0.73–0.92; `dbts_a1`, `dbts_c1` ×0.78–0.94 (1× ×0.93–0.98) | ×0.85–1.17 |
+| D+L★'s level picture ÷ D+T3's Lossless | ×0.285 (s 0.087); 1× ×0.287 | `dbts_b1` ×0.35–0.47; `dbts_c1` sideways ×0.31–0.59 | ×0.14–0.32 |
+| D+L★'s level picture ÷ D's Lossless (J6) | ×0.264; 1× ×0.279 | `dbts_b1` ×0.28–0.37 | ×0.14–0.39 |
+| D+L★'s Lossless ÷ D+T3's (J7) | ×1.010; 1× ×1.001 | ×0.94–1.07 | ×0.77–1.17 (s up to 3.9) |
+| S★'s first picture ÷ D's | ×0.665 | `dbts_b1` ×0.39–0.68; `dbts_a1` ×1.3–5.6; `dbts_c1` upright ×1.1–4.6, sideways ×0.57–1.4 | — |
+| S★'s every slice ÷ D's | ×1.227 | `dbts_b1` ×0.62–1.33; `dbts_a1` ×7.5–20; `dbts_c1` upright ×5.8–14, sideways ×1.3–3.3 | — |
+
+* **R3, the rule as written: holds, on its one link-bound cell.** D+T3 is ×0.923 of D at 4× on `dbts_b1` `r5000`.
+  That is a miss strictly (bound 0.92) and within the bound with s (0.92 × 1.016). D+T3 is also ≤ ×1.02 × (1 + s)
+  of D in 40/40 (volume, throttle) groups, 38/40 strictly; the two strict misses are the lossy cell's `dbts_b1` at 1×
+  (×1.021) and `dbts_c1` sideways at 1× (×1.171, s 0.154). The rule's consequence follows: **D+T3 is proposed for
+  the Lossless request**, with Layout 1 for DBT, a store-format change for the owner. Its standing rests on one
+  link-bound cell, since the others are decode-bound by the D arm's AV1 fill on this host.
+* **R4 holds** on `dbts_b1` upright at `r5000`, 1× and 4×: the level picture is ×0.285–0.287 of D+T3's Lossless
+  (≤ ×0.40), and its Lossless ×1.001–1.010 (≤ ×1.08). **D+L★ is proposed beside D+T3.** Whether a level picture may
+  be shown, and in what words, is the owner's.
+* **R5: S★ is withdrawn for the scroll**, on one volume of three. Where the fit is level 0 (`dbts_a1`, `dbts_c1`
+  upright), S★ sends the whole exact series; every slice is pictured ×5.8–20 later than D, and the first picture is
+  ×1.1–5.6 later. On `dbts_b1` (fit level 1) it meets both bounds in 5/5 cells at 4× and 4/5 at 1×.
+* **R6 holds.** Every reopen of every arm asked 0 bands and decoded 0 pictures: 431/431 for S★ and D+L★, 1 053/1 053
+  in all. *Outside the rule:* in 18 reopens on `dbts_b1` (the D arms; 17 MB pictures), OQ frame 47 or 49 read back
+  from the lab store differed from the picture that was filled. The exact and level pictures always matched. This is
+  a lab-store defect, unexplained, that touches no time.
+* **R7 (J11), named and deciding nothing:** many ratios on `r20000 l1` sit outside ±10 % of their clean `r20000`
+  value. D+T3 ÷ D moves ×1.26 on `dbts_b1` at 4× and on `dbts_c1` sideways. D+L★'s level ÷ D+T3 moves ×0.39–0.70.
+  S★ ÷ D moves ×1.1–4.1. s on the lossy cell reaches 0.5–3.9, so one lossy round can move a ratio more than the arms
+  differ.
 
 **Shard S3b, rounds 2–3 (2026-11-12 06:42 to 10:32; 400 visits),** with the store retry. Facts only, as for S3a. Rows
 are in [`rows/stage3-s3b.jsonl`](../lab/htj2k-tiles/improve/rows/stage3-s3b.jsonl).
