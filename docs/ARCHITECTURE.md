@@ -879,9 +879,11 @@ driver on it once the ClientHello is whole — on both of the library's server e
 so a `SessionRequest` exists only after a completed handshake, and early data stays off. **On by default.** *Corrected in place:* this was first
 said to halve the round trip and to need a fork; it removes the whole of it — Chrome sends its CONNECT
 with its Finished once it holds the SETTINGS — and is carried as a build-time patch:
-[`../scripts/patch_crate.sh`](../scripts/patch_crate.sh) applies it with `--fuzz=0` to the
-checksum-verified crates.io tarball, behind a `[patch.crates-io]` shim in `patched/wtransport/`;
-dropping it is deleting that line. `settings_ride_the_handshake_flight` and
+[`../scripts/patch_crate.sh`](../scripts/patch_crate.sh) applies it with `git apply` (exact context, every hunk
+or none) to the checksum-verified crates.io tarball, behind a `[patch.crates-io]` shim in `patched/wtransport/`;
+dropping it is deleting that line. Patches are applied with `git apply` rather than GNU `patch`: git is already a
+prerequisite, so `patch` is not one. The one exception is the lab's libaom SVC encoder build
+(`lab/av1/delivery/scalable/encoder/build.sh`). `settings_ride_the_handshake_flight` and
 `settings_ride_the_handshake_flight_from_a_quic_connecting` hold it, one test an entry point (mutants
 caught: the driver started after the handshake fails both; the patch before 2026-09-28 fails the
 second). *Corrected in place:* until then the patch covered only `Endpoint::accept`; a server that
