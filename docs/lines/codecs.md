@@ -1,6 +1,7 @@
 # Codecs and lab
 
-Last verified 2026-11-09 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09).
+Last verified 2026-11-11 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09; HTJ2K at screen
+resolution against the demo's approach, theory, its review and its improvement, 2026-11-11; measured, stages 0–2, 2026-11-11).
 
 ## Goal
 
@@ -56,7 +57,20 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    of the decode/timing results (`claude/av1-audit-decode`); the theory of coding error against the image's noise as
    the visually-lossless criterion, with model observers (`claude/av1-noise-ratio`); how VL is established in
    radiology (`claude/av1-vl-metrics`, landed); HTJ2K with resolution levels and tiles, a separate approach outside
-   the demo (`claude/htj2k-tiles`, protocol landed).
+   the demo (`claude/htj2k-tiles`, protocol landed). Against the demo's approach (2026-11-11, theory, [`../htj2k-tiles.md`](../htj2k-tiles.md)
+   §Screen resolution): on an upright phone only `dbts_b1` of the three timed volumes has a level to gain, so serving
+   HTJ2K at the screen's level is today's exact fill on `dbts_a1` and `dbts_c1`; it costs 1.2–10× the OQ view's bytes
+   to the first picture and the scroll (*derived*) and pays only when a reader asks Lossless on most slices. Its
+   protocol is pre-registered there, not run. Reviewed 2026-11-11 (row HTJ2K-REVIEW, §Review there): sources and
+   arithmetic hold but for corrections in place; missed were the measured three-strip tiling for the Lossless decode
+   and level offsets from tile-parts and TLM; the HTJ2K profile S relies on is ours, not known to be the PCS's. Improved
+   2026-11-11 (row HTJ2K-IMPROVE, §Improve there, theory): no change moves S's bytes, so S still does not pay for a
+   scroll; resolution tile-parts with TLM (DICOM's RPCL syntax), three strips on the client's three decoders, bands at
+   the viewport's level and a cache that fetches nothing twice shorten a reader's Lossless wait (D+T3 ×0.79–0.95 of
+   D's at 4× on a link, *derived*). One consolidated protocol is pre-registered there for HTJ2K-MEASURE. Measured 2026-11-11, stages 0–2 (row HTJ2K-MEASURE, §Improve,
+   measured there): exact on 175/175 frames, and 17 920/17 920 decoded pictures; I1's TLM prefixes decode on OpenJPEG
+   and OpenJPH; the strips cost +0.11–0.14 % in bytes (−0.2 % on `dbts_b1` at six decompositions); one Lossless decode on
+   three workers is ×0.43–0.48 of the whole frame's at 4× (R2 holds). Stage 3, on links (R3–R7), is run (6 rounds, 1 053/1 200 visits kept, every picture exact). On its one link-bound cell (`r5000`; the other links are decode-bound by the software AV1 fill on this host), R3 holds with s: D+T3's Lossless is ×0.923 of D's on `dbts_b1` at 4×, and ×0.73–0.94 in the cells that decide nothing. R4 holds: D+L★'s level picture is ×0.29 of D+T3's Lossless. R5 withdraws S★ for the scroll (×5.8–20 later where the fit is level 0). R6 holds: no reopen asks or decodes anything. Judged 2026-11-12 (row HTJ2K-VERDICT, §Verdict there): the demo's approach stands for the scroll; for the Lossless request D+L★'s level picture (×0.26–0.28 of today's wait on `dbts_b1` at 5 Mbit/s) survives on its mechanism, while D+T3's gain is 2.5–3× what its strips can explain, so R3's pass rests on an unattributed path difference. J11 is refuted. Owed in order: A1 (attribution, this host), then phone runs P1–P3 (decode-bound or not, the Lossless request, the store's quota and read-back). A replicate of rounds 4–5 (outside the rule, §Improve, measured there) reads the same except R3's "every cell" clause, which fails on the lossy cell (`dbts_c1` sideways, 1×, ×1.35).
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).

@@ -1,0 +1,92 @@
+{
+ "dbts_a1-bands": {
+  "entries": 504,
+  "bytes": 67895363,
+  "bandBytes": [
+   4881765,
+   13524534,
+   49489064
+  ],
+  "NL": 5,
+  "strips": [
+   [
+    0,
+    608
+   ],
+   [
+    608,
+    1216
+   ],
+   [
+    1216,
+    1785
+   ]
+  ],
+  "fit": {
+   "phone": 0,
+   "sideways": 0
+  },
+  "entriesSha256": "bf3e749428aaf0f8ade3732bbda753ff6804df67008fe3d0835d63a9f868914f",
+  "framesJsonSha256": "e8432faf23236a123b5971956220dae22996337e58f16fa3450bbd374de90129"
+ },
+ "dbts_b1-bands": {
+  "entries": 450,
+  "bytes": 107179177,
+  "bandBytes": [
+   7843358,
+   21043179,
+   78292640
+  ],
+  "NL": 6,
+  "strips": [
+   [
+    0,
+    1152
+   ],
+   [
+    1152,
+    2304
+   ],
+   [
+    2304,
+    3328
+   ]
+  ],
+  "fit": {
+   "phone": 1,
+   "sideways": 1
+  },
+  "entriesSha256": "1d05b0469ef0e329fa72ccee9dabbd1934af7dc24fc9485063d4d0fc307a6aad",
+  "framesJsonSha256": "5c3ceeb7508929c49246204a30738e76c2d833a3b645e987395d4e7a5a4e4e64"
+ },
+ "dbts_c1-bands": {
+  "entries": 621,
+  "bytes": 70751162,
+  "bandBytes": [
+   5267101,
+   14100563,
+   51383498
+  ],
+  "NL": 5,
+  "strips": [
+   [
+    0,
+    864
+   ],
+   [
+    864,
+    1728
+   ],
+   [
+    1728,
+    2513
+   ]
+  ],
+  "fit": {
+   "phone": 0,
+   "sideways": 1
+  },
+  "entriesSha256": "f1d4a23242333e0dc7dac007bd1180fc9c478ebc7632619bd593489a96d969c4",
+  "framesJsonSha256": "63b05e8142f6cf53fdb8f326b9a622b5450a2189c69b750e34020007154dd7ce"
+ }
+}
