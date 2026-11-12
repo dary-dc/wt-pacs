@@ -65,7 +65,7 @@ async function decode(m) {
     stamps.decodeEnd = abs();
     toConsumer.postMessage(picture(m, r, stamps));
     // The wire buffer goes back to the transport's ring, where the next frame is read into it.
-    postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount: r.byteCount, buffer: m.bytes.buffer }, [m.bytes.buffer]);
+    postMessage({ kind: "done", buffer: m.bytes.buffer }, [m.bytes.buffer]);
   } catch (err) {
     const reason = String(err?.message ?? err);
     postMessage({ kind: "failed", index: m.index, gen: m.gen, reason, buffer: m.bytes.buffer }, [m.bytes.buffer]);

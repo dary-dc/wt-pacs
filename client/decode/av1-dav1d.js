@@ -13,7 +13,7 @@ let cap = 0;
 let last = null;
 
 export async function init(d) {
-  M = await instantiate(d, "Dav1dModule", { mainScriptUrlOrBlob: d.glue });
+  M = await instantiate(d, "Dav1dModule");
   const opened = M._av1_open(d.threads ?? 1);
   if (opened < 0) throw new Error(`dav1d_open: ${opened}`);
 }

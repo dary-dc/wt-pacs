@@ -9,7 +9,7 @@ const FLAG_RCT = 2;
 const MAX_SPLIT = 8;
 const MAX_BITS = 16;
 
-const refuse = (why) => {
+export const refuse = (why) => {
   throw new Error(`undecodable: av1 payload: ${why}`);
 };
 

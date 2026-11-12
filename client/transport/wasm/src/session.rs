@@ -17,7 +17,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 use web_sys::{
     ReadableStream, ReadableStreamDefaultReader, ReadableStreamReadResult, WebTransport,
-    WebTransportHash, WebTransportOptions, WritableStreamDefaultWriter,
+    WebTransportCloseInfo, WebTransportHash, WebTransportOptions, WritableStreamDefaultWriter,
 };
 
 const FRAME_TIMEOUT_MS: u32 = 15_000;
@@ -80,13 +80,9 @@ impl WireBuffers {
     }
 }
 
-fn wire_view(buffer: &js_sys::ArrayBuffer, len: u32) -> Uint8Array {
-    Uint8Array::new_with_byte_offset_and_length(buffer, 0, len)
-}
-
 fn js_buffer_from(src: &[u8], wire: &mut WireBuffers) -> Uint8Array {
     let len = src.len() as u32;
-    let view = wire_view(&wire.take(len), len);
+    let view = Uint8Array::new_with_byte_offset_and_length(&wire.take(len), 0, len);
     view.copy_from(src);
     view
 }
@@ -116,29 +112,14 @@ async fn reader_read_value(
     Ok(Some(result.get_value()))
 }
 
-async fn reader_read_bytes(
-    reader: &ReadableStreamDefaultReader,
-) -> Result<Option<Uint8Array>, JsValue> {
-    match reader_read_value(reader).await? {
-        None => Ok(None),
-        Some(v) => Ok(Some(v.dyn_into::<Uint8Array>()?)),
-    }
-}
-
 /// Receive buffer with a read cursor — avoids per-frame `to_vec` + `drain` memmove.
+#[derive(Default)]
 struct RecvBuf {
     data: Vec<u8>,
     pos: usize,
 }
 
 impl RecvBuf {
-    fn new() -> Self {
-        Self {
-            data: Vec::new(),
-            pos: 0,
-        }
-    }
-
     fn available(&self) -> usize {
         self.data.len() - self.pos
     }
@@ -158,7 +139,7 @@ impl RecvBuf {
 
     /// Room for a frame whose length is now known: one allocation instead of a doubling
     /// sequence (16 → 32 → … KB, each step a copy) for every fresh buffer.
-        fn reserve_for(&mut self, total: usize) {
+    fn reserve_for(&mut self, total: usize) {
         let have = self.data.len() - self.pos;
         if total > have {
             self.data.reserve(total - have);
@@ -182,21 +163,17 @@ async fn read_exact(
     need: usize,
     on_read: &impl Fn(),
 ) -> Result<bool, String> {
+    let read_err = |e: JsValue| format!("stream read: {e:?}");
     while buf.available() < need {
-        match reader_read_bytes(reader)
-            .await
-            .map_err(|e| format!("stream read: {e:?}"))?
-        {
-            Some(chunk) => {
-                on_read();
-                buf.push_chunk(&chunk);
-            }
-            None => return Ok(false),
-        }
+        let Some(value) = reader_read_value(reader).await.map_err(read_err)? else {
+            return Ok(false);
+        };
+        let chunk = value.dyn_into::<Uint8Array>().map_err(read_err)?;
+        on_read();
+        buf.push_chunk(&chunk);
     }
     Ok(true)
 }
-
 
 /// A frame off a media stream, or the index of the one a stream that ended mid-frame lost.
 enum Envelope {
@@ -270,7 +247,7 @@ async fn pump_framed_stream(
         Ok(r) => r,
         Err(_) => return,
     };
-    let mut buf = RecvBuf::new();
+    let mut buf = RecvBuf::default();
     let on_read = || {
         let mut s = st.borrow_mut();
         s.last_byte_ms = perf_now_ms();
@@ -423,11 +400,9 @@ fn arm_fill(
     to: u32,
     on_frame: js_sys::Function,
     on_error: Option<js_sys::Function>,
-) -> f64 {
-    let ask_ms = perf_now_ms();
+) {
     let pending = (from..=to).collect();
-    st.borrow_mut().fill = Some(Fill { pending, ask_ms, on_frame, on_error });
-    ask_ms
+    st.borrow_mut().fill = Some(Fill { pending, ask_ms: perf_now_ms(), on_frame, on_error });
 }
 
 /// `:` and `-` are legal in a query, and the server's `parse_opening_ask` splits on them literally.
@@ -499,7 +474,7 @@ fn pump_uni(transport: &WebTransport, st: Rc<RefCell<SessionState>>) -> Result<(
 /// The server's control messages are refusals alone.
 fn pump_control(reader: ReadableStreamDefaultReader, st: Rc<RefCell<SessionState>>) {
     spawn_local(async move {
-        let mut buf = RecvBuf::new();
+        let mut buf = RecvBuf::default();
         loop {
             match read_fod_msg(&reader, &mut buf, &st).await {
                 Ok(FodMsg::FrameError { frame_index, reason }) => fail_waiter(&st, frame_index, &reason),
@@ -617,14 +592,14 @@ impl TransportSession {
         to: u32,
         on_frame: js_sys::Function,
         on_error: Option<js_sys::Function>,
-    ) -> Result<f64, String> {
+    ) -> Result<(), String> {
         if to < from {
             return Err("fillFrames: to < from".into());
         }
         if let Some(reason) = self.state.borrow().closed.clone() {
             return Err(format!("session unavailable: {reason}"));
         }
-        let ask_ms = arm_fill(&self.state, from, to, on_frame, on_error);
+        arm_fill(&self.state, from, to, on_frame, on_error);
         let payload = encode_fod_msg(&FodMsg::StreamFrames {
             from: Some(from),
             to: Some(to),
@@ -634,7 +609,7 @@ impl TransportSession {
             self.state.borrow_mut().fill = None;
             return Err("FoD request channel closed".into());
         }
-        Ok(ask_ms)
+        Ok(())
     }
 
     /// A wire buffer the consumer has finished with, back into the ring.
@@ -670,13 +645,10 @@ impl TransportSession {
 }
 
 fn closed_reason_of(info: &JsValue) -> String {
-    let code = Reflect::get(info, &JsValue::from_str("closeCode"))
-        .ok()
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.0) as i64;
-    let why = Reflect::get(info, &JsValue::from_str("reason"))
-        .ok()
-        .and_then(|v| v.as_string())
+    let info = info.unchecked_ref::<WebTransportCloseInfo>();
+    let code = info.get_close_code().unwrap_or(0);
+    let why = info
+        .get_reason()
         .filter(|r| !r.is_empty())
         .map(|r| format!(": {r}"))
         .unwrap_or_default();

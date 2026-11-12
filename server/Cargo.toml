@@ -39,7 +39,6 @@ series-bundle = { path = "../common/series-bundle" }
 libc = "0.2"
 io-uring = { version = "0.7", optional = true }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

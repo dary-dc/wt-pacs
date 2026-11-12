@@ -44,19 +44,16 @@ bash client/transport/ts/build.sh     # the TypeScript client and the test bundl
 # 2. A dev certificate, valid 10 days, and client/dev-transport.json pointing at port 4433
 ./server/scripts/gen_dev_cert.sh
 
-# 3. The smoke bundle is tracked; packing it again writes the same bytes
-cargo run -p pack-series -- \
-  --metadata fixtures/us_cine_smoke/metadata.json \
-  --frames fixtures/us_cine_smoke/frames \
-  --output fixtures/us_cine_smoke/us_cine_smoke.sbnd
+# 3. A series the page decodes, from tracked bytes: target/studies/grey.sbnd and grey.metadata.json
+scripts/grey_series.sh target/studies
 
 # 4. Terminal 1 — the WebTransport server
 cargo run --release -p series-server -- \
   --port 4433 \
-  --series fixtures/us_cine_smoke/us_cine_smoke.sbnd
+  --series target/studies/grey.sbnd
 
 #    Terminal 2 — the static host
-python3 server/dev-server.py --port 8765 --series us_cine_smoke
+python3 server/dev-server.py --port 8765 --metadata target/studies/grey.metadata.json
 
 # 5. Before pushing: the gate (about 100 s on 4 cores, warm builds); --no-browser skips the browser steps, --quick two absence checks
 scripts/gate.sh
@@ -76,9 +73,10 @@ driven directly.
 
 Then open in Chrome:
 
-- The viewer, the product's page: `http://127.0.0.1:8765/`. The smoke series' frames are placeholders and do not
-  decode, so give it a series of your own (§The viewer on a DICOM series). `"client": "wasm"` in
-  `client/dev-transport.json` loads it over the WASM client.
+- The viewer, the product's page: `http://127.0.0.1:8765/`, on step 3's three grey frames; a series of your own:
+  §The viewer on a DICOM series. `dev-server.py --client wasm` renders it over the
+  WASM client; it pins the dev certificate through `client/dev-transport.json`, which a deployment with a trusted
+  certificate does without ([`deploy/README.md`](deploy/README.md) §Run it).
 - A cell over the downloader: `http://127.0.0.1:8765/harness/cell.html?autorun=1`, the URL the static host
   prints; its last line is `run_end` with `delivered` equal to `asked`. `&transport=wasm` runs the WASM client.
   `&transport=ws` runs the WebSocket fallback, which needs the server started with `--websocket` and a Chrome
@@ -94,7 +92,7 @@ Then open in Chrome:
 
   The query parameters are listed in `lab/harness/shell.js`.
 - The downloader's self-check, every decoded frame against its `.sha256`: `http://127.0.0.1:8765/harness/`.
-  It needs the decoder (§Prerequisites) and the server on the `decode_c512` series in place of the smoke one
+  It needs the decoder (§Prerequisites) and the server on the `decode_c512` series in place of the grey one
   ([`docs/FIXTURES.md`](docs/FIXTURES.md)); the frames need cmake and a C++ compiler for OpenJPH's encoder:
 
   ```bash
@@ -103,7 +101,7 @@ Then open in Chrome:
   for f in lab/fixtures/decode_c512/*.j2c; do cp "$f" "target/c512/$(basename "$f" .j2c).htj2k"; done
   cargo run -p pack-series -- --metadata lab/fixtures/decode_c512/metadata.json --frames target/c512 \
     --output target/c512.sbnd
-  cargo run --release -p series-server -- --port 4433 --series target/c512.sbnd   # Terminal 1, in place of the smoke series
+  cargo run --release -p series-server -- --port 4433 --series target/c512.sbnd   # Terminal 1, in place of the grey series
   ```
 
 `lab/harness/cellcheck.sh` runs both pages headless in one go, after the c512 frames above: the cells over both

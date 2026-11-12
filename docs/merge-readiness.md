@@ -806,3 +806,318 @@ them as L7 does. That is the owner's choice.
 
 Each candidate C1–C10 leaves the product, or stays in it for good, when its own decision lands. None of them
 moves before that.
+
+## Fourth round: the simplification sweep
+
+*2026-10-20, a design review at `5625dcf4`; nothing built, run or timed. Scope: product code in `server/`, `common/`
+and `client/`, the WASM client a product client since #99. Out of scope: test code apart from product logic and the
+lab code in the default build (`claude/test-separation`), and #96, #39, #37, #40, #41, #88.*
+
+**The theory.** A layer earns its place by a capability: something a doc claims or a test holds that the product
+loses without it. After rounds 1–3, what is left to cut falls into three kinds. A **forward** adds no capability
+(a wrapper, a second parse, an error that cannot happen) and goes with nothing to prove beyond the gate. A
+**duplicate** is a second mechanism for one job (two clocks for one silence): one of them goes, and the claim the
+other one held has to be shown to survive. A **build variant** is a binary that cannot do something. Removing it
+loses a posture, not a feature, so it is the owner's call.
+
+**The answer, in short.** Little dissolves. About 85 product lines go with no decision (U1–U8), and about 130 more
+need one (U9–U12), against a product nobody has counted here. Each large layer is held by a capability (the
+two readers by the fill's one-read bound, the `FramePipeline` seam by telemetry, the WebSocket by the TCP fallback,
+which is open) or by an open decision. The largest single cut, `--congestion bbr-bound` (`loss_bound.rs`, 261 lines),
+belongs to the congestion-controller review (`claude/design-congestion-controller`, its option D), so it is not
+counted here. Every count is from a sketch, not a diff. Risk is as in round 2: 1 is covered by the gate's tests,
+2 needs a check the gate does not run, 3 changes behaviour.
+
+| # | what goes (where) | capability check | lines · risk |
+| --- | --- | --- | --- |
+| U1 | **`Congestion::as_str`** repeats clap's value names (`server/src/transport/tuning.rs:44-54`); round 2's S22, unblocked since #48 merged | `describe()` is its one caller; the tuning tests read `congestion=cubic-restart`, `bbr-bound` | −9 · 1 |
+| U2 | **The FoD message parsed twice on WASM.** `decode_fod_msg` (`common/fod/src/lib.rs:40-48`) re-reads a length `session.rs:383` already read; the WASM client calls `decode_fod_body`, as the server does (`wire.rs:33`). `encode_fod_msg`'s `Result` cannot fail (u32, `Option<u32>`, `String` fields) | the browser contract against the real server; `cargo test -p fod` | −13 · 1 |
+| U3 | **The bundle's header parsed twice, its metadata returned to nobody.** `prefix_len` (`common/series-bundle/src/format.rs:101-110`) repeats `parse_layout_checked`'s reads; `ParsedLayout.metadata` is read by neither the server (`frame_store.rs:46-48`) nor the lab (`lab/container-bench/src/parse.rs:619`); [`disk-layout/README.md`](disk-layout/README.md) §The metadata, twice says "nobody" | [`FIXTURES.md`](FIXTURES.md)'s two refusals stay in the index loop; lost: refusing non-UTF-8 metadata, which nothing claims | −18 · 1 |
+| U4 | **The pipeline's frame names built twice.** A fill builds a `Vec<FrameSpan>` to take `.first()` (`pipeline.rs:67-73,121-137`); `FramePipeline::store()` serves one call, `Planner::new` (`server.rs:371`), which `serve` can feed from `self.store`; all three callers write `serve(sessions.pipeline(link), …)` | the telemetry seam is `read`/`write`/`refuse`/`finish` ([`adr/telemetry-server-pipeline.md`](adr/telemetry-server-pipeline.md)); `store()` is not in it. Fill: server reads stays 24 | −16 · 1 |
+| U5 | **`enum Ahead { Idle, Named }`** is an `Option` (`server/src/media/read_path.rs:126-130`) | `a_fill_never_holds_more_than_one_read_at_once`, `an_abandoned_read_ahead_gives_its_buffer_back_to_the_pool` | −6 · 1 |
+| U6 | **Two helpers each written twice in `link.rs`:** open-and-ready (`:60-66`, `:134-139`) and the two priorities (`:188-197`) | the link tests, the per-frame server tests | −7 · 1 |
+| U7 | **The WebSocket reads the PEM files a second time** (`websocket.rs:63-90`, `server.rs:83-84`) though `Identity` already holds them; built from it, both transports serve the certificate whose hash the banner prints | the WebSocket server tests, `run_wire.sh`; wtransport 0.7.2's DER accessors to be confirmed | −5 · 2 |
+| U8 | **The WASM refusal reason kept in a side map** (`SessionState.errors`, `client/transport/wasm/src/session.rs:326,413,698`) instead of sent as the waiter's `Err` | the refusal, truncation and closed-session clauses on the WASM rig; the reason strings byte for byte ([`CLIENTS.md`](CLIENTS.md)) | −10 · 1 |
+| U9 | **Three objects for one WASM session**: `session-adapter.js`, `lib.rs`'s `TransportSessionHandle` (seven forwards, `:28-86`) and `session.rs`'s `TransportSession`. One `#[wasm_bindgen(js_name = TransportSession)]` type; the adapter becomes init plus re-export | the seam's surface unchanged ([`CLIENTS.md`](CLIENTS.md) §The seam); `close()` keeps `&self`; the contract suite on the WASM rig | ~−45 · 2, the crate's layout |
+| U10 | **The `uring` cargo feature**: 41 `cfg` sites in `read_path.rs` and four elsewhere; the no-uring check in `scripts/gate.sh:174` | at run time `WTPACS_READ_PATH=pool` and a refused ring both fall to the pool ([`adr/disk-access.md`](adr/disk-access.md) §1). **Lost:** a binary with no io_uring code. That build is today the only one that makes no io_uring call, because the banner's ring probe (`banner.rs:20`) runs even under `pool` | ~−33 · 1, **owner** |
+| U11 | **One control-stream path in `handle_incoming`** (`server.rs:267-287`): the opening-ask path serves a session with no URL ask too, the reader forwarding `Failed` when `accept_bi` fails | **changes the wire order** without an opening ask: the shared stream opens before the control stream is accepted, against [`ARCHITECTURE.md`](ARCHITECTURE.md) §The opening ask's "a session with no URL ask behaves as before" | −11 · 3, **owner** |
+| U12 | **Two clocks for one silence.** The transport's per-ask `FRAME_TIMEOUT_MS` (`frame-session.ts:9,118-141,165-167`; `session.rs:23,706-733`) and the downloader's stall watch (`downloader.js:268-277`) both count "no byte since the last byte"; with survival on, the first only triggers the second's resume (`:241`). One clock in the downloader, capped at 15 s and failing owed work when survival is off | **changes a claimed capability**: [`CLIENTS.md`](CLIENTS.md) gives the timer "its own job", `aFrameIsLateOnlyWhenTheSessionGoesQuiet` holds it at the transport, and lab pages that drive `TransportSession` alone lose it | ~−40 · 3, **owner** |
+
+**A contradiction, not a cut.** The web image ships `ws-session.js` and `race-session.js` (`client/transport/ts/build.sh:15-18`,
+`deploy/Containerfile:79,86`), but the product page accepts only `ts` and `wasm` (`client/viewer/head.js:16-22`).
+So [`deploy/README.md`](../deploy/README.md)'s `--websocket` enables a server nothing in the product dials. Either
+the bundles leave the image (−2) or `head.js` names them (+2). Which one depends on the TCP fallback, which is open (§Open there).
+
+**Kept, with the reason.** The two disk readers merged into one: `TileReader` would hold two fill reads in flight,
+against `a_fill_never_holds_more_than_one_read_at_once` and [`adr/disk-access.md`](adr/disk-access.md) §11.
+`FramePipeline` with one shipped implementation is the telemetry seam. `per-frame` is [`adr/stream-shape.md`](adr/stream-shape.md)'s,
+kept by the owner. `htj2k.js`'s `finish()` fallback: the package build reaches it. All five decoder modules are
+reachable. The wire framing in both TS and Rust: two independent clients is the reason for keeping two.
+`shutdown_signal`'s fallback (`main.rs:35-48`, −6): it holds only in a case Linux does not produce, but it costs
+less than reasoning about it. `wire.rs::read_exact` as wtransport's would hide `NotConnected` from `closed_by_peer`.
+Round 2's and round 3's keeps still hold.
+
+**How each is shown before it lands.** `scripts/gate.sh` in full, without `--no-browser`, since U2, U7, U8 and
+U9 need the browser and `run_wire.sh` steps. `scripts/perf_counts.baseline` must come back unchanged: none of these
+changes an ask, a read or a byte. Each touched path gets one mutation (CLAUDE.md §Measurement). U5 and U10 also
+need `lab/scripts/read_path_ab.sh` with the variants interleaved, and the fill cells must tie. U12 also needs its
+clause moved to the dispatch rig and mutated there, and the ASKDEADLINE cells re-run with the variants interleaved.
+
+**U9–U12, audited.** *2026-10-22, read at `efd5f1c8`; nothing built or run. Every holder found by grep over
+`server/`, `client/`, `lab/`, `deploy/`, `scripts/`, `.github/` and `docs/`.*
+
+* **U9, one WASM type.** *Held by:* [`CLIENTS.md`](CLIENTS.md):39-40 (the handle is exported as
+  `TransportSessionHandle`, the adapter re-exports it); no test holds the name. *Callers of the name:*
+  `session-adapter.js:6,14`, `client/contract/adapters.ts:69` (Node, which loads `pkg/` itself because it inits
+  from bytes, not a URL), `client/contract/refusals.html:34-37`, `lab/dial-deadline/index.html:28`. Every other
+  consumer (the viewer, `deploy/web-files.sh`, `check_equivalence.sh`, the lab pages) loads the adapter, whose
+  surface does not change. *Lost:* nothing; `session.rs` is never used as an rlib, and the adapter keeps the
+  one-time `init()`. The three direct callers are renamed in the same diff. *Proof:* the contract suite on the
+  WASM rig plus `refusals.html` and `check.mjs --client wasm` in the gate; mutation: keep the old `js_name` and
+  watch `adapters.ts` fail to connect. `named()` moves onto the merged type's two promise paths, so the
+  `FrameTimeoutError`/`DialTimeoutError` clauses must still pass by name. *Back:* one revert, no data.
+  **Verdict: safe with that proof.**
+* **U10, drop `uring`.** *Held by:* [`adr/disk-access.md`](adr/disk-access.md):51 and :1152-1154 (the pool path is
+  `--no-default-features`), `server/Cargo.toml:16,25-27,40`, `scripts/gate.sh:173-174` (`cargo check` only, no test
+  runs that build). *Who builds without it:* nobody: `deploy/Containerfile:42`, [`deploy/README.md`](../deploy/README.md):70
+  and CI (via the gate) build the default; the two arm patches in `lab/disk-access-bench/arms/` name `uring` as
+  context but are pinned to their own commit. *Lost:* a binary that makes no io_uring syscall. Under errno
+  seccomp (Docker's default, `kernel.io_uring_disabled`) that costs nothing: the probe and the ring are refused
+  and the pool serves ([`deploy/README.md`](../deploy/README.md):392-397). Under a filter that **kills** on a denied
+  call (systemd's `SystemCallFilter=` without `SystemCallErrorNumber=`) the default binary dies at the banner's
+  probe (`banner.rs:20`, `read_path.rs:225`) even under `WTPACS_READ_PATH=pool`; no deploy here uses one. So the
+  loss is for nobody today, and becomes nothing if the probe is skipped under `pool` (`read_ring=off (pool)`).
+  *Proof:* that skip plus a gate step running the default binary with `WTPACS_READ_PATH=pool` under
+  `strace -f -e trace=io_uring_setup` and asserting zero calls; mutation: probe regardless, the step fails. Plus
+  `read_path_ab.sh` interleaved, as above. *Back:* re-adding ~33 `cfg` lines from git. **Verdict: safe with
+  the probe skipped under `pool`, shown by the strace step; without it, loses the no-io_uring binary,
+  owner's call.**
+* **U11, one control-stream path.** *Held by:* [`ARCHITECTURE.md`](ARCHITECTURE.md):849 ("a session with no URL
+  ask behaves as before") and `an_opening_ask_is_served_behind_the_accept`'s second case (`server.rs:1164-1166`:
+  an ignored ask opens **no media stream**), which the merged path breaks, since `Link::quic` opens the shared
+  stream before control is accepted. *Who reads the order:* no client. Both browser clients and every Rust
+  harness (`window-harness`, `disk-access-bench`, `recv-cost`, `server/tests/gso_cap.rs`) open control, then accept
+  uni streams independently; the downloader dials with no URL ask when nothing is owed (`downloader.js:508`), so
+  the product does take the `None` path, and is indifferent to it. *Lost:* the doc claim, the test's "no stream"
+  assertion, and the `accept control bidi` error context; and a dial that never opens control now holds an
+  opened shared stream. *Proof:* rewrite that case as "no frame arrives" and add "a session with no URL ask is
+  served its first control ask"; mutation: drop the reader's `Failed` on a failed `accept_bi`, a session whose
+  client closes without control must still end. *Back:* one revert. **Verdict: not worth it**: −11 lines for a
+  rewritten test, a retracted doc line and a risk-3 change, gaining no capability.
+* **U12, one silence clock.** *Held by:* [`CLIENTS.md`](CLIENTS.md):251-253 ("`FRAME_TIMEOUT_MS` keeps its own job"),
+  [`client/README.md`](../client/README.md):181-187, [`ARCHITECTURE.md`](ARCHITECTURE.md):1045-1048; tests
+  `aFrameIsLateOnlyWhenTheSessionGoesQuiet` (`client/contract/clauses.ts:493`, both rigs) and `aTimedOutAskIsResumed`
+  (`client/transport/downloader.test.mjs:44`); `lib.rs`'s `named()`. *Callers that drive a session without the
+  downloader:* `lab/stream-shape/index.html`, `lab/idle-sessions/idle-hold.html`, `lab/telemetry-cost/cost.ts`,
+  `lab/client-telemetry/`, `client/contract/refusals.html` and `ask-during-fill.html`; on a silent session their
+  ask now hangs instead of failing at 15 s. *Product:* the viewer goes through the downloader with `survival` on;
+  a 15 s cap on the doubling stall is what `FRAME_TIMEOUT_MS` does there today (`client/README.md`:184-187), so
+  nothing is lost. `survival: false` (tests, `lab/session-survival`'s `today`) changes: owed **fills** would
+  fail at 15 s too, where today only asks do. *Proof:* the clause moved to the dispatch rig and mutated there (a
+  clock counted from the ask fails the 16 s trickle; no cap leaves the silent ask waiting), plus the ASKDEADLINE
+  cells interleaved. *Back:* ~40 lines in two clients, a contract clause and three doc passages. **Verdict:
+  loses the transport's own bound on a silent ask for lab pages and rigs that use `TransportSession` alone, and
+  changes `survival: false` for fills; owner's call.**
+
+**Order.** `claude/test-separation` rewrites `server.rs`, `link.rs`, `pipeline.rs`, `read_path.rs`, `format.rs`
+and `fod`, so U1–U7 land after it merges, as one draft pull request. U8 stands alone and can start today. U9 can
+join U1–U7 with its proof. U10 needs the probe skip first. U11 is dropped unless the owner wants it, and U12
+waits on the owner's word.
+
+## Fifth round: the client
+
+*2026-10-27, read at `ea581aca`; nothing built, run or timed. Scope: `client/` (transport TS and WASM, decode, paint,
+viewer, contract, scripts) and the docs that describe it (`ARCHITECTURE.md`, `CLIENTS.md`, `WIRE.md`, `decode/`,
+`display.md`, `client/README.md`, `client/paint/README.md`). Not re-reported: rounds 1–4 above, U1–U12 (#125, #134),
+the WASM envelope parsed twice and `decodeFodMsg`. Read against the open client PRs #121, #124, #132, #135, #136,
+#138 (and #133, which also touches `client/`). `decode/README.md` (2 392 lines) and `dispatch-rig.ts` (2 417) were
+searched, not read whole: for numbers `client/README.md` repeats, stale code references and duplicate helpers.*
+
+**The answer, in short.** The client's code is close to its essentials: about 44 lines go from it with no capability
+lost, each small. The docs give more: about 62 lines that restate the code (wrongly, in one case) or record closed
+items, safe now, and about 190 lines of built or rejected proposals in `CLIENTS.md`, which are the owner's to fold.
+Three more lines and one comment contradict the code (V14). Grep calls behind each "no caller" claim were run over `client/`, `lab/`,
+`scripts/` and `deploy/`.
+
+Each finding: evidence, change, lines (− removed, + added; a sketch, not a diff), proof that nothing is lost, risk
+(as in round 2: 1 the gate's tests cover it, 2 needs a check the gate does not run), verdict. Ranked by lines
+removed per unit of risk.
+
+| # | finding (evidence) | change | lines | proof · risk | verdict |
+| --- | --- | --- | --- | --- | --- |
+| V1 | **`ARCHITECTURE.md` §Messages restates the code, and is wrong.** Its tables (`:63-77`) omit `check`, `ack`, `undelivered` (`downloader.js:570-576`) and `pixel-port`, `started`, `resumed`, `recycled` (`consumer.js:82-96`); a `frame` comes from a decoder on the pixel port, not the downloader. The stamps paragraph (`:79-83`) names a "first byte" stamp that does not exist (`downloader.js:190`) and a conversion the consumer does not make | replace `:63-83` with one sentence: the messages are the branches of `downloader.js`'s `onmessage` and `consumer.js`'s `#fromDownloader`; stamps are epoch ms (`timeOrigin + now`); `wireBytes` per `client/README.md` §What a frame reports | −21 +3 | docs only; `adr-unit.md:214`'s §Messages pointer still resolves · 0 | **safe now**; **applied** |
+| V2 | **`CLIENTS.md` §Open holds closed items** (`:648-660`): rows 3–4 of the WASM proposal are built (rows 277, 278), row 228's dav1d half was rejected (`:435`), and both "known defects" are closed, each already stated with its clause in §The contract suite (`:164`, `:167`). `ARCHITECTURE.md` §Open's WASM bullet (`:1302-1306`) likewise: `anAskIsOnTheWireBeforeItReturns` is at `CLIENTS.md:165` | delete `CLIENTS.md:648-660` and `ARCHITECTURE.md:1302-1306`; keep the `websocket.rs` bullet (`:1307-1313`) under its parent (`:1300-1301`), re-worded "one found by reading the code, shown not reachable" | −19 +1 | docs only · 0 | **safe now**; **applied** |
+| V3 | **`client/README.md` repeats the root README and holds the lab's harness.** `:247-255` (the self-check and its run block) is `README.md` §Quick start's `:82-109`; `:271-273` mutates that lab page's `sha` lines, a rule `CLAUDE.md` §Measurement already states | replace `:247-255` with "The lab's self-check and cell pages: [`README.md`](../README.md) §Quick start."; delete `:271-273` | −12 +1 | docs only · 0 | **safe now**; **applied** |
+| V4 | **The WASM session's small forwards** (`client/transport/wasm/src/session.rs`): `wire_view` (`:83-85`) has one caller (`:89`); `reader_read_bytes` (`:119-126`) one (`:186`); `RecvBuf::new` (`:135-140`) is `Default`; `:161` is mis-indented (no `rustfmt` step covers the crate) and `:199-200` a double blank | inline `wire_view` into `js_buffer_from`; fold `reader_read_bytes` into `read_exact` (`reader_read_value(…)` then `dyn_into::<Uint8Array>()`, errors mapped as today); `#[derive(Default)]` on `RecvBuf`, `RecvBuf::default()` at `:273`, `:502`; re-indent `:161`; drop `:200` | −16 +4 | the gate's WASM build (`require_transport_wasm` refuses a stale `pkg/`), the contract clauses on the WASM rig, `downloader-wasm`, `dispatch-wasm`, `run_wire.sh` · 1 | **safe now** (U8/U9 touch other lines of the crate); **applied** |
+| V5 | **Two type-check configs for one directory.** `client/transport/ts/tsconfig.json` cannot check its own `include` (the sources import `./x.ts`); `tsconfig.check.json` adds the one flag, and `client/contract/tsconfig.json:4` adds it again | add `"allowImportingTsExtensions": true` to `tsconfig.json`; delete `tsconfig.check.json`; drop `contract/tsconfig.json:4`; `scripts/gate.sh:122` `-p tsconfig.check.json` → `-p tsconfig.json` | −8 +1 | the gate's type-check step prints `typed`; mutate: a type error in `frame-session.ts` fails it · 1 | **safe now**; **applied** |
+| V6 | **`client/README.md` keeps history and repeats `ARCHITECTURE.md`.** `:95-97` (the warm-up removed 2026-10-03, the tag), `:132` "nothing was renamed to make room for it", `:177-178` (the probe ask until 2026-09-24): each is in `decode/README.md` §Warming the decoders or the queue. `:120-125` (a request is a generation) restates `ARCHITECTURE.md` §The consumer (`:459-466`) | delete the three; `:120-125` → "**A request is a generation**: [`ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §Messages, §The consumer." | −10 +1 | docs only · 0 | **safe now**; **applied** |
+| V7 | **`fillFrames` returns a time nobody reads.** `frame-session.ts:246,249,252` and `armFill` `:260,265`; WASM `lib.rs:45`, `session.rs:426,430,620,627,637`; the contract's type `clauses.ts:22` and `downloader-rig.ts:38`; documented `CLIENTS.md:273` (`→ askMs`). No caller uses it (grep for an assignment from `fillFrames(` over `client/`, `lab/`: none) | `void`/`()` throughout: `armFill` stores `askMs: performance.now()` in the fill itself, `arm_fill` likewise; `Ok(())`; `clauses.ts:22` `): void;`; delete `downloader-rig.ts:38`; drop `→ askMs` | −6 | `run.mjs` on every session, both browser rigs (the fill's `askMs` still reaches `onFrame` through `toResult`/`result_to_js`) · 1 | **safe now** (#136 edits `frame-session.ts:351-380` only); **applied** |
+| V8 | **`DownloaderClient`'s `#failAll` has one caller** (`consumer.js:142-145`, called at `:196`) | in `#end`: `this.#closedReason ??= reason; this.#rejectAll(this.#closedReason);`; delete `#failAll` | −4 +1 | `consumer.test.mjs`, the dispatch rig's closing clauses (*closed by the consumer*) · 1 | **safe now**; **applied** |
+| V9 | **WASM reads `WebTransportCloseInfo` by `Reflect`** with fresh key strings (`session.rs:672-684`), the cost `:107-108` says the file avoids, while `Cargo.toml:24` enables the typed dictionary and nothing uses it | `info.unchecked_ref::<WebTransportCloseInfo>()` and its `get_close_code()`/`get_reason()`; if web-sys 0.3.105 names them otherwise, delete `Cargo.toml:24` instead | −4 | `noticesClose` and the closed-session clauses on the WASM rig name the code and reason · 2: the getter names are confirmed only by the build | **safe now**, either branch; **applied** (the typed getters). *Corrected at apply:* no clause asserts the reason's text; a probe showed `session closed (code 7): server went away` before and after |
+| V10 | **The AV1 refusal written twice**: `av1-frame.js:8-10` and `av1-payload.js:12-14`, the same message prefix | `export const refuse` in `av1-payload.js`; `av1-frame.js` imports it (already loaded with it: `av1.js:6-7`) | −3 +1 | `av1.test.mjs` and the dispatch rig check every refusal by its message · 1 | **safe now**; **applied**. *Corrected at apply:* `av1.test.mjs` matches a refusal's reason, not its prefix, and only its golden section (dav1d build) reaches `av1-frame.js`'s refusals; a mutant dropping the reason fails 15 of 233 |
+| V11 | **One comment said twice in `downloader.js`**: `:26` and `:459-460` | delete `:459-460`; `:26` ends "…the dial does not: docs/ARCHITECTURE.md §The downloader." | −2 | comment only · 0 | **safe now** (#135, #138 do not touch either); **applied** |
+| V12 | **Every caller passes `{ mainScriptUrlOrBlob: d.glue }` to `instantiate`** (`htj2k.js:35`, `av1-dav1d.js:16`, `lab/decode-bench/copy/htj2k-copy.js:9`); the test passes nothing | `wasm-glue.js:6,10`: no `options`, the factory always gets `mainScriptUrlOrBlob: d.glue`, with `htj2k.js:34`'s comment moved there; the three calls drop the argument | −1, a parameter fewer | `wasm-glue.test.mjs`, the real-decoder rig clauses, the viewer check; a single-threaded build ignores the field · 1 | **safe now**; **applied** |
+| V13 | **A decoder's `done` carries fields nobody reads**: `index`, `gen`, `byteCount` (`decoder.js:68`); the downloader reads `kind` and `buffer` (`downloader.js:434-435`), and so does every lab reader of `done` (`lab/decode-tail/direct.js:33`, `lab/decoder-memory/page.js:122`) | `{ kind: "done", buffer }` at `decoder.js:68`; `fake-decoder.js:92` and `downloader.test.mjs:105` likewise | 0, 3 lines shorter | the downloader's tests and the dispatch rig · 1 | **safe now** (#138 edits `decoder.js:6-60`); **applied** |
+| V14 | **Doc lines the code contradicts.** `client/README.md:171-172`: `survival: false` "turns it off", but `decodeMs` stays (`downloader.js:15`; `ARCHITECTURE.md:204` says so), and the override list omits `decodeMs`. `client/README.md:14` describes `downloader.test.mjs` as "how many decoders a start makes" (it has 11 cases, `:17-369`). `av1-frame.js:51` points to "decoder.js's `unranged()`", which is `htj2k.js:31` | `:171-172` → "an object overrides `deadlines` in `downloader.js`; `survival: false` turns off all but `decodeMs`"; `:14` → "node, on hand-fed transport and decoders: each file's last line names its cases"; `:51` `decoder.js's` → `htj2k.js's` | 0 | docs and one comment · 0 | **safe now**; **applied** |
+| V15 | **`CLIENTS.md` keeps three proposals that are decided**: §Proposed: the WASM client and the dav1d tooling to `lab/` (rejected, `:427-495`), §Proposed: the WASM client as a second product client (rows 265, 274, 277–279 built, `:496-626`), §Proposed: the harness pages to `lab/` (done, `:627-640`). What still holds of them is W10–W12's measurements and the shape (TS the default, WASM by the transport file's `client`), already in §Choosing the client | fold each to its ruling and a pointer to the queue rows; keep W10–W12 as three lines under §The implementations | ~−190 +15 | docs only; the rows and their evidence stay in `av1/queue.md` and the branches · 0 | **needs the owner**: it removes a design record (`CLAUDE.md` §Docs asks a retracted claim be corrected in place; these are decided, not retracted) |
+
+**After an open PR, not now.** `frame-session.ts:354,357` returns "truncated before its index" twice: #136 merges
+them. `downloader.js:310-311`'s double blank sits in #135's hunk: one line for #135 to take. *Corrected on
+review:* #135's hunk there ends at `:306`, three unchanged lines before it, so the line can go now, −1.
+
+**Corrected on review** (2026-10-28, at this round's commit; V9's and V10's proofs are corrected where #202 applies
+them):
+
+| claim | what is true |
+| --- | --- |
+| V1: "a `frame` comes from a decoder on the pixel port, not the downloader" | both: with `decode: false` the downloader posts `frame` itself (`downloader.js:207`), and `#fromDownloader` takes it (`consumer.js:93`). V1's change stands |
+| V6: the probe ask "is in `decode/README.md` §Warming the decoders or the queue" | it is in `ARCHITECTURE.md:1029`, retracted in place there; nothing is lost |
+| V7's site list | also `lab/client-telemetry/wrap-session.ts:15` (`): number;`), which forwards the value and reads none |
+| V14 found every stale "decoder.js's `unranged`" | `client/decode/wasm/openjph/htj2k_decoder.cpp:113` says it too, and `lab/decode-bench/copy/wrapper.patch:79` carries that line as context, so both change together · 2: the patch must still apply |
+
+**Kept, with the reason.**
+
+* The view defaults and the placement written in `paint-worker.js:142-151`, `paint/reference.js:10-17` and the
+  viewer (`viewer.js:42`): the reference is the second computation the readback check compares, so sharing the
+  geometry would let a placement bug pass both; the viewer needs every field to step from.
+* `viewer/check.mjs:20-23` lists the clients' files as `head.js:16-19` does, and `check-page.js:68` picks a typed
+  array as the decoders do: the check's own reading is what it compares with the page.
+* `settle` in `contract/clauses.ts:85` and `ring.ts:11` (30 ms) beside `rig-util.ts`'s (40 ms): 35 call sites
+  would change their timing. `range` in two rigs: one line.
+* `check_worker_safe.sh` and `check_telemetry_absent.sh` each list the four artifacts: the gate runs one always and
+  the other only without `--quick` (`scripts/gate.sh:98,219`).
+* `parsePayload(bytes, n)`: `n` is read by `av1.test.mjs` and `lab/av1/exact/codec-string`. `planar` and `grey` in
+  `av1-webcodecs.js:149-178` share three lines of copy. The `?check=` hooks in `viewer.js:26-32,242-246`: they must
+  be armed before the page fails, and moving them adds a module load for no product line.
+* `client/paint/README.md` §The contract writes out the VOI formulas `voi.js` implements: it is the contract the
+  check holds both renderers to, with its PS3.3 clauses.
+* The ASKDEADLINE measurement and the mutation table in `client/README.md:181-245` are recorded nowhere else; they
+  belong in `docs/`, but moving them removes no line.
+
+**The apply row.** V1–V14 in one branch from unified, one commit each; V15 waits. Total: about −106 +13, of which
+code −44 +7 (V4, V5, V7–V13) and docs −62 +6. Before pushing: `scripts/gate.sh` in full (the WASM rig,
+`run_wire.sh` and the viewer check need the browser), `scripts/comment_budget.sh`, `scripts/check_links.py`, and one
+mutation each for V5 (a type error), V8 (`#rejectAll` dropped from `#end`: a closed client's ask must still reject)
+and V10 (the imported `refuse` changed: `av1.test.mjs` fails by message). V9 and V4 need the WASM build first
+(`client/transport/wasm/build.sh`).
+
+## Fifth round: server, tools and lab
+
+*2026-10-27, at `ea581aca`. An audit: nothing was changed but this section. Two removals were built and checked
+with `cargo check` (V7), and then reverted. Apart from that, nothing was built, run or timed beyond
+`scripts/comment_budget.sh` (it passes everywhere, lab included) and searches. The scope was `server/`, `common/`,
+`tools/`, `ingest/from-parser`, `scripts/`, `deploy/` and `lab/`. Not re-reported: rounds 1–4 above, U1–U12, and
+`--segmentation-offload` stored twice. The open pull requests' new code was not audited: #112, #130, #131, #133,
+#136, #139, #160, #162, #163.*
+
+**The answer, in short.** The product side has little left to cut. The product code in `server/`, `common/`, `tools/` and
+`ingest/from-parser` was read for this round. It holds no dead public item, no unused
+feature, no queue label in code and no comment over the budget; the open items are rounds 1–4's, and three new
+small ones are below. The deploy directory carries one file twice. The lab is where the lines are:
+
+* **Twelve directories** answer a question whose result a doc already records, and nothing else uses them:
+  ~3 120 lines.
+* **One script** duplicates another: −141 lines.
+* **Copies of about six helpers**, spread over 40-odd files, are a lab-helpers proposal for the owner.
+
+**Safe now: ~2 290 lines. Once the PRs named in V2 and V8 merge: ~3 080. With the owner's word: ~3 590.**
+
+Verdicts:
+
+* **safe now**: touches no file that #112 (`git diff --name-only origin/main...origin/claude/test-separation`)
+  or another open PR changes;
+* **after #N**: it waits on that PR;
+* **owner**: it needs the owner's decision.
+
+Risk follows rounds 2–4. 1 means the gate covers it, or the change is lab-only with no caller. 2 means the
+check is one the gate does not run. 3 means it is structural.
+
+### Findings, ranked by lines removed per unit of risk
+
+| # | finding · evidence | change | lines − / + | proof no capability is lost | risk | verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| V1 | **Seven lab directories whose question is answered and recorded, with no live user.** `ask-behind` (159 lines; [decode/README](decode/README.md) §An ask behind the decoders; owner: "not pursued now", queue.md:4306) · `clock-resolution` (96; [rig-limits](rig-limits.md) §6 *The clock floor*) · `decode-first-frame` (396; decode/README §The first frame, §Instantiating by streaming; levers.md "held") · `decode-tail` (678; decode/README §The decode tail, §The package, throttled, §The range pass; ARCHITECTURE §The downloader variant during a fill; levers.md "held") · `decoder-memory` (551; decode/README §What a decoder worker costs, resident, §The wire buffer ring; "held") · `fill-at-start` (230; ARCHITECTURE §The first fill; "held") · `worker-leak` (120; ARCHITECTURE §Closing a client; "held (fixed)"). None holds raw rows. | `git rm -r` the seven. Repoint each citation by replacing the link or path with `` `lab/<dir>/<file>` at `ea581aca` `` so `scripts/check_links.py` accepts it (a commit hash within 2 lines): decode/README.md:350, 502, 547, 672, 697, 938, 1000, 1025, 1063, 1110; ARCHITECTURE.md:324, 479, 670; rig-limits.md:464 (add the hash), and :425–427 (drop the two names from the list); client/README.md:83; lab/av1/decode/memory/README.md:43. Point `lab/scripts/gen_htj2k_fixtures.sh:5` to `docs/FIXTURES.md` instead of `lab/decoder-memory/README.md`. Update `lab/README.md`'s table at lines 16, 17 and 24 (see V11). | −2 230 / +0 (16 lines edited) | `git grep -n 'lab/<dir>'` outside each directory finds only the citations above. No gate step, product script or other lab directory names them (checked for each). Each verdict stays in its doc, and the code stays in git. `scripts/check_links.py` passes after the repoints. | 1 | **safe now**: applied in #200, then reverted in `claude/line-hygiene` until the owner confirms the removals |
+| V2 | **`lab/scripts/read_path_split.py` repeats `pair_variants.py`.** `read_path_split.py:36-105` and `pair_variants.py:38-97` hold the same `KEY`, `DRIFT`, `MIN_N`, `regime`, `load`, `deltas` and `verdict`; `pair_variants` is the general form. Only `--phases` and its warning (`read_path_split.py:44-46,89-102`) are extra. `pair_variants.py:2-28` also retells the "42 % win, twice" story that [`adr/disk-access.md`](adr/disk-access.md) tells at :1248-1251. | Move `phase_of`, the phase filter in `load`, `--phases` and the warning into `pair_variants.py`. Delete `read_path_split.py`. Cut `pair_variants.py`'s docstring to its purpose line, its usage lines and a pointer to disk-access §11. Repoint disk-access.md:1247 to `pair_variants.py --pairs pool_ringloop:pool,hybrid:pool_ringloop,hybrid:pool,hybrid_lazyring:pool`. | −153 / +12 | Same metric (`cpu_ns_per_ask`), drift 28.5 and 0.8n sign rule, so the old output is the new command's on the archived TSV; diff the two outputs once. Its only caller is that docs line (`git grep read_path_split`). | 1 | after #130, #162 (both edit disk-access.md) |
+| V3 | **The image's ignore file is kept twice by hand.** `.containerignore` and `deploy/Containerfile.dockerignore` are byte-identical (31 lines each), and line 1 says "keep the two equal"; nothing checks it. | `git mv .containerignore .dockerignore`; drop its line 1; `git rm deploy/Containerfile.dockerignore`. Docker reads a root `.dockerignore` when no Dockerfile-specific one exists, and Podman/Buildah reads `.dockerignore` when there is no `.containerignore`. `Containerfile.prebuilt` builds from a staged directory and is not affected. | −32 / +0 | `docker compose -f deploy/compose.yml build` and `podman build -f deploy/Containerfile .` each report the same "transferring context" size before and after. Mutate by removing the `lab/` line, and the context grows. | 1 | **safe now**: applied (a Docker context probe; Podman not run) |
+| V4 | **A lab helper no one calls.** `lab/scripts/cloud_common.sh:68-74` `run_cloud_harness`: `git grep -w` finds only its definition. Both files that source the script use the other helpers. | Delete it. | −7 / 0 | the grep | 1 | **safe now**: applied |
+| V5 | **A lab feature no one sets.** `lab/disk-access-bench/Cargo.toml:19-25` `tokio-uring`, with its `tokio_unstable` lint. Its one use is `src/bin/read_campaign.rs:87`. No script passes it, and `README.md:23`'s "the gate compiles it" is false (`scripts/gate.sh:183` passes no features). tokio's driver is rejected as measured ([`adr/disk-access.md`](adr/disk-access.md):181, :1404). | Drop the feature, the `[lints.rust]` block and the `:87` arm. Correct README:22-23 to say the plain `tokio_fs` variant stays. | −7 / +0 | `cargo test -p disk-access-bench` still passes; the rejected arm's result stays in the ADR. | 1 | **safe now**: applied |
+| V6 | **Campaign history in clap help text.** `lab/disk-access-bench/src/main.rs:349-353, 357-359, 364-367` ("The first campaign had only warm…", "…made the first campaign's cold cells unreadable"). | Keep each flag's one-line meaning; disk-access §12 already holds the history. | −10 / 0 | `--help` keeps each flag | 1 | **safe now**: applied |
+| V7 | **Two unused dependencies.** `serde` in `server/Cargo.toml:42`: the server derives nothing, and only `serde_json` is used. `rcgen` in `lab/disk-access-bench/Cargo.toml:38`: no `rcgen` in its sources. | Delete both lines. | −2 / 0 | Checked here with both removed: `cargo check -p series-server --all-targets --features telemetry,lab-levers,lab-frame-cache,lab-classify,cert-compression` and `cargo check -p disk-access-bench --all-targets` both pass. | 1 | **safe now**: applied (server/Cargo.toml is in no open PR's file list) |
+| V8 | **Five more answered directories, each waiting on another PR or the owner.** `early-messages` (146; ARCHITECTURE §Messages posted before anyone listens): its citation is CLIENTS.md:206. `firefox-dial` (175; transport-conclusions §Firefox's dial on a slow link): `lab/irtt/README.md:39` borrows its Firefox pin, so that line moves to `lab/av1/bytes/jpeg-xl/README.md`, which holds the same pin. `viewer-ceiling` (328; §273 above; its ceiling is the host's): its citation is merge-readiness.md:640. `ffportgc` with `frameloss` (243; ARCHITECTURE §The downloader, "A frame lost silently in Firefox", "The ack costs no fill"): the rig was never run with `startOnNeed`, which is still the owner's. | As in V1, repointing transport-conclusions.md:1624 and :1985, ARCHITECTURE.md:118, :182 and :225, CLIENTS.md:206, merge-readiness.md:640 and irtt/README.md:39. | −892 / 0 | as in V1 | 1 | `early-messages`: after #133 and #136 (CLIENTS.md). `firefox-dial`: after #112 (irtt/README.md). `viewer-ceiling`: after #136 and #139 (this file). `ffportgc`+`frameloss`: **owner** (`startOnNeed`). |
+| V9 | **Logic copied across the lab.** All are identical text (`git grep -c -F` on the line) unless noted. (a) A throwaway certificate and its SHA-256: 44 lab files (20 shell, 17 `.mjs`, 7 Python). (b) `const arg = (k, d) => …`: 58 copies; `const med = …`: 34, while `lab/order.mjs:22` holds the same median privately (*corrected 2026-10-28, review*: this said 30; six more take the upper middle, `[a.length >> 1]`, which is not that median on an even count: `downloader-cost/port.mjs:59`, `resources.mjs:106`, `scripts/cpu_throttle.mjs:160` and three in V1's `decode-tail`); `const f = (v) => v.toFixed(…)`: 18. (c) Start-a-server-and-wait-for-`wt_url=`: 7 copies (`blink_cells.sh:52`, `controller_cells.sh:42`, `first_ask_cells.sh:56`, `neighbour_cells.sh:43`, `profile_cells.sh:108`, `idle_session_cost.sh:29`, `server_ab.sh:82`). Start-the-relay-and-wait-for-`READY`: 4 copies (`blink_cells.sh:62`, `controller_cells.sh:53`, `first_ask_cells.sh:67`, `cert_chain_cells.sh:136`). | **Proposal** (structural, `CLAUDE.md`). `lab/scripts/dev_cert.sh DIR`, which writes `DIR/{cert,key}.pem` and prints the hash. `order.mjs` exports `median`, and one lab module holds `arg` and `f`. A sourced `lab/scripts/cells.sh` holds `start_server LOG SERIES ARGS…` and `start_relay LOG ARGS…`. Each call site becomes one line. | ~−330 / +60 | Each copy is the same text, so the behaviour is the same. Each touched rig runs once, smoke-sized, before and after. The gate runs none of them. | 2 | **owner**: the shape is a proposal, and V1/V8 remove some call sites first |
+
+V10–V11 are small and land with the row that next touches their files.
+
+* **V10.** `lab/window-harness/src/lib.rs:11` re-exports `reset_peak_outstanding`, which only `client.rs` calls,
+  so it becomes `pub(crate)`. ±0. Proof: `cargo check`. **Safe now: applied.**
+* **V11.** `lab/README.md`'s table names 31 of the 47 directories (*corrected 2026-10-28, review*: this said 30,
+  and of the twelve V1/V8 remove only `ask-behind`, `ffportgc`, `firefox-dial`, `frameloss` and `viewer-ceiling`
+  are missing). Missing are `ask-ahead`, `bb3`,
+  `container-bench`, `devices`, `fastclock`, `faultbench`, `irtt`, `iwdeep`, `link-conditions`, `loss-class`,
+  `recv-cost` and those V1/V8 remove. After V1, each kept directory gets a row naming the doc it reproduces
+  (~+8). **Safe now, with V1: applied.**
+
+### Not cuts, found on the way
+
+* **N1. The gate warns that a call is unsound, since #183.** tokio 1.53.3 deprecates
+  `AsyncFd::with_interest` as "unsound due to lack of I/O safety". The ring's park uses it at
+  `server/src/media/uring_reader.rs:41`; the lab bench uses it at `lab/disk-access-bench/src/uring_access.rs:132`
+  and uses `AsyncFd::new`, deprecated alike, at `:127`. The fix is `unsafe { AsyncFd::register_with_interest(…) }`
+  (`AsyncFd::register` at `:127`) with a one-line
+  `SAFETY` that points at the invariant already stated at `uring_reader.rs:24` (the `AsyncFd` is declared before
+  the ring, so it leaves the reactor before the fd closes). +1 line each. Proof: no warning, and the read-path
+  tests pass. The server's copy is **after #112**; the lab's is **safe now: applied**.
+* **N2. Two interleavings are not balanced past two arms.** `lab/scripts/runtime_ab.sh:73` and
+  `lab/scripts/browser_receive.py:177` alternate forward and reverse order. That balances predecessors only for
+  two variants, against `CLAUDE.md` §Measurement. The fix is `order.py row` and `from order import order`
+  (±0). It changes the order of future runs only. **Safe now: applied.**
+* **N3.** `lab/scripts/idle_session_cost.sh:34` waits on `listening\|ready\|serving` in the log. It matches the
+  tracing line `series-server ready`, where every other rig waits on the banner's `wt_url=`. Fix it with V9(c),
+  or alone (±0). **Safe now** alone: no open PR touches the file (*verdict added 2026-10-28, review*).
+* **N4.** `lab/scripts/read_path_cloud_summary.py` (33 lines) has no reference. It reads `read_path_cloud.sh`'s
+  TSV. The fix is one pointer line in `read_path_cloud.sh`'s header (+1). Keep the script: it is how that table
+  was summarised. **Safe now**: no open PR touches either file (*verdict added 2026-10-28, review*).
+* **N5.** `Sessions::new`'s doc says "Warns for each lab lever that is on" (`server/src/transport/server.rs:143`).
+  It warns only for `--send-window-follows-cwnd`; `lab_levers::apply` warns for the rest. The fix is to drop the
+  line (−1). **After #112.**
+
+### Kept, with the reason
+
+* **The product's own two certificate makers.** `server/scripts/gen_dev_cert.sh` writes the dev directory and the
+  transport file, and `deploy/server-start.sh` writes the container's; neither can call the other.
+* **`tools/check-fastpath`.** It shares the server's probe on purpose (`frame_store.rs:215`), and deploy/README
+  §Container settings proposes shipping it in the image.
+* **`scripts/quic_peek.py` and `wtcompat.py`.** Row 264 already ruled they are product checks, not lab code.
+* **The `--stall-after-bytes` wiring in `Link`** (`link.rs:23-27,85-99,179-184`) is compiled into the default
+  build with `None`. A `#[cfg(feature = "lab-levers")]` on each of its five sites would add lines, not remove them.
+* **Twenty lab directories.** Each has a live user or open decision: `ask-ahead`, `bb3`, `decode-bench`,
+  `dial-deadline`, `downloader-cost`, `fastclock`, `faultbench`, `idle-sessions`, `irtt`, `iwdeep`,
+  `link-conditions`, `loss-class`, `page-open`, `paint-floor`, `server-load`, `session-survival`, `stream-shape`,
+  `tcp-fallback`, `telemetry-cost` and `traces`. Each is held by a script that runs it, a doc's raw rows, or an
+  owner decision: L7's levers, row 220, device plans D1 and D4, block-or-mark, coalescing, keep-alive, the TCP
+  fallback.
+* **No lab script calls a removed flag, binary or path.** Every lab binary's `--help` was matched against every
+  invocation in `lab/` and `scripts/`, along with the features, env vars and banner lines the rigs wait on. The
+  one absent script, `exec_gap.sh` (`workstation_run.sh:348-362`), is row 258's, on its branch.
+
+### The apply row
+
+It starts from this branch and applies only the **safe now** items: V1, V3, V4, V5, V6, V7, V10, V11, N1 (the lab
+half) and N2. That is **−2 288 / +9 lines**, in one draft pull request into unified, one commit per item.
+Applied on `claude/server-simplify-r5`, one commit per item: −2 337 / +50, net −2 287.
+
+* **Before pushing:** `scripts/gate.sh --quick`, `scripts/check_links.py` and `scripts/comment_budget.sh`.
+* **For V3:** the two context-size builds, with their output.
+* **For V7 and V10:** the `cargo check` lines above.
+* **For V1:** `git grep -n 'lab/\(ask-behind\|clock-resolution\|decode-first-frame\|decode-tail\|decoder-memory\|fill-at-start\|worker-leak\)'`
+  must show only lines that carry `ea581aca`.
+
+V2 and the V8 directories that wait on a PR follow once that PR merges. V9, `ffportgc`+`frameloss` and nothing
+else go to the owner.
+
+*Reviewed 2026-10-28, against `ea581aca` and the apply row's `1ddef1d1`.* All sixteen findings were re-checked,
+each grep and line as cited. V9's and V11's counts were wrong and N1, N3 and N4 incomplete; each is corrected
+above. The apply row also edits `deploy/README.md` (its "four crates" was six) and `Cargo.lock`, which #130,
+#131, #133, #160 and #163 change in other hunks: a merge, not a decision. Both `lab/disk-access-bench/arms/*.patch`
+still pass `git apply --check` there. N1's server half edits next to `ring-no-coop.patch`'s hunk
+(`uring_reader.rs:30-39`, which #162 also edits), so it runs that check again.

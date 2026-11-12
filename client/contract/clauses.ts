@@ -20,7 +20,7 @@ export type ConformantSession = {
     to: number,
     onFrame: (f: ConformantFrame) => void,
     onError?: (frameIndex: number, reason: string) => void,
-  ): number;
+  ): void;
   endStream(): Promise<void>;
   /** Only the sessions own a ring; the downloader's rig leaves it out. client/contract/ring.ts */
   releaseWireBuffer?(buffer: ArrayBuffer): void;

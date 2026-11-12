@@ -139,11 +139,6 @@ export class DownloaderClient {
     w.reject(new Error(`frame ${index} unavailable: ${reason}`));
   }
 
-  #failAll(reason) {
-    this.#closedReason ??= reason;
-    this.#rejectAll(this.#closedReason);
-  }
-
   #rejectAll(reason) {
     for (const [index, w] of this.#waiters) w.reject(new Error(`frame ${index} unavailable: ${reason}`));
     this.#waiters.clear();
@@ -193,7 +188,8 @@ export class DownloaderClient {
   #end(reason) {
     clearTimeout(this.#ending);
     this.#worker.terminate();
-    this.#failAll(reason);
+    this.#closedReason ??= reason;
+    this.#rejectAll(this.#closedReason);
     for (const done of this.#cancels.splice(0)) done();
   }
 

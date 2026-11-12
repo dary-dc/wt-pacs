@@ -11,7 +11,7 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 | - | - |
 | `consumer.js` | the page side: one waiter per asked frame, so `stats` needs no round trip |
 | `downloader.js` | the worker: dial, per-frame records, the fill pushed one run at a time and re-issued after an ask, two-priority queue, dispatch, cancel |
-| `downloader.test.mjs`, `consumer.test.mjs` | node: how many decoders a start makes; what `connect` refuses before a worker starts |
+| `downloader.test.mjs`, `consumer.test.mjs` | node, on hand-fed stand-ins: each file's last line names its cases |
 | `ts/`, `wasm/` | the TypeScript transports and the WASM transport's crate ([`docs/CLIENTS.md`](../docs/CLIENTS.md)) |
 
 **[`decode/`](decode/)** — the decode worker, its codec modules and the decoders' WASM builds:
@@ -92,9 +92,7 @@ fill prices both: the opening ask is **−1.13 round trips** to the first frame 
 
 **How many decoders.** `opts.decoders` defaults to `min(3, navigator.hardwareConcurrency || 3)`:
 a third decoder helps on four cores and not on two ([`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)
-§Resources); `downloader.test.mjs` pins it at two cores and eight. The warm-up frame `opts.warmup` was
-removed on 2026-10-03 — it moved only per-frame waits, not the page's clock; the code is at tag
-`archive/downloader-opts-2026-10-03` and its numbers in `docs/decode/README.md` §Warming the decoders.
+§Resources); `downloader.test.mjs` pins it at two cores and eight.
 
 **What a decoder worker costs.** 5.9 MB resident each, 5.7 MB of it the worker's own JS+WASM heap,
 measured as the slope in the decoder count with the instrument calibrated against 32 MB of ballast
@@ -117,19 +115,14 @@ never retains, which is one buffer per frame — the behaviour before it, and wh
 hands nothing back gets anyway. An undecoded frame (`decode: false`) is transferred to the page and
 never comes back, as before.
 
-**A request is a generation.** `cancel()` bumps it and returns a promise that resolves once the
-downloader has ended the stream and dropped that request's work; every frame and failure carries the
-generation it was made under, and anything older is dropped on the page rather than handed over
-under an index the new request is using. A refused *fill* frame has no waiter, so it reaches the
-consumer through `opts.onError({ frameIndex, reason, generation })` — a refused *asked* frame still
-rejects its own promise, and a refusal that fails the rest of a fill spares a frame an ask carries. [`ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §The consumer.
+**A request is a generation**: [`ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §Messages, §The consumer.
 
 **What a frame reports.** Beside the decoded `byteCount`, every frame message the decoder and the
 downloader post carries `wireBytes` — the codestream length the frame's envelope declared, which is
 what actually crossed the link. A consumer reporting traffic quotes that one: on a compressed frame
 the decoded plane is several times larger, so `byteCount` would overstate the link by that factor.
 It reaches the page as `frame.info.wireBytes`, the way `byteCount` does, on the decoded path and on
-the undecoded one alike; nothing was renamed to make room for it.
+the undecoded one alike.
 
 **A frame that did not arrive whole is a failure, not a frame.** Two checks, both inside the worker
 graph, so the page never sees a bad frame. On the wire, a uni stream that ends before the length its
@@ -168,14 +161,13 @@ session is re-dialled, the wait doubling after each re-dial it caused, and exact
 still owe is issued on the new one — the fill's remainder as a run and any outstanding ask again, with
 nothing that arrived re-fetched and nothing re-decoded. The request's **generation does not move**:
 a resume is the same request, so the page's waiters and records stay valid and the only thing it is
-told is when each resume happened, as `stats().resumedAt`. `survival: false` turns it off; an object overrides
-`{ stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000 }`, where `tries` counts the re-dials since a
+told is when each resume happened, as `stats().resumedAt`. An object overrides `deadlines` in `downloader.js`;
+`survival: false` turns off all but `decodeMs`. `tries` counts the re-dials since a
 frame last arrived, so sessions that are accepted and never deliver end in the owed frames named. A dial whose `ready` has not settled by
 `dialMs` is closed and counts as a failed try, the first dial included. Given `transportFile`, the transport file's
-absolute URL (the viewer's), every dial after the first reads it again and dials the URL and hash it names, so an open
+absolute URL (the viewer's, where its HTML names one), every dial after the first reads it again and dials the URL and hash it names, so an open
 page follows a server restarted on a new certificate ([`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §An open page
-follows a server restart). Until 2026-09-24 a quiet fill started a probe ask
-instead, which livelocked on a slow link. An ask keeps no timer in the consumer: the downloader
+follows a server restart). An ask keeps no timer in the consumer: the downloader
 settles it, and the transports time a frame from the last byte, not from the ask.
 
 **No client timer fails an ask whose bytes are still coming** (2026-10-07). The timers
@@ -244,15 +236,7 @@ fire late, which headless Chromium does not do; `close()` removing the page list
 (the stand-in decoder returns no buffer, and the ring allocates when empty); and recycling's guard
 against a resumption that finished first is a race the fake cannot order.
 
-Its self-check (`lab/harness/index.html`) checks each decoded frame of the `decode_c512` series
-against the fixture's `.sha256`; `lab/harness/cell.html` runs a lab cell over any series:
-
-```bash
-./server/scripts/gen_dev_cert.sh
-cargo run --release -p series-server -- --port 4433 --series <series>.sbnd
-python3 server/dev-server.py --port 8765
-# then open http://127.0.0.1:8765/harness/ in a cross-origin-isolated context
-```
+The lab's self-check and cell pages: [`README.md`](../README.md) §Quick start.
 
 **The page must be cross-origin isolated.** Pixels are written once into a `SharedArrayBuffer`;
 `DownloaderClient.connect` refuses rather than falling back to a copy, because a silent fallback
@@ -268,10 +252,6 @@ points it at a stalling stand-in to force the contention its ordering and dispat
 `opts.worker` is the downloader's own script: `lab/page-open/boot.mjs` boots it from a bundle or a
 blob (its relative URLs then resolve nothing, so the page names `transport` and `decoderWorker`).
 
-**Mutate it after any change to `decoder.js`.** Perturb one decoded sample and every `sha` line must
-read `MISMATCH`; drop every fifth frame and the fill must report fewer than it asked for. Both were
-run; a decode path whose ground-truth check does not fire is worth nothing.
-
 ## The viewer
 
 `viewer/index.html` and `viewer/viewer.js`, served at `/` by `server/dev-server.py` and by the web image. How to run
@@ -279,9 +259,12 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
 
 * **Opening.** The head's one script, `viewer/head.js` (the policy allows no inline script), fetches
   `/series/metadata`, preloaded by the page, and preloads the codec's modules and WASM, and the hasher when the series
-  has digests. The page preloads the TS client, `"ts"`, which a
-  `/wt/dev-transport.json` without `client` means; the script reads that file, also preloaded, and preloads the WASM
-  client's files when it names `"wasm"`, any other name refused by name ([`docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client). The module dials at once, with the whole series as the opening fill, while the
+  has digests. The page names its client and its transport on that script's tag, rendered for the host by
+  `viewer/page.sh`: `data-client`, whose files the HTML preloads, any name but `"ts"` and `"wasm"` refused by name
+  ([`docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client); and either `data-wt-port`, the page's own host on
+  that port, pinning nothing, or `data-transport-file`, also preloaded, whose `wt_url` and `cert_sha256` it reads
+  ([`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §A page with nothing to follow). The dev host renders the second,
+  unless `dev-server.py --wt-port`. The module dials at once, with the whole series as the opening fill, while the
   painter starts in parallel.
 * **Frames.** Frames are kept in memory by index; the cache seam stays open ([`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)
   §Open). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
@@ -294,8 +277,9 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   same page. They load from `lab/viewer/levers.js`, which only the dev host serves: on the web image a link carrying
   any of them is refused, by name on the status line, before the page fetches, imports or dials anything.
   `viewer/crafted.mjs`, run by the gate, opens each on a host shaped like the image and fails if one is fetched or
-  dialled, and on a host serving `lab/` shows `?wt=` and `?metadata=` honoured; it fails too if a transport file
-  naming an unknown client is not refused by name with no WASM code fetched and nothing dialled. `?post=` (with `?origin=`) gives the
+  dialled, and on a host serving `lab/` shows `?wt=` and `?metadata=` honoured; it fails too if a plain link fetches the
+  transport file or dials anywhere but its own host on the HTML's port, or a page naming an unknown client is not
+  refused by name with no WASM code fetched and nothing dialled. `?post=` (with `?origin=`) gives the
   page the total-time harness's protocol as two hooks, `started()` and `finished(result)`, which it calls only when
   present; the page watches for the fill's end only for that hook or `?check=`. `?check=`, `?cine=`, `?fill=` and `?deadline=` are the page's own.
 * **Its policy.** The page and every script it loads carry a Content-Security-Policy ([`deploy/README.md`](../deploy/README.md)
@@ -305,7 +289,10 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
 the page with `?check=1` in headless Chromium, or in a stock Firefox (`--engine firefox`, `FIREFOX_PATH`), and the
 page itself runs the protocol after the fill: an ask of a delivered frame, a fill cancelled at once, then an ask
 after the cancel. With `--fill 0` it first steps the page itself: to the middle frame, the last and the middle again
-at once, then to the last twice. `--client wasm` names the WASM client in the transport file it serves; with `--url`, the one the host's file names.
+at once, then to the last twice. `--client wasm` renders the page with the WASM client; with `--url`, the one the host's
+page names. `--trusted` renders the page that dials its own host, as a deployment with a trusted certificate serves it,
+and has Chromium trust the server's certificate by its key; without it the page pins through the transport file and
+Chromium trusts nothing, so only the pin dials.
 With `--url … --fill 0 --restart CMD` it instead opens `?fill=0`, runs CMD (which
 restarts the host's server and prints its `transport=` line) after frame 0 is exact, and fails unless the next step
 arrives exact with no error within 20 s (docs/ARCHITECTURE.md §An open page follows a server restart). It passes no lab parameter, so it runs the same against the web image: the result is
@@ -317,7 +304,9 @@ read off the page in Chromium and off Firefox's stdout (`devtools.console.stdout
   one ask;
 * a decoder other than `--decoder`;
 * a status line not naming `--client`, or that client's files not preloaded; from the static host's log, its files
-  not fetched or, on a TS page, the WASM client's fetched (every page fetches TS's: the HTML preloads it);
+  not fetched, or the other client's fetched;
+* with `--trusted`, the transport file fetched (in the static host's log or the page's resource timing), though the
+  host serves one; without, the file not read;
 * an HTJ2K page whose requests include AV1 code, from the static host's log;
 * an AV1 page whose frames were not decoded as AV1;
 * the first, middle and last frame's readback at zoom 1 differing from the painter's CPU reference by any byte;
@@ -328,5 +317,6 @@ Headless Firefox has no WebGL: on a host without a display, run the check under 
 (Mesa's llvmpipe), and it runs Firefox windowed. The run here used conda-forge's `firefox-157.0.1-hee9eb32_0` and
 `mesalib-26.2.3-he59ec28_0` (SHA-256 `e94b9a63c490809eb615d0c18d1ae4e7d60a6f7756c7ec7b2a6b6a2032a26b53`), with
 `LD_LIBRARY_PATH`, `__EGL_VENDOR_LIBRARY_DIRS` and `LIBGL_DRIVERS_PATH` pointing into that environment. The gate runs `viewer/run_check.sh`: a three-frame HTJ2K series of
-the contract's frame, in Chromium, on each client once filled with `--cine` and once with `--fill 0`. It names as skipped the cross-codec arm and Firefox, which need the DICOM ingest's
+the contract's frame, in Chromium, on each client once filled with `--cine`, pinned through the transport file, and once
+with `--fill 0 --trusted`. It names as skipped the cross-codec arm and Firefox, which need the DICOM ingest's
 bundles and a GL display. What it measured: `docs/ARCHITECTURE.md` §The viewer.

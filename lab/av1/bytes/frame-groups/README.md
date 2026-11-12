@@ -177,7 +177,7 @@ numbers.
 | --- | --- | --- |
 | P1 | **did not hold** for A and C, not refuted | system medians A 0.112, B 0.215, C 0.117: none above 0.6 or below 0.1, but A and C are under the predicted 0.2 (the floor is 0.059) |
 | P2 | **held** | largest gain on any series, `good` 6: +1.51 % (`dbts_b3`, G16); cpu0: +0.13 % (`dbts_c1`, G16); none ≥ 5 % |
-| P3 | **did not hold** | Spearman(gain, ρ) over 15 series +0.46 (14 gains are 0), and +0.11 on the best G > 1's own gain: under 0.6, and at ≥ 6 series no relation on the second. Scan arc: recorded by system B alone (14.35–15.19°), Spearman(arc, ρ) −0.10 over its 5 series; across systems not testable |
+| P3 | **did not hold** | Spearman(gain, ρ) over 15 series +0.46 (14 gains are 0; *recomputed 2026-10-24 from this table, ties at average rank: +0.43*), and +0.11 on the best G > 1's own gain: under 0.6, and at ≥ 6 series no relation on the second. Scan arc: recorded by system B alone (14.35–15.19°), Spearman(arc, ρ) −0.10 over its 5 series; across systems not testable |
 | P4 | **not refuted**; its 80 % clause failed where there was a gain | best G ≥ 8 over G4: at most +0.39 points (`good` 6, `dbts_b3`) and +0.45 (cpu0, `dbts_b1`), under 0.5; on the two series with any gain G2 or G4 holds 75 % (`dbts_b3`, G4) and 54 % (cpu0 `dbts_c1`, G4) of it |
 | P5 | **held** | the low stream's inter is never smaller than its intra: at best −0.06 % (cpu0 `dbts_c1`), −0.19 % (`good` 6 `dbts_b1`); with alt-ref on −2.55 % or worse; SVT preset 0 `dbts_b1` +0.13 %, under 0.5 % |
 | P6 | **refuted** (system B; A and C inexact) | alt-ref on beats off by +1.23 to +6.84 points on 9 of 10 exact cells (`dbts_b4` G16 +6.84) |

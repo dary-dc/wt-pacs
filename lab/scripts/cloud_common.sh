@@ -65,14 +65,6 @@ cloud_sync_netem_script() {
   "${SSH[@]}" "chmod +x $REMOTE_DIR/scripts/cloud_netem.sh"
 }
 
-run_cloud_harness() {
-  local trace=$1 depth=$2 variant=$3 frame_count=${4:-320}
-  [[ -x "$HARNESS" ]] || { echo "missing harness — SKIP_BUILD=1 after cargo build" >&2; exit 1; }
-  "$HARNESS" --url "$CLOUD_URL" --trace "$trace" \
-    --read-bps "$HARNESS_READ_BPS" --depth "$depth" --frame-count "$frame_count" \
-    --fill-dwell-ms 0 --mode trace --variant "$variant" --rtt-ms 0 --json
-}
-
 ensure_harness_binary() {
   if [[ "${SKIP_BUILD:-0}" == "1" ]]; then
     [[ -x "$HARNESS" ]] || { echo "SKIP_BUILD=1 but missing $HARNESS" >&2; exit 1; }

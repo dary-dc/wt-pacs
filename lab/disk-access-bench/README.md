@@ -19,8 +19,8 @@ target/release/ring_scale <series.sbnd> <count>
 
 A cold cell needs a fixture larger than the host's cache and a stride past `read_ahead_kb`; where every read
 must miss, use the server's `--force-pool-reads` (a `--features lab-levers` build), not eviction (§12); a real miss without eviction is a copy written
-past the cache, `read_campaign --fresh DIR` per cold cell. `tokio_fs` reads through tokio's io_uring driver
-(`tokio_fs_uring`) only with `--features tokio-uring` and `RUSTFLAGS="--cfg tokio_unstable"`. The gate compiles it (`scripts/gate.sh`).
+past the cache, `read_campaign --fresh DIR` per cold cell. `tokio_fs` is the plain `tokio::fs` cursor; tokio's io_uring
+driver under it was rejected as measured ([ADR §5](../../docs/adr/disk-access.md)).
 
 ## The frame cache against the server as it ships (rows 209, 256)
 
