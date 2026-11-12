@@ -229,24 +229,36 @@ await aHangIsRecovered();
 
 /**
  * A deadline that fires late found the downloader's own thread stopped, as a hidden or frozen page stops it: the
- * decoder had no time either, so it is given its deadline again, not replaced, and its group stays whole.
- * docs/reviews/hidden-page-decode.md
+ * decoder had no time either, so it is given its deadline again, not replaced, and its group stays whole; a decoder
+ * still silent through a deadline of running time is replaced. docs/reviews/hidden-page-decode.md
  */
 async function aFrozenPageKeepsItsDecoder() {
-  const { fed, made, failed } = await lossWorld("frozen", { decodeMs: 30, frozenMs: 100, stallMs: 60_000 });
-  fed.fill(frame(0));
-  await settle();
-  const until = performance.now() + 300;
-  while (performance.now() < until);
-  await settle();
+  const freeze = async (name, survival = { decodeMs: 100, frozenMs: 50, stallMs: 60_000 }, ms = 400) => {
+    const world = await lossWorld(name, survival);
+    world.fed.fill(frame(0));
+    await settle();
+    const until = performance.now() + ms;
+    while (performance.now() < until);
+    await settle();
+    return world;
+  };
+  const { fed, made, failed } = await freeze("frozen");
   check(!made[0].terminated && made.length === 1, `a decoder the page's freeze held up is kept (${made.length} made)`);
   made[0].finish();
   fed.fill(frame(1));
   await settle();
   check(made[0].decoding.map((m) => m.index).join() === "1", `and takes the next frame of its group (${made[0].decoding.map((m) => m.index)})`);
   check(failed().length === 0, `nothing fails (${failed().map((m) => `${m.index}: ${m.reason}`)})`);
-  await new Promise((r) => setTimeout(r, 60));
-  check(made[0].terminated, "a decoder still silent a deadline later, the page running, is replaced");
+  made[0].finish();
+  const silent = await freeze("frozen-silent");
+  await new Promise((r) => setTimeout(r, 250));
+  check(silent.made[0].terminated && silent.made.length === 2, `a decoder silent a deadline past the freeze, the page running, is replaced (${silent.made.length} made)`);
+  silent.fed.asks.get(0)?.(frame(0));
+  await settle();
+  silent.made[1]?.finish();
+  const byDefault = await freeze("frozen-default", { decodeMs: 100, stallMs: 60_000 }, 1300);
+  check(!byDefault.made[0].terminated, "the default freeze bound keeps a decoder held up 1.2 s past its deadline");
+  byDefault.made[0].finish();
 }
 await aFrozenPageKeepsItsDecoder();
 
