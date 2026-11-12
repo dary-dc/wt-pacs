@@ -85,3 +85,25 @@ the call in `install()`, which needs a DOM (node cannot see it); the next phone 
 The next phone round, with the beacon's `visibility` records: a load hidden mid-fill should now complete, with long
 decode times on the frames in flight across the hidden span and no `did not decode` errors. A load that fails with
 the page visible throughout is a failure, not interference.
+
+## Review (PHONE-FIX-REVIEW, 2026-11-12)
+
+By a session that wrote neither fix, on `a66e9890` (PR 376) and `5137f449` (PR 377).
+
+* **PR 376's test fails without its fix**: `client/transport/downloader.js` reverted to `claude/demo-fixes-2`, the
+  frozen-page test fails (*a decoder the page's freeze held up is kept (2 made)*, and the next frame of its group not
+  taken). Mutants of my own, each killed: any lateness taken as a freeze (3 failures); a late deadline not re-armed
+  (1); no default `frozenMs` (1); the comparison inverted (4); lateness measured from arming (1).
+* **PR 376 changes nothing else**: `arm()` and the `deadlines` table only; a decoder silent through a deadline of
+  running time is still replaced, and the test pins it.
+* **The theory matches the trace**: load `2ed36cb0` received 29 of 50, frames 0, 8, 16 with decode times of 17.6–18.1
+  s and frames 1–7, 9–15, 17–23 missing, groups 24–47 and 48–49 at 0.13–0.22 s. The Chromium reclamation conditions
+  are quoted from the sources named; the frozen-thread reading is the only one consistent with a 10 s deadline and
+  an 18 s decode both completing, and the doc keeps "the page was hidden" as a note, not a measurement.
+* **Finding (not a defect)**: any thread stop longer than `frozenMs` (a long GC, a busy worker), not only a frozen
+  page, re-arms the deadline; a truly hung decoder is then replaced one deadline later than before. Bounded.
+* **PR 377**: 8/8; `lab/phone/beacon.js` reverted fails at the import of `watchLifecycle`. The `install()` wiring is
+  untested in node, as the doc says; the next phone run's first load shows it.
+* Comment budget ok on both. Gate on `a66e9890`, `scripts/gate.sh --no-browser` on a 4-core cloud host: every step OK up
+  to the decoders' rebuild, which Docker Hub refused (429, twice); the three absence checks then run alone, each OK.
+  Skipped: every browser step, numpy/pydicom checks, lavapipe, Xvfb, Firefox, nginx. PR 377: its own test only.
