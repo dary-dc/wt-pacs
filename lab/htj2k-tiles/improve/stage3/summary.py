@@ -74,6 +74,69 @@ def main():
             ratio = median(num[k][nq] / den[k][dq] for k in rounds)
             aa = [abs(twin[k][dq] / den[k][dq] - 1) for k in den if k in twin and twin[k].get(dq) and den[k].get(dq)]
             print(f"    {name}: ×{ratio:.3f} (n={len(rounds)}) [s {p90(aa):.3f}]" if aa else f"    {name}: ×{ratio:.3f} (n={len(rounds)})")
+    verdicts(by, decode_bound)
+
+
+def ratio(arms, num, den):
+    """Median over rounds of num ÷ den, paired by round, and s: the p90 of |D′/D − 1| on den's quantity."""
+    (na, nq), (da, dq) = num, den
+    n, d, twin, dd = arms.get(na, {}), arms.get(da, {}), arms.get("D′", {}), arms.get("D", {})
+    rounds = [k for k in n if k in d and n[k].get(nq) and d[k].get(dq)]
+    if not rounds:
+        return None, None
+    aa = [abs(twin[k][dq] / dd[k][dq] - 1) for k in dd if k in twin and twin[k].get(dq) and dd[k].get(dq)]
+    return median(n[k][nq] / d[k][dq] for k in rounds), (p90(aa) if aa else 0.0)
+
+
+def verdicts(by, decode_bound):
+    """§Improve's rule: a bound b is missed only past b × (1 + s); strict readings beside."""
+    def cells(vol, th, link_bound=True):
+        out = []
+        for (s, link, imp, t), arms in sorted(by.items()):
+            if s != vol or t != th:
+                continue
+            if link_bound and ((link, imp) not in LINK_BOUND or (s, link, imp) in decode_bound):
+                continue
+            out.append(((link, imp), arms))
+        return out
+
+    def tally(rows, num, den, bound):
+        got = [(c, *ratio(a, num, den)) for c, a in rows]
+        got = [(c, r, sv) for c, r, sv in got if r is not None]
+        ok = sum(r <= bound * (1 + sv) for _, r, sv in got)
+        strict = sum(r <= bound for _, r, _ in got)
+        return ok, strict, len(got), [(c, round(r, 3), round(sv, 3)) for c, r, sv in got]
+
+    print("\nverdicts (cells link-bound unless said; ok with s / strict / of)")
+    lb = cells("dbts_b1/phone", 4)
+    ok, st, n, got = tally(lb, ("D+T3", "losslessMs"), ("D", "losslessMs"), 0.92)
+    every = [tally(cells(v, th, False), ("D+T3", "losslessMs"), ("D", "losslessMs"), 1.02) for v in ("dbts_a1/phone", "dbts_b1/phone", "dbts_c1/phone", "dbts_c1/sideways") for th in (1, 4)]
+    print(f"R3 D+T3 ≤ ×0.92 of D, dbts_b1 4×: {ok}/{st}/{n} {got}; ≤ ×1.02 in every cell: {sum(e[0] for e in every)}/{sum(e[1] for e in every)}/{sum(e[2] for e in every)}")
+    for e in every:
+        bad = [g for g in e[3] if g[1] > 1.02 * (1 + g[2])]
+        if bad:
+            print("    over ×1.02 with s:", bad)
+    for th in (1, 4):
+        a = tally(cells("dbts_b1/phone", th), ("D+L★", "levelMs"), ("D+T3", "losslessMs"), 0.40)
+        b = tally(cells("dbts_b1/phone", th), ("D+L★", "losslessMs"), ("D+T3", "losslessMs"), 1.08)
+        print(f"R4 dbts_b1 {th}×: level ≤ ×0.40 of D+T3 {a[0]}/{a[1]}/{a[2]} {a[3]}; Lossless ≤ ×1.08 {b[0]}/{b[1]}/{b[2]} {b[3]}")
+    for th in (1, 4):
+        for v in ("dbts_a1/phone", "dbts_b1/phone", "dbts_c1/phone", "dbts_c1/sideways"):
+            f = tally(cells(v, th, False), ("S★", "firstMs"), ("D", "firstMs"), 1.5)
+            e = tally(cells(v, th, False), ("S★", "allMs"), ("D", "allMs"), 1.25)
+            print(f"R5 {v} {th}×, every cell: first ≤ ×1.5 {f[0]}/{f[1]}/{f[2]}; every slice ≤ ×1.25 {e[0]}/{e[1]}/{e[2]}")
+    print("J11, r20000 l1 ÷ clean r20000 of each ratio:")
+    for (s, link, imp, th), arms in sorted(by.items()):
+        if (link, imp) != ("r20000", "l1"):
+            continue
+        clean = by.get((s, "r20000", "clean", th), {})
+        parts = []
+        for name, num, den in RATIOS:
+            lossy, _ = ratio(arms, num, den)
+            base, _ = ratio(clean, num, den)
+            if lossy and base:
+                parts.append(f"{name.split()[0]} ×{lossy / base:.2f}")
+        print(f"    {s} {th}×: " + ", ".join(parts))
 
 
 if __name__ == "__main__":
