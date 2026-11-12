@@ -24,6 +24,10 @@ PACS path ([`pcs-pacs-options.md`](pcs-pacs-options.md), #230) and does not repe
   stored: the PCS may drop its copy · refused: resend 1 and 2 · any other exit: retry 1 then 2, later
 ```
 
+*Scope, added 2026-10-29:* this file assumes the cleared-`incoming/` profile (`--files-from`, `rrsync -no-del`). A kept
+mirror synced with `--delete`, where deletions travel and the item list mostly goes, is `pcs-pacs-options.md` §4.4; not
+compared here.
+
 **Recommended (reasoning, §6):** two calls per unit, the trigger an ssh forced command that writes the marker and
 returns the verdict, polling only as the fallback.
 
