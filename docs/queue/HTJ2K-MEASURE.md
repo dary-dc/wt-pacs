@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-11 18:59 UTC
-heartbeat: 2026-11-11 23:50 UTC
-outputs: `claude/htj2k-tiles` 6a4dde46 (rows, docs; draft PR #324 into main, already open: the commits land in it)
+heartbeat: 2026-11-12 00:05 UTC
+outputs: `claude/htj2k-tiles` bc27fe97 (rows, docs; draft PR #324 into main, already open: the commits land in it)
 ## Resume
 Session 3 plan (2026-11-11 23:24 UTC), the client's design fixed before any run:
 * `lab/htj2k-tiles/improve/stage3/`: `page.js` (one lab page, every arm), `store.js` (a lab OPFS store worker: level
@@ -61,6 +61,15 @@ pieces and the WASM builds: OpenJPEG v2.5.4 native (cmake, `-DBUILD_SHARED_LIBS=
 $PWD/client/decode/wasm/build/.cache $PWD/client/decode/wasm/built 0:0` and `sha256sum -c` against manifest.sha256;
 `lab/htj2k-tiles/improve/decode/build_levels.sh`. Write rows outside the repo while a writer runs and copy them in.
 HTJ2K-VERDICT waits on this row.
+* **S3a running since 2026-11-11 23:52 UTC** (rounds 0–1, all 40 cells × 5 arms; ~2.5–3 h a round on this host).
+  Pushed after: `29d85ac9` summary.py, `0ebc4be8` README, `ef5f1c62` parity (PARITY OK, both builds) and pins,
+  `bc27fe97` docs §Improve, measured: stage 3 (amendments, mutants). `/home/user/pusher.sh` copies
+  `/home/user/s3a.jsonl` to `rows/stage3-s3a.jsonl` and pushes, and bumps this heartbeat, every 15 min.
+  **To resume:** keep only complete rounds of `rows/stage3-s3a.jsonl` (a round is complete with 200 rows); set up the
+  container as above (~15 min, plus `lab/.demo-series`), then run the first incomplete round on with
+  `--first-round K --rounds 2-K` into a new file `rows/stage3-s3a-K.jsonl`; then S3b (`--first-round 2 --rounds 2`),
+  S3c (`--first-round 4 --rounds 2`), each ≤ 4.5 h, stopping at a round's end. Then `summary.py` over all kept rows
+  and the readings R3–R7 in docs §Improve, measured: stage 3, `docs/lines/codecs.md`, this Result.
 ## Result
 * Stages 0–2 of `docs/htj2k-tiles.md` §Improve's protocol run; stage 3's inputs built (strip series 294/294 exact from
   the entries; D series from `157b7109`, equal to FREEZE-E2E's), its client and runs not yet, so R3–R7 are undecided.
