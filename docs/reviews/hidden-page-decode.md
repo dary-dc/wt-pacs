@@ -76,7 +76,7 @@ proposal for the owner, not part of this fix.
 
 `claude/hidden-page-decode-beacon` (draft, into `claude/phone-tools`, where the beacon lives): a `visibility` record
 per `start`, `visibilitychange`, `freeze`, `resume` and `pagehide`, each with `document.visibilityState`, sent with
-the queue as before (turning hidden flushes it). Two tests in `lab/phone/beacon.test.mjs`; nine mutants killed (each
+the queue as before (turning hidden flushes it). Two tests in `lab/phone/beacon.test.mjs` (4230419c, that branch); nine mutants killed (each
 record dropped, the flush on hidden or pagehide dropped or made unconditional, the state fixed). Survived: removing
 the call in `install()`, which needs a DOM (node cannot see it); the next phone run's first load shows it.
 
