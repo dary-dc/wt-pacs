@@ -50,7 +50,7 @@ what is wrong, before or after decoding, and never as pixels.
 **Which decoder, per payload.** WebCodecs when every stream of the payload is ≤ 10 bits, `VideoDecoder`
 exists, and the probe for each stream's layout — grey 8 or 10-bit, 4:4:4 8 or 10-bit, told apart
 before decoding by the header and the unit's `seq_profile` — returned its samples, once per worker;
-dav1d-WASM otherwise, and for a payload WebCodecs fails on. An optimal-quality series (`decoder.lossy`) takes WebCodecs first
+dav1d-WASM otherwise, and for a payload WebCodecs fails on. An optimal-quality series (`decoder.optimal`) takes WebCodecs first
 at any depth and dav1d only after WebCodecs refused the frame; over 10 bits the first refusal holds for the worker
 ([`docs/av1/payload-format.md`](../docs/av1/payload-format.md) §Decoder choice, per payload). Both modules are imported, and dav1d's
 glue and WASM fetched, when the decoder starts, beside the dial; each is initialised on first use,
@@ -94,7 +94,7 @@ exact series that is not HTJ2K, is not of the same source (another frame count, 
 then not be called lossless: a digest proves a frame is its own series', not that the series is this one's source. A
 second downloader, one decoder and no fill, dials it once the optimal-quality series is connected, in either view. The
 **lossless** button, or `l`, asks the controller for the current frame exact: frame *i* of the exact series is asked, held beside the frame store (never in it, never cached, nothing else asked or evicted), and
-painted in place of the lossy frame once its digest matched; it stays until the reader steps off the frame or
+painted in place of the optimal-quality frame once its digest matched; it stays until the reader steps off the frame or
 presses the button again. An optimal-quality frame has no digest (the ingest writes none for it,
 `ingest/coded-frames/lossy_test.py`), so its `exact` is `"unchecked"`: nothing checks it against the encoder's
 reconstruction or the source (*corrected 2026-11-11, DEMO-UX, NAMES-FIND item 2*: this said its `exact` meant its decode
@@ -104,9 +104,9 @@ matched the encoder's reconstruction; no such digest exists).
   `Controller.quality`, and written by `viewer/screen.js` `labelOf`, its colour beside its words: *Optimal quality*
   in green; *fetching lossless…* while asked; *✓ Lossless* in blue only on the `shown` that
   follows the exact frame's paint, and only when that frame's `exact` is `true`; *Lossless check failed* in red, the
-  lossy frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed; the button then asks again.
+  optimal-quality frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed; the button then asks again.
 * **Routes**: WebCodecs first for every optimal-quality series, a depth cut and a 12-bit stored form alike; dav1d-WASM only
-  after WebCodecs refused the frame or its probe failed, the route in each frame's `info.path` and the refusal in
+  after WebCodecs refused the frame or its probe failed, the route in each frame's `info.route` and the refusal in
   `info.refusal` (§Which decoder, per payload). In headless Chromium a 12-bit unit is refused at `decode`. The demo shows
   no stored form (the owner, 2026-11-11: a lab option); the fallback keeps its browser check through the lab's
   `refuseWebCodecs` (`?opts={"refuseWebCodecs":true}`, `demo-check.mjs --refuse-webcodecs`), which refuses WebCodecs on a
@@ -124,7 +124,7 @@ matched the encoder's reconstruction; no such digest exists).
   paint; a scroll after a jump at G = 1, 8, 16 asks nothing), `transport/downloader.test.mjs` (a jump at G = 1, 8, 16
   asks the whole group and decodes it from the keyframe, in order, on one decoder) and `server/dev-server.test.py`;
   21 of 22 mutants fail them; the one alive drops the label's own check that the frame is `exact`, which the
-  exact-frame slot already enforces by admitting no other frame. The route rule: `decode/av1.test.mjs` (§lossy, 7 of 7
+  exact-frame slot already enforces by admitting no other frame. The route rule: `decode/av1.test.mjs` (§optimal, 7 of 7
   mutants killed), `decode/depth-cut.browser.mjs` (Chromium's refusal of the stored form) and the overlay's data in
   `view/controller.test.mjs`.
 * **End to end** (DEMO-E2E, 2026-11-10; *corrected in place*: this said it was not yet run). `viewer/demo-check.mjs`
@@ -234,7 +234,7 @@ series of a pair, under the default view (`?view=page`, no URL flags):
 4. **The route: WebCodecs first, dav1d-WASM only after a refusal.** `decode/av1.js` `route` and `decodeFrame`: a
    payload of 10 bits or fewer goes to WebCodecs once its layout's probe passed; a deeper one (the stored form) tries
    WebCodecs, and after its first refusal that decoder worker sends every such frame to dav1d, naming the refusal in
-   `info.refusal`, which the overlay shows. Held by `decode/av1.test.mjs` (the `lossy:` cases),
+   `info.refusal`, which the overlay shows. Held by `decode/av1.test.mjs` (the `optimal:` cases),
    `decode/decoder.test.mjs` (the refusal reaches the consumer) and `decode/depth-cut.browser.mjs` (Chromium's own
    refusal of a 12-bit unit).
 5. **The depth cut, for D > 10 only.** WebCodecs decodes AV1 up to 10 bits, so a 12-bit series' view is coded from its
@@ -255,7 +255,7 @@ series of a pair, under the default view (`?view=page`, no URL flags):
    failed exact request can be asked again on the same frame*) and, in Chromium, `viewer/demo-check.mjs` (a wrong
    digest never reads *Lossless*).
 8. **No mark beside an optimal-quality frame; the label is green.** Its metadata carries no digests, since there is no
-   source to check a lossy frame against; the label says what it is, so only *NOT EXACT* is marked beside it
+   source to check an optimal-quality frame against; the label says what it is, so only *NOT EXACT* is marked beside it
    (`viewer/screen.test.mjs`). The status line's *unchecked* count is the same fact.
 
 One level down, where a point needs it: a frame whose digest does not match is decoded once more on another path
@@ -266,9 +266,11 @@ before it is called not exact (`decoder.js` `checked`; [`docs/adr/exactness-in-p
 **What could not be explained simply**, candidates for simplification (OPT-SIMPLIFY) and naming (NAMES-FIND):
 
 * `requestExactFrame` asks one frame of *any* series: the optimal-quality series' on-demand steps call it too
-  (`Controller.show`), so *exact* names both "asked, not filled" and "the exact series".
+  (`Controller.show`), so *exact* names both "asked, not filled" and "the exact series". Since renamed (NAMES-1):
+  `requestFrame`, the wire's `request_frame`.
 * *Lossy* in the code (`meta.lossy`, `showLossy`, `view.lossy()`) beside *Optimal quality* on the
-  screen; the glossary retired *lossy series* as a name.
+  screen; the glossary retired *lossy series* as a name. Since renamed (NAMES-1): `showOptimal`, `view.optimal()`;
+  the metadata key `lossy` stays, a format.
 * The sentence above that *a lossy frame's own `exact` means its decode matched the encoder's reconstruction*
   describes a case the demo never shows: an optimal-quality series has no digests, so its frames are `unchecked`. Since
   corrected in place (DEMO-UX).
@@ -357,11 +359,11 @@ harness's per-frame `.sha256` is what sees that.
 `digests.frames` when its `algorithm` is `xxh3-64` ([`docs/FIXTURES.md`](../docs/FIXTURES.md) §Frame digests) —
 each decoder worker hashes every frame it decodes before handing it on, and the frame carries
 `info.exact`: `true` when its XXH3-64 matches, `"unchecked"` when the series or the frame has no digest.
-A mismatch is decoded once more on another path (`info.path`: `htj2k` in a decoder object of its own,
+A mismatch is decoded once more on another route (`info.route`: `htj2k` in a decoder object of its own,
 `av1-webcodecs` ⇄ `av1-dav1d`, `av1-mixed` → `av1-dav1d`; inside a group there is none) and is `true`
-only if that matches, with `info.mismatchOn` naming the path that missed; otherwise `false`, its
+only if that matches, with `info.mismatchOn` naming the route that missed; otherwise `false`, its
 `info.reason` naming both decodes. A frame is never asked again for it: the same bytes would come back.
-`stats().exact` counts frames per path as `{ true, false, unchecked }`. The hasher is xxHash's XXH3 with SIMD128
+`stats().exact` counts frames per route as `{ true, false, unchecked }`. The hasher is xxHash's XXH3 with SIMD128
 (`decode/xxh3.js`, built by `decode/wasm/build`), held to hash-wasm's digests by `decode/xxh3.test.mjs`; a
 worker given digests that cannot load it fails its start. What it costs
 and why it is on: [`docs/adr/exactness-in-production.md`](../docs/adr/exactness-in-production.md).
@@ -519,7 +521,7 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   the slices, the touch gesture taking nothing the canvas uses (one finger stays window/level; the choice and its
   sources: `claude/slice-touch:docs/reviews/slice-touch.md`). Moving it pauses cine; every slice shown otherwise moves
   it; a focused slider answers the stepping keys itself, so the page skips them. Both views alike.
-* **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the decoder per path, the
+* **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the frames per route, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name. A tap
   (touch only; a mouse click does nothing) on it or on the quality label unfolds it whole, wrapped; the next folds it
   (`viewer/screen.js` `unfoldOnTap`).

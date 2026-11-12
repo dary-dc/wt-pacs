@@ -36,7 +36,7 @@ const asks = [];
 for (const i of (q.get("asks") || "").split(",").filter(Boolean).map(Number)) {
   await settle(300);
   const at = performance.timeOrigin + performance.now();
-  const f = await client.requestExactFrame(i).catch(() => null);
+  const f = await client.requestFrame(i).catch(() => null);
   if (f) asks.push({ i, at, received: performance.timeOrigin + performance.now(), ...f.info.stamps });
 }
 client.close();

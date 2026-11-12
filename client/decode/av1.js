@@ -10,7 +10,7 @@ let cfg = null;
 let importer = (path) => import(path);
 const loaded = {};
 
-/** `d`: dav1d's `glue`, `wasm` and `dir`, `groupLength`, `lossy`; the lab's `mixed` and `refuseWebCodecs`: docs/decode/README.md §JS passes protocol. */
+/** `d`: dav1d's `glue`, `wasm` and `dir`, `groupLength`, `optimal`; the lab's `mixed` and `refuseWebCodecs`: docs/decode/README.md §JS passes protocol. */
 export async function init(d, load) {
   cfg = d;
   if (load) importer = load;
@@ -47,7 +47,7 @@ async function webcodecs(streams) {
 function route(payload, top, avoid) {
   if (avoid === "av1-webcodecs") return {};
   if (payload.depth <= 10) return webcodecs(layouts(payload, top));
-  if (!cfg.lossy) return {};
+  if (!cfg.optimal) return {};
   return refusedDeep ? { refusal: refusedDeep } : webcodecs([]);
 }
 
@@ -59,7 +59,7 @@ export async function decodeFrame(bytes, unit = { key: true }, preview, avoid) {
   if (wc) {
     try {
       const [t, l] = await Promise.all([wc.picture(top, unit), low && wc.picture(low, { key: true }, "low")]);
-      return { ...(l ? merge(t, l, payload) : end(begin(t, payload), l)), path: "av1-webcodecs" };
+      return { ...(l ? merge(t, l, payload) : end(begin(t, payload), l)), route: "av1-webcodecs" };
     } catch (e) {
       if (avoid === "av1-dav1d") throw e;
       refusal = e?.message ?? String(e);
@@ -79,6 +79,5 @@ export async function decodeFrame(bytes, unit = { key: true }, preview, avoid) {
     await pending; // in flight, it would be taken as the next payload's low
   }
   const lowPic = low && (await pending);
-  const path = lowPic ? "av1-mixed" : "av1-dav1d";
-  return { ...end(f, low && (lowPic || dav1d.picture(low, { key: true }))), path, refusal };
+  return { ...end(f, low && (lowPic || dav1d.picture(low, { key: true }))), route: lowPic ? "av1-mixed" : "av1-dav1d", refusal };
 }

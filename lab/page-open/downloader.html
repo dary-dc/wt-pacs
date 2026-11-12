@@ -58,7 +58,7 @@
         },
       });
       mark("session");
-      const f = await c.requestExactFrame(0);
+      const f = await c.requestFrame(0);
       mark("frame");
       log(`${f.info.width}x${f.info.height} in ${open.frame} ms`);
       c.close();

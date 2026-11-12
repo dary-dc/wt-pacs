@@ -20,5 +20,5 @@ export function decodeFrame(bytes) {
   // Never released here: the frame is the page's for as long as it keeps it.
   const view = new Uint8Array(M.HEAPU8.buffer, dec.takeFrame(), byteCount);
   const range = unranged(info) ? { min: 0, max: 255 } : dec.getRange();
-  return { info, sab: view, byteCount, range, path: "htj2k-copy" };
+  return { info, sab: view, byteCount, range, route: "htj2k-copy" };
 }

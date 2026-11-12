@@ -77,7 +77,7 @@ WebKit declines ([`../CLIENTS.md`](../CLIENTS.md) §On WebKit); it is a constant
 
 **A frame the paint worker does not hold** (scrolled back past the window): it asks the store worker, which reads the
 entry from OPFS into a new `SharedArrayBuffer`, checks it (§5), and posts the handle back. A frame in neither is asked
-of the downloader as today, through the page's `requestExactFrame` or a port the page hands the paint worker.
+of the downloader as today, through the page's `requestFrame` or a port the page hands the paint worker.
 
 **A second viewport.** One paint worker can hold several transferred canvases, one WebGL2 context each; samples are
 uploaded from shared memory per context, so nothing is copied for the second. One worker for every viewport keeps one
@@ -2899,7 +2899,7 @@ and `shown` carries `reason`.
 * The session, survival and refusals staying in the downloader.
 
 **No capability of today's path is lost by design.** The losses are in the build: error reporting (#6), timing (#14),
-and the per-frame promise of `requestExactFrame`, now an event. The design's real exposure is #1–#4. The wire cannot
+and the per-frame promise of `requestFrame`, now an event. The design's real exposure is #1–#4. The wire cannot
 carry an order without asks; a want with today's generation re-decodes; nothing pushes back; and one thread carries
 I/O. Each has a small fix and a measurement that settles it.
 

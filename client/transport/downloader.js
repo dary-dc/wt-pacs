@@ -319,7 +319,7 @@ const onWire = new Map();
 function requestOnce(s, index, onHead) {
   const held = onWire.get(index);
   if (held?.session === s) return held.promise;
-  const promise = s.requestExactFrame(index, onHead);
+  const promise = s.requestFrame(index, onHead);
   onWire.set(index, { session: s, promise });
   const forget = () => onWire.get(index)?.promise === promise && onWire.delete(index);
   promise.then(forget, forget);

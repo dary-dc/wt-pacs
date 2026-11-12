@@ -192,7 +192,7 @@ decodes longer, a slower CPU or another engine; a schedule fires from the defaul
 
 ## Demo
 
-Optimal quality: every reader sees a series' visually lossless AV1 view, and a frame comes whole from its exact HTJ2K
+Optimal quality: every reader sees a series' visually lossless AV1 picture, and a frame comes whole from its exact HTJ2K
 series only when **Lossless** is pressed ([`client/README.md`](client/README.md) §Optimal quality, exact on request).
 The demo set is three breast tomosynthesis volumes, `dbts_a1` (56 frames, 12-bit), `dbts_b1` (50, 10-bit) and `dbts_c1`
 (69, 12-bit), each as its exact series and its optimal-quality series at Q 8 and Q 24, G 1, 8 and 16; the 12-bit two
@@ -395,7 +395,7 @@ browser honors it. Not checked: the phone, its Chrome's flags page, the tether, 
 **What is on screen:**
 
 * **The label**, top right: what is painted, its colour and its words saying the same. *Optimal quality* in green, the
-  AV1 view; *fetching lossless…* while the exact frame is asked; *✓ Lossless* in blue only after that frame's XXH3-64
+  AV1 picture; *fetching lossless…* while the exact frame is asked; *✓ Lossless* in blue only after that frame's XXH3-64
   digest matched its exact series' metadata and it was painted; *Lossless check failed* in red otherwise, the
   optimal-quality frame kept and the reason on the status line.
 * **The mark**, top left: none on a paired series unless a frame is *NOT EXACT* (red); a lossy frame has no digest to
@@ -535,7 +535,7 @@ Chrome also lists the phone through the running adb server (`AdbDeviceProvider`,
 ([Chrome DevTools](https://developer.chrome.com/docs/devtools/rendering/performance)). A DevTools session changes what
 the browser does: close it before a timed run ([`docs/devices.md`](docs/devices.md) §3).
 
-**6 · Which AV1 decoder.** The status line's `decoders:` counts frames per path: `av1-webcodecs` (Chrome's
+**6 · Which AV1 decoder.** The status line's `routes:` counts frames per route: `av1-webcodecs` (Chrome's
 `VideoDecoder`), `av1-dav1d` (the page's own WASM), `htj2k`. The product configures WebCodecs with
 `hardwareAcceleration: "prefer-software"` (`client/decode/av1-webcodecs.js`), and under it Chrome builds no platform
 decoder: `if (hardware_preference_ != HardwarePreference::kPreferSoftware)` guards the `MojoDecoderFactory`

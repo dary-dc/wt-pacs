@@ -214,9 +214,9 @@ function judge(name, r, requests, codec, decoder, cached = 0) {
   say(r.askDelivered === true, `an ask of a delivered frame: ${JSON.stringify(r.askDelivered)}`);
   say(r.cancelledFill === "cancelled", `a fill cancelled at once: ${JSON.stringify(r.cancelledFill)}`);
   say(r.askAfterCancel === true, `an ask after the cancel: ${JSON.stringify(r.askAfterCancel)}`);
-  const paths = Object.keys(r.paths).filter((p) => p !== "cache");
-  if (decoder && cached < want) say(paths.length === 1 && paths[0] === decoder, `decoded by ${paths.join(", ") || "none"}, not ${decoder} alone`);
-  say((r.paths.cache ?? 0) === cached, `${r.paths.cache ?? 0} frames read from the cache, not ${cached}`);
+  const routes = Object.keys(r.routes).filter((p) => p !== "cache");
+  if (decoder && cached < want) say(routes.length === 1 && routes[0] === decoder, `decoded by ${routes.join(", ") || "none"}, not ${decoder} alone`);
+  say((r.routes.cache ?? 0) === cached, `${r.routes.cache ?? 0} frames read from the cache, not ${cached}`);
   // The cache: docs/adr/frame-path.md §3, *Built*. A frame on disk reaches the store with no message to the downloader.
   if (VIEW === "worker" && WRITER) {
     const c = r.cache;
@@ -228,7 +228,7 @@ function judge(name, r, requests, codec, decoder, cached = 0) {
     if (cached) say(c.asked.length === want - cached && delivered === want - cached,
       `a reopen asked the downloader for ${c.asked} and it delivered ${delivered}, not the ${want - cached} not on disk`);
   }
-  if (codec === "av1") say(paths.length > 0 && paths.every((p) => p.startsWith("av1-")), `an AV1 page whose frames were decoded by ${paths.join(", ")}`);
+  if (codec === "av1") say(routes.length > 0 && routes.every((p) => p.startsWith("av1-")), `an AV1 page whose frames were decoded by ${routes.join(", ")}`);
   say(r.status.includes(`client ${CLIENT}`), `the status line does not name client ${CLIENT}: ${r.status}`);
   say(r.status.includes(`view ${VIEW}`), `the status line does not name view ${VIEW}: ${r.status}`);
   say(r.heldStep === "painted 1, sent nothing", `a step to a held frame: ${r.heldStep}, not one paint and nothing sent`);
@@ -250,7 +250,7 @@ function judge(name, r, requests, codec, decoder, cached = 0) {
   if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine showed ${r.cine} frames in 1.5 s`);
 }
 
-const summary = (name, r) => `${name}, client ${CLIENT}, view ${VIEW}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +
+const summary = (name, r) => `${name}, client ${CLIENT}, view ${VIEW}: ${r.received}/${r.n} received, ${r.exact} exact, routes ${JSON.stringify(r.routes)}, renderer ${r.renderer}, ` +
   `${r.fillMs === null ? "on demand" : `fill ${Math.round(r.fillMs)} ms`}, first exact on screen ${Math.round(r.firstShownMs)} ms, readbacks ${(r.readbacks ?? []).map((b) => `${b.i}:${b.worst}`).join(" ")}` +
   `${r.cine !== undefined ? `, cine ${r.cine} frames` : ""}${r.page ? `, page heard ${r.page.messages} messages, ${r.page.pixels} with pixels` : ""}` +
   `${r.cache ? `, cache: ${r.cache.present?.length} on disk, asked [${r.cache.asked}], ${r.cache.writesHere} writes on the view thread` : ""}`;

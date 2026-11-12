@@ -219,7 +219,7 @@ export abstract class FrameSession {
   }
 
   /** `onHead` runs once the frame's envelope head is read, before its body. */
-  async requestExactFrame(frameIndex: number, onHead?: () => void): Promise<FrameResult> {
+  async requestFrame(frameIndex: number, onHead?: () => void): Promise<FrameResult> {
     const askMs = performance.now();
     const pending = this.armWaiter(frameIndex, onHead);
     const armed = this.waiters.get(frameIndex)!;

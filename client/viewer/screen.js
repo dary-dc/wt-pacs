@@ -12,7 +12,7 @@ export function overlayText(about, quality, lossy) {
   const ms = about.decodeMs === undefined ? "?" : about.decodeMs.toFixed(1);
   const cut = lossy?.bitsStored ? ` depth cut of ${lossy.bitsStored}` : "";
   const series = lossy && quality !== "lossless" ? ` · Q ${lossy.q} · G ${lossy.g} · ${lossy.depth}-bit${cut}` : "";
-  const route = about.refusal ? `${about.path} after WebCodecs refused: ${about.refusal}` : about.path ?? "?";
+  const route = about.refusal ? `${about.route} after WebCodecs refused: ${about.refusal}` : about.route ?? "?";
   return `${route} · ${kb} KB · decode ${ms} ms${series}`;
 }
 

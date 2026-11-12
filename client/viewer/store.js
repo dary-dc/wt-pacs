@@ -126,7 +126,7 @@ async function read({ index }) {
     putRecord(index, [0, 0, 0]);
     return { miss: "its digest did not match" };
   }
-  return { info: { ...series.shape, pixels, min, max, exact: true, path: "store" } };
+  return { info: { ...series.shape, pixels, min, max, exact: true, route: "store" } };
 }
 
 const kinds = { open, write, read };

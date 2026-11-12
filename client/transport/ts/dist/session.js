@@ -165,7 +165,7 @@ var FrameSession = class {
     }
   }
   /** `onHead` runs once the frame's envelope head is read, before its body. */
-  async requestExactFrame(frameIndex, onHead) {
+  async requestFrame(frameIndex, onHead) {
     const askMs = performance.now();
     const pending = this.armWaiter(frameIndex, onHead);
     const armed = this.waiters.get(frameIndex);
