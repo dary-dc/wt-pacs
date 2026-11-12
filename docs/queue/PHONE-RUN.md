@@ -32,6 +32,16 @@ The next round's protocol (an amendment by a session that will not run it) waits
 cover: the show list's first series (dbts_a1-q8-g8-cut, where the start weighs most) beside dbts_b1-q8-g8; a fresh
 Chrome profile or closed tabs; the phone untouched; a cellular arm only if a server the phone reaches over the
 Internet is in scope.
+Local state on the owner's laptop, for the next phone session (none of it in git):
+~/Desktop/projects/wt-pacs-data/ holds the coded demo series (demo-series/c6da7275-aom3.15.1-ojph0.31.0-dav1d1.5.4,
+valid for 962226e8: no change under ingest/, lab/av1/, scripts/demo-series.sh, common/; BUILT.txt), the IDC source
+volumes (sources/idc-dbts) and the container-built coders and venv (tools/); rebuild only when the coders change, in a
+throwaway container from the local `rust` image with `--cpus=2` and taskset inside. Podman image
+wt-pacs-server-telemetry is 962226e8's (label checked). adb in ~/opt/platform-tools. Worktrees: wt-pacs-phone-962
+(claude/phone-rows, `demo-series` linked to the set above, target/phone-run/ the unstripped logs) and wt-pacs-ledger.
+The laptop's Wi-Fi radio was left off for the run (`nmcli radio wifi on` restores it); the tether's never-default is
+runtime only. The command functions as run: docs/phone-rows/run-env.sh. Lessons for the runs: docs/phone-rows/README.md
+"Where the run departed from the protocol".
 ## Result
 docs/phone-rows/README.md on claude/phone-rows (4e492c92). By the pre-registered rules, before the blind read:
 tether 23 passed, 1 missing (load 7: the tether's address changed); worker/page depends on the controller;
