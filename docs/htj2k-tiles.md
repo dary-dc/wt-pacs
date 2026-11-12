@@ -1022,6 +1022,104 @@ are in [`rows/stage3-s3b.jsonl`](../lab/htj2k-tiles/improve/rows/stage3-s3b.json
   Lossless one.
 * **The decode-bound test** names 11 of the 20 (set, link) pairs in S3b alone.
 
+## Verdict (row HTJ2K-VERDICT, 2026-11-12)
+
+*By a session that wrote none of §Screen resolution, its review, §Improve, or the run. It is judged on HTJ2K-MEASURE's
+done result: rows through `9d622d3e` (S3a, S3b, S3c) and readings `ef5adda2`, re-read with `summary.py`. A second run
+of S3c's rounds 4–5 (`rows/stage3-s3c-4.jsonl`) was started by a session that resumed the row while it was still
+running. It is a duplicate and is outside this verdict.*
+
+**Fixtures and host, with every line below:** three timed DBT volumes (`dbts_a1`, `dbts_b1`, `dbts_c1`), all from one
+dataset (EA1141), with slices not independent samples; only `dbts_b1` upright and `dbts_c1` sideways reach level 1; no
+breast ultrasound cine; a 4-core cloud host without a GPU, headless Chromium 153 with software WebCodecs; a 4× cgroup
+cap standing in for a phone (*assumption*); emulated links. **The host saturates**: D's software AV1 fill makes 13 of
+20 (set, link) pairs decode-bound at 4×, which leaves `r5000` as the only link-bound cell. Nothing past it is claimed.
+
+**Every prediction against its cell** (link-bound cells; the rest are readings):
+
+| # | predicted | measured | verdict |
+| --- | --- | --- | --- |
+| J1 | +0.005–0.1 % bytes | +0.009–0.013 % (`a1`, `c1`); −0.27–0.30 % (`b1`, six decompositions) | holds; I1's ±0.1 % for the sixth decomposition missed (it saves) |
+| J2 | +0.1–0.6 % | +0.11–0.14 %; `b1` −0.20–0.24 % | holds |
+| J3 | ×0.38–0.55 at 4× | ×0.43–0.48, 10/10 rounds | holds |
+| J4 | `b1` ×0.79–0.95, others ×0.85–0.97; refuted over ×1.0 | `r5000` 4×: `b1` ×0.923, `a1` ×0.936, `c1` ×0.915, sideways ×0.908 | holds; the size is not I2's (A1 below) |
+| J5 | ×0.93–1.00 at 1×; over ×1.03 | ×0.972–0.980 | holds |
+| J6 | ×0.22–0.40; over ×0.50 | ×0.264 (4×), ×0.279 (1×) | holds, and the mechanism with it: the level is 0.27 of the strips' bytes |
+| J7 | ×1.00–1.08; over ×1.15 | ×1.001–1.010 | holds, at its floor: the level decoded twice does not show on a link |
+| J8 | Q1, Q2 within 10 %; under 1.0 on `a1`/`c1` | `a1` ×4.0–5.6 · ×14; `c1` ×3.5–4.6 · ×11; `b1` ×0.67–0.90 · ×1.23 | not refuted; two bands missed (`a1` every slice above Q2's 3–8; `b1` first under Q1's 1.1) |
+| J9 | ×0.40–0.60 of the decode | ×0.566 (`b1`), ×0.433 (`c1` sideways) | holds (stage 2) |
+| J10 | 0 asks, 0 decodes | 431/431 (S★, D+L★); 1 053/1 053 in all | holds; 24 reopens read an OQ picture back differently (below) |
+| J11 | within ±5 % of clean | ×0.39–4.1; s up to 3.9 | **refuted**; the cell cannot resolve the arms in six rounds |
+
+**R0–R7 as written:** R0, R1, R2, R4 and R6 hold. R3 holds on its one link-bound cell, within its bound only with s
+(×0.923 against 0.92 × 1.016). R5 withdraws S★ for the scroll, since only `dbts_b1` meets it. R7 is named above.
+
+**Each change:**
+
+* **I1, the profile (tile-parts at resolutions, TLM, base ≤ 64): survives.** J1 holds. Its byte cost is corrected in
+  place in stage 1: the sixth decomposition saves 0.27–0.30 %.
+* **I2, three strips: survives, corrected in place.** The decode split holds (J3). On a link, D+T3's measured gain
+  is 2.5–3× the frame's whole decode on every volume, with the same bytes. From stage 2's decode times, the strips
+  can explain at most about ×0.97 of D on `dbts_b1` at 4×, which would miss R3's ×0.92. The rest is a difference
+  between the arms' paths that no row isolates. D's Lossless runs on the product client: one ask, decoded on its one
+  decoder and XXH3-checked before the picture. D+T3 runs on the lab page: nine asks on three workers, hashed after the
+  clock. XXH3 with SIMD over 17 MB is a few ms (*assumption*), so it is not the rest either. **So R3's pass rests on a
+  part that is not the strips.**
+* **I3, bands at the fit asked by index: survives inside D+L★** (J6, J7, R4). It is withdrawn with S★ for the scroll.
+* **I4, the cache's two record kinds: survives on R6** (no reopen asks or decodes). Two facts outside the rule are
+  owed before it is built:
+  * In 24 reopens (18 in the D arms, 6 in D+L★), all on `dbts_b1`, the lab store read an OQ picture of frame 47 or
+    49 back differently. These are 17 MB pictures, the volume's last. Exact and level pictures always matched.
+  * Two visits were refused for storage quota on the same volume.
+
+  The product store keeps only checked frames, so neither reaches it. I4 would add about 215 MB of level pictures
+  per `dbts_b1` volume (4.3 MB × 50, *derived*), and how much a phone allows is unmeasured.
+* **I5, precincts not proposed for DBT: stands.** Nothing was measured; the zoom reading on precincts was not run.
+* **I6, window and zoom: stands as derived.** Nothing was measured.
+
+**The approach against the demo's.** The demo's approach (the OQ AV1 scroll, the whole HTJ2K frame on request)
+**stands for the scroll** on all three volumes. HTJ2K at the screen's level (S★) sends the whole exact series where
+the fit is level 0, and pictures every slice ×11–14 later at 5 Mbit/s. Only `dbts_b1` (fit level 1) meets R5: first
+picture ×0.67–0.90 and every slice ×1.23 at `r5000`, and better than D in the decode-bound cells. That is because this
+host decodes AV1 in software, which a phone with a hardware AV1 decoder may not share. **For the Lossless request,
+two candidates are on the table:**
+
+* **D+L★**, an exact level picture at ×0.26–0.28 of today's wait on `dbts_b1` at 5 Mbit/s. Its gain is the level's
+  byte fraction, a mechanism that holds.
+* **D+T3**, the whole frame at ×0.91–0.94. Most of that gain is not yet attributed.
+
+Both need Layout 1, a store-format change.
+
+**Runs still owed, in order, each pre-registered here and run by another session:**
+
+* **A1, attribution (this host, before any phone).**
+  * *Arms:* D; **D+T1**, today's whole codestream as one entry through the lab page's path (one worker, hashed after
+    the clock); D+T3. Interleaved in a Williams order.
+  * *Cells:* `r5000` and `r20000`, 1× and 4×, all three volumes, 6 rounds. D′ is the A/A pair.
+  * *Rule:*
+    * The strips' effect is D+T3 ÷ D+T1, predicted ×0.96–0.99 at 4× on `dbts_b1`.
+    * Layout 1 stays proposed for D+T3 only if that effect is ≤ ×0.95 × (1 + s) at 4× on `dbts_b1` at `r5000`.
+      Otherwise D+T3 is withdrawn, and D+L★ alone carries Layout 1.
+    * If D+T1 ÷ D ≤ ×0.95, the product's exact path has an overhead the lab page lacks. That is a client-line
+      finding (`docs/lines/client.md`), whatever the layout.
+* **P1, whether a phone's fill is decode-bound** (the phone session's protocol, `docs/devices.md` §7, tether and
+  Wi-Fi). D's every-slice time on `dbts_b1` and `dbts_c1`, read from the overlay over 6 alternations, against
+  the bytes ÷ the link's measured rate.
+  * *Rule:* a link where D's fill is within 1.10× of its wire time is link-bound on that phone.
+  * R3 and R5 are re-judged on those links from P2's rows; this host's decode-bound cells decide nothing about a phone.
+* **P2, the Lossless request on a phone** (after A1, only for the arms that survive it). The stage-3 page served by
+  the laptop's `dev-server.py`, `dbts_b1` upright, arms D, D+T3, D+L★ alternated, 6 rounds a link. Reported: the
+  request to the level picture and to the Lossless picture, from the page's result beacon.
+  * *Rule:* R3 and R4 as written, on P1's link-bound links.
+* **P3, the store on a phone.** After a D+L★ fill of `dbts_b1`: `navigator.storage.estimate()`, the level and band
+  records' bytes, the reopen's time, and every picture read back against its filled copy (the 24 differing reads).
+  * *Rule:* I4 is built only if every record reads back equal and fits the reported quota with the series' frames
+    beside it. Otherwise its level-picture record is dropped and only the coded bands are kept (*assumption*: they
+    are 0.59 MB a frame).
+
+**For the owner:** whether Layout 1 waits for A1, which decides whether D+T3's gain is the strips'. Whether an exact
+level picture may be shown before the frame (D+L★), and in what words. Whether P1–P3 join the next phone run.
+
 ## Sources
 
 Read 2026-11-09; quotations are verbatim, with the PDF's symbols restored where text extraction lost them (≤).
