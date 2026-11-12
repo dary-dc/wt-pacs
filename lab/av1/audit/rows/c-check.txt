@@ -1,0 +1,29 @@
+1x: four loops 296 ms
+4x: 1217 ms, 4.11x of 1x
+4x-cores2: 2408 ms, 8.14x of 1x
+4x-cores1: 4590 ms, 15.51x of 1x
+--- cpu_throttle.mjs --check (no cores)
+1x  page thread 346 ms  worker 378 ms  (median of 4)
+4x  page thread 1456 ms  worker 1377 ms  (median of 4)
+node:fs:1193
+  binding.rmdir(path);
+          ^
+
+Error: ENOTEMPTY: directory not empty, rmdir '/tmp/throttle-check-ZAUJoR/Default'
+    at Object.rmdirSync (node:fs:1193:11)
+    at _rmdirSync (node:internal/fs/rimraf:261:21)
+    at rimrafSync (node:internal/fs/rimraf:194:7)
+    at node:internal/fs/rimraf:254:9
+    at Array.forEach (<anonymous>)
+    at _rmdirSync (node:internal/fs/rimraf:251:7)
+    at rimrafSync (node:internal/fs/rimraf:194:7)
+    at Object.rmSync (node:fs:1239:10)
+    at check (file:///home/user/audit/lab/scripts/cpu_throttle.mjs:162:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  errno: -39,
+  code: 'ENOTEMPTY',
+  syscall: 'rmdir',
+  path: '/tmp/throttle-check-ZAUJoR/Default'
+}
+
+Node.js v22.23.4
