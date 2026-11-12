@@ -816,6 +816,10 @@ before #158, the older stack (#113–#156) before #159, #155 before #164, and #2
 resolved as the table above says where it names one; the others, and every deviation, are in that PR's body. It
 decides nothing: the waiting PRs stay waiting (D11), the draft is not merged.
 
+*Corrected 2026-11-12:* the assembly missed the last commits of #167, #168, #230, #233 and #234, pushed after it.
+`claude/unified-pacs` is `claude/line-pacs` with those six commits merged, one `--no-ff` merge per PR; it too decides
+nothing.
+
 ## 14 · Decisions waiting for the owner
 
 Each: the evidence in one line · the default if nothing else is said.
