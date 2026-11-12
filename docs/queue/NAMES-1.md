@@ -1,20 +1,20 @@
-state: started
+state: done
 started: 2026-11-12T07:23Z
-heartbeat: 2026-11-12T09:35Z
-outputs: claude/names-1 311af9c7 (no PR yet)
+heartbeat: 2026-11-12T09:55Z
+outputs: claude/names-1 311af9c7, draft PR #374 into claude/demo-fixes-2 (for after the merge)
 ## Resume
-Branch claude/names-1 from the demo tip claude/demo-fixes-2 18d2d1ff. Source: claude/demo-understand:docs/reviews/understand/names.md
-(its line numbers are 618e13c8's; re-grep). Done and pushed: 605466b2 glossary rows (items 5, 6, 8); 9418af3b item 4
-(prose "view" -> optimal-quality picture; the queue's and line docs' dated decision quotes left as written).
-Item 2's docs part was already done by DEMO-UX (client/README.md §Optimal quality) and FIX-1 (no mark beside a label).
-a5c086a4 item 5 (info.path -> info.route etc.; lab output row keys kept; mutants killed: av1.js route field 16 FAILs,
-screen.js overlay). a2f15908 item 3 (showLossy -> showOptimal etc.; metadata key `lossy` stays).
-Gate on a2f15908 FAILED at run_browser.sh: dispatch-rig read info.path (item 5 missed it); fixed in 3333667f.
-ab5203d6 item 7 (depthCut/cut -> cutShift; mutants killed: voi.js reads frame.cut, asPainted drops cutShift).
-dc824f7b item 1 (requestExactFrame -> requestFrame in 43 files incl. lab; wasm js_name + Rust fn; ts dist rebuilt and
-manifest.sha256 updated; history records left: docs/av1/queue.md, docs/reviews, docs/queue*).
-311af9c7 docs/lines/client.md. Gate on 3333667f (worktree): every step passed up to the decoder rebuild, which failed
-on the worktree's symlinked vendor/ (Docker cannot follow it), not on the code. Full gate on 311af9c7 running in the main
-tree (scratchpad gate-311af9c7.log). Next: read it; the consumer.js requestFrame mutant through
-client/contract/run_browser.sh; draft PR into claude/demo-fixes-2 (for after the merge); Result.
+Done; nothing left for this row. A review row belongs in the two-week queue (QUEUE-2W).
 ## Result
+* NAMES-FIND's renames, one per commit, from the demo tip 18d2d1ff: glossary rows (items 5, 6, 8) 605466b2; item 4
+  prose 9418af3b; item 5 info.path -> info.route, status `routes:` a5c086a4 + 3333667f; item 3 showLossy -> showOptimal
+  etc. a2f15908 (metadata key `lossy` stays); item 7 depthCut/cut -> cutShift ab5203d6; item 1 requestExactFrame ->
+  requestFrame dc824f7b (43 files, wasm js_name, ts dist + manifest); client.md 311af9c7.
+* Item 2's docs were already done (DEMO-UX, FIX-1). Not done, not in the brief's code list: item 2's screen words
+  (*unchecked* -> *no digest*), item 6's exactSource -> exactClient.
+* Full gate on 311af9c7: GATE OK, 395 s. Skipped: native painter and window, cross-codec + Firefox, nginx web host.
+  The gate on a2f15908 failed (dispatch-rig read info.path), fixed in 3333667f.
+* Mutants killed: av1.js `path` field, screen.js about.path, voi.js frame.cut, asPainted without cutShift,
+  downloader.js and consumer.js requestExactFrame (the latter only by run_browser.sh).
+* Not run: demo-check.mjs over the demo series in both views (demo-series.sh not rebuilt here).
+* Fixtures: none timed; one 4-core cloud container, no GPU, headless Chromium (SwiftShader).
+* Owner: whether to merge #374 after the merge; PRs 369 and 370 will need the same renames.
