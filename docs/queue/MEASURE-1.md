@@ -101,27 +101,16 @@ edit nothing, start p4.sh at 6 after round 5's 72 rows land). Push rows with git
 Then replace §P4's "Measured in part" with the 7-round table and verdict (python3 lab/proposals/p4_summary.py).
 Then P2 (an ingest arm: amendment first), P5, P3, B0, B, A, C, each with its amendment before any run.
 ## Result
-* P1 BBR on the demo pair: adopt by its rule (1 % iid: fill 0.11-0.12x, `l` 0.16-0.29x; clean 0.84-0.99x).
-* P4 38 400 B initial window on the exact server: reject after 7 rounds (a1 at 1 % loss 1.06x, noise around a tie;
-  b1 clean 0.92x against the 0.9x bar); clean cells -8 to -14 %, inside the band.
-* P2 tiles: 2x2 meets its rule on 4 cores (decode 0.64-0.72x, jump 0.73-0.84x, bytes <= 1.0065x); 2x1 rejected.
-  3 page runs on 2 cores missed the label's "fetching lossless" on a tampered digest: a finding for FIX-2.
-* P5 late exact dial: drop as inert (first picture +1 to +30 ms); not predicted: `l` 1.03-1.10x slower with it.
-  The CDP throttle reaches the page's main thread only (Chromium refuses it on workers), so a 2-core cell was added.
-* P3 wake on pointerdown, plumbing: rule refuted; on a1 and c1 the wake takes L off (-4/-44/-88, -4/-48/-105 ms for
-  L 0/50/100); on b1 the ask comes ~15 s into the session and an earlier packet pays the promotion (check: 6 s quiet
-  pays it, 14 s on a1 does not). The deciding row is the owner's phone.
-* B0 (zero encodes): QA F1's table reproduced exactly; x* over all 19 volumes 4.7584 at G 1 (not 4.9293), 4.6359
-  pooled and at G > 1, 4.8024 for 12-bit streams: B-6 holds. No reading overshoots an anchor; per-depth x* lifts
-  dbts_c1 and c5 G 16 from Q 4 to 8 (0.28 -> 0.10 of HTJ2K). Which x* the rule takes waits on delta (B1, B2).
-* B (352 cells, 19 volumes, G 1 and 16): s_split <= 0.25 % (B-1 holds); injected bias -3.8 to +5.5 % (B-2 refuted);
-  delta 0.1-5.5 %, anchor unresolved on 15 of 19 (B-3 refuted, wide side); Q_hi - Q_lo up to >= 8 on 10-bit (B-4
-  refuted); G 16 / G 1 at equal quality 0.954-0.986 (12-bit), 0.855-0.907 (10-bit) (B-5 holds). Both x* stay.
-* A: nu at the rule's Q 0.286-0.495 (A2 refuted at the top), not one curve of x (A3 refuted); Q_nu 1.16-1.92x bytes.
-  C not started (past its latest; the next session).
-* Fixtures: dbts_a1-q8-g8-cut, dbts_b1-q8-g8, dbts_c1-q8-g16-cut and their exact series (demo tip 9e2ef4ef), three
-  DBT volumes of one dataset; userspace relay, no netem; one 4-core cloud host, no GPU, SwiftShader; headless
-  Chromium, page view. P2 adds G 1 and G 8 series in three tile arms; 2-core cells are taskset, not a phone.
-* Owner decisions: quote the OQ anchor as [Q_lo, Q_hi] with nu beside it, and "keep at least half" (Q_nu) as an
-  option (codecs §Open 0, decision 1 or 9); BBR for the pair's two servers (transport-conclusions §9 item 2); whether a phone run of P3 is worth
-  taking, given that a browser ping near 15 s can hide the radio's promotion.
+* P1 BBR on the pair: adopt by its rule (1 % iid: fill 0.11-0.12x, `l` 0.16-0.29x; clean 0.84-0.99x).
+* P4 38 400 B initial window: reject after 7 rounds (a tie under loss; b1 clean 0.92x against the 0.9x bar).
+* P2 tiles: 2x2 meets its rule on 4 cores (decode 0.64-0.72x, jump 0.73-0.84x); 2x1 rejected; 3 page runs on 2 cores
+  missed "fetching lossless" on a tampered digest (a finding for FIX-2). P5 late exact dial: drop as inert.
+* P3 wake on pointerdown: rule refuted (wake takes L off on a1, c1; b1's ask comes late); the phone decides.
+* B0: QA F1 reproduced; x* 4.7584 at G 1, 4.6359 pooled and G > 1, 4.8024 for 12-bit (B-6 holds).
+* B (352 cells): delta 0.1-5.5 %, anchor unresolved on 15 of 19, Q_hi - Q_lo up to >= 8 on 10-bit (B-2, B-3, B-4
+  refuted; B-1 holds); G 16 / G 1 at equal quality 0.954-0.986 (12-bit), 0.855-0.907 (10-bit) (B-5 holds).
+* A: nu at the rule's Q 0.286-0.495 (A1 holds; A2, A3, A4 refuted at their edges). C not started: the next session.
+* Fixtures: three DBT volumes of one dataset for P1-P5 (demo tip 9e2ef4ef), userspace relay, no netem; B and A on 19
+  DBT volumes of the same dataset, stored form; one 4-core cloud host, no GPU, headless Chromium; nothing for a phone.
+* Owner decisions: the OQ anchor quoted as [Q_lo, Q_hi] with nu beside, and "keep at least half" (Q_nu) as an option
+  (codecs §Open 0); BBR for the pair's servers; whether a phone run of P3 is worth taking.
