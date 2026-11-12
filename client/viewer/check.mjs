@@ -2,7 +2,7 @@
 // exact, drawn page failed by name. client/README.md §The viewer
 //
 //   NODE_PATH=$(npm root -g) node client/viewer/check.mjs --series X.sbnd --decoder htj2k [--pair Y.sbnd --pair-decoder D]
-//     [--engine chromium|firefox] [--cine] [--fill 0] [--client ts|wasm]
+//     [--engine chromium|firefox] [--cine] [--fill 0] [--client ts|wasm] [--dpr R]
 //   ... --url http://host/ --decoder htj2k [--client C]   (a host already running, such as the deploy image, whose transport
 //     file names C; no request log, so no code check)
 //   ... --url http://host/ --fill 0 --restart CMD   (CMD restarts the host's server and prints its `transport=` line)
@@ -17,6 +17,7 @@ const ROOT = new URL("../..", import.meta.url).pathname;
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ENGINE = arg("--engine", "chromium");
 const CLIENT = arg("--client", "ts");
+const DPR = Number(arg("--dpr", 1));
 const CLIENTS = {
   ts: ["/client/transport/ts/dist/session.js"],
   wasm: ["/client/transport/wasm/session-adapter.js", "/client/transport/wasm/pkg/transport_wasm.js", "/client/transport/wasm/pkg/transport_wasm_bg.wasm"],
@@ -104,12 +105,14 @@ async function open(url) {
   }
   const { chromium } = createRequire(import.meta.url)("playwright");
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
-  const tab = await browser.newPage({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 });
+  const tab = await browser.newPage({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: DPR });
   tab.on("pageerror", (e) => fail(`page error: ${e.message}`));
   await tab.goto(page);
   try {
     const read = tab.waitForFunction(() => globalThis.__viewerResult, null, { timeout: 0 }).then((h) => h.jsonValue());
-    return await Promise.race([read, timeout]);
+    const r = await Promise.race([read, timeout]);
+    if (r.readbacks?.some((b) => b.sha256)) r.screen = await tab.evaluate((png) => screenWorst(png), (await tab.locator("#view").screenshot()).toString("base64"));
+    return r;
   } finally {
     await browser.close();
   }
@@ -126,6 +129,11 @@ function judge(name, r, requests, codec, decoder) {
   say(r.exact === want, `not every frame exact: ${r.exact} exact, ${r.inexact} not, ${r.unchecked} unchecked of ${want}`);
   if (onDemand) say(r.raced === "newest alone", `three quick steps did not keep the newest ask alone: ${r.raced}`);
   if (onDemand) say(r.twice === String(r.n - 1), `two steps to frame ${r.n - 1} sent ${r.twice}, not its one ask`);
+  const { ends, modality, turned, cased, error } = r.keys;
+  say(ends === `0 ${r.n - 1}`, `a step past either end moved to frame (first, last) ${error ?? ends}, not 0 ${r.n - 1}`);
+  const view = ["DX", "CR"].includes(modality) ? "90 true true" : "0 false false";
+  say(turned === view, `r, h and v on modality ${modality} left rotate, flipH, flipV ${turned}, not ${view}`);
+  say(cased === "true false", `I then i left invert ${cased}, not true then false`);
   say(r.askDelivered === true, `an ask of a delivered frame: ${JSON.stringify(r.askDelivered)}`);
   say(r.cancelledFill === "cancelled", `a fill cancelled at once: ${JSON.stringify(r.cancelledFill)}`);
   say(r.askAfterCancel === true, `an ask after the cancel: ${JSON.stringify(r.askAfterCancel)}`);
@@ -142,8 +150,11 @@ function judge(name, r, requests, codec, decoder) {
     const wasm = CLIENTS.wasm.filter((f) => requests.includes(`GET ${f}`));
     if (CLIENT === "ts") say(wasm.length === 0, `a ts page fetched the WASM client's code: ${wasm.join(", ")}`);
   }
-  for (const b of r.readbacks ?? []) say(!b.error && b.worst === 0, `frame ${b.i} at zoom 1 differs from the CPU reference: ${b.error ?? `worst |Δ| ${b.worst}`}`);
-  if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine showed ${r.cine} frames in 1.5 s`);
+  say(r.oneToOne === "false 1 0 0 0 false false", `0 then 1 left the view (fit, zoom, pan, rotate, flips) ${r.oneToOne}, not 1:1`);
+  say(r.oneToOneStatus.includes(" · 1:1") && !r.status.includes(" · 1:1"), `the status line says 1:1 other than in the 1:1 mode alone: at fit ${r.status}, in it ${r.oneToOneStatus}`);
+  for (const b of r.readbacks ?? []) say(!b.error && b.worst === 0, `frame ${b.i} in the 1:1 mode differs from the CPU reference: ${b.error ?? `worst |Δ| ${b.worst}`}`);
+  if (ENGINE === "chromium") say(r.screen === 0, `the screen in the 1:1 mode differs from the readback it shows: ${r.screen}`);
+  if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine from the last frame showed ${r.cine} frames in 1.5 s`);
 }
 
 const summary = (name, r) => `${name}, client ${CLIENT}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +

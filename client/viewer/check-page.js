@@ -17,7 +17,7 @@ async function stepsOnDemand(n, frames, show, client) {
   return { raced, twice: sent.join(", "), asked: new Set([0, a, b]).size };
 }
 
-export async function run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName, setView, current, toggleCine, show }) {
+export async function run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName, current, toggleCine, show }) {
   const onDemand = q.get("fill") === "0" ? await stepsOnDemand(n, frames, show, client) : {};
   const out = { n, ...onDemand, received: frames.size, exact: seen.exact, inexact: seen.inexact, unchecked: seen.unchecked, paths: seen.paths,
     errors: [...errors], fillMs, firstShownMs, renderer: rendererName, status: document.getElementById("status").textContent,
@@ -29,6 +29,21 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
       out[name] = { error: String(e?.message ?? e) };
     }
   };
+  const press = (...keys) => keys.forEach((key) => dispatchEvent(new KeyboardEvent("keydown", { key })));
+  const looks = () => display(current(), frames.get(current()).info);
+  await step("keys", async () => {
+    press("End", "ArrowRight");
+    const last = current();
+    press("Home", "ArrowLeft");
+    const ends = `${current()} ${last}`;
+    press("r", "h", "v");
+    const { rotate, flipH, flipV } = looks().view;
+    press("I");
+    const inverted = looks().invert;
+    press("i");
+    const { modality } = await globalThis.viewerMetadata;
+    return { ends, modality, turned: `${rotate} ${flipH} ${flipV}`, cased: `${inverted} ${looks().invert}` };
+  });
   // The protocol: an ask of a delivered frame, a fill cancelled at once, an ask after the cancel.
   await step("askDelivered", async () => (await client.requestExactFrame(n >> 1)).info.exact);
   await step("cancelledFill", async () => {
@@ -40,6 +55,7 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
 
   if (q.get("cine")) {
     const shown = new Set();
+    await show(n - 1);
     toggleCine();
     const t0 = performance.now();
     while (performance.now() - t0 < 1500) {
@@ -50,9 +66,11 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
     out.cine = shown.size;
   }
 
-  // First, middle and last frame at zoom 1, read back and painted again on the CPU.
-  setView({ fit: false, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false });
+  // First, middle and last frame in the page's own 1:1 mode, read back and painted again on the CPU.
+  press("0", "1");
+  out.oneToOne = Object.values(looks().view).join(" ");
   out.readbacks = [];
+  let shown;
   for (const i of [...new Set([0, n >> 1, n - 1])]) {
     const f = frames.get(i);
     if (!f) {
@@ -70,7 +88,16 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
     let worst = 0;
     for (let k = 0; k < ref.length; k++) worst = Math.max(worst, Math.abs(ref[k] - pixels[k]));
     out.readbacks.push({ i, worst, size: `${w}x${h}`, sha256: await sha256Hex(pixels.slice()) });
+    shown = { pixels, w, h };
   }
+  // The canvas still shows the last readback; check.mjs hands in a screenshot of it, in device pixels from its corner.
+  globalThis.screenWorst = async (png) => {
+    const shot = await createImageBitmap(new Blob([Uint8Array.from(atob(png), (c) => c.charCodeAt(0))], { type: "image/png" }));
+    const g = new OffscreenCanvas(shot.width, shot.height).getContext("2d");
+    g.drawImage(shot, 0, 0);
+    return g.getImageData(0, 0, shown.w, shown.h).data.reduce((m, v, k) => Math.max(m, Math.abs(v - shown.pixels[k])), 0);
+  };
+  out.oneToOneStatus = document.getElementById("status").textContent;
   out.stats = client.stats().exact;
   client.close();
   report(out);
