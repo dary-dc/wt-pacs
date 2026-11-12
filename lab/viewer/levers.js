@@ -17,6 +17,7 @@ export function levers(q) {
   if (writer !== undefined && !["store", "decoders", "view"].includes(writer)) throw new Error(`refused: writer ${JSON.stringify(writer)} — store, decoders or view`);
   if (writer === "decoders" && opts.pageDials) throw new Error("refused: writer decoders with pageDials — the decoders are told to keep frames only once the cache is open");
   if (writer === "decoders" && opts.pixels === "transfer") throw new Error("refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred");
+  for (const k of ["settle", "after"]) if (q.has(k) && !q.get("post")) throw new Error(`refused: ?${k} without ?post — the rig's`);
   const settle = q.get("settle") ?? "fence";
   if (!["fence", "read"].includes(settle)) throw new Error(`refused: settle ${JSON.stringify(settle)} — fence or read`);
   // docs/adr/frame-path.md §7: the page busy from here, and after the fill a cine of `cine` seconds.

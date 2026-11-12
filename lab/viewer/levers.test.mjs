@@ -81,6 +81,15 @@ function theRigsSettle() {
   }
   check(said === 'refused: settle "finish" — fence or read', `settle finish: ${said}`);
   check(levers(new URLSearchParams({})).settle === undefined, "no rig, no settle");
+  for (const query of [{ settle: "read" }, { fill: "0", after: "3" }]) {
+    let refused = null;
+    try {
+      levers(new URLSearchParams(query));
+    } catch (e) {
+      refused = e.message;
+    }
+    check(refused === `refused: ?${Object.keys(query).at(-1)} without ?post — the rig's`, `${JSON.stringify(query)} without the rig: ${refused}`);
+  }
 }
 theRigsSettle();
 

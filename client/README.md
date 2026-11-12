@@ -528,7 +528,8 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   any of them is refused, by name on the status line, before the page fetches, imports or dials anything.
   `viewer/crafted.mjs`, run by the gate, opens each on a host shaped like the image and fails if one is fetched or
   dialled, and on a host serving `lab/` shows `?wt=` and `?metadata=` honoured; it fails too if a transport file
-  naming an unknown client is not refused by name with no WASM code fetched and nothing dialled. `?post=` (with `?origin=`) gives the
+  naming an unknown client is not refused by name with no WASM code fetched and nothing dialled. `?trace=sawtooth` steps the page
+  on the lab's trace (`lab/viewer/trace.js`). `?post=` (with `?origin=`, and `?settle=` and `?after=`, refused without it) gives the
   page the total-time harness's protocol as two hooks, `started()` and `finished(result)`, which it calls only when
   present; the page watches for the fill's end only for that hook or `?check=`. `?check=` (with `?deadline=` and
   `?mutate=`) is a lab parameter too: the viewer check's modules, `lab/viewer/check-page.js` and `check-view.js`,
