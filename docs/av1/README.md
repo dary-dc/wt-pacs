@@ -1476,6 +1476,7 @@ T.35 metadata (not run). That is the first native decode returning samples — a
 offline trial, not an independent decoder for it, not an encoder, not lossless, and not a browser
 path: no FFmpeg WASM build with LCEVC was found (*unverified* that none exists)
 ([`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Re-checked 2026-11-02).
+*For lossy viewing (the owner, 2026-11-02; theory, no trial):* **not worth building on present evidence**. LCEVC's gain is the base codec's work moved to a quarter of the area, with sparse detail added cheaply (MPEG's verification test: −46 % to −14 % MOS BD-rate over AVC to VVC, and a PSNR loss against VVC); a visually lossless DBT stream must carry dense full-size sensor noise, so base AV1 + LCEVC is expected at about AV1 alone's bytes or above (*derived*), and the only web decoder draws 8-bit RGB, so 10–12-bit window/level is lost. No medical or noisy-content result was found. One offline bytes measurement decides it (LCEVCRATE, proposed) ([`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Lossy viewing).
 
 *Parked by the owner on 2026-10-03, kept for the decision later* (the owner's focus, §Where AV1 stands): the
 preview plus an HTJ2K residual, the separate preview then exact HTJ2K, the embedded intra codecs and LCEVC — each
