@@ -1,11 +1,13 @@
 state: started
 started: 2026-11-12T14:16Z
-heartbeat: 2026-11-12T14:30Z
-outputs: claude/unified-codecs (not yet created)
+heartbeat: 2026-11-12T14:50Z
+outputs: claude/unified-codecs 6dd2a094 (no PR yet)
 ## Resume
-Read: LINES-READY §7 (codecs -> claude/unified-codecs from claude/av1-unified-mainbase 696c15d6; candidates #309, #306,
-#314, #316, #357, #350, #335, #340, #347) and docs/lines/codecs.md (claude/direction) Open 9: the chain #290 -> #305 ->
-#317, #312; #283 -> #306 -> #314 -> #316; #288, #315, #318; #323, #325, #326, #332, #352; #329, #331, #334, #357, #373.
-Note: main is not an ancestor of mainbase; PRs based on main bring main's ~11 commits (all in the demo tip).
-Now: establishing each candidate's review state (merge only the reviewed). Branch not created yet.
+Pushed on claude/unified-codecs (from claude/av1-unified-mainbase 696c15d6): ae6e0ced merge #350 (docs-lines-3 14ad30c3);
+6dd2a094 merge #340 (docs-lines-oq-webcodecs 31dd62ef), conflict in docs/lines/optimal-quality.md resolved as
+REVIEW-MAIN-OFFPATH asked. These two are the only candidates with a review on record (35 PRs read: 0 GitHub reviews;
+#350/#340 REVIEW-MAIN-OFFPATH comments; #306 a carriers review+audit in comments, but it stacks on unreviewed #283).
+Left out (no review on record): #357, #335, #347, #309, #306->#314->#316 chain, #373 and every theory/protocol PR.
+Next: check_links, comment_budget, gate (--quick --no-browser if prerequisites missing, say so); line file note;
+draft PR into claude/av1-unified-mainbase with the merge record.
 ## Result
