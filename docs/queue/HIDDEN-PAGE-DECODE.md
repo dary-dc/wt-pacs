@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-12T09:22Z
-heartbeat: 2026-11-12T10:15Z
-outputs: claude/hidden-page-decode (b495c649 failing test, 5afb9734 fix, 9f07bd19 test tightened; no PR yet)
+heartbeat: 2026-11-12T10:45Z
+outputs: claude/hidden-page-decode 9d7e8a5a (b495c649 failing test, 5afb9734 fix, test tightened, docs/reviews/hidden-page-decode.md); claude/hidden-page-decode-beacon (off claude/phone-tools: 4230419c failing tests, 0efeba4c visibility record, README); no PRs yet
 ## Resume
 Branch claude/hidden-page-decode from claude/demo-fixes-2 (18d2d1ff), worktree /home/user/hpd (not yet pushed).
 Theory so far, from claude/phone-rows raw/beacon-wifi-8766.jsonl load 2ed36cb0 (load 13): keyframes 0, 8, 16 were
@@ -16,8 +16,9 @@ backgrounded + global pressure, decoder_template.cc pressure only IsPlatformDeco
 Android threshold 4) => our prefer-software decoders are not reclaimed by Chromium; load 13 is not reclamation.
 Fix: downloader arm() re-arms a deadline that fires > deadlines.frozenMs (1000) late; test
 aFrozenPageKeepsItsDecoder; mutants killed: no check, no re-arm, threshold ignored, due at arming, always re-arm,
-no default, default 5 s. Next: docs/reviews/hidden-page-decode.md, docs/lines/client.md, gate, beacon
-visibility (lab/phone/beacon.js lives on claude/phone-tools only), draft PR.
+no default, default 5 s. DONE also: beacon visibility on claude/hidden-page-decode-beacon (9 mutants killed, install() wiring survives in node),
+docs/reviews/hidden-page-decode.md, docs/lines/client.md. NEXT: gate per claude/gate-cloud setup on /home/user/hpd
+(scripts/gate.sh, --no-browser if browser fails), then two draft PRs (-> claude/demo-fixes-2, -> claude/phone-tools).
 OLD PLAN: sources (WebCodecs spec §Codec reclamation; Chromium reclaimable_codec.cc; Page Lifecycle freeze), a failing
 downloader test (replace a decoder holding a group after its keyframe was delivered -> rest of group must still
 arrive), fix (re-ask the group from its keyframe on a fresh decoder), mutate, beacon visibility on claude/phone-tools
