@@ -956,6 +956,20 @@ six rounds, so no verdict is drawn here. Rows are in
   4× exceeds 1.05 × its time at 1×, because D's fill is decoded by software WebCodecs on this host. So `r5000` and the
   lossy cell are most of what stays link-bound. This is reported with the verdict and is not amended.
 
+**Shard S3b, rounds 2–3 (2026-11-12 06:42 to 10:32; 400 visits),** with the store retry. Facts only, as for S3a. Rows
+are in [`rows/stage3-s3b.jsonl`](../lab/htj2k-tiles/improve/rows/stage3-s3b.jsonl).
+
+* **Kept: 354.** 44 visits are void (the relay ran late) and 2 failed. The store retry never fired (0 retries).
+* **Why 2 failed.** Both on `dbts_b1` at 4× (D+T3 on `r20000` `l1`, D+L★ on `lte-good`). A store write was refused
+  with "The operation failed because it would cause the application to exceed its storage quota", and the page then
+  did not picture every slice. Both relays had carried the whole fill. As in S3a, no time measured is affected.
+* **R0 holds in every kept visit,** and the OQ digest agrees across each volume's D visits.
+* **J10.** Every reopen of S★ and D+L★ asked 0 bands and decoded nothing (144/144). One of them (D+L★, `dbts_b1`,
+  `r5000`, 4×) gave one picture that differs from its filled copy: frame 49's OQ picture, the volume's last. All
+  three differing reopens of S3a and S3b are D+L★ on `dbts_b1`. The one named is an OQ picture, not a level or a
+  Lossless one.
+* **The decode-bound test** names 11 of the 20 (set, link) pairs in S3b alone.
+
 ## Sources
 
 Read 2026-11-09; quotations are verbatim, with the PDF's symbols restored where text extraction lost them (≤).
