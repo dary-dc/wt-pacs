@@ -157,6 +157,11 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   leaves every fill comparison *not decided*; the run commit differs from the demo commit `157b7109` in 20 files of
   the fill's path, so by the run-commit rule no verdict carries to it; loads 6 and 10 were slow on the phone's decode,
   not the wire. The owner decides which reading stands.
+  *Its link* (LINK-CALIBRATION, 2026-11-12, `claude/link-calibration`,
+  [`docs/transport/transport-conclusions.md`](../transport/transport-conclusions.md) §1 *A home Wi-Fi link, measured*):
+  ~2 ms base round trip, at least ~600 Mbit/s, a tail-drop queue that loses at 22–96 ms, no random loss; the tether
+  ~0.7 ms and ~265 Mbit/s. The README's "min RTT" by controller was the fill's smoothed RTT, corrected in place. The
+  relay cannot run this link (checked to 100 Mbit); `netem` can, on a host with the cores. Fitted once, one link.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
   twelve): running REDTEAM-DEMO, REVIEW-BLIND, TEST-MOBILE, AV1-CORRECT, OPT-THEORY, and the rows added that night:
@@ -193,7 +198,7 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
 4. Done 2026-11-11 on `claude/demo-fixes-2`: the web image serves the exact series' paths (State now).
 5. Phone runs: the first ran on 2026-11-11 (State now). Before decisions: the blind read (PHONE-BLIND-READ).
    Before the next round, theory first: production's network mode (HOSTNET-THEORY), the two product failures
-   (LOSSLESS-UNDER-LOSS, HIDDEN-PAGE-DECODE), a link profile from this run's traces (LINK-CALIBRATION), what bounds
+   (LOSSLESS-UNDER-LOSS, HIDDEN-PAGE-DECODE), a link profile from this run's traces (LINK-CALIBRATION, done), what bounds
    a fill on the phone (FILL-SPLIT), and a runner that needs no hands (RUNNER-AUTO, the phone session's).
 11. Understanding before 11-13: the findings of OPT-SIMPLIFY, CLEAN-FIND, NAMES-FIND, DEFAULTS-FIND, ESSENTIALS and
     FABLE-SIMPLIFY, each ranked by what it saves a presenter; the owner chooses what goes in before the demo and what
