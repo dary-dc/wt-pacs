@@ -1,9 +1,13 @@
 state: started
 started: 2026-11-11T19:00Z
-heartbeat: 2026-11-12T00:24Z
+heartbeat: 2026-11-12T00:58Z
 outputs: claude/proposals 603875d5, docs/lines/proposals.md §Round 2 (amendments 1 of R1-R4; Measured R1 90c3e3e3, R2 1eee0579, R3 76ab875d, R4 1609aad4), rows lab/proposals/rows/r1-*, r2, r3, r4.jsonl; docs and lab drivers only; no PR (PR #358, OPT-THEORY's draft into main, carries claude/proposals)
 ## Resume
 2026-11-12T00:24Z: resumed (stalled) by a new session for R5; setup next.
+00:58: setup running (/home/user/bin/setup.sh: worktrees ../tip detached at claude/demo-fixes-2 18d2d1ff, the demo
+commit 157b7109 plus docs, and ../proposals; meson, wasm32, wasm-pack, transport builds, dev cert, series-server,
+demo-series; apt-get install nginx). R5 drivers pushed (2bea9dab: lab/proposals/r5_arm.sh, r5_cells.mjs, r5.sh;
+not yet smoked). Next: smoke one run per arm (not kept), amendment 1 of R5 in §R5, then r5.sh taken, refused, failed.
 22:52: R1-R4 done and pushed, nothing unpushed, nothing running. This session stops before R5 (context); left
 `started` so the next worker resumes it once the heartbeat is an hour old.
 Next: R5 (§R5: P6's rule with an A/A arm, the tip against itself). Owed before any run: an amendment, and P6's arms
