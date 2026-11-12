@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-11 04:22
-heartbeat: 2026-11-12 04:23
+heartbeat: 2026-11-12 04:33
 outputs: claude/proposals 4ab3ee0d (P1 adopt; P4 reject; P2 2x2 meets its rule; P5 drop as inert; P3 plumbing: rule refuted, wake works); claude/audit-measure da85fae9 (B0, B and A measured: docs/av1/audit-protocols.md §B, §A measured d3071269, rows/b.jsonl and b-summary.json 03c1597d, codecs line da85fae9); C not started; no PR yet (#358 is OPT-THEORY's draft into main from claude/proposals)
 ## Resume
 2026-11-12 03:44: the container restarted at 03:42 in round 1 (rows 36453cfd: round 0 whole, 117 of round 1);
