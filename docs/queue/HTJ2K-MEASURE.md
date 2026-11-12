@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-11 18:59 UTC
-heartbeat: 2026-11-12 10:28 UTC
-outputs: `claude/htj2k-tiles` f11800dd (rows, docs; draft PR #324 into main, already open: the commits land in it)
+heartbeat: 2026-11-12 10:33 UTC
+outputs: `claude/htj2k-tiles` 46b31101 (rows, docs; draft PR #324 into main, already open: the commits land in it)
 ## Resume
 Session 3 plan (2026-11-11 23:24 UTC), the client's design fixed before any run:
 * `lab/htj2k-tiles/improve/stage3/`: `page.js` (one lab page, every arm), `store.js` (a lab OPFS store worker: level
@@ -85,6 +85,10 @@ HTJ2K-VERDICT waits on this row.
   Next: S3b, `/home/user/sync.sh` first, then from `/home/user/demo`: `NODE_PATH=$(npm root -g) node
   lab/htj2k-tiles/improve/stage3/run.mjs --series demo-series --bands lab/.av1-work/htj2k-improve --rounds 2
   --first-round 2 --out /home/user/s3b.jsonl`, with the pusher's paths changed to s3b.
+* **S3b complete** (06:42–10:32, `46b31101`, `rows/stage3-s3b.jsonl`, the store retry `564deccb` with its mutant,
+  which the retry recovers). The retry test's 24 visits and the mutant ran beside a stray debug driver, so they count
+  as checks only. **S3c running from 10:33** (rounds 4–5, `/home/user/s3c.jsonl`, the pusher on s3c). After it:
+  `summary.py rows/stage3-s3{a,b,c}.jsonl`, the readings R3–R7 in docs, `docs/lines/codecs.md`, this Result, done.
 ## Result
 * Stages 0–2 of `docs/htj2k-tiles.md` §Improve's protocol run; stage 3's inputs built (strip series 294/294 exact from
   the entries; D series from `157b7109`, equal to FREEZE-E2E's), its client and runs not yet, so R3–R7 are undecided.
