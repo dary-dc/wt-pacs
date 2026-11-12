@@ -10,7 +10,7 @@ decision, and the date at the top. Something learned for another line goes into 
 | line | goal | file | last verified |
 | --- | --- | --- | --- |
 | coordination | merges, review order, branch and PR hygiene across the lines | [`coordination.md`](coordination.md) | 2026-11-09 |
-| codecs and lab | HTJ2K and AV1, server, transport and disk, measured to `CLAUDE.md` §Measurement | [`codecs.md`](codecs.md) | 2026-11-09 |
+| codecs and lab | HTJ2K and AV1, server, transport and disk, measured to `CLAUDE.md` §Measurement | [`codecs.md`](codecs.md) | 2026-11-10 |
 | optimal quality | the chosen design built for the demo of 2026-11-13: an optimal-quality AV1 series, the exact HTJ2K frame on request | [`optimal-quality.md`](optimal-quality.md) | 2026-11-09 |
 | client | the browser client: transport, decode, cache, paint, telemetry | [`client.md`](client.md) | 2026-10-29; branches 2026-11-09 |
 | PACS receive and metadata | receive what the PCS sends, build and update each study's store, serve by UID | [`metadata.md`](metadata.md) | 2026-10-29; branches 2026-11-09 |

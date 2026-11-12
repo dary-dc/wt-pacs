@@ -1,6 +1,7 @@
 # Codecs and lab
 
-Last verified 2026-11-09 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09).
+Last verified 2026-11-10 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09, the
+decode audit of 2026-11-10).
 
 ## Goal
 
@@ -21,6 +22,11 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 * **Measured, Q 8, G 1, on the three volumes:** the view is 0.07–0.22 of HTJ2K's bytes; view plus the whole exact
   frame 1.07–1.22×; the exact ask decodes in 1.01–1.03 HTJ2K frames. The lossy view decodes in 1.05–2.04 HTJ2K frames
   through WebCodecs and 1.9–4.7 through dav1d-WASM: AV1 saves bytes, not decode time.
+* **Decode audit** ([`../av1/audit-decode.md`](../av1/audit-decode.md), 2026-11-10, rows and code read, nothing
+  re-run): the 4× throttle caps threads, not cores, so WebCodecs' 0.81–0.97 under HTJ2K at 4× is its thread count; the
+  view's 1.05–2.04 spans three rungs and carries a discarded JS pass (*derived*: Q 8 still ~1.55–1.81, coarse rungs
+  ~0.77–1.06); "an HTJ2K frame" is four different units on two Chromium versions, the product's own path timed in none.
+  The residual conflict is settled: aligned, its decode is 1.02–1.07 HTJ2K frames and the JS add 0.3–0.4 more.
 * **Quality** (`claude/av1-quality-metrics`, 20 series, one shard missing): the coding error reaches the noise at
   Q 8 (system A: Q 4); no Q keeps every displayed level within 1; visual losslessness needs readers, not run.
 * **Noise point** (`claude/av1-noise-point`, #317, 2026-11-09): a candidate Q per series from one number, the series'
@@ -60,6 +66,9 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).
+7. The decode audit's three checks (`claude/av1-audit-decode`): D1 at 4× with a core cap; one block with `back()` off
+   the clock; the product's own HTJ2K path beside each study's unit on one Chromium. Until then, quote the view's decode
+   at Q 8 only, with its stream, host and throttle.
 
 ## Decisions (the owner's)
 
