@@ -2,7 +2,7 @@
 // rounds of (throttle, volume, arm) in Williams orders, one row per arm-run appended to ROWS; a rerun resumes.
 //
 //   TIP=<demo tip> STREAMS=<c_streams.sh OUT> node lab/av1/audit/c.mjs ROWS [ROUNDS]     ms on the worker's clock
-//   TIP=... STREAMS=... node lab/av1/audit/c.mjs --smoke                                 one arm-run each, not kept
+//   TIP=... STREAMS=... node lab/av1/audit/c.mjs --smoke [VOLUME]                        one arm-run each, not kept
 //   node lab/av1/audit/c.mjs --check                                                      the cores lever
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -43,6 +43,8 @@ function prepare(volume, stream, shift) {
   const exact = JSON.parse(fs.readFileSync(path.join(STREAMS, volume, "metadata.json")));
   const out = { dir, files: at.map((i) => files[i]), digests: at.map((i) => exact.digests.frames[i]), shift, av1: ext === "av1" };
   if (out.av1) out.sha256 = at.map((i) => nativeLuma(path.join(dir, files[i]), meta));
+  // The checks' mutation: C_TAMPER=1 changes frame 3's reference, so every arm must report one miss.
+  if (process.env.C_TAMPER) (out.sha256 ?? out.digests)[3] = "0".repeat(16);
   return out;
 }
 
@@ -76,12 +78,13 @@ h.ThreadingHTTPServer(("127.0.0.1", ${PORT}), lambda *a: H(*a, directory="/")).s
 async function launch() {
   const host = spawn("python3", ["-c", SERVE], { stdio: "ignore" });
   process.on("exit", () => host.kill("SIGKILL"));
-  const browser = await chromium.launch();
+  const server = await chromium.launchServer();
+  const browser = await chromium.connect(server.wsEndpoint());
   const page = await browser.newPage();
   for (let t = Date.now(); Date.now() - t < 10000; await new Promise((r) => setTimeout(r, 100))) {
     if (await page.goto(`http://127.0.0.1:${PORT}${HERE}/`).then(() => true, () => false)) break;
   }
-  return { browser, page, pid: browser.process().pid, version: browser.version() };
+  return { browser: server, page, pid: server.process().pid, version: browser.version() };
 }
 
 /** One arm-run on the page: a fresh worker, its frames posted, its reply. */
@@ -151,11 +154,11 @@ async function campaign(rowsPath, rounds) {
   }
 }
 
-async function smoke() {
+async function smoke(only) {
   const { browser, page, version } = await launch();
   console.log(version);
   try {
-    for (const [v, q, shift] of VOLUMES) {
+    for (const [v, q, shift] of VOLUMES.filter(([v]) => !only || v === only)) {
       for (const { arm, stream } of runs(v, q)) {
         const r = await armRun(page, prepare(v, stream, shift), arm);
         const sum = r.ms ? r.ms.reduce((a, b) => a + b, 0).toFixed(0) : "-";
@@ -169,9 +172,10 @@ async function smoke() {
 
 /** Four worker loops at once under 4×, with and without a core cap, against 1×. */
 async function check() {
-  const browser = await chromium.launch();
+  const server = await chromium.launchServer();
+  const browser = await chromium.connect(server.wsEndpoint());
   const page = await browser.newPage();
-  const pid = browser.process().pid;
+  const pid = server.process().pid;
   const loops = () => page.evaluate(async () => {
     const src = "onmessage = () => { const t = performance.now(); let x = 0; for (let i = 0; i < 2e8; i++) x += i % 7; postMessage(performance.now() - t + x * 0); }";
     const url = URL.createObjectURL(new Blob([src]));
@@ -189,11 +193,11 @@ async function check() {
     stop();
     console.log(`${name}: ${t.toFixed(0)} ms, ${(t / base).toFixed(2)}x of 1x`);
   }
-  await browser.close();
+  await server.close();
 }
 
 const [arg, rounds] = process.argv.slice(2);
 if (arg === "--check") await check();
-else if (arg === "--smoke") await smoke();
+else if (arg === "--smoke") await smoke(rounds);
 else await campaign(arg, Number(rounds ?? 15));
 process.exit(0);
