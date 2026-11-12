@@ -130,3 +130,7 @@ By a session that wrote neither fix, on `ffc407de`.
   three absence checks alone, each OK. Not run: the decoders' rebuild (Docker Hub refused it, 429, on PR 376's
   branch the same hour), every browser step, the frame check's hasher (no xxh3 build), numpy/pydicom checks,
   lavapipe, Xvfb, Firefox, nginx.
+* `demo-check.mjs` on `dbts_b1-q8-g8` (one series: `scripts/demo-series.sh` cut to `dbts_b1`, Q 8, G 8; the frame
+  check's hasher absent, Docker Hub 429), headless Chromium on a 4-core cloud host without a GPU: passed in the page
+  view and the worker view on both fix branches. A check, not a measurement: the other two DBT volumes, the depth-cut
+  series and `--link` were not run.
