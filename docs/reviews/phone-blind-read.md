@@ -145,3 +145,56 @@ the Wi-Fi arm is one radio hop to a server one switch away.
 ## 7. Against the run session's reading (`docs/phone-rows/README.md`)
 
 *Written after §1–§6 were pushed.*
+
+**Where the two agree.** The correctness counts (tether 23 passed, 1 missing; Wi-Fi 22 passed, 2 failed, both
+`bbr`), all four six-octet fill verdicts with their medians and counts, the loss table's sessions, losses and
+classes, the minimum round trips (6.1 / 2.2 / 18.7 / 5.4 ms) and the wire-time medians (0.75 / 1.00 / 0.50 /
+0.75 s), the read paths, the missing load and the three excluded ids.
+
+**Every difference** (none is a reading of the same number two ways except item 9):
+
+1. **The 10-minute rule.** The README does not mention it. By its letter it fired (octet 1 took 99 minutes) and the
+   run should have stopped after octet 4; read so, every fill comparison is *not decided* (§3). The README's
+   verdicts are the six-octet reading, which the rule's text excludes.
+2. **The run commit's reach.** The Second amendment: the verdicts carry to the demo commit only where
+   `git diff --stat <run commit> <demo commit>` changes no file the fill passes through, "and the result lists every
+   file that diff names". The README lists none. Against the demo commit FREEZE-E2E recorded (`157b7109`), the run
+   commit `962226e8` (not its ancestor) differs in 20 such files: `client/decode/av1-webcodecs.js`, `av1.js`,
+   `av1.test.mjs`; `client/view/check.js`, `controller.js`, `controller.test.mjs`, `view-worker.js`, `view.js`,
+   `view.test.mjs`; `client/viewer/check-page.js`, `check.mjs`, `crafted.mjs`, `head.js`, `viewer.js`;
+   `server/src/main.rs`, `transport/lab_levers.rs`, `link.rs`, `server.rs`, `stream_mode.rs`, `tuning.rs`. So, by the
+   rule, no verdict carries to the demo commit as it stands.
+3. **The slow decodes.** The README reads load 6 as a fill "with 7 % of the server's packets lost". The path rows
+   put all of load 6's losses and its whole wire in its first second; the 9.7 s fill went on the phone (median decode
+   524 ms a frame). The README does not mention load 10 (16.5 s fill, wire about 1.5 s, median decode 872 ms), the
+   one outlier, which enters the Wi-Fi worker / page comparison as 5.642. Both are worker loads on Wi-Fi in octet 1.
+4. **The session after load 13.** The README calls `srv-4443`'s 630 s session "one session no load opened … after load
+   13" and leaves it out. It started at load 13's first label (22:53:26), 19 s into that load and after the client had
+   closed both of load 13's first sessions at 1 s (11 492 and 10 packets): the raw rows place it inside load 13, and
+   whether the client reopened it is a question for HIDDEN-PAGE-DECODE, not an orphan.
+5. **Load 13's decode.** The README: "three keyframes decoded in about 18 s". The beacon carries frame 0's decode,
+   18.1 s, and 21 errors naming groups 0, 8 and 16 among others; how many keyframes decoded is not in the record.
+6. **Load 6's press.** The README: *Lossless check failed* and "no frame was ever asked". The beacon has no press and
+   no verdict for load 6, so the label it showed and the press itself rest on `blocks.log` and the session's word;
+   the server rows agree that the exact session carried a handshake only.
+7. **The gaps.** The README names the 20-minute gap before load 12. The rows also have 170 s before load 9 and 148 s
+   before load 11 (the reruns and restarts it names elsewhere), and load 10's page logging a label two minutes after
+   its verdict.
+8. **The eye.** The README: an eye check on the tether only, and "the owner did not watch the first octet". The Second
+   amendment asks the owner to watch the eye check and the first octet, one verdict per link: no Wi-Fi eye verdict
+   exists. The README lists this under the checks, not under the departures.
+9. **The counters.** The README: the other device grew by under 0.01 % around each warm-up. Read over the fill
+   ±0.6 s, 0.00–0.03 %; under the 1 % rule either way. The README does not mention load 18 (2.5 % on the wired
+   device's transmit) or the wired device's receive growing 0.5–5.2 MB in eight tether loads; no rule covers either.
+10. **`bbr` on Wi-Fi lost 1.91 %** in the README, 1.90 % here (3 686 of 194 509): rounding or a denominator, 0.01
+    points, no consequence.
+11. **"Depends on" at five ratios.** Neither says so in the README; the rule is written for six per level (§3).
+12. **Claims the raw rows do not carry**, which the README states: the run commit and image label, SELinux
+    Enforcing, the eye-check timings, Chrome's 53 tabs, the owner's touches. Not contradicted; not checkable here.
+13. **The product findings** (README §What the product showed). 1 (a failed press not retried) rests on item 6's
+    record. 2 (a hidden page's decoder not recovered) is consistent with load 13's errors; that the page was hidden is
+    not recorded, as the README says. 3 (the runner not hands-off) is not visible in the rows beyond the gaps.
+
+**For the owner** (decisions, not this row's): whether the 10-minute rule stands as written (no fill verdict) or the
+six-octet reading is accepted as a departure; whether the `bbr` failures withdraw `bbr` under the Amendment's rule;
+that no verdict carries to the demo commit `157b7109` by the run-commit rule.
