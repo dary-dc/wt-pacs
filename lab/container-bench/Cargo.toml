@@ -10,7 +10,7 @@ bytes = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 libc = "0.2"
 serde_json = { workspace = true }
-series-server = { path = "../../server" }
+series-server = { path = "../../server", features = ["lab-levers"] }
 tokio = { workspace = true }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 

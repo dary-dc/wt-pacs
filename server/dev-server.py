@@ -47,7 +47,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def send_head(self):
         if self.log_requests:
-            print(f"GET {self.path}", flush=True)
+            sys.stdout.write(f"GET {self.path}\n")  # one write: print() splits a line from its newline across threads
+            sys.stdout.flush()
         path = Path(self.translate_path(self.path))
         if path in (self.metadata, self.transport):
             return super().send_head()

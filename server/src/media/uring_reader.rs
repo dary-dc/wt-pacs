@@ -11,15 +11,6 @@ use std::os::fd::{AsRawFd, RawFd};
 use tokio::io::unix::AsyncFd;
 use tokio::io::Interest;
 
-#[cfg(test)]
-thread_local! {
-    /// Test-only: the wait is otherwise unobservable, since a cached read lands before it.
-    pub(crate) static DRAINED_ON_DROP: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-    /// Test-only: errnos the next submits and waits on this thread return instead of entering.
-    pub(crate) static FAILED_WAITS: std::cell::RefCell<Vec<i32>> =
-        const { std::cell::RefCell::new(Vec::new()) };
-}
-
 pub struct UringReader {
     /// Declared before `ring`, so it leaves the reactor before the ring's fd closes.
     ring_fd: AsyncFd<RawFd>,
@@ -113,9 +104,7 @@ impl UringReader {
 
     fn submit_and_wait(&mut self, want: usize) -> std::io::Result<usize> {
         #[cfg(test)]
-        if let Some(errno) = FAILED_WAITS.with(|f| f.borrow_mut().pop()) {
-            return Err(std::io::Error::from_raw_os_error(errno));
-        }
+        injected_failure()?;
         self.ring.submitter().submit_and_wait(want)
     }
 }
@@ -127,209 +116,22 @@ impl Drop for UringReader {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::media::read_path::TILE_SLOTS;
-    use std::io::Write;
-    use std::os::fd::FromRawFd;
+thread_local! {
+    /// The wait is otherwise unobservable, since a cached read lands before it.
+    pub(crate) static DRAINED_ON_DROP: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Errnos the next submits and waits on this thread return instead of entering.
+    pub(crate) static FAILED_WAITS: std::cell::RefCell<Vec<i32>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
 
-    /// A pipe nobody has written to yet: a read from it cannot complete inline.
-    fn pipe() -> (std::fs::File, std::fs::File) {
-        let mut fds = [0i32; 2];
-        // SAFETY: `pipe` fills two fds or fails.
-        assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0, "pipe");
-        // SAFETY: fresh fds, owned here and nowhere else.
-        unsafe {
-            (
-                std::fs::File::from_raw_fd(fds[0]),
-                std::fs::File::from_raw_fd(fds[1]),
-            )
-        }
-    }
-
-    fn blob(dir: &std::path::Path, len: usize) -> (std::fs::File, Vec<u8>) {
-        std::fs::create_dir_all(dir).expect("tmpdir");
-        let body: Vec<u8> = (0..len as u32).map(|i| (i % 251) as u8).collect();
-        let path = dir.join("blob");
-        let mut f = std::fs::File::create(&path).expect("create");
-        f.write_all(&body).unwrap();
-        f.sync_all().unwrap();
-        (std::fs::File::open(&path).expect("open"), body)
-    }
-
-    /// The mid-flight state is built directly rather than by racing `task.abort()`, which
-    /// cannot reach it: a ring read that completes inline never yields for the abort to land
-    /// on. Without a sanitiser the wait itself is the only observable, hence
-    /// [`DRAINED_ON_DROP`]. `docs/adr/disk-access.md` §Test plan.
-    #[tokio::test]
-    async fn dropping_a_reader_mid_read_waits_for_the_kernel() {
-        let dir = std::env::temp_dir().join(format!("wtpacs-ring-drop-{}", std::process::id()));
-        let (file, body) = blob(&dir, 64 * 1024);
-
-        let Ok(mut reader) = UringReader::new(&file, TILE_SLOTS as u32) else {
-            eprintln!("SKIPPED: io_uring is unavailable on this host");
-            std::fs::remove_dir_all(&dir).ok();
-            return;
-        };
-        let mut buf = vec![0u8; body.len()];
-        // SAFETY: `buf` outlives `reader`, which is what `submit` requires of its caller.
-        unsafe { reader.submit(0, &mut buf, 0) }.expect("submit");
-        assert!(reader.in_flight > 0, "the read was not left in flight");
-
-        let before = DRAINED_ON_DROP.get();
-        drop(reader);
-        assert_eq!(
-            DRAINED_ON_DROP.get(),
-            before + 1,
-            "Drop returned without waiting for the outstanding read"
-        );
-        assert_eq!(
-            buf, body,
-            "the kernel's write did not land before the wait returned"
-        );
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    /// A wait the kernel interrupts (EINTR) is retried, not taken as the drain: the reader still
-    /// returns only once the read it holds has landed. The buffer is leaked so the kernel's write
-    /// can never reach freed memory, whatever the outcome.
-    #[tokio::test]
-    async fn an_interrupted_drain_still_waits_for_the_kernel() {
-        let (rd, wr) = pipe();
-        let Ok(mut reader) = UringReader::new(&rd, TILE_SLOTS as u32) else {
-            eprintln!("SKIPPED: io_uring is unavailable on this host");
-            return;
-        };
-        let buf: &'static mut [u8] = Box::leak(vec![0u8; 64].into_boxed_slice());
-        let at = buf.as_ptr() as usize;
-        // SAFETY: `buf` is leaked, so it outlives the reader and anything the kernel does.
-        unsafe { reader.submit(0, buf, 0) }.expect("submit");
-        let writer = std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_millis(100));
-            (&wr).write_all(&[0x5A; 64]).expect("write");
-            wr
-        });
-        FAILED_WAITS.with(|f| f.borrow_mut().push(libc::EINTR));
-        drop(reader);
-        // SAFETY: the leaked buffer is still allocated; the drain returned, so nothing writes it.
-        let landed = unsafe { std::slice::from_raw_parts(at as *const u8, 64) }.to_vec();
-        let _wr = writer.join().unwrap();
-        assert!(
-            landed.iter().all(|&b| b == 0x5A),
-            "the drain gave up on an interrupted wait while the read was still in flight"
-        );
-    }
-
-    /// A ring that fails with a read still in flight says so rather than reporting itself
-    /// drained, so its owner leaks the buffer instead of freeing memory the kernel may yet write.
-    #[tokio::test]
-    async fn a_failed_drain_reports_the_read_still_in_flight() {
-        let (rd, wr) = pipe();
-        let Ok(mut reader) = UringReader::new(&rd, TILE_SLOTS as u32) else {
-            eprintln!("SKIPPED: io_uring is unavailable on this host");
-            return;
-        };
-        let buf: &'static mut [u8] = Box::leak(vec![0u8; 64].into_boxed_slice());
-        // SAFETY: `buf` is leaked, so it outlives the reader and anything the kernel does.
-        unsafe { reader.submit(0, buf, 0) }.expect("submit");
-        FAILED_WAITS.with(|f| f.borrow_mut().push(libc::EBADF));
-        assert!(!reader.drain_in_flight(), "a failed wait was reported as a drain");
-        assert_eq!(reader.in_flight, 1, "the read still in flight was forgotten");
-        (&wr).write_all(&[0x5A; 64]).expect("write");
-        assert!(reader.drain_in_flight(), "the read that landed was not drained");
-    }
-
-    /// **The park path.** Every other test here reads a page-cached file, where the
-    /// completion lands before anything awaits it, so `park` is never entered — a reader
-    /// that could never be woken passed the whole suite. Each read is from a pipe nobody has
-    /// written to yet, so it cannot complete inline. Two reads, a handful of wakes: a park that
-    /// left the first wake's readiness set would spin through the second.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn a_read_that_cannot_complete_inline_wakes_the_parked_reader() {
-        let (rd, wr) = pipe();
-        let Ok(mut reader) = UringReader::new(&rd, TILE_SLOTS as u32) else {
-            eprintln!("SKIPPED: io_uring is unavailable on this host");
-            return;
-        };
-        let (go, write_after_a_while) = std::sync::mpsc::channel::<()>();
-        let writer = std::thread::spawn(move || {
-            for () in write_after_a_while {
-                std::thread::sleep(std::time::Duration::from_millis(50));
-                (&wr).write_all(&[0x5A; 64]).expect("write");
-            }
-        });
-        let mut buf = vec![0u8; 64];
-        let mut wakes = 0;
-        for _ in 0..2 {
-            buf.fill(0);
-            // SAFETY: `buf` outlives `reader` and is untouched until reaped.
-            unsafe { reader.submit(0, &mut buf, 0) }.expect("submit");
-            assert!(reader.reap().is_empty(), "the pipe was not empty");
-            go.send(()).unwrap();
-            tokio::time::timeout(std::time::Duration::from_secs(10), async {
-                loop {
-                    reader.park().await.expect("park");
-                    wakes += 1;
-                    if !reader.reap().is_empty() {
-                        break;
-                    }
-                }
-            })
-            .await
-            .expect("the parked reader was never woken");
-            assert!(buf.iter().all(|&b| b == 0x5A), "the wake carried no bytes");
-        }
-        drop(go);
-        writer.join().unwrap();
-        assert!(wakes <= 4, "{wakes} wakes for two reads: the park spins");
-    }
-
-    /// **The read-ahead invariant.** Two reads are submitted before either is awaited, and
-    /// each has to come back into its own buffer — a completion credited to the wrong slot
-    /// would serve one frame's bytes as another's.
-    #[tokio::test]
-    async fn two_reads_in_flight_land_in_their_own_slots() {
-        let dir = std::env::temp_dir().join(format!("wtpacs-ring-two-{}", std::process::id()));
-        let (file, body) = blob(&dir, 128 * 1024);
-
-        let Ok(mut reader) = UringReader::new(&file, TILE_SLOTS as u32) else {
-            eprintln!("SKIPPED: io_uring is unavailable on this host");
-            std::fs::remove_dir_all(&dir).ok();
-            return;
-        };
-        let (first, second) = (0u64, 64 * 1024u64);
-        let mut a = vec![0u8; 64 * 1024];
-        let mut b = vec![0u8; 64 * 1024];
-        let mut filled = [0usize; 2];
-        // SAFETY: both buffers outlive the reader and are not touched until reaped.
-        unsafe { reader.submit(0, &mut a, first) }.expect("start a");
-        unsafe { reader.submit(1, &mut b, second) }.expect("start b");
-        tokio::time::timeout(std::time::Duration::from_secs(10), async {
-            while filled[0] < a.len() || filled[1] < b.len() {
-                for (slot, n) in reader.reap() {
-                    filled[slot] += n.expect("read");
-                    if slot == 0 && filled[0] < a.len() {
-                        unsafe {
-                            reader.submit(0, &mut a[filled[0]..], first + filled[0] as u64)
-                        }
-                        .expect("resubmit a");
-                    }
-                    if slot == 1 && filled[1] < b.len() {
-                        unsafe {
-                            reader.submit(1, &mut b[filled[1]..], second + filled[1] as u64)
-                        }
-                        .expect("resubmit b");
-                    }
-                }
-                if filled[0] < a.len() || filled[1] < b.len() {
-                    reader.park().await.expect("park");
-                }
-            }
-        })
-        .await
-        .expect("a completion never arrived at the slot that was waiting for it");
-        assert_eq!(a, body[..64 * 1024], "slot 0 got the wrong bytes");
-        assert_eq!(b, body[64 * 1024..], "slot 1 got the wrong bytes");
-        std::fs::remove_dir_all(&dir).ok();
+/// The next errno a test queued in `FAILED_WAITS`, as the kernel's own answer.
+#[cfg(test)]
+fn injected_failure() -> std::io::Result<()> {
+    match FAILED_WAITS.with(|f| f.borrow_mut().pop()) {
+        Some(errno) => Err(std::io::Error::from_raw_os_error(errno)),
+        None => Ok(()),
     }
 }
+
+#[cfg(test)]
+mod tests;

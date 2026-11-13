@@ -46,7 +46,8 @@ ports_free() {
 up() {
   : "${TLS_DIR:?}" "${DEVICES_TOKEN:?}" "${STUDIES:?}"
   [[ ${#DEVICES_TOKEN} -ge 16 ]] || { echo "DEVICES_TOKEN: 16 characters or more" >&2; exit 1; }
-  docker image inspect wt-pacs-server >/dev/null || { echo "no wt-pacs-server image: docker compose -f deploy/compose.yml build server" >&2; exit 1; }
+  # The arms pass lab flags (`per-frame-asks-first`), so the image is the lab build of the deploy recipe.
+  docker image inspect wt-pacs-server >/dev/null || { echo "no wt-pacs-server image: docker compose -f deploy/compose.yml build --build-arg FEATURES=lab-levers server" >&2; exit 1; }
   for f in client/transport/ts/dist/session.js client/decode/wasm/built/THIRD_PARTY_NOTICES; do
     [[ -f "$ROOT/$f" ]] || { echo "missing $f: README.md §Prerequisites" >&2; exit 1; }
   done

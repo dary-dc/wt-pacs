@@ -45,3 +45,5 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | golden payload | an AV1 payload the writer made from a synthetic source with a known checksum, kept in `client/contract/av1/payloads/` |
 | cell | one configuration a lab run measures: a link, a CPU throttle, a series, a schedule |
 | variant | one condition of a timed comparison, interleaved with the others in every round (`CLAUDE.md` §Measurement) |
+| test hook | a line in product code, compiled only for tests, that lets a test force a path or see it taken (`CLAUDE.md` §Code); a type's hooks share one `TestHooks` |
+| lab lever | a server flag only a `lab-levers` build has ([`../server/README.md`](../server/README.md) §Lab only); what a session carries of them is its `SessionLevers` |

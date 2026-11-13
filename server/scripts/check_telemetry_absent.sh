@@ -39,9 +39,9 @@ if grep -q 'cc_classify' <(nm -C "$BIN") || grep -a -q 'cubic-classify' "$BIN"; 
 fi
 
 if grep -q 'transport::lab_levers' <(nm -C "$BIN") \
-  || grep -a -qE 'force-pool-reads|hold-sessions|stall-after-bytes|segmentation-offload' "$BIN"; then
+  || grep -a -qE 'force-pool-reads|hold-sessions|stall-after-bytes|segmentation-offload|send-window-follows-cwnd|per-frame-asks-first|reply-repeated-initial' "$BIN"; then
   echo "FAIL: a lab-levers flag found in default build" >&2
-  grep -a -oE 'force-pool-reads|hold-sessions|stall-after-bytes|segmentation-offload' "$BIN" | sort -u >&2 || true
+  grep -a -oE 'force-pool-reads|hold-sessions|stall-after-bytes|segmentation-offload|send-window-follows-cwnd|per-frame-asks-first|reply-repeated-initial' "$BIN" | sort -u >&2 || true
   exit 1
 fi
 
