@@ -2,7 +2,10 @@
 
 The hand-over between the owner's C parser and the Rust ingest ([`README.md`](README.md) §1, step 2). Read from the
 parser's public source on 2026-10-11 (queue row INGESTRS1); what the parser itself should change is §5 of the README,
-not this file.
+not this file. *Corrected 2026-10-26* ([`pacs-receive-design.md`](pacs-receive-design.md) §1): the parser and the
+ingest run on the **PCS's side** (the PCS is another team's); this repository's scope starts at the PACS (decided 2026-10-24), which
+receives this layout's content inside a **submission package**, one per series, with the `.sbnd` the ingest writes.
+This file stays the reading of the PCS's output that the package carries.
 
 ## The layout
 
@@ -23,7 +26,9 @@ character becomes `alphabet[n0 << 2]` then `0`; of two, `alphabet[(n0 << 2) + (n
 
 ## Group files
 
-Named `<marker>.<64 lowercase hex of the file's BLAKE3-256>`: the exam group `<D>/<E>/--.<h>`, the series group
+Named `<marker>.<h>`, `<h>` the hash of the file's bytes, as hex. *Corrected 2026-10-26:* the parser read on 10-11
+wrote 64 hex characters of BLAKE3-256; the PCS is to name them by **XXH3** (decided 2026-10-24/25: what the PACS
+checks needs no cryptographic hash, and XXH3 is faster; its width, 64 or 128 bits, is not decided). The levels: the exam group `<D>/<E>/--.<h>`, the series group
 `<D>/<E>/<S>/---.<h>`, the instance group `<D>/<E>/<S>/<I>/----.<h>`, the private group `<D>/<E>/<S>/<I>/priv.<h>`
 (only when the instance has private attributes, or group 0002). An existing exam or series group file is not
 rewritten.
