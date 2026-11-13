@@ -25,7 +25,7 @@ class DevServer(unittest.TestCase):
             ".git/config": "[core]",
             "README.md": "readme",
             "client/page.html": "<p>page",
-            "client/viewer/index.html": "<p>viewer",
+            "client/viewer/index.html": '<script src="/client/viewer/head.js" data-client="ts" data-wt-port="4433"></script>',
             "client/module.js": "export {};",
             "lab/bench.html": "<p>bench",
             "fixtures/us_cine_smoke/metadata.json": '{"frameCount": 1}',
@@ -67,9 +67,22 @@ class DevServer(unittest.TestCase):
     def test_the_viewer_is_the_root_page(self):
         """`/` is the viewer, isolated and revalidated like any page."""
         status, headers, body = self.get("/")
-        self.assertEqual((status, body), (200, b"<p>viewer"))
+        self.assertEqual(status, 200)
+        self.assertIn(b"head.js", body)
         self.assertEqual(headers.get("Cross-Origin-Embedder-Policy"), "require-corp")
         self.assertEqual(headers.get("Cache-Control"), "no-cache")
+
+    def test_the_page_is_rendered_for_this_host(self):
+        """The dev certificate is pinned through the transport file; `--wt-port` renders the page a trusted deployment
+        serves, which dials its own host and names no file; `--client` names the client."""
+        self.assertIn(b'data-client="ts" data-transport-file="/wt/dev-transport.json"', self.get("/")[2])
+        dev_server.Handler.client, dev_server.Handler.wt_port = "wasm", 4500
+        try:
+            body = self.get("/client/viewer/index.html")[2]
+            self.assertIn(b'data-client="wasm" data-wt-port="4500"', body)
+            self.assertNotIn(b"dev-transport", body)
+        finally:
+            dev_server.Handler.client, dev_server.Handler.wt_port = "ts", None
 
     def test_metadata_and_transport_given_by_path(self):
         """`--metadata` and `--transport` serve files from anywhere under their two names, and nothing beside them."""

@@ -12,16 +12,15 @@
     if (as) l.as = as;
     document.head.append(l);
   };
-  // The transport file names the client; its module is the first file, TS's preloaded by the HTML. docs/CLIENTS.md §Choosing the client
-  const CLIENTS = {
-    ts: ["/client/transport/ts/dist/session.js"],
-    wasm: ["/client/transport/wasm/session-adapter.js", "/client/transport/wasm/pkg/transport_wasm.js", "/client/transport/wasm/pkg/transport_wasm_bg.wasm"],
-  };
-  globalThis.viewerTransport = globalThis.viewerLab.then((lab) => lab.transport ?? fetch("/wt/dev-transport.json").then((r) => r.json())).then((t) => {
-    const client = t.client ?? "ts";
-    if (!Object.hasOwn(CLIENTS, client)) throw new Error(`refused: client ${JSON.stringify(client)} — ts or wasm`);
-    if (client === "wasm") for (const f of CLIENTS.wasm) link("preload", f, f.endsWith(".wasm") ? "fetch" : "script");
-    return { ...t, client, module: CLIENTS[client][0] };
+  // The page names its client, preloaded above, and its transport: its own host on a port, or a transport file that
+  // pins a certificate the browser cannot verify. client/viewer/page.sh renders both: docs/CLIENTS.md §Choosing the client
+  const CLIENTS = { ts: "/client/transport/ts/dist/session.js", wasm: "/client/transport/wasm/session-adapter.js" };
+  const page = document.currentScript.dataset;
+  globalThis.viewerTransport = globalThis.viewerLab.then(async (lab) => {
+    if (!Object.hasOwn(CLIENTS, page.client)) throw new Error(`refused: client ${JSON.stringify(page.client)} — ts or wasm`);
+    const file = !lab.transport && page.transportFile;
+    const t = lab.transport ?? (file ? await fetch(file).then((r) => r.json()) : { wt_url: `https://${location.hostname}:${page.wtPort}/`, cert_sha256: "" });
+    return { ...t, client: page.client, module: CLIENTS[page.client], file };
   });
   globalThis.viewerMetadata.then((m) => {
     const dec = "/client/decode";

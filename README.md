@@ -77,8 +77,9 @@ driven directly.
 Then open in Chrome:
 
 - The viewer, the product's page: `http://127.0.0.1:8765/`. The smoke series' frames are placeholders and do not
-  decode, so give it a series of your own (§The viewer on a DICOM series). `"client": "wasm"` in
-  `client/dev-transport.json` loads it over the WASM client.
+  decode, so give it a series of your own (§The viewer on a DICOM series). `dev-server.py --client wasm` renders it
+  over the WASM client; it pins the dev certificate through `client/dev-transport.json`, which a deployment with a
+  trusted certificate does without ([`deploy/README.md`](deploy/README.md) §Run it).
 - A cell over the downloader: `http://127.0.0.1:8765/harness/cell.html?autorun=1`, the URL the static host
   prints; its last line is `run_end` with `delivered` equal to `asked`. `&transport=wasm` runs the WASM client.
   `&transport=ws` runs the WebSocket fallback, which needs the server started with `--websocket` and a Chrome
