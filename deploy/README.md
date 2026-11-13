@@ -28,14 +28,16 @@ From a fresh clone, with docker (or podman; every `docker` below reads `podman` 
 
 ```bash
 bash client/decode/wasm/build/build.sh        # the decoders and the frame check's hasher, checked against their manifest
+export STUDIES=/path/to/studies SERIES=ct       # every compose command needs both
 docker compose -f deploy/compose.yml build
-STUDIES=/path/to/studies SERIES=ct docker compose -f deploy/compose.yml up -d
+docker compose -f deploy/compose.yml up -d
 ```
 
 `STUDIES` holds what the DICOM ingest writes, `$SERIES.sbnd` and `$SERIES.metadata.json`
-([`../docs/FIXTURES.md`](../docs/FIXTURES.md) §From DICOM); without it, the 151-byte smoke series baked into both
-images is served, whose frames are placeholders that do not decode. Open `http://127.0.0.1:8765/`. Off this host,
-the page needs TLS:
+([`../docs/FIXTURES.md`](../docs/FIXTURES.md) §From DICOM); `scripts/grey_series.sh "$STUDIES"` writes a three-frame
+series the page decodes, `SERIES=grey`, from tracked bytes. Neither has a default: compose refuses without them, and
+each container's start refuses without `SERIES`, naming the variable. Neither image carries a study, so `/studies` is
+always the mount (§Container settings). Open `http://127.0.0.1:8765/`. Off this host, the page needs TLS:
 
 ```bash
 PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/tls \
@@ -44,8 +46,8 @@ PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/t
 
 | variable | default | what |
 | --- | --- | --- |
-| `STUDIES` | `../fixtures/us_cine_smoke` | the host directory mounted read-only at `/studies` in both containers |
-| `SERIES` | `us_cine_smoke` | the series served: `$STUDIES/$SERIES.sbnd` and `$SERIES.metadata.json` |
+| `STUDIES` | none: required | the host directory mounted read-only at `/studies` in both containers |
+| `SERIES` | none: required | the series served: `$STUDIES/$SERIES.sbnd` and `$SERIES.metadata.json` |
 | `PUBLISH_ADDR` | `127.0.0.1` | the address 8765, 443 and 4433 (UDP and TCP) are published on |
 | `WT_URL` | `https://127.0.0.1:4433/` | the address the transport file tells the browser to dial, and the one origin besides the page's that web's policy lets it connect to |
 | `TLS_DIR` | `./no-tls` (none) | `cert.pem` (the chain) and `key.pem` for the page; absent, web speaks HTTP on 8765 alone |
@@ -69,7 +71,7 @@ docker run --rm --cpuset-cpus 0 --memory 8g -v "$PWD":/src -v "$HOME/.cache/wt-p
   docker.io/library/rust:1.97-bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97 \
   cargo build --release --locked -p series-server
 STAGE=$(mktemp -d)
-cp target/release/series-server deploy/server-start.sh "$STAGE"/ && cp -r fixtures/us_cine_smoke "$STAGE"/
+cp target/release/series-server deploy/server-start.sh "$STAGE"/
 docker build -f deploy/Containerfile.prebuilt -t wt-pacs-server "$STAGE"   # the image `compose up` runs, given no `--build`
 ```
 
@@ -114,7 +116,9 @@ A container test of a deployment of this shape found each one (the deployment te
 3. **The certificate's lifetime.** A certificate pinned by hash (`serverCertificateHashes`) must be valid for at
    most 14 days. So `server-start.sh` makes a new one (ECDSA P-256, 10 days) at every start, and runs the server
    under `timeout $RESTART_AFTER` (9 days). The exit restarts the container, with a new certificate, before
-   the browser refuses the old one. `server_start_test.sh`, in the gate, runs its two starts against a stub server.
+   the browser refuses the old one. `server_start_test.sh`, in the gate, runs its two starts against a stub server,
+   and fails unless a start without `SERIES`, the server's or web's, refuses naming it, compose requires `SERIES` and
+   `STUDIES` wherever it names them, and neither Containerfile copies anything into `/studies`.
 4. **gzip** on every compressible type the page fetches, the series' metadata included: `check_equivalence.sh`
    asserts it on a module, on the WASM, and on metadata over nginx's 1 KiB floor. Nothing is proxied, so there is
    no `gzip_proxied`.
@@ -151,8 +155,7 @@ page and its modules, the page check's two (`?check=`), and row DECODERBUILD's d
 time; the TS bundles (`build.sh --product`); and the WASM client, its adapter copied and its glue and `.wasm` built
 in the `wasm` stage (row 277's `CLIENT` picks it): the `wasm32-unknown-unknown` target, `wasm-pack` 0.15.0 by
 `cargo install --locked` as CI installs it, and `build.sh`'s binaryen `version_117` by checksum. No test, TypeScript
-source or build script. Of the
-studies, only the smoke series.
+source or build script, and no study.
 
 **Only what the page loads is reachable**: `/`, those files under `/client/`, `/series/metadata` and
 `/wt/dev-transport.json`. Everything else is a 404, the studies' bundles included.
@@ -217,6 +220,7 @@ and decoder build, a file added and one removed (each named, exit 2); a touched 
 `*.test.mjs` (passed, as the image leaves them out); no image (exit 2). Re-run on `web-files.sh`'s list (row
 IMAGESLIM): a changed module, a file added to the list and one taken off it (each named, exit 2); a changed
 `*.test.mjs` (passed).
+So is an image that carries anything in `/studies` (its entries named, exit 2): a study is always the mount.
 
 **The transport's PEM.** The same script checks `${CERT_PEM:-server/dev-cert/cert.pem}` before it compares any
 path. One self-signed certificate passes; two or more is a chain and passes; one certificate issued by something
@@ -306,8 +310,10 @@ never builds a ring, so io_uring matters only to tile misses. In order of cost:
 each setting alone. The server's own read-path tests ran under each profile too.
 
 * **Storage.** A bind mount and a named volume (`/var/lib/docker/volumes`, ext4 here) honour `RWF_NOWAIT`. The
-  container's layer (overlayfs) and `--tmpfs` refuse it (`EOPNOTSUPP`). This Containerfile `COPY`s the smoke series
-  into `/studies` in the image's layer, where the fast path is lost; compose mounts `STUDIES` over it, which keeps it.
+  container's layer (overlayfs) and `--tmpfs` refuse it (`EOPNOTSUPP`). ~~This Containerfile `COPY`s the smoke series
+  into `/studies` in the image's layer, where the fast path is lost; compose mounts `STUDIES` over it, which keeps it.~~
+  *Corrected 2026-10-20:* neither image carries a study now, and a start without one refuses (§Run it), so `/studies`
+  is always the mount, which keeps it.
   The page cache is the host's, per inode, so folios are the underlying filesystem's (the folio count's findings,
   disk-access.md §6, hold as on the host, and held in a cloud container's bind mount and volume). The pages are
   charged to the container's memory cgroup: a tight `mem_limit` evicts

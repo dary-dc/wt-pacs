@@ -1,7 +1,7 @@
 #!/bin/sh
 # Substitute only SERIES, TLS_LISTEN and WT_ORIGIN, so nginx's own $uri survives envsubst. TLS when /tls holds a certificate.
 set -eu
-: "${SERIES:=us_cine_smoke}" "${WT_URL:=https://127.0.0.1:4433/}"
+: "${SERIES:?name the series served: deploy/README.md}" "${WT_URL:=https://127.0.0.1:4433/}"
 WT_ORIGIN=$(printf '%s' "$WT_URL" | sed -E 's#^(https://[^/]+).*#\1#')
 TLS_LISTEN=""
 if [ -f /tls/cert.pem ] && [ -f /tls/key.pem ]; then

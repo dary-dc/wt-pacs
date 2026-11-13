@@ -3,7 +3,7 @@
 # naming it, written whole, then the server — restarted by `timeout` before the certificate ages out. deploy/README.md
 # A certificate mounted at /supplied (cert.pem, key.pem) is used instead, with no hash: the browser verifies its chain.
 set -eu
-: "${SERIES:=us_cine_smoke}" "${WT_URL:=https://127.0.0.1:4433/}" "${RESTART_AFTER:=9d}" "${CLIENT:=ts}"
+: "${SERIES:?name the series served: deploy/README.md}" "${WT_URL:=https://127.0.0.1:4433/}" "${RESTART_AFTER:=9d}" "${CLIENT:=ts}"
 umask 077
 rm -f /run/wt-pacs/dev-transport.json
 cert=/certs/cert.pem key=/certs/key.pem
