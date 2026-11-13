@@ -1,0 +1,67 @@
+errors: 0
+  taken dav1d requests per cold load, by arm and host (warm in brackets):
+    aa    dev  : {3: 30} [{0: 30}], body bytes [0]
+    aa    nginx: {3: 30} [{0: 30}], body bytes [243779]
+    lazy  dev  : {0: 30} [{0: 30}], body bytes [0]
+    lazy  nginx: {0: 30} [{0: 30}], body bytes [0]
+    probe dev  : {0: 30} [{0: 30}], body bytes [0]
+    probe nginx: {0: 30} [{0: 30}], body bytes [0]
+    today dev  : {3: 30} [{0: 30}], body bytes [0]
+    today nginx: {3: 30} [{0: 30}], body bytes [243779]
+  rule (1) bytes: lazy/probe cold loads with a dav1d request: 0
+  routes: {('today', 'av1-webcodecs 56'): 20, ('lazy', 'av1-webcodecs 56'): 20, ('probe', 'av1-webcodecs 56'): 20, ('aa', 'av1-webcodecs 56'): 20, ('today', 'av1-webcodecs 50'): 20, ('lazy', 'av1-webcodecs 50'): 20, ('probe', 'av1-webcodecs 50'): 20, ('aa', 'av1-webcodecs 50'): 20, ('today', 'av1-webcodecs 69'): 20, ('lazy', 'av1-webcodecs 69'): 20, ('probe', 'av1-webcodecs 69'): 20, ('aa', 'av1-webcodecs 69'): 20}
+
+## taken: 240 rows, 12 cells
+  dev · clean · dbts_a1-q8-g8-cut: today fp 1589 fill 3749; aa +9 ms 1.007x (n 5); lazy -237 ms 0.945x (n 5); probe -250 ms 0.942x (n 5)
+  dev · clean · dbts_b1-q8-g8: today fp 1928 fill 11093; aa +1 ms 1.000x (n 5); lazy -208 ms 0.980x (n 5); probe -219 ms 0.978x (n 5)
+  dev · clean · dbts_c1-q8-g16-cut: today fp 1599 fill 4595; aa +1 ms 1.008x (n 5); lazy -212 ms 0.946x (n 5); probe -223 ms 0.959x (n 5)
+  dev · loss 1 · dbts_a1-q8-g8-cut: today fp 1829 fill 22597; aa -8 ms 0.990x (n 5); lazy -244 ms 0.940x (n 5); probe -243 ms 0.974x (n 5)
+  dev · loss 1 · dbts_b1-q8-g8: today fp 3504 fill 94692; aa -90 ms 0.995x (n 5); lazy -48 ms 0.997x (n 5); probe -129 ms 1.006x (n 5)
+  dev · loss 1 · dbts_c1-q8-g16-cut: today fp 1848 fill 27853; aa +24 ms 1.005x (n 5); lazy -199 ms 0.986x (n 5); probe -234 ms 0.965x (n 5)
+  nginx · clean · dbts_a1-q8-g8-cut: today fp 1147 fill 3279; aa -25 ms 0.999x (n 5); lazy -105 ms 0.970x (n 5); probe -128 ms 0.963x (n 5)
+  nginx · clean · dbts_b1-q8-g8: today fp 1470 fill 10627; aa +15 ms 1.002x (n 5); lazy -80 ms 0.991x (n 5); probe -104 ms 0.991x (n 5)
+  nginx · clean · dbts_c1-q8-g16-cut: today fp 1147 fill 4190; aa +0 ms 1.003x (n 5); lazy -95 ms 0.971x (n 5); probe -86 ms 0.971x (n 5)
+  nginx · loss 1 · dbts_a1-q8-g8-cut: today fp 1337 fill 21408; aa +67 ms 1.048x (n 5); lazy -41 ms 0.993x (n 5); probe -44 ms 1.016x (n 5)
+  nginx · loss 1 · dbts_b1-q8-g8: today fp 2901 fill 93902; aa +146 ms 1.015x (n 5); lazy +126 ms 1.012x (n 5); probe +224 ms 1.002x (n 5)
+  nginx · loss 1 · dbts_c1-q8-g16-cut: today fp 1468 fill 28065; aa -47 ms 0.967x (n 5); lazy -103 ms 0.964x (n 5); probe -123 ms 0.985x (n 5)
+  A/A pooled: fp +1.0 ms, fill 1.002x; tolerances fp 10.0 ms, fill 1.020x
+  lazy pooled: fp -104.0 ms (holds), fill 0.975x (holds); cells over fp tolerance 1 of 12
+  probe pooled: fp -128.5 ms (holds), fill 0.976x (holds); cells over fp tolerance 1 of 12
+  refused dav1d requests per cold load, by arm and host (warm in brackets):
+    aa    dev  : {3: 30} [{0: 30}], body bytes [0]
+    aa    nginx: {3: 30} [{0: 30}], body bytes [243779]
+    lazy  dev  : {3: 30} [{0: 30}], body bytes [0]
+    lazy  nginx: {3: 30} [{0: 30}], body bytes [243779]
+    probe dev  : {3: 30} [{0: 30}], body bytes [0]
+    probe nginx: {3: 30} [{0: 30}], body bytes [243779]
+    today dev  : {3: 30} [{0: 30}], body bytes [0]
+    today nginx: {3: 30} [{0: 30}], body bytes [243779]
+  rule (2) routes and label: 0 loads not all av1-dav1d or not today's label
+
+## refused: 240 rows, 12 cells
+  dev · clean · dbts_a1-q8-g8-cut: today fp 2092 fill 4420; aa -17 ms 0.980x (n 5); lazy +401 ms 1.055x (n 5); probe -68 ms 0.933x (n 5)
+  dev · clean · dbts_b1-q8-g8: today fp 2398 fill 11762; aa +68 ms 0.985x (n 5); lazy +266 ms 0.965x (n 5); probe -201 ms 0.972x (n 5)
+  dev · clean · dbts_c1-q8-g16-cut: today fp 2082 fill 5500; aa -11 ms 1.009x (n 5); lazy +333 ms 0.947x (n 5); probe -40 ms 0.973x (n 5)
+  dev · loss 1 · dbts_a1-q8-g8-cut: today fp 2286 fill 22193; aa +37 ms 1.012x (n 5); lazy +262 ms 0.989x (n 5); probe -260 ms 0.989x (n 5)
+  dev · loss 1 · dbts_b1-q8-g8: today fp 4100 fill 95581; aa -51 ms 0.999x (n 5); lazy +230 ms 1.011x (n 5); probe -471 ms 0.990x (n 5)
+  dev · loss 1 · dbts_c1-q8-g16-cut: today fp 2334 fill 28973; aa -87 ms 0.972x (n 5); lazy +248 ms 0.958x (n 5); probe -233 ms 0.945x (n 5)
+  nginx · clean · dbts_a1-q8-g8-cut: today fp 1393 fill 3684; aa -5 ms 0.996x (n 5); lazy +155 ms 0.995x (n 5); probe -95 ms 0.988x (n 5)
+  nginx · clean · dbts_b1-q8-g8: today fp 1756 fill 10992; aa +18 ms 0.996x (n 5); lazy +120 ms 0.985x (n 5); probe -97 ms 0.984x (n 5)
+  nginx · clean · dbts_c1-q8-g16-cut: today fp 1404 fill 4759; aa +12 ms 1.007x (n 5); lazy +107 ms 0.962x (n 5); probe -111 ms 0.984x (n 5)
+  nginx · loss 1 · dbts_a1-q8-g8-cut: today fp 1643 fill 21456; aa -13 ms 1.010x (n 5); lazy +87 ms 1.032x (n 5); probe -138 ms 1.022x (n 5)
+  nginx · loss 1 · dbts_b1-q8-g8: today fp 3613 fill 94340; aa -161 ms 0.997x (n 5); lazy -125 ms 0.996x (n 5); probe -505 ms 0.998x (n 5)
+  nginx · loss 1 · dbts_c1-q8-g16-cut: today fp 1730 fill 27751; aa -38 ms 0.992x (n 5); lazy +60 ms 0.992x (n 5); probe -118 ms 1.002x (n 5)
+  A/A pooled: fp -12.0 ms, fill 0.996x; tolerances fp 50.0 ms, fill 1.004x
+  lazy pooled: fp +192.5 ms (fails), fill 0.991x (holds); cells over fp tolerance 11 of 12
+  probe pooled: fp -128.0 ms (holds), fill 0.986x (holds); cells over fp tolerance 0 of 12
+
+## failed: 27 rows
+  dbts_a1-q8-g8-cut round 1: DIFFERS: lazy ('received 51, exact 0, not exact 0, unchecked 51', 'av1-webcodecs 51', (28, 29, 30, 31)); probe ('received 51, exact 0, not exact 0, unchecked 51', 'av1-webcodecs 51', (28, 29, 30, 31, 32)); today ('received 51, exact 0, not exact 0, unchecked 51', 'av1-webcodecs 51', (28, 29, 30, 31, 32))
+  dbts_a1-q8-g8-cut round 2: DIFFERS: lazy ('received 51, exact 0, not exact 0, unchecked 51', 'av1-webcodecs 51', (28, 29, 30, 31)); probe ('received 51, exact 0, not exact 0, unchecked 51', 'av1-webcodecs 51', (28, 29, 30, 31, 32)); today ('received 51, exact 0, not exact 0, unchecked 51', 'av1-webcodecs 51', (28, 29, 30, 31))
+  dbts_a1-q8-g8-cut round 3: same in every arm: lazy ('received 51, exact 0, not exact 0, unchecked 51', 'av1-webcodecs 51', (28, 29, 30, 31, 32)); probe ('received 51, exact 0, not exact 0, unchecked 51', 'av1-webcodecs 51', (28, 29, 30, 31, 32)); today ('received 51, exact 0, not exact 0, unchecked 51', 'av1-webcodecs 51', (28, 29, 30, 31, 32))
+  dbts_b1-q8-g8 round 1: same in every arm: lazy ('received 45, exact 0, not exact 0, unchecked 45', 'av1-webcodecs 45', (28, 29, 30, 31, 32)); probe ('received 45, exact 0, not exact 0, unchecked 45', 'av1-webcodecs 45', (28, 29, 30, 31, 32)); today ('received 45, exact 0, not exact 0, unchecked 45', 'av1-webcodecs 45', (28, 29, 30, 31, 32))
+  dbts_b1-q8-g8 round 2: DIFFERS: lazy ('received 45, exact 0, not exact 0, unchecked 45', 'av1-webcodecs 45', (28, 29, 30, 31, 32)); probe ('received 45, exact 0, not exact 0, unchecked 45', 'av1-webcodecs 45', (18, 21, 29, 30, 31, 32)); today ('received 45, exact 0, not exact 0, unchecked 45', 'av1-webcodecs 45', (21, 28, 29, 30, 31, 32, 40, 48))
+  dbts_b1-q8-g8 round 3: DIFFERS: lazy ('received 45, exact 0, not exact 0, unchecked 45', 'av1-webcodecs 45', (28, 29, 30, 31, 32)); probe ('received 45, exact 0, not exact 0, unchecked 45', 'av1-webcodecs 45', (28, 29, 30, 31, 32, 39)); today ('received 45, exact 0, not exact 0, unchecked 45', 'av1-webcodecs 45', (28, 29, 30, 31, 32))
+  dbts_c1-q8-g16-cut round 1: DIFFERS: lazy ('received 56, exact 0, not exact 0, unchecked 56', 'av1-webcodecs 56', (36, 37)); probe ('received 56, exact 0, not exact 0, unchecked 56', 'av1-webcodecs 56', (36, 37)); today ('received 56, exact 0, not exact 0, unchecked 56', 'av1-webcodecs 56', (36,))
+  dbts_c1-q8-g16-cut round 2: same in every arm: lazy ('received 56, exact 0, not exact 0, unchecked 56', 'av1-webcodecs 56', (36, 37)); probe ('received 56, exact 0, not exact 0, unchecked 56', 'av1-webcodecs 56', (36, 37)); today ('received 56, exact 0, not exact 0, unchecked 56', 'av1-webcodecs 56', (36, 37))
+  dbts_c1-q8-g16-cut round 3: DIFFERS: lazy ('received 56, exact 0, not exact 0, unchecked 56', 'av1-webcodecs 56', (36, 37)); probe ('received 56, exact 0, not exact 0, unchecked 56', 'av1-webcodecs 56', (36, 37)); today ('received 56, exact 0, not exact 0, unchecked 56', 'av1-webcodecs 56', (36,))
