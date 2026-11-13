@@ -2,7 +2,7 @@
 // exact, drawn page failed by name. client/README.md §The viewer
 //
 //   NODE_PATH=$(npm root -g) node client/viewer/check.mjs --series X.sbnd --decoder htj2k [--pair Y.sbnd --pair-decoder D]
-//     [--engine chromium|firefox] [--cine] [--fill 0] [--client ts|wasm]
+//     [--engine chromium|firefox] [--cine] [--fill 0] [--client ts|wasm] [--view page|worker]
 //   ... --url http://host/ --decoder htj2k [--client C]   (a host already running, such as the deploy image, whose transport
 //     file names C; no request log, so no code check)
 //   ... --url http://host/ --fill 0 --restart CMD   (CMD restarts the host's server and prints its `transport=` line)
@@ -17,6 +17,7 @@ const ROOT = new URL("../..", import.meta.url).pathname;
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ENGINE = arg("--engine", "chromium");
 const CLIENT = arg("--client", "ts");
+const VIEW = arg("--view", "page");
 const CLIENTS = {
   ts: ["/client/transport/ts/dist/session.js"],
   wasm: ["/client/transport/wasm/session-adapter.js", "/client/transport/wasm/pkg/transport_wasm.js", "/client/transport/wasm/pkg/transport_wasm_bg.wasm"],
@@ -68,14 +69,20 @@ async function host(sbnd, name) {
   children.push(http);
   const [, p] = await started(http, /port=(\d+)/);
   const requests = [];
-  http.stdout.on("data", (d) => requests.push(...String(d).split("\n").filter((l) => l.startsWith("GET "))));
+  // A chunk can end inside a line: only whole lines are read.
+  let partial = "";
+  http.stdout.on("data", (d) => {
+    const lines = (partial + d).split("\n");
+    partial = lines.pop();
+    requests.push(...lines.filter((l) => l.startsWith("GET ")));
+  });
   return { url: `http://127.0.0.1:${p}/`, requests };
 }
 
 /** The page's own result, read off it in headless Chromium through playwright, or off a stock Firefox's stdout. */
 async function open(url) {
   const timeout = new Promise((resolve) => setTimeout(() => resolve({ error: "no result in 300 s" }), 300000).unref());
-  const q = new URLSearchParams({ check: "1", ...(process.argv.includes("--cine") && { cine: "1" }), ...(arg("--fill") && { fill: arg("--fill") }) });
+  const q = new URLSearchParams({ check: "1", ...(process.argv.includes("--cine") && { cine: "1" }), ...(arg("--fill") && { fill: arg("--fill") }), ...(VIEW !== "page" && { view: VIEW }) });
   const page = `${url}?${q}`;
   if (ENGINE === "firefox") {
     const profile = mkdtempSync(path.join(T, "ff-"));
@@ -133,6 +140,13 @@ function judge(name, r, requests, codec, decoder) {
   if (decoder) say(paths.length === 1 && paths[0] === decoder, `decoded by ${paths.join(", ") || "none"}, not ${decoder} alone`);
   if (codec === "av1") say(paths.length > 0 && paths.every((p) => p.startsWith("av1-")), `an AV1 page whose frames were decoded by ${paths.join(", ")}`);
   say(r.status.includes(`client ${CLIENT}`), `the status line does not name client ${CLIENT}: ${r.status}`);
+  say(r.status.includes(`view ${VIEW}`), `the status line does not name view ${VIEW}: ${r.status}`);
+  say(r.heldStep === "painted 1, sent nothing", `a step to a held frame: ${r.heldStep}, not one paint and nothing sent`);
+  say(r.windowStep === "painted 1, uploaded false, sent nothing", `a window change: ${r.windowStep}, not one paint from the texture held and nothing sent`);
+  const again = (r.readbacks ?? []).find((b) => b.window);
+  say(again && again.uploaded === false, `the last frame under another window: ${JSON.stringify(again)}, not painted without an upload`);
+  // In the worker variant the page holds no frame: what reaches it carries no pixel, and the downloader posts it nothing.
+  if (VIEW === "worker") say(r.page?.messages > 0 && r.page.pixels === 0 && r.page.fromDownloader === 0, `what reached the page: ${JSON.stringify(r.page)}`);
   for (const f of CLIENTS[CLIENT]) say(r.preloaded.includes(f), `the ${CLIENT} client's ${f} was not preloaded`);
   if (requests) {
     const av1 = requests.filter((l) => /\/av1[^/]*\.js|dav1d/.test(l));
@@ -146,9 +160,9 @@ function judge(name, r, requests, codec, decoder) {
   if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine showed ${r.cine} frames in 1.5 s`);
 }
 
-const summary = (name, r) => `${name}, client ${CLIENT}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +
+const summary = (name, r) => `${name}, client ${CLIENT}, view ${VIEW}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +
   `${r.fillMs === null ? "on demand" : `fill ${Math.round(r.fillMs)} ms`}, first exact on screen ${Math.round(r.firstShownMs)} ms, readbacks ${(r.readbacks ?? []).map((b) => `${b.i}:${b.worst}`).join(" ")}` +
-  `${r.cine !== undefined ? `, cine ${r.cine} frames` : ""}`;
+  `${r.cine !== undefined ? `, cine ${r.cine} frames` : ""}${r.page ? `, page heard ${r.page.messages} messages, ${r.page.pixels} with pixels` : ""}`;
 
 /** A page open on demand across a server restart: its step after the restart must arrive exact. docs/ARCHITECTURE.md §An open page follows a server restart */
 async function acrossARestart(url, cmd) {
@@ -202,5 +216,5 @@ if (arg("--restart")) {
 }
 for (const [name, r] of runs) if (!r.error) console.log(summary(name, r));
 for (const f of failures) console.log(`FAIL: ${f}`);
-console.log(failures.length ? `viewer check: ${failures.length} failing (${ENGINE}, ${CLIENT})` : `viewer check: every frame complete, exact and drawn (${ENGINE}, ${CLIENT})`);
+console.log(failures.length ? `viewer check: ${failures.length} failing (${ENGINE}, ${CLIENT}, view ${VIEW})` : `viewer check: every frame complete, exact and drawn (${ENGINE}, ${CLIENT}, view ${VIEW})`);
 process.exit(failures.length ? 1 : 0);

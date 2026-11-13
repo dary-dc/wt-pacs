@@ -454,7 +454,9 @@ Frames that were asked for are taken at once, fill frames at background priority
 waits behind a fill. The harness's consumer checks each frame against the fixture's `.sha256`.
 
 **Where a frame should go next** — the page out of the pixel path, the frame store in the paint worker, an OPFS cache
-behind it — is proposed, theory only, in [`adr/frame-path.md`](adr/frame-path.md).
+behind it — is proposed in [`adr/frame-path.md`](adr/frame-path.md); the page out of the pixel path is built as a
+variant, `?view=worker`, not timed and not the default (its §3, *Built*). There the consumer runs in the view worker,
+given the `port` the page linked to the downloader, and the page forwards its triggers to it.
 
 `DownloaderClient.connect(url, certHash, { onFrame, onError, fill, openingAsk, survival, … })` →
 `requestExactFrame(index)`, `fill(indices)`, `cancel()`, `stats()`, `close()`. Every delivered frame
@@ -733,7 +735,8 @@ to one ask moves the median only when it crosses a 16.7 ms line.
 
 The product's page (queue row VIEWER), built on the downloader, the decoders, the frame check and the painter
 together ([`../client/README.md`](../client/README.md) §The viewer). It opens with the whole series as the opening
-fill and paints each frame as it arrives. Frames stay in memory, because the cache seam is still open (§Open).
+fill and paints each frame as it arrives. Frames stay in memory, because the cache seam is still open (§Open): on the
+page by default, in the view worker under `?view=worker` ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*).
 
 **The page check holds it** on the three series the DICOM-to-bundle ingest (queue row 89, INGEST) made from the lab's sets, each as HTJ2K and as AV1:
 `ct_nlst` (a windowed, signed CT, 76 frames), `us_liver` (an RGB cine, 70 frames, cine run) and `dbt12_ea1141`
