@@ -76,7 +76,8 @@ The client's checks stay on by default.
 | A digest of the coded bytes | **agreed** in the draft target (2026-10-12), XXH3-64 in each entry, not built; checking it on every read stays optional (*corrected, queue row DOCFIX, 2026-10-13*: this line said open) | [`../disk-layout/target.md`](../disk-layout/target.md) §The two hashes; [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8 |
 | A changed duplicate: replace, keep both, or hold | open | [`design.md`](design.md) §8 |
 | A bad instance: refuse the series, or store the rest marked incomplete | open | [`design.md`](design.md) §8 |
-| The upload's shape (S3-style multipart, tus, per-file PUT, rsync) | open | [`link.md`](link.md) §7, §9 |
+| The upload's shape (S3-style multipart, tus, per-file PUT, rsync) | open; a resumable HTTPS upload proposed | [`link.md`](link.md) §7, §9; [`../adr/pcs-transfer.md`](../adr/pcs-transfer.md) §3 |
+| The PCS sends one file a series (the `.sbnd` in it), not a tree; hashes are XXH3; the PACS confirms storage before the PCS deletes; a second refusal goes to an operator | **decided** 2026-10-24/25 | [`../adr/pcs-transfer.md`](../adr/pcs-transfer.md) §1 |
 | Site host tuning, the server's kernel, the site's congestion controller | open | [`link.md`](link.md) §4, §9 |
 | How the parser ships with the ingest | open | [`../FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site |
 | The parser hashes the bytes it writes | open | §5 below |
