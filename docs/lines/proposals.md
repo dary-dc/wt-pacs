@@ -4,6 +4,62 @@ Proposals for the optimal-quality demo path, each with the measurement that deci
 (`claude/proposals`) holds §Optimize, the optimizer's part; §Simplify is on `claude/demo-simplify`, and the two meet
 when the owner takes them.
 
+## Consolidated, 2026-11-13
+
+*Row PROPOSALS-CONSOLIDATE, a session that wrote and measured none of these.* Every proposal on this branch and on the
+branches that answer the same question, one row each, read at `claude/proposals` `b6e4b47d`. Nothing was rerun here:
+each entry quotes its section or its row's status file (`claude/work-ledger:docs/queue/<ROW>.md`). *Fixtures, for every
+measured entry:* three DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`), Q 8; one 4-core cloud host
+without a GPU, headless Chromium, software decode; a userspace relay or netem, not a radio; the phone entries, one
+phone on one home link for one evening, `dbts_b1-q8-g8` only. Nothing past those is claimed.
+
+*Verdicts:* **meets** its pre-registered rule; **holds** for the cells measured, not adopted; **open** (a cell or a
+device owed); **withdrawn** by its rule; **done** elsewhere. Every adoption is the owner's.
+
+| # | proposal (where) | evidence | verdict | deciding measurement | next step |
+| --- | --- | --- | --- | --- | --- |
+| P1 | BBR on the pair's two servers (§P1, §R2) | fill 0.11–0.12× and `l` 0.29–0.55× (`dbts_a1`) of Cubic's at 1 % iid loss; a jump 500 ms into the fill 0.08–0.09× at 1 %, 0.86–0.96× clean and in bursts (§R2) | holds for random loss; open for real links | the phone runs' controller arm on real links; the one home link showed all losses congestive and `cubic-restart` faster 9 of 10 (`claude/phone-rows`, LINK-CALIBRATION) | owner: the default stays `cubic-restart` (11-11); a congestive-loss cell and the next phone round decide |
+| P2 | tiles (2 × 2) in the OQ encode (§P2, §R1) | decode 0.64–0.72×, G 16 jump 0.37× on 4 cores; 0.99× under a 2-core pin; bytes ≤ 1.0065×; e and e_N/σ 0.997–1.002× | not ready by R1's rule: max \|Δ\| +5 source units on one series of seven against a 1-unit bar (under one code step of 4) | a round-3 protocol with the bar in code steps, and the 4-core one-tile slowness split (decoder count against tile threads) | owner: tiles wait (11-11); next wave TILES-STEP |
+| P3 | a wake before `l`, on `end_stream` alone (§P3, §R3) | −103 and −105 ms on the relay's radio model (rule −100 ± 15) | holds as plumbing; open | R3's phone row on cellular, its dwell list seeded | a phone session; protocol amendment PHONE-AMEND-3 (next queue) |
+| P4 | 32-packet initial window, exact server (§P4) | under Cubic: a tie under loss, `dbts_b1` clean missed | withdrawn | — | none |
+| R4 | P4 under BBR (§R4) | `l` 1.09–1.26× **slower** in all six cells; the queue rose 0.7–18 ms, not enough to explain it | withdrawn; the cause is not explained | reading quinn's BBR pacing of a larger first flight, in code | next wave BBR-IW-READ (theory) |
+| P5 | the exact session dialled after the first picture (§P5) | inert on the first picture; slowed `l` | withdrawn; kept as an A/A floor (±30 ms) | — | none |
+| P6 | dav1d fetched only where WebCodecs refuses (`claude/dav1d-lazy` §P6; §R5 here) | (c) *probe*: 0 dav1d requests where WebCodecs takes (today 636 KB raw, 244 KB gzipped), first picture −129 ms pooled, fill 0.98×; on a refusal −128 ms. (b) *lazy*: +193 ms on a refusal | (c) meets (1) and (2), (3) open on its letter (§R5 *Measured*); (b) fails (2) | (3) against (a)'s own round-to-round spread of failing frames | owner: build (c), ~13 lines; next wave P6-RULE3 first |
+| I1 | reconstruction digest of each OQ frame (PR 368, `claude/oq-integrity-build`) | every frame as coded on WebCodecs, 14 of 14 fills; cost +3.7 % / +1.9 % fill, max +7.8 % at 4×; hash ~4 % of a decode here | holds; four review findings open (OQ-INTEGRITY-REVIEW) | the review's fixes, then cost on a phone | OQ-INTEGRITY-FIXES and its review (next queue); owner: take PR 368 |
+| I2 | coding error per frame (PR 368) | agrees with the study's code on every frame of R1 | holds | I2-RUN (next queue) | as queued |
+| I3 | the label says what was checked (PR 368) | the "not as coded" label is not built: a refused frame leaves the previous green ✓ | open | a `demo-check.mjs` check per label state | OQ-INTEGRITY-FIXES |
+| S1, S7 | lab harness out of `viewer.js`; lab levers out of the connect options (`claude/demo-simplify`) | ~110 lines (CLEAN-FIND); S7: CLEAN-2 found each lever named by a check, removed none, gated the frame check | S1 open; S7 done as far as it can go | — | S1 with the client line (`docs/lines/client.md`), after the merge |
+| S2 | one view | 40 of 40 series both views, twice; nothing timed | open | the phone runs (owner, 11-11) | owner |
+| S3, S6 | one starter for a pair; WS and race bundles out of the image | CLEAN-2, PR 375: `scripts/demo-pair.sh`, `build.sh --product` bundles `session.js` alone | done on PR 375 | CLEAN-2-REVIEW (next queue) | as queued |
+| S4, S5, S8 | `unchecked` mark; status line; `wasm` client | S4 done by FIX-1, its claim corrected under I3; S5 costs `demo-check.mjs`'s `view` check; S8 proposes nothing | S4 done; S5 open; S8 none | — | owner, with I3 |
+| FS1–FS11 | the demo path simplified (PR 366, `claude/fable-simplify`) | read only, at `daee0d1d`; FS1 is S3 (done); FS2 is three doc statements the code contradicts (not checked again here) | open, each the owner's | per item, in its section | owner: FS2 is docs only and cheap |
+| FD1 | an exact frame, once fetched, kept for the return (PR 383, `claude/fable-design`) | a return pays 1.0–2.2 MB again today | open | how often readers return to a frame (not known) | owner: yes or no as a build row |
+| FD2 | the dial waits for nothing it does not need (PR 383) | 1–2 round trips off the first picture (assumption, 60–120 ms) | open | first picture, interleaved, with R0's A/A arm | owner: yes or no as a build row |
+| FD3 | an OPFS cache that admits OQ frames once I1 checks them (PR 383) | today no OQ frame is cached | open, depends on I1 | — | after PR 368 |
+| H1 | HTJ2K: three strips, D+T3 (`claude/htj2k-tiles`, PR 324) | Lossless 47–311 ms faster, same bytes; strips alone explain ~×0.97 of D on `b1` | holds, attribution owed | A1: D, D+T1, D+T3 on this host (§Verdict) | next wave HTJ2K-A1 |
+| H2 | HTJ2K: an exact level picture shown first, D+L★ (PR 324) | the level at ×0.26–0.28 of today's wait | holds on its mechanism | P1–P3 of §Verdict on a phone | owner: whether it may be shown first, and its words |
+| H3 | HTJ2K: S★ for the scroll (PR 324) | only `dbts_b1` passes | withdrawn | — | none |
+| N1 | host networking for the series servers (`claude/hostnet-theory`) | theory: rootless publish costs 14–22× the host-stack walks and turns ECN off | open | §6's check: arms interleaved, a client off the host | owner; not runnable on these cloud hosts |
+| F1 | a lost exact ask is asked again (PR 378) | reproduced, simulated: off 3/3 failed, on 3/3 Lossless | holds; it re-asks every rejection, not only transport losses (PHONE-FIX-REVIEW) | — | owner: retry scope; where `lab/lossless-under-loss/` lives |
+| F2 | a late decode deadline on a stopped page given again (PR 376; beacon PR 377) | its test fails without the fix; 7 + 5 mutants killed | holds | the next phone round, with visibility recorded | owner: merge after the core lands |
+| T1 | client telemetry, sampled, off by default (PR 370) | ~4.5 KB a load; nothing timed | open | TELEMETRY-COST (next queue) | owner: rate, sink, retention |
+
+**Named, not proposed.** Cubic's slow start overflowed the 1 000-packet queue clean (§Round 2): a gentler startup
+changes the default controller, which is the owner's. The phone's fill is decode-bound, 0.76–0.94 of each fill
+(FILL-SPLIT): the lever there is the decode (P2, the decoder count), not the wire.
+
+### The next wave
+
+Rows not already in `docs/queue-2026-11-14.md`, for the owner to add or not; each names its review. None builds into
+a product path or changes a decided approach.
+
+| row | what | output | review |
+| --- | --- | --- | --- |
+| P6-RULE3 | Theory first, by another session: rule (3) of P6 read against arm (a)'s own spread. The failed route's missing frames vary round to round within (a) (`dbts_a1` 28–32 then 28–31); register a reading (outcome sets, not per round) and an A/A pair, then run the failed route only: 9 rounds × 3 series × (a), (a′), (c), cold, clean (~30 min) | `claude/proposals` §R5, rows | a second session reads the rows against the rule |
+| HTJ2K-A1 | A1 as pre-registered in `claude/htj2k-tiles:docs/htj2k-tiles.md` §Verdict: D, D+T1, D+T3 on this host, product client against lab page | `claude/htj2k-tiles` (rows) | HTJ2K review row |
+| BBR-IW-READ | Why a 38 400 B first flight slows `l` under quinn's BBR (§R4): its pacing and startup, read in code at the pinned version, each claim quoted; a protocol only if the reading predicts a cell | `claude/proposals` (theory) | none (docs) |
+| TILES-STEP | A round-3 protocol for P2: the max \|Δ\| bar in code steps of the cut, and the 4-core one-tile jump (406 ms against 199 ms on two cores) split between the decoder count and tile threads. Theory and protocol only; tiles wait for the owner | `claude/proposals` (theory) | the measuring row's amendment |
+
 ## Optimize
 
 *Theory only, written 2026-11-11 against the demo tip `claude/demo-fixes-0` at `618e13c8`. Nothing here is measured,
@@ -1025,6 +1081,22 @@ rounds** (240 rows each; 5 runs an arm a cell, 60 an arm pooled over the 12 cell
 (`LAST=5 lab/proposals/r5.sh`). What it costs: a cell's median rests on 5 runs, so the per-cell table is reported
 and not read for the rule, which reads the pooled values only, as amendment 1 already says; the A/A arm's spread is
 measured on the same 5 rounds, so the tolerance widens with the noise rather than rejecting a tie.
+
+**Measured (MEASURE-2, 2026-11-12, per amendments 1 and 2; written up 2026-11-13 by PROPOSALS-CONSOLIDATE from
+`lab/proposals/rows/r5-summary.txt`).** 507 rows: *taken* and *refused* 240 each (5 rounds, 12 cells), *failed* 27.
+*(1) Taken:* no cold load of (b) or (c) asks for dav1d; (a) and (a′) ask three times (636 484 B raw; 243 779 B
+gzipped on nginx). First picture pooled against (a): (a′) +1.0 ms, (b) −104 ms, (c) −128.5 ms (tolerance 10 ms);
+fill 0.975× and 0.976× (tolerance 1.02×): both hold; one cell of 12 over the first-picture tolerance in each.
+*(2) Refused:* every load all on `av1-dav1d` with (a)'s label, in every arm. First picture pooled: (a′) −12 ms, (b)
++192.5 ms (tolerance 50 ms; 11 of 12 cells over): **(b) fails (2)**, as P6 expected; (c) −128 ms, 0 of 12 cells over:
+holds. *(3) Failed:* every arm received the same frame count with the same route in every round. The frames that
+fail differ between arms in 6 of 9 rounds by one to five frames (e.g. `dbts_a1` round 1: (b) 28–31, (a) and (c)
+28–32); (a) itself varies the same way between rounds (`dbts_a1` 28–32, then 28–31; `dbts_c1` 36, then 36–37). By
+its letter, "the frames that fail … are those of (a)", (3) is **not met** in those rounds; the variation is not shown
+to be the arm's, since (a) has it too. The verdict on (c) is therefore (1) and (2) met, (3) open; MEASURE-2's result
+line "same missing frames … in every arm" is corrected here. *Heuristic cache:* warm loads asked for nothing on
+either host. *Limits:* as amendment 1 (the static host's TCP not on the UDP queue understates (b) and (c)'s gain);
+5 rounds, not 9.
 
 ### Round 2: MEASURE-1's data read, nothing proposed
 
