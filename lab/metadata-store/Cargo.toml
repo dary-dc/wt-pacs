@@ -1,0 +1,13 @@
+[package]
+name = "metadata-store"
+version = "0.1.0"
+edition = "2021"
+description = "Four stores for the parser's metadata groups, timed on what a page open reads"
+
+[dependencies]
+anyhow = { workspace = true }
+blake3 = "1"
+libc = "0.2"
+memmap2 = "0.9"
+rusqlite = { version = "0.40", features = ["bundled"] }
+serde_json = { workspace = true }
