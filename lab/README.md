@@ -22,6 +22,7 @@ cites; the doc holds the number, the directory holds how to get it. Variants are
 | `telemetry-bench/`, `telemetry-cost/` | what telemetry costs — `docs/adr/telemetry-*.md` |
 | `server-load/` | how many concurrent fills one server core carries, HTJ2K and AV1 — `docs/transport/transport-conclusions.md` §4 |
 | `clock-resolution/`, `idle-sessions/` | the browser's clock floor and what an idle session survives — `docs/rig-limits.md` §6, `docs/adr/transport-idle-sessions.md` |
+| `late-frame/` | what a late frame costs `.sbnd`, MXF and MP4, at the end and in the middle — `docs/disk-layout/containers.md` §Measured: what a late frame costs |
 | `av1/` | AV1, the second codec: tools, exactness, bytes, decode and delivery — `av1/README.md` §The folders, by what they measure, `docs/av1/README.md` |
 | `viewer/` | the viewer's lab parameters, honoured only where `lab/` is served — `client/README.md` §The viewer |
 | `fixtures/`, `traces/` | series and link traces the cells use |

@@ -1,0 +1,13 @@
+[package]
+name = "sbnd-late"
+version = "0.1.0"
+edition = "2021"
+description = "A late frame merged into a .sbnd by rewrite and rename, timed"
+publish = false
+
+# Outside the repository's workspace, so no build of it builds this.
+[workspace]
+
+[dependencies]
+anyhow = "1"
+series-bundle = { path = "../../../common/series-bundle" }

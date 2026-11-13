@@ -1,0 +1,17 @@
+diff --git a/src/essence_parser/J2CEssenceParser.cpp b/src/essence_parser/J2CEssenceParser.cpp
+index 7c33127..0d0f0f3 100644
+--- a/src/essence_parser/J2CEssenceParser.cpp
++++ b/src/essence_parser/J2CEssenceParser.cpp
+@@ -250,6 +250,12 @@ uint8_t J2CEssenceParser::GetCompBitDepth(size_t index)
+ 
+ bool J2CEssenceParser::GuessRGBALayout(bool is_yuv, bool is_rgb, bool include_fill, mxfRGBALayout *layout)
+ {
++    if (mCsiz == 1 && is_yuv && !GetCompSigned(0)) {
++        memset(layout, 0, sizeof(*layout));
++        layout->components[0].code = 'Y';
++        layout->components[0].depth = GetCompBitDepth(0);
++        return true;
++    }
+     if (mCsiz == 3) {
+         // RGB or YUV
+ 
