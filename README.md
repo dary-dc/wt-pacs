@@ -196,6 +196,7 @@ Each subject has one owner; a claim lives there, corrected in place when it is w
 | [`docs/cloud-queue.md`](docs/cloud-queue.md) | the work queue, closed: its protocol and where each row's verdict lives; an open decision is in its owning doc's §Open |
 | [`docs/codecs/`](docs/codecs/README.md) | the codecs side by side — HTJ2K, AV1, JPEG XL, JPEG 2000, AV2 — which carries which series, and why |
 | [`docs/av1/`](docs/av1/README.md) | AV1, a second lossless codec: what is open and what decides it; its own queue |
+| [`docs/viewer/`](docs/viewer/README.md) | the 2D diagnostic viewer product, apart from the client: what it must do, on what authority |
 
 Older campaign evidence and `lab/transport/` are on tag `archive/transport-lab-2026-09`; every
 retired doc is in the history before the commit that folded it.
