@@ -40,7 +40,7 @@ device owed); **withdrawn** by its rule; **done** elsewhere. Every adoption is t
 | H2 | HTJ2K: an exact level picture shown first, D+L★ (PR 324) | the level at ×0.26–0.28 of today's wait | holds on its mechanism | P1–P3 of §Verdict on a phone | owner: whether it may be shown first, and its words |
 | H3 | HTJ2K: S★ for the scroll (PR 324) | only `dbts_b1` passes | withdrawn | — | none |
 | N1 | host networking for the series servers (`claude/hostnet-theory`) | theory: rootless publish costs 14–22× the host-stack walks and turns ECN off | open | §6's check: arms interleaved, a client off the host | owner; not runnable on these cloud hosts |
-| F1 | a lost exact ask is asked again (PR 378) | reproduced, simulated: off 3/3 failed, on 3/3 Lossless | holds; it re-asks every rejection, not only transport losses (PHONE-FIX-REVIEW) | — | owner: retry scope; where `lab/lossless-under-loss/` lives |
+| F1 | a lost exact ask is asked again (PR 378) | reproduced, simulated: off 3/3 failed, on 3/3 Lossless | holds; it re-asks every rejection, not only transport losses (PHONE-FIX-REVIEW) | — | owner: retry scope; where `claude/lossless-under-loss:lab/lossless-under-loss/` lives |
 | F2 | a late decode deadline on a stopped page given again (PR 376; beacon PR 377) | its test fails without the fix; 7 + 5 mutants killed | holds | the next phone round, with visibility recorded | owner: merge after the core lands |
 | T1 | client telemetry, sampled, off by default (PR 370) | ~4.5 KB a load; nothing timed | open | TELEMETRY-COST (next queue) | owner: rate, sink, retention |
 
@@ -50,7 +50,7 @@ changes the default controller, which is the owner's. The phone's fill is decode
 
 ### The next wave
 
-Rows not already in `docs/queue-2026-11-14.md`, for the owner to add or not; each names its review. None builds into
+Rows not already in `claude/work-ledger:docs/queue-2026-11-14.md`, for the owner to add or not; each names its review. None builds into
 a product path or changes a decided approach.
 
 | row | what | output | review |
