@@ -150,7 +150,7 @@ const asks = new Map();
 let steps = 0;
 /** A step: its frame painted from memory, or asked — ahead of the fill, and in on-demand mode the newest ask alone. */
 async function show(i) {
-  current = (i + n) % n;
+  current = Math.min(Math.max(i, 0), n - 1);
   status();
   if (frames.has(current)) return repaint();
   const want = current;
@@ -180,7 +180,7 @@ function toggleCine() {
     cine = null;
   } else {
     const ms = meta.frameTimeMs ?? (meta.cineRate ? 1000 / meta.cineRate : 100);
-    cine = setInterval(() => show(current + 1), ms);
+    cine = setInterval(() => show((current + 1) % n), ms);
   }
   cineEl.textContent = cine ? "❚❚ cine" : "▶ cine";
 }
@@ -197,14 +197,16 @@ const KEYS = {
   ArrowRight: () => show(current + 1), ArrowDown: () => show(current + 1), PageDown: () => show(current + 1),
   ArrowLeft: () => show(current - 1), ArrowUp: () => show(current - 1), PageUp: () => show(current - 1),
   Home: () => show(0), End: () => show(n - 1), " ": toggleCine, "+": () => zoom(1.25), "=": () => zoom(1.25), "-": () => zoom(0.8),
-  r: () => ((pose = { ...pose, rotate: (pose.rotate + 90) % 360 }), repaint()),
-  h: () => ((pose = { ...pose, flipH: !pose.flipH }), repaint()),
-  v: () => ((pose = { ...pose, flipV: !pose.flipV }), repaint()),
+  ...(["DX", "CR"].includes(meta.modality) && {
+    r: () => ((pose = { ...pose, rotate: (pose.rotate + 90) % 360 }), repaint()),
+    h: () => ((pose = { ...pose, flipH: !pose.flipH }), repaint()),
+    v: () => ((pose = { ...pose, flipV: !pose.flipV }), repaint()),
+  }),
   i: () => ((invert = !invert), repaint()),
   0: reset, Escape: reset,
 };
 addEventListener("keydown", (e) => {
-  const k = KEYS[e.key];
+  const k = KEYS[e.key] ?? KEYS[e.key.toLowerCase()];
   if (!k || e.target === cineEl) return;
   e.preventDefault();
   k();

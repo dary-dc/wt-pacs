@@ -315,6 +315,8 @@ read off the page in Chromium and off Firefox's stdout (`devtools.console.stdout
 * any frame not exact;
 * on demand, three quick steps that kept any ask but the newest, or two steps to one frame that sent more than its
   one ask;
+* a step past the last or first frame that moved, `r`, `h` and `v` that turned or flipped other than a DX or CR
+  series, or `I` that did not act as `i`;
 * a decoder other than `--decoder`;
 * a status line not naming `--client`, or that client's files not preloaded; from the static host's log, its files
   not fetched or, on a TS page, the WASM client's fetched (every page fetches TS's: the HTML preloads it);
@@ -322,7 +324,7 @@ read off the page in Chromium and off Firefox's stdout (`devtools.console.stdout
 * an AV1 page whose frames were not decoded as AV1;
 * the first, middle and last frame's readback at zoom 1 differing from the painter's CPU reference by any byte;
 * with `--pair`, the same series in the other codec painting a different readback;
-* with `--cine`, a cine that did not move.
+* with `--cine`, a cine started on the last frame that did not loop to the first.
 
 Headless Firefox has no WebGL: on a host without a display, run the check under `xvfb-run` with a software GL
 (Mesa's llvmpipe), and it runs Firefox windowed. The run here used conda-forge's `firefox-157.0.1-hee9eb32_0` and
