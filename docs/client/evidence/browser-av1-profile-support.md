@@ -9,7 +9,9 @@ W1–W5, §Firefox G1–G4, §What is owed, `87640e5d`); a hands-on probe in hea
 (`claude/video-containers-research-ed5fg2:docs/video-containers/guide.md` §8, `379ffc09`). What the lab measured of
 Chromium, WebKitGTK and Firefox is [`../../decode/README.md`](../../decode/README.md) §WebCodecs, what it decodes
 exactly, §AV1 in WebKit and Firefox and §Why, and what would make it exact; hardware decode is
-[`../../decode/hardware.md`](../../decode/hardware.md). Neither is repeated here.*
+[`../../decode/hardware.md`](../../decode/hardware.md). The routes a page has to decode by at all (`VideoDecoder`,
+`ImageDecoder`, `<video>`, WebAssembly), what each engine ships and that survey's 2026-11-10 corrections are
+[`browser-decode-routes.md`](browser-decode-routes.md). None is repeated here.*
 
 ## Verdict, from sources (theory)
 
