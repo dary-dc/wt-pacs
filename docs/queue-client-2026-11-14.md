@@ -33,7 +33,10 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | --- | --- | --- | --- |
 | HW-DECODE-DEEP | 11-14 19:00 | — | `claude/hw-decode` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
 | LINK-TARGETS | 11-14 19:00 | — | `claude/link-targets` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
-| BEACON-LINK | 11-14 19:00 | — | `claude/telemetry-client` (a proposal section in its ADR; no code) |
+| REPORT-OPTIONS | 11-14 20:00 | — | `claude/report-plan` from `origin/claude/docs-client` → draft PR into `claude/docs-client`; rows appended to this file |
+| CANDIDATE-METHOD | 11-14 20:00 | — | `claude/docs-client` (`CLAUDE.md` §Measurement; a docs commit on PR 384) |
+| OQ-INGEST | 11-15 08:00 | — | `claude/oq-ingest` from `origin/claude/unified-client` → draft PR into `claude/unified-client` |
+| OQ-INGEST-REVIEW | 11-16 08:00 | OQ-INGEST done | `claude/oq-ingest` (findings in its PR body) |
 | CACHE-PLAN | 11-14 19:00 | — | `claude/cache-plan` from `origin/claude/docs-client` → draft PR into `claude/docs-client`; rows appended to this file |
 | TRANSPORT-INVENTORY | 11-15 08:00 | DOCS-FOLD done (the other queue) | `claude/transport-design` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
 | PHONE-NEXT-PROTOCOL | 11-15 10:00 | HW-DECODE-DEEP and LINK-TARGETS done, or 11-16 08:00 | `claude/phone-protocol` (docs; no PR unless the branch has one) |
@@ -113,15 +116,68 @@ the decode or on the round trip?** Write `docs/transport/link-profiles.md` (new;
   simulation rows; which profiles a phone must be used for because the decode, not the wire, decides.
 * Update `docs/client/design.md` §Open's delivery-comparison item by one line pointing here.
 
-### BEACON-LINK (a proposal; no code)
+### BEACON-LINK (superseded the same evening by REPORT-OPTIONS; not run)
 
-On `claude/telemetry-client`, in `docs/adr/telemetry-in-production.md`, a section *The link in the load report*:
-the WebTransport `getStats()` fields (spec text quoted; which Chromium and other engines implement, with sources),
-the server's QUIC statistics for the same session and how to join them without identifying anyone, the summary to
-record (min and smoothed RTT, delivery rate, loss counts, bytes), its size; and a *save report* control in the
-developer overlay that gives the same record as a file. Weigh it against keeping the link only server side; say
-what the demo's transport file sets (sampled at 1 in a demo, the product's rate elsewhere). The safety report
-(`docs/client/design.md` §Decided, 2026-11-14 item 2) is a separate kind of record: say how this fits beside it.
+### REPORT-OPTIONS (the candidate method, applied to the client's reports)
+
+The owner, 2026-11-14: "we would prefer from the beginning to give it a production shape and have it well
+optimized. So research on what are the best options … and some testing and evaluation and empirical testing between
+the best candidates … basically the same framework that we use for discovering and then try to choose between
+different candidates." Three records leave the page: the **load report** (sampled; PR 370's design on
+`claude/telemetry-client`), the **link** in it (`getStats()` and the server's QUIC statistics for the session), and
+the **safety report** (an exactness failure: always on, never sampled; `docs/client/design.md` §Decided, 2026-11-14
+item 2). A developer can also save a record from the page (the developer overlay).
+
+Write `docs/client/evidence/report-plan.md`: (1) **survey**, sources quoted: delivery (`sendBeacon`, `fetch` with
+`keepalive`, the Reporting API, a stream or datagram on the WebTransport session, a server-side record from the QUIC
+connection), when to send (at once, at `visibilitychange` to hidden, a hybrid of the first at once and the rest
+counted), format and size (JSON, CBOR, compression; `keepalive`'s 64 KiB), the receiver (an nginx log line, a small
+receiver, an outside collector), sampling, retention, what may identify a person or a patient and what an operator
+needs to find the frame; existing production practice (the OpenTelemetry browser SDK, RUM vendors' documented
+designs), cited, not adopted by default. (2) **screen** only on sourced hard constraints; (3) **a best-effort design
+per survivor**; then append to this file's table, as CACHE-PLAN did, the rows the method needs:
+REPORT-ADVOCATE-<option> per survivor, REPORT-PROTOCOL (cells at least: delivery rate when the page is backgrounded,
+killed or the link drops; bytes and requests per load; cost on the page's thread; the receiver's cost), REPORT-BUILD
+per survivor as lab arms on `claude/report-arms`, REPORT-RUN, REPORT-VERDICT-REVIEW; never earlier than 11-15 08:00,
+closing by 11-22. PR 370's built design is one candidate, not the default. The owner's question for the safety report
+is answered here with evidence: at once, at the end, or a hybrid, and whether the server should react to it (re-check
+its stored bytes; see `docs/adr/exactness-in-production.md` §2 and §8 on why a re-ask returns the same bytes).
+
+### CANDIDATE-METHOD (docs only)
+
+The method CACHE-PLAN wrote (`claude/cache-plan:docs/client/evidence/cache-plan.md`) and REPORT-OPTIONS reuses is the
+project's way to choose between candidates; a rule lives once. Add it to `CLAUDE.md` §Measurement on
+`claude/docs-client` in that file's style, five lines at most: survey with sources; eliminate only on a sourced hard
+constraint; a best-effort design per survivor, written before building; an advocate review per survivor by a session
+that wrote none of them, its fixes in before any run; a protocol pre-registered by a session that builds nothing;
+run, verdict with scope, and a loser re-checked once for losing to its implementation. Point to `cache-plan.md` as the
+worked example. Within the comment budget's spirit: no narrative.
+
+### OQ-INGEST (design, then build; a draft PR)
+
+The owner, 2026-11-14: the optimal-quality coding "could join the unified branch in the ingest module. Under some type
+of experimental flag, because we know that it might evolve into something that will be in the product, and it is not
+… lab quick testing." Today only the lab tool codes it (`ingest/coded-frames/ingest.py`, `scripts/demo-series.sh`).
+
+* Read first: `claude/ingest-oq:docs/reviews/ingest-oq.md` (INGEST-OQ's design: the Rust ingest recommended, the
+  `exactSeries` grammar finding, two bundles per DICOM series), `docs/av1/payload-format.md` §Optimal quality, §Depth
+  cut, §Source fingerprint, `docs/ingest/`, and the scope: in production the PCS codes; this ingest is ours for
+  development, fixtures and the reference the PCS team can read.
+* **A product feature behind a flag, not a lab lever**: off by default, named in the ingest's help and docs, tested
+  like product code, no `lab/` import (`scripts/check_lab_absent.sh` stays green). State the distinction in the PR
+  body in one paragraph.
+* **Q 8 by default** (the owner, 2026-11-14: "a good number for simplicity"), any Q accepted by the flag's value; G
+  per modality as decided; the depth cut for D > 10; `sourceFingerprint`; the reconstruction digest only if PR 368's
+  design is the one the docs carry (otherwise name it as the next step). The noise-rule research stays documented and
+  is not deleted (`docs/av1/`, the codecs line); the PR links it.
+* Which ingest: the one INGEST-OQ recommends, or say why not. A failing test first for each behaviour, every new test
+  mutated; the gate; byte-for-byte equality with the lab tool's output on one fixture where both can run, or the
+  difference explained.
+
+### OQ-INGEST-REVIEW
+
+A session that wrote none of OQ-INGEST: each test fails without its change, the flag off changes nothing (same bytes,
+same metadata), the absence check green, the PR body's distinction holds. Findings in the PR body.
 
 ### CACHE-PLAN
 
