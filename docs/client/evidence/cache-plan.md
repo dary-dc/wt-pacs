@@ -489,7 +489,7 @@ that engine), judged by write plus read cost a frame at S2.
   *Proposed for all four alike (a change to 7.0; the protocol's author decides whether it enters)*: a writer that holds
   its own copy of a frame (CACHESTORAGE and IDB buffered, OPFS-ASYNC's reused buffer) frees the slot when its copy is
   made, its copies bounded by its writes in flight and counted in the tab's memory; OPFS-SYNC and a streamed body
-  keep the slot until written, as now. And the read's free slot (OPFS-SYNC's list above) costs it a copy the others
+  keep the slot until written, as now. It is OPFS-ASYNC's advocate's first proposal (7.2), reached apart. And the read's free slot (OPFS-SYNC's list above) costs it a copy the others
   pay as well: a store that answers in a new buffer could post that buffer to the view worker as a transfer instead,
   for IDB, OPFS-ASYNC and CACHESTORAGE alike; not proposed, since a buffer outside the ring is memory the ring no
   longer bounds, named so the protocol's author can weigh it.
