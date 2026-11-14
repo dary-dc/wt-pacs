@@ -200,6 +200,73 @@ JSON object, `204`.
   one message hop; a page whose thread is busy delays it (I: a cell with long tasks).
 * **Settles in a pilot**: the hybrid's first send at fill end or at first exact paint.
 
+**Advocate's amendments** (row REPORT-ADVOCATE-BEACON, 2026-11-14; a session that wrote none of this plan). Sources as
+pinned in §0 (Beacon `0c740e09487a`, Fetch `478609e29799`, HTML lifecycle `1d594237e8b4`) plus BCD `api/Document.json`
+at `69fcf3608174` (sha256 `6ab679037c7c`). Each change below replaces what it names; the rest of the design stands.
+
+* **What a beacon is for, used** (*advocate*). Fetch §Requests: keepalive "can be used to allow the request to outlive
+  the environment settings object, e.g., `navigator.sendBeacon()` …", and a fetch group's termination ends only the
+  requests whose "keepalive is false". So **once `sendBeacon` returns `true` the record no longer depends on the page**:
+  a page frozen, discarded or killed after the call still lets the browser send it (I: the kill cell checks it per
+  engine). Every send is therefore one synchronous call in the event's own task, nothing awaited before it.
+* **The hybrid is BEACON's design, the hide-once build its A arm** (*advocate*). The first beacon at the fill's end
+  carries the bulk (`frames`, `routes`, the fill), so a page killed while visible after its fill still reports; each
+  later hide sends only what changed since the last send (presses, labels, errors, `received`) with the load id and a
+  `seq`, so a page hidden, shown again (bfcache's `pageshow`, a tab switched back) and hidden again loses nothing.
+  This departs from the owner's 2026-11-11 brief for PR 370 ("one report per load, sent **once**, at the first hide";
+  `telemetry-in-production.md` §8, R): it is proposed as an arm beside the build, the owner's to adopt.
+* **`pagehide` beside `visibilitychange`** (*advocate*). HTML *unload a document*: "Fire a page transition event named
+  pagehide at oldDocument's relevant global object with oldDocument's salvageable state. Update the visibility state of
+  oldDocument to "hidden"." — both fire in a conforming engine, and "page showing … is used to ensure that scripts
+  receive pageshow and pagehide events in a consistent manner (e.g., that they never receive two pagehide events in a
+  row without an intervening pageshow …)". BCD's Safari entry until 14.1: "Doesn't fire the `visibilitychange` event
+  when navigating away from a document, so also include code to check for the `pagehide` event (which does fire for
+  that case in all current browsers)." One handler on both, keyed by `seq`, sends once per hide. Never `unload`: Beacon
+  §1, "Developers should avoid relying on unload event", and an `unload` listener is no part of this design.
+* **The body: a string, under budget by construction** (*advocate*). A string body extracts as "`text/plain;charset=UTF-8`"
+  (Fetch §BodyInit extract), a CORS-safelisted type, so `no-cors` (Beacon §3) and no preflight; same origin, so
+  `credentials mode include` sends only the viewer's own cookies (I: the viewer sets none; the bytes cell counts the
+  headers). The budget is per fetch group and counts every keepalive body in flight ("If the sum of contentLength and
+  inflightKeepaliveBytes is greater than 64 kibibytes, then return a network error", Fetch §HTTP-network-or-cache
+  fetch); the viewer sends no other keepalive request (R: `git grep keepalive` on `claude/unified-client`'s `client/`
+  is empty), so the reports are the whole budget. A `ReadableStream` body is refused ("If keepalive is true, then throw
+  a TypeError", Fetch §BodyInit extract): any compression the pilot tries is done into a `Blob` before the send, at the
+  fill's end, never in a hide handler.
+* **A safety report never dropped while the page lives** (*advocate*). The plan's "at once" stands; added: failures
+  found in one task go in one beacon (a decoder that breaks fails every frame, and N beacons of a few hundred bytes
+  each would spend the budget the load report needs); it is sent before any load-report beacon of the same task; a
+  `false` keeps it pending and resends on a 1 s timer and at the next hide, never truncated (I: the record is small, so
+  a `false` means the budget is held by beacons still in flight, which drain).
+* **The worker view's hop, made small** (*advocate*). `sendBeacon` is on `Navigator`, not `WorkerNavigator` (§1.1), so
+  the view worker and the decoder workers post the record already serialized; the page's part is one `sendBeacon` call
+  (I: its cost is the page-thread cell's floor).
+* **Timings run**: the load report *at hidden* (PR 370's build, the A arm) and *the hybrid* (this design); the safety
+  report *at once* in both. *At once* alone for the load report is not run: it is the hybrid without its hide sends,
+  and loses every press after the fill.
+
+**Disadvantages BEACON still carries** (*advocate*, for the protocol to price, not to fix):
+
+* **Page thread only.** A safety report found in a worker waits for the page's next task; with long tasks on the page
+  it waits for them (the latency cell with long tasks prices it).
+* **No outcome.** Beacon §2.1.4: "this method does not provide any information whether the data transfer has
+  succeeded or not." A record lost on the wire after `true` is invisible to the page; only the sink's counters see it.
+* **The user agent may hold it.** Beacon §2.1: "The user agent MAY delay transmission of provided data to optimize
+  network and energy efficiency … However, the user agent SHOULD NOT delay transmission indefinitely." "At once" is
+  the page's call, not the send's; the latency cell measures what each engine does.
+* **No headers.** "The sendBeacon() method does not provide ability to customize the request method, provide custom
+  request headers" (Beacon §1): a compressed body cannot say `Content-Encoding`, so NGINX's log line cannot read it and
+  compression with BEACON implies RECEIVER (or a marker in the URL the receiver reads).
+* **Killed while visible before the fill's end** sends nothing in either timing, as for every carrier.
+
+**What the shared parts cost BEACON** (*advocate*; proposed for every carrier alike):
+
+* **Serialize where the record is found.** §3's "assembled where the values are" leaves open where it is serialized;
+  for the worker view and the safety report, serializing in the worker and handing the carrier a string costs the page
+  least under every carrier. Proposed as the seam's contract for all three.
+* **The format pilot runs at the fill's end**, not at hide, for every carrier: a hide handler that awaits a
+  `CompressionStream` may never resume in a frozen page (I), which would charge the format to whichever carrier sends
+  at hide.
+
 ### 3.2 KEEPALIVE
 
 * Same record and timings as BEACON, sent with `fetch(url, {method: "POST", keepalive: true, body})`.

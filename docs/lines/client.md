@@ -30,6 +30,8 @@ exact frame bit for bit, and only checked claims on screen.
   receivers NGINX, RECEIVER survive the screen; PR 370's build is one candidate. Chromium has no WebTransport
   `getStats()`, so the phone's link comes from the server's QUIC record. Owed: the REPORT-* rows of
   `claude/work-ledger:docs/queue-client-2026-11-14.md`.
+  BEACON's advocate (§3.1, 2026-11-14): the hybrid with a delta per hide as its design, the hide-once build its A arm
+  (a departure from the owner's 11-11 brief, the owner's to adopt); `pagehide` beside `visibilitychange`.
 
 ## PRs
 
