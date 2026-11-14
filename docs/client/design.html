@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Client design</title>
+<style>
+:root {
+  --bg: #fbfbf9; --fg: #1d1d1b; --muted: #5d5d58; --line: #c9c9c2; --lane: #f0f0ea; --lane2: #e8e8e1;
+  --built: #2f6f4f; --built-bg: #e3f1e8; --lab: #8a5a00; --lab-bg: #fbefd6; --prop: #5a4a9a; --prop-bg: #ebe7f7;
+  --arrow: #6a6a64; --sel: #1f5fbf; --panel: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615; --fg: #e8e8e3; --muted: #a3a39c; --line: #44443f; --lane: #1f1f1d; --lane2: #252522;
+    --built: #7fcfa0; --built-bg: #1d3328; --lab: #f0c060; --lab-bg: #3a2f17; --prop: #b8a8ff; --prop-bg: #2a2445;
+    --arrow: #9a9a92; --sel: #79a8ff; --panel: #1c1c1a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, sans-serif; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; gap: 1rem; padding: 1rem; max-width: 1500px; margin: auto; }
+@media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); } }
+h1 { font-size: 1.3rem; margin: 0 0 .25rem; }
+h2 { font-size: 1.05rem; margin: 1.25rem 0 .4rem; }
+h3 { font-size: 1rem; margin: 0 0 .3rem; }
+p { margin: .35rem 0; }
+a { color: var(--sel); }
+.muted { color: var(--muted); }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--fg); font: 12px system-ui, sans-serif; }
+svg .lane rect { fill: var(--lane); }
+svg .lane:nth-of-type(even) rect { fill: var(--lane2); }
+svg .lane text { fill: var(--muted); font-weight: 600; }
+svg .box { cursor: pointer; }
+svg .box rect { stroke-width: 1.5; rx: 6; }
+svg .built rect { fill: var(--built-bg); stroke: var(--built); }
+svg .lab rect { fill: var(--lab-bg); stroke: var(--lab); stroke-dasharray: 5 3; }
+svg .proposed rect { fill: var(--prop-bg); stroke: var(--prop); stroke-dasharray: 2 3; }
+svg .msg { cursor: pointer; }
+svg .msg path { stroke: var(--arrow); stroke-width: 1.5; fill: none; marker-end: url(#head); }
+svg .msg .hit { stroke: transparent; stroke-width: 14; marker-end: none; }
+svg .note { fill: var(--muted); font-size: 11px; stroke: var(--lane); stroke-width: 4px; paint-order: stroke; pointer-events: none; }
+svg .sel rect, svg .box:focus rect { stroke: var(--sel); stroke-width: 3; }
+svg .msg.sel path:not(.hit), svg .msg:focus path:not(.hit) { stroke: var(--sel); stroke-width: 2.5; }
+svg :focus { outline: none; }
+#head path { fill: var(--arrow); }
+.legend { display: flex; flex-wrap: wrap; gap: .5rem 1.2rem; margin: .5rem 0; font-size: .9rem; }
+.legend span::before { content: ""; display: inline-block; width: 1.4em; height: .9em; margin-right: .35em; vertical-align: -.1em; border: 1.5px solid; border-radius: 3px; }
+.legend .built::before { background: var(--built-bg); border-color: var(--built); }
+.legend .lab::before { background: var(--lab-bg); border-color: var(--lab); border-style: dashed; }
+.legend .proposed::before { background: var(--prop-bg); border-color: var(--prop); border-style: dotted; }
+aside { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .9rem; align-self: start; position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: auto; }
+@media (max-width: 900px) { aside { position: static; max-height: none; } }
+aside section[hidden] { display: none; }
+.tag { display: inline-block; font-size: .8rem; padding: 0 .4em; border-radius: 3px; margin-bottom: .4rem; }
+.tag.built { background: var(--built-bg); color: var(--built); }
+.tag.lab { background: var(--lab-bg); color: var(--lab); }
+.tag.proposed { background: var(--prop-bg); color: var(--prop); }
+table { border-collapse: collapse; width: 100%; font-size: .88rem; margin: .3rem 0; }
+th, td { text-align: left; vertical-align: top; border-top: 1px solid var(--line); padding: .25rem .3rem; }
+th { color: var(--muted); font-weight: 600; }
+ul { padding-left: 1.1rem; margin: .3rem 0; }
+dt { font-weight: 600; margin-top: .4rem; }
+dd { margin: 0 0 .2rem; }
+</style>
+</head>
+<body>
+<main>
+<div>
+<h1>The client's design</h1>
+<p class="muted">The picture of <a href="design.md">design.md</a>, which this page follows and never adds to; each number
+links to the evidence it comes from. Click a box, an arrow or a lane's name. Drawn for <code>?view=worker</code>; under
+<code>?view=page</code>, the default, the controller and the frame store run in the page and paint in a paint worker
+(<a href="design.md#what-it-is">design.md §What it is</a>).</p>
+<div class="legend"><span class="built">built on the tip</span><span class="lab">built behind a lab flag</span><span class="proposed">proposed, not built</span></div>
+<svg id="arch" viewBox="0 0 1000 612" role="group" aria-label="The client's modules in lanes, and the messages between them">
+<defs><marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>
+</svg>
+<h2>The delivery approach</h2>
+<p class="muted">For cine-like series (<a href="../ARCHITECTURE.md#the-product">ARCHITECTURE.md §The product</a>): the optimal-quality
+fill first, then an exact frame on request. How it compares with the other arms is
+<a href="design.md#open">open</a>.</p>
+<svg id="delivery" viewBox="0 0 1000 175" role="group" aria-label="The optimal-quality fill, then an exact frame on request">
+<defs><marker id="head2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--arrow)"/></marker></defs>
+</svg>
+</div>
+
+<aside id="panel" aria-live="polite">
+<section id="p-none">
+<h3>Choose a box or an arrow</h3>
+<p>Each panel says what the part does, the state it holds, its costs (value, condition, source) and its open
+questions, each pointing to <a href="design.md#open">design.md §Open</a>.</p>
+<p>The rules every part keeps: <a href="design.md#rules">design.md §Rules</a>. What is decided, by whom and when:
+<a href="design.md#decided">§Decided</a>.</p>
+<p class="muted">Fixtures behind the numbers: three DBT volumes (<code>dbts_a1</code>, <code>dbts_b1</code>,
+<code>dbts_c1</code>) of one dataset, no breast ultrasound cine; 4-core cloud hosts without a GPU, software decode, a
+relay or netem, not a radio; one phone (Chrome 157), one home link, one evening
+(<a href="evidence/phone-run-method.md">the phone run's method</a>).</p>
+</section>
+
+<section id="p-lane-page" hidden>
+<h3>Lane: the page</h3>
+<p>The UI only under <code>?view=worker</code>: it holds intents and events, and no frame, pixel or port reaches it.
+Under <code>?view=page</code>, the default, it also runs the controller and the frame store, with no cache.</p>
+<table><tr><th>cost</th><th>condition</th><th>source</th></tr>
+<tr><td>the view worker's first frame later by ≥ 16.7 ms in five decided cells</td><td>cloud, 2026-10-30; why <code>?view=page</code> stays the default</td><td><a href="evidence/page-out-of-pixel-path.md">page out of the pixel path</a></td></tr>
+</table>
+<p>Open: <a href="design.md#open">which view is the target</a>.</p>
+</section>
+
+<section id="p-lane-view" hidden>
+<h3>Lane: the view worker</h3>
+<p>Under <code>?view=worker</code>: the controller, the frame store and paint, so frames never return to the main
+thread (the owner, 2026-10-28). Built on the tip, not the default.</p>
+<table><tr><th>cost</th><th>condition</th><th>source</th></tr>
+<tr><td>first frame later by ≥ 16.7 ms in five decided cells</td><td>cloud, 2026-10-30</td><td><a href="evidence/page-out-of-pixel-path.md">page out of the pixel path</a></td></tr>
+<tr><td>its start ties the page view with the fix</td><td>cloud, 1×; no 4× cell decided</td><td><a href="evidence/view-worker-start.md">the view worker's start</a></td></tr>
+<tr><td>wins a busy page on the mean</td><td>cloud, both engines</td><td><a href="evidence/view-worker-under-a-busy-page.md">under a busy page</a></td></tr>
+<tr><td>worker ÷ page medians 0.960 (<code>cubic-restart</code>), 1.016 (<code>bbr</code>)</td><td>the phone, tethered; on Wi-Fi inconclusive by its rule</td><td><a href="evidence/view-target.md">the view target</a></td></tr>
+</table>
+<p>Open: <a href="design.md#open">which view is the target</a>; <a href="design.md#open">the view worker's open table</a>.</p>
+</section>
+
+<section id="p-lane-dl" hidden>
+<h3>Lane: the downloader worker</h3>
+<p>Its own worker in both views: the session and the wire, and a second downloader for the exact series.</p>
+</section>
+
+<section id="p-lane-dec" hidden>
+<h3>Lane: the decoders</h3>
+<p>Nested workers of the downloader: decode, the XXH3-64 check against the ingest's digest, the samples written once.
+The exact series has one decoder of its own.</p>
+</section>
+
+<section id="p-lane-platform" hidden>
+<h3>Lane: the browser and the platform</h3>
+<p>What the client uses and does not own: WebTransport, WebCodecs, WebGL2, OPFS.</p>
+<p>Open: <a href="design.md#open">Firefox and WebKit</a>, which refuse WebCodecs AV1 on record
+(<a href="evidence/browser-av1-profile-support.md">profile support</a>; <a href="evidence/browser-decode-routes.md">decode routes</a>).</p>
+</section>
+
+<section id="p-lane-server" hidden>
+<h3>Lane: the server</h3>
+<p>Serves two series of one source: the optimal-quality series and its exact HTJ2K series. The want stays ordered down
+to the wire; the server does not reorder (<a href="../adr/reject-server-ordering.md">reject server ordering</a>).
+Its design is another subject (<a href="../ARCHITECTURE.md">ARCHITECTURE.md</a>).</p>
+</section>
+
+<section id="p-ui" hidden>
+<span class="tag built">built on the tip</span>
+<h3>The viewer's UI</h3>
+<p><b>Does:</b> takes the reader's intents and sends them to the controller; shows the frame's events.</p>
+<p><b>Holds:</b> under <code>?view=worker</code>, intents and events only.</p>
+<p><a href="../../client/README.md">client/README.md</a> is the page's code.</p>
+</section>
+
+<section id="p-label" hidden>
+<span class="tag built">built on the tip</span>
+<h3>The quality label</h3>
+<p><b>Does:</b> says <i>Optimal quality</i> or <i>Lossless</i>; <i>✓ Lossless</i> only on the paint of an exact
+frame checked <code>true</code>. Green beside <i>Optimal quality</i>, <i>Lossless</i> distinct, words always beside
+the colour; the status line opens by a tap (the owner, 2026-11-11). A developer overlay behind a toggle names the
+decoder route and why.</p>
+<table><tr><th>cost</th><th>condition</th><th>source</th></tr>
+<tr><td>Q 8 moves 81–87 % of shown pixels by at least one level</td><td>at the presets; the coding error within the noise on most volumes</td><td><a href="evidence/which-quality-is-visually-lossless.md">visually lossless</a></td></tr>
+</table>
+<p>Open: <a href="design.md#open">what the label may claim</a>; <a href="design.md#open">exactness: building the 2026-11-14 decision</a>
+(the tip still marks a mismatched frame and paints it).</p>
+</section>
+
+<section id="p-pair" hidden>
+<span class="tag built">built on the tip</span>
+<h3>The pairing</h3>
+<p><b>Does:</b> pairs an optimal-quality series with its exact series, refused by name unless of the same source; the
+check is the ingest's, with XXH3 (<code>sourceFingerprint</code>, the owner, 2026-11-11).</p>
+<p><b>Holds:</b> the two series' names, in the page, in both views.</p>
+</section>
+
+<section id="p-safety" hidden>
+<span class="tag proposed">proposed, not built</span>
+<h3>The safety report</h3>
+<p>Decided by the owner on 2026-11-14, not built. <b>Does:</b> reports an exactness failure: always on, never sampled,
+not gated by the telemetry rate; no pixels and no patient data; the load report's endpoint and record format. On a
+mismatch the second decode first, then the frame blocked, the reader told in that frame's view and the report sent at
+once (<a href="../adr/exactness-in-production.md">exactness in production</a>; <a href="evidence/frame-integrity.md">frame integrity</a>).</p>
+<p>Open: <a href="design.md#open">exactness: building the 2026-11-14 decision</a> (whether a blocked frame has a reveal;
+a series without digests).</p>
+</section>
+
+<section id="p-load" hidden>
+<span class="tag proposed">proposed, not built</span>
+<h3>The load report</h3>
+<p>On a branch only (#370, a proposal). <b>Does:</b> one JSON object per page load, assembled in memory and sent once;
+sampled at the telemetry rate, 0 by default (the owner, 2026-11-11). The phone's beacon becomes a switch over it.</p>
+<p><a href="evidence/load-report.md">The load report</a>.</p>
+</section>
+
+<section id="p-ctl" hidden>
+<span class="tag built">built on the tip</span>
+<h3>The controller</h3>
+<p><b>Does:</b> decides what is wanted and in what order; runs the cine clock and the quality label's state.</p>
+<p><b>Holds:</b> the current frame, the want and its order, the cine clock.</p>
+<table><tr><th>cost</th><th>condition</th><th>source</th></tr>
+<tr><td>one queue with the send window: asks ×0.32–0.90, the fill +14 to +54 ms in one or two cells</td><td>cloud; proposed</td><td><a href="evidence/ask-during-a-fill.md">an ask during a fill</a></td></tr>
+<tr><td>an ask behind the decoders ×0.76, the fill a tie</td><td>cloud, AV1 4×; not resolved on this host</td><td><a href="evidence/ask-behind-a-decoder-queue.md">behind a decoder queue</a></td></tr>
+<tr><td>a memory window of 15 frames for <code>dbts_b1</code></td><td>theory, at 256 MiB; W = n for every other fixture</td><td><a href="evidence/what-a-view-asks-for.md">what a view asks for</a></td></tr>
+<tr><td>a scroll at 25–30 slices/s</td><td>measured at detection, lung CT, three readers</td><td><a href="evidence/scroll-rate-and-skipping.md">scroll rate and skipping</a></td></tr>
+</table>
+<p>Open: <a href="design.md#open">what a view asks for</a> (the stride ADR against never skipping, a contradiction for
+the owner); <a href="design.md#open">the view worker's open table</a> (the cine clock by elapsed time; <a href="evidence/frame-clock-in-a-worker.md">frame clocks</a> are behind a lab setting).</p>
+</section>
+
+<section id="p-store" hidden>
+<span class="tag built">built on the tip</span>
+<h3>The frame store</h3>
+<p><b>Does:</b> decides where a frame comes from: memory, then the cache, then the downloader; acks a frame once held;
+is the only part that talks to the downloader.</p>
+<p><b>Holds:</b> the frames held in memory; a frame leaves memory only over the byte budget, only once written,
+farthest from the current frame first. A frame is (series, index, metadata version). The ring of slots is behind a
+lab setting (<a href="evidence/frame-memory-ownership.md">frame memory ownership</a>).</p>
+<table><tr><th>cost</th><th>condition</th><th>source</th></tr>
+<tr><td>a decoded <code>dbts_b1</code> frame ~17 MB</td><td>2560 × 3328</td><td><a href="evidence/cache-options.md">cache options</a></td></tr>
+<tr><td><code>pixels: "transfer"</code> misses the memory bar</td><td>cloud, both engines</td><td><a href="evidence/transferred-buffer-per-frame.md">transferred buffers</a></td></tr>
+</table>
+<p>Open: <a href="design.md#open">settings awaiting the owner</a> (<code>waitAhead</code>, <code>span</code>);
+<a href="design.md#open">the view worker's open table</a> (an AV1 group as the store's unit).</p>
+</section>
+
+<section id="p-paint" hidden>
+<span class="tag built">built on the tip</span>
+<h3>Paint</h3>
+<p><b>Does:</b> WebGL2, the VOI table, window, invert, pose. Paint first: the frame on screen is painted before its
+cache write.</p>
+<p><b>Holds:</b> the display state.</p>
+<p>Open: <a href="design.md#open">the WebGL painter on a real GPU</a>; several viewports on one WebGL2 context
+(<a href="design.md#open">the view worker's open table</a>).</p>
+</section>
+
+<section id="p-writer" hidden>
+<span class="tag lab">built behind a lab flag</span>
+<h3>The cache writer</h3>
+<p><b>Does:</b> writes held frames to OPFS off the view worker's thread (a store worker or the decoders), under the
+lab's <code>?writer=</code>. The cache stores only frames checked <code>true</code> and re-checks each on read; a
+failed read is a miss, asked again. The cache stays off.</p>
+<table><tr><th>cost</th><th>condition</th><th>source</th></tr>
+<tr><td>no writer arm passed, the copy-free and what-is-left arms included</td><td>cloud, Chromium and Firefox</td><td><a href="evidence/cache-io-thread.md">the cache's I/O thread</a></td></tr>
+<tr><td>~358 MB/s of flash to write decoded samples at the decode rate</td><td>theory, the phone's decode rate</td><td><a href="evidence/cache-options.md">cache options</a></td></tr>
+</table>
+<p>Open: <a href="design.md#open">where the cache keeps frames</a>; <a href="design.md#open">what the cache leaves on a device</a>.</p>
+</section>
+
+<section id="p-dl" hidden>
+<span class="tag built">built on the tip</span>
+<h3>The downloader</h3>
+<p><b>Does:</b> the session, survival, the wire; sends the want's misses as asks or runs; re-asks the rest of a fill
+on the asked frame's head (<code>refill: "head"</code>, <a href="evidence/re-asking-the-fill-after-an-ask.md">re-asking the fill</a>).</p>
+<p><b>Holds:</b> a record per owed frame (asked, in flight, decoding, unacked) until the store's ack.</p>
+<table><tr><th>cost</th><th>condition</th><th>source</th></tr>
+<tr><td>the wire 0.5–1.0 s of a 2.4–3.3 s fill</td><td>the phone, <code>dbts_b1</code> Q 8 G 8</td><td><a href="evidence/fill-bound-on-phone.md">fill bound on the phone</a></td></tr>
+</table>
+<p>Open: <a href="design.md#open">the delivery comparison</a>; the downloader merged into the view worker
+(<a href="design.md#open">the view worker's open table</a>).</p>
+</section>
+
+<section id="p-xdl" hidden>
+<span class="tag built">built on the tip</span>
+<h3>The exact downloader</h3>
+<p><b>Does:</b> on an explicit Lossless request, fetches the frame from the exact series: a second downloader, one
+decoder, no fill. The exact frame is held beside the store, never in it and never cached; asking it changes nothing
+else.</p>
+<table><tr><th>cost</th><th>condition</th><th>source</th></tr>
+<tr><td>Lossless by three strips ×0.92 of today</td><td><code>dbts_b1</code>, 4×; the gain not attributed</td><td><a href="evidence/exact-frame-by-htj2k-layout.md">by HTJ2K layout</a></td></tr>
+<tr><td>an exact level picture first ×0.26–0.28 of today's wait</td><td>cloud</td><td><a href="evidence/exact-frame-by-htj2k-layout.md">by HTJ2K layout</a></td></tr>
+<tr><td>a wake before the ask −103 and −105 ms</td><td>a modelled radio; the phone row owed</td><td><a href="evidence/wake-before-lossless.md">wake before Lossless</a></td></tr>
+<tr><td>a failed Lossless re-asked: reached 3 of 3 against 0 of 3</td><td>simulated, #378</td><td><a href="evidence/lossless-after-a-failed-ask.md">after a failed ask</a></td></tr>
+</table>
+<p>Open: <a href="design.md#open">the exact frame sooner</a>; <a href="design.md#open">two failures from the phone run</a>.</p>
+</section>
+
+<section id="p-av1" hidden>
+<span class="tag built">built on the tip</span>
+<h3>The AV1 decoders</h3>
+<p><b>Does:</b> decodes the optimal-quality view through WebCodecs; dav1d-WASM only after a refusal or a failed
+decode at ≤ 10 bits (the owner, 2026-11-11). An optimal-quality frame is <code>unchecked</code>.</p>
+<table><tr><th>cost</th><th>condition</th><th>source</th></tr>
+<tr><td>133–135 ms a frame; the decode 0.76–0.94 of every fill</td><td>the phone, three decoders, a software request (<code>prefer-software</code>); the decoder count not varied</td><td><a href="evidence/fill-bound-on-phone.md">fill bound on the phone</a></td></tr>
+<tr><td>1.24–1.74 of the product's HTJ2K frame</td><td>4-core cloud host, Q 8, 1×</td><td><a href="evidence/decode-speed-of-the-optimal-quality-picture.md">decode speed</a></td></tr>
+</table>
+<p>Open: <a href="design.md#open">what bounds a fill on the phone</a>; <a href="design.md#open">two failures from the phone run</a>
+(a hidden page loses its AV1 decoder mid-group); dav1d fetched only on need (<a href="evidence/dav1d-fetched-on-need.md">evidence</a>).</p>
+</section>
+
+<section id="p-htj2k" hidden>
+<span class="tag built">built on the tip</span>
+<h3>The HTJ2K decoder and its check</h3>
+<p><b>Does:</b> decodes an exact frame and checks it with XXH3-64 against its ingest digest before it is handed on; a
+frame not checked <code>true</code> is never shown as exact.</p>
+<p>Open: <a href="design.md#open">exactness: building the 2026-11-14 decision</a> (a coded-bytes digest beside the
+sample digest, a candidate for the owner; <a href="evidence/frame-integrity.md">frame integrity</a>).</p>
+</section>
+
+<section id="p-oqcheck" hidden>
+<span class="tag proposed">proposed, not built</span>
+<h3>The optimal-quality frame checked as coded</h3>
+<p>A proposal (#368), the owner's to decide.</p>
+<table><tr><th>cost</th><th>condition</th><th>source</th></tr>
+<tr><td>the fill +3.7 % at 1×, +1.9 % at 4×</td><td>cloud; correct on 18 series on both routes; six review findings open</td><td><a href="evidence/optimal-quality-reconstruction-digest.md">reconstruction digest</a></td></tr>
+</table>
+<p>Open: <a href="design.md#open">the optimal-quality frame checked as coded</a>.</p>
+</section>
+
+<section id="p-wt" hidden>
+<span class="tag built">built on the tip</span>
+<h3>WebTransport</h3>
+<p>The downloader's session and the wire. Transport itself is another subject.</p>
+</section>
+
+<section id="p-wc" hidden>
+<span class="tag built">built on the tip</span>
+<h3>WebCodecs</h3>
+<p>The AV1 decoder first, asked for <code>prefer-software</code> (<code>client/decode/av1-webcodecs.js</code>), so
+every phone AV1 decode was software (<a href="evidence/fill-bound-on-phone.md">fill bound on the phone</a>).</p>
+<p>Open: <a href="design.md#open">what bounds a fill on the phone</a>.</p>
+</section>
+
+<section id="p-gl" hidden>
+<span class="tag built">built on the tip</span>
+<h3>WebGL2</h3>
+<p>Paint's drawing surface. Open: <a href="design.md#open">the WebGL painter on a real GPU</a>.</p>
+</section>
+
+<section id="p-opfs" hidden>
+<span class="tag lab">built behind a lab flag</span>
+<h3>OPFS</h3>
+<p>Where the cache keeps frames (the owner, 2026-10-10), held by a survey since 2026-11-14: OPFS continues only if it
+comes out best. Leaning, theory only: OPFS as built, decoded samples.</p>
+<table><tr><th>cost</th><th>condition</th><th>source</th></tr>
+<tr><td>852 MB a series decoded against 23 MB coded</td><td><code>dbts_b1</code>, the phone's fixture</td><td><a href="evidence/cache-options.md">cache options</a></td></tr>
+<tr><td>decoded wins a reopen only if a cold read and XXH3 of 17 MB take under ~45 ms (≥ ~0.4 GB/s)</td><td>theory; the phone read not measured</td><td><a href="evidence/cache-options.md">cache options</a></td></tr>
+</table>
+<p>Per-engine limits: <a href="evidence/cache-in-opfs.md">the cache in OPFS</a>. Open: <a href="design.md#open">where the cache keeps frames</a>.</p>
+</section>
+
+<section id="p-srv" hidden>
+<span class="tag built">built on the tip</span>
+<h3>The server</h3>
+<p>Serves the frames the downloader asks for, in the order asked. <code>cubic-restart</code> is the default congestion
+controller; <code>bbr</code> and <code>bbr-bound</code> stay options; real-world runs decide (the owner, 2026-11-11;
+<a href="evidence/congestion-controller.md">congestion controller</a>). The reports' endpoint is proposed
+(<a href="evidence/load-report.md">the load report</a>).</p>
+</section>
+
+<section id="p-oq" hidden>
+<span class="tag built">built on the tip</span>
+<h3>The optimal-quality series</h3>
+<p>AV1, only for cine-like series, always ≤ 10 bits on the product path: D &gt; 10 is cut to 10 bits, D ≤ 10 coded at
+its own depth (the owner, 2026-11-09 and 2026-11-11).</p>
+<table><tr><th>cost</th><th>condition</th><th>source</th></tr>
+<tr><td>0.07–0.22 of the exact series' bytes</td><td>Q 8, measured, three DBT volumes</td><td><a href="evidence/optimal-quality-bytes.md">optimal-quality bytes</a></td></tr>
+<tr><td>0.10–0.28</td><td>the noise rule's Q, derived</td><td><a href="evidence/optimal-quality-bytes.md">optimal-quality bytes</a></td></tr>
+</table>
+</section>
+
+<section id="p-exact" hidden>
+<span class="tag built">built on the tip</span>
+<h3>The exact series</h3>
+<p>HTJ2K, the source's frames bit for bit; served in any case.</p>
+</section>
+
+<section id="m-intents" hidden>
+<h3>show(i) · setDisplay · play · pause · valueAt</h3>
+<p>The page's intents to the controller. Under <code>?view=worker</code> they are all the page sends.</p>
+</section>
+<section id="m-events" hidden>
+<h3>shown {i, exact, reason} · progress · failed {scope, reason}</h3>
+<p>The view worker's events to the page; one <code>failed {scope, reason}</code> (the red team's revision, 2026-10-29,
+<a href="evidence/view-worker-design.md">the view worker's design</a>). No frame is lost silently: it ends in a re-decode or a loud failure.</p>
+</section>
+<section id="m-decode" hidden>
+<h3>decode through WebCodecs</h3>
+<p>Asked for <code>prefer-software</code>; dav1d-WASM only after a refusal or a failed decode at ≤ 10 bits.</p>
+</section>
+<section id="m-draw" hidden>
+<h3>draw</h3>
+<p>Paint draws through WebGL2, the VOI table applied there.</p>
+</section>
+<section id="m-serve" hidden>
+<h3>two series of one source</h3>
+<p>The server serves the optimal-quality series and its exact series; the pairing refuses two of different sources.</p>
+</section>
+<section id="m-want" hidden>
+<h3>the want, ordered</h3>
+<p>The controller tells the store what is wanted, in order; the store decides from where.</p>
+</section>
+<section id="m-ask" hidden>
+<h3>want {ordered misses} · ack</h3>
+<p>Only the store talks to the downloader. The want stays ordered down to the wire. A frame changes owner at the ack:
+the downloader owns what is owed, the store what is held.</p>
+</section>
+<section id="m-dispatch" hidden>
+<h3>dispatch, under credits</h3>
+<p>At most <code>K</code> frames are dispatched and unacked, so a full store reaches the wire as a pause
+(<a href="evidence/view-worker-design.md">the view worker's design</a>).</p>
+</section>
+<section id="m-frame" hidden>
+<h3>frame {SharedArrayBuffer, exact}</h3>
+<p>The decoded samples, written once into shared memory, with the check's result.</p>
+</section>
+<section id="m-paint" hidden>
+<h3>the frame to paint</h3>
+<p>Paint first, then the cache write; the store never decides a paint. VOI is part of paint.</p>
+</section>
+<section id="m-write" hidden>
+<h3>cache write and read</h3>
+<p>Behind the lab's <code>?writer=</code>; no write runs on the view worker's thread. Only frames checked
+<code>true</code>; each re-checked on read.</p>
+</section>
+<section id="m-wire" hidden>
+<h3>asks and runs, frames on the wire</h3>
+<p>Over the downloader's WebTransport session. Open: <a href="design.md#open">the delivery comparison</a>.</p>
+</section>
+<section id="m-lossless" hidden>
+<h3>the Lossless request</h3>
+<p>An explicit request from the reader for the frame on screen. Open: an automatic exact request at narrow windows
+(<a href="design.md#open">what the label may claim</a>).</p>
+</section>
+<section id="m-exact" hidden>
+<h3>the exact frame</h3>
+<p>Checked against its ingest digest, held beside the store, painted with <i>✓ Lossless</i> only if checked
+<code>true</code>.</p>
+</section>
+
+<section id="d-fill" hidden>
+<h3>The optimal-quality fill</h3>
+<p>Every reader sees the series' optimal-quality AV1 view, the whole series filled, labelled <i>Optimal quality</i>.</p>
+<table><tr><th>cost</th><th>condition</th><th>source</th></tr>
+<tr><td>0.07–0.22 of the exact series' bytes</td><td>Q 8, three DBT volumes</td><td><a href="evidence/optimal-quality-bytes.md">optimal-quality bytes</a></td></tr>
+<tr><td>a 2.4–3.3 s fill, the decode 0.76–0.94 of it</td><td>the phone, <code>dbts_b1</code> Q 8 G 8</td><td><a href="evidence/fill-bound-on-phone.md">fill bound on the phone</a></td></tr>
+</table>
+</section>
+<section id="d-ask" hidden>
+<h3>An exact frame on request</h3>
+<p>When the reader asks for Lossless, the frame comes whole from its exact HTJ2K series, bit for bit, checked, then
+labelled <i>✓ Lossless</i>: an on-demand latency.</p>
+<p>Open: <a href="design.md#open">the exact frame sooner</a>.</p>
+</section>
+<section id="d-arms" hidden>
+<h3>The delivery comparison (open)</h3>
+<dl>
+<dt>A</dt><dd>the optimal-quality view only (a measurement arm)</dd>
+<dt>B</dt><dd>HTJ2K lossless only (served in any case; also an arm)</dd>
+<dt>C1</dt><dd>the approach: the fill, then an exact frame on request</dd>
+<dt>C2</dt><dd>the fill, then the whole exact series, measured, not summed</dd>
+</dl>
+<p><i>Theory:</i> fill ≈ max(bytes × 8 ÷ bandwidth, frames × decode per frame ÷ decoders) + rest; A and C1 win where the
+link binds and lose their margin where decode binds. None run; the protocol is not written
+(<a href="design.md#open">design.md §Open, the delivery comparison</a>).</p>
+</section>
+</aside>
+</main>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const LANES = [["page", "page"], ["view", "view worker"], ["dl", "downloader worker"], ["dec", "decoders"], ["platform", "browser and platform"], ["server", "server"]];
+const LANE_H = 100, TOP = 10, LEFT = 120;
+const laneY = i => TOP + i * LANE_H;
+const BOXES = [
+  ["ui", 0, 140, 140, "viewer UI", "built"], ["pair", 0, 320, 100, "pairing", "built"], ["label", 0, 680, 120, "quality label", "built"],
+  ["safety", 0, 830, 130, "safety report", "proposed"], ["load", 0, 500, 120, "load report", "proposed"],
+  ["ctl", 1, 140, 140, "controller", "built"], ["store", 1, 330, 130, "frame store", "built"], ["paint", 1, 540, 110, "paint", "built"], ["writer", 1, 830, 130, "cache writer", "lab"],
+  ["dl", 2, 330, 140, "downloader", "built"], ["xdl", 2, 680, 150, "exact downloader", "built"],
+  ["av1", 3, 190, 150, "AV1 decoders", "built"], ["oqcheck", 3, 440, 140, "checked as coded", "proposed"], ["htj2k", 3, 680, 150, "HTJ2K + XXH3", "built"],
+  ["wc", 4, 205, 120, "WebCodecs", "built"], ["wt", 4, 330, 140, "WebTransport", "built"], ["gl", 4, 545, 100, "WebGL2", "built"], ["opfs", 4, 830, 130, "OPFS", "lab"],
+  ["srv", 5, 330, 140, "wt-pacs server", "built"], ["oq", 5, 520, 160, "optimal-quality series", "built"], ["exact", 5, 720, 140, "exact series", "built"],
+];
+const BH = 44;
+const box = {};
+for (const [id, lane, x, w] of BOXES) box[id] = { x, y: laneY(lane) + (LANE_H - BH) / 2, w, h: BH };
+const side = (id, s, f = 0.5) => {
+  const b = box[id];
+  return s === "t" ? [b.x + b.w * f, b.y] : s === "b" ? [b.x + b.w * f, b.y + b.h] : s === "l" ? [b.x, b.y + b.h * f] : [b.x + b.w, b.y + b.h * f];
+};
+const MSGS = [
+  ["intents", "ui", "b", 0.2, "ctl", "t", 0.2, "show(i) · play …", "end"],
+  ["events", "ctl", "t", 0.8, "ui", "b", 0.8, "shown · failed"],
+  ["want", "ctl", "r", 0.5, "store", "l", 0.5, "want", "middle"],
+  ["ask", "store", "b", 0.55, "dl", "t", 0.5, "want · ack"],
+  ["dispatch", "dl", "b", 0.15, "av1", "t", 0.8, "dispatch (K)", "end"],
+  ["frame", "av1", "t", 0.3, "store", "b", 0.05, "frame {SAB}", "end"],
+  ["paint", "store", "r", 0.5, "paint", "l", 0.5, "paint first", "middle"],
+  ["write", "store", "t", 0.9, "writer", "t", 0.2, "write"],
+  ["write", "writer", "b", 0.5, "opfs", "t", 0.5, ""],
+  ["decode", "av1", "b", 0.5, "wc", "t", 0.5, ""],
+  ["draw", "paint", "b", 0.3, "gl", "t", 0.35, ""],
+  ["wire", "dl", "b", 0.5, "wt", "t", 0.5, "asks · runs", "end"],
+  ["wire", "wt", "b", 0.5, "srv", "t", 0.5, ""],
+  ["serve", "srv", "r", 0.5, "oq", "l", 0.5, ""],
+  ["serve", "oq", "r", 0.5, "exact", "l", 0.5, ""],
+  ["lossless", "label", "b", 0.5, "xdl", "t", 0.4, "Lossless request", "end"],
+  ["exact", "xdl", "b", 0.5, "htj2k", "t", 0.5, ""],
+  ["exact", "htj2k", "t", 0.15, "paint", "b", 0.7, "the exact frame", "end"],
+];
+const arch = document.getElementById("arch");
+const el = (tag, attrs, parent, text) => {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  parent.appendChild(e);
+  return e;
+};
+const panel = document.getElementById("panel");
+let selected = null;
+function choose(id, node) {
+  for (const s of panel.querySelectorAll("section")) s.hidden = s.id !== id;
+  if (selected) selected.classList.remove("sel");
+  selected = node;
+  if (node) node.classList.add("sel");
+}
+function clickable(node, id, name) {
+  node.setAttribute("tabindex", "0");
+  node.setAttribute("role", "button");
+  node.setAttribute("aria-label", name);
+  node.addEventListener("click", () => choose(id, node));
+  node.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(id, node); } });
+}
+LANES.forEach(([id, name], i) => {
+  const g = el("g", { class: "lane box" }, arch);
+  el("rect", { x: 0, y: laneY(i), width: 1000, height: LANE_H - 2, rx: 0 }, g);
+  el("text", { x: 10, y: laneY(i) + LANE_H / 2 + 4 }, g, name);
+  clickable(g, "p-lane-" + id, "lane: " + name);
+});
+const msgLayer = el("g", {}, arch);
+const notes = [];
+for (const [id, a, as, af, b, bs, bf, label, anchor] of MSGS) {
+  const [x1, y1] = side(a, as, af), [x2, y2] = side(b, bs, bf);
+  const d = as === "t" && bs === "t"
+    ? `M${x1},${y1} C${x1},${y1 - 30} ${x2},${y2 - 30} ${x2},${y2}`
+    : `M${x1},${y1} C${x1},${(y1 + y2) / 2} ${x2},${(y1 + y2) / 2} ${x2},${y2}`;
+  const g = el("g", { class: "msg" }, msgLayer);
+  el("path", { d, class: "hit" }, g);
+  el("path", { d }, g);
+  if (label) notes.push({ class: "note", x: (x1 + x2) / 2 + (anchor === "end" ? -6 : anchor ? 0 : 6), "text-anchor": anchor || "start", label, y: as === "t" && bs === "t" ? Math.min(y1, y2) - 26 : (y1 + y2) / 2 - 4 });
+  clickable(g, "m-" + id, "message: " + (label || id));
+}
+for (const [id, , , , name, status] of BOXES) {
+  const b = box[id];
+  const g = el("g", { class: "box " + status }, arch);
+  el("rect", { x: b.x, y: b.y, width: b.w, height: b.h }, g);
+  el("text", { x: b.x + b.w / 2, y: b.y + b.h / 2 + 4, "text-anchor": "middle" }, g, name);
+  clickable(g, "p-" + id, name + ", " + status);
+}
+for (const { label, ...attrs } of notes) el("text", attrs, arch, label);
+
+const dv = document.getElementById("delivery");
+const STEPS = [
+  ["d-fill", 20, 250, "optimal-quality fill", "label: Optimal quality"],
+  ["d-ask", 380, 250, "exact frame on request", "label: ✓ Lossless, if checked"],
+  ["d-arms", 740, 240, "the comparison: A · B · C1 · C2", "open, theory first"],
+];
+STEPS.forEach(([id, x, w, title, sub], i) => {
+  const g = el("g", { class: "box " + (i < 2 ? "built" : "proposed") }, dv);
+  el("rect", { x, y: 35, width: w, height: 70 }, g);
+  el("text", { x: x + w / 2, y: 65, "text-anchor": "middle" }, g, title);
+  el("text", { x: x + w / 2, y: 85, "text-anchor": "middle", class: "muted" }, g, sub);
+  clickable(g, id, title);
+  if (i === 0) el("path", { d: `M${x + w},70 L380,70`, style: "stroke:var(--arrow);stroke-width:1.5;marker-end:url(#head2)" }, dv);
+});
+el("text", { x: 330, y: 60, "text-anchor": "middle" }, dv, "reader asks");
+el("text", { x: 20, y: 150 }, dv, "Theory: fill ≈ max(bytes × 8 ÷ bandwidth, frames × decode per frame ÷ decoders) + rest");
+</script>
+</body>
+</html>
