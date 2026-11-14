@@ -501,7 +501,7 @@ What the store sees, and what it does (above the seam, the same rule for all, wh
 | failure | OPFS-SYNC | OPFS-ASYNC | IDB | CACHESTORAGE |
 | --- | --- | --- | --- | --- |
 | no store (Firefox private; Safari private by source) | `getDirectory()` rejects: no cache | the same | **a store**: Gecko keeps it in a private window, encrypted, temporary (7.3); Safari private not traced | **a store** in Gecko's private window (7.4); Safari not traced |
-| the series does not fit | `truncate` refused at the first frame: the rule (evict, retry; else no cache) | the probe refused at open: the rule; else as the mid-fill row | `estimate()` short at open: the rule; else as the mid-fill row (*advocate*, 7.3) | known only mid-fill |
+| the series does not fit | `truncate` refused at the first frame: the rule (evict, retry; else no cache) | the probe refused at open: the rule; else as the mid-fill row | `estimate()` short at open: the rule; else as the mid-fill row (*advocate*, 7.3) | `estimate()` short at open: the rule; else as the mid-fill row (*advocate*, 7.4) |
 | the disk fills mid-fill | a write throws: evict one, retry once, else stop writing | `close()` rejects: the same | the transaction aborts: the same | the `put` rejects: the same |
 | Chromium private window | OPFS in RAM, 5–6.7 % of it (choice 5): caches what fits | the same | **a store**, in memory on the SQLite backend (*advocate*, 7.3); its limit not traced | in memory if its path is empty, ~2 GiB a series (7.4); not traced that it is |
 | the origin emptied between opens | no manifest: a fresh fill | the same | no `series` record: the same | no `manifest` record: the same |
