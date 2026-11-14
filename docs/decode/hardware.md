@@ -7,6 +7,9 @@ hardware decode paths can serve the diagnostic viewer?** Every choice stays the 
 optimal-quality view at Chromium 157 (the phone's) and 158 (today's stable): [§11–§17](#11-the-optimal-quality-view-2026-11-14).
 Where it corrects the 2026-10-13 text, the text stays and a *Corrected 2026-11-14* note follows it.*
 
+*Reviewed 2026-11-14 (queue row HW-DECODE-DEEP-REVIEW, a session that wrote none of §11–§17): 15 sources drawn at
+random and fetched, the owner's amendments applied, corrections in place marked *Corrected in review*: [§18](#18-review-2026-11-14).*
+
 **How a claim is labelled.** **(S)** source: a file and line at a pinned tag, or a spec, document or page with its
 section, each pinned in §10 with the SHA-256 prefix of the copy read; **(D)** derived: arithmetic or reasoning on
 sources, written out; **(M)** measured: this repository, with its queue row. Nothing here is measured on a GPU: every
@@ -31,6 +34,7 @@ sources, written out; **(M)** measured: this repository, with its queue row. Not
 15. [Phones, native, and beyond AV1](#15-phones-native-and-beyond-av1)
 16. [What the sources decide](#16-what-the-sources-decide)
 17. [A device probe for the phone round](#17-a-device-probe-for-the-phone-round)
+18. [Review, 2026-11-14](#18-review-2026-11-14)
 
 ## 1. What it shows
 
@@ -470,6 +474,15 @@ memory copy; only a hardware frame makes it a GPU read-back (D). For a frame tha
 | a 10-bit grey value reaches the shader as | 8 bits on the paths quoted; the YUV-plane upload into a half-float target (`CopyVideoFrameYUVDataToGLTexture`, `:6661`) was not traced to its intermediate's format: **unknown**, the probe's precision check (§17) | **8 bits** (D, from the two quotes); Chromium falls short of §3.11 here |
 | on Android | the frame is already the external sampler's RGB, converted by the device (§12) | the same image, `ABGR`, not `NV12`: the N32 copy |
 
+*Corrected in review:* the half-float upload (`CopyVideoFrameYUVDataToGLTexture`) is not a hardware frame's path.
+It runs only `if (!media_video_frame->HasSharedImage() && …)`, for frames that "start on the CPU (e.g. video camera
+frames)" (S, 157 `webgl_rendering_context_base.cc:6657–6661`). A hardware frame has a shared image and goes through
+`CopySharedImageDirectlyToGLTexture` or `CopyVideoFrameTexturesToGLTextureViaIntermediateSI` (S, `:6672–6707`), whose
+precision was not traced. The cell stays **unknown**, for those two calls. It decides nothing for the view: WebGL's
+YUV-to-RGB conversion is unspecified ("The precise conversions may be specific to both the browser and file type", S,
+WebGL 1.0 §Pixel Storage Parameters, `UNPACK_COLORSPACE_CONVERSION_WEBGL`), so no texture it fills can be checked
+against a digest (§18.2).
+
 **The window table (VOI)** maps a sample of D bits through the window to a display level. On 8 bits of a 10-bit
 view, a window narrower than 1024 codes repeats display levels four codes at a time (D): a narrow window shows
 steps a 10-bit view would not. A window table is a texture lookup either way, so the shader is not the obstacle;
@@ -509,6 +522,12 @@ checked nor sampled; the client's rule for an unchecked view frame applies to it
 | Dimensity 9200 | "Video Playback H.264 HEVC Vp-9 AV1" (S, MediaTek product page) | not documented |
 | Apple A17 Pro, M3 and later | "a dedicated AV1 decoder" (S, Apple newsroom, §5) | not published |
 
+*Corrected in review:* Qualcomm's release of 2022-11-15 is script-only at qualcomm.com and was not read there. Its
+republication attributed to Qualcomm (edge-ai-vision.com, "Nov 15, 2022") says: "This is also the first Snapdragon to
+include an AV1 codec with support for video playback up to 8K HDR at 60 frames per second." That is a copy, not the
+official page, and it contradicts both briefs. Nor does a Samsung source read here say which SoC the Galaxy S23 uses:
+"Galaxy S23 = Snapdragon 8 Gen 2 (SM8550-AC)" is **unsourced**. The device answers both (§17: `chrome://gpu`, the codec name).
+
 So **whether the Galaxy S23 decodes AV1 in hardware is not settled by its vendor's own brief**, which lists none;
 ScientiaMobile counted the Snapdragon 8 Gen 2 among AV1 decoders (§7). The phone answers it (§17). No vendor
 document read lists AV1 4:0:0 or a Codec2 component's layouts. Android's CDD requires an AV1 decoder for every
@@ -547,6 +566,10 @@ decoder was found in a vendor document. Not evaluated.
 | Safari | any | `<video>` only | — | no planes |
 | native (VideoToolbox, MediaCodec, VA-API, NVDEC, D3D12, Vulkan) | 4:2:0 at 8/10 bits; 4:0:0 where §5 shows | per §5 | yes, own planes | yes |
 | any browser, software (today) | as coded | — | the copy is a memory copy | yes |
+
+*Corrected in review (amendment 1):* the view is checked in production, so "painted without read-back" serves
+nothing unless the samples also reach an XXH3. Only two rows reach one: desktop Chromium's 8-bit GREY420 (`NV12`
+plane copy) and native. Every other row is a display path (§18.1).
 
 **Decided by the sources alone:**
 
