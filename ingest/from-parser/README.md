@@ -11,10 +11,17 @@ cargo build --release -p from-parser -p pack-series                       # link
 P=.venv/bin/python                                                        # numpy, xxhash, blake3: ingest/requirements.txt
 $P ingest/from-parser/mirror.py lab/av1/data/rf_fluoro OUT                 # prints the series directory it wrote
 target/release/from-parser OUT/PbPb/<E>/<S> rf_fluoro.sbnd --jobs 4
+target/release/from-parser OUT/PbPb/<E>/<S> rf_fluoro.sbnd --optimal-quality   # also rf_fluoro-q8-g8.sbnd
 $P ingest/from-parser/same.py ingest/.build lab/av1/data/rf_fluoro WORK   # both ingests, --jobs 1, 2, 4: identical
+$P ingest/from-parser/same.py ingest/.build lab/av1/data/rf_fluoro WORK 8 8   # and the optimal-quality series
 $P ingest/from-parser/same_test.py                                        # the same on synthetic sets: the gate's step
 for s in lab/av1/data/*/; do $P ingest/from-parser/same.py ingest/.build "$s" WORK; done   # every fetched set
 ```
+
+`--optimal-quality [Q]` (experimental, off by default; Q 1 to 63, 8 when bare) and `--group G` (8 unless given)
+write the optimal-quality series after the exact one, by `aomenc` 3.15.1 as `ingest.py`'s `lossy` runs it
+([`docs/av1/payload-format.md`](../../docs/av1/payload-format.md) §Optimal quality). A refusal there leaves the exact
+series written alone and exits 1.
 
 `mirror.py` is the parser's stand-in until phase 2, deleted then. `INGEST_BUILD` moves the libraries the build and
 `same_test.py` link from `ingest/.build` (`INGEST_BUILD=lab/.av1-build` where `lab/av1/tools/tools.sh` built them).

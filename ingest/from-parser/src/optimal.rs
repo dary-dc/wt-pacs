@@ -39,7 +39,7 @@ pub fn form(f: &Frame, min: i32, max: i32, q: u32, g: usize) -> Result<Form> {
     let bits = (32 - ((max + offset) as u32).leading_zeros()).max(1);
     ensure!(
         bits <= CUT_DEPTH,
-        "signed samples of {bits} bits after the offset: no optimal-quality form over {CUT_DEPTH} bits (docs/reviews/ingest-oq.md §5)"
+        "signed samples of {bits} bits after the offset: no optimal-quality form over {CUT_DEPTH} bits (docs/av1/payload-format.md §Optimal quality)"
     );
     let depth = if bits <= 8 { 8 } else { CUT_DEPTH };
     Ok(Form { q, g, bits, depth, signed: f.signed, offset, cut: None })
