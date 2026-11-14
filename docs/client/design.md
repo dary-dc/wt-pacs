@@ -74,11 +74,13 @@ transferred buffers, `waitAhead`, `span`, the frame clocks. Native has the same 
 | The pairing's same-source check stays, in the ingest, with XXH3 (`sourceFingerprint`) | 2026-11-11 | the owner | the same; [`../av1/payload-format.md`](../av1/payload-format.md) §Source fingerprint |
 | The quality mark: green beside *Optimal quality*, *Lossless* distinct, words always beside the colour; the status line opens by a tap | 2026-11-11 | the owner | [`../../client/README.md`](../../client/README.md) §Optimal quality, exact on request |
 | The integrity and coding-error check is a proposal (#368), the owner's to decide | 2026-11-11 | the owner | `claude/oq-integrity-build:docs/reviews/oq-integrity.md` |
+| `cubic-restart` the default congestion controller; `bbr` and `bbr-bound` stay options; real-world runs decide | 2026-11-11 | the owner | [`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §1 |
+| AV1 only for cine-like series; no low-resolution preview (a preview is tiny or full size); XXH3-64 the frame check | by 2026-11-10 | the owner | `claude/work-ledger:docs/queue-2026-11-10.md` §Decided approaches |
 | Mobile on lossy wireless; no TCP for the fill unless proven; fill and on-demand latency optimized separately; resilience parked | 2026-11-11 | the owner | the same |
 | Telemetry off by default (rate 0); the frame clock kept | 2026-11-11 | the owner | the same |
 | One home per subject, `docs/<subject>/` (this file, the page, `evidence/`), and the product statement's framing | 2026-11-14 | the owner | `CLAUDE.md` §Docs; [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product |
-| Exactness failures are a safety report, not telemetry: always on, never sampled, no pixels or patient data, the load report's endpoint and format; on a mismatch the second decode first, then the frame blocked, the reader told in that frame's view and the report sent at once. The sampled load report alone follows the rate | 2026-11-14 | the owner | [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §4, §8 |
-| The cache: survey the options before designing further; OPFS continues only if it comes out best | 2026-11-14 | the owner | *Open: where the cache keeps frames*, below |
+| Exactness failures are a safety report, not telemetry: always on, never sampled, no pixels or patient data, the load report's endpoint and format; on a mismatch the second decode first, then the frame blocked, the reader told in that frame's view and the report sent at once. The sampled load report alone follows the rate | 2026-11-14 | the owner | [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §4, §5, §8; [`evidence/frame-integrity.md`](evidence/frame-integrity.md) |
+| The cache: survey the options before designing further; OPFS continues only if it comes out best | 2026-11-14 | the owner | [`evidence/cache-options.md`](evidence/cache-options.md); *Open: where the cache keeps frames*, below |
 | The delivery comparison is theory first, measured as calibration (*Open*, below); transport is another subject | 2026-11-14 | the owner | below |
 
 ## Open
@@ -86,7 +88,8 @@ transferred buffers, `waitAhead`, `span`, the frame clocks. Native has the same 
 Fixtures for every cloud result below: three DBT volumes (`dbts_a1`, `dbts_b1`, `dbts_c1`) of one dataset, no breast
 ultrasound cine, 4-core cloud hosts without a GPU (SwiftShader, software WebCodecs), loopback or a userspace relay,
 not a radio. The phone results: one phone (Chrome 157), one home link, one evening
-(`claude/phone-rows:docs/phone-rows/README.md`).
+(`claude/phone-rows:docs/phone-rows/README.md`). Transport itself (HTJ2K alone against TCP-based stacks, WebSocket
+included) is another subject, not this file's (the owner, 2026-11-14).
 
 **The delivery comparison.** Arm A the optimal-quality view only; arm B HTJ2K lossless only; C1 the approach (the
 optimal-quality fill, then an exact frame on request: an on-demand latency); C2 the optimal-quality fill, then the
@@ -101,8 +104,12 @@ repository. *So far:* none run; the protocol is not written.
 
 **Where the cache keeps frames.** OPFS (sync handles in a dedicated worker, or `createWritable`), IndexedDB, Cache
 Storage, Storage Buckets, memory only; decoded samples (~17 MB a `dbts_b1` frame, no decode on reopen) or coded bytes
-(a decode on every reopen, which the 2026-10-10 rule excludes). *Decides:* the survey from specs and engine sources,
-then its deciding measurement. *So far:* no writer arm passed on Chromium or Firefox
+(a decode on every reopen, which the 2026-10-10 rule excludes). *Theory* ([`evidence/cache-options.md`](evidence/cache-options.md),
+sources only): IndexedDB and Cache Storage refuse a `SharedArrayBuffer` (a copy in script, then the engine's) and share
+OPFS's bucket, quota and eviction; Storage Buckets is Chromium-only; the user-picked directory is a desktop
+workstation case. Leaning: OPFS as built, decoded samples. Decoded wins a phone reopen only if a cold read and XXH3
+of a 17 MB frame take under ~45 ms (≥ ~0.4 GB/s); if a phone reads slower, the no-re-decoding rule and reopen time pull
+apart (the owner's). *Decides:* that phone read, measured. *So far:* no writer arm passed on Chromium or Firefox
 ([`evidence/cache-io-thread.md`](evidence/cache-io-thread.md) §Arm D, Results); async OPFS on one packed file is
 ruled out; V8 counts a shared buffer as 0 bytes, so a byte window bounds nothing
 ([`evidence/frame-memory-ownership.md`](evidence/frame-memory-ownership.md)); the ring of slots qualifies on Chromium
@@ -124,10 +131,14 @@ session that will not run it ([`../devices.md`](../devices.md) §7). The owner's
 **A failed Lossless is not retried**, and **a hidden page loses its AV1 decoder mid-group**, both seen on the phone
 run. *Decides:* each traced in code, reproduced (labelled simulated), a failing test, the fix.
 
-**Exactness without digests, and after a mismatch on the tip.** A series without digests: stored `unchecked`, or
-decoded again on every open (the owner's). The 2026-11-14 decision blocks a mismatched frame; whether the tip still
-only *marks* it ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8, *Block or mark*) is to
-be checked and built.
+**Exactness: building the 2026-11-14 decision.** The tip still *marks* a mismatched frame and paints it
+(`client/viewer/screen.js:6`, *NOT EXACT*), and the load report's code sends nothing at rate 0, failures included
+(`claude/telemetry-client:client/viewer/load-report.js`): both change to the decision; neither is built. A
+**coded-bytes digest** beside the sample digest would tell the bytes' fault (re-ask once) from the decoder's (the
+second decoder, then block): a candidate for the owner, its cost one XXH3 pass, not measured
+([`evidence/frame-integrity.md`](evidence/frame-integrity.md) Q1, *What a coded-bytes digest adds*). A series without
+digests: stored `unchecked`, or decoded again on every open (the owner's). Whether a blocked frame has a reveal is not
+decided ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8, *Block or mark*).
 
 **The view worker's open table**, each with what decides it in
 [`evidence/view-worker-design.md`](evidence/view-worker-design.md) §Target: the cine clock by elapsed time, paused on
