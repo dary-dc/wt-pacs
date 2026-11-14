@@ -81,7 +81,7 @@ Not traced and owed by the design rows, each from its option's sources: whether 
 a worker pass through the page's main thread; WebKit's handling of a large IndexedDB value; each engine's Cache
 Storage disk path; whether IndexedDB keeps a Firefox private window's data (where OPFS is off:
 "`dom.fs.privateBrowsing.enabled` … value: false"). A survivor that works where OPFS does not has an advantage the
-verdict must weigh.
+verdict must weigh. *Traced 2026-11-14 in §7 (7.3, 7.4, 7.6), each from its engine's source; what is still not traced is listed there.*
 
 ## 4 · Steps 3 to 5, and what keeps an option from losing to its build
 
@@ -153,7 +153,183 @@ Pushed for PHONE-NEXT-PROTOCOL's cell (4), in this order; one phone, Chrome for 
 
 ## 7 · Designs
 
-*Written by CACHE-DESIGN, amended by each CACHE-ADVOCATE row; empty until then.*
+*Written by CACHE-DESIGN, 2026-11-14, before anything is built; each CACHE-ADVOCATE row amends its survivor's design in
+place, each change with its source and* advocate *beside it.* **Theory only.** Sources are §7's table at the end, at
+pinned commits, quoted verbatim; a number marked *measured* is from the file it names, with that file's fixtures.
+
+### 7.0 · What every design takes as given (§3, not re-decided here)
+
+The input is a checked frame in a slot of M5's ring, named by its slot number. The seam is §3's. Above it, once for all
+four: the XXH3 re-check on every read, eviction least recently opened first and only to make room, never a series open
+in a tab, and the failure table of 7.5. One rule the ring needs from every arm alike: **a slot under a frame not yet
+written stays held** until its writer says written (as built: "A frame leaves the window only once the store worker
+says it is written", cache-in-opfs §The mechanism proposed); a writer that falls behind therefore dries the ring and
+slows the decoders, the same backpressure for all four. The writer is in each case a **store worker** the decoders post
+slot numbers to on a port each: the view thread posts nothing for the cache, and no arm writes on a decoder's clock (D's
+loss on Firefox, ~50 ms a frame at S1, *measured*, cache-io-thread §Arm D, Results). A read is served by the same store
+worker into a free slot and answered by slot number; the re-check runs where §3's seam puts it.
+
+The series' key is the session URL as built (`client/viewer/store.js`); one manifest per series holds the digest list
+it was written for, `frameBytes`, the shape and the last open. A digest list that differs at open drops the series.
+
+### 7.1 · OPFS-SYNC: one packed file, one sync handle, written from the slot
+
+| | design | from its sources |
+| --- | --- | --- |
+| writer | the store worker holds one `FileSystemSyncAccessHandle` per open series for the session and writes **from the ring's slot itself**: `write(slotView, {at: i × frameBytes})` | "unsigned long long write(AllowSharedBufferSource buffer," (fs 1425): a shared view is taken, so **no copy in script** |
+| layout | as built: frame i at i × frameBytes, then a 3-int record per frame (min, max, present), one file; the manifest beside it | cache-in-opfs choice 3 |
+| copies | one, the engine's into the page cache; none in script | — |
+| transactions | none; the record written after its frame, never flushed | the re-check guards a torn frame (choice 6; M4 caught 4 of 4, *measured*) |
+| does it fit | `truncate(n × (frameBytes + 12))` at the series' first frame; a refusal (`QuotaExceededError`, or Gecko's `NS_ERROR_FILE_NO_DEVICE_SPACE`) evicts and retries | fs 1587–1588: "If newSize − oldSize exceeds the available storage quota, throw a QuotaExceededError." |
+| reads | the store worker `read(slotView, {at})` into a free slot: no copy in script, no new buffer | fs 1423 |
+| eviction | close the handle, then `removeEntry(series, {recursive: true})`; another tab's handle on the victim refuses, so it is skipped | as built (`evictOne`); Chromium refuses removal under any handle, *run once* (choice 5) |
+
+**Reuses** `client/viewer/store.js` whole (open, `create`, `evictOne`, the records) and the packed file's measured
+rules (M1 reopen ≤ 0.028 × a fetch, M3 eviction on both engines after the Gecko fix, M4). **Changes** two things. (1)
+The store worker writes from the ring's slot, not from a copy: C's view-thread copy, 9.1–14.4 ms on Chromium and
+32.6–47.6 ms on Firefox at S2–S3 (*measured*), was there only because a fresh `SharedArrayBuffer` per frame was never
+collected in the store worker (cache-in-opfs choice 2, corrected 2026-10-28); the ring is one buffer, allocated once.
+(2) The decoders post the slot number to the store worker directly ("one writer the decoders post to", cache-io-thread
+§Arm D (1)), so the view thread neither copies nor posts.
+
+**Per engine, from source.** Chromium: within the granted capacity a write sends one note and does not wait; the first
+`truncate` asks for the capacity once (cache-io-thread (h)). Gecko: every 1 MiB block of a write is a synchronous quota
+IPC, growing or not (h): 17 a frame at S2, 26 at S3; nothing in its sources avoids it. WebKit: a handle's capacity is the
+file's size when it is created, and growing past it waits on the page's main thread (h); the handle is created on an
+existing, already-truncated file at reopen, and on a new file grows once, at the first `truncate`: one main-thread wait
+a series, not a frame. `createSyncAccessHandle` itself also passes the main thread (h): once a series.
+
+**Predicted floor** (theory, from the *measured* rates of A on arrival, which wrote from the frame's own buffer on a
+sync handle, cache-io-thread §Arm D, Results: Chromium 816 MB/s at S1; Firefox 360 MB/s at S1 and 1 178 MB/s at S2; and
+read + re-check 0.10 / 2.3 / 6.3 ms for 0.52 / 9.85 / 27.3 MB, choice 1, warm): write ~0.6 / ~21 / ~33 ms (Chromium) and
+~1.4 / ~14 / ~23 ms (Firefox) at S1 / S2 / S3; read under 0.1 / ~4 / ~6 ms, warm. **Pilot:** nothing to tune; its sources
+leave no setting open.
+
+### 7.2 · OPFS-ASYNC: a file per frame by `createWritable`, a copy in its writer
+
+| | design | from its sources |
+| --- | --- | --- |
+| writer | the store worker copies the slot into an `ArrayBuffer` it reuses, then per frame `createWritable()` (no `keepExistingData`), `write(buffer)`, `close()` | the chunk is `BufferSource` (fs 1110), so the copy is forced and counted as the store's; `keepExistingData` "is first copied to this temporary file" (fs 532–538) and is never set |
+| layout | a directory per series, a file per frame named by its index, holding the samples then a 7-int trailer (as `client/view/frame-file.js`); the manifest beside | a packed file is ruled out by its own cost ("21 GB for `dbts_b1`'s 50 × 17 MB", cache-io-thread *What this rules out*) |
+| copies | in script one (slot → buffer); then the engine's: Chromium a string and a data pipe in 32 KiB pieces, Gecko a vector then 1 MiB blocks, WebKit an IPC carrying the bytes and a file copy at close (cache-io-thread (a)) | — |
+| transactions | each frame commits at `close()` ("It is expected that this atomically updates the contents of the file on disk", fs 1179): a file is whole or absent | so a torn frame needs a crash inside the engine's swap; the re-check stays |
+| does it fit | at open, a probe: `createWritable()` on a probe file, `truncate(n × frameBytes)`, then `abort()`; a refusal evicts and probes again. It is a check, not a reservation: a frame can still be refused mid-fill (7.5) | the writable's truncate rejects "with a QuotaExceededError" (fs 1295–1296); whether each engine refuses at the truncate or only at close is **not traced**; the pilot checks it per engine and, if no engine refuses before close, the probe is dropped |
+| reads | the store worker, by the pilot's choice: `getFile()` then `arrayBuffer()` into a new buffer, copied into a free slot; or `createSyncAccessHandle()` on the frame's closed file and `read(slotView)` | `getFile()` takes no lock (cache-io-thread (c)); the sync read is A's, ~2× faster on Chromium at S3 (40.1 against 83.4 ms a miss, *measured*) |
+| eviction | `removeEntry(series, {recursive: true})` after the series' Web Lock is taken with `ifAvailable` | a file per frame has no series-wide lock: `navigator.locks` as `client/view/cache.js` does |
+
+**Reuses** `client/view/frame-file.js` (the file per frame and its trailer) and the Web Lock of `client/view/cache.js`;
+B's measured costs (cache-io-thread). **Changes**: B ran on the view thread; here every copy and call is the store
+worker's, off the paint. **Per engine:** WebKit posts every async call a worker makes to the page's main thread
+(`getFile`, `createWritable`, each `write`, `close`; cache-io-thread (a), corrected 2026-10-29), so under a busy page
+each frame waits; Gecko pumps a `getFile()` read on the main thread ((c)); Chromium moves the swap over the target at
+close and skips the after-write check for OPFS ((a)).
+
+**Predicted floor** (theory; anchor: B on arrival's *measured* write rates on the view thread, Chromium 139 MB/s and
+Firefox 29 MB/s at S1, Firefox 316 MB/s at S2, which include B's view-thread copy): write ~3.7 / ~120 / ~200 ms on
+Chromium (S2, S3 not measured: the S1 rate scaled, an upper bound) and ~18 / ~54 / ~86 ms on Firefox at S1 / S2 / S3;
+read by `getFile()` ~23 / ~43 ms more than OPFS-SYNC's at S2 / S3 on Chromium (52.0 − 28.8, 83.4 − 40.1, *measured* miss
+p50s). **Pilot** (rule: the setting with the lower median write cost a frame at S2 wins; a tie within 10 % keeps the
+first): writes in flight, 1 or 3; the read, `getFile()` or a sync handle.
+
+### 7.3 · IDB: a record per frame, one transaction a frame, `relaxed`
+
+| | design | from its sources |
+| --- | --- | --- |
+| writer | the store worker copies the slot into a fresh `ArrayBuffer` (a shared buffer is refused for storage) and `put`s it in a `readwrite` transaction opened with `{durability: "relaxed"}` | "Web applications are encouraged to use "relaxed" for ephemeral data such as caches" (IndexedDB 942); the refusal: html `source` 11025–11026 (§2) |
+| layout | one database; object store `frames`, key `[series, i]`, value the samples (the pilot: an `ArrayBuffer` or a `Blob` of them); object store `series`, key `series`, value the manifest | each engine moves a large value out of the row by its own rule (below), so the value's type is the one setting that changes the disk path |
+| copies | in script one (slot → buffer), then serialization's ("Let dataCopy be ? CreateByteDataBlock(size)", html 10717, §2), then the engine's: Chromium Snappy where its feature is on and a blob file above 64 KiB, Gecko a file above 1 MiB, WebKit a SQLite column (below) | — |
+| transactions | one frame a transaction, the manifest's `opened` in its own at open; the pilot may batch 3 | "either all of the changes must be written, or … the implementation must not write any of the changes" (IndexedDB 1072–1076); writers on one store run in turn, the first created first (1148) |
+| does it fit | **no answer before a byte is written**: IndexedDB has no `truncate`, and a probe would write the series' bytes. A refused transaction (`QuotaExceededError` on its abort) at any frame takes 7.5's mid-fill row | an implementation disadvantage of the option, left for its advocate |
+| reads | `get([series, i])` in a `readonly` transaction; a new `ArrayBuffer` (or a `Blob`, then `arrayBuffer()`), copied into a free slot | — |
+| eviction | one `readwrite` transaction: `delete(IDBKeyRange.bound([s, 0], [s, n]))` on `frames` and `delete(s)` on `series`, after the series' Web Lock is taken with `ifAvailable` | atomic: a series is gone whole or not at all |
+| present at open | `getAllKeys(IDBKeyRange.bound([s, 0], [s, n]))` | IndexedDB 2787–2788 |
+
+**Reuses** nothing built; the rules above the seam and the Web Lock of `client/view/cache.js`. **Per engine, traced
+here** (the §3 *Not traced* items): **WebKit posts every IndexedDB call a worker makes to the page's main thread**:
+`putOrAdd`, `getRecord`, `getAllRecords` each go through `callConnectionOnMainThread`, which runs the call at once on the
+main thread and otherwise "postMainThreadTask" (`IDBConnectionProxy.cpp` 220, 228, 236; `IDBConnectionProxy.h`
+149–155). So a WebKit IDB write or read waits for a busy page, as OPFS-ASYNC's does. **WebKit keeps a large
+`ArrayBuffer` in the row**: the value is bound whole into the `Records` table ("statement->bindBlob(3,
+*value.data().data())", `SQLiteIDBBackingStore.cpp` 2005, into "INSERT INTO Records VALUES (?, CAST(? AS TEXT), ?,
+NULL);", 2000); only a `Blob` leaves it, as a file listed in `BlobRecords` and `BlobFiles` (82–83, 2030–2045). **Gecko keeps IndexedDB
+in a private window**, where OPFS is off: "# Enable indexedDB in private browsing mode with encryption" ·
+"dom.indexedDB.privateBrowsing.enabled … value: true" (`StaticPrefList.yaml` 3563–3566), "private browsing databases,
+which are only temporary" (`ActorsParent.cpp` 13500–13501); a file it writes may be Snappy-compressed and, with a key,
+encrypted (`ActorsParent.cpp` 21810–21819). **Chromium**: a value still "large" after compression "is converted into a
+Blob" (`idb_value_wrapping.h` 61–64), and no compression on its SQLite backend ("if (backend_uses_sqlite_) { return
+false;", `idb_value_wrapping.cc` 155–157); which backend a profile runs was not traced.
+
+**Predicted floor** (theory; **no measured anchor**): each engine moves the bytes through an IPC to a file or a row
+after two copies in the renderer, so no faster than OPFS-ASYNC's floor at S2–S3, plus Snappy where it runs: write
+≥ ~50 ms at S2 on Firefox, read ≥ OPFS-ASYNC's; the floor probe gives the first number. **Pilot** (the same rule as
+7.2): the value, `ArrayBuffer` or `Blob`; frames a transaction, 1 or 3.
+
+### 7.4 · CACHESTORAGE: a `Cache` per series, a response per frame
+
+| | design | from its sources |
+| --- | --- | --- |
+| writer | the store worker copies the slot into a fresh `ArrayBuffer` and `cache.put(new Request(base + i), new Response(buffer))`, base a same-origin `https:` path never fetched (`/frame-cache/<series>/`) | a body's buffer is `BufferSource`, copied ("Set source to a copy of the bytes held by object.", fetch 8256–8257, §2); a key must be `http(s)` and `GET`, a `206` refused (ServiceWorker 2167, 2169) |
+| layout | `caches.open("frames " + series)`; one record a frame; the manifest as one more record (`…/manifest`, JSON). The digest stays in the manifest, not in a header: one place, as the other three | — |
+| copies | in script one (slot → buffer), then the body's, then the engine's (below) | — |
+| transactions | each `put` is a batch whose changes the implementation "does undo (roll back)" on an exception (ServiceWorker 4149); WebKit's disk store does not revert a failed batch (below) | the re-check stays |
+| does it fit | as IDB: no answer before a byte is written; a refused `put` takes 7.5's mid-fill row | an implementation disadvantage of the option |
+| reads | `cache.match(req)` then `arrayBuffer()`: a new buffer, copied into a free slot | `match` and `put`: ServiceWorker 2010, 2014 |
+| eviction | `caches.delete(name)` after the series' Web Lock is taken with `ifAvailable`: one call, the series whole | ServiceWorker 2272 |
+| present at open | `cache.keys()` | 2016 |
+
+**Reuses** nothing built; the rules above the seam and the Web Lock. **Per engine, traced here** (the §3 *Not traced*
+items). **WebKit's worker reaches the network process without the main thread after the first call**: creating the
+worker's connection waits on the main thread once (`callOnMainThreadAndWait(`, `WorkerGlobalScope.cpp` 587;
+`callOnMainRunLoopAndWait(`, `WebCacheStorageConnection.cpp` 53), then each call is a message sent from the worker
+("connection()->sendWithPromisedReply<PromiseConverter>(Messages::NetworkStorageManager::CacheStoragePutRecords {", 98).
+So under a busy page WebKit's Cache Storage, unlike its IndexedDB and async OPFS, is predicted not to wait. On disk, a
+body over a page is a file of its own beside the record ("return bodyData.size() > WTF::pageSize();",
+`CacheStorageDiskStore.cpp` 97–99), read back by `mmap` (86), and **hashed with SHA-1 at write and checked on read**
+("if (storedInfo->metaData.bodyHash != computeSHA1(sharedBuffer->span(), m_salt))", 383): a second hash of every frame
+beside our XXH3; and "// FIXME: we should probably stop writing and revert changes when result becomes false." (586).
+**Chromium** loads the response's body "as a blob" in the renderer (`cache.cc` 337) and writes it into a disk-cache
+entry of the simple backend, "Use APP_CACHE as opposed to DISK_CACHE to prevent cache eviction." (`cache_storage_cache.cc`
+2625, 2639). **Gecko** writes each body to a file under `morgue` through a Snappy stream
+("MakeRefPtr<SnappyCompressOutputStream>(fileStream);", `dom/cache/FileUtils.cpp` 74, 177), and keeps Cache Storage
+in a private window ("# Enable CacheAPI in private browsing mode with encryption" · "value: true",
+`StaticPrefList.yaml` 2736–2739).
+
+**Predicted floor** (theory; **no measured anchor**): as IDB's, plus Gecko's Snappy on write and read and WebKit's SHA-1
+on write and read (SHA-1 is not timed in the repo; at an assumed 0.5–1 GB/s, 17–34 ms at S2, labelled assumed).
+**Pilot** (the rule of 7.2): `put`s in flight, 1 or 3.
+
+### 7.5 · The failures of cache-in-opfs choice 7, per survivor
+
+What the store sees, and what it does (above the seam, the same rule for all, where a cell says "the rule").
+
+| failure | OPFS-SYNC | OPFS-ASYNC | IDB | CACHESTORAGE |
+| --- | --- | --- | --- | --- |
+| no store (Firefox private; Safari private by source) | `getDirectory()` rejects: no cache | the same | **a store**: Gecko keeps it in a private window, encrypted, temporary (7.3); Safari private not traced | **a store** in Gecko's private window (7.4); Safari not traced |
+| the series does not fit | `truncate` refused at the first frame: the rule (evict, retry; else no cache) | the probe refused at open: the rule; else as the mid-fill row | known only mid-fill | known only mid-fill |
+| the disk fills mid-fill | a write throws: evict one, retry once, else stop writing | `close()` rejects: the same | the transaction aborts: the same | the `put` rejects: the same |
+| Chromium private window | OPFS in RAM, 5–6.7 % of it (choice 5): caches what fits | the same | not traced | not traced |
+| the origin emptied between opens | no manifest: a fresh fill | the same | no `series` record: the same | no `manifest` record: the same |
+| the store vanishes while open | a read throws: a miss | the same | a request errors: a miss | `match` rejects or is `undefined`: a miss |
+| two tabs, one series | the second's `createSyncAccessHandle` throws: that tab, no cache | the Web Lock is held: no cache | the same (the engine would order the writes, 1148; one rule for all) | the same |
+| a damaged frame | the re-check fails: clear its record, ask again, report | delete its file: the same | delete its record: the same | `delete` its request: the same |
+
+### 7.6 · Sources for §7
+
+Fetched 2026-11-14 at `cache-options.md`'s commits; nothing fetched is committed. Quotes are verbatim, markup stripped.
+
+| source | commit | sha256 (first 12) |
+| --- | --- | --- |
+| whatwg/fs `index.bs` · w3c/IndexedDB `index.bs` · w3c/ServiceWorker `index.bs` · whatwg/fetch `fetch.bs` | `d76d3455d5af` · `f9f83f196f85` · `57dfd24943fe` · `2696300d95bb` | `e99666c5d561` · `98ca68a462e3` · `36d1f2c746fa` · `478609e29799` |
+| WebKit `Source/WebCore/Modules/indexeddb/client/IDBConnectionProxy.cpp`, `.h` | `782d2a977efb` | `583d890554c2`, `210614aeed1d` |
+| WebKit `Source/WebCore/Modules/indexeddb/server/SQLiteIDBBackingStore.cpp` | `782d2a977efb` | `6ded8c2e4c1c` |
+| WebKit `Source/WebCore/workers/WorkerGlobalScope.cpp`; `Source/WebKit/WebProcess/Cache/WebCacheStorageConnection.cpp` | `782d2a977efb` | `6b13c8bd7f23`; `e214afd35864` |
+| WebKit `Source/WebKit/NetworkProcess/storage/CacheStorageDiskStore.cpp` | `782d2a977efb` | `0f49fe0b52e6` |
+| Gecko `modules/libpref/init/StaticPrefList.yaml`; `dom/indexedDB/ActorsParent.cpp`; `dom/cache/FileUtils.cpp` | `c72617c01649` | `3f511c2677dd`; `1410d6e13763`; `556e80fdc323` |
+| Chromium `third_party/blink/renderer/modules/indexeddb/idb_value_wrapping.h`, `.cc`; `…/modules/cache_storage/cache.cc`; `content/browser/cache_storage/cache_storage_cache.cc` | `b124f80df73f` | `18ad474f6be6`, `bc9aa5d9bfe1`; `7a2125968f57`; `d05f03985fbe` |
+
+**Still not traced:** whether a writable's `truncate` is refused before `close()` in each engine (7.2's probe; the
+pilot checks it); which IndexedDB backend a Chromium profile runs; IndexedDB and Cache Storage in a Chromium private
+window and in Safari's; SHA-1's rate on a phone.
 
 **Fixtures and their limits.** Nothing was run for this file. The *measured* numbers it quotes come from a 4-vCPU
 cloud container without a GPU, Chromium 153 and Firefox 159, synthetic 16-bit series at 512², 2560×3328 and
