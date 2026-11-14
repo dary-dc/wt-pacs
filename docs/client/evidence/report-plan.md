@@ -593,9 +593,14 @@ replaces what it names; the rest stands.
 
 * **The kind in the path**, `POST <base>/load` and `POST <base>/safety`, so either receiver routes and files by kind
   without parsing; the carriers' URL is one constant per kind.
-* **`204` means accepted, not written**, for both receivers (§3.2 asked "a `204` that means written"; NGINX cannot give
-  it, and a receiver that appends before answering pays a write in the response's path): the delivery cell counts
-  records at the sink, so neither arm is judged by its answer.
+* **A `204` is judged by what reaches the sink, for both receivers.** NGINX's `204` precedes its line (above); RECEIVER's
+  follows its write (RECEIVER's amendments below). So the delivery cell counts records at the sink, never answers, and
+  KEEPALIVE's retry on a missing `204` (§3.2) is priced per receiver, worth more behind RECEIVER: neither arm is judged
+  by its answer.
+* **Files by UTC day for both, no rotation signal**: RECEIVER's `<kind>-<date>.jsonl`; NGINX's the variable path above
+  (which answers RECEIVER's "nginx's log needs the deployment's `USR1`"), so retention is deleting old files for both.
+* **A cap per day is RECEIVER's alone**: NGINX caps a body and, with `limit_req`, a client's rate, not a day's bytes;
+  the protocol's disk-full row (if any) says so.
 * **A schema version `v` and `reportId` inside every record**, checked by RECEIVER at once and by NGINX's reader later,
   so the "field outside the list" mutant is caught by both, at different times; the protocol says when it counts.
 * **The receiver-cost cell runs both receivers at the same body bytes and kinds**, nginx's JSON escaping and its line
