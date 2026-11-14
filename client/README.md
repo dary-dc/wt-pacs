@@ -499,10 +499,12 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   `/wt/dev-transport.json` without `client` means; the script reads that file, also preloaded, and preloads the WASM
   client's files when it names `"wasm"`, any other name refused by name ([`docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client). The module dials at once, with the whole series as the opening fill, while the
   painter starts in parallel.
-* **Frames.** Frames are kept in memory by index. With digests, each frame checked `true` is also written to OPFS by
-  a store worker (`viewer/store.js`); a reopened series fills only what is not there, a frame on disk is read back
-  re-checked and asked again if it fails, and past 256 MiB the frames on disk farthest from the current one leave memory
-  ([`docs/client/evidence/cache-in-opfs.md`](../docs/client/evidence/cache-in-opfs.md) §Proposed: the client cache in OPFS). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
+* **Frames.** Frames are kept in memory by index. There is no cache by default. *Corrected 2026-11-14:* this bullet
+  said each frame checked `true` is also written to OPFS by a store worker (`viewer/store.js`); no product module
+  loads that worker (`viewer/viewer.js`: `writer = lab.writer`), so it is written only under the lab's `?writer=`
+  (*Where the frames are*, below). With a writer, a reopened series fills only what is not there, a frame on disk is
+  read back re-checked and asked again if it fails, and past 256 MiB the frames on disk farthest from the current one
+  leave memory ([`docs/client/evidence/cache-in-opfs.md`](../docs/client/evidence/cache-in-opfs.md) §Proposed: the client cache in OPFS). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
   there is no fill, and each step asks its frame, the newest ask alone kept: a step superseded while it waits on
   its cancel asks nothing.
 * **Where the frames are.** `?view=page` (the default) or `?view=worker`. Either way `view/controller.js` holds the
@@ -515,7 +517,9 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   store worker (`viewer/store.js`), the decoders or the view worker — a series with digests is written there after each
   frame's paint, and read back checked on a later open. With no writer, the default, there is no cache, as on main
   ([`docs/client/evidence/core-against-main.md`](../docs/client/evidence/core-against-main.md) §The core, assembled).
-* **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact. A lossy
+* **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact. A
+  mismatched frame is still painted under its mark; the owner decided on 2026-11-14 that it is blocked instead, which
+  is not built ([`docs/client/design.md`](../docs/client/design.md) §Decided). A lossy
   series adds its quality label and the lossless button (§Optimal quality, exact on request); the label then stands
   for an unchecked frame's mark, and only *NOT EXACT* is marked beside it.
 * **The slice slider** (`viewer/slider.js`), upright along the canvas's right edge: a finger steps or jumps through

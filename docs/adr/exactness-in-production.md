@@ -100,6 +100,15 @@ pool 3 decoders plus the page, so nothing past 3 parallel decoders is claimed.
 
 ## 5 · Reporting and persistence (proposed, not measured)
 
+*Corrected 2026-11-14.* This section did not say whether a failure report follows the telemetry sample rate, and the
+load report's code (`claude/telemetry-client:client/viewer/load-report.js`) returns no reporter when the rate is 0,
+while its ADR (`claude/telemetry-client:docs/adr/telemetry-in-production.md` §2) says a failure is "always sent". The
+owner settled it on 2026-11-14 ([`../client/design.md`](../client/design.md) §Decided): **an exactness failure is a
+safety report, not telemetry** — always on, never sampled, not gated by the rate; no pixels and no patient data; the
+load report's endpoint and record format. The sampled load report alone follows the rate (0 by default). Nothing of
+this is built yet. Where a frame can be corrupted, and what a report may carry:
+[`../client/evidence/frame-integrity.md`](../client/evidence/frame-integrity.md).
+
 * **A failure, at once:** series key, frame index, codec, decoder path (`htj2k`, `av1-dav1d`,
   `av1-webcodecs`), WebCodecs codec string, engine and version, `navigator.hardwareConcurrency`,
   expected and actual digest, whether the second decode passed. No pixels, which are patient data,
@@ -305,7 +314,7 @@ timed.*
 **In short.** Today a frame whose digest does not match is decoded once more on the other path. If that one
 matches, it is shown; if not, it is delivered marked `false`, and the viewer paints it under a red *NOT EXACT* banner
 (`client/viewer/viewer.js`, `repaint`). That is *mark*, where §2.3 recommended *block*; which one is the owner's call
-(§Blocked). Four gaps are left. Without a cache, re-fetching never helps, but a digest of the coded bytes would say
+(*Block or mark*, below). Four gaps are left. Without a cache, re-fetching never helps, but a digest of the coded bytes would say
 whether the store or the decoder is at fault. A frame with no second path (AV1 on WebKit, 12-bit streams, groups)
 has no recovery. Reporting is not built, and as written in §5 it would carry an identifier that DICOM's
 de-identification profile replaces. A cache, when there is one, must hold only verified frames and must be able to
@@ -408,6 +417,14 @@ So all three block: none draws the pixels of a frame that failed.
 
 The sources lean towards *block* by default for anything read for diagnosis: mammography forbids even known lossy
 frames for final reading. Whether a reveal exists is a product decision, not a technical one.
+
+*Decided 2026-11-14 by the owner* ([`../client/design.md`](../client/design.md) §Decided): **block**. On a mismatch
+the second decode runs first; a frame that still fails is blocked, the reader is told in that frame's view, and the
+safety report (§5) is sent at once. Whether a reveal exists is not decided. *Corrected 2026-11-14:* the "(§Blocked)"
+this section's summary once pointed to was `docs/av1/queue.md` §Blocked, the owner's list of blocked work, not a
+block-the-frame behaviour. The tip `claude/unified-client` `e5b20cba` still **marks**: `client/viewer/screen.js:6`
+returns *NOT EXACT — reason* for `exact === false` and the frame stays painted; building *block* is open
+([`../client/design.md`](../client/design.md) §Open).
 
 ### Frames with no second path
 

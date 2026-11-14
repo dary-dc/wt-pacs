@@ -3,6 +3,15 @@
 *Queue row 161, HWDECODE, 2026-10-13. Theory only: nothing built or run, no device touched. One question: **which
 hardware decode paths can serve the diagnostic viewer?** Every choice stays the owner's.*
 
+*Not re-read since optimal quality (noted 2026-11-14).* This file predates the optimal-quality view and judges every
+path by the exact viewer's needs. It has not been re-read against what that view needs: a lossy picture (no
+exactness check on its samples, §2's first row); 10 bits for the window table (D > 10 is always the depth cut to 10
+bits, so §2's "window/level on > 8 bits" row is the one that binds, and hardware `copyTo` at 10 bits is refused,
+§4 Gate 3); and the reconstruction digest, which compares decoded samples a hardware path may not read back
+([`../client/design.md`](../client/design.md) §Open). §3's split rows (grey 10–14 bits as top and low streams) are
+superseded by the depth cut (the owner, 2026-11-09). The client asks WebCodecs for `prefer-software`
+(`client/decode/av1-webcodecs.js:80`), so no AV1 decode measured on record, the phone's included, was a hardware request.
+
 **How a claim is labelled.** **(S)** source: a file and line at a pinned tag, or a spec, document or page with its
 section, each pinned in §10 with the SHA-256 prefix of the copy read; **(D)** derived: arithmetic or reasoning on
 sources, written out; **(M)** measured: this repository, with its queue row. Nothing here is measured on a GPU: every
