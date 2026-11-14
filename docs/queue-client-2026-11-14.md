@@ -38,6 +38,8 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | TRANSPORT-INVENTORY | 11-15 08:00 | DOCS-FOLD done (the other queue) | `claude/transport-design` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
 | PHONE-NEXT-PROTOCOL | 11-15 10:00 | HW-DECODE-DEEP and LINK-TARGETS done, or 11-16 08:00 | `claude/phone-protocol` (docs; no PR unless the branch has one) |
 | PHONE-NEXT-PROTOCOL-REVIEW | 11-16 08:00 | PHONE-NEXT-PROTOCOL done | findings in its file's "Review" section |
+| HW-DECODE-DEEP-REVIEW | 11-15 08:00 | HW-DECODE-DEEP done | `claude/hw-decode` (its PR; findings, then the amendment applied) |
+| MERGE-ALL-PLAN | 11-15 08:00 | DOCS-FOLD done (the other queue) | `claude/work-ledger:docs/queue/MERGE-ALL-PLAN-report.md`; nothing else pushed |
 | CACHE-DESIGN | 11-15 08:00 | CACHE-PLAN done | `claude/cache-plan` (`docs/client/evidence/cache-plan.md` §7; PR of CACHE-PLAN) |
 | CACHE-ADVOCATE-OPFS-SYNC | 11-15 14:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
 | CACHE-ADVOCATE-OPFS-ASYNC | 11-15 14:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
@@ -208,6 +210,7 @@ Write `docs/phone-rows/next-round.md` on `claude/phone-protocol`: the next phone
 owner's phone session to run with its runner (read `claude/work-ledger:docs/queue/PHONE-RUN.md` for RUNNER-AUTO's
 state; do not change the phone tooling).
 
+* **Read the Amendments below first (5, 6, 7 bind this row).**
 * **The commit**: the tip of the branch under review (`claude/unified-client` or what then carries it), pinned and
   checked equal before the first load, so a verdict carries to it.
 * **Links**: Wi-Fi counted (the phone on Wi-Fi, the server wired); the tether only for decode-only cells. Say how
@@ -235,6 +238,68 @@ A session that wrote none of it: every cell's prediction is written before data,
 `design.md` defines it, the view comparison can reach its rule's n in one evening at the runner's pace, nothing the
 phone tooling cannot do is asked. Findings in the file's "Review" section; the author's fixes follow on the same
 branch by a later firing of this file's worker only if the review marks them as not the owner's.
+
+## Amendments (the owner, 2026-11-14 evening; they bind every row that has not finished, and its review)
+
+1. **Every frame is checked, in production too.** The owner: "for OQ AV1 frames and for the lossless frames [we] will
+   need to use xxh3 for verifying the hashes. And this will likely be a requirement even in production. So our
+   painting approach or our general architecture will need to support that." So HW-DECODE-DEEP's "the view need not
+   be read back" is answered only together with the check: for each hardware path, how the decoder's exact output
+   samples reach an XXH3 (a read-back, a format that maps, a hash computed where the planes are), or why they cannot.
+   A path that paints but cannot be checked does not serve the view. HW-DECODE-DEEP-REVIEW applies this to what
+   HW-DECODE-DEEP pushed and corrects it in place.
+2. **Why `prefer-software`.** The owner: "I don't even get the point of this parameter being used when av1 is mainly
+   interested for us with hardware decoding." HW-DECODE-DEEP (or its review) traces when and why it was set
+   (`git log -S prefer-software --all`, the rows and docs of that date), states the reason as recorded, and whether
+   it still holds now that the view is lossy and checked by its reconstruction digest. If no reason is recorded, it
+   says so: that is a documentation finding.
+3. **4:2:0 grey for hardware.** The 4:2:0 form with constant mid-grey chroma was measured at +0.20–0.23 % bytes and
+   rejected (`docs/av1/payload-format.md` §8-bit grey as 4:2:0) on Chromium's *software* decode cost alone; no
+   hardware decoder was ever in a cell. Re-judge it for hardware at 8 and 10 bits, sources first.
+4. **Claims are sourced as they are written.** Every statement about an engine, a spec or a chip in the docs is
+   written with its official source quoted, as the docs will carry it.
+5. **The phone round is fully automated.** The owner: "complete automation. With zero need of [me] during the
+   entire comparison … only open the browser and at most click a start button, but a single one, and at the very
+   beginning." PHONE-NEXT-PROTOCOL designs the round so: one press starts it; the runner page drives every load,
+   press and wait; the server arms switch from the laptop's script; the screen is kept on (the Screen Wake Lock
+   API, sourced) and the page visible; counted cells only where no hand is needed (Wi-Fi; a tether cell only if its
+   switch is scripted). It lists what the runner (RUNNER-AUTO, the phone session's) must add for this, as asks for
+   the phone session, without changing its tooling. A run's stopping rule counts its wall-clock time.
+6. **What the two views differ on, from theory**, for the view comparison's cells (each a prediction, labelled
+   theory, then measured): where the controller, the store and the paint run (the page's thread or the view
+   worker's), so (a) input to painted latency for a step, a cine frame's pacing and dropped frames, and a Lossless
+   ask, each with the page's thread idle and with fixed long tasks on it; (b) the first picture (the view worker's
+   start); (c) the fill (predicted equal: the decode runs in the decoder workers in both, unless a busy thread delays
+   the acks and the credits pause the wire); (d) memory, page and workers; (e) messages and hops per frame
+   (`docs/client/design.md`). The protocol says which of these decides the view and why.
+7. **The last phone run's six octets.** The owner asks why octets 5 and 6 would be discarded. Until the owner says
+   otherwise, the six-octet reading is the one reported, labelled a departure from the Second amendment (whose
+   10-minute rule bounded an evening's length, planned with no margin over its eight ratios), with the four-octet
+   reading beside it. PHONE-NEXT-PROTOCOL gives its own rule a margin over its minimum n.
+8. **Unification preserves history.** The owner: unify "by merging all the branches that have relevant work instead
+   of creating a branch for main to where we port the thing that we are only interested in. Or squashing … I would
+   like the history to be preserved, even if it's a bit messy and very long." So merges are `--no-ff` merges of the
+   branches themselves, conflicts resolved in the merge commit, cleaning done by commits after (the 11-11 rule:
+   nothing reaches `main` uncleaned; a removal is a commit, recoverable from history). Copy-by-edit stays only for
+   the documentation rows of this round, whose source branches are merged later. The two-week rule still holds:
+   no merge without the owner's word.
+
+### HW-DECODE-DEEP-REVIEW
+
+A session that did not write HW-DECODE-DEEP: check every quoted source against its pinned revision (pick 15 at
+random and fetch each), apply amendments 1–4 to what was pushed, correct `docs/decode/hardware.md` and the PR in
+place, and list for the owner what the sources settle and what only a device run can (the probe).
+
+### MERGE-ALL-PLAN (findings only; test merges in a scratch clone, nothing pushed but the report)
+
+Amendment 8's plan for the client side: every remote branch with client-side work not carried by
+`origin/claude/unified-client` (start from DOCS-SWEEP's inventory, `claude/work-ledger:docs/queue/DOCS-SWEEP-inventory.md`,
+and `claude/merge-plan:docs/reviews/merge-plan.md` §5's ancestry method). For each: relevant or not (and why, in one
+line; "superseded by" names what), carried in part by patch, its PR. Then a merge order into
+`claude/unified-client` (oldest base first, dependents after their bases), and for each step a **test merge** in a
+local clone (`git merge --no-ff`, never pushed): conflicting files, what each conflict is, and the resolution the
+later decisions imply. End with the expected tree differences against today's tip, the cleaning commits that would
+follow, and the owner's calls (one per branch whose relevance is a judgment). Read only; no PR.
 
 ## Procedure, rules
 
