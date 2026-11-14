@@ -156,7 +156,8 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   verdicts, but octet 1 took 99 minutes, so the Second amendment's 10-minute rule stops the run after octet 4 and
   leaves every fill comparison *not decided*; the run commit differs from the demo commit `157b7109` in 20 files of
   the fill's path, so by the run-commit rule no verdict carries to it; loads 6 and 10 were slow on the phone's decode,
-  not the wire. The owner decides which reading stands.
+  not the wire. *Corrected 2026-11-14:* the owner made the six-octet reading the reading of record, a departure from
+  the 10-minute rule, the four-octet reading beside it (phone-blind-read §3).
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
   twelve): running REDTEAM-DEMO, REVIEW-BLIND, TEST-MOBILE, AV1-CORRECT, OPT-THEORY, and the rows added that night:
