@@ -35,7 +35,7 @@ again on dav1d-WASM from its keyframe, `av1.js` `decodeAgain`); a second mismatc
 
 ## Results
 
-*Measured, 2026-11-11, `lab/oq-integrity/run.mjs` on `claude/oq-integrity-build`.* Fixtures: the 18 series of
+*Measured, 2026-11-11, `claude/oq-integrity-build:lab/oq-integrity/run.mjs`.* Fixtures: the 18 series of
 `INTEGRITY=1 scripts/demo-series.sh` (`dbts_a1`, `dbts_b1`, `dbts_c1` of one dataset; Q 8 and 24; G 1, 8, 16; the
 depth cut on `dbts_a1` and `dbts_c1`); one 4-core cloud host without a GPU, headless Chromium on SwiftShader, page
 view, three decoder workers, loopback. No hardware AV1 decoder in any cell, so only the check's plumbing and cost
@@ -54,7 +54,7 @@ are exercised, not the case it exists for.
   (both routes match everywhere, every mutant fails, ≤ 10 % at 4×) holds: *adopt, every frame checked*. The first
   picture, measured and not weighed by the build: median Δ +7.8 % at 1× (−7.7 to +12.9 %) and +3.5 % at 4× (−1.9 to
   +11.3 %), recomputed by the review; the build's "+0 to +13 %" omits four negative cells. Per-series rows:
-  `claude/oq-integrity-build:docs/av1/payload-format.md` §Integrity, raw rows `lab/oq-integrity/rows/` there.
+  `claude/oq-integrity-build:docs/av1/payload-format.md` §Integrity, raw rows `claude/oq-integrity-build:lab/oq-integrity/rows/`.
 * **Where the host saturates:** the fill is decode-bound on three workers of 4 cores. Chromium's 4× throttle moved
   the fill by about a tenth (1182 → 1295 ms on `dbts_a1-q24-g1-cut`), so it reached the page's thread and hardly the
   decoder workers: it is no stand-in for a phone. The spread between series (±4 %) is the size of the effect, so a
