@@ -368,6 +368,124 @@ change replaces what it names; the rest stands.
   the stream's write (I). The hybrid is its natural timing: the fill's record at once, a hide record best effort.
 * A wire change (`docs/WIRE.md`, R): proposed as a lab arm only, the product wire unchanged until a verdict.
 
+**Advocate's amendments** (row REPORT-ADVOCATE-SESSION, 2026-11-14; a session that wrote none of this plan). Sources:
+WebTransport as pinned in §0 (`5287ff36f135`); WebTransport over HTTP/3,
+https://www.ietf.org/archive/id/draft-ietf-webtrans-http3-17.txt (2 November 2026, sha256 `795eee1c2805`); HTML
+whatwg/html `0793d3d8544e` (`source` `7fde2f1fad51`); Chromium `319b309ea895`
+(`third_party/blink/renderer/modules/webtransport/web_transport.cc` `3301caefc9f2`,
+`services/network/web_transport.cc` `48b6b2736a00`); Gecko mozilla-firefox/firefox `c72617c01649`
+(`dom/webtransport/api/WebTransport.cpp` `5df654c2edc2`, `dom/webtransport/parent/WebTransportParent.cpp`
+`7e910f793681`); WebKit `6e6e3c0776f0` (`Source/WebCore/Modules/webtransport/WebTransport.cpp` `41eb903c53a2`); BCD
+`69fcf3608174` (`api/WebTransport.json` `445777319f61`, `api/WebTransportSendStream.json` `70673dc8232e`,
+`api/SharedWorker.json` `4201fa655f63`). Code read on `claude/unified-client`. Each change replaces what it names; the
+rest stands.
+
+* **Where the session is, used** (*advocate*). The downloader, a dedicated worker, "owns the session"
+  (`client/transport/downloader.js`, R), and it spawns the decoder workers itself (`new Worker(… "../decode/decoder.js"
+  …)`, R), where a frame's XXH3 is compared (`client/decode/decoder.js`, R). **So the safety report goes decoder →
+  its parent → a stream on the open session: no page thread on any engine**, and no dependence on a worker's keepalive,
+  which Chromium does not hold past the worker (§3.2). The load report, assembled on the page (PR 370's `loadReport`,
+  R), reaches the downloader by one `postMessage` of the serialized record (§3.1's shared proposal).
+* **A bidirectional stream per record, acknowledged after the write** (*advocate*; this replaces "a unidirectional
+  stream … then FIN"). WebTransport §WebTransportSendStream write: "The fulfillment of the promise returned from this
+  algorithm … does **NOT** necessarily mean that the chunk is acked by the server [QUIC]. It may just mean that the
+  chunk is appended to the buffer. To make sure that the chunk arrives at the server, the server needs to send an
+  application-level acknowledgment message." So each record is one `createBidirectionalStream()`, the record, FIN; the
+  server reads to FIN, appends it, then writes one byte and FIN. The ack is SESSION's outcome, where a beacon has none
+  (Beacon §2.1.4), and it means *written*, which the shared `204` means only if the sink answers after the append
+  (§3.2's shared proposal). Bidirectional, not unidirectional plus an ack on the control stream, so the record and its
+  ack are one object and the control stream's framing (`docs/WIRE.md`, R) is untouched.
+* **Held until acknowledged, across sessions** (*advocate*). The downloader keeps every record whose ack has not come
+  and resends it on the session that replaces a dead or recycled one (its `resume` and `recycle`, R); the `reportId`
+  of §3.2 lets the server drop a second copy. A record never waits on a re-dial it would not otherwise make: pending
+  records ride the next session the load opens.
+* **At once is SESSION's timing, not the hybrid** (*advocate*; this replaces "the hybrid is its natural timing"). A
+  record here costs a stream on a warm connection, no request line, headers, CORS or second connection (I: the bytes
+  cell counts it), so the reason the HTTP carriers batch — a request per event — does not hold. The load report goes
+  as its first record at the fill's end and then as deltas (`seq`, §3.1) at most once a second while anything
+  changed (presses, labels, errors, `received`); the hide send carries only the last second's delta. Every record
+  sent at once and acknowledged is out of reach of what happens at hide; the hide delta is the only best-effort part.
+  **Timings run**: *at once, batched per second* (this design), *the hybrid* (§3.1's, for comparison across carriers)
+  and *at hidden* alone (the A arm the other carriers run); the safety report *at once* in all three.
+* **The hide send, as short as it can be** (*advocate*). The page forwards visibility, `pageshow` and freeze to the
+  downloader already (`downloader.js`: "The page's own triggers — visibility, pageshow, freeze/resume — are forwarded
+  by consumer.js", R); on `visibilitychange` to hidden and on `pagehide` (§3.1's pair, keyed by `seq`) the page posts
+  the delta first, before any other work of that task, and the downloader writes it in the message's own task, nothing
+  awaited before the write. Not run: a `SharedWorker` with `extendedLifetime`, which HTML gives "extra time to perform
+  its operations even after all of its owners have disappeared … for performing asynchronous work after page unload"
+  (HTML, SharedWorkerOptions), to hold a report session past the page: BCD `options_extendedLifetime_parameter` chrome
+  "148", firefox false, safari false, and Gecko's WebTransport says "TODO: Fix the shared and service worker use
+  cases" (`WebTransport.cpp`). Named for later, Chromium-only, as `fetchLater()` is (§2).
+* **The server stamps the link at receipt** (*advocate*). The record arrives on the connection whose `PathStats` the
+  server holds (the lab sampler already takes that handle: `server.rs`, `crate::record::path::run(connection.quic_connection()…)`
+  under the `telemetry` feature, R), so the appended line carries the path's `rtt`, `min_rtt`, `cwnd`, `lost_packets`
+  at the record's arrival, with no join. Across a recycled or resumed session a load spans connections, so the load
+  id of §3.4 is still the key between them: the joinless join holds per session, not per load.
+* **The server's reaction, local** (*advocate*). The server knows which series a session serves (its asks, R), so a
+  safety report can be appended with the server's own name for the series beside `sourceFingerprint` — no catalog
+  lookup for the operator — and §5's re-check of the stored frame, once the coded-bytes digest exists, runs where the
+  bytes are. Nothing of the series leaves the server.
+* **Bounded on the server** (*advocate*). A record over 16 KiB resets the stream (as RECEIVER's cap, §3.5); at most
+  one open report stream per session and a cap on records per session (the protocol sets it) so a client cannot spend
+  the frame server's time; the report streams are read by a task apart from the frame pipeline, so a burst never
+  waits in the fill's path.
+
+**Disadvantages SESSION still carries** (*advocate*, for the protocol to price):
+
+* **Nothing it sends outlives the document.** WebTransport-over-HTTP/3 §6: "Upon learning that the session has been
+  terminated, the endpoint MUST reset the send side and abort reading on the receive side of all unidirectional and
+  bidirectional streams associated with the session". Every engine terminates at the end: Chromium's network service
+  on the renderer's disconnect, "For tab close scenario: Send explicit connection close frame to ensure proper
+  termination before cleanup" (`services/network/web_transport.cc`, `Dispose`); Gecko on the actor's end,
+  `CloseSessionForDestroyedActor()` (`WebTransportParent.cpp`, `ActorDestroy`); WebKit at bfcache entry, `if (why ==
+  ReasonForSuspension::BackForwardCache) cleanupContext();` (`WebTransport.cpp`). There is no browser-held path like
+  BEACON's keepalive: **a record not acknowledged when the page goes is lost**, so the delivery cell's *tab closed*,
+  *navigated* and *killed while visible* rows decide SESSION, and its hide delta is best effort on every engine.
+* **The spec does not yet define the end in a worker**, where our session is. WebTransport §Context cleanup steps:
+  "Issue: This needs to be done in workers too. See #127 and whatwg/html#6731." A dedicated worker lives while its
+  owner set is not empty (HTML §permissible worker); when the document goes, how long the downloader runs to write
+  the hide delta is the engine's (I: the delivery cell, per engine).
+* **Two hops at hide**: page → downloader → stream, against BEACON's one call. A busy downloader (dispatch, records)
+  delays the write by its current task (I: the latency cell with a loaded downloader).
+* **A load whose session never opens sends nothing**: a failed dial, a refused certificate, a blocked UDP path — the
+  loads whose report says most. Its reports wait for a session that does not come. No fix inside the carrier; see the
+  shared parts below.
+* **The link and the report fail together.** A dropped link kills the session; records wait for the downloader's
+  re-dial (`live()`, R), so a load ended during a drop loses them, where an HTTP carrier on another path (TCP to
+  nginx) might not (I: the *link dropped before hide* row).
+* **WebKit's bfcache ends the session** (above): after a `pageshow` with `persisted`, a hide delta waits for a
+  re-dial. **Gecko keeps such a page out of bfcache** ("Don't let this document go into BFCache",
+  `RemoveFromBFCacheSync()`, `WebTransport.cpp`) and Chromium only for a `no-store` page ("`kWebTransportSticky`: a
+  sticky feature that will only disable BFCache for the page containing "Cache-Control: no-store" header",
+  `web_transport.cc`). These are the session's costs, which the product pays anyway; SESSION makes the reports
+  depend on them.
+* **No send order on Chromium**: BCD `createUnidirectionalStream.options_sendOrder_parameter` and
+  `WebTransportSendStream.sendOrder` chrome false (firefox "119"/"121", safari "26.4"). A record sent during a fill
+  shares the window with the media streams, which "SHOULD divide bandwidth fairly" (§WebTransportSendStream write); a
+  few hundred bytes, but a cost on the fill's path the HTTP carriers do not have on QUIC (I: the cost cell with a
+  safety report mid-fill).
+* **A wire change and a receiver in the frame server.** The server accepts a second kind of client bidi stream
+  (today it accepts the control stream only, `server.rs`, R), so `docs/WIRE.md` gains a stream type; it parses JSON
+  and checks the field list in Rust, a second implementation beside RECEIVER's; its log is a file the operator must
+  keep apart from the server's own; and its CPU is the frame server's (the receiver cell runs it while serving).
+* **Per-session stream limits not traced**: WebTransport-over-HTTP/3 §5.5.2: "The default value for the
+  SETTINGS_WT_INITIAL_MAX_STREAMS_BIDI setting is "0", indicating that the endpoint needs to send WT_MAX_STREAMS
+  capsules on each individual WebTransport session before its peer is allowed to create any bidirectional streams";
+  whether the patched `wtransport` 0.7 and Chromium negotiate that draft's flow control is not read (I: the build's
+  first smoke round).
+
+**What the shared parts cost SESSION** (*advocate*; proposed for every carrier alike):
+
+* **The sink contract is HTTP's.** "`POST <url>` with one JSON object, `204`" does not fit a stream. Proposed: the
+  contract is *one record in, one acknowledgement after the append*, with two bindings, HTTP's `204` and the stream's
+  byte, and one set of counters (received, appended, acknowledged, duplicates by `reportId`) the harness reads alike.
+* **The receivers are a family SESSION is outside.** Its receiver is the frame server. Proposed: the receiver cell
+  gains a third row, *the server*, measured while it serves a fill, beside NGINX and RECEIVER.
+* **The field list, once.** One file both the JavaScript side and the Rust server read (the shared record's schema),
+  so "a field outside the list" is one mutant against one list for every receiver.
+* **A delivery row for a session that never opens** (a failed dial), for every carrier, so SESSION's blind spot is
+  priced and the HTTP carriers' answer to it is counted, not assumed.
+
 ### 3.4 The link, every arm
 
 * **Server side, always**: at session end (and at the fill's last frame) the server writes one line: `rtt`,
