@@ -160,7 +160,9 @@ both arms, and is left out.
   4×, the mammogram at 1×; Firefox US at 1×, tomosynthesis at 4×, there with the fill ×1.058). It is later in 15 of
   16 cells, VOID or not. Why is not measured; the view worker's start (its module graph, its WebGL context, its
   consumer) lies on B′'s path to the first frame and not on A's.
-* **(2), the asks:** no decided cell has B′'s median arrival → screen 16.7 ms sooner in 9 of 12 rounds. On the CT and
+* **(2), the asks:** no decided cell has B′'s median arrival → screen 16.7 ms sooner in 9 of 12 rounds. *Amended
+  2026-11-02, before its data:* scored on the mean and on the asks inside a long task, B′ wins the busy page on both
+  engines; this verdict, by the median, stands as run ([the view worker under a busy page](view-worker-under-a-busy-page.md)). On the CT and
   US series most asks land outside a long task, so A's median is the quiet path (11–25 ms) in both engines.
 
 **What §2 predicted, against this.**
