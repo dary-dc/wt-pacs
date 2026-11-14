@@ -3,6 +3,7 @@
 
 mod group;
 mod htj2k;
+mod optimal;
 
 use anyhow::{bail, ensure, Context, Result};
 use clap::Parser;
