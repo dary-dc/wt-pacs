@@ -1,18 +1,17 @@
-state: started
+state: done
 started: 2026-11-14T21:15Z
-heartbeat: 2026-11-14T23:05Z
-outputs: claude/oq-ingest (pushed, from origin/claude/unified-client e5b20cba), draft PR not yet
+heartbeat: 2026-11-14T23:40Z
+outputs: claude/oq-ingest at 7a459b23 (from origin/claude/unified-client e5b20cba), draft PR #390 into claude/unified-client
 ## Resume
-Design (from INGEST-OQ's R): the Rust ingest `ingest/from-parser` gains `--optimal-quality [Q]` (off by default, Q 8
-when bare, 1-63) and `--group G` (default 8: no per-modality G is measured yet). After the exact bundle is written,
-the OQ bundle `<stem>-q<Q>-g<G>[-cut].sbnd` beside it: aomenc 3.15.1 subprocess with ingest.py's lossy_args, one run
-per group, every frame decoded from its keyframe through libdecode's av1_decode; unsigned D > 10 always the cut;
-signed over 10 bits after the offset and RGB refused by name (exact kept). Reconstruction digest: PR 368 not in the
-docs, named as the next step. Parity: same.py/same_test.py extended (Rust OQ vs ingest.py's `coded(lossy=)`).
-Branch claude/oq-ingest fast-forwarded to origin/claude/unified-client e5b20cba (its old 11-09 commits are in it).
-Done (pushed): src/optimal.rs + main.rs flag, same.py/same_test.py parity (Rust OQ == ingest.py lossy on g8 s8 g12
-g16, s12 and c8 refused by both), 21 mutants all killed (list in scratch, goes into the PR body).
-Done: dbts_a1 Q 8 G 8 cut, Rust payloads == ingest_coded.py's (4,640,828 B), fingerprint equal, checkPair accepts.
-Docs pushed (7a459b23). Gate running. NOTE: PR #321 (old, claude/oq-ingest into claude/core) is open on the same branch; the fast-forward grew its diff (owner's call). Next: full gate (`PYTHON=.venv/bin/python scripts/gate.sh`, dockerd started, meson 1.9.1,
-ingest/tools.sh built), then the draft PR into claude/unified-client, then Result.
+Done. For OQ-INGEST-REVIEW: build per README cloud lines (ingest/tools.sh, .venv from ingest/requirements.txt), then
+`cargo test -p from-parser`, `.venv/bin/python ingest/from-parser/same_test.py`, the PR body's mutant list.
 ## Result
+Built: `ingest/from-parser --optimal-quality [Q] [--group G]` (Rust ingest, INGEST-OQ's R), off by default, Q 8 bare,
+G 8 default; writes `<stem>-q<Q>-g<G>[-cut].sbnd` after the exact series. Unsigned D > 10 always the cut; signed over
+10 bits and RGB refused by name, exact kept (S2). Tests failing first, 21 mutants all killed.
+Parity: byte-identical to ingest.py's `lossy` on synthetic sets at --jobs 1, 2, 4 (gate); on dbts_a1 Q 8 G 8 cut the
+56 payloads equal the lab tool's (4,640,828 B), fingerprint equal, checkPair accepts. Metadata differs only by display
+keys (phase 2). Full gate OK, 712 s (skipped: lavapipe, Xvfb, GL/Firefox, nginx). Not run: demo-check.mjs on the pair.
+Not built: reconstruction digest (PR 368 not adopted), G per modality (none measured).
+Owner: (1) S1 or S2 for signed > 10 bits (S2 built); (2) PR #321, the 11-09 work on the same branch into claude/core,
+now shows the unified history after the fast-forward: keep, retarget or close is yours.
