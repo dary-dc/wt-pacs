@@ -123,7 +123,7 @@ fill; it replaces it. While a fill runs, the planner checks for new messages bet
 any message in hand ends the fill — a `request_frame`, a batch, a new `stream_frames`, an
 `end_stream` (which is then consumed), an `end_session`. There is no saved position: the fill does
 not resume. The asked frame is served next, and a client that still wants the rest of the run asks
-for it again; the downloader does so by itself. That re-ask is this shape's cost, which row 229 only
+for it again; the downloader does so by itself. That re-ask is this shape's cost ([`client/evidence/re-asking-the-fill-after-an-ask.md`](client/evidence/re-asking-the-fill-after-an-ask.md)), which row 229 only
 shortens; queue row 249 proposes a server that keeps the fill and moves the asked frame to its front.
 Tests: `a_data_request_during_a_fill_ends_it_and_is_served_next` (`planner.rs`) and `request_frame_during_fill_switches_to_on_demand` (`server.rs`, "fill kept
 reciting after the mode switch").
@@ -213,7 +213,8 @@ code stay.
 
 **Candidate 3, today with row 229's head re-issue.** The baseline.
 
-**What decides** (a protocol for a separate session; the rule is fixed before the data):
+**What decides** (a protocol for a separate session; the rule is fixed before the data; *corrected 2026-11-14:* this
+read as unmeasured, but it ran on 2026-10-16, see the end of this section):
 
 * **Arms:** 3; 3 again (the A/A arm); 1; 1 with `--send-window-follows-cwnd`; 3 with `--send-window-follows-cwnd`,
   which separates the window's share from the queue's.
@@ -224,6 +225,13 @@ code stay.
 * **Rule:** the better of the two arms of candidate 1 becomes the default if neither its asks nor its fills are worse
   than 3's beyond the A/A spread in any cell. A tie adopts it, because it removes code. Worse in any cell makes it a
   trade-off for the owner, with those cells as its cost.
+
+**Measured, 2026-10-16 and 2026-10-22: a trade-off for the owner; nothing changed, the flags stay off.** Candidate 1
+alone moved the ask ×0.988–1.267 (a tie, or worse in four 10 % cells); with the send window it was ×0.320–0.900, better
+in 25 of 28 cells, at a fill +45 ms (strict +54) at 103 Mbit/s / 92 ms FIFO 20 and +14 ms at 103/46 CoDel, both at 50 %;
+the window alone gave the same asks, so the gain is the window's. A rerun beside an ask stream of its own kept the
+queue with the window as the candidate, its one fill cost +31 ms at 103/92 CoDel, the strict reading undecided on that
+host. Fixtures, saturation and every cell: [`client/evidence/ask-during-a-fill.md`](client/evidence/ask-during-a-fill.md).
 
 ## The opening ask
 

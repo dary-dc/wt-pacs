@@ -114,6 +114,9 @@ commit, and each holds as cited unless corrected above:
 * MAP (`claude/ask-patterns-map` at `8ffe467`), `docs/ARCHITECTURE.md`. Lines 403–404 name the drilling trace, a
   sawtooth over a third of the stack at 25 slices/s; line 377 gives its rate, Diaz et al. 2015 (abstract only),
   25–30 slices/s.
+  *Corrected 2026-11-14:* MAP's text was on that branch only, not in the tree, so these citations could not be
+  followed here; it now is: [`how-viewers-and-readers-ask.md`](how-viewers-and-readers-ask.md), pattern 1 for the
+  trace and the readers' table for the rate.
 * The table (`claude/vw-experiments` at `9a829a4`), frame-path.md lines 952 and 968–973.
 * The independent design (`claude/review-blind` at `a429a6c`), `docs/adr/frame-path.md`. Lines 428–431 give rule 3,
   waiting for the frame next in the run; line 525 gives its depth, k = 1…8.
