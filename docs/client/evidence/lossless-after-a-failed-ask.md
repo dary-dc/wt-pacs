@@ -56,7 +56,7 @@ The timings depend on the outage's length and decide nothing about the schedule;
 **Review** (2026-11-12, a session that wrote neither fix): the two re-ask tests fail without the fix and three further
 mutants are killed; the fix touches `controller.js` only. **Findings:** *every* rejection is re-asked, not only a lost
 transport, so a refusal that will repeat (e.g. `no decoder: …`) shows *asking* for about 21 s before *failed* (bounded,
-harmless to the frame); and the lab rig `lab/lossless-under-loss/` rides the PR, which under the owner's 2026-11-11
+harmless to the frame); and the lab rig `claude/lossless-under-loss:lab/lossless-under-loss/` rides the PR, which under the owner's 2026-11-11
 rule stays off the product path.
 
 ## Not done, for the owner

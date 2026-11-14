@@ -53,7 +53,7 @@ both, and changes:
 ## 2 · The tools (2026-11-11, `claude/phone-tools`, `962226e8`; older form `claude/phone-devtools` `eb028344`)
 
 Each image labelled with its commit (OCI `revision`); a test-only server image with the telemetry feature (the
-default image unchanged); `lab/phone/read-path.sh`, which read path a running server took; under `lab/phone/`, loaded
+default image unchanged); `claude/phone-tools:lab/phone/read-path.sh`, which read path a running server took; under `claude/phone-tools:lab/phone/`, loaded
 only through the lab gate, a client beacon (`?beacon=`, sent after the fill or on page hide; `dev-server.py --beacon
 FILE`) and a runner page walking the octets above. **Checked headless on loopback on a synthetic pair, not on a phone,
 not under SELinux.** As built, the status line's fill starts at the page's issue, before the downloader dials, so it is

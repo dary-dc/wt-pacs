@@ -59,4 +59,4 @@ comparison is *not decided* by the run's own rule, and none carries to the demo 
 stays the owner's** (2026-11-11: the page view stays; decided after the phone runs). *Decides:* the next phone round,
 its amendment written by a session that will not run it, with a hands-off runner.
 
-Raw rows: `claude/fill-split:docs/phone-rows/raw/`, read by `lab/phone/rows.py` (reproduce in that README).
+Raw rows: `claude/fill-split:docs/phone-rows/raw/`, read by `claude/fill-split:lab/phone/rows.py` (reproduce in that README).

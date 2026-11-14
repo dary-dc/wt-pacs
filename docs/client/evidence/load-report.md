@@ -16,7 +16,7 @@ timed.***
   describes that day's build, not a rule. The comparison rule stands: **the page clock, measured by the client, is
   what counts.**
 * **2026-11-11:** client telemetry is an essential part of the product, built now, sampled; **one implementation per
-  job**: the phone run's beacon (`lab/phone/beacon.js`) becomes a switch that turns the product module on, and its
+  job**: the phone run's beacon (`claude/phone-tools:lab/phone/beacon.js`) becomes a switch that turns the product module on, and its
   duplicate code goes. Telemetry is off by default (rate 0).
 * **2026-11-14, which changes the ADR:** exactness failures are a **safety report, not telemetry**: always on, never
   sampled, not gated by the rate, on the load report's endpoint and record format ([`../design.md`](../design.md)
@@ -35,7 +35,7 @@ lab's Tap shipped (the Tap patches `WebTransport`, writes a row per frame and st
 ## The design (§8, as built on that branch; where it differs from §1–§7 it holds)
 
 * **What:** the *load report*, one JSON object per page load, assembled in memory and sent once by
-  `client/viewer/load-report.js`. Nothing per frame on the wire, nothing before the load ends, so it never competes
+  `claude/telemetry-client:client/viewer/load-report.js`. Nothing per frame on the wire, nothing before the load ends, so it never competes
   with the fill.
 * **When: once, when the page turns hidden.** A viewer's load has no end the page can see before that (a reader may
   ask a frame at any time); every way of leaving passes through hidden (HTML: *unload a document* fires `pagehide`
