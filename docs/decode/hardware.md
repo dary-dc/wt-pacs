@@ -387,6 +387,14 @@ developer documentation JSON for `VTIsHardwareDecodeSupported(_:)` (`68a68a5f9b4
 `kCVPixelFormatType_420YpCbCr10BiPlanarFullRange` (`79f8ddf79873`), `kCMVideoCodecType_AV1` (`9daf916c7835`).
 Not read: Samsung's Galaxy S23 page and its Exynos and Google Tensor pages, which serve no text without a script.
 
+**Read 2026-11-14 in review (§18).** The 15 sampled copies above, fetched again (same hashes, Android's pages
+excepted, §18.0); W3C WebCodecs WD 9 November 2026 §9.4.1, §9.4.5, §9.4.6 and WebGPU CRD 15 September 2026 §6.4, as
+pinned; WebGL 1.0 `specs/latest/1.0/index.html` at `39443210` (`0735f489eba0`), §Pixel Storage Parameters; Chromium
+157.0.8103.79 `webcodecs/video_frame.cc:487–540, 1274–1300, 1428–1450` and 158 `:509`,
+`webgl/webgl_rendering_context_base.cc:6575–6707`, `media/gpu/android/media_codec_video_decoder.cc:84–100`; Qualcomm's
+release "Snapdragon 8 Gen 2 Defines a New Standard for Premium Smartphones" (qualcomm.com, script-only, not read) as
+republished at `edge-ai-vision.com/2022/11/snapdragon-8-gen-2-defines-a-new-standard-for-premium-smartphones/`.
+
 ## 11. The optimal-quality view, 2026-11-14
 
 **The question, again:** which hardware decode paths can serve the optimal-quality view, in which browsers and
@@ -612,3 +620,154 @@ the shader. **Predictions** (from §12–§13): on the phone, `g8f` and `g10f` d
 listed, and come back `BGRX`; `g8` and `g10` unknown; `ramp10` at most 256 values on both APIs. On desktop Chromium,
 `g8` and `g10` fail on their first chunk; `g8f` comes back `NV12` exact; `g10f` throws at `copyTo`; `ramp10` 256
 values through WebGPU, WebGL unknown.
+
+## 18. Review, 2026-11-14
+
+*Queue row HW-DECODE-DEEP-REVIEW, a session that wrote none of §11–§17. Theory and sources only; nothing run on a
+device or a GPU.*
+
+### 18.0 The sources, sampled
+
+15 of the 39 quoted claims in §11–§17 and their corrections, drawn with Python's `random.Random(20261114).sample`,
+each fetched again from its pinned revision and read at its lines:
+
+| # | claim | source as pinned | holds |
+| --- | --- | --- | --- |
+| 2 | "Only YUV 4:2:0 and YUV 4:4:4 are supported", `return kDecodeError` | 158.0.8127.36 `media/gpu/av1_decoder.cc:389–392` (`fb902c60ef53`) | yes |
+| 5 | `result.subsampling = VideoChromaSampling::k400` | 157.0.8103.79 `media/base/video_codec_string_parsers.cc:357–359` (`a5df66a60183`) | yes |
+| 8 | `name: "WebCodecsHBDFormats", status: "stable"` | 141.0.7390.37 `runtime_enabled_features.json5:5540–5541` (`645f5b7eaba4`) | yes |
+| 9 | `VideoPixelFormat` has no `P010` | W3C WebCodecs WD 9 November 2026, §9.8 (`0fa152953edb`) | yes |
+| 14 | "Externally-sampled frames can be read back as YUV (NV12/I420) or RGB", else `PIXEL_FORMAT_XRGB` | 157 `webcodecs/video_frame.cc:465–476` (`28e41e741719`) | yes |
+| 15 | `kMediaCodecBlockModelOutput`, `FEATURE_DISABLED_BY_DEFAULT` | 157 `media/base/media_switches.cc:1303` (`08f2faab9844`) | yes |
+| 16 | `prefer-hardware` keeps only the external factory | 157 `video_decoder_broker.cc:200–216` (`88b37012a004`) | yes |
+| 24 | "N32 may be incorrect when drawing high bit depth frames" | 157 `video_frame_image_util.cc:354–356` (`f1b93846c0b4`) | yes |
+| 26 | "High bit depth formats should also use F16, but do not yet." | 157 and 158 `external_texture_helper.cc:401` (`cec4fc80a2cc`, `2e1f8985b250`) | yes |
+| 28 | "Hardware-accelerated H.265 and VP9 decoder"; "Part Number: SM8550-AB, SM8550-AC2" | Qualcomm Snapdragon 8 Gen 2 brief, modified 2024-11-19 (`493f0b17eba3`) | yes |
+| 31 | "Returns a Boolean value that indicates whether the current system supports hardware decode for the specified codec." | Apple documentation JSON, `VTIsHardwareDecodeSupported(_:)` (`68a68a5f9b48`) | yes |
+| 32 | "Each sample is represented by a 16-bit little-endian value, with the lower 6 bits set to zero" | Android `ImageFormat.YCBCR_P010`, "Last updated 2026-08-03 UTC" | yes; the page's hash is now `02d403da66e9` |
+| 33 | `COLOR_FormatYUVP010`, "10 MSB of actual data", API 33 | Android `MediaCodecInfo.CodecCapabilities`, the same date | yes; hash now `b219fa52a8b7` |
+| 36 | "This process only reads a remote image back as RGB." | Gecko `c72617c01649` `dom/media/ImagePixelFormat.cpp:145` (`7de5cba7d740`) | yes |
+| 39 | 157.0.8103.79 the newest 157, 158.0.8127.36 stable, on Android | chromiumdash `fetch_releases?channel=Stable&platform=Android` | yes |
+
+15 of 15 hold. Every Chromium, Gecko, W3C, Qualcomm and Apple copy has the pinned hash. Android's reference pages
+changed bytes under the same "Last updated" date (a page template, presumably; the quoted text is unchanged).
+
+### 18.1 Amendment 1: every frame checked, so how do the samples reach an XXH3?
+
+The reconstruction digest is XXH3-64 over the decoded samples as stored (§13). For each path:
+
+| path | how the decoder's samples could reach an XXH3 | checked? |
+| --- | --- | --- |
+| desktop Chromium, 8-bit 4:2:0 (GREY420) | `copyTo()` with no `format` on an `NV12` frame: a plane copy (§12, gate 3) | **yes**, after a GPU read-back; 8 bits only |
+| desktop Chromium, 10-bit 4:2:0 | none: `P010` has no `VideoPixelFormat`, so `format` is null and `copyTo` throws; an explicit `format` other than RGB throws too (§18.2 b) | **no** |
+| desktop Chromium, 4:0:0 | refused before decode (gate 2) | — |
+| Chrome Android, any form | none: the frame is `ABGR` behind an external sampler; `copyTo` gives `BGRX`, the device's conversion (§12) | **no** |
+| a shader hashing a texture (WebGL2, WebGPU) | only over a converted RGB picture, whose conversion no spec defines (§18.2 a), and at 8 bits on every path traced (§13) | **no**: not the samples, not predictable |
+| Firefox | remote frames come back `BGRX` (§4.2) | **no** |
+| Safari | `<video>` only; no planes (§4.3) | **no** |
+| native (VideoToolbox, MediaCodec, VA-API, NVDEC, D3D12, Vulkan) | the decoder's own planes, hashed by the application (§5, §15) | **yes** |
+| any browser, software (today) | `copyTo` of a frame in memory | **yes** (today's check) |
+
+**So a browser hardware path serves the checked view only as desktop Chromium's 8-bit GREY420.** On the phone,
+none does at any depth; at 10 bits, none does in any browser (S for each step, as cited; D for the table).
+
+### 18.2 Amendment 10, re-verified
+
+**(a) Can a hash on the GPU of a converted texture be checked against a digest predicted at ingest?** No: every
+browser conversion from the decoder's YUV to what a page or shader sees is left to the implementation.
+
+* WebCodecs, `copyTo` with an RGB `format`: the *Convert to RGB frame* algorithm makes "a new media resource
+  containing the result of conversion of media resource referenced by frame's [[resource reference]] into a color
+  space and pixel format specified by [[color space]] and [[format]] respectively" (S, W3C WebCodecs WD 9 November
+  2026, §9.4.6). It names no matrix, range handling or rounding. Chromium's `ConvertAndCopyToRGB` (157
+  `video_frame.cc:1274`) is one implementation of it.
+* WebGPU, `importExternalTexture`: "The underlying representation of an external texture is unobservable (except
+  for precise sampling behavior)", and "The configuration used internally by an implementation may be inconsistent
+  across time, systems, user agents, media sources, or even frames within a single video source" (S, W3C WebGPU CRD
+  15 September 2026, §6.4); "the result is in the color space set by colorSpace", and "It is
+  implementation-dependent whether, for any given external texture, the sampler (and filtering) is applied before or
+  after conversion" (S, the same, §6.5 Sampling External Texture Bindings).
+* WebGL, `texImage2D(VideoFrame)`: "The precise conversions may be specific to both the browser and file type. If set
+  to NONE, no colorspace conversion is applied, other than conversion to RGBA. (For example, a rec709 YUV video is
+  still converted to rec709 RGB data …)" (S, WebGL 1.0 at `39443210`, §Pixel Storage Parameters, which WebGL 2.0
+  inherits).
+
+So a digest of a converted picture would be per engine, GPU, driver and even frame; it cannot be predicted at ingest,
+and it would cover RGB at 8 bits a channel, not the 10-bit samples (D). **Verified**, with one exception the claim
+missed: desktop Chromium's `NV12` plane copy, which is not a conversion (§18.1).
+
+**(b) "How can the only mechanism to take out a frame from WebCodecs not support its output format?"** By the spec,
+a frame leaves as its samples only in its own `format`; any explicit `format` must be RGB. *Parse
+VideoFrameCopyToOptions*: "If options.format does not exist, assign [[format]] to format. Otherwise, if
+options.format is equal to one of RGBA, RGBX, BGRA, BGRX, then assign options.format to format, otherwise return
+NotSupportedError" (S, WebCodecs WD 9 November 2026, §9.4.6). And `format` "will be null whenever the underlying
+format does not map" (§9.4.1), and copyTo rejects when "[[format]] is null and options.format does not exist"
+(§9.4.5). So `copyTo({format: "I420P10"})` from a `P010` frame, a lossless re-layout, is **not specified**: the spec
+returns `NotSupportedError`. Chromium 157 and 158 implement the same rule: "copyTo() doesn't support explicit copy to
+non-RGB formats. Remove format parameter to use VideoFrame's pixel format." (S, `webcodecs/video_frame.cc:513–518`
+at 157, `:509` at 158). **Verified**: a `P010` frame leaves only as an RGB picture, never as its samples.
+
+### 18.3 Amendment 2: why `prefer-software`
+
+`git log -S prefer-software --all` puts its first product use in row WCDEC, `5810acc8` (2026-10-03): `vd.configure({
+codec: "av01.0.04M.10", hardwareAcceleration: "prefer-software" })` in `client/downloader/decode-av1-webcodecs.js`.
+That commit's docs (`docs/decode/README.md`, `docs/av1/adr-unit.md`, `docs/av1/README.md`, the downloader's README)
+say nothing about the choice, and no later doc gives a reason: `payload-format.md` §Decoder choice and `av1/README.md`
+§Phones state it as a fact. **No reason is recorded: a documentation finding.** What the record of that date does
+hold: row WCAP (`58bcd246`, the same day) proved exactness only in software, with "`prefer-hardware` is unsupported
+for every config here (no GPU)" (`docs/decode/README.md` §WCAP), and the view was then lossless, so an unproven
+hardware path risked the exactness rule (D, a reading, not a recorded reason).
+
+**Does it still hold?** The view is now lossy and checked by its reconstruction digest, so a hardware decoder would
+not have to be lossless-exact; it would have to give the decoded samples back for the digest. §18.1 shows that only
+desktop Chromium's 8-bit GREY420 does. With `no-preference` a 4:0:0 view on desktop fails on its first chunk (gate 2)
+and on Android comes back unchecked as RGB (§12). So **today's sources still support `prefer-software` for the view
+as coded**, now for a reason that should be written beside the line: no hardware path returns the view's samples for
+its check. The parameter is a hint ("User Agents may ignore … for any reason", S, WebCodecs §7.9, as quoted in
+`payload-format.md`), so the decoder Chrome took must be recorded, never assumed (`docs/client/design.md` §Open).
+
+### 18.4 Amendment 3: 4:2:0 grey for hardware, re-judged
+
+GREY420 was rejected on Chromium's software decode alone: "Chromium's total time is not unchanged — it is slower by
+the bytes on every cell and by 3.4 % where its decode is the clock" ([`../av1/payload-format.md`](../av1/payload-format.md)
+§8-bit grey as 4:2:0, not adopted, row GREY420). For hardware:
+
+* **8 bits, desktop Chromium:** the one browser form a hardware decoder takes and gives back as samples (`NV12`,
+  §18.1), so the one browser hardware path that could serve a checked view, an 8-bit one. Its byte cost on the lossy
+  view is not measured (§14); its hardware decode time, and whether the `NV12` read-back is cheaper than software
+  decode, wait on a desktop GPU (the owner's machine).
+* **8 bits, Android:** decodes where a codec is listed, comes back `BGRX`: unchecked, so it does not serve.
+* **10 bits, every browser:** Main 10 decoders take it, and no browser gives a 10-bit hardware frame's samples back
+  (`P010`, §18.2 b): it does not serve. Building it (`--grey8` is 8-bit only) changes no browser verdict.
+* **Native, 8 and 10 bits:** every API returns the planes (§5); GREY420 is the form every decoder there takes, where
+  4:0:0 is shown only on NVDEC. The reason to revisit it is native, as §8 said.
+
+So the re-judgement moves GREY420 from "rejected" to "the browser's only checkable hardware form, 8-bit, desktop
+Chromium, unmeasured on hardware", and adds nothing at 10 bits or on the phone. Whether an 8-bit view is acceptable is
+DEPTH8-THEORY's question and the owner's.
+
+### 18.5 Amendment 4: claims sourced as written
+
+§11–§17 quote their sources, with three gaps, now closed or marked: WebGL's precision cell named a path hardware frames
+never take (corrected in §13); the Galaxy S23's SoC was unsourced, and Qualcomm's release was not read (marked in
+§15); §16's "painted without read-back" column read as serving the view without its check (noted in §16). The
+`kMediaCodecBlockModelOutput` line now reads in full: "Enables output-side block model (OutputFrame) on supported
+devices", disabled by default (S, 157 `media_switches.cc:1302–1303`). It is off, so it changes nothing today.
+
+### 18.6 For the owner: what the sources settle, what only a device can
+
+**Settled by the sources:**
+
+* No browser hardware path returns a 10-bit frame's samples, so none can serve the checked 10-bit view. On Android
+  none returns samples at any depth (§18.1, §18.2).
+* No spec defines a browser's YUV-to-RGB conversion, so a GPU hash of a converted texture cannot be checked against an
+  ingest digest (§18.2 a). `copyTo` to `I420P10` from `P010` is neither specified nor implemented (§18.2 b).
+* `isConfigSupported(prefer-hardware)` matches profile and size, never layout (§12).
+* `prefer-software` was set with no recorded reason; today's sources support it for the view as coded (§18.3).
+
+**Only a device run can settle** (the probe, §17): whether the Galaxy S23 has a hardware AV1 decoder at all (its
+brief says no, a republished release says yes, §15); whether its codec takes 4:0:0; whether desktop Chromium's
+GREY420 `NV12` read-back is exact and faster than software; the precision of WebGL's shared-image copies (§13).
+
+**The owner's:** whether an 8-bit view (GREY420 on desktop, checked) or an unchecked hardware view is ever acceptable
+beside the 10-bit software one; and the line beside `prefer-software` that records its reason.
