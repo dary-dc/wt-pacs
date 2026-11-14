@@ -1,13 +1,17 @@
-state: started
+state: done
 started: 2026-11-14T21:13Z
-heartbeat: 2026-11-14T21:35Z
-outputs: claude/hw-decode (PR #387)
+heartbeat: 2026-11-14T22:10Z
+outputs: claude/hw-decode b631179a (e7457cd3, 6cf17612, b631179a); PR #387 body (Review section)
 ## Resume
-Done (not yet pushed to claude/hw-decode): 15 sources drawn at random (seed 20261114 over 39 quoted claims) and
-fetched: 15/15 quotes and lines match; every Chromium, Gecko, W3C and Apple copy has the pinned hash; Android's two
-reference pages differ in hash (same "Last updated 2026-08-03") but the quoted text is there. Amendment 2 traced:
-`prefer-software` arrived in WCDEC 5810acc8 (2026-10-03) with no reason recorded.
-Next: amendment 10 (a) conversion specified or not, (b) copyTo(I420P10) from P010; amendments 1, 3; edit
-docs/decode/hardware.md (§18 review), docs/lines/client.md; PR #387 body findings. Worktree: git worktree add
-/home/user/hw origin/claude/hw-decode; sources in the session scratchpad (re-fetch by the URLs in hardware.md §10).
+Done. Nothing pending.
 ## Result
+- 15 of 39 quoted claims drawn at random (seed 20261114), re-fetched at their pins: 15/15 hold; Android's reference pages changed hash, same text.
+- Amendment 1: only desktop Chromium's 8-bit GREY420 (NV12 plane copy) and native return samples to an XXH3; nothing on the phone, nothing at 10 bits in a browser (§18.1).
+- Amendment 10a verified: no spec defines the YUV-to-RGB conversion (WebCodecs §9.4.6, WebGPU §6.4/6.5, WebGL pixel storage), so a GPU hash cannot match an ingest digest.
+- Amendment 10b verified: copyTo({format: "I420P10"}) is NotSupportedError by spec and in Chromium 157/158.
+- Amendment 2: prefer-software arrived in WCDEC 5810acc8 with no recorded reason (a documentation finding); today's sources still support it.
+- Amendment 3: GREY420 is the browser's only checkable hardware form, 8-bit, desktop Chromium, unmeasured on hardware.
+- Corrected in place: WebGL's half-float path is CPU frames only; the S23's SoC is unsourced and a republished Qualcomm release claims AV1; §11, §16 notes.
+- Fixtures and limits: no device, no GPU; sources only. Gate stopped at prerequisites (WASM transport unbuilt), docs-only; check_links 0 unresolved; comment budget green.
+- Device-only: S23 AV1 hardware at all, 4:0:0 on its codec, GREY420 NV12 exactness and speed, WebGL shared-image precision (§17 probe).
+- Owner: whether an 8-bit checked or an unchecked hardware view is ever acceptable; the reason line beside prefer-software.
