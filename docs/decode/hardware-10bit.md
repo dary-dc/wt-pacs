@@ -50,7 +50,7 @@ only).
 
 ## 2. What a route must do
 
-Two conditions, both required (amendment 1 of `docs/queue-client-2026-11-14.md`):
+Two conditions, both required (amendment 1 of `claude/work-ledger:docs/queue-client-2026-11-14.md`):
 
 * **Painted at full precision:** every one of the frame's 10 bits reaches the window table (VOI). On 8 bits a window
   narrower than 1024 codes repeats display levels ([`hardware.md`](hardware.md) §13).
