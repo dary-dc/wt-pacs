@@ -179,7 +179,15 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
     after. Then a reading pass with the owner, ESSENTIALS' points first, deeper only where time allows.
 12. Which view the demo shows, and whether the page view is ever removed: decided after the phone runs (the owner,
     2026-11-11). No measurement yet shows the view worker faster; both pass every correctness check.
-6. The DICOM ingest codes optimal quality (today only the lab tool does).
+6. The product ingest codes optimal quality: **built, experimental** (OQ-INGEST, 2026-11-14, `claude/oq-ingest`,
+   draft PR into `claude/unified-client`): `ingest/from-parser --optimal-quality [Q] [--group G]`, off by default,
+   byte-identical to `ingest.py`'s `lossy` on synthetic sets in the gate and on `dbts_a1` Q 8 G 8 cut
+   ([`../av1/payload-format.md`](../av1/payload-format.md) §Optimal quality). Owed: the owner's S1/S2 for signed
+   sources over 10 bits (S2 built), G per modality once measured, phase 2's display keys and several instances a
+   series, a reconstruction digest if PR 368 is adopted; the DICOM ingest (`from_dicom.py`) does not code it.
+   Reviewed (OQ-INGEST-REVIEW, 2026-11-14, PR #390's body): the flag off writes the same bytes as `e5b20cba`'s
+   ingest on six synthetic sets; no blocker. Untested: the aomenc pin, aomenc not needed with the flag off, exit 1 on
+   a refusal; the "both refuse" for signed over 10 bits is `same.py`'s own rule, not `ingest.py`'s.
 7. The depth cut for D > 10 (the optimal-quality picture through WebCodecs, painted from its 10-bit codes through a window table, no
    shift pass); D ≤ 10 needs none. Build `claude/oq-depth-cut` (stacks on the two OQ branches). Full fidelity is the
    exact HTJ2K frame; a 12-bit stored form through dav1d is the same lossy picture at the stored depth, a decode alternative.

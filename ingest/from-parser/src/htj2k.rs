@@ -5,12 +5,12 @@ use std::ffi::{c_char, c_void, CStr};
 
 #[repr(C)]
 #[derive(Default)]
-struct Shape {
-    w: i32,
-    h: i32,
-    planes: i32,
-    bits: i32,
-    signed: i32,
+pub struct Shape {
+    pub w: i32,
+    pub h: i32,
+    pub planes: i32,
+    pub bits: i32,
+    pub signed: i32,
 }
 
 extern "C" {
