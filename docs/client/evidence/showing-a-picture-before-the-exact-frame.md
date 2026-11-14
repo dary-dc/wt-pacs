@@ -41,4 +41,4 @@ no phone, no breast ultrasound cine.*
 
 The exact frame by its own HTJ2K payload, not through a lossy layer, is what these runs favoured, and what the
 2026-11-09 design kept. A picture before the exact frame survives in one form only: an exact level picture
-([`exact-level-picture-first.md`](exact-level-picture-first.md)), the owner's to allow.
+([`exact-frame-by-htj2k-layout.md`](exact-frame-by-htj2k-layout.md); HTJ2K's own ladder and layers are [`htj2k-progressive-delivery.md`](htj2k-progressive-delivery.md)), the owner's to allow.
