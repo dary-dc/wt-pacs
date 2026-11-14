@@ -35,19 +35,23 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | LINK-TARGETS | 11-14 19:00 | — | `claude/link-targets` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
 | REPORT-OPTIONS | 11-14 20:00 | — | `claude/report-plan` from `origin/claude/docs-client` → draft PR into `claude/docs-client`; rows appended to this file |
 | CANDIDATE-METHOD | 11-14 20:00 | — | `claude/docs-client` (`CLAUDE.md` §Measurement; a docs commit on PR 384) |
-| OQ-INGEST | 11-15 08:00 | — | `claude/oq-ingest` from `origin/claude/unified-client` → draft PR into `claude/unified-client` |
+| OQ-INGEST | 11-14 21:00 | — | `claude/oq-ingest` from `origin/claude/unified-client` → draft PR into `claude/unified-client` |
 | OQ-INGEST-REVIEW | 11-16 08:00 | OQ-INGEST done | `claude/oq-ingest` (findings in its PR body) |
 | CACHE-PLAN | 11-14 19:00 | — | `claude/cache-plan` from `origin/claude/docs-client` → draft PR into `claude/docs-client`; rows appended to this file |
-| TRANSPORT-INVENTORY | 11-15 08:00 | DOCS-FOLD done (the other queue) | `claude/transport-design` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
-| PHONE-NEXT-PROTOCOL | 11-15 10:00 | HW-DECODE-DEEP and LINK-TARGETS done, or 11-16 08:00 | `claude/phone-protocol` (docs; no PR unless the branch has one) |
+| TRANSPORT-INVENTORY | 11-14 21:00 | DOCS-FOLD done (the other queue) | `claude/transport-design` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
+| PHONE-NEXT-PROTOCOL | 11-14 21:00 | HW-DECODE-DEEP-REVIEW done, or 11-16 08:00 | `claude/phone-protocol` (docs; no PR unless the branch has one) |
 | PHONE-NEXT-PROTOCOL-REVIEW | 11-16 08:00 | PHONE-NEXT-PROTOCOL done | findings in its file's "Review" section |
-| HW-DECODE-DEEP-REVIEW | 11-15 08:00 | HW-DECODE-DEEP done | `claude/hw-decode` (its PR; findings, then the amendment applied) |
-| MERGE-ALL-PLAN | 11-15 08:00 | DOCS-FOLD done (the other queue) | `claude/work-ledger:docs/queue/MERGE-ALL-PLAN-report.md`; nothing else pushed |
-| CACHE-DESIGN | 11-15 08:00 | CACHE-PLAN done | `claude/cache-plan` (`docs/client/evidence/cache-plan.md` §7; PR of CACHE-PLAN) |
-| CACHE-ADVOCATE-OPFS-SYNC | 11-15 14:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
-| CACHE-ADVOCATE-OPFS-ASYNC | 11-15 14:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
-| CACHE-ADVOCATE-IDB | 11-15 14:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
-| CACHE-ADVOCATE-CACHESTORAGE | 11-15 14:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
+| HW-DECODE-DEEP-REVIEW | 11-14 21:00 | HW-DECODE-DEEP done | `claude/hw-decode` (its PR; findings, then the amendment applied) |
+| MERGE-ALL-PLAN | 11-14 21:00 | DOCS-FOLD done (the other queue) | `claude/work-ledger:docs/queue/MERGE-ALL-PLAN-report.md`; nothing else pushed |
+| HW-PROBE-PAGE | — | — | **delegated to the owner's local session `phone-tests`; no cloud worker takes it** (`claude/hw-probe`) |
+| HW-PROBE-PAGE-REVIEW | 11-14 21:00 | HW-PROBE-PAGE's PR is open | `claude/hw-probe` (findings in its PR body; a cloud session) |
+| DEPTH8-THEORY | 11-14 21:00 | — | `claude/depth8` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
+| DEPTH8-MEASURE | 11-14 21:00 | DEPTH8-THEORY done | `claude/depth8` (rows and results; a session that wrote none of DEPTH8-THEORY) |
+| CACHE-DESIGN | 11-14 21:00 | CACHE-PLAN done | `claude/cache-plan` (`docs/client/evidence/cache-plan.md` §7; PR of CACHE-PLAN) |
+| CACHE-ADVOCATE-OPFS-SYNC | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
+| CACHE-ADVOCATE-OPFS-ASYNC | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
+| CACHE-ADVOCATE-IDB | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
+| CACHE-ADVOCATE-CACHESTORAGE | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
 | CACHE-PROTOCOL | 11-16 08:00 | every CACHE-ADVOCATE done | `claude/cache-plan` (§Protocol of the same file) |
 | CACHE-BUILD-HARNESS | 11-16 14:00 | CACHE-PROTOCOL done | `claude/cache-arms` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
 | CACHE-BUILD-OPFS-SYNC | 11-17 08:00 | CACHE-BUILD-HARNESS done | `claude/cache-arms` (its PR) |
@@ -57,11 +61,11 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | CACHE-BUILD-REVIEW | 11-18 14:00 | every CACHE-BUILD done | `claude/cache-arms` (`docs/reviews/cache-arms.md`) |
 | CACHE-RUN | 11-19 08:00 | CACHE-BUILD-REVIEW done | rows on `claude/cache-arms`; results in `cache-plan.md` §Results on `claude/cache-plan` |
 | CACHE-VERDICT-REVIEW | 11-21 08:00 | CACHE-RUN done, or 11-21 20:00 | `claude/cache-plan` (§Verdict review) |
-| REPORT-ADVOCATE-BEACON | 11-15 16:00 | — | `claude/report-plan` (`docs/client/evidence/report-plan.md` §3.1; PR of REPORT-OPTIONS) |
-| REPORT-ADVOCATE-KEEPALIVE | 11-15 16:00 | — | `claude/report-plan` (§3.2) |
-| REPORT-ADVOCATE-SESSION | 11-15 16:00 | — | `claude/report-plan` (§3.3) |
-| REPORT-ADVOCATE-NGINX | 11-15 16:00 | — | `claude/report-plan` (§3.5) |
-| REPORT-ADVOCATE-RECEIVER | 11-15 16:00 | — | `claude/report-plan` (§3.5) |
+| REPORT-ADVOCATE-BEACON | 11-14 21:00 | — | `claude/report-plan` (`docs/client/evidence/report-plan.md` §3.1; PR of REPORT-OPTIONS) |
+| REPORT-ADVOCATE-KEEPALIVE | 11-14 21:00 | — | `claude/report-plan` (§3.2) |
+| REPORT-ADVOCATE-SESSION | 11-14 21:00 | — | `claude/report-plan` (§3.3) |
+| REPORT-ADVOCATE-NGINX | 11-14 21:00 | — | `claude/report-plan` (§3.5) |
+| REPORT-ADVOCATE-RECEIVER | 11-14 21:00 | — | `claude/report-plan` (§3.5) |
 | REPORT-PROTOCOL | 11-16 14:00 | every REPORT-ADVOCATE done | `claude/report-plan` (§Protocol of the same file) |
 | REPORT-BUILD-HARNESS | 11-17 08:00 | REPORT-PROTOCOL done | `claude/report-arms` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
 | REPORT-BUILD-BEACON | 11-17 14:00 | REPORT-BUILD-HARNESS done | `claude/report-arms` (its PR) |
@@ -72,7 +76,7 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | REPORT-RUN | 11-19 14:00 | REPORT-BUILD-REVIEW done | rows on `claude/report-arms`; results in `report-plan.md` §Results on `claude/report-plan` |
 | REPORT-VERDICT-REVIEW | 11-21 14:00 | REPORT-RUN done, or 11-22 08:00 | `claude/report-plan` (§Verdict review) |
 
-A session never reviews a row it wrote. At most three rows of this file run at once.
+A session never reviews a row it wrote. At most six rows of this file run at once.
 
 ### HW-DECODE-DEEP (theory and sources; nothing run on a device)
 
@@ -414,10 +418,73 @@ follow, and the owner's calls (one per branch whose relevance is a judgment). Re
    REPORT row read it; the report carries a random opaque series key (never a UID or a hash of one), the frame index,
    which check failed, what followed, the decoder build and a random session id.
 
+10. **Claims to re-verify before they bind** (the owner, 2026-11-14: "important claim. Needs to be reverified"):
+    HW-DECODE-DEEP-REVIEW verifies or refutes, sources quoted: (a) that no browser path lets the frame check hash a
+    hardware decoder's output, including a hash on the GPU of a converted texture against a digest predicted at
+    ingest (is the YUV to RGB conversion of `importExternalTexture`, `texImage2D(VideoFrame)` or `copyTo` with an
+    RGB format specified exactly, or implementation-defined?); (b) the owner's question "how can the only mechanism
+    to take out a frame from webcodecs not support its output format": the spec's `format` "will be null whenever
+    the underlying format does not map" (§9.4.1); a frame still leaves as a picture (drawn, uploaded, or `copyTo`
+    with an RGB format, converted, 8-bit) but not as its samples; and whether `copyTo({format: "I420P10"})` from a
+    `P010` frame (a re-layout, lossless) is specified or implemented in Chromium, which would give the samples back.
+11. **No probably-valid data is discarded** (the owner, 2026-11-14). The 11-11 phone run's six octets are the reading
+    of record; the four-octet reading stays beside it as what the Second amendment's rule gives. Correct
+    `claude/phone-rows:docs/reviews/phone-blind-read.md` §3 and the line docs that quote it in place (DOCS-FIX or
+    PHONE-NEXT-PROTOCOL, whichever runs first). A future rule may stop a run early; it never excludes loads that
+    ran under the protocol's conditions.
+12. **Names of the view comparison's measures, provisional.** "A step" and "a Lossless ask" were the orchestrator's
+    words, never accepted. The glossary has *ask* (a request for one frame, served next) and *exact frame*. Until the
+    owner picks: **frame-change latency** (a reader's input to another frame, to that frame painted) and
+    **exact-frame latency** (the Lossless control pressed, to the exact frame painted with *✓ Lossless*). The protocol
+    uses these and proposes them, or better ones, as glossary rows for the owner.
+13. **One unified branch** (the owner, 2026-11-14: "once they arrive in a single unified (because that will be more
+    convenient for working with integrations) the cleaning, optimization, simplification, improvements and other
+    preparation work should be done to get to main"). MERGE-ALL-PLAN covers every line, not the client's alone: the
+    branches with relevant work merged `--no-ff` into their line's unified branch where one exists, then the line
+    branches into **one** unified branch (name proposed), in an order; then the preparation for `main` as rows of
+    their own. Its report opens with a one-screen summary for the owner's approval: the order as a list of merges,
+    each with its conflict count, and the calls that are the owner's.
+14. **8 bits for hardware, investigated first** (the owner, 2026-11-14: "we could even consider using only images up
+    to 8 bits of depth in order to be able to use the hardware capabilities of the browser. But … we won't give up
+    until we have no other choice. So first is to investigate and test"). DEPTH8-THEORY: the depth cut to 8 bits for
+    the optimal-quality view, from the noise numbers already measured (σ by frame on the 19 DBT volumes; a cut of
+    2^k adds rounding of RMS 2^k/√12 in source units), against the noise rule's bar and at the windows readers use;
+    8-bit 4:2:0 grey (constant chroma) as the form hardware takes; what Firefox and Safari's 8-bit paths gain; a
+    prediction per volume and a pre-registered protocol for DEPTH8-MEASURE (`lab/av1/metrics`, cloud). No
+    decision: it informs the codec question.
+
+### HW-PROBE-PAGE (a lab tool; built by the owner's local session `phone-tests` and run by it on the phone)
+
+The owner, 2026-11-14: "we might need to build something independent from the app to test the browser in the phone
+and get more specific feedback than 'this didn't work' or 'this fallback means this wasn't or couldn't be used'."
+A standalone page under `lab/` (no product import; `scripts/check_lab_absent.sh` green), one press to start, that
+runs a matrix and writes one JSON report (shown, saved with a download link, and posted to the dev server if one
+answers). For each AV1 stream form (4:0:0 and 4:2:0 constant-chroma grey at 8 and 10 bits; tiny bundled units from
+`lab/av1`'s existing fixtures or made by the ingest) × `hardwareAcceleration` (`no-preference`, `prefer-hardware`,
+`prefer-software`): `isConfigSupported`'s answer, `configure`'s outcome, each `decode`'s output or the exact error
+name and message, the frame's `format`, `codedWidth`, `colorSpace`, `copyTo` with no format and with each format the
+spec lists (outcome, and the samples' XXH3 against the unit's expected planes), time per frame. Then the paint paths
+(WebGL2 `texImage2D(VideoFrame)`, WebGPU `importExternalTexture`) with a precision check (a 10-bit ramp: how many
+distinct levels survive). Then the environment: the browser's version and platform, `hardwareConcurrency`, the GPU
+adapter's info. Reuse the WebCodecs capability probe and fixtures that exist (search `lab/` and `docs/decode/`); the
+expected values come from the ingest's digests. Its README gives the phone session's steps (one press) and what to
+read from `chrome://media-internals` by hand, the one thing a page cannot see. Test it headless in Chromium in the
+container (software paths only; say so), each check's failure mode mutated.
+
+### HW-PROBE-PAGE-REVIEW
+
+A session that wrote none of it: every cell's outcome is recorded, never swallowed; the expected planes are right
+(mutate one); one press runs the whole matrix; nothing from `lab/` leaks into a product path.
+
+### DEPTH8-MEASURE
+
+A session that wrote none of DEPTH8-THEORY runs its protocol as written (an amendment before any run if the host
+forces one), every cell against its prediction, misses included; fixtures and limits stated.
+
 ## Procedure, rules
 
 Each firing follows `docs/queue-2026-11-14.md` §The worker's procedure, §No work lost and §Standing rules, applied to
-**this file's rows only**, with these changes: step 3 counts this file's running rows (at most three); step 4
+**this file's rows only**, with these changes: step 3 counts this file's running rows (at most six); step 4
 ignores the 22:00–06:00 restriction; the queue closes 2026-11-22 23:59. Status files are `docs/queue/<ROW>.md` on
 `claude/work-ledger`. No merges; PRs are drafts into `claude/docs-client` as the table says, through
 `mcp__github__create_pull_request`. Sources quoted verbatim, theory and measured labelled, fixtures and limits in
