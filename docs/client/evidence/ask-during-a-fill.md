@@ -53,7 +53,7 @@ tolerates; the 0.1 s / 1 s rule of thumb is outside knowledge, not the repositor
 | jump to a slice | scroll bar, Home/End, a finding's slice | one, a few a series | 2.6–3.7 s at 18 Mbit/s (below) |
 | zoom into a tiled frame | a `request_frame` per tile in view during the fitted fill ([`../../adr/resolution-fitting-for-large-frames.md`](../../adr/resolution-fitting-for-large-frames.md) §8.4) | k at once | the first ends the fill, the rest queue, then the re-ask |
 | a frame lost with its decoder | the downloader re-asks it | one, rare; correctness, no deadline | ends the fill like any ask |
-| a second series | a prior, another view | another session: one process serves one series | not an ask during a fill; [`what-a-view-asks-for.md`](what-a-view-asks-for.md) §Several series |
+| a second series | a prior, another view | another session: one process serves one series | not an ask during a fill; [`what-a-view-asks-for.md`](what-a-view-asks-for.md) §3, *A second viewport or a prior* |
 
 The scroll and the jump drive the choice; tiles add bursts; a lost frame only needs the fill not to be lost.
 
