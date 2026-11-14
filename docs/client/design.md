@@ -112,7 +112,8 @@ only. The cache stays off.
 fill; the wire 0.5–1.0 s of a 2.4–3.3 s fill (one series, `dbts_b1` Q 8 G 8). The product asks WebCodecs for
 `prefer-software`, a hint; the decoder Chrome took is not recorded and the decoder count was not varied, so the
 phone's saturation is not shown. *Decides:* a round recording the route and per-frame arrivals, the decoder count
-varied.
+varied. *Hardware, by the sources (2026-11-14):* no browser hardware path returns the view's samples on the phone or a
+10-bit view's anywhere, so a hardware view would be painted at 8 bits and unchecked ([`../decode/hardware.md`](../decode/hardware.md) §11, §16); its device probe, §17.
 
 **Which view is the target.** *So far:* on the phone, worker against page depends on the congestion controller on the
 tether (medians 0.960 under `cubic-restart`, 1.016 under `bbr`) and is inconclusive by its rule on Wi-Fi (n = 10). The

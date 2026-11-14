@@ -20,6 +20,10 @@ exact frame bit for bit, and only checked claims on screen.
 * **The cache survey**, theory only, 2026-11-14
   ([`../client/evidence/cache-options.md`](../client/evidence/cache-options.md)): leaning OPFS as built; owed, a
   phone's cold read and check and sustained write of a 17 MB frame (its §5).
+* **Hardware decode, re-read from sources** 2026-11-14 (HW-DECODE-DEEP, `claude/hw-decode`, a draft into
+  `claude/docs-client`): no browser hardware path serves the optimal-quality view with its checks; the Galaxy S23's
+  SoC brief lists no AV1 decoder; a device probe for the next phone round
+  ([`../decode/hardware.md`](../decode/hardware.md) §11–§17).
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
