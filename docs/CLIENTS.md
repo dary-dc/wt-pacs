@@ -376,7 +376,8 @@ two dispatch clauses fail. A session whose bytes come slower than 16 KB per `sta
 is re-dialled, since a read with `min` resolves only at `min` bytes (the bound above, made a default) — the
 owner's trade against −97 ms and −38 MB a fill. And a cut whose end is already queued when the read is
 made errors the stream (a pull-into it cannot fill), which is taken for a stream end, so the frame is
-not named — **a defect of the `readMin` path, to fix before any default**. The BYOB read's ~12 ms frame 0 (cloud
+not named — **a defect of the `readMin` path, to fix before any default**. *Clarified 2026-11-14:* a fix exists on
+`claude/readmin-cut-stream` (`4019518a`, 2026-10-22, with a dispatch-rig test that fails without it), not merged here; checked against this branch's `frame-session.ts`, the defect stands in this code. The BYOB read's ~12 ms frame 0 (cloud
 queue row 5) is the WASM client's retired path ([`decode/README.md`](decode/README.md) §The BYOB read path).
 
 ## ACK frequency, by browser

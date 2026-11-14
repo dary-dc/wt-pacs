@@ -174,7 +174,9 @@ series over 10 bits (CT 0.918) — the one place it wins, set against a decode t
 WebCodecs 2.6–3.9×. *The WebKit and Firefox decode measurement (queue row XBROWSER) since:* in Firefox 157 and WebKitGTK 2.52 the
 client's choice of WebCodecs fails every frame of every series that says `depth` ≤ 10 (Firefox
 refuses monochrome AV1 and returns 4:4:4 as 8-bit `BGRX`; WebKitGTK's GStreamer decodes no AV1
-here), with no fallback to dav1d-WASM (*since the unified AV1 branch (queue row UNIFY) there is one, and a per-layout probe; not re-run
+here; *dated 2026-11-14:* those are the versions measured, and the engines' sources read since on 2026-11-07 name
+the GStreamer failure fixed as WebKit bug 327481 and Firefox's 8-bit `BGRX` still open as bug 1969762:
+[`../client/evidence/browser-av1-profile-support.md`](../client/evidence/browser-av1-profile-support.md)), with no fallback to dav1d-WASM (*since the unified AV1 branch (queue row UNIFY) there is one, and a per-layout probe; not re-run
 in those engines*); dav1d-WASM and OpenJPH are exact in all three engines, at
 4–10× apart as in Chromium ([`decode/README.md`](../decode/README.md) §AV1 in WebKit and Firefox).
 
