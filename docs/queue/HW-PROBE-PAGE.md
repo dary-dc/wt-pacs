@@ -1,8 +1,12 @@
 state: started
 started: 2026-11-14T22:20Z
-heartbeat: 2026-11-14T22:50Z
-outputs: claude/hw-probe 77270295 (from origin/claude/docs-client); PR to be opened by HW-PROBE-PAGE-REVIEW from docs/queue/HW-PROBE-PAGE-pr-body.md
+heartbeat: 2026-11-14T23:25Z
+outputs: claude/hw-probe 335e0c85 (from origin/claude/docs-client); PR to be opened by HW-PROBE-PAGE-REVIEW from docs/queue/HW-PROBE-PAGE-pr-body.md
 ## Resume
+Cloud finish, 23:25Z: step 1 green at 335e0c85 in headless Chromium 153 (the container's; 141 could not be fetched).
+The stall was the test's: probe() removed rows/, which collector.py makes only at start, so the D0 POST failed.
+New mutant hang stands in for 141's blocking copy. Steps 2 to 5 next.
+
 Built by the local session phone-tests in lab/devices/ (amendment 15); the headless finish is handed to a cloud
 session (the owner, 2026-11-14: cloud before this machine). Pushed at 77270295, not yet green:
 make_hw_units.py (run locally with ingest's build: do not rerun unless the encoder changes), hw-units.json (9 units),
