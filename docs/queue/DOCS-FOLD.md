@@ -1,17 +1,21 @@
-state: started
+state: done
 started: 2026-11-14T21:32Z
-heartbeat: 2026-11-14T23:20Z
-outputs: claude/docs-client (PR #384)
+heartbeat: 2026-11-15T00:05Z
+outputs: claude/docs-client 67a49208 (fold commits since 61d4a974, subjects "fold:"), PR #384 body section "Fold"
 ## Resume
-All four writers landed; design.md, line docs and reserved-file corrections pushed (6defc29e, 9f7b2688, and the line
-docs commit). Next: scripts/gate.sh --quick --no-browser on claude/docs-client, then the PR #384 body section "Fold".
-Split by the inventory's parts, each writer owning disjoint files on claude/docs-client (worktree per writer,
-git pull --rebase before each push): Part 3 (asking) -> agent G1; Part 4 + Part 2 D7, D17-D20 (cache, view worker,
-native) -> agent G2; Part 5 + Part 2 D2-D6, D8-D10 (phone, telemetry, proposals) -> agent G3; Part 6 + D11, D12, D15,
-D16 (optimal quality's client side) -> agent G4. Agents create docs/client/evidence/<question>.md files and apply
-their parts' corrections outside the reserved files; reserved to the coordinator: docs/client/design.md,
-docs/lines/*.md, client/README.md, docs/glossary.md, docs/ARCHITECTURE.md, docs/adr/exactness-in-production.md,
-docs/decode/hardware.md. Coordinator: Part 1, 1b, 1c (C1-C7), D13, D14, D21; then design.md from the agents' reports;
-then the PR body's section "Fold" (folded, left, why). On resume: git log origin/claude/docs-client since 61d4a974
-G1 done (938253f9..c4dfb569), G2 done (166ee36b..e7fcd73a), G3 done (fbd2d976..1c56dd9c; report in the coordinator's notes). shows which parts landed (commit subjects start "fold:"); redo only the missing parts.
+Done. Nothing owed by this row. Next on this branch: DOCS-PAGE (needs this row and CACHE-OPTIONS, both done).
 ## Result
+Inventory folded by four writers (asking; cache, view worker, native; phone and telemetry; optimal quality's client
+side), each on disjoint files, plus the coordinator on Part 1 and the reserved files.
+* design.md: 10 decisions added to §Decided with dates; §Open rewritten, every folded question with what decides it
+  and its evidence (211 lines, over "about three screens": flagged for DOCS-REVIEW).
+* 40 new docs/client/evidence/ files; dated sections in 7 existing ones; cache-options.md and frame-integrity.md linked.
+* Corrections C1-C7 applied in place (exactness ADR §5, §8; client/README.md; decode/hardware.md; fill-bound and
+  view-target evidence); the parts' corrections in WIRE.md, the stride ADR, decode/README.md, native/README.md,
+  CLIENTS.md, levers.md, merge-readiness.md, av1/*, devices.md, glossary.md.
+* Left (PR body): codecs, ingest, server, transport and viewer items; decode/README.md 1828-1861, 2016, 2886; three
+  glossary rows; the cine bullet (code not on this branch).
+* Gate --quick --no-browser OK in 381 s (skips named in #384); check_links 0 unresolved.
+* Phone and laptop named by kind only (a writer had named the phone's model).
+Owner: contradictions in design.md §Open (stride ADR vs never skipping; frame-memory questions 3 and 4; the phone
+run's 10-minute rule and bbr; readMin not merged; bar 1.00 or 1.03); the coded-bytes digest is a candidate for the owner.
