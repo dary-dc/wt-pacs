@@ -3,7 +3,8 @@
 The browser client as it is designed now: what it is, its rules, what is decided and what is open. What the product
 is for is [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The reasons and the numbers are in
 [`evidence/`](evidence/), one file per question; the work in flight is [`../lines/client.md`](../lines/client.md).
-This file is rewritten in place when a result or a decision moves it, never appended to (`CLAUDE.md` §Docs).
+This file is rewritten in place when a result or a decision moves it, never appended to (`CLAUDE.md` §Docs). Its
+picture, box by box with each one's costs and open questions: [`design.html`](design.html).
 
 ## What it is
 
