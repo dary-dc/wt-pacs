@@ -21,7 +21,7 @@ decoding, inside the fill.
 
 ## Results (measured)
 
-**Fixtures:** one Galaxy S23 (Android 16, Chrome 157), one home link at one evening, `dbts_b1-q8-g8` (50 frames of
+**Fixtures:** one Android 16 phone (Chrome 157), one home link at one evening, `dbts_b1-q8-g8` (50 frames of
 ~460 KB, 10 bits, G 8), run commit `962226e8`, not the demo commit; three decoders.
 
 | link | controller | loads | fill | wire time | decode floor | rest (fill − floor) | floor ÷ fill | a frame's decode |

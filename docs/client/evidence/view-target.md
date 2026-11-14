@@ -21,7 +21,7 @@ not be slower; whether it is faster nothing measured said (*assumption, no band*
 
 ## Results
 
-**Fixtures:** one Galaxy S23 (Chrome 157), one home link at one hour, `dbts_b1-q8-g8` (50 frames, 23.2 MB), run
+**Fixtures:** one phone (Chrome 157), one home link at one hour, `dbts_b1-q8-g8` (50 frames, 23.2 MB), run
 commit `962226e8`, which differs from the demo commit `157b7109` in 20 files on the fill's path; software decode
 (the product asks `prefer-software`). Where the phone saturates is not shown ([`fill-bound-on-phone.md`](fill-bound-on-phone.md)).
 

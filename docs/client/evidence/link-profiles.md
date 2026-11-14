@@ -13,7 +13,7 @@ from the servers and §Round trip and wire time (`28810f62`). The lab's assumed 
 
 ## Fixtures
 
-The phone run of 2026-11-11 ([`phone-run-method.md`](phone-run-method.md)): one Galaxy S23, one access point, one
+The phone run of 2026-11-11 ([`phone-run-method.md`](phone-run-method.md)): one phone, one access point, one
 evening, one series (`dbts_b1-q8-g8`, 23.2 MB), 11–12 counted fills per link and controller; each optimal-quality
 server sampled its path every 250 ms and traced each congestion event (`claude/fill-split:lab/phone/link.py`, `losses.py` on that
 branch). The rows are the server's view only. Cellular is not in it.

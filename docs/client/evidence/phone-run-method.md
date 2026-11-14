@@ -62,7 +62,7 @@ is to become a switch over the product's load report ([`load-report.md`](load-re
 
 ## 3 · The first run (2026-11-11 evening): what it counted
 
-**Fixtures:** one Galaxy S23 (Android 16, Chrome 157), one Fedora laptop without root, one home router, one evening;
+**Fixtures:** one Android 16 phone (Chrome 157), one laptop without root, one home router, one evening;
 series `dbts_b1-q8-g8` (50 frames, 23,208,296 B) and its exact series; run commit `962226e8`, not the demo commit; 48
 counted loads. Raw rows `claude/fill-split:docs/phone-rows/raw/` (not read here; 54k lines).
 

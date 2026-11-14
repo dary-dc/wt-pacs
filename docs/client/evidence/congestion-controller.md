@@ -44,7 +44,7 @@ cause is not explained* (quinn's BBR pacing of a larger first flight is the next
 
 ## 2 · On the phone's link (measured, 2026-11-11 evening)
 
-**Fixtures:** one Galaxy S23, one home link, `dbts_b1-q8-g8`, run commit `962226e8` ([`phone-run-method.md`](phone-run-method.md)).
+**Fixtures:** one phone, one home link, `dbts_b1-q8-g8`, run commit `962226e8` ([`phone-run-method.md`](phone-run-method.md)).
 
 | link | `bbr` ÷ `cubic-restart`, six octets | octets 1–4 (the 10-minute rule) |
 | --- | --- | --- |
