@@ -457,7 +457,7 @@ follow, and the owner's calls (one per branch whose relevance is a judgment). Re
 
 The owner, 2026-11-14: "we might need to build something independent from the app to test the browser in the phone
 and get more specific feedback than 'this didn't work' or 'this fallback means this wasn't or couldn't be used'."
-A standalone page under `lab/` (no product import; `scripts/check_lab_absent.sh` green), one press to start, that
+Inside the device kit `lab/devices/` (amendment 15; no product import; `scripts/check_lab_absent.sh` green), one press to start, that
 runs a matrix and writes one JSON report (shown, saved with a download link, and posted to the dev server if one
 answers). For each AV1 stream form (4:0:0 and 4:2:0 constant-chroma grey at 8 and 10 bits; tiny bundled units from
 `lab/av1`'s existing fixtures or made by the ingest) × `hardwareAcceleration` (`no-preference`, `prefer-hardware`,
@@ -480,6 +480,15 @@ A session that wrote none of it: every cell's outcome is recorded, never swallow
 
 A session that wrote none of DEPTH8-THEORY runs its protocol as written (an amendment before any run if the host
 forces one), every cell against its prediction, misses included; fixtures and limits stated.
+
+15. **The device tooling has one home, `lab/devices/`** (the owner, 2026-11-14: the probe and the automated runner "could
+    evolve into something that we use recurrently … maybe not formalize it now too much"). `lab/devices/` is already
+    the device kit (`caps.js`, the D0 capability probe; `runner.js`; `collector.py`; `docs/devices.md` owns its
+    readings). HW-PROBE-PAGE extends `caps.js` and the kit's runner page rather than adding a page of its own, and
+    the one-press runner grows from the kit's runner; `claude/phone-rows:lab/phone/` (the 11-11 run's runner and
+    beacon) is folded into the kit by a later merge and a cleaning commit, so one runner remains. It is measurement
+    harness, so it may live on `main` under `lab/` (`scripts/check_lab_absent.sh`: never in a product path or
+    image). No design document yet: the kit's README and `docs/devices.md` only.
 
 ## Procedure, rules
 
