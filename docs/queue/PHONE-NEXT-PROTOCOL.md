@@ -1,8 +1,9 @@
 state: started
 started: 2026-11-14T23:10Z
-heartbeat: 2026-11-14T23:10Z
+heartbeat: 2026-11-14T23:15Z
 outputs: claude/phone-protocol (docs/phone-rows/next-round.md)
 ## Resume
-Claimed. Next: read amendments 5, 6, 7, 11, 12 and the inputs (PHONE-RUN.md, design.md §Decided item 4,
-hardware.md's device probe, cache-plan's phone cells), then write next-round.md section by section, pushing each.
+Pushed claude/phone-protocol b48b6619 (docs/phone-rows/next-round.md, the protocol whole). Next: the line doc
+(docs/lines/optimal-quality.md on claude/phone-protocol), PHONE-AMEND-3 superseded line in docs/queue-2026-11-14.md,
+amendment 11 correction of claude/phone-rows:docs/reviews/phone-blind-read.md §3, then done.
 ## Result
