@@ -387,6 +387,124 @@ change replaces what it names; the rest stands.
   id, and for a safety report raise it at once (a log at error level the operator watches; I). The advocate may make
   it an OpenTelemetry Collector instead, if that is cheaper to run and keeps the fields.
 
+**RECEIVER, the advocate's amendments** (row REPORT-ADVOCATE-RECEIVER, 2026-11-14; a session that wrote none of this
+plan and none of NGINX's amendments). Sources fetched 2026-11-14, sha256 of the file as fetched: nginx
+`ngx_http_proxy_module.html` `4cc11bb141ae`, `ngx_http_log_module.html` `65edd508b55a` and `ngx_http_core_module.html`
+`7b9eb00d6842` (§0's pins); OpenTelemetry Collector contrib `e0e1cb6463e1` (`receiver/webhookeventreceiver/README.md`
+`6cc2a1c8e49b`, `exporter/fileexporter/README.md` `f9c508865bab`), Collector core `71b5f8c06cae`
+(`receiver/otlpreceiver/README.md` `1d036c6d7a2d`, `docs/component-stability.md` `bdc4b4a526f0`), opentelemetry-proto
+`94f2f2d5f39c` (`docs/specification.md` `59a8e654a120`); CPython `42155a0feaca` (3.13, `Doc/library/http.server.rst`
+`c93d2a653768`); Rust 1.97 `std::fs::File` (`a0344655479c`); `httparse` 1.10.1 (docs.rs); DICOM PS3.5 2026d chapter 9
+(`b37ac51a547b`). Each change replaces what it names; the rest stands.
+
+* **Its own process, not the Collector** (*advocate*; this settles the plan's "may make it an OpenTelemetry Collector
+  instead"). The Collector takes our object only through the webhook receiver, which "does not attempt to marshal the
+  body into a structured format as it is received" and makes "a single log record with the entire request body as the
+  "body" of that record" (`webhookeventreceiver`, stability "beta: logs"); its OTLP receiver wants another body, "the
+  serialization format needs to be OTLP JSON" (`otlpreceiver`), whose "keys of JSON objects are field names converted
+  to lowerCamelCase" (OTLP specification), which the page would have to build. Its file exporter is "alpha: traces,
+  metrics, logs" and buffers ("`flush_interval`[default: 1s]", `fileexporter`), so its `204` does not mean written.
+  The field check, the join and the raise would be OTTL in a transform processor: configuration to keep true where
+  RECEIVER is code with tests. **The Collector stays a forward target** an operator may put after RECEIVER's file,
+  not RECEIVER.
+* **In Rust, in the workspace, from crates already in `Cargo.lock`** (*advocate*). `tokio` (workspace), `serde_json`
+  1.0.151 and `httparse` 1.10.1 ("A push library for parsing HTTP/1.", already pulled in by the WebSocket path) are
+  locked (R: `Cargo.lock` on this branch): no new crate, no new base image — it runs in the server's
+  `debian:bookworm-slim` image as a third compose service on the internal network, never published. Python's
+  `http.server`, the dev sink's base, is refused for this by its own documentation: "`http.server` is not recommended
+  for production. It only implements basic security checks." and no Python is in either deployed image (R:
+  `deploy/Containerfile`, `server` from `debian:bookworm-slim`, `web` from `nginx:1.29-alpine`).
+* **nginx in front does the HTTP a parser should not** (*advocate*). `location = /report { proxy_pass
+  http://report:<port>; }` beside the viewer, so same origin and the CSP unchanged (§1.5). With the default
+  `proxy_request_buffering on`, "the entire request body is read from the client before sending the request to a
+  proxied server" (nginx proxy), and `client_max_body_size` 16 KiB answers 413 before RECEIVER sees a byte (§1.5): a
+  slow or oversize client is nginx's, RECEIVER reads one whole, bounded request from one trusted peer, one per
+  connection (nginx keeps no upstream connection open without an `upstream` block's `keepalive`; I). `proxy_http_version`
+  is set to 1.1 explicitly ("Since 1.29.7, version 1.1 is used by default. Before 1.29.7, version 1.0 was used by
+  default.", nginx proxy) so the image's patch release changes nothing.
+* **A record it cannot keep is still kept** (*advocate*). RECEIVER down is a 502 at nginx, and a beacon never sees it
+  (Beacon §2.1.4, §3.1). The same location logs the body, by NGINX's own line, **only when the answer is not 2xx**:
+  "The if parameter (1.7.0) enables conditional logging. A request will not be logged if the condition evaluates to
+  "0" or an empty string." with the log module's own `map $status $loggable { ~^[23] 0; default 1; }`. Up, it costs
+  nothing; down, the records land unvalidated in `report-fallback.log`, which the read-time tool below reads too. This
+  makes NGINX RECEIVER's fallback; both arms are built and measured as the plan has them.
+* **The check, defined once** (*advocate*). The field list is PR 370 §8's table plus the safety report's
+  (`exactness-in-production.md` §5) and `reportId`, `seq` (§3.1–§3.2), as one file, `report-fields.json`, read by
+  the page's test and by RECEIVER alike. A field outside it is **dropped before the write**, the record kept, and one
+  warning names the field (never its value): the protocol's mutant is detected and the value never reaches the disk.
+  A body that is not one JSON object is a 400 and a counted refusal, never a line. Every string is capped at 512
+  bytes, and in `errors[].message` a run shaped like a UID is replaced by `<uid>`: "Each component of a UID is a
+  number and shall consist of one or more digits. The first digit of each component shall not be zero unless the
+  component is a single digit." and a UID "shall not exceed 64 total characters" (PS3.5 §9.1), so
+  `[0-2](\.(0|[1-9][0-9]*)){3,}` up to 64 characters (I: four or more components; a version string like `1.2.3`
+  stays). This is the one field that is free text (§8: "`message` with every URL replaced by `<url>`"), and the only
+  place a receiver can stand behind the "no patient data" constraint of §2 rather than trust the page.
+* **`204` means written, and for a safety report written to the disk** (*advocate*; the shared proposal of §3.2,
+  "A `204` that means written", answered for RECEIVER). One task owns the files; a record is appended as one line by
+  one `write` and only then is `204` sent. A safety report is also `sync_data`'d first, "intended for use cases that
+  must synchronize content, but don't need the metadata on disk" (Rust `File`); a load report is not (I: the page
+  cache's loss on a host crash is accepted for a sampled record, not for an always-on one).
+* **The join at read, not at write** (*advocate*; this replaces "join the server's link record by load id"). The
+  server writes its link line at session end (§3.4), which may come after the page's hide record and is in another
+  process; a write-time join would hold records in memory waiting for their partner and lose them at a restart.
+  Instead the server's line goes to `link-<UTC date>.jsonl` on the same `reports` volume, and one read-time tool
+  joins by `load` and drops second copies by `reportId` (§3.2's duplicates) exactly, across restarts. **Proposed for
+  NGINX alike**: the same tool reads its log, so the join and the dedup are no arm's advantage.
+* **Files by UTC day, kept by deleting** (*advocate*). `reports-<date>.jsonl`, `safety-<date>.jsonl`: retention (30
+  days, the ADR's default, the owner's call) is deleting old files; no signal, no reopen, no rotation tool, where
+  nginx's log needs the deployment's `USR1` (I). The safety file is apart so its retention and its readers can differ.
+* **The raise** (*advocate*). A safety report is written to its file first, then one error-level line on stderr (the
+  container's log, which the operator's own alerting reads; I) with `reportId`, `source`, the frame index, the route
+  and the engine — no digest, no message. Nothing else is done with it here: the server's re-check of its stored
+  bytes is §5's proposal and waits on the coded-bytes digest.
+* **A disk that cannot be filled by load reports** (*advocate*). The endpoint is open to anyone who can load the
+  page. RECEIVER keeps a byte count per UTC day and past a cap (the deployment's; default 1 GiB, I) stops writing
+  load reports, answering `204` and counting what it dropped; **safety reports are never capped**. NGINX can only
+  cap the body, not the day.
+* **What RECEIVER is, in size** (*I*, for the build row): one `main.rs`, an accept loop, `httparse` on the head,
+  `Content-Length` bytes of body, `serde_json::Value`, the check, the write, the answer — about 150 lines and a test
+  per refusal (oversize, not JSON, a field outside the list, a UID in a message, the cap, the fallback log on 502).
+  In the arms it is `lab/report-arms/receiver/`, never `server/` (§4).
+
+**Disadvantages RECEIVER still carries** (*advocate*, for the protocol to price, not to fix):
+
+* **A process to run.** A service in `deploy/compose.yml`, its health check, its restarts and its upgrades; NGINX
+  adds a `location` to a process that already runs. The receiver cell's memory and CPU per 1 000 reports price it
+  (I: idle RSS of a tokio binary is small, but not zero, and is measured, not assumed).
+* **A second hop.** nginx → RECEIVER over the container network per record: a connect, a request, a response, where
+  NGINX writes in-process. Its latency is in the safety report's latency cell, its CPU in the receiver cell.
+* **A safety report's `sync_data`** on every one: one disk flush per failure (near zero in count, §5, but its latency
+  is on the path of the `204` that KEEPALIVE's retry waits for).
+* **The field list is a third thing to keep true**, beside the page's code and the ADR's table: `report-fields.json`
+  makes it one file, but a field added to the page without it is dropped at the receiver until the file is updated
+  (a test on the page side checks the file; I).
+* **Dropping a field, not the record**, means a lab field reaching production is lost silently but for the warning
+  (the warning is the only signal; the protocol's mutant checks it is emitted).
+* **The UID scrub is a heuristic**: it catches UID-shaped runs, not a name or an accession number in a message. The
+  page's URL scrub (§8) and §2's field list remain the bound; RECEIVER's is a second line, not a proof.
+* **The fallback log is unvalidated**: while RECEIVER is down, a field outside the list does reach the disk, in
+  `report-fallback.log`. Removing the fallback removes the exposure and loses the records instead; the owner's
+  trade, stated.
+* **The read-time join is a tool to run** before any answer; an operator reading the raw files sees duplicates and
+  unjoined link lines.
+* **Cross-origin is out**: RECEIVER behind the same nginx keeps `connect-src 'self'`; a receiver anywhere else (an
+  outside collector, §2) needs the CSP changed and CORS, and is not this design.
+* **No compression gain of its own at these sizes.** RECEIVER is what can take a gzip body (BEACON cannot say
+  `Content-Encoding`, §3.1; a URL marker would be needed), and it must cap the inflated size too (I); at 5–7 KB a
+  load (§1.4) theory says it does not pay, so this advantage is likely unused.
+
+**What the shared parts cost RECEIVER** (*advocate*; proposed for both receivers alike):
+
+* **The join and the dedup at read** for both (above), so the comparison is not RECEIVER's write-time join against
+  NGINX's none.
+* **The fallback line on non-2xx** is NGINX's design reused; if NGINX's advocate changes its `log_format`, the
+  fallback takes it unchanged.
+* **The receiver cell runs both behind the same nginx**, so RECEIVER's cost is its hop and its process, not nginx
+  counted twice; and it runs a burst of safety reports apart from one of load reports, since only the first pays
+  `sync_data`.
+* **The sink's counters count refusals** (400, 413, the cap's drops, the dropped fields) as well as lines, for both,
+  so a receiver that refuses more does not look as if it delivered less.
+
 ### 3.6 Saving from the page
 
 The overlay's **save** writes the same JSON object the report would send to a `Blob` and clicks an `<a download>`;

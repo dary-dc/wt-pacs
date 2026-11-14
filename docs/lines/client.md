@@ -35,6 +35,9 @@ exact frame bit for bit, and only checked claims on screen.
   KEEPALIVE's advocate (§3.2, 2026-11-14): Chromium keeps a keepalive past the renderer only from the page ("KeepAlive
   is not yet supported in web workers"), Gecko from both; so the safety report goes from the worker at once and from
   the page at hide until confirmed, deduped by a `reportId`.
+  RECEIVER's advocate (§3.5, 2026-11-14): its own Rust process from crates already locked, not the OpenTelemetry
+  Collector (beta webhook receiver, alpha file exporter, no field check); fields checked against one
+  `report-fields.json`, UID-shaped runs scrubbed, `204` after the write; the join and dedup at read, for NGINX alike.
 
 ## PRs
 
