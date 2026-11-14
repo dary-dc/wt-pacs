@@ -22,7 +22,9 @@ exact frame bit for bit, and only checked claims on screen.
   phone's cold read and check and sustained write of a 17 MB frame (its §5).
 * **The cache plan**, 2026-11-14 ([`../client/evidence/cache-plan.md`](../client/evidence/cache-plan.md)): four
   survivors of a sourced screen (OPFS sync, OPFS async, IndexedDB, Cache Storage), each given its best design and an
-  advocate before a pre-registered run; the rows in `claude/work-ledger:docs/queue-client-2026-11-14.md`.
+  advocate before a pre-registered run; the rows in `claude/work-ledger:docs/queue-client-2026-11-14.md`. Its §7, the four designs, written 2026-11-14 before any build: one store worker each, the decoders posting
+  slot numbers; OPFS sync writes from the slot with no copy in script; IndexedDB and Cache Storage keep a Firefox private
+  window's data where OPFS is off, and cannot say whether a series fits before writing it. Next, an advocate per design.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
