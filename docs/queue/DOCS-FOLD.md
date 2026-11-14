@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-14T21:32Z
-heartbeat: 2026-11-14T22:25Z
+heartbeat: 2026-11-14T22:35Z
 outputs: claude/docs-client (PR #384)
 ## Resume
 Split by the inventory's parts, each writer owning disjoint files on claude/docs-client (worktree per writer,
@@ -11,5 +11,5 @@ their parts' corrections outside the reserved files; reserved to the coordinator
 docs/lines/*.md, client/README.md, docs/glossary.md, docs/ARCHITECTURE.md, docs/adr/exactness-in-production.md,
 docs/decode/hardware.md. Coordinator: Part 1, 1b, 1c (C1-C7), D13, D14, D21; then design.md from the agents' reports;
 then the PR body's section "Fold" (folded, left, why). On resume: git log origin/claude/docs-client since 61d4a974
-G1 done (938253f9..c4dfb569; report in the coordinator's notes). shows which parts landed (commit subjects start "fold:"); redo only the missing parts.
+G1 done (938253f9..c4dfb569), G2 done (166ee36b..e7fcd73a; report in the coordinator's notes). shows which parts landed (commit subjects start "fold:"); redo only the missing parts.
 ## Result
