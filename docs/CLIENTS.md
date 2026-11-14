@@ -104,6 +104,16 @@ page, by name on the status line, before the WASM client's code is fetched or an
 by the HTML, is fetched, and nothing dials); a client that fails to load fails the start, with no
 fallback to the other. The status line names the client, and the page check runs on each (`--client`).
 
+*Decided since, not on this branch (noted 2026-11-14):* the owner judged on 2026-10-19 that which code the page runs
+is a fact about the page, decided when it is rendered, not by the transport server at runtime. So the page's HTML
+names its client (`data-client` on `viewer/head.js`'s script tag, `"ts"` or `"wasm"`, rendered by `viewer/page.sh`
+with that client's preloads) and its transport (`data-wt-port`, or `data-transport-file`); the transport file carries
+no `client`, `gen_dev_cert.sh` keeps none, `CLIENT` moves from the server's environment to web's, and a deployment
+whose certificate the browser trusts reads no transport file and dials its own host. Built on
+`claude/page-without-transport-file` (`cf75ba64`, tip `84c2b297`) and merged into `claude/line-hygiene` (`ccaa75e8`),
+neither of which this branch carries: the paragraph above describes this branch's code, and the decision is not built
+here. The open without the transport file is not measured (that branch, `lab/page-open`: both runs saturated).
+
 *Not measured:* the WASM preload, which starts once the transport file has arrived, not as the page is parsed (row
 279 measured the WASM client preloaded from the HTML, and with nothing preloaded, not this point between them); and
 the viewer reads the file before it starts the downloader (the head start that saves measured −0.06 round trips, inside the noise:
@@ -554,7 +564,8 @@ page is WebTransport only. A race whose QUIC arm is the WASM session is structur
 ([`ARCHITECTURE.md`](ARCHITECTURE.md) §Open). CI already builds the WASM client (`.github/workflows/gate.yml:78-126`)
 and gains only the steps below.
 
-**The shape.** TS the default; WASM chosen by the transport file's `client`; the same surface, the same checks, built
+**The shape.** TS the default; WASM chosen by the transport file's `client` (by the page's HTML since the owner's
+2026-10-19 decision, not built here: §Choosing the client); the same surface, the same checks, built
 into the image. No capability test, no fallback, no WASM race.
 
 **The rows, in order.**
@@ -645,7 +656,7 @@ self-check in `client/`, which would have split one route across two trees. `doc
 Each item below is the owner's to decide, and is tracked here.
 
 * **`readMin` at 16 KB by default** — frame 0 ties; the cost is re-dials below 44 kbit/s, and the `readMin` path's
-  defect is fixed first (§Reading a frame whole).
+  defect is fixed first (§Reading a frame whole; fixed on `claude/readmin-cut-stream`, not merged here).
 * **The WASM client as a product client** — the shape (selected by configuration, no fallback) and rows 3–4 of
   §Proposed: the WASM client as a second product client; and whether row 228's dav1d half moves.
 * **Known defects** — each found by reading the code (2026-10-16 review); *corrected 2026-10-18:*

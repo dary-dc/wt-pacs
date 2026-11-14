@@ -176,7 +176,9 @@ client's choice of WebCodecs fails every frame of every series that says `depth`
 refuses monochrome AV1 and returns 4:4:4 as 8-bit `BGRX`; WebKitGTK's GStreamer decodes no AV1
 here; *dated 2026-11-14:* those are the versions measured, and the engines' sources read since on 2026-11-07 name
 the GStreamer failure fixed as WebKit bug 327481 and Firefox's 8-bit `BGRX` still open as bug 1969762:
-[`../client/evidence/browser-av1-profile-support.md`](../client/evidence/browser-av1-profile-support.md)), with no fallback to dav1d-WASM (*since the unified AV1 branch (queue row UNIFY) there is one, and a per-layout probe; not re-run
+[`../client/evidence/browser-av1-profile-support.md`](../client/evidence/browser-av1-profile-support.md); sources read on
+2026-11-10 add that from Firefox 160 (bug 2071132) a frame returned as CPU planes reports `I420P10`/`I420P12`, not run:
+[`../client/evidence/browser-decode-routes.md`](../client/evidence/browser-decode-routes.md)), with no fallback to dav1d-WASM (*since the unified AV1 branch (queue row UNIFY) there is one, and a per-layout probe; not re-run
 in those engines*); dav1d-WASM and OpenJPH are exact in all three engines, at
 4–10× apart as in Chromium ([`decode/README.md`](../decode/README.md) §AV1 in WebKit and Firefox).
 
