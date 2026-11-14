@@ -15,8 +15,8 @@ exact frame bit for bit, and only checked claims on screen.
   cleaning and the renames merged; one `info.path` left in `lab/faultbench/index.html` (now `info.route`), a finding in
   #382. Reaches `main` through #367 then #250, on the owner's word ([`coordination.md`](coordination.md)).
 * **The documentation round** of 2026-11-14 on `claude/docs-client` (#384, a draft into `claude/unified-client`): one home
-  for the client's design, evidence and work state; the off-branch inventory folded next, then the page, a review and
-  its fixes.
+  for the client's design, evidence and work state. The off-branch inventory was folded 2026-11-14 (40 new evidence
+  files, the corrections in place, what was left in #384's body); next the page, a review and its fixes.
 * **The cache survey**, theory only, 2026-11-14
   ([`../client/evidence/cache-options.md`](../client/evidence/cache-options.md)): leaning OPFS as built; owed, a
   phone's cold read and check and sustained write of a 17 MB frame (its §5). The plan to choose the store empirically,
@@ -36,7 +36,7 @@ exact frame bit for bit, and only checked claims on screen.
 | #370 | the client load report | draft; review owed |
 | #368 | the integrity and coding-error check on the label ([`optimal-quality.md`](optimal-quality.md)) | draft; the owner's |
 | #369 | a separate proposal, kept out of the unified branch | draft |
-| #298 | the asking patterns | proposed |
+| #298 | the asking patterns ([`../client/evidence/what-a-view-asks-for.md`](../client/evidence/what-a-view-asks-for.md); the ADR is on `claude/core-asking-plan` only) | proposed |
 | #285 | the cache's writer arms, run: no arm passes on either engine | open |
 | #289, #299, #302, #303 | a second fold; a frame decoded twice; a repaint before the frame is held; the one-pass AV1 merge | open, not in `core` |
 
@@ -55,7 +55,8 @@ exact frame bit for bit, and only checked claims on screen.
 ## Waits for the owner
 
 Any merge, close or removal (the frame clock's: `git revert 24b80bcd`, [`coordination.md`](coordination.md) §Open 7);
-which view is the target; turning the cache or telemetry on, and telemetry's rate, sink and retention; a series
+which view is the target; the contradictions the fold left open ([`../client/design.md`](../client/design.md) §Open: the
+stride ADR against never skipping, the cache file's questions 3 and 4); the coded-bytes digest; turning the cache or telemetry on, and telemetry's rate, sink and retention; a series
 without digests; the settings awaiting a default ([`../client/design.md`](../client/design.md) §Open); anything
 structural.
 

@@ -18,7 +18,8 @@ HTJ2K series; no residual, no server or wire change.
 * **The integrity and coding-error check** (#368, behind one switch, off by default): its review's findings unfixed —
   a refused frame leaves the previous green mark; three `decoder.js` mutants survive the gate; no `demo-check.mjs`
   check per label state; the coding-error test compares the wrong σ; the first picture's +7.8 % at 1× not weighed
-  (`claude/oq-integrity-build:docs/reviews/oq-integrity.md`). Until it ships, the green mark claims a check nobody ran.
+  (`claude/oq-integrity-build:docs/reviews/oq-integrity.md`; the evidence:
+  [`../client/evidence/optimal-quality-reconstruction-digest.md`](../client/evidence/optimal-quality-reconstruction-digest.md)). Until it ships, the green mark claims a check nobody ran.
 * **The product ingest writes the pair**, a design only (`claude/ingest-oq:docs/reviews/ingest-oq.md`): the Rust
   ingest's second phase with `aomenc` as a subprocess, held by a parity test; found: signed sources over 10 bits
   have no form on the product path, and `pairOf` refuses ids with `~`.

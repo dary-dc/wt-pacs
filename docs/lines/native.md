@@ -3,7 +3,11 @@
 Last verified 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The native design, its decisions and results:
 [`../native/README.md`](../native/README.md) (§6 the measurements and their results, §7 the decisions), [`../native/quic.md`](../native/quic.md);
-the browser client's design it mirrors: [`../client/design.md`](../client/design.md).
+the browser client's design it mirrors: [`../client/design.md`](../client/design.md); the results folded 2026-11-14:
+[`../client/evidence/native-client-milestones.md`](../client/evidence/native-client-milestones.md),
+[`native-window-against-browser.md`](../client/evidence/native-window-against-browser.md),
+[`native-client-parity.md`](../client/evidence/native-client-parity.md). Decided since the README's §7: the shape "basic"
+(2026-10-29) and the core reaching `main` with `client/native` riding it (2026-11-11), both the owner's.
 
 ## Goal
 
@@ -29,7 +33,7 @@ only where it beats the browser on a measurement.
 | --- | --- | --- |
 | #367, #250 | the demo tip, then `claude/core`, into `main` | open; the owner's word |
 | #277, #278 | parity with the browser's display controls and cine; the window timed against the browser (interim) | on `claude/core-fold-2026-10-30`, unreviewed as product |
-| #211 | step 1's lab check behind the relay (`claude/native-core-2`) | open |
+| #211 | step 1's lab check behind the relay (`claude/native-core-2`) | open; run 2026-10-28, a tie ([`../client/evidence/native-client-wire-parity.md`](../client/evidence/native-client-wire-parity.md)); whether a tie closes step 1 is the owner's |
 
 ## Owed runs
 
