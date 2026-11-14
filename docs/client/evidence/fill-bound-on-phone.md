@@ -65,7 +65,7 @@ not recorded. Nothing past three software decoders on this phone is claimed.
 
 On one phone, one series, one evening, at the run commit, with three software decoders: the fill is decode-bound
 (floor 0.76–0.94 of it), the wire 0.5–1.0 s of a 2.4–3.3 s fill. The lever on a phone's fill is the decode (tiles in
-the encode, [`av1-tiles-decode.md`](av1-tiles-decode.md); the decoder count; a hardware route, which `hardware.md` §1 rules
+the encode, [`decode-speed-of-the-optimal-quality-picture.md`](decode-speed-of-the-optimal-quality-picture.md) §AV1 tiles; the decoder count; a hardware route, which `hardware.md` §1 rules
 out today: Chromium's hardware front end refuses 4:0:0 and a 10-bit hardware frame cannot be read back), not the wire. *Decides the saturation:* a round that records the route and per-frame arrivals and
 varies the decoder count.
 
