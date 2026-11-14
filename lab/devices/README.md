@@ -101,3 +101,21 @@ Remake the units only when the encoder changes (`ingest/tools.sh`'s build and it
 python3 lab/devices/make_hw_units.py ingest/.build
 ```
 
+
+### Asks from HW10-ROUTES, for the device session (not built)
+
+From `claude/hw10-routes:docs/decode/hardware-10bit.md` §9, the cells its top routes need; the code is the device
+session's to change, or not:
+
+* **The phone's codec list** (route 1, native MediaCodec): every AV1 decoder `MediaCodecList` reports, with
+  `isHardwareAccelerated()`, its AV1 profile levels and its `colorFormats`, and whether `COLOR_FormatYUVP010` is
+  among them. A page cannot read it; the device session picks the means (a small app or a shell).
+* **`g10f` under `prefer-hardware`** on the phone and on a desktop GPU: predicted `format` null and `copyTo()`
+  "Operation is not supported when format is null." on desktop, `BGRX` on the phone; the decoder's name from
+  `chrome://media-internals` beside it.
+* **`ramp10` on both paint paths**: predicted at most 256 levels on WebGL2 too, now from source (§6 there), not
+  unknown.
+* **Chromium 141's `copyTo({format: "I420P10"})`**: by 141's source the call throws, falls through into the RGB
+  converter and reaches a fatal `NOTREACHED()`, which crashes the renderer (§3 there; not reproduced: 141 is not in
+  the container). If so it is not a hang, a worker cannot contain it, and the harness should record a page crash
+  as that cell's outcome and run it last.
