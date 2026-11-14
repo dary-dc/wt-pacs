@@ -164,7 +164,7 @@ Fold DOCS-SWEEP's inventory into the structure: every item *absent*, *partly* or
 them); a contradiction is resolved only where a later owner decision settles it, otherwise it is listed in §Open as
 a contradiction for the owner. Apply the doc-corrections list in place, each in the doc that owns it (that may be
 outside `docs/client/`; edit it on `claude/docs-client`). Link CACHE-OPTIONS' file from `design.md` §Open once it is
-pushed. Record in the PR body what was folded and what was left, with why.
+pushed, and `evidence/frame-integrity.md` from §Decided item 2 and from §Open (the coded-bytes digest, a candidate for the owner). Record in the PR body what was folded and what was left, with why.
 
 ### DOCS-PAGE
 

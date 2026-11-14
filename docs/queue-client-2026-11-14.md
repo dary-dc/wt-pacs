@@ -357,6 +357,15 @@ local clone (`git merge --no-ff`, never pushed): conflicting files, what each co
 later decisions imply. End with the expected tree differences against today's tip, the cleaning commits that would
 follow, and the owner's calls (one per branch whose relevance is a judgment). Read only; no PR.
 
+9. **Frame integrity, sourced** (`claude/docs-client:docs/client/evidence/frame-integrity.md`, 2026-11-14): QUIC's
+   AEAD discards a corrupted packet and its data is resent, so the wire cannot deliver wrong bytes; corruption can
+   still arise at the server's storage or memory, in the client's own receive code above QUIC, or in the decoder. A
+   re-ask fixes only a transient client-side fault, and hides the bug unless the first failure is reported. Today's
+   digest is over decoded samples, so it cannot tell received bytes from decoder; **a second ingest-time digest over
+   the coded bytes, checked before decoding, would** (a candidate, the owner's to adopt). REPORT-OPTIONS and every
+   REPORT row read it; the report carries a random opaque series key (never a UID or a hash of one), the frame index,
+   which check failed, what followed, the decoder build and a random session id.
+
 ## Procedure, rules
 
 Each firing follows `docs/queue-2026-11-14.md` §The worker's procedure, §No work lost and §Standing rules, applied to
