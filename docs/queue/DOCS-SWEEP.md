@@ -1,12 +1,12 @@
-state: started
+state: done
 started: 2026-11-14T17:12Z
-heartbeat: 2026-11-14T18:05Z
-outputs: claude/work-ledger:docs/queue/DOCS-SWEEP-inventory.md (part 1 pushed, 174d7568)
+heartbeat: 2026-11-14T17:50Z
+outputs: claude/work-ledger:docs/queue/DOCS-SWEEP-inventory.md (95ea5ae0 and this commit); no PR, no other branch written
 ## Resume
-Done: part 1 (owner decisions O1-O20, contradictions K1-K3, doc corrections C1-C7) pushed.
-Running (read-only subagents, scratch files /tmp/claude-0/sweep/g1..g4.md, may be gone if the container is reclaimed): four branch-group readers
-(G1 wip-*/ask-*; G2 core-*/opfs-*/native-*; G3 phone-*/demo-*/telemetry/oq-integrity; G4 av1* client side).
-Next: append each group's table as Part 2..5 of the inventory (add a header listing its branches), push after each; then the "not client side" list
-(branches in scope with no client-side docs: pacs, metadata, sync, study-index, viewer, rsync, sqlite...) as Part 6; then set state done.
-If the scratch files are gone: redo a group by `brief` in the inventory header: per branch `git diff $(git merge-base origin/claude/unified-client b) b -- docs README.md client/README.md CLAUDE.md`.
+Done. Nothing owed by this row; DOCS-FOLD reads the inventory.
 ## Result
+Inventory in 7 parts (513 lines): 1 owner decisions O1-O20, contradictions K1-K3, the seven doc corrections C1-C7 (the five named, verified on the tip, plus the exactness-report gate and the mismatch-marking check); 2 direction's client/optimal-quality/native line docs against the tip; 3-6 four branch-group readers (wip/ask, core/opfs/native, phone/demo/telemetry/integrity, av1 client side), each with its own doc-corrections list; 7 branches skipped as not client side.
+Scope: 228 non-ancestor branches changing docs; about 160 read by group, 67 screened by path and keyword.
+Findings: the page still marks (not blocks) a mismatched frame (screen.js:6), contradicting owner decision 2; the exactness report is gated by the rate in code (load-report.js) though the ADR says always sent; client/README.md contradicts itself on who writes OPFS by default.
+Limits: readers judged the five large av1 branches by blob comparison, not line by line; G3 read no code; part 1 line numbers into optimal-quality.md are approximate.
+Owner decisions: none new.
