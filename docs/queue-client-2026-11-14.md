@@ -38,7 +38,20 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | TRANSPORT-INVENTORY | 11-15 08:00 | DOCS-FOLD done (the other queue) | `claude/transport-design` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
 | PHONE-NEXT-PROTOCOL | 11-15 10:00 | HW-DECODE-DEEP and LINK-TARGETS done, or 11-16 08:00 | `claude/phone-protocol` (docs; no PR unless the branch has one) |
 | PHONE-NEXT-PROTOCOL-REVIEW | 11-16 08:00 | PHONE-NEXT-PROTOCOL done | findings in its file's "Review" section |
-| *(CACHE-PLAN appends its rows here)* | | | |
+| CACHE-DESIGN | 11-15 08:00 | CACHE-PLAN done | `claude/cache-plan` (`docs/client/evidence/cache-plan.md` §7; PR of CACHE-PLAN) |
+| CACHE-ADVOCATE-OPFS-SYNC | 11-15 14:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
+| CACHE-ADVOCATE-OPFS-ASYNC | 11-15 14:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
+| CACHE-ADVOCATE-IDB | 11-15 14:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
+| CACHE-ADVOCATE-CACHESTORAGE | 11-15 14:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
+| CACHE-PROTOCOL | 11-16 08:00 | every CACHE-ADVOCATE done | `claude/cache-plan` (§Protocol of the same file) |
+| CACHE-BUILD-HARNESS | 11-16 14:00 | CACHE-PROTOCOL done | `claude/cache-arms` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
+| CACHE-BUILD-OPFS-SYNC | 11-17 08:00 | CACHE-BUILD-HARNESS done | `claude/cache-arms` (its PR) |
+| CACHE-BUILD-OPFS-ASYNC | 11-17 08:00 | CACHE-BUILD-HARNESS done | `claude/cache-arms` (its PR) |
+| CACHE-BUILD-IDB | 11-17 08:00 | CACHE-BUILD-HARNESS done | `claude/cache-arms` (its PR) |
+| CACHE-BUILD-CACHESTORAGE | 11-17 08:00 | CACHE-BUILD-HARNESS done | `claude/cache-arms` (its PR) |
+| CACHE-BUILD-REVIEW | 11-18 14:00 | every CACHE-BUILD done | `claude/cache-arms` (`docs/reviews/cache-arms.md`) |
+| CACHE-RUN | 11-19 08:00 | CACHE-BUILD-REVIEW done | rows on `claude/cache-arms`; results in `cache-plan.md` §Results on `claude/cache-plan` |
+| CACHE-VERDICT-REVIEW | 11-21 08:00 | CACHE-RUN done, or 11-21 20:00 | `claude/cache-plan` (§Verdict review) |
 
 A session never reviews a row it wrote. At most three rows of this file run at once.
 
@@ -136,6 +149,46 @@ output, never earlier than 2026-11-15 08:00, and closing by 2026-11-22. Builds a
 (from `origin/claude/docs-client`), never in product modules (`scripts/check_lab_absent.sh`). Read
 `docs/client/evidence/` (the old OPFS arms, the M5 memory runs) first: reuse what was built and measured, and say
 what of it a best-effort design changes.
+
+### The cache rows (appended by CACHE-PLAN, 2026-11-14)
+
+All follow `claude/cache-plan:docs/client/evidence/cache-plan.md` (the plan): its four survivors **OPFS-SYNC,
+OPFS-ASYNC, IDB, CACHESTORAGE** (§2), the shared input and seam (§3), the method (§4) and the protocol's frame (§5).
+No session reviews, advocates for or runs what it wrote: the designer advocates for nothing, an advocate writes no
+protocol, the protocol's author builds nothing, a builder neither reviews builds nor runs. Builds are lab arms under
+`lab/cache-arms/<survivor>/` on `claude/cache-arms`, never in product modules (`scripts/check_lab_absent.sh`); each
+build row works in its own directory so the builds rebase cleanly. The rows close by 2026-11-22.
+
+* **CACHE-DESIGN.** One design per survivor in the plan's §7, before anything is built, each tuned only by its own
+  sources (quoted, pinned) and answering the plan's §3 table for it: writer, layout, copies, transactions, the "does it
+  fit" answer, reads, eviction, every failure of `cache-in-opfs.md` choice 7. Each design names what of the earlier
+  builds it reuses (`client/view/cache.js`, `lab/opfs-arms/`, `lab/opfs-cache/`, M5's ring) and what it changes, its
+  predicted floor (the raw API's cost a frame at S1–S3), and at most the settings its pilot may tune. The §3 *Not
+  traced* items are traced here, each from its engine's source.
+* **CACHE-ADVOCATE-<survivor>.** A session that wrote no design: make that option as good as its sources allow.
+  Amend its design in place, each change with its source and *advocate* beside it; list every implementation
+  disadvantage it still carries and every way the shared seam or input handicaps it (a seam change is proposed for
+  all four alike, not for one). No fix after the protocol is written.
+* **CACHE-PROTOCOL.** A session that built and designed nothing writes the plan's §Protocol: §5's cells, per survivor
+  and `none`, with an A/A arm, each cell's prediction, bar and VOID rule, the floor probe beside each arm, the pilot's
+  rule, saturation, the mutants (the plan's §4), round counts sized to the cloud host's time (one Williams period per
+  cell at least), and whether WebKitGTK can run on the host (a cell not run says so). The phone cells P1–P3 stay in
+  PHONE-NEXT-PROTOCOL; this row checks they are there and says so.
+* **CACHE-BUILD-HARNESS.** The seam, the slot input (M5's ring, reused from `claude/core-m5:lab/opfs-cache/arms-*.js`),
+  the floor probe and the cells, reusing `lab/opfs-arms/` and `lab/opfs-cache/` from history (`claude/opfs-arms-run`
+  at `c99ba492`); `none` and a stub arm only. A failing test first per rule, mutated; the gate; the draft PR.
+* **CACHE-BUILD-<survivor>.** Its design as written, behind the seam, nothing else; a test per failure row, mutated
+  (which mutants each killed); the gate; smoke one round per cell (not results).
+* **CACHE-BUILD-REVIEW.** Per standing rule: each test fails without its change (revert and see); each arm matches its
+  design and touches nothing else; the floor probe measures the API alone. Blockers fixed on the branch by a later
+  firing of the build's row, failing test first.
+* **CACHE-RUN.** The protocol as written, pilot then counted cells, interleaved; rows pushed as they land; every cell
+  against its prediction, misses included; where the host saturates; the fixtures and their limits.
+* **CACHE-VERDICT-REVIEW.** The verdict by the rule, per engine, with scope; then the plan's §5 *loser's question* for
+  every arm that failed a bar: its gap over its floor, and the change its sources allow that would close it, written
+  as an amendment for one more interleaved run (owed, not run here). If CACHE-RUN is not done by 11-21 20:00, judge
+  the cells pushed and name the rest. Update `docs/client/design.md` §Open's cache item by one line; the cache stays
+  off, turning it on is the owner's.
 
 ### TRANSPORT-INVENTORY (docs only)
 
