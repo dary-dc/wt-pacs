@@ -19,7 +19,8 @@ exact frame bit for bit, and only checked claims on screen.
   its fixes.
 * **The cache survey**, theory only, 2026-11-14
   ([`../client/evidence/cache-options.md`](../client/evidence/cache-options.md)): leaning OPFS as built; owed, a
-  phone's cold read and check and sustained write of a 17 MB frame (its §5).
+  phone's cold read and check and sustained write of a 17 MB frame (its §5). The plan to choose the store empirically,
+  by the method now in `CLAUDE.md` §Measurement: #385.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.

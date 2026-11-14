@@ -77,6 +77,11 @@ The rules below have each already produced a wrong answer here when broken.
 * **Page-cache eviction is not a test lever.** Force the miss through the store's test levers.
 * **Quote latency or throughput, not both** — one is the other divided by depth.
 * **Say where the host saturates and claim nothing past it.**
+* **Choose between candidates so none loses to its build.** Survey with sources; eliminate only on a sourced hard
+  constraint; write a best-effort design per survivor before building; an advocate per survivor, from a session that
+  wrote none of them, fixes it before any run; a session that builds nothing pre-registers the protocol; run, give the
+  verdict with its scope, and re-check each loser once for losing to its implementation. Worked example:
+  `docs/client/evidence/cache-plan.md` (#385, at `7c180630`).
 
 ## Agents
 
