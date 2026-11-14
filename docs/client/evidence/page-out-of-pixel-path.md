@@ -194,6 +194,108 @@ vsyncs, as §A frame clock's *What a container can and cannot claim* says; a GPU
 measured. **Cell 4 (OPFS)** was not run: the core's cache is off by default, and who writes it is the OPFS-arms run's
 question (§The cache I/O in the view worker).
 
+### Again with both fixes, Chromium (pre-registered 2026-11-03, before any data)
+
+*Folded 2026-11-14 from `claude/core-s7-fixed:docs/adr/frame-path.md` §Again with both fixes (129e8f90, 36ae72e0),
+word for word; §*Name* sections are now [the pixel read](pixel-read-under-busy-page.md) and [the start](view-worker-start.md).
+The rows are on that branch. Measured, Chromium only.*
+
+**The question.** Does §7's verdict, "A stays", change once the two faults found since are out of B′: the per-paint
+pixel read (§*The pixel read under a busy page*; every arm now settles by the fence) and the view worker's serial start
+(§*The view worker's start, timed*)? Chromium only: the owner, 2026-10-31, optimise for Chromium first; no Firefox cells.
+
+**`viewWorkerFirst` is left out on Chromium**, decided from the start's rows before this run (`startfix-quiet.jsonl`,
+`startfix4-quiet.jsonl`, B′+fix paired with A by round; read by hand from the stamps, not by a pre-registered rule):
+
+* *It cannot help the first frame.* Under `pageDials` the view worker joins (`viewConnect`) 233–660 ms before the first
+  frame's last byte (`firstIn`), the minimum over every Chromium round at 1× and 4×. Created only at the metadata, with
+  the boot B′ took in the same round, it would still join 238 ms or more before `firstIn` in all 96 Chromium rounds
+  (inferred: B′'s boot timed under its own arm, not under `pageDials`).
+* *Its cost is not seen either.* The downloader's script runs after the page's `connect` within −2.1…+4.9 ms of A's at
+  1× and −1.6…+3.1 ms at 4×, medians per cell, where Firefox's mammogram at 4× paid +67 ms for the two boots
+  overlapping. So on Chromium it neither helps nor measurably hurts, and the setting is kept only if it helps.
+
+**Arms:** `page` (A), `pageaa` (A again) and `workerdials` (B′: `?view=worker` with `pageDials` and `shortRuns`, the
+`view_frames.py --fix` variant); every arm settles by the fence (the rig's default). Headless Chromium (Playwright's,
+SwiftShader); §7's series through the product's ingest; `r50000` behind the relay on core 3, the browser on cores 0–2;
+§7's cell 1 (quiet: four series), cell 2 (busy: the cine on CT, US and tomosynthesis, the mammogram's first frame) and
+the asks (busy, ten asks after frame 0, on the three series). **12 rounds**, the kinds rotated a round
+(`lab/viewer/view_run.sh` at 129e8f90), the cells and arms in `lab/order.mjs`'s order; a dropped visit is re-run as a whole extra
+round of its kind, and a cell counts the first 12 rounds in which every arm was kept. Rows:
+`lab/viewer/rows/fixed-{quiet,cine,busy,asks}.jsonl`. (3), the page thread, is printed and decides nothing, as in §7.
+
+**1×, and 4× only where the guard says unsaturated.** The quiet cells run at 4× after every 1× cell, each only where
+its 1× start and fill were unsaturated, and only if the usage window allows. The cine, the busy first frame and the
+asks are not run at 4×: on this code, with A unchanged, the settle's re-run found every Chromium 4× cine cell
+saturated (A's draw p99 60–123 ms against the 50 ms bar), and the asks share that page and that draw with no guard of
+their own, so nothing could be claimed from them.
+
+**Guards**, §7's and the start's: a visit is dropped if the relay's timing is VOID, it errs, or, on a busy page, its
+shortest long task is under 200 ms. *VOID:* quiet, `pageaa` − `page` on the first frame 16.7 ms or more apart, or the
+fill after it outside ×0.98–1.02; asks, arrival → screen 8 ms apart; cine, 2 points of late frames or 16.7 ms of gap
+p99. *Saturated:* a quiet bar whose window (the start; the fill after the first frame) has the browser cores' busy share
+at or past 0.95, A's median, claims nothing; a cine cell whose A draw p99 passes half the period decides nothing.
+
+**The rule, written before any data** (`node lab/viewer/rule-summary.mjs`): B′ replaces A on Chromium if every frame is
+exact and every decided cell passes —
+
+* **quiet, the corrected bars:** latency, B′'s first exact frame drawn, paired median Δ under +16.7 ms; throughput,
+  the fill after the first frame, paired ratio no more than ×1.02 (none for the one-frame mammogram);
+* **asks:** B′'s median arrival → screen ≥ 16.7 ms below A's in ≥ 9 of 12 rounds;
+* **cine:** where A is late by more than 2 points, B′ by at most 2, with a gap p99 ≤ 2 periods;
+
+— and an asks cell and a quiet latency are decided. Otherwise A stays. Against §7's rule this changes three things,
+each said: the quiet bars are the start's corrected ones; one engine, by the owner's word; every arm settles by the
+fence. Whatever it says, no default is flipped here: the verdict is recorded for the owner.
+
+**Prediction.** Quiet: B′ ties A on both bars in every decided cell (B′+fix tied in three of the four decided Chromium
+cells of the start's 1× re-run, the fourth +21 ms and read there as noise). Cine: B′ 0 % late where A misses 20–22 %, as
+the settle's re-run found. Asks: neither fix acts after frame 0 is shown, and in §7 A's median arrival → screen was the
+quiet path on CT and US (11.6 and 16.5 ms against B′'s 10.9 and 15.6), sooner by the bar in 0 of 12 rounds, and 7 of
+12 on tomosynthesis. So **A stays, on the asks**: the verdict does not change with the fixes. If the asks pass, it does.
+
+**Held by** `lab/viewer/rule-summary.test.mjs` (at 129e8f90) (each bar, guard and owed decision on made-up rows; mutants: either quiet
+bar ignored, either saturation guard ignored, the latency taken as decided when saturated, the whole fill in place of
+the fill after the first frame, the asks or the latency owed dropped, exactness dropped, VOID ignored, the cine read
+from the `worker` arm — each fails it), and `--mutate sample` on `workerdials`, which turned 70 of 70 frames inexact.
+
+**Measured 2026-11-03** (rows `lab/viewer/rows/fixed-{quiet,cine,busy,asks}.jsonl` at 1×, `fixed4-quiet.jsonl` at
+4×; run from `129e8f9` by `ENGINES=chromium VARIANTS=page,pageaa,workerdials FRAMES=lab/.av1-work/view-fix NAME=fixed
+THROTTLES=1 lab/viewer/view_run.sh 0 12`, a round 12 of the asks and the busy page for two relay-VOID drops, then
+`THROTTLES=4 NAME=fixed4 KINDS=quiet`; read by `node lab/viewer/rule-summary.mjs` over them). Headless Chromium 153
+(SwiftShader), 4 cores, no GPU. 1×: 408 visits, 2 dropped (the relay's timing guard), **13 845 of 13 845 frames
+exact**; 4×: 144 visits, none dropped, 6 336 of 6 336 exact. Every cell has 12 rounds with every arm kept; **none is
+VOID and none saturated** (quiet start 0.42–0.58 at 1×, 0.31–0.50 at 4×; fill 0.24–0.32; cine A's draw p99 19–37 ms
+against the 50 ms bar). Paired medians over 12 rounds, B′ − A:
+
+| cell, Chromium | CT | US | tomo | mammo |
+| --- | --- | --- | --- | --- |
+| (1) quiet 1×, first exact frame Δ ms; fill after it ÷ A | −2.0; ×1.000 | −5.0; ×1.001 | +6.0; ×0.999 | +4.0; — |
+| (1) quiet 4×, the same | −2.5; ×0.999 | −7.5; ×1.000 | +13.5; ×0.996 | −32.0 (sooner); — |
+| (2) cine 1×, late % A / A/A / B′; gap p99 ms | 20 / 21 / **0**; 283 / 283 / 108 | 20 / 20 / **0**; 317 / 317 / 133 | 20 / 20 / **0**; 267 / 267 / 117 | — |
+| (2) busy 1×, first exact frame A / A/A / B′, ms | — | — | — | 1074 / 1071 / 1067 |
+| asks 1×, arrival → screen median A / B′, ms (mean) | 16.4 / 15.5 (79 / 16) | 19.4 / 18.6 (75 / 19) | 22.1 / 18.6 (87 / 20) | — |
+| asks 1×, rounds B′ ≥ 16.7 ms sooner, of 12 | **0** | **0** | **5** | — |
+| (3) page thread CPU 1×, ms a frame, A / B′ | 1.05 / 0.72 | 1.14 / 0.86 | 1.90 / 2.07 | — |
+
+**The rule's verdict: A stays** — "A stays: chromium ct_nlst 1x asks, chromium dbt12_ea1141 1x asks, chromium
+us_liver 1x asks fail". **§7's verdict does not change with both fixes**, as predicted.
+
+* *The fixes did what they were for.* The quiet first frame ties A in all eight cells, at 1× and 4×, where §7 found B′
+  later by ≥ 16.7 ms in three of its Chromium cells; the fill after the first frame ties in all six multi-frame cells.
+  The cine is on time under B′ (0 % late) where A misses 20–21 %, in every cell.
+* *The asks are what keep A.* Neither fix acts after frame 0 is shown. A's *median* arrival → screen is the quiet path
+  (16–22 ms), because most asks land outside a long task; its *mean*, 75–87 ms against B′'s 16–20, is the half-task §2
+  predicted for the ones that land inside. The rule asks the median, so B′'s gain shows in the mean and the cine and
+  fails the bar.
+* *Read, not decided:* the page thread does about a third less a frame under B′ on CT and US, and a tenth more on
+  tomosynthesis; the 4× mammogram's −32 ms is a single cell under the bar's sign, not a claim.
+
+**Where the host saturates:** nowhere, by the guards, in the cells run. The 4× cine and asks were not run (above), so
+nothing is claimed for a busy page at 4×. From a software rasteriser and the container's synthetic vsync, as the rest
+of §7: a GPU, a display and a phone are not measured. **No default is flipped**; `viewWorkerFirst`, `pageDials` and
+`shortRuns` stay lab settings, off.
+
 ## 8 · Decisions for the owner
 
 1. **The page out of the pixel path (B′) or not (A).** Recommended: B′, decided by §7's rule.
