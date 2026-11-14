@@ -276,6 +276,87 @@ at `69fcf3608174` (sha256 `6ab679037c7c`). Each change below replaces what it na
   count (`fetch-transport.ts`) so the load report never starves a safety report of the 64 KiB.
 * **Its own risk, named**: the RUM SDK's Firefox claim (§1.1) — the kill cell decides it.
 
+**Advocate's amendments** (row REPORT-ADVOCATE-KEEPALIVE, 2026-11-14; a session that wrote none of this plan). Sources:
+Fetch as pinned in §0 (`478609e29799`); HTML whatwg/html `0793d3d8544e` (`source`, sha256 `7fde2f1fad51`); Chromium
+`319b309ea895` (`loader_factory_for_worker.cc` `9a150c80524a`, `loader_factory_for_frame.cc` `46917d60402a`,
+`platform/loader/child_url_loader_factory_bundle.cc` `6ebf9c5c3e22`, `keep_alive_url_loader_service.h` `047a6405c879`,
+`blink/common/features.cc` `e098b5147f94`, `dedicated_worker_host.cc` `fe550ea2a01b`); Gecko mozilla-firefox/firefox
+`c72617c01649` (`dom/fetch/Fetch.cpp` `d50a4005025c`, `dom/fetch/FetchService.cpp` `47a2826abcc7`,
+`StaticPrefList.yaml` `3f511c2677dd`); WebKit `6e6e3c0776f0` (`WorkerThreadableLoader.cpp` `623f6940bb57`). Each
+change replaces what it names; the rest stands.
+
+* **Where a keepalive outlives its sender, by engine** (*advocate*; this corrects "it runs in a worker" above as a
+  delivery claim). The spec allows it: a request with keepalive set "can be used to allow the request to outlive the
+  environment settings object" (Fetch §Requests), and a terminated fetch group ends only records whose "keepalive is
+  false" (Fetch §Fetch groups); a dedicated worker is its own environment settings object. The engines differ:
+  * *Chromium*, worker: "KeepAlive is not yet supported in web workers." (`loader_factory_for_worker.cc`, which passes
+    `mojo::NullRemote()` as the handle). The path that outlives a renderer is the frame's: "Use
+    |keep_alive_loader_factory_| to send the keepalive requests to the KeepAliveURLLoaderService in the browser
+    process" (`child_url_loader_factory_bundle.cc`), whose factory "binds RenderFrameHostImpl-specific context with
+    every receiver" and which "allows a request to continue even if a renderer unloads before completion"
+    (`keep_alive_url_loader_service.h`), on by default (`BASE_FEATURE(kKeepAliveInBrowserMigration,
+    base::FEATURE_ENABLED_BY_DEFAULT)`, `features.cc`); `dedicated_worker_host.cc` binds no keepalive factory (R: no
+    `keepalive` in the file). **So on Chromium a worker's keepalive fetch is an ordinary fetch: it completes while the
+    worker lives, and nothing says it outlives the worker** (I: the kill cell decides).
+  * *Gecko*, page and worker: page "keepalive is set to true, route the request through PFetch" (`Fetch.cpp`), and a
+    worker's goes to the parent the same way (`FetchChild::CreateForWorker`, with `dom.workers.pFetch.enabled: true`);
+    on the worker's end "if keepalive is active and it is NOT user initiated Abort, then do not cancel the request"
+    (`FetchService.cpp`). This contradicts, at today's Gecko, the RUM SDK's "fetch keepalive behaves like regular fetch
+    on Firefox" (§1.1); the kill cell still decides it. Before Firefox 133 there is no keepalive (BCD
+    `api.Request.keepalive` firefox "133").
+  * *WebKit*, worker: the request is made on the document's loader through `WorkerThreadableLoader::MainThreadBridge`;
+    whether it outlives the worker is not traced (I: the kill cell).
+* **The safety report, from the worker at once and from the page at hide** (*advocate*). The decoder worker that
+  finds the mismatch sends it at once with `keepalive` (the page is alive, so the worker is, on every engine) and posts
+  the same serialized record to the page, which it must tell anyway (the frame blocked, the reader told). The page
+  holds it as pending until the worker posts the `204`; at each hide it sends every pending safety report itself, by
+  the page's keepalive, which on Chromium is the browser-held path above. A `reportId` (`crypto.randomUUID`) per
+  record lets the receiver drop the second copy. A network error or a status other than `204` retries once after 1 s
+  while the page lives (the response is what BEACON lacks: "this method does not provide any information whether the
+  data transfer has succeeded", Beacon §2.1.4).
+* **The load report, from the page only** (*advocate*). Its sends at hide go from the page's thread for the reason
+  above; with BEACON's amendments adopted alike (the hybrid with `seq` deltas, `pagehide` beside `visibilitychange`,
+  one synchronous call per send, nothing awaited before it). A hybrid's first send at the fill's end may retry on its
+  response; a hide send never waits for one.
+* **The budget is per sender** (*advocate*). Fetch counts "fetch records in group" of "httpRequest's client's fetch
+  group" against "64 kibibytes", so a worker's safety reports do not draw on the page's budget; Gecko does not count
+  a worker's at all past each request ("We do not limit the keepalive size per loadgroup(but instead per request)",
+  `Fetch.cpp`) and caps keepalive requests at `dom.fetchKeepalive.request_limit_per_origin: 256` and
+  `total_request_limit: 2048`. OpenTelemetry's byte and count accounting stays, on the page, where a pending safety
+  report and the load report share one budget; the safety report goes first in a task, as in §3.1.
+* **The body** (*advocate*). Same origin, so `application/json` needs no preflight (I: CORS applies to cross-origin
+  requests only); a `ReadableStream` is refused ("If keepalive is true, then throw a TypeError", Fetch §BodyInit
+  extract), so a compressed body is made into a `Blob` at the fill's end, as §3.1's shared proposal says. Unlike a
+  beacon it can carry `Content-Encoding`, so compression with KEEPALIVE does not force RECEIVER by itself.
+* **Timings run**: the load report *at hidden* (the A arm) and *the hybrid*; the safety report *at once from the
+  worker, with the page's send at hide for any not confirmed*. *At once* alone for the load report is not run (§3.1's
+  reason).
+
+**Disadvantages KEEPALIVE still carries** (*advocate*, for the protocol to price):
+
+* **On Chromium the worker's send dies with the worker** (source above): a page killed between the mismatch and the
+  worker's `204` loses the report unless it reaches a hide; the delivery cell's *killed while visible* row prices it.
+* **The hide send is on the page's thread**, as BEACON's is.
+* **Two copies** of a safety report whenever the `204` is late; the receiver dedups by `reportId` (its cost is in the
+  receiver cell).
+* **Firefox before 133** sends an ordinary fetch, lost at unload (BCD).
+* **A promise and a `Response` per send**, where a beacon returns a boolean (I: the page-thread cell's floor beside
+  the arm prices it).
+* **Chromium's nine-request cap** is second-hand (§1.4); not read in source here.
+
+**What the shared parts cost KEEPALIVE** (*advocate*; proposed for every carrier alike):
+
+* **The workers need the report's constants at start**: the sink URL, the load id, the session id, the decoder build,
+  the off switch. Proposed: the decoder workers' init message carries them for all carriers (§3.1's serialize-in-worker
+  proposal needs them too).
+* **`reportId` in the field list** for every record, so the receivers dedup alike and the protocol's "a field outside
+  the list" mutant is checked against a list that has it.
+* **A `204` that means written**: the shared contract's `204` proves arrival only if the sink answers after the record
+  is appended. RECEIVER can; NGINX logs at the request's end, after its `204` (I: the receiver cell checks it). Stated
+  for both receivers alike.
+* **The page-thread cell counts the worker's report time too**, beside it, so moving the send off the page is priced,
+  not free.
+
 ### 3.3 SESSION
 
 * A unidirectional stream opened on the series' WebTransport session for each record, one JSON object, then FIN; the

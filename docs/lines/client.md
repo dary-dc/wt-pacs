@@ -32,6 +32,9 @@ exact frame bit for bit, and only checked claims on screen.
   `claude/work-ledger:docs/queue-client-2026-11-14.md`.
   BEACON's advocate (§3.1, 2026-11-14): the hybrid with a delta per hide as its design, the hide-once build its A arm
   (a departure from the owner's 11-11 brief, the owner's to adopt); `pagehide` beside `visibilitychange`.
+  KEEPALIVE's advocate (§3.2, 2026-11-14): Chromium keeps a keepalive past the renderer only from the page ("KeepAlive
+  is not yet supported in web workers"), Gecko from both; so the safety report goes from the worker at once and from
+  the page at hide until confirmed, deduped by a `reportId`.
 
 ## PRs
 
