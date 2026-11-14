@@ -84,16 +84,36 @@ worker, is recorded as `hung`, and a fresh worker decodes again for the next tas
 from `chrome://media-internals` (the player's `kVideoDecoderName`) and `chrome://gpu` (*Video Acceleration
 Information*), and keep both beside the report.
 
-**Tested** in headless Chromium 141 (Playwright 1.56.1's) through `collector.py`, software paths only:
+**The test** drives D0 through `collector.py` in headless Chromium, software paths only (`CHROME_PATH` the binary,
+`WAIT_S` the wait for each run's D0 row, 600 for the whole set; `BASE_ONLY=1` the unmutated run alone):
 
 ```bash
-podman run --rm --cpus=2 -v "$PWD:$PWD:ro" -w "$PWD" mcr.microsoft.com/playwright:v1.56.1-noble node lab/devices/hwdecode.test.mjs
+CHROME_PATH=/path/to/chrome WAIT_S=600 node lab/devices/hwdecode.test.mjs --out target/hw-probe-headless.json
 ```
 
 It checks every cell's outcome is recorded and each `?mutate=` turns its check: `plane` (a byte of each copy
 flipped: every judged copy inexact), `expected` (wrong digests: the source check fails), `codec` (an invalid
-string: no frame, each cell says why), `unit` (half the unit overwritten: no frame exact), `paint` (read back at
-8 bits: a path that kept more than 256 levels keeps 256 or fewer).
+string: no frame, each cell says why), `unit` (half the unit overwritten: no frame exact), `hang` (`copyTo` to
+`I420P10` spins forever: recorded as `hung`, a fresh worker decodes again, the later formats keep their outcomes),
+`paint` (read back at 8 bits: a path that kept more than 256 levels keeps 256 or fewer; SKIP where none did).
+
+**Tested** 2026-11-14 in headless Chromium 153 (Chrome for Testing 153.0.8010.12; 141 was not in the container),
+SwiftShader for WebGL2 and WebGPU, software paths only, no device: every claim PASS, `paint` SKIP, in 3.5 min on
+the container's CPUs; each claim also failed once with the code it checks broken. What the run read:
+
+* `no-preference` and `prefer-software`: supported, four frames per cell, `I420` or `I420P10`; the frame's own
+  copy exact in every judged plane (luma of all 18 cells, chroma of the 4:2:0 ones); 4:0:0 decodes to a 4:2:0
+  format with its chroma not judged.
+* `prefer-hardware`: `isConfigSupported` false for every unit, `configure` accepted, then `OperationError`
+  ("Unsupported configuration") and the decoder closed.
+* `copyTo` with a format: every YUV and `NV12` target refused (`NotSupportedError`; `I420P10` "doesn't support
+  explicit copy to non-RGB format", not a hang as in 141; the `…AP12` names a `TypeError`, not in this enum);
+  `RGBA`, `RGBX`, `BGRA`, `BGRX` given, none equal to the source's luma.
+* Paint: WebGL2 into `RGBA16F` and `RGBA32F` at most 256 levels, `ramp10` 256 of 1024; WebGPU's
+  `importExternalTexture` on SwiftShader's fallback adapter "Instance dropped in popErrorScope" in every cell.
+* Media Capabilities: supported and smooth, `powerEfficient` false, for every unit.
+
+Not tested: any phone, any hardware decoder, Chromium 141 itself, Firefox, WebKit.
 
 Remake the units only when the encoder changes (`ingest/tools.sh`'s build and its Python):
 
