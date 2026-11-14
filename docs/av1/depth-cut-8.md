@@ -4,7 +4,8 @@ Row DEPTH8-THEORY, 2026-11-14. **Theory plus a pre-registered protocol; nothing 
 arithmetic over rows the quality study already measured: the per-frame σ and the coded cells of the 19 DBT volumes in
 `claude/av1-noise-ratio:lab/av1/metrics/rows/shard-{1,2,3,4}.jsonl`. They are labelled *derived* (from definitions)
 or *derived from the rows*. Facts about browsers are *sourced* and quoted. Facts measured before this row are
-*measured* and name their row. §7 is the protocol DEPTH8-MEASURE runs. It informs the codec question and decides
+*measured* and name their row. noise-point.md, noise-ratio.md and the harness `claude/av1-noise-ratio:lab/av1/metrics` are
+`claude/av1-noise-ratio`'s, as the quality study left them. §7 is the protocol DEPTH8-MEASURE runs. It informs the codec question and decides
 nothing.
 
 The arithmetic is `lab/av1/depth8/theory.py`. Its output, every number below, is `lab/av1/depth8/predictions.json`:
@@ -51,8 +52,8 @@ using only images up to 8 bits of depth in order to be able to use the hardware 
 we won't give up until we have no other choice. So first is to investigate and test".
 
 * **The bar** is the noise rule's anchor (a): e_N ≤ σ on every frame. Here σ is a frame's own noise in the 3 × 3
-  Laplacian's band and e_N is the coding error in that band (`lab/av1/metrics/README.md` §Terms, §4.4, on
-  `claude/av1-noise-ratio`). The rule was tested on held-out volumes and is refuted above 1.03 (`docs/av1/noise-point.md`
+  Laplacian's band and e_N is the coding error in that band (`claude/av1-noise-ratio:lab/av1/metrics/README.md`
+  §Terms, §4.4). The rule was tested on held-out volumes and is refuted above 1.03 (`claude/av1-noise-ratio:docs/av1/noise-point.md`
   §8, P1). Both bars are reported: 1.00 and 1.03. Which one counts is the owner's (codecs.md §Open 1).
 * **The fixtures** are 19 DBT volumes: the quality study's 14 and the noise point's 5 held out.
   * The 12 at 12 bits are `dbts_a1`–`a5`, `dbts_c1`–`c5`, `dbt12_c` and `dbt12_ea1141`.
@@ -74,8 +75,8 @@ c = min((v + 2^(k−1)) >> k, 255)        k = D − 8
 Code c stands for c · 2^k. **The rounding error** of integers rounded to multiples of 2^k is uniform over 2^k values.
 Its RMS is √((4^k − 1)/12): 4.61 at k = 4 (D 12) and 1.12 at k = 2 (D 10). Its largest value is 2^(k−1), except at
 the clamp, as for the 10-bit cut. The error is white and independent of the signal once the noise is not far below
-one step. The quality study derived this and checked it from σ 0.25 steps up (`lab/av1/metrics/README.md` §4.4,
-*rounding taken out*). Here σ_min ÷ 2^k is at least 0.66 at D 12 and 0.84 at D 10. The Laplacian ÷ 6 keeps white
+one step. The quality study derived this and checked it from σ 0.25 steps up (`claude/av1-noise-ratio:lab/av1/metrics/README.md`
+§4.4, *rounding taken out*). Here σ_min ÷ 2^k is at least 0.66 at D 12 and 0.84 at D 10. The Laplacian ÷ 6 keeps white
 noise's σ (README §Terms), so the cut adds exactly that RMS to e_N.
 
 | | D 12 | D 10 |
@@ -266,7 +267,7 @@ A session that wrote none of this file runs it as written. If the host forces a 
 before any run.
 
 **Setup.**
-* Pin and record the commit of `lab/av1/metrics`, the quality study's harness (`claude/av1-noise-ratio`, or what
+* Pin and record the commit of the quality study's harness, `claude/av1-noise-ratio:lab/av1/metrics` (or what
   carries it), and of this file.
 * libaom 3.15.1 `aomenc` with the study's lossy settings (`payload-format.md` §Optimal quality's line), and
   `--profile=0 --bit-depth=8 --input-bit-depth=8`.
