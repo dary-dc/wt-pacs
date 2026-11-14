@@ -57,6 +57,20 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | CACHE-BUILD-REVIEW | 11-18 14:00 | every CACHE-BUILD done | `claude/cache-arms` (`docs/reviews/cache-arms.md`) |
 | CACHE-RUN | 11-19 08:00 | CACHE-BUILD-REVIEW done | rows on `claude/cache-arms`; results in `cache-plan.md` §Results on `claude/cache-plan` |
 | CACHE-VERDICT-REVIEW | 11-21 08:00 | CACHE-RUN done, or 11-21 20:00 | `claude/cache-plan` (§Verdict review) |
+| REPORT-ADVOCATE-BEACON | 11-15 16:00 | — | `claude/report-plan` (`docs/client/evidence/report-plan.md` §3.1; PR of REPORT-OPTIONS) |
+| REPORT-ADVOCATE-KEEPALIVE | 11-15 16:00 | — | `claude/report-plan` (§3.2) |
+| REPORT-ADVOCATE-SESSION | 11-15 16:00 | — | `claude/report-plan` (§3.3) |
+| REPORT-ADVOCATE-NGINX | 11-15 16:00 | — | `claude/report-plan` (§3.5) |
+| REPORT-ADVOCATE-RECEIVER | 11-15 16:00 | — | `claude/report-plan` (§3.5) |
+| REPORT-PROTOCOL | 11-16 14:00 | every REPORT-ADVOCATE done | `claude/report-plan` (§Protocol of the same file) |
+| REPORT-BUILD-HARNESS | 11-17 08:00 | REPORT-PROTOCOL done | `claude/report-arms` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
+| REPORT-BUILD-BEACON | 11-17 14:00 | REPORT-BUILD-HARNESS done | `claude/report-arms` (its PR) |
+| REPORT-BUILD-KEEPALIVE | 11-17 14:00 | REPORT-BUILD-HARNESS done | `claude/report-arms` (its PR) |
+| REPORT-BUILD-SESSION | 11-17 14:00 | REPORT-BUILD-HARNESS done | `claude/report-arms` (its PR) |
+| REPORT-BUILD-RECEIVERS | 11-17 14:00 | REPORT-BUILD-HARNESS done | `claude/report-arms` (its PR) |
+| REPORT-BUILD-REVIEW | 11-18 20:00 | every REPORT-BUILD done | `claude/report-arms` (`docs/reviews/report-arms.md`) |
+| REPORT-RUN | 11-19 14:00 | REPORT-BUILD-REVIEW done | rows on `claude/report-arms`; results in `report-plan.md` §Results on `claude/report-plan` |
+| REPORT-VERDICT-REVIEW | 11-21 14:00 | REPORT-RUN done, or 11-22 08:00 | `claude/report-plan` (§Verdict review) |
 
 A session never reviews a row it wrote. At most three rows of this file run at once.
 
@@ -247,6 +261,40 @@ build row works in its own directory so the builds rebase cleanly. The rows clos
   as an amendment for one more interleaved run (owed, not run here). If CACHE-RUN is not done by 11-21 20:00, judge
   the cells pushed and name the rest. Update `docs/client/design.md` §Open's cache item by one line; the cache stays
   off, turning it on is the owner's.
+
+### The report rows (appended by REPORT-OPTIONS, 2026-11-14)
+
+All follow `claude/report-plan:docs/client/evidence/report-plan.md` (the plan): its survivors, the carriers **BEACON,
+KEEPALIVE, SESSION** and the receivers **NGINX, RECEIVER** (§2), the shared parts (§3), the method (§4, the cache
+plan's) and the protocol's frame (§4). The same separation as the cache rows: the plan's author advocates for nothing,
+an advocate writes no protocol, the protocol's author builds nothing, a builder neither reviews builds nor runs. Builds
+are lab arms under `lab/report-arms/<survivor>/` on `claude/report-arms`, never in product modules
+(`scripts/check_lab_absent.sh`), each in its own directory. PR 370's build is BEACON's starting point, not the default.
+Rows close by 2026-11-22.
+
+* **REPORT-ADVOCATE-<survivor>.** A session that wrote none of the plan: make that option as good as its sources
+  allow; amend its §3 design in place, each change with its source and *advocate* beside it; list every implementation
+  disadvantage left and every way the shared parts handicap it (a change to them proposed for all alike). For the
+  carriers, which timings (at once, at hidden, the hybrid) the design runs. No fix after the protocol is written.
+* **REPORT-PROTOCOL.** A session that designed and built nothing writes §Protocol: §4's cells per carrier × timing
+  and per receiver, with `off` and an A/A `off`; each cell's prediction, bar and VOID rule; the floor probe beside each
+  arm; the pilot's rule (format, the hybrid's first send); each kill and drop lever sourced and checked to work on the
+  host per engine (a cell an engine cannot run says so); saturation; the mutants (a record never sent, a safety report
+  sampled, a field outside the list); round counts sized to the host. Writes the phone cells (§4) as asks into the
+  phone protocol's file and says so.
+* **REPORT-BUILD-HARNESS.** The sink with its counters, the relay's drop, the kill levers, the fault bench's forced
+  mismatch wired to a safety report, the server's link record (§3.4) as a lab arm, `off` and a stub carrier. A failing
+  test first per rule, mutated; the gate; the draft PR.
+* **REPORT-BUILD-<survivor>** (RECEIVERS builds NGINX and RECEIVER). Its design as written, behind the harness's seam;
+  a test per failure the design names, mutated (which mutants each killed); the gate; one smoke round per cell.
+* **REPORT-BUILD-REVIEW.** Per standing rule: each test fails without its change; each arm matches its design and
+  touches nothing else; each floor measures the raw call alone. Blockers fixed by a later firing of the build's row.
+* **REPORT-RUN.** The protocol as written, pilot then counted cells, interleaved; rows pushed as they land; every cell
+  against its prediction; where the host saturates; fixtures and limits.
+* **REPORT-VERDICT-REVIEW.** The verdict by the rule, per engine, with scope; the loser's question for every arm that
+  failed a bar; the safety report's timing and the server's reaction (§5) re-judged against the run. If REPORT-RUN is
+  not done by 11-22 08:00, judge the cells pushed and name the rest. Update `docs/client/design.md` §Open by one line;
+  telemetry stays off (rate 0), turning it on is the owner's.
 
 ### TRANSPORT-INVENTORY (docs only)
 
