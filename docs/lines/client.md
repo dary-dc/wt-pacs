@@ -16,7 +16,9 @@ exact frame bit for bit, and only checked claims on screen.
   #382. Reaches `main` through #367 then #250, on the owner's word ([`coordination.md`](coordination.md)).
 * **The documentation round** of 2026-11-14 on `claude/docs-client` (#384, a draft into `claude/unified-client`): one home
   for the client's design, evidence and work state. The off-branch inventory was folded 2026-11-14 (40 new evidence
-  files, the corrections in place, what was left in #384's body); next the page, a review and its fixes.
+  files, the corrections in place, what was left in #384's body); the page
+  ([`../client/design.html`](../client/design.html)) 2026-11-14, with the link check reading `docs/` pages; next a
+  review and its fixes.
 * **The cache survey**, theory only, 2026-11-14
   ([`../client/evidence/cache-options.md`](../client/evidence/cache-options.md)): leaning OPFS as built; owed, a
   phone's cold read and check and sustained write of a 17 MB frame (its §5). The plan to choose the store empirically,
