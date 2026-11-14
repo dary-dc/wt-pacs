@@ -425,6 +425,10 @@ What the sources show (each in §12–§15):
   is GREY420 (8-bit 4:2:0, neutral chroma) on desktop Chromium: hardware decode and an `NV12` plane copy, 8 bits
   only. Native APIs return the planes (§5, confirmed in §15).
 
+*Corrected in review (amendment 1):* "need not be read back to be painted" does not stand alone: every view frame is
+checked, in production too, so a path that paints without returning the samples to an XXH3 does not serve the view.
+Of the browser paths, only desktop Chromium's 8-bit GREY420 returns them (§18.1).
+
 ## 12. The gates at Chromium 157 and 158
 
 **Gate 2, desktop: unchanged.** `AV1Decoder` still refuses anything but 4:2:0 and 4:4:4: "Only YUV 4:2:0 and YUV
