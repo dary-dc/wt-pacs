@@ -355,3 +355,150 @@ the one conflict left by the provisional resolution. `hw-probe` waits for HW-PRO
 | 63 | `hw-probe` | — | 0 | 0 | — | clean |
 
 
+**The code conflicts of stage A, named** (the rest are line docs, indexes and lab READMEs):
+
+* `native-parity` (27 files, 64 hunks), `core-start2` (16), `core-s7-fixed` (7), `core-busy2` (6): built on the 10-30
+  fold (`core-fold-2026-10-30`, PR 273), before experiments-off and NAMES-1. They conflict in `client/view/*`,
+  `client/paint/*`, `client/transport/downloader.js` and `lab/viewer/levers.js` with the tip's renames and removals.
+  Implied resolution: the tip's code throughout (the 11-02 fold took these runs' decisions, not their code); the
+  branches bring their rows, `docs/adr/frame-path.md` §7 text and `client/native/src/{load,look,resume}.rs`
+  (`native-parity`, new files, no conflict). Call M2.
+* `wip-219-VIEWERASKS` (10), `wip-226-GATEGAPS` (6), `onerror` (2, both deletes): patch-carried; every conflict is the
+  tip's later form of the same change, so the tip's side, and the merge adds history only.
+* `core-exp2` (9): k = 8 by the rule, the default left to the owner; conflicts in `downloader.js` and the committed
+  `client/transport/ts/dist/session.js` with its `manifest.sha256`. The bundle and manifest are rebuilt after
+  (`scripts/gate.sh` compares them), never hand-merged. Call M6.
+* `oq-integrity-build` (8, PR 368) and `telemetry-client` (8, PR 370): proposals into product files
+  (`client/decode/decoder.js`, `client/view/controller.js`, `client/viewer/viewer.js`, `deploy/web-files.sh`). Their
+  merge is their adoption: call M6. If adopted, the branch's side in those files, re-checked against NAMES-1's names.
+* `transport-design` (11, PR 391) and `link-targets` (7, PR 386): docs only, against the tip's `docs/lines/*`,
+  `docs/glossary.md`, `docs/decode/hardware.md`; resolved by taking `docs-client` first (the order correction above),
+  after which they conflict only where the 11-14 rows edited the same paragraph.
+* Server line (A2): `scroll-policies` (11) and `wip-276-ONEQUEUEPRODUCT` (9) conflict in `server/src/transport/
+  {server,planner,link}.rs`, `lab_levers.rs` and the client's transport, all against later forms. `scroll-policies`
+  brings `lab/ask-ahead/askstream*` (new) and lab levers; resolution: the tip's code, the new lab files kept, each
+  added lever behind `lab-levers` as the absence check requires. `wip-276` is call M3.
+
+## 4. Stage B: the lines into one branch, `claude/unified`
+
+Start: `claude/unified-client` after A4. Order: codecs, server, PACS, hygiene (smallest product change first; the
+viewer line stays parked, M5). Each conflict below was read with `git merge-tree` against today's tips, before stage A.
+
+* **B1 `unified-codecs`** (11 files after A1; 2 against today's tips: `docs/lines/codecs.md`,
+  `docs/lines/optimal-quality.md`). Line docs: the tip's form, the codecs line's state carried by edit. After A1 also
+  `client/paint/{paint-worker,voi}.js` and `voi.test.mjs` (from `av1-paint-depth`'s reduced field) and
+  `lab/av1/delivery/total-time/*`: the tip's paint, the reduced field only if M6 adopts PR 309.
+* **B2 `unified-server`** (31 after A2; 3 against today's tips). `server/src/main.rs` and
+  `server/src/transport/lab_levers.rs`: both sides add lab levers (`send_window_follows_cwnd`,
+  `reply_repeated_initial` on the client side; `advise_tile_names`, row 259's arm T1, on the server side): **union**,
+  every lever behind `lab-levers`, the parse test listing all of them; whether `advise_tile_names` stays is PR 380's
+  owner question. `server/README.md`: union of the flag table. After A2 the count grows by the client and deploy files
+  the server line's old-base branches touch (`deploy/Containerfile`, `deploy/nginx/*`, `client/viewer/check*.js`): the
+  tip's form, which carries the demo's later decisions.
+* **B3 `unified-pacs`** (7 files, 25 hunks). `Cargo.toml` (workspace members `client/native` against `carrier`,
+  `carrier/sender`): union. `.gitignore`, `docs/adr/README.md` (the PACS line's eight ADR rows), `docs/ingest/README.md`:
+  union. `server/src/transport/websocket.rs`: the tip moved `MAX_FOD_LEN` to the `fod` crate, the PACS line added
+  `log_series_refusal`: both, i.e. `use fod::MAX_FOD_LEN;` and the new import. `server/src/transport/server.rs`: the PACS
+  line's serving by UID (`Series`, a series path per session) against the client line's pipeline changes: a written
+  resolution (§5's errors are this file). `Cargo.lock`: regenerated (`cargo update -w`), never hand-merged.
+* **B4 `line-hygiene`** (29 files, 46 hunks; PR 256). The hygiene line's 10-30 fold (#114–#117: the page names its
+  client, no series by default, deploy's compile cores, the arm64 cross-build). The tip has since renamed and rewritten
+  the same lines (`want` became `addToFill`/`setWant`; the decoders are committed and pinned, where hygiene built them
+  on the host): the tip's side in every code conflict. Kept from hygiene, without conflict: the tests in
+  `common/*/src/tests.rs`, `client/viewer/page.sh`, `deploy/build-arm64.sh`, `deploy/THIRD_PARTY_NOTICES` (regenerated
+  from the merged `Cargo.lock` after, by `deploy/server_notices.py`).
+
+## 5. Expected tree, and what does not build
+
+`claude/unified` after A and B (provisional resolution), against today's `claude/unified-client`: **1 523 files
+changed, +610 744 −1 924 lines.** By top directory (files added): `lab/av1` 422, `lab/htj2k-progressive` 163,
+`lab/proposals` 65, `lab/opfs-arms` 65, `docs/client` 59, `lab/study-index` 51, `lab/metadata-store` 43, `lab/viewer`
+34, `lab/metadata-delivery` 33, `lab/htj2k-tiles` 30, `docs/phone-rows` 21, `docs/av1` 20, `lab/phone` 19,
+`server/src` 17 (the hygiene and PACS lines' tests, `series_tree.rs`), `ingest/receiver` 13, `carrier/*` 20. Of the
+lines, 357 356 are `lab/av1` rows and 54 178 `docs/phone-rows` raw beacons. One file deleted:
+`client/transport/ts/tsconfig.check.json`. Against the other tips: `unified-codecs` 1 724 files, `unified-server`
+1 676, `unified-pacs` 1 431.
+
+Build (`cargo build -p series-server`, default features): **after A4 it compiles; after B it fails with four errors**,
+all from the provisional `server.rs`: `crate::transport::server::Series` unresolved in `banner.rs` (the PACS line's
+type, dropped with the unified side's `server.rs`), `ProductPipeline::new` missing its fourth argument
+(`advise_past_slots`, the server line's) at `server.rs:173` and `websocket.rs:74`, and `PathBuf::as_deref` in
+`banner.rs:21`. So `server.rs` takes a hand resolution of three lines' changes, with its tests. Not run: the gate, the
+browser checks, `check_lab_absent.sh` past the build (it stopped at the compile).
+
+## 6. The cleaning commits that would follow (each its own commit, reviewed)
+
+1. `Cargo.lock` regenerated; `deploy/THIRD_PARTY_NOTICES` written again from it.
+2. The committed client bundles and `manifest.sha256` rebuilt (`scripts/gate.sh` compares them).
+3. Lab harness that experiments-off removed and an old branch brought back (the 10-30 fold's `lab/frame-clock`,
+   `lab/viewer/levers.js` arms, the OPFS arms' pages): removed again, rows and READMEs kept, until
+   `scripts/check_lab_absent.sh` passes; item 11 (the frame clock) only on the owner's yes.
+4. Every lab lever a merge added put behind `lab-levers` (the absence check's server half).
+5. The line docs reconciled into the work-state form of PR 384 (`docs/lines/*.md`), and `docs/glossary.md` checked for
+   two names of one concept (NAMES-1's list).
+6. The comment budget (`scripts/comment_budget.sh`) on every product file a merge touched.
+7. Anything a superseded or `history` merge re-added under an old path (`client/downloader/`, `client/harness/`, the
+   pre-rename `client/transport-ts`), if call M1 joins history without `-s ours`.
+
+Commands (re-derive every count):
+
+```bash
+git fetch origin --prune
+U="unified-client unified-codecs unified-pacs unified-server"
+git for-each-ref --format='%(refname:short)' refs/remotes/origin | grep -v '^origin$\|HEAD' | while read -r r; do
+  c=; git merge-base --is-ancestor "$r" origin/main && c=main
+  [ -z "$c" ] && for u in $U; do git merge-base --is-ancestor "$r" origin/claude/$u && c="$c $u"; done
+  echo "${r#origin/} ${c:-not-carried}"; done                        # §1's carried counts
+git cherry origin/claude/unified-client origin/<branch> | grep -c '^+'  # §2 patch-unique commits
+git merge-tree --write-tree --name-only origin/claude/unified-client origin/claude/<line>   # §4's conflicts
+git ls-remote origin 'refs/pull/*/head'                              # PR numbers by head commit
+```
+
+## 7. The owner's calls
+
+* **M1. The pre-`mainbase` lineage** (`av1`, `av1-mainbase`, `av1-unified`, `wip-dockerread`, the seven `wip-208`…
+  `wip-215` rows, `ccr-10b47d42-tr6zpv`, PR 37). `av1-unified-mainbase` re-rooted their content on `main` with new
+  commits, so their history is joined only by merging them. A plain merge of `av1` conflicts in 240 files (1 290 hunks),
+  `av1-mainbase` in 28 more, and brings back old paths. **Proposed: `git merge -s ours` for each**: history kept, tree
+  unchanged, zero conflicts (amendment 8's "even if it's a bit messy"). Separately: `client/conformance/av1` (160 files
+  on `av1` and `av1-mainbase`) and some 260 other `lab/av1/*` and `docs/av1/mainbase/*` files have no path on the tip; most moved in the lab's
+  reorganisation (`lab/av1/svcshape` → `lab/av1/delivery/scalable/shape`), the conformance set is named nowhere. Bring
+  it back, or record it as left on its branch?
+* **M2. The core's lab runs of 10-30 to 11-04** (`core-busy2`, `core-start2`, `core-s7-fixed`, `opfs-c-shared`,
+  `opfs-theory`, `core-clock`, `core-m5b`, `native-parity`, `native-metrics`; they carry `core-fold-2026-10-30` PR 273,
+  `opfs-arms-run` PR 285, `frame-memory-m5-run`, `core-s7`). The 11-02 fold (PR 289, carried) took their decisions
+  only. Merge them for their rows and §7 text, the code resolved to the tip and cleaning 3 after (proposed), or leave?
+  `core-clock` is item 11 (coordination Open 7).
+* **M3. One queue in the product** (PR 96 `wip-276-ONEQUEUEPRODUCT`, its rows `wip-253`): a 10-16 product build of what
+  the tip's `docs/WIRE.md` §Proposed: one queue (row 249) still lists as *proposed*; no file of the branch is identical on the tip. Relevant, superseded, or a question for the transport session?
+* **M4. Nine small branches rewritten since** (`readmin-cut-stream` PR 136, `opfs-cache-measure` PR 204,
+  `cache-policy` PR 207, `ask-patterns-map` PR 224, `cine-no-skip` PR 251, `av1-lcevc-lossy` PR 292,
+  `client-architecture-division-rfri34`, `beeper-ebpf-explore`, `rootless-podman-and-selinux`): merge for history with
+  the tip's text where they conflict (0–6 files each), or leave.
+* **M5. The viewer line**: `line-viewer` (PR 255, 16 commits off the tip), `viewer-spike` PR 214, `viewer-seam2`
+  PR 300. Parked: stays out of `claude/unified`, or comes in as lab only?
+* **M6. Proposals in product paths** — merging adopts them: PR 368 integrity (I1–I3), PR 370 telemetry (off by
+  default), PR 372 the room's network check, PR 376 the hidden-page deadline, PR 378 the lost exact ask (its review:
+  re-asks every rejection and carries lab code, fix first), PR 390 the optimal-quality ingest (off by default), PR 309
+  paint depth (behind a flag), PR 265 k = 8. Each yes or no; a no leaves it as an open PR.
+* **M7. The work ledger** (`claude/work-ledger`, 783 commits of queues and status files): stays a ledger off the
+  unified branch (proposed), or is merged for history at the end?
+* **M8. The name** `claude/unified`, and whether it replaces the four `claude/unified-*` branches once built (no branch
+  is deleted without the owner's yes).
+* **M9. `hw-probe`** (HW-PROBE-PAGE, in progress): merged after its review row, into the client sequence after
+  `docs-client`.
+
+Not relevant, no call needed: `project-thread-9jumbi` PR 39 and `-212` PR 40 (measured, not adopted),
+`next-ideas-cdydy8`, `project-thread-9uugfm`, `day-summary-2026-10-27` PR 205, `merge-order-2026-10-28` PR 217,
+`merge-order-2026-10-29` PR 257, `probe-sched-20261029-gh-yes`, `repo-inventory`, `core-onepass` PR 303: each line in
+§2. Closing their PRs and deleting branches is the owner's (a list for the yes, coordination §Decisions).
+
+## 8. Then, the preparation for `main` (rows of their own, after the owner approves this plan)
+
+1. **UNIFIED-BUILD**: stage A per line, then B, each merge `--no-ff` with its conflicts and resolutions in the PR body;
+   one draft PR into `claude/core` (the demo path's base) or `main`, the owner's choice.
+2. **UNIFIED-REVIEW**: a session that wrote none of it: each resolution against §3–§4, the gate green or every skip
+   named, `series-server` and the browser checks.
+3. **UNIFIED-CLEAN**: §6's commits.
+4. Then the existing preparation rows on the one branch: simplification and names (FABLE-SIMPLIFY, NAMES-FIND),
+   optimisation (OPT rows), the lab out of the workspace (coordination Open 6), and the docs fold.
