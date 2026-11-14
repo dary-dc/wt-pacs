@@ -423,12 +423,15 @@ help the wire's part, which at 103 Mbit/s is the larger (0.49 s, row 167).
   path, `perDecoder` and the ring's size, which differs by one under B and nowhere else.
 * **Rig:** `lab/ask-ahead` (`cells.py`, `page.js`, `visit.mjs`) with decoding on, and Chromium's CPU throttle at 1×
   and 4× as `lab/av1/delivery/fill` sets it. The page fills the whole series and, once half has landed, asks for the last
-  frame. Per run it records the ask's decoder wait (`decodeEnd − lastByte` of the asked frame), its total, the
-  fill's issue to its last frame on the page, and how long the transport waited for a free wire buffer.
+  frame. Per run it records the ask's decoder wait (`decodeEnd − lastByte` of the asked frame; *corrected by the run,
+  2026-10-22:* from the later of `lastByte` and the ask, since at AV1 4× every asked frame was already in hand and
+  promoted at the ask), its total, the fill's issue to its last frame on the page, and how long the transport waited
+  for a free wire buffer (*not measurable, found by the run:* the ring never waits, a miss allocates, `WireBuffers.take`).
 * **Cells:** `r100000` and `r300000`, 23 ms one way and a FIFO of `--queue-ms 650` (§Net protocols), 1× and 4×.
   Series: `dbt12_ea1141` as HTJ2K and as the product's AV1 (`ingest/coded-frames`, `--representation optimized`),
   both `sound`. Check the relay's ceiling at 300 Mbit/s first: it has never been run there. A link whose shaped visits
-  are over 20 % `VOID` is dropped and said, and both readings are reported where `VOID`s occur.
+  are over 20 % `VOID` is dropped and said, and both readings are reported where `VOID`s occur. (*The run,
+  2026-10-22:* every 300 Mbit/s visit was `VOID` and a fill averaged 144–148 Mbit/s, so no 300 cell ran.)
 * **Truth:** every frame against the encoder's input; `--mutate sample` and `truth` fail every frame.
 * **Predictions:** the ask's decoder wait, B/A, is a tie in every 1× cell and at 4× on 100 Mbit/s for HTJ2K. At 4×
   it is under 1 in the cells the table marks: HTJ2K at 300 ×0.88 median and ×0.64 p90; AV1 at 300 ×0.57 or under.
@@ -441,6 +444,11 @@ help the wire's part, which at 103 Mbit/s is the larger (0.49 s, row 167).
 
   If no 4× cell is decode-bound on the host (the decoder wait a tie at 4× on AV1), the row says so and is not
   conclusive on this host. Otherwise the flag stays off, and the row names the cell.
+
+**Run 2026-10-22: not resolved on this host, the flag stays off.** Round-paired, AV1 at 4× the ask's decoder wait
+×0.76 (690 → 491 ms median) with the fill a tie, AV1 at 1× ×0.75, HTJ2K wire-bound and a tie; but 65 of 144 AV1 and 74
+of 144 HTJ2K visits were `VOID`, over the 20 % that drops a link. Results, fixtures and saturation:
+[`../client/evidence/ask-behind-a-decoder-queue.md`](../client/evidence/ask-behind-a-decoder-queue.md).
 
 ## Retained-frame residency
 
