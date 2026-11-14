@@ -333,6 +333,29 @@ host's 4 cores (`/proc/stat`).
 * Firefox's WebCodecs on the lossy view;
 * readers.
 
+### Amendment, before any run (DEPTH8-MEASURE, 2026-11-14)
+
+Written by the measuring session, which wrote none of the above, before any cell ran. What the host and the harness
+forced:
+
+* **A1 · Where the forms live.** `claude/depth8` does not carry the harness. `lab/av1/depth8/measure.py` loads it from
+  a checkout of `claude/av1-noise-ratio` at `0a9d33ca` and adds `cut8` and `cut8-420` to its `forms`; no harness file
+  is copied or changed. Every row records the harness commit.
+* **A2 · `cut10` is `top10`.** At `0a9d33ca`, `top10` is `min((v + 2^(k−1)) >> k, 1023)` (`lab/av1/profiles/bytes.py`
+  `forms`, unchanged since `f4ff5da0`): the depth cut of `payload-format.md`, rounded. "`top10`'s truncation" above
+  (and "v ≫ 2" in §3.2) is wrong. `top10` stands as `cut10`, its identity with the depth cut shown by a test over
+  every 12-bit value; the top-10 cells of §3.2 are cells of the rounded cut.
+* **A3 · Bracketing.** P3 needs a failing Q above the highest passing one. `cut8` and today's form gain the next Q
+  until their highest tested Q fails 1.03, and the Q below while their lowest fails 1.00 (never under Q 1). The
+  starting Qs are §7's, `cut8`'s top taken from the wider of the two bars' removal Q.
+* **A4 · `cut8-420`'s arguments.** The harness's non-monochrome branch tags RGB series' colour (`bt601`); `cut8-420`
+  replaces it with `--profile=0 --bit-depth=8 --input-bit-depth=8`, as this protocol's setup writes.
+* **A5 · The decoder's library.** `dav1d` 1.5.4 at its pinned commit is built, but this host's system `libdav1d`
+  1.4.1 loads first; every run sets `LD_LIBRARY_PATH` to the build's.
+* **A6 · P1's mean.** Rounding half up over uniform residues has a mean error of exactly +0.5 (errors
+  −(2^(k−1) − 1) … 2^(k−1)), so "under 0.5" sits on its own expectation. The prediction is kept as written and read
+  against 0.5; noted here so a miss by a hundredth is not read as a fault of the cut.
+
 ## 8 · Fixtures and limits
 
 The results here rest on the following:
