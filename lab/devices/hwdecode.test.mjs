@@ -21,6 +21,7 @@ const work = mkdtempSync(join(tmpdir(), "hwdecode-"));
 
 const host = spawn("python3", [join(ROOT, "lab/devices/collector.py"), "--studies", work, "--wt", work, "--out", join(work, "rows"),
   "--host", "127.0.0.1", "--port", "0"], { env: { ...process.env, DEVICES_TOKEN: TOKEN }, stdio: ["ignore", "pipe", "inherit"] });
+process.on("exit", () => host.kill());
 const port = await new Promise((resolve) => host.stdout.on("data", (c) => { const m = /port=(\d+)/.exec(c); if (m) resolve(m[1]); }));
 
 /** The D0 row the page posts, or null. */
@@ -45,7 +46,7 @@ async function probe(mutate) {
     await new Promise((r) => setTimeout(r, 1000));
     try { row = d0(); } catch {}
   }
-  process.kill(-proc.pid, "SIGKILL");
+  try { process.kill(-proc.pid, "SIGKILL"); } catch {}
   await new Promise((r) => setTimeout(r, 500));
   rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
   if (row?.run !== "D0") throw new Error(`${mutate ?? "as written"}: no D0 row (${row?.error ?? "none"}); the browser's log ends\n${log}`);
@@ -81,7 +82,7 @@ claim(base.cells.every((c) => c.config.codec === codecString(sequence(Uint8Array
 const soft = decoded(base).filter((c) => c.acceleration === "prefer-software" && own(c).ok);
 claim(soft.length > 0 && soft.every((c) => own(c).planes[0].exact), `prefer-software's own copy gives the luma exactly (${soft.map((c) => c.unit).join(", ")})`);
 
-if (process.env.BASE_ONLY) { writeFileSync(arg("--out"), JSON.stringify(base, null, 1)); host.kill(); process.exit(0); }
+if (process.env.BASE_ONLY) { writeFileSync(arg("--out"), JSON.stringify(base, null, 1)); process.exit(0); }
 const plane = await probe("plane");
 claim(decoded(plane).flatMap(judged).length > 0 && decoded(plane).every((c) => judged(c).every((k) => k.planes.some((p) => p.exact === false && p.differing >= 1))),
   "mutant plane (one byte of each copy flipped): every judged copy turns inexact");
@@ -105,7 +106,6 @@ claim(fine.length === 0 ? null : fine.every(([acc, n]) => after(acc, n).distinct
     : "mutant paint: no path here kept more than 256 levels, so this host cannot kill it");
 
 if (arg("--out")) writeFileSync(arg("--out"), JSON.stringify(base, null, 1));
-host.kill();
 rmSync(work, { recursive: true, force: true });
 console.log(failures.length ? `${failures.length} failed` : "all passed");
 process.exit(failures.length ? 1 : 0);
