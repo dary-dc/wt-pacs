@@ -99,6 +99,9 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
    demo series reach the laptop (their sizes come from PHONE-NO-INSTALL); (c) which laptop and phone; (d) the
    demo's loss and delay without netem (root), or netem dropped for it. The owner runs
    `sudo firewall-cmd --get-default-zone; sudo firewall-cmd --get-active-zones`, again with tethering on.
+   *2026-11-14:* the next round is pre-registered in [`../phone-rows/next-round.md`](../phone-rows/next-round.md)
+   (decode per codec, the delivery arms, page against worker, the probe, the cache; one press); it waits on the asks of
+   its §10 and on PRs 376 and 378 reaching the run commit.
 11. Understanding before 11-13: the findings of OPT-SIMPLIFY, CLEAN-FIND, NAMES-FIND, DEFAULTS-FIND, ESSENTIALS and
     FABLE-SIMPLIFY, each ranked by what it saves a presenter; the owner chooses what goes in before the demo and what
     after. Then a reading pass with the owner, ESSENTIALS' points first, deeper only where time allows.
