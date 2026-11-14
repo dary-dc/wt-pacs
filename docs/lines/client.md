@@ -62,6 +62,8 @@ on lossy wireless; bit-exact; fill and latency both count.
 5. The WebGL painter proved on a real GPU.
 6. From the PCS contract: `sf.jxl` needs a JPEG XL decoder unless the PACS transcodes; G > 1 for AV1 cine is asked
    of the PCS team ([`codecs.md`](codecs.md)).
+7. The cache's options surveyed, theory only, 2026-11-14 ([`../client/evidence/cache-options.md`](../client/evidence/cache-options.md)):
+   leaning OPFS as built; owed, a phone's cold read + check and sustained write of a 17 MB frame (its §5).
 
 ## Decisions (the owner's)
 
