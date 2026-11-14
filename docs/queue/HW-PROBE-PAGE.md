@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-14T22:20Z
-heartbeat: 2026-11-14T23:40Z
+heartbeat: 2026-11-14T22:50Z
 outputs: claude/hw-probe 77270295 (from origin/claude/docs-client); PR to be opened by HW-PROBE-PAGE-REVIEW from docs/queue/HW-PROBE-PAGE-pr-body.md
 ## Resume
 Built by the local session phone-tests in lab/devices/ (amendment 15); the headless finish is handed to a cloud
