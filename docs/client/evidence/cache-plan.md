@@ -114,7 +114,7 @@ What the method adds over the last round, each against a way an option lost to i
 
 | cell | what it shows | from the earlier rig |
 | --- | --- | --- |
-| **write** during a fill, off the view's thread | the shown frame (missed ticks, paint delay p99) against `none`; the write rate against the fill's decoded rate; the backlog; the tree's PSS growth | L, W (`lab/opfs-arms/`), M2/M5 |
+| **write** during a fill, off the view's thread | the shown frame (missed ticks, paint delay p99) against `none`; the write rate against the fill's decoded rate; the backlog; the tree's PSS growth | L, W (`lab/opfs-arms/` at `c99ba492`), M2/M5 |
 | **read to paint** | a miss: intent → read → re-check → painted, p50 / p99 | R |
 | **reopen**, warm and process-cold | the series whole and exact in hand from the store, against a fresh fill over the relay | M1 (`lab/opfs-cache/`) |
 | **eviction** over the store's limit | the sets on disk after each open; none open evicted; every frame exact | M3, the engine's quota made small (DevTools' `Storage.overrideQuotaForOrigin`; Gecko's `fixedLimit`) |
