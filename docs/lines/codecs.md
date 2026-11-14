@@ -41,7 +41,7 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
   WebCodecs' flush (tag `archive/av1-keyparse`); LCEVC.
 * **Server and transport:** `claude/line-server` (#254) holds 13 results (congestion and disk designs, PGO, tail
   ping, GSO, and others); no default changed. The transport's design, decided and open, is
-  [`../transport/design.md`](../transport/design.md) (2026-11-14, an inventory; #PR on `claude/transport-design`); the
+  [`../transport/design.md`](../transport/design.md) (2026-11-14, an inventory; #391); the
   transport session's first open item is HTJ2K alone over WebTransport against HTTP/2 `fetch`, WebSocket and HTTP/3
   `fetch` on the link profiles.
 
