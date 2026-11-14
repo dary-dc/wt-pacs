@@ -6,7 +6,7 @@
  *   node lab/devices/hwdecode.test.mjs [--out report.json]
  */
 import { spawn } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { codecString, sequence } from "../../client/decode/av1-payload.js";
@@ -34,7 +34,7 @@ function d0() {
 }
 
 async function probe(mutate) {
-  rmSync(join(work, "rows"), { recursive: true, force: true });
+  for (const f of readdirSync(join(work, "rows"))) unlinkSync(join(work, "rows", f));
   const dir = mkdtempSync(join(tmpdir(), "hwdecode-chrome-"));
   const url = `http://127.0.0.1:${port}/?t=${TOKEN}&link=wifi&run=D0${mutate ? `&mutate=${mutate}` : ""}`;
   const proc = spawn(CHROME, [...FLAGS, "--enable-logging=stderr", `--user-data-dir=${dir}`, url], { stdio: ["ignore", "ignore", "pipe"], detached: true });
@@ -75,7 +75,7 @@ claim(base.cells.every((c) => !c.decodes || c.decodes.every((d) => d.outcome ===
   "every decode that gave no frame carries its error or a timeout");
 claim(decoded(base).every((c) => c.copyTo.length === 24 && c.copyTo.every((k) => k.ok || k.error?.name)),
   "every decoded frame has a copyTo outcome for no format and each of the 23 formats");
-claim(base.sourceCheck.every((s) => s.Y && s.U && s.V), "probe.js's source planes hash to make_units.py's digests");
+claim(base.sourceCheck.every((s) => s.Y && s.U && s.V), "the worker's source planes hash to make_hw_units.py's digests");
 claim(base.cells.every((c) => c.config.codec === codecString(sequence(Uint8Array.from(Buffer.from(units.find((u) => u.name === c.unit).unit, "base64"))))),
   "each cell is configured with the client's codec string for its unit");
 const soft = decoded(base).filter((c) => c.acceleration === "prefer-software" && own(c).ok);
@@ -83,7 +83,7 @@ claim(soft.length > 0 && soft.every((c) => own(c).planes[0].exact), `prefer-soft
 
 if (process.env.BASE_ONLY) { writeFileSync(arg("--out"), JSON.stringify(base, null, 1)); host.kill(); process.exit(0); }
 const plane = await probe("plane");
-claim(judged(plane).length > 0 && decoded(plane).every((c) => judged(c).every((k) => k.planes.some((p) => p.exact === false && p.differing >= 1))),
+claim(decoded(plane).flatMap(judged).length > 0 && decoded(plane).every((c) => judged(c).every((k) => k.planes.some((p) => p.exact === false && p.differing >= 1))),
   "mutant plane (one byte of each copy flipped): every judged copy turns inexact");
 const expected = await probe("expected");
 claim(expected.sourceCheck.every((s) => !s.Y), "mutant expected (wrong digests): the source check fails for every unit");
@@ -93,6 +93,10 @@ claim(decoded(codec).length === 0 && codec.cells.every((c) => c.isConfigSupporte
 const unit = await probe("unit");
 claim(unit.cells.every((c) => !c.frame || !own(c).ok || own(c).planes[0].exact === false),
   "mutant unit (half the unit overwritten): no frame comes back exact");
+const hang = await probe("hang");
+claim(decoded(hang).length > 0 && decoded(hang).every((c) => c.copyTo.find((k) => k.format === "I420P10").error?.name === "hung"
+    && c.copyTo.length === 24 && c.copyTo.filter((k) => k.error?.name === "hung").length === 1 && !c.redecode),
+  "mutant hang (copyTo to I420P10 never returns): recorded as hung, a fresh worker decodes again, and the later formats keep their outcomes");
 const paint = await probe("paint");
 const fine = ramps(base).flatMap((c) => paths(c).filter(([, p]) => p?.distinct > 256).map(([n]) => [c.acceleration, n]));
 const after = (acc, n) => paths(ramps(paint).find((c) => c.acceleration === acc)).find(([m]) => m === n)[1];

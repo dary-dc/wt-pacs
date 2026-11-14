@@ -98,6 +98,7 @@ async function copy(format) {
   const options = format ? { format } : {};
   const row = { as: format ?? frame.format };
   try {
+    if (mutate === "hang" && format === "I420P10") for (;;);
     const buf = new Uint8Array(frame.allocationSize(options));
     const layout = await frame.copyTo(buf, options);
     if (mutate === "plane") buf[layout[0].offset + 1] ^= 1;
