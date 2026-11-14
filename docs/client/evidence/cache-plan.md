@@ -342,17 +342,17 @@ one rule for all; adopting either is the protocol's author's or the owner's):
   proposal (a second tab reads and writes nothing): the second tab may also write in OPFS-ASYNC, IDB and CACHESTORAGE,
   and stays a reader in OPFS-SYNC, whose handle is exclusive.
 
-### 7.3 · IDB: a record per frame, one transaction a frame, `relaxed`
+### 7.3 · IDB: a record per frame as a `Blob`, one transaction a frame, `relaxed`, one in flight
 
 | | design | from its sources |
 | --- | --- | --- |
-| writer | the store worker copies the slot into a fresh `ArrayBuffer` (a shared buffer is refused for storage) and `put`s it in a `readwrite` transaction opened with `{durability: "relaxed"}` | "Web applications are encouraged to use "relaxed" for ephemeral data such as caches" (IndexedDB 942); the refusal: html `source` 11025–11026 (§2) |
-| layout | one database; object store `frames`, key `[series, i]`, value the samples (the pilot: an `ArrayBuffer` or a `Blob` of them); object store `series`, key `series`, value the manifest | each engine moves a large value out of the row by its own rule (below), so the value's type is the one setting that changes the disk path |
-| copies | in script one (slot → buffer), then serialization's ("Let \|dataCopy\| be ? CreateByteDataBlock(\|size\|)", html `source` 10717, cache-options §2.1), then the engine's: Chromium Snappy where its feature is on and a blob file above 64 KiB, Gecko a file above 1 MiB, WebKit a SQLite column (below) | — |
-| transactions | one frame a transaction, the manifest's `opened` in its own at open; the pilot may batch 3 | "either all of the changes must be written, or … the implementation must not write any of the changes" (IndexedDB 1072–1076); writers on one store run in turn, the first created first (1148) |
-| does it fit | **no answer before a byte is written**: IndexedDB has no `truncate`, and a probe would write the series' bytes. A refused transaction (`QuotaExceededError` on its abort) at any frame takes 7.5's mid-fill row | an implementation disadvantage of the option, left for its advocate |
-| reads | `get([series, i])` in a `readonly` transaction; a new `ArrayBuffer` (or a `Blob`, then `arrayBuffer()`), copied into a free slot | — |
-| eviction | one `readwrite` transaction: `delete(IDBKeyRange.bound([s, 0], [s, n]))` on `frames` and `delete(s)` on `series`, after the series' Web Lock is taken with `ifAvailable` | atomic: a series is gone whole or not at all |
+| writer | the store worker copies the slot into **one non-shared `ArrayBuffer` it reuses** (*advocate*: was a fresh one a frame), makes `new Blob([scratch])`, `put`s the Blob in a `readwrite` transaction opened with `{durability: "relaxed"}`, then calls `commit()` (*advocate*) | the copy is forced: a shared buffer is refused for storage (html `source` 11025–11026, §2) and a Blob part is `BufferSource` (FileAPI 314). The Blob takes its own copy ("get a copy of the bytes held by the buffer source", FileAPI 429–430), so the scratch is free when the constructor returns: no 17 MB allocation a frame for the collector. "relaxed" for "ephemeral data such as caches" (IndexedDB 942); `commit()` "can be used to force a transaction to quickly finish, without waiting for pending requests to fire success events" (4912–4914); shipped: commit Chrome 76, Firefox 74, Safari 15; durability Chrome 83, Firefox 126, Safari 15 (browser-compat-data `api/IDBTransaction.json`) |
+| layout | one database; object store `frames`, key `[series, i]`, value **a `Blob` of the samples** (*advocate*: was the pilot's choice; an `ArrayBuffer` stays a pilot alternative on Gecko only); object store `series`, key `series`, value the manifest | every engine sends a Blob to a file of its own and skips its value compression (*advocate*, traced): **Chromium** Snappy-compresses a large value in the renderer, at `put`, with a feature on by default ("BASE_FEATURE(kIndexedDBCompressValuesWithSnappy, base::FEATURE_ENABLED_BY_DEFAULT);", `features.cc` 862–863; "snappy::RawCompress(", `idb_value_wrapping.cc` 191), drops the result "if (compressed_length > uncompressed_length * 0.9)" (81) and then copies the bytes back (201–209): a Snappy pass over 17 MB on the store worker's thread, kept or not; a Blob is serialized as a reference. **Gecko** writes a structured clone above "kDefaultDataThresholdBytes = 1024 * 1024" (`IndexedDatabaseManager.cpp` 117) to a file through "MakeRefPtr<SnappyCompressOutputStream>(" (`ActorsParent.cpp` 21819), but "Compression is only necessary for eStructuredClone" (3880): a Blob is copied uncompressed. **WebKit** keeps an `ArrayBuffer` whole in its SQLite row and a Blob in a file (below). Gecko's compression runs in its parent process, not the page's, so there alone the pilot compares |
+| copies | in script one (slot → scratch); then the Blob's (scratch → Blob), then the engine's to its file (*advocate*: the serialization copy and Chromium's Snappy buffer leave with the `ArrayBuffer`) | — |
+| transactions | one frame a transaction, **one write transaction in flight**: the store worker creates the next only at the previous one's `complete`, and a read posted meanwhile is served first (*advocate*: was "the pilot may batch 3"; the batch is dropped) | "A read-only transactions tx can start when there are no read/write transactions which: Were created before tx; and have overlapping scopes with tx; and are not finished" (IndexedDB 1130–1133): every write transaction already created on `frames` stands before a miss's read, so a queue of them held by the engine delays a miss by all of them, held by the worker by one at most; a batch of 3 puts three frames' writes before it. Atomicity per transaction: IndexedDB 1072–1076 |
+| does it fit | **`navigator.storage.estimate()` in the store worker at `open`** of a series not present: `quota − usage` below n × frameBytes takes the rule (evict, estimate again; else no cache) before any byte is fetched (*advocate*: was "no answer before a byte is written"). A check, not a reservation, as OPFS-ASYNC's probe: a refused transaction (`QuotaExceededError` on its abort) still takes 7.5's mid-fill row | "The estimate() method can be used to determine whether there is enough space left to store content for an application" (storage 72–73); in workers ("WorkerNavigator includes NavigatorStorage;", 609; "Exposed=(Window,Worker)", 619). Usage is "an implementation-defined rough estimate" (536–537), and quota "must not be a function of the available storage space on the device" (545–546): a full disk is still found mid-fill |
+| reads | `get([series, i])` in a `readonly` transaction; a `Blob`, then `arrayBuffer()`: a new buffer, copied into a free slot | — |
+| eviction | one `readwrite` transaction: `delete(IDBKeyRange.bound([s, 0], [s, n]))` on `frames` and `delete(s)` on `series`, after the series' Web Lock is taken with `ifAvailable`. On Chromium the files leave later (*advocate*, traced): the rule's retry waits for `estimate()` to show the room, at most 5 s | atomic: a series is gone whole or not at all. Chromium's LevelDB store removes a deleted value's files by a journal cleaned on a timer: "kMaxJournalCleanRequests = 50", "kMaxJournalCleaningWindowTime = base::Seconds(5)", "kInitialJournalCleaningWindowTime = base::Seconds(2)" (`leveldb/backing_store.h` 422–429). Whether `usage` drops at the commit or at the cleaning is **not traced**; the build's eviction test finds it |
 | present at open | `getAllKeys(IDBKeyRange.bound([s, 0], [s, n]))` | IndexedDB 2787–2788 |
 
 **Reuses** nothing built; the rules above the seam and the Web Lock of `client/view/cache.js`. **Per engine, traced
@@ -368,12 +368,51 @@ in a private window**, where OPFS is off: "# Enable indexedDB in private browsin
 which are only temporary" (`ActorsParent.cpp` 13500–13501); a file it writes may be Snappy-compressed and, with a key,
 encrypted (`ActorsParent.cpp` 21810–21819). **Chromium**: a value still "large" after compression "is converted into a
 Blob" (`idb_value_wrapping.h` 61–64), and no compression on its SQLite backend ("if (backend_uses_sqlite_) { return
-false;", `idb_value_wrapping.cc` 155–157); which backend a profile runs was not traced.
+false;", `idb_value_wrapping.cc` 155–157). **Which backend, traced** (*advocate*; was not traced): on disk, LevelDB
+unless a field trial says otherwise ("BASE_FEATURE(kIdbSqliteOnDiskRollout, base::FEATURE_DISABLED_BY_DEFAULT);",
+`content_features.cc` 555; the stage's default "SqliteRolloutStage::kUseLevelDbForNewStores" (`bucket_context.cc` 101),
+which uses SQLite "only if it already exists and LevelDB does not exist" (277)); **in memory, a private window, always
+SQLite** ("if (in_memory) {" · "return SqliteRolloutStage::kUseSqliteOnly;", 240–241). So a Chromium private window has
+an IndexedDB store, held in memory; its size limit there is not traced. A run records the profile's stage (field trials
+can move it): the build row says how.
 
-**Predicted floor** (theory; **no measured anchor**): each engine moves the bytes through an IPC to a file or a row
-after two copies in the renderer, so no faster than OPFS-ASYNC's floor at S2–S3, plus Snappy where it runs: write
-≥ ~50 ms at S2 on Firefox, read ≥ OPFS-ASYNC's; the floor probe gives the first number. **Pilot** (the same rule as
-7.2): the value, `ArrayBuffer` or `Blob`; frames a transaction, 1 or 3.
+**Predicted floor** (theory; **no measured anchor**): each engine moves the bytes through an IPC to a file after one copy
+in script and the Blob's, so no faster than OPFS-ASYNC's floor at S2–S3: write ≥ ~50 ms at S2 on Firefox, read ≥
+OPFS-ASYNC's; the floor probe gives the first number. *Advocate*: with a `Blob`, Chromium's Snappy pass leaves the
+floor; a `put` of an `ArrayBuffer` beside it in the floor probe prices what that pass cost. **Pilot** (the rule of 7.2):
+on Gecko only, the value, `Blob` or `ArrayBuffer`; nothing else (*advocate*: frames a transaction is fixed at 1, above).
+
+**Advocate's list, 2026-11-14** (CACHE-ADVOCATE-IDB; a session that wrote no design). Sources at 7.6.
+
+* *Changes made above*: the value a `Blob` on every engine (no Snappy pass on Chromium's or Gecko's write, no 17 MB row
+  in WebKit's SQLite); one reused scratch buffer instead of a fresh one a frame; `commit()` after the `put`; one write
+  transaction in flight, reads served first, the batch dropped; `estimate()` at open answers "does it fit" before the
+  fetch; the eviction's retry waits for Chromium's deferred file removal; Chromium's backend traced (LevelDB on disk,
+  SQLite in a private window).
+* *Disadvantages it still carries*: **a copy in script each way.** A write copies the slot (the store refuses shared
+  memory) and the Blob copies again; a read gets a new buffer from `arrayBuffer()` and copies it into the slot: two
+  17 MB copies a write and one a read at S2 that OPFS-SYNC does not make, plus a 17 MB allocation a read. **WebKit's
+  main thread on every call** (`put`, `get`, `getAllKeys`; above): a busy page delays each write and each miss, and
+  nothing in IndexedDB avoids it. **A miss waits for the write in flight**, up to one frame's write (the scheduling
+  rule above), where OPFS-SYNC's miss waits one piece. **No reservation**: `estimate()` is quota, not disk, and a
+  rough usage; a series can still be refused mid-fill, and two tabs filling two series both see the same room.
+  **Eviction frees space late on Chromium** (up to 5 s, above), so a fill that evicts to make room may stall at the
+  retry. **A transaction a frame**: an IPC round to commit each, unpriced; with the batch dropped, nothing amortizes
+  it. **Chromium's Blob crosses its blob registry** before the IndexedDB file (where it lives meanwhile, memory or
+  disk, is not traced). **Gecko's private window encrypts** each file ("EncryptingOutputStream", `ActorsParent.cpp`
+  21812–21814), a cost no other survivor pays there because none other runs there. **A frame is read whole**: no
+  partial read, irrelevant while a read is a whole frame.
+* *Proposed for all four alike (the protocol's author decides whether it enters)*: **a miss on a frame not yet
+  written is served from what the store worker holds**: its slot under 7.0 as written, or its own copy under 7.2's
+  first proposal (which already answers a read in flight so); either skips the store and its queue. It helps IDB
+  most, whose miss queues behind a write transaction, but it is a store-worker rule, the same for all. Under 7.2's
+  proposal IDB's own copy is the Blob, bounded by one write in flight. **The rule's retry after an eviction** waits for
+  the room to show (`estimate()`, a bounded wait) rather than retrying at once, for all four: only Chromium's IndexedDB
+  is traced to free space late, but the others' removal is not traced either.
+* *What the shared input costs it*: the ring is shared memory, which IndexedDB refuses to store, so the input alone
+  forces the write's first copy; reading into a slot forces the read's. Both are kept: the ring's bound on memory is
+  the shared input's purpose (§3), and the copies are counted in IDB's floor, not hidden. OPFS-SYNC's free-slot wait
+  under a dried ring (its list) applies here as well.
 
 ### 7.4 · CACHESTORAGE: a `Cache` per series, a response per frame
 
@@ -416,9 +455,9 @@ What the store sees, and what it does (above the seam, the same rule for all, wh
 | failure | OPFS-SYNC | OPFS-ASYNC | IDB | CACHESTORAGE |
 | --- | --- | --- | --- | --- |
 | no store (Firefox private; Safari private by source) | `getDirectory()` rejects: no cache | the same | **a store**: Gecko keeps it in a private window, encrypted, temporary (7.3); Safari private not traced | **a store** in Gecko's private window (7.4); Safari not traced |
-| the series does not fit | `truncate` refused at the first frame: the rule (evict, retry; else no cache) | the probe refused at open: the rule; else as the mid-fill row | known only mid-fill | known only mid-fill |
+| the series does not fit | `truncate` refused at the first frame: the rule (evict, retry; else no cache) | the probe refused at open: the rule; else as the mid-fill row | `estimate()` short at open: the rule; else as the mid-fill row (*advocate*, 7.3) | known only mid-fill |
 | the disk fills mid-fill | a write throws: evict one, retry once, else stop writing | `close()` rejects: the same | the transaction aborts: the same | the `put` rejects: the same |
-| Chromium private window | OPFS in RAM, 5–6.7 % of it (choice 5): caches what fits | the same | not traced | not traced |
+| Chromium private window | OPFS in RAM, 5–6.7 % of it (choice 5): caches what fits | the same | **a store**, in memory on the SQLite backend (*advocate*, 7.3); its limit not traced | not traced |
 | the origin emptied between opens | no manifest: a fresh fill | the same | no `series` record: the same | no `manifest` record: the same |
 | the store vanishes while open | a read throws: a miss | the same | a request errors: a miss | `match` rejects or is `undefined`: a miss |
 | two tabs, one series | the second's `createSyncAccessHandle` throws: that tab, no cache (*advocate* proposes reads for all four, 7.1's list) | the Web Lock is held: no cache | the same (the engine would order the writes, 1148; one rule for all) | the same |
@@ -442,12 +481,16 @@ Fetched 2026-11-14 at `cache-options.md`'s commits; nothing fetched is committed
 | Chromium `content/browser/file_system_access/file_system_access_file_handle_impl.cc`, `.h`; `…/file_system_access_file_writer_impl.cc`, `.h`; `storage/browser/file_system/obfuscated_file_util.cc`; `…/file_system_operation_impl.cc`; `third_party/blink/renderer/modules/file_system_access/file_system_underlying_sink.cc`; `…/file_system_create_writable_options.idl` (7.2, advocate) | `b124f80df73f` | `0801ddcfcf25`, `20d2b9258e37`; `573c92a6dcdc`, `dd589a524648`; `7a7a95b10cb1`; `d74a44713ded`; `9968ec1eec21`; `f0e987c55b1f` |
 | Gecko `dom/fs/parent/FileSystemManagerParent.cpp`; `dom/fs/parent/datamodel/FileSystemDatabaseManagerVersion002.cpp` (7.2, advocate) | `c72617c01649` | `6bfe52fb8672`; `f23a77fc31b9` |
 | w3c/web-locks `index.bs` (7.2, advocate) | `6dfe272f7b89` | `9aa2b5e625a7` |
+| whatwg/storage `storage.bs` · w3c/FileAPI `index.bs` · mdn/browser-compat-data `api/IDBTransaction.json` (IDB's advocate; IndexedDB at the commit above) | `115691c51583` · `528c64a385e0` · `69fcf3608174` | `2617969b9b9f` · `176cb48a5514` · `bcef947da71c` |
+| Chromium `third_party/blink/common/features.cc`; `content/public/common/content_features.cc`; `content/browser/indexed_db/instance/bucket_context.cc`; `content/browser/indexed_db/instance/leveldb/backing_store.h` (IDB's advocate) | `b124f80df73f` | `e098b5147f94`; `ed6ed8fd1079`; `034772c30825`; `0ccff8a628d3` |
+| Gecko `dom/indexedDB/IndexedDatabaseManager.cpp` (IDB's advocate) | `c72617c01649` | `19572f39e492` |
 | Chromium `third_party/blink/renderer/modules/indexeddb/idb_value_wrapping.h`, `.cc`; `…/modules/cache_storage/cache.cc`; `content/browser/cache_storage/cache_storage_cache.cc` | `b124f80df73f` | `18ad474f6be6`, `bc9aa5d9bfe1`; `7a2125968f57`; `d05f03985fbe` |
 
 **Still not traced:** whether a writable's `truncate` is refused before `close()` in Gecko and WebKit (Chromium's is,
 7.2; the pilot checks the others); what a browser crash leaves of a writable in Gecko and WebKit, and whether OPFS's
-listing shows Chromium's swap; which IndexedDB backend a Chromium profile runs; IndexedDB and Cache Storage in a Chromium private
-window and in Safari's; SHA-1's rate on a phone.
+listing shows Chromium's swap; which IndexedDB backend a Chromium profile runs (traced by IDB's advocate: LevelDB on disk unless a field trial
+moves it, SQLite in memory); Cache Storage in a Chromium private window, and IndexedDB's limit there; both in Safari's;
+whether Chromium's IndexedDB `usage` drops at a delete's commit or at its journal cleaning; SHA-1's rate on a phone.
 
 **Fixtures and their limits.** Nothing was run for this file. The *measured* numbers it quotes come from a 4-vCPU
 cloud container without a GPU, Chromium 153 and Firefox 159, synthetic 16-bit series at 512², 2560×3328 and
