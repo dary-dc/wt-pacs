@@ -44,7 +44,7 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | HW-DECODE-DEEP-REVIEW | 11-14 21:00 | HW-DECODE-DEEP done | `claude/hw-decode` (its PR; findings, then the amendment applied) |
 | MERGE-ALL-PLAN | 11-14 21:00 | DOCS-FOLD done (the other queue) | `claude/work-ledger:docs/queue/MERGE-ALL-PLAN-report.md`; nothing else pushed |
 | HW-PROBE-PAGE | — | — | **delegated to the owner's local session `phone-tests`; no cloud worker takes it** (`claude/hw-probe`) |
-| HW-PROBE-PAGE-REVIEW | 11-14 21:00 | HW-PROBE-PAGE's PR is open | `claude/hw-probe` (findings in its PR body; a cloud session) |
+| HW-PROBE-PAGE-REVIEW | 11-14 21:00 | `docs/queue/HW-PROBE-PAGE.md` says done | `claude/hw-probe`: opens its draft PR first if none exists (body from `docs/queue/HW-PROBE-PAGE-pr-body.md`), then findings in the PR body |
 | DEPTH8-THEORY | 11-14 21:00 | — | `claude/depth8` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
 | DEPTH8-MEASURE | 11-14 21:00 | DEPTH8-THEORY done | `claude/depth8` (rows and results; a session that wrote none of DEPTH8-THEORY) |
 | CACHE-DESIGN | 11-14 21:00 | CACHE-PLAN done | `claude/cache-plan` (`docs/client/evidence/cache-plan.md` §7; PR of CACHE-PLAN) |
@@ -473,7 +473,9 @@ container (software paths only; say so), each check's failure mode mutated.
 
 ### HW-PROBE-PAGE-REVIEW
 
-A session that wrote none of it: every cell's outcome is recorded, never swallowed; the expected planes are right
+The local session that builds the probe has no PR tool: if `claude/hw-probe` has no open PR, open it as a draft into
+`claude/docs-client` through `mcp__github__create_pull_request`, its title and body from
+`claude/work-ledger:docs/queue/HW-PROBE-PAGE-pr-body.md`, then review. A session that wrote none of it: every cell's outcome is recorded, never swallowed; the expected planes are right
 (mutate one); one press runs the whole matrix; nothing from `lab/` leaks into a product path.
 
 ### DEPTH8-MEASURE
