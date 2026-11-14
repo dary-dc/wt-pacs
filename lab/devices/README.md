@@ -16,6 +16,8 @@ phone ── https://PUBLIC_NAME:8443/?t=TOKEN ── the runner page, D0 → D1
 | `index.html`, `runner.js` | the runner page: link class and mode taps, D0–D2, every row kept in IndexedDB as it lands, posted after every round, a save button |
 | `plan.mjs` | the arms, the Williams schedule (`../order.mjs`), quick and full mode, the paired reading shown on the phone |
 | `caps.js` | D0: WebTransport and a dial to each arm, isolation, SIMD128, nested module workers, the client's WebCodecs probe per layout, `measureUserAgentSpecificMemory`, the device line, the clock's step |
+| `hwdecode.js`, `hwdecode-worker.js`, `hw-units.json` | D0's hardware-decode probe (below): each AV1 form under each `hardwareAcceleration`, every outcome recorded, each cell in a worker |
+| `make_hw_units.py` | the probe's units, from ingest's encoder, checked by native dav1d |
 | `decode-worker.js` | D1: one arm decodes a set's frames already in memory, each frame timed and checked against the store's XXH3-64 |
 | `visit.js` | D2: a fill with an ask for its last frame at half (row 180's shape), then a fresh ask-only session (row 181's), decoding off |
 | `sbnd.js` | a bundle read whole in the page |
@@ -51,3 +53,51 @@ the gate, each failing under its mutations; the whole loop — `deploy.sh up` ov
 image, the four arms, the collector over TLS, `dry_run.mjs` in quick mode, `fetch`, `down` — as
 [`../../docs/devices.md`](../../docs/devices.md) §6 records. Not tested: a phone, the Oracle machine, its security
 list, WebKit, Firefox.
+
+## The hardware-decode probe
+
+D0 runs it after the client's own WebCodecs probe; [`../../docs/decode/hardware.md`](../../docs/decode/hardware.md) §17
+is its plan. Exploratory: it decides nothing on its own.
+
+**Units** (`hw-units.json`, from `make_hw_units.py`): one lossless temporal unit per form, libaom as the ingest codes
+it, decoded back by native dav1d before it is written, with its planes' XXH3-64 taken from the encoder's input.
+`g8` and `g10` are 4:0:0, as the product codes grey; `g8f` and `g10f` 4:2:0 with mid-grey chroma at full range, the
+form hardware takes; each at 16 × 16 and 256 × 256, since a device codec has a minimum size. `ramp10` is 256 × 256,
+4:2:0, every 10-bit level in raster order, 64 samples each.
+
+**Cells**: each unit under `no-preference`, `prefer-hardware` and `prefer-software`, configured with the client's
+codec string for it (`codecString`, `client/decode/av1-payload.js`). Per cell: `isConfigSupported`'s answer;
+`configure`'s outcome; four key decodes, each a frame and its ms, or the error's name and message, or a timeout;
+the decoder's state after; the first frame's `format`, coded size and `colorSpace`; `copyTo` with no format and
+with each of the 23 formats the spec lists, each its layout and, per plane, the samples' XXH3-64 (the frame check's
+own, `client/decode/xxh3.js`) against the source's, the count of samples that differ and the largest step, or the
+exception; then the two paint paths, WebGL2 `texImage2D(VideoFrame)` into `RGBA16F` and `RGBA32F` read back as
+floats, and WebGPU `importExternalTexture` read by a compute pass into an `f32` buffer: the distinct red values
+(more than 256 means more than 8 bits reached the shader) and how many equal the source's luma in its own steps.
+Media Capabilities' `powerEfficient` per codec string sits beside them, the engine's own hint of a hardware path.
+
+**Nothing blocks the run.** Each cell runs in a worker of its own; a task that does not answer in 10 s ends the
+worker, is recorded as `hung`, and a fresh worker decodes again for the next task. Headless Chromium 141 needs it:
+`copyTo({format: "I420P10"})` of a 10-bit software frame never returns and holds the thread that called it.
+
+**On the phone**, D0 is one press (`?run=D0` presses it). The page cannot see which decoder ran: read it by hand
+from `chrome://media-internals` (the player's `kVideoDecoderName`) and `chrome://gpu` (*Video Acceleration
+Information*), and keep both beside the report.
+
+**Tested** in headless Chromium 141 (Playwright 1.56.1's) through `collector.py`, software paths only:
+
+```bash
+podman run --rm --cpus=2 -v "$PWD:$PWD:ro" -w "$PWD" mcr.microsoft.com/playwright:v1.56.1-noble node lab/devices/hwdecode.test.mjs
+```
+
+It checks every cell's outcome is recorded and each `?mutate=` turns its check: `plane` (a byte of each copy
+flipped: every judged copy inexact), `expected` (wrong digests: the source check fails), `codec` (an invalid
+string: no frame, each cell says why), `unit` (half the unit overwritten: no frame exact), `paint` (read back at
+8 bits: a path that kept more than 256 levels keeps 256 or fewer).
+
+Remake the units only when the encoder changes (`ingest/tools.sh`'s build and its Python):
+
+```bash
+python3 lab/devices/make_hw_units.py ingest/.build
+```
+
