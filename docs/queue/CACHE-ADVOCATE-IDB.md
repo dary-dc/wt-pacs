@@ -1,7 +1,7 @@
 state: done
 started: 2026-11-14T23:16Z
 heartbeat: 2026-11-14T23:22Z
-outputs: claude/cache-plan 3c75f5ed (docs/client/evidence/cache-plan.md §7.3, §7.5, §7.6; docs/lines/client.md), on draft PR 385
+outputs: claude/cache-plan a91dac17 (docs/client/evidence/cache-plan.md §7.3, §7.5, §7.6; docs/lines/client.md), on draft PR 385
 ## Resume
 Done. Nothing owed by this row. CACHE-PROTOCOL waits for the other advocates (OPFS-ASYNC running, CACHESTORAGE).
 ## Result
@@ -16,5 +16,6 @@ cache-plan.md §7.3 amended in place, each change marked *advocate* with its sou
   its deleted files removed by a journal up to 5 s later, so the eviction retry waits for the room.
 - Left: two copies a write and one a read in script, WebKit's main thread on every call, a miss waits one frame's write,
   no reservation, a commit IPC a frame, Gecko private-window encryption.
-- Proposed for all four: a miss on a frame not yet written served from its held slot; the eviction retry waits for room.
+- Proposed for all four: a miss on an unwritten frame served from what the store worker holds (joins 7.2's); the
+  eviction retry waits for the room to show.
 Fixtures: none run; sources fetched 2026-11-14 at the pinned commits in §7.6. No gate: docs only.
