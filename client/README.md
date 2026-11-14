@@ -83,7 +83,8 @@ never receive a preview. A unit without its top fails by name after its preview.
 the exact frame and no preview. [`docs/av1/adr-unit.md`](../docs/av1/adr-unit.md) §6; the
 dispatch rig checks `client/contract/av1/scalable/`.
 
-**Optimal quality, exact on request** (2026-11-09). A series whose metadata carries `"codec": "av1"`,
+**Optimal quality, exact on request** (2026-11-09; the product's approach and its status:
+[`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §The product). A series whose metadata carries `"codec": "av1"`,
 `"lossy": {"q", "g", "depth"}` and `"exactSeries": "<id>"` is shown at **optimal quality** — its visually lossless
 AV1 frames — as any series is: fill, steps, cine. Its **exact series** is the HTJ2K series of the same source on its
 own server. `viewer/pair.js` reads its metadata at `/series/<id>/metadata` and its transport file at

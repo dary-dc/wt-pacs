@@ -11,7 +11,7 @@ decision, and the date at the top. Something learned for another line goes into 
 | --- | --- | --- | --- |
 | coordination | merges, review order, branch and PR hygiene across the lines | [`coordination.md`](coordination.md) | 2026-11-09 |
 | codecs and lab | HTJ2K and AV1, server, transport and disk, measured to `CLAUDE.md` §Measurement | [`codecs.md`](codecs.md) | 2026-11-09 |
-| optimal quality | the chosen design built for the demo of 2026-11-13: an optimal-quality AV1 series, the exact HTJ2K frame on request | [`optimal-quality.md`](optimal-quality.md) | 2026-11-10 |
+| optimal quality | the product's approach ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product), built for the demo of 2026-11-13 | [`optimal-quality.md`](optimal-quality.md) | 2026-11-10 |
 | client | the browser client: transport, decode, cache, paint, telemetry | [`client.md`](client.md) | 2026-10-29; branches 2026-11-09 |
 | PACS receive and metadata | receive what the PCS sends, build and update each study's store, serve by UID | [`metadata.md`](metadata.md) | 2026-10-29; branches 2026-11-09 |
 | 2D viewer | a 2D DICOM viewer product on the client, breast reading first (paused) | [`viewer.md`](viewer.md) | 2026-10-27; branches 2026-11-09 |
@@ -20,6 +20,6 @@ decision, and the date at the top. Something learned for another line goes into 
 "Last verified" is the newest date the line's state was checked; "branches" means only the branch and PR state was
 read again on that date, not the line's findings.
 
-Every line shares one direction: most sessions at the lowest cost, low latency and fast fills, for mobile on lossy
+What the product is: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. Every line shares one direction: most sessions at the lowest cost, low latency and fast fills, for mobile on lossy
 wireless; the exact frame bit-exact; breast imaging first. The PCS (the separate service that receives, parses and
 encodes studies) is upstream: our scope starts at the PACS, and the PCS's directory layout is our input contract.

@@ -1,5 +1,17 @@
 # Architecture — the client above the transport
 
+## The product
+
+For cine-like series (one consecutive dimension; breast first), every reader sees the series' optimal-quality AV1
+view, and a frame comes whole from its exact HTJ2K series, bit for bit, when the reader asks for Lossless. This is
+the official approach agreed with the team as the main candidate; it is not yet a final product decision. HTJ2K
+alone is served in any case (it is the exact series) and is also a measurement arm; the optimal-quality view alone
+is a measurement arm only. What series that are not cine-like get is not stated yet.
+
+The client's design: [`client/design.md`](client/design.md).
+
+## The client above the transport
+
 How a page gets frames: one **downloader** worker owns the session, every frame's record and the
 queue; **decoders** turn codestreams into pixels and hand them straight to the **consumer** on the
 page. Below it the transport is a seam — TypeScript, WASM or WebSocket — whose surface is
