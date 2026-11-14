@@ -31,52 +31,54 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 
 | row | not before | needs | output → PR base |
 | --- | --- | --- | --- |
-| HW-DECODE-DEEP | 11-14 19:00 | — | `claude/hw-decode` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
-| LINK-TARGETS | 11-14 19:00 | — | `claude/link-targets` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
-| REPORT-OPTIONS | 11-14 20:00 | — | `claude/report-plan` from `origin/claude/docs-client` → draft PR into `claude/docs-client`; rows appended to this file |
-| CANDIDATE-METHOD | 11-14 20:00 | — | `claude/docs-client` (`CLAUDE.md` §Measurement; a docs commit on PR 384) |
+| HW-DECODE-DEEP | 11-14 21:00 | — | `claude/hw-decode` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
+| LINK-TARGETS | 11-14 21:00 | — | `claude/link-targets` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
+| REPORT-OPTIONS | 11-14 21:00 | — | `claude/report-plan` from `origin/claude/docs-client` → draft PR into `claude/docs-client`; rows appended to this file |
+| CANDIDATE-METHOD | 11-14 21:00 | — | `claude/docs-client` (`CLAUDE.md` §Measurement; a docs commit on PR 384) |
 | OQ-INGEST | 11-14 21:00 | — | `claude/oq-ingest` from `origin/claude/unified-client` → draft PR into `claude/unified-client` |
-| OQ-INGEST-REVIEW | 11-16 08:00 | OQ-INGEST done | `claude/oq-ingest` (findings in its PR body) |
-| CACHE-PLAN | 11-14 19:00 | — | `claude/cache-plan` from `origin/claude/docs-client` → draft PR into `claude/docs-client`; rows appended to this file |
+| OQ-INGEST-REVIEW | 11-14 21:00 | OQ-INGEST done | `claude/oq-ingest` (findings in its PR body) |
+| CACHE-PLAN | 11-14 21:00 | — | `claude/cache-plan` from `origin/claude/docs-client` → draft PR into `claude/docs-client`; rows appended to this file |
 | TRANSPORT-INVENTORY | 11-14 21:00 | DOCS-FOLD done (the other queue) | `claude/transport-design` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
 | PHONE-NEXT-PROTOCOL | 11-14 21:00 | HW-DECODE-DEEP-REVIEW done, or 11-16 08:00 | `claude/phone-protocol` (docs; no PR unless the branch has one) |
-| PHONE-NEXT-PROTOCOL-REVIEW | 11-16 08:00 | PHONE-NEXT-PROTOCOL done | findings in its file's "Review" section |
+| PHONE-NEXT-PROTOCOL-REVIEW | 11-14 21:00 | PHONE-NEXT-PROTOCOL done | findings in its file's "Review" section |
 | HW-DECODE-DEEP-REVIEW | 11-14 21:00 | HW-DECODE-DEEP done | `claude/hw-decode` (its PR; findings, then the amendment applied) |
 | MERGE-ALL-PLAN | 11-14 21:00 | DOCS-FOLD done (the other queue) | `claude/work-ledger:docs/queue/MERGE-ALL-PLAN-report.md`; nothing else pushed |
 | HW-PROBE-PAGE | — | — | **delegated to the owner's local session `phone-tests`; no cloud worker takes it** (`claude/hw-probe`) |
 | HW-PROBE-PAGE-REVIEW | 11-14 21:00 | `docs/queue/HW-PROBE-PAGE.md` says done | `claude/hw-probe`: opens its draft PR first if none exists (body from `docs/queue/HW-PROBE-PAGE-pr-body.md`), then findings in the PR body |
 | DEPTH8-THEORY | 11-14 21:00 | — | `claude/depth8` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
 | DEPTH8-MEASURE | 11-14 21:00 | DEPTH8-THEORY done | `claude/depth8` (rows and results; a session that wrote none of DEPTH8-THEORY) |
+| HW10-ROUTES | 11-14 21:00 | — | `claude/hw10-routes` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
+| HW10-ROUTES-REVIEW | 11-14 21:00 | HW10-ROUTES done | `claude/hw10-routes` (findings in its PR body; a session that wrote none of it) |
 | CACHE-DESIGN | 11-14 21:00 | CACHE-PLAN done | `claude/cache-plan` (`docs/client/evidence/cache-plan.md` §7; PR of CACHE-PLAN) |
 | CACHE-ADVOCATE-OPFS-SYNC | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
 | CACHE-ADVOCATE-OPFS-ASYNC | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
 | CACHE-ADVOCATE-IDB | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
 | CACHE-ADVOCATE-CACHESTORAGE | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
-| CACHE-PROTOCOL | 11-16 08:00 | every CACHE-ADVOCATE done | `claude/cache-plan` (§Protocol of the same file) |
-| CACHE-BUILD-HARNESS | 11-16 14:00 | CACHE-PROTOCOL done | `claude/cache-arms` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
-| CACHE-BUILD-OPFS-SYNC | 11-17 08:00 | CACHE-BUILD-HARNESS done | `claude/cache-arms` (its PR) |
-| CACHE-BUILD-OPFS-ASYNC | 11-17 08:00 | CACHE-BUILD-HARNESS done | `claude/cache-arms` (its PR) |
-| CACHE-BUILD-IDB | 11-17 08:00 | CACHE-BUILD-HARNESS done | `claude/cache-arms` (its PR) |
-| CACHE-BUILD-CACHESTORAGE | 11-17 08:00 | CACHE-BUILD-HARNESS done | `claude/cache-arms` (its PR) |
-| CACHE-BUILD-REVIEW | 11-18 14:00 | every CACHE-BUILD done | `claude/cache-arms` (`docs/reviews/cache-arms.md`) |
-| CACHE-RUN | 11-19 08:00 | CACHE-BUILD-REVIEW done | rows on `claude/cache-arms`; results in `cache-plan.md` §Results on `claude/cache-plan` |
-| CACHE-VERDICT-REVIEW | 11-21 08:00 | CACHE-RUN done, or 11-21 20:00 | `claude/cache-plan` (§Verdict review) |
+| CACHE-PROTOCOL | 11-14 21:00 | every CACHE-ADVOCATE done | `claude/cache-plan` (§Protocol of the same file) |
+| CACHE-BUILD-HARNESS | 11-14 21:00 | CACHE-PROTOCOL done | `claude/cache-arms` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
+| CACHE-BUILD-OPFS-SYNC | 11-14 21:00 | CACHE-BUILD-HARNESS done | `claude/cache-arms` (its PR) |
+| CACHE-BUILD-OPFS-ASYNC | 11-14 21:00 | CACHE-BUILD-HARNESS done | `claude/cache-arms` (its PR) |
+| CACHE-BUILD-IDB | 11-14 21:00 | CACHE-BUILD-HARNESS done | `claude/cache-arms` (its PR) |
+| CACHE-BUILD-CACHESTORAGE | 11-14 21:00 | CACHE-BUILD-HARNESS done | `claude/cache-arms` (its PR) |
+| CACHE-BUILD-REVIEW | 11-14 21:00 | every CACHE-BUILD done | `claude/cache-arms` (`docs/reviews/cache-arms.md`) |
+| CACHE-RUN | 11-14 21:00 | CACHE-BUILD-REVIEW done | rows on `claude/cache-arms`; results in `cache-plan.md` §Results on `claude/cache-plan` |
+| CACHE-VERDICT-REVIEW | 11-14 21:00 | CACHE-RUN done, or 11-21 20:00 | `claude/cache-plan` (§Verdict review) |
 | REPORT-ADVOCATE-BEACON | 11-14 21:00 | — | `claude/report-plan` (`docs/client/evidence/report-plan.md` §3.1; PR of REPORT-OPTIONS) |
 | REPORT-ADVOCATE-KEEPALIVE | 11-14 21:00 | — | `claude/report-plan` (§3.2) |
 | REPORT-ADVOCATE-SESSION | 11-14 21:00 | — | `claude/report-plan` (§3.3) |
 | REPORT-ADVOCATE-NGINX | 11-14 21:00 | — | `claude/report-plan` (§3.5) |
 | REPORT-ADVOCATE-RECEIVER | 11-14 21:00 | — | `claude/report-plan` (§3.5) |
-| REPORT-PROTOCOL | 11-16 14:00 | every REPORT-ADVOCATE done | `claude/report-plan` (§Protocol of the same file) |
-| REPORT-BUILD-HARNESS | 11-17 08:00 | REPORT-PROTOCOL done | `claude/report-arms` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
-| REPORT-BUILD-BEACON | 11-17 14:00 | REPORT-BUILD-HARNESS done | `claude/report-arms` (its PR) |
-| REPORT-BUILD-KEEPALIVE | 11-17 14:00 | REPORT-BUILD-HARNESS done | `claude/report-arms` (its PR) |
-| REPORT-BUILD-SESSION | 11-17 14:00 | REPORT-BUILD-HARNESS done | `claude/report-arms` (its PR) |
-| REPORT-BUILD-RECEIVERS | 11-17 14:00 | REPORT-BUILD-HARNESS done | `claude/report-arms` (its PR) |
-| REPORT-BUILD-REVIEW | 11-18 20:00 | every REPORT-BUILD done | `claude/report-arms` (`docs/reviews/report-arms.md`) |
-| REPORT-RUN | 11-19 14:00 | REPORT-BUILD-REVIEW done | rows on `claude/report-arms`; results in `report-plan.md` §Results on `claude/report-plan` |
-| REPORT-VERDICT-REVIEW | 11-21 14:00 | REPORT-RUN done, or 11-22 08:00 | `claude/report-plan` (§Verdict review) |
+| REPORT-PROTOCOL | 11-14 21:00 | every REPORT-ADVOCATE done | `claude/report-plan` (§Protocol of the same file) |
+| REPORT-BUILD-HARNESS | 11-14 21:00 | REPORT-PROTOCOL done | `claude/report-arms` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
+| REPORT-BUILD-BEACON | 11-14 21:00 | REPORT-BUILD-HARNESS done | `claude/report-arms` (its PR) |
+| REPORT-BUILD-KEEPALIVE | 11-14 21:00 | REPORT-BUILD-HARNESS done | `claude/report-arms` (its PR) |
+| REPORT-BUILD-SESSION | 11-14 21:00 | REPORT-BUILD-HARNESS done | `claude/report-arms` (its PR) |
+| REPORT-BUILD-RECEIVERS | 11-14 21:00 | REPORT-BUILD-HARNESS done | `claude/report-arms` (its PR) |
+| REPORT-BUILD-REVIEW | 11-14 21:00 | every REPORT-BUILD done | `claude/report-arms` (`docs/reviews/report-arms.md`) |
+| REPORT-RUN | 11-14 21:00 | REPORT-BUILD-REVIEW done | rows on `claude/report-arms`; results in `report-plan.md` §Results on `claude/report-plan` |
+| REPORT-VERDICT-REVIEW | 11-14 21:00 | REPORT-RUN done, or 11-22 08:00 | `claude/report-plan` (§Verdict review) |
 
-A session never reviews a row it wrote. At most six rows of this file run at once.
+A session never reviews a row it wrote. At most twelve rows of this file run at once.
 
 ### HW-DECODE-DEEP (theory and sources; nothing run on a device)
 
@@ -492,10 +494,46 @@ forces one), every cell against its prediction, misses included; fixtures and li
     harness, so it may live on `main` under `lab/` (`scripts/check_lab_absent.sh`: never in a product path or
     image). No design document yet: the kit's README and `docs/devices.md` only.
 
+16. **10 bits on hardware is the goal; 8 bits the fallback** (the owner, 2026-11-14: "not cut resources on 10 bits
+    yet. This might be a critical phase, so increasing them even could be justified"). HW10-ROUTES gets its own row.
+    Every not-before in this file is now 11-14 21:00: rows wait only on their needs (the owner, 2026-11-14: "dispatch
+    all the pending cloud work. Plenty of usage").
+
+### HW10-ROUTES (theory and sources; nothing run on a device)
+
+Question: **every route by which a hardware-decoded 10-bit AV1 frame can be painted at full precision and checked
+against its digest (amendment 1), in a browser and natively, ranked.** Read first: `docs/decode/hardware.md` as
+HW-DECODE-DEEP and its review left it (PR 387), and `claude/work-ledger:docs/queue/HW-PROBE-PAGE.md` (the probe's
+finding: in headless Chromium 141, `copyTo({format: "I420P10"})` of a 10-bit software frame blocks its thread; trace
+why in Chromium's source and whether 157 does the same). Routes at least, each with its official sources quoted at a
+pinned revision, what it needs from the browser, which engines and platforms ship it, and how the check is done:
+
+* WebCodecs `copyTo` into a 10-bit planar format from a hardware frame (a lossless re-layout of `P010`), and the
+  `WebCodecsHBDFormatsEnabled` formats;
+* WebGPU: importing a `VideoFrame` as a multi-planar texture (Dawn's biplanar 4:2:0 formats, 8- and 10-bit, and the
+  WebGPU features or Chromium flags that expose them), `importExternalTexture`'s precision, `copyExternalImageToTexture`
+  into a 16-bit or float format; then a compute shader that reads the luma plane at full precision and computes
+  XXH3-64 on the GPU against the ingest digest (feasibility of a 64-bit-multiply hash in WGSL; cost per frame);
+* WebGL2: any extension or upload path that keeps more than 8 bits of a `VideoFrame`;
+* Android: whether Chromium can hand WebCodecs a MediaCodec frame as YUV planes (ByteBuffer mode, `Image` readers),
+  and under which flags or versions;
+* Native (`client/native`): MediaCodec, VideoToolbox, VA-API, NVDEC, Vulkan Video and D3D12 giving `P010` planes, and
+  whether each takes 4:0:0 or needs 4:2:0 with constant chroma.
+
+End with a ranked table (route × platform → decodes in hardware, painted at full precision, checkable, ships today or
+behind a flag, cost), the cells the device probe must add for the top routes (append them to the probe's README as
+asks for the device session, without changing its code), and what would be needed upstream (a spec issue or a
+Chromium bug) where a route is blocked only by a missing format. Theory labelled; no claim from memory.
+
+### HW10-ROUTES-REVIEW
+
+A session that wrote none of it: fetch 15 of its quoted sources at their pinned revisions and check each quote; check
+the ranking follows from the table; say which top route is decided by sources alone and which needs the device.
+
 ## Procedure, rules
 
 Each firing follows `docs/queue-2026-11-14.md` §The worker's procedure, §No work lost and §Standing rules, applied to
-**this file's rows only**, with these changes: step 3 counts this file's running rows (at most six); step 4
+**this file's rows only**, with these changes: step 3 counts this file's running rows (at most twelve); step 4
 ignores the 22:00–06:00 restriction; the queue closes 2026-11-22 23:59. Status files are `docs/queue/<ROW>.md` on
 `claude/work-ledger`. No merges; PRs are drafts into `claude/docs-client` as the table says, through
 `mcp__github__create_pull_request`. Sources quoted verbatim, theory and measured labelled, fixtures and limits in

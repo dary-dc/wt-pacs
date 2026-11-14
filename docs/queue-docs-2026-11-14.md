@@ -88,9 +88,9 @@ At the top of `docs/ARCHITECTURE.md`, and pointed to (not restated) from `README
 | DOCS-STRUCTURE | 11-14 17:00 | — | `claude/docs-client`, the draft PR |
 | CACHE-OPTIONS | 11-14 17:00 | — | `claude/docs-client:docs/client/evidence/cache-options.md` |
 | DOCS-FOLD | 11-14 21:00 | DOCS-SWEEP and DOCS-STRUCTURE done | `claude/docs-client` |
-| DOCS-PAGE | 11-15 08:00 | DOCS-FOLD and CACHE-OPTIONS done | `claude/docs-client:docs/client/design.html` |
-| DOCS-REVIEW | 11-15 14:00 | DOCS-PAGE done | findings in the PR body (a section "Review") |
-| DOCS-FIX | 11-16 08:00 | DOCS-REVIEW done | `claude/docs-client` |
+| DOCS-PAGE | 11-14 21:00 | DOCS-FOLD and CACHE-OPTIONS done | `claude/docs-client:docs/client/design.html` |
+| DOCS-REVIEW | 11-14 21:00 | DOCS-PAGE done | findings in the PR body (a section "Review") |
+| DOCS-FIX | 11-14 21:00 | DOCS-REVIEW done | `claude/docs-client` |
 
 A session that wrote any of DOCS-STRUCTURE, DOCS-FOLD or DOCS-PAGE does not take DOCS-REVIEW.
 
