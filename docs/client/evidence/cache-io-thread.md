@@ -536,7 +536,7 @@ Gecko's own block is 1 MiB with a quota round trip each (§4), which is why q = 
 ### Arm D, amended: C with shared memory, and A on what is left of the tick (2026-11-03, before any data)
 
 **Why.** C lost largely to a copy it did not need: the view thread copies each frame out of its `SharedArrayBuffer`
-and transfers the copy (`lab/opfs-arms/view.js`, as `client/view/cache.js:53`), 9.1 ms at S2 and 14.4 at S3 (§Arm D,
+and transfers the copy (`lab/opfs-arms/view.js` at 2a2510bd, as `client/view/cache.js:53`), 9.1 ms at S2 and 14.4 at S3 (§Arm D,
 Results), outside its region by that copy alone (§Each arm's parameters, *C as built*). The owner approved testing C
 without it (C-shared below, the store worker writing straight from the shared buffer). The same section names a cheap variant of A paint first, a budget of what is left of the tick; it is an
 arm here too. Chromium only (the owner, 2026-10-31). Nothing below is measured.
@@ -588,7 +588,7 @@ Rows: `claude/opfs-c-shared:lab/opfs-arms/rows/chromium-c-shared/`.
 and rule 4 becomes: **D**, if it passes 1–3, unless an A arm passes too and D's miss paints a display period or more
 after A paint first's in some R cell; then **A paint first**, then **A-left** (no thread more, and the fixed budget
 first, as built); then **C-shared** (one copy fewer than C), then **C**. If none passes, the result goes to the owner as
-measured. `lab/opfs-arms/summary.mjs` applies it, and still gives the run before this one its verdict.
+measured. `lab/opfs-arms/summary.mjs` (at 2a2510bd) applies it, and still gives the run before this one its verdict.
 
 **Smoke, 2026-11-03** (one round, L S2 1×, `none`, C, C-shared, A paint first and A-left; not results): every arm ran
 to the end, every write read back exact; C-shared's post 0.06 ms a frame.
