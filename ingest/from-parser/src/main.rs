@@ -204,7 +204,9 @@ fn optimal_series(args: &Args, exact: &Exact, q: u32) -> Result<String> {
     let frames: Vec<&[u8]> = coded.iter().map(Vec::as_slice).collect();
     series_bundle::write_bundle(&path, &metadata_json(&meta)?, &frames)?;
     let bytes: usize = frames.iter().map(|c| c.len()).sum();
-    Ok(format!("{} frames, {bytes} B optimal quality Q {q} G {}{cut}, every one decoded from its keyframe → {}", s.count, form.g, path.display()))
+    let form_name = if form.cut.is_some() { ", the depth cut" } else { "" };
+    let line = format!("{} frames, {bytes} B optimal quality Q {q} G {}{form_name}", s.count, form.g);
+    Ok(format!("{line}, every one decoded from its keyframe → {}", path.display()))
 }
 
 /// XXH3-64 over the frame digests in order: docs/av1/payload-format.md §Source fingerprint.
