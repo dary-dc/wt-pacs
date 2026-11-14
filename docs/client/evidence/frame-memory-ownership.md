@@ -539,7 +539,7 @@ engines. The first run's VOID rows in `rows/m5/` stand as run.
 | window by distance, `Map` (choice 2) | memory bounded by a constant | depends on collection; one constant for every device | the constant is configuration |
 | slot ring (choice 2) | memory fixed by construction | the decoders' hand-off changes | structural |
 | the engine's limit, LRU to fit, by series (choice 5; *corrected 2026-10-27*, was "own LRU budget by series: the browser never evicts us") | multi-GB studies held up to each engine's quota; fit tested by `truncate` | the browser may still clear the origin unless persisted | configuration |
-| a budget of our own (fixed, or a fraction of `estimate()`) | a margin we choose | refuses multi-GB studies or never binds; `estimate()` means three things | configuration |
+| ~~a budget of our own (fixed, or a fraction of `estimate()`)~~ *cut 2026-10-28* (`claude/opfs-multigb` 07ffd873): the row above's choice 5 weighs and rejects it, so it is not a second option | a margin we choose | refuses multi-GB studies or never binds; `estimate()` means three things | configuration |
 | without OPFS: drop and re-ask | the tab survives | a second decode of a dropped frame | configuration |
 | without OPFS: keep all | no frame decoded twice | today's ceiling, the tab at risk | configuration |
 
@@ -553,6 +553,11 @@ engines. The first run's VOID rows in `rows/m5/` stand as run.
 4. **Eviction across series:** plain LRU inside a budget of ours (proposed), or the size- or link-weighted variant now?
    *Answered 2026-10-27 (choice 5):* no budget of ours; least recently opened first, only when a `truncate` is refused;
    a series open in any tab never.
+
+   *A contradiction for the owner (2026-11-14):* `claude/opfs-multigb` 07ffd873 (2026-10-28, the newer text) rewrites
+   question 4's note to "choice 5 proposes no budget of ours, eviction only to fit; still the owner's" and drops
+   question 3's "the window, RAM per tab, stays at 256 MiB". This file still prints both as answered. Which is the
+   owner's answer is the owner's to confirm.
 5. **`persist()`** (§8.5): ask for it on the first series opened, or never? Per engine: choice 8. *2026-10-27:* choice 5
    recommends asking, for multi-GB studies; still the owner's.
 6. **A series already whole in OPFS:** dial the session anyway (ready for asks, one handshake), or only on a miss?

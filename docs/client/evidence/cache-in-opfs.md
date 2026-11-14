@@ -218,7 +218,7 @@ ours does not keep the browser from clearing the origin: every engine clears on 
 origin nears its own quota, where writes are only refused (below). And plain LRU evicted to stay under a budget,
 without asking whether the series about to be written fits. What follows replaces it; the quota table below stands.
 
-**The studies it must hold,** decoded, 16-bit, from [`../FIXTURES.md`](../../FIXTURES.md) and
+**The studies it must hold,** decoded, 16-bit (the ultrasound at its 8 bits; *corrected 2026-10-28*, `claude/opfs-multigb` 07ffd873), from [`../FIXTURES.md`](../../FIXTURES.md) and
 [`../av1/series.md`](../../av1/series.md) §1c. The DBT rows are four views at one system's sizes from different exams,
 not one patient's; slices grow ~1 per mm of breast (series.md §1c).
 
@@ -236,7 +236,7 @@ not one patient's; slices grow ~1 per mm of breast (series.md §1c).
 
 | engine | the real limit, per origin | what `estimate().quota` says | what clears the origin whole, best-effort |
 | --- | --- | --- | --- |
-| Chromium | 60 % of disk, checked at `truncate` and at every write that grows the file | **usage + 10 GiB**, whatever the disk: the static reported quota, on by default | a round that starts when all origins pass 0.7 × the pool (56 % of disk), or free disk falls under min(2 GiB, 10 %); LRU, persisted spared |
+| Chromium | 60 % of disk, checked at `truncate` and at every write that grows the file | **usage + 10 GiB** on any disk of 10 GiB or more (*corrected 2026-10-28*, `claude/opfs-multigb` 07ffd873: this said "whatever the disk"): the static reported quota, on by default | a round that starts when all origins pass 0.7 × the pool (56 % of disk), or free disk falls under min(2 GiB, 10 %); LRU, persisted spared |
 | Gecko | 10 % of disk, at most 10 GB, per site; **50 %** once persisted | that limit, as it is | the global limit (50 % of disk) reached: inactive best-effort origins, LRU; an origin with open files skipped |
 | WebKit | 60 % of the volume in a browser, 15 % in an app's web view | a standard figure doubled until ≥ 2 × usage, capped at the limit: low early | total quota (80 % / 20 %), LRU, sparing open pages and persisted; ITP's deletion (§4, choice 8) |
 
@@ -254,7 +254,9 @@ function of the available storage space" (Storage §Usage and quota).
   until usage grows, so the store would evict for room it has; only Gecko's is the limit. Headroom under the limit
   buys nothing: reaching it refuses our write, harmlessly; device pressure clears us whatever our margin.
 * **Trying.** The series' size is known before a byte arrives (n × frameBytes, choice 3), and `truncate` to it is the
-  engine's own answer, the same on all three. **Recommended:** no budget of ours; the limit is the engine's, found by
+  engine's own answer. *Corrected 2026-10-28* (`claude/opfs-multigb` 07ffd873): not "the same on all three" — Gecko
+  refuses with `NS_ERROR_FILE_NO_DEVICE_SPACE` (`dom/quota/FileStreams.cpp` 35–36; M3, §Results below), so the store
+  takes both names as a refusal. **Recommended:** no budget of ours; the limit is the engine's, found by
   `truncate` at open. `estimate()` decides nothing.
 
 **Eviction: least recently opened first, only to make room.**
@@ -268,15 +270,17 @@ function of the available storage space" (Storage §Usage and quota).
   the victim's sync access handle first, which throws `NoModificationAllowedError` while that tab holds it (§4), and
   then skips it. The spec's `removeEntry` takes no lock (fs `index.bs` 993–1035). *Corrected 2026-10-27:* this said
   it deletes while holding the handle; headless Chromium 153 refuses `removeEntry` under any open handle, its own
-  included (`NoModificationAllowedError`, run once), so the store closes the handle and then removes. Gecko and WebKit
-  are not run. Nothing else is
+  included (`NoModificationAllowedError`, run once), so the store closes the handle and then removes. *Corrected
+  2026-10-28* (`claude/opfs-multigb` 07ffd873): this said Gecko was not run; Gecko 159 refuses it too (M3, §Results
+  below). WebKit is not run. Nothing else is
   protected: a prior study not open is as evictable as any.
 * **A series bigger than the store** (still refused with nothing left to delete): kept nowhere on disk; it runs on the
   window alone, and 124b's rule applies past it. Keeping the part around the reader needs slots reused by index, an
   index, and eviction inside a series: the per-frame machinery choice 3 removed, for a case not measured as common.
 * **The disk fills mid-fill.** `truncate` reserves quota, not disk: Chromium sizes the file with `ftruncate`, which
   allocates no blocks on ext4, f2fs or APFS, and Gecko's is a truncate behind the same quota check (WebKit not traced).
-  So a write can still throw. The same rule, once: delete the least recently opened series not open and retry the
+  So a write can still fail: it throws on Chromium, and on Gecko returns 0 bytes written (M3, one run; *corrected
+  2026-10-28*, `claude/opfs-multigb` 07ffd873: this said a write "throws"). The same rule, once: delete the least recently opened series not open and retry the
   write; else stop writing this series. Frames already written stay present.
 * **`persist()`, asked at the first series opened** (124e: "ask"). It is what spares a multi-GB store from device
   pressure on Chromium and WebKit, and it lifts Firefox from 10 GB to 50 % of disk. Its cost is Firefox's prompt as
@@ -324,7 +328,7 @@ re-check is the guard, which is why it cannot be switched off for cache reads.
 | --- | --- | --- |
 | no OPFS: Firefox private, Safari private (by source), an engine without it | `getDirectory()` rejects | no cache: the window alone (below) |
 | the series does not fit | `truncate` at open throws `QuotaExceededError` (*corrected 2026-10-27:* this also read `estimate()`, which choice 5 shows decides nothing; *measured 2026-10-27, M3:* Gecko 159 throws `NS_ERROR_FILE_NO_DEVICE_SPACE` instead, which the store does not take as a refusal; *fixed 2026-10-28:* it takes that name too) | delete the least recently opened series not open, retry until it fits (choice 5; this said "try once"); else no cache for this series |
-| the disk fills mid-fill | a write throws though `truncate` passed (a sparse file, choice 5) | delete one such series, retry once; else stop writing this series |
+| the disk fills mid-fill | a write throws, or on Gecko writes 0 bytes, though `truncate` passed (a sparse file, choice 5) | delete one such series, retry once; else stop writing this series |
 | Chromium private window | it fits, but the "disk" is RAM in the browser process | the same rule: it caches only what fits 5–6.7 % of RAM, which then lifts nothing; not detectable as such, and not worth special code |
 | storage pressure, or ITP, empties the origin between opens | the manifest is missing | a fresh fill |
 | the files vanish while open | a read throws | a miss: ask the downloader |
