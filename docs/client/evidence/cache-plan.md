@@ -418,13 +418,13 @@ on Gecko only, the value, `Blob` or `ArrayBuffer`; nothing else (*advocate*: fra
 
 | | design | from its sources |
 | --- | --- | --- |
-| writer | the store worker copies the slot into a fresh `ArrayBuffer` and `cache.put(new Request(base + i), new Response(buffer))`, base a same-origin `https:` path never fetched (`/frame-cache/<series>/`) | a body's buffer is `BufferSource`, copied ("Set source to a copy of the bytes held by object.", fetch 8256–8257, §2); a key must be `http(s)` and `GET`, a `206` refused (ServiceWorker 2167, 2169) |
-| layout | `caches.open("frames " + series)`; one record a frame; the manifest as one more record (`…/manifest`, JSON). The digest stays in the manifest, not in a header: one place, as the other three | — |
-| copies | in script one (slot → buffer), then the body's, then the engine's (below) | — |
+| writer | the store worker builds the body from the ring's slot and `cache.put(base + i, new Response(body))`, base a same-origin `https:` path never fetched (`/frame-cache/<series>/`), the key a string (no `Request` built in script). The body, by the pilot (*advocate*; was a fresh `ArrayBuffer` a frame): **buffered**, one `ArrayBuffer` per put in flight, reused, the slot copied into it; or **streamed**, a `ReadableStream` enqueuing the slot's own 1 MiB views, kept only where the pilot's first check finds the engine accepts a shared chunk | a body's buffer is `BufferSource`, copied ("Set source to a copy of the bytes held by object.", fetch 8256–8257, §2): the copy is made at `new Response`, so the buffer is free to reuse once it returns (*advocate*); `put` reads a stream body by "reading all bytes" (ServiceWorker 2180), whose chunk is checked only as "If chunk is not a Uint8Array object, call failureSteps with a TypeError" and then "Append the bytes represented by chunk to bytes." (streams 7158–7160): whether an engine takes a view of shared memory there is **not traced**; a key must be `http(s)` and `GET`, a `206` refused (ServiceWorker 2167, 2169) |
+| layout | `caches.open("frames " + series)`; one record a frame; the manifest as one more record (`…/manifest`, JSON). The digest stays in the manifest, not in a header: one place, as the other three. No header on a frame's response (no `Vary`, no `Content-Type`) | a `Vary: *` is refused (ServiceWorker 2170–2173); nothing else in `put` reads the headers |
+| copies | buffered: in script one (slot → reused buffer), then the body's at construction, then the engine's (below). Streamed: none in script; the engine's copy of each chunk, then the engine's (below) | — |
 | transactions | each `put` is a batch whose changes the implementation "does undo (roll back)" on an exception (ServiceWorker 4149); WebKit's disk store does not revert a failed batch (below) | the re-check stays |
-| does it fit | as IDB: no answer before a byte is written; a refused `put` takes 7.5's mid-fill row | an implementation disadvantage of the option |
-| reads | `cache.match(req)` then `arrayBuffer()`: a new buffer, copied into a free slot | `match` and `put`: ServiceWorker 2010, 2014 |
-| eviction | `caches.delete(name)` after the series' Web Lock is taken with `ifAvailable`: one call, the series whole | ServiceWorker 2272 |
+| does it fit | (*advocate*; was "no answer before a byte is written") at `open` of a series not present, `navigator.storage.estimate()`: if `quota − usage` is under the series' bytes, evict by the rule and estimate again; else no cache. It is an estimate, not a reservation: a refused `put` mid-fill takes 7.5's row. On Chromium a refusal comes **before** the body is written: every batch's bytes are checked against the bucket's remaining space first (`cache_storage_cache.cc` 944, 1011–1013) | "The estimate() method can be used to determine whether there is enough space left to store content for an application" (storage 72–73); but usage is a "rough estimate" (537) and the quota "must not be a function of the available storage space on the device" (545–546): a full disk is not foreseen |
+| reads | `cache.match(base + i)`, then, by the pilot's pair: **buffered** `arrayBuffer()`, a new buffer, copied into a free slot; **streamed** (*advocate*) the body's reader, each chunk copied into the slot at its offset as it arrives: no frame-sized buffer allocated a read, and the copy overlaps the read | `match` and `put`: ServiceWorker 2010, 2014 |
+| eviction | `caches.delete(name)` after the series' Web Lock is taken with `ifAvailable`: one call, the series whole; then the estimate again (*advocate*), since the space may not be free at once ("the existing DOM objects … should remain functional", ServiceWorker 2353) | ServiceWorker 2272 |
 | present at open | `cache.keys()` | 2016 |
 
 **Reuses** nothing built; the rules above the seam and the Web Lock. **Per engine, traced here** (the §3 *Not traced*
@@ -439,14 +439,60 @@ body over a page is a file of its own beside the record ("return bodyData.size()
 beside our XXH3; and "// FIXME: we should probably stop writing and revert changes when result becomes false." (586).
 **Chromium** loads the response's body "as a blob" in the renderer (`cache.cc` 337) and writes it into a disk-cache
 entry of the simple backend, "Use APP_CACHE as opposed to DISK_CACHE to prevent cache eviction." (`cache_storage_cache.cc`
-2625, 2639). **Gecko** writes each body to a file under `morgue` through a Snappy stream
+2625, 2639). *Advocate, traced:* no entry-size limit binds a frame: a cache's backend is created with
+"`std::numeric_limits<int64_t>::max()`" bytes (2630–2631), "Ultimately, cache size is controlled per storage key by the
+QuotaManager." (2628–2629), and an entry may be an eighth of that ("index_->max_size() / file_size_ratio",
+`simple_backend_impl.cc` 291). A cache with no path is in memory, "`memory_only_(path.empty())`" (1167), capped at
+"`std::numeric_limits<int>::max()`" bytes a cache (2630), ~2 GiB a series; which profiles have no path is not traced.
+**Gecko** writes each body to a file under `morgue` through a Snappy stream
 ("MakeRefPtr<SnappyCompressOutputStream>(fileStream);", `dom/cache/FileUtils.cpp` 74, 177), and keeps Cache Storage
 in a private window ("# Enable CacheAPI in private browsing mode with encryption" · "value: true",
-`StaticPrefList.yaml` 2736–2739).
+`StaticPrefList.yaml` 2736–2739). *Advocate, traced:* every block is compressed, never stored raw
+("WriteChunkType(aDest, CompressedData);", `xpcom/io/SnappyFrameUtils.cpp` 110; "snappy::RawCompress(", 124), and
+carries a CRC32C of its bytes computed at write (117–118) and checked at read ("if (NS_WARN_IF(readCrc != maskedCrc)) {",
+226): a third pass over every frame beside the Snappy pass and our XXH3, and a damaged body fails its read
+(`NS_ERROR_CORRUPTED_CONTENT`), a miss before our re-check sees it. The same compression **may shrink a frame on disk**
+where its background repeats; not measured on our frames.
 
-**Predicted floor** (theory; **no measured anchor**): as IDB's, plus Gecko's Snappy on write and read and WebKit's SHA-1
-on write and read (SHA-1 is not timed in the repo; at an assumed 0.5–1 GB/s, 17–34 ms at S2, labelled assumed).
-**Pilot** (the rule of 7.2): `put`s in flight, 1 or 3.
+**Predicted floor** (theory; **no measured anchor**): as IDB's, plus Gecko's Snappy and CRC32C on write and read and
+WebKit's SHA-1 on write and read (SHA-1 is not timed in the repo; at an assumed 0.5–1 GB/s, 17–34 ms at S2, labelled
+assumed). **Pilot** (the rule of 7.2, each setting judged alone): `put`s in flight, 1 or 3; the pair, **buffered** or
+**streamed** (*advocate*), streamed only where its first check passes (a frame put from shared views reads back equal on
+that engine), judged by write plus read cost a frame at S2.
+
+**Advocate's list, 2026-11-14** (CACHE-ADVOCATE-CACHESTORAGE; a session that wrote no design). Sources at 7.6.
+
+* *Changes made above*: the body's buffer reused (the spec copies at construction), or streamed from the slot where an
+  engine takes shared chunks; reads streamed into the slot; a string key; `estimate()` at open and after eviction;
+  Chromium's quota check before the write, its entry size and its memory-only cap traced; Gecko's Snappy stream traced
+  (always compressed, CRC32C both ways).
+* *Disadvantages it still carries*:
+  **Copies.** A body refuses a shared view ("If the conversion is not to an IDL type associated with the [AllowShared]
+  extended attribute, and IsSharedArrayBuffer(V.[[ViewedArrayBuffer]]) is true, then throw a TypeError.", webidl
+  9237–9240), so buffered costs two copies in the store worker before the engine's own, and a read always lands in a
+  new buffer or new chunks before the slot; streamed removes the write's two only if an engine takes shared chunks.
+  **No reservation.** `estimate()` is rough and blind to the disk (storage 537, 545–546); only OPFS's `truncate`
+  reserves. On Gecko and WebKit, whether a refused `put` has written part of its body first is not traced.
+  **Hashes and compression it cannot turn off**: WebKit's salted SHA-1 of every body at write and read
+  (`CacheStorageDiskStore.cpp` 383), Gecko's Snappy and CRC32C of every block both ways (`SnappyFrameUtils.cpp` 110–124,
+  226). The put spec itself buffers: "we have a full buffered copy of the body in clonedResponse. An implementation
+  could optimize by streaming directly to disk rather than memory." (ServiceWorker 2182); Chromium's body passes
+  through a blob first (`cache.cc` 337), and whether a 17–27 MB blob is held in memory or paged to disk before the
+  entry is written is not traced.
+  **WebKit does not roll back** a failed batch (`CacheStorageDiskStore.cpp` 586): a frame half-written there is the
+  re-check's to catch. **Space after `caches.delete`** may lag while any `Cache` object for it lives (ServiceWorker
+  2353); the estimate after eviction sees it, at the cost of a second round of eviction. **Chromium's memory-only
+  cache** holds ~2 GiB a series (2630): a larger series is not cached whole there. **Keys are URLs**: a same-origin
+  path the server never serves, or a future service worker's own `fetch` handling could answer it.
+* *What the shared seam or input costs it*: 7.0 holds a slot **until its writer says written**; buffered copies the
+  slot in under a few milliseconds and then holds it through the IPC, the engine's copies, the hashes and the disk.
+  *Proposed for all four alike (a change to 7.0; the protocol's author decides whether it enters)*: a writer that holds
+  its own copy of a frame (CACHESTORAGE and IDB buffered, OPFS-ASYNC's reused buffer) frees the slot when its copy is
+  made, its copies bounded by its writes in flight and counted in the tab's memory; OPFS-SYNC and a streamed body
+  keep the slot until written, as now. And the read's free slot (OPFS-SYNC's list above) costs it a copy the others
+  pay as well: a store that answers in a new buffer could post that buffer to the view worker as a transfer instead,
+  for IDB, OPFS-ASYNC and CACHESTORAGE alike; not proposed, since a buffer outside the ring is memory the ring no
+  longer bounds, named so the protocol's author can weigh it.
 
 ### 7.5 · The failures of cache-in-opfs choice 7, per survivor
 
@@ -457,7 +503,7 @@ What the store sees, and what it does (above the seam, the same rule for all, wh
 | no store (Firefox private; Safari private by source) | `getDirectory()` rejects: no cache | the same | **a store**: Gecko keeps it in a private window, encrypted, temporary (7.3); Safari private not traced | **a store** in Gecko's private window (7.4); Safari not traced |
 | the series does not fit | `truncate` refused at the first frame: the rule (evict, retry; else no cache) | the probe refused at open: the rule; else as the mid-fill row | `estimate()` short at open: the rule; else as the mid-fill row (*advocate*, 7.3) | known only mid-fill |
 | the disk fills mid-fill | a write throws: evict one, retry once, else stop writing | `close()` rejects: the same | the transaction aborts: the same | the `put` rejects: the same |
-| Chromium private window | OPFS in RAM, 5–6.7 % of it (choice 5): caches what fits | the same | **a store**, in memory on the SQLite backend (*advocate*, 7.3); its limit not traced | not traced |
+| Chromium private window | OPFS in RAM, 5–6.7 % of it (choice 5): caches what fits | the same | **a store**, in memory on the SQLite backend (*advocate*, 7.3); its limit not traced | in memory if its path is empty, ~2 GiB a series (7.4); not traced that it is |
 | the origin emptied between opens | no manifest: a fresh fill | the same | no `series` record: the same | no `manifest` record: the same |
 | the store vanishes while open | a read throws: a miss | the same | a request errors: a miss | `match` rejects or is `undefined`: a miss |
 | two tabs, one series | the second's `createSyncAccessHandle` throws: that tab, no cache (*advocate* proposes reads for all four, 7.1's list) | the Web Lock is held: no cache | the same (the engine would order the writes, 1148; one rule for all) | the same |
@@ -485,12 +531,17 @@ Fetched 2026-11-14 at `cache-options.md`'s commits; nothing fetched is committed
 | Chromium `third_party/blink/common/features.cc`; `content/public/common/content_features.cc`; `content/browser/indexed_db/instance/bucket_context.cc`; `content/browser/indexed_db/instance/leveldb/backing_store.h` (IDB's advocate) | `b124f80df73f` | `e098b5147f94`; `ed6ed8fd1079`; `034772c30825`; `0ccff8a628d3` |
 | Gecko `dom/indexedDB/IndexedDatabaseManager.cpp` (IDB's advocate) | `c72617c01649` | `19572f39e492` |
 | Chromium `third_party/blink/renderer/modules/indexeddb/idb_value_wrapping.h`, `.cc`; `…/modules/cache_storage/cache.cc`; `content/browser/cache_storage/cache_storage_cache.cc` | `b124f80df73f` | `18ad474f6be6`, `bc9aa5d9bfe1`; `7a2125968f57`; `d05f03985fbe` |
+| whatwg/storage `storage.bs` · whatwg/streams `index.bs` (7.4, advocate) | `115691c51583` · `312b67e396a8` | `2617969b9b9f` · `4dc5a24c9d39` |
+| Chromium `net/disk_cache/simple/simple_backend_impl.cc` (7.4, advocate) | `b124f80df73f` | `d02270d0dab1` |
+| Gecko `xpcom/io/SnappyFrameUtils.cpp` (7.4, advocate) | `c72617c01649` | `d244627ccf43` |
 
 **Still not traced:** whether a writable's `truncate` is refused before `close()` in Gecko and WebKit (Chromium's is,
 7.2; the pilot checks the others); what a browser crash leaves of a writable in Gecko and WebKit, and whether OPFS's
 listing shows Chromium's swap; which IndexedDB backend a Chromium profile runs (traced by IDB's advocate: LevelDB on disk unless a field trial
 moves it, SQLite in memory); Cache Storage in a Chromium private window, and IndexedDB's limit there; both in Safari's;
-whether Chromium's IndexedDB `usage` drops at a delete's commit or at its journal cleaning; SHA-1's rate on a phone.
+whether Chromium's IndexedDB `usage` drops at a delete's commit or at its journal cleaning; SHA-1's rate on a phone; whether an engine takes a view of shared memory as a body's stream chunk (7.4's pilot checks
+it); whether Chromium holds a large put's blob in memory or pages it to disk; whether Gecko or WebKit refuses a `put`
+before writing any of its body; which Chromium profiles keep Cache Storage without a path (in memory, 7.4).
 
 **Fixtures and their limits.** Nothing was run for this file. The *measured* numbers it quotes come from a 4-vCPU
 cloud container without a GPU, Chromium 153 and Firefox 159, synthetic 16-bit series at 512², 2560×3328 and
