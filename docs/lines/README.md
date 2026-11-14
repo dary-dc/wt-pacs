@@ -1,8 +1,8 @@
 # Lines of work
 
-A **line** is one direction of work on wt-pacs, each with one file here. A line file holds the line's goal, its
-state now, what is open, the decisions taken and pointers into the repository; it is updated in place, and git keeps
-its history.
+A **line** is one direction of work on wt-pacs, each with one file here. A line file holds the work only — the goal
+in one line, what is in flight, PRs, owed runs, pointers — and no design or results, which live in their subject's
+home (`CLAUDE.md` §Docs); it is updated in place, and git keeps its history.
 
 **A session working on a line reads its file first and updates it before it ends**: state now, open, any new
 decision, and the date at the top. Something learned for another line goes into that line's file.
@@ -11,11 +11,11 @@ decision, and the date at the top. Something learned for another line goes into 
 | --- | --- | --- | --- |
 | coordination | merges, review order, branch and PR hygiene across the lines | [`coordination.md`](coordination.md) | 2026-11-09 |
 | codecs and lab | HTJ2K and AV1, server, transport and disk, measured to `CLAUDE.md` §Measurement | [`codecs.md`](codecs.md) | 2026-11-09 |
-| optimal quality | the product's approach ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product), built for the demo of 2026-11-13 | [`optimal-quality.md`](optimal-quality.md) | 2026-11-10 |
-| client | the browser client: transport, decode, cache, paint, telemetry | [`client.md`](client.md) | 2026-10-29; branches 2026-11-09 |
+| optimal quality | the product's approach ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product), built for the demo of 2026-11-13 | [`optimal-quality.md`](optimal-quality.md) | 2026-11-14 |
+| client | the browser client: transport, decode, cache, paint, telemetry | [`client.md`](client.md) | 2026-11-14 |
 | PACS receive and metadata | receive what the PCS sends, build and update each study's store, serve by UID | [`metadata.md`](metadata.md) | 2026-10-29; branches 2026-11-09 |
 | 2D viewer | a 2D DICOM viewer product on the client, breast reading first (paused) | [`viewer.md`](viewer.md) | 2026-10-27; branches 2026-11-09 |
-| native | a native client on raw QUIC, without the browser's limits | [`native.md`](native.md) | 2026-10-27; branches 2026-11-09 |
+| native | a native client on raw QUIC, without the browser's limits | [`native.md`](native.md) | 2026-11-14 |
 
 "Last verified" is the newest date the line's state was checked; "branches" means only the branch and PR state was
 read again on that date, not the line's findings.

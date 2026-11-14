@@ -60,6 +60,9 @@ transferred buffers, `waitAhead`, `span`, the frame clocks. Native has the same 
 | An OPFS cache for both web clients, no re-decoding | 2026-10-10 | the owner | [`evidence/cache-in-opfs.md`](evidence/cache-in-opfs.md) |
 | The page stays in the pixel path unless a measured cost says otherwise; the checks stay on, the cache read's re-check included | 2026-10-11 | the owner | [`evidence/page-out-of-pixel-path.md`](evidence/page-out-of-pixel-path.md) §8 |
 | Two product clients, TS and WASM | 2026-10-16 | the owner | [`../CLIENTS.md`](../CLIENTS.md) |
+| Optimal quality plus the exact HTJ2K frame on explicit request; the residual dropped. The label says *Optimal quality* or *Lossless*, the latter only after the check passes; a developer overlay behind a toggle | 2026-11-09 | the owner | [`../../client/README.md`](../../client/README.md) §Optimal quality, exact on request |
+| D > 10: the depth cut to 10 bits; D ≤ 10 coded at its own depth; a split into top and low streams discarded | 2026-11-09 | the owner | [`../av1/payload-format.md`](../av1/payload-format.md) §Depth cut |
+| The phone: tethering for development and decode numbers, Wi-Fi for transport realism | 2026-11-09 | the owner | [`../devices.md`](../devices.md) §7 |
 | Client telemetry is for production too, sampled | 2026-10-23 | the owner | `claude/telemetry-client:docs/adr/telemetry-in-production.md` |
 | The view worker's shape: frames never return to the main thread; VOI part of paint; paint first, then the cache write; the store never decides a paint; the store, not the controller, asks the downloader | 2026-10-28 | the owner | [`evidence/view-worker-design.md`](evidence/view-worker-design.md) §Target |
 | The red team's revision: an ordered want, versioned frames, credits, writes off thread, one `failed {scope, reason}`, eviction only over budget | 2026-10-29 | the owner | [`evidence/view-worker-design.md`](evidence/view-worker-design.md) §Review: the red team |
@@ -67,6 +70,10 @@ transferred buffers, `waitAhead`, `span`, the frame clocks. Native has the same 
 | `?view=page` stays the default: the view worker's first frame is later by ≥ 16.7 ms in five decided cells | 2026-10-30 | the rule, measured | [`evidence/page-out-of-pixel-path.md`](evidence/page-out-of-pixel-path.md) §7; [`evidence/view-worker-start.md`](evidence/view-worker-start.md) |
 | WebCodecs decodes the optimal-quality view; dav1d only after a refusal or a failed decode at ≤ 10 bits, the overlay naming the route and why | 2026-11-11 | the owner | [`../../client/README.md`](../../client/README.md) §Which decoder, per payload |
 | The page view stays; which view is the target is decided after the phone runs | 2026-11-11 | the owner | `claude/work-ledger:docs/queue-2026-11-10.md` |
+| The optimal-quality series is always ≤ 10 bits on the product path; the stored form a lab option, never shown | 2026-11-11 | the owner | the same |
+| The pairing's same-source check stays, in the ingest, with XXH3 (`sourceFingerprint`) | 2026-11-11 | the owner | the same; [`../av1/payload-format.md`](../av1/payload-format.md) §Source fingerprint |
+| The quality mark: green beside *Optimal quality*, *Lossless* distinct, words always beside the colour; the status line opens by a tap | 2026-11-11 | the owner | [`../../client/README.md`](../../client/README.md) §Optimal quality, exact on request |
+| The integrity and coding-error check is a proposal (#368), the owner's to decide | 2026-11-11 | the owner | `claude/oq-integrity-build:docs/reviews/oq-integrity.md` |
 | Mobile on lossy wireless; no TCP for the fill unless proven; fill and on-demand latency optimized separately; resilience parked | 2026-11-11 | the owner | the same |
 | Telemetry off by default (rate 0); the frame clock kept | 2026-11-11 | the owner | the same |
 | One home per subject, `docs/<subject>/` (this file, the page, `evidence/`), and the product statement's framing | 2026-11-14 | the owner | `CLAUDE.md` §Docs; [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product |
@@ -84,7 +91,8 @@ not a radio. The phone results: one phone (Chrome 157), one home link, one eveni
 **The delivery comparison.** Arm A the optimal-quality view only; arm B HTJ2K lossless only; C1 the approach (the
 optimal-quality fill, then an exact frame on request: an on-demand latency); C2 the optimal-quality fill, then the
 whole exact series, measured, not summed. *Theory:* fill ≈ max(bytes × 8 ÷ bandwidth, frames × decode per frame ÷
-decoders) + rest; the optimal-quality series is ~0.07–0.22 of the exact series' bytes, so A and C1 win where the link
+decoders) + rest; the optimal-quality series is ~0.07–0.22 of the exact series' bytes at Q 8 and 0.003–0.025 at Q 24 (measured,
+`scripts/demo-series.sh` over the three DBT volumes, G 1, 8, 16), so A and C1 win where the link
 binds and lose their margin where decode binds. *Decides:* per load, wire time, decode floor, rest, the decoder route
 taken and bytes; phone CPU per process; server egress and CPU; rendering fixed, arms interleaved; the calibrated home
 Wi-Fi, then a sweep toward cellular and congested Wi-Fi with random loss, each link profile labelled measured or
@@ -107,8 +115,10 @@ phone's saturation is not shown. *Decides:* a round recording the route and per-
 varied.
 
 **Which view is the target.** *So far:* on the phone, worker against page depends on the congestion controller on the
-tether (medians 0.960 under `cubic-restart`, 1.016 under `bbr`) and is inconclusive by its rule on Wi-Fi (n = 10); no
-cloud run shows the worker faster; both pass every correctness check. *Decides:* the next phone round, amended by a
+tether (medians 0.960 under `cubic-restart`, 1.016 under `bbr`) and is inconclusive by its rule on Wi-Fi (n = 10). The
+run stopped after four of six octets by its amendment's time rule, so every fill comparison is *not decided*, and its
+commit differs from the demo commit in 20 files of the fill's path. No cloud run shows the worker faster; both views
+pass every correctness check. *Decides:* the next phone round, amended by a
 session that will not run it ([`../devices.md`](../devices.md) §7). The owner's.
 
 **A failed Lossless is not retried**, and **a hidden page loses its AV1 decoder mid-group**, both seen on the phone
