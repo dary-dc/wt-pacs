@@ -58,7 +58,9 @@ and an import that fails is tried again on the next payload. Before, the first p
 it: **−1.0 serial round trips to the first exact frame through WebCodecs and −3.0 through dav1d on
 100–300 ms links, cold, every paired round** (10.02 → 8.98 and 11.93 → 8.96; HTJ2K 7.99); warm,
 nothing moves. On a link under 20 ms a ≤ 10-bit series pays for the fallback's 238 KB arriving
-beside its first frame (+26 ms at 10 ms, +67 on loopback), dav1d wins from 10 ms. A page that knows
+beside its first frame (+26 ms at 10 ms, +67 on loopback), dav1d wins from 10 ms (a depth hint that fetches dav1d only
+after WebCodecs refuses `g{depth}` resolves it on a branch, not here:
+[`docs/client/evidence/av1-cold-open-depth-hint.md`](../docs/client/evidence/av1-cold-open-depth-hint.md)). A page that knows
 the series is AV1 can `preload` the seven AV1 modules, the glue and the WASM, as `lab/page-open/codec.html`
 does: AV1 then reaches HTJ2K's 8.0. [`lab/page-open/README.md`](../lab/page-open/README.md)
 §Cold round trips by codec. A WebCodecs frame is taken only for the unit it
@@ -85,8 +87,8 @@ dispatch rig checks `client/contract/av1/scalable/`.
 
 **Optimal quality, exact on request** (2026-11-09; the product's approach and its status:
 [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §The product). A series whose metadata carries `"codec": "av1"`,
-`"lossy": {"q", "g", "depth"}` and `"exactSeries": "<id>"` is shown at **optimal quality** — its visually lossless
-AV1 frames — as any series is: fill, steps, cine. Its **exact series** is the HTJ2K series of the same source on its
+`"lossy": {"q", "g", "depth"}` and `"exactSeries": "<id>"` is shown at **optimal quality** — its AV1 frames, meant to be
+visually lossless and not yet confirmed by readers — as any series is: fill, steps, cine. Its **exact series** is the HTJ2K series of the same source on its
 own server. `viewer/pair.js` reads its metadata at `/series/<id>/metadata` and its transport file at
 `/wt/<id>/dev-transport.json` (`server/dev-server.py --exact-metadata … --exact-transport …`), and refuses by name an
 exact series that is not HTJ2K, is not of the same source (another frame count, width, height, `bitsStored` or
@@ -220,7 +222,7 @@ series of a pair, under the default view (`?view=page`, no URL flags):
 ```
 
 1. **One view for every reader, the exact frame on request.** An optimal-quality series is a series of its own
-   (visually lossless AV1 at a fixed Q and G), served beside its exact series (the HTJ2K series of the same source)
+   (AV1 at a fixed Q and G, meant to be visually lossless, not yet confirmed by readers), served beside its exact series (the HTJ2K series of the same source)
    by a second server. The client pairs them; the server and the wire are unchanged. `viewer/pair.js` refuses, by
    name, a pair whose exact series is not HTJ2K, not of the same source (frames, size, `bitsStored`, `signed`,
    `framesSha256`) or has no XXH3-64 digests. Held by `viewer/pair.test.mjs`.

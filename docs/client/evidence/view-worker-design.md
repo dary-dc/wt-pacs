@@ -92,7 +92,7 @@ GPU); the samples written once, as today.
 
 **What this is.** An adversarial reading of the Target section against today's client (`client/`), the decided ADRs,
 and the branches that work on it: `claude/opfs-cache-fixes` (OCF), `claude/opfs-arms` (ARMS), `claude/frame-memory`
-(FM), `claude/worker-clock` (WC), `claude/ask-patterns-map` (MAP) and `claude/view-worker` (VW), cited
+(FM), `claude/worker-clock` (WC), `claude/ask-patterns-map` (MAP, its text now in [`how-viewers-and-readers-ask.md`](how-viewers-and-readers-ask.md)) and `claude/view-worker` (VW), cited
 `branch:path:line`. Engine sources are pinned in [`frame-path-sources.txt`](sources.txt) under
 *Review*. Three throwaway probes are in [`../../lab/target-review/`](https://github.com/dary-dc/wt-pacs/tree/7f335cc0c80100017ccb3800c40a871c9fabc3f6/lab/target-review/README.md). Their numbers
 come from a shared container and are **indicative, not claims**. Nothing here was run on a phone, in WebKit, or in

@@ -12,7 +12,7 @@ findings shape is [`../design.md`](../design.md).*
 
 *Which changes to the Target are worth an experiment each, ranked by expected gain over cost. Gathered from the
 Target's open table, both reviews, [`../ARCHITECTURE.md`](../../ARCHITECTURE.md), the branches cited as in §Review (FM,
-ARMS, WC, MAP, VW) and a reading of `client/transport`, `client/decode`, `client/paint` and `VW:client/view/view-worker.js`.
+ARMS, WC, MAP, VW; MAP's text is now in [`how-viewers-and-readers-ask.md`](how-viewers-and-readers-ask.md)) and a reading of `client/transport`, `client/decode`, `client/paint` and `VW:client/view/view-worker.js`.
 **Nothing here is built or run**; a figure is a measurement cited where it is, or marked a guess. Each experiment
 changes one lever against the Target as built on VW, interleaved (`lab/order.mjs`), ≥ 12 rounds, Chromium and
 Firefox, every frame checked against the encoder input's `.sha256`, and states its rule before any data.*

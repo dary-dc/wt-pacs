@@ -493,6 +493,8 @@ Estimated: step 1 ≈ 300 lines of client and CLI, ≈ 150 of tests.
 
 ### 8.5 What keeps the browser path unchanged, and what proves both clients get the same bytes
 
+*Run 2026-10-28:* a tie ([`../client/evidence/native-client-wire-parity.md`](../client/evidence/native-client-wire-parity.md)).
+
 * **Unchanged by construction:** the browser offers only `h3`, so TLS answers it as today (§8.1); its session
   opens through the same patched `accept(connecting)`; the transport configuration is the same object; the bytes on
   its streams are written by the same `write_frame` through the same quinn stream.
