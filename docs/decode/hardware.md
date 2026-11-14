@@ -10,7 +10,7 @@ bits, so §2's "window/level on > 8 bits" row is the one that binds, and hardwar
 §4 Gate 3); and the reconstruction digest, which compares decoded samples a hardware path may not read back
 ([`../client/design.md`](../client/design.md) §Open). §3's split rows (grey 10–14 bits as top and low streams) are
 superseded by the depth cut (the owner, 2026-11-09). The client asks WebCodecs for `prefer-software`
-(`client/decode/av1-webcodecs.js:80`), so no AV1 decode measured on record, the phone's included, was a hardware request.
+(`client/decode/av1-webcodecs.js:80`), so no browser AV1 decode on record, the phone's included, was a hardware request.
 
 **How a claim is labelled.** **(S)** source: a file and line at a pinned tag, or a spec, document or page with its
 section, each pinned in §10 with the SHA-256 prefix of the copy read; **(D)** derived: arithmetic or reasoning on
