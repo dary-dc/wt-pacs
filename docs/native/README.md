@@ -100,8 +100,10 @@ its re-check like any other.
 
 **The other side.** AAPM Report 260 on handheld viewers recommends leaving no persistent data on the device. HIPAA's
 technical safeguards (45 CFR 164.312) make audit controls required and encryption at rest and automatic logoff
-"addressable"; a proposed revision (published 2025-01-06) was not read. GDPR Art. 32 asks for security appropriate to
-the risk. A page's storage is evictable by default; an app's cache stays until the app removes it.
+"addressable"; the proposed revision (90 FR 898, 2025-01-06) would require encryption at rest save documented
+exceptions and drop "addressable" (*corrected 2026-10-28,* `claude/cache-policy` 680c9b49: this said it was not read).
+GDPR Art. 32 asks for security appropriate to the risk. What each source asks of a cache, the options and a default per
+device kind: [`../client/evidence/what-the-cache-leaves-on-a-device.md`](../client/evidence/what-the-cache-leaves-on-a-device.md). A page's storage is evictable by default; an app's cache stays until the app removes it.
 
 ## 4. App shape
 
@@ -586,8 +588,8 @@ committed.
   (`962539af0373`); ACR–AAPM–SIIM Technical Standard for Electronic Practice, rev. 2022 (`c36cbd5e16df`); AAPM
   Report 260 (`7b0403c504c4`); eCFR 45 CFR 164.312 (`c70378b6f5e4`).
 
-**Not read**, so not cited: IEC 62304 beyond its abstract and IEC 82304-1 (paywalled or refused); the EU borderline
-manual on PACS; the HIPAA Security Rule revision's text; GitHub's release pages (403); MicroDicom's site (403).
+**Not read**, so not cited (*corrected 2026-10-28,* `claude/cache-policy`: the HIPAA Security Rule revision's text was listed here; it has been read, §3): IEC 62304 beyond its abstract and IEC 82304-1 (paywalled or refused); the EU borderline
+manual on PACS; GitHub's release pages (403); MicroDicom's site (403).
 
 ## The view-worker design, native (2026-10-29)
 
