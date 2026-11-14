@@ -1,9 +1,10 @@
 state: started
 started: 2026-11-14T23:14Z
-heartbeat: 2026-11-14T23:26Z
+heartbeat: 2026-11-14T23:30Z
 outputs: claude/work-ledger:docs/queue/MERGE-ALL-PLAN-report.md
 ## Resume
-Done: inventory (127 tips judged), first pass of cumulative test merges (detached worktree, never pushed).
-Running: the second pass, with three demo-tip branches moved to unified-client's sequence. Next: write
-docs/queue/MERGE-ALL-PLAN-report.md (summary, inventory table, order with conflicts, tree differences, cleaning, calls).
+Pushed: the report's summary, §1 method, §2 inventory (127 tips), §3 stage A tables. Next: §3 notes on the large
+code conflicts, §4 stage B (line merges, read with `git merge-tree`), §5 tree differences and build, §6 cleaning commits
+and the commands, §7 the owner's calls; then the status file's Result and docs/lines/coordination.md is not touched
+(the row pushes nothing but the report).
 ## Result
