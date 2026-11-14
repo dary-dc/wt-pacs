@@ -14,7 +14,7 @@ exact frame bit for bit, and only checked claims on screen.
 * **The unified branch** `claude/unified-client` (the client, optimal-quality and native lines): the demo tip with the
   cleaning and the renames merged; one `info.path` left in `lab/faultbench/index.html` (now `info.route`), a finding in
   #382. Reaches `main` through #367 then #250, on the owner's word ([`coordination.md`](coordination.md)).
-* **The documentation round** of 2026-11-14 on `claude/docs-client` (a draft PR into `claude/unified-client`): one home
+* **The documentation round** of 2026-11-14 on `claude/docs-client` (#384, a draft into `claude/unified-client`): one home
   for the client's design, evidence and work state; the off-branch inventory folded next, then the page, a review and
   its fixes.
 * **The cache survey**, theory only, 2026-11-14
