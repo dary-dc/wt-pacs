@@ -2250,7 +2250,7 @@ wanted on the CPU:
 * **Range.** The default window needs min and max. From ingest metadata (Rg) that is a format change. A GPU
   reduction is several render passes and a readback (*unverified* cost). The top alone bounds it only to within
   2^k − 1, which is not exact.
-* **OPFS** ([`frame-path.md`](../adr/frame-path.md) §4–5). An entry would hold two planes and two digests (a store
+* **OPFS** ([`cache-in-opfs.md`](../client/evidence/cache-in-opfs.md) §4–5). An entry would hold two planes and two digests (a store
   format change). Or the store worker would merge on the CPU, off the decode clock, and check the merged digest. That
   still spends a core a fill shares on a phone.
 * **CPU fallbacks.** These are the check page's `reference.js`, any later CPU reader (a value under the cursor is one

@@ -86,7 +86,7 @@ Where a frame cache belongs, and whether the OS takes it back:
 | macOS | `~/Library/Caches` | unknown | |
 | iOS | Application Support + `isExcludedFromBackup` (set again on every save) | Caches can be purged when space is very low, never while the app runs | encrypted by default (Data Protection class C); class A (`complete`) locks the cache ~10 s after the device locks, which stops a background prefetch |
 | Android | `getFilesDir` | `getCacheDir` is deleted oldest-first under a moving quota and "designed to store a small amount" | file-based encryption on Android 10+ |
-| browser (today) | OPFS | best-effort unless persisted; ≈ 60 % of disk per origin (Chrome, Safari), 15 % in a web view; Safari deletes script-written storage after 7 days without interaction (30 operating days in the source's default, [`../adr/frame-path.md`](../adr/frame-path.md) §4) | not built ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Open) |
+| browser (today) | OPFS | best-effort unless persisted; ≈ 60 % of disk per origin (Chrome, Safari), 15 % in a web view; Safari deletes script-written storage after 7 days without interaction (30 operating days in the source's default, [`../client/evidence/cache-in-opfs.md`](../client/evidence/cache-in-opfs.md) §4) | not built ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Open) |
 
 **What a cache must do on any OS**, from the exactness ADR ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md)
 §8, *A client cache*): hold only frames whose check is `true`, never key by digest, and re-check on read. From the
@@ -591,7 +591,7 @@ manual on PACS; the HIPAA Security Rule revision's text; GitHub's release pages 
 
 ## The view-worker design, native (2026-10-29)
 
-*Theory only: read from the Target section of [`../adr/frame-path.md`](../adr/frame-path.md) as revised on
+*Theory only: read from the Target section of [`../client/evidence/view-worker-design.md`](../client/evidence/view-worker-design.md) as revised on
 `claude/view-worker-target-rev` (draft PR #235), its red team's review and the independent design after it, and from
 the native line's open PRs at their heads: #206 `claude/native-paint`, #209 `claude/native-cache`, #216
 `claude/native-window`, #218 `claude/native-fill`. M2's and M3's results quoted below are on #218's and #209's
@@ -934,10 +934,10 @@ NATIVERUN is not run and nothing here is timed.*
   thread), `job`, `decoded`, `done`, `intent`, `shown`, `failed`, `step`. Always on, as the counters are: a lock and a
   push a message.
 * **B's 1-pixel read** was already behind a lab flag on `claude/core`: `settlePaint` in `client/view/view-worker.js`,
-  off by default, set by `lab/viewer/levers.js` ([`../adr/frame-path.md`](../adr/frame-path.md) §3). *Corrected
+  off by default, set by `lab/viewer/levers.js` ([`../client/evidence/frame-store-owner.md`](../client/evidence/frame-store-owner.md) §3). *Corrected
   (2026-10-30)*: the independent review read `paint-worker.js` alone, which the page view keeps reading on. Nothing
   built. *Since 2026-10-30* neither view's product paint reads; a lab's settle is the fence by default
-  ([`../adr/frame-path.md`](../adr/frame-path.md) §7, *The pixel read under a busy page*).
+  ([`../client/evidence/pixel-read-under-busy-page.md`](../client/evidence/pixel-read-under-busy-page.md)).
 
 **Proved.** `clock::tests` and `count::tests`: the cine shows the frame due and counts those passed over; a frame is
 on time only if its paint ends before the next is due; the busy loop blocks for its length and keeps its schedule;

@@ -419,7 +419,7 @@ issues it, and the page is told as `stats().recycledAt`. It is for WebKit's sess
 **A frame can be transferred instead of shared** — `pixels: "transfer"`, a lab setting, off by default.
 Each decoder then writes a frame into an `ArrayBuffer` and transfers it to the consumer, which holds
 the only reference; the page stays cross-origin isolated either way. It exists to be measured under
-`?view=worker` ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §3, *Experiment 3*); under
+`?view=worker` ([`docs/client/evidence/transferred-buffer-per-frame.md`](../docs/client/evidence/transferred-buffer-per-frame.md)); under
 `page` the page's paint then copies the frame to the paint worker at each paint.
 
 **Every decision is held by a test** (2026-10-07). A sweep of 76 mutants over
@@ -501,7 +501,7 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
 * **Frames.** Frames are kept in memory by index. With digests, each frame checked `true` is also written to OPFS by
   a store worker (`viewer/store.js`); a reopened series fills only what is not there, a frame on disk is read back
   re-checked and asked again if it fails, and past 256 MiB the frames on disk farthest from the current one leave memory
-  ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §Proposed: the client cache in OPFS). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
+  ([`docs/client/evidence/cache-in-opfs.md`](../docs/client/evidence/cache-in-opfs.md) §Proposed: the client cache in OPFS). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
   there is no fill, and each step asks its frame, the newest ask alone kept: a step superseded while it waits on
   its cancel asks nothing.
 * **Where the frames are.** `?view=page` (the default) or `?view=worker`. Either way `view/controller.js` holds the
@@ -509,11 +509,11 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   tells the store its want and the store sends the downloader the misses. On the page it runs beside the painter;
   under `worker` it runs in the view worker (`view/view-worker.js`) with the paint worker's code as a module, the
   decoders post to it, and the page (`view/view.js`) sends intents and hears `shown`, `progress` and `failed`, never a
-  frame ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §3, *Built*). The status line names the view. Under
+  frame ([`docs/client/evidence/frame-store-owner.md`](../docs/client/evidence/frame-store-owner.md) §3, *Built*). The status line names the view. Under
   `worker` the store looks in an OPFS cache before it asks (`view/cache.js`): when the lab's `?writer=` names who writes it — the
   store worker (`viewer/store.js`), the decoders or the view worker — a series with digests is written there after each
   frame's paint, and read back checked on a later open. With no writer, the default, there is no cache, as on main
-  ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §The core, assembled).
+  ([`docs/client/evidence/core-against-main.md`](../docs/client/evidence/core-against-main.md) §The core, assembled).
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact. A lossy
   series adds its quality label and the lossless button (§Optimal quality, exact on request); the label then stands
   for an unchecked frame's mark, and only *NOT EXACT* is marked beside it.

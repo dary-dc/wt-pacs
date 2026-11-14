@@ -350,8 +350,8 @@ wrong. Today the ladder tries the second (a second decode) and cannot tell the f
 
 *2026-10-28:* the native core's is built as written below, coded bytes re-checked by the decode on read
 ([`../native/README.md`](../native/README.md) §8.4, M3 in §6). *2026-10-27:* the browser's, for decoded samples,
-re-checked by one XXH3 on read, as [`frame-path.md`](frame-path.md) §Proposed specifies; on `claude/core` it sits
-behind the view worker's frame store under a lab writer ([`frame-path.md`](frame-path.md) §3, *Built*). Before them,
+re-checked by one XXH3 on read, as [`cache-in-opfs.md`](../client/evidence/cache-in-opfs.md) §Proposed specifies; on `claude/core` it sits
+behind the view worker's frame store under a lab writer ([`frame-store-owner.md`](../client/evidence/frame-store-owner.md) §3, *Built*). Before them,
 none existed; when one is built:
 
 * **Never cache an unverified frame.** Store a frame only once its check is `true`, never `false` or `"unchecked"`.

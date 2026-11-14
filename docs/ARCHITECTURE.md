@@ -148,7 +148,7 @@ port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 m
   next fill) and answers `cancelled`. An ask already on the wire stays owed: the server still sends its frame, and
   the session refuses a second ask of it, so the same frame asked again after the cancel takes that ask over
   rather than asking twice (row 219, VIEWERASKS; `downloader.test.mjs` *anAskAgainAfterACancelIsServed*).
-* **A want** (the view worker's store, [`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) is an ordered list that
+* **A want** (the view worker's store, [`docs/client/evidence/frame-store-owner.md`](client/evidence/frame-store-owner.md) §3, *Built*) is an ordered list that
   replaces the last one and changes nothing else: no generation steps, and what is owed stays owed. Its head goes out
   as one run where it ascends `askDepth` (4) frames or more with nothing else owed, otherwise as up to `askDepth`
   asks, topped up as each lands. A want whose head a running run does not serve next ends the run with the head's
@@ -460,7 +460,7 @@ Frames that were asked for are taken at once, fill frames at background priority
 waits behind a fill. The harness's consumer checks each frame against the fixture's `.sha256`.
 
 **Where a frame should go next** — the page out of the pixel path, the frame store in the paint worker, an OPFS cache
-behind it — is proposed in [`adr/frame-path.md`](adr/frame-path.md); the page out of the pixel path is built as a
+behind it — is proposed in [`docs/client/design.md`](client/design.md); the page out of the pixel path is built as a
 variant, `?view=worker`, not timed and not the default (its §3, *Built*). There the consumer runs in the view worker,
 given the `port` the page linked to the downloader, and the page forwards its triggers to it.
 
@@ -492,8 +492,8 @@ identical ([`../lab/worker-leak/run.mjs`](../lab/worker-leak/run.mjs), Chromium 
 **The check still trips, rarely, with the decoders left alone** (2026-10-30, the gate's four browser rigs repeated in a
 shared 4-core container): 1 of 15 runs left one downloader alive after its client closed, 3 of 15 with four busy loops
 on the cores, always in `dispatch`, from a different clause each time it was traced; 1 of 20 loaded on a tree before
-[`adr/frame-path.md`](adr/frame-path.md) §Experiment 1's `span`. The first traced clause alone: 0 of 100 loaded. Not fixed:
-[`adr/frame-path.md`](adr/frame-path.md) §Experiment 1: independent review.
+[`docs/client/evidence/view-worker-experiments.md`](client/evidence/view-worker-experiments.md) §Experiment 1's `span`. The first traced clause alone: 0 of 100 loaded. Not fixed:
+[`docs/client/evidence/view-worker-experiments.md`](client/evidence/view-worker-experiments.md) §Experiment 1: independent review.
 
 ## Capabilities
 
@@ -748,7 +748,7 @@ to one ask moves the median only when it crosses a 16.7 ms line.
 The product's page (queue row VIEWER), built on the downloader, the decoders, the frame check and the painter
 together ([`../client/README.md`](../client/README.md) §The viewer). It opens with the whole series as the opening
 fill and paints each frame as it arrives. Frames stay in memory on the page by default; in the view worker under
-`?view=worker`, with an OPFS cache behind them under a lab `?writer=` ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*); the page stays the default by §7's run of 2026-10-30, the cache not timed.
+`?view=worker`, with an OPFS cache behind them under a lab `?writer=` ([`docs/client/evidence/frame-store-owner.md`](client/evidence/frame-store-owner.md) §3, *Built*); the page stays the default by §7's run of 2026-10-30, the cache not timed.
 
 **The page check holds it** on the three series the DICOM-to-bundle ingest (queue row 89, INGEST) made from the lab's sets, each as HTJ2K and as AV1:
 `ct_nlst` (a windowed, signed CT, 76 frames), `us_liver` (an RGB cine, 70 frames, cine run) and `dbt12_ea1141`
@@ -1294,7 +1294,7 @@ Each item below is the owner's to decide, and is tracked here.
 * **The cache seam** (an interface, in-memory and OPFS behind it; whether it holds compressed or
   decoded frames is to be evaluated — and "all frames decoded" cannot mean all resident on a phone) and
   the paint sink — the sink is built (§Paint), the cache seam only behind `?view=worker` and a lab `?writer=`, not timed. An OPFS cache must be evictable on WebKit ([`CLIENTS.md`](CLIENTS.md)
-  §On WebKit). A design for both is proposed in [`adr/frame-path.md`](adr/frame-path.md); the cache itself (window, layout,
+  §On WebKit). A design for both is proposed in [`docs/client/design.md`](client/design.md); the cache itself (window, layout,
   quotas, failure modes) in its §Proposed: the client cache in OPFS, **built 2026-10-27** behind the page
   (`client/viewer/store.js`), and since 2026-10-30 behind the view worker's frame store alone (its §The core, assembled):
   decoded frames checked `true`, re-checked on read, no frame of a series on disk decoded again. Measured 2026-10-27

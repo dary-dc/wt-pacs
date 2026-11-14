@@ -131,7 +131,7 @@ the session's own fill (theory, (D)); each line gives its result and the protoco
 ## Client: downloader, decoders, checks, paint, memory
 
 Owner: [`ARCHITECTURE.md`](ARCHITECTURE.md), [`decode/README.md`](decode/README.md),
-[`adr/exactness-in-production.md`](adr/exactness-in-production.md), [`adr/frame-path.md`](adr/frame-path.md).
+[`adr/exactness-in-production.md`](adr/exactness-in-production.md), [`docs/client/design.md`](client/design.md).
 
 | lever | measured by | class | owning section |
 | --- | --- | --- | --- |
