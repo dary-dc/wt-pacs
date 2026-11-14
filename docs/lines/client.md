@@ -42,6 +42,9 @@ exact frame bit for bit, and only checked claims on screen.
   RECEIVER's advocate (§3.5, 2026-11-14): its own Rust process from crates already locked, not the OpenTelemetry
   Collector (beta webhook receiver, alpha file exporter, no field check); fields checked against one
   `report-fields.json`, UID-shaped runs scrubbed, `204` after the write; the join and dedup at read, for NGINX alike.
+  NGINX's advocate (§3.5, 2026-11-14): the plan's log line was not JSON (checked on nginx 1.24), now the body as a JSON
+  string beside `$content_length`; the body read early with no hop on nginx ≥ 1.31.5 (`client_body_early_read`), the
+  hop on 1.29; a file per kind; the `204` precedes the line, and the error log names the client.
 
 ## PRs
 

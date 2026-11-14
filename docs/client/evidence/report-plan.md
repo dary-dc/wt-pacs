@@ -500,6 +500,107 @@ rest stands.
 * **NGINX**: `location = /report` → `proxy_pass` to a local `location` answering `204`; `client_body_buffer_size` ≥
   `client_max_body_size` = 16 KiB so the body stays in memory; `log_format report escape=json '{"t":"$time_iso8601",
   "r":$request_body}'` with no `$remote_addr`; a volume of its own. Unvalidated: a malformed body is a malformed line.
+
+**NGINX's advocate's amendments** (row REPORT-ADVOCATE-NGINX, 2026-11-14; a session that wrote none of this plan).
+Sources: nginx.org docs (Last-Modified 6 Nov 2026), sha256: `ngx_http_core_module` `7b9eb00d6842` and
+`ngx_http_log_module` `65edd508b55a` (§0's pins), `ngx_http_proxy_module` `4cc11bb141ae`, `ngx_http_upstream_module`
+`a3484807ee1d`, `ngx_http_limit_req_module` `d8443a6d94ed`, `ngx_core_module` `539e8520f03b`, `control` `327a6c437c3b`;
+nginx source at `release-1.29.8` `5eaf45f11e85` (the product image's line, `nginx:1.29-alpine`, R) and `release-1.31.8`
+`140aa9427118`; nginx/docker-nginx `d99174e2cecf` (`mainline/alpine/Dockerfile` `66cae13710da`); nginx/pkg-oss `743c6b8d8e16`. **Checked here** on
+a local nginx 1.24.0 (Ubuntu's package, not the image's 1.29; one host, loopback, curl): marked *(checked)*. Each change
+replaces what it names; the rest stands.
+
+* **The body is logged as a JSON string, not spliced in** (*advocate*; corrects the design's
+  `'{"t":"$time_iso8601","r":$request_body}'`). Log module: "For json escaping, all characters not allowed in JSON
+  strings will be escaped: characters “"” and “\” are escaped as “\"” and “\\”" — so the spliced body's own quotes
+  are escaped and the line is not JSON *(checked: `{"t":…,"r":{\"v\":1,…}}`, a parser refuses it)*. The line is
+  `log_format report escape=json '{"t":"$time_iso8601","s":"$status","n":"$content_length","r":"$request_body"}';`
+  *(checked: parses, and `r` parses again to the record)*. `n` beside `r` makes a body nginx did not keep visible: the
+  variable is `not_found` when "r->request_body->temp_file" (`ngx_http_variables.c`), and json escaping then writes
+  nothing (`ngx_http_log_json_variable`: "return buf;"), so the line reads `"n":"12011","r":""` *(checked)*. Never
+  `escape=none` (1.13.10, "disables escaping"): a body with a newline would forge a second line.
+* **The body read with no second request, where nginx allows it** (*advocate*). Core, `client_body_early_read`: "This
+  directive appeared in version 1.31.5. Enables reading of the client request body immediately after the request
+  headers are received, using the request body read settings from the server block", whose example is
+  `return 200 $request_body;`. Every protocol reaches it: HTTP/2 and HTTP/3 call `ngx_http_process_request`
+  (`v2/ngx_http_v2.c`, `v3/ngx_http_v3_request.c`, 1.31.8), which calls `ngx_http_read_early_body`. So the arm is
+  `map "$request_method $uri" $report_early { "POST /report/load" 1; "POST /report/safety" 1; }`,
+  `client_body_early_read $report_early;` in the server, and `location = /report/load { return 204; access_log …; }`.
+  It needs **nginx ≥ 1.31.5**: the arm runs on `nginx:1.31-alpine` (docker-nginx: "FROM nginx:1.31.8-alpine-slim"), the
+  product image stays on 1.29 until a verdict (the owner's). **On 1.29, the hop**, made cheap: without early read a
+  `return` discards the body (`ngx_http_send_response` calls `ngx_http_discard_request_body`, 1.29.8 *(checked:
+  `"r":""`)*); `proxy_pass` reads it whatever is passed on — `ngx_http_proxy_handler` calls
+  `ngx_http_read_client_request_body` unconditionally, `proxy_pass_request_body` only decides whether "the original
+  request body is passed to the proxied server" — so `proxy_pass_request_body off; proxy_set_header Content-Length "";`
+  to an `upstream` with one local `server` answering `return 204` with `access_log off`; "Since 1.29.7, keepalive
+  connections are enabled by default" (upstream module), so the hop reuses its connection (I: the image's patch level
+  is fixed by its digest and not read here) *(checked on 1.24: `204`, the body logged)*. The protocol runs the
+  early-read form as NGINX; the hop is a second arm only if the owner keeps 1.29.
+* **The body in one memory buffer, by construction** (*advocate*). Core: `client_body_buffer_size` "In case the request
+  body is larger than the buffer, the whole body or only its part is written to a temporary file", and
+  `client_body_in_single_buffer`: "The directive is recommended when using the $request_body variable, to save the
+  number of copy operations involved." So `client_max_body_size 16k; client_body_buffer_size 16k;
+  client_body_in_single_buffer on;` in the server block (early read uses the server's settings; the viewer's other
+  locations take no body, R). A body over 16 KiB is refused before it is read: "client intended to send too large
+  body" and `413` (1.31.8 `ngx_http_read_early_body`; *(checked: `413`)*).
+* **One file per kind, one line per request, written at once** (*advocate*). `/report/load` and `/report/safety` each
+  with their own `access_log`, so an empty safety file means no safety report and an operator can watch that one file
+  (proposed for every receiver below). No `buffer=`: "If either the buffer or gzip parameter is used, writes to log
+  will be buffered", flushed only when full, after `flush=`, or on reopen; unbuffered, each line is one `write` on a
+  file opened `NGX_FILE_APPEND` (`ngx_cycle.c`). A day per file without a rotation signal: `access_log
+  /var/log/report/load-$report_day.jsonl report;` with `$report_day` mapped from `$time_iso8601`, which the docs allow
+  at a cost ("the file is opened and closed for each log write"; `open_log_file_cache` keeps the descriptor), against
+  one file renamed and `USR1` ("re-opening log files", control) from outside the container. The pilot picks one; both
+  leave retention to deleting old files, the owner's.
+* **No address in the access line, and only the report's location logs** (*advocate*). An `access_log` in the location
+  replaces the inherited one *(checked: no line in the default log)*; nginx's packaged `nginx.conf` logs `main`, which starts
+  `'$remote_addr - $remote_user …'` (nginx/pkg-oss `743c6b8d8e16` `rpm/SOURCES/nginx.conf` `4dee6b0c7c82`; the Alpine
+  package's own not read, I), so a report location without its own `access_log` would log
+  the address to stdout.
+* **POST only, and a limit on load reports, not on safety reports** (*advocate*). `limit_except POST { deny all; }`;
+  `limit_req_zone $binary_remote_addr zone=report:1m rate=10r/s;` with `limit_req zone=report burst=20 nodelay;
+  limit_req_status 429;` on `/report/load` only ("Excessive requests are delayed until their number exceeds the
+  maximum burst size in which case the request is terminated with an error"). A page's own sends are bounded by the
+  64 KiB keepalive budget (Fetch, §1.1), so the limit stops other clients, not the viewer (I: the bytes cell checks no
+  counted load is refused). The key lives in shared memory, not in the log (I). The safety location takes only the
+  size limit: a flood there is a false alarm, a limit there is a lost report.
+* **JSON text only** (*advocate*). nginx cannot decode a compressed request body (no module in the docs read does),
+  and json escaping passes bytes above 0x7f through (`ngx_escape_json` escapes only `\`, `"` and bytes ≤ 0x1f), so a
+  non-UTF-8 body writes a line strict parsers refuse *(checked: `UnicodeDecodeError`)*. Every carrier's string body is
+  UTF-8 by Fetch's extract (§3.1), so NGINX runs the format pilot's JSON only; compression stays RECEIVER's setting.
+* **Validation stays out of nginx.** The stock image ships njs ("nginx-module-njs", docker-nginx `mainline/alpine`), and
+  `js_content` could parse the body in the worker; that is a receiver in nginx's process, left to RECEIVER's advocate,
+  not taken here.
+
+**Disadvantages NGINX still carries** (*advocate*, for the protocol to price):
+
+* **Unvalidated and unauthenticated.** A malformed or forged record is a line; anyone who can reach the origin can
+  write one (a forged safety report included). The reader validates, dedups by `reportId` and joins the link record by
+  load id offline (I: a script, its cost outside the receiver cell).
+* **The `204` precedes the line.** `ngx_http_free_request` calls `ngx_http_log_request` after the response
+  (`ngx_http_request.c`, 1.29.8); a failed write is only an error-log line (`ngx_write_fd_n " to \"%s\" failed"`,
+  `ngx_http_log_module.c`) and a short one an "incomplete" line. The sink counts lines, never `204`s.
+* **The error log names the client.** Rejections are logged with "client: <address>" *(checked, `413`)*; the error
+  log has no format to drop it (core `error_log`: a file, a level, `json`). Shared with RECEIVER, which sits behind
+  the same nginx.
+* **No raising at once**: a safety report is a line in a file; an alert needs a watcher outside nginx (I).
+* **The reader parses twice** (`r` is a string), and a line can be up to six bytes per body byte (`\u00XX`).
+* **The early read needs mainline ≥ 1.31.5**; on the product's 1.29 the hop costs a second, local request per report.
+* **16 KiB a record**, refused above: a coalesced safety report must stay under it (§3.1's coalescing; I: its fields
+  are a few hundred bytes a frame).
+
+**What the shared parts cost NGINX** (*advocate*; proposed for every receiver alike):
+
+* **The kind in the path**, `POST <base>/load` and `POST <base>/safety`, so either receiver routes and files by kind
+  without parsing; the carriers' URL is one constant per kind.
+* **`204` means accepted, not written**, for both receivers (§3.2 asked "a `204` that means written"; NGINX cannot give
+  it, and a receiver that appends before answering pays a write in the response's path): the delivery cell counts
+  records at the sink, so neither arm is judged by its answer.
+* **A schema version `v` and `reportId` inside every record**, checked by RECEIVER at once and by NGINX's reader later,
+  so the "field outside the list" mutant is caught by both, at different times; the protocol says when it counts.
+* **The receiver-cost cell runs both receivers at the same body bytes and kinds**, nginx's JSON escaping and its line
+  writes priced against RECEIVER's parse and append, and names where the host saturates.
+
 * **RECEIVER**: the dev sink's shape grown up (PR 370's `dev-server.py --beacon`, R): parse, check the schema
   version and the field list, refuse a body over 16 KiB, append a JSON line, join the server's link record by load
   id, and for a safety report raise it at once (a log at error level the operator watches; I). The advocate may make
