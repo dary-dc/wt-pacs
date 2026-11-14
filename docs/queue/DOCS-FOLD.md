@@ -1,8 +1,10 @@
 state: started
 started: 2026-11-14T21:32Z
-heartbeat: 2026-11-14T22:45Z
+heartbeat: 2026-11-14T23:20Z
 outputs: claude/docs-client (PR #384)
 ## Resume
+All four writers landed; design.md, line docs and reserved-file corrections pushed (6defc29e, 9f7b2688, and the line
+docs commit). Next: scripts/gate.sh --quick --no-browser on claude/docs-client, then the PR #384 body section "Fold".
 Split by the inventory's parts, each writer owning disjoint files on claude/docs-client (worktree per writer,
 git pull --rebase before each push): Part 3 (asking) -> agent G1; Part 4 + Part 2 D7, D17-D20 (cache, view worker,
 native) -> agent G2; Part 5 + Part 2 D2-D6, D8-D10 (phone, telemetry, proposals) -> agent G3; Part 6 + D11, D12, D15,
