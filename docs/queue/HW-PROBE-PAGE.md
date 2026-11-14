@@ -1,13 +1,12 @@
-state: started
+state: done
 started: 2026-11-14T22:20Z
-heartbeat: 2026-11-14T23:35Z
-outputs: claude/hw-probe 1a5e99d2 (from origin/claude/docs-client); PR to be opened by HW-PROBE-PAGE-REVIEW from docs/queue/HW-PROBE-PAGE-pr-body.md
+heartbeat: 2026-11-15T00:05Z
+outputs: claude/hw-probe 0d330405 (from origin/claude/docs-client); PR to be opened by HW-PROBE-PAGE-REVIEW from docs/queue/HW-PROBE-PAGE-pr-body.md
 ## Resume
-Cloud finish, 23:25Z: step 1 green at 335e0c85 in headless Chromium 153 (the container's; 141 could not be fetched).
-The stall was the test's: probe() removed rows/, which collector.py makes only at start, so the D0 POST failed.
-New mutant hang stands in for 141's blocking copy. Step 2 at 1a5e99d2: every claim's mutant killed (paint SKIP,
-not killable here); the test now ends its host on any exit. Steps 3 to 5 next.
+Done 2026-11-15T00:05Z by the cloud finish (steps 1 to 5); nothing left for a cloud worker. Next: HW-PROBE-PAGE-REVIEW
+opens the draft PR from HW-PROBE-PAGE-pr-body.md; the phone run stays with the local session phone-tests.
 
+The local brief, as it was:
 Built by the local session phone-tests in lab/devices/ (amendment 15); the headless finish is handed to a cloud
 session (the owner, 2026-11-14: cloud before this machine). Pushed at 77270295, not yet green:
 make_hw_units.py (run locally with ingest's build: do not rerun unless the encoder changes), hw-units.json (9 units),
@@ -37,3 +36,20 @@ Next, the cloud finish (one session, claude/hw-probe only, push after every step
    showed, untested: any phone, any hardware decoder, Firefox, WebKit; no Generated-by line or session link), then set
    this file's state: done with outputs and a Result. The phone run stays with the local session phone-tests.
 ## Result
+Headless test green at 0d330405 on claude/hw-probe, in headless Chromium 153 (Chrome for Testing 153.0.8010.12;
+141 could not be fetched in the container), SwiftShader, software paths only, no device: 11 claims PASS, paint
+SKIP (no path kept more than 256 levels), 3.5 min.
+
+The stall was the test's, not the page's: probe() removed rows/, which collector.py creates only at start, so
+every D0 POST failed and the test waited out WAIT_S; a throw then left the collector holding the pipe. Fixed
+(335e0c85, 1a5e99d2), with the plane claim's judged() on cells. Chromium 141's own blocking copyTo is not
+reproduced (153 throws NotSupportedError); a new mutant, hang, spins in copyTo to I420P10 and the bound records it.
+
+Mutants killed (each claim's code broken once): support answer not recorded; a decode's error dropped; the last
+format not copied; the source pattern off by one; one codec string for all; luma judged against reversed samples;
+the plane, expected, codec and unit mutants disabled; the task bound lifted under hang. Paint: not killable here.
+
+Read: no-preference and prefer-software decode every unit exactly in the frame's own copy; prefer-hardware is
+unsupported; every explicit YUV copyTo is refused, RGB copies inexact; WebGL2 at most 256 levels; WebGPU's import
+fails on SwiftShader's fallback adapter. Gate (full) OK, 8 skips by name in 0d330405's message;
+check_lab_absent.sh OK. Untested: any phone, any hardware decoder, Chromium 141, Firefox, WebKit.
