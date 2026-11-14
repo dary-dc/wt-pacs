@@ -105,7 +105,7 @@ def same(build, set_dir, work, oq=None):
             else:
                 why = python_bundle(build, s, meta, jobs, out)
                 optimal = oq and (why or outcome(optimal_path(out, *oq, s), python_optimal(build, s, meta, jobs, *oq, out)))
-            outcomes[side, jobs] = outcome(out, why), optimal or None
+            outcomes[side, jobs] = outcome(out, why), optimal if oq else None
     for part, kind in ((0, "exact"), (1, "optimal-quality")):
         values = {k: v[part] for k, v in outcomes.items()}
         if part and not oq:
