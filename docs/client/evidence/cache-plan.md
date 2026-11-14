@@ -251,31 +251,96 @@ a fill is lower and its write cost a frame is within 10 % of the whole frame's; 
   backpressure) a miss waits for a slot as well as for its read. The same for all four; the protocol's read-to-paint
   cell should run with the ring full as well as idle.
 
-### 7.2 · OPFS-ASYNC: a file per frame by `createWritable`, a copy in its writer
+### 7.2 · OPFS-ASYNC: a file per group of frames by `createWritable`, a copy in its writer
+
+*Amended 2026-11-14 by CACHE-ADVOCATE-OPFS-ASYNC; each change is marked* advocate *with its source. The design as
+CACHE-DESIGN wrote it was a file per frame with one reused buffer; both are corrected below, the earlier text kept where
+it still holds.*
 
 | | design | from its sources |
 | --- | --- | --- |
-| writer | the store worker copies the slot into an `ArrayBuffer` it reuses, then per frame `createWritable()` (no `keepExistingData`), `write(buffer)`, `close()` | the chunk is `BufferSource` (fs 1110), so the copy is forced and counted as the store's; `keepExistingData` "is first copied to this temporary file" (fs 532–538) and is never set |
-| layout | a directory per series, a file per frame named by its index, holding the samples then a 7-int trailer (as `client/view/frame-file.js`); the manifest beside | a packed file is ruled out by its own cost ("21 GB for `dbts_b1`'s 50 × 17 MB", cache-io-thread *What this rules out*) |
+| writer | the store worker copies the slot into an `ArrayBuffer` of a pool of k, one per write in flight, then writes it into its group's writable (below); **a buffer is reused only after its `write()` has resolved** (*advocate*: the design reused one buffer with up to 3 writes in flight, which would write one frame's bytes under another's) | the chunk is `BufferSource` (fs 1103–1107), so the copy is forced and counted as the store's; the bytes are read in a queued task, not at the call: "Enqueue the following steps to the file system queue:" … "let dataBytes be a copy of data." (fs 1213, 1239); Chromium copies them when its sink runs, "STRING_MAY_BE_INVALIDATED_BEFORE_COMPLETION" (`file_system_underlying_sink.cc` 376–379) |
+| layout | a directory per series; **a file per group of G consecutive frames**, G = max(1, ⌊8 MiB ÷ (frameBytes + 28)⌋), so one frame a file at S2 and S3 and 15 at S1; frame j of a group at j × (frameBytes + 28), its samples then `frame-file.js`'s 7-int trailer; the manifest beside (*advocate*: the design had a file per frame at every size) | each group file is written by one writable, once, without `keepExistingData`, so none of the packed file's n²/2 copies ("21 GB for `dbts_b1`'s 50 × 17 MB", cache-io-thread *What this rules out*); positioned writes: "If input is a dictionary and input["position"] exists, set writePosition to input["position"]." (fs 1234–1236). Why groups: a fixed cost per file; see *The cost a file*, below |
 | copies | in script one (slot → buffer); then the engine's: Chromium a string and a data pipe in 32 KiB pieces, Gecko a vector then 1 MiB blocks, WebKit an IPC carrying the bytes and a file copy at close (cache-io-thread (a)) | — |
-| transactions | each frame commits at `close()` ("It is expected that this atomically updates the contents of the file on disk", fs 1179): a file is whole or absent | so a torn frame needs a crash inside the engine's swap; the re-check stays |
-| does it fit | at open, a probe: `createWritable()` on a probe file, `truncate(n × frameBytes)`, then `abort()`; a refusal evicts and probes again. It is a check, not a reservation: a frame can still be refused mid-fill (7.5) | the writable's truncate rejects "with a QuotaExceededError" (fs 1295–1296); whether each engine refuses at the truncate or only at close is **not traced**; the pilot checks it per engine and, if no engine refuses before close, the probe is dropped |
-| reads | the store worker, by the pilot's choice: `getFile()` then `arrayBuffer()` into a new buffer, copied into a free slot; or `createSyncAccessHandle()` on the frame's closed file and `read(slotView)` | `getFile()` takes no lock (cache-io-thread (c)); the sync read is A's, ~2× faster on Chromium at S3 (40.1 against 83.4 ms a miss, *measured*) |
-| eviction | `removeEntry(series, {recursive: true})` after the series' Web Lock is taken with `ifAvailable` | a file per frame has no series-wide lock: `navigator.locks` as `client/view/cache.js` does |
+| transactions | each group commits at `close()` ("It is expected that this atomically updates the contents of the file on disk", fs 1179): a group is whole or absent; **its frames' slots stay held until that close resolves** (7.0's rule, unchanged), and a read of a frame in an open group is answered from its held slot | so a torn frame needs a crash inside the engine's swap; the re-check stays |
+| does it fit | at open, a probe: `createWritable()` on a probe file, `truncate(n × (frameBytes + 28))`, then `abort()`; a refusal evicts and probes again. A check, not a reservation: a group can still be refused mid-fill (7.5). **Chromium refuses at the truncate, before close** (*advocate*, traced): the writable's truncate runs the sandbox's, "if (!AllocateQuota(context, growth))" / "return base::File::FILE_ERROR_NO_SPACE;", after "GetBucketSpaceRemainingAndRunTask(" (`obfuscated_file_util.cc` 568–569; `file_system_operation_impl.cc` 226), and an aborted writer removes its swap ("should_purge_swap_file_on_destruction_" … "= true;", `file_system_access_file_writer_impl.h` 148–149; "&FileSystemOperationRunner::RemoveFile,", `…_writer_impl.cc` 63) | the writable's truncate rejects "with a QuotaExceededError" (fs 1295–1296); Gecko and WebKit still **not traced**: the pilot checks them, and the probe is dropped for an engine that does not refuse before close |
+| reads | the store worker, by the pilot's choice per engine: `getFile()`, `slice()` of the frame, `arrayBuffer()` into a new buffer, copied into a free slot; or `createSyncAccessHandle()` on the group's closed file and `read(slotView, {at})` | `getFile()` takes no lock (cache-io-thread (c)); the sync read is A's, ~2× faster on Chromium at S3 (40.1 against 83.4 ms a miss, *measured*), but it creates a handle a read: D's handle calls cost 26.9 ms on Firefox at S1 (*measured*, cache-io-thread §Arm D, Results) |
+| present at open | list the series' directory: a group file present holds all its frames; **any other name is removed** (*advocate*: a stale swap, below) | — |
+| eviction | `removeEntry(series, {recursive: true})` after the series' Web Lock is taken with `ifAvailable` | a file a group has no series-wide lock: `navigator.locks` as `client/view/cache.js` does |
 
-**Reuses** `client/view/frame-file.js` (the file per frame and its trailer) and the Web Lock of `client/view/cache.js`;
-B's measured costs (cache-io-thread). **Changes**: B ran on the view thread; here every copy and call is the store
-worker's, off the paint. **Per engine:** WebKit posts every async call a worker makes to the page's main thread
-(`getFile`, `createWritable`, each `write`, `close`; cache-io-thread (a), corrected 2026-10-29), so under a busy page
-each frame waits; Gecko pumps a `getFile()` read on the main thread ((c)); Chromium moves the swap over the target at
-close and skips the after-write check for OPFS ((a)).
+**Reuses** the trailer of `client/view/frame-file.js` (its format; its code is a sync handle's) and the Web Lock of
+`client/view/cache.js`; B's measured costs (cache-io-thread). **Changes**: B ran on the view thread; here every copy and
+call is the store worker's, off the paint. **Per engine:** WebKit posts every async call a worker makes to the page's
+main thread (`getFile`, `createWritable`, each `write`, `close`; cache-io-thread (a), corrected 2026-10-29), so under a
+busy page each group waits; Gecko pumps a `getFile()` read on the main thread ((c)); Chromium moves the swap over the
+target at close and skips the after-write check for OPFS ((a)). Gecko gives a writable without `keepExistingData` a new,
+empty file ("aMode == FileMode::SHARED_FROM_EMPTY", `FileSystemDatabaseManagerVersion002.cpp` 571–572), so it copies
+nothing of the old one either.
 
-**Predicted floor** (theory; anchor: B on arrival's *measured* write rates on the view thread, Chromium 139 MB/s and
-Firefox 29 MB/s at S1, Firefox 316 MB/s at S2, which include B's view-thread copy): write ~3.7 / ~120 / ~200 ms on
-Chromium (S2, S3 not measured: the S1 rate scaled, an upper bound) and ~18 / ~54 / ~86 ms on Firefox at S1 / S2 / S3;
-read by `getFile()` ~23 / ~43 ms more than OPFS-SYNC's at S2 / S3 on Chromium (52.0 − 28.8, 83.4 − 40.1, *measured* miss
-p50s). **Pilot** (rule: the setting with the lower median write cost a frame at S2 wins; a tie within 10 % keeps the
-first): writes in flight, 1 or 3; the read, `getFile()` or a sync handle.
+**The cost a file** (*advocate*; theory, a two-point fit to *measured* rates). B on arrival wrote one file a frame at
+Firefox 29 MB/s at S1 and 316 MB/s at S2 (cache-io-thread §Arm D, Results): 18.1 ms for 0.52 MB, 53.9 ms for 17.0 MB.
+A line through both is **~17 ms a file plus ~460 MB/s**: at S1 the file, not the bytes, is the cost, and a file a frame
+predicts ~29 MB/s against the 125 MB/s a fill decodes, as D's file a frame measured 30 (§Arm D). Fifteen frames a file
+predict ~2.3 ms a frame, ~230 MB/s. On Chromium the one point (139 MB/s at S1, 3.8 ms a frame) does not split. The
+fixed part is each engine's directory work per file, by source: Chromium creates the file, its swap and the move in the
+sandbox's directory database (`obfuscated_file_util.cc`); Gecko resolves the path and locks in SQLite on the parent at
+every `createWritable` (`FileSystemManagerParent.cpp` 201–232). Both points include B's view-thread copy and the
+paint's contention, so the fit is labelled theory, not a rate of the store worker.
+
+**A kill's leftovers** (*advocate*, traced in Chromium). A page that dies without `close()` loses its writer through the
+pipe's disconnect, which destroys it and removes its swap (`…_writer_impl.cc` 153–177, 59–63). Only a browser crash
+leaves `<name>.crswap`, a sibling in the series' directory (`url().CreateSibling(*opt_swap_name)`,
+`file_system_access_file_handle_impl.cc` 759, 762); the next writable of that name takes `<name>.1.crswap`, and after a
+hundred, "Failed to create swap file." (`int max_swap_files_ = 100;`, `…_handle_impl.h` 209; `…_handle_impl.cc` 729–785).
+Hence *present at open* removes every name that is not a group. Whether OPFS's listing shows the swap is not traced;
+Gecko's and WebKit's leftovers are not traced.
+
+**Predicted floor** (theory; anchor: B on arrival's *measured* rates on the view thread, which include B's view-thread
+copy): write ~3.7 / ~120 / ~200 ms a frame on Chromium at S1 / S2 / S3 (S2, S3 not measured: the S1 rate scaled, an
+upper bound; groups would lower S1 by an amount the one point cannot give), and on Firefox ~2.3 ms at S1 with groups
+(~18 without), ~54 / ~86 ms at S2 / S3; read by `getFile()` ~23 / ~43 ms more than OPFS-SYNC's at S2 / S3 on Chromium
+(52.0 − 28.8, 83.4 − 40.1, *measured* miss p50s). **Pilot**, per engine, one setting at a time in this order, each
+frozen before the next; a tie within 10 % keeps the first value (*advocate*: the design judged all three by the write at
+S2, where the group setting does not exist and the read setting does not act): **G**, 1 or the 8 MiB group, by the
+median write cost a frame at S1; **writes in flight**, 1 or 3, by the median write cost a frame at S2; **the read**,
+`getFile()` or a sync handle, by the miss p50 at S2.
+
+**Disadvantages the design still carries** (*advocate*), each the option's or its build's as marked:
+
+1. **Two copies of every frame in the renderer** before the engine's own: the forced one in script and the engine's
+   (Chromium's string, Gecko's vector), against OPFS-SYNC's none. The option's (fs 1103–1107).
+2. **k frames of memory outside the ring**: the buffer pool, 3 × 27.3 MB = 82 MB at S3 with 3 in flight, beside the held
+   slots. The build's, by the shared rule below.
+3. **WebKit writes every frame twice** (the file copy at close) **and waits on the page's main thread for every call**:
+   under a busy page a WebKit fill's writes queue behind its long tasks (cache-io-thread (a), corrected 2026-10-29). The
+   option's on WebKit; a busy-page cell on WebKit is owed before adoption there (§5).
+4. **Safari from 26 only**: `createWritable` is `"version_added": "26"` (`api/FileSystemFileHandle.json`), and off in
+   Lockdown Mode (cache-io-thread (b)); OPFS-SYNC has Safari 15.2. Older Safari has no writer for this arm. The option's.
+5. **Nothing reserves space**: the probe checks and releases; a group is refused mid-fill when another write took the
+   room. The option's (no reservation in fs).
+6. **A frame is not on disk until its group closes**: up to G − 1 more frames than a file a frame lost by a kill, and a
+   group's slots held longer (15 × 0.52 MB at S1). The design's, traded for the cost a file.
+7. **A miss allocates a new buffer** (the `getFile()` read: an `ArrayBuffer` the frame's size, then a copy into the slot),
+   and on Gecko is pumped on the main thread ((c)); the sync read instead creates and closes a handle a read, ~27 ms on
+   Firefox at S1 by D's numbers. The pilot picks per engine; neither is free.
+8. **A stale swap holds quota** until its series is opened or evicted (Chromium, after a browser crash). The option's
+   in Chromium.
+
+**The shared seam and input, as they handicap this arm**, proposed for all four alike, not applied (7.0 and 7.5 are
+one rule for all; adopting either is the protocol's author's or the owner's):
+
+* **A slot held until written** (7.0) costs an arm that copies (OPFS-ASYNC, IDB, CACHESTORAGE) the frame twice in
+  memory while it is in flight: the slot and the store's own copy. Proposal: a slot is freed once the store holds its
+  own copy, the store's buffers bounded by its writes in flight and counted in the memory cell; a read of a frame in
+  flight is answered from that copy. OPFS-SYNC, which writes from the slot, is unchanged by it.
+* **Two tabs on one series: no cache in the second** (7.5). A group commits whole, a writable takes a shared lock
+  ("Creating a FileSystemWritableFileStream takes a shared lock", fs 540; Chromium's default "mode = "siloed"",
+  `file_system_create_writable_options.idl`), and `getFile()` takes none, so two tabs writing the same frame each commit
+  the same checked bytes and neither can tear the other's. Proposal: the series' Web Lock taken `"shared"` by every tab
+  that has it open, and `"exclusive"` with `ifAvailable` by eviction alone ("If a "shared" lock is held, other "shared"
+  locks with that name can be granted — but not any "exclusive" locks.", web-locks `index.bs` 200). It extends 7.1's
+  proposal (a second tab reads and writes nothing): the second tab may also write in OPFS-ASYNC, IDB and CACHESTORAGE,
+  and stays a reader in OPFS-SYNC, whose handle is exclusive.
 
 ### 7.3 · IDB: a record per frame, one transaction a frame, `relaxed`
 
@@ -357,7 +422,7 @@ What the store sees, and what it does (above the seam, the same rule for all, wh
 | the origin emptied between opens | no manifest: a fresh fill | the same | no `series` record: the same | no `manifest` record: the same |
 | the store vanishes while open | a read throws: a miss | the same | a request errors: a miss | `match` rejects or is `undefined`: a miss |
 | two tabs, one series | the second's `createSyncAccessHandle` throws: that tab, no cache (*advocate* proposes reads for all four, 7.1's list) | the Web Lock is held: no cache | the same (the engine would order the writes, 1148; one rule for all) | the same |
-| a damaged frame | the re-check fails: clear its record, ask again, report | delete its file: the same | delete its record: the same | `delete` its request: the same |
+| a damaged frame | the re-check fails: clear its record, ask again, report | delete its group's file, up to G frames (7.2, *advocate*): the same | delete its record: the same | `delete` its request: the same |
 
 ### 7.6 · Sources for §7
 
@@ -374,10 +439,14 @@ Fetched 2026-11-14 at `cache-options.md`'s commits; nothing fetched is committed
 | Gecko `dom/quota/FileStreams.cpp`, `dom/quota/RemoteQuotaObject.cpp`, `dom/fs/api/FileSystemSyncAccessHandle.cpp`, `dom/fs/child/FileSystemAsyncCopy.cpp` (OPFS-SYNC's advocate) | `c72617c01649` | `1a157b5d061e`, `f6d4aa60b96a`, `dfb9fe3aeb1b`, `f6aa217fc6e1` |
 | Chromium `third_party/blink/renderer/modules/file_system_access/file_system_access_regular_file_delegate.cc` (OPFS-SYNC's advocate) | `b124f80df73f` | `aae56d34329c` |
 | mdn/browser-compat-data `api/FileSystemFileHandle.json` (OPFS-SYNC's advocate) | `69fcf3608174` | `86765e16b864` |
+| Chromium `content/browser/file_system_access/file_system_access_file_handle_impl.cc`, `.h`; `…/file_system_access_file_writer_impl.cc`, `.h`; `storage/browser/file_system/obfuscated_file_util.cc`; `…/file_system_operation_impl.cc`; `third_party/blink/renderer/modules/file_system_access/file_system_underlying_sink.cc`; `…/file_system_create_writable_options.idl` (7.2, advocate) | `b124f80df73f` | `0801ddcfcf25`, `20d2b9258e37`; `573c92a6dcdc`, `dd589a524648`; `7a7a95b10cb1`; `d74a44713ded`; `9968ec1eec21`; `f0e987c55b1f` |
+| Gecko `dom/fs/parent/FileSystemManagerParent.cpp`; `dom/fs/parent/datamodel/FileSystemDatabaseManagerVersion002.cpp` (7.2, advocate) | `c72617c01649` | `6bfe52fb8672`; `f23a77fc31b9` |
+| w3c/web-locks `index.bs` (7.2, advocate) | `6dfe272f7b89` | `9aa2b5e625a7` |
 | Chromium `third_party/blink/renderer/modules/indexeddb/idb_value_wrapping.h`, `.cc`; `…/modules/cache_storage/cache.cc`; `content/browser/cache_storage/cache_storage_cache.cc` | `b124f80df73f` | `18ad474f6be6`, `bc9aa5d9bfe1`; `7a2125968f57`; `d05f03985fbe` |
 
-**Still not traced:** whether a writable's `truncate` is refused before `close()` in each engine (7.2's probe; the
-pilot checks it); which IndexedDB backend a Chromium profile runs; IndexedDB and Cache Storage in a Chromium private
+**Still not traced:** whether a writable's `truncate` is refused before `close()` in Gecko and WebKit (Chromium's is,
+7.2; the pilot checks the others); what a browser crash leaves of a writable in Gecko and WebKit, and whether OPFS's
+listing shows Chromium's swap; which IndexedDB backend a Chromium profile runs; IndexedDB and Cache Storage in a Chromium private
 window and in Safari's; SHA-1's rate on a phone.
 
 **Fixtures and their limits.** Nothing was run for this file. The *measured* numbers it quotes come from a 4-vCPU
