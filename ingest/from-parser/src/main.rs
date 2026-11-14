@@ -314,3 +314,25 @@ fn subdirectories(dir: &Path) -> Result<Vec<PathBuf>> {
 fn files(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(entries(dir)?.into_iter().filter(|p| p.is_file()).collect())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(flags: &[&str]) -> Result<Args, clap::Error> {
+        Args::try_parse_from([&["from-parser", "SERIES", "OUT.sbnd"][..], flags].concat())
+    }
+
+    /// Off unless asked; bare, Q 8 at G 8; Q 0 (lossless) and Q 64, G 0, and a group without the flag refused.
+    #[test]
+    fn the_flag_is_off_by_default_and_q_8_when_bare() {
+        assert_eq!(parse(&[]).unwrap().optimal_quality, None);
+        let bare = parse(&["--optimal-quality"]).unwrap();
+        assert_eq!((bare.optimal_quality, bare.group), (Some(8), 8));
+        let set = parse(&["--optimal-quality", "24", "--group", "16"]).unwrap();
+        assert_eq!((set.optimal_quality, set.group), (Some(24), 16));
+        for refused in [&["--optimal-quality", "0"][..], &["--optimal-quality", "64"], &["--optimal-quality", "--group", "0"], &["--group", "4"]] {
+            assert!(parse(refused).is_err(), "{refused:?} accepted");
+        }
+    }
+}
