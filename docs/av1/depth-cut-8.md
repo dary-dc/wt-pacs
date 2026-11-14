@@ -4,9 +4,9 @@ Row DEPTH8-THEORY, 2026-11-14. **Theory plus a pre-registered protocol; nothing 
 arithmetic over rows the quality study already measured: the per-frame σ and the coded cells of the 19 DBT volumes in
 `claude/av1-noise-ratio:lab/av1/metrics/rows/shard-{1,2,3,4}.jsonl`. They are labelled *derived* (from definitions)
 or *derived from the rows*. Facts about browsers are *sourced* and quoted. Facts measured before this row are
-*measured* and name their row. noise-point.md, noise-ratio.md and the harness `claude/av1-noise-ratio:lab/av1/metrics` are
-`claude/av1-noise-ratio`'s, as the quality study left them. §7 is the protocol DEPTH8-MEASURE runs. It informs the codec question and decides
-nothing.
+*measured* and name their row. noise-point.md, noise-ratio.md and the quality study's harness
+(`claude/av1-noise-ratio:lab/av1/metrics`) are on that branch. §7 is the protocol DEPTH8-MEASURE runs. It informs
+the codec question and decides nothing.
 
 The arithmetic is `lab/av1/depth8/theory.py`. Its output, every number below, is `lab/av1/depth8/predictions.json`:
 
