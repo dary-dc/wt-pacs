@@ -176,12 +176,12 @@ it was written for, `frameBytes`, the shape and the last open. A digest list tha
 
 | | design | from its sources |
 | --- | --- | --- |
-| writer | the store worker holds one `FileSystemSyncAccessHandle` per open series for the session and writes **from the ring's slot itself**: `write(slotView, {at: i × frameBytes})` | "unsigned long long write(AllowSharedBufferSource buffer," (fs 1425): a shared view is taken, so **no copy in script** |
+| writer | the store worker holds one `FileSystemSyncAccessHandle` per open series for the session and writes **from the ring's slot itself**: `write(slotView, {at: i × frameBytes})`, in pieces of the pilot's size (*advocate*: below, *reads first*) | "unsigned long long write(AllowSharedBufferSource buffer," (fs 1425): a shared view is taken, so **no copy in script**; nor in the engine, *advocate*, traced: Chromium writes the view with one `backing_file_.Write(offset, data)` in the renderer (`file_system_access_regular_file_delegate.cc` 84), Gecko streams it "`NS_ASSIGNMENT_DEPEND`" (`FileSystemSyncAccessHandle.cpp` 593–595) |
 | layout | as built: frame i at i × frameBytes, then a 3-int record per frame (min, max, present), one file; the manifest beside it | cache-in-opfs choice 3 |
 | copies | one, the engine's into the page cache; none in script | — |
 | transactions | none; the record written after its frame, never flushed | the re-check guards a torn frame (choice 6; M4 caught 4 of 4, *measured*) |
-| does it fit | `truncate(n × (frameBytes + 12))` at the series' first frame; a refusal (`QuotaExceededError`, or Gecko's `NS_ERROR_FILE_NO_DEVICE_SPACE`) evicts and retries | fs 1587–1588: "If newSize − oldSize exceeds the available storage quota, throw a QuotaExceededError." |
-| reads | the store worker `read(slotView, {at})` into a free slot: no copy in script, no new buffer | fs 1423 |
+| does it fit | `truncate(n × (frameBytes + 12))` at `open` of a series not present (*advocate*: was at its first frame; at open the answer comes before any byte is fetched, and WebKit's one main-thread wait (below) and Chromium's one capacity request leave the fill); a refusal (`QuotaExceededError`, or Gecko's `NS_ERROR_FILE_NO_DEVICE_SPACE`) evicts and retries | fs 1587–1588: "If newSize − oldSize exceeds the available storage quota, throw a QuotaExceededError." |
+| reads | the store worker `read(slotView, {at})` into a free slot: no copy in script, no new buffer. **Reads first** (*advocate*): a pending read is served before the next write piece (below) | fs 1423; "offers synchronous methods" (fs 611): a read posted during a write waits for it, so the order is the design's to choose |
 | eviction | close the handle, then `removeEntry(series, {recursive: true})`; another tab's handle on the victim refuses, so it is skipped | as built (`evictOne`); Chromium refuses removal under any handle, *run once* (choice 5) |
 
 **Reuses** `client/viewer/store.js` whole (open, `create`, `evictOne`, the records) and the packed file's measured
@@ -199,11 +199,57 @@ file's size when it is created, and growing past it waits on the page's main thr
 existing, already-truncated file at reopen, and on a new file grows once, at the first `truncate`: one main-thread wait
 a series, not a frame. `createSyncAccessHandle` itself also passes the main thread (h): once a series.
 
+**Reads first** (*advocate*, 2026-11-14). The handle's methods block the store worker, so in the design as written a miss
+posted during a frame's write waited for the whole write, ~21–33 ms at S2–S3 (the floor below), on top of its own read:
+the miss would pay for the writer's layout, not for OPFS. The view worker raises a count in shared memory beside the
+ring with every read it posts (`Atomics.add`); the writer checks it (`Atomics.load`) after each piece and, if it is not
+zero, returns to its event loop, serves the reads, and resumes the frame at the next piece. A miss then waits at most one
+piece. A frame's record is still written only after its last piece. Nothing in the engines prices a piece apart from
+its bytes: Chromium asks no capacity for a write inside the file's length ("if (write_end_offset > file_size_before)",
+`file_system_access_regular_file_delegate.cc` 77–80, true for every write after the `truncate`), and Gecko already cuts
+any write into 1 MiB blocks, each with its quota IPC ("aSource, aSink, aIOTarget, aMode, kStreamCopyBlockSize,",
+`FileSystemAsyncCopy.cpp` 44–45), so a 2 MiB piece adds no IPC. Theory; the pilot decides whether the pieces pay.
+
+**Gecko's quota IPC, re-traced** (*advocate*): every block's `Write` calls
+"`FileQuotaStreamWithWrite::mQuotaObject->MaybeUpdateSize(`" (`dom/quota/FileStreams.cpp` 92–94), and the content side
+sends it whatever the size: "if (!mActor->SendMaybeUpdateSize(aSize, aTruncate, &result)) {" (`RemoteQuotaObject.cpp`
+56). The design's "nothing in its sources avoids it" holds: neither a `truncate` first nor a piece size removes it
+(17 a frame at S2, 26 at S3). A **read** sends none: it copies into "FixedBufferOutputStream::Create(AsWritableChars(aData));"
+(`FileSystemSyncAccessHandle.cpp` 587–588), straight into the slot.
+
 **Predicted floor** (theory, from the *measured* rates of A on arrival, which wrote from the frame's own buffer on a
 sync handle, cache-io-thread §Arm D, Results: Chromium 816 MB/s at S1; Firefox 360 MB/s at S1 and 1 178 MB/s at S2; and
 read + re-check 0.10 / 2.3 / 6.3 ms for 0.52 / 9.85 / 27.3 MB, choice 1, warm): write ~0.6 / ~21 / ~33 ms (Chromium) and
-~1.4 / ~14 / ~23 ms (Firefox) at S1 / S2 / S3; read under 0.1 / ~4 / ~6 ms, warm. **Pilot:** nothing to tune; its sources
-leave no setting open.
+~1.4 / ~14 / ~23 ms (Firefox) at S1 / S2 / S3; read under 0.1 / ~4 / ~6 ms, warm. **Pilot** (*advocate*; was "nothing
+to tune"): the write piece, the whole frame or 2 MiB; rule, stated before the pilot: 2 MiB wins if its miss p99 at S2 during
+a fill is lower and its write cost a frame is within 10 % of the whole frame's; else the whole frame.
+
+**Advocate's list, 2026-11-14** (CACHE-ADVOCATE-OPFS-SYNC; a session that wrote no design). Sources at 7.6.
+
+* *Changes made above*: reads first, with the write in pieces; `truncate` at open; the engine-side copies traced (none
+  beyond the page cache in Chromium and Gecko); Gecko's quota IPC re-traced and confirmed unavoidable.
+* *Disadvantages it still carries*: **one writer a series.** The exclusive lock ("Creating a FileSystemSyncAccessHandle
+  takes an exclusive lock", fs 605) admits one handle, so the three decoders' frames are written in turn by one worker;
+  whether one writer keeps up with a phone's ~358 MB/s is P2's (§6), and the cloud floor (~470 MB/s at S2 on Chromium,
+  ~700 on Firefox, from the floor above) is not a phone's. **Gecko's 17–26 synchronous IPCs a frame** at S2–S3, above.
+  **WebKit's main-thread waits** at `createSyncAccessHandle`, at growth and at `close()` (h): once a series each, but a
+  busy page delays a series' first write and its eviction. **No flush**: a frame and its record may reach the disk in
+  either order after an OS crash; the re-check catches it (choice 6) at the cost of a re-fetch, not a wrong frame.
+  **Sparse space**: the `truncate` at open counts the whole series against the quota before it is filled, so a series
+  opened and left early holds quota until eviction, as built.
+* *Not adopted, named*: Chromium's `createSyncAccessHandle({mode})` ("readwrite-unsafe" would let a second worker or tab
+  hold a handle beside the writer) is Chromium-only and off the standard track ("chrome": { "version_added": "121" } ·
+  "firefox": { "version_added": false } · "safari": { "version_added": false } · "standard_track": false,
+  browser-compat-data `api/FileSystemFileHandle.json` 143–165); a design for one engine is not this arm's.
+* *Proposed for all four alike (a change to 7.5, the rule above the seam; the protocol's author decides whether it
+  enters)*: **a second tab reads what is present and writes nothing**, instead of "no cache". For OPFS-SYNC its read is
+  `getFile()`, which takes no lock beside the first tab's handle (cache-io-thread (c), *run once* on Chromium 153 and
+  Firefox 159), slower than the handle (Gecko pumps it on the main thread, (c)); IDB and CACHESTORAGE read in a
+  read-only transaction or by `match`; OPFS-ASYNC by `getFile()` as its own reads. In that tab a re-check failure is a
+  miss, never a damaged frame: the first tab may be writing it.
+* *What the shared input costs it*: a read needs a **free slot**, so when a slow writer has dried the ring (7.0's
+  backpressure) a miss waits for a slot as well as for its read. The same for all four; the protocol's read-to-paint
+  cell should run with the ring full as well as idle.
 
 ### 7.2 · OPFS-ASYNC: a file per frame by `createWritable`, a copy in its writer
 
@@ -310,7 +356,7 @@ What the store sees, and what it does (above the seam, the same rule for all, wh
 | Chromium private window | OPFS in RAM, 5–6.7 % of it (choice 5): caches what fits | the same | not traced | not traced |
 | the origin emptied between opens | no manifest: a fresh fill | the same | no `series` record: the same | no `manifest` record: the same |
 | the store vanishes while open | a read throws: a miss | the same | a request errors: a miss | `match` rejects or is `undefined`: a miss |
-| two tabs, one series | the second's `createSyncAccessHandle` throws: that tab, no cache | the Web Lock is held: no cache | the same (the engine would order the writes, 1148; one rule for all) | the same |
+| two tabs, one series | the second's `createSyncAccessHandle` throws: that tab, no cache (*advocate* proposes reads for all four, 7.1's list) | the Web Lock is held: no cache | the same (the engine would order the writes, 1148; one rule for all) | the same |
 | a damaged frame | the re-check fails: clear its record, ask again, report | delete its file: the same | delete its record: the same | `delete` its request: the same |
 
 ### 7.6 · Sources for §7
@@ -325,6 +371,9 @@ Fetched 2026-11-14 at `cache-options.md`'s commits; nothing fetched is committed
 | WebKit `Source/WebCore/workers/WorkerGlobalScope.cpp`; `Source/WebKit/WebProcess/Cache/WebCacheStorageConnection.cpp` | `782d2a977efb` | `6b13c8bd7f23`; `e214afd35864` |
 | WebKit `Source/WebKit/NetworkProcess/storage/CacheStorageDiskStore.cpp` | `782d2a977efb` | `0f49fe0b52e6` |
 | Gecko `modules/libpref/init/StaticPrefList.yaml`; `dom/indexedDB/ActorsParent.cpp`; `dom/cache/FileUtils.cpp` | `c72617c01649` | `3f511c2677dd`; `1410d6e13763`; `556e80fdc323` |
+| Gecko `dom/quota/FileStreams.cpp`, `dom/quota/RemoteQuotaObject.cpp`, `dom/fs/api/FileSystemSyncAccessHandle.cpp`, `dom/fs/child/FileSystemAsyncCopy.cpp` (OPFS-SYNC's advocate) | `c72617c01649` | `1a157b5d061e`, `f6d4aa60b96a`, `dfb9fe3aeb1b`, `f6aa217fc6e1` |
+| Chromium `third_party/blink/renderer/modules/file_system_access/file_system_access_regular_file_delegate.cc` (OPFS-SYNC's advocate) | `b124f80df73f` | `aae56d34329c` |
+| mdn/browser-compat-data `api/FileSystemFileHandle.json` (OPFS-SYNC's advocate) | `69fcf3608174` | `86765e16b864` |
 | Chromium `third_party/blink/renderer/modules/indexeddb/idb_value_wrapping.h`, `.cc`; `…/modules/cache_storage/cache.cc`; `content/browser/cache_storage/cache_storage_cache.cc` | `b124f80df73f` | `18ad474f6be6`, `bc9aa5d9bfe1`; `7a2125968f57`; `d05f03985fbe` |
 
 **Still not traced:** whether a writable's `truncate` is refused before `close()` in each engine (7.2's probe; the

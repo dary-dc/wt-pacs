@@ -24,7 +24,8 @@ exact frame bit for bit, and only checked claims on screen.
   survivors of a sourced screen (OPFS sync, OPFS async, IndexedDB, Cache Storage), each given its best design and an
   advocate before a pre-registered run; the rows in `claude/work-ledger:docs/queue-client-2026-11-14.md`. Its §7, the four designs, written 2026-11-14 before any build: one store worker each, the decoders posting
   slot numbers; OPFS sync writes from the slot with no copy in script; IndexedDB and Cache Storage keep a Firefox private
-  window's data where OPFS is off, and cannot say whether a series fits before writing it. Next, an advocate per design.
+  window's data where OPFS is off, and cannot say whether a series fits before writing it. Next, an advocate per design. OPFS sync's advocate (2026-11-14): reads before
+  write pieces, `truncate` at open, and a second tab that reads, proposed for all four.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
