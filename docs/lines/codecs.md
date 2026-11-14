@@ -60,6 +60,11 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).
+7. **An 8-bit depth cut for hardware** (amendment 14 of `claude/work-ledger:docs/queue-client-2026-11-14.md`;
+   DEPTH8-THEORY, 2026-11-14, theory): [`../av1/depth-cut-8.md`](../av1/depth-cut-8.md). The cut alone stays
+   under the noise on all 19 DBT volumes. Coded, it is predicted to cost 0.82–2.44 times today's view's bytes,
+   depending on how its rounding and the coding error stack; it buys a checked hardware path on desktop Chromium
+   only (4:2:0 grey, `NV12`). DEPTH8-MEASURE runs its protocol (§7); whether an 8-bit view is acceptable is the owner's.
 
 ## Decisions (the owner's)
 

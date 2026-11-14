@@ -442,6 +442,10 @@ series each, `…-q8-g16-stored`. *Corrected 2026-11-10 (DEMO-E2E):* this said t
 the script in that form, run twice on a 4-core x86-64 cloud host (903 s building the coders and fetching the volumes first, 565 s with both done), wrote the bytes in
 the table above both times, the Q 8 G 1 and G 16 cuts and both stored forms as before. At Q 24 the cut is 1.12–1.28 times
 the 12-bit view's bytes (§Optimal quality's table, 2026-11-09; from the rounded fractions), more, not fewer.
+
+**An 8-bit cut** (k = D − 8, the form hardware decoders take as 4:2:0 grey) is investigated, not built:
+[`depth-cut-8.md`](depth-cut-8.md), theory and a pre-registered protocol (2026-11-14).
+
 ### Source fingerprint
 
 *SOURCE-FINGERPRINT, 2026-11-11. Built and tested on synthetic sets; nothing timed.*
