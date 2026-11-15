@@ -60,6 +60,11 @@ exact frame bit for bit, and only checked claims on screen.
   0.50, `dbts_b3` 0.73, `dbts_b2` 0.83; systems A and C already store the breast's box); bytes unchanged
   (0.997–1.002); decode 0.85 (AV1) and 0.76 (HTJ2K) of whole on `dbts_b1`; no volume changes AV1 level. Owed, one
   phone ratio on `dbts_b1` (its §8).
+  A lossy HTJ2K view ([`../decode/mobile/htj2k-lossy.md`](../decode/mobile/htj2k-lossy.md), 2026-11-15, three cloud
+  cells, measured): at the noise rule's 1.00 bar 0.85–1.47× the AV1 view's bytes (median 1.05) with 1.13× its
+  in-window error; at the view's Q 8 G 8 error 1.28–1.45× (median 1.36), 19 DBT volumes. Its WASM decode is 1.12–1.21×
+  the lossless frame's (not faster) and 0.41–0.50× dav1d-WASM's view. Checked only from the shipped WASM build: node
+  and Chromium agree, native x86 differs by ±1. Owed, three phone cells (its §10).
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
