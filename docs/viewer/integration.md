@@ -240,6 +240,26 @@ Under every option the ingest must also carry the tags these rows read (laterali
 Compression, Image Position for DBT order). The requirements file lists them under *What the client contradicts
 today*.
 
+## Tools and their viewport (read 2026-11-06)
+
+Read from source at the tags of [`survey.md`](survey.md) §Sources, and NiiVue at the tag of its one-line table
+(`@niivue/niivue-v0.69.0`). Nothing was built or run. The question: can our view keep its paint and take someone
+else's tools? Paths are relative to each project's repository.
+
+| project, tag | its tools are bound to | evidence | a custom viewport means |
+| --- | --- | --- | --- |
+| Cornerstone3D v5.13.2 | its rendering engine and its `Viewport` interface, not to vtk.js | tools find their viewport with `getEnabledElement`, a lookup in Cornerstone's own rendering-engine registry (`packages/core/src/getEnabledElement.ts`); they attach input listeners and the SVG layer only on core's `ELEMENT_ENABLED` (`packages/tools/src/store/addEnabledElement.ts:27-60`); 498 of 819 tool files import core, 66 distinct viewport methods are called, 84 viewport-type checks sit in 41 files; 39 tool files read pixel data (`getImageData`, `voxelManager`) | a class registered with `registerViewportType`, with `useCustomRenderingPipeline`, as its video and whole-slide viewports do (`packages/core/src/RenderingEngine/helpers/viewportTypeToViewportClass.ts`; `VideoViewport.ts:151`; `WSIViewport.ts:171`); untried for a canvas a worker owns |
+| OHIF v3.13.13 | Cornerstone3D's tools (`extensions/cornerstone/src/initCornerstoneTools.js:49,81`) | an extension can supply its own viewport (`getViewportModule`); the microscopy viewport does, and brings its own tools from `dicom-microscopy-viewer` (`extensions/dicom-microscopy/src/tools/viewerManager.js:313-338`), not Cornerstone3D's | its own tools, as the microscopy viewport shows |
+| VolView v4.5.3 | its vtk.js views | the ruler injects the view's vtk context (`src/components/tools/ruler/RulerSVG2D.vue:64,94`) and uses a vtk.js widget (`RulerWidget2D.vue:2,18`) | a fork |
+| dwv v0.36.4 (GPL-3.0, out on licence) | its app, layer group and Konva draw layer | `src/tools/draw.js:24-27,184` | a fork |
+| NiiVue v0.69.0 | the `Niivue` class itself | measurement and angle are drag modes inside it (`packages/niivue/src/niivue/interaction/DragModeManager.ts`; `index.ts:388`) | a fork |
+
+**So a custom view means our own tools or a fork,** in every project read. Cornerstone3D alone has a third route: an
+adapter that implements its `Viewport` interface, with our paint behind it. Even there, every tool that reads values
+pulls samples to the page, which B′ keeps out of the pixel path. The counts are by `grep`, so they bound the coupling
+and do not list it. Which of its tools run on a custom viewport, and whether its engine accepts a canvas transferred to
+a worker, need a spike ([`architecture.md`](architecture.md) §The subsystems, option 2).
+
 ## Open
 
 * **Whether the bit-exactness that is decided reaches the screen.** If it does, the ranking stands. If it stops at the

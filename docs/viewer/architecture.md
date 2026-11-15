@@ -21,11 +21,58 @@ and the path after the re-wrap is unchecked. Nothing in a spike would change tha
 
 **Watched, not carried: B with our painter.** If Cornerstone3D's `registerRenderBackend` lets a backend own its
 surface, our paint worker could be that backend, and B would keep the proof. That API is experimental and cannot do
-this today (integration.md §Cornerstone3D, *Keeping our painter*). When a release can, B is re-drawn and re-spiked.
+this today (integration.md §Cornerstone3D, *Keeping our painter*). When a release can, B is re-drawn and re-spiked. *Amended
+2026-11-06:* `registerRenderBackend` still cannot, but `registerViewportType` with `useCustomRenderingPipeline` is a
+second route, read and not run. It is option 2 below (§The subsystems), and integration.md §Tools and their viewport
+reads it.
 
 **Not carried: B on its CPU fallback.** It is the one Cornerstone3D route that could be held to our reference, apart
 from rounding (integration.md §Cornerstone3D, *render*). It paints on the page thread at the cost of our own 2d route,
 105 ms a 4096×3072 frame on a GPU host ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Paint): under 10 frames/s.
+
+## The subsystems, and where each option integrates (2026-11-06)
+
+A subsystem is a group of modules that is built, or bought, as one. There are four. The user's "viewport" group is
+named **view**, because a viewport is one canvas region, here and in Cornerstone3D; the core already says view worker
+and `client/view/`. Transport keeps its meaning, the wire client ([`../glossary.md`](../glossary.md)). Nothing here is
+measured: it is a reading of the core ([`../adr/frame-path.md`](../adr/frame-path.md) §The core, assembled) and of the
+projects in integration.md.
+
+| subsystem | includes | runs on, in the core under `?view=worker` | crosses its boundary |
+| --- | --- | --- | --- |
+| delivery | the transport (`transport-ts`, `transport-wasm`, native), session survival, the downloader's records, the decoders (HTJ2K, AV1), the frame digest check, the frame store and its OPFS cache | the downloader worker, its decoders, and the frame store inside the view worker | to view: a checked frame (`SharedArrayBuffer`, `exact`), `arrived(i)`, `failed(i)`; from view: the want (an ordered list that replaces the last), `has(i)`, `get(i)` |
+| view | the controller (current frame, the want's order, the cine clock), the paint module (WebGL2, the VOI table: rescale, LINEAR and SIGMOID, invert; proposed in it: PALETTE COLOR, the VOI LUT Sequence, padding held black, the GSDF presentation LUT), display state (window, invert, pose: fit, 1:1, zoom, pan, rotate, flip), one canvas per viewport, `valueAt` | the view worker | to tools and application: `shown {i, exact, reason}`, `progress`, `failed {scope, reason}`, `valueAt(x, y)`, canvas ↔ image ↔ patient transforms (not built); from them: `show(i)`, `setDisplay`, `play`, `pause` |
+| tools | the input handlers (window drag, zoom, pan and scroll call `setDisplay` or `show`), the measurements (length, angle, Cobb angle, ROI and its statistics through `valueAt`, probe, ruler), arrows and text, annotation state and show/hide, GSPS saved and read, CAD SR marks (TID 4000), key images | the page; not designed | an overlay drawn in step with `shown`; annotations keyed to (series, frame) |
+| application | layouts, hanging protocols (by laterality and view, user-defined, current against prior), linked scroll, zoom and pan across viewports, the study list and thumbnails, view labels, identity, orientation and lossy labels, the mobile label, security and audit | the page; not designed | starts delivery and view, one view per series; reads the metadata the ingest carries |
+
+**The line between view and tools.** Anything that changes how a stored sample becomes a screen pixel is view, and is
+held to the paint's proof. Tools only read values (`valueAt`) and draw vector overlays. A colour map is view, not a
+tool.
+
+**Inside a subsystem,** the simplest approach that meets the requirements, the metrics and the features. **Between
+subsystems,** message contracts, forced wherever a thread boundary sits. Either is refined if a measurement asks for
+it.
+
+**The options, by subsystem.** 1a, 1b and 3 are B, C and A below. Option 2 is new.
+
+| option | delivery | view | tools | application | glue or code, estimated | keeps | loses | available today |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1a · delivery ours, the rest Cornerstone3D (B) | ours, behind a `wtp:` image loader | Cornerstone3D: vtk.js WebGL2 on the page thread | Cornerstone3D | ours: layouts, hanging, the breast rows | ~450 lines of glue | delivery, the frame digest check, our store as source of truth | the 1:1 proof (a 1 024-entry 8-bit window table), the page out of the pixel path (B′), zero copy (a frame copy at each image change), cine with no skipped slice, the VOI LUT Sequence on the GPU, a viewer that ports to native | yes |
+| 1b · delivery ours, the rest OHIF (C) | as 1a | Cornerstone3D 5.6.8 | Cornerstone3D | OHIF: study list, layouts, hanging engine (`hpMammo` reworked), panels; the CAD SR handler is ours | ~350 lines, plus a fork of a Yarn monorepo | as 1a | as 1a, and control of the page: CSP hashes for inline scripts, a service worker, its prefetcher | yes |
+| 2 · delivery and view ours, tools Cornerstone3D | ours | ours, wrapped as a Cornerstone3D viewport class (`registerViewportType`, `useCustomRenderingPipeline`) | Cornerstone3D, on our viewport | ours, or Cornerstone3D's synchronizers | not estimated. For scale, its own non-vtk viewports are 1 246 (video) and 826 (whole slide) lines on a 2 706-line `Viewport` base | delivery and the paint, for the geometry tools | the value-reading tools (probe, ROI statistics, window/level, magnify) read the viewport's image data on the page, so samples come back to the page or those tools are rewritten; 84 viewport-type checks across 41 tool files decide which tools work; its majors move the interface | not built; read, not run: a spike decides |
+| 3 · all ours (A) | ours | ours | ours | ours | ~1 000–1 500 lines beyond today, for what Cornerstone3D would give | everything: the proof, zero copy, B′, the painter spec that native ports | time; every UI convention is ours to get right | yes |
+
+Under every option the breast rows are ours (§What all three share). Why option 2 is the only route to keeping our view
+with someone else's tools is integration.md §Tools and their viewport: in every project read, the tools are bound to
+that project's own viewport and engine.
+
+**The decision order.**
+
+1. Whether bit-exactness reaches the screen, or stops at the decoded frame (§For the owner). If it reaches the screen,
+   1a and 1b are out, and 2 keeps the proof only for the tools that read no values.
+2. Whether the viewer must port to native. Code written against Cornerstone3D stays in the browser; the core and the
+   painter port ([`../native/README.md`](../native/README.md) §4).
+3. Only if 1 accepts a bound: whether OHIF's application shell is worth control of the page (§The spike, rule 4).
 
 ## What all three share
 
