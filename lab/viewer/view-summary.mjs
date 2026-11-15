@@ -20,8 +20,9 @@ export const kindOf = (r) => (r.asks ? "asks" : r.cineS ? "cine" : r.busy ? "bus
 /** A visit counted: its relay on time, no error, every frame it owed held, and under a busy page every task long. */
 const kept = (r) => !r.void && !r.errors?.length && !r.failures && (r.frames || r.afterMs?.length) && (!r.cineS || r.cine) && (!r.busy || r.tasks?.minMs >= LONG_TASK_MS);
 
-/** Each cell's guards and the worker against the page, paired by round. */
-export function cells(rows) {
+/** Each cell's guards and B′ against the page, paired by round; `names`: A, its A/A copy, then B′. */
+export function cells(rows, names = ARMS) {
+  const b = names[2];
   const byCell = new Map();
   for (const r of rows) {
     const key = [r.engine, r.set, `${r.throttle}x`, kindOf(r)].join(" ");
@@ -31,30 +32,30 @@ export function cells(rows) {
   return [...byCell.values()].map((c) => {
     // Every frame a visit held is owed exact; a visit that failed short is re-run, not counted.
     const exact = c.rows.every((r) => r.exact === (c.kind === "asks" ? r.afterMs?.length ?? 0 : r.frames));
-    const all = Object.fromEntries(ARMS.map((a) => [a, new Map(c.rows.filter((r) => r.variant === a && kept(r)).map((r) => [r.round, r]))]));
+    const all = Object.fromEntries(names.map((a) => [a, new Map(c.rows.filter((r) => r.variant === a && kept(r)).map((r) => [r.round, r]))]));
     // The first 12 rounds every arm kept: a round re-run for a dropped visit does not lengthen the cell.
-    const rounds = [...all.page.keys()].filter((k) => ARMS.every((a) => all[a].has(k))).sort((x, y) => x - y).slice(0, ROUNDS);
-    const arms = Object.fromEntries(ARMS.map((a) => [a, new Map(rounds.map((k) => [k, all[a].get(k)]))]));
+    const rounds = [...all.page.keys()].filter((k) => names.every((a) => all[a].has(k))).sort((x, y) => x - y).slice(0, ROUNDS);
+    const arms = Object.fromEntries(names.map((a) => [a, new Map(rounds.map((k) => [k, all[a].get(k)]))]));
     const paired = (a, f) => [...arms[a].keys()].filter((k) => arms.page.has(k)).map((k) => f(arms[a].get(k), arms.page.get(k)));
     const out = { ...c, exact, rounds: rounds.length };
     const of = (a, f) => (arms[a].size ? median([...arms[a].values()].map(f)) : null);
-    out.cpuPerFrame = Object.fromEntries(ARMS.map((a) => [a, of(a, (r) => r.pageCpuMs / r.owed)]));
-    out.firstMs = Object.fromEntries(ARMS.map((a) => [a, of(a, (r) => r.firstMs)]));
+    out.cpuPerFrame = Object.fromEntries(names.map((a) => [a, of(a, (r) => r.pageCpuMs / r.owed)]));
+    out.firstMs = Object.fromEntries(names.map((a) => [a, of(a, (r) => r.firstMs)]));
     if (c.kind === "quiet") {
       const fill = (a) => median(paired(a, (x, y) => x.fillMs / y.fillMs));
       const first = (a) => median(paired(a, (x, y) => x.firstMs - y.firstMs));
       out.void = !(fill("pageaa") >= FILL[0] && fill("pageaa") <= FILL[1] && Math.abs(first("pageaa")) < BAR_MS);
-      out.fill = fill("worker");
-      out.first = first("worker");
+      out.fill = fill(b);
+      out.first = first(b);
       out.passes = out.fill >= FILL[0] && out.fill <= FILL[1] && out.first < BAR_MS;
     }
     if (c.kind === "asks") {
       const screen = (r) => median(r.screenMs);
-      out.screenMs = Object.fromEntries(ARMS.map((a) => [a, of(a, screen)]));
+      out.screenMs = Object.fromEntries(names.map((a) => [a, of(a, screen)]));
       // §2 predicts the page's mean, not its median: half a task for the asks that land in one.
-      out.screenMean = Object.fromEntries(ARMS.map((a) => [a, of(a, (r) => r.screenMs.reduce((x, y) => x + y, 0) / r.screenMs.length)]));
+      out.screenMean = Object.fromEntries(names.map((a) => [a, of(a, (r) => r.screenMs.reduce((x, y) => x + y, 0) / r.screenMs.length)]));
       out.void = !(Math.abs(median(paired("pageaa", (x, y) => screen(x) - screen(y)))) < AA_MS);
-      out.wins = paired("worker", (x, y) => screen(y) - screen(x) >= BAR_MS).filter(Boolean).length;
+      out.wins = paired(b, (x, y) => screen(y) - screen(x) >= BAR_MS).filter(Boolean).length;
       out.passes = out.wins >= ROUNDS_NEEDED;
     }
     if (c.kind === "busy") out.passes = true;
@@ -62,12 +63,12 @@ export function cells(rows) {
       const period = c.rows.find((r) => r.cine)?.cine.period;
       const late = (a) => median(paired(a, (x, y) => x.cine.latePct - y.cine.latePct).map(Math.abs));
       const gap = (a) => median(paired(a, (x, y) => x.cine.gapP99 - y.cine.gapP99).map(Math.abs));
-      out.latePct = Object.fromEntries(ARMS.map((a) => [a, of(a, (r) => r.cine.latePct)]));
-      out.gapP99 = Object.fromEntries(ARMS.map((a) => [a, of(a, (r) => r.cine.gapP99)]));
+      out.latePct = Object.fromEntries(names.map((a) => [a, of(a, (r) => r.cine.latePct)]));
+      out.gapP99 = Object.fromEntries(names.map((a) => [a, of(a, (r) => r.cine.gapP99)]));
       out.void = !(late("pageaa") <= AA_POINTS && gap("pageaa") < BAR_MS);
       out.saturated = of("page", (r) => r.cine.drawP99) > period / 2;
       out.pageMisses = out.latePct.page > AA_POINTS;
-      out.passes = !out.pageMisses || (out.latePct.worker <= AA_POINTS && out.gapP99.worker <= 2 * period);
+      out.passes = !out.pageMisses || (out.latePct[b] <= AA_POINTS && out.gapP99[b] <= 2 * period);
     }
     out.short = out.rounds < ROUNDS;
     return out;
