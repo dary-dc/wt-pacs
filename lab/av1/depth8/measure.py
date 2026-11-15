@@ -3,7 +3,8 @@
 run in the protocol's fixed order, and the plan extended until each volume's highest passing Q is bracketed.
 
 usage: measure.py HARNESS BUILD WORK DATA OUT.jsonl --stage a|b [--jobs 4]
-       HARNESS is a checkout of claude/av1-noise-ratio at the commit the rows record.
+       HARNESS is a checkout of claude/av1-noise-ratio at the commit the rows record; stage b reads stage-a.jsonl
+       beside OUT for the series and the G 1 cells.
 """
 import argparse
 import json
@@ -147,6 +148,7 @@ def main():
     ap.add_argument("--jobs", type=int, default=4)
     a = ap.parse_args()
     a.g = 1 if a.stage == "a" else 16
+    a.prior = a.out.parent / "stage-a.jsonl" if a.stage == "b" else None
     a.build, a.work = a.build.resolve(), a.work.resolve()
     a.work.mkdir(parents=True, exist_ok=True)
     CELL = load_harness(a.harness)
@@ -159,7 +161,7 @@ def main():
         (a.work / f"{s}.display.json").write_text(json.dumps(meta))
     with ProcessPoolExecutor(a.jobs) as pool:
         while True:
-            rows = [json.loads(r) for r in a.out.open()] if a.out.exists() else []
+            rows = [json.loads(r) for path in (a.prior, a.out) if path and path.exists() for r in path.open()]
             seen = {(r["set"], r["kind"], r.get("form"), r.get("q"), r.get("g")) for r in rows}
             series = [s for s in STAGE_A if (s, "series", None, None, None) not in seen]
             cuts = [s for s in STAGE_A if (s, "cut_only", "cut8", None, None) not in seen] if a.stage == "a" else []
