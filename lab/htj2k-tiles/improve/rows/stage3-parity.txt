@@ -1,0 +1,28 @@
+== openjph
+  g160        87   16-bit unsigned x1 87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  g256        87   16-bit unsigned x1 87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  g512        87   16-bit unsigned x1 87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  c512        87   8-bit unsigned x3  87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  g8          87   8-bit unsigned x1  87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  g1024       87   16-bit unsigned x1 87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  g2048       87   16-bit unsigned x1 87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  s512        87   16-bit signed x1   87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  s12         87   12-bit signed x1   87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+
+covers: 16-bit unsigned x1, 8-bit unsigned x3, 8-bit unsigned x1, 16-bit signed x1, 12-bit signed x1
+PARITY OK: same surface, same bytes, on every frame
+== levels
+  g160        87   16-bit unsigned x1 87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  g256        87   16-bit unsigned x1 87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  g512        87   16-bit unsigned x1 87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  c512        87   8-bit unsigned x3  87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  g8          87   8-bit unsigned x1  87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  g1024       87   16-bit unsigned x1 87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  g2048       87   16-bit unsigned x1 87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  s512        87   16-bit signed x1   87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+  s12         87   12-bit signed x1   87/87 identical    87/87 identical    identical   range vs the JS pass: 87/87 identical
+
+covers: 16-bit unsigned x1, 8-bit unsigned x3, 8-bit unsigned x1, 16-bit signed x1, 12-bit signed x1
+PARITY OK: same surface, same bytes, on every frame
+
+[exited with code 0]

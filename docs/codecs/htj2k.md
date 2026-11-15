@@ -57,6 +57,7 @@ codestream.
 ## Random access and on-demand
 
 Every frame is its own codestream: an ask decodes one frame, and the fill decodes on every decoder at once.
+A region of a large frame (HTJ2K tiles or precincts) is not served today; the protocol is [`../htj2k-tiles.md`](../htj2k-tiles.md).
 
 ## Progressive / preview
 

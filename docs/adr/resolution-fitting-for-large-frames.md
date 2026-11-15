@@ -329,6 +329,8 @@ calls on one worker cost ×0.97–1.24 (row 133). A grid would be a new version 
 * The server is unchanged for both layouts: it serves entries by index and never reads the tile fields.
 * The client's tile path runs only on a layout-1 series. Today's path does not change.
 
+*Pre-registered 2026-11-09 (row HTJ2K-TILES): TILEGRID and BANDS as one protocol, widened to precincts in one codestream and to the optimal-quality design, in [`../htj2k-tiles.md`](../htj2k-tiles.md); not run.*
+
 **What the proposal still needs measured** (each in the container first, every picture against the encoder's input,
 interleaved, n ≥ 10):
 * **BANDS** (§8.7, 2): a layout-1 store in the lab, no server change.
