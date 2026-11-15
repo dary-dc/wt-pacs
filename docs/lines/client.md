@@ -52,6 +52,8 @@ exact frame bit for bit, and only checked claims on screen.
   2026-11-15: its protocol is `claude/phone-protocol:docs/phone-rows/next-round.md`; its one-press runner is built
   and tested headless on `claude/phone-round` (`lab/devices/README.md` §The round, RUNNER-AUTO), no phone yet; it
   waits for PHONE-LEVERS (cell 1's bench, C2, the decoder count) and a dry run.
+  Reviewed 2026-11-15 (`docs/reviews/phone-round.md`): three blockers (a throw after the fill and a server that never
+  answers each stop the round; §3's stopping rule not built); RUNNER-AUTO-FIX first, then PHONE-LEVERS.
 * **The delivery comparison**: recorded in [`../client/design.md`](../client/design.md) §Open with its theory; its
   protocol is not written.
 * dav1d fetched only where WebCodecs refuses (a protocol with an A/A arm, not started); a wake before `l` asks (its
