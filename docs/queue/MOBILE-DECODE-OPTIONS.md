@@ -21,8 +21,7 @@ Nothing left. Not done by this row: no subscription to PR 397's activity (the ro
 * MOBILE-OPT-HTJ2K-LOSSY: a DICOM syntax, no depth cut, one decoder; bytes against AV1 unmeasured.
 * MOBILE-OPT-CONTENT-CROP: two cropped fixtures hold 0.25 and 0.38 of their matrix; multiplies with every option.
 * Six more named without a row, each with its reason (new-options section 6.1). Phone asks M1-M3 appended.
-* Fixtures behind cited results: three timed DBT volumes of one dataset (19 for bytes), no ultrasound cine, 4-core
-  hosts without a GPU, one phone, one home link; the HTJ2K throughput quoted is a desktop's.
+* Fixtures cited: 3 timed DBT volumes (19 for bytes), no US cine, GPU-less 4-core hosts, one phone, one home link.
 * Leaning (labelled): the crop first; then lossy HTJ2K or the inverted hardware frame, by M1-M3 and the byte cells.
 * Owner: whether a 220-level checked hardware view is acceptable; whether the second picture may be opened (it
   touches "the residual dropped" and "the split discarded"); whether a cropped view needs a word on screen.
