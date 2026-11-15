@@ -5,11 +5,267 @@
 disadvantages. Sources and theory, and two cloud byte cells pre-registered in §8 before either ran. Nothing run on a
 device or a GPU. Every choice stays the owner's.*
 
-Labels, as [`new-options.md`](new-options.md): **(S)** a source quoted verbatim, listed in §11 with its revision;
+Labels, as [`new-options.md`](new-options.md): **(S)** a source quoted verbatim, listed in §13 with its revision (S1–S5 as `new-options.md` lists them);
 **(R)** a result of this repository, by its file; **(D)** derived here, the arithmetic written out; **(T)** theory,
 not measured; **(M)** measured here, §9.
 
-*(Sections 1–7 and 10–11 are being written; §8 is the pre-registration and binds the cells.)*
+## 1. What it shows
+
+* **On every engine traced, the page cannot switch the conversion off; it can only choose what it feeds in** (§2,
+  S). Chromium (157 on the phone and 158, today's stable, identical on every function read), WebKit and Gecko all
+  upload a hardware `VideoFrame` to WebGL by a GPU copy that never reads `UNPACK_COLORSPACE_CONVERSION_WEBGL`
+  (Chromium reads it only on its software fallback; Gecko's `VideoFrame` upload never passes it on). The HTML
+  standard applies `colorSpaceConversion` only to "an img element or a Blob object". What reaches the texture is the
+  YCbCr-to-RGB step alone: Chromium's copy says it reinterprets the colour space "to disable color conversion", and
+  WebKit and Gecko apply a matrix and a range and nothing else.
+* **Who picks the range and matrix differs by engine** (§2, S): on Android Chromium the GPU driver's suggestion for
+  the decoder's buffer (Vulkan's `suggestedYcbcrRange`, Dawn's `yCbCrInfo`, or the external texture's EGLImage);
+  on desktop Chromium the frame's colour space, which `VideoDecoderConfig.colorSpace` overrides; on Safari the
+  pixel format (`420v` narrow, `420f` full); on Firefox **narrow range always**, its own code noting "The colorspace
+  is known by the IOSurface, why override it?".
+* **So the one form every engine inverts is studio swing on 16…235** (§3, §4, D): a narrow reading maps it
+  one-to-one, a full reading leaves it one-to-one, and Firefox reads every stream as narrow. 220 levels, 7.78 bits.
+* **One-to-one is likely, not promised** (§3). Vulkan specifies the range expansion "at least" to the source's
+  precision and asks float-to-unorm rounding that "should" be to nearest; with that, the 220 levels map to 220
+  distinct values (D). Its "must" allows either neighbour, which would merge most adjacent pairs; the GL external
+  path specifies nothing; Firefox's matrix is a `mediump` uniform, and evaluated in fp16 it merges one pair of the
+  220 (D, an emulation, not an engine run). The digest, checked on every frame, is what decides; a calibration unit
+  finds a merging device once a session (§6).
+* **The check costs about half today's** (§5, D): 8 519 680 bytes read back and hashed for a `dbts_b1` frame against
+  today's 17 039 360, about 2.6 ms of XXH3 at the client's measured ~3.3 GB/s (R, desktop containers; the phone
+  unmeasured); the read-back's time on a phone is unknown.
+* **At 220 levels the windows lose a little more than at 256** (§4, D): 4.67 source units a step on a 10-bit series
+  and 18.70 on a 12-bit one, against 4.01 and 16.05 for an 8-bit picture of the 10-bit view. Unlike the unchecked
+  path, the rounding here comes **before** the coder, so the noise rule is met by choosing Q; what that costs in
+  bytes is cell C1 (§8, §9).
+* **Whether a phone's hardware decoder takes the frame is still not documented** (§7): of the vendors' pages read,
+  only MediaTek's Dimensity 9400 ties AV1 decode to a size ("8K60, 10-bit Video Decode (HEVC/AVC/VP9/AV1)"), whose
+  box holds `dbts_b1` upright; no page names a level.
+
+## 2. The route, per engine (S)
+
+The route of [`new-options.md`](new-options.md) §3: decode in hardware (WebCodecs `prefer-hardware`), draw the frame
+into a WebGL2 (or WebGPU) texture, read the red channel back through a measured inverse table, hash, paint from the
+recovered samples. What each engine's upload computes for a hardware `VideoFrame`:
+
+**Chromium, Android, 157.0.8103.79 and 158.0.8127.36** (S6; the functions quoted are byte-identical in both, D by
+diff). `TexImageHelperMediaVideoFrame` takes the GPU copy when `use_copy_texture_chromium` holds: `texImage2D`, the
+default source rectangle, depth 1, `TEXTURE_2D`, no frame transform, and `unpack_color_space_is_srgb`. A hardware
+frame `HasSharedImage()`, so the copy is `CopySharedImageDirectlyToGLTexture` or, failing that, an intermediate RGBA
+image filled by `PaintCanvasVideoRenderer::CopyVideoFrameToSharedImage`, whose shared-image branch is a raster
+`CopySharedImage` of the frame's coded rectangle. That copy, in the GPU process:
+
+> "// Reinterpret the source image as being in the destination color space, // to disable color conversion." …
+> `canvas->drawImageRect(source_image_reinterpreted, …, SkSamplingOptions(), &paint, SkCanvas::kStrict_SrcRectConstraint)`
+> (`copy_shared_image_helper.cc`)
+
+`SkSamplingOptions()` is nearest-neighbour, and the source and destination rectangles are the same size, so no
+filter touches a sample (D). `UNPACK_COLORSPACE_CONVERSION_WEBGL` enters only through
+`params.unpack_colorspace_conversion`, which this branch never reads; it is read further down, on the fallback that
+builds a snapshot (`kReinterpretAsSRGB` when it is `NONE`), which a hardware frame reaches only if the copy fails (D,
+from the function's control flow).
+
+The YCbCr-to-RGB step is the sampler's, and on Android its parameters come from the driver
+(`video_image_reader_image_backing.cc`, `vulkan_image_android.cc`):
+
+* Vulkan: `ycbcr_info_.emplace(VK_FORMAT_UNDEFINED, ahb_format_props.externalFormat,
+  ahb_format_props.suggestedYcbcrModel, ahb_format_props.suggestedYcbcrRange, …)`; the Vulkan specification calls
+  these "a suggested color model" and "a suggested numerical value range to use in the
+  VkSamplerYcbcrConversionCreateInfo" (S9, `memory.adoc`).
+* Graphite on Dawn: "// Obtain the YCbCr info from the device." `device.GetAHardwareBufferProperties(…)`, then
+  `ahb_properties.yCbCrInfo` into the texture's description; the texture format is `OpaqueYCbCrAndroid`.
+* GL: the buffer bound as `GL_TEXTURE_EXTERNAL_OES`, whose extension says "The parameters of the transformation from
+  one basis (e.g. YUV) to RGB (color conversion matrix, sampling offsets, etc) are taken from the EGLImage which is
+  associated with the external texture" (S10).
+
+The page's own colour space reaches the decoder only as a hint: with `kMediaCodecColorSpaceCleanup`
+(`FEATURE_ENABLED_BY_DEFAULT` at 157), `config->container_color_space =
+MediaFormatColorSpace(decoder_config_.color_space_info())` (`media_codec_video_decoder.cc`), and WebCodecs fills
+that from `VideoDecoderConfig.colorSpace` when present (`video_decoder.cc`: "if (config.hasColorSpace()) { …
+media_color_space = color_space->ToMediaColorSpace();"). Android documents `KEY_COLOR_RANGE` only as "An optional
+key describing the range of the component values of the video content" (S11); whether a codec's output buffer
+follows the hint or the bitstream is the codec's (T). **What the page controls on Android is the bitstream**, which
+the ingest writes.
+
+**Chromium, desktop** (S6, the same Blink path). The source image is Skia's YUVA image of the multi-planar shared
+image, its matrix and range from the frame's `gfx::ColorSpace`: "case MatrixID::BT709: *out = range_ ==
+RangeID::FULL ? kRec709_Full_SkYUVColorSpace : kRec709_Limited_SkYUVColorSpace;" (`ui/gfx/color_space.cc`). The
+frame's colour space is the decoder config's when the page sets one. Here the inversion is not needed at 8 bits:
+`copyTo` returns a hardware frame's `NV12` planes (R, [`other-codecs.md`](other-codecs.md)), which are the samples.
+
+**Safari (WebKit `19c5103d`)** (S7). `texImageSource(…, WebCodecsVideoFrame&)` takes the GPU copy only for frames
+whose format is `I420` or `NV12` ("FIXME: We should be able to remove the YUV restriction"), and
+`copyTextureFromVideoFrame` never receives the unpack colour-space state. The range is the pixel format's:
+`kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange` "return EGL_YUV_NARROW_RANGE_EXT", `…FullRange` "return
+EGL_YUV_FULL_RANGE_EXT", any other format first converted "to" `kCVPixelFormatType_420YpCbCr8BiPlanarFullRange`; the
+matrix is the buffer's `kCVImageBufferYCbCrMatrixKey`, and "Assume unknown matrices are ITU R.601." ANGLE does the
+conversion from those EGL hints; its arithmetic was not traced. WebCodecs AV1 on Safari is software when enabled (R,
+`claude/hw-decode:docs/decode/hardware.md` §15), so a hardware AV1 frame reaches WebKit only through `<video>`, whose
+upload path was not traced here.
+
+**Firefox (`mozilla-firefox/firefox` release `dc1259ae`)** (S8). `FromVideoFrame` calls `SurfaceFromVideoFrame(…,
+kDefaultSurfaceFromElementFlags)`; only `FromDomElem` adds "SFE_NO_COLORSPACE_CONVERSION" when
+`unpacking.colorspaceConversion == LOCAL_GL_NONE` (`WebGLTextureUpload.cpp`). The blit's matrix is
+`gfxUtils::YuvToRgbMatrix4x4ColumnMajor(…)`, whose tables are all narrow range ("kBT709NarrowYCbCrToRGB_RowMajor …
+1.16438f"), with the code's own note on IOSurface and DMABuf: "// TODO: The colorspace is known by the IOSurface, why
+override it? // See GetYUVColorSpace/GetFullRange()". The matrix is "uniform mediump MAT4X3 uColorMatrix"
+(`GLBlitHelper.cpp`). On Android the blit reads a `SurfaceTexture`, an `AndroidHardwareBuffer` or an
+`AndroidImageReader` image through EGL, as Chromium's GL path does.
+
+**`createImageBitmap`** is no way around it: "If image is an img element or a Blob object, let val be the value of
+the colorSpaceConversion member of options … If val is "none", output must be decoded without performing any color
+space conversions." (S12). A `VideoFrame` is neither.
+
+**WebGPU.** On Android, Chromium imports the same buffer as `OpaqueYCbCrAndroid` with the device's `yCbCrInfo`
+(above), so `importExternalTexture` sees the same conversion (S6). Its shaders read 8 bits a channel (R,
+[`av1-hardware-unchecked.md`](av1-hardware-unchecked.md) §2).
+
+## 3. Is the map one-to-one on 16…235?
+
+**The ideal map** (R, [`new-options.md`](new-options.md) §3.1): narrow range, p = 255 × (Y − 16) ÷ 219, steps of
+1.1644, one-to-one after any single rounding to nearest. Full range, p = Y. With neutral chroma R = G = B under any
+matrix (same file, §3 step 2).
+
+**Vulkan, the specified case** (S9, `textures.adoc` §Sampler YCbCr Range Expansion): narrow range is "Y′ =
+(C′rgba[G] × (2ⁿ−1) − 16 × 2ⁿ⁻⁸) ÷ (219 × 2ⁿ⁻⁸)", and "The precision of the operations performed during range
+expansion must: be at least that of the source format." The write into the RGBA8 target follows "Conversion From
+Floating-Point to Normalized Fixed-Point": "convertFloatToUint(r,b) returns one of the two unsigned binary integer
+values with exactly b bits which are closest to the floating-point value r. Implementations should: round to
+nearest." (`fundamentals.adoc`). So (D):
+
+* with rounding to nearest and fp32 arithmetic, the 220 values stay 220 (computed: 220 distinct, smallest gap 1);
+* under the "must" alone, a value may go to either neighbour: for p = n + f, 0 < f < 0.836, rounding p up and p +
+  1.1644 down gives both n + 1, so most adjacent pairs *may* merge. The specification does not promise the map;
+* "at least that of the source format" allows an error near 2⁻⁸ of full scale, about one output level, which also
+  permits a merge.
+
+**GL external textures** specify no arithmetic at all (S10). **Desktop Chromium** converts in Skia's shader in float
+(S6; not traced further). **Safari** converts in ANGLE (not traced). **Firefox**: the matrix row for red, 1.16438 Y
++ 1.79274 Cr − 0.97295, gives with Cr = 128/255 exactly the ideal 1.16438 Y − 0.07306 (D: 1.79274 × 0.501961 −
+0.97295 = −0.07306; G and B agree to 6 × 10⁻⁶). Evaluated in fp32 it keeps 220 levels; evaluated in fp16, as a
+`mediump` uniform may be on a phone's GPU, it merges one pair: **219 distinct** (D, numpy's `float16` with a rounding
+after each operation, an emulation of one possible evaluation order, not of a GPU).
+
+**What is monotonic for certain** (D): each step is an increasing affine map and one rounding, so a correct
+implementation never reverses two values; a merge is the failure, and it is visible in the calibration unit (§6) as
+two expected samples sharing one picture value. Where the map merges, the check fails on every frame that holds
+either value, the frame falls back to software, and the route is off on that device (§6).
+
+## 4. The form, and the window at 220 levels
+
+**The form** (the advocate's choice, D from §2–§3):
+
+* 8-bit 4:2:0, both chroma planes 128 (neutral in both ranges: narrow (128 − 128) ÷ 224 = 0, full 128 − 2⁷ = 0 by
+  Vulkan's formulae, S9), AV1 Main profile, the hardware form of
+  [`av1-hardware-unchecked.md`](av1-hardware-unchecked.md) §5;
+* luma `c = 16 + round(v ÷ s)`, s = (2^D − 1) ÷ 219, **studio swing** (`color_range` 0): the only range every engine
+  of §2 inverts, Firefox's included;
+* a colour description written in the sequence header (BT.709 primaries, transfer and matrix) and the same values in
+  `VideoDecoderConfig.colorSpace` with `fullRange: false`, so that no engine falls back to a guess (Safari's "Assume
+  unknown matrices are ITU R.601" is harmless for grey; a guessed *range* is not, T);
+* the ingest's guarantees, checked at ingest on its own decode: every chroma sample 128 (DEPTH8-MEASURE P5 measured
+  it at 8 bits, R) and every decoded luma sample inside 16…235. The second is cell C1's I4 (§9): coding error
+  overshoots at the range's ends, so the ingest either leaves headroom (a smaller range, fewer levels) or codes a
+  frame again at a lower Q until it holds.
+
+**Full range where it is honoured** would give 256 levels (8 bits instead of 7.78): Safari's `420f`, desktop
+Chromium with the config's colour space, an Android codec whose buffer says full. The calibration unit (§6) could
+tell a session which it has, but the stream is coded once for all of them, so the form stays studio (T).
+
+**One step in source units** (D): s = 1023 ÷ 219 = **4.671** on a 10-bit series and 4095 ÷ 219 = **18.70** on a
+12-bit one; [`av1-hardware-unchecked.md`](av1-hardware-unchecked.md) §3.2's 8-bit picture of the 10-bit view has
+4.012 and 16.05. **Display levels a step** (255 across the window), beside that file's table:
+
+| series | W | today's view | unchecked, 256 levels | this route, 220 levels |
+| --- | --- | --- | --- | --- |
+| 10-bit, header window | 512 | 0.50 level a code | 2.0 | 512 ÷ 4.671 = 109.6 inputs; 255 ÷ 109.6 = **2.33** |
+| 10-bit, narrow | 64 | 3.98 | 16.0 | 13.7 inputs; **18.6** |
+| 12-bit, widest header window | 1093 | 0.93 | 3.7 | 58.5 inputs; **4.36** |
+| 12-bit, narrowest header window | 550 | 1.85 | 7.4 | 29.4 inputs; **8.67** |
+| 12-bit, narrow | 100 | 10.2 | 41: 6 grey levels | 5.35 inputs; **47.7: 5 grey levels** |
+
+A step is wider than one display level below W = 255 × s: **1191** source units on a 10-bit series and **4768** on a
+12-bit one, every header window (D). The rounding RMS is 1.363 and 5.401 source units (§8.1), 0.24–0.41 of σ_min on
+the 10-bit volumes and 0.36–0.52 on the 12-bit ones (D, `predictions.json`), against the 256-level cut's 0.20–0.33
+and 0.31–0.44 (R, `claude/depth8:docs/av1/depth-cut-8.md` §2), so the volumes' noise still dithers the steps at the
+header windows by that file's reading (T).
+
+**The difference from the unchecked route is where the rounding sits.** There the 8-bit rounding follows the decode
+and adds to the coding error, so at today's Q the screen exceeds the noise rule's bar (R,
+[`av1-hardware-unchecked.md`](av1-hardware-unchecked.md) §3.2). Here the 220 levels are the coder's input, its
+reconstruction is what the digest covers, and Q is chosen so that every frame's e_N ÷ σ, cut and coding together,
+stays under the bar: what reaches the screen is what was measured.
+
+**Pixel values** are the view's samples: code c reports `round((c − 16) × s)` source units, the view's coding error
+on top as today; the cut adds ± s ÷ 2 = ± 2.34 (10-bit) and ± 9.35 (12-bit) source units of rounding (D).
+
+## 5. The read-back and the check, a cost model (D unless marked)
+
+Per `dbts_b1` frame, 2560 × 3328 = 8 519 680 samples, WebGL2:
+
+1. `texImage2D(VideoFrame)` into an `RGBA8` texture (Chromium's intermediate is `kN32`, 4 bytes a pixel, S6):
+   34 078 720 bytes written on the GPU.
+2. A pass that reads four horizontally adjacent texels with `texelFetch` (no filter), maps each red value through
+   the 256-entry inverse table, and packs the four samples into one `RGBA8` texel: a 640 × 3328 target, 8 519 680
+   bytes.
+3. `readPixels` into a `PIXEL_PACK_BUFFER`, a fence, then `getBufferSubData` once the fence has passed, so the page
+   does not block in `readPixels`, which "is a blocking operation" (R, [`new-options.md`](new-options.md) §3.3, S3
+   there): 8 519 680 bytes across to the page.
+4. XXH3-64 over those bytes against the ingest's digest of the 8-bit luma plane: at the client's measured ~3.3 GB/s
+   (R, `docs/av1/queue.md` row 151, desktop containers), 8 519 680 ÷ 3.3 × 10⁹ = **2.6 ms**.
+5. Paint from the same packed texture (or from the RGBA texture through the table), window table after the inverse.
+
+| per `dbts_b1` frame | today's software view (R) | this route |
+| --- | --- | --- |
+| decode | 133–135 ms, one decoder, the phone | hardware; unknown (§7) |
+| copied out of the decoder | `copyTo`, 2 × 8 519 680 = 17 039 360 B | GPU copy 34 078 720 B, GPU-side |
+| read back to the page | — (the copy is the read) | 8 519 680 B |
+| hashed | 17 039 360 B, ~5.2 ms at 3.3 GB/s | 8 519 680 B, ~2.6 ms |
+
+**On the GPU instead** (WebGPU): `importExternalTexture`, a compute pass reading with `textureLoad`, XXH3-64 in WGSL
+over the recovered samples (R, `claude/hw10-routes:docs/decode/hardware-10bit.md` §5.4 derives it), 8 bytes read back.
+WebGPU's external texture on Android carries the same `yCbCrInfo` (§2), so the inversion and its calibration are the
+same. The GPU hash's time is unknown; XXH3's stripes are sequential within a block, which that file's design
+addresses, not this one.
+
+**Unknown, a phone's:** steps 1–3's time; whether the read-back of 8.5 MB overlaps the next decode; the GPU memory
+(the unchecked route's `R8` store of a `dbts_b1` series is 406 MiB, R; this route keeps no picture past its check
+and paint, but the decoder lends 1–5 frames, R, [`av1-hardware-unchecked.md`](av1-hardware-unchecked.md) §4).
+
+## 6. The calibration unit, and what a failed check does
+
+**The unit** (T, the advocate's design). One AV1 sequence coded at ingest in the view's form and at the series'
+frame size, so that it also proves the decoder takes the size (§7): flat 8 × 8 blocks of each luma value 16…235 in a
+known order, repeated to fill the frame, coded at the finest Q. Its expected decoded samples are known exactly at
+ingest (AV1 decoding is exact, R, [`new-options.md`](new-options.md) §3 step 1), so the table is read off the block
+interiors, value by value. It costs one hardware decode and one read-back a session (and a device, browser and
+decoder). It yields the inverse table, and the route is used only if the 220 expected samples give 220 distinct
+picture values. It is a convenience; every frame is still checked.
+
+**A failed check** (T): the frame is not painted from the hardware picture; it is decoded again in software and
+checked there (the client's existing path when a decoder refuses), and a safety report records which check failed
+(amendment 9's fields). One failure turns the route off for the session: a device whose map merges two levels fails
+every frame that holds them, and a decoder that dithers or enhances fails at random. The order is decode, upload,
+invert, hash, then paint, so the check's latency (steps 1–4 of §5) is inside the frame's.
+
+## 7. Does a phone's hardware decoder take the frame? (new-options §2.1)
+
+The frames need AV1 level 5.0 (`dbts_b1`, 8 519 680 samples; `dbts_c1`, 2 452 688) or 4.x (`dbts_a1`), and
+Android asks a hardware AV1 decoder for level 4.1 at most (R, [`new-options.md`](new-options.md) §2.1). The vendors'
+pages read (S13):
+
+| SoC | the vendor's words on AV1 decode | what it implies for `dbts_b1` (D) |
+| --- | --- | --- |
+| MediaTek Dimensity 9400 | "8K60, 10-bit Video Decode (HEVC/AVC/VP9/AV1)" | 8K (7680 × 4320 = 33 177 600 samples; the page's "7690 x 4320" is its own) holds 2560 × 3328 upright, 3.9× its samples; a level is not named |
+| MediaTek Dimensity 9300 | "Video Playback H.264 HEVC Vp-9 AV1" | AV1 named, no size |
+| Samsung Exynos 2200 | "capable of decoding 4K videos at up to 240fps and 8K videos at up to 60fps. In addition, the MFC includes a power efficient AV1 decoder" | the 8K figure is the codec block's, not tied to AV1 |
+| Qualcomm Snapdragon 8 Gen 3 | page is script-only; its earlier quote "AV1 video playback" (R, [`av1-hardware-unchecked.md`](av1-hardware-unchecked.md) §5) | no size |
+| Galaxy S23's SoC | unsettled (R, `hardware.md` §15) | — |
+
+So **no vendor document read names an AV1 level**, and one ties AV1 to a frame size that holds `dbts_b1`. A decoder
+whose largest size is 3840 × 2160 fails `dbts_b1` and `dbts_c1` in either orientation (R,
+[`av1-hardware-unchecked.md`](av1-hardware-unchecked.md) §5). Android's `getSupportedHeightsFor(2560)` answers it on
+the device (same file, §9 ask 1); the calibration unit at the frame's size answers it in the page (§6).
 
 ## 8. The cloud cells, pre-registered (2026-11-15, before any cell ran)
 
@@ -84,7 +340,7 @@ fails, r falls to the 256-level cut's; (n2) the back map without the offset 16: 
 (n3) chroma 127: I5 fails; (n4) the range counter reading chroma in place of luma: I4's count reads zero on a frame
 built to overshoot.
 
-### 8.2 Cell C2: a second picture (§4), theory's one byte cell
+### 8.2 Cell C2: a second picture (new-options §4; §10 here), theory's one byte cell
 
 On the three timed volumes only (`dbts_a1`, `dbts_b1`, `dbts_c1`), after C1. **Picture A** is `inv220-420` at a
 coarse Q_A ∈ {24, 40}; its decoded reconstruction r_A, mapped back to source units as above (`back(r_A)`). **Picture
@@ -134,3 +390,101 @@ Written by the measuring session before any cell ran. What the host and the harn
 * **A5 · Picture A.** Coded once per (volume, Q_A) as a C1 cell of `inv220-420` (its row kept in `c2.jsonl`), its
   decoded luma kept outside the repository for B's cells; bytes(A) is that row's. The clamped share is counted while
   B's input is written, the same at every Q of a chain.
+
+## 10. Past 8 bits: a second picture (new-options §4, theory)
+
+Theory and cell C2 only; it touches the 2026-11-09 decisions ("the residual dropped", "a split into top and low
+streams discarded", R, `docs/client/design.md` §Decided) and is the owner's to open. What this file adds to
+[`new-options.md`](new-options.md) §4 (D, T):
+
+* Each picture goes through §2–§6 on its own: two hardware decodes, two read-backs and two hashes a shown frame, so
+  §5's per-frame costs double, and the decoder's level bound halves (32 frames a second at level 5.1, R, same file).
+* B's form is the same studio-swing 16…235 picture, so the same calibration table serves both.
+* The sum `back(r_A) + r_B − 126` is formed after both checks pass; either failing sends the frame to software.
+* Bytes: cell C2 (§8.2, §9).
+
+## 11. Its disadvantages
+
+* **7.78 bits on screen**, 16 % coarser than an 8-bit picture: 2.33–8.67 display levels a step at the header windows
+  (§4), and pixel values ± 2.34 or ± 9.35 source units of rounding.
+* **Bytes**: an 8-bit view cost 1.14–1.86× today's (R, DEPTH8-MEASURE P4); 220 levels predicted 0.94–1.38× that
+  (§8.1), measured in §9.
+* **Nothing promises the inversion** (§3): the digest proves each frame, but whether a device passes at all is known
+  only by running it there; the GL external path and Firefox's `mediump` are the likeliest to merge levels.
+* **A device that fails costs a decode twice** for its first frame, then runs in software as today.
+* **The check moves onto the GPU and into a read-back**: 34 MB of GPU copy and 8.5 MB across to the page a frame,
+  unmeasured on a phone (§5).
+* **It needs the decoder to take the frame**, which no vendor document read promises by level (§7).
+* **It is needed only where samples do not come back**: Android Chromium and Firefox. On desktop Chromium the same
+  stream's `NV12` planes come back from `copyTo` (§2), so the inversion adds nothing there.
+* **The cache** keeps checked samples again (the recovered 8-bit plane, 1 byte a sample), unlike the unchecked
+  route; it is a new entry kind beside today's 16-bit samples (T).
+
+## 12. The comparison's columns, and what a phone cell must measure
+
+| column | this option |
+| --- | --- |
+| decode time on a phone | **unknown**; hardware, at most 31.1 ms a `dbts_b1` frame by level 5.0's floor if the decoder takes it (R, [`av1-hardware-unchecked.md`](av1-hardware-unchecked.md) §5), plus §5's upload, pass, read-back and ~2.6 ms of hash (R rate, desktop) |
+| bytes | the 220-level form's: predicted 0.94–1.38× the 8-bit view's, so 1.07–2.57× today's (§8.1); measured in §9 |
+| precision on screen | **7.78 bits** (220 levels): 4.67 source units a step on 10-bit series, 18.70 on 12-bit |
+| checked | **yes**, every frame, the digest of the decoded 8-bit luma plane (§5, §6) |
+| window/level and tools functional | **yes**: a table over 220 inputs; values reported as the view's samples (§4) |
+| ships today | the APIs ship (WebCodecs, WebGL2, WebGPU on Chrome Android; Firefox's WebGL); the map's being one-to-one, and the decoder's taking the frame, are **device facts** |
+
+**Asks for the next phone round** (one line each, for MOBILE-DECODE-COMPARE to carry into
+`claude/phone-protocol:docs/phone-rows/next-round.md`; [`new-options.md`](new-options.md) §7's asks 1–3 stand):
+
+1. The calibration unit (§6) at `dbts_b1`'s size through `prefer-hardware` into WebGL2 and WebGPU: the 220 picture
+   values, distinct or not; with `VideoDecoderConfig.colorSpace` absent, studio and full; `chrome://gpu`'s Vulkan or
+   GL backend recorded.
+2. One `dbts_b1` unit in the §4 form: every frame recovered, hashed, against its digest; the share that pass.
+3. §5's steps 1–4 timed apart per frame, interleaved against `prefer-software`'s `copyTo` and hash on the same unit.
+4. The same in Firefox for Android, if its WebCodecs offers hardware AV1 (its `isConfigSupported` answer recorded).
+
+## 13. Sources
+
+Read 2026-11-15. Each 12-hex prefix is the SHA-256 of the copy read.
+
+* **S6** Chromium, `chromium.googlesource.com/chromium/src/+/refs/tags/157.0.8103.79/` and `…/158.0.8127.36/` (today's
+  Android stable by `chromiumdash.appspot.com`): `third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc`
+  (157 `b89b445caeea`) `GetCurrentUnpackState`, `CopyVideoFrameTexturesToGLTextureViaIntermediateSI`,
+  `TexImageHelperMediaVideoFrame`; `media/gfx/paint_canvas_video_renderer.cc` (`3b64cf03f246`)
+  `CopyVideoFrameToSharedImage`; `gpu/command_buffer/service/copy_shared_image_helper.cc` (`48d50fdca19b`)
+  `CopySharedImage`; `gpu/command_buffer/service/shared_image/video_image_reader_image_backing.cc` (`db979e9d62c6`);
+  `gpu/vulkan/vulkan_image_android.cc` (`09124ef1cd3d`) lines 185–192; `media/base/video_frame.cc` (`663e682271f4`)
+  `CompatRGBColorSpace`; `ui/gfx/color_space.cc` (`13b9ccf09f04`) `ToSkYUVColorSpace`;
+  `media/gpu/android/media_codec_video_decoder.cc` (`55fb0c80da25`) lines 706–713;
+  `media/base/media_switches.cc` (`08f2faab9844`) line 1306;
+  `third_party/blink/renderer/modules/webcodecs/video_decoder.cc` (`ac73aca73b90`) lines 542–546. The functions
+  quoted from the first three files and `CompatRGBColorSpace` are identical at 158 (diffed).
+* **S7** WebKit, `github.com/WebKit/WebKit` at `19c5103d1133bb2e0749728e49a506993dde3498`:
+  `Source/WebCore/platform/graphics/cocoa/GraphicsContextGLCocoa.mm` (`e5fd4587c0c2`) `yuvSampleRangeHint`,
+  `yuvColorSpaceHint`, `copyFromYUVVideoFrameSource`, `copyTextureFromVideoFrame`;
+  `Source/WebCore/html/canvas/WebGLRenderingContextBase.cpp` (`5e0ee6525794`) `isVideoFrameFormatEligibleToCopy`,
+  `texImageSource(…, WebCodecsVideoFrame&)`.
+* **S8** Firefox, `github.com/mozilla-firefox/firefox` branch `release` at `dc1259aee26fc94e00047ad4da433ceac1583eb4`:
+  `dom/canvas/WebGLTextureUpload.cpp` (`161666e2e2a0`) `FromVideoFrame`, `FromDomElem`; `gfx/gl/GLBlitHelper.cpp`
+  (`7c2cbe71fc90`) lines 203, 638–639, 1444–1447, 1681–1684; `gfx/thebes/gfxUtils.cpp` (`75baa2ed4ac8`) lines
+  1218–1305.
+* **S9** Vulkan specification source, `github.com/KhronosGroup/Vulkan-Docs` at
+  `f7de774cace1509af0f10b8d859c973b5354ff62`: `chapters/textures.adoc` (`b26545e6d398`) §Sampler YCbCr Range
+  Expansion and §Model Conversion; `chapters/fundamentals.adoc` (`0e505b495d75`) §Conversion From Floating-Point to
+  Normalized Fixed-Point; `chapters/memory.adoc` `VkAndroidHardwareBufferFormatPropertiesANDROID`.
+* **S10** OES_EGL_image_external, `github.com/KhronosGroup/OpenGL-Registry` at
+  `6af574a14089ccfee87efe230ebcdd8742859813`, `extensions/OES/OES_EGL_image_external.txt` (`c567737b7bba`), lines
+  244–260.
+* **S11** Android, `developer.android.com/reference/android/media/MediaFormat` (`b2880c26972a`), "Last updated
+  2026-08-03 UTC": `KEY_COLOR_RANGE`.
+* **S12** HTML Living Standard, "Last Updated 14 November 2026",
+  `html.spec.whatwg.org/multipage/imagebitmap-and-animations.html` (`d919b41466ca`): `ImageBitmapOptions`, the
+  `createImageBitmap` steps.
+* **S13** MediaTek, `mediatek.com/products/smartphones/mediatek-dimensity-9400` (`75795052eddf`) and
+  `…/smartphones-2/mediatek-dimensity-9300` (`be7228ccbc10`); Samsung Semiconductor,
+  `semiconductor.samsung.com/processor/mobile-processor/exynos-2200/` (`34b4cbb96696`); Qualcomm's Snapdragon 8
+  Gen 3 page fetched script-only (no text). Vendor pages change without notice; the quotes are the check.
+
+Results of this repository cited (R): [`new-options.md`](new-options.md) §2.1, §3, §4, §7;
+[`av1-hardware-unchecked.md`](av1-hardware-unchecked.md) §2–§5, §9; [`other-codecs.md`](other-codecs.md);
+`claude/depth8:docs/av1/depth-cut-8.md` §2, §7, §9 (`ddd3ec0e`); `claude/hw-decode:docs/decode/hardware.md` §15;
+`claude/hw10-routes:docs/decode/hardware-10bit.md` §5.4; `docs/av1/queue.md` row 151; `docs/client/design.md`
+§Decided.
