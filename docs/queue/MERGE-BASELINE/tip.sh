@@ -26,4 +26,5 @@ for tg in server web; do
     --build-arg https_proxy="$HTTPS_PROXY" --build-arg http_proxy="${HTTP_PROXY:-$HTTPS_PROXY}" . > "$O/image-$tg.log" 2>&1; rc=$?
   echo "image-$tg $rc $((SECONDS-t))s $(docker image inspect -f '{{.Size}}' "base-$b-$tg" 2>/dev/null)" >> "$O/progress"
 done
+/home/user/scratch-base/counts.sh "$b" > "$O/counts.md" 2>&1; echo "counts $?" >> "$O/progress"
 echo "$(ts) end" >> "$O/progress"
