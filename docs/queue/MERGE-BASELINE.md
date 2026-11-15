@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-15T12:41Z
-heartbeat: 2026-11-15T14:01Z
+heartbeat: 2026-11-15T14:31Z
 outputs: claude/work-ledger:docs/queue/MERGE-BASELINE-report.md (pending)
 ## Resume
 Running sequentially in one container: per tip (unified-client, unified-codecs, unified-server, unified-pacs,

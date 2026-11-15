@@ -123,6 +123,21 @@ libxkbcommon-x11-0 strace`; the decoder vendor fetched per tip. Not installed: F
 | deploy image, `server` target | not built here: /bin/sh -c apt-get update && apt-get install -y --no-install… exit 100 — the container's proxy refuses plain-HTTP apt (405) | `docker build -f deploy/Containerfile --target server` (BuildKit, --network host, the proxy's CA as build_ca) |
 | deploy image, `web` target | 94.9 MB (94942938 bytes) | `docker build -f deploy/Containerfile --target web` (BuildKit, --network host, the proxy's CA as build_ca) |
 
+Test counts, each `cargo test` line of the gate run again without `--quiet`:
+
+| gate line | tests |
+| --- | --- |
+| `cargo test -p fod -p frame-envelope -p series-bundle -p pack-series -p check-fastpath --quiet` | 20 passed, 0 failed, 0 ignored |
+| `cargo test -p from-parser --quiet` | 2 passed, 0 failed, 0 ignored |
+| `cargo test -p native-client --features decode --quiet -- decode:: view::` | 11 passed, 0 failed, 0 ignored |
+| `cargo test -p native-client --quiet` | 16 passed, 0 failed, 1 ignored |
+| `cargo test -p series-server --features lab-classify --quiet -- classify` | 2 passed, 0 failed, 0 ignored |
+| `cargo test -p series-server --features lab-levers --quiet -- held stalled lab_lever` | 5 passed, 0 failed, 0 ignored |
+| `cargo test -p series-server --features telemetry --quiet -- --nocapture` | 137 passed, 0 failed, 0 ignored |
+| `cargo test -p series-server --quiet -- --nocapture` | 134 passed, 0 failed, 0 ignored |
+| `cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench -p cc-classify -p server-telemetry --quiet` | 68 passed, 0 failed, 0 ignored |
+| `env VK_ICD_FILENAMES="$lvp" cargo test -p native-client --features paint --lib --quiet paint::` | 2 passed, 0 failed, 0 ignored |
+
 The JavaScript and Python suites as the gate printed them (its `run 1` keeps a step's last line):
 
     (×6) all tests passed
@@ -222,6 +237,95 @@ Test counts, each `cargo test` line of the gate run again without `--quiet`:
 | `cargo test -p series-server --features lab-levers --quiet -- held stalled lab_lever` | 5 passed, 0 failed, 0 ignored |
 | `cargo test -p series-server --features telemetry --quiet -- --nocapture` | 143 passed, 0 failed, 0 ignored |
 | `cargo test -p series-server --quiet -- --nocapture` | 140 passed, 0 failed, 0 ignored |
+| `cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench -p cc-classify -p server-telemetry --quiet` | 68 passed, 0 failed, 0 ignored |
+
+The JavaScript and Python suites as the gate printed them (its `run 1` keeps a step's last line):
+
+    (×6) all tests passed
+    ask-during-fill (downloader): 3/3 checks passed
+    ask-during-fill (downloader-wasm): 3/3 checks passed
+    ask-during-fill (downloader-ws): 3/3 checks passed
+    ask-during-fill (ts): 3/3 checks passed
+    ask-during-fill (wasm): 3/3 checks passed
+    ask-during-fill (ws): 3/3 checks passed
+    contract over ts: 58/58 checks passed through the downloader
+    contract over wasm: 58/58 checks passed through the downloader
+    contract: 238/238 checks passed across 3 implementations and the race; 4 not applicable
+    dispatch over ts: 789/789 checks passed through the downloader
+    dispatch over wasm: 102/102 checks passed through the downloader
+    order: all passed
+    provenance: 17/17 cases
+    refusals (ts): 64/64 refused with the server's reason, none lost
+    refusals (wasm): 64/64 refused with the server's reason, none lost
+    refusals (ws): 64/64 refused with the server's reason, none lost
+    voi: 12/12 passed
+    writer's split and merge: 142/142 cells exact, 20 with a top over 12 bits refused by name, as are 17 bits, k = 9 and a default over 14 bits
+
+### `claude/unified-pacs` at `7afeb9cac2`
+
+| measure | result | command |
+| --- | --- | --- |
+| builds | transport WASM 0, decode WASM 0, ingest tools 0 (exit codes) | `client/transport/wasm/build.sh`, `client/decode/wasm/build/build.sh`, `ingest/tools.sh` |
+| full gate | GATE FAILED: node scripts/perf_counts.mjs; 37 steps | `PYTHON=python3.13 scripts/gate.sh` |
+| gate's skips | none | the gate's recap, and its in-step `skipped:` lines |
+| default `cargo build` warnings | 1 (use of deprecated associated function `tokio::io::unix::Async) | `cargo build` |
+| `scripts/check_lab_absent.sh` | not on this tip | as named |
+| `scripts/comment_budget.sh` | exit 0: comment budget ok | as named |
+| deploy image, `server` target | not built here: /bin/sh -c apt-get update && apt-get install -y --no-install… exit 100 — the container's proxy refuses plain-HTTP apt (405) | `docker build -f deploy/Containerfile --target server` (BuildKit, --network host, the proxy's CA as build_ca) |
+| deploy image, `web` target | not built here: /bin/sh -c if [ -s /run/secrets/build_ca ]; then export CARG… exit 100 — the container's proxy refuses plain-HTTP apt (405) | `docker build -f deploy/Containerfile --target web` (BuildKit, --network host, the proxy's CA as build_ca) |
+
+Test counts, each `cargo test` line of the gate run again without `--quiet`:
+
+| gate line | tests |
+| --- | --- |
+| `cargo test -p carrier --features quic --quiet` | 18 passed, 0 failed, 0 ignored |
+| `cargo test -p carrier --quiet` | 17 passed, 0 failed, 0 ignored |
+| `cargo test -p fod -p frame-envelope -p from-disk -p series-bundle -p study-db -p pack-series -p check-fastpath -p pacs-verify --quiet` | 41 passed, 0 failed, 0 ignored |
+| `cargo test -p from-parser --quiet` | 2 passed, 0 failed, 0 ignored |
+| `cargo test -p pacs-receiver --quiet -- --nocapture` | 49 passed, 0 failed, 0 ignored |
+| `cargo test -p sender --quiet` | 11 passed, 0 failed, 0 ignored |
+| `cargo test -p series-server --features lab-classify --quiet -- classify` | 2 passed, 0 failed, 0 ignored |
+| `cargo test -p series-server --features lab-levers --quiet -- held stalled lab_lever` | 5 passed, 0 failed, 0 ignored |
+| `cargo test -p series-server --features telemetry --quiet -- --nocapture` | 154 passed, 0 failed, 0 ignored |
+| `cargo test -p series-server --quiet -- --nocapture` | 151 passed, 0 failed, 0 ignored |
+| `cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench -p cc-classify -p server-telemetry -p metadata-store --quiet` | 77 passed, 0 failed, 0 ignored |
+
+The JavaScript and Python suites as the gate printed them (its `run 1` keeps a step's last line):
+
+    (×6) all tests passed
+    contract over ts: 58/58 checks passed through the downloader
+    contract over wasm: 58/58 checks passed through the downloader
+    contract: 244/244 checks passed across 3 implementations and the race; 4 not applicable
+    dispatch over ts: 789/789 checks passed through the downloader
+    dispatch over wasm: 102/102 checks passed through the downloader
+    order: all passed
+    provenance: 17/17 cases
+    voi: 12/12 passed
+    writer's split and merge: 142/142 cells exact, 20 with a top over 12 bits refused by name, as are 17 bits, k = 9 and a default over 14 bits
+
+### `claude/line-hygiene` at `8d5112fd74`
+
+| measure | result | command |
+| --- | --- | --- |
+| builds | transport WASM 0, decode WASM 0, ingest tools 0 (exit codes) | `client/transport/wasm/build.sh`, `client/decode/wasm/build/build.sh`, `ingest/tools.sh` |
+| full gate | GATE OK in 407 s; 38 steps | `PYTHON=python3.13 scripts/gate.sh` |
+| gate's skips | the viewer's cross-codec arm and Firefox — they need the DICOM ingest's bundles and a GL display (client/README.md §The viewer) | the gate's recap, and its in-step `skipped:` lines |
+| default `cargo build` warnings | 0 () | `cargo build` |
+| `scripts/check_lab_absent.sh` | not on this tip | as named |
+| `scripts/comment_budget.sh` | exit 0: comment budget ok | as named |
+| deploy image, `server` target | not built here: /bin/sh -c apt-get update && apt-get install -y --no-install… exit 100 — the container's proxy refuses plain-HTTP apt (405) | `docker build -f deploy/Containerfile --target server` (BuildKit, --network host, the proxy's CA as build_ca) |
+| deploy image, `web` target | 94.8 MB (94842850 bytes) | `docker build -f deploy/Containerfile --target web` (BuildKit, --network host, the proxy's CA as build_ca) |
+
+Test counts, each `cargo test` line of the gate run again without `--quiet`:
+
+| gate line | tests |
+| --- | --- |
+| `cargo test -p fod -p frame-envelope -p series-bundle -p pack-series -p check-fastpath --quiet` | 19 passed, 0 failed, 0 ignored |
+| `cargo test -p from-parser --quiet` | 2 passed, 0 failed, 0 ignored |
+| `cargo test -p series-server --features lab-classify --quiet -- classify` | 2 passed, 0 failed, 0 ignored |
+| `cargo test -p series-server --features lab-levers --quiet` | 140 passed, 0 failed, 0 ignored |
+| `cargo test -p series-server --features telemetry --quiet -- --nocapture` | 133 passed, 0 failed, 0 ignored |
+| `cargo test -p series-server --quiet -- --nocapture` | 130 passed, 0 failed, 0 ignored |
 | `cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench -p cc-classify -p server-telemetry --quiet` | 68 passed, 0 failed, 0 ignored |
 
 The JavaScript and Python suites as the gate printed them (its `run 1` keeps a step's last line):

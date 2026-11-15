@@ -5,7 +5,7 @@ b=$1; W=/home/user/tips/$b; O=/home/user/scratch-base/$b
 mkdir -p "$O"; cd /home/user/wt-pacs
 [[ -d $W ]] || git worktree add --detach "$W" "origin/claude/$b" >/dev/null 2>&1
 cd "$W"; git rev-parse HEAD > "$O/commit"
-export PYTHON=python3.13 CARGO_TARGET_DIR=/home/user/target-base NODE_PATH=/opt/node22/lib/node_modules
+export PYTHON=python3.13 CARGO_TARGET_DIR=/home/user/target-$b NODE_PATH=/opt/node22/lib/node_modules
 ts() { date -u +%H:%M:%SZ; }
 echo "$(ts) start" > "$O/progress"
 [[ -f client/transport/wasm/build.sh ]] && bash client/transport/wasm/build.sh > "$O/wasm-transport.log" 2>&1; echo "transport-wasm $?" >> "$O/progress"
