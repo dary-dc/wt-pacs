@@ -1,11 +1,12 @@
 state: started
 started: 2026-11-15T19:17Z
-heartbeat: 2026-11-15T19:17Z
-outputs: claude/mobile-decode (docs/decode/mobile/README.md), PR 397 (draft, existing)
+heartbeat: 2026-11-15T19:21Z
+outputs: claude/mobile-decode ab0dddf0 (docs/decode/mobile/README.md), PR 397 (draft, existing)
 
 ## Resume
 
-Claimed. Next: read every docs/decode/mobile/*.md on origin/claude/mobile-decode, write README.md (the table, what
-the sources decide alone, the asks, a leaning), push; then the asks in claude/phone-protocol next-round.md §10.
+README.md pushed (ab0dddf0). Next: asks M4–M22 into claude/phone-protocol docs/phone-rows/next-round.md §Decode-option
+cells (one line each) and one line in its §10; then docs/lines/client.md on claude/mobile-decode; then done.
+Brief and amendments re-read at this push: unchanged.
 
 ## Result
