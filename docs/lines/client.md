@@ -70,6 +70,10 @@ exact frame bit for bit, and only checked claims on screen.
   in-window error; at the view's Q 8 G 8 error 1.28–1.45× (median 1.36), 19 DBT volumes. Its WASM decode is 1.12–1.21×
   the lossless frame's (not faster) and 0.41–0.50× dav1d-WASM's view. Checked only from the shipped WASM build: node
   and Chromium agree, native x86 differs by ±1. Owed, three phone cells (its §10).
+  The comparison ([`../decode/mobile/README.md`](../decode/mobile/README.md), 2026-11-15, documents only): one table
+  across the nine files; only software and GPU-compute routes keep full precision today, hardware is checked only at
+  8 bits by inversion, AV1 software is the only row timed on a phone; leaning: AV1 software stays the route of record
+  until cell 1, M20 and M1–M7 report. Owed: asks M4–M22 in `claude/phone-protocol:docs/phone-rows/next-round.md`.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
