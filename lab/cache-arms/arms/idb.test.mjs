@@ -366,5 +366,5 @@ const readBack = async (a, i) => {
 }
 
 await tick();
-console.log(failed ? `${failed} failed` : "ok");
+console.log(failed ? `${failed} failed` : "cache-arms: IDB holds its design and its failure rows");
 process.exit(failed ? 1 : 0);
