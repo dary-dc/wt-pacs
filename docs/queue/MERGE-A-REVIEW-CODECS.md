@@ -1,21 +1,20 @@
-state: started
+state: done
 started: 2026-11-15T18:41Z
-heartbeat: 2026-11-15T18:50Z
-outputs: findings in PR 398's body (in progress)
+heartbeat: 2026-11-15T19:04Z
+outputs: findings in PR 398's body (§Review); claude/merge-a-codecs fc8c427b (docs/lines/codecs.md Open 11); raw logs in docs/queue/MERGE-A-REVIEW-CODECS/
 ## Resume
-Done: frozen list 34/34 tips match; (b) remerge.sh: every merge's tree equals git merge-tree's outside its
-conflicted files, conflicted sets equal the plan's §3 A1 column; code resolutions (de18dbf0, a57236ba) read: as cited.
-lost-lines.txt: lines of either side absent from each conflicted file's result. Next: read the big ones
-(a4157c50 docs/av1/webcodecs-profiles.md tip side 98/310 lost; 928aaaf1 docs/lines/codecs.md), then (c) the gate.
-Scripts: docs/queue/MERGE-A-REVIEW-CODECS/{remerge.sh,lost.sh} <unified-codecs> <merge-a-codecs>.
-(a) read: a4157c50's webcodecs-profiles.md (tip's = branch's first commit 2561968a; branch's later fix taken: right),
-line-doc merges carry what their messages say (spot-checked Open 8-11, decisions 0.6, the 12-bit claim). No finding yet.
-Now (c): docs/queue/MERGE-A-REVIEW-CODECS/run.sh (MERGE-BASELINE's tip.sh on a worktree of a47b72bcd1, its own
-CARGO_TARGET_DIR; prereqs: apt nginx mesa-vulkan-drivers xdotool libxkbcommon-x11-0, pip meson==1.9.1 then
-ingest/requirements.txt separately, rustup wasm32, cargo install wasm-pack 0.15.0). Then compare to the baseline's
-unified-codecs table and MERGE-A-CODECS's; write findings into PR 398's body.
-Static measures (static.md) equal PR 398's table but docs 41 949 (PR says 41 945, its 97d7c410 run; a47b72bc adds 4).
-Fix commits 3d116d83, 97d7c410, a47b72bc read: each does what it says only. Gate: the decoder build needs dockerd, and Docker Hub answered 429; dockerd with registry-mirrors mirror.gcr.io
-(/etc/docker/daemon.json; same pinned digest) then run.sh again, restarted ~18:53Z.
-Finding so far: PR 398's body ends with a Generated-by line and session link (standing rules forbid it): drop on edit.
+Done. Nothing owed by this row. Next for this file's queue: MERGE-B once MERGE-A-REVIEW-SERVER and -CLIENT are done
+with no blocker open.
 ## Result
+Reviewed claude/merge-a-codecs at a47b72bcd1 (draft PR 398): **no blocker**.
+* (a) 34/34 second parents are the frozen list's tips in order; conflicted files equal the plan's §3 A1 column; the
+  code resolutions (merges 12, 21) and doc resolutions (31 and the line docs) read as their messages say.
+* (b) Every merge's tree equals git merge-tree's mechanical merge outside its conflicted files (remerge.sh); -s ours
+  trees unchanged; no marker, no deletion; the four non-merge commits change only what they name.
+* (c) Full gate OK, 37 steps, suite lines and steps identical to the baseline, its one skip; cargo test counts equal
+  (19, 2, 2, 5, 138, 135, 68); one build warning, the baseline's; comment budget ok. demo-check.mjs not on this tip.
+* (d) The gate's two absence checks OK; check_lab_absent.sh not on this tip.
+* For COMPLEXITY-AUDIT: stallMs a lab knob in a product file; run.mjs's none/plain; 206 MB of lab rows added (39
+  files over 1 MB). PR 398's body had a Generated-by line and session link: removed.
+Fixtures: the repository's for the gate; no demo series; one 4-core cloud host, no GPU, headless Chromium (playwright
+1.63.0), no Firefox; the decoder image's base pulled through mirror.gcr.io at the pinned digest (Docker Hub 429).
