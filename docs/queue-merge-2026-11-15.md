@@ -55,6 +55,7 @@ unwanted code … You may simply proceed with what you consider best." Times UTC
 | COMPLEXITY-AUDIT | MERGE-B-REVIEW done with no blocker open | `claude/work-ledger:docs/queue/COMPLEXITY-AUDIT-report.md` |
 | UNIFIED-CLEAN | COMPLEXITY-AUDIT done | `claude/unified` (each cleaning its own commit) |
 | UNIFIED-CLEAN-REVIEW | UNIFIED-CLEAN done | findings in the PR body |
+| PR-TRIAGE | MERGE-B-REVIEW done with no blocker open | `claude/work-ledger:docs/queue/PR-TRIAGE-report.md` |
 
 At most six rows of this file run at once. No session reviews a row whose commits it wrote.
 
@@ -117,6 +118,15 @@ owner's yes) or a mechanical cleaning (the plan's §6 items 1, 2, 4, 6).
 
 The plan's §6 items 1, 2, 4, 5, 6 and the audit's mechanical items, each its own commit, a failing check first where
 one exists; removals only where the owner said yes. Then the gate and the browser checks.
+
+### PR-TRIAGE (read only; a list for the owner's yes)
+
+Every open PR (264 on 2026-11-15) against `claude/unified` once MERGE-B-REVIEW passes, in one table: **carried** (its
+head is an ancestor of `claude/unified`: close it, saying it landed there), **proposal waiting on a named decision**
+(which decision, which line doc or queue row owns it, and whether one of the client queue's open questions decides it:
+the mobile decode comparison, the report study, the cache run), **needs a fix first** (which review asked), or
+**superseded** (by what). One-screen summary first: the counts per group, then the proposals, each with its decision.
+Closing is the owner's; the row closes nothing.
 
 ### UNIFIED-CLEAN-REVIEW
 
