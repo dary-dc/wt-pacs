@@ -419,3 +419,23 @@ is *derived*, not measured: cell 3's load does more than an 11-11 load did).
 
 Nothing here asks the phone tooling for more than §10 already lists, except finding 1's `adb` setting (the laptop's
 script) and finding 6's placement. Owner: finding 2's first-picture bound; PRs 376 and 378 in the run commit (§1).
+
+**Fixed** (PHONE-NEXT-PROTOCOL-FIX, 2026-11-15, by a session that wrote neither the protocol nor its review; the
+review above stays as written; sources re-fetched 2026-11-15):
+
+* 1 — `ad3d1157`: §3, the stay-on setting set to 7 by the laptop's script before the press and restored after
+  (`Settings.Global` and `BatteryManager` quoted); the wake lock the second line, released at each load's document
+  (§11.2 quoted); §10 item 3's line. The `settings` command itself is not sourced: the dry run checks it reads back.
+* 2 — `edba919e`: cell 3's guard in two forms, (a) a 52 ms first-picture bound derived from `view-worker-start.md`,
+  (b) the first picture alone; the choice is the owner's, before the round.
+* 3 — `edba919e`: cell 2 pooled always (16 rounds, 13 of 16), per series reported deciding nothing; no rounds added.
+* 4 — `ad3d1157`: one untimed `logcat` check before cell 1, or its route reads *not read*.
+* 5 — `edba919e`: *B faster* and C2 against A + B *no difference shown* predicted; C1 recorded, deciding nothing.
+* 6 — `ad3d1157`: §10 item 5's line (the lever on the viewer's thread, through its lab gate); the `isTrusted` note in
+  cell 3.
+* 7 — `ad3d1157`: cell 5's departure sourced from Android's Direct Boot page.
+* 8 — `ad3d1157`: §2 flags both reads *not sourced*, checked in the dry run, else *not read*.
+* 9 — `edba919e`: §0 and §6 at ~2 h 20 min; cell 1 says its three rows do not balance carry-over. The review's
+  "~2 min more" for the full square is ~10 min (40 loads × 15 s), so the three rows stay.
+
+No asks from MOBILE-DECODE-COMPARE yet (not run), so §10 lists none.
