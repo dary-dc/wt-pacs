@@ -23,7 +23,7 @@ ADB = os.environ.get("ADB", "adb")
 STAY_ON = "stay_on_while_plugged_in"
 # AC | USB | wireless, next-round.md §3; the dock's 8 left out.
 STAY_ON_ALL = "7"
-PAGE_KEYS = ("cell", "arm", "press", "stall")
+PAGE_KEYS = ("cell", "arm", "press", "seq", "steps", "cineS", "stall")
 
 
 def load_plan(path: Path) -> dict:

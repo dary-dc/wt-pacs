@@ -34,6 +34,8 @@ const loads = [
   { url: viewer(8765, "page"), cell: "2", arm: "A" },
   { url: viewer(8765, "worker"), cell: "2", arm: "A" },
   { url: viewer(8765, "page"), cell: "2", arm: "A", press: "lossless" },
+  { url: viewer(8765, "page"), cell: "3", arm: "page", seq: "view", steps: 3, cineS: 2 },
+  { url: viewer(8765, "worker"), cell: "3", arm: "worker", seq: "view", steps: 3, cineS: 2 },
 ];
 const head = execFileSync("git", ["-C", ROOT, "rev-parse", "HEAD"]).toString().trim();
 const blocks = [{ name: "wifi", servers: [quic(4433, "synth-q8-g8"), quic(4434, "synth"), page(8765, 4433, beacon), page(8767, 4499, beacon)], loads }];
@@ -77,14 +79,25 @@ check(events().some((e) => e.event === "round ended"), "one press runs the plan 
 check(verdicts.every(Boolean), `every load has its verdict (${verdicts.map((v) => (v ? (v.ok ? "ok" : v.void ?? "failed") : "none")).join(" ")})`);
 check(verdicts[2]?.ok === false && !verdicts[2]?.void && verdicts.slice(4).every((v) => v?.ok), "a load made to fail is recorded and the next taken");
 check(verdicts[3]?.void === "stopped", `a stall in the runner's timers marks its load VOID: stopped (${verdicts[3]?.why})`);
-check([0, 1, 4, 5, 6].every((k) => verdicts[k]?.ok && verdicts[k].gapMs < 2000), "the other loads pass with their timers steady");
+check([0, 1, 4, 5, 6, 7, 8].every((k) => verdicts[k]?.ok && verdicts[k].gapMs < 2000), "the other loads pass with their timers steady");
 const locks = loads.map((_, k) => of(k, "wakeLock"));
 check(locks.every((l) => l.length && l.every((w) => ["acquired", "refused", "released"].includes(w.event))),
   `each load records its wake lock (${[...new Set(locks.flat().map((w) => `${w.event}${w.error ? `: ${w.error}` : ""}`))].join("; ")})`);
 const filled = loads.map((_, k) => of(k, "load")[0]);
-check([0, 1, 3, 4, 5, 6].every((k) => filled[k]?.fillMs > 0 && filled[k].frames.length === 20 && filled[k].frames.every((f) => f.decodeMs > 0 && f.kb > 0)
-  && filled[k].cell === "2" && filled[k].counted === true), "each filled load's record carries its fill, its frames' wire KB and decode ms, its cell");
+check([0, 1, 3, 4, 5, 6, 7, 8].every((k) => filled[k]?.fillMs > 0 && filled[k].frames.length === 20 && filled[k].frames.every((f) => f.decodeMs > 0 && f.kb > 0)
+  && filled[k].cell === loads[k].cell && filled[k].counted === true), "each filled load's record carries its fill, its frames' wire KB and decode ms, its cell");
 check([0, 1, 6].every((k) => of(k, "label").some((l) => l.quality === "lossless")), "each lossless press reaches the exact frame");
+for (const k of [7, 8]) {
+  const steps = of(k, "frameChange")[0]?.steps ?? [];
+  check(steps.length === 6 && steps.filter((s) => s.busy).length === 3 && steps.every((s) => s.ms > 0 && s.ms < 10000),
+    `cell 3, ${loads[k].arm} view: each dispatched step to its frame painted, idle and busy (${steps.map((s) => Math.round(s.ms)).join(" ")} ms)`);
+  const cine = of(k, "cine");
+  check(cine.length === 2 && cine.every((c) => c.due > 0 && c.painted > 0), `cine idle and busy: painted against due (${cine.map((c) => `${c.painted}/${c.due}`).join(", ")})`);
+  const exact = of(k, "exactFrame");
+  check(exact.length === 2 && exact[0].i !== exact[1].i && exact.every((e) => e.ms > 0 && !e.failure), `exact-frame latency idle and busy, on two frames (${exact.map((e) => Math.round(e.ms)).join(", ")} ms)`);
+  const busy = of(k, "busy");
+  check(busy.filter((b) => b.on).length === 3 && busy.filter((b) => b.on === false).every((b) => b.tasks > 0), "the busy lever on and off three times, its tasks run on the viewer's thread");
+}
 const adb = readFileSync(`${dir}/adb.log`, "utf8").trim().split("\n");
 check(adb.filter((l) => l === "start-server").length === 1 && adb.filter((l) => l.startsWith("logcat -d")).length === loads.length + 1,
   "one adb server; logcat read once before the press and after each load");

@@ -192,6 +192,14 @@ else
   skip "optimal quality's test needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
 fi
 
+step "lab: the device round, headless against the real viewer and servers on a synthetic pair; adb a fake, no phone"
+if [[ $browser -eq 1 && -f "$INGEST_BUILD/payload/libdecode.so" && -x "$INGEST_BUILD/aom-3.15.1/bin/aomenc" ]] \
+  && "$PYTHON" -c "import numpy, xxhash" 2>/dev/null; then
+  run 1 env PYTHON="$PYTHON" BUILD="$INGEST_BUILD" bash lab/devices/round_headless.sh
+else
+  skip "the device round's browser test needs the browser, ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
+fi
+
 step "client: the native core's decode — every committed frame digest, through ingest/tools.sh's dav1d and OpenJPH — and its view module's want, store, credits and hand-over"
 if [[ -f "$INGEST_BUILD/payload/libdecode.so" ]]; then
   run 1 cargo test -p native-client --features decode --quiet -- decode:: view::
@@ -212,6 +220,9 @@ run 1 node lab/viewer/trace.test.mjs
 step "lab: the device kit's plan, bundle reader, collector and server start; the prebuilt recipe's server stage is the Containerfile's"
 run 1 node lab/devices/plan.test.mjs
 run 1 python3 lab/devices/collector_test.py
+run 1 node lab/devices/beacon.test.mjs
+run 1 node lab/devices/round.test.mjs
+run 1 python3 lab/devices/round_test.py
 run 1 sh deploy/server_start_test.sh
 
 step "lab: M5's rule on made-up rows: each in-hand path barred on its own, the busy cell's A/A"
