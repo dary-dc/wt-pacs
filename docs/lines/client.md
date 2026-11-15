@@ -36,8 +36,9 @@ exact frame bit for bit, and only checked claims on screen.
   not ready for CACHE-RUN, seven blockers (OPFS-SYNC's reads first never runs; OPFS-ASYNC's late refusal lost;
   CACHESTORAGE's own handle holding the evicted space, so E's late space is its build's; four in the harness: L's +5 s
   sample, K's `kept` bar, L's bars against `none`, the floor inside L's memory window). All seven fixed 2026-11-15,
-  each with a test failing first and mutated (the review's §Fixes); E's five sets hold on Chromium 153 in smoke. Next,
-  CACHE-FIX-REVIEW, then CACHE-RUN.
+  each with a test failing first and mutated (the review's §Fixes); E's five sets hold on Chromium 153 in smoke.
+  Re-reviewed 2026-11-15 (§Re-review): the seven closed; one new blocker, L's bars drop an arm's errored rounds. The
+  second review with a blocker open (amendment 17): CACHE-RUN waits on the owner's word for a third fix round.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
