@@ -59,7 +59,7 @@ def lossy(job):
         sys.exit(f"{s.name} {cell}: unit sizes differ from the bytes run's")
     keys = [i for i, u in enumerate(units) if obu.sequence_header(u) is not None]
     grain = [obu.film_grain_params_present(obu.sequence_header(units[k]))["film_grain"] for k in keys]
-    c = dict(cell=cell, form=form.name, q=q, g=g or s.n, depth=form.depth, shift=s.b - 10 if form.name == "top10" else 0,
+    c = dict(cell=cell, form=form.name, q=q, g=g or s.n, depth=form.depth, shift=s.b - 10 if form.name == "top10" else 2 if form.name == "top8" else 0,
              units=[len(u) for u in units], keyframes=keys, film_grain=grain,
              lossy=[sha(p[0]) for p in y4m_frames(dec, s, form)])
     if g == RESIDUAL_G:

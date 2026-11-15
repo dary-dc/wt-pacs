@@ -57,14 +57,20 @@ class Form:
         self.name, self.depth, self.profile, self.mono, self.fwd, self.back = name, depth, profile, mono, fwd, back
 
 
-def forms(s, win):
+def forms(s, win, mutate=None):
     if s.ch == 3:
         return [Form("rgb420", 8, 0, False, lambda v: to_yuv420(v),
                      lambda p: preview_rgb(*p).astype(np.int32))]
     one = lambda p: p[0].astype(np.int32)[..., None]
     if s.b <= 10:
         depth = 8 if s.b <= 8 else 10
-        return [Form(f"{s.b}bit", depth, 0, True, lambda v: [v[..., 0]], one)]
+        out = [Form(f"{s.b}bit", depth, 0, True, lambda v: [v[..., 0]], one)]
+        if s.b == 10:
+            top = (lambda v: v[..., 0] >> 2) if mutate in ("floor", "splittop") else (lambda v: np.minimum((v[..., 0] + 2) >> 2, 255))
+            shift = 0 if mutate == "shift0" else 2
+            out += [Form("top8", 8, 0, True, lambda v: [top(v)], lambda p: (p[0].astype(np.int32) << shift)[..., None]),
+                    Form("top8at10", 10, 0, True, lambda v: [top(v) << 2], one)]
+        return out
     k = s.b - 10
     out = [Form(f"{s.b}bit", 12, 2, True, lambda v: [v[..., 0]], one),
            Form("top10", 10, 0, True, lambda v: [np.minimum((v[..., 0] + (1 << (k - 1))) >> k, 1023)],
@@ -176,11 +182,11 @@ def aomdec_matches(build, ivf, out, s, form, frames):
 
 
 def cell(job):
-    build, work, path, middle, form_name, q, g, aomdec, mutate, altref = job
+    build, work, path, middle, form_name, q, g, aomdec, mutate, altref, *keep = job
     t0 = time.perf_counter()
     s = Middle(Path(path), middle)
     meta = json.loads((Path(work) / f"{Path(path).name}.display.json").read_text())
-    form = next(f for f in forms(s, meta["windows"]) if f.name == form_name)
+    form = next(f for f in forms(s, meta["windows"], mutate) if f.name == form_name)
     work = Path(work) / f"{s.name}-{form.name}-q{q}-g{g}{'-altref' if altref else ''}"
     work.mkdir(parents=True, exist_ok=True)
     y4m, ivf, dec = work / "in.y4m", work / "out.ivf", work / "dec.y4m"
@@ -198,11 +204,25 @@ def cell(job):
     row.update(measure(build, work, s, form, meta, lambda: y4m_frames(dec, s, form), mutate))
     if aomdec:
         row["aomdec_matches"] = aomdec_matches(build, ivf, work / "aomdec.yuv", s, form, y4m_frames(dec, s, form))
+    if keep and keep[0]:
+        kept(Path(keep[0]) / s.name / f"{form.name}-q{q}-g{g or s.n}", units, dec, s, form)
     for f in work.iterdir():
         f.unlink()
     work.rmdir()
     row["cell_wall"] = time.perf_counter() - t0
     return row
+
+
+def kept(d, units, dec, s, form):
+    """The stream's units for the browser, and native dav1d's frames back at the source's depth, hashed as it hashes."""
+    d.mkdir(parents=True, exist_ok=True)
+    for i, u in enumerate(units):
+        (d / f"{i:03d}.obu").write_bytes(u)
+    shift = 2 if form.name == "top8" else 0
+    hashes = [hashlib.sha256((p[0].astype(np.uint16) << shift).astype("<u2").tobytes()).hexdigest()
+              for p in y4m_frames(dec, s, form)]
+    (d / "frames.json").write_text(json.dumps(dict(depth=form.depth, shift=shift, units=[len(u) for u in units],
+                                                   hashes=hashes)))
 
 
 def measure(build, work, s, form, meta, frames, mutate=None):
@@ -242,6 +262,9 @@ def measure(build, work, s, form, meta, frames, mutate=None):
     for i, planes in enumerate(frames()):
         v = s.frame(i).astype(np.int32) + s.offset
         b = form.back(planes)
+        if mutate in ("lowbits", "splittop"):
+            exact += ingest.exact(s, i, b + (v & 3))
+            continue
         n, back = htj2k_residual(build, work, s, v - b + ro, bits)
         if mutate == "flip" and i == 0:
             back[0, 0, 0] ^= 1
@@ -294,7 +317,7 @@ def main():
     ap.add_argument("--middle", type=int, default=0)
     ap.add_argument("--aomdec-rung", type=int, default=8)
     ap.add_argument("--jobs", type=int, default=4)
-    ap.add_argument("--mutate", choices=["flip", "offset"])
+    ap.add_argument("--mutate", choices=["flip", "offset", "floor", "shift0", "lowbits", "splittop"])
     ap.add_argument("--altref", action="store_true", help="the secondary arm: hidden alt-ref frames on")
     a = ap.parse_args()
     a.build, a.work = a.build.resolve(), a.work.resolve()
