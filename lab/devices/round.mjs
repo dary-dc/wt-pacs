@@ -39,3 +39,16 @@ export async function losslessFailure(quality, lossless, { losslessMs = 30000, o
   lossless.click();
   return (await until(() => quality.className === "optimal", optimalMs)) ? null : `not Optimal quality ${optimalMs / 1000} s after the second press: ${shown()}`;
 }
+
+/** next-round.md §4's series and arms; the round's loads in order: the warm-ups, cell 2's rounds, cell 3's pairs. */
+export const SERIES = ["dbts_b1-q8-g8", "dbts_a1-q8-g8-cut"];
+export const ARMS = ["A", "B", "C1", "C2"];
+
+export async function roundOrder({ rounds = 16, pairs = 24 } = {}) {
+  const { order } = await import("../order.mjs");
+  const warmUps = [["A", "page"], ["A", "page"], ["A", "worker"], ["A", "worker"]].map(([arm, view]) => ({ cell: "2", arm, view, series: SERIES[0], counted: false }));
+  const cell2 = Array.from({ length: rounds }, (_, r) => order(ARMS, r).map((arm) => ({ cell: "2", arm, view: "page", series: SERIES[r % 2], round: r, counted: true })));
+  const abba = (p) => (p % 2 ? ["worker", "page"] : ["page", "worker"]);
+  const cell3 = Array.from({ length: pairs }, (_, p) => abba(p).map((view) => ({ cell: "3", arm: view, view, series: SERIES[0], pair: p, seq: "view", counted: true })));
+  return [...warmUps, ...cell2.flat(), ...cell3.flat()];
+}

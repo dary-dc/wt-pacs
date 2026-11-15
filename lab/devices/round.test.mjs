@@ -1,6 +1,7 @@
 /** node lab/devices/round.test.mjs — the round's rules: a load's failure, the timer gap, the verdict. */
 import assert from "node:assert/strict";
-import { STOPPED_GAP_MS, TICK_MS, fillFailure, largestGap, verdict } from "./round.mjs";
+import { balanced } from "../order.mjs";
+import { ARMS, SERIES, STOPPED_GAP_MS, TICK_MS, fillFailure, largestGap, roundOrder, verdict } from "./round.mjs";
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -34,6 +35,30 @@ test("a gap past the bar is VOID: stopped, whatever else happened", () => {
 /** A failed load says why and is not VOID: it counts as the failure it is. */
 test("a failed load says why and is not void", () => {
   assert.deepEqual(verdict("received 1 of 2", 300), { ok: false, why: "received 1 of 2", gapMs: 300 });
+});
+
+/**
+ * The round's order is next-round.md §4's: four warm-ups not counted, then cell 2's 16 rounds each a Williams row of
+ * the four arms, the series alternating by round (8 each, 64 loads, every arm before and after every other equally), then
+ * cell 3's 24 pairs in ABBA order (48 loads).
+ */
+test("the round's order is the protocol's", async () => {
+  const loads = await roundOrder();
+  assert.equal(loads.length, 4 + 64 + 48);
+  assert.ok(loads.slice(0, 4).every((l) => !l.counted));
+  const cell2 = loads.filter((l) => l.cell === "2" && l.counted);
+  assert.equal(cell2.length, 64);
+  for (let r = 0; r < 16; r += 1) {
+    const round = cell2.filter((l) => l.round === r);
+    assert.deepEqual([...round.map((l) => l.arm)].sort(), [...ARMS].sort());
+    assert.ok(round.every((l) => l.series === SERIES[r % 2]));
+  }
+  const rows = cell2.map((l, k) => ({ unit: l.arm, prev: k % 4 ? cell2[k - 1].arm : undefined }));
+  for (const arm of ARMS) assert.ok(balanced(rows, arm, ARMS), `${arm} balanced`);
+  const cell3 = loads.filter((l) => l.cell === "3");
+  assert.equal(cell3.length, 48);
+  assert.deepEqual(cell3.slice(0, 4).map((l) => l.view), ["page", "worker", "worker", "page"]);
+  assert.ok(cell3.every((l) => l.seq === "view"));
 });
 
 let failed = 0;
