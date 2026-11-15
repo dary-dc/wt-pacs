@@ -127,7 +127,7 @@ async function fill() {
   const idleMisses = c.misses === "idle" ? await misses(c.missCount, (k) => c.held + spread(k, c.n - c.held)) : [];
   const settled = await store("settle");
   const r = await store("result");
-  const row = { opened, floor, shown, misses: c.misses === "busy" ? busyMisses : idleMisses, store: writes(r),
+  const row = { opened, floor, shown, misses: c.misses === "busy" ? busyMisses : idleMisses, store: writes(r), readMsP50: median(r.reads.map((x) => x.readMs)),
     deliveredMBps: (shown.fillPosts * c.frameBytes) / 1e3 / Math.max(1, fillEnd - shown.firstPost), stallMs: stats.map((s) => s?.stallMs ?? null),
     unwrittenAt5s: c.n - backlog.handled, settled, list: await store("list"), verify: opened.cache ? await store("verify") : null,
     ballast: ballastDone ? await ballastDone : null };
@@ -150,7 +150,7 @@ async function reopen() {
     rest = { asked: missing.length, settled, ...writes(await store("result"), 0) };
   }
   const row = { opened: { ...opened, present: opened.present.length }, startedMs, read: { hits: read.hits.length, damaged: read.damaged, misses: read.misses.length,
-    fromStartMs: read.fromStartMs }, rest, list: await store("list"), verify: opened.cache ? await store("verify", { indices: c.rest && opened.writer ? [...Array(c.n).keys()] : read.hits }) : null };
+    fromStartMs: read.fromStartMs, fromReadyMs: read.fromReadyMs }, rest, list: await store("list"), verify: opened.cache ? await store("verify", { indices: c.rest && opened.writer ? [...Array(c.n).keys()] : read.hits }) : null };
   await store("close");
   return row;
 }

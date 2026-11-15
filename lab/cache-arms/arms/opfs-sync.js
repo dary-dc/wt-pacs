@@ -18,9 +18,16 @@ async function writeMeta(dir, meta) {
   }
 }
 
-/** `pilot`: `piece`, the bytes a write is cut into (0, the default, a whole frame). */
+const UNIT = { KiB: 2 ** 10, MiB: 2 ** 20 };
+const bytesOf = (v) => {
+  const [, n, unit] = /^(\d+)(KiB|MiB)?$/.exec(v) ?? [];
+  if (n === undefined) throw new Error(`piece=${v}: bytes, KiB or MiB`);
+  return Number(n) * (UNIT[unit] ?? 1);
+};
+
+/** `pilot`: `piece`, the bytes a write is cut into (`2MiB`, `1024`; 0, the default, a whole frame). */
 export function opfsSync(pilot = new URLSearchParams()) {
-  const piece = Number(pilot.get("piece") ?? 0);
+  const piece = bytesOf(pilot.get("piece") ?? "0");
   let dir = null;
   let handle = null;
   let n = 0;

@@ -58,6 +58,7 @@ export function store({ arm, ring, check, locks, mutant = "", estimate = null, w
       const release = () => {
         if (held && mutant !== "slot-held") ring.release(slot);
         held = false;
+        s.pending.delete(i);
       };
       try {
         if (!s.cache || s.stopped || (!s.writer && mutant !== "tab-writes")) return { written: false };

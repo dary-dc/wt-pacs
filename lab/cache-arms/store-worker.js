@@ -18,6 +18,7 @@ const writes = [];
 const done = [];
 const served = [];
 let busy = false;
+let readyAt = 0;
 
 const check = (bytes, i) => xxh3.init().update(bytes).digest("hex") === digests[i % FIELDS];
 
@@ -93,7 +94,8 @@ async function verify(indices) {
   return { ok, notOk: wrong.length, wrong: wrong.slice(0, 8) };
 }
 
-/** Each present frame read and re-checked in turn, timed from this worker's start (the cell O's R). */
+/** Each present frame read and re-checked in turn, timed from this worker's start (the cell O's R) and from the end of
+ *  the harness's own start-up (the fields filled and hashed), which is no arm's. */
 async function reopen(present) {
   const { slot } = await freeSlot();
   if (slot === -1) return { hits: [], damaged: [], misses: present, why: "no free slot", fromStartMs: performance.now() };
@@ -104,7 +106,7 @@ async function reopen(present) {
     (got.hit ? out.hits : got.damaged ? out.damaged : out.misses).push(i);
   }
   ring.release(slot);
-  return { ...out, fromStartMs: performance.now() };
+  return { ...out, fromStartMs: performance.now(), fromReadyMs: performance.now() - readyAt };
 }
 
 async function floor(count) {
@@ -153,5 +155,6 @@ onmessage = async ({ data: m }) => {
     feeder.onmessage = ({ data: f }) => (writes.push({ ...f, arrivedAt: now(), feeder }), pump());
   }
   m.view.onmessage = ({ data: v }) => (reads.push({ ...v, port: m.view, askedAt: now() }), pump());
+  readyAt = performance.now();
   postMessage({ id: 0, reply: { ready: true } });
 };

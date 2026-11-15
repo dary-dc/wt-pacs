@@ -338,6 +338,33 @@ for (const mutant of ["", "tab-writes"]) {
   check((await plain.settle()).length === 0 && !plain.stopped, "an arm with no settle loses nothing");
 }
 
+/** A frame whose slot the arm let go mid-write is read through the arm, never from the slot a feeder may have reused
+ *  (review, harness minor: a pending frame read from a slot already let go). */
+{
+  const r = makeRing(new SharedArrayBuffer(2 * FRAME), new SharedArrayBuffer(makeRing.tableBytes(2)), FRAME);
+  let finish = null;
+  let armReads = 0;
+  const disk = new Map();
+  const base = memoryArm(disk);
+  const arm = { ...base, write: async (i, b, ctx) => {
+    const copy = b.slice();
+    ctx.release();
+    await new Promise((res) => (finish = res));
+    disk.get("A").frames.set(i, copy);
+  }, read: async (i, into) => (armReads++, base.read(i, into)) };
+  const s = makeStore({ arm, ring: r, check: (b, i) => hash(b) === digests[i], locks: memoryLocks() });
+  await s.open("A", meta());
+  const slot = r.claim(1);
+  r.bytes(slot).set(field(2));
+  const writing = s.write(2, slot);
+  await new Promise((res) => setTimeout(res, 0));
+  r.bytes(slot).fill(0);
+  const got = await s.read(2, new Uint8Array(FRAME));
+  check(armReads === 1 && !got.fromPending, "a let-go slot is not read: the arm answers");
+  finish();
+  await writing;
+}
+
 if (failed) {
   console.error(`${failed} failed`);
   process.exit(1);

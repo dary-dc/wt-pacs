@@ -175,6 +175,20 @@ const exact = (into, i) => into.every((b, k) => b === frame(i)[k]);
   check(disk.log.length === 5, "four pieces and the record with no read waiting");
 }
 
+/** The pilot's piece in the plan's own spelling, `2MiB` or `1KiB`, is that many bytes; a misspelt one refuses to
+ *  start, never falls back to whole frames (review, OPFS-SYNC M2). */
+{
+  fresh();
+  const a = opfsSync(new URLSearchParams("piece=1KiB"));
+  await a.open("A", meta(), { create: true });
+  disk.log.length = 0;
+  await a.write(1, frame(1), { readsWaiting: () => 0, serveReads: async () => {} });
+  check(disk.log.slice(0, 4).every((w) => w.length === 1024), "piece=1KiB: pieces of 1 024 bytes");
+  let threw = null;
+  try { opfsSync(new URLSearchParams("piece=2MB")); } catch (e) { threw = e; }
+  check(threw !== null, "piece=2MB: refused");
+}
+
 /** A reopen finds what was written, not what was dropped, and the stored meta with a later last open. */
 {
   fresh();
