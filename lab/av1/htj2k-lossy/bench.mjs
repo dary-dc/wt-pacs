@@ -17,7 +17,7 @@ const dav1d = await import(`${ROOT}client/decode/av1-dav1d.js`);
 const dir = process.argv[2];
 const rounds = Number(process.argv[3] ?? 10);
 const meta = JSON.parse(readFileSync(`${dir}/streams.json`, "utf8"));
-const files = (prefix) => readdirSync(dir).filter((f) => f.startsWith(prefix)).sort().map((f) => new Uint8Array(readFileSync(`${dir}/${f}`)));
+const files = (prefix) => readdirSync(dir).filter((f) => f.startsWith(prefix) && /\.(j2c|obu)$/.test(f)).sort().map((f) => new Uint8Array(readFileSync(`${dir}/${f}`)));
 const coded = { lossless: files("lossless-"), lossy: files("lossy-"), av1: files("av1-") };
 
 for (const [name, mod] of [["openjph", htj2k], ["dav1d", dav1d]]) {
