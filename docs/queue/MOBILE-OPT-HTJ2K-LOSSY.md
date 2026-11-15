@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-15 14:28 UTC
-heartbeat: 2026-11-15 14:45 UTC
+heartbeat: 2026-11-15 15:19 UTC
 outputs: claude/mobile-decode (docs/decode/mobile/htj2k-lossy.md), PR 397 (draft, existing)
 ## Resume
 Done: pre-registration (f6f0416d); lab/av1/htj2k-lossy/ scripts and Cell B rows so far (aced74df). Cell B running
