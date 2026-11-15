@@ -1005,3 +1005,9 @@ Firefox, no WebKitGTK, no phone.
 
 The arms' designs are unchanged except CACHESTORAGE's layout (the manifests out of the series' `Cache`), by the
 design's own eviction source; the seam gains `settle`, for the two arms whose write returns early.
+
+**Gate after the fixes.** `scripts/gate.sh --quick` passes at `4983fc60` with the link check's two pre-existing paths
+(`docs/lines/devices.md` 57 and 60, untouched here) set aside locally, not committed, and its by-name skips (no numpy,
+pydicom, ingest build for the Python paths, lavapipe, Xvfb, nginx; `--quick`'s rebuild and absence checks); the six
+cache-arms tests run in it. `scripts/check_lab_absent.sh` alone passes. Before it: `client/decode/wasm/build/build.sh`,
+`ingest/tools.sh`, wasm-pack and `client/transport/wasm/build.sh`, `fetch_openjph.sh`, `fetch_xxh3.sh`.
