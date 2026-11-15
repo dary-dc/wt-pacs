@@ -79,8 +79,8 @@ def c1(rows, series, d8, pred):
                 tally["I3"] += [hit3 == "hit"] if hit3 != "—" else []
             out.append(f"| `{s}` | {bar:.2f} | {fmt(q, '{}')}{'' if shut else ' (no fail above)'} | {lo}–{hi} | "
                        f"{fmt(q8, '{}')} | {('hit' if hit2 else 'miss') if bar == BAR else '(reported)'} | "
-                       f"{fmt(ratio)} | {'—' if not band else f'{band[0]:.2f}–{band[1]:.2f}'} | "
-                       f"{hit3 if bar == BAR else '(reported)'} | {fmt(vs_today)} |")
+                       f"{fmt(ratio, '{:.3f}')} | {'—' if not band else f'{band[0]:.3f}–{band[1]:.3f}'} | "
+                       f"{hit3 if bar == BAR else '(reported)'} | {fmt(vs_today, '{:.3f}')} |")
     out += ["", "### I4 · the range, I5 · the chroma (every `inv220-420` cell)", "",
             "| volume | Q | worst e_N ÷ σ | bytes | luma outside 16…235 | share | frames | lowest | highest | "
             "chroma ≠ 128 |", "| --- | --: | --: | --: | --: | --: | --: | --: | --: | --: |"]
@@ -121,7 +121,7 @@ def c2(rows, series, d8):
         trail = ", ".join(f"{c['q']}: {max(ratios(c, sigma)):.3f}" for c in sorted(cells, key=lambda c: c["q"]))
         clamp = cells[0]["clamped"] / cells[0]["samples"] if cells else None
         out.append(f"| `{s}` | {a['q']} | {sum(a['units'])} | {max(ratios(a, sigma)):.2f} | {trail} | {fmt(q, '{}')} | "
-                   f"{fmt(q3, '{}')} | {fmt(ratio)} | {'—' if ratio is None else ('hit' if 1.2 <= ratio <= 2.5 else 'miss')}"
+                   f"{fmt(q3, '{}')} | {fmt(ratio, '{:.3f}')} | {'—' if ratio is None else ('hit' if 1.2 <= ratio <= 2.5 else 'miss')}"
                    f" | {fmt(clamp, '{:.1e}')} | {sum(c['chroma_off'] for c in cells)} |")
     return out
 
