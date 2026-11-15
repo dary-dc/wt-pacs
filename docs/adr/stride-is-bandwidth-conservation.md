@@ -2,6 +2,10 @@
 
 **Status:** accepted · **Date:** 2026-08-26 · **Tags:** delivery, client, clinical
 
+*2026-10-28: two sources bear on this, not yet weighed — IHE RAD TF-2 requires a tomosynthesis display not to skip
+slices while scrolling, and a measured scroll speed at detection is 25–30 slices/s, where the 9 below is no source's
+([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Asking for a stack: what viewers do).*
+
 ## Context and Problem Statement
 
 When a reader scrolls faster than the link can deliver frames, the system must do one of two things:
