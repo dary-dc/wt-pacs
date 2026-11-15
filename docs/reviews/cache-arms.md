@@ -1011,3 +1011,56 @@ design's own eviction source; the seam gains `settle`, for the two arms whose wr
 pydicom, ingest build for the Python paths, lavapipe, Xvfb, nginx; `--quick`'s rebuild and absence checks); the six
 cache-arms tests run in it. `scripts/check_lab_absent.sh` alone passes. Before it: `client/decode/wasm/build/build.sh`,
 `ingest/tools.sh`, wasm-pack and `client/transport/wasm/build.sh`, `fetch_openjph.sh`, `fetch_xxh3.sh`.
+
+## Re-review (CACHE-FIX-REVIEW, 2026-11-15)
+
+Row CACHE-FIX-REVIEW of `docs/queue-client-2026-11-14.md`, by a session that wrote none of the builds, the review or
+the fixes: `822b33a9..ec1b3212` against §Verdict. Each fix was undone in the working tree with its test kept, the
+test run, the file restored (`git status` clean after each).
+
+**Fixtures and limits.** A 4-vCPU cloud host, no GPU; Node 22 on each test's in-memory engine (no engine's timing).
+No browser was run here: blocker 1's mechanism is checked on Node's real `MessageChannel`, blockers 2–3 on the mocks;
+the Chromium 153 smoke in §Fixes is CACHE-FIX's, not re-run. No Firefox, no WebKitGTK, no phone.
+
+**Verdict: the seven blockers are closed; one new blocker, in blocker 6's fix (N1 below). Not ready for CACHE-RUN.**
+
+| # | fix undone (test kept) | its test |
+| --- | --- | --- |
+| 1 | `readsFirst` without its task loop; the task replaced by a microtask | `store.test.mjs` fails both ("the read served mid-write, at piece undefined") |
+| 2 | the store's `settle` returns `[]`; the store's `close` swallows the arm's refusal; OPFS-ASYNC's `settle` names nothing, keeps the copy, `close` does not settle or does not throw | `store.test.mjs` fails the first two; `opfs-async.test.mjs` fails all four (miss/hit, close throws, the group files) |
+| 2 (m1) | OPFS-ASYNC's `if (g.retry) return` removed | fails ("group 0 never committed with frame 0 missing") |
+| 3 | `list()` opens each series' `Cache`; `evict` leaves the index record; `settle` reads a refused buffer; `close` silent | `cachestorage.test.mjs` fails each. `open` reading its own series' `Cache` survives: equivalent (`open` holds that `Cache` anyway) |
+| 4 | `backlogAt5s` waits for every frame handled; the sample capped at the last post | `cells.test.mjs` fails both (sampled at 10 001 ms and 1 001 ms, not 6 000) |
+| 5 | K's old bar (`− queued − 3`); no slack | fails both |
+| 6 | the mutant into `none`; the delay p99 bar dropped; the PSS bar absolute; `exact` at 75 % | fails each. Two survivors: `none`'s row taken from round 0 for every round (the test's `none` rows are identical), and `balanced` forced `true` (not checked by any test) |
+| 7 | the PSS baseline before the floor | fails (700 MiB, not 60) |
+
+Also: the six test files pass at `ec1b3212`; `scripts/check_lab_absent.sh` and `scripts/comment_budget.sh` pass; the
+diff touches `lab/cache-arms/`, its README, this file and `docs/lines/client.md` only. The gate was not run here
+(CACHE-FIX's `--quick` result stands for `4983fc60`; `ec1b3212` adds docs only). `lBars` carries §8.3's L bars as
+written (missed + 1 %, delay p99 + 4 ms, ≥ 0.95 × delivered, nothing unwritten at + 5 s, PSS + in flight × frame +
+64 MiB, ≥ 75 % of rounds, exact every round), read per bar, each bar's own 75 %; §8.3 also reads as all bars in the
+same round. Said here; the protocol's author settles it.
+
+**Blocker**
+
+* **N1 · `lBars` drops an arm's errored rounds** (`cells.mjs`, `rows.filter(… && !r.error)`): `rounds` and every
+  share count only the rounds that returned, so an arm that errors (`once`'s catch: a throw, a timeout) in 3 rounds of
+  4 and meets every bar in the fourth is `pass: true`. *Observed* on `lBars` itself: four rounds, the arm errored in
+  rounds 1–3 → `{"rounds":1, …, "pass":true, "balanced":false}`. §8.5: an arm passes when it meets every bar in every
+  counted cell; an errored round meets none. The fix: an errored arm round counts as a round with no bar met (and
+  never as exact); a round whose `none` errored judges no arm and is named.
+
+**Minor** (not a wrong verdict by themselves)
+
+* The two survivors above: no test feeds `none` rows that differ by round, or checks `balanced`.
+* The PSS baseline is taken when `floorDone` is set; memory the floor leaves behind and the engine frees later in the
+  fill (IDB's 40 puts, then `evict("floor")`) lowers the arm's growth below what the fill alone grew, and `none` runs no
+  floor. *Theory*, direction only, unmeasured; review §Verdict's other remedy (the floor in its own load) has no such
+  term.
+* OPFS-ASYNC with `group=8MiB` at S1: a group still short of frames at `close` is aborted (§7.2) but its frames stay
+  *written* in the row and readable from the arm's copies until then; only a fill that stops early leaves one (Q runs at
+  S2, where G = 1). Count them lost at `close` as `settle` does.
+
+**Next.** By amendment 17 this is the second review with a blocker open: the fix loop stops, CACHE-RUN waits, and the
+owner decides whether a third fix round (N1, one line and its test) runs.
