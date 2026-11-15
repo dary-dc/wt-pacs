@@ -1,0 +1,32 @@
+configure: cmake -S /home/user/mac/client/decode/wasm/built/.work/openjph-src -B /home/user/mac/client/decode/wasm/built/.work/openjph -DCMAKE_BUILD_TYPE=Release "-DCMAKE_CXX_FLAGS=-ffile-prefix-map=/home/user/mac/client/decode/wasm/built/.work=/build -ffile-prefix-map=/home/user/mac=/wt-pacs -ffile-prefix-map=/home/user/mac/client/decode/wasm/build/.cache=/src" "-DCMAKE_C_FLAGS=-ffile-prefix-map=/home/user/mac/client/decode/wasm/built/.work=/build -ffile-prefix-map=/home/user/mac=/wt-pacs -ffile-prefix-map=/home/user/mac/client/decode/wasm/build/.cache=/src" -DCMAKE_TOOLCHAIN_FILE=/opt/emsdk/install/emscripten/cmake/Modules/Platform/Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=/opt/emsdk/node-v18.20.3-linux-x64/bin/node
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libembind-rtti.a... (this will be cached in "/opt/emcache/sysroot/lib/wasm32-emscripten/libembind-rtti.a" for subsequent builds)
+system_libs:INFO: compiled 1 inputs in 1.02s
+cache:INFO:  - ok
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libstubs.a... (this will be cached in "/opt/emcache/sysroot/lib/wasm32-emscripten/libstubs.a" for subsequent builds)
+system_libs:INFO: compiled 2 inputs in 0.17s
+cache:INFO:  - ok
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libc.a... (this will be cached in "/opt/emcache/sysroot/lib/wasm32-emscripten/libc.a" for subsequent builds)
+system_libs:INFO: compiled 1041 inputs in 9.06s
+cache:INFO:  - ok
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libc++.a... (this will be cached in "/opt/emcache/sysroot/lib/wasm32-emscripten/libc++.a" for subsequent builds)
+system_libs:INFO: compiled 55 inputs in 22.63s
+cache:INFO:  - ok
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libc++abi.a... (this will be cached in "/opt/emcache/sysroot/lib/wasm32-emscripten/libc++abi.a" for subsequent builds)
+system_libs:INFO: compiled 16 inputs in 2.92s
+cache:INFO:  - ok
+cache:INFO: generating system asset: symbol_lists/1e7663f77aab43d63d39855893e8f365f11ea53b.json... (this will be cached in "/opt/emcache/symbol_lists/1e7663f77aab43d63d39855893e8f365f11ea53b.json" for subsequent builds)
+cache:INFO:  - ok
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libc++abi-noexcept.a... (this will be cached in "/opt/emcache/sysroot/lib/wasm32-emscripten/libc++abi-noexcept.a" for subsequent builds)
+system_libs:INFO: compiled 16 inputs in 2.98s
+cache:INFO:  - ok
+cache:INFO: generating system asset: symbol_lists/2dacd7eb046b905cbb71ce59a9d05845b1620f06.json... (this will be cached in "/opt/emcache/symbol_lists/2dacd7eb046b905cbb71ce59a9d05845b1620f06.json" for subsequent builds)
+cache:INFO:  - ok
+cache:INFO: generating system asset: sysroot/lib/wasm32-emscripten/crt1_reactor.o... (this will be cached in "/opt/emcache/sysroot/lib/wasm32-emscripten/crt1_reactor.o" for subsequent builds)
+system_libs:INFO: compiled 1 inputs in 0.12s
+cache:INFO:  - ok
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libstandalonewasm-nocatch.a... (this will be cached in "/opt/emcache/sysroot/lib/wasm32-emscripten/libstandalonewasm-nocatch.a" for subsequent builds)
+system_libs:INFO: compiled 16 inputs in 0.58s
+cache:INFO:  - ok
+cache:INFO: generating system asset: symbol_lists/72b4436cee1764467b2a970233300ee396bf3bf5.json... (this will be cached in "/opt/emcache/symbol_lists/72b4436cee1764467b2a970233300ee396bf3bf5.json" for subsequent builds)
+cache:INFO:  - ok
+decoder builds in /home/user/mac/client/decode/wasm/built match manifest.sha256

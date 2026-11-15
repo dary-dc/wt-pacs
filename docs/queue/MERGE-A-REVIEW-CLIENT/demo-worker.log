@@ -1,0 +1,3 @@
+dbts_a1-q8-g8-cut (fill): first picture 324 ms, 56 frames by 1568 ms, 4532 KB over 56 frames painted, jump 26 ms, lossless 61 ms
+dbts_a1-q8-g8-cut&fill=0: first picture 245 ms, 24 frames by 1544 ms, 1145 KB over 14 frames painted, jump 366 ms, lossless 56 ms
+demo check: dbts_a1-q8-g8-cut passed
