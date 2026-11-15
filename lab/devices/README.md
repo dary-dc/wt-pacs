@@ -26,7 +26,7 @@ phone ── https://PUBLIC_NAME:8443/?t=TOKEN ── the runner page, D0 → D1
 | `deploy.sh` | `up`, `fetch DIR`, `down` on the Oracle machine, from the local machine |
 | `make_bundles.sh` | each set as `SET.htj2k.sbnd` and `SET.av1.sbnd` through `lab/av1/tools/ingest_coded.py` |
 | `dry_run.mjs` | the page through a deployed kit in headless Chromium, quick mode: exits 0 when every visit is exact |
-| `round.py`, `round.mjs`, `round-page.js`, `beacon.js` | the phone round of `docs/phone-rows/next-round.md` (below): one press, the laptop's plan behind `GET /next`, each load recorded by the viewer's lab gate |
+| `round.py`, `round.mjs`, `round-page.js`, `beacon.js` | the phone round of `claude/phone-protocol:docs/phone-rows/next-round.md` (below): one press, the laptop's plan behind `GET /next`, each load recorded by the viewer's lab gate |
 
 **Quick and full.** Quick is 3 rounds of D1 on `dbt10_ea1141` alone (the largest frames, all three decoders) and
 D2's `shared`, `asksfirst` and `iw38400`; the reading prints on the phone as soon as each run ends, marked
@@ -176,7 +176,7 @@ round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer
 * **Not built here** (PHONE-LEVERS, or a product seam): cell 1's in-memory bench, arm C2 and the decoder count;
   `getStats()` at the fill's end and the configure's `hardwareAcceleration` (both inside workers the page cannot
   read); the commit as the page reads it (no such file in the served tree); cell 5's arms; the report cells' ending
-  levers. `lab/phone/` (the runner, its start page, its beacon) is superseded by this; its `rows.py`, `losses.py`
+  levers. `claude/phone-rows:lab/phone/` (the runner, its start page, its beacon) is superseded by this; its `rows.py`, `losses.py`
   and `read-path.sh` read the 11-11 run and stay on `claude/phone-rows`.
 
 **Tested** in the container: `round.test.mjs`, `beacon.test.mjs` and `round_test.py` (a fake `adb` on PATH) in the
