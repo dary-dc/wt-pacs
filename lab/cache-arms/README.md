@@ -66,9 +66,12 @@ writes nothing, and takes a failed re-check as a miss (§8.1); a miss on a frame
 
 A quota cell first checks that the override holds (Chromium `Storage.overrideQuotaForOrigin`, Gecko
 `dom.quotaManager.temporaryStorage.fixedLimit` at five times the site's limit, as M3 set it), and does not run where it
-does not. The check is a refusal (`quota-probe.js`: 16 MiB under the quota taken, 16 MiB over refused), not
+does not. The check is a refusal (`quota-probe.js`: half the quota taken, 16 MiB over refused), not
 `estimate()`, which on Chromium 153 still reports 10 GiB under the override (*run once*, 2026-11-15) — so §8.6's
-`estimate()` check cannot pass there, and §8.1's bounded wait for `estimate()` to show the room ends at once.
+`estimate()` check cannot pass there, and §8.1's bounded wait for `estimate()` to show the room ends at once. Nor is
+the override's whole room usable by one sync handle: under 877 MiB a `truncate` to 660 MiB was taken and to 800 MiB
+refused; under 1 300 MiB, 860 taken and 1 284 refused (*run once*, Chromium 153, a fresh profile each). Q's quota of
+the series + 64 MiB may refuse OPFS-SYNC's `truncate` at open for that alone: CACHE-RUN's amendment, before any row.
 
 **Not built: O's F**, the fresh fill over `link_impair.py` the reopen is judged against. Synthetic frames have no
 coded form, so a fetch of their bytes would not be a fill; F is M1's (`lab/opfs-cache/run.mjs --cell m1` at

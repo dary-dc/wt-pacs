@@ -45,7 +45,7 @@ async function browser(profile, { quotaMiB = 0, priv = false } = {}) {
 }
 
 /** Chromium's quota by DevTools, Gecko's a launch pref (a group limit, five times a site's). Chromium 153's
- *  `estimate()` does not show the override, so the check is a refusal: 16 MiB under it taken, 16 MiB over it refused. */
+ *  `estimate()` does not show the override, so the check is a refusal: half of it taken, 16 MiB over it refused. */
 async function quotaHolds(b, origin, quotaMiB) {
   await b.page.goto(`${origin}/lab/cache-arms/blank.html?mib=${quotaMiB}`);
   if (ENGINE === "chromium") await (await b.context.newCDPSession(b.page)).send("Storage.overrideQuotaForOrigin", { origin, quotaSize: quotaMiB * MiB });
