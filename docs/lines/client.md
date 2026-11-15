@@ -17,8 +17,9 @@ exact frame bit for bit, and only checked claims on screen.
 * **The documentation round** of 2026-11-14 on `claude/docs-client` (#384, a draft into `claude/unified-client`): one home
   for the client's design, evidence and work state. The off-branch inventory was folded 2026-11-14 (40 new evidence
   files, the corrections in place, what was left in #384's body); the page
-  ([`../client/design.html`](../client/design.html)) 2026-11-14, with the link check reading `docs/` pages; next a
-  review and its fixes.
+  ([`../client/design.html`](../client/design.html)) 2026-11-14, with the link check reading `docs/` pages; reviewed
+  2026-11-15 (#384 §Review: 11 findings for the fix row, 2 for the owner; the gate stops at `devices.md`'s two
+  links); next the fixes.
 * **The cache survey**, theory only, 2026-11-14
   ([`../client/evidence/cache-options.md`](../client/evidence/cache-options.md)): leaning OPFS as built; owed, a
   phone's cold read and check and sustained write of a 17 MB frame (its §5). The plan to choose the store empirically,
