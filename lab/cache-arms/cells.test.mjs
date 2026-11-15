@@ -17,6 +17,8 @@ check(checks("K", { ...k, read: { damaged: [7] } }).damageReported, "the damaged
 const reader = { ...good, opened: { writer: false }, store: { storeWrites: 0 }, rest: { storeWrites: 0 } };
 check(checks("T", reader).readerWroteNothing, "a reading tab that writes nothing passes");
 check(!checks("T", { ...reader, rest: { storeWrites: 2 } }).readerWroteNothing, "tab-writes: the reading tab's writes fail");
+check(checks("T", { opened: { writer: false }, rest: { storeWrites: 0 } }).readerWroteNothing, "a reading tab's reopen row, no fill of its own");
+check(!checks("T", { opened: { writer: false } }).readerWroteNothing, "a reading tab with no write count says nothing passed");
 check(!checks("L", { error: "x" }).ran, "a row that did not run says so");
 
 check(moduleOf("OPFS-SYNC-aa") === "opfs-sync" && moduleOf("none") === "none", "an A/A twin loads its arm's module");

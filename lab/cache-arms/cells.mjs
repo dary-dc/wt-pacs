@@ -41,7 +41,7 @@ export function checks(cell, row) {
   if (row.unwrittenAt5s !== undefined) out.allWritten = row.unwrittenAt5s === 0;
   if (["L", "R-busy", "B", "Q", "T"].includes(cell)) out.delivered = row.deliveredMBps >= 0.95 * c.rateMBps;
   if (row.read && row.damagedAsked !== undefined) out.damageReported = row.read.damaged.includes(row.damagedAsked);
-  if (row.opened && row.opened.writer === false) out.readerWroteNothing = row.store?.storeWrites === 0 && (row.rest?.storeWrites ?? 0) === 0;
+  if (row.opened && row.opened.writer === false) out.readerWroteNothing = (row.store ?? row.rest) !== undefined && (row.store?.storeWrites ?? 0) + (row.rest?.storeWrites ?? 0) === 0;
   return out;
 }
 

@@ -126,7 +126,7 @@ async function once(origin, arm, round) {
       for (const t0 = Date.now(); ((await progress(b.page).catch(() => null))?.written ?? 0) < 20 && Date.now() - t0 < CALL_MS; ) await sleep(20);
       const second = await load(two, origin, { ...p, mode: "reopen", all: 1, rest: 1 });
       const first = await one;
-      return { first, second, checks: { ...checks("T", first), ...checks("T", second) } };
+      return { first, second, checks: { tab1: checks("T", first), tab2: checks("T", second) } };
     }
     b = await fresh({ priv: CELL === "P" });
     const unthrottle = throttleTree(b.pid, THROTTLE);
