@@ -62,10 +62,10 @@ the cines hold 56 frames, the jumps, exacts, residuals and nexts 8, each control
 Under `skip` an error ends the whole arm, so its cines leave no row: the break is seen, whether the cines stayed whole
 is not. What −28 means in dav1d is *unverified*. No mutation missed its own check or broke another's, so the shard
 went on to rounds. Rows:
-[`amended-shard-4.mutations.jsonl`](../../lab/av1/delivery/carriers/results/amended-shard-4.mutations.jsonl); the
-rounds' [`amended-shard-4.jsonl`](../../lab/av1/delivery/carriers/results/amended-shard-4.jsonl); `amended.py` on
+[`amended-shard-4.mutations.jsonl`](amended-shard-4.mutations.jsonl); the
+rounds' [`amended-shard-4.jsonl`](amended-shard-4.jsonl); `amended.py` on
 them alone, a check and **not read**:
-[`amended-shard-4.md`](../../lab/av1/delivery/carriers/results/amended-shard-4.md).
+[`amended-shard-4.md`](amended-shard-4.md).
 
 #### What differed from §F (environment, not protocol)
 

@@ -19,7 +19,7 @@ the optimal-quality series is a series of its own, ingested beside its exact ser
 | ingest | `claude/oq-ingest` → `claude/core` | built in `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID`; the DICOM ingest does not code it yet; `lossy_test.py` in the gate; `demo-series.sh` |
 | client | `claude/oq-client` → `claude/core` | built: pairing (`pair.js`), the Lossless button (`l`), the quality label, `?overlay=1`; tests pass, 21 of 22 mutants killed |
 | depth cut, route | `claude/oq-depth-cut` → `claude/core` (draft PR) | built: the cut (ingest, paint, fixture); WebCodecs first for every OQ series, dav1d only after a refusal; tests pass, the route's 7 of 7 mutants killed |
-| demo end to end | `claude/demo-e2e` → `claude/oq-depth-cut` (draft PR #346) | run: `client/viewer/demo-check.mjs` passed on all 20 OQ series of the demo set in headless Chromium; `demo-series.sh` keeps each `ID.metadata.json`; README §Demo |
+| demo end to end | `claude/demo-e2e` → `claude/oq-depth-cut` (draft PR #346) | run at `fe28ce84`: `client/viewer/demo-check.mjs` passed on all 20 OQ series of the demo set in headless Chromium; `demo-series.sh` keeps each `ID.metadata.json`; README §Demo |
 | phone | `claude/phone-setup` → `claude/core` | README §The viewer on an Android phone, checked in a container only; the pair needs `4434/udp` too (README §Demo on `claude/demo-e2e`) |
 
 * **Contract.** Metadata of an optimal-quality series: `"codec": "av1"`, `"lossy": {"q", "g", "depth"}`,
