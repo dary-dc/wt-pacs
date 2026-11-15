@@ -6,8 +6,7 @@ The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The nativ
 the browser client's design it mirrors: [`../client/design.md`](../client/design.md); the results folded 2026-11-14:
 [`../client/evidence/native-client-milestones.md`](../client/evidence/native-client-milestones.md),
 [`native-window-against-browser.md`](../client/evidence/native-window-against-browser.md),
-[`native-client-parity.md`](../client/evidence/native-client-parity.md). Decided since the README's §7: the shape "basic"
-(2026-10-29) and the core reaching `main` with `client/native` riding it (2026-11-11), both the owner's.
+[`native-client-parity.md`](../client/evidence/native-client-parity.md). Its decisions: the README's §7.
 
 ## Goal
 

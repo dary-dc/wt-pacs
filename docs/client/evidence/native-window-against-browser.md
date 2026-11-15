@@ -6,7 +6,7 @@ client's CPU binds)?
 
 *Folded 2026-11-14 from `claude/native-metrics:docs/native/README.md` §The interim run, pre-registered and §The interim
 run: results (3ee2da30, baf46b63, d5b01b1b), word for word but for relative paths. M1–M4 are the native client's
-milestones ([`native-client-milestones.md`](native-client-milestones.md)); NATIVERUN is the view-worker design run
+milestones ([`native-client-milestones.md`](native-client-milestones.md)); the *native design run* is the view-worker design run
 natively, pre-registered in [`../../native/README.md`](../../native/README.md) §The comparison and never run; §6 is
 that README's. The runner and rows are on that branch: `lab/native-window/run.py`, `run_test.py` and `rows.jsonl` (at
 d5b01b1b). Measured, one 4-vCPU container, lavapipe and SwiftShader under Xvfb: no GPU, no vblank claim.*
@@ -18,7 +18,7 @@ test on made-up rows, `run_test.py` there, each of its nine mutants failing it. 
 loopback cell, run under the series' generation to check the wiring, is not kept.*
 
 **The question.** M2 (§6) timed the native client with `native-fill`, a CLI; the window has never been timed. Does the
-window, on each paint thread, keep M2's reading against the browser? It is not NATIVERUN: one design question, no busy
+window, on each paint thread, keep M2's reading against the browser? It is not the native design run: one design question, no busy
 UI, no cine.
 
 **What the window adds for it** (lab settings, defaults unchanged): `--exit` closes the window once every frame has been
@@ -124,12 +124,12 @@ Round-paired medians; A/A within half the band unless labelled. The browser's ar
   on the 4.4 MB, at 0.69–0.88 of the browser's — M2's 0.76–0.90 for `native-fill`.
 * **The fill after the first frame at 20 Mbit is where the window departs.** `core`'s 61 MB fill is 7 % slower, and its
   inter-arrival p99 is 1 027 ms against 722–724 ms under `ui` and `view`: the receive shares the core thread with the
-  paint, which is what NATIVERUN's prediction (d) names; here it costs fill on the relay, not only at loopback.
+  paint, which is what the native design run's prediction (d) names; here it costs fill on the relay, not only at loopback.
 * *A reading labelled post hoc, not the rule's:* on the 4.4 MB series the two fails are 3.6–5.1 % *after the first
   frame*, and the window's first frame is 160–180 ms earlier. Measured from the dial, the whole fill is a tie: medians
   2 345 (`ui`), 2 298 (`view`), 2 329 (`core`) against the browser's 2 320 ms. The metric moves the window's earlier
   start into a longer remainder. On the 61 MB series, from the dial, `core` is 27 115 ms against 25 463–25 583 for
   the others and the browser's 25 525: its loss is real by either measure.
-* **What it says for NATIVERUN.** The window under `view` reproduces M2's `native-fill` on the relay; `core`'s slower
-  relay fill is a first sign against N2 replacing N1 on metric 5, which NATIVERUN decides. Not GPU, not vblank: both
+* **What it says for the native design run.** The window under `view` reproduces M2's `native-fill` on the relay; `core`'s slower
+  relay fill is a first sign against N2 replacing N1 on metric 5, which the native design run decides. Not GPU, not vblank: both
   arms render in software.

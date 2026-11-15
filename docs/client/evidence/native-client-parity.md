@@ -5,7 +5,7 @@ does it depart?
 
 *Folded 2026-11-14 from `claude/native-parity:docs/native/README.md` §Parity with the browser core and its two
 proposals (36a41fd7, 2ae45b73, e3a4fc21, 6a7df309, 02e298ef), word for word but for relative paths. A bare §N is a
-section of [`../../native/README.md`](../../native/README.md); NATIVERUN is the view-worker design run natively,
+section of [`../../native/README.md`](../../native/README.md); the *native design run* is the view-worker design run natively,
 pre-registered there and never run. The code and tests named are on that branch (PR #277), not reviewed as product.
 Nothing here is timed: each row is a test, not a measurement. The two proposals are for review, nothing built.*
 
@@ -53,7 +53,7 @@ native side. A row reading *not yet* is open.
   Its loss stays fatal.
 * **Under `--paint-thread ui`** the loader (`load.rs`, moved out of the binary to be tested) resumes by the same records
   (`Asking`) and `ResumingSession`: `load::tests::the_ui_loader_survives_a_silent_path`.
-* **The `ui` arm changed under `--cache`.** NATIVERUN's N0 wrote the cache and never read it; it now reads it first. Its
+* **The `ui` arm changed under `--cache`.** The native design run's N0 wrote the cache and never read it; it now reads it first. Its
   write still comes before the hand-off, as N0's design has it.
 * **Controls not taken from the browser, and kept.** F toggles fitted and 1:1 (native's own); Escape closes the window,
   as the lab's runner relies on, so reset is `0` alone. A step stops at the ends, as `window.mjs` has always held it;
@@ -65,7 +65,7 @@ native side. A row reading *not yet* is open.
   to a frame not yet held shows the new number once that frame is painted. A failed cache write under `view` and
   `core` is printed, not put in the title.
 * **Two cines.** The product's (Space) steps from the frame shown, as the browser's does; the lab's `--cine-hz` shows
-  the frame due by the clock from the window's opening and counts late frames, for NATIVERUN. Neither drives the other.
+  the frame due by the clock from the window's opening and counts late frames, for the native design run. Neither drives the other.
 * **No recycle.** The browser's recycle before a byte budget (`recycleAtBytes`) is a lab setting there, off by
   default; not built.
 
