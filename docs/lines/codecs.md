@@ -1,6 +1,6 @@
 # Codecs and lab
 
-Last verified 2026-11-09 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09).
+Last verified 2026-11-09 (transport pointer added 2026-11-14; AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09).
 
 ## Goal
 
@@ -40,7 +40,10 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
   resolution ladder and quality layers; lossless G > 1; a lossy top plus low stream; key parsing in place of
   WebCodecs' flush (tag `archive/av1-keyparse`); LCEVC.
 * **Server and transport:** `claude/line-server` (#254) holds 13 results (congestion and disk designs, PGO, tail
-  ping, GSO, and others); no default changed.
+  ping, GSO, and others); no default changed. The transport's design, decided and open, is
+  [`../transport/design.md`](../transport/design.md) (2026-11-14, an inventory; #391); the
+  transport session's first open item is HTJ2K alone over WebTransport against HTTP/2 `fetch`, WebSocket and HTTP/3
+  `fetch` on the link profiles.
 
 ## Open (ordered)
 
@@ -58,8 +61,23 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    radiology (`claude/av1-vl-metrics`, landed); HTJ2K with resolution levels and tiles, a separate approach outside
    the demo (`claude/htj2k-tiles`, protocol landed).
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms.
+5. One place for the coded sets (2026-11-11, findings, [`../reviews/dataset-hub.md`](../reviews/dataset-hub.md)):
+   a recipe key and a pin file; release assets on this repository lead. Owed: the same bundle digests on two hosts,
+   and the owner's choice of who uploads.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).
+7. The series server's network mode in `deploy/` (2026-11-12, row HOSTNET-THEORY, `claude/hostnet-theory`): theory in
+   [`../transport/network-mode.md`](../transport/network-mode.md) proposes host networking for `server` and `exact`
+   (rootless pasta's publish drops at the host what the controller reads as congestion, carries no ECN and splits
+   every GSO send); unmeasured. Its §6 is the check that decides, owed to the next phone round, written by a session
+   that will not run it.
+8. **An 8-bit depth cut for hardware** (amendment 14 of `claude/work-ledger:docs/queue-client-2026-11-14.md`;
+   DEPTH8-THEORY, 2026-11-14, theory): [`../av1/depth-cut-8.md`](../av1/depth-cut-8.md). The cut alone stays
+   under the noise on all 19 DBT volumes. Coded, it is predicted to cost 0.82–2.44 times today's view's bytes,
+   depending on how its rounding and the coding error stack; it buys a checked hardware path on desktop Chromium
+   only (4:2:0 grey, `NV12`). DEPTH8-MEASURE (2026-11-15, measured, §9, all 19 volumes): the 8-bit view meets the
+   noise rule at Q 3–11 and costs 1.14–1.86 times today's bytes; 4:2:0 adds +0.01–0.12 %. The desktop GPU's `NV12`
+   exactness and speed are open; whether an 8-bit view is acceptable is the owner's.
 
 ## Decisions (the owner's)
 

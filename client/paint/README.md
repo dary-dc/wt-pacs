@@ -157,8 +157,7 @@ executed:
   (SwiftShader, median of 5), 11 ms after it on a 144 ms draw on llvmpipe.
 * `read`: a one-pixel `readPixels`, which blocks the paint's thread until the draw has executed. **In Firefox ≥ 145 it
   also waits for the page's main thread** (each read asks the page for permission to extract the canvas), so on a busy
-  page it waits out the page's long task: [`../../docs/adr/frame-path.md`](../../docs/adr/frame-path.md) §7, *The pixel
-  read under a busy page*. Kept to reproduce §7's run and `check.mjs bench`'s figures.
+  page it waits out the page's long task: [`../../docs/client/evidence/pixel-read-under-busy-page.md`](../../docs/client/evidence/pixel-read-under-busy-page.md). Kept to reproduce §7's run and `check.mjs bench`'s figures.
 
 `gl.finish()` is not a settle: it returns early on SwiftShader (0.1 ms, the draw then left to the next read), though
 it waits on Firefox's llvmpipe. `settle-check.mjs` proves the fence waits on both: a draw heavy enough to take 145–250

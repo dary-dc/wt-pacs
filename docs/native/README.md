@@ -19,6 +19,7 @@ because it is easier to start there; phones are the goal (the owner, 2026-10-10)
 8. [The headless core on raw QUIC: the design](#8-the-headless-core-on-raw-quic-the-design)
 9. [Sources](#9-sources)
 10. [The view-worker design, native (2026-10-29)](#the-view-worker-design-native-2026-10-29)
+11. [Parity with the browser core (2026-10-30)](#parity-with-the-browser-core-2026-10-30)
 
 ## 1. The plan in plain words
 
@@ -86,7 +87,7 @@ Where a frame cache belongs, and whether the OS takes it back:
 | macOS | `~/Library/Caches` | unknown | |
 | iOS | Application Support + `isExcludedFromBackup` (set again on every save) | Caches can be purged when space is very low, never while the app runs | encrypted by default (Data Protection class C); class A (`complete`) locks the cache ~10 s after the device locks, which stops a background prefetch |
 | Android | `getFilesDir` | `getCacheDir` is deleted oldest-first under a moving quota and "designed to store a small amount" | file-based encryption on Android 10+ |
-| browser (today) | OPFS | best-effort unless persisted; ≈ 60 % of disk per origin (Chrome, Safari), 15 % in a web view; Safari deletes script-written storage after 7 days without interaction (30 operating days in the source's default, [`../adr/frame-path.md`](../adr/frame-path.md) §4) | not built ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Open) |
+| browser (today) | OPFS | best-effort unless persisted; ≈ 60 % of disk per origin (Chrome, Safari), 15 % in a web view; Safari deletes script-written storage after 7 days without interaction (30 operating days in the source's default, [`../client/evidence/cache-in-opfs.md`](../client/evidence/cache-in-opfs.md) §4) | not built ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Open) |
 
 **What a cache must do on any OS**, from the exactness ADR ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md)
 §8, *A client cache*): hold only frames whose check is `true`, never key by digest, and re-check on read. From the
@@ -100,8 +101,10 @@ its re-check like any other.
 
 **The other side.** AAPM Report 260 on handheld viewers recommends leaving no persistent data on the device. HIPAA's
 technical safeguards (45 CFR 164.312) make audit controls required and encryption at rest and automatic logoff
-"addressable"; a proposed revision (published 2025-01-06) was not read. GDPR Art. 32 asks for security appropriate to
-the risk. A page's storage is evictable by default; an app's cache stays until the app removes it.
+"addressable"; the proposed revision (90 FR 898, 2025-01-06) would require encryption at rest save documented
+exceptions and drop "addressable" (*corrected 2026-10-28,* `claude/cache-policy` 680c9b49: this said it was not read).
+GDPR Art. 32 asks for security appropriate to the risk. What each source asks of a cache, the options and a default per
+device kind: [`../client/evidence/what-the-cache-leaves-on-a-device.md`](../client/evidence/what-the-cache-leaves-on-a-device.md). A page's storage is evictable by default; an app's cache stays until the app removes it.
 
 ## 4. App shape
 
@@ -156,6 +159,25 @@ run on a simulator or device in this project's CI.
   them: Rust plus Swift and Kotlin, C++ (Qt), Dart (Flutter), web (Tauri).
 
 ## 6. The measurement plan
+
+**Running the native steps in a stock cloud container** (2026-10-30). Without this, `scripts/gate.sh` skips the native
+decode, painter and window steps by name. As root, from the repository:
+
+```bash
+apt-get update      # the stock lists have neither libxkbcommon-x11-0 nor meson
+apt-get install -y mesa-vulkan-drivers xvfb xdotool libxkbcommon-x11-0 meson
+ingest/tools.sh     # 186 s on 4 cores; writes ingest/.build, the gate's default INGEST_BUILD
+python3 -m venv .venv && .venv/bin/pip install --require-hashes -r ingest/requirements.txt
+PYTHON=.venv/bin/python scripts/gate.sh
+```
+
+`ingest/tools.sh` writes to `BUILD`, and the gate reads `INGEST_BUILD`; both default to `ingest/.build`, so set both or
+neither (`BUILD=/x ingest/tools.sh`, then `INGEST_BUILD=/x scripts/gate.sh`). The gate finds lavapipe itself
+(`/usr/share/vulkan/icd.d/lvp_icd*.json`); a lab run passes it as `VK_ICD_FILENAMES`. With these, `cargo test -p
+native-client` (with `--features decode` too), the painter's, decode and view tests and `client/paint/window.mjs` pass
+on lavapipe. The gate's browser steps also need README.md §Prerequisites' first block (the wasm target, `wasm-pack`,
+the two fetches and `client/transport/wasm/build.sh`). The stock container has a docker client and no daemon, so the
+full gate fails at the decoders' rebuild; `scripts/gate.sh --quick` runs every native step and skips that one by name.
 
 Order: **desktop in cloud containers first**, so each row runs unattended; **then a desktop with a GPU** (the owner's);
 **then phones**. Every timed row interleaves its arms, prints each arm's full settings (server build, controller and
@@ -353,6 +375,8 @@ Also under §Blocked in [`../av1/queue.md`](../av1/queue.md).
    the same answer for page and app, but it sets what the app's store listing and device list must carry.
 5. **Distribution**: the public stores, or hospital channels (Apple Business Manager custom apps, managed Google Play
    private apps) and a desktop update channel per OS.
+6. **How it reaches `main`.** *Decided by the owner, 2026-11-11:* `client/native` rides the core design to `main`
+   ([`../client/design.md`](../client/design.md) §Decided).
 
 ## 8. The headless core on raw QUIC: the design
 
@@ -491,6 +515,8 @@ Estimated: step 1 ≈ 300 lines of client and CLI, ≈ 150 of tests.
 
 ### 8.5 What keeps the browser path unchanged, and what proves both clients get the same bytes
 
+*Run 2026-10-28:* a tie ([`../client/evidence/native-client-wire-parity.md`](../client/evidence/native-client-wire-parity.md)).
+
 * **Unchanged by construction:** the browser offers only `h3`, so TLS answers it as today (§8.1); its session
   opens through the same patched `accept(connecting)`; the transport configuration is the same object; the bytes on
   its streams are written by the same `write_frame` through the same quinn stream.
@@ -515,6 +541,47 @@ Estimated: step 1 ≈ 300 lines of client and CLI, ≈ 150 of tests.
   Predictions: every frame byte-identical in both arms; the fill within ±3 % and the server's `session path` (cwnd,
   sent, lost) within the A/A spread; the first frame of a cold `--fill` from the raw client no later than the
   WebTransport client's with `?ask=` (§8.2). Rule: any of these failing stops step 2 until it is explained.
+
+  *Run 2026-10-28, on `claude/native-core-2` at `4cd6cf88` (step 2's build, which carries step 1's review fixes),
+  release, without `decode`:* [`lab/native-step1/run.py`](../../lab/native-step1/run.py), rows in `rows.jsonl` there.
+  * **The rig.** A 4-vCPU container; server on core 0, relay on core 1, clients on 2–3, nothing else running.
+    One series, 24 frames of incompressible bytes at 500–630 kB (13.2 MB, the size of the tomosynthesis volume
+    `lab/server-load` serves; the transport sees bytes), from `run.py --make-series`. Server defaults:
+    `stream_mode=shared`, `cubic-restart`, opening ask on. Relay: `--delay-ms 40` (one way, 80 ms round trip),
+    `--rate-kbit 20000` and `50000` both ways, its default 50-packet tail-drop queue, `--self-timing`. A fresh server
+    for every visit, warmed by one unrecorded fill.
+  * **Arms, settings printed in every row's `cmd`.** *Fill:* `native-fill --fill 0-23` over `wt-pacs/1` against
+    `fill_load` over WebTransport, each timed from its first FoD write to the last byte. *Cold:* `cold_fill`, timed from
+    the dial, the raw arm's `--fill` (the native client's own `transport`) against WebTransport with `?ask=fill:0-23`
+    in the CONNECT. Both clients grant a 6 MiB stream and 15 MiB connection window; `fill_load` gained the two flags,
+    which it lacked. Every unit twice a round (A, A2, the A/A), the 16 units Williams-ordered, 10 rounds.
+  * **`VOID`, fixed before the data:** a visit whose relay p99 is over 1 ms is dropped (7 of 160); a cell whose arm
+    A2/A median is outside ±1.5 %, half the ±3 % band, cannot decide it. **No cell was `VOID`**: A/A medians
+    0.9936–1.0078.
+  * **Every frame identical:** 3 840 of 3 840 in both arms, against the bundle (`native-fill`, `cold_fill`) and the
+    items it was packed from (`fill_load`). `exact` is `unchecked`: no decode in this build. `fill_load --mutate` and a
+    byte flipped in `cold_fill`'s reference each failed the visit in both arms.
+
+  | Mbit | fill, ms: raw · WebTransport | raw ÷ WebTransport [range] | A/A raw · WebTransport | first frame, cold, ms: raw · WebTransport | raw − WebTransport [range] | A/A, ms: raw · WebTransport |
+  | ---: | --- | --- | --- | --- | --- | --- |
+  | 20 | 5 795.9 · 5 796.5 | 1.0004 [0.9970–1.0047], n = 19 | 1.0012 · 0.9997 | 655.8 · 655.0 | +0.6 [−10.2…+5.9], n = 18 | −0.3 [−4.2…+1.2] · −0.6 [−8.4…+2.1] |
+  | 50 | 3 028.4 · 3 030.0 | 1.0023 [0.9723–1.0165], n = 18 | 0.9968 · 1.0001 | 627.9 · 627.5 | +1.1 [−7.4…+5.5], n = 19 | +1.6 [−3.8…+5.4] · +0.5 [−9.8…+4.2] |
+
+  Medians; ratios and differences round-paired. The cold fill's last frame: 0.9996 and 0.9954. The server's `session
+  path` over the fills, raw − WebTransport median against the A/A's A2 − A range: cwnd +27 [−5 318…+2 534] and +18
+  [−16 944…+14 961], sent +2 [−16…+11] and −1 [−85…+79], lost +0 [−16…+11] and −2 [−83…+78], congestion events and
+  smoothed RTT inside too, at 20 and 50.
+  * **Where the host saturates.** Busy at most 0.17 of the four cores, the relay at most 0.39 of its one, steal at most
+    2 %. Probed after, three raw cold fills a setting: shaped at 200 Mbit with a 2 000-packet queue the relay carried ~150 Mbit with a p99 of
+    0.35–0.61 ms; unshaped it went `VOID`. So the cells, at 18.2 and 34.8 Mbit of goodput, are the link's: at 50 the
+    50-packet queue against an 80 ms round trip, not the host, holds the fill to 35 Mbit (~640 relay overflows a fill).
+    Nothing is claimed above ~150 Mbit, of a fill past 13 MB, or of `per-frame`, which did not run.
+  * **The verdict under §8.6's rule.** Predictions 1–3 hold: every frame identical; the fill within ±3 % (within
+    0.4 %); the server's path within the A/A spread. Prediction 4 holds as a tie, not as worded: the raw client's cold
+    first frame is 0.6 and 1.1 ms later on the median (0.1–0.2 %), inside both arms' A/A ranges, later in 10 of 18
+    and 12 of 19 pairs (sign test p = 0.41 and 0.18). That is the explanation the rule asks for: at this resolution the
+    raw fill and `?ask=` reach the server in the same flight, as [`../WIRE.md`](../WIRE.md) §The raw QUIC mapping
+    reads, and "no later" cannot be told from "the same". Whether a tie closes step 1 is the owner's call.
 
 ### 8.6 Build order
 
@@ -586,12 +653,12 @@ committed.
   (`962539af0373`); ACR–AAPM–SIIM Technical Standard for Electronic Practice, rev. 2022 (`c36cbd5e16df`); AAPM
   Report 260 (`7b0403c504c4`); eCFR 45 CFR 164.312 (`c70378b6f5e4`).
 
-**Not read**, so not cited: IEC 62304 beyond its abstract and IEC 82304-1 (paywalled or refused); the EU borderline
-manual on PACS; the HIPAA Security Rule revision's text; GitHub's release pages (403); MicroDicom's site (403).
+**Not read**, so not cited (*corrected 2026-10-28,* `claude/cache-policy`: the HIPAA Security Rule revision's text was listed here; it has been read, §3): IEC 62304 beyond its abstract and IEC 82304-1 (paywalled or refused); the EU borderline
+manual on PACS; GitHub's release pages (403); MicroDicom's site (403).
 
 ## The view-worker design, native (2026-10-29)
 
-*Theory only: read from the Target section of [`../adr/frame-path.md`](../adr/frame-path.md) as revised on
+*Theory only: read from the Target section of [`../client/evidence/view-worker-design.md`](../client/evidence/view-worker-design.md) as revised on
 `claude/view-worker-target-rev` (draft PR #235), its red team's review and the independent design after it, and from
 the native line's open PRs at their heads: #206 `claude/native-paint`, #209 `claude/native-cache`, #216
 `claude/native-window`, #218 `claude/native-fill`. M2's and M3's results quoted below are on #218's and #209's
@@ -832,12 +899,13 @@ frame on screen; prediction (b) on X11 is close to true by construction and is a
 
 ### Built (2026-10-29)
 
-*Built on `claude/native-view` from this section as reviewed; nothing timed, the comparison is NATIVERUN's.* The four
+*Built on `claude/native-view` from this section as reviewed; nothing timed, the comparison is the native design run's (§The comparison).* The four
 native branches are merged in (#206 painter, #209 cache, #216 window, #218 fill harness); `native-fill` keeps both
 #209's `--cache` and #218's `--in-turn --paint`. The window takes `--paint-thread`, the thread that holds the frames and paints them:
 
 * **`ui`** (the default, N0): today's, unchanged in design. With `--cache` it writes each frame, both fsyncs, before
-  the hand-off, as the merge would; it never reads the cache, which no branch had the window do. Its present is now
+  the hand-off, as the merge would; it never reads the cache, which no branch had the window do. (*Corrected
+  2026-10-30*, §Parity: it now reads the cache first, as `view` and `core` do, and a failed write no longer aborts it.) Its present is now
   pinned to `Fifo` and printed.
 * **`view`** (N1): `client/native/src/view.rs` and the window's `Viewer`. Threads: UI, a downloader on a
   `current_thread` runtime holding quinn and the records, `N` decoders, the view thread — `N + 3`. The want is a
@@ -886,7 +954,7 @@ Two copies because AV1 merges into `out` first; HTJ2K makes one. With the two-fr
   decode, not measured.
 * **The cache's read-back** runs on a decoder (coded bytes need decoding); the downloader stats the file per miss.
 * **Not built:** the re-ask when a decoder thread dies (its record stays); the cine and its frame clock (the window
-  has none; *built 2026-10-30*, §Built for NATIVERUN); a phone, a display's vblank, macOS's off-UI-thread present.
+  has none; *built 2026-10-30*, §Built for the native design run); a phone, a display's vblank, macOS's off-UI-thread present.
 * **The check's Xvfb** runs `-noreset`: without it the display was gone after the `view` window's close.
 
 ### Independent review (2026-10-30)
@@ -902,20 +970,20 @@ Two copies because AV1 merges into `out` first; HTJ2K makes one. With the two-fr
   `client/paint/window.mjs` passes on every paint thread.
 * **Fixed.** The store's tie-break (above), with a test whose mutant fails.
 * **Corrected before data.** Metric 6's bound omitted the `N` unwritten frames; metric 1 named no budget.
-* **Not built, and NATIVERUN needs it.** The cine and its frame clock (metrics 4 and 5), the busy-UI loop and the
+* **Not built, and the native design run needs it.** The cine and its frame clock (metrics 4 and 5), the busy-UI loop and the
   steps injected off the UI thread (metric 4), a hop's send → receive stamp (metric 7), metric 6's drive through the
   series, and B's 1-pixel read behind a lab flag (`paint-worker.js` on `claude/view-worker` still reads on every
-  paint). Both rules turn on metrics 4 and 5, so NATIVERUN is not run: no verdict is possible from the rest.
-  (*Built 2026-10-30*, §Built for NATIVERUN, except B's flag, *corrected there*: it was already on `claude/core`.)
+  paint). Both rules turn on metrics 4 and 5, so the native design run is not run: no verdict is possible from the rest.
+  (*Built 2026-10-30*, §Built for the native design run, except B's flag, *corrected there*: it was already on `claude/core`.)
 * **Seen, not changed.** The view re-asks only on an intent, so a frame evicted from inside the want, or refused, is
   asked again at the next step, not at once; a cache write that fails still marks the frame written, so it is
   evictable and comes back from the wire.
 
-### Built for NATIVERUN (2026-10-30)
+### Built for the native design run (2026-10-30)
 
 *On `claude/core-native`, from the list above, in the shape the owner chose on 2026-10-29 (§7, decision 2): winit and
 M1's painter, no toolkit. Each is a lab setting of `native-window`, off by default, on every `--paint-thread`.
-NATIVERUN is not run and nothing here is timed.*
+The native design run is not run and nothing here is timed.*
 
 * **The cine** (`--cine-hz`): a timer on the thread that paints — the UI thread under `ui`, the view thread under
   `view`, the core thread under `core` — that shows the frame due by the time since the window opened, as
@@ -934,10 +1002,10 @@ NATIVERUN is not run and nothing here is timed.*
   thread), `job`, `decoded`, `done`, `intent`, `shown`, `failed`, `step`. Always on, as the counters are: a lock and a
   push a message.
 * **B's 1-pixel read** was already behind a lab flag on `claude/core`: `settlePaint` in `client/view/view-worker.js`,
-  off by default, set by `lab/viewer/levers.js` ([`../adr/frame-path.md`](../adr/frame-path.md) §3). *Corrected
+  off by default, set by `lab/viewer/levers.js` ([`../client/evidence/frame-store-owner.md`](../client/evidence/frame-store-owner.md) §3). *Corrected
   (2026-10-30)*: the independent review read `paint-worker.js` alone, which the page view keeps reading on. Nothing
   built. *Since 2026-10-30* neither view's product paint reads; a lab's settle is the fence by default
-  ([`../adr/frame-path.md`](../adr/frame-path.md) §7, *The pixel read under a busy page*).
+  ([`../client/evidence/pixel-read-under-busy-page.md`](../client/evidence/pixel-read-under-busy-page.md)).
 
 **Proved.** `clock::tests` and `count::tests`: the cine shows the frame due and counts those passed over; a frame is
 on time only if its paint ends before the next is due; the busy loop blocks for its length and keeps its schedule;
@@ -962,8 +1030,265 @@ frames was decoded twice: the likely path, not traced, is a want sent while a fr
 view, which lists it again once its `done` has cleared the downloader's record — §Built's "may be asked again",
 frequent under a want that changes 30 times a second.
 
-**What NATIVERUN still needs, none of it the window's:** the runner — the arms in a Williams square with A and A2, the
+**What the native design run still needs, none of it the window's:** the runner — the arms in a Williams square with A and A2, the
 relay cells, the 1-core pinning, the saturation guard from `/proc`, peak RSS (`VmHWM`), B's rig; a visit's end (the
 window runs until closed, so the runner sends Escape or ends it after its last step); the times metrics 1 and 5 read
 — dial to the last frame exact, and the inter-arrival p99 — which the window does not print (`Event::Frame`'s `at`
 holds the arrival); the synthetic 3328 × 4096 16-frame series, and the 1024² and 512² HTJ2K series packed for it.
+
+*Built 2026-10-30, on `claude/native-metrics`:* the visit's end (`--exit`) and its times, and the series (§The
+interim run, below). The runner is still to build.
+
+### The interim run, pre-registered (2026-10-30)
+
+*Written before any data, with its runner [`lab/native-window/run.py`](../../lab/native-window/run.py) and the rule's
+test on made-up rows, `run_test.py` there, each of its nine mutants failing it. A one-round smoke of the 4.4 MB
+loopback cell, run under the series' generation to check the wiring, is not kept.*
+
+**The question.** M2 (§6) timed the native client with `native-fill`, a CLI; the window has never been timed. Does the
+window, on each paint thread, keep M2's reading against the browser? It is not NATIVERUN: one design question, no busy
+UI, no cine.
+
+**What the window adds for it** (lab settings, defaults unchanged): `--exit` closes the window once every frame has been
+exact on the thread that paints and, with `--steps`, a step's interval after the last; `--size` sets its inner size.
+At its end it prints a `visit` line: dial → first frame exact on the thread that paints, → first painted (after the
+GPU's queue drained, with `--stamp-painted`), → last frame of the series exact, and the p99 of the gaps between frames'
+arrivals off the wire (`Event::Frame`'s `at`, sorted). `count::tests` hold the times (five mutants, each failing them), `client/paint/window.mjs` the
+end on each paint thread (seven). One survived the first form of the check — the `ui`
+window ending at frame 0, unseen while its frames arrived in one burst — and the check now spaces them with the
+cache's write delay.
+
+**Protocol: M2's**, with these changes and nothing else.
+
+* **Native arms**, one per paint thread: `native-window --paint-thread ui|view|core --exit --stamp-painted --size
+  1280x691 --budget 268435456`, on one Xvfb (`-noreset`, on the client cores) and lavapipe. The budget holds either
+  series decoded, so the want of `view` and `core` is the whole series and the fill runs to its end. Decoders
+  `min(3, cores)` = 2 under the pinning, printed with every setting in each row.
+* **Browser arm**: M2's `browser.mjs`, the viewer at the core's default, `?view=page` (its status line prints `view
+  page`), Chrome for Testing 153.0.8010.12 headless, SwiftShader, canvas 1280×691.
+* **Cells**: the fill only; loopback and 20 Mbit clean (`link_impair.py`, 40 ms each way, its 50-packet queue,
+  `--self-timing`); the 61 MB and the 4.4 MB series (below). 4 cells × 4 arms × A and A2 = 32 visits a round, in
+  `lab/scripts/order.py`'s Williams order (`lab/order.mjs` for Python), 7 rounds, 224 visits. A fresh server per visit,
+  warmed by one unrecorded `native-fill` fill. Pinning M2's: server on core 0, relay on 1, every client process
+  (Chromium's, the window, Xvfb) on 2–3.
+* **Metrics, one per cell.** *Latency*: dial to the first exact frame on screen — the window's `first_shown_ms`, the
+  browser's `firstShown` with its paint settled (`settlePaint`, `lab/viewer/levers.js`). *Throughput*: the fill after
+  the first frame, dial to the last frame exact less dial to the first; the window counts a frame exact on the thread
+  that paints, the browser on the page. It is quoted as a time over a fixed series, not as a rate. Printed, not judged:
+  the window's inter-arrival p99 and every core's busy share.
+* **Predictions**, from M2's `native-fill` (§6): (i) the first exact frame on screen is earlier — native ÷ browser
+  ≤ 0.9 *and* ≥ 16.7 ms earlier, round-paired medians — in every cell (M2: 0.30–0.33 on loopback, 0.76–0.90 on the
+  relay); (ii) on loopback the fill after the first frame is ≤ 0.6 × the browser's (M2's P1); (iii) at 20 Mbit it is
+  within ±3 % (M2's P2).
+* **`VOID`**: a visit whose relay p99 is over 1 ms; a cell, for a paint thread, where its or the browser's A2/A median
+  strays past half its band — fill ±20 % on loopback and ±1.5 % at 20 Mbit (M2's), first frame ±5 % (new). Under 3
+  round pairs a cell is undecided.
+* **Saturation guard**: per visit, the client cores' busy share from `/proc/stat` (steal counts as busy), and the relay
+  core's in the relay cells. A cell is saturated for a paint thread where its arm or the browser runs the client cores
+  ≥ 0.9 busy at the median, or the relay core ≥ 0.8: its ratio is printed and nothing is claimed. M2's browser ran its
+  two cores at 0.96 on loopback, so the loopback cells are expected to claim nothing.
+* **Rule.** For each paint thread: **"M2's reading holds for the window"** if every decided cell — not `VOID`, not
+  saturated — holds its prediction and at least one is decided; **"does not hold"**, naming the cells, if any decided
+  cell fails; else **undecided**. A visit with any frame not exact is failed and not counted.
+* **Not symmetric, stated:** under `ui` the dial starts as the window opens, so its first frame waits on the UI thread's
+  surface and adapter set-up; under `view` and `core` the dial follows them; the browser dials after its page's load.
+  Both clients render in software (lavapipe, SwiftShader): nothing here is a GPU, vblank or on-screen-on-time claim.
+* *Corrected after its first round, before any visit was counted (2026-10-30):* the window refused the 61 MB series
+  at its first paint ("LINEAR needs a window width ≥ 1, got NaN"): the series has no window in its metadata, and the
+  window, unlike the browser and `native-fill`, had no fallback. It now windows such a frame by its decoded range
+  through its rescale, as `client/view/controller.js` does (`Voi::of_range`; a drag on such a series is ignored, not
+  fixed). `paint::tests` and a windowless run in `client/paint/window.mjs` hold it, |Δ| 0 at 1:1 on every paint thread;
+  three mutants of the range and one dropping the fallback each fail them. Two starts are kept in `rows-aborted.jsonl`,
+  not counted: a first round of 32 visits, and a restart of 29 that I stopped by mistake, which ran a build that had
+  lost the fix's `window.rs` half to a mutant's restore — in each, the window's visits of the 61 MB series failed. The
+  run then restarted at round 0 on the fixed build. Nothing else changed.
+
+**The series**, made by `lab/native-fill/run.py --make-series DIR` (at `35d05b14`) (`lab/scripts/gen_frame_pnm.py`, OpenJPH 0.31.0's
+`ojph_compress` in the served profile, `pack-series`; digests from the generated samples). The generator is seeded by
+the frame's index, so the bundles are the same bytes on every run; they are not committed, and their SHA-256 is here
+to check a rebuild against.
+
+| series | frames | size, bits | content | coded | `.sbnd` SHA-256 |
+| --- | ---: | --- | --- | ---: | --- |
+| `large` | 37 | 1024 × 1024, 16 | `field` | 60.69 MB | `48fecc5a920dbf30fab1b779b67a16311a52fb5a1bf2b777f1bddf56d927ffca` |
+| `small` | 102 | 512 × 512 RGB, 8 | `cine` | 4.42 MB | `e9116f5ba90940574d022b189904bfe1b9f03e843f318b2122742e179fa4f5c0` |
+| `mammo` | 16 | 3328 × 4096, 12 of 16 | `ct` | 211.96 MB | `d0463adef52d7f7957c9c49bfe2f52d05386a2c7a416e092d9e911ff0c1cb464` |
+
+M2's two series came out at the same coded sizes; its bundles were not kept, so byte identity with them is not shown.
+`mammo` is the memory and step cells' series (436 MB decoded), 12 bits stored as the real 3328 × 4096 mammograms are
+(`docs/FIXTURES.md`); the generator writes `bitsStored` from the largest sample. The three took 4 min 22 s on 4 cores.
+
+### The interim run: results (2026-10-30)
+
+*Run on `claude/native-metrics` from the section above, 7 rounds, 224 visits, rows in
+[`lab/native-window/rows.jsonl`](../../lab/native-window/rows.jsonl); `python3 lab/native-window/run.py --summary --out
+lab/native-window/rows.jsonl` prints all of what follows. 0 visits failed: every frame of every visit exact. 37 visits
+voided by the relay's p99, all at 20 Mbit.*
+
+**Verdict, by the rule:**
+
+* **`view`: "M2's reading holds for the window"**, in its 2 decided cells.
+* **`ui`: "M2's reading does not hold"**, in the 4.4 MB series' fill at 20 Mbit.
+* **`core`: "M2's reading does not hold"**, in both fills at 20 Mbit.
+
+| cell | metric | `ui` ÷ browser | `view` ÷ browser | `core` ÷ browser | label |
+| --- | --- | --- | --- | --- | --- |
+| 61 MB, loopback | first frame | 0.298 | 0.249 | 0.212 | `VOID` (browser's A/A 0.924; `core`'s 0.853) and saturated |
+| 61 MB, loopback | fill after it | 0.645 | 0.486 | 0.480 | saturated |
+| 61 MB, 20 Mbit | first frame | 0.862, 206 ms earlier | 0.871, 187 ms | 0.880, 174 ms | holds, n = 7 |
+| 61 MB, 20 Mbit | fill after it | 1.005 | 1.005 | **1.073** | holds · holds · **fails**, n = 7 |
+| 4.4 MB, loopback | first frame | 0.258 | 0.159 | 0.147 | saturated; `view`, `core` `VOID` |
+| 4.4 MB, loopback | fill after it | 0.740 | 0.488 | 0.482 | saturated |
+| 4.4 MB, 20 Mbit | first frame | 0.722, 161 ms earlier | 0.689 | 0.709, 167 ms | holds · undecided (n = 2) · holds |
+| 4.4 MB, 20 Mbit | fill after it | **1.051** | 1.028 | **1.036** | **fails** · undecided · **fails** |
+
+Round-paired medians; A/A within half the band unless labelled. The browser's arm runs at its default, `?view=page`.
+
+* **Where the host saturates.** On loopback the browser holds its two client cores at 0.98 (max 0.99) in both series,
+  as M2 found and the protocol expected, so no loopback cell claims anything. There the window ran 0.61–0.70 of two
+  cores under `ui` and 0.84–0.89 under `view` and `core`; their ratios are printed above and claimed for nothing. At
+  20 Mbit nothing is busy: clients ≤ 0.63 of two, server ≤ 0.14, relay core ≤ 0.33.
+* **The first frame on screen is earlier on the relay under every paint thread**: 174–206 ms on the 61 MB series, 161–167 ms
+  on the 4.4 MB, at 0.69–0.88 of the browser's — M2's 0.76–0.90 for `native-fill`.
+* **The fill after the first frame at 20 Mbit is where the window departs.** `core`'s 61 MB fill is 7 % slower, and its
+  inter-arrival p99 is 1 027 ms against 722–724 ms under `ui` and `view`: the receive shares the core thread with the
+  paint, which is what NATIVERUN's prediction (d) names; here it costs fill on the relay, not only at loopback.
+* *A reading labelled post hoc, not the rule's:* on the 4.4 MB series the two fails are 3.6–5.1 % *after the first
+  frame*, and the window's first frame is 160–180 ms earlier. Measured from the dial, the whole fill is a tie: medians
+  2 345 (`ui`), 2 298 (`view`), 2 329 (`core`) against the browser's 2 320 ms. The metric moves the window's earlier
+  start into a longer remainder. On the 61 MB series, from the dial, `core` is 27 115 ms against 25 463–25 583 for
+  the others and the browser's 25 525: its loss is real by either measure.
+* **What it says for NATIVERUN.** The window under `view` reproduces M2's `native-fill` on the relay; `core`'s slower
+  relay fill is a first sign against N2 replacing N1 on metric 5, which NATIVERUN decides. Not GPU, not vblank: both
+  arms render in software.
+
+## Parity with the browser core (2026-10-30)
+
+*On `claude/native-parity`. The owner's scope: the "basic" shape (§7, decision 2) and the simple cine
+([`../adr/frame-path.md`](../adr/frame-path.md) §The core, assembled) — parity means the browser core's functions, not
+a richer viewer. The browser client is unchanged. Nothing here is timed.*
+
+### The table
+
+One row a capability; "browser" is the core as `client/viewer/` and `client/view/` build it, "native" is
+`native-window` on every paint thread unless the row says otherwise; the last column is the test that proves the
+native side. A row reading *not yet* is open.
+
+| capability | browser | native | proved by |
+| --- | --- | --- | --- |
+| survive a dead path: no stream byte for `stallMs` while frames are owed, the wait doubled by each stall | `downloader.js` `watch`, 3 s | `resume.rs`, 3 s, on the count of STREAM frames received | `resume::tests::a_slow_frame_is_not_a_stall_and_idle_is_not_silence`, `view::tests::a_silent_path_is_resumed_and_the_fill_completes` |
+| re-dial: `tries` 5, `redialMs` 1 s apart, each dial within `dialMs` 5 s; the count reset by a frame | `resume` | `ResumingSession::resume` | `resume::tests::a_session_that_cannot_be_redialled_is_lost_then_dialled_afresh` |
+| re-ask what is owed, nothing that arrived | `reaskOwed` | `Asking::resumed`: the owed frames back at the want's head, in the order asked | `view::tests::a_resume_asks_again_for_what_was_owed` |
+| every re-dial failed: what is owed fails by name; the next ask dials afresh | `resume`, `live` | `Heard::Lost`, `Asking::lost` | `view::tests::a_lost_session_fails_what_it_owed`, the resume test above |
+| end a fill no longer wanted | `cancel` sends `end_stream` | `Wire::End` once the want holds none of the fill's owed frames, and when the view closes | `view::tests::a_fill_the_want_has_left_is_ended`, `view::tests::a_view_that_closes_mid_fill_ends_the_fill` |
+| a cache write that fails: the frame is still painted, the failure reported | the cache is a lab lever there (`?writer=`), off by default | `--cache`, every paint thread: `failed scope=cache` printed, and in the title under `ui`; `native-fill` too (#209) | `load::tests::a_cache_that_cannot_write_does_not_stop_the_load` |
+| the cache read before the wire, a copy failing its check removed and fetched again | `client/view/cache.js` under `?view=worker` | every paint thread; under `ui` since this branch (`load.rs`) | `load::tests::the_cache_is_read_and_a_flipped_entry_comes_from_the_wire` |
+| step: arrows, PageUp/PageDown, the wheel | `viewer.js` `KEYS`, `wheel`; wraps at the ends | the same keys; stops at the ends | `look::tests::each_control_moves_what_the_browsers_moves`; `client/paint/window.mjs` |
+| Home, End | first, last frame | the same | `look::tests::each_control_moves_what_the_browsers_moves`; `window.mjs` *End*, *Home* |
+| window and level: a primary drag, a window's width per 256 px, from where it was grabbed | `pointermove` | `Intent::Drag` | `look::tests::a_drag_moves_from_where_it_was_grabbed`; `window.mjs` *a drag* |
+| pan: a secondary or shift drag, in CSS px | `pointermove` with `pan` | `View::pan_x`, `pan_y` | the drag test; `window.mjs` *a secondary drag pans* |
+| zoom: `+`/`=` ×1.25, `-` ×0.8, ctrl+wheel ×1.1 | `zoom` | `View::zoom` | `look::tests::each_control_moves_what_the_browsers_moves`; `window.mjs` *+, zoomed* |
+| rotate a quarter turn (`r`), flip (`h`, `v`), invert (`i`) | `pose`, `invert` | `View::rotate`, `flip_h`, `flip_v`, `Display::invert` | the same unit test; `window.mjs`, each paint held to the CPU reference with its pose |
+| reset (`0`) | `0`, Escape: fitted, the series' window | `0`: the opening display — 1:1, the series' window — on the same frame | `look::tests::reset_returns_to_the_opening_display_and_keeps_the_frame`; `window.mjs` *0, reset* |
+| status: the frame, its check, the last failure | the status line and the NOT EXACT mark | the window's title: `wt-pacs · frame i of n · exact` / `unchecked` / `NOT EXACT…` / `refused: …`, then `· error: frame j: …` | `look::tests::the_title_says_the_frame_its_check_and_the_last_failure`; `window.mjs` *open*, *End*, *Home* read the title |
+| cine: Space starts and stops it; one frame forward each period, looping; a late tick not made up | `View.play`, `setInterval` at `1000 / cineFps` | `clock::Play` on the thread that paints, under every paint thread | `clock::tests::the_product_cine_steps_once_a_period_and_does_not_make_up_a_late_tick`; `window.mjs` *Space, a second of cine*: frames forward, wrapping, stopped once paused |
+| the cine's period: the series' `frameTimeMs`, else `1000 / cineRate`, else 100 ms | `cineFps` | `Play::period`, from the bundle's metadata | the same unit test |
+| the series' metadata from the deployment | `/series/metadata` from the web host | *not yet*: a local `--bundle`; §Proposed: the series' metadata from the server | — |
+| held to `client/contract`'s clauses | every client, `scripts/gate.sh` | *not yet*: §Proposed: `client/contract`'s clauses against native | `transport::tests::the_native_client_gets_webtransports_bytes` holds the bytes only |
+
+### Where it departs
+
+* **Silence is counted in STREAM frames, not bytes.** quinn's `ConnectionStats::frame_rx.stream` moves whenever a
+  stream frame of any envelope arrives, which is the browser's `lastByteAt` at frame granularity; a 256 KiB frame over
+  a relay passing a packet each 10 ms takes several stalls' length and is not condemned.
+* **The clock also restarts at each event handed on**, since a full credit window stops the session's readers and
+  with them the wire: the downloader's own back-pressure is not silence.
+* **`native-fill` stays single-session.** It measures one session's timing; a re-dial would fold two into one row.
+  Its loss stays fatal.
+* **Under `--paint-thread ui`** the loader (`load.rs`, moved out of the binary to be tested) resumes by the same records
+  (`Asking`) and `ResumingSession`: `load::tests::the_ui_loader_survives_a_silent_path`.
+* **The `ui` arm changed under `--cache`.** NATIVERUN's N0 wrote the cache and never read it; it now reads it first. Its
+  write still comes before the hand-off, as N0's design has it.
+* **Controls not taken from the browser, and kept.** F toggles fitted and 1:1 (native's own); Escape closes the window,
+  as the lab's runner relies on, so reset is `0` alone. A step stops at the ends, as `window.mjs` has always held it;
+  the browser wraps.
+* **Not taken:** the browser's status line also counts frames received, exact, not exact and unchecked, names the
+  decoders, codec and renderer and the fill's time; the title carries only what the task named. A frame that fails
+  its check is never painted natively (the browser paints it under the mark), so its title line reads NOT EXACT over
+  the last frame painted. Under `view` and `core` the title changes with each paint or failure, which carries it: a step
+  to a frame not yet held shows the new number once that frame is painted. A failed cache write under `view` and
+  `core` is printed, not put in the title.
+* **Two cines.** The product's (Space) steps from the frame shown, as the browser's does; the lab's `--cine-hz` shows
+  the frame due by the clock from the window's opening and counts late frames, for NATIVERUN. Neither drives the other.
+* **No recycle.** The browser's recycle before a byte budget (`recycleAtBytes`) is a lab setting there, off by
+  default; not built.
+
+### Proposed: the series' metadata from the server (2026-10-30)
+
+*A proposal for review; nothing built. Structural: it changes what `wt-pacs/1` carries.*
+
+**Today.** `native-window` and `native-fill` read the metadata (shape, display, frame digests, version) from a local
+`.sbnd` named by `--bundle`. The browser fetches `/series/metadata` over HTTP from the web host (`server/dev-server.py`,
+`deploy/nginx`), not from the QUIC server; both read the same bundle the server serves.
+
+**Options.**
+
+1. **Fetch `/series/metadata` from the web host**, as the page does. Same source and bytes as the browser. Costs an
+   HTTPS client in the crate (hyper and rustls, or reqwest), a second origin to name and trust (web PKI there, a pinned
+   hash on QUIC), and a second round trip before the first ask.
+2. **A FoD op, `{"op":"metadata"}`, answered on the control stream.** No new origin. `MAX_FOD_LEN` is 64 KiB; at about
+   20 bytes of digest a frame, a series past ~3 000 frames does not fit, so the answer needs its own framing anyway.
+3. **On `wt-pacs/1` only, the server sends the metadata at accept, on the first uni stream it opens, before any
+   frame:** a 4-byte length and the JSON. The client reads that stream before it reads media. No new op, no round trip,
+   no second origin, and the WebTransport path is untouched (§8.5's rule). Every dial pays the bytes, a resume included.
+   That is also a gain: a resumed session whose metadata `version` differs from the one held has met a restarted server
+   on another series, which the page learns only from its transport file.
+
+**Recommendation: 3.** The server already holds the metadata (`series_bundle::read_layout`); the change is one stream
+at accept in `serve_raw`, a reader in `transport::connect`, `WIRE.md` §The raw QUIC mapping and §8.2's table, and
+`--bundle` kept as a lab setting for `native-fill`'s byte comparison. *Not measured:* the time to the first frame with
+the metadata ahead of it; a `wt-pacs/1` dial today has nothing ahead of it.
+
+**Trust is unchanged.** The digests come from the deployment that serves the frames, under the same pinned
+certificate; the browser takes them from the same deployment's web host. A check against digests from the same source
+proves the decode, not the source (`../adr/exactness-in-production.md`).
+
+### Proposed: `client/contract`'s clauses against native (2026-10-30)
+
+*A proposal for review; nothing built. Structural: a second rig and a fake server.*
+
+**Today.** The clauses (`client/contract/clauses.ts`) drive a `ConformantSession` — `requestExactFrame`,
+`fillFrames`, `endStream`, `stats`, `close` — over a fake WebTransport or WebSocket installed in the Node process, and
+steer the fake through a `FakeHandle` (`pushFrame`, `pushOnOneStream`, `pushTruncatedFrame`, `trickleFrame`,
+`serverClose`, `controlMessages`, `didClose`, dials counted). Native is Rust over raw QUIC: neither the JS surface nor
+the fakes reach it. What holds native to the browser today is
+`transport::tests::the_native_client_gets_webtransports_bytes`, against the real server.
+
+**The adapter.**
+
+* **`native-session`**, a test binary: `transport::Session` behind a line protocol on stdin and stdout — each call a
+  JSON line, each frame and refusal an event line (the body as a file path, not inline). The Node adapter in
+  `adapters.ts` turns it into a `ConformantSession`, as `sessionImpl` does for a bundle.
+* **A fake server on `wt-pacs/1`**, Rust, steered over the same kind of line protocol: the `FakeHandle`'s eight
+  operations on real QUIC streams, so a truncated envelope, a trickle and a server close are what quinn delivers, not a
+  JS model of them.
+* **Two rigs.** The session's (`closure: "fail"`) wraps `transport::Session`; the downloader's (`closure: "redial"`)
+  wraps `ResumingSession` with `Asking`, which is native's downloader.
+
+**What maps, and what does not.** Mapped: `noticesClose`, `bothStreamModes`, `reportsStats` (`inFlight`; `mediaReads`
+is optional), `oneDialServesLaterAsks`, `pushedFill`, `aTruncatedFrameIsAFailure`, `aDeadSessionNamesWhatItOwed`,
+`aLaterFailureIsNotTheFillsOne`, `redialsAfterClosure` (downloader rig), `aSlowFrameHoldsNoOther`,
+`aFrameIsLateOnlyWhenTheSessionGoesQuiet`, `endStreamIsAPromise`, `cancellable`, `anAskIsOnTheWireBeforeItReturns`,
+`aDialThatNeverSettlesIsClosedAtItsDeadline`. Not mapped, each reported by name as the WebSocket's `oneStream` reports
+its own: `workerSafe` and `transferable` (a JS worker and `ArrayBuffer` transfer), `onHeadRunsBeforeTheBody` and
+`anOnHeadThatThrowsFailsItsAsk` (native has no head callback), the ring (`releaseWireBuffer`),
+`anOpeningFillRidesTheUrl` (raw QUIC has no URL; an opening ask would be a FoD message after the handshake) and
+`anEmptyHashDialsUnpinned` (native always pins).
+
+**Cost and risk.** Estimated, not counted from a build: ~250 lines for the fake, ~150 for `native-session`, ~100 for
+the adapter. A second fake to keep in step with `fake-transport.ts` whenever a clause adds a `FakeHandle` operation.
+The clauses that time silence (`aFrameIsLateOnlyWhenTheSessionGoesQuiet`, the 16 s trickle) cross two processes; their
+margins were set for one.
+
+**Recommendation.** Build it, the failure clauses first — truncation, a dead session, a slow frame, silence — since
+those are what native's survival (§Parity) rests on and what the current byte-equivalence test does not touch.

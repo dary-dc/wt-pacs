@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""scripts/check_links.py — in every tracked .md file, each link, anchor and backticked repo path resolves; every cited archive tag exists on origin."""
+"""scripts/check_links.py — in every tracked .md file and docs/ page, each link, anchor and backticked repo path resolves; every cited archive tag exists on origin."""
 
 import os
 import re
@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 REPO_DIRS = ("client/", "common/", "deploy/", "docs/", "fixtures/", "ingest/", "lab/", "patched/", "patches/", "scripts/", "server/", "tools/")
 LINK = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+HREF = re.compile(r'href="([^"]+)"')
 HEADING = re.compile(r"^#{1,6}\s+(.*?)\s*#*\s*$")
 HTML_ANCHOR = re.compile(r'<a (?:name|id)="([^"]+)"')
 # A path that no longer exists may be named beside the commit, tag or word that says so.
@@ -54,7 +55,7 @@ def anchors(path):
 
 
 def local_links(line):
-    return [t for t in LINK.findall(line) if not re.match(r"[a-z]+:", t)]
+    return [t for t in LINK.findall(line) + HREF.findall(line) if not re.match(r"[a-z]+:", t)]
 
 
 def in_history(path):
@@ -102,9 +103,13 @@ def missing_tags():
             for line in cited.stdout.splitlines() for tag in CITED_TAG.findall(line) if tag not in tags]
 
 
+def checked_files():
+    return subprocess.check_output(["git", "ls-files", "*.md", "docs/*.html"], text=True).split()
+
+
 def main():
     os.chdir(ROOT)
-    files = subprocess.check_output(["git", "ls-files", "*.md"], text=True).split()
+    files = checked_files()
     bad, links, paths, historical = [], 0, 0, 0
     for md in files:
         lines = unfenced_lines(md)

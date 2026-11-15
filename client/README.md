@@ -58,7 +58,9 @@ and an import that fails is tried again on the next payload. Before, the first p
 it: **−1.0 serial round trips to the first exact frame through WebCodecs and −3.0 through dav1d on
 100–300 ms links, cold, every paired round** (10.02 → 8.98 and 11.93 → 8.96; HTJ2K 7.99); warm,
 nothing moves. On a link under 20 ms a ≤ 10-bit series pays for the fallback's 238 KB arriving
-beside its first frame (+26 ms at 10 ms, +67 on loopback), dav1d wins from 10 ms. A page that knows
+beside its first frame (+26 ms at 10 ms, +67 on loopback), dav1d wins from 10 ms (a depth hint that fetches dav1d only
+after WebCodecs refuses `g{depth}` resolves it on a branch, not here:
+[`docs/client/evidence/av1-cold-open-depth-hint.md`](../docs/client/evidence/av1-cold-open-depth-hint.md)). A page that knows
 the series is AV1 can `preload` the seven AV1 modules, the glue and the WASM, as `lab/page-open/codec.html`
 does: AV1 then reaches HTJ2K's 8.0. [`lab/page-open/README.md`](../lab/page-open/README.md)
 §Cold round trips by codec. A WebCodecs frame is taken only for the unit it
@@ -83,9 +85,10 @@ never receive a preview. A unit without its top fails by name after its preview.
 the exact frame and no preview. [`docs/av1/adr-unit.md`](../docs/av1/adr-unit.md) §6; the
 dispatch rig checks `client/contract/av1/scalable/`.
 
-**Optimal quality, exact on request** (2026-11-09). A series whose metadata carries `"codec": "av1"`,
-`"lossy": {"q", "g", "depth"}` and `"exactSeries": "<id>"` is shown at **optimal quality** — its visually lossless
-AV1 frames — as any series is: fill, steps, cine. Its **exact series** is the HTJ2K series of the same source on its
+**Optimal quality, exact on request** (2026-11-09; the product's approach and its status:
+[`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §The product). A series whose metadata carries `"codec": "av1"`,
+`"lossy": {"q", "g", "depth"}` and `"exactSeries": "<id>"` is shown at **optimal quality** — its AV1 frames, meant to be
+visually lossless and not yet confirmed by readers — as any series is: fill, steps, cine. Its **exact series** is the HTJ2K series of the same source on its
 own server. `viewer/pair.js` reads its metadata at `/series/<id>/metadata` and its transport file at
 `/wt/<id>/dev-transport.json` (`server/dev-server.py --exact-metadata … --exact-transport …`), and refuses by name an
 exact series that is not HTJ2K, is not of the same source (another frame count, width, height, `bitsStored` or
@@ -219,7 +222,7 @@ series of a pair, under the default view (`?view=page`, no URL flags):
 ```
 
 1. **One view for every reader, the exact frame on request.** An optimal-quality series is a series of its own
-   (visually lossless AV1 at a fixed Q and G), served beside its exact series (the HTJ2K series of the same source)
+   (AV1 at a fixed Q and G, meant to be visually lossless, not yet confirmed by readers), served beside its exact series (the HTJ2K series of the same source)
    by a second server. The client pairs them; the server and the wire are unchanged. `viewer/pair.js` refuses, by
    name, a pair whose exact series is not HTJ2K, not of the same source (frames, size, `bitsStored`, `signed`,
    `framesSha256`) or has no XXH3-64 digests. Held by `viewer/pair.test.mjs`.
@@ -419,7 +422,7 @@ issues it, and the page is told as `stats().recycledAt`. It is for WebKit's sess
 **A frame can be transferred instead of shared** — `pixels: "transfer"`, a lab setting, off by default.
 Each decoder then writes a frame into an `ArrayBuffer` and transfers it to the consumer, which holds
 the only reference; the page stays cross-origin isolated either way. It exists to be measured under
-`?view=worker` ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §3, *Experiment 3*); under
+`?view=worker` ([`docs/client/evidence/transferred-buffer-per-frame.md`](../docs/client/evidence/transferred-buffer-per-frame.md)); under
 `page` the page's paint then copies the frame to the paint worker at each paint.
 
 **Every decision is held by a test** (2026-10-07). A sweep of 76 mutants over
@@ -498,10 +501,12 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   `/wt/dev-transport.json` without `client` means; the script reads that file, also preloaded, and preloads the WASM
   client's files when it names `"wasm"`, any other name refused by name ([`docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client). The module dials at once, with the whole series as the opening fill, while the
   painter starts in parallel.
-* **Frames.** Frames are kept in memory by index. With digests, each frame checked `true` is also written to OPFS by
-  a store worker (`viewer/store.js`); a reopened series fills only what is not there, a frame on disk is read back
-  re-checked and asked again if it fails, and past 256 MiB the frames on disk farthest from the current one leave memory
-  ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §Proposed: the client cache in OPFS). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
+* **Frames.** Frames are kept in memory by index. There is no cache by default. *Corrected 2026-11-14:* this bullet
+  said each frame checked `true` is also written to OPFS by a store worker (`viewer/store.js`); no product module
+  loads that worker (`viewer/viewer.js`: `writer = lab.writer`), so it is written only under the lab's `?writer=`
+  (*Where the frames are*, below). With a writer, a reopened series fills only what is not there, a frame on disk is
+  read back re-checked and asked again if it fails, and past 256 MiB the frames on disk farthest from the current one
+  leave memory ([`docs/client/evidence/cache-in-opfs.md`](../docs/client/evidence/cache-in-opfs.md) §Proposed: the client cache in OPFS). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
   there is no fill, and each step asks its frame, the newest ask alone kept: a step superseded while it waits on
   its cancel asks nothing.
 * **Where the frames are.** `?view=page` (the default) or `?view=worker`. Either way `view/controller.js` holds the
@@ -509,12 +514,14 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   tells the store its want and the store sends the downloader the misses. On the page it runs beside the painter;
   under `worker` it runs in the view worker (`view/view-worker.js`) with the paint worker's code as a module, the
   decoders post to it, and the page (`view/view.js`) sends intents and hears `shown`, `progress` and `failed`, never a
-  frame ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §3, *Built*). The status line names the view. Under
+  frame ([`docs/client/evidence/frame-store-owner.md`](../docs/client/evidence/frame-store-owner.md) §3, *Built*). The status line names the view. Under
   `worker` the store looks in an OPFS cache before it asks (`view/cache.js`): when the lab's `?writer=` names who writes it — the
   store worker (`viewer/store.js`), the decoders or the view worker — a series with digests is written there after each
   frame's paint, and read back checked on a later open. With no writer, the default, there is no cache, as on main
-  ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §The core, assembled).
-* **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact. A lossy
+  ([`docs/client/evidence/speed-of-the-assembled-design.md`](../docs/client/evidence/speed-of-the-assembled-design.md) §The core, assembled).
+* **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact. A
+  mismatched frame is still painted under its mark; the owner decided on 2026-11-14 that it is blocked instead, which
+  is not built ([`docs/client/design.md`](../docs/client/design.md) §Decided). A lossy
   series adds its quality label and the lossless button (§Optimal quality, exact on request); the label then stands
   for an unchecked frame's mark, and only *NOT EXACT* is marked beside it.
 * **The slice slider** (`viewer/slider.js`), upright along the canvas's right edge: a finger steps or jumps through

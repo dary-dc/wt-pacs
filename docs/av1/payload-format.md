@@ -365,8 +365,17 @@ beside its exact series, and the client pairs them by `exactSeries` ([`../glossa
 * **Metadata:** `"codec": "av1"`, `"lossy": {"q": Q, "g": G, "depth": D}`, `"exactSeries"`, the name its exact
   series' bundle is known by, and the `"sourceFingerprint"` both series carry (§Source fingerprint). No `representation`, `preset` or `digests`: a frame digest makes a frame `exact`
   ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests), so a lossy frame arrives `unchecked`.
-* **Built** in `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID`; the DICOM ingest does not code it yet.
-  `--depth-cut` codes the depth cut instead (§Depth cut).
+* **Built** in `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID`; `--depth-cut` codes the depth cut
+  instead (§Depth cut). The DICOM ingest does not code it.
+* **In the product ingest, experimental** (OQ-INGEST, 2026-11-14): `ingest/from-parser --optimal-quality [Q] [--group
+  G]`, off by default, Q 8 when bare, G 8 unless given. After the exact series, from the same samples (each frame
+  checked against the exact series' digest), it writes `<stem>-q<Q>-g<G>[-cut].sbnd` beside it with `exactSeries` the
+  exact bundle's stem. Unsigned D > 10 is always the cut, with no stored form; a signed source over 10 bits after its
+  offset and RGB are refused by name, the exact series kept alone (`claude/ingest-oq:docs/reviews/ingest-oq.md` §5's
+  S2, the signed option that changes nothing decided; S1, a cut after the offset, is the owner's call). Held byte-identical to `ingest.py`'s
+  `lossy` on synthetic sets at `--jobs` 1, 2 and 4 (`ingest/from-parser/same_test.py`, in the gate). Not built: the
+  per-modality G table (no G is measured per modality yet, so G is the caller's), and a reconstruction digest (PR 368,
+  not adopted).
 
 **Bytes** (`scripts/demo-series.sh`, 2026-11-09, one run on a 4-core x86-64 cloud host, 443 s in all with the
 tools already built): each `.sbnd` against its exact series'. The quality at each Q is not measured here.
@@ -377,8 +386,12 @@ tools already built): each `.sbnd` against its exact series'. The quality at eac
 | `dbts_b1`, 2560 × 3328, 10-bit | 50 | 107 410 134 B | 0.2186 | 0.2161 | 0.2159 | 0.0246 | 0.0156 | 0.0152 |
 | `dbts_c1`, 976 × 2513, 12-bit | 69 | 70 668 114 B | 0.0959 | 0.0948 | 0.0947 | 0.0071 | 0.0031 | 0.0029 |
 
-G 16 against G 1: at Q 8, 1.2 % fewer bytes on `dbts_b1` and `dbts_c1`, 0.2 % more on `dbts_a1`; at Q 24, 0.41–0.42
-of G 1's bytes on `dbts_a1` and `dbts_c1`, 0.62 on `dbts_b1`.
+G 16 against G 1 at equal Q (not equal quality, which this run did not measure): at Q 8, 1.2 % fewer bytes on
+`dbts_b1` and `dbts_c1`, 0.2 % more on `dbts_a1`; at Q 24, 0.41–0.42 of G 1's bytes on `dbts_a1` and `dbts_c1`, 0.62
+on `dbts_b1`. *Corrected 2026-11-14 (from `claude/av1-corrections:docs/av1/corrections.md` §6, `2e4efdfc`, the
+quality audit of 2026-11-11):* this read as a property of G. Q 8 is the rung below a 2.4–4.2× byte cliff, and it is
+not the noise rule's Q on these volumes except `dbts_c1` at G 1; at the rule's Q the view is 0.10–0.28 of HTJ2K's
+bytes, not this table's 0.07–0.22 ([`../client/evidence/optimal-quality-bytes.md`](../client/evidence/optimal-quality-bytes.md)).
 
 
 ### Depth cut
@@ -386,8 +399,10 @@ of G 1's bytes on `dbts_a1` and `dbts_c1`, 0.62 on `dbts_b1`.
 *OQ-DEPTHCUT, 2026-11-10. Built and tested on synthetic sets and in headless Chromium; the bytes below are measured,
 the quality is not.*
 
-No engine's WebCodecs returns 12-bit samples (`docs/av1/webcodecs-profiles.md` at `87640e5d` on `claude/av1-webcodecs-profiles`),
-so a D > 10 optimal-quality picture would decode only through dav1d-WASM. The **depth cut** is the form that WebCodecs
+No engine's WebCodecs is shown to return 12-bit samples (`docs/av1/webcodecs-profiles.md` at `87640e5d` on
+`claude/av1-webcodecs-profiles`; *corrected 2026-11-14:* this read "no engine's WebCodecs returns", stronger than
+those sources, which read engine code and one third-party report and run no phone, Edge or AV1-hardware Safari:
+[`../client/evidence/browser-av1-profile-support.md`](../client/evidence/browser-av1-profile-support.md)), so a D > 10 optimal-quality picture would decode only through dav1d-WASM. The **depth cut** is the form that WebCodecs
 decodes: the optimal-quality picture coded from each source sample v's 10-bit **code**
 
 ```
@@ -442,6 +457,10 @@ series each, `…-q8-g16-stored`. *Corrected 2026-11-10 (DEMO-E2E):* this said t
 the script in that form, run twice on a 4-core x86-64 cloud host (903 s building the coders and fetching the volumes first, 565 s with both done), wrote the bytes in
 the table above both times, the Q 8 G 1 and G 16 cuts and both stored forms as before. At Q 24 the cut is 1.12–1.28 times
 the 12-bit view's bytes (§Optimal quality's table, 2026-11-09; from the rounded fractions), more, not fewer.
+
+**An 8-bit cut** (k = D − 8, the form hardware decoders take as 4:2:0 grey) is investigated, not built:
+[`depth-cut-8.md`](depth-cut-8.md), theory and a pre-registered protocol (2026-11-14).
+
 ### Source fingerprint
 
 *SOURCE-FINGERPRINT, 2026-11-11. Built and tested on synthetic sets; nothing timed.*

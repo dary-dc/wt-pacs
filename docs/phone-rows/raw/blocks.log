@@ -1,0 +1,10 @@
+== 2026-11-11T20:19:41Z dbts_a1-q8-g8-cut eye-check run commit
+== 2026-11-11T20:52:23Z dbts_b1-q8-g8
+2026-11-11T20:52:53Z
+2026-11-11T21:27:01Z load 6 failed (Lossless check failed); resumed at load 7, not rerun
+2026-11-11T22:20:40Z load 6 ran a second time (step 5 again, not via the start page at 7): excluded from the analysis as a rerun; the first, failed, stands
+2026-11-11T22:22:12Z tether address changed (USB re-enumerated after the debugging toggle); load 7 unreachable at the old origin: missing; tether static hosts moved
+2026-11-11T22:53:07Z gap before load 12 was ~1237 s, not 15 s (the page's timer frozen, screen asleep); load 12's fill itself normal (2.92 s)
+2026-11-11T22:53:53Z load 13 failed: received 29 of 50, decode stalls ~18 s then group decode failures, server lost=0; likely page hidden (owner in Settings at my request): not rerun, resume at 14
+2026-11-11T23:17:07Z counted run done (load 52); prod-like check: cubic pair with rootless publish on <wired>
+2026-11-12T00:58:20Z run closed; prod-like check not run (production's network mode is open: host proposed)
