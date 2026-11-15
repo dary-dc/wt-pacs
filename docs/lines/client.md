@@ -25,6 +25,10 @@ exact frame bit for bit, and only checked claims on screen.
   `docs/client/evidence/`. Also left by this round: `docs/decode/README.md`'s per-engine statements (its lines
   1828–1861, 2016, 2886) found by two writers; the glossary's *display level*, *reconstruction digest*, *transport
   file*; `client/README.md`'s results not yet moved to evidence; the in-file arm labels (M1–M5, S1–S3) kept by the review.
+* **Decode on a phone's browser**, theory only, 2026-11-15 (`docs/decode/mobile/`, one file per option, then a
+  comparison): AV1 in software ([`../decode/mobile/av1-software.md`](../decode/mobile/av1-software.md)) is the one
+  route checked at full precision on every engine today and bounds the phone's fill; its levers (decoder count,
+  `optimizeForLatency`, tiles, post-filters, 8 bits, a threaded dav1d-WASM) are unmeasured on a phone, its §8 the cells.
 * **The cache survey**, theory only, 2026-11-14
   ([`../client/evidence/cache-options.md`](../client/evidence/cache-options.md)): leaning OPFS as built; owed, a
   phone's cold read and check and sustained write of a 17 MB frame (its §5). The plan to choose the store empirically,
