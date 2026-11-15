@@ -169,3 +169,11 @@ re-ask at 29.2 s finds no session and dials inside the outage, the dial fails, a
 failed* at about 34 s, as the `off` arm's was. The table above measured the 1-4-16 schedule, not this one. One re-ask
 recovers an ask lost to a short outage or a dead session the link can replace at once; an outage longer than the
 resume's budget still needs the reader's `l`.
+
+**Checks** on `3d9d3cf1`, one 4-core cloud host without a GPU: `scripts/gate.sh` (full) OK in 664 s, the three
+absence checks green. Skipped by the gate, by name: numpy/pydicom (the painter check, the split's merge, the DICOM
+reader, the two ingests compared, DICOM to `.sbnd`, optimal quality's test), Mesa lavapipe, Xvfb and xdotool, Firefox,
+a GL display, nginx. `demo-check.mjs` on `dbts_b1-q8-g8` (`scripts/demo-series.sh` cut to `dbts_b1`, Q 8, G 8),
+headless Chromium: passed in the page view and the worker view. A check, not a measurement: one series of one DBT
+volume, software WebCodecs; the other two volumes, the depth-cut series and `--link` were not run, and the
+blackout rig was not re-run under this scope.
