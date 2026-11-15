@@ -129,6 +129,13 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   Chromium (Playwright 1.63) on SwiftShader, one 4-core cloud host, no GPU, loopback; one run per cell; correctness
   only, nothing timed. After FIX-2 only blockers change the demo tip (the freeze); FREEZE-E2E follows.
 * **Not yet run:** any phone run.
+* **Review, round 2** (REVIEW-2, 2026-11-11, `claude/demo-review-2`,
+  [`docs/reviews/review-2.md`](../reviews/review-2.md)): every fix of FIX-1, DEMO-UX (#365) and SOURCE-FINGERPRINT
+  (#364) was reverted on its own, and each failed its test. That covers #364's ingest in Python and Rust, run with
+  the coders built. `claude/demo-clean`'s removed folders are byte-identical at the commits it names, and no link
+  is left unresolved. No correctness finding; two minor docs findings (D1, F1). U1 is a new lab lever,
+  `refuseWebCodecs`, in `av1.js`. U2 is the tap, checked only in emulation. C1: no demo check of the removals yet.
+  No browser check, gate or demo series was run.
 
 * **The freeze** (FREEZE-E2E, 2026-11-11 21:20): `claude/clean-product` merged into `claude/demo-fixes-2` as
   `157b7109`, **the demo commit**. On it: 21 series written again, README §Demo's check loop under both views 40 of 40
