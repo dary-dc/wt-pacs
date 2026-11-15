@@ -20,7 +20,7 @@ timed.***
   duplicate code goes. Telemetry is off by default (rate 0).
 * **2026-11-14, which changes the ADR:** exactness failures are a **safety report, not telemetry**: always on, never
   sampled, not gated by the rate, on the load report's endpoint and record format ([`../design.md`](../design.md)
-  *Decided*; [`frame-integrity.md`](frame-integrity.md)). The ADR's §2 ("not sampled, and an exactness failure … the
+  *Decided*; [`where-a-frame-can-be-corrupted.md`](where-a-frame-can-be-corrupted.md)). The ADR's §2 ("not sampled, and an exactness failure … the
   failure at once") and its open question "are failures sent from unsampled sessions: yes, when the rate field is
   present at all" are superseded by it; the load report alone follows the rate.
 

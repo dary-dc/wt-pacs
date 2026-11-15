@@ -57,4 +57,4 @@ device work); status files `claude/work-ledger:docs/queue/<ROW>.md`.
 The last run: `claude/phone-rows:docs/phone-rows/README.md`, `claude/phone-rows:docs/reviews/phone-blind-read.md`; its state and lessons:
 `claude/work-ledger:docs/queue/PHONE-RUN.md`. The link it measured: [`../transport/transport-conclusions.md`](../transport/transport-conclusions.md)
 §1. What bounds a phone's fill: `claude/fill-split:docs/phone-rows/README.md` *What bounds a fill*. Hardware decode:
-[`../decode/hardware.md`](../decode/hardware.md). Target links: [`../client/evidence/link-profiles.md`](../client/evidence/link-profiles.md); PR 386's branch carries its transport copy.
+[`../decode/hardware.md`](../decode/hardware.md). Target links: [`../client/evidence/which-links-a-phone-meets.md`](../client/evidence/which-links-a-phone-meets.md); PR 386's branch carries its transport copy.

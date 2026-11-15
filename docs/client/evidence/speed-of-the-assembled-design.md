@@ -1,6 +1,6 @@
-# The core, assembled and timed against main
+# The assembled design, timed against `main`
 
-**Question:** Does the assembled core keep main's throughput and latency?
+**Question:** Does the view-worker design, assembled on one branch with every option a setting (the "core"), keep main's throughput and latency?
 
 *Moved 2026-11-14 from `docs/adr/frame-path.md` at `e5b20cba` (§The core, assembled), word for word but for queue-row
 names. A bare §N or §Name is a section of that ADR: [its map](../../adr/frame-path.md) names the file each now lives

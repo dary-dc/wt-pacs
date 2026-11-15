@@ -34,7 +34,7 @@ Built on `claude/unified-client`: both views, the pairing, WebCodecs first for A
 the label and the exact frame on request. Behind a lab setting only: the cache and its writers, the ring of slots,
 transferred buffers, `waitAhead`, `span`, the frame clocks. Native has the same modules on threads
 ([`../native/README.md`](../native/README.md) §Built). The modules and settings, with each one's status:
-[`evidence/core-against-main.md`](evidence/core-against-main.md). The page's code: [`../../client/README.md`](../../client/README.md).
+[`evidence/speed-of-the-assembled-design.md`](evidence/speed-of-the-assembled-design.md). The page's code: [`../../client/README.md`](../../client/README.md).
 
 ## Rules
 
@@ -64,7 +64,7 @@ transferred buffers, `waitAhead`, `span`, the frame clocks. Native has the same 
 | Optimal quality plus the exact HTJ2K frame on explicit request; the residual dropped. The label says *Optimal quality* or *Lossless*, the latter only after the check passes; a developer overlay behind a toggle | 2026-11-09 | the owner | [`../../client/README.md`](../../client/README.md) §Optimal quality, exact on request |
 | D > 10: the depth cut to 10 bits; D ≤ 10 coded at its own depth; a split into top and low streams discarded | 2026-11-09 | the owner | [`../av1/payload-format.md`](../av1/payload-format.md) §Depth cut |
 | The phone: tethering for development and decode numbers, Wi-Fi for transport realism | 2026-11-09 | the owner | [`../devices.md`](../devices.md) §7 |
-| Client telemetry is for production too, sampled | 2026-10-23 | the owner | [`evidence/load-report.md`](evidence/load-report.md) |
+| Client telemetry is for production too, sampled | 2026-10-23 | the owner | [`evidence/what-a-load-report-sends.md`](evidence/what-a-load-report-sends.md) |
 | The downloader re-asks the rest of a fill on the asked frame's head (`refill: "head"`) | 2026-10-15 | the rule, measured | [`evidence/re-asking-the-fill-after-an-ask.md`](evidence/re-asking-the-fill-after-an-ask.md) |
 | The page names its client and transport in its HTML; a trusted deployment reads no transport file (not built on this branch) | 2026-10-19 | the owner | `claude/page-without-transport-file:docs/CLIENTS.md` |
 | The view worker's shape: frames never return to the main thread; VOI part of paint; paint first, then the cache write; the store never decides a paint; the store, not the controller, asks the downloader | 2026-10-28 | the owner | [`evidence/view-worker-design.md`](evidence/view-worker-design.md) §Target |
@@ -72,7 +72,7 @@ transferred buffers, `waitAhead`, `span`, the frame clocks. Native has the same 
 | The ring of slots is a merge candidate once its mechanism is understood | 2026-10-30 | the owner | [`evidence/frame-memory-ownership.md`](evidence/frame-memory-ownership.md) *How the ring works* |
 | Optimise for Chromium first; Firefox is a later goal | 2026-10-31 | the owner | [`evidence/page-out-of-pixel-path.md`](evidence/page-out-of-pixel-path.md) |
 | The cache writer without its copy out of shared memory, and paint-first writing what is left of the tick, are arms too | 2026-11-03 | the owner | [`evidence/cache-io-thread.md`](evidence/cache-io-thread.md) |
-| Build the core architecture with the simple cine only, on one branch; every option a setting defaulting to today | 2026-10-30 | the owner | [`evidence/core-against-main.md`](evidence/core-against-main.md) §The core, assembled |
+| Build the core architecture with the simple cine only, on one branch; every option a setting defaulting to today | 2026-10-30 | the owner | [`evidence/speed-of-the-assembled-design.md`](evidence/speed-of-the-assembled-design.md) §The core, assembled |
 | `?view=page` stays the default: the view worker's first frame is later by ≥ 16.7 ms in five decided cells | 2026-10-30 | the rule, measured | [`evidence/page-out-of-pixel-path.md`](evidence/page-out-of-pixel-path.md) §7; [`evidence/view-worker-start.md`](evidence/view-worker-start.md) |
 | WebCodecs decodes the optimal-quality view; dav1d only after a refusal or a failed decode at ≤ 10 bits, the overlay naming the route and why | 2026-11-11 | the owner | [`../../client/README.md`](../../client/README.md) §Which decoder, per payload |
 | The page view stays; which view is the target is decided after the phone runs | 2026-11-11 | the owner | `claude/work-ledger:docs/queue-2026-11-10.md` |
@@ -84,10 +84,10 @@ transferred buffers, `waitAhead`, `span`, the frame clocks. Native has the same 
 | AV1 only for cine-like series; no low-resolution preview (a preview is tiny or full size); XXH3-64 the frame check | by 2026-11-10 | the owner | `claude/work-ledger:docs/queue-2026-11-10.md` §Decided approaches |
 | Mobile on lossy wireless; no TCP for the fill unless proven; fill and on-demand latency optimized separately; resilience parked | 2026-11-11 | the owner | the same |
 | Telemetry off by default (rate 0); the frame clock kept | 2026-11-11 | the owner | the same |
-| Telemetry is essential and built now, sampled; one implementation per job, so the phone's beacon becomes a switch over the load report | 2026-11-11 | the owner | [`evidence/load-report.md`](evidence/load-report.md) |
+| Telemetry is essential and built now, sampled; one implementation per job, so the phone's beacon becomes a switch over the load report | 2026-11-11 | the owner | [`evidence/what-a-load-report-sends.md`](evidence/what-a-load-report-sends.md) |
 | The core design reaches `main`; then two weeks with no merges but those the owner names, one question a branch and a draft PR | 2026-11-11 | the owner | [`../lines/coordination.md`](../lines/coordination.md) |
 | One home per subject, `docs/<subject>/` (this file, the page, `evidence/`), and the product statement's framing | 2026-11-14 | the owner | `CLAUDE.md` §Docs; [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product |
-| Exactness failures are a safety report, not telemetry: always on, never sampled, no pixels or patient data, the load report's endpoint and format; on a mismatch the second decode first, then the frame blocked, the reader told in that frame's view and the report sent at once. The sampled load report alone follows the rate | 2026-11-14 | the owner | [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §4, §5, §8; [`evidence/frame-integrity.md`](evidence/frame-integrity.md) |
+| Exactness failures are a safety report, not telemetry: always on, never sampled, no pixels or patient data, the load report's endpoint and format; on a mismatch the second decode first, then the frame blocked, the reader told in that frame's view and the report sent at once. The sampled load report alone follows the rate | 2026-11-14 | the owner | [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §4, §5, §8; [`evidence/where-a-frame-can-be-corrupted.md`](evidence/where-a-frame-can-be-corrupted.md) |
 | The cache: survey the options before designing further; OPFS continues only if it comes out best | 2026-11-14 | the owner | [`evidence/cache-options.md`](evidence/cache-options.md); *Open: where the cache keeps frames*, below |
 | The delivery comparison is theory first, measured as calibration (*Open*, below); transport is another subject | 2026-11-14 | the owner | below |
 
@@ -106,7 +106,7 @@ decoders) + rest; the optimal-quality series is 0.07–0.22 of the exact series'
 rule's Q (derived), 0.003–0.025 at Q 24 ([`evidence/optimal-quality-bytes.md`](evidence/optimal-quality-bytes.md)), so A and C1 win where the link binds and lose
 their margin where decode binds. *Decides:* per load, wire time, decode floor, rest, the decoder route taken and
 bytes; phone CPU per process; server egress and CPU; rendering fixed, arms interleaved; the calibrated home Wi-Fi
-([`evidence/link-profiles.md`](evidence/link-profiles.md)), then a sweep toward cellular and congested Wi-Fi with random loss, each profile labelled
+([`evidence/which-links-a-phone-meets.md`](evidence/which-links-a-phone-meets.md)), then a sweep toward cellular and congested Wi-Fi with random loss, each profile labelled
 measured or assumed, then the phone where an arm's regime changes; one table per link profile, in the repository.
 *So far:* none run; the protocol is not written.
 
@@ -152,9 +152,9 @@ visibility in the beacon (#377) ([`evidence/hidden-page-decode.md`](evidence/hid
 
 **Exactness: building the 2026-11-14 decision.** The tip still *marks* a mismatched frame and paints it
 (`client/viewer/screen.js:6`), and the load report's code sends nothing at rate 0, failures included
-([`evidence/load-report.md`](evidence/load-report.md)): both change to the decision; neither is built. A **coded-bytes digest** beside the sample digest
+([`evidence/what-a-load-report-sends.md`](evidence/what-a-load-report-sends.md)): both change to the decision; neither is built. A **coded-bytes digest** beside the sample digest
 would tell the bytes' fault (ask once more) from the decoder's (the second decoder, then block): a candidate for the
-owner, its cost one XXH3 pass, not measured ([`evidence/frame-integrity.md`](evidence/frame-integrity.md) Q1). A series without digests: stored
+owner, its cost one XXH3 pass, not measured ([`evidence/where-a-frame-can-be-corrupted.md`](evidence/where-a-frame-can-be-corrupted.md) Q1). A series without digests: stored
 `unchecked`, or decoded again on every open. Whether a blocked frame has a reveal. The owner's.
 
 **The optimal-quality frame checked as coded** (#368). Every frame checked, the shown frame always and the rest at a
@@ -194,9 +194,9 @@ misses fragmented into one-frame runs; several viewports on one WebGL2 context; 
 read-back that throws; the decoder count on phones. Proposed: keep the start's fix and remove
 `viewWorkerAfterDownloader` (a tie; a 4× answer owed on a quieter rig).
 
-**Settings awaiting the owner** ([`evidence/core-against-main.md`](evidence/core-against-main.md), *Waiting on the owner*): `waitAhead` k = 8 adopted by its
+**Settings awaiting the owner** ([`evidence/speed-of-the-assembled-design.md`](evidence/speed-of-the-assembled-design.md), *Waiting on the owner*): `waitAhead` k = 8 adopted by its
 rule on CT, DBT undecided ([`evidence/ask-order-during-fill.md`](evidence/ask-order-during-fill.md)); `span` and `holdEveryOther`, advised removed
-([`evidence/view-worker-experiments.md`](evidence/view-worker-experiments.md)); `pixels: "transfer"` misses the memory bar on both engines
+([`evidence/spanning-small-gaps-in-the-misses.md`](evidence/spanning-small-gaps-in-the-misses.md)); `pixels: "transfer"` misses the memory bar on both engines
 ([`evidence/transferred-buffer-per-frame.md`](evidence/transferred-buffer-per-frame.md)).
 
 **Native.** Its milestones ([`evidence/native-client-milestones.md`](evidence/native-client-milestones.md)), the window against the browser

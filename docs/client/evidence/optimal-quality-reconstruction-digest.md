@@ -10,7 +10,7 @@ how far that reconstruction is from the source, and at what cost?
 PR 368, off by default); its review by a session that wrote neither
 (`claude/oq-integrity-build:docs/reviews/oq-integrity.md`, `dc989114`); and the red team's cost correction
 (`claude/proposals:docs/lines/proposals.md` §Red team, *Corrections to §Integrity*, `5b4c3341`). Where a frame can be
-corrupted at all, and what a failure report may carry, is [`frame-integrity.md`](frame-integrity.md); it is not
+corrupted at all, and what a failure report may carry, is [`where-a-frame-can-be-corrupted.md`](where-a-frame-can-be-corrupted.md); it is not
 repeated here. Whether to take the check is the owner's ([`../design.md`](../design.md) §Decided, 2026-11-11: a
 proposal).*
 

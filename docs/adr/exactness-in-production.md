@@ -107,7 +107,7 @@ owner settled it on 2026-11-14 ([`../client/design.md`](../client/design.md) §D
 safety report, not telemetry** — always on, never sampled, not gated by the rate; no pixels and no patient data; the
 load report's endpoint and record format. The sampled load report alone follows the rate (0 by default). Nothing of
 this is built yet. Where a frame can be corrupted, and what a report may carry:
-[`../client/evidence/frame-integrity.md`](../client/evidence/frame-integrity.md).
+[`../client/evidence/where-a-frame-can-be-corrupted.md`](../client/evidence/where-a-frame-can-be-corrupted.md).
 
 * **A failure, at once:** series key, frame index, codec, decoder path (`htj2k`, `av1-dav1d`,
   `av1-webcodecs`), WebCodecs codec string, engine and version, `navigator.hardwareConcurrency`,

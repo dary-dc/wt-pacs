@@ -11,7 +11,7 @@ Nothing here is timed: each row is a test, not a measurement. The two proposals 
 
 
 *On `claude/native-parity`. The owner's scope: the "basic" shape (§7, decision 2) and the simple cine
-([`core-against-main.md`](core-against-main.md) §The core, assembled) — parity means the browser core's functions, not
+([`speed-of-the-assembled-design.md`](speed-of-the-assembled-design.md) §The core, assembled) — parity means the browser core's functions, not
 a richer viewer. The browser client is unchanged. Nothing here is timed.*
 
 ## The table

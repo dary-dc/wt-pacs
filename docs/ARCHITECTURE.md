@@ -504,8 +504,8 @@ identical ([`../lab/worker-leak/run.mjs`](../lab/worker-leak/run.mjs), Chromium 
 **The check still trips, rarely, with the decoders left alone** (2026-10-30, the gate's four browser rigs repeated in a
 shared 4-core container): 1 of 15 runs left one downloader alive after its client closed, 3 of 15 with four busy loops
 on the cores, always in `dispatch`, from a different clause each time it was traced; 1 of 20 loaded on a tree before
-[`docs/client/evidence/view-worker-experiments.md`](client/evidence/view-worker-experiments.md) §Experiment 1's `span`. The first traced clause alone: 0 of 100 loaded. Not fixed:
-[`docs/client/evidence/view-worker-experiments.md`](client/evidence/view-worker-experiments.md) §Experiment 1: independent review.
+[`docs/client/evidence/spanning-small-gaps-in-the-misses.md`](client/evidence/spanning-small-gaps-in-the-misses.md) §Experiment 1's `span`. The first traced clause alone: 0 of 100 loaded. Not fixed:
+[`docs/client/evidence/spanning-small-gaps-in-the-misses.md`](client/evidence/spanning-small-gaps-in-the-misses.md) §Experiment 1: independent review.
 
 ## Capabilities
 

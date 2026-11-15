@@ -3,7 +3,7 @@
 **The question:** how is the client measured on a real phone so that a run decides something, and what did the first
 run of 2026-11-11 count against its own rules? The results the run gave are in their own files:
 [`view-target.md`](view-target.md), [`congestion-controller.md`](congestion-controller.md),
-[`fill-bound-on-phone.md`](fill-bound-on-phone.md), [`link-profiles.md`](link-profiles.md),
+[`fill-bound-on-phone.md`](fill-bound-on-phone.md), [`which-links-a-phone-meets.md`](which-links-a-phone-meets.md),
 [`lossless-after-a-failed-ask.md`](lossless-after-a-failed-ask.md), [`hidden-page-decode.md`](hidden-page-decode.md).
 
 *Folded 2026-11-14 from `claude/phone-protocol:docs/devices.md` §7 *Second amendment* and its *Note* (`ecd31836`),
@@ -58,7 +58,7 @@ only through the lab gate, a client beacon (`?beacon=`, sent after the fill or o
 FILE`) and a runner page walking the octets above. **Checked headless on loopback on a synthetic pair, not on a phone,
 not under SELinux.** As built, the status line's fill starts at the page's issue, before the downloader dials, so it is
 the *longer* of the two by 12–30 ms on loopback (the amendment had it the other way); ratios are unaffected. The beacon
-is to become a switch over the product's load report ([`load-report.md`](load-report.md)).
+is to become a switch over the product's load report ([`what-a-load-report-sends.md`](what-a-load-report-sends.md)).
 
 ## 3 · The first run (2026-11-11 evening): what it counted
 

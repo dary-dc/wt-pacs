@@ -52,7 +52,7 @@ cause is not explained* (quinn's BBR pacing of a larger first flight is the next
 | Wi-Fi, server wired | **`cubic-restart` faster**: 9 of 10 above 1, median 1.084 (range 0.939–1.364) | not decided |
 
 Every Wi-Fi loss Cubic met was congestive (89 of 89 events), and the link has no random loss
-([`link-profiles.md`](link-profiles.md)): the 1 % iid cell above, where BBR's gain lives, is not this link. Both of
+([`which-links-a-phone-meets.md`](which-links-a-phone-meets.md)): the 1 % iid cell above, where BBR's gain lives, is not this link. Both of
 the run's correctness failures were under `bbr` (loads 6 and 13, the latter a frozen page,
 [`hidden-page-decode.md`](hidden-page-decode.md)). By the Amendment, "a `bbr` load failing where `cubic-restart` does
 not withdraws `bbr` from what the next runs try"; whether these two are "a `bbr` load failing" in the rule's sense is
@@ -64,7 +64,7 @@ BBR's claim stands **for random loss only**, on a userspace relay with loss both
 fill 0.11–0.12×, a jump in the fill 0.08–0.09×, `l` 0.16–0.55× of Cubic's at 1 % iid. On the one real link measured
 (home Wi-Fi, congestive loss only) `cubic-restart` was faster by the six-octet reading and nothing is decided by the
 10-minute reading. The default stays `cubic-restart` (the owner). *Decides:* a congestive-loss cell in the lab, a
-cellular link read as `link-profiles.md` reads Wi-Fi, and the next phone round's controller arm; and the owner's
+cellular link read as `which-links-a-phone-meets.md` reads Wi-Fi, and the next phone round's controller arm; and the owner's
 reading of the two `bbr` failures.
 
 Raw rows: `claude/proposals:lab/proposals/rows/` (`p1.jsonl`, `r2.jsonl`, `r4.jsonl`); the phone's

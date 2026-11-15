@@ -183,7 +183,7 @@ check is the ingest's, with XXH3 (<code>sourceFingerprint</code>, the owner, 202
 <p>Decided by the owner on 2026-11-14, not built. <b>Does:</b> reports an exactness failure: always on, never sampled,
 not gated by the telemetry rate; no pixels and no patient data; the load report's endpoint and record format. On a
 mismatch the second decode first, then the frame blocked, the reader told in that frame's view and the report sent at
-once (<a href="../adr/exactness-in-production.md">exactness in production</a>; <a href="evidence/frame-integrity.md">frame integrity</a>).</p>
+once (<a href="../adr/exactness-in-production.md">exactness in production</a>; <a href="evidence/where-a-frame-can-be-corrupted.md">frame integrity</a>).</p>
 <p>Open: <a href="design.md#open">exactness: building the 2026-11-14 decision</a> (whether a blocked frame has a reveal;
 a series without digests).</p>
 </section>
@@ -193,7 +193,7 @@ a series without digests).</p>
 <h3>The load report</h3>
 <p>On a branch only (#370, a proposal). <b>Does:</b> one JSON object per page load, assembled in memory and sent once;
 sampled at the telemetry rate, 0 by default (the owner, 2026-11-11). The phone's beacon becomes a switch over it.</p>
-<p><a href="evidence/load-report.md">The load report</a>.</p>
+<p><a href="evidence/what-a-load-report-sends.md">The load report</a>.</p>
 </section>
 
 <section id="p-ctl" hidden>
@@ -297,7 +297,7 @@ decode at ≤ 10 bits (the owner, 2026-11-11). An optimal-quality frame is <code
 <p><b>Does:</b> decodes an exact frame and checks it with XXH3-64 against its ingest digest before it is handed on; a
 frame not checked <code>true</code> is never shown as exact.</p>
 <p>Open: <a href="design.md#open">exactness: building the 2026-11-14 decision</a> (a coded-bytes digest beside the
-sample digest, a candidate for the owner; <a href="evidence/frame-integrity.md">frame integrity</a>).</p>
+sample digest, a candidate for the owner; <a href="evidence/where-a-frame-can-be-corrupted.md">frame integrity</a>).</p>
 </section>
 
 <section id="p-oqcheck" hidden>
@@ -348,7 +348,7 @@ comes out best. Leaning, theory only: OPFS as built, decoded samples.</p>
 <p>Serves the frames the downloader asks for, in the order asked. <code>cubic-restart</code> is the default congestion
 controller; <code>bbr</code> and <code>bbr-bound</code> stay options; real-world runs decide (the owner, 2026-11-11;
 <a href="evidence/congestion-controller.md">congestion controller</a>). The reports' endpoint is proposed
-(<a href="evidence/load-report.md">the load report</a>).</p>
+(<a href="evidence/what-a-load-report-sends.md">the load report</a>).</p>
 </section>
 
 <section id="p-oq" hidden>

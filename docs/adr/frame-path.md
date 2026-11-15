@@ -39,9 +39,9 @@ A reference to a section of this file, in code or docs, resolves here:
 | §Review: the red team (2026-10-28) | [`view-worker-design.md`](../client/evidence/view-worker-design.md) |
 | §An independent design (2026-10-28) | [`view-worker-design.md`](../client/evidence/view-worker-design.md) |
 | §The independent design against the target (2026-10-28) | [`view-worker-design.md`](../client/evidence/view-worker-design.md) |
-| §Experiments beside the target (2026-10-29) | [`view-worker-experiments.md`](../client/evidence/view-worker-experiments.md) |
+| §Experiments beside the target (2026-10-29) | [`spanning-small-gaps-in-the-misses.md`](../client/evidence/spanning-small-gaps-in-the-misses.md) |
 | §The receive loop beside the paint (2026-10-29) | [`receive-loop-beside-paint.md`](../client/evidence/receive-loop-beside-paint.md) |
-| §The core, assembled (2026-10-30) | [`core-against-main.md`](../client/evidence/core-against-main.md) |
-| §Independent review of the assembled core (2026-10-30) | [`core-against-main.md`](../client/evidence/core-against-main.md) |
-| §A second independent review of the core (2026-11-02) | [`core-against-main.md`](../client/evidence/core-against-main.md) |
-| §The core against main, timed (2026-10-30) | [`core-against-main.md`](../client/evidence/core-against-main.md) |
+| §The core, assembled (2026-10-30) | [`speed-of-the-assembled-design.md`](../client/evidence/speed-of-the-assembled-design.md) |
+| §Independent review of the assembled core (2026-10-30) | [`speed-of-the-assembled-design.md`](../client/evidence/speed-of-the-assembled-design.md) |
+| §A second independent review of the core (2026-11-02) | [`speed-of-the-assembled-design.md`](../client/evidence/speed-of-the-assembled-design.md) |
+| §The core against main, timed (2026-10-30) | [`speed-of-the-assembled-design.md`](../client/evidence/speed-of-the-assembled-design.md) |

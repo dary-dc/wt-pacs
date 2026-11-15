@@ -518,7 +518,7 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   `worker` the store looks in an OPFS cache before it asks (`view/cache.js`): when the lab's `?writer=` names who writes it — the
   store worker (`viewer/store.js`), the decoders or the view worker — a series with digests is written there after each
   frame's paint, and read back checked on a later open. With no writer, the default, there is no cache, as on main
-  ([`docs/client/evidence/core-against-main.md`](../docs/client/evidence/core-against-main.md) §The core, assembled).
+  ([`docs/client/evidence/speed-of-the-assembled-design.md`](../docs/client/evidence/speed-of-the-assembled-design.md) §The core, assembled).
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact. A
   mismatched frame is still painted under its mark; the owner decided on 2026-11-14 that it is blocked instead, which
   is not built ([`docs/client/design.md`](../docs/client/design.md) §Decided). A lossy

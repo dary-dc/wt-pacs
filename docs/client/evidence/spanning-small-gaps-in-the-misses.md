@@ -1,4 +1,4 @@
-# Experiments beside the view worker
+# Spanning small gaps in the misses, and the other experiments beside the view worker
 
 **Question:** Which changes to the view worker design are worth an experiment, and does spanning small gaps in the
 misses pay?
