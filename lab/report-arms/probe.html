@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>report-arms lever probe</title>
+<script>
+  // Beacons each lifecycle event the endings fire, for cdp.check.mjs; nothing else.
+  const id = new URLSearchParams(location.search).get("id");
+  const send = (event, extra = {}) => navigator.sendBeacon("/report/load", JSON.stringify({ kind: "probe", id, event,
+    state: document.visibilityState, ...extra }));
+  addEventListener("load", () => send("load"));
+  addEventListener("pagehide", (e) => send("pagehide", { persisted: e.persisted }));
+  addEventListener("pageshow", (e) => send("pageshow", { persisted: e.persisted }));
+  document.addEventListener("visibilitychange", () => send("visibilitychange"));
+  document.addEventListener("freeze", () => send("freeze"));
+</script>
