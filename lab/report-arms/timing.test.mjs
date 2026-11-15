@@ -44,7 +44,9 @@ const ctx = { load: "L", session: "S", build: "b", source: "x", frameCount: 2, c
   check(s.length === 2 && s[1].seq === 1 && s[1].presses.length === 1, "Y: a delta at hide, one for both events");
   p.show(); p.hide();
   check(s.length === 2, "Y: a hide with nothing changed sends nothing");
-  p.show(); load.press({ at: 2 }); p.hide();
+  load.press({ at: 2 }); p.show();
+  check(s.length === 2, "Y: turning visible sends nothing");
+  p.hide();
   check(s.length === 3 && s[2].seq === 2, "Y: a hide after a show sends the next delta");
 }
 {
@@ -52,6 +54,12 @@ const ctx = { load: "L", session: "S", build: "b", source: "x", frameCount: 2, c
   schedule({ timing: "Y", carrier, load, ...p });
   p.hide();
   check(s.length === 1 && s[0].fillMs === null && s[0].seq === 0, "Y: a hide before the fill's end sends the whole");
+}
+for (const timing of ["H", "Y"]) {
+  const p = page(), { s, carrier } = sent(), load = new Load(ctx);
+  schedule({ timing, carrier, load, ...p });
+  p.win.dispatchEvent(new Event("pagehide"));
+  check(s.length === 1, `${timing}: pagehide alone, with no visibilitychange, sends`);
 }
 {
   const p = page(), { s, carrier } = sent(), load = new Load(ctx);
