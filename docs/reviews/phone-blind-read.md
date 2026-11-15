@@ -92,6 +92,11 @@ Ratios out: load 7 (tether B/A, C/B), load 6 (Wi-Fi C/D, C/B) and load 13 (Wi-Fi
 The Wi-Fi controller verdict meets the mirror rule whether its median bound is read as 1/0.95 = 1.053 or as 1.05.
 The "depends on" rule is written for six ratios per level; it was applied here to five and six.
 
+*Corrected 2026-11-14 (the owner, amendments 7 and 11 of `claude/work-ledger:docs/queue-client-2026-11-14.md`):* the
+six-octet reading above is the reading of record: "No probably-valid data is discarded"; octets 5 and 6 ran under the
+protocol's conditions. It is a departure from the Second amendment, whose 10-minute rule bounded an evening's length
+with no margin over its eight ratios. The four-octet reading stays below as what that rule gives.
+
 **Octets 1–4 only, as the 10-minute rule reads:** tether 7 ratios each, Wi-Fi 6: under 8 left, so **not decided**
 for every comparison. Tether worker / page still has medians on opposite sides of 1 (0.938 cubic-restart, 1.065
 bbr).
