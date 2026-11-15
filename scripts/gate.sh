@@ -223,6 +223,7 @@ run 1 node lab/cache-arms/cells.test.mjs
 run 1 node lab/cache-arms/arms/opfs-sync.test.mjs
 run 1 node lab/cache-arms/arms/opfs-async.test.mjs
 run 1 node lab/cache-arms/arms/idb.test.mjs
+run 1 node lab/cache-arms/arms/cachestorage.test.mjs
 step "lab: the rigs' Firefox driver reads Marionette's framing; with FIREFOX_PATH, a worker starts 300 workers under it"
 run 1 env NODE_PATH="$(npm root -g)" node lab/opfs-cache/browser.test.mjs
 

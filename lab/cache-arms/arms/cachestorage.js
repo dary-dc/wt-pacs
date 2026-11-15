@@ -20,7 +20,7 @@ const streamOf = (bytes) => {
  *  `env` replaces the worker's globals in tests. */
 export function cachestorage(pilot = new URLSearchParams(), env = globalThis) {
   const streamed = pilot.get("body") === "streamed";
-  const inflight = streamed ? 1 : Number(pilot.get("inflight") ?? 1);
+  const inflight = Number(pilot.get("inflight") ?? 1);
   const { caches } = env;
   const estimate = () => env.navigator.storage.estimate();
   let cache = null;
@@ -29,7 +29,7 @@ export function cachestorage(pilot = new URLSearchParams(), env = globalThis) {
   let pool = [];
   const flying = new Map();
   let refused = [];
-  let takenBy = null;
+  let alreadyTaken = null;
 
   const key = (i) => base + i;
   const prefix = (s) => `${BASE}${encodeURIComponent(s)}/`;
@@ -45,10 +45,7 @@ export function cachestorage(pilot = new URLSearchParams(), env = globalThis) {
     const reader = response.body.getReader();
     let at = 0;
     for (let r = await reader.read(); !r.done; r = await reader.read()) {
-      if (at + r.value.length > into.length) {
-        await reader.cancel();
-        return false;
-      }
+      if (at + r.value.length > into.length) return false;
       into.set(r.value, at);
       at += r.value.length;
     }
@@ -60,23 +57,17 @@ export function cachestorage(pilot = new URLSearchParams(), env = globalThis) {
     const p = cache.put(key(i), new Response(buf)).then(
       () => pool.push(buf),
       (error) => refused.push({ i, buf, error }),
-    ).finally(() => flying.get(i) === p && flying.delete(i));
+    ).finally(() => flying.delete(i));
     flying.set(i, p);
     return p;
   }
 
-  /** The refused frames put again from their own copies; one still refused throws. */
-  async function retryRefused() {
-    const again = refused.splice(0);
-    await Promise.all(again.map((r) => putOwn(r.i, r.buf)));
-    if (refused.length) throw refused[0].error;
-    return again.map((r) => r.i);
-  }
+  const retryRefused = () => Promise.all(refused.splice(0).map((r) => putOwn(r.i, r.buf)));
 
   const a = {
     name: "cachestorage",
     async open(s, meta, { create }) {
-      [base, writer, refused, takenBy] = [prefix(s), create, [], null];
+      [base, writer, refused, alreadyTaken] = [prefix(s), create, [], null];
       const name = NAME + s;
       const exists = await caches.has(name);
       if (!create && !exists) return { present: [], meta: null };
@@ -98,18 +89,16 @@ export function cachestorage(pilot = new URLSearchParams(), env = globalThis) {
     async write(i, bytes, { release = () => {} } = {}) {
       if (!writer) throw new Error("a reading tab writes nothing");
       if (streamed) return void (await cache.put(key(i), new Response(streamOf(bytes))));
-      const retried = await retryRefused();
-      if (takenBy !== i && !retried.includes(i)) {
-        let buf = pool.pop();
-        if (buf?.byteLength !== bytes.length) buf = new ArrayBuffer(bytes.length);
+      await retryRefused();
+      if (alreadyTaken !== i) {
+        const buf = pool.pop() ?? new ArrayBuffer(bytes.length);
         new Uint8Array(buf).set(bytes);
         release();
         putOwn(i, buf);
       }
-      takenBy = null;
       while (flying.size >= inflight) await Promise.race(flying.values());
       if (refused.length) {
-        takenBy = i;
+        alreadyTaken = i;
         throw refused[0].error;
       }
     },
@@ -140,7 +129,7 @@ export function cachestorage(pilot = new URLSearchParams(), env = globalThis) {
     },
     async close() {
       await Promise.allSettled(flying.values());
-      [cache, pool, refused, takenBy] = [null, [], [], null];
+      [cache, pool, refused, alreadyTaken] = [null, [], [], null];
     },
     async damage(i) {
       const bytes = new Uint8Array(await (await cache.match(key(i))).arrayBuffer());
