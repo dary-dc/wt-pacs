@@ -1,0 +1,298 @@
+diff --git a/src/core/codestream/ojph_codeblock.h b/src/core/codestream/ojph_codeblock.h
+index 4d6fbe4..2bab922 100644
+--- a/src/core/codestream/ojph_codeblock.h
++++ b/src/core/codestream/ojph_codeblock.h
+@@ -119,6 +119,10 @@ namespace ojph {
+       ui32 Kmax;
+       ui32 missing_msbs;
+       coded_lists *next_coded;
++      ui32 lay_passes;       // layered parse: passes received so far
++      ui32 lay_set;          // the HT set kept, plus one; 0 for none yet
++      ui32 lay_zero;         // the zero bit-planes signalled at inclusion
++      ui8 lay_in, lay_lblock;
+ 
+       static const int prefix_buf_size = 8;
+       static const int suffix_buf_size = 16;
+diff --git a/src/core/codestream/ojph_codestream_local.cpp b/src/core/codestream/ojph_codestream_local.cpp
+index 8e89000..a452df4 100644
+--- a/src/core/codestream/ojph_codestream_local.cpp
++++ b/src/core/codestream/ojph_codestream_local.cpp
+@@ -47,6 +47,7 @@
+ #include "../transform/ojph_colour.h"
+ #include "../transform/ojph_transform.h"
+ 
++namespace ojph { namespace local { extern int lab_num_layers; } }
+ namespace ojph {
+ 
+   namespace local
+@@ -792,7 +793,8 @@ namespace ojph {
+           received_markers |= 1;
+           ojph::param_cod c(&cod);
+           int num_qlayers = c.get_num_layers();
+-          if (num_qlayers != 1)
++          lab_num_layers = num_qlayers;
++          if (num_qlayers < 1)
+             OJPH_ERROR(0x00030053, "The current implementation supports "
+               "1 quality layer only.  This codestream has %d quality layers",
+               num_qlayers);
+diff --git a/src/core/codestream/ojph_precinct.cpp b/src/core/codestream/ojph_precinct.cpp
+index 97cd829..aaa996d 100644
+--- a/src/core/codestream/ojph_precinct.cpp
++++ b/src/core/codestream/ojph_precinct.cpp
+@@ -38,6 +38,7 @@
+ 
+ #include <climits>
+ #include <cmath>
++#include <cstdlib>
+ 
+ #include "ojph_mem.h"
+ #include "ojph_params.h"
+@@ -572,5 +573,198 @@ namespace ojph {
+       data_left = bb.bytes_left;
+     }
+ 
++  
++    //////////////////////////////////////////////////////////////////////////
++    // Lab: a precinct's packets over several quality layers (T.800 B.10, T.814 B.2-B.3).
++    int lab_num_layers = 1;
++
++    // A tag tree as three ui16 arrays (low, value, known) over every level, leaves first.
++    static ui32 lay_tree_nodes(ui32 w, ui32 h)
++    {
++      ui32 n = w * h;
++      while (w != 1 || h != 1) { w = (w + 1) >> 1; h = (h + 1) >> 1; n += w * h; }
++      return n;
++    }
++
++    static bool lay_tree_decode(bit_read_buf *bb, ui16 *t, ui32 nodes, ui32 w, ui32 h,
++                                ui32 x, ui32 y, ui32 threshold)
++    {
++      ui16 *low = t, *val = t + nodes, *known = t + 2 * nodes;
++      ui32 offs[32], widths[32], lv = 0, base = 0, cw = w, ch = h;
++      while (true)
++      {
++        offs[lv] = base; widths[lv] = cw;
++        if (cw == 1 && ch == 1) break;
++        base += cw * ch; cw = (cw + 1) >> 1; ch = (ch + 1) >> 1; ++lv;
++      }
++      ui32 lo = 0, j = 0;
++      for (int l = (int)lv; l >= 0; --l)
++      {
++        j = offs[l] + (y >> l) * widths[l] + (x >> l);
++        lo = ojph_max(lo, (ui32)low[j]);
++        while (lo < threshold && !known[j])
++        {
++          ui32 bit;
++          if (!bb_read_bit(bb, bit)) throw "error reading a tag tree";
++          if (bit) { known[j] = 1; val[j] = (ui16)lo; }
++          else ++lo;
++        }
++        low[j] = (ui16)lo;
++      }
++      return known[j] && val[j] < threshold;
++    }
++
++    // The block's bytes as cleanup then refinement, `keep` of the old kept, then `add` read from the file.
++    static void lay_append(coded_cb_header *cp, ui32 keep, ui32 add, bit_read_buf *bb,
++                           mem_elastic_allocator *elastic, infile_base *file)
++    {
++      coded_lists *old = cp->next_coded;
++      elastic->get_buffer(keep + add + coded_cb_header::prefix_buf_size
++        + coded_cb_header::suffix_buf_size, cp->next_coded);
++      ui8 *dst = cp->next_coded->buf + coded_cb_header::prefix_buf_size;
++      if (keep) memcpy(dst, old->buf + coded_cb_header::prefix_buf_size, keep);
++      ui32 want = ojph_min(add, bb->bytes_left);
++      ui32 got = (ui32)file->read(dst + keep, want);
++      bb->bytes_left -= got;
++      memset(dst + keep + got, 0, add - got + coded_cb_header::suffix_buf_size);
++      if (got != add) throw "a code-block's bytes run past the tile-part";
++    }
++
++    void precinct::parse_layered(mem_elastic_allocator *elastic,
++                                 ui32 &data_left, infile_base *file)
++    {
++      ui32 layer = lay_layer++;
++      bit_read_buf bb;
++      bb_init(&bb, data_left, file);
++      ui32 bit;
++      if (!bb_read_bit(&bb, bit)) throw "error reading a packet";
++      // up to 3 segments per block per packet: (block, passes, bytes, first pass index)
++      struct seg { coded_cb_header *cp; ui32 passes, bytes, k; };
++      static seg segs[3 * 4 * 4096 + 16];
++      ui32 nsegs = 0;
++      if (bit)
++      {
++        for (int s = 0; s < 4; ++s)
++        {
++          if (bands[s].empty || cb_idxs[s].siz.w == 0 || cb_idxs[s].siz.h == 0)
++            continue;
++          ui32 w = cb_idxs[s].siz.w, h = cb_idxs[s].siz.h;
++          ui32 nodes = lay_tree_nodes(w, h);
++          if (lay_trees[s] == NULL)
++          {
++            coded_lists *cl;
++            elastic->get_buffer(2 * 3 * nodes * (ui32)sizeof(ui16), cl);
++            lay_trees[s] = (ui16*)cl->buf;
++            memset(lay_trees[s], 0, 2 * 3 * nodes * sizeof(ui16));
++          }
++          ui16 *inc = lay_trees[s], *zero = lay_trees[s] + 3 * nodes;
++          ui32 band_width = bands[s].num_blocks.w;
++          for (ui32 y = 0; y < h; ++y)
++          {
++            coded_cb_header *cp = bands[s].coded_cbs;
++            cp += cb_idxs[s].org.x + (y + cb_idxs[s].org.y) * band_width;
++            for (ui32 x = 0; x < w; ++x, ++cp)
++            {
++              bool first = !cp->lay_in, included;
++              if (first)
++                included = lay_tree_decode(&bb, inc, nodes, w, h, x, y, layer + 1);
++              else
++              {
++                if (!bb_read_bit(&bb, bit)) throw "error reading a packet";
++                included = bit == 1;
++              }
++              if (!included)
++                continue;
++              if (first)
++              {
++                ui32 t = 1;
++                while (!lay_tree_decode(&bb, zero, nodes, w, h, x, y, t))
++                  ++t;
++                cp->lay_zero = zero[nodes + (y * w + x)];
++                if (cp->lay_zero > cp->Kmax)
++                  throw "missing msbs larger than Kmax";
++                cp->lay_in = 1;
++                cp->lay_lblock = 3;
++              }
++              ui32 n = 1;
++              if (!bb_read_bit(&bb, bit)) throw "p3";
++              if (bit)
++              {
++                n = 2;
++                if (!bb_read_bit(&bb, bit)) throw "p4";
++                if (bit)
++                {
++                  if (!bb_read_bits(&bb, 2, bit)) throw "p5";
++                  n = 3 + bit;
++                  if (bit == 3)
++                  {
++                    if (!bb_read_bits(&bb, 5, bit)) throw "p6";
++                    n = 6 + bit;
++                    if (bit == 31)
++                    {
++                      if (!bb_read_bits(&bb, 7, bit)) throw "p7";
++                      n = 37 + bit;
++                    }
++                  }
++                }
++              }
++              do {
++                if (!bb_read_bit(&bb, bit)) throw "p8";
++                cp->lay_lblock = (ui8)(cp->lay_lblock + bit);
++              } while (bit);
++              // B.2: each cleanup its own segment, each SigProp and MagRef pair one; in the first
++              // packet the placeholder passes join the first cleanup's segment (B.3).
++              ui32 k = cp->lay_passes, end_all = k + n;
++              while (k < end_all)
++              {
++                ui32 end;
++                if (first && k == 0) end = 3 * ((n - 1) / 3);
++                else end = (k % 3 == 0) ? k : (k / 3) * 3 + 2;
++                end = ojph_min(end, end_all - 1);
++                ui32 p = end - k + 1;
++                ui32 bits = cp->lay_lblock + 31 - count_leading_zeros(p);
++                if (!bb_read_bits(&bb, (int)bits, bit)) throw "p9";
++                if (nsegs >= sizeof(segs) / sizeof(segs[0])) throw "too many segments";
++                segs[nsegs++] = { cp, p, bit, k };
++                k = end + 1;
++              }
++              cp->lay_passes = end_all;
++            }
++          }
++        }
++      }
++      bb_terminate(&bb, uses_eph);
++      for (ui32 i = 0; i < nsegs; ++i)
++      {
++        coded_cb_header *cp = segs[i].cp;
++        ui32 last = segs[i].k + segs[i].passes - 1;
++        if (last % 3 == 0)
++        { // a cleanup: a non-empty one starts the set the decoder keeps (T.814 8.3)
++          if (segs[i].bytes == 0)
++            continue;
++          lay_append(cp, 0, segs[i].bytes, &bb, elastic, file);
++          cp->lay_set = last / 3 + 1;
++          cp->pass_length[0] = segs[i].bytes;
++          cp->pass_length[1] = 0;
++          cp->num_passes = 1;
++          static const bool no_skip = getenv("OJPH_LAB_MUTATE_SKIP") != NULL; // a mutant: S_skip dropped
++          cp->missing_msbs = cp->lay_zero + (no_skip ? 0 : last / 3); // S_blk raised by S_skip (B.3)
++        }
++        else if (cp->lay_set == segs[i].k / 3 + 1 && segs[i].bytes)
++        {
++          lay_append(cp, cp->pass_length[0] + cp->pass_length[1], segs[i].bytes, &bb, elastic, file);
++          cp->pass_length[1] += segs[i].bytes;
++          cp->num_passes += segs[i].passes;
++        }
++        else
++        { // a refinement of a set not kept: skip its bytes
++          ui32 t = ojph_min(segs[i].bytes, bb.bytes_left);
++          file->seek(t, infile_base::OJPH_SEEK_CUR);
++          bb.bytes_left -= t;
++        }
++      }
++      data_left = bb.bytes_left;
++    }
++
+   }
+ }
+\ No newline at end of file
+diff --git a/src/core/codestream/ojph_precinct.h b/src/core/codestream/ojph_precinct.h
+index 47ec473..b991bc1 100644
+--- a/src/core/codestream/ojph_precinct.h
++++ b/src/core/codestream/ojph_precinct.h
+@@ -60,7 +60,9 @@ namespace ojph {
+       precinct() {
+         scratch = NULL; bands = NULL; coded = NULL;
+         may_use_sop = uses_eph = false;
++        lay_layer = 0; lay_trees[0] = lay_trees[1] = lay_trees[2] = lay_trees[3] = NULL;
+       }
++      void parse_layered(mem_elastic_allocator *elastic, ui32& data_left, infile_base *file);
+       ui32 prepare_precinct(int tag_tree_size, ui32* lev_idx,
+                             mem_elastic_allocator *elastic);
+       void write(outfile_base *file);
+@@ -74,7 +76,10 @@ namespace ojph {
+       subband *bands;  //the subbands
+       coded_lists* coded;
+       bool may_use_sop, uses_eph;
++      ui32 lay_layer;
++      ui16 *lay_trees[4];
+     };
++    extern int lab_num_layers;
+ 
+   }
+ }
+diff --git a/src/core/codestream/ojph_resolution.cpp b/src/core/codestream/ojph_resolution.cpp
+index 0c1d4cd..9ef82ae 100644
+--- a/src/core/codestream/ojph_resolution.cpp
++++ b/src/core/codestream/ojph_resolution.cpp
+@@ -1002,12 +1002,17 @@ namespace ojph {
+     {
+       precinct* p = precincts;
+       ui32 idx = cur_precinct_loc.x + cur_precinct_loc.y * num_precincts.w;
++      if (lab_num_layers > 1 && idx >= num_precincts.area())
++      { cur_precinct_loc = point(0, 0); idx = 0; }
+       for (ui32 i = idx; i < num_precincts.area(); ++i)
+       {
+         if (data_left == 0)
+           break;
+-        p[i].parse(tag_tree_size, level_index, elastic, data_left, file,
+-          skipped_res_for_read);
++        if (lab_num_layers > 1)
++          p[i].parse_layered(elastic, data_left, file);
++        else
++          p[i].parse(tag_tree_size, level_index, elastic, data_left, file,
++            skipped_res_for_read);
+         if (++cur_precinct_loc.x >= num_precincts.w)
+         {
+           cur_precinct_loc.x = 0;

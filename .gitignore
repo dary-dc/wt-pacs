@@ -80,3 +80,4 @@ lab/.perf-nightly-*/
 
 # scripts/demo-series.sh output
 /demo-series/
+lab/containers/out/

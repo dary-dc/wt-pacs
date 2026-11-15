@@ -112,7 +112,9 @@ structural.
 
 ## Pointers
 
-`client/README.md` (§Optimal quality, exact on request; §The viewer), `docs/CLIENTS.md`, `docs/WIRE.md`, `docs/decode/`,
+`client/README.md` (§Optimal quality, exact on request; §The viewer), `docs/CLIENTS.md`, `docs/WIRE.md`, `docs/decode/`;
+the browser decode reference, [`../decode/browser.md`](../decode/browser.md) and
+[`../av1/webcodecs-profiles.md`](../av1/webcodecs-profiles.md) (#339, sources only, checked 2026-11-10);
 [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md), `claude/telemetry-client:docs/adr/telemetry-in-production.md`;
 `docs/reviews/view-worker-check.md`, `docs/reviews/freeze-e2e.md`, `docs/reviews/experiments-off.md`;
 `claude/phone-rows:docs/phone-rows/README.md`, `claude/phone-rows:docs/reviews/phone-blind-read.md`,

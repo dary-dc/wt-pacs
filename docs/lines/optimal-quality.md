@@ -34,6 +34,10 @@ HTJ2K series; no residual, no server or wire change.
 * **The two failures the phone found** ([`client.md`](client.md) §In flight); the first breaks this line's promise on a
   lossy link.
 * **Is Q 8 visually lossless at the readers' windows**: owned by [`codecs.md`](codecs.md); readers decide, no agent.
+  What the AV1 harvest of 2026-11-10 changes in the demo's claims is in [`codecs.md`](codecs.md) §AV1 harvest: Q 8
+  is a candidate (the noise rule picks it on two of the six timed cells); at the rule's Q the view is 0.10–0.28 of
+  HTJ2K's bytes (*derived*); nothing shows WebCodecs under one HTJ2K frame on a slow device; the depth cut's
+  in-window cost is unmeasured; `claude/oq-ingest` owes a refusal or label of Q 0.
 * **Narrow windows show the coding error most**: an automatic exact request at a narrow window is an option to
   compare, its threshold set by readers.
 * **Tiles**: AV1 tiles wait (2×2 not ready by their rule); HTJ2K at the screen's resolution is [`codecs.md`](codecs.md)'s.

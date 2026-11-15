@@ -1,0 +1,9 @@
+S1|dav1d|dbts_a1|Q16|none 6.5 s {"lossy":[16,16],"ask":[16,16],"series":[56,56]} 
+S8|dav1d|dbts_a1|Q16|none 8.3 s {"lossy":[16,16],"ask":[2,16],"series":[56,56]} 
+S8|webcodecs|dbts_a1|Q16|none 5.3 s {"lossy":[16,16],"ask":[2,16],"series":[56,56]} 
+S1|webcodecs|dbts_a1|Q16|none 5.3 s {"lossy":[16,16],"ask":[16,16],"series":[56,56]} 
+round 0 1x done, 26 s
+S1|dav1d|dbts_a1|Q16|none {"lossy":[16,16],"ask":[16,16],"series":[56,56]} asks k mod G:matched: 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok
+S8|dav1d|dbts_a1|Q16|none {"lossy":[16,16],"ask":[2,16],"series":[56,56]} asks k mod G:matched: 4:MISS(dav1d -28) 5:MISS(dav1d -28) 3:MISS(dav1d -28) 6:MISS(dav1d -28) 2:MISS(dav1d -28) 7:MISS(dav1d -28) 1:MISS 0:ok 0:ok 1:MISS 7:MISS(dav1d -28) 2:MISS(dav1d -28) 6:MISS(dav1d -28) 3:MISS(dav1d -28) 5:MISS(dav1d -28) 4:MISS(dav1d -28)
+S8|webcodecs|dbts_a1|Q16|none {"lossy":[16,16],"ask":[2,16],"series":[56,56]} asks k mod G:matched: 4:MISS(Decoding error.) 5:MISS(Decoding error.) 3:MISS(Decoding error.) 6:MISS(Decoding error.) 2:MISS(Decoding error.) 7:MISS(Decoding error.) 1:MISS 0:ok 0:ok 1:MISS 7:MISS(Decoding error.) 2:MISS(Decoding error.) 6:MISS(Decoding error.) 3:MISS(Decoding error.) 5:MISS(Decoding error.) 4:MISS(Decoding error.)
+S1|webcodecs|dbts_a1|Q16|none {"lossy":[16,16],"ask":[16,16],"series":[56,56]} asks k mod G:matched: 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok 0:ok

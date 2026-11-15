@@ -1,0 +1,14 @@
+{
+ "servedTree": "157b7109 plus lab/htj2k-tiles/improve of this branch at the shard's start",
+ "branch": "6a4dde46",
+ "chromium": "153.0.8010.12",
+ "host": "Intel(R) Xeon(R) Processor @ 2.10GHz, 4 cores",
+ "levelsWasmSha256": "09756bcff28a1b87bf2b159cd385fbb9ac0155653101d2f2c1f3f5630f8b8180",
+ "series": "rows/stage3-d-series.json (Q 8 G 16 and the exact series) and rows/stage3-series.json, both re-checked equal this session",
+ "rounds": {
+  "0": "branch 6a4dde46's stage3 client (no stall report)",
+  "1+": "branch f606474f's: the same timed paths, plus the stall report on a visit that never reports",
+  "2+": "branch's stage3 client with the store retry (f11800dd and the store-hang mutant's commit): the same timed paths",
+  "4+ (rerun, rows/stage3-s3c-4.jsonl)": "a fresh container from 2026-11-12 13:34 UTC: the same stage3 client (unchanged since round 2's), Chromium, levelsWasmSha256 and series digests (re-checked equal); rows/stage3-s3c.jsonl's 153 visits of round 4, from the container before, are incomplete and not kept"
+ }
+}

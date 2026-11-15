@@ -26,6 +26,7 @@ cites; the doc holds the number, the directory holds how to get it. Variants are
 | `opfs-cache/` | the Firefox driver the paint's settle check uses; the client cache's cells ran on its harness at `0920153d` |
 | `paint-read/` | whether a paint's settle waits for a busy page, per engine — `docs/adr/frame-path.md` §7, *The pixel read under a busy page* |
 | `viewer/` | the viewer's lab parameters, honoured only where `lab/` is served — `client/README.md` §The viewer |
+| `containers/` | inspection, not timing: the same frames in each video container, read back — `docs/video-containers/guide.md` |
 | `fixtures/`, `traces/` | series and link traces the cells use |
 
 Older campaign drivers are on tag `archive/transport-lab-2026-09`.

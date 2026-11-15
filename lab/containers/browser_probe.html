@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8">
+<video id="v" muted playsinline></video>
+<script type="module">
+const out = {};
+const codecs = ["av01.0.00M.10", "av01.0.00M.10.1.110.01.01.01.0", "av01.0.00M.08", "av01.2.00M.12", "av01.1.00M.10"];
+out.mse = Object.fromEntries(codecs.flatMap(c => [
+  [`mp4 ${c}`, MediaSource.isTypeSupported(`video/mp4; codecs="${c}"`)],
+  [`webm ${c}`, MediaSource.isTypeSupported(`video/webm; codecs="${c}"`)]]));
+out.webcodecs = {};
+for (const c of codecs) out.webcodecs[c] = (await VideoDecoder.isConfigSupported({ codec: c })).supported;
+
+// Container-free: the frame table says where frame i is; those bytes go straight to the decoder.
+const table = await (await fetch("table.json")).json();
+const file = new Uint8Array(await (await fetch(table.file)).arrayBuffer());
+const digests = [];
+let format;
+const dec = new VideoDecoder({
+  output: async f => {
+    format = f.format;
+    const buf = new Uint8Array(f.allocationSize());
+    await f.copyTo(buf);
+    digests.push(Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", buf.slice(0, f.codedWidth * f.codedHeight * 2)))).map(b => b.toString(16).padStart(2, "0")).join(""));
+    f.close();
+  },
+  error: e => { out.error = String(e); },
+});
+dec.configure({ codec: codecs[0], hardwareAcceleration: "prefer-software" });
+table.frames.forEach(([off, len], i) => dec.decode(new EncodedVideoChunk({ type: "key", timestamp: i, data: file.subarray(off, off + len) })));
+await dec.flush();
+out.webcodecs_format = format;
+out.webcodecs_digests = digests;
+
+// The video element on the same file: what a canvas can read back.
+const v = document.getElementById("v");
+v.src = table.file;
+try {
+  await v.play(); v.pause(); v.currentTime = 0;
+  await new Promise(r => v.requestVideoFrameCallback ? v.requestVideoFrameCallback(() => r()) : setTimeout(r, 500));
+  const c = new OffscreenCanvas(v.videoWidth, v.videoHeight), g = c.getContext("2d");
+  g.drawImage(v, 0, 0);
+  const px = g.getImageData(0, 0, c.width, c.height).data;
+  out.video_element = { width: v.videoWidth, readback: "RGBA 8-bit", red: Array.from(px.filter((_, k) => k % 4 === 0)) };
+} catch (e) { out.video_element = String(e); }
+document.title = "done"; window.result = out;
+</script>
