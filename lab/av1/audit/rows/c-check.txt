@@ -18,7 +18,7 @@ Error: ENOTEMPTY: directory not empty, rmdir '/tmp/throttle-check-ZAUJoR/Default
     at _rmdirSync (node:internal/fs/rimraf:251:7)
     at rimrafSync (node:internal/fs/rimraf:194:7)
     at Object.rmSync (node:fs:1239:10)
-    at check (file:///home/user/audit/lab/scripts/cpu_throttle.mjs:162:8)
+    at check (file:///<checkout>/lab/scripts/cpu_throttle.mjs:162:8)
     at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
   errno: -39,
   code: 'ENOTEMPTY',

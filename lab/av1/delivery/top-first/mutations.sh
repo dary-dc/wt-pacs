@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The protocol's stage-2 mutations, dbts_a1 at r50000 1×, one visit each; rows annotated with the mutation.
 set -euo pipefail
-cd /home/user/wt-pacs
+cd "$(dirname "$0")/../../../.."
 OUT=lab/av1/delivery/top-first/mutations.jsonl
 : > $OUT
 run() {
