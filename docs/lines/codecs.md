@@ -1,7 +1,8 @@
 # Codecs and lab
 
 Last verified 2026-11-10 (the AV1 harvest of that morning: eight result branches read from `origin` to their verdicts;
-no new measurement).
+no new measurement); the audits' corrections of 2026-11-11 ([`../av1/corrections.md`](../av1/corrections.md)) and
+their protocols measured 2026-11-12 (`claude/audit-measure`) added since.
 
 ## Goal
 
@@ -27,6 +28,15 @@ ABUS exists among the fixtures ([`../FIXTURES.md`](../FIXTURES.md)); nothing bel
   the noise rule's: at the rule's Q the view is 0.10–0.28 and view plus exact frame 1.10–1.28× (*derived*, audit F7).
   Decode: §AV1 harvest (1) has what the audit left of "1.05–2.04 HTJ2K frames"; AV1 saves bytes, not decode time, at
   Q 8 at 1× on this host.
+* **Decode in the product's own unit, measured 2026-11-12** ([`../av1/audit-protocols.md`](../av1/audit-protocols.md)
+  §C measured): in Hp, the product's HTJ2K decode plus the XXH3 check (what a Lossless request runs), the view through
+  WebCodecs decodes in 1.24 (`dbts_a1`), 1.74 (`dbts_b1`), 1.36 (`dbts_c1`) Hp at Q 8, G 1, 1×, and in 1.72, 1.29,
+  1.53 Hp at the rule's Q (6, 11, 7); dav1d-WASM in 1.9–2.9 Hp. On a host capped to one slowed core it stays above
+  1 Hp (1.16–1.58); WebCodecs under one HTJ2K frame on a slow device is not shown. One 4-core host, software
+  WebCodecs, three DBT volumes, the middle 16 frames.
+* **The noise anchor, measured 2026-11-12** (`../av1/audit-protocols.md` §B, §A measured): the estimator resolves the
+  worst frame to δ 0.1–5.5 % by volume, so the anchor is a band [Q_lo, Q_hi], one Q wide on 4 of 19 volumes and up to
+  ≥ 8 on 10-bit ones; at the rule's Q the view keeps 29–50 % of the fine-band noise's amplitude (ν), less at the anchor.
 * **Depth and decode route:** WebCodecs decodes the OQ view; dav1d-WASM is a fallback only. D ≤ 10 is coded at its
   own depth; D > 10 by the depth cut to 10 bits, because no engine is shown to give 12-bit AV1 video through
   WebCodecs' `VideoDecoder` ([`../av1/webcodecs-profiles.md`](../av1/webcodecs-profiles.md)). The cut's cost at Q 8
@@ -182,6 +192,25 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
 9. The decode audit's three checks (`claude/av1-audit-decode`): D1 at 4× with a core cap; one block with `back()` off
    the clock; the product's own HTJ2K path beside each study's unit on one Chromium. Until then, quote the view's decode
    at Q 8 only, with its stream, host and throttle.
+10. **The audits' corrections and protocols** (row AV1-CORRECT, 2026-11-11; measured since decisions 0.6 and 0.7
+   were written): each study branch applies its entry of [`../av1/corrections.md`](../av1/corrections.md) in place;
+   [`../av1/audit-protocols.md`](../av1/audit-protocols.md) pre-registers A (noise kept, ν, QA F4), B (one bar at the
+   estimator's resolution, integer Q, QA F1, F2) and C (decode on the product's HTJ2K unit, core-capped, decode audit
+   1, 2, 13) for a session that did not write them.
+   B0 measured (row MEASURE-1, `claude/audit-measure`, 2026-11-11): QA F1's table reproduced; over all 19 volumes x\*
+   is 4.7584 at G 1 (not 4.9293), 4.6359 pooled and at G > 1, 4.8024 for 12-bit streams; no reading overshoots an
+   anchor. B and A measured (2026-11-12, 352 cells, amendments 1 and 2): s_split ≤ 0.25 % (B-1 holds); the injected
+   bias b runs −3.8 to +5.5 % by volume (B-2 refuted), so δ is 0.1–5.5 %; the anchor is unresolved on 15 of 19 volumes
+   (B-3 refuted on the wide side), Q_hi − Q_lo up to ≥ 8 on 10-bit (B-4 refuted); G 16 ÷ G 1 at equal worst frame is
+   0.954–0.986 on 12-bit and 0.855–0.907 on 10-bit (B-5 holds). Both x\* stay, with δ beside them. ν falls with Q
+   (A1), sits at 0.286–0.495 at the rule's Q (A2 refuted at the top, `dbt10_ea1141`), is not one curve of x (A3
+   refuted), and Q_ν costs 1.16–1.92× the rule's bytes (A4 refuted on 3). Owed to the owner: quote the anchor as
+   [Q_lo, Q_hi] with ν beside (decision 0.1), and "keep at least half" (Q_ν) as an option. C measured (2026-11-12,
+   15 rounds, demo tip `18d2d1ff`, Chromium 153, amendment 1): on the product's HTJ2K path Hp (decode plus XXH3,
+   19.8–57.1 ms a frame at 1×) as the unit, the view through WebCodecs at 1× decodes in 1.24–1.74 Hp at Q 8 and
+   1.29–1.72 at the rule's Q; under 4× it falls to 0.68–1.12 with four or two slowed cores and rises back to
+   1.16–1.58 with one (C4, C5 hold; C1–C3 not refuted, bands missed). The decision rule does not claim "under one
+   HTJ2K frame on a slow device": a phone is owed.
 
 ## Decisions (the owner's)
 
