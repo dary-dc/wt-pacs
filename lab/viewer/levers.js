@@ -1,6 +1,8 @@
 /** The viewer's lab parameters, honoured only on a host that serves this file: client/README.md §The viewer */
 import { Cine, now } from "../../client/view/clock.js";
 import { busyPage } from "../frame-clock/busy.js";
+import { beaconHooks } from "../devices/beacon.js";
+import { roundHooks } from "../devices/round-page.js";
 import { pageHooks } from "./hooks.js";
 import { sawtooth, STEP_MS, waits } from "./trace.js";
 
@@ -19,6 +21,8 @@ export function levers(q) {
   if (writer === "decoders" && opts.pageDials) throw new Error("refused: writer decoders with pageDials — the decoders are told to keep frames only once the cache is open");
   if (writer === "decoders" && opts.pixels === "transfer") throw new Error("refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred");
   for (const k of ["settle", "after"]) if (q.has(k) && !q.get("post")) throw new Error(`refused: ?${k} without ?post — the rig's`);
+  if (q.get("post") && (q.has("beacon") || q.has("round"))) throw new Error("refused: post with beacon or round — one harness reads the fill's end");
+  if (q.has("round") && !q.get("beacon")) throw new Error("refused: round without beacon — a round's loads name their controller");
   const settle = q.get("settle") ?? "fence";
   if (!["fence", "read"].includes(settle)) throw new Error(`refused: settle ${JSON.stringify(settle)} — fence or read`);
   // docs/adr/frame-path.md §7: the page busy from here, and after the fill a cine of `cine` seconds.
@@ -31,6 +35,7 @@ export function levers(q) {
     writer,
     ...(q.get("post") && totalTime(q.get("post"), q.get("origin"), settle, opts, q.get("fill") === "0" ? Number(q.get("after") ?? 0) : 0, Boolean(q.get("trace")), tasks)),
     ...(seconds && { cine: cineOf(seconds * 1000) }),
+    ...(q.get("beacon") && (q.has("round") ? roundHooks(q) : beaconHooks(q))),
     ...(q.get("trace") && { trace: { steps: sawtooth, everyMs: STEP_MS } }),
   };
   return { ...lab, hooks: pageHooks(q, lab) };
