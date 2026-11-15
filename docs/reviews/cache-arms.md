@@ -961,3 +961,47 @@ and PSS "≤ `none`'s + …", which no code computes either.
 script needs bash). `scripts/comment_budget.sh`: ok; worst cache-arms file fields.js 0.29 (2 of 7, under the floor of
 10), ring.js 0.17, the rest ≤ 0.13. store.test.mjs and cells.test.mjs pass on the tip.
 
+
+## Fixes (CACHE-FIX, 2026-11-15)
+
+Row CACHE-FIX of `docs/queue-client-2026-11-14.md`, by a session that wrote none of the builds or this review. Each
+blocker's test was run against the code before its fix and failed there, then each fix was mutated (each mutant
+applied alone, the test run, the file restored). Commits on `claude/cache-arms`: `822b33a9` (harness), `ebee4cbe`
+(OPFS-ASYNC), `db671123` (CACHESTORAGE), `208f6ff9` (one-line minors), `21e59ce9` (README).
+
+| # | fix | test (file: claim) | mutants killed |
+| --- | --- | --- | --- |
+| 1 | `store.js` `readsFirst`: a write that finds the reads count above its queue yields a task (a `MessageChannel` ping, ≤ 20 ms) before serving; the store worker uses it, and the reads served inside a write leave its busy time (`readsMs`) | `store.test.mjs`: a read counted and posted before a write is served between its pieces, through a real `MessageChannel` | no task yield; a microtask instead of a task (2/2) |
+| 2 | `settle()` added to the seam (optional; README §The seam): OPFS-ASYNC names a refused group's frames lost and drops their copies; `close()` throws a refusal it finds; the store marks them unwritten and stops; the page settles before its verify, so *written* is what is on disk | `opfs-async.test.mjs`: the last write or close refused, then settle, read, next write, close; `store.test.mjs`: settle and a refused close reach the rows | lost not named; its copy still served; close does not rethrow; close does not settle; a settled refusal thrown again; settle does not stop; close's lost or refusal dropped; settle ignores the arm (9/9) |
+| 3 | CACHESTORAGE's manifests in a `Cache` of their own (`frames-index`): `list`, `open`'s manifest read and `evict` open no series' `Cache`; `settle`/`close` as 2 for `inflight=3` (minor M1) | `cachestorage.test.mjs`: list and evict open no series' `Cache`; a refused tail named lost, a miss after, close throws | list opens a series' `Cache`; evict leaves the index record; settle misses one; refused buffers still read; close does not rethrow (5/5) |
+| 4 | `cells.mjs` `backlogAt5s`, started beside the fill: waits for the feeders' last post, samples at + 5 s, before waiting for the rest | `cells.test.mjs`: a writer 9 s behind leaves frames unwritten at last post + 5 s | wait for handled first; sampled at the last post (2/2) |
+| 5 | `keptOnReopen`: present ≥ written − the arm's writes in flight (`inflight`, 1 by default) | `cells.test.mjs`: 11 lost of 35 fails whatever is queued; 1 and 3 in flight | old bar; default 3 (2/2) |
+| 6 | `pageQuery`: the mutant runs in the arm only, `none` clean; `lBars` computes L's §8.3 bars against the same round's `none`, ≥ 75 % of rounds, exact every round, `balanced` per arm, written as the run's `summary` row | `cells.test.mjs`: view-copy's +6 ms fails delay p99; PSS, missed, delivered, backlog and exact each fail alone | mutant into `none`; each bar loosened (delay, missed, delivered, backlog, PSS); exact at 75 %; 75 % → 50 %; 75 % → 100 % (10/10) |
+| 7 | `pssGrowth`: the PSS baseline is taken once the page sets `floorDone` (after the floor, before the held frames), for every arm and `none` alike | `cells.test.mjs`: the floor's memory is not in the growth | baseline before the floor (1/1) |
+
+Minors fixed (one line each, a test where one was cheap): OPFS-SYNC `piece=2MiB` is 2 MiB and a misspelt piece
+refuses to start (test, failing first); a pending frame whose slot the arm let go is read through the arm (test,
+failing first); OPFS-ASYNC m1, a refusal during a group's retry leaves the group to the next retry (test, failing
+first, mutated); CACHESTORAGE M2, a test pattern with no period dividing 1 MiB (kills a chunk-offset mutant that
+survived the old one); R's read time (`readMsP50`) and O's reopen from the end of the worker's start-up
+(`fromReadyMs`) in the rows; T checks that tab 2 opened as a reader (`tab2Reads`); Q checks every written frame present
+on reopen (`reopenKept`); README: K's `no-recheck` needs ≥ 2 rounds.
+
+Listed, not fixed (each wants more than a line, or a design call): OPFS-SYNC M1's test gaps (the writing tab's read
+path, the floor's buffer) and its missing *as built* section; OPFS-ASYNC m2 (W ends at the last frame handed), m3 (the
+floor rewrites one file, ignores G), m4 (the mock ignores `recursive`), m5 (no setting to drop the probe), n1–n6;
+IDB's `value=buffer` extra `slice` and the untested `readonly` read; CACHESTORAGE N1–N6 and the digests-differ path,
+whose `Cache` object for the series lives on in the arm until collected; the harness's `estimate()` bound, the
+double-release guard, E's sets and tab-2 close, §8's pre-registered parameters still partly pinned, L at S2 1× twelve
+rounds by hand, R-busy's repeated picks, the store's eviction looking the Web Lock up rather than taking it.
+
+**Smoke after the fixes** (not results; headless Chromium 153, this 4-vCPU host, one run each, sequential): a scratch
+page importing OPFS-SYNC and `readsFirst` unchanged, one 64 MiB frame, the read posted before the write: with
+`piece=2MiB` served 2.0–2.5 ms into a 30–34 ms write (two runs), whole-frame after the write (two runs). E at S3 with
+CACHESTORAGE and IDB: §8.3's five sets on disk and every frame exact, A, B and C evicted at C, D and A again. Q at S2
+with OPFS-ASYNC `inflight=3`: frame 30 refused after its write returned, named lost by `settle`, unwritten in the
+row, the fill stopped; 30 present on reopen, all exact. L at S1 with `none` and `stub`: the summary row written. No
+Firefox, no WebKitGTK, no phone.
+
+The arms' designs are unchanged except CACHESTORAGE's layout (the manifests out of the series' `Cache`), by the
+design's own eviction source; the seam gains `settle`, for the two arms whose write returns early.

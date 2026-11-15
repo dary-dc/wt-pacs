@@ -31,12 +31,13 @@ exact frame bit for bit, and only checked claims on screen.
   disk at its group's close (the README's *OPFS-ASYNC as built*). IDB's arm built 2026-11-15 (`arms/idb.js`, smoked
   on Chromium 153 only); its Blobs grew the browser's memory past L's bar in smoke, an `ArrayBuffer` value much less
   (the README's *IDB as built*). CACHESTORAGE's arm built 2026-11-15 (`arms/cachestorage.js`, smoked on Chromium 153
-  only); the space `caches.delete` frees comes back late there, so E's sets miss until CACHE-RUN amends the wait (the
-  README's *CACHESTORAGE as built*). Reviewed 2026-11-15 ([`../reviews/cache-arms.md`](../reviews/cache-arms.md)):
+  only); the late space after `caches.delete` it found was its own `Cache` handle, not the engine's (*corrected
+  2026-11-15*, the README's *CACHESTORAGE as built*). Reviewed 2026-11-15 ([`../reviews/cache-arms.md`](../reviews/cache-arms.md)):
   not ready for CACHE-RUN, seven blockers (OPFS-SYNC's reads first never runs; OPFS-ASYNC's late refusal lost;
   CACHESTORAGE's own handle holding the evicted space, so E's late space is its build's; four in the harness: L's +5 s
-  sample, K's `kept` bar, L's bars against `none`, the floor inside L's memory window). Next, their fixes, failing test
-  first, then CACHE-RUN.
+  sample, K's `kept` bar, L's bars against `none`, the floor inside L's memory window). All seven fixed 2026-11-15,
+  each with a test failing first and mutated (the review's §Fixes); E's five sets hold on Chromium 153 in smoke. Next,
+  CACHE-FIX-REVIEW, then CACHE-RUN.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
