@@ -25,8 +25,9 @@ exact frame bit for bit, and only checked claims on screen.
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
 * **D0's hardware-decode probe** on `claude/hw-probe` (`lab/devices/`, row HW-PROBE-PAGE): built, headless test
-  green in Chromium 153 on software paths only (2026-11-14); its draft PR opened by HW-PROBE-PAGE-REVIEW; the phone
-  run stays with the owner's local session `phone-tests`.
+  green in Chromium 153 on software paths only (2026-11-14); draft PR #393, reviewed 2026-11-15 (its body §Review):
+  every RGB copy and WebGL2 read there fits studio-range expansion even where the frame says `fullRange: true`, so
+  the probe's RGB and paint "exact" counts measure the range, not precision. The phone run stays with `phone-tests`.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
