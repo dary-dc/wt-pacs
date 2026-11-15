@@ -240,6 +240,16 @@ must survive them or the block runs last, after which nothing else starts; a lev
 from amendment 5 and is not run. Budget: ~5 arms × 4 endings × ~90 s ≈ 30 min of loads, outside §6's table.
 Asks of the tooling (§10): the ending levers above; the sink reachable from the phone on the laptop.
 
+### Decode-option cells
+
+Asks from MOBILE-DECODE-OPTIONS (2026-11-15; `claude/mobile-decode:docs/decode/mobile/new-options.md` §7), one line
+each, exploratory and deciding nothing, in cell 4's block and by its rules (a hang or a refusal is an outcome); they
+need units the probe does not carry yet (§10's asks are the phone session's), and are not run without them.
+
+* **M1 · the frame's size**: `dbts_a1`, `dbts_b1` and `dbts_c1` sized 8-bit 4:2:0 constant-chroma units under `prefer-hardware`: `isConfigSupported`, the decode's outcome or exact error, the decoder `logcat` names (new-options §2.1).
+* **M2 · the picture is one-to-one**: a unit holding every luma sample 16…235, decoded in hardware, uploaded to WebGL2 with `UNPACK_COLORSPACE_CONVERSION_WEBGL` at `NONE`, read back: the 220 picture values, and whether all differ (new-options §3.2).
+* **M3 · a hardware frame, checked**: one `dbts_b1`-sized frame decoded in hardware, inverted through M2's table, its XXH3-64 against the unit's digest; the read-back's and the hash's time (new-options §3.3).
+
 ## 5 · Interleaving, warm-ups, saturation
 
 * **Warm-ups:** two loads of A and two of the worker view before cell 2, not counted.
