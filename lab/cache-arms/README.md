@@ -31,7 +31,8 @@ An arm is a module under `arms/` whose default export makes an object with:
 | call | does |
 | --- | --- |
 | `open(series, meta, {create})` → `{present, meta}` | opens or (a writer only) creates the series; `meta` holds the digest list, `frameBytes`, the shape and `lastOpen`, and the stored one comes back; a series that does not fit throws `QuotaExceededError` |
-| `write(i, bytes, {release, readsWaiting})` | frame `i` from its slot (`bytes` is a view of shared memory); `release()` once the arm holds its own copy; `readsWaiting()` for reads first |
+| `write(i, bytes, {release, readsWaiting, serveReads})` | frame `i` from its slot (`bytes` is a view of shared memory); `release()` once the arm holds its own copy; `readsWaiting()` and `serveReads()` for reads first |
+| `settle()` → lost indices | an arm whose `write` returns before its frame is stored (OPFS-ASYNC, CACHESTORAGE at `inflight=3`): every write in flight lands or is refused; a refused frame is named and no longer read from the arm's copy. `close()` throws a refusal it finds, the frames in its `lost` |
 | `read(i, into)` → `bool` | frame `i` into a slot; `false` when absent |
 | `drop(i)` · `evict(series)` · `list()` → `[{series, lastOpen}]` · `close()` | |
 | `damage(i)` | the test lever: one byte of a present frame changed through the arm's own API (cell K) |
@@ -45,7 +46,12 @@ to clear one frame, eviction needs to know what is there, cell K needs a lever, 
 not fit evicts, least recently opened first, never one open in any tab (a shared Web Lock per open series), then
 waits for `estimate()` to show the room, at most 5 s (§8.1); a write refused mid-fill evicts one and retries once,
 else writing stops, and nothing escapes; a second tab on a series (the exclusive lock held) reads what is present,
-writes nothing, and takes a failed re-check as a miss (§8.1); a miss on a frame still pending is copied from its slot.
+writes nothing, and takes a failed re-check as a miss (§8.1); a miss on a frame still pending is copied from its slot
+until the arm lets the slot go, then read through the arm. **Reads first** (`readsFirst`): the view counts a read
+before posting it, so a write that finds the count above its queue yields a task (a `MessageChannel` ping, at most
+20 ms) for the message to arrive, then serves it; the reads served inside a write are taken out of its busy time
+(`readsMs`). **A late refusal** reaches the store: before the verify the page calls `settle`, and the frames lost
+there (or in a refused `close`) are unwritten in the rows and stop the fill, so a row's *written* is what is on disk.
 
 ## The cells
 
@@ -87,7 +93,9 @@ the series + 64 MiB may refuse OPFS-SYNC's `truncate` at open for that alone: CA
 * Only a new series is probed (as OPFS-SYNC sizes only a new one): a reopen reads what is present, its rest left to
   the mid-fill rule.
 * A `write()` or `close()` refused after its call returned is thrown by the next `write`; the store's retry writes
-  the group again from its copies. A group still short of frames at `close` is aborted.
+  the group again from its copies, and a refusal during that retry leaves the group to the next one. With no next
+  write, `settle` names the refused group's frames lost and drops their copies. A group still short of frames at
+  `close` is aborted.
 * For CACHE-RUN: a row's *written* is *handed to the arm*. At G = 15 a kill loses up to an open group besides the
   writes in flight, more than K's `kept` check allows; K runs at S3, where G = 1.
 
@@ -125,15 +133,17 @@ Pilot: `--pilot value=buffer` (Gecko only), the value an `ArrayBuffer`; the defa
 ## CACHESTORAGE as built
 
 `arms/cachestorage.js` is §7.4 as amended: a `Cache` named `frames <series>`, a response per frame keyed by the string
-`/frame-cache/<series, URI-encoded>/<i>` (no `Request` built), the manifest as one more record (`…/manifest`, JSON),
-no header on a frame's response. With the seam's sequential store worker:
+`/frame-cache/<series, URI-encoded>/<i>` (no `Request` built), no header on a frame's response. The manifest
+(`…/manifest`, JSON) is a record of one more `Cache`, `frames-index`, so `list`, `open`'s manifest read and `evict`
+open no series' `Cache`: a live `Cache` object keeps the space its delete frees (§7.4 eviction, ServiceWorker 2353;
+the review's blocker 3, *observed* there). A departure from §7.4's layout, the design's own reason. With the seam's sequential store worker:
 
 * **buffered** (the default): the slot copied into an `ArrayBuffer` of the arm's own, the slot let go (§8.1), then
   `put(key, new Response(buffer))`; the buffer goes back to a pool once its put resolves. `inflight` bounds the puts at
   once: at 1 `write` resolves when its put does; at 3 it returns once fewer than 3 are in flight, so a refusal is
   thrown by a later `write`, whose retry puts the refused frames again from their kept buffers first. As OPFS-ASYNC,
   a row's *written* is then *handed to the arm*; a read of a frame in flight waits for its put, a refused one is
-  answered from its buffer.
+  answered from its buffer until `settle`, which names it lost.
 * **streamed** (`body=streamed`): a `ReadableStream` of the slot's own 1 MiB views; the slot stays held until the put
   resolves (the store's hold, §7.0), so one put is in flight whatever `inflight` asks; a read is the body's reader,
   each chunk copied into the slot at its offset.
@@ -143,12 +153,13 @@ no header on a frame's response. With the seam's sequential store worker:
 * Eviction is `caches.delete(name)`; the Web Lock is the store's. The floor probe puts and matches in a `Cache` named
   `floor`, deleted after, buffered only.
 
-* For CACHE-RUN, E on Chromium (*smoke*, two runs, Chromium 153): the space `caches.delete` frees comes back late. In C,
-  a put refused at the sixth frame evicted A, the retry was refused again and writing stopped (5 of 20 written); by D
-  the space was back and D was written whole beside B and C, so the sets after D and after A again miss §8.3's.
-  §8.1's bounded wait cannot see the room under the override (above), so it ends at once: the same late removal §8.1
-  names for Chromium's IndexedDB, here for its Cache Storage. CACHE-RUN's amendment before any E row (a wait that
-  probes the room rather than `estimate()`, for all four alike), not this arm's.
+* E on Chromium, *corrected 2026-11-15*. The build's smoke (two runs, Chromium 153) found the space `caches.delete`
+  frees coming back late: in C a put refused at the sixth frame evicted A, the retry was refused again and writing
+  stopped (5 of 20 written), and this README put it on the engine and proposed an amendment to §8.1's wait for all
+  four. The review traced it to this build: `list()` opened every series' `Cache` to read its manifest, and that live
+  object kept A's space (its blocker 3). With the manifests in `frames-index` (above), E's smoke (one run, Chromium
+  153, S3, quota 1 300 MiB) leaves §8.3's five sets and every frame exact, IDB beside it the same: the amendment is
+  withdrawn.
 * `body=streamed` on Chromium 153: a body of shared views was taken and read back exact in L at S2 (*smoke*, one
   round), so §8.4's first check passes there; Firefox not run.
 
@@ -159,8 +170,12 @@ coded form, so a fetch of their bytes would not be a fill; F is M1's (`lab/opfs-
 `c99ba492`, the product's viewer and a packed series), owed to CACHE-RUN or taken from M1's *measured* F.
 
 **Mutants** (`--mutant`): `drop-writes`, `no-recheck`, `slot-held`, `evict-newest` and `tab-writes` in `store.js`,
-`view-copy` in `view.js`. Each row carries `checks`, what its mutant must break (`cells.mjs`); the bars against
-`none` are over a round.
+`view-copy` in `view.js`. Each row carries `checks`, what its mutant must break (`cells.mjs`). A mutant runs in the
+arm only, `none` clean: L's bars against `none` (§8.3: missed share, delay p99, delivered rate, the backlog, PSS) are
+computed by `lBars` per round and written as the run's last row (`summary`), each met in ≥ 75 % of rounds, every frame
+exact in every round, with `balanced` per arm; `view-copy` fails the delay p99 there. K damages a frame in odd rounds
+only, so a `no-recheck` run of K needs two rounds or more. The backlog is sampled at the last post + 5 s, while the
+writer may still be behind; L's PSS window opens once the page's floor probe is done (`floorDone`).
 
 ```bash
 node lab/cache-arms/store.test.mjs && node lab/cache-arms/cells.test.mjs
