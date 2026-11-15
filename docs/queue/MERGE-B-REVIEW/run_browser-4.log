@@ -1,0 +1,12 @@
+-- dispatch
+dispatch over ts: 789/789 checks passed through the downloader
+
+-- downloader
+contract over ts: 58/58 checks passed through the downloader
+
+-- downloader-wasm
+contract over wasm: 58/58 checks passed through the downloader
+
+-- dispatch-wasm
+dispatch over wasm: 102/102 checks passed through the downloader
+
