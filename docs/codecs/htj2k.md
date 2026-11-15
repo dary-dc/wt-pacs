@@ -65,6 +65,9 @@ smaller picture; a clamp makes the package's reduced level exact
 ([`../decode/README.md`](../decode/README.md) §A prefix draws a smaller image, §A frame at the level the screen
 needs). Proposed, not built: [`../adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md).
 
+**Quality progression** is all but absent from the HT block coder and from OpenJPH; what remains, the shapes and a
+pre-registered protocol: [`../decode/README.md`](../decode/README.md) §HTJ2K progressive, resolution and quality.
+
 ## Exactness risks and how they're checked
 
 * Ground truth is the encoder's input, never a decoder's output ([`../decode/README.md`](../decode/README.md)

@@ -75,6 +75,8 @@ function link(name, impairment = "clean") {
   if (name === "none") return [ONE_WAY, ["--rate-kbit", "0"]];
   // Row NETRULES' cells: 23 ms one way and a 650 ms FIFO, so a fill that fills it sees a ~0.7 s RTT.
   if (name.startsWith("n")) return [23, ["--rate-kbit", name.slice(1), "--queue-ms", "650", ...(loss ? ["--loss", String(loss)] : []), ...jitter]];
+  // No rate: the relay's delay alone, an unshaped flight (docs/rig-limits.md: late by design on a burst).
+  if (name === "plain") return [ONE_WAY, [...(loss ? ["--loss", String(loss)] : []), ...jitter]];
   if (name.startsWith("r")) return [ONE_WAY, ["--rate-kbit", name.slice(1), "--queue-pkts", "200", ...(loss ? ["--loss", String(loss)] : []), ...jitter]];
   if (name === "lte-good") return [25, ["--trace", path.join(TRACES, LTE.file), ...ge(loss || 0.01), "--queue-ms", "500", ...jitter]];
   if (name === "wifi-home") return [15, ["--trace", `${T}/wifi-home.trace`, ...ge(loss || 0.5), "--queue-ms", "300", ...jitter]];
@@ -386,6 +388,8 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     ...pool(r.frames, threads),
     usefulMs: Math.round(Math.max(...need.map((i) => shown.get(i) ?? Infinity)) - r.issuedAt),
     ...previews,
+    ...(PER_FRAME && { decodeMs: Math.round(r.frames.reduce((n, f) => n + (f.end - f.start || 0), 0)),
+      previewDecodeMs: Math.round((r.previews ?? []).reduce((n, p) => n + (p.end - p.start || 0), 0)) }),
     ...(PER_FRAME && { exactMs: framesMs(r.frames.map((f) => [f.i, f.page]), r.issuedAt, set.frames),
       previewMs: framesMs((r.previews ?? []).filter((p) => !p.late && p.layer !== "middle").map((p) => [p.i, p.page]), r.issuedAt, set.frames),
       ...layered(r, set) }),
