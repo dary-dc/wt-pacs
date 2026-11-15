@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-15 (the reports' rig) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -37,6 +37,11 @@ exact frame bit for bit, and only checked claims on screen.
   line per session under `telemetry`, a page on the fault bench whose forced mismatch sends a safety report. Smoke on
   headless Chromium only. Not built: D6 under `--tun` (no iproute2 here), the floor probes, cells L, C, Y, R; Firefox's
   and WebKit's kills unchecked (neither engine here). Next: the build rows BEACON, KEEPALIVE, SESSION, RECEIVERS.
+* **BEACON's arm**, 2026-11-15 (`lab/report-arms/beacon/`, REPORT-BUILD-BEACON): §3.1 as advocated, both timings,
+  its floor; one beacon per failure, not per task (the sink takes one record). Found in its smoke: `run.mjs` closes
+  the browser at once after each ending, before the browser sends a queued beacon, so D1, D2, D7 and D8 charge every
+  keepalive carrier with the rig's loss (a 2 s pause before the close delivered H's record in D1 and D2). A harness
+  fix, for REPORT-BUILD-REVIEW and before REPORT-RUN. Next: KEEPALIVE, SESSION, RECEIVERS.
 
 ## PRs
 
