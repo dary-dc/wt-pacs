@@ -307,15 +307,18 @@ for (const refusal of ["QuotaExceededError", "NS_ERROR_FILE_NO_DEVICE_SPACE"]) {
   check((await opfsAsync().open("A", meta(), { create: true })).present.length === 0, `does not fit (${refusal}): a retry with room opens`);
 }
 
-/** The probe asks room for the frames not yet present only: a reopen with the rest's room opens. */
+/** Only a new series is probed: a reopen with no room left opens and reads what is present (cell Q's reopen). */
 {
   fresh();
   const a = opfsAsync();
   await a.open("A", meta(), { create: true });
   for (let i = 0; i < N - 1; i++) await a.write(i, frame(i), {});
   await a.close();
-  disk.quota = disk.used() + SLOT;
-  check((await opfsAsync().open("A", meta(), { create: true })).present.length === N - 1, "a reopen probes for the rest");
+  disk.quota = disk.used() + 4096;
+  const b = opfsAsync();
+  check((await b.open("A", meta(), { create: true })).present.length === N - 1, "a reopen with no room: present as written");
+  const into = slotView();
+  check((await b.read(0, into)) && exact(into, 0), "a reopen with no room: read exact");
 }
 
 /** §7.5 the disk fills mid-fill: a write or a close refused after its call returned is thrown by the next write as

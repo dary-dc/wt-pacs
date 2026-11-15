@@ -84,6 +84,8 @@ the series + 64 MiB may refuse OPFS-SYNC's `truncate` at open for that alone: CA
   group's swap cannot be read back: the copies are an open group's frames (≤ 8 MiB) and the writes in flight.
 * `inflight` bounds the calls at once: a frame's `write()`, or for the frame that makes its group whole, that and the
   group's `close()`.
+* Only a new series is probed (as OPFS-SYNC sizes only a new one): a reopen reads what is present, its rest left to
+  the mid-fill rule.
 * A `write()` or `close()` refused after its call returned is thrown by the next `write`; the store's retry writes
   the group again from its copies. A group still short of frames at `close` is aborted.
 * For CACHE-RUN: a row's *written* is *handed to the arm*. At G = 15 a kill loses up to an open group besides the

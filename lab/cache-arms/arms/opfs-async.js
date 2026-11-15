@@ -99,6 +99,20 @@ export function opfsAsync(pilot = new URLSearchParams()) {
     }
   }
 
+  /** A new series' room checked, not reserved: a writable's truncate to the whole series, then aborted. */
+  async function probe(top, series) {
+    const w = await (await dir.getFileHandle("probe", { create: true })).createWritable();
+    try {
+      await w.truncate(n * slotBytes());
+    } catch (e) {
+      await w.abort().catch(ignore);
+      await top.removeEntry(key(series), { recursive: true });
+      throw quotaError(e);
+    }
+    await w.abort();
+    await dir.removeEntry("probe");
+  }
+
   const a = {
     name: "opfs-async",
     async open(series, meta, { create }) {
@@ -127,17 +141,7 @@ export function opfsAsync(pilot = new URLSearchParams()) {
         else if (create) await dir.removeEntry(name, { recursive: true });
       }
       if (create) {
-        const missing = n - present.length;
-        const probe = missing > 0 && (await (await dir.getFileHandle("probe", { create: true })).createWritable());
-        try {
-          if (probe) await probe.truncate(missing * slotBytes());
-        } catch (e) {
-          await probe.abort().catch(ignore);
-          if (before) await dir.removeEntry("probe");
-          else await top.removeEntry(key(series), { recursive: true });
-          throw quotaError(e);
-        }
-        if (probe) await probe.abort(), await dir.removeEntry("probe");
+        if (!before) await probe(top, series);
         await writeMeta(dir, { ...meta, lastOpen: Date.now() });
       }
       return { present: present.sort((x, y) => x - y), meta: before };
