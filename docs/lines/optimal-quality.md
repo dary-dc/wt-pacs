@@ -57,4 +57,7 @@ and whether `bbr`'s two failures withdraw it); any merge, close or removal.
 `server/dev-server.py`, `deploy/README.md` §Run it, README §Demo; [`../devices.md`](../devices.md) §7 and §8;
 [`../glossary.md`](../glossary.md); `docs/reviews/` (freeze-e2e, e2e-3, demo-e2e-2, demo-tests-mobile, demo-redteam,
 demo-blind); `claude/phone-rows:docs/phone-rows/`; `claude/proposals:docs/lines/proposals.md`;
-`claude/merge-plan:docs/reviews/merge-plan.md`.
+`claude/merge-plan:docs/reviews/merge-plan.md`. What a presenter should have known before the demo, fixed after it (the
+names, the check hooks on the image, `viewer.js`'s lab lines, what PR 250 brings to `main`, the committed WASM,
+`framesSha256`): `e5b20cba:docs/lines/optimal-quality.md` §Known before the demo, fixed after it; the names' part is
+`client/README.md` §Optimal quality, exact on request.

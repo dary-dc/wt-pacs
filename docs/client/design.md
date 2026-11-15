@@ -81,6 +81,8 @@ transferred buffers, `waitAhead`, `span`, the frame clocks. Native has the same 
 | The quality mark: green beside *Optimal quality*, *Lossless* distinct, words always beside the colour; the status line opens by a tap | 2026-11-11 | the owner | [`../../client/README.md`](../../client/README.md) §Optimal quality, exact on request |
 | The integrity and coding-error check is a proposal (#368), the owner's to decide | 2026-11-11 | the owner | `claude/oq-integrity-build:docs/reviews/oq-integrity.md` |
 | `cubic-restart` the default congestion controller; `bbr` and `bbr-bound` stay options; real-world runs decide | 2026-11-11 | the owner | [`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §1 |
+| The application loads while the series loads, as when a reader opens a study's URL directly; no listing view | 2026-11-11 | the owner | `e5b20cba:docs/lines/optimal-quality.md` §Decisions, afternoon |
+| AV1 tiles wait; HTJ2K with tiles and resolution levels matched to the screen, for DBT and other large matrices, is investigated and compared with this approach | 2026-11-11 | the owner | the same; [`evidence/exact-frame-by-htj2k-layout.md`](evidence/exact-frame-by-htj2k-layout.md) |
 | AV1 only for cine-like series; no low-resolution preview (a preview is tiny or full size); XXH3-64 the frame check | by 2026-11-10 | the owner | `claude/work-ledger:docs/queue-2026-11-10.md` §Decided approaches |
 | Mobile on lossy wireless; no TCP for the fill unless proven; fill and on-demand latency optimized separately; resilience parked | 2026-11-11 | the owner | the same |
 | Telemetry off by default (rate 0); the frame clock kept | 2026-11-11 | the owner | the same |

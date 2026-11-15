@@ -450,7 +450,7 @@ the table above both times, the Q 8 G 1 and G 16 cuts and both stored forms as b
 the 12-bit view's bytes (§Optimal quality's table, 2026-11-09; from the rounded fractions), more, not fewer.
 ### Source fingerprint
 
-*SOURCE-FINGERPRINT, 2026-11-11. Built and tested on synthetic sets; nothing timed.*
+*2026-11-11. Built and tested on synthetic sets; one run on the demo series, below; nothing timed but that run's wall time.*
 
 The pairing's same-source check (the owner, 2026-11-11: it stays, belongs in the ingest and uses XXH3). Every series
 the ingest writes, exact and optimal-quality alike, carries **`sourceFingerprint`**: the canonical XXH3-64, 16
@@ -478,5 +478,11 @@ two little-endian above, sign-extended), concatenated as text.
   SHA-256 of the frames' SHA-256 hex digests), checked at download. The lab's command no longer copies it into the
   series it writes, and no client reads it. `lab/av1/bytes/prior-gap/pocgap.py` writes its own `framesSha256` into
   the lab sets it makes; those never reach the pairing.
+* **On the demo series** (2026-11-11, `scripts/demo-series.sh` run again; one 4-core cloud host, 685 s with the
+  coders built): every exact bundle 43 B smaller (`framesSha256` out, `sourceFingerprint` in), each optimal-quality
+  bundle the same size; each set's eight or seven series carry one fingerprint, the three sets three; `checkPair`
+  accepts all 20 pairs and refuses each against the other two sets' exact series by source. A node script over the
+  metadata; no browser run on these series. Fixtures: the three DBT sets `dbts_a1`, `dbts_b1`, `dbts_c1` of one
+  dataset. Carried from `e5b20cba:docs/lines/optimal-quality.md` §State now.
 * **What it changes:** every bundle's metadata gains one key, so every series written before it fails the pairing
   check until written again (`scripts/demo-series.sh`).
