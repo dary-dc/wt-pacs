@@ -50,8 +50,15 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | HW10-ROUTES | 11-14 21:00 | — | `claude/hw10-routes` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
 | HW10-ROUTES-REVIEW | 11-14 21:00 | HW10-ROUTES done | `claude/hw10-routes` (findings in its PR body; a session that wrote none of it) |
 | NATIVE-NOTES | 11-14 21:00 | — | `claude/native-notes` from `origin/claude/docs-client` → draft PR into `claude/docs-client` (docs only) |
-| MOBILE-DECODE-OPTIONS | 11-14 21:00 | — | `claude/mobile-decode` from `origin/claude/docs-client` → draft PR into `claude/docs-client` (theory, docs) |
-| MOBILE-DECODE-OPTIONS-REVIEW | 11-14 21:00 | MOBILE-DECODE-OPTIONS done | `claude/mobile-decode` (findings in its PR body) |
+| MOBILE-DECODE-OPTIONS | 11-14 21:00 | — | `claude/mobile-decode` from `origin/claude/docs-client` → draft PR into `claude/docs-client` (re-scoped by amendment 20: **new** options, Fable) |
+| MOBILE-OPT-AV1-SOFTWARE | 11-14 21:00 | — | `claude/mobile-decode` (`docs/decode/mobile/av1-software.md`) |
+| MOBILE-OPT-AV1-HW-UNCHECKED | 11-14 21:00 | — | `claude/mobile-decode` (`docs/decode/mobile/av1-hardware-unchecked.md`) |
+| MOBILE-OPT-HTJ2K-SOFTWARE | 11-14 21:00 | — | `claude/mobile-decode` (`docs/decode/mobile/htj2k-software.md`) |
+| MOBILE-OPT-GPU-COMPUTE | 11-14 21:00 | — | `claude/mobile-decode` (`docs/decode/mobile/gpu-compute-decode.md`) |
+| MOBILE-OPT-OTHER-CODECS | 11-14 21:00 | — | `claude/mobile-decode` (`docs/decode/mobile/other-codecs.md`) |
+| *(MOBILE-DECODE-OPTIONS appends one MOBILE-OPT-<NAME> row per new option it proposes)* | | | |
+| MOBILE-DECODE-COMPARE | 11-14 21:00 | MOBILE-DECODE-OPTIONS and every MOBILE-OPT row done | `claude/mobile-decode` (`docs/decode/mobile/README.md`: the table) |
+| MOBILE-DECODE-COMPARE-REVIEW | 11-14 21:00 | MOBILE-DECODE-COMPARE done | `claude/mobile-decode` (findings in its PR body) |
 | CACHE-DESIGN | 11-14 21:00 | CACHE-PLAN done | `claude/cache-plan` (`docs/client/evidence/cache-plan.md` §7; PR of CACHE-PLAN) |
 | CACHE-ADVOCATE-OPFS-SYNC | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
 | CACHE-ADVOCATE-OPFS-ASYNC | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
@@ -611,6 +618,36 @@ line each, not editing its cells), and a leaning labelled as such. Theory labell
 
 A session that wrote none of it: 15 quoted sources fetched at their pinned revisions; the table follows from the
 text; the window/level arithmetic re-derived; what is a leaning stays a leaning.
+
+20. **Which model does what** (the owner, 2026-11-15: "Fable shouldn't be used for comparing already existing options
+    … use it to create options … a more scoped problem might be better handled by a smaller model like Opus. Or several
+    instances, one for each approach"). From now on: **Fable** creates options and questions premises from the
+    fundamentals; **Opus**, one instance per option, works out a known option (its sources, its arithmetic, its best
+    case as its advocate); a synthesis row compares; another session reviews. MOBILE-DECODE-OPTIONS is re-scoped so:
+    the six options of its brief are already known, each now has its own MOBILE-OPT row; MOBILE-DECODE-OPTIONS (Fable)
+    proposes **options not on that list**, each argued from first principles (what the phone, the browser and the
+    data allow), and appends one MOBILE-OPT-<NAME> row per option worth working out, with its brief. If you are the
+    session already running MOBILE-DECODE-OPTIONS on the earlier brief: re-read this amendment, keep what you have
+    as input for the MOBILE-OPT rows (push it under `docs/decode/mobile/`), and turn to the new scope.
+
+### MOBILE-OPT-<NAME> (one known option each; Opus)
+
+Work out one option of MOBILE-DECODE-OPTIONS' brief (its numbered list says what each covers; AV1-HW-UNCHECKED carries
+the owner's window/level, zoom and pan question in full) as its advocate: the best version of it, from its official
+sources quoted at pinned revisions, its arithmetic written out, then its disadvantages. Its file answers the
+comparison's columns: decode time on a phone (measured, published or unknown), bytes, precision on screen, checked,
+window/level and tools functional, ships today, and what a phone cell must measure. Theory labelled.
+
+### MOBILE-DECODE-COMPARE (Opus; a session that wrote none of the MOBILE-OPT files)
+
+`docs/decode/mobile/README.md`: the one table across every option file, what the sources decide alone, the cells the
+next phone round must add (one line each, as asks in `claude/phone-protocol:docs/phone-rows/next-round.md`), and a
+leaning labelled as such.
+
+### MOBILE-DECODE-COMPARE-REVIEW
+
+A session that wrote none of it: 15 quoted sources fetched at their pinned revisions; the table follows from the
+option files; the window/level arithmetic re-derived.
 
 ## Procedure, rules
 
