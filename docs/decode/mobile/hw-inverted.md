@@ -110,3 +110,27 @@ records its wall time; the report says whether 4 processes saturated the host's 
 
 **Fixtures and limits.** 19 DBT volumes of three systems (C2 on three); libaom 3.15.1 at cpu6, one thread; dav1d
 1.5.4; one σ estimator in one band; one 4-core cloud host without a GPU; no browser, no hardware decoder, no reader.
+
+### Amendment, before any run (2026-11-15)
+
+Written by the measuring session before any cell ran. What the host and the harness forced:
+
+* **A1 · Where the forms live.** As DEPTH8-MEASURE's A1: `lab/decode/mobile/hw-inverted/measure.py` loads the
+  harness from a checkout of `claude/av1-noise-ratio` at `0a9d33ca` and adds `inv220-420` and `cut8` to its `forms`
+  (`cut8` rewritten from DEPTH8-MEASURE's `code8`; the A/A cells check it byte for byte). No harness file is copied or
+  changed; every row records the harness commit. The series rows (σ per frame) are measured again here and checked
+  equal to DEPTH8-MEASURE's; DEPTH8-MEASURE's cells are read with its own σ.
+* **A2 · `inv220-420`'s arguments.** The harness's non-monochrome branch tags RGB series' colour (`bt601`); as
+  DEPTH8-MEASURE's A4, it is replaced by `--profile=0 --bit-depth=8 --input-bit-depth=8` and nothing else. The back
+  map is applied to every decoded code 0 … 255 unclipped, as written, so an overshoot counts in e_N as well as in I4.
+* **A3 · C1's starting Qs.** From bar 1.00's independent Q to the larger of the two bars' removal Q, + 1 (as
+  DEPTH8-MEASURE's A3 read its own); then §8.1's extension.
+* **A4 · C2's Qs.** "Ascending from 1" is about 270 cells of B: by libaom's AC tables (D), B's step in source units
+  (one code a unit) reaches today's form's step at its highest Q only near 8-bit Q 44–50 on the 12-bit volumes and
+  Q 33–35 on `dbts_b1`, so 50, 50 and 36 cells a chain, six chains, against C1's ~145 cells on the same 4 cores. B
+  runs instead at Q 1 and every multiple of 4 ascending until the worst frame exceeds 1.03, then at every Q between
+  the highest multiple whose worst frame is ≤ 1.00 and that failing Q. This assumes the worst frame rises with Q
+  between the multiples; the report lists every chain's worst frame by Q, so a step down shows.
+* **A5 · Picture A.** Coded once per (volume, Q_A) as a C1 cell of `inv220-420` (its row kept in `c2.jsonl`), its
+  decoded luma kept outside the repository for B's cells; bytes(A) is that row's. The clamped share is counted while
+  B's input is written, the same at every Q of a chain.
