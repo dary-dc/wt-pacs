@@ -80,4 +80,4 @@ its state and lessons: `claude/work-ledger:docs/queue/PHONE-RUN.md`. The next ro
 [`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §1. What bounds a phone's fill:
 `claude/fill-split:docs/phone-rows/README.md` *What bounds a fill*. Hardware decode:
 [`../decode/hardware.md`](../decode/hardware.md), [`../decode/hardware-10bit.md`](../decode/hardware-10bit.md).
-Target links: PR 386 (`docs/transport/link-profiles.md`).
+Target links: `claude/link-targets:docs/transport/link-profiles.md` (PR 386).
