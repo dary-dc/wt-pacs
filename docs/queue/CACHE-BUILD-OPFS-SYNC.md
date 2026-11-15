@@ -1,10 +1,16 @@
-state: started
+state: done
 started: 2026-11-15T06:16Z
-heartbeat: 2026-11-15T06:39Z
-outputs: claude/cache-arms (lab/cache-arms/arms/opfs-sync.js), PR 394
+heartbeat: 2026-11-15T06:49Z
+outputs: claude/cache-arms 83190ac6, a9006373 (lab/cache-arms/arms/opfs-sync.js, arms/opfs-sync.test.mjs; serveReads and pilot through the seam; scripts/gate.sh; docs/lines/client.md), draft PR 394 (its CACHE-BUILD-OPFS-SYNC section)
 ## Resume
-Pushed 83190ac6 on claude/cache-arms: the arm, its test (21 mutants killed), the harness pass-through of `pilot` and
-`serveReads`. Smoke done (not pushed; work/ is untracked): Chromium 153 L, W, R-idle, R-busy, B at S1, O and K at S1,
-E at S3, T, P, Q at S2, R-busy S2 with piece=2097152; Firefox 159 L, R-busy, T at S2, K at S1. Next: build
-client/transport/wasm (done), gate --quick running (link check fails on two pre-existing paths, rest run with it set aside), PR 394 body, done.
+Done. Nothing owed by this row; CACHE-BUILD-REVIEW judges it with the other three builds.
 ## Result
+OPFS-SYNC as §7.1 has it: one packed file and one sync handle a series, truncate at open, written from the slot in
+pieces (pilot `piece`, default whole frame) with waiting reads let in between, record after the last piece; Gecko's
+refusal name passed up as QuotaExceededError; a reading tab by getFile(), no handle.
+- Seam changes, opt-in, for all arms alike: `serveReads` in the write's context; `--pilot` reaching the arm's factory.
+- Tests: arms/opfs-sync.test.mjs, 21 code mutants killed, one equivalent named; store.test.mjs +1, mutated.
+- Smoke (not results): Chromium 153 every cell one round, all checks pass but Q S2 (truncate ≈813 MiB refused under the
+  877 MiB override, as the harness foresaw: CACHE-RUN's amendment); Firefox 159 L, R-busy, T at S2 and K at S1 pass.
+- gate.sh --quick passes with the link check set aside (two pre-existing paths, docs/lines/devices.md 57, 60).
+Fixtures: 4-vCPU cloud host, no GPU, synthetic 16-bit S1-S3, feeders not decoders, warm page cache, one round a cell.
