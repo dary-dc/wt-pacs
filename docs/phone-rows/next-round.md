@@ -9,7 +9,9 @@ that holds it),* theory *or* derived*. Amendments 5, 6, 7, 11 and 12 of the queu
 (`https://www.w3.org/TR/2026/WD-screen-wake-lock-20261111/`); W3C WebTransport, Candidate Recommendation 2026-07-30
 (`https://www.w3.org/TR/2026/CR-webtransport-20260730/`); W3C Long Tasks API, Discontinued Draft 2026-10-20
 (`https://www.w3.org/TR/2026/DISC-longtasks-1-20261020/`; quoted for its definition only); Linux man-pages 6.19
-(2026-02-08), `proc_pid_stat(5)`. The codec and cache facts are quoted where they live
+(2026-02-08), `proc_pid_stat(5)`; fetched 2026-11-15: Android's `Settings.Global` and `BatteryManager` references
+(`developer.android.com/reference/android/provider/Settings.Global`, `…/android/os/BatteryManager`) and its Direct Boot
+page (`developer.android.com/privacy-and-security/direct-boot`). The codec and cache facts are quoted where they live
 (`claude/hw-decode:docs/decode/hardware.md`, `claude/cache-plan:docs/client/evidence/cache-plan.md`).
 
 ## 0 · The round in one screen
@@ -57,13 +59,16 @@ their limits are §9; the asks of the phone session's tooling, without which a c
   reads: `/proc/<pid>/stat` for each Chrome process before and after each load (CPU time; §4 cell 2), `logcat`'s
   buffer after each load (which codec component Android allocated; §4 cell 1), `dumpsys battery` (temperature) per
   block. `proc_pid_stat(5)`: "(14) utime %lu Amount of time that this process has been scheduled in user mode,
-  measured in clock ticks" (and (15) `stime` the same in kernel mode).
+  measured in clock ticks" (and (15) `stime` the same in kernel mode). *Not sourced:* that `logcat` names the codec
+  component Android allocated, and that `adb shell` reads another app's `/proc/<pid>/stat` on this Android version;
+  the dry run checks both before the press, and until then each record says *not read*.
 * **No DevTools, trace or Performance recording** in any counted cell (unchanged from 11-11).
 
 ## 3 · Automation (amendment 5)
 
 **What the owner does:** unlock the phone, open the runner's bookmarked URL, press **Start** once. Nothing else until
-the round's end banner. Anything that would need a hand mid-round is designed out or is a departure named here (one:
+the round's end banner. Before that press, untimed, the laptop's script sets the stay-on setting (below) and reads
+`logcat` once for a codec allocation (cell 1's route). Anything that would need a hand mid-round is designed out or is a departure named here (one:
 P1's cold read, §4 cell 5).
 
 * **The runner page drives every load, press and wait**: it opens each load's URL, waits for the fill's end mark,
@@ -74,7 +79,16 @@ P1's cold read, §4 cell 5).
   block (arm B's and C2's exact-only servers, the long-task lever's page, the probe's static host), and answers the
   runner's `GET /next` with the next load's URL only once its servers answer. The runner never needs to know the
   servers' ports.
-* **The screen stays on and the page visible.** Screen Wake Lock: "A screen wake lock prevents the screen from
+* **The screen stays on and the page visible, by the platform setting first.** Android's `Settings.Global`:
+  `STAY_ON_WHILE_PLUGGED_IN` (added in API level 17), "Whether we keep the device on while the device is plugged in.
+  Supported values are: 0 to never stay on while plugged in BatteryManager.BATTERY_PLUGGED_AC to stay on for AC
+  charger BatteryManager.BATTERY_PLUGGED_USB to stay on for USB charger BatteryManager.BATTERY_PLUGGED_WIRELESS to stay
+  on for wireless charger … These values can be OR-ed together", its constant value `"stay_on_while_plugged_in"`;
+  `BatteryManager`: AC 1, USB 2, wireless 4. The laptop's script reads the setting, sets it to 7 before the press,
+  and restores the value read after the round's end banner (and after P1). The command (`adb shell settings get|put
+  global stay_on_while_plugged_in`) is *not sourced* here: the dry run checks that a `put` reads back. The phone is
+  on its charger and on USB (§2) for the whole round.
+* **The wake lock is the second line**, recorded. Screen Wake Lock: "A screen wake lock prevents the screen from
   turning off." Its limits, quoted, are why the runner re-acquires and records: "UAs (and the underlying OS) may time
   limit a wake lock given the battery status … or even disallow wake locks in the case a power saving mode is
   activated"; "If document's visibility state is "hidden", return a promise rejected with "NotAllowedError""; and
@@ -83,8 +97,11 @@ P1's cold read, §4 cell 5).
   acquire, release and refusal with its time; because "failure to acquire a lock … is indistinguishable from a
   successful lock acquisition", the runner also records the gap between its own timers (a gap over 2 s outside a
   load's own work marks the load **VOID: stopped**). The phone is on its charger and out of power-saving mode (the
-  owner's one check before the press). Each load opens in the **same tab** (no new window, no reload of the runner
-  between loads), so the page the lock belongs to stays visible.
+  owner's one check before the press). Each load opens in the **same tab** (no new window), but each load is a new
+  document, and the spec, §11.2: "When a Document document becomes no longer fully active, the user agent must run
+  these steps: For each lock in document.[[ActiveLocks]]["screen"]: Run release a wake lock". So every load's page
+  requests its own lock (through the viewer's lab gate, as the beacon loads), and between loads the screen is held by
+  the stay-on setting alone.
 * **The stopping rule counts wall-clock time loads ran**, never time stopped after a failure: each cell has a budget
   (§6); a block's loads stop starting when the sum of its loads' own durations (open to the beacon's last record)
   passes the budget; time spent between loads, in waits for a server, or after a failure counts toward nothing.
@@ -105,7 +122,8 @@ Each with its arms, what it records, its prediction (written before any data) an
   1- and 3-decoder arms run again at the round's end (the drift check). `navigator.hardwareConcurrency` recorded.
 * **The route taken:** after each arm, the laptop reads `logcat` for the codec component Android allocated (Codec2 or
   MediaCodec component names, e.g. a `c2.android.av1…` software component against a vendor's): *expected, not
-  sourced*; cell 4 checks first that logcat names it at all. The decoder's own report is recorded beside it
+  sourced*. One untimed check before cell 1 (one view decode, then `logcat`) says whether logcat names a component at
+  all; if it does not, cell 1's route reads *not read*. The decoder's own report is recorded beside it
   (`VideoDecoder` gives none, so the configure's `hardwareAcceleration` is what the page can record).
 * **Predictions.** *Measured* (`fill-bound-on-phone.md`): the view 133–135 ms a frame per decoder at 3 decoders,
   ~45 ms effective. *Theory:* HTJ2K at 76–107 ms a frame per decoder (the view's 133 ms ÷ the cloud's 1.24–1.74,
@@ -168,7 +186,8 @@ be worse by the rule below). Memory and hops are recorded, deciding nothing.
   100ms". The lever is the same in both views.
 * **Per load:** the fill, then 20 frame-change steps page idle, 20 busy (the runner's input is a dispatched event
   scheduled at a random 0–250 ms phase; a dispatched event is not a real input, and the browser may schedule them
-  differently, not traced here: the same in both views), 10 s of cine idle and 10 s busy (frames painted against
+  differently, not traced here: the same in both views; DOM: "Dispatches a synthetic event event to target", with
+  `isTrusted` false, which no client code reads at `e5b20cba`, so the viewer handles it as a press), 10 s of cine idle and 10 s busy (frames painted against
   frames due), one exact frame idle and one busy (different frames). Times are epoch ms on
   `performance.timeOrigin + performance.now()` in each thread, from the input's dispatch to the call that painted
   that frame returning (not the display's scan-out).
@@ -210,8 +229,9 @@ that pass the cloud cells") runs only if CACHE-RUN has passed one by the round's
   any round). Cold is reached by the reboot, never by evicting the page cache (`CLAUDE.md` §Measurement), and checked
   by the first read against the second: the first must be slower than the second or the cell is VOID (*not cold*).
 * **Departure from amendment 5, named:** P1 needs a second sitting, because Android keeps a browser profile's data in
-  credential-encrypted storage until the first unlock after a reboot (*not sourced here; the review should source it
-  or correct it*). The owner's alternative, in one line: P1 in a new browser process without a reboot
+  credential-encrypted storage. Android's Direct Boot page: "Credential encrypted storage, which is the default storage
+  location and only available after the user has unlocked the device", and it "is available after the user has
+  successfully unlocked the device and until the user restarts the device". The owner's alternative, in one line: P1 in a new browser process without a reboot
   (`am force-stop` then `am start` from the laptop), labelled *new process, cold not shown*.
 * **Predictions** (*theory*, `cache-plan.md` §6): P1's first read + XXH3 of a 17 MB frame under ~45 ms needs ≥ ~0.4
   GB/s cold from the phone's flash (UFS, unmeasured here); P2's writer keeps up with ~358 MB/s or its backlog grows
@@ -304,9 +324,11 @@ the home Wi-Fi.
    in the records.
 3. The laptop's script: servers per block, the run-commit check (§1), adb reads between loads (§2), `adb reboot`
    after P2.
+   It also sets `stay_on_while_plugged_in` to 7 before the press and restores the value it read after (§3).
 4. The beacon: per-frame arrival and decode times, the configure's `hardwareAcceleration`, `getStats()` at the
    fill's end, `visibilityState` changes (PR 377's records), the long-task lever's on/off, the input-to-paint times.
 5. The busy-page lever (100 ms every 250 ms), the dispatched steps, the cine run and its due-against-painted count.
+   The lever runs on the viewer document's own thread, loaded through the viewer's lab gate as the beacon is.
 6. Builds the client lacks today, each behind a lab lever: arm C2 (the whole exact series after the view's fill);
    the decoder count per load; cell 1's in-memory decode bench; cell 5's arms (CACHE-BUILD rows).
 
