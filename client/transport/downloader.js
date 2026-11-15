@@ -215,14 +215,14 @@ function arrived(index, frame) {
 
 /**
  * The server ends a running fill for an ask, so the remainder is re-issued on the asked frame's envelope head
- * (`refill: "head"`), right behind the ask (`"ask"`) or once it settles (any other). docs/WIRE.md §An ask during a
- * fill, docs/transport/link-conditions.md §Re-measured, *ASKTHENFILL*
+ * (`refill: "head"`), right behind the ask (`"ask"`) or once it settles (any other but `"none"`, which leaves the fill to a
+ * server that keeps it). docs/WIRE.md §An ask during a fill, docs/transport/link-conditions.md §Re-measured, *ASKTHENFILL*
  */
 async function ask(index, s) {
   const gen = generation;
   const ep = epoch;
   // Released once: a second `stream_frames` for the same remainder ends the first and re-sends what it wrote.
-  let holding = cfg.refill !== "ask";
+  let holding = cfg.refill !== "ask" && cfg.refill !== "none";
   const release = () => {
     if (!holding || gen !== generation || ep !== epoch) return;
     holding = false;
@@ -233,10 +233,13 @@ async function ask(index, s) {
   issuedAt = performance.now();
   watch();
   const promise = requestOnce(s, index, cfg.refill === "head" ? release : undefined);
-  if (!holding) issueFill();
+  if (cfg.refill === "ask") issueFill();
   try {
     const frame = await promise;
-    if (gen === generation && ep === epoch) arrived(index, frame);
+    if (gen === generation && ep === epoch) {
+      arrived(index, frame);
+      if (runOver()) issueFill();
+    }
   } catch (e) {
     if (gen === generation && ep === epoch && !lost(e?.name === "FrameTimeoutError")) {
       fail(index, String(e?.message ?? e));
@@ -245,6 +248,7 @@ async function ask(index, s) {
   } finally {
     // A cancelled ask's count was already dropped with the rest of its generation's work.
     release();
+    if (gen === generation && ep === epoch) askHeld();
   }
 }
 
@@ -265,16 +269,45 @@ function askFor(s, index) {
   if (rec?.priority === "ask") return;
   // In hand already: up the queue. Still owed by the fill: to the wire, where the server serves it next.
   if (rec && rec.state !== "wire") return void promote(index);
+  if (cfg.scroll === "aim" && wanted.has(index)) return void aimAt(index);
+  if (cfg.scroll === "cursor" && owedAsks().length) return void (held = index);
   wanted.delete(index);
   if (rec) rec.priority = "ask";
   else record(index, "ask", abs());
   ask(index, s);
 }
 
+/** The run on the wire, narrowed as it lands. */
+let run = null;
+/** Lab flag `scroll`: the newest ask held while one is on the wire (`"cursor"`), the first frame a run starts from (`"aim"`). docs/WIRE.md §What a scroll ahead asks */
+let held = null;
+let aim = null;
+
+/** A fill frame asked off the run's path re-aims the fill at it; its waiter settles when the fill delivers it. */
+function aimAt(index) {
+  if (aim !== null && run && aim <= index && index <= run.to) return;
+  aim = index;
+  issueFill();
+}
+
+function askHeld() {
+  const index = held;
+  held = null;
+  if (index !== null && wanted.has(index)) askFor(session, index);
+}
+
+/** Under `refill: "none"` the server skips a frame an ask carried, so a run can end short of its `to`. */
+function runOver() {
+  if (cfg.refill !== "none" || !run) return false;
+  while (run.from <= run.to && !wanted.has(run.from)) run.from += 1;
+  return run.from > run.to;
+}
+
 /** The wire carries one contiguous run of what is wanted at a time. docs/ARCHITECTURE.md §The downloader */
 function nextRun() {
   if (wanted.size === 0) return null;
-  const from = Math.min(...wanted);
+  const ahead = [...wanted].filter((i) => i >= (aim ?? 0));
+  const from = Math.min(...(ahead.length ? ahead : wanted));
   let to = from;
   while (wanted.has(to + 1)) to += 1;
   return { from, to };
@@ -287,7 +320,7 @@ function fillHandlers(from, to) {
     onFrame: (frame) => {
       if (gen !== generation || ep !== epoch) return;
       arrived(frame.frameIndex, frame);
-      if (frame.frameIndex === to) issueFill();
+      if (frame.frameIndex === to || runOver()) issueFill();
     },
     // A refused range is one frame_error at `from`, so the run fails whole.
     onError: (_index, reason) => {
@@ -300,7 +333,7 @@ function fillHandlers(from, to) {
 
 function issueFill() {
   if (asksInFlight > 0 || !session || session.stats().closed) return;
-  const run = nextRun();
+  run = nextRun();
   if (!run) return;
   const { onFrame, onError } = fillHandlers(run.from, run.to);
   session.fillFrames(run.from, run.to, onFrame, onError);
@@ -505,7 +538,7 @@ async function connect() {
     const gen = generation;
     // The range is known here, so it rides the session URL and is served behind the accept
     // rather than a round trip later. docs/ARCHITECTURE.md
-    const run = cfg.openingAsk !== false ? nextRun() : null;
+    run = cfg.openingAsk !== false ? nextRun() : null;
     const opening = run && { ...run, ...fillHandlers(run.from, run.to) };
     adopt(await openSession(opening));
     // A cancel during the dial cannot take back the run its URL carries.
@@ -581,6 +614,8 @@ onmessage = async (e) => {
       queue.fill.length = 0;
       records.clear();
       wanted.clear();
+      held = null;
+      aim = null;
       for (const d of decoders) d.next = null;
       asksInFlight = 0;
       try {

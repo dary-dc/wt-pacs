@@ -97,7 +97,7 @@ run 1 node client/paint/voi.test.mjs
 step "client: worker-safe (no artifact reaches for window)"
 run 1 bash client/scripts/check_worker_safe.sh
 
-step "client: the page's HTML preloads the TS client, ahead of the transport file (docs/CLIENTS.md §Choosing the client)"
+step "client: the page's HTML names the TS client and preloads it (docs/CLIENTS.md §Choosing the client)"
 run 1 grep -F '<link rel="preload" href="/client/transport/ts/dist/session.js" as="script" crossorigin>' client/viewer/index.html
 
 step "client: transport contract (every implementation, and the race)"
@@ -194,7 +194,7 @@ run 1 cargo check --locked --quiet --manifest-path lab/other-clients/h3/Cargo.to
 step "lab: the server's lab features — the frame cache compiles, cubic-classify's and the lab levers' wiring holds"
 run 1 cargo check -p series-server --features lab-frame-cache --all-targets --quiet
 run 1 cargo test -p series-server --features lab-classify --quiet -- classify
-run 1 cargo test -p series-server --features lab-levers --quiet -- held stalled lab_lever
+run 1 cargo test -p series-server --features lab-levers --quiet -- held stalled lab_lever with_fill_resumes with_an_ask_stream
 
 step "perf: counts, not clocks — the client's asks, the server's disk reads and the bytes, against scripts/perf_counts.baseline"
 if command -v strace >/dev/null; then

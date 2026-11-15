@@ -41,18 +41,22 @@ if [ "$LOCAL" -eq 0 ]; then
   IMAGE="${IMAGE:-wt-pacs-web:latest}"
   # The page and nginx files the image carries, against this tree's: deploy/web-files.sh's and the Containerfile's.
   in_image='cd /srv/wt-pacs && find client -type f ! -path "client/transport/ts/dist/*" ! -path "client/transport/wasm/pkg/*" -exec sha256sum {} + &&
-    sha256sum /etc/nginx/templates/wt-pacs.conf.template /usr/local/bin/entrypoint.sh | sed "s#  /.*/#  deploy/nginx/#"'
+    sha256sum /etc/nginx/templates/wt-pacs.conf.template /usr/local/bin/entrypoint.sh | sed "s#  /.*/#  deploy/nginx/#" &&
+    sha256sum /usr/local/bin/page.sh | sed "s#  /.*/#  client/viewer/#"'
   in_tree() {
     local t; t=$(mktemp -d)
     "$ROOT/deploy/web-files.sh" "$t" && (cd "$t" && find client -type f -exec sha256sum {} +)
     rm -rf "$t"
-    sha256sum deploy/nginx/wt-pacs.conf.template deploy/nginx/entrypoint.sh
+    sha256sum deploy/nginx/wt-pacs.conf.template deploy/nginx/entrypoint.sh client/viewer/page.sh
   }
   image=$("$RUNTIME" run --rm --entrypoint sh "$IMAGE" -c "$in_image" 2>/dev/null | LC_ALL=C sort -k2) && [ -n "$image" ] \
     || { echo "no image $IMAGE: docker compose -f deploy/compose.yml build web" >&2; exit 2; }
   stale=$(cd "$ROOT" && diff <(echo "$image") <(in_tree | LC_ALL=C sort -k2) | grep '^[<>]' | awk '{print $3}' | sort -u)
   [ -z "$stale" ] || { printf 'stale image %s, these differ from the tree:\n%s\ndocker compose -f deploy/compose.yml build web\n' \
     "$IMAGE" "$stale" >&2; exit 2; }
+  # No study is a default, and none is in the image's layer: deploy/README.md §Run it.
+  baked=$("$RUNTIME" run --rm --entrypoint sh "$IMAGE" -c 'ls -A /studies 2>/dev/null')
+  [ -z "$baked" ] || { printf 'image %s carries studies, which are always a mount:\n%s\n' "$IMAGE" "$baked" >&2; exit 2; }
 fi
 PY_PORT=18765
 NG_PORT=18766
@@ -78,6 +82,9 @@ if [ "$LOCAL" -eq 1 ]; then
   chmod 0755 "$NG"  # nginx started as root reads as nobody
   mkdir -p "$NG/tmp" "$NG/root"
   "$ROOT/deploy/web-files.sh" "$NG/root" || { kill $PY; exit 2; }
+  # As the image's entrypoint renders it without TLS, and as dev-server.py does.
+  "$ROOT/client/viewer/page.sh" --transport-file /wt/dev-transport.json < "$ROOT/client/viewer/index.html" \
+    > "$NG/root/client/viewer/index.html" || { kill $PY; exit 2; }
   # The image's wasm stage builds these; here they are the tree's build.
   install -D -m 0644 -t "$NG/root/client/transport/wasm/pkg" "$ROOT"/client/transport/wasm/pkg/transport_wasm{.js,_bg.wasm} \
     || { kill $PY; exit 2; }

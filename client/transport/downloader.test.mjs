@@ -363,6 +363,53 @@ async function theRemainderIsReissuedOnce() {
 await theRemainderIsReissuedOnce();
 
 /**
+ * Under `refill: "none"` an ask during a fill re-issues nothing, since the server keeps the fill, and the next run goes
+ * out once nothing of the first is owed: after its last fill frame when the ask carried its `to`, or on the ask's
+ * landing when the asks carried all the rest of it.
+ */
+async function noneLeavesTheFillToTheServer() {
+  const runs = async (name, fillsBefore, asked, fillsAfter) => {
+    const fills = [];
+    const asks = new Map();
+    let onFrame;
+    globalThis.fakeTransport = {
+      connect: async () => ({
+        requestExactFrame: (i, onHead) => new Promise((resolve) => asks.set(i, { resolve, onHead })),
+        stats: () => ({ closed: null, lastByteAt: performance.now() }),
+        fillFrames: (from, to, f) => {
+          fills.push(`${from}-${to}`);
+          onFrame = f;
+        },
+        endStream: async () => {},
+        close() {},
+      }),
+    };
+    const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // none ${name}`;
+    await import(`./downloader.js?refill-none-${name}`);
+    await onmessage({ data: { kind: "start", config: { decode: false, decoders: 0, transport, survival: false, refill: "none" } } });
+    await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+    await onmessage({ data: { kind: "fill", indices: [...Array(8).keys(), 10, 11] } });
+    for (const i of fillsBefore) onFrame(frame(i));
+    for (const i of asked) await onmessage({ data: { kind: "ask", index: i } });
+    await settle();
+    for (const i of asked) {
+      asks.get(i).onHead?.();
+      asks.get(i).resolve(frame(i));
+    }
+    await settle();
+    const afterAsks = fills.join(" ");
+    for (const i of fillsAfter) onFrame(frame(i));
+    await settle();
+    return `${afterAsks} | ${fills.join(" ")}`;
+  };
+  const tail = await runs("tail", [0, 1, 2], [7], [3, 4, 5, 6]);
+  check(tail === "0-7 | 0-7 10-11", `refill none, the run's last frame asked: runs after the asks | after the fill: ${tail}`);
+  const rest = await runs("rest", [0, 1, 2, 3, 4, 5], [6, 7], []);
+  check(rest === "0-7 10-11 | 0-7 10-11", `refill none, the rest of the run asked: runs after the asks | after: ${rest}`);
+}
+await noneLeavesTheFillToTheServer();
+
+/**
  * The downloader keeps each decoder's end of its pixel channel reachable for the decoder's life: Firefox deletes
  * the frames in flight through a transferred port once the sender's object is collected.
  */
@@ -394,5 +441,55 @@ async function portsOutliveCollection() {
 }
 await portsOutliveCollection();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held: ok");
+/**
+ * Three steps of a scroll ahead of a fill of 0–9, asking 5, 6 and 7 once 0 and 1 have landed. Today each step goes to
+ * the wire; under `scroll: "cursor"` only 5 does, then 7, the newest, once 5 lands, and 6 is left to the fill; under
+ * `scroll: "aim"` none does: the fill is re-aimed once, at 5, and wraps to 2–4 after 9.
+ */
+async function aScrollAhead(scroll) {
+  const fills = [];
+  const asked = [];
+  const asks = new Map();
+  let onFrame;
+  globalThis.fakeTransport = {
+    connect: async () => ({
+      requestExactFrame: (i, onHead) => new Promise((resolve) => {
+        asked.push(i);
+        asks.set(i, { resolve, onHead });
+      }),
+      stats: () => ({ closed: null, lastByteAt: performance.now() }),
+      fillFrames: (from, to, f) => {
+        fills.push(`${from}-${to}`);
+        onFrame = f;
+      },
+      endStream: async () => {},
+      close() {},
+    }),
+  };
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // scroll ${scroll}`;
+  posted.length = 0;
+  await import(`./downloader.js?scroll-${scroll}`);
+  await onmessage({ data: { kind: "start", config: { decode: false, decoders: 0, transport, survival: false, refill: "none", scroll } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  await onmessage({ data: { kind: "fill", indices: [...Array(10).keys()] } });
+  for (const i of [0, 1]) onFrame(frame(i));
+  for (const i of [5, 6, 7]) await onmessage({ data: { kind: "ask", index: i } });
+  await settle();
+  const onWire = asked.join();
+  asks.get(5)?.resolve(frame(5));
+  await settle();
+  const seen = `asked ${onWire} then ${asked.join()}; runs ${fills.join(" ")}`;
+  if (scroll === "cursor") check(seen === "asked 5 then 5,7; runs 0-9", `cursor: ${seen}`);
+  else if (scroll === "aim") {
+    for (const i of [5, 6, 7, 8, 9]) onFrame(frame(i));
+    await settle();
+    const delivered = posted.filter((m) => m.kind === "frame").map((m) => m.index).join();
+    check(`${seen}; ${fills.join(" ")}` === "asked  then ; runs 0-9 5-9; 0-9 5-9 2-4" && delivered === "0,1,5,6,7,8,9", `aim: ${seen}; then runs ${fills.join(" ")}, delivered ${delivered}`);
+  } else check(seen === "asked 5,6,7 then 5,6,7; runs 0-9", `every step: ${seen}`);
+}
+await aScrollAhead(undefined);
+await aScrollAhead("cursor");
+await aScrollAhead("aim");
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, refill none, a scroll ahead, ports held: ok");
 process.exit(failed ? 1 : 0);

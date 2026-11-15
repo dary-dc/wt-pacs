@@ -76,6 +76,8 @@ Owner: [`transport/transport-conclusions.md`](transport/transport-conclusions.md
 | --- | --- | --- | --- |
 | Pooled hand-off, one copy fewer | TC §4: −3 to −8 % CPU, 6/6; row 51 confirms | held | TC §4 |
 | mmap, `sendfile`, the per-send copy | row 51: CPU per byte flat 1.5–2.6 µs/kB from 250 kB to 16 MB | held — no per-frame cost is left, so row 162's ×5 falls on CPU per byte | disk-access §Frames past 250 kB |
+| In-kernel L7 parsing and serving (eBPF; Beeper) | — (argued: QUIC is encrypted in user space; the WebSocket's asks are masked and its answers are fills; static files are under 1 % of a session's bytes) | never | TC §4 |
+| kTLS with `sendfile` on the WebSocket fallback | — (the fallback's CPU per byte is not measured) | never | TC §4 |
 | PGO | TC §4: −13 to −20 % CPU per ask, no cell against; PGOSHIP (2026-10-22): −13 % CPU per MB through the relay at 103 and 18 Mbit/s, A/A ±1 % | held; opt-in, not in the image (the owner's) | [`lab/pgo-relay/`](../lab/pgo-relay/README.md) |
 | LTO fat | TC §4: −3.7 to −8.4 % CPU, +7 % p50 at 32 KB depth 1 | held | TC §4 |
 | mimalloc; `aws-lc-rs` | TC §3, §4 | held | TC §3, §4 |
@@ -167,7 +169,7 @@ Owner: [`ARCHITECTURE.md`](ARCHITECTURE.md), [`decode/README.md`](decode/README.
 | Coalescing decoded frames across decoders | downloader-cost: 2 a message 0.385 → 0.212 ms at 4× | owner (cq §Open) | ARCHITECTURE.md §The hand-off |
 | A thread hop; the downloader worker | thread-hops, decode-tail: nothing to remove | held | ARCHITECTURE.md §What a thread hop costs |
 | Cancelling queued decodes out of band | — | never (conditional on a phone) | ARCHITECTURE.md §Open |
-| `readMin`, a 16 KB BYOB read | cq 94, 101: CPU −97 to −105 ms a fill, peak −37 MB, fill a tie; a cut-stream defect | owner (cq §Open); its liveness premise (< 44 kbit/s) weaker at row 162's rates | CLIENTS.md §Reading a frame whole |
+| `readMin`, a 16 KB BYOB read | cq 94, 101: CPU −97 to −105 ms a fill, peak −37 MB, fill a tie; its cut-stream defect fixed 2026-10-22 | owner (cq §Open); its liveness premise (< 44 kbit/s) weaker at row 162's rates | CLIENTS.md §Reading a frame whole |
 | WASM transport client against TS | both clients: fill 120 against 125 ms | held (TS the default) | CLIENTS.md §The implementations |
 | Receive CPU per client stack | row 135: Chromium 6.4–12.4 ms/MB | premise (link band: ~8–16 % of a desktop core at 103 Mbit/s) | native/quic.md §6 |
 | The browser's ask window depth | removed for pushed fills, its win never measured | never | [`adr/client-window-depth.md`](adr/client-window-depth.md) §Which depth ships — open |
@@ -275,7 +277,9 @@ row for the writer (hits and fill −24–32 %, [`disk-layout/README.md`](disk-l
 17. **PUBLISHSYNC** — what does `.partial` → fsync → rename add to a pack on ext4 or XFS? Durability at code cost,
     net if inside the spread of a 10–20 ms pack.
 18. **READMINFIX** — can `readMin` name a cut queued before the read, and does 16 KB then hold every dispatch clause?
-    Fixing the defect is net; it unblocks a −97 ms CPU, −37 MB a fill default for the owner.
+    Fixing the defect is net; it unblocks a −97 ms CPU, −37 MB a fill default for the owner. *Done 2026-10-22:* yes,
+    the errored read is now the cut (`aTruncatedFrameIsAFailureUnderReadMin`); at 16 KB every dispatch clause holds
+    but the slow-session one, the liveness trade (CLIENTS.md §Reading a frame whole). The default stays the owner's.
 19. **GATEPAR** — how much faster is the gate, warm and cold, with the three server test builds and the browser
     steps run concurrently? Tooling; row 118's step times suggest ~106 → ~60 s.
 20. Small, each one question: **FIRSTREADY** (does dispatching to the first ready decoder ever move frame 0 or a cold

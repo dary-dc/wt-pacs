@@ -18,6 +18,7 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | stream mode | how the server lays frames on its media streams: `shared` or `per-frame`, process-wide ([`WIRE.md`](WIRE.md) §Stream modes) |
 | ask | a request for one frame, `request_frame`, served next |
 | fill | frames the server pushes in index order, `stream_frames`; on the wire one contiguous **run** at a time |
+| cursor | the frame the viewer shows, moved one frame by each **step** of a scroll |
 | the opening ask | an ask or a fill carried in the session URL, served behind the accept |
 | early SETTINGS | the server's SETTINGS in its handshake flight, at 0.5 RTT (a crate patch, `settings-in-handshake`) |
 | tile | the server's read of one asked frame (`TileReader`); not a codec's tile, which is said in full ("AV1 tile", "HTJ2K tile") |
@@ -25,7 +26,7 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | record | the downloader's state of one frame: `wire`, `queued`, `decoding` |
 | generation | a request's identity, moved by `cancel`; **epoch**, a session's, moved by a resume |
 | resume, recycle | a dead session replaced, owing what the records owe; a live one replaced before a byte budget |
-| transport file | `dev-transport.json`, served at `/wt/`: the server's `wt_url` and the `cert_sha256` it pins, rewritten at each start; the consumer's `transportFile` ([`ARCHITECTURE.md`](ARCHITECTURE.md) §An open page follows a server restart) |
+| transport file | `dev-transport.json`, served at `/wt/` where the server mints its certificate: its `wt_url` and the `cert_sha256` it pins, rewritten at each start; read by a page whose HTML names it, and the consumer's `transportFile`. A page with a trusted certificate reads none and dials its own host ([`ARCHITECTURE.md`](ARCHITECTURE.md) §An open page follows a server restart) |
 | decoder | a worker that decodes; **codec module**, the code it loads per codec (`htj2k.js`, `av1.js`) |
 | group | G frames from a keyframe, decoded in order on one decoder; **unit**, one AV1 temporal unit |
 | split | a sample as a top stream (v ≫ k) and a low one (v & (2^k − 1)), each coded losslessly |

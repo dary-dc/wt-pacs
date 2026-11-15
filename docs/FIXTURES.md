@@ -276,7 +276,8 @@ third-party tool; (5) the site platforms and how updates reach them.
 
 | Where | What | How it is made |
 | --- | --- | --- |
-| `fixtures/us_cine_smoke/` | 3 frames, 19-byte placeholders (`htj2k-smoke-frame-N`), not HTJ2K; the bundle is tracked | `pack-series`, `README.md`; the default `--series` of `server/dev-server.py` and `deploy/` |
+| `fixtures/us_cine_smoke/` | 3 frames, 19-byte placeholders (`htj2k-smoke-frame-N`), not HTJ2K; the bundle is tracked | `pack-series`, which `scripts/gate.sh` re-packs to the same bytes; for tests that move bytes alone, and opened by default nowhere |
+| `scripts/grey_series.sh DIR` | 3 frames, the contract's 16-bit grey HTJ2K codestream (`client/contract/frames/grey-16.j2c`) with its XXH3 digest, so the page decodes it; `DIR/grey.sbnd` and `grey.metadata.json` | the script, from tracked bytes: `README.md`'s quick start, `client/viewer/run_check.sh`, CI's deployment |
 | `lab/fixtures/frames_32k/`, `frames_250k/` | 80 frames × 32 000 / 250 000 B of `0xAB` | `lab/scripts/gen_tf_fixtures.sh` (`FRAMES=` to change the count) |
 | `lab/fixtures/frames_250k_live/` and the rung sets: `frames_16k_rung` (320 × 16 KiB), `frames_16k_seq` (65 536), `frames_16k_deep` (262 144), `frames_16k_big` (5 120), `frames_250k_big` (2 048 × 250 000), `frames_250k_deep` (32 000), `frames_32k_big` (2 000 × 32 000), `frames_tiny` (80 × 100 B) | constant-byte synthetic SBND, each with its own `README.md` | `NAME=… BYTES=… FRAMES=… lab/scripts/gen_live_cell_fixture.sh` (default: `frames_250k_live`, 320 × 250 000) |
 | `lab/fixtures/queue_large/` | 20 frames of 41–61 KB (mean ~51 KB), **not valid HTJ2K**, realistic sizes; frames and bundle tracked | `pack-series`, its `README.md` |

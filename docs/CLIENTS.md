@@ -93,22 +93,27 @@ wins on loopback and on a link: [`ARCHITECTURE.md`](ARCHITECTURE.md) §The TCP f
 
 ### Choosing the client
 
-The product's page loads one client, the one the transport file's `client` names: `"ts"`, which absent means, or
-`"wasm"` (row 277). A deployment sets it with `CLIENT` ([`../deploy/README.md`](../deploy/README.md)), the dev host
-in `client/dev-transport.json`, whose `client` `gen_dev_cert.sh` keeps when it renews the file. `viewer/head.js` maps
-the name to files on the page's own origin, so a link picks no code. TS, the default, keeps the HTML's preload of
-`dist/session.js`, which starts as the page is parsed, ahead of the transport file; WASM's adapter, glue and `.wasm`
-are preloaded once the file arrives, and only for `"wasm"` (*corrected 2026-10-17*: row 277 had moved TS's preload
-there too, a round trip later for every default page; the owner ruled it back). A name it does not know stops the
-page, by name on the status line, before the WASM client's code is fetched or anything dialled (TS's module, preloaded
-by the HTML, is fetched, and nothing dials); a client that fails to load fails the start, with no
-fallback to the other. The status line names the client, and the page check runs on each (`--client`).
+The product's page loads one client, the one its HTML names beside that client's preloads: `data-client` on the
+script tag of `viewer/head.js`, `"ts"` or `"wasm"`. `viewer/page.sh` renders the page for a host: `--client wasm`
+swaps TS's preload of `dist/session.js` for WASM's adapter, glue and `.wasm`, and any other name is refused there. A
+deployment sets it with `CLIENT` on the web service, rendered when the container starts
+([`../deploy/README.md`](../deploy/README.md)); the dev host with `dev-server.py --client`. `viewer/head.js` maps the
+name to a module on the page's own origin, so a link picks no code. Either client's files start as the page is
+parsed. A name it does not know, in an HTML edited by hand, stops the page, by name on the status line, before the WASM
+client's code is fetched or anything dialled; a client that fails to load fails the start, with no fallback to the
+other. The status line names the client, and the page check runs on each (`--client`), failing a page that does not
+run, name and preload the client it was rendered with.
 
-*Not measured:* the WASM preload, which starts once the transport file has arrived, not as the page is parsed (row
-279 measured the WASM client preloaded from the HTML, and with nothing preloaded, not this point between them); and
-the viewer reads the file before it starts the downloader (the head start that saves measured −0.06 round trips, inside the noise:
-[`../lab/page-open/README.md`](../lab/page-open/README.md) §The first byte on a fill). Row 5 below measures the page
-on each client.
+*Corrected 2026-10-19:* row 277 put the name in the transport file's `client`, which `server-start.sh` wrote from
+`CLIENT`, and preloaded WASM's files only once the file had arrived. The owner judged that which code the page runs is
+a fact about the page, decided when it is rendered, not by the transport server at runtime. The file carries no
+`client` now, `gen_dev_cert.sh` keeps none, and `CLIENT` moved from the server's environment to web's.
+
+*Not measured:* the WASM client preloaded from the product page's HTML, the shape the page has since 2026-10-19 (row
+279 measured those preloads on the lab's downloader page: no round trip, +42 ms); and, on a host that pins its
+certificate, the viewer reads the transport file before it starts the downloader (the head start that saves measured
+−0.06 round trips, inside the noise: [`../lab/page-open/README.md`](../lab/page-open/README.md) §The first byte on a
+fill). Row 5 below measures the page on each client.
 
 ## The contract suite
 
@@ -342,7 +347,10 @@ for large frames. On the target link none of this binds.
 `readMin` bytes or the frame's rest; unset, the default reader and its copy. WebTransport only. A
 stream that is not a byte stream is read the default way (`readMinWithoutByobFallsBack`). A cut
 stream's last read resolves done with the bytes it holds, so the frame is still named truncated with
-its count (`aCutFrameIsNamedWithItsBytes`).
+its count (`aCutFrameIsNamedWithItsBytes`). A cut whose end is already queued when a read is made errors that
+read instead (Chrome and Node alike: a pull-into the queue cannot fill to `min` once the close is queued), and
+the read keeps its buffer and the bytes it drew: the frame is named truncated all the same, its count only what
+earlier reads held (dispatch rig, `aTruncatedFrameIsAFailureUnderReadMin`).
 
 **Bound on K.** Each read moves `lastByteAt`, which the downloader's stall watch reads, so a read
 must resolve inside `stallMs` (3 s) at the slowest rate a session should survive, and across an
@@ -375,8 +383,10 @@ The container's +12 ms (4/11) does not reproduce. **What holds it back is livene
 two dispatch clauses fail. A session whose bytes come slower than 16 KB per `stallMs` (< 44 kbit/s)
 is re-dialled, since a read with `min` resolves only at `min` bytes (the bound above, made a default) — the
 owner's trade against −97 ms and −38 MB a fill. And a cut whose end is already queued when the read is
-made errors the stream (a pull-into it cannot fill), which is taken for a stream end, so the frame is
-not named — **a defect of the `readMin` path, to fix before any default**. The BYOB read's ~12 ms frame 0 (cloud
+made errored the stream (a pull-into it cannot fill), which was taken for a stream end, so the frame was
+not named — a defect of the `readMin` path. *Fixed 2026-10-22:* the errored read is the cut, and the frame
+is named. With `readMin` forced to 16 KB, the dispatch rig (Chromium, container) then fails one clause,
+the slow session's (`aSessionWhoseBytesKeepComingIsKept`): the liveness trade is what is left for the owner. The BYOB read's ~12 ms frame 0 (cloud
 queue row 5) is the WASM client's retired path ([`decode/README.md`](decode/README.md) §The BYOB read path).
 
 ## ACK frequency, by browser
@@ -507,6 +517,7 @@ whatever of theirs has landed.
    Mode), so no browser the page serves tells them apart. *Not by fallback:* a WASM client that failed to load would
    hide behind the TS one, which is what the checks below exist to see; a failed load fails the start by name (index
    −1), as a decoder's does. The owner may want the fallback anyway: ~5 lines, at that cost.
+   *Corrected 2026-10-19:* the page's HTML names the client now, not the transport file (§Choosing the client).
 2. **The image ships it and the page loads it** as it does the TS client: built in the image, preloaded once the
    transport file names it, served under the same headers.
 3. **Every product check runs on both, or names why not**, as the WebSocket's inapplicable clauses are: the session
@@ -553,8 +564,8 @@ page is WebTransport only. A race whose QUIC arm is the WASM session is structur
 ([`ARCHITECTURE.md`](ARCHITECTURE.md) §Open). CI already builds the WASM client (`.github/workflows/gate.yml:78-126`)
 and gains only the steps below.
 
-**The shape.** TS the default; WASM chosen by the transport file's `client`; the same surface, the same checks, built
-into the image. No capability test, no fallback, no WASM race.
+**The shape.** TS the default; WASM chosen by ~~the transport file's `client`~~ the page's HTML (*corrected
+2026-10-19*); the same surface, the same checks, built into the image. No capability test, no fallback, no WASM race.
 
 **The rows, in order.**
 
@@ -610,7 +621,7 @@ into the image. No capability test, no fallback, no WASM race.
    +42 ms to the first frame (1×, cold, 9/9); on the product page today, with nothing preloaded or gzipped, 5.9 round
    trips cold (over 80 and 160 ms: the 40 ms cells voided below the rule's 8 pairs), none warm. So row 3's preload is
    what makes the WASM client affordable, and the product's WASM preload, which starts at the transport file, is not
-   yet measured (TS keeps the HTML's).
+   yet measured (TS keeps the HTML's). (*Corrected 2026-10-19:* it starts at the HTML now, §Choosing the client.)
    `console_error` stays: 1.1 KB gzipped, 3 % of the compile.
 6. **By hand** — W12: the rigs in Firefox with `client=wasm`, and the devices' D0 with `client: "wasm"`.
 
@@ -643,8 +654,8 @@ self-check in `client/`, which would have split one route across two trees. `doc
 
 Each item below is the owner's to decide, and is tracked here.
 
-* **`readMin` at 16 KB by default** — frame 0 ties; the cost is re-dials below 44 kbit/s, and the `readMin` path's
-  defect is fixed first (§Reading a frame whole).
+* **`readMin` at 16 KB by default** — frame 0 ties; the cost is re-dials below 44 kbit/s. The `readMin` path's
+  cut-stream defect is fixed (2026-10-22, §Reading a frame whole).
 * **The WASM client as a product client** — the shape (selected by configuration, no fallback) and rows 3–4 of
   §Proposed: the WASM client as a second product client; and whether row 228's dav1d half moves.
 * **Known defects** — each found by reading the code (2026-10-16 review); *corrected 2026-10-18:*
