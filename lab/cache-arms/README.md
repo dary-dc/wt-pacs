@@ -1,7 +1,7 @@
 # cache-arms
 
-The rig for the cache's four survivors, as [`cache-plan.md`](../../docs/client/evidence/cache-plan.md) §8
-pre-registers it (on `claude/cache-plan`): the shared input, the seam, the rules above it, the floor probe and the
+The rig for the cache's four survivors, as `docs/client/evidence/cache-plan.md` §8 (`claude/cache-plan` at `f26a78f0`)
+pre-registers it: the shared input, the seam, the rules above it, the floor probe and the
 cells. This directory holds the harness, the control arm `none` and a stand-in arm `stub`; each survivor's arm is
 added under `arms/` by its own build row. Nothing here is a result: rows from `none` and `stub` are smoke.
 
