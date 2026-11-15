@@ -108,7 +108,7 @@ What the method adds over the last round, each against a way an option lost to i
 * **The harness's own mutants** for every cell (a write that never happens, a read without its re-check, a slot never
   freed), and the write-before-paint bar fixed: it passed the unmutated arm (cache-io-thread, *Mutants*).
 
-## 5 · The protocol's frame (CACHE-PROTOCOL fills it)
+## 5 · The protocol's frame (CACHE-PROTOCOL fills it: §8)
 
 **Cells**, each with its prediction written before data, per survivor and `none`:
 
@@ -547,3 +547,148 @@ before writing any of its body; which Chromium profiles keep Cache Storage witho
 cloud container without a GPU, Chromium 153 and Firefox 159, synthetic 16-bit series at 512², 2560×3328 and
 3328×4096, a warm page cache; and one phone, Chrome 157, one series (`dbts_b1-q8-g8`), one evening, software AV1.
 WebKit is read from source only, as are every IndexedDB and Cache Storage path. No breast ultrasound cine.
+
+## 8 · Protocol
+
+*Pre-registered 2026-11-15 by CACHE-PROTOCOL, a session that designed, advocated and built nothing here, before any arm
+is built. CACHE-RUN runs it as written; an amendment before any counted row if the host forces one, never after.* Every
+prediction below is **theory**, from §7's floors and the *measured* numbers they cite (with their fixtures); none is a
+result.
+
+### 8.1 · What enters from the advocates' proposals (for all four alike)
+
+| proposal | enters? | why |
+| --- | --- | --- |
+| a second tab reads what is present and writes nothing (7.1; 7.5's two-tabs row) | **yes** | the same rule for all four; a re-check failure there is a miss, never a damaged frame |
+| the second tab also writes, under a shared Web Lock (7.2) | no | OPFS-SYNC's exclusive handle cannot (fs 605), so the rule would differ by arm; named for the verdict |
+| a slot is freed once the store holds its own copy (7.2, 7.4) | **yes** | removes a handicap only from the arms that copy; their copies are bounded by their writes in flight and counted in the memory measure (8.3, cell L) |
+| a miss on a frame not yet written is answered from what the store worker holds (7.3) | **yes** | a store-worker rule, the same for all |
+| the retry after an eviction waits for `estimate()` to show the room, at most 5 s (7.3) | **yes** | only Chromium's IndexedDB is traced to free space late; the others are not traced, so all wait alike |
+| a read answered in a new buffer is transferred to the view worker, not copied into a slot (7.4) | no | memory outside the ring is what the ring exists to bound (§3) |
+
+### 8.2 · Rig, arms, order
+
+* **Rig**: `lab/cache-arms/` on `claude/cache-arms` (CACHE-BUILD-HARNESS), reusing `lab/opfs-arms/` and
+  `lab/opfs-cache/` from `c99ba492`. Three feeder workers stand in for the decoders and write checked frames into M5's
+  ring (256 MiB, slots carved per series, `claude/core-m5:lab/opfs-cache/arms-*.js`), posting slot numbers to the store
+  worker; the view worker paints at its `requestAnimationFrame` from memory, the shown frame changing every tick at S1
+  and every 6th at S2–S3. One run at a time on the host; a fresh profile per run unless a cell keeps one.
+* **Sizes**: S1 512² (0.52 MB), S2 2560 × 3328 (17.0 MB), S3 3328 × 4096 (27.3 MB), 16-bit synthetic, 4 distinct fields
+  cycled. **Throttle**: 1× everywhere; 4× (`lab/scripts/cpu_throttle.mjs`) at S1 only, since S2 and S3 at 4× saturated
+  on both engines last round (cache-io-thread, *Where the host saturates*); `none` alone runs one period at S2 4× and S3
+  4× to say whether that still holds.
+* **Arms**: `none`, **OPFS-SYNC**, **OPFS-ASYNC**, **IDB**, **CACHESTORAGE**, and **OPFS-SYNC′** (the A/A arm: OPFS-SYNC
+  again, the arm with the most measured history). Cells without `none` (a read needs a store) run five arms.
+* **Order**: Williams order per round (`lab/order.mjs`); each row carries its round, arm and predecessor, and
+  `balanced()` is reported per cell. A cell's rounds are **one whole period**: 6 rounds for six arms, 10 for five
+  (odd: the mirrored rows), 4 for the four-arm state cells; **L at S2 1× runs two periods (12)**, the mammogram cell the
+  phone's P2 extends. "≥ 75 % of rounds" is ≥ 5 of 6, 9 of 12, 8 of 10, and every round for state cells.
+* **The floor probe** runs beside every integrated run of a timing cell: in the same round, just before the arm's run,
+  in that arm's store worker with nothing else running, 20 writes then 20 reads of the cell's frame from a ring slot by
+  the raw API only (OPFS-SYNC `write`/`read`; OPFS-ASYNC `createWritable`…`close` and its read; IDB a one-`put`
+  transaction and a `get`, plus a `put` of an `ArrayBuffer` beside the `Blob` (7.3); CACHESTORAGE `put` and `match` +
+  read). Recorded: median ms a frame each way. **The gap** = the arm's integrated cost a frame (its writer's busy time a
+  frame in L and W; its miss's read + re-check in R) − its floor.
+
+### 8.3 · Cells, predictions, bars
+
+Bars are the product's needs, judged per engine × size × throttle; a ranking among passers follows (8.5).
+
+| cell | measured | bar (an arm passes) |
+| --- | --- | --- |
+| **L** the write during a fill: 125 MB/s for 10 s | missed ticks (share), paint delay p99, the feeders' delivered rate (ring stalls), frames unwritten 5 s after the last arrival, PSS growth of the browser's process tree, every frame read back exact after the run | missed share ≤ `none` + 1 % of ticks and delay p99 ≤ `none` + 4 ms; delivered rate ≥ 0.95 × `none`'s; nothing unwritten at +5 s; PSS growth ≤ `none`'s + its writes in flight × frame + 64 MiB; in ≥ 75 % of rounds; every frame exact in every round |
+| **W** throughput, feeders credit-bound, 1 000 MB, 1× | MB/s from first arrival to last write; exact read-back | ≥ 125 MB/s (this host's fill, cache-io-thread) in ≥ 75 % of rounds; then ranked |
+| **R-idle** a miss after a fill of 32 | 16 intents a run, each a frame not in memory: intent → read → re-check → painted, p50 / p99; the free-slot wait apart | p50 ≤ the frame's decode on this host + one display period (S1 3.0 + 16.7 ms; S2 47 + 16.7; S3 69 + 16.7: the exactness ADR's §3 and §9 as cache-io-thread (3) and cache-in-opfs M1 quote them) and p99 ≤ twice that, in ≥ 75 % of rounds |
+| **R-busy** a miss during L's fill, S2 and S3 1× | as R-idle, the writer active and the ring as the fill leaves it | as R-idle |
+| **B** a busy page: L and R-busy at S2 1× with a 50 ms long task every 100 ms on the page's main thread | as L and R | as L and R. Owed on WebKit before any arm is adopted there (§5); one period on Chromium and Firefox |
+| **O** reopen, warm and process-cold: 256 × 512² and 32 × 3328 × 4096, clean link | **F** a fresh fill over `link_impair.py` (20 ms one way, 20 Mbit, 500-packet queue: M1's), as the unit `none`; each arm's reopen: store worker start → last frame read and re-checked | R ≤ 0.5 × F in every round (M1's rule), and R / n ≤ the frame's decode (§7's rule, cache-in-opfs). *Cold* is a new browser process on the kept profile, page cache as it is: labelled so, not a flash-cold read (that is P1) |
+| **E** eviction, M3's sequence | four series A–D of 20 × S3 (520 MiB each), quota 1 300 MiB, B held open in a second tab from its open, then closed and A again | after A {A}; B {A, B}; C {B, C}; D {B, D}, B skipped as held; A again {A, D}; the refusal at the design's point (OPFS-SYNC `truncate`, OPFS-ASYNC the probe, IDB and CACHESTORAGE `estimate()`, all at open); every frame exact; every round |
+| **K** a kill and a torn write, M4's | 64 × S3 on loopback, kept profile; `SIGKILL` of the process group once the store reports ≥ 32 written; half the rounds damage one present frame through the seam's test lever (the same lever for all four, through each arm's own API) before reopening | present on reopen ≥ written at the kill − the arm's writes in flight; the fill asks exactly the rest; the damaged frame fails its re-check, is reported and asked again; 64 / 64 exact; every round |
+| **Q** quota near full | S2, 50 frames; the quota set to the series + 64 MiB; after the open, a ballast file in the same origin grows by 1 MiB every 10 ms until refused | no exception escapes the store; the fill and the paint go on (L's shown-frame bar); each written frame exact on reopen; the store's action is 7.5's mid-fill rule; every round |
+| **T** two tabs | tab 1 fills S2, 50 frames; at 20 written, tab 2 opens the same series and asks every frame | tab 2 reads only present frames, each exact, its other frames misses fetched; tab 2 writes nothing (the store's write counter); tab 1 passes L's shown-frame bar; every round |
+| **P** private window (Chromium incognito context; Firefox `browser.privatebrowsing.autostart`) | open, write and read back 32 × S2 in one tab | records which arms have a store and whether 32 / 32 read back exact; no bar: weighed by the verdict (§3) |
+
+**Predictions** (*theory*; Chromium / Firefox, 1×; WebKit after them):
+
+| cell | OPFS-SYNC | OPFS-ASYNC | IDB | CACHESTORAGE |
+| --- | --- | --- | --- | --- |
+| L shown frame | on time everywhere: nothing on the view thread | on time | on time | on time |
+| L delivered rate | passes: floor ~21 / ~14 ms a frame at S2 (~810 / ~1 200 MB/s) | Chromium **marginal** at S1–S3 (~140 MB/s by its upper-bound floor, 7.2); Firefox passes with groups at S1 (~230 MB/s), S2–S3 (~310 MB/s) | Firefox S2–S3 ≤ ~340 MB/s, passes; **at risk at S1** (238 transactions/s, one in flight, each a commit round, unpriced); Chromium unknown | as IDB at S2–S3; Firefox adds Snappy and CRC32C in the parent: passes, unpriced; **at risk at S1** |
+| W | the highest: ≥ 500 MB/s at S2 on both | ≥ 125 at S2–S3; Chromium S1 marginal | unknown; ≤ OPFS-ASYNC | unknown; ≤ IDB on Firefox (Snappy) |
+| R-idle p50, Chromium S2 / S3 | ~29 / ~40 ms (A's *measured* 28.8 / 40.1): passes | ~52 / ~83 ms by `getFile()` (B's 52.0 / 83.4), ~30 / ~42 if the pilot picks the sync read: passes S2, **marginal at S3** (bar 85.7) by `getFile()` | ≥ OPFS-ASYNC's: **at risk at S3** | as IDB, streamed reads lower; **at risk at S3** |
+| R-busy | within ~5 ms of R-idle with 2 MiB pieces; up to +21 / +33 ms whole-frame | up to one write in flight | up to one frame's write (7.3) | up to one put |
+| B on WebKit | one main-thread wait a series: passes | **fails**: every call waits on the page's main thread (7.2) | **fails**, the same (7.3) | **passes**: no main-thread hop after the first call (7.4) |
+| B on Chromium / Firefox | as L and R | as L and R | as L and R | as L and R |
+| O warm | R ~0.2 / ~0.7 s against F ~7.5 / ~31 s (M1's *measured*): passes | passes (32 × ~83 ms ≈ 2.7 s at S3) | passes if a read ≤ ~0.4 s | passes as IDB |
+| O cold | within 1.2 × warm: a cloud host keeps its page cache | the same | the same | the same |
+| E | holds (M3 *measured* on both, after the Gecko fix) | holds if the probe refuses before close (Chromium traced; Gecko the pilot's check) | holds; Chromium's late removal absorbed by the bounded wait | holds |
+| K | holds (M4 *measured*) | holds at S3 (G = 1) | holds: a killed process keeps committed `relaxed` writes in the OS's cache | holds; WebKit's unreverted batch caught by the re-check |
+| Q | **no mid-fill refusal**: `truncate` at open reserved the series; the ballast is refused instead | a group refused mid-fill: the rule | a transaction aborted mid-fill: the rule | a `put` refused mid-fill: the rule |
+| T | tab 2 reads by `getFile()`, slower than the handle | reads, as its own reads | a read-only transaction | `match` |
+| P | Firefox: no store; Chromium: in RAM | the same | **a store on both** | **a store on both** (Chromium in memory if its path is empty, not traced) |
+
+### 8.4 · A/A, VOID, saturation, mutants, pilot
+
+* **VOID** (OPFS-SYNC′ against OPFS-SYNC, over a cell's rounds): L when the median |Δ missed share| exceeds 1 % of ticks
+  or |Δ delay p99| 4 ms; W, R and O when the median ratio lies outside 0.90–1.10. A VOID cell claims nothing for any
+  arm. State cells (E, K, Q, T, P) have no A/A; they are VOID for an arm whose mutant (below) was not caught.
+* **Saturation**: an engine × size × throttle where `none` misses more than 5 % of ticks in L's median round claims
+  nothing, in every cell at that point. The feeders stand in for three decoders without their CPU, so the host is less
+  loaded than a real fill: a pass here is an upper bound on a phone, said in the result.
+* **Mutants**, each once per engine and arm before its cell's rows are believed (`--mutant` in the rig):
+  *drop-writes* (the store says written, writes nothing): W's read-back and O's present count must fail;
+  *no-recheck* (a read skips its XXH3): K's damaged frame must be painted unreported, caught by the harness's own
+  SHA-256; *slot-held* (a slot never freed): L's delivered rate must fall under its bar; *view-copy* (the view worker
+  copies each frame before the post, C's old copy): L's delay p99 bar must fail at S2 1× on Chromium; *evict-newest*:
+  E must fail; *tab-writes* (tab 2 writes): T's counter must fail. A mutant not caught makes its cell VOID for that
+  arm until the harness is fixed and the cell rerun whole.
+* **Pilot**, not counted, per engine, before its counted rows: only the settings each design names (7.1 the write
+  piece; 7.2 G, writes in flight, the read, in that order; 7.3 the value on Gecko only; 7.4 puts in flight, then
+  buffered or streamed, streamed only where a frame put from shared views reads back equal), by each design's own rule,
+  a tie within 10 % keeping the first value. Each alternative runs 3 rounds alternated (a b b a a b). The picks are
+  committed as `lab/cache-arms/pilot-<engine>.json` before the first counted row on that engine, then frozen.
+
+### 8.5 · The rule, stated before any data
+
+Per engine, over the non-VOID, unsaturated cells:
+
+1. **An arm passes** when it meets every bar of 8.3 in every counted cell it ran. A cell an engine cannot run (an API
+   absent, a lever missing) is named and judges nothing.
+2. **Among passers**, rank by R-busy miss p99 at S2, then O's warm R at S3, then W at S2; a lead counts only at ≥ 10 %.
+   All three within 10 %: the arm with fewer copies in script a frame (7.x tables) leads.
+3. **No passer**: the result goes to the owner as measured, with every arm's gap over its floor (8.2) beside its failed
+   cells, for CACHE-VERDICT-REVIEW's loser's question (§5).
+4. **P** is reported beside the verdict: an arm that keeps a private window's frames where the leader cannot is named
+   with the cells it passed; the verdict does not rank on it.
+
+### 8.6 · Engines and the host
+
+* **Chromium**: Playwright's bundled build (`/opt/pw-browsers/chromium-1243` on the host this was written on), its
+  version printed in every row's first line. **Firefox 159** from Mozilla's release archive (reachable from the host,
+  HTTP 200 at `ftp.mozilla.org/pub/firefox/releases/159.0/linux-x86_64/`, checked 2026-11-15), over WebDriver BiDi on
+  Xvfb, as the last round ran it. Neither engine's quota lever is assumed: the run's first step on each engine checks
+  that `navigator.storage.estimate()` reports the overridden quota (Chromium `Storage.overrideQuotaForOrigin`; Gecko
+  `dom.quotaManager.temporaryStorage.fixedLimit`), and E and Q do not run where it does not.
+* **WebKitGTK can run on this kind of host**: Ubuntu 24.04's archive offers `libwebkit2gtk-4.1-0` and
+  `webkit2gtk-driver` (WebKitWebDriver) 2.52.6 (`apt-cache policy`, checked 2026-11-15); **not installed or run here**.
+  CACHE-RUN installs them, then runs an API probe first (cross-origin isolation and `SharedArrayBuffer`;
+  `createSyncAccessHandle`, `createWritable`, IndexedDB and `caches` in a dedicated worker); a cell whose API is absent
+  is "not run: <API>". No quota lever for WebKitGTK is traced: E and Q are not run there unless one is found and checked
+  as above. B is WebKit's first cell.
+* **Order of work**, so a cut-short run leaves the most decided: Chromium (pilot, L, W, R, O, B, then E, K, Q, T, P),
+  Firefox the same, then WebKitGTK (probe, B, L, R, O, W, K, T, P). Rows are pushed per cell as they land.
+* **Host time**, from the last round's run lengths: ~10–12 host-hours an engine (L ~2.5, R ~2, B ~1.5, O ~1.4, state
+  cells ~2.2, W ~0.9, pilot and mutants ~1.5), one run at a time. If CACHE-RUN is not done by 11-21 20:00,
+  CACHE-VERDICT-REVIEW judges what is pushed (its brief).
+
+### 8.7 · The phone cells
+
+Checked 2026-11-15: P1–P3 (§6) are in `claude/phone-protocol:docs/phone-rows/next-round.md` §4, cell 5, quoted there
+verbatim: P2 then P1, run only if CACHE-BUILD-OPFS-SYNC and its review are in the round's commit; P1 after a reboot (a
+second sitting, named there as a departure from amendment 5); P3 only for arms that pass the cloud cells here. Nothing
+is added to that file by this row.
+
+**Fixtures and their limits.** Nothing has run for this section. It plans: a 4-vCPU cloud container without a GPU
+(SwiftShader paint), Chromium and Firefox 159, WebKitGTK if its probe passes; synthetic 16-bit frames at three sizes;
+feeders, not decoders; a userspace relay, not a radio; a warm page cache (cold here is a new process, not the disk).
+No phone, no Safari, no breast ultrasound cine.
