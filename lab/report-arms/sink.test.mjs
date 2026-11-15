@@ -47,7 +47,7 @@ await withSink({ mutant: "ack-before-write" }, async ({ post, url }) => {
 await withSink({ statics: new URL(".", import.meta.url).pathname }, async ({ url, sink }) => {
   const r = await fetch(url("/report-fields.json"));
   check(r.status === 200 && r.headers.get("cross-origin-embedder-policy") === "require-corp", "statics served isolated");
-  const raw = await new Promise((ok) => get({ port: sink.port, path: "/..%2F..%2F..%2F..%2Fetc%2Fpasswd" }, ok));
+  const raw = await new Promise((ok) => get({ port: sink.port, path: "/" + "..%2F".repeat(12) + "etc%2Fpasswd" }, ok));
   check(raw.statusCode === 404, `no path outside the static root, got ${raw.statusCode}`);
 });
 
