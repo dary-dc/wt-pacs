@@ -1,11 +1,11 @@
 state: started
 started: 2026-11-15T15:41Z
-heartbeat: 2026-11-15T16:01Z
-outputs: claude/merge-a-codecs 07959410 (34 merges pushed)
+heartbeat: 2026-11-15T16:08Z
+outputs: claude/merge-a-codecs 3d116d83
 ## Resume
 Worktree from origin/claude/unified-codecs 9c050c073b, branch claude/merge-a-codecs. Pushed: all 34 frozen-list merges
 and the M1 record (tip 07959410). Static measures done (product +2 lines, client/decode/av1-webcodecs.js stallMs).
-Running now (gate started 16:01Z): MERGE-BASELINE's tip.sh adapted to this worktree, logs in the session scratchpad (lost on a resume: rerun it).
+Running now: the full gate again on 3d116d83 (the link fix; the first run failed only at check_links). Done: builds 0, cargo build 1 warning (tokio, as baseline), comment budget ok, web image 94837887 B, test counts equal to baseline.
 the builds, the full gate, cargo build warnings, comment budget, the web image, the test counts. Prereqs a resume must
 redo: dockerd, pip meson==1.9.1 and ingest/requirements.txt (python3.13), apt nginx mesa-vulkan-drivers xdotool
 libxkbcommon-x11-0 strace cmake ninja-build nasm, rustup wasm32 target, cargo install wasm-pack 0.15.0.
