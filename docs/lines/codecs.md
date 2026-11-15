@@ -4,7 +4,7 @@ Last verified 2026-11-10 (the AV1 harvest of that morning: eight result branches
 no new measurement); the audits' corrections of 2026-11-11 ([`../av1/corrections.md`](../av1/corrections.md)) and
 their protocols measured 2026-11-12 (`claude/audit-measure`) added since; HTJ2K at screen resolution
 (`claude/htj2k-tiles`: theory, its review and its improvement, stages 0–2 measured 2026-11-11, stage 3 since)
-carried into Open 7.
+carried into Open 7. Stage A1 of the unification (2026-11-15) added Open 11.
 
 ## Goal
 
@@ -226,6 +226,10 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
    1.29–1.72 at the rule's Q; under 4× it falls to 0.68–1.12 with four or two slowed cores and rises back to
    1.16–1.58 with one (C4, C5 hold; C1–C3 not refuted, bands missed). The decision rule does not claim "under one
    HTJ2K frame on a slow device": a phone is owed.
+11. **Stage A1** (row MERGE-A-CODECS, 2026-11-15): `claude/merge-a-codecs` holds this line's 34 branches merged into
+    `claude/unified-codecs` (five by `-s ours`, call M1; `docs/av1/README.md` §Paths kept in history only), the gate
+    green, the product as the baseline but the two lines of a `stallMs` key; its draft PR lists every resolution. Next: its
+    blind review (MERGE-A-REVIEW-CODECS), then stage B. `av1-paint-depth` (#309) stays out (call M6).
 
 ## Decisions (the owner's)
 
