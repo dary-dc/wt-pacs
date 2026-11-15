@@ -33,7 +33,7 @@ const CHROMIUM_ARGS = ["--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"];
 async function browser(profile, { quotaMiB = 0, priv = false } = {}) {
   if (ENGINE === "firefox") {
     const prefs = { "browser.cache.disk.enable": false, "browser.sessionstore.resume_from_crash": false, "browser.privatebrowsing.autostart": priv };
-    if (quotaMiB) prefs["dom.quotaManager.temporaryStorage.fixedLimit"] = quotaMiB * 1024;
+    if (quotaMiB) prefs["dom.quotaManager.temporaryStorage.fixedLimit"] = quotaMiB * 5 * 1024;
     return firefoxAt(profile, prefs);
   }
   if (!priv) return chromiumAt(profile, CHROMIUM_ARGS);
@@ -44,15 +44,17 @@ async function browser(profile, { quotaMiB = 0, priv = false } = {}) {
   return { pid, context: { newPage: () => context.newPage(), close: () => b.close() }, page: await context.newPage() };
 }
 
-/** Chromium's quota by DevTools; Gecko's is a launch pref. Either way `estimate()` must show it before E or Q runs. */
+/** Chromium's quota by DevTools, Gecko's a launch pref (a group limit, five times a site's). Chromium 153's
+ *  `estimate()` does not show the override, so the check is a refusal: 16 MiB under it taken, 16 MiB over it refused. */
 async function quotaHolds(b, origin, quotaMiB) {
-  if (ENGINE === "chromium") {
-    const cdp = await b.context.newCDPSession(b.page);
-    await cdp.send("Storage.overrideQuotaForOrigin", { origin, quotaSize: quotaMiB * MiB });
-  }
-  await b.page.goto(`${origin}/lab/cache-arms/blank.html`);
-  const quota = await b.page.evaluate(() => navigator.storage.estimate().then((e) => e.quota));
-  return { quotaMiB: quota / MiB, holds: Math.abs(quota / MiB - quotaMiB) < 1 };
+  await b.page.goto(`${origin}/lab/cache-arms/blank.html?mib=${quotaMiB}`);
+  if (ENGINE === "chromium") await (await b.context.newCDPSession(b.page)).send("Storage.overrideQuotaForOrigin", { origin, quotaSize: quotaMiB * MiB });
+  const probe = await b.page.evaluate(async () => {
+    const w = new Worker("quota-probe.js");
+    const mib = Number(new URLSearchParams(location.search).get("mib"));
+    return new Promise((resolve) => ((w.onmessage = ({ data }) => resolve(data)), w.postMessage({ mib })));
+  });
+  return { quotaMiB, ...probe, holds: probe.under === "ok" && probe.over === "QuotaExceededError" };
 }
 
 async function load(page, origin, p, timeoutMs = CALL_MS) {

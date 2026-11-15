@@ -64,8 +64,11 @@ writes nothing, and takes a failed re-check as a miss (§8.1); a miss on a frame
 | T | tab 1 fills 50 × S2; at 20 written, tab 2 reads every frame and fetches the rest |
 | P | 32 frames in a private window (Chromium's incognito context; Firefox `browser.privatebrowsing.autostart`) |
 
-A quota cell first checks that `estimate()` shows the override (Chromium `Storage.overrideQuotaForOrigin`, Gecko
-`dom.quotaManager.temporaryStorage.fixedLimit`), and does not run where it does not.
+A quota cell first checks that the override holds (Chromium `Storage.overrideQuotaForOrigin`, Gecko
+`dom.quotaManager.temporaryStorage.fixedLimit` at five times the site's limit, as M3 set it), and does not run where it
+does not. The check is a refusal (`quota-probe.js`: 16 MiB under the quota taken, 16 MiB over refused), not
+`estimate()`, which on Chromium 153 still reports 10 GiB under the override (*run once*, 2026-11-15) — so §8.6's
+`estimate()` check cannot pass there, and §8.1's bounded wait for `estimate()` to show the room ends at once.
 
 **Not built: O's F**, the fresh fill over `link_impair.py` the reopen is judged against. Synthetic frames have no
 coded form, so a fetch of their bytes would not be a fill; F is M1's (`lab/opfs-cache/run.mjs --cell m1` at
