@@ -784,3 +784,230 @@ The verdict between carriers and receivers (the run's); whether CBOR or compress
 a tenth of the budget; the bytes cell decides); whether Gecko's keepalive survives a kill (§1.1); WebKit's `pagehide`
 need (the ADR's (I), R); retention and the sink's host (the owner's). Fixtures, when run: the three demo DBT volumes,
 4-core cloud hosts, headless engines, a userspace relay, not a radio; the phone cells on one phone.
+
+## 7 · Protocol
+
+*Pre-registered 2026-11-15 by REPORT-PROTOCOL, a session that wrote, advocated and built nothing here, before any arm
+is built. REPORT-RUN runs it as written; an amendment before any counted row if the host forces one, never after.*
+Every prediction below is **theory** (I), from §1–§3's sources and the *measured* numbers they cite; none is a result.
+The levers of §7.6 were **checked on the host** this protocol was written on (*checked*), each one once, by a scratch
+probe that sent a beacon on `load`, `visibilitychange`, `pagehide`, `pageshow` and `freeze` to a local sink: lever
+checks, not results.
+
+### 7.1 · What enters from the advocates' proposals (for every arm alike)
+
+| proposal | enters? | why |
+| --- | --- | --- |
+| serialize where the record is found; the carrier gets a string (§3.1) | **yes** | the same seam for all three carriers; the page-thread cell then prices the carrier, not the serializer's place |
+| the format pilot at the fill's end, never in a hide handler (§3.1) | **yes** | a hide handler that awaits would charge the format to the carriers that send at hide |
+| the hybrid with `seq` deltas, `pagehide` beside `visibilitychange`, one synchronous send per event (§3.1) | **yes**, for BEACON and KEEPALIVE (KEEPALIVE's advocate adopted it, §3.2) | SESSION's hide delta follows the same pair and `seq` (§3.3) |
+| the workers' init carries the sink URL, load id, session id, decoder build, off switch (§3.2) | **yes** | needed by KEEPALIVE's worker send and SESSION's downloader alike |
+| `reportId` and `v` in every record; one `report-fields.json` read by the page's test, RECEIVER and the server (§3.2, §3.3, §3.5) | **yes** | one list for the field mutant (§7.4) against every receiver |
+| one sink contract, *one record in, one acknowledgement after the append*, HTTP and stream bindings, one set of counters (§3.3) | **yes** | the harness reads received, appended, acknowledged, refused and duplicate counts alike |
+| **delivery is counted at the sink**, never by answers (§3.5) | **yes** | NGINX's `204` precedes its line; a beacon has no answer |
+| the kind in the path, `<base>/load` and `<base>/safety` (§3.5) | **yes** | both HTTP receivers file by kind without parsing |
+| the server as a third receiver row (§3.3) | **yes** | SESSION's receiver is the frame server; the receiver cell runs it while serving |
+| the join and the dedup at read, by one tool, for every receiver (§3.5) | **yes** | no receiver gets a join the others lack |
+| files by UTC day, retention by deleting (§3.5) | **yes** | same for both HTTP receivers; the server's report file the same |
+| a delivery row for a session that never opens (§3.3) | **yes** | row D8 below |
+| the page-thread cell counts the worker's report time beside it (§3.2) | **yes** | cell C below |
+| RECEIVER's cap per day | **not a cell** | no lever fills a disk on this host without risk to the run; named for the verdict |
+| NGINX's hop form on nginx 1.29 | **not run** unless the owner keeps 1.29 (§3.5): the early-read form on 1.31 is NGINX's arm |
+
+### 7.2 · Rig, arms, order
+
+* **Rig**: `lab/report-arms/` on `claude/report-arms` (REPORT-BUILD-HARNESS): the viewer at the round's commit with
+  the lab gate loading one carrier arm; the fault bench's forced mismatch ([`../../adr/exactness-in-production.md`](../../adr/exactness-in-production.md)
+  §The fault bench) at a fixed frame; the sink behind each receiver with the §7.1 counters; the server's link record
+  (§3.4) on in every arm. The browser and the sink run inside the relay's `--tun` namespace (`lab/scripts/link_impair.py`,
+  `unshare -rn`), so QUIC and the HTTP carriers' kernel TCP cross one queue: delay 10 ms one way, 50 Mbit, 200-packet
+  queue, no loss (the home Wi-Fi fit's order, `docs/transport/transport-conclusions.md` §1; assumed for this cell, not a
+  profile of `link-profiles.md`). One browser at a time; a fresh profile per load unless a row keeps one.
+* **Series**: `dbts_c1`'s view (the shortest demo fill on this host), the mismatch forced at frame 10 of the fill.
+* **Carrier arms** (§3's timings run): `off`, **BEACON-H** (at hidden: PR 370's build), **BEACON-Y** (the hybrid),
+  **KEEPALIVE-H**, **KEEPALIVE-Y**, **SESSION-1** (at once, batched per second), **SESSION-Y**, **SESSION-H**, and
+  `off′` (the A/A arm: `off` again). The safety report is *at once* in every carrier arm (KEEPALIVE: from the worker,
+  and from the page at hide for any not acknowledged; §3.2); `off` sends no load report but **sends the safety
+  report** by BEACON at once, as the decision requires it ignore the rate; `off′` the same.
+* **Receivers**: BEACON and KEEPALIVE arms send to **RECEIVER** in the delivery cells (it counts and refuses; its
+  fallback line is NGINX's); NGINX and RECEIVER are compared in cell R, and the server in cells R and D for SESSION.
+* **Order**: Williams order per round (`lab/order.mjs`, `williams(9)`: odd, so 18 rows with the mirrors); each row
+  carries its round, arm and predecessor, and `balanced()` is reported per cell. A cell's rounds are **one whole
+  period, 18 rounds** for nine arms (cells D, L, C); cell R its own (§7.3).
+* **The floor probe** runs beside every integrated run of cells L and C, in the same round, just before the arm: the
+  raw call alone with the arm's bytes — a `sendBeacon` of the record string; a bare `fetch(…, {keepalive: true})` from
+  the page and from a decoder worker; a bare `createBidirectionalStream()`, write, FIN and the server's one-byte ack.
+  Recorded: median ms from call to the sink's append, and the page thread's time in the call. **The gap** = the arm's
+  integrated cost − its floor.
+
+### 7.3 · Cells, predictions, bars
+
+**D · delivery, by how the load ends.** A load: open, fill, the forced mismatch at frame 10, three frame changes and
+one *Lossless* press after the fill (the deltas), then the row's ending at fill end + 6 s, then 60 s of wait before
+the sink is read. Recorded per load: the fill record, each delta (`seq`) and the safety report at the sink, or not;
+duplicates by `reportId`.
+
+| row | ending | lever (§7.6) |
+| --- | --- | --- |
+| D1 | navigated to another origin page | CDP `Page.navigate`; BiDi `browsingContext.navigate`; WebDriver Navigate To |
+| D2 | tab closed, another tab open | CDP `Target.closeTarget`; BiDi `browsingContext.close`; WebDriver Close Window |
+| D3 | hidden, then the renderer killed 1 s later | hide (§7.6), then CDP `Page.crash`; Firefox and WebKit: the tab's content process killed (unchecked) |
+| D4 | hidden, then the browser killed 1 s later | hide, then `SIGKILL` of the browser process the rig spawned |
+| D5 | killed while visible, 50 ms (D5a) and 500 ms (D5b) after the mismatch is found | as D3 without the hide |
+| D6 | link dropped before hide: blackout from fill end + 4 s for 30 s, hidden at + 5 s, navigated at + 6 s | relay `blackout 30000`, `--blackout-mode drop`, both planes under `--tun` |
+| D7 | bfcache: navigated away, back (restored from bfcache), one more frame change, then navigated | history back (§7.6) |
+| D8 | the session never opens (the server's QUIC listener not started; nginx answers) | the harness's server flag (checked by its first smoke) |
+| D9 | hidden and left: minimized, page kept 60 s (Chromium also frozen after 5 s) | hide; CDP `Page.setWebLifecycleState` `frozen` |
+
+*Bars* (per engine × arm; an arm that cannot run a row on an engine is named and judged nowhere on it):
+* **Safety report**: reaches the sink in **every** load of D1, D2, D4, D5b, D6 (sent before the blackout or held until
+  acked on a live page: D6's mismatch is during the fill), D7, D8 (HTTP carriers; SESSION is *expected to fail D8*,
+  and fails the bar), D9; D3 and D5a recorded, no bar. In `off` and `off′` too.
+* **Load report**: the fill record reaches the sink in every load of D1, D2, D7, D9; D3–D6 and D8 have no bar and
+  are **ranked**: the share of loads whose fill record arrives, then the share of deltas. No arm may deliver a record
+  twice uncounted (the read tool's dedup counts it).
+* `off` and `off′` deliver no load record in any row (one does: the harness is broken; every D row VOID).
+
+*Predictions* (I; Chromium / Firefox; WebKit after them; "✓" every load, "✗" none):
+
+| row | BEACON-H | BEACON-Y | KEEPALIVE-H | KEEPALIVE-Y | SESSION-1 | SESSION-Y | SESSION-H |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| D1, D2 | ✓ (`pagehide` and hidden fire before the unload, *checked* on all three) | ✓ | ✓ | ✓ | fill ✓, last second's delta at risk | fill ✓, hide delta at risk | **at risk**: the hide record races the session's end (§3.3) |
+| D3 | ✓ (sent at hide, held by the browser: Fetch §Requests) | ✓ | ✓ | ✓ | fill ✓; deltas sent ✓ | fill ✓; hide delta at risk | hide record at risk |
+| D4 | ✓ if the send precedes the kill by the 1 s (I) | ✓ | ✓ | ✓ | as D3 | as D3 | as D3 |
+| D5 | ✗ load report | fill ✓, deltas ✗ | ✗ | fill ✓, deltas ✗ | fill ✓, deltas up to the last second | fill ✓, deltas ✗ | ✗ |
+| D5a safety | page hop: at risk | at risk | worker: Chromium **at risk** (the worker's request dies with it, §3.2), Firefox ✓ | as -H | decoder → downloader → stream: at risk | at risk | at risk |
+| D6 | ✗ (a beacon failing on a dead link is not retried; I) | fill ✓, deltas ✗ | ✗ | fill ✓, deltas ✗ | fill ✓, deltas held, lost at navigation | fill ✓ | ✗ |
+| D7 | ✓ on Firefox and Chromium; WebKit: ✓ (HTTP) | ✓, `seq` loses nothing | ✓ | ✓ | WebKit: the session ends at bfcache entry (§3.3), deltas wait a re-dial: at risk | as -1 | as -1 |
+| D8 | ✓ | ✓ | ✓ | ✓ | **✗** | **✗** | **✗** |
+| D9 | ✓ | ✓ | ✓ | ✓ | ✓ (session alive while hidden) | ✓ | ✓ unless frozen before the write (Chromium) |
+
+**L · the safety report's latency.** Mismatch found (the decoder's timestamp, the host's monotonic clock) → record
+appended at the sink. Page idle, and with a 50 ms long task every 100 ms on the page's main thread; for SESSION also
+mid-fill (the mismatch at frame 10 of 32). 20 mismatches a load, 1 s apart, after the fill (and the mid-fill one).
+*Bar*: p50 ≤ 250 ms and p99 ≤ 1 s idle in every round; busy is ranked (p99). *Predictions*: BEACON idle a few ms over
+its floor (loopback plus the relay's 20 ms round trip), busy up to +50 ms (the page's long task); KEEPALIVE from the
+worker unaffected by the busy page; SESSION unaffected by the page, mid-fill within a few ms of idle (I: a few hundred
+bytes share the window, §3.3). Beacon §2.1's "MAY delay" is what this cell measures per engine.
+
+**C · cost on the page's thread.** PR 370 §5's design: main-thread time of assemble + serialize + send per load, any
+long task the arm adds (Long Tasks observer), the fill's time and the first exact paint, against `off` and `off′`; the
+workers' report time beside it (§7.1). *Bar*: fill time and first exact paint median ratio to `off` within
+0.98–1.02, and no long task ≥ 50 ms the arm adds, in ≥ 15 of 18 rounds. *Predictions*: every arm passes: a 5–7 KB
+`JSON.stringify` and one call is well under a millisecond (I); KEEPALIVE adds a promise and a `Response` per send
+(§3.2), within the bar.
+
+**Y · bytes and requests per load.** From D1's loads (no extra loads): request or stream count, body bytes and wire
+bytes per load at the relay (the TUN plane's per-flow tally), per arm and format; `sendBeacon` returning `false` and
+keepalive network errors counted. *Bar*: no record refused by the 64 KiB budget, no body over 16 KiB; then ranked by
+wire bytes. *Predictions*: JSON 4.9–6.6 KB a load (PR 370's test, R); the hybrids 2–4 requests a load; SESSION-1 the
+most records and the fewest wire bytes per record (no request line or headers, §3.3); gzip saves under a fifth of the
+wire bytes at these sizes (I) and so loses the pilot (§7.4).
+
+**R · the receivers' cost.** A load generator on the host posts recorded D1 bodies at 10, 100 and 1 000 reports a
+second for 60 s each, load reports and safety reports in separate bursts (only the latter pays `sync_data`), to
+**NGINX** (early read, nginx 1.31.8 built from nginx.org's release tarball, reachable, checked), **RECEIVER** behind
+the same nginx, and **the server** over report streams while it serves one `dbts_c1` fill. Recorded: CPU seconds and
+peak RSS per 1 000 reports, refusals, lines written; for the server, the fill's time against the same fill with no
+reports. Order: NGINX, RECEIVER, server, rotated over 6 rounds. *Bar*: at 100 a second, ≤ 5 % of one core and every
+report written (counted refusals excepted); the server's fill time within 1.02 of its no-report fill. *Predictions*:
+NGINX cheapest; RECEIVER about NGINX plus one local hop; the server passes at 100/s. Where `none`'s generator alone
+reaches 3 cores, the rate is saturated and claims nothing.
+
+### 7.4 · A/A, VOID, saturation, mutants, pilot
+
+* **VOID**: cells C and L, when `off′` against `off` (C) or BEACON-H's floor against itself in alternate rounds (L)
+  lies outside 0.95–1.05 in median over the cell's rounds. D's A/A is `off`/`off′` delivering identically (the safety
+  report in every load, no load report).
+* **Saturation**: a round whose host CPU (all cores, `/proc/stat`) exceeds 90 % during the fill is marked saturated
+  and counted in no bar. The relay's own ceiling is 100 Mbit under `--tun` on a 4-core host (`docs/rig-limits.md` §3);
+  this rig runs at 50.
+* **Mutants**, each once per engine and arm before its cell's rows are believed (`--mutant` in the rig): *record never
+  sent* (the carrier returns success and sends nothing): D1's fill record must fail; *safety report sampled* (the rate
+  applied to it, rate 0.1): D's safety bar must fail; *a field outside the list*: RECEIVER and the server must drop it
+  and warn, NGINX's read tool must flag it; *ack before write* (RECEIVER answers `204`, then drops the write): the
+  sink's appended count must fall below its acknowledged count; *no `reportId`*: the read tool's dedup must report
+  the duplicates KEEPALIVE's two copies make. A mutant not caught makes its cell VOID for that arm until the harness
+  is fixed and the cell rerun whole.
+* **Pilot**, not counted, Chromium then each engine before its counted rows: (1) the hybrid's first send at the fill's
+  end or at the first exact paint — the one whose D5 fill-record share is higher over 3 rounds alternated (a b b a a
+  b), a tie keeping the fill's end; (2) the format, JSON or gzip JSON (KEEPALIVE, SESSION, RECEIVER only; BEACON and
+  NGINX take JSON, §3.1, §3.5): gzip only if it saves ≥ 25 % of wire bytes a load and C still passes; (3) SESSION's
+  batching interval stays 1 s (§3.3; no alternative). Picks are committed as `lab/report-arms/pilot-<engine>.json`
+  before the first counted row on that engine, then frozen. CBOR is sized offline from the same records by the
+  harness, not run: no browser encodes it (§1.4).
+
+### 7.5 · The rule, stated before any data
+
+Per engine, over the non-VOID, unsaturated cells:
+
+1. **A carrier arm passes** when it meets every bar of §7.3 in every counted row it ran. A row an engine cannot run (a
+   lever or an API missing) is named and judges nothing.
+2. **Among passers**, rank by D3–D6's fill-record share (summed over the rows), then L's busy p99, then Y's wire bytes;
+   a lead counts at ≥ 5 points of share, ≥ 10 % of latency or bytes. All within: the arm with fewer hops on the page's
+   thread leads.
+3. **The safety report's carrier** is judged on its own: the arm with the most D5a deliveries among those passing the
+   safety bar; this answers §5's "at once" with a carrier, and may differ from the load report's.
+4. **Receivers**: NGINX and RECEIVER both passing R's bar, the verdict is RECEIVER's validation against NGINX's cost,
+   for the owner (§3.5's trade); the server is judged only with SESSION.
+5. **No passer**: the result goes to the owner as measured, every arm's gap over its floor beside its failed rows, for
+   REPORT-VERDICT-REVIEW's loser's question (§4).
+
+### 7.6 · Engines, levers and the host
+
+Levers *checked* 2026-11-15 on a 4-vCPU cloud container, each once, against a local sink (not results):
+
+* **Chromium 153.0.8010.12** (Playwright's `chromium-1243`), **driven by raw CDP**, not by a Playwright page: a
+  Playwright page stayed *visible* when its window was minimized or another page brought to front, and history back
+  never restored from bfcache (`pagehide` with `persisted` false), with `--disable-back-forward-cache` and the
+  backgrounding flags removed and focus emulation off. Launched itself (`chrome --headless=new`) and driven over CDP:
+  `Browser.setWindowBounds` `minimized` ("Set position and/or size of the browser window.") and `Target.activateTarget`
+  of a second tab ("Activates (focuses) the target.") each fired `visibilitychange` to hidden; `Page.navigate` then
+  `Page.navigateToHistoryEntry` gave `pagehide` persisted, `freeze`, hidden, visible and `pageshow` persisted;
+  `Target.closeTarget` ("Closes the target.") fired `pagehide` and hidden; `Page.crash` ("Crashes renderer on the IO
+  thread, generates minidumps.") ended the page visible or hidden; `Page.setWebLifecycleState` `frozen` fired `freeze`;
+  `SIGKILL` of the spawned browser ended it. CDP pinned at ChromeDevTools/devtools-protocol `browser_protocol.json`
+  sha256 `84092045efd5`.
+* **Firefox 159.0** (Mozilla's release tarball), headless, **raw WebDriver BiDi** (`--remote-debugging-port`):
+  `browsingContext.navigate` fired `pagehide` (persisted) and hidden; `browsingContext.traverseHistory` −1 restored
+  from bfcache; a second tab by `browsingContext.create` and `browsingContext.activate` hid the first; a new *window*
+  did not. `browsingContext.close` ("? promptUnload: bool .default false", BiDi sha256 `cf1ac60777bb`) of the **last**
+  tab sent nothing at all, of a tab with another open fired `pagehide` and hidden: **D2 runs with a second tab open on
+  every engine**. `about:crashcontent` navigated from BiDi did not crash the content process (the page still
+  evaluated): **Firefox's renderer kill is not checked**; REPORT-BUILD-HARNESS checks a `SIGKILL` of the tab's content
+  process, found in the spawned browser's own process tree, and D3, D5 do not run on Firefox until it works.
+  `SIGKILL` of the spawned browser ended it.
+* **WebKitGTK 2.52.6** (Ubuntu 24.04's `libwebkit2gtk-4.1-0` and `webkit2gtk-driver`, installed), `MiniBrowser
+  --automation` under `xvfb-run` through WebKitWebDriver (with `--headless` the session never opened: 40 s, no
+  answer): Navigate To fired `pagehide` (persisted) and hidden; Back restored from bfcache; Minimize Window hid the
+  page (WebDriver: "invokes the window manager-specific “minimize” operation, if any", sha256 `ebfff0faac54`); New
+  Window `type: tab` opened a window, so switching does not hide; Close Window with another open fired `pagehide` and
+  hidden. **The WebProcess kill and the browser kill are not checked**: as Firefox's, REPORT-BUILD-HARNESS checks them
+  first; D3–D5 do not run on WebKit until then. WebTransport in WebKitGTK is not probed: the run's first step on
+  WebKit is an API probe (`WebTransport`, `sendBeacon`, `Request.keepalive`, `CompressionStream`); SESSION is "not run:
+  <API>" where absent.
+* **The link drop**: `link_impair.py --tun` inside `unshare -rn` (iproute2 installed for it), `blackout 3000` on the
+  control port: a kernel-TCP `curl` through the TUN answered 200, then timed out during the blackout, then 200 again;
+  Chromium ran inside the namespace and loaded a page over the TUN. Without `--tun` the TCP plane has no blackout
+  (the relay's own docstring: "this plane shapes only: no loss, no blackout"), so D6 runs only under `--tun`. Firefox
+  and WebKitGTK inside the namespace are not checked: the harness's first smoke. `Network.emulateNetworkConditions`
+  offline (CDP) is Chromium-only and does not reach WebTransport's socket (I), so it is not the lever.
+* **Order of work**, so a cut-short run leaves the most decided: Chromium (pilot, mutants, D, L, C with Y), Firefox
+  the same, WebKitGTK (probe, D, L, C), then R once. Rows are pushed per cell as they land.
+* **Host time** (*derived*): a D load ~75 s with its wait (D9 ~130 s); 9 arms × 18 rounds × 9 rows ≈ 3.5 host-hours an
+  engine, L and C ~1.5, pilot and mutants ~1: ~6 host-hours an engine, ~1 for R, ~19 in all, one browser at a time.
+  If REPORT-RUN is not done by 11-22 08:00, REPORT-VERDICT-REVIEW judges what is pushed (its brief).
+
+### 7.7 · The phone cells
+
+Written as asks into `claude/phone-protocol:docs/phone-rows/next-round.md` §4 *Report cells* (2026-11-15): delivery
+when the screen locks, the app is switched, Chrome is force-stopped, and Wi-Fi drops, for the carrier arms that pass
+D here, each ending scripted from the laptop over adb so the round stays one press (amendment 5). Only `am
+force-stop` is sourced ("Force-stop everything associated with package.", developer.android.com/tools/adb, sha256
+`c7f904f1100b`), and it is not the same as a swipe from recents (I); the other three levers are the phone session's
+to source and check.
+
+**Fixtures and their limits.** Nothing has run for this section but the lever checks above. It plans: a 4-vCPU cloud
+container without a GPU; Chromium 153 (not the phone's 157), Firefox 159, WebKitGTK 2.52.6 under Xvfb (not Safari);
+one DBT volume's view; a forced mismatch, not a real decoder fault; a userspace relay on loopback, not a radio; no
+phone.
