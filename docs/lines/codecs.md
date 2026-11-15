@@ -156,6 +156,9 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
 1. **G at equal quality** (`claude/av1-groups`, #326): shard 2 and the collect without `--partial`; a structure-only
    source with no coding error of its own; a finer ladder at Q 8–12. Decode time in order matters more than jumps.
    No G is decided for DBT.
+   *Settings amendment, shard S1 (2026-11-10, `claude/av1-groups-settings`, `docs/av1/groups.md` §Settings shard 1):
+   on `dbts_b1` every lookahead arm, the unfiltered alt-ref too, costs 11–25 % at the noise anchor, O G 8–32 saves
+   4.2–4.4 % but decodes ~20 % slower on WebCodecs, so nothing is recommended and G 1, lag 0 stay; S2 (A, C cut) owed.*
 2. Harvest and review the AV1 result chain into `av1-unified-mainbase`: #290 → #305 → #317, #312; #283 → #306 → #314
    → #316; #288, #315, #318; now also #323, #325, #326, #332 (into `av1-quality-metrics` or `av1-noise-point`) and
    #329, #331, #334 (into `main`).
