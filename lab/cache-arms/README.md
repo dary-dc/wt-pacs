@@ -112,6 +112,14 @@ sequential store worker:
 * The floor probe adds `writeBufferMs`, a `put` of an `ArrayBuffer` beside the `Blob` (§8.2); the store worker reports
   the median of every series an arm times.
 
+* Chromium's backend (§7.3 asks a run to record it): list the profile's `Default/IndexedDB/` after the run. Chromium
+  153's fresh profile has `<origin>.indexeddb.leveldb` (LevelDB) beside `<origin>.indexeddb.blob`, a Blob's file
+  (*run once*, 2026-11-15); any other layout is recorded as found.
+* For CACHE-RUN: L's memory bar. At S2 a fill grew the tree's PSS by 1 601 MiB with Blobs and 553 MiB with
+  `value=buffer`, against `none`'s 263 and a bar of `none` + one frame + 64 MiB (*smoke*, one round each, Chromium 153).
+  Where the Blobs' bytes stay (the blob registry, §7.3's untraced item, or the worker's uncollected Blobs) is not
+  traced.
+
 Pilot: `--pilot value=buffer` (Gecko only), the value an `ArrayBuffer`; the default is `value=blob`.
 
 **Not built: O's F**, the fresh fill over `link_impair.py` the reopen is judged against. Synthetic frames have no
