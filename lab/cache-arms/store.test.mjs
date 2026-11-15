@@ -284,6 +284,18 @@ for (const mutant of ["", "tab-writes"]) {
   check(!(await s.read(0, new Uint8Array(FRAME))).hit, "none: a read is a miss");
 }
 
+// An arm that writes in pieces is handed the store worker's way to let waiting reads in (§7.1, reads first).
+{
+  const r = makeRing(new SharedArrayBuffer(FRAME), new SharedArrayBuffer(makeRing.tableBytes(1)), FRAME);
+  const serveReads = async () => {};
+  let given = null;
+  const arm = { ...memoryArm(new Map()), write: async (i, b, ctx) => (given = ctx) };
+  const s = makeStore({ arm, ring: r, check: () => true, locks: memoryLocks(), serveReads });
+  await s.open("A", meta());
+  await s.write(0, r.claim(1));
+  check(given?.serveReads === serveReads && given.readsWaiting === r.readsWaiting, "the write's context carries serveReads and readsWaiting");
+}
+
 if (failed) {
   console.error(`${failed} failed`);
   process.exit(1);

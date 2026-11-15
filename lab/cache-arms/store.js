@@ -7,7 +7,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const sameDigests = (a, b) => a.length === b.length && a.every((d, i) => d === b[i]);
 
 /** `check(bytes, i)`: the frame's XXH3 against its digest. `locks`: hold(name, opts) → release or null, names(). */
-export function store({ arm, ring, check, locks, mutant = "", estimate = null, waitMs = 5000 }) {
+export function store({ arm, ring, check, locks, mutant = "", estimate = null, waitMs = 5000, serveReads = async () => {} }) {
   const s = {
     arm, series: null, meta: null, cache: false, writer: false, stopped: false,
     writes: 0, evicted: [], pending: new Map(), letGo: [],
@@ -51,7 +51,7 @@ export function store({ arm, ring, check, locks, mutant = "", estimate = null, w
         s.pending.set(i, slot);
         for (let retried = false; ; retried = true) {
           try {
-            await arm.write(i, ring.bytes(slot, s.meta.frameBytes), { release, readsWaiting: ring.readsWaiting });
+            await arm.write(i, ring.bytes(slot, s.meta.frameBytes), { release, readsWaiting: ring.readsWaiting, serveReads });
             return { written: true };
           } catch (e) {
             const room = !retried && e.name === "QuotaExceededError" && (await s.evictOne(s.meta.frameBytes));

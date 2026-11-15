@@ -1,7 +1,7 @@
 // The cache arms, one cell at a time: cache-plan.md §8. README.md says what each cell's steps are.
 //
 //   NODE_PATH=$(npm root -g) node lab/cache-arms/run.mjs --cell L|W|R-idle|R-busy|B|O|E|K|Q|T|P --size 512|2560|3328
-//     [--engine chromium|firefox] [--throttle 1|4] [--rounds N] [--arms none,stub,stub-aa] [--mutant NAME] [--out rows.jsonl]
+//     [--engine chromium|firefox] [--throttle 1|4] [--rounds N] [--arms none,stub,stub-aa] [--mutant NAME] [--pilot piece=BYTES] [--out rows.jsonl]
 import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -19,6 +19,7 @@ const ENGINE = arg("--engine", "chromium");
 const SIZE = arg("--size", "512");
 const THROTTLE = Number(arg("--throttle", 1));
 const MUTANT = arg("--mutant", "");
+const PILOT = arg("--pilot", "");
 const ARMS = arg("--arms", ["O", "E", "K", "Q", "T", "R-idle", "R-busy"].includes(CELL) ? "stub,stub-aa" : "none,stub,stub-aa").split(",");
 const OUT = path.resolve(arg("--out", path.join(WORK, `${CELL}-${ENGINE}-${SIZE}-${THROTTLE}x.jsonl`)));
 const MiB = 2 ** 20;
@@ -58,7 +59,7 @@ async function quotaHolds(b, origin, quotaMiB) {
 }
 
 async function load(page, origin, p, timeoutMs = CALL_MS) {
-  const qs = new URLSearchParams(Object.entries({ ...p, mutant: MUTANT }).filter(([, v]) => v !== "" && v !== undefined));
+  const qs = new URLSearchParams(Object.entries({ ...p, mutant: MUTANT, pilot: PILOT }).filter(([, v]) => v !== "" && v !== undefined));
   await page.goto(`${origin}/lab/cache-arms/index.html?${qs}`);
   // Polled, not awaited: Marionette ends a script after its own timeout, shorter than a cell.
   for (const t0 = Date.now(); Date.now() - t0 < timeoutMs; await sleep(500)) {

@@ -34,6 +34,11 @@ async function pump() {
   }
 }
 
+/** Reads let in while a write waits between its pieces (§7.1, reads first), as long as a slot is free. */
+async function serveReads() {
+  while (reads.length && ring.anyFree()) await serveRead(reads.shift());
+}
+
 /** A free slot for the view, waited for apart: a full ring frees only as the view and the writer let go. A ring
  *  that never frees (the slot-held mutant) gives none after `SLOT_WAIT_MS`: slot −1. */
 const SLOT_WAIT_MS = 10000;
@@ -130,9 +135,9 @@ onmessage = async ({ data: m }) => {
   fill(m.fields, c.w, c.h);
   digests = [...Array(FIELDS).keys()].map((k) => xxh3.init().update(fieldBytes(m.fields, k, c.frameBytes)).digest("hex"));
   shas = await Promise.all([...Array(FIELDS).keys()].map((k) => sha256(fieldBytes(m.fields, k, c.frameBytes))));
-  arm = (await import(`./arms/${c.arm}.js`)).default();
+  arm = (await import(`./arms/${c.arm}.js`)).default(new URLSearchParams(c.pilot));
   const estimate = navigator.storage?.estimate ? () => navigator.storage.estimate() : null;
-  st = makeStore({ arm, ring, check, locks: webLocks(), mutant: c.mutant, estimate });
+  st = makeStore({ arm, ring, check, locks: webLocks(), mutant: c.mutant, estimate, serveReads });
   for (const feeder of m.feeders) {
     feeder.onmessage = ({ data: f }) => (writes.push({ ...f, arrivedAt: now(), feeder }), pump());
   }

@@ -8,7 +8,7 @@ const median = (v) => [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)] ?? 
 const quantile = (v, p) => [...v].sort((a, b) => a - b)[Math.min(v.length - 1, Math.floor(p * v.length))] ?? null;
 
 const c = {
-  mode: q.get("mode") ?? "fill", arm: q.get("arm") ?? "none", mutant: q.get("mutant") ?? "", series: q.get("series") ?? "s",
+  mode: q.get("mode") ?? "fill", arm: q.get("arm") ?? "none", mutant: q.get("mutant") ?? "", pilot: q.get("pilot") ?? "", series: q.get("series") ?? "s",
   w: num("w", 512), h: num("h", 512), n: num("n", 64), held: num("held", 4), rateMBps: num("rate", 125), credits: num("credits", 0),
   cineEvery: num("cineEvery", 1), misses: q.get("misses") ?? "", missCount: num("missCount", 16), longTasks: q.get("longTasks") === "1",
   floor: num("floor", 0), ringMiB: num("ringMiB", 256), decoders: num("decoders", 3), all: q.get("all") === "1", rest: q.get("rest") === "1",

@@ -82,9 +82,9 @@ coded form, so a fetch of their bytes would not be a fill; F is M1's (`lab/opfs-
 `none` are over a round.
 
 ```bash
-node lab/cache-arms/store.test.mjs && node lab/cache-arms/cells.test.mjs
+node lab/cache-arms/store.test.mjs && node lab/cache-arms/cells.test.mjs && node lab/cache-arms/arms/opfs-sync.test.mjs
 NODE_PATH=$(npm root -g) node lab/cache-arms/run.mjs --cell L --size 2560 [--engine chromium|firefox] [--throttle 4] \
-  [--rounds N] [--arms none,stub,stub-aa] [--mutant NAME] [--out rows.jsonl]
+  [--rounds N] [--arms none,stub,stub-aa] [--mutant NAME] [--pilot piece=BYTES] [--out rows.jsonl]
 ```
 
 Needs the decoder builds (`client/decode/wasm/built`, for XXH3), Playwright's Chromium, and for Firefox an Xvfb display
