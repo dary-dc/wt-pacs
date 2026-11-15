@@ -1,11 +1,19 @@
-state: started
+state: done
 started: 2026-11-15T22:41Z
-heartbeat: 2026-11-15T23:25Z
-outputs: claude/unified (in progress)
+heartbeat: 2026-11-15T23:33Z
+outputs: claude/unified f0278742, draft PR 402 into main ("do not merge: review"); logs, scripts and merge messages in docs/queue/MERGE-B/
 ## Resume
-Done and pushed on claude/unified (tip dde36aef): B1 12324b54, B2 dd681539, B3 62386a90, B4 f9e7b8d9, then e86bbc1d
-(links), 93e4af8b (session.js rebuilt), 769329b6 (contract clause requestFrame), dde36aef (Containerfile copies
-carrier). Gate OK at 769329b6 (597 s, 57 steps, the baseline's two skips), demo-check both views passed, web image
-94,951,278 B at dde36aef. Logs in docs/queue/MERGE-B/. A last gate on dde36aef runs (gate-final.log). Next: the draft
-PR into main "do not merge: review", docs/lines/coordination.md Open 8 on claude/unified, state done.
+Done. Nothing owed by this row. Next: MERGE-B-REVIEW, by a session whose commits are not on claude/unified's stage B.
 ## Result
+claude/unified at f0278742, draft PR 402 into main. B1 codecs (54 conflicts), B2 server (65), B3 PACS (7), B4 hygiene (31).
+* Product: the PACS line whole; server.rs written in B3's message (raw QUIC under --root refused as a bad series
+  name, a new test, mutant killed); the server line's three lab levers and Wf behind lab-levers, ported to the tip's
+  QUIC types (mutant killed); hygiene's added files only (arm64 script, notices). Every other code path the tip's.
+* Four fix commits for checks the merges broke: links, session.js pin, a contract clause's name, the Containerfile.
+* Gate OK (597 s at 769329b6, 430 s at dde36aef; the baseline's two skips); no test count under the baseline's;
+  demo-check passed both views on dbts_a1; 1 build warning (the baseline's); lab absent and comment budget OK; web
+  image 94,951,278 B; the server image not buildable here.
+* Deviation, named: hygiene's tests.rs files not added (moves of inline tests the tip holds).
+* For COMPLEXITY-AUDIT: lossy stream / quality profile beside optimal quality in the glossary; 3 new lab levers.
+Fixtures: the repository's for the gate; dbts_a1 alone for the demo; one 4-core cloud host, no GPU, headless Chromium.
+Owner: readMin's cut fix (4019518a) and hygiene's page-names-its-client fold stay off the branch unless adopted.
