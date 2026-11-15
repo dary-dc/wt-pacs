@@ -220,8 +220,25 @@ that pass the cloud cells") runs only if CACHE-RUN has passed one by the round's
 
 ### Report cells
 
-REPORT-PROTOCOL appends its phone cells (§4 of `claude/report-plan:docs/client/evidence/report-plan.md`) here as asks,
-under this heading, when it is written; none are here yet.
+Asks from REPORT-PROTOCOL (2026-11-15; `claude/report-plan:docs/client/evidence/report-plan.md` §7.7), for a block
+after cell 5 only if the round's commit carries the report arms (`claude/report-arms`) and their review; otherwise
+not run, and said so. Arms: the carrier arms that pass the cloud's delivery cell D there, plus `off`. One load per arm
+per ending, in Williams order (`lab/order.mjs`), each load as cloud row D's: the fill, a forced mismatch at frame 10,
+three frame changes and one *Lossless* press, then the ending at fill end + 6 s, then 60 s before the sink is read.
+
+| ending | lever (scripted from the laptop over adb, no hand) | source |
+| --- | --- | --- |
+| R1 screen locked | the phone session's to choose and check | none quoted here |
+| R2 app switched (Chrome to the background) | the phone session's | none quoted here |
+| R3 Chrome stopped | `adb shell am force-stop com.android.chrome` | developer.android.com/tools/adb: "force-stop package Force-stop everything associated with package." Not the same as a swipe from recents (I) |
+| R4 Wi-Fi dropped before hide | the phone session's | none quoted here |
+
+Recorded per load: the fill record, each delta and the safety report at the sink, or not. **No bar**: the phone cells
+rank the cloud's passers on the phone's endings (Beacon §1's "the only event that is guaranteed to fire on mobile" is
+what R1–R3 test) and decide nothing alone. R1, R2 and R4 end the runner's own page or its wake lock (§3): the runner
+must survive them or the block runs last, after which nothing else starts; a lever that needs a hand is a departure
+from amendment 5 and is not run. Budget: ~5 arms × 4 endings × ~90 s ≈ 30 min of loads, outside §6's table.
+Asks of the tooling (§10): the ending levers above; the sink reachable from the phone on the laptop.
 
 ## 5 · Interleaving, warm-ups, saturation
 
