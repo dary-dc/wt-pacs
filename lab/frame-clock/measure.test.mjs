@@ -1,6 +1,6 @@
 // node lab/frame-clock/measure.test.mjs — the pre-registered score, VOID, saturation and rule, on made-up logs.
 import assert from "node:assert/strict";
-import { rule, score, verdict, voidRun } from "./measure.js";
+import { rule, score, screenedOut, verdict, voidRun } from "./measure.js";
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -115,6 +115,20 @@ test("the rule's order", () => {
   const big = { series: "mammo", name: "mammo/60/busy/1", busy: true, void: false, saturated: false, arms: { "worker-raf": no } };
   assert.deepEqual(rule([cell(true, { "worker-raf": ok }), big]).reversed, ["mammo/60/busy/1"]);
   assert.equal(rule([{ ...big, saturated: true }]).clock, null);
+});
+
+/** Quiet cells alone decide nothing: the busy page is the question, so with every busy 512² cell saturated there is no clock. */
+test("no verdict without a busy cell inside the host's limit", () => {
+  const cell = (busy, more = {}) => ({ series: "s512", busy, void: false, saturated: false, arms: { "worker-raf": { passes: true, latePct: 0 } }, ...more });
+  assert.equal(rule([cell(false), cell(true, { saturated: true })]).clock, null);
+  assert.equal(rule([cell(false), cell(true)]).clock, "worker-raf");
+});
+
+/** The screen drops a cell only when page-raf's draw p99 passes a whole period in each of its two rounds. */
+test("the screen", () => {
+  assert.equal(screenedOut([T + 0.1, T + 5], T), true);
+  assert.equal(screenedOut([T + 0.1, T], T), false);
+  assert.equal(screenedOut([T + 5], T), false);
 });
 
 let failed = 0;
