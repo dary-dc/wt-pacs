@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-15T12:41Z
-heartbeat: 2026-11-15T13:17Z
+heartbeat: 2026-11-15T13:27Z
 outputs: claude/work-ledger:docs/queue/MERGE-BASELINE-report.md (pending)
 ## Resume
 Running sequentially in one container: per tip (unified-client, unified-codecs, unified-server, unified-pacs,
@@ -10,6 +10,6 @@ the preinstalled playwright 1.63.0 via NODE_PATH), cargo build warnings, check_l
 deploy image's server and web targets. Static measures (LOC, URL parameters, features, levers) read with git.
 Prereqs a resume must redo: dockerd, pip meson==1.9.1 and requirements.txt, apt nginx mesa-vulkan-drivers xdotool
 libxkbcommon-x11-0 strace, rustup wasm32 target, cargo install wasm-pack 0.15.0.
-Done: unified-client, unified-codecs (gates OK). Next: the other four as they land (run-all.sh), unified-client counts; then demo-check.mjs both views on unified-client.
+Done: unified-client, unified-codecs, unified-server (gates OK). Next: the other four as they land (run-all.sh), unified-client counts; then demo-check.mjs both views on unified-client.
 ## Result
 (pending)
