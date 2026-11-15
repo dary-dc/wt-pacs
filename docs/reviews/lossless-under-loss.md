@@ -137,7 +137,7 @@ By a session that wrote neither fix, on `ffc407de`.
 
 ## Amendment 22: only a lost ask is asked again (PHONE-FIX-378, 2026-11-15)
 
-The orchestrator's scope for PR 378 (`docs/queue-client-2026-11-14.md` on `claude/work-ledger`, amendment 22):
+The orchestrator's scope for PR 378 (`claude/work-ledger:docs/queue-client-2026-11-14.md`, amendment 22):
 "**re-ask only a lost ask** (the session or stream gone, the ask's deadline passed with nothing received); never a
 refusal by the server (asking again returns the same refusal) nor a failed check (QUIC's AEAD means the same bytes
 come back; the check's own path decodes again, then blocks)." It closes the review's first finding (every rejection
