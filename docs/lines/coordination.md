@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-09 (branches and PRs read from `origin`); §Open 6 added 2026-11-15, stage A2 the same day.
+Last verified 2026-11-09 (branches and PRs read from `origin`); §Open 6 added 2026-11-15, stage A2 and its review the same day.
 
 ## Goal
 
@@ -45,7 +45,8 @@ small enough that every open item has an owner and a next step.
    Stage A2 (row MERGE-A-SERVER, 2026-11-15): `claude/merge-a-server` holds the server line's 11 branches merged into
    `claude/unified-server` (five by `-s ours`, call M1), the gate green, no test count lower; the product gains the
    two lab levers of `scroll-policies` (behind `lab-levers`), its downloader lab config, and `deploy-dry-run`'s page
-   without a transport file. Next: its blind review (MERGE-A-REVIEW-SERVER), on its draft PR.
+   without a transport file. Its blind review (MERGE-A-REVIEW-SERVER, 2026-11-15, in PR 399's body): no blocker.
+   Next: stage B once the client review is done with no blocker open.
 
 ## Unification (the owner, 2026-11-09)
 

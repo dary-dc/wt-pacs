@@ -1,0 +1,220 @@
+
+== prerequisites: built clients newer than their sources; playwright, Chromium and the decoder vendor
+
+== repo: comment budget
+comment budget ok
+   (1 s)
+
+== repo: every doc link, anchor, backticked path and cited archive tag resolves
+checked 191 files, 2139 links, 1984 backticked paths (68 named beside their commit or removal); 0 unresolved
+   (0 s)
+
+== repo: no personal path in a tracked file
+no personal path
+   (0 s)
+
+== quinn: the GSO patch of the default build still applies to crates.io quinn
+quinn 0.11.11: mtu-gso applies
+   (1 s)
+
+== lab: each closed arm's patch still applies to server/
+arms apply
+   (0 s)
+
+== deploy: the server's seccomp profile is Docker's pinned default plus io_uring, nothing else
+seccomp-uring.json: default profile + io_uring, current
+   (0 s)
+
+== client: build bundles + unit tests
+wrote dist/session.js dist/ws-session.js dist/race-session.js ../../contract/run.mjs ../../contract/dist/{fake-session,downloader-rig,dispatch-rig}.js test/run.mjs
+   (3 s)
+all tests passed
+   (0 s)
+wrote dist/session-telemetry.js test/run.mjs test/session.mjs
+   (0 s)
+all tests passed
+   (0 s)
+all tests passed
+   (0 s)
+decoder range pass: ok
+   (1 s)
+decoder manifest check: ok
+   (0 s)
+the frame check's hasher: ok
+   (0 s)
+downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, refill none, a scroll ahead, ports held: ok
+   (0 s)
+consumer refusals, acks, unreadable deliveries, a delivered frame not failed, a worker that does not load: ok
+   (0 s)
+av1 payload reader: 365 ok
+   (1 s)
+OK
+   (0 s)
+voi: 12/12 passed
+   (0 s)
+
+== client: worker-safe (no artifact reaches for window)
+OK: no client artifact reaches for window (4 bundles + the wasm)
+   (0 s)
+
+== client: the page's HTML names the TS client and preloads it (docs/CLIENTS.md §Choosing the client)
+<link rel="preload" href="/client/transport/ts/dist/session.js" as="script" crossorigin>
+   (0 s)
+
+== client: transport contract (every implementation, and the race)
+
+contract: 238/238 checks passed across 3 implementations and the race; 4 not applicable
+   (19 s)
+
+== client: the downloader in headless Chromium, over each client — the clauses through it, and its dispatch order and per-decoder bound
+-- dispatch
+dispatch over ts: 793/793 checks passed through the downloader
+
+-- downloader
+contract over ts: 58/58 checks passed through the downloader
+
+-- downloader-wasm
+contract over wasm: 58/58 checks passed through the downloader
+
+-- dispatch-wasm
+dispatch over wasm: 102/102 checks passed through the downloader
+
+   (57 s)
+
+== client: the viewer's page check — a complete, exact, drawn page (headless Chromium)
+series (htj2k), client ts, pinned: 3/3 received, 3 exact, paths {"htj2k":3}, renderer ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver), fill 153 ms, first exact on screen 238 ms, readbacks 0:0 1:0 2:0, cine 3 frames
+viewer check: every frame complete, exact and drawn (chromium, ts)
+series (htj2k), client ts, trusted: 3/3 received, 3 exact, paths {"htj2k":3}, renderer ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver), on demand, first exact on screen 172 ms, readbacks 0:0 1:0 2:0
+viewer check: every frame complete, exact and drawn (chromium, ts)
+series (htj2k), client wasm, pinned: 3/3 received, 3 exact, paths {"htj2k":3}, renderer ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver), fill 137 ms, first exact on screen 191 ms, readbacks 0:0 1:0 2:0, cine 3 frames
+viewer check: every frame complete, exact and drawn (chromium, wasm)
+series (htj2k), client wasm, trusted: 3/3 received, 3 exact, paths {"htj2k":3}, renderer ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver), on demand, first exact on screen 214 ms, readbacks 0:0 1:0 2:0
+viewer check: every frame complete, exact and drawn (chromium, wasm)
+SKIPPED: the viewer's cross-codec arm and Firefox — they need the DICOM ingest's bundles and a GL display (client/README.md §The viewer)
+   (110 s)
+
+== client: a crafted link to the viewer refused where lab/ is not served (headless Chromium)
+crafted links: a plain one dials its own host, reading no transport file; 6 refused on the product's host, honoured where lab/ is served; 2 unknown clients refused
+   (15 s)
+
+== client: the painter at 1:1 against its CPU reference (SwiftShader, ~3 s)
+every 1:1 whole-pixel cell equals the reference to the code
+   (2 s)
+
+== client: type-check (product, the lab's recorder and its tests, contract and transport-ts tests)
+typed
+   (6 s)
+
+== ingest: the split and its merge, every depth, sign and k
+writer's split and merge: 142/142 cells exact, 20 with a top over 12 bits refused by name, as are 17 bits, k = 9 and a default over 14 bits
+   (1 s)
+
+== ingest: the DICOM reader — order, planes, sign, functional groups, refusals
+ok: from-dicom reader, 0 failing
+   (0 s)
+
+== ingest: the Rust ingest against the Python one — every layout byte-identical at --jobs 1, 2 and 4
+   (12 s)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   (8 s)
+ok: both ingests, 0 failing
+   (0 s)
+
+== ingest: a synthetic DICOM series to .sbnd, every frame out of the bundle as written, HTJ2K and AV1
+   (0 s)
+ok   test_failed_pack: refused as nothing written, no sidecar, no partial (True, ['refused.sbnd'])
+   (2 s)
+
+== lab: the variant order and its predecessor split
+order: all passed
+   (0 s)
+
+== lab: the device kit's plan, bundle reader, collector and server start; the prebuilt recipe's server stage is the Containerfile's
+all tests passed
+   (0 s)
+all tests passed
+   (0 s)
+all tests passed
+   (1 s)
+
+== lab: the AV1 fetch refuses a lossy source its set does not mark
+provenance: 17/17 cases
+   (0 s)
+
+== lab: row 258's verdict rule
+ok test_an_effect_fewer_than_eight_rounds_in_ten_agree_on_is_a_tie
+   (0 s)
+
+== server: tests, default features
+
+   (51 s)
+
+== server: tests, telemetry feature
+
+   (24 s)
+
+== server: compiles without io_uring (the pool path alone)
+
+   (15 s)
+
+== server: compiles with cert-compression
+
+   (12 s)
+
+== common, ingest and tools: wire, envelope, series bundle, pack-series and check-fastpath
+
+   (1 s)
+
+== tools: pack-series packs the smoke bundle again to the same bytes
+same bytes
+   (3 s)
+
+== lab: the six lab crates' tests (their variants are part of the API)
+
+   (12 s)
+
+== lab: the Go and h3 clients compile
+go: downloading golang.org/x/text v0.17.0
+   (33 s)
+   (10 s)
+
+== lab: the server's lab features — the frame cache compiles, cubic-classify's and the lab levers' wiring holds
+
+   (3 s)
+
+   (11 s)
+
+   (12 s)
+
+== perf: counts, not clocks — the client's asks, the server's disk reads and the bytes, against scripts/perf_counts.baseline
+perf counts: 9 as in the baseline, on 24 frames
+   (47 s)
+
+== client: against the real server, over QUIC and the WebSocket — refusals, an ask during a fill (headless Chromium)
+
+refusals (ts): 64/64 refused with the server's reason, none lost
+refusals (wasm): 64/64 refused with the server's reason, none lost
+refusals (ws): 64/64 refused with the server's reason, none lost
+ask-during-fill (ts): 3/3 checks passed
+ask-during-fill (downloader): 3/3 checks passed
+ask-during-fill (ws): 3/3 checks passed
+ask-during-fill (downloader-ws): 3/3 checks passed
+ask-during-fill (wasm): 3/3 checks passed
+ask-during-fill (downloader-wasm): 3/3 checks passed
+   (17 s)
+
+== deploy: the web host's nginx answers as dev-server.py, and serves the page's files alone
+equivalent on 11 paths, 20 hidden; the WASM client's build served; gzip, the CSP, the Server header and the PEM's chain hold
+   (1 s)
+
+== client: absence check (default bundle carries no telemetry)
+OK: no telemetry surface in default client artifacts
+   (0 s)
+
+== server: absence check (default release binary carries no Tap and no lab controller)
+OK: no telemetry symbols, no lab controller and no lab lever in default build
+   (0 s)
+
+GATE OK in 494 s; skipped:
+  SKIPPED: the viewer's cross-codec arm and Firefox — they need the DICOM ingest's bundles and a GL display (client/README.md §The viewer)
