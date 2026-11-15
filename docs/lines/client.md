@@ -29,6 +29,10 @@ exact frame bit for bit, and only checked claims on screen.
   comparison): AV1 in software ([`../decode/mobile/av1-software.md`](../decode/mobile/av1-software.md)) is the one
   route checked at full precision on every engine today and bounds the phone's fill; its levers (decoder count,
   `optimizeForLatency`, tiles, post-filters, 8 bits, a threaded dav1d-WASM) are unmeasured on a phone, its §8 the cells.
+  AV1 in hardware, unchecked ([`../decode/mobile/av1-hardware-unchecked.md`](../decode/mobile/av1-hardware-unchecked.md)):
+  zoom, pan, rotate, flip, invert and window/level all work, at 8 bits of input (2.0–7.4 display levels a step at the
+  header windows; above the noise rule's bar at today's Q, 1.02–1.09); values become intervals; only at full range;
+  whether the S23 has the decoder and takes 2560 × 3328 is unknown; owed, five phone asks and one cloud cell (its §9).
 * **The cache survey**, theory only, 2026-11-14
   ([`../client/evidence/cache-options.md`](../client/evidence/cache-options.md)): leaning OPFS as built; owed, a
   phone's cold read and check and sustained write of a 17 MB frame (its §5). The plan to choose the store empirically,
