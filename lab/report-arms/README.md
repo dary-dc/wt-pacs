@@ -89,9 +89,32 @@ node lab/report-arms/cdp.check.mjs                                              
 | D8, the session never opens | built as "no server started", with the failure forced on the page at load (`forced=page`), since no fill means no decode to fail |
 | D6, the link drop | the blackout lever only; running the browser, sink and server inside `unshare -rn` behind `link_impair.py --tun` is not wired (this host has no iproute2) |
 | Firefox's tab kill, WebKit's WebProcess and browser kill, both engines inside `--tun` | the process-tree kill is built and tested on a made-up tree; **not checked on either engine**: neither is on this host. REPORT-RUN checks them first, as §7.6 says |
-| the floor probe beside L and C | not built: each carrier's floor is its raw call, so it is each build's, beside its arm |
+| the floor probe beside L and C | each carrier's own, beside its arm: BEACON's is `beacon/floor.js`; the others not built |
 | cells L (latency), C (page thread), Y (bytes at the relay), R (receivers' cost) | not built: the rows above carry D's readings only |
 | the dbts_c1 view | the contract's grey-16 frame as a 32-frame HTJ2K series: the demo volumes are not on this host |
+
+## BEACON (`beacon/`, row REPORT-BUILD-BEACON)
+
+§3.1 as its advocate left it, behind the seam as `arms/beacon.js`; it runs both timings, `--timing H` (BEACON-H, PR
+370's build) and `--timing Y` (BEACON-Y, the hybrid), from `timing.js`.
+
+* **Load record**: one `sendBeacon(<base>/load, string)` inside `load()`, nothing awaited. A `false` on a record with
+  `frames` sends it once more with `frames: null, truncated: true` and the same `reportId` (PR 370's resend); a refused
+  delta has no frames to drop and is not sent again.
+* **Safety report**: one beacon at once to `<base>/safety`. A `false` keeps it whole and first in line, and sends it
+  again on a 1 s timer (one timer at a time), at the next hide (`visibilitychange` to hidden or `pagehide`), at the next
+  safety report, and before any load record.
+* **Floor** (`beacon/floor.js`, §7.2): one `sendBeacon` of the arm's own string under a fresh load id and `reportId`
+  of the same lengths, so its bytes equal the arm's and the read tool files it apart; it returns `{load, at, ok,
+  callMs}`, the sink's line time minus `at` being the call-to-append time. Cells L and C, which would run it, are not
+  built.
+* **Not as §3.1 wrote it**: "failures found in one task go in one beacon" would put several records in one body,
+  which the sink's *one record in* (§7.1) refuses; each failure is its own beacon here, in order. In this rig each
+  mismatch arrives in its own message task, so the two do not differ in the cells as built.
+
+| test | mutants killed |
+| --- | --- |
+| `beacon/beacon.test.mjs` | 19/19: no resend without frames; the resend keeps frames; not marked truncated; a delta resent; pending not sent before a load record; a refused safety report dropped; no timer; the timer at 5 s; never re-armed; a timer per refusal; no flush at hidden; none at `pagehide`; the hidden check inverted; safety to the load path; safety truncated on resend; the floor keeps the load id; keeps the `reportId`; another path; padded bytes |
 
 ## Tests and their mutants
 
