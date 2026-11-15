@@ -56,6 +56,9 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | MOBILE-OPT-HTJ2K-SOFTWARE | 11-14 21:00 | — | `claude/mobile-decode` (`docs/decode/mobile/htj2k-software.md`) |
 | MOBILE-OPT-GPU-COMPUTE | 11-14 21:00 | — | `claude/mobile-decode` (`docs/decode/mobile/gpu-compute-decode.md`) |
 | MOBILE-OPT-OTHER-CODECS | 11-14 21:00 | — | `claude/mobile-decode` (`docs/decode/mobile/other-codecs.md`) |
+| MOBILE-OPT-HW-INVERTED | 11-14 21:00 | — | `claude/mobile-decode` (`docs/decode/mobile/hw-inverted.md`; PR 397) |
+| MOBILE-OPT-HTJ2K-LOSSY | 11-14 21:00 | — | `claude/mobile-decode` (`docs/decode/mobile/htj2k-lossy.md`; PR 397) |
+| MOBILE-OPT-CONTENT-CROP | 11-14 21:00 | — | `claude/mobile-decode` (`docs/decode/mobile/content-crop.md`; PR 397) |
 | *(MOBILE-DECODE-OPTIONS appends one MOBILE-OPT-<NAME> row per new option it proposes)* | | | |
 | MOBILE-DECODE-COMPARE | 11-14 21:00 | MOBILE-DECODE-OPTIONS and every MOBILE-OPT row done | `claude/mobile-decode` (`docs/decode/mobile/README.md`: the table) |
 | MOBILE-DECODE-COMPARE-REVIEW | 11-14 21:00 | MOBILE-DECODE-COMPARE done | `claude/mobile-decode` (findings in its PR body) |
@@ -645,6 +648,51 @@ the owner's window/level, zoom and pan question in full) as its advocate: the be
 sources quoted at pinned revisions, its arithmetic written out, then its disadvantages. Its file answers the
 comparison's columns: decode time on a phone (measured, published or unknown), bytes, precision on screen, checked,
 window/level and tools functional, ships today, and what a phone cell must measure. Theory labelled.
+
+### The new mobile options (appended by MOBILE-DECODE-OPTIONS, 2026-11-15)
+
+All follow `claude/mobile-decode:docs/decode/mobile/new-options.md` (PR 397, a draft into `claude/docs-client`), which
+argues each from first principles and questions the first brief's premises (its §2); read it first. Each row is a
+MOBILE-OPT row as above (Opus, the option's advocate, the comparison's columns answered), on `claude/mobile-decode`,
+its file beside the others. A cloud byte cell a brief names is pre-registered in the row's file before it is run
+(its prediction first), on the 19 DBT volumes, fixtures and limits stated; no time is claimed from a cloud host.
+
+* **MOBILE-OPT-HW-INVERTED** (its §3, §4, §2.1). A hardware-decoded 8-bit frame of grey with constant chroma, drawn
+  into WebGL2 (or WebGPU), inverted to its luma samples through a table measured on the device, and checked against
+  the ingest digest; the digest, not a specification, says whether the inversion held. Work out, sources quoted at
+  pinned revisions: per engine (Chromium on Android at 157 and today's stable, desktop Chromium, Safari on iOS,
+  Firefox) what the upload of a hardware `VideoFrame` or `<video>` frame computes for grey and what the page can
+  switch off (`UNPACK_COLORSPACE_CONVERSION_WEBGL`, `VideoDecoderConfig.colorSpace`, `ImageBitmapOptions`); whether
+  the conversion is strictly increasing on 16…235 in each engine's code; the read-back (a packed pass and
+  `PIXEL_PACK_BUFFER`, or the hash on the GPU) with a cost model a frame; the form (studio or full swing, 220 or 256
+  levels, the ingest's range and chroma guarantees); the calibration unit; what a failed check does. One cloud cell:
+  the 220-level form's bytes and coding error against DEPTH8-MEASURE's 256-level rows. The window arithmetic at 220
+  levels, beside MOBILE-OPT-AV1-HW-UNCHECKED's. §2.1's level question (which phones' decoders list AV1 level 5.0 or
+  the frame's size, by vendors' documents). §4 (a second picture for more than 8 bits) as theory and one byte cell
+  only: it touches the 2026-11-09 decisions (the residual dropped; the split discarded) and is the owner's to open.
+* **MOBILE-OPT-HTJ2K-LOSSY** (its §5). The view as lossy HTJ2K (DICOM `1.2.840.10008.1.2.4.203`) decoded by
+  OpenJPH-WASM. Work out: one cloud cell, bytes at equal coding error against the AV1 view on the 19 volumes
+  (`ojph_compress -reversible false -qstep` swept; the error measured as `lab/av1/metrics` measures the view's; the
+  noise rule's bar); decode in the cloud against the lossless frame and the AV1 view, as a ratio on one host,
+  interleaved; whether one WASM build decodes the irreversible path to the same samples on every engine (the
+  WebAssembly specification on floating point, then a test in Chromium and Firefox), or which reversible form is
+  needed; depth (no cut for D > 10), levels and strips shared with the exact series, what the pairing and the label
+  become; published decode numbers for lossy HTJ2K on ARM. What it gives up: inter prediction, every hardware route.
+* **MOBILE-OPT-CONTENT-CROP** (its §6). The view coded from the rectangle that holds everything but background,
+  offset in the metadata, the exact series whole. Work out: one cloud cell, the rectangle's share of the matrix on
+  the 19 volumes under a stated background rule (and how often no safe rectangle exists); the decode's and the
+  bytes' share of it for the AV1 view and for HTJ2K, as ratios on one host, interleaved; what scales in proportion
+  (hash, copies, memory, cache, upload) written out a frame; the AV1 level each cropped volume then needs; the
+  hazard (markers and anything outside the breast), the rule that keeps it in, and what DICOM and the ACR say a
+  display states about cropping, quoted. It multiplies with every option: say so per column, not as a competitor.
+* **One line for MOBILE-OPT-GPU-COMPUTE**: also name AV1 with entropy decoding in WASM and reconstruction in WebGPU
+  compute (new-options §6.1); a paragraph, no evaluation.
+* **For MOBILE-OPT-AV1-HW-UNCHECKED and MOBILE-OPT-OTHER-CODECS**: new-options §2.1 (the frame's size against the
+  AV1 levels, the Android compatibility document's minimum) and §3's last paragraph (at 8 bits a drawn frame can be
+  checked, for any codec whose decoding is specified exactly) bind their columns.
+* **For MOBILE-DECODE-COMPARE**: new-options §6.1 names two things to carry without a row (decode at the screen's
+  size, judged so far on bytes and waits, never on a phone's decode; hardware painting first with software
+  confirming).
 
 ### MOBILE-DECODE-COMPARE (Opus; a session that wrote none of the MOBILE-OPT files)
 
