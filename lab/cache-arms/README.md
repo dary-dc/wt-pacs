@@ -73,6 +73,24 @@ the override's whole room usable by one sync handle: under 877 MiB a `truncate` 
 refused; under 1 300 MiB, 860 taken and 1 284 refused (*run once*, Chromium 153, a fresh profile each). Q's quota of
 the series + 64 MiB may refuse OPFS-SYNC's `truncate` at open for that alone: CACHE-RUN's amendment, before any row.
 
+## OPFS-ASYNC as built
+
+`arms/opfs-async.js` is §7.2 as amended, with what a sequential store worker forces on it:
+
+* `write` returns once its `write()` is issued. The store worker writes one frame at a time and W's feeders hold 9
+  credits, under S1's G = 15, so a `write` that waited for its group's close would never return. A frame is on disk
+  when its group's `close()` resolves; until then the arm answers its reads from its own copy (§8.1).
+* A copy goes back to the pool when its group commits, not when its `write()` resolves, since a frame in an open
+  group's swap cannot be read back: the copies are an open group's frames (≤ 8 MiB) and the writes in flight.
+* `inflight` bounds the calls at once: a frame's `write()`, or for the frame that makes its group whole, that and the
+  group's `close()`.
+* A `write()` or `close()` refused after its call returned is thrown by the next `write`; the store's retry writes
+  the group again from its copies. A group still short of frames at `close` is aborted.
+* For CACHE-RUN: a row's *written* is *handed to the arm*. At G = 15 a kill loses up to an open group besides the
+  writes in flight, more than K's `kept` check allows; K runs at S3, where G = 1.
+
+Pilot: `--pilot 'group=8MiB&inflight=3&read=sync'`; the defaults are `group=1`, `inflight=1`, `read=file`.
+
 **Not built: O's F**, the fresh fill over `link_impair.py` the reopen is judged against. Synthetic frames have no
 coded form, so a fetch of their bytes would not be a fill; F is M1's (`lab/opfs-cache/run.mjs --cell m1` at
 `c99ba492`, the product's viewer and a packed series), owed to CACHE-RUN or taken from M1's *measured* F.
@@ -82,9 +100,10 @@ coded form, so a fetch of their bytes would not be a fill; F is M1's (`lab/opfs-
 `none` are over a round.
 
 ```bash
-node lab/cache-arms/store.test.mjs && node lab/cache-arms/cells.test.mjs && node lab/cache-arms/arms/opfs-sync.test.mjs
+node lab/cache-arms/store.test.mjs && node lab/cache-arms/cells.test.mjs
+node lab/cache-arms/arms/opfs-sync.test.mjs && node lab/cache-arms/arms/opfs-async.test.mjs
 NODE_PATH=$(npm root -g) node lab/cache-arms/run.mjs --cell L --size 2560 [--engine chromium|firefox] [--throttle 4] \
-  [--rounds N] [--arms none,stub,stub-aa] [--mutant NAME] [--pilot piece=BYTES] [--out rows.jsonl]
+  [--rounds N] [--arms none,stub,stub-aa] [--mutant NAME] [--pilot SETTINGS] [--out rows.jsonl]
 ```
 
 Needs the decoder builds (`client/decode/wasm/built`, for XXH3), Playwright's Chromium, and for Firefox an Xvfb display
