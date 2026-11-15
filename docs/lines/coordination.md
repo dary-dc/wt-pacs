@@ -40,7 +40,8 @@ small enough that every open item has an owner and a next step.
    approves a rewrite.
 6. The unification by merges (`docs/queue-merge-2026-11-15.md`): stage A merges exactly the frozen list of
    `docs/queue/MERGE-INVENTORY-2-report.md` §4 (2026-11-15 12:53 UTC); its §2 names one owner question (viewer commits
-   riding in with `cine-no-skip`).
+   riding in with `cine-no-skip`). The baseline every stage compares against: `docs/queue/MERGE-BASELINE-report.md`
+   (2026-11-15; five tips, every gate OK, `unified-pacs` on its fourth attempt; a cargo target dir per worktree).
 
 ## Unification (the owner, 2026-11-09)
 
