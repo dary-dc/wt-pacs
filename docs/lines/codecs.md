@@ -145,7 +145,8 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
    5. *Run groups shard 2 (`dbts_a1`, `dbts_c1`, TRUS; about 4.3 h on one 4-core host)?* Yes: §7's verdict for DBT
       becomes reachable.
    6. *Run the zero-encode re-reads first?* That is anchors under one bar, x\* over G 1 + G 16 per depth, and
-      σ_out ÷ σ on existing cells (audit F1, F4, F6, F9). Yes settles the Q and G numbers without encoding.
+      σ_out ÷ σ on existing cells (audit F1, F4, F6, F9), and the six alt-ref cells read by `cell.measure` (F3). Yes
+      settles the Q and G numbers without encoding.
    7. *Hold WebCodecs speed claims until the throttle is re-run with `cores` 1 and 2 and the lossy clock is fixed?*
       Yes: no "WebCodecs under one HTJ2K frame" claim until then (decode audit 1, 2).
    8. *Run the noise-ratio protocol (κ measured, model observer on calcifications) before any reader study?*
@@ -169,6 +170,8 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).
 7. HTJ2K with resolution levels and tiles, a separate approach outside the demo (`claude/htj2k-tiles`, protocol
    landed).
+8. An idea raised 2026-11-09, undecided: code optimal quality, split its decoded samples into top and low bits, send
+   the top, the low only on request (target: the optimal-quality image, not lossless).
 
 ## Decisions (the owner's)
 

@@ -12,6 +12,7 @@ Whether frames are coded in groups (inter) or alone, the decision and its reason
 Lossless coding published 2023–2026, and what of it a browser can decode exactly: [`lossless-literature.md`](lossless-literature.md).
 What binds a lossy, "visually lossless" picture of a frame, and what its quality may be measured against: [`visually-lossless.md`](visually-lossless.md).
 Which metrics may claim a lossy view visually lossless, at which windows, and what still needs readers: [`vl-metrics.md`](vl-metrics.md).
+An adversarial audit of the lossy quality results the optimal-quality design rests on: [`audit-quality.md`](audit-quality.md).
 
 **Every ultrasound number in this file is provisional (the provenance audit, queue row DATAGUARD, 2026-10-08).** `us_liver`'s header says it
 was coded lossily at 12.4:1 before it was archived, the breast cine are MPEG-4 Part 2 clips, and the stills a PNG
