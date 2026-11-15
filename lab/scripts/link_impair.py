@@ -21,6 +21,7 @@ usage: link_impair.py {--udp 5555:4433 [--udp 5557:4435 ...] [--tcp 8443:8000] |
 --delay-ms is ONE WAY and applies to each direction, so a round trip reads twice it, matching
 `cloud_netem.sh`'s profiles. Control datagrams on --control-port: `rebind`, `cut`, `blackout <ms>`,
 `swallow <ms>` (drops server->client for <ms> from the next server datagram: its next flight), `stats`,
+`window` (each flow's tally since the last `window`, prefixed WINDOW, then cleared),
 `quit`; `cut`, `rebind` and `swallow` act on the first --udp. Prints READY, then REBOUND <old> -> <new>,
 then a tally at exit, with each flow's packets and sojourn on the udp and tun planes' links.
 """
@@ -883,6 +884,11 @@ def main():
                                     print(line, flush=True)
                             if lateness.on:
                                 print(lateness.tally(), flush=True)
+                        elif head == b"window":
+                            for side, link in radio.items():
+                                for line in flow_tally(side, link):
+                                    print("WINDOW " + line, flush=True)
+                                link.flows = {}
                         elif head == b"quit":
                             running = False
                 except OSError:
