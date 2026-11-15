@@ -28,7 +28,7 @@ async function aFillCarriesItsTimeAndReads() {
 }
 await aFillCarriesItsTimeAndReads();
 
-/** On demand, the steps are frames 1 … after, each timed from its step to its frame held, and no fill frame is reported. */
+/** On demand, the steps are frames 1 … after, each timed from its step to its frame held, with its hand-off; no fill frame is reported. */
 async function onDemandStepsAreTimed() {
   const l = lab({ opts: "{}", fill: "0", after: "3" });
   check(l.steps.join() === "1,2,3", `the steps (${l.steps})`);
@@ -36,6 +36,8 @@ async function onDemandStepsAreTimed() {
   const r = await finished(l, { fillMs: null, frames, stepped: [{ i: 1, at: 100 }, { i: 2, at: 200 }, { i: 3, at: 290 }] });
   check(r.after.map((a) => `${a.i}:${a.ms}`).join() === "1:20,2:60,3:10", `each step timed from its own step (${JSON.stringify(r.after)})`);
   check(r.frames.length === 0 && r.sha[3] === "s3", `no fill frames, every digest (${r.frames.length}, ${Object.keys(r.sha)})`);
+  const timed = await finished(l, { fillMs: null, frames: frames.map((f) => ({ ...f, decoded: f.page + 2, painted: f.page + 7 })), stepped: [{ i: 2, at: 200 }] });
+  check(timed.after[0].handoff === 262 && timed.after[0].screen === 5 && Array.isArray(timed.spans), `each step's hand-off, on the spans' clock (${JSON.stringify(timed.after)}, ${timed.spans})`);
   check(lab({ opts: "{}", after: "3" }).steps.length === 0, "a fill takes no steps, whatever --asks-after says");
 }
 await onDemandStepsAreTimed();

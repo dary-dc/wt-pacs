@@ -479,6 +479,8 @@ function pageFigures(r, { pageBefore, pageAfter }) {
     ...(r.tasks?.length && { tasks: { n: r.tasks.length, minMs: Math.round(Math.min(...r.tasks)) } }),
     ...(r.tasks && !r.tasks.length && BUSY && { tasks: { n: 0, minMs: null } }),
     ...(r.after?.some((f) => f.screen !== undefined) && { screenMs: r.after.map((f) => +f.screen.toFixed(1)) }),
+    // Epoch ms, as the long tasks' spans: which asks were handed off inside a task (docs/adr/frame-path.md §7).
+    ...(r.after?.some((f) => f.handoff !== undefined) && { handoffs: r.after.map((f) => +f.handoff.toFixed(1)), spans: r.spans.map(([a, b]) => [+a.toFixed(1), +b.toFixed(1)]) }),
     ...(page !== undefined && { pageCpuMs: Math.round(page) }),
     ...(r.cine && { cine: { draws: r.cine.draws.length, vsyncs: r.cine.vsyncs.length, period: r.cine.period, ...score(r.cine) } }),
   };
