@@ -71,7 +71,9 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | PHONE-PROBE-RUN | — | — | **the owner's local device session; no cloud worker takes it** (the probe's report on `claude/hw-probe`) |
 | RUNNER-AUTO | 11-14 21:00 | PHONE-NEXT-PROTOCOL-FIX done | `claude/phone-round` from `origin/claude/hw-probe` → draft PR into `claude/hw-probe` |
 | RUNNER-AUTO-REVIEW | 11-14 21:00 | RUNNER-AUTO done | `claude/phone-round` (`docs/reviews/phone-round.md`) |
-| PHONE-LEVERS | 11-14 21:00 | RUNNER-AUTO-REVIEW done, no blocker open | `claude/phone-round` (its PR) |
+| RUNNER-AUTO-FIX | 11-15 23:00 | RUNNER-AUTO-REVIEW done | `claude/phone-round` (its PR 400): the review's three blockers fixed |
+| RUNNER-AUTO-FIX-REVIEW | 11-15 23:00 | RUNNER-AUTO-FIX done | `claude/phone-round` (`docs/reviews/phone-round.md` §Re-review) |
+| PHONE-LEVERS | 11-14 21:00 | RUNNER-AUTO-FIX-REVIEW done, no blocker open (amendment 17) | `claude/phone-round` (its PR) |
 | PHONE-LEVERS-REVIEW | 11-14 21:00 | PHONE-LEVERS done | `claude/phone-round` (`docs/reviews/phone-round.md` §Levers) |
 | PHONE-DRY-RUN | — | — | **the owner's local device session; no cloud worker takes it** (after PHONE-LEVERS-REVIEW, no blocker open) |
 | CACHE-DESIGN | 11-14 21:00 | CACHE-PLAN done | `claude/cache-plan` (`docs/client/evidence/cache-plan.md` §7; PR of CACHE-PLAN) |
@@ -777,6 +779,20 @@ so). Gate, `scripts/check_lab_absent.sh`; nothing identifying committed (`docs/d
 
 A session that wrote none of it: one press runs the whole plan; no failure stops the round; no load is dropped from
 the records; every check's mutation fails it; nothing from `lab/` reaches a product path or image.
+
+#### RUNNER-AUTO-FIX (appended by RUNNER-AUTO-REVIEW, 2026-11-15; amendment 17)
+
+A session that wrote neither RUNNER-AUTO nor its review: fix `claude/phone-round:docs/reviews/phone-round.md` §Blockers
+1–3, each with a failing test first (the injected throw and hang after the fill; a block whose server never answers,
+its loads recorded as failed and the next block run, reads and a reboot once whatever is asked again; a cell's
+budget stopping only loads not started), each mutated. Minors one line each where they are; list the rest. Gate,
+`round_headless.sh`, `scripts/check_lab_absent.sh`.
+
+#### RUNNER-AUTO-FIX-REVIEW
+
+A session that wrote neither the runner, its review nor the fix: each blocker closed (revert its fix, see its test
+fail), nothing else changed, the headless run green. Findings in the review file's §Re-review; a blocker left open is
+amendment 17's second round, then `blocked` for the owner.
 
 #### PHONE-LEVERS (lab levers in the client)
 
