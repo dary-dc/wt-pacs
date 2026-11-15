@@ -134,6 +134,14 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   20 runs of README §Demo × {page, worker}, interleaved by series: 40 of 40 passed (REVIEW-2's C1). Headless
   Chromium (Playwright 1.63) on SwiftShader, one 4-core cloud host, no GPU, loopback; one run per cell; correctness
   only, nothing timed. After FIX-2 only blockers change the demo tip (the freeze); FREEZE-E2E follows.
+* **Tools for the phone run** (PHONE-TOOLS, 2026-11-11, `claude/phone-tools`, draft PR into `claude/demo-fixes-2`, not
+  for the demo): each image labelled with its commit (`REVISION`, OCI `revision`); a test-only server image with the
+  telemetry feature (`FEATURES=telemetry`, the default image unchanged; both built here and inspected); README step 8,
+  which read path a running server took; under `lab/phone/`, loaded only through the lab gate, a client beacon
+  (`?beacon=`, sent after the fill or on page hide; `dev-server.py --beacon-log`) and a runner page that walks §7's
+  loads across the two origins, presses **lossless** twice, waits a fixed gap and stops on any failure. Checked
+  headless on loopback on a synthetic pair (`lab/phone/run_test.sh`); not on a phone. Its product changes (the image
+  labels, `FEATURES`, the beacon's hooks, README step 8) stay on the branch, the phone tools being the owner's call.
 * **Not yet run:** any phone run.
 * **Review, round 2** (REVIEW-2, 2026-11-11, `claude/demo-review-2`,
   [`docs/reviews/review-2.md`](../reviews/review-2.md)): every fix of FIX-1, DEMO-UX (#365) and SOURCE-FINGERPRINT

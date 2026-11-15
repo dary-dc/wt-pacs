@@ -1,0 +1,25 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phone run</title>
+<style>
+  body { font: 16px sans-serif; margin: 16px; background: #fff; color: #111; }
+  label { display: block; margin: 8px 0; }
+  input, textarea { font: inherit; width: 100%; box-sizing: border-box; }
+  textarea { height: 40vh; font-family: monospace; font-size: 13px; }
+  button { font: inherit; padding: 8px 16px; margin-top: 8px; }
+  #why { color: #b00020; }
+</style>
+<h1>Phone run</h1>
+<p>docs/devices.md §7: each load of the plan in turn, lossless pressed twice, a fixed gap, stopped on any failure.</p>
+<label>Tether address <input id="tether" inputmode="decimal"></label>
+<label>Wi-Fi address <input id="wifi" inputmode="decimal"></label>
+<label>Series (as served, for the records) <input id="series" value="dbts_b1-q8-g8"></label>
+<label>Gap between loads, s <input id="gap" type="number" value="10" min="0"></label>
+<label>A fill that has not ended by, s <input id="fill" type="number" value="120" min="1"></label>
+<label>Start at load <input id="at" type="number" value="1" min="1"></label>
+<label>Loads: <code>&lt;tether|wifi&gt; &lt;cubic-restart|bbr&gt; &lt;page|worker&gt; [warm-up]</code>
+  <textarea id="loads" spellcheck="false"></textarea></label>
+<button id="start">Start</button>
+<p id="why"></p>
+<script type="module" src="start.js"></script>
