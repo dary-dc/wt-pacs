@@ -377,31 +377,38 @@ than software; readers finding the cut's steps visible at their windows.
 
 ## 9 · Results (DEPTH8-MEASURE, 2026-11-15, *measured*)
 
-§7 run as amended, by a session that wrote none of §1–§8: Stages A (G 1, 78 cells and 6 cut-only rows) and B (G 16,
-18 cells); **Stage C not run**. Rows: `lab/av1/depth8/rows/stage-{a,b}.jsonl`, harness `claude/av1-noise-ratio` at
-`0a9d33ca` in every row; every cell against its prediction in `lab/av1/depth8/rows/report.md`
-(`report.py`, which reruns from the rows). `predictions.json` was reproduced byte for byte before the run.
+§7 run as amended, by a session that wrote none of §1–§8: Stages A (G 1, six volumes, 78 cells and 6 cut-only
+rows), B (G 16, 18 cells) and C (G 1, the other 13 volumes, the five held out first, 153 cells of `cut8` and today's
+form). Rows: `lab/av1/depth8/rows/stage-{a,b,c}.jsonl`, harness `claude/av1-noise-ratio` at `0a9d33ca` in every row;
+every cell against its prediction in `lab/av1/depth8/rows/report.md` (A, B) and `report-c.md` (C), from `report.py`,
+which reruns from the rows. `predictions.json` was reproduced byte for byte before the run.
 
 * **P1 · the cut alone: 5 of 6 hit.** e_N is r within 0.2–1.4 % on five volumes. On `dbts_b2`, the 10-bit volume
   with the least noise (σ_min ÷ 2^k = 0.84), e_N reads 1.056 against r = 1.118, 5.8 % under: a **miss**, on the
   low side. The mean error is 0.18–0.36, under 0.5 on all six (A6).
-* **P2 · the stacking: 38 of 38 cut8 cells inside the band.** Every worst frame lies between the removal and the
+* **P2 · the stacking: 128 of 128 cut8 cells inside the band** (38 in A, 90 in C). Every worst frame lies between the removal and the
   independent predictions. Neither model holds alone: the removal model is the closer on `dbt12_ea1141` (7 of 7) and
   `dbts_b2` (6 of 6), mostly on `dbts_a1` (5 of 6); the independent model on `dbts_b1` (6 of 7) and `dbts_c4`
-  (4 of 6); `dbts_c1` splits 3–3. The model that fits is the volume's, not the depth's.
-* **P3 · the highest Q: 12 of 12 hit**, at the low end of each interval. At bar 1.00, `cut8` reaches Q 3 (`dbts_a1`),
+  (4 of 6); `dbts_c1` splits 3–3. In C the removal model is the closer on 9 of 13 volumes, all cells on `dbt10_d`,
+  `dbt10_ea1141` and `dbts_b5`. The model that fits is the volume's, not the depth's.
+* **P3 · the highest Q: 38 of 38 hit** (12 in A, 26 in C), in A at the low end of each interval. At bar 1.00, `cut8` reaches Q 3 (`dbts_a1`),
   9 (`b1`), 4 (`c1`), 4 (`dbt12_ea1141`), 5 (`b2`), 6 (`c4`); at 1.03, Q 4, 11, 5, 4, 7, 7. Today's form reaches
-  Q 7, 12, 7, 8, 10, 9 at 1.00, within a rung of §3.3 on all six, as §3.1 said of the model.
+  Q 7, 12, 7, 8, 10, 9 at 1.00, within a rung of §3.3 on all six, as §3.1 said of the model. Over all 19 volumes
+  `cut8` reaches Q 3–6 on the 12-bit ones and Q 5–11 on the 10-bit ones at 1.00; today's form reads two or three
+  rungs above §3.3 on `dbt10_d`, `dbt10_ea1141` and `dbts_b5`, the model's known low reading at 10 bits (§3.1).
 * **P4 · bytes: 5 of 6 hit.** `cut8` ÷ today's form, each at its highest Q under 1.00: **1.31–1.86**
   (`a1` 1.86, `b1` 1.32, `c1` 1.33, `dbt12_ea1141` 1.69, `b2` 1.85, `c4` 1.31). `dbts_b2` misses, 1.85 against
-  0.98–1.82. The removal end of §3.4 (0.82–1.09) did not occur on any volume: **the 8-bit view costs a third to
-  nearly twice today's bytes**.
+  0.98–1.82. In C, 7 of 8 hit: 1.14–1.72 on the eight with a bytes prediction; `dbts_b5` misses, 1.71 against
+  0.83–1.68; the five held out, with no prediction, read 1.16–1.71. Over all 19 volumes the ratio is
+  **1.14–1.86**, and the removal end of §3.4 (0.82–1.09) did not occur on any: **the 8-bit view costs 14 % to
+  86 % more than today's**.
 * **P5 · the 4:2:0 cost: 2 of 12 hit**, every miss on the cheap side. e_N ÷ σ differs from `cut8`'s by 0.0012–0.0047
   (≤ 0.01: holds), every decoded chroma sample is 128 (holds), but the bytes cost **+0.01–0.12 %**, under the
   predicted +0.1–2 % on 10 cells.
 * **P6 · displayed levels (no verdict).** At the first window, each form at its highest Q under 1.00 (worst e_N ÷ σ
   0.95–1.00 on both): `cut8` moves 78–90 % of pixels ≥ 1 level and 45–73 % ≥ 2, today's form 80–91 % and 48–75 %;
-  the largest move is 17–42 levels against 22–51. The harness records no region σ; the frame's σ is reported beside
+  the largest move is 17–42 levels against 22–51. In C: 80–89 % and 50–69 % against 84–90 % and 58–72 %, largest
+  19–59 against 27–64. The harness records no region σ; the frame's σ is reported beside
   the largest move (`report.md`).
 * **Stage B · G 16.** `cut8` meets 1.00 at the same Q as at G 1 on five volumes. `dbt12_ea1141` fails at its G 1 Q
   (1.0007 at Q 4) and no lower Q was in the stage; `dbts_b1`'s today's form fails at its G 1 Q (1.0004 at Q 12).
@@ -410,13 +417,13 @@ than software; readers finding the cut's steps visible at their windows.
   10-bit AC table on the 8-bit stream) moves every volume's removal Q down 3–9 rungs, a hit; the independent Q moves
   1–7, under 3 on 8 of 19 volumes because Q 1 is the floor, a **miss** of its wording, not of its detection
   (`rows/m5.txt`).
-* **The rule.** All six volumes' 8-bit views *meet the noise rule* at both bars at G 1, at the Qs above; their cost is
-  P4's 1.31–1.86 × today's bytes.
+* **The rule.** All 19 volumes' 8-bit views *meet the noise rule* at both bars at G 1, at the Qs above; their cost is
+  P4's 1.31–1.86 × today's bytes in A, 1.14–1.72 × in C.
 * **Saturation.** Four processes kept the host's 4 cores busy (median busy share 1.00 a minute, `/proc/stat` in
-  `rows/stage-*.cpu.txt`). No time is claimed; cells took 12–338 s wall each.
+  `rows/stage-*.cpu.txt`, all three stages). No time is claimed; cells took 12–491 s wall each.
 
-Fixtures and limits: six DBT volumes (`dbts_a1`, `dbts_b1`, `dbts_c1`, `dbt12_ea1141`, `dbts_b2`, `dbts_c4`) of three
-systems, the 13 others not run; libaom 3.15.1 at cpu6 and one thread, dav1d 1.5.4; one σ estimator in one band;
-G 1 and G 16; one 4-core cloud host with no GPU; no browser, hardware decoder or reader. What it settles: on these
-volumes the 8-bit view meets the noise rule at Q 3–9 and costs 1.31–1.86 times today's bytes; that it buys a
-checked hardware path on desktop Chromium is still unmeasured (§4).
+Fixtures and limits: the 19 DBT volumes of §1 (three systems; G 16 and the 4:2:0 form on six of them only);
+libaom 3.15.1 at cpu6 and one thread, dav1d 1.5.4; one σ estimator in one band; one 4-core cloud host with no GPU; no
+ultrasound cine, ABUS, TRUS or MR; no browser, hardware decoder or reader. What it settles: on these volumes the 8-bit
+view meets the noise rule at Q 3–11 and costs 1.14–1.86 times today's bytes, its 4:2:0 form +0.01–0.12 % more; that
+it buys a checked hardware path on desktop Chromium is still unmeasured (§4).

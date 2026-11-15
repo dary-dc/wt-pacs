@@ -64,9 +64,9 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    DEPTH8-THEORY, 2026-11-14, theory): [`../av1/depth-cut-8.md`](../av1/depth-cut-8.md). The cut alone stays
    under the noise on all 19 DBT volumes. Coded, it is predicted to cost 0.82–2.44 times today's view's bytes,
    depending on how its rounding and the coding error stack; it buys a checked hardware path on desktop Chromium
-   only (4:2:0 grey, `NV12`). DEPTH8-MEASURE (2026-11-15, measured, §9, six volumes): the 8-bit view meets the
-   noise rule at Q 3–9 and costs 1.31–1.86 times today's bytes; 4:2:0 adds +0.01–0.12 %. Stage C (13 volumes) and
-   the desktop GPU's `NV12` exactness and speed are open; whether an 8-bit view is acceptable is the owner's.
+   only (4:2:0 grey, `NV12`). DEPTH8-MEASURE (2026-11-15, measured, §9, all 19 volumes): the 8-bit view meets the
+   noise rule at Q 3–11 and costs 1.14–1.86 times today's bytes; 4:2:0 adds +0.01–0.12 %. The desktop GPU's `NV12`
+   exactness and speed are open; whether an 8-bit view is acceptable is the owner's.
 
 ## Decisions (the owner's)
 
