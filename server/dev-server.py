@@ -2,7 +2,9 @@
 """Minimal static host for the viewer at /, the harness, WASM pkg, series metadata, and dev-transport.json."""
 
 import argparse
+import io
 import json
+import os
 import subprocess
 import sys
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -21,12 +23,15 @@ CSP = (
     "frame-ancestors 'none'; form-action 'none'"
 )
 VIEWER = {"/", "/client/viewer/index.html"}
+PAGE = Path(__file__).resolve().parents[1] / "client" / "viewer" / "page.sh"
 
 
 class Handler(SimpleHTTPRequestHandler):
-    series_name: str = "us_cine_smoke"
+    series_name: str | None = None
     metadata: Path | None = None
     transport: Path | None = None
+    client = "ts"
+    wt_port: int | None = None
     log_requests = False
 
     def __init__(self, *args, **kwargs):
@@ -36,7 +41,7 @@ class Handler(SimpleHTTPRequestHandler):
         path = unquote(path.split("?", 1)[0])
         if path == "/":
             return super().translate_path("/client/viewer/index.html")
-        if path.startswith("/series/metadata"):
+        if path.startswith("/series/metadata") and (self.metadata or self.series_name):
             return str(self.metadata or ROOT / "fixtures" / self.series_name / "metadata.json")
         if path.startswith("/wt/dev-transport.json"):
             return str(self.transport or ROOT / "client" / "dev-transport.json")
@@ -47,7 +52,10 @@ class Handler(SimpleHTTPRequestHandler):
 
     def send_head(self):
         if self.log_requests:
-            print(f"GET {self.path}", flush=True)
+            # One write(2) a line, atomic on a pipe: print's two writes interleave across the server's threads.
+            os.write(sys.stdout.fileno(), f"GET {self.path}\n".encode())
+        if unquote(self.path.split("?", 1)[0]) in VIEWER:
+            return self.send_page()
         path = Path(self.translate_path(self.path))
         if path in (self.metadata, self.transport):
             return super().send_head()
@@ -56,6 +64,17 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_error(404)
             return None
         return super().send_head()
+
+    def send_page(self):
+        """The page as a host renders it: this host's certificate pinned through the transport file, unless --wt-port."""
+        where = ["--wt-port", str(self.wt_port)] if self.wt_port else ["--transport-file", "/wt/dev-transport.json"]
+        with (ROOT / "client" / "viewer" / "index.html").open("rb") as f:
+            body = subprocess.run(["sh", PAGE, "--client", self.client, *where], stdin=f, capture_output=True, check=True).stdout
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        return io.BytesIO(body)
 
     def send_header(self, keyword, value):
         super().send_header(keyword, value)
@@ -79,21 +98,25 @@ class Handler(SimpleHTTPRequestHandler):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8765, help="0 picks a free one")
-    parser.add_argument("--series", default="us_cine_smoke")
+    parser.add_argument("--series", help="serve fixtures/SERIES/metadata.json as /series/metadata; with neither this nor --metadata, nothing is")
     parser.add_argument("--metadata", type=Path, help="serve this file as /series/metadata, in place of the series'")
     parser.add_argument("--transport", type=Path, help="serve this file as /wt/dev-transport.json")
+    parser.add_argument("--client", choices=["ts", "wasm"], default="ts", help="the client the page loads")
+    parser.add_argument("--wt-port", type=int, help="the page dials its own host on this port, unpinned, as a deployment with a trusted certificate does")
     parser.add_argument("--log-requests", action="store_true", help="print each path asked for (client/viewer/check.mjs)")
     args = parser.parse_args()
-    if not args.transport:
+    if not (args.transport or args.wt_port):
         # The page dials the dev certificate's hash: one made, or renewed when it ends within a day.
         subprocess.run([ROOT / "server/scripts/gen_dev_cert.sh", "--if-needed"], check=True, stdout=sys.stderr)
     Handler.series_name = args.series
     Handler.metadata = args.metadata and args.metadata.resolve()
     Handler.transport = args.transport and args.transport.resolve()
+    Handler.client = args.client
+    Handler.wt_port = args.wt_port
     Handler.log_requests = args.log_requests
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     port = server.server_address[1]
-    print(f"port={port} http://127.0.0.1:{port}/ series={args.series}", flush=True)
+    print(f"port={port} http://127.0.0.1:{port}/ series={args.series or args.metadata}", flush=True)
     server.serve_forever()
 
 

@@ -18,7 +18,8 @@ HOST=h2 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 3   # nginx over TLS
 `run.mjs` takes `RTTS=` (default `0,40,80`), `STAGES=` (the first-byte ladder's rungs in place of
 the default variants, cold only), `THROTTLE=N` (every browser thread N× slower,
 [`../scripts/cpu_throttle.mjs`](../scripts/cpu_throttle.mjs)), `RELAY_ARGS=` (shapes each relay
-beyond its delay), `ONLY=`, `SERVERS=`, `NETLOG=`, `ROWS=` and `PORT_BASE=`. `HOST=dns` runs as root.
+beyond its delay), `ONLY=`, `SERVERS=`, `NETLOG=`, `ROWS=`, `PORT_BASE=`, `OWN_HOST=` and `RELAY_CPU=` (§The page
+without the transport file). `HOST=dns` runs as root.
 
 A HOST run trusts its certificate through an NSS store of the browser's own (`certutil`, from
 libnss3-tools), not `--ignore-certificate-errors`. Chrome caches nothing whose certificate had
@@ -539,7 +540,8 @@ client costs a cold open 5.9 round trips to the first frame at 1× and 5.7 at 4�
 adapter, glue and `.wasm` are found one after another in the worker, and 247 KB leave in slow start. Warm, it costs
 no round trip, +15 to +119 ms. The preloaded page shows what is left once the fetches start at the HTML: no round
 trip, a fixed 20–160 ms. Row 277's selection (draft #98) preloads the WASM client once the transport file lands,
-about 4 round trips into the page rather than at the HTML: not measured, and between the two. The TS default keeps
+about 4 round trips into the page rather than at the HTML: not measured, and between the two. (*Corrected 2026-10-19:* the
+page's HTML preloads it now, as the preloaded page above does.) The TS default keeps
 the HTML's preload (*corrected 2026-10-17*: #99 had moved it after the transport file too; the owner ruled it back).
 
 **`console_error` stays.** Without it the `.wasm` is 244 662 B against 247 214 (105 209 against 106 296 with
@@ -547,6 +549,73 @@ the HTML's preload (*corrected 2026-10-17*: #99 had moved it after the transport
 [1.48–4.50] with it and 1.77 [1.44–6.01] without, faster in 20 of 30 rounds: 3 %. Node's V8 compiles the functions
 lazily, so that is the decode and validation; the functions' compile on first call is inside the fixed cost above.
 **Not measured:** the linear memory's peak; the image (gzip, HTTP/2); #98's WASM preload.
+
+## The page without the transport file
+
+**2026-10-19, [`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §A page with nothing to follow.** *Protocol
+and rule committed before any timed run.* A deployment whose certificate the browser trusts now serves a page that
+dials its own host and reads no transport file. The claim to test: **that page opens no slower than the one reading
+the file** — the file was preloaded beside the metadata, so in theory it cost no round trip.
+
+**The page open.** `OWN_HOST=1` swaps `run.mjs`'s variants for two renderings of the product page, TS, written by
+`client/viewer/page.sh` into this directory for the run and removed after it, an hour old as every file a visit
+fetches:
+
+* `viewer-file` — `--transport-file /wt/dev-transport.json`: the file preloaded and read, its hash pinned;
+* `viewer-own-host` — `--wt-port` the relay's port: `https://127.0.0.1:PORT/`, nothing pinned, nothing read.
+
+Both are opened with the lab hook's `?opts={}&post=…&origin=navigation`, so both pay the import of
+`lab/viewer/levers.js`, and under the same browser flags: the server's certificate trusted by its key and QUIC forced
+to the relay's origin, so the file's page dials by its pin and the other's by that trust. A visit fails if
+`viewer-own-host` asks for the file or `viewer-file` does not.
+
+```bash
+OWN_HOST=1 RELAY_ARGS="--rate-kbit 100000 --queue-pkts 1000" RTTS=40,80,160 ROWS=own.json \
+  NODE_PATH=$(npm root -g) taskset -c 0-2 node lab/page-open/run.mjs 12
+```
+
+12 rounds, the two variants Williams-ordered in each, cold and warm profile, 1× only. The dev host: HTTP/1.1,
+plaintext, no gzip. 100 Mbit, as WASMLOAD ran. Off core 3.
+
+**What is quoted: latency.** `frame` is ms from navigation to frame 0 in the page and `fill` to the last of the 12,
+each as the slope over 40/80/160 ms (round trips) and as the paired own-host − file at each delay.
+
+**The rule** (WASMLOAD's). On `frame` and on `fill`, per profile, the page without the file **costs round trips**
+when its slope exceeds the file's by 0.5 or more, and **costs a fixed time** when its paired difference at 40 ms has
+one sign in at least 80 % of the rounds kept and at least 8 of them; the same thresholds the other way are a
+**saving**; otherwise it **ties**. The claim holds where neither cost is found.
+
+**Where the host saturates.** A relay that could not keep time voids its visit (§6 of
+[`../../docs/rig-limits.md`](../../docs/rig-limits.md)); the void count is reported and nothing is claimed for a cell
+left with fewer than 8 paired rounds. Nothing is claimed for a link faster than 100 Mbit, a delay under 40 ms, gzip,
+HTTP/2, the image, a device, or a CA-issued certificate, whose chain the browser verifies where this rig's trust by
+key does not.
+
+**Run 1, 2026-10-19, `cf75ba64`**, 16:54–17:01 UTC, a 4-core cloud container, nothing else running. **The host
+saturated: 45 of 72 visits' relays `VOID`** (16, 12 and 17 of 24 at 40, 80 and 160 ms), so 2, 3 and 0 rounds are
+paired and **the rule claims nothing**. 0 failed; all 144 visits bit-exact, every frame. Outside the rule, from the
+medians of the visits kept: cold, `frame` 17.08 round trips with the file and 16.95 without, `fill` 19.25 and 19.68;
+warm, `frame` 10.71 and 9.95, `fill` 13.71 and 12.55; the file itself landed 3.9 round trips in, cold and warm.
+
+**Run 2, registered after run 1 and before it ran.** The same, with `RELAY_CPU=3`: each relay alone on core 3, which
+the browser, the server and the static host (`taskset -c 0-2`) never take, so the decoders cannot preempt it. Same
+rule, same thresholds.
+
+```bash
+OWN_HOST=1 RELAY_CPU=3 RELAY_ARGS="--rate-kbit 100000 --queue-pkts 1000" RTTS=40,80,160 ROWS=own2.json \
+  NODE_PATH=$(npm root -g) taskset -c 0-2 node lab/page-open/run.mjs 12
+```
+
+**Run 2, 2026-10-19, `3522788e`**, 17:02–17:09 UTC, the same container. **Saturated again: 39 of 72 visits `VOID`**
+(8, 16 and 15 of 24), the relay late on a core nothing else ran on, so the lateness is this host's, not the page's
+threads'. 4, 0 and 1 rounds paired: **the rule claims nothing.** 0 failed; all 144 visits bit-exact. Outside the rule:
+cold, `frame` 17.07 round trips with the file and 17.26 without, `fill` 19.85 and 19.93; warm, `frame` 11.09 and
+9.89, `fill` 13.75 and 12.55.
+
+**Verdict: not measured.** On this host the relay keeps time in about four visits of ten at any delay, and the claim
+rests on none of them. What the kept visits show, below the rule, is no cold difference past 0.43 round trips either
+way in two runs, and a warm page without the file earlier by 0.8–1.2 round trips to its first frame in both,
+unconfirmed and not explained here. The protocol stands for a host whose relay keeps time.
 
 ## What this rig does not decide
 

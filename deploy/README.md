@@ -17,6 +17,10 @@ there), so the headers and the paths are tested in the thing that ships.
                                  └─ /studies (ro) ─ /certs ─ /run/wt-pacs ┘
 ```
 
+That is the shape without `TLS_DIR`, where the server mints a certificate the browser cannot verify and the page pins
+it through the transport file. With `TLS_DIR` the server serves the page's certificate (`/supplied`), writes no file,
+and the page dials its own host on 4433: nothing crosses the volume (§Run it).
+
 **nginx is not in the transport's path and cannot be.** The server speaks WebTransport over QUIC on UDP 4433
 and nginx has no QUIC upstream, so the browser dials it directly, as in development. No data-path number can
 move because of anything here. TCP 4433 is published for the WebSocket fallback, but `server-start.sh` passes no
@@ -28,30 +32,39 @@ From a fresh clone, with docker (or podman; every `docker` below reads `podman` 
 
 ```bash
 bash client/decode/wasm/build/build.sh        # the decoders and the frame check's hasher, checked against their manifest
+export STUDIES=/path/to/studies SERIES=ct       # every compose command needs both
 docker compose -f deploy/compose.yml build
-STUDIES=/path/to/studies SERIES=ct docker compose -f deploy/compose.yml up -d
+docker compose -f deploy/compose.yml up -d
 ```
 
 `STUDIES` holds what the DICOM ingest writes, `$SERIES.sbnd` and `$SERIES.metadata.json`
-([`../docs/FIXTURES.md`](../docs/FIXTURES.md) §From DICOM); without it, the 151-byte smoke series baked into both
-images is served, whose frames are placeholders that do not decode. Open `http://127.0.0.1:8765/`. Off this host,
-the page needs TLS:
+([`../docs/FIXTURES.md`](../docs/FIXTURES.md) §From DICOM); `scripts/grey_series.sh "$STUDIES"` writes a three-frame
+series the page decodes, `SERIES=grey`, from tracked bytes. Neither has a default: compose refuses without them, and
+each container's start refuses without `SERIES`, naming the variable. Neither image carries a study, so `/studies` is
+always the mount (§Container settings). Open `http://127.0.0.1:8765/`. Off this host, the page needs TLS:
 
 ```bash
-PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/tls \
+PUBLISH_ADDR=203.0.113.7 TLS_DIR=/etc/wt-pacs/tls \
   STUDIES=... SERIES=... docker compose -f deploy/compose.yml up -d     # https://203.0.113.7/
 ```
 
+The transport serves the same certificate, so `key.pem` must be readable by the server's uid 10001 as well as by
+nginx. Web renders the page to dial `https://` its own host on 4433, pinning nothing and reading no transport file,
+and its policy connects there; a server restart keeps the certificate and the address, so an open page has nothing to
+follow ([`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §A page with nothing to follow). *Corrected 2026-10-19:*
+before, the server minted its own certificate here too, `WT_URL` named it, and the page pinned it through the
+transport file, written into a volume web served and fetched again before every re-dial.
+
 | variable | default | what |
 | --- | --- | --- |
-| `STUDIES` | `../fixtures/us_cine_smoke` | the host directory mounted read-only at `/studies` in both containers |
-| `SERIES` | `us_cine_smoke` | the series served: `$STUDIES/$SERIES.sbnd` and `$SERIES.metadata.json` |
+| `STUDIES` | none: required | the host directory mounted read-only at `/studies` in both containers |
+| `SERIES` | none: required | the series served: `$STUDIES/$SERIES.sbnd` and `$SERIES.metadata.json` |
 | `PUBLISH_ADDR` | `127.0.0.1` | the address 8765, 443 and 4433 (UDP and TCP) are published on |
-| `WT_URL` | `https://127.0.0.1:4433/` | the address the transport file tells the browser to dial, and the one origin besides the page's that web's policy lets it connect to |
-| `TLS_DIR` | `./no-tls` (none) | `cert.pem` (the chain) and `key.pem` for the page; absent, web speaks HTTP on 8765 alone |
+| `WT_URL` | `https://127.0.0.1:4433/` | without `TLS_DIR`: the address the transport file tells the browser to dial, and the one origin besides the page's that web's policy lets it connect to; with it, unused |
+| `TLS_DIR` | `./no-tls` (none) | `cert.pem` (the chain) and `key.pem` for the page and the transport; absent, web speaks HTTP on 8765 alone and the server mints its own |
 | `TLS_PORT` | `443` | the host port published for web's 443 |
 | `RESTART_AFTER` | `9d` | the server exits after this and is restarted with a new certificate |
-| `CLIENT` | `ts` | the client the page loads, `ts` or `wasm`, named in the transport file; a restart switches it ([`../docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client) |
+| `CLIENT` | `ts` | the client the page loads, `ts` or `wasm`, rendered into the page with its preloads when web starts; a restart of web switches it ([`../docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client). *Corrected 2026-10-19:* it was the server's, named in the transport file |
 | `REGISTRY` | `docker.io/library` | where the pinned base images are pulled from: a mirror serves the same digests |
 | `MEMLOCK` | `67108864` (64 MiB) | the server's locked-memory limit, soft and hard, which its rings are charged to (§Container settings) |
 | `NOFILE` | `65535` | the server's open-file limit, soft and hard; a ring holds one (two until row 250) |
@@ -62,19 +75,148 @@ PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/t
 `docker build` runs in the daemon, so the compile cannot be pinned to chosen cores there; `docker run --cpuset-cpus`
 can. A deploy host that must keep the compile off its other cores compiles in the pinned rust image of `Containerfile`
 and packages the binary with `Containerfile.prebuilt`, which cannot compile and yields the `server` target's image
-(`deploy/server_start_test.sh` fails if the two `server` stages part):
+(`deploy/server_start_test.sh` fails if the two `server` stages part). `CPUS` names the cores the host's other work
+does not need: a host whose data plane or other services are pinned to cores leaves the rest (read each one's
+pinning with `taskset -cp <pid>`, or in its own configuration):
 
 ```bash
-docker run --rm --cpuset-cpus 0 --memory 8g -v "$PWD":/src -v "$HOME/.cache/wt-pacs-cargo":/usr/local/cargo/registry -w /src \
+docker run --rm --cpuset-cpus "$CPUS" --memory 8g -v "$PWD":/src -v "$HOME/.cache/wt-pacs-cargo":/usr/local/cargo/registry -w /src \
   docker.io/library/rust:1.97-bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97 \
   cargo build --release --locked -p series-server
 STAGE=$(mktemp -d)
-cp target/release/series-server deploy/server-start.sh "$STAGE"/ && cp -r fixtures/us_cine_smoke "$STAGE"/
+cp target/release/series-server deploy/server-start.sh "$STAGE"/
 docker build -f deploy/Containerfile.prebuilt -t wt-pacs-server "$STAGE"   # the image `compose up` runs, given no `--build`
 ```
 
 A flag on `Containerfile` to skip its compile stage would not do: only BuildKit skips an unused stage, and a daemon on
 the legacy builder would compile anyway, unpinned. The binary links glibc, so it must come from that bookworm image.
+
+Where the daemon's bridge network cannot resolve names, the compile and the image build fail fetching crates and
+packages; `--network host` on that `docker run` and that `docker build` is the fallback, not the default.
+
+### An aarch64 server, built on another machine
+
+An ARM deploy host then only packages and runs: it needs neither the rust image nor a compile on its own cores.
+`build-arm64.sh` cross-builds on any machine in that same pinned image, so the binary links the same glibc, and fails
+unless it needs no glibc past bookworm's 2.36 and prints its banner on the smoke series under user-mode emulation:
+
+```bash
+deploy/build-arm64.sh   # writes target/aarch64-unknown-linux-gnu/release/series-server
+STAGE=$(mktemp -d)
+cp target/aarch64-unknown-linux-gnu/release/series-server deploy/server-start.sh "$STAGE"/
+# $STAGE copied to the ARM deploy host, and there:
+docker build -f deploy/Containerfile.prebuilt -t wt-pacs-server "$STAGE"
+```
+
+The image is built on the ARM host because `Containerfile.prebuilt` runs an arm64 `apt-get`: on an x86 machine that
+needs emulation (`--platform linux/arm64` and binfmt), which this recipe does not test. The `arm64` job of
+`.github/workflows/gate.yml` runs `build-arm64.sh` on each pull request and push to main.
+
+Measured 2026-10-20 in a 4-core x86-64 cloud container: the compile 1 min 40 s, the script 2 min from an empty cargo
+cache; ring is the one crate that compiles C, and finds `aarch64-linux-gnu-gcc` on its own; the patched crates need
+nothing. The binary needs `GLIBC_2.34` at most. Under qemu 7.2 it passed the nine pages of
+`client/contract/run_wire.sh`, driven by hand from the x86 side at the emulated server, every client over
+WebTransport and WebSocket. qemu does not emulate io_uring and the mount refused `RWF_NOWAIT`, so neither fast path
+ran; nothing ran on ARM hardware, and no timing under emulation says anything about it.
+
+## Serving the page from an nginx already on the host
+
+A host whose nginx already holds 443 cannot give the port to the web image, so the page is added to that nginx by
+hand, and the transport runs beside it as above, serving the host's certificate: the page dials its own host on 4433
+and reads no transport file (§Run it). Below, the page's name is `www.example.org`, its root `/srv/wt-pacs`, and
+`$SERIES` the series served from `$STUDIES`.
+
+**1. The sources, one commit.** `git archive` packs that commit's tracked files and nothing else (no `.git`,
+`target/` or `node_modules/`), in one file:
+
+```bash
+git archive -o wt-pacs.tar HEAD && git get-tar-commit-id < wt-pacs.tar    # on a clone: the commit packed
+scp wt-pacs.tar www.example.org:
+mkdir wt-pacs && tar -xf wt-pacs.tar -C wt-pacs                           # on the host; sha256sum matches both ends
+```
+
+**2. What the page needs beside the sources.**
+
+* `deploy/web-files.sh`'s list, the files of `client/` the viewer loads, and nothing else;
+* the TS client's bundle, `client/transport/ts/build.sh --product` after `npm ci` there (the image's node 22);
+* the decoders, `client/decode/wasm/build/build.sh`, which fails unless they match `manifest.sha256`. Its
+  toolchains are pinned for x86-64 today: elsewhere, build them on an x86-64 machine, copy `built/`, and check it
+  with `sha256sum -c ../build/manifest.sha256` from inside `built/`, as the image does;
+* the series' `$SERIES.metadata.json`, from the DICOM ingest beside its `.sbnd`;
+* the page, `client/viewer/index.html` as tracked: it loads the TS client and dials its own host on 4433.
+
+No study is in the sources. Without one from the DICOM ingest, `scripts/grey_series.sh` writes `grey.sbnd` and
+`grey.metadata.json` (`SERIES=grey`) from tracked bytes; it compiles `pack-series`, so on a host without cargo it runs
+in the rust image of §A server compiled outside the image:
+
+```bash
+docker run --rm -v "$PWD":/src -v "$HOME/.cache/wt-pacs-cargo":/usr/local/cargo/registry -v "$STUDIES":/out -w /src \
+  docker.io/library/rust:1.97-bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97 \
+  scripts/grey_series.sh /out
+```
+
+With `CLIENT=wasm`, the WASM client's `pkg/` too (`client/transport/wasm/build.sh`), which the image builds itself,
+and the page rendered for it, as web's start does, over the copy step 3 made:
+`client/viewer/page.sh --client wasm < client/viewer/index.html > /srv/wt-pacs/client/viewer/index.html`.
+
+**3. A root the host's nginx can read.** Its workers run as the `user` in `nginx.conf`; a `0700` directory on the
+path answers 403. An nginx inside a container sees only its own mounts, so the root must be mounted into it at the
+path the site file names.
+
+```bash
+deploy/web-files.sh /srv/wt-pacs                                   # /srv/wt-pacs/client
+mkdir -p /srv/wt-pacs/client/transport/ts && cp -r client/transport/ts/dist /srv/wt-pacs/client/transport/ts/
+install -D -m 0644 "$STUDIES/$SERIES.metadata.json" "/srv/wt-pacs/series/$SERIES.metadata.json"
+chmod -R a+rX /srv/wt-pacs
+```
+
+**4. The site file.** Copy `deploy/nginx/wt-pacs.conf.template` into the directory the host's `http {}` includes
+(`conf.d/*.conf` or `sites-enabled/`; `nginx -T` shows which), as `wt-pacs.conf`, and edit it line by line:
+
+| line in the template | becomes | why |
+| --- | --- | --- |
+| `listen 8765;` | removed | the image's plain-HTTP port; the host serves on 443 |
+| `${TLS_LISTEN}` | `listen 443 ssl;` `ssl_certificate /path/to/chain.pem;` `ssl_certificate_key /path/to/key.pem;` | the host's certificate, its chain included (§The checks, *The transport's PEM*) |
+| (same place) | `http2 on;` on nginx 1.25.1 or later; before it, `listen 443 ssl http2;` instead of `listen 443 ssl;` | either needs `--with-http_v2_module` in `nginx -V`; 1.24 has the module but not the directive, and `nginx -t` fails `unknown directive "http2"` |
+| `server_name _;` | `server_name www.example.org;` | `_` would claim the host's default; a name another 443 block holds draws `conflicting server name` and one is ignored |
+| `root /srv/wt-pacs;` | the root of step 3 | |
+| `alias /studies/${SERIES}.metadata.json;` | `alias /srv/wt-pacs/series/<series>.metadata.json;` | `${SERIES}` is the image's start-time substitution; nothing substitutes it here |
+| `location = /wt/dev-transport.json { … }`, the block | removed | with a certificate supplied the server writes no transport file, and the page reads none |
+| `include /etc/nginx/mime.types;` | the host's `mime.types` (beside `nginx -V`'s `--conf-path`) | |
+| `connect-src 'self' ${WT_ORIGIN};`, in the policy's `add_header` | `connect-src 'self' https://www.example.org:4433;` | the policy must let the page dial the transport, scheme, host and port |
+
+`nginx -t` then warns `duplicate extension "js"`: the template's `types { text/javascript js mjs; }` follows the
+include and redefines `.js`, and the later line wins, as intended: that is what the block is for.
+
+**5. The checks, then the reload.** Nothing reloads until the file has no `${` left and `nginx -t` passes:
+
+```bash
+grep -n '\${' /etc/nginx/conf.d/wt-pacs.conf          # prints nothing
+nginx -t && nginx -s reload                            # or: kill -HUP <the master's pid>
+curl -sI https://www.example.org/client/viewer/head.js # 200, text/javascript, Cross-Origin-Embedder-Policy: require-corp
+curl -sI https://www.example.org/client/transport/ts/dist/session.js   # 200: the bundle where the page loads it
+```
+
+**6. The transport.** The image of §A server compiled outside the image, run from the unpacked tree, with the
+host's certificate at `/supplied`, owned by uid 10001:
+
+```bash
+install -d -o 10001 -g 10001 -m 0700 /etc/wt-pacs/supplied
+install -o 10001 -g 10001 -m 0600 /path/to/chain.pem /etc/wt-pacs/supplied/cert.pem
+install -o 10001 -g 10001 -m 0600 /path/to/key.pem   /etc/wt-pacs/supplied/key.pem
+docker run -d --name wt-pacs-server --restart unless-stopped \
+  --security-opt seccomp=deploy/seccomp-uring.json --ulimit memlock=67108864 --ulimit nofile=65535 \
+  -e SERIES="$SERIES" -p 4433:4433/udp \
+  -v "$STUDIES":/studies:ro,z -v /etc/wt-pacs/supplied:/supplied:ro,z wt-pacs-server
+docker logs wt-pacs-server | grep 'series-server ready'
+```
+
+The server reads the key as uid 10001, so a copy for that uid, not the root-only original; copy it again and
+restart the container when the host's certificate renews. A host that refuses those `--ulimit`s fails the start
+with `error setting rlimits`: §Container settings. The host's firewall must pass UDP 4433.
+
+**7. Undo.** `rm /etc/nginx/conf.d/wt-pacs.conf && nginx -t && nginx -s reload` gives the host back its nginx as it
+was; `docker rm -f wt-pacs-server` and removing `/srv/wt-pacs` and `/etc/wt-pacs` remove the rest.
 
 ## The ten fixes, and why
 
@@ -111,10 +253,12 @@ A container test of a deployment of this shape found each one (the deployment te
    `CLOSE_WEBTRANSPORT_SESSION` capsule, so the rule's "closed with the server's code" cannot be observed from a
    page. The page does see the session end 195–299 ms after the stop began with the close (20 of 20; a session the
    page opens beside the fill), against about 14.9 s without it (36 of 40; 4 at 217–289 ms).
-3. **The certificate's lifetime.** A certificate pinned by hash (`serverCertificateHashes`) must be valid for at
-   most 14 days. So `server-start.sh` makes a new one (ECDSA P-256, 10 days) at every start, and runs the server
+3. **The certificate's lifetime.** Without `TLS_DIR`, a certificate pinned by hash (`serverCertificateHashes`) must be
+   valid for at most 14 days. So `server-start.sh` makes a new one (ECDSA P-256, 10 days) at every start, and runs the server
    under `timeout $RESTART_AFTER` (9 days). The exit restarts the container, with a new certificate, before
-   the browser refuses the old one. `server_start_test.sh`, in the gate, runs its two starts against a stub server.
+   the browser refuses the old one. `server_start_test.sh`, in the gate, runs its two starts against a stub server,
+   and fails unless a start without `SERIES`, the server's or web's, refuses naming it, compose requires `SERIES` and
+   `STUDIES` wherever it names them, and neither Containerfile copies anything into `/studies`.
 4. **gzip** on every compressible type the page fetches, the series' metadata included: `check_equivalence.sh`
    asserts it on a module, on the WASM, and on metadata over nginx's 1 KiB floor. Nothing is proxied, so there is
    no `gzip_proxied`.
@@ -132,7 +276,7 @@ A container test of a deployment of this shape found each one (the deployment te
 7. **The start order.**
    * The start script removes the previous transport file (the volume outlives the container) and writes the
      new one whole, through a temporary file and a rename.
-   * The server is healthy once the file exists, and web once `/` answers 200.
+   * The server is healthy once the file exists, or at once given a certificate, and web once `/` answers 200.
    * Web waits on `service_healthy`, so it never serves a transport file that names a dead certificate.
 8. **Non-root.** The server runs as uid 10001 and owns `/certs` (0700) and `/run/wt-pacs`. Both are made in the
    image, as is web's mount point for the same volume. A fresh named volume takes its owner from whichever
@@ -150,12 +294,13 @@ page and its modules, the page check's two (`?check=`), and row DECODERBUILD's d
 (`client/decode/wasm/built/`, the frame check's hasher among them), checked against `build/manifest.sha256` at build
 time; the TS bundles (`build.sh --product`); and the WASM client, its adapter copied and its glue and `.wasm` built
 in the `wasm` stage (row 277's `CLIENT` picks it): the `wasm32-unknown-unknown` target, `wasm-pack` 0.15.0 by
-`cargo install --locked` as CI installs it, and `build.sh`'s binaryen `version_117` by checksum. No test, TypeScript
-source or build script. Of the
-studies, only the smoke series.
+`cargo install --locked` as CI installs it, and `build.sh`'s binaryen `version_117` by checksum. The page is rendered
+at start by `client/viewer/page.sh` from a copy kept outside the root, for `CLIENT` and for `TLS_DIR`. No test,
+TypeScript source or build script, and no study.
 
 **Only what the page loads is reachable**: `/`, those files under `/client/`, `/series/metadata` and
-`/wt/dev-transport.json`. Everything else is a 404, the studies' bundles included.
+`/wt/dev-transport.json`, which is a 404 when the server was given a certificate and wrote none. Everything else is a
+404, the studies' bundles included.
 
 **What must be preserved exactly.** Three headers on every response, error pages included:
 
@@ -177,7 +322,8 @@ default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-in
 connect-src 'self' ${WT_ORIGIN}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'
 ```
 
-`WT_ORIGIN` is `WT_URL`'s scheme, host and port, which the page dials over WebTransport.
+`WT_ORIGIN` is `WT_URL`'s scheme, host and port, which the page dials over WebTransport; with `TLS_DIR`,
+`https://$host:4433`, the page's own host as nginx reads it from the request.
 `'unsafe-eval'` is the decoders' glue, evaluated through `new Function` (`client/decode/wasm-glue.js`), and lets
 WebAssembly compile; the inline `<style>` is the page's. `dev-server.py` sends the same policy on the viewer's page
 alone, connecting anywhere on loopback, where the lab's relays and collectors listen; the lab's pages, which share
@@ -187,7 +333,8 @@ the viewer's workers and run inline scripts, carry none. The page's lab paramete
 ## The checks
 
 `check_equivalence.sh [STUDIES SERIES]` runs `dev-server.py` and the web image side by side, given the same studies
-and the same transport file. It checks five things:
+and the same transport file, the page rendered on both as without `TLS_DIR` (`server_start_test.sh` checks the render
+with it). It checks five things:
 
 * status, the three isolation headers, content type, `Cache-Control` and body bytes are equal on every path the
   viewer loads (11);
@@ -210,13 +357,14 @@ SKIPPED otherwise. Mutated: a root of all of `client/`, as the image carried bef
 `client/` paths answer 200), and `viewer.js` left out of the list (its path differs and loses gzip); each fails it.
 
 **A stale image is refused** (exit 2) before anything is compared: every file the image carries from `client/`
-(what `web-files.sh` copies) and `deploy/nginx/` is hashed in the image and in the tree, and any that differs, is
+(what `web-files.sh` copies), `deploy/nginx/` and `client/viewer/page.sh` is hashed in the image and in the tree, and any that differs, is
 missing or is extra is named. It compares content, not time: a cached rebuild keeps the image's
 creation time, so a touched file would otherwise be refused after every rebuild. Mutated: a changed module, template
 and decoder build, a file added and one removed (each named, exit 2); a touched file, a changed `*.md` and
 `*.test.mjs` (passed, as the image leaves them out); no image (exit 2). Re-run on `web-files.sh`'s list (row
 IMAGESLIM): a changed module, a file added to the list and one taken off it (each named, exit 2); a changed
 `*.test.mjs` (passed).
+So is an image that carries anything in `/studies` (its entries named, exit 2): a study is always the mount.
 
 **The transport's PEM.** The same script checks `${CERT_PEM:-server/dev-cert/cert.pem}` before it compares any
 path. One self-signed certificate passes; two or more is a chain and passes; one certificate issued by something
@@ -260,7 +408,7 @@ HTJ2K): 76/76 exact, and the first, middle and last readback equal the CPU refer
 The check now reads its result off the page as well as from the page's POST. Chrome 141's Local Network Access
 refuses a page on a public address a request to `127.0.0.1`, where the check's collector listens.
 
-**Restart.** `restart server` wrote a new certificate (hash `4ab2c24e…` became `8f39cd57…`) and transport file,
+**Restart** (without `TLS_DIR`). `restart server` wrote a new certificate (hash `4ab2c24e…` became `8f39cd57…`) and transport file,
 and the next page open connected and passed.
 
 **Row WASMIMAGE (2026-10-16), the WASM client in the image.** Both images built once from the branch, dockerd and
@@ -306,8 +454,10 @@ never builds a ring, so io_uring matters only to tile misses. In order of cost:
 each setting alone. The server's own read-path tests ran under each profile too.
 
 * **Storage.** A bind mount and a named volume (`/var/lib/docker/volumes`, ext4 here) honour `RWF_NOWAIT`. The
-  container's layer (overlayfs) and `--tmpfs` refuse it (`EOPNOTSUPP`). This Containerfile `COPY`s the smoke series
-  into `/studies` in the image's layer, where the fast path is lost; compose mounts `STUDIES` over it, which keeps it.
+  container's layer (overlayfs) and `--tmpfs` refuse it (`EOPNOTSUPP`). ~~This Containerfile `COPY`s the smoke series
+  into `/studies` in the image's layer, where the fast path is lost; compose mounts `STUDIES` over it, which keeps it.~~
+  *Corrected 2026-10-20:* neither image carries a study now, and a start without one refuses (§Run it), so `/studies`
+  is always the mount, which keeps it.
   The page cache is the host's, per inode, so folios are the underlying filesystem's (the folio count's findings,
   disk-access.md §6, hold as on the host, and held in a cloud container's bind mount and volume). The pages are
   charged to the container's memory cgroup: a tight `mem_limit` evicts

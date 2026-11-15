@@ -1,5 +1,5 @@
 # The static host for the viewer, answering as server/dev-server.py does in development: deploy/README.md.
-# SERIES, TLS_LISTEN and WT_ORIGIN are substituted at container start.
+# SERIES, TLS_LISTEN and WT_ORIGIN are substituted at container start, when the page is rendered too.
 
 # A re-packed catalog or an edited page must not be read stale from a heuristic cache;
 # nginx's ETag and Last-Modified make each revalidation a 304.
@@ -42,7 +42,8 @@ server {
     gzip_types      text/css text/javascript application/javascript
                     application/json application/wasm image/svg+xml;
 
-    # What the page loads, and nothing else: the page, its code, the series' metadata and the transport file.
+    # What the page loads, and nothing else: the page, its code, the series' metadata and, when the server mints its
+    # certificate, the transport file.
     location = / { try_files /client/viewer/index.html =404; }
     location /client/ { try_files $uri =404; }
     location = /series/metadata {
