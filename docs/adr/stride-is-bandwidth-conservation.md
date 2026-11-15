@@ -2,9 +2,10 @@
 
 **Status:** accepted · **Date:** 2026-08-26 · **Tags:** delivery, client, clinical
 
-*2026-10-28: two sources bear on this, not yet weighed — IHE RAD TF-2 requires a tomosynthesis display not to skip
-slices while scrolling, and a measured scroll speed at detection is 25–30 slices/s, where the 9 below is no source's
-([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Asking for a stack: what viewers do).*
+> **Corrected 2026-11-14 (sources found 2026-10-28).** The 9 slices/s below is no source's: the one measured scroll
+> rate found is 25–30 slices/s at detection (Diaz et al. 2015, lung CT). And for DBT, IHE RAD TF-2 §4.16.4.2.2.1.3.9
+> says the display "shall not skip slices during manual or automatic scrolling", which option B does. Whether this ADR
+> stands is the owner's: [`../client/evidence/scroll-rate-and-skipping.md`](../client/evidence/scroll-rate-and-skipping.md).
 
 ## Context and Problem Statement
 
@@ -33,7 +34,7 @@ ADR exists so the argument is on record **before** that conversation happens rat
 **Chosen option: B** — *the alternative to skipping a frame is not that the reader sees it, but that it
 arrives after the reader has already moved past it.*
 
-At 9 slices/second a frame is on screen for 111 ms. If the link delivers 2 frames/second, un-strided
+At 9 slices/second (a rate no source gives; corrected above) a frame is on screen for 111 ms. If the link delivers 2 frames/second, un-strided
 fetching does not show the reader more slices — it shows them **stale** ones, because every frame
 arrives after the cursor has moved on. Stride removes fetches that would have been discarded on
 arrival.

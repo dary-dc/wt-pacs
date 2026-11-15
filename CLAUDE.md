@@ -51,6 +51,23 @@ Lean, and placed where they belong — extend the file that owns the subject rat
 one per finding. A claim that is not measured says so. A retracted claim is corrected in
 place, not quietly dropped: `docs/adr/disk-access.md` §2 is the model.
 
+**Each subject has one home, `docs/<subject>/`** (the client's is [`docs/client/`](docs/client/design.md)):
+
+* **`design.md`** — the current design only, rewritten in place and never appended to, about three screens: *What it
+  is* (one diagram, the components and who owns what), *Rules* (the invariants, one line each), *Decided* (the
+  choice, the date, whose, a link to its evidence), *Open* (each question's options, what theory predicts for each,
+  what decides it, the evidence so far with its scope).
+* **`design.html`** — the same design drawn; it holds no claim `design.md` or the evidence does not.
+* **`evidence/<question>.md`** — one file per question researched or measured, named by the question: the sources or
+  the pre-registered protocol (dated, by whom), the results with their fixtures and where the host saturates, the
+  verdict with its scope, a link to the raw rows. Theory and measured are labelled. A rerun adds a dated section.
+* **`docs/lines/<line>.md`** — the work only: the goal in one line, what is in flight, PRs, owed runs, pointers. No
+  design, no results.
+
+**Keeping it true.** A result lands in its evidence file and, in the same commit, changes the one line of
+`design.md` it moves and the page's box if one changes. A decision moves its question from *Open* to *Decided*.
+Queue-row, campaign and lever names stay in the work ledger and never appear in `docs/` (§Names).
+
 ## Measurement
 
 The rules below have each already produced a wrong answer here when broken.
@@ -60,6 +77,11 @@ The rules below have each already produced a wrong answer here when broken.
 * **Page-cache eviction is not a test lever.** Force the miss through the store's test levers.
 * **Quote latency or throughput, not both** — one is the other divided by depth.
 * **Say where the host saturates and claim nothing past it.**
+* **Choose between candidates so none loses to its build.** Survey with sources; eliminate only on a sourced hard
+  constraint; write a best-effort design per survivor before building; an advocate per survivor, from a session that
+  wrote none of them, fixes it before any run; a session that builds nothing pre-registers the protocol; run, give the
+  verdict with its scope, and re-check each loser once for losing to its implementation. Worked example:
+  `docs/client/evidence/cache-plan.md` (#385, at `7c180630`).
 
 ## Agents
 

@@ -234,7 +234,9 @@ phone):
   showed its first 49 characters at 412 px wide, `frame 1 of 56 · client ts · view worker · receiv`, and stopped at
   `… decoders: av1-webcodecs 56 · codec a` at 915 px. Portrait shows the view; landscape adds the received, exact,
   unchecked and per-route counts. **The fill time, the renderer and the last error are visible in neither.**
-* **Touch cannot step slices**: stepping is the wheel and the keys; a drag is window and level. A phone without a
+* **Touch could not step slices** when this was written: stepping was the wheel and the keys; a drag is window and level.
+  *Corrected 2026-11-14:* a slice slider has been built since ([`client/README.md`](../client/README.md) §The viewer;
+  [`client/evidence/touch-slice-stepping.md`](client/evidence/touch-slice-stepping.md)). A phone without a
   keyboard has the cine button, the **lossless** button and the drag; `End`, a jump mid-group and the `?fill=0` jump
   of the show list are not reachable.
 * **The laptop** reads each session's path when it closes, in Terminal 1: `session path` with `rtt_us`, `sent` and

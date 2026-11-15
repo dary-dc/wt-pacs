@@ -192,8 +192,8 @@ decodes longer, a slower CPU or another engine; a schedule fires from the defaul
 
 ## Demo
 
-Optimal quality: every reader sees a series' visually lossless AV1 picture, and a frame comes whole from its exact HTJ2K
-series only when **Lossless** is pressed ([`client/README.md`](client/README.md) §Optimal quality, exact on request).
+What the demo shows is the product's approach, [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §The product; the page's
+side of it is [`client/README.md`](client/README.md) §Optimal quality, exact on request.
 The demo set is three breast tomosynthesis volumes, `dbts_a1` (56 frames, 12-bit), `dbts_b1` (50, 10-bit) and `dbts_c1`
 (69, 12-bit), each as its exact series and its optimal-quality series at Q 8 and Q 24, G 1, 8 and 16; the 12-bit two
 as depth cuts (`…-cut`, 10-bit codes WebCodecs decodes): on the demo a series over 10 bits is always the depth cut. The

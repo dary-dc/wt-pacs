@@ -11,7 +11,7 @@ checked (`client/transport/consumer.js:106-131`, [`../../client/README.md`](../.
 whether it is exact*). The page must be cross-origin isolated (same file, *The page must be cross-origin isolated*).
 The painter's contract and its 1:1 proof are [`../../client/paint/README.md`](../../client/paint/README.md). Today the
 viewer keeps every frame in a `Map`. The OPFS cache and the paint worker as the frame's owner (B′) are proposed in
-[`../adr/frame-path.md`](../adr/frame-path.md).
+[`../client/design.md`](../client/design.md).
 
 ## The ranking
 
