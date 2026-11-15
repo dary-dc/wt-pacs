@@ -325,12 +325,13 @@ decoder does not survive: encode unsigned, then set each component's sign bit in
 
 The one exception to generated-only: whether AV1's inter coding pays depends on how much
 neighbouring frames share, which synthetic frames with independent noise cannot answer
-([`av1/README.md`](av1/README.md) §Content). Eighty-eight public series, fetched at run time — eighty-five from the
-NCI Imaging Data Commons public bucket (anonymous HTTPS; chosen with `idc-index` 0.12.5, IDC release v24),
-three of breast ultrasound from two Zenodo records — never committed:
+([`av1/README.md`](av1/README.md) §Content). Ninety-three public series, fetched at run time — ninety from the
+NCI Imaging Data Commons public bucket (anonymous HTTPS; chosen with `idc-index` 0.12.5, IDC release v24, and the five
+largest cine-like sets with `idc-index` 0.13.4, IDC v25, [`../lab/av1/profiles`](../lab/av1/profiles/README.md)
+§Larger cine fixtures), three of breast ultrasound from two Zenodo records — never committed:
 
 ```bash
-lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~12.1 GB fetched
+lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~15.1 GB fetched
 ```
 
 `lab/av1/data.json` pins every file's S3 key and SHA-256 and each set's frame digest;
@@ -342,7 +343,8 @@ checked). A set may name a `crop` [y, x, h, w], kept from every frame. Every fra
 against the file's `PixelData` bytes read directly, not through the DICOM library's pixel decoder:
 all 387 identical (the missing-content search's nine sets, queue row DATA3: 565/565; the
 breast-family fetch's seven, queue row BREAST: 140/140), and no sample carries bits above
-`BitsStored`. The ultrasound sets are a pinned zip's pinned members decoded by FFmpeg 6.1.1 (`-threads 1`;
+`BitsStored`. *The five sets added 2026-11-02 (`dbts_a_max`, `dbts_b_max`, `dbts_c_max`, `ustrus_1`, `ustrus_2`) are
+checked by their pins and the provenance rule alone, not against `PixelData` read directly.* The ultrasound sets are a pinned zip's pinned members decoded by FFmpeg 6.1.1 (`-threads 1`;
 RGB through its bit-exact `swscale` flags, which the digest pins: other flags change it): their frames are what
 that decoder makes of a lossy clip, checked against a second run with FFmpeg's default threads (128/128) and the
 stills against Pillow 11.3.0's PNG decoder (29/29). Dependencies: pydicom 3.0.1 and numpy 2.4.6, installed with `--require-hashes` from
@@ -393,6 +395,10 @@ stills against Pillow 11.3.0's PNG decoder (29/29). Dependencies: pydicom 3.0.1 
 | `dbts_c3` | DBT slices, 1 mm, whole and uncropped, system C | 70 × 1147×2585 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
 | `dbts_c4` | DBT slices, 1 mm, whole and uncropped, system C | 66 × 662×2227 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
 | `dbts_c5` | DBT slices, 1 mm, whole and uncropped, system C | 73 × 955×2100 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
+| `dbts_a_max` | DBT slices, 1 mm, L MLO, whole and uncropped, system A, its largest volume in IDC v25 | 84 × 1215×2761 | 12 of 16 bits, unsigned | 0..3674 | EA1141, CC BY 4.0 | sound |
+| `dbts_b_max` | DBT slices, 1 mm, L MLO, whole and uncropped, system B, its largest volume in IDC v25; a 3328×4096 frame needs AV1 level 6 ([`av1/series.md`](av1/series.md) note 3) | 53 × 3328×4096 | 10 of 16 bits, unsigned | 0..831 | EA1141, CC BY 4.0 | sound |
+| `dbts_c_max` | DBT slices, 1 mm, whole and uncropped, system C, its largest volume in IDC v25 | 82 × 1833×2971 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
+| `ustrus_1`, `ustrus_2` | 3-D transrectal prostate ultrasound, one rotational sweep each as stored, two patients: the nearest swept volume to ABUS, not breast | 280 × 452² each | 8-bit | 0..255 | Prostate-MRI-US-Biopsy, CC BY 4.0 | sound |
 | `ffdms_a1`…`ffdms_a5` | FFDM, for presentation, R CC, L CC, R MLO, L MLO, system A, five exams | 4 × 1914×2294 each | 12 of 16 bits, unsigned | 0..3334 … 0..4095 | EA1141, CC BY 4.0 | sound |
 | `ffdms_b1`…`ffdms_b5` | FFDM, for presentation, the four views, system B, five exams | 4 × 3328×4096 (b1, b4, b5), 4 × 2560×3328 (b2, b3) | 12 of 16 bits, unsigned | 0..4093 … 0..4095 | EA1141, CC BY 4.0 | sound |
 | `ffdms_c1`…`ffdms_c5` | FFDM, for presentation, the four views, system C, five exams | 4 × 1914×2294 (c1, c5), 4 × 2394×3062 (c2–c4) | 12 of 16 bits, unsigned | 0..3252 … 4..3451 | EA1141, CC BY 4.0 | sound |
@@ -453,7 +459,7 @@ to fail; on the real files, `us_liver` and `usb_still` marked `sound` are refuse
 | `ffdm_d` | explicit LE | 00 | `DERIVED\SECONDARY` | FOR PRESENTATION | — | sound |
 | `syn2d_c` | explicit LE | 00 | `DERIVED\SECONDARY\OTHER` | FOR PRESENTATION | — | sound |
 | `syn2d_d` | explicit LE | 00 | `DERIVED\PRIMARY\TOMOSYNTHESIS\GENERATED_2D` | — | — | sound |
-| `dbts_a1`…`dbts_a5`, `dbts_b1`…`dbts_b5`, `dbts_c1`…`dbts_c5` | explicit LE | 00 | system A `ORIGINAL\PRIMARY\TOMOSYNTHESIS\NONE`; B `DERIVED\PRIMARY\VOLUME\NONE` or `…\TOMOSYNTHESIS\NONE`; C `ORIGINAL\PRIMARY\VOLUME\NONE` | — | — | sound |
+| `dbts_a1`…`dbts_a5`, `dbts_b1`…`dbts_b5`, `dbts_c1`…`dbts_c5`, `dbts_a_max`, `dbts_b_max`, `dbts_c_max` | explicit LE | 00 | system A `ORIGINAL\PRIMARY\TOMOSYNTHESIS\NONE`; B `DERIVED\PRIMARY\VOLUME\NONE` or `…\TOMOSYNTHESIS\NONE`; C `ORIGINAL\PRIMARY\VOLUME\NONE` | — | — | sound |
 | `ffdms_*` | implicit or explicit LE | 00 | system A, B `DERIVED\PRIMARY`; C `ORIGINAL\PRIMARY\` | FOR PRESENTATION | — | sound |
 | `mgraw_*` | explicit LE | 00 | `ORIGINAL\PRIMARY` (MONOCHROME1) | FOR PROCESSING | — | sound |
 | `syn2ds_a*`, `syn2ds_b1`…`b3` | explicit LE | 00 | `DERIVED\PRIMARY\TOMOSYNTHESIS\GENERATED_2D` | — | — | sound |
@@ -461,6 +467,7 @@ to fail; on the real files, `us_liver` and `usb_still` marked `sound` are refuse
 | `usrgb_*` (six sets, 48 stills) | explicit LE | 00 | `DERIVED\PRIMARY\…` or `ORIGINAL\PRIMARY\…`, fourth value `0011` (2-D with colour flow) on 42, `0001` on 6 | — | — | sound |
 | `usb_cine`, `usb_cine_rgb` | an AVI clip, MPEG-4 Part 2 | the coding is lossy | — | — | decoded by FFmpeg; luma kept, or converted to RGB | lossy-sourced |
 | `usb_still` | a PNG, cropped around the lesion by the dataset | not recorded | — | — | decoded by FFmpeg | unknown |
+| `ustrus_1`, `ustrus_2` | explicit LE | absent | `DERIVED\SECONDARY\ENDORECTAL\0040` | — | — | sound |
 
 `us_liver` is the one DICOM set flagged lossy: an RGB scan-converted capture, `DERIVED\SECONDARY`, coded
 lossily at 12.4:1 before it was archived uncompressed (method not recorded). `mg16_cbis` is a screen-film

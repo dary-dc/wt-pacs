@@ -6449,6 +6449,86 @@
      "sha256": "9a58c5654a7b106ebaa27e273e8fa5afaaf759f9f6c565161a769a6726555bb9"
     }
    ]
+  },
+  {
+   "name": "dbts_a_max",
+   "what": "DBT slices, 1 mm, L MLO, whole and uncropped, system A, the largest of its volumes in IDC v25",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.300212724917864768324584468452",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "6ff769f88730a52a4963f2416f1cbf0afc5283017b055ae65f23aa607571bcd0",
+   "files": [
+    {
+     "key": "a3642a27-d1b2-44a0-82cc-0f9d7d73eb84/80c776b9-429e-4964-83eb-ecbf401317ba.dcm",
+     "sha256": "d88da8f19811fe110bb093a5a47e654173dbee653833ce9719c0ee9c9792f2cf"
+    }
+   ]
+  },
+  {
+   "name": "dbts_b_max",
+   "what": "DBT slices, 1 mm, L MLO, whole and uncropped, system B, the largest of its volumes in IDC v25",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.258984388516220480956876017918",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "1fdd1cf75024c3613a3508e695082b6418eb7ee0510cddf884c028d128527915",
+   "files": [
+    {
+     "key": "8b19a915-d06e-4c1d-ab19-43072e96d149/8f235a2f-95b8-4f71-b202-983ad72e5bfa.dcm",
+     "sha256": "a90e51b59ba4a0a397a08a20d445dc277050536ad86b177f0f93132cbac2d7a9"
+    }
+   ]
+  },
+  {
+   "name": "dbts_c_max",
+   "what": "DBT slices, 1 mm, whole and uncropped, system C, the largest of its volumes in IDC v25",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.456563843769085436316208267899",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "db9d52b0d2dbf2fdf64f4155146a3957a82f52fba27732c11f74bf6cc5af44de",
+   "files": [
+    {
+     "key": "866eb3e0-3219-4248-9b61-21d77a086ce7/7aa0f4b9-d831-4de0-8f45-a8740f1090e5.dcm",
+     "sha256": "46494a711d2a7028a7ca244d50ee4ff4844b0812cc45db308d3e2a51198d437d"
+    }
+   ]
+  },
+  {
+   "name": "ustrus_1",
+   "what": "3-D transrectal prostate ultrasound, one sweep as stored, 280 frames",
+   "collection": "prostate_mri_us_biopsy",
+   "series": "1.3.6.1.4.1.14519.5.2.1.125377114927643533599689270401838246995",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/tcia.2020.a61ioc1a",
+   "provenance": "sound",
+   "frames_sha256": "672057dde5fd06ff0647fc5e1d55c157bdae2da6a04470be93a9b5a36953f854",
+   "files": [
+    {
+     "key": "cb9070e7-dc98-4661-b139-897e93845955/2c848c18-f18b-449f-9049-235a32359ccf.dcm",
+     "sha256": "4e5c7b9da8943961b8ace667d944bdf9d132302f65fb2606f333cc8d44f6abae"
+    }
+   ]
+  },
+  {
+   "name": "ustrus_2",
+   "what": "3-D transrectal prostate ultrasound, one sweep as stored, 280 frames, a second patient",
+   "collection": "prostate_mri_us_biopsy",
+   "series": "1.3.6.1.4.1.14519.5.2.1.120858519866402400864269478615739921217",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/tcia.2020.a61ioc1a",
+   "provenance": "sound",
+   "frames_sha256": "122d1693422f2ce6aee37e75ce58d91f3f5a3746ba237538daa0606eb47ed1fe",
+   "files": [
+    {
+     "key": "9e3337e6-da67-421c-94b2-d506d218a1e0/9b869eaf-21f1-4e22-886f-cf24e68e08ca.dcm",
+     "sha256": "6f6b46ba7e6f60c9c1686c033123973b4821dae1e123d7ae175c230d11e8f61a"
+    }
+   ]
   }
  ]
 }

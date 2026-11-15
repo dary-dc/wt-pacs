@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8"><script type="module">
+import { codecString, sequence } from "../../../client/decode/av1-payload.js";
+globalThis.run = async (url) => {
+  const u = new Uint8Array(await (await fetch(url)).arrayBuffer());
+  let n = 0;
+  const vd = new VideoDecoder({ output: (f) => { n++; f.close(); }, error: () => {} });
+  vd.configure({ codec: codecString(sequence(u)), hardwareAcceleration: "prefer-software", optimizeForLatency: true });
+  vd.decode(new EncodedVideoChunk({ type: "key", timestamp: 0, data: u }));
+  await vd.flush();
+  return n;
+};
+globalThis.ready = true;
+</script>

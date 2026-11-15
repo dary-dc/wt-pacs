@@ -1,0 +1,460 @@
+checks over every round: matched / expected, by check
+  H exact: 720/720
+  L exact: 1440/1440
+  R exact: 4320/4320
+  R lossy: 4320/4320
+  R residuals: 4320/4320
+  S ask: 3840/3840
+  S lossy: 3840/3840
+  S series: 13440/13440
+  W exact: 960/960
+  W lossy: 960/960
+  errors: 0
+  void (series, rung, throttle): none
+
+clock medians over rounds, ms [range] n; ÷ H paired: median [range], slower k/n, order effect, read
+  dbts_a1 Q16 1x none R   dav1d     frame       37.3 [34.2–44.0] n 5  ÷H 1.469 [0.976–1.661] 4/5 33.6%  not read: n 5 < 10, order 34%
+      pilot σ of ln(÷H) 0.2407 → n 191
+  dbts_a1 Q16 1x none R   dav1d     series    2254.3 [2025.8–2492.1] n 5  ÷H 1.414 [0.858–1.544] 4/5 39.3%  not read: n 5 < 10, order 39%
+      pilot σ of ln(÷H) 0.2412 → n 192
+  dbts_a1 Q16 1x none R   webcodecs frame       46.2 [41.7–49.4] n 5  ÷H 1.611 [1.210–1.902] 5/5 24.9%  not read: n 5 < 10, order 25%
+      pilot σ of ln(÷H) 0.1849 → n 113
+  dbts_a1 Q16 1x none R   webcodecs series    2324.4 [2094.3–2598.2] n 5  ÷H 1.432 [0.823–1.596] 4/5 42.5%  not read: n 5 < 10, order 43%
+      pilot σ of ln(÷H) 0.2642 → n 230
+  dbts_a1 Q16 1x none S1  dav1d     frame       39.8 [38.7–61.2] n 5  ÷H 1.554 [1.023–2.312] 5/5 48.8%  not read: n 5 < 10, order 49%
+      pilot σ of ln(÷H) 0.3088 → n 315
+  dbts_a1 Q16 1x none S1  dav1d     ask         43.7 [39.7–50.8] n 5  ÷H 1.636 [1.294–1.879] 5/5 20.9%  not read: n 5 < 10, order 21%
+      pilot σ of ln(÷H) 0.1791 → n 106
+  dbts_a1 Q16 1x none S1  dav1d     series    2465.7 [2318.3–2625.3] n 5  ÷H 1.455 [0.967–1.766] 4/5 33.6%  not read: n 5 < 10, order 34%
+      pilot σ of ln(÷H) 0.2213 → n 162
+  dbts_a1 Q16 1x none S1  webcodecs frame       29.0 [23.1–31.9] n 5  ÷H 1.032 [0.836–1.095] 3/5 19.0%  not read: n 5 < 10, order 19%
+      pilot σ of ln(÷H) 0.1079 → n 39
+  dbts_a1 Q16 1x none S1  webcodecs ask         32.0 [28.0–34.7] n 5  ÷H 1.204 [0.804–1.362] 4/5 33.2%  not read: n 5 < 10, order 33%
+      pilot σ of ln(÷H) 0.1995 → n 132
+  dbts_a1 Q16 1x none S1  webcodecs series    1566.6 [1348.3–1587.2] n 5  ÷H 0.929 [0.604–1.027] 1/5 35.0%  not read: n 5 < 10, order 35%
+      pilot σ of ln(÷H) 0.2109 → n 147
+  dbts_a1 Q16 1x none S16 dav1d     frame       70.0 [68.9–98.9] n 5  ÷H 2.645 [2.282–3.219] 5/5 21.7%  not read: n 5 < 10, order 22%
+      pilot σ of ln(÷H) 0.1243 → n 51
+  dbts_a1 Q16 1x none S16 dav1d     ask        605.9 [558.3–718.8] n 5  ÷H 22.891 [18.830–24.307] 5/5 17.7%  not read: n 5 < 10, order 18%
+      pilot σ of ln(÷H) 0.1035 → n 36
+  dbts_a1 Q16 1x none S16 dav1d     series    3825.9 [3674.2–4251.5] n 5  ÷H 2.180 [1.618–2.878] 5/5 32.0%  not read: n 5 < 10, order 32%
+      pilot σ of ln(÷H) 0.2079 → n 143
+  dbts_a1 Q16 1x none S16 webcodecs frame       31.6 [30.8–34.2] n 5  ÷H 1.164 [0.816–1.356] 4/5 29.9%  not read: n 5 < 10, order 30%
+      pilot σ of ln(÷H) 0.2049 → n 139
+  dbts_a1 Q16 1x none S16 webcodecs ask        286.7 [280.7–313.9] n 5  ÷H 11.401 [7.354–12.323] 5/5 35.5%  not read: n 5 < 10, order 35%
+      pilot σ of ln(÷H) 0.2044 → n 138
+  dbts_a1 Q16 1x none S16 webcodecs series    1792.1 [1691.7–1891.9] n 5  ÷H 1.043 [0.695–1.289] 3/5 33.4%  not read: n 5 < 10, order 33%
+      pilot σ of ln(÷H) 0.2349 → n 182
+  dbts_a1 Q16 1x none S8  dav1d     frame       70.3 [67.6–74.1] n 5  ÷H 2.565 [1.770–3.038] 5/5 31.0%  not read: n 5 < 10, order 31%
+      pilot σ of ln(÷H) 0.2083 → n 143
+  dbts_a1 Q16 1x none S8  dav1d     ask        315.8 [295.7–374.6] n 5  ÷H 12.206 [7.777–12.710] 5/5 36.3%  not read: n 5 < 10, order 36%
+      pilot σ of ln(÷H) 0.2108 → n 147
+  dbts_a1 Q16 1x none S8  dav1d     series    4094.7 [3423.6–5166.1] n 5  ÷H 2.423 [1.966–2.879] 5/5 18.9%  not read: n 5 < 10, order 19%
+      pilot σ of ln(÷H) 0.1583 → n 83
+  dbts_a1 Q16 1x none S8  webcodecs frame       30.3 [29.2–33.0] n 5  ÷H 1.146 [0.865–1.314] 3/5 24.5%  not read: n 5 < 10, order 25%
+      pilot σ of ln(÷H) 0.1664 → n 92
+  dbts_a1 Q16 1x none S8  webcodecs ask        161.9 [149.1–163.3] n 5  ÷H 5.903 [4.278–6.507] 5/5 27.5%  not read: n 5 < 10, order 28%
+      pilot σ of ln(÷H) 0.1726 → n 99
+  dbts_a1 Q16 1x none S8  webcodecs series    1851.2 [1708.6–1982.9] n 5  ÷H 1.117 [0.704–1.302] 4/5 37.0%  not read: n 5 < 10, order 37%
+      pilot σ of ln(÷H) 0.2350 → n 182
+  dbts_a1 Q16 1x none SW  dav1d     frame       70.7 [69.3–79.8] n 5  ÷H 2.785 [1.852–3.017] 5/5 33.5%  not read: n 5 < 10, order 33%
+      pilot σ of ln(÷H) 0.2007 → n 133
+  dbts_a1 Q16 1x none SW  dav1d     ask       2080.1 [1951.8–2222.5] n 5  ÷H 77.384 [54.492–83.895] 5/5 29.6%  not read: n 5 < 10, order 30%
+      pilot σ of ln(÷H) 0.1782 → n 105
+  dbts_a1 Q16 1x none SW  dav1d     series    4005.1 [3590.0–4351.1] n 5  ÷H 2.352 [1.541–2.735] 5/5 34.5%  not read: n 5 < 10, order 34%
+      pilot σ of ln(÷H) 0.2250 → n 167
+  dbts_a1 Q16 1x none SW  webcodecs frame       33.7 [29.1–38.0] n 5  ÷H 1.239 [0.895–1.447] 4/5 27.8%  not read: n 5 < 10, order 28%
+      pilot σ of ln(÷H) 0.1873 → n 116
+  dbts_a1 Q16 1x none SW  webcodecs ask        971.8 [887.8–1006.4] n 5  ÷H 36.713 [25.347–40.456] 5/5 31.0%  not read: n 5 < 10, order 31%
+      pilot σ of ln(÷H) 0.1859 → n 114
+  dbts_a1 Q16 1x none SW  webcodecs series    1864.1 [1607.1–1913.3] n 5  ÷H 1.058 [0.728–1.225] 4/5 31.2%  not read: n 5 < 10, order 31%
+      pilot σ of ln(÷H) 0.2018 → n 135
+  dbts_a1 Q16 1x none W   dav1d     frame       25.0 [23.3–35.5] n 5  ÷H 0.936 [0.786–1.076] 1/5 16.0%  not read: n 5 < 10, order 16%
+      pilot σ of ln(÷H) 0.1143 → n 44
+  dbts_a1 Q16 1x none W   webcodecs frame       28.1 [25.3–29.6] n 5  ÷H 1.017 [0.682–1.274] 3/5 32.9%  not read: n 5 < 10, order 33%
+      pilot σ of ln(÷H) 0.2344 → n 181
+  dbts_a1 Q32 1x none R   dav1d     frame       37.3 [36.2–37.8] n 5  ÷H 1.426 [0.976–1.556] 4/5 31.6%  not read: n 5 < 10, order 32%
+      pilot σ of ln(÷H) 0.1924 → n 122
+  dbts_a1 Q32 1x none R   dav1d     series    2242.7 [2033.9–2386.1] n 5  ÷H 1.264 [0.884–1.709] 4/5 35.2%  not read: n 5 < 10, order 35%
+      pilot σ of ln(÷H) 0.2473 → n 202
+  dbts_a1 Q32 1x none R   webcodecs frame       46.5 [35.3–56.4] n 5  ÷H 1.517 [1.317–1.871] 5/5 23.4%  not read: n 5 < 10, order 23%
+      pilot σ of ln(÷H) 0.1530 → n 78
+  dbts_a1 Q32 1x none R   webcodecs series    2169.8 [2143.3–2797.1] n 5  ÷H 1.320 [0.826–1.644] 4/5 37.4%  not read: n 5 < 10, order 37%
+      pilot σ of ln(÷H) 0.2700 → n 241
+  dbts_a1 Q32 1x none S1  dav1d     frame       59.1 [56.3–95.0] n 5  ÷H 2.479 [1.836–2.527] 5/5 25.9%  not read: n 5 < 10, order 26%
+      pilot σ of ln(÷H) 0.1346 → n 60
+  dbts_a1 Q32 1x none S1  dav1d     ask         63.0 [55.7–121.9] n 5  ÷H 2.396 [2.053–3.192] 5/5 33.2%  not read: n 5 < 10, order 33%
+      pilot σ of ln(÷H) 0.1599 → n 85
+  dbts_a1 Q32 1x none S1  dav1d     series    4778.9 [4461.8–4964.8] n 5  ÷H 2.736 [1.886–3.400] 5/5 31.1%  not read: n 5 < 10, order 31%
+      pilot σ of ln(÷H) 0.2224 → n 163
+  dbts_a1 Q32 1x none S1  webcodecs frame       25.7 [24.5–28.8] n 5  ÷H 0.924 [0.755–1.084] 2/5 18.3%  not read: n 5 < 10, order 18%
+      pilot σ of ln(÷H) 0.1551 → n 80
+  dbts_a1 Q32 1x none S1  webcodecs ask         29.8 [27.0–33.1] n 5  ÷H 1.111 [0.798–1.198] 4/5 28.2%  not read: n 5 < 10, order 28%
+      pilot σ of ln(÷H) 0.1635 → n 89
+  dbts_a1 Q32 1x none S1  webcodecs series    1423.5 [1294.0–1716.6] n 5  ÷H 0.845 [0.516–1.057] 1/5 38.9%  not read: n 5 < 10, order 39%
+      pilot σ of ln(÷H) 0.2799 → n 259
+  dbts_a1 Q32 1x none S16 dav1d     frame       57.0 [54.4–60.6] n 5  ÷H 2.055 [1.587–2.563] 5/5 24.7%  not read: n 5 < 10, order 25%
+      pilot σ of ln(÷H) 0.1852 → n 113
+  dbts_a1 Q32 1x none S16 dav1d     ask        462.6 [445.6–526.3] n 5  ÷H 16.832 [13.788–19.509] 5/5 18.1%  not read: n 5 < 10, order 18%
+      pilot σ of ln(÷H) 0.1359 → n 61
+  dbts_a1 Q32 1x none S16 dav1d     series    3311.4 [2835.2–3765.4] n 5  ÷H 1.867 [1.260–2.572] 5/5 37.8%  not read: n 5 < 10, order 38%
+      pilot σ of ln(÷H) 0.2615 → n 226
+  dbts_a1 Q32 1x none S16 webcodecs frame       27.2 [26.5–28.5] n 5  ÷H 1.000 [0.746–1.225] 3/5 25.4%  not read: n 5 < 10, order 25%
+      pilot σ of ln(÷H) 0.1888 → n 118
+  dbts_a1 Q32 1x none S16 webcodecs ask        267.0 [242.4–278.5] n 5  ÷H 10.087 [7.297–10.515] 5/5 27.7%  not read: n 5 < 10, order 28%
+      pilot σ of ln(÷H) 0.1560 → n 81
+  dbts_a1 Q32 1x none S16 webcodecs series    1548.6 [1441.9–1837.0] n 5  ÷H 1.006 [0.589–1.099] 3/5 41.4%  not read: n 5 < 10, order 41%
+      pilot σ of ln(÷H) 0.2482 → n 203
+  dbts_a1 Q32 1x none S8  dav1d     frame       60.3 [56.6–73.2] n 5  ÷H 2.165 [1.918–2.818] 5/5 30.2%  not read: n 5 < 10, order 30%
+      pilot σ of ln(÷H) 0.1536 → n 78
+  dbts_a1 Q32 1x none S8  dav1d     ask        259.5 [240.1–293.1] n 5  ÷H 9.127 [6.799–11.784] 5/5 29.1%  not read: n 5 < 10, order 29%
+      pilot σ of ln(÷H) 0.2061 → n 140
+  dbts_a1 Q32 1x none S8  dav1d     series    3100.0 [2726.9–4588.0] n 5  ÷H 1.954 [1.130–2.538] 5/5 42.1%  not read: n 5 < 10, order 42%
+      pilot σ of ln(÷H) 0.2999 → n 297
+  dbts_a1 Q32 1x none S8  webcodecs frame       29.3 [26.1–33.0] n 5  ÷H 1.058 [0.768–1.328] 3/5 27.4%  not read: n 5 < 10, order 27%
+      pilot σ of ln(÷H) 0.2135 → n 151
+  dbts_a1 Q32 1x none S8  webcodecs ask        139.8 [133.0–151.1] n 5  ÷H 5.028 [3.718–6.072] 5/5 26.0%  not read: n 5 < 10, order 26%
+      pilot σ of ln(÷H) 0.2117 → n 148
+  dbts_a1 Q32 1x none S8  webcodecs series    1572.7 [1440.4–1664.9] n 5  ÷H 0.902 [0.598–1.098] 1/5 33.6%  not read: n 5 < 10, order 34%
+      pilot σ of ln(÷H) 0.2299 → n 175
+  dbts_a1 Q32 1x none SW  dav1d     frame       63.1 [60.9–65.8] n 5  ÷H 2.303 [1.723–2.711] 5/5 25.2%  not read: n 5 < 10, order 25%
+      pilot σ of ln(÷H) 0.1761 → n 103
+  dbts_a1 Q32 1x none SW  dav1d     ask       1634.5 [1558.1–1867.9] n 5  ÷H 60.480 [48.932–66.972] 5/5 19.1%  not read: n 5 < 10, order 19%
+      pilot σ of ln(÷H) 0.1245 → n 52
+  dbts_a1 Q32 1x none SW  dav1d     series    3308.1 [2958.2–3804.8] n 5  ÷H 1.970 [1.448–2.254] 5/5 26.5%  not read: n 5 < 10, order 27%
+      pilot σ of ln(÷H) 0.1653 → n 90
+  dbts_a1 Q32 1x none SW  webcodecs frame       28.6 [23.5–32.6] n 5  ÷H 1.010 [0.746–1.233] 3/5 26.2%  not read: n 5 < 10, order 26%
+      pilot σ of ln(÷H) 0.2104 → n 146
+  dbts_a1 Q32 1x none SW  webcodecs ask        836.2 [764.2–912.9] n 5  ÷H 31.590 [23.915–33.673] 5/5 24.3%  not read: n 5 < 10, order 24%
+      pilot σ of ln(÷H) 0.1480 → n 73
+  dbts_a1 Q32 1x none SW  webcodecs series    1515.8 [1482.3–1680.2] n 5  ÷H 0.899 [0.574–1.129] 2/5 36.2%  not read: n 5 < 10, order 36%
+      pilot σ of ln(÷H) 0.2609 → n 225
+  dbts_a1 Q32 1x none W   dav1d     frame       24.6 [23.2–26.1] n 5  ÷H 0.891 [0.644–1.031] 1/5 27.7%  not read: n 5 < 10, order 28%
+      pilot σ of ln(÷H) 0.1863 → n 115
+  dbts_a1 Q32 1x none W   webcodecs frame       32.3 [24.5–35.3] n 5  ÷H 1.102 [0.693–1.421] 4/5 37.1%  not read: n 5 < 10, order 37%
+      pilot σ of ln(÷H) 0.2679 → n 237
+  dbts_a1 Q8 1x none R   dav1d     frame       37.9 [37.8–51.8] n 5  ÷H 1.433 [1.230–1.670] 5/5 16.5%  not read: n 5 < 10, order 17%
+      pilot σ of ln(÷H) 0.1273 → n 54
+  dbts_a1 Q8 1x none R   dav1d     series    2219.4 [1986.8–3165.2] n 5  ÷H 1.396 [0.816–1.751] 4/5 41.6%  not read: n 5 < 10, order 42%
+      pilot σ of ln(÷H) 0.2887 → n 275
+  dbts_a1 Q8 1x none R   webcodecs frame       41.6 [35.2–55.4] n 5  ÷H 1.530 [1.090–2.092] 5/5 36.7%  not read: n 5 < 10, order 37%
+      pilot σ of ln(÷H) 0.2356 → n 183
+  dbts_a1 Q8 1x none R   webcodecs series    2311.0 [2140.7–2636.7] n 5  ÷H 1.411 [0.886–1.761] 4/5 37.2%  not read: n 5 < 10, order 37%
+      pilot σ of ln(÷H) 0.2537 → n 212
+  dbts_a1 Q8 1x none S1  dav1d     frame       63.4 [58.1–74.2] n 5  ÷H 2.419 [1.661–2.553] 5/5 31.3%  not read: n 5 < 10, order 31%
+      pilot σ of ln(÷H) 0.1763 → n 103
+  dbts_a1 Q8 1x none S1  dav1d     ask         61.2 [59.9–77.2] n 5  ÷H 2.517 [1.568–2.849] 5/5 37.7%  not read: n 5 < 10, order 38%
+      pilot σ of ln(÷H) 0.2324 → n 178
+  dbts_a1 Q8 1x none S1  dav1d     series    3609.4 [3264.7–4928.1] n 5  ÷H 2.006 [1.875–2.488] 5/5 24.0%  not read: n 5 < 10, order 24%
+      pilot σ of ln(÷H) 0.1105 → n 41
+  dbts_a1 Q8 1x none S1  webcodecs frame       41.6 [37.8–49.8] n 5  ÷H 1.547 [1.306–1.671] 5/5 15.6%  not read: n 5 < 10, order 16%
+      pilot σ of ln(÷H) 0.0987 → n 33
+  dbts_a1 Q8 1x none S1  webcodecs ask         49.0 [42.9–52.5] n 5  ÷H 1.639 [1.374–1.975] 5/5 20.5%  not read: n 5 < 10, order 20%
+      pilot σ of ln(÷H) 0.1527 → n 77
+  dbts_a1 Q8 1x none S1  webcodecs series    2426.6 [2321.9–2557.7] n 5  ÷H 1.430 [0.924–1.783] 4/5 35.4%  not read: n 5 < 10, order 35%
+      pilot σ of ln(÷H) 0.2399 → n 190
+  dbts_a1 Q8 1x none S16 dav1d     frame       78.5 [75.2–115.6] n 5  ÷H 3.028 [2.964–3.353] 5/5 10.7%  not read: n 5 < 10, order 11%
+      pilot σ of ln(÷H) 0.0489 → n 10
+  dbts_a1 Q8 1x none S16 dav1d     ask        729.7 [676.0–944.8] n 5  ÷H 27.567 [24.751–29.056] 5/5 10.2%  not read: n 5 < 10, order 10%
+      pilot σ of ln(÷H) 0.0636 → n 14
+  dbts_a1 Q8 1x none S16 dav1d     series    4822.7 [4263.8–6098.1] n 5  ÷H 3.068 [1.814–3.373] 5/5 40.9%  not read: n 5 < 10, order 41%
+      pilot σ of ln(÷H) 0.2521 → n 210
+  dbts_a1 Q8 1x none S16 webcodecs frame       54.1 [46.7–60.3] n 5  ÷H 2.008 [1.417–2.364] 5/5 29.4%  not read: n 5 < 10, order 29%
+      pilot σ of ln(÷H) 0.1871 → n 116
+  dbts_a1 Q8 1x none S16 webcodecs ask        464.5 [442.0–502.2] n 5  ÷H 16.955 [13.156–19.000] 5/5 22.4%  not read: n 5 < 10, order 22%
+      pilot σ of ln(÷H) 0.1499 → n 75
+  dbts_a1 Q8 1x none S16 webcodecs series    2673.9 [2549.1–3137.1] n 5  ÷H 1.646 [1.119–1.942] 5/5 32.0%  not read: n 5 < 10, order 32%
+      pilot σ of ln(÷H) 0.2076 → n 142
+  dbts_a1 Q8 1x none S8  dav1d     frame       81.3 [75.2–121.3] n 5  ÷H 3.070 [2.145–3.953] 5/5 30.1%  not read: n 5 < 10, order 30%
+      pilot σ of ln(÷H) 0.2273 → n 171
+  dbts_a1 Q8 1x none S8  dav1d     ask        389.9 [355.7–438.4] n 5  ÷H 14.298 [11.283–16.561] 5/5 21.1%  not read: n 5 < 10, order 21%
+      pilot σ of ln(÷H) 0.1553 → n 80
+  dbts_a1 Q8 1x none S8  dav1d     series    4861.9 [4218.8–5078.4] n 5  ÷H 2.809 [1.850–3.215] 5/5 34.1%  not read: n 5 < 10, order 34%
+      pilot σ of ln(÷H) 0.2158 → n 154
+  dbts_a1 Q8 1x none S8  webcodecs frame       53.4 [47.1–56.9] n 5  ÷H 2.024 [1.464–2.151] 5/5 27.7%  not read: n 5 < 10, order 28%
+      pilot σ of ln(÷H) 0.1662 → n 91
+  dbts_a1 Q8 1x none S8  webcodecs ask        253.1 [231.5–270.5] n 5  ÷H 9.104 [6.693–10.173] 5/5 26.5%  not read: n 5 < 10, order 26%
+      pilot σ of ln(÷H) 0.1673 → n 93
+  dbts_a1 Q8 1x none S8  webcodecs series    2891.3 [2712.7–3138.6] n 5  ÷H 1.670 [1.194–2.094] 5/5 28.5%  not read: n 5 < 10, order 29%
+      pilot σ of ln(÷H) 0.2016 → n 134
+  dbts_a1 Q8 1x none SW  dav1d     frame       80.7 [77.8–125.8] n 5  ÷H 3.127 [2.650–3.468] 5/5 15.3%  not read: n 5 < 10, order 15%
+      pilot σ of ln(÷H) 0.1020 → n 35
+  dbts_a1 Q8 1x none SW  dav1d     ask       2455.7 [2306.6–2739.2] n 5  ÷H 89.026 [71.759–109.167] 5/5 22.6%  not read: n 5 < 10, order 23%
+      pilot σ of ln(÷H) 0.1666 → n 92
+  dbts_a1 Q8 1x none SW  dav1d     series    5012.8 [4222.5–5711.1] n 5  ÷H 3.106 [1.630–3.217] 5/5 47.5%  not read: n 5 < 10, order 48%
+      pilot σ of ln(÷H) 0.2907 → n 279
+  dbts_a1 Q8 1x none SW  webcodecs frame       54.4 [47.8–56.3] n 5  ÷H 1.923 [1.436–2.205] 5/5 25.3%  not read: n 5 < 10, order 25%
+      pilot σ of ln(÷H) 0.1635 → n 89
+  dbts_a1 Q8 1x none SW  webcodecs ask       1502.0 [1441.9–1587.9] n 5  ÷H 55.435 [41.599–61.977] 5/5 25.0%  not read: n 5 < 10, order 25%
+      pilot σ of ln(÷H) 0.1598 → n 85
+  dbts_a1 Q8 1x none SW  webcodecs series    3047.9 [2750.0–3145.1] n 5  ÷H 1.739 [1.197–2.095] 5/5 31.2%  not read: n 5 < 10, order 31%
+      pilot σ of ln(÷H) 0.2067 → n 141
+  dbts_a1 Q8 1x none W   dav1d     frame       25.0 [22.8–30.7] n 5  ÷H 0.877 [0.804–1.004] 1/5 14.5%  not read: n 5 < 10, order 14%
+      pilot σ of ln(÷H) 0.0950 → n 30
+  dbts_a1 Q8 1x none W   webcodecs frame       26.2 [24.6–34.3] n 5  ÷H 1.001 [0.736–1.294] 3/5 29.3%  not read: n 5 < 10, order 29%
+      pilot σ of ln(÷H) 0.2140 → n 151
+  dbts_a1 Q- 1x none H   openjph   frame       26.5 [23.3–38.2] n 5  ÷H —  not read: n 5 < 10
+  dbts_a1 Q- 1x none H   openjph   series    1685.4 [1312.4–2628.2] n 5  ÷H —  not read: n 5 < 10
+  dbts_a1 Q- 1x none L   dav1d     frame      272.6 [214.2–346.4] n 5  ÷H 9.206 [9.045–10.300] 5/5 11.9%  not read: n 5 < 10, order 12%
+      pilot σ of ln(÷H) 0.0537 → n 10
+  dbts_a1 Q- 1x none L   dav1d     series   13183.0 [12235.2–16528.4] n 5  ÷H 8.904 [5.016–9.323] 5/5 43.7%  not read: n 5 < 10, order 44%
+      pilot σ of ln(÷H) 0.2596 → n 222
+  dbts_a1 Q- 1x none L   webcodecs frame      207.9 [179.4–230.7] n 5  ÷H 7.711 [5.445–9.275] 5/5 29.4%  not read: n 5 < 10, order 29%
+      pilot σ of ln(÷H) 0.2027 → n 136
+  dbts_a1 Q- 1x none L   webcodecs series   10814.5 [9757.7–11339.2] n 5  ÷H 6.546 [4.104–7.435] 5/5 37.3%  not read: n 5 < 10, order 37%
+      pilot σ of ln(÷H) 0.2290 → n 173
+  dbts_a1 Q16 4x none R   dav1d     frame      188.2 [167.1–191.6] n 5  ÷H 1.565 [1.370–1.735] 5/5 12.5%  not read: n 5 < 10, order 12%
+      pilot σ of ln(÷H) 0.1041 → n 36
+  dbts_a1 Q16 4x none R   dav1d     series   10640.6 [10245.5–10991.9] n 5  ÷H 1.509 [1.365–1.708] 5/5 13.2%  not read: n 5 < 10, order 13%
+      pilot σ of ln(÷H) 0.0894 → n 27
+  dbts_a1 Q16 4x none R   webcodecs frame      179.6 [171.9–189.8] n 5  ÷H 1.466 [1.338–1.678] 5/5 14.4%  not read: n 5 < 10, order 14%
+      pilot σ of ln(÷H) 0.0988 → n 33
+  dbts_a1 Q16 4x none R   webcodecs series   10392.1 [9391.6–11276.6] n 5  ÷H 1.491 [1.385–1.522] 5/5 7.1%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0423 → n 10
+  dbts_a1 Q16 4x none S1  dav1d     frame      205.0 [194.5–225.8] n 5  ÷H 1.750 [1.625–1.882] 5/5 7.5%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0545 → n 10
+  dbts_a1 Q16 4x none S1  dav1d     ask        209.4 [196.6–227.6] n 5  ÷H 1.725 [1.638–2.159] 5/5 25.2%  not read: n 5 < 10, order 25%
+      pilot σ of ln(÷H) 0.1134 → n 43
+  dbts_a1 Q16 4x none S1  dav1d     series   11813.1 [11448.3–12498.9] n 5  ÷H 1.638 [1.616–1.824] 5/5 11.4%  not read: n 5 < 10, order 11%
+      pilot σ of ln(÷H) 0.0501 → n 10
+  dbts_a1 Q16 4x none S1  webcodecs frame       90.9 [85.4–97.4] n 5  ÷H 0.742 [0.701–0.934] 0/5 25.8%  not read: n 5 < 10, order 26%
+      pilot σ of ln(÷H) 0.1163 → n 45
+  dbts_a1 Q16 4x none S1  webcodecs ask        109.0 [99.9–223.4] n 5  ÷H 0.948 [0.719–2.162] 1/5 127.9%  not read: n 5 < 10, order 128%
+      pilot σ of ln(÷H) 0.4229 → n 590
+  dbts_a1 Q16 4x none S1  webcodecs series    4610.0 [4567.5–4825.0] n 5  ÷H 0.651 [0.609–0.726] 0/5 11.5%  not read: n 5 < 10, order 11%
+      pilot σ of ln(÷H) 0.0635 → n 14
+  dbts_a1 Q16 4x none S16 dav1d     frame      363.0 [306.2–398.6] n 5  ÷H 2.964 [2.869–3.288] 5/5 10.9%  not read: n 5 < 10, order 11%
+      pilot σ of ln(÷H) 0.0518 → n 10
+  dbts_a1 Q16 4x none S16 dav1d     ask       2912.2 [2892.2–3027.9] n 5  ÷H 24.192 [21.792–28.085] 5/5 16.1%  not read: n 5 < 10, order 16%
+      pilot σ of ln(÷H) 0.0928 → n 29
+  dbts_a1 Q16 4x none S16 dav1d     series   19297.2 [17686.0–20495.2] n 5  ÷H 2.677 [2.572–2.809] 5/5 4.9%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0369 → n 10
+  dbts_a1 Q16 4x none S16 webcodecs frame       92.3 [86.0–98.3] n 5  ÷H 0.755 [0.664–0.906] 0/5 20.0%  not read: n 5 < 10, order 20%
+      pilot σ of ln(÷H) 0.1209 → n 49
+  dbts_a1 Q16 4x none S16 webcodecs ask        829.4 [808.4–841.7] n 5  ÷H 6.899 [6.036–7.821] 5/5 13.4%  not read: n 5 < 10, order 13%
+      pilot σ of ln(÷H) 0.0951 → n 30
+  dbts_a1 Q16 4x none S16 webcodecs series    5318.3 [4785.0–5379.1] n 5  ÷H 0.740 [0.679–0.760] 0/5 8.2%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0457 → n 10
+  dbts_a1 Q16 4x none S8  dav1d     frame      356.2 [328.2–395.1] n 5  ÷H 2.954 [2.452–3.446] 5/5 17.0%  not read: n 5 < 10, order 17%
+      pilot σ of ln(÷H) 0.1325 → n 58
+  dbts_a1 Q16 4x none S8  dav1d     ask       1499.9 [1416.4–1667.3] n 5  ÷H 13.138 [10.193–15.028] 5/5 22.4%  not read: n 5 < 10, order 22%
+      pilot σ of ln(÷H) 0.1438 → n 69
+  dbts_a1 Q16 4x none S8  dav1d     series   18451.6 [18084.5–20441.0] n 5  ÷H 2.616 [2.441–2.923] 5/5 11.7%  not read: n 5 < 10, order 12%
+      pilot σ of ln(÷H) 0.0677 → n 16
+  dbts_a1 Q16 4x none S8  webcodecs frame       81.2 [74.6–102.7] n 5  ÷H 0.722 [0.584–0.838] 0/5 19.0%  not read: n 5 < 10, order 19%
+      pilot σ of ln(÷H) 0.1421 → n 67
+  dbts_a1 Q16 4x none S8  webcodecs ask        411.3 [384.8–482.1] n 5  ÷H 3.451 [3.085–3.936] 5/5 14.0%  not read: n 5 < 10, order 14%
+      pilot σ of ln(÷H) 0.0923 → n 29
+  dbts_a1 Q16 4x none S8  webcodecs series    4725.7 [4433.7–5241.5] n 5  ÷H 0.699 [0.622–0.704] 0/5 11.0%  not read: n 5 < 10, order 11%
+      pilot σ of ln(÷H) 0.0602 → n 12
+  dbts_a1 Q16 4x none SW  dav1d     frame      346.5 [310.7–412.0] n 5  ÷H 2.898 [2.537–3.531] 5/5 21.8%  not read: n 5 < 10, order 22%
+      pilot σ of ln(÷H) 0.1183 → n 47
+  dbts_a1 Q16 4x none SW  dav1d     ask       9849.7 [9543.5–10869.5] n 5  ÷H 82.012 [78.226–92.339] 5/5 12.6%  not read: n 5 < 10, order 13%
+      pilot σ of ln(÷H) 0.0624 → n 13
+  dbts_a1 Q16 4x none SW  dav1d     series   19620.2 [17759.0–21033.0] n 5  ÷H 2.810 [2.410–3.116] 5/5 14.2%  not read: n 5 < 10, order 14%
+      pilot σ of ln(÷H) 0.1071 → n 38
+  dbts_a1 Q16 4x none SW  webcodecs frame       84.8 [79.9–107.1] n 5  ÷H 0.706 [0.652–0.940] 0/5 33.1%  not read: n 5 < 10, order 33%
+      pilot σ of ln(÷H) 0.1496 → n 74
+  dbts_a1 Q16 4x none SW  webcodecs ask       2572.2 [2461.4–2636.2] n 5  ÷H 20.494 [18.759–24.888] 5/5 21.4%  not read: n 5 < 10, order 21%
+      pilot σ of ln(÷H) 0.1139 → n 43
+  dbts_a1 Q16 4x none SW  webcodecs series    4885.1 [4607.0–5140.8] n 5  ÷H 0.694 [0.637–0.732] 0/5 8.2%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0499 → n 10
+  dbts_a1 Q16 4x none W   dav1d     frame      125.5 [114.8–145.0] n 5  ÷H 1.110 [0.834–1.273] 4/5 24.9%  not read: n 5 < 10, order 25%
+      pilot σ of ln(÷H) 0.1555 → n 80
+  dbts_a1 Q16 4x none W   webcodecs frame      123.9 [109.8–134.8] n 5  ÷H 1.031 [0.925–1.101] 3/5 10.4%  not read: n 5 < 10, order 10%
+      pilot σ of ln(÷H) 0.0695 → n 16
+  dbts_a1 Q32 4x none R   dav1d     frame      181.5 [174.4–213.7] n 5  ÷H 1.704 [1.306–1.780] 5/5 23.3%  not read: n 5 < 10, order 23%
+      pilot σ of ln(÷H) 0.1263 → n 53
+  dbts_a1 Q32 4x none R   dav1d     series   11142.8 [9675.8–11795.0] n 5  ÷H 1.521 [1.341–1.770] 5/5 16.3%  not read: n 5 < 10, order 16%
+      pilot σ of ln(÷H) 0.1106 → n 41
+  dbts_a1 Q32 4x none R   webcodecs frame      176.7 [159.0–193.7] n 5  ÷H 1.538 [1.260–1.585] 5/5 18.1%  not read: n 5 < 10, order 18%
+      pilot σ of ln(÷H) 0.0957 → n 31
+  dbts_a1 Q32 4x none R   webcodecs series   10458.3 [9036.6–11052.0] n 5  ÷H 1.435 [1.272–1.567] 5/5 11.3%  not read: n 5 < 10, order 11%
+      pilot σ of ln(÷H) 0.0761 → n 20
+  dbts_a1 Q32 4x none S1  dav1d     frame      285.9 [271.1–305.8] n 5  ÷H 2.450 [1.951–2.766] 5/5 20.4%  not read: n 5 < 10, order 20%
+      pilot σ of ln(÷H) 0.1399 → n 65
+  dbts_a1 Q32 4x none S1  dav1d     ask        318.7 [296.6–343.2] n 5  ÷H 2.653 [2.290–3.321] 5/5 25.2%  not read: n 5 < 10, order 25%
+      pilot σ of ln(÷H) 0.1340 → n 60
+  dbts_a1 Q32 4x none S1  dav1d     series   23131.7 [22465.4–25207.5] n 5  ÷H 3.185 [3.116–3.863] 5/5 21.3%  not read: n 5 < 10, order 21%
+      pilot σ of ln(÷H) 0.0902 → n 27
+  dbts_a1 Q32 4x none S1  webcodecs frame       86.0 [74.2–91.6] n 5  ÷H 0.748 [0.613–0.832] 0/5 18.1%  not read: n 5 < 10, order 18%
+      pilot σ of ln(÷H) 0.1232 → n 50
+  dbts_a1 Q32 4x none S1  webcodecs ask        103.0 [98.8–111.7] n 5  ÷H 0.858 [0.711–1.081] 1/5 26.0%  not read: n 5 < 10, order 26%
+      pilot σ of ln(÷H) 0.1492 → n 74
+  dbts_a1 Q32 4x none S1  webcodecs series    4634.7 [4238.3–5475.8] n 5  ÷H 0.657 [0.608–0.730] 0/5 11.1%  not read: n 5 < 10, order 11%
+      pilot σ of ln(÷H) 0.0684 → n 16
+  dbts_a1 Q32 4x none S16 dav1d     frame      299.7 [263.8–312.0] n 5  ÷H 2.501 [2.230–2.553] 5/5 10.8%  not read: n 5 < 10, order 11%
+      pilot σ of ln(÷H) 0.0564 → n 11
+  dbts_a1 Q32 4x none S16 dav1d     ask       2219.9 [2115.1–2523.7] n 5  ÷H 18.821 [18.163–20.465] 5/5 8.7%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0458 → n 10
+  dbts_a1 Q32 4x none S16 dav1d     series   15056.9 [14553.0–17827.3] n 5  ÷H 2.087 [2.053–2.406] 5/5 15.3%  not read: n 5 < 10, order 15%
+      pilot σ of ln(÷H) 0.0722 → n 18
+  dbts_a1 Q32 4x none S16 webcodecs frame       92.4 [86.1–100.0] n 5  ÷H 0.756 [0.720–0.874] 0/5 15.7%  not read: n 5 < 10, order 16%
+      pilot σ of ln(÷H) 0.0781 → n 21
+  dbts_a1 Q32 4x none S16 webcodecs ask        778.9 [709.8–844.6] n 5  ÷H 6.526 [5.828–6.896] 5/5 10.7%  not read: n 5 < 10, order 11%
+      pilot σ of ln(÷H) 0.0679 → n 16
+  dbts_a1 Q32 4x none S16 webcodecs series    4515.2 [4300.3–5169.0] n 5  ÷H 0.674 [0.596–0.693] 0/5 11.6%  not read: n 5 < 10, order 12%
+      pilot σ of ln(÷H) 0.0714 → n 17
+  dbts_a1 Q32 4x none S8  dav1d     frame      303.4 [268.4–321.7] n 5  ÷H 2.526 [2.101–2.968] 5/5 17.5%  not read: n 5 < 10, order 17%
+      pilot σ of ln(÷H) 0.1281 → n 55
+  dbts_a1 Q32 4x none S8  dav1d     ask       1214.5 [1092.7–1365.9] n 5  ÷H 10.423 [9.830–10.573] 5/5 5.7%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0352 → n 10
+  dbts_a1 Q32 4x none S8  dav1d     series   14821.3 [14283.1–16620.4] n 5  ÷H 2.101 [1.980–2.268] 5/5 7.9%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0584 → n 12
+  dbts_a1 Q32 4x none S8  webcodecs frame       87.2 [74.7–121.9] n 5  ÷H 0.765 [0.622–0.878] 0/5 18.7%  not read: n 5 < 10, order 19%
+      pilot σ of ln(÷H) 0.1257 → n 53
+  dbts_a1 Q32 4x none S8  webcodecs ask        402.6 [390.1–593.8] n 5  ÷H 3.868 [3.248–4.531] 5/5 17.1%  not read: n 5 < 10, order 17%
+      pilot σ of ln(÷H) 0.1505 → n 75
+  dbts_a1 Q32 4x none S8  webcodecs series    4613.8 [4412.1–4685.1] n 5  ÷H 0.641 [0.616–0.701] 0/5 9.3%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0507 → n 10
+  dbts_a1 Q32 4x none SW  dav1d     frame      302.5 [293.4–347.6] n 5  ÷H 2.655 [2.112–2.884] 5/5 20.5%  not read: n 5 < 10, order 20%
+      pilot σ of ln(÷H) 0.1251 → n 52
+  dbts_a1 Q32 4x none SW  dav1d     ask       7827.0 [7421.6–8005.3] n 5  ÷H 64.202 [57.351–77.456] 5/5 20.6%  not read: n 5 < 10, order 21%
+      pilot σ of ln(÷H) 0.1081 → n 39
+  dbts_a1 Q32 4x none SW  dav1d     series   15552.1 [14754.9–16356.4] n 5  ÷H 2.175 [2.039–2.598] 5/5 19.4%  not read: n 5 < 10, order 19%
+      pilot σ of ln(÷H) 0.0984 → n 32
+  dbts_a1 Q32 4x none SW  webcodecs frame       85.3 [74.8–91.0] n 5  ÷H 0.696 [0.601–0.831] 0/5 19.3%  not read: n 5 < 10, order 19%
+      pilot σ of ln(÷H) 0.1254 → n 52
+  dbts_a1 Q32 4x none SW  webcodecs ask       2421.3 [2372.1–2560.3] n 5  ÷H 20.820 [17.627–23.402] 5/5 15.3%  not read: n 5 < 10, order 15%
+      pilot σ of ln(÷H) 0.1042 → n 36
+  dbts_a1 Q32 4x none SW  webcodecs series    4576.9 [4418.8–4823.8] n 5  ÷H 0.618 [0.614–0.702] 0/5 13.6%  not read: n 5 < 10, order 14%
+      pilot σ of ln(÷H) 0.0648 → n 14
+  dbts_a1 Q32 4x none W   dav1d     frame      120.8 [111.9–131.5] n 5  ÷H 1.017 [0.947–1.083] 3/5 6.9%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0565 → n 11
+  dbts_a1 Q32 4x none W   webcodecs frame      130.5 [105.8–137.3] n 5  ÷H 1.024 [0.939–1.121] 3/5 9.5%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0796 → n 21
+  dbts_a1 Q8 4x none R   dav1d     frame      159.5 [154.1–165.9] n 5  ÷H 1.359 [1.194–1.491] 5/5 12.2%  not read: n 5 < 10, order 12%
+      pilot σ of ln(÷H) 0.0810 → n 22
+  dbts_a1 Q8 4x none R   dav1d     series   10084.8 [9083.5–10227.8] n 5  ÷H 1.418 [1.292–1.443] 5/5 8.9%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0474 → n 10
+  dbts_a1 Q8 4x none R   webcodecs frame      175.9 [156.2–194.8] n 5  ÷H 1.465 [1.352–1.590] 5/5 8.6%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0658 → n 15
+  dbts_a1 Q8 4x none R   webcodecs series   10615.2 [9499.4–10936.9] n 5  ÷H 1.476 [1.317–1.546] 5/5 10.8%  not read: n 5 < 10, order 11%
+      pilot σ of ln(÷H) 0.0613 → n 13
+  dbts_a1 Q8 4x none S1  dav1d     frame      318.3 [266.2–352.6] n 5  ÷H 2.599 [2.537–2.794] 5/5 7.5%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0371 → n 10
+  dbts_a1 Q8 4x none S1  dav1d     ask        298.0 [284.0–379.8] n 5  ÷H 2.616 [2.316–3.101] 5/5 18.6%  not read: n 5 < 10, order 19%
+      pilot σ of ln(÷H) 0.1141 → n 43
+  dbts_a1 Q8 4x none S1  dav1d     series   16975.5 [15948.4–17620.5] n 5  ÷H 2.353 [2.274–2.533] 5/5 7.6%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0438 → n 10
+  dbts_a1 Q8 4x none S1  webcodecs frame      107.9 [98.2–121.8] n 5  ÷H 0.912 [0.786–0.994] 0/5 13.8%  not read: n 5 < 10, order 14%
+      pilot σ of ln(÷H) 0.0881 → n 26
+  dbts_a1 Q8 4x none S1  webcodecs ask        129.5 [115.3–181.7] n 5  ÷H 1.078 [0.932–1.758] 4/5 63.1%  not read: n 5 < 10, order 63%
+      pilot σ of ln(÷H) 0.2480 → n 203
+  dbts_a1 Q8 4x none S1  webcodecs series    6212.1 [5903.3–6416.5] n 5  ÷H 0.842 [0.820–0.937] 0/5 11.3%  not read: n 5 < 10, order 11%
+      pilot σ of ln(÷H) 0.0582 → n 12
+  dbts_a1 Q8 4x none S16 dav1d     frame      378.5 [363.7–446.0] n 5  ÷H 3.322 [3.028–3.642] 5/5 9.6%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0779 → n 20
+  dbts_a1 Q8 4x none S16 dav1d     ask       3315.9 [3143.0–3638.2] n 5  ÷H 28.612 [25.539–30.410] 5/5 10.7%  not read: n 5 < 10, order 11%
+      pilot σ of ln(÷H) 0.0685 → n 16
+  dbts_a1 Q8 4x none S16 dav1d     series   21208.4 [21192.5–23908.2] n 5  ÷H 3.098 [2.940–3.366] 5/5 8.6%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0527 → n 10
+  dbts_a1 Q8 4x none S16 webcodecs frame      129.0 [121.5–140.1] n 5  ÷H 1.132 [0.955–1.209] 4/5 15.6%  not read: n 5 < 10, order 16%
+      pilot σ of ln(÷H) 0.0968 → n 31
+  dbts_a1 Q8 4x none S16 webcodecs ask       1162.3 [1033.7–1175.0] n 5  ÷H 9.687 [8.429–10.002] 5/5 13.0%  not read: n 5 < 10, order 13%
+      pilot σ of ln(÷H) 0.0673 → n 15
+  dbts_a1 Q8 4x none S16 webcodecs series    6617.3 [6226.0–7605.9] n 5  ÷H 0.989 [0.914–1.014] 1/5 7.5%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0434 → n 10
+  dbts_a1 Q8 4x none S8  dav1d     frame      416.1 [394.6–455.6] n 5  ÷H 3.521 [3.047–3.818] 5/5 13.5%  not read: n 5 < 10, order 13%
+      pilot σ of ln(÷H) 0.0925 → n 29
+  dbts_a1 Q8 4x none S8  dav1d     ask       1853.7 [1631.0–1927.3] n 5  ÷H 15.637 [13.341–15.781] 5/5 14.7%  not read: n 5 < 10, order 15%
+      pilot σ of ln(÷H) 0.0720 → n 18
+  dbts_a1 Q8 4x none S8  dav1d     series   22063.4 [19961.2–23136.8] n 5  ÷H 3.083 [2.881–3.172] 5/5 6.6%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0393 → n 10
+  dbts_a1 Q8 4x none S8  webcodecs frame      134.1 [112.3–135.9] n 5  ÷H 1.119 [0.808–1.179] 4/5 27.7%  not read: n 5 < 10, order 28%
+      pilot σ of ln(÷H) 0.1525 → n 77
+  dbts_a1 Q8 4x none S8  webcodecs ask        582.8 [557.6–607.4] n 5  ÷H 4.959 [4.013–5.639] 5/5 19.1%  not read: n 5 < 10, order 19%
+      pilot σ of ln(÷H) 0.1276 → n 54
+  dbts_a1 Q8 4x none S8  webcodecs series    6899.0 [6185.0–7229.3] n 5  ÷H 0.919 [0.835–1.098] 2/5 19.4%  not read: n 5 < 10, order 19%
+      pilot σ of ln(÷H) 0.1040 → n 36
+  dbts_a1 Q8 4x none SW  dav1d     frame      403.6 [382.4–427.5] n 5  ÷H 3.361 [2.943–3.751] 5/5 12.4%  not read: n 5 < 10, order 12%
+      pilot σ of ln(÷H) 0.0882 → n 26
+  dbts_a1 Q8 4x none SW  dav1d     ask      11434.3 [10730.9–11577.2] n 5  ÷H 96.192 [82.291–103.828] 5/5 14.5%  not read: n 5 < 10, order 14%
+      pilot σ of ln(÷H) 0.0848 → n 24
+  dbts_a1 Q8 4x none SW  dav1d     series   21612.3 [20423.6–22679.8] n 5  ÷H 3.023 [2.906–3.243] 5/5 7.3%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0442 → n 10
+  dbts_a1 Q8 4x none SW  webcodecs frame      122.6 [112.1–143.3] n 5  ÷H 1.087 [0.882–1.258] 3/5 18.9%  not read: n 5 < 10, order 19%
+      pilot σ of ln(÷H) 0.1496 → n 74
+  dbts_a1 Q8 4x none SW  webcodecs ask       3797.7 [3446.2–3884.0] n 5  ÷H 31.710 [27.952–33.344] 5/5 11.8%  not read: n 5 < 10, order 12%
+      pilot σ of ln(÷H) 0.0658 → n 15
+  dbts_a1 Q8 4x none SW  webcodecs series    7043.0 [6750.6–7683.1] n 5  ÷H 1.007 [0.953–1.072] 3/5 6.5%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0426 → n 10
+  dbts_a1 Q8 4x none W   dav1d     frame      123.0 [108.6–127.4] n 5  ÷H 1.031 [0.885–1.118] 3/5 14.2%  not read: n 5 < 10, order 14%
+      pilot σ of ln(÷H) 0.0903 → n 27
+  dbts_a1 Q8 4x none W   webcodecs frame      124.1 [113.9–139.8] n 5  ÷H 1.034 [0.875–1.332] 3/5 28.9%  not read: n 5 < 10, order 29%
+      pilot σ of ln(÷H) 0.1571 → n 82
+  dbts_a1 Q- 4x none H   openjph   frame      120.1 [103.4–139.0] n 5  ÷H —  not read: n 5 < 10
+  dbts_a1 Q- 4x none H   openjph   series    7213.3 [6297.0–7503.6] n 5  ÷H —  not read: n 5 < 10
+  dbts_a1 Q- 4x none L   dav1d     frame     1051.0 [1013.6–1104.0] n 5  ÷H 8.897 [7.885–10.169] 5/5 14.3%  not read: n 5 < 10, order 14%
+      pilot σ of ln(÷H) 0.0916 → n 28
+  dbts_a1 Q- 4x none L   dav1d     series   58136.9 [54603.9–60985.9] n 5  ÷H 8.128 [7.901–8.671] 5/5 6.7%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0350 → n 10
+  dbts_a1 Q- 4x none L   webcodecs frame      750.1 [681.9–780.1] n 5  ÷H 6.369 [5.398–6.762] 5/5 15.3%  not read: n 5 < 10, order 15%
+      pilot σ of ln(÷H) 0.0883 → n 26
+  dbts_a1 Q- 4x none L   webcodecs series   41241.0 [38553.8–42787.1] n 5  ÷H 5.702 [5.633–6.123] 5/5 7.4%  not read: n 5 < 10
+      pilot σ of ln(÷H) 0.0351 → n 10
+  dbts_a1 Q32 1x none S16÷S1 ask webcodecs 8.97 [8.09–9.15] n 5  not read: n 5 < 10
+  dbts_a1 Q8 1x none S16÷S1 ask dav1d     11.14 [10.04–15.78] n 5  not read: n 5 < 10, order 42%
+  dbts_a1 Q32 1x none S16÷S1 ask dav1d     7.81 [4.32–8.14] n 5  not read: n 5 < 10, order 45%
+  dbts_a1 Q8 1x none S16÷S1 ask webcodecs 9.57 [9.47–10.47] n 5  not read: n 5 < 10
+  dbts_a1 Q16 1x none S16÷S1 ask webcodecs 9.14 [8.42–10.24] n 5  not read: n 5 < 10, order 12%
+  dbts_a1 Q16 1x none S16÷S1 ask dav1d     14.16 [12.27–16.74] n 5  not read: n 5 < 10, order 18%
+  dbts_a1 Q32 4x none S16÷S1 ask webcodecs 7.56 [6.35–8.19] n 5  not read: n 5 < 10, order 16%
+  dbts_a1 Q8 4x none S16÷S1 ask dav1d     11.03 [9.58–11.40] n 5  not read: n 5 < 10, order 13%
+  dbts_a1 Q32 4x none S16÷S1 ask dav1d     6.97 [6.16–7.93] n 5  not read: n 5 < 10, order 14%
+  dbts_a1 Q8 4x none S16÷S1 ask webcodecs 9.05 [5.69–9.57] n 5  not read: n 5 < 10, order 37%
+  dbts_a1 Q16 4x none S16÷S1 ask webcodecs 7.61 [3.62–8.40] n 5  not read: n 5 < 10, order 52%
+  dbts_a1 Q16 4x none S16÷S1 ask dav1d     13.81 [13.01–14.82] n 5  not read: n 5 < 10
+
+D1–D3: every cell against its band; a read cell outside refutes it there
+  D1 band 0–1.0: 0 of 24 cells read; not decided: no cell read
+    dbts_a1 Q16 1x none S1 webcodecs: 1.032 outside (not read: n 5 < 10, order 19%)
+    dbts_a1 Q16 1x none S16 webcodecs: 1.164 outside (not read: n 5 < 10, order 30%)
+    dbts_a1 Q16 1x none S8 webcodecs: 1.146 outside (not read: n 5 < 10, order 25%)
+    dbts_a1 Q16 1x none SW webcodecs: 1.239 outside (not read: n 5 < 10, order 28%)
+    dbts_a1 Q16 4x none S1 webcodecs: 0.742 inside (not read: n 5 < 10, order 26%)
+    dbts_a1 Q16 4x none S16 webcodecs: 0.755 inside (not read: n 5 < 10, order 20%)
+    dbts_a1 Q16 4x none S8 webcodecs: 0.722 inside (not read: n 5 < 10, order 19%)
+    dbts_a1 Q16 4x none SW webcodecs: 0.706 inside (not read: n 5 < 10, order 33%)
+    dbts_a1 Q32 1x none S1 webcodecs: 0.924 inside (not read: n 5 < 10, order 18%)
+    dbts_a1 Q32 1x none S16 webcodecs: 1.000 outside (not read: n 5 < 10, order 25%)
+    dbts_a1 Q32 1x none S8 webcodecs: 1.058 outside (not read: n 5 < 10, order 27%)
+    dbts_a1 Q32 1x none SW webcodecs: 1.010 outside (not read: n 5 < 10, order 26%)
+    dbts_a1 Q32 4x none S1 webcodecs: 0.748 inside (not read: n 5 < 10, order 18%)
+    dbts_a1 Q32 4x none S16 webcodecs: 0.756 inside (not read: n 5 < 10, order 16%)
+    dbts_a1 Q32 4x none S8 webcodecs: 0.765 inside (not read: n 5 < 10, order 19%)
+    dbts_a1 Q32 4x none SW webcodecs: 0.696 inside (not read: n 5 < 10, order 19%)
+    dbts_a1 Q8 1x none S1 webcodecs: 1.547 outside (not read: n 5 < 10, order 16%)
+    dbts_a1 Q8 1x none S16 webcodecs: 2.008 outside (not read: n 5 < 10, order 29%)
+    dbts_a1 Q8 1x none S8 webcodecs: 2.024 outside (not read: n 5 < 10, order 28%)
+    dbts_a1 Q8 1x none SW webcodecs: 1.923 outside (not read: n 5 < 10, order 25%)
+    dbts_a1 Q8 4x none S1 webcodecs: 0.912 inside (not read: n 5 < 10, order 14%)
+    dbts_a1 Q8 4x none S16 webcodecs: 1.132 outside (not read: n 5 < 10, order 16%)
+    dbts_a1 Q8 4x none S8 webcodecs: 1.119 outside (not read: n 5 < 10, order 28%)
+    dbts_a1 Q8 4x none SW webcodecs: 1.087 outside (not read: n 5 < 10, order 19%)
+  D2 band 5–9: 0 of 12 cells read; not decided: no cell read
+    dbts_a1 Q16 1x none S16 dav1d: 14.161 outside (not read: n 5 < 10, order 18%)
+    dbts_a1 Q16 1x none S16 webcodecs: 9.144 outside (not read: n 5 < 10, order 12%)
+    dbts_a1 Q16 4x none S16 dav1d: 13.809 outside (not read: n 5 < 10)
+    dbts_a1 Q16 4x none S16 webcodecs: 7.607 inside (not read: n 5 < 10, order 52%)
+    dbts_a1 Q32 1x none S16 dav1d: 7.808 inside (not read: n 5 < 10, order 45%)
+    dbts_a1 Q32 1x none S16 webcodecs: 8.968 inside (not read: n 5 < 10)
+    dbts_a1 Q32 4x none S16 dav1d: 6.966 inside (not read: n 5 < 10, order 14%)
+    dbts_a1 Q32 4x none S16 webcodecs: 7.561 inside (not read: n 5 < 10, order 16%)
+    dbts_a1 Q8 1x none S16 dav1d: 11.143 outside (not read: n 5 < 10, order 42%)
+    dbts_a1 Q8 1x none S16 webcodecs: 9.571 outside (not read: n 5 < 10)
+    dbts_a1 Q8 4x none S16 dav1d: 11.029 outside (not read: n 5 < 10, order 13%)
+    dbts_a1 Q8 4x none S16 webcodecs: 9.049 outside (not read: n 5 < 10, order 37%)
+  D3 band 0.9–1.1: 0 of 12 cells read; not decided: no cell read
+    dbts_a1 Q16 1x none R dav1d: 1.469 outside (not read: n 5 < 10, order 34%)
+    dbts_a1 Q16 1x none R webcodecs: 1.611 outside (not read: n 5 < 10, order 25%)
+    dbts_a1 Q16 4x none R dav1d: 1.565 outside (not read: n 5 < 10, order 12%)
+    dbts_a1 Q16 4x none R webcodecs: 1.466 outside (not read: n 5 < 10, order 14%)
+    dbts_a1 Q32 1x none R dav1d: 1.426 outside (not read: n 5 < 10, order 32%)
+    dbts_a1 Q32 1x none R webcodecs: 1.517 outside (not read: n 5 < 10, order 23%)
+    dbts_a1 Q32 4x none R dav1d: 1.704 outside (not read: n 5 < 10, order 23%)
+    dbts_a1 Q32 4x none R webcodecs: 1.538 outside (not read: n 5 < 10, order 18%)
+    dbts_a1 Q8 1x none R dav1d: 1.433 outside (not read: n 5 < 10, order 17%)
+    dbts_a1 Q8 1x none R webcodecs: 1.530 outside (not read: n 5 < 10, order 37%)
+    dbts_a1 Q8 4x none R dav1d: 1.359 outside (not read: n 5 < 10, order 12%)
+    dbts_a1 Q8 4x none R webcodecs: 1.465 outside (not read: n 5 < 10)

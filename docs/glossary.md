@@ -33,6 +33,10 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | frame digest | a frame's XXH3-64 in the series' metadata, which the decoder worker checks the frame against; the frame says `exact` ([`FIXTURES.md`](FIXTURES.md) §Frame digests) |
 | representation | how an AV1 payload holds its samples: **plain**, as an encoder codes them out of the box (the control), or **optimized**, split by depth and RGB through the RCT ([`av1/payload-format.md`](av1/payload-format.md)) |
 | preview | a lossy picture shown before its frame's exact one, and replaced by it |
+| lossy stream | a series' frames coded lossy AV1 at one quantizer and one group length, shown as they decode; not replaced unless the exact frame is asked ([`../lab/av1/profiles`](../lab/av1/profiles/README.md)) |
+| residual | source − the decoded lossy frame, per sample, one offset per series, coded losslessly; the lossy frame plus it is the exact frame |
+| quantizer | libaom's 0–63 scale (`--cq-level`, `--min-q`, `--max-q`), mapped by the encoder to AV1's `base_q_idx`; a rung of the owner's "qualities" |
+| quality profile | what a role receives by default: **exact** (every frame exact, today's), **standard** (the lossy stream alone), **exact on request** (the lossy stream, and the asked frame exact) |
 | client | an implementation of the transport (`transport-ts`, `transport-wasm`, the WebSocket one) |
 | Tap | the client's telemetry recorder, outside the product build ([`adr/telemetry-instrument-clients-from-outside.md`](adr/telemetry-instrument-clients-from-outside.md)) |
 
