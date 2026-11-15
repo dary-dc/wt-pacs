@@ -100,6 +100,9 @@ pool 3 decoders plus the page, so nothing past 3 parallel decoders is claimed.
 
 ## 5 · Reporting and persistence (proposed, not measured)
 
+The transport and the receiver are proposed with the rest of the client's production telemetry in
+[`telemetry-in-production.md`](telemetry-in-production.md) §3–4; the fields stay these.
+
 * **A failure, at once:** series key, frame index, codec, decoder path (`htj2k`, `av1-dav1d`,
   `av1-webcodecs`), WebCodecs codec string, engine and version, `navigator.hardwareConcurrency`,
   expected and actual digest, whether the second decode passed. No pixels, which are patient data,
