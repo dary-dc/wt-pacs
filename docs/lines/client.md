@@ -30,7 +30,9 @@ exact frame bit for bit, and only checked claims on screen.
   2026-11-15 (`arms/opfs-async.js`, smoked on Chromium 153 only); its *written* means handed to the arm, a frame on
   disk at its group's close (the README's *OPFS-ASYNC as built*). IDB's arm built 2026-11-15 (`arms/idb.js`, smoked
   on Chromium 153 only); its Blobs grew the browser's memory past L's bar in smoke, an `ArrayBuffer` value much less
-  (the README's *IDB as built*). Next, CACHESTORAGE's build.
+  (the README's *IDB as built*). CACHESTORAGE's arm built 2026-11-15 (`arms/cachestorage.js`, smoked on Chromium 153
+  only); the space `caches.delete` frees comes back late there, so E's sets miss until CACHE-RUN amends the wait (the
+  README's *CACHESTORAGE as built*). Next, CACHE-BUILD-REVIEW.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.

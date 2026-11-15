@@ -122,6 +122,38 @@ sequential store worker:
 
 Pilot: `--pilot value=buffer` (Gecko only), the value an `ArrayBuffer`; the default is `value=blob`.
 
+## CACHESTORAGE as built
+
+`arms/cachestorage.js` is §7.4 as amended: a `Cache` named `frames <series>`, a response per frame keyed by the string
+`/frame-cache/<series, URI-encoded>/<i>` (no `Request` built), the manifest as one more record (`…/manifest`, JSON),
+no header on a frame's response. With the seam's sequential store worker:
+
+* **buffered** (the default): the slot copied into an `ArrayBuffer` of the arm's own, the slot let go (§8.1), then
+  `put(key, new Response(buffer))`; the buffer goes back to a pool once its put resolves. `inflight` bounds the puts at
+  once: at 1 `write` resolves when its put does; at 3 it returns once fewer than 3 are in flight, so a refusal is
+  thrown by a later `write`, whose retry puts the refused frames again from their kept buffers first. As OPFS-ASYNC,
+  a row's *written* is then *handed to the arm*; a read of a frame in flight waits for its put, a refused one is
+  answered from its buffer.
+* **streamed** (`body=streamed`): a `ReadableStream` of the slot's own 1 MiB views; the slot stays held until the put
+  resolves (the store's hold, §7.0), so one put is in flight whatever `inflight` asks; a read is the body's reader,
+  each chunk copied into the slot at its offset.
+* `estimate()` at the open of a series not present only, as IDB; on Chromium 153 it does not show the override, so the
+  refusal comes mid-fill (IDB's amendment holds for this arm too). A reading tab opens nothing it does not find
+  (`caches.has` first), so it makes no `Cache`.
+* Eviction is `caches.delete(name)`; the Web Lock is the store's. The floor probe puts and matches in a `Cache` named
+  `floor`, deleted after, buffered only.
+
+* For CACHE-RUN, E on Chromium (*smoke*, two runs, Chromium 153): the space `caches.delete` frees comes back late. In C,
+  a put refused at the sixth frame evicted A, the retry was refused again and writing stopped (5 of 20 written); by D
+  the space was back and D was written whole beside B and C, so the sets after D and after A again miss §8.3's.
+  §8.1's bounded wait cannot see the room under the override (above), so it ends at once: the same late removal §8.1
+  names for Chromium's IndexedDB, here for its Cache Storage. CACHE-RUN's amendment before any E row (a wait that
+  probes the room rather than `estimate()`, for all four alike), not this arm's.
+* `body=streamed` on Chromium 153: a body of shared views was taken and read back exact in L at S2 (*smoke*, one
+  round), so §8.4's first check passes there; Firefox not run.
+
+Pilot: `--pilot 'inflight=3&body=streamed'`; the defaults are `inflight=1`, `body=buffered`.
+
 **Not built: O's F**, the fresh fill over `link_impair.py` the reopen is judged against. Synthetic frames have no
 coded form, so a fetch of their bytes would not be a fill; F is M1's (`lab/opfs-cache/run.mjs --cell m1` at
 `c99ba492`, the product's viewer and a packed series), owed to CACHE-RUN or taken from M1's *measured* F.
@@ -133,6 +165,7 @@ coded form, so a fetch of their bytes would not be a fill; F is M1's (`lab/opfs-
 ```bash
 node lab/cache-arms/store.test.mjs && node lab/cache-arms/cells.test.mjs
 node lab/cache-arms/arms/opfs-sync.test.mjs && node lab/cache-arms/arms/opfs-async.test.mjs && node lab/cache-arms/arms/idb.test.mjs
+node lab/cache-arms/arms/cachestorage.test.mjs
 NODE_PATH=$(npm root -g) node lab/cache-arms/run.mjs --cell L --size 2560 [--engine chromium|firefox] [--throttle 4] \
   [--rounds N] [--arms none,stub,stub-aa] [--mutant NAME] [--pilot SETTINGS] [--out rows.jsonl]
 ```
