@@ -1501,6 +1501,10 @@ profile*).* Measured, 2026-11-02 to 2026-11-08, in three places:
   at 0.006–0.073 of HTJ2K's. Nothing is called visually lossless: that needs readers (§6 there, not run). Claimed
   for the named fixtures only; breast ultrasound cine and ABUS are missing. Corrected in place: the 2026-11-05
   reading had three shards (20 series), "A: Q 4" on two of A's five volumes, and called this error the preview's.
+* **Against window width** — [`window-q.md`](window-q.md) (2026-11-09, from the same rows). Q 8 keeps the coding error
+  within the frame's own noise at every window width, and no higher Q does. It does not keep the error under one display
+  level at any width narrower than the stored range. Holding it under one level at every header preset takes Q 1–2 on
+  12-bit DBT and Q 4 on 10-bit DBT. Which of the two VL is to mean is for readers to decide.
 * **Decode, measured 2026-11-04** (§7's amended protocol: six 4-core hosts, 108 rounds, pooled; §*Profiles decode,
   measured (amended)* there). D1, D2 and D3 are each **refuted**. At 1×, a lossy frame through WebCodecs costs
   1.05–2.24× an HTJ2K exact frame. A jump at G 16 through dav1d-WASM costs 3.8–13× one at G 1, against a 5–9 band.
