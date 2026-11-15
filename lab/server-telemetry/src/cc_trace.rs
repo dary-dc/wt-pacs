@@ -55,10 +55,16 @@ struct Clock {
 
 impl Clock {
     fn now() -> Self {
-        let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+        let mut ts = libc::timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        };
         // SAFETY: `ts` is a valid, writable timespec for the call's duration.
         unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts) };
-        Self { at: Instant::now(), ns: ts.tv_sec as i128 * 1_000_000_000 + ts.tv_nsec as i128 }
+        Self {
+            at: Instant::now(),
+            ns: ts.tv_sec as i128 * 1_000_000_000 + ts.tv_nsec as i128,
+        }
     }
 
     fn ns(&self, t: Instant) -> i128 {
@@ -86,8 +92,16 @@ struct Traced {
 impl Traced {
     fn write(&self, now: Instant, in_flight: u64) {
         let Some(out) = &self.out else { return };
-        let bbr = self.inner.clone_box().into_any().downcast::<Bbr>().ok().map(|b| format!("{b:?}"));
-        let mode = bbr.as_deref().and_then(|d| d.split("mode: ").nth(1)?.split(',').next());
+        let bbr = self
+            .inner
+            .clone_box()
+            .into_any()
+            .downcast::<Bbr>()
+            .ok()
+            .map(|b| format!("{b:?}"));
+        let mode = bbr
+            .as_deref()
+            .and_then(|d| d.split("mode: ").nth(1)?.split(',').next());
         let m = self.inner.metrics();
         let row = Row {
             conn: self.conn,
@@ -107,7 +121,14 @@ impl Traced {
 
 impl Traced {
     /// `RttEstimator` cannot be built outside quinn, so this is the seam the tests drive.
-    fn note_ack(&mut self, now: Instant, sent: Instant, bytes: u64, srtt: Duration, min_rtt: Duration) {
+    fn note_ack(
+        &mut self,
+        now: Instant,
+        sent: Instant,
+        bytes: u64,
+        srtt: Duration,
+        min_rtt: Duration,
+    ) {
         self.delivered += bytes;
         self.srtt = srtt;
         self.min_rtt = min_rtt;
@@ -126,20 +147,40 @@ impl Controller for Traced {
         self.inner.on_sent(now, bytes, last_packet_number);
     }
 
-    fn on_ack(&mut self, now: Instant, sent: Instant, bytes: u64, app_limited: bool, rtt: &RttEstimator) {
+    fn on_ack(
+        &mut self,
+        now: Instant,
+        sent: Instant,
+        bytes: u64,
+        app_limited: bool,
+        rtt: &RttEstimator,
+    ) {
         self.note_ack(now, sent, bytes, rtt.get(), rtt.min());
         self.inner.on_ack(now, sent, bytes, app_limited, rtt);
     }
 
-    fn on_end_acks(&mut self, now: Instant, in_flight: u64, app_limited: bool, largest: Option<u64>) {
+    fn on_end_acks(
+        &mut self,
+        now: Instant,
+        in_flight: u64,
+        app_limited: bool,
+        largest: Option<u64>,
+    ) {
         self.inner.on_end_acks(now, in_flight, app_limited, largest);
         self.write(now, in_flight);
     }
 
-    fn on_congestion_event(&mut self, now: Instant, sent: Instant, persistent: bool, lost_bytes: u64) {
+    fn on_congestion_event(
+        &mut self,
+        now: Instant,
+        sent: Instant,
+        persistent: bool,
+        lost_bytes: u64,
+    ) {
         self.lost += lost_bytes;
         let window_before = self.inner.window();
-        self.inner.on_congestion_event(now, sent, persistent, lost_bytes);
+        self.inner
+            .on_congestion_event(now, sent, persistent, lost_bytes);
         if let Some(sink) = &self.losses {
             let row = Loss {
                 conn: self.conn,
@@ -222,17 +263,29 @@ impl ControllerFactory for TracedConfig {
 
 fn sink(var: &str) -> Option<Sink> {
     let path = std::env::var_os(var)?;
-    let file = OpenOptions::new().create(true).append(true).open(&path).unwrap_or_else(|e| panic!("{var} opens: {e}"));
+    let file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .unwrap_or_else(|e| panic!("{var} opens: {e}"));
     Some(Arc::new(Mutex::new(LineWriter::new(file))))
 }
 
 /// `factory` unchanged unless `WTPACS_CC_TRACE` or `WTPACS_LOSS_TRACE` names a file to append to.
-pub fn traced(factory: Arc<dyn ControllerFactory + Send + Sync>) -> Arc<dyn ControllerFactory + Send + Sync> {
+pub fn traced(
+    factory: Arc<dyn ControllerFactory + Send + Sync>,
+) -> Arc<dyn ControllerFactory + Send + Sync> {
     let (out, losses) = (sink("WTPACS_CC_TRACE"), sink("WTPACS_LOSS_TRACE"));
     if out.is_none() && losses.is_none() {
         return factory;
     }
-    Arc::new(TracedConfig { inner: factory, out, losses, clock: Clock::now(), conns: AtomicU64::new(0) })
+    Arc::new(TracedConfig {
+        inner: factory,
+        out,
+        losses,
+        clock: Clock::now(),
+        conns: AtomicU64::new(0),
+    })
 }
 
 #[cfg(test)]
@@ -246,7 +299,11 @@ mod tests {
     fn a_batch_writes_the_inner_window_and_mode() {
         let path = std::env::temp_dir().join(format!("cc-trace-{}.jsonl", std::process::id()));
         let _ = std::fs::remove_file(&path);
-        let file = OpenOptions::new().create(true).append(true).open(&path).unwrap();
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .unwrap();
         let config = Arc::new(TracedConfig {
             inner: Arc::new(BbrConfig::default()),
             out: Some(Arc::new(Mutex::new(LineWriter::new(file)))),
@@ -276,7 +333,11 @@ mod tests {
     fn a_congestion_event_writes_its_times_round_trip_and_cut() {
         let path = std::env::temp_dir().join(format!("loss-trace-{}.jsonl", std::process::id()));
         let _ = std::fs::remove_file(&path);
-        let file = OpenOptions::new().create(true).append(true).open(&path).unwrap();
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .unwrap();
         let clock = Clock::now();
         let config = Arc::new(TracedConfig {
             inner: Arc::new(CubicConfig::default()),
@@ -287,7 +348,11 @@ mod tests {
         });
         let t0 = clock.at;
         let ms = Duration::from_millis;
-        let mut traced = config.build(t0, 1200).into_any().downcast::<Traced>().unwrap();
+        let mut traced = config
+            .build(t0, 1200)
+            .into_any()
+            .downcast::<Traced>()
+            .unwrap();
         traced.on_sent(t0, 1200, 0);
         traced.note_ack(t0 + ms(47), t0 + ms(2), 1200, ms(40), ms(40));
         traced.on_end_acks(t0 + ms(47), 0, false, Some(0));
@@ -296,8 +361,14 @@ mod tests {
         let rows = std::fs::read_to_string(&path).unwrap();
         assert_eq!(rows.lines().count(), 1);
         let row: serde_json::Value = serde_json::from_str(rows.lines().next().unwrap()).unwrap();
-        assert_eq!(row["sent_ns"].as_i64().unwrap() as i128, clock.ns + 3_000_000);
-        assert_eq!(row["now_ns"].as_i64().unwrap() as i128, clock.ns + 50_000_000);
+        assert_eq!(
+            row["sent_ns"].as_i64().unwrap() as i128,
+            clock.ns + 3_000_000
+        );
+        assert_eq!(
+            row["now_ns"].as_i64().unwrap() as i128,
+            clock.ns + 50_000_000
+        );
         assert_eq!(row["rtt_latest_us"], 45_000);
         assert_eq!(row["window_before"], before);
         assert_eq!(row["window_after"], traced.window());
@@ -312,6 +383,9 @@ mod tests {
         let clock = Clock::now();
         let later = Clock::now();
         assert!((clock.ns(later.at) - later.ns).abs() < 1_000_000);
-        assert_eq!(clock.ns(clock.at - Duration::from_millis(5)), clock.ns - 5_000_000);
+        assert_eq!(
+            clock.ns(clock.at - Duration::from_millis(5)),
+            clock.ns - 5_000_000
+        );
     }
 }

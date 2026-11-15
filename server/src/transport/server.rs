@@ -8,13 +8,13 @@ use crate::transport::pipeline::{FramePipeline, ProductPipeline};
 use crate::transport::planner::{fill_range, frame_in_range, Command, Planner, Step, ASKS_AHEAD};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tuning::TransportTuning;
-use crate::transport::{banner, websocket};
 use crate::transport::wire::{read_fod_msg, QuicStream};
+use crate::transport::{banner, websocket};
 use anyhow::{Context, Result};
 use fod::FodMsg;
 use std::future::Future;
-use std::ops::ControlFlow;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::ops::ControlFlow;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -23,10 +23,10 @@ use tracing::{info, warn};
 use wtransport::endpoint::IncomingSessionFuture;
 use wtransport::{quinn, Identity, VarInt};
 
-#[cfg(feature = "lab-levers")]
-use crate::transport::lab_levers::{self, LabLevers};
 #[cfg(feature = "telemetry")]
 use crate::record::tap::Tap;
+#[cfg(feature = "lab-levers")]
+use crate::transport::lab_levers::{self, LabLevers};
 #[cfg(feature = "telemetry")]
 use crate::transport::pipeline::RecordedPipeline;
 
@@ -77,7 +77,15 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
 
     let (endpoint, bound) = build_endpoint(&config, &identity)?;
     let websocket = if config.websocket {
-        Some(websocket::bind(config.bind, config.wt_port, &config.cert_pem, &config.key_pem).await?)
+        Some(
+            websocket::bind(
+                config.bind,
+                config.wt_port,
+                &config.cert_pem,
+                &config.key_pem,
+            )
+            .await?,
+        )
     } else {
         None
     };
@@ -141,7 +149,10 @@ impl Sessions {
     fn new(config: &ServeConfig, store: Arc<FrameStore>) -> Self {
         #[cfg(feature = "lab-levers")]
         let cwnd_ahead = config.lab.send_window_follows_cwnd.then(|| {
-            let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
+            let largest = (0..store.frame_count())
+                .map(|i| store.frame_span(i).len)
+                .max()
+                .unwrap_or(0);
             2 * u64::from(largest)
         });
         #[cfg(not(feature = "lab-levers"))]
@@ -225,24 +236,43 @@ fn build_endpoint(config: &ServeConfig, identity: &Identity) -> Result<(quinn::E
     let binds = match config.bind {
         Some(ip) => vec![(SocketAddr::new(ip, port), false, ip.to_string())],
         None => vec![
-            (SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port), true, "[::] dual-stack".to_string()),
-            (SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port), false, "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string()),
+            (
+                SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port),
+                true,
+                "[::] dual-stack".to_string(),
+            ),
+            (
+                SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port),
+                false,
+                "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string(),
+            ),
         ],
     };
     let mut tls = wtransport::tls::server::build_default_tls_config(identity.clone_identity());
     tls.alpn_protocols.push(NATIVE_ALPN.to_vec());
-    let mut quic = quinn::ServerConfig::with_crypto(Arc::new(quinn::crypto::rustls::QuicServerConfig::try_from(tls)?));
+    let mut quic = quinn::ServerConfig::with_crypto(Arc::new(
+        quinn::crypto::rustls::QuicServerConfig::try_from(tls)?,
+    ));
     quic.transport_config(Arc::new(config.tuning.to_transport_config()?));
     quic.migration(true);
     let mut binds = binds.into_iter().peekable();
     while let Some((addr, dual_stack, label)) = binds.next() {
         let endpoint = bind_udp(addr, dual_stack).and_then(|socket| {
-            quinn::Endpoint::new(quinn::EndpointConfig::default(), Some(quic.clone()), socket, Arc::new(quinn::TokioRuntime))
+            quinn::Endpoint::new(
+                quinn::EndpointConfig::default(),
+                Some(quic.clone()),
+                socket,
+                Arc::new(quinn::TokioRuntime),
+            )
         });
         match endpoint {
             Ok(endpoint) => return Ok((endpoint, label)),
-            Err(err) if binds.peek().is_some() => warn!(%err, "{label} bind failed; trying the next"),
-            Err(err) => return Err(err).with_context(|| format!("QUIC endpoint on {label}, port {port}")),
+            Err(err) if binds.peek().is_some() => {
+                warn!(%err, "{label} bind failed; trying the next")
+            }
+            Err(err) => {
+                return Err(err).with_context(|| format!("QUIC endpoint on {label}, port {port}"))
+            }
         }
     }
     unreachable!("the last bind returns its own error")
@@ -274,20 +304,39 @@ async fn handle_incoming(incoming: quinn::Incoming, sessions: Sessions) -> Resul
         let result = serve_raw(&connection, &sessions).await;
         return ended(&connection, result);
     }
-    let session_request = IncomingSessionFuture::with_quic_connecting(connecting).await.context("incoming session")?;
+    let session_request = IncomingSessionFuture::with_quic_connecting(connecting)
+        .await
+        .context("incoming session")?;
     // Read before accepting: the whole point of an opening ask is to serve behind the accept
     // rather than behind the client's control stream. `docs/ARCHITECTURE.md`.
     let opening = sessions
         .opening_ask
         .then(|| parse_opening_ask(session_request.path(), sessions.store.frame_count()))
         .flatten();
+    #[cfg(feature = "telemetry")]
+    let load = crate::record::link::load_id(session_request.path());
     let connection = session_request.accept().await.context("accept session")?;
 
     #[cfg(feature = "telemetry")]
-    tokio::spawn(crate::record::path::run(connection.quic_connection().clone()));
+    tokio::spawn(crate::record::path::run(
+        connection.quic_connection().clone(),
+    ));
+    #[cfg(feature = "telemetry")]
+    tokio::spawn(crate::record::link::run(
+        connection.quic_connection().clone(),
+        load,
+    ));
 
     let session = || QuicSession::WebTransport(connection.clone());
-    let link = |control| Link::quic(sessions.mode, session(), control, sessions.stall, sessions.cwnd_ahead);
+    let link = |control| {
+        Link::quic(
+            sessions.mode,
+            session(),
+            control,
+            sessions.stall,
+            sessions.cwnd_ahead,
+        )
+    };
     let result = async {
         match opening {
             Some(ask) => {
@@ -295,16 +344,24 @@ async fn handle_incoming(incoming: quinn::Incoming, sessions: Sessions) -> Resul
                 let link = link(ControlStream::Coming(ctl_rx)).await?;
                 let control = connection.clone();
                 let read = |tx| async move {
-                    let Ok((send, mut recv)) = control.accept_bi().await else { return };
+                    let Ok((send, mut recv)) = control.accept_bi().await else {
+                        return;
+                    };
                     ctl_tx.send(QuicSend::WebTransport(send)).ok();
                     while read_asks(&mut recv, &tx).await.is_continue() {}
                 };
-                sessions.serve(sessions.pipeline(link), Some(ask), read).await
+                sessions
+                    .serve(sessions.pipeline(link), Some(ask), read)
+                    .await
             }
             None => {
-                let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
+                let (send, mut recv) = connection
+                    .accept_bi()
+                    .await
+                    .context("accept control bidi")?;
                 let link = link(ControlStream::Open(QuicSend::WebTransport(send))).await?;
-                let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_continue() {} };
+                let read =
+                    |tx| async move { while read_asks(&mut recv, &tx).await.is_continue() {} };
                 sessions.serve(sessions.pipeline(link), None, read).await
             }
         }
@@ -315,10 +372,20 @@ async fn handle_incoming(incoming: quinn::Incoming, sessions: Sessions) -> Resul
 
 /// No opening ask: the first FoD message rides the client's first flight. `docs/WIRE.md` §The raw QUIC mapping.
 async fn serve_raw(connection: &quinn::Connection, sessions: &Sessions) -> Result<()> {
-    let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
+    let (send, mut recv) = connection
+        .accept_bi()
+        .await
+        .context("accept control bidi")?;
     let session = QuicSession::Raw(connection.clone());
     let control = ControlStream::Open(QuicSend::Raw(send));
-    let link = Link::quic(sessions.mode, session, control, sessions.stall, sessions.cwnd_ahead).await?;
+    let link = Link::quic(
+        sessions.mode,
+        session,
+        control,
+        sessions.stall,
+        sessions.cwnd_ahead,
+    )
+    .await?;
     let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_continue() {} };
     sessions.serve(sessions.pipeline(link), None, read).await
 }
@@ -338,7 +405,9 @@ fn ended(connection: &quinn::Connection, result: Result<()>) -> Result<()> {
 /// The peer went: it stopped a stream the server was writing, or closed. `docs/WIRE.md` §FoD messages.
 fn closed_by_peer(connection: &quinn::Connection, err: &anyhow::Error) -> bool {
     use wtransport::error::{ConnectionError, StreamOpeningError};
-    let stopped = err.chain().any(|e| matches!(e.downcast_ref(), Some(quinn::WriteError::Stopped(_))));
+    let stopped = err
+        .chain()
+        .any(|e| matches!(e.downcast_ref(), Some(quinn::WriteError::Stopped(_))));
     let gone = err.chain().any(|e| {
         matches!(e.downcast_ref(), Some(StreamOpeningError::NotConnected))
             || e.downcast_ref::<ConnectionError>().is_some()
@@ -393,13 +462,19 @@ fn report_path(connection: &quinn::Connection) {
 
 /// The loop over `Command`, with no stream in it, so a test can drive it without QUIC. However it
 /// ends, outstanding finishes get their grace.
-pub(super) async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Command>) -> Result<()> {
+pub(super) async fn drive<P: FramePipeline>(
+    pipeline: &mut P,
+    asks: &mut mpsc::Receiver<Command>,
+) -> Result<()> {
     let result = steps(pipeline, asks).await;
     pipeline.finish().await;
     result
 }
 
-async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Command>) -> Result<()> {
+async fn steps<P: FramePipeline>(
+    pipeline: &mut P,
+    asks: &mut mpsc::Receiver<Command>,
+) -> Result<()> {
     let mut plan = Planner::new(pipeline.store().frame_count());
     loop {
         match plan.next(|| asks.try_recv().ok())? {
@@ -414,13 +489,19 @@ async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Com
     }
 }
 
-async fn read_asks(control_recv: &mut impl QuicStream<quinn::RecvStream>, tx: &mpsc::Sender<Command>) -> ControlFlow<()> {
+async fn read_asks(
+    control_recv: &mut impl QuicStream<quinn::RecvStream>,
+    tx: &mpsc::Sender<Command>,
+) -> ControlFlow<()> {
     forward(read_fod_msg(control_recv).await, tx).await
 }
 
 /// One FoD message as the loop's asks; `Break` once the reader should stop. `None`, the peer's
 /// goodbye, stops it with no ask, so the loop ends when it next waits.
-pub(super) async fn forward(msg: Result<Option<FodMsg>>, tx: &mpsc::Sender<Command>) -> ControlFlow<()> {
+pub(super) async fn forward(
+    msg: Result<Option<FodMsg>>,
+    tx: &mpsc::Sender<Command>,
+) -> ControlFlow<()> {
     let ask = match msg {
         Ok(Some(FodMsg::RequestFrame { frame })) => Command::Frame(frame),
         Ok(Some(FodMsg::StreamFrames { from, to })) => Command::Fill { from, to },
@@ -441,8 +522,8 @@ pub(super) async fn forward(msg: Result<Option<FodMsg>>, tx: &mpsc::Sender<Comma
 mod tests {
     use super::*;
     use crate::transport::planner::Next;
-    use anyhow::anyhow;
     use crate::transport::wire::write_fod_msg;
+    use anyhow::anyhow;
     use fod::FodMsg;
     use frame_envelope::unwrap;
     use std::io::Write;
@@ -458,7 +539,8 @@ mod tests {
         super::run_server(config, std::future::pending())
     }
 
-    type Ws = tokio_tungstenite::WebSocketStream<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>;
+    type Ws =
+        tokio_tungstenite::WebSocketStream<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>;
 
     /// A series of `frames` frames and a dev certificate in a temp dir of its own, removed on
     /// drop; a port free for UDP and TCP alike; the crypto provider installed.
@@ -480,7 +562,14 @@ mod tests {
             let series = write_series(&dir, frames);
             let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
             let _ = rustls::crypto::ring::default_provider().install_default();
-            Self { dir, series, cert_pem, key_pem, cert_hash, port: free_port_for_both() }
+            Self {
+                dir,
+                series,
+                cert_pem,
+                key_pem,
+                cert_hash,
+                port: free_port_for_both(),
+            }
         }
 
         /// A server on loopback `port`: shared streams, every lab flag off, no opening ask.
@@ -540,9 +629,18 @@ mod tests {
     #[tokio::test]
     async fn a_clients_frame_error_is_ignored() {
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
-        let msg = FodMsg::FrameError { frame_index: 3, reason: "sent by a client".into() };
-        assert!(forward(Ok(Some(msg)), &tx).await.is_continue(), "a client's frame_error stopped the reader");
-        assert!(rx.try_recv().is_err(), "a client's frame_error reached the loop as an ask");
+        let msg = FodMsg::FrameError {
+            frame_index: 3,
+            reason: "sent by a client".into(),
+        };
+        assert!(
+            forward(Ok(Some(msg)), &tx).await.is_continue(),
+            "a client's frame_error stopped the reader"
+        );
+        assert!(
+            rx.try_recv().is_err(),
+            "a client's frame_error reached the loop as an ask"
+        );
     }
 
     /// **The loop's own line.** `Step::Serve`'s `next` reaches `serve`; a fill names one frame
@@ -560,7 +658,12 @@ mod tests {
             drained: false,
         };
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
-        for ask in [Command::Frame(0), Command::Frame(2), Command::Frame(3), Command::EndSession] {
+        for ask in [
+            Command::Frame(0),
+            Command::Frame(2),
+            Command::Frame(3),
+            Command::EndSession,
+        ] {
             tx.try_send(ask).expect("queue ask");
         }
         drive(&mut rec, &mut rx).await.expect("drive");
@@ -605,7 +708,11 @@ mod tests {
         let fill = |after, first| Next::Fill { after, first };
         assert_eq!(
             rec.seen,
-            vec![(1, fill(Some(2), true)), (2, fill(Some(3), false)), (3, fill(None, false))],
+            vec![
+                (1, fill(Some(2), true)),
+                (2, fill(Some(3), false)),
+                (3, fill(None, false))
+            ],
             "a fill did not name one frame ahead"
         );
         assert_eq!(rec.fills, 1, "a fill that served was not counted once");
@@ -617,12 +724,24 @@ mod tests {
     async fn the_loop_drains_its_finishes_however_the_asks_end() {
         let fx = Fixture::new(2);
         let store = Arc::new(FrameStore::open(&fx.series).expect("open store"));
-        let mut rec = LoopRecorder { store, seen: Vec::new(), fills: 0, drained: false };
+        let mut rec = LoopRecorder {
+            store,
+            seen: Vec::new(),
+            fills: 0,
+            drained: false,
+        };
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
         tx.try_send(Command::Frame(0)).expect("queue ask");
-        tx.try_send(Command::Failed(anyhow!("a malformed message"))).expect("queue failure");
-        assert!(drive(&mut rec, &mut rx).await.is_err(), "the failure was swallowed");
-        assert!(rec.drained, "a session that ended in error skipped the finishes' grace");
+        tx.try_send(Command::Failed(anyhow!("a malformed message")))
+            .expect("queue failure");
+        assert!(
+            drive(&mut rec, &mut rx).await.is_err(),
+            "the failure was swallowed"
+        );
+        assert!(
+            rec.drained,
+            "a session that ended in error skipped the finishes' grace"
+        );
     }
 
     /// One session served by `handle_incoming` itself, so the test sees what the session ended
@@ -635,13 +754,17 @@ mod tests {
     {
         let fx = Fixture::new(4);
         let sessions = plain_sessions(&fx.series);
-        let config = ServeConfig { tuning, ..fx.config() };
+        let config = ServeConfig {
+            tuning,
+            ..fx.config()
+        };
         let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
             .await
             .expect("identity");
         let (endpoint, _) = build_endpoint(&config, &identity).expect("endpoint");
-        let server =
-            tokio::spawn(async move { handle_incoming(endpoint.accept().await.expect("incoming"), sessions).await });
+        let server = tokio::spawn(async move {
+            handle_incoming(endpoint.accept().await.expect("incoming"), sessions).await
+        });
         let connection = dial(fx.port, fx.cert_hash, "").await;
         client(connection.clone()).await;
         let ended = tokio::time::timeout(Duration::from_secs(10), server)
@@ -653,7 +776,12 @@ mod tests {
     }
 
     async fn open_control(connection: &wtransport::Connection) -> (SendStream, RecvStream) {
-        connection.open_bi().await.expect("open bi").await.expect("bi ready")
+        connection
+            .open_bi()
+            .await
+            .expect("open bi")
+            .await
+            .expect("bi ready")
     }
 
     /// Shared streams, no opening ask, nothing recorded.
@@ -688,7 +816,10 @@ mod tests {
             connection.close(0u32.into(), b"done");
         })
         .await;
-        assert!(ended.is_ok(), "a client's close ended its session as {ended:?}");
+        assert!(
+            ended.is_ok(),
+            "a client's close ended its session as {ended:?}"
+        );
     }
 
     /// **A client that stops reading has said goodbye too.** Dropping the media stream stops it;
@@ -709,7 +840,10 @@ mod tests {
             control.write_all(&ask(1)).await.expect("ask");
         })
         .await;
-        assert!(ended.is_ok(), "a stopped media stream ended the session as {ended:?}");
+        assert!(
+            ended.is_ok(),
+            "a stopped media stream ended the session as {ended:?}"
+        );
     }
 
     /// A message the server cannot read still ends the session in error, a goodbye or not.
@@ -728,7 +862,10 @@ mod tests {
     /// A peer that goes silent until the connection times out has not said goodbye.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_session_that_times_out_ends_in_error() {
-        let idle = TransportTuning { max_idle_timeout_ms: Some(300), ..TransportTuning::default() };
+        let idle = TransportTuning {
+            max_idle_timeout_ms: Some(300),
+            ..TransportTuning::default()
+        };
         let ended = one_session(idle, |connection| async move {
             let (control, _recv) = open_control(&connection).await;
             // Held open past the timeout: dropping it would finish it, which is a goodbye.
@@ -747,7 +884,10 @@ mod tests {
             control.finish().await.expect("finish");
         })
         .await;
-        assert!(ended.is_ok(), "a FIN between messages ended the session as {ended:?}");
+        assert!(
+            ended.is_ok(),
+            "a FIN between messages ended the session as {ended:?}"
+        );
     }
 
     /// A client that dials and goes before opening its control stream has said goodbye too: a
@@ -758,7 +898,10 @@ mod tests {
             connection.close(0u32.into(), b"gone");
         })
         .await;
-        assert!(ended.is_ok(), "a close during setup ended the session as {ended:?}");
+        assert!(
+            ended.is_ok(),
+            "a close during setup ended the session as {ended:?}"
+        );
     }
 
     /// A native client that closes before its control stream ends its raw QUIC session cleanly,
@@ -768,19 +911,38 @@ mod tests {
         use wtransport::tls::client::{build_default_tls_config, ServerHashVerification};
         let fx = Fixture::new(1);
         let (config, sessions) = (fx.config(), plain_sessions(&fx.series));
-        let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem).await.expect("identity");
+        let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
+            .await
+            .expect("identity");
         let (endpoint, _) = build_endpoint(&config, &identity).expect("endpoint");
-        let server = tokio::spawn(async move { handle_incoming(endpoint.accept().await.expect("incoming"), sessions).await });
+        let server = tokio::spawn(async move {
+            handle_incoming(endpoint.accept().await.expect("incoming"), sessions).await
+        });
         let pin = ServerHashVerification::new([wtransport::tls::Sha256Digest::new(fx.cert_hash)]);
-        let mut tls = build_default_tls_config(Arc::new(rustls::RootCertStore::empty()), Some(Arc::new(pin)));
+        let mut tls = build_default_tls_config(
+            Arc::new(rustls::RootCertStore::empty()),
+            Some(Arc::new(pin)),
+        );
         tls.alpn_protocols = vec![NATIVE_ALPN.to_vec()];
-        let quic = quinn::ClientConfig::new(Arc::new(quinn::crypto::rustls::QuicClientConfig::try_from(tls).expect("tls")));
+        let quic = quinn::ClientConfig::new(Arc::new(
+            quinn::crypto::rustls::QuicClientConfig::try_from(tls).expect("tls"),
+        ));
         let client = quinn::Endpoint::client("127.0.0.1:0".parse().unwrap()).expect("client");
         let server_addr = SocketAddr::from(([127, 0, 0, 1], fx.port));
-        let connection = client.connect_with(quic, server_addr, "localhost").expect("dial").await.expect("raw QUIC");
+        let connection = client
+            .connect_with(quic, server_addr, "localhost")
+            .expect("dial")
+            .await
+            .expect("raw QUIC");
         connection.close(0u32.into(), b"gone");
-        let ended = tokio::time::timeout(Duration::from_secs(10), server).await.expect("never ended").expect("task");
-        assert!(ended.is_ok(), "a close before the control stream ended the raw session as {ended:?}");
+        let ended = tokio::time::timeout(Duration::from_secs(10), server)
+            .await
+            .expect("never ended")
+            .expect("task");
+        assert!(
+            ended.is_ok(),
+            "a close before the control stream ended the raw session as {ended:?}"
+        );
     }
 
     /// A WebSocket client's Close is a goodbye too. `docs/WIRE.md` §The WebSocket mapping.
@@ -803,12 +965,18 @@ mod tests {
                     .expect("read");
                 got += msg.into_data().len();
             }
-            ws.close(Some(CloseFrame { code: CloseCode::Normal, reason: "".into() }))
-                .await
-                .expect("close");
+            ws.close(Some(CloseFrame {
+                code: CloseCode::Normal,
+                reason: "".into(),
+            }))
+            .await
+            .expect("close");
         })
         .await;
-        assert!(ended.is_ok(), "a WebSocket Close ended its session as {ended:?}");
+        assert!(
+            ended.is_ok(),
+            "a WebSocket Close ended its session as {ended:?}"
+        );
     }
 
     /// A session the server ends sends the client a Close frame, not a bare TCP teardown, so a
@@ -849,10 +1017,16 @@ mod tests {
             ws.get_mut().write_all(&head).await.expect("header");
             ws.get_mut().flush().await.expect("flush");
             let answer = tokio::time::timeout(Duration::from_secs(3), ws.next()).await;
-            assert!(answer.is_ok(), "the server waited for the payload of an over-long frame");
+            assert!(
+                answer.is_ok(),
+                "the server waited for the payload of an over-long frame"
+            );
         })
         .await;
-        assert!(ended.is_err(), "an over-long frame ended the session as {ended:?}");
+        assert!(
+            ended.is_err(),
+            "an over-long frame ended the session as {ended:?}"
+        );
     }
 
     /// One WebSocket session served by `websocket::session` on a two-frame series; `client`
@@ -865,8 +1039,9 @@ mod tests {
         let fx = Fixture::new(2);
         let sessions = plain_sessions(&fx.series);
         let localhost = Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
-        let (listener, tls) =
-            websocket::bind(localhost, 0, &fx.cert_pem, &fx.key_pem).await.expect("bind");
+        let (listener, tls) = websocket::bind(localhost, 0, &fx.cert_pem, &fx.key_pem)
+            .await
+            .expect("bind");
         let port = listener.local_addr().expect("addr").port();
         let server = tokio::spawn(async move {
             let (tcp, _) = listener.accept().await.expect("accept");
@@ -884,7 +1059,10 @@ mod tests {
     #[test]
     fn an_opening_ask_is_taken_only_whole_and_in_range() {
         for (path, want) in [
-            ("/?ask=fill:0-3", Some("Fill { from: Some(0), to: Some(3) }")),
+            (
+                "/?ask=fill:0-3",
+                Some("Fill { from: Some(0), to: Some(3) }"),
+            ),
             ("/?x=1&ask=frame:2", Some("Frame(2)")),
             ("/?ask=fill:abc-xyz", None),
             ("/?ask=fill:-", None),
@@ -963,12 +1141,18 @@ mod tests {
     fn long_hello(cert_hash: [u8; 32]) -> ClientConfig {
         let mut tls = wtransport::tls::client::build_default_tls_config(
             Arc::new(rustls::RootCertStore::empty()),
-            Some(Arc::new(wtransport::tls::client::ServerHashVerification::new([
-                wtransport::tls::Sha256Digest::new(cert_hash),
-            ]))),
+            Some(Arc::new(
+                wtransport::tls::client::ServerHashVerification::new([
+                    wtransport::tls::Sha256Digest::new(cert_hash),
+                ]),
+            )),
         );
-        tls.alpn_protocols.extend((0..6u8).map(|i| vec![b'x' + i; 250]));
-        ClientConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4).with_custom_tls(tls).build()
+        tls.alpn_protocols
+            .extend((0..6u8).map(|i| vec![b'x' + i; 250]));
+        ClientConfig::builder()
+            .with_bind_config(IpBindConfig::InAddrAnyV4)
+            .with_custom_tls(tls)
+            .build()
     }
 
     fn client(config: ClientConfig) -> Endpoint<endpoint_side::Client> {
@@ -977,7 +1161,10 @@ mod tests {
 
     /// A bare QUIC client, for a test that dials a relay by address; `initial_rtt` sets when it
     /// first repeats its Initial.
-    fn quinn_client(config: &ClientConfig, initial_rtt: Option<Duration>) -> wtransport::quinn::Endpoint {
+    fn quinn_client(
+        config: &ClientConfig,
+        initial_rtt: Option<Duration>,
+    ) -> wtransport::quinn::Endpoint {
         let mut quic = config.quic_config().clone();
         if let Some(rtt) = initial_rtt {
             let mut transport = wtransport::quinn::TransportConfig::default();
@@ -1019,10 +1206,14 @@ mod tests {
         ));
         let tcp = connect_tcp(port).await;
         let name = ServerName::try_from("localhost").expect("name");
-        let stream = tls.connect(name, tcp).await.expect("TLS with the QUIC certificate");
-        let (ws, _) = tokio_tungstenite::client_async(format!("wss://localhost:{port}/{query}"), stream)
+        let stream = tls
+            .connect(name, tcp)
             .await
-            .expect("WebSocket upgrade");
+            .expect("TLS with the QUIC certificate");
+        let (ws, _) =
+            tokio_tungstenite::client_async(format!("wss://localhost:{port}/{query}"), stream)
+                .await
+                .expect("WebSocket upgrade");
         ws
     }
 
@@ -1039,7 +1230,10 @@ mod tests {
     async fn until_bound(port: u16, deadline: Duration) {
         let give_up = tokio::time::Instant::now() + deadline;
         while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
-            assert!(tokio::time::Instant::now() < give_up, "the server never bound port {port}");
+            assert!(
+                tokio::time::Instant::now() < give_up,
+                "the server never bound port {port}"
+            );
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     }
@@ -1055,7 +1249,10 @@ mod tests {
     }
 
     /// `client` raced against `server`: a server that ends first fails the test with its own error.
-    async fn against(mut server: tokio::task::JoinHandle<Result<()>>, client: impl Future<Output = ()>) {
+    async fn against(
+        mut server: tokio::task::JoinHandle<Result<()>>,
+        client: impl Future<Output = ()>,
+    ) {
         tokio::select! {
             ended = &mut server => panic!("the server ended: {ended:?}"),
             () = client => server.abort(),
@@ -1080,8 +1277,14 @@ mod tests {
         let fx = Fixture::new(1);
         let port = fx.port;
         let held = std::net::TcpListener::bind(("127.0.0.1", port)).expect("hold the TCP port");
-        assert!(std::net::TcpListener::bind(("127.0.0.1", port)).is_err(), "the hold took nothing");
-        let server = tokio::spawn(run_server(ServeConfig { websocket: true, ..fx.config() }));
+        assert!(
+            std::net::TcpListener::bind(("127.0.0.1", port)).is_err(),
+            "the hold took nothing"
+        );
+        let server = tokio::spawn(run_server(ServeConfig {
+            websocket: true,
+            ..fx.config()
+        }));
         let client = async move {
             let _tcp = connect_tcp(port).await;
             std::future::pending::<()>().await;
@@ -1089,10 +1292,15 @@ mod tests {
         let raced = tokio::spawn(against(server, client));
         let ended = tokio::time::timeout(Duration::from_secs(5), raced).await;
         drop(held);
-        let panic = ended.expect("the race outlived the server's end").expect_err("the server's end passed");
+        let panic = ended
+            .expect("the race outlived the server's end")
+            .expect_err("the server's end passed");
         let why = panic.into_panic();
         let why = why.downcast_ref::<String>().cloned().unwrap_or_default();
-        assert!(why.contains(&format!("WebSocket listener on TCP port {port}")), "the test failed with {why:?}");
+        assert!(
+            why.contains(&format!("WebSocket listener on TCP port {port}")),
+            "the test failed with {why:?}"
+        );
     }
 
     /// **A stop closes every session with the server's code.** The server's runtime ends when
@@ -1101,17 +1309,27 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_stopped_server_closes_its_sessions_with_its_code() {
         let fx = Fixture::new(1);
-        let idle = TransportTuning { max_idle_timeout_ms: Some(2_000), ..TransportTuning::default() };
-        let config = ServeConfig { tuning: idle, ..fx.config() };
+        let idle = TransportTuning {
+            max_idle_timeout_ms: Some(2_000),
+            ..TransportTuning::default()
+        };
+        let config = ServeConfig {
+            tuning: idle,
+            ..fx.config()
+        };
         let (stop, stopped) = oneshot::channel::<()>();
         let server = std::thread::spawn(move || {
             let runtime = tokio::runtime::Runtime::new().expect("runtime");
-            runtime.block_on(super::run_server(config, async { stopped.await.ok(); }))
+            runtime.block_on(super::run_server(config, async {
+                stopped.await.ok();
+            }))
         });
         let connection = dial(fx.port, fx.cert_hash, "").await;
         let _control = open_control(&connection).await;
         stop.send(()).expect("stop");
-        let closed = tokio::time::timeout(Duration::from_secs(5), connection.closed()).await.expect("never closed");
+        let closed = tokio::time::timeout(Duration::from_secs(5), connection.closed())
+            .await
+            .expect("never closed");
         assert!(
             matches!(&closed, wtransport::error::ConnectionError::ApplicationClosed(close) if close.code() == STOPPING),
             "the client saw {closed:?}, not the server's close"
@@ -1126,7 +1344,9 @@ mod tests {
         let joined = tokio::time::timeout(Duration::from_secs(5), wait)
             .await
             .expect("the wait for a port has no deadline");
-        assert!(joined.expect_err("a port nobody bound passed the wait").is_panic());
+        assert!(joined
+            .expect_err("a port nobody bound passed the wait")
+            .is_panic());
     }
 
     /// Read one length-prefixed envelope off the shared media stream.
@@ -1183,15 +1403,14 @@ mod tests {
     async fn an_opening_ask_is_served_behind_the_accept() {
         for (query, want) in [("?ask=frame:3", Some(3u32)), ("?ask=frame:99", None)] {
             let fx = Fixture::new(6);
-            let server = tokio::spawn(run_server(ServeConfig { opening_ask: true, ..fx.config() }));
+            let server = tokio::spawn(run_server(ServeConfig {
+                opening_ask: true,
+                ..fx.config()
+            }));
             let connection = dial(fx.port, fx.cert_hash, query).await;
 
             // No control stream is opened: the frame must arrive on the URL ask alone.
-            let media = tokio::time::timeout(
-                Duration::from_secs(5),
-                connection.accept_uni(),
-            )
-            .await;
+            let media = tokio::time::timeout(Duration::from_secs(5), connection.accept_uni()).await;
             match want {
                 Some(frame) => {
                     let mut media = media.expect("no media uni").expect("accept media uni");
@@ -1199,20 +1418,28 @@ mod tests {
                     assert_eq!(idx, frame, "the URL ask served the wrong frame");
                     assert_eq!(codestream, pattern(frame), "frame {frame} came back wrong");
 
-                    let (mut send, mut recv) =
-                        connection.open_bi().await.expect("open control").await.expect("control");
+                    let (mut send, mut recv) = connection
+                        .open_bi()
+                        .await
+                        .expect("open control")
+                        .await
+                        .expect("control");
                     write_fod_msg(&mut send, &FodMsg::RequestFrame { frame: 99 })
                         .await
                         .expect("ask out of range");
-                    let refusal = tokio::time::timeout(
-                        Duration::from_secs(5),
-                        read_fod_msg(&mut recv),
-                    )
-                    .await
-                    .expect("no refusal on the control stream")
-                    .expect("refusal");
+                    let refusal =
+                        tokio::time::timeout(Duration::from_secs(5), read_fod_msg(&mut recv))
+                            .await
+                            .expect("no refusal on the control stream")
+                            .expect("refusal");
                     assert!(
-                        matches!(refusal, Some(FodMsg::FrameError { frame_index: 99, .. })),
+                        matches!(
+                            refusal,
+                            Some(FodMsg::FrameError {
+                                frame_index: 99,
+                                ..
+                            })
+                        ),
                         "the refusal was {refusal:?}, not a frame_error for 99",
                     );
                 }
@@ -1245,7 +1472,8 @@ mod tests {
                 // Nothing is sent: the frame must arrive on the URL ask alone.
                 let mut bytes = Vec::new();
                 let whole = |b: &[u8]| {
-                    b.len() >= 4 && b.len() >= 4 + u32::from_be_bytes(b[..4].try_into().unwrap()) as usize
+                    b.len() >= 4
+                        && b.len() >= 4 + u32::from_be_bytes(b[..4].try_into().unwrap()) as usize
                 };
                 let read = tokio::time::timeout(Duration::from_secs(3), async {
                     while let Some(Ok(Message::Binary(chunk))) = socket.next().await {
@@ -1276,7 +1504,10 @@ mod tests {
     async fn a_silent_websocket_peer_is_dropped_at_the_handshake_deadline() {
         use tokio::io::AsyncReadExt;
         let fx = Fixture::new(1);
-        let server = tokio::spawn(run_server(ServeConfig { websocket: true, ..fx.config() }));
+        let server = tokio::spawn(run_server(ServeConfig {
+            websocket: true,
+            ..fx.config()
+        }));
         against(server, async {
             let mut tcp = connect_tcp(fx.port).await;
             let mut byte = [0u8; 1];
@@ -1299,17 +1530,26 @@ mod tests {
     async fn a_failing_websocket_accept_is_retried_at_a_pace() {
         let fx = Fixture::new(1);
         let localhost = Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
-        let (listener, tls) = websocket::bind(localhost, 0, &fx.cert_pem, &fx.key_pem).await.expect("bind");
-        socket2::SockRef::from(&listener).shutdown(std::net::Shutdown::Read).expect("shut the listener");
+        let (listener, tls) = websocket::bind(localhost, 0, &fx.cert_pem, &fx.key_pem)
+            .await
+            .expect("bind");
+        socket2::SockRef::from(&listener)
+            .shutdown(std::net::Shutdown::Read)
+            .expect("shut the listener");
         let warned = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let lines = Arc::clone(&warned);
-        let log = tracing_subscriber::fmt().with_writer(move || LineCount(Arc::clone(&lines))).finish();
+        let log = tracing_subscriber::fmt()
+            .with_writer(move || LineCount(Arc::clone(&lines)))
+            .finish();
         let _log = tracing::subscriber::set_default(log);
         let serving = tokio::spawn(websocket::serve(listener, tls, plain_sessions(&fx.series)));
         tokio::time::sleep(Duration::from_millis(500)).await;
         serving.abort();
         let warned = warned.load(std::sync::atomic::Ordering::Relaxed);
-        assert!((1..=6).contains(&warned), "{warned} failed accepts in 500 ms");
+        assert!(
+            (1..=6).contains(&warned),
+            "{warned} failed accepts in 500 ms"
+        );
     }
 
     /// Counts the lines a log subscriber writes.
@@ -1318,7 +1558,8 @@ mod tests {
     impl std::io::Write for LineCount {
         fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
             let lines = buf.iter().filter(|&&b| b == b'\n').count();
-            self.0.fetch_add(lines, std::sync::atomic::Ordering::Relaxed);
+            self.0
+                .fetch_add(lines, std::sync::atomic::Ordering::Relaxed);
             Ok(buf.len())
         }
 
@@ -1374,10 +1615,65 @@ mod tests {
                 Record::Session(_) => None,
             })
             .collect();
-        assert_eq!(frames, vec![0, 1, 2], "the opening fill left no rows, or the wrong ones");
+        assert_eq!(
+            frames,
+            vec![0, 1, 2],
+            "the opening fill left no rows, or the wrong ones"
+        );
         assert!(
             matches!(records.last(), Some(Record::Session(_))),
             "the session row is missing"
+        );
+    }
+
+    /// A session dialed with `load=` in its URL leaves one link line at its end, keyed by that load id
+    /// (docs/client/evidence/report-plan.md §3.4).
+    #[cfg(feature = "telemetry")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_session_with_a_load_id_leaves_its_link_line() {
+        let fx = Fixture::new(2);
+        let file = fx.dir.join("link.jsonl");
+        std::env::set_var("WTPACS_LINK_RECORD_PATH", &file);
+        let sessions = Sessions {
+            store: Arc::new(FrameStore::open(&fx.series).expect("open store")),
+            read_mode: ReadMode::Auto,
+            mode: StreamMode::Shared,
+            opening_ask: false,
+            stall: None,
+            cwnd_ahead: None,
+            taps: Arc::new(|| None),
+        };
+        let config = fx.config();
+        let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
+            .await
+            .expect("identity");
+        let (endpoint, _) = build_endpoint(&config, &identity).expect("endpoint");
+        let server = tokio::spawn(async move {
+            handle_incoming(endpoint.accept().await.expect("incoming"), sessions).await
+        });
+        let connection = dial(fx.port, fx.cert_hash, "?load=ab12").await;
+        connection.close(0u32.into(), b"done");
+        tokio::time::timeout(Duration::from_secs(10), server)
+            .await
+            .expect("the session never ended")
+            .ok();
+        let mut line = String::new();
+        for _ in 0..50 {
+            line = std::fs::read_to_string(&file).unwrap_or_default();
+            if !line.is_empty() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        let v: serde_json::Value = serde_json::from_str(line.trim()).expect("one JSON line");
+        assert_eq!(
+            v["load"], "ab12",
+            "the line is keyed by the session's load id"
+        );
+        assert_eq!(v["kind"], "link");
+        assert!(
+            v["bytes_sent"].as_u64().unwrap() > 0,
+            "the session's bytes sent"
         );
     }
 
@@ -1388,14 +1684,18 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_held_dial_neither_connects_nor_fails() {
         let fx = Fixture::new(1);
-        let lab = LabLevers { hold_sessions: true, ..LabLevers::default() };
+        let lab = LabLevers {
+            hold_sessions: true,
+            ..LabLevers::default()
+        };
         let server = tokio::spawn(run_server(ServeConfig { lab, ..fx.config() }));
         let endpoint = client(pinned(fx.cert_hash));
         let url = format!("https://127.0.0.1:{}/", fx.port);
         // A dial that errors is a server not listening yet; one that hangs is the hold.
         let mut held = false;
         for _ in 0..50 {
-            match tokio::time::timeout(Duration::from_secs(2), endpoint.connect(url.clone())).await {
+            match tokio::time::timeout(Duration::from_secs(2), endpoint.connect(url.clone())).await
+            {
                 Ok(Ok(_)) => panic!("a held session request was answered"),
                 Ok(Err(_)) => tokio::time::sleep(Duration::from_millis(100)).await,
                 Err(_) => {
@@ -1417,14 +1717,27 @@ mod tests {
         let frames = 4u32;
         let fx = Fixture::new(frames);
         let budget = (8 + pattern(0).len() + 8 + pattern(1).len() / 2) as u64;
-        let lab = LabLevers { stall_after_bytes: Some(budget), ..LabLevers::default() };
+        let lab = LabLevers {
+            stall_after_bytes: Some(budget),
+            ..LabLevers::default()
+        };
         let server = tokio::spawn(run_server(ServeConfig { lab, ..fx.config() }));
         let connection = dial(fx.port, fx.cert_hash, "").await;
-        let (mut send, _recv) =
-            connection.open_bi().await.expect("open control").await.expect("control");
-        write_fod_msg(&mut send, &FodMsg::StreamFrames { from: Some(0), to: Some(frames - 1) })
+        let (mut send, _recv) = connection
+            .open_bi()
             .await
-            .expect("ask the fill");
+            .expect("open control")
+            .await
+            .expect("control");
+        write_fod_msg(
+            &mut send,
+            &FodMsg::StreamFrames {
+                from: Some(0),
+                to: Some(frames - 1),
+            },
+        )
+        .await
+        .expect("ask the fill");
         let mut media = tokio::time::timeout(Duration::from_secs(5), connection.accept_uni())
             .await
             .expect("no media uni")
@@ -1439,8 +1752,14 @@ mod tests {
                 Err(_) => break false,
             }
         };
-        assert_eq!(got, budget, "the stream carried {got} bytes, not its budget of {budget}");
-        assert!(!ended, "the stalled stream was ended; the bug leaves it open");
+        assert_eq!(
+            got, budget,
+            "the stream carried {got} bytes, not its budget of {budget}"
+        );
+        assert!(
+            !ended,
+            "the stalled stream was ended; the bug leaves it open"
+        );
         server.abort();
     }
 
@@ -1450,7 +1769,10 @@ mod tests {
     fn lab_lever_segmentation_offload_reaches_the_tuning() {
         let fx = Fixture::new(1);
         for segmentation_offload in [false, true] {
-            let lab = LabLevers { segmentation_offload, ..LabLevers::default() };
+            let lab = LabLevers {
+                segmentation_offload,
+                ..LabLevers::default()
+            };
             let applied = lab_levers::apply(ServeConfig { lab, ..fx.config() });
             assert_eq!(applied.tuning.segmentation_offload, segmentation_offload);
         }
@@ -1464,15 +1786,26 @@ mod tests {
         let fx = Fixture::new(1);
         let open = || FrameStore::open(&fx.series).expect("open");
         let span = open().frame_span(0);
-        let read = |store: FrameStore| store.read_at_nowait(&mut vec![0u8; span.len as usize], span.offset).expect("read");
+        let read = |store: FrameStore| {
+            store
+                .read_at_nowait(&mut vec![0u8; span.len as usize], span.offset)
+                .expect("read")
+        };
         let whole = span.len as usize;
         if read(open()) != whole {
             eprintln!("SKIPPED: lab_lever_force_pool_reads_makes_every_read_a_miss: no RWF_NOWAIT hit on this mount");
             return;
         }
         for (force_pool_reads, want) in [(false, whole), (true, 0)] {
-            let lab = LabLevers { force_pool_reads, ..LabLevers::default() };
-            assert_eq!(read(lab.forcing_misses(open())), want, "force_pool_reads={force_pool_reads}");
+            let lab = LabLevers {
+                force_pool_reads,
+                ..LabLevers::default()
+            };
+            assert_eq!(
+                read(lab.forcing_misses(open())),
+                want,
+                "force_pool_reads={force_pool_reads}"
+            );
         }
     }
 
@@ -1486,14 +1819,28 @@ mod tests {
         const CWND_ALLOWANCE: usize = 64 * 1024;
         let frames = 32u32;
         let fx = Fixture::new(frames);
-        let server = tokio::spawn(run_server(ServeConfig { lab: LabLevers { send_window_follows_cwnd: true, ..LabLevers::default() }, ..fx.config() }));
+        let server = tokio::spawn(run_server(ServeConfig {
+            lab: LabLevers {
+                send_window_follows_cwnd: true,
+                ..LabLevers::default()
+            },
+            ..fx.config()
+        }));
         until_bound(fx.port, Duration::from_secs(5)).await;
 
         // The server's datagrams are dropped while `dark`; the client's always pass.
-        let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+        let front = Arc::new(
+            tokio::net::UdpSocket::bind("127.0.0.1:0")
+                .await
+                .expect("relay"),
+        );
         let relay = front.local_addr().expect("relay addr");
-        let back = tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay");
-        back.connect(("127.0.0.1", fx.port)).await.expect("relay upstream");
+        let back = tokio::net::UdpSocket::bind("127.0.0.1:0")
+            .await
+            .expect("relay");
+        back.connect(("127.0.0.1", fx.port))
+            .await
+            .expect("relay upstream");
         let dark = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let darkened = dark.clone();
         let relaying = tokio::spawn(async move {
@@ -1520,9 +1867,19 @@ mod tests {
             .expect("session");
         let (mut control, _recv) = open_control(&connection).await;
         dark.store(true, std::sync::atomic::Ordering::Relaxed);
-        write_fod_msg(&mut control, &FodMsg::StreamFrames { from: None, to: None }).await.expect("fill");
+        write_fod_msg(
+            &mut control,
+            &FodMsg::StreamFrames {
+                from: None,
+                to: None,
+            },
+        )
+        .await
+        .expect("fill");
         tokio::time::sleep(Duration::from_millis(300)).await;
-        write_fod_msg(&mut control, &FodMsg::RequestFrame { frame: frames - 1 }).await.expect("ask");
+        write_fod_msg(&mut control, &FodMsg::RequestFrame { frame: frames - 1 })
+            .await
+            .expect("ask");
         tokio::time::sleep(Duration::from_millis(300)).await;
         dark.store(false, std::sync::atomic::Ordering::Relaxed);
 
@@ -1532,17 +1889,24 @@ mod tests {
             .expect("accept media uni");
         let mut ahead = 0;
         loop {
-            let (idx, codestream) = tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
-                .await
-                .expect("the ask never arrived");
+            let (idx, codestream) =
+                tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                    .await
+                    .expect("the ask never arrived");
             if idx == frames - 1 {
                 break;
             }
             ahead += 8 + codestream.len();
         }
         let window = CWND_ALLOWANCE + 3 * (8 + pattern(frames - 1).len());
-        assert!(ahead > 0, "the fill wrote nothing before the ask: the test bounded nothing");
-        assert!(ahead <= window, "the ask waited behind {ahead} bytes, more than the window's {window}");
+        assert!(
+            ahead > 0,
+            "the fill wrote nothing before the ask: the test bounded nothing"
+        );
+        assert!(
+            ahead <= window,
+            "the ask waited behind {ahead} bytes, more than the window's {window}"
+        );
         relaying.abort();
         server.abort();
     }
@@ -1568,7 +1932,9 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn settings_ride_the_handshake_flight_from_a_quic_connecting() {
         let fx = Fixture::new(1);
-        let identity = Identity::load_pemfiles(&fx.cert_pem, &fx.key_pem).await.expect("identity");
+        let identity = Identity::load_pemfiles(&fx.cert_pem, &fx.key_pem)
+            .await
+            .expect("identity");
         let config = ServerConfig::builder()
             .with_bind_address("127.0.0.1:0".parse().unwrap())
             .with_identity(identity)
@@ -1582,8 +1948,8 @@ mod tests {
         let server = tokio::spawn(async move {
             let incoming = endpoint.accept().await.expect("an incoming connection");
             let connecting = incoming.accept().expect("connecting");
-            let _ = wtransport::endpoint::IncomingSessionFuture::with_quic_connecting(connecting)
-                .await;
+            let _ =
+                wtransport::endpoint::IncomingSessionFuture::with_quic_connecting(connecting).await;
         });
         assert_settings_before_the_handshake(port, fx.cert_hash).await;
         server.abort();
@@ -1592,10 +1958,16 @@ mod tests {
     /// Dials the server on `port` through a relay that stops forwarding the client's datagrams
     /// once the server has answered, and asserts the server's control stream arrives anyway.
     async fn assert_settings_before_the_handshake(port: u16, cert_hash: [u8; 32]) {
-        let front = tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay");
+        let front = tokio::net::UdpSocket::bind("127.0.0.1:0")
+            .await
+            .expect("relay");
         let relay = front.local_addr().expect("relay addr");
-        let back = tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay");
-        back.connect(("127.0.0.1", port)).await.expect("relay upstream");
+        let back = tokio::net::UdpSocket::bind("127.0.0.1:0")
+            .await
+            .expect("relay");
+        back.connect(("127.0.0.1", port))
+            .await
+            .expect("relay upstream");
         tokio::spawn(async move {
             let (mut up, mut down) = (vec![0u8; 65536], vec![0u8; 65536]);
             let (mut client, mut answered) = (None, false);
@@ -1628,8 +2000,15 @@ mod tests {
             .expect("no server stream before the server's handshake completed")
             .expect("accept uni");
         let mut head = [0u8; 2];
-        control.read_exact(&mut head).await.expect("control stream head");
-        assert_eq!(head, [0x00, 0x04], "not a control stream opening with SETTINGS");
+        control
+            .read_exact(&mut head)
+            .await
+            .expect("control stream head");
+        assert_eq!(
+            head,
+            [0x00, 0x04],
+            "not a control stream opening with SETTINGS"
+        );
     }
 
     /// A server whose whole first flight is lost probes every space it sent in, so its handshake
@@ -1647,10 +2026,20 @@ mod tests {
 
         // Every datagram is delayed ONE_WAY; the server's burst in the first ONE_WAY after its
         // first datagram — its first flight — is dropped.
-        let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+        let front = Arc::new(
+            tokio::net::UdpSocket::bind("127.0.0.1:0")
+                .await
+                .expect("relay"),
+        );
         let relay = front.local_addr().expect("relay addr");
-        let back = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
-        back.connect(("127.0.0.1", port)).await.expect("relay upstream");
+        let back = Arc::new(
+            tokio::net::UdpSocket::bind("127.0.0.1:0")
+                .await
+                .expect("relay"),
+        );
+        back.connect(("127.0.0.1", port))
+            .await
+            .expect("relay upstream");
         let swallowed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let dropped = swallowed.clone();
         tokio::spawn(async move {
@@ -1721,13 +2110,26 @@ mod tests {
     ) -> (Duration, Vec<usize>) {
         let fx = Fixture::new(1);
         let port = fx.port;
-        let server = tokio::spawn(run_server(ServeConfig { tuning, ..fx.config() }));
+        let server = tokio::spawn(run_server(ServeConfig {
+            tuning,
+            ..fx.config()
+        }));
         until_bound(port, Duration::from_secs(5)).await;
 
-        let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+        let front = Arc::new(
+            tokio::net::UdpSocket::bind("127.0.0.1:0")
+                .await
+                .expect("relay"),
+        );
         let relay = front.local_addr().expect("relay addr");
-        let back = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
-        back.connect(("127.0.0.1", port)).await.expect("relay upstream");
+        let back = Arc::new(
+            tokio::net::UdpSocket::bind("127.0.0.1:0")
+                .await
+                .expect("relay"),
+        );
+        back.connect(("127.0.0.1", port))
+            .await
+            .expect("relay upstream");
         let delivered = Arc::new(std::sync::Mutex::new(Vec::new()));
         let answered = Arc::new(std::sync::Mutex::new(Vec::new()));
         let (to_server, from_server) = (delivered.clone(), answered.clone());
@@ -1784,7 +2186,13 @@ mod tests {
         }
         let bytes_after = rounds
             .iter()
-            .map(|&at| answered.iter().filter(|(t, _)| *t >= at && *t < at + one_way).map(|(_, n)| n).sum())
+            .map(|&at| {
+                answered
+                    .iter()
+                    .filter(|(t, _)| *t >= at && *t < at + one_way)
+                    .map(|(_, n)| n)
+                    .sum()
+            })
             .collect();
         (handshake, bytes_after)
     }
@@ -1795,24 +2203,56 @@ mod tests {
     /// repeated Initial.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_repeated_initial_draws_the_lost_flight_at_once() {
-        let tuning = TransportTuning { reply_repeated_initial: true, ..TransportTuning::default() };
+        let tuning = TransportTuning {
+            reply_repeated_initial: true,
+            ..TransportTuning::default()
+        };
         let one_way = Duration::from_millis(25);
-        let (handshake, bytes_after) = dial_with_first_answers_swallowed(tuning, one_way, one_way).await;
-        assert!(bytes_after.len() >= 2, "the client never repeated its Initial: {bytes_after:?}");
-        assert!(bytes_after[1] >= 1200, "the repeat drew {} bytes, not the flight", bytes_after[1]);
-        assert!(handshake < Duration::from_millis(700), "handshake took {handshake:?}: the flight waited for the server's PTO");
+        let (handshake, bytes_after) =
+            dial_with_first_answers_swallowed(tuning, one_way, one_way).await;
+        assert!(
+            bytes_after.len() >= 2,
+            "the client never repeated its Initial: {bytes_after:?}"
+        );
+        assert!(
+            bytes_after[1] >= 1200,
+            "the repeat drew {} bytes, not the flight",
+            bytes_after[1]
+        );
+        assert!(
+            handshake < Duration::from_millis(700),
+            "handshake took {handshake:?}: the flight waited for the server's PTO"
+        );
     }
 
     /// The reply is once a connection: with the first flight and its resend both lost, the
     /// client's second repeat draws only an ACK, and the flight waits for the server's PTO.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_second_repeated_initial_draws_only_an_ack() {
-        let tuning = TransportTuning { reply_repeated_initial: true, ..TransportTuning::default() };
-        let (_, bytes_after) =
-            dial_with_first_answers_swallowed(tuning, Duration::from_millis(25), Duration::from_millis(500)).await;
-        assert!(bytes_after.len() >= 3, "the client repeated its Initial fewer than twice: {bytes_after:?}");
-        assert!(bytes_after[1] >= 1200, "the first repeat drew {} bytes, not the flight", bytes_after[1]);
-        assert!(bytes_after[2] < 1200, "the second repeat drew {} bytes, more than an ACK", bytes_after[2]);
+        let tuning = TransportTuning {
+            reply_repeated_initial: true,
+            ..TransportTuning::default()
+        };
+        let (_, bytes_after) = dial_with_first_answers_swallowed(
+            tuning,
+            Duration::from_millis(25),
+            Duration::from_millis(500),
+        )
+        .await;
+        assert!(
+            bytes_after.len() >= 3,
+            "the client repeated its Initial fewer than twice: {bytes_after:?}"
+        );
+        assert!(
+            bytes_after[1] >= 1200,
+            "the first repeat drew {} bytes, not the flight",
+            bytes_after[1]
+        );
+        assert!(
+            bytes_after[2] < 1200,
+            "the second repeat drew {} bytes, more than an ACK",
+            bytes_after[2]
+        );
     }
 
     /// A client whose ClientHello spans two datagrams, the second arriving after the server has
@@ -1828,10 +2268,20 @@ mod tests {
         until_bound(port, Duration::from_secs(5)).await;
 
         // The client's second datagram is held 100 ms; every other passes at once.
-        let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+        let front = Arc::new(
+            tokio::net::UdpSocket::bind("127.0.0.1:0")
+                .await
+                .expect("relay"),
+        );
         let relay = front.local_addr().expect("relay addr");
-        let back = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
-        back.connect(("127.0.0.1", port)).await.expect("relay upstream");
+        let back = Arc::new(
+            tokio::net::UdpSocket::bind("127.0.0.1:0")
+                .await
+                .expect("relay"),
+        );
+        back.connect(("127.0.0.1", port))
+            .await
+            .expect("relay upstream");
         tokio::spawn(async move {
             let (mut up, mut down) = (vec![0u8; 65536], vec![0u8; 65536]);
             let (mut client, mut sent) = (None, 0);
@@ -1857,10 +2307,13 @@ mod tests {
         });
 
         let endpoint = client(long_hello(fx.cert_hash));
-        tokio::time::timeout(Duration::from_secs(3), endpoint.connect(format!("https://{relay}/")))
-            .await
-            .expect("no session in 3 s: the server's SETTINGS never left")
-            .expect("session");
+        tokio::time::timeout(
+            Duration::from_secs(3),
+            endpoint.connect(format!("https://{relay}/")),
+        )
+        .await
+        .expect("no session in 3 s: the server's SETTINGS never left")
+        .expect("session");
         server.abort();
     }
 
@@ -1882,8 +2335,14 @@ mod tests {
         }
         server.abort();
         let worst = flights.iter().max().copied().unwrap_or(0);
-        assert!(flights.iter().all(|&n| n > 0), "a dial saw no 1-RTT datagram in the first flight: {flights:?}");
-        assert!(worst <= 2, "a half-RTT flight of {worst} datagrams carrying 1-RTT packets: {flights:?}");
+        assert!(
+            flights.iter().all(|&n| n > 0),
+            "a dial saw no 1-RTT datagram in the first flight: {flights:?}"
+        );
+        assert!(
+            worst <= 2,
+            "a half-RTT flight of {worst} datagrams carrying 1-RTT packets: {flights:?}"
+        );
     }
 
     /// One dial through a relay that holds the server's datagrams 50 ms, so nothing the server
@@ -1893,10 +2352,20 @@ mod tests {
         const HOLD: Duration = Duration::from_millis(50);
         // Firefox's ClientHello spans two datagrams, the second 3.4 ms behind the first here.
         const HELLO_GAP: Duration = Duration::from_micros(3400);
-        let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+        let front = Arc::new(
+            tokio::net::UdpSocket::bind("127.0.0.1:0")
+                .await
+                .expect("relay"),
+        );
         let relay = front.local_addr().expect("relay addr");
-        let back = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
-        back.connect(("127.0.0.1", port)).await.expect("relay upstream");
+        let back = Arc::new(
+            tokio::net::UdpSocket::bind("127.0.0.1:0")
+                .await
+                .expect("relay"),
+        );
+        back.connect(("127.0.0.1", port))
+            .await
+            .expect("relay upstream");
         let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
         let log = seen.clone();
         let relaying = tokio::spawn(async move {
@@ -1926,16 +2395,24 @@ mod tests {
             }
         });
         let endpoint = quinn_client(&long_hello(cert_hash), None);
-        let connection = tokio::time::timeout(Duration::from_secs(5), endpoint.connect(relay, "localhost").expect("connect"))
-            .await
-            .expect("no handshake in 5 s")
-            .expect("client side of the handshake");
+        let connection = tokio::time::timeout(
+            Duration::from_secs(5),
+            endpoint.connect(relay, "localhost").expect("connect"),
+        )
+        .await
+        .expect("no handshake in 5 s")
+        .expect("client side of the handshake");
         tokio::time::sleep(HOLD).await;
         connection.close(0u32.into(), b"");
         relaying.abort();
         let seen = seen.lock().unwrap().clone();
-        let first = seen.first().map(|(at, _)| *at).expect("the server answered nothing");
-        seen.iter().filter(|(at, one_rtt)| *at < first + HOLD && *one_rtt).count()
+        let first = seen
+            .first()
+            .map(|(at, _)| *at)
+            .expect("the server answered nothing");
+        seen.iter()
+            .filter(|(at, one_rtt)| *at < first + HOLD && *one_rtt)
+            .count()
     }
 
     /// RFC 9000 §17: a datagram's packets in turn, long headers skipped by their Length, until a
@@ -1943,7 +2420,12 @@ mod tests {
     fn carries_one_rtt(mut datagram: &[u8]) -> bool {
         fn varint(b: &[u8]) -> (usize, usize) {
             let len = 1 << (b[0] >> 6);
-            (b[1..len].iter().fold(usize::from(b[0] & 0x3f), |v, &x| v << 8 | usize::from(x)), len)
+            (
+                b[1..len]
+                    .iter()
+                    .fold(usize::from(b[0] & 0x3f), |v, &x| v << 8 | usize::from(x)),
+                len,
+            )
         }
         while let Some(&first) = datagram.first() {
             if first & 0x80 == 0 {
@@ -2120,14 +2602,20 @@ mod tests {
 
         let frames = 3u32;
         let fx = Fixture::new(frames);
-        let server = tokio::spawn(run_server(ServeConfig { websocket: true, ..fx.config() }));
+        let server = tokio::spawn(run_server(ServeConfig {
+            websocket: true,
+            ..fx.config()
+        }));
         against(server, async {
             let mut ws = ws_dial(fx.port, &fx.cert_pem, "").await;
 
             let ask = |msg: FodMsg| Message::text(serde_json::to_string(&msg).unwrap());
-            ws.send(ask(FodMsg::StreamFrames { from: Some(0), to: Some(frames - 1) }))
-                .await
-                .expect("fill");
+            ws.send(ask(FodMsg::StreamFrames {
+                from: Some(0),
+                to: Some(frames - 1),
+            }))
+            .await
+            .expect("fill");
             let (mut wire, mut messages) = (Vec::new(), 0);
             let want: usize = (0..frames).map(|f| 8 + pattern(f).len()).sum();
             while wire.len() < want {
@@ -2136,7 +2624,9 @@ mod tests {
                     .expect("the fill stalled")
                     .expect("socket ended")
                     .expect("read");
-                let Message::Binary(bytes) = msg else { panic!("a fill frame came as {msg:?}") };
+                let Message::Binary(bytes) = msg else {
+                    panic!("a fill frame came as {msg:?}")
+                };
                 wire.extend_from_slice(&bytes);
                 messages += 1;
             }
@@ -2153,15 +2643,25 @@ mod tests {
                 "{messages} messages for {frames} frames: a codestream was not split"
             );
 
-            ws.send(ask(FodMsg::RequestFrame { frame: 99 })).await.expect("ask out of range");
+            ws.send(ask(FodMsg::RequestFrame { frame: 99 }))
+                .await
+                .expect("ask out of range");
             let refusal = tokio::time::timeout(Duration::from_secs(5), ws.next())
                 .await
                 .expect("no refusal")
                 .expect("socket ended")
                 .expect("read");
-            let Message::Text(json) = refusal else { panic!("the refusal came as {refusal:?}") };
+            let Message::Text(json) = refusal else {
+                panic!("the refusal came as {refusal:?}")
+            };
             assert!(
-                matches!(fod::decode_fod_body(json.as_bytes()), Ok(FodMsg::FrameError { frame_index: 99, .. })),
+                matches!(
+                    fod::decode_fod_body(json.as_bytes()),
+                    Ok(FodMsg::FrameError {
+                        frame_index: 99,
+                        ..
+                    })
+                ),
                 "the refusal was {json}, not a frame_error for 99"
             );
         })

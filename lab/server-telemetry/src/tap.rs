@@ -4,8 +4,8 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::sync::mpsc::{SyncSender, TrySendError};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::{Duration, Instant};
 
 use super::sink::{clone_sender, ensure_sink, shutdown_sink};
@@ -277,7 +277,10 @@ impl Tap {
     /// The frame's bytes are in hand: close `read` against the mark and open `write`.
     pub fn boundary_read_done(&mut self) {
         let now = Instant::now();
-        self.pending_read_us = self.stage_mark.replace(now).map(|mark| duration_us(mark, now));
+        self.pending_read_us = self
+            .stage_mark
+            .replace(now)
+            .map(|mark| duration_us(mark, now));
     }
 
     pub fn emit_sent(&mut self, envelope_len: usize) {
@@ -734,18 +737,20 @@ mod tests {
         let live = Live::default();
         let tap = Tap::new(77, None, &live);
         let held = Arc::clone(&tap.batch);
-        held.lock().expect("hold the batch").push(Record::Session(SessionRecord {
-            kind: "server_session",
-            session_id: 77,
-            t_open_us: 0,
-            t_close_us: 0,
-            frames: 0,
-            bytes: 0,
-            refused: 0,
-            rows_opened: 0,
-            rows_closed: 0,
-            rows_dropped: 0,
-        }));
+        held.lock()
+            .expect("hold the batch")
+            .push(Record::Session(SessionRecord {
+                kind: "server_session",
+                session_id: 77,
+                t_open_us: 0,
+                t_close_us: 0,
+                frames: 0,
+                bytes: 0,
+                refused: 0,
+                rows_opened: 0,
+                rows_closed: 0,
+                rows_dropped: 0,
+            }));
 
         let guard = held.lock().expect("still holding");
         let started = Instant::now();
