@@ -134,7 +134,8 @@ phone's saturation is not shown ([`evidence/fill-bound-on-phone.md`](evidence/fi
 product's HTJ2K frame at 1×; capped to one core it is still not shown faster than the exact frame
 ([`evidence/decode-speed-of-the-optimal-quality-picture.md`](evidence/decode-speed-of-the-optimal-quality-picture.md)).
 *Decides:* a phone round recording the route and per-frame arrivals, the decoder count varied; the decode protocol at
-`cores` 1 and 2.
+`cores` 1 and 2. *Hardware, by the sources (2026-11-14):* no browser hardware path returns the view's samples on the phone or a
+10-bit view's anywhere, so a hardware view would be painted at 8 bits and unchecked ([`../decode/hardware.md`](../decode/hardware.md) §11, §16); its device probe, §17.
 
 **Which view is the target.** *So far:* on the phone, worker against page depends on the controller on the tether
 (medians 0.960 `cubic-restart`, 1.016 `bbr`); on Wi-Fi it is inconclusive by its pre-registered rule, not unmeasured:

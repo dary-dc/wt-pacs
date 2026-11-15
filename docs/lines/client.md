@@ -24,6 +24,12 @@ exact frame bit for bit, and only checked claims on screen.
   ([`../client/evidence/cache-options.md`](../client/evidence/cache-options.md)): leaning OPFS as built; owed, a
   phone's cold read and check and sustained write of a 17 MB frame (its §5). The plan to choose the store empirically,
   by the method now in `CLAUDE.md` §Measurement: #385.
+* **Hardware decode, re-read from sources** 2026-11-14 (HW-DECODE-DEEP, `claude/hw-decode`, a draft into
+  `claude/docs-client`): no browser hardware path serves the optimal-quality view with its checks; the Galaxy S23's
+  SoC brief lists no AV1 decoder (a republished Qualcomm release says it has one); a device probe for the next phone
+  round ([`../decode/hardware.md`](../decode/hardware.md) §11–§17). Reviewed 2026-11-14 (HW-DECODE-DEEP-REVIEW, §18):
+  15 of 15 sampled sources hold; only desktop Chromium's 8-bit GREY420 returns samples for the check; no spec defines
+  the YUV-to-RGB conversion a GPU hash would need; `prefer-software` has no recorded reason, a line owed beside it.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
