@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-15 14:28 UTC
-heartbeat: 2026-11-15 14:35 UTC
+heartbeat: 2026-11-15 14:37 UTC
 outputs: claude/mobile-decode (docs/decode/mobile/content-crop.md), PR 397 (draft, existing)
 
 ## Resume
