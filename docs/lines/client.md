@@ -80,6 +80,7 @@ exact frame bit for bit, and only checked claims on screen.
 | --- | --- | --- |
 | #367, #250 | the demo tip into `claude/core`, then `claude/core` into `main` | open; the owner's word |
 | #382 | the unified branch's review record | open |
+| #401 | stage A of the merge queue: the client line's 62 branches into `claude/merge-a-client` (2026-11-15), the gate and `demo-check.mjs` green; its review row next | draft |
 | #370 | the client load report | draft; review owed |
 | #368 | the integrity and coding-error check on the label ([`optimal-quality.md`](optimal-quality.md)) | draft; the owner's |
 | #369 | a separate proposal, kept out of the unified branch | draft |
