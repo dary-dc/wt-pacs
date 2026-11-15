@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -44,6 +44,31 @@ exact frame bit for bit, and only checked claims on screen.
   mid-group.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
+* **The reports' options** (2026-11-14, theory and a plan,
+  [`../client/evidence/report-plan.md`](../client/evidence/report-plan.md)): carriers BEACON, KEEPALIVE, SESSION and
+  receivers NGINX, RECEIVER survive the screen; PR 370's build is one candidate. Chromium has no WebTransport
+  `getStats()`, so the phone's link comes from the server's QUIC record. Owed: the REPORT-* rows of
+  `claude/work-ledger:docs/queue-client-2026-11-14.md`.
+  BEACON's advocate (§3.1, 2026-11-14): the hybrid with a delta per hide as its design, the hide-once build its A arm
+  (a departure from the owner's 11-11 brief, the owner's to adopt); `pagehide` beside `visibilitychange`.
+  KEEPALIVE's advocate (§3.2, 2026-11-14): Chromium keeps a keepalive past the renderer only from the page ("KeepAlive
+  is not yet supported in web workers"), Gecko from both; so the safety report goes from the worker at once and from
+  the page at hide until confirmed, deduped by a `reportId`.
+  SESSION's advocate (§3.3, 2026-11-14): the downloader worker owns the session and spawns the decoders, so the safety
+  report never touches the page; a bidi stream per record, acknowledged after the server's append; records sent at
+  once and held until acknowledged. Left: nothing outlives the document on any engine (the session is reset at its
+  end), and a load whose session never opens reports nothing.
+  RECEIVER's advocate (§3.5, 2026-11-14): its own Rust process from crates already locked, not the OpenTelemetry
+  Collector (beta webhook receiver, alpha file exporter, no field check); fields checked against one
+  `report-fields.json`, UID-shaped runs scrubbed, `204` after the write; the join and dedup at read, for NGINX alike.
+  NGINX's advocate (§3.5, 2026-11-14): the plan's log line was not JSON (checked on nginx 1.24), now the body as a JSON
+  string beside `$content_length`; the body read early with no hop on nginx ≥ 1.31.5 (`client_body_early_read`), the
+  hop on 1.29; a file per kind; the `204` precedes the line, and the error log names the client.
+  The protocol (§7, 2026-11-15, pre-registered, nothing run): nine arms (`off`, `off′`, each carrier × its timings),
+  cells D (delivery by nine endings), L, C, Y, R, bars and predictions per arm; SESSION predicted to fail D8 (no
+  session) and BEACON/KEEPALIVE-H the visible kill. Levers checked on the host: Chromium only by raw CDP (a Playwright
+  page never hides or enters bfcache); Firefox 159 and WebKitGTK 2.52.6 hide and bfcache, their renderer kills not
+  yet checked. Phone endings written as asks in the phone protocol.
 
 ## PRs
 
