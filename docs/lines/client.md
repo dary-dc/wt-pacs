@@ -74,6 +74,9 @@ exact frame bit for bit, and only checked claims on screen.
   across the nine files; only software and GPU-compute routes keep full precision today, hardware is checked only at
   8 bits by inversion, AV1 software is the only row timed on a phone; leaning: AV1 software stays the route of record
   until cell 1, M20 and M1–M7 report. Owed: asks M4–M22 in `claude/phone-protocol:docs/phone-rows/next-round.md`.
+  Reviewed 2026-11-15 (#397 §Review): two blockers, AV1 software is not full precision on 12-bit series (the depth
+  cut) and Safari returns 8-bit hardware samples as `NV12` without inversion; Firefox's narrow range holds on desktop
+  only. Owed: the fix and its re-review; the asks M4–M22 stand.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
