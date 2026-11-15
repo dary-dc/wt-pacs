@@ -36,3 +36,8 @@ n3: dbts_a1 cut-only e_N 5.386-5.411 vs r 5.401: largest |e_N/r-1| 0.3 % -> I1 h
 n2 on the row: I1 as worded (e_N, measured in the Laplacian's band) does NOT fail — a constant offset of 16 × s = 299 source
 units has no energy in that band. It fails the round trip's RMS (measure_test) and the row's mean error and RMS error (299).
 Prediction n2 ('I1 fails by orders of magnitude') is a miss of its wording; the mutant is killed by the test.
+
+n5 on one picture-B cell (dbts_c1, Q_A 24, B at Q 40; good: 13718327 bytes, worst e_N ÷ σ 0.769, RMS error 7.1):
+n5: dbts_c1 Q_A 24 B at Q 40: bytes 13718327, worst e_N/sigma 0.769, RMS error 126.2 -> passes 1.03
+As n2: a constant offset (−126) has no energy in e_N's band, so "e_N ÷ σ rises past every bar" is a miss of its
+wording. The mutant is killed by measure_test (the lossless reconstruction) and shows in the cell's RMS error (126).
