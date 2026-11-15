@@ -73,7 +73,6 @@ export function idb(pilot = new URLSearchParams(), env = globalThis) {
         done(t.objectStore(SERIES).get(s)),
         done(t.objectStore(FRAMES).getAllKeys(IDBKeyRange.bound([s, 0], [s, n - 1]))),
       ]);
-      if (!create && !before) return { present: [], meta: null };
       if (create && !before) {
         const { quota, usage } = await estimate();
         if (quota - usage < n * meta.frameBytes) throw quotaError(`${quota - usage} bytes left for ${n * meta.frameBytes}`);
