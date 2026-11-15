@@ -117,7 +117,7 @@ full-size SVC middle by 229–560 (`svc-shapes.tsv`, max |Δ|). Through each vol
 PSNR against the full range is 66.8 dB at 12 bits and 54.8 dB at 10, *derived* from MSE = (0 + 1 + 4 + 9) ÷ 4.
 
 **Decode of the top alone**, measured by the decode breakdown on the middle 16 slices of the same three volumes
-(`good` 6, not the shipped `allintra` 7; Chromium 141; [`../../lab/av1/decode/breakdown/report.md`](../../lab/av1/decode/breakdown/report.md)
+(`good` 6, not the shipped `allintra` 7; Chromium 141; `lab/av1/decode/breakdown/report.md` at `696c15d6`
 §Stages, W), each stream's own time, ms, 1× · 4×: top 96 · 378, 170 · 668, 93 · 354; the whole frame through
 WebCodecs, both streams at once, 113 · 438, 233 · 930, 112 · 431. On WebCodecs the top is the longer stream on A
 and C and level with the low on B, so showing the top from a complete envelope gains only the merge on

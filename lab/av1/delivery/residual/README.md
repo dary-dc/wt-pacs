@@ -510,7 +510,7 @@ thing from the group length G, and is always written "lever G". **R** is the `co
 
 Per-sample costs, all measured in the lossless work and carried over here (*derived*):
 
-* **A JS pass** writing a fresh output: 3.6–4.1 ns a sample ([`../../decode/breakdown`](../../decode/breakdown/README.md)
+* **A JS pass** writing a fresh output: 3.6–4.1 ns a sample (`lab/av1/decode/breakdown/README.md` at `696c15d6`
   §Why the JS passes cost 17–30 %, on `origin/claude/av1-unified-mainbase`).
 * **A read-only range pass**: 1.9 ns a sample (497 µs over 512² for `set()` plus the pass, §The range pass in
   `docs/decode/README.md`, an upper bound).
@@ -647,7 +647,7 @@ it goes" and decide nothing. A round's value for an arm is the median of its 16 
 **Order and throttles.** Each (throttle, round) gets a fresh headless Chromium, the version recorded in every row. The
 four sets run in a Williams order inside it. 1× and 4× (`lab/scripts/cpu_throttle.mjs` `throttleTree`) alternate: after
 every fourth 1× round comes a 4× round, until the 4× count is met. So a run cut short still has both throttles. One
-worker runs at a time and one `VideoDecoder` exists at a time. `lab/av1/decode/merge-free/busy.sh` records the CPUs. The
+worker runs at a time and one `VideoDecoder` exists at a time. `lab/av1/decode/merge-free/busy.sh` (at `696c15d6`) records the CPUs. The
 order effect per cell is RESIDAPART's statistic, and a cell over 10 % is not read (§Residual apart, measured: the DBT
 volumes).
 
@@ -665,7 +665,7 @@ to the rounds it has, and each interval is marked short of n.
 
 **Effect and interval.** Per cell and arm pair, each round's ln(arm ÷ reference) is paired inside one browser. The
 effect is the median over rounds, as a ratio. The 95 % interval is the k-th and (n − k + 1)-th ordered values, k the
-largest with P(Binomial(n, ½) ≤ k − 1) ≤ 0.025 (`rank`/`effect` in `lab/av1/decode/passes/report.mjs` on
+largest with P(Binomial(n, ½) ≤ k − 1) ≤ 0.025 (`rank`/`effect` in `lab/av1/decode/passes/report.mjs` (at `696c15d6`) on
 `origin/claude/av1-unified-mainbase`; copy them). Pairs reported: A1 ÷ A2 (the decision), A1′ ÷ A1 (A/A), LR ÷ L,
 LS ÷ LR, AS ÷ A1. Stage shares are reported as medians with their range over rounds.
 
