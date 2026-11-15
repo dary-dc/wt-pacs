@@ -296,4 +296,63 @@ The owner picks; until then these are used here and nowhere else.
 
 ## Review
 
-*(For PHONE-NEXT-PROTOCOL-REVIEW, by a session that wrote none of it.)*
+*PHONE-NEXT-PROTOCOL-REVIEW, 2026-11-15, by a session that wrote none of it. Read only; nothing run on a device.*
+Checked: every cell's prediction against the brief, the arms against `claude/docs-client:docs/client/design.md`
+§Open *The delivery comparison*, the rule's n against the budgets, the asks against the kit and the 11-11 runner
+(`claude/phone-tools:lab/devices/runner.js`, `lab/phone/runner.js`). Sources re-fetched 2026-11-15: every quote in
+§2–§4 from the Screen Wake Lock WD, WebTransport CR, Long Tasks draft and `proc_pid_stat(5)` is verbatim. The sign
+test's thresholds in cell 3 (16 → 13 … 24 → 18) are the smallest counts with two-sided p < 0.05 (recomputed: 16 →
+p 0.021, 17 → 0.049, 24 → 0.023); cell 2's 8 of 8 is p 0.0078.
+
+**What holds.** The arms A, B, C1, C2 are `design.md`'s. Each cell writes a prediction before data, and every theory
+row is labelled. Amendments 5, 6, 7, 11 and 12 are each answered where the brief asks. The view comparison reaches
+its rule in one evening: the minimum, 16 pairs (32 loads), is ~37 min of loads' own time at the ~70 s a load the
+protocol assumes, against cell 3's 60 min budget, so the 24 planned pairs fit with ~4 min to spare (the 70 s itself
+is *derived*, not measured: cell 3's load does more than an 11-11 load did).
+
+**Findings.** Each is marked *author* (a fix to this file, a later firing of the queue's worker) or *owner*.
+
+1. **The wake lock does not survive a load** (*author*, a blocker for amendment 5). §3 keeps one tab "so the page the
+   lock belongs to stays visible", but the lock belongs to the document, and the 11-11 runner moves between loads by
+   `location.assign` (`lab/phone/runner.js:151`), a new document each load. The spec, §11.2: "When a Document
+   document becomes no longer fully active, the user agent must run these steps: For each lock in
+   document.[[ActiveLocks]]["screen"]: Run release a wake lock". So every load starts unlocked until its page asks
+   again, and the 15 s gap runs on the system's screen timeout, counted from the one press. The fix the phone already
+   offers, scripted from the laptop: the platform setting `STAY_ON_WHILE_PLUGGED_IN` ("Whether we keep the device on
+   while the device is plugged in"; Android `Settings.Global`, API level 17), set by `adb` before the press and
+   restored after; the phone is on its charger (§2). The wake lock stays, recorded, as the second line.
+2. **Cell 3's guard is predicted to fail** (*author*). The cell predicts the first picture *page faster* and also says
+   the worker is *worse* "if the page-faster rule passes on the fill or the first picture". By its own predictions the
+   worker loses the comparison before frame-change latency is read. Either the guard needs a bound written now (e.g.
+   the worker is worse only past a stated first-picture cost, from `view-worker-start.md`'s ≥ 16.7 ms), or the cell
+   says the first picture alone can reject the worker view. Which bound is acceptable is the *owner*'s; that the rule
+   must state one is the author's.
+3. **Cell 2 has no margin** (*author*; amendment 7). Eight rounds is the minimum, so one round on the wrong side
+   (7 of 8: p 0.070) leaves *no difference shown*. Its stated margin, the second series "pooled only if its ratios
+   fall on the same side", is a choice made after the data. Pre-register one: per series only, or pooled always (16
+   rounds, 13 of 16), and add rounds if the budget allows (cell 2's 64 loads use ~29 of 35 min).
+4. **Cell 1 relies on cell 4 first, which runs last** (*author*). Cell 1: "cell 4 checks first that logcat names it at
+   all"; §0 and cell 4: the probe runs after cells 1–3. Either one logcat check before cell 1 (no timing), or cell 1's
+   route reads *not checked* until cell 4 has run.
+5. **Cell 2's predictions are conditional** (*author*). B against A is predicted "faster than A if that time is under
+   ~45 ms"; with the cell's own theory (26–36 ms effective at 3 decoders, cell 1) that is a committed *B faster*, and
+   the rule's outcome for C2 against A + B is not predicted. Write both outcomes; C1 has a measure and no rule, which
+   is fine if said ("recorded, deciding nothing").
+6. **The busy lever's thread** (*author*, one line in §10 item 5). The long tasks must run on the viewer document's
+   own thread (a lab lever loaded through the viewer's lab gate, as the 11-11 beacon is), not in a runner page or a
+   frame of another origin, or the page view is not busy. The dispatched steps are synthetic: DOM, "Dispatches a
+   synthetic event event to target", with `isTrusted` false; no client code reads `isTrusted` (`git grep` at
+   `e5b20cba`), so the viewer handles them as it would a press.
+7. **P1's departure, now sourced** (*author*, replace "not sourced here"). Android's Direct Boot page: "Credential
+   encrypted storage, which is the default storage location and only available after the user has unlocked the
+   device", and it "is available after the user has successfully unlocked the device and until the user restarts the
+   device". So P1 after a reboot needs the owner's unlock, as §4 says; the second sitting stands as a departure.
+8. **Still not sourced** (*author*, kept flagged): that `logcat` names the codec component Android allocated, and that
+   `adb shell` can read another app's `/proc/<pid>/stat` on this Android version. Both are checked in the dry run
+   before the press, or the cell's record says *not read*.
+9. **Arithmetic** (*author*, minor). §6's loads' own time sums to ~104 min and the gaps to ~36 min (144 starts × 15 s),
+   ~2 h 20 min with the warm-ups, not 2 h 10 min. Cell 1's three Williams rows of an 8 × 8 square do not balance
+   carry-over; say so or run the full square (8 rows, ~2 min more).
+
+Nothing here asks the phone tooling for more than §10 already lists, except finding 1's `adb` setting (the laptop's
+script) and finding 6's placement. Owner: finding 2's first-picture bound; PRs 376 and 378 in the run commit (§1).
