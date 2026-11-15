@@ -1,7 +1,7 @@
 # Optimal quality
 
 Last verified 2026-11-11 20:00 UTC (branch tips and the work queue read from `origin`); LOSSLESS-UNDER-LOSS added to
-Open 16, 2026-11-12.
+Open 16, 2026-11-12; Open 16 re-scoped by amendment 22, 2026-11-15.
 
 ## Goal
 
@@ -204,7 +204,10 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
     (`lab/lossless-under-loss/`). Owed to the owner: the schedule, a separate label for a fetch that failed, server
     keep-alive. Reviewed 2026-11-12 (PHONE-FIX-REVIEW): tests fail without the fix, theory matches the trace, gate and
     `demo-check.mjs` in both views pass; findings: every rejection is re-asked, and `lab/lossless-under-loss/` stays
-    off the product path.
+    off the product path. Re-scoped 2026-11-15 (PHONE-FIX-378, amendment 22): only a lost ask (deadline passed,
+    session closed, resume spent) is asked again, once after 1 s; a refusal and a failed check never
+    (`docs/reviews/lossless-under-loss.md` §Amendment 22). Theory: the rig's 45 s blackout now ends on *Lossless
+    check failed*, as with no re-ask. Owed: PHONE-FIX-378-REVIEW; the owner's call on whether one re-ask is enough.
 
 ## Decisions (the owner's, 2026-11-09)
 
