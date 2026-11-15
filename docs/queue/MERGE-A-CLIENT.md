@@ -1,12 +1,10 @@
 state: started
 started: 2026-11-15T17:41Z
-heartbeat: 2026-11-15T18:09Z
+heartbeat: 2026-11-15T18:11Z
 outputs: claude/merge-a-client 68a41678b7 (in progress)
 ## Resume
-Merges done: all 62 rows of MERGE-INVENTORY-2 §4 A4 on claude/merge-a-client 68a41678 (pushed; 62 of 62 frozen tips are
-merge parents). Now: the gate. Prereqs (fresh container): dockerd, pip meson==1.9.1 + ingest/requirements.txt for
-python3.13, apt nginx mesa-vulkan-drivers xdotool libxkbcommon-x11-0 strace xvfb, rustup wasm32, wasm-pack 0.15.0.
-Then MERGE-BASELINE/tip.sh's steps in /home/user/mac with CARGO_TARGET_DIR=/home/user/target-mac (its own):
-transport wasm, decoder vendors, decode wasm, ingest/tools.sh, scripts/gate.sh, cargo build warnings,
-check_lab_absent, comment_budget, counts.sh; then demo-check.mjs both views (MERGE-BASELINE/demo.sh). Then the
-comparison table and draft PR into claude/unified-client.
+Merges done: all 62 rows on claude/merge-a-client 68a41678 (pushed). Prereqs installed. Now running
+/home/user/mac-work/tip.sh (MERGE-BASELINE/tip.sh adapted: worktree /home/user/mac, CARGO_TARGET_DIR=/home/user/target-mac,
+logs /home/user/mac-out): builds, scripts/gate.sh, cargo build warnings, check_lab_absent, comment_budget, images,
+counts. A resume redoes the prereqs (setup.sh in the PR's commands) and runs it again. Then demo-check both views,
+the comparison, the draft PR into claude/unified-client.
