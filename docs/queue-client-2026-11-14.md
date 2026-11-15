@@ -64,6 +64,8 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | *(MOBILE-DECODE-OPTIONS appends one MOBILE-OPT-<NAME> row per new option it proposes)* | | | |
 | MOBILE-DECODE-COMPARE | 11-14 21:00 | MOBILE-DECODE-OPTIONS and every MOBILE-OPT row done | `claude/mobile-decode` (`docs/decode/mobile/README.md`: the table) |
 | MOBILE-DECODE-COMPARE-REVIEW | 11-14 21:00 | MOBILE-DECODE-COMPARE done | `claude/mobile-decode` (findings in its PR body) |
+| MOBILE-DECODE-COMPARE-FIX | 11-15 21:00 | MOBILE-DECODE-COMPARE-REVIEW done | `claude/mobile-decode` (`docs/decode/mobile/README.md` and the option files; PR 397) |
+| MOBILE-DECODE-COMPARE-FIX-REVIEW | 11-15 21:00 | MOBILE-DECODE-COMPARE-FIX done | `claude/mobile-decode` (PR 397 body §Re-review) |
 | PHONE-NEXT-PROTOCOL-FIX | 11-14 21:00 | — | `claude/phone-protocol` (its draft PR 359) |
 | PHONE-NEXT-PROTOCOL-FIX-REVIEW | 11-14 21:00 | PHONE-NEXT-PROTOCOL-FIX done | `claude/phone-protocol` (the file's "Re-review" section) |
 | PHONE-PROBE-RUN | — | — | **the owner's local device session; no cloud worker takes it** (the probe's report on `claude/hw-probe`) |
@@ -706,6 +708,22 @@ leaning labelled as such.
 
 A session that wrote none of it: 15 quoted sources fetched at their pinned revisions; the table follows from the
 option files; the window/level arithmetic re-derived.
+
+### MOBILE-DECODE-COMPARE-FIX (appended by MOBILE-DECODE-COMPARE-REVIEW, 2026-11-15; amendment 17)
+
+Docs only. A session that wrote none of the review: fix PR 397 §Review's two blockers in `docs/decode/mobile/README.md`
+(1: AV1 in software is full precision only up to 10 bits, the depth cut above; 2: at 8 bits Safari returns hardware
+samples as `NV12`, inversion is needed on Android Chromium and Firefox), each in place, corrected not dropped
+(`docs/adr/disk-access.md` §2), with the option file's words quoted. Findings 3–6 in the option files they name
+(3: Firefox's narrow range on desktop only, its Android blits quoted at `dc1259aee26f`), and the README's minors 7–17
+where one line each; list the rest. No regression test applies (no code); instead each fix names the review item it
+closes. Nothing else changed; the asks M4–M22 untouched.
+
+### MOBILE-DECODE-COMPARE-FIX-REVIEW
+
+A session that wrote neither the comparison, its review nor the fix: each blocker closed as its fix claims, the
+quotes re-checked against the option files, nothing else changed. Findings in PR 397's body §Re-review; a blocker
+left open is amendment 17's second round, then `blocked` for the owner.
 
 ### The device round's rows (the device coordination, 2026-11-15)
 
