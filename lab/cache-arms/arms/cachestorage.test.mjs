@@ -17,7 +17,7 @@ const FRAME = 2 ** 20 + 4096;
 const N = 6;
 const patterns = new Map();
 const pattern = (i) => {
-  if (!patterns.has(i)) patterns.set(i, new Uint8Array(FRAME).map((_, k) => (i * 31 + k) & 0xff));
+  if (!patterns.has(i)) patterns.set(i, new Uint8Array(FRAME).map((_, k) => (i * 31 + (Math.imul(k, 2654435761) >>> 24)) & 0xff));
   return patterns.get(i);
 };
 const frame = (i) => {
@@ -52,6 +52,7 @@ class Origin {
   keyKinds = new Set();
   chunks = [];
   estimates = 0;
+  opened = [];
   used = () => [...this.caches.values()].reduce((s, c) => s + [...c.values()].reduce((t, b) => t + b.length, 0), 0);
   env() {
     const o = this;
@@ -62,6 +63,7 @@ class Origin {
         has: async (name) => (await live(), o.caches.has(name)),
         async open(name) {
           await live();
+          o.opened.push(name);
           if (!o.caches.has(name)) o.caches.set(name, new Map());
           return o.cache(name);
         },
@@ -118,7 +120,8 @@ const readBack = async (a, i) => {
   check(same((await a.open("s/1", meta(), { create: true })).present, []), "a new series has nothing present");
   for (let i = 0; i < N; i++) await a.write(i, frame(i));
   check(o.record("s/1", 2) !== undefined, "the key is the series' encoded path and the index");
-  check(o.caches.get("frames s/1").has("https://origin.test/frame-cache/s%2F1/manifest"), "the manifest is one more record");
+  check(o.caches.get("frames-index").has("https://origin.test/frame-cache/s%2F1/manifest") && !o.caches.get("frames s/1").has("https://origin.test/frame-cache/s%2F1/manifest"),
+    "the manifest is a record of the index's Cache, not the series'");
   check(o.maxFlying === 1, `one put in flight (${o.maxFlying})`);
   check(same([...o.keyKinds], ["string"]), "every key a string, no Request built");
   for (let i = 0; i < N; i++) check(same(await readBack(a, i), pattern(i)), `frame ${i} reads back exact`);
@@ -352,6 +355,7 @@ const readBack = async (a, i) => {
   }
   await a.evict("a");
   check(same((await a.list()).map((x) => x.series), ["b"]), "only b stays");
+  check(!o.caches.get("frames-index").has("https://origin.test/frame-cache/a/manifest"), "a's manifest gone from the index");
   check([0, 1, 2].every((i) => o.record("b", i) !== undefined), "b's frames stay");
 }
 
@@ -387,7 +391,45 @@ const readBack = async (a, i) => {
   const f = await a.floor(frame(4), into, 3);
   check(f.writeMs.length === 3 && f.readMs.length === 3, "three of each");
   check(same(into, pattern(4)), "the read filled into");
-  check(same([...o.caches.keys()], ["frames s"]), `the floor's Cache removed (${[...o.caches.keys()]})`);
+  check(!o.caches.has("floor"), `the floor's Cache removed (${[...o.caches.keys()]})`);
+}
+
+/** list and the store's eviction open no series' Cache: a live Cache object keeps the space its delete frees
+ *  (ServiceWorker 2353; review, CACHESTORAGE B1), so the manifests live in an index Cache of their own. */
+{
+  const o = new Origin();
+  const a = cachestorage(undefined, o.env());
+  for (const s of ["a", "b"]) {
+    await a.open(s, meta(), { create: true });
+    await a.write(0, frame(0));
+    await a.close();
+  }
+  o.opened.length = 0;
+  const l = await a.list();
+  await a.evict("a");
+  check(same(l.map((x) => x.series).sort(), ["a", "b"]) && l.every((x) => x.lastOpen > 0), "list: each series with its last open");
+  check(!o.opened.some((n) => n.startsWith("frames ")), `list and evict open no series' Cache (${o.opened})`);
+}
+
+/** inflight=3: a refusal of the last puts reaches the store: settle names the frames lost, a read of one is a miss,
+ *  and a close with no settle before it throws (review, CACHESTORAGE M1). */
+{
+  const o = new Origin();
+  const a = cachestorage(pilot("inflight=3"), o.env());
+  await a.open("s", meta(), { create: true });
+  o.quota = o.used() + FRAME;
+  for (let i = 0; i < 3; i++) await a.write(i, frame(i));
+  const lost = await a.settle();
+  check(same(lost, [1, 2]), `settle names the refused frames (${lost})`);
+  check((await readBack(a, 1)) === null && same(await readBack(a, 0), pattern(0)), "a lost frame is a miss, the stored one a hit");
+  check((await rejects(a.close())) === null, "settled: close resolves");
+  o.quota = Infinity;
+  const b = cachestorage(pilot("inflight=3"), o.env());
+  await b.open("t", meta(), { create: true });
+  o.quota = o.used();
+  await b.write(0, frame(0));
+  const e = await rejects(b.close());
+  check(e?.name === "QuotaExceededError" && same(e.lost, [0]), "a close that finds a refusal throws it, the frame named");
 }
 
 await tick();

@@ -2,6 +2,8 @@
 // how this build departs from it, README.md §CACHESTORAGE as built.
 const BASE = "/frame-cache/";
 const NAME = "frames ";
+// A live Cache object keeps the space its delete frees (ServiceWorker 2353): list and evict open no series' Cache.
+const INDEX = "frames-index";
 const PIECE = 2 ** 20;
 const quotaError = (message) => Object.assign(new Error(message), { name: "QuotaExceededError" });
 
@@ -33,7 +35,7 @@ export function cachestorage(pilot = new URLSearchParams(), env = globalThis) {
 
   const key = (i) => base + i;
   const prefix = (s) => `${BASE}${encodeURIComponent(s)}/`;
-  const readManifest = async (c, s) => (await c.match(prefix(s) + "manifest"))?.json() ?? null;
+  const readManifest = async (s) => (await (await caches.open(INDEX)).match(prefix(s) + "manifest"))?.json() ?? null;
 
   async function bodyInto(response, into) {
     if (!streamed) {
@@ -78,9 +80,9 @@ export function cachestorage(pilot = new URLSearchParams(), env = globalThis) {
         }
       }
       cache = await caches.open(name);
-      const before = await readManifest(cache, s);
+      const before = await readManifest(s);
       const present = (await cache.keys()).map((r) => r.url.slice(r.url.lastIndexOf("/") + 1)).filter((k) => /^\d+$/.test(k));
-      if (create) await cache.put(key("manifest"), new Response(JSON.stringify({ ...meta, lastOpen: Date.now() })));
+      if (create) await (await caches.open(INDEX)).put(key("manifest"), new Response(JSON.stringify({ ...meta, lastOpen: Date.now() })));
       return { present: present.map(Number).sort((x, y) => x - y), meta: before };
     },
 
@@ -117,19 +119,29 @@ export function cachestorage(pilot = new URLSearchParams(), env = globalThis) {
     async drop(i) {
       if (writer) await cache.delete(key(i));
     },
-    evict: (s) => caches.delete(NAME + s),
+    async evict(s) {
+      await caches.delete(NAME + s);
+      await (await caches.open(INDEX)).delete(prefix(s) + "manifest");
+    },
     async list() {
       const out = [];
       for (const name of await caches.keys()) {
         if (!name.startsWith(NAME)) continue;
         const s = name.slice(NAME.length);
-        out.push({ series: s, lastOpen: (await readManifest(await caches.open(name), s))?.lastOpen ?? 0 });
+        out.push({ series: s, lastOpen: (await readManifest(s))?.lastOpen ?? 0 });
       }
       return out;
     },
-    async close() {
+    /** Every put in flight lands or is refused; a refused frame is lost, its buffer no longer read. */
+    async settle() {
       await Promise.allSettled(flying.values());
+      alreadyTaken = null;
+      return refused.splice(0).map((r) => (pool.push(r.buf), r.i)).sort((x, y) => x - y);
+    },
+    async close() {
+      const lost = cache && writer ? await a.settle() : [];
       [cache, pool, refused, alreadyTaken] = [null, [], [], null];
+      if (lost.length) throw Object.assign(quotaError(`${lost.length} puts refused after their write returned`), { lost });
     },
     async damage(i) {
       const bytes = new Uint8Array(await (await cache.match(key(i))).arrayBuffer());
