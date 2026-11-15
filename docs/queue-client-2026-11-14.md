@@ -50,6 +50,8 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | HW10-ROUTES | 11-14 21:00 | — | `claude/hw10-routes` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
 | HW10-ROUTES-REVIEW | 11-14 21:00 | HW10-ROUTES done | `claude/hw10-routes` (findings in its PR body; a session that wrote none of it) |
 | NATIVE-NOTES | 11-14 21:00 | — | `claude/native-notes` from `origin/claude/docs-client` → draft PR into `claude/docs-client` (docs only) |
+| PHONE-FIX-378 | 11-14 21:00 | — | `claude/lossless-under-loss` (PR 378's branch): the review's findings fixed |
+| PHONE-FIX-378-REVIEW | 11-14 21:00 | PHONE-FIX-378 done | findings in PR 378's body |
 | MOBILE-DECODE-OPTIONS | 11-14 21:00 | — | `claude/mobile-decode` from `origin/claude/docs-client` → draft PR into `claude/docs-client` (re-scoped by amendment 20: **new** options, Fable) |
 | MOBILE-OPT-AV1-SOFTWARE | 11-14 21:00 | — | `claude/mobile-decode` (`docs/decode/mobile/av1-software.md`) |
 | MOBILE-OPT-AV1-HW-UNCHECKED | 11-14 21:00 | — | `claude/mobile-decode` (`docs/decode/mobile/av1-hardware-unchecked.md`) |
@@ -778,6 +780,29 @@ exact frame; the bench times what cell 1 says it times; every mutation fails its
 The round's §3 on the phone, short: the owner's one press, two loads of each cell, every record read back, `adb`'s
 reads and the stay-on setting checked; fixes go back to `claude/phone-round` as their own commits. The round itself
 waits for the owner's word on finding 2 and on the run commit's merges (PRs 376, 378, `claude/phone-round`).
+
+21. **A running row follows its brief as it stands** (the owner, 2026-11-15, on MOBILE-DECODE-OPTIONS' brief changing
+    under a running session: "we don't waste resources when we chose to change the approach"). Every session, at each
+    push and heartbeat, fetches this file again and re-reads its row's brief and the Amendments; if either changed
+    since it started, it follows the new text from that point, keeps what it already pushed as input, and says so in
+    its Resume. The orchestrator, before changing a brief whose row is `started`, names the running session in the
+    amendment and gives the owner its link, so the owner can stop it by hand if the change makes its work waste.
+22. **PR 378 is fixed before the next phone round**, whose run commit must carry it. Its review's findings: it re-asks
+    every rejection and carries lab code. The scope chosen (the orchestrator's, reversible; from
+    `docs/client/evidence/frame-integrity.md`): **re-ask only a lost ask** (the session or stream gone, the ask's
+    deadline passed with nothing received); never a refusal by the server (asking again returns the same refusal)
+    nor a failed check (QUIC's AEAD means the same bytes come back; the check's own path decodes again, then blocks).
+
+### PHONE-FIX-378
+
+On PR 378's branch: the retry limited to a lost ask as amendment 22 defines it, a failing test first for each case
+(a lost ask retried once with its deadline; a refusal and a failed check never retried), each mutated; its lab code
+moved behind the viewer's lab gate or into `lab/` (the absence check green). Gate; `demo-check.mjs` in both views.
+
+### PHONE-FIX-378-REVIEW
+
+A session that wrote none of 378 or its fix: each test fails without its change; no other path retries; the absence
+check green.
 
 ## Procedure, rules
 
