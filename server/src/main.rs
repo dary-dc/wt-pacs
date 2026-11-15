@@ -126,6 +126,7 @@ mod tests {
         let flags = [
             &["--force-pool-reads"][..], &["--hold-sessions"], &["--stall-after-bytes", "1"], &["--segmentation-offload", "false"],
             &["--send-window-follows-cwnd"], &["--reply-repeated-initial"], &["--stream-mode", "per-frame-asks-first"],
+            &["--advise-tile-names"], &["--fill-resumes-after-asks"], &["--ask-stream-priority", "1"],
         ];
         for flag in flags {
             assert!(Args::try_parse_from([&["series-server", "--series", "s.sbnd"], flag].concat()).is_err(), "{flag:?} parsed");
@@ -141,6 +142,7 @@ mod tests {
         let flags = [
             "--force-pool-reads", "--hold-sessions", "--stall-after-bytes", "7", "--segmentation-offload", "false",
             "--send-window-follows-cwnd", "--reply-repeated-initial", "--stream-mode", "per-frame-asks-first",
+            "--advise-tile-names", "--fill-resumes-after-asks", "--ask-stream-priority", "-3",
         ];
         let lab = LabLevers {
             force_pool_reads: true,
@@ -149,6 +151,9 @@ mod tests {
             segmentation_offload: false,
             send_window_follows_cwnd: true,
             reply_repeated_initial: true,
+            advise_tile_names: true,
+            fill_resumes_after_asks: true,
+            ask_stream_priority: Some(-3),
         };
         let args = parse(&flags);
         assert_eq!(args.lab, lab);

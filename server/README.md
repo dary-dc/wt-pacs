@@ -140,11 +140,13 @@ task ever waits on the disk; queue row 258 (EXECGAP) is drafted to time both.
 ## Lab only
 
 Off in a deployment, and documented where they are measured: the `lab-frame-cache` feature
-(`LAB_FRAME_CACHE_BYTES`). Seven flags exist only in a build with the `lab-levers` feature
+(`LAB_FRAME_CACHE_BYTES`). Ten flags exist only in a build with the `lab-levers` feature
 (`cargo build -p series-server --features lab-levers`, as every rig that passes one does), and a default build
 refuses them: `--force-pool-reads` (every read a miss), `--hold-sessions` (a dial that never settles),
 `--stall-after-bytes` (a session that stops sending), `--segmentation-offload false` (netem drops datagrams,
-not GSO batches), `--send-window-follows-cwnd`, `--reply-repeated-initial` and `--stream-mode per-frame-asks-first`. Their wiring is `transport/lab_levers.rs`. `--congestion cubic-classify` is not in a default build at all:
+not GSO batches), `--send-window-follows-cwnd`, `--reply-repeated-initial`, `--stream-mode per-frame-asks-first`,
+`--advise-tile-names` (row 259's arm T1, not adopted), `--fill-resumes-after-asks` and `--ask-stream-priority N` (an
+ask during a fill, [`docs/client/evidence/ask-during-a-fill.md`](../docs/client/evidence/ask-during-a-fill.md)). Their wiring is `transport/lab_levers.rs`. `--congestion cubic-classify` is not in a default build at all:
 its controller is the lab's crate [`lab/cc-classify`](../lab/cc-classify/README.md), which the `lab-classify` feature
 compiles in, and the server holds only the flag's wiring. The `telemetry` feature compiles in the lab's crate `lab/server-telemetry` (the Tap and its report, path sampling,
 the controller traces `WTPACS_CC_TRACE` and `WTPACS_LOSS_TRACE`), and the server holds `RecordedPipeline` and the tap's call sites;

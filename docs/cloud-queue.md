@@ -259,7 +259,8 @@ tail, not the head.
   HTTP/2 in nginx, the preloads on the downloader page — [`ARCHITECTURE.md`](ARCHITECTURE.md) §The session open.
 * **Coalescing decoded frames across decoders**: design the merge point or drop it, for ~10 ms of a
   throttled fill's main thread — [`ARCHITECTURE.md`](ARCHITECTURE.md) §The hand-off.
-* **The GSO cap**, 24 or 45 — [`transport/transport-conclusions.md`](transport/transport-conclusions.md) §4.
+* **The GSO cap**, 24 or 45 — *decided: 24, AV1 queue row 192, the default build since 2026-10-14* —
+  [`transport/transport-conclusions.md`](transport/transport-conclusions.md) §4.
 * **Our own decoder build**, which brings the range in the pack — [`decode/README.md`](decode/README.md) §What adopting it costs.
 * **`recycleAtBytes` on WebKit**, and its detection rule — [`ARCHITECTURE.md`](ARCHITECTURE.md) §Recycling before the stall.
 * **The upstream filings** — [`transport/upstream-quinn-ack.md`](transport/upstream-quinn-ack.md),

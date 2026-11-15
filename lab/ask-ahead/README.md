@@ -29,6 +29,14 @@ The protocol, its predictions and its rule are [`../../docs/transport/link-condi
   `…@AT:ARM,…` asks once `AT` % has landed (`none`: no ask) and runs only the arms named, and an arm's `?key=value`
   token goes to the page's query. Its rows are `rows-refill.jsonl`; `rows-refill-ceiling.jsonl` is the relay's
   ceiling, fills with no ask at 2 ms. `refill_test.py` holds its verdict's claims on drawn rows.
+* `askstream.sh DBT10 DBTS_B1` — ASKSTREAM, the measurement [`../../docs/WIRE.md`](../../docs/WIRE.md) §Proposed: an ask
+  during a fill pre-registered: T and Tp (`?refill=head`), QW (`--fill-resumes-after-asks --send-window-follows-cwnd
+  ?refill=none`), QS (`--fill-resumes-after-asks --ask-stream-priority 1 ?refill=none`) and its check QS0 (priority 0),
+  on a release build with `--features lab-levers` (`SERVER=` the frozen binary). A `CELL`'s `~dbts` serves
+  `MORE_SERIES`' `dbts` instead of the first series, `#u1` asks the last eight frames 100 ms apart (`ask_ms` their
+  median) and `#u3` the last four at once (`ask_ms` the last to land), each step skipped if its frame has landed.
+  Read by `askstream.py ROWS.jsonl`; `askstream_test.py` holds its rule's claims on drawn rows. Rows
+  `rows-askstream.jsonl`, the ceiling `rows-askstream-ceiling.jsonl`.
   Needs the client bundles (`client/transport/ts/build.sh`, `client/transport/wasm/build.sh`) and playwright.
 * `askjump.py ROWS.jsonl` — ASKJUMP, the lab flag `askJump` (A, A′ = `Ap`, B = `?askJump`) with decoding on, read by
   [`../../docs/decode/README.md`](../../docs/decode/README.md) §An ask behind the decoders. A `SERIES_DIR` holding
@@ -36,5 +44,12 @@ The protocol, its predictions and its rule are [`../../docs/transport/link-condi
   the product's build and each frame's pixels are checked against the source's `NNN.sha256` (`MUTATE=sample` flips a
   decoded bit, `MUTATE=truth` a checksum digit). A `CELL`'s `/cpuN` throttles the browser N× (`lab/scripts/cpu_throttle.mjs`);
   `RELAY_CORE` pins the relay. Each row adds the ask's decoder wait (`ask_decoder_ms`) and the page's settings (`page`).
+* `scrollpolicy.sh DBT10 aa|main|ceiling` — SCROLLPOLICY, the measurement [`../../docs/WIRE.md`](../../docs/WIRE.md)
+  §What a scroll ahead asks pre-registered: a `#scrollMS` shape (the last ten frames, a step every MS ms, once 10 % has
+  landed) under the downloader's lab flag `scroll` (`?scroll=cursor`, `?scroll=aim`, or none: every step), on today's
+  server and QW's. Each row's `ask_ms` is the shape's stale time and `rest_ms` its last step to its frame. Read by
+  `scrollpolicy.py ROWS.jsonl`. Rows `rows-scrollpolicy-aa.jsonl` (the A/A campaign first), `rows-scrollpolicy.jsonl`,
+  the ceiling `rows-scrollpolicy-ceiling.jsonl`. Its page and cell arms (`asks`, `every`, `scroll`) are
+  `claude/merge-a-server`'s `page.js` and `cells.py`; this branch's are the client line's (stage B2 of the unification).
 * The page (`page.js`) fills the whole series through the product's downloader with decoding off (on with `codec`) and,
   once `at` (half unless set) has landed, asks for the last frame.

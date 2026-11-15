@@ -99,8 +99,9 @@ within each group, and the groups are ranked by what merging needs first.
 | L5 | **The image build copies four lab crates whole**, 2.5 MB of `container-bench` results included. This contradicts the Containerfile's own comment and deploy/README §5. | `deploy/Containerfile:18-23`; `Containerfile.dockerignore:9-13` (`!lab/telemetry-cost` is dead) | **simplify**: copy each lab crate's `Cargo.toml` and `src/` only, and drop the dead line | none | ~10 |
 | L6 | **The client's build makes a lab artifact.** | `client/transport/ts/build.sh:23` (`lab/telemetry-cost/cost.ts`) | **moved to lab** (row 243) | none | 1 |
 | L7 | **Lab levers that stay, as levers:** `--force-pool-reads` (the documented forced miss), `--hold-sessions` and `--stall-after-bytes` (WebKit bugs 319879 and 319818, both tested), `--segmentation-offload false` (netem), `--send-window-follows-cwnd` (a trade-off; its test came with row 239), `per-frame-asks-first` (theory only), `--congestion cubic\|bbr\|bbr-bound` (bbr-bound failed its rule; whether to retire it is the owner's call), WebSocket, race and `recycleAtBytes` (the TCP fallback and the iOS recycle). | `server/src/main.rs:27-40`; `tuning.rs:15-21,82-85`; `stream_mode.rs:14`; `docs/levers.md:101,115` | **keep**. Add a test for `--send-window-follows-cwnd` (~30 lines). The five loose lab fields threaded through `ServeConfig`, `Sessions` and `Link::quic` could become one struct, but that is structural: propose it first. | removing any of them loses a lever an open measurement uses, or a fallback | — |
-
 | L8 | **Row 209's lab `FrameCache`** landed after this audit's base (`33a47a54`). It sits behind the `lab-frame-cache` feature, off by default, and the gate compiles it. The server crate takes its source from `lab/` by `#[path]`, under `#[allow(dead_code)]`. | `server/src/media/lab_frame_cache.rs:1-7`; `server/src/media/mod.rs:3-4`; `server/src/transport/pipeline.rs:77-95`; `server/Cargo.toml:19` | **keep** while row 209 measures. Then **remove** it, or move the cache into `server/` if it is adopted. | none | ~−100 if removed |
+| L9 | **Row 259's arm T1, measured and not adopted**, came onto the server line with #102 as a `lab-levers` flag. The flag is gated, but the arm is in product modules: `TileReader` carries its field and a `bool` reaches it through `ProductPipeline::new`. That breaks the cleaning rule (the owner's, 2026-11-11; `docs/lines/coordination.md` §Decisions on the demo tip) for anything bound for `main`. Found by UNIFY-SERVER (2026-11-12); nothing removed. | `server/src/media/read_path.rs:331-332,357-360,388-394,1080-1150` (tests); `server/src/transport/pipeline.rs` (`advise_past_slots`); `lab_levers.rs` (`advise_tile_names`); `main.rs:127`; `docs/adr/disk-access.md` §9 *Measured (row 259)* | **the owner's**: remove before `main` (history keeps it, `6a1ab084`), or keep as a lever for a re-run on a quieter host | a re-run restores it from history | ~−90 if removed |
+| L10 | **Row 260's arm Wf, measured and not adopted**, came onto the server line with #103. No flag reaches it: only `lab/container-bench`'s `readahead_bench` calls it, so the server's window stays 4 MiB, but the field and the branch in `advise` sit in the product reader. Same rule as L9. Found by UNIFY-SERVER; nothing removed. | `server/src/media/read_path.rs:140-141,157-161,214-217,768-830` (tests); `lab/container-bench/src/bin/readahead_bench.rs:159`; `docs/adr/disk-access.md` §9 *Measured (row 260)* | **the owner's**: remove with its two tests and the bench's Wf arm before `main` (history keeps it, `b3736596`), or keep for the low-RAM run (`docs/adr/disk-access.md` §Proposed, S3) | the low-RAM run restores it from history | ~−45 if removed |
 
 ### 4. Product steps that need `lab/`
 
@@ -165,7 +166,7 @@ the viewer check takes a UDP port it found free, as B7's tests do, and the paint
 | # | item | evidence | verdict | size |
 | --- | --- | --- | --- | --- |
 | C1 | `server/README.md`: "Lab only" lists 3 levers out of about 10, says the default build carries no telemetry (L1 shows otherwise), names `Sessions` fields that do not exist, and leaves `LossBound` and `Traced` out of its object table | `server/README.md:18,126,134-137` | finish | ~12 |
-| C2 | `docs/cloud-queue.md` §Open owner decisions is stale: "GSO cap, 24 or 45" (24 was adopted), v3's bound "the candidate" (it failed). Two product docs still name it as the tracker. | `docs/ARCHITECTURE.md:1175`; `docs/CLIENTS.md:382` | finish: repoint both lines to each doc's §Open. `cloud-queue.md` itself is not this queue's to edit. | 2 |
+| C2 | `docs/cloud-queue.md` §Open owner decisions is stale: "GSO cap, 24 or 45" (24 was adopted; *marked decided in place 2026-10-24*), v3's bound "the candidate" (it failed). Two product docs still name it as the tracker. | `docs/ARCHITECTURE.md:1175`; `docs/CLIENTS.md:382` | finish: repoint both lines to each doc's §Open. `cloud-queue.md` itself is not this queue's to edit. | 2 |
 | C3 | `docs/av1/MERGE.md` describes conflicts the rebuild removed | `MERGE.md:16-23,73` | **remove**, folding what is still true into the pull request | −83 |
 | C4 | `docs/handoff-2026-10-04.md` (to a finished branch) and `docs/server-design-proposal.md` (R4, never built, with line references pinned to old commits) | — | **remove**. Keep R4 as one line in ARCHITECTURE §Open, and the container tips in README if they still hold. | −714 |
 | C5 | `docs/adr/disk-access.md` §5 says the `uring` read lever is "kept as a lab flag"; §1 says it was removed on 2026-10-03, and `ReadMode` has only `auto\|pool` | `disk-access.md:51,169` | finish: correct §5 in place | 1 |
@@ -347,8 +348,8 @@ of them gains must displace one.
 * **Parking the ring on its own fd** (S19): a measured tie, ~30 lines and 2 `unsafe` fewer, one fd a session. The
   only one that is also a simplification.
 * **PGO** (`scripts/pgo_build.sh`): −13 to −20 % server CPU per ask, no cell against (TC §4); the image is built
-  without it. Measured on the lab host, not on the image at the target's rates: `levers.md` §Proposed rows 3
-  (PGOSHIP) is the measurement first. Not a build row.
+  without it. *Measured at the target's rates 2026-10-22* (`levers.md` §Proposed rows 3, PGOSHIP): −13 % CPU per MB
+  through the relay at 103 and 18 Mbit/s, A/A ±1 %, held. Putting it in the image is the owner's call. Not a build row.
 * **`MALLOC_MMAP_THRESHOLD_` at 1 MiB**: RSS at rest −46 to −57 %, CPU a tie to +5 % (disk-access §8, row 51); a
   trade-off left with the owner and in no §Blocked line. For the owner, not a row.
 * Every other lever `docs/levers.md` lists as measured and won is the default already, or is one of the open
@@ -734,7 +735,7 @@ Lines are at `a9fd5bd6`.
 | C7 | `--congestion bbr` as the default; `--initial-window-bytes 38400` | quinn's own, one line each | the owner's: row 75 (§Blocked); row 181 put 38 400 first, opt-in ([link-conditions §Verdicts](transport/link-conditions.md#verdicts-that-rest-on-the-band) item 3) |
 | C8 | `startOnNeed`, AV1's `mixed`, `readMin` | `downloader.js:44-45,131-140,452`; `client/decode/av1.js:13,60-70`; `client/transport/ts/frame-session.ts:21,101-105,188-191` | H3: the owner's |
 | C9 | `recycleAtBytes` | `downloader.js:198,344-` | a fallback for iOS, off. The device measurement it owes is not run ([ARCHITECTURE §The measurement this owes](ARCHITECTURE.md#the-measurement-this-owes)) |
-| C10 | `scripts/pgo_build.sh` | as named | opt-in. Its measurement comes first: [`levers.md`](levers.md) §Proposed rows 3, PGOSHIP |
+| C10 | `scripts/pgo_build.sh` | as named | opt-in. Measured 2026-10-22, held: −13 % server CPU per MB at 103 and 18 Mbit/s through the relay, A/A ±1 % ([`levers.md`](levers.md) §Proposed rows 3, PGOSHIP). Into the image or not: the owner's |
 
 **These are seams, not the lab's, and they stay:**
 * the client's `transport`, `decoderWorker`, `worker`, `survival` overrides and `decode: false`. The contract suite

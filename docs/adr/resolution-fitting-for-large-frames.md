@@ -1,6 +1,8 @@
 # ADR: fit delivered resolution to the viewport for frames larger than it
 
-**Status:** accepted, **blocked on a dependency outside this repo** · **Date:** 2026-08-26 ·
+**Status:** accepted, **blocked on a dependency outside this repo**; tiles (§8) **delayed, not closed** (the owner,
+2026-10-24: not soon, of interest, some modalities will depend on them; 2026-10-13 had shelved them, one frame's ask
+×0.39–0.45 at 4× but not a fill's total) · **Date:** 2026-08-26 ·
 **Tags:** delivery, codec, client
 
 ---

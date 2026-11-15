@@ -63,6 +63,17 @@ $P lab/container-bench/readahead.py time $W 16
 python3 lab/container-bench/readahead_summary.py $W
 ```
 
+Row 260 (FILLWINDOW) runs its own grid on the same rig with `ROW=260`: W0, W0aa and Wf (the window
+`max(4 MiB, 2 × the named frame)`) over `ffdm_d`, a synthetic 20 × 16 MB set `make` writes, and `ct_lidc`, on the host
+and a loop ext4, one fill and four, into `$W/window.jsonl`:
+
+```bash
+ROW=260 $P lab/container-bench/readahead.py mount $W && ROW=260 $P lab/container-bench/readahead.py make $W
+ROW=260 $P lab/container-bench/readahead.py mutate $W
+ROW=260 $P lab/container-bench/readahead.py time $W 16
+python3 lab/container-bench/readahead_summary.py $W/window.jsonl
+```
+
 ## In a container (row 195)
 
 The shipped read path on the host (H, and H′ as its A/A control), in a bind mount (B), a named volume (V), the
