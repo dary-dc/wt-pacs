@@ -1,0 +1,71 @@
+== f9104739 OURS tree-diff-vs-p1=0
+== 57e8eb14 OURS tree-diff-vs-p1=0
+== d00c0d70 OURS tree-diff-vs-p1=0
+== 53c3e25b OURS tree-diff-vs-p1=0
+== a53cf95a OURS tree-diff-vs-p1=0
+== c2591dd40377512a47e2f06873a3930233418e67 (non-merge) docs/av1: record the paths the -s ours merges keep in history only, wi
+ 1 file changed, 15 insertions(+)
+== e9d61457 Merge claude/video-containers-research-ed5fg2 at 454edac429 (PR 42, cl
+   conflicted: .gitignore lab/README.md
+== 7bfc6fb1 Merge claude/av1-visually-lossless at 95357d8348 (PR 291): clean
+   conflicted: 
+== f40c62cc Merge claude/av1-top10-why at c2b1c954ae (PR 304): clean
+   conflicted: 
+== 95fd67f6 Merge claude/av1-preview-depth at a52fdd8823 (PR 312): clean
+   conflicted: 
+== 207bc173 Merge claude/av1-quality-profiles at 1232918df3 (PR 290): clean
+   conflicted: 
+== ca5c3d46 Merge claude/av1-split-preview-b at 3a96a8d87a (PR 311): clean
+   conflicted: 
+== de18dbf0 Merge claude/av1-profile-carriers at 339e4fcca9 (PR 306)
+   conflicted: client/decode/av1-webcodecs.js docs/av1/README.md
+== 6374c7cd Merge claude/av1-preview-noise at b2b3df0597 (PR 316): clean
+   conflicted: 
+== ac677d76 Merge claude/av1-vl-metrics at b86628d629 (PR 325)
+   conflicted: docs/av1/README.md
+== 410e6713 Merge claude/av1-window-q at bb762be567 (PR 323)
+   conflicted: docs/av1/README.md
+== 9e48fdc1 Merge claude/av1-noise-ratio at 0a9d33ca35 (PR 332)
+   conflicted: lab/av1/metrics/README.md
+== cc9496aa Merge claude/av1-groups-settings at 0e0e58c891 (PR 352)
+   conflicted: docs/lines/codecs.md
+== cc0d8835 Merge claude/av1-svc-preview at 440481f9f7 (PR 283): clean
+   conflicted: 
+== b87afb02 Merge claude/av1-lossy-pixel-work at 5705a82907 (PR 307): clean
+   conflicted: 
+== 1f1bbb78 Merge claude/av1-lcevc-lossy at 196de50c5f (PR 292): clean
+   conflicted: 
+== a57236ba Merge claude/htj2k-progressive at a7f89db13b (PR 295)
+   conflicted: client/decode/av1-webcodecs.js lab/av1/delivery/scalable/tool/decoder.js lab/av1/delivery/scalable/tool/make_frames.py lab/av1/delivery/scalable/tool/shapes.py lab/av1/delivery/total-time/page.js lab/av1/delivery/total-time/run.mjs
+== 6d1db4f3 Merge claude/av1-grey-path at a47b4f02ec (PR 308): clean
+   conflicted: 
+== 23402197 Merge claude/us-data-search at 5b636f235c (PR 313)
+   conflicted: docs/FIXTURES.md lab/av1/data.json
+== 49351114 Merge claude/av1-top-first at c2830266a2 (PR 310): clean
+   conflicted: 
+== 8d65c9ea Merge claude/av1-webcodecs-profiles at 87640e5dd8 (PR 318): clean
+   conflicted: 
+== 754f13d6 Merge claude/av1-residual-exact at 6c6cfb44e1 (PR 315): clean
+   conflicted: 
+== ffbc64b7 Merge claude/av1-audit-quality at 8d84867338 (PR 329)
+   conflicted: docs/av1/README.md docs/lines/codecs.md
+== 5f9ee4cd Merge claude/av1-encoder-settings at feeaaee6b1 (PR 331)
+   conflicted: docs/lines/codecs.md docs/lines/optimal-quality.md
+== 3c8fced2 Merge claude/av1-audit-decode at ea329b5479 (PR 334)
+   conflicted: docs/lines/README.md docs/lines/codecs.md
+== 5000eaa1 Merge claude/av1-noise-ratio-line at 386e35f5bc (PR 335)
+   conflicted: docs/lines/codecs.md
+== a4157c50 Merge claude/browser-decoding at 2a86024936 (PR 339)
+   conflicted: docs/av1/webcodecs-profiles.md docs/lines/codecs.md
+== 928aaaf1 Merge claude/audit-measure at e5f8fff3d8 (PR 373)
+   conflicted: docs/av1/README.md docs/lines/codecs.md
+== 15b34f0e Merge claude/htj2k-tiles at 13d62d2675 (PR 324)
+   conflicted: docs/lines/codecs.md
+== 07959410 Merge claude/demo-e2e-line at 18ea347163 (PR 347)
+   conflicted: docs/lines/optimal-quality.md
+== 3d116d83a381563f657020857cbc1e75100e3cd4 (non-merge) docs, lab: three link targets the merges left broken, so check_links p
+ 3 files changed, 6 insertions(+), 6 deletions(-)
+== 97d7c410c6a6bc8be132de79c7bd248b76115b47 (non-merge) lab: the two personal paths the merges brought in, so check_personal_p
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+== a47b72bcd15c048ef648e4e4b1cb2983f25741ad (non-merge) docs/lines/codecs: stage A1's staging branch, Open 11
+ 1 file changed, 5 insertions(+), 1 deletion(-)
