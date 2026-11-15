@@ -1,14 +1,12 @@
 state: started
 started: 2026-11-15 13:56 UTC
-heartbeat: 2026-11-15 13:56 UTC
-outputs: claude/mobile-decode (`docs/decode/mobile/av1-software.md`)
+heartbeat: 2026-11-15 14:04 UTC
+outputs: claude/mobile-decode `7949590c` (`docs/decode/mobile/av1-software.md`)
 
 ## Resume
 
-Claimed. Next: read the decode docs (hardware.md, hardware-10bit.md, payload-format.md, FILL-SPLIT and container
-rows), fetch the official sources (WebCodecs, dav1d, Chromium decoder selection, AV1 spec), write
-`docs/decode/mobile/av1-software.md` on `claude/mobile-decode` (from `origin/claude/docs-client` if the branch does
-not exist yet), push, open the branch's draft PR into `claude/docs-client` if none exists.
+Pushed the option file (`7949590c`). Next: the line doc (`docs/lines/client.md` on `claude/mobile-decode`, one
+bullet), the branch's draft PR into `claude/docs-client` if none exists, then `state: done`.
 
 ## Result
 
