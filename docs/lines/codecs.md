@@ -34,6 +34,12 @@ ABUS exists among the fixtures ([`../FIXTURES.md`](../FIXTURES.md)); nothing bel
 * **Discarded:** a layered three-layer carrier; preview and view as quality layers of one stream; top-first; HTJ2K
   resolution ladder and quality layers; lossless G > 1; a lossy top plus low stream; key parsing in place of
   WebCodecs' flush (tag `archive/av1-keyparse`); LCEVC.
+* **Encoder settings** (ENCODER-SETTINGS, 2026-11-10, theory only, [`../av1/encoder-settings.md`](../av1/encoder-settings.md)):
+  every flag of every AV1 and HTJ2K invocation, quoted from libaom 3.15.1, the AV1 spec and OpenJPH 0.31.0. *G saves
+  almost nothing at Q 8 on DBT* holds for low-delay libaom only: lag 0 also switches off the temporal filter, TPL and
+  keyframe filtering; q is pinned; speed 6 prunes inter. Most other OQ flags restate libaom's defaults. The SVC and
+  residual studies ran other configurations (real time; libaom's defaults with lookahead), so their bytes do not
+  compare with the OQ view's.
 * **Server and transport:** `claude/line-server` (#254) holds 13 results (congestion and disk designs, PGO, tail
   ping, GSO, and others); no default changed.
 
@@ -195,7 +201,7 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
 
 ## Pointers
 
-`docs/av1/` (`payload-format.md`, `MAINBASE.md`, `queue.md`), `docs/decode/README.md`, `docs/FIXTURES.md`,
+`docs/av1/` (`payload-format.md`, `encoder-settings.md`, `MAINBASE.md`, `queue.md`), `docs/decode/README.md`, `docs/FIXTURES.md`,
 `docs/transport/`, `docs/adr/disk-access.md`, `lab/`; branches `claude/av1-unified-mainbase`,
 `claude/av1-quality-metrics:lab/av1/metrics/README.md`, `claude/av1-quality-profiles:lab/av1/profiles/README.md`,
 `claude/av1-noise-point:docs/av1/noise-point.md`, `claude/av1-window-q:docs/av1/window-q.md`,
