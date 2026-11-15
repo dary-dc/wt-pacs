@@ -47,6 +47,10 @@ layout is our input contract. Depth over breadth; theory and a pre-registered me
    path needs its own check is open.
 6. One or two commits each on `pacs-design-state` (#168), `pacs-disk-layout-measure` (#167), `pcs-pacs-options`
    (#230), `rsync-options`, `rsync-updates` are not yet in `line-pacs`.
+7. The optimal-quality pair at ingest (INGEST-OQ, 2026-11-12, [`../reviews/ingest-oq.md`](../reviews/ingest-oq.md)
+   §6, design only): the client's `exactSeries` grammar refuses a PCS-coded id with `~`; the optimal-quality series'
+   own id under the serving grammar; whether two bundles a DICOM series is allowed; a late instance writes both
+   series again.
 
 ## Decisions (the owner's)
 
