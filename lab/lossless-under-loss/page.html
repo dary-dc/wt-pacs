@@ -18,7 +18,6 @@ const controller = new Controller({
   size: { width: 3, height: 2, dpr: 1 },
   paint: () => ({}),
   emit: (type, e) => log(type, { quality: e.quality, reason: e.reason }),
-  ...(q.get("retry") === "off" && { exactRetryMs: [] }),
 });
 controller.take({ frameIndex: 0, info: grey });
 
@@ -37,7 +36,8 @@ controller.exactSource = {
     log("ask");
     return exact.requestExactFrame(i).then(
       (f) => (log("arrived", { bytes: f.bytes.length }), { ...f, info: { ...grey, exact: true, path: "htj2k" } }),
-      (e) => (log("rejected", { reason: e.message }), Promise.reject(e)),
+      // The re-ask off: a lost ask passed on as any other failure, which the controller never asks again.
+      (e) => (log("rejected", { reason: e.message, name: e.name }), Promise.reject(q.get("retry") === "off" ? new Error(e.message) : e)),
     );
   },
 };
