@@ -1,0 +1,37 @@
+Merge claude/merge-a-codecs at fc8c427b73 (stage B1)
+
+Stage B1 of claude/work-ledger:docs/queue-merge-2026-11-15.md, row MERGE-B: the reviewed codecs staging branch
+(PR 398, no blocker) into claude/unified, which starts at claude/merge-a-client 4520a441. 54 files conflicted, more
+than the plan's 11 (§4 B1) because stage A moved both sides and the -s ours lineage gives a criss-cross base.
+
+Outside docs/ and lab/ the merge changes only .gitignore (lab/containers/out/). The product is the tip's.
+
+Theirs an older version of the tip's own file (its blob is in the tip's history; the tip's side), 31 files:
+Cargo.lock README.md client/contract/ask-during-fill.html client/contract/dispatch-rig.ts client/decode/decoder.js client/paint/check.mjs client/paint/painter.js client/transport/consumer.js client/transport/consumer.test.mjs client/transport/downloader.js client/transport/downloader.test.mjs client/transport/ts/build.sh client/transport/wasm/src/lib.rs client/viewer/check-page.js client/viewer/check.mjs client/viewer/run_check.sh deploy/compose.yml deploy/nginx/entrypoint.sh deploy/nginx/wt-pacs.conf.template docs/ARCHITECTURE.md docs/av1/payload-format.md ingest/coded-frames/ingest.py ingest/from-parser/build.rs ingest/from-parser/same.py ingest/from-parser/same_test.py lab/ask-ahead/README.md lab/ask-ahead/cells.py lab/ask-ahead/page.js server/src/transport/link.rs server/src/transport/server.rs server/src/transport/stream_mode.rs 
+
+Code and harness where the codecs side holds an older form (the plan's §4 B1, "the tip's paint"; M2's rule: code
+resolved to the tip), the tip's side:
+client/decode/av1-webcodecs.js (the tip retired onePass and reuseCopyBuffer in c2034cb3; the codecs side's stallMs,
+301c5e24, a lab knob the product leaves at 2000 ms, stays on that branch: the scalable preview tool's 10 s bound is
+then ignored on this branch, a lab-only effect), client/decode/av1.js, client/viewer/viewer.js, server/src/main.rs
+(the tip's parse tests list every lever), client/README.md, deploy/README.md, deploy/check_equivalence.sh,
+scripts/gate.sh (the tip's steps; the codecs side adds none), lab/page-open/README.md,
+lab/av1/delivery/total-time/{page.js,run.mjs} (the tip's; the scalable tool's --per-frame, --stall-ms, --mutate, the
+plain link and wireBytes stay on claude/merge-a-codecs, for COMPLEXITY-AUDIT's none/plain item).
+
+Docs, the codecs line's additions the tip lacks, carried:
+docs/FIXTURES.md (§The ultrasound data search, PR 313), docs/av1/README.md (the LCEVC lossy-viewing verdict and the
+HTJ2K progression note), docs/av1/queue.md (row 19's lossy-viewing clause), lab/av1/bytes/lcevc/README.md
+(§Lossy viewing), lab/README.md (containers/ row, union), .gitignore (union, the tip's bundle rule),
+docs/glossary.md (lossy stream, noise ratio, residual, quantizer, quality profile, display level; the codecs side's
+older client row dropped; lossy stream and quality profile name what the tip calls optimal quality: two names of one
+concept, for COMPLEXITY-AUDIT and §6 item 5).
+docs/decode/README.md: the tip's; its Grey path sections were folded by docs-client (PR 384) into
+docs/client/evidence/reading-grey-from-the-browser-decoder.md.
+
+Line docs (the plan's §4 B1: the tip's form, the codecs line's state carried by edit):
+docs/lines/codecs.md: the codecs line's own state (its Last verified, State now and Open 0-11), the tip's Open 5, 7
+and 8 (DATASET-HUB, the network mode, the 8-bit depth cut with DEPTH8-MEASURE) carried as 12, 13 and 14.
+docs/lines/client.md, optimal-quality.md: the tip's work-state form (PR 384), with a pointer each to what the codecs
+side held there (the browser decode reference; the AV1 harvest's effect on the demo's claims).
+docs/lines/README.md: the tip's rows, the codecs row's date 2026-11-10.

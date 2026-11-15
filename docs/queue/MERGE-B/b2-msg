@@ -1,0 +1,52 @@
+Merge claude/merge-a-server at 1597e37c60 (stage B2)
+
+Stage B2 of claude/work-ledger:docs/queue-merge-2026-11-15.md, row MERGE-B: the reviewed server staging branch (PR
+399, no blocker) into claude/unified after B1. 65 files conflicted (the plan's §4 B2 counted 31 after A2; stage A
+moved the client side since).
+
+The product change is the server line's three lab levers and its fill window arm, all behind lab-levers as the plan's
+§4 B2 asks ("union, every lever behind lab-levers, the parse test listing all of them"), ported onto the tip's QUIC
+types: --advise-tile-names (row 259's arm T1, not adopted; whether it stays is PR 380's owner question),
+--fill-resumes-after-asks and --ask-stream-priority (ASKSTREAM, measured, not adopted), and
+FillReader::windowing_two_frames (row 260's arm Wf, a test-only builder). The default build serves as before.
+server/src/transport/link.rs: Media::SharedAsksApart rebuilt on QuicSend (the tip's WebTransport-or-raw stream) in
+place of the server side's wtransport SendStream; every other hunk the tip's (raw QUIC, the endpoint, QuicSession).
+server/src/transport/server.rs: the tip's endpoint and session code; both Link::quic sites (WebTransport and raw QUIC)
+take sessions.ask_stream; drive() takes the server side's fill_resumes argument, its tests too.
+server/src/transport/lab_levers.rs, server/src/main.rs: every lever of both sides, the refuse and parse tests listing
+all ten. server/src/media/read_path.rs: the server side's (the Wf arm and its two tests). server/README.md: ten
+lab-levers flags, the pointer to docs/client/evidence/ask-during-a-fill.md, where docs-client folded the design.
+Checked: cargo test -p series-server, with and without lab-levers (137 and 144 pass); the mutant that sends an ask on
+the fill stream fails with_an_ask_stream_an_ask_is_read_past_the_unread_fill.
+
+Theirs an older version of the tip's own file (its blob in the tip's history; the tip's side), 16 files:
+.gitignore Cargo.lock client/contract/ask-during-fill.html client/decode/decoder.js client/paint/check.mjs client/paint/painter.js client/transport/consumer.js client/transport/consumer.test.mjs client/transport/ts/build.sh client/transport/wasm/src/lib.rs docs/av1/payload-format.md ingest/coded-frames/ingest.py ingest/from-parser/build.rs ingest/from-parser/same.py ingest/from-parser/same_test.py server/src/transport/stream_mode.rs 
+
+The plan's §4 B2: client and deploy files the server line's old-base branches touch take the tip's form, which carries
+the demo's later decisions. Applied to conflicting and non-conflicting paths alike, so the B2 tree outside server/,
+docs/ and lab/ is the tip's: README.md, client/README.md, client/contract/dispatch-rig.ts,
+client/decode/wasm/build/{README.md,build.sh}, client/transport/{downloader.js,downloader.test.mjs},
+client/transport/ts/frame-session.ts, client/viewer/{check.mjs,crafted.mjs,head.js,index.html,run_check.sh,viewer.js},
+client/viewer/check-page.js (deleted on the tip, stays deleted), deploy/{Containerfile,Containerfile.dockerignore,
+Containerfile.prebuilt,README.md,check_equivalence.sh,compose.yml,server-start.sh,server_start_test.sh},
+deploy/nginx/{entrypoint.sh,wt-pacs.conf.template}, .containerignore, .github/workflows/gate.yml, scripts/gate.sh
+(the server side adds no step the tip lacks), server/dev-server.py, server/dev-server.test.py,
+server/scripts/{check_telemetry_absent.sh,gen_dev_cert.sh}. Not added: client/viewer/page.sh, deploy/build-arm64.sh,
+scripts/grey_series.sh. Most of these are the hygiene line's 10-30 fold (cf75ba64 the page names its client, 6a48d614
+no series by default, 0e846a62 the arm64 cross-build), whose resolution is B4's. Two are the server line's own and are
+named for the owner: 4019518a (readMin names a cut queued before the read; the tip's docs say "fixed on
+claude/readmin-cut-stream, not merged here") and 5ce4f087 (the decoder build's container run unlabelled for SELinux).
+
+Docs and lab, by the same reading:
+the tip's (docs-client, PR 384, folded the server side's text into docs/client/evidence, or the tip's text says the
+server side's code is not built here): docs/ARCHITECTURE.md, docs/CLIENTS.md, docs/WIRE.md (its Proposed section is
+docs/client/evidence/ask-during-a-fill.md), docs/FIXTURES.md, docs/glossary.md, docs/av1/licensing.md,
+docs/devices.md, docs/merge-readiness.md, lab/README.md, lab/av1/delivery/total-time/run.mjs.
+docs/levers.md: the server side's rows (PGO held, the in-kernel L7 and kTLS rows, TAILPING), without its "Done
+2026-10-22" for readMin, which the tip's code does not carry.
+the server side's (the tip's blob is in its history): docs/adr/disk-access.md, lab/container-bench/{README.md,
+readahead.py,src/bin/readahead_bench.rs}; and its additions: docs/transport/transport-conclusions.md (the owner's
+reading of row 189), lab/disk-access-bench/README.md (row 259), lab/page-open/README.md (the page without the
+transport file; the tip's depth hint kept).
+lab/ask-ahead/{page.js,cells.py}: the tip's (askJump and requestFrame); README.md both bullets, SCROLLPOLICY's page and
+cell arms named as claude/merge-a-server's.

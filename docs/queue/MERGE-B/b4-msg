@@ -1,0 +1,30 @@
+Merge claude/line-hygiene at 8d5112fd74 (stage B4)
+
+Stage B4 of claude/work-ledger:docs/queue-merge-2026-11-15.md, row MERGE-B: the hygiene line (PR 256, its 10-30
+fold: the page names its client, no series by default, deploy's compile cores, the arm64 cross-build, the server's
+notices, tests in tests.rs files) into claude/unified after B3. 31 files conflicted (the plan's §4 B4: 29).
+
+The plan's §4 B4: "the tip has since renamed and rewritten the same lines: the tip's side in every code conflict".
+The merge also landed hygiene hunks without a conflict that put back older forms of the tip's code (the criss-cross
+base): the decode workers' `done` message without its index and gen, frame-session.ts's armFill without its askMs,
+instantiate without its options, a server/Cargo.toml without serde, the transport-wasm session's helpers. So the
+tree outside docs/ and lab/ is the tip's, conflicting or not, with these added files only:
+deploy/build-arm64.sh, deploy/THIRD_PARTY_NOTICES, deploy/licence-texts/{Apache-2.0,MIT}.txt, deploy/server_notices.py
+(the plan's keepers; the notices are regenerated from the merged Cargo.lock by the plan's §6 item 1, and neither image
+copies them yet: that Containerfile change is hygiene's, not carried, so docs/av1/licensing.md §The server, which
+says both images ship them, is not carried either), patched/quinn{,-proto}/LICENSE-{APACHE,MIT}.
+
+Deviation from the plan, named: hygiene's tests.rs files are not added (common/*/src/tests.rs, server/src/**/tests.rs,
+ingest/from-parser/src/group/tests.rs). Each is a move of tests the tip keeps inline in the module, with no test the
+tip lacks (common/fod: hygiene's file has 5, the tip's lib.rs 6); with the tip's modules their `mod tests;` would not
+exist, so the files would be dead and the tests doubled. With them go hygiene's CLAUDE.md rule "Tests live in
+foo/tests.rs" and scripts/comment_budget.sh's tests.rs exclusion, which the tree would then contradict. The move is the
+owner's to take again in the cleaning, on the tip's modules.
+Not carried with them, by the same rule: .containerignore renamed .dockerignore and deploy/Containerfile.dockerignore
+removed; deploy/Containerfile's FEATURES argument and notices copy; hygiene's edits to lab code (lab/disk-access-bench,
+lab/window-harness, lab/scripts, lab/devices/deploy.sh, ...), whose crates build against the tip's.
+
+Conflicted docs, the tip's (hygiene's text describes the code above): README.md, deploy/README.md,
+docs/ARCHITECTURE.md, docs/CLIENTS.md, docs/glossary.md, lab/README.md, lab/ask-ahead/README.md, server/README.md.
+Carried without conflict: docs/merge-readiness.md (hygiene's review rounds four and five), docs/av1/queue.md (rows
+232-236 done).

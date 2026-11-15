@@ -1,0 +1,34 @@
+Merge claude/unified-pacs at 7afeb9cac2 (stage B3)
+
+Stage B3 of claude/work-ledger:docs/queue-merge-2026-11-15.md, row MERGE-B: the PACS line (serving by UID, the
+receiver, the study DB, pacs-verify, the carrier) into claude/unified after B2. Seven files conflicted, as the plan's
+§4 B3 counted.
+
+server/src/transport/server.rs, the written resolution the plan's §4 B3 and §5 ask for, of three lines' changes:
+* the PACS line's Series (`--series` one store, `--root` the store each session's URL names), Sessions::store_for,
+  log_series_refusal and the refusal close, taken whole;
+* the client line's (the tip's) endpoint for both ALPNs and handle_incoming's routing: the WebTransport branch reads
+  the URL and refuses before the first frame, as the PACS line's did; the raw QUIC branch (the native client) names
+  no series, so under `--root` serve_raw closes it with the bad-series-name refusal, a behaviour neither side had,
+  held by the new test under_root_a_raw_session_is_refused_as_a_bad_series_name (mutant: the close's code 0 fails it);
+* the server line's fourth ProductPipeline::new argument, the tile-name advice, in Sessions::pipeline, which now
+  takes the session's store (websocket.rs's call goes through it, so §5's websocket.rs:74 error is gone);
+* the client line's send window lever under lab-levers: Sessions::new takes it only for `--series` (a Series::One),
+  as the PACS line's `conflicts_with = "root"` did; that clap rule moves onto the lever in lab_levers.rs, so
+  main.rs's root_and_series_are_exclusive_and_one_is_required holds in both builds.
+banner.rs takes Series (no conflict); §5's four build errors are gone.
+Held by: under_root_a_session_gets_its_named_series_or_a_close_saying_why,
+under_root_a_websocket_refusal_is_a_close_with_its_code, root_and_series_are_exclusive_and_one_is_required (PACS),
+a_raw_session_closed_before_its_control_stream_ends_cleanly (client), the lab levers' tests (server), the new test.
+cargo test -p series-server: 153 pass, 160 with lab-levers, 156 with telemetry.
+
+server/src/transport/websocket.rs: the PACS line's imports (log_series_refusal) with the tip's `use fod::MAX_FOD_LEN`
+(the plan's §4 B3: both).
+Cargo.toml: both sides' members (client/native, carrier, carrier/sender), in both lists.
+Cargo.lock: the tip's, then `cargo update -w` (the plan: regenerated, never hand-merged), then six new packages
+pinned back with `cargo update --precise` to the PACS line's versions (zstd 0.13.3, zstd-safe 7.3.0, zstd-sys
+2.1.2, xattr 1.6.1, sqlite-wasm-rs 0.5.5, rsqlite-vfs 0.1.1): every locked version is one side's, except the PACS
+side's rustix 1.1.5, which the tip's 1.1.6 serves. `cargo build --locked` passes.
+.gitignore: union. docs/adr/README.md: the tip's rows and the PACS line's eight ADR rows (its older frame-path row
+dropped). docs/ingest/README.md: the tip's item 7 (OQ-INGEST), the PACS line's "Not built" with the tip's "lossless
+AV1".
