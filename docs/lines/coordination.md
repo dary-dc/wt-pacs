@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`).
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15.
 
 ## Goal
 
@@ -83,6 +83,12 @@ small enough that every open item has an owner and a next step.
 7. **Item 11, the frame clock** (the owner's yes): `dd2c3902` on `claude/clean-product` removes its arms, page and
    driver (a protocol built and smoke-run on 2026-10-30, never run, run by no line); `24b80bcd` restores them.
    On a yes, `git revert 24b80bcd`. `dd2c3902`'s message reads as a revert by mistake; it is the removal.
+
+8. **Stage B of the unification** (row MERGE-B, 2026-11-15): `claude/unified` holds `claude/merge-a-client` with
+   `merge-a-codecs`, `merge-a-server`, `unified-pacs` and `line-hygiene` merged `--no-ff`, each message naming every
+   conflicted file and its reason; `server.rs`'s written resolution is B3's message. The gate passes, `demo-check.mjs`
+   passes in both views on `dbts_a1`, the web image builds. Draft PR into `main`, "do not merge: review"; owed
+   MERGE-B-REVIEW by a session that merged nothing in it, then COMPLEXITY-AUDIT.
 
 ## Unification (the owner, 2026-11-09)
 
