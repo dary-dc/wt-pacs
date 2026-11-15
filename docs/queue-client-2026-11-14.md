@@ -59,6 +59,14 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | *(MOBILE-DECODE-OPTIONS appends one MOBILE-OPT-<NAME> row per new option it proposes)* | | | |
 | MOBILE-DECODE-COMPARE | 11-14 21:00 | MOBILE-DECODE-OPTIONS and every MOBILE-OPT row done | `claude/mobile-decode` (`docs/decode/mobile/README.md`: the table) |
 | MOBILE-DECODE-COMPARE-REVIEW | 11-14 21:00 | MOBILE-DECODE-COMPARE done | `claude/mobile-decode` (findings in its PR body) |
+| PHONE-NEXT-PROTOCOL-FIX | 11-14 21:00 | — | `claude/phone-protocol` (its draft PR 359) |
+| PHONE-NEXT-PROTOCOL-FIX-REVIEW | 11-14 21:00 | PHONE-NEXT-PROTOCOL-FIX done | `claude/phone-protocol` (the file's "Re-review" section) |
+| PHONE-PROBE-RUN | — | — | **the owner's local device session; no cloud worker takes it** (the probe's report on `claude/hw-probe`) |
+| RUNNER-AUTO | 11-14 21:00 | PHONE-NEXT-PROTOCOL-FIX done | `claude/phone-round` from `origin/claude/hw-probe` → draft PR into `claude/hw-probe` |
+| RUNNER-AUTO-REVIEW | 11-14 21:00 | RUNNER-AUTO done | `claude/phone-round` (`docs/reviews/phone-round.md`) |
+| PHONE-LEVERS | 11-14 21:00 | RUNNER-AUTO-REVIEW done, no blocker open | `claude/phone-round` (its PR) |
+| PHONE-LEVERS-REVIEW | 11-14 21:00 | PHONE-LEVERS done | `claude/phone-round` (`docs/reviews/phone-round.md` §Levers) |
+| PHONE-DRY-RUN | — | — | **the owner's local device session; no cloud worker takes it** (after PHONE-LEVERS-REVIEW, no blocker open) |
 | CACHE-DESIGN | 11-14 21:00 | CACHE-PLAN done | `claude/cache-plan` (`docs/client/evidence/cache-plan.md` §7; PR of CACHE-PLAN) |
 | CACHE-ADVOCATE-OPFS-SYNC | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
 | CACHE-ADVOCATE-OPFS-ASYNC | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
@@ -648,6 +656,80 @@ leaning labelled as such.
 
 A session that wrote none of it: 15 quoted sources fetched at their pinned revisions; the table follows from the
 option files; the window/level arithmetic re-derived.
+
+### The device round's rows (the device coordination, 2026-11-15)
+
+What the next phone round (`claude/phone-protocol:docs/phone-rows/next-round.md`) waits on, in order: its review's
+fixes, the one-press runner, the levers the client lacks, a dry run on the phone. The builds share one branch and run
+one after another, so no merge is needed before the run commit (§1 there; the merges into it are the owner's).
+Amendment 17's fix loop binds both reviews.
+
+#### PHONE-NEXT-PROTOCOL-FIX (docs only)
+
+Apply the *author* findings of the file's §Review in place (findings 1 and 3–9), each marked fixed in that section
+with its commit; the review's text stays as written. Finding 1: `STAY_ON_WHILE_PLUGGED_IN` set by the laptop's
+script before the press and restored after, its Android source quoted; the wake lock stays as the second line,
+recorded. Finding 4: one `logcat` check before cell 1, untimed. Finding 2: write both forms of cell 3's guard, (a) the
+worker worse only past a first-picture cost derived from `view-worker-start.md`, (b) the first picture alone may
+reject the worker, and mark the choice the owner's, made before the round starts. Add the two lines of §10 the review
+asks (finding 1's setting, finding 6's placement). If MOBILE-DECODE-COMPARE has appended asks by then, list them in
+§10 by one line each; do not design their cells.
+
+#### PHONE-NEXT-PROTOCOL-FIX-REVIEW
+
+A session that wrote neither: each finding closed as its fix claims; §6's arithmetic recomputed; the sources of
+findings 1 and 7 fetched and quoted verbatim; nothing else changed. Findings in a "Re-review" section; blockers start
+amendment 17.
+
+#### PHONE-PROBE-RUN (local; the owner's device session)
+
+The probe of `claude/hw-probe:lab/devices/` (`?run=D0`) on the phone, exploratory: its report, the phone's AV1 codec
+list from a shell (HW10-ROUTES' first ask: names, hardware or not, profile levels, colour formats, `P010` among them),
+whether `logcat` names the component each cell allocated, and whether `adb shell` reads Chrome's `/proc/<pid>/stat`
+(the protocol review's finding 8). Read into `docs/devices.md` beside `hardware.md` §17's predictions; nothing
+identifying committed.
+
+#### RUNNER-AUTO (a lab tool; built and tested headless, run on the phone by PHONE-DRY-RUN)
+
+The one-press runner of `next-round.md` §3 and §10 items 1–5, as fixed by PHONE-NEXT-PROTOCOL-FIX, grown from the
+kit's `lab/devices/runner.js` (amendment 15). The 11-11 pieces (`claude/phone-rows:lab/phone/`: the runner, the
+beacon and their tests) come in by hand, each commit citing `claude/phone-rows` `1354e67f` (the default until the
+owner's word on merging that branch); one runner remains, and the PR body lists what of `lab/phone/` it supersedes.
+The laptop's script: the plan behind `GET /next`, the servers per block, the run-commit check (§1), `adb` reads
+between loads, the stay-on setting, the reboot after P2; it never toggles USB debugging or tethering and starts the
+`adb` server once per round (each start asks the phone's authorisation again). Tested headless in Chromium in the
+container against the real viewer and servers, quick mode, at least six loads: one press runs the plan; a load made to
+fail is recorded and the next taken; a stall injected in the runner's timers marks its load `VOID: stopped`; each
+wake-lock acquire, release and refusal recorded (headless may refuse: recorded so); a run-commit mismatch stops
+before load 1; the beacon's §10 item 4 fields present per load; the busy lever runs on the viewer's own thread.
+Each check fails once with its code broken. `adb` through a fake on `PATH` that records its calls; no phone (say
+so). Gate, `scripts/check_lab_absent.sh`; nothing identifying committed (`docs/devices.md` §4).
+
+#### RUNNER-AUTO-REVIEW
+
+A session that wrote none of it: one press runs the whole plan; no failure stops the round; no load is dropped from
+the records; every check's mutation fails it; nothing from `lab/` reaches a product path or image.
+
+#### PHONE-LEVERS (lab levers in the client)
+
+`next-round.md` §10 item 6, except cell 5's arms (the CACHE rows'): arm C2 (the view's fill, then the whole exact
+series, every exact frame checked by its XXH3), the decoder count per load, and cell 1's in-memory decode bench (both
+codecs, 1–4 decoders, coded bytes held in memory, each frame timed in its decoder worker as the product logs it).
+Each behind the viewer's lab gate (`client/viewer/head.js` → `lab/viewer/levers.js`): a page without its parameter
+is unchanged, a host that does not serve `lab/` refuses it. Product code changes only where a lever needs a seam,
+each seam named in the PR body; a seam that changes the product's structure is proposed there, not built. Each lever
+tested headless and mutated; the runner's plan gains them. Gate, `scripts/check_lab_absent.sh`.
+
+#### PHONE-LEVERS-REVIEW
+
+A session that wrote none of it: each lever off leaves the product's behaviour and bytes unchanged; C2 checks every
+exact frame; the bench times what cell 1 says it times; every mutation fails its test.
+
+#### PHONE-DRY-RUN (local; the owner's device session)
+
+The round's §3 on the phone, short: the owner's one press, two loads of each cell, every record read back, `adb`'s
+reads and the stay-on setting checked; fixes go back to `claude/phone-round` as their own commits. The round itself
+waits for the owner's word on finding 2 and on the run commit's merges (PRs 376, 378, `claude/phone-round`).
 
 ## Procedure, rules
 
