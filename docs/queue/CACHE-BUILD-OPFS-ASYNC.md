@@ -1,12 +1,10 @@
 state: started
 started: 2026-11-15T07:16Z
-heartbeat: 2026-11-15T07:19Z
-outputs: claude/cache-arms (PR 394)
+heartbeat: 2026-11-15T07:35Z
+outputs: claude/cache-arms e1b8cefb (arms/opfs-async.js, arms/opfs-async.test.mjs), PR 394
 ## Resume
-Read §7.2 (as advocated), §8.1–8.4, lab/cache-arms/ (seam, store.js, store-worker.js, arms/opfs-sync.js). Building on
-claude/cache-arms: arms/opfs-async.test.mjs first (an in-memory OPFS with createWritable, its swap committed at close,
-its write's copy taken late), then arms/opfs-async.js. Build decision: write() returns once its writable.write() is
-issued (the store worker's pump is sequential and W's credits are 9, below G = 15 at S1); a frame's copy is kept until
-its group commits, so a read before then is answered from it (§8.1); writes and closes in flight ≤ the pilot's k.
-Next: tests, arm, gate (`scripts/gate.sh --quick`), smoke `node lab/cache-arms/run.mjs --arms OPFS-ASYNC,...`.
+Done: e1b8cefb, the arm and its test (24 code mutants killed: /tmp list in the PR section when written). Next: gate.sh
+line and README §OPFS-ASYNC (local, uncommitted until smoke), then smoke one round a cell on Chromium:
+`NODE_PATH=$(npm root -g) node lab/cache-arms/run.mjs --cell L --size 512 --arms OPFS-ASYNC --rounds 1 [--pilot group=8MiB]`,
+then PR 394's body section, docs/lines/client.md, done.
 ## Result
