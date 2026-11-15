@@ -32,6 +32,12 @@ exact frame bit for bit, and only checked claims on screen.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
+* **Decode on a phone's browser**, theory only, 2026-11-15
+  ([`../decode/mobile/new-options.md`](../decode/mobile/new-options.md)): three options beyond the listed six, each
+  with a row: a hardware frame inverted from its 8-bit picture and checked against its digest (220 levels); a lossy
+  HTJ2K view; the view coded from the content's rectangle. Found: `dbts_b1` and `dbts_c1` need AV1 level 5.0, above
+  what Android asks of a hardware decoder. Owed: three phone asks and three cloud byte cells (its §7); the second
+  picture for more than 8 bits (its §4) is the owner's to open.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
