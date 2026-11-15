@@ -1,0 +1,142 @@
+== 4c9d6c5f OURS tree-diff-vs-p1=0
+== 7b2b1efd OURS tree-diff-vs-p1=0
+== 88970a5c Merge claude/onerror at ec61fba7d6
+   conflicted: client/conformance/dispatch-rig.ts client/downloader/downloader.js
+== 20d14ef3 Merge claude/wip-219-VIEWERASKS at 3e3e2d9459
+   conflicted: client/README.md client/transport/downloader.js client/transport/downloader.test.mjs client/viewer/check-page.js client/viewer/check.mjs client/viewer/run_check.sh client/viewer/viewer.js docs/ARCHITECTURE.md docs/merge-readiness.md server/src/transport/server.rs
+== 4cfa71e7 Merge claude/wip-226-GATEGAPS at 7fc6741487
+   conflicted: README.md client/contract/dispatch-rig.ts client/scripts/check_telemetry_absent.sh ingest/from-dicom/end_to_end_test.py ingest/from-dicom/from_dicom.py scripts/gate.sh
+   CHANGED-BEYOND-CONFLICTS: docs/merge-readiness.md
+== d195431a Merge claude/askjump-measure at 61a69b2c19 (PR 138)
+   conflicted: client/decode/decoder.test.mjs client/transport/downloader.test.mjs
+   CHANGED-BEYOND-CONFLICTS: client/decode/decoder.js client/transport/downloader.js docs/decode/README.md scripts/gate.sh
+== 8bf3a40f Merge claude/telemetry-production-design at deb236a3ee (PR 143)
+   conflicted: 
+== d1ae3848 Merge claude/coldrtt-hint at 334214d2e9 (PR 208)
+   conflicted: client/decode/av1.js client/viewer/viewer.js ingest/coded-frames/ingest.py lab/av1/tools/ingest_coded.py
+   CHANGED-BEYOND-CONFLICTS: client/README.md client/decode/av1.test.mjs client/viewer/head.js docs/av1/queue.md lab/page-open/README.md
+== c94a0053 Merge claude/cine-no-skip at 440047ff35 (PR 251)
+   conflicted: client/README.md client/viewer/check-page.js client/viewer/check.mjs client/viewer/run_check.sh client/viewer/viewer.js server/dev-server.py
+   CHANGED-BEYOND-CONFLICTS: docs/ARCHITECTURE.md
+== cad8034d Merge claude/ask-patterns-map at 8ffe467437 (PR 224)
+   conflicted: 
+   CHANGED-BEYOND-CONFLICTS: docs/glossary.md
+== 6459b9ce Merge claude/cache-policy at 680c9b4942 (PR 207)
+   conflicted: docs/adr/README.md docs/adr/frame-path-sources.txt docs/adr/frame-path.md docs/native/README.md
+== 70a1731f Merge claude/opfs-cache-measure at 38fb59a7b9 (PR 204)
+   conflicted: docs/ARCHITECTURE.md docs/adr/README.md docs/adr/frame-path.md
+== e2739c5d Merge claude/native-step1-check at 843a3903c3 (PR 211)
+   conflicted: 
+== e866aa1f Merge claude/native-parity at 02e298ef75 (PR 277)
+   conflicted: .gitignore CLAUDE.md README.md client/native/src/clock.rs client/native/src/view.rs client/native/src/window.rs client/paint/paint-worker.js client/paint/window.mjs client/transport/downloader.js client/transport/downloader.test.mjs client/transport/ts/dist/session.js client/transport/ts/manifest.sha256 client/view/controller.js client/view/controller.test.mjs client/view/view-worker.js client/viewer/head.js client/viewer/viewer.js docs/adr/frame-path.md docs/glossary.md docs/native/README.md lab/av1/delivery/total-time/run.mjs lab/frame-clock/busy.js lab/opfs-arms/run.mjs lab/opfs-cache/README.md lab/opfs-cache/rows/m5-smoke/m5-firefox.jsonl lab/opfs-cache/rows/m5-smoke/m5.jsonl lab/opfs-cache/rows/m5/m5-firefox.jsonl lab/opfs-cache/run.mjs lab/opfs-cache/summary.py lab/viewer/levers.js lab/viewer/levers.test.mjs scripts/gate.sh
+   CHANGED-BEYOND-CONFLICTS: client/native/src/lib.rs client/native/src/load.rs client/native/src/look.rs client/native/src/main.rs client/native/src/paint.rs client/native/src/resume.rs client/native/src/transport.rs
+== 6a73dc8e Merge claude/native-metrics at 224ad4e221 (PR 278)
+   conflicted: .gitignore docs/native/README.md lab/native-fill/browser.mjs lab/native-fill/run.py
+   CHANGED-BEYOND-CONFLICTS: client/native/src/count.rs client/native/src/paint.rs client/native/src/screen.rs client/native/src/transport.rs client/native/src/window.rs client/paint/window.mjs docs/glossary.md scripts/gate.sh
+== 823ef5c5 Merge claude/core-start2 at a8243eca5e (PR 294)
+   conflicted: client/paint/painter.js client/transport/consumer.js client/transport/downloader.js client/transport/downloader.test.mjs client/view/controller.js client/view/view-worker.js client/view/view.js client/view/view.test.mjs client/viewer/viewer.js docs/adr/frame-path.md docs/glossary.md lab/README.md lab/frame-clock/page.js lab/viewer/levers.js lab/viewer/levers.test.mjs scripts/gate.sh
+== 3673823d Merge claude/core-busy2 at 3acecc9066 (PR 296)
+   conflicted: client/view/view-worker.js client/view/view.js client/viewer/viewer.js docs/adr/frame-path.md lab/viewer/view_frames.py scripts/gate.sh
+== cf762199 Merge claude/opfs-theory at c01750b737
+   conflicted: docs/adr/frame-path.md
+   CHANGED-BEYOND-CONFLICTS: lab/opfs-arms/rows/firefox/stderr.log
+== 9d16d7ec Merge claude/core-s7-fixed at 36ae72e007
+   conflicted: client/view/view-worker.js client/view/view.js client/viewer/viewer.js docs/adr/frame-path.md lab/viewer/view_frames.py lab/viewer/view_run.sh scripts/gate.sh
+== 9563b63b Merge claude/core-clock at f36a747b8c
+   conflicted: docs/adr/frame-path.md
+   CHANGED-BEYOND-CONFLICTS: client/view/clock.test.mjs
+== e86775da Merge claude/opfs-c-shared at a6a2701510
+   conflicted: docs/adr/frame-path.md lab/opfs-arms/README.md lab/opfs-arms/feeder.js lab/opfs-arms/page.js lab/opfs-arms/rows/firefox/stderr.log lab/opfs-arms/run.mjs lab/opfs-arms/store-port.js lab/opfs-arms/summary.mjs lab/opfs-arms/view.js
+   CHANGED-BEYOND-CONFLICTS: client/decode/decoder.test.mjs
+== d2561733 Merge claude/client-architecture-division-rfri34 at 39714b4c0e
+   conflicted: 
+   CHANGED-BEYOND-CONFLICTS: CLAUDE.md docs/glossary.md
+== 5cdc29ff Merge claude/core-asking-plan at b74ca8c513 (PR 298)
+   conflicted: docs/adr/README.md
+== 803900b3 Merge claude/core-m5b at fba512c530 (PR 301)
+   conflicted: lab/opfs-cache/README.md lab/opfs-cache/arms-decoder.js lab/opfs-cache/arms-view.js lab/opfs-cache/arms.js lab/opfs-cache/run.mjs lab/opfs-cache/summary.py lab/opfs-cache/summary_test.py
+== 9ca613bd Merge claude/plan at 5b69cd7d9c (PR 338)
+   conflicted: 
+== fadf8ec6 Merge claude/reviews-2026-11-10 at c9d882a814
+   conflicted: 
+== 5147ed76 Merge claude/oq-integrity at 39a7bdd35d
+   conflicted: 
+== f4e8d336 Merge claude/dav1d-lazy at 7cf46ef7a7
+   conflicted: docs/lines/proposals.md
+== e38a6ff0 Merge claude/fable-simplify at 460488d9df
+   conflicted: 
+== 94376afe Merge claude/reviews-2026-11-11 at 7ab6a3aafc
+   conflicted: 
+== 6a7c3e50 Merge claude/fable-design at 7946ad7c66
+   conflicted: 
+== 1206aece Merge claude/reviews-2026-11-13 at 8da33d8ece
+   conflicted: 
+== 3ef14415 Merge claude/proposals at 5b4c334174 (PR 358)
+   conflicted: docs/lines/proposals.md
+== 5490444d Merge claude/demo-simplify at d70ccb9f98
+   conflicted: docs/lines/optimal-quality.md docs/lines/proposals.md
+== c2353974 Merge claude/demo-understand at 3171ee7b39
+   conflicted: docs/lines/optimal-quality.md
+== b658f90f Merge claude/demo-pre-main-review at 8ecd71b6a1
+   conflicted: docs/lines/coordination.md
+== 8bc0692c Merge claude/slice-touch at afbce9301d
+   conflicted: docs/lines/optimal-quality.md
+== f1fd26d6 Merge claude/demo-review-2 at af91740159
+   conflicted: docs/lines/optimal-quality.md
+== efe9ae86 Merge claude/phone-run at 48f554a6d7
+   conflicted: docs/lines/optimal-quality.md
+== 8c323199 Merge claude/phone-protocol at 04797972fe
+   conflicted: docs/lines/optimal-quality.md
+== 8472771a Merge claude/dataset-hub at 4200d599ff
+   conflicted: 
+== 3d30993a Merge claude/phone-devtools at eb0283449e
+   conflicted: client/view/controller.js client/viewer/head.js docs/lines/optimal-quality.md lab/viewer/levers.js scripts/gate.sh
+   CHANGED-BEYOND-CONFLICTS: README.md client/view/controller.test.mjs deploy/Containerfile deploy/Containerfile.prebuilt deploy/README.md deploy/compose.yml deploy/image_args_test.sh server/dev-server.py server/dev-server.test.py
+== 11a85e49 Merge claude/merge-plan at a376221799
+   conflicted: docs/lines/coordination.md
+== 62795db2 Merge claude/hidden-page-decode-beacon at 5137f44960 (PR 377)
+   conflicted: README.md docs/lines/optimal-quality.md lab/phone/README.md scripts/gate.sh server/dev-server.py server/dev-server.test.py
+== 9ef244a1 Merge claude/fill-split at 28810f62c4
+   conflicted: docs/lines/optimal-quality.md scripts/gate.sh
+== 3288aab4 Merge claude/phone-rows at 1354e67f31
+   conflicted: docs/lines/optimal-quality.md
+== 9a590040 Merge claude/lines-ready at 96d33ad00e
+   conflicted: 
+== 1994a933 Merge claude/ingest-oq at 68c15c2a6c
+   conflicted: docs/lines/optimal-quality.md
+== cefcf80d Merge claude/lab-off-main at 3d196b960f
+   conflicted: 
+== c2f97d44 Merge claude/direction at a6e27ea5b6
+   conflicted: docs/lines/README.md docs/lines/client.md docs/lines/codecs.md docs/lines/coordination.md docs/lines/metadata.md docs/lines/optimal-quality.md
+== 21533762 Merge claude/hostnet-theory at 8a1f0f596e
+   conflicted: 
+== 6c5ad79e Merge claude/hidden-page-decode at 22c68824b8 (PR 376)
+   conflicted: docs/lines/client.md
+== 250d48b3 Merge claude/docs-client at a4cf8513ff (PR 384)
+   conflicted: docs/WIRE.md docs/adr/README.md docs/adr/exactness-in-production.md docs/adr/frame-path.md docs/adr/stride-is-bandwidth-conservation.md docs/decode/README.md docs/glossary.md docs/lines/README.md docs/lines/client.md docs/lines/native.md docs/lines/optimal-quality.md docs/native/README.md
+== 721def2d Merge claude/link-targets at a3b35708a3 (PR 386)
+   conflicted: docs/client/design.md
+== d1d32f54 Merge claude/hw-decode at b631179a56 (PR 387)
+   conflicted: docs/client/design.md docs/decode/hardware.md docs/lines/client.md
+== 3368826e Merge claude/cache-plan at f26a78f056 (PR 385)
+   conflicted: docs/lines/client.md
+== b17cedb7 Merge claude/report-plan at cb1c90d856 (PR 388)
+   conflicted: 
+== 38423b40 Merge claude/depth8 at ddd3ec0ede (PR 389)
+   conflicted: docs/lines/codecs.md
+== 61a0dfc3 Merge claude/hw10-routes at b2c10f52bc (PR 392)
+   conflicted: docs/lines/devices.md
+== de15680a Merge claude/oq-ingest at 8ea8aba6d8 (PRs 321, 390)
+   conflicted: docs/lines/optimal-quality.md
+== 6bd4cd97 Merge claude/transport-design at 96a829c887 (PR 391)
+   conflicted: 
+== 68a41678 Merge claude/hw-probe at af4b6aeb35
+   conflicted: 
+== 6a9fccc96677378d28fe402ffca0e718ff2a5ce2 (non-merge) docs: the 20 links and paths the merged branches left unresolved, each
+ 12 files changed, 20 insertions(+), 20 deletions(-)
+== 297e7352cef130db4d31ba6d78f71080e147902d (non-merge) lab/proposals/rows: the checkout prefix in the recorded runs, so check
+ 10 files changed, 1250 insertions(+), 1250 deletions(-)
+== 89e3549c77cbff820036ac2ad643c7e5fe8736f9 (non-merge) gate: the phone runner's test out, its lever staying with the phone to
+ 1 file changed, 1 deletion(-)
+== ed11ea7294b9518cbf867067a2dd77dd24d64d7f (non-merge) docs/lines/client.md: stage A's draft PR 401 in the PR table
+ 1 file changed, 1 insertion(+)
