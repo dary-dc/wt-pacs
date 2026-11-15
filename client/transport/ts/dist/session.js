@@ -329,7 +329,9 @@ var TransportSession = class _TransportSession extends FrameSession {
     const pinned = certSha256 ? { serverCertificateHashes: [{ algorithm: "sha-256", value: hexToBytes(certSha256) }] } : {};
     const transport = new WebTransport(fill ? openingAskUrl(wtUrl, fill) : wtUrl, pinned);
     await settleWithin(transport.ready, () => transport.close(), options.dialMs);
-    const bi = await transport.createBidirectionalStream();
+    const bi = await transport.createBidirectionalStream().catch(async (err) => {
+      throw new Error(await transport.closed.then(closedReasonOf, () => `session closed: ${err?.message ?? String(err)}`));
+    });
     const controlWriter = bi.writable.getWriter();
     const session = new _TransportSession(transport, controlWriter, options);
     if (fill) session.armFill(fill.from, fill.to, fill.onFrame, fill.onError);
