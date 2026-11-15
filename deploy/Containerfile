@@ -20,6 +20,10 @@ COPY tools ./tools
 COPY ingest/from-parser ./ingest/from-parser
 COPY ingest/receiver/Cargo.toml ./ingest/receiver/
 COPY ingest/receiver/src ./ingest/receiver/src
+COPY carrier/Cargo.toml ./carrier/
+COPY carrier/src ./carrier/src
+COPY carrier/sender/Cargo.toml ./carrier/sender/
+COPY carrier/sender/src ./carrier/sender/src
 COPY lab/container-bench/Cargo.toml ./lab/container-bench/
 COPY lab/container-bench/src ./lab/container-bench/src
 COPY lab/disk-access-bench/Cargo.toml ./lab/disk-access-bench/
