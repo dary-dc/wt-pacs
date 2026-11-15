@@ -282,6 +282,28 @@ need units the probe does not carry yet (§10's asks are the phone session's), a
 * **M2 · the picture is one-to-one**: a unit holding every luma sample 16…235, decoded in hardware, uploaded to WebGL2 with `UNPACK_COLORSPACE_CONVERSION_WEBGL` at `NONE`, read back: the 220 picture values, and whether all differ (new-options §3.2).
 * **M3 · a hardware frame, checked**: one `dbts_b1`-sized frame decoded in hardware, inverted through M2's table, its XXH3-64 against the unit's digest; the read-back's and the hash's time (new-options §3.3).
 
+Asks from MOBILE-DECODE-COMPARE (2026-11-15; `claude/mobile-decode:docs/decode/mobile/README.md` §4, each from the option file it names), by the same rules; none repeats a counted cell (HTJ2K's decode is cell 1, arm B is cell 2):
+
+* **M4 · codec lists and sizes**: from a shell, every AV1, HEVC, VP9 and AVC decoder, hardware or not, its profiles, levels and colour formats, and `getSupportedHeightsFor(2560)`, `getSupportedHeightsFor(976)`, `getAchievableFrameRatesFor(2560, 3328)` (av1-hardware-unchecked §9.1, other-codecs §6.1).
+* **M5 · forms through `prefer-hardware`**: a `dbts_b1` unit as AV1 4:2:0 constant chroma at full range, 8 and 10 bits, and as 4:0:0; 8-bit units of `dbts_b1` and `dbts_c1` as HEVC Main, VP9 profile 0 and H.264 High (4:0:0 and constant chroma): `isConfigSupported`, the decode's outcome, the frame's `format`, the codec `logcat` names (av1-hardware-unchecked §9.2, other-codecs §6.2).
+* **M6 · the map at full size**: the calibration unit at `dbts_b1`'s size through `prefer-hardware` into WebGL2 `R8` and WebGPU `r8unorm`, with `VideoDecoderConfig.colorSpace` absent, studio and full: the picture values, monotonic, distinct, clipped or not; `chrome://gpu`'s Vulkan or GL backend (av1-hardware-unchecked §9.3, hw-inverted §12.1).
+* **M7 · a whole unit, checked**: one `dbts_b1` unit in hw-inverted §4's form, every frame recovered and hashed against its digest; the share that pass (hw-inverted §12.2).
+* **M8 · hardware time, step by step**: decode, upload, pass, read-back and hash timed apart a frame, interleaved against `prefer-software`'s decode, `copyTo` and hash on the same unit (av1-hardware-unchecked §9.4, hw-inverted §12.3).
+* **M9 · frames held open**: how many hardware `VideoFrame`s stay open before `decode` stops producing output (av1-hardware-unchecked §9.5).
+* **M10 · Firefox for Android**: its `isConfigSupported` answer for hardware AV1, and M6–M8 if it offers it (hw-inverted §12.4).
+* **M11 · inversion through HEVC or VP9**: where either decodes in hardware and AV1 does not, M2, M3 and M7 through that codec, and its time a `dbts_b1` frame (other-codecs §6.3).
+* **M12 · decoders up to `hardwareConcurrency`**: cell 1's view arm past four decoders, where the phone saturates (av1-software §8.1).
+* **M13 · `optimizeForLatency`**: `false` against `true` at three decoders: a frame's decode, the fill, an ask's latency (av1-software §8.2).
+* **M14 · sustained decode**: the series filled again and again for minutes, screen on: a frame's decode against time (av1-software §8.4).
+* **M15 · dav1d-WASM on the phone**: one thread, a frame's decode against WebCodecs on the same frames (av1-software §8.5).
+* **M16 · HTJ2K's pool at two threads**: a cold and a warm ask on `dbts_b1` against the single-threaded build (htj2k-software §8.3).
+* **M17 · lossy against lossless HTJ2K**: the same 16 `dbts_b1` frames lossless and lossy at Δ 16 through OpenJPH-WASM, one worker, interleaved; ms a frame and the ratio (predicted 1.19–1.21; htj2k-lossy §10.1).
+* **M18 · lossy samples across engines**: the same lossy frames' SHA-256 in Chrome on Android, Firefox and Safari on iOS against `rows/cell-e-dbts_b1-chromium.json` (predicted equal; htj2k-lossy §10.2).
+* **M19 · lossy level 1 from its prefix**: a lossy frame's resolution level 1 decoded from its prefix against the whole frame (htj2k-lossy §10.3).
+* **M20 · the WebGPU decoder**: `requestAdapter()`'s result, `subgroups`, the limits; `lab/av1/decode/webgpuht` on the exact frames of `dbts_a1`, `dbts_b1`, `dbts_c1`, every frame exact, ms a frame one a dispatch and batched, interleaved with OpenJPH-WASM (gpu-compute-decode §9.1–9.2).
+* **M21 · the `mapAsync` read-back**: one 17 MB frame, and 2 bytes for `valueAt` (gpu-compute-decode §9.3).
+* **M22 · the rectangle on the phone**: `dbts_b1` whole against its rectangle through software AV1 and HTJ2K, interleaved, as a ratio (content-crop §8).
+
 ## 5 · Interleaving, warm-ups, saturation
 
 * **Warm-ups:** two loads of A and two of the worker view before cell 2, not counted.
@@ -345,6 +367,8 @@ the home Wi-Fi.
    The lever runs on the viewer document's own thread, loaded through the viewer's lab gate as the beacon is.
 6. Builds the client lacks today, each behind a lab lever: arm C2 (the whole exact series after the view's fill);
    the decoder count per load; cell 1's in-memory decode bench; cell 5's arms (CACHE-BUILD rows).
+7. The units and pages the decode-option asks M1–M22 need (each ask names its option file, which names its unit): none
+   is in the probe yet.
 
 What waits on each: cell 3 on 1, 2, 4, 5; cell 2 on 1–4 and C2's build (A, B, C1 can run without C2); cell 1 on the
 bench; cell 4 on HW-PROBE-PAGE being green; cell 5 on its builds.
