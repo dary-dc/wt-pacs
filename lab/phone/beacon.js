@@ -9,10 +9,7 @@ const sendBeacon = (body) => navigator.sendBeacon(BEACON_PATH, new Blob([body], 
 export const frameRow = ({ i, path, refusal, wireBytes, decodeMs }) =>
   ({ i, route: path, ...(refusal && { refusal }), kb: wireBytes === undefined ? null : +(wireBytes / 1024).toFixed(1), decodeMs: decodeMs ?? null });
 
-/**
- * Records of the load `load` (its fields head every record), queued and handed to `send` as one JSON list:
- * nothing before the fill ends, then at its end, then whenever `flush` is called (the page hidden, or the runner).
- */
+/** Records of the load `load`, queued and sent as one JSON list: none before the fill ends, then at its end and each `flush`. */
 export function recorder(load, { send = sendBeacon, now = epochMs } = {}) {
   const queued = [];
   let filled = false;
@@ -24,11 +21,16 @@ export function recorder(load, { send = sendBeacon, now = epochMs } = {}) {
   return {
     record,
     flush,
-    /** The fill's end, from viewer.js's `lab.finished`: its time, each frame's route, bytes and decode time. */
-    filled({ error, fillMs, frames = [], errors = [] }, meta) {
+    /** The fill's end, from viewer.js's `lab.finished`: the fill as §7's Second amendment defines it, lab/phone/README.md. */
+    filled({ error, fillMs = null, issuedAt, boot, frames = [], errors = [] }, meta) {
+      const fillFrom = boot?.dial ?? null;
+      const fillTo = error || fillMs === null ? null : issuedAt + fillMs;
+      const routes = {};
+      for (const f of frames) routes[f.path] = (routes[f.path] ?? 0) + 1;
       queued.unshift({ ...load, kind: "load", at: now(), exactSeries: meta.exactSeries ?? null, lossy: meta.lossy ?? null,
-        frameCount: meta.frameCount, received: frames.length, fillMs: error ? null : fillMs,
-        frames: frames.map(frameRow), errors: error ? [error, ...errors] : errors });
+        frameCount: meta.frameCount, received: frames.length, fillFrom, fillTo,
+        fillMs: fillFrom === null || fillTo === null ? null : fillTo - fillFrom, statusFillMs: error ? null : fillMs,
+        routes, frames: frames.map(frameRow), errors: error ? [error, ...errors] : errors });
       filled = true;
       flush();
     },
@@ -48,8 +50,7 @@ function install(q, fields) {
   addEventListener("unhandledrejection", (e) => r.record("error", { source: "unhandledrejection", message: String(e.reason?.message ?? e.reason) }));
   const consoleError = console.error;
   console.error = (...a) => (r.record("error", { source: "console.error", message: a.map(String).join(" ") }), consoleError.apply(console, a));
-  addEventListener("pagehide", () => r.flush({ leaving: true }));
-  document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && r.flush({ leaving: true }));
+  watchLifecycle(r, document, globalThis);
   const watch = () => {
     const quality = document.getElementById("quality");
     new MutationObserver(() => r.record("label", { quality: quality.hidden ? null : quality.className, text: quality.textContent }))
@@ -59,4 +60,16 @@ function install(q, fields) {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", watch);
   else watch();
   return r;
+}
+
+/** The page's visibility, freezes and resumes as records, so a run tells interference from failure: docs/reviews/hidden-page-decode.md */
+export function watchLifecycle(r, doc, win) {
+  const note = (event) => r.record("visibility", { event, state: doc.visibilityState });
+  note("start");
+  for (const event of ["freeze", "resume"]) doc.addEventListener(event, () => note(event));
+  doc.addEventListener("visibilitychange", () => {
+    note("visibilitychange");
+    if (doc.visibilityState === "hidden") r.flush({ leaving: true });
+  });
+  win.addEventListener("pagehide", () => (note("pagehide"), r.flush({ leaving: true })));
 }

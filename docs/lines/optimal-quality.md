@@ -138,10 +138,21 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   for the demo): each image labelled with its commit (`REVISION`, OCI `revision`); a test-only server image with the
   telemetry feature (`FEATURES=telemetry`, the default image unchanged; both built here and inspected); README step 8,
   which read path a running server took; under `lab/phone/`, loaded only through the lab gate, a client beacon
-  (`?beacon=`, sent after the fill or on page hide; `dev-server.py --beacon-log`) and a runner page that walks §7's
+  (`?beacon=`, sent after the fill or on page hide; `dev-server.py --beacon`) and a runner page that walks §7's
   loads across the two origins, presses **lossless** twice, waits a fixed gap and stops on any failure. Checked
-  headless on loopback on a synthetic pair (`lab/phone/run_test.sh`); not on a phone. Its product changes (the image
-  labels, `FEATURES`, the beacon's hooks, README step 8) stay on the branch, the phone tools being the owner's call.
+  headless on loopback on a synthetic pair (`lab/phone/run_test.sh`); not on a phone.
+  *PHONE-TOOLS-2* (2026-11-11, same branch) made it match `docs/devices.md` §7's Second amendment: the runner walks
+  its octets (four warm-ups, then the links alternated load by load, the tether's rows 1 2 3 4 1 2 and Wi-Fi's 3 4 1 2
+  3 4), each step bound to its full origin, the 15 s gap, *Lossless* within 30 s and *Optimal quality* within 10 s, a
+  failed load not rerun, the Amendment's blocks kept as the fallback; the beacon's `fillMs` is the amendment's (the
+  downloader's dial to the last frame stored, epoch ms), the status line's beside it, a count per route; the option
+  is `--beacon FILE`, the amendment's name; README step 8 is `lab/phone/read-path.sh`, run on the laptop. It merges
+  `claude/demo-fixes-2` at FIX-2's end, so the run commit carries the source fingerprint and the removals. The
+  amendment's aside that the beacon's fill adds the handshake to the status line's is the other way round as built:
+  the status line starts at the page's issue, before the downloader dials, so it is the longer (by 12–30 ms on
+  loopback, `run_test.sh`); ratios are unaffected. Headless on loopback only; not on a phone, not under SELinux.
+  Its product changes (the image labels, `FEATURES`, the beacon's hooks, README step 8, `dev-server.py --beacon`)
+  stay on the branch, the phone tools being the owner's call.
 * **Not yet run:** any phone run.
 * **Review, round 2** (REVIEW-2, 2026-11-11, `claude/demo-review-2`,
   [`docs/reviews/review-2.md`](../reviews/review-2.md)): every fix of FIX-1, DEMO-UX (#365) and SOURCE-FINGERPRINT
