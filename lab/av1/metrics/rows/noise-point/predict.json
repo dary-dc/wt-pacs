@@ -1,0 +1,643 @@
+{
+ "held_out": [
+  {
+   "set": "dbts_a3",
+   "depth": 12,
+   "sigma_min": 12.760166607711444,
+   "ladder_g1": 8,
+   "ladder_g16": 8,
+   "integer_g1": 8,
+   "integer_g16": 8,
+   "edge_next": 12,
+   "edge_x": 7.376471083309896,
+   "edge_band": false,
+   "matches_doc": true,
+   "mutated_8bit": [
+    40,
+    40
+   ]
+  },
+  {
+   "set": "dbts_a4",
+   "depth": 12,
+   "sigma_min": 13.163049961653634,
+   "ladder_g1": 8,
+   "ladder_g16": 8,
+   "integer_g1": 8,
+   "integer_g16": 8,
+   "edge_next": 12,
+   "edge_x": 7.1506983772152575,
+   "edge_band": false,
+   "matches_doc": true,
+   "mutated_8bit": [
+    40,
+    40
+   ]
+  },
+  {
+   "set": "dbts_a5",
+   "depth": 12,
+   "sigma_min": 10.905660323717852,
+   "ladder_g1": 4,
+   "ladder_g16": 4,
+   "integer_g1": 7,
+   "integer_g16": 7,
+   "edge_next": 8,
+   "edge_x": 5.226643624323714,
+   "edge_band": true,
+   "matches_doc": true,
+   "mutated_8bit": [
+    40,
+    40
+   ]
+  },
+  {
+   "set": "dbts_b4",
+   "depth": 10,
+   "sigma_min": 5.564812173463612,
+   "ladder_g1": 12,
+   "ladder_g16": 12,
+   "integer_g1": 13,
+   "integer_g16": 12,
+   "edge_next": 16,
+   "edge_x": 5.99750700646325,
+   "edge_band": true,
+   "matches_doc": true,
+   "mutated_8bit": [
+    32,
+    32
+   ]
+  },
+  {
+   "set": "dbt10_d",
+   "depth": 10,
+   "sigma_min": 3.892877984327735,
+   "ladder_g1": 8,
+   "ladder_g16": 8,
+   "integer_g1": 9,
+   "integer_g16": 9,
+   "edge_next": 12,
+   "edge_x": 6.261434367614618,
+   "edge_band": true,
+   "matches_doc": true,
+   "mutated_8bit": [
+    24,
+    24
+   ]
+  }
+ ],
+ "in_sample": [
+  {
+   "set": "dbts_a1",
+   "form": "12bit",
+   "g": 1,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbts_a1",
+   "form": "12bit",
+   "g": 8,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbts_a1",
+   "form": "12bit",
+   "g": 16,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbts_a1",
+   "form": "top10",
+   "g": 1,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbts_a1",
+   "form": "top10",
+   "g": 8,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbts_a1",
+   "form": "top10",
+   "g": 16,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbts_a2",
+   "form": "12bit",
+   "g": 1,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_a2",
+   "form": "12bit",
+   "g": 8,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbts_a2",
+   "form": "12bit",
+   "g": 16,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbts_a2",
+   "form": "top10",
+   "g": 1,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbts_a2",
+   "form": "top10",
+   "g": 8,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbts_a2",
+   "form": "top10",
+   "g": 16,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbts_b1",
+   "form": "10bit",
+   "g": 1,
+   "anchor": 12,
+   "rule": 12,
+   "rule_median": 12
+  },
+  {
+   "set": "dbts_b1",
+   "form": "10bit",
+   "g": 8,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 12
+  },
+  {
+   "set": "dbts_b1",
+   "form": "10bit",
+   "g": 16,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 12
+  },
+  {
+   "set": "dbts_b2",
+   "form": "10bit",
+   "g": 1,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_b2",
+   "form": "10bit",
+   "g": 8,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_b2",
+   "form": "10bit",
+   "g": 16,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_b3",
+   "form": "10bit",
+   "g": 1,
+   "anchor": 12,
+   "rule": 12,
+   "rule_median": 12
+  },
+  {
+   "set": "dbts_b3",
+   "form": "10bit",
+   "g": 8,
+   "anchor": 12,
+   "rule": 12,
+   "rule_median": 12
+  },
+  {
+   "set": "dbts_b3",
+   "form": "10bit",
+   "g": 16,
+   "anchor": 12,
+   "rule": 12,
+   "rule_median": 12
+  },
+  {
+   "set": "dbts_b5",
+   "form": "10bit",
+   "g": 1,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_b5",
+   "form": "10bit",
+   "g": 8,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_b5",
+   "form": "10bit",
+   "g": 16,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c1",
+   "form": "12bit",
+   "g": 1,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c1",
+   "form": "12bit",
+   "g": 8,
+   "anchor": 8,
+   "rule": 4,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c1",
+   "form": "12bit",
+   "g": 16,
+   "anchor": 8,
+   "rule": 4,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c1",
+   "form": "top10",
+   "g": 1,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c1",
+   "form": "top10",
+   "g": 8,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbts_c1",
+   "form": "top10",
+   "g": 16,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbts_c2",
+   "form": "12bit",
+   "g": 1,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c2",
+   "form": "12bit",
+   "g": 8,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c2",
+   "form": "12bit",
+   "g": 16,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c2",
+   "form": "top10",
+   "g": 1,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c2",
+   "form": "top10",
+   "g": 8,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c2",
+   "form": "top10",
+   "g": 16,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c3",
+   "form": "12bit",
+   "g": 1,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c3",
+   "form": "12bit",
+   "g": 8,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c3",
+   "form": "12bit",
+   "g": 16,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c3",
+   "form": "top10",
+   "g": 1,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c3",
+   "form": "top10",
+   "g": 8,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c3",
+   "form": "top10",
+   "g": 16,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c4",
+   "form": "12bit",
+   "g": 1,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c4",
+   "form": "12bit",
+   "g": 8,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c4",
+   "form": "12bit",
+   "g": 16,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c4",
+   "form": "top10",
+   "g": 1,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c4",
+   "form": "top10",
+   "g": 8,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c4",
+   "form": "top10",
+   "g": 16,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c5",
+   "form": "12bit",
+   "g": 1,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c5",
+   "form": "12bit",
+   "g": 8,
+   "anchor": 8,
+   "rule": 4,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c5",
+   "form": "12bit",
+   "g": 16,
+   "anchor": 8,
+   "rule": 4,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c5",
+   "form": "top10",
+   "g": 1,
+   "anchor": 4,
+   "rule": 4,
+   "rule_median": 8
+  },
+  {
+   "set": "dbts_c5",
+   "form": "top10",
+   "g": 8,
+   "anchor": 8,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbts_c5",
+   "form": "top10",
+   "g": 16,
+   "anchor": 8,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbt10_ea1141",
+   "form": "10bit",
+   "g": 1,
+   "anchor": 12,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbt10_ea1141",
+   "form": "10bit",
+   "g": 8,
+   "anchor": 12,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbt10_ea1141",
+   "form": "10bit",
+   "g": 16,
+   "anchor": 12,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbt12_ea1141",
+   "form": "12bit",
+   "g": 1,
+   "anchor": 8,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbt12_ea1141",
+   "form": "12bit",
+   "g": 8,
+   "anchor": 8,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbt12_ea1141",
+   "form": "12bit",
+   "g": 16,
+   "anchor": 8,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbt12_ea1141",
+   "form": "top10",
+   "g": 1,
+   "anchor": 8,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbt12_ea1141",
+   "form": "top10",
+   "g": 8,
+   "anchor": 8,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbt12_ea1141",
+   "form": "top10",
+   "g": 16,
+   "anchor": 8,
+   "rule": 4,
+   "rule_median": 4
+  },
+  {
+   "set": "dbt12_c",
+   "form": "12bit",
+   "g": 1,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbt12_c",
+   "form": "12bit",
+   "g": 8,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbt12_c",
+   "form": "12bit",
+   "g": 16,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbt12_c",
+   "form": "top10",
+   "g": 1,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbt12_c",
+   "form": "top10",
+   "g": 8,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  },
+  {
+   "set": "dbt12_c",
+   "form": "top10",
+   "g": 16,
+   "anchor": 8,
+   "rule": 8,
+   "rule_median": 8
+  }
+ ]
+}
