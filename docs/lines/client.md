@@ -53,6 +53,12 @@ on lossy wireless; bit-exact; fill and latency both count.
   path's simplest shape and eleven proposals, read from `claude/demo-fixes-1` `daee0d1d`; nothing implemented, nothing
   run. Two are safe before 2026-11-13 (one command starts a pair; three doc statements corrected); the rest wait for
   the freeze and the owner's yes.
+* 2026-11-12, `claude/hidden-page-decode` (draft): the phone run's load 13 was not codec reclamation but the
+  downloader's 10 s decode deadline firing late on a stopped page and replacing decoders mid-group; a deadline that
+  fires over 1 s late is now given again. The beacon's visibility record is on `claude/hidden-page-decode-beacon`
+  ([`docs/reviews/hidden-page-decode.md`](../reviews/hidden-page-decode.md)).
+  Reviewed 2026-11-12 (PHONE-FIX-REVIEW): test fails without the fix, theory matches the trace, gate and
+  `demo-check.mjs` in both views pass; one finding (any thread stop over 1 s re-arms, bounded).
 
 ## Open (ordered)
 
