@@ -55,6 +55,11 @@ exact frame bit for bit, and only checked claims on screen.
   no browser returns their hardware samples above 8 bits either; at 8 bits they are checkable like AV1, and add only
   a likelier decoder and Android's UHD (level 5.1) HEVC-or-VP9 requirement. Owed: three phone asks (its §6), bytes
   unmeasured.
+  The inverted hardware frame ([`../decode/mobile/hw-inverted.md`](../decode/mobile/hw-inverted.md), 2026-11-15): no
+  engine lets the page switch its upload's conversion off; studio swing on 16…235 is the one form all invert;
+  one-to-one is likely, not specified (fp16 merges a pair); the check reads back and hashes half today's bytes.
+  Measured on 19 volumes: 1.16–2.49× today's bytes at the bar, but the coded luma overshoots 16…235 on every frame,
+  so the form needs headroom; a second picture reaches today's quality at 1.03–1.62×. Owed: four phone asks (its §12).
   The content's rectangle ([`../decode/mobile/content-crop.md`](../decode/mobile/content-crop.md), 2026-11-15, one
   cloud cell, measured): a lossless rectangle under 0.90 of the frame exists on 3 of the 19 DBT volumes (`dbts_b1`
   0.50, `dbts_b3` 0.73, `dbts_b2` 0.83; systems A and C already store the breast's box); bytes unchanged

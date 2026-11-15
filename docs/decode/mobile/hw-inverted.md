@@ -36,8 +36,11 @@ not measured; **(M)** measured here, §9.
   unmeasured); the read-back's time on a phone is unknown.
 * **At 220 levels the windows lose a little more than at 256** (§4, D): 4.67 source units a step on a 10-bit series
   and 18.70 on a 12-bit one, against 4.01 and 16.05 for an 8-bit picture of the 10-bit view. Unlike the unchecked
-  path, the rounding here comes **before** the coder, so the noise rule is met by choosing Q; what that costs in
-  bytes is cell C1 (§8, §9).
+  path, the rounding here comes **before** the coder, so the noise rule is met by choosing Q (M, §9): Q 2–5 on the
+  12-bit volumes and 4–9 on the 10-bit ones, at **0.97–1.47× the 256-level cut's bytes, 1.16–2.49× today's**.
+* **The coded luma does not stay in 16…235** (M, §9 I4): every cell overshoots on every frame, down to code 8 (12-bit)
+  and 0 (10-bit), up to 239. The form needs headroom, and with it fewer than 220 levels, or the ingest's range check
+  rejects every frame as coded (§4).
 * **Whether a phone's hardware decoder takes the frame is still not documented** (§7): of the vendors' pages read,
   only MediaTek's Dimensity 9400 ties AV1 decode to a size ("8K60, 10-bit Video Decode (HEVC/AVC/VP9/AV1)"), whose
   box holds `dbts_b1` upright; no page names a level.
@@ -163,10 +166,12 @@ either value, the frame falls back to software, and the route is off on that dev
 * a colour description written in the sequence header (BT.709 primaries, transfer and matrix) and the same values in
   `VideoDecoderConfig.colorSpace` with `fullRange: false`, so that no engine falls back to a guess (Safari's "Assume
   unknown matrices are ITU R.601" is harmless for grey; a guessed *range* is not, T);
-* the ingest's guarantees, checked at ingest on its own decode: every chroma sample 128 (DEPTH8-MEASURE P5 measured
-  it at 8 bits, R) and every decoded luma sample inside 16…235. The second is cell C1's I4 (§9): coding error
-  overshoots at the range's ends, so the ingest either leaves headroom (a smaller range, fewer levels) or codes a
-  frame again at a lower Q until it holds.
+* the ingest's guarantees, checked at ingest on its own decode: every chroma sample 128 (held on all 129 cells, M,
+  §9 I5) and every decoded luma sample inside 16…235. **The second fails as the form stands** (M, §9 I4): every
+  cell's decode leaves the range on every frame, 4.6·10⁻⁵–2.0·10⁻³ of the samples, as far as 16 codes below 16 and 4
+  above 235. So the source must be mapped to a narrower span inside 16…235 (about 32…231 covers the overshoot
+  measured, 200 levels, 7.64 bits, D: 32 = 16 + 16, 231 = 235 − 4) or clamped at ingest before coding; which, and at
+  what bytes, is unmeasured (T).
 
 **Full range where it is honoured** would give 256 levels (8 bits instead of 7.78): Safari's `420f`, desktop
 Chromium with the config's colour space, an Android codec whose buffer says full. The calibration unit (§6) could
@@ -449,14 +454,15 @@ streams discarded", R, `docs/client/design.md` §Decided) and is the owner's to 
   §5's per-frame costs double, and the decoder's level bound halves (32 frames a second at level 5.1, R, same file).
 * B's form is the same studio-swing 16…235 picture, so the same calibration table serves both.
 * The sum `back(r_A) + r_B − 126` is formed after both checks pass; either failing sends the frame to software.
-* Bytes: cell C2 (§8.2, §9).
+* Bytes (M, §9 J1, three volumes): A + B reach today's quality at **1.03–1.62×** today's bytes, B nearly all of it;
+  A's error clamps B on 1.8·10⁻⁴–3.1·10⁻³ of the samples on the 12-bit volumes.
 
 ## 11. Its disadvantages
 
 * **7.78 bits on screen**, 16 % coarser than an 8-bit picture: 2.33–8.67 display levels a step at the header windows
   (§4), and pixel values ± 2.34 or ± 9.35 source units of rounding.
-* **Bytes**: an 8-bit view cost 1.14–1.86× today's (R, DEPTH8-MEASURE P4); 220 levels predicted 0.94–1.38× that
-  (§8.1), measured in §9.
+* **Bytes**: 1.16–2.49× today's view at the noise rule's bar (M, §9), before the headroom of §4.
+* **The range overshoots** (M, §9 I4): as coded, every frame leaves 16…235, so the form must shrink further.
 * **Nothing promises the inversion** (§3): the digest proves each frame, but whether a device passes at all is known
   only by running it there; the GL external path and Firefox's `mediump` are the likeliest to merge levels.
 * **A device that fails costs a decode twice** for its first frame, then runs in software as today.
@@ -473,7 +479,7 @@ streams discarded", R, `docs/client/design.md` §Decided) and is the owner's to 
 | column | this option |
 | --- | --- |
 | decode time on a phone | **unknown**; hardware, at most 31.1 ms a `dbts_b1` frame by level 5.0's floor if the decoder takes it (R, [`av1-hardware-unchecked.md`](av1-hardware-unchecked.md) §5), plus §5's upload, pass, read-back and ~2.6 ms of hash (R rate, desktop) |
-| bytes | the 220-level form's: predicted 0.94–1.38× the 8-bit view's, so 1.07–2.57× today's (§8.1); measured in §9 |
+| bytes | **1.16–2.49× today's** view (0.97–1.47× the 256-level cut's), measured on 19 volumes (§9); more with the headroom §4 now asks |
 | precision on screen | **7.78 bits** (220 levels): 4.67 source units a step on 10-bit series, 18.70 on 12-bit |
 | checked | **yes**, every frame, the digest of the decoded 8-bit luma plane (§5, §6) |
 | window/level and tools functional | **yes**: a table over 220 inputs; values reported as the view's samples (§4) |
