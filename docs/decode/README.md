@@ -2367,6 +2367,10 @@ no `VideoPixelFormat`). Native APIs return the decoder's planes exactly by const
 takes: AV1 Main 4:2:0 everywhere, 4:0:0 shown only on NVDEC. Whether hardware lossless is exact waits on a device run
 (§Open).
 
+Every route for a checked 10-bit hardware frame, browser and native, ranked (row HW10-ROUTES, theory):
+[`hardware-10bit.md`](hardware-10bit.md). None in a browser today; native MediaCodec, Vulkan and the other APIs return
+the `P010` planes.
+
 ## JPEG XL
 
 Queue row JXL ([`lab/av1/bytes/jpeg-xl`](../../lab/av1/bytes/jpeg-xl/README.md)), 2026-10-07: lossless JPEG XL (libjxl 0.12.0) at effort 1–7 and
