@@ -12,7 +12,8 @@ echo "| full gate | $res; $(grep -c '^== ' $gl) steps | \`PYTHON=python3.13 scri
 sk=$( (grep -h -A30 'skipped:$' $gl | grep 'SKIPPED' | sed 's/^ *SKIPPED: //'; grep -hoE 'skipped: .*' $gl | grep -v 'skipped:$' | sed 's/^skipped: //') | sort -u | sed 's/|/\\|/g' | paste -sd';' | sed 's/;/; /g')
 echo "| gate's skips | ${sk:-none} | the gate's recap, and its in-step \`skipped:\` lines |"
 echo "| default \`cargo build\` warnings | $(grep -E '^warning' $O/cargo-build.log | grep -vc 'generated') ($(grep -E '^warning' $O/cargo-build.log | grep -v generated | cut -c10-70 | sed 's/|/\\|/g' | paste -sd';')) | \`cargo build\` |"
-echo "| \`scripts/check_lab_absent.sh\` | exit $(g lab-absent | awk '{print $2}'): $(tail -1 $O/lab-absent.log | cut -c1-90) | as named |"
+la=$(g lab-absent | awk '{print $2}'); [[ $la == 127 ]] && lv="not on this tip" || lv="exit $la: $(tail -1 $O/lab-absent.log | cut -c1-90)"
+echo "| \`scripts/check_lab_absent.sh\` | $lv | as named |"
 echo "| \`scripts/comment_budget.sh\` | exit $(g comment-budget | awk '{print $2}'): $(grep -v '^$' $O/comment-budget.log | tail -1 | cut -c1-90) | as named |"
 for t in server web; do r=$(g image-$t); rc=$(awk '{print $2}' <<<"$r"); sz=$(awk '{print $4}' <<<"$r")
   if [[ $rc == 0 ]]; then v="$(awk -v s=$sz 'BEGIN{printf "%.1f MB", s/1e6}') ($sz bytes)"; else v="not built here: $(grep -m1 -oE 'process "[^"]{0,60}' $O/image-$t.log | sed 's/process "//')… exit 100 — the container's proxy refuses plain-HTTP apt (405)"; fi
