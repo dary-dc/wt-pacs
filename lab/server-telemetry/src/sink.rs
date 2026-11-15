@@ -225,23 +225,14 @@ mod tests {
 
         let text = std::fs::read_to_string(&path).expect("report written by flush");
         assert!(text.contains("\"server_frames\""));
-        assert!(
-            text.contains("\"written_records\": 4"),
-            "the open session's tail is missing: {text}"
-        );
+        assert!(text.contains("\"written_records\": 4"), "the open session's tail is missing: {text}");
         assert!(text.contains("\"frame_index\": 4"));
-        assert!(
-            text.contains("\"frame_index\": 102"),
-            "the open session's last row is missing"
-        );
+        assert!(text.contains("\"frame_index\": 102"), "the open session's last row is missing");
         assert!(text.contains("\"percentile_method\": \"exact-sort\""));
         assert!(text.contains("\"rows_file\": \"wtpacs-sink-"));
         let rows_path = rows_path_for(&path);
         let rows_len = std::fs::metadata(&rows_path).expect("row file").len();
-        assert_eq!(
-            rows_len as usize,
-            rows::HEADER_BYTES + 4 * rows::RECORD_BYTES
-        );
+        assert_eq!(rows_len as usize, rows::HEADER_BYTES + 4 * rows::RECORD_BYTES);
         let _ = std::fs::remove_file(path);
         let _ = std::fs::remove_file(rows_path);
         std::mem::forget(open_session);

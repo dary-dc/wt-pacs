@@ -12,8 +12,7 @@ const MIN_RTT_SAMPLE: Duration = Duration::from_millis(100);
 pub fn load_id(path: &str) -> Option<String> {
     let (_, query) = path.split_once('?')?;
     let id = query.split('&').find_map(|kv| kv.strip_prefix("load="))?;
-    let ok =
-        (1..=64).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
+    let ok = (1..=64).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
     ok.then(|| id.to_string())
 }
 
@@ -49,20 +48,10 @@ pub async fn run(connection: wtransport::quinn::Connection, load: Option<String>
         }
     }
     let stats = connection.stats();
-    let mut row = line(
-        &load,
-        &stats.path,
-        min_rtt.min(stats.path.rtt),
-        stats.udp_tx.bytes,
-        started.elapsed(),
-    );
+    let mut row = line(&load, &stats.path, min_rtt.min(stats.path.rtt), stats.udp_tx.bytes, started.elapsed());
     row.push('\n');
     // One write per line, so concurrent sessions never interleave (path.rs's append_row).
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&file)
-    {
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&file) {
         let _ = f.write(row.as_bytes());
     }
 }
@@ -94,34 +83,15 @@ mod tests {
         p.lost_packets = 3;
         p.lost_bytes = 3_600;
         p.sent_packets = 900;
-        let v: serde_json::Value = serde_json::from_str(&line(
-            "ab12",
-            &p,
-            Duration::from_micros(18_000),
-            1_000_000,
-            Duration::from_millis(4_200),
-        ))
-        .unwrap();
+        let v: serde_json::Value = serde_json::from_str(&line("ab12", &p, Duration::from_micros(18_000), 1_000_000, Duration::from_millis(4_200))).unwrap();
         let fields: serde_json::Value =
             serde_json::from_str(include_str!("../../report-arms/report-fields.json")).unwrap();
-        let listed: Vec<&str> = fields["link"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|f| f.as_str().unwrap())
-            .collect();
+        let listed: Vec<&str> = fields["link"].as_array().unwrap().iter().map(|f| f.as_str().unwrap()).collect();
         let keys: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
         for k in &keys {
-            assert!(
-                listed.contains(k),
-                "{k} is not in report-fields.json's link list"
-            );
+            assert!(listed.contains(k), "{k} is not in report-fields.json's link list");
         }
-        assert_eq!(
-            keys.len(),
-            listed.len(),
-            "every listed field present: {keys:?}"
-        );
+        assert_eq!(keys.len(), listed.len(), "every listed field present: {keys:?}");
         assert_eq!(v["kind"], "link");
         assert_eq!(v["load"], "ab12");
         assert_eq!(v["rtt_us"], 20_500);
