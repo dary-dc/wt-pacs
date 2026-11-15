@@ -50,6 +50,8 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | HW10-ROUTES | 11-14 21:00 | — | `claude/hw10-routes` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
 | HW10-ROUTES-REVIEW | 11-14 21:00 | HW10-ROUTES done | `claude/hw10-routes` (findings in its PR body; a session that wrote none of it) |
 | NATIVE-NOTES | 11-14 21:00 | — | `claude/native-notes` from `origin/claude/docs-client` → draft PR into `claude/docs-client` (docs only) |
+| MOBILE-DECODE-OPTIONS | 11-14 21:00 | — | `claude/mobile-decode` from `origin/claude/docs-client` → draft PR into `claude/docs-client` (theory, docs) |
+| MOBILE-DECODE-OPTIONS-REVIEW | 11-14 21:00 | MOBILE-DECODE-OPTIONS done | `claude/mobile-decode` (findings in its PR body) |
 | CACHE-DESIGN | 11-14 21:00 | CACHE-PLAN done | `claude/cache-plan` (`docs/client/evidence/cache-plan.md` §7; PR of CACHE-PLAN) |
 | CACHE-ADVOCATE-OPFS-SYNC | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
 | CACHE-ADVOCATE-OPFS-ASYNC | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
@@ -565,6 +567,50 @@ lab settings still in `window.rs`), what was found since about native as **the 1
 (`docs/decode/hardware-10bit.md`: MediaCodec ByteBuffer `P010` ranked first for phones, Vulkan with a GPU hash, 4:2:0
 constant chroma except on NVDEC), and **how to resume**: the first three rows a future session would run, each with
 what decides it. One screen first, detail after. Update `docs/lines/native.md` to work state "paused".
+
+19. **The web stays the approach; its mobile options are explored before native** (the owner, 2026-11-15: "we will
+    stick with the web approach for now … the other options you propose for the web … should be explored first before
+    the native approach"). MOBILE-DECODE-OPTIONS does it, from the fundamentals.
+
+### MOBILE-DECODE-OPTIONS (theory and sources first; nothing run on a device)
+
+Question: **in a phone's browser, how can a series be shown fast enough, at full precision, with every frame checked,
+and at what cost in bytes?** Today's evidence: no shipped browser route returns a hardware-decoded frame's samples
+(`docs/decode/hardware-10bit.md`, PR 387 and its review); a hardware frame reaches the page or the GPU as an 8-bit RGB
+image; the optimal-quality view decodes in software at 1.24–1.74 HTJ2K frames (containers); the phone's software AV1
+decode is ~135 ms a frame on `dbts_b1-q8-g8` (FILL-SPLIT); HTJ2K's phone decode is unmeasured (the next phone round's
+first cell). Options at least, each worked from its sources (quoted, pinned):
+
+1. AV1 in software (WebCodecs `prefer-software`, dav1d-WASM): what bounds it on a phone, what settings are left.
+2. **AV1 in hardware, unchecked** (the owner's question, 2026-11-15: "is window level, zooming, panning, and other
+   transformations even possible or functional in the path 2?"): the frame as a GPU image (WebGL2
+   `texImage2D(VideoFrame)`, WebGPU `importExternalTexture` or `copyExternalImageToTexture`); what each transform
+   needs and keeps: zoom, pan, rotate, flip (geometry); invert; **window/level** applied in a shader to 8-bit values
+   (how many distinct display levels a window of width W in source units gets; where banding appears at the windows
+   DBT readers use; the colour matrix and range the browser applies to grey coded as 4:2:0 constant chroma, and whether
+   it is monotonic and the same across engines); pixel value readout and measurements (what value can be reported);
+   how many `VideoFrame`s a hardware decoder can hold before it stalls, so frames must be copied to textures; the
+   frame store and cache without samples; and whether the phone has a hardware AV1 decoder at all (the Galaxy S23's
+   SoC and other common phones, by the vendors' documents; 4:0:0 needs 4:2:0 constant chroma, +0.01–0.12 % bytes,
+   measured by DEPTH8-MEASURE).
+3. HTJ2K only, software (OpenJPH-WASM), checked, full precision: its decode on phone-class CPUs from published numbers
+   and our container rows; bytes 4.6–14× the view's on our fixtures.
+4. **A decoder run on the GPU through WebGPU compute**, most plausibly HTJ2K (independent code blocks, a parallel
+   wavelet), checked because it produces the samples itself: published GPU HTJ2K and JPEG 2000 decoders and their
+   speedups, which stages map to compute shaders and which stay serial, WebGPU's availability on Android Chrome and iOS
+   Safari (sources), precision, memory, a rough cost model per frame. Feasibility only, no build.
+5. Other codecs with browser hardware decode (HEVC, VP9 profile 2): whether any route returns samples; one paragraph.
+6. Native (paused 2026-11-15): one line, the reference point, nothing more.
+
+End with one table (option → decode time on a phone (measured, published or unknown), bytes, precision on screen,
+checked, window/level and tools functional, ships today), what the sources decide alone, what the next phone round must
+measure to decide the rest (add those cells to `claude/phone-protocol:docs/phone-rows/next-round.md` as asks, by one
+line each, not editing its cells), and a leaning labelled as such. Theory labelled; no claim from memory.
+
+### MOBILE-DECODE-OPTIONS-REVIEW
+
+A session that wrote none of it: 15 quoted sources fetched at their pinned revisions; the table follows from the
+text; the window/level arithmetic re-derived; what is a leaning stays a leaning.
 
 ## Procedure, rules
 
