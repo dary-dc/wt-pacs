@@ -184,7 +184,7 @@ stored frame. Three reconstruction systems of one dataset; one 4-core x86-64 clo
 * **Frames.** The middle 16 frames of each (two G 8 groups), the same frames in both arms.
 * **Arms.** *whole*: the stored frame. *crop*: the safe box cut from it. Both coded the same way:
   * the AV1 view as `docs/av1/payload-format.md` §Optimal quality codes it, Q 8 G 8, depth min(b, 10), a 12-bit source
-    cut to its top 10 bits (rounded, as `top10` in `lab/av1/profiles/bytes.py`), aomenc 3.15.1 with the payload
+    cut to its top 10 bits (rounded, as `top10` in `claude/av1-noise-ratio:lab/av1/profiles/bytes.py`), aomenc 3.15.1 with the payload
     format's arguments, one thread; decoded by dav1d 1.5.4 `--threads=1`, output to the `null` muxer;
   * HTJ2K lossless as the exact series is coded (OpenJPH 0.31.0 `ojph_compress -num_decomps 5 -block_size {64,64}
     -prog_order RPCL -reversible true`), one frame a file, decoded by `ojph_expand` to a file on `/dev/shm`.
