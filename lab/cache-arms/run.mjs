@@ -60,7 +60,12 @@ async function quotaHolds(b, origin, quotaMiB) {
 async function load(page, origin, p, timeoutMs = CALL_MS) {
   const qs = new URLSearchParams(Object.entries({ ...p, mutant: MUTANT }).filter(([, v]) => v !== "" && v !== undefined));
   await page.goto(`${origin}/lab/cache-arms/index.html?${qs}`);
-  return Promise.race([page.evaluate(() => globalThis.result), sleep(timeoutMs).then(() => ({ error: "timed out" }))]);
+  // Polled, not awaited: Marionette ends a script after its own timeout, shorter than a cell.
+  for (const t0 = Date.now(); Date.now() - t0 < timeoutMs; await sleep(500)) {
+    const row = await page.evaluate(() => globalThis.row);
+    if (row) return row;
+  }
+  return { error: "timed out" };
 }
 const progress = (page) => page.evaluate(() => globalThis.progress());
 const killTree = (pid) => { for (const p of tree(pid).reverse()) try { process.kill(Number(p), "SIGKILL"); } catch {} };
@@ -104,6 +109,7 @@ async function once(origin, arm, round) {
       for (const t0 = Date.now(); at.written < 32 && Date.now() - t0 < CALL_MS; await sleep(20)) at = await progress(b.page).catch(() => at);
       killTree(b.pid);
       await Promise.race([filling, sleep(2000)]);
+      for (const stale of ["MarionetteActivePort", "lock", ".parentlock"]) rmSync(path.join(dir, stale), { force: true });
       b = null;
       b = await fresh();
       const damage = round % 2 ? await load(b.page, origin, { ...p, damage: 0 }) : null;

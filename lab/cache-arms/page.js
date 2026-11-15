@@ -1,5 +1,5 @@
 // The page: it makes the ring, starts the store worker, the view worker and the feeders, wires their ports, and runs
-// one cell's steps; it holds no frame. `globalThis.result` settles with the row, `globalThis.progress()` reads the store.
+// one cell's steps; it holds no frame. `globalThis.row` is the row once settled, `globalThis.progress()` reads the store.
 const q = new URLSearchParams(location.search);
 const num = (k, d) => Number(q.get(k) ?? d);
 const now = () => performance.timeOrigin + performance.now();
@@ -156,4 +156,6 @@ async function run() {
   return c.mode === "reopen" ? reopen() : fill();
 }
 
+globalThis.row = null;
 globalThis.result = run().then((r) => ({ config: c, slots, ...r }), (e) => ({ config: c, error: `${e.name ?? ""}: ${e.message ?? e}` }));
+globalThis.result.then((r) => (globalThis.row = r));
