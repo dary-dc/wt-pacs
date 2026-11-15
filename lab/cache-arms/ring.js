@@ -24,6 +24,7 @@ export function ring(samples, table, slotBytes) {
       if (before === 1) Atomics.add(t, FREED, 1), Atomics.notify(t, FREED);
     },
     holders: (s) => Atomics.load(t, 2 + s),
+    anyFree: () => t.subarray(2).some((h) => h === 0),
     freed: () => Atomics.load(t, FREED),
     /** Waits (a worker only) until a slot is freed after `seen`, at most `ms`. */
     waitFreed: (seen, ms) => Atomics.wait(t, FREED, seen, ms),

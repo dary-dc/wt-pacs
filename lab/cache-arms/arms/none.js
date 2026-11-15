@@ -9,3 +9,4 @@ export const none = () => ({
   list: async () => [],
   close: async () => {},
 });
+export default none;
