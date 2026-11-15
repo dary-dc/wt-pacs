@@ -1,9 +1,11 @@
 state: started
 started: 2026-11-15 14:26 UTC
-heartbeat: 2026-11-15 14:42 UTC
+heartbeat: 2026-11-15 17:16 UTC
 outputs: claude/mobile-decode (docs/decode/mobile/hw-inverted.md), PR 397 (draft, existing)
 
 ## Resume
+
+Resumed 2026-11-15 17:16 UTC by a new session (the row was stalled; the earlier session stopped at 14:42).
 
 Done: hw-inverted.md §1–§7, §10–§13 (claude/mobile-decode 58582086): per-engine sources (Chromium 157 and 158,
 WebKit 19c5103d, Firefox release dc1259ae, Vulkan, OES_EGL_image_external, HTML, Android, vendors), the 220-level
