@@ -296,7 +296,7 @@ prints each frame's last-byte time and checks each frame against the bundle.
 | control stream | client bidi, prefixed `0x41` + session id (`wtransport-proto` `frame.rs:464`) | client bidi, from byte 0 |
 | media streams | server uni, prefixed `0x54` + session id (`stream_header.rs:331`) | server uni, from byte 0 |
 | FoD, envelope, stream modes, priorities | above | the same bytes, the same rules |
-| the opening ask | `?ask=` in the CONNECT's path | dropped: the client's first FoD message rides its first 1-RTT flight, the flight a WebTransport client's CONNECT rides, so it reaches the server when `?ask=` does (read, not measured: the lab check of [`native/README.md`](native/README.md) §8.5 has not run) |
+| the opening ask | `?ask=` in the CONNECT's path | dropped: the client's first FoD message rides its first 1-RTT flight, the flight a WebTransport client's CONNECT rides, so it reaches the server when `?ask=` does: a cold fill's first frame ties (+0.6 and +1.1 ms at 20 and 50 Mbit, inside the A/A; [`native/README.md`](native/README.md) §8.5). *Was:* read, not measured |
 | datagrams | negotiated, unused by the server | the same: both sides' quinn defaults offer them (read from quinn-proto 0.11.18, not observed). *Corrected 2026-10-27:* the design said not negotiated |
 | goodbye | `CLOSE_WEBTRANSPORT_SESSION` capsule, or the connection's close | the connection's application close; the server's stop is `STOPPING`, 0x100, defined by this ALPN |
 | certificate | pinned by SHA-256, ≤ 14 days (the browser's rule) | the same pin and rule, through wtransport's `ServerHashVerification` (`tls.rs:785–795`), so one certificate serves both |

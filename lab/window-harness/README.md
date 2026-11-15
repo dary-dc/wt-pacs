@@ -13,6 +13,7 @@ ceilings). The single-question bins, each with its usage at the top of its file:
 | `cold_open` | a cold open phase by phase, then one ask | [`ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §The session open |
 | `fill_order` | a fill asked coarse to fine against in order | [`transport-conclusions.md`](../../docs/transport/transport-conclusions.md) §3, *The fill's order* |
 | `fill_load` | N sessions filling one series at once, every frame byte-checked | [`lab/server-load`](../server-load/README.md) |
+| `cold_fill` | a cold fill timed from the dial, the native client over `wt-pacs/1` against WebTransport with `?ask=` | [`native/README.md`](../../docs/native/README.md) §8.5 |
 | `idle_sessions` | N held sessions, then proof each still works | [`adr/transport-idle-sessions.md`](../../docs/adr/transport-idle-sessions.md) |
 | `rebind-probe` | a session across a 4-tuple change | [`ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §Session survival |
 | `ask_during_fill` | an ask arriving during a fill, and what the fill pays | [`WIRE.md`](../../docs/WIRE.md) §An ask during a fill |
