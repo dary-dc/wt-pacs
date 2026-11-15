@@ -19,9 +19,10 @@ const lines = [
   JSON.stringify({ v: 1, kind: "link", load: "L1", rtt_us: 20000 }),
   "{broken",
   JSON.stringify({ t: "x", s: "204", n: "12011", r: "" }),
+  JSON.stringify({ t: "x", s: "204", n: "4", r: "null" }),
 ];
 const recs = readLines(lines);
-check(recs.malformed === 2, `a broken line and NGINX's empty body counted malformed: ${recs.malformed}`);
+check(recs.malformed === 3, `a broken line, NGINX's empty body and a null counted malformed: ${recs.malformed}`);
 const loads = byLoad(recs.records);
 const l1 = loads.get("L1");
 check(l1.records.length === 2 && l1.duplicates === 1, "L1: a's second copy dropped and counted");
