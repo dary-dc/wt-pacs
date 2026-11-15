@@ -36,6 +36,16 @@ def at_bar(points, bar):
     return max(ok) if ok else None
 
 
+def bytes_at_bar(points, bar):
+    """Bytes where the worst frame reaches the bar, interpolated in log bytes between the tested points around it."""
+    pts = sorted((w, b) for _, w, b, _ in points)
+    for (w0, b0), (w1, b1) in zip(pts, pts[1:]):
+        if w0 <= bar <= w1 and w1 > w0:
+            t = (bar - w0) / (w1 - w0)
+            return math.exp(math.log(b0) + t * (math.log(b1) - math.log(b0)))
+    return None
+
+
 def at_error(points, e):
     """Bytes at in-window error e, interpolated in log step between the two tested steps around it."""
     pts = sorted((k, b, x) for k, _, b, x in points if k)
@@ -54,8 +64,8 @@ def main():
            for r in rows(p)]
     series = {r["set"]: r for r in b if r["kind"] == "series"}
     out = ["| volume | b | σ median | lossless B a frame | HTJ2K Δ at 1.00 / 1.03 | AV1 G, Q at 1.00 / 1.03 | "
-           "bytes ÷ AV1 at 1.00 | at 1.03 | ÷ lossless at 1.00 | AV1 Q 8 e | Δ at that e | bytes ÷ AV1 Q 8 |",
-           "| --- | --: | --: | --: | --- | --- | --: | --: | --: | --: | --: | --: |"]
+           "bytes ÷ AV1 at 1.00 | at 1.03 | interpolated at 1.00 | ÷ lossless at 1.00 | AV1 Q 8 e | Δ at that e | bytes ÷ AV1 Q 8 |",
+           "| --- | --: | --: | --: | --- | --- | --: | --: | --: | --: | --: | --: | --: |"]
     summary = []
     for name, s in series.items():
         sigma, n = s["sigma"], s["frames"]
@@ -78,19 +88,21 @@ def main():
         hb = [at_bar(hj, x) for x in BARS]
         ab = [at_bar(a1, x) for x in BARS]
         ratio = [h[1] / a[1] if h and a else None for h, a in zip(hb, ab)]
+        interp = [bytes_at_bar(hj, BARS[0]), bytes_at_bar(a1, BARS[0])]
+        ri = interp[0] / interp[1] if all(interp) else None
         q8 = next((p for p in a1 if p[0] == 8), None)
         eq = at_error(hj, q8[3]) if q8 else None
         fmt = lambda x, p=2: "—" if x is None else f"{x:.{p}f}"
         out.append(f"| `{name}` | {s['bits_stored']} | {np.median(sigma):.2f} | {lossless / n:,.0f} | "
                    f"{' / '.join(fmt(h and h[0], 0) for h in hb)} | G {g}: {' / '.join(fmt(a and a[0], 0) for a in ab)} | "
-                   f"{fmt(ratio[0])} | {fmt(ratio[1])} | {fmt(hb[0] and hb[0][1] / lossless, 3)} | "
+                   f"{fmt(ratio[0])} | {fmt(ratio[1])} | {fmt(ri)} | {fmt(hb[0] and hb[0][1] / lossless, 3)} | "
                    f"{fmt(q8 and q8[3])} | {fmt(eq and eq[0], 1)} | {fmt(eq and q8 and eq[1] / q8[2])} |")
-        summary.append(dict(set=name, ratio_100=ratio[0], ratio_103=ratio[1], eq=eq and q8 and eq[1] / q8[2],
+        summary.append(dict(set=name, interp_100=ri, ratio_100=ratio[0], ratio_103=ratio[1], eq=eq and q8 and eq[1] / q8[2],
                             vs_lossless=hb[0] and hb[0][1] / lossless, delta_100=hb[0] and hb[0][0], g=g,
                             plateau=max(w for _, w, _, _ in hj) <= BARS[1]))
     print("\n".join(out))
     print()
-    for k in ("ratio_100", "ratio_103", "eq", "vs_lossless"):
+    for k in ("interp_100", "ratio_100", "ratio_103", "eq", "vs_lossless"):
         v = [x[k] for x in summary if x[k] is not None]
         if v:
             print(f"* {k}: {min(v):.3f}–{max(v):.3f}, median {np.median(v):.3f}, n {len(v)}")
