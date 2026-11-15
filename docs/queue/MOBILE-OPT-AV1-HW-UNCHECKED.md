@@ -17,7 +17,7 @@ Done. Nothing left; MOBILE-DECODE-COMPARE reads the file's §8 and carries §9's
 * It needs full range: at studio range a 10-bit series clips below 64 and above 940. 
   overrides the stream (S); whether Android's conversion obeys it is a device fact.
 * Pixel values are intervals (±2 / ±8 source units); ROI SD is inflated; geometry is unchanged.
-* Android's image reader holds 1–5 images (S, Chromium 157): copy each frame to  and close it;  is
+* Android's image reader holds 1–5 images (S, Chromium 157): copy each frame to `R8` and close it; `dbts_b1` is
   406 MiB as R8. The client cache gets no checked samples: (a) an 8-bit cache or (b) re-decoding.
 * Whether the S23 has the decoder is unsettled. 2560 × 3328 needs level 5.0 and is taller than 2160; no vendor page
   names 4:0:0, Main 10 or a maximum size.
