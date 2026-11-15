@@ -66,6 +66,7 @@ export function opfsAsync(pilot = new URLSearchParams()) {
    *  one call at a time and `inflight` bounds the calls. */
   async function put(g, i, copy, whole) {
     await room();
+    if (g.retry) return;
     g.writable ??= await (await dir.getFileHandle(String(g.k), { create: true })).createWritable();
     const w = g.writable;
     const before = whole ? [...g.writes] : [];
@@ -190,11 +191,23 @@ export function opfsAsync(pilot = new URLSearchParams()) {
       }
       return out;
     },
-    /** In-flight writes and closes settle; a group still short of frames is aborted, never committed. */
-    async close() {
+    /** In-flight writes and closes settle; a refused group's frames are lost, their copies no longer read. */
+    async settle() {
       while (ops.size) await Promise.race(ops);
+      refused = null;
+      const lost = [];
+      for (const g of [...groups.values()].filter((x) => x.retry)) {
+        for (const [i, copy] of g.frames) lost.push(i), copies.delete(i), spare.push(copy);
+        groups.delete(g.k);
+      }
+      return lost.sort((x, y) => x - y);
+    },
+    /** As settle, then a group still short of frames is aborted, never committed; a refusal found is thrown. */
+    async close() {
+      const lost = writer && dir ? await a.settle() : [];
       for (const g of groups.values()) await g.writable?.abort().catch(ignore);
       [groups, copies, spare, refused, dir] = [new Map(), new Map(), [], null, null];
+      if (lost.length) throw Object.assign(new Error(`${lost.length} frames refused after their write returned`), { name: "QuotaExceededError", lost });
     },
     async damage(i) {
       const k = Math.floor(i / G);

@@ -423,6 +423,51 @@ for (const read of ["file", "sync"]) {
   check(disk.files.size === 0 && disk.swaps.size === 0, `floor (${read}): its file removed`);
 }
 
+/** A late refusal of the last write or close reaches the store: `settle` names the frame lost and its copy no longer
+ *  answers a read, and a `close` with no settle before it throws (review, OPFS-ASYNC B1). */
+for (const lever of ["writeRefusals", "closeRefusals"]) {
+  fresh();
+  const a = opfsAsync();
+  await a.open("A", meta(), { create: true });
+  await a.write(0, frame(0), {});
+  await settle();
+  disk[lever] = 1;
+  await a.write(1, frame(1), {});
+  const lost = await a.settle();
+  check(lost.join() === "1", `${lever}: settle names the refused frame (${lost})`);
+  check(!(await a.read(1, slotView())) && (await a.read(0, slotView())), `${lever}: the refused frame is a miss, the kept one a hit`);
+  check((await rejects(a.write(2, frame(2), {}))) === null, `${lever}: a settled refusal is not thrown again by the next write`);
+  check((await a.settle()).length === 0 && (await rejects(a.close())) === null, `${lever}: nothing more lost, close resolves`);
+  fresh();
+  const b = opfsAsync();
+  await b.open("A", meta(), { create: true });
+  disk[lever] = 1;
+  await b.write(0, frame(0), {});
+  const e = await rejects(b.close());
+  check(e?.name === "QuotaExceededError" && e.lost?.join() === "0", `${lever}: a close that finds a refusal throws it, the frame named`);
+}
+
+/** A refusal during the retry of a group (G > 1) leaves the group to the next retry: no second writable commits it
+ *  with a frame missing (review, OPFS-ASYNC m1). */
+{
+  fresh();
+  const a = opfsAsync(GROUPED);
+  await a.open("A", meta(G + 1), { create: true });
+  for (let i = 0; i < G - 1; i++) await a.write(i, frame(i), {});
+  await settle();
+  disk.writeRefusals = 1;
+  await a.write(G - 1, frame(G - 1), {});
+  await settle();
+  disk.writeRefusals = 1;
+  check((await rejects(a.write(G, frame(G), {})))?.name === "QuotaExceededError", "retry: the refusal thrown by the next write");
+  await rejects(a.write(G, frame(G), {}));
+  await settle();
+  const file = await groupFile("A", 0).catch(() => null);
+  check(file === null || file.length === 0 || exact(file.subarray(0, FRAME), 0), "retry: group 0 never committed with frame 0 missing");
+  const lost = await a.settle();
+  check(lost.length === G || lost.length === 0, `retry: the group lost whole or kept whole (${lost.length})`);
+}
+
 if (failed) {
   console.error(`${failed} failed`);
   process.exit(1);
