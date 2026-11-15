@@ -14,7 +14,7 @@ CACHE-RUN row.
 
 **Not ready for CACHE-RUN.** Seven blockers, each able to put a wrong row or a wrong verdict into the run; every other
 design point of §7.1–7.4 and every §7.5 row has its code line. The six test files pass; `scripts/gate.sh --quick`:
-running at this commit (its result is added when it lands). `scripts/check_lab_absent.sh` passes. The branch touches nothing outside `lab/cache-arms/`, `scripts/gate.sh`
+passes at `ac517958` with the link check's two pre-existing paths (`docs/lines/devices.md` 57 and 60, untouched here) set aside locally, its by-name skips (no numpy, pydicom, ingest build, lavapipe, nginx; `--quick`'s absence checks) and the decoders' Docker rebuild not run (no daemon). `scripts/check_lab_absent.sh` passes. The branch touches nothing outside `lab/cache-arms/`, `scripts/gate.sh`
 (+7) and `docs/lines/client.md`; the comment budget holds.
 
 | # | where | blocker | evidence |
