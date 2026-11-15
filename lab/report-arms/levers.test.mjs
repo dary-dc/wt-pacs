@@ -10,7 +10,8 @@ const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 const until = async (f, ms = 3000) => { const end = Date.now() + ms; while (!f() && Date.now() < end) await new Promise((r) => setTimeout(r, 20)); return f(); };
 
-const root = spawn("bash", ["-c", "bash -c 'exec -a fake-tab sleep 30' & bash -c 'exec -a fake-gpu sleep 30' & wait"]);
+// fake-tab two levels down, as a browser's tab under its zygote; fake-gpu one level down.
+const root = spawn("bash", ["-c", "bash -c 'bash -c \"exec -a fake-tab sleep 30\"; true' & bash -c 'exec -a fake-gpu sleep 30' & wait"]);
 await new Promise((r) => setTimeout(r, 300));
 const tree = descendants(root.pid);
 const tab = tree.find((p) => p.cmd.startsWith("fake-tab"));
