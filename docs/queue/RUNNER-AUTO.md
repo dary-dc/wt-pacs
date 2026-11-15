@@ -1,11 +1,11 @@
 state: started
 started: 2026-11-15 17:17 UTC
-heartbeat: 2026-11-15 17:39 UTC
+heartbeat: 2026-11-15 17:53 UTC
 outputs: claude/phone-round (from origin/claude/hw-probe af4b6aeb), draft PR into claude/hw-probe (not yet)
 
 ## Resume
 
-Done: 1 (27336c4b), 2 + the hook of 4 (4e15708b), 3 (822e13c9), 5 (09e44c4c: headless, 7 loads, every claim holds, each claim's mutant fails it) on claude/phone-round. Next: README §The round, gate wiring, draft PR; then 6.
+Done: 1 (27336c4b), 2 + 4 (4e15708b), 3 (822e13c9), 5 (09e44c4c), 6's cell 3 sequence + gate wiring (a8a2fb76) on claude/phone-round; headless 9 loads, every claim holds, each claim's mutant fails it. Next: README §The round, comment budget, check_lab_absent, gate, draft PR.
 
 Plan (worktree: `git worktree add W origin/claude/phone-round`; build: venv + ingest/requirements.txt, meson 1.9.1,
 `cargo build --release -p series-server -p pack-series`, `ingest/tools.sh`, `client/transport/ts/build.sh`):
