@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "load": ["v", "kind", "reportId", "load", "session", "seq", "build", "view", "client", "codec", "source", "lossy",
+           "frameCount", "received", "routes", "checks", "frames", "fillFrom", "fillTo", "fillMs", "statusFillMs",
+           "labels", "presses", "errors", "link", "rate", "truncated"],
+  "safety": ["v", "kind", "reportId", "load", "session", "build", "at", "source", "frame", "codec", "route",
+             "codecString", "engine", "hardwareConcurrency", "check", "expected", "actual", "secondDecode", "followed"],
+  "link": ["v", "kind", "load", "rtt_us", "min_rtt_us", "cwnd", "congestion_events", "lost_packets", "lost_bytes",
+           "sent_packets", "bytes_sent", "duration_ms"]
+}
