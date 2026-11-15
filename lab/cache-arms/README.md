@@ -93,6 +93,27 @@ the series + 64 MiB may refuse OPFS-SYNC's `truncate` at open for that alone: CA
 
 Pilot: `--pilot 'group=8MiB&inflight=3&read=sync'`; the defaults are `group=1`, `inflight=1`, `read=file`.
 
+## IDB as built
+
+`arms/idb.js` is §7.3 as amended: one database, `frames` keyed `[series, i]` holding a `Blob` of the samples, `series`
+holding the manifest; each frame copied out of its slot into one reused scratch, a `Blob` made of it, the slot let go
+(§8.1), then one `readwrite` transaction `{durability: "relaxed"}` with one `put` and `commit()`. With the seam's
+sequential store worker:
+
+* `write` resolves at the transaction's `complete`, so one write transaction is in flight and the next is made after
+  it; a read waiting meanwhile is served before the next write, but behind the write in flight (IndexedDB 1130–1133).
+* A refused frame keeps its value, since its slot was let go: the store's retry of the same frame writes that value.
+* `estimate()` at the open of a series not present only; a reopen reads what is present, its rest left to the mid-fill
+  rule. On Chromium 153 `estimate()` does not show the quota override (above), so under E's and Q's override the check
+  at open never refuses there and the refusal comes mid-fill: CACHE-RUN's amendment to §8.3 E's "refusal at the
+  design's point" for IDB on Chromium, before any row.
+* Eviction is one transaction over both stores, `delete(IDBKeyRange.bound([s, 0], [s, Infinity]))` and the record;
+  §7.3's Web Lock is the store's (`store.js`), not the arm's.
+* The floor probe adds `writeBufferMs`, a `put` of an `ArrayBuffer` beside the `Blob` (§8.2); the store worker reports
+  the median of every series an arm times.
+
+Pilot: `--pilot value=buffer` (Gecko only), the value an `ArrayBuffer`; the default is `value=blob`.
+
 **Not built: O's F**, the fresh fill over `link_impair.py` the reopen is judged against. Synthetic frames have no
 coded form, so a fetch of their bytes would not be a fill; F is M1's (`lab/opfs-cache/run.mjs --cell m1` at
 `c99ba492`, the product's viewer and a packed series), owed to CACHE-RUN or taken from M1's *measured* F.
@@ -103,7 +124,7 @@ coded form, so a fetch of their bytes would not be a fill; F is M1's (`lab/opfs-
 
 ```bash
 node lab/cache-arms/store.test.mjs && node lab/cache-arms/cells.test.mjs
-node lab/cache-arms/arms/opfs-sync.test.mjs && node lab/cache-arms/arms/opfs-async.test.mjs
+node lab/cache-arms/arms/opfs-sync.test.mjs && node lab/cache-arms/arms/opfs-async.test.mjs && node lab/cache-arms/arms/idb.test.mjs
 NODE_PATH=$(npm root -g) node lab/cache-arms/run.mjs --cell L --size 2560 [--engine chromium|firefox] [--throttle 4] \
   [--rounds N] [--arms none,stub,stub-aa] [--mutant NAME] [--pilot SETTINGS] [--out rows.jsonl]
 ```
