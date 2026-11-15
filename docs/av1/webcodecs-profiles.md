@@ -1,18 +1,26 @@
 # AV1 profiles through WebCodecs, per engine
 
-Which AV1 profiles, bit depths and chroma formats `VideoDecoder` decodes in Chromium (Chrome, Edge), WebKit (Safari)
-and Gecko (Firefox), on desktop and phone, and through which decoder. Research only, read 2026-11-07: sources, not a
-run. Where this repository has already measured an engine, the measurement is cited beside the source
+Which AV1 profiles, bit depths and chroma formats `VideoDecoder` decodes in Chromium (Chrome, Edge), WebKit (Safari) and
+Gecko (Firefox), on desktop and phone, and through which decoder. Research only, read 2026-11-07 and corrected in place
+after an independent check on 2026-11-10: sources, not a run. Output formats per engine, what `isConfigSupported`
+promises, Safari's AV1 hardware path and Firefox's frame formats are held in [`browser.md`](../decode/browser.md); this
+file points there. Where this repository has already measured an engine, the measurement is cited beside the source
 ([`../decode/README.md`](../decode/README.md) §AV1).
 
 ## Verdict
 
-**Claim.** No engine hands a page 12-bit AV1 samples through WebCodecs. Chromium's dav1d is built for 12 bits, but
-Blink's key-frame check parses each first chunk with libgav1 built to 10 bits, so a 12-bit stream fails with `A key
-frame is required`. Firefox's dav1d keeps 12 bits but every frame reaches the page as 8-bit `BGRX`. Safari takes Main profile only (`av01.0`), and Firefox has no
-WebCodecs on Android. Grey 4:0:0 comes back as `I420` with mid-grey chroma in Chromium, and is refused in Firefox
-and in WebKit's software path. Exact 10-bit RGB as 4:4:4 decodes in one place, Chromium's dav1d, on every Chromium
-platform. Safari cannot take it because 4:4:4 needs profile 1 or 2, and Firefox hands it back as 8-bit `BGRX`.
+**Claim.** No engine is shown to hand a page 12-bit AV1 samples through `VideoDecoder` (Chromium's `ImageDecoder` does
+return still colour AVIF at 12 bits, not 4:0:0; [`browser.md`](../decode/browser.md) §One screen). Chromium's dav1d is
+built for 12 bits, but Blink's key-frame check parses each first chunk with libgav1 built to 10 bits, so a 12-bit stream
+fails with `A key frame is required`. Firefox decodes 12 bits (*derived*: its default path is the bundled FFmpeg, which
+`CreateRddPDMs` puts before dav1d). Its frames reached the page as 8-bit `BGRX` on 157 (measured); from Firefox 160 (bug
+2071132 fixed) the CPU-plane path reports `I420P10`/`I420P12`, not run here ([`browser.md`](../decode/browser.md)
+§Gecko). Safari takes Main profile only (`av01.0`), and Firefox has no WebCodecs on Android. Grey 4:0:0 comes back as
+`I420` with mid-grey chroma in Chromium, and is refused in Firefox and in WebKit's software path. Exact 10-bit RGB as
+4:4:4 decodes in one place, Chromium's dav1d, on every Chromium platform, with
+`hardwareAcceleration: "prefer-software"`: a hardware frame above 8 bits has a `null` format
+([`browser.md`](../decode/browser.md) §Chromium). Safari cannot take it because 4:4:4 needs profile 1 or 2, and Firefox
+handed it back as 8-bit `BGRX` on 157.
 
 **Proof chain.**
 1. AV1 puts 12 bits in Professional only and 4:4:4 at 8/10 bits in High or Professional; monochrome is Main or
@@ -21,8 +29,8 @@ platform. Safari cannot take it because 4:4:4 needs profile 1 or 2, and Firefox 
    This was measured on 141 and is still in main's source (§Chromium).
 3. WebKit: `isSupportedDecoderCodec` takes `av01.0` alone. Its software decoder takes 8-bit 4:2:0 alone, and its
    VideoToolbox output is 4:2:0 at 8 or 10 bits (§WebKit).
-4. Firefox: `CanDecode` refuses all of Android. Every remote-decoded frame is `BGRX`, from a placeholder texture
-   format (§Firefox).
+4. Firefox: no WebCodecs on Android. A frame returned as a texture is `BGRX`; from 160 a CPU-plane frame reports its
+   depth (§Firefox).
 5. `isConfigSupported` checks the codec and colour space in Chromium, the profile digit in WebKit and the container
    path in Firefox; none checks the bit depth (§Where `isConfigSupported` and decode disagree).
 
@@ -68,49 +76,44 @@ read 2026-11-07), §Codecs Parameter String:
 
 > "`<sample entry 4CC>.<profile>.<level><tier>.<bitDepth>.<monochrome>.<chromaSubsampling>.`"
 
-The [WebCodecs AV1 Codec Registration](https://www.w3.org/TR/webcodecs-av1-codec-registration/) (Draft Note, 13 October
-2026, read 2026-11-07) defers to it: "The codec string begins with the prefix "av01." , followed by a variable length
-suffix as described in Section 5 of [AV1-ISOBMFF]". It also says "Implementers of WebCodecs are not required to support
-the AV1 codec."
+The [AV1 WebCodecs Registration](https://www.w3.org/TR/2026/DNOTE-webcodecs-av1-codec-registration-20261013/) (W3C Group
+Note Draft, 13 October 2026, read 2026-11-07) defers to it: "The codec string begins with the prefix "av01." , followed
+by a variable length suffix as described in Section 5 of [AV1-ISOBMFF]". It also says "Implementers of WebCodecs are not
+required to support the AV1 codec."
 
-**What WebCodecs requires a support answer to check** ([WebCodecs](https://www.w3.org/TR/webcodecs/), Working Draft,
-2 November 2026, read 2026-11-07), §7.1 Check Configuration Support:
+**What a support answer checks.** The profile, level and constraint bits; bit depth, monochrome and subsampling are
+not among them ([`browser.md`](../decode/browser.md) §`isConfigSupported()`: what it promises).
 
-> "If config is an AudioDecoderConfig or VideoDecoderConfig and the User Agent can’t provide a codec that can decode
-> the exact profile (where present), level (where present), and constraint bits (where present) indicated by the codec
-> string in config .codec, return false."
-
-Bit depth, monochrome and subsampling are none of those three, so a user agent that ignores them follows the letter
-(*derived*). The note that follows: "User Agents describe support on a best-effort basis".
-
-**No grey pixel format.** `VideoPixelFormat` (§9.8) lists `I420`, `I420P10`, `I420P12`, the `I422` and `I444` families,
+**No grey pixel format** ([WebCodecs](https://www.w3.org/TR/2026/WD-webcodecs-20261102/), W3C Working Draft, 2 November
+2026, read 2026-11-07). `VideoPixelFormat` (§9.8) lists `I420`, `I420P10`, `I420P12`, the `I422` and `I444` families,
 alpha variants, `NV12` and four RGB formats, and no single-plane format. So a 4:0:0 decode reaches the page as 4:2:0 or
-not at all (*derived*). §9.4.3: `format` "Will be null whenever the underlying format does not map to a VideoPixelFormat".
-For such a frame `copyTo()` without `options.format` throws "NotSupportedError". The formats `copyTo()` can convert to are
-"RGBA , RGBX , BGRA , BGRX", all 8-bit. WebCodecs issue [#767](https://github.com/w3c/webcodecs/issues/767), "Figure out
-what should happen to the unused bits in 10-bits and 12-bits pixel formats", is open; its title was read from GitHub
-search, its body not (*unverified*).
+not at all (*derived*). §9.4.3: `format` "Will be null whenever the underlying format does not map to a
+VideoPixelFormat". For such a frame `copyTo()` without `options.format` throws "NotSupportedError". The formats
+`copyTo()` can convert to are "RGBA , RGBX , BGRA , BGRX", all 8-bit. WebCodecs issue
+[#767](https://github.com/w3c/webcodecs/issues/767), "Figure out what should happen to the unused bits in 10-bits and
+12-bits pixel formats", is open; its title was read from GitHub search, its body not (*unverified*).
 
 ## The table
 
 `VideoDecoder`, each cell the engine's own code or tracker, keyed to the sections below. **yes** decodes; **no**
-refused or fails; *derived* read from code, not run; *nf* not found. "Out" is the `VideoFrame.format` the page gets.
+refused or fails; *derived* read from code, not run; *nf* not found. "Out" is the `VideoFrame.format` the page gets;
+the hardware cells come from [`browser.md`](../decode/browser.md) §Chromium and §Gecko, "Output formats".
 
 | engine · platform · decoder | Main / High / Pro | 8 / 10 / 12 bit | 4:0:0 | 4:2:0 | 4:4:4 | out, > 8 bit |
 | --- | --- | --- | --- | --- | --- | --- |
 | Chromium desktop (Win, mac, Linux, ChromeOS), dav1d | yes / yes / yes [C3] | yes / yes / **no** [C4] | yes, as `I420`, chroma mid [C3] | yes | yes | `I420P10`, `I444P10` [C3] |
-| Chromium, Windows D3D11/12 | yes / if the GPU has it / if the GPU has it [C5] | yes / yes / Pro only, may fail at first decode [C5] | no [C5] | yes | High or Pro [C5] | *nf* |
-| Chromium, Linux VA-API | yes / no / no [C5] | yes / yes / no [C5] | no [C5] | yes | no | *nf* |
-| Chromium, ChromeOS V4L2 | yes, *derived* / *nf* / *nf* [C5] | yes / yes / no [C5] | no [C5] | yes | no, *derived* [C5] | *nf* |
-| Chromium, macOS VideoToolbox | yes / no / no [C5] | yes / *nf* / no | no [C5] | yes | no | *nf* |
+| Chromium, Windows D3D11/12 | yes / if the GPU has it / if the GPU has it [C5] | yes / yes / Pro only, may fail at first decode [C5] | no [C5] | yes | High or Pro [C5] | `null`, *derived* |
+| Chromium, Linux VA-API | yes / no / no [C5] | yes / yes / no [C5] | no [C5] | yes | no | `null`, *derived* |
+| Chromium, ChromeOS V4L2 | yes, *derived* / *nf* / *nf* [C5] | yes / yes / no [C5] | no [C5] | yes | no, *derived* [C5] | `null`, *derived* |
+| Chromium, macOS VideoToolbox | yes / no / no [C5] | yes / *nf* / no | no [C5] | yes | no | `null`, *derived* |
 | Chrome Android, dav1d | yes / yes / yes [C3] | yes / yes / **no** [C4] | yes, as `I420` [C3] | yes | yes | as desktop, *derived* |
-| Chrome Android, MediaCodec | yes / no / no [C5] | yes / yes / no [C5] | *nf* | yes | no [C5] | *nf* |
+| Chrome Android, MediaCodec | yes / no / no [C5] | yes / yes / no [C5] | *nf* | yes | no [C5] | 8-bit RGB |
 | Edge (any) | *nf* — Chromium's rows, *unverified* [C6] | | | | | |
 | Safari macOS · iOS, VideoToolbox | yes / no / no [W1] | yes / yes / *nf* [W3] | *nf* [W3] | yes [W3] | no [W1] | `null` for 10-bit [W5] |
 | Safari, dav1d (preview flag only) [W2] | yes / no / no [W1] | yes / no / no [W4] | no [W4] | 8-bit only [W4] | no [W1, W4] | — |
 | WebKitGTK · WPE, GStreamer | yes / no / no [W1] | the plugin's [W6] | the plugin's [W6] | yes [W6] | no [W1] | *nf* |
-| Firefox desktop, bundled FFmpeg or dav1d | yes / full string / full string [G2] | yes / yes / yes, *derived* [G3] | **no** [G3] | yes | yes, as 8-bit `BGRX` [G4] | `BGRX`, 8 bits [G4] |
-| Firefox, Windows WMF | *nf* [G5] | yes / yes / *nf* [G5] | *nf* | yes | *nf* | `BGRX`, *derived* [G4] |
+| Firefox desktop, bundled FFmpeg or dav1d | yes / full string / full string [G2] | yes / yes / yes, *derived* [G3] | **no** [G3] | yes | yes [G4] | `BGRX` on 157; CPU planes `I4xxP10`/`P12` from 160 [G4] |
+| Firefox, Windows WMF | *nf* [G5] | yes / yes / *nf* [G5] | *nf* | yes | *nf* | `BGRX` as a texture, *derived* [G4] |
 | Firefox, Linux VA-API | *nf* | yes / yes / *nf* [G5] | no, *derived* [G5] | yes | no, *derived* [G5] | *nf* |
 | Firefox, macOS VideoToolbox | yes / no / no [G5] | yes / yes / no [G5] | *nf* | yes | no [G5] | *nf* |
 | Firefox Android, any | no — WebCodecs refused [G1] | | | | | |
@@ -183,8 +186,10 @@ survey and the source agree.
 Per platform:
 * **Windows**, `media/gpu/windows/supported_profile_helpers.cc`: `// Note: Each bit depth of AV1 uses a different
   DXGI_FORMAT, here we only test for the 8-bit one (NV12).` It queries `DXVA_ModeAV1_VLD_Profile0`, `Profile1` and
-  `Profile2`. On 12-bit Profile 2: "we don't know the bit depth or pixel format until too late. In these cases we'll
-  end up initializing the decoder and failing on the first decode".
+  `Profile2`. On Profile 2: "12-bit profile 2 support is complicated. Ideally, we should test
+  DXVA_ModeAV1_VLD_12bit_Profile2 and DXVA_ModeAV1_VLD_12bit_Profile2_420 when the bit depth of the content is 12-bit.
+  However we don't know the bit depth or pixel format until too late. In these cases we'll end up initializing the
+  decoder and failing on the first decode (which will trigger software fallback)."
 * **VA-API**, `media/gpu/vaapi/vaapi_wrapper.cc`: `{AV1PROFILE_PROFILE_MAIN, VAProfileAV1Profile0}, // VaapiWrapper
   does not support AV1 Profile 1.` Output is NV12 or P010 (`vaapi_video_decoder.cc`).
 * **V4L2**, `media/gpu/v4l2/v4l2_video_decoder.cc`: `bit_depth = (bit_depth == 10u) ? 10 : 8` with both subsampling
@@ -198,7 +203,8 @@ Per platform:
     decoders unless` the content is encrypted. So clear AV1 is MediaCodec hardware or dav1d (*derived*).
   * Which comes first for a WebCodecs decoder: *unverified*.
 
-Whether a hardware decode error falls back to dav1d inside WebCodecs: *not found*.
+Whether a hardware decode error falls back to dav1d inside WebCodecs: partly answered by the Windows comment above,
+which expects 12-bit Profile 2 to fail its first decode and "trigger software fallback"; a general rule: *not found*.
 
 **[C6] Edge.** No Microsoft document on Edge's AV1 or WebCodecs support was found on learn.microsoft.com. Edge is
 assumed to share Chromium's code (*unverified*); its Windows hardware path would be [C5]'s D3D rows.
@@ -220,29 +226,14 @@ So `av01.1` (all 4:4:4 at 8/10 bits) and `av01.2` (all 12 bits) are unsupported 
 `configure()`. The function that does check profile, depth and chroma, `validateAV1Parameters`, is called from
 `PlatformMediaEngineConfigurationFactoryCocoa.cpp`, Media Capabilities, and not from WebCodecs (*derived*).
 
-**[W2] On by hardware, on Cocoa.**
-* `Source/WTF/Scripts/Preferences/UnifiedWebPreferences.yaml`: `WebCodecsAV1Enabled:` with `status: preview` and
-  defaults `"USE(GSTREAMER)": true` / `default: false`.
-* `Source/WebKit/WebProcess/GPU/webrtc/LibWebRTCCodecs.cpp` `setHasAV1HardwareDecoder`: `if
-  (!hasAV1HardwareDecoder) return;` … `settings.setWebCodecsAV1Enabled(true);`.
-* The probe, `Source/WebCore/platform/graphics/cocoa/AV1UtilitiesCocoa.mm`: `VTIsHardwareDecodeSupported('av01')`.
-* Apple, [Safari 17.5 release notes](https://developer.apple.com/documentation/safari-release-notes/safari-17_5-release-notes)
-  (read 2026-11-07): "Added support for WebCodecs AV1 when an AV1 hardware decoder is available. (123433815)", and
-  "Fixed AV1 to decode in hardware on iPhone 15 Pro. (121924090)". The same change is WebKit bug
-  [269908](https://bugs.webkit.org/show_bug.cgi?id=269908), "[Cocoa] Enable WebCodecs AV1 when HW AV1 decoder is
-  available", RESOLVED FIXED.
-* Which Macs and iPhones have the hardware: Apple list *not found*.
-* A WebKit engineer, bug [329735](https://bugs.webkit.org/show_bug.cgi?id=329735) comment 2 (2026-11-04): "It does
-  appear the AV1 is still in Preview stage at the moment, so only STP is affected (or via enabling the feature
-  flag)". The same bug's report decodes AV1 Main 10 through `VideoDecoder` in release "Safari 27.0 … MacBook Air
-  15-inch M3 (2024), hardware AV1 decoding". The code above explains the report; the comment is not reconciled
-  (*unverified*).
+**[W2] On by hardware, on Cocoa.** `WebCodecsAV1Enabled` is a preview setting that WebKit turns on once VideoToolbox
+reports AV1 hardware, so Safari's WebCodecs AV1 runs on VideoToolbox where that hardware exists and is off elsewhere
+([`browser.md`](../decode/browser.md) §WebKit, "Which decoder backs each codec"). Which Macs and iPhones have the
+hardware: Apple list *not found*.
 
-**[W3] VideoToolbox output.** `Source/WebCore/platform/video-codecs/cocoa/GPUVideoDecoderVTB.mm`:
-`ASSERT(bitDepth == 8 || bitDepth == 10);` then `kCVPixelFormatType_420YpCbCr10BiPlanar…` or `…8BiPlanar…`: 4:2:0
-only. The session asks `kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder: @YES`, which is "Enable",
-not "Require" (`VideoDecoderVTBSession.mm`). What VideoToolbox does with a 4:0:0 Main stream: *not found*. Apple
-documents no AV1 profile, depth or chroma limits that were found: [`kCMVideoCodecType_AV1`](https://developer.apple.com/documentation/coremedia/kcmvideocodectype_av1)'s
+**[W3] VideoToolbox output.** 4:2:0 at 8 or 10 bits only ([`browser.md`](../decode/browser.md) §WebKit, "Output
+formats"). What VideoToolbox does with a 4:0:0 Main stream: *not found*. Apple documents no AV1 profile, depth or
+chroma limits that were found: [`kCMVideoCodecType_AV1`](https://developer.apple.com/documentation/coremedia/kcmvideocodectype_av1)'s
 page has no abstract.
 
 **[W4] The software path.** Without hardware, `LibWebRTCCodecs.cpp` returns `{ }` for `av01.`, and the local decoder is
@@ -257,13 +248,13 @@ if (dav1dPicture.p.layout != DAV1D_PIXEL_LAYOUT_I420 || dav1dPicture.p.bpc != 8)
 
 It is reached only with the preview flag on, [W2].
 
-**[W5] 10-bit output is `format: null`.** Bug 329735's report, Safari 27.0 on an M3, prints for a decoded AV1 Main
-10-bit keyframe: `isConfigSupported(no-preference): true` / `frame.format=null`. By §9.4.3 such a frame's planes
-cannot be copied, only converted to 8-bit RGB (*derived*). One report, one stream: *unverified* beyond it.
+**[W5] 10-bit output is `format: null`**, so its planes cannot be copied, only converted to 8-bit RGB
+([`browser.md`](../decode/browser.md) §WebKit, "Output formats", which holds bug 329735's report of it and the bug's
+status).
 
 **[W6] GStreamer.** `Source/WebCore/platform/graphics/gstreamer/GStreamerRegistryScanner.cpp`:
 `m_decoderCodecMap.add("av01*"_s, av1DecoderAvailable);`, so WebKit checks no profile, depth or chroma and passes the
-stream to whichever AV1 element the system has (`vaav1dec`, `dav1ddec`, `av1dec`; `VideoDecoderGStreamer.cpp`).
+stream to whichever AV1 element the system has (`VideoDecoderGStreamer.cpp` L211 names `vaav1dec` and `av1dec`).
 Bug [327481](https://bugs.webkit.org/show_bug.cgi?id=327481), "[GStreamer][WebCodecs] AV1 VideoDecoder: every
 decode() fails, no av1parse before the decoder", is FIXED. That bug is the measured WebKitGTK 2.52.6 failure (*derived*).
 
@@ -274,15 +265,8 @@ checked against main (162.0a1), 2026-11-07. Measured here on 157.0 (Linux): mono
 8-bit `BGRX` ([`../decode/README.md`](../decode/README.md) §Why, and what would make it exact, which reads the same
 source).
 
-**[G1] No WebCodecs on Android.**
-* `dom/media/webcodecs/VideoDecoder.cpp` `CanDecode`: `// TODO: Enable WebCodecs on Android (Bug 1840508)` /
-  `if (IsOnAndroid()) {` / `return false;`.
-* `modules/libpref/init/StaticPrefList.yaml`: `dom.media.webcodecs.enabled` is `@IS_NIGHTLY_BUILD@` under
-  `MOZ_WIDGET_ANDROID`.
-* Bug 1840508 is a duplicate of [1934008](https://bugzilla.mozilla.org/show_bug.cgi?id=1934008), "Ship Web Codecs on
-  Android", NEW.
-* [Firefox 130 release notes](https://www.mozilla.org/en-US/firefox/130.0/releasenotes/): "Enabled the Web Codecs API
-  on desktop platforms".
+**[G1] No WebCodecs on Android**: `CanDecode` returns `false` there ([`browser.md`](../decode/browser.md) §Gecko, "Since
+which version").
 
 **[G2] The codec string.** `dom/media/VideoUtils.cpp` `ExtractAV1CodecDetails`: "Valid profiles are: Main (0), High
 (1), Professional (2)", "Supported bit depths are 8, 10 and 12", "Profile 1 only supports 4:4:4". The short form
@@ -293,37 +277,27 @@ the logic of HTMLMediaElement` (`VideoDecoder.cpp`).
 **[G3] The decoders, and monochrome.**
 * `dom/media/platforms/PDMFactory.cpp` `CreateRddPDMs` starts the bundled FFmpeg (`FFVPXRuntimeLinker`) before
   `AgnosticDecoderModule` (dav1d), unless `media.prefer_non_ffvpx`.
-* Through FFmpeg, monochrome fails with `EncodingError` (the cause traced here before, `GRAY8` with no plane
-  geometry).
+* Through FFmpeg, monochrome fails with `EncodingError` (measured on 157). FFmpeg does emit grey,
+  `media/ffvpx/libavcodec/libdav1d.c`: `[DAV1D_PIXEL_LAYOUT_I400] = { AV_PIX_FMT_GRAY8, AV_PIX_FMT_GRAY10,
+  AV_PIX_FMT_GRAY12 },`. Gecko's mapping has no grey case: `FFmpegVideoDecoder.cpp` `GetColorDepth` ends in
+  `default:` / `MOZ_ASSERT_UNREACHABLE("Not supported format?");` (*corrected 2026-11-10*: this gave the cause as
+  `GRAY8` with no plane geometry, from an earlier trace; the step that raises the error is not traced here).
 * Through dav1d it would be dropped, `dom/media/platforms/agnostic/DAV1DDecoder.cpp`: `if ((*picture).p.layout ==
   DAV1D_PIXEL_LAYOUT_I400) {` / `// Use NS_OK to indicate that this picture should be skipped.`
-* dav1d keeps the depth (`b.mColorDepth = gfx::ColorDepthForBitDepth(aPicture.p.bpc);`), so 12-bit decodes (*derived*,
-  not run).
+* Depth: 12-bit decodes, *derived*, not run ([`browser.md`](../decode/browser.md) §Gecko, "Output formats").
 
-**[G4] Everything returns as 8-bit `BGRX`.** `gfx/layers/client/GPUVideoTextureClient.cpp`:
-
-```cpp
-// TODO: We should probably try do better for this.
-// layers::Image doesn't expose a format, so it's hard
-// to figure out in VideoDecoderParent.
-aInfo.format = SurfaceFormat::B8G8R8X8;
-```
-
-`VideoDecoder.cpp` reports that texture's format, and `copyTo` reads it back as RGB. Two bugs track it:
-* [2071132](https://bugzilla.mozilla.org/show_bug.cgi?id=2071132), "VideoFrame.format reports I420 for 10-bit planar
-  frames and BGRA for frames created from a video element". RESOLVED FIXED 2026-10-18; first release *unverified*.
-* [1969762](https://bugzilla.mozilla.org/show_bug.cgi?id=1969762), "VideoFrame.format reports BGRX for
-  remote-decoded frames and copyTo cannot return YUV planes (Chrome returns I420)". ASSIGNED.
-
-Main's `dom/media/ImagePixelFormat.cpp` now names `I420P10` … `I444P12` but keeps `case ImageFormat::GPU_VIDEO:` /
-`// This process only reads a remote image back as RGB.` / `return Some(ImagePixelFormat::BGRX);`. Until 1969762
-lands, no WebCodecs frame over 8 bits is exact in Firefox.
+**[G4] Frame formats.** Every frame came back as 8-bit `BGRX` on 157 (measured). Bug 2071132 is fixed in 160: from then
+a frame returned as CPU planes reports `I420P10`/`I420P12`, while a texture stays `BGRX` (bug 1969762, open); which path
+a decode takes is not established ([`browser.md`](../decode/browser.md) §Gecko, "Output formats"). (*Corrected
+2026-11-10*: this said that no WebCodecs frame over 8 bits is exact in Firefox until bug 1969762 lands; from 160 that
+holds for the texture path only.)
 
 **[G5] Hardware.**
 * **macOS**, `dom/media/platforms/apple/AppleDecoderModule.cpp`: `// HW AV1 decoder only supports 8 or 10 bit color.`,
   `// HW AV1 decoder doesn't support RGB`, `return profile == 0;`.
 * **Windows**, `WMFVideoMFTManager.cpp`: "Use VP8/VP9/AV1 MFT only if HW acceleration". The outputs are
-  `MFVideoFormat_YV12`, `MFVideoFormat_P010` and `MFVideoFormat_P016`, and `SupportsColorDepth` returns `true`.
+  `MFVideoFormat_YV12`, `MFVideoFormat_P010` and `MFVideoFormat_P016`. `WMFDecoderModule.cpp` (L326–330)
+  `SupportsColorDepth` returns `true`.
 * **Linux VA-API**, `FFmpegVideoDecoder.cpp`: `AV_PIX_FMT_NV12` … `AV_PIX_FMT_P016`, all 4:2:0.
 
 ## Where `isConfigSupported` and decode disagree
@@ -341,8 +315,8 @@ Sourced, not inferred from a run, except where the measurement is named:
   isConfigSupported returns false in windows opened from another page", NEW. `setHasAV1HardwareDecoder` flips the
   setting on `Page::forEachPage` (*derived*; a page made later is not shown to receive it).
 * **Firefox, monochrome.** Supported (the string passes, [G2]); decode refused (measured on 157, [G3]).
-* **Firefox, depth.** Supported and decoded, but the frame is 8-bit `BGRX` ([G4]): the support answer says nothing of
-  exactness.
+* **Firefox, depth.** Supported and decoded, but the frame came back 8-bit `BGRX` on 157 ([G4], measured): the support
+  answer says nothing of exactness.
 
 The measurement's conclusion stands on the sources: a client learns what decodes exactly by decoding a known frame, not
 by asking ([`../decode/README.md`](../decode/README.md) §AV1 in WebKit and Firefox).
@@ -353,7 +327,7 @@ by asking ([`../decode/README.md`](../decode/README.md) §AV1 in WebKit and Fire
 * Whole, it is a Professional stream (`av01.2.…12.1.110`). No engine's WebCodecs takes it:
   * Chromium refuses it at the key-frame check, [C4].
   * WebKit refuses `av01.2`, [W1].
-  * Firefox would decode it but return 8 bits, [G4], and refuses monochrome anyway, [G3].
+  * Firefox refuses monochrome, [G3].
 * So dav1d-WASM stays the only exact decoder for the whole stream, as the lab has it.
 * The split's top 10 bits through WebCodecs are a Main 4:0:0 stream (`av01.0.…10.1.110`):
   * Chromium decodes that exactly as `I420P10`, measured.
@@ -370,8 +344,8 @@ by asking ([`../decode/README.md`](../decode/README.md) §AV1 in WebKit and Fire
   * Chromium's dav1d decodes it, `I444P10`, measured exact. No Chromium hardware path takes 4:4:4 except D3D with a
     Profile 1 GUID, [C5].
   * Safari refuses `av01.1`, [W1], and VideoToolbox outputs 4:2:0, [W3].
-  * Firefox returns 8 bits of it, [G4].
-* So exact 10-bit RGB through WebCodecs is Chromium and its software decoder only, and needs `prefer-software` or the
-  default to land on dav1d.
+  * Firefox returned 8 bits of it on 157; its CPU-plane path from 160 is not run, [G4].
+* So exact 10-bit RGB through WebCodecs is shown only in Chromium's software decoder, and needs `prefer-software` or
+  the default to land on dav1d ([`browser.md`](../decode/browser.md) §Chromium).
 * Coding RGB as Main 4:2:0 would put it in Safari's and the hardware paths, but 4:2:0 subsamples chroma. It is not
   lossless RGB and is outside this project's lossless contract (*derived*).
