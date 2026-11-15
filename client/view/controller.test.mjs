@@ -580,7 +580,7 @@ let failed = 0;
 test("the label runs every state through a failed ask, its retry and the way back", async () => {
   const asks = [Promise.reject(new Error("session closed")), Promise.resolve(exactFrame(2))];
   asks[0].catch(() => {});
-  const r = lossyRig(() => asks.shift(), { exactRetryMs: null });
+  const r = lossyRig(() => asks.shift());
   await r.c.show(2);
   await r.c.showExact();
   const reason = r.events.findLast(([t]) => t === "failed")?.[1];

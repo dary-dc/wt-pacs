@@ -3,8 +3,8 @@ import { FrameStore } from "./store.js";
 import { CUT_DEPTH, depthCut } from "../viewer/pair.js";
 
 const at = () => performance.timeOrigin + performance.now();
-/** ms before each new ask of an exact frame the transport lost; a frame that failed its check is not asked again. docs/reviews/lossless-under-loss.md */
-const EXACT_RETRY_MS = [1000, 4000, 16000];
+/** ms before the one re-ask of a lost exact ask; a refusal or a failed check is never asked again. docs/reviews/lossless-under-loss.md */
+const EXACT_RETRY_MS = 1000;
 export const FIT = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false };
 
 export const asPainted = (info) => ({ pixels: info.pixels, width: info.width, height: info.height, bits: info.bits, components: info.components, signed: info.signed, cut: info.cut });
@@ -198,18 +198,18 @@ export class Controller {
     if (!this.exactSource || (this.#exact?.i === i && !this.#exact.failed)) return;
     const e = (this.#exact = { i });
     this.repaint();
-    for (let tries = 0; ; tries++) {
+    for (let retry = true; ; retry = false) {
       try {
         const { info } = await this.#askExact(i);
         if (info.exact === true) e.frame = { info, arrived: at() };
         else e.failed = info.exact === false ? `not exact: ${info.reason}` : "the exact series has no digest for this frame";
         break;
       } catch (err) {
-        if (tries === this.#exactRetryMs.length) {
+        if (!retry || err.name !== "AskLostError") {
           e.failed = err.message;
           break;
         }
-        await new Promise((r) => setTimeout(r, this.#exactRetryMs[tries]));
+        await new Promise((r) => setTimeout(r, this.#exactRetryMs));
         if (this.#exact !== e) return;
       }
     }
