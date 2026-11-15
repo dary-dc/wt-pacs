@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-REPO_DIRS = ("client/", "common/", "deploy/", "docs/", "fixtures/", "ingest/", "lab/", "patched/", "patches/", "scripts/", "server/", "tools/")
+REPO_DIRS = ("carrier/", "client/", "common/", "deploy/", "docs/", "fixtures/", "ingest/", "lab/", "patched/", "patches/", "scripts/", "server/", "tools/")
 LINK = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 HREF = re.compile(r'href="([^"]+)"')
 HEADING = re.compile(r"^#{1,6}\s+(.*?)\s*#*\s*$")

@@ -17,6 +17,9 @@ export class FakeWebSocket {
   /** ms before the next dials open: a slower path, for racing it against the other. */
   static openAfterMs = 0;
   static all: FakeWebSocket[] = [];
+  /** Set, the next dial opens and is closed with it, as the server refuses a series: 4000 + the code. */
+  static refuseNext: { closeCode: number; reason: string } | null = null;
+  private refusal = FakeWebSocket.refuseNext;
   binaryType = "blob";
   readyState = 0;
   readonly sent: string[] = [];
@@ -27,6 +30,7 @@ export class FakeWebSocket {
   onerror: Handler<Event> = null;
 
   constructor(readonly url: string) {
+    FakeWebSocket.refuseNext = null;
     const refuse = FakeWebSocket.failNext > 0;
     if (refuse) FakeWebSocket.failNext -= 1;
     const hang = !refuse && FakeWebSocket.hangNext > 0;
@@ -42,6 +46,8 @@ export class FakeWebSocket {
     if (this.readyState !== 0) return;
     this.readyState = 1;
     this.onopen?.(new Event("open"));
+    const refusal = this.refusal;
+    if (refusal) setTimeout(() => this.serverClose(4000 + refusal.closeCode, refusal.reason), 0);
   }
 
   private ended(code: number, reason: string) {

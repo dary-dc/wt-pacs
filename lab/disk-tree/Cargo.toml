@@ -1,0 +1,13 @@
+[package]
+name = "disk-tree"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Where a study sits under the PACS's root: docs/adr/pacs-disk-layout.md §5"
+
+# Outside the repo's workspace and the gate's build: run by run.sh as root, on loop-mounted filesystems.
+[workspace]
+
+[dependencies]
+libc = "0.2"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }

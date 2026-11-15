@@ -69,6 +69,8 @@ export type SessionRig = Rig & {
   dial(certHash: string, options: ConnectOptions): Promise<ConformantSession>;
   /** The next dial's `ready` never settles. */
   hangNextDial(): void;
+  /** The next dial is accepted, then closed with the refusal `code` and `reason` of docs/WIRE.md §Refusing a series. */
+  refuseNextDial(code: number, reason: string): void;
   dialUrl(): string;
   /** The options the latest dial gave `new WebTransport`. */
   dialOptions(): { serverCertificateHashes?: unknown[] } | undefined;
@@ -625,6 +627,24 @@ async function mediaReadsCountsTheMediaReads(rig: SessionRig, check: Check) {
   s.close();
 }
 
+/** **A refused series is named by its code and reason**, whichever carrier refused it and
+ *  whether the dial or the first ask is what fails: a page tells "not found" from "busy" by them. */
+async function aRefusedSeriesIsNamedByItsCode(rig: SessionRig, check: Check) {
+  for (const [code, reason] of [[2, "series not found"], [5, "server busy"]] as const) {
+    rig.refuseNextDial(code, reason);
+    let said = "";
+    try {
+      const s = await rig.open();
+      await s.requestExactFrame(0).catch((e) => void (said = String(e?.message ?? e)));
+      s.close();
+    } catch (e) {
+      // The WASM client rejects with a string, the TypeScript one with an Error.
+      said = String((e as Error)?.message ?? e);
+    }
+    check(said.includes(`(code ${code}): ${reason}`), `${rig.name}: a refusal with code ${code} is named by it (${said})`);
+  }
+}
+
 /** The surface a session's own `connect` and reader offer, which the downloader's rig cannot reach. */
 export async function runSessionClauses(rig: SessionRig, check: Check): Promise<void> {
   await runEach(rig, check, [
@@ -635,6 +655,7 @@ export async function runSessionClauses(rig: SessionRig, check: Check): Promise<
     anOpeningFillRidesTheUrl,
     anEmptyHashDialsUnpinned,
     mediaReadsCountsTheMediaReads,
+    aRefusedSeriesIsNamedByItsCode,
   ]);
 }
 

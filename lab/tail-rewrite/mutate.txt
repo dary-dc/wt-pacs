@@ -1,0 +1,5 @@
+shift: the late frame written one byte past its offset — caught by the merge: Error: read-back of 34838345..35133295 differs from what was written
+header: the header (N) left as the old file's — caught by identical
+no-clone: the clone skipped: the frames before the point left as holes — caught by the merge: Error: read-back of 9280..34838344 differs from what was written
+in-place: the tail written into the published file instead of a clone — caught by identical, old_unchanged
+corrupt: one byte of the staged file changed after it was written — caught by the merge: Error: read-back of 34838344..69785936 differs from what was written

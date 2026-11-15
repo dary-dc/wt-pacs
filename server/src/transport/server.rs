@@ -2,6 +2,7 @@
 //! `docs/adr/reject-server-ordering.md`. Per-frame work is [`pipeline::FramePipeline`].
 
 use crate::media::frame_store::FrameStore;
+use crate::media::series_tree::{SeriesRefusal, SeriesName, SeriesTree};
 use crate::media::read_path::ReadMode;
 use crate::transport::link::{ControlStream, Link, QuicSend, QuicSession};
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
@@ -34,8 +35,12 @@ use crate::transport::pipeline::RecordedPipeline;
 pub struct ServeConfig {
     #[arg(long = "port", value_name = "PORT", default_value = "4433")]
     pub wt_port: u16,
-    #[arg(long = "series", value_name = "SERIES")]
-    pub series_path: PathBuf,
+    /// One series for every session, the URL's path not read; or `--root`.
+    #[arg(long = "series", value_name = "SERIES", required_unless_present = "root", conflicts_with = "root")]
+    pub series_path: Option<PathBuf>,
+    /// Many series, each session's named by its URL, `/<Study>/<Series>`. docs/WIRE.md §Naming the series
+    #[arg(long, value_name = "DIR")]
+    pub root: Option<PathBuf>,
     #[arg(long, default_value = "server/dev-cert/cert.pem")]
     pub cert_pem: PathBuf,
     #[arg(long, default_value = "server/dev-cert/key.pem")]
@@ -82,20 +87,25 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
         None
     };
 
-    let store = FrameStore::open(&config.series_path).context("open series")?;
-    #[cfg(feature = "lab-levers")]
-    let store = config.lab.forcing_misses(store);
-    let store = Arc::new(store);
+    let series = match (&config.series_path, &config.root) {
+        (Some(path), _) => {
+            let store = FrameStore::open(path).context("open series")?;
+            #[cfg(feature = "lab-levers")]
+            let store = config.lab.forcing_misses(store);
+            #[cfg(feature = "telemetry")]
+            crate::record::set_run_meta(crate::record::RunMeta {
+                stream_mode: config.mode.to_string(),
+                series: path.display().to_string(),
+                series_frames: store.frame_count(),
+            });
+            Series::One(Arc::new(store))
+        }
+        (None, Some(root)) => Series::Tree(Arc::new(SeriesTree::new(root.clone()))),
+        (None, None) => anyhow::bail!("--series or --root"),
+    };
 
-    #[cfg(feature = "telemetry")]
-    crate::record::set_run_meta(crate::record::RunMeta {
-        stream_mode: config.mode.to_string(),
-        series: config.series_path.display().to_string(),
-        series_frames: store.frame_count(),
-    });
-
-    banner::print(&config, &store, &bound, &cert_sha256);
-    let sessions = Sessions::new(&config, store);
+    banner::print(&config, &series, &bound, &cert_sha256);
+    let sessions = Sessions::new(&config, series);
     if let Some((listener, tls)) = websocket {
         tokio::spawn(websocket::serve(listener, tls, sessions.clone()));
     }
@@ -123,10 +133,17 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
     Ok(())
 }
 
+/// `--series`: one store for every session. `--root`: the store each session's URL names.
+#[derive(Clone)]
+pub(super) enum Series {
+    One(Arc<FrameStore>),
+    Tree(Arc<SeriesTree>),
+}
+
 /// What every session is served with, fixed at start.
 #[derive(Clone)]
 pub(super) struct Sessions {
-    pub(super) store: Arc<FrameStore>,
+    pub(super) series: Series,
     read_mode: ReadMode,
     advise_tile_names: bool,
     mode: StreamMode,
@@ -143,9 +160,13 @@ pub(super) struct Sessions {
 
 impl Sessions {
     /// Warns for each lab lever that is on, so a lab flag is never mistaken for a deployment.
-    fn new(config: &ServeConfig, store: Arc<FrameStore>) -> Self {
+    fn new(config: &ServeConfig, series: Series) -> Self {
         #[cfg(feature = "lab-levers")]
-        let cwnd_ahead = config.lab.send_window_follows_cwnd.then(|| {
+        let cwnd_ahead = match &series {
+            Series::One(store) if config.lab.send_window_follows_cwnd => Some(store),
+            _ => None,
+        }
+        .map(|store| {
             let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
             2 * u64::from(largest)
         });
@@ -160,7 +181,7 @@ impl Sessions {
                 ReadMode::Auto
             });
         Sessions {
-            store,
+            series,
             read_mode,
             #[cfg(feature = "lab-levers")]
             advise_tile_names: config.lab.advise_tile_names,
@@ -186,8 +207,21 @@ impl Sessions {
         }
     }
 
-    pub(super) fn pipeline(&self, link: Link) -> ProductPipeline {
-        ProductPipeline::new(Arc::clone(&self.store), link, self.read_mode, self.advise_tile_names)
+    pub(super) fn pipeline(&self, store: Arc<FrameStore>, link: Link) -> ProductPipeline {
+        ProductPipeline::new(store, link, self.read_mode, self.advise_tile_names)
+    }
+
+    /// The store a session dialled at `url` (path and query) reads; under `--series` the path is not read.
+    pub(super) async fn store_for(&self, url: &str) -> Result<Arc<FrameStore>, SeriesRefusal> {
+        let tree = match &self.series {
+            Series::One(store) => return Ok(Arc::clone(store)),
+            Series::Tree(tree) => Arc::clone(tree),
+        };
+        let path = url.split('?').next().unwrap_or_default();
+        let name = SeriesName::parse(path).ok_or(SeriesRefusal::BadName)?;
+        let digest = query(url, "digest").map(str::to_owned);
+        let found = tokio::task::spawn_blocking(move || tree.find(&name, digest.as_deref())).await;
+        found.unwrap_or(Err(SeriesRefusal::Busy))
     }
 
     /// One session, whatever carries it: `opening` first, then each ask `read` forwards, until
@@ -292,13 +326,20 @@ async fn handle_incoming(incoming: quinn::Incoming, sessions: Sessions) -> Resul
         return ended(&connection, result);
     }
     let session_request = IncomingSessionFuture::with_quic_connecting(connecting).await.context("incoming session")?;
-    // Read before accepting: the whole point of an opening ask is to serve behind the accept
-    // rather than behind the client's control stream. `docs/ARCHITECTURE.md`.
-    let opening = sessions
-        .opening_ask
-        .then(|| parse_opening_ask(session_request.path(), sessions.store.frame_count()))
-        .flatten();
+    let url = session_request.path().to_owned();
+    let found = sessions.store_for(&url).await;
     let connection = session_request.accept().await.context("accept session")?;
+    let store = match found {
+        Ok(store) => store,
+        Err(refusal) => {
+            log_series_refusal(refusal, &url);
+            connection.close(VarInt::from_u32(refusal.code()), refusal.reason().as_bytes());
+            return Ok(());
+        }
+    };
+    // Read before the first frame: the whole point of an opening ask is to serve behind the accept
+    // rather than behind the client's control stream. `docs/ARCHITECTURE.md`.
+    let opening = sessions.opening_ask.then(|| parse_opening_ask(&url, store.frame_count())).flatten();
 
     #[cfg(feature = "telemetry")]
     tokio::spawn(crate::record::path::run(connection.quic_connection().clone()));
@@ -316,13 +357,13 @@ async fn handle_incoming(incoming: quinn::Incoming, sessions: Sessions) -> Resul
                     ctl_tx.send(QuicSend::WebTransport(send)).ok();
                     while read_asks(&mut recv, &tx).await.is_continue() {}
                 };
-                sessions.serve(sessions.pipeline(link), Some(ask), read).await
+                sessions.serve(sessions.pipeline(store, link), Some(ask), read).await
             }
             None => {
                 let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
                 let link = link(ControlStream::Open(QuicSend::WebTransport(send))).await?;
                 let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_continue() {} };
-                sessions.serve(sessions.pipeline(link), None, read).await
+                sessions.serve(sessions.pipeline(store, link), None, read).await
             }
         }
     }
@@ -331,13 +372,22 @@ async fn handle_incoming(incoming: quinn::Incoming, sessions: Sessions) -> Resul
 }
 
 /// No opening ask: the first FoD message rides the client's first flight. `docs/WIRE.md` §The raw QUIC mapping.
+/// A raw session names no series, so under `--root` it is refused as a bad series name.
 async fn serve_raw(connection: &quinn::Connection, sessions: &Sessions) -> Result<()> {
+    let store = match sessions.store_for("").await {
+        Ok(store) => store,
+        Err(refusal) => {
+            log_series_refusal(refusal, "");
+            connection.close(quinn::VarInt::from_u32(refusal.code()), refusal.reason().as_bytes());
+            return Ok(());
+        }
+    };
     let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
     let session = QuicSession::Raw(connection.clone());
     let control = ControlStream::Open(QuicSend::Raw(send));
     let link = Link::quic(sessions.mode, session, control, sessions.stall, sessions.cwnd_ahead, sessions.ask_stream).await?;
     let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_continue() {} };
-    sessions.serve(sessions.pipeline(link), None, read).await
+    sessions.serve(sessions.pipeline(store, link), None, read).await
 }
 
 /// However a session ended, its path is reported and a goodbye is not an error.
@@ -349,6 +399,16 @@ fn ended(connection: &quinn::Connection, result: Result<()>) -> Result<()> {
             Ok(())
         }
         result => result,
+    }
+}
+
+/// A client's mistake at INFO, the operator's at WARN.
+pub(super) fn log_series_refusal(refusal: SeriesRefusal, url: &str) {
+    let (code, reason) = (refusal.code(), refusal.reason());
+    if refusal.is_the_servers() {
+        warn!(code, url, "session refused: {reason}");
+    } else {
+        info!(code, url, "session refused: {reason}");
     }
 }
 
@@ -371,12 +431,7 @@ fn closed_by_peer(connection: &quinn::Connection, err: &anyhow::Error) -> bool {
 /// `?ask=frame:N` or `?ask=fill:A-B`. `None` for absent, malformed, or out of range — the
 /// session then proceeds as without it.
 pub(super) fn parse_opening_ask(path: &str, frames: u32) -> Option<Command> {
-    let value = path
-        .split_once('?')?
-        .1
-        .split('&')
-        .find_map(|f| f.strip_prefix("ask="))?;
-    match value.split_once(':')? {
+    match query(path, "ask")?.split_once(':')? {
         ("frame", n) => {
             let frame = n.parse().ok()?;
             frame_in_range(frame, frames).ok()?;
@@ -390,6 +445,11 @@ pub(super) fn parse_opening_ask(path: &str, frames: u32) -> Option<Command> {
         }
         _ => None,
     }
+}
+
+/// The first `key=` of the URL's query, as sent: a value is never unescaped.
+fn query<'a>(url: &'a str, key: &str) -> Option<&'a str> {
+    url.split_once('?')?.1.split('&').find_map(|f| f.strip_prefix(key)?.strip_prefix('='))
 }
 
 /// Once per session, so a deployment can see the MTU, loss and RTT it actually got.
@@ -473,6 +533,7 @@ mod tests {
     use wtransport::endpoint::endpoint_side;
     use wtransport::stream::{RecvStream, SendStream};
     use wtransport::{ClientConfig, Endpoint, ServerConfig};
+    use tokio_tungstenite::tungstenite;
 
     /// The server with no stop, for every test but the stop's own.
     fn run_server(config: ServeConfig) -> impl Future<Output = Result<()>> {
@@ -508,7 +569,8 @@ mod tests {
         fn config(&self) -> ServeConfig {
             ServeConfig {
                 wt_port: self.port,
-                series_path: self.series.clone(),
+                series_path: Some(self.series.clone()),
+                root: None,
                 cert_pem: self.cert_pem.clone(),
                 key_pem: self.key_pem.clone(),
                 mode: StreamMode::Shared,
@@ -521,6 +583,29 @@ mod tests {
             }
         }
     }
+
+    impl Fixture {
+        /// The series copied to `<root>/TOMG/TOMG.sbnd` and garbage at `<root>/TOMG/BAD0.sbnd`; the root.
+        fn root(&self) -> PathBuf {
+            let study = self.dir.join("root/TOMG");
+            std::fs::create_dir_all(&study).expect("study dir");
+            std::fs::copy(&self.series, study.join("TOMG.sbnd")).expect("publish");
+            std::fs::write(study.join("BAD0.sbnd"), [b'x'; 4096]).expect("garbage");
+            self.dir.join("root")
+        }
+
+        fn rooted(&self) -> ServeConfig {
+            ServeConfig { series_path: None, root: Some(self.root()), opening_ask: true, ..self.config() }
+        }
+    }
+
+    /// Each refusal under `--root`, as `(URL path and query, code, reason)`: docs/WIRE.md §Refusing a series.
+    const REFUSED: [(&str, u32, &str); 4] = [
+        ("TOMG/1.2.3", 1, "bad series name"),
+        ("TOMG/TOMH", 2, "series not found"),
+        ("TOMG/TOMG?digest=00", 3, "series changed"),
+        ("TOMG/BAD0", 4, "series unreadable"),
+    ];
 
     impl Drop for Fixture {
         fn drop(&mut self) {
@@ -680,7 +765,7 @@ mod tests {
     /// Shared streams, no opening ask, nothing recorded.
     fn plain_sessions(series: &Path) -> Sessions {
         Sessions {
-            store: Arc::new(FrameStore::open(series).expect("open store")),
+            series: Series::One(Arc::new(FrameStore::open(series).expect("open store"))),
             read_mode: ReadMode::Auto,
             advise_tile_names: false,
             mode: StreamMode::Shared,
@@ -805,6 +890,32 @@ mod tests {
         connection.close(0u32.into(), b"gone");
         let ended = tokio::time::timeout(Duration::from_secs(10), server).await.expect("never ended").expect("task");
         assert!(ended.is_ok(), "a close before the control stream ended the raw session as {ended:?}");
+    }
+
+    /// **Under `--root` a raw QUIC session, which names no series, is closed as a bad series name**,
+    /// with the code and reason a WebTransport session gets for one.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn under_root_a_raw_session_is_refused_as_a_bad_series_name() {
+        use wtransport::tls::client::{build_default_tls_config, ServerHashVerification};
+        let fx = Fixture::new(1);
+        let server = tokio::spawn(run_server(fx.rooted()));
+        against(server, async {
+            let pin = ServerHashVerification::new([wtransport::tls::Sha256Digest::new(fx.cert_hash)]);
+            let mut tls = build_default_tls_config(Arc::new(rustls::RootCertStore::empty()), Some(Arc::new(pin)));
+            tls.alpn_protocols = vec![NATIVE_ALPN.to_vec()];
+            let quic = quinn::ClientConfig::new(Arc::new(quinn::crypto::rustls::QuicClientConfig::try_from(tls).expect("tls")));
+            let client = quinn::Endpoint::client("127.0.0.1:0".parse().unwrap()).expect("client");
+            let server_addr = SocketAddr::from(([127, 0, 0, 1], fx.port));
+            let connection = client.connect_with(quic, server_addr, "localhost").expect("dial").await.expect("raw QUIC");
+            let closed = tokio::time::timeout(Duration::from_secs(5), connection.closed()).await.expect("never closed");
+            let (code, reason) = (REFUSED[0].1, REFUSED[0].2);
+            assert!(
+                matches!(&closed, quinn::ConnectionError::ApplicationClosed(close)
+                    if close.error_code == quinn::VarInt::from_u32(code) && &close.reason[..] == reason.as_bytes()),
+                "the raw client saw {closed:?}"
+            );
+        })
+        .await;
     }
 
     /// A WebSocket client's Close is a goodbye too. `docs/WIRE.md` §The WebSocket mapping.
@@ -1143,6 +1254,71 @@ mod tests {
         server.join().expect("server thread").expect("server");
     }
 
+    /// **Under `--root` a session is served the series its URL names, or accepted and closed with
+    /// the refusal's code and reason**, which a page can read and an HTTP status is not.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn under_root_a_session_gets_its_named_series_or_a_close_saying_why() {
+        let fx = Fixture::new(2);
+        let server = tokio::spawn(run_server(fx.rooted()));
+        against(server, async {
+            dial(fx.port, fx.cert_hash, "TOMG/TOMG").await;
+            for (url, code, reason) in REFUSED {
+                let endpoint = client(pinned(fx.cert_hash));
+                let dialled = endpoint.connect(format!("https://127.0.0.1:{}/{url}", fx.port));
+                let closed = match tokio::time::timeout(Duration::from_secs(5), dialled).await.expect("no answer") {
+                    Ok(connection) => tokio::time::timeout(Duration::from_secs(5), connection.closed()).await.expect("never closed"),
+                    Err(wtransport::error::ConnectingError::ConnectionError(closed)) => closed,
+                    Err(err) => panic!("{url}: the dial failed with {err:?}"),
+                };
+                assert!(
+                    matches!(&closed, wtransport::error::ConnectionError::ApplicationClosed(close)
+                        if close.code() == VarInt::from_u32(code) && close.reason() == reason.as_bytes()),
+                    "{url}: the client saw {closed:?}"
+                );
+            }
+            let connection = dial(fx.port, fx.cert_hash, "TOMG/TOMG?ask=fill:1-1").await;
+            let mut media = connection.accept_uni().await.expect("media");
+            let (idx, body) = tokio::time::timeout(Duration::from_secs(5), read_envelope(&mut media)).await.expect("no frame");
+            assert_eq!((idx, body), (1, pattern(1)), "the named series was not the one served");
+        })
+        .await;
+    }
+
+    /// The same refusals over a WebSocket: a Close with 4000 + the code, and the reason.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn under_root_a_websocket_refusal_is_a_close_with_its_code() {
+        use futures_util::StreamExt;
+        let fx = Fixture::new(2);
+        let server = tokio::spawn(run_server(ServeConfig { websocket: true, ..fx.rooted() }));
+        against(server, async {
+            for (url, code, reason) in REFUSED {
+                let mut ws = ws_dial(fx.port, &fx.cert_pem, url).await;
+                let close = match tokio::time::timeout(Duration::from_secs(5), ws.next()).await.expect("never closed") {
+                    Some(Ok(tungstenite::Message::Close(Some(close)))) => close,
+                    other => panic!("{url}: {other:?}, not a Close"),
+                };
+                assert_eq!((u16::from(close.code), close.reason.as_str()), (4000 + code as u16, reason), "{url}");
+            }
+        })
+        .await;
+    }
+
+    /// **No name outside `<root>` is opened.** Every URL the grammar refuses is refused before
+    /// the tree opens anything, though `<root>/../x.sbnd` is there to be served.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_refused_name_opens_nothing() {
+        let fx = Fixture::new(1);
+        let root = fx.root();
+        std::fs::copy(&fx.series, fx.dir.join("x.sbnd")).expect("a series outside the root");
+        let tree = Arc::new(SeriesTree::new(root));
+        let sessions = Sessions { series: Series::Tree(Arc::clone(&tree)), ..plain_sessions(&fx.series) };
+        for url in ["/../x", "/TOMG/../../x", "/TOMG/%2e%2e%2fx", "/TOMG/1.2.3", "/TOMG/TO/MG", "/..", "/x"] {
+            assert_eq!(sessions.store_for(url).await.err(), Some(SeriesRefusal::BadName), "{url}");
+        }
+        assert_eq!(tree.opens(), 0, "a refused name reached the disk");
+        assert!(sessions.store_for("/TOMG/TOMG").await.is_ok());
+    }
+
     /// The wait for the server's port has a deadline: on a port nobody binds it panics, it does not spin.
     #[tokio::test]
     async fn the_wait_for_a_port_fails_rather_than_hangs() {
@@ -1360,7 +1536,7 @@ mod tests {
         let fx = Fixture::new(4);
         let (tx, rows) = std::sync::mpsc::sync_channel(64);
         let sessions = Sessions {
-            store: Arc::new(FrameStore::open(&fx.series).expect("open store")),
+            series: Series::One(Arc::new(FrameStore::open(&fx.series).expect("open store"))),
             read_mode: ReadMode::Auto,
             advise_tile_names: false,
             mode: StreamMode::Shared,

@@ -80,6 +80,17 @@ mod tests {
         assert_eq!(parse(&["--congestion", "cubic-classify"]).tuning.congestion, Congestion::CubicClassify);
     }
 
+    /// A server serves `--series` or `--root`, never both and never neither; `--root` takes no
+    /// flag that sizes itself to one series.
+    #[test]
+    fn root_and_series_are_exclusive_and_one_is_required() {
+        let args = |flags: &[&str]| Args::try_parse_from([&["series-server"], flags].concat());
+        assert_eq!(args(&["--root", "r"]).expect("parses").serve.root.as_deref(), Some(std::path::Path::new("r")));
+        assert!(args(&["--series", "s.sbnd", "--root", "r"]).is_err(), "both parsed");
+        assert!(args(&[]).is_err(), "neither parsed");
+        assert!(args(&["--root", "r", "--send-window-follows-cwnd"]).is_err(), "a per-series flag parsed under --root");
+    }
+
     /// The opening ask is on unless turned off, and the bare flag the lab scripts pass still parses.
     #[test]
     fn the_opening_ask_is_on_by_default_with_a_way_off() {

@@ -4,6 +4,10 @@
 # Rust / Python / Node
 /target/
 lab/other-clients/h3/target/
+lab/study-index/target/
+lab/study-index/results/latency.jsonl
+lab/metadata-store/update-link/target/
+lab/disk-tree/target/
 
 # Generated Quinn modules (crates.io 0.11.11 + patches/quinn-0.11.11-mtu-gso.patch).
 /patched/quinn/src/**
@@ -81,3 +85,8 @@ lab/.perf-nightly-*/
 # scripts/demo-series.sh output
 /demo-series/
 lab/containers/out/
+lab/sqlite-engine/target/
+# The late-frame cells: frames, containers and rows (lab/late-frame)
+lab/.late-frame-work/
+lab/late-frame/sbnd-late/target/
+lab/tail-rewrite/merge/target/

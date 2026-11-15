@@ -9,7 +9,7 @@ use wtransport::quinn;
 #[derive(clap::Args, Clone, Debug, PartialEq)]
 pub struct LabLevers {
     /// Lab only: serve every frame as a miss, for measuring a series nobody has read. docs/adr/disk-access.md
-    #[arg(long, default_value_t = false)]
+    #[arg(long, default_value_t = false, conflicts_with = "root")]
     pub force_pool_reads: bool,
     /// Lab only: take each CONNECT and never answer it. docs/ARCHITECTURE.md §A dial that never settles
     #[arg(long, default_value_t = false)]
@@ -23,7 +23,7 @@ pub struct LabLevers {
     pub segmentation_offload: bool,
     /// Lab only: before each frame, the send window is the congestion window plus two of the series' largest frames.
     /// docs/transport/link-conditions.md §ASKAHEAD
-    #[arg(long, default_value_t = false)]
+    #[arg(long, default_value_t = false, conflicts_with = "root")]
     pub send_window_follows_cwnd: bool,
     /// Lab only: answer a client's repeated Initial with the unacknowledged handshake flight,
     /// once a connection. docs/transport/transport-conclusions.md §3, Answering a repeated Initial.

@@ -1,0 +1,8 @@
+[package]
+name = "from-disk"
+version = "0.1.0"
+edition = "2021"
+description = "Reads that reach the device, not the page cache: the receiver's read-backs and the verify tool's checks"
+
+[dependencies]
+libc = "0.2"

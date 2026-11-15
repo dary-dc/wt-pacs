@@ -1,0 +1,31 @@
+{"p":"host","fs":"ext4","features":"has_journal ext_attr resize_inode dir_index filetype needs_recovery extent 64bit flex_bg sparse_super large_file huge_file dir_nlink extra_isize metadata_csum","mkfs":"mke2fs 1.47.0 (5-Feb-2023)","kernel":"6.18.44-fc-v153","cpus":4,"mem_gb":15,"disk":"loop --direct-io=on over a file on /dev/vda:ext4"}
+{"p":"ceiling","entries":1000000,"ns_per_entry":23243}
+{"p":"ceiling","entries":2000000,"ns_per_entry":35819}
+{"p":"ceiling","entries":3000000,"ns_per_entry":41428}
+{"p":"ceiling","entries":4000000,"ns_per_entry":45368}
+{"p":"ceiling","entries":5000000,"ns_per_entry":53020}
+{"p":"ceiling","entries":6000000,"ns_per_entry":59119}
+{"p":"ceiling","entries":7000000,"ns_per_entry":62419}
+{"p":"ceiling","kind":"link","name_len":44,"entries":7667255,"stopped":"ENOSPC","s":364}
+{"p":"host","fs":"ext4","features":"has_journal ext_attr resize_inode dir_index filetype needs_recovery extent 64bit flex_bg sparse_super large_file huge_file dir_nlink extra_isize metadata_csum","mkfs":"mke2fs 1.47.0 (5-Feb-2023)","kernel":"6.18.44-fc-v153","cpus":4,"mem_gb":15,"disk":"loop --direct-io=on over a file on /dev/vda:ext4"}
+{"p":"ceiling","entries":1000000,"ns_per_entry":41971}
+{"p":"ceiling","entries":2000000,"ns_per_entry":53649}
+{"p":"ceiling","entries":3000000,"ns_per_entry":64059}
+{"p":"ceiling","entries":4000000,"ns_per_entry":70693}
+{"p":"ceiling","entries":5000000,"ns_per_entry":74016}
+{"p":"ceiling","entries":6000000,"ns_per_entry":80244}
+{"p":"ceiling","entries":7000000,"ns_per_entry":86496}
+{"p":"ceiling","entries":8000000,"ns_per_entry":90904}
+{"p":"ceiling","entries":9000000,"ns_per_entry":90521}
+{"p":"ceiling","kind":"link","name_len":30,"entries":9950066,"stopped":"ENOSPC","s":744}
+{"p":"ceiling","kind":"dir","name_len":44,"entries":64998,"stopped":"Too many links (os error 31)","s":7}
+{"p":"host","fs":"ext4","features":"has_journal ext_attr resize_inode dir_index filetype needs_recovery extent 64bit flex_bg large_dir sparse_super large_file huge_file dir_nlink extra_isize metadata_csum","mkfs":"mke2fs 1.47.0 (5-Feb-2023)","kernel":"6.18.44-fc-v153","cpus":4,"mem_gb":15,"disk":"loop --direct-io=on over a file on /dev/vda:ext4"}
+{"p":"ceiling","entries":1000000,"ns_per_entry":21340}
+{"p":"ceiling","entries":2000000,"ns_per_entry":36454}
+{"p":"ceiling","entries":3000000,"ns_per_entry":40979}
+{"p":"ceiling","entries":4000000,"ns_per_entry":46290}
+{"p":"ceiling","entries":5000000,"ns_per_entry":52518}
+{"p":"ceiling","entries":6000000,"ns_per_entry":57914}
+{"p":"ceiling","entries":7000000,"ns_per_entry":63355}
+{"p":"ceiling","entries":8000000,"ns_per_entry":67624}
+{"p":"ceiling","kind":"link","name_len":44,"entries":8500000,"stopped":"limit","s":422}

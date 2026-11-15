@@ -19,6 +19,8 @@ lab/
 !lab/cc-classify/src
 !lab/server-telemetry/Cargo.toml
 !lab/server-telemetry/src
+!lab/metadata-store/Cargo.toml
+!lab/metadata-store/src
 server/dev-cert
 client/dev-transport.json
 client/contract/

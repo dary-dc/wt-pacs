@@ -42,6 +42,7 @@ function check(cond: boolean, what: string) {
 type Fake = Omit<RingFake, "last"> & {
   dials(): number;
   hangNext(): void;
+  refuseNext(closeCode: number, reason: string): void;
   last(): FakeTransport | FakeWebSocket;
 };
 
@@ -49,6 +50,7 @@ const overWebTransport: Fake = {
   install: installFakeTransport,
   dials: () => FakeTransport.dials,
   hangNext: () => void (FakeTransport.hangNext = 1),
+  refuseNext: (closeCode, reason) => void (FakeTransport.refuseNext = { closeCode, reason }),
   last: () => FakeTransport.last,
 };
 
@@ -56,6 +58,7 @@ const overWebSocket: Fake = {
   install: installFakeWebSocket,
   dials: () => FakeWebSocket.dials,
   hangNext: () => void (FakeWebSocket.hangNext = 1),
+  refuseNext: (closeCode, reason) => void (FakeWebSocket.refuseNext = { closeCode, reason }),
   last: () => FakeWebSocket.last,
 };
 
@@ -72,6 +75,7 @@ function nodeRig(impl: Implementation, fake: Fake): SessionRig {
     open: () => dial(CERT, {}),
     dial,
     hangNextDial: fake.hangNext,
+    refuseNextDial: fake.refuseNext,
     dialUrl: () => fake.last().url,
     dialOptions: () => (fake.last() as FakeTransport).options as { serverCertificateHashes?: unknown[] },
     fake: () => ({

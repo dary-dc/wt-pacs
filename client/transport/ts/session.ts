@@ -37,7 +37,10 @@ export class TransportSession extends FrameSession {
     const transport = new WebTransport(fill ? openingAskUrl(wtUrl, fill) : wtUrl, pinned);
     await settleWithin(transport.ready, () => transport.close(), options.dialMs);
 
-    const bi = await transport.createBidirectionalStream();
+    // A series refused at open is closed right behind `ready`: its code, not the stream's error. docs/WIRE.md §Refusing a series
+    const bi = await transport.createBidirectionalStream().catch(async (err) => {
+      throw new Error(await transport.closed.then(closedReasonOf, () => `session closed: ${err?.message ?? String(err)}`));
+    });
     const controlWriter = bi.writable.getWriter();
     const session = new TransportSession(transport, controlWriter, options);
     // The server is already pushing it, so the run is armed and never asked for.

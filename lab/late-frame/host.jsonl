@@ -1,0 +1,6 @@
+{"round": 0, "bytes": 1073741824, "write_cached_s": 4.9452028989999235, "write_fsync_s": 5.790540684999996, "copy_warm_s": 1.8384986669998398}
+{"round": 1, "bytes": 1073741824, "write_cached_s": 0.7829564670000764, "write_fsync_s": 1.8950327239999751, "copy_warm_s": 1.8117877120002959}
+{"round": 2, "bytes": 1073741824, "write_cached_s": 0.82517457799986, "write_fsync_s": 1.741011861000061, "copy_warm_s": 1.1368230759999278}
+{"round": 0, "bytes": 1073741824, "write_cached_s": 5.393051541999739, "write_fsync_s": 6.264346529999784, "copy_warm_s": 2.0064469910003027}
+{"round": 1, "bytes": 1073741824, "write_cached_s": 0.7042572800000926, "write_fsync_s": 1.697332472999733, "copy_warm_s": 1.120661035000012}
+{"round": 2, "bytes": 1073741824, "write_cached_s": 0.7398802559991964, "write_fsync_s": 1.6667413549994308, "copy_warm_s": 0.9084478120003041}

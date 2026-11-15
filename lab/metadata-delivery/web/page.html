@@ -1,0 +1,102 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>metadata delivery</title>
+<canvas id="frame" width="512" height="512"></canvas>
+<script type="module">
+// Times from navigation start; README.md §The arms says what each arm fetches and when it dials.
+const q = new URLSearchParams(location.search);
+const arm = q.get("arm"), study = q.get("study"), series = q.get("series");
+const inSession = arm.startsWith("a2-");
+const t = {};
+
+async function json(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url}: ${r.status}`);
+  return r.json();
+}
+
+async function gunzip(bytes) {
+  return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+}
+
+function metadataFetches() {
+  switch (arm) {
+    case "a1-instances": return [json(`/meta/${study}/${series}?from=instances`)];
+    case "a1-ready": return [json(`/meta/${study}/${series}?from=ready`)];
+    case "b": case "b-again": return [json(`/files/${study}/${series}.json`)];
+    case "c": return [json(`/files/${study}/${series}.paint.json`), json(`/files/${study}/study.json`)];
+    default: throw new Error(`arm ${arm}`);
+  }
+}
+
+class StreamBytes {
+  constructor(stream) { this.reader = stream.getReader(); this.chunks = []; this.have = 0; }
+  async take(n) {
+    while (this.have < n) {
+      const { value, done } = await this.reader.read();
+      if (done) throw new Error("stream ended early");
+      this.chunks.push(value);
+      this.have += value.length;
+    }
+    const all = new Uint8Array(this.have);
+    let at = 0;
+    for (const c of this.chunks) { all.set(c, at); at += c.length; }
+    this.chunks = [all.subarray(n)];
+    this.have -= n;
+    return all.subarray(0, n);
+  }
+  async message() {
+    const len = new DataView((await this.take(4)).slice().buffer).getUint32(0);
+    return this.take(len);
+  }
+}
+
+function paint(samples, meta) {
+  const [, , , , center, width, slope, intercept] = meta.paint.per_frame[0];
+  const { rows, columns } = meta.paint;
+  const img = new ImageData(columns, rows);
+  const low = center - width / 2;
+  for (let i = 0; i < samples.length; i++) {
+    const v = Math.max(0, Math.min(255, ((samples[i] * slope + intercept - low) / width) * 255));
+    img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v;
+    img.data[i * 4 + 3] = 255;
+  }
+  document.getElementById("frame").getContext("2d").putImageData(img, 0, 0);
+}
+
+async function open() {
+  const config = json("/wt/transport.json");
+  const fetched = inSession ? null : Promise.all(metadataFetches()).then((parts) => {
+    t.meta = performance.now();
+    return Object.assign({}, ...parts);
+  });
+  const { url, cert_sha256 } = await config;
+  let meta;
+  let dial = `${url}?study=${study}&series=${series}`;
+  if (inSession) {
+    dial += `&from=${arm.slice(3)}`;
+  } else {
+    meta = await fetched;
+    dial += `&digest=${meta.paint.digest}`;
+  }
+  const hash = Uint8Array.from(cert_sha256.match(/../g), (h) => parseInt(h, 16));
+  const wt = new WebTransport(dial, { serverCertificateHashes: [{ algorithm: "sha-256", value: hash }] });
+  await wt.ready;
+  t.session = performance.now();
+  const { value: stream } = await wt.incomingUnidirectionalStreams.getReader().read();
+  const bytes = new StreamBytes(stream);
+  if (inSession) {
+    meta = JSON.parse(new TextDecoder().decode(await gunzip(await bytes.message())));
+    t.meta = performance.now();
+  }
+  const frame = await bytes.message();
+  t.frame = performance.now();
+  paint(new Uint16Array(await gunzip(frame)), meta);
+  await new Promise((r) => requestAnimationFrame(r));
+  t.paint = performance.now();
+  wt.close();
+  return { ...t, frames: meta.paint.frames, frame_bytes: frame.length };
+}
+
+open().then((r) => { window.result = r; }, (e) => { window.result = { error: String(e) }; });
+</script>

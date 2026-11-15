@@ -1,0 +1,16 @@
+[package]
+name = "tail-merge"
+version = "0.1.0"
+edition = "2021"
+description = "A late frame merged into a layout-0 series by full rewrite or by rewriting the tail of a reflinked clone"
+publish = false
+
+# Outside the repository's workspace, so no build of it builds this.
+[workspace]
+
+[dependencies]
+anyhow = "1"
+libc = "0.2"
+
+[profile.release]
+debug = false
