@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-14T23:15Z
-heartbeat: 2026-11-15T00:20Z
+heartbeat: 2026-11-15T00:30Z
 outputs: claude/depth8 (rows lab/av1/depth8/rows/, results in docs/av1/depth-cut-8.md §9; PR 389)
 ## Resume
 Done: amendment A1–A6 in docs/av1/depth-cut-8.md §7 before any run (bc012920); lab/av1/depth8/measure.py and its
