@@ -55,6 +55,11 @@ exact frame bit for bit, and only checked claims on screen.
   no browser returns their hardware samples above 8 bits either; at 8 bits they are checkable like AV1, and add only
   a likelier decoder and Android's UHD (level 5.1) HEVC-or-VP9 requirement. Owed: three phone asks (its §6), bytes
   unmeasured.
+  The content's rectangle ([`../decode/mobile/content-crop.md`](../decode/mobile/content-crop.md), 2026-11-15, one
+  cloud cell, measured): a lossless rectangle under 0.90 of the frame exists on 3 of the 19 DBT volumes (`dbts_b1`
+  0.50, `dbts_b3` 0.73, `dbts_b2` 0.83; systems A and C already store the breast's box); bytes unchanged
+  (0.997–1.002); decode 0.85 (AV1) and 0.76 (HTJ2K) of whole on `dbts_b1`; no volume changes AV1 level. Owed, one
+  phone ratio on `dbts_b1` (its §8).
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
