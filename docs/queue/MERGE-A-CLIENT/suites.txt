@@ -1,0 +1,28 @@
+      6 all tests passed
+      1 ask-during-fill (downloader): 3/3 checks passed
+      1 ask-during-fill (downloader-wasm): 3/3 checks passed
+      1 ask-during-fill (downloader-ws): 3/3 checks passed
+      1 ask-during-fill (ts): 3/3 checks passed
+      1 ask-during-fill (wasm): 3/3 checks passed
+      1 ask-during-fill (ws): 3/3 checks passed
+      1 beacon: 8/8 passed
+      1 cache: 4/4 passed
+      1 clock: 6/6 passed
+      1 contract over ts: 58/58 checks passed through the downloader
+      1 contract over wasm: 58/58 checks passed through the downloader
+      1 contract: 238/238 checks passed across 3 implementations and the race; 4 not applicable
+      1 controller: 37/37 passed
+      1 dispatch over ts: 789/789 checks passed through the downloader
+      1 dispatch over wasm: 102/102 checks passed through the downloader
+      1 frame-clock arms: 4/4 passed
+      1 frame-clock measure: 13/13 passed
+      1 order: all passed
+      1 provenance: 17/17 cases
+      1 refusals (ts): 64/64 refused with the server's reason, none lost
+      1 refusals (wasm): 64/64 refused with the server's reason, none lost
+      1 refusals (ws): 64/64 refused with the server's reason, none lost
+      1 test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+      1 view worker: 2/2 passed
+      1 view: 11/11 passed
+      1 voi: 15/15 passed
+      1 writer's split and merge: 142/142 cells exact, 20 with a top over 12 bits refused by name, as are 17 bits, k = 9 and a default over 14 bits

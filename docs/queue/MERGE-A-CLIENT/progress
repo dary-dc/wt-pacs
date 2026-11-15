@@ -1,0 +1,33 @@
+18:11:12Z start
+transport-wasm 0
+vendor client/decode/wasm/fetch_openjph.sh 0
+vendor client/decode/wasm/fetch_xxh3.sh 0
+decode-wasm 0
+18:18:15Z ingest-tools 0
+18:18:17Z gate 1 2s
+18:18:19Z gate-no-browser 0 2s
+cargo-build 0 warnings 2
+lab-absent 0
+comment-budget 0
+image-server 1 2s 
+image-web 0 220s 94913173
+counts 0
+18:26:55Z end
+18:27:15Z gate 1 3s
+cargo-build 0 warnings 2
+lab-absent 0
+comment-budget 0
+image-server 1 3s 
+image-web 0 0s 94913173
+counts 0
+18:27:58Z end
+18:33:05Z gate 1 275s
+cargo-build 0 warnings 2
+lab-absent 0
+comment-budget 0
+18:33:07Z end
+18:45:50Z gate 0 710s
+cargo-build 0 warnings 2
+lab-absent 0
+comment-budget 0
+18:45:52Z end
