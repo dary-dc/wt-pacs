@@ -1,9 +1,11 @@
 state: started
 started: 2026-11-15 17:17 UTC
-heartbeat: 2026-11-15 17:19 UTC
+heartbeat: 2026-11-15 17:22 UTC
 outputs: claude/phone-round (from origin/claude/hw-probe af4b6aeb), draft PR into claude/hw-probe (not yet)
 
 ## Resume
+
+Done: 1 (27336c4b), 2 and the hook of 4 (4e15708b) on claude/phone-round. Next: 3, round.py.
 
 Plan (worktree: `git worktree add W origin/claude/phone-round`; build: venv + ingest/requirements.txt, meson 1.9.1,
 `cargo build --release -p series-server -p pack-series`, `ingest/tools.sh`, `client/transport/ts/build.sh`):
