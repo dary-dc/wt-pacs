@@ -6,6 +6,9 @@ samples live. How to run each bench is in its own directory, `lab/decode-bench/R
 this file holds the numbers and the reasons. Every millisecond here is container-measured unless it
 says otherwise — §What these numbers are not.
 
+What the browser itself offers a decoder (the routes, WebCodecs, each engine's support), from official sources
+only: [`browser.md`](browser.md).
+
 ## The decoder
 
 OpenJPH, through the `@cornerstonejs/codec-openjph` WASM build (wrapper MIT, OpenJPH BSD-2-Clause).
@@ -1585,6 +1588,368 @@ against ≤ 0.60, ×0.60 on the synthesized 2D; it is faster than today's pool o
 outside the columns, or precincts in the stored layout, would change (a); neither is measured, and the layout is the
 owner's. Container-measured; what a phone's cores do with three busy workers is not.
 
+## HTJ2K progressive, resolution and quality
+
+*The owner, 2026-11-02:* consider, beside the AV1 line, progressive decoding in HTJ2K as OpenJPH's browser demo
+shows it — one codec, the one every browser already decodes exactly through the client's OpenJPH build, ending
+exact with no second representation. The AV1 candidates it is compared with are the scalable preview
+(`claude/av1-svc-preview`, measured on DBT, [`../av1/README.md`](../av1/README.md) §Preview) and lossy AV1 plus a
+residual (`claude/av1-quality-profiles`, pre-registered). Theory, a prediction and a protocol, **nothing run for
+it**. Sources are [H1]–[H5] at the end; *derived* marks our arithmetic, *unverified* what no source here checks.
+
+**1 · What the demo does: resolution only, from one whole download.** The page fetches the codestream once,
+whole — `request.open("GET", "test.j2c", true)`, `request.responseType = "arraybuffer"` — and only then decodes it
+thirteen times from that buffer, its heading "downloaded once, decoded many ways" [H4]. No range request, no
+partial fetch. Every decode is one OpenJPH call, `restrict_input_resolution(j2c, skip_res_for_data,
+skip_res_for_recon)`, whose two arguments OpenJPH documents as "for how many fine resolutions decoding is skipped,
+i.e., reading and decoding is not performed for this number of fine resolutions" and "for how many fine resolutions
+reconstruction is skipped; the resulting image is smaller than the original" [H3]. Its first row passes (i, i): an
+image 2^−i the size. Its second row, "Image quality improves as more data arrives", passes (i, 0): the same coarse
+resolutions reconstructed at full size, the finer subbands absent (*derived* from the call: no quality layer is
+involved). So the demo's "quality" progression is its resolution progression painted full size. Each call creates a
+decoder, decodes from scratch and releases it (`create_j2c_data` … `release_j2c_data`): nothing is incremental.
+Its codestream (sha256 `fb06942e…`, the same file as OpenJPH's `subprojects/js/html/test.j2c`) is 512² RGB,
+irreversible 9/7 — lossy, 37.13 dB at its end by the page — RPCL, one layer, five levels, 64² blocks, precincts 128²
+at the lowest resolution and 256² above (read from its COD segment here). The byte counts (826 … 32 553) and PSNRs
+under each picture are fixed text in the HTML, not computed by the page; how they were obtained is *unverified*.
+This is §A prefix draws a smaller image, plus the full-size reconstruction, which the package's
+`decodeSubResolution` does not offer and the client's build (`client/decode/wasm/openjph/htj2k_decoder.cpp`)
+binds in neither form.
+
+**2 · What HTJ2K can do.**
+
+* **Resolution scalability is whole.** "Aside from the block-coding algorithm itself and the parsing of packet
+  headers, the HT block-coding algorithm preserves the syntax and semantics of other parts of the codestream" [H1,
+  Summary]. RPCL "might be useful in providing low resolution level versions of all image components at a particular
+  spatial location"; RLCP "in providing low resolution level versions of all image components"; LRCP "when low
+  sample accuracy is most desirable" [H2, B.12.1]. Precincts: "Packets provide another method for extracting a
+  spatial region independently from the codestream" [H2, 5.3]. A prefix is legal: "any number of whole packets (in
+  order) may be dropped and the final packet appearing in the tile may be partially truncated" [H2, B.11]. The
+  paper's use is ours: "storing images in resolution major order and reading from them only the number of bytes
+  available" [H5, §5.2].
+* **Quality scalability is mostly gone.** "This is achieved at the expense of some loss in coding efficiency and
+  substantial elimination of quality scalability" [H1, Summary]; "quality scalability is the only JPEG 2000 feature
+  that is sacrificed by HTJ2K, but it is readily retrievable by reversibly transcoding some or all code-blocks back
+  to the highly embedded J2K1 representation" [H5, §2.1]; "the HT block-coder does not provide an effective
+  mechanism for progressive coding" [H1, 8.6 NOTE 2]. Three mechanisms remain:
+  * **One HT set, split across layers.** A set is a cleanup pass, then optionally SigProp and MagRef [H1, B.1], and
+    "The refinement passes in each HT Set refine selected samples to the next finer bit-plane" [H5, §3]. The packet
+    with a block's first cleanup "shall include only one HT cleanup coding pass" [H1, B.3], so the refinement
+    passes may come a layer later: **two truncation points one bit-plane apart, no more.** SigProp reaches only
+    samples next to significant ones (`if (σn == 0) for each m ∈ Nn mbr = mbr | σm` … `if (mbr != 0) set zn = 1`,
+    [H1, 7.4]), so a coefficient of magnitude 1 with no significant neighbour can be coded only by a cleanup at
+    plane 0; such a block ends exact only with no second layer (*derived*).
+  * **Several HT sets (MULTIHT).** "an encoder can choose to generate and include multiple HT sets for any given
+    code-block … this mechanism can be used to provide representations of a code-block at multiple precisions,
+    which can be selectively extracted from quality layers" [H1, F.1]. But each set's cleanup starts over: "the HT
+    Cleanup pass for each bit-plane redundantly re-encodes the information found in all preceding coding passes"
+    [H5, §2.1]; "The use of multiple non-empty HT sets in a code-block results in redundancy" and "a decoder is not
+    required to decode more than one HT set" [H1, 8.3]. **Every earlier set is extra bytes; the exact frame decodes
+    only the last.**
+  * **MIXED.** "zero or more of the code-blocks within the corresponding tile-component shall be HT code-blocks …
+    and the remaining code-blocks shall conform to Rec. ITU-T T.800 | ISO/IEC 15444-1" [H1, A.4]: Part 1 blocks
+    with EBCOT's quality layers, whose decode measured 6–12× OpenJPH's ([`../codecs/jpeg2000.md`](../codecs/jpeg2000.md)
+    §Decode speed).
+* **What OpenJPH implements** (0.31.0, the version the product builds; the same lines at 0.33.0 [H3]): **resolution
+  progression, encode and decode; quality progression, neither.** The encoder writes any of "LRCP, RLCP, RPCL,
+  PCRL, CPRL" and `-precincts` (`ojph_compress`), but one cleanup pass a block — `assert(num_passes == 1);` in
+  `ojph_encode_codeblock32` — and "There is currently no implementation for rate-control-based encoding"
+  (its status page, [H3]). The decoder refuses layers — "The current implementation supports 1 quality layer only.
+  This codestream has %d quality layers" — and MIXED, since it requires `(SPcod.block_style & 0xB7) == 0x00`, bit 7
+  included. It decodes one HT set's three passes ("1 if CUP only, 2 for CUP+SPP, and 3 for CUP+SPP+MRP"; "We do
+  not support more than 3 coding passes") and folds placeholder passes into the missing MSBs. Another open encoder
+  that writes HT sets or HT quality layers: *unverified*.
+
+**3 · The shapes for the product's content.** Today's profile is reversible 5/3, five levels, 64² blocks, RPCL, one
+layer, no precincts (§The decoder). DBT slices are 10–12-bit grey at ~2:1; the breast ultrasound cine at hand is
+8-bit and lossy-sourced (`usb_cine`, `usb_cine_rgb`), and no ABUS volume is open ([`../FIXTURES.md`](../FIXTURES.md)
+§AV1 data); both are pending the owner's dataset.
+
+| shape | codestream | a prefix is | bytes against today's | decode, a prefix · prefix then exact | in OpenJPH |
+| --- | --- | --- | --- | --- | --- |
+| **ladder** | today's, unchanged | level r: exact at 2^−r size (clamped, §A frame at the level the screen needs), or full size with the finer subbands absent | **1.000**; level 1 25.8–29.0 % (measured, nine series), level 2 7.0–7.5 % (measured, the 3328×4096 mammograms); levels 3–5 ~1–2, 0.3–0.4, 0.2 % (synthetic ~2:1); on cine at 18:1 48, 17, 5.9 % | level 1 ×0.27–0.31, level 2 ×0.08 of the exact frame (measured); from scratch, a ladder 2 → 1 → 0 is ×1.35–1.39 (*derived*); incremental, keeping the unclamped low band, ×1.0–1.05 (*derived*; no decoder here keeps it) | yes, both reconstructions; the client's build binds neither |
+| **one set, two layers** | LRCP; layer 1 each block's cleanup at plane 1 where its plane-0 samples allow it (§2), layer 2 SigProp and MagRef | layer 1: the whole frame, at most one bit-plane short | 1.00–1.03 (*derived*: the same coefficients, raw refinement bits, a second layer of packet headers); layer 1 **0.80–0.93** of it (*derived*: about one bit of 4–8 a coefficient at ~2:1) | layer 1 ×0.85–0.95; from scratch ×1.8–1.95 | no encoder; the decoder refuses two layers |
+| **two sets** | LRCP; layer 1 each block's set at plane p, layer 2 its lossless set | layer 1: the whole frame at plane p | **1 + the first set's share**: 0.4–0.9 % at 37–43 dB and 7–15 % at 44–59 dB with Part 1's coder (measured, [`../codecs/jpeg2000.md`](../codecs/jpeg2000.md)), ×1.04–1.07 in HT (*derived* from Part 1's 4–7 % lead); at a visually lossless proxy on DBT, **25–70 %** (*derived*: a step of 4 under a 650–850-wide window is about one display code, two bit-planes of ~6) | layer 1 ×0.35–0.55 (*derived*: the block decoder is 55–70 % of a frame and scales with its bytes); exact ×1.0 alone, ×1.35–1.55 after layer 1 | no encoder; the decoder refuses layers and second sets |
+| **MIXED** | Part 1 blocks with layers | a quality layer | 0.93–0.96 (Part 1's measured) | exact 6–12× (measured) | refused; **excluded** on decode |
+
+Precincts add a spatial prefix (0.05–0.07 % at 128², measured) that §Region decode, measured found not worth a
+design; they are not a shape here. **A prefix is useful** where the reader's screen needs no more: the ladder's
+level fit is exact at its own scale, which is all a ≤ 1 000-pixel viewport shows of a large slice; full size at 1:1
+needs the last layer or a set near it.
+
+**4 · Prediction** (*derived*; DBT volumes on the total-time rig, 5 and 20 Mbit/s, 1× and 4×; the AV1 numbers are
+the scalable preview's measured section 6, three volumes, n = 1–3 a cell, and §Preview's residual rows).
+
+| metric | HTJ2K ladder | HTJ2K two sets | AV1 scalable preview (measured) | lossy AV1 + residual | refuted by |
+| --- | --- | --- | --- | --- | --- |
+| first picture | level 3: **0.09–0.35 s** | as the ladder (its level 3 is in layer 1) | 69–256 ms | not measured | ladder over 1.8× or under 0.7× AV1's in a cell |
+| every slice pictured, quarter size | level 2: **7.6–13 s** at 5, 1.9–3.2 s at 20 Mbit/s — **7–46×** AV1's at 5, 2–11× at 20 | — | 0.28–1.10 s (bases 0.009–0.17 % of HTJ2K's bytes) | — | ladder under 4× AV1's at 5 Mbit/s |
+| every slice at display scale, exact at its level | level fit at a 1 000-pixel long side: **0.26–0.29** of the exact series on `dbts_b1` and `dbts_c1` (level 1), 0.07 on a 3328×4096 slice (level 2), none on `dbts_a1`, whose 1 785 pixels are the fit already (§A frame at the level the screen needs measured 0.06–0.50 for every frame on screen) | — | bases 35–46 dB, not exact | — | over 0.35 on `dbts_b1` or `dbts_c1` |
+| every slice visually lossless at full size | at exact | **0.25–0.7** of the exact series, 1.5–3× later than lossy AV1 at the same proxy | not reached before exact | lossy stream at about half Part 1's bytes for the same PSNR (fluoroscopy 44 dB: 0.78 % against 1.7 %, measured) | two sets under 0.2 or over 0.8 |
+| exact series, time · bytes | **×0.99–1.04 · 1.000** (a prefix and its rest are the same bytes) | ×1.25–1.70 at the proxy, ×1.004–1.16 at 37–59 dB | 0.989–1.022 of the shipped AV1 payload's | bytes 0.947–1.002 of HTJ2K's (measured) | ladder over 1.04 in any cell |
+| decode a prefix · prefix then exact, 1× / 4× | level 2 ×0.08 (8.2 / 37 ms on 3328×4096, measured), 0.7–3× AV1's base (*derived*, scaled by pixels); ×1.08–1.39 | ×0.35–0.55; ×1.35–1.55 | base 1.7–4.8 / 7.7–22 ms; exact 0.73–1.03× the shipped payload's | 1.31–1.89× HTJ2K (WebCodecs, measured) | ladder level 2 over ×0.12 |
+
+**What HTJ2K is predicted to be:** today's codestream already is a progressive one, by resolution: a first picture
+as soon as AV1's, and every slice of a volume over 2 000 pixels long **exact at the display's scale** at under a
+third of the exact series' time, at 1.000 of the bytes and with no new code but a binding and an order. It
+**cannot** give a cheap full-size lossy picture: its quality progression spans one bit-plane (one set) or pays for every earlier set (two sets), and neither
+OpenJPH nor any open encoder known here writes it. Against AV1's scalable preview it loses ×7–46 on "every slice
+pictured" at equal size on 5 Mbit/s; against lossy AV1 it loses on full-size visually lossless bytes by ×1.5–3.
+
+### HTJ2K progressive protocol, pre-registered
+
+*For a separate session; nothing here has run. Results go under "HTJ2K progressive, measured" below this
+section, the predictions above left as written.*
+
+**Stage 0 · Tools, each check mutated first** (CLAUDE.md §Measurement: break the code, watch the check fail).
+
+* **The ladder** needs no encoder: the served profile as `ingest.py` writes it (OpenJPH 0.31.0), the codestreams'
+  sha256 equal to the ingest's.
+* **One set, two layers and two sets** need a lab writer, a new directory `htj2k-progressive` under `lab/`: the 5/3 lifting of
+  [H2] Annex F; each cleanup at plane p as OpenJPH 0.31.0's `ojph_encode_codeblock32` on magnitudes ≫ p with the
+  missing MSBs raised by p (*derived* equivalence, checked: at p = 0 the writer's block bytes equal `ojph_compress`'s
+  on every block of the fixtures); SigProp and MagRef encoders from [H1] Annex B and §7; packet headers and tag
+  trees from [H2] B.10. If the session cannot build it, the two shapes are answered by §3's derivation and marked
+  so; the ladder runs regardless.
+* **A lab decoder**: the client's wrapper rebuilt as `lab/decode-bench/wasm` builds it, binding
+  `restrict_input_resolution` as (r, r) and (r, 0), and for the layered shapes OpenJPH 0.31.0 patched to accept L
+  layers, carry a block's refinement segment across packets, and keep only its last HT set, its S_blk raised by
+  S_skip ([H1] B.3). `parity.mjs` on the full decode against the delivered build first. An independent witness for
+  every layered codestream: OpenJPEG 2.5.4 if it decodes HT layers and sets (*unverified*; checked first), else the
+  shape's exactness rests on the source digests alone and is reported as single-decoder.
+* **Mutants:** a byte flipped in layer 2 fails the exact check; S_skip dropped changes the layer-1 picture; a ladder
+  prefix one byte short fails the prefix's witness (as `prefix_levels.mjs`).
+
+**Stage 1 · Bytes and quality per prefix, offline, every frame.**
+
+* **Content.** The 15 DBT volumes `dbts_a1`…`dbts_c5`, fetched and checked as `lab/av1/fetch_data.py` does
+  (`lab/av1/fetch_data.sh`); every cine-like set in [`../FIXTURES.md`](../FIXTURES.md): `dbt12_ea1141`,
+  `dbt10_ea1141`, `dbt12_c`, `dbt10_d`, `rf_fluoro`, `mr_ispy1`, `mr9_ispy2` (sound), and `usb_cine`,
+  `usb_cine_rgb`, `us_liver` (**lossy-sourced: a table of their own, in no verdict**); `cine512` as the synthetic
+  control. `dbts_a_max`, `dbts_b_max`, `dbts_c_max`, `ustrus_1`, `ustrus_2` if their pins have reached this base;
+  breast ultrasound cine and ABUS when the owner's dataset is in `data.json` with its class.
+* **Shapes.** The ladder at levels 1–5, each at reduced size and at full size; one set, two layers; two sets with
+  the first at p = 1 … 7, one plane for every subband, and the two operating points named before stage 3 — the
+  smallest p at ≥ 40 dB and the largest p meeting the proxy below.
+* **Per prefix:** its bytes, the smallest prefix whose decode is byte-identical to the whole codestream's at that
+  level or layer (binary search, as `prefix_levels.mjs`), and its share of the frame. Quality against the source at
+  its depth b: PSNR over the series (peak 2^b − 1) and the worst frame; max |Δ|; SSIM, scikit-image's
+  `structural_similarity` with "gaussian_weights to True, sigma to 1.5, use_sample_covariance to False" and
+  `data_range` 2^b − 1, as `lab/av1/profiles` sets it (`1354e428`); PSNR and SSIM over in-window
+  samples; the windowed display error — through every header window as `client/paint/voi.js` paints it, the share of
+  in-window 8-bit codes that differ, that differ by > 1, and max |Δcode|. Each at full size and **at display scale**:
+  the prefix's picture and the exact frame each area-resampled to a 1 000-pixel long side. The half-size prefix's
+  bytes and PSNR on `rf_fluoro` and `us_liver` are §Preview's and are not reported as new.
+* **The visually lossless proxy**, not the owner's threshold: every header window's in-window codes within ±1 of
+  the exact frame's on ≥ 99 % of in-window samples; on the ultrasound, which carries no window, the samples as
+  stored. No prefix is called visually lossless.
+
+**Stage 2 · Decode per prefix and in total, in a browser.** Headless Chromium (version printed), the lab decoder,
+1× and 4× through `lab/scripts/cpu_throttle.mjs`, the first 16 frames of every set. Arms: today's whole frame (A),
+again under another name (A′), and each prefix of each shape alone, each ladder or layer sequence from scratch, and
+the exact frame after it. Every picture checked: a ladder level against the clamped independent level (OpenJPEG
+2.5.4 `-r`, as §A frame at the level the screen needs), every whole frame against its source digest.
+
+**Stage 3 · Delivery.** The total-time rig ([`../../lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md)),
+level-major or layer-major as bases-first lays it out: entry i a frame's prefix, entry F + i **its rest only** —
+the two concatenate to today's codestream, so nothing is sent twice — through a lab decoder worker on the
+downloader's `decoderWorker` seam; server and store unchanged.
+
+* **Series:** `dbts_a1`, `dbts_b1`, `dbts_c1` (the scalable preview's three) and every cine-like set of stage 1.
+* **Arms:** today's fill (A), A′, the ladder split at the level fit, the ladder split at level 2 (the AV1 base's
+  size), and two sets at both operating points if stage 1 kept them; and in the same rounds the scalable preview's
+  quarter base at q 40, predicted, from `claude/av1-svc-preview` at `301c5e24`. Lossy AV1 + residual joins only if
+  its decode harness exists by then; otherwise no measured comparison with it is claimed.
+* **Cells:** plain, no link limit; 5, 20 and 50 Mbit/s fixed; 1× and 4×. Unshaped, this host reaches 58 Mbit for a
+  5 MB fill ([`../rig-limits.md`](../rig-limits.md)): the plain cell is host-bound, and nothing is claimed above
+  what the A arm reaches there.
+* **Metrics, per frame and per series:** the first picture; every frame pictured; every frame at the proxy, full
+  size and display scale; every frame exact; wire bytes; decode per prefix and in total; scrolling at 15 slices/s
+  from the issue, the share of slices reached that showed exact, a prefix or nothing. Every exact frame against its
+  frame digest, every prefix against its stage-0 witness, no prefix drawn after its exact frame.
+* **Rounds by power:** §Net protocols' common rule — Williams order (`lab/order.mjs`), a fresh browser a cell,
+  n = 12, up to 24 for a cell it calls not conclusive, its MDL printed per cell.
+
+**Rule.**
+
+* **The ladder is a candidate beside AV1** if, on at least two of the three volumes in every cell run, beyond the
+  A/A spread: every frame exact; the first picture ≤ 1.5× the scalable preview's; every slice at display scale
+  ≤ 0.3× today's exact series at 5 and 20 Mbit/s; the exact series ≤ 1.02× today's time, at today's bytes. It then
+  goes to the owner beside the AV1 candidates with every metric above; the order and the binding are proposed
+  separately, as structural.
+* **A quality shape is interesting** if one reaches the proxy at full size with the whole ≤ 1.10× today's bytes and
+  exact series time; otherwise it is closed with its numbers.
+* **Predicted:** the ladder a candidate; one set, two layers closed (layer 1 ≥ 0.8 of the bytes); two sets closed at
+  the proxy, its 37–45 dB previews within 1.02× of the bytes but not visually lossless.
+
+**Sources** (fetched 2026-11-02):
+
+* [H1] Rec. ITU-T T.814 (06/2019) | ISO/IEC 15444-15:2019, *High-throughput JPEG 2000*, itu.int, PDF sha256
+  `3480bb5f636d9a0b…`.
+* [H2] Rec. ITU-T T.800 (06/2019) | ISO/IEC 15444-1:2019, itu.int, PDF sha256 `9932e967462cd56a…`.
+* [H3] OpenJPH, github.com/aous72/OpenJPH, tag 0.31.0 (`c68064d0e4ca`), the lines quoted re-read at 0.33.0
+  (`345a8bcd1c7a`): `src/core/codestream/ojph_codestream_local.cpp`, `ojph_params.cpp`, `ojph_precinct.cpp`,
+  `src/core/coding/ojph_block_decoder32.cpp`, `ojph_block_encoder.cpp`, `src/core/openjph/ojph_codestream.h`,
+  `src/apps/ojph_compress/ojph_compress.cpp`, `docs/status.md`.
+* [H4] openjph.org/javascript/demo.html, sha256 `1d6d30e9ad414801…`; identical to [H3]'s
+  `subprojects/js/html/index.html` but for a Firefox-version check.
+* [H5] D. Taubman, A. Naman, M. Smith, P.-A. Lemieux, H. Saadat, O. Watanabe, R. Mathew, "High Throughput JPEG 2000
+  for Video Content Production and Delivery Over IP Networks", *Frontiers in Signal Processing* 2 (2022),
+  doi:10.3389/frsip.2022.885644 (peer-reviewed).
+
+### HTJ2K progressive, measured
+
+*2026-11-02/03, a separate session given the protocol above and nothing else; the predictions above are left as
+written. Harness, commands and every check: [`lab/htj2k-progressive`](../../lab/htj2k-progressive/README.md); every
+table in full, and the rows, in its [`rows/`](../../lab/htj2k-progressive/rows/).*
+
+**What ran: the ladder, all three stages. One set, two layers and two sets were not built.** The lab writer (5/3
+lifting, an HT cleanup at plane p, SigProp and MagRef encoders, layered packet headers and tag trees) and the patched
+layered decoder were more than this session could build and check, so as the protocol provides, both shapes are
+answered by §3's derivation alone: their rows in §3–4 stay *derived*, and nothing below measures them. MIXED stays
+excluded.
+
+**The host.** 4 vCPU (KVM, Intel Xeon @ 2.80 GHz), 15 GB, a container; headless Chromium 153.0.8010.12 (Playwright's).
+The rig as its README sets it: the relay alone on core 3 at `chrt -f 50`, browser and server on cores 0–2. **Where it
+saturates:** the unshaped `plain` cell `VOID`ed in all 112 visits (the relay's p99 2.5–16.8 ms late, as
+[`../rig-limits.md`](../rig-limits.md) says an unshaped flight does), so it is dropped and nothing is claimed above
+50 Mbit/s. The relay also `VOID`ed 32–41 % of the visits at 5 and 20 Mbit/s (0 % at 50), over the 20 % at which
+§Net protocols drops a link of its own cells; both readings are given (`VOID`s dropped, and kept), and the verdict
+is the same in both. Up to 50 Mbit/s today's arm and the ladder are link-bound at 4× (exact series within 1.3 % of 1×); the AV1
+preview's exact series is decode-bound at 4× and 50 Mbit/s (×1.10–1.39 of today's), so its 4× 50 Mbit cells measure
+three slowed cores, not the link.
+
+**Stage 0, checked.** The ladder's codestreams are the ingest's: equal sha256, every frame, to a second OpenJPH 0.31.0
+build's. Every frame of every set (1 558 frames, 26 sets), every level 1–5: the whole frame exact and identical to the
+delivered build's (bytes, range, header); the smallest prefix's (r, r) and (r, 0) pictures equal to two independent
+witnesses, a T.800 5/3 written from the standard and OpenJPEG 2.5.4 decoding the prefix itself; the prefix one byte
+short fails both. `parity.mjs`: the lab decoder and the delivered build each `PARITY OK`. The delivered build was
+rebuilt outside its container (the image could not be pulled, Docker Hub 429) and matched its manifest byte for byte.
+Mutants, each caught: every cut one byte short, every truth flipped, OpenJPEG fed the short prefixes, one bit of every
+stage-2 and stage-3 picture. **Two lab-decoder bugs were caught by these checks before any number was kept**, both one
+OpenJPH behaviour: `codestream::restart()` resets `skipped_res_for_read = skipped_res_for_recon = 0;` but not the SIZ's
+`skipped_resolutions`, which `restrict_input_resolution` sets (`siz.set_skipped_resolutions(skipped_res_for_recon);`)
+and only `param_siz::init()` clears (`skipped_resolutions = 0;`; OpenJPH 0.31.0, `ojph_codestream_local.cpp`,
+`ojph_params_local.h`). A reused decoder after a level, or after a prefix that threw, read the next frame at the last
+reduced size. A product binding needs the same reset.
+
+**Stage 1, bytes** (every frame; the smallest exact prefix's share of its frame, and of the series):
+
+| content | level 1 | level 2 | level 3 | level 4 | level 5 |
+| --- | --- | --- | --- | --- | --- |
+| the 15 DBT volumes, 994 frames | 26.2–28.5 % · 26.5–28.4 % | 6.65–7.66 · 6.74–7.58 % | 1.78–2.40 · 1.82–2.33 % | 0.53–0.95 · 0.55–0.94 % | 0.19–0.56 · 0.21–0.54 % |
+| the cine-like sets, sound (series) | 26.0–30.5 % | 6.7–8.6 % | 1.8–2.9 % | 0.6–1.3 % | 0.2–0.8 % |
+| `cine512`, synthetic (series) | 49.2 % | 17.9 % | 6.3 % | 2.5 % | 1.2 % |
+| lossy-sourced: `usb_cine`, `usb_cine_rgb`, `us_liver` (series) | 31.9–34.2 % | 9.2–10.8 % | 2.6–3.5 % | 0.8–1.2 % | 0.3–0.5 % |
+
+The cine-like sound sets are `dbt12_ea1141`, `dbt10_ea1141`, `dbt12_c`, `dbt10_d`, `rf_fluoro`, `mr_ispy1`, `mr9_ispy2`.
+The level fit at a 1 000-pixel long side is level 1 on 14 of the 15 volumes, `dbt12_c` and `dbt10_d`, and level 0
+(no split) on `dbts_a1` (1 785 pixels) and every other cine-like set.
+
+**Stage 1, quality** (`rows/stage1-levels.md`, every frame of every set). **No prefix of any level met the visually
+lossless proxy on any frame of any set, at full size or at display scale.** On the 15 volumes the (r, 0) picture
+(finer subbands absent) is 43.3–49.6 dB at level 1 and 40.2–45.9 dB at level 2, SSIM 0.975–0.991 and 0.953–0.982, but
+81–93 % of in-window codes differ under the worst window and 49–80 % by more than one. At display scale the level-fit
+picture is the 5/3 low band, not an area average: against the area-resampled exact frame (PIL's box filter; that it is
+an area average is *unverified*) 41.4–46.9 dB, 81–94 % of codes differing, 51–81 % by more than one. "Exact at its
+level" is exact against the codestream's own reduced resolution, not against what a viewer's resampling of the exact
+frame paints.
+
+**Stage 2, decode** (4 rounds, Chromium, the lab decoder in a worker, each set's first 16 frames; × the whole frame,
+median of round-paired ratios, the range over sets; 83 200/83 200 pictures exact):
+
+| arm | the 15 volumes, 1× | 4× | cine-like and ultrasound, 1× | 4× |
+| --- | --- | --- | --- | --- |
+| A′ | ×0.98–1.04 | ×0.93–1.07 | ×0.99–1.02 | ×0.98–1.11 |
+| level 1 · 2 · 3 alone, (r, r) | ×0.28–0.32 · 0.08–0.13 · 0.03–0.07 | ×0.25–0.34 · 0.06–0.16 · 0.01–0.02 | ×0.30–0.47 · 0.10–0.26 · 0.05–0.20 | ×0.11–0.42 · 0.03–0.24 · 0.01–0.19 |
+| level 1 · 2 alone, (r, 0) full size | ×0.46–0.59 · 0.31–0.46 | ×0.44–0.55 · 0.30–0.44 | ×0.45–0.76 · 0.30–0.60 | ×0.36–0.76 · 0.10–0.62 |
+| 1 → 0 · 2 → 0 · 2 → 1 → 0 · 5 → … → 0, from scratch | ×1.29–1.33 · 1.10–1.14 · 1.37–1.45 · 1.41–1.54 | ×1.28–1.40 · 1.07–1.19 · 1.35–1.51 · 1.41–1.61 | ×1.29–1.48 · 1.11–1.26 · 1.40–1.66 · 1.45–2.08 | ×1.11–3.98 · 1.07–1.50 · 1.34–4.11 · 1.28–6.51 |
+
+Today's whole frame on the volumes: 9.9–41.8 ms at 1×, 46–212 ms at 4×. The small frames' 4× ranges (1–7 ms a frame at
+1×) are the throttle's quantum, not decode.
+
+**Stage 3, delivery** (`rows/stage3-volumes.md`; seconds from the fill's issue, medians of kept visits; ratios the
+median of round-paired ratios; four rounds, n = 1–4 kept a cell, 4 with the `VOID`s kept; 448 visits on the
+volumes and 512 on the cine-like sets, every frame exact and every preview equal to its witness or native dav1d's in
+every one, none failed):
+
+| volume, link, CPU | n | today exact s | ladder at fit: first s · display-scale s (÷ today) · exact ÷ today | level 2: first s · every slice s | AV1 preview: first s · every slice s · exact ÷ today | first, fit ÷ AV1 | A/A p90 |
+| --- | --: | --: | --- | --- | --- | --: | --: |
+| `dbts_a1` 5 Mbit 1× | 1 | 110.52 | no split (fit level 0) | 0.24 · 7.95 | 0.09 · 0.37 · ×0.943 | — | 0.000 |
+| `dbts_a1` 5 Mbit 4× | 3 | 110.60 | no split (fit level 0) | 0.30 · 7.96 | 0.19 · 0.78 · ×0.945 | — | 0.000 |
+| `dbts_a1` 20 Mbit 1× | 1 | 27.76 | no split (fit level 0) | — · — | 0.12 · 0.42 · ×0.946 | — | 0.000 |
+| `dbts_a1` 20 Mbit 4× | 2 | 27.84 | no split (fit level 0) | 0.23 · 2.12 | 0.17 · 0.68 · ×0.954 | — | 0.001 |
+| `dbts_a1` 50 Mbit 1× | 4 | 11.28 | no split (fit level 0) | 0.19 · 0.99 | 0.12 · 0.37 · ×0.949 | — | 0.008 |
+| `dbts_a1` 50 Mbit 4× | 4 | 11.32 | no split (fit level 0) | 0.24 · 1.01 | 0.18 · 0.74 · ×1.194 | — | 0.004 |
+| `dbts_b1` 5 Mbit 1× | 3 | 175.03 | 1.06 · 47.53 (×0.272) · ×1.000 | 0.36 · 13.28 | 0.14 · 0.67 · ×0.947 | 7.75 | 0.000 |
+| `dbts_b1` 5 Mbit 4× | 3 | 175.24 | 1.17 · 47.58 (×0.272) · ×1.002 | 0.43 · 13.30 | 0.29 · 1.30 · ×0.951 | 4.06 | 0.001 |
+| `dbts_b1` 20 Mbit 1× | 3 | 43.94 | 0.44 · 12.02 (×0.274) · ×1.002 | 0.24 · 3.45 | 0.13 · 0.69 · ×0.951 | 3.30 | 0.001 |
+| `dbts_b1` 20 Mbit 4× | 3 | 44.08 | 0.58 · 12.08 (×0.274) · ×1.002 | 0.29 · 3.46 | 0.26 · 1.18 · ×1.016 | 2.33 | 0.001 |
+| `dbts_b1` 50 Mbit 1× | 4 | 17.76 | 0.36 · 4.98 (×0.280) · ×1.000 | 0.23 · 1.53 | 0.13 · 0.77 · ×0.977 | 2.77 | 0.013 |
+| `dbts_b1` 50 Mbit 4× | 4 | 17.94 | 0.52 · 5.04 (×0.281) · ×1.000 | 0.29 · 1.55 | 0.23 · 1.25 · ×1.622 | 2.17 | 0.031 |
+| `dbts_c1` 5 Mbit 1× | 3 | 115.16 | 0.60 · 31.51 (×0.274) · ×1.000 | 0.24 · 8.58 | 0.11 · 0.46 · ×0.941 | 5.25 | 0.000 |
+| `dbts_c1` 5 Mbit 4× | 3 | 115.21 | 0.67 · 31.53 (×0.274) · ×1.000 | 0.27 · 8.58 | 0.18 · 0.83 · ×0.942 | 3.61 | 0.000 |
+| `dbts_c1` 20 Mbit 1× | 3 | 28.93 | 0.30 · 8.01 (×0.277) · ×1.000 | 0.18 · 2.27 | 0.11 · 0.45 · ×0.943 | 2.55 | 0.002 |
+| `dbts_c1` 20 Mbit 4× | 4 | 28.99 | 0.37 · 8.03 (×0.277) · ×1.000 | 0.23 · 2.28 | 0.19 · 0.80 · ×0.952 | 1.98 | 0.001 |
+| `dbts_c1` 50 Mbit 1× | 4 | 11.73 | 0.28 · 3.36 (×0.286) · ×1.001 | 0.18 · 1.06 | 0.13 · 0.58 · ×0.955 | 2.08 | 0.012 |
+| `dbts_c1` 50 Mbit 4× | 4 | 11.81 | 0.37 · 3.39 (×0.287) · ×1.001 | 0.24 · 1.07 | 0.19 · 0.89 · ×1.190 | 1.93 | 0.010 |
+
+**The rule, applied** (lab README §The rule as applied, written before stage 3 ran). On `dbts_b1` and `dbts_c1` in every
+cell run: every frame exact — holds; every slice at display scale ≤ 0.3× today's exact series at 5 and 20 Mbit/s —
+holds (×0.272–0.277; ×0.280–0.287 at 50 Mbit/s); the exact series ≤ 1.02× today's at today's bytes — holds
+(×1.000–1.002, 1.000 of the bytes); **the first picture ≤ 1.5× the scalable preview's — fails in every cell**
+(×1.93–7.75; ×1.93–8.07 with the `VOID`s kept), strict and with the A/A spread (p90 0–3.1 %). `dbts_a1` has no split at its fit level. **Verdict: the ladder is not a candidate beside AV1** by the rule
+as written. **One set, two layers and two sets: not built, so the second clause is not applied**; §3's derivation is all
+there is for them.
+
+**Against the predictions.** Bytes: level 1 26.2–28.5 % (predicted 25.8–29.0) and level 2 6.7–7.7 % (7.0–7.5) held;
+levels 3–5 1.8–2.4, 0.5–0.9, 0.2–0.6 % against ~1–2, 0.3–0.4, 0.2 — the synthetic estimate was low. Decode: level 2
+alone ×0.08–0.13 at 1× held against "over ×0.12" on 14 of 15 volumes, not on `dbts_c4` (×0.13), and at 4× ×0.06–0.16;
+2 → 1 → 0 ×1.37–1.45 (predicted 1.35–1.39). First picture: level 2 0.17–0.40 s and the fit level 0.28–1.18 s against
+AV1's 0.09–0.29 s — **refuted** ("ladder over 1.8× or under 0.7× AV1's in a cell": the fit level is 1.9–7.8×, level 2
+1.2–2.7×; the predicted level 3 was not an arm); "as soon as AV1's" was wrong because the fit prefix is 27 % of a
+frame, the preview's base 0.02–0.04 %. Every slice pictured at level 2 at 5 Mbit/s: 7.95–13.3 s, 10–22× the
+preview's 0.37–1.30 s (predicted 7–46×, refuted under 4×). Display scale: 0.272–0.287 of the exact series on
+`dbts_b1` and `dbts_c1` (predicted 0.26–0.29; refuted over 0.35) held. Exact series ×1.000–1.002 held (refuted over
+1.04).
+
+**The cine-like sets** (`rows/stage3-cine.md`, two rounds, in no verdict): on `dbt12_c` and `dbt10_d`, the two whose fit
+is level 1, every slice at display scale came at ×0.277–0.310 of today's exact series and the exact series at
+×0.999–1.003; level 2's every slice pictured, 0.19–7.95 s against today's 0.45–106 s. The exact series of the
+ladder at level 2 was within ±0.7 % of today’s on every set at 5 and 20 Mbit/s, and up to ×1.07 on `mr9_ispy2`
+(1.4 MB, 0.45 s) at 50 Mbit/s, a fill too short to read.
+
+**Left for the owner.** The protocol's n = 12 was not reached: four rounds of the volumes (n = 1–4 a cell kept after the `VOID`s), two of the cine-like sets. The verdict rests on a clause every cell
+failed by ×1.9 or more against a bound of 1.5, so more rounds would move the ratios, not the verdict. Also open: the
+two quality shapes, not built; the 20 Mbit/s `dbts_a1` level-2 cell at 1×, every visit `VOID`; and a product binding of
+`restrict_input_resolution`, which would need the SIZ reset above and is structural, so proposed separately.
+
+### HTJ2K quality layers, built
+
+*2026-11-04, a later session; not timed. Everything, with sources and commands, in
+[`lab/htj2k-progressive`](../../lab/htj2k-progressive/README.md) §Quality layers, built.* Both quality shapes are now
+built by a lab writer (its one-layer output equal to `ojph_compress`'s byte for byte) and checked on `mr9_ispy2`,
+`rf_fluoro`, `mr_ispy1`, `dbt12_ea1141` and `dbts_b1` (149 frames): every layer-1 picture and every whole frame
+decoded as expected by the client's OpenJPH build, through a one-layer rewrite, since that build refuses two layers.
+**One set, two layers:** layer 1 80–99 % of today's bytes, the whole ×0.985–1.000 (§3 derived 0.80–0.93 and
+1.00–1.03). **Two sets:** layer 1 from 55–84 % (plane 1) to 0.4–1.3 % (plane 7), the whole that plus 99.7–100.6 % of
+today's. No open encoder writes HTJ2K with more than one layer (OpenJPH, Grok, OpenJPEG, FFmpeg read at their tags), so
+§2's "Another open encoder that writes HT sets or HT quality layers: *unverified*" is now: none found; and no decoder
+here reads the layered bytes whole (OpenJPEG 2.5.4 refuses or misreads layer 2).
+
+
+### HTJ2K quality layers, measured
+
+*2026-11-04/05, a separate session given the protocol; everything in
+[`lab/htj2k-progressive`](../../lab/htj2k-progressive/README.md) §Quality layers, measured.* The protocol's stages ran
+for both quality shapes through OpenJPH 0.31.0 patched to read layers, on every frame of the 23 grey sets (12-bit and
+10-bit DBT, fluoroscopy, MR, `usb_cine`): every exact frame equal to its source digest (single-decoder), every layer 1
+also OpenJPEG 2.5.4's. **By the rule as written, one set, two layers is interesting**: on `rf_fluoro` its layer 1 is at
+the proxy at full size, the whole ×0.988 of today's bytes and the exact series ×0.988–1.037 in every kept cell; on
+`dbts_c1` and `dbt12_c` the same except at 50 Mbit/s 4×, where its whole's ×1.3–1.5 decode puts it at ×1.12–1.15.
+Layer 1 is 77–99 % of the bytes, so the proxy comes 14–16 % before the exact series and the first picture no sooner.
+**Two sets are closed**: wherever layer 1 reaches the proxy the whole is ×1.45–1.85. Two to three rounds of the protocol's 12.
+
 ## The BYOB read path
 
 Retired; code in history at `6e9c126`. The WASM client's BYOB reader (`byob`, `byob-min`) read each
@@ -2347,6 +2712,278 @@ become the default.** It meets its line in all six DBT cells, but on `mr_ispy1` 
 **S is not proposed for building.** Its ratio to W2 lies below 0.90 in five DBT cells, but at 4× on `dbts_a1` the
 interval reaches 0.908. S and G go to the owner with these numbers, and G has none. The host did not saturate: no
 second reached 95 % of the 4 CPUs, and the busiest reached 49 %. Nothing is claimed for fills, concurrency or phones.
+
+### Grey path protocol, pre-registered
+
+Written 2026-11-04. Theory, exploratory node profiles and a protocol for a separate session; nothing timed in a browser.
+
+1. **Asked:** a grey AV1 stream comes back from WebCodecs with mid-grey chroma, which the client copies. Can it be
+   read as grey directly, and do `onePass`'s chroma skip and `reuseCopyBuffer` pay on streams that are not split?
+2. **Answer:** no browser API hands over the luma plane alone, exactly. Every exact WebCodecs route copies the
+   chroma. The GPU routes convert to RGB, and no specification makes that exact. The one decoder that returns grey
+   alone is dav1d-WASM, already the fallback, and its frame is 1.6–2.0× WebCodecs'. The unsplit question is the protocol below.
+3. **Numbers that decide it:** on a split frame the chroma is a third of `copyTo`'s bytes, ~1.0–2.5 % of the frame
+   (*derived*). The chroma check was 5–7 %, and `onePass` already skips it on a 4:0:0 stream. The one
+   non-structural candidate left, placing an unsplit picture by a native copy, tied `place()` (*exploratory*), so it
+   was built, profiled and removed.
+4. **Rests on:** the WebCodecs, WebGL 2.0, WebGPU and WGSL texts and the Chromium 141, dav1d and FFmpeg sources
+   quoted below; the 2026-10-31 breakdown of `dbts_a1`, `dbts_b1` and `dbts_c1`
+   ([`breakdown`](../../lab/av1/decode/breakdown/README.md)); profiles in node 22.23.4, not a browser.
+5. **Left:** the run below, on `usb_cine`, `dbts_b1` and `dbts_b3` only. Two structural options go to the owner:
+   the range from ingest metadata, and `copyTo` straight into the frame's buffer.
+
+**Terms.** *4:0:0* is grey only: the stream has no chroma planes (AV1 `mono_chrome` 1). *Systems A, B, C* are the
+three DBT scanners of the EA1141 dataset. A and C store 12 bits, B 10. *The split* carries a 12- or 10-bit frame as
+a top stream (v ≫ k) and a low stream (its k low bits), each 8 or 10 bits, so WebCodecs takes both. *Unsplit* is one
+stream. *G* is the group length, the frames from one keyframe; G = 1 makes every frame a keyframe. (§The split's
+rebuild used G for a paint-shader merge. That sense is not used here.) *Q* is a lossy coding's constant-quality
+level, libaom's `--end-usage=q --cq-level=Q`. *W* is the WebCodecs path with `onePass: false`. *W2* is the default
+(`onePass`), which merges a split frame in one pass and leaves a 4:0:0 stream's chroma unchecked. That skip is
+*M*. *R* is `reuseCopyBuffer`: each stream copies every frame into one kept buffer.
+
+Sources, fetched 2026-11-04: [WebCodecs](https://www.w3.org/TR/webcodecs/) (W3C WD 2 November 2026);
+[WebGL 1.0](https://registry.khronos.org/webgl/specs/latest/1.0/) and
+[2.0](https://registry.khronos.org/webgl/specs/latest/2.0/) (Editor's Drafts, from the KhronosGroup/WebGL `main`
+branch); [WebGPU](https://www.w3.org/TR/webgpu/) (W3C CRD 15 September 2026); [WGSL](https://www.w3.org/TR/WGSL/);
+Chromium at tag `141.0.7390.37` (the lab's): `media/filters/dav1d_video_decoder.cc`, `media/media_options.gni`,
+`third_party/blink/renderer/modules/webcodecs/video_frame.cc`; dav1d 1.5.1 `src/picture.c`; FFmpeg `n7.1`
+`libavcodec/libdav1d.c`; libaom `v3.15.1` `av1/av1_cx_iface.c`.
+
+**Every route to the luma alone.**
+
+* **`copyTo` cannot drop a plane.** No `VideoPixelFormat` holds luma alone: the enum lists `I420`…`I444AP12`,
+  `NV12`, `RGBA`, `RGBX`, `BGRA`, `BGRX`. `rect` is cut from every plane ("Let numPlanes be the number of planes
+  as defined by format"; each plane's rows are "parsedRect.height by sampleHeight, rounded up"). `layout` must cover
+  every plane: "If layout is not undefined and its length does not equal numPlanes, throw a TypeError". Planes may
+  not overlap: "If plane A ends before plane B starts, they do not overlap. Otherwise, return a TypeError." `format`
+  converts only to RGB: "if options.format is equal to one of RGBA, RGBX, BGRA, BGRX, then assign options.format to
+  format, otherwise return NotSupportedError". RGB is 8 bits a channel, and it is exact for grey only at full range
+  (§Why, and what would make it exact). So the chroma always lands in the destination. What `layout` does allow is a
+  destination larger than the planes: luma at offset 0 with stride = width, chroma behind it (Y below).
+* **`VideoFrame` plane access** is `copyTo` alone. The `VideoFrame` interface has attributes for format, rects, size,
+  time and colour space, and its samples leave only by "Promise<sequence<PlaneLayout>> copyTo(".
+* **Chromium 141 never decodes the chroma.** Its AV1 decoder is dav1d (`enable_dav1d_decoder = use_blink`,
+  `media_options.gni`). For a 4:0:0 picture it wraps one shared buffer as both chroma planes: "const bool
+  needs_fake_uv_planes = pic->p.layout == DAV1D_PIXEL_LAYOUT_I400;", filled once per size with
+  "constexpr uint8_t kBlankUV = 256 / 2;" or "const uint16_t kBlankUV = (1 << pic->p.bpc) / 2;", then
+  "u_plane = v_plane = base::span<const uint8_t>(*fake_uv_data_);". `copyTo` then copies every plane:
+  "for (wtf_size_t i = 0; i < dest_layout.NumPlanes(); i++)" around "libyuv::CopyPlane(" (`CopyMappablePlanes`).
+  The chroma costs a 4:0:0 stream its copy and nothing in the decoder. It also confirms from source that M skips
+  only Chromium's constant: a `mono_chrome` stream's chroma is never the stream's.
+* **WebGL2 `texImage2D` from a `VideoFrame`** always converts to RGB. WebGL 1.0 §Pixel Storage Parameters: "If set
+  to NONE, no colorspace conversion is applied, other than conversion to RGBA. (For example, a rec709 YUV video is
+  still converted to rec709 RGB data, but not then converted to e.g. srgb RGB data)", and "The precise conversions
+  may be specific to both the browser and file type." WebGL 2.0 takes `R8UI`/`RED_INTEGER`/`UNSIGNED_BYTE` from a
+  `TexImageSource` with "R = sourceRed". Its table has no 16-bit integer target, so above 8 bits the only targets
+  are float (`R16F`, `R32F`). *Derived:* at full range with mid-grey chroma the conversion's chroma terms are zero,
+  so R = Y in exact arithmetic. At limited range R = 255 (Y − 16) ÷ 219, which is not Y. The browser's arithmetic
+  is not specified, so exactness at 8 bits is *unverified*, and at 10 bits it is *unverified* and rests on an
+  unspecified intermediate precision. The frame must then be read back to the CPU for its digest and range.
+* **WebGPU `importExternalTexture`** converts too. `colorSpace` is "The color space the image contents of source
+  will be converted into when reading", a `PredefinedColorSpace` defaulting to `"srgb"`, and "When the binding
+  resource type is a GPUExternalTexture, the result is in the color space set by colorSpace." WGSL reads it as
+  floats: "fn textureLoad(t: texture_external, coords: vec2<C>) -> vec4<f32>". No luma plane is exposed, and
+  exactness at any depth is *unverified*. Neither GPU route can be tried on this lab's hosts, whose WebGL2 renderer
+  is SwiftShader (§Merge-free protocol, *Measured*).
+* **dav1d's native 4:0:0 output** has no chroma: "p->data[1] = has_chroma ? data + y_sz : NULL;" (`picture.c`,
+  `has_chroma` being "p->p.layout != DAV1D_PIXEL_LAYOUT_I400"). `av1-dav1d.js` already takes layout 0 as one plane,
+  with no check and no copy beyond `place()`. That is grey read directly, exact (§dav1d-WASM, the decoder the
+  client runs), and its frame is 1.6–2.0× WebCodecs' on these sets (§The split's rebuild, D12).
+* **Firefox and WebKit** never hand a 4:0:0 frame to the page. FFmpeg's libdav1d wrapper, which Firefox's
+  WebCodecs decodes through (Firefox bundles its own copy, *unverified* to match `n7.1`), maps 4:0:0 to grey formats: "[DAV1D_PIXEL_LAYOUT_I400] = { AV_PIX_FMT_GRAY8,
+  AV_PIX_FMT_GRAY10, AV_PIX_FMT_GRAY12 }". Gecko has no grey format, so the decode fails, and WebKit has none
+  either (§Why, and what would make it exact). The probe sends those streams to dav1d-WASM. No Firefox unit on
+  this protocol's cells reaches WebCodecs.
+
+**What the chroma costs now.** These are shares of W's frame at 1× from the 2026-10-31 breakdown, whose A/A failed,
+so they are predictions. On a split frame `copyTo` is 3.0–7.6 %. A 4:2:0 plane set is 1.5 N samples for N luma, so
+the chroma is a third of that, **~1.0–2.5 % *derived***. Its allocation is part of that share, and R removes the
+allocation. The check (`neutral()`) was 5–7 %. W2, the default since 2026-11-02, skips it on every 4:0:0 stream,
+and the product codes grey as 4:0:0 (`--monochrome`, `ingest/coded-frames/ingest.py`). On an unsplit grey frame,
+*derived* from the breakdown's per-byte and per-sample costs (0.69 ms a MB for `copyTo` with its allocation, 1.6 ns
+a chroma sample for the check), the chroma's copy is ~5.9, ~3.4 and ~0.1 ms, and the check ~6.8, ~3.9 and ~0.2 ms,
+on a `dbts_b1`, `dbts_b3` and `usb_cine` frame. R saves the allocation and first touch, ~0.45 ms a MB in node
+(*exploratory*), so ~11.5, ~6.6 and ~0.2 ms. What share of a frame these are depends on the frame's decode time,
+which no run has measured for a lossy or an unsplit 10-bit stream (*unverified*). That is why the protocol runs.
+
+**The candidates, ranked** by exactness, then by whether they change the product's structure, then by saving:
+
+| # | candidate | exact | structural | saving on an unsplit grey frame | state |
+| --: | --- | --- | --- | --- | --- |
+| 1 | **M**, the check from the sequence header | yes: it skips Chromium's constant (above) | no | the check, ~0.2–6.8 ms (*derived*) | default (`onePass`) |
+| 2 | **R**, the copy buffer reused | yes | no | the allocation and first touch, ~0.2–11.5 ms (*exploratory*) | built, off: [merge-free](../../lab/av1/decode/merge-free/README.md) did not meet its line on `mr_ispy1` at 4× |
+| 3 | **Rg**, the range from ingest metadata | yes, the range then being the ingest's | yes: metadata | the range read. An unsplit `place()` becomes a native copy: 2.0–2.3 ms against 16–21 on a `dbts_b1`-sized frame (*exploratory*) | proposed, the owner's |
+| 4 | **Y**, `copyTo` into the frame's own buffer: luma at offset 0, stride = width, chroma in a tail | yes | yes: the frame's buffer is 1.5× its pixels, which every retained frame keeps, and the digest, `check-page.js` and `consumer.js` read the whole buffer | the copy buffer and `place()`'s write. Without Rg the range read stays: the write is ≤ ~3.5 ms on `dbts_b1` (*derived*), and R already removes the allocation | proposed with Rg, the owner's |
+| 5 | **the copy placement**: `place()` on an unsplit unsigned grey picture as one native row copy and a range read | yes: byte for byte and range for range | no | **none found**: a tie (below) | built, tested, profiled, removed |
+| 6 | **GPU upload** (`texImage2D`, `importExternalTexture`) | not by any specification | yes | — | not pursued |
+| 7 | **dav1d-WASM for grey** | yes | no | negative: its frame is 1.6–2.0× W's | already the fallback |
+| 8 | **luma alone by `copyTo`** | — | — | — | impossible by the specification |
+
+**The copy placement, profiled and removed.** For an unsplit unsigned grey picture whose heap has the output's
+sample width, `place()` writes each sample unchanged. So one `TypedArray.set` a row, followed by a min/max read of
+the row while it is in cache, gives the same bytes and range. It was built behind `placeByCopy` with tests
+(18 depth × sample-range cells against `place()`; split, signed, RCT, colour and mixed-width pictures left to
+`place()`; both decoders' paths; off by default). Each of 11 mutations failed a test. *Exploratory*, node 22.23.4 on this
+container, synthetic frames, a fresh process a form, interleaved, the median of 15 frames after 5 with a forced GC,
+4 processes a form [range] (3 for the last two columns):
+
+| frame | `place()`, ms | copy + range, ms | range read alone, ms | `set()` alone, ms |
+| --- | --: | --: | --: | --: |
+| 512², 8-bit (`usb_cine`) | 0.59 [0.49–0.72] | 0.45 [0.43–0.66] | 0.36 [0.35–0.53] | 0.06 [0.05–0.06] |
+| 1996×2457, 10-bit (`dbts_b3`) | 10.3 [9.3–15.4] | 8.9 [8.1–10.6] | — | — |
+| 2560×3328, 10-bit (`dbts_b1`) | 16.5 [16.3–20.9] | 16.6 [16.3–16.7] | 13.0 [12.8–13.6] | 2.2 [2.1–2.4] |
+
+The copy + range column reads the source row. The form first built read the output row back, and in a first
+separate profile it was slower at 512² (2.5–3.6 ms against 0.7–2.3). The forms overlap on every size. The range
+read is ~1.5 ns a sample and the floor of any JavaScript placement. In theory the copy saves the write, at most
+`place()` less the range read, ~3.5 ms on `dbts_b1`. Profiled, it saved nothing beyond the spread. The code is
+removed, and `git show 6c4e0579` restores it. Only Rg removes the range read.
+
+**Protocol.** It answers the owner's second question and changes no default. R's default stays the owner's call,
+with these numbers and the merge-free run's.
+
+* **Arms**, each a worker of the product's own `client/decode/*.js`, unmodified, behind `decoder.js`, one frame in
+  flight, digests passed:
+  * **W**: `onePass: false`.
+  * **W′**: the same config in a second worker, the A/A.
+  * **W2**: the default config.
+  * **R**: the default with `reuseCopyBuffer: true`.
+
+  On an unsplit stream W2 differs from W only by M, since no merge runs.
+* **Time**: the product's `decodeStart`→`decodeEnd`, which brackets both levers. The page's post → the consumer
+  port's receipt is recorded as a check and not decided on. A round's value for an arm is the median of its 16
+  frames after one warm-up frame.
+* **Cells**: four unsplit grey sets at G = 1, one tile, each at 1× and 4× (`lab/scripts/cpu_throttle.mjs`), so 8 cells.
+  * `usb_cine` (breast ultrasound cine, 8-bit, 512², lossy-sourced), the middle 16 frames, lossless.
+    `lab/av1/decode/passes/codings.py` codes it as it codes a set: optimized representation, which for 8-bit grey
+    is one 4:0:0 stream, at libaom 3.15.1 `good` 6. This is the only cell whose shape the product serves.
+  * `usb_cine` again, lossy, Q = 10.
+  * `dbts_b1` (system B, 2560×3328, 10 bits), the middle 16 slices, lossy, Q = 10, one 10-bit 4:0:0 stream.
+  * `dbts_b3` (system B, 1996×2457, 10 bits), the same.
+
+  Q = 10 is libaom's default, not a tuned value: `default_extra_cfg` in `av1_cx_iface.c` holds `10,` against
+  `// cq_level`.
+  A lossy cell is coded as `lab/av1/size.py`'s `av1_cell` codes at G = 1 (`--kf-max-dist=0`, `--monochrome`, the
+  set's depth), with `--lossless=1` replaced by `--end-usage=q --cq-level=10` and `--cpu-used=6 --good`. Its truth
+  is the decoded stream, not the source. Each unit is decoded alone by native dav1d 1.5.4 and by libaom 3.15.1's
+  `aomdec`, and the two must agree on every sample, or the set is void. The frame digest (`docs/FIXTURES.md` §Frame
+  digests) and the page's SHA-256 are taken from that output. The payload header is `bits` = `depth` = the
+  stream's, split 0, no flags. No lossy grey AV1 is served by the product. These cells answer the owner's question
+  and claim nothing for a series the ingest writes.
+* **Order**: a fresh headless Chromium 141.0.7390.37 per round × throttle. Inside it the sets, then the arms, each
+  in a Williams order (`lab/order.mjs`; 4 arms, period 4).
+* **Rounds, by power to resolve 3 %**: no unsplit spread has been measured, so σ of a round-paired log ratio is
+  borrowed from the 2026-10-31 split runs: 0.105 at 1× and 0.053 at 4× (§JS passes protocol, pre-registered).
+  n = 1.571 × (2.8016 σ ÷ ln(1 ÷ 0.97))² gives 147 and 38. Rounded up to the period, that is **148 at 1× and 40 at
+  4×**, power ≥ 0.80 for a 95 % interval to exclude 1 at a true 0.97 *derived*. The count is fixed here and is not
+  revised from the run.
+* **Effect and interval**: per cell, each round's ln(arm ÷ reference) is paired within that round's browser. The
+  effect is the median over rounds, as a ratio. The 95 % interval is the k-th and (n − k + 1)-th ordered values, k
+  the largest with P(Binomial(n, ½) ≤ k − 1) ≤ 0.025 (`lab/av1/decode/passes/report.mjs`). Reported: W2 ÷ W (M),
+  R ÷ W2 (R) and W′ ÷ W (A/A).
+* **Exact**: a frame counts only when the worker's XXH3 matched the digest on `av1-webcodecs` the first time, with
+  no fallback (`mismatchOn` absent), and the page's SHA-256 matched. Every frame of every arm must be exact, or the
+  run is void. These broken copies must fail:
+  * `--mutate` flips one sample, and every arm reads 0 exact.
+  * `neutral()` with its mid value one off: W reads 0 exact on `av1-webcodecs` while W2 and R read all exact. This
+    shows the check is on W's path and not on W2's.
+  * R with `copyTo` skipped whenever the kept buffer is reused: R reads exact on each worker's first frame only.
+* **A/A**: W′ ÷ W's interval contains 1 in each cell. The run is void if two or more of the 8 cells miss (P ≈ 0.057
+  by chance, *derived*).
+* **Reading**, every frame exact. In each cell a lever is **a speed-up** when its interval lies entirely below
+  1.00, **a cost** when it lies entirely above, and **not resolved** otherwise. That is the 95 % interval's own
+  reading at the power above, and no line is drawn on a point estimate. A cost of M in any cell is reported by
+  name, because M is the default. No round count decides anything.
+* **Firefox**: Firefox 157.0.1 is installed as in [`grey-420`](../../lab/av1/delivery/grey-420/README.md). One
+  untimed round of the four sets checks that every frame reports `av1-dav1d`, exact. If one reaches WebCodecs, the
+  premise above is wrong and the report says so before any reading.
+* **Host**: 4 vCPUs, one ask at a time, one `VideoDecoder` per arm. `lab/av1/decode/passes/busy.sh` records the CPUs.
+  The report says where the host saturates if it does, and claims nothing for fills, concurrency or phones. Each
+  cell is quoted in ms a frame, latency only.
+* **Budget, *derived***: 4 arms × 17 frames a set. At 1× a round is ~20 s if a lossy `dbts_b1` frame is ≤ 120 ms
+  and `dbts_b3` ≤ 70 (*unverified*: no lossy frame has been timed), with ~6 s for the browser and fetches. At 4× it
+  is ~65 s. 148 × 20 s + 40 × 65 s ≈ 1.6 h, plus ~30 min of coding and checks. At twice those decode times it is
+  ~3.3 h, inside 4.5 h. If the run is cut, it resumes from its rows, as the merge-free run did.
+
+### Grey path, measured
+
+*Measured (2026-11-04)*, by a separate session given only the protocol ([`grey-path`](../../lab/av1/decode/grey-path/README.md)).
+
+1. **Run:** the grey path protocol (above) as written: W, W′, W2 and R on its four cells, 148 rounds at 1× and 40
+   at 4×, in Chromium 141.0.7390.37 on 4 vCPUs, and its untimed Firefox 157.0.1 round.
+2. **Shows:** **48 128 of 48 128 frames exact**, so the run is read. M is a speed-up in 5 of 8 cells and not resolved
+   in 3, and a cost in none. R is a speed-up in 6 and not resolved in 2. Firefox sent every frame to dav1d-WASM.
+3. **Rests on:** `usb_cine` frames 24–39, lossless and at Q = 10, and the middle 16 slices of `dbts_b1` (17–32)
+   and `dbts_b3` (23–38) at Q = 10, each a single unsplit 4:0:0 stream at G = 1, decoded one at a time. Nothing is
+   claimed for other sets, for a series the ingest writes beyond `usb_cine` lossless, for fills or for phones.
+4. **Left:** whether R becomes the default stays the owner's call, with these numbers and the merge-free run's.
+   The protocol changes no default.
+5. **Terms**, the protocol's: *M* is `onePass`'s skip of the chroma check on a `mono_chrome` stream, read as
+   W2 ÷ W; *R* is `reuseCopyBuffer`, read as R ÷ W2; the *A/A* is W′ ÷ W, two workers of one config. A lever is
+   *a speed-up* in a cell when its 95 % interval lies entirely below 1.00, *a cost* when it lies entirely above, and
+   *not resolved* otherwise.
+
+**Codings.** `usb_cine` lossless is `passes/codings.py`'s, 1 133 300 B of payload for 16 frames, every frame
+decoded natively and matched to its fetch checksum. The three lossy sets are `lossy.py`'s: 345 898
+(`usb_cine_q10`), 5 178 077 (`dbts_b1_q10`) and 5 163 681 B (`dbts_b3_q10`). Each of their 48 units, decoded alone
+by native dav1d 1.5.4 and by `aomdec` 3.15.1, gave the same samples, and those samples are each frame's truth. The
+lossy `usb_cine` frame 24 differs from its source in 36 % of its samples, by at most 6, so the cells are lossy in fact.
+
+**Checks**, one round at 1× each before the run, rows in `checks.json.gz`:
+
+| check | must read | read |
+| --- | --- | --- |
+| `--mutate`, every arm, every set | 0 exact | 0 of 256, and every warm-up frame inexact |
+| `neutral()` one off: W, W2, R | W 0 exact on `av1-webcodecs`; W2, R all | W 0 of 64: every frame decoded on `av1-dav1d` (exact there); W2 and R 64 of 64 each |
+| R with `copyTo` skipped on a reused buffer | exact on each worker's first frame only | the warm-up frame exact in each set; of the 16 timed, frame 0 exact (the warm-up is frame 0, so the stale buffer holds the same samples) and the other 15 mismatched on WebCodecs and were decoded again on dav1d |
+| Firefox 157.0.1, default config, untimed | every frame `av1-dav1d`, exact | 68 of 68 (16 + the warm-up, × 4 sets), none on WebCodecs |
+
+**The run.** [`report.md`](../../lab/av1/decode/grey-path/report.md) is `report.mjs` over the rows
+(`rows.json.gz`). 188 browsers, 3 008 arm runs, 48 128 frames, each exact the first time on WebCodecs with its
+SHA-256 matched; none off WebCodecs, none rescued by the fallback, and all 3 008 warm-up frames exact too.
+
+**ms a frame**, `decodeStart`→`decodeEnd`, the median over rounds of each round's median of 16:
+
+| throttle | set | W | W′ | W2 | R |
+| --- | --- | --: | --: | --: | --: |
+| 1× | `usb_cine` | 11.0 | 11.1 | 10.9 | 10.7 |
+| 1× | `usb_cine_q10` | 6.2 | 6.1 | 5.9 | 5.8 |
+| 1× | `dbts_b1_q10` | 135.6 | 137.0 | 130.1 | 116.2 |
+| 1× | `dbts_b3_q10` | 97.2 | 97.6 | 94.0 | 85.5 |
+| 4× | `usb_cine` | 30.3 | 30.6 | 30.3 | 29.7 |
+| 4× | `usb_cine_q10` | 11.8 | 11.6 | 11.9 | 11.3 |
+| 4× | `dbts_b1_q10` | 405.8 | 408.8 | 380.4 | 324.6 |
+| 4× | `dbts_b3_q10` | 277.9 | 276.5 | 265.3 | 226.4 |
+
+**The reading**, round-paired, the median [95 % interval]; 148 rounds at 1×, 40 at 4×:
+
+| throttle | set | W′ ÷ W (A/A) | W2 ÷ W (M) | M | R ÷ W2 (R) | R |
+| --- | --- | --: | --: | --- | --: | --- |
+| 1× | `usb_cine` | 1.006 [0.988–1.018] | 0.992 [0.985–1.002] | not resolved | 0.971 [0.965–0.988] | speed-up |
+| 1× | `usb_cine_q10` | 0.999 [0.979–1.018] | 0.960 [0.943–0.984] | speed-up | 0.972 [0.954–0.995] | speed-up |
+| 1× | `dbts_b1_q10` | 1.008 [1.003–1.018] **miss** | 0.962 [0.950–0.974] | speed-up | 0.883 [0.877–0.896] | speed-up |
+| 1× | `dbts_b3_q10` | 0.997 [0.990–1.013] | 0.968 [0.958–0.977] | speed-up | 0.910 [0.902–0.924] | speed-up |
+| 4× | `usb_cine` | 1.015 [0.969–1.044] | 1.001 [0.943–1.055] | not resolved | 0.982 [0.951–1.019] | not resolved |
+| 4× | `usb_cine_q10` | 0.997 [0.903–1.047] | 0.988 [0.914–1.041] | not resolved | 1.001 [0.942–1.047] | not resolved |
+| 4× | `dbts_b1_q10` | 1.019 [0.972–1.032] | 0.930 [0.916–0.942] | speed-up | 0.860 [0.836–0.877] | speed-up |
+| 4× | `dbts_b3_q10` | 0.978 [0.961–1.008] | 0.948 [0.890–0.966] | speed-up | 0.865 [0.833–0.894] | speed-up |
+
+**By the reading as written.** The A/A missed in 1 cell of 8 (`dbts_b1_q10` at 1×, lower end 1.003), which the
+protocol allows, so the run is not void. **M is a cost in no cell**: a speed-up in both lossy DBT cells at both
+throttles and in `usb_cine_q10` at 1×, not resolved in `usb_cine` at both throttles and `usb_cine_q10` at 4×.
+**R is a speed-up** in both lossy DBT cells at both throttles and in both `usb_cine` cells at 1×, and not resolved
+in both `usb_cine` cells at 4×. On `usb_cine` lossless, the one cell whose shape the product serves, M is not
+resolved at either throttle and R is a speed-up at 1× only. No default changes here: the protocol answers the
+owner's question and leaves R's default to the owner.
+
+The post → consumer-port receipt, beyond `decodeStart`→`decodeEnd`, was 0.3–0.7 ms a frame at the median in every
+arm and cell (`report.md`), recorded as a check and not decided on.
+
+**The host.** 4 vCPUs of an Intel Xeon at 2.10 GHz, one ask at a time, one `VideoDecoder` per arm.
+`passes/busy.mjs` over `busy.sh`'s samples: at 1× a browser kept 29–32 % of the 4 CPUs busy on average and its
+busiest second reached 40 %; at 4×, 15–20 % and 32 %. No second reached 95 %. The host did not saturate in this
+run, and where it saturates was not measured, so nothing is claimed for fills, concurrency or phones. Each cell is
+in ms a frame, latency only.
 
 ## Hardware decode
 

@@ -1,0 +1,33 @@
+--- a/htj2k_decoder.cpp
++++ b/htj2k_decoder.cpp
+@@ -128,6 +128,22 @@
+     headerValid_ = false;
+   }
+ 
++  // T.814/T.800 resolution scalability through OpenJPH's restrict_input_resolution: `skipRead` finer
++  // resolutions neither read nor decoded, `skipRecon` of them not reconstructed (skipRecon <= skipRead).
++  void decodeLevel(uint32_t skipRead, uint32_t skipRecon) {
++    if (!headerValid_) readHeader();
++    cs_.restrict_input_resolution(skipRead, skipRecon);
++    ojph::param_siz siz = cs_.access_siz();
++    frame_.width = siz.get_recon_width(0);
++    frame_.height = siz.get_recon_height(0);
++    // restart() clears the codestream's skips but not SIZ's, which the next readHeader would read back.
++    struct Unskip {
++      ojph::codestream& cs;
++      ~Unskip() { cs.restrict_input_resolution(0, 0); }
++    } unskip{cs_};
++    decode();
++  }
++
+   FrameInfo getFrameInfo() const { return frame_; }
+   // The samples' own values, sign already in place; empty (min > max) for an unranged frame.
+   Range getRange() const { return range_; }
+@@ -203,6 +219,7 @@
+       .function("getDecodedBuffer", &HTJ2KDecoder::getDecodedBuffer)
+       .function("readHeader", &HTJ2KDecoder::readHeader)
+       .function("decode", &HTJ2KDecoder::decode)
++      .function("decodeLevel", &HTJ2KDecoder::decodeLevel)
+       .function("getFrameInfo", &HTJ2KDecoder::getFrameInfo)
+       .function("getRange", &HTJ2KDecoder::getRange)
+       .function("getIsHeaderValid", &HTJ2KDecoder::getIsHeaderValid)

@@ -1,7 +1,10 @@
 # Codecs and lab
 
 Last verified 2026-11-10 (the AV1 harvest of that morning: eight result branches read from `origin` to their verdicts;
-no new measurement).
+no new measurement); the audits' corrections of 2026-11-11 ([`../av1/corrections.md`](../av1/corrections.md)) and
+their protocols measured 2026-11-12 (`claude/audit-measure`) added since; HTJ2K at screen resolution
+(`claude/htj2k-tiles`: theory, its review and its improvement, stages 0–2 measured 2026-11-11, stage 3 since)
+carried into Open 7. Stage A1 of the unification (2026-11-15) added Open 11.
 
 ## Goal
 
@@ -27,13 +30,29 @@ ABUS exists among the fixtures ([`../FIXTURES.md`](../FIXTURES.md)); nothing bel
   the noise rule's: at the rule's Q the view is 0.10–0.28 and view plus exact frame 1.10–1.28× (*derived*, audit F7).
   Decode: §AV1 harvest (1) has what the audit left of "1.05–2.04 HTJ2K frames"; AV1 saves bytes, not decode time, at
   Q 8 at 1× on this host.
+* **Decode in the product's own unit, measured 2026-11-12** ([`../av1/audit-protocols.md`](../av1/audit-protocols.md)
+  §C measured): in Hp, the product's HTJ2K decode plus the XXH3 check (what a Lossless request runs), the view through
+  WebCodecs decodes in 1.24 (`dbts_a1`), 1.74 (`dbts_b1`), 1.36 (`dbts_c1`) Hp at Q 8, G 1, 1×, and in 1.72, 1.29,
+  1.53 Hp at the rule's Q (6, 11, 7); dav1d-WASM in 1.9–2.9 Hp. On a host capped to one slowed core it stays above
+  1 Hp (1.16–1.58); WebCodecs under one HTJ2K frame on a slow device is not shown. One 4-core host, software
+  WebCodecs, three DBT volumes, the middle 16 frames.
+* **The noise anchor, measured 2026-11-12** (`../av1/audit-protocols.md` §B, §A measured): the estimator resolves the
+  worst frame to δ 0.1–5.5 % by volume, so the anchor is a band [Q_lo, Q_hi], one Q wide on 4 of 19 volumes and up to
+  ≥ 8 on 10-bit ones; at the rule's Q the view keeps 29–50 % of the fine-band noise's amplitude (ν), less at the anchor.
 * **Depth and decode route:** WebCodecs decodes the OQ view; dav1d-WASM is a fallback only. D ≤ 10 is coded at its
-  own depth; D > 10 by the depth cut to 10 bits, because WebCodecs gives no 12-bit samples in any engine
-  (`claude/av1-webcodecs-profiles`). The cut's cost at Q 8 is not measured in-window (§AV1 harvest (1)).
+  own depth; D > 10 by the depth cut to 10 bits, because no engine is shown to give 12-bit AV1 video through
+  WebCodecs' `VideoDecoder` ([`../av1/webcodecs-profiles.md`](../av1/webcodecs-profiles.md)). The cut's cost at Q 8
+  is not measured in-window (§AV1 harvest (1)).
 * **Out of the top, not discarded:** a two-layer SVC preview; lossless AV1 as the exact form.
 * **Discarded:** a layered three-layer carrier; preview and view as quality layers of one stream; top-first; HTJ2K
   resolution ladder and quality layers; lossless G > 1; a lossy top plus low stream; key parsing in place of
   WebCodecs' flush (tag `archive/av1-keyparse`); LCEVC.
+* **Encoder settings** (ENCODER-SETTINGS, 2026-11-10, theory only, [`../av1/encoder-settings.md`](../av1/encoder-settings.md)):
+  every flag of every AV1 and HTJ2K invocation, quoted from libaom 3.15.1, the AV1 spec and OpenJPH 0.31.0. *G saves
+  almost nothing at Q 8 on DBT* holds for low-delay libaom only: lag 0 also switches off the temporal filter, TPL and
+  keyframe filtering; q is pinned; speed 6 prunes inter. Most other OQ flags restate libaom's defaults. The SVC and
+  residual studies ran other configurations (real time; libaom's defaults with lookahead), so their bytes do not
+  compare with the OQ view's.
 * **Server and transport:** `claude/line-server` (#254) holds 13 results (congestion and disk designs, PGO, tail
   ping, GSO, and others); no default changed.
 
@@ -145,7 +164,8 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
    5. *Run groups shard 2 (`dbts_a1`, `dbts_c1`, TRUS; about 4.3 h on one 4-core host)?* Yes: §7's verdict for DBT
       becomes reachable.
    6. *Run the zero-encode re-reads first?* That is anchors under one bar, x\* over G 1 + G 16 per depth, and
-      σ_out ÷ σ on existing cells (audit F1, F4, F6, F9). Yes settles the Q and G numbers without encoding.
+      σ_out ÷ σ on existing cells (audit F1, F4, F6, F9), and the six alt-ref cells read by `cell.measure` (F3). Yes
+      settles the Q and G numbers without encoding.
    7. *Hold WebCodecs speed claims until the throttle is re-run with `cores` 1 and 2 and the lossy clock is fixed?*
       Yes: no "WebCodecs under one HTJ2K frame" claim until then (decode audit 1, 2).
    8. *Run the noise-ratio protocol (κ measured, model observer on calcifications) before any reader study?*
@@ -156,6 +176,9 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
 1. **G at equal quality** (`claude/av1-groups`, #326): shard 2 and the collect without `--partial`; a structure-only
    source with no coding error of its own; a finer ladder at Q 8–12. Decode time in order matters more than jumps.
    No G is decided for DBT.
+   *Settings amendment, shard S1 (2026-11-10, `claude/av1-groups-settings`, `docs/av1/groups.md` §Settings shard 1):
+   on `dbts_b1` every lookahead arm, the unfiltered alt-ref too, costs 11–25 % at the noise anchor, O G 8–32 saves
+   4.2–4.4 % but decodes ~20 % slower on WebCodecs, so nothing is recommended and G 1, lag 0 stay; S2 (A, C cut) owed.*
 2. Harvest and review the AV1 result chain into `av1-unified-mainbase`: #290 → #305 → #317, #312; #283 → #306 → #314
    → #316; #288, #315, #318; now also #323, #325, #326, #332 (into `av1-quality-metrics` or `av1-noise-point`) and
    #329, #331, #334 (into `main`).
@@ -165,7 +188,48 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).
 7. HTJ2K with resolution levels and tiles, a separate approach outside the demo (`claude/htj2k-tiles`, protocol
-   landed).
+   landed). Against the demo's approach (2026-11-11, theory, [`../htj2k-tiles.md`](../htj2k-tiles.md)
+   §Screen resolution): on an upright phone only `dbts_b1` of the three timed volumes has a level to gain, so serving
+   HTJ2K at the screen's level is today's exact fill on `dbts_a1` and `dbts_c1`; it costs 1.2–10× the OQ view's bytes
+   to the first picture and the scroll (*derived*) and pays only when a reader asks Lossless on most slices. Its
+   protocol is pre-registered there, not run. Reviewed 2026-11-11 (row HTJ2K-REVIEW, §Review there): sources and
+   arithmetic hold but for corrections in place; missed were the measured three-strip tiling for the Lossless decode
+   and level offsets from tile-parts and TLM; the HTJ2K profile S relies on is ours, not known to be the PCS's. Improved
+   2026-11-11 (row HTJ2K-IMPROVE, §Improve there, theory): no change moves S's bytes, so S still does not pay for a
+   scroll; resolution tile-parts with TLM (DICOM's RPCL syntax), three strips on the client's three decoders, bands at
+   the viewport's level and a cache that fetches nothing twice shorten a reader's Lossless wait (D+T3 ×0.79–0.95 of
+   D's at 4× on a link, *derived*). One consolidated protocol is pre-registered there for HTJ2K-MEASURE. Measured 2026-11-11, stages 0–2 (row HTJ2K-MEASURE, §Improve,
+   measured there): exact on 175/175 frames, and 17 920/17 920 decoded pictures; I1's TLM prefixes decode on OpenJPEG
+   and OpenJPH; the strips cost +0.11–0.14 % in bytes (−0.2 % on `dbts_b1` at six decompositions); one Lossless decode on
+   three workers is ×0.43–0.48 of the whole frame's at 4× (R2 holds). Stage 3, on links (R3–R7), is run (6 rounds, 1 053/1 200 visits kept, every picture exact). On its one link-bound cell (`r5000`; the other links are decode-bound by the software AV1 fill on this host), R3 holds with s: D+T3's Lossless is ×0.923 of D's on `dbts_b1` at 4×, and ×0.73–0.94 in the cells that decide nothing. R4 holds: D+L★'s level picture is ×0.29 of D+T3's Lossless. R5 withdraws S★ for the scroll (×5.8–20 later where the fit is level 0). R6 holds: no reopen asks or decodes anything. Judged 2026-11-12 (row HTJ2K-VERDICT, §Verdict there): the demo's approach stands for the scroll; for the Lossless request D+L★'s level picture (×0.26–0.28 of today's wait on `dbts_b1` at 5 Mbit/s) survives on its mechanism, while D+T3's gain is 2.5–3× what its strips can explain, so R3's pass rests on an unattributed path difference. J11 is refuted. Owed in order: A1 (attribution, this host), then phone runs P1–P3 (decode-bound or not, the Lossless request, the store's quota and read-back). A replicate of rounds 4–5 (outside the rule, §Improve, measured there) reads the same except R3's "every cell" clause, which fails on the lossy cell (`dbts_c1` sideways, 1×, ×1.35).
+8. An idea raised 2026-11-09, undecided: code optimal quality, split its decoded samples into top and low bits, send
+   the top, the low only on request (target: the optimal-quality image, not lossless).
+9. The decode audit's three checks (`claude/av1-audit-decode`): D1 at 4× with a core cap; one block with `back()` off
+   the clock; the product's own HTJ2K path beside each study's unit on one Chromium. Until then, quote the view's decode
+   at Q 8 only, with its stream, host and throttle.
+10. **The audits' corrections and protocols** (row AV1-CORRECT, 2026-11-11; measured since decisions 0.6 and 0.7
+   were written): each study branch applies its entry of [`../av1/corrections.md`](../av1/corrections.md) in place;
+   [`../av1/audit-protocols.md`](../av1/audit-protocols.md) pre-registers A (noise kept, ν, QA F4), B (one bar at the
+   estimator's resolution, integer Q, QA F1, F2) and C (decode on the product's HTJ2K unit, core-capped, decode audit
+   1, 2, 13) for a session that did not write them.
+   B0 measured (row MEASURE-1, `claude/audit-measure`, 2026-11-11): QA F1's table reproduced; over all 19 volumes x\*
+   is 4.7584 at G 1 (not 4.9293), 4.6359 pooled and at G > 1, 4.8024 for 12-bit streams; no reading overshoots an
+   anchor. B and A measured (2026-11-12, 352 cells, amendments 1 and 2): s_split ≤ 0.25 % (B-1 holds); the injected
+   bias b runs −3.8 to +5.5 % by volume (B-2 refuted), so δ is 0.1–5.5 %; the anchor is unresolved on 15 of 19 volumes
+   (B-3 refuted on the wide side), Q_hi − Q_lo up to ≥ 8 on 10-bit (B-4 refuted); G 16 ÷ G 1 at equal worst frame is
+   0.954–0.986 on 12-bit and 0.855–0.907 on 10-bit (B-5 holds). Both x\* stay, with δ beside them. ν falls with Q
+   (A1), sits at 0.286–0.495 at the rule's Q (A2 refuted at the top, `dbt10_ea1141`), is not one curve of x (A3
+   refuted), and Q_ν costs 1.16–1.92× the rule's bytes (A4 refuted on 3). Owed to the owner: quote the anchor as
+   [Q_lo, Q_hi] with ν beside (decision 0.1), and "keep at least half" (Q_ν) as an option. C measured (2026-11-12,
+   15 rounds, demo tip `18d2d1ff`, Chromium 153, amendment 1): on the product's HTJ2K path Hp (decode plus XXH3,
+   19.8–57.1 ms a frame at 1×) as the unit, the view through WebCodecs at 1× decodes in 1.24–1.74 Hp at Q 8 and
+   1.29–1.72 at the rule's Q; under 4× it falls to 0.68–1.12 with four or two slowed cores and rises back to
+   1.16–1.58 with one (C4, C5 hold; C1–C3 not refuted, bands missed). The decision rule does not claim "under one
+   HTJ2K frame on a slow device": a phone is owed.
+11. **Stage A1** (row MERGE-A-CODECS, 2026-11-15): `claude/merge-a-codecs` holds this line's 34 branches merged into
+    `claude/unified-codecs` (five by `-s ours`, call M1; `docs/av1/README.md` §Paths kept in history only), the gate
+    green, the product as the baseline but the two lines of a `stallMs` key; its draft PR lists every resolution. Its blind
+    review (MERGE-A-REVIEW-CODECS, 2026-11-15, in PR 398's body): no blocker. Next: stage B. `av1-paint-depth` (#309) stays out (call M6).
 
 ## Decisions (the owner's)
 
@@ -189,7 +253,7 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
 
 ## Pointers
 
-`docs/av1/` (`payload-format.md`, `MAINBASE.md`, `queue.md`), `docs/decode/README.md`, `docs/FIXTURES.md`,
+`docs/av1/` (`payload-format.md`, `encoder-settings.md`, `MAINBASE.md`, `queue.md`), `docs/decode/README.md`, `docs/FIXTURES.md`,
 `docs/transport/`, `docs/adr/disk-access.md`, `lab/`; branches `claude/av1-unified-mainbase`,
 `claude/av1-quality-metrics:lab/av1/metrics/README.md`, `claude/av1-quality-profiles:lab/av1/profiles/README.md`,
 `claude/av1-noise-point:docs/av1/noise-point.md`, `claude/av1-window-q:docs/av1/window-q.md`,

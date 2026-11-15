@@ -1,0 +1,17 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AV1 PIXELWORK</title>
+<script type="module">
+  globalThis.set = (o) => new Promise((resolve) => {
+    const w = new Worker("./pixel.js", { type: "module" });
+    w.onmessage = (e) => { w.terminate(); resolve(e.data); };
+    w.onerror = (e) => { w.terminate(); resolve({ error: String(e.message ?? e) }); };
+    w.postMessage(o);
+  });
+  globalThis.renderer = () => {
+    const gl = new OffscreenCanvas(1, 1).getContext("webgl2");
+    const ext = gl?.getExtension("WEBGL_debug_renderer_info");
+    return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl ? gl.getParameter(gl.RENDERER) : "no webgl2";
+  };
+  globalThis.ready = crossOriginIsolated;
+</script>

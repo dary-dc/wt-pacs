@@ -14,6 +14,12 @@ const OPTS = JSON.parse(q.get("opts"));
 /** Entries a frame has: a layer-major series' exact frame N is entry F + N. */
 const LAYERS = OPTS.decoder?.layers ?? 1;
 const F = FILL / LAYERS;
+const EXACT_AT = OPTS.decoder?.exactAt ?? (LAYERS - 1) * F;
+/** [start, count, layer] a layer, when a series names its entries (lab/av1/delivery/scalable/tool). */
+const RANGES = OPTS.decoder?.ranges;
+const MIDDLE_AT = OPTS.decoder?.middleAt ?? Infinity;
+const ENTRIES = RANGES ? RANGES.flatMap(([at, n]) => Array.from({ length: n }, (_, i) => at + i))
+  : OPTS.decoder?.exactAt ? [...Array(F).keys(), ...Array.from({ length: F }, (_, i) => EXACT_AT + i)] : [...Array(FILL).keys()];
 const at = () => performance.timeOrigin + performance.now();
 const frames = [];
 const failures = [];
@@ -71,15 +77,18 @@ if (q.get("post")) await fetch(`${q.get("post")}hello`, { method: "POST" });
 const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
   ...OPTS,
   onFrame: (f) => {
-    const i = f.frameIndex - (LAYERS - 1) * F;
+    const i = f.frameIndex - EXACT_AT;
     const { lastByte, decoder, decodeStart: start, decodeEnd: end } = f.info.stamps;
-    frames.push({ i, page: at(), lastByte, decoder, start, end, exact: f.info.exact, path: f.info.path });
+    frames.push({ i, page: at(), lastByte, decoder, start, end, exact: f.info.exact, path: f.info.path, wireBytes: f.info.wireBytes });
     pixels.set(i, f.bytes);
     settled(client);
   },
   // A base decoded after its exact frame must not replace it: it is counted, never shown.
   onPreview: (f) => {
-    previews.push({ i: f.frameIndex, page: at(), late: pixels.has(f.frameIndex) });
+    const middle = f.frameIndex >= MIDDLE_AT;
+    const i = middle ? f.frameIndex - MIDDLE_AT : f.frameIndex;
+    const { lastByte, decoder, decodeStart: start, decodeEnd: end } = f.info.stamps;
+    previews.push({ i, layer: middle ? "middle" : "base", page: at(), late: pixels.has(i), lastByte, decoder, start, end, wireBytes: f.info.wireBytes });
     previewPixels.set(f.frameIndex, f.bytes);
     settled(client);
   },
@@ -96,5 +105,5 @@ issuedAt = q.get("origin") === "navigation" ? performance.timeOrigin : at();
 for (const i of q.get("asks")?.split(",").map(Number) ?? []) {
   client.requestExactFrame(i).then(exact, (e) => failures.push({ i, reason: String(e?.message ?? e) })).then(() => settled(client));
 }
-if (FILL || q.get("asks")) client.fill([...Array(FILL).keys()]);
+if (FILL || q.get("asks")) client.fill(ENTRIES);
 else finish(client);

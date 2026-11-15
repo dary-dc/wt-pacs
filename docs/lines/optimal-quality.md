@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-10 (`claude/oq-depth-cut` at `6f61ff0b`; other tips as read on 2026-11-09); the AV1
+Last verified 2026-11-10 (`claude/oq-depth-cut` at `6f61ff0b`, `claude/demo-e2e` at `fe28ce84`; other tips as read on 2026-11-09); the AV1
 harvest's effect on the demo's claims added 2026-11-10 (§What the harvest changes), branch states not re-read.
 §State now describes the morning of 2026-11-10: `claude/oq-depth-cut` `6f61ff0b` has since been merged into
 `claude/demo-fixes-0` (DEMO-INTEGRATE).
@@ -19,7 +19,8 @@ the optimal-quality series is a series of its own, ingested beside its exact ser
 | ingest | `claude/oq-ingest` → `claude/core` | built in `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID`; the DICOM ingest does not code it yet; `lossy_test.py` in the gate; `demo-series.sh` |
 | client | `claude/oq-client` → `claude/core` | built: pairing (`pair.js`), the Lossless button (`l`), the quality label, `?overlay=1`; tests pass, 21 of 22 mutants killed |
 | depth cut, route | `claude/oq-depth-cut` → `claude/core` (draft PR) | built: the cut (ingest, paint, fixture); WebCodecs first for every OQ series, dav1d only after a refusal; tests pass, the route's 7 of 7 mutants killed |
-| phone | `claude/phone-setup` → `claude/core` | not on `origin` when read |
+| demo end to end | `claude/demo-e2e` → `claude/oq-depth-cut` (draft PR #346) | run at `fe28ce84`: `client/viewer/demo-check.mjs` passed on all 20 OQ series of the demo set in headless Chromium; `demo-series.sh` keeps each `ID.metadata.json`; README §Demo |
+| phone | `claude/phone-setup` → `claude/core` | README §The viewer on an Android phone, checked in a container only; the pair needs `4434/udp` too (README §Demo on `claude/demo-e2e`) |
 
 * **Contract.** Metadata of an optimal-quality series: `"codec": "av1"`, `"lossy": {"q", "g", "depth"}`,
   `"exactSeries": "<id>"`, no `digests`; its frames arrive `unchecked`. A depth cut adds `lossy.bitsStored` = D.
@@ -34,10 +35,15 @@ the optimal-quality series is a series of its own, ingested beside its exact ser
   `decode`. An exact AV1 series keeps its rule (over 10 bits, dav1d alone). A jump into a group decodes from its
   keyframe on one decoder.
 * **Demo series** (`demo-series.sh` on `claude/oq-depth-cut`): `dbts_a1` and `dbts_c1` as depth cuts at Q 8 and 24,
-  G 1, 8 and 16, plus one stored-form series each (`…-q8-g16-stored`) to compare; `dbts_b1` at its own 10 bits. The
-  script has **not been run** in this form: the Q 24 and G 8 cuts' bytes are not measured.
+  G 1, 8 and 16, plus one stored-form series each (`…-q8-g16-stored`) to compare; `dbts_b1` at its own 10 bits. Run
+  twice on 2026-11-10 (DEMO-E2E), same bytes both times; the cuts' bytes in `payload-format.md` §Depth cut on `claude/demo-e2e`.
 * **Label:** *Optimal quality*; *fetching lossless…*; *Lossless* only after the exact frame's digest matched and it
   was painted; *Lossless check failed* otherwise, the lossy frame kept.
+* **Browser end to end** (DEMO-E2E, 2026-11-10, headless Chromium, SwiftShader, loopback, 4-core cloud host): every
+  cut and 10-bit frame through WebCodecs, both stored forms through dav1d with the refusal named; the label in order,
+  never *Lossless* on a wrong digest; whole groups on demand; no console error. Numbers: `client/README.md` §A lossy
+  series, exact on request, on `claude/demo-e2e`. Findings left: the *unchecked* mark on every OQ frame beside the
+  label; Chromium's misleading refusal text on the stored form; a failure reason printed twice; preload warnings.
 * **Not yet run:** a browser end to end on a real pair; any phone run; the dispatch rig and the page check on a
   host with `client/decode/wasm/built/` (the 2026-11-10 gate ran there without it; the identical failures with and
   without the route change were the missing `built/xxh3` hasher, traced in #341, whose rig skips that check by name). The web image (`deploy/nginx`) does not serve
@@ -89,11 +95,15 @@ ultrasound cine.
 3. Review both branches; merge into `core`; then the browser end to end on a pair from `demo-series.sh`.
 4. Serve the exact series' paths from the web image.
 5. Phone runs: tethering for development and decode numbers; Wi-Fi plus netem for transport realism and the demo.
-6. The DICOM ingest codes optimal quality (today only the lab tool does).
+6. The DICOM ingest codes optimal quality (today only the lab tool does). When it does: `lossy_args` takes any Q of 0–63, but Q 0 is qindex 0
+   with no delta-q, which the AV1 specification defines as lossless, so it would write a lossless stream labelled
+   lossy (*derived*, [`../av1/encoder-settings.md`](../av1/encoder-settings.md) §2b). Refuse Q 0, or label it.
 7. The depth cut for D > 10 (the OQ view through WebCodecs, painted from its 10-bit codes through a window table, no
    shift pass); D ≤ 10 needs none. Build `claude/oq-depth-cut` (stacks on the two OQ branches). Full fidelity is the
    exact HTJ2K frame; a 12-bit OQ view through dav1d is the same lossy view at the stored depth, a decode alternative.
    Run `demo-series.sh` once in its new form and record the cut's bytes at Q 24 and G 8.
+   Then (DEMO-E2E, 2026-11-10) review `claude/demo-e2e` (PR #346); the owner's call: keep or drop the *unchecked*
+   mark on OQ frames for the demo; rehearse on the laptop with `demo-check.mjs`, then on the phone.
 10. Is Q 8 right for VL at the windows readers use: done (`claude/av1-window-q`, #323). e_N ÷ σ is the same at
     every window, and one display level needs Q 1–2 (12-bit) or Q 4 (10-bit). How VL is established: done
     (`claude/av1-vl-metrics`, #325); only a flicker test with readers establishes it. The owner's yes/no list is

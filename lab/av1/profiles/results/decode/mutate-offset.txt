@@ -1,0 +1,6 @@
+H|openjph|dbts_a1|-|none 4.6 s {"exact":[72,72]} 
+R|dav1d|dbts_a1|Q16|none 14.5 s {"exact":[0,72],"lossy":[72,72],"residuals":[72,72]} 
+round 0 1x R|dav1d|dbts_a1|Q16|none: {"exact":[0,72],"lossy":[72,72],"residuals":[72,72]} 
+R|webcodecs|dbts_a1|Q16|none 11.0 s {"exact":[0,72],"lossy":[72,72],"residuals":[72,72]} 
+round 0 1x R|webcodecs|dbts_a1|Q16|none: {"exact":[0,72],"lossy":[72,72],"residuals":[72,72]} 
+round 0 1x done, 31 s

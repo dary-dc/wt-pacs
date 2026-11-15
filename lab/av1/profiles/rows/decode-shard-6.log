@@ -1,0 +1,66 @@
+round 2 1x done, 248 s
+round 2 4x done, 585 s
+round 4 1x done, 233 s
+round 4 4x done, 554 s
+round 5 4x done, 323 s
+round 6 1x done, 232 s
+round 6 4x done, 548 s
+round 7 4x done, 320 s
+round 7 1x done, 553 s
+round 8 1x done, 234 s
+round 8 4x done, 553 s
+round 10 1x done, 234 s
+round 10 4x done, 555 s
+round 11 4x done, 315 s
+round 11 1x done, 550 s
+round 12 1x done, 268 s
+round 14 1x done, 246 s
+round 14 4x done, 567 s
+round 15 4x done, 315 s
+round 16 1x done, 253 s
+round 16 4x done, 589 s
+round 17 4x done, 333 s
+round 17 1x done, 592 s
+round 18 1x done, 251 s
+round 20 1x done, 261 s
+round 20 4x done, 609 s
+round 21 4x done, 323 s
+round 22 1x done, 244 s
+round 22 4x done, 579 s
+stopping before round 23: it would pass --until
+
+# mutations after the block, dbts_a1 Q16 1x, one round each (rows not kept)
+## --mutate hash
+round 0 1x dbts_a1|Q16 H: {"exact":[0,16]} 
+round 0 1x dbts_a1|Q16 H′: {"exact":[0,16]} 
+round 0 1x dbts_a1|Q16 S16|webcodecs|jump: {"lossy":[0,20]} 
+round 0 1x dbts_a1|Q16 R|12bit: {"exact":[0,16],"residuals":[0,16],"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S16|webcodecs|order: {"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 R|top10: {"exact":[0,16],"residuals":[0,16],"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S8|webcodecs|jump: {"lossy":[0,20]} 
+round 0 1x dbts_a1|Q16 S1|dav1d|order: {"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S8|webcodecs|order: {"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S1|dav1d|jump: {"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S1|webcodecs|jump: {"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S8|dav1d|order: {"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S1|webcodecs|order: {"lossy":[0,16]} 
+round 0 1x dbts_a1|Q16 S8|dav1d|jump: {"lossy":[0,20]} 
+round 0 1x dbts_a1|Q16 S16|dav1d|jump: {"lossy":[0,20]} 
+round 0 1x dbts_a1|Q16 S16|dav1d|order: {"lossy":[0,16]} 
+## --mutate offset
+round 0 1x dbts_a1|Q16 R|12bit: {"exact":[0,16],"residuals":[16,16],"lossy":[16,16]} 
+round 0 1x dbts_a1|Q16 R|top10: {"exact":[0,16],"residuals":[16,16],"lossy":[16,16]} 
+## --mutate drop
+round 0 1x dbts_a1|Q16 S8|webcodecs|jump: {"lossy":[1,20]} Decoding error.
+round 0 1x dbts_a1|Q16 S8|dav1d|jump: {"lossy":[1,20]} dav1d -28
+## decode_pool.py --test and its nine mutations, each on a copy
+as committed: decode_pool.py: every test passed
+mutated, the A/A rule off: fails (caught) — AssertionError: ('not decided (0 of 1 cells not read, 1 undecided)', {'ci': (2.0839829149810756, 1.5084894020537716, 2.6
+mutated, checks ignored: fails (caught) — AssertionError: ('not decided (0 of 1 cells not read, 1 undecided)', {'ci': (2.0839829149810756, 1.5084894020537716, 2.6
+mutated, a jump timed from its own slice's hand-in: fails (caught) — AssertionError: ('refuted', {'ci': (-0.19123828455125017, -0.19740186291158898, -0.18507470619091135), 'blocks': 3, 'n':
+mutated, the replay not waiting for the frame before: fails (caught) — AssertionError
+mutated, the blocks' pairs pooled as one sample: fails (caught) — AssertionError: held
+mutated, a block's mean for its median: fails (caught) — AssertionError: ('not decided (0 of 1 cells not read, 1 undecided)', {'ci': (2.0118519165593596, 1.734653938736795, 2.28
+mutated, a block under 10 rounds kept: fails (caught) — AssertionError: ('not decided (0 of 1 cells not read, 1 undecided)', {'ci': (2.0831929170236156, 1.5110984827467207, 2.6
+mutated, the t series a term short: fails (caught) — AssertionError: (0.975, 5, 4.108520513521039)
+mutated, predecessors never shuffled: fails (caught) — AssertionError: (0.11937582198029317, 1.0, 0.4319352016128053, 1.0)
