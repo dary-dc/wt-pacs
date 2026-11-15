@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-15T10:16Z
-heartbeat: 2026-11-15T10:18Z
+heartbeat: 2026-11-15T10:23Z
 outputs: claude/cache-arms (docs/reviews/cache-arms.md), PR 394
 ## Resume
 Claimed; the six test files pass at ac517958 (node lab/cache-arms/{store,cells}.test.mjs, arms/*.test.mjs). Running:
