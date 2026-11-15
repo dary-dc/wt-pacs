@@ -1,0 +1,10 @@
+16:45:40Z start
+transport-wasm 0
+vendor client/decode/wasm/fetch_openjph.sh 0
+vendor client/decode/wasm/fetch_xxh3.sh 0
+decode-wasm 0
+16:52:31Z ingest-tools 0
+17:00:04Z gate 0 453s
+cargo-build 0 warnings 2
+comment-budget 0
+17:00:04Z end

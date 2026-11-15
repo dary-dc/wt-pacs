@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-09 (branches and PRs read from `origin`); §Open 6 added 2026-11-15.
+Last verified 2026-11-09 (branches and PRs read from `origin`); §Open 6 added 2026-11-15, stage A2 the same day.
 
 ## Goal
 
@@ -42,6 +42,10 @@ small enough that every open item has an owner and a next step.
    `docs/queue/MERGE-INVENTORY-2-report.md` §4 (2026-11-15 12:53 UTC); its §2 names one owner question (viewer commits
    riding in with `cine-no-skip`). The baseline every stage compares against: `docs/queue/MERGE-BASELINE-report.md`
    (2026-11-15; five tips, every gate OK, `unified-pacs` on its fourth attempt; a cargo target dir per worktree).
+   Stage A2 (row MERGE-A-SERVER, 2026-11-15): `claude/merge-a-server` holds the server line's 11 branches merged into
+   `claude/unified-server` (five by `-s ours`, call M1), the gate green, no test count lower; the product gains the
+   two lab levers of `scroll-policies` (behind `lab-levers`), its downloader lab config, and `deploy-dry-run`'s page
+   without a transport file. Next: its blind review (MERGE-A-REVIEW-SERVER), on its draft PR.
 
 ## Unification (the owner, 2026-11-09)
 
