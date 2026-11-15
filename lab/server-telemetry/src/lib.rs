@@ -9,6 +9,9 @@ pub mod tap;
 /// Loss-regime sampling: a row per second on its own switch, against `tap`'s row per frame.
 pub mod path;
 
+/// One line per session at its end, keyed by the page's load id: the reports' link record.
+pub mod link;
+
 pub mod cc_trace;
 
 pub use sink::flush_on_exit;

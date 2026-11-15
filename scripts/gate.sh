@@ -136,6 +136,8 @@ if [[ $browser -eq 1 ]]; then
   run 1 node lab/frame-clock/check.mjs
   step "client: a depth cut's 10-bit codes decode through WebCodecs, a group from its keyframe on, as dav1d's; a 12-bit stored form tried there first (headless Chromium)"
   run 1 node client/decode/depth-cut.browser.mjs
+  step "lab: the reports' rig, each Chromium ending's lever by raw CDP against a probe page (headless Chromium)"
+  run 1 node lab/report-arms/cdp.check.mjs
   step "client: a crafted link to the viewer refused where lab/ is not served (headless Chromium)"
   run 1 node client/viewer/crafted.mjs
   step "client: the paint's fence settle waits for a heavy draw, the read as reference (SwiftShader)"
@@ -214,6 +216,14 @@ step "lab: the device kit's plan, bundle reader, collector and server start; the
 run 1 node lab/devices/plan.test.mjs
 run 1 python3 lab/devices/collector_test.py
 run 1 sh deploy/server_start_test.sh
+
+step "lab: the reports' rig — the records, the sink's contract, the read tool, the timings and mutants, the process-tree kill, BEACON's arm"
+run 1 node lab/report-arms/record.test.mjs
+run 1 node lab/report-arms/sink.test.mjs
+run 1 node lab/report-arms/read.test.mjs
+run 1 node lab/report-arms/timing.test.mjs
+run 1 node lab/report-arms/levers.test.mjs
+run 1 node lab/report-arms/beacon/beacon.test.mjs
 
 step "lab: M5's rule on made-up rows: each in-hand path barred on its own, the busy cell's A/A"
 

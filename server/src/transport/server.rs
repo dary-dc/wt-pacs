@@ -281,10 +281,14 @@ async fn handle_incoming(incoming: quinn::Incoming, sessions: Sessions) -> Resul
         .opening_ask
         .then(|| parse_opening_ask(session_request.path(), sessions.store.frame_count()))
         .flatten();
+    #[cfg(feature = "telemetry")]
+    let load = crate::record::link::load_id(session_request.path());
     let connection = session_request.accept().await.context("accept session")?;
 
     #[cfg(feature = "telemetry")]
     tokio::spawn(crate::record::path::run(connection.quic_connection().clone()));
+    #[cfg(feature = "telemetry")]
+    tokio::spawn(crate::record::link::run(connection.quic_connection().clone(), load));
 
     let session = || QuicSession::WebTransport(connection.clone());
     let link = |control| Link::quic(sessions.mode, session(), control, sessions.stall, sessions.cwnd_ahead);
@@ -1379,6 +1383,48 @@ mod tests {
             matches!(records.last(), Some(Record::Session(_))),
             "the session row is missing"
         );
+    }
+
+    /// A session dialed with `load=` in its URL leaves one link line at its end, keyed by that load id
+    /// (docs/client/evidence/report-plan.md §3.4).
+    #[cfg(feature = "telemetry")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_session_with_a_load_id_leaves_its_link_line() {
+        let fx = Fixture::new(2);
+        let file = fx.dir.join("link.jsonl");
+        std::env::set_var("WTPACS_LINK_RECORD_PATH", &file);
+        let sessions = Sessions {
+            store: Arc::new(FrameStore::open(&fx.series).expect("open store")),
+            read_mode: ReadMode::Auto,
+            mode: StreamMode::Shared,
+            opening_ask: false,
+            stall: None,
+            cwnd_ahead: None,
+            taps: Arc::new(|| None),
+        };
+        let config = fx.config();
+        let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
+            .await
+            .expect("identity");
+        let (endpoint, _) = build_endpoint(&config, &identity).expect("endpoint");
+        let server = tokio::spawn(async move {
+            handle_incoming(endpoint.accept().await.expect("incoming"), sessions).await
+        });
+        let connection = dial(fx.port, fx.cert_hash, "?load=ab12").await;
+        connection.close(0u32.into(), b"done");
+        tokio::time::timeout(Duration::from_secs(10), server).await.expect("the session never ended").ok();
+        let mut line = String::new();
+        for _ in 0..50 {
+            line = std::fs::read_to_string(&file).unwrap_or_default();
+            if !line.is_empty() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        let v: serde_json::Value = serde_json::from_str(line.trim()).expect("one JSON line");
+        assert_eq!(v["load"], "ab12", "the line is keyed by the session's load id");
+        assert_eq!(v["kind"], "link");
+        assert!(v["bytes_sent"].as_u64().unwrap() > 0, "the session's bytes sent");
     }
 
     /// With `hold_sessions` the client's dial neither completes nor fails: the handshake is done,
