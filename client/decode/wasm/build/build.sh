@@ -41,7 +41,8 @@ bash "$ROOT/client/decode/wasm/fetch_xxh3.sh" >/dev/null
 docker build -q -t "$IMAGE" --build-arg DEBIAN_IMAGE="$DEBIAN_IMAGE" --build-arg DEBIAN_SNAPSHOT="$DEBIAN_SNAPSHOT" \
   -f "$HERE/Containerfile" "$HERE" >/dev/null
 # The repository is mounted at its own path, so a clone elsewhere builds from another path; -ffile-prefix-map must hide it.
-docker run --rm --network none -v "$ROOT:$ROOT" -v "$CACHE:$CACHE:ro" -w "$ROOT" "$IMAGE" \
+# Unlabelled: an SELinux host gives a container no read of the checkout (README.md beside this, §The container).
+docker run --rm --network none --security-opt label=disable -v "$ROOT:$ROOT" -v "$CACHE:$CACHE:ro" -w "$ROOT" "$IMAGE" \
   bash "$HERE/inside.sh" "$CACHE" "$OUT" "$(id -u):$(id -g)"
 
 if [[ -n "${UPDATE:-}" ]]; then
