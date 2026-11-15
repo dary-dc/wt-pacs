@@ -70,7 +70,8 @@ async function load({ arm, timing, ending, mutant, wait, sink, srv, dir, out }) 
   try {
     await cdp.openPage(b, "about:blank");
     const q = new URLSearchParams({ arm, timing, dir: `/${relative(ROOT, dir)}`, fault: "sample", at: AT,
-      wt: srv?.wt ?? "https://127.0.0.1:9/", hash: srv?.hash ?? "00", ...(mutant ? { mutant } : {}) });
+      wt: srv?.wt ?? "https://127.0.0.1:9/", hash: srv?.hash ?? "00", ...(mutant ? { mutant } : {}),
+      ...(ending === "D8" ? { forced: "page" } : {}) });
     const p = await cdp.openPage(b, `http://127.0.0.1:${sink.port}/lab/report-arms/index.html?${q}`);
     row.load = await cdp.evaluate(b, p, "new Promise((r) => { const t = setInterval(() => rig.load && (clearInterval(t), r(rig.load)), 10); })");
     const other = `http://localhost:${sink.port}/lab/report-arms/probe.html?id=away`;

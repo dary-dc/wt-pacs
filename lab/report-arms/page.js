@@ -1,6 +1,6 @@
 // One load through the product's downloader with the fault bench's decoder (lab/faultbench/README.md), one carrier
 // arm behind the seam, the load report on the arm's timing and the safety report at once (report-plan.md §7.2).
-// ?arm=&timing=&mutant=&wt=&hash=&dir=&fault=&at=  — run.mjs drives it through window.rig.
+// ?arm=&timing=&mutant=&wt=&hash=&dir=&fault=&at=[&forced=page]  — run.mjs drives it through window.rig.
 import { DownloaderClient } from "/client/transport/consumer.js";
 import { built } from "/client/decode/wasm-glue.js";
 import { Load, safetyRecord } from "./record.js";
@@ -24,6 +24,11 @@ try {
   const timing = schedule({ timing: q.get("arm") === "off" ? "off" : q.get("timing"), carrier, load, mutate });
   const safety = (failure) => { rig.safety++; carrier.safety(JSON.stringify(mutate(safetyRecord(ctx, failure, env)))); };
   Object.assign(rig, { load: ctx.load, press: (text) => load.press({ at: Date.now(), text }) });
+  // D8 has no session, so no decode to fail: the failure is forced on the page at once.
+  if (q.get("forced") === "page") {
+    safety({ frame: Number(q.get("at")), route: "forced", check: "xxh3", expected: null, actual: null, secondDecode: false,
+             followed: "forced", at: performance.timeOrigin + performance.now() });
+  }
 
   const n = meta.frameCount;
   const wt = new URL(q.get("wt"));
