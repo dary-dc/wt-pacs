@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -45,6 +45,11 @@ exact frame bit for bit, and only checked claims on screen.
   NGINX's advocate (§3.5, 2026-11-14): the plan's log line was not JSON (checked on nginx 1.24), now the body as a JSON
   string beside `$content_length`; the body read early with no hop on nginx ≥ 1.31.5 (`client_body_early_read`), the
   hop on 1.29; a file per kind; the `204` precedes the line, and the error log names the client.
+  The protocol (§7, 2026-11-15, pre-registered, nothing run): nine arms (`off`, `off′`, each carrier × its timings),
+  cells D (delivery by nine endings), L, C, Y, R, bars and predictions per arm; SESSION predicted to fail D8 (no
+  session) and BEACON/KEEPALIVE-H the visible kill. Levers checked on the host: Chromium only by raw CDP (a Playwright
+  page never hides or enters bfcache); Firefox 159 and WebKitGTK 2.52.6 hide and bfcache, their renderer kills not
+  yet checked. Phone endings written as asks in the phone protocol.
 
 ## PRs
 

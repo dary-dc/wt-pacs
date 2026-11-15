@@ -911,7 +911,7 @@ the same nginx, and **the server** over report streams while it serves one `dbts
 peak RSS per 1 000 reports, refusals, lines written; for the server, the fill's time against the same fill with no
 reports. Order: NGINX, RECEIVER, server, rotated over 6 rounds. *Bar*: at 100 a second, ≤ 5 % of one core and every
 report written (counted refusals excepted); the server's fill time within 1.02 of its no-report fill. *Predictions*:
-NGINX cheapest; RECEIVER about NGINX plus one local hop; the server passes at 100/s. Where `none`'s generator alone
+NGINX cheapest; RECEIVER about NGINX plus one local hop; the server passes at 100/s. Where the generator alone
 reaches 3 cores, the rate is saturated and claims nothing.
 
 ### 7.4 · A/A, VOID, saturation, mutants, pilot
