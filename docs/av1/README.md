@@ -11,6 +11,7 @@ The bit split against the literature, and the alternatives above 12 bits: [`spli
 Whether frames are coded in groups (inter) or alone, the decision and its reasons: [`frame-groups.md`](frame-groups.md).
 Lossless coding published 2023–2026, and what of it a browser can decode exactly: [`lossless-literature.md`](lossless-literature.md).
 What binds a lossy, "visually lossless" picture of a frame, and what its quality may be measured against: [`visually-lossless.md`](visually-lossless.md).
+Which metrics may claim a lossy view visually lossless, at which windows, and what still needs readers: [`vl-metrics.md`](vl-metrics.md).
 
 **Every ultrasound number in this file is provisional (the provenance audit, queue row DATAGUARD, 2026-10-08).** `us_liver`'s header says it
 was coded lossily at 12.4:1 before it was archived, the breast cine are MPEG-4 Part 2 clips, and the stills a PNG
@@ -1488,29 +1489,23 @@ measured above.
 
 *The owner, 2026-11-02: most roles would scroll a cine-like series as a lossy AV1 stream meant to be visually
 lossless, and some could ask for the exact frame, never by default ([`../glossary.md`](../glossary.md), *quality
-profile*).* Theory, prediction, protocols and results: [`lab/av1/profiles`](../../lab/av1/profiles/README.md).
+profile*).* Measured, 2026-11-02 to 2026-11-08, in three places:
 
+* **Bytes** — [`lab/av1/profiles`](../../lab/av1/profiles/README.md) §Profiles bytes, measured; **decode** — the same
+  file, §Profiles decode, measured (2026-11-04).
+* **Quality** — [`lab/av1/metrics`](../../lab/av1/metrics/README.md) §Quality metrics, measured (2026-11-08), all
+  four shards: 27 series, 1 650 cells, every rung Q 1 … 56 at G 1, 8, 16. On the 19 DBT volumes, stored form: the
+  coding error reaches the frame's own noise after Q 8 on system C, Q 8–12 on B, Q 4–8 on A, at 0.09–0.28 of
+  HTJ2K's bytes, where the pixel metrics also bend (B: Q 12); **no rung, not even Q 1, keeps every displayed grey
+  level within 1**; the VL view's error stays below the step between neighbouring slices to Q 16 (12–24 by series),
+  at 0.006–0.073 of HTJ2K's. Nothing is called visually lossless: that needs readers (§6 there, not run). Claimed
+  for the named fixtures only; breast ultrasound cine and ABUS are missing. Corrected in place: the 2026-11-05
+  reading had three shards (20 series), "A: Q 4" on two of A's five volumes, and called this error the preview's.
 * **Decode, measured 2026-11-04** (§7's amended protocol: six 4-core hosts, 108 rounds, pooled; §*Profiles decode,
   measured (amended)* there). D1, D2 and D3 are each **refuted**. At 1×, a lossy frame through WebCodecs costs
   1.05–2.24× an HTJ2K exact frame. A jump at G 16 through dav1d-WASM costs 3.8–13× one at G 1, against a 5–9 band.
   Residual decode + add costs 1.42–1.69× an HTJ2K frame, against 0.9–1.1. Claimed for `dbts_a1`, `dbts_b1` and
   `dbts_c1` (one DBT volume per system), Chromium 141, ≤ 4× only; no cine.
-
-* **The prediction** (*derived*, §2 there). Lossless inter lost on DBT because it pays for noise that adjacent slices
-  do not share (ρ 0.11–0.22, [`frame-groups.md`](frame-groups.md) §4). A quantizer whose step exceeds the noise
-  stops coding that noise in intra and inter alike, and inter predicts from an already denoised decoded slice; so
-  G = 16's gain over G = 1 should turn from ≤ +5 % below half the noise's RMSE to ≥ +10 % from the rung where the
-  coded error reaches the noise, and **+15 to +50 %** once it is twice the noise; system B (10-bit, highest ρ) most.
-  G = 8 keeps ≥ 80 % of G = 16's gain. The lossy stream plus an HTJ2K residual stays at **0.93–1.03 of HTJ2K**
-  (row 17 measured 0.947–1.002). Refuted by inter gaining under half the noise, or by no gain at any rung.
-* **Depth.** A 12-bit slice reaches WebCodecs (≤ 10 bits, row WCAP) as its rounded top 10 bits (a 70.5 dB ceiling,
-  the two low noise bits left to the residual), a windowed map (finer in the window, clipped tails in the residual),
-  or stays 12-bit through dav1d-WASM alone; all three are coded.
-* **Fixtures.** The 15 DBT volumes, every cine-like set at ≤ 12 bits (`usb_cine`, `usb_cine_rgb`, `us_liver`
-  flagged lossy-sourced, provisional), and five larger sound sets pinned for it: each system's largest DBT volume in
-  IDC v25 and two 280-frame prostate ultrasound sweeps, the nearest swept volume to ABUS
-  ([`../FIXTURES.md`](../FIXTURES.md) §AV1 data). Breast ultrasound cine and ABUS are **pending** the owner's dataset;
-  the product's study mix is not in the repo.
 
 ### The scalable preview as a tool — a candidate
 
