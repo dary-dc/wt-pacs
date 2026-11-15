@@ -35,8 +35,12 @@ try {
   check(saw("bf", "pagehide", (e) => e.persisted), "navigate to another origin: pagehide, persisted");
   await cdp.back(b, p); await pause(1500);
   check(saw("bf", "pageshow", (e) => e.persisted), "back: pageshow persisted, restored from bfcache");
+  await cdp.close(b, p);
+
+  // A fresh page: entering bfcache above fires freeze too.
+  p = await cdp.openPage(b, at("127.0.0.1", "frz"));
   await cdp.freeze(b, p); await pause(1000);
-  check(saw("bf", "freeze"), "setWebLifecycleState frozen: freeze");
+  check(saw("frz", "freeze"), "setWebLifecycleState frozen: freeze");
   await cdp.close(b, p);
 
   p = await cdp.openPage(b, at("127.0.0.1", "crash"));
