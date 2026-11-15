@@ -25,7 +25,8 @@ exact frame bit for bit, and only checked claims on screen.
   by the method now in `CLAUDE.md` §Measurement: #385. Its rig, 2026-11-15 (`lab/cache-arms/`, `claude/cache-arms`):
   the ring, the seam and the rules above it, the floor probe and the eleven cells, with `none` and a stand-in arm only,
   smoked on Chromium 153; O's fresh fill not built, and Chromium's quota override not shown by `estimate()` (its
-  README). Next, the four arms' builds.
+  README). OPFS-SYNC's arm built 2026-11-15 (`arms/opfs-sync.js`, smoked on Chromium 153 and Firefox 159); under
+  Chromium's override its `truncate` at open is refused in Q, as the README foresaw. Next, the other three arms' builds.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
