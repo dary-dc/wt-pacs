@@ -16,7 +16,8 @@ la=$(g lab-absent | awk '{print $2}'); [[ $la == 127 ]] && lv="not on this tip" 
 echo "| \`scripts/check_lab_absent.sh\` | $lv | as named |"
 echo "| \`scripts/comment_budget.sh\` | exit $(g comment-budget | awk '{print $2}'): $(grep -v '^$' $O/comment-budget.log | tail -1 | cut -c1-90) | as named |"
 for t in server web; do r=$(g image-$t); rc=$(awk '{print $2}' <<<"$r"); sz=$(awk '{print $4}' <<<"$r")
-  if [[ $rc == 0 ]]; then v="$(awk -v s=$sz 'BEGIN{printf "%.1f MB", s/1e6}') ($sz bytes)"; else v="not built here: $(grep -m1 -oE 'process "[^"]{0,60}' $O/image-$t.log | sed 's/process "//')… exit 100 — the container's proxy refuses plain-HTTP apt (405)"; fi
+  if [[ $rc == 0 ]]; then v="$(awk -v s=$sz 'BEGIN{printf "%.1f MB", s/1e6}') ($sz bytes)"; elif grep -q 'apt-get update' $O/image-$t.log; then v="not built here: its \`apt-get update\` exits 100 — this container's proxy refuses plain-HTTP apt (405)"
+  else v="not built here: its \`client/transport/wasm/build.sh\` step exited 1 (output hidden by \`-q\`); the retry with \`--progress=plain\` hit Docker Hub's 429"; fi
   echo "| deploy image, \`$t\` target | $v | \`docker build -f deploy/Containerfile --target $t\` (BuildKit, --network host, the proxy's CA as build_ca) |"; done
 if [[ -s $O/counts.md ]]; then echo; echo "Test counts, each \`cargo test\` line of the gate run again without \`--quiet\`:"; echo; echo "| gate line | tests |"; echo "| --- | --- |"; cat $O/counts.md; fi
 echo; echo "The JavaScript and Python suites as the gate printed them (its \`run 1\` keeps a step's last line):"; echo

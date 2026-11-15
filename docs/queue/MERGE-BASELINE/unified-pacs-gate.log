@@ -23,7 +23,7 @@ arms apply
 
 == deploy: the server's seccomp profile is Docker's pinned default plus io_uring, nothing else
 seccomp-uring.json: default profile + io_uring, current
-   (0 s)
+   (1 s)
 
 == client: build bundles + unit tests
 wrote dist/session.js dist/ws-session.js dist/race-session.js ../../contract/run.mjs ../../contract/dist/{fake-session,downloader-rig,dispatch-rig}.js test/run.mjs
@@ -41,9 +41,9 @@ decoder range pass: ok
 decoder manifest check: ok
    (0 s)
 the frame check's hasher: ok
-   (1 s)
-downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held: ok
    (0 s)
+downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held: ok
+   (1 s)
 consumer refusals, acks, unreadable deliveries, a delivered frame not failed, a worker that does not load: ok
    (0 s)
 av1 payload reader: 365 ok
@@ -82,16 +82,16 @@ dispatch over wasm: 102/102 checks passed through the downloader
    (54 s)
 
 == client: the viewer's page check — a complete, exact, drawn page (headless Chromium)
-series (htj2k), client ts: 3/3 received, 3 exact, paths {"htj2k":3}, renderer ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver), fill 112 ms, first exact on screen 158 ms, readbacks 0:0 1:0 2:0, cine 3 frames
+series (htj2k), client ts: 3/3 received, 3 exact, paths {"htj2k":3}, renderer ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver), fill 121 ms, first exact on screen 182 ms, readbacks 0:0 1:0 2:0, cine 3 frames
 viewer check: every frame complete, exact and drawn (chromium, ts)
-series (htj2k), client ts: 3/3 received, 3 exact, paths {"htj2k":3}, renderer ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver), on demand, first exact on screen 126 ms, readbacks 0:0 1:0 2:0
+series (htj2k), client ts: 3/3 received, 3 exact, paths {"htj2k":3}, renderer ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver), on demand, first exact on screen 151 ms, readbacks 0:0 1:0 2:0
 viewer check: every frame complete, exact and drawn (chromium, ts)
-series (htj2k), client wasm: 3/3 received, 3 exact, paths {"htj2k":3}, renderer ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver), fill 99 ms, first exact on screen 144 ms, readbacks 0:0 1:0 2:0, cine 3 frames
+series (htj2k), client wasm: 3/3 received, 3 exact, paths {"htj2k":3}, renderer ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver), fill 108 ms, first exact on screen 155 ms, readbacks 0:0 1:0 2:0, cine 3 frames
 viewer check: every frame complete, exact and drawn (chromium, wasm)
-series (htj2k), client wasm: 3/3 received, 3 exact, paths {"htj2k":3}, renderer ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver), on demand, first exact on screen 146 ms, readbacks 0:0 1:0 2:0
+series (htj2k), client wasm: 3/3 received, 3 exact, paths {"htj2k":3}, renderer ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver), on demand, first exact on screen 166 ms, readbacks 0:0 1:0 2:0
 viewer check: every frame complete, exact and drawn (chromium, wasm)
 SKIPPED: the viewer's cross-codec arm and Firefox — they need the DICOM ingest's bundles and a GL display (client/README.md §The viewer)
-   (76 s)
+   (82 s)
 
 == client: a crafted link to the viewer refused where lab/ is not served (headless Chromium)
 crafted links: 6 refused on the product's host, honoured where lab/ is served; 2 unknown clients refused
@@ -103,7 +103,7 @@ every 1:1 whole-pixel cell equals the reference to the code
 
 == client: type-check (product, the lab's recorder and its tests, contract and transport-ts tests)
 typed
-   (5 s)
+   (6 s)
 
 == ingest: the split and its merge, every depth, sign and k
 writer's split and merge: 142/142 cells exact, 20 with a top over 12 bits refused by name, as are 17 bits, k = 9 and a default over 14 bits
@@ -114,15 +114,15 @@ ok: from-dicom reader, 0 failing
    (0 s)
 
 == ingest: the Rust ingest against the Python one — every layout byte-identical at --jobs 1, 2 and 4
-   (11 s)
+   (13 s)
 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
    (6 s)
 ok: both ingests, 0 failing
-   (0 s)
+   (1 s)
 
 == ingest: a synthetic DICOM series to .sbnd, every frame out of the bundle as written, HTJ2K and AV1
-   (9 s)
+   (10 s)
 ok   test_failed_pack: refused as nothing written, no sidecar, no partial (True, ['refused.sbnd'])
    (2 s)
 
@@ -144,19 +144,19 @@ provenance: 17/17 cases
 
 == server: tests, default features
 
-   (43 s)
+   (46 s)
 
 == server: tests, telemetry feature
 
-   (21 s)
+   (23 s)
 
 == server: compiles without io_uring (the pool path alone)
 
-   (12 s)
+   (13 s)
 
 == server: compiles with cert-compression
 
-   (9 s)
+   (10 s)
 
 == carrier: the resumable upload, mutual TLS, refusals, and the PCS's script through a proxy that cuts and stalls
 
@@ -164,7 +164,7 @@ provenance: 17/17 cases
 
 == sender: the package build from an exam tree, and the sender through the carrier and the PCS's script
 
-   (16 s)
+   (15 s)
 
 == carrier: the same upload over the experimental HTTP/3 listener
 
@@ -176,7 +176,7 @@ provenance: 17/17 cases
 
 == ingest: the PACS receiver — every step, refusal and crash point (docs/adr/pacs-receiver.md)
 
-   (11 s)
+   (12 s)
 
 == tools: pack-series packs the smoke bundle again to the same bytes
 same bytes
@@ -184,56 +184,48 @@ same bytes
 
 == lab: the seven lab crates' tests (their variants are part of the API)
 
-   (11 s)
+   (12 s)
 
 == lab: the Go and h3 clients compile
-   (0 s)
-   (7 s)
+   (1 s)
+   (8 s)
 
 == lab: the server's lab features — the frame cache compiles, cubic-classify's and the lab levers' wiring holds
 
-   (3 s)
+   (2 s)
 
-   (8 s)
+   (10 s)
 
-   (11 s)
+   (12 s)
 
 == perf: counts, not clocks — the client's asks, the server's disk reads and the bytes, against scripts/perf_counts.baseline
-warning: use of deprecated associated function `tokio::io::unix::AsyncFd::<T>::with_interest`: unsound due to lack of I/O safety; use `AsyncFd::register_with_interest` instead (see https://github.com/tokio-rs/tokio/pull/8587)
-  --> server/src/media/uring_reader.rs:41:31
-   |
-41 |             ring_fd: AsyncFd::with_interest(ring.as_raw_fd(), Interest::READABLE)
-   |                               ^^^^^^^^^^^^^
-   |
-   = note: `#[warn(deprecated)]` on by default
+perf counts: 9 as in the baseline, on 24 frames
+   (42 s)
 
-Error: WebSocket listener on TCP port 36853
+== client: against the real server, over QUIC and the WebSocket — refusals, an ask during a fill (headless Chromium)
 
-Caused by:
-    Address already in use (os error 98)
+refusals (ts): 64/64 refused with the server's reason, none lost
+refusals (wasm): 64/64 refused with the server's reason, none lost
+refusals (ws): 64/64 refused with the server's reason, none lost
+ask-during-fill (ts): 3/3 checks passed
+ask-during-fill (downloader): 3/3 checks passed
+ask-during-fill (ws): 3/3 checks passed
+ask-during-fill (downloader-ws): 3/3 checks passed
+ask-during-fill (wasm): 3/3 checks passed
+ask-during-fill (downloader-wasm): 3/3 checks passed
+   (15 s)
 
-Stack backtrace:
-   0: series_server::transport::server::run_server::<series_server::main::{closure#0}::{closure#1}>::{closure#0}
-   1: series_server::main::{closure#0}
-   2: series_server::main
-   3: std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> core::result::Result<(), anyhow::Error>, core::result::Result<(), anyhow::Error>>
-   4: main
-   5: __libc_start_call_main
-             at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
-   6: __libc_start_main_impl
-             at ./csu/../csu/libc-start.c:360:3
-   7: _start
-file:///home/user/tips/unified-pacs/scripts/perf_counts.mjs:35
-  server.once("exit", (c) => reject(new Error(`the server exited ${c}: ${out}`)));
-                                    ^
+== deploy: the web host's nginx answers as dev-server.py, and serves the page's files alone
+equivalent on 11 paths, 20 hidden; the WASM client's build served; gzip, the CSP, the Server header and the PEM's chain hold
+   (1 s)
 
-Error: the server exited 1: [2m2026-11-15T14:10:42.820612Z[0m [33m WARN[0m [2mseries_server::transport::lab_levers[0m[2m:[0m --force-pool-reads: every read reports a miss; this is a lab flag, not a deployment one
+== client: absence check (default bundle carries no telemetry)
+OK: no telemetry surface in default client artifacts
+   (0 s)
 
-    at ChildProcess.<anonymous> (file:///home/user/tips/unified-pacs/scripts/perf_counts.mjs:35:37)
-    at Object.onceWrapper (node:events:634:26)
-    at ChildProcess.emit (node:events:519:28)
-    at ChildProcess._handle.onexit (node:internal/child_process:293:12)
+== server: absence check (default release binary carries no Tap and no lab controller)
+OK: no telemetry symbols, no lab controller and no lab lever in default build
+   (0 s)
 
-Node.js v22.23.4
-
-GATE FAILED: node scripts/perf_counts.mjs
+GATE OK in 486 s; skipped:
+  SKIPPED: the viewer's cross-codec arm and Firefox — they need the DICOM ingest's bundles and a GL display (client/README.md §The viewer)
