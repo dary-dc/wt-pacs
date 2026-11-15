@@ -178,6 +178,9 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
    landed).
 8. An idea raised 2026-11-09, undecided: code optimal quality, split its decoded samples into top and low bits, send
    the top, the low only on request (target: the optimal-quality image, not lossless).
+9. The decode audit's three checks (`claude/av1-audit-decode`): D1 at 4× with a core cap; one block with `back()` off
+   the clock; the product's own HTJ2K path beside each study's unit on one Chromium. Until then, quote the view's decode
+   at Q 8 only, with its stream, host and throttle.
 
 ## Decisions (the owner's)
 
