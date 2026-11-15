@@ -112,7 +112,7 @@ def main():
         s = Set(d)
         dst = out / s.name
         if not (dst / "variants.json").exists():
-            subprocess.run([sys.executable, LAB / "av1/decode/resolution-level/make_frames.py", build, out, d, "--frames",
+            subprocess.run([sys.executable, LAB / "decode/resolution-level/make_frames.py", build, out, d, "--frames",
                             str(s.n), "--screen", str(SCREEN)], check=True)
         entry = json.loads((dst / "variants.json").read_text())
         if entry["level"] != 1:

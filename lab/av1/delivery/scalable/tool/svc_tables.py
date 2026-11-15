@@ -296,8 +296,10 @@ def footer(C):
         mid_ok = sum(r.get("middleExact", 0) or 0 for r in allv)
         late = sum(r.get("late", 0) or 0 for r in allv)
         strays = sum(r.get("strays", 0) or 0 for r in allv)
+        rate = [r["wireBytes"] / r["lastByteMs"] / 1000 for r in kv if r["variant"] not in LOSSY and r.get("lastByteMs")]
         lines.append(f"* {cell_name(c)}: n = {ns[0]}–{ns[-1]}, VOID {len(allv) - len(kv)} of {len(allv)}; exact {exact}/{owed};"
-                     f" bases as native {base_ok}, middles as native {mid_ok}; late {late}, stray {strays}; stall-flushes {stalls}; {aa(C, c)[0]}")
+                     f" bases as native {base_ok}, middles as native {mid_ok}; late {late}, stray {strays}; stall-flushes {stalls}; {aa(C, c)[0]}"
+                     + (f"; exact fills received at {span(rate, lambda x: f'{x:.2f}')} MB/s" if rate else ""))
     return "\n".join(lines)
 
 

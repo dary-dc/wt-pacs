@@ -523,4 +523,5 @@ for (const { engine, set: name, link: l, impairment, throttle } of cells) {
   console.log(`${ENGINES.length > 1 ? `${engine} ` : ""}${name} ${l}${impairment === "clean" ? "" : ` ${impairment}`} ${throttle}x: ${parts.join(" · ")}`);
 }
 console.log(`VOID, dropped: ${rows.filter((r) => r.void).length} of ${rows.length}`);
+rmSync(T, { recursive: true, force: true }); // the packed series, up to 2.3 GB a run
 process.exit(0);
