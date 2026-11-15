@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-15 (the reports' rig) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -29,6 +29,14 @@ exact frame bit for bit, and only checked claims on screen.
   mid-group.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
+* **The reports' rig**, 2026-11-15 (`lab/report-arms/`, `claude/report-arms`, REPORT-BUILD-HARNESS of
+  `claude/work-ledger:docs/queue-client-2026-11-14.md`): the harness `claude/report-plan`'s §7 protocol needs, with the
+  arms `off` and `stub` only — the records and one field list, the sink (*one record in, one acknowledgement after the
+  append*, its counters), the read tool (dedup by `reportId`, the join by load), the timings H and Y, §7.4's mutants,
+  Chromium's endings by raw CDP, a process-tree kill for the other engines, the relay's blackout, the server's link
+  line per session under `telemetry`, a page on the fault bench whose forced mismatch sends a safety report. Smoke on
+  headless Chromium only. Not built: D6 under `--tun` (no iproute2 here), the floor probes, cells L, C, Y, R; Firefox's
+  and WebKit's kills unchecked (neither engine here). Next: the build rows BEACON, KEEPALIVE, SESSION, RECEIVERS.
 
 ## PRs
 
