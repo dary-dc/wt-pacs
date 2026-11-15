@@ -1,0 +1,16 @@
+base /tmp/claude-0/-home-user-wt-pacs/2d260824-6161-54b1-8342-2ee3a80fa892/scratchpad/base series-server f36f907ecec0748aa9503f380a7c3599b916cb5fab7185125ff76699ce9709e9
+head /tmp/claude-0/-home-user-wt-pacs/2d260824-6161-54b1-8342-2ee3a80fa892/scratchpad/head series-server be05817201ae98fda7ec778455382bf2ca2d3b39fe73ad43ab4cc5049f00e274
+the gate's grey codestream × 48 on r50000 clean, l1 at 1×, 4×, 12 rounds and 12 confirming; dropped 121 VOID and 0 failed of 576 visits; ×: head ÷ base, base again ÷ base, median of rounds
+clean.1x.fill: tie — head ×1, A/A ×0.998, rounds kept 5 + 9 of 12 each, A/A sd 0.0144, catches 4.0 %
+clean.1x.first: not conclusive — head ×0.9931, A/A ×0.9931, rounds kept 5 + 9 of 12 each, A/A sd 0.0428, catches 12.1 %
+clean.1x.asked: not conclusive — head ×1.0058, A/A ×1.0116, rounds kept 7 + 3 of 12 each, A/A sd 0.0646, catches 15.1 %
+clean.4x.fill: tie — head ×0.999, A/A ×0.9962, rounds kept 8 + 9 of 12 each, A/A sd 0.0151, catches 3.2 %
+clean.4x.first: not conclusive — head ×0.99, A/A ×0.9881, rounds kept 8 + 9 of 12 each, A/A sd 0.0658, catches 14.9 %
+clean.4x.asked: not conclusive — head ×1.0493, A/A ×1.1377, rounds kept 3 + 6 of 12 each, A/A sd 0.0657, catches 30.4 %
+l1.1x.fill: not conclusive — head ×1.0771, A/A ×0.968, rounds kept 8 + 5 of 12 each, A/A sd 0.0839, catches 19.3 %
+l1.1x.first: not conclusive — head ×1.05, A/A ×1.0166, rounds kept 8 + 5 of 12 each, A/A sd 0.0258, catches 5.4 %
+l1.1x.asked: not conclusive — head ×1.0462, A/A ×0.9961, rounds kept 9 + 5 of 12 each, A/A sd 0.1298, catches 28.0 %
+l1.4x.fill: not conclusive — head ×0.8594, A/A ×0.8095, rounds kept 5 + 6 of 12 each, A/A sd 0.3247, catches 64.9 %
+l1.4x.first: not conclusive — head ×1, A/A ×1.005, rounds kept 5 + 6 of 12 each, A/A sd 0.0433, catches 12.4 %
+l1.4x.asked: not conclusive — head ×1.0142, A/A ×1.1197, rounds kept 6 + 5 of 12 each, A/A sd 0.1205, catches 33.7 %
+exit 0
