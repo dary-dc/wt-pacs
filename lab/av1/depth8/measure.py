@@ -2,7 +2,7 @@
 """DEPTH8-MEASURE (docs/av1/depth-cut-8.md §7): the 8-bit cut's forms added to the quality study's harness, its cells
 run in the protocol's fixed order, and the plan extended until each volume's highest passing Q is bracketed.
 
-usage: measure.py HARNESS BUILD WORK DATA OUT.jsonl --stage a|b [--jobs 4]
+usage: measure.py HARNESS BUILD WORK DATA OUT.jsonl --stage a|b|c [--jobs 4]
        HARNESS is a checkout of claude/av1-noise-ratio at the commit the rows record; stage b reads stage-a.jsonl
        beside OUT for the series and the G 1 cells.
 """
@@ -17,6 +17,8 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 STAGE_A = ["dbts_a1", "dbts_b1", "dbts_c1", "dbt12_ea1141", "dbts_b2", "dbts_c4"]
+STAGE_C = ["dbts_a3", "dbts_a4", "dbts_a5", "dbts_b4", "dbt10_d",
+           "dbt12_c", "dbts_a2", "dbts_c2", "dbts_c3", "dbts_c5", "dbt10_ea1141", "dbts_b3", "dbts_b5"]
 BAR, BAR_WIDE = 1.00, 1.03
 NEUTRAL = 128
 chroma_off = [0]
@@ -89,12 +91,14 @@ def worst(cell_row, sigma):
     return max(f["err_noise_band"] / x for f, x in zip(cell_row["frames"], sigma))
 
 
-def initial(p, b):
+def initial(p, b, grey420=True):
     """§7 Stage A's Qs from predictions.json: cut8 from the independent Q to the removal Q + 1, both bars."""
     lo, hi = p["g1_bar1.00"], p["g1_bar1.03"]
     q8 = range(lo["cut8_independent"], max(lo["cut8_removal"], hi["cut8_removal"]) + 2)
-    return {"cut8": set(q8), today(b): {lo["today"], lo["today"] + 1},
-            "cut8-420": {lo["cut8_independent"], lo["cut8_removal"]}}
+    plan = {"cut8": set(q8), today(b): {lo["today"], lo["today"] + 1}}
+    if grey420:
+        plan["cut8-420"] = {lo["cut8_independent"], lo["cut8_removal"]}
+    return plan
 
 
 def bracket(plan, cells, sigma):
@@ -122,15 +126,15 @@ def order(plan):
 
 def plans(a, rows, predictions):
     out = []
-    for s in STAGE_A:
+    for s in a.volumes:
         series = next((r for r in rows if r["kind"] == "series" and r["set"] == s), None)
         cells = [r for r in rows if r["kind"] == "cell" and r["set"] == s and r["g"] == a.g]
         if series is None:
             out.append((s, None))
             continue
         b, sigma = series["b"], series["sigma"]
-        if a.stage == "a":
-            plan = bracket(initial(predictions[s]["q"], b), cells, sigma)
+        if a.stage != "b":
+            plan = bracket(initial(predictions[s]["q"], b, a.stage == "a"), cells, sigma)
         else:
             a_cells = [r for r in rows if r["kind"] == "cell" and r["set"] == s and r["g"] == 1]
             top = highest(a_cells, "cut8", sigma, BAR)
@@ -144,10 +148,11 @@ def main():
     ap = argparse.ArgumentParser()
     for name in ("harness", "build", "work", "data", "out"):
         ap.add_argument(name, type=Path)
-    ap.add_argument("--stage", choices=["a", "b"], required=True)
+    ap.add_argument("--stage", choices=["a", "b", "c"], required=True)
     ap.add_argument("--jobs", type=int, default=4)
     a = ap.parse_args()
-    a.g = 1 if a.stage == "a" else 16
+    a.g = 16 if a.stage == "b" else 1
+    a.volumes = STAGE_C if a.stage == "c" else STAGE_A
     a.prior = a.out.parent / "stage-a.jsonl" if a.stage == "b" else None
     a.build, a.work = a.build.resolve(), a.work.resolve()
     a.work.mkdir(parents=True, exist_ok=True)
@@ -155,7 +160,7 @@ def main():
     harness_commit = subprocess.run(["git", "-C", str(a.harness), "rev-parse", "HEAD"], capture_output=True,
                                     text=True, check=True).stdout.strip()
     predictions = {v["set"]: v for v in json.loads((HERE / "predictions.json").read_text())["volumes"]}
-    paths = {s: str(a.data / s) for s in STAGE_A}
+    paths = {s: str(a.data / s) for s in a.volumes}
     for s, path in paths.items():
         meta = CELL.display_windows(CELL.ROOT / "lab/av1/data.json", s, a.data)
         (a.work / f"{s}.display.json").write_text(json.dumps(meta))
@@ -163,8 +168,8 @@ def main():
         while True:
             rows = [json.loads(r) for path in (a.prior, a.out) if path and path.exists() for r in path.open()]
             seen = {(r["set"], r["kind"], r.get("form"), r.get("q"), r.get("g")) for r in rows}
-            series = [s for s in STAGE_A if (s, "series", None, None, None) not in seen]
-            cuts = [s for s in STAGE_A if (s, "cut_only", "cut8", None, None) not in seen] if a.stage == "a" else []
+            series = [s for s in a.volumes if (s, "series", None, None, None) not in seen]
+            cuts = [s for s in a.volumes if (s, "cut_only", "cut8", None, None) not in seen] if a.stage == "a" else []
             todo = [(a.build, str(a.work), paths[s], f, q, a.g, None) for s, plan in plans(a, rows, predictions)
                     if plan for q, f in order(plan) if (s, "cell", f, q, a.g) not in seen]
             if not (series or cuts or todo):
