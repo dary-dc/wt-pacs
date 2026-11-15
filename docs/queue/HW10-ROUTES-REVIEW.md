@@ -1,5 +1,5 @@
 state: done
-started: 
+started: 2026-11-15T02:16Z
 heartbeat: 2026-11-15T02:19Z
 outputs: PR #392 body §Review (claude/hw10-routes); claude/hw10-routes b2c10f52 (docs/lines/devices.md)
 ## Resume
