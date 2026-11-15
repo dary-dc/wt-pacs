@@ -57,6 +57,8 @@ small enough that every open item has an owner and a next step.
    the next. After FREEZE-E2E the owner gives two merge words, PR 367 then PR 250, as merge commits; the PRs and
    branches they carry in full are listed by MERGE-PLAN (`claude/merge-plan:docs/reviews/merge-plan.md`) and closed
    or deleted after. Nothing reaches `main` uncleaned ([`optimal-quality.md`](optimal-quality.md) §Open 2).
+   Pre-main review of `main...claude/demo-fixes-0` (2026-11-11, for MAIN-REVIEW): no blocker, 11 should-fix, the
+   gate green; [`../reviews/pre-main.md`](../reviews/pre-main.md).
 3. The proposed order into `main` after that: `av1-unified-mainbase` ← `line-hygiene` ← `line-server` ← `core` ←
    `line-pacs`; `line-viewer` stays parked.
 4. Where the archive index lives (33 `archive/*` tags exist, no index file on `main`; `docs/archive.md` is a candidate).
