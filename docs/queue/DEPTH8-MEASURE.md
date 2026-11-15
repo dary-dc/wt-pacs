@@ -17,7 +17,8 @@ Setup on a fresh host (commands):
   LD_LIBRARY_PATH=B/dav1d/lib H/lab/av1/.venv/bin/python lab/av1/depth8/measure.py H B WORK DATA \
     lab/av1/depth8/rows/stage-a.jsonl --stage a --jobs 4        # then --stage b into stage-b.jsonl
 Results of A and B in docs/av1/depth-cut-8.md §9 (5b4ac407), per cell in lab/av1/depth8/rows/report.md.
-Stage c running: 0 cells pushed. Rows in lab/av1/depth8/rows/stage-c.jsonl (same command, --stage c; fetch the 13
-volumes of measure.py's STAGE_C first). Next: report Stage C in §9 (report.py takes stage-c.jsonl in place of
+Stage c running: 0 cells pushed.
+Stage C's rows: lab/av1/depth8/rows/stage-c.jsonl (same command, --stage c; fetch the 13 volumes of measure.py's
+STAGE_C first). Next: report Stage C in §9 (report.py takes stage-c.jsonl in place of
 stage-a for P1–P3; it has no cut-only or 4:2:0 rows), state done, PR 389's body.
 ## Result
