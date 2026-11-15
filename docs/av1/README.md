@@ -1773,3 +1773,18 @@ Open for the owner, one a line; the owner tracks them in [`queue.md`](queue.md) 
 * Sound sources for breast ultrasound stills and cine, ABUS and angiography (the provenance audit, queue row
   DATAGUARD), without which their frame groups get no decision (§Frame groups).
 * The two further 10-bit series the prior-gap check named, not CC BY or CC0 (§Prior evidence, not reproduced here).
+
+## Paths kept in history only
+
+The pre-`mainbase` AV1 lineage (`claude/av1-unified`, `claude/av1`, `claude/wip-dockerread`,
+`claude/wip-213-INTERSLICE`, `claude/av1-mainbase`) is joined to this history by `-s ours` merges (call M1 of
+`docs/queue-merge-2026-11-15.md` on `claude/work-ledger`): its content lives here in its later form, and the paths it
+held that this tree does not stay in history, not restored. The largest, `client/conformance/av1` (160 files), is
+named nowhere here; most `lab/av1` paths moved in the lab's reorganisation (`lab/av1/svcshape` is
+`lab/av1/delivery/scalable/shape`). `claude/av1-mainbase` at `1348bc06b3` holds every one of them (`claude/av1`'s are
+a subset): 556 paths with no path on this tree at the merge.
+
+```bash
+git ls-tree -r --name-only 1348bc06b3 | sort > /tmp/old; git ls-tree -r --name-only HEAD | sort | comm -23 /tmp/old -
+git restore --source=1348bc06b3 -- client/conformance/av1   # recovery, one path at a time
+```
