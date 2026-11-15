@@ -34,16 +34,19 @@ async function pump() {
   }
 }
 
-/** A free slot for the view, waited for apart: a full ring frees only as the view and the writer let go. */
+/** A free slot for the view, waited for apart: a full ring frees only as the view and the writer let go. A ring
+ *  that never frees (the slot-held mutant) gives none after `SLOT_WAIT_MS`: slot −1. */
+const SLOT_WAIT_MS = 10000;
 async function freeSlot() {
   for (const t0 = performance.now(); ; await new Promise((r) => setTimeout(r, 1))) {
     const slot = ring.claim(1);
-    if (slot !== -1) return { slot, waitMs: performance.now() - t0 };
+    if (slot !== -1 || performance.now() - t0 > SLOT_WAIT_MS) return { slot, waitMs: performance.now() - t0 };
   }
 }
 
 async function serveRead({ i, port, askedAt }) {
   const { slot, waitMs } = await freeSlot();
+  if (slot === -1) return ring.readServed(), port.postMessage({ kind: "read", i, slot: null, hit: false, why: "no free slot", waitMs });
   const t0 = performance.now();
   const got = await st.read(i, ring.bytes(slot, c.frameBytes));
   ring.readServed();
@@ -62,6 +65,7 @@ async function doWrite({ i, slot, arrivedAt, feeder }) {
 /** Every frame named read back through the store and checked by SHA-256, which no arm uses. */
 async function verify(indices) {
   const { slot } = await freeSlot();
+  if (slot === -1) return { ok: 0, notOk: indices.length, wrong: [], why: "no free slot" };
   const bytes = ring.bytes(slot, c.frameBytes);
   const wrong = [];
   let ok = 0;
@@ -77,6 +81,7 @@ async function verify(indices) {
 /** Each present frame read and re-checked in turn, timed from this worker's start (the cell O's R). */
 async function reopen(present) {
   const { slot } = await freeSlot();
+  if (slot === -1) return { hits: [], damaged: [], misses: present, why: "no free slot", fromStartMs: performance.now() };
   const bytes = ring.bytes(slot, c.frameBytes);
   const out = { hits: [], damaged: [], misses: [] };
   for (const i of present) {
