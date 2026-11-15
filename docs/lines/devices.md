@@ -1,6 +1,6 @@
 # Devices: runs on real phones and machines
 
-Last verified 2026-11-14 against `claude/work-ledger` (the queue files and status files named below),
+Last verified 2026-11-15 (HW10-ROUTES reviewed) against `claude/work-ledger` (the queue files and status files named below),
 `claude/phone-rows` `4e492c92` and `claude/docs-client`. The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md)
 §The product. The plan and every reading of a device run: [`../devices.md`](../devices.md). The device kit:
 `lab/devices/` (its README).
@@ -43,9 +43,10 @@ device work); status files `claude/work-ledger:docs/queue/<ROW>.md`.
 
 * **`lab/phone/`**: merge `claude/phone-rows` into the runner's branch to keep its history, or carry its pieces by
   hand (the default until a word).
-* **A dedicated row for 10-bit hardware routes**, proposed, not queued: every route to a checked 10-bit hardware
-  frame, sourced and ranked, each with a probe cell (WebGPU multi-planar import with a GPU-side hash, the `copyTo`
-  re-layout, the native client's planes).
+* **10-bit hardware routes** (HW10-ROUTES, 2026-11-14, theory; [`../decode/hardware-10bit.md`](../decode/hardware-10bit.md),
+  PR on `claude/hw10-routes`): no browser route serves a checked 10-bit hardware frame, behind a flag or not; native
+  MediaCodec to `P010` ranks first for the phone. Reviewed 2026-11-15 (PR 392's body: 16 sources hold; on Ozone WebGL2's 8 bits is unproven, still converted and closed; ranking holds). Owed: the probe cells it asks of
+  `lab/devices/README.md`, and the owner's word on whether a native client is the 10-bit hardware route.
 * **The 11-11 run's reading**: the six-octet reading is of record (the owner, 2026-11-14); whether the two failures
   under `bbr` withdraw it.
 * **A cellular arm** only if a server the phone reaches over the Internet is in scope.
@@ -57,4 +58,4 @@ device work); status files `claude/work-ledger:docs/queue/<ROW>.md`.
 The last run: `claude/phone-rows:docs/phone-rows/README.md`, `claude/phone-rows:docs/reviews/phone-blind-read.md`; its state and lessons:
 `claude/work-ledger:docs/queue/PHONE-RUN.md`. The link it measured: [`../transport/transport-conclusions.md`](../transport/transport-conclusions.md)
 §1. What bounds a phone's fill: `claude/fill-split:docs/phone-rows/README.md` *What bounds a fill*. Hardware decode:
-[`../decode/hardware.md`](../decode/hardware.md). Target links: [`../client/evidence/which-links-a-phone-meets.md`](../client/evidence/which-links-a-phone-meets.md); PR 386's branch carries its transport copy.
+[`../decode/hardware.md`](../decode/hardware.md), [`../decode/hardware-10bit.md`](../decode/hardware-10bit.md). Target links: [`../client/evidence/which-links-a-phone-meets.md`](../client/evidence/which-links-a-phone-meets.md); PR 386's branch carries its transport copy.
