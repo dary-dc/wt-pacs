@@ -1,26 +1,22 @@
-state: started
-started: 2026-11-15 17:17 UTC
-heartbeat: 2026-11-15 17:55 UTC
-outputs: claude/phone-round (from origin/claude/hw-probe af4b6aeb), draft PR into claude/hw-probe (not yet)
+state: done
+started: 2026-11-15 17:21 UTC
+heartbeat: 2026-11-15 18:06 UTC
+outputs: claude/phone-round f4ad195cb (from claude/hw-probe af4b6aeb), draft PR 400 into claude/hw-probe
 
 ## Resume
 
-Done: steps 1–6 on claude/phone-round (27336c4b..), README (c1c3e6a0), the order (63908f5d), line doc. Next: gate --quick (running), then the draft PR into claude/hw-probe, then done.
-
-Plan (worktree: `git worktree add W origin/claude/phone-round`; build: venv + ingest/requirements.txt, meson 1.9.1,
-`cargo build --release -p series-server -p pack-series`, `ingest/tools.sh`, `client/transport/ts/build.sh`):
-1. Port 11-11's beacon into the kit (`lab/devices/beacon.js` + test, `server/dev-server.py --beacon`), citing
-   claude/phone-rows 1354e67f.
-2. `lab/devices/round.mjs` (pure, node-tested): the plan's grammar, the timer-gap rule (> 2 s outside a load's own
-   work: VOID: stopped), the load's verdict (a failure recorded, the next taken).
-3. `lab/devices/round.py`, the laptop's script: start page with one Start, `GET /next?after=k` (adb reads between
-   loads, servers per block, the gap, 302 to the next load once its servers answer), run-commit check before load 1,
-   stay-on 7 before and restored after, `adb start-server` once, `adb reboot` after a block marked so; `round_test.py`
-   with a fake `adb` on PATH.
-4. The viewer's hook `?round=` (`lab/devices/round-page.js` through `lab/viewer/levers.js`): wake lock acquire,
-   release, refusal; the ticker; the fill check; navigate to the host's next.
-5. `round.test.mjs`: headless, real viewer and servers, >= 6 loads, the brief's checks each mutated once.
-6. Cell actions: steps (dispatched), busy lever on/off on the viewer's thread, cine due/painted, exact presses,
-   getStats at fill end, §10 item 4 fields; then README, PR body (what of lab/phone/ it supersedes), gate, draft PR.
+Done. Commits 27336c4b..f4ad195cb on claude/phone-round; README lab/devices/README.md §The round. Brief and Amendments
+unchanged since start (amendment 21).
 
 ## Result
+The one-press round: round.py (laptop: plan behind GET /next, run-commit check before load 1, one adb server,
+stay-on 7 set and restored, adb reads between loads only, servers per block, reboot after a marked block) and the
+viewer's ?round= hook (wake lock recorded, timer gap > 2 s = VOID: stopped, a failed load recorded and the next taken,
+cell 3's steps / cine / exact frames idle and busy on the viewer's thread); roundOrder() gives next-round.md's order.
+Tested headless (Chromium, real viewer and servers, synthetic 64×48 20-frame pair, nine loads, fake adb, no phone):
+every claim holds; each claim's mutant fails it (22 mutants named in PR 400). Headless refuses the wake lock: recorded.
+Gate --quick OK (skips named in the PR); check_lab_absent green.
+Found and fixed: a killed round.py left its servers holding their ports (SIGTERM handler, test first).
+Not built (PHONE-LEVERS or a product seam): cell 1's bench, C2, decoder count, getStats(), the configure's
+hardwareAcceleration, the page-read commit, cell 5's arms, report endings. lab/phone/'s runner and beacon superseded.
+RUNNER-AUTO-REVIEW is due (a session that wrote none of this).
