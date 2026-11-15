@@ -4,7 +4,8 @@ and kept — HTJ2K and lossless AV1 as shipped, the lossy streams at each rung a
 references the browser is checked against. Each lossy stream's unit sizes and residual sizes must equal the bytes
 run's row (results/cells.jsonl): the same encodings, byte for byte.
 
-usage: streams.py BUILD OUT SETDIR --rungs 8,16,32 [--forms 12bit,top10] [--jobs 4]
+usage: streams.py BUILD OUT SETDIR --rungs 8,16,32 [--forms 12bit,top10] [--groups 1,8,16,0] [--no-lossless-av1] [--jobs 4]
+(G 0 is the whole series; the amended protocol needs G 1, 8, 16 and no lossless AV1.)
 """
 import argparse
 import hashlib
@@ -111,6 +112,8 @@ def main():
     ap.add_argument("set", type=Path)
     ap.add_argument("--rungs", type=lambda v: [int(x) for x in v.split(",")], required=True)
     ap.add_argument("--forms", type=lambda v: v.split(","))
+    ap.add_argument("--groups", type=lambda v: [int(x) for x in v.split(",")], default=list(GROUPS))
+    ap.add_argument("--no-lossless-av1", action="store_true")
     ap.add_argument("--jobs", type=int, default=4)
     a = ap.parse_args()
     build, out = a.build.resolve(), a.out.resolve()
@@ -121,8 +124,8 @@ def main():
     names = a.forms or [f.name for f in forms(s, meta["windows"])][:1]
     e = dict(name=s.name, frames=s.n, width=s.w, height=s.h, bits=s.b, stored=s.stored, offset=s.offset,
              middle=(s.n - 16) // 2, truth=s.truth, htj2k=lossless(build, out, s, "htj2k", "-"),
-             lossless=lossless(build, out, s, "av1", "good:6"))
-    jobs = [(build, out, str(a.set), f, q, g) for q in a.rungs for f in names for g in GROUPS]
+             lossless=None if a.no_lossless_av1 else lossless(build, out, s, "av1", "good:6"))
+    jobs = [(build, out, str(a.set), f, q, g) for q in a.rungs for f in names for g in a.groups]
     with ProcessPoolExecutor(a.jobs) as pool:
         e["cells"] = [c for _, c in pool.map(lossy, jobs)]
     (out / f"{s.name}.json").write_text(json.dumps(e))
