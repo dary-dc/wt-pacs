@@ -153,7 +153,27 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   loopback, `run_test.sh`); ratios are unaffected. Headless on loopback only; not on a phone, not under SELinux.
   Its product changes (the image labels, `FEATURES`, the beacon's hooks, README step 8, `dev-server.py --beacon`)
   stay on the branch, the phone tools being the owner's call.
-* **Not yet run:** any phone run.
+* **The first phone run** (PHONE-RUN, 2026-11-11, run commit `962226e8`, `claude/phone-rows`:
+  [`docs/phone-rows/README.md`](../phone-rows/README.md)): §7 as twice amended, `dbts_b1-q8-g8`, one Galaxy S23, tether
+  and Wi-Fi (server wired) alternated load by load, 48 counted loads. Tether: 23 passed, 1 missing; worker / page
+  *depends on the controller*; `bbr` / `cubic-restart` no difference shown at n = 11. Wi-Fi: 22 passed, 2 failed, both
+  `bbr` (a *Lossless* never fetched after a lossy fill; a fill whose page was likely hidden); worker / page no
+  difference shown at n = 10; **`cubic-restart` faster** (9 of 10, median ratio 1.084). Every Wi-Fi loss Cubic met
+  was congestive. One phone, one home link, one evening, one series of one dataset. *Blind-read* (PHONE-BLIND-READ,
+  2026-11-12, [`docs/reviews/phone-blind-read.md`](../reviews/phone-blind-read.md)): the same counts and six-octet
+  verdicts, but octet 1 took 99 minutes, so the Second amendment's 10-minute rule stops the run after octet 4 and
+  leaves every fill comparison *not decided*; the run commit differs from the demo commit `157b7109` in 20 files of
+  the fill's path, so by the run-commit rule no verdict carries to it; loads 6 and 10 were slow on the phone's decode,
+  not the wire. The owner decides which reading stands.
+  *Its link* (LINK-CALIBRATION, 2026-11-12, `claude/link-calibration`,
+  [`docs/transport/transport-conclusions.md`](../transport/transport-conclusions.md) §1 *A home Wi-Fi link, measured*):
+  ~2 ms base round trip, at least ~600 Mbit/s, a tail-drop queue that loses at 22–96 ms, no random loss; the tether
+  ~0.7 ms and ~265 Mbit/s. The README's "min RTT" by controller was the fill's smoothed RTT, corrected in place. The
+  relay cannot run this link (checked to 100 Mbit); `netem` can, on a host with the cores. Fitted once, one link.
+  *What bounds its fills* (FILL-SPLIT, 2026-11-12, `claude/fill-split`, [`docs/phone-rows/README.md`](../phone-rows/README.md)
+  *What bounds a fill*): the phone's decode. The frames' decode time over the three decoders is 0.76–0.94 of every fill
+  (median ~0.90; 133–135 ms a frame on every link and controller); the wire is done within the first second. Where the
+  phone saturates is not shown: the run varied neither the decoder count nor the decoder Chrome took.
 * **Review, round 2** (REVIEW-2, 2026-11-11, `claude/demo-review-2`,
   [`docs/reviews/review-2.md`](../reviews/review-2.md)): every fix of FIX-1, DEMO-UX (#365) and SOURCE-FINGERPRINT
   (#364) was reverted on its own, and each failed its test. That covers #364's ingest in Python and Rust, run with
@@ -204,8 +224,10 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
 3. The browser end to end on the merged branch: done headless 2026-11-10, twice, the second from a fresh clone
    (State now); on a GPU and a phone, owed: the owner's laptop and phone rehearsal, README §Demo.
 4. Done 2026-11-11 on `claude/demo-fixes-2`: the web image serves the exact series' paths (State now).
-5. Phone runs: in the local phone session (State now) on PHONE-TOOLS-2's run commit, tonight; the decisions are taken
-   there with the owner after PHONE-BLIND-READ.
+5. Phone runs: the first ran on 2026-11-11 (State now). Before decisions: the blind read (PHONE-BLIND-READ).
+   Before the next round, theory first: production's network mode (HOSTNET-THEORY), the two product failures
+   (LOSSLESS-UNDER-LOSS, HIDDEN-PAGE-DECODE), a link profile from this run's traces (LINK-CALIBRATION, done), what bounds
+   a fill on the phone (FILL-SPLIT, done: the decode), and a runner that needs no hands (RUNNER-AUTO, the phone session's).
    *2026-11-14:* the next round is pre-registered in [`../phone-rows/next-round.md`](../phone-rows/next-round.md)
    (decode per codec, the delivery arms, page against worker, the probe, the cache; one press); it waits on the asks of
    its §10 and on PRs 376 and 378 reaching the run commit.

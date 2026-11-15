@@ -354,6 +354,58 @@ managed queue widens BBR's lead and makes its queue the neighbour's problem. LTE
 for every variant (0.6–0.7 s of queue). One trace each, from its start: a profile's verdict, not a
 carrier's. No default changed (§9 item 2).
 
+#### A home Wi-Fi link, measured: the first phone run's servers
+
+*2026-11-12, queue row LINK-CALIBRATION. Read from the servers' rows only; no cell was run.*
+
+The phone run of 2026-11-11 (`docs/phone-rows/README.md` on `claude/phone-rows`) gives the first measured link under
+a phone: the server wired to a home router, the phone on its Wi-Fi, and USB tethering beside it as the control. Each
+optimal-quality server sampled its path every 250 ms and traced each congestion event; one series
+(`dbts_b1-q8-g8`, 23.2 MB), 11–12 counted fills per link and controller.
+[`lab/phone/link.py`](../../lab/phone/link.py) reads them:
+
+| link | controller | minimum RTT (the loss trace's), median [range] | smoothed RTT while sending, p50 / p90 | queue at a congestion event, p10 / p50 / p90 [max] | fastest 250 ms sent, median [range] |
+| --- | --- | --- | --- | --- | --- |
+| tether | `cubic-restart` | 0.72 ms [0.61–0.78], 3 sessions | 6.7 / 13.7 ms | 14 / 18 / 26 ms [26], 12 events | 267 Mbit/s [263–275] |
+| tether | `bbr` | no event to read it from | 2.7 / 8.4 ms | no event | 262 Mbit/s [245–276] |
+| Wi-Fi | `cubic-restart` | 2.0 ms [1.8–2.5], 9 sessions | 23.1 / 41.9 ms | 22 / 40 / 96 ms [151], 89 events | 179 Mbit/s [103–361] |
+| Wi-Fi | `bbr` | 1.6 ms [1.5–2.0], 10 sessions | 16.2 / 32.3 ms | 11 / 21 / 36 ms [50], 75 events | 599 Mbit/s [136–636] |
+
+**The profile, "home Wi-Fi, server wired"**, from these rows: a base round trip of **~2 ms**; a bottleneck of **at
+least ~600 Mbit/s** (`bbr`'s fastest 250 ms, a lower bound that includes the phone's receive path, which these rows
+cannot separate from the radio); a **tail-drop queue that loses at 22–96 ms** of standing delay (40 ms median), about
+20 bandwidth-delay products; and **no random loss**: by the Amendment's rule all 89 of Cubic's events were
+congestive. In the relay's terms that is `--delay-ms 1 --rate-kbit 600000 --queue-ms 40` with no `--loss`. Jitter is
+not in the rows (one sample per 250 ms of a smoothed estimate), nor is the uplink. The tether, as a control: ~0.7 ms,
+~265 Mbit/s for both controllers (the USB path's ceiling), a queue that loses at 14–26 ms, under Cubic only.
+
+**Against the lab's profiles it differs on every axis.** The lab's *Wi-Fi home* (above) is 30 ms, 15–40 Mbit/s,
+0.5 % Gilbert–Elliott loss and a 300 ms FIFO; this link is 15× shorter, 15–40× faster, loses nothing at random and
+drops at an eighth of that queue. Its loss is the congestive kind, for which §1 already found Cubic the answer, and the
+run agrees: `cubic-restart` was faster on this Wi-Fi in 9 of 10 quads (README). *Wi-Fi home*'s 2.12× for BBR rests on
+the random loss it picked, and this link has none. The picks above were never fitted; this is one link fitted once.
+
+**Why the same cable's "min RTT" read 6.1 ms under Cubic and 2.2 ms under BBR** (README, *Round trip and wire
+time*): that column is not a minimum of the path. A path row's `min_rtt_us` is the smallest of its 250 ms samples
+of quinn's *smoothed* RTT, and the smoothed RTT stops moving when the fill does — nothing is acknowledged after it
+(session 2 of `srv-4433` holds 7 086 µs from its third row to its eightieth). A fill is two or three rows long, so the column is the
+smoothed RTT of the fill's last moments: Cubic's standing queue (~6 ms over a 0.7 ms path) against BBR's paced one
+(~1.5 ms). Quinn's own minimum, in the loss trace, is 0.61–0.78 ms on the cable, and the exact servers' sessions,
+which send one frame, read 1.0–1.8 ms in the same column. The difference is the controllers' queues, which is real;
+calling it the minimum was the error.
+
+**What cannot run it.** The relay was checked to 100 Mbit (`--tun`) and guarded at ~20 Mbit on its UDP plane
+(`docs/rig-limits.md` §3); 600 Mbit/s is ~52 000 datagrams a second through one Python thread, unverified, and a
+2 ms base round trip sits on its 0.4 ms floor and its sub-millisecond lateness. `netem` holds the profile as written
+(`delay 1ms rate 600mbit`, a limit of ~2 000 packets for 40 ms), on a host with the cores for it; the cloud rig's
+2 vCPUs were never taken past ~58 Mbit. A scaled form (the same 2 ms and 40 ms at 60 Mbit) keeps the queue's depth
+and the loss mix but makes the fill wire-bound, which on this phone it was not (the wire is 0.5–1.0 s of a
+2.4–3.3 s fill): it may decide a controller's queue, never a fill time.
+
+**Limits.** One phone, one access point, one evening, one series; the rows are the server's view only; the fastest
+250 ms is coarse by the row and counts retransmissions (Wi-Fi `bbr` lost 1.9 %); Wi-Fi's minimum comes from sessions
+that lost something, and the tether's from Cubic's three. Cellular is not in it.
+
 ### Under 1–5 % loss, the product's client
 
 *2026-10-08, queue row LOSSCC, first run.*
