@@ -217,12 +217,13 @@ run 1 node lab/devices/plan.test.mjs
 run 1 python3 lab/devices/collector_test.py
 run 1 sh deploy/server_start_test.sh
 
-step "lab: the reports' rig — the records, the sink's contract, the read tool, the timings and mutants, the process-tree kill"
+step "lab: the reports' rig — the records, the sink's contract, the read tool, the timings and mutants, the process-tree kill, BEACON's arm"
 run 1 node lab/report-arms/record.test.mjs
 run 1 node lab/report-arms/sink.test.mjs
 run 1 node lab/report-arms/read.test.mjs
 run 1 node lab/report-arms/timing.test.mjs
 run 1 node lab/report-arms/levers.test.mjs
+run 1 node lab/report-arms/beacon/beacon.test.mjs
 
 step "lab: M5's rule on made-up rows: each in-hand path barred on its own, the busy cell's A/A"
 
