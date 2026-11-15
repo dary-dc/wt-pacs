@@ -49,6 +49,9 @@ exact frame bit for bit, and only checked claims on screen.
 * **The next phone round**: its amendment written by a session that will not run it ([`../devices.md`](../devices.md)
   §7), recording the decoder route and per-frame arrivals and varying the decoder count; it decides which view is the
   target and what bounds a fill.
+  2026-11-15: its protocol is `claude/phone-protocol:docs/phone-rows/next-round.md`; its one-press runner is built
+  and tested headless on `claude/phone-round` (`lab/devices/README.md` §The round, RUNNER-AUTO), no phone yet; it
+  waits for PHONE-LEVERS (cell 1's bench, C2, the decoder count) and a dry run.
 * **The delivery comparison**: recorded in [`../client/design.md`](../client/design.md) §Open with its theory; its
   protocol is not written.
 * dav1d fetched only where WebCodecs refuses (a protocol with an A/A arm, not started); a wake before `l` asks (its
