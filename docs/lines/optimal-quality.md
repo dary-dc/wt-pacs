@@ -43,6 +43,21 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
 * **The demo build** (DEMO-INTEGRATE, 2026-11-10): `claude/demo-fixes-0` (#355 into `claude/core`) is the demo tip
   `claude/core-next-fixes` plus `gate-cloud`, `double-decode-check` and `demo-e2e-2`, each a `--no-ff` merge; full
   gate OK in a cloud session (skipped: lavapipe, GL display, Firefox, nginx); CI gate and deploy green.
+* **The phone run's protocol** (PHONE-PROTOCOL, 2026-11-11, `claude/phone-protocol`): [`docs/devices.md`](../devices.md)
+  §7, page view against view worker alternated, tether against Wi-Fi in blocks, the decision rules and the commands
+  for the laptop without installs. Found while writing it: the status line is cut at the phone's width, so the fill
+  time and the last error are not visible (Part B waits on a change, the owner's call); touch cannot step slices.
+  *Amended* (PHONE-AMEND, 2026-11-11, before any run): a controller arm, `cubic-restart` against `bbr` on four
+  servers chosen by the page's port, crossed with the views in Williams quads; the server's loss reading from a
+  `--features telemetry` build (session line, a loss trace, path rows every 250 ms), the mix read from
+  `cubic-restart`'s sessions alone; one timed series (`dbts_b1-q8-g8`) and an eye check of `dbts_a1-q8-g8-cut`, 56
+  loads, about two hours (an assumption); the stored form out. The controller verdict changes no default alone.
+  *Amended again* (PHONE-AMEND-2, 2026-11-11, before any timed load): PHONE-TOOLS's runner presses **lossless** after
+  the fill with a fixed 15 s gap; Part B runs on the beacon's fill (WebTransport construction to the last frame
+  stored, on `timeOrigin + now`); tether and Wi-Fi alternate load by load in six octets, both addresses up, if the
+  tether takes no default route and no load crosses links (else the blocks); the Wi-Fi arm is the server wired, the
+  phone on Wi-Fi; the series servers run as the telemetry image on the host network, four loads through rootless
+  publish reported only; no adb, DevTools or trace in a timed load; verdicts are the run commit's.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
@@ -84,6 +99,16 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
    demo series reach the laptop (their sizes come from PHONE-NO-INSTALL); (c) which laptop and phone; (d) the
    demo's loss and delay without netem (root), or netem dropped for it. The owner runs
    `sudo firewall-cmd --get-default-zone; sudo firewall-cmd --get-active-zones`, again with tethering on.
+   *2026-11-14:* the next round is pre-registered in [`../phone-rows/next-round.md`](../phone-rows/next-round.md)
+   (decode per codec, the delivery arms, page against worker, the probe, the cache; one press); it waits on the asks of
+   its §10 and on PRs 376 and 378 reaching the run commit.
+   *2026-11-15:* reviewed (its §Review): nine findings for the author, the first a blocker (the wake lock is
+   released at every load's navigation; the stay-on-while-charging setting by `adb` is proposed); the owner's: the
+   first picture's bound in cell 3's guard.
+   *2026-11-15:* the author findings fixed in place (§Review, *Fixed*): the stay-on setting by `adb`, cell 2 pooled,
+   cell 3's guard in two forms. Waits on the owner's pick of that guard, its re-review, and §10's builds.
+   *2026-11-15:* re-reviewed (its §Re-review): every finding closed, no blocker; three minors (cell 1's full-square
+   cost ~20 min, the dock value, form (a)'s bound a 1× number). Waits on the owner's pick of the guard and §10's builds.
 11. Understanding before 11-13: the findings of OPT-SIMPLIFY, CLEAN-FIND, NAMES-FIND, DEFAULTS-FIND, ESSENTIALS and
     FABLE-SIMPLIFY, each ranked by what it saves a presenter; the owner chooses what goes in before the demo and what
     after. Then a reading pass with the owner, ESSENTIALS' points first, deeper only where time allows.
