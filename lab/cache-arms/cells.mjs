@@ -39,7 +39,7 @@ export function checks(cell, row) {
   const out = { ran: true };
   if (row.verify) out.exact = row.verify.notOk === 0 && row.verify.ok > 0;
   if (row.unwrittenAt5s !== undefined) out.allWritten = row.unwrittenAt5s === 0;
-  if (cell === "L" || cell === "Q" || cell === "T") out.delivered = row.deliveredMBps >= 0.95 * c.rateMBps;
+  if (["L", "R-busy", "B", "Q", "T"].includes(cell)) out.delivered = row.deliveredMBps >= 0.95 * c.rateMBps;
   if (row.read && row.damagedAsked !== undefined) out.damageReported = row.read.damaged.includes(row.damagedAsked);
   if (row.opened && row.opened.writer === false) out.readerWroteNothing = row.store?.storeWrites === 0 && (row.rest?.storeWrites ?? 0) === 0;
   return out;
