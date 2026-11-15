@@ -635,7 +635,7 @@ async function aRefusedSeriesIsNamedByItsCode(rig: SessionRig, check: Check) {
     let said = "";
     try {
       const s = await rig.open();
-      await s.requestExactFrame(0).catch((e) => void (said = String(e?.message ?? e)));
+      await s.requestFrame(0).catch((e) => void (said = String(e?.message ?? e)));
       s.close();
     } catch (e) {
       // The WASM client rejects with a string, the TypeScript one with an Error.
