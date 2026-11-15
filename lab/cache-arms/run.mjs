@@ -9,7 +9,7 @@ import path from "node:path";
 import { chromiumAt, chromiumPath, firefoxAt, parent, staticHost, tree, treePss } from "../opfs-cache/browser.mjs";
 import { order, williams } from "../order.mjs";
 import { throttleTree } from "../scripts/cpu_throttle.mjs";
-import { checks, E_STEPS, params, sameSet, SIZES } from "./cells.mjs";
+import { checks, E_STEPS, keptOnReopen, lBars, pageQuery, params, pssGrowth, sameSet, SIZES } from "./cells.mjs";
 
 const HERE = new URL(".", import.meta.url).pathname;
 const WORK = path.join(HERE, "work");
@@ -59,7 +59,7 @@ async function quotaHolds(b, origin, quotaMiB) {
 }
 
 async function load(page, origin, p, timeoutMs = CALL_MS) {
-  const qs = new URLSearchParams(Object.entries({ ...p, mutant: MUTANT, pilot: PILOT }).filter(([, v]) => v !== "" && v !== undefined));
+  const qs = new URLSearchParams(pageQuery(p, MUTANT, PILOT));
   await page.goto(`${origin}/lab/cache-arms/index.html?${qs}`);
   // Polled, not awaited: Marionette ends a script after its own timeout, shorter than a cell.
   for (const t0 = Date.now(); Date.now() - t0 < timeoutMs; await sleep(500)) {
@@ -116,7 +116,7 @@ async function once(origin, arm, round) {
       const damage = round % 2 ? await load(b.page, origin, { ...p, damage: 0 }) : null;
       const reopened = await load(b.page, origin, { ...p, mode: "reopen", rest: 1 });
       const row = { atKill: at, damage, ...reopened, damagedAsked: damage?.damaged ?? undefined };
-      return { ...row, checks: { ...checks("K", row), kept: reopened.opened?.present >= at.written - (at.queued ?? 0) - 3 } };
+      return { ...row, checks: { ...checks("K", row), kept: keptOnReopen(at, reopened.opened?.present ?? 0, PILOT) } };
     }
     if (CELL === "Q") {
       const quotaMiB = Math.ceil((p.n * p.w * p.h * 2) / MiB) + 64;
@@ -125,7 +125,8 @@ async function once(origin, arm, round) {
       if (!quota.holds) return { quota, error: "the quota lever does not hold: Q not run" };
       const fill = await load(b.page, origin, p);
       const reopened = await load(await b.context.newPage(), origin, { ...p, mode: "reopen", ballast: "" });
-      return { quota, fill, reopened, checks: { ...checks("Q", fill), reopenExact: reopened.verify?.notOk === 0 } };
+      return { quota, fill, reopened, checks: { ...checks("Q", fill), reopenExact: reopened.verify?.notOk === 0,
+        reopenKept: (reopened.opened?.present ?? 0) >= (fill.store?.written ?? 0) } };
     }
     if (CELL === "T") {
       b = await fresh();
@@ -135,18 +136,15 @@ async function once(origin, arm, round) {
       for (const t0 = Date.now(); ((await progress(b.page).catch(() => null))?.written ?? 0) < 20 && Date.now() - t0 < CALL_MS; ) await sleep(20);
       const second = await load(two, origin, { ...p, mode: "reopen", all: 1, rest: 1 });
       const first = await one;
-      return { first, second, checks: { tab1: checks("T", first), tab2: checks("T", second) } };
+      return { first, second, checks: { tab1: checks("T", first), tab2: checks("T", second), tab2Reads: second.opened?.writer === false } };
     }
     b = await fresh({ priv: CELL === "P" });
     const unthrottle = throttleTree(b.pid, THROTTLE);
-    const baseline = treePss(b.pid);
-    let peak = baseline;
-    const sampler = setInterval(() => (peak = Math.max(peak, treePss(b.pid))), 500);
     try {
-      const r = await load(b.page, origin, p);
-      return { ...r, pssGrowthMiB: peak - baseline, checks: checks(CELL, r) };
+      const { row: r, pssGrowthMiB } = await pssGrowth({ load: () => load(b.page, origin, p), floorDone: () => b.page.evaluate(() => globalThis.floorDone === true),
+        pss: () => treePss(b.pid) });
+      return { ...r, pssGrowthMiB, checks: checks(CELL, r) };
     } finally {
-      clearInterval(sampler);
       unthrottle();
     }
   } catch (e) {
@@ -167,13 +165,17 @@ const origin = await staticHost();
 const ROUNDS = Number(arg("--rounds", williams(ARMS.length).length));
 write({ settings: true, cell: CELL, engine: ENGINE, size: SIZE, throttle: THROTTLE, mutant: MUTANT || null, at: new Date().toISOString(), host: host(),
   arms: Object.fromEntries(ARMS.map((a) => [a, params(CELL, SIZE, a)])) });
+const rows = [];
 for (let round = 0; round < ROUNDS; round++) {
   let prev = null;
   for (const unit of order(ARMS, round)) {
     const r = await once(origin, unit, round);
     const { config, ...rest } = r;
-    write({ cell: CELL, engine: ENGINE, size: SIZE, throttle: THROTTLE, round, unit, prev, mutant: MUTANT || null, ...rest });
+    const row = { cell: CELL, engine: ENGINE, size: SIZE, throttle: THROTTLE, round, unit, prev, mutant: unit === "none" ? null : MUTANT || null, ...rest };
+    write(row);
+    rows.push(row);
     prev = unit;
   }
 }
+if (CELL === "L" && ARMS.includes("none")) write({ summary: true, cell: CELL, bars: lBars(rows, { frameBytes: SIZES[SIZE][0] * SIZES[SIZE][1] * 2, pilot: PILOT }) });
 process.exit(0);

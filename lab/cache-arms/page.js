@@ -1,5 +1,8 @@
 // The page: it makes the ring, starts the store worker, the view worker and the feeders, wires their ports, and runs
-// one cell's steps; it holds no frame. `globalThis.row` is the row once settled, `globalThis.progress()` reads the store.
+// one cell's steps; it holds no frame. `globalThis.row` is the row once settled, `globalThis.progress()` reads the store,
+// `globalThis.floorDone` opens the runner's memory window.
+import { backlogAt5s } from "./cells.mjs";
+
 const q = new URLSearchParams(location.search);
 const num = (k, d) => Number(q.get(k) ?? d);
 const now = () => performance.timeOrigin + performance.now();
@@ -80,16 +83,17 @@ const spread = (k, span) => (k * 2654435761) % Math.max(1, span);
 function writes(r, from = c.held) {
   const w = r.writes.filter((x) => x.i >= from);
   const firstArrival = Math.min(...w.map((x) => x.arrivedAt));
-  const busy = w.map((x) => x.end - x.start);
+  const busy = w.map((x) => x.end - x.start - (x.readsMs ?? 0));
   const last = Math.max(...w.filter((x) => x.written).map((x) => x.end));
   return { handled: w.length, written: w.filter((x) => x.written).length, refused: w.filter((x) => !x.written).length, busyMsP50: median(busy),
     busyMsP99: quantile(busy, 0.99), writeMBps: (w.filter((x) => x.written).length * c.frameBytes) / 1e3 / Math.max(1, last - firstArrival),
-    stopped: r.stopped, evicted: r.evicted, writer: r.writer, storeWrites: r.storeWrites };
+    stopped: r.stopped, lost: r.lost.length, evicted: r.evicted, writer: r.writer, storeWrites: r.storeWrites };
 }
 
 async function fill() {
   const opened = (await store("open")).opened;
   const floor = c.floor ? await store("floor", { count: c.floor }) : null;
+  globalThis.floorDone = true;
   const ballast = c.ballast ? new Worker("ballast.js", { type: "module" }) : null;
   const ballastDone = ballast && new Promise((resolve) => (ballast.onmessage = ({ data }) => resolve(data)));
   feeders[0].postMessage({ kind: "send", indices: [...Array(c.held).keys()] });
@@ -101,29 +105,33 @@ async function fill() {
   const pace = c.credits ? { credits: c.credits } : { bytesPerMs: c.rateMBps * 1e3 };
   feeders.forEach((f, k) => f.postMessage({ kind: "go", from: c.held, to: c.n, first: c.held + k, stride: c.decoders, ...pace }));
   const handled = async () => (await store("progress")).handled >= c.n;
+  const posted = async () => {
+    const stats = await feederStats();
+    return { count: stats.reduce((sum, f) => sum + (f?.posted ?? 0), 0), lastAt: Math.max(0, ...stats.map((f) => f?.lastAt ?? 0)) };
+  };
+  const at5s = backlogAt5s({ due: c.n - c.held, posted, progress: () => store("progress"), now, sleep, timeoutMs: c.timeoutS * 1000 });
   let busyMisses = [];
   if (c.misses === "busy") {
     await until(async () => (await store("progress")).written >= c.held + c.missCount, c.timeoutS * 1000);
     const written = (await store("progress")).written;
     busyMisses = await misses(c.missCount, (k) => c.held + spread(k, written - c.held));
   }
+  const backlog = await at5s;
   await until(handled, c.timeoutS * 1000);
   const stats = await feederStats();
-  const lastPost = Math.max(0, ...stats.map((s) => s?.lastAt ?? 0));
-  await sleep(Math.max(0, Math.min(lastPost + 5000 - now(), 5000)));
-  const at5s = await store("progress");
   stopTasks();
   const viewSummary = fromViewNext("summary");
   view.postMessage({ kind: "stop" });
   const shown = await viewSummary;
   const fillEnd = shown.fillPosts === c.n - c.held ? shown.lastPost : now();
   const idleMisses = c.misses === "idle" ? await misses(c.missCount, (k) => c.held + spread(k, c.n - c.held)) : [];
+  const settled = await store("settle");
   const r = await store("result");
   const row = { opened, floor, shown, misses: c.misses === "busy" ? busyMisses : idleMisses, store: writes(r),
     deliveredMBps: (shown.fillPosts * c.frameBytes) / 1e3 / Math.max(1, fillEnd - shown.firstPost), stallMs: stats.map((s) => s?.stallMs ?? null),
-    unwrittenAt5s: c.n - at5s.handled, list: await store("list"), verify: opened.cache ? await store("verify") : null,
+    unwrittenAt5s: c.n - backlog.handled, settled, list: await store("list"), verify: opened.cache ? await store("verify") : null,
     ballast: ballastDone ? await ballastDone : null };
-  if (!c.hold) await store("close");
+  if (!c.hold) row.closed = await store("close");
   return row;
 }
 
@@ -138,7 +146,8 @@ async function reopen() {
     const missing = [...Array(c.n).keys()].filter((i) => !have.has(i));
     missing.forEach((i, k) => feeders[k % c.decoders].postMessage({ kind: "send", indices: [i] }));
     await until(async () => (await store("progress")).handled >= missing.length, c.timeoutS * 1000);
-    rest = { asked: missing.length, ...writes(await store("result"), 0) };
+    const settled = await store("settle");
+    rest = { asked: missing.length, settled, ...writes(await store("result"), 0) };
   }
   const row = { opened: { ...opened, present: opened.present.length }, startedMs, read: { hits: read.hits.length, damaged: read.damaged, misses: read.misses.length,
     fromStartMs: read.fromStartMs }, rest, list: await store("list"), verify: opened.cache ? await store("verify", { indices: c.rest && opened.writer ? [...Array(c.n).keys()] : read.hits }) : null };

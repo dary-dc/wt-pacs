@@ -1,6 +1,6 @@
 // node lab/cache-arms/store.test.mjs — the ring and the rules above the seam, on an arm kept in memory.
 import { ring as makeRing } from "./ring.js";
-import { store as makeStore } from "./store.js";
+import { readsFirst, store as makeStore } from "./store.js";
 
 let failed = 0;
 const check = (ok, what) => {
@@ -294,6 +294,48 @@ for (const mutant of ["", "tab-writes"]) {
   await s.open("A", meta());
   await s.write(0, r.claim(1));
   check(given?.serveReads === serveReads && given.readsWaiting === r.readsWaiting, "the write's context carries serveReads and readsWaiting");
+}
+
+/** Reads first: a read the view counted and posted before a write is served between that write's pieces. Its message is
+ *  dispatched only by a task, so a wait on microtasks alone finds the queue empty at every piece (review B1). */
+{
+  const ch = new MessageChannel();
+  const queue = [];
+  let waiting = 0;
+  let piece = 0;
+  const servedAt = [];
+  ch.port1.onmessage = ({ data }) => queue.push(data);
+  const serveReads = readsFirst({ queue, waiting: () => waiting, anyFree: () => true, serve: async () => (waiting--, servedAt.push(piece)) });
+  waiting++;
+  ch.port2.postMessage({ i: 1 });
+  for (; piece < 4; piece++) {
+    for (const t = performance.now(); performance.now() - t < 5; );
+    if (waiting) await serveReads();
+  }
+  ch.port1.close();
+  check(servedAt.length === 1 && servedAt[0] < 3, `reads first: the read served mid-write, at piece ${servedAt[0]}`);
+  const none = readsFirst({ queue: [], waiting: () => 0, anyFree: () => true, serve: async () => {} });
+  const t0 = performance.now();
+  await none();
+  check(performance.now() - t0 < 5, "reads first: with nothing counted, no wait");
+}
+
+/** A late refusal reaches the store: the frames an arm took and could not keep come back from `settle` (or a refused
+ *  `close`), are no longer written, and stop the fill (review B2, CACHESTORAGE M1). */
+{
+  const r = makeRing(new SharedArrayBuffer(2 * FRAME), new SharedArrayBuffer(makeRing.tableBytes(2)), FRAME);
+  let lost = [2];
+  const arm = { ...memoryArm(new Map()), settle: async () => lost.splice(0),
+    close: async () => { throw Object.assign(new Error("full"), { name: "QuotaExceededError", lost: [3] }); } };
+  const s = makeStore({ arm, ring: r, check: () => true, locks: memoryLocks() });
+  await s.open("A", meta());
+  check((await s.settle()).join() === "2" && s.stopped && s.lost.join() === "2", "settle: the lost frame named, the fill stopped");
+  check((await s.settle()).length === 0, "settle again: nothing more lost");
+  await s.close();
+  check(s.lost.join() === "2,3" && s.lateRefusal === "QuotaExceededError", "a refused close: its frames lost, its refusal kept");
+  const plain = makeStore({ arm: memoryArm(new Map()), ring: r, check: () => true, locks: memoryLocks() });
+  await plain.open("B", meta());
+  check((await plain.settle()).length === 0 && !plain.stopped, "an arm with no settle loses nothing");
 }
 
 if (failed) {

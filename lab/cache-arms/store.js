@@ -1,16 +1,31 @@
 // The rules above the seam, once for every arm (cache-plan.md §3, §7.0, §7.5, §8.1): the re-check on every read,
 // eviction least recently opened first and only to make room, never a series open in a tab, the failure table.
 // An arm is the seam: open(series, meta, {create}) → {present, meta}, write(i, bytes, ctx), read(i, into) → bool,
-// drop(i), evict(series), list() → [{series, lastOpen}], close(); README.md §The seam.
+// drop(i), evict(series), list() → [{series, lastOpen}], close(), and settle() → lost indices for an arm whose write
+// returns before its frame is stored; README.md §The seam.
 const LOCK = "cache-arms";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const sameDigests = (a, b) => a.length === b.length && a.every((d, i) => d === b[i]);
+const task = () => new Promise((r) => {
+  const ch = new MessageChannel();
+  ch.port1.onmessage = () => (ch.port1.close(), r());
+  ch.port2.postMessage(0);
+});
+
+/** Reads let in while a write waits between its pieces (§7.1, reads first). The view counts a read before posting it,
+ *  so a count above the queue is a message not yet dispatched: only a task lets it in, for at most `boundMs`. */
+export function readsFirst({ queue, waiting, anyFree, serve, boundMs = 20 }) {
+  return async () => {
+    for (const t0 = performance.now(); waiting() > queue.length && performance.now() - t0 < boundMs; ) await task();
+    while (queue.length && anyFree()) await serve(queue.shift());
+  };
+}
 
 /** `check(bytes, i)`: the frame's XXH3 against its digest. `locks`: hold(name, opts) → release or null, names(). */
 export function store({ arm, ring, check, locks, mutant = "", estimate = null, waitMs = 5000, serveReads = async () => {} }) {
   const s = {
     arm, series: null, meta: null, cache: false, writer: false, stopped: false,
-    writes: 0, evicted: [], pending: new Map(), letGo: [],
+    writes: 0, evicted: [], lost: [], lateRefusal: null, pending: new Map(), letGo: [],
 
     async open(series, meta) {
       s.series = series;
@@ -98,8 +113,23 @@ export function store({ arm, ring, check, locks, mutant = "", estimate = null, w
       return true;
     },
 
+    /** Every write the arm took settles: a frame it could not keep (a late refusal) is lost and stops the fill (§7.5). */
+    async settle() {
+      const lost = s.cache && arm.settle ? await arm.settle() : [];
+      if (lost.length) (s.stopped = true), s.lost.push(...lost);
+      return lost;
+    },
+
     async close() {
-      if (s.cache) await arm.close();
+      if (s.cache) {
+        try {
+          await arm.close();
+        } catch (e) {
+          s.stopped = true;
+          s.lost.push(...(e.lost ?? []));
+          s.lateRefusal = e.name ?? String(e);
+        }
+      }
       s.cache = false;
       for (const letGo of s.letGo.splice(0)) letGo();
     },

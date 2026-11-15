@@ -3,7 +3,7 @@
 import { hasher } from "../../client/decode/xxh3.js";
 import { fieldBytes, fill, FIELDS, sha256 } from "./fields.js";
 import { ring as makeRing } from "./ring.js";
-import { store as makeStore, webLocks } from "./store.js";
+import { readsFirst, store as makeStore, webLocks } from "./store.js";
 
 const now = () => performance.timeOrigin + performance.now();
 let c = null;
@@ -34,10 +34,12 @@ async function pump() {
   }
 }
 
-/** Reads let in while a write waits between its pieces (§7.1, reads first), as long as a slot is free. */
-async function serveReads() {
-  while (reads.length && ring.anyFree()) await serveRead(reads.shift());
-}
+let readsInWriteMs = 0;
+const serveReads = readsFirst({ queue: reads, waiting: () => ring.readsWaiting(), anyFree: () => ring.anyFree(), serve: async (r) => {
+  const t0 = performance.now();
+  await serveRead(r);
+  readsInWriteMs += performance.now() - t0;
+} });
 
 /** A free slot for the view, waited for apart: a full ring frees only as the view and the writer let go. A ring
  *  that never frees (the slot-held mutant) gives none after `SLOT_WAIT_MS`: slot −1. */
@@ -62,9 +64,17 @@ async function serveRead({ i, port, askedAt }) {
 
 async function doWrite({ i, slot, arrivedAt, feeder }) {
   const start = now();
+  readsInWriteMs = 0;
   const w = await st.write(i, slot);
-  done.push({ i, arrivedAt, start, end: now(), ...w });
+  done.push({ i, arrivedAt, start, end: now(), readsMs: readsInWriteMs, ...w });
   if (c.credits) feeder.postMessage({ kind: "credit" });
+}
+
+/** Frames the arm took but did not keep are not written in the rows (§7.5, a late refusal). */
+function unwrite(lost) {
+  const gone = new Set(lost);
+  for (const d of done) if (d.written && gone.has(d.i)) (d.written = false), (d.why = "refused late");
+  return { lost, lateRefusal: st.lateRefusal };
 }
 
 /** Every frame named read back through the store and checked by SHA-256, which no arm uses. */
@@ -119,9 +129,10 @@ const commands = {
   list: () => arm.list(),
   reopen: ({ present }) => reopen(present),
   verify: ({ indices }) => verify(indices ?? done.filter((d) => d.written).map((d) => d.i)),
+  settle: async () => unwrite(await st.settle()),
   progress: () => ({ handled: done.length, written: done.filter((d) => d.written).length, queued: writes.length }),
-  result: () => ({ writes: done, reads: served, storeWrites: st.writes, stopped: st.stopped, evicted: st.evicted, writer: st.writer }),
-  close: () => st.close(),
+  result: () => ({ writes: done, reads: served, storeWrites: st.writes, stopped: st.stopped, lost: st.lost, evicted: st.evicted, writer: st.writer }),
+  close: async () => (await st.close(), unwrite(st.lost)),
 };
 
 onmessage = async ({ data: m }) => {
