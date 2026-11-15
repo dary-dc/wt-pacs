@@ -176,6 +176,20 @@ class RoundHost(unittest.TestCase):
         self.assertEqual(names.index(("reboot", None)), names.index(("load ended", 1)) + 1)
         self.assertEqual(self.rig.adb_calls().count("reboot"), 1)
 
+    def test_a_stopped_script_stops_its_servers(self):
+        """SIGTERM mid-round: the block's servers stop with the script and the stay-on setting is put back, so no port is left held."""
+        self.rig = Rig(self.d, head(), loads_per_block=(2,))
+        proc = self.rig.start()
+        to = self.rig.get("/next")[1]
+        port = urlsplit(to).port
+        proc.terminate()
+        proc.wait(timeout=30)
+        with socket.socket() as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(("127.0.0.1", port))
+            s.listen()
+        self.assertEqual((self.d / "adb.state").read_text().strip(), "3")
+
     def test_a_page_asking_twice_is_not_read_twice(self):
         """A reloaded page asking again for the same next gets the same URL, and no second set of reads or gap."""
         self.rig = Rig(self.d, head(), loads_per_block=(3,))

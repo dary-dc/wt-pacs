@@ -8,6 +8,8 @@ import argparse
 import atexit
 import json
 import os
+import re
+import signal
 import subprocess
 import sys
 import threading
@@ -127,9 +129,14 @@ class Round:
             self.note("reboot", after_block=self.block)
         self.stop_servers()
         for server in self.plan["blocks"][b]["servers"]:
-            self.servers.append(subprocess.Popen(server["cmd"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+            proc = subprocess.Popen(server["cmd"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.servers.append(proc)
+            if "readyLine" in server:
+                wait_line(proc, server["readyLine"])
+            threading.Thread(target=proc.stdout.read, daemon=True).start()
         for server in self.plan["blocks"][b]["servers"]:
-            wait_answer(server["ready"])
+            if "ready" in server:
+                wait_answer(server["ready"])
         self.block = b
         self.note("block", block=b, name=self.plan["blocks"][b].get("name"))
 
@@ -154,6 +161,14 @@ class Round:
             self.next_k = k + 1
             self.note("load opened", load=k)
             return load_url(self.plan, k, self.host)
+
+
+def wait_line(proc: subprocess.Popen, pattern: str):
+    """Until the server prints a line matching `pattern` (a QUIC server answers no HTTP)."""
+    for line in proc.stdout:
+        if re.search(pattern, line):
+            return
+    raise RuntimeError(f"{proc.args[0]} exited before printing {pattern!r}")
 
 
 def wait_answer(url: str, seconds: float = 60):
@@ -221,6 +236,7 @@ def main():
         sys.exit(1)
     round_ = Round(plan, args.out, args.host or f"http://{args.bind}:{args.port}")
     round_.prepare()
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     server = ThreadingHTTPServer((args.bind, args.port), handler(round_))
     print(f"round: {len(plan['loads'])} loads; press Start at {round_.host}/", flush=True)
     try:
