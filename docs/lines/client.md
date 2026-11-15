@@ -49,6 +49,11 @@ on lossy wireless; bit-exact; fill and latency both count.
   UNIFY-REVIEW (2026-11-12): the merge record holds, CLEAN-2's code reaches the tip unchanged, no old name in it;
   one NAMES-1 miss, `lab/faultbench/index.html` reading `info.path` (now `info.route`), left as a finding in #382.
 
+* 2026-11-11, `claude/fable-simplify`: [`docs/proposals/simplify-fable.md`](../proposals/simplify-fable.md), the demo
+  path's simplest shape and eleven proposals, read from `claude/demo-fixes-1` `daee0d1d`; nothing implemented, nothing
+  run. Two are safe before 2026-11-13 (one command starts a pair; three doc statements corrected); the rest wait for
+  the freeze and the owner's yes.
+
 ## Open (ordered)
 
 1. The reviewed path of `core` into `main` ([`coordination.md`](coordination.md) §Open 2), carrying the demo work
