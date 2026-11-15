@@ -454,51 +454,60 @@ test("a failed exact request can be asked again on the same frame", async () => 
   assert.equal(r.labels().at(-1), "lossless");
 });
 
-/** A rejected ask without a frame. */
-const lost = () => {
-  const p = Promise.reject(new Error("the session was lost and could not be re-dialled"));
+/** A rejected ask: lost (no frame came, `AskLostError`), or refused by the server. */
+const rejected = (name, message) => {
+  const p = Promise.reject(Object.assign(new Error(message), { name }));
   p.catch(() => {});
   return p;
 };
+const lost = () => rejected("AskLostError", "frame 0 unavailable: the session was lost and could not be re-dialled");
 
 /**
- * An exact ask the transport failed (no frame came) is asked again while the reader stays on the frame, and the label
- * says asking, never failed, until one comes: phone run load 6, docs/reviews/lossless-under-loss.md.
+ * A lost exact ask is asked again once, and the label says asking, never failed, until the frame comes: phone run
+ * load 6, docs/reviews/lossless-under-loss.md.
  */
-test("an exact ask the transport failed is asked again, the label asking until the frame comes", async () => {
-  const answers = [lost(), lost(), Promise.resolve(exactFrame(1))];
-  const r = lossyRig(() => answers.shift(), { exactRetryMs: [20, 20] });
+test("a lost exact ask is asked again once, the label asking until the frame comes", async () => {
+  const answers = [lost(), Promise.resolve(exactFrame(1))];
+  const r = lossyRig(() => answers.shift(), { exactRetryMs: 20 });
   await r.c.show(1);
   const asked = r.c.showExact();
   await new Promise((done) => setTimeout(done, 5));
   await r.c.repaint();
   await asked;
-  assert.deepEqual(r.exactAsks, [1, 1, 1]);
+  assert.deepEqual(r.exactAsks, [1, 1]);
   const runs = r.labels().filter((q, k, a) => q !== a[k - 1]);
   assert.deepEqual(runs, ["optimal", "asking", "lossless"]);
   assert.ok(!r.events.some(([t]) => t === "failed"));
 });
 
-/** The re-asks are bounded: after the last, the label is failed with the transport's reason. */
-test("an exact ask the transport keeps failing is failed after the last re-ask", async () => {
-  const r = lossyRig(lost, { exactRetryMs: [0, 0] });
+/** One re-ask only: lost again, the label is failed with the transport's reason. */
+test("an exact ask lost twice is failed after its one re-ask", async () => {
+  const r = lossyRig(lost, { exactRetryMs: 0 });
   await r.c.showExact();
-  assert.deepEqual(r.exactAsks, [0, 0, 0]);
+  assert.deepEqual(r.exactAsks, [0, 0]);
   assert.equal(r.labels().at(-1), "failed");
   assert.match(r.events.findLast(([t]) => t === "failed")[1].reason, /could not be re-dialled/);
 });
 
-/** A frame that came and failed its check is a verdict, not a lost ask: it is not asked again. */
-test("an exact frame that failed its check is not asked again", async () => {
-  const r = lossyRig((i) => Promise.resolve(exactFrame(i, false)), { exactRetryMs: [0, 0] });
+/** A refusal by the server is its answer, which asking again repeats: it is not asked again. */
+test("an exact ask the server refused is not asked again", async () => {
+  const r = lossyRig(() => rejected("Error", "frame 0 refused: no such frame"), { exactRetryMs: 0 });
   await r.c.showExact();
   assert.deepEqual(r.exactAsks, [0]);
   assert.equal(r.labels().at(-1), "failed");
 });
 
-/** A reader who leaves the frame, or goes back to optimal quality, ends the re-asks. */
-test("leaving the frame ends the re-asks of a lost exact ask", async () => {
-  const r = lossyRig(lost, { exactRetryMs: [20, 20] });
+/** A frame that came and failed its check is a verdict, not a lost ask: it is not asked again. */
+test("an exact frame that failed its check is not asked again", async () => {
+  const r = lossyRig((i) => Promise.resolve(exactFrame(i, false)), { exactRetryMs: 0 });
+  await r.c.showExact();
+  assert.deepEqual(r.exactAsks, [0]);
+  assert.equal(r.labels().at(-1), "failed");
+});
+
+/** A reader who leaves the frame, or goes back to optimal quality, ends the re-ask. */
+test("leaving the frame ends the re-ask of a lost exact ask", async () => {
+  const r = lossyRig(lost, { exactRetryMs: 20 });
   const asked = r.c.showExact();
   await new Promise((done) => setTimeout(done, 5));
   r.c.showLossy();
@@ -571,7 +580,7 @@ let failed = 0;
 test("the label runs every state through a failed ask, its retry and the way back", async () => {
   const asks = [Promise.reject(new Error("session closed")), Promise.resolve(exactFrame(2))];
   asks[0].catch(() => {});
-  const r = lossyRig(() => asks.shift(), { exactRetryMs: [] });
+  const r = lossyRig(() => asks.shift(), { exactRetryMs: null });
   await r.c.show(2);
   await r.c.showExact();
   const reason = r.events.findLast(([t]) => t === "failed")?.[1];

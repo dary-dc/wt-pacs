@@ -121,5 +121,29 @@ async function scriptThatDoesNotLoad() {
 }
 await scriptThatDoesNotLoad();
 
-console.log(failed ? `${failed} failed` : "consumer refusals, acks, unreadable deliveries, a delivered frame not failed, bytes over either buffer, a worker that does not load: ok");
+/** An ask the downloader reports lost rejects as `AskLostError`, so the view may ask it again; any other failure does not. */
+async function aLostAskIsNamed() {
+  let worker;
+  globalThis.Worker = class {
+    constructor() {
+      worker = this;
+    }
+    postMessage(m) {
+      if (m.kind === "dial") queueMicrotask(() => this.onmessage({ data: { kind: "started" } }));
+    }
+    terminate() {}
+  };
+  const client = await DownloaderClient.connect("https://x.invalid/", "ab", { decode: false });
+  const lost = client.requestExactFrame(1).catch((e) => e);
+  const refused = client.requestExactFrame(2).catch((e) => e);
+  worker.onmessage({ data: { kind: "failed", index: 1, gen: 0, reason: "the session was lost and could not be re-dialled", lost: true } });
+  worker.onmessage({ data: { kind: "failed", index: 2, gen: 0, reason: "frame 2 refused: no such frame" } });
+  const [l, r] = await Promise.all([lost, refused]);
+  check(l.name === "AskLostError" && /re-dialled/.test(l.message), `a lost ask is named (${l.name}: ${l.message})`);
+  check(r.name !== "AskLostError", `a refusal is not (${r.name}: ${r.message})`);
+  client.close();
+}
+await aLostAskIsNamed();
+
+console.log(failed ? `${failed} failed` : "consumer refusals, acks, unreadable deliveries, a delivered frame not failed, bytes over either buffer, a worker that does not load, a lost ask named: ok");
 process.exit(failed ? 1 : 0);
