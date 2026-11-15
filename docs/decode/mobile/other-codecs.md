@@ -20,7 +20,8 @@ bytes and noise; 4-core cloud hosts without a GPU; one phone (Chrome 157), one h
   so an ingest digest over the 8-bit luma holds for a hardware decoder too. The samples come back as `NV12` planes in
   desktop Chromium and Safari; on Android only through [`new-options.md`](new-options.md) §3's inversion (T).
 * **What they add over AV1 is the decoder's presence and size, not a route** (S, R). HEVC hardware is in > 95 % of
-  smartphones against 9.76 % for AV1 (R, [`../hardware.md`](../hardware.md) §6–§7); Android requires an HEVC *or*
+  smartphones against 9.76 % for AV1 (R, [`../hardware.md`](../hardware.md) §6, citing ScientiaMobile 2024 Q2; the
+  HEVC figure's page could not be fetched on 2026-11-15, so it is unverified, not refuted: PR 397 §Review item 6); Android requires an HEVC *or*
   VP9 decoder at UHD, which needs level 5.1, where its AV1 floor is level 4.1; `dbts_b1` needs level 5 in all three
   (§4).
 * **H.264's High profile takes 4:0:0** (S), so 8-bit grey needs no constant chroma there; HEVC Main and VP9 profile 0
@@ -107,8 +108,8 @@ rounded up as each codec codes them (D).
 "less than or equal to Sqrt( MaxLumaPs * 8 )". Table A.8, MaxLumaPs: level 4 and 4.1 "2 228 224"; 5, 5.1, 5.2
 "8 912 896". Table A.9, MaxLumaSr: 5 "267 386 880", 5.1 "534 773 760".
 
-**VP9** (S3, Annex A; the same table on S6): Max Luma Picture Size 4 and 4.1 "2228224", 5 to 5.2 "8912896"; Max Width
-and Height 4160 and 8384; Max Luma Sample Rate 5 "311951360", 5.1 "588251136". Its picture size is "The extended
+**VP9** (S6; *corrected 2026-11-15, PR 397 §Review item 5: cited to S3's Annex A, which has no width column*): Max
+Luma Picture Size 4 and 4.1 "2228224", 5 to 5.2 "8912896"; Max Width and Height 4160 and 8384; Max Luma Sample Rate 5 "311951360", 5.1 "588251136". Its picture size is "The extended
 frame size in pixels (samples). The decoder needs to handle pixels extended outside the frame towards the right and
 bottom by up to 32 pixels", so the worst case below adds 32 to each side (D).
 

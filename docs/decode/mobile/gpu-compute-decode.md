@@ -28,8 +28,11 @@ home link, one evening.
 * **Its cost is bytes, not decode.** The stream is the exact series: `dbts_b1` 2 148 203 B a frame, 4.63× the view's
   ~464 KB (R; D). A fill of it is wire-bound below ~382 Mbit/s of goodput against today's view's effective 45 ms a
   frame (§6, D). It wins where the link is fast or the frame is asked for exactly; the link decides, not the decoder.
-* **Ships today:** WebGPU in Chrome on Android 12+ with Qualcomm and ARM GPUs (the Galaxy S23's SoC is a Snapdragon 8 Gen 2,
-  R, `claude/hw-decode:docs/decode/hardware.md`), in Safari on iOS 26; **not** Firefox on Android, **not** Samsung Xclipse GPUs (S4, S5). The decoder is a
+* **Ships today:** WebGPU in Chrome on Android 12+ with ARM, Qualcomm and Intel GPUs, and on Android 16+ with
+  Imagination GPUs (S4: "ARM/Qualcomm/Intel, Android 12+: 121", "Imagination, Android 16+: 139"; the Galaxy S23's SoC
+  is a Snapdragon 8 Gen 2, R, `claude/hw-decode:docs/decode/hardware.md`), in Safari on iOS 26; **not** Firefox on
+  Android, **not** Samsung Xclipse GPUs (S4, S5). *Corrected 2026-11-15 (PR 397 §Review item 4): this named Qualcomm
+  and ARM only.* The decoder is a
   lab tool; the painter is WebGL2 and would have to be WebGPU to paint without a read-back (§5): structural, a design
   for review.
 * **One line asked of this row** (new-options §6.1): AV1 with entropy decoding in WASM and reconstruction in WebGPU
@@ -206,7 +209,7 @@ further: the view is already fast enough to bind on the decode only on the phone
 | precision on screen | full, the source's depth (10 or 12 bits here) |
 | checked | yes: the decoder's own samples, XXH3-64 on the GPU (not built) or after a read-back; exact on SwiftShader, every frame (R) |
 | window/level and tools | all, on the true samples, with a WebGPU painter (§5) |
-| ships today | WebGPU: Chrome Android 12+ Qualcomm/ARM (121+), Safari iOS 26; not Firefox Android, not Xclipse (S4). The decoder: a lab tool, exact; the painter: not built |
+| ships today | WebGPU: Chrome Android 12+ ARM/Qualcomm/Intel (121+), Android 16+ Imagination (139+), Safari iOS 26; not Firefox Android, not Xclipse (S4). The decoder: a lab tool, exact; the painter: not built |
 | what a phone cell must measure | below |
 
 **Phone cells** (asks for the next phone round; the levers protocol's §L3 phone-stage rule already states the bar:
@@ -220,7 +223,7 @@ and a fill is no slower than ×1.01", R):
 4. Once built: XXH3-64 in WGSL on one frame, against the CPU's.
 
 **What the sources decide alone:** that the reversible route is exact on every conformant WebGPU (S2, R); that a
-float synthesis cannot be checked by an ingest digest (S2, D); where WebGPU ships (S3, S4, S5). **What they do
+float synthesis cannot be checked by an ingest digest (S2, D); where WebGPU ships (S4, S5; *corrected 2026-11-15, PR 397 §Review item 4: S3, the specification, was cited here*). **What they do
 not:** any time on a phone; the read-back's and the dispatches' cost; energy. **Leaning, labelled as one:** worth
 the phone cells now, because the decoder exists and is exact: the cells cost a page, not a build. As the fill's route
 it wins only on fast links (§6); as the exact frame's decoder, on every link where it is faster than WASM.

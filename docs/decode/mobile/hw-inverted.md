@@ -21,15 +21,18 @@ not measured; **(M)** measured here, §9.
 * **Who picks the range and matrix differs by engine** (§2, S): on Android Chromium the GPU driver's suggestion for
   the decoder's buffer (Vulkan's `suggestedYcbcrRange`, Dawn's `yCbCrInfo`, or the external texture's EGLImage);
   on desktop Chromium the frame's colour space, which `VideoDecoderConfig.colorSpace` overrides; on Safari the
-  pixel format (`420v` narrow, `420f` full); on Firefox **narrow range always**, its own code noting "The colorspace
-  is known by the IOSurface, why override it?".
+  pixel format (`420v` narrow, `420f` full); on desktop Firefox **narrow range always**, its own code noting "The
+  colorspace is known by the IOSurface, why override it?"; on Firefox for Android the EGL driver's (*corrected
+  2026-11-15, PR 397 §Review item 3: this read "narrow range always" on every platform; every Android blit samples an
+  external texture with "kFragSample_OnePlane, kFragConvert_None", §2*).
 * **So the one form every engine inverts is studio swing on 16…235** (§3, §4, D): a narrow reading maps it
-  one-to-one, a full reading leaves it one-to-one, and Firefox reads every stream as narrow. 220 levels, 7.78 bits.
+  one-to-one, a full reading leaves it one-to-one, and desktop Firefox reads every stream as narrow (on Android the
+  driver picks, as on Chromium: item 3 of PR 397 §Review). 220 levels, 7.78 bits.
 * **One-to-one is likely, not promised** (§3). Vulkan specifies the range expansion "at least" to the source's
   precision and asks float-to-unorm rounding that "should" be to nearest; with that, the 220 levels map to 220
   distinct values (D). Its "must" allows either neighbour, which would merge most adjacent pairs; the GL external
-  path specifies nothing; Firefox's matrix is a `mediump` uniform, and evaluated in fp16 it merges one pair of the
-  220 (D, an emulation, not an engine run). The digest, checked on every frame, is what decides; a calibration unit
+  path specifies nothing; desktop Firefox's matrix is a `mediump` uniform, and evaluated in fp16 it merges one pair of
+  the 220 (D, an emulation, not an engine run; Firefox for Android applies no matrix of its own, §2). The digest, checked on every frame, is what decides; a calibration unit
   finds a merging device once a session (§6).
 * **The check costs about half today's** (§5, D): 8 519 680 bytes read back and hashed for a `dbts_b1` frame against
   today's 17 039 360, about 2.6 ms of XXH3 at the client's measured ~3.3 GB/s (R, desktop containers; the phone
@@ -112,8 +115,11 @@ kDefaultSurfaceFromElementFlags)`; only `FromDomElem` adds "SFE_NO_COLORSPACE_CO
 `gfxUtils::YuvToRgbMatrix4x4ColumnMajor(…)`, whose tables are all narrow range ("kBT709NarrowYCbCrToRGB_RowMajor …
 1.16438f"), with the code's own note on IOSurface and DMABuf: "// TODO: The colorspace is known by the IOSurface, why
 override it? // See GetYUVColorSpace/GetFullRange()". The matrix is "uniform mediump MAT4X3 uColorMatrix"
-(`GLBlitHelper.cpp`). On Android the blit reads a `SurfaceTexture`, an `AndroidHardwareBuffer` or an
-`AndroidImageReader` image through EGL, as Chromium's GL path does.
+(`GLBlitHelper.cpp`), applied only by the planar, IOSurface and DMABuf blits (lines 1300, 1542, 1754). On Android the
+blit reads a `SurfaceTexture`, an `AndroidHardwareBuffer` or an
+`AndroidImageReader` image through EGL, as Chromium's GL path does, with "kFragSample_OnePlane, kFragConvert_None"
+(lines 1173, 1227, 1260): no matrix of Firefox's own, the driver's range (*corrected 2026-11-15, PR 397 §Review
+item 3: §1 and §4 read Firefox as narrow on every platform*).
 
 **`createImageBitmap`** is no way around it: "If image is an img element or a Blob object, let val be the value of
 the colorSpaceConversion member of options … If val is "none", output must be decoded without performing any color
@@ -143,7 +149,8 @@ nearest." (`fundamentals.adoc`). So (D):
   permits a merge.
 
 **GL external textures** specify no arithmetic at all (S10). **Desktop Chromium** converts in Skia's shader in float
-(S6; not traced further). **Safari** converts in ANGLE (not traced). **Firefox**: the matrix row for red, 1.16438 Y
+(S6; not traced further). **Safari** converts in ANGLE (not traced). **Firefox** (desktop; on Android no matrix of its own, §2): the matrix row for red,
+1.16438 Y
 + 1.79274 Cr − 0.97295, gives with Cr = 128/255 exactly the ideal 1.16438 Y − 0.07306 (D: 1.79274 × 0.501961 −
 0.97295 = −0.07306; G and B agree to 6 × 10⁻⁶). Evaluated in fp32 it keeps 220 levels; evaluated in fp16, as a
 `mediump` uniform may be on a phone's GPU, it merges one pair: **219 distinct** (D, numpy's `float16` with a rounding
@@ -162,7 +169,8 @@ either value, the frame falls back to software, and the route is off on that dev
   Vulkan's formulae, S9), AV1 Main profile, the hardware form of
   [`av1-hardware-unchecked.md`](av1-hardware-unchecked.md) §5;
 * luma `c = 16 + round(v ÷ s)`, s = (2^D − 1) ÷ 219, **studio swing** (`color_range` 0): the only range every engine
-  of §2 inverts, Firefox's included;
+  of §2 inverts, desktop Firefox's included; on phones the range is the driver's in both Chromium and Firefox, so the
+  reason rests on the driver, which M6 and M10 check (*corrected 2026-11-15, PR 397 §Review item 3*);
 * a colour description written in the sequence header (BT.709 primaries, transfer and matrix) and the same values in
   `VideoDecoderConfig.colorSpace` with `fullRange: false`, so that no engine falls back to a guess (Safari's "Assume
   unknown matrices are ITU R.601" is harmless for grey; a guessed *range* is not, T);
