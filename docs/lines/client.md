@@ -51,6 +51,10 @@ exact frame bit for bit, and only checked claims on screen.
   The GPU option ([`../decode/mobile/gpu-compute-decode.md`](../decode/mobile/gpu-compute-decode.md), 2026-11-15):
   the lab's WebGPU HTJ2K decoder is already exact; checked and full precision on the reversible path only; its cost is
   the exact series' bytes (4.63× the view on `dbts_b1`); owed, four phone cells (its §9) and a WebGPU painter's design.
+  Other codecs (HEVC, VP9, H.264; [`../decode/mobile/other-codecs.md`](../decode/mobile/other-codecs.md), 2026-11-15):
+  no browser returns their hardware samples above 8 bits either; at 8 bits they are checkable like AV1, and add only
+  a likelier decoder and Android's UHD (level 5.1) HEVC-or-VP9 requirement. Owed: three phone asks (its §6), bytes
+  unmeasured.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
