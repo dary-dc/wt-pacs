@@ -1,8 +1,8 @@
 state: started
 started: 2026-11-15T17:41Z
-heartbeat: 2026-11-15T18:28Z
-outputs: claude/merge-a-client 297e7352ce (in progress)
+heartbeat: 2026-11-15T18:46Z
+outputs: claude/merge-a-client 89e3549c77 (in progress)
 ## Resume
-62 of 62 merged; two fix commits (6a9fccc9 links, 297e7352 personal paths), pushed. Now the gate again (gate-run.sh, logs
-/home/user/mac-out). Then demo.sh (dbts_a1 fetched to /home/user/demo-data; both views), the comparison table, the
-draft PR into claude/unified-client with /home/user/mac-work/pr-head.md as its body's head.
+GATE OK in 710 s at 89e3549c (53 steps, the baseline's skips), after three fix commits (links, personal paths, the phone
+runner's gate line). Now demo.sh (/home/user/mac-work/demo.sh: dbts_a1 and dbts_a1-q8-g8-cut ingested, demo-check.mjs
+page and worker; logs /home/user/mac-out/demo-*). Then the comparison and the draft PR.
