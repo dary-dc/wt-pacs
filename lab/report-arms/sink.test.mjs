@@ -4,6 +4,7 @@
 import { mkdtempSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { get } from "node:http";
 import { startSink } from "./sink.mjs";
 
 let failed = 0;
@@ -43,10 +44,11 @@ await withSink({ mutant: "ack-before-write" }, async ({ post, url }) => {
   check(c.acknowledged === 1 && c.appended === 0, `ack-before-write: appended below acknowledged ${JSON.stringify(c)}`);
 });
 
-await withSink({ statics: new URL(".", import.meta.url).pathname }, async ({ url }) => {
+await withSink({ statics: new URL(".", import.meta.url).pathname }, async ({ url, sink }) => {
   const r = await fetch(url("/report-fields.json"));
   check(r.status === 200 && r.headers.get("cross-origin-embedder-policy") === "require-corp", "statics served isolated");
-  check((await fetch(url("/../../etc/passwd"))).status === 404, "no path outside the static root");
+  const raw = await new Promise((ok) => get({ port: sink.port, path: "/..%2F..%2F..%2F..%2Fetc%2Fhostname" }, ok));
+  check(raw.statusCode === 404, `no path outside the static root, got ${raw.statusCode}`);
 });
 
 if (failed) process.exit(1);
