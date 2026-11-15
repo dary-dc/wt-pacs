@@ -35,11 +35,11 @@ page view sends no want.
 **Arms**, one build, one setting, nothing else different: `off`, `off′` (the A/A pair, the same build and setting run
 as a second unit), and `on` at k ∈ {1, 2, 4, 8}; k = 1 is the ordering alone.
 
-**The trace.** From frame 0's first paint, a sawtooth over the first third of the stack at 25 slices/s (MAP's
+**The trace.** From frame 0's first paint, a sawtooth over the first third of the stack at 25 slices/s (`claude/ask-patterns-map`'s
 drilling trace): 0 → ⌊n/3⌋ → 0, three times, a step every 40 ms through the view's `show`. Not built: the run's row
 adds it as a lab lever beside `lab/viewer/levers.js`, recording each step's time, whether its frame was held, and
 when it was. The review checks the driver before round 0. *Review:* built and smoked by the review,
-`lab/viewer/trace.js` behind `?trace=sawtooth` (`run.mjs --trace sawtooth`). MAP names the trace, a sawtooth over a
+`lab/viewer/trace.js` behind `?trace=sawtooth` (`run.mjs --trace sawtooth`). `claude/ask-patterns-map` names the trace, a sawtooth over a
 third of the stack at 25 slices/s; the strokes' number and ⌊n/3⌋ are this protocol's reading of it.
 
 **Measured, per visit.** *Primary:* **the wait of a forward step**, from the step to its frame held (0 if held at the
@@ -111,10 +111,10 @@ commit, and each holds as cited unless corrected above:
 
 * WIRE.md §An ask during a fill, lines 118–137 on this base (`34ebe33`): an ask ends the run, there is no saved
   position, and the downloader re-asks the rest.
-* MAP (`claude/ask-patterns-map` at `8ffe467`), `docs/ARCHITECTURE.md`. Lines 403–404 name the drilling trace, a
+* `claude/ask-patterns-map` at `8ffe467`, `docs/ARCHITECTURE.md`. Lines 403–404 name the drilling trace, a
   sawtooth over a third of the stack at 25 slices/s; line 377 gives its rate, Diaz et al. 2015 (abstract only),
   25–30 slices/s.
-  *Corrected 2026-11-14:* MAP's text was on that branch only, not in the tree, so these citations could not be
+  *Corrected 2026-11-14:* `claude/ask-patterns-map`'s text was on that branch only, not in the tree, so these citations could not be
   followed here; it now is: [`how-viewers-and-readers-ask.md`](how-viewers-and-readers-ask.md), pattern 1 for the
   trace and the readers' table for the rate.
 * The table (`claude/vw-experiments` at `9a829a4`), frame-path.md lines 952 and 968–973.

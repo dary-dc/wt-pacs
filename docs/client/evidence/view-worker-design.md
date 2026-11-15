@@ -91,16 +91,16 @@ GPU); the samples written once, as today.
 ### Review: the red team (2026-10-28)
 
 **What this is.** An adversarial reading of the Target section against today's client (`client/`), the decided ADRs,
-and the branches that work on it: `claude/opfs-cache-fixes` (OCF), `claude/opfs-arms` (ARMS), `claude/frame-memory`
-(FM), `claude/worker-clock` (WC), `claude/ask-patterns-map` (MAP, its text now in [`how-viewers-and-readers-ask.md`](how-viewers-and-readers-ask.md)) and `claude/view-worker` (VW), cited
-`branch:path:line`. Engine sources are pinned in [`frame-path-sources.txt`](sources.txt) under
+and the branches that work on it: `claude/opfs-cache-fixes`, `claude/opfs-arms`, `claude/frame-memory`,
+`claude/worker-clock`, `claude/ask-patterns-map` (its text now in [`how-viewers-and-readers-ask.md`](how-viewers-and-readers-ask.md)) and `claude/view-worker`, cited
+`branch:path`:line. Engine sources are pinned in [`frame-path-sources.txt`](sources.txt) under
 *Review*. Three throwaway probes are in [`../../lab/target-review/`](https://github.com/dary-dc/wt-pacs/tree/7f335cc0c80100017ccb3800c40a871c9fabc3f6/lab/target-review/README.md). Their numbers
 come from a shared container and are **indicative, not claims**. Nothing here was run on a phone, in WebKit, or in
 Firefox. Every fix below is **proposed, not made**. Four helper agents did the reading and the probes.
 
 | # | severity | where it fails | smallest change | settled by |
 | --- | --- | --- | --- | --- |
-| 1 | high | the controller's order never reaches the wire | the downloader keeps the want as a list and sends a bounded prefix as asks | arrival order against want order, and asked frame → screen (MAP's G1) |
+| 1 | high | the controller's order never reaches the wire | the downloader keeps the want as a list and sends a bounded prefix as asks | arrival order against want order, and asked frame → screen (`claude/ask-patterns-map`'s G1) |
 | 2 | high | a replaced want re-decodes and re-downloads in-flight frames | the want carries no invalidating generation; frames are keyed by series, index and version | decodes per index = 1 over a scroll trace |
 | 3 | high | no backpressure from the store to the decoders to the wire | credits: dispatch only while unacked frames < K; the store acks when held within budget or written | peak memory of a mammogram fill with slowed writes, credits on and off |
 | 4 | high | one thread: a paint or tick waits behind a write, a read-back hash or a GPU wait | cache I/O off the view thread unless the cache-I/O arms clears arm A; no 1-px `readPixels` outside the lab | the cache-I/O arms, plus a window drag during a fill |
@@ -118,12 +118,12 @@ Firefox. Every fix below is **proposed, not made**. Four helper agents did the r
 **1 · The want's order is lost below the store.** The Target says the store "never reorders" the want. The
 downloader does: a `fill` goes into a `Set` (`client/transport/downloader.js:181–187`), and `nextRun` sends the lowest
 contiguous run (`:275–281`). Asks go before fill frames (`:108`), and groups are sorted (`:84`). On the wire, an
-order that is not ascending survives only as asks, and every ask is sent at once (MAP:docs/ARCHITECTURE.md:451–460).
+order that is not ascending survives only as asks, and every ask is sent at once (`claude/ask-patterns-map:docs/ARCHITECTURE.md`:451–460).
 The probe sent a want ordered 40, 41, 39, 42, 38 … over 76 frames. The wire saw `[0, 75]`, and frame 40 arrived
 41st (`want-order.mjs`). The controller's "frame asked first, then the window" therefore holds only for the one frame
 it asks. **Fix:** the downloader keeps the want as an ordered list. It sends a prefix of `D_min` asks
 ([`client-window-depth.md`](../../adr/client-window-depth.md)) and tops it up as frames land, using a `stream_frames` run only
-where the want is ascending. This is MAP's G1, client-only. **Settle:** arrival order against want order, and asked
+where the want is ascending. This is `claude/ask-patterns-map`'s G1, client-only. **Settle:** arrival order against want order, and asked
 frame → screen, in the browser at the ADR's links.
 
 **2 · A replaced want, and the generation.** The design gives the want a `generation`. Today the only generation is
@@ -133,7 +133,7 @@ then dropped: frames at `:239` and `:288`, decoder failures at `:443`, acks at `
 dispatched to a decoder twice. The whole range went on the wire twice, including frames that had already arrived and
 were waiting for a decoder (`want-replaced.mjs`). A viewer whose every wheel step replaces the want would break "no
 frame is decoded twice" at each step. With no cancel on the server (decided), the superseded frames still arrive, and
-nothing counts them (MAP:490–496). **Fix:** a want replaces the order and nothing else. Frame identity is (series,
+nothing counts them (`claude/ask-patterns-map:docs/ARCHITECTURE.md`:490–496). **Fix:** a want replaces the order and nothing else. Frame identity is (series,
 index, metadata version). The store keeps any frame of the current series that it does not already hold, and acks
 it. A generation steps only when the series or its metadata version changes. **Settle:** decode dispatches per index
 over a recorded scroll trace (must be 1), and wire bytes per frame shown.
@@ -143,19 +143,19 @@ done with the frame. The pixel port's queue is unbounded by spec (HTML §port me
 `SharedArrayBuffer` message keeps its whole buffer alive. The wire ring allocates when it is empty
 (`client/transport/ts/frame-session.ts:82–84`), and the compressed queue grows with the series while decoders lag,
 because the reader pause is not built ([`../ARCHITECTURE.md`](../../ARCHITECTURE.md) §The downloader). So when the store
-is full, or its writes fall behind, frames pile up in the view worker's port, outside any budget. ARMS saw this once
-in its smoke: a Firefox write-on-arrival run ended with an unbounded backlog (ARMS:docs/adr/frame-path.md:810–816).
-On V8 a `SharedArrayBuffer` counts 0 bytes towards the heap that triggers collection (FM:fp:639–645), and M2's
-memory window failed its bar on Chromium, its re-run VOID (OCF:fp:304–306, 581, 611). **Fix:** credits. The downloader dispatches only while its unacked frames
+is full, or its writes fall behind, frames pile up in the view worker's port, outside any budget. `claude/opfs-arms` saw this once
+in its smoke: a Firefox write-on-arrival run ended with an unbounded backlog (`claude/opfs-arms:docs/adr/frame-path.md`:810–816).
+On V8 a `SharedArrayBuffer` counts 0 bytes towards the heap that triggers collection (`claude/frame-memory:docs/adr/frame-path.md`:639–645), and M2's
+memory window failed its bar on Chromium, its re-run VOID (`claude/opfs-cache-fixes:docs/adr/frame-path.md`:304–306, 581, 611). **Fix:** credits. The downloader dispatches only while its unacked frames
 number fewer than K. The store acks a frame only once it is held within budget or written. The reader pause then
-carries this to QUIC flow control. FM's slots (c) are the same idea built in memory. **Settle:** peak resident memory
+carries this to QUIC flow control. `claude/frame-memory`'s slots (c) are the same idea built in memory. **Settle:** peak resident memory
 of a four-view mammogram fill with the store's writes slowed through a test lever, credits on and off, interleaved
 (M5's bar).
 
 **4 · One thread paints, stores, hashes and decides.** A worker runs one task at a time, and its rAF callbacks run
-only between tasks (HTML §event loop processing model). Chromium drops a BeginFrame whose deadline has passed. ARMS
+only between tasks (HTML §event loop processing model). Chromium drops a BeginFrame whose deadline has passed. `claude/opfs-arms`
 predicts arm A (a sync handle in the view worker, writing on arrival) blocks 4–17 ms a frame at 17 MB, and four
-times that at 4× (ARMS:fp:758–769). M1 measured 22.3 ms to read and re-check one 3328×4096 frame (OCF:fp:577–580).
+times that at 4× (`claude/opfs-arms:docs/adr/frame-path.md`:758–769). M1 measured 22.3 ms to read and re-check one 3328×4096 frame (`claude/opfs-cache-fixes:docs/adr/frame-path.md`:577–580).
 The probe (`busy-worker.cjs`, headless Chromium) posted `show` every 16 ms:
 
 * idle: p95 0.2–0.3 ms;
@@ -180,15 +180,15 @@ cache against an empty one at 46 and 92 ms RTT, sweeping g.
 
 **6 · Errors that never reach the app.** In the build:
 
-* intents are fire-and-forget (VW:client/view/view-worker.js:80), so a rejection in `controller.show` goes nowhere;
-* the view worker's `onerror` reports any later error as "did not start" (VW:client/view/view.js:70), and nothing
+* intents are fire-and-forget (`claude/view-worker:client/view/view-worker.js`:80), so a rejection in `controller.show` goes nowhere;
+* the view worker's `onerror` reports any later error as "did not start" (`claude/view-worker:client/view/view.js`:70), and nothing
   restarts the worker;
-* a downloader whose script fails leaves `connect` hanging until the check's deadline (VW:fp:109–110);
+* a downloader whose script fails leaves `connect` hanging until the check's deadline (`claude/view-worker:docs/adr/frame-path.md`:109–110);
 * the downloader's series-level failure arrives as "frame -1".
 
-On OCF, a refused write or a stopped series is swallowed, visible only as a count (OCF:client/viewer/store.js:105,
-OCF:client/viewer/viewer.js:125). A second tab's lock is swallowed the same way: that tab silently runs without a
-cache (OCF:viewer.js:155–163). **Fix:** one event, `failed {scope: frame | series | cache | worker, reason}`. After
+On `claude/opfs-cache-fixes`, a refused write or a stopped series is swallowed, visible only as a count (`claude/opfs-cache-fixes:client/viewer/store.js`:105,
+`claude/opfs-cache-fixes:client/viewer/viewer.js`:125). A second tab's lock is swallowed the same way: that tab silently runs without a
+cache (`claude/opfs-cache-fixes:client/viewer/viewer.js`:155–163). **Fix:** one event, `failed {scope: frame | series | cache | worker, reason}`. After
 start, a view-worker `error` or `messageerror` is fatal and shown. The cache says once when it stops. **Settle:** the
 refusals contract (`client/contract/refusals.html`) run against the view worker, every refusal visible by name, plus
 one mutant per scope.
@@ -203,9 +203,9 @@ nearest distance and evicted by the minimum distance over viewports. **Settle:**
 
 **8 · Eviction that follows the want.** Read literally, every want change pushes what falls outside it out of memory.
 A cine loop over a series that fits in memory (40–68 MB, §4) would then read every frame back from OPFS on every loop,
-which today's path never does. FM lets an ask evict the farthest frame "on disk or not" (FM:fp:689). The build's
-`put` can evict the frame it has just stored and still report it as arrived (VW:client/view/store.js:29–31). Either
-one re-decodes a frame. OCF's built window drops only frames already on disk (OCF:viewer.js:111–118), and that is the
+which today's path never does. `claude/frame-memory` lets an ask evict the farthest frame "on disk or not" (`claude/frame-memory:docs/adr/frame-path.md`:689). The build's
+`put` can evict the frame it has just stored and still report it as arrived (`claude/view-worker:client/view/store.js`:29–31). Either
+one re-decodes a frame. `claude/opfs-cache-fixes`'s built window drops only frames already on disk (`claude/opfs-cache-fixes:client/viewer/viewer.js`:111–118), and that is the
 rule to keep. **Fix:** the want orders eviction but does not trigger it. A frame leaves memory only when over the byte
 budget, and only once written. **Settle:** cine for two loops on a series over budget, then a series under it: decodes
 per index, and OPFS reads per loop (0 under budget).
@@ -220,13 +220,13 @@ levers.
 **10 · Cine with the clock in the worker.** Engine support:
 
 * Chromium has no worker rAF in a nested worker, so the view worker must be the page's own child. The build is
-  (VW:view.js:69).
+  (`claude/view-worker:client/view/view.js`:69).
 * WebGL2 on `OffscreenCanvas` needs Safari 17.
 * WebKit's worker rAF is a ~16.7 ms one-shot timer, not vsync, with no hidden-tab throttling ("FIXME").
 * Gecko stops on `hidden`.
-* Chromium's hidden-tab behaviour is not traced (WC:fp:200–205; sources).
+* Chromium's hidden-tab behaviour is not traced (`claude/worker-clock:docs/adr/frame-path.md`:200–205; sources).
 
-Any task from #4 delays a tick. The build still paces cine from the page (VW:view.js:41–46). **Fix:** the clock picks
+Any task from #4 delays a tick. The build still paces cine from the page (`claude/view-worker:client/view/view.js`:41–46). **Fix:** the clock picks
 the frame from elapsed time since `play`, so a late tick skips to the right frame instead of drifting. The page
 forwards `hidden` as a pause, as it already forwards its other triggers. **Settle:** the frame-clock protocol as pre-registered,
 plus a WebKit cell and a hidden-tab cell counting ticks and battery-relevant wakeups.
@@ -239,8 +239,8 @@ the store drops them. **Settle:** a mutant that stores a preview must fail the c
 
 **12 · OPFS read-back.** The Target names a failed check and nothing else. A read can also throw: a cleared origin
 (`NotFoundError`), a closed handle (`InvalidStateError`). What an open handle sees after a clear is in no spec or
-source found. A re-ask placed at the want's tail reorders it, and a re-asked frame on OCF counts towards the fill's
-end, which stamps it early (OCF:fp:598–599). **Fix:** any read error is a miss, re-asked at its own want position.
+source found. A re-ask placed at the want's tail reorders it, and a re-asked frame on `claude/opfs-cache-fixes` counts towards the fill's
+end, which stamps it early (`claude/opfs-cache-fixes:docs/adr/frame-path.md`:598–599). **Fix:** any read error is a miss, re-asked at its own want position.
 **Settle:** M4 with the entry deleted mid-session.
 
 **13 · Phones.** WebKit reports `hardwareConcurrency` as 4 below 8 cores (sources), so a phone with two performance
@@ -249,7 +249,7 @@ cores runs three decoders, a downloader, the view worker and the page, plus a st
 engine clamps it. **Settle:** D5 on a device.
 
 **14 · Observability.** Today a lab reads the page's `Map` with arrival stamps (`client/viewer/viewer.js:100`). The build moves the
-check's readbacks into the worker and adds `ledger()`, but nothing is timed (VW:fp:87). `shown {i, exact}` drops the
+check's readbacks into the worker and adds `ledger()`, but nothing is timed (`claude/view-worker:docs/adr/frame-path.md`:87). `shown {i, exact}` drops the
 reason the page shows today (`client/viewer/viewer.js:84`). **Fix:** per-frame stamps (arrived, painted, written) in `ledger()`,
 and `shown` carries `reason`.
 
@@ -257,7 +257,7 @@ and `shown` carries `reason`.
 
 * Taking the page out of the pixel path: presentation needs no page thread in any engine (§2, by source).
 * The controller and store split, and "one owner per frame, changed at the ack": the build keeps the rule and its
-  survival paths (VW:fp:96–99).
+  survival paths (`claude/view-worker:docs/adr/frame-path.md`:96–99).
 * The read-back check: M4 caught 4/4 flipped frames.
 * The cache's value: M1 reopened 256×512² in 174 ms against a 7.49 s fetch.
 * `valueAt`, built with a test.

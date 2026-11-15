@@ -10,16 +10,16 @@ The design these findings shape is [`../design.md`](../design.md).*
 ## Experiment 3: a transferred `ArrayBuffer` per frame (2026-10-29)
 
 *Rank 3 of the ranked table of experiments beside the target (`claude/vw-experiments`, frame-path.md §Experiments
-beside the target): FM's (a′), against the `SharedArrayBuffer` the decoders write today. On this branch the target is
+beside the target): `claude/frame-memory`'s (a′), against the `SharedArrayBuffer` the decoders write today. On this branch the target is
 §3's* Built *above, so the experiment sits here. **Pre-registered, built, not run**; the run is a row of its own,
 after a methodology review. The smoke below proves the arms run, and gives no number.*
 
 **The claim.** V8 counts a `SharedArrayBuffer` as 0 bytes towards collection, so a frame the store lets go during a
-fill is not freed until something else collects (FM's M2 diagnostic: after a 2.03 GiB fill under a 256 MiB window,
+fill is not freed until something else collects (`claude/frame-memory`'s M2 diagnostic: after a 2.03 GiB fill under a 256 MiB window,
 2.4 GiB stayed resident until `gc()` ran in the decoder workers); a transferred `ArrayBuffer` is counted at its
 length in the view worker, which then collects it. With a window, (a′)
 bounds a fill's growth by the window plus the collector's slack: **predicted** 600–800 MiB on Chromium and 650–1 100
-on Firefox, against 2.6–3.2 GiB shared on Chromium (FM's M5). Its costs are predicted nil: the copy count is the same
+on Firefox, against 2.6–3.2 GiB shared on Chromium (`claude/frame-memory`'s M5). Its costs are predicted nil: the copy count is the same
 (the decoder's one), and the transfer replaces the handle.
 
 **What this build can test.** The want's store keeps every frame: the view worker passes no budget, and a budget
@@ -58,9 +58,9 @@ and counts as failed: the container stops near 12 GiB (M2).
 * **W holds** if, on each engine, in every round not VOID, `transfer` completes, every frame is exact, and its growth is
   ≤ 608 MiB (M5's bar: the floor's 537, the A/A's 64, rounded up); and in the control, the median |`transfer` −
   `shared`| growth is ≤ 64 MiB (nothing kept by a clone where a transfer was meant).
-* **Adopt** `transfer` as the default only if T and W both hold; FM's (c), the slot ring, is then not built. **Reject**
+* **Adopt** `transfer` as the default only if T and W both hold; `claude/frame-memory`'s (c), the slot ring, is then not built. **Reject**
   it if T fails, whatever W says, naming the regression. If T holds and W has not run, nothing changes and the setting
-  stays off. If W fails, (c) stays FM's recommendation, with the numbers. WebKit is not run (no build in the
+  stays off. If W fails, (c) stays `claude/frame-memory`'s recommendation, with the numbers. WebKit is not run (no build in the
   container): an adoption says so.
 
 **Built.** `client/decode/frame-buffer.js` allocates a frame (`htj2k.js`, `av1-frame.js`) and names its transfer list;

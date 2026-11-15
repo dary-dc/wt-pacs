@@ -5,7 +5,7 @@ reader does and needs by modality, and which asking patterns follow for this cli
 
 *Folded 2026-11-14 from `claude/ask-patterns-map:docs/ARCHITECTURE.md` §Asking for a stack: what viewers do and §the
 patterns on our wire (`8ffe4674`; the survey also on `claude/ask-patterns-survey`, `07e85830`), moved with its links
-re-pointed and its campaign names reworded. Until this file, the tip cited that branch as "MAP" without its text. Theory
+re-pointed and its campaign names reworded. Until this file, the tip cited that branch by an abbreviation, without its text. Theory
 and source reading only: nothing here was measured in this lab. What the client asks for today is
 [`../design.md`](../design.md); the scroll rate and the no-skip rule are weighed in
 [`scroll-rate-and-skipping.md`](scroll-rate-and-skipping.md).*

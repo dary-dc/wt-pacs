@@ -11,10 +11,9 @@ findings shape is [`../design.md`](../design.md).*
 ## Experiments beside the target (2026-10-29)
 
 *Which changes to the Target are worth an experiment each, ranked by expected gain over cost. Gathered from the
-Target's open table, both reviews, [`../ARCHITECTURE.md`](../../ARCHITECTURE.md), the branches cited as in §Review (FM,
-ARMS, WC, MAP, VW; MAP's text is now in [`how-viewers-and-readers-ask.md`](how-viewers-and-readers-ask.md)) and a reading of `client/transport`, `client/decode`, `client/paint` and `VW:client/view/view-worker.js`.
+Target's open table, both reviews, [`../ARCHITECTURE.md`](../../ARCHITECTURE.md), the branches cited as in §Review (`claude/ask-patterns-map`'s text is now in [`how-viewers-and-readers-ask.md`](how-viewers-and-readers-ask.md)) and a reading of `client/transport`, `client/decode`, `client/paint` and `claude/view-worker:client/view/view-worker.js`.
 **Nothing here is built or run**; a figure is a measurement cited where it is, or marked a guess. Each experiment
-changes one lever against the Target as built on VW, interleaved (`lab/order.mjs`), ≥ 12 rounds, Chromium and
+changes one lever against the Target as built on `claude/view-worker`, interleaved (`lab/order.mjs`), ≥ 12 rounds, Chromium and
 Firefox, every frame checked against the encoder input's `.sha256`, and states its rule before any data.*
 
 **Screened out**, against what is decided or what is already measured:
@@ -30,14 +29,14 @@ Firefox, every frame checked against the encoder input's `.sha256`, and states i
   paint is 0.34 ms at 512², and at 12.6 Mpx the upload is 5.70 of 5.74 ms (§Paint). Nothing anyone sees is left to
   remove.
 * *Already pre-registered elsewhere, run as written against the view worker*: the values of `D_min`
-  ([`client-window-depth.md`](../../adr/client-window-depth.md) T1), the clock (WC), a disk-only store and the slot ring (FM's
+  ([`client-window-depth.md`](../../adr/client-window-depth.md) T1), the clock (`claude/worker-clock`), a disk-only store and the slot ring (`claude/frame-memory`'s
   M5), who writes the cache (the cache-I/O arms), the 1-pixel `readPixels` (the Target keeps it behind the lab's flag).
 
 | rank | experiment | metric it moves, and by how much | code | risk to exactness | decided by |
 | ---: | --- | --- | --- | --- | --- |
 | 1 | span small gaps in the misses (red 5) | a fill from a half-held cache: 1.7 s at 46 ms RTT, 3.4 s at 92 ms of idle round trips removed (the probe's model), against ~1.1 s of transfer for 38 CT frames at 20 Mbit (M1's 29 ms a frame) | `nextRun` takes a gap ≤ g; duplicates dropped before decode: ~20 lines | none: held frames are not decoded again | half-held against empty cache, 46 and 92 ms, 0 and 1 % loss, g ∈ {0, 1, 2, 4, 8} and all-misses-as-asks |
-| 2 | the want ascending from `current + 1`, and no ask for a frame the running run delivers within k | forward steps during a fill: about one RTT (46–92 ms) per step that ends the fill today; **a guess** from WIRE §An ask during a fill | the controller's order and one test in the downloader: ~15 lines | none | MAP's sawtooth trace at 25 slices/s, step → screen; k = 1…8 |
-| 3 | a transferred `ArrayBuffer` per frame, (a′), not a `SharedArrayBuffer` | peak memory of an 80 × 3328×4096 fill: 600–800 MiB against 2.6–3.2 GiB on Chromium (FM's M5 prediction); no slot table | the decoders' allocation and a transfer list: ~10 lines, against (c)'s ring | a detached buffer reaches no one; a store worker (arm C) needs it transferred back or copied | M5's `transfer` arm, read as the default and (c) as the alternative |
+| 2 | the want ascending from `current + 1`, and no ask for a frame the running run delivers within k | forward steps during a fill: about one RTT (46–92 ms) per step that ends the fill today; **a guess** from WIRE §An ask during a fill | the controller's order and one test in the downloader: ~15 lines | none | `claude/ask-patterns-map`'s sawtooth trace at 25 slices/s, step → screen; k = 1…8 |
+| 3 | a transferred `ArrayBuffer` per frame, (a′), not a `SharedArrayBuffer` | peak memory of an 80 × 3328×4096 fill: 600–800 MiB against 2.6–3.2 GiB on Chromium (`claude/frame-memory`'s M5 prediction); no slot table | the decoders' allocation and a transfer list: ~10 lines, against (c)'s ring | a detached buffer reaches no one; a store worker (arm C) needs it transferred back or copied | M5's `transfer` arm, read as the default and (c) as the alternative |
 | 4 | the credit count K | the same peak memory against the fill's time; below `decoders × perDecoder` = 6 the decoders starve (**a guess**) | a constant | none | M5 with writes slowed, K ∈ {3, 6, 9, 12} |
 | 5 | decoders on a phone, with the view worker's thread added (red 13) | fill time: 3 decoders on 2 cores at 4× were 7 % slower than 2 (5 329 against 4 999 ms, §Resources); one more thread moves the crossover, **a guess** | a setting | none | `resources.mjs` with the view worker, 2 and 4 cores, 1× and 4×, then D5 on a device |
 | 6 | one WebGL2 context for every viewport (red 7) | a fifth canvas no longer loses a context; paint time unknown | a scissored canvas or a presentation per canvas: a few hundred lines | a viewport bleeding into its neighbour | contexts lost and paint p95 at 1, 2, 4, 5 viewports, Chromium and WebKit |
@@ -55,18 +54,18 @@ trip longer, so the 1 % cells matter most.
 **2 · Do not ask across the running fill.** An ask ends the fill the server is reciting, and the fill is re-issued at
 the asked frame's head ([`../WIRE.md`](../../WIRE.md) §An ask during a fill): a reader stepping forward into what the
 fill delivers next pays a round trip for a frame that was coming anyway. A want that starts at `current + 1` is
-ascending, so it rides one run (MAP's G1), and the independent design's rule 3 is its downloader half. **Rule:** k is
+ascending, so it rides one run (`claude/ask-patterns-map`'s G1), and the independent design's rule 3 is its downloader half. **Rule:** k is
 the largest step ahead at which waiting is no later than asking in ≥ 9 of 12 rounds; adopt the ordering if the
 sawtooth's median step → screen improves by ≥ 16.7 ms with the fill within ×0.98–1.02.
 
-**3 · (a′) by default.** V8 counts a shared buffer as 0 bytes (FM:fp:639–645), so M2's window bounded nothing; a
-transferred buffer is charged to its holder and collected. FM recommends the slot ring (c) and names (a′) the
-turn-over (FM:fp:730); the ring costs a slot table, a `compareExchange` per frame and its own backpressure. If
+**3 · (a′) by default.** V8 counts a shared buffer as 0 bytes (`claude/frame-memory:docs/adr/frame-path.md`:639–645), so M2's window bounded nothing; a
+transferred buffer is charged to its holder and collected. `claude/frame-memory` recommends the slot ring (c) and names (a′) the
+turn-over (`claude/frame-memory:docs/adr/frame-path.md`:730); the ring costs a slot table, a `compareExchange` per frame and its own backpressure. If
 `transfer` meets M5's 608 MiB bar the ring is not built, and the page no longer needs cross-origin isolation for its
 frames. This ranks above K because it decides what K is protecting.
 
-**4 · K.** The Target dispatches only while fewer than K frames are unacked; ARMS's W cell keeps its feeder 8 ahead
-(ARMS:fp:784). Too small starves three decoders of two frames each; too large is M2 again. **Rule:** the smallest K
+**4 · K.** The Target dispatches only while fewer than K frames are unacked; `claude/opfs-arms`'s W cell keeps its feeder 8 ahead
+(`claude/opfs-arms:docs/adr/frame-path.md`:784). Too small starves three decoders of two frames each; too large is M2 again. **Rule:** the smallest K
 whose fill is within ×1.02 of K = 12, then check its growth against M5's bar.
 
 **5 · Decoders on a phone.** The count is `min(3, hardwareConcurrency)`, and WebKit reports 4 below 8 cores, so a
@@ -93,7 +92,7 @@ run is a row of its own, after a methodology review.*
 
 **What the want-path build already does, corrected against rank 1.** Rank 1 counts one round trip per one-frame run,
 which is the fill fed from the page (`client/transport/downloader.js:290` on `main`, red 5's "today's client"; *corrected
-by the review below: this read "VW's … (`downloader.js:290` there)"; at VW's head, `9c90104`, the line is :293*). On
+by the review below: this read "`claude/view-worker`'s … (`downloader.js:290` there)"; at `claude/view-worker`'s head, `9c90104`, the line is :293*). On
 the want-path build a scattered want is not a
 chain of runs: a want that does not ascend D_min frames from its head goes out as up to D_min asks in flight, topped up
 as each lands (`serveWant`, `client/transport/downloader.js`; *a want arrives in its order*,
@@ -196,7 +195,7 @@ pinned source to re-fetch. Every citation they do make is in-repo or `branch:pat
 
 | claim | where | verdict |
 | --- | --- | --- |
-| a run is issued when the last one's final frame lands | `client/transport/downloader.js:290` on `main` | holds; VW's head has it at :293 (corrected) |
+| a run is issued when the last one's final frame lands | `client/transport/downloader.js:290` on `main` | holds; `claude/view-worker`'s head has it at :293 (corrected) |
 | 38 runs for 76 frames; 1.7 and 3.4 s idle | [`../../lab/target-review/README.md`](https://github.com/dary-dc/wt-pacs/tree/7f335cc0c80100017ccb3800c40a871c9fabc3f6/lab/target-review/README.md), `want-order.mjs` (b) | holds: 1702 = 37 × 46 ms, the first run not idle |
 | M1's 29 ms a frame | the cache-I/O arms' M1, F 7.49 s for 256 × 512² over 20 Mbit | holds as 7.49 s / 256; a 512² frame, not a cell's (corrected) |
 | a scattered want is up to D_min asks, topped up as each lands | `serveWant`, called from `arrived` on each frame's last byte | holds |
