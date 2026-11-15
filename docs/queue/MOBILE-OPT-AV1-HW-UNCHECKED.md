@@ -14,7 +14,7 @@ Done. Nothing left; MOBILE-DECODE-COMPARE reads the file's §8 and carries §9's
 * 8 bits on screen: 4.01 source units a step (10-bit series), 16.05 (12-bit); 2.0–7.4 display levels a step at the
   header windows, against 0.5–1.85 today. 6 grey levels at a 100-unit window on a 12-bit volume (D).
 * The rounding comes after the decode, so at today's Q the picture on screen is at e/σ 1.02–1.09, above the bar (D).
-* It needs full range: at studio range a 10-bit series clips below 64 and above 940. 
+* It needs full range: at studio range a 10-bit series clips below 64 and above 940. `VideoDecoderConfig.colorSpace`
   overrides the stream (S); whether Android's conversion obeys it is a device fact.
 * Pixel values are intervals (±2 / ±8 source units); ROI SD is inflated; geometry is unchanged.
 * Android's image reader holds 1–5 images (S, Chromium 157): copy each frame to `R8` and close it; `dbts_b1` is
