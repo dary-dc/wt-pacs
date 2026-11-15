@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """docs/adr/frame-path.md §7's series for total-time's run.mjs: each set through the product's DICOM ingest as HTJ2K,
-its frames, its metadata and the viewer variants `page`, `pageaa` (its A/A copy) and `worker`.
+its frames, its metadata and the viewer variants `page`, `pageaa` (its A/A copy) and `worker`, each settling by the
+fence, and `page-read`, `worker-read` settling by the pixel read (§7, *The pixel read under a busy page*).
 
-usage: lab/av1/.venv/bin/python lab/viewer/view_frames.py BUILD WORK SET ...   (SET@K: that file of the set alone)
+usage: lab/av1/.venv/bin/python lab/viewer/view_frames.py BUILD WORK SET ... [--fix]   (SET@K: that file of the set alone)
+--fix adds `workerfix`, the view worker with the start's fix: docs/adr/frame-path.md §3, *Proposed: the page dials*;
+--split adds it, `workerdials` (the fix without `viewWorkerFirst`) and `workerafter` (the view worker made once the
+downloader has its start): §7, *The start, levers split*
 """
 import json
 import sys
@@ -12,8 +16,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "av1/exact/from-dic
 import check  # noqa: E402
 
 
+FIX = {"pageDials": True, "viewWorkerFirst": True, "shortRuns": True}
+DIALS = {"pageDials": True, "shortRuns": True}
+
+
 def main():
-    build, work, sets = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3:]
+    fix, split = "--fix" in sys.argv, "--split" in sys.argv
+    args = [a for a in sys.argv[1:] if a not in ("--fix", "--split")]
+    build, work, sets = Path(args[0]), Path(args[1]), args[2:]
     for name in sets:
         w = work / name.replace("@", "-")
         w.mkdir(parents=True, exist_ok=True)
@@ -28,7 +38,11 @@ def main():
         (w / "metadata.json").write_text(json.dumps(meta))
         viewer = {"codec": "htj2k", "openjph": "delivered", "viewer": "metadata.json", "digests": meta["digests"]["frames"]}
         (w / "variants.json").write_text(json.dumps({"name": w.name, "frames": s.n, "truth": truth, "variants": {
-            "page": viewer, "pageaa": viewer, "worker": {**viewer, "view": "worker"}}}))
+            "page": viewer, "pageaa": viewer, "worker": {**viewer, "view": "worker"},
+            "page-read": {**viewer, "settle": "read"}, "worker-read": {**viewer, "view": "worker", "settle": "read"},
+            **({"workerfix": {**viewer, "view": "worker", "opts": FIX}} if fix or split else {}),
+            **({"workerdials": {**viewer, "view": "worker", "opts": DIALS},
+                "workerafter": {**viewer, "view": "worker", "opts": {**DIALS, "viewWorkerAfterDownloader": True}}} if split else {})}}))
         print(w.name, s.n, "frames", flush=True)
 
 
