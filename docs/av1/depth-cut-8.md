@@ -389,7 +389,7 @@ which reruns from the rows. `predictions.json` was reproduced byte for byte befo
 * **P2 · the stacking: 128 of 128 cut8 cells inside the band** (38 in A, 90 in C). Every worst frame lies between the removal and the
   independent predictions. Neither model holds alone: the removal model is the closer on `dbt12_ea1141` (7 of 7) and
   `dbts_b2` (6 of 6), mostly on `dbts_a1` (5 of 6); the independent model on `dbts_b1` (6 of 7) and `dbts_c4`
-  (4 of 6); `dbts_c1` splits 3–3. In C the removal model is the closer on 9 of 13 volumes, all cells on `dbt10_d`,
+  (4 of 6); `dbts_c1` splits 3–3. In C the removal model is the closer on 10 of 13 volumes, all cells on `dbt10_d`,
   `dbt10_ea1141` and `dbts_b5`. The model that fits is the volume's, not the depth's.
 * **P3 · the highest Q: 38 of 38 hit** (12 in A, 26 in C), in A at the low end of each interval. At bar 1.00, `cut8` reaches Q 3 (`dbts_a1`),
   9 (`b1`), 4 (`c1`), 4 (`dbt12_ea1141`), 5 (`b2`), 6 (`c4`); at 1.03, Q 4, 11, 5, 4, 7, 7. Today's form reaches
