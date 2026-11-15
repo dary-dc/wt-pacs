@@ -14,7 +14,7 @@ HTJ2K series; no residual, no server or wire change.
 
 * **On `claude/unified-client`**, with the client line: the pairing, the label, WebCodecs first, the depth cut, the
   pair served by the web image's `--profile pair`; 40 of 40 on the demo commit under both views
-  ([`../reviews/freeze-e2e.md`](../reviews/freeze-e2e.md)). The product ingest does not code optimal quality yet.
+  ([`../reviews/freeze-e2e.md`](../reviews/freeze-e2e.md)). The product ingest codes it behind a flag, off by default (below).
 * **The integrity and coding-error check** (#368, behind one switch, off by default): its review's findings unfixed —
   a refused frame leaves the previous green mark; three `decoder.js` mutants survive the gate; no `demo-check.mjs`
   check per label state; the coding-error test compares the wrong σ; the first picture's +7.8 % at 1× not weighed
@@ -23,6 +23,14 @@ HTJ2K series; no residual, no server or wire change.
 * **The product ingest writes the pair**, a design only (`claude/ingest-oq:docs/reviews/ingest-oq.md`): the Rust
   ingest's second phase with `aomenc` as a subprocess, held by a parity test; found: signed sources over 10 bits
   have no form on the product path, and `pairOf` refuses ids with `~`.
+* **The product ingest codes optimal quality: built, experimental** (#390): `ingest/from-parser --optimal-quality [Q]
+  [--group G]`, off by default, byte-identical to `ingest.py`'s `lossy` on synthetic sets in the gate and on `dbts_a1`
+  Q 8 G 8 cut ([`../av1/payload-format.md`](../av1/payload-format.md) §Optimal quality). Owed: the owner's S1/S2 for
+  signed sources over 10 bits (S2 built), G per modality once measured, phase 2's display keys and several instances a
+  series, a reconstruction digest if #368 is adopted; the DICOM ingest (`from_dicom.py`) does not code it. Reviewed
+  (#390's body): the flag off writes the same bytes as `e5b20cba`'s ingest on six synthetic sets; no blocker.
+  Untested: the aomenc pin, aomenc not needed with the flag off, exit 1 on a refusal; the "both refuse" for signed over
+  10 bits is `same.py`'s own rule, not `ingest.py`'s.
 * **The two failures the phone found** ([`client.md`](client.md) §In flight); the first breaks this line's promise on a
   lossy link.
 * **Is Q 8 visually lossless at the readers' windows**: owned by [`codecs.md`](codecs.md); readers decide, no agent.

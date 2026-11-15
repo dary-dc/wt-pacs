@@ -123,6 +123,10 @@ Each step is in the product unless it says otherwise; its numbers are in its que
 6. **DICOM to `.sbnd` in the gate** (row 226, 2026-10-14): a synthetic CT and RGB series through `from_dicom.py`, every
    frame read back out of the bundle and compared with the samples it was written from.
 
-**Not built.** Phase 2 of the Rust ingest (AV1, several instances a series, the parser's own output instead of the
+7. **The optimal-quality series, experimental** (OQ-INGEST, 2026-11-14): `ingest/from-parser --optimal-quality`
+   writes it beside the exact series, off by default
+   ([`../av1/payload-format.md`](../av1/payload-format.md) §Optimal quality).
+
+**Not built.** Phase 2 of the Rust ingest (lossless AV1, several instances a series, the parser's own output instead of the
 mirror), and everything after the ingest in §1: the outbox, the upload, the PACS's receiver, the study databases and
 the catalog. None of it is queued yet; when a series is complete (§4) has to be decided before the outbox can be.

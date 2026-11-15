@@ -365,8 +365,17 @@ beside its exact series, and the client pairs them by `exactSeries` ([`../glossa
 * **Metadata:** `"codec": "av1"`, `"lossy": {"q": Q, "g": G, "depth": D}`, `"exactSeries"`, the name its exact
   series' bundle is known by, and the `"sourceFingerprint"` both series carry (§Source fingerprint). No `representation`, `preset` or `digests`: a frame digest makes a frame `exact`
   ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests), so a lossy frame arrives `unchecked`.
-* **Built** in `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID`; the DICOM ingest does not code it yet.
-  `--depth-cut` codes the depth cut instead (§Depth cut).
+* **Built** in `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID`; `--depth-cut` codes the depth cut
+  instead (§Depth cut). The DICOM ingest does not code it.
+* **In the product ingest, experimental** (OQ-INGEST, 2026-11-14): `ingest/from-parser --optimal-quality [Q] [--group
+  G]`, off by default, Q 8 when bare, G 8 unless given. After the exact series, from the same samples (each frame
+  checked against the exact series' digest), it writes `<stem>-q<Q>-g<G>[-cut].sbnd` beside it with `exactSeries` the
+  exact bundle's stem. Unsigned D > 10 is always the cut, with no stored form; a signed source over 10 bits after its
+  offset and RGB are refused by name, the exact series kept alone (`claude/ingest-oq:docs/reviews/ingest-oq.md` §5's
+  S2, the signed option that changes nothing decided; S1, a cut after the offset, is the owner's call). Held byte-identical to `ingest.py`'s
+  `lossy` on synthetic sets at `--jobs` 1, 2 and 4 (`ingest/from-parser/same_test.py`, in the gate). Not built: the
+  per-modality G table (no G is measured per modality yet, so G is the caller's), and a reconstruction digest (PR 368,
+  not adopted).
 
 **Bytes** (`scripts/demo-series.sh`, 2026-11-09, one run on a 4-core x86-64 cloud host, 443 s in all with the
 tools already built): each `.sbnd` against its exact series'. The quality at each Q is not measured here.

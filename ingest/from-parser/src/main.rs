@@ -1,8 +1,10 @@
 //! The site's ingest, phase 1: a series of the parser's directory output to a `.sbnd`, written only if every frame
-//! decodes back to the samples it was coded from — docs/ingest/contract.md.
+//! decodes back to the samples it was coded from — docs/ingest/contract.md; with `--optimal-quality`, its
+//! optimal-quality series beside it.
 
 mod group;
 mod htj2k;
+mod optimal;
 
 use anyhow::{bail, ensure, Context, Result};
 use clap::Parser;
@@ -20,6 +22,15 @@ struct Args {
     output: PathBuf,
     #[arg(long, default_value_t = 4)]
     jobs: usize,
+    /// Experimental, off by default: after OUTPUT, its optimal-quality series at Q (1 to 63, 8 if bare) beside it as
+    /// `<stem>-q<Q>-g<G>[-cut].sbnd` — docs/av1/payload-format.md §Optimal quality.
+    #[arg(long, value_name = "Q", num_args = 0..=1, default_missing_value = optimal::DEFAULT_Q,
+          value_parser = clap::value_parser!(u32).range(1..=63))]
+    optimal_quality: Option<u32>,
+    /// The optimal-quality series' frames a group, its keyframe distance.
+    #[arg(long, value_name = "G", default_value_t = optimal::DEFAULT_G, requires = "optimal_quality",
+          value_parser = clap::value_parser!(u64).range(1..))]
+    group: u64,
 }
 
 struct Series {
@@ -32,7 +43,7 @@ struct Series {
 }
 
 /// The keys `from_dicom.py` writes that the frame attributes decide, in its order; the rest is phase 2's.
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct Metadata {
     frame_count: usize,
@@ -47,11 +58,26 @@ struct Metadata {
     min: i32,
     max: i32,
     codec: &'static str,
-    digests: Digests,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    digests: Option<Digests>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    lossy: Option<Lossy>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    exact_series: Option<String>,
     source_fingerprint: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct Lossy {
+    q: u32,
+    g: usize,
+    depth: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bits_stored: Option<u32>,
+}
+
+#[derive(Serialize, Clone)]
 struct Digests {
     algorithm: &'static str,
     frames: Vec<String>,
@@ -64,23 +90,42 @@ struct Coded {
     max: i32,
 }
 
+struct Exact {
+    series: Series,
+    meta: Metadata,
+}
+
 fn main() -> ExitCode {
     let args = Args::parse();
     let name = args.series.file_name().unwrap_or_default().to_string_lossy().into_owned();
-    match ingest(&args) {
+    let exact = match ingest(&args) {
+        Ok((exact, line)) => {
+            println!("{name}: {line}");
+            exact
+        }
+        Err(e) => {
+            eprintln!("{name}: nothing written — {e:#}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let Some(q) = args.optimal_quality else { return ExitCode::SUCCESS };
+    match optimal_series(&args, &exact, q) {
         Ok(line) => {
             println!("{name}: {line}");
             ExitCode::SUCCESS
         }
         Err(e) => {
-            eprintln!("{name}: nothing written — {e:#}");
+            eprintln!("{name}: the exact series alone; no optimal-quality series written — {e:#}");
             ExitCode::FAILURE
         }
     }
 }
 
-fn ingest(args: &Args) -> Result<String> {
+fn ingest(args: &Args) -> Result<(Exact, String)> {
     htj2k::pinned()?;
+    if args.optimal_quality.is_some() {
+        optimal::pinned()?;
+    }
     let s = series(&args.series)?;
     let jobs = args.jobs.max(1);
     let mut coded: Vec<(usize, Result<Coded>)> = std::thread::scope(|scope| {
@@ -111,12 +156,57 @@ fn ingest(args: &Args) -> Result<String> {
         max: coded.iter().map(|c| c.max).max().unwrap_or(0),
         codec: "htj2k",
         source_fingerprint: source_fingerprint(&frame_digests),
-        digests: Digests { algorithm: "xxh3-64", frames: frame_digests },
+        digests: Some(Digests { algorithm: "xxh3-64", frames: frame_digests }),
+        lossy: None,
+        exact_series: None,
     };
     let frames: Vec<&[u8]> = coded.iter().map(|c| c.codestream.as_slice()).collect();
     series_bundle::write_bundle(&args.output, &metadata_json(&meta)?, &frames)?;
     let bytes: usize = frames.iter().map(|c| c.len()).sum();
-    Ok(format!("{} frames, {bytes} B htj2k, every one exact → {}", s.count, args.output.display()))
+    let line = format!("{} frames, {bytes} B htj2k, every one exact → {}", s.count, args.output.display());
+    Ok((Exact { series: s, meta }, line))
+}
+
+/// Written only after its exact series, from the same samples, each frame checked against the exact series' digest.
+fn optimal_series(args: &Args, exact: &Exact, q: u32) -> Result<String> {
+    let (s, m) = (&exact.series, &exact.meta);
+    let form = optimal::form(&s.frame, m.min, m.max, q, args.group as usize)?;
+    let digests = &m.digests.as_ref().expect("an exact series has digests").frames;
+    let groups: Vec<usize> = (0..s.count).step_by(form.g).collect();
+    let jobs = args.jobs.max(1);
+    let code_group = |k: usize| -> Result<Vec<Vec<u8>>> {
+        let frames = (k..s.count.min(k + form.g))
+            .map(|i| {
+                let px = read(s, i)?;
+                ensure!(format!("{:016x}", digest(&s.frame, &px)) == digests[i], "frame {i} changed since its exact series was written");
+                Ok(px.iter().map(|&v| optimal::coded(&form, v)).collect())
+            })
+            .collect::<Result<Vec<_>>>()?;
+        optimal::group(&s.frame, &form, &frames).with_context(|| format!("the group from frame {k}"))
+    };
+    let coded: Vec<Vec<u8>> = std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..jobs)
+            .map(|j| {
+                let (groups, code_group) = (&groups, &code_group);
+                scope.spawn(move || groups.iter().skip(j).step_by(jobs).map(|&k| (k, code_group(k))).collect::<Vec<_>>())
+            })
+            .collect();
+        let mut done: Vec<_> = workers.into_iter().flat_map(|w| w.join().expect("a worker panicked")).collect();
+        done.sort_by_key(|(k, _)| *k);
+        done.into_iter().map(|(_, units)| units).collect::<Result<Vec<_>>>().map(|g| g.concat())
+    })?;
+
+    let stem = args.output.file_stem().context("OUTPUT has no file name")?.to_string_lossy().into_owned();
+    let cut = if form.cut.is_some() { "-cut" } else { "" };
+    let path = args.output.with_file_name(format!("{stem}-q{q}-g{}{cut}.sbnd", form.g));
+    let lossy = Lossy { q, g: form.g, depth: form.depth, bits_stored: form.cut };
+    let meta = Metadata { codec: "av1", digests: None, lossy: Some(lossy), exact_series: Some(stem), ..m.clone() };
+    let frames: Vec<&[u8]> = coded.iter().map(Vec::as_slice).collect();
+    series_bundle::write_bundle(&path, &metadata_json(&meta)?, &frames)?;
+    let bytes: usize = frames.iter().map(|c| c.len()).sum();
+    let form_name = if form.cut.is_some() { ", the depth cut" } else { "" };
+    let line = format!("{} frames, {bytes} B optimal quality Q {q} G {}{form_name}", s.count, form.g);
+    Ok(format!("{line}, every one decoded from its keyframe → {}", path.display()))
 }
 
 /// XXH3-64 over the frame digests in order: docs/av1/payload-format.md §Source fingerprint.
@@ -170,10 +260,14 @@ fn series(dir: &Path) -> Result<Series> {
     Ok(Series { instance, frame, allocated, photometric, count, suffix })
 }
 
-fn code(s: &Series, i: usize) -> Result<Coded> {
+fn read(s: &Series, i: usize) -> Result<Vec<i32>> {
     let path = s.instance.join(format!("{:05}.{}", i + 1, s.suffix));
     let raw = std::fs::read(&path).with_context(|| format!("read {}", path.display()))?;
-    let samples = samples(&raw, s)?;
+    samples(&raw, s)
+}
+
+fn code(s: &Series, i: usize) -> Result<Coded> {
+    let samples = read(s, i)?;
     let digest = digest(&s.frame, &samples);
     let codestream = htj2k::encode(&s.frame, &samples)?;
     if digest != self::digest(&s.frame, &htj2k::decode(&s.frame, &codestream)?) {
@@ -221,4 +315,26 @@ fn subdirectories(dir: &Path) -> Result<Vec<PathBuf>> {
 
 fn files(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(entries(dir)?.into_iter().filter(|p| p.is_file()).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(flags: &[&str]) -> Result<Args, clap::Error> {
+        Args::try_parse_from([&["from-parser", "SERIES", "OUT.sbnd"][..], flags].concat())
+    }
+
+    /// Off unless asked; bare, Q 8 at G 8; Q 0 (lossless) and Q 64, G 0, and a group without the flag refused.
+    #[test]
+    fn the_flag_is_off_by_default_and_q_8_when_bare() {
+        assert_eq!(parse(&[]).unwrap().optimal_quality, None);
+        let bare = parse(&["--optimal-quality"]).unwrap();
+        assert_eq!((bare.optimal_quality, bare.group), (Some(8), 8));
+        let set = parse(&["--optimal-quality", "24", "--group", "16"]).unwrap();
+        assert_eq!((set.optimal_quality, set.group), (Some(24), 16));
+        for refused in [&["--optimal-quality", "0"][..], &["--optimal-quality", "64"], &["--optimal-quality", "--group", "0"], &["--group", "4"]] {
+            assert!(parse(refused).is_err(), "{refused:?} accepted");
+        }
+    }
 }

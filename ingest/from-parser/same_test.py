@@ -71,6 +71,29 @@ def test_both_ingests_write_the_same_bundles():
             assert ok and "byte-identical" in line, line
 
 
+def test_both_ingests_write_the_same_optimal_quality():
+    """Every grey layout at G 1, 2 (a shorter last group) and 3 = n: the Rust optimal-quality bundle is byte-identical
+    to ingest.py's `lossy` at --jobs 1, 2 and 4, the cut for unsigned D over 10; signed over 10 bits and RGB refused by
+    both, the exact series written alone."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        for (name, spec), oq in zip(SETS.items(), [(8, 2), (8, 1), (8, 3), (8, 2), (24, 2), (8, 1)]):
+            ok, line = same.same(BUILD, fetched(tmp, name, *spec), tmp / "work", oq)
+            assert ok and "byte-identical" in line, line
+            written = "refused" not in line.partition("optimal quality")[2]
+            assert written == (name in ("g8", "s8", "g12", "g16")), line
+
+
+def test_off_writes_the_exact_series_alone():
+    """Without --optimal-quality the Rust ingest writes one bundle, the one it wrote before the flag existed."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        series = mirror.mirror(fetched(tmp, "g12", *SETS["g12"]), tmp / "parsed")
+        (tmp / "out").mkdir()
+        assert same.rust_bundle(series, 1, tmp / "out" / "series.sbnd") is None
+        assert [p.name for p in (tmp / "out").iterdir()] == ["series.sbnd"]
+
+
 def test_htj2k_needs_no_aomenc():
     """A build without libaom codes HTJ2K and refuses AV1 by name: aomenc is asked for only when coding AV1."""
     with tempfile.TemporaryDirectory() as tmp:
