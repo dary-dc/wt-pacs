@@ -77,7 +77,8 @@ exact frame bit for bit, and only checked claims on screen.
   Reviewed 2026-11-15 (#397 §Review): two blockers, AV1 software is not full precision on 12-bit series (the depth
   cut) and Safari returns 8-bit hardware samples as `NV12` without inversion; Firefox's narrow range holds on desktop
   only. Fixed 2026-11-15 (MOBILE-DECODE-COMPARE-FIX, `84dbdef2`, `54222b48`): both blockers corrected in place, findings
-  3–6 in the option files, minors 7–17 in the README. Owed: its re-review; the asks M4–M22 stand.
+  3–6 in the option files, minors 7–17 in the README. Re-reviewed 2026-11-15 (#397 §Re-review): both blockers
+  closed, no blocker open; the asks M4–M22 stand.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
