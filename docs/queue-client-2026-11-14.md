@@ -49,6 +49,7 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | DEPTH8-MEASURE | 11-14 21:00 | DEPTH8-THEORY done | `claude/depth8` (rows and results; a session that wrote none of DEPTH8-THEORY) |
 | HW10-ROUTES | 11-14 21:00 | — | `claude/hw10-routes` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
 | HW10-ROUTES-REVIEW | 11-14 21:00 | HW10-ROUTES done | `claude/hw10-routes` (findings in its PR body; a session that wrote none of it) |
+| NATIVE-NOTES | 11-14 21:00 | — | `claude/native-notes` from `origin/claude/docs-client` → draft PR into `claude/docs-client` (docs only) |
 | CACHE-DESIGN | 11-14 21:00 | CACHE-PLAN done | `claude/cache-plan` (`docs/client/evidence/cache-plan.md` §7; PR of CACHE-PLAN) |
 | CACHE-ADVOCATE-OPFS-SYNC | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
 | CACHE-ADVOCATE-OPFS-ASYNC | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
@@ -61,7 +62,9 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | CACHE-BUILD-IDB | 11-14 21:00 | CACHE-BUILD-HARNESS done | `claude/cache-arms` (its PR) |
 | CACHE-BUILD-CACHESTORAGE | 11-14 21:00 | CACHE-BUILD-HARNESS done | `claude/cache-arms` (its PR) |
 | CACHE-BUILD-REVIEW | 11-14 21:00 | every CACHE-BUILD done | `claude/cache-arms` (`docs/reviews/cache-arms.md`) |
-| CACHE-RUN | 11-14 21:00 | CACHE-BUILD-REVIEW done | rows on `claude/cache-arms`; results in `cache-plan.md` §Results on `claude/cache-plan` |
+| CACHE-FIX | 11-14 21:00 | CACHE-BUILD-REVIEW done | `claude/cache-arms` (its PR): the seven blockers of `docs/reviews/cache-arms.md` §Verdict fixed |
+| CACHE-FIX-REVIEW | 11-14 21:00 | CACHE-FIX done | `claude/cache-arms` (`docs/reviews/cache-arms.md` §Re-review) |
+| CACHE-RUN | 11-14 21:00 | CACHE-FIX-REVIEW done with no blocker open | rows on `claude/cache-arms`; results in `cache-plan.md` §Results on `claude/cache-plan` |
 | CACHE-VERDICT-REVIEW | 11-14 21:00 | CACHE-RUN done, or 11-21 20:00 | `claude/cache-plan` (§Verdict review) |
 | REPORT-ADVOCATE-BEACON | 11-14 21:00 | — | `claude/report-plan` (`docs/client/evidence/report-plan.md` §3.1; PR of REPORT-OPTIONS) |
 | REPORT-ADVOCATE-KEEPALIVE | 11-14 21:00 | — | `claude/report-plan` (§3.2) |
@@ -529,6 +532,39 @@ Chromium bug) where a route is blocked only by a missing format. Theory labelled
 
 A session that wrote none of it: fetch 15 of its quoted sources at their pinned revisions and check each quote; check
 the ranking follows from the table; say which top route is decided by sources alone and which needs the device.
+
+17. **A review that finds blockers starts the fix loop by itself** (the owner, 2026-11-15: the cache builds stopped at
+    their review's seven blockers because no row existed to fix them; "we'll need to design better loops"). From now
+    on, in every queue: a review row that finds blockers appends to its queue file a **<ROW>-FIX** row (the fixes,
+    each with a failing regression test first, mutated) and a **<ROW>-FIX-REVIEW** row (a session that wrote neither:
+    each blocker closed, its test failing without its fix, nothing else changed), and makes the next row's needs wait
+    on the re-review. Two rounds at most; after a second review with blockers open, the row is `blocked` for the owner.
+    Applied now: CACHE-FIX and CACHE-FIX-REVIEW before CACHE-RUN; the same holds for REPORT-BUILD-REVIEW.
+18. **Native is paused** (the owner, 2026-11-15: "for now, we are pausing the native path. we will merge it, and in the
+    future keep experimenting with it … write down what we found related to it so that it can be continued"). It
+    rides the merges as an experimental crate (off the served path, as today); no row builds or measures it.
+    NATIVE-NOTES writes the record.
+
+### CACHE-FIX
+
+Fix every blocker in `claude/cache-arms:docs/reviews/cache-arms.md` §Verdict (three in the arms, four in the
+harness), each with a regression test that fails without its fix (mutated), the arm's design unchanged unless the
+blocker is the design's (then say so in the PR body). The survivors and minors the review listed: fix those that are
+one-line, list the rest. Gate, `scripts/check_lab_absent.sh`.
+
+### CACHE-FIX-REVIEW
+
+A session that wrote neither the builds nor the fixes: each blocker closed (revert its fix, see its test fail); no
+other behaviour changed; the harness's bars computed against the arms they claim. If a blocker remains, amendment 17.
+
+### NATIVE-NOTES (docs only)
+
+`docs/native/README.md` (and, if the structure of `CLAUDE.md` §Docs applies, `docs/native/design.md` in its form): a
+status line "paused 2026-11-15, the owner's", what is built and measured (M1–M3, the window, NATIVERUN's design, the
+lab settings still in `window.rs`), what was found since about native as **the 10-bit hardware route**
+(`docs/decode/hardware-10bit.md`: MediaCodec ByteBuffer `P010` ranked first for phones, Vulkan with a GPU hash, 4:2:0
+constant chroma except on NVDEC), and **how to resume**: the first three rows a future session would run, each with
+what decides it. One screen first, detail after. Update `docs/lines/native.md` to work state "paused".
 
 ## Procedure, rules
 
