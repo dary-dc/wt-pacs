@@ -1,0 +1,10 @@
+20:42:30Z start
+20:43:55Z setup SETUP-DONE
+transport-wasm 0
+vendor client/decode/wasm/fetch_openjph.sh 0
+vendor client/decode/wasm/fetch_xxh3.sh 0
+decode-wasm 1
+20:48:28Z ingest-tools 0
+20:48:29Z gate 2 1s
+cargo-build 0 warnings 2
+decode-wasm (mirror.gcr.io at the pinned digest) 0

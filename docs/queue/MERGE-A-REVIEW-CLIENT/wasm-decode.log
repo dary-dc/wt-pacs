@@ -1,0 +1,8 @@
+Containerfile:2
+--------------------
+   1 |     ARG DEBIAN_IMAGE
+   2 | >>> FROM ${DEBIAN_IMAGE}
+   3 |     ARG DEBIAN_SNAPSHOT
+   4 |     RUN rm -f /etc/apt/sources.list.d/* \
+--------------------
+ERROR: failed to build: failed to solve: debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587: failed to resolve source metadata for docker.io/library/debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587: unexpected status from HEAD request to https://registry-1.docker.io/v2/library/debian/manifests/sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587: 429 Too Many Requests

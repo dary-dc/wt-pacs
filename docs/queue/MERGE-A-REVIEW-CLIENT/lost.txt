@@ -1,0 +1,440 @@
+88970a5c client/conformance/dispatch-rig.ts branch-added=29 not-in-result=29 not-in-final-tree=1
+     - c.requestExactFrame(3).then((f) => { asked = f.frameIndex; }, (e: Error) => { rejected = String(e.message); });
+88970a5c client/downloader/downloader.js branch-added=2 not-in-result=2 not-in-final-tree=1
+     - wanted.delete(m.index);
+20d14ef3 client/README.md branch-added=9 not-in-result=4 not-in-final-tree=4
+     - §Open). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
+     - at once, then to the last twice. It fails:
+     - one ask;
+20d14ef3 client/transport/downloader.js branch-added=12 not-in-result=3 not-in-final-tree=3
+     - function requestOnce(s, index) {
+     - const promise = s.requestExactFrame(index);
+     - ask(index, requestOnce(s, index));
+20d14ef3 client/transport/downloader.test.mjs branch-added=30 not-in-result=2 not-in-final-tree=2
+     - requestExactFrame: async (i) => {
+     - console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, follow the queue, start on need, lost decodes, an ask again after 
+20d14ef3 client/viewer/check-page.js branch-added=17 not-in-result=17 not-in-final-tree=13
+     - /** On demand, the page's own steps: three quick ones keep the newest ask alone, and a frame stepped to twice is asked once. */
+     - async function stepsOnDemand(n, frames, show, client) {
+     - await Promise.all([show(a), show(b), show(a)]);
+20d14ef3 client/viewer/check.mjs branch-added=8 not-in-result=2 not-in-final-tree=2
+     - if (onDemand) say(r.raced === "newest alone", `three quick steps did not keep the newest ask alone: ${r.raced}`);
+     - if (onDemand) say(r.twice === String(r.n - 1), `two steps to frame ${r.n - 1} sent ${r.twice}, not its one ask`);
+20d14ef3 client/viewer/run_check.sh branch-added=4 not-in-result=4 not-in-final-tree=4
+     - # The viewer's page check in headless Chromium on a series the gate can make, filled with a cine and on demand: the
+     - # contract's 16-bit grey codestream three times, with its digest. The cross-codec arm and Firefox need row INGEST's bundles:
+     - node client/viewer/check.mjs --series "$T/grey.sbnd" --decoder htj2k --cine
+20d14ef3 client/viewer/viewer.js branch-added=15 not-in-result=14 not-in-final-tree=10
+     - let steps = 0;
+     - if (asks.has(want)) return;
+     - const step = ++steps;
+20d14ef3 docs/merge-readiness.md branch-added=5 not-in-result=1 not-in-final-tree=1
+     - | F4 | the viewer's on-demand mode: `--fill 0` fails (§Completely functional), and the gate does not name it | `client/viewer/check-page.js:20-26`; `c
+20d14ef3 server/src/transport/server.rs branch-added=157 not-in-result=28 not-in-final-tree=23
+     - fn a_server_that_cannot_listen_fails_with_its_own_error() {
+     - let dir = std::env::temp_dir().join(format!("wtpacs-ws-held-{}", std::process::id()));
+     - let series = write_series(&dir, 1);
+4cfa71e7 README.md branch-added=4 not-in-result=3 not-in-final-tree=3
+     - With the first, the dispatch rig runs all 780 of its checks, the real-decode ones on npm's OpenJPH and on the
+     - check does not run. The two ingests' comparison, and a synthetic DICOM series to `.sbnd` end to end, also need the
+     - native coders: `lab/av1/tools/tools.sh`, OpenJPH
+4cfa71e7 client/contract/dispatch-rig.ts branch-added=58 not-in-result=2 not-in-final-tree=2
+     - const said = (i: number) => `${r.info(i)?.path} ${r.info(i)?.exact} ${r.info(i)?.reason ?? ""}`;
+     - check(r.info(0)?.exact === true && r.info(0)?.path === "htj2k", `exact, ${name}: a 16-bit grey frame matching its digest is true (${said(0)})`);
+4cfa71e7 client/scripts/check_telemetry_absent.sh branch-added=23 not-in-result=1 not-in-final-tree=1
+     - if grep -qE 'record/install|__wtpacsTelemetry|binding_term|serve_plus_path|client_frames|invalid_reasons|mean_frame_bytes|clock_probe_us|StreamAttribu
+4cfa71e7 scripts/gate.sh branch-added=18 not-in-result=9 not-in-final-tree=9
+     - coders=0
+     - [[ -f lab/.av1-build/payload/libdecode.so && -x lab/.av1-build/aom-3.15.1/bin/aomenc && -d lab/.openjph-build/install ]] && coders=1
+     - if [[ $coders -eq 1 ]] && "$PYTHON" -c "import numpy, xxhash, blake3" 2>/dev/null; then
+d195431a client/decode/decoder.test.mjs branch-added=36 not-in-result=23 not-in-final-tree=23
+     - // node client/decode/decoder.test.mjs — decoder.js's order of decodes, on a stand-in codec; no browser.
+     - const GLUE = `var OpenJPHModule = async () => ({ HTJ2KDecoder: class {
+     - getEncodedBuffer(n) { return (this.bytes = new Uint8Array(n)); }
+d195431a client/transport/downloader.test.mjs branch-added=34 not-in-result=21 not-in-final-tree=21
+     - * `askJump`: with every decoder full and none finishing, an ask goes at once to the decoder whose current decode
+     - * started first — not the first in the list — one past `perDecoder`, marked to run before its queued fill frame.
+     - * Without the flag the same ask waits in the downloader.
+d1ae3848 client/decode/av1.js branch-added=5 not-in-result=5 not-in-final-tree=4
+     - /** `d` is the series' decoder config: dav1d's `glue`, `wasm` and `dir`, `groupLength`, the top stream's `depth` if the metadata says, and `mixed`: a 
+     - // Fetched while the session dials, compiled on first use; at `depth` ≤ 10 only if WebCodecs fails its probe: lab/page-open/README.md §Cold round trip
+     - const wasm = () => { for (const url of [d.glue, d.wasm]) if (url) fetch(url).then((r) => r.arrayBuffer()).catch(() => {}); };
+d1ae3848 client/viewer/viewer.js branch-added=1 not-in-result=1 not-in-final-tree=1
+     - const decoder = options.decoder ?? (meta.codec === "av1" ? { codec: "av1", depth: meta.depth, ...(await built("dav1d")) } : await built("openjph"));
+d1ae3848 ingest/coded-frames/ingest.py branch-added=1 not-in-result=1 not-in-final-tree=1
+     - **({"representation": "optimized", "preset": preset, "depth": plan(s, "optimized")[0]["depth"]} if codec == "av1" else {}),
+d1ae3848 lab/av1/tools/ingest_coded.py branch-added=1 not-in-result=1 not-in-final-tree=1
+     - meta.update(codec="av1", representation=a.representation, depth=ingest.plan(s, a.representation, a.split, a.grey8)[0]["depth"])
+c94a0053 client/README.md branch-added=14 not-in-result=14 not-in-final-tree=13
+     - * **Cine.** At the series' `frameTimeMs` (or `cineRate`, else 10 a second), stepped on the page's animation frames,
+     - never skipped (IHE BIR, DBT: "shall not skip slices during manual or automatic scrolling"). A late step restarts the
+     - schedule rather than catching up. Why: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §The viewer.
+c94a0053 client/viewer/check-page.js branch-added=53 not-in-result=53 not-in-final-tree=44
+     - * One cine sweep from the last frame round to it again, as the screen saw it: each paint's frame read off the painter,
+     - * and of the paints that complete between two page frames only the last counted shown. `askMs` holds back each ask,
+     - * `paintMs` each paint's completion.
+c94a0053 client/viewer/check.mjs branch-added=15 not-in-result=14 not-in-final-tree=14
+     - const { ends, modality, turned, cased, error } = r.keys;
+     - say(ends === `0 ${r.n - 1}`, `a step past either end moved to frame (first, last) ${error ?? ends}, not 0 ${r.n - 1}`);
+     - const view = ["DX", "CR"].includes(modality) ? "90 true true" : "0 false false";
+c94a0053 client/viewer/run_check.sh branch-added=17 not-in-result=15 not-in-final-tree=15
+     - # The viewer's page check in headless Chromium on a series the gate can make, filled and on demand, each with a cine, on
+     - # each client: the contract's 16-bit grey codestream 50 times, with its digest, as OT and as DX.
+     - # The cross-codec arm and Firefox need the DICOM ingest's bundles: client/README.md §The viewer.
+c94a0053 client/viewer/viewer.js branch-added=20 not-in-result=18 not-in-final-tree=16
+     - current = Math.min(Math.max(i, 0), n - 1);
+     - /** Steps on the page's frames, each once its slice is held and painted and its time is due; never skips. client/README.md §The viewer */
+     - cancelAnimationFrame(cine.frame);
+c94a0053 server/dev-server.py branch-added=2 not-in-result=1 not-in-final-tree=1
+     - # One write: print's separate "\n" lets two of the server's threads merge their lines.
+6459b9ce docs/adr/README.md branch-added=1 not-in-result=1 not-in-final-tree=1
+     - | [`frame-path.md`](frame-path.md) | a decoded frame goes from the decoder to the paint worker, which owns the frame store; a store worker keeps an OP
+70a1731f docs/ARCHITECTURE.md branch-added=3 not-in-result=3 not-in-final-tree=3
+     - there: a reopen beats a fetch and Chromium evicts by the rule; page memory is not bounded (the store worker keeps
+     - every frame) and Gecko, its limit set by pref, evicts nothing; the rows are not committed.
+     - Its questions 2 and 6 stay open.
+70a1731f docs/adr/README.md branch-added=1 not-in-result=1 not-in-final-tree=1
+     - | [`frame-path.md`](frame-path.md) | a decoded frame goes from the decoder to the paint worker, which owns the frame store; a store worker keeps an OP
+70a1731f docs/adr/frame-path.md branch-added=24 not-in-result=9 not-in-final-tree=9
+     - and eviction on Chromium hold; page memory is not bounded (the store worker keeps every frame); eviction fails on Gecko
+     - under a limit set by pref. It builds on §1–§8 and on what is
+     - the series' size. *Measured 2026-10-27 (M2, below): the risk holds on Chromium, and page memory as built is not
+e866aa1f CLAUDE.md branch-added=2 not-in-result=1 not-in-final-tree=1
+     - scripts/gate.sh --quick  # skip the decoders' rebuild (docker) and the two absence checks
+e866aa1f README.md branch-added=8 not-in-result=3 not-in-final-tree=3
+     - Without it, the painter checks, the split's merge and the DICOM reader do not run; the native painter's also needs Mesa's lavapipe
+     - # 5. Before pushing: the gate (about 330 s on 4 cores, warm builds, 150 s of it the decoders' rebuild); --no-browser skips the browser steps, --quick 
+     - | [`docs/handoff-2026-10-30.md`](docs/handoff-2026-10-30.md) | the client core on 2026-10-30: where it stands, what is scheduled, what waits on the ow
+e866aa1f client/native/src/clock.rs branch-added=152 not-in-result=28 not-in-final-tree=28
+     - /// The product cine: the next frame every `period`, as `client/view/view.js`'s `setInterval`; a late tick is not made up.
+     - pub struct Play {
+     - impl Play {
+e866aa1f client/native/src/view.rs branch-added=211 not-in-result=97 not-in-final-tree=92
+     - use crate::resume::{Heard, ResumingSession};
+     - use crate::transport::Event;
+     - /// `end_stream`: the running fill owes nothing the want still has.
+e866aa1f client/native/src/window.rs branch-added=272 not-in-result=131 not-in-final-tree=128
+     - //! The browser core's controls (`look.rs`), F toggles 1:1 and fitted, Escape closes; the title is the status line.
+     - //! `docs/native/README.md` §4 and §Parity.
+     - use native_client::clock::{Busy, Cine, Play};
+e866aa1f client/paint/paint-worker.js branch-added=2 not-in-result=1 not-in-final-tree=1
+     - // `drawn`: ms since the epoch, so a thread that waits for the reply can still time the draw.
+e866aa1f client/paint/window.mjs branch-added=132 not-in-result=47 not-in-final-tree=44
+     - // A `title` in what a step must end on is the window's title; the rest is the last paint's cell.
+     - const OPENED = { fit: false, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false, invert: false, center: 1024, windowWidth: 2048 };
+     - ["open", [], { frame: 0, fit: false, title: "wt-pacs · frame 1 of 4 · exact" }],
+e866aa1f client/transport/downloader.js branch-added=2 not-in-result=1 not-in-final-tree=1
+     - // A late frame of an ended run, its record forgotten, is dropped but stays wanted: docs/adr/frame-path.md §Experiment 2, *Run*.
+e866aa1f client/transport/downloader.test.mjs branch-added=20 not-in-result=1 not-in-final-tree=1
+     - console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill p
+e866aa1f client/transport/ts/dist/session.js branch-added=385 not-in-result=1 not-in-final-tree=1
+     - async requestExactFrame(frameIndex, onHead) {
+e866aa1f client/transport/ts/manifest.sha256 branch-added=1 not-in-result=1 not-in-final-tree=1
+     - 0da17bf05a21eebba76648be15c8d3b9d36104de852e0da7a8b8dc46462227cd  dist/session.js
+e866aa1f client/view/controller.js branch-added=4 not-in-result=1 not-in-final-tree=1
+     - frames.push({ i, page: arrived, lastByte: info.stamps?.lastByte, decoded: info.stamps?.decodeEnd, mediaReads: info.stamps?.mediaReads, exact: info.exa
+e866aa1f client/viewer/head.js branch-added=1 not-in-result=1 not-in-final-tree=1
+     - const asked = ["opts", "wt", "hash", "metadata", "post", "origin", "writer", "busy", "cine"].filter((k) => q.has(k));
+e866aa1f client/viewer/viewer.js branch-added=6 not-in-result=3 not-in-final-tree=1
+     - lab.finished({ issuedAt, firstShownMs, fillMs, frames, errors, stats, stepped, cine });
+e866aa1f docs/adr/frame-path.md branch-added=480 not-in-result=30 not-in-final-tree=30
+     - * **Series:** row INGEST's three, through the product's ingest as HTJ2K (`lab/viewer/view_frames.py`) — `ct_nlst` (76 ×
+     - * **The rule, read before any data** (`lab/viewer/view-summary.mjs`): B′ is adopted if every frame is exact, and in
+     - **Measured 2026-10-30, on the core** (`claude/core-s7`; rows in [`../../lab/viewer/rows/`](../../lab/viewer/rows/),
+e866aa1f docs/glossary.md branch-added=4 not-in-result=1 not-in-final-tree=1
+     - | resume, recycle | a dead session replaced, owing what the records owe; a live one replaced before a byte budget; natively, `ResumingSession` resumes
+e866aa1f docs/native/README.md branch-added=165 not-in-result=1 not-in-final-tree=0
+e866aa1f lab/frame-clock/busy.js branch-added=15 not-in-result=3 not-in-final-tree=3
+     - /** Starts the long tasks; returns the array their lengths are pushed to. */
+     - export function busyPage() {
+     - tasks.push(now() - a);
+e866aa1f lab/opfs-arms/run.mjs branch-added=8 not-in-result=8 not-in-final-tree=7
+     - const b = await browser(dir).catch((e) => ({ error: `did not start: ${e.message}` }));
+     - if (b.error) return (rmSync(dir, { recursive: true, force: true }), b);
+     - const loaded = b.page.goto(`${origin}/lab/opfs-arms/index.html?${new URLSearchParams(p)}`);
+e866aa1f lab/opfs-cache/README.md branch-added=7 not-in-result=7 not-in-final-tree=7
+     - under `ingest/.build` (README §Prerequisites); M1 uses `lab/scripts/link_impair.py`. Firefox is driven over Marionette
+     - on an Xvfb display (`DISPLAY`, `FIREFOX_PATH`), for any cell with `--engine firefox`; not over WebDriver BiDi, whose
+     - session hangs a worker that starts a worker ([`frame-path.md`](../../docs/adr/frame-path.md), *Firefox's fills that
+e866aa1f lab/opfs-cache/rows/m5-smoke/m5-firefox.jsonl branch-added=8 not-in-result=8 not-in-final-tree=8
+     - {"settings":true,"cell":"m5","at":"2026-10-30T01:49:20.483Z","host":{"browser":"Mozilla Firefox 159.0","cpus":4,"memMiB":16091},"mutant":"slots-never-
+     - {"cell":"m5","engine":"firefox","round":0,"arm":"ring","mutant":"slots-never-freed","baselineMiB":543.4716796875,"growthMiB":829.7353515625,"cpuBusy":
+     - {"settings":true,"cell":"m5","at":"2026-10-30T01:51:24.909Z","host":{"browser":"Mozilla Firefox 159.0","cpus":4,"memMiB":16091},"mutant":"fresh-when-d
+e866aa1f lab/opfs-cache/rows/m5-smoke/m5.jsonl branch-added=6 not-in-result=6 not-in-final-tree=6
+     - {"settings":true,"cell":"m5","at":"2026-10-30T01:46:47.019Z","host":{"browser":"Google Chrome for Testing 153.0.8010.12","cpus":4,"memMiB":16091},"mut
+     - {"cell":"m5","engine":"chromium","round":0,"arm":"ring","mutant":"slots-never-freed","baselineMiB":141.404296875,"growthMiB":686.4462890625,"cpuBusy":
+     - {"settings":true,"cell":"m5","at":"2026-10-30T01:48:49.317Z","host":{"browser":"Google Chrome for Testing 153.0.8010.12","cpus":4,"memMiB":16091},"mut
+e866aa1f lab/opfs-cache/rows/m5/m5-firefox.jsonl branch-added=24 not-in-result=24 not-in-final-tree=24
+     - {"settings":true,"cell":"m5","at":"2026-10-30T01:13:44.284Z","host":{"browser":"Mozilla Firefox 159.0","cpus":4,"memMiB":16091},"mutant":null,"series"
+     - {"cell":"m5","engine":"firefox","round":3,"arm":"transfer-k","mutant":null,"baselineMiB":570.12109375,"growthMiB":1085.517578125,"cpuBusy":0.766467065
+     - {"cell":"m5","engine":"firefox","round":3,"arm":"disk","mutant":null,"baselineMiB":599.0908203125,"growthMiB":571.052734375,"cpuBusy":0.68335787923416
+e866aa1f lab/opfs-cache/run.mjs branch-added=21 not-in-result=21 not-in-final-tree=16
+     - /** The round a cell resumes at, its interleaved order unchanged: rows already written for earlier rounds stand. */
+     - const FIRST_ROUND = Number(arg("--first-round", 0));
+     - await b.page.goto(url);
+e866aa1f lab/opfs-cache/summary.py branch-added=6 not-in-result=6 not-in-final-tree=6
+     - SET_ASIDE = "--set-aside-start-hangs" in sys.argv
+     - """A cell's rows; with --set-aside-start-hangs, not the pre-registered rule, M5's runs that never received a frame dropped."""
+     - rs = [r for r in map(json.loads, path.read_text().splitlines()) if not r.get("settings")] if path.exists() else []
+e866aa1f lab/viewer/levers.js branch-added=40 not-in-result=5 not-in-final-tree=5
+     - const WORKER_ONLY = ["writer", "waitAhead", "holdEveryOther", "pixels"];
+     - ...(q.get("post") && totalTime(q.get("post"), q.get("origin"), opts, q.get("fill") === "0" ? Number(q.get("after") ?? 0) : 0, Boolean(q.get("trace")),
+     - function totalTime(post, origin, opts, after, traced, tasks) {
+e866aa1f lab/viewer/levers.test.mjs branch-added=25 not-in-result=1 not-in-final-tree=1
+     - console.log(failed ? `${failed} failed` : "levers: a fill's time and reads, steps on demand, the refusals: ok");
+e866aa1f scripts/gate.sh branch-added=26 not-in-result=5 not-in-final-tree=5
+     - #   scripts/gate.sh [--quick] [--no-browser]   --quick skips the decoders' rebuild and the two absence checks; no docker skips the rebuild by name
+     - run 1 node lab/viewer/view-summary.test.mjs
+     - step "client: the native painter's tests, the window's controls and title, and its 1:1 cells against the browser suite's CPU reference (wgpu on Mesa l
+6a73dc8e .gitignore branch-added=1 not-in-result=1 not-in-final-tree=1
+     - lab/native-window/*.server.log
+6a73dc8e lab/native-fill/browser.mjs branch-added=1 not-in-result=1 not-in-final-tree=1
+     - first_exact_ms: Math.min(...frames.map((f) => f.page)) - r.issuedAt,
+6a73dc8e lab/native-fill/run.py branch-added=6 not-in-result=6 not-in-final-tree=6
+     - run.py --make-series DIR                 # DIR/large.sbnd (37 × 1024², ~61 MB), DIR/small.sbnd (102 × 512² RGB, ~4.4 MB),
+     - # DIR/mammo.sbnd (16 × 3328×4096, 12 of 16 bits)
+     - # NATIVERUN's memory and step cells' series: §The comparison, pre-registered.
+823ef5c5 client/paint/painter.js branch-added=5 not-in-result=3 not-in-final-tree=3
+     - /** `renderer` resolves to the WebGL renderer string, or rejects with why nothing can be painted; `settle`, a lab's. */
+     - constructor(canvas, { onLost = () => {}, settle } = {}) {
+     - this.#settle = settle;
+823ef5c5 client/transport/consumer.js branch-added=23 not-in-result=3 not-in-final-tree=3
+     - /** `url` and `certHash` may be promises, as only the dial needs them; `tellPage`, a lab's: docs/adr/frame-path.md §7. */
+     - export async function startAndDial(downloader, url, certHash, config, { tellPage = false } = {}) {
+     - downloader.postMessage({ kind: "start", config, ...(tellPage && { tellPage }) });
+823ef5c5 client/transport/downloader.js branch-added=15 not-in-result=1 not-in-final-tree=1
+     - if (m.tellPage) globalThis.postMessage({ kind: "running" });
+823ef5c5 client/transport/downloader.test.mjs branch-added=79 not-in-result=16 not-in-final-tree=15
+     - /** Asked by the page (`tellPage`), the downloader says `running` once it has its start, before any dial; unasked, it says nothing. */
+     - async function aStartToldSaysRunning() {
+     - for (const tellPage of [true, false]) {
+823ef5c5 client/view/view-worker.js branch-added=34 not-in-result=4 not-in-final-tree=4
+     - /** A lab's settle (client/paint/paint-worker.js); none in the product. */
+     - function start({ canvas, meta, fillMode, size, settle: lab, watchWrites, glAfterDial }) {
+     - settle = lab;
+823ef5c5 client/view/view.js branch-added=59 not-in-result=35 not-in-final-tree=34
+     - import { refuseUnstartable, startAndDial, watchPage } from "../transport/consumer.js";
+     - /** Makes the worker and posts its start, until it has run. */
+     - #open;
+823ef5c5 client/view/view.test.mjs branch-added=88 not-in-result=28 not-in-final-tree=28
+     - new ViewWorker(canvas, { meta: { frameCount: 3 }, fillMode: true, size: {}, emit: () => {}, booted, glAfterDial: true });
+     - assert.equal(booted.sent[0].glAfterDial, true);
+     - new ViewWorker(canvas, { meta: { frameCount: 3 }, fillMode: true, size: {}, emit: (type, e) => events.push(`${type} ${e.scope}: ${e.reason}`), booted 
+823ef5c5 client/viewer/viewer.js branch-added=17 not-in-result=8 not-in-final-tree=6
+     - const painter = new Painter(canvas, { onLost: (why) => fail(`painter: ${why}`), settle: lab.settle });
+     - worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settle: lab.settle, watchWrites: Boolean(q.get("check")),
+     - booted, glAfterDial: Boolean(lab.opts.glAfterDial), afterDownloader: Boolean(lab.opts.viewWorkerAfterDownloader) });
+823ef5c5 docs/adr/frame-path.md branch-added=515 not-in-result=12 not-in-final-tree=12
+     - *Pre-registered 2026-10-30, before any data; the probe is [`../../lab/paint-read/`](../../lab/paint-read/README.md).*
+     - for another thread, not how fast it is. Rows: `lab/paint-read/rows/<engine>.jsonl`, every call's start and time.
+     - **Measured 2026-10-30** (rows [`../../lab/paint-read/rows/`](../../lab/paint-read/rows/), read by
+823ef5c5 docs/glossary.md branch-added=1 not-in-result=1 not-in-final-tree=1
+     - | settle | what a paint waits for before it reports, so its `drawn` stamp is when the draw executed: `fence`, a sync object polled once a task, or `re
+823ef5c5 lab/frame-clock/page.js branch-added=1 not-in-result=1 not-in-final-tree=1
+     - settle: "fence",
+823ef5c5 lab/viewer/levers.js branch-added=13 not-in-result=4 not-in-final-tree=4
+     - const WORKER_ONLY = ["writer", "waitAhead", "holdEveryOther", "pixels", "pageDials", "viewWorkerFirst", "glAfterDial", "shortRuns",
+     - "viewWorkerAfterDownloader"];
+     - if (opts.viewWorkerAfterDownloader && !opts.pageDials) throw new Error("refused: viewWorkerAfterDownloader without pageDials — the view worker would s
+823ef5c5 lab/viewer/levers.test.mjs branch-added=24 not-in-result=4 not-in-final-tree=4
+     - [{ opts: JSON.stringify({ pageDials: true, viewWorkerAfterDownloader: true }) }, "refused: pageDials under view page — the view worker's; name view=wo
+     - [{ view: "page", opts: JSON.stringify({ viewWorkerAfterDownloader: true }) }, "refused: viewWorkerAfterDownloader under view page — the view worker's;
+     - [{ view: "worker", opts: JSON.stringify({ viewWorkerAfterDownloader: true }) }, "refused: viewWorkerAfterDownloader without pageDials — the view worke
+823ef5c5 scripts/gate.sh branch-added=5 not-in-result=2 not-in-final-tree=2
+     - run 1 node lab/paint-read/measure.test.mjs
+     - run 1 node lab/viewer/settle-summary.test.mjs
+3673823d client/view/view-worker.js branch-added=31 not-in-result=2 not-in-final-tree=2
+     - function start({ canvas, meta, fillMode, size, settle: lab, watchWrites, glAfterDial }) {
+     - if (glAfterDial) gl.canvas = canvas;
+3673823d client/view/view.js branch-added=27 not-in-result=8 not-in-final-tree=8
+     - import { refuseUnstartable, startAndDial, watchPage } from "../transport/consumer.js";
+     - * `watchWrites`, the viewer check's, that the view worker count the cache writes on its own thread; `booted`, a worker
+     - * from `boot`; `glAfterDial`, the lab's setting that the WebGL2 context waits for the dial.
+3673823d client/viewer/viewer.js branch-added=14 not-in-result=4 not-in-final-tree=2
+     - worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settle: lab.settle, watchWrites: Boolean(q.get("check")),
+     - booted, glAfterDial: Boolean(lab.opts.glAfterDial) });
+3673823d docs/adr/frame-path.md branch-added=396 not-in-result=5 not-in-final-tree=5
+     - window allows; otherwise not run, and said. Rows: `lab/viewer/rows/start-quiet.jsonl`.
+     - **Measured 2026-10-30, 1×** (rows `lab/viewer/rows/start-quiet.jsonl`, run from `ba90ef5` by `THROTTLES=1 NAME=start
+     - **The fix, re-run 2026-10-30, 1×** (§3, *Proposed: the page dials*; rows `lab/viewer/rows/startfix-quiet.jsonl`, run
+3673823d lab/viewer/view_frames.py branch-added=8 not-in-result=4 not-in-final-tree=4
+     - --fix adds `workerfix`, the view worker with the start's fix: docs/adr/frame-path.md §3, *Proposed: the page dials*
+     - fix = "--fix" in sys.argv
+     - args = [a for a in sys.argv[1:] if a != "--fix"]
+3673823d scripts/gate.sh branch-added=2 not-in-result=1 not-in-final-tree=1
+     - run 1 node lab/viewer/busy-summary.test.mjs
+cf762199 docs/adr/frame-path.md branch-added=212 not-in-result=2 not-in-final-tree=2
+     - each (L 8 rounds, W 14, R and G 10), the three mutants once each; a fresh profile per run. Raw rows:
+     - `lab/opfs-arms/rows/{chromium,firefox}/`, one file per cell. **WebKit not run** (no build here), so the WebKit cell with
+9d16d7ec client/view/view-worker.js branch-added=31 not-in-result=2 not-in-final-tree=2
+     - function start({ canvas, meta, fillMode, size, settle: lab, watchWrites, glAfterDial }) {
+     - if (glAfterDial) gl.canvas = canvas;
+9d16d7ec client/view/view.js branch-added=27 not-in-result=8 not-in-final-tree=8
+     - import { refuseUnstartable, startAndDial, watchPage } from "../transport/consumer.js";
+     - * `watchWrites`, the viewer check's, that the view worker count the cache writes on its own thread; `booted`, a worker
+     - * from `boot`; `glAfterDial`, the lab's setting that the WebGL2 context waits for the dial.
+9d16d7ec client/viewer/viewer.js branch-added=14 not-in-result=4 not-in-final-tree=2
+     - worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settle: lab.settle, watchWrites: Boolean(q.get("check")),
+     - booted, glAfterDial: Boolean(lab.opts.glAfterDial) });
+9d16d7ec docs/adr/frame-path.md branch-added=248 not-in-result=6 not-in-final-tree=6
+     - stays the default by its rule** (§7, *Measured*), **and again on Chromium 2026-11-03 with both faults fixed** (§7, *Again with both fixes*). The decis
+     - window allows; otherwise not run, and said. Rows: `lab/viewer/rows/start-quiet.jsonl`.
+     - **Measured 2026-10-30, 1×** (rows `lab/viewer/rows/start-quiet.jsonl`, run from `ba90ef5` by `THROTTLES=1 NAME=start
+9d16d7ec lab/viewer/view_frames.py branch-added=10 not-in-result=4 not-in-final-tree=4
+     - and `workerdials`, that fix without `viewWorkerFirst` (§7, *Again with both fixes*)
+     - fix = "--fix" in sys.argv
+     - args = [a for a in sys.argv[1:] if a != "--fix"]
+9d16d7ec lab/viewer/view_run.sh branch-added=7 not-in-result=3 not-in-final-tree=3
+     - #   [KINDS="asks quiet"] [THROTTLES=1] [NAME=start] [FRAMES=lab/.av1-work/view-fix] [ENGINES=chromium] [VARIANTS=page,pageaa,workerdials]
+     - #     xvfb-run -a lab/viewer/view_run.sh FIRST LAST [BRANCH]
+     - ${VARIANTS:+--variants "$VARIANTS"})
+9d16d7ec scripts/gate.sh branch-added=2 not-in-result=1 not-in-final-tree=1
+     - run 1 node lab/viewer/rule-summary.test.mjs
+e86775da docs/adr/frame-path.md branch-added=2368 not-in-result=46 not-in-final-tree=45
+     - of the page view keeps it, as before.
+     - CPU reference, a spy on the client — so its half that needs frames runs beside the controller (`client/view/check.js`),
+     - Pre-registered: written, built and smoked before any data; **not run**. Its run is a row of its own, after a
+e86775da lab/opfs-arms/README.md branch-added=4 not-in-result=4 not-in-final-tree=4
+     - the built store worker, `client/viewer/store.js`, on a port the page hands it (`store-port.js`), handed a copy (C) or
+     - the shared buffer itself (C-shared), and **D** the decoders writing a file per frame before they post it (§Arm D
+     - there); A paint first drains a fixed budget a tick, or what is left of it (A-left). The predictions, the cells and the rule are there; no
+e86775da lab/opfs-arms/feeder.js branch-added=1 not-in-result=1 not-in-final-tree=1
+     - if (c.mutant === "overwrite-after-post") new Uint16Array(f.info.pixels).set(fields[(i + 1) % FIELDS].samples);
+e86775da lab/opfs-arms/page.js branch-added=3 not-in-result=3 not-in-final-tree=3
+     - seconds: num("seconds", 10), cineEvery: num("cineEvery", 1), budget: q.get("budget") ?? "fixed", budgetMs: num("budgetMs", 8),
+     - marginMs: num("marginMs", 2), chunkBytes: num("chunkBytes", 1 << 20),
+     - if (c.arm === "C" || c.arm === "Cs") {
+e86775da lab/opfs-arms/run.mjs branch-added=14 not-in-result=14 not-in-final-tree=14
+     - //     [--engine chromium|firefox] [--rounds N] [--arms A-arrival,C,...] [--mutant write-before-paint|drop-writes|late-input|overwrite-after-post]
+     - /** The arms: the cache's thread and API, and the order of paint and write. C2 is C again, the A/A pair; D's decoders write;
+     - *  C-shared posts the shared buffer itself; A-left drains what is left of the tick. */
+e86775da lab/opfs-arms/store-port.js branch-added=11 not-in-result=11 not-in-final-tree=7
+     - // Each reply carries the time the store spent on its message, ms, on this thread: from the later of its arrival and the
+     - // previous reply.
+     - const arrived = new Map();
+e86775da lab/opfs-arms/summary.mjs branch-added=15 not-in-result=15 not-in-final-tree=15
+     - /** The product's memory window a tab, MiB (lever 2): C-shared may hold no more than this over C. */
+     - const WINDOW_MIB = 256;
+     - const caught = r.mutant === "drop-writes" || r.mutant === "overwrite-after-post" ? r.checks.writesVerified === false
+e86775da lab/opfs-arms/view.js branch-added=40 not-in-result=40 not-in-final-tree=37
+     - const storeWrites = [];
+     - /** The display period, ms: assumed 60 Hz until the cell measures it. */
+     - let periodMs = 1000 / 60;
+803900b3 lab/opfs-cache/README.md branch-added=3 not-in-result=3 not-in-final-tree=3
+     - names the arm it runs on (`--arm ring`). An M5 fill's time runs from navigation to the last frame written (`diskMs`),
+     - stamped by whichever thread writes it; `today`'s needs the page with #212's store, `claude/frame-memory-m5-run`'s tree. The arm switched off, M2's `wa
+     - is not tracked: M2's 13 GiB cell wants ~16 GB of free disk. `m2-trace` is the diagnostic after M2, not pre-registered. M5's rows, under `rows/m5/`, `r
+803900b3 lab/opfs-cache/arms-decoder.js branch-added=1 not-in-result=1 not-in-final-tree=1
+     - stamps.written = abs();
+803900b3 lab/opfs-cache/arms-view.js branch-added=3 not-in-result=3 not-in-final-tree=3
+     - const seen = { received: 0, exact: 0, inexact: 0, stored: 0, lastWrittenAt: 0, twice: 0, offRing: 0, waits: 0, waitedMs: 0, readMismatch: 0, staleTake
+     - if (m.stored) seen.lastWrittenAt = Math.max(seen.lastWrittenAt, m.stamps.written);
+     - fillMs !== null ? `fill ${Math.round(fillMs)} ms` : "filling", ...errors.slice(-1).map((e) => `error: ${e}`)].join(" · "), lastWrittenAt: seen.lastWri
+803900b3 lab/opfs-cache/arms.js branch-added=1 not-in-result=1 not-in-final-tree=1
+     - if (data.lastWrittenAt) globalThis.lastWrittenAt = data.lastWrittenAt;
+803900b3 lab/opfs-cache/run.mjs branch-added=24 not-in-result=24 not-in-final-tree=23
+     - /** The static host serving the pages, set by each cell. */
+     - /** `today`'s page keeps its store's last write as `lastWrittenAt`, the arms' reading, and shows each write as it lands. */
+     - const PAGE_STORED = "store?.write(f.frameIndex, f.info).then((r) => r.written && (stored.add(f.frameIndex), trim()));";
+803900b3 lab/opfs-cache/summary.py branch-added=12 not-in-result=12 not-in-final-tree=12
+     - "written-at-delivery": lambda r: not stamp_agrees(r),
+     - STAMP_LAG_MS = (0, 500)
+     - def stamp_agrees(r):
+803900b3 lab/opfs-cache/summary_test.py branch-added=11 not-in-result=11 not-in-final-tree=11
+     - def row(rnd, arm, growth=600, fill=10000, ask=0.5, step=0.5, disk=None, lag=100, **view):
+     - disk = fill if disk is None else disk
+     - return dict(round=rnd, arm=arm, growthMiB=growth, fillMs=fill, diskMs=disk, diskSeenMs=disk + lag, inexact=0, exact=80, second=dict(read=80, wrong=[])
+5490444d docs/lines/optimal-quality.md branch-added=2 not-in-result=2 not-in-final-tree=2
+     - * **Simplification findings** (OPT-SIMPLIFY, 2026-11-11, `claude/demo-simplify`): eight candidates in
+     - [`proposals.md`](proposals.md) §Simplify, ranked by what each saves a presenter; nothing removed, the owner decides.
+5490444d docs/lines/proposals.md branch-added=103 not-in-result=2 not-in-final-tree=2
+     - Proposals for the optimal-quality demo path, each with what decides it. This branch (`claude/demo-simplify`) holds only
+     - §Simplify; the optimizer's proposals are on `claude/proposals`, and the two meet when the owner takes them.
+c2353974 docs/lines/optimal-quality.md branch-added=13 not-in-result=13 not-in-final-tree=13
+     - 11. Lab and check code on the demo's product paths, findings only, each waiting for the owner's yes
+     - ([`../reviews/understand/clean.md`](../reviews/understand/clean.md), 2026-11-11 on `claude/demo-understand`):
+     - viewer.js's ~110 lines of check and lab hooks, five lab settings through the view worker's signatures, `onePass` and
+b658f90f docs/lines/coordination.md branch-added=2 not-in-result=1 not-in-final-tree=1
+     - gate green; `claude/demo-pre-main-review:docs/reviews/pre-main.md`.
+8bc0692c docs/lines/optimal-quality.md branch-added=3 not-in-result=3 not-in-final-tree=3
+     - 13. Touch slice stepping on the phone (2026-11-11, SLICE-TOUCH, `docs/reviews/slice-touch.md` on
+     - `claude/slice-touch`): today a finger only moves window/level; recommended, a slice slider at the canvas's right
+     - edge as OHIF's, no gesture taken; DEMO-UX builds it, and the phone run says whether single steps land.
+efe9ae86 docs/lines/optimal-quality.md branch-added=79 not-in-result=5 not-in-final-tree=5
+     - Last verified 2026-11-11 06:00 UTC (branch tips and the work queue read from `origin`).
+     - and 2 % loss `dbts_a1`'s cut filled in 36 s and Lossless took 3–6 s, and `dbts_b1` did not fill in 120 s
+     - state `showLossy` (`View.lossy`, the intent `lossy`) where the screen says *Optimal quality* (NAMES-FIND 1, 3).
+3d30993a client/view/controller.js branch-added=1 not-in-result=1 not-in-final-tree=1
+     - frames.push({ i, page: arrived, lastByte: info.stamps?.lastByte, decoded: info.stamps?.decodeEnd, mediaReads: info.stamps?.mediaReads, exact: info.exa
+3d30993a client/viewer/head.js branch-added=1 not-in-result=1 not-in-final-tree=1
+     - const asked = ["opts", "wt", "hash", "metadata", "post", "origin", "writer", "busy", "cine", "beacon", "run"].filter((k) => q.has(k));
+3d30993a docs/lines/optimal-quality.md branch-added=7 not-in-result=1 not-in-final-tree=1
+     - headless on loopback on a synthetic pair (`lab/phone/run_test.sh`); not on a phone.
+3d30993a lab/viewer/levers.js branch-added=5 not-in-result=5 not-in-final-tree=5
+     - import { beaconHooks } from "../phone/beacon.js";
+     - import { runHooks } from "../phone/runner.js";
+     - if (q.get("post") && (q.has("beacon") || q.has("run"))) throw new Error("refused: post with beacon or run — one harness reads the fill's end");
+3d30993a scripts/gate.sh branch-added=12 not-in-result=9 not-in-final-tree=8
+     - step "deploy: the images carry the commit they were built from"
+     - run 1 sh deploy/image_args_test.sh
+     - step "lab: the phone run's runner and beacon, headless on a synthetic pair across two controllers and two links"
+11a85e49 docs/lines/coordination.md branch-added=9 not-in-result=1 not-in-final-tree=1
+     - Last verified 2026-11-11 (branches and PRs read from `origin` for the merge plan).
+62795db2 README.md branch-added=22 not-in-result=20 not-in-final-tree=20
+     - **8 · Which read path.** Each server says at start which way it reads the series, and each session which way it
+     - read ([`docs/adr/disk-access.md`](docs/adr/disk-access.md) §1 and §In a container). This is the phone session's to run
+     - on the laptop, after the series servers start: whether SELinux in a container changes the path is not verified from a
+62795db2 scripts/gate.sh branch-added=12 not-in-result=9 not-in-final-tree=7
+     - step "deploy: the images carry the commit they were built from"
+     - run 1 sh deploy/image_args_test.sh
+     - step "lab: the phone run's runner and beacon, headless on a synthetic pair across two controllers and two links"
+62795db2 server/dev-server.py branch-added=21 not-in-result=18 not-in-final-tree=12
+     - # Where the lab's client beacon is appended as JSONL, None to refuse it: lab/phone/README.md
+     - beacon: Path | None = None
+     - beacon_lock = threading.Lock()
+62795db2 server/dev-server.test.py branch-added=37 not-in-result=34 not-in-final-tree=31
+     - class Beacon(unittest.TestCase):
+     - def post(self, url, body):
+     - req = urllib.request.Request(url + "lab/beacon", data=body, method="POST", headers={"Content-Type": "application/json"})
+1994a933 docs/lines/optimal-quality.md branch-added=5 not-in-result=2 not-in-final-tree=2
+     - *Designed 2026-11-12, not built* (INGEST-OQ, [`../reviews/ingest-oq.md`](../reviews/ingest-oq.md) on
+     - `claude/ingest-oq`): the Rust ingest's phase 2 writes the pair, held byte-identical to `ingest.py`'s `lossy`; the
+c2f97d44 docs/lines/README.md branch-added=7 not-in-result=7 not-in-final-tree=7
+     - | coordination | merges, review order, branch and PR hygiene across the lines | [`coordination.md`](coordination.md) | 2026-11-12 |
+     - | codecs and lab | HTJ2K and AV1, server, transport and disk, measured to `CLAUDE.md` §Measurement | [`codecs.md`](codecs.md) | 2026-11-12 |
+     - | optimal quality | an optimal-quality AV1 series every viewer sees, the exact HTJ2K frame on an explicit Lossless request | [`optimal-quality.md`](op
+c2f97d44 docs/lines/client.md branch-added=109 not-in-result=109 not-in-final-tree=99
+     - Last verified 2026-11-12 against the demo tip `claude/demo-fixes-2` `18d2d1ff` (PR 367), the queue's status files
+     - (`claude/work-ledger:docs/queue/`) and the open PRs.
+     - The browser client (transport, decode, cache, paint, telemetry) that a 2D viewer will sit on: fast fills and low
+c2f97d44 docs/lines/codecs.md branch-added=144 not-in-result=144 not-in-final-tree=136
+     - Last verified 2026-11-12 against the demo tip `claude/demo-fixes-2` `18d2d1ff` (PR 367), the queue's status files
+     - (`claude/work-ledger:docs/queue/`), the AV1 harvest (#350), the audits' corrections (#357) and their measurement
+     - (#373), and the open AV1 and HTJ2K PRs.
+c2f97d44 docs/lines/coordination.md branch-added=155 not-in-result=155 not-in-final-tree=145
+     - Last verified 2026-11-12 07:20 UTC against the demo tip `claude/demo-fixes-2` `18d2d1ff` (the demo commit `157b7109`
+     - plus docs; PR 367), `main` `017a3ca6`, `claude/core` `2e6fa5b2`, the work queue's status files on
+     - `claude/work-ledger`, `claude/merge-plan`, `claude/lines-ready`, `claude/lab-off-main`, `claude/clean-product` and the
+c2f97d44 docs/lines/metadata.md branch-added=110 not-in-result=110 not-in-final-tree=101
+     - Last verified 2026-11-12 against the demo tip `claude/demo-fixes-2` `18d2d1ff` (PR 367), `claude/line-pacs` (#258),
+     - the queue's status files (`claude/work-ledger:docs/queue/`) and the open PRs. The design records on `claude/line-pacs`
+     - were not re-read past their 2026-10-29 state; nothing for this file was run or measured.
+c2f97d44 docs/lines/optimal-quality.md branch-added=139 not-in-result=139 not-in-final-tree=131
+     - Last verified 2026-11-12 against the demo tip `claude/demo-fixes-2` `18d2d1ff` (the demo commit `157b7109` plus docs;
+     - PR 367), the work queue's status files on `claude/work-ledger`, `claude/oq-integrity-build` (#368), `claude/ingest-oq`,
+     - `claude/phone-rows`, `claude/proposals` (#358), `claude/lines-ready`, `claude/merge-plan` and the open PRs.
+250d48b3 docs/decode/README.md branch-added=11 not-in-result=1 not-in-final-tree=1
+     - **Run 2026-10-22: not resolved on this host, the flag stays off.** Round-paired, AV1 at 4× the ask's decoder wait
+721def2d docs/client/design.md branch-added=1 not-in-result=1 not-in-final-tree=1
+     - repository. *So far:* none run; the protocol is not written. The profiles and each arm's regime on them, from sources: [`../transport/link-profiles.md
+d1d32f54 docs/client/design.md branch-added=2 not-in-result=1 not-in-final-tree=1
+     - varied. *Hardware, by the sources (2026-11-14):* no browser hardware path returns the view's samples on the phone or a
+38423b40 docs/lines/codecs.md branch-added=7 not-in-result=1 not-in-final-tree=1
+     - 7. **An 8-bit depth cut for hardware** (amendment 14 of `claude/work-ledger:docs/queue-client-2026-11-14.md`;
+61a0dfc3 docs/lines/devices.md branch-added=6 not-in-result=1 not-in-final-tree=1
+     - [`../decode/hardware.md`](../decode/hardware.md), [`../decode/hardware-10bit.md`](../decode/hardware-10bit.md). Target links: PR 386 (`docs/transport/
+de15680a docs/lines/optimal-quality.md branch-added=9 not-in-result=9 not-in-final-tree=9
+     - 6. The product ingest codes optimal quality: **built, experimental** (OQ-INGEST, 2026-11-14, `claude/oq-ingest`,
+     - draft PR into `claude/unified-client`): `ingest/from-parser --optimal-quality [Q] [--group G]`, off by default,
+     - byte-identical to `ingest.py`'s `lossy` on synthetic sets in the gate and on `dbts_a1` Q 8 G 8 cut
+TOTAL {'added': 10060, 'lost': 1923, 'gone': 1774}
