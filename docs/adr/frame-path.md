@@ -2491,7 +2491,7 @@ ring.
 ### Who owns a frame's memory (2026-10-28)
 
 **Status:** theory and a reading of the engines' sources; nothing built, nothing run. *Corrected 2026-10-30:* M5 has
-run, on Chromium and Firefox; its results are below (*M5, run 2026-10-30*), and Firefox again with the rig's driver fixed (*Firefox, run again*). The shape it assumes is the
+run, on Chromium and Firefox; its results are below (*M5, run 2026-10-30*), and Firefox again with the rig's driver fixed (*Firefox, run again*); *corrected 2026-11-03:* both engines again under a fill bar amended before data, where the rule chooses `ring` (*M5 under the amended bar*). The shape it assumes is the
 owner's of 2026-10-28, written nowhere else yet: one dedicated **view worker** holds the frame store (the memory window,
 OPFS behind it), the controller and the paint; the decoders, nested in the downloader worker, post each checked frame
 straight to it. The question: who owns a decoded frame's memory, so that the window bounds peak memory during a fill on
@@ -2581,7 +2581,7 @@ client trees, and the rig serves one (`today`'s `was` was a stand-in): serving t
 | `today` | `claude/opfs-cache-fixes` as measured 2026-10-28 (the page's window, the store handed copies) |
 | `transfer` | the view worker with (a′): the same shape, the decoder posting a transferred `ArrayBuffer` |
 
-* **Measured:** growth, the fill's time (dial → last frame checked), exactness, and on `ring` the decoders' slot waits
+* **Measured:** growth, the fill's time (~~dial → last frame checked~~; *amended 2026-11-02, before its data:* navigation → the last frame written to disk, every arm read the same way, *M5's fill bar, amended* below), exactness, and on `ring` the decoders' slot waits
   (count and total ms).
 * **Predicted:** `ring` 530–600 MiB on both engines: the floor once everything is collected, 531–537 MiB (*Fixes*), holds
   the window and the workers already, and the ring adds nothing to it. `today` on Chromium as on 2026-10-28,
@@ -2686,6 +2686,9 @@ the most frames waiting in its port at once (from each frame's decode-end and re
 * **An arm qualifies** on an engine if, in every round not VOID, the fill is complete, every frame exact by both
   checks, the memory bar met, its own check true (`ring`: no frame outside the ring; `transfer-k`: never more than K
   waiting), and over the rounds the median fill time ≤ 1.10 × `today`'s and the time bar met. VOID as pre-registered.
+  *Amended 2026-11-02, before its data:* ~~the fill time as each page stamped it~~ (the arms' at their last frame
+  received, after its write; `today`'s at its last frame delivered, ahead of its store's writes); the fill time is now
+  from navigation to the last frame written to disk, in every arm (*M5's fill bar, amended*, below).
 * **Rule.** The simplest arm that qualifies on both engines is chosen: `disk` (no frame memory), then `transfer` (no
   table), `transfer-k`, `ring`. None: lever 2 returns to the owner with the numbers. `m5-busy` rules credits: needed for
   `transfer` if there `transfer` misses the memory bar and `transfer-k` meets it with never more than K waiting.
@@ -2959,6 +2962,122 @@ engines. The first run's VOID rows in `rows/m5/` stand as run.
 * **What would let the rule choose:** the fill bar measured to the last frame on disk in every arm, `today` included.
   That is a change to the protocol after data, and so a new pre-registration; read that way, the four profiled fills
   put `ring` at or under `today` on Firefox.
+* *Corrected 2026-11-03:* done (*M5's fill bar, amended*, and *M5 under the amended bar*, below). Measured to the last
+  frame on disk, `ring` qualifies on Firefox and on Chromium, and the rule chooses `ring`. The verdict above stands
+  as the verdict of the bar it was run under.
+
+**M5's fill bar, amended 2026-11-02, before any data.** The bar above compares different ends: the arms write each
+frame before posting it, so their fill ends after its last write; `today`'s ends at its last frame delivered, with its
+store's writes still to come. The amendment changes that one measurement and nothing else.
+
+* **The fill's time** is from navigation (the page's time origin) to the **last frame written to disk**: the latest end
+  of a frame's write, stamped in the thread that writes it as its write returns, less the page's time origin. In the
+  arms that thread is the decoder, after its sync handle's `write`; in `today` it is the store worker, after the
+  frame's write and its record. Each page keeps the latest stamp as `lastWrittenAt`, and the rig reads that one value
+  once the page shows all 80 frames on disk. Every arm is read the same way, `today` included.
+* **A fill with fewer than 80 frames on disk has no fill time and is not complete**, `today` included; before, `today`
+  was complete without its writes.
+* **The A/A's time** is `ring′`/`ring` on the same fill time. Its thresholds, and VOID, are unchanged.
+* **Every other bar is unchanged:** every frame exact by both checks; growth ≤ the median `disk` growth on that engine
+  \+ 320 MiB; `ring` with no frame outside the ring, `disk` holding nothing, `transfer-k` never more than K waiting; the
+  median ask and the median step each within `ring`'s + 16.7 ms; the median fill time ≤ 1.10 × `today`'s. The rule is
+  the same: the simplest arm that qualifies on both engines (`disk`, `transfer`, `transfer-k`, `ring`), else lever 2
+  returns to the owner. `m5-busy` rules credits as before.
+* **The stamp's own check.** In every complete row the rig's own poll must see the 80th frame on disk 0–500 ms after
+  the stamp: one 100 ms poll and one call into the page. A row outside that is not complete. The mutant,
+  `written-at-delivery`, stamps `today` at the page's delivery instead of at the write. It is predicted to be caught on
+  both engines, because the profile's writes trailed the last delivery by 1.1–2.5 s on Chromium and 2.7–5.5 s on Firefox.
+* **What the rig changes.** `today`'s status line now refreshes on each write. Before, it froze at the last delivery,
+  which is why `today`'s rows read 42–52 frames on disk. The stamps are the rig's stand-ins (`written-at` in the
+  product's store, `written-at-page` in its page), so no product file and no default changes.
+* **How it runs.** Both engines, `m5` then `m5-busy`, 7 rounds each, arms in `lab/order.mjs`'s order. The engines
+  alternate round by round, and the engine that goes first alternates too, so the host's drift falls on both. The
+  tree is the M5 run's own (`claude/frame-memory-m5-run@1a90eb9`, whose `today` carries #212's store), with this
+  branch's `lab/opfs-cache/` rig and the decoders checked against `manifest.sha256`. Chromium is Chrome for Testing
+  153.0.8010.12 headless, as M5. Firefox is Playwright 1.63's, **155.0, not M5's 159.0**, headed on Xvfb and driven over Marionette. So these
+  Firefox rows are compared among themselves, not with M5's.
+* **Where the host saturates.** The 4-vCPU host is 0.66–0.80 busy through a fill, with three decoders. Its fill times
+  so say nothing of a faster decode, and nothing is claimed past this host. A fill that takes the host under
+  1 536 MiB available stops and is recorded as saturated.
+
+**Predicted, before the data.** The rerun's fill ratios to `today` were 1.30 for `ring`, 1.27 for `disk` and 1.50–1.57
+for the two `transfer` arms on Firefox, and 0.93–1.02 on Chromium. The amended bar adds `today`'s trailing writes to
+its time. Each arm's writes come before its posts, so the arms' times grow only by the page's own start, which every
+arm shares.
+
+| arm | Chromium, amended | Firefox, amended |
+| --- | --- | --- |
+| `ring` | fill ≈ 0.85–0.95 × `today`, the writes trailing 1.1–2.5 s. **Qualifies**, as before | fill ≈ 0.80–0.95 × `today`, the writes trailing 2.7–5.5 s. Memory 790–850 against a bar of 862 (rerun), the closest bar. **Qualifies** |
+| `transfer`, `transfer-k` | memory bar missed, as before: **miss** | memory bar missed, as before: **miss** |
+| `disk` | asks 19.5 ms against `ring`'s + 16.7: **misses** the time bar, as before | asks 29.1 ms: **misses** the time bar, as before |
+| `today` | reported | reported |
+
+So the rule is predicted to choose **`ring` on both engines**. The prediction fails if `ring` misses on Firefox,
+whether on the fill bar or on the memory bar, where its rerun range ended 12 MiB under it.
+
+**M5 under the amended bar, run 2026-11-02 to 11-03.** The rows are
+[`rows/m5-disk-bar/`](https://github.com/dary-dc/wt-pacs/tree/2f8f63ebcef0deab2f9d95773ed80a9930499a95/lab/opfs-cache/rows/m5-disk-bar), with the smoke
+rows beside them in `m5-disk-bar-smoke/`, at `claude/core-m5b@2f8f63eb`. `python3 lab/opfs-cache/summary.py
+lab/opfs-cache/rows/m5-disk-bar` prints every number below. Each cell ran 7 rounds per engine, and every round of
+every arm filled with all 80 frames exact by both checks. The decoders matched `manifest.sha256`.
+
+* **The verdict, by the rule as amended: `ring`, on both engines.** It is the only arm that qualifies on either.
+  Neither cell is VOID. The A/A differs by 4 MiB with `ring′` at 0.96 × `ring`'s time on Chromium, and by 30 MiB at
+  0.98 on Firefox.
+* **On Firefox, the amendment alone turned the verdict.** Read by the struck bar, the same rows put `ring` at 1.23 ×
+  `today`, a miss. Read to the last frame on disk, `ring` is at 0.85. `today`'s writes ended a median 3.5 s after its last
+  delivery (11.09 s against 7.57 s).
+* **As predicted for every arm but one figure.** Chromium's `ring` came in at 0.96 × `today`, just over the predicted
+  0.85–0.95. `today`'s writes there trailed by 0.6 s, not the profile's 1.1–2.5 s.
+
+| arm | Chromium growth, median [range] | fill to disk / `today` | ask / step (ms) | Chromium | Firefox growth, median [range] | fill to disk / `today` | ask / step (ms) | Firefox |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| bar | `disk` + 320 = **681 MiB** | ≤ 1.10 | `ring`'s + 16.7 | | `disk` + 320 = **760 MiB** | ≤ 1.10 | `ring`'s + 16.7 | |
+| `ring` | 576 [571–580] | 0.96 | 0.03 / 0.03 | **qualifies** | 702 [673–710] | 0.85 | 0.04 / 0.06 | **qualifies** |
+| `ring′` | 574 [567–582] | 0.94 | 0.03 / 0.03 | A/A | 699 [670–708] | 0.83 | 0.04 / 0.04 | A/A |
+| `transfer` | 881 [847–942] | 1.00 | 0.02 / 0.01 | misses the memory bar | 926 [846–1 078] | 1.02 | 0.04 / 0.02 | misses the memory bar |
+| `transfer-k` | 961 [870–1 018] | 0.96 | 0.02 / 0.01 | misses the memory bar | 971 [866–1 046] | 1.06 | 0.04 / 0.00 | misses the memory bar |
+| `disk` | 361 [353–371] | 0.88 | **18.7** / 12.0 | misses the time bar on asks | 440 [429–450] | 0.85 | **29.8** / 17.2 | misses the time bar on asks |
+| `today` | 2 791 [2 688–3 240] | 1 | — | reported | 2 331 [2 060–2 467] | 1 | — | reported |
+
+The medians of the fill to disk are 8.78 s (`ring`) against 9.35 s (`today`) on Chromium, and 9.77 s against 11.09 s
+on Firefox.
+
+* **The stamp's check did not separate cleanly.** It flagged one real row: Firefox `transfer-k` in round 4, whose
+  80th frame the rig's poll saw 569 ms after the stamp, over the 500 ms bound. That row is counted incomplete, and its
+  arm misses on memory anyway. Over the other 83 rows the lag was 5–135 ms on Chromium and 48–368 ms on Firefox, all in
+  the two `transfer` arms above 200 ms. The smoke mutant was caught at 529 ms on Chromium, where `today`'s writes
+  trailed only 0.66 s, and at 1 324 ms on Firefox. The Chromium mutant's lag is under that one real row's, so the bound
+  sorts the two only by where each falls. It would not catch a stamp off by less than about half a second. No row the
+  verdict rests on is near the bound: every `ring`, `ring′` and `today` lag was under 200 ms.
+* **Firefox is 155.0 here, not M5's 159.0.** Its floor (`disk`, 440 MiB) sits 102 MiB under the rerun's, and with it the bar.
+  `ring`'s largest round, 710 MiB, is 50 MiB under this bar. Against the rerun's 862 MiB bar, 159.0's `ring` had 12 MiB to spare.
+  Whether 159.0 under the amended bar also qualifies `ring` is not measured.
+* **Where the host saturates.** The CPU was 0.77–0.91 busy through Chromium's fills and 0.65–0.80 through Firefox's.
+  So Chromium's fills ran close to this host's limit, above the 0.66–0.80 the amendment quoted from M5. Nothing stopped
+  on the memory floor. The ratios hold for three decoders on four vCPUs, and nothing here speaks to a faster host.
+
+**`m5-busy` under the amended bar** (the view held 200 ms a frame):
+
+| arm | Chromium growth | most waiting | Firefox growth | most waiting |
+| --- | --- | --- | --- | --- |
+| `ring`, `ring′` (A/A) | 571, 577: 4 MiB apart, fill 1.01 | — | 693, 701: 17 MiB apart, fill 0.98 | — |
+| `transfer` | 1 575 | 37 (24–41) | 1 550 | 39 (24–41) |
+| `transfer-k` | 848 | 5 | 966 | 5–6 (K = 6) |
+
+Neither busy cell is VOID. Credits hold the port at K or under and roughly halve `transfer`'s growth. Still,
+`transfer-k` misses the memory bar on both engines (848 against 681; 966 against 760). So credits are **not shown
+needed** on either engine, as before. All 56 busy fills were complete and exact. The CPU was 0.36–0.62 busy, so the
+view's hold set the pace, not the host.
+
+* **In this cell the stamp's check reads the wrong thing, by construction.** The rig's poll counts frames as the view
+  receives them, and the busy view receives each frame up to K × 200 ms after its decoder wrote it. So the poll
+  trails the stamp by 0.2–0.8 s for `ring` and by 5–9 s for `transfer`, and `summary.py` counts 4 of `ring`'s 7 rounds
+  complete on each engine, and 1 of `ring′`'s on Firefox. The busy rule reads only growth and frames waiting, and the
+  A/A reads growth and the fill time, so its verdict does not touch completeness. Not foreseen in the amendment: the 0–500 ms
+  bound fits a view that takes frames as they come, which `m5-busy` is not.
+* Chromium's busy round 5 was cut by a container restart after two of its four arms. Those two rows are kept, unread,
+  in `m5-busy-interrupted.jsonl`, and the round was run again whole.
 
 **How the ring works**, in plain words, as M5 built it in the lab: [`arms-slots.js`](https://github.com/dary-dc/wt-pacs/tree/0920153d2a44916c6832a9d8dd0befabc0923681/lab/opfs-cache/arms-slots.js)
 (the table), [`arms-decoder.js`](https://github.com/dary-dc/wt-pacs/tree/0920153d2a44916c6832a9d8dd0befabc0923681/lab/opfs-cache/arms-decoder.js) (who takes a slot),
@@ -3008,6 +3127,33 @@ engines. The first run's VOID rows in `rows/m5/` stand as run.
 
   None of this is built. M5 decides only which frame memory bounds a fill. Building the ring in is a change to the
   core's frame store and decoders, proposed for review first.
+
+  *Proposed for the owner, 2026-11-03, now that `ring` qualifies on both engines under the amended bar (above).
+  Not built: the change is structural.* The steps, each behind the setting `opts.pixels` with a new value `ring`, so
+  that `shared` stays the default until the owner flips it:
+
+  1. **The ring, owned by the store.** `client/view/store.js` carves one `SharedArrayBuffer` at the first frame's
+     shape: ⌊budget bytes / frame bytes⌋ slots, and the slot table beside it, taken from `arms-slots.js` into
+     `client/view/`. The store's budget counts frames today (`#frames.size`), so it is restated in bytes, the unit the
+     ring is cut in. Letting a frame go frees its slot.
+  2. **The decoders claim, not allocate.** `frameBuffer` (`client/decode/frame-buffer.js`) becomes a claim on the
+     table, handed over at the decoders' `init`. Claims happen in `htj2k.js` and `av1-frame.js` once a decode ends,
+     with the copy into the slot as M5 built it. A decoder that fails after its claim frees the slot (the
+     `throws-after-slot` fixture, carried as a test). An AV1 preview layer stays a buffer of its own, outside the ring.
+  3. **A dry ring without a blocked thread.** The decoder tells the store over its port and waits on
+     `Atomics.waitAsync`, or for the store's reply, never on `Atomics.wait`. The store answers by evicting its
+     farthest frame. That is the one behaviour the lab's version does not have, and it wants its own test and mutant
+     (`slots-never-freed` as the stall).
+  4. **A slot used only while its take count holds.** The paint's upload and the cache's write read a slot in the
+     view worker. Each compares the take count before and after, and drops and re-asks on a change: two
+     `Atomics.load`s a frame.
+  5. **Only one frame shape.** One series of one shape is on screen, as today. A second shape, or a second
+     viewport, re-carves only with every slot free, or refuses `ring` and stays on `shared`. That is not designed here.
+  6. **Kept as it is:** cross-origin isolation, which the core already needs; credits off on this path, since M5's
+     `m5-busy` shows the ring's port bounded without them.
+  7. **Before the default flips:** the core's own fill, `?view=worker` with `opts.pixels=ring` against `shared`,
+     interleaved, on both engines, with this section's memory bar, its amended fill bar, and exactness by both checks.
+     M5 measured the lab's stand-in view, not the core.
 
 ### Options, and what each costs
 
@@ -4834,7 +4980,7 @@ only the threads differ ([`../native/README.md`](../native/README.md) §Built, #
 | `opts.span`, held frames a run may cross | `0` | `g` | §Experiment 1, #243 (review #248) | **not run (#266): "Verdict: not run; `span` stays 0"** — the review finds the rule unmeetable on the model (S 1.90–1.96× A against ≤ 0.6×); removing `span` and `holdEveryOther` is the owner's (§Experiment 1: not run) |
 | `opts.waitAhead`, the want ascending and no ask within `k` of the running fill | off | `k` | §Experiment 2, #246 | **run (#265): "Verdict: k\* = 8, adopt k = 8, by the rule as fixed"; the default left to the owner** (§Experiment 2, *The default*): 12 of 12 rounds on every decided CT cell, both engines; DBT undecided at k = 8 |
 | `opts.pixels`, a decoded frame's memory | `shared` (`SharedArrayBuffer`) | `transfer` | §Experiment 3, #245; M5, #226/#241 | answered by M5: `transfer` misses the memory bar on both engines (Firefox: "misses the memory and fill bars") |
-| frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241; Firefox re-run, #264 | **run on both engines (#264): "none qualifies on Firefox, so none on both engines: lever 2 returns to the owner. Chromium's verdict stands: `ring`."** Credits not shown needed; *How the ring works* written for the owner |
+| frame memory: slots, disk-only; credits `K` | none, no credits | ring of slots, disk-only, `K` | M5, #226/#241; Firefox re-run, #264; the amended fill bar, `claude/core-m5b` | **run on both engines under the amended fill bar (`claude/core-m5b`): "`ring`, on both engines"**: the only arm that qualifies on either, fill to disk 0.96 × `today` on Chromium and 0.85 on Firefox 155, every other bar unchanged. Under #264's bar the same rows say none on Firefox (1.23). Credits not shown needed. The default stays `none`: building the ring in is proposed for the owner, not built (*What building it into the core would change*) |
 | `?writer=`, who writes the OPFS cache | `none`: no cache, as main | `store`, `decoders`, `view` | OPFS arms, #227/#242; #244 | **run on Chromium 153 and Firefox 159 (`claude/opfs-arms-run`): "no arm passes on either engine, so the result goes to the owner as measured"** (§Arm D, Results). Chromium's D fails only rule 3, its clock at S1 4×; Firefox's D fails rules 2 and 3 |
 | frame clock | the page's timer | worker rAF, timer to a schedule, `MessageChannel`, `Atomics.wait` | #225 | run in Chromium 2026-11-03 (`claude/core-clock`): **no verdict** — settled by the fence, the guard saturates every 512² cell, 30/s quiet 1× included (draw p99 17.4 ms against 16.7); it needs a GPU host |
 | receive loop, the downloader in the view worker | its own worker | merged | #237 | rig in `lab/recv-loop` at `cf38708b` (`claude/recv-loop`) only; needs a GPU host |
@@ -4845,10 +4991,10 @@ Each run writes its verdict in its own section.
 **Waiting on the owner** (2026-11-02; the evidence is each row's section):
 
 1. *`waitAhead`'s default:* Experiment 2's rule adopts k = 8; flipping the code's default is the owner's merge.
-2. *M5's ring:* by the rule lever 2 returns to the owner. Recommended, before building it in: pre-register the fill bar
-   measured to the last frame on disk in every arm (Firefox's compared different ends) and re-run Firefox. If `ring`
-   then qualifies on both engines, building it in is structural and proposed for review first (*What building it into
-   the core would change*).
+2. *M5's ring:* with the fill bar amended before data to the last frame on disk, the rule chooses `ring` on both engines
+   (`claude/core-m5b`). Building it in is structural: the steps are proposed under *What building it into the core
+   would change*, behind `opts.pixels=ring` with `shared` the default. That needs the owner's review, and then a run of
+   the core's own fill before any default flips. Firefox here was 155.0, not 159.0.
 3. *The default view:* `page`, as §7 and #261 agree. The start's fix does not tie A, so no later `worker`-against-`page`
    run is queued.
 4. *`span` and `holdEveryOther`:* the review advises removing both, code no rule will turn on by the model; the other
