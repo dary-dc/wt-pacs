@@ -439,3 +439,52 @@ review above stays as written; sources re-fetched 2026-11-15):
   "~2 min more" for the full square is ~10 min (40 loads × 15 s), so the three rows stay.
 
 No asks from MOBILE-DECODE-COMPARE yet (not run), so §10 lists none.
+
+## Re-review
+
+*PHONE-NEXT-PROTOCOL-FIX-REVIEW, 2026-11-15, by a session that wrote neither the protocol, its review nor its fixes.
+Read only; nothing run on a device. Checked against `7b50805e..c24d128a`.*
+
+**Each finding against its fix.** 1 closed: §3 sets the stay-on setting before the press and restores it, the
+wake lock second and re-requested per load's document, §10 item 3 carries the line. 2 closed: both forms written,
+the choice marked the owner's before the round; the 52 ms is in `claude/docs-client:docs/client/evidence/view-worker-start.md`
+as written ("its module graph still takes 40–52 ms (Chromium)", B′+fix at 1×). 3 closed: pooled always, 13 of 16;
+adding rounds is rightly refused (a ninth round per series breaks the second Williams square of four; a third square
+is 32 loads, ~15 min with gaps, over the ~6 min left of cell 2's 35). 4 closed. 5 closed: B against A is committed
+(B's fill max(1.43, 1.3–1.8) s + rest against A's ~2.47–2.6 s, ratio ≤ ~0.85, under the 0.95 bar), C2 against A + B
+predicted, C1 recorded and deciding nothing. 6 closed: §10 item 5's line; `git grep isTrusted e5b20cba` finds
+nothing in the tree, as cell 3 says. 7 closed. 8 closed: §2 flags both reads. 9 closed, with minor 1 below.
+Nothing else changed: the diff's other hunks are the header's fetched-sources line and `docs/lines/optimal-quality.md`
+§Open 10's dated line.
+
+**§6 recomputed.** Loads: cell 1 8 × 3 + 4 = 28 × 15 s = 7.0 min; cell 2 48 × 25 s + 16 × 35 s = 29.3 min; cell 3
+48 × 70 s = 56 min; cell 4 10 min; cell 5 4 × 30 s = 2 min; 104.3 min. Starts 28 + 64 + 48 + 1 + 4 = 145, with the
+four warm-ups 149, × 15 s = 37.3 min; warm-ups' own time ~2 min; 143.6 min, *about 2 h 20 min* as §0 and §6 say.
+Sign test recomputed: 13 of 16, two-sided p = 2 × 697/65 536 = 0.021; 12 of 16 gives 0.077, so 13 is the threshold.
+
+**Sources of findings 1 and 7, fetched 2026-11-15** (`developer.android.com`, pages last updated 2026-08-03 for
+`Settings.Global` and 2026-10-28 for Direct Boot). `Settings.Global.STAY_ON_WHILE_PLUGGED_IN`, "Added in API level
+17": "Whether we keep the device on while the device is plugged in. Supported values are: 0 to never stay on while
+plugged in BatteryManager.BATTERY_PLUGGED_AC to stay on for AC charger BatteryManager.BATTERY_PLUGGED_USB to stay on
+for USB charger BatteryManager.BATTERY_PLUGGED_WIRELESS to stay on for wireless charger BatteryManager.BATTERY_PLUGGED_DOCK
+to stay on for dock charger These values can be OR-ed together. Constant Value: "stay_on_while_plugged_in"".
+`BatteryManager`: "BATTERY_PLUGGED_AC Power source is an AC charger. Constant Value: 1", "BATTERY_PLUGGED_USB Power
+source is a USB port. Constant Value: 2", "BATTERY_PLUGGED_WIRELESS … Power source is wireless. Constant Value: 4",
+"BATTERY_PLUGGED_DOCK Added in API level 33 … Power source is dock. Constant Value: 8". Direct Boot: "Credential
+encrypted storage, which is the default storage location and only available after the user has unlocked the
+device", and "Credential encrypted storage is available after the user has successfully unlocked the device and
+until the user restarts the device". §3's and cell 5's quotes match these, the `…` in §3 eliding the dock value.
+
+**Minor** (*author*, none a blocker; none changes a cell, a rule or a prediction):
+
+1. Cell 1's "the full square is 8 rows, 40 loads and ~10 min more" counts the gaps only: 40 loads × (15 s own +
+   15 s gap) is ~20 min, and 68 loads × 15 s (17 min) is over cell 1's 10 min budget. The conclusion, three rows
+   stay, holds more strongly; the number should read ~20 min.
+2. §3's `…` elides `BATTERY_PLUGGED_DOCK` (8, API level 33): 7 is AC | USB | wireless, not dock. The phone is on USB,
+   so 7 holds; one clause would say the dock value is left out on purpose.
+3. Form (a)'s 52 ms is a 1× cloud number (labelled *assumption*). The same file's 4× re-run (`startfix4`) puts
+   B′+fix − A at −12 to +4.5 ms in decided Chromium cells but +17 to +69 ms in its VOID cells, and a phone's CPU is
+   nearer 4× than 1×. The owner, choosing (a) or (b), should see that the bound scales with the CPU.
+
+**Verdict: no blocker open.** Amendment 17 starts no fix loop. RUNNER-AUTO may start; the owner's call on cell 3's
+guard (a) or (b) and on the run commit's merges (§1) stays before the round.

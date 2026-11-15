@@ -107,6 +107,8 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
    first picture's bound in cell 3's guard.
    *2026-11-15:* the author findings fixed in place (§Review, *Fixed*): the stay-on setting by `adb`, cell 2 pooled,
    cell 3's guard in two forms. Waits on the owner's pick of that guard, its re-review, and §10's builds.
+   *2026-11-15:* re-reviewed (its §Re-review): every finding closed, no blocker; three minors (cell 1's full-square
+   cost ~20 min, the dock value, form (a)'s bound a 1× number). Waits on the owner's pick of the guard and §10's builds.
 11. Understanding before 11-13: the findings of OPT-SIMPLIFY, CLEAN-FIND, NAMES-FIND, DEFAULTS-FIND, ESSENTIALS and
     FABLE-SIMPLIFY, each ranked by what it saves a presenter; the owner chooses what goes in before the demo and what
     after. Then a reading pass with the owner, ESSENTIALS' points first, deeper only where time allows.
