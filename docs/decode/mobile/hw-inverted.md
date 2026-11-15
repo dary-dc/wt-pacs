@@ -391,6 +391,54 @@ Written by the measuring session before any cell ran. What the host and the harn
   decoded luma kept outside the repository for B's cells; bytes(A) is that row's. The clamped share is counted while
   B's input is written, the same at every Q of a chain.
 
+## 9. Results (cloud cells, measured)
+
+§8 run as amended, 2026-11-15: C1 on all 19 volumes (Stage A's six first; 129 `inv220-420` cells, 19 cut-only rows,
+6 A/A cells), then C2 (6 pictures A, 93 cells of B). Rows `lab/decode/mobile/hw-inverted/rows/c1.jsonl`, `c2.jsonl`,
+harness `claude/av1-noise-ratio` at `0a9d33ca` in every row; every cell against its prediction in `rows/report.md`
+(`report.py`, rerun from the rows). σ per frame equals DEPTH8-MEASURE's on 19 of 19 volumes. (M)
+
+* **A/A: 6 of 6 equal.** `cut8` re-run reproduces DEPTH8-MEASURE's bytes exactly on every Stage A volume; no volume
+  is VOID.
+* **I1 · the cut alone: 12 of 19 hit.** All 12 at D 12 read e_N = r within 0.2–1.8 %. All 7 at D 10 **miss**, low:
+  e_N is 3.2–9.3 % under r = 1.363 (`dbts_b2` the most, as DEPTH8's P1 there). Against DEPTH8's cut-only rows,
+  e_N rises 1.171× at D 12 (predicted 1.172) and 1.174–1.189× at D 10 (predicted 1.219).
+* **I2 · the highest Q: 19 of 19 hit.** `inv220-420` reaches Q 2–5 on the 12-bit volumes and Q 4–9 on the 10-bit
+  ones at 1.00, each with a failing Q above it, inside the interval and at or under `cut8`'s Q on every volume (one to
+  two rungs under).
+* **I3 · bytes: 12 of 14 hit.** `inv220-420` ÷ `cut8`, each at its highest Q under 1.00: **0.97–1.47** over all 19
+  (0.97–1.19 on the other 17). Misses: `dbt12_ea1141` 1.470 against ≤ 1.240 (`inv220-420` one rung lower, Q 2 against 4) and
+  `dbts_b1` 1.105 against ≤ 1.104. The five held-out volumes read 1.01–1.38. Against today's form (DEPTH8's rows):
+  **1.16–2.49 ×**.
+* **I4 · the range: miss, 5 of 129 cells hit.** Every cell decodes luma outside 16 … 235 on every frame: 4.6·10⁻⁵ –
+  8.3·10⁻⁴ of the samples at D 12, 1.6·10⁻⁴ – 2.0·10⁻³ at D 10, against < 10⁻⁴; the extreme is code 8 at D 12 and
+  code 0 at D 10 (8 and 16 codes beyond), at most 4 above 235 (239). Only Q 1 on four 12-bit volumes and Q 2 on one
+  stay under 10⁻⁴. The undershoot below 16 is the larger: this is §5's headroom question, answered against the form.
+* **I5 · the chroma: 129 of 129 hit.** Every decoded chroma sample of every `inv220-420` cell is 128.
+* **J1 · two pictures: 4 of 6 hit.** (A + B) ÷ today's form, B at its highest Q under 1.00: `dbts_a1` 1.33 (Q_A 24,
+  B Q 44) and 1.62 (Q_A 40, Q 42); `dbts_b1` 1.36 and 1.36 (Q 32 at both); `dbts_c1` 1.04 and 1.03 (Q 46 at both)
+  **miss**, under 1.2. A alone is 0.13–2.1 MB (worst e_N ÷ σ 1.07–1.18); B is nearly all the bytes. B's worst
+  frame rose with Q on every chain (A4's assumption held).
+* **J2 · the clamp: hit on both 12-bit volumes.** Clamped share 1.8·10⁻⁴ and 4.6·10⁻⁴ at Q_A 24, 2.2·10⁻³ and
+  3.1·10⁻³ at Q_A 40; `dbts_b1` (D 10) 1.5·10⁻⁶ and 7.2·10⁻⁵, reported only.
+* **Not predicted:** B's decoded chroma is not 128 on `dbts_a1` (3.5 M and 12.3 M samples summed over its two
+  chains' cells), 128 everywhere on `dbts_c1` and `dbts_b1`; C1's form never moved its chroma.
+* **Mutants** (`rows/mutants.txt`): n1–n5 each fail `measure_test.py`. n1 fails I1 on a real cut-only row (e_N 14.9 %
+  under r) and n3 fails I5 (114 M chroma samples). n2 and n5 do **not** fail the predictions as worded: a constant
+  offset (16 × s = 299, and 126) has no energy in e_N's band, so I1 and J's e_N ÷ σ read as good; they show in the
+  rows' mean and RMS error (299, 126). n4 is a unit-level mutant only (the overshooting frame reads zero).
+* **Saturation.** Four processes kept the host's 4 cores busy: median busy share 1.00 a minute in both cells
+  (`rows/c1.cpu.txt`, `c2.cpu.txt`), lower only at round ends. Cells took 17–424 s wall; no time is claimed.
+* **Run note.** 22 C1 cells written between 14:54 and 15:07 were lost when a rebase replaced the row file under
+  the open run; they were coded again (one thread is deterministic) and the rows hold each cell once.
+
+Fixtures and limits: 19 DBT volumes of three systems (C2 on three); libaom 3.15.1 at cpu6, one thread, G 1; dav1d
+1.5.4; one σ estimator in one band (blind to a constant offset); one 4-core cloud host without a GPU; no browser,
+hardware decoder, phone or reader. What it settles: on these volumes the 220-level form meets the noise rule at a rung
+or two under the 256-level cut, at 0.97–1.47 × its bytes (1.16–2.49 × today's), with chroma intact and luma
+overshooting the studio range on every frame; a second picture over it reaches today's quality at 1.03–1.62 × today's
+bytes.
+
 ## 10. Past 8 bits: a second picture (new-options §4, theory)
 
 Theory and cell C2 only; it touches the 2026-11-09 decisions ("the residual dropped", "a split into top and low
