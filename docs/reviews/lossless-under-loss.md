@@ -134,3 +134,38 @@ By a session that wrote neither fix, on `ffc407de`.
   check's hasher absent, Docker Hub 429), headless Chromium on a 4-core cloud host without a GPU: passed in the page
   view and the worker view on both fix branches. A check, not a measurement: the other two DBT volumes, the depth-cut
   series and `--link` were not run.
+
+## Amendment 22: only a lost ask is asked again (PHONE-FIX-378, 2026-11-15)
+
+The orchestrator's scope for PR 378 (`docs/queue-client-2026-11-14.md` on `claude/work-ledger`, amendment 22):
+"**re-ask only a lost ask** (the session or stream gone, the ask's deadline passed with nothing received); never a
+refusal by the server (asking again returns the same refusal) nor a failed check (QUIC's AEAD means the same bytes
+come back; the check's own path decodes again, then blocks)." It closes the review's first finding (every rejection
+re-asked).
+
+**Built.** The downloader marks a failed ask `lost` when the transport's frame deadline passed
+(`FrameTimeoutError`, 15 s without a byte), the session is closed, or its resume spent its re-dials; the consumer
+rejects such an ask as `AskLostError`; the controller asks it again **once**, 1 s later, while the reader stays on
+the frame. The re-ask carries the transport's own deadline. A refusal (any other rejection) and a frame that failed
+its check fail at once. A re-dial that fails on the ask's own command is not marked lost: it is one dial, not the
+resume's budget.
+
+**Tests**, committed failing first (`e9a221e5`), then the fix (`0d0f971c`): `downloader.test.mjs` *only a lost ask is
+marked lost* (a deadline, a closed session, a resume out of re-dials; a refusal not); `consumer.test.mjs` *a lost ask
+is named*; `controller.test.mjs` *a lost exact ask is asked again once*, *an exact ask lost twice is failed after its
+one re-ask*, *an exact ask the server refused is not asked again*, *an exact frame that failed its check is not asked
+again*, *leaving the frame ends the re-ask*. Before the fix the downloader's and the consumer's fail by name and the
+controller's never ends (the 1-4-16 loop reads a number schedule as unbounded). Mutants, each killed: the deadline,
+the closed session, the spent resume each not marked lost; every failure marked lost; the consumer naming every
+failure lost, or none; the controller re-asking a refusal, re-asking without bound, not re-asking, not stopping when
+the reader leaves, re-asking a failed check.
+
+**The lab rig** keeps its two arms without a product lever: `page.html`'s `off` arm passes a lost ask on as a plain
+failure, which the controller never asks again. `lab/lossless-under-loss/` stays in `lab/`, reached by no product
+module.
+
+**The 45 s blackout under this scope** (theory, not run): the resume fails the ask at 28.2 s as before; the one
+re-ask at 29.2 s finds no session and dials inside the outage, the dial fails, and the label is *Lossless check
+failed* at about 34 s, as the `off` arm's was. The table above measured the 1-4-16 schedule, not this one. One re-ask
+recovers an ask lost to a short outage or a dead session the link can replace at once; an outage longer than the
+resume's budget still needs the reader's `l`.
