@@ -228,8 +228,8 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
    HTJ2K frame on a slow device": a phone is owed.
 11. **Stage A1** (row MERGE-A-CODECS, 2026-11-15): `claude/merge-a-codecs` holds this line's 34 branches merged into
     `claude/unified-codecs` (five by `-s ours`, call M1; `docs/av1/README.md` §Paths kept in history only), the gate
-    green, the product as the baseline but the two lines of a `stallMs` key; its draft PR lists every resolution. Next: its
-    blind review (MERGE-A-REVIEW-CODECS), then stage B. `av1-paint-depth` (#309) stays out (call M6).
+    green, the product as the baseline but the two lines of a `stallMs` key; its draft PR lists every resolution. Its blind
+    review (MERGE-A-REVIEW-CODECS, 2026-11-15, in PR 398's body): no blocker. Next: stage B. `av1-paint-depth` (#309) stays out (call M6).
 
 ## Decisions (the owner's)
 
