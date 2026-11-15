@@ -1,10 +1,10 @@
 state: started
 started: 2026-11-15T12:46Z
-heartbeat: 2026-11-15T12:54Z
-outputs: claude/cache-arms 822b33a9 (PR 394)
+heartbeat: 2026-11-15T13:06Z
+outputs: claude/cache-arms 822b33a9..21e59ce9 (PR 394)
 ## Resume
-Done: 822b33a9, blockers 1 and 4-7 (store.js readsFirst, cells.mjs backlogAt5s/keptOnReopen/lBars/pageQuery/pssGrowth,
-page.js, run.mjs, store-worker.js) and settle() in the seam; each test failing first, mutated (store 6/6, cells 18/18).
-Next: OPFS-ASYNC settle()/close() rethrow (blocker 2), CACHESTORAGE index cache + settle (blocker 3), tests first in
-lab/cache-arms/arms/*.test.mjs; then README seam + as-built lines, review §Fixes, gate (worktree /home/user/arms).
+Done: all seven blockers fixed with tests failing first and mutated (822b33a9 harness, ebee4cbe OPFS-ASYNC, db671123
+CACHESTORAGE, 208f6ff9 one-line minors, 21e59ce9 README). Smoke: reads first observed mid-write in Chromium 153; E with
+CACHESTORAGE and IDB passes its five sets. Next: Q smoke with OPFS-ASYNC, review §Fixes in docs/reviews/cache-arms.md,
+docs/lines/client.md, gate (worktree /home/user/arms; wasm built, ingest/tools.sh running), PR 394 body.
 ## Result
