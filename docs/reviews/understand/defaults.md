@@ -20,7 +20,7 @@ the gate they belong behind.
 `http://127.0.0.1:8765/` with no parameter: the page view (`view=page`), the series filled ahead, no overlay, no
 check, no OPFS cache; the transport file `/wt/dev-transport.json` names the client (`ts` when it names none) and the
 server. `series-server` with only `--series`: port 4433, every address (`[::]`, else `0.0.0.0`), the dev certificate
-under `server/dev-cert/` relative to the working directory, one shared stream, `cubic-restart`, the opening ask
+under `server/dev-cert/` (made at the first run, not in git) relative to the working directory, one shared stream, `cubic-restart`, the opening ask
 honoured, quinn's windows and timeouts, no WebSocket. `dev-server.py` with nothing: port 8765 on 127.0.0.1 only, the
 smoke fixture `us_cine_smoke`'s metadata, the dev certificate made or renewed, no exact series.
 

@@ -1,7 +1,7 @@
 # The next phone round, pre-registered
 
 *Written 2026-11-14 by the row PHONE-NEXT-PROTOCOL of `claude/work-ledger:docs/queue-client-2026-11-14.md`, by a
-session that will not run it. It supersedes `docs/queue-2026-11-14.md`'s PHONE-AMEND-3 (not started). The owner's
+session that will not run it. It supersedes `docs/queue-2026-11-14.md` (at `d735c727`)'s PHONE-AMEND-3 (not started). The owner's
 phone session runs it with its runner; no cloud session does. Every number below is labelled* measured *(with the file
 that holds it),* theory *or* derived*. Amendments 5, 6, 7, 11 and 12 of the queue file bind it.*
 

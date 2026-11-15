@@ -61,7 +61,7 @@ native client (client/native)  ═ raw QUIC, ALPN wt-pacs/1 ══════�
 Fixtures behind every number below unless an item says otherwise: synthetic and DBT series on 4-core cloud hosts
 without a GPU, headless Chromium, the userspace relay `lab/scripts/link_impair.py` or loopback, not a radio
 ([`../rig-limits.md`](../rig-limits.md) §3); one phone run on one home Wi-Fi link
-([`../client/evidence/link-profiles.md`](../client/evidence/link-profiles.md)).
+([`link-profiles.md`](link-profiles.md)).
 
 * **The target links.** Six profiles (home, enterprise and public Wi-Fi, LTE, 5G sub-6 and mmWave) from published
   measurements, with the regime per profile derived: the optimal-quality view decode-bound on a phone above

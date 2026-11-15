@@ -1103,7 +1103,7 @@ cache's write delay.
   lost the fix's `window.rs` half to a mutant's restore — in each, the window's visits of the 61 MB series failed. The
   run then restarted at round 0 on the fixed build. Nothing else changed.
 
-**The series**, made by `lab/native-fill/run.py --make-series DIR` (`lab/scripts/gen_frame_pnm.py`, OpenJPH 0.31.0's
+**The series**, made by `lab/native-fill/run.py --make-series DIR` (at `35d05b14`) (`lab/scripts/gen_frame_pnm.py`, OpenJPH 0.31.0's
 `ojph_compress` in the served profile, `pack-series`; digests from the generated samples). The generator is seeded by
 the frame's index, so the bundles are the same bytes on every run; they are not committed, and their SHA-256 is here
 to check a rebuild against.

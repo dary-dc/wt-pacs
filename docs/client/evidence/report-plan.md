@@ -8,7 +8,7 @@ REPORT-OPTIONS) by the method of [`cache-plan.md`](https://github.com/dary-dc/wt
 verbatim below, **(R)** read in this repository, **(I)** this file's inference, to be checked by the protocol.
 
 Inputs: PR 370's design and build (`claude/telemetry-client`: `docs/adr/telemetry-in-production.md` §1–§8,
-`client/viewer/load-report.js`), the 2026-11-14 decision ([`../design.md`](../design.md) §Decided: "Exactness failures
+`client/viewer/load-report.js` (at `514347d3`)), the 2026-11-14 decision ([`../design.md`](../design.md) §Decided: "Exactness failures
 are a safety report, not telemetry: always on, never sampled, no pixels or patient data, the load report's endpoint
 and format; on a mismatch the second decode first, then the frame blocked, the reader told in that frame's view and
 the report sent at once"), and [`../../adr/exactness-in-production.md`](../../adr/exactness-in-production.md) §2, §5, §8.
@@ -660,7 +660,7 @@ plan and none of NGINX's amendments). Sources fetched 2026-11-14, sha256 of the 
   bytes, and in `errors[].message` a run shaped like a UID is replaced by `<uid>`: "Each component of a UID is a
   number and shall consist of one or more digits. The first digit of each component shall not be zero unless the
   component is a single digit." and a UID "shall not exceed 64 total characters" (PS3.5 §9.1), so
-  `[0-2](\.(0|[1-9][0-9]*)){3,}` up to 64 characters (I: four or more components; a version string like `1.2.3`
+  `[0-2]` followed by `(\.(0|[1-9][0-9]*)){3,}` up to 64 characters (I: four or more components; a version string like `1.2.3`
   stays). This is the one field that is free text (§8: "`message` with every URL replaced by `<url>`"), and the only
   place a receiver can stand behind the "no patient data" constraint of §2 rather than trust the page.
 * **`204` means written, and for a safety report written to the disk** (*advocate*; the shared proposal of §3.2,
@@ -688,7 +688,7 @@ plan and none of NGINX's amendments). Sources fetched 2026-11-14, sha256 of the 
 * **What RECEIVER is, in size** (*I*, for the build row): one `main.rs`, an accept loop, `httparse` on the head,
   `Content-Length` bytes of body, `serde_json::Value`, the check, the write, the answer — about 150 lines and a test
   per refusal (oversize, not JSON, a field outside the list, a UID in a message, the cap, the fallback log on 502).
-  In the arms it is `lab/report-arms/receiver/`, never `server/` (§4).
+  In the arms it is `lab/report-arms/receiver/` (proposed, not in git), never `server/` (§4).
 
 **Disadvantages RECEIVER still carries** (*advocate*, for the protocol to price, not to fix):
 
@@ -816,7 +816,7 @@ checks, not results.
 
 ### 7.2 · Rig, arms, order
 
-* **Rig**: `lab/report-arms/` on `claude/report-arms` (REPORT-BUILD-HARNESS): the viewer at the round's commit with
+* **Rig**: `lab/report-arms/` (at `bf16e99e`) on `claude/report-arms` (REPORT-BUILD-HARNESS): the viewer at the round's commit with
   the lab gate loading one carrier arm; the fault bench's forced mismatch ([`../../adr/exactness-in-production.md`](../../adr/exactness-in-production.md)
   §The fault bench) at a fixed frame; the sink behind each receiver with the §7.1 counters; the server's link record
   (§3.4) on in every arm. The browser and the sink run inside the relay's `--tun` namespace (`lab/scripts/link_impair.py`,

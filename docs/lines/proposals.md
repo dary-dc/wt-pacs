@@ -842,7 +842,7 @@ named remedy, not proposed here). e converted to display levels is the frame's, 
 `window-q.md` read; on a narrow window off the frame's median it is an estimate (D).
 
 **Cost (assumption).** The quality study's whole measurement, SSIM, MS-SSIM and the displayed levels included, costs
-0.27 CPU s a megapixel (R, `lab/av1/metrics/README.md` §Plan); these three are a subset, so ≤ 0.27: on the three
+0.27 CPU s a megapixel (R, `lab/av1/metrics/README.md` (at `9e48fdc1`) §Plan); these three are a subset, so ≤ 0.27: on the three
 fixtures' 114, 426 and 169 megapixels a cell (D), ≤ 31, 115 and 46 CPU s. Metadata: three numbers a frame.
 
 **Protocol (pre-registered).** *Rule first:* adopt if (1) the ingest's values equal the quality study's committed rows
@@ -869,7 +869,7 @@ never more than I1 and I2 measured.
 | *Lossless*, as today | unchanged | unchanged |
 
 * **The green mark rests on I1.** DEMO-UX item 1 builds a green mark beside *Optimal quality* on a paired frame
-  (`docs/queue/DEMO-UX.md`). Today nothing about that frame has been checked; with I1, the mark means the check
+  (`docs/queue/DEMO-UX.md` (at `0fab0b3d`)). Today nothing about that frame has been checked; with I1, the mark means the check
   passed, and a series without the digest keeps the grey *unchecked*. Until I1 is built the green mark claims more
   than the client knows — the owner's call whether the demo shows it before I1.
 * **Quality is a number, never a verdict.** The label never says "visually lossless"; the overlay states e, its
@@ -943,7 +943,7 @@ tomosynthesis volumes of one dataset; no ultrasound cine; 4-core cloud hosts wit
 `lab.started`, `filled`, `finished`, `trace`, `steps`, `cine`, `ledger`, `pinned`, `settle` and `lab.opts` spread into
 the connect options (lines 18–19, 153–174, 219–234, 324–333); `?check`, `?deadline`, `?mutate` and `check-page.js`
 (55–61, 299–322); the worker variant's message count `seen`/`watch` (93–101); the boot stamps for the ledger (32–33).
-*Removes* those lines from the product page into a lab entry (for instance `lab/viewer/page.js` that starts the same
+*Removes* those lines from the product page into a lab entry (for instance `lab/viewer/page.js` (a name for illustration, not in git) that starts the same
 modules with hooks), and `check-page.js`, `view/check.js` and `paint/reference.js`'s check use from the web image
 (`deploy/web-files.sh` copies them today). *No capability lost*: `run_check.sh` and `lab/viewer/levers.test.mjs` must
 pass unchanged through the new entry; `demo-check.mjs` opens the page as a reader (`?overlay=1`, no `?check`) and must

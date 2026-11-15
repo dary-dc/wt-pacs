@@ -254,7 +254,7 @@ Each step is one reviewable change; *structural* ones go to the owner first (CLA
 | 3 | a frame memory the store frees: M5's ring, or a fix of the per-frame `SharedArrayBuffer`'s collection | client: `store.js`, `client/decode/frame-buffer.js`, the decoders | **yes** — the owner's lever 2 ([`frame-path.md`](frame-path.md) §The core, assembled, *Waiting on the owner* 2) |
 | 4 | the rule: `s_d`, `M`, W; the want limited to the window; the store's budget set to W | client: `controller.js` `wantFrom`, the controller's constructor; one setting for M | no, once 2 and 3 are in; the default M is the owner's (question 1) |
 | 5 | cine waits for a held frame and never skips | client: `view.js` `play`, the controller | no — the cine fix (#251) redone on the core's controller ([`frame-path.md`](frame-path.md) §The core, assembled, *Waiting on the owner* 6) |
-| 6 | the measurement of §5, then the phone row | lab only: the budget lever, the jump and cine traces in `lab/viewer/trace.js`, a summary like `lab/viewer/wait-ahead-summary.mjs` | no |
+| 6 | the measurement of §5, then the phone row | lab only: the budget lever, the jump and cine traces in `lab/viewer/trace.js`, a summary like `lab/viewer/wait-ahead-summary.mjs` (at `05eab56b`) | no |
 | 7 | the arbiter across sessions, (b) of §3 | client: above the downloader | **yes**, and only once the viewer has viewports |
 | 8 | the wait behind a fill: `--send-window-follows-cwnd` or row 249 | server | **yes**; already pre-registered ([`../WIRE.md`](../WIRE.md) §Proposed: one queue) |
 

@@ -22,7 +22,7 @@ distinction the demo exists to show.
 * **Rename:** `requestExactFrame` → `requestFrame`, the wire's name for it.
 * **Every place:** 133 occurrences in 48 files. Product: `client/transport/consumer.js`, `downloader.js`,
   `ts/frame-session.ts`, `wasm/src/lib.rs` (its `js_name`), `client/view/controller.js:158,193`,
-  `client/view/check.js` (4). Contract: `client/contract/dispatch-rig.ts` (28), `clauses.ts` (26), `downloader-rig.ts`,
+  `client/view/check.js` (at `f866da46`) (4). Contract: `client/contract/dispatch-rig.ts` (28), `clauses.ts` (26), `downloader-rig.ts`,
   `race.ts`, `ask-during-fill.html`, `refusals.html`. Tests: `transport/downloader.test.mjs` (6), `ts/test/run.ts` (5),
   `view/controller.test.mjs` (3). Docs: `WIRE.md:187`, `CLIENTS.md:27,539`, `ARCHITECTURE.md:468,1324,1326`,
   `adr/frame-path.md` (2), `adr/telemetry-instrument-clients-from-outside.md`, `av1/README.md`, `av1/adr-unit.md` (3),
@@ -48,7 +48,7 @@ README §Demo (`README.md:313`) says "a lossy frame has no digest to check".
   → `digest matched / NOT EXACT / no digest`, the glossary's *frame digest* words. Whether the mark shows at all under
   the label is a behaviour change, the owner's.
 * **Every place:** `client/viewer/viewer.js:62,83,84,144`, `index.html:31` (the `.unchecked` class),
-  `client/viewer/check.mjs:204,220` (reads the text), `client/view/check.js:81`, `README.md:313,320`,
+  `client/viewer/check.mjs:204,220` (reads the text), `client/view/check.js:81` (at `f866da46`), `README.md:313,320`,
   `client/README.md:103,252,257,410,436`.
 
 ## 3. `showLossy` beside the label *Optimal quality* (the evening brief's R1)
@@ -92,7 +92,7 @@ glossary's *decoder* is the worker that decodes. No glossary row.
   `seen.paths` → `seen.routes`, the status line's `decoders:` → `routes:`; a glossary row *route*: `av1-webcodecs`,
   `av1-dav1d`, `htj2k` (and the lab's `av1-mixed`).
 * **Every place:** `client/decode/decoder.js:20,48–53,93,108`, `av1.js:57–82`, `htj2k.js:75`;
-  `client/view/controller.js:10,84,260`, `client/view/check.js:81,138`; `client/viewer/viewer.js:132,139,145`;
+  `client/view/controller.js:10,84,260`, `client/view/check.js:81,138` (at `f866da46`); `client/viewer/viewer.js:132,139,145`;
   tests `client/view/controller.test.mjs:257,272,280,431,435,468,518`, `cache.test.mjs:67`;
   `client/contract/dispatch-rig.ts:1129`; `client/README.md:105,253`; lab 2 (`lab/av1/delivery/total-time/page.js:76`,
   `lab/faultbench/index.html:28`). Smallest step: the status line's word and the glossary row alone (2 places).
