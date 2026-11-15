@@ -23,6 +23,12 @@ pub struct LabLevers {
     /// Lab only: row 259's arm T1, one `WILLNEED` per tile name past the slots. docs/adr/disk-access.md §9
     #[arg(long, default_value_t = false)]
     pub advise_tile_names: bool,
+    /// Lab only: an ask during a fill is served next and the fill resumes behind it. docs/WIRE.md §Proposed: an ask during a fill
+    #[arg(long, default_value_t = false)]
+    pub fill_resumes_after_asks: bool,
+    /// Lab only: under `shared`, asks go on a second uni of this priority, the fill's being 0. docs/WIRE.md §Proposed: an ask during a fill
+    #[arg(long, value_name = "PRIORITY", allow_negative_numbers = true)]
+    pub ask_stream_priority: Option<i32>,
 }
 
 impl Default for LabLevers {
@@ -33,6 +39,8 @@ impl Default for LabLevers {
             stall_after_bytes: None,
             segmentation_offload: true,
             advise_tile_names: false,
+            fill_resumes_after_asks: false,
+            ask_stream_priority: None,
         }
     }
 }
@@ -60,6 +68,12 @@ pub(super) fn apply(mut config: ServeConfig) -> ServeConfig {
     }
     if lab.advise_tile_names {
         warn!("--advise-tile-names: tile names past the slots are advised; this is a lab flag, not a deployment one");
+    }
+    if lab.fill_resumes_after_asks {
+        warn!("--fill-resumes-after-asks: an ask no longer ends a fill; a lab flag, not a deployment one");
+    }
+    if let Some(priority) = lab.ask_stream_priority {
+        warn!(priority, "--ask-stream-priority: asks on a stream of their own; a lab flag, not a deployment one");
     }
     config.tuning.segmentation_offload = lab.segmentation_offload;
     config
