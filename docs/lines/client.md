@@ -49,7 +49,9 @@ exact frame bit for bit, and only checked claims on screen.
   §7), recording the decoder route and per-frame arrivals and varying the decoder count; it decides which view is the
   target and what bounds a fill.
 * **The delivery comparison**: recorded in [`../client/design.md`](../client/design.md) §Open with its theory; its
-  protocol is not written.
+  protocol is not written. The link profiles and each arm's regime, theory only, 2026-11-14:
+  [`../transport/link-profiles.md`](../transport/link-profiles.md) — the view decode-bound above ~83 Mbit/s, HTJ2K
+  wire-bound below ~470–660 if its unmeasured phone decode keeps the cloud's ratio; that decode is the first phone cell.
 * dav1d fetched only where WebCodecs refuses (a protocol with an A/A arm, not started); a wake before `l` asks (its
   phone row); the WebGL painter on a real GPU (the owner's machine); Firefox and WebKit.
 * Each of the view worker's open questions ([`../client/design.md`](../client/design.md) §Open) has its deciding run

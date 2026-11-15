@@ -108,7 +108,8 @@ their margin where decode binds. *Decides:* per load, wire time, decode floor, r
 bytes; phone CPU per process; server egress and CPU; rendering fixed, arms interleaved; the calibrated home Wi-Fi
 ([`evidence/which-links-a-phone-meets.md`](evidence/which-links-a-phone-meets.md)), then a sweep toward cellular and congested Wi-Fi with random loss, each profile labelled
 measured or assumed, then the phone where an arm's regime changes; one table per link profile, in the repository.
-*So far:* none run; the protocol is not written.
+*So far:* none run; the protocol is not written. The profiles and each arm's regime on them, from sources:
+[`../transport/link-profiles.md`](../transport/link-profiles.md) (2026-11-14).
 
 **Where the cache keeps frames.** OPFS (sync handles in a dedicated worker, or `createWritable`), IndexedDB, Cache
 Storage, Storage Buckets, memory only; decoded samples (~17 MB a `dbts_b1` frame, no decode on reopen) or coded bytes
