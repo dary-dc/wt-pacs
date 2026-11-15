@@ -24,7 +24,7 @@ page (`developer.android.com/privacy-and-security/direct-boot`). The codec and c
 | 4 | the hardware-decode probe (`lab/devices/`, `claude/hw-probe`) | none | no, exploratory | nothing; it records what the phone's decoders take |
 | 5 | the cache: P2 the sustained write, then P1 the cold read | none | yes, if built | the cold read + XXH3 against ~45 ms a frame |
 
-One press starts cells 1–5 in that order (§3). Expected wall-clock about 2 h 10 min of loads (§6). The fixtures and
+One press starts cells 1–5 in that order (§3). Expected wall-clock about 2 h 20 min (§6). The fixtures and
 their limits are §9; the asks of the phone session's tooling, without which a cell waits, are §10.
 
 ## 1 · The commit
@@ -118,8 +118,9 @@ Each with its arms, what it records, its prediction (written before any data) an
 * **Arms:** {HTJ2K by OpenJPH-WASM, the view by WebCodecs} × decoders {1, 2, 3, 4}; the same 50 frames, coded bytes
   held in memory before timing (no wire). Each frame timed in its decoder worker from the chunk handed to the decoder
   to the decoded samples ready (the time the product's decoder worker logs), and the effective time a frame
-  (the 50 frames' span ÷ 50). Three repetitions each, the eight arms in a Williams order per repetition; the
-  1- and 3-decoder arms run again at the round's end (the drift check). `navigator.hardwareConcurrency` recorded.
+  (the 50 frames' span ÷ 50). Three repetitions each, the eight arms in a Williams order per repetition; three rows
+  of an 8 × 8 Williams square do not balance carry-over (the full square is 8 rows, 40 loads and ~10 min more), so
+  the cell says so beside its numbers. The 1- and 3-decoder arms run again at the round's end (the drift check). `navigator.hardwareConcurrency` recorded.
 * **The route taken:** after each arm, the laptop reads `logcat` for the codec component Android allocated (Codec2 or
   MediaCodec component names, e.g. a `c2.android.av1…` software component against a vendor's): *expected, not
   sourced*. One untimed check before cell 1 (one view decode, then `logcat`) says whether logcat names a component at
@@ -150,14 +151,18 @@ Each with its arms, what it records, its prediction (written before any data) an
   CPU per Chrome process (§2), server egress and CPU. C1: exact-frame latency (§Names). C2: the second fill's span.
 * **Predictions** (*derived*, `link-profiles.md` §2, the measured home Wi-Fi ≥ 600 Mbit/s, ~2 ms):
   A decode-bound, fill ≈ 2.25 s + rest 0.22–0.35 s (*measured* 2.4–3.3 s on 11-11); B's wire 1.43 s against a decode
-  of 50 × cell 1's HTJ2K effective time: B faster than A if that time is under ~45 ms; C1 = A's fill, then the ask in
-  ~0.04 s plus one HTJ2K decode; C2's fill ≥ A's + B's wire. `dbts_a1-q8-g8-cut`: the same order (length moves bytes,
-  not the regime; §3 there).
-* **Rule.** Per series, B against A and C2 against A + B by the ratio within each round: *faster* when the sign test
-  passes (two-sided p < 0.05; with 8 rounds all 8 below 1) and the median ratio ≤ 0.95; otherwise *no difference
-  shown*. Every load's regime (wire or decode bound: which of wire and floor is larger) is reported against its
-  prediction. Eight rounds per series is the cell's minimum; the margin is the second series, which is pooled only if
-  its ratios fall on the same side.
+  of 50 × cell 1's HTJ2K effective time, 26–36 ms by cell 1's theory, so 1.3–1.8 s: **B against A, *B faster***
+  (under ~45 ms a frame B is faster; past it the prediction fails, and is reported so). C2's second fill starts at
+  the first's end and shares nothing with it, so C2 ≈ A + B: **C2 against A + B, *no difference shown***. C1 = A's
+  fill, then the ask in ~0.04 s plus one HTJ2K decode: recorded, deciding nothing (no rule). `dbts_a1-q8-g8-cut`: the
+  same order (length moves bytes, not the regime; §3 there).
+* **Rule, pooled always** (pre-registered here): B against A and C2 against A + B by the ratio within each round
+  and series, the two series' 16 ratios pooled: *faster* when the sign test passes (two-sided p < 0.05: at least 13
+  of 16 below 1) and the median ratio ≤ 0.95; *slower* the mirror; otherwise *no difference shown*. The margin is 3
+  rounds on the wrong side (per series alone, 8 rounds would need all 8). Each series' own count is reported beside
+  it, deciding nothing. Every load's regime (wire or decode bound: which of wire and floor is larger) is reported
+  against its prediction. The 64 loads use ~29 of the cell's 35 min; no rounds are added (a ninth breaks the
+  Williams rows of four).
 
 ### Cell 3 · The view comparison (amendments 6, 7, 12)
 
@@ -198,9 +203,16 @@ be worse by the rule below). Memory and hops are recorded, deciding nothing.
   below 1 **and** the median ratio ≤ 0.95; *page faster* the mirror; otherwise *no difference shown*. Thresholds by
   pairs left: 16 → 13, 17 → 13, 18 → 14, 19 → 15, 20 → 15, 21 → 16, 22 → 17, 23 → 17, 24 → 18; under 16 pairs the
   measure is *not decided*. **Planned 24 pairs (48 loads), a margin of 8 over the minimum 16** (amendment 7). The
-  guards: the worker is *worse* if the page-faster rule passes on the fill or the first picture.
+  guards, two forms written now; **which one binds is the owner's, chosen before the round starts**:
+  * **(a) a bound on the first picture.** The worker is *worse* if the page-faster rule passes on the fill, or if it
+    passes on the first picture **and** the median paired difference (worker − page) is over **52 ms**. *Derived*:
+    the view worker's module graph takes 40–52 ms from creation to evaluation in Chromium in the cloud
+    (`claude/docs-client:docs/client/evidence/view-worker-start.md`, B′+fix, where it runs beside the dial), so 52 ms
+    is the worker's whole boot were none of it hidden; a cloud number carried to a phone, *assumption*.
+  * **(b) the first picture alone.** The worker is *worse* if the page-faster rule passes on the fill or the first
+    picture, as first written. By the prediction below this rejects the worker before frame-change latency is read.
 * **Prediction for the rule:** frame-change busy and cine busy: *worker faster*; idle and the fill: *no difference
-  shown*; first picture: *page faster*.
+  shown*; first picture: *page faster*, by under 52 ms (so form (a) does not reject the worker; form (b) does).
 
 ### Cell 4 · The hardware-decode probe (exploratory, deciding nothing)
 
@@ -291,7 +303,9 @@ need units the probe does not carry yet (§10's asks are the phone session's), a
 | 4 | 1 | ~10 min | none |
 | 5 | 3 + P1 | ~30 s | 5 min |
 
-Gaps of 15 s between loads add ~30 min: about 2 h 10 min in all. A budget stops only loads not started (§3).
+Loads' own time sums to ~104 min (cell 1 ~7, cell 2 ~29, cell 3 ~56, cell 4 ~10, cell 5 ~2); gaps of 15 s
+between ~150 starts (the four warm-ups included) add ~37 min, the warm-ups' own time ~2 min: about 2 h 20 min in all.
+A budget stops only loads not started (§3).
 
 ## 7 · What each cell can and cannot decide
 
