@@ -50,7 +50,9 @@ const fromViewNext = (kind) => new Promise((resolve) => {
   fromView.port2.start();
 });
 const until = async (cond, ms) => { for (const t0 = performance.now(); !(await cond()) && performance.now() - t0 < ms; ) await sleep(20); };
-const feederStats = () => Promise.all(feeders.map((f) => new Promise((resolve) => ((f.onmessage = ({ data }) => resolve(data)), f.postMessage({ kind: "stats" })))));
+/** A feeder stalled on a ring that never frees cannot answer: its stats are then null. */
+const feederStats = () => Promise.all(feeders.map((f) => Promise.race([sleep(2000).then(() => null),
+  new Promise((resolve) => ((f.onmessage = ({ data }) => resolve(data)), f.postMessage({ kind: "stats" })))])));
 globalThis.progress = () => store("progress");
 
 /** A 50 ms long task every 100 ms on this thread (cell B), until stopped. */
@@ -107,19 +109,18 @@ async function fill() {
   }
   await until(handled, c.timeoutS * 1000);
   const stats = await feederStats();
-  const lastPost = Math.max(...stats.map((s) => s.lastAt ?? 0));
-  await sleep(Math.max(0, lastPost + 5000 - now()));
+  const lastPost = Math.max(0, ...stats.map((s) => s?.lastAt ?? 0));
+  await sleep(Math.max(0, Math.min(lastPost + 5000 - now(), 5000)));
   const at5s = await store("progress");
   stopTasks();
   const viewSummary = fromViewNext("summary");
   view.postMessage({ kind: "stop" });
   const shown = await viewSummary;
+  const fillEnd = shown.fillPosts === c.n - c.held ? shown.lastPost : now();
   const idleMisses = c.misses === "idle" ? await misses(c.missCount, (k) => c.held + spread(k, c.n - c.held)) : [];
   const r = await store("result");
-  const delivered = stats.reduce((s, x) => s + x.posted, 0);
-  const firstPost = Math.min(...stats.filter((s) => s.firstAt).map((s) => s.firstAt));
   const row = { opened, floor, shown, misses: c.misses === "busy" ? busyMisses : idleMisses, store: writes(r),
-    deliveredMBps: (delivered * c.frameBytes) / 1e3 / Math.max(1, lastPost - firstPost), stallMs: stats.map((s) => s.stallMs),
+    deliveredMBps: (shown.fillPosts * c.frameBytes) / 1e3 / Math.max(1, fillEnd - shown.firstPost), stallMs: stats.map((s) => s?.stallMs ?? null),
     unwrittenAt5s: c.n - at5s.handled, list: await store("list"), verify: opened.cache ? await store("verify") : null,
     ballast: ballastDone ? await ballastDone : null };
   if (!c.hold) await store("close");

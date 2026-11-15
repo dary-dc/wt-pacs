@@ -87,9 +87,11 @@ function summary() {
   const period = c.periodMs;
   const missed = gaps.reduce((s, g) => s + Math.max(0, Math.round(g / period) - 1), 0);
   const delays = ticks.map((t) => t.start - t.ts);
+  const fill = arrived.filter((a) => a.i >= c.held).sort((x, y) => x.postedAt - y.postedAt);
   return { periodMs: period, ticks: ticks.length, missedTicks: missed, missedShare: missed / Math.max(1, ticks.length + missed),
     paintDelayP50: median(delays), paintDelayP99: quantile(delays, 0.99), paintMsP50: median(ticks.map((t) => t.end - t.start)),
-    arrived: arrived.length, arrivalLagP99: quantile(arrived.map((a) => a.arrivedAt - a.postedAt), 0.99) };
+    arrived: arrived.length, arrivalLagP99: quantile(arrived.map((a) => a.arrivedAt - a.postedAt), 0.99),
+    fillPosts: fill.length, firstPost: fill[0]?.postedAt ?? null, lastPost: fill.at(-1)?.postedAt ?? null };
 }
 
 let page = null;

@@ -22,7 +22,10 @@ exact frame bit for bit, and only checked claims on screen.
 * **The cache survey**, theory only, 2026-11-14
   ([`../client/evidence/cache-options.md`](../client/evidence/cache-options.md)): leaning OPFS as built; owed, a
   phone's cold read and check and sustained write of a 17 MB frame (its §5). The plan to choose the store empirically,
-  by the method now in `CLAUDE.md` §Measurement: #385.
+  by the method now in `CLAUDE.md` §Measurement: #385. Its rig, 2026-11-15 (`lab/cache-arms/`, `claude/cache-arms`):
+  the ring, the seam and the rules above it, the floor probe and the eleven cells, with `none` and a stand-in arm only,
+  smoked on Chromium 153; O's fresh fill not built, and Chromium's quota override not shown by `estimate()` (its
+  README). Next, the four arms' builds.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
