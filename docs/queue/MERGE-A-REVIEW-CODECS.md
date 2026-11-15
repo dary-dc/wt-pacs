@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-15T18:41Z
-heartbeat: 2026-11-15T18:46Z
+heartbeat: 2026-11-15T18:47Z
 outputs: findings in PR 398's body (in progress)
 ## Resume
 Done: frozen list 34/34 tips match; (b) remerge.sh: every merge's tree equals git merge-tree's outside its
@@ -14,4 +14,7 @@ Now (c): docs/queue/MERGE-A-REVIEW-CODECS/run.sh (MERGE-BASELINE's tip.sh on a w
 CARGO_TARGET_DIR; prereqs: apt nginx mesa-vulkan-drivers xdotool libxkbcommon-x11-0, pip meson==1.9.1 then
 ingest/requirements.txt separately, rustup wasm32, cargo install wasm-pack 0.15.0). Then compare to the baseline's
 unified-codecs table and MERGE-A-CODECS's; write findings into PR 398's body.
+Static measures (static.md) equal PR 398's table but docs 41 949 (PR says 41 945, its 97d7c410 run; a47b72bc adds 4).
+Fix commits 3d116d83, 97d7c410, a47b72bc read: each does what it says only. Gate started 18:46Z (/home/user/rev/out).
+Finding so far: PR 398's body ends with a Generated-by line and session link (standing rules forbid it): drop on edit.
 ## Result
