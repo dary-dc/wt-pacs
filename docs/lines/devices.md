@@ -1,6 +1,6 @@
 # Devices: runs on real phones and machines
 
-Last verified 2026-11-14 (HW10-ROUTES added) against `claude/work-ledger` (the queue files and status files named below),
+Last verified 2026-11-15 (HW10-ROUTES reviewed) against `claude/work-ledger` (the queue files and status files named below),
 `claude/phone-rows` `4e492c92` and `claude/docs-client`. The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md)
 §The product. The plan and every reading of a device run: [`../devices.md`](../devices.md). The device kit:
 `lab/devices/` (its README).
@@ -45,7 +45,7 @@ device work); status files `claude/work-ledger:docs/queue/<ROW>.md`.
   hand (the default until a word).
 * **10-bit hardware routes** (HW10-ROUTES, 2026-11-14, theory; [`../decode/hardware-10bit.md`](../decode/hardware-10bit.md),
   PR on `claude/hw10-routes`): no browser route serves a checked 10-bit hardware frame, behind a flag or not; native
-  MediaCodec to `P010` ranks first for the phone. Owed: its review (HW10-ROUTES-REVIEW), the probe cells it asks of
+  MediaCodec to `P010` ranks first for the phone. Reviewed 2026-11-15 (PR 392's body: 16 sources hold; on Ozone WebGL2's 8 bits is unproven, still converted and closed; ranking holds). Owed: the probe cells it asks of
   `lab/devices/README.md`, and the owner's word on whether a native client is the 10-bit hardware route.
 * **The 11-11 run's reading**: the six-octet reading is of record (the owner, 2026-11-14); whether the two failures
   under `bbr` withdraw it.
