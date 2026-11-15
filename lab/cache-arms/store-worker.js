@@ -106,7 +106,7 @@ async function floor(count) {
   ring.release(a);
   ring.release(b);
   const median = (v) => [...v].sort((x, y) => x - y)[Math.floor(v.length / 2)];
-  return { writeMs: median(f.writeMs), readMs: median(f.readMs), count };
+  return { ...Object.fromEntries(Object.entries(f).map(([k, v]) => [k, median(v)])), count };
 }
 
 const commands = {
