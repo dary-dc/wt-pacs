@@ -6,18 +6,18 @@ comment budget ok
    (0 s)
 
 == repo: every doc link, anchor, backticked path and cited archive tag resolves, the docs/ pages' links included
-checked 418 files, 4174 links, 4467 backticked paths (157 named beside their commit or removal); 0 unresolved
+checked 418 files, 4174 links, 4467 backticked paths (156 named beside their commit or removal); 0 unresolved
    (2 s)
 OK
    (0 s)
 
 == repo: no personal path in a tracked file
 no personal path
-   (0 s)
+   (1 s)
 
 == quinn: the GSO patch of the default build still applies to crates.io quinn
 quinn 0.11.11: mtu-gso applies
-   (1 s)
+   (0 s)
 
 == lab: each closed arm's patch still applies to server/
 arms apply

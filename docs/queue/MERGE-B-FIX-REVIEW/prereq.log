@@ -378,3 +378,7 @@ found 0 vulnerabilities
 ⚡ Done in 5ms
 wrote dist/session.js dist/ws-session.js dist/race-session.js ../../contract/run.mjs ../../contract/dist/{fake-session,downloader-rig,dispatch-rig}.js test/run.mjs
 prereq exit 0
+
+[notice] A new release of pip is available: 26.2.2 -> 26.3
+[notice] To update, run: /home/user/unified/.venv/bin/python3.13 -m pip install --upgrade pip
+venv exit 0
