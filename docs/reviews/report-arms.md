@@ -136,3 +136,45 @@ and C are not built).
 * SESSION's Y and H smokes.
 * Cell R (no load generator exists).
 * The docker image build (simulated only).
+
+## Fixes (REPORT-BUILD-FIX, 2026-11-16)
+
+Made by a session that wrote none of the builds or this review. No arm's design was changed.
+
+| # | commit | test (in the gate) | mutants killed |
+| --- | --- | --- | --- |
+| B1 | `261f004b` | `run.test.mjs`: the close comes ≥ the wait after the ending; an ending that throws is recorded and the browser still closed | the close before the wait (the old order); no close after a throw |
+| B2 | `261f004b` | `run.test.mjs`: a banner without `telemetry=compile-time` is refused; binaries from `$CARGO_TARGET_DIR` | no telemetry check |
+| B3 | `261f004b` | `run.test.mjs`: 18 rounds of 9 units, each round every unit once, predecessors the unit before, a whole period balanced, one order repeated not; `off'` its own unit loading as `off` | one order every round; no predecessor; `off'` not loaded as `off`; balance always true; rounds cut |
+| B4 | `8f61d5a6` | `session_report.rs`: `Receiver::file` sends the byte only for a written line, resets a failed write or a refusal, the 512 cap, the 16 KiB bound, the *ack before write* lever (`WTPACS_SESSION_REPORT_MUTANT`) | 7/7, the two `:159` survivors among them |
+| B5 | `4ca48c26` | `deploy/workspace_test.sh`: the workspace stage copies every member | dropping `COPY common` |
+
+Each test failed on the code before its fix: `run.test.mjs` and the `file` tests could not run (there was no seam),
+and `workspace_test.sh` failed on `lab/report-arms/receiver` alone. B2 was checked live as well: after
+`check_lab_absent.sh` rebuilt the default server, `run.mjs` refused to start and named the build to make. With the fix,
+the image's workspace stage loads in `cargo metadata --no-deps --offline`, simulated over the stage's `COPY` list.
+Without the fix it fails on the receiver's manifest.
+
+**Minors fixed**: 2 (`safety-sampled` passes `fromWorker` on; `7f56bc62`, a failing check first); 7 in part (the
+session receiver's caps); 9 (`--sink-mutant` refused under `--receiver nginx`; every row names its `sinkMutant`); 14 (`lab/.report-work` ignored; "seven lab
+crates"). **Left** for a later row: 1, 3, 4, 5, 6, 8, 10, 11, 12, 13, and in 14 the profiles in the temp dir, the
+unchecked ports, and RECEIVER's `Content-Length` on a 204 (its HTTP head has no test to fail first).
+
+**Smoke** (not results): BEACON-H, one load per ending, `--wait 30`, on headless Chromium 153 only. The host was a
+4-vCPU cloud container with no GPU, on loopback with no relay. The series was the contract's grey-16 frame ×32, not
+`dbts_c1`. D6 was not run. Rows are in `claude/work-ledger:docs/queue/REPORT-BUILD-FIX-smoke.jsonl`.
+
+| ending | D1 | D2 | D3 | D4 | D5a | D5b | D7 | D8 | D9 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| fill record | yes | yes | yes | yes | no | no | yes | no | yes |
+| safety | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 |
+| link line | yes | yes | yes | yes | yes | yes | yes | no | yes |
+
+D1 and D2 had lost H's record before the fix, and now deliver it. In D5, H sends at a hide that a visible kill never
+gives (§7.3 predicts ✗). D8 opens no session. Every row has its link line where a session opened, D5 included.
+
+**Gate**: `scripts/gate.sh --quick` OK in 446 s at `7f56bc62`. wasm-pack 0.15.0 was installed, the WASM client
+built, and the OpenJPH and XXH3 vendors fetched. The two pre-existing unresolved paths in `docs/lines/devices.md`
+(:57, :60) were set aside locally for the run, not changed. `check_lab_absent.sh` was run by hand and passed. Skipped
+by name: the decoders' rebuild and the absence checks (`--quick`), ingest/tools.sh, numpy/pydicom, lavapipe/Xvfb,
+nginx (so NGINX's test and the web host's check), Firefox.
