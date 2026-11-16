@@ -70,6 +70,22 @@ check(pageQuery({ arm: "opfs-sync" }, "view-copy", "").mutant === "view-copy" &&
   check(!four({ deliveredMBps: 0.9 * 124 }, 0).stub.pass, "L: a delivered rate under 0.95 × none's fails");
 }
 
+/** An arm round that errored is a counted round with no bar met, so an arm that errors in 3 rounds of 4 fails; a round
+ *  whose `none` errored judges no arm and is named (re-review, N1). */
+{
+  const row = (round, unit, extra = {}) => ({ cell: "L", round, unit, shown: { missedShare: 0.02, paintDelayP99: 8 },
+    deliveredMBps: 124, unwrittenAt5s: 0, pssGrowthMiB: 100, verify: { ok: 50, notOk: 0 }, ...extra });
+  const failed = (round, unit) => ({ cell: "L", round, unit, error: "timed out" });
+  const bars = (errored) => lBars([0, 1, 2, 3].flatMap((r) => [row(r, "none"), errored.includes(r) ? failed(r, "stub") : row(r, "stub")]),
+    { frameBytes: 1, pilot: "" }).stub;
+  const three = bars([0, 1, 2]);
+  check(!three.pass && three.rounds === 4 && three.share.exact === 0.25, `L: an arm errored in 3 rounds of 4 fails (${JSON.stringify(three)})`);
+  const one = bars([0]);
+  check(!one.pass && one.share.delivered === 0.75 && one.share.exact === 0.75, "L: an errored round is never exact, so one of 4 fails the arm");
+  const noRef = lBars([0, 1, 2, 3].flatMap((r) => [r === 1 ? failed(r, "none") : row(r, "none"), row(r, "stub")]), { frameBytes: 1, pilot: "" }).stub;
+  check(noRef.pass && noRef.rounds === 3 && noRef.unjudged?.join() === "1", `L: a round whose none errored judges no arm and is named (${JSON.stringify(noRef)})`);
+}
+
 /** The PSS window opens once the page's floor probe is done: the floor's memory counts in no arm's growth (review,
  *  harness B7). */
 {
