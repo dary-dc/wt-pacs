@@ -1053,5 +1053,5 @@ the host's all-core busy share every 5 s). Run as §7.8 amends; each ending is f
 | *no `reportId`* | the read tool reports KEEPALIVE's duplicates | every record of the 7 arms read as `unkeyed` (1–3 a load); **no duplicate in KEEPALIVE's D1 loads to find**: the worker's copy was acknowledged, so the page sent none | partly: flagged, but D1 makes no second copy to dedup |
 | *ack before write* | appended < acknowledged | RECEIVER 0 appended of 11 acknowledged (5 HTTP units); the server 0 of 3, 5, 6 (`WTPACS_SESSION_REPORT_MUTANT`) | yes |
 
-No mutant left a cell VOID. Seen beside them, not a result: SESSION-H's D1 hide record missed in 4 of its 5
-unmutated-carrier loads (*field outside*, *no `reportId`*, *safety sampled* rows), as §7.3 predicts ("at risk").
+No mutant left a cell VOID. Seen beside them, not a result: SESSION-H's D1 hide record missed in all 3
+loads whose carrier was not mutated (*field outside*, *no `reportId`*, *safety sampled* rows), as §7.3 predicts ("at risk").
