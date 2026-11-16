@@ -1,11 +1,17 @@
-state: started
+state: done
 started: 2026-11-16T04:17Z
-heartbeat: 2026-11-16T04:31Z
-outputs: claude/report-arms (lab/report-arms/nginx/, lab/report-arms/receiver/); draft PR 395
+heartbeat: 2026-11-16T04:57Z
+outputs: claude/report-arms 59dfd328, 8d0e00d4, f379bd60, 93399c59, 50a7e184 (lab/report-arms/receiver/, lab/report-arms/nginx/, run.mjs --receiver, README, scripts/gate.sh, Cargo.toml, docs/lines/client.md); draft PR 395 body §The receivers; smoke rows docs/queue/REPORT-BUILD-RECEIVERS-smoke.jsonl
 ## Resume
-Done: RECEIVER on claude/report-arms 59dfd328 (lab/report-arms/receiver/, a workspace crate report-receiver; 13 tests, 25/25 mutants killed; in the gate's cargo line). nginx 1.31.8 built locally from nginx.org's tarball (sha256 0652b760b3b7…) into the scratchpad: `./configure --prefix=<dir> --without-http_gzip_module --with-http_v2_module && make && make install`.
-Done: NGINX and nginx-in-front-of-RECEIVER on claude/report-arms 8d0e00d4 (lab/report-arms/nginx/nginx.mjs, nginx.test.mjs: 18/18 mutants killed; gate step where nginx >= 1.31.5, NGINX_BIN=...). Found: `return 204` answers before limit_req (rewrite phase), so the advocate's rate limit never ran; try_files /.none =204 instead.
-Done: run.mjs --receiver (f379bd60), README §NGINX and RECEIVER (93399c59).
-Done: host setup (rustup wasm32 target, cargo install wasm-pack 0.15.0, client/transport/wasm/build.sh, the two vendor fetches, cargo build --release -p series-server --features telemetry -p pack-series -p report-receiver).
-Now (04:31, ~30 min): smoke running, rows appended to docs/queue/REPORT-BUILD-RECEIVERS-smoke.jsonl: per receiver (nginx, receiver) BEACON-Y × D1–D5b, D7–D9, KEEPALIVE-Y × D1, BEACON-Y × D1 --mutant field-outside; then receiver --sink-mutant ack-before-write. If stalled: rerun the missing rows, e.g. `NGINX_BIN=<nginx> node lab/report-arms/run.mjs --arms beacon --timing Y --endings D1,D2,D3,D4,D5a,D5b,D7,D8,D9 --wait 30 --receiver nginx` then `--receiver receiver`, plus mutant ack-before-write and field-outside on receiver; rows to docs/queue/REPORT-BUILD-RECEIVERS-smoke.jsonl; then gate --quick; line doc; PR 395 body section.
+Done. The brief and the Amendments did not change while this row ran (amendment 21). Nothing owed by this row. Claimed at 04:17, about 17 minutes after claude/report-arms last moved (04:00, REPORT-BUILD-SESSION, already done), not the 20 the procedure asks.
 ## Result
+Built NGINX and RECEIVER (report-plan.md §3.5 as advocated) as lab arms; run.mjs --receiver puts either in front of the page (nginx proxies the pages to the sink).
+- NGINX: nginx 1.31.8 early read, one escape=json line a record in <kind>-<UTC day>.jsonl, 16 KiB, POST only, load reports rate-limited; counters read from its files.
+- RECEIVER: Rust crate report-receiver behind nginx (field drop + warning, UID scrub, 512-byte strings, day cap for load reports, safety synced and raised, 500 on a failed write); nginx's line as fallback on non-2xx.
+- Found: the advocate's `return 204` answers before limit_req runs, so the rate limit never applied; built with `try_files /.none =204` (tested both ways).
+- Departures (README): load-<day> not reports-<day>; whole-run UID match; one Mutex as the writer; the fallback also keeps RECEIVER's 400/404 bodies; TZ=UTC; out dir world-writable for nginx's worker.
+- Tests written beside the code, then mutated: nginx 18/18, RECEIVER 25/25; both in the gate (nginx's where nginx >= 1.31.5).
+- Smoke BEACON-Y D1–D5b, D7–D9 and KEEPALIVE-Y D1 per receiver: identical rows on both, the same as the sink's; field-outside and ack-before-write caught.
+- Gate --quick OK (devices.md's two paths set aside locally); check_lab_absent passed.
+- Not built: the 1.29 hop form; cell R's load generator.
+Fixtures: 4-vCPU cloud host, no GPU; headless Chromium 153 only; grey-16 ×32, not dbts_c1; loopback, no relay; --wait 30, not 60; nginx built locally, not the image's.
