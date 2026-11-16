@@ -50,6 +50,21 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | HW10-ROUTES | 11-14 21:00 | — | `claude/hw10-routes` from `origin/claude/docs-client` → draft PR into `claude/docs-client` |
 | HW10-ROUTES-REVIEW | 11-14 21:00 | HW10-ROUTES done | `claude/hw10-routes` (findings in its PR body; a session that wrote none of it) |
 | NATIVE-NOTES | 11-14 21:00 | — | `claude/native-notes` from `origin/claude/docs-client` → draft PR into `claude/docs-client` (docs only) |
+| CACHE-FIX-2 | 11-16 12:00 | — | `claude/cache-arms`: CACHE-FIX-REVIEW's blocker N1 (an errored arm round fails every bar), its test; then CACHE-RUN |
+| CACHE-FIX-2-REVIEW | 11-16 12:00 | CACHE-FIX-2 done | findings; CACHE-RUN waits on it |
+| RUNNER-FIX-2 | 11-16 12:00 | — | `claude/phone-round` (PR 400): RUNNER-AUTO-FIX-REVIEW's blocker 2 (readyS bounds wait_line), its test |
+| RUNNER-FIX-2-REVIEW | 11-16 12:00 | RUNNER-FIX-2 done | findings; PHONE-LEVERS waits on it |
+| FIX-378-DIAL | 11-16 12:00 | — | PR 378's branch: an ask whose own re-dial fails counts as lost and is asked again once (the owner's yes), test first |
+| AV1-HW-CHIPS | 11-16 12:00 | — | `claude/mobile-decode` (`docs/decode/mobile/av1-chips.md`): per phone SoC family (one Opus session may cover all, sources quoted): AV1 hardware yes/no, max level, profiles, bit depths, 4:0:0, max frame size; how our frames map to levels (2560x3328 needs 5.0; Android's CDD asks 4.1); options if 4.1 is the ceiling (sub-pictures) |
+| AV1-HW-CHIPS-REVIEW | 11-16 12:00 | AV1-HW-CHIPS done | findings in its PR body |
+| HTJ2K-PREVIEW-MOBILE | 11-16 12:00 | — | `claude/mobile-decode` (`docs/decode/mobile/htj2k-preview.md`): an HTJ2K-only path for large matrices on phones with a reduced-resolution first picture from the same codestream (resolution levels), exact frame after; why low-res preview was set aside 2026-11-10 (find the record) and what is different here; theory, bytes and decode time from existing rows, phone cells as asks |
+| HTJ2K-PREVIEW-MOBILE-REVIEW | 11-16 12:00 | HTJ2K-PREVIEW-MOBILE done | findings |
+| DEPTH8-ROUNDING | 11-16 12:00 | — | the 8-bit rounding cloud cell MOBILE-DECODE-COMPARE left owed (`claude/depth8`) |
+| AUDIT-MECHANICAL | 11-16 12:00 | — | `claude/unified`: COMPLEXITY-AUDIT items 2 (the owner's first name out of public files; the owner's yes), 3 and 4, each its own commit; gate |
+| AUDIT-MECHANICAL-REVIEW | 11-16 12:00 | AUDIT-MECHANICAL done | findings in PR 402's body |
+| TRANSPORT-THEORY | 11-16 12:00 | — | `claude/transport-design`: HTJ2K over WebTransport, HTTP/3 fetch, HTTP/2 fetch, WebSocket, on LINK-TARGETS' profiles; theory and sources, a prediction per profile (`docs/transport/evidence/stacks.md`) |
+| TRANSPORT-PROTOCOL | 11-16 12:00 | TRANSPORT-THEORY done | a pre-registered protocol for the comparison, by a session that wrote none of the theory and will not run it |
+| BRIEF-WED | 11-16 12:00 | not before 11-18 08:00 | `claude/reviews-2026-11-18:docs/reviews-2026-11-18.md`, one page by 10:00 UTC: what each row since 11-14 produced, the owner's decisions owed (list below), links; nothing run |
 | PHONE-FIX-378 | 11-14 21:00 | — | `claude/lossless-under-loss` (PR 378's branch): the review's findings fixed |
 | PHONE-FIX-378-REVIEW | 11-14 21:00 | PHONE-FIX-378 done | findings in PR 378's body |
 | MOBILE-DECODE-OPTIONS | 11-14 21:00 | — | `claude/mobile-decode` from `origin/claude/docs-client` → draft PR into `claude/docs-client` (re-scoped by amendment 20: **new** options, Fable) |
@@ -856,6 +871,19 @@ moved behind the viewer's lab gate or into `lab/` (the absence check green). Gat
 
 A session that wrote none of 378 or its fix: each test fails without its change; no other path retries; the absence
 check green.
+
+23. **The owner's decisions of 2026-11-16** (before two days away; the hourly worker carries the rows above):
+    third fix rounds for the cache and the runner, yes; the owner's first name out of public files, yes; #378's scope
+    as amendment 22, and an ask whose re-dial fails is lost and asked once more, yes; **the second picture for more
+    than 8 bits, no** (the split's fragility and its small decode gain, decided before); **the content crop, doubtful**
+    (it can cut part of the breast off screen): no build, kept only as noted; **an HTJ2K-only path with a
+    reduced-resolution first picture for large matrices on phones is to be investigated** (HTJ2K-PREVIEW-MOBILE);
+    hardware painting first with the check following is acceptable, not ideal; the 220-level checked hardware view
+    may be explored further (the owner found the levels unclear: the brief must explain it in plain words: studio-range
+    8-bit, 16 to 235, against the series' own depth). BRIEF-WED lists what waits for the owner: the `claude/unified`
+    swap (M8) and closing the 237 carried and 7 superseded PRs (PR-TRIAGE); the study-DB schema (audit item 1); the
+    preparation rows for `main` (plan §8.4); the lab and docs trim (audit 7, 8); a transport session and a phone
+    session (the probe run, the protocol, once RUNNER-FIX-2 passes); M3, M5, M6 remainders.
 
 ## Procedure, rules
 
