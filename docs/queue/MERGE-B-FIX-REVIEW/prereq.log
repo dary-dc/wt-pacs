@@ -1,0 +1,380 @@
+info: downloading component 'rust-std' for 'wasm32-unknown-unknown'
+info: installing component 'rust-std' for 'wasm32-unknown-unknown'
+decoder in vendor/openjph
+total 372
+drwxr-xr-x 2 root root   4096 Nov 16 01:50 .
+drwxr-xr-x 4 root root   4096 Nov 16 01:50 ..
+-rw-r--r-- 1 root root   1068 Nov 16 01:50 LICENSE
+-rw-r--r-- 1 root root    269 Nov 16 01:50 SOURCE.txt
+-rw-r--r-- 1 root root  58074 Nov 16 01:50 openjphjs.js
+-rw-r--r-- 1 root root 299948 Nov 16 01:50 openjphjs.wasm
+hash-wasm 4.12.0's XXH3 in vendor/hash-wasm
+[INFO]: Checking for the Wasm target...
+[INFO]: Compiling to Wasm...
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.47
+   Compiling wasm-bindgen-shared v0.2.128
+   Compiling rustversion v1.0.23
+   Compiling memchr v2.8.3
+   Compiling futures-sink v0.3.34
+   Compiling bumpalo v3.20.3
+   Compiling futures-core v0.3.34
+   Compiling wasm-bindgen v0.2.128
+   Compiling syn v3.0.5
+   Compiling futures-channel v0.3.34
+   Compiling pin-project-lite v0.2.17
+   Compiling futures-io v0.3.34
+   Compiling futures-task v0.3.34
+   Compiling slab v0.4.12
+   Compiling cfg-if v1.0.4
+   Compiling once_cell v1.21.4
+   Compiling serde_core v1.0.229
+   Compiling zmij v1.0.23
+   Compiling serde_json v1.0.151
+   Compiling serde v1.0.229
+   Compiling anyhow v1.0.104
+   Compiling itoa v1.0.18
+   Compiling frame-envelope v0.1.0 (/home/user/unified/common/frame-envelope)
+   Compiling wasm-bindgen-macro-support v0.2.128
+   Compiling futures-macro v0.3.34
+   Compiling serde_derive v1.0.229
+   Compiling futures-util v0.3.34
+   Compiling fod v0.1.0 (/home/user/unified/common/fod)
+   Compiling wasm-bindgen-macro v0.2.128
+   Compiling futures-executor v0.3.34
+   Compiling futures v0.3.34
+   Compiling js-sys v0.3.105
+   Compiling console_error_panic_hook v0.1.7
+   Compiling web-sys v0.3.105
+   Compiling gloo-timers v0.3.0
+   Compiling wasm-bindgen-futures v0.4.78
+   Compiling transport-wasm v0.1.0 (/home/user/unified/client/transport/wasm)
+    Finished `release` profile [optimized] target(s) in 19.53s
+[INFO]: Installing wasm-bindgen...
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded wasm-bindgen-cli v0.2.128
+  Installing wasm-bindgen-cli v0.2.128
+    Updating crates.io index
+     Locking 202 packages to latest compatible versions
+      Adding js-sys v0.3.105 (available: v0.3.107)
+      Adding shlex v1.3.0 (available: v2.0.1)
+      Adding walrus v0.26.5 (available: v0.28.0)
+      Adding wasm-bindgen v0.2.128 (available: v0.2.130)
+      Adding wasm-bindgen-cli-support v0.2.128 (available: v0.2.130)
+      Adding wasm-bindgen-macro v0.2.128 (available: v0.2.130)
+      Adding wasm-bindgen-macro-support v0.2.128 (available: v0.2.130)
+      Adding wasm-bindgen-shared v0.2.128 (available: v0.2.130)
+      Adding wasm-bindgen-test-shared v0.2.128 (available: v0.2.130)
+      Adding wasmparser v0.245.1 (available: v0.263.0)
+ Downloading crates ...
+  Downloaded base64 v0.13.1
+  Downloaded cfg-if v1.0.5
+  Downloaded alloc-no-stdlib v2.0.4
+  Downloaded alloc-stdlib v0.2.4
+  Downloaded chunked_transfer v1.5.0
+  Downloaded clap_builder v4.6.7
+  Downloaded clap_lex v1.1.1
+  Downloaded tinystr v0.8.5
+  Downloaded buf_redux v0.8.4
+  Downloaded crossbeam-deque v0.8.8
+  Downloaded crossbeam-epoch v0.9.21
+  Downloaded ascii v1.1.0
+  Downloaded bitflags v2.13.2
+  Downloaded clap_derive v4.6.7
+  Downloaded crc32fast v1.5.5
+  Downloaded crossbeam-utils v0.8.23
+  Downloaded id-arena v2.3.0
+  Downloaded itoa v1.0.19
+  Downloaded rand_chacha v0.3.1
+  Downloaded sha1_smol v1.0.1
+  Downloaded clap v4.6.7
+  Downloaded powerfmt v0.2.1
+  Downloaded utf8_iter v1.1.0
+  Downloaded deranged v0.5.9
+  Downloaded quick-error v1.2.3
+  Downloaded threadpool v1.8.1
+  Downloaded yoke-derive v0.8.4
+  Downloaded zerofrom-derive v0.1.8
+  Downloaded base64 v0.23.1
+  Downloaded errno v0.3.15
+  Downloaded leb128 v0.2.7
+  Downloaded leb128fmt v0.1.0
+  Downloaded num_cpus v1.17.0
+  Downloaded rustc-demangle v0.1.28
+  Downloaded safemem v0.3.3
+  Downloaded simd-adler32 v0.3.10
+  Downloaded synstructure v0.14.0
+  Downloaded utf8-zero v0.8.1
+  Downloaded walrus-macro v0.26.0
+  Downloaded wasm-bindgen-test-shared v0.2.128
+  Downloaded equivalent v1.0.3
+  Downloaded icu_provider v2.4.0
+  Downloaded mime_guess v2.0.5
+  Downloaded num_threads v0.1.8
+  Downloaded rand_core v0.6.4
+  Downloaded unicase v2.10.0
+  Downloaded utf_types v1.0.0
+  Downloaded either v1.19.0
+  Downloaded env_filter v2.0.0
+  Downloaded fastrand v2.5.0
+  Downloaded mime v0.3.18
+  Downloaded smallvec v1.16.5
+  Downloaded twoway v0.1.8
+  Downloaded yoke v0.8.4
+  Downloaded zerovec-derive v0.11.7
+  Downloaded env_logger v0.11.11
+  Downloaded find-msvc-tools v0.1.15
+  Downloaded multipart v0.18.0
+  Downloaded rouille v3.6.2
+  Downloaded rustls-pki-types v1.16.0
+  Downloaded tiny_http v0.12.0
+  Downloaded unicode-ident v1.0.27
+  Downloaded flate2 v1.1.11
+  Downloaded icu_normalizer_data v2.4.0
+  Downloaded indexmap v2.14.2
+  Downloaded log v0.4.35
+  Downloaded miniz_oxide v0.9.1
+  Downloaded zeroize v1.9.1
+  Downloaded icu_locale_core v2.4.0
+  Downloaded rayon-core v1.13.0
+  Downloaded ureq-proto v0.7.1
+  Downloaded wasm-encoder v0.245.1
+  Downloaded icu_collections v2.4.0
+  Downloaded rand v0.8.8
+  Downloaded cc v1.11.2
+  Downloaded rustls-webpki v0.103.17
+  Downloaded rayon v1.12.0
+  Downloaded brotli-decompressor v5.0.3
+  Downloaded icu_properties v2.4.0
+  Downloaded icu_properties_data v2.4.0
+  Downloaded zerovec v0.11.9
+  Downloaded jiff-core v0.1.8
+  Downloaded regex v1.13.1
+  Downloaded chrono v0.4.45
+  Downloaded ureq v3.5.2
+  Downloaded zlib-rs v0.6.8
+  Downloaded serde_json v1.0.154
+  Downloaded webpki-roots v1.0.12
+  Downloaded walrus v0.26.5
+  Downloaded wasm-bindgen-cli-support v0.2.128
+  Downloaded wasmparser v0.245.1
+  Downloaded syn v3.0.10
+  Downloaded zerocopy v0.8.63
+  Downloaded icu_normalizer v2.4.0
+  Downloaded jiff v0.2.46
+  Downloaded libc v0.2.191
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.27
+   Compiling libc v0.2.191
+   Compiling stable_deref_trait v1.2.1
+   Compiling cfg-if v1.0.5
+   Compiling memchr v2.8.3
+   Compiling serde_core v1.0.229
+   Compiling log v0.4.35
+   Compiling syn v3.0.10
+   Compiling getrandom v0.2.17
+   Compiling crossbeam-utils v0.8.23
+   Compiling litemap v0.8.3
+   Compiling crossbeam-epoch v0.9.21
+   Compiling find-msvc-tools v0.1.15
+   Compiling utf_types v1.0.0
+   Compiling writeable v0.6.4
+   Compiling shlex v2.0.1
+   Compiling cc v1.11.2
+   Compiling utf8_iter v1.1.0
+   Compiling icu_normalizer_data v2.4.0
+   Compiling bitflags v2.13.2
+   Compiling zerocopy v0.8.63
+   Compiling icu_properties_data v2.4.0
+   Compiling crossbeam-deque v0.8.8
+   Compiling rayon-core v1.13.0
+   Compiling itoa v1.0.19
+   Compiling serde v1.0.229
+   Compiling ring v0.17.14
+   Compiling httparse v1.10.1
+   Compiling synstructure v0.14.0
+   Compiling getrandom v0.4.3
+   Compiling hashbrown v0.17.1
+   Compiling utf8parse v0.2.2
+   Compiling equivalent v1.0.3
+   Compiling autocfg v1.5.1
+   Compiling zerofrom-derive v0.1.8
+   Compiling yoke-derive v0.8.4
+   Compiling zerofrom v0.1.8
+   Compiling zerovec-derive v0.11.7
+   Compiling yoke v0.8.4
+   Compiling displaydoc v0.2.7
+   Compiling zerotrie v0.2.5
+   Compiling serde_derive v1.0.229
+   Compiling zerovec v0.11.9
+   Compiling once_cell v1.21.4
+   Compiling heck v0.5.0
+   Compiling tinystr v0.8.5
+   Compiling potential_utf v0.1.6
+   Compiling icu_locale_core v2.4.0
+   Compiling icu_collections v2.4.0
+   Compiling zmij v1.0.23
+   Compiling zeroize v1.9.1
+   Compiling icu_provider v2.4.0
+   Compiling unicase v2.10.0
+   Compiling rustix v1.1.6
+   Compiling smallvec v1.16.5
+   Compiling icu_normalizer v2.4.0
+   Compiling mime_guess v2.0.5
+   Compiling icu_properties v2.4.0
+   Compiling rustls-pki-types v1.16.0
+   Compiling ppv-lite86 v0.2.21
+   Compiling num-traits v0.2.19
+   Compiling indexmap v2.14.2
+   Compiling anstyle-parse v1.0.0
+   Compiling rand_core v0.6.4
+   Compiling aho-corasick v1.1.5
+   Compiling anyhow v1.0.104
+   Compiling regex-syntax v0.8.11
+   Compiling untrusted v0.9.0
+   Compiling anstyle v1.0.14
+   Compiling linux-raw-sys v0.12.1
+   Compiling serde_json v1.0.154
+   Compiling crc32fast v1.5.5
+   Compiling colorchoice v1.0.5
+   Compiling foldhash v0.2.0
+   Compiling percent-encoding v2.3.2
+   Compiling either v1.19.0
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling anstyle-query v1.1.5
+   Compiling anstream v1.0.0
+   Compiling rayon v1.12.0
+   Compiling regex-automata v0.4.18
+   Compiling hashbrown v0.16.1
+   Compiling rand_chacha v0.3.1
+   Compiling idna_adapter v1.2.2
+   Compiling syn v2.0.119
+   Compiling rustls v0.23.46
+   Compiling simd-adler32 v0.3.10
+   Compiling mime v0.3.18
+   Compiling fastrand v2.5.0
+   Compiling safemem v0.3.3
+   Compiling fallible-iterator v0.3.0
+   Compiling wasm-bindgen-shared v0.2.128
+   Compiling alloc-no-stdlib v2.0.4
+   Compiling leb128fmt v0.1.0
+   Compiling bytes v1.12.1
+   Compiling semver v1.0.28
+   Compiling adler2 v2.0.1
+   Compiling miniz_oxide v0.9.1
+   Compiling http v1.5.0
+   Compiling wasmparser v0.245.1
+   Compiling wasm-encoder v0.245.1
+   Compiling alloc-stdlib v0.2.4
+   Compiling walrus-macro v0.26.0
+   Compiling gimli v0.32.3
+   Compiling buf_redux v0.8.4
+   Compiling tempfile v3.27.0
+   Compiling rustls-webpki v0.103.17
+   Compiling idna v1.1.0
+   Compiling rand v0.8.8
+   Compiling regex v1.13.1
+   Compiling id-arena v2.3.0
+   Compiling form_urlencoded v1.2.2
+   Compiling num_cpus v1.17.0
+   Compiling twoway v0.1.8
+   Compiling subtle v2.6.1
+   Compiling deranged v0.5.9
+   Compiling num-conv v0.2.2
+   Compiling httpdate v1.0.3
+   Compiling ascii v1.1.0
+   Compiling jiff-core v0.1.8
+   Compiling base64 v0.23.1
+   Compiling num_threads v0.1.8
+   Compiling time-core v0.1.9
+   Compiling chunked_transfer v1.5.0
+   Compiling iana-time-zone v0.1.65
+   Compiling clap_lex v1.1.1
+   Compiling strsim v0.11.1
+   Compiling quick-error v1.2.3
+   Compiling powerfmt v0.2.1
+   Compiling leb128 v0.2.7
+   Compiling walrus v0.26.5
+   Compiling time v0.3.55
+   Compiling multipart v0.18.0
+   Compiling clap_builder v4.6.7
+   Compiling chrono v0.4.45
+   Compiling tiny_http v0.12.0
+   Compiling jiff v0.2.46
+   Compiling ureq-proto v0.7.1
+   Compiling threadpool v1.8.1
+   Compiling url v2.5.8
+   Compiling env_filter v2.0.0
+   Compiling flate2 v1.1.11
+   Compiling brotli-decompressor v5.0.3
+   Compiling webpki-roots v1.0.12
+   Compiling clap_derive v4.6.7
+   Compiling filetime v0.2.29
+   Compiling rustc-demangle v0.1.28
+   Compiling sha1_smol v1.0.1
+   Compiling utf8-zero v0.8.1
+   Compiling base64 v0.13.1
+   Compiling base64 v0.22.1
+   Compiling wasm-bindgen-cli-support v0.2.128
+   Compiling rouille v3.6.2
+   Compiling ureq v3.5.2
+   Compiling clap v4.6.7
+   Compiling env_logger v0.11.11
+   Compiling wasm-bindgen-test-shared v0.2.128
+   Compiling shlex v1.3.0
+   Compiling wasm-bindgen-cli v0.2.128
+    Finished `release` profile [optimized] target(s) in 1m 18s
+warning: the following packages contain code that will be rejected by a future version of Rust: buf_redux v0.8.4, multipart v0.18.0
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+  Installing /root/.cache/.wasm-pack/.wasm-bindgen-cargo-install-0.2.128/bin/wasm-bindgen
+  Installing /root/.cache/.wasm-pack/.wasm-bindgen-cargo-install-0.2.128/bin/wasm-bindgen-test-runner
+  Installing /root/.cache/.wasm-pack/.wasm-bindgen-cargo-install-0.2.128/bin/wasm2es6js
+   Installed package `wasm-bindgen-cli v0.2.128` (executables `wasm-bindgen`, `wasm-bindgen-test-runner`, `wasm2es6js`)
+warning: be sure to add `/root/.cache/.wasm-pack/.wasm-bindgen-cargo-install-0.2.128/bin` to your PATH to be able to run the installed binaries
+[INFO]: found wasm-opt at "/home/user/unified/client/transport/wasm/../../../target/tools/binaryen-version_117/bin/wasm-opt"
+[INFO]: Optimizing wasm binaries with `wasm-opt`...
+[INFO]: Optional fields missing from Cargo.toml: 'repository', 'license'. These are not necessary, but recommended
+[INFO]: :-) Done in 1m 42s
+[INFO]: :-) Your wasm pkg is ready to publish at /home/user/unified/client/transport/wasm/pkg.
+[WARN]: :-) There's a newer version of wasm-pack available, the new version is: 0.15.1, you are using: 0.15.0. To update, navigate to: https://wasm-bindgen.github.io/wasm-pack/installer/
+
+added 5 packages, and audited 6 packages in 996ms
+
+found 0 vulnerabilities
+
+  dist/session.js  13.4kb
+
+⚡ Done in 6ms
+
+  dist/ws-session.js  12.0kb
+
+⚡ Done in 6ms
+
+  dist/race-session.js  16.2kb
+
+⚡ Done in 5ms
+
+  ../../contract/run.mjs  46.2kb
+
+⚡ Done in 6ms
+
+  ../../contract/dist/fake-session.js  23.1kb
+
+⚡ Done in 6ms
+
+  ../../contract/dist/downloader-rig.js  20.9kb
+
+⚡ Done in 7ms
+
+  ../../contract/dist/dispatch-rig.js  108.0kb
+
+⚡ Done in 14ms
+
+  test/run.mjs  20.7kb
+
+⚡ Done in 5ms
+wrote dist/session.js dist/ws-session.js dist/race-session.js ../../contract/run.mjs ../../contract/dist/{fake-session,downloader-rig,dispatch-rig}.js test/run.mjs
+prereq exit 0

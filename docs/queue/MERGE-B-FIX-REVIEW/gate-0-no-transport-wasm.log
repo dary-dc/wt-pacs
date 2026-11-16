@@ -1,0 +1,4 @@
+
+== prerequisites: the committed builds are their pins; the WASM client newer than its sources; playwright, Chromium and the decoder vendor
+missing client/transport/wasm/pkg/transport_wasm_bg.wasm: client/transport/wasm/build.sh (README.md §Prerequisites)
+gate exit 2 in 1 s

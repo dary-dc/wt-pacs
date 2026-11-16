@@ -1,0 +1,2 @@
+client/transport/wasm/build.sh: line 18: wasm-pack: command not found
+transport exit 127
