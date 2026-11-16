@@ -104,7 +104,9 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | REPORT-BUILD-SESSION | 11-14 21:00 | REPORT-BUILD-HARNESS done | `claude/report-arms` (its PR) |
 | REPORT-BUILD-RECEIVERS | 11-14 21:00 | REPORT-BUILD-HARNESS done | `claude/report-arms` (its PR) |
 | REPORT-BUILD-REVIEW | 11-14 21:00 | every REPORT-BUILD done | `claude/report-arms` (`docs/reviews/report-arms.md`) |
-| REPORT-RUN | 11-14 21:00 | REPORT-BUILD-REVIEW done | rows on `claude/report-arms`; results in `report-plan.md` §Results on `claude/report-plan` |
+| REPORT-BUILD-FIX | 11-16 06:00 | REPORT-BUILD-REVIEW done | `claude/report-arms` (its PR 395): the five blockers of `docs/reviews/report-arms.md` §Verdict fixed |
+| REPORT-BUILD-FIX-REVIEW | 11-16 06:00 | REPORT-BUILD-FIX done | `claude/report-arms` (`docs/reviews/report-arms.md` §Re-review) |
+| REPORT-RUN | 11-14 21:00 | REPORT-BUILD-FIX-REVIEW done with no blocker open | rows on `claude/report-arms`; results in `report-plan.md` §Results on `claude/report-plan` |
 | REPORT-VERDICT-REVIEW | 11-14 21:00 | REPORT-RUN done, or 11-22 08:00 | `claude/report-plan` (§Verdict review) |
 
 A session never reviews a row it wrote. At most twelve rows of this file run at once.
@@ -330,6 +332,23 @@ Rows close by 2026-11-22.
   failed a bar; the safety report's timing and the server's reaction (§5) re-judged against the run. If REPORT-RUN is
   not done by 11-22 08:00, judge the cells pushed and name the rest. Update `docs/client/design.md` §Open by one line;
   telemetry stays off (rate 0), turning it on is the owner's.
+
+#### REPORT-BUILD-FIX (appended by REPORT-BUILD-REVIEW, 2026-11-16; amendment 17)
+
+A session that wrote none of the builds nor the review: fix `claude/report-arms:docs/reviews/report-arms.md` §Verdict
+B1–B5, each with a failing test first, mutated: (B1) the wait before the browser's close in `run.mjs`, D4 unchanged;
+(B2) the server binary honouring `CARGO_TARGET_DIR` and refused unless a `telemetry` build, or a row with a session and
+no link line failed; (B3) `arm:timing` units, rounds in Williams order (`lab/order.mjs`), `round` and `predecessor` in
+every row, `balanced()` reported, `off′` distinct; (B4) SESSION's receiver's take/append/answer tested outside `run()`,
+its *ack before write* lever; (B5) `deploy/Containerfile` copies `lab/report-arms/receiver`. The review's minors one line
+each where they are; list the rest. No arm's design changed. Gate, `scripts/check_lab_absent.sh`, one smoke row per
+ending on BEACON-H to show B1 closed.
+
+#### REPORT-BUILD-FIX-REVIEW
+
+A session that wrote neither the builds, the review nor the fix: each blocker closed (revert its fix, see its test
+fail), nothing else changed, the smoke's D1/D2 H rows delivered. Findings in §Re-review; a blocker left open is
+amendment 17's second round, then `blocked` for the owner.
 
 ### TRANSPORT-INVENTORY (docs only)
 
