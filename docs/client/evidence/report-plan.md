@@ -1037,3 +1037,21 @@ named here and left for a build row, never patched by the run.
 then D4, D5b, D8 (the safety bar), then D3, D5a (recorded, no bar). Each ending is one whole period, 18 rounds in
 Williams order, `--wait 60`, rows pushed as they land. An ending cut short is rerun whole; its partial rows are kept,
 marked, and counted in no bar.
+
+## Results (REPORT-RUN, Chromium 153, from 2026-11-16)
+
+Rows: `claude/report-arms:lab/report-arms/rows/` (`chromium-mutants.jsonl`, `chromium-<ending>.jsonl`, `cpu.log`
+the host's all-core busy share every 5 s). Run as §7.8 amends; each ending is filled in here as it completes.
+
+### The mutants (§7.4), once per arm on D1, before any counted row
+
+| mutant | expected | seen | caught |
+| --- | --- | --- | --- |
+| *never sent* | D1's fill record fails | no fill record in 7/7 carrier arms; the safety report still arrived in each | yes, 7/7 |
+| *safety sampled* (rate 0.1) | the safety bar fails | no safety report in 7/7 carrier arms; `off` delivered its one | yes, 7/7 carriers; `off` not (one load: the 1-in-10 draw, or the mutant not applied to `off`'s send; not told apart) |
+| *a field outside the list* | RECEIVER and the server drop and warn | RECEIVER's `outside` counted every record of the 4 HTTP arms (10 of 10); the server's every record of the 3 SESSION arms (6 of 6); none reached a file | yes |
+| *no `reportId`* | the read tool reports KEEPALIVE's duplicates | every record of the 7 arms read as `unkeyed` (1–3 a load); **no duplicate in KEEPALIVE's D1 loads to find**: the worker's copy was acknowledged, so the page sent none | partly: flagged, but D1 makes no second copy to dedup |
+| *ack before write* | appended < acknowledged | RECEIVER 0 appended of 11 acknowledged (5 HTTP units); the server 0 of 3, 5, 6 (`WTPACS_SESSION_REPORT_MUTANT`) | yes |
+
+No mutant left a cell VOID. Seen beside them, not a result: SESSION-H's D1 hide record missed in 4 of its 5
+unmutated-carrier loads (*field outside*, *no `reportId`*, *safety sampled* rows), as §7.3 predicts ("at risk").
