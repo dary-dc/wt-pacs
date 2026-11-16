@@ -1055,3 +1055,21 @@ the host's all-core busy share every 5 s). Run as §7.8 amends; each ending is f
 
 No mutant left a cell VOID. Seen beside them, not a result: SESSION-H's D1 hide record missed in all 3
 loads whose carrier was not mutated (*field outside*, *no `reportId`*, *safety sampled* rows), as §7.3 predicts ("at risk").
+
+### D1 · navigated to another origin page (18 rounds, 162 loads, 2026-11-16 09:15–12:16 UTC)
+
+Williams-balanced for every unit. Host CPU at most 18 % (5 s samples): no round saturated. Every load reached its fill.
+
+| unit | fill record | hide delta | safety report | dup. | load bar | safety bar | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | — | 18/18, 18/18 | 0 | (none sent: not VOID) | pass | as predicted; A/A identical |
+| BEACON-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ as predicted |
+| BEACON-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ |
+| KEEPALIVE-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ |
+| KEEPALIVE-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ |
+| SESSION-1 | 18/18 | 18/18 | 18/18 | 0 | pass | pass | fill ✓; the last second's delta, "at risk", arrived every time |
+| SESSION-Y | 18/18 | **0/18** | 18/18 | 0 | pass | pass | fill ✓; the hide delta, "at risk", lost every time |
+| SESSION-H | **0/18** | — | 18/18 | 0 | **FAIL** | pass | "at risk": the hide record lost to the session's end in every load |
+
+"Hide delta" counts records with `seq` ≥ 1. Measured on loopback (§7.8): SESSION's losses here would be no smaller
+behind the relay's 20 ms round trip.
