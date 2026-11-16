@@ -1,0 +1,29 @@
+M1 agree<0.8 -> agree<0.5
+ok test_a_lower_co_tenant_p99_in_one_cell_lands_the_arm
+ok test_a_lower_p99_only_where_the_host_saturates_lands_nothing
+ok test_a_guard_worse_anywhere_closes_the_arm_its_p99_would_land
+ok test_an_effect_inside_the_a_a_spread_is_a_tie
+Traceback (most recent call last):
+  File "/tmp/claude-0/-home-user-wt-pacs/eef7c355-700c-50fd-bac1-e3429720230b/scratchpad/uni/lab/scripts/exec_gap_summary_test.py", line 71, in <module>
+    fn()
+  File "/tmp/claude-0/-home-user-wt-pacs/eef7c355-700c-50fd-bac1-e3429720230b/scratchpad/uni/lab/scripts/exec_gap_summary_test.py", line 65, in test_an_effect_fewer_than_eight_rounds_in_ten_agree_on_is_a_tie
+    assert verdicts({("G1", "a64", "cot_p99_ns"): three_in_twelve_the_other_way})["G1"] == "closed"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+exit 1
+M2 planner ignores fill_resumes
+        Self { fill_resumes: false && on, ..self }
+transport::planner::tests::with_fill_resumes_a_frame_an_ask_served_is_skipped --- FAILED
+transport::planner::tests::with_fill_resumes_an_ask_mid_fill_is_served_next_and_the_fill_resumes --- FAILED
+transport::planner::tests::with_fill_resumes_several_asks_go_before_the_fill_in_ask_order --- FAILED
+transport::server::tests::with_fill_resumes_an_ask_goes_first_and_the_fill_still_completes --- FAILED
+thread 'transport::planner::tests::with_fill_resumes_a_frame_an_ask_served_is_skipped' (5965) panicked at server/src/transport/planner.rs:418:9:
+thread 'transport::planner::tests::with_fill_resumes_an_ask_mid_fill_is_served_next_and_the_fill_resumes' (5967) panicked at server/src/transport/planner.rs:405:9:
+thread 'transport::planner::tests::with_fill_resumes_several_asks_go_before_the_fill_in_ask_order' (5969) panicked at server/src/transport/planner.rs:428:9:
+thread 'transport::server::tests::with_fill_resumes_an_ask_goes_first_and_the_fill_still_completes' (5982) panicked at server/src/transport/server.rs:2338:18:
+test result: FAILED. 7 passed; 4 failed; 0 ignored; 0 measured; 149 filtered out; finished in 11.39s
+M3 server drops ask_stream lever
+            ask_stream: None,
+transport::server::tests::with_an_ask_stream_an_ask_is_read_past_the_unread_fill --- FAILED
+thread 'transport::server::tests::with_an_ask_stream_an_ask_is_read_past_the_unread_fill' (6976) panicked at server/src/transport/server.rs:2369:14:
+test result: FAILED. 10 passed; 1 failed; 0 ignored; 0 measured; 149 filtered out; finished in 5.38s

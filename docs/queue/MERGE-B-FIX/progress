@@ -1,0 +1,12 @@
+00:44:19Z start
+pip 0
+apt 0
+00:45:38Z setup done
+transport-wasm 0
+vendor client/decode/wasm/fetch_openjph.sh 0
+vendor client/decode/wasm/fetch_xxh3.sh 0
+decode-wasm 0
+00:51:48Z ingest-tools 0
+00:57:24Z gate 1 336s
+00:57:24Z end
+01:10:29Z gate 0 754s
