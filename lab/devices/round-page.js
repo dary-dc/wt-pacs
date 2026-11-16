@@ -26,12 +26,20 @@ export function roundHooks(q) {
   return {
     async finished(ledger, page) {
       clearTimeout(late);
-      await finished(ledger);
-      const quality = document.getElementById("quality");
-      const lossless = document.getElementById("lossless");
-      let failure = fillFailure(ledger, (await globalThis.viewerMetadata).frameCount);
-      if (!failure && q.get("press") === "lossless") failure = await losslessFailure(quality, lossless);
-      if (!failure && q.get("seq") === "view") failure = await viewSequence(q, recorder, { ...page, n: ledger.frames.length }, quality, lossless);
+      const afterS = Number(q.get("afterS") ?? 300);
+      setTimeout(() => leave(`no end ${afterS} s after the fill`), afterS * 1000);
+      let failure;
+      try {
+        await finished(ledger);
+        await fault(q.get("fault"));
+        const quality = document.getElementById("quality");
+        const lossless = document.getElementById("lossless");
+        failure = fillFailure(ledger, (await globalThis.viewerMetadata).frameCount);
+        if (!failure && q.get("press") === "lossless") failure = await losslessFailure(quality, lossless);
+        if (!failure && q.get("seq") === "view") failure = await viewSequence(q, recorder, { ...page, n: ledger.frames.length }, quality, lossless);
+      } catch (e) {
+        failure = `after the fill: ${e?.message ?? e}`;
+      }
       if (q.has("stall")) stall(Number(q.get("stall")));
       leave(failure);
     },
@@ -45,6 +53,7 @@ export function roundHooks(q) {
 async function viewSequence(q, r, page, quality, lossless) {
   const steps = Number(q.get("steps") ?? 20);
   const cineMs = Number(q.get("cineS") ?? 10) * 1000;
+  if (page.n < 2 * steps + 1) return `${page.n} frames: cell 3's ${steps} steps idle and busy need ${2 * steps + 1}`;
   const busyWhile = async (busy, f) => {
     const lever = busy && (await busyThread(r));
     try {
@@ -165,6 +174,12 @@ function holdScreen(r) {
     r.record("visibility", { state: document.visibilityState });
     if (document.visibilityState === "visible") ask("visible");
   });
+}
+
+/** The lab's faults after the fill, round_headless.sh's: `throw` rejects, `hang` never settles. */
+async function fault(kind) {
+  if (kind === "throw") throw new Error("injected fault");
+  if (kind === "hang") await new Promise(() => {});
 }
 
 /** The lab's stall: the page's thread held for `ms`, so the runner's timers stop as a screen turned off would stop them. */

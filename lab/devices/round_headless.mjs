@@ -25,7 +25,8 @@ const page = (port, lossy, beacon) => ({
 });
 const beacon = `${dir}/beacon.jsonl`;
 const viewer = (port, view) => `http://127.0.0.1:${port}/?overlay=1&view=${view}&beacon=cubic-restart`;
-// Load 2 dials a port no server answers (a load made to fail); load 3 holds its thread 2.6 s (a stall).
+// Load 2 dials a port no server answers (a load made to fail); load 3 holds its thread 2.6 s (a stall); after the
+// fill, load 9 throws and load 10 never settles (the plan's afterS bounds it).
 const loads = [
   { url: viewer(8765, "page"), cell: "2", arm: "C1", press: "lossless" },
   { url: viewer(8765, "worker"), cell: "2", arm: "C1", press: "lossless" },
@@ -36,11 +37,14 @@ const loads = [
   { url: viewer(8765, "page"), cell: "2", arm: "A", press: "lossless" },
   { url: viewer(8765, "page"), cell: "3", arm: "page", seq: "view", steps: 3, cineS: 2 },
   { url: viewer(8765, "worker"), cell: "3", arm: "worker", seq: "view", steps: 3, cineS: 2 },
+  { url: viewer(8765, "page"), cell: "2", arm: "A", fault: "throw" },
+  { url: viewer(8765, "worker"), cell: "2", arm: "A", fault: "hang" },
+  { url: viewer(8765, "page"), cell: "2", arm: "A" },
 ];
 const head = execFileSync("git", ["-C", ROOT, "rev-parse", "HEAD"]).toString().trim();
 const blocks = [{ name: "wifi", servers: [quic(4433, "synth-q8-g8"), quic(4434, "synth"), page(8765, 4433, beacon), page(8767, 4499, beacon)], loads }];
 const planOf = (commit) => {
-  writeFileSync(`${dir}/plan.json`, JSON.stringify({ commit, gapS: 1, fillS: 60, blocks }));
+  writeFileSync(`${dir}/plan.json`, JSON.stringify({ commit, gapS: 1, fillS: 60, afterS: 45, blocks }));
   return `${dir}/plan.json`;
 };
 
@@ -77,14 +81,16 @@ const of = (k, kind) => records.filter((r) => r.step === k && r.kind === kind);
 const verdicts = loads.map((_, k) => of(k, "verdict")[0]);
 check(events().some((e) => e.event === "round ended"), "one press runs the plan to its end");
 check(verdicts.every(Boolean), `every load has its verdict (${verdicts.map((v) => (v ? (v.ok ? "ok" : v.void ?? "failed") : "none")).join(" ")})`);
-check(verdicts[2]?.ok === false && !verdicts[2]?.void && verdicts.slice(4).every((v) => v?.ok), "a load made to fail is recorded and the next taken");
+check(verdicts[2]?.ok === false && !verdicts[2]?.void && verdicts.slice(4, 9).every((v) => v?.ok), "a load made to fail is recorded and the next taken");
+check(/after the fill: .*injected/.test(verdicts[9]?.why) && verdicts[11]?.ok, `a throw after the fill fails its load and the next is taken (${verdicts[9]?.why})`);
+check(/no end 45 s after the fill/.test(verdicts[10]?.why) && verdicts[11]?.ok, `a hang after the fill fails its load at afterS and the next is taken (${verdicts[10]?.why})`);
 check(verdicts[3]?.void === "stopped", `a stall in the runner's timers marks its load VOID: stopped (${verdicts[3]?.why})`);
 check([0, 1, 4, 5, 6, 7, 8].every((k) => verdicts[k]?.ok && verdicts[k].gapMs < 2000), "the other loads pass with their timers steady");
 const locks = loads.map((_, k) => of(k, "wakeLock"));
 check(locks.every((l) => l.length && l.every((w) => ["acquired", "refused", "released"].includes(w.event))),
   `each load records its wake lock (${[...new Set(locks.flat().map((w) => `${w.event}${w.error ? `: ${w.error}` : ""}`))].join("; ")})`);
 const filled = loads.map((_, k) => of(k, "load")[0]);
-check([0, 1, 3, 4, 5, 6, 7, 8].every((k) => filled[k]?.fillMs > 0 && filled[k].frames.length === 20 && filled[k].frames.every((f) => f.decodeMs > 0 && f.kb > 0)
+check([0, 1, 3, 4, 5, 6, 7, 8, 11].every((k) => filled[k]?.fillMs > 0 && filled[k].frames.length === 20 && filled[k].frames.every((f) => f.decodeMs > 0 && f.kb > 0)
   && filled[k].cell === loads[k].cell && filled[k].counted === true), "each filled load's record carries its fill, its frames' wire KB and decode ms, its cell");
 check([0, 1, 6].every((k) => of(k, "label").some((l) => l.quality === "lossless")), "each lossless press reaches the exact frame");
 for (const k of [7, 8]) {
