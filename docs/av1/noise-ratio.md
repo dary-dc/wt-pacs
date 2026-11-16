@@ -10,7 +10,7 @@ script in `lab/av1/metrics/noise_ratio_theory.py`. An ***unverified*** claim is 
 * **Noise ratio, r.** The ratio e_N ÷ σ. Both terms are measured in the noise band (`lab/av1/metrics/README.md` §4.4):
   σ is the exact frame's noise and e_N is the coding error's RMS, each taken through the 3 × 3 Laplacian ÷ 6
   ([`../glossary.md`](../glossary.md)).
-* **OQ view.** The optimal-quality view: the lossy stream at the Q that the noise rule picks per series
+* **OQ view.** The optimal-quality view: the optimal-quality series at the Q that the noise rule picks per series
   ([`noise-point.md`](noise-point.md) §4). This is the design of 2026-11-09 (`main:docs/lines/codecs.md`).
 * **Exact frame.** The source frame, which HTJ2K returns bit for bit.
 * **Signal.** A lesion, or a model of one, that a reader or a model observer has to detect.

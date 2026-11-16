@@ -1,7 +1,7 @@
 # Window width and the VL view's Q
 
 *Row WINDOWQ, 2026-11-09. This file asks whether Q 8 is the right rung for the visually lossless (VL) view: the lossy
-AV1 stream at one fixed Q per series ([`../glossary.md`](../glossary.md), *lossy stream*), first chosen at Q 8 on DBT
+AV1 stream at one fixed Q per series ([`../glossary.md`](../glossary.md), *optimal quality*), first chosen at Q 8 on DBT
 because there the coding error reaches the frame's own noise
 ([`lab/av1/metrics`](../../lab/av1/metrics/README.md) §Quality metrics, measured (2026-11-08)). It looks at how that
 error shows as a reader narrows the window. The answer is drawn from the quality study's committed rows. Nothing was
