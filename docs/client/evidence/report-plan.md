@@ -1011,3 +1011,29 @@ to source and check.
 container without a GPU; Chromium 153 (not the phone's 157), Firefox 159, WebKitGTK 2.52.6 under Xvfb (not Safari);
 one DBT volume's view; a forced mismatch, not a real decoder fault; a userspace relay on loopback, not a radio; no
 phone.
+
+### 7.8 · Amendment before any counted row (REPORT-RUN, 2026-11-16)
+
+Written by REPORT-RUN before its first row, at the rig `claude/report-arms` `bd1ac438` (re-review: no blocker open).
+The rig, as built and reviewed, cannot run all of §7.2–§7.6; nothing below changes a bar, a prediction or the rule,
+only what is run. Every gap is the build's (`lab/report-arms/README.md` §What is built), not the host's, so it is
+named here and left for a build row, never patched by the run.
+
+| §7 asks | run here | why |
+| --- | --- | --- |
+| Chromium, Firefox, WebKitGTK | **Chromium 153 only** | `run.mjs` drives Chromium by CDP alone; no BiDi or WebDriver driver is built, and neither engine's kill lever is checked |
+| cells D, L, C, Y, R | **D only** | L, C, Y and R are not built (no latency or page-thread reading, no relay tally, no load generator) |
+| D1–D9 | **D1, D2, D3, D4, D5a, D5b, D7, D8, D9**; D6 not run | the browser, sink and server inside `unshare -rn` behind `link_impair.py --tun` is not wired; the host has no iproute2 |
+| the relay, 10 ms each way, 50 Mbit, 200 packets | **loopback, no relay** | as D6. Delivery (D) is the only cell run; the races a 20 ms round trip would widen (SESSION's hide record against the session's end, §3.3) are narrower here, so a SESSION delivery here is an upper bound on the relay's |
+| `dbts_c1`'s view, the mismatch at frame 10 | **the contract's grey-16 frame ×32**, the mismatch at frame 10 (`fault=sample`) | the rig's own series; the demo volumes are not on the host. D's endings start from the fill's end, so a shorter fill moves nothing a D bar reads |
+| pilot (1), the hybrid's first send | **the fill's end**, the protocol's tie | the first exact paint is not a timing the rig offers (`timing.js`) |
+| pilot (2), JSON or gzip | **JSON for every arm** | gzip is not built (the review, §2) |
+| pilot (3) | 1 s, as written | — |
+| the receivers in D | BEACON and KEEPALIVE (and `off`'s safety beacon) to **RECEIVER behind nginx 1.31.8**; SESSION to the server | as §7.2 |
+| the mutants, once per engine and arm | once per arm on D1, before the counted rows: *never sent*, *safety sampled*, *a field outside the list*, *no `reportId`*, *ack before write* (RECEIVER's `--mutant`; the server's `WTPACS_SESSION_REPORT_MUTANT`) | as §7.4 |
+| host time, ~3.5 h for D an engine (§7.6) | **~3.2 h an ending, ~30 h for Chromium's nine** (`off` to `off′`: 9 units × 18 rounds = 162 loads an ending at ~70 s each, D9 ~130 s) | §7.6's figure is 9 × 18 × 9 = 1 458 loads at ~75 s ≈ 30 h, not 3.5 |
+
+**Order of the endings**, so a run cut short leaves the most bars decided: D1, D2, D7, D9 (bars on both reports),
+then D4, D5b, D8 (the safety bar), then D3, D5a (recorded, no bar). Each ending is one whole period, 18 rounds in
+Williams order, `--wait 60`, rows pushed as they land. An ending cut short is rerun whole; its partial rows are kept,
+marked, and counted in no bar.
