@@ -1,0 +1,76 @@
+--- aom_configure: Detected CPU: x86_64
+Running C compiler test: pie_check
+CONFIG_PIC enabled for position independent executable (PIE) build
+Running C compiler test: unistd_check
+Running CXX compiler test: unistd_check
+Running C compiler test: fenv_check
+Checking C compiler flag support for: -std=c11
+Checking C++ compiler flag support for: -std=c++17
+Checking C compiler flag support for: -Wall
+Checking C++ compiler flag support for: -Wall
+Checking C compiler flag support for: -Wdisabled-optimization
+Checking C++ compiler flag support for: -Wdisabled-optimization
+Checking C compiler flag support for: -Wextra
+Checking C++ compiler flag support for: -Wextra
+Checking C compiler flag support for: -Wextra-semi
+Checking C++ compiler flag support for: -Wextra-semi
+Checking C compiler flag support for: -Wextra-semi-stmt
+Checking C++ compiler flag support for: -Wextra-semi-stmt
+Checking C compiler flag support for: -Wfloat-conversion
+Checking C++ compiler flag support for: -Wfloat-conversion
+Checking C compiler flag support for: -Wformat=2
+Checking C++ compiler flag support for: -Wformat=2
+Checking C compiler flag support for: -Wimplicit-function-declaration
+Checking C compiler flag support for: -Wlogical-op
+Checking C++ compiler flag support for: -Wlogical-op
+Checking C compiler flag support for: -Wmissing-declarations
+Checking C++ compiler flag support for: -Wmissing-declarations
+Checking C compiler flag support for: -Wmissing-prototypes
+Checking C compiler flag support for: -Wpointer-arith
+Checking C++ compiler flag support for: -Wpointer-arith
+Checking C compiler flag support for: -Wshadow
+Checking C++ compiler flag support for: -Wshadow
+Checking C compiler flag support for: -Wshorten-64-to-32
+Checking C++ compiler flag support for: -Wshorten-64-to-32
+Checking C compiler flag support for: -Wsign-compare
+Checking C++ compiler flag support for: -Wsign-compare
+Checking C compiler flag support for: -Wstring-conversion
+Checking C++ compiler flag support for: -Wstring-conversion
+Checking C compiler flag support for: -Wtype-limits
+Checking C++ compiler flag support for: -Wtype-limits
+Checking C compiler flag support for: -Wundef
+Checking C++ compiler flag support for: -Wundef
+Checking C compiler flag support for: -Wuninitialized
+Checking C++ compiler flag support for: -Wuninitialized
+Checking C compiler flag support for: -Wunreachable-code-aggressive
+Checking C++ compiler flag support for: -Wunreachable-code-aggressive
+Checking C compiler flag support for: -Wunused
+Checking C++ compiler flag support for: -Wunused
+Checking C compiler flag support for: -Wvla
+Checking C++ compiler flag support for: -Wvla
+Checking C compiler flag support for: -Wc23-extensions
+Checking C++ compiler flag support for: -Wc++20-extensions
+Checking C++ compiler flag support for: -Wc++23-extensions
+Checking C compiler flag support for: -Wstack-usage=100000
+Checking C++ compiler flag support for: -Wstack-usage=240000
+Checking C compiler flag support for: -D_LARGEFILE_SOURCE
+Checking C++ compiler flag support for: -D_LARGEFILE_SOURCE
+Checking C compiler flag support for: -D_FILE_OFFSET_BITS=64
+Checking C++ compiler flag support for: -D_FILE_OFFSET_BITS=64
+Checking C compiler flag support for: -msse2
+Checking C++ compiler flag support for: -msse2
+Checking C compiler flag support for: -msse3
+Checking C++ compiler flag support for: -msse3
+Checking C compiler flag support for: -mssse3
+Checking C++ compiler flag support for: -mssse3
+Checking C compiler flag support for: -msse4.1
+Checking C++ compiler flag support for: -msse4.1
+Checking C compiler flag support for: -msse4.2
+Checking C++ compiler flag support for: -msse4.2
+Checking C compiler flag support for: -mavx2
+Checking C++ compiler flag support for: -mavx2
+    av1    - AOMedia Project AV1 Encoder v3.15.1 (default)
+1.5.4-0-g54706fc
+/home/user/unified/ingest/.build/openjph/lib/libopenjph.so.0.31.0
+/home/user/unified/ingest/.build/payload/libdecode.so
+ingest exit 0

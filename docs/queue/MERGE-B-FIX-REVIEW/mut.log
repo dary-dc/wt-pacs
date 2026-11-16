@@ -11,3 +11,51 @@ exit 1
     assert verdicts({("G1", "a64", "cot_p99_ns"): 0.93}, aa_noise=0.15)["G1"] == "closed"
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 AssertionError
+## baseline: the gate's lab-levers line, unmutated
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 149 filtered out; finished in 2.55s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+exit 0
+## mutant R1: server.rs:198 'fill_resumes: config.lab.fill_resumes_after_asks' -> 'fill_resumes: false'
+ client/decode/wasm/built/THIRD_PARTY_NOTICES  | 1481 -------------------------
+ client/decode/wasm/built/dav1d/COPYING        |   23 -
+ client/decode/wasm/built/dav1d/PATENTS        |  108 --
+ client/decode/wasm/built/dav1d/dav1d.js       |   22 -
+ client/decode/wasm/built/dav1d/dav1d.wasm     |  Bin 623146 -> 0 bytes
+ client/decode/wasm/built/openjph/LICENSE      |   27 -
+ client/decode/wasm/built/openjph/openjph.js   |   22 -
+ client/decode/wasm/built/openjph/openjph.wasm |  Bin 246274 -> 0 bytes
+ client/decode/wasm/built/xxh3/LICENSE         |   26 -
+ client/decode/wasm/built/xxh3/xxh3.wasm       |  Bin 11510 -> 0 bytes
+ server/src/transport/server.rs                |    2 +-
+ 11 files changed, 1 insertion(+), 1710 deletions(-)
+transport::server::tests::with_fill_resumes_an_ask_goes_first_and_the_fill_still_completes --- FAILED
+thread 'transport::server::tests::with_fill_resumes_an_ask_goes_first_and_the_fill_still_completes' (12666) panicked at server/src/transport/server.rs:2338:18:
+   2: core::result::unwrap_failed
+test result: FAILED. 10 passed; 1 failed; 0 ignored; 0 measured; 149 filtered out; finished in 11.68s
+error: test failed, to rerun pass `-p series-server --lib`
+exit 101
+## mutant R2: link.rs:74 'match ask_stream' -> 'match None::<i32>'
+ client/decode/wasm/built/THIRD_PARTY_NOTICES | 1481 --------------------------
+ client/decode/wasm/built/dav1d/COPYING       |   23 -
+ client/decode/wasm/built/dav1d/PATENTS       |  108 --
+ client/decode/wasm/built/dav1d/dav1d.js      |   22 -
+ client/decode/wasm/built/dav1d/dav1d.wasm    |  Bin 623146 -> 0 bytes
+ client/decode/wasm/built/xxh3/LICENSE        |   26 -
+ client/decode/wasm/built/xxh3/xxh3.wasm      |  Bin 11510 -> 0 bytes
+ server/src/transport/link.rs                 |    2 +-
+ 8 files changed, 1 insertion(+), 1661 deletions(-)
+transport::server::tests::with_an_ask_stream_an_ask_is_read_past_the_unread_fill --- FAILED
+thread 'transport::server::tests::with_an_ask_stream_an_ask_is_read_past_the_unread_fill' (14117) panicked at server/src/transport/server.rs:2369:14:
+   2: core::result::unwrap_failed
+test result: FAILED. 10 passed; 1 failed; 0 ignored; 0 measured; 149 filtered out; finished in 6.46s
+error: test failed, to rerun pass `-p series-server --lib`
+exit 101
+ D client/decode/wasm/built/THIRD_PARTY_NOTICES
+ D client/decode/wasm/built/dav1d/COPYING
+ D client/decode/wasm/built/dav1d/PATENTS
+ D client/decode/wasm/built/dav1d/dav1d.js
+ D client/decode/wasm/built/dav1d/dav1d.wasm
+ D client/decode/wasm/built/xxh3/LICENSE
+ D client/decode/wasm/built/xxh3/xxh3.wasm
