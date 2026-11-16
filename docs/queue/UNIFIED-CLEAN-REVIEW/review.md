@@ -18,3 +18,32 @@ A session that wrote none of UNIFIED-CLEAN, MERGE-B or MERGE-B-FIX reviewed `cla
 
 Nothing behavioural changed: the product (`server/`, `client/`, `ingest/`, `deploy/`) is untouched; only the gate's
 steps changed, each as its commit says.
+
+### The two restored gate checks, mutated by this review (its own mutants, not the writer's; `mut.log`)
+
+* **A**, `server.rs:171`: the window ahead of cwnd 2× → 200× the largest frame. The gate's old filtered line
+  (`-- held stalled lab_lever with_fill_resumes with_an_ask_stream`) passes; the restored unfiltered line fails
+  `an_ask_during_a_fill_waits_behind_no_more_than_the_send_window` (159 passed, 1 failed). `--list` shows that this
+  is the one `lab-levers` test outside the old filter (168 under the feature, 161 without it, 12 filtered).
+* **B**, `deploy/THIRD_PARTY_NOTICES:379`: one letter of one licence text changed. `server_notices.py --check` fails
+  (exit 1); unmutated it passes (164 crates, 120 distinct texts).
+
+### For the owner: the preparation rows for `main` (plan §8 item 4), as they stand on `claude/unified`
+
+Each row is from the 11-10 queue, done on the demo path before the unification. What is still open on the one branch:
+
+1. **Simplification**: FABLE-SIMPLIFY's P3–P9 (the page free of lab and check; one way to ask; one view; one start
+   order; one cache writer; one cine; layering) and OPT-SIMPLIFY's S2 (one view) and S5 are not done. S2/P5 wait on
+   the owner's call on the page view. The rest are proposals, each its own row with a failing check first.
+2. **Names**: NAMES-1's renames are present (`requestFrame` in 16 client files). Left over: item 2's screen word
+   *unchecked* → *no digest*, and item 6's `exactSource` → `exactClient` (4 files), both named as not done in NAMES-1.
+   One stale doc line is new to this review: `client/README.md:271` still says `requestExactFrame`. A mechanical
+   cleaning of one line.
+3. **Optimisation**: OPT-THEORY's P1–P5 and OPT-ROUND-2's R0–R5 are protocols. They are decided by measurement
+   rows (and R3/R4 by the phone runs, which are the phone session's). Nothing about them changes on `main`'s path
+   until a row measures.
+4. **The lab out of the workspace** (coordination Open 6): the seven `lab/` crates are still root-workspace members
+   (`Cargo.toml:18–24`). This is a structural proposal and the owner's call.
+5. **The docs fold**: DOCS-FOLD did the client's part. Turning `codecs.md`, `metadata.md` and `viewer.md` into work
+   state is the docs move that UNIFIED-CLEAN named. Also open: the audit's item 1 (the two study-DB schemas, the
+   PACS line's fix) and its items 2, 7 (`handoff/` and `lab/`'s list, the owner's yes).
