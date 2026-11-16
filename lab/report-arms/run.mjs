@@ -1,12 +1,14 @@
 // The rig's driver, Chromium by raw CDP: one load per row, its ending, the wait, then what reached the sink, read by
 // the read tool (report-plan.md §7.2–§7.3). Smoke here: the contract's grey-16 frame as a 32-frame series, not
 // dbts_c1; D6 (the link drop under --tun) is not wired.
-// node lab/report-arms/run.mjs --arms off,stub --timing Y --endings D1,D2 [--mutant M] [--wait 60] --out rows.jsonl
+// node lab/report-arms/run.mjs --arms off,stub --timing Y --endings D1,D2 [--mutant M] [--wait 60]
+//   [--receiver sink|nginx|receiver] --out rows.jsonl
 import { execFileSync, spawn } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import { parseArgs } from "node:util";
 import { startSink } from "./sink.mjs";
+import { startNginx, nginxCounters } from "./nginx/nginx.mjs";
 import { readLines, byLoad } from "./read.mjs";
 import * as cdp from "./cdp.mjs";
 
@@ -64,7 +66,25 @@ const ENDINGS = {
   D9: async (b, p) => { await cdp.hide(b, p); await pause(5000); await cdp.freeze(b, p); await pause(55000); },
 };
 
-async function load({ arm, timing, ending, mutant, wait, sink, srv, dir, out }) {
+/** The receiver the carriers post to, and the origin the page loads from: the sink itself, NGINX, or RECEIVER behind
+ * nginx; nginx proxies the pages to the sink. */
+async function front(receiver, out, sink, sinkMutant) {
+  if (receiver === "sink") return { port: sink.port, counters: async () => sink.counters, close: async () => {} };
+  let rec = null;
+  if (receiver === "receiver") {
+    const bin = join(process.env.CARGO_TARGET_DIR ?? join(ROOT, "target"), "release/report-receiver");
+    rec = spawn(bin, ["--port", "0", "--dir", out, "--fields", join(ROOT, "lab/report-arms/report-fields.json"),
+      ...(sinkMutant ? ["--mutant", sinkMutant] : [])], { stdio: ["ignore", "pipe", "inherit"] });
+    rec.port = await new Promise((ok) => rec.stdout.on("data", (b) => ok(Number(String(b).split(" ")[1]))));
+  }
+  const port = 18000 + Math.floor(Math.random() * 1000);
+  const n = await startNginx({ dir: out, port, pages: sink.port, receiver: rec ? rec.port : "nginx" });
+  const counters = rec ? () => fetch(`http://127.0.0.1:${port}/report/counters`).then((r) => r.json())
+    : async () => nginxCounters(out);
+  return { port, counters, close: async () => { rec?.kill(); await n.close(); } };
+}
+
+async function load({ arm, timing, ending, mutant, wait, sink, srv, dir, out, via }) {
   const b = await cdp.launch();
   const row = { arm, timing, ending, mutant: mutant ?? null, engine: "chromium" };
   try {
@@ -72,7 +92,7 @@ async function load({ arm, timing, ending, mutant, wait, sink, srv, dir, out }) 
     const q = new URLSearchParams({ arm, timing, dir: `/${relative(ROOT, dir)}`, fault: "sample", at: AT,
       wt: srv?.wt ?? "https://127.0.0.1:9/", hash: srv?.hash ?? "00", ...(mutant ? { mutant } : {}),
       ...(ending === "D8" ? { forced: "page" } : {}) });
-    const p = await cdp.openPage(b, `http://127.0.0.1:${sink.port}/lab/report-arms/index.html?${q}`);
+    const p = await cdp.openPage(b, `http://127.0.0.1:${via.port}/lab/report-arms/index.html?${q}`);
     row.load = await cdp.evaluate(b, p, "new Promise((r) => { const t = setInterval(() => rig.load && (clearInterval(t), r(rig.load)), 10); })");
     const other = `http://localhost:${sink.port}/lab/report-arms/probe.html?id=away`;
     if (ending.startsWith("D5")) {
@@ -91,12 +111,14 @@ async function load({ arm, timing, ending, mutant, wait, sink, srv, dir, out }) 
     b.close();
   }
   await pause(wait * 1000);
-  const lines = ["load.jsonl", "safety.jsonl", "link.jsonl", "server-load.jsonl", "server-safety.jsonl"].filter((f) => existsSync(join(out, f)))
+  const files = readdirSync(out).filter((f) => /^(load|safety)-.*\.jsonl$/.test(f) || f === "report-fallback.log");
+  const lines = ["load.jsonl", "safety.jsonl", "link.jsonl", "server-load.jsonl", "server-safety.jsonl"]
+    .filter((f) => existsSync(join(out, f))).concat(files)
     .flatMap((f) => readFileSync(join(out, f), "utf8").split("\n"));
   const e = byLoad(readLines(lines).records).get(row.load);
   Object.assign(row, { fill: !!e?.records.some((r) => r.seq === 0 && r.fillMs != null), seqs: e?.seqs ?? [],
     safety: e?.safety.length ?? 0, duplicates: e?.duplicates ?? 0, unkeyed: e?.unkeyed ?? 0, outside: e?.outside ?? [],
-    link: !!e?.link, counters: { ...sink.counters, byKind: { ...sink.counters.byKind }, refused: { ...sink.counters.refused } } });
+    link: !!e?.link, receiver: via.name, counters: structuredClone(await via.counters()) });
   const server = join(out, "server-counters.json");
   if (existsSync(server)) row.serverCounters = JSON.parse(readFileSync(server, "utf8"));
   return row;
@@ -105,23 +127,25 @@ async function load({ arm, timing, ending, mutant, wait, sink, srv, dir, out }) 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const { values: o } = parseArgs({ options: { arms: { type: "string", default: "off,stub" },
     timing: { type: "string", default: "Y" }, endings: { type: "string", default: "D1" }, mutant: { type: "string" },
-    "sink-mutant": { type: "string" }, wait: { type: "string", default: "60" }, out: { type: "string", default: "rows.jsonl" } } });
+    "sink-mutant": { type: "string" }, receiver: { type: "string", default: "sink" }, wait: { type: "string", default: "60" }, out: { type: "string", default: "rows.jsonl" } } });
   const out = join(WORK, `sink-${Date.now()}`);
   mkdirSync(out, { recursive: true });
   const dir = series();
   const sink = await startSink({ dir: out, port: 0, statics: ROOT, mutant: o["sink-mutant"] });
+  const via = { name: o.receiver, ...await front(o.receiver, out, sink, o["sink-mutant"]) };
   const servers = {};
   try {
     for (const ending of o.endings.split(",")) {
       for (const arm of o.arms.split(",")) {
         const srv = ending === "D8" ? null : (servers.up ??= await server(dir, out));
-        const row = await load({ arm, timing: o.timing, ending, mutant: o.mutant, wait: Number(o.wait), sink, srv, dir, out });
+        const row = await load({ arm, timing: o.timing, ending, mutant: o.mutant, wait: Number(o.wait), sink, srv, dir, out, via });
         appendFileSync(o.out, JSON.stringify(row) + "\n");
         console.log(JSON.stringify(row));
       }
     }
   } finally {
     servers.up?.srv.kill();
+    await via.close();
     await sink.close();
   }
 }
