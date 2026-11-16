@@ -64,6 +64,7 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | AUDIT-MECHANICAL-REVIEW | 11-16 12:00 | AUDIT-MECHANICAL done | findings in PR 402's body |
 | TRANSPORT-THEORY | 11-16 12:00 | — | `claude/transport-design`: HTJ2K over WebTransport, HTTP/3 fetch, HTTP/2 fetch, WebSocket, on LINK-TARGETS' profiles; theory and sources, a prediction per profile (`docs/transport/evidence/stacks.md`) |
 | TRANSPORT-PROTOCOL | 11-16 12:00 | TRANSPORT-THEORY done | a pre-registered protocol for the comparison, by a session that wrote none of the theory and will not run it |
+| DOCS-DECISIONS | 11-16 12:00 | — | `claude/docs-client`: amendments 16-23's owner decisions folded into `docs/client/design.md` §Decided/§Open, `docs/lines/client.md`, `devices.md`, `native.md` (one line each, dated, linked); the 2026-11-15/16 results linked from §Open; check_links green |
 | BRIEF-WED | 11-16 12:00 | not before 11-18 08:00 | `claude/reviews-2026-11-18:docs/reviews-2026-11-18.md`, one page by 10:00 UTC: what each row since 11-14 produced, the owner's decisions owed (list below), links; nothing run |
 | PHONE-FIX-378 | 11-14 21:00 | — | `claude/lossless-under-loss` (PR 378's branch): the review's findings fixed |
 | PHONE-FIX-378-REVIEW | 11-14 21:00 | PHONE-FIX-378 done | findings in PR 378's body |
