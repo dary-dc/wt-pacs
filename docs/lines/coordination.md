@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its review 2026-11-16.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews 2026-11-16.
 
 ## Goal
 
@@ -99,8 +99,9 @@ small enough that every open item has an owner and a next step.
    schema choice), the two group-file readers and the lab-lever field pairs (proposals), `handoff/` and `lab/`'s
    growth (the owner's yes), and turning `codecs.md`, `metadata.md` and `viewer.md` into work state as PR 384 did
    for the client's three. UNIFIED-CLEAN also found two more of line-hygiene's gate checks that B4 dropped, and put
-   both back (the notices check; every `series-server` test under `lab-levers`, unfiltered). Gate OK, 58 steps; owed
-   UNIFIED-CLEAN-REVIEW.
+   both back (the notices check; every `series-server` test under `lab-levers`, unfiltered). Gate OK, 58 steps.
+   Reviewed (UNIFIED-CLEAN-REVIEW, 2026-11-16, PR 402 §Clean review): no blocker; one docs line to correct in
+   `README.md` (§Simplify and R1); owed PR-TRIAGE.
 
 ## Unification (the owner, 2026-11-09)
 
