@@ -159,7 +159,8 @@ A container test of a deployment of this shape found each one (the deployment te
    mirror; a digest is the same wherever it is pulled from.
 10. **The small ones.** `cargo build --locked`, `npm ci`, `server_tokens off` and `charset utf-8`. The routes
     nothing used are gone: the content-hashed asset rule, since nothing emits a hashed name, and `/harness/`,
-    which the lab runs against `dev-server.py`.
+    which the lab runs against `dev-server.py`. So is `POST /lab/beacon`, the round's lab endpoint, which
+    `dev-server.py` answers only with `--beacon` (`lab/devices/README.md` §The round).
 
 **What the web image carries.** The files of `client/` the viewer loads, which `web-files.sh` lists and copies: the
 page and its modules (the page check's are `lab/`'s, which no image serves), and row DECODERBUILD's decoder builds with their notices
