@@ -53,7 +53,9 @@ exact frame bit for bit, and only checked claims on screen.
   and tested headless on `claude/phone-round` (`lab/devices/README.md` §The round, RUNNER-AUTO), no phone yet; it
   waits for PHONE-LEVERS (cell 1's bench, C2, the decoder count) and a dry run.
   Reviewed 2026-11-15 (`docs/reviews/phone-round.md`): three blockers (a throw after the fill and a server that never
-  answers each stop the round; §3's stopping rule not built); RUNNER-AUTO-FIX first, then PHONE-LEVERS.
+  answers each stop the round; §3's stopping rule not built). Fixed 2026-11-16 (RUNNER-AUTO-FIX, PR 400 §Fix): a
+  post-fill throw or hang fails its load, a block that cannot start fails its loads and the round goes on, per-cell
+  budgets stop only loads not started; RUNNER-AUTO-FIX-REVIEW next, then PHONE-LEVERS.
 * **The delivery comparison**: recorded in [`../client/design.md`](../client/design.md) §Open with its theory; its
   protocol is not written.
 * dav1d fetched only where WebCodecs refuses (a protocol with an A/A arm, not started); a wake before `l` asks (its
