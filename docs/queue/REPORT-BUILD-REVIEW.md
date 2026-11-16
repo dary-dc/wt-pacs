@@ -1,11 +1,12 @@
 state: started
 started: 2026-11-16T05:17Z
-heartbeat: 2026-11-16T05:17Z
+heartbeat: 2026-11-16T05:18Z
 outputs: claude/report-arms (docs/reviews/report-arms.md), PR 395
 
 ## Resume
-Claimed. Next: read report-plan.md §2–§4 and §Protocol, PR 395, each arm's commits; per arm revert its change and see its
-tests fail; check each arm against its design and that it touches nothing else; each floor measures the raw call alone.
-Findings to claude/report-arms:docs/reviews/report-arms.md.
+Reviewing claude/report-arms at 50a7e184 (docs-client..report-arms, 36 commits). Three reviewers in parallel: harness+BEACON,
+KEEPALIVE+SESSION (+server hooks), RECEIVERS (nginx, receiver crate). Gate run in a worktree of the tip. Findings land in
+claude/report-arms:docs/reviews/report-arms.md (new). If resumed: read that file and continue its unfinished sections;
+gate: scripts/gate.sh --quick (nginx absent here: its test skipped by name).
 
 ## Result
