@@ -90,7 +90,8 @@ small enough that every open item has an owner and a next step.
    passes in both views on `dbts_a1`, the web image builds. Draft PR into `main`, "do not merge: review"; owed
    MERGE-B-REVIEW by a session that merged nothing in it, then COMPLEXITY-AUDIT. Reviewed 2026-11-16 (PR 402
    §Review): one blocker, B2's `scripts/gate.sh` dropped two of `merge-a-server`'s gate checks (row 258's verdict
-   rule; the lab levers' `with_fill_resumes with_an_ask_stream` tests); MERGE-B-FIX restores them.
+   rule; the lab levers' `with_fill_resumes with_an_ask_stream` tests). MERGE-B-FIX (2026-11-16, `acea7a10`)
+   restored both; each fails with its code broken; the gate passes, 58 steps. Owed MERGE-B-FIX-REVIEW.
 
 ## Unification (the owner, 2026-11-09)
 
