@@ -28,6 +28,27 @@ steps changed, each as its commit says.
 * **B**, `deploy/THIRD_PARTY_NOTICES:379`: one letter of one licence text changed. `server_notices.py --check` fails
   (exit 1); unmutated it passes (164 crates, 120 distinct texts).
 
+
+### The gate
+
+**The full gate at `1aaa075f`: OK in 565 s, 58 steps** (`gate.log`). The recap names one skip, the viewer's
+cross-codec arm and Firefox. This is the same skip as UNIFIED-CLEAN's run. The gate ran after README's cloud lines
+(`prereq.sh`): wasm-pack 0.15.0, the decoders and their vendor, the transport clients, `ingest/tools.sh`, and the
+`.venv`, with `PYTHON` set to it for the painter's numpy. It also had lavapipe, Xvfb, xdotool and nginx. Two
+earlier runs are kept as logs:
+* `gate-0-no-vendor.log` stopped at its prerequisites, because the decoder vendor had not been fetched.
+* `gate-1-log-clobbered.log` exited 0, but this session's own `git pull --rebase --autostash` rewrote its log while
+  it ran, so its steps are not on record.
+
+`demo-check.mjs` was not run again. No commit in the range touches `client/`.
+
+**Verdict: no blocker.** One minor finding is a docs line (`08f10482`'s paragraph in `docs/lines/README.md`),
+proposed above as a one-line correction. It is not a reason to reopen the loop.
+
+**Fixtures and limits.** The gate used the repository's committed fixtures. The host was one 4-core cloud host with
+no GPU, headless Chromium (Playwright's) and no Firefox. The duration comes from one run on a shared host and is not
+a measurement.
+
 ### For the owner: the preparation rows for `main` (plan §8 item 4), as they stand on `claude/unified`
 
 Each row is from the 11-10 queue, done on the demo path before the unification. What is still open on the one branch:
