@@ -1,0 +1,2 @@
+FAIL /tmp/tmp.NtkiVCd046/study/study.db groups: series: Invalid column type Text at index: 2, name: xxh3
+5 checks on 1 paths, 1 failed
