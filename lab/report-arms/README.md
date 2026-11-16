@@ -75,6 +75,9 @@ node lab/report-arms/run.mjs --arms stub --endings D1 --mutant never-sent       
 node lab/report-arms/run.mjs --arms stub --endings D1 --sink-mutant ack-before-write
 node lab/report-arms/read.mjs lab/.report-work/sink-*/*.jsonl                  # one line per load
 node lab/report-arms/cdp.check.mjs                                              # the Chromium levers, once
+cargo build --release -p report-receiver
+NGINX_BIN=<nginx ≥ 1.31.5> node lab/report-arms/run.mjs --arms beacon --endings D1 --receiver receiver   # or nginx
+NGINX_BIN=<nginx ≥ 1.31.5> node lab/report-arms/nginx/nginx.test.mjs
 ```
 
 `CHROME_PATH` overrides the Playwright Chromium. A row: `arm`, `timing`, `ending`, `mutant`, `load`, `reached` (`filled`,
@@ -191,6 +194,48 @@ from `timing.js`.
 | --- | --- |
 | `session/session.test.mjs` | 21/21: load never handed on; the decoder's report handed on again; the page's own safety report dropped; no tick; a tick every 5 s; the tick resends the whole; the hybrid and at hidden tick too; no whole record at the fill's end; no hide delta; acknowledged without the byte; no FIN; written before ready; released when written, not at the byte; held records not resent on a new session; in-flight records written again on a new session; a record in flight written twice; a record failed on a recycled session never rewritten; a closed session kept as current; the decoder's report under another kind; the decoder's hand-off reported as failed; the floor keeping the load id |
 | `session_report.rs` tests | 15/15: an array accepted; any kind accepted; too large not counted; fields outside the list kept; counted, not dropped; dropped, not counted; duplicates not counted; no path at receipt; no receipt time; appended counted when the write fails; appended never counted; no counters file; one file for every kind; `byKind` wrong; the counters file not rewritten at the acknowledgement |
+
+## NGINX and RECEIVER (`nginx/`, `receiver/`, row REPORT-BUILD-RECEIVERS)
+
+§3.5 as its two advocates left it. `run.mjs --receiver nginx` or `--receiver receiver` puts the receiver in front of
+the page: the page loads through nginx, which proxies the rig's pages to the sink, so every carrier stays
+same-origin; `--receiver sink` (the default) is the harness's own sink. Both file by kind and UTC day,
+`<kind>-<YYYY-MM-DD>.jsonl`, and the read tool reads both.
+
+* **NGINX** (`nginx/nginx.mjs`, nginx ≥ 1.31.5, `NGINX_BIN` the binary): `client_body_early_read` for `POST
+  /report/load` and `/report/safety` only; 16 KiB in one memory buffer, `413` above it before a byte is read; one
+  access line a request, `{"t","s","n","r"}` with `escape=json` and the body as a JSON string, no address; POST only
+  (`limit_except`, `403`); load reports limited per client (10/s, burst 20, `429`), safety reports never. Its counters
+  (`nginxCounters`) are read from its files: lines with `204` are appended and acknowledged at once (the answer
+  precedes the line, §3.5), `403` and `429` lines and the error log's "too large body" are refusals, a line whose `r`
+  is not one JSON object is counted `notObject` at read.
+* **nginx in front of RECEIVER**: `location /report/` proxied over HTTP/1.1 with request buffering on, and NGINX's
+  line written to `report-fallback.log` only when the answer is not 2xx (`if=$loggable`), so RECEIVER down (`502`)
+  keeps the body unvalidated.
+* **RECEIVER** (`receiver/`, the workspace crate `report-receiver`; tokio, httparse, serde_json, all locked
+  already): one request a connection; a body over 16 KiB or not one JSON object refused and counted; a field outside
+  `report-fields.json` dropped before the write, counted, warned by name; UID-shaped runs of four or more components
+  in `errors[].message` replaced by `<uid>`; every string cut to 512 bytes; one `write` of the line, then `204`; a
+  safety report `sync_data`'d first, then raised on stderr (`reportId`, `source`, `frame`, `route`, `engine`); load
+  reports past a byte cap a UTC day (`--cap-bytes`, default 1 GiB) answered `204` and dropped, counted `refused.cap`;
+  a failed write `500`. `GET /report/counters` gives the sink's counters plus `refused.cap` and `outside`;
+  `--mutant ack-before-write` is §7.4's mutant here.
+* **Not as §3.5 wrote it**: `try_files /.none =204`, not `return 204`, answers NGINX's report locations: `return`
+  answers in the rewrite phase, before `limit_req`'s preaccess phase, so the advocate's rate limit never ran (the
+  test's 40 parallel load reports all took `204` until the change). The files are `load-<day>.jsonl` for both
+  receivers, not RECEIVER's `reports-<day>.jsonl`: one name for the kind. A UID is a whole run of digits and dots
+  between other characters, not a substring of a longer run. The fallback also keeps what RECEIVER answered `400`
+  or `404`, since the advocate's map logs every non-2xx. One `Mutex` serializes RECEIVER's records rather than a task
+  owning the files: one writer either way. The worker drops root's rights, so the rig's out directory is made
+  world-writable for nginx's per-day log path. NGINX's day comes from `$time_iso8601`, local time: the rig runs nginx
+  with `TZ=UTC`.
+* **Not built**: the hop form on nginx 1.29 (§7.1: not run unless the owner keeps 1.29); the read-time join of
+  RECEIVER's files is the read tool's, as for every receiver; cell R's load generator.
+
+| test | mutants killed |
+| --- | --- |
+| `nginx/nginx.test.mjs` | 18/18: default escaping; the body spliced in; no early read; `return`, not `try_files`; any method; safety rate-limited too; no rate limit; 1 MiB bodies; the fallback logs every answer; no fallback log; the address in the line; one file for both kinds; no day in the file; pages not proxied; too-large not read; rate refusals counted as appended; method refusals counted as appended; `byKind` wrong |
+| `receiver/src/lib.rs` tests | 25/25: no size cap; an array accepted; fields outside kept; outside not counted; no UID scrub; three components a UID; no length bound on a UID; leading zeros allowed; any first component; no string cap; nested strings not capped; safety capped too; no cap; the cap's bytes never added; duplicates not counted; one file for every kind; no day in the file; acknowledged when the write fails; the lever missing; a path refusal uncounted; any method; appended never counted; no receipt time; the wrong leap rule; `byKind` wrong |
 
 ## Tests and their mutants
 
