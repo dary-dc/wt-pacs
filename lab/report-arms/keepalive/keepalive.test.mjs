@@ -2,7 +2,7 @@
 // keepalive POST inside the call; a send while visible retried once after 1 s, a hide send never; past OpenTelemetry's
 // budget the frames dropped, then keepalive off; the worker sends each failed check at once and tells the page on its
 // 204; the page sends every safety report not yet acknowledged at each hide; the floor sends the same bytes.
-import keepalive from "./keepalive.js";
+import keepalive, { post } from "./keepalive.js";
 import { reporter, failed } from "./worker.js";
 import { floor } from "./floor.js";
 
@@ -120,6 +120,26 @@ const fault = (n) => JSON.stringify({ kind: "safety", reportId: `s${n}`, frame: 
   arm.load(whole);
   await settle();
   check(timers.length === 1, "load: shown again, a send is visible again and retried");
+}
+
+{
+  const { arm, calls, hide } = rig([true]);
+  arm.safety(fault(4));
+  await settle();
+  arm.safety(fault(4), true);
+  hide();
+  check(calls.length === 1, "safety: the page's own 204 settles it, so the worker's copy is never held");
+}
+{
+  const seen = [];
+  const answers = [{ status: 204 }, { status: 200 }];
+  globalThis.fetch = (url, init) => (seen.push({ url, init }),
+    answers.length ? Promise.resolve(answers.shift()) : Promise.reject(new TypeError("network")));
+  const got = [await post("/report/load", "{}", true), await post("/report/load", "{}", true), await post("/report/load", "{}", false)];
+  const i = seen[0].init;
+  check(i.method === "POST" && i.keepalive === true && i.body === "{}" && i.headers["Content-Type"] === "application/json" &&
+        seen[2].init.keepalive === false, "post: a POST with keepalive as asked, the body as JSON");
+  check(got[0] === true && got[1] === false && got[2] === false, "post: 204 is delivered; any other status or a network error is not");
 }
 
 function worker(answers = [], mutant = null, random = () => 0.5) {

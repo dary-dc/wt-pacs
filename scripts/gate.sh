@@ -224,6 +224,7 @@ run 1 node lab/report-arms/read.test.mjs
 run 1 node lab/report-arms/timing.test.mjs
 run 1 node lab/report-arms/levers.test.mjs
 run 1 node lab/report-arms/beacon/beacon.test.mjs
+run 1 node lab/report-arms/keepalive/keepalive.test.mjs
 
 step "lab: M5's rule on made-up rows: each in-hand path barred on its own, the busy cell's A/A"
 
