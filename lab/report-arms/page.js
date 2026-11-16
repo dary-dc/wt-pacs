@@ -18,8 +18,8 @@ try {
   const ctx = { base: "/report", load: crypto.randomUUID(), session: crypto.randomUUID(), build: "report-arms",
                 source: meta.sourceFingerprint ?? null, frameCount: meta.frameCount, codec: meta.codec ?? "htj2k" };
   const env = { engine: navigator.userAgent, hardwareConcurrency: navigator.hardwareConcurrency };
-  const arm = (await import(`./arms/${q.get("arm")}.js`)).default;
-  const carrier = wrapCarrier(arm(ctx), mutant);
+  const arm = await import(`./arms/${q.get("arm")}.js`);
+  const carrier = wrapCarrier(arm.default(ctx), mutant);
   const load = new Load(ctx);
   const timing = schedule({ timing: q.get("arm") === "off" ? "off" : q.get("timing"), carrier, load, mutate });
   const safety = (failure) => { rig.safety++; carrier.safety(JSON.stringify(mutate(safetyRecord(ctx, failure, env)))); };
@@ -33,7 +33,11 @@ try {
   const n = meta.frameCount;
   const wt = new URL(q.get("wt"));
   wt.searchParams.set("load", ctx.load);
-  const decoderWorker = `/lab/faultbench/decode/decoder.js?fault=${q.get("fault") ?? "none"}&at=${q.get("at") ?? -1}`;
+  // An arm whose worker sends (KEEPALIVE's) takes §7.1's init constants in its worker's query.
+  const workerQuery = new URLSearchParams({ fault: q.get("fault") ?? "none", at: q.get("at") ?? -1, base: ctx.base,
+    load: ctx.load, session: ctx.session, build: ctx.build, codec: ctx.codec, ...(ctx.source ? { source: ctx.source } : {}),
+    ...(mutant ? { mutant } : {}) });
+  const decoderWorker = `${arm.worker ?? "/lab/faultbench/decode/decoder.js"}?${workerQuery}`;
   const fillFrom = performance.timeOrigin + performance.now();
   const done = () => {
     if (rig.frames < n) return;
@@ -51,7 +55,10 @@ try {
       rig.frames++;
       load.frame({ i: f.frameIndex, route, kb: Math.round((f.info.wireBytes ?? 0) / 1024) });
       load.check(mismatchOn ?? route, exact === true && !mismatchOn);
-      if (mismatchOn || exact === false) {
+      if (f.info.report) {
+        rig.safety++;
+        carrier.safety(f.info.report, true);
+      } else if (mismatchOn || exact === false) {
         safety({ frame: f.frameIndex, route: mismatchOn ?? route, check: "xxh3", expected: meta.digests.frames[f.frameIndex],
                  actual: reason?.match(/gave ([0-9a-f]+)/)?.[1] ?? null, secondDecode: exact === true,
                  followed: exact === true ? "rescued" : "blocked", at: performance.timeOrigin + performance.now() });
