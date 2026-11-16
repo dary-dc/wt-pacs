@@ -219,8 +219,6 @@ run 1 node lab/devices/plan.test.mjs
 run 1 python3 lab/devices/collector_test.py
 run 1 sh deploy/server_start_test.sh
 
-step "lab: M5's rule on made-up rows: each in-hand path barred on its own, the busy cell's A/A"
-
 step "lab: the rigs' Firefox driver reads Marionette's framing; with FIREFOX_PATH, a worker starts 300 workers under it"
 run 1 env NODE_PATH="$(npm root -g)" node lab/opfs-cache/browser.test.mjs
 
