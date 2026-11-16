@@ -11,3 +11,4 @@ bash client/transport/wasm/build.sh
 bash client/transport/ts/build.sh
 ingest/tools.sh
 echo PREREQ-DONE
+bash client/decode/wasm/fetch_openjph.sh

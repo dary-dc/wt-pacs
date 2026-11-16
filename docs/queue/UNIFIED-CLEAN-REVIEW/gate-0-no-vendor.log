@@ -1,0 +1,4 @@
+
+== prerequisites: the committed builds are their pins; the WASM client newer than its sources; playwright, Chromium and the decoder vendor
+the decoder vendor is missing: bash client/decode/wasm/fetch_openjph.sh (or skip every browser step: scripts/gate.sh --no-browser)
+GATE-EXIT 2
