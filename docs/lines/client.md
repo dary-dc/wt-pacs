@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-16 (KEEPALIVE's and SESSION's arms, the receivers), 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-16 (the arms' review; KEEPALIVE's and SESSION's arms, the receivers), 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -62,6 +62,12 @@ exact frame bit for bit, and only checked claims on screen.
   safety reports synced and raised), nginx's line kept as its fallback on non-2xx. Found: the advocate's `return 204`
   answers before `limit_req` runs, so its rate limit never applied; `try_files … =204` instead. `run.mjs --receiver`
   puts either in front of the page. Next: REPORT-BUILD-REVIEW, then REPORT-RUN.
+* **The arms' review**, 2026-11-16 ([`../reviews/report-arms.md`](../reviews/report-arms.md), REPORT-BUILD-REVIEW): five
+  blockers. In the driver: the browser closed before the wait (the H losses of the smokes), a server binary that may not
+  be a `telemetry` build (the missing link lines, likely), no rounds or interleaving (§7.2). SESSION's receiver: its
+  ack-after-append untested and no *ack before write* lever. The deploy image: the receiver crate not copied. 14 minors.
+  Each arm otherwise matches its design; the floors time the raw call alone. Next: REPORT-BUILD-FIX, its re-review,
+  then REPORT-RUN.
 
 ## PRs
 
