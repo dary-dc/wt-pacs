@@ -74,12 +74,17 @@ function transport({ ack = true } = {}) {
   a.end();
   await settle();
   check(r.held.has("lost") && a.streams.length === 1, "downloader: a stream ended without the byte keeps the record, not resent on a dead session");
+  r.send("later");
+  await settle();
+  check(a.streams.length === 1 && r.held.get("later") === null, "downloader: a record sent while no session is open waits, held");
   const b = transport();
   r.adopt(b);
   b.open();
   await settle();
-  check(b.streams.length === 1 && b.streams[0].chunks.join("") === "lost", "downloader: an unacknowledged record goes again on the next session");
+  check(b.streams.length === 2 && b.streams.map((x) => x.chunks.join("")).join() === "lost,later",
+        "downloader: every unacknowledged record goes again on the next session, in order");
   b.answer(0);
+  b.answer(1);
   await settle();
   check(r.held.size === 0, "downloader: acknowledged on the next session, released");
 }

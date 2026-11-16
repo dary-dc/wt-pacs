@@ -98,6 +98,11 @@ impl Receiver {
         ok
     }
 
+    fn acknowledged(&mut self) {
+        self.acknowledged += 1;
+        self.write_counters();
+    }
+
     fn write_counters(&self) {
         let _ = std::fs::write(self.dir.join("server-counters.json"), self.counters().to_string());
     }
@@ -160,7 +165,7 @@ pub async fn run(connection: wtransport::Connection) {
             continue;
         }
         if send.write_all(&[1]).await.is_ok() && send.finish().await.is_ok() {
-            receiver.lock().unwrap().acknowledged += 1;
+            receiver.lock().unwrap().acknowledged();
         }
     }
 }
@@ -241,6 +246,27 @@ mod tests {
         assert_eq!(filed, format!("{line}\n"));
         let counters: Value = serde_json::from_str(&std::fs::read_to_string(dir.join("server-counters.json")).unwrap()).unwrap();
         assert_eq!(counters["appended"], 1);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// A line that could not be written is not appended, so the stream gets no byte.
+    #[test]
+    fn a_failed_write_is_not_appended() {
+        let mut r = Receiver::new(std::env::temp_dir().join("session-report-no-such-dir/x"));
+        let (kind, line) = r.take(Some(br#"{"kind":"load","seq":0}"#), json!({}), 1).unwrap();
+        assert!(!r.append(kind, &line));
+        assert_eq!(r.counters()["appended"], 0);
+    }
+
+    /// The counters file counts the acknowledgement too, not only the append before it.
+    #[test]
+    fn the_counters_file_follows_the_acknowledgement() {
+        let dir = std::env::temp_dir().join(format!("session-report-ack-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut r = Receiver::new(dir.clone());
+        r.acknowledged();
+        let counters: Value = serde_json::from_str(&std::fs::read_to_string(dir.join("server-counters.json")).unwrap()).unwrap();
+        assert_eq!(counters["acknowledged"], 1);
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

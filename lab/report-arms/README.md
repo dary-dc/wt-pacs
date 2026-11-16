@@ -85,12 +85,12 @@ node lab/report-arms/cdp.check.mjs                                              
 
 | §7 asks | here |
 | --- | --- |
-| the sink, its counters, the stream binding | the HTTP binding and the counters; the stream binding (one byte after the server's append) is SESSION's build, against the same counters |
+| the sink, its counters, the stream binding | the HTTP binding in `sink.mjs`; the stream binding (one byte after the server's append) in `session_report.rs`, the same counters in `server-counters.json` |
 | D1–D5, D7, D9 on Chromium | built; their levers checked by `cdp.check.mjs` |
 | D8, the session never opens | built as "no server started", with the failure forced on the page at load (`forced=page`), since no fill means no decode to fail |
 | D6, the link drop | the blackout lever only; running the browser, sink and server inside `unshare -rn` behind `link_impair.py --tun` is not wired (this host has no iproute2) |
 | Firefox's tab kill, WebKit's WebProcess and browser kill, both engines inside `--tun` | the process-tree kill is built and tested on a made-up tree; **not checked on either engine**: neither is on this host. REPORT-RUN checks them first, as §7.6 says |
-| the floor probe beside L and C | each carrier's own, beside its arm: BEACON's is `beacon/floor.js`, KEEPALIVE's `keepalive/floor.js`; SESSION's not built |
+| the floor probe beside L and C | each carrier's own, beside its arm: `beacon/floor.js`, `keepalive/floor.js`, `session/floor.js` |
 | cells L (latency), C (page thread), Y (bytes at the relay), R (receivers' cost) | not built: the rows above carry D's readings only |
 | the dbts_c1 view | the contract's grey-16 frame as a 32-frame HTJ2K series: the demo volumes are not on this host |
 
@@ -151,6 +151,46 @@ delivered means `204`.
 | test | mutants killed |
 | --- | --- |
 | `keepalive/keepalive.test.mjs` | 33/33: keepalive never set; no request cap; no byte budget; no truncation past it; the budget never released; a hide load send retried; a load retried forever; retried at 5 s; the page's own safety report never retried; retried forever; a `204` not settling; no flush at hide; none at `pagehide`; a show counted as a hide; the worker's acknowledgement ignored; an acknowledged record held again; the page sending the worker's copy at once; the worker's copy not held; hiding not tracked for the load record; the worker's report to the load path; acknowledged after a failed send; never retried; retried forever; the rescuing route named; no expected digest; record mutants not applied in the worker; carrier mutants not applied; a preview reported; a rescued frame not reported; the floor keeping the load id; keeping the `reportId`; without keepalive; padded bytes |
+
+## SESSION (`session/`, row REPORT-BUILD-SESSION)
+
+§3.3 as its advocate left it, behind the seam as `arms/session.js`, its three timings: `--timing 1` (SESSION-1, at
+once, batched per second), `--timing Y` (SESSION-Y, the hybrid) and `--timing H` (SESSION-H, at hidden), the last two
+from `timing.js`.
+
+* **The path**: page → downloader → one bidirectional stream of the series' WebTransport session per record, the
+  record then FIN; the server reads to FIN, appends the line, then writes one byte and FIN. The record is held in the
+  downloader until that byte. `session/downloader.js` is the product's downloader run after `session/adopt.js`,
+  which wraps the worker's `WebTransport` (every session the downloader dials, re-dials or recycles is adopted; the
+  newest that opens carries what is held) and its `Worker` (a decoder's `report` message is a record).
+* **Load record**: the page hands it to the downloader in the call, over a `BroadcastChannel` keyed by the load id.
+  SESSION-1 (`schedule` in `session/session.js`): the whole record at the fill's end, a delta each second while
+  anything changed, and at a hide (`visibilitychange` to hidden or `pagehide`) the delta since the last tick.
+* **Safety report**: from the decoder that found it, to its parent the downloader (`session/decoder.js`, the fault
+  bench's decoder as it is; the record built by KEEPALIVE's `reporter`), and from there on a stream; the record rides
+  the frame message as `report`, so the page sends no second copy. A failure found on the page (D8's forced one) is
+  handed to the downloader like a load record.
+* **Held across sessions**: a record whose stream ends without the byte waits for the next session that opens; one in
+  flight on a recycled session that fails goes again on the current one. Nothing is held past the downloader.
+* **The receiver** (`lab/server-telemetry/src/session_report.rs`, a `telemetry` build with
+  `WTPACS_SESSION_REPORT_DIR` set): spawned once the control stream is accepted, it takes one report stream at a time
+  on its own task; a record is one JSON object of kind `load` or `safety`, at most 16 KiB (else the stream is reset),
+  at most 512 a session (this build's cap; the protocol names none). A field `report-fields.json` does not list for
+  the record's kind is dropped, warned and counted. The line `{t, r, path}` goes to `server-<kind>.jsonl`, `path`
+  the connection's `rtt_us`, `cwnd`, `lost_packets`, `congestion_events` at receipt; the sink's counters (and
+  `refused.cap`, `outside`) to `server-counters.json`. `run.mjs` reads both beside the sink's.
+* **Floor** (`session/floor.js`, §7.2): one bare stream of the arm's own bytes and the server's byte, under a fresh
+  load id and `reportId` of the same lengths (KEEPALIVE's floor with the stream for the fetch). Cells L and C, which
+  would run it, are not built.
+* **Not as §3.3 wrote it**: the page reaches the downloader by a `BroadcastChannel`, not a `postMessage` to the
+  worker, because `DownloaderClient` keeps its worker to itself; both are one message task. The server does not file
+  the series' own name beside a safety report, and no re-check of the stored frame runs (§5: the coded-bytes digest
+  does not exist). The 16 KiB reset is not unit-tested: the stream read is exercised only by the smoke.
+
+| test | mutants killed |
+| --- | --- |
+| `session/session.test.mjs` | 21/21: load never handed on; the decoder's report handed on again; the page's own safety report dropped; no tick; a tick every 5 s; the tick resends the whole; the hybrid and at hidden tick too; no whole record at the fill's end; no hide delta; acknowledged without the byte; no FIN; written before ready; released when written, not at the byte; held records not resent on a new session; in-flight records written again on a new session; a record in flight written twice; a record failed on a recycled session never rewritten; a closed session kept as current; the decoder's report under another kind; the decoder's hand-off reported as failed; the floor keeping the load id |
+| `session_report.rs` tests | 15/15: an array accepted; any kind accepted; too large not counted; fields outside the list kept; counted, not dropped; dropped, not counted; duplicates not counted; no path at receipt; no receipt time; appended counted when the write fails; appended never counted; no counters file; one file for every kind; `byKind` wrong; the counters file not rewritten at the acknowledgement |
 
 ## Tests and their mutants
 

@@ -39,7 +39,7 @@ async function server(d, out) {
   const port = 4600 + Math.floor(Math.random() * 300);
   const srv = spawn(join(ROOT, "target/release/series-server"), ["--port", String(port), "--bind", "127.0.0.1",
     "--series", `${d}/series.sbnd`, "--cert-pem", `${tls}/cert.pem`, "--key-pem", `${tls}/key.pem`],
-    { env: { ...process.env, WTPACS_LINK_RECORD_PATH: join(out, "link.jsonl") }, stdio: ["ignore", "pipe", "ignore"] });
+    { env: { ...process.env, WTPACS_LINK_RECORD_PATH: join(out, "link.jsonl"), WTPACS_SESSION_REPORT_DIR: out }, stdio: ["ignore", "pipe", "ignore"] });
   const banner = await new Promise((ok) => { let s = ""; srv.stdout.on("data", (b) => { s += b; if (/transport=/.test(s)) ok(s); }); });
   return { srv, wt: `https://127.0.0.1:${port}/`, hash: banner.split("cert_sha256=")[1].split(/\s/)[0] };
 }
@@ -91,12 +91,14 @@ async function load({ arm, timing, ending, mutant, wait, sink, srv, dir, out }) 
     b.close();
   }
   await pause(wait * 1000);
-  const lines = ["load.jsonl", "safety.jsonl", "link.jsonl"].filter((f) => existsSync(join(out, f)))
+  const lines = ["load.jsonl", "safety.jsonl", "link.jsonl", "server-load.jsonl", "server-safety.jsonl"].filter((f) => existsSync(join(out, f)))
     .flatMap((f) => readFileSync(join(out, f), "utf8").split("\n"));
   const e = byLoad(readLines(lines).records).get(row.load);
   Object.assign(row, { fill: !!e?.records.some((r) => r.seq === 0 && r.fillMs != null), seqs: e?.seqs ?? [],
     safety: e?.safety.length ?? 0, duplicates: e?.duplicates ?? 0, unkeyed: e?.unkeyed ?? 0, outside: e?.outside ?? [],
     link: !!e?.link, counters: { ...sink.counters, byKind: { ...sink.counters.byKind }, refused: { ...sink.counters.refused } } });
+  const server = join(out, "server-counters.json");
+  if (existsSync(server)) row.serverCounters = JSON.parse(readFileSync(server, "utf8"));
   return row;
 }
 
