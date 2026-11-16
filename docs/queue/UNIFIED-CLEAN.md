@@ -1,9 +1,9 @@
 state: started
 started: 2026-11-16T03:42Z
-heartbeat: 2026-11-16T03:43Z
+heartbeat: 2026-11-16T03:48Z
 outputs: claude/unified (each cleaning its own commit)
 ## Resume
-Done on claude/unified: 5f853f89 (gate's empty step, audit 3), bd0863f1 (the owner's name in two docs, audit 2), 7805fb9e (glossary, audit 4 / plan 6.5).
-Next: plan 6.1 (Cargo.lock, notices), 6.2 (bundles), 6.4, 6.6 checks; docs/lines reconciliation (audit 8 / plan 6.5) incl. coordination.md Open 8; then the full gate.
-Prereqs: worktree /home/user/unified; prereq script in session scratchpad (dockerd, meson, venv, decode wasm, transport wasm/ts, ingest/tools.sh).
+Done on claude/unified (pushed): 5f853f89 (gate's empty step, audit 3), bd0863f1 (the owner's name in two docs, audit 2), 7805fb9e (glossary, audit 4), 08f10482 (docs/lines index + coordination Open 8), 8af63c6e (gate: line-hygiene's THIRD_PARTY_NOTICES check that B4 dropped; mutants killed), ce06e946 (gate: series-server tests under lab-levers unfiltered as line-hygiene; the send-window lever's test was unrun; mutant server.rs:166 killed only unfiltered).
+Checked, nothing to commit: Cargo.lock --locked OK, notices current (164 crates), decoder builds match manifest.sha256.
+Next: full gate in /home/user/unified (`PYTHON=.venv/bin/python scripts/gate.sh`), demo-check.mjs both views, comment budget; then copy logs to docs/queue/UNIFIED-CLEAN/, PR 402 body §Clean, state done.
 ## Result
