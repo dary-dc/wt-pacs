@@ -1,0 +1,270 @@
+pr	head	ancestor_of_unified_9749ac85	commits_ahead	patch_unique_ahead	branch	title
+402	9749ac85aa	carried	0	0	claude/unified	do not merge: review
+401	4520a441c8	carried	0	0	claude/merge-a-client	Stage A, client line: 62 merges into claude/merge-a-client (MERGE-A-CLIENT)
+400	09f86c0e7e	no	16	16	claude/phone-round	lab/devices: the phone round's one-press runner (RUNNER-AUTO), tested headless
+399	1597e37c60	carried	0	0	claude/merge-a-server	MERGE-A-SERVER: the server line's frozen list merged into a staging branch (stage A2)
+398	fc8c427b73	carried	0	0	claude/merge-a-codecs	MERGE-A-CODECS: the codecs line's frozen list merged into a staging branch (stage A1)
+397	7312b13d27	no	55	55	claude/mobile-decode	docs/decode/mobile: decode options on a phone's browser
+396	ce4b9d6c83	no	4	4	claude/native-notes	docs/native: paused 2026-11-15; a status screen and how to resume
+395	b525eead06	no	37	37	claude/report-arms	lab/report-arms: the reports' rig (REPORT-BUILD-HARNESS), off and stub arms only
+394	2c78653683	no	36	36	claude/cache-arms	lab/cache-arms: the cache arms' rig (ring, seam, rules above it, floor probe, eleven cells
+393	af4b6aeb35	carried	0	0	claude/hw-probe	lab/devices: D0's hardware-decode probe
+392	6c6b9f157b	no	2	2	claude/hw10-routes	docs/decode: every route for a checked 10-bit hardware AV1 frame, ranked (HW10-ROUTES)
+391	96a829c887	carried	0	0	claude/transport-design	transport: design.md, an inventory of what is decided and what is open
+390	8ea8aba6d8	carried	0	0	claude/oq-ingest	ingest/from-parser: the optimal-quality series behind --optimal-quality (experimental, off
+389	ddd3ec0ede	carried	0	0	claude/depth8	An 8-bit depth cut for hardware decode: theory and a pre-registered protocol (DEPTH8-THEOR
+388	cb1c90d856	carried	0	0	claude/report-plan	report-plan: the client's reports, surveyed, screened and designed per survivor (REPORT-OP
+387	b631179a56	carried	0	0	claude/hw-decode	Hardware decode re-read for the optimal-quality view (HW-DECODE-DEEP)
+386	a3b35708a3	carried	0	0	claude/link-targets	The reader's link profiles, and where each delivery arm binds on them
+385	f26a78f056	carried	0	0	claude/cache-plan	The cache's plan: a sourced screen, a best effort per survivor, then a pre-registered run
+384	4a51f645e5	no	4	4	claude/docs-client	docs/client: one home for the client's design, evidence and work state
+383	7946ad7c66	carried	0	0	claude/fable-design	docs/proposals: design proposals for the unified demo path (FABLE-DESIGN)
+382	e5b20cba8d	carried	0	0	claude/unified-client	UNIFY-CLIENT: the client line's unified branch (demo tip + CLEAN-2 + NAMES-1), a proposal
+381	7afeb9cac2	carried	0	0	claude/unified-pacs	unified-pacs: line-pacs with the six commits its 10-30 assembly missed (proposal branch)
+380	b9abdc290f	carried	0	0	claude/unified-server	Unified server line: claude/line-server as it stands, the two lab arms named for the owner
+379	9c050c073b	carried	0	0	claude/unified-codecs	UNIFY-CODECS: the codecs line's unified proposal branch (#350, #340)
+378	d9ed9815d4	no	17	17	claude/lossless-under-loss	client/view: a lost exact ask is asked again while the reader stays (the phone run's load 
+377	5137f44960	carried	0	0	claude/hidden-page-decode-beacon	lab/phone/beacon: record the page's visibility, freezes and resumes (HIDDEN-PAGE-DECODE)
+376	22c68824b8	carried	0	0	claude/hidden-page-decode	client/transport: a decode deadline that fires late on a stopped page is given again, not 
+375	18f969386d	carried	0	0	claude/clean-2	CLEAN-2: what CLEAN-PRODUCT left (one pair starter, the product's one transport bundle, la
+374	311af9c7f1	carried	0	0	claude/names-1	NAMES-1: NAMES-FIND's renames on the demo tip (for after the merge)
+373	e5f8fff3d8	carried	0	0	claude/audit-measure	Audit protocols B0, B, A and C measured
+372	4254c99344	no	5	5	claude/demo-network	DEMO-NETWORK: the room's network check on arrival
+370	b097f5b9ea	no	15	15	claude/telemetry-client	Client telemetry in the product: the load report, sampled, off by default (proposal, not f
+369	962226e8f0	carried	0	0	claude/phone-tools	PHONE-TOOLS: tooling for the phone run (image revision, telemetry image, read path, beacon
+368	dc989114e4	no	42	42	claude/oq-integrity-build	Proposal, not for the demo: an optimal-quality frame's integrity and coding error (I1–I3)
+367	18d2d1ffb4	carried	0	0	claude/demo-fixes-2	Demo fixes, round 2: the web image serves a pair; the demo's UX, the source fingerprint an
+366	460488d9df	carried	0	0	claude/fable-simplify	docs/proposals: the demo path, simplified (proposals only)
+365	14605f410e	carried	0	0	claude/demo-ux	DEMO-UX: the demo's label, status line, slice slider and show list, with #360, #362, #359 
+364	c02b5f32cf	carried	0	0	claude/source-fingerprint	The pairing's source check: sourceFingerprint written by every ingest, compared by checkPa
+363	daee0d1df9	carried	0	0	claude/demo-fixes-1	Demo fixes, round 1: the red team's tests pass, the blind review's findings fixed or answe
+362	25c497385d	carried	0	0	claude/demo-e2e-2-fixes	demo-check.mjs: Lossless checked against the paint that wrote it, Home's paint checked; th
+361	8f43ca7d4f	carried	0	0	claude/demo-view-worker	demo-check: --view page|worker; the view worker on all 20 demo series
+360	136c19f4ab	carried	0	0	claude/phone-no-install	The phone demo from a laptop without installs
+359	d2c4949b54	no	6	6	claude/phone-protocol	docs/devices §7: the demo's phone run, pre-registered
+358	5b4c334174	carried	0	0	claude/proposals	docs/lines/proposals.md: the optimal-quality path's proposals, measured and consolidated
+357	664a617908	carried	0	0	claude/av1-corrections	AV1 audits: corrections by study branch, and three pre-registered protocols
+356	9cf2b4f3e8	carried	0	0	claude/demo-essentials	client/README: optimal quality, for a presenter (proposed)
+355	36d286cdf4	carried	0	0	claude/demo-fixes-0	demo-fixes-0: the demo build finished on the demo tip (gate-cloud, double-decode-check, de
+354	9db541be5f	carried	0	0	claude/demo-e2e-2	Demo end to end from a fresh clone: the certificate renewed first, README §Demo fixed, all
+353	9eee718187	carried	0	0	claude/core-next-fixes	core-next fixes: signed 8-bit painted, the web image's missing module, the browser end to 
+352	0e0e58c891	carried	0	0	claude/av1-groups-settings	Groups: settings amendment, pre-registered (theory and protocol only)
+351	3ddc0aedcb	carried	0	0	claude/core-next	core-next: the demo's path into core, merge by merge
+350	14ad30c3a7	carried	0	0	claude/docs-lines-3	docs/lines: the AV1 harvest of 2026-11-10 (codecs, optimal quality)
+349	c83a746536	carried	0	0	claude/double-decode-check	downloader: a frame the page asks during a fill is decoded once (the default page view rea
+348	886d05b9c7	carried	0	0	claude/oq-depth-cut-fixes	oq-depth-cut review: four tests the surviving mutants asked for; the cut's rounding bound 
+347	18ea347163	carried	0	0	claude/demo-e2e-line	docs/lines/optimal-quality: the demo run end to end (DEMO-E2E)
+346	fe28ce84b0	carried	0	0	claude/demo-e2e	DEMO-E2E: the optimal-quality demo end to end in headless Chromium; README §Demo
+345	6bedbd60a6	carried	0	0	claude/core-int8-fixes	av1: a signed payload under 8 bits past offset 128 decodes as two bytes; native decode typ
+344	efbda4f8ec	carried	0	0	claude/phone-setup-fixes	README (phone): the Build number path per maker; no phone.env without an address
+343	52b9646326	carried	0	0	claude/phone-pair	README: the phone section serves a pair (exact series on 4434)
+341	7540c76776	carried	0	0	claude/gate-cloud	The full gate in a fresh cloud session
+340	31dd62efd1	carried	0	0	claude/docs-lines-oq-webcodecs	docs/lines/optimal-quality: WebCodecs first for every OQ series, built on claude/oq-depth-
+339	2a86024936	carried	0	0	claude/browser-decoding	docs/decode/browser.md: a reference of decoding media in the browser, from official source
+338	5b69cd7d9c	carried	0	0	claude/plan	docs/lines/plan: the plan to the demo, one path into main and a unified repository
+337	30e8228fdd	carried	0	0	claude/core-int8	av1: a signed 8-bit payload off centre decodes as 9 bits (port of faf6932d to core)
+336	c8efab0e62	carried	0	0	claude/core-ci-deploy	deploy: the image's workspace stage copies client/native
+335	386e35f5bc	carried	0	0	claude/av1-noise-ratio-line	docs/lines/codecs: record the noise-ratio theory (#332) and its owed protocol
+334	ea329b5479	carried	0	0	claude/av1-audit-decode	docs/av1/audit-decode.md: decode and delivery results audited (AV1-AUDIT-DECODE)
+332	0a9d33ca35	carried	0	0	claude/av1-noise-ratio	docs/av1: the noise ratio as a visually-lossless criterion, theory and pre-registered prot
+331	feeaaee6b1	carried	0	0	claude/av1-encoder-settings	docs/av1: every AV1 encoder setting, its theory, and the results it may have biased (ENCOD
+330	d8a706c1ca	carried	0	0	claude/phone-setup	README: the viewer on an Android phone over USB
+329	8d84867338	carried	0	0	claude/av1-audit-quality	docs/av1: audit of the AV1 quality results (AV1-AUDIT-QUALITY)
+328	6f61ff0bd1	carried	0	0	claude/oq-depth-cut	OQ-DEPTHCUT: the depth cut — a D > 10 series' optimal quality at 10 bits, through WebCodec
+327	7770913481	carried	0	0	claude/oq-client-fixes	viewer: optimal quality review fixes — pairing checks the source, a failed lossless check 
+326	b2efb13ec6	carried	0	0	claude/av1-groups	docs/av1/groups.md: Groups protocol, pre-registered (row GROUPS-THEORY)
+325	b86628d629	carried	0	0	claude/av1-vl-metrics	docs/av1: vl-metrics.md — which metrics may claim visually lossless, at which windows
+324	13d62d2675	carried	0	0	claude/htj2k-tiles	docs/htj2k-tiles: HTJ2K levels and regions for large frames — theory and a pre-registered 
+323	bb762be567	carried	0	0	claude/av1-window-q	docs/av1/window-q.md: was Q 8 right for the VL view, read against window width (row WINDOW
+321	8ea8aba6d8	carried	0	0	claude/oq-ingest	ingest: optimal quality — lossy AV1 series paired with their exact HTJ2K series (OQ-INGEST
+320	51b5d25690	carried	0	0	claude/oq-client	OQ-CLIENT: optimal quality, the frame exact on request
+318	87640e5dd8	carried	0	0	claude/av1-webcodecs-profiles	docs/av1/webcodecs-profiles.md: AV1 profiles through WebCodecs, per engine (WCPROFILES)
+317	991c298b74	carried	0	0	claude/av1-noise-point	docs/av1: noise-point — the VL view's Q from each series' noise (theory and protocol)
+316	b2b3df0597	carried	0	0	claude/av1-preview-noise	docs/av1: preview noise — what sets a full-size preview's Q, and what its decode costs
+315	6c6cfb44e1	carried	0	0	claude/av1-residual-exact	RESIDEXACT: does the residual rebuild the exact frame on every client decoder?
+314	eb7e19c452	carried	0	0	claude/av1-snr-preview	docs/av1: SNR preview protocol, pre-registered (row SNRPREVIEW)
+313	5b636f235c	carried	0	0	claude/us-data-search	The ultrasound data search (2026-11-04)
+312	a52fdd8823	carried	0	0	claude/av1-preview-depth	lab/av1/metrics: preview depth protocol, pre-registered (row PREVIEWDEPTH)
+311	3a96a8d87a	carried	0	0	claude/av1-split-preview-b	lab/av1/profiles: split preview B — top-8 preview against one 10-bit stream, protocol pre-
+310	c2830266a2	carried	0	0	claude/av1-top-first	docs/av1/top-first.md: row TOPFIRST — the top stream shown before the low, derived, and a 
+309	1e96552d5e	no	6	6	claude/av1-paint-depth	Paint depth: a reduced-depth preview painted at its own depth, behind a flag (theory, buil
+308	a47b4f02ec	carried	0	0	claude/av1-grey-path	Grey path: luma-only routes, the chroma's cost, and a pre-registered protocol for M and R 
+307	5705a82907	carried	0	0	claude/av1-lossy-pixel-work	PIXELWORK: lossy designs' pixel work after decode — ranked, onePass add built, protocol pr
+306	339e4fcca9	carried	0	0	claude/av1-profile-carriers	av1: profile carriers — one layered stream or separate payloads, protocol pre-registered (
+305	2f04f6482e	carried	0	0	claude/av1-quality-metrics	Row METRICS: quality metrics protocol for the lossy AV1 profiles, pre-registered
+304	c2b1c954ae	carried	0	0	claude/av1-top10-why	av1 profiles: why the top 10 bits cost more than the 12-bit stream
+303	16f5e23e98	no	1	1	claude/core-onepass	av1: onePass (single-pass merge, mono_chrome chroma skip) ported to core
+302	ef122ec689	carried	0	0	claude/core-repaint-fix	controller: a repaint before the current frame is held no longer stops all painting
+301	fba512c530	carried	0	0	claude/core-m5b	M5 under an amended fill bar (to the last frame on disk): ring on both engines; its build 
+300	f90fc336bd	no	21	16	claude/viewer-seam2	viewer: the seam on our real core, option B's costs, what is verified, and the phone proto
+299	3ceef49fba	carried	0	0	claude/core-review2	core: a second independent review of the fold (#289) — a frame decoded twice fixed; the un
+298	b74ca8c513	carried	0	0	claude/core-asking-plan	Proposal: the asking policy — what a view wants, per series and device (ADR, theory only)
+297	6b38c3f035	no	13	8	claude/viewer-seam	viewer: a seam for our painter inside Cornerstone3D
+296	3acecc9066	carried	0	0	claude/core-busy2	frame-path §7: the busy page, asks on the mean — B′ wins the busy page on both engines
+295	a7f89db13b	carried	0	0	claude/htj2k-progressive	docs/decode: HTJ2K progressive decoding — theory, prediction, pre-registered protocol
+294	a8243eca5e	carried	0	0	claude/core-start2	frame-path §7: the start, levers split — Gecko's worker loading, a view worker made after 
+292	196de50c5f	carried	0	0	claude/av1-lcevc-lossy	LCEVC for the lossy viewing profile: not worth building on present evidence (theory)
+291	95357d8348	carried	0	0	claude/av1-visually-lossless	docs/av1: what binds lossy viewing and what it may be measured against
+290	1232918df3	carried	0	0	claude/av1-quality-profiles	av1: pre-register lossy quality profiles, intra and inter, with the residual
+289	0920153d2a	carried	0	0	claude/core-fold-2026-11-02	Fold 2026-11-02: the core's runs and reviews, decisions only (supersedes #273)
+288	6a2994f894	carried	0	0	claude/av1-residual-apart	RESIDAPART: the residual timed apart from the preview — protocol, pre-registered
+285	c99ba49292	carried	0	0	claude/opfs-arms-run	OPFS cache arms, run: no arm passes on Chromium or Firefox; to the owner as measured
+283	440481f9f7	carried	0	0	claude/av1-svc-preview	[candidate] AV1 scalable preview as a tool: dimensions, costs, use cases, protocol
+278	224ad4e221	carried	0	0	claude/native-metrics	The native window, timed, and a first comparable run against the browser
+277	02e298ef75	carried	0	0	claude/native-parity	native: functional parity with the browser core
+276	643ce55977	carried	0	0	claude/view-start	frame-path §7: the view worker's start, timed on its own, and shortened
+275	2993d8d062	carried	0	0	claude/paint-read	The per-paint pixel read under a busy page
+273	2b6af3eb27	carried	0	0	claude/core-fold-2026-10-30	Fold 2026-10-30: today's runs and reviews into the core
+267	a0474190fa	carried	0	0	claude/core-native	Core: what NATIVERUN needs, built
+266	ed2079aff7	carried	0	0	claude/core-exp1	Core: Experiment 1 run (span)
+265	1ac440b0ba	no	14	14	claude/core-exp2	Core: Experiment 2 run (waitAhead)
+264	91069eb31e	carried	0	0	claude/core-m5	Core: M5 on Firefox, and how the ring works
+263	3d12a46f44	carried	0	0	claude/core-s7	Core: §7 run — page vs view worker
+262	72a16fb6c4	carried	0	0	claude/core-review	Core: independent review fixes
+261	811ea93f0f	carried	0	0	claude/core-perf	Core: timed against main
+260	3237cb110b	carried	0	0	claude/core-decoders	Core: the built decoders committed (#133)
+259	1a90eb9928	carried	0	0	claude/frame-memory-m5-run	M5 run: Chromium chooses ring; Firefox VOID on fills that never start; the both-engine rul
+258	5984fbacaa	carried	0	0	claude/line-pacs	The PACS line, assembled: ingest, receive, carrier, metadata, study DB and index, disk lay
+257	e781955d6f	no	1	1	claude/merge-order-2026-10-29	Blockers 2026-10-29 — not to merge
+256	8d5112fd74	carried	0	0	claude/line-hygiene	Hygiene, audits & deploy, as one line: #112, #125→#134, #188→#202, #190→#200, #213, #131, 
+255	bbba29fd65	no	10	5	claude/line-viewer	Viewer (paused by the owner 2026-10-30)
+254	7242d0bd77	carried	0	0	claude/line-server	Server & transport line: #37–#140 on one branch, one merge commit each
+253	90d3f39bbb	carried	0	0	claude/native-view-review	Independent review of the native view-worker build: the store's tie-break, NATIVERUN's bou
+252	32ac529b5b	carried	0	0	claude/vw-exp-2-review	frame-path: Experiment 2's independent review, and the rig its run needs
+251	440047ff35	carried	0	0	claude/cine-no-skip	viewer: the cine never skips a slice — stepped on the page's frames once the slice is held
+250	2e6fa5b225	carried	0	0	claude/core	The core, assembled: the view-worker architecture and its settings, browser and native, on
+249	23f7f3c43d	carried	0	0	claude/worker-clock-build	Frame clock: the harness for the pre-registered protocol, built and smoke-run, not run
+248	cd666e9d7d	carried	0	0	claude/vw-exp-1-review	frame-path: Experiment 1's independent review, and the rig its run needs
+247	141f66e708	carried	0	0	claude/native-view	Native window: --paint-thread ui|view|core — the view-worker design and its single core be
+246	34ec83c0a5	carried	0	0	claude/vw-exp-2	Experiment 2 pre-registered: the want ascending, and no ask for a frame the running fill d
+245	c3e65d4419	carried	0	0	claude/vw-exp-3	Experiment 3: a transferred ArrayBuffer per frame — pre-registered, built behind `pixels`,
+244	6466bbed38	carried	0	0	claude/vw-cache	The view worker's OPFS cache, with the writer as a setting
+243	33222f022b	carried	0	0	claude/vw-exp-1	frame-path: Experiment 1, span small gaps in the misses — pre-registered, built behind a l
+242	8f54130099	carried	0	0	claude/opfs-arms-d	OPFS arms: arm D (the decoders write) and a window-drag cell, pre-registered before any da
+241	4229498648	carried	0	0	claude/frame-memory-m5	frame-memory: M5 amended before any data — disk-only arm, credits, bar per engine, arms bu
+240	96dc1b320e	carried	0	0	claude/native-view-design-mrev	native/README: methodology review of the view-worker design's native mapping and compariso
+239	9a829a4991	carried	0	0	claude/vw-experiments	frame-path: experiments beside the view-worker target, ranked
+238	34ebe33231	carried	0	0	claude/view-worker-want	The view worker's want: the controller decides what, the store decides from where
+237	cf38708b2c	carried	0	0	claude/recv-loop	frame-path: the receive loop beside the paint — sources, predictions, a pre-registered rul
+236	e705ddbb44	carried	0	0	claude/native-view-design	native/README: the view-worker design, native — mapping, per-frame counts, comparison pre-
+235	7f335cc0c8	carried	0	0	claude/view-worker-target-rev	frame-path: the view-worker target revised after both reviews
+234	d4a7f50071	carried	0	0	claude/rsync-updates	docs/ingest: late instances, corrections and withdrawals over rsync (theory)
+233	1617855c3d	carried	0	0	claude/rsync-options	rsync delivery: options, trigger mechanisms, what rsync verifies
+232	a429a6c122	carried	0	0	claude/review-blind	frame-path: an independent design of the client core, written blind, then weighed against 
+231	9e5bd9c08e	carried	0	0	claude/review-red	frame-path: the red team's review of the view worker target
+230	9c6d378aa2	carried	0	0	claude/pcs-pacs-options	docs/ingest: the PCS → PACS path as parts and options (proposed skeleton)
+229	9c90104e2c	carried	0	0	claude/view-worker	The view worker: frames held and painted off the page, as a variant beside today's path
+228	8ea7281f89	carried	0	0	claude/view-worker-target	frame-path: the view worker as the target design
+227	57aec111b4	carried	0	0	claude/opfs-arms	OPFS cache I/O in the view worker: sync, async or a store worker — sources, predictions, p
+226	cd60e0a5a7	carried	0	0	claude/frame-memory	docs: who owns a frame's memory in the view worker (frame-path §Proposed)
+225	729f7de6ca	carried	0	0	claude/worker-clock	frame-path: a frame clock in the view worker, by source, with a pre-registered protocol
+224	8ffe467437	carried	0	0	claude/ask-patterns-map	docs: asking for a stack — the patterns on our wire
+223	2c1f31f9fa	carried	0	0	claude/sync-b-vs-e	lab/metadata-store sync: full snapshot (E) vs group list + changed groups (B), bytes per e
+222	c2a1460891	carried	0	0	claude/sync-shapes	The synchronization protocol: which shape (theory)
+221	795f0ff7c2	carried	0	0	claude/sync-prior-art	docs/ingest: synchronization prior art (git, rsync, BEP, Merkle, HTTP, Storage Commitment,
+220	1fee7e66ca	carried	0	0	claude/sync-second-writer	docs: a second writer at the PACS — authority from the standards, conflict policies
+219	07e858301d	carried	0	0	claude/ask-patterns-survey	docs: how stack and cine viewers choose what to fetch
+218	ba56ebd0e8	carried	0	0	claude/native-fill	M2 NATIVEFILL: native core against the browser's viewer — P1 holds at two cores, P2 fails 
+217	5cc5cffaa2	no	2	2	claude/merge-order-2026-10-28	Merge order 2026-10-28 — not to merge
+216	c3344986c2	carried	0	0	claude/native-window	Native window: the smallest desktop shape, read back exact on lavapipe
+215	5a3acbd273	no	4	3	claude/viewer-a-step1	viewer A, step 1: a 1:1 mode, so the painter's exactness reaches the screen
+214	413395825d	no	3	2	claude/viewer-spike	Spike (throwaway, not for the product): the viewer architecture's pre-registered A-against
+213	83d2f6b9b4	carried	0	0	claude/test-race-asyncfd	Server tests hold their port; uring_reader registers its fd as tokio 1.53.3 documents
+212	cff900bdcc	carried	0	0	claude/opfs-cache-fixes	Client cache: the two fixes #204 asked for, measured — Gecko evicts; the window still boun
+211	843a3903c3	carried	0	0	claude/native-step1-check	native/README §8.5: step 1's lab check, run
+210	cfcb32eb71	carried	0	0	claude/viewer-requirement-fixes	viewer: no wrap on manual steps, rotate and flip on DX and CR only, case-insensitive keys
+209	a237cf3e77	carried	0	0	claude/native-cache	Native core M3: a cache of checked frames, crash-safe, re-checked on read
+208	334214d2e9	carried	0	0	claude/coldrtt-hint	COLDRTT: a depth hint so a ≤ 10-bit series loads dav1d-WASM only if WebCodecs fails
+207	680c9b4942	carried	0	0	claude/cache-policy	Client cache: what keeping frames on the device obliges, the options and a default per dep
+206	642c0853f0	carried	0	0	claude/native-paint	M1 PAINTPROOF: the native wgpu painter, exact on lavapipe
+205	d4021361b4	no	1	1	claude/day-summary-2026-10-27	Day summary 2026-10-27 — not to merge
+204	38fb59a7b9	carried	0	0	claude/opfs-cache-measure	Client cache: the owed measurements, M1–M4
+203	4bc2d5f267	carried	0	0	claude/scroll-policies	Row 121b: what a scroll ahead of the fill asks (SCROLLPOLICY)
+202	5739e0ff47	carried	0	0	claude/client-simplify-r5	Client: apply the fifth round's safe-now items (V1–V14)
+201	d9d7ac7749	carried	0	0	claude/native-core-2	Native core step 2: HTJ2K and AV1 decoded natively, each frame checked against its digest
+200	4ef6fa3c8f	carried	0	0	claude/server-simplify-r5	Apply the fifth audit round's safe-now items
+198	f84ac3fb84	carried	0	0	claude/native-core-1	Native core step 1: wt-pacs/1 beside h3 on the server, and client/native over raw QUIC
+197	18be07b403	carried	0	0	claude/opfs-cache-build	Client cache: the OPFS store worker behind the viewer
+193	aba1adcc26	no	2	2	claude/viewer-requirements	docs/viewer: the viewer product's requirements, on their sources
+190	8c3f5566f1	carried	0	0	claude/server-audit-r5	merge-readiness: the fifth round — server, tools and lab audited
+189	86a14b68b6	carried	0	0	claude/native-wire	native/README §8: the headless core on raw QUIC, designed (theory only)
+188	162a5fdd3f	carried	0	0	claude/client-audit-r5	merge-readiness: fifth round, the client (audit only)
+187	07ffd873bd	carried	0	0	claude/opfs-multigb	Design, client cache: the OPFS store for multi-GB studies
+185	6a85202226	carried	0	0	claude/sbnd-tail-rewrite	disk-layout: a late frame merged by rewriting only the tail of a reflinked clone, measured
+182	6934f291a6	carried	0	0	claude/transport-seam	link.md §14: the transport seam now that the sender is ours (theory only)
+181	0f71b1bfa7	carried	0	0	claude/carriers-explained	ingest: carriers-explained.md — how each TCP carrier for one package works (theory, source
+180	caeccaf158	carried	0	0	claude/reply-needed	link.md §11.10: is a per-package reply needed? A second opinion
+179	219fcfb6b4	carried	0	0	claude/late-frame-cost	lab/late-frame: what a late frame costs .sbnd, MXF OP1a and MP4, measured
+178	8b39c61752	carried	0	0	claude/ce-compression-ratios	lab/metadata-store: zstd on the converted-enhanced layout as one stream, measured
+177	d3929e5fab	carried	0	0	claude/sender-package-build	pcs-transfer §15: the sender's package build from the exam tree (proposed)
+176	c3d31c9b39	carried	0	0	claude/update-flow	docs: how a metadata change travels to the study DB (for the team meeting)
+175	3e0ccf1db7	carried	0	0	claude/sbnd-late-frames	Disk layout target: merging a late instance without the rewrite (proposed)
+174	1b82323f96	carried	0	0	claude/study-index-engines	lab/study-index: PostgreSQL 18 and SQLite beside MySQL 8.4 on #165's harness
+173	053de10594	carried	0	0	claude/viewer-metadata-gz-row	lab/metadata-delivery: A1 from a compressed ready row (gzipped at write, revision as ETag)
+172	9714866ec2	carried	0	0	claude/study-index-placement	study index: weigh a server of its own (§6, proposed)
+171	dd6cd0c83b	carried	0	0	claude/carrier-quic-choice	link.md §13: which QUIC implementation carries the PCS upload (theory only)
+170	b5c3290c7f	carried	0	0	claude/pcs-reply-path	link.md §11.9: how the PCS learns a package's verdict (theory only)
+169	a5ea3d0a4c	carried	0	0	claude/receiver-process-map	pacs-receiver ADR §10: the process map — one program or two (proposed)
+168	bddb09a895	carried	0	0	claude/pacs-design-state	docs/ingest/pacs-receive-design.md: the PACS design state, with the assembly plan for #142
+167	254edc68de	carried	0	0	claude/pacs-disk-layout-measure	Disk layout: run #152's protocols (lookup, scan, publication, deletion, date correction, e
+166	e3bfcc1410	carried	0	0	claude/viewer-metadata-measure	lab/metadata-delivery: what each way of getting a series' viewer metadata costs (study DB 
+165	16fec79a72	carried	0	0	claude/study-index-proto	lab/study-index: the study index prototyped on MySQL 8.4 and timed by #146 §11, as amended
+164	36e2f3e731	carried	0	0	claude/pcs-carrier-impl	carrier: the PCS's packages by resumable upload (draft-14, TCP; HTTP/3 experimental), repl
+163	34a8c4b71f	carried	0	0	claude/pacs-receiver-impl	PACS receiver: ADR (proposed) and the ingest/receiver crate, steps 1–8, 11–12, R and crash
+162	51b4f9f056	carried	0	0	claude/serve-by-uid-impl	Serve many series under --root, each named by its coded UIDs (#142's defaults, built on v1
+161	c1e3e7ce07	carried	0	0	claude/study-db-layout	lab/metadata-store: study DB layout — row per group vs shared + per-frame vs blob per seri
+160	b3f86d8a76	carried	0	0	claude/verify-tool	tools/pacs-verify: check every .sbnd and study DB under a path, read from disk
+159	adf9ef5850	carried	0	0	claude/metadata-consolidated	Metadata analysis, consolidated: stores, survey, pair, update cost, engines, repetition, p
+158	b47b91826c	carried	0	0	claude/design-records-combined	docs: the PACS design records combined, with the design state's corrections
+157	5ddf0bc878	carried	0	0	claude/sqlite-lock-behaviour	lab/sqlite-engine §5: a read beside an update in two processes, rusqlite against Turso
+156	cbc339d226	carried	0	0	claude/update-compression	lab/metadata-store update-link: is compressing a metadata-only update package worth it, an
+155	af170fedc3	carried	0	0	claude/pcs-carrier	link.md §11: the carrier for the PCS's packages (theory only)
+154	f60489c874	carried	0	0	claude/parser-metadata-measure	lab/metadata-store: the parser's own output on the five TCIA series, measured
+153	3b2f5f83c1	carried	0	0	claude/viewer-metadata-design	ADR viewer-metadata: all the metadata a viewer reads, by kind, and where each lives (propo
+152	76b9359ae8	carried	0	0	claude/pacs-disk-layout	ADR: where a study sits under the PACS's root (proposed, theory only)
+151	549934c52c	carried	0	0	claude/sqlite-engine-fair	lab/sqlite-engine §4: rusqlite against Turso, each at its best
+150	5800c14f0f	carried	0	0	claude/metadata-repetition	lab/metadata-store repetition: metadata size, zstd and repetition on five real series
+149	a197b23d77	carried	0	0	claude/pcs-transfer-design	ADR pcs-transfer: how the PCS's output reaches the PACS (proposed, theory only)
+148	e6a8683db5	carried	0	0	claude/metadata-updates-design	docs/adr: metadata updates, proposed (theory only)
+147	eb74863a3d	carried	0	0	claude/sqlite-engine-eval	lab/sqlite-engine: rusqlite against Turso for the study database, tested; draft §3's botto
+146	dc012630ca	carried	0	0	claude/study-index-design	docs/adr: study index, proposed (theory only)
+145	26c6138f23	carried	0	0	claude/display-metadata-design	ADR proposed: where a viewer's display metadata lives and how it is served (theory only)
+144	ebc1207019	carried	0	0	claude/metadata-update-cost	lab/metadata-store --mode update-cost: one update patched in place against a new revision 
+143	deb236a3ee	carried	0	0	claude/telemetry-production-design	ADR proposed: client telemetry in production, sampled
+142	a1a80c4c95	carried	0	0	claude/serve-by-uid-design	ADR: one server serves many series, each named by its UIDs (proposed, theory only)
+140	04017a1c34	carried	0	0	claude/tracker-fix-gso-tiles	docs: GSO cap marked decided; tiles delayed, not closed
+139	1baa734d06	carried	0	0	claude/pgo-measure	PGOSHIP: the profile-guided build through the relay at 103 and 18 Mbit/s — held
+138	61a69b2c19	carried	0	0	claude/askjump-measure	ASKJUMP: the lab flag askJump measured at 4×: not resolved on this host
+137	72e1b8a893	carried	0	0	claude/tailping-theory	TAILPING theory: a PING after a frame's tail, mechanism, saving, protocol
+136	4019518ad0	carried	0	0	claude/readmin-cut-stream	readMin: name a cut whose end is queued before the read
+135	627a6ca5f5	carried	0	0	claude/ask-during-fill-measure	ASKSTREAM: the pre-registered ask-during-a-fill measurement (T, T′, QW, QS), run
+134	9f921b384c	carried	0	0	claude/simplification-u9-u12-audit	docs: audit U9–U12 in merge-readiness §Fourth round
+133	6bc85692e1	carried	0	0	claude/decoders-committed	Commit the page's built decoders and session.js; the gate rebuilds and compares (D2, optio
+132	6bbe2d2ca9	carried	0	0	claude/opfs-persist-sources	Design, client cache: persist() per engine from source; 124b and 124e per engine
+131	55dfbb9d17	carried	0	0	claude/server-licence-notices	The server images carry the licence notices of every crate series-server links
+130	e052751336	carried	0	0	claude/d4-workstation-results	D4's one workstation round, and an incompressible fixture the run enforces
+129	78974ef21d	carried	0	0	claude/deploy-dry-run	Deploy dry run: #114–#117 combined, from git archive (not to merge)
+127	6880e178d5	carried	0	0	claude/queue-status-232-236	docs/av1/queue.md: rows 232–236 marked done
+126	392c0ce353	carried	0	0	claude/metadata-pair-bench	The recommended metadata pair, measured: page open, one update, integrity, a concurrent re
+125	efd5f1c81e	carried	0	0	claude/design-simplification-sweep	Design: simplification-sweep
+124	bd4bc8a752	carried	0	0	claude/design-opfs-cache	Design: opfs-cache
+123	efb7dd4be9	carried	0	0	claude/design-disk-scaling	Design: disk-scaling
+122	3295a6e436	carried	0	0	claude/design-congestion-controller	Design: congestion-controller
+121	68232c9cdd	carried	0	0	claude/design-p2-ask-during-fill	Design: p2-ask-during-fill
+120	40ba9d92e7	carried	0	0	claude/metadata-format-survey	Metadata format survey: the truth and the page view (draft)
+119	8fff81f09d	carried	0	0	claude/pacs-receiver-design	The PACS receiver and builder: design, decisions listed (draft)
+118	6e8eaab8b3	carried	0	0	claude/page-open-metadata	Page-open metadata and codec path: each path priced in round trips (draft)
+117	0e846a6216	carried	0	0	claude/arm64-server-build	deploy: series-server for aarch64, cross-built on any machine and checked under emulation
+116	6a48d61492	carried	0	0	claude/smoke-not-a-default	deploy, dev host and quick start open no series by default
+115	8f3576477b	carried	0	0	claude/deploy-readme-host-nginx	deploy/README.md: the compile's cores as a variable; the page on an nginx already on the h
+114	84c2b29741	carried	0	0	claude/page-without-transport-file	The page names its client and its transport; a trusted deployment reads no transport file
+113	e929d5f50c	carried	0	0	claude/metadata-turso	Metadata from the study database: the parser's output recorded, four stores compared (draf
+112	6f3331720e	carried	0	0	claude/test-separation	Product first in every file: tests to foo/tests.rs, test and lab code below the product, l
+103	b373659662	carried	0	0	claude/wip-260-FILLWINDOW	Row 260 FILLWINDOW: two-frame fill window, not adopted
+102	6a1ab084e6	carried	0	0	claude/wip-259-TILEWILLNEED	Row 259 TILEWILLNEED: tile-name advice past the slots, not adopted
+96	1788be66c6	no	3	2	claude/wip-276-ONEQUEUEPRODUCT	Row 276 ONEQUEUEPRODUCT: the one queue with the send window as product code (candidate, no
+88	c5eca13800	carried	0	0	claude/wip-258-EXECGAP	Row 258 EXECGAP: two disk waits off the executor, as arms to measure
+41	3054d01b7a	carried	0	0	claude/project-thread-9jumbi-189	Proposal (do not merge yet): a 100 ms initial RTT as the server default, the repeated-Init
+40	d7c6fe598f	no	1	1	claude/project-thread-9jumbi-212	Proposal (trade-off, do not merge): cubic-classify as the default congestion controller
+39	72395e8ca9	no	1	1	claude/project-thread-9jumbi	Proposal (trade-off, do not merge): asks first under a 6 MiB send window as the server def
+37	543afcd2a3	carried	0	0	ccr-10b47d42-tr6zpv	Proposal (experimental, do not merge): 38 400-byte initial window as the server default
