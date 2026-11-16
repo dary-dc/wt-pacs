@@ -58,12 +58,13 @@ An arm is `arms/<name>.js`, whose default export takes `{base, load, session, bu
 | call | does |
 | --- | --- |
 | `load(body)` | send one load record, already a string; called by the timing in the event's own task, nothing awaited before it |
-| `safety(body)` | send one safety record at once, whatever the rate |
+| `safety(body, fromWorker)` | send one safety record at once, whatever the rate; `fromWorker`: the arm's decoder worker sent it already |
+| `worker` (optional export) | the arm's decoder worker, given the fault bench's query and §7.1's init constants |
 
 `off` sends no load report and the safety report by `sendBeacon`, as §7.2 has it; `stub` is a plain `fetch` of each,
 no candidate (it loses every hide record at navigation: no `keepalive`). A carrier whose send leaves from a worker
 (KEEPALIVE's, SESSION's) needs the downloader and decoder workers' init to carry `{base, load, session, build}` (§7.1);
-that change is its build's, behind the same seam.
+KEEPALIVE's build carries them in its worker's query (below), so the product's init message is unchanged.
 
 ## Run
 
@@ -89,7 +90,7 @@ node lab/report-arms/cdp.check.mjs                                              
 | D8, the session never opens | built as "no server started", with the failure forced on the page at load (`forced=page`), since no fill means no decode to fail |
 | D6, the link drop | the blackout lever only; running the browser, sink and server inside `unshare -rn` behind `link_impair.py --tun` is not wired (this host has no iproute2) |
 | Firefox's tab kill, WebKit's WebProcess and browser kill, both engines inside `--tun` | the process-tree kill is built and tested on a made-up tree; **not checked on either engine**: neither is on this host. REPORT-RUN checks them first, as §7.6 says |
-| the floor probe beside L and C | each carrier's own, beside its arm: BEACON's is `beacon/floor.js`; the others not built |
+| the floor probe beside L and C | each carrier's own, beside its arm: BEACON's is `beacon/floor.js`, KEEPALIVE's `keepalive/floor.js`; SESSION's not built |
 | cells L (latency), C (page thread), Y (bytes at the relay), R (receivers' cost) | not built: the rows above carry D's readings only |
 | the dbts_c1 view | the contract's grey-16 frame as a 32-frame HTJ2K series: the demo volumes are not on this host |
 
@@ -115,6 +116,41 @@ node lab/report-arms/cdp.check.mjs                                              
 | test | mutants killed |
 | --- | --- |
 | `beacon/beacon.test.mjs` | 19/19: no resend without frames; the resend keeps frames; not marked truncated; a delta resent; pending not sent before a load record; a refused safety report dropped; no timer; the timer at 5 s; never re-armed; a timer per refusal; no flush at hidden; none at `pagehide`; the hidden check inverted; safety to the load path; safety truncated on resend; the floor keeps the load id; keeps the `reportId`; another path; padded bytes |
+
+## KEEPALIVE (`keepalive/`, row REPORT-BUILD-KEEPALIVE)
+
+§3.2 as its advocate left it, behind the seam as `arms/keepalive.js`, both timings from `timing.js` (KEEPALIVE-H,
+KEEPALIVE-Y). Every send is `fetch(url, {method: "POST", keepalive, body})` with `Content-Type: application/json`;
+delivered means `204`.
+
+* **Load record**, from the page only: one send inside `load()`, nothing awaited. A send while the page is visible
+  (the hybrid's at the fill's end) is retried once after 1 s on a network error or any status but `204`; a send at a
+  hide never waits for its answer.
+* **The budget**, OpenTelemetry's accounting (§1.4) on the page: the bytes and requests of the page's keepalive sends
+  in flight, counted until each settles, safety reports included. A load record that would pass 60 000 bytes or nine
+  requests goes without its frames (`truncated: true`, same `reportId`); a record that still does not fit goes as an
+  ordinary fetch (`keepalive: false`), which lives only as long as the page. A safety report is never truncated.
+* **Safety report, from the worker**: `keepalive/decoder.js` is the fault bench's decoder as it is, with each final
+  frame whose check failed (a mismatch rescued or blocked) reported from the worker as it leaves for the page
+  (`keepalive/worker.js`): sent at once, retried once after 1 s, the page told on the `204` by a `BroadcastChannel`
+  keyed by the load id. The record rides the frame message as `report`; `page.js` passes it to `safety(body, true)`,
+  so both copies share one `reportId`.
+* **Safety report, from the page**: the worker's copy is held, not sent, until its `204` (or the page's own) settles
+  it; at each hide (`visibilitychange` to hidden or `pagehide`) the page sends every held copy not in flight. A
+  failure found on the page itself (D8's forced one) is sent at once, retried once after 1 s, and held the same way.
+* **The worker's init constants** (§7.1): `page.js` puts `base`, `load`, `session`, `build`, `codec`, `source` and the
+  mutant in the query of the arm's decoder worker (`worker` exported by the arm; the fault bench's decoder otherwise),
+  so the product's init message is unchanged. The mutants act in the worker as on the page.
+* **Floor** (`keepalive/floor.js`, §7.2): one bare keepalive fetch of the arm's own bytes under a fresh load id and
+  `reportId` of the same lengths, from the page or a decoder worker; it returns `{load, at, done, callMs}`, `done` the
+  answer. Cells L and C, which would run it, are not built, so neither placement is wired.
+* **Not as §3.2 wrote it**: a decode that fails outright (`failed`, no frame) is reported by the page only, as for
+  every arm; only a failed check leaves from the worker. The 60 000-byte and nine-request bounds are OpenTelemetry's
+  as §1.4 quotes them, not read in an engine's source; past them the ordinary fetch is this build's choice.
+
+| test | mutants killed |
+| --- | --- |
+| `keepalive/keepalive.test.mjs` | 33/33: keepalive never set; no request cap; no byte budget; no truncation past it; the budget never released; a hide load send retried; a load retried forever; retried at 5 s; the page's own safety report never retried; retried forever; a `204` not settling; no flush at hide; none at `pagehide`; a show counted as a hide; the worker's acknowledgement ignored; an acknowledged record held again; the page sending the worker's copy at once; the worker's copy not held; hiding not tracked for the load record; the worker's report to the load path; acknowledged after a failed send; never retried; retried forever; the rescuing route named; no expected digest; record mutants not applied in the worker; carrier mutants not applied; a preview reported; a rescued frame not reported; the floor keeping the load id; keeping the `reportId`; without keepalive; padded bytes |
 
 ## Tests and their mutants
 
