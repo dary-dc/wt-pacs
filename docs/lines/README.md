@@ -9,14 +9,20 @@ decision, and the date at the top. Something learned for another line goes into 
 
 | line | goal | file | last verified |
 | --- | --- | --- | --- |
-| coordination | merges, review order, branch and PR hygiene across the lines | [`coordination.md`](coordination.md) | 2026-11-09 |
-| codecs and lab | HTJ2K and AV1, server, transport and disk, measured to `CLAUDE.md` §Measurement | [`codecs.md`](codecs.md) | 2026-11-10 |
+| coordination | merges, review order, branch and PR hygiene across the lines | [`coordination.md`](coordination.md) | 2026-11-11; Open 8 2026-11-16 |
+| codecs and lab | HTJ2K and AV1, server, transport and disk, measured to `CLAUDE.md` §Measurement | [`codecs.md`](codecs.md) | 2026-11-10; Open 11–14 2026-11-15 |
 | optimal quality | the product's approach ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product), built for the demo of 2026-11-13 | [`optimal-quality.md`](optimal-quality.md) | 2026-11-14 |
-| client | the browser client: transport, decode, cache, paint, telemetry | [`client.md`](client.md) | 2026-11-14 |
+| client | the browser client: transport, decode, cache, paint, telemetry | [`client.md`](client.md) | 2026-11-15 |
 | PACS receive and metadata | receive what the PCS sends, build and update each study's store, serve by UID | [`metadata.md`](metadata.md) | 2026-10-29; branches 2026-11-09 |
-| 2D viewer | a 2D DICOM viewer product on the client, breast reading first (paused) | [`viewer.md`](viewer.md) | 2026-10-27; branches 2026-11-09 |
+| 2D viewer | a 2D DICOM viewer product on the client, breast reading first (paused) | [`viewer.md`](viewer.md) | 2026-11-12 |
 | native | a native client on raw QUIC, without the browser's limits | [`native.md`](native.md) | 2026-11-14 |
-| devices | runs on real phones and machines, one press and no hands after; the device kit | [`devices.md`](devices.md) | 2026-11-14 |
+| devices | runs on real phones and machines, one press and no hands after; the device kit | [`devices.md`](devices.md) | 2026-11-15 |
+
+Two files here are not lines, and came with the merges of 2026-11-15: [`plan.md`](plan.md), the plan of 2026-11-10
+for the demo and the way into `main` (its unification part is now `claude/work-ledger:docs/queue-merge-2026-11-15.md`),
+and [`proposals.md`](proposals.md), the demo path's proposals with their red team and second round: P1–P3, P5, P6, I1 (as §Integrity),
+§Simplify and Round 2's R2–R5 are folded into [`../client/evidence/`](../client/evidence/), each citing its section;
+P4, I2, I3 and R1 are cited from here only.
 
 "Last verified" is the newest date the line's state was checked; "branches" means only the branch and PR state was
 read again on that date, not the line's findings.

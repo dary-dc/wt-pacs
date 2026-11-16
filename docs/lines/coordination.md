@@ -92,7 +92,13 @@ small enough that every open item has an owner and a next step.
    §Review): one blocker, B2's `scripts/gate.sh` dropped two of `merge-a-server`'s gate checks (row 258's verdict
    rule; the lab levers' `with_fill_resumes with_an_ask_stream` tests). MERGE-B-FIX (2026-11-16, `acea7a10`)
    restored both; each fails with its code broken; the gate passes, 58 steps. Reviewed (MERGE-B-FIX-REVIEW,
-   2026-11-16, PR 402 §Fix review): the blocker closed, no blocker left; owed COMPLEXITY-AUDIT and PR-TRIAGE.
+   2026-11-16, PR 402 §Fix review): the blocker closed, no blocker left; owed PR-TRIAGE. The audit
+   (`claude/work-ledger:docs/queue/COMPLEXITY-AUDIT-report.md`, 2026-11-16) ranked nine items; UNIFIED-CLEAN
+   (2026-11-16) did its mechanical ones, each one commit: the empty gate step, the owner's name in two docs, one name
+   for optimal quality in the glossary, the line index. Waiting: the two study-DB schemas (a fix, the PACS line's
+   schema choice), the two group-file readers and the lab-lever field pairs (proposals), `handoff/` and `lab/`'s
+   growth (the owner's yes), and turning `codecs.md`, `metadata.md` and `viewer.md` into work state as PR 384 did
+   for the client's three; then UNIFIED-CLEAN-REVIEW.
 
 ## Unification (the owner, 2026-11-09)
 
