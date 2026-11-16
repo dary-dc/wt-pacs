@@ -1,0 +1,23 @@
+== mutant 1: a line of THIRD_PARTY_NOTICES dropped
+deploy/THIRD_PARTY_NOTICES is not what Cargo.lock ships: run deploy/server_notices.py
+rc=1
+== mutant 2: Cargo.lock's version of one crate changed
+Traceback (most recent call last):
+  File "/home/user/unified/deploy/server_notices.py", line 101, in <module>
+    main()
+  File "/home/user/unified/deploy/server_notices.py", line 88, in main
+    body, crates, distinct = render()
+                             ^^^^^^^^
+  File "/home/user/unified/deploy/server_notices.py", line 58, in render
+    metadata = json.loads(cargo("metadata", "--format-version", "1"))
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/unified/deploy/server_notices.py", line 26, in cargo
+    return subprocess.run(["cargo", *args, "--locked"], cwd=ROOT, check=True, capture_output=True, text=True).stdout
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['cargo', 'metadata', '--format-version', '1', '--locked']' returned non-zero exit status 101.
+rc=1
+== unmutated
+deploy/THIRD_PARTY_NOTICES is current: 164 crates, 120 distinct licence texts
+rc=0
