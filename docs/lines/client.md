@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-16 (KEEPALIVE's arm), 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-16 (KEEPALIVE's and SESSION's arms), 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -48,7 +48,14 @@ exact frame bit for bit, and only checked claims on screen.
   it at each hide; OpenTelemetry's 60 000-byte, nine-request accounting on the page. Smoke on headless Chromium only:
   the safety report once in every row, no duplicate; H loses D1 and D2's record to the rig's close-at-once, as
   BEACON-H does. The Y run's server left no link line in any row (H's did): the harness's, unexplained, for
-  REPORT-BUILD-REVIEW. Next: SESSION, RECEIVERS.
+  REPORT-BUILD-REVIEW.
+* **SESSION's arm**, 2026-11-16 (`lab/report-arms/session/`, REPORT-BUILD-SESSION): §3.3 as advocated, timings 1
+  (at once, batched per second), Y and H, its floor. Every record is one bidirectional stream on the series' session,
+  held in the downloader until the server's one byte and sent again on the next session; the safety report goes
+  decoder → downloader → stream, never through the page. The receiver is the server's, a `telemetry` build only
+  (`lab/server-telemetry/src/session_report.rs`), with the sink's counters. Smoke on headless Chromium only: SESSION-1's
+  fill record arrived in every row but D8, the safety report in every row but D8 (no session, as §7.3 predicts); H lost
+  its one record wherever the hide raced the session's end (D1, D2, D5, D7). Next: RECEIVERS.
 
 ## PRs
 
