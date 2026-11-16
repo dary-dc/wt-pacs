@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-16T08:25Z
-heartbeat: 2026-11-16T08:50Z
-outputs: claude/report-arms (rows), claude/report-plan (report-plan.md §Results)
+heartbeat: 2026-11-16T08:33Z
+outputs: claude/report-arms bd1ac438 (rows), claude/report-plan 7538b6fc (§7.8)
 ## Resume
 Done: claimed; report-plan.md §7.8 amendment (claude/report-plan 7538b6fc): Chromium's D only, loopback, grey-16 x32,
 endings D1, D2, D7, D9, D4, D5b, D8, D3, D5a, 18 rounds each, --wait 60, receiver RECEIVER behind nginx 1.31.8.
