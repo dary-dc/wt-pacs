@@ -4,7 +4,7 @@
 # plain-HTTP apt). Review only: the committed file is unchanged.
 set -uo pipefail
 W=/home/user/mb; O=/home/user/rev/out; cd "$W"
-sed 's#^RUN apt-get update && apt-get install#RUN --mount=type=secret,id=build_ca,target=/ca.crt sed -i "s|http://|https://|" /etc/apt/sources.list.d/debian.sources \&\& apt-get -o Acquire::https::CAInfo=/ca.crt update \&\& apt-get -o Acquire::https::CAInfo=/ca.crt install#' \
+sed 's#^RUN apt-get update && apt-get install#RUN --mount=type=secret,id=build_ca,target=/ca.crt,mode=0444 sed -i "s|http://|https://|" /etc/apt/sources.list.d/debian.sources \&\& apt-get -o Acquire::https::CAInfo=/ca.crt update \&\& apt-get -o Acquire::https::CAInfo=/ca.crt install#' \
   deploy/Containerfile > /home/user/rev/Containerfile.https
 diff deploy/Containerfile /home/user/rev/Containerfile.https > "$O/image-server-https.diff"
 for tg in server web; do

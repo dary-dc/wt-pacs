@@ -1,0 +1,9 @@
+warning: use of deprecated associated function `tokio::io::unix::AsyncFd::<T>::with_interest`: unsound due to lack of I/O safety; use `AsyncFd::register_with_interest` instead (see https://github.com/tokio-rs/tokio/pull/8587)
+  --> server/src/media/uring_reader.rs:41:31
+   |
+41 |             ring_fd: AsyncFd::with_interest(ring.as_raw_fd(), Interest::READABLE)
+   |                               ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+OK: no lab crate, source or module in the images or the default build; lab/ only through head.js's gate
