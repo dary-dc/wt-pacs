@@ -64,7 +64,9 @@ class Round:
     def __init__(self, plan: dict, out: Path, host: str):
         self.plan, self.out, self.host = plan, out, host
         self.lock = threading.Lock()
-        self.next_k = 0
+        self.answers: dict[int | None, str | None] = {}
+        self.opened: dict[int, float] = {}
+        self.spent: dict[str, float] = {}
         self.block = None
         self.servers: list[subprocess.Popen] = []
         self.stay_on_was = None
@@ -128,6 +130,7 @@ class Round:
             self.adb("reboot")
             self.note("reboot", after_block=self.block)
         self.stop_servers()
+        self.block = b
         for server in self.plan["blocks"][b]["servers"]:
             proc = subprocess.Popen(server["cmd"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             self.servers.append(proc)
@@ -136,31 +139,52 @@ class Round:
             threading.Thread(target=proc.stdout.read, daemon=True).start()
         for server in self.plan["blocks"][b]["servers"]:
             if "ready" in server:
-                wait_answer(server["ready"])
-        self.block = b
+                wait_answer(server["ready"], server.get("readyS", 60))
         self.note("block", block=b, name=self.plan["blocks"][b].get("name"))
 
     def next(self, after: int | None) -> str | None:
-        """The URL of the load after `after` (None: the first), once its servers answer; None at the round's end."""
+        """The URL of the load after `after` (None: the first), once its servers answer; None at the round's end; the same again, nothing redone."""
         with self.lock:
-            k = 0 if after is None else after + 1
-            if k < self.next_k:
-                return load_url(self.plan, k, self.host) if k < len(self.plan["loads"]) else None
-            if after is not None:
-                self.note("load ended", load=after)
-                self.reads(after, "after")
-            if k == len(self.plan["loads"]):
-                self.next_k = k + 1
-                self.note("round ended")
-                self.restore()
-                return None
-            self.enter(self.plan["loads"][k]["block"])
-            if after is not None:
-                time.sleep(self.plan["gapS"])
-            self.reads(k, "before")
-            self.next_k = k + 1
-            self.note("load opened", load=k)
-            return load_url(self.plan, k, self.host)
+            if after in self.answers:
+                return self.answers[after]
+            self.answers[after] = to = self.advance(after)
+            return to
+
+    def advance(self, after: int | None) -> str | None:
+        """next-round.md §3: a cell's budget sums its counted loads' open-to-end time; a block that cannot start fails its loads."""
+        loads = self.plan["loads"]
+        if after is not None:
+            self.note("load ended", load=after)
+            if loads[after].get("counted", True):
+                cell = str(loads[after]["cell"])
+                self.spent[cell] = self.spent.get(cell, 0) + time.monotonic() - self.opened[after]
+            self.reads(after, "after")
+        k = 0 if after is None else after + 1
+        while k < len(loads):
+            load = loads[k]
+            budget = self.plan.get("budgetsS", {}).get(str(load["cell"]))
+            if load.get("counted", True) and budget is not None and self.spent.get(str(load["cell"]), 0) > budget:
+                self.note("not started", load=k, why="budget")
+                k += 1
+                continue
+            try:
+                self.enter(load["block"])
+                break
+            except Exception as e:
+                self.note("host failed", block=load["block"], error=str(e))
+                for j in (j for j, other in enumerate(loads) if other["block"] == load["block"] and j >= k):
+                    self.note("load failed", load=j, why=f"block {load['block']} did not start: {e}")
+                    k = j + 1
+        if k == len(loads):
+            self.note("round ended")
+            self.restore()
+            return None
+        if after is not None:
+            time.sleep(self.plan["gapS"])
+        self.reads(k, "before")
+        self.note("load opened", load=k)
+        self.opened[k] = time.monotonic()
+        return load_url(self.plan, k, self.host)
 
 
 def wait_line(proc: subprocess.Popen, pattern: str):
@@ -199,7 +223,7 @@ def handler(round_: Round):
             after = parse_qs(url.query).get("after", [None])[0]
             try:
                 to = round_.next(None if after is None else int(after))
-            except Exception as e:  # a server that never answers ends the round here, said on the phone
+            except Exception as e:  # a fault in round.py itself; a block that cannot start is recorded and skipped
                 round_.note("host failed", error=str(e))
                 return self.reply(500, f"the round stopped: {e}".encode())
             if to is None:

@@ -159,10 +159,17 @@ round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer
   `logcat` once; after the round (or on SIGTERM) it puts the setting back and stops the servers. Between loads, never
   during one: each Chrome process's `/proc/<pid>/stat` before and after, `logcat` after (then cleared), kept under
   `OUT/adb/`. A block's servers start when its first load is next, each ready by `ready` (a URL that answers) or
-  `readyLine` (a line it prints); a block with `rebootAfter` ends with `adb reboot`. Every step is a line of
-  `OUT/round.jsonl`.
-* **The plan** is JSON: `commit`, `gapS`, `fillS`, and `blocks`, each `{ name, servers: [{ cmd, ready | readyLine,
-  image? }], loads: [{ url, cell, arm, counted?, press?, seq?, steps?, cineS? }], rebootAfter? }`; `url` is the
+  `readyLine` (a line it prints); a block with `rebootAfter` ends with `adb reboot`. A block whose servers do not
+  start (not ready within `readyS`, 60 s by default) is recorded `host failed`, each of its loads `load failed` with
+  why, and the round goes on to the next block. A page that asks `/next` again for the same load gets the same
+  answer, nothing read, waited or rebooted twice. Every step is a line of `OUT/round.jsonl`.
+* **The stopping rule** (next-round.md §3): `budgetsS` maps a cell to its budget in seconds of its counted loads'
+  own time, each load timed from `load opened` to its page's `/next?after=k`; once a cell's sum passes its budget,
+  each of its loads not yet started is recorded `not started` (`why: budget`). A started load always runs to its
+  end; the gap, waits for a server and a failed block count toward nothing.
+* **The plan** is JSON: `commit`, `gapS`, `fillS`, `budgetsS?`, and `blocks`, each `{ name, servers: [{ cmd,
+  ready | readyLine, readyS?, image? }], loads: [{ url, cell, arm, counted?, press?, seq?, steps?, cineS? }],
+  rebootAfter? }`; `url` is the
   viewer with its `view` and `beacon=<controller>`. `roundOrder()` (`round.mjs`) gives next-round.md's order: four
   warm-ups, cell 2's 16 Williams rounds over A, B, C1, C2 with the series alternating, cell 3's 24 ABBA pairs; the
   phone session maps each to its URL and servers.

@@ -37,7 +37,7 @@ def head() -> str:
 
 
 class Rig:
-    def __init__(self, d: Path, commit: str, loads_per_block=(2, 2)):
+    def __init__(self, d: Path, commit: str, loads_per_block=(2, 2), dead=(), gapS=0, budgetsS=None):
         self.d = d
         bindir = d / "bin"
         bindir.mkdir()
@@ -50,10 +50,12 @@ class Rig:
         for b, n in enumerate(loads_per_block):
             port = free_port()
             server = {"cmd": [sys.executable, "-m", "http.server", "--bind", "127.0.0.1", str(port)], "ready": f"http://127.0.0.1:{port}/"}
+            if b in dead:
+                server = {"cmd": [sys.executable, "-c", "import time; time.sleep(60)"], "ready": f"http://127.0.0.1:{port}/", "readyS": 1}
             loads = [{"url": f"http://127.0.0.1:{port}/?overlay=1&view=page&beacon=cubic-restart", "cell": "2", "arm": "A", "press": "lossless"} for _ in range(n)]
             blocks.append({"name": f"b{b}", "servers": [server], "loads": loads, **({"rebootAfter": True} if b == 0 else {})})
         self.plan = d / "plan.json"
-        self.plan.write_text(json.dumps({"commit": commit, "gapS": 0, "fillS": 30, "blocks": blocks}))
+        self.plan.write_text(json.dumps({"commit": commit, "gapS": gapS, "fillS": 30, "blocks": blocks, **({"budgetsS": budgetsS} if budgetsS else {})}))
         self.port = free_port()
         self.out = d / "out"
 
@@ -96,12 +98,13 @@ class RoundHost(unittest.TestCase):
             proc.stderr.close()
         self.tmp.cleanup()
 
-    def walk(self):
-        """Start pressed, then each load's page asking for the next, as the viewer's hook does; the URLs given."""
+    def walk(self, loadS=0):
+        """Start pressed, then each load's page asking for the next after `loadS`, as the viewer's hook does; the URLs given."""
         urls = []
         status, to, _ = self.rig.get("/next")
         while status == 302:
             urls.append(to)
+            time.sleep(loadS)
             k = int(parse_qs(urlsplit(to).query)["at"][0])
             status, to, body = self.rig.get(f"/next?after={k}")
         self.assertEqual((status, "round done" in body), (200, True))
@@ -200,6 +203,52 @@ class RoundHost(unittest.TestCase):
         b = self.rig.get("/next?after=0")[1]
         self.assertEqual((a, len(self.rig.adb_calls())), (b, n))
         self.assertNotEqual(first, a)
+
+    def test_a_block_whose_server_never_answers_fails_its_loads_and_the_round_goes_on(self):
+        """Block 1's server never answers: the host failure and each of its loads are recorded as failed by name, and block 2 runs."""
+        self.rig = Rig(self.d, head(), loads_per_block=(1, 2, 1), dead={1})
+        self.rig.start()
+        urls = self.walk()
+        self.assertEqual([int(parse_qs(urlsplit(u).query)["at"][0]) for u in urls], [0, 3])
+        events = self.rig.events()
+        self.assertEqual([e["block"] for e in events if e["event"] == "host failed"], [1])
+        failed = [e for e in events if e["event"] == "load failed"]
+        self.assertEqual([e["load"] for e in failed], [1, 2])
+        self.assertTrue(all("no answer from" in e["why"] for e in failed))
+        self.assertEqual([e["load"] for e in events if e["event"] == "load opened"], [0, 3])
+
+    def test_asked_again_after_a_failed_block_reads_and_reboots_once(self):
+        """The ask after a load whose next block fails, repeated: one set of after-reads, one reboot, the same answer."""
+        self.rig = Rig(self.d, head(), loads_per_block=(1, 1, 1), dead={1})
+        self.rig.start()
+        self.rig.get("/next")
+        a = self.rig.get("/next?after=0")
+        b = self.rig.get("/next?after=0")
+        self.assertEqual(a, b)
+        calls = self.rig.adb_calls()
+        self.assertEqual(calls.count("reboot"), 1)
+        self.assertEqual(sum(c == "logcat -d" for c in calls), 2)
+        self.assertEqual([e["event"] for e in self.rig.events()].count("load ended"), 1)
+
+    def test_a_cell_budget_stops_only_loads_not_started(self):
+        """Budget 0.5 s for cell 2, loads of 0.3 s: loads 0 and 1 run (1 past the bar, still whole), 2 and 3 are recorded not started."""
+        self.rig = Rig(self.d, head(), loads_per_block=(4,), budgetsS={"2": 0.5})
+        self.rig.start()
+        urls = self.walk(loadS=0.3)
+        self.assertEqual([int(parse_qs(urlsplit(u).query)["at"][0]) for u in urls], [0, 1])
+        events = self.rig.events()
+        self.assertEqual([(e["load"], e["why"]) for e in events if e["event"] == "not started"], [(2, "budget"), (3, "budget")])
+        self.assertEqual([e["load"] for e in events if e["event"] == "load ended"], [0, 1])
+
+    def test_time_between_loads_counts_toward_no_budget(self):
+        """A 0.4 s gap between loads of ~0.1 s under a 0.5 s budget: every load runs, and no load's open-to-end span holds the gap."""
+        self.rig = Rig(self.d, head(), loads_per_block=(4,), gapS=0.4, budgetsS={"2": 0.5})
+        self.rig.start()
+        self.assertEqual(len(self.walk(loadS=0.05)), 4)
+        events = self.rig.events()
+        opened = {e["load"]: e["at"] for e in events if e["event"] == "load opened"}
+        spans = [e["at"] - opened[e["load"]] for e in events if e["event"] == "load ended"]
+        self.assertTrue(all(s < 300 for s in spans), spans)
 
 
 if __name__ == "__main__":
