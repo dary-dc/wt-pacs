@@ -1,7 +1,7 @@
 state: done (five blockers; REPORT-BUILD-FIX and REPORT-BUILD-FIX-REVIEW appended, amendment 17)
 started: 2026-11-16T05:17Z
 heartbeat: 2026-11-16T05:40Z
-outputs: claude/report-arms b525eead (docs/reviews/report-arms.md, docs/lines/client.md); PR 395 body §Review; queue rows REPORT-BUILD-FIX, -FIX-REVIEW, REPORT-RUN's needs moved to the re-review
+outputs: claude/report-arms b525eead (docs/reviews/report-arms.md, docs/lines/client.md); queue rows REPORT-BUILD-FIX, -FIX-REVIEW, REPORT-RUN's needs moved to the re-review
 
 ## Resume
 Done. Brief and Amendments unchanged since start (amendment 21).
