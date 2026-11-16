@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-16 (the arms' fixes, the arms' review; KEEPALIVE's and SESSION's arms, the receivers), 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-16 (the arms' re-review, the arms' fixes, the arms' review; KEEPALIVE's and SESSION's arms, the receivers), 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -75,6 +75,10 @@ exact frame bit for bit, and only checked claims on screen.
   `Receiver::file`, tested, with an *ack before write* lever. The image copies the receiver crate, and
   `deploy/workspace_test.sh` checks it. Smoke, BEACON-H on headless Chromium only: the fill record now arrives in D1,
   D2, D3, D4, D7 and D9. Next: REPORT-BUILD-FIX-REVIEW, then REPORT-RUN.
+* **The arms' re-review**, 2026-11-16 ([`../reviews/report-arms.md`](../reviews/report-arms.md) §Re-review,
+  REPORT-BUILD-FIX-REVIEW): B1–B5 closed, each test failing with its fix reverted; nothing outside the rig, `deploy/`
+  and the gate changed; BEACON-H × D1, D2 delivered 4/4 live (1/4 with B1 reverted). Four minors, none blocking. Next:
+  REPORT-RUN.
 
 ## PRs
 

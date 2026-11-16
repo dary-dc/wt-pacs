@@ -178,3 +178,40 @@ built, and the OpenJPH and XXH3 vendors fetched. The two pre-existing unresolved
 (:57, :60) were set aside locally for the run, not changed. `check_lab_absent.sh` was run by hand and passed. Skipped
 by name: the decoders' rebuild and the absence checks (`--quick`), ingest/tools.sh, numpy/pydicom, lavapipe/Xvfb,
 nginx (so NGINX's test and the web host's check), Firefox.
+
+## Re-review (REPORT-BUILD-FIX-REVIEW, 2026-11-16)
+
+At `133dc2bb`, by a session that wrote none of the builds, the review or the fixes. **No blocker open**: REPORT-RUN's
+needs are met. Each fix was reverted alone, its test run, and the file restored.
+
+| # | reverted | its test |
+| --- | --- | --- |
+| B1 | the close before the wait in `drive` | `run.test.mjs` fails ("closes after the wait"). Live, BEACON-H × D1, D2, 2 rounds, `--wait 30`: 1/4 fill records with the revert, 4/4 with the fix |
+| B2 | the banner check | `run.test.mjs` fails ("a build without telemetry is refused"). Live: a default build at `$CARGO_TARGET_DIR` is refused, by that path |
+| B3 | one order every round; no predecessor; `off'` loading as `off'` | `run.test.mjs` fails on each |
+| B4 | `file` sending the byte though the append failed; the append never called; the lever removed; the cap at 513 | `cargo test -p server-telemetry` (45) fails on each |
+| B5 | the receiver's two `COPY` lines | `deploy/workspace_test.sh` fails on `lab/report-arms/receiver` alone |
+
+Minor 2's fix, reverted, fails `timing.test.mjs`. **Nothing else changed**: outside the rig, the diff from `b525eead`
+touches `deploy/`, `scripts/gate.sh` (lines added, one step renamed), `.gitignore` and the docs; nothing under
+`server/` or `client/`. The smoke's D1 and D2 BEACON-H rows (`REPORT-BUILD-FIX-smoke.jsonl`) carry the fill record, and
+so did this review's own rows (`claude/work-ledger:docs/queue/REPORT-BUILD-FIX-REVIEW-smoke.jsonl`).
+
+Minors, none blocking:
+
+1. `run.test.mjs` does not reach the CLI block: dropping `round` and `predecessor` from the rows, or running one
+   round whatever `--rounds` says, passes. Rows shown right here, live. Also untested: `bin()` honouring
+   `$CARGO_TARGET_DIR` (B2's first half; right here, live).
+2. `run()` ignoring `file`'s answer passes `cargo test`: the glue between them is one `if`, and only a live SESSION
+   row shows it.
+3. `deploy/workspace_test.sh` checks only the manifest. A stage that copies a member's `Cargo.toml` without its `src`
+   passes the test. Cargo then cannot load that workspace: checked with `cargo metadata` on a two-member scratch
+   workspace.
+4. Each row's `counters` are the sink's running totals since the run started, not that row's. The read tool, or
+   REPORT-RUN, has to take differences.
+
+**Fixtures and limits.** One 4-vCPU cloud container with no GPU, loopback, no relay. Headless Chromium 153 only. The
+series was the contract's grey-16 frame ×32, not `dbts_c1`. Rows were BEACON-H and `off` × D1, D2, 2 rounds,
+`--wait 30`: smoke, not results. Not run: `scripts/gate.sh`. Run instead were the rig's ten node tests,
+`cargo test -p server-telemetry -p report-receiver`, `deploy/workspace_test.sh` and `scripts/comment_budget.sh`.
+The fix row ran `--quick` at `7f56bc62`, and only docs changed after it.
