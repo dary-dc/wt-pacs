@@ -91,7 +91,8 @@ small enough that every open item has an owner and a next step.
    MERGE-B-REVIEW by a session that merged nothing in it, then COMPLEXITY-AUDIT. Reviewed 2026-11-16 (PR 402
    §Review): one blocker, B2's `scripts/gate.sh` dropped two of `merge-a-server`'s gate checks (row 258's verdict
    rule; the lab levers' `with_fill_resumes with_an_ask_stream` tests). MERGE-B-FIX (2026-11-16, `acea7a10`)
-   restored both; each fails with its code broken; the gate passes, 58 steps. Owed MERGE-B-FIX-REVIEW.
+   restored both; each fails with its code broken; the gate passes, 58 steps. Reviewed (MERGE-B-FIX-REVIEW,
+   2026-11-16, PR 402 §Fix review): the blocker closed, no blocker left; owed COMPLEXITY-AUDIT and PR-TRIAGE.
 
 ## Unification (the owner, 2026-11-09)
 
