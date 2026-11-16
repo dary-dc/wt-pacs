@@ -1,0 +1,35 @@
+## notices, unmutated
+deploy/THIRD_PARTY_NOTICES is current: 164 crates, 120 distinct licence texts
+exit 0
+
+## mutant A: server.rs:171 the window ahead 2x -> 200x the largest frame
+diff --git a/server/src/transport/server.rs b/server/src/transport/server.rs
+index dcc2838f..01f47911 100644
+--- a/server/src/transport/server.rs
++++ b/server/src/transport/server.rs
+@@ -168,7 +168,7 @@ impl Sessions {
+         }
+         .map(|store| {
+             let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
+-            2 * u64::from(largest)
++            200 * u64::from(largest)
+         });
+         #[cfg(not(feature = "lab-levers"))]
+         let cwnd_ahead = None;
+### the old filtered line
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+exit 0
+### the restored unfiltered line
+transport::server::tests::an_ask_during_a_fill_waits_behind_no_more_than_the_send_window --- FAILED
+thread 'transport::server::tests::an_ask_during_a_fill_waits_behind_no_more_than_the_send_window' (15949) panicked at server/src/transport/server.rs:1748:9:
+test result: FAILED. 159 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.37s
+error: test failed, to rerun pass `-p series-server --lib`
+
+## mutant B: one licence text altered by a letter (THIRD_PARTY_NOTICES:379)
+ deploy/THIRD_PARTY_NOTICES | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+deploy/THIRD_PARTY_NOTICES is not what Cargo.lock ships: run deploy/server_notices.py
+exit 1
