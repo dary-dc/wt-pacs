@@ -1,0 +1,10 @@
+[package]
+name = "report-receiver"
+version = "0.1.0"
+edition = "2021"
+description = "Lab only: RECEIVER, the reports' own receiver behind nginx (docs/client/evidence/report-plan.md §3.5)"
+
+[dependencies]
+httparse = "1.10"
+serde_json = { workspace = true }
+tokio = { workspace = true }
