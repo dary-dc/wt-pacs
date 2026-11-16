@@ -46,10 +46,13 @@ each in its own directory. Nothing here is a result: the rows these arms leave a
   (`lab/faultbench/decode/`, `fault=sample` at frame 10: the first decode's sample flipped, the second decode rescues
   it), one arm behind the seam, the load report on the arm's timing, the safety report at once from the page on every
   failed or rescued check. `run.mjs` drives it through `window.rig` (`state`, `load`, `safety`, `press()`).
-* **The driver** (`run.mjs`): builds the series, starts the server (`telemetry`, the link record on) and the sink,
-  then per row one fresh Chromium, the load, three frame changes and a *Lossless* press (the deltas), the row's ending at
-  the fill's end + 6 s (D5 at 50 or 500 ms after the mismatch), the wait, and one row of what the read tool finds for
-  that load.
+* **The driver** (`run.mjs`): builds the series, starts the server (`$CARGO_TARGET_DIR`'s, refused unless its banner
+  says `telemetry=compile-time`) and the sink, then per cell (an ending) `--rounds` rounds over `--units` in Williams
+  order (`lab/order.mjs`). A unit is `arm:timing` (`beacon:H`, `session:1`), or `off` and its A/A twin `off'`, which
+  loads as `off`. Per row one fresh Chromium, the load, three frame changes and a *Lossless* press (the deltas), the
+  row's ending at the fill's end + 6 s (D5 at 50 or 500 ms after the mismatch), the wait with the browser alive, its
+  close, and one row of what the read tool finds for that load, with its `round`, `predecessor` and mutants. Each cell
+  ends with a line `{cell, rounds, balanced}`, `balanced()` per unit.
 
 ## The seam
 
@@ -70,13 +73,15 @@ KEEPALIVE's build carries them in its worker's query (below), so the product's i
 
 ```bash
 cargo build --release -p series-server --features telemetry -p pack-series
-node lab/report-arms/run.mjs --arms off,stub --timing Y --endings D1,D2,D3,D4,D5a,D5b,D7,D8,D9 --wait 60 --out rows.jsonl
-node lab/report-arms/run.mjs --arms stub --endings D1 --mutant never-sent        # field-outside, no-reportId, safety-sampled
-node lab/report-arms/run.mjs --arms stub --endings D1 --sink-mutant ack-before-write
+node lab/report-arms/run.mjs --units "off,beacon:H,beacon:Y,keepalive:H,keepalive:Y,session:1,session:Y,session:H,off'" \
+  --endings D1,D2,D3,D4,D5a,D5b,D7,D8,D9 --rounds 18 --wait 60 --out rows.jsonl
+node lab/report-arms/run.mjs --units stub:Y --endings D1 --mutant never-sent     # field-outside, no-reportId, safety-sampled
+node lab/report-arms/run.mjs --units stub:Y --endings D1 --sink-mutant ack-before-write   # not with --receiver nginx
+node lab/report-arms/run.test.mjs                                               # the driver's rules
 node lab/report-arms/read.mjs lab/.report-work/sink-*/*.jsonl                  # one line per load
 node lab/report-arms/cdp.check.mjs                                              # the Chromium levers, once
 cargo build --release -p report-receiver
-NGINX_BIN=<nginx ≥ 1.31.5> node lab/report-arms/run.mjs --arms beacon --endings D1 --receiver receiver   # or nginx
+NGINX_BIN=<nginx ≥ 1.31.5> node lab/report-arms/run.mjs --units beacon:Y --endings D1 --receiver receiver   # or nginx
 NGINX_BIN=<nginx ≥ 1.31.5> node lab/report-arms/nginx/nginx.test.mjs
 ```
 
@@ -99,8 +104,8 @@ NGINX_BIN=<nginx ≥ 1.31.5> node lab/report-arms/nginx/nginx.test.mjs
 
 ## BEACON (`beacon/`, row REPORT-BUILD-BEACON)
 
-§3.1 as its advocate left it, behind the seam as `arms/beacon.js`; it runs both timings, `--timing H` (BEACON-H, PR
-370's build) and `--timing Y` (BEACON-Y, the hybrid), from `timing.js`.
+§3.1 as its advocate left it, behind the seam as `arms/beacon.js`; it runs both timings, `beacon:H` (BEACON-H, PR
+370's build) and `beacon:Y` (BEACON-Y, the hybrid), from `timing.js`.
 
 * **Load record**: one `sendBeacon(<base>/load, string)` inside `load()`, nothing awaited. A `false` on a record with
   `frames` sends it once more with `frames: null, truncated: true` and the same `reportId` (PR 370's resend); a refused
@@ -157,8 +162,8 @@ delivered means `204`.
 
 ## SESSION (`session/`, row REPORT-BUILD-SESSION)
 
-§3.3 as its advocate left it, behind the seam as `arms/session.js`, its three timings: `--timing 1` (SESSION-1, at
-once, batched per second), `--timing Y` (SESSION-Y, the hybrid) and `--timing H` (SESSION-H, at hidden), the last two
+§3.3 as its advocate left it, behind the seam as `arms/session.js`, its three timings: `session:1` (SESSION-1, at
+once, batched per second), `session:Y` (SESSION-Y, the hybrid) and `session:H` (SESSION-H, at hidden), the last two
 from `timing.js`.
 
 * **The path**: page → downloader → one bidirectional stream of the series' WebTransport session per record, the
