@@ -80,3 +80,6 @@ lab/.perf-nightly-*/
 
 # scripts/demo-series.sh output
 /demo-series/
+
+# The reports rig's work tree (lab/report-arms/run.mjs)
+lab/.report-work/

@@ -71,13 +71,14 @@ for (const timing of ["H", "Y"]) {
 }
 {
   const calls = [];
-  const c = { load: (b) => calls.push(["load", b]), safety: (b) => calls.push(["safety", b]) };
+  const c = { load: (b) => calls.push(["load", b]), safety: (b, w) => calls.push(["safety", b, w]) };
   wrapCarrier(c, "never-sent").load("{}");
   check(calls.length === 0, "never-sent: the load record is not sent");
   let r = 0.5;
   const sampled = wrapCarrier(c, "safety-sampled", () => r);
-  sampled.safety("a"); r = 0.05; sampled.safety("b");
+  sampled.safety("a"); r = 0.05; sampled.safety("b", true);
   check(calls.length === 1 && calls[0][1] === "b", "safety-sampled: the rate 0.1 applied to the safety report");
+  check(calls[0][2] === true, "safety-sampled: fromWorker passed on, so the page sends no second copy");
   const plain = wrapCarrier(c, null);
   check(plain === c, "no mutant: the carrier itself");
   check("labOnly" in mutateRecord({ reportId: "a" }, "field-outside"), "field-outside: a field off the list");
