@@ -12,6 +12,9 @@ pub mod path;
 /// One line per session at its end, keyed by the page's load id: the reports' link record.
 pub mod link;
 
+/// SESSION's receiver: a record per client stream after the control stream, answered with one byte.
+pub mod session_report;
+
 pub mod cc_trace;
 
 pub use sink::flush_on_exit;

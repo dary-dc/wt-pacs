@@ -301,12 +301,16 @@ async fn handle_incoming(incoming: quinn::Incoming, sessions: Sessions) -> Resul
                 let read = |tx| async move {
                     let Ok((send, mut recv)) = control.accept_bi().await else { return };
                     ctl_tx.send(QuicSend::WebTransport(send)).ok();
+                    #[cfg(feature = "telemetry")]
+                    tokio::spawn(crate::record::session_report::run(control.clone()));
                     while read_asks(&mut recv, &tx).await.is_continue() {}
                 };
                 sessions.serve(sessions.pipeline(link), Some(ask), read).await
             }
             None => {
                 let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
+                #[cfg(feature = "telemetry")]
+                tokio::spawn(crate::record::session_report::run(connection.clone()));
                 let link = link(ControlStream::Open(QuicSend::WebTransport(send))).await?;
                 let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_continue() {} };
                 sessions.serve(sessions.pipeline(link), None, read).await

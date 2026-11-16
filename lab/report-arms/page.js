@@ -21,7 +21,7 @@ try {
   const arm = await import(`./arms/${q.get("arm")}.js`);
   const carrier = wrapCarrier(arm.default(ctx), mutant);
   const load = new Load(ctx);
-  const timing = schedule({ timing: q.get("arm") === "off" ? "off" : q.get("timing"), carrier, load, mutate });
+  const timing = (arm.schedule ?? schedule)({ timing: q.get("arm") === "off" ? "off" : q.get("timing"), carrier, load, mutate });
   const safety = (failure) => { rig.safety++; carrier.safety(JSON.stringify(mutate(safetyRecord(ctx, failure, env)))); };
   Object.assign(rig, { load: ctx.load, press: (text) => load.press({ at: Date.now(), text }) });
   // D8 has no session, so no decode to fail: the failure is forced on the page at once.
@@ -38,6 +38,8 @@ try {
     load: ctx.load, session: ctx.session, build: ctx.build, codec: ctx.codec, ...(ctx.source ? { source: ctx.source } : {}),
     ...(mutant ? { mutant } : {}) });
   const decoderWorker = `${arm.worker ?? "/lab/faultbench/decode/decoder.js"}?${workerQuery}`;
+  // An arm whose downloader sends (SESSION's) takes the same query.
+  const worker = arm.downloader && `${arm.downloader}?${workerQuery}`;
   const fillFrom = performance.timeOrigin + performance.now();
   const done = () => {
     if (rig.frames < n) return;
@@ -50,6 +52,7 @@ try {
     decoder: ctx.codec === "av1" ? { codec: "av1", ...(await built("dav1d")) } : await built("openjph"),
     digests: meta.digests.frames,
     decoderWorker,
+    worker,
     onFrame: (f) => {
       const { route, exact, mismatchOn, reason } = f.info;
       rig.frames++;
