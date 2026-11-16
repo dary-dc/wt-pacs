@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-16 (KEEPALIVE's arm), 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -41,7 +41,14 @@ exact frame bit for bit, and only checked claims on screen.
   its floor; one beacon per failure, not per task (the sink takes one record). Found in its smoke: `run.mjs` closes
   the browser at once after each ending, before the browser sends a queued beacon, so D1, D2, D7 and D8 charge every
   keepalive carrier with the rig's loss (a 2 s pause before the close delivered H's record in D1 and D2). A harness
-  fix, for REPORT-BUILD-REVIEW and before REPORT-RUN. Next: KEEPALIVE, SESSION, RECEIVERS.
+  fix, for REPORT-BUILD-REVIEW and before REPORT-RUN.
+* **KEEPALIVE's arm**, 2026-11-16 (`lab/report-arms/keepalive/`, REPORT-BUILD-KEEPALIVE): §3.2 as advocated, both
+  timings, its floor. The safety report leaves at once from the decoder worker that found it (the fault bench's
+  decoder wrapped, the record riding the frame message), the page holding a copy until the worker's `204` and sending
+  it at each hide; OpenTelemetry's 60 000-byte, nine-request accounting on the page. Smoke on headless Chromium only:
+  the safety report once in every row, no duplicate; H loses D1 and D2's record to the rig's close-at-once, as
+  BEACON-H does. The Y run's server left no link line in any row (H's did): the harness's, unexplained, for
+  REPORT-BUILD-REVIEW. Next: SESSION, RECEIVERS.
 
 ## PRs
 
