@@ -1,8 +1,8 @@
 state: started
 started: 2026-11-16T06:17Z
-heartbeat: 2026-11-16T06:20Z
-outputs: claude/report-arms 4ca48c26
+heartbeat: 2026-11-16T06:24Z
+outputs: claude/report-arms 261f004b
 ## Resume
-Brief unchanged since start. Done: B5 (4ca48c26, deploy/workspace_test.sh in the gate). Next: B4 (session_report.rs: lift take/append/answer out of run(), test it, ack-before-write env lever), then B1–B3 in lab/report-arms/run.mjs, then minors, gate, check_lab_absent, smoke BEACON-H per ending. Branch: git checkout -B claude/report-arms origin/claude/report-arms.
+Brief unchanged since start. Done: B5 4ca48c26, B4 8f61d5a6, B1–B3 261f004b. Next: one-line minors; gate (scripts/gate.sh --quick after building decoders per standing rules, or name skips), scripts/check_lab_absent.sh, then telemetry build and smoke: node lab/report-arms/run.mjs --units beacon:H --endings D1,D2,D3,D4,D5a,D5b,D7,D8,D9 --wait 30 --out <scratch>/smoke.jsonl. Then status done, docs/lines/client.md, PR 395 body note.
 ## Result
 
