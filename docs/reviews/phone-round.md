@@ -89,3 +89,64 @@ Fixtures and limits: one 4-core cloud host, headless Chromium (the gate's), loop
 
 Three blockers open (1–3), all *author*. By amendment 17 the queue gains RUNNER-AUTO-FIX and RUNNER-AUTO-FIX-REVIEW,
 and PHONE-LEVERS waits on the re-review. Nothing here is the owner's.
+
+## Re-review
+
+*RUNNER-AUTO-FIX-REVIEW, 2026-11-16, by a session that wrote none of the runner, its review or the fix. Checked:
+`claude/phone-round` `3b3203df` .. `2e45ee0e` (`11462dec`, `26a1ee77`, `a2f0a8a6`, `2e45ee0e`). Nothing run on a
+phone.*
+
+Fixtures and limits: one 4-core cloud host, headless Chromium, loopback, software decode, `adb` a fake on `PATH`; the
+round's synthetic 10-bit pair (64 × 48, 20 frames, Q 8 G 8), twelve loads. No phone, no real `adb`, no `podman`
+image, no Wi-Fi, no hidden page or screen turned off, no renderer crash.
+
+**Run as committed:** `round_test.py` 11 OK (8.9 s); `round_headless.sh` every claim holds, the verdicts
+`ok ok failed stopped ok ok ok ok ok failed failed ok`; `scripts/check_lab_absent.sh` and `scripts/comment_budget.sh`
+green; `scripts/gate.sh --quick` GATE OK in 567 s, skipped by name: the decoders' rebuild and the absence checks (--quick; `check_lab_absent.sh` run on its own), the native painter and window (no lavapipe, Xvfb), the viewer's cross-codec arm and Firefox, the web host's nginx check (no nginx).
+
+**Each fix reverted, its test kept:**
+
+| blocker | reverted | what failed |
+| --- | --- | --- |
+| 1 (a throw or hang after the fill) | `round-page.js`'s `try` and `afterS` deadline removed, the `fault` lever kept | 7 claims: `every load has its verdict (… ok ok none none none)`, the throw's and the hang's, the round's end, the wake lock, the fill records, `adb`'s reads; the round never ended |
+| 2 (a block that never answers; a repeated ask) | `round.py` at `3b3203df` | `test_a_block_whose_server_never_answers…` and `test_asked_again_after_a_failed_block…` error (500, the round stopped) |
+| 3 (the stopping rule) | the same | `test_a_cell_budget_stops_only_loads_not_started` fails (all four loads ran); `test_time_between_loads…` passes on the old code, as it should: it guards the gap's place, a mutant, not the fix |
+
+**Mutants of my own** on `round.py`, each run against `round_test.py` and reverted: 5, **3 killed** (the gap's
+`sleep` moved after `load opened`; only a failed block's first load recorded; no memo of the answer), **2
+survived**: an uncounted load's time counted toward its cell's budget (`if True:` for `counted`), and `>` as `>=`
+at the budget (minor 2 below).
+
+**Nothing else changed:** the four commits touch `lab/devices/` (`round.py`, `round_test.py`, `round-page.js`,
+`round_headless.mjs`, `README.md`), `deploy/README.md` (one sentence) and `docs/lines/client.md`; no product path.
+
+### Blockers
+
+1. **Blocker 2 is closed only for servers ready by `ready`; a server ready by `readyLine` that never prints its line
+   still stops the round, with nothing recorded.** `readyS` reaches `wait_answer` but not `wait_line`, which reads
+   `proc.stdout` until the line or the process's exit. The QUIC `series-server`s are `readyLine` servers
+   (`round_headless.mjs`'s `quic()`), so this is every block's main server. Shown by a probe (a `round_test.Rig` of
+   three blocks, block 1's server `sleep 90` with `readyLine: "transport="`, `readyS: 1`): `/next?after=0` had no
+   answer in 60 s (the client's timeout), and `round.jsonl` holds no `host failed` and no `load failed`; the phone
+   would wait on that request for as long as the server lives. README §The round says "not ready within `readyS`
+   … is recorded `host failed`", which does not hold for these. Fix: `readyS` bounds `wait_line` too (a reader
+   thread and a deadline, or the process killed at the deadline), and a `round_test.py` case with a silent
+   `readyLine` server, mutated.
+
+### Minors
+
+1. **Blocker 1, 3 and the repeated ask hold as their fixes claim.** Blocker 3's budget times a load from `load
+   opened` to its page's `/next?after=k`, where next-round.md §3 says "open to the beacon's last record"; the page
+   flushes its last record just before it asks, so the two differ by the flush, and the README states its own
+   reading. No change asked; said here so the protocol's author can agree.
+2. No test has an uncounted load (`counted: false`, the warm-ups) in a cell with a budget, so the survivor above
+   (warm-up time eating cell 2's budget) goes unseen. A one-case test.
+3. A block marked `rebootAfter` whose servers never started still reboots the phone on the next block's entry
+   (`self.block` is set before readiness). Harmless to the records; one line if the author wants it.
+4. The review's minors 1 and 2 stay listed as not done, as PR 400 §Fix says.
+
+### Verdict
+
+Blockers 1 and 3 closed; blocker 2 closed for `ready` servers and **open for `readyLine` servers** (blocker 1
+above). This is the second review with a blocker open, so by amendment 17 the loop stops here: PHONE-LEVERS waits on
+the owner's word on a third fix round (`readyS` bounding `wait_line`, its test).
