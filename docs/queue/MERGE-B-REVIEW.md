@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-15T23:43Z
-heartbeat: 2026-11-15T23:57Z
+heartbeat: 2026-11-16T00:09Z
 outputs: findings in PR 402's body (§Review); raw logs in docs/queue/MERGE-B-REVIEW/
 ## Resume
 Done: remerge.sh (stage A review's) and sides.sh over 4520a441..f0278742 (remerge.txt, sides.txt); test fns of the
