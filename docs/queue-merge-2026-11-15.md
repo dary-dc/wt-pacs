@@ -52,10 +52,12 @@ unwanted code … You may simply proceed with what you consider best." Times UTC
 | MERGE-A-REVIEW-CLIENT | MERGE-A-CLIENT done | findings in its PR body |
 | MERGE-B | every MERGE-A-REVIEW done with no blocker open | `claude/unified` from `origin/claude/merge-a-client`, draft PR into `main` titled "do not merge: review" |
 | MERGE-B-REVIEW | MERGE-B done | findings in its PR body |
-| COMPLEXITY-AUDIT | MERGE-B-REVIEW done with no blocker open | `claude/work-ledger:docs/queue/COMPLEXITY-AUDIT-report.md` |
+| MERGE-B-FIX | MERGE-B-REVIEW done (one blocker, PR 402 §Review) | `claude/unified` (its commits), findings closed in PR 402's body |
+| MERGE-B-FIX-REVIEW | MERGE-B-FIX done | findings in PR 402's body |
+| COMPLEXITY-AUDIT | MERGE-B-FIX-REVIEW done with no blocker open (amendment 17) | `claude/work-ledger:docs/queue/COMPLEXITY-AUDIT-report.md` |
 | UNIFIED-CLEAN | COMPLEXITY-AUDIT done | `claude/unified` (each cleaning its own commit) |
 | UNIFIED-CLEAN-REVIEW | UNIFIED-CLEAN done | findings in the PR body |
-| PR-TRIAGE | MERGE-B-REVIEW done with no blocker open | `claude/work-ledger:docs/queue/PR-TRIAGE-report.md` |
+| PR-TRIAGE | MERGE-B-FIX-REVIEW done with no blocker open (amendment 17) | `claude/work-ledger:docs/queue/PR-TRIAGE-report.md` |
 
 At most six rows of this file run at once. No session reviews a row whose commits it wrote.
 
@@ -105,6 +107,21 @@ Draft PR into `main` titled "do not merge: review".
 
 As the stage A reviews, plus: every behaviour of the three `server.rs` versions present or its removal named; the
 deploy image builds.
+
+### MERGE-B-FIX (appended by MERGE-B-REVIEW, 2026-11-16; amendment 17)
+
+PR 402 §Review's blocker: B2 took the tip's `scripts/gate.sh` and dropped two of `merge-a-server`'s gate checks. Put
+back, in `claude/unified`'s `scripts/gate.sh`, step "lab: row 258's verdict rule" (`python3
+lab/scripts/exec_gap_summary_test.py`) and the lab-levers line's filters `with_fill_resumes with_an_ask_stream` (12
+tests, today 5). Mutate each (break the code each guards, see the gate fail), then the full gate; one commit. Correct
+in PR 402's body B2's "adds no step the tip lacks" and B4's "none holds a test the tip lacks" (link/tests.rs's two
+FrameStreams tests, code not carried).
+
+### MERGE-B-FIX-REVIEW
+
+A session that wrote neither MERGE-B nor MERGE-B-FIX: the blocker closed, each restored line failing with its code
+broken, nothing else changed (`git diff` of the fix), the gate green. Blockers left after this second round: the row
+is `blocked` for the owner.
 
 ### COMPLEXITY-AUDIT (read and measure; no edit)
 
