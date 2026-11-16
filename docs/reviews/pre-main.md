@@ -86,7 +86,7 @@ PR 250 lands, beside the product:
 | `client/decode/wasm/built/` (dav1d, OpenJPH, XXH3 WASM, notices) | 3 binaries, ~880 KB, +1 481 notice lines | no | on the default path: the page loads them; listed here because committing builds reverses main's "built on the host" (`deploy/Containerfile` comment changed), and `gate.yml`'s `decoders` job is removed | keep, if the owner accepts committed builds pinned by `manifest.sha256`; the gate's rebuild here reproduced them byte for byte (§5) |
 
 **Commit metadata.** In `origin/main..36d286cd`, 93 of 311 commits are authored `Claude <noreply@anthropic.com>`
-and 9 `darian`, and 57 messages carry a `Co-Authored-By` trailer, against `CLAUDE.md` §Agents. History is not
+and 9 by a local identity other than `dary-dc`, and 57 messages carry a `Co-Authored-By` trailer, against `CLAUDE.md` §Agents. History is not
 rewritten here (no force-push); whether PR 250 lands squashed is the owner's.
 
 ## 5. The gate on the demo tip

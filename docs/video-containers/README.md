@@ -225,7 +225,7 @@ QUIC objects) as the standard neighbour of what we do over WebTransport.
 
 ## The local session's analysis, checked
 
-Darian shared an earlier local analysis as context, not as fact. Each of its claims against the sources:
+The owner shared an earlier local analysis as context, not as fact. Each of its claims against the sources:
 
 | claim | verdict |
 | --- | --- |
