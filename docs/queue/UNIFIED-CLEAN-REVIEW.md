@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-16T04:41Z
-heartbeat: 2026-11-16T04:41Z
+heartbeat: 2026-11-16T04:43Z
 outputs: (pending) findings in PR 402's body; docs/queue/UNIFIED-CLEAN-REVIEW/
 ## Resume
-Claimed. Next: read clean.md, each of the 7 commits 5f853f89..1aaa075f on claude/unified (ff2bc154..1aaa075f), revert-and-see for 8af63c6e and ce06e946, then the gate (README cloud lines) at 1aaa075f.
+Commits read (review.md, one minor docs finding on 08f10482). Prereq running from docs/queue/UNIFIED-CLEAN-REVIEW/prereq.sh in /home/user/unified (detached at 1aaa075f). Next: mutants for 8af63c6e (notices line deleted) and ce06e946 (server.rs send_window_follows_cwnd never read, filtered vs unfiltered), then scripts/gate.sh > gate.log, then PR 402 body (§Clean from docs/queue/UNIFIED-CLEAN/clean.md + §Clean review), then plan §8 item 4 list.
 ## Result
