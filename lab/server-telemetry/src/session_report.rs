@@ -30,11 +30,34 @@ pub struct Receiver {
     cap: u64,
     outside: u64,
     seen: HashSet<String>,
+    /// §7.4's mutant: the byte is sent and the line never written.
+    ack_before_write: bool,
+}
+
+/// What a report stream gets back.
+#[derive(Debug, PartialEq)]
+pub enum Answer {
+    Byte,
+    Reset,
 }
 
 impl Receiver {
-    pub fn new(dir: PathBuf) -> Self {
-        Self { dir, ..Self::default() }
+    pub fn new(dir: PathBuf, ack_before_write: bool) -> Self {
+        Self { dir, ack_before_write, ..Self::default() }
+    }
+
+    /// The session's `n`th record (from 1): the byte only once its line is written, a reset for anything refused.
+    pub fn file(&mut self, n: u32, bytes: Option<&[u8]>, path: Value, t: u64) -> Answer {
+        if n > MAX_RECORDS {
+            self.cap += 1;
+            self.write_counters();
+            return Answer::Reset;
+        }
+        match self.take(bytes, path, t) {
+            Some(_) if self.ack_before_write => Answer::Byte,
+            Some((kind, line)) if self.append(kind, &line) => Answer::Byte,
+            _ => Answer::Reset,
+        }
     }
 
     /// The line to append to `server-<kind>.jsonl`, or `None` when refused. `bytes`: `None` past 16 KiB.
@@ -115,7 +138,12 @@ fn fields() -> &'static Value {
 
 fn receiver(dir: &str) -> &'static Mutex<Receiver> {
     static R: OnceLock<Mutex<Receiver>> = OnceLock::new();
-    R.get_or_init(|| Mutex::new(Receiver::new(dir.into())))
+    let mutant = std::env::var("WTPACS_SESSION_REPORT_MUTANT").as_deref() == Ok("ack-before-write");
+    R.get_or_init(|| Mutex::new(Receiver::new(dir.into(), mutant)))
+}
+
+fn fits(read: usize, more: usize) -> bool {
+    read + more <= MAX_RECORD
 }
 
 /// The record's bytes to FIN, or `None` past 16 KiB or on a stream error.
@@ -124,7 +152,7 @@ async fn read(recv: &mut wtransport::RecvStream) -> Option<Vec<u8>> {
     let mut buf = [0u8; 4096];
     loop {
         match recv.read(&mut buf).await {
-            Ok(Some(n)) if bytes.len() + n <= MAX_RECORD => bytes.extend_from_slice(&buf[..n]),
+            Ok(Some(n)) if fits(bytes.len(), n) => bytes.extend_from_slice(&buf[..n]),
             Ok(None) => return Some(bytes),
             _ => return None,
         }
@@ -137,7 +165,7 @@ fn path_now(connection: &wtransport::quinn::Connection) -> Value {
             "congestion_events": p.congestion_events })
 }
 
-/// Serves `WTPACS_SESSION_REPORT_DIR`'s receiver on a session whose control stream is already accepted: one report
+/// Serves `WTPACS_SESSION_REPORT_DIR`'s receiver (`WTPACS_SESSION_REPORT_MUTANT=ack-before-write`: §7.4's mutant) on a session whose control stream is already accepted: one report
 /// stream at a time, on a task apart from the frame pipeline.
 pub async fn run(connection: wtransport::Connection) {
     let Ok(dir) = std::env::var("WTPACS_SESSION_REPORT_DIR") else {
@@ -149,17 +177,8 @@ pub async fn run(connection: wtransport::Connection) {
         n += 1;
         let bytes = if n > MAX_RECORDS { None } else { read(&mut recv).await };
         let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
-        let taken = {
-            let mut r = receiver.lock().unwrap();
-            if n > MAX_RECORDS {
-                r.cap += 1;
-                r.write_counters();
-                None
-            } else {
-                r.take(bytes.as_deref(), path_now(connection.quic_connection()), t).filter(|(kind, line)| r.append(kind, line))
-            }
-        };
-        if taken.is_none() {
+        let answer = receiver.lock().unwrap().file(n, bytes.as_deref(), path_now(connection.quic_connection()), t);
+        if answer == Answer::Reset {
             let _ = send.reset(VarInt::from_u32(0));
             recv.stop(VarInt::from_u32(0));
             continue;
@@ -175,7 +194,7 @@ mod tests {
     use super::*;
 
     fn rx() -> Receiver {
-        Receiver::new(std::env::temp_dir())
+        Receiver::new(std::env::temp_dir(), false)
     }
 
     fn take(r: &mut Receiver, v: Value) -> Option<Value> {
@@ -234,12 +253,12 @@ mod tests {
         assert_eq!(r.counters()["duplicates"], 1);
     }
 
-    /// Appended means written: the line is in the file, and counted, before the stream's byte is sent.
+    /// Appended means written: the line is in the file, and counted.
     #[test]
     fn append_writes_the_line_and_counts_it() {
         let dir = std::env::temp_dir().join(format!("session-report-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let mut r = Receiver::new(dir.clone());
+        let mut r = Receiver::new(dir.clone(), false);
         let (kind, line) = r.take(Some(br#"{"kind":"load","seq":0}"#), json!({}), 1).unwrap();
         assert!(r.append(kind, &line));
         let filed = std::fs::read_to_string(dir.join("server-load.jsonl")).unwrap();
@@ -249,10 +268,10 @@ mod tests {
         std::fs::remove_dir_all(dir).unwrap();
     }
 
-    /// A line that could not be written is not appended, so the stream gets no byte.
+    /// A line that could not be written is not appended.
     #[test]
     fn a_failed_write_is_not_appended() {
-        let mut r = Receiver::new(std::env::temp_dir().join("session-report-no-such-dir/x"));
+        let mut r = Receiver::new(std::env::temp_dir().join("session-report-no-such-dir/x"), false);
         let (kind, line) = r.take(Some(br#"{"kind":"load","seq":0}"#), json!({}), 1).unwrap();
         assert!(!r.append(kind, &line));
         assert_eq!(r.counters()["appended"], 0);
@@ -263,10 +282,69 @@ mod tests {
     fn the_counters_file_follows_the_acknowledgement() {
         let dir = std::env::temp_dir().join(format!("session-report-ack-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let mut r = Receiver::new(dir.clone());
+        let mut r = Receiver::new(dir.clone(), false);
         r.acknowledged();
         let counters: Value = serde_json::from_str(&std::fs::read_to_string(dir.join("server-counters.json")).unwrap()).unwrap();
         assert_eq!(counters["acknowledged"], 1);
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    fn dir(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("session-report-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    const LOAD: &[u8] = br#"{"kind":"load","seq":0}"#;
+
+    /// The stream's byte is sent only for a line that is in the file.
+    #[test]
+    fn the_byte_answers_a_written_line() {
+        let d = dir("file");
+        let mut r = Receiver::new(d.clone(), false);
+        assert_eq!(r.file(1, Some(LOAD), json!({}), 1), Answer::Byte);
+        assert_eq!(std::fs::read_to_string(d.join("server-load.jsonl")).unwrap().lines().count(), 1);
+        std::fs::remove_dir_all(d).unwrap();
+    }
+
+    /// A line that could not be written, or a record refused, gets a reset, never the byte.
+    #[test]
+    fn a_failed_write_or_a_refusal_is_reset() {
+        let mut r = Receiver::new(std::env::temp_dir().join("session-report-no-such-dir/x"), false);
+        assert_eq!(r.file(1, Some(LOAD), json!({}), 1), Answer::Reset);
+        assert_eq!(r.file(2, Some(b"[1]"), json!({}), 1), Answer::Reset);
+        assert_eq!(r.counters()["appended"], 0);
+    }
+
+    /// The 512th record of a session is filed; the 513th is reset unread and counted as the cap.
+    #[test]
+    fn past_the_session_cap_records_are_reset() {
+        let d = dir("cap");
+        let mut r = Receiver::new(d.clone(), false);
+        assert_eq!(r.file(MAX_RECORDS, Some(LOAD), json!({}), 1), Answer::Byte);
+        assert_eq!(r.file(MAX_RECORDS + 1, Some(LOAD), json!({}), 1), Answer::Reset);
+        let c = r.counters();
+        assert_eq!((c["refused"]["cap"].clone(), c["received"].clone()), (json!(1), json!(1)));
+        std::fs::remove_dir_all(d).unwrap();
+    }
+
+    /// The ack-before-write mutant sends the byte and writes nothing, so appended falls below acknowledged.
+    #[test]
+    fn ack_before_write_sends_the_byte_and_writes_nothing() {
+        let d = dir("mutant");
+        let mut r = Receiver::new(d.clone(), true);
+        assert_eq!(r.file(1, Some(LOAD), json!({}), 1), Answer::Byte);
+        r.acknowledged();
+        assert!(!d.join("server-load.jsonl").exists());
+        let c = r.counters();
+        assert_eq!((c["appended"].clone(), c["acknowledged"].clone()), (json!(0), json!(1)));
+        std::fs::remove_dir_all(d).unwrap();
+    }
+
+    /// A record of exactly 16 KiB is read whole; one byte more is refused as too large.
+    #[test]
+    fn records_are_capped_at_16_kib() {
+        assert!(fits(MAX_RECORD, 0));
+        assert!(!fits(MAX_RECORD, 1));
     }
 }

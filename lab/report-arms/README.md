@@ -181,19 +181,22 @@ from `timing.js`.
   at most 512 a session (this build's cap; the protocol names none). A field `report-fields.json` does not list for
   the record's kind is dropped, warned and counted. The line `{t, r, path}` goes to `server-<kind>.jsonl`, `path`
   the connection's `rtt_us`, `cwnd`, `lost_packets`, `congestion_events` at receipt; the sink's counters (and
-  `refused.cap`, `outside`) to `server-counters.json`. `run.mjs` reads both beside the sink's.
+  `refused.cap`, `outside`) to `server-counters.json`. `run.mjs` reads both beside the sink's. `Receiver::file`
+  decides the stream's answer: the byte only once the line is written, else a reset; with
+  `WTPACS_SESSION_REPORT_MUTANT=ack-before-write` it sends the byte and writes nothing (§7.4's mutant, for cell D).
 * **Floor** (`session/floor.js`, §7.2): one bare stream of the arm's own bytes and the server's byte, under a fresh
   load id and `reportId` of the same lengths (KEEPALIVE's floor with the stream for the fetch). Cells L and C, which
   would run it, are not built.
 * **Not as §3.3 wrote it**: the page reaches the downloader by a `BroadcastChannel`, not a `postMessage` to the
   worker, because `DownloaderClient` keeps its worker to itself; both are one message task. The server does not file
   the series' own name beside a safety report, and no re-check of the stored frame runs (§5: the coded-bytes digest
-  does not exist). The 16 KiB reset is not unit-tested: the stream read is exercised only by the smoke.
+  does not exist). The 16 KiB bound and the 512 cap are unit-tested; the stream read itself only by the smoke.
 
 | test | mutants killed |
 | --- | --- |
 | `session/session.test.mjs` | 21/21: load never handed on; the decoder's report handed on again; the page's own safety report dropped; no tick; a tick every 5 s; the tick resends the whole; the hybrid and at hidden tick too; no whole record at the fill's end; no hide delta; acknowledged without the byte; no FIN; written before ready; released when written, not at the byte; held records not resent on a new session; in-flight records written again on a new session; a record in flight written twice; a record failed on a recycled session never rewritten; a closed session kept as current; the decoder's report under another kind; the decoder's hand-off reported as failed; the floor keeping the load id |
 | `session_report.rs` tests | 15/15: an array accepted; any kind accepted; too large not counted; fields outside the list kept; counted, not dropped; dropped, not counted; duplicates not counted; no path at receipt; no receipt time; appended counted when the write fails; appended never counted; no counters file; one file for every kind; `byKind` wrong; the counters file not rewritten at the acknowledgement |
+| `session_report.rs` `file` tests (REPORT-BUILD-FIX, B4) | 7/7: the byte sent though the append failed; the append never called, the byte still sent; the cap at `>=`; no cap; the 16 KiB bound at `<`; no bound; the mutant lever ignored |
 
 ## NGINX and RECEIVER (`nginx/`, `receiver/`, row REPORT-BUILD-RECEIVERS)
 
