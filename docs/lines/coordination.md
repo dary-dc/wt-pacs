@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its review 2026-11-16.
 
 ## Goal
 
@@ -88,7 +88,9 @@ small enough that every open item has an owner and a next step.
    `merge-a-codecs`, `merge-a-server`, `unified-pacs` and `line-hygiene` merged `--no-ff`, each message naming every
    conflicted file and its reason; `server.rs`'s written resolution is B3's message. The gate passes, `demo-check.mjs`
    passes in both views on `dbts_a1`, the web image builds. Draft PR into `main`, "do not merge: review"; owed
-   MERGE-B-REVIEW by a session that merged nothing in it, then COMPLEXITY-AUDIT.
+   MERGE-B-REVIEW by a session that merged nothing in it, then COMPLEXITY-AUDIT. Reviewed 2026-11-16 (PR 402
+   §Review): one blocker, B2's `scripts/gate.sh` dropped two of `merge-a-server`'s gate checks (row 258's verdict
+   rule; the lab levers' `with_fill_resumes with_an_ask_stream` tests); MERGE-B-FIX restores them.
 
 ## Unification (the owner, 2026-11-09)
 
