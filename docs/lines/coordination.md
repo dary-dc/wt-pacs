@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews 2026-11-16.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16.
 
 ## Goal
 
@@ -101,7 +101,9 @@ small enough that every open item has an owner and a next step.
    for the client's three. UNIFIED-CLEAN also found two more of line-hygiene's gate checks that B4 dropped, and put
    both back (the notices check; every `series-server` test under `lab-levers`, unfiltered). Gate OK, 58 steps.
    Reviewed (UNIFIED-CLEAN-REVIEW, 2026-11-16, PR 402 §Clean review): no blocker; one docs line to correct in
-   `README.md` (§Simplify and R1); owed PR-TRIAGE.
+   `README.md` (§Simplify and R1). PR-TRIAGE (2026-11-16, `claude/work-ledger:docs/queue/PR-TRIAGE-report.md`): of
+   269 open PRs, 241 carried (237 to close, the 4 staging PRs with M8's swap), 5 owed a later pass (docs), 4 needing
+   a fix first, 12 proposals waiting on M3, M5 or M6, 7 superseded; closing is the owner's.
 
 ## Unification (the owner, 2026-11-09)
 
