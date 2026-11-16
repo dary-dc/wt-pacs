@@ -1,9 +1,9 @@
 state: started
-started: 2026-11-16T08:25Z
+started: 2026-11-16T08:22Z
 heartbeat: 2026-11-16T08:33Z
 outputs: claude/report-arms bd1ac438 (rows), claude/report-plan 7538b6fc (§7.8)
 ## Resume
-Done: claimed; report-plan.md §7.8 amendment (claude/report-plan 7538b6fc). Running since 08:58Z: the mutants on D1
+Done: claimed; report-plan.md §7.8 amendment (claude/report-plan 7538b6fc). Running since 08:33Z: the mutants on D1
 (rows/chromium-mutants.jsonl, ends with {"mutants":"done"}), then endings D1, D2, D7, D9, D4, D5b, D8, D3, D5a, 18
 rounds each (rows/chromium-<E>.jsonl, complete when it holds its {"cell"} line). Rows pushed every 15 min to
 claude/report-arms lab/report-arms/rows/.
