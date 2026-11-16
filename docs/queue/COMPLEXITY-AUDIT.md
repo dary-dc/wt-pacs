@@ -1,9 +1,9 @@
 state: done
 started: 2026-11-16T02:41Z
-heartbeat: 2026-11-16T02:50Z
+heartbeat: 2026-11-16T02:51Z
 outputs: claude/work-ledger:docs/queue/COMPLEXITY-AUDIT-report.md; scripts and raw output in docs/queue/COMPLEXITY-AUDIT/
 ## Resume
-Done. Nothing owed by this row. Next for this file's queue: UNIFIED-CLEAN (its need met) and PR-TRIAGE.
+Done. Not done: the line doc (docs/lines/coordination.md Open 8 on claude/unified) was not updated, since this row edits nothing on claude/unified; the next row that writes there (UNIFIED-CLEAN) adds the line. Next: UNIFIED-CLEAN and PR-TRIAGE.
 ## Result
 Audited claude/unified at ff2bc154 against MERGE-BASELINE's five tips (static; nothing timed). Nine items, ranked:
 1. fix: two study-DB schemas; pacs-verify fails on a study.db in the receiver's schema (xxh3 TEXT vs INTEGER), run
