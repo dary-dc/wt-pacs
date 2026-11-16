@@ -1,5 +1,5 @@
 state: done (one blocker open; second review, so by amendment 17 PHONE-LEVERS waits on the owner)
-started: 
+started: 2026-11-16T01:19Z
 heartbeat: 2026-11-16T01:45Z
 outputs: claude/phone-round 09f86c0e (docs/reviews/phone-round.md §Re-review, docs/lines/client.md); draft PR 400 body §Re-review
 
