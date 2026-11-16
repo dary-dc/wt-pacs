@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-16 (KEEPALIVE's and SESSION's arms), 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-16 (KEEPALIVE's and SESSION's arms, the receivers), 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -55,7 +55,13 @@ exact frame bit for bit, and only checked claims on screen.
   decoder → downloader → stream, never through the page. The receiver is the server's, a `telemetry` build only
   (`lab/server-telemetry/src/session_report.rs`), with the sink's counters. Smoke on headless Chromium only: SESSION-1's
   fill record arrived in every row but D8, the safety report in every row but D8 (no session, as §7.3 predicts); H lost
-  its one record wherever the hide raced the session's end (D1, D2, D5, D7). Next: RECEIVERS.
+  its one record wherever the hide raced the session's end (D1, D2, D5, D7).
+* **The receivers**, 2026-11-16 (`lab/report-arms/nginx/`, `lab/report-arms/receiver/`, REPORT-BUILD-RECEIVERS): §3.5
+  as advocated. NGINX on nginx 1.31.8's early read, one access line a record, POST only, load reports rate-limited;
+  RECEIVER a workspace crate behind the same nginx (field check, UID scrub, string cap, day cap for load reports,
+  safety reports synced and raised), nginx's line kept as its fallback on non-2xx. Found: the advocate's `return 204`
+  answers before `limit_req` runs, so its rate limit never applied; `try_files … =204` instead. `run.mjs --receiver`
+  puts either in front of the page. Next: REPORT-BUILD-REVIEW, then REPORT-RUN.
 
 ## PRs
 
