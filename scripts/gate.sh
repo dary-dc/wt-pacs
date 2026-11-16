@@ -212,10 +212,11 @@ step "lab: the viewer's levers — a fill's time and reads, steps on demand, the
 run 1 node lab/viewer/levers.test.mjs
 run 1 node lab/viewer/trace.test.mjs
 
-step "lab: the device kit's plan, bundle reader, collector and server start; the prebuilt recipe's server stage is the Containerfile's"
+step "lab: the device kit's plan, bundle reader, collector and server start; the prebuilt recipe's server stage is the Containerfile's; its workspace stage copies every member"
 run 1 node lab/devices/plan.test.mjs
 run 1 python3 lab/devices/collector_test.py
 run 1 sh deploy/server_start_test.sh
+run 1 sh deploy/workspace_test.sh
 
 step "lab: the reports' rig — the records, the sink's contract, the read tool, the timings and mutants, the process-tree kill, BEACON's arm"
 run 1 node lab/report-arms/record.test.mjs
@@ -269,7 +270,7 @@ run 1 cargo test -p fod -p frame-envelope -p series-bundle -p pack-series -p che
 step "tools: pack-series packs the smoke bundle again to the same bytes"
 run 1 bash -c 'd="$(mktemp -d)" && trap "rm -rf $d" EXIT && cargo run --quiet -p pack-series -- --metadata fixtures/us_cine_smoke/metadata.json \
   --frames fixtures/us_cine_smoke/frames --output "$d/x.sbnd" >/dev/null && cmp "$d/x.sbnd" fixtures/us_cine_smoke/us_cine_smoke.sbnd && echo "same bytes"'
-step "lab: the six lab crates' tests (their variants are part of the API)"
+step "lab: the seven lab crates' tests (their variants are part of the API)"
 run 1 cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench -p cc-classify -p server-telemetry -p report-receiver --quiet
 step "lab: the Go and h3 clients compile"
 if command -v go >/dev/null; then
