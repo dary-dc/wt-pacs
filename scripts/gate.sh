@@ -226,6 +226,11 @@ run 1 node lab/report-arms/levers.test.mjs
 run 1 node lab/report-arms/beacon/beacon.test.mjs
 run 1 node lab/report-arms/keepalive/keepalive.test.mjs
 run 1 node lab/report-arms/session/session.test.mjs
+if "${NGINX_BIN:-nginx}" -v 2>&1 | grep -qE 'nginx/1\.(3[2-9]|31\.([5-9]|[1-9][0-9]))'; then
+  run 1 node lab/report-arms/nginx/nginx.test.mjs
+else
+  skip "the receivers' nginx (NGINX, and nginx in front of RECEIVER) — needs nginx >= 1.31.5 (NGINX_BIN=...)"
+fi
 
 step "lab: M5's rule on made-up rows: each in-hand path barred on its own, the busy cell's A/A"
 
