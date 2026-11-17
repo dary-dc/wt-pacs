@@ -44,7 +44,8 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
   [`../transport/design.md`](../transport/design.md) (2026-11-14, an inventory; #391); the
   transport session's first open item is HTJ2K alone over WebTransport against HTTP/2 `fetch`, WebSocket and HTTP/3
   `fetch` on the link profiles; its theory and a prediction per profile are
-  [`../transport/evidence/stacks.md`](../transport/evidence/stacks.md) (2026-11-17, nothing run; the protocol next).
+  [`../transport/evidence/stacks.md`](../transport/evidence/stacks.md) (2026-11-17, nothing run), with its pre-registered protocol in §5 (2026-11-17: eight arms, fourteen
+  cells through the TUN relay at ≤ 90 Mbit; a GET path and a fetch carrier to build first, in `lab/` only).
 
 ## Open (ordered)
 

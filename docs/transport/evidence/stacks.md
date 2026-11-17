@@ -2,7 +2,7 @@
 
 *2026-11-17, queue row TRANSPORT-THEORY. **Theory and sources only: nothing was run.** Every number is a source's,
 a measurement already in this repository (linked), or arithmetic on those, marked (D). The pre-registered protocol
-that tests it is TRANSPORT-PROTOCOL's, by a session that wrote none of this and will not run it.*
+that tests it is TRANSPORT-PROTOCOL's, by a session that wrote none of this and will not run it: §5.*
 
 **The question.** With the codec fixed to HTJ2K (the exact series alone), so only the transport varies: what does
 each stack do with RTT, loss and connection setup, and what should a fill, the first frame and an ask cost on each
@@ -68,7 +68,8 @@ handshake, an HTTP Upgrade "intended to be compatible with HTTP-based server-sid
 (`include/net/tcp.h`), against quinn's 12 000 B; and `tcp_slow_start_after_idle`, "If set, provide RFC2861 behavior
 and time out the congestion window after an idle period. An idle period is defined at the current RTO. … Default: 1"
 (`Documentation/networking/ip-sysctl.rst`) — the kernel's own slow-start restart, so the restart our default adds to
-quinn is already the kernel's. Where they still differ: the idle threshold (one RTO for the kernel; ours,
+quinn is already the kernel's. *Corrected 2026-11-17 by TRANSPORT-PROTOCOL: ours is not an idle restart; quinn keeps its window
+through a silence and `cubic-restart` restarts only after an outage that ends in loss (§5.0).* Where they still differ: the idle threshold (one RTO for the kernel; ours,
 [`../transport-conclusions.md`](../transport-conclusions.md) §3 *After a blink*) and the loss detection (RFC 9002
 against the kernel's), not compared from sources here.
 
@@ -146,7 +147,9 @@ deliver 2.15 MB when the BDP is not reached (D: 12 000 × (2⁸ − 1) = 3.06 MB
 **An ask, after a fill** (the session warm, the link idle past a silence): each stack restarts slow start (ours by
 `cubic-restart`, the kernel's by `tcp_slow_start_after_idle`), so 1 round trip + the frame's slow start on all four:
 **ties** on every profile, unless the silence falls between the kernel's RTO and our threshold, where one arm keeps
-its window and the other does not (×0.5–2.0 either way; the thresholds compared by the protocol, not here).
+its window and the other does not (×0.5–2.0 either way; the thresholds compared by the protocol, not here). *Corrected 2026-11-17 by TRANSPORT-PROTOCOL: the
+record says WT and H3 keep their window through any silence and the TCP arms restart after one RTO, so past an RTO
+the TCP arms are predicted slower (§5.0; cell AA registers both lines).*
 
 **An ask during a fill.**
 
@@ -176,6 +179,138 @@ all four (HTTP or WebSocket framing against envelopes and QUIC headers), not der
   comparison.
 * **What would retract a line above**: a fill outside ×0.95–1.05 on a clean wire-bound link; a TCP arm's first frame
   within 1 RTT of WT's cold; an ask behind a fill over WS above ×1.2.
+
+## 5 · Protocol
+
+*Pre-registered 2026-11-17 by TRANSPORT-PROTOCOL, a session that wrote none of §1–§4 and will not build or run any
+of it. The run follows it as written; an amendment goes in before any counted row if the host forces one, never
+after. Every prediction below is **theory**, from §1–§3 and the measured rows they cite (with their fixtures); none
+is a result. Every link form is **assumed**: a relay's model of a profile, none fitted to a radio.*
+
+### 5.0 · Where this protocol departs from §1–§3
+
+* **The ask after a fill.** §3 predicts a tie because "each stack restarts slow start". The repository's own record
+  says ours does not: "quinn 0.11.18 has no window restart after idle, and `cubic-restart` does not count an idle
+  spell as an outage" ([`../transport-conclusions.md`](../transport-conclusions.md) §3 *A warmed window survives a
+  silence*, measured: every variant "ends on the window it had before the silence"), and `server/src/transport/restart.rs`
+  restarts only when "a congestion event closes a silence rather than a loss among acknowledgements". The kernel
+  restarts after one RTO of idle by `tcp_slow_start_after_idle` (§1). So the WT and H3 arms keep their window and the
+  H2 and WS arms do not: cell **AA** registers both lines, and §1 and §3 carry the correction in place.
+* **The relay, not `netem`.** A cloud container has no root; the relay's `--tun` plane is the one model where "QUIC
+  and kernel TCP share one queue and one clock each way, and a dropped TCP segment is one the sender's kernel
+  retransmits" ([`../../rig-limits.md`](../../rig-limits.md) §3). Its ceiling: "Claim nothing through the TUN above 100
+  Mbit on this host." Every cell runs at ≤ 90 Mbit; the profiles above it are **scaled**, and a scaled cell decides
+  queues, loss responses and asks, never a profile's fill time.
+* **Jitter.** The relay's jitter is uniform (`--jitter-ms`, "uniform, each direction"), not the Pareto tail of
+  `claude/link-targets:docs/transport/link-profiles.md` §4's enterprise form; cell ENT says so.
+
+### 5.1 · Arms
+
+Eight arms, all from one server process where the arm allows, the same store, the same coded frames and digests.
+
+| arm | client | server | what is held equal |
+| --- | --- | --- | --- |
+| **WT-TS** (the reference) | today's downloader, `ts/session.ts` | today's endpoint | the default build: `cubic-restart`, initial window 12 000 B, shared stream, opening ask, GSO 24 |
+| **WT-TS′** (A/A) | WT-TS again | the same | — |
+| **WT-WASM** | the downloader on `wasm/` | the same | — |
+| **WS** | `ts/ws-session.ts` | `--websocket`, kernel TCP + TLS 1.3 on the same port number | the same envelopes and asks; the opening ask in the upgrade's URL |
+| **H3-frame** | a lab fetch carrier: one GET a frame, **K = 6** in flight on one connection, in the fill's order | a lab GET path on the same quinn endpoint (§5.6) | the same controller and initial window as WT, printed |
+| **H3-fill** | one GET for `[k … N]`, envelopes in order on one response; an ask aborts it, GETs the frame, then GETs the rest | the same | as H3-frame |
+| **H2-frame** | as H3-frame, over HTTP/2 | a lab HTTP/2 listener, kernel TCP + TLS 1.3 | kernel `cubic`, `tcp_slow_start_after_idle`, `tcp_rmem`/`tcp_wmem` printed per run |
+| **H2-fill** | as H3-fill, over HTTP/2 | the same | as H2-frame |
+
+K = 6 is the connection's 15 MiB credit (§1) over 2.15 MB, less one: the shape a fetch design would pick, and the one
+§1's credit table credits with 2.5×. Every visit records the fetch arms' `nextHopProtocol`; an arm that did not speak
+its protocol is `VOID`.
+
+### 5.2 · Rig, order, engine
+
+* **Rig.** One 4-core container. `link_impair.py --tun` inside `unshare -rn`, the server in the relay's server
+  namespace (`nsenter --net=`), the browser in the relay's; the relay pinned to core 0, the server to core 1, the
+  browser to cores 2–3. A fresh browser profile a visit (no `Alt-Svc` or session-ticket cache), one visit at a time,
+  10 s idle between visits ([`../../rig-limits.md`](../../rig-limits.md) §6). TLS 1.3 everywhere with the lab's
+  certificate: WT by `serverCertificateHashes`; the others trusted by the browser's SPKI allow-list, and the H3 arms
+  reach QUIC by Chromium's force-QUIC switch for the origin, **a stand-in for an HTTPS record**, labelled so.
+* **Series.** `dbts_b1` HTJ2K, 2.15 MB a frame; the whole 50 frames unless a cell names a prefix (the lossy cells,
+  to keep a visit under a minute). Every frame's XXH3 checked against the series' digest; one failure stops the run
+  and is reported, never voided.
+* **Order.** A Williams square over the eight arms (`lab/order.mjs`), one period = 8 rounds; each row carries its
+  round, arm and predecessor; the summary prints the split by predecessor and the `UNBALANCED` flag.
+* **Engine.** Headless Chromium, the version the host has, printed. §1 read `net/` at `141.0.7390.37` and
+  `158.0.8127.42`; if the run's version is neither, the four window constants of §1 are re-read at its tag before the
+  pilot, and a change is an amendment. Firefox and WebKit: not counted.
+* **Printed per run:** every server flag; the kernel's `tcp_congestion_control`, `tcp_slow_start_after_idle`,
+  `tcp_rmem`, `tcp_wmem` in both namespaces; the relay's arguments and seed; the browser's version and switches.
+
+### 5.3 · Cells, metric, prediction
+
+One metric a comparison (`CLAUDE.md` §Measurement). *t₀* is the worker's first call for the cell's action (the
+dial, the fetch, the ask); a time ends at the **last byte** of the frame named, so the decode stays out; the frame's
+check is still made. Relay forms: delay one way, each direction; queue in 1 500 B packets.
+
+| cell | relay form (scaled from) | frames | metric | WT-TS predicted (D) | predicted ratios (theory; WT-WASM and WT-TS′ tie everywhere) |
+| --- | --- | --- | --- | --- | --- |
+| **CLEAN** | 1 ms, 90 Mbit, 300 pkts (the measured home fit; 600 → 90 Mbit) | 50 | fill: *t₀* → last frame's last byte | 9.5 s + slow start | all tie |
+| **PUB** | 10 ms, 90 Mbit, 2 000 pkts (public Wi-Fi; 101 → 90) | 50 | fill | ~9.7 s | all tie |
+| **ENT** | 2 ms, jitter 10 ms reorder, 90 Mbit, 2 000 pkts (enterprise; uniform, not Pareto) | 50 | fill | ~9.6 s | H3 tie; H2-* and WS ×0.95–1.10 |
+| **LTE** | 19 ms, 50 Mbit, 3 300 pkts, iid 0.1 %, a 40 ms blackout every 30 s (link-profiles §4's LTE) | 16 | fill | 20–30 s (Cubic's 0.1 % bound, ~10 Mbit at 38 ms) | all tie |
+| **CR** | 400 ms, 90 Mbit, 1 875 pkts (LTE's loaded RTT, ~0.8 s, standing in for a full queue) | 50 | fill | ~20 s: 6 MiB ÷ 0.8 s ≈ 63 Mbit, + ~9 RTTs of slow start | H3-frame ×0.6–1.0; H3-fill, H2-* tie; WS ×0.5–1.2 (its kernel buffer, printed) |
+| **LOSS** | 20 ms, 20 Mbit, 200 pkts, GE loss 1 % (§2's measured cell) | 8 | fill | ~46 s (~3 Mbit, Cubic at 1 %, 40 ms) | all tie |
+| **HOL** | LOSS's visits | 8 | frame inter-arrival p99 within a visit | 1.4 s (§2's 1 368 ms) | H3-frame ×0.7–1.0 (a stream a frame); H2-*, WS, H3-fill tie (§2's WS 1 522 against 1 368) |
+| **FF** | RTT 2, 20, 38, 56 ms (1, 10, 19, 28 one way), 90 Mbit, 2 000 pkts; the page from another origin | frame 0 | first frame, cold: *t₀* → frame 0's last byte | 2 ms ~0.2 s; 20 ms ~0.31; 38 ms ~0.46; 56 ms ~0.62 | 2 ms all tie; 20–56 ms H3-* tie, H2-* and WS ×1.03–1.12 (one RTT more over 4–11) |
+| **FP** | FF at 20 and 56 ms; the page served by the frame server, so a fetch arm's connection is up | frame 0 | first frame, pooled | as FF | H3-*, H2-* ×0.5–0.92; WT, WS as their FF |
+| **AD** | PUB, and LTE without the blackout | 50 / 16 | an ask during a fill: when frame 8 (PUB) or 4 (LTE) is checked, an ask for the last frame; ask → its last byte | PUB ~0.8 s (6 MiB at 90 Mbit + 1 RTT + the frame); LTE ~1.4 s, less if Cubic's loss bound keeps less in flight | H3-*, H2-* ×1.0–2.0; WS ×0.7–1.2 |
+| **AA** | PUB and FF's 38 ms; idle gap 0.1, 1 and 5 s, a visit each | 16, then 1 | an ask after a fill: the last frame, withheld from the fill; ask → its last byte | 20 ms ~0.21 s, 38 ms ~0.23 s (window kept, §5.0) | **two lines**: §3's, all tie; the record's (§5.0), at 0.1 s all tie, at 1 and 5 s H3-* tie and H2-*, WS ×1.2–1.9 (slow start from 10 segments again). The gap against each TCP arm's RTO, read by `ss -ti` before the ask, is printed |
+| **CPU** | CLEAN's visits | 50 | server CPU a GB: the server's `utime + stime` (`/proc/<pid>/stat`); host softirq a GB beside it (`/proc/stat`) | — | WS, H2-* ×0.5–0.9 of WT; H3-* tie (§3, *no source gives a ratio*) |
+| **CPU-C** | CLEAN's visits | 50 | client CPU a GB, the browser's process tree (`lab/scripts/proc_sampler.mjs`) | — | WS, H2-* ×0.5–0.9 (§3, unsourced) |
+| **BYTES** | CLEAN's visits | 50 | IP bytes server → client at the relay ÷ the frames' bytes | 1.03–1.05 | every arm within ±3 % of WT |
+
+### 5.4 · Rounds, `VOID`, saturation, stopping
+
+* **Rounds.** One period (8) a cell; **two (16) for CR, AD and AA**, the cells whose predicted ratios leave the tie
+  band. "In ≥ 75 % of rounds" is ≥ 6 of 8, ≥ 12 of 16.
+* **`VOID`** (a visit), recorded with its reason and kept in the rows: the relay's guard p99 above 1 ms
+  (`--self-timing`; the TUN check held 0.24–0.81 ms to 100 Mbit); any core above 95 % busy over the visit; a fetch arm
+  on the wrong protocol; a crash; the visit past 3× its cell's pilot median. A cell with more than 25 % `VOID` reports
+  both readings, *strict* and *round-paired* ([`../../av1/queue.md`](../../av1/queue.md), the owner's rule of
+  2026-10-09).
+* **Where the host saturates**: the TUN at 100 Mbit (nothing claimed above 90); Chromium's receive path at ~100 MB/s
+  ([`../../rig-limits.md`](../../rig-limits.md) §1), above every cell. CPU cells are claimed for this host's cores only.
+* **Order of cells** (by what they decide): AA, AD, CR, FF, LOSS (with HOL), LTE, CLEAN (with CPU, CPU-C, BYTES),
+  PUB, ENT, FP. ~8 h of visits at the predicted times (D); **stop at 12 h of wall clock**: cells not reached are
+  reported as not run, a cell cut inside a period is reported with its balance flag.
+* **Pilot.** Two rounds of every cell, not counted, before the first counted row. It may set only the visit timeout
+  and the prefixes of LTE and LOSS (the fewest frames that keep each fill under a minute), and checks: every fetch
+  arm's `nextHopProtocol`; the relay's tally against its configured loss and rate; the kernel values of §5.2 in both
+  namespaces. Its choices are written here as an amendment before CLEAN's first counted row.
+
+### 5.5 · The rule, stated before any data
+
+* Per cell and arm: the ratio to WT-TS in each round, its median with range and rounds better out of n; judged by
+  `lab/scripts/aa_rule.py` against WT-TS′ with `--bar 0.05`: **faster**, **slower**, **tie** or **unresolved**.
+* A prediction **holds** when the median ratio lies in its band; otherwise it is a **miss**, reported beside it.
+  §4's three retraction lines are judged as written; cell AA decides between its two lines.
+* **What reaches the owner**: every arm faster than WT-TS in any cell, with its scope (Chromium headless, one
+  container, the TUN relay at ≤ 90 Mbit, one series, assumed and scaled profiles), and AA's verdict. The run adopts
+  nothing: a GET path is a second wire, structural, and the owner's ([`../delivery-prior-art.md`](../delivery-prior-art.md) §8).
+* The phone decides what this rig cannot (§4): WS's `tcp_rmem` on Android, a radio's loss and reordering, a handover,
+  HTJ2K's decode against the wire. Those go to the phone protocol as asks, not designed here.
+
+### 5.6 · What must be built first, and its mutants
+
+Owed by a build row and its review (neither this session's), lab only (`scripts/check_lab_absent.sh` green):
+
+1. **A GET path on the series server**, behind a lab build feature: HTTP/3 on the same quinn endpoint (`h3` over
+   `h3-quinn`, which the lab's other clients already build), HTTP/2 on a TCP listener (TLS 1.3); `GET` of one frame
+   and of `[k … N]`, both answering envelopes as the shared stream carries them, from the same frame pool.
+2. **A fetch carrier in the downloader's worker**, behind the viewer's lab gate: both shapes, K = 6, the abort and
+   re-GET for an ask, `nextHopProtocol` recorded.
+3. **The driver**, a new directory under `lab/`: the relay, the order, the A/A arm, the checks, the samplers, `ss -ti`
+   before each AA ask, and the relay's byte count per flow (added to its tally if absent).
+
+Each check fails once with its code broken (`CLAUDE.md` §Measurement): a carrier that speaks h2 where h3 is asked
+(`VOID`), a server that drops one frame (the run stops), a relay at 0 % where 1 % is asked (the pilot's tally check),
+the order forced to a fixed cycle (`UNBALANCED`), the CPU sampler on a wrong pid (a zero flagged).
 
 ## Fixtures and limits
 
