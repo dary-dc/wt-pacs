@@ -58,7 +58,8 @@ exact frame bit for bit, and only checked claims on screen.
   budgets stop only loads not started. Re-reviewed 2026-11-16 (`docs/reviews/phone-round.md` §Re-review): blockers 1
   and 3 closed; 2 open for servers ready by a printed line (`readyS` does not bound `wait_line`, so a silent QUIC
   server still stops the round unrecorded). Third fix round, the owner's yes (2026-11-16): fixed 2026-11-17
-  (RUNNER-FIX-2, PR 400 §Fix 2): `readyS` bounds a printed line too; RUNNER-FIX-2-REVIEW next, PHONE-LEVERS after it.
+  (RUNNER-FIX-2, PR 400 §Fix 2): `readyS` bounds a printed line too; re-reviewed 2026-11-17 (`docs/reviews/phone-round.md`
+  §Re-review 2): closed, no blocker open; PHONE-LEVERS next.
 * **The delivery comparison**: recorded in [`../client/design.md`](../client/design.md) §Open with its theory; its
   protocol is not written.
 * dav1d fetched only where WebCodecs refuses (a protocol with an A/A arm, not started); a wake before `l` asks (its

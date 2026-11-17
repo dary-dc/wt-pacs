@@ -150,3 +150,50 @@ at the budget (minor 2 below).
 Blockers 1 and 3 closed; blocker 2 closed for `ready` servers and **open for `readyLine` servers** (blocker 1
 above). This is the second review with a blocker open, so by amendment 17 the loop stops here: PHONE-LEVERS waits on
 the owner's word on a third fix round (`readyS` bounding `wait_line`, its test).
+
+## Re-review 2
+
+*RUNNER-FIX-2-REVIEW, 2026-11-17, by a session that wrote none of the runner, its review, its fixes or its
+re-review. Checked: `claude/phone-round` `09f86c0e` .. `13b60f19` (`2189af2c`, `13b60f19`). Nothing run on a phone.*
+
+Fixtures and limits: one 4-core cloud host, headless Chromium, loopback, software decode, `adb` a fake on `PATH`; the
+round's synthetic 10-bit pair (64 × 48, 20 frames, Q 8 G 8), twelve loads. No phone, no real `adb`, no `podman`
+image, no Wi-Fi, no hidden page or screen turned off.
+
+**Run as committed:** `round_test.py` 13 OK (11 s); `round_headless.sh` three times: twice every claim holds
+(`ok ok failed stopped ok ok ok ok ok failed failed ok`), once one claim failed (minor 2 below);
+`scripts/check_lab_absent.sh` and `scripts/comment_budget.sh` green. `scripts/gate.sh` not run: the change is
+`lab/devices/` and the line doc, and the author's `--quick` run stands.
+
+**The fix reverted, its tests kept** (`round.py` at `2189af2c^`): `test_a_block_whose_server_never_prints_its_ready_line…`
+errors (the client's 60 s timeout, the run 70 s), as the re-review's probe did. `test_a_server_that_exits_before_its_ready_line…`
+passes on the old code, as PR 400 §Fix 2 says: it guards a mutant, not the fix.
+
+**Mutants of my own** on `round.py`, each run against `round_test.py` and reverted: 4, **3 killed** (the exited
+check removed; `readyS` not passed to `wait_line`; every line taken as the match), **1 survived**: the reader
+returning at the match, so the server's output is no longer drained (minor 1).
+
+**Nothing else changed:** the two commits touch `lab/devices/round.py`, `round_test.py`, `README.md` (one sentence)
+and `docs/lines/client.md`; no product path.
+
+### Blockers
+
+None. The re-review's blocker is closed: `readyS` bounds `wait_line`, a silent `readyLine` server is recorded
+`host failed`, its loads `load failed` by name, and the round goes on.
+
+### Minors
+
+1. **The drain after the match is untested.** Nothing fails if the reader stops at the ready line; a `series-server`
+   that then logs more than a pipe's buffer (64 KiB on Linux) would block on its writes mid-round. The code drains
+   (as the code before the fix did, by its own thread, also untested); a test whose `readyLine` server prints past
+   the buffer after its line and must still answer would kill the mutant.
+2. **A flake in `round_headless.mjs`, not in this fix:** cell 3's claim asks every step's latency `> 0`; one run of
+   three measured a worker-view step at 0 ms (`3 1 1 1 0 83 ms`) and failed the claim. A step painted in the tick it
+   was due is a valid 0; `>= 0` (or a bound on the timer's resolution) is the claim meant.
+3. Carried, not done: no test has an uncounted load in a budgeted cell; a `rebootAfter` block that never started
+   still reboots on the next entry; the first review's minors 1 and 2.
+
+### Verdict
+
+No blocker open. PHONE-LEVERS' need (the runner's re-review with no blocker open) is met; the minors are the
+author's, none blocks it.
