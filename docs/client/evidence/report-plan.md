@@ -1134,5 +1134,5 @@ fill; no row errored.
 
 **The four bar-carrying endings done** (D1, D2, D7, D9; §7.8's order): every HTTP arm passes both bars in all of
 them; SESSION-1 and SESSION-Y pass the load bar but SESSION-Y loses its hide delta whenever the page navigates (D1,
-D7); SESSION-H fails the load bar on D1 and D7 (0/18, 1/18). Every arm and `off` passed the safety bar in all 648
-loads of each arm group. Loopback, as D1 (§7.8).
+D7); SESSION-H fails the load bar on D1 and D7 (0/18, 1/18). Every unit, `off` and `off′` included, delivered the safety
+report in all 72 of its loads over the four. Loopback, as D1 (§7.8).
