@@ -191,8 +191,8 @@ is a result. Every link form is **assumed**: a relay's model of a profile, none 
 
 * **The ask after a fill.** §3 predicts a tie because "each stack restarts slow start". The repository's own record
   says ours does not: "quinn 0.11.18 has no window restart after idle, and `cubic-restart` does not count an idle
-  spell as an outage" ([`../transport-conclusions.md`](../transport-conclusions.md) §3 *A warmed window survives a
-  silence*, measured: every variant "ends on the window it had before the silence"), and `server/src/transport/restart.rs`
+  spell as an outage" ([`../transport-conclusions.md`](../transport-conclusions.md) §3 *The first ask on an idle
+  session*, its paragraph *A warmed window survives a silence*, measured: every variant "ends on the window it had before the silence"), and `server/src/transport/restart.rs`
   restarts only when "a congestion event closes a silence rather than a loss among acknowledgements". The kernel
   restarts after one RTO of idle by `tcp_slow_start_after_idle` (§1). So the WT and H3 arms keep their window and the
   H2 and WS arms do not: cell **AA** registers both lines, and §1 and §3 carry the correction in place.
