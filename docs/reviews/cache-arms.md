@@ -1081,3 +1081,9 @@ as the re-review left them: the two survivors (no test feeds `none` rows that di
 PSS baseline after the floor (theory, unmeasured), and OPFS-ASYNC's short group at `close` at S1.
 
 **Fixtures and limits.** A 4-vCPU cloud host, no GPU; Node 22, `lBars` on synthetic rows; no browser, no engine.
+
+**Gate** (`scripts/gate.sh --quick` at `08b61d49`, after `client/decode/wasm/build/build.sh`, `client/transport/wasm/build.sh`
+and `fetch_openjph.sh`): it fails at `check_links.py` on two paths the branch's `docs/lines/devices.md` names and does
+not hold (`docs/reviews/phone-blind-read.md`, `docs/transport/link-profiles.md`; from other branches, not this fix).
+With both present as empty, untracked files it passes in 455 s, 24 steps skipped by name (numpy, `ingest/tools.sh`'s
+build, Mesa lavapipe, Xvfb, nginx, a GL display).
