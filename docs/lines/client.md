@@ -93,7 +93,10 @@ exact frame bit for bit, and only checked claims on screen.
   low-resolution-preview decisions; the level picture covers the shown size at device pixels. It reaches 1 of 19 DBT
   volumes upright on a 1080-wide phone (12 sideways, 8 in two views) and the mammography matrices; on `dbts_b1` its
   decode is predicted at 21–39 ms against AV1's 133–135 ms, its bytes 1.21–1.32× the view's, a fill tie at 103 Mbit/s.
-  Not built; owed, its review and four phone asks (its §8).
+  Not built; owed, its review and four phone asks (its §8). Reviewed 2026-11-17 (#397 §Review:
+  HTJ2K-PREVIEW-MOBILE-REVIEW): two blockers, the level picture's measured quality at display scale left out (it failed
+  the visually lossless proxy on `dbts_b1`) and the mammography figure level 2's where the phone reaches level 1; §3–§6's
+  arithmetic and every quote hold. Owed: HTJ2K-PREVIEW-MOBILE-FIX and its re-review.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
