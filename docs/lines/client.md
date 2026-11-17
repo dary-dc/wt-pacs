@@ -99,7 +99,8 @@ exact frame bit for bit, and only checked claims on screen.
   the visually lossless proxy on `dbts_b1`) and the mammography figure level 2's where the phone reaches level 1; §3–§6's
   arithmetic and every quote hold. Fixed 2026-11-17 (HTJ2K-PREVIEW-MOBILE-FIX, `bf12c497`): both blockers corrected in
   place (the ladder's quality quoted in §1, §2 item 3 and §7, §5–§6 marked unequal quality; level 1's ×0.26–0.49,
-  3328 × 4096 at level 1 unmeasured), minors 3–7 one clause each. Owed: its re-review.
+  3328 × 4096 at level 1 unmeasured), minors 3–7 one clause each. Re-reviewed 2026-11-17
+  (#397 §Re-review: HTJ2K-PREVIEW-MOBILE-FIX-REVIEW): both blockers closed, no blocker open; the ladder quote exact.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
