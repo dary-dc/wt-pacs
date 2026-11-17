@@ -1073,3 +1073,24 @@ Williams-balanced for every unit. Host CPU at most 18 % (5 s samples): no round 
 
 "Hide delta" counts records with `seq` ≥ 1. Measured on loopback (§7.8): SESSION's losses here would be no smaller
 behind the relay's 20 ms round trip.
+
+### D2 · tab closed, another tab open (18 rounds, 162 loads, 2026-11-17 05:21–08:21 UTC)
+
+Run whole by a resumed session on a rebuilt host of the same make (4 vCPU, Chromium 153.0.8010.12, nginx 1.31.8); the
+first session's 99 rows (11 rounds, 2026-11-16) are kept as `chromium-D2.partial-0521.jsonl`, counted in no bar, and
+agree with every count below. Williams-balanced for every unit. Host CPU at most 14 % (5 s samples): no round
+saturated. Every load reached its fill; no row errored.
+
+| unit | fill record | hide delta | safety report | dup. | load bar | safety bar | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | — | 18/18, 18/18 | 0 | (none sent: not VOID) | pass | as predicted; A/A identical |
+| BEACON-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ |
+| BEACON-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ |
+| KEEPALIVE-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ |
+| KEEPALIVE-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ |
+| SESSION-1 | 18/18 | 18/18 | 18/18 | 0 | pass | pass | fill ✓; the last second's delta, "at risk", arrived every time |
+| SESSION-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | fill ✓; the hide delta, "at risk", arrived every time |
+| SESSION-H | 18/18 | — | 18/18 | 0 | pass | pass | "at risk": the hide record arrived every time |
+
+SESSION's hide records, lost in every D1 load (navigation), arrived in every D2 load (close). Why the two endings
+differ is not measured here; it is not claimed. Loopback, as D1 (§7.8).
