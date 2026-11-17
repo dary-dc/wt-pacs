@@ -1,7 +1,7 @@
 # Handoff: metadata from the study store (2026-10-20, 03:40 UTC)
 
 For a session continuing this design. Branch `claude/metadata-turso`, draft PR #113 into
-`claude/av1-unified-mainbase` (the owner merges; never merge). The owner, Darian, is learning: plain words, simple
+`claude/av1-unified-mainbase` (the owner merges; never merge). The owner is learning: plain words, simple
 diagrams, the mechanism kept; explain before asking. Read `CLAUDE.md` first. Kept current by the session that owns the
 PR; the date above is its last update.
 
