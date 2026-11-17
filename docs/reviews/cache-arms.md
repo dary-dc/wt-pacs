@@ -1064,3 +1064,20 @@ same round. Said here; the protocol's author settles it.
 
 **Next.** By amendment 17 this is the second review with a blocker open: the fix loop stops, CACHE-RUN waits, and the
 owner decides whether a third fix round (N1, one line and its test) runs.
+
+## Fixes, third round (CACHE-FIX-2, 2026-11-17)
+
+Row CACHE-FIX-2 of `docs/queue-client-2026-11-14.md` (the owner's yes to a third round, amendment 23), by a session
+that wrote none of the builds or the reviews. Commits on `claude/cache-arms`: `f8dd736c` (the test, pushed first),
+`1811d31f` (the fix).
+
+| # | fix | test (file: claim) | mutants killed |
+| --- | --- | --- | --- |
+| N1 | `cells.mjs` `lBars`: an arm's errored round is a counted round with no bar met (never exact); a `none` that errored is no reference, and the rounds it leaves are named in `unjudged` | `cells.test.mjs`: errored in 3 rounds of 4 fails (`rounds` 4, exact 0.25); errored in 1 of 4 fails (exact 0.75); `none` errored in round 1 leaves 3 rounds, `unjudged` `[1]` | errored rounds dropped (the blocker); an errored round counted exact; an errored round meeting delivered; an errored `none` taken as reference; `unjudged` never named (5/5) |
+
+Against `f8dd736c`'s code before the fix the test fails as the re-review observed (`{"rounds":1, …, "pass":true}`).
+The six test files pass after it; `scripts/comment_budget.sh` and `scripts/check_lab_absent.sh` pass. Not fixed, listed
+as the re-review left them: the two survivors (no test feeds `none` rows that differ by round, or checks `balanced`), the
+PSS baseline after the floor (theory, unmeasured), and OPFS-ASYNC's short group at `close` at S1.
+
+**Fixtures and limits.** A 4-vCPU cloud host, no GPU; Node 22, `lBars` on synthetic rows; no browser, no engine.
