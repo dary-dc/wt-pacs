@@ -1,4 +1,4 @@
-# Work queue: the client's open foundations (2026-11-14 to 2026-11-22)
+# Work queue: the client's open foundations (2026-11-14 to 2026-11-28)
 
 Started 2026-11-14 by the owner ("Use cloud work whenever possible. U may dispatch things that can already start").
 Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restructure, PR 384 on
@@ -68,6 +68,21 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | AUDIT-MECHANICAL-REVIEW | 11-16 12:00 | AUDIT-MECHANICAL done | findings in PR 402's body |
 | TRANSPORT-THEORY | 11-16 12:00 | — | `claude/transport-design`: HTJ2K over WebTransport, HTTP/3 fetch, HTTP/2 fetch, WebSocket, on LINK-TARGETS' profiles; theory and sources, a prediction per profile (`docs/transport/evidence/stacks.md`) |
 | TRANSPORT-PROTOCOL | 11-16 12:00 | TRANSPORT-THEORY done | a pre-registered protocol for the comparison, by a session that wrote none of the theory and will not run it |
+| FIX-378-DIAL-REVIEW | 11-18 00:00 | — | `claude/lossless-under-loss` (PR 378): findings in PR 378's body §FIX-378-DIAL review; amendment 17; PHONE-RUN-OWNER waits on it |
+| QUEUE-2W-TRIM | 11-18 00:00 | — | `claude/work-ledger:docs/queue-2026-11-14.md`, trimmed in place and marked started (amendment 24) |
+| TRANSPORT-BUILD | 11-18 00:00 | — | `claude/transport-arms` from `origin/claude/docs-client` → draft PR into `claude/docs-client`: `stacks.md` §5.6 of `claude/transport-design` `c74d4bea` |
+| TRANSPORT-BUILD-REVIEW | 11-18 00:00 | TRANSPORT-BUILD done | `claude/transport-arms` (`docs/reviews/transport-arms.md`); amendment 17 |
+| TRANSPORT-RUN | 11-18 00:00 | TRANSPORT-BUILD-REVIEW done with no blocker open | rows on `claude/transport-arms`; results in `stacks.md` §Results on `claude/transport-design`; in the cloud (amendment 24) |
+| TRANSPORT-VERDICT-REVIEW | 11-18 00:00 | TRANSPORT-RUN done, or 11-27 08:00 | `claude/transport-design` (`stacks.md` §Verdict review) |
+| AGENTS-DOCS | 11-18 00:00 | — | `claude/agents-docs` from `origin/claude/unified` → draft PR into `claude/unified` ("do not merge: review") |
+| AGENTS-DOCS-REVIEW | 11-18 00:00 | AGENTS-DOCS done | findings in its PR body; amendment 17 |
+| PHONE-RUN-OWNER | 11-19 12:00 | PHONE-LEVERS-REVIEW and FIX-378-DIAL-REVIEW done with no blocker open, or 11-20 08:00 | `claude/phone-run` from `origin/claude/unified` → draft PR into `claude/unified` ("do not merge: phone run 2026-11-21"); `docs/phone-rows/SATURDAY.md`; done by 11-20 22:00 |
+| PHONE-RUN-REVIEW | 11-19 12:00 | PHONE-RUN-OWNER done | findings in `claude/phone-run`'s PR body; amendment 17; closed by 11-21 18:00 |
+| PHONE-ROUND | — | — | **the owner's local device session, 2026-11-21 evening, by `SATURDAY.md`; no cloud worker takes it** |
+| PHONE-READ | 11-22 00:00 | `docs/queue/PHONE-ROUND.md` done | `claude/phone-run:docs/phone-rows/next-round-results.md` |
+| PHONE-READ-REVIEW | 11-22 00:00 | PHONE-READ done | findings in the results file's §Review; amendment 17 |
+| MOBILE-DECODE-REJUDGE | 11-22 00:00 | PHONE-READ-REVIEW done with no blocker open | `claude/mobile-decode` (`docs/decode/mobile/README.md` §6; PR 397) |
+| BRIEF-MON | 11-22 00:00 | not before 11-23 06:00 | `claude/reviews-2026-11-23:docs/reviews-2026-11-23.md`, one page by 18:00 UTC; nothing run |
 | DOCS-DECISIONS | 11-16 12:00 | — | `claude/docs-client`: amendments 16-23's owner decisions folded into `docs/client/design.md` §Decided/§Open, `docs/lines/client.md`, `devices.md`, `native.md` (one line each, dated, linked); the 2026-11-15/16 results linked from §Open; check_links green |
 | BRIEF-WED | 11-16 12:00 | not before 11-18 08:00 | `claude/reviews-2026-11-18:docs/reviews-2026-11-18.md`, one page by 10:00 UTC: what each row since 11-14 produced, the owner's decisions owed (list below), links; nothing run |
 | PHONE-FIX-378 | 11-14 21:00 | — | `claude/lossless-under-loss` (PR 378's branch): the review's findings fixed |
@@ -920,11 +935,163 @@ check green.
     preparation rows for `main` (plan §8.4); the lab and docs trim (audit 7, 8); a transport session and a phone
     session (the probe run, the protocol, once RUNNER-FIX-2 passes); M3, M5, M6 remainders.
 
+24. **The owner's decisions of 2026-11-17** (away until the evening of Saturday 11-21):
+    * **The next phone round is 2026-11-21, evening:** "yes. Saturday evening. That's the time I got. Proceed to
+      prepare everything if not already to be as efficient as possible." Every preparation runs before it, in the
+      cloud; on the evening the owner connects the phone, opens one page and presses once (amendment 5). Anything
+      more asked of the owner that evening is a defect, fixed before 11-20 22:00.
+    * **Its run commit:** "Prepare what's needed for that run, or even better, schedule a session in charge of it."
+      PHONE-RUN-OWNER is that session. It chooses the commit's content from `next-round.md` §1 and each cell's
+      "runs only if", and builds it as the staging branch `claude/phone-run` by `--no-ff` merges (amendment 8). The
+      word covers that staging branch only: no merge into `main`, into a `claude/unified*` branch, or anywhere else.
+    * **Cell 3's guard is form (a)**, the 52 ms first-picture bound, the orchestrator's choice on the owner's
+      "choose something, but remember it's arbitrary unless proven otherwise". So the bound is labelled an
+      *assumption* wherever it is used; cell 3 reports the worker's first-picture delay measured on the phone beside
+      it; and a verdict that turns on the guard alone is reported **provisional**, never adopted.
+    * **Where a row runs:** "don't even ask. cloud whenever possible." Every row runs in the cloud unless it needs
+      the phone or other hardware the cloud lacks. A row that finds the cloud cannot do a step records the exact
+      error and the complete commands for a local run, sets `blocked`, and the orchestrator schedules it. No row
+      asks the owner where to run. The transport comparison runs in the cloud.
+    * **The two-week queue** (`docs/queue-2026-11-14.md`): "Trim, then start". QUEUE-2W-TRIM trims it; its worker
+      starts when that row is done.
+    * This file now closes 2026-11-28 23:59 (was 2026-11-22), so that the round's read and the verdict reviews run.
+
+#### FIX-378-DIAL-REVIEW
+
+A session that wrote none of PR 378, PHONE-FIX-378 or FIX-378-DIAL. On `claude/lossless-under-loss`
+`e5fc7406..ae64ec70`: the lost-ask test fails with `30968d78` reverted; a refusal and a failed check are still never
+asked again (amendment 22); FIX-378-DIAL's surviving mutant (the generation guard) is killed by a new test or argued
+equivalent; no other path retries; `scripts/gate.sh --quick`, `scripts/check_lab_absent.sh`. Findings in PR 378's
+body. Blockers start amendment 17's loop, which must close before PHONE-RUN-OWNER's deadline.
+
+#### QUEUE-2W-TRIM (the ledger only; no row of that file run)
+
+Edit `docs/queue-2026-11-14.md` in place. For each of its rows: **keep**, **drop** or **hold**, one line each with
+its reason, checked against amendment 18 (native paused), the rows other queues finished since 2026-11-12 (search
+`docs/queue/`), the owner's decisions since (amendments 1-24 here, `docs/lines/coordination.md` §Decisions on
+`origin/claude/unified`), and the mobile findings (`claude/mobile-decode:docs/decode/mobile/README.md`). **Hold**
+any row that spends hours encoding AV1, or whose value depends on AV1 remaining the phone's route (cloud group shards,
+noise rows, anything that waits on `docs/lines/codecs.md` §Open 0): its needs become "MOBILE-DECODE-REJUDGE done". Kept
+rows: base branches brought up to date (`claude/unified` carries every line since 2026-11-16, so it replaces
+`claude/demo-fixes-2` as the base), not-befores from 2026-11-18, the fix loop (amendment 17 here) bound. Add a
+section "Trimmed 2026-11-18" listing every dropped and held row with its reason (nothing removed from history), and
+set the header to "Started 2026-11-18 by the owner's word of 2026-11-17 ('Trim, then start')". Result: the counts kept,
+dropped and held, and the first three rows the worker will take.
+
+#### TRANSPORT-BUILD
+
+Build what `claude/transport-design` `c74d4bea:docs/transport/evidence/stacks.md` §5.6 lists, for the arms of §5.1
+as pre-registered: the lab GET path, the fetch carrier, the driver, under `lab/` or behind the viewer's lab gate, so
+nothing of `lab/` reaches a product path (`scripts/check_lab_absent.sh`). **First**, find whether this container can
+run `link_impair.py --tun`, and write the answer in the Resume; if it cannot, find what the cloud can do instead
+(another impairment the protocol's §5.2 allows, or none), and say so; never weaken a cell to make it fit. Tested
+headless in Chromium in the container: every arm delivers a frame and a fill exact (XXH3) at the CLEAN profile; each
+of §5.6's mutants fails its check. The pilot only as §5 allows (timeouts and prefixes). Gate.
+
+#### TRANSPORT-BUILD-REVIEW
+
+A session that wrote none of `stacks.md` §1-§5 or the build: each arm as §5.1 defines it; the A/A copy the same code;
+each metric's clock ending at the frame's last byte (§5.3); every mutant fails its check; the absence check green.
+Findings in `docs/reviews/transport-arms.md`; blockers start amendment 17.
+
+#### TRANSPORT-RUN (cloud, amendment 24)
+
+A session that wrote none of §1-§5 or the build: §5 exactly as pre-registered: every cell, Williams order, `VOID` by
+§5.4's reasons only, the 12 h stop. Raw rows pushed every 15 minutes, the Resume written before each cell. The
+host's CPU per cell reported, and nothing claimed past where it saturates. A cell the cloud cannot run is
+recorded with its error and the commands for a local run (amendment 24); the other cells run. Results in `stacks.md`
+§Results, each prediction of §3 beside its measurement; fixtures and limits (the 90 Mbit ceiling, one container,
+Chromium headless).
+
+#### TRANSPORT-VERDICT-REVIEW
+
+A session that ran none of it: `aa_rule.py --bar 0.05` reproduced from the pushed rows, each verdict against §5.5's
+rule, the A/A pair's result first. Owner decisions last (a fetch arm's win changes the GET path, which is structural
+and the owner's).
+
+#### AGENTS-DOCS (docs only; a proposal for the owner's review)
+
+The owner, 2026-11-17, on gathering the rules agents follow: "I think we already thought about this and decided
+docs/agents/ instead of a single file". The record: on 2026-11-09 the owner floated "a docs/agents/ folder or
+something to be more organized"; `docs/lines/` (PR 322) and `CLAUDE.md` §Agents were adopted then, and the rules
+for unattended work have since lived in this ledger's queue files. Write `docs/agents/` on `claude/agents-docs`:
+the rules every agent follows, each stated once, in the fewest files that keep one subject per file (for example
+the standing rules; a queue worker's procedure with the status file's schema and "No work lost"; reviews and the fix
+loop; which model does what), with `CLAUDE.md` §Agents pointing to it. Sources: `CLAUDE.md` §Agents;
+`docs/queue-2026-11-14.md` §The worker's procedure, §No work lost, §Standing rules; this file's amendments 4, 5, 8,
+11, 17, 20, 21, 24; `docs/lines/coordination.md` §Decisions (all on their branches as named). Quote each rule's
+source and date in the PR body, not in the files. Keep a rule tied to one week's rows in its queue file. No queue
+file is changed (the workers read them this week); the PR body lists, per queue file, what would point to
+`docs/agents/` once the owner accepts. Nothing private: no schedule, no host, no private names. `scripts/check_links.sh`.
+
+#### AGENTS-DOCS-REVIEW
+
+A session that did not write it: every rule in the sources is in `docs/agents/` once, or listed in the PR body as
+kept in its queue file; none changed in meaning (quote both versions where wording differs); no rule twice; the
+comment and link checks green. Findings in the PR body; blockers start amendment 17.
+
+#### PHONE-RUN-OWNER (the session in charge of the 2026-11-21 round's preparation; Opus)
+
+It owns everything the round needs before the owner's press, and finishes by 11-20 22:00.
+1. **The commit.** From `claude/phone-protocol:docs/phone-rows/next-round.md` §1 and each cell's "runs only if",
+   list what the run commit must carry, quoting each line: the fixes for the 11-11 failures (PR 376's late deadline,
+   or its successor; PR 378 as fixed by PHONE-FIX-378 and FIX-378-DIAL, reviewed); the tools (`claude/phone-round`,
+   PR 400, with PHONE-LEVERS reviewed); the cache cell (`claude/cache-arms`, if CACHE-BUILD-OPFS-SYNC and its review
+   hold); the report cells (`claude/report-arms`, if its review holds and REPORT-RUN has named the carrier arms that
+   pass cloud row D; otherwise not run, and said so). Build `claude/phone-run` from `origin/claude/unified` by
+   `--no-ff` merges of exactly those branches (amendments 8 and 24), each conflict resolved in its merge commit and
+   listed in the PR body. A change past a conflict's resolution is a commit of its own, named; a change to product
+   behaviour is a blocker (amendment 17), not a fix made here.
+2. **Checked.** `scripts/gate.sh` at the tip; `round_headless.sh` over the round's whole plan in quick mode;
+   `scripts/check_lab_absent.sh`; the run-commit check of §1 passing against the served tree.
+3. **`docs/phone-rows/SATURDAY.md`** on `claude/phone-run`, one screen: the run commit's hash; the evening's order
+   (preflight; the probe's shell reads from PHONE-PROBE-RUN: the AV1 codec list, `logcat`'s component names,
+   Chrome's `/proc/<pid>/stat`, untimed; the dry run of PHONE-DRY-RUN, two loads a cell; the round, cells 1-5;
+   `adb reboot`, then P1); the time plan (~3 h); every step as complete commands from any state (the laptop clean
+   or not, the servers up or not, the phone on Wi-Fi), each failure's next command, and where rows push. Cell 3's
+   guard as amendment 24 states it. Nothing identifying committed (`docs/devices.md` §4).
+4. A draft PR `claude/phone-run` → `claude/unified`, titled "do not merge: phone run 2026-11-21".
+If a need is not met by 11-20 08:00, build with what holds and name each skipped cell in `SATURDAY.md`.
+
+#### PHONE-RUN-REVIEW
+
+A session that wrote none of the protocol, the tools or the run branch: the commit's content against §1 and each
+"runs only if" (quoted); each merge's resolutions read; the gate at the tip; `round_headless.sh` reproduced;
+`SATURDAY.md`'s commands run in the container against a fake `adb` where they can be, every step complete from any
+state. Findings in the PR body. Blockers start amendment 17 and close by 11-21 18:00; a blocker still open then
+skips its cell, named in `SATURDAY.md`, and the other cells run.
+
+#### PHONE-ROUND (local; the owner's device session, 2026-11-21 evening)
+
+By `SATURDAY.md`. The session writes `docs/queue/PHONE-ROUND.md` (this file's schema) and pushes the rows as they land.
+
+#### PHONE-READ
+
+A session that wrote none of `next-round.md`, the tools or the run branch: each cell read by §4 and §7, its
+prediction beside it; the octets rule (amendments 7, 11); `VOID` by name; the decode-option asks M1-M22 written into
+their option files' phone lines on `claude/mobile-decode`, measured; fixtures and limits (one phone, its link, one
+evening). Results in `docs/phone-rows/next-round-results.md`; owner decisions last.
+
+#### PHONE-READ-REVIEW
+
+A session that did not write PHONE-READ: every number recomputed from the raw rows; findings in §Review; amendment 17.
+
+#### MOBILE-DECODE-REJUDGE
+
+A session that wrote none of `docs/decode/mobile/`: §6's leaning judged again with the device numbers (cell 1's
+HTJ2K decode, M20, M1-M3, M6-M7); each option's phone column updated; for the AV1 rows QUEUE-2W-TRIM held, the options
+for what they do next, with the measurement that decides each. Nothing decided; PR 397.
+
+#### BRIEF-MON
+
+One page, by 2026-11-23 18:00 UTC: what each row since BRIEF-WED produced, the round's result in plain words, the
+owner's decisions owed (each explained, then the question), links. Nothing run.
+
 ## Procedure, rules
 
 Each firing follows `docs/queue-2026-11-14.md` §The worker's procedure, §No work lost and §Standing rules, applied to
 **this file's rows only**, with these changes: step 3 counts this file's running rows (at most twelve); step 4
-ignores the 22:00–06:00 restriction; the queue closes 2026-11-22 23:59. Status files are `docs/queue/<ROW>.md` on
+ignores the 22:00–06:00 restriction; the queue closes 2026-11-28 23:59 (amendment 24). Status files are `docs/queue/<ROW>.md` on
 `claude/work-ledger`. No merges; PRs are drafts into `claude/docs-client` as the table says, through
 `mcp__github__create_pull_request`. Sources quoted verbatim, theory and measured labelled, fixtures and limits in
 every result.
