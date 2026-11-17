@@ -1,12 +1,16 @@
-state: started
+state: done
 started: 2026-11-17T18:17Z
-heartbeat: 2026-11-17T18:51Z
-outputs: claude/depth8 4464fab1 (§10 protocol, rounding.py, tests, predictions)
+heartbeat: 2026-11-17T19:20Z
+outputs: claude/depth8 4464fab1 (protocol, pre-registered), 853ed8fc (§10.2 results, rows, codecs line); PR 389 (body §DEPTH8-ROUNDING)
 ## Resume
-Running since 18:25Z; round-only rows and the 19 cells at today's Q landed (each reproduces §9 exactly); second round 28 cells. (scipy, scikit-image added to the harness venv). Done: claimed; depth-cut-8.md §10.1 protocol and predictions pre-registered, rounding.py + rounding_test.py (5 mutants
-each fail), claude/depth8 4464fab1. Next: the run, rows to lab/av1/depth8/rows/rounding.jsonl pushed as they land.
-To resume (fresh container): worktree of 0a9d33ca at ../harness; BUILD=/home/user/av1build ingest/tools.sh there;
-OUT=/home/user/av1data lab/av1/fetch_data.sh <19 volumes>; then from claude/depth8 lab/av1/depth8:
-../harness/lab/av1/.venv/bin/python rounding.py run ../../../../harness /home/user/av1build /home/user/av1work
-/home/user/av1data rows/rounding.jsonl --jobs 4 (it skips rows already present). Then §10.2 results.
+Done. Nothing left to run.
 ## Result
+av1-hardware-unchecked.md §9's cloud cell, depth-cut-8.md §10 (claude/depth8, PR 389): today's view decoded, then
+rounded to 8 bits by round(y · 255 ÷ 1023), on 19 DBT volumes, with 59 cells and 19 round-only rows at G 1. Each
+cell at today's Q reproduces §9's row exactly.
+* At today's Q the worst frame reads 1.001–1.080 of σ, over the noise rule on all 19 (R2: 19 of 19 hit).
+* Meeting the rule needs Q 1–3 rungs lower (Q 5–8 at D 12, 7–12 at D 10), at 1.17–1.83 × today's bytes. That is
+  about the checkable 8-bit cut's 1.14–1.86 ×.
+* Misses: the rounding alone reads 2.8–8.4 % low on the 10-bit volumes; the mean-error prediction misses on 18 of 19,
+  because it was written for uniform codes.
+* Fixtures: 19 DBT volumes, one cloud host, the rounding modelled in software; no phone, hardware decoder or reader.
