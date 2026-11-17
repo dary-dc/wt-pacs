@@ -98,6 +98,13 @@ they start with `../`.
 | Exactness failures are a safety report, not telemetry: always on, never sampled, no pixels or patient data, the load report's endpoint and format; on a mismatch the second decode first, then the frame blocked, the reader told in that frame's view and the report sent at once. The sampled load report alone follows the rate | 2026-11-14 | [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §4, §5, §8; [`where-a-frame-can-be-corrupted.md`](evidence/where-a-frame-can-be-corrupted.md) |
 | The cache: survey the options before designing further; if OPFS comes out best its design continues, if not the cache gets research of its own | 2026-11-14 | [`cache-options.md`](evidence/cache-options.md); *Open*, below |
 | The delivery comparison is theory first, measured as calibration (*Open*, below); transport is another subject | 2026-11-14 | below |
+| 10 bits on hardware is the goal, 8 bits the fallback; resources on 10 bits are not cut | 2026-11-14 | `claude/work-ledger:docs/queue-client-2026-11-14.md` amendment 16; `claude/hw10-routes:docs/decode/hardware-10bit.md` (#392) |
+| Native is paused: it rides the merges as an experimental crate, off the served path, and no row builds or measures it | 2026-11-15 | `claude/work-ledger:docs/queue-client-2026-11-14.md` amendment 18; `claude/native-notes:docs/native/README.md` §Status (#396) |
+| The web stays the approach; its mobile options are explored before native | 2026-11-15 | `claude/work-ledger:docs/queue-client-2026-11-14.md` amendment 19; `claude/mobile-decode:docs/decode/mobile/README.md` (#397) |
+| Only a lost ask is asked again, once: the session or stream gone, its deadline passed with nothing received, or its own re-dial failed; never a refusal nor a failed check | 2026-11-16 | `claude/work-ledger:docs/queue-client-2026-11-14.md` amendments 22, 23; `claude/lossless-under-loss:docs/reviews/lossless-under-loss.md` (#378) |
+| No second picture for more than 8 bits (the split's fragility, its small decode gain) | 2026-11-16 | `claude/work-ledger:docs/queue-client-2026-11-14.md` amendment 23; `claude/mobile-decode:docs/decode/mobile/new-options.md` §4 |
+| The content crop is doubtful (it can cut part of the breast off screen): no build, kept as noted | 2026-11-16 | `claude/work-ledger:docs/queue-client-2026-11-14.md` amendment 23; `claude/mobile-decode:docs/decode/mobile/content-crop.md` |
+| Hardware painting first with the check following is acceptable, not ideal | 2026-11-16 | `claude/work-ledger:docs/queue-client-2026-11-14.md` amendment 23 |
 
 ## Open
 
@@ -123,7 +130,9 @@ only ([`cache-options.md`](evidence/cache-options.md)): OPFS as built, decoded s
 and check of one decoded frame, measured against its decode. *So far:* no cache writer arm passed on either engine
 ([`cache-io-thread.md`](evidence/cache-io-thread.md)); the ring of slots qualifies on both under the amended bar, its
 build waiting for review ([`frame-memory-ownership.md`](evidence/frame-memory-ownership.md)); per-engine limits in
-[`cache-in-opfs.md`](evidence/cache-in-opfs.md). The cache stays off.
+[`cache-in-opfs.md`](evidence/cache-in-opfs.md). The empirical choice between OPFS sync, OPFS async, IndexedDB
+and Cache Storage (`claude/cache-plan:docs/client/evidence/cache-plan.md`): four lab arms built and reviewed through a
+third fix round (the owner's yes, 2026-11-16), its run next (#394). The cache stays off.
 
 **What the cache leaves on a device.** Bare pixels, protected only by the device's disk encryption; a default per
 device kind, or a policy the deployment sets? ([`what-the-cache-leaves-on-a-device.md`](evidence/what-the-cache-leaves-on-a-device.md)). The owner's.
@@ -135,22 +144,42 @@ for `prefer-software`); the decoder count not varied, so the phone's saturation 
 *Decides:* a phone round recording the route and per-frame arrivals, the decoder count varied; the decode protocol
 at `cores` 1 and 2.
 
+**Decode on a phone, and hardware.** *So far (2026-11-15):* full precision today only off hardware; a hardware frame
+is checked only at 8 bits, by inverting the engine's conversion; leaning, AV1 in software until the phone cells report
+(`claude/mobile-decode:docs/decode/mobile/README.md`, #397). No shipped browser route serves the checked 10-bit view
+(`claude/hw10-routes:docs/decode/hardware-10bit.md`, #392 §Review). The 8-bit view costs 1.14–1.86× today's bytes at
+its highest Q under the noise rule's bar, on 19 DBT volumes (`claude/depth8:docs/av1/depth-cut-8.md`, #389). The
+checked 8-bit hardware view in studio range (16 to 235, 220 levels, against the series' own depth) may be explored
+further (the owner, 2026-11-16; `claude/mobile-decode:docs/decode/mobile/hw-inverted.md`). *Decides:* the probe and
+the decode cells of the next round (`claude/phone-protocol:docs/phone-rows/next-round.md`).
+
+**An HTJ2K-only path for large matrices on phones**, its first picture a reduced-resolution level of the same
+codestream, the exact frame after: to be investigated (the owner, 2026-11-16), against *no low-resolution preview*
+(by 2026-11-10, above). *So far (2026-11-17):* the level picture failed the visually lossless proxy at display scale,
+so its ratios compare unequal quality (`claude/mobile-decode:docs/decode/mobile/htj2k-preview.md`, #397). *Decides:*
+its phone cells, then the owner.
+
 **Which view is the target.** *So far:* on the phone's tether it depends on the controller; on its Wi-Fi it is
 inconclusive by its rule, not unmeasured ([`view-target.md`](evidence/view-target.md)); in the cloud the page view
 stays by its rule, the worker wins a busy page ([`view-worker-under-a-busy-page.md`](evidence/view-worker-under-a-busy-page.md))
 and its start ties ([`view-worker-start.md`](evidence/view-worker-start.md)). *Decides:* the next phone round,
-amended by a session that will not run it ([`../devices.md`](../devices.md) §7).
+amended by a session that will not run it ([`../devices.md`](../devices.md) §7): written, reviewed and fixed 2026-11-15
+(`claude/phone-protocol:docs/phone-rows/next-round.md`, #359), its one-press runner's blockers closed in a third round
+(the owner's yes, 2026-11-16; #400); cell 3's guard form is the owner's before the round.
 
 **Two failures from the phone run.** A failed Lossless is not asked again (#378,
 [`lossless-after-a-failed-ask.md`](evidence/lossless-after-a-failed-ask.md)); a hidden page loses its AV1 decoder
 mid-group (#376, #377, [`hidden-page-decode.md`](evidence/hidden-page-decode.md)). *Decides:* each review, then the
-next phone round.
+next phone round. *So far:* #378 asks again only a lost ask (decided 2026-11-16, above), reviewed with no
+blocker (`claude/lossless-under-loss:docs/reviews/lossless-under-loss.md`); whether one re-ask is enough, the owner's.
 
 **Exactness after a mismatch.** The 2026-11-14 decision is not built: the tip marks and paints, and the load report
 sends nothing at rate 0 ([`what-a-load-report-sends.md`](evidence/what-a-load-report-sends.md)). For the owner: a
 coded-bytes digest, to tell the bytes' fault from the decoder's
 ([`where-a-frame-can-be-corrupted.md`](evidence/where-a-frame-can-be-corrupted.md) Q1); a series without digests;
-whether a blocked frame has a reveal.
+whether a blocked frame has a reveal. How the load and safety reports leave the page is chosen empirically between `sendBeacon`,
+`fetch` with `keepalive` and the WebTransport session, and two receivers; its run in progress since 2026-11-16
+(`claude/report-plan:docs/client/evidence/report-plan.md`, #395).
 
 **The optimal-quality frame checked as coded** (#368): every frame, the shown one and the rest at a rate, or not
 taken. *Decides:* its six review findings fixed, a phone row, then the owner

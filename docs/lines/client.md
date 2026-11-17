@@ -1,6 +1,7 @@
 # Client
 
-Last verified 2026-11-15 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-15 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12;
+the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -32,6 +33,9 @@ exact frame bit for bit, and only checked claims on screen.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
+* **The owner's decisions of 2026-11-14 to 16** (amendments 16–23 of the client queue): in
+  [`../client/design.md`](../client/design.md) §Decided, one row each, and the HTJ2K-only path with a reduced first
+  picture and the 220-level checked hardware view in §Open; the rows that carry them, PRs 378, 389, 392, 394–397, 400.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
@@ -65,7 +69,8 @@ exact frame bit for bit, and only checked claims on screen.
 Any merge, close or removal (the frame clock's: `git revert 24b80bcd`, [`coordination.md`](coordination.md) §Open 7);
 which view is the target; the contradictions the fold left open ([`../client/design.md`](../client/design.md) §Open: the
 stride ADR against never skipping, the cache file's questions 3 and 4); the coded-bytes digest; turning the cache or telemetry on, and telemetry's rate, sink and retention; a series
-without digests; the settings awaiting a default ([`../client/design.md`](../client/design.md) §Open); anything
+without digests; whether one re-ask of a lost ask is enough (#378); cell 3's guard form before the next phone round (#359);
+whether an 8-bit view at 1.14–1.86× the bytes is worth a checked hardware path (#389); the settings awaiting a default ([`../client/design.md`](../client/design.md) §Open); anything
 structural.
 
 ## Pointers

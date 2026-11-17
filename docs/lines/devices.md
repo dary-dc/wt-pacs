@@ -46,7 +46,13 @@ device work); status files `claude/work-ledger:docs/queue/<ROW>.md`.
   hand (the default until a word).
 * **A dedicated row for 10-bit hardware routes**, proposed, not queued: every route to a checked 10-bit hardware
   frame, sourced and ranked, each with a probe cell (WebGPU multi-planar import with a GPU-side hash, the `copyTo`
-  re-layout, the native client's planes).
+  re-layout, the native client's planes). *Corrected 2026-11-17:* queued by the owner 2026-11-14 (10 bits on hardware
+  the goal, 8 bits the fallback), done and reviewed 2026-11-15 (`claude/hw10-routes:docs/decode/hardware-10bit.md`,
+  #392): no shipped browser route serves it; its first ask, the phone codec's `P010`, is the probe run's.
+* **The one-press runner's third fix round**: the owner's yes, 2026-11-16; its blocker closed 2026-11-17 (#400), so the
+  client's levers (PHONE-LEVERS) come next, then the dry run.
+* **The 220-level checked hardware view** (studio range, 16 to 235) may be explored further (the owner, 2026-11-16):
+  its cells are asks in `claude/phone-protocol:docs/phone-rows/next-round.md`.
 * **The 11-11 run's reading**: the six-octet reading is of record (the owner, 2026-11-14); whether the two failures
   under `bbr` withdraw it.
 * **A cellular arm** only if a server the phone reaches over the Internet is in scope.
