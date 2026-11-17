@@ -1,6 +1,6 @@
 # Codecs and lab
 
-Last verified 2026-11-09 (transport pointer added 2026-11-14; AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09).
+Last verified 2026-11-09 (transport pointers added 2026-11-14 and 2026-11-17; AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09).
 
 ## Goal
 
@@ -43,7 +43,8 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
   ping, GSO, and others); no default changed. The transport's design, decided and open, is
   [`../transport/design.md`](../transport/design.md) (2026-11-14, an inventory; #391); the
   transport session's first open item is HTJ2K alone over WebTransport against HTTP/2 `fetch`, WebSocket and HTTP/3
-  `fetch` on the link profiles.
+  `fetch` on the link profiles; its theory and a prediction per profile are
+  [`../transport/evidence/stacks.md`](../transport/evidence/stacks.md) (2026-11-17, nothing run; the protocol next).
 
 ## Open (ordered)
 

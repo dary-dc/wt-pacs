@@ -84,6 +84,8 @@ without a GPU, headless Chromium, the userspace relay `lab/scripts/link_impair.p
   comparison (a fill's time, the first frame, an ask's latency during and after a fill; bytes; client and server
   CPU), a prediction per profile, arms interleaved, the host's saturation stated, each profile labelled measured or
   assumed. The comparison's brief: `claude/work-ledger:docs/transport-session-2026-11-14.md` question 2.
+  *Theory and a prediction per profile, 2026-11-17:* [`evidence/stacks.md`](evidence/stacks.md) (the fill ties where the wire
+  binds; setup, the ask during a fill and CPU part the arms; the protocol is TRANSPORT-PROTOCOL's).
 * **The loss mix, and whether `bbr` is withdrawn.** BBR fills in 0.11–0.12 of Cubic's time under 1 % random loss on
   the lab's links; on the phone's Wi-Fi the loss was congestive and `cubic-restart` faster in 9 of 10 pairs, both
   failures under `bbr`. *Decides:* the server's round-trip samples before each loss on real links; the owner, on the
