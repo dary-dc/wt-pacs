@@ -1156,3 +1156,24 @@ and no row was lost or repeated. D4 carries the safety bar; the load report is r
 
 Rank on D4 alone: every arm 18/18 fill records; the Y arms and SESSION-1 18/18 deltas. Nothing separates them here.
 Loopback, as D1 (§7.8).
+
+### D5b · renderer killed while visible, 500 ms after the mismatch is found (18 rounds, 162 loads, 2026-11-17 20:15–23:00 UTC)
+
+Williams-balanced for every unit. Host CPU at most 14 % (5 s samples): no round saturated. Every load reached its
+mismatch; no row errored. D5b carries the safety bar; the load report is ranked (§7.3). No frame was pressed in D5
+(the kill comes from the mismatch, `run.mjs`), so no arm had a delta to send.
+
+| unit | fill record | safety report | dup. | safety bar | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | 18/18, 18/18 | 0 | pass | as predicted; A/A identical |
+| BEACON-H | 0/18 | 18/18 | 0 | pass | ✓ "✗ load report": no hide before the kill |
+| BEACON-Y | 18/18 | 18/18 | 0 | pass | ✓ fill ✓ |
+| KEEPALIVE-H | 0/18 | 18/18 | 0 | pass | ✓ ✗ |
+| KEEPALIVE-Y | 18/18 | 18/18 | 0 | pass | ✓ fill ✓ |
+| SESSION-1 | 18/18 | 18/18 | 0 | pass | ✓ fill ✓ |
+| SESSION-Y | 18/18 | 18/18 | 0 | pass | ✓ fill ✓ |
+| SESSION-H | 0/18 | 18/18 | 0 | pass | ✓ ✗ |
+
+The fill record reached the sink in 18/18 for every at-once or hybrid arm, so the fill ended inside the 500 ms (the
+rig's 32-frame grey series, §7.8; a `dbts_c1` fill would not). Rank on D5b: the four Y/1 arms 18/18, the H arms 0/18.
+Loopback, as D1 (§7.8).
