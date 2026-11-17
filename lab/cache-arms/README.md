@@ -173,7 +173,8 @@ coded form, so a fetch of their bytes would not be a fill; F is M1's (`lab/opfs-
 `view-copy` in `view.js`. Each row carries `checks`, what its mutant must break (`cells.mjs`). A mutant runs in the
 arm only, `none` clean: L's bars against `none` (§8.3: missed share, delay p99, delivered rate, the backlog, PSS) are
 computed by `lBars` per round and written as the run's last row (`summary`), each met in ≥ 75 % of rounds, every frame
-exact in every round, with `balanced` per arm; `view-copy` fails the delay p99 there. K damages a frame in odd rounds
+exact in every round, with `balanced` per arm; an arm's errored round counts as a round with no bar met, and a round
+whose `none` errored judges no arm and is listed in `unjudged`; `view-copy` fails the delay p99 there. K damages a frame in odd rounds
 only, so a `no-recheck` run of K needs two rounds or more. The backlog is sampled at the last post + 5 s, while the
 writer may still be behind; L's PSS window opens once the page's floor probe is done (`floorDone`).
 

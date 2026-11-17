@@ -78,13 +78,17 @@ export async function pssGrowth({ load, floorDone, pss, everyMs = 500 }) {
   return { row: await loading, pssGrowthMiB: peak - baseline };
 }
 
+const NO_BAR_MET = { missed: false, delayP99: false, delivered: false, backlog: false, pss: false, exact: false };
+
 /** L's bars against the same round's `none` (§8.3), each met in ≥ 75 % of rounds, every frame exact in every round. */
 export function lBars(rows, { frameBytes, pilot }) {
-  const ref = new Map(rows.filter((r) => r.unit === "none").map((r) => [r.round, r]));
+  const ref = new Map(rows.filter((r) => r.unit === "none" && !r.error).map((r) => [r.round, r]));
   const units = [...new Set(rows.map((r) => r.unit))];
   const out = {};
   for (const unit of units.filter((u) => u !== "none")) {
-    const met = rows.filter((r) => r.unit === unit && ref.has(r.round) && !r.error).map((r) => {
+    const mine = rows.filter((r) => r.unit === unit);
+    const met = mine.filter((r) => ref.has(r.round)).map((r) => {
+      if (r.error) return NO_BAR_MET;
       const n = ref.get(r.round);
       return {
         missed: r.shown.missedShare <= n.shown.missedShare + 0.01,
@@ -95,9 +99,10 @@ export function lBars(rows, { frameBytes, pilot }) {
         exact: r.verify?.notOk === 0 && r.verify.ok > 0,
       };
     });
-    const share = Object.fromEntries(Object.keys(met[0] ?? {}).map((k) => [k, met.filter((m) => m[k]).length / met.length]));
+    const share = Object.fromEntries(Object.keys(NO_BAR_MET).map((k) => [k, met.filter((m) => m[k]).length / met.length]));
     const pass = met.length > 0 && share.exact === 1 && Object.values(share).every((v) => v >= 0.75);
-    out[unit] = { rounds: met.length, share, pass, balanced: balanced(rows, unit, units) };
+    const unjudged = [...new Set(mine.filter((r) => !ref.has(r.round)).map((r) => r.round))];
+    out[unit] = { rounds: met.length, share, pass, unjudged, balanced: balanced(rows, unit, units) };
   }
   return out;
 }
