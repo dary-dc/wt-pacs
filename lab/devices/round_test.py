@@ -37,7 +37,7 @@ def head() -> str:
 
 
 class Rig:
-    def __init__(self, d: Path, commit: str, loads_per_block=(2, 2), dead=(), gapS=0, budgetsS=None):
+    def __init__(self, d: Path, commit: str, loads_per_block=(2, 2), dead=(), silent=(), exits=(), gapS=0, budgetsS=None):
         self.d = d
         bindir = d / "bin"
         bindir.mkdir()
@@ -52,6 +52,10 @@ class Rig:
             server = {"cmd": [sys.executable, "-m", "http.server", "--bind", "127.0.0.1", str(port)], "ready": f"http://127.0.0.1:{port}/"}
             if b in dead:
                 server = {"cmd": [sys.executable, "-c", "import time; time.sleep(60)"], "ready": f"http://127.0.0.1:{port}/", "readyS": 1}
+            if b in silent:
+                server = {"cmd": [sys.executable, "-u", "-c", "import time; print('starting'); time.sleep(60)"], "readyLine": "transport=", "readyS": 1}
+            if b in exits:
+                server = {"cmd": [sys.executable, "-c", "print('starting')"], "readyLine": "transport=", "readyS": 30}
             loads = [{"url": f"http://127.0.0.1:{port}/?overlay=1&view=page&beacon=cubic-restart", "cell": "2", "arm": "A", "press": "lossless"} for _ in range(n)]
             blocks.append({"name": f"b{b}", "servers": [server], "loads": loads, **({"rebootAfter": True} if b == 0 else {})})
         self.plan = d / "plan.json"
@@ -216,6 +220,31 @@ class RoundHost(unittest.TestCase):
         self.assertEqual([e["load"] for e in failed], [1, 2])
         self.assertTrue(all("no answer from" in e["why"] for e in failed))
         self.assertEqual([e["load"] for e in events if e["event"] == "load opened"], [0, 3])
+
+    def test_a_block_whose_server_never_prints_its_ready_line_fails_its_loads_and_the_round_goes_on(self):
+        """Block 1's server prints, but never its `readyLine`, within `readyS`: its loads fail by name and block 2 runs."""
+        self.rig = Rig(self.d, head(), loads_per_block=(1, 2, 1), silent={1})
+        self.rig.start()
+        t0 = time.monotonic()
+        urls = self.walk()
+        self.assertLess(time.monotonic() - t0, 20)
+        self.assertEqual([int(parse_qs(urlsplit(u).query)["at"][0]) for u in urls], [0, 3])
+        events = self.rig.events()
+        self.assertEqual([e["block"] for e in events if e["event"] == "host failed"], [1])
+        failed = [e for e in events if e["event"] == "load failed"]
+        self.assertEqual([e["load"] for e in failed], [1, 2])
+        self.assertTrue(all("transport=" in e["why"] for e in failed))
+
+    def test_a_server_that_exits_before_its_ready_line_fails_its_block_at_once(self):
+        """Block 1's server exits without its `readyLine`, `readyS` 30: its load fails as exited, well before the deadline."""
+        self.rig = Rig(self.d, head(), loads_per_block=(1, 1, 1), exits={1})
+        self.rig.start()
+        t0 = time.monotonic()
+        self.assertEqual(len(self.walk()), 2)
+        self.assertLess(time.monotonic() - t0, 20)
+        failed = [e for e in self.rig.events() if e["event"] == "load failed"]
+        self.assertEqual([e["load"] for e in failed], [1])
+        self.assertIn("exited before printing", failed[0]["why"])
 
     def test_asked_again_after_a_failed_block_reads_and_reboots_once(self):
         """The ask after a load whose next block fails, repeated: one set of after-reads, one reboot, the same answer."""

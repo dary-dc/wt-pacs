@@ -160,7 +160,7 @@ round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer
   during one: each Chrome process's `/proc/<pid>/stat` before and after, `logcat` after (then cleared), kept under
   `OUT/adb/`. A block's servers start when its first load is next, each ready by `ready` (a URL that answers) or
   `readyLine` (a line it prints); a block with `rebootAfter` ends with `adb reboot`. A block whose servers do not
-  start (not ready within `readyS`, 60 s by default) is recorded `host failed`, each of its loads `load failed` with
+  start (not answering, or not printing its line, within `readyS`, 60 s by default; or exited) is recorded `host failed`, each of its loads `load failed` with
   why, and the round goes on to the next block. A page that asks `/next` again for the same load gets the same
   answer, nothing read, waited or rebooted twice. Every step is a line of `OUT/round.jsonl`.
 * **The stopping rule** (next-round.md §3): `budgetsS` maps a cell to its budget in seconds of its counted loads'

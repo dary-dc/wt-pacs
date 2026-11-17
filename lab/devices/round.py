@@ -136,8 +136,9 @@ class Round:
             proc = subprocess.Popen(server["cmd"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             self.servers.append(proc)
             if "readyLine" in server:
-                wait_line(proc, server["readyLine"])
-            threading.Thread(target=proc.stdout.read, daemon=True).start()
+                wait_line(proc, server["readyLine"], server.get("readyS", 60))
+            else:
+                threading.Thread(target=proc.stdout.read, daemon=True).start()
         for server in self.plan["blocks"][b]["servers"]:
             if "ready" in server:
                 wait_answer(server["ready"], server.get("readyS", 60))
@@ -188,12 +189,22 @@ class Round:
         return load_url(self.plan, k, self.host)
 
 
-def wait_line(proc: subprocess.Popen, pattern: str):
-    """Until the server prints a line matching `pattern` (a QUIC server answers no HTTP)."""
-    for line in proc.stdout:
-        if re.search(pattern, line):
-            return
-    raise RuntimeError(f"{proc.args[0]} exited before printing {pattern!r}")
+def wait_line(proc: subprocess.Popen, pattern: str, seconds: float = 60):
+    """Until the server prints a line matching `pattern` (a QUIC server answers no HTTP); its output drained after."""
+    seen, done = [], threading.Event()
+
+    def read():
+        for line in proc.stdout:
+            if re.search(pattern, line):
+                seen.append(line)
+                done.set()
+        done.set()
+
+    threading.Thread(target=read, daemon=True).start()
+    if not done.wait(seconds):
+        raise RuntimeError(f"{proc.args[0]} printed no {pattern!r} in {seconds} s")
+    if not seen:
+        raise RuntimeError(f"{proc.args[0]} exited before printing {pattern!r}")
 
 
 def wait_answer(url: str, seconds: float = 60):
