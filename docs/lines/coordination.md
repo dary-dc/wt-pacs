@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL 2026-11-17.
 
 ## Goal
 
@@ -104,6 +104,9 @@ small enough that every open item has an owner and a next step.
    `README.md` (§Simplify and R1). PR-TRIAGE (2026-11-16, `claude/work-ledger:docs/queue/PR-TRIAGE-report.md`): of
    269 open PRs, 241 carried (237 to close, the 4 staging PRs with M8's swap), 5 owed a later pass (docs), 4 needing
    a fix first, 12 proposals waiting on M3, M5 or M6, 7 superseded; closing is the owner's.
+   AUDIT-MECHANICAL (2026-11-17, `2b0064cb`): the owner's name out of `handoff/` as well (the owner's yes), the last
+   of audit item 2's three files; items 3 and 4 found done by UNIFIED-CLEAN. `handoff/`'s removal still waits; owed
+   AUDIT-MECHANICAL-REVIEW.
 
 ## Unification (the owner, 2026-11-09)
 
