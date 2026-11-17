@@ -57,6 +57,8 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | FIX-378-DIAL | 11-16 12:00 | — | PR 378's branch: an ask whose own re-dial fails counts as lost and is asked again once (the owner's yes), test first |
 | AV1-HW-CHIPS | 11-16 12:00 | — | `claude/mobile-decode` (`docs/decode/mobile/av1-chips.md`): per phone SoC family (one Opus session may cover all, sources quoted): AV1 hardware yes/no, max level, profiles, bit depths, 4:0:0, max frame size; how our frames map to levels (2560x3328 needs 5.0; Android's CDD asks 4.1); options if 4.1 is the ceiling (sub-pictures) |
 | AV1-HW-CHIPS-REVIEW | 11-16 12:00 | AV1-HW-CHIPS done | findings in its PR body |
+| AV1-HW-CHIPS-FIX | 11-17 12:00 | AV1-HW-CHIPS-REVIEW done | `claude/mobile-decode` (`docs/decode/mobile/av1-chips.md`, `docs/lines/client.md`; PR 397): the review's two blockers, in place |
+| AV1-HW-CHIPS-FIX-REVIEW | 11-17 12:00 | AV1-HW-CHIPS-FIX done | findings in PR 397's body |
 | HTJ2K-PREVIEW-MOBILE | 11-16 12:00 | — | `claude/mobile-decode` (`docs/decode/mobile/htj2k-preview.md`): an HTJ2K-only path for large matrices on phones with a reduced-resolution first picture from the same codestream (resolution levels), exact frame after; why low-res preview was set aside 2026-11-10 (find the record) and what is different here; theory, bytes and decode time from existing rows, phone cells as asks |
 | HTJ2K-PREVIEW-MOBILE-REVIEW | 11-16 12:00 | HTJ2K-PREVIEW-MOBILE done | findings |
 | DEPTH8-ROUNDING | 11-16 12:00 | — | the 8-bit rounding cloud cell MOBILE-DECODE-COMPARE left owed (`claude/depth8`) |
@@ -761,6 +763,19 @@ closes. Nothing else changed; the asks M4–M22 untouched.
 A session that wrote neither the comparison, its review nor the fix: each blocker closed as its fix claims, the
 quotes re-checked against the option files, nothing else changed. Findings in PR 397's body §Re-review; a blocker
 left open is amendment 17's second round, then `blocked` for the owner.
+
+### AV1-HW-CHIPS-FIX (appended by AV1-HW-CHIPS-REVIEW, 2026-11-17; amendment 17)
+
+Docs only. A session that wrote neither `av1-chips.md` nor its review: fix PR 397 §AV1 chips review's two blockers in
+`docs/decode/mobile/av1-chips.md`, each in place, corrected not dropped (`docs/adr/disk-access.md` §2): 1, the count
+is 11 volumes at level 4.x and 8 at 5.x (§1, §3's summary, §5 item 1, §4.3's cell, `docs/lines/client.md`); 2, the
+CDD's [5.1/H-1-22] asks portrait decoding of class-V phones, AV1 at 1080p (§3, §5 item 2), quoted. Minors 3–6 one
+line each where they name. No regression test applies (no code); each fix names the review item it closes.
+
+### AV1-HW-CHIPS-FIX-REVIEW
+
+A session that wrote neither the file, its review nor the fix: each blocker closed as its fix claims, the CDD quote
+re-fetched, nothing else changed. Findings in PR 397's body; a blocker left open is amendment 17's second round.
 
 ### The device round's rows (the device coordination, 2026-11-15)
 
