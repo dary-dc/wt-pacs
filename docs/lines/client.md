@@ -86,8 +86,8 @@ exact frame bit for bit, and only checked claims on screen.
   must go as strips (four for `dbts_b1`), a byte cell pre-registered there. Reviewed 2026-11-17 (#397 §AV1 chips
   review): two blockers, the count is 8 of 19 at 5.x (11 fit 4.x), and the CDD's performance class asks portrait
   AV1 at 1080p ([5.1/H-1-22]); every source quote exact. Fixed 2026-11-17 (AV1-HW-CHIPS-FIX, `ca99a468`,
-  `ee55cc02`): both blockers corrected in place, the CDD quote re-fetched, minors 3–6 one clause each. Owed: its
-  re-review (AV1-HW-CHIPS-FIX-REVIEW).
+  `ee55cc02`): both blockers corrected in place, the CDD quote re-fetched, minors 3–6 one clause each. Re-reviewed
+  2026-11-17 (#397 §Re-review: AV1-HW-CHIPS-FIX-REVIEW): both blockers closed, no blocker open; the CDD quote exact.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
