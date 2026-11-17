@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-17T18:17Z
-heartbeat: 2026-11-17T18:41Z
+heartbeat: 2026-11-17T18:51Z
 outputs: claude/depth8 4464fab1 (§10 protocol, rounding.py, tests, predictions)
 ## Resume
 Running since 18:25Z; round-only rows and the 19 cells at today's Q landed (each reproduces §9 exactly); second round 28 cells. (scipy, scikit-image added to the harness venv). Done: claimed; depth-cut-8.md §10.1 protocol and predictions pre-registered, rounding.py + rounding_test.py (5 mutants
