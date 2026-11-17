@@ -1,8 +1,11 @@
 state: started
 started: 2026-11-16T08:22Z
-heartbeat: 2026-11-16T14:05Z
+heartbeat: 2026-11-17T05:16Z
 outputs: claude/report-arms 339ec2eb (rows), claude/report-plan 7538b6fc (§7.8)
 ## Resume
+Resumed 2026-11-17T05:16Z by a new session (the first stalled at 14:05Z on 11-16 with D1 and the mutants complete,
+D2 partial at 99 rows). Next: rebuild the host per the lines below, SKIP_MUTANTS=1, run D2 (partial kept and renamed)
+then D7 D9 D4 D5b D8 D3 D5a.
 Done: claimed; report-plan.md §7.8 amendment (claude/report-plan 7538b6fc). Running since 08:33Z: the mutants on D1
 (rows/chromium-mutants.jsonl, ends with {"mutants":"done"}), then endings D1, D2, D7, D9, D4, D5b, D8, D3, D5a, 18
 rounds each (rows/chromium-<E>.jsonl, complete when it holds its {"cell"} line). Rows pushed every 15 min to
