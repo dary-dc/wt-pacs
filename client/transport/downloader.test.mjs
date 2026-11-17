@@ -779,5 +779,37 @@ async function onlyALostAskIsMarkedLost() {
 }
 await onlyALostAskIsMarkedLost();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted, the start's stamps on the first frame, a short want riding the dial, a head crossing twice decoded once, a jump into a group decoded from its keyframe, a frame asked during a fill decoded once, only a lost ask marked lost: ok");
+/** An ask whose own re-dial fails, its session already closed when it came, is lost; a close by the consumer is not. */
+async function anAskWhoseOwnDialFailsIsLost() {
+  const run = async (name, closeFirst) => {
+    let made = 0;
+    globalThis.fakeTransport = {
+      connect: async () => {
+        if (++made > 1) throw new Error("the stand-in refuses to dial");
+        return {
+          requestExactFrame: () => new Promise(() => {}),
+          stats: () => ({ closed: "session closed (code 0)", lastByteAt: performance.now() }),
+          fillFrames() {},
+          endStream: async () => {},
+          close() {},
+        };
+      },
+    };
+    const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // ${name}`;
+    posted.length = 0;
+    await import(`./downloader.js?${name}`);
+    await onmessage({ data: { kind: "start", config: { decode: false, decoders: 0, transport } } });
+    await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+    if (closeFirst) await onmessage({ data: { kind: "close" } });
+    await onmessage({ data: { kind: "ask", index: 0 } });
+    return posted.find((m) => m.kind === "failed" && m.index === 0);
+  };
+  const redial = await run("lost-own-dial", false);
+  check(redial?.lost === true, `an ask whose own re-dial fails is lost (${JSON.stringify(redial)})`);
+  const closedByConsumer = await run("lost-own-dial-closed", true);
+  check(closedByConsumer && !closedByConsumer.lost, `an ask after the consumer closed is not lost (${JSON.stringify(closedByConsumer)})`);
+}
+await anAskWhoseOwnDialFailsIsLost();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted, the start's stamps on the first frame, a short want riding the dial, a head crossing twice decoded once, a jump into a group decoded from its keyframe, a frame asked during a fill decoded once, only a lost ask marked lost, an ask whose own dial fails lost: ok");
 process.exit(failed ? 1 : 0);
