@@ -88,6 +88,12 @@ exact frame bit for bit, and only checked claims on screen.
   AV1 at 1080p ([5.1/H-1-22]); every source quote exact. Fixed 2026-11-17 (AV1-HW-CHIPS-FIX, `ca99a468`,
   `ee55cc02`): both blockers corrected in place, the CDD quote re-fetched, minors 3–6 one clause each. Re-reviewed
   2026-11-17 (#397 §Re-review: AV1-HW-CHIPS-FIX-REVIEW): both blockers closed, no blocker open; the CDD quote exact.
+  HTJ2K only with the screen's level first (HTJ2K-PREVIEW-MOBILE, 2026-11-17, theory,
+  [`../decode/mobile/htj2k-preview.md`](../decode/mobile/htj2k-preview.md)): no reason is recorded with the
+  low-resolution-preview decisions; the level picture covers the shown size at device pixels. It reaches 1 of 19 DBT
+  volumes upright on a 1080-wide phone (12 sideways, 8 in two views) and the mammography matrices; on `dbts_b1` its
+  decode is predicted at 21–39 ms against AV1's 133–135 ms, its bytes 1.21–1.32× the view's, a fill tie at 103 Mbit/s.
+  Not built; owed, its review and four phone asks (its §8).
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
@@ -122,7 +128,8 @@ Any merge, close or removal (the frame clock's: `git revert 24b80bcd`, [`coordin
 which view is the target; the contradictions the fold left open ([`../client/design.md`](../client/design.md) §Open: the
 stride ADR against never skipping, the cache file's questions 3 and 4); the coded-bytes digest; turning the cache or telemetry on, and telemetry's rate, sink and retention; a series
 without digests; the settings awaiting a default ([`../client/design.md`](../client/design.md) §Open); anything
-structural.
+structural; whether an exact level picture first, on series whose level covers the screen, is a
+"reduced-resolution preview" ([`../decode/mobile/htj2k-preview.md`](../decode/mobile/htj2k-preview.md) §2).
 
 ## Pointers
 
