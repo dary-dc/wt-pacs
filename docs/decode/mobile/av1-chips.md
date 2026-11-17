@@ -29,11 +29,12 @@ result of this repository; **(D)** derived; **(T)** theory, not measured. Fixtur
   VP9" (R, `hardware.md` §15). The phone answers it (§6).
 * **Chromium on Android enforces both the size and the level before it picks a hardware decoder** (S8): it skips a
   decoder whose `coded_size_max` is smaller than the frame in either dimension, or whose level is below the
-  stream's. Our streams carry the level libaom writes by picture size (R, row CODECSTR), 5.x for 9 of 19 volumes (§3).
+  stream's. Our streams carry the level libaom writes by picture size (R, row CODECSTR), 5.x for 8 of 19 volumes (§3).
+  *Corrected 2026-11-17 (PR 397 §AV1 chips review, blocker 1): this read "5.x for 9 of 19 volumes".*
 * **If 4.1 is the ceiling, the frame must be split into separate streams.** AV1 has no sub-picture: tiles and
   super-resolution do not lower the level, because the level bounds `UpscaledWidth * FrameHeight` of the whole frame
-  (S1). Strips coded as independent sequences fit level 4.1: four for `dbts_b1`, two or three for the other eight
-  5.x volumes (D, §4). Their byte cost and their seams are unmeasured: a cloud byte cell is pre-registered in §4.3.
+  (S1). Strips coded as independent sequences fit level 4.1: four for `dbts_b1`, two or three for the other seven
+  5.x volumes (D, §4). *Corrected 2026-11-17 (blocker 1): this read "the other eight".* Their byte cost and their seams are unmeasured: a cloud byte cell is pre-registered in §4.3.
 
 ## 2. The chips
 
@@ -94,7 +95,9 @@ every strip in turn (D, a conformance bound, not a measurement).
 | `dbts_c4` | 662 × 2227 | 1 474 274 | 4.x | 1 | yes (5 880) | 1 | 105.6 |
 | `dbts_c5` | 955 × 2100 | 2 005 500 | 4.x | 1 | yes (7 920) | 1 | 77.6 |
 
-So: **10 of 19 fit level 4.x as they are; 9 need 5.x**, all of system B's, `dbts_a4`, `dbts_c1` and `dbts_c3`. Every
+So: **11 of 19 fit level 4.x as they are; 8 need 5.x**, all of system B's, `dbts_a4`, `dbts_c1` and `dbts_c3`.
+*Corrected 2026-11-17 (PR 397 §AV1 chips review, blocker 1): this read "10 of 19 fit level 4.x as they are; 9 need
+5.x"; the table and the list were right, the count was not.* Every
 one is a portrait frame. Under Android's CDD floor (1080p, §1) a portrait frame needs a decoder that swaps width and
 height, which Tensor's declares and the CDD does not ask (D).
 
@@ -153,17 +156,19 @@ format (`docs/av1/payload-format.md`) and is the owner's to adopt; this file onl
 
 * **Question**: what do strips cost in bytes and in error at the noise rule's bar?
 * **Arms**, interleaved per volume: whole frame (today's Q 8, groups of 8) against §3's strips at 4.1, the same
-  encoder and settings, on the 9 volumes that need 5.x.
+  encoder and settings, on the 8 volumes that need 5.x. *Corrected 2026-11-17 (blocker 1): this read "9".*
 * **Prediction** (T, before any run): bytes +0.5 to +3 % for two strips and +1 to +5 % for `dbts_b1`'s four (the
   seams' superblock rows lose their above context: 3 × 2560 × 64 samples is 5.8 % of `dbts_b1`'s frame); in-window
   error within ±1 % of the whole frame's; the largest error per sample in the 8 rows either side of a seam within
   1.2× of the frame's.
-* **Fixtures and limits**: the 19 DBT volumes of one dataset (EA1141), 9 of them in this cell; a 4-core cloud host
+* **Fixtures and limits**: the 19 DBT volumes of one dataset (EA1141), 8 of them in this cell; a 4-core cloud host
   without a GPU; bytes and error only; no time is claimed from the cloud host and no seam visibility is judged by eye.
+  *Corrected 2026-11-17 (blocker 1): this read "9 of them".*
 
 ## 5. What the sources decide alone
 
-1. **Ten of 19 volumes fit level 4.x, nine need 5.x** (D, S1, §3).
+1. **Eleven of 19 volumes fit level 4.x, eight need 5.x** (D, S1, §3). *Corrected 2026-11-17 (PR 397 §AV1 chips
+   review, blocker 1): this read "Ten of 19 volumes fit level 4.x, nine need 5.x".*
 2. **Android does not promise level 5.x, a portrait frame, 4:0:0 or a frame larger than 1080p** for AV1 in hardware
    (S3, S6).
 3. **On every Pixel from Tensor to Tensor G4, `dbts_b1` cannot be decoded in hardware whole**; the other 18 fit the

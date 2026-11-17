@@ -81,7 +81,8 @@ exact frame bit for bit, and only checked claims on screen.
   closed, no blocker open; the asks M4–M22 stand.
   AV1 in a phone's hardware per chip (AV1-HW-CHIPS, 2026-11-17,
   [`../decode/mobile/av1-chips.md`](../decode/mobile/av1-chips.md)): only Tensor publishes a limit, 3840 × 2160 either
-  way, which `dbts_b1` fails; 9 of 19 volumes need level 5.x and Android promises 1080p; at a 4.1 ceiling the frame
+  way, which `dbts_b1` fails; 8 of 19 volumes need level 5.x (corrected from 9, AV1-HW-CHIPS-FIX) and Android
+  promises 1080p; at a 4.1 ceiling the frame
   must go as strips (four for `dbts_b1`), a byte cell pre-registered there. Reviewed 2026-11-17 (#397 §AV1 chips
   review): two blockers, the count is 8 of 19 at 5.x (11 fit 4.x), and the CDD's performance class asks portrait
   AV1 at 1080p ([5.1/H-1-22]); every source quote exact. Owed: AV1-HW-CHIPS-FIX, then its re-review.
