@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-16T08:22Z
-heartbeat: 2026-11-17T06:06Z
+heartbeat: 2026-11-17T06:21Z
 outputs: claude/report-arms 339ec2eb (rows), claude/report-plan 7538b6fc (§7.8)
 ## Resume
 Resumed 2026-11-17T05:16Z by a new session (the first stalled at 14:05Z on 11-16 with D1 and the mutants complete,
