@@ -6,6 +6,9 @@ outputs: claude/report-arms 339ec2eb (rows), claude/report-plan 7538b6fc (§7.8)
 Resumed 2026-11-17T05:16Z by a new session (the first stalled at 14:05Z on 11-16 with D1 and the mutants complete,
 D2 partial at 99 rows). Next: rebuild the host per the lines below, SKIP_MUTANTS=1, run D2 (partial kept and renamed)
 then D7 D9 D4 D5b D8 D3 D5a.
+Running since 05:21Z on 11-17 (this session): D2's 99-row partial kept as rows/chromium-D2.partial-0521.jsonl (no bar);
+D2 rerun whole, then D7 D9 D4 D5b D8 D3 D5a; cpu.log appended by the same 5 s /proc/stat sampler. A smoke of two D2
+loads on the rebuilt host (Chromium 153.0.8010.12, nginx 1.31.8) delivered as before; not counted, not pushed.
 Done: claimed; report-plan.md §7.8 amendment (claude/report-plan 7538b6fc). Running since 08:33Z: the mutants on D1
 (rows/chromium-mutants.jsonl, ends with {"mutants":"done"}), then endings D1, D2, D7, D9, D4, D5b, D8, D3, D5a, 18
 rounds each (rows/chromium-<E>.jsonl, complete when it holds its {"cell"} line). Rows pushed every 15 min to
