@@ -1,0 +1,21 @@
+## review commands at d2b5685a
+ handoff/metadata-2026-10.md | 2 +-
+ docs/lines/coordination.md | 5 ++++-
+first-name grep files: 0
+older-term lines in docs/ outside the glossary: 16
+docs/av1/README.md:1502
+docs/av1/README.md:1864
+docs/av1/README.md:2217
+docs/av1/README.md:2265
+docs/av1/audit-decode.md:70
+docs/av1/profile-carriers.md:10
+docs/av1/profile-carriers.md:54
+docs/av1/profile-carriers.md:55
+docs/av1/profile-carriers.md:57
+docs/av1/profile-carriers.md:156
+docs/av1/profile-carriers.md:497
+docs/av1/profile-carriers.md:538
+docs/av1/visually-lossless.md:3
+docs/client/evidence/decode-speed-of-the-optimal-quality-picture.md:10
+docs/client/evidence/rules-for-showing-lossy-pictures.md:31
+docs/decode/README.md:1696
