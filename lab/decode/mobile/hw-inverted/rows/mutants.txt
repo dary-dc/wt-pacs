@@ -1,0 +1,43 @@
+Mutants n1–n5 of hw-inverted.md §8, each applied once to a copy of measure.py (sed lines below) and run:
+measure_test.py on each; n1–n3 also on dbts_a1's cut-only row (no coding); n5 also on one picture-B cell (below).
+
+== n1: return float(1 << (depth - 8))
+FAIL: test_back_reads_uint8_codes_without_wrapping (measure_test.FormTest.test_back_reads_uint8_codes_without_wrapping)
+FAIL: test_codes_run_16_to_235_and_round_to_the_rms_of_i1 (measure_test.FormTest.test_codes_run_16_to_235_and_round_to_the_rms_of_i1)
+Ran 11 tests in 0.002s
+FAILED (failures=2)
+== n2: return np.floor(c.astype(np.int32) * scale(depth) + 0.5).astype(np.int32)
+FAIL: test_back_reads_uint8_codes_without_wrapping (measure_test.FormTest.test_back_reads_uint8_codes_without_wrapping)
+FAIL: test_codes_run_16_to_235_and_round_to_the_rms_of_i1 (measure_test.FormTest.test_codes_run_16_to_235_and_round_to_the_rms_of_i1)
+Ran 11 tests in 0.002s
+FAILED (failures=2)
+== n3: half = np.full(((s.h + 1) // 2, (s.w + 1) // 2), 127)
+FAIL: test_chroma_is_neutral (measure_test.FormTest.test_chroma_is_neutral)
+Ran 11 tests in 0.002s
+FAILED (failures=1)
+== n4: luma = planes[1]
+ERROR: test_codes_run_16_to_235_and_round_to_the_rms_of_i1 (measure_test.FormTest.test_codes_run_16_to_235_and_round_to_the_rms_of_i1)
+FAIL: test_range_counter_reads_luma (measure_test.CounterTest.test_range_counter_reads_luma)
+Ran 11 tests in 0.003s
+FAILED (failures=1, errors=1)
+== n5: return back220(ra, depth) + rb.astype(np.int32)
+FAIL: test_lossless_b_reconstructs_the_source_where_it_did_not_clamp (measure_test.SecondPictureTest.test_lossless_b_reconstructs_the_source_where_it_did_not_clamp)
+Ran 11 tests in 0.003s
+FAILED (failures=1)
+
+On dbts_a1's cut-only row (good: e_N 5.386–5.413 against r 5.401, 0.3 %, chroma ≠ 128: 0):
+n1: dbts_a1 cut-only e_N 4.599-4.620 vs r 5.401: largest |e_N/r-1| 14.9 % -> I1 FAILS; chroma != 128: 0 -> I5 hit
+   mean error 0.3..0.4, RMS error (mse**0.5) 3.5..3.9
+n2: dbts_a1 cut-only e_N 5.386-5.413 vs r 5.401: largest |e_N/r-1| 0.3 % -> I1 hit; chroma != 128: 0 -> I5 hit
+   mean error 299.1..299.1, RMS error (mse**0.5) 299.1..299.1
+n3: dbts_a1 cut-only e_N 5.386-5.411 vs r 5.401: largest |e_N/r-1| 0.3 % -> I1 hit; chroma != 128: 114218272 -> I5 FAILS
+   mean error -0.0..-0.0, RMS error (mse**0.5) 4.1..4.5
+
+n2 on the row: I1 as worded (e_N, measured in the Laplacian's band) does NOT fail — a constant offset of 16 × s = 299 source
+units has no energy in that band. It fails the round trip's RMS (measure_test) and the row's mean error and RMS error (299).
+Prediction n2 ('I1 fails by orders of magnitude') is a miss of its wording; the mutant is killed by the test.
+
+n5 on one picture-B cell (dbts_c1, Q_A 24, B at Q 40; good: 13718327 bytes, worst e_N ÷ σ 0.769, RMS error 7.1):
+n5: dbts_c1 Q_A 24 B at Q 40: bytes 13718327, worst e_N/sigma 0.769, RMS error 126.2 -> passes 1.03
+As n2: a constant offset (−126) has no energy in e_N's band, so "e_N ÷ σ rises past every bar" is a miss of its
+wording. The mutant is killed by measure_test (the lossless reconstruction) and shows in the cell's RMS error (126).
