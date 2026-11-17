@@ -1136,3 +1136,23 @@ fill; no row errored.
 them; SESSION-1 and SESSION-Y pass the load bar but SESSION-Y loses its hide delta whenever the page navigates (D1,
 D7); SESSION-H fails the load bar on D1 and D7 (0/18, 1/18). Every unit, `off` and `off′` included, delivered the safety
 report in all 72 of its loads over the four. Loopback, as D1 (§7.8).
+
+### D4 · hidden, then the browser killed 1 s later (18 rounds, 162 loads, 2026-11-17 17:12–20:15 UTC)
+
+Williams-balanced for every unit. Host CPU at most 15 % (5 s samples): no round saturated. Every load reached its
+fill; no row errored. The container restarted once during this ending (about 18:00); the run's processes survived it
+and no row was lost or repeated. D4 carries the safety bar; the load report is ranked, not barred (§7.3).
+
+| unit | fill record | hide delta | safety report | dup. | safety bar | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | — | 18/18, 18/18 | 0 | pass | as predicted; A/A identical |
+| BEACON-H | 18/18 | — | 18/18 | 0 | pass | ✓: the send preceded the kill |
+| BEACON-Y | 18/18 | 18/18 | 18/18 | 0 | pass | ✓ |
+| KEEPALIVE-H | 18/18 | — | 18/18 | 0 | pass | ✓ |
+| KEEPALIVE-Y | 18/18 | 18/18 | 18/18 | 0 | pass | ✓ |
+| SESSION-1 | 18/18 | 18/18 | 18/18 | 0 | pass | ✓ |
+| SESSION-Y | 18/18 | 18/18 | 18/18 | 0 | pass | ✓: the hide delta arrived every time |
+| SESSION-H | 18/18 | — | 18/18 | 0 | pass | ✓: the hide record arrived every time |
+
+Rank on D4 alone: every arm 18/18 fill records; the Y arms and SESSION-1 18/18 deltas. Nothing separates them here.
+Loopback, as D1 (§7.8).
