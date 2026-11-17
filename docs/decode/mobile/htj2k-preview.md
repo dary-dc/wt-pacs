@@ -21,17 +21,23 @@ encode: the level picture and the exact frame are the same bytes in order.
   The mammography matrices (2560 × 3328, 3328 × 4096, 2394 × 2850) reach level 1 on a 1080-wide phone (R, the ADR's
   table). Where the level is 0 the path is the whole exact frame: [`htj2k-software.md`](htj2k-software.md), at
   4.6–14.6× the view's bytes.
-* **Where it reaches, the phone's decode falls to a sixth to a third of AV1's.** `dbts_b1` at level 1: 21–39 ms a
-  frame predicted, against 133–135 ms measured for the AV1 view (§5, T on R). The phone's fill was decode-bound on AV1
-  (R), so the decode is where a phone gains.
+* **Where it reaches, the phone's decode falls to a sixth to a third of AV1's, for a picture of lower quality.**
+  `dbts_b1` at level 1: 21–39 ms a frame predicted, against 133–135 ms measured for the AV1 view (§5, T on R). The
+  phone's fill was decode-bound on AV1 (R), so the decode is where a phone gains. The two pictures are not equal: the
+  level picture failed the visually lossless proxy at display scale, which the view is meant to meet (§2 item 3, R).
 * **The bytes per scrolled frame are 1.21–1.32× the view's** on `dbts_b1` (§4, D on R). A fill is then quicker than the
   view's above about 103 Mbit/s of goodput, a tie at the world's mobile median, ×1.21–1.32 slower at its 10th
-  percentile (§6, D on T). The exact series costs nothing more: it is the rest of the same codestreams.
+  percentile (§6, D on T), each at the lower quality. The exact series costs nothing more: it is the rest of the same
+  codestreams.
 * **Why it was set aside, and what differs** (§2): no recorded decision gives a reason. The measured verdicts it rests
   on compared the level picture with an AV1 *preview* that is gone, or ran on an x86 host whose software AV1 made the
   scroll decode-bound only at 4×. On a phone AV1 is software too, and no phone is promised a hardware AV1 decoder for
   `dbts_b1` (`av1-chips.md`). The level picture is exact at its level and, at device pixels, covers the shown size:
-  nothing is upscaled. It is still the codestream's 5/3 low band, not the viewer's resampling of the frame.
+  nothing is upscaled. It is still the codestream's 5/3 low band, not the viewer's resampling of the frame, and so
+  measured: on `dbts_b1` at display scale, 46.9 dB against the area-resampled exact frame, short of the visually
+  lossless proxy (R, the ladder, `8a55ee8e`; §2 item 3). *Corrected 2026-11-17 (PR 397 §Review:
+  HTJ2K-PREVIEW-MOBILE-REVIEW, blocker 1): the measured quality was left out, so the comparisons read as like for
+  like.*
 * **Nothing of it is built in the product** (§7): the decoder binding, the clamp, the SIZ reset, a digest per level,
   the store's level offsets and a render path that takes a smaller picture.
 
@@ -75,10 +81,25 @@ The measured verdicts that bore on it:
    way: the decode-bound cell is the phone's normal one.
 2. **The comparison is the view, not a preview.** The 11-02 rule judged a first picture against a 0.02–0.04 % base;
    the view today is 21.6 % of `dbts_b1`'s exact bytes (§4).
-3. **Nothing is upscaled.** At device pixels a level that covers the shown size is downsampled for display, as the
-   whole frame would be. What remains different is the filter: the screen shows the reversible 5/3 low band, "exact
-   against the codestream's own reduced resolution, not against a viewer's resampling of the exact frame" (R, the
-   ladder file). Whether that is a "reduced-resolution preview" in the owner's sense is the owner's call.
+3. **Nothing is upscaled, but the picture is not visually lossless.** At device pixels a level that covers the shown
+   size is downsampled for display, as the whole frame would be; the ADR's §7 item 4 render path, "scaled up until the
+   whole arrives", is not this path's (D). What remains different is the filter, and the ladder measured it on
+   `dbts_b1` itself (R, `8a55ee8e`, stage 1): "No prefix of any level met the visually lossless proxy on any frame, at
+   full size or at display scale. … At display scale the level-fit picture is the 5/3 low band, not an area average:
+   against the area-resampled exact frame, `dbts_b1` 46.9 dB and `dbts_c1` 44.5 dB, 81–83 % of codes differing,
+   51–54 % by more than one." The view it is set against is "a series' picture meant to be visually lossless"
+   (`docs/glossary.md`, *optimal quality*). So every ratio below compares a picture that failed the proxy with one
+   chosen to meet it. *Corrected 2026-11-17 (PR 397 §Review: HTJ2K-PREVIEW-MOBILE-REVIEW, blocker 1; minor 7): this
+   quoted only the ladder file's last clause, "exact against the codestream's own reduced resolution, not against a
+   viewer's resampling of the exact frame", and left the measurement out.*
+
+   **The owner's question is already open twice**: the ADR's §8.6, "Whether the 12-bit large frames keep the plain
+   fill, as the rule says, or take §7's level first (no tiles) is the owner's", and
+   [`exact-frame-by-htj2k-layout.md`](../../client/evidence/exact-frame-by-htj2k-layout.md), D+L★, "Whether an exact
+   level picture may be shown before the frame, and in what words, is the owner's". This path asks the same one, on
+   phones and with the measurement above: may an exact level picture that failed the visually lossless proxy at
+   display scale be shown before the frame, and in what words. *Corrected 2026-11-17 (minor 4): this asked a third
+   question, "Whether that is a "reduced-resolution preview" in the owner's sense is the owner's call."*
 4. **The standard names this use.** DICOM's RPCL syntax "allows for progressive display of images, as well as
    retrieval of thumbnail images" and "sequences the resolution blocks so that lower resolutions can be read first"
    (S1).
@@ -87,7 +108,8 @@ The measured verdicts that bore on it:
 
 The level is the coarsest one whose size covers the frame fitted whole into the screen's device pixels (the ADR's
 §8.2 rule); a frame W × H on a screen w × h shows at s = min(w ÷ W, h ÷ H, 1), and level L covers it while 2^−L ≥ s
-(D). The whole screen is taken as the viewport; a browser's bars only lower s (T).
+(D). The whole screen is taken as the viewport; a browser's bars only lower s (T). Two views split its width: each
+540 device pixels wide on 1080 × 2400 (T).
 
 | volumes (`docs/FIXTURES.md`) | 1080 × 2400 upright | 1440 × 3120 upright | 2400 × 1080 sideways | two views on 1080 × 2400 |
 | --- | --- | --- | --- | --- |
@@ -100,8 +122,11 @@ The level is the coarsest one whose size covers the frame fitted whole into the 
 
 So on a phone the path is a mammography and a sideways-or-paired DBT path. For FFDM and the synthesized 2D, which are
 not cine-like and so have no AV1 view, it is the exact path they already take with a level first; RESLEVEL measured
-that at ×0.09–0.27 of today's first exact picture on 3328 × 4096 (R, `docs/decode/README.md` §A frame at the level the
-screen needs).
+level 1's first exact picture at ×0.26–0.49 of today's on 2560 × 3328 FFDM and 2394 × 2850 synthesized 2D (R,
+`docs/decode/README.md` §A frame at the level the screen needs). 3328 × 4096 reaches level 1 on a 1080-wide phone
+(s 0.325, D), and level 1 there is unmeasured: RESLEVEL decoded it at level 2. *Corrected 2026-11-17 (PR 397 §Review:
+HTJ2K-PREVIEW-MOBILE-REVIEW, blocker 2): this read "RESLEVEL measured that at ×0.09–0.27 of today's first exact
+picture on 3328 × 4096", which is level 2's column.*
 
 ## 4. Bytes
 
@@ -126,34 +151,45 @@ No HTJ2K frame has been timed on a phone (`htj2k-software.md` §3). Carried, lab
 
 ```
 whole dbts_b1 frame on the phone, predicted (T, htj2k-software.md §3)      77.6–127.4 ms
-level 1 from its prefix ÷ the whole, Chromium 141, 1× and 4× (R, RESLEVEL)  0.27–0.31
+level 1 from its prefix ÷ the whole, breast series, Chromium 141 (R, RESLEVEL) 0.27–0.31
 level 1 on the phone = 77.6 × 0.27 … 127.4 × 0.31                          21.0–39.5 ms   (T)
 a fill of 50 frames, three decoders: 50 × 21.0 ÷ 3 … 50 × 39.5 ÷ 3         0.35–0.66 s    (T)
 the AV1 view on the phone, three decoders (R)                               133–135 ms a frame; 2.25 s a fill
 level then the whole from scratch, × the whole alone (R, the ladder)        1.10–1.45
 ```
 
-The ratio 0.27–0.31 was measured on x86 in a container; an Arm core's WASM SIMD is not an x86 core's (T).
+The ratio 0.27–0.31 is RESLEVEL's, on the breast series (its worked examples FFDM), not DBT slices, at 1× and 4×, on
+x86 in a container. OpenJPH has no ARM SIMD natively, but "in the browser a phone gets OpenJPH's SIMD" through its WASM
+kernels (R, `docs/decode/README.md` §What the code says); whether the ratio carries to an Arm core is P1's (T).
+*Corrected 2026-11-17 (minor 5): this read "measured on x86 in a container; an Arm core's WASM SIMD is not an x86
+core's".* The level picture and the view are not of equal quality (§2 item 3): the decode times compare a picture that
+failed the visually lossless proxy with one chosen to meet it.
 
 ## 6. A fill and an ask over the link profiles (D on T)
 
 Goodput *G* from `claude/link-targets:docs/transport/link-profiles.md` (Ookla tile means, capacity, not one session),
 as `htj2k-software.md` §4 uses them. A `dbts_b1` fill at level 1 is 225.1–244.9 Mbit (50 × the prefix × 8); its time
 is the wire or the decode (§5), whichever is longer; the view's is 185.7 Mbit ÷ *G* with its 2.25 s decode floor.
+Every ratio compares unequal quality: the level picture failed the visually lossless proxy at display scale, the view
+is meant to meet it (§2 item 3).
 
 | link (*G*, Mbit/s) | level 1 on screen | the view on screen | ratio |
 | --- | --- | --- | --- |
-| home Wi-Fi, measured (≥ 600) | wire 0.38–0.41 s, decode 0.35–0.66 s | 2.25 s (decode) | ×0.18–0.29 |
+| home Wi-Fi, measured (≥ 600) | wire 0.38–0.41 s, decode 0.35–0.66 s | 2.25 s (decode) | ×0.17–0.29 |
 | fixed, world median (218) | 1.03–1.12 s | 2.25 s | ×0.46–0.50 |
 | mobile, world median (103) | 2.19–2.38 s | 2.25 s | ×0.97–1.06 |
 | mobile, world 10th percentile (18) | 12.5–13.6 s | 10.3 s | ×1.21–1.32 |
 
 An ask for a frame not yet stored, at 103 Mbit/s (one round trip and the controller's start left out): the level
 picture 43.7–47.6 ms on the wire + 21.0–39.5 ms = 65–87 ms, against the view's 171 ms (`htj2k-software.md` §4). The
-exact frame after it: the rest, 119–123 ms on the wire, and the whole decode, 77.6–127.4 ms (T).
+exact frame after it: the rest, 119–123 ms on the wire, and the whole decode, 77.6–127.4 ms (T). *Corrected
+2026-11-17 (minor 3): home Wi-Fi's low end, max(0.375 s, 0.35 s) ÷ 2.25 s, read ×0.18.*
 
 ## 7. Its disadvantages and what it needs
 
+* **Below the view's quality until the exact frame arrives**: the level picture failed the visually lossless proxy at
+  display scale, `dbts_b1` 46.9 dB against the area-resampled exact frame, 81–83 % of codes differing over `dbts_b1`
+  and `dbts_c1` (R, the ladder, `8a55ee8e`; §2 item 3). *Corrected 2026-11-17 (blocker 1): not listed before.*
 * **Narrow reach** (§3): upright with one view, one volume of 19 on a 1080-wide phone, none on a 1440-wide one.
 * **Slower on a poor link**: ×1.21–1.32 the view's fill at 18 Mbit/s (§6).
 * **Two decodes a frame** where the exact frame is wanted: ×1.10–1.45 the whole alone (R).
