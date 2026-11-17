@@ -1094,3 +1094,24 @@ saturated. Every load reached its fill; no row errored.
 
 SESSION's hide records, lost in every D1 load (navigation), arrived in every D2 load (close). Why the two endings
 differ is not measured here; it is not claimed. Loopback, as D1 (§7.8).
+
+### D7 · bfcache: away, back, one more frame change, away (18 rounds, 162 loads, 2026-11-17 08:21–11:30 UTC)
+
+Williams-balanced for every unit. Host CPU at most 16 % (5 s samples): no round saturated. Every load reached its
+fill; no row errored.
+
+| unit | fill record | deltas seen | safety report | dup. | load bar | safety bar | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | — | 18/18, 18/18 | 0 | (none sent: not VOID) | pass | as predicted; A/A identical |
+| BEACON-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ |
+| BEACON-Y | 18/18 | `seq` 1 in 18/18; no `seq` 2 | 18/18 | 0 | pass | pass | fill ✓; "`seq` loses nothing" not shown (below) |
+| KEEPALIVE-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ |
+| KEEPALIVE-Y | 18/18 | `seq` 1 in 18/18; no `seq` 2 | 18/18 | 0 | pass | pass | as BEACON-Y |
+| SESSION-1 | 18/18 | `seq` 1 in 18/18; no `seq` 2 | 18/18 | 0 | pass | pass | Chromium keeps the session (the risk was WebKit's) |
+| SESSION-Y | 18/18 | **0/18** | 18/18 | 0 | pass | pass | as D1: the hide delta lost every time |
+| SESSION-H | **1/18** | — | 18/18 | 0 | **FAIL** | pass | as D1: the hide record lost in 17 of 18 |
+
+Every arm that delivered a delta delivered exactly `seq` 0 and 1, never a `seq` 2 from the second navigation. The
+rows cannot tell a lost second delta from no delta to send: whether the frame press after the restore changes what
+`load.delta()` returns is not recorded (`timing.js` sends a delta only when it is not empty). Not a bar; named for
+REPORT-VERDICT-REVIEW. Loopback, as D1 (§7.8).
