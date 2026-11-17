@@ -4,6 +4,7 @@ after the decode as an unchecked hardware path paints it, measured against the s
 
 usage: rounding.py predict ROWS_DIR > predictions-rounding.json
        rounding.py run HARNESS BUILD WORK DATA OUT.jsonl [--jobs 4]
+       rounding.py report OUT.jsonl > rows/rounding-report.md
 """
 import argparse
 import json
@@ -143,12 +144,40 @@ def plan(series, cells, first):
     return qs
 
 
+def report(out_rows):
+    """Every volume against R1–R4 of §10.1, as a markdown table."""
+    series, stage = stage_rows(HERE / "rows")
+    pred = {v["set"]: v for v in json.loads((HERE / "predictions-rounding.json").read_text())["volumes"]}
+    rows = [json.loads(x) for x in out_rows.open()]
+    lines = ["| volume | D | R1 e_N ÷ r (min–max) · mean | today's Q · reproduced | R2 worst at today's Q: "
+             "measured · predicted | R3 Q at 1.00 · 1.03 (predicted) | R4 bytes ÷ today's |",
+             "| --- | --: | --- | --- | --- | --- | --: |"]
+    for s in VOLUMES:
+        b, sigma, p = series[s]["b"], series[s]["sigma"], pred[s]
+        r = rounding_rms(b)
+        ro = next(x for x in rows if x["set"] == s and x["kind"] == "round_only")["frames"]
+        ratio = [f["view8"] / r for f in ro]
+        cells = {x["q"]: x for x in rows if x["set"] == s and x["kind"] == "cell"}
+        qt = p["today_q"]["1.00"]
+        old = next(c for c in stage if c["set"] == s and c["form"] == today(b) and c["g"] == 1 and c["q"] == qt)
+        same = all(f["today"] == g["err_noise_band"] for f, g in zip(cells[qt]["frames"], old["frames"]))
+        w = {q: worst(c["frames"], sigma, "view8") for q, c in cells.items()}
+        top = {bar: max((q for q, v in w.items() if v <= bar), default=None) for bar in (BAR, BAR_WIDE)}
+        cost = f'{cells[top[BAR]]["bytes"] / cells[qt]["bytes"]:.3f}' if top[BAR] in cells else "—"
+        lines.append(f"| `{s}` | {b} | {min(ratio):.3f}–{max(ratio):.3f} · {max(abs(f['view8_mean']) for f in ro):.3f} "
+                     f"| {qt} · {'yes' if same else 'NO'} | {w[qt]:.4f} · {p['at'][str(qt)]['view8']:.4f} "
+                     f"| {top[BAR]} · {top[BAR_WIDE]} ({p['view8_q']['1.00']} · {p['view8_q']['1.03']}) "
+                     f"| {cost} |")
+    return "\n".join(lines)
+
+
 def main():
     global CELL
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("predict")
     p.add_argument("rows", type=Path)
+    sub.add_parser("report").add_argument("out", type=Path)
     r = sub.add_parser("run")
     for name in ("harness", "build", "work", "data", "out"):
         r.add_argument(name, type=Path)
@@ -156,6 +185,9 @@ def main():
     a = ap.parse_args()
     if a.cmd == "predict":
         print(json.dumps(predict(a.rows), indent=1))
+        return
+    if a.cmd == "report":
+        print(report(a.out))
         return
     a.build, a.work = a.build.resolve(), a.work.resolve()
     a.work.mkdir(parents=True, exist_ok=True)
