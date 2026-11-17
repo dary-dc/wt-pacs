@@ -1,9 +1,9 @@
 state: started
 started: 2026-11-16T13:27Z
-heartbeat: 2026-11-17T04:17Z
+heartbeat: 2026-11-17T04:19Z
 outputs: claude/cache-arms (PR 394)
 ## Resume
-Resumed 2026-11-17T04:17Z by a new session. Pushed so far: f8dd736c (the failing test for blocker N1). Next: the fix in lab/cache-arms
-so L's bars count an errored round as a round with no bar met; mutate the test; gate; §Fixes-2 in
-docs/reviews/cache-arms.md; docs/lines/client.md.
+Pushed: f8dd736c (the failing test), 1811d31f (the fix; five mutants killed). Next: the gate on claude/cache-arms
+(scripts/gate.sh, after client/decode/wasm/build/build.sh and ingest/tools.sh), §Fixes-2 in docs/reviews/cache-arms.md,
+docs/lines/client.md, then state done.
 ## Result
