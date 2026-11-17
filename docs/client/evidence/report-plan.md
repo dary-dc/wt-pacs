@@ -1115,3 +1115,24 @@ Every arm that delivered a delta delivered exactly `seq` 0 and 1, never a `seq` 
 rows cannot tell a lost second delta from no delta to send: whether the frame press after the restore changes what
 `load.delta()` returns is not recorded (`timing.js` sends a delta only when it is not empty). Not a bar; named for
 REPORT-VERDICT-REVIEW. Loopback, as D1 (§7.8).
+
+### D9 · hidden and left: minimized, frozen after 5 s, kept 60 s (18 rounds, 162 loads, 2026-11-17 11:30–17:12 UTC)
+
+Williams-balanced for every unit. Host CPU at most 19 % (5 s samples): no round saturated. Every load reached its
+fill; no row errored.
+
+| unit | fill record | hide delta | safety report | dup. | load bar | safety bar | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | — | 18/18, 18/18 | 0 | (none sent: not VOID) | pass | as predicted; A/A identical |
+| BEACON-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ |
+| BEACON-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ |
+| KEEPALIVE-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ |
+| KEEPALIVE-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ |
+| SESSION-1 | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ (the session alive while hidden) |
+| SESSION-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ |
+| SESSION-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓: the hide record written before the freeze 5 s later, every time |
+
+**The four bar-carrying endings done** (D1, D2, D7, D9; §7.8's order): every HTTP arm passes both bars in all of
+them; SESSION-1 and SESSION-Y pass the load bar but SESSION-Y loses its hide delta whenever the page navigates (D1,
+D7); SESSION-H fails the load bar on D1 and D7 (0/18, 1/18). Every arm and `off` passed the safety bar in all 648
+loads of each arm group. Loopback, as D1 (§7.8).
