@@ -28,13 +28,16 @@ result of this repository; **(D)** derived; **(T)** theory, not measured. Fixtur
   Galaxy" (S7). Whether it has an AV1 decoder is still not settled by Qualcomm's own brief, which lists "H.265 and
   VP9" (R, `hardware.md` §15). The phone answers it (§6).
 * **Chromium on Android enforces both the size and the level before it picks a hardware decoder** (S8): it skips a
-  decoder whose `coded_size_max` is smaller than the frame in either dimension, or whose level is below the
-  stream's. Our streams carry the level libaom writes by picture size (R, row CODECSTR), 5.x for 8 of 19 volumes (§3).
-  *Corrected 2026-11-17 (PR 397 §AV1 chips review, blocker 1): this read "5.x for 9 of 19 volumes".*
+  decoder whose `coded_size_max` is smaller than the frame in either dimension, or whose level is below the stream's.
+  The level compared is the client's codec string's (WebCodecs fills it from `ParseVideoCodecString`, S8, lines 106–118
+  as the review read them, not re-read here; review minor 3), so the string must carry the level libaom writes by
+  picture size (R, row CODECSTR), 5.x for 8 of 19 volumes (§3); a lower level in the string passes the level check, not
+  the size check. *Corrected 2026-11-17 (PR 397 §AV1 chips review, blocker 1): this read "5.x for 9 of 19 volumes".*
 * **If 4.1 is the ceiling, the frame must be split into separate streams.** AV1 has no sub-picture: tiles and
   super-resolution do not lower the level, because the level bounds `UpscaledWidth * FrameHeight` of the whole frame
-  (S1). Strips coded as independent sequences fit level 4.1: four for `dbts_b1`, two or three for the other seven
-  5.x volumes (D, §4). *Corrected 2026-11-17 (blocker 1): this read "the other eight".* Their byte cost and their seams are unmeasured: a cloud byte cell is pre-registered in §4.3.
+  (S1). Strips coded as independent sequences fit level 4.1: four for `dbts_b1`, two or three for the other seven 5.x
+  volumes (D, §4). *Corrected 2026-11-17 (blocker 1): this read "the other eight".* Their byte cost and their seams are
+  unmeasured: a cloud byte cell is pre-registered in §4.3.
 
 ## 2. The chips
 
@@ -68,10 +71,11 @@ publishes its open sources on was not reachable from here. A phone's own file an
 ## 3. Our frames against the levels and against Tensor's box
 
 Per volume (`docs/FIXTURES.md`, the 19 DBT volumes). Level by S1 Annex A: 4.x if `UpscaledWidth * FrameHeight` ≤
-2 359 296, width ≤ 6144 and height ≤ 3456; else 5.x (≤ 8 912 896, 8192, 4352). Strips at 4.1: the fewest equal
-full-width strips each ≤ 2 359 296 samples. Tensor's box: short side ≤ 2160, long side ≤ 3840, ⌈w/16⌉ × ⌈h/16⌉ ≤
-32 400 (S2, S6). Frames a second at 4.1: 155 713 536 ÷ samples, the level's decode floor if one 4.1 decoder decodes
-every strip in turn (D, a conformance bound, not a measurement).
+2 359 296, width ≤ 6144 and height ≤ 3456; else 5.x (≤ 8 912 896, 8192, 4352). Android's own map (S6, `applyLevelLimits`, as
+the review read it) bounds height at 6144 too at 4.x, not 3456; no volume here is affected (review minor 5). Strips at
+4.1: the fewest equal full-width strips each ≤ 2 359 296 samples. Tensor's box: short side ≤ 2160, long side ≤ 3840,
+⌈w/16⌉ × ⌈h/16⌉ ≤ 32 400 (S2, S6). Frames a second at 4.1: 155 713 536 ÷ samples, the level's decode floor if one 4.1
+decoder decodes every strip in turn (D, a conformance bound, not a measurement).
 
 | volume | stored | samples | level | strips at 4.1 | Tensor's box (blocks) | Tensor strips | frames/s at 4.1 |
 | --- | --- | --: | --- | --- | --- | --: | --: |
@@ -96,10 +100,17 @@ every strip in turn (D, a conformance bound, not a measurement).
 | `dbts_c5` | 955 × 2100 | 2 005 500 | 4.x | 1 | yes (7 920) | 1 | 77.6 |
 
 So: **11 of 19 fit level 4.x as they are; 8 need 5.x**, all of system B's, `dbts_a4`, `dbts_c1` and `dbts_c3`.
-*Corrected 2026-11-17 (PR 397 §AV1 chips review, blocker 1): this read "10 of 19 fit level 4.x as they are; 9 need
-5.x"; the table and the list were right, the count was not.* Every
-one is a portrait frame. Under Android's CDD floor (1080p, §1) a portrait frame needs a decoder that swaps width and
-height, which Tensor's declares and the CDD does not ask (D).
+*Corrected 2026-11-17 (PR 397 §AV1 chips review, blocker 1): this read "10 of 19 fit level 4.x as they are; 9 need 5.x";
+the table and the list were right, the count was not.* Every one is a portrait frame (width × height as
+`docs/FIXTURES.md` writes it, which does not state its order; read so as `lab/frame-clock/page.js` sets 2560 × 3328,
+width 2560). Android's CDD does ask portrait decoding of media performance class V, and bounds AV1's to 1080p (S3,
+§2.2.7.1): "[5.1/H-1-22] MUST support encoding, decoding, GPU-editing and displaying video content in portrait aspect
+ratio regardless of the rotation metadata for the largest Camera supported resolution or 4K whichever is less. … AV1
+codecs are only required to support 1080p resolution. This requirement is only for hardware codecs, GPU and the DPU." So
+a class-V phone with a hardware AV1 decoder is asked 1080 × 1920 portrait; of the 19 volumes only `dbt12_ea1141`
+(614 × 1359) and `dbt10_ea1141` (678 × 1727) fit it. Our frames are not promised by size, not by orientation (D). *Corrected
+2026-11-17 (PR 397 §AV1 chips review, blocker 2): this read "Under Android's CDD floor (1080p, §1) a portrait frame
+needs a decoder that swaps width and height, which Tensor's declares and the CDD does not ask (D)".*
 
 **How Chromium applies this** (S8, Chromium `main`; the phone's Chrome 157 not re-read). `VideoAcceleratorUtil`
 builds each decoder's entry from `getSupportedWidths()` and `getSupportedHeightsFor(maxWidth)`, adds a portrait entry
@@ -169,8 +180,10 @@ format (`docs/av1/payload-format.md`) and is the owner's to adopt; this file onl
 
 1. **Eleven of 19 volumes fit level 4.x, eight need 5.x** (D, S1, §3). *Corrected 2026-11-17 (PR 397 §AV1 chips
    review, blocker 1): this read "Ten of 19 volumes fit level 4.x, nine need 5.x".*
-2. **Android does not promise level 5.x, a portrait frame, 4:0:0 or a frame larger than 1080p** for AV1 in hardware
-   (S3, S6).
+2. **Android does not promise level 5.x, 4:0:0 or a frame larger than 1080p** for AV1 in hardware (S3, S6); a
+   portrait frame it asks of class V only up to 1080p ([5.1/H-1-22], §3), which 17 of 19 volumes exceed.
+   *Corrected 2026-11-17 (PR 397 §AV1 chips review, blocker 2): this read "level 5.x, a portrait frame, 4:0:0 or a
+   frame larger than 1080p".*
 3. **On every Pixel from Tensor to Tensor G4, `dbts_b1` cannot be decoded in hardware whole**; the other 18 fit the
    declared box, subject to the level the component reports (S2, S6, S8).
 4. **Strips are the only way to put a 5.x frame through a 4.1 decoder** (S1 §4.1).
@@ -200,9 +213,10 @@ Fetched 2026-11-17.
   `fd8ae4af9041`, `gs201` at `0e10376c1e2d`, `zuma` at `ed3585cd0d6b`, `zumapro` at `54b152eac025`; each
   `c2.google.av1.decoder`: `size` 96x96–3840x2160, `block-size` 16x16, `block-count` 36–32400, `blocks-per-second`
   24–1944000, `concurrent-instances` 16, `performance-point-3840x2160` 60, `can-swap-width-height`.
-* S3 Android 16 Compatibility Definition, `source.android.com/docs/compatibility/16/android-16-cdd` (page sha256
-  `c3d6713c8881`): §5.3.9 AV1 [C-1-1] "MUST support Main Profile including 8-bit and 10-bit content", [C-2-1],
-  [C-2-2]; §2.2.7.1 [5.1/H-1-2], [5.1/H-1-14].
+* S3 Android 16 Compatibility Definition, `source.android.com/docs/compatibility/16/android-16-cdd`, "Last updated:
+  December 2, 2025" (re-fetched 2026-11-17; the page's hash changes between fetches, so the date is the pin; it read
+  sha256 `c3d6713c8881`, review minor 4): §5.3.9 AV1 [C-1-1] "MUST support Main Profile including 8-bit and 10-bit
+  content", [C-2-1], [C-2-2]; §2.2.7.1 [5.1/H-1-2], [5.1/H-1-14], [5.1/H-1-22].
 * S4 Qualcomm product briefs: Snapdragon 8 Gen 3 (`Snapdragon-8-Gen-3-SM8650-Q-AB-Product-Brief.pdf`, sha256
   `a4479dc99d03`), Snapdragon 8 Elite (`Snapdragon-8-Elite-SM8750-3-AB-Product-Brief.pdf`, `f9a7b000cebe`),
   Snapdragon 8s Gen 4 (`Product-Brief-Snapdragon-8s-Gen-4.pdf`, `661479c7d04a`), under
@@ -217,7 +231,8 @@ Fetched 2026-11-17.
 * S8 Chromium `main` at `d154889b26ca`: `media/gpu/android/media_codec_video_decoder.cc` (`SelectMediaCodec`, the
   level and `coded_size_max` checks), `media/gpu/android/video_accelerator_util.cc`,
   `media/base/android/java/src/org/chromium/media/VideoAcceleratorUtil.java` (the decoder entries, the portrait
-  entry). Chrome 157's tag was not read.
+  entry), `third_party/blink/renderer/modules/webcodecs/video_decoder.cc` (the level from the codec string). Chrome
+  157's tag was not read.
 * S9 Android source, "Build Pixel kernels", `source.android.com/docs/setup/build/building-pixel-kernels` (the Pixel
   codenames); `device/google/raviole` `4128a035ae66`, `pantah` `b9712d3e5c48`, `shusky` `a3188edbe84d`, `caimito`
   `dbd5b36d68bb` (`device-<phone>.mk` includes `device/google/gs101`, `gs201`, `zuma`, `zumapro`).
