@@ -79,6 +79,10 @@ exact frame bit for bit, and only checked claims on screen.
   only. Fixed 2026-11-15 (MOBILE-DECODE-COMPARE-FIX, `84dbdef2`, `54222b48`): both blockers corrected in place, findings
   3–6 in the option files, minors 7–17 in the README. Re-reviewed 2026-11-15 (#397 §Re-review): both blockers
   closed, no blocker open; the asks M4–M22 stand.
+  AV1 in a phone's hardware per chip (AV1-HW-CHIPS, 2026-11-17,
+  [`../decode/mobile/av1-chips.md`](../decode/mobile/av1-chips.md)): only Tensor publishes a limit, 3840 × 2160 either
+  way, which `dbts_b1` fails; 9 of 19 volumes need level 5.x and Android promises 1080p; at a 4.1 ceiling the frame
+  must go as strips (four for `dbts_b1`), a byte cell pre-registered there. Owed: its review.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
