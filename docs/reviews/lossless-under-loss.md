@@ -148,7 +148,8 @@ re-asked).
 rejects such an ask as `AskLostError`; the controller asks it again **once**, 1 s later, while the reader stays on
 the frame. The re-ask carries the transport's own deadline. A refusal (any other rejection) and a frame that failed
 its check fail at once. A re-dial that fails on the ask's own command is not marked lost: it is one dial, not the
-resume's budget.
+resume's budget. (*Corrected 2026-11-17 (FIX-378-DIAL, the owner's yes of 2026-11-16): it is lost, so asked again
+once; the section below.*)
 
 **Tests**, committed failing first (`e9a221e5`), then the fix (`0d0f971c`): `downloader.test.mjs` *only a lost ask is
 marked lost* (a deadline, a closed session, a resume out of re-dials; a refusal not); `consumer.test.mjs` *a lost ask
@@ -177,3 +178,22 @@ a GL display, nginx. `demo-check.mjs` on `dbts_b1-q8-g8` (`scripts/demo-series.s
 headless Chromium: passed in the page view and the worker view. A check, not a measurement: one series of one DBT
 volume, software WebCodecs; the other two volumes, the depth-cut series and `--link` were not run, and the
 blackout rig was not re-run under this scope.
+
+## An ask whose own re-dial fails is lost (FIX-378-DIAL, 2026-11-17)
+
+The owner, 2026-11-16 (amendment 23 of the queue file): "an ask whose re-dial fails is lost and asked once more,
+yes". An ask that comes after its session died dials on its own command (`live()` in `downloader.js`); that dial's
+failure now fails the ask as `lost`, so the consumer names it `AskLostError` and the controller asks it once more
+after 1 s, as any lost ask. An ask after the consumer closed the downloader is not lost. Load 6's `l`, pressed after
+the session died, now gets the one re-ask instead of *Lossless check failed* at once.
+
+**Test**, committed failing first (`e5fc7406`), then the fix (`30968d78`, which also makes the test check that the
+ask fails exactly once): `downloader.test.mjs` *an ask whose own dial fails is lost* (a session closed when the ask
+came, its re-dial refused: lost; the consumer closed first: not lost). Mutants: the flag always set, never set,
+inverted, the old path (the dial's error left to the command's catch), and the ask sent with no session after a
+failed dial (a second failure and a throw): each killed. Survivor: the generation guard removed (a cancel during a
+failing dial posts the old generation's failure, which the consumer drops by its generation); not tested.
+
+**Checks**: see the queue's status file `claude/work-ledger:docs/queue/FIX-378-DIAL.md` for the gate's run and its
+skips. Fixtures: unit tests with stand-in sessions on one 4-core cloud host without a GPU; no browser link, no phone,
+the blackout rig not re-run.
