@@ -90,13 +90,16 @@ exact frame bit for bit, and only checked claims on screen.
   2026-11-17 (#397 §Re-review: AV1-HW-CHIPS-FIX-REVIEW): both blockers closed, no blocker open; the CDD quote exact.
   HTJ2K only with the screen's level first (HTJ2K-PREVIEW-MOBILE, 2026-11-17, theory,
   [`../decode/mobile/htj2k-preview.md`](../decode/mobile/htj2k-preview.md)): no reason is recorded with the
-  low-resolution-preview decisions; the level picture covers the shown size at device pixels. It reaches 1 of 19 DBT
+  low-resolution-preview decisions; the level picture covers the shown size at device pixels but failed the visually
+  lossless proxy at display scale (46.9 dB on `dbts_b1`, the ladder), so its ratios compare unequal quality. It reaches 1 of 19 DBT
   volumes upright on a 1080-wide phone (12 sideways, 8 in two views) and the mammography matrices; on `dbts_b1` its
   decode is predicted at 21–39 ms against AV1's 133–135 ms, its bytes 1.21–1.32× the view's, a fill tie at 103 Mbit/s.
   Not built; owed, its review and four phone asks (its §8). Reviewed 2026-11-17 (#397 §Review:
   HTJ2K-PREVIEW-MOBILE-REVIEW): two blockers, the level picture's measured quality at display scale left out (it failed
   the visually lossless proxy on `dbts_b1`) and the mammography figure level 2's where the phone reaches level 1; §3–§6's
-  arithmetic and every quote hold. Owed: HTJ2K-PREVIEW-MOBILE-FIX and its re-review.
+  arithmetic and every quote hold. Fixed 2026-11-17 (HTJ2K-PREVIEW-MOBILE-FIX, `bf12c497`): both blockers corrected in
+  place (the ladder's quality quoted in §1, §2 item 3 and §7, §5–§6 marked unequal quality; level 1's ×0.26–0.49,
+  3328 × 4096 at level 1 unmeasured), minors 3–7 one clause each. Owed: its re-review.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
@@ -131,8 +134,9 @@ Any merge, close or removal (the frame clock's: `git revert 24b80bcd`, [`coordin
 which view is the target; the contradictions the fold left open ([`../client/design.md`](../client/design.md) §Open: the
 stride ADR against never skipping, the cache file's questions 3 and 4); the coded-bytes digest; turning the cache or telemetry on, and telemetry's rate, sink and retention; a series
 without digests; the settings awaiting a default ([`../client/design.md`](../client/design.md) §Open); anything
-structural; whether an exact level picture first, on series whose level covers the screen, is a
-"reduced-resolution preview" ([`../decode/mobile/htj2k-preview.md`](../decode/mobile/htj2k-preview.md) §2).
+structural; whether an exact level picture that failed the visually lossless proxy at display scale may be shown
+before the frame, and in what words, one question with the ADR's §8.6 and the layout file's D+L★
+([`../decode/mobile/htj2k-preview.md`](../decode/mobile/htj2k-preview.md) §2 item 3).
 
 ## Pointers
 
