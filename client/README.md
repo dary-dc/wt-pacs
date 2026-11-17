@@ -105,7 +105,7 @@ matched the encoder's reconstruction; no such digest exists).
   in green; *fetching lossless…* while asked; *✓ Lossless* in blue only on the `shown` that
   follows the exact frame's paint, and only when that frame's `exact` is `true`; *Lossless check failed* in red, the
   lossy frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed; the button then asks again.
-  A lost ask (the session or stream gone, or its deadline passed with nothing received) is asked again once, after 1 s,
+  A lost ask (the session or stream gone, its own re-dial failed, or its deadline passed with nothing received) is asked again once, after 1 s,
   while the reader stays on the frame, *fetching lossless…* meanwhile; a refusal by the server and a frame that failed
   its check are never asked again (proposed, `claude/lossless-under-loss`:
   [`docs/reviews/lossless-under-loss.md`](../docs/reviews/lossless-under-loss.md)).
