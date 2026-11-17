@@ -66,7 +66,7 @@ const ended = new Set();
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** `lost`: the session or stream gone, or the ask's deadline passed with nothing received. docs/reviews/lossless-under-loss.md §Amendment 22 */
+/** `lost`: the session or stream gone, its re-dial failed, or the ask's deadline passed with nothing received. docs/reviews/lossless-under-loss.md §Amendment 22 */
 function fail(index, reason, lost = false) {
   records.delete(index);
   wanted.delete(index);
@@ -641,8 +641,10 @@ async function command(e) {
       return void toConsumer({ kind: "started" });
     }
     if (m.kind === "ask") {
-      const s = await live();
-      if (gen !== generation) return;
+      const s = await live().catch((err) => {
+        if (gen === generation) fail(m.index, String(err?.message ?? err), !closed);
+      });
+      if (!s || gen !== generation) return;
       for (const i of wholeGroups([m.index])) askFor(s, i);
       return;
     }

@@ -802,7 +802,10 @@ async function anAskWhoseOwnDialFailsIsLost() {
     await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
     if (closeFirst) await onmessage({ data: { kind: "close" } });
     await onmessage({ data: { kind: "ask", index: 0 } });
-    return posted.find((m) => m.kind === "failed" && m.index === 0);
+    await new Promise((r) => setTimeout(r, 20));
+    const failures = posted.filter((m) => m.kind === "failed" && m.index === 0);
+    check(failures.length === 1, `${name}: the ask fails once (${failures.length})`);
+    return failures[0];
   };
   const redial = await run("lost-own-dial", false);
   check(redial?.lost === true, `an ask whose own re-dial fails is lost (${JSON.stringify(redial)})`);
