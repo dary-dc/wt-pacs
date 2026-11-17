@@ -1087,3 +1087,36 @@ and `fetch_openjph.sh`): it fails at `check_links.py` on two paths the branch's 
 not hold (`docs/reviews/phone-blind-read.md`, `docs/transport/link-profiles.md`; from other branches, not this fix).
 With both present as empty, untracked files it passes in 455 s, 24 steps skipped by name (numpy, `ingest/tools.sh`'s
 build, Mesa lavapipe, Xvfb, nginx, a GL display).
+
+## Re-review, third round (CACHE-FIX-2-REVIEW, 2026-11-17)
+
+Row CACHE-FIX-2-REVIEW of `docs/queue-client-2026-11-14.md`, by a session that wrote none of the builds, the reviews
+or the fixes: `f8dd736c..05a0e07d` against §Re-review's blocker N1.
+
+**Fixtures and limits.** A 4-vCPU cloud host, no GPU; Node 22, `lBars` on the test's synthetic rows. No browser, no
+engine, no phone; nothing timed.
+
+**Verdict: N1 is closed; no new blocker. CACHE-RUN may start.**
+
+* **The fix undone, the test kept** (`cells.mjs` from `f8dd736c` in the working tree, restored after): the first two
+  checks fail as the re-review observed (`{"rounds":1, …, "pass":true}`; one errored round of 4 not failing), and the
+  third throws in `lBars` itself (`n.shown` of the errored `none`). So before the fix an errored `none` also lost the
+  run's `summary` row; the rows written before it survive (`run.mjs` writes each as it lands).
+* **Mutants of this review's own** (each in `cells.mjs` alone, restored after; `git status` clean): `rounds` counting
+  the unjudged rounds, an errored round meeting every bar but exactness, an errored `none` kept as the reference, a bar
+  met in exactly 75 % of rounds failing: **killed** (4). Survivors, each equivalent: the shares' keys taken from a
+  judged round (the same six keys); `unjudged` read from every unit's rows, or not deduplicated (`run.mjs` writes one
+  row per unit per round); `pass` without `met.length > 0` (no judged round gives NaN shares, which fail both tests).
+* **Nothing else changed**: the diff touches `lab/cache-arms/cells.mjs`, its test, its README, this file and
+  `docs/lines/client.md`. The six test files, `scripts/comment_budget.sh` and `scripts/check_lab_absent.sh` pass at
+  `05a0e07d`. `check_links.py`'s two unresolved paths (`docs/lines/devices.md` 57, 60) are already unresolved at
+  `f8dd736c^`: not this fix. The full gate was not run here; CACHE-FIX-2's `--quick` result stands for `08b61d49`, and
+  `05a0e07d` adds docs only.
+
+**Minor**
+
+* `pass` is computed over the judged rounds only: an arm whose `none` errored in 3 rounds of 4 can pass on one round.
+  The rounds are named (`unjudged`), and §8.5 does not say whether such a cell counts. CACHE-RUN reports `unjudged`
+  beside every L verdict; the protocol's author settles whether a cell with unjudged rounds is VOID.
+* The re-review's minors stand as CACHE-FIX-2 listed them: the two survivors (`none` rows that differ by round,
+  `balanced`), the PSS baseline after the floor (theory, unmeasured), OPFS-ASYNC's short group at `close` at S1.

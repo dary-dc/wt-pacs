@@ -40,8 +40,9 @@ exact frame bit for bit, and only checked claims on screen.
   Re-reviewed 2026-11-15 (§Re-review): the seven closed; one new blocker, L's bars drop an arm's errored rounds. The
   second review with a blocker open (amendment 17): CACHE-RUN waits on the owner's word for a third fix round.
   The owner's yes (amendment 23): N1 fixed 2026-11-17, an errored arm round counted as a round with no bar met, a round
-  whose `none` errored named unjudged (test failing first, five mutants killed; §Fixes, third round). CACHE-RUN waits
-  on CACHE-FIX-2-REVIEW.
+  whose `none` errored named unjudged (test failing first, five mutants killed; §Fixes, third round). Re-reviewed
+  2026-11-17 (§Re-review, third round): N1 closed, no new blocker; CACHE-RUN may start, reporting L's `unjudged`
+  rounds beside each verdict.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
