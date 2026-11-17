@@ -61,6 +61,8 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | AV1-HW-CHIPS-FIX-REVIEW | 11-17 12:00 | AV1-HW-CHIPS-FIX done | findings in PR 397's body |
 | HTJ2K-PREVIEW-MOBILE | 11-16 12:00 | — | `claude/mobile-decode` (`docs/decode/mobile/htj2k-preview.md`): an HTJ2K-only path for large matrices on phones with a reduced-resolution first picture from the same codestream (resolution levels), exact frame after; why low-res preview was set aside 2026-11-10 (find the record) and what is different here; theory, bytes and decode time from existing rows, phone cells as asks |
 | HTJ2K-PREVIEW-MOBILE-REVIEW | 11-16 12:00 | HTJ2K-PREVIEW-MOBILE done | findings |
+| HTJ2K-PREVIEW-MOBILE-FIX | 11-17 16:00 | HTJ2K-PREVIEW-MOBILE-REVIEW done | `claude/mobile-decode` (`docs/decode/mobile/htj2k-preview.md`, `docs/lines/client.md`; PR 397): the review's two blockers, in place |
+| HTJ2K-PREVIEW-MOBILE-FIX-REVIEW | 11-17 16:00 | HTJ2K-PREVIEW-MOBILE-FIX done | findings in PR 397's body |
 | DEPTH8-ROUNDING | 11-16 12:00 | — | the 8-bit rounding cloud cell MOBILE-DECODE-COMPARE left owed (`claude/depth8`) |
 | AUDIT-MECHANICAL | 11-16 12:00 | — | `claude/unified`: COMPLEXITY-AUDIT items 2 (the owner's first name out of public files; the owner's yes), 3 and 4, each its own commit; gate |
 | AUDIT-MECHANICAL-REVIEW | 11-16 12:00 | AUDIT-MECHANICAL done | findings in PR 402's body |
@@ -776,6 +778,23 @@ line each where they name. No regression test applies (no code); each fix names 
 
 A session that wrote neither the file, its review nor the fix: each blocker closed as its fix claims, the CDD quote
 re-fetched, nothing else changed. Findings in PR 397's body; a blocker left open is amendment 17's second round.
+
+### HTJ2K-PREVIEW-MOBILE-FIX (appended by HTJ2K-PREVIEW-MOBILE-REVIEW, 2026-11-17; amendment 17)
+
+Docs only. A session that wrote neither `htj2k-preview.md` nor its review: fix PR 397 §Review: HTJ2K-PREVIEW-MOBILE-REVIEW's
+two blockers in `docs/decode/mobile/htj2k-preview.md`, each in place, corrected not dropped (`docs/adr/disk-access.md`
+§2): 1, the level picture's measured quality at display scale (the ladder, `8a55ee8e` stage 1: failed the visually
+lossless proxy; `dbts_b1` 46.9 dB against the area-resampled exact frame, 81–83 % of codes differing) stated in §1, §2
+item 3 and §7, quoted, and §5–§6's ratios labelled as comparing unequal quality, the line doc's entry likewise; 2, §3's
+mammography figure: RESLEVEL's ×0.09–0.27 is level 2 on 3328 × 4096, the phone reaches level 1 there, so cite the
+level-1 column (×0.26–0.49) and mark 3328 × 4096 at level 1 unmeasured. Minors 3–7 one clause each where they name.
+No regression test applies (no code); each fix names the review item it closes.
+
+### HTJ2K-PREVIEW-MOBILE-FIX-REVIEW
+
+A session that wrote neither the file, its review nor the fix: each blocker closed as its fix claims, the ladder's
+quality quote checked against `8a55ee8e`, nothing else changed. Findings in PR 397's body; a blocker left open is
+amendment 17's second round.
 
 ### The device round's rows (the device coordination, 2026-11-15)
 
