@@ -67,6 +67,9 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    only (4:2:0 grey, `NV12`). DEPTH8-MEASURE (2026-11-15, measured, §9, all 19 volumes): the 8-bit view meets the
    noise rule at Q 3–11 and costs 1.14–1.86 times today's bytes; 4:2:0 adds +0.01–0.12 %. The desktop GPU's `NV12`
    exactness and speed are open; whether an 8-bit view is acceptable is the owner's.
+   DEPTH8-ROUNDING (2026-11-17, measured, §10): today's view rounded to 8 bits after the decode, as an unchecked
+   hardware path paints it, reads 1.001–1.080 of σ at today's Q, over the noise rule on every volume. To meet the
+   rule it needs 1–3 rungs lower Q, at 1.17–1.83 × today's bytes, about what the checkable 8-bit cut costs.
 
 ## Decisions (the owner's)
 

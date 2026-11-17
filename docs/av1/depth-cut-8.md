@@ -473,3 +473,40 @@ on D 12; (m3) a step of 4 in place of 1023 ÷ 255; (m4) the Q below added on 1.0
 added on 1.00 in place of 1.03.
 
 **Saturation.** Every measure but wall time is deterministic at one encoder thread; no time is claimed.
+
+### 10.2 Results (DEPTH8-ROUNDING, 2026-11-17, *measured*)
+
+§10.1 was run as written, with no amendment, by the session that wrote it. There were 19 round-only rows and 59 cells
+at G 1. Rows: `lab/av1/depth8/rows/rounding.jsonl`, harness `0a9d33ca` in every row. Every volume is checked against
+its predictions in `rows/rounding-report.md`, which `rounding.py report` regenerates from the rows. At today's Q, each
+cell's e_N for today's decoded view and its bytes equal §9's row at the same Q exactly, on all 19 volumes.
+
+* **R1 · the rounding alone: 12 of 19 hit.** e_N ÷ r is 0.984–1.015 on the twelve 12-bit volumes. On the seven 10-bit
+  volumes it is 0.916–0.972, 2.8–8.4 % under r: a **miss**, on the low side. These are the volumes whose σ is
+  smallest against the step, as with P1's `dbts_b2`. The mean-error prediction **misses on 18 of 19**, with means of
+  0.09–0.85 source units. The rounding is unbiased over the 1024 codes, but not over a volume's own histogram of codes.
+  The prediction should have been written for the histogram.
+* **R2 · at today's Q: 19 of 19 hit.** The worst frame reads **1.001–1.080**, 0.001–0.006 under the independent sum
+  on every volume. No volume meets 1.00 at today's Q (`dbts_b4` comes closest, at 1.0013). Rounding after the decode
+  adds to the coding error in quadrature, as `av1-hardware-unchecked.md` §3.2 said.
+* **R3 · the Q that meets the bar: 2 of 2 hit at 1.00, 10 of 10 at 1.03.** `dbt10_d` reaches Q 10 · 11 and
+  `dbt10_ea1141` Q 11 · 12, as predicted. On the 17 volumes without a numeric prediction, the rounded view meets 1.00
+  at **Q 5–8 on the 12-bit volumes and Q 7–12 on the 10-bit ones**. That is 1–3 rungs below today's Q: 1 rung on 11
+  volumes, 2 on 5 (`dbts_a1`, `a2`, `dbt12_ea1141`, `dbt10_d`, `dbt10_ea1141`), and 3 on `dbts_b2` and `b5`.
+* **R4 · bytes (no prediction).** To meet 1.00 on screen, today's stream costs **1.17–1.83 ×** its own bytes at
+  today's Q. On the six Stage A volumes this is close to `cut8`'s P4: `dbts_a1` 1.83 against 1.86, `b1` 1.46
+  against 1.32, `c1` 1.29 against 1.33, `dbt12_ea1141` 1.64 against 1.69, `b2` 1.80 against 1.85, `c4` 1.24
+  against 1.31.
+* **What it settles.** At today's Q, painting the view through an 8-bit hardware path puts every volume over the noise
+  rule on screen, at 1.001–1.080. Bringing it back under the rule costs about what coding the 8-bit cut itself costs.
+  The 8-bit cut is coded at 8 bits, so its decoded samples are the stream's own and can be checked (§4). On these
+  volumes, then, the unchecked route saves no bytes over the checkable 8-bit stream (T: whether a phone's hardware
+  takes either is `av1-chips.md`'s and the probe's question).
+* **Mutants.** m1–m5 each fail `rounding_test.py` (m4 only after its test was given a cell between the two bars,
+  before the run).
+* **Saturation.** No time is claimed. Cells took 21–439 s of wall time each, with 4 processes on 4 cores.
+
+Fixtures and limits: the 19 DBT volumes of §1 (three systems), G 1 only. libaom 3.15.1 at cpu6 with one thread, and
+dav1d 1.5.4. One σ estimator in one band. One 4-core cloud host with no GPU. The rounding is the formula
+`round(y · 255 ÷ 1023)` modelled in software: no phone's conversion was run, and the conversion that truncates (§3.2
+of the source file) was not measured. No browser, no hardware decoder, no reader.
