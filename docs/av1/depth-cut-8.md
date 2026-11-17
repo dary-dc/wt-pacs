@@ -427,3 +427,49 @@ libaom 3.15.1 at cpu6 and one thread, dav1d 1.5.4; one σ estimator in one band;
 ultrasound cine, ABUS, TRUS or MR; no browser, hardware decoder or reader. What it settles: on these volumes the 8-bit
 view meets the noise rule at Q 3–11 and costs 1.14–1.86 times today's bytes, its 4:2:0 form +0.01–0.12 % more; that
 it buys a checked hardware path on desktop Chromium is still unmeasured (§4).
+
+## 10 · The 8-bit rounding after the decode (DEPTH8-ROUNDING, 2026-11-17)
+
+The cloud cell that `claude/mobile-decode:docs/decode/mobile/av1-hardware-unchecked.md` §9 left owed: "One cloud
+cell, no phone: today's view decoded, rounded to 8 bits by `round(y · 255 ÷ 1023)`, e_N ÷ σ on the 19 volumes
+(§3.2's prediction 1.02–1.09 at today's Q), and the Q at which it meets the bar." That file's §3.2 is the
+prediction, written by a session that wrote none of this section: "the two errors add in quadrature … A frame at
+today's bar, e_c = σ, therefore shows on screen e/σ = √(1 + r²)", 1.020–1.053 on the 10-bit volumes and
+1.047–1.093 on the 12-bit ones, and "To meet the bar on screen … That means a lower Q. Its bytes are not computed
+here". Unlike `cut8` (§2), the rounding here follows the decode, so the encoder never sees it.
+
+### 10.1 Protocol (written before any cell ran)
+
+**The form.** Today's form (`10bit`, or `top10` on D 12), coded and decoded exactly as §9's today's cells, then each
+decoded view code y rounded to `round(y · 255 ÷ 1023)` and read back as that level × 1023 ÷ 255 × 2^(D−10) source
+units, as `av1-hardware-unchecked.md` §3.4 reads it. Each cell measures both the decoded view (today's e_N, which must
+reproduce §9's row at the same Q to the last digit) and its rounding, from one encode. A **round-only** row per volume
+rounds the uncoded view. The script is `lab/av1/depth8/rounding.py`, its tests `rounding_test.py`.
+
+**Setup.** As §7 amended: the harness `claude/av1-noise-ratio` at `0a9d33ca` loaded, not copied; libaom 3.15.1 at
+the study's settings, G 1; dav1d 1.5.4; the 19 volumes checked by their `framesSha256`; a 4-core cloud host, one
+encoder thread a process, 4 processes.
+
+**Qs.** Per volume, today's highest Q under 1.00 in §9's rows first; then the Q below while the lowest tested fails
+1.00 (never under Q 1), and the Q above while the highest tested passes 1.03.
+
+**Predictions** (derived, `predictions-rounding.json` from `rounding.py predict` over §9's rows; r = the rounding's RMS
+over the 1024 codes, 1.1575 source units at D 10 and 4.6301 at D 12):
+
+* **R1 · the rounding alone.** The round-only row's e_N ÷ σ is r ÷ σ per frame within 3 % (as P1, whose one miss was
+  `dbts_b2` at 5.8 % low): 0.20–0.34 on the 10-bit volumes and 0.26–0.44 on the 12-bit ones. Its mean error is under
+  0.1 source units (the rounding is to nearest, so unbiased over codes).
+* **R2 · at today's Q.** The worst frame's e_N ÷ σ is the independent sum √(e_N² + r²) ÷ σ of each frame of §9's
+  today's cell, within ±0.03: **1.003–1.085** over the 19 volumes; no volume meets 1.00 at today's Q. The source's
+  1.02–1.09 assumed e_c = σ; today's worst frames sit at 0.95–1.00, so the derived band starts lower.
+* **R3 · the Q that meets the bar.** Where §9 measured today's form below today's Q, the same sum gives the highest
+  Q under 1.00: Q 10 on `dbt10_d`, Q 11 on `dbt10_ea1141`. On the other 17 the model needs a cell below §9's lowest
+  and predicts only "at least one rung below today's". At 1.03 it gives one Q for 10 volumes (§`view8_q`).
+* **R4 · bytes**, reported with no prediction: today's form's bytes at the rounded view's highest Q under 1.00 ÷ at
+  today's own, from the same run. `cut8` costs 1.14–1.86 × (§9 P4); the source computed none here.
+
+**Mutants**, each run once and seen to fail `rounding_test.py`: (m1) truncation in place of rounding; (m2) no 2^(D−10)
+on D 12; (m3) a step of 4 in place of 1023 ÷ 255; (m4) the Q below added on 1.03 in place of 1.00; (m5) the Q above
+added on 1.00 in place of 1.03.
+
+**Saturation.** Every measure but wall time is deterministic at one encoder thread; no time is claimed.
