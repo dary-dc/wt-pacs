@@ -69,7 +69,10 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | TRANSPORT-THEORY | 11-16 12:00 | — | `claude/transport-design`: HTJ2K over WebTransport, HTTP/3 fetch, HTTP/2 fetch, WebSocket, on LINK-TARGETS' profiles; theory and sources, a prediction per profile (`docs/transport/evidence/stacks.md`) |
 | TRANSPORT-PROTOCOL | 11-16 12:00 | TRANSPORT-THEORY done | a pre-registered protocol for the comparison, by a session that wrote none of the theory and will not run it |
 | FIX-378-DIAL-REVIEW | 11-18 00:00 | — | `claude/lossless-under-loss` (PR 378): findings in PR 378's body §FIX-378-DIAL review; amendment 17; PHONE-RUN-OWNER waits on it |
-| QUEUE-2W-TRIM | 11-18 00:00 | — | `claude/work-ledger:docs/queue-2026-11-14.md`, trimmed in place and marked started (amendment 24) |
+| PROGRAM-PLAN (Fable) | 11-18 00:00 | — | `claude/work-ledger:docs/queue-2026-11-14.md` rewritten as the two weeks' program (amendment 25) |
+| PROGRAM-PLAN-REVIEW | 11-18 00:00 | PROGRAM-PLAN done | findings in that file's §Program review; amendment 17 |
+| DEVICE-THEORY (Fable) | 11-18 00:00 | — | `claude/device-theory` from `origin/claude/docs-client` → draft PR into `claude/docs-client` (`docs/decode/mobile/device-model.md`); its prediction pushed by 11-21 12:00 |
+| DEVICE-THEORY-REVIEW | 11-18 00:00 | DEVICE-THEORY done | findings in its PR body; amendment 17; closed by 11-21 16:00 |
 | TRANSPORT-BUILD | 11-18 00:00 | — | `claude/transport-arms` from `origin/claude/docs-client` → draft PR into `claude/docs-client`: `stacks.md` §5.6 of `claude/transport-design` `c74d4bea` |
 | TRANSPORT-BUILD-REVIEW | 11-18 00:00 | TRANSPORT-BUILD done | `claude/transport-arms` (`docs/reviews/transport-arms.md`); amendment 17 |
 | TRANSPORT-RUN | 11-18 00:00 | TRANSPORT-BUILD-REVIEW done with no blocker open | rows on `claude/transport-arms`; results in `stacks.md` §Results on `claude/transport-design`; in the cloud (amendment 24) |
@@ -952,9 +955,74 @@ check green.
       the phone or other hardware the cloud lacks. A row that finds the cloud cannot do a step records the exact
       error and the complete commands for a local run, sets `blocked`, and the orchestrator schedules it. No row
       asks the owner where to run. The transport comparison runs in the cloud.
-    * **The two-week queue** (`docs/queue-2026-11-14.md`): "Trim, then start". QUEUE-2W-TRIM trims it; its worker
-      starts when that row is done.
+    * **The two-week queue** (`docs/queue-2026-11-14.md`): "Trim, then start"; amendment 25 widens this into the
+      program (PROGRAM-PLAN).
     * This file now closes 2026-11-28 23:59 (was 2026-11-22), so that the round's read and the verdict reviews run.
+
+25. **The two weeks' program** (the owner, 2026-11-17, later the same evening). On theory against one phone: "many
+    other results should actually be researched and investigated theoretically, because even with the results of the
+    following rounds, we don't get to know how these parameters and approaches will behave on other mobile devices".
+    On the aim: "use these 2 weeks completely to investigate and get the data and build the theory we need in order to
+    practically just review and review if needed and take decisions once I got time again. And that could only be
+    achieved with automated self-reviewed exhaustive research approach that includes both theory and practice." On
+    the model: "for more critical or complex research and tasks the latest favorite model, which should be able to
+    provide more results if used correctly". On `claude/unified`: "improvement work after the unified branch was made
+    in order to clean, optimize, simplify, and basically get the unified branch to the best it can be before merging
+    it to main". So:
+    * **Every open question ends in a decision page**, not in rows: plain words, the mechanism, the options with their
+      numbers (each labelled source, theory, derived or measured), what each option changes, a recommendation, the
+      owner's yes or no. Theory carries a result to devices, engines and links we did not measure; a measurement tests
+      the theory's pre-registered prediction.
+    * **Fable** (`claude-fable-5-2`) for the program, generating options, challenging premises and device-population
+      theory; **Opus** for one known option each, protocols, builds, runs and reviews (amendment 20). A row says its
+      model in its name: "(Fable)"; every other row is Opus.
+    * **The unified branch is prepared for `main`** (MERGE-ALL-PLAN-report §8.4, COMPLEXITY-AUDIT items 1, 5-9),
+      the owner's word above: a change that keeps behaviour lands on `claude/unified` with the gate and a review; a
+      removal or a structural change goes on its own branch as a draft PR into `claude/unified`, each named, and
+      the owner's merge of it is the yes. Nothing into `main`.
+
+#### PROGRAM-PLAN (Fable; the ledger only, no row of the program run)
+
+Rewrite `docs/queue-2026-11-14.md` as the program of amendment 25 for 2026-11-18 to 2026-11-28, keeping its
+procedure, "No work lost" and standing rules (base branch now `origin/claude/unified`, which carries every line since
+2026-11-16). **Inventory** every open question and owed decision: §Open of each `docs/lines/*.md` (on
+`origin/claude/unified` and any newer copy on a line branch), `docs/lines/codecs.md` §Open 0, `docs/client/design.md`
+§Open, the owner lines of every result in `docs/queue/`, amendment 23's list, BRIEF-WED's page once pushed,
+COMPLEXITY-AUDIT items 1 and 5-9, MERGE-ALL-PLAN-report §6 and §8.4. For each: what decides it; what official sources
+and theory can settle, and over which population (devices, engines, links), not only our fixtures; what the cloud can
+measure; what only a device or the owner can. **Then write the rows**: theory and options → a pre-registered protocol by
+another session → build → review (amendment 17's loop) → a cloud run → a verdict review → the question's decision page
+(`docs/decisions/<question>.md` on `claude/reviews-2026-11-28`). Questions already in this file (client queue) are
+linked, not repeated. The old rows: keep, drop or hold each, one line with its reason, in a section "Trimmed
+2026-11-18"; hold anything that spends hours encoding AV1 or depends on AV1 remaining the phone's route until
+MOBILE-DECODE-REJUDGE. The unified track of amendment 25 as its own rows. Pacing: at most four running, spread to
+11-28, Fable only where amendment 25 puts it. At the top, a one-screen index: question → rows → its page's date; the
+header "Started 2026-11-18 by the owner's word of 2026-11-17".
+
+#### PROGRAM-PLAN-REVIEW
+
+A session that did not write it: every inventoried item mapped to rows or dropped with a reason (re-derive the
+inventory from the sources); every row executable by a cloud session as written (inputs exist, branches named, needs
+reachable); no session reviews its own; every question ends in a decision page; Fable used only as amendment 25 says;
+the pacing fits by 11-28. Findings in the file's §Program review; blockers start amendment 17.
+
+#### DEVICE-THEORY (Fable; theory and sources, nothing run)
+
+Model, across the phones a reader may use, the quantities the round measures: HTJ2K decode per frame in WASM SIMD,
+AV1 decode in software through WebCodecs, HTJ2K decode in WebGPU compute, whether a hardware decoder takes our frame
+sizes and how its output reaches the XXH3 check, and the cache's write and read rates. Inputs from official sources
+quoted verbatim: SoC families' cores and per-core performance, the engines' WASM SIMD and WebGPU support and limits,
+the decoders' levels (CDD, vendor specs), and the share of devices in each class from a published distribution.
+Output: the model, one predicted range per class, and **the prediction for the round's phone, pushed by 2026-11-21
+12:00** (pre-registered, before any of its cells run; nothing identifying beyond `docs/devices.md` §4). List the
+routes to measure more devices (real-device clouds: what each can run, its cost and what it sends outside) as options
+for the owner; sign up for nothing.
+
+#### DEVICE-THEORY-REVIEW
+
+A session that did not write it: each source fetched and quoted exactly, the arithmetic recomputed, each class's
+range traceable to its inputs, the round's prediction pushed before 11-21 12:00 and not edited after. Findings in the
+PR body; amendment 17.
 
 #### FIX-378-DIAL-REVIEW
 
@@ -963,20 +1031,6 @@ A session that wrote none of PR 378, PHONE-FIX-378 or FIX-378-DIAL. On `claude/l
 asked again (amendment 22); FIX-378-DIAL's surviving mutant (the generation guard) is killed by a new test or argued
 equivalent; no other path retries; `scripts/gate.sh --quick`, `scripts/check_lab_absent.sh`. Findings in PR 378's
 body. Blockers start amendment 17's loop, which must close before PHONE-RUN-OWNER's deadline.
-
-#### QUEUE-2W-TRIM (the ledger only; no row of that file run)
-
-Edit `docs/queue-2026-11-14.md` in place. For each of its rows: **keep**, **drop** or **hold**, one line each with
-its reason, checked against amendment 18 (native paused), the rows other queues finished since 2026-11-12 (search
-`docs/queue/`), the owner's decisions since (amendments 1-24 here, `docs/lines/coordination.md` §Decisions on
-`origin/claude/unified`), and the mobile findings (`claude/mobile-decode:docs/decode/mobile/README.md`). **Hold**
-any row that spends hours encoding AV1, or whose value depends on AV1 remaining the phone's route (cloud group shards,
-noise rows, anything that waits on `docs/lines/codecs.md` §Open 0): its needs become "MOBILE-DECODE-REJUDGE done". Kept
-rows: base branches brought up to date (`claude/unified` carries every line since 2026-11-16, so it replaces
-`claude/demo-fixes-2` as the base), not-befores from 2026-11-18, the fix loop (amendment 17 here) bound. Add a
-section "Trimmed 2026-11-18" listing every dropped and held row with its reason (nothing removed from history), and
-set the header to "Started 2026-11-18 by the owner's word of 2026-11-17 ('Trim, then start')". Result: the counts kept,
-dropped and held, and the first three rows the worker will take.
 
 #### TRANSPORT-BUILD
 
@@ -1017,7 +1071,9 @@ something to be more organized"; `docs/lines/` (PR 322) and `CLAUDE.md` §Agents
 for unattended work have since lived in this ledger's queue files. Write `docs/agents/` on `claude/agents-docs`:
 the rules every agent follows, each stated once, in the fewest files that keep one subject per file (for example
 the standing rules; a queue worker's procedure with the status file's schema and "No work lost"; reviews and the fix
-loop; which model does what), with `CLAUDE.md` §Agents pointing to it. Sources: `CLAUDE.md` §Agents;
+loop; which model does what). One home (the owner, 2026-11-17: "but two places now for the agents?"): `CLAUDE.md`
+§Agents keeps one line, "Read `docs/agents/` before any work" (it is the file every agent loads), and its current rules
+move into `docs/agents/`. Sources: `CLAUDE.md` §Agents;
 `docs/queue-2026-11-14.md` §The worker's procedure, §No work lost, §Standing rules; this file's amendments 4, 5, 8,
 11, 17, 20, 21, 24; `docs/lines/coordination.md` §Decisions (all on their branches as named). Quote each rule's
 source and date in the PR body, not in the files. Keep a rule tied to one week's rows in its queue file. No queue
@@ -1026,7 +1082,7 @@ file is changed (the workers read them this week); the PR body lists, per queue 
 
 #### AGENTS-DOCS-REVIEW
 
-A session that did not write it: every rule in the sources is in `docs/agents/` once, or listed in the PR body as
+A session that did not write it: `CLAUDE.md` §Agents is the one pointer line; every rule in the sources is in `docs/agents/` once, or listed in the PR body as
 kept in its queue file; none changed in meaning (quote both versions where wording differs); no rule twice; the
 comment and link checks green. Findings in the PR body; blockers start amendment 17.
 
@@ -1068,7 +1124,7 @@ By `SATURDAY.md`. The session writes `docs/queue/PHONE-ROUND.md` (this file's sc
 #### PHONE-READ
 
 A session that wrote none of `next-round.md`, the tools or the run branch: each cell read by §4 and §7, its
-prediction beside it; the octets rule (amendments 7, 11); `VOID` by name; the decode-option asks M1-M22 written into
+prediction and DEVICE-THEORY's beside it (the model held or missed, and where); the octets rule (amendments 7, 11); `VOID` by name; the decode-option asks M1-M22 written into
 their option files' phone lines on `claude/mobile-decode`, measured; fixtures and limits (one phone, its link, one
 evening). Results in `docs/phone-rows/next-round-results.md`; owner decisions last.
 
@@ -1078,8 +1134,9 @@ A session that did not write PHONE-READ: every number recomputed from the raw ro
 
 #### MOBILE-DECODE-REJUDGE
 
-A session that wrote none of `docs/decode/mobile/`: §6's leaning judged again with the device numbers (cell 1's
-HTJ2K decode, M20, M1-M3, M6-M7); each option's phone column updated; for the AV1 rows QUEUE-2W-TRIM held, the options
+A session that wrote none of `docs/decode/mobile/`: §6's leaning judged again with the device numbers, carried to
+other phones only through DEVICE-THEORY's model as the round left it (cell 1's
+HTJ2K decode, M20, M1-M3, M6-M7); each option's phone column updated; for the AV1 rows PROGRAM-PLAN held, the options
 for what they do next, with the measurement that decides each. Nothing decided; PR 397.
 
 #### BRIEF-MON
