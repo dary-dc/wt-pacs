@@ -11,7 +11,6 @@ export function relayHeld(form, t) {
   return seen > form.loss / 3 && seen < form.loss * 3 ? null : `relay loss ${seen.toFixed(3)} %, asked ${form.loss} %`;
 }
 
-/** `relayHeld` over a form's pilot visits together, for a loss too rare to judge from one. */
 export function pooledRelay(form, rows) {
   const sum = (dir, k) => rows.reduce((a, r) => a + (r.relayTally?.[dir]?.[k] ?? 0), 0);
   const side = (dir) => ({ sent: sum(dir, "sent"), lost: sum(dir, "lost") });
