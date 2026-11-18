@@ -73,7 +73,7 @@ function timed(workers, indices, g, coded) {
     workers.forEach((w) => {
       w.port.onmessage = ({ data: f }) => {
         if (f.preview) return;
-        frames.push({ i: f.index, decoder: workers.indexOf(w), ms: f.stamps.decodeEnd - f.stamps.decodeStart, end: f.stamps.decodeEnd, route: f.route, exact: f.exact });
+        frames.push({ i: f.index, decoder: workers.indexOf(w), ms: f.stamps.decodeEnd - f.stamps.decodeStart, start: f.stamps.decodeStart, end: f.stamps.decodeEnd, route: f.route, exact: f.exact });
         if (ends(f.index)) give(w);
         finish();
       };
@@ -94,7 +94,7 @@ function summary(t0, frames, failures) {
   // As the product: a frame without a digest is `unchecked`, a mismatch fails.
   const wrong = frames.find((f) => f.exact === false);
   const failure = failures[0] ? `frame ${failures[0].i}: ${failures[0].reason}` : wrong ? `frame ${wrong.i} decoded not exact` : null;
-  return { frames: frames.sort((a, b) => a.i - b.i), spanMs, effectiveMs: spanMs / (frames.length + failures.length), failures, failure };
+  return { frames: frames.sort((a, b) => a.i - b.i), t0, spanMs, effectiveMs: spanMs / (frames.length + failures.length), failures, failure };
 }
 
 /** Arm C2: the whole exact series on its own downloader once the view has filled, every frame checked by its digest. */

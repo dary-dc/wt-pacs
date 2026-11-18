@@ -194,7 +194,7 @@ round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer
   then never does, the series' first frames are received whole with no decoder (`decode: false`) and held, then
   handed by whole groups, two outstanding each, to N workers of the product's `client/decode/decoder.js`, each frame
   timed there as the product times it (`decodeEnd − decodeStart`, the digest check included), its `bench` record the
-  frames, `spanMs` from the first hand-over to the last frame and `effectiveMs` (the span ÷ frames). As the product,
+  frames (each with its `start` and `end`), `t0` (the first hand-over), `spanMs` from the first hand-over to the last frame and `effectiveMs` (the span ÷ frames). As the product,
   a frame without a digest is `unchecked` (today's view: no reconstruction digests on this branch) and a mismatch
   fails the load. The beacon's frames carry `decodedAt`.
 * **Not built here** (a product seam, or another row): `getStats()` at the fill's end and the configure's `hardwareAcceleration` (both inside workers the page cannot
@@ -204,11 +204,13 @@ round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer
 
 **Tested** in the container: `round.test.mjs`, `beacon.test.mjs` and `round_test.py` (a fake `adb` on PATH) in the
 gate, and `round_headless.sh`: headless Chromium against the real viewer, `series-server` and dev servers, on a
-synthetic 10-bit pair (64 × 48, 20 frames), sixteen loads — a run-commit mismatch stops before load 1, one press runs
+synthetic 10-bit pair (64 × 48, 20 frames), eighteen loads — a run-commit mismatch stops before load 1, one press runs
 the plan, a load made to fail is recorded and the next taken, a throw and a hang after the fill each fail their load
 and the next is taken, a stall marks its load VOID, each wake lock outcome
 recorded (headless Chromium refuses it: `NotAllowedError`), cell 3's steps, cine and exact frames in both views, the
 busy lever on the viewer's thread, `adb` only between loads; and four loads of the round's levers: the bench on each
 codec on 2 decoders, the viewer never filling; C2's exact fill after the view's, every frame exact; a fill on
-`decoders=1`, no two of its frames decoding at once. Each check also failed once with its code broken. Not
+`decoders=1`, no two of its frames decoding at once; the bench's frame times its decoder's own start to end, one
+frame at a time on each decoder, its span from `t0`; and against the exact series' metadata with one digest changed,
+a bench load and a C2 load each failing by name. Each check also failed once with its code broken. Not
 tested: a phone, `adb` itself, `podman` images, Wi-Fi, a page hidden or a screen turned off.
