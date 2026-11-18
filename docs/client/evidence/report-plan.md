@@ -1200,3 +1200,23 @@ delta exists to send in any arm. D8 carries the safety bar (§7.3).
 
 Every HTTP arm reached RECEIVER with the safety report while the session could not open; the SESSION arms, whose only
 route is the session, delivered none, as §7.3 predicts. Loopback, as D1 (§7.8).
+
+### D3 · hidden, then the renderer killed 1 s later (18 rounds, 162 loads, 2026-11-18 08:37–11:39 UTC)
+
+Williams-balanced for every unit. Host CPU at most 14 % (5 s samples): no round saturated. Every load reached its
+fill; no row errored. D3 is recorded with no bar; the load report is ranked (§7.3).
+
+| unit | fill record | hide delta | safety report | dup. | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | — | 18/18, 18/18 | 0 | as predicted; A/A identical |
+| BEACON-H | 18/18 | — | 18/18 | 0 | ✓ (sent at hide, before the kill) |
+| BEACON-Y | 18/18 | 18/18 | 18/18 | 0 | ✓ |
+| KEEPALIVE-H | 18/18 | — | 18/18 | 0 | ✓ |
+| KEEPALIVE-Y | 18/18 | 18/18 | 18/18 | 0 | ✓ |
+| SESSION-1 | 18/18 | 18/18 | 18/18 | 0 | ✓ fill ✓; deltas ✓ |
+| SESSION-Y | 18/18 | 18/18 | 18/18 | 0 | fill ✓; the hide delta, "at risk", arrived every time |
+| SESSION-H | 18/18 | — | 18/18 | 0 | the hide record, "at risk", arrived every time |
+
+Rank on D3 alone: every arm 18/18 fill records; the Y arms and SESSION-1 18/18 deltas. Nothing separates them here.
+As in D4, a hide followed 1 s later by the end leaves SESSION's hide record time to be written, unlike D1 and D7's
+navigation. Loopback, as D1 (§7.8).
