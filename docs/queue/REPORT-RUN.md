@@ -1,13 +1,13 @@
 state: started
 started: 2026-11-16T08:22Z
-heartbeat: 2026-11-18T08:22Z
-outputs: claude/report-arms (rows, pushed every 15 min), claude/report-plan 7538b6fc (§7.8), 6d58a050 (D1), 90918c06 (D2), a6428703 (D7), 257dd04a (D9), 4c86bbef (D4), b7d69c5e (D5b)
+heartbeat: 2026-11-18T08:37Z
+outputs: claude/report-arms (rows, pushed every 15 min), claude/report-plan 7538b6fc (§7.8), 6d58a050 (D1), 90918c06 (D2), a6428703 (D7), 257dd04a (D9), 4c86bbef (D4), b7d69c5e (D5b), 1816d8b9 (D8)
 ## Resume
 Resumed 2026-11-18T05:16Z by a new session (the last stalled after 01:15Z on 11-18 with D8 at 111 rows). Next: rebuild the host as below,
 SKIP_MUTANTS=1, ENDINGS="D8 D3 D5a" (D8's partial kept and renamed by the script), then §Results.
 Running since 05:21Z on 11-18 (this session): host rebuilt (cargo release telemetry build, nginx 1.31.8 from its
 tarball); a two-load D2 smoke (off, beacon:H) delivered as before, not counted, not pushed. D8's 111-row partial kept
-as rows/chromium-D8.partial-0521.jsonl (no bar); D8 rerun whole, then D3, D5a; cpu.log by the same 5 s sampler (its
+as rows/chromium-D8.partial-0521.jsonl (no bar); D8 rerun whole, D8 complete 08:37Z (1816d8b9), then D3, D5a; cpu.log by the same 5 s sampler (its
 01:15Z-05:21Z gap is the stall). Rows pushed every 15 min. Each ending takes ~3 h.
 Resumed 2026-11-17T05:16Z by a new session (the first stalled at 14:05Z on 11-16 with D1 and the mutants complete,
 D2 partial at 99 rows). Next: rebuild the host per the lines below, SKIP_MUTANTS=1, run D2 (partial kept and renamed)
