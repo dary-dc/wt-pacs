@@ -1,13 +1,14 @@
-state: started
+state: done
 started: 2026-11-16T08:22Z
-heartbeat: 2026-11-18T14:23Z
-outputs: claude/report-arms (rows, pushed every 15 min), claude/report-plan 7538b6fc (§7.8), 6d58a050 (D1), 90918c06 (D2), a6428703 (D7), 257dd04a (D9), 4c86bbef (D4), b7d69c5e (D5b), 1816d8b9 (D8), 80d2e5b7 (D3)
+heartbeat: 2026-11-18T14:24Z
+outputs: claude/report-arms (rows, pushed every 15 min), claude/report-plan 7538b6fc (§7.8), 6d58a050 (D1), 90918c06 (D2), a6428703 (D7), 257dd04a (D9), 4c86bbef (D4), b7d69c5e (D5b), 1816d8b9 (D8), 80d2e5b7 (D3), 61ae1891 (D5a, the run's summary, docs/lines/client.md), f546a3fc; claude/report-arms 110695ca (the last rows)
 ## Resume
+Done 2026-11-18T14:24Z. Nothing owed by this row; next is REPORT-VERDICT-REVIEW.
 Resumed 2026-11-18T05:16Z by a new session (the last stalled after 01:15Z on 11-18 with D8 at 111 rows). Next: rebuild the host as below,
 SKIP_MUTANTS=1, ENDINGS="D8 D3 D5a" (D8's partial kept and renamed by the script), then §Results.
 Running since 05:21Z on 11-18 (this session): host rebuilt (cargo release telemetry build, nginx 1.31.8 from its
 tarball); a two-load D2 smoke (off, beacon:H) delivered as before, not counted, not pushed. D8's 111-row partial kept
-as rows/chromium-D8.partial-0521.jsonl (no bar); D8 rerun whole, D8 complete 08:37Z (1816d8b9), D3 complete 11:39Z (80d2e5b7), then D5a; cpu.log by the same 5 s sampler (its
+as rows/chromium-D8.partial-0521.jsonl (no bar); D8 rerun whole, D8 complete 08:37Z (1816d8b9), D3 complete 11:39Z (80d2e5b7), D5a complete 14:23Z (61ae1891); cpu.log by the same 5 s sampler (its
 01:15Z-05:21Z gap is the stall). Rows pushed every 15 min. Each ending takes ~3 h.
 Resumed 2026-11-17T05:16Z by a new session (the first stalled at 14:05Z on 11-16 with D1 and the mutants complete,
 D2 partial at 99 rows). Next: rebuild the host per the lines below, SKIP_MUTANTS=1, run D2 (partial kept and renamed)
@@ -26,3 +27,15 @@ libpcre2-dev and zlib1g-dev (./configure --prefix=...; make install); set SCRATC
 docs/queue/REPORT-RUN-run.sh, then SKIP_MUTANTS=1 if the mutants file is complete. The script skips complete endings
 and renames a partial one (kept, counted in no bar). Then §Results in report-plan.md (claude/report-plan).
 ## Result
+All nine endings run on Chromium 153 (1 458 counted loads, 18 Williams-balanced rounds each, no row errored, host CPU
+at most 19 %, no round saturated); results in claude/report-plan:docs/client/evidence/report-plan.md §Results.
+* Safety bar (D1 D2 D4 D5b D7 D8 D9): every HTTP arm, off and off' pass everywhere; SESSION-1/Y/H fail D8 only (0/18
+  each, as predicted). D3 and D5a (no bar): every arm 18/18.
+* Load bar (D1 D2 D7 D9): BEACON-H/Y, KEEPALIVE-H/Y, SESSION-1 pass; SESSION-Y loses the hide delta on navigation;
+  SESSION-H fails D1 (0/18) and D7 (1/18).
+* Ranked: Y arms and SESSION-1 deliver the fill record in every load of D3 D4 D5a D5b; the H arms lose it when the
+  renderer dies before a hide (D5a, D5b 0/18).
+* A/A identical in every ending; no mutant left a cell VOID.
+Fixtures and limits (§7.8): Chromium only; cell D only (L, C, Y, R not built); D6 not run; loopback, no relay; the
+rig's grey-16 32-frame series; one 4-vCPU container.
+Owner decisions: none from this row; the verdict by §7.5 is REPORT-VERDICT-REVIEW's.
