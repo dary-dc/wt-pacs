@@ -975,7 +975,9 @@ check green.
       the theory's pre-registered prediction.
     * **Fable** (`claude-fable-5-2`) for the program, generating options, challenging premises and device-population
       theory; **Opus** for one known option each, protocols, builds, runs and reviews (amendment 20). A row says its
-      model in its name: "(Fable)"; every other row is Opus.
+      model in its name: "(Fable)"; every other row is Opus. **At most one Fable row a UTC day** (the owner: "it has to
+      be something very specific and planned, and at most once per day"): each Fable row names its planned day,
+      chosen for the most critical or complex questions; PROGRAM-PLAN (11-18), DEVICE-THEORY (11-19) come first.
     * **The unified branch is prepared for `main`** (MERGE-ALL-PLAN-report §8.4, COMPLEXITY-AUDIT items 1, 5-9),
       the owner's word above: a change that keeps behaviour lands on `claude/unified` with the gate and a review; a
       removal or a structural change goes on its own branch as a draft PR into `claude/unified`, each named, and
@@ -996,7 +998,8 @@ another session → build → review (amendment 17's loop) → a cloud run → a
 linked, not repeated. The old rows: keep, drop or hold each, one line with its reason, in a section "Trimmed
 2026-11-18"; hold anything that spends hours encoding AV1 or depends on AV1 remaining the phone's route until
 MOBILE-DECODE-REJUDGE. The unified track of amendment 25 as its own rows. Pacing: at most four running, spread to
-11-28, Fable only where amendment 25 puts it. At the top, a one-screen index: question → rows → its page's date; the
+11-28; Fable only where amendment 25 puts it, at most one Fable row a day from 11-20, each with its planned
+day and why that question needs Fable. At the top, a one-screen index: question → rows → its page's date; the
 header "Started 2026-11-18 by the owner's word of 2026-11-17".
 
 #### PROGRAM-PLAN-REVIEW
