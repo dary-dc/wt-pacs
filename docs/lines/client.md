@@ -49,6 +49,25 @@ exact frame bit for bit, and only checked claims on screen.
 * **The next phone round**: its amendment written by a session that will not run it ([`../devices.md`](../devices.md)
   §7), recording the decoder route and per-frame arrivals and varying the decoder count; it decides which view is the
   target and what bounds a fill.
+  2026-11-15: its protocol is `claude/phone-protocol:docs/phone-rows/next-round.md`; its one-press runner is built
+  and tested headless on `claude/phone-round` (`lab/devices/README.md` §The round, RUNNER-AUTO), no phone yet; it
+  waits for PHONE-LEVERS (cell 1's bench, C2, the decoder count) and a dry run.
+  Reviewed 2026-11-15 (`docs/reviews/phone-round.md`): three blockers (a throw after the fill and a server that never
+  answers each stop the round; §3's stopping rule not built). Fixed 2026-11-16 (RUNNER-AUTO-FIX, PR 400 §Fix): a
+  post-fill throw or hang fails its load, a block that cannot start fails its loads and the round goes on, per-cell
+  budgets stop only loads not started. Re-reviewed 2026-11-16 (`docs/reviews/phone-round.md` §Re-review): blockers 1
+  and 3 closed; 2 open for servers ready by a printed line (`readyS` does not bound `wait_line`, so a silent QUIC
+  server still stops the round unrecorded). Third fix round, the owner's yes (2026-11-16): fixed 2026-11-17
+  (RUNNER-FIX-2, PR 400 §Fix 2): `readyS` bounds a printed line too; re-reviewed 2026-11-17 (`docs/reviews/phone-round.md`
+  §Re-review 2): closed, no blocker open; PHONE-LEVERS next. Built 2026-11-18 (PHONE-LEVERS, PR 400 §Levers;
+  `lab/devices/README.md` §The round): `?decoders`, arm C2's `?exactFill`, cell 1's `?bench`, `roundOrder` with cell
+  1 and its drift check; tested headless on the synthetic pair, no phone. Reviewed 2026-11-18
+  (`docs/reviews/phone-round.md` §Levers): two blockers, both untested claims (a frame not exact fails no tested load;
+  the bench's time pinned only by `> 0`). Fixed 2026-11-18 (PHONE-LEVERS-FIX, PR 400 §Levers fix): a wrong-digest
+  exact series fails a bench load and a C2 load by name; the bench's frame time and span pinned to its decoders'
+  stamps; minors 3 and 7 (C1 presses Lossless in `roundOrder`). Re-reviewed 2026-11-18 (§Levers re-review): both
+  blockers closed, each revert or mutant failing its claim; no blocker open, so PHONE-RUN-OWNER's need is met; the dry
+  run next.
 * **The delivery comparison**: recorded in [`../client/design.md`](../client/design.md) §Open with its theory; its
   protocol is not written.
 * dav1d fetched only where WebCodecs refuses (a protocol with an A/A arm, not started); a wake before `l` asks (its

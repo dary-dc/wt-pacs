@@ -80,7 +80,8 @@ export function pageHooks(q, lab) {
       }
       const cine = await lab.cine?.({ worker, controller, fps: cineFps });
       const ledger = await (worker ?? controller).ledger({ flip: q.get("mutate") === "sample" });
-      lab.finished({ ...ledger, boot: { ...boot, ...ledger.boot }, issuedAt, errors, stepped, cine });
+      lab.finished({ ...ledger, boot: { ...boot, ...ledger.boot }, issuedAt, errors, stepped, cine },
+        { ledger: () => (worker ?? controller).ledger(), shown, view, worker, controller, fps: cineFps });
     },
   };
 }

@@ -2,6 +2,7 @@
 """python3 server/dev-server.test.py — what dev-server.py serves, and how a browser may cache it."""
 
 import importlib.util
+import json
 import subprocess
 import sys
 import tempfile
@@ -169,6 +170,48 @@ class Binding(unittest.TestCase):
         run = subprocess.run([*COMMAND, "--bind", "0.0.0.0"], capture_output=True, text=True, timeout=10)
         self.assertEqual(run.returncode, 2)
         self.assertIn("one address", run.stderr)
+
+
+class Beacon(unittest.TestCase):
+    def post(self, url, body):
+        req = urllib.request.Request(url + "lab/beacon", data=body, method="POST", headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=5) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+
+    def test_no_beacon_by_default(self):
+        """Without --beacon the page's beacon is refused, and nothing is written."""
+        with started() as url:
+            self.assertEqual(self.post(url, b'[{"kind": "load"}]'), 404)
+
+    def test_each_record_appended_as_one_line(self):
+        """--beacon FILE appends each record a beacon carries as one JSON line, after what the file held."""
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "beacon.jsonl"
+            log.write_text('{"kind": "earlier"}\n')
+            with started("--beacon", str(log)) as url:
+                self.assertEqual(self.post(url, b'[{"kind": "load", "n": 1}, {"kind": "label", "to": "lossless"}]'), 204)
+                self.assertEqual(self.post(url, b'[{"kind": "error"}]'), 204)
+            lines = [json.loads(line) for line in log.read_text().splitlines()]
+            self.assertEqual([r["kind"] for r in lines], ["earlier", "load", "label", "error"])
+
+    def test_a_body_not_a_list_of_records_is_refused_whole(self):
+        """A beacon that is not a JSON list of objects is refused, and the log is left as it was."""
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "beacon.jsonl"
+            with started("--beacon", str(log)) as url:
+                for body in [b'[{"kind": "load"}', b'{"kind": "load"}', b'[{"kind": "load"}, 3]']:
+                    with self.subTest(body=body):
+                        self.assertEqual(self.post(url, body), 400)
+            self.assertEqual(log.read_text() if log.exists() else "", "")
+
+    def test_the_option_is_named_as_the_protocol_names_it(self):
+        """The option is `--beacon FILE`, the name docs/devices.md §7's Second amendment's commands use, and no other."""
+        out = subprocess.run([*COMMAND, "--help"], capture_output=True, text=True, check=True).stdout
+        self.assertIn("--beacon FILE", out)
+        self.assertNotIn("--beacon-log", out)
 
 
 if __name__ == "__main__":
