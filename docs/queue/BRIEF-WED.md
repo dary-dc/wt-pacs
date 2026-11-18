@@ -1,7 +1,7 @@
 state: done
 started: 2026-11-18T15:17Z
-heartbeat: 2026-11-18T15:18Z
-outputs: claude/reviews-2026-11-18 d1754ced (docs/reviews-2026-11-18.md); no PR (the row names none)
+heartbeat: 2026-11-18T15:19Z
+outputs: claude/reviews-2026-11-18 7ea5bbb6 (docs/reviews-2026-11-18.md); no PR (the row names none)
 ## Resume
 Done. Nothing to continue. Row BRIEF-WED of docs/queue-client-2026-11-14.md, claimed late (its page was due 10:00 UTC):
 this file held the 11-10 queue's row of the same name (done 2026-11-12), so the procedure read it as done; that record
@@ -19,7 +19,7 @@ is kept below, unchanged.
 ## Earlier row of the same name (docs/queue-2026-11-10.md, 2026-11-12), kept as written
 state: done
 started: 2026-11-12T01:27Z
-heartbeat: 2026-11-12T01:38Z
+heartbeat: 2026-11-18T15:19Z
 outputs: claude/reviews-2026-11-11 7ab6a3aa (docs/reviews-2026-11-11.md); no PR (the row names none, as BRIEF-QUEUE's)
 ## Resume
 Done. Nothing to continue.
