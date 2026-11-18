@@ -1220,3 +1220,39 @@ fill; no row errored. D3 is recorded with no bar; the load report is ranked (§7
 Rank on D3 alone: every arm 18/18 fill records; the Y arms and SESSION-1 18/18 deltas. Nothing separates them here.
 As in D4, a hide followed 1 s later by the end leaves SESSION's hide record time to be written, unlike D1 and D7's
 navigation. Loopback, as D1 (§7.8).
+
+### D5a · renderer killed while visible, 50 ms after the mismatch is found (18 rounds, 162 loads, 2026-11-18 11:39–14:23 UTC)
+
+Williams-balanced for every unit. Host CPU at most 12 % (5 s samples): no round saturated. Every load reached its
+mismatch; no row errored. D5a is recorded with no bar (§7.3); it decides the safety report's carrier (§7.5 rule 3). No
+frame was pressed (as D5b), so no arm had a delta to send.
+
+| unit | fill record | safety report | dup. | against §7.3's prediction |
+| --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | 18/18, 18/18 | 0 | A/A identical |
+| BEACON-H | 0/18 | 18/18 | 0 | load ✗ as predicted; safety, "at risk", arrived every time |
+| BEACON-Y | 18/18 | 18/18 | 0 | fill ✓; safety "at risk", arrived every time |
+| KEEPALIVE-H | 0/18 | 18/18 | 0 | load ✗ as predicted; safety, Chromium "**at risk**" (the worker's request), arrived every time |
+| KEEPALIVE-Y | 18/18 | 18/18 | 0 | fill ✓; safety as -H |
+| SESSION-1 | 18/18 | 18/18 | 0 | fill ✓; safety "at risk", arrived every time |
+| SESSION-Y | 18/18 | 18/18 | 0 | fill ✓; safety "at risk", arrived every time |
+| SESSION-H | 0/18 | 18/18 | 0 | load ✗; safety "at risk", arrived every time |
+
+Every arm, `off` included, delivered the safety report in all 18 loads with the renderer killed 50 ms after the
+mismatch, so on this host 50 ms does not separate the carriers for rule 3: a tie at 18/18. Loopback, and the rig's
+32-frame grey series (§7.8): the races §7.3 calls "at risk" would be wider behind the relay's 20 ms round trip and a
+`dbts_c1` fill, and are not measured here.
+
+### The run, all nine endings (Chromium 153, 2026-11-16 to 2026-11-18)
+
+1 458 counted loads (9 endings × 9 units × 18 rounds), every cell Williams-balanced, no row errored, the host never
+above 19 % CPU (no round saturated); partial rows (D2 99, D8 111) kept and counted in no bar. Against §7.3, per bar:
+* **Safety bar** (D1, D2, D4, D5b, D7, D8, D9): every HTTP arm, `off` and `off′` pass in every ending; the three SESSION
+  arms pass everywhere but D8 (0/18 each, as predicted). On D3 and D5a (no bar) every arm delivered 18/18.
+* **Load bar** (D1, D2, D7, D9): BEACON-H/Y, KEEPALIVE-H/Y, SESSION-1 pass; SESSION-Y passes the fill record but
+  loses its hide delta on navigation (D1, D7: 0/18); SESSION-H fails (D1 0/18, D7 1/18).
+* **Ranked** (D3, D4, D5a, D5b, D8 here; D6 not run): the Y arms and SESSION-1 deliver the fill record in every load
+  of D3, D4, D5a and D5b; the H arms lose it when the renderer dies before any hide (D5a, D5b: 0/18); none in D8.
+* **A/A**: `off` and `off′` identical in every ending (no load record, 18/18 safety). No mutant left a cell VOID.
+Fixtures and limits (§7.8): Chromium only, cell D only (L, C, Y, R not built), D6 not run, loopback with no relay, the
+rig's grey-16 32-frame series, one 4-vCPU container. The verdict by §7.5 is REPORT-VERDICT-REVIEW's.
