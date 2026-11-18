@@ -1,14 +1,14 @@
 state: started
 started: 2026-11-18T00:17Z
-heartbeat: 2026-11-18T00:21Z
-outputs: claude/phone-round (PR 400)
+heartbeat: 2026-11-18T00:30Z
+outputs: claude/phone-round def86ef4 (PR 400)
 ## Resume
-Design (nothing pushed yet on claude/phone-round): three levers through the viewer's lab gate, all in lab/ —
-`?decoders=N` (1–8, sets opts.decoders; recorded on every round record with hardwareConcurrency);
-`?exactFill=1` (arm C2: after the view's fill a second downloader fills the whole exact series, every frame
-checked by its XXH3, span recorded); `?bench=<frames>` (cell 1: coded bytes fetched with decode:false, then held,
-then decoded by N client/decode/decoder.js workers, decodeEnd − decodeStart per frame, effective = span ÷ n).
-New file lab/devices/bench.js; round-page.js wires them; round.py PAGE_KEYS; roundOrder gains cell 1 and C2.
-Builds: cargo release series-server pack-series, ingest/tools.sh, ts build (logs in the session scratchpad).
-Next: write, test (round.test.mjs, levers.test.mjs, round_headless.sh), mutate, gate, push.
+Pushed def86ef4 on claude/phone-round: lab/devices/bench.js (bench, exactFill), round-page.js wiring, levers.js
+?decoders and refusals, head.js gate list, round.py PAGE_KEYS, roundOrder (cell 1 ×3 Williams, drift at the end,
+C2 exactFill), beacon frameRow decodedAt; tests: levers.test.mjs, round.test.mjs, round_headless.sh (16 loads, all
+claims hold). Note: the synthetic view carries no reconstruction digests here, so its frames are `unchecked` (as
+the product's); the bench fails only on exact false.
+Next: mutate each new check (scratch copies, revert after), README §The round, docs/lines/client.md, gate --quick,
+PR 400 body section. Commands: PYTHON=.venv/bin/python bash lab/devices/round_headless.sh; node lab/viewer/levers.test.mjs;
+node lab/devices/round.test.mjs.
 ## Result
