@@ -68,6 +68,8 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | AUDIT-MECHANICAL-REVIEW | 11-16 12:00 | AUDIT-MECHANICAL done | findings in PR 402's body |
 | TRANSPORT-THEORY | 11-16 12:00 | — | `claude/transport-design`: HTJ2K over WebTransport, HTTP/3 fetch, HTTP/2 fetch, WebSocket, on LINK-TARGETS' profiles; theory and sources, a prediction per profile (`docs/transport/evidence/stacks.md`) |
 | TRANSPORT-PROTOCOL | 11-16 12:00 | TRANSPORT-THEORY done | a pre-registered protocol for the comparison, by a session that wrote none of the theory and will not run it |
+| PR-TIDY | — | — | **its own routine** (closes PRs, which no worker may): `docs/queue/PR-TIDY.md`, the branch list `docs/queue/PR-TIDY-branches.txt` |
+| LATER-PASS | — | — | **its own routine** (merges into `claude/unified`, amendment 26): PRs 384, 392, 359, 396, 397 merged and closed |
 | FIX-378-DIAL-REVIEW | 11-18 00:00 | — | `claude/lossless-under-loss` (PR 378): findings in PR 378's body §FIX-378-DIAL review; amendment 17; PHONE-RUN-OWNER waits on it |
 | PROGRAM-PLAN (Fable) | 11-18 00:00 | — | `claude/work-ledger:docs/queue-2026-11-14.md` rewritten as the two weeks' program (amendment 25) |
 | PROGRAM-PLAN-REVIEW | 11-18 00:00 | PROGRAM-PLAN done | findings in that file's §Program review; amendment 17 |
@@ -1026,6 +1028,17 @@ for the owner; sign up for nothing.
 A session that did not write it: each source fetched and quoted exactly, the arithmetic recomputed, each class's
 range traceable to its inputs, the round's prediction pushed before 11-21 12:00 and not edited after. Findings in the
 PR body; amendment 17.
+
+26. **The owner's words of 2026-11-18, 00:40 UTC.**
+    * **The PR list is tidied.** "yes. U may delete once it's on main. No need my yes." The 237 carried and the 7
+      superseded PRs of `PR-TRIAGE-report.md` are closed, each with a comment saying where its work landed (or what
+      supersedes it); `claude/unified` is the one unified branch (call M8) and the staging PRs 398, 399 and 401 close
+      with it. Branches are deleted only once their work is on `main`, then without asking: PR-TIDY lists them.
+    * **Reviewed docs-only branches are merged into `claude/unified`** (`--no-ff`, the gate green), so the program
+      reads current documents: the later pass (PRs 384, 392, 359, 396, 397) now, and from then on each branch whose
+      changes are only under `docs/` once its review is done with no blocker open. PROGRAM-PLAN adds one DOCS-SYNC
+      row a day for it. A branch with any change outside `docs/` comes to the owner as a draft PR. Nothing into `main`.
+    * **Testing on more phones** through a real-device cloud: decided after DEVICE-THEORY's options.
 
 #### FIX-378-DIAL-REVIEW
 
