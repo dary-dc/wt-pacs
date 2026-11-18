@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-18T12:16Z
-heartbeat: 2026-11-18T12:53Z
+heartbeat: 2026-11-18T13:35Z
 outputs: claude/transport-arms (rows), claude/transport-design (stacks.md §Results)
 ## Resume
 Claimed 12:2xZ. Host: Chromium 157.0.8103.78 (playwright's), neither of §1's tags, so §5.2's four window constants
@@ -17,4 +17,5 @@ Running since 2026-11-18T12:27Z: the pilot, AA AD CR FF LOSS LTE CLEAN PUB ENT F
 stacks.md §5.7, then the counted cells in §5.4's order. Reading: the 12 h stop counts from the first counted row.
 Worktrees: /home/user/arms (claude/transport-arms), /home/user/ledger (claude/work-ledger).
 Pilot AA done 12:53Z: 96 visits, 0 VOID, every frame exact; AD next.
+Pilot 13:35Z: AA, CR, FF, LOSS done (0 crashes; VOIDs: relay guard 5, one H2-frame LOSS visit 'spoke h2,, not h2', an empty nextHopProtocol entry, kept as VOID). AD-lte and LTE: PILOT REFUSES 'too few packets to check 0.1 % loss' (one visit ~27k packets); fixed on claude/transport-arms 7ab31404/4cd38e48 (judge.mjs pooledRelay: pooled over the form's pilot visits; judge.test.mjs, three mutants killed) — a driver change after the build's review, named for the verdict review. Refused rows kept as rows/{AD,LTE}-pilot.refused-per-visit.jsonl; AD and LTE pilots rerun after CLEAN PUB ENT FP (log pilot2.log).
 ## Result
