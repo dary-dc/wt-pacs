@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-18T12:16Z
-heartbeat: 2026-11-18T22:43Z
+heartbeat: 2026-11-18T22:46Z
 outputs: claude/transport-arms (rows), claude/transport-design (stacks.md §Results)
 ## Resume
 Claimed 12:2xZ. Host: Chromium 157.0.8103.78 (playwright's), neither of §1's tags, so §5.2's four window constants
@@ -23,4 +23,5 @@ Pilot 13:35Z: AA, CR, FF, LOSS done (0 crashes; VOIDs: relay guard 5, one H2-fra
 18:30Z: AA counted complete (768 visits, 4 VOID by the relay guard, every frame exact; rows/AA.jsonl). AD running since 18:29Z. Summaries by `python3 lab/transport-arms/summary.py lab/transport-arms/rows <CELLS>` (57bb45e0).
 20:21Z: AD counted complete (256 visits, 2 VOID, every frame exact). CR running.
 21:58Z: CR counted complete (128 visits, 1 VOID). FF running. Found in AD's rows: H3-fill and H2-fill's ask had no effect (frames 0-49 strictly in order, frame 49 last at ~10 s): the fill shape's abort-and-reGET did not happen; a suspected carrier defect, for the verdict review.
+22:46Z: FF counted complete (256 visits, 26 VOID by the relay guard). LOSS running; then LTE CLEAN PUB ENT FP to the 12 h stop at 02:58Z (ENT will be cut, FP not reached at the pilot's rates).
 ## Result
