@@ -1,10 +1,11 @@
 state: started
 started: 2026-11-18T14:16Z
-heartbeat: 2026-11-18T14:19Z
+heartbeat: 2026-11-18T14:25Z
 outputs: claude/phone-round (docs/reviews/phone-round.md §Levers)
 ## Resume
-Read def86ef4, 3d6385fd, 5d6a2f9b; levers.test, round.test, beacon.test pass at 5d6a2f9b. Building (README cloud
-lines: dockerd, meson 1.9.1, .venv, client/decode/wasm/build/build.sh, ingest/tools.sh) for round_headless.sh.
-Next: round_headless.sh; own mutants of bench.js / exactFill / head.js; findings into docs/reviews/phone-round.md
-§Levers on claude/phone-round. Working copy: git worktree of origin/claude/phone-round.
+Built (README cloud lines). round_headless.sh at 5d6a2f9b: every claim holds (2 min 40 s). Running 9 own mutants of
+bench.js, round-page.js, head.js, each through round_headless.sh (script: apply one replacement, run, git checkout).
+Next: check_lab_absent.sh, comment budget, gate --quick; findings into docs/reviews/phone-round.md §Levers on
+claude/phone-round, PR 400 body §Levers review. Draft findings: the bench's timing and the C2/bench failure paths
+untested (mutants survive?); the view's group granularity bounds cell 1's view sweep (7 groups of 8 over 50 frames).
 ## Result
