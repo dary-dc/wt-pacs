@@ -814,5 +814,37 @@ async function anAskWhoseOwnDialFailsIsLost() {
 }
 await anAskWhoseOwnDialFailsIsLost();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted, the start's stamps on the first frame, a short want riding the dial, a head crossing twice decoded once, a jump into a group decoded from its keyframe, a frame asked during a fill decoded once, only a lost ask marked lost, an ask whose own dial fails lost: ok");
+/** An ask whose re-dial fails after a cancel posts no failure: the new generation never asked it. */
+async function aCancelledAskWhoseDialFailsIsSilent() {
+  let made = 0;
+  let refuse;
+  globalThis.fakeTransport = {
+    connect: async () => {
+      if (++made > 1) return new Promise((_, reject) => (refuse = () => reject(new Error("the stand-in refuses to dial"))));
+      return {
+        requestExactFrame: () => new Promise(() => {}),
+        stats: () => ({ closed: "session closed (code 0)", lastByteAt: performance.now() }),
+        fillFrames() {},
+        endStream: async () => {},
+        close() {},
+      };
+    },
+  };
+  const transport = "data:text/javascript,export const TransportSession = globalThis.fakeTransport; // cancelled-own-dial";
+  posted.length = 0;
+  await import("./downloader.js?cancelled-own-dial");
+  await onmessage({ data: { kind: "start", config: { decode: false, decoders: 0, transport } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  const asked = onmessage({ data: { kind: "ask", index: 0 } });
+  while (!refuse) await new Promise((r) => setTimeout(r, 1));
+  await onmessage({ data: { kind: "cancel" } });
+  refuse();
+  await asked;
+  await new Promise((r) => setTimeout(r, 20));
+  const failures = posted.filter((m) => m.kind === "failed" && m.index === 0);
+  check(failures.length === 0, `a cancelled ask whose dial fails posts no failure (${JSON.stringify(failures)})`);
+}
+await aCancelledAskWhoseDialFailsIsSilent();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted, the start's stamps on the first frame, a short want riding the dial, a head crossing twice decoded once, a jump into a group decoded from its keyframe, a frame asked during a fill decoded once, only a lost ask marked lost, an ask whose own dial fails lost, a cancelled one silent: ok");
 process.exit(failed ? 1 : 0);
