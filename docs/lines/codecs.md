@@ -63,7 +63,9 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 7. The transport comparison's build (`claude/transport-design:docs/transport/evidence/stacks.md` §5.6): the GET path
    (series-server `--features lab-get`), the fetch carrier and the driver are
    [`../../lab/transport-arms/`](../../lab/transport-arms/README.md) (2026-11-18, every arm exact at CLEAN on a
-   synthetic series; nothing counted). Its review, then the run in the cloud.
+   synthetic series; nothing counted). Reviewed 2026-11-18 ([`../reviews/transport-arms.md`](../reviews/transport-arms.md)):
+   five blockers (no arm uses the opening ask; a failed check can be voided; a fetch arm's crash kills the driver;
+   the TCP arms on BBR, not Cubic; the departures not yet amended into §5). Its fix and re-review, then the run.
 
 ## Decisions (the owner's)
 
