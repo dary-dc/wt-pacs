@@ -134,5 +134,13 @@ function theRoundsLevers() {
 }
 theRoundsLevers();
 
+/** A host that does not serve `lab/` refuses each of the round's levers alone: the page's list names every one. */
+async function thePageNamesTheRoundsLevers() {
+  const named = (await import("node:fs")).readFileSync(new URL("../../client/viewer/head.js", import.meta.url), "utf8").match(/const asked = (\[[^\]]*\])/)[1];
+  const missing = ["round", "beacon", "decoders", "bench", "exactFill"].filter((k) => !JSON.parse(named).includes(k));
+  check(!missing.length, `head.js names the round's levers as lab parameters${missing.length ? `; missing ${missing}` : ""}`);
+}
+await thePageNamesTheRoundsLevers();
+
 console.log(failed ? `${failed} failed` : "levers: a fill's time and reads, steps on demand, the refusals, the settle, the round's levers: ok");
 process.exit(failed ? 1 : 0);
