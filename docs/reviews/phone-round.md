@@ -277,3 +277,40 @@ and is not counted):
 Two blockers, both test gaps on the levers' claims; the code reads right. By amendment 17: PHONE-LEVERS-FIX, then
 PHONE-LEVERS-FIX-REVIEW; PHONE-RUN-OWNER's need on this review is not met until the re-review closes them, or its
 11-20 08:00 fallback applies.
+
+## Levers re-review
+
+*PHONE-LEVERS-FIX-REVIEW, 2026-11-18, by a session that wrote none of the levers, their review or the fix.* Checked
+`c7677027`, `4a360628`, `3cd7ac89`, `95f7d370`, `ba0a9619` (`934fd6d8..ba0a9619`). Fixtures: one 4-core cloud host,
+headless Chromium (software WebCodecs), loopback, the synthetic 64 × 48 20-frame pair, fake `adb`; no phone, no DBT
+volume.
+
+**Nothing else changed:** the range touches `lab/devices/{bench.js,round.mjs,round.test.mjs,round_headless.mjs,README.md}`,
+`lab/viewer/levers.test.mjs` and `docs/lines/client.md`; no product path. `bench.js` gains two record fields (`start`,
+`t0`) and nothing else; `round.mjs` adds `press: "lossless"` to C1 loads only, which `round-page.js` already honours.
+
+**As committed:** `round_headless.sh` every claim holds (18 loads, 85 s); `levers.test.mjs` and `round.test.mjs` pass;
+`check_lab_absent.sh` and the comment budget green; `scripts/gate.sh --quick` GATE_RESULT.
+
+**Each blocker, reverted or mutated, one edit at a time through `round_headless.sh`:**
+
+| edit | fails |
+| --- | --- |
+| `4a360628`'s `bench.js` reverted (no `start`, no `t0`) | blocker 2's claim, both codecs |
+| the bench ignoring a frame decoded not exact | blocker 1's bench claim (`frame 3 decoded not exact` absent) |
+| C2 ignoring a frame not exact | blocker 1's C2 claim |
+| the bench's frame time from the first hand-over (`decodeEnd − t0`) | blocker 2's claim, both codecs |
+| the span from the first `decodeStart`, not the first hand-over | blocker 2's claim, both codecs |
+| `head.js` without `decoders` (minor 3) | `levers.test.mjs`: `missing decoders` |
+| C1 without `press: "lossless"` (minor 7) | `round.test.mjs`: `C1 presses Lossless, no other arm` |
+
+The review's four surviving mutants and both minors' are killed, each by its intended claim.
+
+**Minor (new, not blocking):** the claim "one at a time on each decoder" pins `client/decode/decoder.js`'s serial
+decode, not the bench: no edit to `bench.js` (more groups outstanding included) can make a worker's frames overlap,
+so it guards the product worker, which is worth keeping, but it is not a bench mutant's killer. Carried open: minors
+4, 5, 6, 8 of §Levers, as PR 400 §Levers fix lists them.
+
+### Verdict
+
+Both blockers closed, no blocker open. PHONE-RUN-OWNER's need on PHONE-LEVERS-REVIEW is met (amendment 17).
