@@ -117,6 +117,8 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | RUNNER-AUTO-FIX-REVIEW | 11-15 23:00 | RUNNER-AUTO-FIX done | `claude/phone-round` (`docs/reviews/phone-round.md` §Re-review) |
 | PHONE-LEVERS | 11-14 21:00 | RUNNER-AUTO-FIX-REVIEW done, no blocker open (amendment 17) | `claude/phone-round` (its PR) |
 | PHONE-LEVERS-REVIEW | 11-14 21:00 | PHONE-LEVERS done | `claude/phone-round` (`docs/reviews/phone-round.md` §Levers) |
+| PHONE-LEVERS-FIX | 11-18 16:00 | PHONE-LEVERS-REVIEW done | `claude/phone-round` (PR 400): the two blockers of `docs/reviews/phone-round.md` §Levers |
+| PHONE-LEVERS-FIX-REVIEW | 11-18 16:00 | PHONE-LEVERS-FIX done | `claude/phone-round` (`docs/reviews/phone-round.md` §Levers re-review); PHONE-RUN-OWNER's need on PHONE-LEVERS-REVIEW reads this |
 | PHONE-DRY-RUN | — | — | **the owner's local device session; no cloud worker takes it** (after PHONE-LEVERS-REVIEW, no blocker open) |
 | CACHE-DESIGN | 11-14 21:00 | CACHE-PLAN done | `claude/cache-plan` (`docs/client/evidence/cache-plan.md` §7; PR of CACHE-PLAN) |
 | CACHE-ADVOCATE-OPFS-SYNC | 11-14 21:00 | CACHE-DESIGN done | `claude/cache-plan` (its design in §7) |
@@ -899,6 +901,24 @@ tested headless and mutated; the runner's plan gains them. Gate, `scripts/check_
 
 A session that wrote none of it: each lever off leaves the product's behaviour and bytes unchanged; C2 checks every
 exact frame; the bench times what cell 1 says it times; every mutation fails its test.
+
+#### PHONE-LEVERS-FIX (appended by PHONE-LEVERS-REVIEW, 2026-11-18; amendment 17)
+
+A session that wrote neither the levers nor their review. Close `claude/phone-round:docs/reviews/phone-round.md`
+§Levers blockers 1 and 2, each with a test that fails without it (run against `5d6a2f9b` first), each mutated: a
+wrong-digest series in `round_headless.sh` (the pair's exact metadata with one frame's digest changed) against which
+a bench load (HTJ2K) and a C2 load each fail by name, killing the review's two surviving check mutants; the bench's
+record carrying each frame's start and the bench's `t0`, the headless claims pinning `ms = end − start`, no overlap
+on a decoder and `spanMs` = the last end − `t0`, killing the review's two surviving time mutants. Minors 3 and 7
+where one line each; list the rest. `round_headless.sh`, `scripts/check_lab_absent.sh`, the comment budget, the gate
+(`--quick`, skips named). Findings and commits in PR 400's body §Levers fix.
+
+#### PHONE-LEVERS-FIX-REVIEW
+
+A session that wrote none of the levers, their review or the fix: each blocker closed (revert its fix, see its test
+fail), nothing else changed, `round_headless.sh` green. Findings in `docs/reviews/phone-round.md` §Levers re-review;
+a blocker still open is amendment 17's second round. PHONE-RUN-OWNER's need on PHONE-LEVERS-REVIEW is met when this
+closes with no blocker open (its 11-20 08:00 fallback unchanged).
 
 #### PHONE-DRY-RUN (local; the owner's device session)
 
