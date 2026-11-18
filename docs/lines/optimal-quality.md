@@ -209,7 +209,8 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
     (`docs/reviews/lossless-under-loss.md` §Amendment 22). Theory: the rig's 45 s blackout now ends on *Lossless
     check failed*, as with no re-ask. Reviewed 2026-11-15 (PHONE-FIX-378-REVIEW, no blocker). 2026-11-17
     (FIX-378-DIAL): an ask whose own re-dial fails is lost too, so asked again once (the owner's yes, 2026-11-16).
-    Owed: its review; the owner's call on whether one re-ask is enough.
+    Reviewed 2026-11-18 (FIX-378-DIAL-REVIEW, no blocker; the generation-guard mutant killed by a new test).
+    Owed: the owner's call on whether one re-ask is enough.
 
 ## Decisions (the owner's, 2026-11-09)
 

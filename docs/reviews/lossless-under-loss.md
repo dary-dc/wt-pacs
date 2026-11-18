@@ -192,8 +192,35 @@ ask fails exactly once): `downloader.test.mjs` *an ask whose own dial fails is l
 came, its re-dial refused: lost; the consumer closed first: not lost). Mutants: the flag always set, never set,
 inverted, the old path (the dial's error left to the command's catch), and the ask sent with no session after a
 failed dial (a second failure and a throw): each killed. Survivor: the generation guard removed (a cancel during a
-failing dial posts the old generation's failure, which the consumer drops by its generation); not tested.
+failing dial); not tested. *Corrected 2026-11-18 (FIX-378-DIAL-REVIEW):* this line first said the consumer drops that
+failure by its generation. It does not: `fail()` stamps the generation current when it posts, the new one, which the
+consumer also holds after the cancel, so the stale failure would reach it (`onError`, or a new waiter of that index
+rejected). The mutant is not equivalent; `ee3cadeb` kills it.
 
 **Checks**: see the queue's status file `claude/work-ledger:docs/queue/FIX-378-DIAL.md` for the gate's run and its
 skips. Fixtures: unit tests with stand-in sessions on one 4-core cloud host without a GPU; no browser link, no phone,
 the blackout rig not re-run.
+
+## Review of FIX-378-DIAL (FIX-378-DIAL-REVIEW, 2026-11-18)
+
+By a session that wrote none of PR 378, PHONE-FIX-378 or FIX-378-DIAL, on `e5fc7406..ae64ec70`.
+
+* **The test fails without the fix.** With `30968d78`'s `downloader.js` reverted, `downloader.test.mjs` fails 1: *an
+  ask whose own re-dial fails is lost* (`"lost":false`). At the tip it passes; `consumer.test.mjs` ok,
+  `controller.test.mjs` 42/42.
+* **A refusal and a failed check are still never asked again.** The fix touches only the `ask` command's `live()`
+  catch; *only a lost ask marked lost* (a refusal not lost), the consumer's *a lost ask named* and the controller's
+  refusal and failed-check tests pass unchanged. The controller's loop re-asks only `AskLostError`, once.
+* **The generation-guard mutant is not equivalent** (the author's line above, corrected in place): killed by a new
+  test, `ee3cadeb`, *a cancelled ask whose dial fails posts no failure* (the ask's re-dial held, a cancel, then the
+  dial refused). With the guard removed it fails: `{"kind":"failed","index":0,"gen":1,…,"lost":true}`.
+* **No other path retries.** `e5fc7406^..ae64ec70` changes no other client path; the paths that ask again are those
+  PHONE-FIX-378-REVIEW listed (the decoder's second decode, `again()` after a decoder crash, the cache read-back).
+* **Minor, theory:** any failure of that dial counts as lost, a handshake the server refuses included, so it costs
+  one more dial 1 s later; bounded, and within the owner's yes of 2026-11-16.
+* **Checks** on `ee3cadeb`, one 4-core cloud host without a GPU: `scripts/gate.sh --quick` OK in 435 s, browser steps
+  included (after `client/transport/wasm/build.sh`, `fetch_openjph.sh`, `fetch_xxh3.sh`); `scripts/check_lab_absent.sh`
+  OK. Skipped by name: the decoders' rebuild and the other absence checks (`--quick`), numpy/pydicom and the ingest's
+  build, lavapipe, Xvfb/xdotool, Firefox, nginx. Not re-run: `demo-check.mjs`, the blackout rig.
+
+**Verdict: no blocker.** Fixtures: unit tests with stand-in sessions, Node 22; no link, no phone.
