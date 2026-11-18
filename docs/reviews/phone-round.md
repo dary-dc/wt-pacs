@@ -290,7 +290,7 @@ volume.
 `t0`) and nothing else; `round.mjs` adds `press: "lossless"` to C1 loads only, which `round-page.js` already honours.
 
 **As committed:** `round_headless.sh` every claim holds (18 loads, 85 s); `levers.test.mjs` and `round.test.mjs` pass;
-`check_lab_absent.sh` and the comment budget green; `scripts/gate.sh --quick` GATE_RESULT.
+`check_lab_absent.sh` and the comment budget green; `scripts/gate.sh --quick` running (its result below when done).
 
 **Each blocker, reverted or mutated, one edit at a time through `round_headless.sh`:**
 
