@@ -333,6 +333,33 @@ and its sysctl cannot be written, so the H2 and WS arms' "kernel `cubic`" is set
 every visit; a visit that reads anything else stops the run. The namespaces' printed `tcp_congestion_control` is the
 default those sockets do not use.
 
+**2026-11-18, the pilot's choices, before any counted row** (TRANSPORT-RUN; §5.4 lets the pilot set only the visit
+timeout and the prefixes of LTE and LOSS). Pilot rows: `claude/transport-arms` `lab/transport-arms/rows/*-pilot*.jsonl`.
+
+1. **The engine.** Headless Chromium `157.0.8103.78`, neither of §1's tags, so the four window constants were re-read
+   at its tag before the pilot: `kQuicSessionMaxRecvWindowSize = 15 * 1024 * 1024;  // 15 MB`,
+   `kQuicStreamMaxRecvWindowSize = 6 * 1024 * 1024;    // 6 MB` (`net/quic/quic_context.cc`),
+   `kSpdySessionMaxRecvWindowSize = 15 * 1024 * 1024;  // 15 MB`, `kSpdyStreamMaxRecvWindowSize = 6 * 1024 * 1024;    //  6 MB`
+   (`net/http/http_network_session.cc`). Unchanged: no amendment to §1.
+2. **The visit timeout is 600 s** (`--limit-ms 600000`; the build's default was 120 s). ENT's fills took 146–201 s a
+   visit in the pilot, every arm, 50 of 50 frames exact; at 120 s every ENT visit would end unfinished. A visit past
+   3× its form's pilot median wall time is `VOID` (§5.4), from `rows/pilot-medians.json` (each form and arm's median
+   over its non-`VOID` pilot visits; `fp-20ms/H3-frame` has none, both its pilot visits `VOID` by the relay guard, so
+   that arm carries no 3× rule).
+3. **The prefixes are kept as the build set them: LTE 16 frames, LOSS 8.** Every pilot fill stayed under a minute
+   (LTE ≤ 26 s, LOSS ≤ 30 s, AD's LTE form ≤ 20 s).
+4. **The checks.** Every fetch arm spoke its protocol, except two visits whose resource entries included an empty
+   `nextHopProtocol` beside the right one (`spoke h2,, not h2`, LOSS; `spoke h3,, not h3`, AD): `VOID` as the rule
+   reads, kept. The relay's loss: LOSS 1.21 % against 1 %; AD's LTE form 0.12 % against 0.1 %. The kernel values of
+   §5.2, both namespaces: `tcp_congestion_control` `bbr` (§5.7 above), `tcp_slow_start_after_idle` 1, `tcp_rmem`
+   `4096 131072 33554432`, `tcp_wmem` `4096 16384 4194304`.
+5. **A driver change the pilot forced** (`claude/transport-arms` `7ab31404`): the pilot's relay check refused one
+   0.1 % visit as "too few packets to check 0.1 % loss (26961)", so it now judges such forms over their pilot visits
+   pooled; a 1 % form is still judged per visit. Test first (`judge.test.mjs`), three mutants killed. It changes no
+   counted row's verdict.
+6. **The 12 h stop counts from the first counted row**, and this container stops a session's jobs at 2 h, so the run
+   is one detached process (`lab/transport-arms/run.mjs` a cell at a time, in §5.4's order).
+
 ## Fixtures and limits
 
 One series' bytes (`dbts_b1`, 50 frames, HTJ2K); every profile as LINK-TARGETS left it (one measured, the rest from
