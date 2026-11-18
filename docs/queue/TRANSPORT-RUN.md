@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-18T12:16Z
-heartbeat: 2026-11-18T12:27Z
+heartbeat: 2026-11-18T12:53Z
 outputs: claude/transport-arms (rows), claude/transport-design (stacks.md §Results)
 ## Resume
 Claimed 12:2xZ. Host: Chromium 157.0.8103.78 (playwright's), neither of §1's tags, so §5.2's four window constants
@@ -16,4 +16,5 @@ Running since 2026-11-18T12:27Z: the pilot, AA AD CR FF LOSS LTE CLEAN PUB ENT F
 --server target/release/series-server --limit-ms 300000`; rows pushed every 15 min to claude/transport-arms. After it: (2 rounds of every cell, not counted), its choices amended into
 stacks.md §5.7, then the counted cells in §5.4's order. Reading: the 12 h stop counts from the first counted row.
 Worktrees: /home/user/arms (claude/transport-arms), /home/user/ledger (claude/work-ledger).
+Pilot AA done 12:53Z: 96 visits, 0 VOID, every frame exact; AD next.
 ## Result
