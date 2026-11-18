@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-18T07:16Z
-heartbeat: 2026-11-18T07:41Z
+heartbeat: 2026-11-18T07:47Z
 outputs: claude/transport-arms (from origin/claude/docs-client), draft PR into claude/docs-client (to open)
 ## Resume
 **Can this container run `link_impair.py --tun`? Yes, once `iproute2` is installed** (the image lacks `ip`; the relay
@@ -19,8 +19,11 @@ Done: item 2 and 3 first cut (06e0a0db): `lab/transport-arms/` fetch-session.ts,
 build.sh, fixture.sh (12 synthetic HTJ2K 2048² frames, ~6.5 MB each, XXH3 digests). Checked: CLEAN, 1 round, WT-TS,
 WS, H3-frame, H3-fill, H2-frame, H2-fill: 12/12 frames exact by the decoder's XXH3 each, nextHopProtocol h3/h2 as asked.
 Needs in a fresh container: `apt-get install -y iproute2`, `pip install numpy xxhash`.
-Next: WT-WASM (wasm-pack build of client/transport/wasm), the other actions (first, ad, aa, FP pooled) once each,
-§5.6's five mutants, README, gate, draft PR into claude/docs-client.
+Then (6127d940): WT-WASM built (`rustup target add wasm32-unknown-unknown; cargo install wasm-pack --locked;
+client/transport/wasm/build.sh`) and exact; FP (pooled, h2/h3 from the GET origin) and AD-PUB exact on every arm; an
+ask's t0 moved to the page's call (the downloader keeps a fill's ask stamp on a frame the fill owes); README.
+Running now: coverage of AD-LTE, AA, FF, LOSS, 1 round each (`/tmp` rows, not pushed: build checks, not results).
+Next: §5.6's five mutants (`run.mjs --mutate ...`), the gate, the PR into claude/docs-client.
 Build: `cargo build --release -p series-server --features lab-get`; test: `cargo test -p series-server --features
 lab-get --lib -- lab_get a_get_answers`.
 ## Result
