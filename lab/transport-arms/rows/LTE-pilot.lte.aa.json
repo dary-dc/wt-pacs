@@ -1,0 +1,86 @@
+{
+ "lte/WT-WASM": {
+  "ref": [
+   19012.6650390625,
+   null
+  ],
+  "aa": [
+   null,
+   null
+  ],
+  "arm": [
+   null,
+   null
+  ]
+ },
+ "lte/WS": {
+  "ref": [
+   19012.6650390625,
+   null
+  ],
+  "aa": [
+   null,
+   null
+  ],
+  "arm": [
+   null,
+   null
+  ]
+ },
+ "lte/H3-frame": {
+  "ref": [
+   19012.6650390625,
+   null
+  ],
+  "aa": [
+   null,
+   null
+  ],
+  "arm": [
+   null,
+   null
+  ]
+ },
+ "lte/H3-fill": {
+  "ref": [
+   19012.6650390625,
+   null
+  ],
+  "aa": [
+   null,
+   null
+  ],
+  "arm": [
+   null,
+   null
+  ]
+ },
+ "lte/H2-frame": {
+  "ref": [
+   19012.6650390625,
+   null
+  ],
+  "aa": [
+   null,
+   null
+  ],
+  "arm": [
+   null,
+   null
+  ]
+ },
+ "lte/H2-fill": {
+  "ref": [
+   19012.6650390625,
+   null
+  ],
+  "aa": [
+   null,
+   null
+  ],
+  "arm": [
+   null,
+   null
+  ]
+ }
+}
