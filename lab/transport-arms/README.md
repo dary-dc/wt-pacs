@@ -1,6 +1,6 @@
 # transport-arms: HTJ2K over WebTransport, a WebSocket, HTTP/3 and HTTP/2 fetch
 
-The build of [`stacks.md`](../../docs/transport/evidence/stacks.md) §5.6 (on `claude/transport-design`, `c74d4bea`), for the
+The build of `claude/transport-design` `c74d4bea:docs/transport/evidence/stacks.md` §5.6, for the
 protocol of §5 as pre-registered. Nothing here is a result: the counted rows are TRANSPORT-RUN's.
 
 | file | what |

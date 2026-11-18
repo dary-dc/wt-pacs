@@ -15,7 +15,7 @@ cites; the doc holds the number, the directory holds how to get it. Variants are
 | `page-open/`, `dial-deadline/`, `other-clients/` | the session open — `docs/ARCHITECTURE.md` §The session open |
 | `downloader-cost/`, `fill-at-start/`, `early-messages/`, `worker-leak/`, `session-survival/` | the downloader — `docs/ARCHITECTURE.md` |
 | `decode-bench/`, `decode-first-frame/`, `decode-tail/`, `decoder-memory/`, `paint-floor/` | the decoder and the paint — `docs/decode/README.md` |
-| `transport-arms/` | HTJ2K over WebTransport, a WebSocket, HTTP/3 and HTTP/2 fetch (series-server `--features lab-get`) — `docs/transport/evidence/stacks.md` §5 |
+| `transport-arms/` | HTJ2K over WebTransport, a WebSocket, HTTP/3 and HTTP/2 fetch (series-server `--features lab-get`) — `claude/transport-design` `c74d4bea:docs/transport/evidence/stacks.md` §5 |
 | `stream-shape/`, `tcp-fallback/` | the stream shape under loss, the WebSocket and the race — `docs/adr/stream-shape.md`, `docs/transport/transport-conclusions.md` |
 | `disk-access-bench/` | the server's read path — `docs/adr/disk-access.md` |
 | `cc-classify/` | `--congestion cubic-classify`'s controller (series-server `--features lab-classify`) and its rig — `docs/transport/transport-conclusions.md` §1, *Measured: CLASSIFY* |
