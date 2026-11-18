@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-18T18:16Z
-heartbeat: 2026-11-18T22:17Z
+heartbeat: 2026-11-18T22:33Z
 outputs: claude/cache-arms 5b86cbb9 (per-arm picks), 1390db63 (pilot-chromium.json frozen), rows lab/cache-arms/rows/chromium/ (11 whole cells by 2026-11-18T20:32Z); claude/cache-plan 3806262b (§8.8 amendment)
 ## Resume
 Resumed 2026-11-18T22:17Z by a new session (stalled since 20:32Z): R-busy S3 next, as below. Chromium-1243 here prints 153.0.8010.12 (matches §8.8). One cell a background job now:
