@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-16T08:22Z
-heartbeat: 2026-11-18T07:22Z
+heartbeat: 2026-11-18T07:42Z
 outputs: claude/report-arms (rows, pushed every 15 min), claude/report-plan 7538b6fc (§7.8), 6d58a050 (D1), 90918c06 (D2), a6428703 (D7), 257dd04a (D9), 4c86bbef (D4), b7d69c5e (D5b)
 ## Resume
 Resumed 2026-11-18T05:16Z by a new session (the last stalled after 01:15Z on 11-18 with D8 at 111 rows). Next: rebuild the host as below,
