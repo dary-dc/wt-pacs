@@ -61,7 +61,9 @@ exact frame bit for bit, and only checked claims on screen.
   (RUNNER-FIX-2, PR 400 §Fix 2): `readyS` bounds a printed line too; re-reviewed 2026-11-17 (`docs/reviews/phone-round.md`
   §Re-review 2): closed, no blocker open; PHONE-LEVERS next. Built 2026-11-18 (PHONE-LEVERS, PR 400 §Levers;
   `lab/devices/README.md` §The round): `?decoders`, arm C2's `?exactFill`, cell 1's `?bench`, `roundOrder` with cell
-  1 and its drift check; tested headless on the synthetic pair, no phone; PHONE-LEVERS-REVIEW next, then the dry run.
+  1 and its drift check; tested headless on the synthetic pair, no phone. Reviewed 2026-11-18
+  (`docs/reviews/phone-round.md` §Levers): two blockers, both untested claims (a frame not exact fails no tested load;
+  the bench's time pinned only by `> 0`); PHONE-LEVERS-FIX and its re-review next, then the dry run.
 * **The delivery comparison**: recorded in [`../client/design.md`](../client/design.md) §Open with its theory; its
   protocol is not written.
 * dav1d fetched only where WebCodecs refuses (a protocol with an A/A arm, not started); a wake before `l` asks (its
