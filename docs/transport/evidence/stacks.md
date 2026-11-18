@@ -214,7 +214,7 @@ Eight arms, all from one server process where the arm allows, the same store, th
 | **WT-TS′** (A/A) | WT-TS again | the same | — |
 | **WT-WASM** | the downloader on `wasm/` | the same | — |
 | **WS** | `ts/ws-session.ts` | `--websocket`, kernel TCP + TLS 1.3 on the same port number | the same envelopes and asks; the opening ask in the upgrade's URL |
-| **H3-frame** | a lab fetch carrier: one GET a frame, **K = 6** in flight on one connection, in the fill's order | a lab GET path on the same quinn endpoint (§5.6) | the same controller and initial window as WT, printed |
+| **H3-frame** | a lab fetch carrier: one GET a frame, **K = 6** in flight on one connection, in the fill's order | a lab GET path on the same quinn endpoint (§5.6; a second endpoint, §5.7) | the same controller and initial window as WT, printed |
 | **H3-fill** | one GET for `[k … N]`, envelopes in order on one response; an ask aborts it, GETs the frame, then GETs the rest | the same | as H3-frame |
 | **H2-frame** | as H3-frame, over HTTP/2 | a lab HTTP/2 listener, kernel TCP + TLS 1.3 | kernel `cubic`, `tcp_slow_start_after_idle`, `tcp_rmem`/`tcp_wmem` printed per run |
 | **H2-fill** | as H3-fill, over HTTP/2 | the same | as H2-frame |
@@ -245,7 +245,7 @@ its protocol is `VOID`.
 ### 5.3 · Cells, metric, prediction
 
 One metric a comparison (`CLAUDE.md` §Measurement). *t₀* is the worker's first call for the cell's action (the
-dial, the fetch, the ask); a time ends at the **last byte** of the frame named, so the decode stays out; the frame's
+dial, the fetch, the ask; an ask's at the page's call, §5.7); a time ends at the **last byte** of the frame named, so the decode stays out; the frame's
 check is still made. Relay forms: delay one way, each direction; queue in 1 500 B packets.
 
 | cell | relay form (scaled from) | frames | metric | WT-TS predicted (D) | predicted ratios (theory; WT-WASM and WT-TS′ tie everywhere) |
@@ -311,6 +311,27 @@ Owed by a build row and its review (neither this session's), lab only (`scripts/
 Each check fails once with its code broken (`CLAUDE.md` §Measurement): a carrier that speaks h2 where h3 is asked
 (`VOID`), a server that drops one frame (the run stops), a relay at 0 % where 1 % is asked (the pilot's tally check),
 the order forced to a fixed cycle (`UNBALANCED`), the CPU sampler on a wrong pid (a zero flagged).
+
+### 5.7 · Amendments
+
+**2026-11-18, before any counted row** (TRANSPORT-BUILD-FIX, from the build's review, `claude/transport-arms`
+`fa002825:docs/reviews/transport-arms.md` B5). The host forced two departures from the text above; neither changes a cell,
+a metric's end or a prediction.
+
+1. **HTTP/3 on a quinn endpoint of its own** (§5.1, §5.6 item 1 said "the same quinn endpoint"). A WebTransport dial
+   and a `fetch` both offer ALPN `h3`, so one endpoint cannot route them before wtransport reads the CONNECT. The GET
+   path's endpoint is built in the same process from the same `TransportTuning::to_transport_config()`, which holds
+   what the row asks to be equal: "the same controller and initial window as WT". Its port differs, and Chromium's
+   force-QUIC switch names that port.
+2. **An ask's *t₀* is the page's call** (§5.3 said the worker's first call), one `postMessage` earlier: a frame the
+   fill still owes keeps the fill's ask stamp in the downloader's record, so the worker's own stamp is not the ask's.
+   The hop is the same in every arm, so AD's and AA's ratios are unchanged; their absolute times carry it.
+
+Held as written, recorded here because the host's default is not §5.1's: this container's kernel default is `bbr`
+and its sysctl cannot be written, so the H2 and WS arms' "kernel `cubic`" is set on each accepted socket
+(`TCP_CONGESTION`, the lab flag `--lab-tcp-congestion cubic`) and read back from the server's sockets by `ss -tin`
+every visit; a visit that reads anything else stops the run. The namespaces' printed `tcp_congestion_control` is the
+default those sockets do not use.
 
 ## Fixtures and limits
 
