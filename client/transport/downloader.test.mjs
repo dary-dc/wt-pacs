@@ -739,5 +739,112 @@ async function aFrameAskedDuringAFillIsDecodedOnce() {
 }
 await aFrameAskedDuringAFillIsDecodedOnce();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted, the start's stamps on the first frame, a short want riding the dial, a head crossing twice decoded once, a jump into a group decoded from its keyframe, a frame asked during a fill decoded once: ok");
+/** A downloader whose one session rejects every ask with `answer`, closing first if `closes` says why; what it posts. */
+async function oneAnswer(name, answer, { closes = null, survival = false, dials = 1 } = {}) {
+  let made = 0;
+  globalThis.fakeTransport = {
+    connect: async () => {
+      if (++made > dials) throw new Error("the stand-in refuses to dial");
+      let closed = null;
+      return {
+        requestExactFrame: (i) => ((closed = closes), Promise.reject(answer(i))),
+        stats: () => ({ closed, lastByteAt: performance.now() }),
+        fillFrames() {},
+        endStream: async () => {},
+        close() {},
+      };
+    },
+  };
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // ${name}`;
+  posted.length = 0;
+  await import(`./downloader.js?${name}`);
+  await onmessage({ data: { kind: "start", config: { decode: false, decoders: 0, transport, survival } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  await onmessage({ data: { kind: "ask", index: 0 } });
+  for (let n = 0; n < 100 && !posted.some((m) => m.kind === "failed"); n++) await new Promise((r) => setTimeout(r, 10));
+  return posted.find((m) => m.kind === "failed" && m.index === 0);
+}
+
+/** A lost ask is one whose session or stream is gone, or whose deadline passed with nothing received; only it is marked lost. */
+async function onlyALostAskIsMarkedLost() {
+  const timeout = (i) => Object.assign(new Error(`timeout waiting for frame ${i}: no byte for 15000 ms`), { name: "FrameTimeoutError" });
+  const timedOut = await oneAnswer("lost-timeout", timeout);
+  check(timedOut?.lost === true, `an ask past its deadline is lost (${JSON.stringify(timedOut)})`);
+  const gone = await oneAnswer("lost-closed", (i) => new Error(`frame ${i} unavailable: session closed (code 0)`), { closes: "session closed (code 0)" });
+  check(gone?.lost === true, `an ask on a closed session is lost (${JSON.stringify(gone)})`);
+  const unresumed = await oneAnswer("lost-unresumed", timeout, { survival: { stallMs: 60_000, redialMs: 1, tries: 2 } });
+  check(unresumed?.lost === true && /could not be re-dialled/.test(unresumed.reason), `an ask whose session could not be re-dialled is lost (${JSON.stringify(unresumed)})`);
+  const refused = await oneAnswer("lost-refused", (i) => new Error(`frame ${i} refused: no such frame`));
+  check(refused && !refused.lost, `a refusal by the server is not lost (${JSON.stringify(refused)})`);
+}
+await onlyALostAskIsMarkedLost();
+
+/** An ask whose own re-dial fails, its session already closed when it came, is lost; a close by the consumer is not. */
+async function anAskWhoseOwnDialFailsIsLost() {
+  const run = async (name, closeFirst) => {
+    let made = 0;
+    globalThis.fakeTransport = {
+      connect: async () => {
+        if (++made > 1) throw new Error("the stand-in refuses to dial");
+        return {
+          requestExactFrame: () => new Promise(() => {}),
+          stats: () => ({ closed: "session closed (code 0)", lastByteAt: performance.now() }),
+          fillFrames() {},
+          endStream: async () => {},
+          close() {},
+        };
+      },
+    };
+    const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // ${name}`;
+    posted.length = 0;
+    await import(`./downloader.js?${name}`);
+    await onmessage({ data: { kind: "start", config: { decode: false, decoders: 0, transport } } });
+    await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+    if (closeFirst) await onmessage({ data: { kind: "close" } });
+    await onmessage({ data: { kind: "ask", index: 0 } });
+    await new Promise((r) => setTimeout(r, 20));
+    const failures = posted.filter((m) => m.kind === "failed" && m.index === 0);
+    check(failures.length === 1, `${name}: the ask fails once (${failures.length})`);
+    return failures[0];
+  };
+  const redial = await run("lost-own-dial", false);
+  check(redial?.lost === true, `an ask whose own re-dial fails is lost (${JSON.stringify(redial)})`);
+  const closedByConsumer = await run("lost-own-dial-closed", true);
+  check(closedByConsumer && !closedByConsumer.lost, `an ask after the consumer closed is not lost (${JSON.stringify(closedByConsumer)})`);
+}
+await anAskWhoseOwnDialFailsIsLost();
+
+/** An ask whose re-dial fails after a cancel posts no failure: the new generation never asked it. */
+async function aCancelledAskWhoseDialFailsIsSilent() {
+  let made = 0;
+  let refuse;
+  globalThis.fakeTransport = {
+    connect: async () => {
+      if (++made > 1) return new Promise((_, reject) => (refuse = () => reject(new Error("the stand-in refuses to dial"))));
+      return {
+        requestExactFrame: () => new Promise(() => {}),
+        stats: () => ({ closed: "session closed (code 0)", lastByteAt: performance.now() }),
+        fillFrames() {},
+        endStream: async () => {},
+        close() {},
+      };
+    },
+  };
+  const transport = "data:text/javascript,export const TransportSession = globalThis.fakeTransport; // cancelled-own-dial";
+  posted.length = 0;
+  await import("./downloader.js?cancelled-own-dial");
+  await onmessage({ data: { kind: "start", config: { decode: false, decoders: 0, transport } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  const asked = onmessage({ data: { kind: "ask", index: 0 } });
+  while (!refuse) await new Promise((r) => setTimeout(r, 1));
+  await onmessage({ data: { kind: "cancel" } });
+  refuse();
+  await asked;
+  await new Promise((r) => setTimeout(r, 20));
+  const failures = posted.filter((m) => m.kind === "failed" && m.index === 0);
+  check(failures.length === 0, `a cancelled ask whose dial fails posts no failure (${JSON.stringify(failures)})`);
+}
+await aCancelledAskWhoseDialFailsIsSilent();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted, the start's stamps on the first frame, a short want riding the dial, a head crossing twice decoded once, a jump into a group decoded from its keyframe, a frame asked during a fill decoded once, only a lost ask marked lost, an ask whose own dial fails lost, a cancelled one silent: ok");
 process.exit(failed ? 1 : 0);

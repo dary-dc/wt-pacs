@@ -1,6 +1,7 @@
 # Optimal quality
 
-Last verified 2026-11-11 20:00 UTC (branch tips and the work queue read from `origin`).
+Last verified 2026-11-11 20:00 UTC (branch tips and the work queue read from `origin`); LOSSLESS-UNDER-LOSS added to
+Open 16, 2026-11-12; Open 16 re-scoped by amendment 22, 2026-11-15; Open 16, 2026-11-17.
 
 ## Goal
 
@@ -194,6 +195,22 @@ for 4095 alone; `docs/av1/payload-format.md` §Depth cut).
 15. The owner's calls, on Friday 2026-11-13 or after on the proposals: client telemetry (sample rate, sink, retention), the optimal
     quality's integrity check (#368 and its review), the phone tools (#369), AV1 tiles, BBR after the phone runs, and
     `lab/` off `main` entirely (QUEUE-CLOSE writes it up).
+
+16. **Lossless under loss** (LOSSLESS-UNDER-LOSS, 2026-11-12, `claude/lossless-under-loss`, a draft PR, a proposal):
+    the phone run's load 6 read from the traces and the code (`docs/reviews/lossless-under-loss.md`): no packet from
+    the phone reached either server for 30 s after the fill, the ask never arrived, the downloader's re-dials failed,
+    and the label named the transport failure *Lossless check failed* with nothing asking again. Proposed: a lost
+    exact ask asked again after 1, 4 and 16 s while the reader stays; reproduced on a simulated link
+    (`lab/lossless-under-loss/`). Owed to the owner: the schedule, a separate label for a fetch that failed, server
+    keep-alive. Reviewed 2026-11-12 (PHONE-FIX-REVIEW): tests fail without the fix, theory matches the trace, gate and
+    `demo-check.mjs` in both views pass; findings: every rejection is re-asked, and `lab/lossless-under-loss/` stays
+    off the product path. Re-scoped 2026-11-15 (PHONE-FIX-378, amendment 22): only a lost ask (deadline passed,
+    session closed, resume spent) is asked again, once after 1 s; a refusal and a failed check never
+    (`docs/reviews/lossless-under-loss.md` §Amendment 22). Theory: the rig's 45 s blackout now ends on *Lossless
+    check failed*, as with no re-ask. Reviewed 2026-11-15 (PHONE-FIX-378-REVIEW, no blocker). 2026-11-17
+    (FIX-378-DIAL): an ask whose own re-dial fails is lost too, so asked again once (the owner's yes, 2026-11-16).
+    Reviewed 2026-11-18 (FIX-378-DIAL-REVIEW, no blocker; the generation-guard mutant killed by a new test).
+    Owed: the owner's call on whether one re-ask is enough.
 
 ## Decisions (the owner's, 2026-11-09)
 

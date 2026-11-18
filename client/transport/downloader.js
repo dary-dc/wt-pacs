@@ -66,11 +66,12 @@ const ended = new Set();
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function fail(index, reason) {
+/** `lost`: the session or stream gone, its re-dial failed, or the ask's deadline passed with nothing received. docs/reviews/lossless-under-loss.md §Amendment 22 */
+function fail(index, reason, lost = false) {
   records.delete(index);
   wanted.delete(index);
   order.delete(index);
-  toConsumer({ kind: "failed", index, gen: generation, reason });
+  toConsumer({ kind: "failed", index, gen: generation, reason, lost });
   serveWant();
 }
 
@@ -304,8 +305,9 @@ async function ask(index, s) {
     const frame = await promise;
     if (gen === generation && ep === epoch) arrived(index, frame);
   } catch (e) {
-    if (gen === generation && ep === epoch && !lost(e?.name === "FrameTimeoutError")) {
-      fail(index, String(e?.message ?? e));
+    const timedOut = e?.name === "FrameTimeoutError";
+    if (gen === generation && ep === epoch && !lost(timedOut)) {
+      fail(index, String(e?.message ?? e), timedOut || Boolean(s.stats().closed));
       pump();
     }
   } finally {
@@ -447,8 +449,8 @@ async function resume() {
   }
   redials = 0;
   const reason = "the session was lost and could not be re-dialled";
-  for (const i of [...wanted]) fail(i, reason);
-  for (const [i, rec] of [...records]) if (rec.state === "wire") fail(i, reason);
+  for (const i of [...wanted]) fail(i, reason, true);
+  for (const [i, rec] of [...records]) if (rec.state === "wire") fail(i, reason, true);
 }
 
 function onDone(d) {
@@ -639,8 +641,10 @@ async function command(e) {
       return void toConsumer({ kind: "started" });
     }
     if (m.kind === "ask") {
-      const s = await live();
-      if (gen !== generation) return;
+      const s = await live().catch((err) => {
+        if (gen === generation) fail(m.index, String(err?.message ?? err), !closed);
+      });
+      if (!s || gen !== generation) return;
       for (const i of wholeGroups([m.index])) askFor(s, i);
       return;
     }

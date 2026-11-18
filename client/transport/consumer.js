@@ -91,7 +91,7 @@ export class DownloaderClient {
       // A failure before `started` is the start itself failing: connect must reject, not hang.
       if (!this.#started) return void this.#rejectReady(new Error(`the downloader failed to start: ${m.reason}`));
       if (m.gen !== this.#gen) return;
-      return void this.#failOne(m.index, m.reason);
+      return void this.#failOne(m.index, m.reason, m.lost);
     }
     if (m.kind === "closed") return void this.#end(m.reason);
   }
@@ -132,12 +132,12 @@ export class DownloaderClient {
     this.#writes.delete(index);
   }
 
-  #failOne(index, reason) {
+  #failOne(index, reason, lost) {
     const w = this.#waiters.get(index);
     // Nobody is waiting on it, so it is a fill frame: the refusal reaches the consumer here or nowhere.
     if (!w) return void (this.#delivered.has(index) || this.#onError({ frameIndex: index, reason, generation: this.#gen }));
     this.#waiters.delete(index);
-    w.reject(new Error(`frame ${index} unavailable: ${reason}`));
+    w.reject(Object.assign(new Error(`frame ${index} unavailable: ${reason}`), lost ? { name: "AskLostError" } : {}));
   }
 
   #failAll(reason) {

@@ -105,6 +105,10 @@ matched the encoder's reconstruction; no such digest exists).
   in green; *fetching lossless…* while asked; *✓ Lossless* in blue only on the `shown` that
   follows the exact frame's paint, and only when that frame's `exact` is `true`; *Lossless check failed* in red, the
   lossy frame kept and the reason on the status line, when it is `false`, `unchecked` or the ask failed; the button then asks again.
+  A lost ask (the session or stream gone, its own re-dial failed, or its deadline passed with nothing received) is asked again once, after 1 s,
+  while the reader stays on the frame, *fetching lossless…* meanwhile; a refusal by the server and a frame that failed
+  its check are never asked again (proposed, `claude/lossless-under-loss`:
+  [`docs/reviews/lossless-under-loss.md`](../docs/reviews/lossless-under-loss.md)).
 * **Routes**: WebCodecs first for every optimal-quality series, a depth cut and a 12-bit stored form alike; dav1d-WASM only
   after WebCodecs refused the frame or its probe failed, the route in each frame's `info.path` and the refusal in
   `info.refusal` (§Which decoder, per payload). In headless Chromium a 12-bit unit is refused at `decode`. The demo shows
@@ -251,7 +255,8 @@ series of a pair, under the default view (`?view=page`, no URL flags):
 7. **The label is decided in one place.** `Controller.quality(i, f)`: *Lossless* only for the exact series' frame,
    checked `true`, on the `shown` that follows its paint; *fetching lossless…* while asked; *Lossless check failed*
    (red, the optimal-quality frame kept, the reason on the status line) on a mismatch, no digest or a failed ask, and
-   `l` asks again. Held by `view/controller.test.mjs` (*the label never says lossless before the checksum passes*; *a
+   `l` asks again; a lost ask only after its one re-ask (*a lost exact ask is asked again once*). Held by
+   `view/controller.test.mjs` (*the label never says lossless before the checksum passes*; *a
    failed exact request can be asked again on the same frame*) and, in Chromium, `viewer/demo-check.mjs` (a wrong
    digest never reads *Lossless*).
 8. **No mark beside an optimal-quality frame; the label is green.** Its metadata carries no digests, since there is no
