@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-18T12:16Z
-heartbeat: 2026-11-18T20:01Z
+heartbeat: 2026-11-18T20:22Z
 outputs: claude/transport-arms (rows), claude/transport-design (stacks.md §Results)
 ## Resume
 Claimed 12:2xZ. Host: Chromium 157.0.8103.78 (playwright's), neither of §1's tags, so §5.2's four window constants
@@ -21,4 +21,5 @@ Pilot 13:35Z: AA, CR, FF, LOSS done (0 crashes; VOIDs: relay guard 5, one H2-fra
 14:35Z: the job running the pilot was stopped at this container's 2 h background limit inside ENT (13 of 16 visits, kept as rows/ENT-pilot.cut-at-2h.jsonl). ENT's fills take 146-201 s a visit, not ~9.6 s (a miss, all arms; 50/50 exact). Cells now run one job each by $SCRATCH/cell.sh (rows pushed every 15 min and at the end). Running: pilot FP, AD, LTE with --limit-ms 600000 (log pilot3.log). Next: pilot medians from wallMs → rows/pilot-medians.json, the amendment in stacks.md §5.7, then counted AA AD CR FF LOSS LTE CLEAN PUB ENT FP, each a job ≤ 2 h (AA split by --rounds is not possible: run forms whole).
 15:05Z: pilot complete (rows 9fb9eff6 on claude/transport-arms), amendment stacks.md §5.7 (claude/transport-design 0de5b554). Counted run starts now, detached: `setsid nohup bash $SCRATCH/counted.sh` = for each of AA AD CR FF LOSS LTE CLEAN PUB ENT FP within 12 h of the start: `node lab/transport-arms/run.mjs --cell C --series /home/user/series --server target/release/series-server --limit-ms 600000 --pilot-medians lab/transport-arms/rows/pilot-medians.json` (rows/C.jsonl, pushed every 15 min). To resume in a fresh container: the setup above, the series (README §The run's series), then run only the cells whose rows/C.jsonl is absent or partial (a partial kept renamed, counted in no bar); the 12 h counts from the first counted row's `at`. After it: aa_rule.py per form, §Results in stacks.md.
 18:30Z: AA counted complete (768 visits, 4 VOID by the relay guard, every frame exact; rows/AA.jsonl). AD running since 18:29Z. Summaries by `python3 lab/transport-arms/summary.py lab/transport-arms/rows <CELLS>` (57bb45e0).
+20:21Z: AD counted complete (256 visits, 2 VOID, every frame exact). CR running.
 ## Result
