@@ -169,10 +169,12 @@ round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer
   end; the gap, waits for a server and a failed block count toward nothing.
 * **The plan** is JSON: `commit`, `gapS`, `fillS`, `afterS?`, `budgetsS?`, and `blocks`, each `{ name, servers: [{
   cmd, ready | readyLine, readyS?, image? }], loads: [{ url, cell, arm, counted?, press?, seq?, steps?, cineS?,
-  fault? }], rebootAfter? }`; `url` is the
-  viewer with its `view` and `beacon=<controller>`. `roundOrder()` (`round.mjs`) gives next-round.md's order: four
-  warm-ups, cell 2's 16 Williams rounds over A, B, C1, C2 with the series alternating, cell 3's 24 ABBA pairs; the
-  phone session maps each to its URL and servers.
+  fault?, decoders?, bench?, exactFill? }], rebootAfter? }`; `url` is the
+  viewer with its `view` and `beacon=<controller>`. `roundOrder()` (`round.mjs`) gives next-round.md's order: cell
+  1's three repetitions, each a Williams row of its eight arms (HTJ2K and the view × 1–4 decoders, 50 frames), four
+  warm-ups, cell 2's 16 Williams rounds over A, B, C1, C2 with the series alternating (C2 with `exactFill`), cell 3's
+  24 ABBA pairs, and last cell 1's 1- and 3-decoder arms again (`drift`); the phone session maps each to its URL and
+  servers.
 * **Each load** (`round-page.js`, loaded only through the viewer's lab gate): the screen wake lock asked at load,
   on each return to visible and after each release, every acquire, release and refusal recorded; a ticker every
   250 ms, whose largest gap over 2 s makes the load **VOID: stopped** (the load's own work included: stricter than
@@ -183,17 +185,30 @@ round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer
   ms of work every 250 ms on the viewer's own thread). A failed load is recorded with why, and the next is taken:
   whatever follows the fill that throws, or has not ended `afterS` (300) after it, fails the load. `fault=throw|hang`
   injects either after the fill, for the headless test; `seq=view` refuses a series under `2 × steps + 1` frames.
-* **Not built here** (PHONE-LEVERS, or a product seam): cell 1's in-memory bench, arm C2 and the decoder count;
-  `getStats()` at the fill's end and the configure's `hardwareAcceleration` (both inside workers the page cannot
+* **The round's levers** (`bench.js`; each refused outside a round but `decoders`, each refused where `lab/` is not
+  served): `decoders=N` (1–8) sets the fill's decoder count, recorded on every record of the load with
+  `navigator.hardwareConcurrency` (`cores`), absent the downloader's default; `exactFill=1` is arm C2: once the
+  view has filled, a second downloader fills the whole exact series (OpenJPH, the load's decoder count), every frame
+  checked by its XXH3, its `exactFill` record each frame's arrival, check, route, KB and decode ms and the span
+  from its issue to its last frame; `bench=<frames>` (with `decoders`) is cell 1: before the viewer dials, which it
+  then never does, the series' first frames are received whole with no decoder (`decode: false`) and held, then
+  handed by whole groups, two outstanding each, to N workers of the product's `client/decode/decoder.js`, each frame
+  timed there as the product times it (`decodeEnd − decodeStart`, the digest check included), its `bench` record the
+  frames, `spanMs` from the first hand-over to the last frame and `effectiveMs` (the span ÷ frames). As the product,
+  a frame without a digest is `unchecked` (today's view: no reconstruction digests on this branch) and a mismatch
+  fails the load. The beacon's frames carry `decodedAt`.
+* **Not built here** (a product seam, or another row): `getStats()` at the fill's end and the configure's `hardwareAcceleration` (both inside workers the page cannot
   read); the commit as the page reads it (no such file in the served tree); cell 5's arms; the report cells' ending
   levers. `claude/phone-rows:lab/phone/` (the runner, its start page, its beacon) is superseded by this; its `rows.py`, `losses.py`
   and `read-path.sh` read the 11-11 run and stay on `claude/phone-rows`.
 
 **Tested** in the container: `round.test.mjs`, `beacon.test.mjs` and `round_test.py` (a fake `adb` on PATH) in the
 gate, and `round_headless.sh`: headless Chromium against the real viewer, `series-server` and dev servers, on a
-synthetic 10-bit pair (64 × 48, 20 frames), twelve loads — a run-commit mismatch stops before load 1, one press runs
+synthetic 10-bit pair (64 × 48, 20 frames), sixteen loads — a run-commit mismatch stops before load 1, one press runs
 the plan, a load made to fail is recorded and the next taken, a throw and a hang after the fill each fail their load
 and the next is taken, a stall marks its load VOID, each wake lock outcome
 recorded (headless Chromium refuses it: `NotAllowedError`), cell 3's steps, cine and exact frames in both views, the
-busy lever on the viewer's thread, `adb` only between loads. Each check also failed once with its code broken. Not
+busy lever on the viewer's thread, `adb` only between loads; and four loads of the round's levers: the bench on each
+codec on 2 decoders, the viewer never filling; C2's exact fill after the view's, every frame exact; a fill on
+`decoders=1`, no two of its frames decoding at once. Each check also failed once with its code broken. Not
 tested: a phone, `adb` itself, `podman` images, Wi-Fi, a page hidden or a screen turned off.
