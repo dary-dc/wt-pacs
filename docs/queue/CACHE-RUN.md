@@ -1,8 +1,9 @@
 state: started
 started: 2026-11-18T18:16Z
-heartbeat: 2026-11-18T20:32Z
+heartbeat: 2026-11-18T22:17Z
 outputs: claude/cache-arms 5b86cbb9 (per-arm picks), 1390db63 (pilot-chromium.json frozen), rows lab/cache-arms/rows/chromium/ (11 whole cells by 2026-11-18T20:32Z); claude/cache-plan 3806262b (§8.8 amendment)
 ## Resume
+Resumed 2026-11-18T22:17Z by a new session (stalled since 20:32Z): R-busy S3 next, as below.
 Host: Chromium 153.0.8010.12 (Playwright's), 4 vCPU, 16 GiB. Six cache-arms tests pass.
 Done: 5b86cbb9 per-arm picks (test first, 2 mutants killed); §8.8 amendment (cache-plan 3806262b); Chromium pilot
 frozen 1390db63 (OPFS-SYNC whole frame; OPFS-ASYNC group=8MiB&inflight=3&read=sync; IDB default; CACHESTORAGE
