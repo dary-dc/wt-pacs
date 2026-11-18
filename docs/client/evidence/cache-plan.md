@@ -692,3 +692,35 @@ is added to that file by this row.
 (SwiftShader paint), Chromium and Firefox 159, WebKitGTK if its probe passes; synthetic 16-bit frames at three sizes;
 feeders, not decoders; a userspace relay, not a radio; a warm page cache (cold here is a new process, not the disk).
 No phone, no Safari, no breast ultrasound cine.
+
+### 8.8 · CACHE-RUN's amendment, 2026-11-18, before any counted row
+
+Forced by the host or by the build as `claude/cache-arms` `03777b30` left it (its README, *run once* and *smoke* notes
+of 2026-11-15); written before the pilot's picks are read and before any counted row. Nothing here moves a bar.
+
+1. **Chromium is 153.0.8010.12** (Playwright's bundled build on this host), printed in every row's settings line.
+2. **The quota lever's check is a refusal, not `estimate()`.** On Chromium 153 `estimate()` still reports 10 GiB under
+   `Storage.overrideQuotaForOrigin` (README, *run once*): §8.6's check is `quota-probe.js` (half the quota taken, 16 MiB
+   over it refused), and §8.1's bounded wait for `estimate()` ends at once there.
+3. **E on Chromium, IDB and CACHESTORAGE**: their check at open reads `estimate()`, which does not see the override, so
+   their refusal comes mid-fill. E's "the refusal at the design's point" is read for those two arms on Chromium as
+   *mid-fill, the lever's limit*, named in the result; the five sets and every frame exact still bind.
+4. **Q and OPFS-SYNC**: one sync handle cannot use the override's whole room (under 877 MiB a `truncate` to 800 MiB was
+   refused, README *run once*), so Q's quota of the series + 64 MiB may refuse OPFS-SYNC's `truncate` at open. Such a
+   round is reported as *refused at open, nothing written*: it meets no mid-fill rule and counts as no pass of Q for
+   that arm; the cell is not changed to fit.
+5. **O's F is not built** (README: synthetic frames have no coded form to fetch). F is M1's *measured* fill, ~7.5 s for
+   256 × 512² and ~31 s for 32 × 3328 × 4096 (§8.3's predictions quote it), labelled so in the result; R ≤ 0.5 × F
+   judges against it, and R / n ≤ the frame's decode as written.
+6. **The pilot's measures**, each design's rule (§7.1–7.4) read on the rig's rows: a write's cost a frame is the store
+   worker's busy time p50 (`store.busyMsP50`) on a credit-bound run, W for OPFS-ASYNC's G (S1) and writes in flight
+   (S2), and IDB's value (Gecko only); a miss is the intent-to-painted time of R's misses (`misses[].ms`), p99 in
+   R-busy at S2 for OPFS-SYNC's piece (its write cost within 10 % as §7.1 says), p50 in R-idle at S2 for OPFS-ASYNC's
+   read; CACHESTORAGE's write plus read is `busyMsP50 + readMsP50` in R-idle at S2, streamed only where its three
+   rounds read back exact. The driver and the rule are `lab/cache-arms/rows/pilot.sh` and `pilot_pick.py`.
+7. **Each arm carries its own picks** (`lab/cache-arms/pilot-<engine>.json`): the rig applied one `--pilot` string to
+   every arm, and OPFS-ASYNC and CACHESTORAGE both read `inflight`. A harness change after the build's review
+   (`claude/cache-arms` `5b86cbb9`, test first, two mutants killed), named for CACHE-VERDICT-REVIEW; L's PSS slack and
+   K's writes in flight follow each arm's own picks.
+8. **One job at a time, each under two hours**: the container stops a background job at its two-hour limit, so a cell
+   (one engine × size × throttle) is one job, its rows kept whole or renamed `.partial` and counted in no bar.
