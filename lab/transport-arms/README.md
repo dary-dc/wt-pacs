@@ -60,13 +60,18 @@ target/release/pack-series --metadata OUT/metadata.json --frames OUT --output OU
 
 ## Checks, and their mutants (§5.6)
 
+Each run 2026-11-18 on the test series at CLEAN (LOSS for the relay's), and each fired:
+
 | check | mutant | what it gave |
 | --- | --- | --- |
-| a fetch arm on the wrong protocol is `VOID` | `--mutate wrong-protocol`: no force-QUIC switch, so an H3 arm speaks h2 | see the PR body |
-| a frame not delivered exact stops the run | `--mutate drop-frame`: the server's GET bodies leave frame 0 out | |
-| the pilot holds the relay to its configured loss | `--mutate relay-no-loss`: the relay at 0 % where 1 % is asked | |
-| the order is a Williams square | `--mutate fixed-order`: the same order every round, `UNBALANCED` | |
-| the server's CPU is read from its pid | `--mutate cpu-wrong-pid`: the relay's namespace holder, `CPU ZERO` | |
+| a fetch arm on the wrong protocol is `VOID` | `--mutate wrong-protocol`: no force-QUIC switch, so H3-fill speaks h2 | `VOID spoke h2, not h3` |
+| a frame not delivered exact stops the run | `--mutate drop-frame`: the GET bodies leave frame 0 out | `STOP: 11 of 12 frames exact`, exit 3 |
+| the pilot holds the relay to its configured loss | `--mutate relay-no-loss`: the relay at 0 % where 1 % is asked | `PILOT REFUSES: relay loss 0.000 %, asked 1 %`, exit 3; unmutated, 1.03 % |
+| the order is a Williams square | `--mutate fixed-order`: the same order both rounds | `UNBALANCED: WT-TS WS H2-fill`; unmutated, none |
+| the server's CPU is read from its pid | `--mutate cpu-wrong-pid`: the relay's namespace holder | `CPU ZERO: the sampler read nothing` |
+
+The GET path's own test (`cargo test -p series-server --features lab-get --lib -- a_get_answers`) killed two mutants:
+the drop applied to the wrong frame, and the envelope's head left out.
 
 ## Limits
 

@@ -60,6 +60,10 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).
+7. The transport comparison's build (`claude/transport-design:docs/transport/evidence/stacks.md` §5.6): the GET path
+   (series-server `--features lab-get`), the fetch carrier and the driver are
+   [`../../lab/transport-arms/`](../../lab/transport-arms/README.md) (2026-11-18, every arm exact at CLEAN on a
+   synthetic series; nothing counted). Its review, then the run in the cloud.
 
 ## Decisions (the owner's)
 
