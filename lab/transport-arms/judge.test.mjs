@@ -15,7 +15,8 @@ const visit = (o = {}) => ({
   serverTicks: 10,
   protocols: ["h3"],
   exact: 3,
-  frames: [0, 1, 2].map((i) => ({ i, exact: true })),
+  dial: 100,
+  frames: [0, 1, 2].map((i) => ({ i, exact: true, ask: 90 })),
   ...o,
 });
 
@@ -51,6 +52,17 @@ const visit = (o = {}) => ({
   }
   check(stop === null, `a crash gave ${stop}`);
   check(row.void?.join() === "crash: page.evaluate: Target closed", `a crash voided as ${row.void}`);
+}
+
+// B1: on a WT or WS arm, a fill frame asked after the dial did not ride the opening ask, so the run stops.
+{
+  check(judge(fill, visit(), { opening: true }) === null, "a fill asked before the dial stopped the run");
+  const row = visit({ frames: [0, 1, 2].map((i) => ({ i, exact: true, ask: 130 })) });
+  const stop = judge(fill, row, { opening: true });
+  check(stop === "STOP: frame 0, 1, 2 asked after the dial, not by the opening ask", `a fill asked after the dial gave ${stop}`);
+  const ad = { action: "ad", n: 3 };
+  const asked = visit({ frames: [{ i: 0, exact: true, ask: 90 }, { i: 1, exact: true, ask: 90 }, { i: 2, exact: true, ask: 400 }] });
+  check(judge(ad, asked, { opening: true }) === null, "the cell's own ask of the last frame stopped the run");
 }
 
 // A fetch arm on the wrong protocol is VOID.

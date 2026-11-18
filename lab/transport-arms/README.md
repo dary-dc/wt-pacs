@@ -37,7 +37,7 @@ server's banner, the relay's arguments and both namespaces' `tcp_congestion_cont
 
 **`VOID`** (kept in the rows, with its reason): the relay's guard p99 over 1 ms, a core over 95 % busy, a fetch arm on
 the wrong protocol, a crash, a visit past 3× the pilot's median (`--pilot-medians`, `{"FORM/ARM": ms}`). **The run stops**
-on a visit that did not deliver every frame exact; the pilot also stops when the relay's loss is not within 3× of the
+on a frame that failed its check, whatever else voids the visit; on a visit that did not deliver every frame exact, unless it is `VOID`; on a WT or WS frame asked after the dial; the pilot also stops when the relay's loss is not within 3× of the
 configured mean.
 
 **The run's series** is `dbts_b1` as HTJ2K (§5.2), never committed:
@@ -69,6 +69,10 @@ Each run 2026-11-18 on the test series at CLEAN (LOSS for the relay's), and each
 | the pilot holds the relay to its configured loss | `--mutate relay-no-loss`: the relay at 0 % where 1 % is asked | `PILOT REFUSES: relay loss 0.000 %, asked 1 %`, exit 3; unmutated, 1.03 % |
 | the order is a Williams square | `--mutate fixed-order`: the same order both rounds | `UNBALANCED: WT-TS WS H2-fill`; unmutated, none |
 | the server's CPU is read from its pid | `--mutate cpu-wrong-pid`: the relay's namespace holder | `CPU ZERO: the sampler read nothing` |
+| a WT or WS fill rides the dial's URL (the opening ask, §5.1) | `--mutate no-opening`: the page fills after `connect` | `STOP: frame 0 asked after the dial, not by the opening ask`, exit 3 (2026-11-18, FF) |
+
+`judge.mjs` holds the verdict (§5.2, §5.4); `node lab/transport-arms/judge.test.mjs` (in the gate) states each rule and
+fails on the review's B1–B3 reverted.
 
 The GET path's own test (`cargo test -p series-server --features lab-get --lib -- a_get_answers`) killed two mutants:
 the drop applied to the wrong frame, and the envelope's head left out.

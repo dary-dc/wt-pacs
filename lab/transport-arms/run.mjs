@@ -4,7 +4,7 @@
  * land. docs/transport/evidence/stacks.md §5, lab/transport-arms/README.md
  *
  *   node lab/transport-arms/run.mjs --cell CLEAN [--rounds N] [--series DIR] [--out FILE] [--limit-ms MS]
- *     [--pilot] [--mutate wrong-protocol|drop-frame|relay-no-loss|fixed-order|cpu-wrong-pid]
+ *     [--pilot] [--mutate wrong-protocol|drop-frame|relay-no-loss|fixed-order|cpu-wrong-pid|no-opening]
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -38,12 +38,12 @@ const PILOT = flag("--pilot");
 const SERVER_IP = "10.77.0.2";
 const [WT_PORT, GET_PORT, HTTP_PORT, CTRL_PORT] = [4433, 4434, 8765, 5599];
 
-/** stacks.md §5.1. `proto`: what `nextHopProtocol` must read, or the visit is VOID. */
+/** stacks.md §5.1. `proto`: what `nextHopProtocol` must read, or the visit is VOID; `opening`: the fill rides the dial's URL. */
 const ARMS = {
-  "WT-TS": { module: "/client/transport/ts/dist/session.js", url: "wt" },
-  "WT-TS'": { module: "/client/transport/ts/dist/session.js", url: "wt" },
-  "WT-WASM": { module: "/client/transport/wasm/session-adapter.js", url: "wt" },
-  WS: { module: "/client/transport/ts/dist/ws-session.js", url: "wt" },
+  "WT-TS": { opening: true, module: "/client/transport/ts/dist/session.js", url: "wt" },
+  "WT-TS'": { opening: true, module: "/client/transport/ts/dist/session.js", url: "wt" },
+  "WT-WASM": { opening: true, module: "/client/transport/wasm/session-adapter.js", url: "wt" },
+  WS: { opening: true, module: "/client/transport/ts/dist/ws-session.js", url: "wt" },
   "H3-frame": { module: "/lab/transport-arms/dist/fetch-session.js", url: "get", shape: "frame", proto: "h3" },
   "H3-fill": { module: "/lab/transport-arms/dist/fetch-session.js", url: "get", shape: "fill", proto: "h3" },
   "H2-frame": { module: "/lab/transport-arms/dist/fetch-session.js", url: "get", shape: "frame", proto: "h2" },
@@ -217,7 +217,7 @@ async function visit(round, armName, form, prev, browserArgs) {
     const [cpu0, ticks0, bpid] = [cpuStat(), ticks(pid), browserPid()];
     const client = bpid && sampleTree(bpid);
     const t0 = Date.now();
-    const r = await page.evaluate((a) => globalThis.visit(a), { module: arm.module, url, hash: certHash, n: form.n, action: form.action, askAfter: form.askAfter, digests, limitMs: LIMIT_MS });
+    const r = await page.evaluate((a) => globalThis.visit(a), { module: arm.module, url, hash: certHash, n: form.n, action: form.action, askAfter: form.askAfter, digests, limitMs: LIMIT_MS, opening: MUTATE !== "no-opening" });
     row.wallMs = Date.now() - t0;
     if (blackouts) clearInterval(blackouts);
     const [cpu1, ticks1] = [cpuStat(), ticks(pid)];
@@ -231,6 +231,7 @@ async function visit(round, armName, form, prev, browserArgs) {
     row.protocols = [...new Set(r.protocols)];
     row.exact = r.frames.filter((f) => f.exact === true).length;
     row.frames = r.frames;
+    row.dial = r.dial;
     row.v = metric(form, r);
     if (form.hol) row.hol = holOf(r);
   } catch (e) {
@@ -262,7 +263,7 @@ outer: for (const form of CELLS[CELL].forms) {
     let prev = null;
     for (const armName of MUTATE === "fixed-order" ? NAMES : order(NAMES, round)) {
       const row = await visit(round, armName, form, prev, browserArgs);
-      stopped = judge(form, row, { proto: ARMS[armName].proto, pilot: PILOT, pilotMedian: pilot[`${form.name}/${armName}`] });
+      stopped = judge(form, row, { proto: ARMS[armName].proto, opening: ARMS[armName].opening, pilot: PILOT, pilotMedian: pilot[`${form.name}/${armName}`] });
       rows.push(row);
       fs.appendFileSync(OUT, JSON.stringify(row) + "\n");
       console.log(`${form.name} r${round} ${armName.padEnd(8)} v ${row.v?.toFixed?.(1) ?? "—"} ms exact ${row.exact ?? 0}` +

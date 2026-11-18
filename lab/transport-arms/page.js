@@ -8,7 +8,7 @@ new BroadcastChannel("transport-arms").onmessage = (e) => protocols.push(e.data.
 const limit = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error(`no end in ${ms} ms`)), ms));
 
 /** `fill` 0 … n−1; `first` frame 0; `ad` the fill, the last frame asked at `askAfter`; `aa` all but the last, `go()`, then it. Epoch ms. */
-globalThis.visit = async ({ module, url, hash, n, action, askAfter = 0, digests, limitMs }) => {
+globalThis.visit = async ({ module, url, hash, n, action, askAfter = 0, digests, limitMs, opening = true }) => {
   const frames = new Map();
   const failures = [];
   let resolveAll;
@@ -31,12 +31,14 @@ globalThis.visit = async ({ module, url, hash, n, action, askAfter = 0, digests,
     transport: module,
     decoder: { glue: `${OPENJPH}/openjph.js`, wasm: `${OPENJPH}/openjph.wasm`, dir: OPENJPH },
     digests,
+    // §5.1: the opening ask, as the default build carries it, on the dial's URL; `opening: false` is a mutant.
+    fill: opening ? filled : undefined,
     onFrame: keep,
     onError: (e) => failures.push({ i: e.frameIndex, reason: e.reason }),
   });
   let error = null;
   try {
-    client.fill(filled);
+    if (!opening) client.fill(filled);
     await Promise.race([all, limit(limitMs)]);
     if (action === "aa") {
       await globalThis.go();

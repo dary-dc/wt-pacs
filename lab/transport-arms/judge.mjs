@@ -11,8 +11,11 @@ export function relayHeld(form, t) {
   return seen > form.loss / 3 && seen < form.loss * 3 ? null : `relay loss ${seen.toFixed(3)} %, asked ${form.loss} %`;
 }
 
-/** Sets `row.void` and `row.flags`; returns why the run stops, or null. `proto`: what the arm's `nextHopProtocol` must read. */
-export function judge(form, row, { proto, pilot = false, pilotMedian } = {}) {
+/**
+ * Sets `row.void` and `row.flags`; returns why the run stops, or null. `proto`: what the arm's `nextHopProtocol` must
+ * read; `opening`: every frame was asked before the dial, so the fill rode its URL (§5.1).
+ */
+export function judge(form, row, { proto, opening = false, pilot = false, pilotMedian } = {}) {
   const voids = [];
   if (row.relayTally.late) voids.push("relay guard p99 over 1 ms");
   if (row.busiestCore > 0.95) voids.push(`a core ${(100 * row.busiestCore).toFixed(0)} % busy`);
@@ -24,6 +27,10 @@ export function judge(form, row, { proto, pilot = false, pilotMedian } = {}) {
   // §5.2: a frame that failed its check stops the run whatever else voids the visit.
   const unchecked = (row.frames ?? []).filter((f) => f.exact !== true);
   if (unchecked.length) return `STOP: frame ${unchecked.map((f) => `${f.i} ${f.exact}`).join(", ")} failed its check`;
+  // `ad` and `aa` ask the last frame after the fill: that ask is the cell's, not the dial's.
+  const fillOf = (f) => !["ad", "aa"].includes(form.action) || f.i !== form.n - 1;
+  const late = opening ? (row.frames ?? []).filter((f) => fillOf(f) && !(f.ask <= row.dial)) : [];
+  if (late.length) return `STOP: frame ${late.map((f) => f.i).join(", ")} asked after the dial, not by the opening ask`;
   const owed = form.action === "first" ? 1 : form.n;
   if (!row.void && row.exact !== owed) return `STOP: ${row.exact} of ${owed} frames exact (${row.error ?? ""} ${JSON.stringify(row.failures)})`;
   if (pilot && !row.void) {
