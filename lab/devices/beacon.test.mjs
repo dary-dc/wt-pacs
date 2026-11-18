@@ -16,7 +16,7 @@ const ledger = {
   fillMs: 812.5,
   issuedAt: 1000,
   boot: { dial: 1100.25 },
-  frames: [{ i: 0, route: "av1-webcodecs", wireBytes: 2560, decodeMs: 3.25 }, { i: 1, route: "av1-dav1d", refusal: "codec", wireBytes: 1536 }],
+  frames: [{ i: 0, route: "av1-webcodecs", wireBytes: 2560, decodeMs: 3.25, decoded: 1203.5 }, { i: 1, route: "av1-dav1d", refusal: "codec", wireBytes: 1536 }],
   errors: [],
 };
 
@@ -42,7 +42,7 @@ test("the fill's end sends the load and what was held, in one batch", () => {
   const [load, label] = sent[0];
   assert.deepEqual({ ...load, at: 0 }, { load: "L", view: "worker", kind: "load", at: 0, exactSeries: "dbts_b1", lossy: { q: 8, g: 8, depth: 10 }, frameCount: 2, received: 2, fillFrom: 1100.25, fillTo: 1812.5, fillMs: 712.25, statusFillMs: 812.5,
     routes: { "av1-webcodecs": 1, "av1-dav1d": 1 }, errors: [],
-    frames: [{ i: 0, route: "av1-webcodecs", kb: 2.5, decodeMs: 3.25 }, { i: 1, route: "av1-dav1d", refusal: "codec", kb: 1.5, decodeMs: null }] });
+    frames: [{ i: 0, route: "av1-webcodecs", kb: 2.5, decodeMs: 3.25, decodedAt: 1203.5 }, { i: 1, route: "av1-dav1d", refusal: "codec", kb: 1.5, decodeMs: null, decodedAt: null }] });
   assert.deepEqual([label.kind, label.quality, label.load], ["label", "optimal", "L"]);
   assert.ok(label.at < load.at, "each record keeps its own time");
 });
