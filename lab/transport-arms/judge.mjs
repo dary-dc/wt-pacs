@@ -11,6 +11,13 @@ export function relayHeld(form, t) {
   return seen > form.loss / 3 && seen < form.loss * 3 ? null : `relay loss ${seen.toFixed(3)} %, asked ${form.loss} %`;
 }
 
+/** `relayHeld` over a form's pilot visits together, for a loss too rare to judge from one. */
+export function pooledRelay(form, rows) {
+  const sum = (dir, k) => rows.reduce((a, r) => a + (r.relayTally?.[dir]?.[k] ?? 0), 0);
+  const side = (dir) => ({ sent: sum(dir, "sent"), lost: sum(dir, "lost") });
+  return relayHeld(form, { up: side("up"), down: side("down") });
+}
+
 /**
  * Sets `row.void` and `row.flags`; returns why the run stops, or null. `proto`: what the arm's `nextHopProtocol` must
  * read; `opening`: every frame was asked before the dial, so the fill rode its URL; `tcp`: the server's sockets ran
@@ -38,7 +45,7 @@ export function judge(form, row, { proto, opening = false, tcp = false, pilot = 
   if (!row.void && row.exact !== owed) return `STOP: ${row.exact} of ${owed} frames exact (${row.error ?? ""} ${JSON.stringify(row.failures)})`;
   if (pilot && !row.void) {
     const held = relayHeld(form, row.relayTally);
-    if (held) return `PILOT REFUSES: ${held}`;
+    if (held && !held.startsWith("too few")) return `PILOT REFUSES: ${held}`;
   }
   return null;
 }

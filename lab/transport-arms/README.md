@@ -40,7 +40,7 @@ server's banner, the relay's arguments and both namespaces' `tcp_congestion_cont
 **`VOID`** (kept in the rows, with its reason): the relay's guard p99 over 1 ms, a core over 95 % busy, a fetch arm on
 the wrong protocol, a crash, a visit past 3× the pilot's median (`--pilot-medians`, `{"FORM/ARM": ms}`). **The run stops**
 on a frame that failed its check, whatever else voids the visit; on a visit that did not deliver every frame exact, unless it is `VOID`; on a WT or WS frame asked after the dial; the pilot also stops when the relay's loss is not within 3× of the
-configured mean.
+configured mean, judged per visit, and over a form's visits pooled where one visit is too short to judge (0.1 % loss).
 
 **The run's series** is `dbts_b1` as HTJ2K (§5.2), never committed:
 

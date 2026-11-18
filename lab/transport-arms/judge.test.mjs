@@ -1,5 +1,5 @@
 // node lab/transport-arms/judge.test.mjs — a visit's VOID reasons and the failures that stop the run (stacks.md §5.2, §5.4).
-import { judge } from "./judge.mjs";
+import { judge, pooledRelay } from "./judge.mjs";
 
 let failed = 0;
 const check = (ok, what) => {
@@ -86,6 +86,20 @@ const visit = (o = {}) => ({
   const row = visit({ protocols: ["h2"] });
   judge(fill, row, { proto: "h3" });
   check(row.void?.join() === "spoke h2, not h3", `the wrong protocol voided as ${row.void}`);
+}
+
+// The pilot's relay check: one visit too short to judge 0.1 % goes on; the form's visits pooled are judged, and refuse
+// a relay at 0 % or too few packets in all.
+{
+  const lte = { action: "fill", n: 3, loss: 0.1 };
+  const tally = (sent, lost) => ({ late: false, up: { sent: 0, lost: 0 }, down: { sent, lost } });
+  check(judge(lte, visit({ relayTally: tally(27000, 30) }), { proto: "h3", pilot: true }) === null, "one short visit refused the pilot");
+  const rows = (lost) => [0, 1, 2].map(() => ({ relayTally: tally(27000, lost) }));
+  check(pooledRelay(lte, rows(30)) === null, `a relay at 0.11 % pooled was refused: ${pooledRelay(lte, rows(30))}`);
+  check(/relay loss 0\.000 %/.test(pooledRelay(lte, rows(0)) ?? ""), "a relay at 0 % pooled was not refused");
+  check(/too few/.test(pooledRelay(lte, rows(30).slice(0, 1)) ?? ""), "too few packets pooled were not refused");
+  check(/relay loss/.test(judge({ ...lte, loss: 1 }, visit({ relayTally: tally(27000, 0) }), { proto: "h3", pilot: true }) ?? ""),
+    "a visit long enough to judge alone was not refused at 0 %");
 }
 
 if (failed) process.exit(1);

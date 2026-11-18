@@ -14,7 +14,7 @@ import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { order, balanced } from "../order.mjs";
 import { sampleTree } from "../scripts/proc_sampler.mjs";
-import { judge } from "./judge.mjs";
+import { judge, pooledRelay } from "./judge.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const argv = process.argv.slice(2);
@@ -278,6 +278,11 @@ outer: for (const form of CELLS[CELL].forms) {
       prev = armName;
       await sleep(IDLE_MS);
     }
+  }
+  const held = PILOT && pooledRelay(form, rows.filter((r) => r.form === form.name && !r.void));
+  if (held) {
+    stopped = `PILOT REFUSES: ${form.name}'s visits pooled: ${held}`;
+    break;
   }
 }
 await stop(http);
