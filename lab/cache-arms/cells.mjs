@@ -52,6 +52,9 @@ export function checks(cell, row) {
 export const pageQuery = (p, mutant, pilot) => Object.fromEntries(Object.entries({ ...p, mutant: p.arm === "none" ? "" : mutant, pilot })
   .filter(([, v]) => v !== "" && v !== undefined));
 
+/** An arm's picks: a frozen `pilot-<engine>.json` maps each arm's module to its own; a string is every arm's. */
+export const pilotOf = (pilot, arm) => (typeof pilot === "string" ? pilot : pilot[moduleOf(arm)] ?? "");
+
 /** An arm's writes in flight, by its pilot (1 unless `inflight` says more). */
 export const inflightOf = (pilot) => Number(new URLSearchParams(pilot).get("inflight") ?? 1);
 
@@ -95,7 +98,7 @@ export function lBars(rows, { frameBytes, pilot }) {
         delayP99: r.shown.paintDelayP99 <= n.shown.paintDelayP99 + 4,
         delivered: r.deliveredMBps >= 0.95 * n.deliveredMBps,
         backlog: r.unwrittenAt5s === 0,
-        pss: r.pssGrowthMiB <= n.pssGrowthMiB + (inflightOf(pilot) * frameBytes) / MiB + 64,
+        pss: r.pssGrowthMiB <= n.pssGrowthMiB + (inflightOf(pilotOf(pilot, unit)) * frameBytes) / MiB + 64,
         exact: r.verify?.notOk === 0 && r.verify.ok > 0,
       };
     });

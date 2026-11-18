@@ -9,7 +9,7 @@ import path from "node:path";
 import { chromiumAt, chromiumPath, firefoxAt, parent, staticHost, tree, treePss } from "../opfs-cache/browser.mjs";
 import { order, williams } from "../order.mjs";
 import { throttleTree } from "../scripts/cpu_throttle.mjs";
-import { checks, E_STEPS, keptOnReopen, lBars, pageQuery, params, pssGrowth, sameSet, SIZES } from "./cells.mjs";
+import { checks, E_STEPS, keptOnReopen, lBars, pageQuery, params, pilotOf, pssGrowth, sameSet, SIZES } from "./cells.mjs";
 
 const HERE = new URL(".", import.meta.url).pathname;
 const WORK = path.join(HERE, "work");
@@ -19,7 +19,7 @@ const ENGINE = arg("--engine", "chromium");
 const SIZE = arg("--size", "512");
 const THROTTLE = Number(arg("--throttle", 1));
 const MUTANT = arg("--mutant", "");
-const PILOT = arg("--pilot", "");
+const PILOT = arg("--pilot", "").endsWith(".json") ? JSON.parse(readFileSync(arg("--pilot"), "utf8")) : arg("--pilot", "");
 const ARMS = arg("--arms", ["O", "E", "K", "Q", "T", "R-idle", "R-busy"].includes(CELL) ? "stub,stub-aa" : "none,stub,stub-aa").split(",");
 const OUT = path.resolve(arg("--out", path.join(WORK, `${CELL}-${ENGINE}-${SIZE}-${THROTTLE}x.jsonl`)));
 const MiB = 2 ** 20;
@@ -59,7 +59,7 @@ async function quotaHolds(b, origin, quotaMiB) {
 }
 
 async function load(page, origin, p, timeoutMs = CALL_MS) {
-  const qs = new URLSearchParams(pageQuery(p, MUTANT, PILOT));
+  const qs = new URLSearchParams(pageQuery(p, MUTANT, pilotOf(PILOT, p.arm)));
   await page.goto(`${origin}/lab/cache-arms/index.html?${qs}`);
   // Polled, not awaited: Marionette ends a script after its own timeout, shorter than a cell.
   for (const t0 = Date.now(); Date.now() - t0 < timeoutMs; await sleep(500)) {
@@ -116,7 +116,7 @@ async function once(origin, arm, round) {
       const damage = round % 2 ? await load(b.page, origin, { ...p, damage: 0 }) : null;
       const reopened = await load(b.page, origin, { ...p, mode: "reopen", rest: 1 });
       const row = { atKill: at, damage, ...reopened, damagedAsked: damage?.damaged ?? undefined };
-      return { ...row, checks: { ...checks("K", row), kept: keptOnReopen(at, reopened.opened?.present ?? 0, PILOT) } };
+      return { ...row, checks: { ...checks("K", row), kept: keptOnReopen(at, reopened.opened?.present ?? 0, pilotOf(PILOT, arm)) } };
     }
     if (CELL === "Q") {
       const quotaMiB = Math.ceil((p.n * p.w * p.h * 2) / MiB) + 64;
@@ -163,7 +163,7 @@ const host = () => ({ browser: version(), cpus: readFileSync("/proc/cpuinfo", "u
 if (!SIZES[SIZE] || !params(CELL, SIZE, "none")) throw new Error(`no cell ${CELL} at ${SIZE}`);
 const origin = await staticHost();
 const ROUNDS = Number(arg("--rounds", williams(ARMS.length).length));
-write({ settings: true, cell: CELL, engine: ENGINE, size: SIZE, throttle: THROTTLE, mutant: MUTANT || null, at: new Date().toISOString(), host: host(),
+write({ settings: true, cell: CELL, engine: ENGINE, size: SIZE, throttle: THROTTLE, mutant: MUTANT || null, pilot: PILOT, at: new Date().toISOString(), host: host(),
   arms: Object.fromEntries(ARMS.map((a) => [a, params(CELL, SIZE, a)])) });
 const rows = [];
 for (let round = 0; round < ROUNDS; round++) {

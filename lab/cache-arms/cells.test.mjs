@@ -1,5 +1,5 @@
 // node lab/cache-arms/cells.test.mjs — each row check fails on the row its mutant leaves, and the cells' sizes.
-import { backlogAt5s, checks, E_STEPS, inflightOf, keptOnReopen, lBars, moduleOf, params, pageQuery, pssGrowth, sameSet } from "./cells.mjs";
+import { backlogAt5s, checks, E_STEPS, inflightOf, keptOnReopen, lBars, moduleOf, params, pageQuery, pilotOf, pssGrowth, sameSet } from "./cells.mjs";
 
 let failed = 0;
 const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
@@ -46,6 +46,11 @@ check(!keptOnReopen({ written: 35, queued: 8 }, 24, ""), "K: 11 frames lost of 3
 check(keptOnReopen({ written: 35, queued: 8 }, 34, "") && !keptOnReopen({ written: 35 }, 33, ""), "K: one write in flight by default");
 check(keptOnReopen({ written: 35 }, 32, "inflight=3"), "K: three in flight at inflight=3");
 
+/** The frozen pilot (`pilot-<engine>.json`) gives each arm its own picks; a plain string applies to every arm. */
+check(pilotOf({ "opfs-async": "group=8MiB", cachestorage: "inflight=3" }, "cachestorage") === "inflight=3", "an arm's own picks");
+check(pilotOf({ "opfs-sync": "piece=2MiB" }, "OPFS-SYNC-aa") === "piece=2MiB" && pilotOf({}, "idb") === "", "the A/A twin shares its arm's picks; none means defaults");
+check(pilotOf("read=sync", "idb") === "read=sync", "a string is every arm's");
+
 /** A mutant runs in the arm only: `none` stays clean, so L's bars against it can catch view-copy (review, harness B3). */
 check(pageQuery({ arm: "none", n: 4 }, "view-copy", "inflight=3").mutant === undefined, "none runs unmutated");
 check(pageQuery({ arm: "opfs-sync" }, "view-copy", "").mutant === "view-copy" && pageQuery({ arm: "idb" }, "", "").mutant === undefined, "the arm runs the mutant");
@@ -60,6 +65,10 @@ check(pageQuery({ arm: "opfs-sync" }, "view-copy", "").mutant === "view-copy" &&
   check(bars.none === undefined && bars.stub.rounds === 4, "L: one summary an arm, over its rounds");
   const pss = lBars([row(0, "none", 8), row(0, "stub", 8, { pssGrowthMiB: 100 + 64 + 0.5 + 1 })], { frameBytes: 2 ** 19, pilot: "" });
   check(!pss.stub.pass && pss.stub.share.pss === 0, "L: PSS over none's + in flight × frame + 64 MiB fails");
+  const picks = { "opfs-async": "inflight=3", cachestorage: "" };
+  const perArm = lBars([row(0, "none", 8), row(0, "opfs-async", 8, { pssGrowthMiB: 100 + 64 + 1 }), row(0, "cachestorage", 8, { pssGrowthMiB: 100 + 64 + 1 })],
+    { frameBytes: 2 ** 19, pilot: picks });
+  check(perArm["opfs-async"].share.pss === 1 && perArm.cachestorage.share.pss === 0, "L: each arm's PSS slack is its own pilot's writes in flight");
   const late = lBars([row(0, "none", 8), row(0, "stub", 8, { unwrittenAt5s: 1 }), row(1, "none", 8), row(1, "stub", 8), row(2, "none", 8),
     row(2, "stub", 8), row(3, "none", 8), row(3, "stub", 8)], { frameBytes: 2 ** 19, pilot: "" });
   check(late.stub.pass && late.stub.share.backlog === 0.75, "L: a bar met in 3 rounds of 4 passes (≥ 75 %)");
