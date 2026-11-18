@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-18T07:16Z
-heartbeat: 2026-11-18T07:47Z
+heartbeat: 2026-11-18T08:09Z
 outputs: claude/transport-arms (from origin/claude/docs-client), draft PR into claude/docs-client (to open)
 ## Resume
 **Can this container run `link_impair.py --tun`? Yes, once `iproute2` is installed** (the image lacks `ip`; the relay
@@ -22,8 +22,11 @@ Needs in a fresh container: `apt-get install -y iproute2`, `pip install numpy xx
 Then (6127d940): WT-WASM built (`rustup target add wasm32-unknown-unknown; cargo install wasm-pack --locked;
 client/transport/wasm/build.sh`) and exact; FP (pooled, h2/h3 from the GET origin) and AD-PUB exact on every arm; an
 ask's t0 moved to the page's call (the downloader keeps a fill's ask stamp on a frame the fill owes); README.
-Running now: coverage of AD-LTE, AA, FF, LOSS, 1 round each (`/tmp` rows, not pushed: build checks, not results).
-Next: §5.6's five mutants (`run.mjs --mutate ...`), the gate, the PR into claude/docs-client.
+Coverage, 1 round each on the test series, every arm: CLEAN, FP, AD (PUB, LTE), AA (6 forms), FF (4 forms) exact on
+every visit, no VOID; LOSS as a pilot (4 arms, 2 frames): exact, HOL recorded, the relay's tally 1.03 % against 1 %.
+§5.6's mutants (0a4b5d4b, README §Checks): wrong-protocol VOID, drop-frame STOP, relay-no-loss PILOT REFUSES,
+fixed-order UNBALANCED, cpu-wrong-pid CPU ZERO; the unmutated control balanced.
+Running now: `scripts/gate.sh` (log /tmp, this container). Next: the draft PR into claude/docs-client, then done.
 Build: `cargo build --release -p series-server --features lab-get`; test: `cargo test -p series-server --features
 lab-get --lib -- lab_get a_get_answers`.
 ## Result
