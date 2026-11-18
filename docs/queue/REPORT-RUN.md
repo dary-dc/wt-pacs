@@ -1,8 +1,10 @@
 state: started
 started: 2026-11-16T08:22Z
-heartbeat: 2026-11-18T01:15Z
+heartbeat: 2026-11-18T05:16Z
 outputs: claude/report-arms (rows, pushed every 15 min), claude/report-plan 7538b6fc (§7.8), 6d58a050 (D1), 90918c06 (D2), a6428703 (D7), 257dd04a (D9), 4c86bbef (D4), b7d69c5e (D5b)
 ## Resume
+Resumed 2026-11-18T05:16Z by a new session (the last stalled after 01:15Z on 11-18 with D8 at 111 rows). Next: rebuild the host as below,
+SKIP_MUTANTS=1, ENDINGS="D8 D3 D5a" (D8's partial kept and renamed by the script), then §Results.
 Resumed 2026-11-17T05:16Z by a new session (the first stalled at 14:05Z on 11-16 with D1 and the mutants complete,
 D2 partial at 99 rows). Next: rebuild the host per the lines below, SKIP_MUTANTS=1, run D2 (partial kept and renamed)
 then D7 D9 D4 D5b D8 D3 D5a.
