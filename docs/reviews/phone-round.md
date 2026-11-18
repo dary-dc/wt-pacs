@@ -207,7 +207,9 @@ fails its test. Fixtures: one 4-core cloud host, headless Chromium (software Web
 64 × 48 20-frame pair, fake `adb`; no phone, no DBT volume.
 
 **As committed:** `levers.test.mjs`, `round.test.mjs`, `beacon.test.mjs` pass; `round_headless.sh` every claim holds
-(2 min 40 s); `check_lab_absent.sh` and the comment budget green; `scripts/gate.sh --quick` running (its result in the next commit).
+(2 min 40 s); `check_lab_absent.sh` and the comment budget green; `scripts/gate.sh --quick` GATE OK in 545 s, skipped by name: the decoders' rebuild and the absence checks
+(--quick; `check_lab_absent.sh` run on its own), the native painter and window (no lavapipe, Xvfb), the viewer's
+cross-codec arm and Firefox, the web host's nginx check (no nginx). `demo-check.mjs` not run (no DBT volume).
 
 **Own mutants**, each one replacement run through `round_headless.sh` and reverted (8 valid; a ninth was malformed
 and is not counted):
