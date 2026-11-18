@@ -66,7 +66,8 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    synthetic series; nothing counted). Reviewed 2026-11-18 ([`../reviews/transport-arms.md`](../reviews/transport-arms.md)):
    five blockers (no arm uses the opening ask; a failed check can be voided; a fetch arm's crash kills the driver;
    the TCP arms on BBR, not Cubic; the departures not yet amended into §5). Fixed 2026-11-18 (TRANSPORT-BUILD-FIX:
-   each with a check that fails without it; §5.7 holds the departures); its re-review, then the run.
+   each with a check that fails without it; §5.7 holds the departures). Re-reviewed 2026-11-18 (§Re-review): each
+   fix reverted fails its check, no blocker open; next, TRANSPORT-RUN.
 
 ## Decisions (the owner's)
 
