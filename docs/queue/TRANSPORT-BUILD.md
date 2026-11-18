@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-18T07:16Z
-heartbeat: 2026-11-18T07:28Z
+heartbeat: 2026-11-18T07:41Z
 outputs: claude/transport-arms (from origin/claude/docs-client), draft PR into claude/docs-client (to open)
 ## Resume
 **Can this container run `link_impair.py --tun`? Yes, once `iproute2` is installed** (the image lacks `ip`; the relay
@@ -15,8 +15,12 @@ endpoint of its own built with the session's `to_transport_config()`) and HTTP/2
 **Departure to name in the PR:** not "the same quinn endpoint" (§5.6): a WebTransport dial and a fetch both offer ALPN
 `h3`, so one endpoint cannot tell them apart before wtransport takes the CONNECT; a second endpoint with the same
 transport config holds §5.1's "same controller and initial window". For the review / an amendment.
-Next: item 2, the fetch carrier `lab/transport-arms/fetch-session.ts` (FrameSession subclass; frame and fill shapes,
-K = 6, abort and re-GET, nextHopProtocol), bundled by `lab/transport-arms/build.sh`; then item 3, the driver.
+Done: item 2 and 3 first cut (06e0a0db): `lab/transport-arms/` fetch-session.ts, page.{html,js}, run.mjs,
+build.sh, fixture.sh (12 synthetic HTJ2K 2048² frames, ~6.5 MB each, XXH3 digests). Checked: CLEAN, 1 round, WT-TS,
+WS, H3-frame, H3-fill, H2-frame, H2-fill: 12/12 frames exact by the decoder's XXH3 each, nextHopProtocol h3/h2 as asked.
+Needs in a fresh container: `apt-get install -y iproute2`, `pip install numpy xxhash`.
+Next: WT-WASM (wasm-pack build of client/transport/wasm), the other actions (first, ad, aa, FP pooled) once each,
+§5.6's five mutants, README, gate, draft PR into claude/docs-client.
 Build: `cargo build --release -p series-server --features lab-get`; test: `cargo test -p series-server --features
 lab-get --lib -- lab_get a_get_answers`.
 ## Result
