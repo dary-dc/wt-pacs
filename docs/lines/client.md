@@ -51,7 +51,7 @@ exact frame bit for bit, and only checked claims on screen.
   page never hides or enters bfcache); Firefox 159 and WebKitGTK 2.52.6 hide and bfcache, their renderer kills not
   yet checked. Phone endings written as asks in the phone protocol.
   The run (REPORT-RUN, 2026-11-16 to 11-18, Chromium 153 only, cell D only, loopback, D6 not run; report-plan.md
-  §Results): every HTTP arm passes the safety and load bars in every ending; SESSION fails D8's safety bar (as
+  §Results): every HTTP arm passes the safety and load bars in every ending that carries them; SESSION fails D8's safety bar (as
   predicted) and SESSION-H the load bar on navigation; every arm delivered the safety report in D5a. Owed:
   REPORT-VERDICT-REVIEW.
 
