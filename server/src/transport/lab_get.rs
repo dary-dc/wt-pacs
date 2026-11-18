@@ -203,6 +203,12 @@ async fn respond(path: &str, served: &Served, sink: &mut Sink<'_>) -> Result<()>
         .header("content-type", kind)
         .header("cache-control", "no-store")
         .header("access-control-allow-origin", "*")
+        // Without it a cross-origin page's `nextHopProtocol` reads empty, and the arm's protocol goes unchecked.
+        .header("timing-allow-origin", "*")
+        // A static page here is cross-origin isolated, as the dev host's are: the downloader writes pixels into shared memory.
+        .header("cross-origin-opener-policy", "same-origin")
+        .header("cross-origin-embedder-policy", "require-corp")
+        .header("cross-origin-resource-policy", "cross-origin")
         .body(())?;
     sink.head(response).await?;
     let frames: Vec<u32> = match found {
