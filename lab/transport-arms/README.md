@@ -5,7 +5,7 @@ protocol of §5 as pre-registered. Nothing here is a result: the counted rows ar
 
 | file | what |
 | --- | --- |
-| `server/src/transport/lab_get.rs` | §5.6 item 1, series-server `--features lab-get`: `--lab-get-port P` answers `GET /frames/K` and `/frames/K-N` with envelopes as the shared stream carries them, HTTP/3 on UDP P, HTTP/2 (TLS 1.3) on TCP P; `--lab-get-static DIR` serves the page from the frame server (cell FP); `--lab-get-drop F` is a mutant |
+| `server/src/transport/lab_get.rs` | §5.6 item 1, series-server `--features lab-get`: `--lab-get-port P` answers `GET /frames/K` and `/frames/K-N` with envelopes as the shared stream carries them, HTTP/3 on UDP P, HTTP/2 (TLS 1.3) on TCP P; `--lab-get-static DIR` serves the page from the frame server (cell FP); `--lab-get-drop F` is a mutant; `--lab-tcp-congestion NAME` sets each accepted TCP socket's controller (`TCP_CONGESTION`), the GET path's HTTP/2 and the WebSocket's |
 | `fetch-session.ts` | §5.6 item 2, the fetch carrier behind the downloader's transport seam: `?shape=frame` (one GET a frame, `k` = 6 in flight in the fill's order) or `?shape=fill` (one GET a run; an ask aborts it and GETs the frame, and the downloader GETs the rest on the frame's head); every frame response's `nextHopProtocol` posted on the `transport-arms` channel |
 | `page.html`, `page.js` | one visit: the cell's action through the downloader, every frame checked by its decoder against the series' XXH3-64 |
 | `run.mjs` | §5.6 item 3, the driver: the relay's TUN plane in a user and network namespace of its own, the server in the relay's server namespace, a fresh browser a visit, the arms in a Williams order (`lab/order.mjs`), the A/A arm, §5.4's `VOID` reasons, the checks that stop the run, the samplers |
@@ -28,7 +28,9 @@ node lab/transport-arms/run.mjs --cell CLEAN [--rounds 8] [--pilot-medians FILE]
 
 Cells and forms are §5.3's, in `run.mjs`'s `CELLS`; a series shorter than a form's frames serves a prefix and says so.
 Each visit appends one JSON row as it lands: the cell, form, round, arm and predecessor; `v`, the cell's metric in ms;
-`hol` (LOSS); every frame's last-byte stamp and check; `protocols`; the server's `utime + stime` ticks (CPU), host
+`hol` (LOSS); every frame's ask and last-byte stamps and check, and `dial`; `protocols`; `tcpCongestion`, the
+controllers the server's sockets ran (`ss -tin`, read after the metric and before the page closes); the browser's
+`switches`; the server's `utime + stime` ticks (CPU), host
 softirq ticks, the browser tree's CPU ms (CPU-C), the busiest core; the relay's tally with its bytes server → client by
 flow (BYTES); under AA, `ss -tin` in the server's namespace before the ask. The first visit of a cell also carries the
 server's banner, the relay's arguments and both namespaces' `tcp_congestion_control`, `tcp_slow_start_after_idle`,
@@ -68,7 +70,8 @@ Each run 2026-11-18 on the test series at CLEAN (LOSS for the relay's), and each
 | a frame not delivered exact stops the run | `--mutate drop-frame`: the GET bodies leave frame 0 out | `STOP: 11 of 12 frames exact`, exit 3 |
 | the pilot holds the relay to its configured loss | `--mutate relay-no-loss`: the relay at 0 % where 1 % is asked | `PILOT REFUSES: relay loss 0.000 %, asked 1 %`, exit 3; unmutated, 1.03 % |
 | the order is a Williams square | `--mutate fixed-order`: the same order both rounds | `UNBALANCED: WT-TS WS H2-fill`; unmutated, none |
-| the server's CPU is read from its pid | `--mutate cpu-wrong-pid`: the relay's namespace holder | `CPU ZERO: the sampler read nothing` |
+| the server's CPU is read from its pid | `--mutate cpu-wrong-pid`: the relay's namespace holder | `CPU ZERO: the sampler read nothing` (flagged in CLEAN only: a one-frame visit can pass in under a server tick) |
+| the H2 and WS arms' server sockets run `cubic` (§5.1), read back by `ss -tin` in the server's namespace each visit | `--mutate default-congestion`: no `--lab-tcp-congestion`, so the kernel's default (`bbr` here) | `STOP: the server's TCP ran bbr, not cubic`, exit 3 (2026-11-18, FF) |
 | a WT or WS fill rides the dial's URL (the opening ask, §5.1) | `--mutate no-opening`: the page fills after `connect` | `STOP: frame 0 asked after the dial, not by the opening ask`, exit 3 (2026-11-18, FF) |
 
 `judge.mjs` holds the verdict (§5.2, §5.4); `node lab/transport-arms/judge.test.mjs` (in the gate) states each rule and

@@ -13,8 +13,9 @@ use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::path::{Component, Path, PathBuf};
-use std::sync::Arc;
-use tokio::net::TcpListener;
+use socket2::SockRef;
+use std::sync::{Arc, OnceLock};
+use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::TlsAcceptor;
 use tracing::{info, warn};
 use wtransport::{quinn, Identity};
@@ -30,6 +31,19 @@ pub struct LabGet {
     /// Lab only, a mutant: every body leaves this frame out.
     #[arg(long = "lab-get-drop", value_name = "FRAME")]
     pub drop: Option<u32>,
+    /// Lab only: the congestion controller of every TCP socket accepted, the GET path's HTTP/2 and the WebSocket's.
+    #[arg(long = "lab-tcp-congestion", value_name = "NAME")]
+    pub tcp_congestion: Option<String>,
+}
+
+static TCP_CONGESTION: OnceLock<String> = OnceLock::new();
+
+/// Gives an accepted socket `--lab-tcp-congestion`'s controller, if one is named.
+pub(crate) fn set_congestion(tcp: &TcpStream) -> std::io::Result<()> {
+    match TCP_CONGESTION.get() {
+        Some(name) => SockRef::from(tcp).set_tcp_congestion(name.as_bytes()),
+        None => Ok(()),
+    }
 }
 
 /// What one GET asks for.
@@ -63,6 +77,14 @@ struct Served {
 
 /// Binds both listeners and serves until the process ends.
 pub(crate) async fn spawn(lab: &LabGet, tuning: &TransportTuning, identity: &Identity, cert_pem: &Path, key_pem: &Path, store: Arc<FrameStore>) -> Result<()> {
+    if let Some(name) = &lab.tcp_congestion {
+        // Refused here, at start, rather than on each accept: the kernel may not have it, or may not allow it.
+        socket2::Socket::new(socket2::Domain::IPV4, socket2::Type::STREAM, None)?
+            .set_tcp_congestion(name.as_bytes())
+            .with_context(|| format!("--lab-tcp-congestion {name}"))?;
+        TCP_CONGESTION.set(name.clone()).ok();
+        warn!(congestion = %name, "lab: every accepted TCP socket runs this congestion controller");
+    }
     let Some(port) = lab.port else { return Ok(()) };
     let served = Served { store, static_dir: lab.static_dir.clone(), drop: lab.drop };
     let addr = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port);
@@ -121,6 +143,10 @@ async fn serve_h2(listener: TcpListener, acceptor: TlsAcceptor, served: Served) 
     loop {
         let Ok((tcp, _)) = listener.accept().await else { continue };
         let _ = tcp.set_nodelay(true);
+        if let Err(err) = set_congestion(&tcp) {
+            warn!(%err, "lab GET: the congestion controller was refused; connection dropped");
+            continue;
+        }
         let (acceptor, served) = (acceptor.clone(), served.clone());
         tokio::spawn(async move {
             if let Err(err) = h2_connection(tcp, acceptor, served).await {
@@ -130,7 +156,7 @@ async fn serve_h2(listener: TcpListener, acceptor: TlsAcceptor, served: Served) 
     }
 }
 
-async fn h2_connection(tcp: tokio::net::TcpStream, acceptor: TlsAcceptor, served: Served) -> Result<()> {
+async fn h2_connection(tcp: TcpStream, acceptor: TlsAcceptor, served: Served) -> Result<()> {
     let tls = acceptor.accept(tcp).await.context("TLS handshake")?;
     let mut conn = h2::server::handshake(tls).await?;
     while let Some(next) = conn.accept().await {
@@ -261,5 +287,17 @@ mod tests {
         assert_eq!(route("/frames/x", 10), None);
         assert_eq!(route("/lab/a.html", 10), Some(Route::File("lab/a.html".into())));
         assert_eq!(route("/../etc/passwd", 10), None);
+    }
+
+    /// An accepted socket runs the controller `--lab-tcp-congestion` names (reno: never a kernel's default here).
+    #[tokio::test]
+    async fn an_accepted_socket_takes_the_named_controller() {
+        TCP_CONGESTION.set("reno".into()).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let _client = TcpStream::connect(listener.local_addr().unwrap()).await.unwrap();
+        let (tcp, _) = listener.accept().await.unwrap();
+        set_congestion(&tcp).unwrap();
+        let name = SockRef::from(&tcp).tcp_congestion().unwrap();
+        assert_eq!(String::from_utf8_lossy(&name).trim_end_matches('\0'), "reno");
     }
 }

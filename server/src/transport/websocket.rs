@@ -122,6 +122,8 @@ async fn accept(listener: &TcpListener) -> std::io::Result<TcpStream> {
     let (tcp, _) = listener.accept().await?;
     tcp.set_nodelay(true)?;
     SockRef::from(&tcp).set_tcp_keepalive(&KEEPALIVE)?;
+    #[cfg(feature = "lab-get")]
+    crate::transport::lab_get::set_congestion(&tcp)?;
     Ok(tcp)
 }
 

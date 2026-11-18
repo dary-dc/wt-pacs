@@ -48,7 +48,8 @@ globalThis.visit = async ({ module, url, hash, n, action, askAfter = 0, digests,
   } catch (e) {
     error = String(e?.message ?? e);
   }
-  client.close();
+  // The connection stays up until `end()`, so the driver can read the server's sockets first.
+  globalThis.end = () => client.close();
   const list = [...frames.values()];
   const boot = list.find((f) => f.boot)?.boot ?? {};
   return { error, frames: list, failures, protocols, dial: boot.dial ?? null, askAt };

@@ -29,7 +29,7 @@ uring = ["dep:io-uring"]
 # nothing until a peer offers the extension -- docs/ARCHITECTURE.md §What production adds.
 cert-compression = ["rustls/brotli", "rustls/zlib"]
 # Lab only: the frames by HTTP/3 and HTTP/2 GET, for the transport comparison. docs/transport/evidence/stacks.md §5.6
-lab-get = ["dep:h3", "dep:h3-quinn", "dep:h2", "dep:http"]
+lab-get = ["dep:h3", "dep:h3-quinn", "dep:h2", "dep:http", "socket2/all"]
 
 [dependencies]
 anyhow = { workspace = true }

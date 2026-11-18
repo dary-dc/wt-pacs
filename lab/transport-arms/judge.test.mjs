@@ -65,6 +65,22 @@ const visit = (o = {}) => ({
   check(judge(ad, asked, { opening: true }) === null, "the cell's own ask of the last frame stopped the run");
 }
 
+// B4: a TCP arm's server sockets must run cubic, read back; anything else, or nothing read, stops the run.
+{
+  check(judge(fill, visit({ tcpCongestion: ["cubic"] }), { tcp: true }) === null, "cubic stopped the run");
+  check(judge(fill, visit({ tcpCongestion: ["bbr"] }), { tcp: true }) === "STOP: the server's TCP ran bbr, not cubic", "bbr did not stop the run");
+  check(/nothing read/.test(judge(fill, visit({ tcpCongestion: [] }), { tcp: true }) ?? ""), "nothing read did not stop the run");
+}
+
+// A zero server CPU is flagged in the cells CPU reads, not on a short visit elsewhere.
+{
+  const row = visit({ serverTicks: 0 });
+  judge(fill, row, {});
+  check(row.flags === undefined, "a zero CPU flagged outside CLEAN");
+  judge({ ...fill, cpu: true }, row, {});
+  check(/^CPU ZERO/.test(row.flags?.[0] ?? ""), "a zero CPU not flagged in CLEAN");
+}
+
 // A fetch arm on the wrong protocol is VOID.
 {
   const row = visit({ protocols: ["h2"] });

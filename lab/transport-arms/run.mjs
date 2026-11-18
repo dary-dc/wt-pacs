@@ -4,7 +4,7 @@
  * land. docs/transport/evidence/stacks.md §5, lab/transport-arms/README.md
  *
  *   node lab/transport-arms/run.mjs --cell CLEAN [--rounds N] [--series DIR] [--out FILE] [--limit-ms MS]
- *     [--pilot] [--mutate wrong-protocol|drop-frame|relay-no-loss|fixed-order|cpu-wrong-pid|no-opening]
+ *     [--pilot] [--mutate wrong-protocol|drop-frame|relay-no-loss|fixed-order|cpu-wrong-pid|no-opening|default-congestion]
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -38,16 +38,16 @@ const PILOT = flag("--pilot");
 const SERVER_IP = "10.77.0.2";
 const [WT_PORT, GET_PORT, HTTP_PORT, CTRL_PORT] = [4433, 4434, 8765, 5599];
 
-/** stacks.md §5.1. `proto`: what `nextHopProtocol` must read, or the visit is VOID; `opening`: the fill rides the dial's URL. */
+/** stacks.md §5.1. `proto`: what `nextHopProtocol` must read, or the visit is VOID; `opening`: the fill rides the dial's URL; `tcp`: kernel TCP, whose controller is read back. */
 const ARMS = {
   "WT-TS": { opening: true, module: "/client/transport/ts/dist/session.js", url: "wt" },
   "WT-TS'": { opening: true, module: "/client/transport/ts/dist/session.js", url: "wt" },
   "WT-WASM": { opening: true, module: "/client/transport/wasm/session-adapter.js", url: "wt" },
-  WS: { opening: true, module: "/client/transport/ts/dist/ws-session.js", url: "wt" },
+  WS: { opening: true, tcp: true, module: "/client/transport/ts/dist/ws-session.js", url: "wt" },
   "H3-frame": { module: "/lab/transport-arms/dist/fetch-session.js", url: "get", shape: "frame", proto: "h3" },
   "H3-fill": { module: "/lab/transport-arms/dist/fetch-session.js", url: "get", shape: "fill", proto: "h3" },
-  "H2-frame": { module: "/lab/transport-arms/dist/fetch-session.js", url: "get", shape: "frame", proto: "h2" },
-  "H2-fill": { module: "/lab/transport-arms/dist/fetch-session.js", url: "get", shape: "fill", proto: "h2" },
+  "H2-frame": { tcp: true, module: "/lab/transport-arms/dist/fetch-session.js", url: "get", shape: "frame", proto: "h2" },
+  "H2-fill": { tcp: true, module: "/lab/transport-arms/dist/fetch-session.js", url: "get", shape: "fill", proto: "h2" },
 };
 const NAMES = (arg("--arms") ?? Object.keys(ARMS).join(",")).split(",");
 
@@ -57,7 +57,7 @@ const PUB = link(10, 90000, 2000);
 const LTE = link(19, 50000, 3300, "--loss", "0.1");
 /** stacks.md §5.3: each cell's forms; `loss` is the configured mean the pilot's tally is held to, in percent. */
 const CELLS = {
-  CLEAN: { rounds: 8, forms: [{ name: "clean", relay: link(1, 90000, 300), n: 50, action: "fill" }] },
+  CLEAN: { rounds: 8, forms: [{ name: "clean", relay: link(1, 90000, 300), n: 50, action: "fill", cpu: true }] },
   PUB: { rounds: 8, forms: [{ name: "pub", relay: PUB, n: 50, action: "fill" }] },
   ENT: { rounds: 8, forms: [{ name: "ent", relay: link(2, 90000, 2000, "--jitter-ms", "10", "--jitter-mode", "reorder"), n: 50, action: "fill" }] },
   LTE: { rounds: 8, forms: [{ name: "lte", relay: LTE, loss: 0.1, blackoutEveryMs: 30_000, n: 16, action: "fill" }] },
@@ -187,6 +187,7 @@ async function visit(round, armName, form, prev, browserArgs) {
   const netns = (await until(`${T}/relay.log`, "READY")).match(/server_netns=(\S+)/)[1];
   const serverArgs = ["--series", path.join(SERIES, "series.sbnd"), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`,
     "--port", String(WT_PORT), "--bind", SERVER_IP, "--websocket", "--lab-get-port", String(GET_PORT), "--lab-get-static", ROOT,
+    ...(MUTATE === "default-congestion" ? [] : ["--lab-tcp-congestion", "cubic"]),
     ...(MUTATE === "drop-frame" ? ["--lab-get-drop", "0"] : [])];
   const server = start("taskset", ["-c", "1", "nsenter", `--net=${netns}`, SERVER, ...serverArgs], `${T}/server.log`);
   const row = { cell: CELL, form: form.name, round, arm: armName, prev, pilot: PILOT, mutate: MUTATE || undefined, at: new Date().toISOString() };
@@ -202,6 +203,7 @@ async function visit(round, armName, form, prev, browserArgs) {
     const proto = arm.proto === "h3" && MUTATE !== "wrong-protocol" ? [`--origin-to-force-quic-on=${SERVER_IP}:${GET_PORT}`] : [];
     browser = await chromium.launch({ headless: true, args: [...browserArgs, ...proto] });
     row.browser = browser.version();
+    row.switches = [...browserArgs, ...proto];
     const page = await browser.newPage();
     const origin = form.pooled ? `https://${SERVER_IP}:${GET_PORT}` : `http://127.0.0.1:${HTTP_PORT}`;
     await page.goto(`${origin}/lab/transport-arms/page.html`);
@@ -219,6 +221,10 @@ async function visit(round, armName, form, prev, browserArgs) {
     const t0 = Date.now();
     const r = await page.evaluate((a) => globalThis.visit(a), { module: arm.module, url, hash: certHash, n: form.n, action: form.action, askAfter: form.askAfter, digests, limitMs: LIMIT_MS, opening: MUTATE !== "no-opening" });
     row.wallMs = Date.now() - t0;
+    // §5.1's kernel `cubic` on the TCP arms, read back from the server's sockets while the visit's are still up.
+    const ss = sh(`nsenter --net=${netns} ss -tin state established '( sport = :${WT_PORT} or sport = :${GET_PORT} )' || true`);
+    row.tcpCongestion = [...new Set([...ss.matchAll(/^\s+([a-z0-9_]+) wscale/gm)].map((m) => m[1]))];
+    await page.evaluate(() => globalThis.end());
     if (blackouts) clearInterval(blackouts);
     const [cpu1, ticks1] = [cpuStat(), ticks(pid)];
     const tree = client?.stop();
@@ -263,11 +269,11 @@ outer: for (const form of CELLS[CELL].forms) {
     let prev = null;
     for (const armName of MUTATE === "fixed-order" ? NAMES : order(NAMES, round)) {
       const row = await visit(round, armName, form, prev, browserArgs);
-      stopped = judge(form, row, { proto: ARMS[armName].proto, opening: ARMS[armName].opening, pilot: PILOT, pilotMedian: pilot[`${form.name}/${armName}`] });
+      stopped = judge(form, row, { proto: ARMS[armName].proto, opening: ARMS[armName].opening, tcp: ARMS[armName].tcp, pilot: PILOT, pilotMedian: pilot[`${form.name}/${armName}`] });
       rows.push(row);
       fs.appendFileSync(OUT, JSON.stringify(row) + "\n");
       console.log(`${form.name} r${round} ${armName.padEnd(8)} v ${row.v?.toFixed?.(1) ?? "—"} ms exact ${row.exact ?? 0}` +
-        ` ${row.protocols?.join(",") ?? ""}${row.void ? `  VOID ${row.void.join("; ")}` : ""}${row.flags ? `  ${row.flags.join("; ")}` : ""}`);
+        ` ${row.protocols?.join(",") ?? ""} ${row.tcpCongestion?.join(",") ?? ""}${row.void ? `  VOID ${row.void.join("; ")}` : ""}${row.flags ? `  ${row.flags.join("; ")}` : ""}`);
       if (stopped) break outer;
       prev = armName;
       await sleep(IDLE_MS);

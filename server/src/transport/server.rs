@@ -1127,7 +1127,7 @@ mod tests {
         for drop in [None, Some(2)] {
             let fx = Fixture::new(5);
             let get = free_port_for_both();
-            let lab_get = LabGet { port: Some(get), static_dir: None, drop };
+            let lab_get = LabGet { port: Some(get), drop, ..Default::default() };
             let server = tokio::spawn(run_server(ServeConfig { lab_get, ..fx.config() }));
             let cert = fx.cert_pem.clone();
             against(server, async move {
