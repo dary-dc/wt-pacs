@@ -502,6 +502,8 @@ mod tests {
                 websocket: false,
                 #[cfg(feature = "lab-levers")]
                 lab: LabLevers::default(),
+                #[cfg(feature = "lab-get")]
+                lab_get: Default::default(),
             }
         }
     }
@@ -1076,6 +1078,66 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
         panic!("server never listened on TCP port {port}");
+    }
+
+    /// An HTTP/2 GET body over the given TLS-trusted port: every byte the server sent for `path`.
+    #[cfg(feature = "lab-get")]
+    async fn h2_get(port: u16, cert_pem: &Path, path: &str) -> Vec<u8> {
+        use rustls::pki_types::{pem::PemObject, CertificateDer, ServerName};
+        let mut roots = rustls::RootCertStore::empty();
+        for der in CertificateDer::pem_file_iter(cert_pem).expect("pem") {
+            roots.add(der.expect("pem")).expect("trust the test cert");
+        }
+        let mut config = rustls::ClientConfig::builder().with_root_certificates(roots).with_no_client_auth();
+        config.alpn_protocols = vec![b"h2".to_vec()];
+        let tcp = connect_tcp(port).await;
+        let tls = tokio_rustls::TlsConnector::from(Arc::new(config))
+            .connect(ServerName::try_from("localhost").expect("name"), tcp)
+            .await
+            .expect("TLS");
+        let (mut client, conn) = h2::client::handshake(tls).await.expect("HTTP/2");
+        tokio::spawn(conn);
+        let req = http::Request::get(format!("https://localhost:{port}{path}")).body(()).expect("request");
+        let (response, _) = client.send_request(req, true).expect("send");
+        let mut body = response.await.expect("response").into_body();
+        let mut got = Vec::new();
+        while let Some(chunk) = body.data().await {
+            let chunk = chunk.expect("chunk");
+            body.flow_control().release_capacity(chunk.len()).expect("release");
+            got.extend_from_slice(&chunk);
+        }
+        got
+    }
+
+    /// The envelopes `frames` make, as the shared stream carries them.
+    #[cfg(feature = "lab-get")]
+    fn envelopes(frames: &[u32]) -> Vec<u8> {
+        frames.iter().flat_map(|&f| {
+            let body = pattern(f);
+            [frame_envelope::frame_head(f, body.len() as u32).to_vec(), body].concat()
+        }).collect()
+    }
+
+    /// **A GET answers the shared stream's bytes.** A range is every envelope in order, a frame its one
+    /// envelope; under the drop mutant the range lacks that frame, which is what the driver's stop must catch.
+    #[cfg(feature = "lab-get")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_get_answers_the_envelopes_the_shared_stream_carries() {
+        use crate::transport::lab_get::LabGet;
+        for drop in [None, Some(2)] {
+            let fx = Fixture::new(5);
+            let get = free_port_for_both();
+            let lab_get = LabGet { port: Some(get), static_dir: None, drop };
+            let server = tokio::spawn(run_server(ServeConfig { lab_get, ..fx.config() }));
+            let cert = fx.cert_pem.clone();
+            against(server, async move {
+                let range = h2_get(get, &cert, "/frames/1-4").await;
+                let kept: Vec<u32> = (1..=4).filter(|&f| Some(f) != drop).collect();
+                assert_eq!(range, envelopes(&kept), "range under drop {drop:?}");
+                assert_eq!(h2_get(get, &cert, "/frames/3").await, envelopes(&[3]));
+            })
+            .await;
+        }
     }
 
     /// A WebSocket server whose TCP port is taken fails the test with its own bind error, not a
