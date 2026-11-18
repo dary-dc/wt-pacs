@@ -65,7 +65,9 @@ exact frame bit for bit, and only checked claims on screen.
   (`docs/reviews/phone-round.md` §Levers): two blockers, both untested claims (a frame not exact fails no tested load;
   the bench's time pinned only by `> 0`). Fixed 2026-11-18 (PHONE-LEVERS-FIX, PR 400 §Levers fix): a wrong-digest
   exact series fails a bench load and a C2 load by name; the bench's frame time and span pinned to its decoders'
-  stamps; minors 3 and 7 (C1 presses Lossless in `roundOrder`); PHONE-LEVERS-FIX-REVIEW next, then the dry run.
+  stamps; minors 3 and 7 (C1 presses Lossless in `roundOrder`). Re-reviewed 2026-11-18 (§Levers re-review): both
+  blockers closed, each revert or mutant failing its claim; no blocker open, so PHONE-RUN-OWNER's need is met; the dry
+  run next.
 * **The delivery comparison**: recorded in [`../client/design.md`](../client/design.md) §Open with its theory; its
   protocol is not written.
 * dav1d fetched only where WebCodecs refuses (a protocol with an A/A arm, not started); a wake before `l` asks (its
