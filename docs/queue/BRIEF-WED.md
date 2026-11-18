@@ -1,3 +1,14 @@
+state: started
+started: 2026-11-18T15:17Z
+heartbeat: 2026-11-18T15:17Z
+outputs: claude/reviews-2026-11-18 (docs/reviews-2026-11-18.md)
+## Resume
+Row BRIEF-WED of docs/queue-client-2026-11-14.md, claimed late (its page was due 10:00 UTC). This file held the
+11-10 queue's row of the same name (done 2026-11-12); that record is kept below, unchanged.
+Next: read every status file since 11-14 and the owner-decision lines; write the one page; push.
+## Result
+
+## Earlier row of the same name (docs/queue-2026-11-10.md, 2026-11-12), kept as written
 state: done
 started: 2026-11-12T01:27Z
 heartbeat: 2026-11-12T01:38Z
