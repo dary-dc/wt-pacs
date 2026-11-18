@@ -181,7 +181,7 @@ function metric(form, r) {
   const last = r.frames.find((f) => f.i === form.n - 1);
   if (form.action === "first") return r.frames.find((f) => f.i === 0)?.lastByte - r.dial;
   if (form.action === "fill") return Math.max(...r.frames.map((f) => f.lastByte)) - r.dial;
-  return last ? last.lastByte - last.ask : null;
+  return last && r.askAt ? last.lastByte - r.askAt : null;
 }
 const holOf = (r) => {
   const at = r.frames.map((f) => f.lastByte).sort((a, b) => a - b);

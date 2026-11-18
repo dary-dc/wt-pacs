@@ -1,7 +1,7 @@
 # lab
 
 Measurement only, and the downloader's self-check (`harness/index.html`): no product crate depends on anything
-here, but behind a server feature that a default build leaves out (`cc-classify/` by `lab-classify`, `server-telemetry/` by `telemetry`; the frame cache's `disk-access-bench/src/frame_cache.rs`). Each directory's README names what it needs past
+here, but behind a server feature that a default build leaves out (`cc-classify/` by `lab-classify`, `server-telemetry/` by `telemetry`, `transport-arms/`'s GET path by `lab-get`; the frame cache's `disk-access-bench/src/frame_cache.rs`). Each directory's README names what it needs past
 `README.md` §Prerequisites: most AV1 cells the venv of `av1/requirements.txt` and the AV1 build, the shaped-link
 cells `sudo` for netem or a TUN device. Each directory reproduces a claim a doc
 cites; the doc holds the number, the directory holds how to get it. Variants are interleaved with
@@ -15,6 +15,7 @@ cites; the doc holds the number, the directory holds how to get it. Variants are
 | `page-open/`, `dial-deadline/`, `other-clients/` | the session open — `docs/ARCHITECTURE.md` §The session open |
 | `downloader-cost/`, `fill-at-start/`, `early-messages/`, `worker-leak/`, `session-survival/` | the downloader — `docs/ARCHITECTURE.md` |
 | `decode-bench/`, `decode-first-frame/`, `decode-tail/`, `decoder-memory/`, `paint-floor/` | the decoder and the paint — `docs/decode/README.md` |
+| `transport-arms/` | HTJ2K over WebTransport, a WebSocket, HTTP/3 and HTTP/2 fetch (series-server `--features lab-get`) — `docs/transport/evidence/stacks.md` §5 |
 | `stream-shape/`, `tcp-fallback/` | the stream shape under loss, the WebSocket and the race — `docs/adr/stream-shape.md`, `docs/transport/transport-conclusions.md` |
 | `disk-access-bench/` | the server's read path — `docs/adr/disk-access.md` |
 | `cc-classify/` | `--congestion cubic-classify`'s controller (series-server `--features lab-classify`) and its rig — `docs/transport/transport-conclusions.md` §1, *Measured: CLASSIFY* |

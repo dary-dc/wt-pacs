@@ -1,9 +1,4 @@
-/**
- * One visit of the transport comparison: one cell's action through the downloader over one arm's carrier, each
- * frame checked against the series' digest by its decoder. Times are epoch ms from the downloader's stamps: a
- * time starts at the worker's first call for the action (`boot.dial`, or the ask) and ends at a frame's last byte.
- * run.mjs drives it. lab/transport-arms/README.md
- */
+/** One visit: a cell's action through the downloader over one arm's carrier, each frame checked. lab/transport-arms/README.md */
 import { DownloaderClient } from "/client/transport/consumer.js";
 
 const OPENJPH = "/client/decode/wasm/built/openjph";
@@ -12,10 +7,7 @@ new BroadcastChannel("transport-arms").onmessage = (e) => protocols.push(e.data.
 
 const limit = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error(`no end in ${ms} ms`)), ms));
 
-/**
- * `action`: `fill` frames 0 … n−1; `first` frame 0 alone; `ad` the fill, and the last frame asked once frame
- * `askAfter` is here; `aa` the fill but the last frame, then `go()` (the driver's), then that frame asked.
- */
+/** `fill` 0 … n−1; `first` frame 0; `ad` the fill, the last frame asked at `askAfter`; `aa` all but the last, `go()`, then it. Epoch ms. */
 globalThis.visit = async ({ module, url, hash, n, action, askAfter = 0, digests, limitMs }) => {
   const frames = new Map();
   const failures = [];
@@ -23,7 +15,12 @@ globalThis.visit = async ({ module, url, hash, n, action, askAfter = 0, digests,
   const all = new Promise((r) => (resolveAll = r));
   const filled = action === "first" ? [0] : action === "aa" ? [...Array(n - 1).keys()] : [...Array(n).keys()];
   let asked = null;
-  const ask = () => (asked = client.requestFrame(n - 1).then((f) => keep(f), (e) => failures.push({ i: n - 1, reason: String(e?.message ?? e) })));
+  // The page's clock, one message before the worker's: a frame the fill still owes keeps the fill's ask stamp.
+  let askAt = null;
+  const ask = () => {
+    askAt = performance.timeOrigin + performance.now();
+    asked = client.requestFrame(n - 1).then((f) => keep(f), (e) => failures.push({ i: n - 1, reason: String(e?.message ?? e) }));
+  };
   const keep = (f) => {
     const s = f.info.stamps;
     frames.set(f.frameIndex, { i: f.frameIndex, lastByte: s.lastByte, ask: s.ask, exact: f.info.exact, boot: s.boot });
@@ -52,6 +49,6 @@ globalThis.visit = async ({ module, url, hash, n, action, askAfter = 0, digests,
   client.close();
   const list = [...frames.values()];
   const boot = list.find((f) => f.boot)?.boot ?? {};
-  return { error, frames: list, failures, protocols, dial: boot.dial ?? null };
+  return { error, frames: list, failures, protocols, dial: boot.dial ?? null, askAt };
 };
 globalThis.__ready = true;
