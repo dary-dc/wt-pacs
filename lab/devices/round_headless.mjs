@@ -28,6 +28,12 @@ const exactPage = (port, beacon) => ({
     "--metadata", `${dir}/synth.metadata.json`, "--transport", transport(4434)],
   ready: `http://127.0.0.1:${port}/`,
 });
+// The exact series' metadata with frame 3's digest changed: a wrong frame for the bench and for C2 to fail on.
+const wrongMeta = JSON.parse(readFileSync(`${dir}/synth.metadata.json`));
+wrongMeta.digests.frames[3] = wrongMeta.digests.frames[3].replace(/.$/, (c) => (c === "0" ? "1" : "0"));
+writeFileSync(`${dir}/synth-wrong.metadata.json`, JSON.stringify(wrongMeta));
+const wrongPair = (port, beacon) => ({ ...page(port, 4433, beacon), cmd: page(port, 4433, beacon).cmd.map((a) => a.replace("synth.metadata", "synth-wrong.metadata")) });
+const wrongExact = (port, beacon) => ({ ...exactPage(port, beacon), cmd: exactPage(port, beacon).cmd.map((a) => a.replace("synth.metadata", "synth-wrong.metadata")) });
 const beacon = `${dir}/beacon.jsonl`;
 const viewer = (port, view) => `http://127.0.0.1:${port}/?overlay=1&view=${view}&beacon=cubic-restart`;
 // Load 2 dials a port no server answers (a load made to fail); load 3 holds its thread 2.6 s (a stall); after the
@@ -49,9 +55,11 @@ const loads = [
   { url: viewer(8765, "page"), cell: "1", arm: "view-2", bench: 50, decoders: 2 },
   { url: viewer(8765, "page"), cell: "2", arm: "C2", exactFill: 1 },
   { url: viewer(8765, "page"), cell: "2", arm: "A", decoders: 1 },
+  { url: viewer(8769, "page"), cell: "1", arm: "htj2k-2", bench: 50, decoders: 2 },
+  { url: viewer(8770, "page"), cell: "2", arm: "C2", exactFill: 1 },
 ];
 const head = execFileSync("git", ["-C", ROOT, "rev-parse", "HEAD"]).toString().trim();
-const blocks = [{ name: "wifi", servers: [quic(4433, "synth-q8-g8"), quic(4434, "synth"), page(8765, 4433, beacon), page(8767, 4499, beacon), exactPage(8768, beacon)], loads }];
+const blocks = [{ name: "wifi", servers: [quic(4433, "synth-q8-g8"), quic(4434, "synth"), page(8765, 4433, beacon), page(8767, 4499, beacon), exactPage(8768, beacon), wrongExact(8769, beacon), wrongPair(8770, beacon)], loads }];
 const planOf = (commit) => {
   writeFileSync(`${dir}/plan.json`, JSON.stringify({ commit, gapS: 1, fillS: 60, afterS: 45, blocks }));
   return `${dir}/plan.json`;
@@ -120,6 +128,16 @@ for (const [k, codec, exact] of [[12, "htj2k", true], [13, "av1", "unchecked"]])
     && b.frames.every((f, i) => f.i === i && f.exact === exact && f.ms > 0) && new Set(b.frames.map((f) => f.decoder)).size === 2 && b.effectiveMs > 0,
     `cell 1's bench, ${codec}: 20 frames from memory on 2 decoders, each checked and timed, the viewer never filling (${b ? `${b.effectiveMs.toFixed(2)} ms effective, ${[...new Set(b.frames.map((f) => f.route))]}` : "none"}${verdicts[k]?.ok ? "" : `; ${verdicts[k]?.why}`})`);
 }
+for (const k of [12, 13]) {
+  const b = of(k, "bench")[0];
+  const byDecoder = Object.values(Object.groupBy(b?.frames ?? [], (f) => f.decoder)).map((fs) => fs.sort((x, y) => x.start - y.start));
+  check(b?.t0 > 0 && b.frames.every((f) => f.ms === f.end - f.start && f.start >= b.t0) && byDecoder.every((fs) => fs.every((f, j) => !j || f.start >= fs[j - 1].end))
+    && b.spanMs === Math.max(...b.frames.map((f) => f.end)) - b.t0, `cell 1's bench, ${b?.codec}: each frame's time its decoder's own start to end, one at a time on each decoder, the span from the first hand-over`);
+}
+check(verdicts[16]?.ok === false && !verdicts[16].void && verdicts[16].why === "frame 3 decoded not exact" && of(16, "bench")[0]?.failure === "frame 3 decoded not exact",
+  `cell 1's bench fails a load whose frame is not exact, by name (${verdicts[16]?.why})`);
+check(verdicts[17]?.ok === false && !verdicts[17].void && verdicts[17].why === "exactFill: frame 3 decoded false, not exact" && of(17, "exactFill")[0]?.frames.length === 20,
+  `arm C2 fails a load whose exact frame is not exact, by name (${verdicts[17]?.why})`);
 const c2 = of(14, "exactFill")[0];
 check(verdicts[14]?.ok && c2?.frames.length === 20 && c2.frames.every((f) => f.exact === true && f.decodeMs > 0) && c2.issuedAt >= filled[14]?.fillTo && c2.spanMs > 0,
   `arm C2: after the view's fill, the whole exact series, every frame checked (${c2 ? `${c2.frames.length} frames in ${Math.round(c2.spanMs)} ms` : "none"})`);
