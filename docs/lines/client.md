@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -54,6 +54,10 @@ exact frame bit for bit, and only checked claims on screen.
   §Results): every HTTP arm passes the safety and load bars in every ending that carries them; SESSION fails D8's safety bar (as
   predicted) and SESSION-H the load bar on navigation; every arm delivered the safety report in D5a. Owed:
   REPORT-VERDICT-REVIEW.
+  The verdict review (2026-11-18, report-plan.md §Verdict review): rows recomputed, all agree; BEACON-H/Y and
+  KEEPALIVE-H/Y pass cell D (provisional: L, C, Y unbuilt), the Y timing leading by 50 points; BEACON-Y against
+  KEEPALIVE-Y, rule 3 and the receivers not decided. D5's kill is timed from the page's send, not the mismatch, so
+  D5a never tested its race. Owed: D5 retimed, cells L, C, Y, R, D6, Firefox and WebKitGTK.
 
 ## PRs
 

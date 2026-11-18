@@ -121,6 +121,8 @@ commit differs from the demo commit in 20 files of the fill's path. No cloud run
 pass every correctness check. *Decides:* the next phone round, amended by a
 session that will not run it ([`../devices.md`](../devices.md) §7). The owner's.
 
+**How the reports leave the page** (2026-11-18, Chromium cell D only, provisional): BEACON and KEEPALIVE pass, the hybrid timing leading at-hide by 50 points; the carrier, the safety report's carrier and the receiver undecided ([`evidence/report-plan.md`](evidence/report-plan.md) §Verdict review). Telemetry stays off.
+
 **A failed Lossless is not retried**, and **a hidden page loses its AV1 decoder mid-group**, both seen on the phone
 run. *Decides:* each traced in code, reproduced (labelled simulated), a failing test, the fix.
 
