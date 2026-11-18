@@ -14,6 +14,7 @@ import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { order, balanced } from "../order.mjs";
 import { sampleTree } from "../scripts/proc_sampler.mjs";
+import { judge } from "./judge.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const argv = process.argv.slice(2);
@@ -164,17 +165,6 @@ function tally(log) {
   };
 }
 
-/** The pilot's check of the relay against what it was asked: loss within a factor of 3 of the mean, given 30 expected losses. */
-function relayHeld(form, t) {
-  if (!form.loss || !t.down) return null;
-  const sent = t.down.sent + t.up.sent;
-  const lost = t.down.lost + t.up.lost;
-  const expect = (sent * form.loss) / 100;
-  if (expect < 30) return `too few packets to check ${form.loss} % loss (${sent})`;
-  const seen = (100 * lost) / sent;
-  return seen > form.loss / 3 && seen < form.loss * 3 ? null : `relay loss ${seen.toFixed(3)} %, asked ${form.loss} %`;
-}
-
 const p99 = (v) => { const s = [...v].sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.ceil(0.99 * s.length) - 1)] : null; };
 /** §5.3's metric for the form's action, from the downloader's stamps (epoch ms). */
 function metric(form, r) {
@@ -255,26 +245,6 @@ async function visit(round, armName, form, prev, browserArgs) {
   return row;
 }
 
-/** §5.4's VOID reasons, and the checks that stop the run instead. */
-function judge(form, row, pilotMedian) {
-  const voids = [];
-  if (row.relayTally.late) voids.push("relay guard p99 over 1 ms");
-  if (row.busiestCore > 0.95) voids.push(`a core ${(100 * row.busiestCore).toFixed(0)} % busy`);
-  const want = ARMS[row.arm].proto;
-  if (want && !(row.protocols.length && row.protocols.every((p) => p === want))) voids.push(`spoke ${row.protocols.join(",") || "nothing"}, not ${want}`);
-  if (row.crash) voids.push(`crash: ${row.error}`);
-  if (pilotMedian && row.wallMs > 3 * pilotMedian) voids.push(`visit ${row.wallMs} ms past 3x the pilot's ${pilotMedian}`);
-  row.void = voids.length ? voids : undefined;
-  if (row.serverTicks === 0) row.flags = [...(row.flags ?? []), "CPU ZERO: the sampler read nothing (wrong pid?)"];
-  const owed = form.action === "first" ? 1 : form.n;
-  if (!row.void && row.exact !== owed) return `STOP: ${row.exact} of ${owed} frames exact (${row.error ?? ""} ${JSON.stringify(row.failures)})`;
-  if (PILOT && !row.void) {
-    const held = relayHeld(form, row.relayTally);
-    if (held) return `PILOT REFUSES: ${held}`;
-  }
-  return null;
-}
-
 const browserArgs = [`--ignore-certificate-errors-spki-list=${spki}`, "--enable-quic", "--disable-background-networking",
   "--disable-background-timer-throttling", "--disable-renderer-backgrounding"];
 const rows = [];
@@ -292,7 +262,7 @@ outer: for (const form of CELLS[CELL].forms) {
     let prev = null;
     for (const armName of MUTATE === "fixed-order" ? NAMES : order(NAMES, round)) {
       const row = await visit(round, armName, form, prev, browserArgs);
-      stopped = judge(form, row, pilot[`${form.name}/${armName}`]);
+      stopped = judge(form, row, { proto: ARMS[armName].proto, pilot: PILOT, pilotMedian: pilot[`${form.name}/${armName}`] });
       rows.push(row);
       fs.appendFileSync(OUT, JSON.stringify(row) + "\n");
       console.log(`${form.name} r${round} ${armName.padEnd(8)} v ${row.v?.toFixed?.(1) ?? "—"} ms exact ${row.exact ?? 0}` +

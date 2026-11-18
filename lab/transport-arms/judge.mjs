@@ -1,0 +1,34 @@
+/** A visit's verdict under stacks.md §5.2 and §5.4: the reasons it is VOID, and the failures that stop the run instead. */
+
+/** The pilot's check of the relay against what it was asked: loss within a factor of 3 of the mean, given 30 expected losses. */
+export function relayHeld(form, t) {
+  if (!form.loss || !t.down) return null;
+  const sent = t.down.sent + t.up.sent;
+  const lost = t.down.lost + t.up.lost;
+  const expect = (sent * form.loss) / 100;
+  if (expect < 30) return `too few packets to check ${form.loss} % loss (${sent})`;
+  const seen = (100 * lost) / sent;
+  return seen > form.loss / 3 && seen < form.loss * 3 ? null : `relay loss ${seen.toFixed(3)} %, asked ${form.loss} %`;
+}
+
+/** Sets `row.void` and `row.flags`; returns why the run stops, or null. `proto`: what the arm's `nextHopProtocol` must read. */
+export function judge(form, row, { proto, pilot = false, pilotMedian } = {}) {
+  const voids = [];
+  if (row.relayTally.late) voids.push("relay guard p99 over 1 ms");
+  if (row.busiestCore > 0.95) voids.push(`a core ${(100 * row.busiestCore).toFixed(0)} % busy`);
+  if (row.crash) voids.push(`crash: ${row.error}`);
+  else if (proto && !(row.protocols.length && row.protocols.every((p) => p === proto))) voids.push(`spoke ${row.protocols.join(",") || "nothing"}, not ${proto}`);
+  if (pilotMedian && row.wallMs > 3 * pilotMedian) voids.push(`visit ${row.wallMs} ms past 3x the pilot's ${pilotMedian}`);
+  row.void = voids.length ? voids : undefined;
+  if (row.serverTicks === 0) row.flags = [...(row.flags ?? []), "CPU ZERO: the sampler read nothing (wrong pid?)"];
+  // §5.2: a frame that failed its check stops the run whatever else voids the visit.
+  const unchecked = (row.frames ?? []).filter((f) => f.exact !== true);
+  if (unchecked.length) return `STOP: frame ${unchecked.map((f) => `${f.i} ${f.exact}`).join(", ")} failed its check`;
+  const owed = form.action === "first" ? 1 : form.n;
+  if (!row.void && row.exact !== owed) return `STOP: ${row.exact} of ${owed} frames exact (${row.error ?? ""} ${JSON.stringify(row.failures)})`;
+  if (pilot && !row.void) {
+    const held = relayHeld(form, row.relayTally);
+    if (held) return `PILOT REFUSES: ${held}`;
+  }
+  return null;
+}
