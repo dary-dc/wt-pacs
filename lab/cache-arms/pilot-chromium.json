@@ -1,6 +1,0 @@
-{
- "opfs-sync": "",
- "opfs-async": "group=8MiB&inflight=3&read=sync",
- "idb": "",
- "cachestorage": "inflight=3&body=streamed"
-}

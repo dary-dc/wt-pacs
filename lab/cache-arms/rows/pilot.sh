@@ -6,9 +6,10 @@ ENGINE=$1
 OUT=lab/cache-arms/rows/$ENGINE/pilot
 mkdir -p "$OUT"
 export NODE_PATH=$(npm root -g)
+STEP=""
 
 run() { # arm cell size settings tag rep
-  local f=$OUT/$1.$2-$3.$5.$6.jsonl
+  local f=$OUT/$1.$2-$3$STEP.$5.$6.jsonl
   [ -s "$f" ] && grep -q '"unit"' "$f" && return
   node lab/cache-arms/run.mjs --engine "$ENGINE" --cell "$2" --size "$3" --rounds 1 --arms "$1" --pilot "$4" --out "$f" >/dev/null 2>&1 || true
 }
@@ -19,7 +20,7 @@ alternate() { # arm cell size a b
   done
 }
 pick() { # arm cell size measure a b → the pick (a tie within 10 % keeps a)
-  python3 lab/cache-arms/rows/pilot_pick.py "$OUT" "$1" "$2-$3" "$4" "$5" "$6"
+  python3 lab/cache-arms/rows/pilot_pick.py "$OUT" "$1" "$2-$3$STEP" "$4" "$5" "$6"
 }
 join() { local a=$1 b=$2; [ -z "$a" ] && echo "$b" || { [ -z "$b" ] && echo "$a" || echo "$a&$b"; }; }
 
@@ -41,6 +42,7 @@ fi
 
 alternate cachestorage R-idle 2560 "" "inflight=3"
 I=$(pick cachestorage R-idle 2560 writeread "" "inflight=3")
+STEP=-body
 alternate cachestorage R-idle 2560 "$I" "$(join "$I" body=streamed)"
 CS=$(pick cachestorage R-idle 2560 writeread-streamed "$I" "$(join "$I" body=streamed)")
 
