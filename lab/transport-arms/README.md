@@ -52,6 +52,8 @@ target/release/pack-series --metadata OUT/metadata.json --frames OUT --output OU
 
 ## Where the build departs from §5's text
 
+Both amended into `stacks.md` §5.7 on `claude/transport-design` (`0464fc8c`), dated, before any counted row.
+
 * **The GET path's HTTP/3 is a quinn endpoint of its own**, not "the same quinn endpoint" (§5.6 item 1): a WebTransport
   dial and a `fetch` both offer ALPN `h3`, so one endpoint cannot route them before wtransport reads the CONNECT. It is
   built from the same `TransportTuning::to_transport_config()` in the same process, which holds §5.1's "the same
