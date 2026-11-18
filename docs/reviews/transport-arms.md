@@ -82,3 +82,47 @@ rides the session URL for WT-TS and WS.
 ## Owner decisions
 
 None: B4's fix (a socket option under the lab feature) and B5's amendment stay inside §5's design.
+
+## Re-review
+
+TRANSPORT-BUILD-FIX-REVIEW, 2026-11-18, by a session that wrote neither the build, its review nor the fix. Reviewed:
+`claude/transport-arms` `fa002825..65c6dd6c` and `claude/transport-design` `0464fc8c`. Each blocker's fix was reverted
+or made a no-op here, its check seen to fail, then restored.
+
+**Fixtures and limits.** One 4-core cloud container (Linux 6.18, kernel default `bbr`, no GPU, no Docker), headless
+Chromium 157.0.8103.78; the build's synthetic series (`fixture.sh`, 12 HTJ2K frames, 2048²), not `dbts_b1`. The driver
+runs below are one round of FF over WT-TS, WS and H2-fill with `--idle-ms 1000`: they check what stops the run and
+measure nothing.
+
+### Verdict
+
+**No blocker open.** TRANSPORT-RUN may start.
+
+| # | reverted | its check |
+| --- | --- | --- |
+| B1 | `--mutate no-opening` (the page fills after `connect`, the old path) | `STOP: frame 0 asked after the dial, not by the opening ask`, exit 3. Unmutated: every visit exact, each frame's ask before `dial`; `connect`'s fill reaches the transport through the downloader's `openSession(opening)` |
+| B2 | the frame check moved back under `!row.void` (one line), and the pre-fix `judge` of `fa002825:run.mjs` | `judge.test.mjs`: `FAIL a failed check under a late relay gave null` |
+| B3 | the crash test after the protocol test (one line), and the pre-fix `judge` | `FAIL a crash gave threw Cannot read properties of undefined (reading 'length')` |
+| B4 | `--mutate default-congestion`; and `set_congestion` made `Ok(())` | `STOP: the server's TCP ran bbr, not cubic`, exit 3; the Rust test `an_accepted_socket_takes_the_named_controller` fails (`left: "bbr"`, `right: "reno"`). Unmutated: `cubic` read on every WS and H2-fill visit |
+| B5 | — (a document) | `stacks.md` §5.7, dated 2026-11-18, both departures and the socket-level `cubic`; no counted row exists before it |
+
+The pre-fix `judge` fails seven of the new test's checks, B1–B4's included. **Nothing else changed:** the diff touches
+the five blockers, minors 1, 3 and 5 (CPU ZERO in CLEAN only, the browser's switches in each row, `fixture.sh`
+executable), `scripts/gate.sh`'s one line for the test, and `websocket.rs`'s one call, under `cfg(feature = "lab-get")`.
+`scripts/gate.sh` green up to the decoders' rebuild, which needs Docker (skipped, as for the fix); after it, by hand:
+both telemetry absence checks, `scripts/check_lab_absent.sh` ("OK: no lab crate, source or module in the images or the
+default build") and the comment budget, all green.
+
+### Not blocking
+
+1. `judge`'s exemption of `aa`'s last frame from the opening rule has no test: with `"aa"` removed the test still
+   passes. A broken exemption would stop the AA cell on its first WT or WS visit (loud, not silent); one case like
+   `ad`'s closes it.
+2. `tcpCongestion` reads the controller as the token just before `wscale` at the start of `ss -tin`'s info line. This
+   host's `ss` prints it so; one that prints `ts sack` first would read nothing and stop the run (safe, not silent).
+3. In these single rounds H2-fill reads ×0.98–1.00 of WT-TS at FF (the review's as-built ×0.91–0.97). One round,
+   no claim: the run decides it.
+
+### Owner decisions
+
+None.
