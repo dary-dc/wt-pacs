@@ -1177,3 +1177,26 @@ mismatch; no row errored. D5b carries the safety bar; the load report is ranked 
 The fill record reached the sink in 18/18 for every at-once or hybrid arm, so the fill ended inside the 500 ms (the
 rig's 32-frame grey series, §7.8; a `dbts_c1` fill would not). Rank on D5b: the four Y/1 arms 18/18, the H arms 0/18.
 Loopback, as D1 (§7.8).
+
+### D8 · the session never opens (18 rounds, 162 loads, 2026-11-18 05:21–08:37 UTC)
+
+Run whole by a resumed session on a rebuilt host of the same make (4 vCPU, Chromium 153.0.8010.12, nginx 1.31.8); the
+previous session's 111 rows (12–13 rounds, 2026-11-18) are kept as `chromium-D8.partial-0521.jsonl`, counted in no
+bar, and agree with every count below. Williams-balanced for every unit. Host CPU at most 13 % (5 s samples): no round
+saturated. No row errored. As the rig builds D8 (`run.mjs`), no series server is started and the page dials a closed
+port; every load's state 6 s in was `error`, and the mismatch is the page's own (`forced=page`), so no fill record or
+delta exists to send in any arm. D8 carries the safety bar (§7.3).
+
+| unit | fill record | safety report | dup. | link line | safety bar | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | 18/18, 18/18 | 0 | 0/18 | pass | as predicted; A/A identical |
+| BEACON-H | 0/18 | 18/18 | 0 | 0/18 | pass | ✓ |
+| BEACON-Y | 0/18 | 18/18 | 0 | 0/18 | pass | ✓ |
+| KEEPALIVE-H | 0/18 | 18/18 | 0 | 0/18 | pass | ✓ |
+| KEEPALIVE-Y | 0/18 | 18/18 | 0 | 0/18 | pass | ✓ |
+| SESSION-1 | 0/18 | **0/18** | 0 | 0/18 | **FAIL** | ✓ "✗": expected to fail D8 |
+| SESSION-Y | 0/18 | **0/18** | 0 | 0/18 | **FAIL** | ✓ "✗" |
+| SESSION-H | 0/18 | **0/18** | 0 | 0/18 | **FAIL** | ✓ "✗" |
+
+Every HTTP arm reached RECEIVER with the safety report while the session could not open; the SESSION arms, whose only
+route is the session, delivered none, as §7.3 predicts. Loopback, as D1 (§7.8).
