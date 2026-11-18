@@ -1,17 +1,19 @@
-state: started
+state: done
 started: 2026-11-18T17:16Z
-heartbeat: 2026-11-18T17:30Z
-outputs: claude/phone-round (docs/reviews/phone-round.md §Levers re-review)
+heartbeat: 2026-11-18T17:42Z
+outputs: claude/phone-round 5b2afc2c, a6dacd89, 7c9735eb, 033833f6 (docs/reviews/phone-round.md §Levers re-review; docs/lines/client.md); PR 400
 ## Resume
-Claimed 2026-11-18T17:16Z. Next: worktree of claude/phone-round at ba0a9619; for each blocker revert its fix (4a360628 for 2; for 1
-the test c7677027 against a code mutant) and see round_headless.sh fail; diff 5d6a2f9b..ba0a9619 for anything else
-changed; round_headless.sh, check_lab_absent.sh, comment budget.
-2026-11-18T17:17Z: worktree /home/user/pr at ba0a9619; diff 5d6a2f9b..ba0a9619 touches only lab/devices, lab/viewer/levers.test.mjs,
-README and docs (no product path). Building ingest/tools.sh + cargo series-server/pack-series (log /tmp/claude-0/tools.log),
-then: baseline `bash lab/devices/round_headless.sh`; mutants (each one edit, run, `git checkout -- lab/`): revert 4a360628's
-bench.js; bench ignoring exact===false; C2 ignoring not exact; ms = decodeEnd − t0; span from first decodeStart.
-2026-11-18T17:30Z: baseline round_headless.sh every claim holds; M1-M5 each fail their claim; minors 3, 7 mutants killed;
-absence + comment budget green. Re-review pushed (claude/phone-round 5b2afc2c, a6dacd89), gate pending. Running:
-rustup wasm32 target, cargo install wasm-pack 0.15.0, client/transport/wasm/build.sh, scripts/gate.sh --quick (log
-/tmp/claude-0/gate.log). Next: the gate's line into §Levers re-review, docs/lines/client.md, PR 400 body untouched, done.
+Done. Nothing left for this row. PHONE-RUN-OWNER's need on PHONE-LEVERS-REVIEW is met (no blocker open); its
+not-before (11-19 12:00) still holds.
 ## Result
+Checked 934fd6d8..ba0a9619 (c7677027, 4a360628, 3cd7ac89, 95f7d370, ba0a9619): only lab/devices, levers.test.mjs,
+README and the line doc; no product path.
+As committed: round_headless.sh every claim holds (18 loads, 85 s); levers.test.mjs, round.test.mjs pass;
+check_lab_absent.sh, comment budget green; gate.sh --quick GATE OK 513 s (skips named in the review).
+Each blocker closed: 4a360628's bench.js reverted, the bench and C2 each ignoring a frame not exact, the frame time
+from the first hand-over, the span from the first decodeStart: each fails its intended claim. Minors 3 and 7: their
+mutants killed by levers.test.mjs and round.test.mjs.
+New minor: "one at a time on each decoder" pins decoder.js's serial decode; no bench.js edit can fail it.
+Verdict: no blocker open (amendment 17 closes).
+Fixtures: one 4-core cloud host, headless Chromium, software WebCodecs, loopback, synthetic 64 x 48 20-frame pair,
+fake adb; no phone, no DBT volume.
