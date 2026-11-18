@@ -1,11 +1,12 @@
 state: started
 started: 2026-11-18T16:16Z
-heartbeat: 2026-11-18T16:17Z
-outputs: claude/phone-round (PR 400)
+heartbeat: 2026-11-18T16:25Z
+outputs: claude/phone-round c7677027, 4a360628, 3cd7ac89, 95f7d370 (PR 400)
 ## Resume
-Pushed c7677027 (claude/phone-round): round_headless.mjs gains a wrong-digest exact metadata (frame 3), a bench load
-(8769) and a C2 load (8770) against it, each failing by name, and the bench timing claims (ms = end − start, no overlap
-per decoder, spanMs = max end − t0). The fix (bench.js records `start` and `t0`; README) is written but unpushed, stashed.
-Next: the cloud build (dockerd, meson, ingest/tools.sh, client/decode/wasm/build/build.sh), then
-lab/devices/round_headless.sh at c7677027 (blocker-2 claim must fail), then the fix, then the four mutants, gate --quick.
+Pushed: c7677027 (tests: wrong-digest bench and C2 loads, the bench's timing claims; at c7677027 the two timing claims
+FAIL, the wrong-frame claims hold), 4a360628 (bench.js records start and t0; round_headless.sh: every claim holds),
+3cd7ac89 (minor 3, levers.test.mjs; its mutant killed), 95f7d370 (minor 7, roundOrder's C1 presses Lossless; test first).
+Running: the review's four surviving mutants through round_headless.sh (/tmp script, one at a time).
+Next: record the mutants; check_lab_absent.sh, comment budget, scripts/gate.sh --quick; PR 400 body §Levers fix;
+docs/lines/client.md; done. Note: client/decode/wasm/build/build.sh fails here (Docker Hub 429), the tracked built/ used.
 ## Result
