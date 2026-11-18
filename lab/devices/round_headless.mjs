@@ -23,6 +23,11 @@ const page = (port, lossy, beacon) => ({
     "--exact-metadata", `${dir}/synth.metadata.json`, "--exact-transport", transport(4434)],
   ready: `http://127.0.0.1:${port}/`,
 });
+const exactPage = (port, beacon) => ({
+  cmd: ["python3", "server/dev-server.py", "--bind", "127.0.0.1", "--port", String(port), "--beacon", beacon,
+    "--metadata", `${dir}/synth.metadata.json`, "--transport", transport(4434)],
+  ready: `http://127.0.0.1:${port}/`,
+});
 const beacon = `${dir}/beacon.jsonl`;
 const viewer = (port, view) => `http://127.0.0.1:${port}/?overlay=1&view=${view}&beacon=cubic-restart`;
 // Load 2 dials a port no server answers (a load made to fail); load 3 holds its thread 2.6 s (a stall); after the
@@ -40,9 +45,13 @@ const loads = [
   { url: viewer(8765, "page"), cell: "2", arm: "A", fault: "throw" },
   { url: viewer(8765, "worker"), cell: "2", arm: "A", fault: "hang" },
   { url: viewer(8765, "page"), cell: "2", arm: "A" },
+  { url: viewer(8768, "page"), cell: "1", arm: "htj2k-2", bench: 50, decoders: 2 },
+  { url: viewer(8765, "page"), cell: "1", arm: "view-2", bench: 50, decoders: 2 },
+  { url: viewer(8765, "page"), cell: "2", arm: "C2", exactFill: 1 },
+  { url: viewer(8765, "page"), cell: "2", arm: "A", decoders: 1 },
 ];
 const head = execFileSync("git", ["-C", ROOT, "rev-parse", "HEAD"]).toString().trim();
-const blocks = [{ name: "wifi", servers: [quic(4433, "synth-q8-g8"), quic(4434, "synth"), page(8765, 4433, beacon), page(8767, 4499, beacon)], loads }];
+const blocks = [{ name: "wifi", servers: [quic(4433, "synth-q8-g8"), quic(4434, "synth"), page(8765, 4433, beacon), page(8767, 4499, beacon), exactPage(8768, beacon)], loads }];
 const planOf = (commit) => {
   writeFileSync(`${dir}/plan.json`, JSON.stringify({ commit, gapS: 1, fillS: 60, afterS: 45, blocks }));
   return `${dir}/plan.json`;
@@ -90,7 +99,7 @@ const locks = loads.map((_, k) => of(k, "wakeLock"));
 check(locks.every((l) => l.length && l.every((w) => ["acquired", "refused", "released"].includes(w.event))),
   `each load records its wake lock (${[...new Set(locks.flat().map((w) => `${w.event}${w.error ? `: ${w.error}` : ""}`))].join("; ")})`);
 const filled = loads.map((_, k) => of(k, "load")[0]);
-check([0, 1, 3, 4, 5, 6, 7, 8, 11].every((k) => filled[k]?.fillMs > 0 && filled[k].frames.length === 20 && filled[k].frames.every((f) => f.decodeMs > 0 && f.kb > 0)
+check([0, 1, 3, 4, 5, 6, 7, 8, 11, 14, 15].every((k) => filled[k]?.fillMs > 0 && filled[k].frames.length === 20 && filled[k].frames.every((f) => f.decodeMs > 0 && f.kb > 0)
   && filled[k].cell === loads[k].cell && filled[k].counted === true), "each filled load's record carries its fill, its frames' wire KB and decode ms, its cell");
 check([0, 1, 6].every((k) => of(k, "label").some((l) => l.quality === "lossless")), "each lossless press reaches the exact frame");
 for (const k of [7, 8]) {
@@ -104,6 +113,20 @@ for (const k of [7, 8]) {
   const busy = of(k, "busy");
   check(busy.filter((b) => b.on).length === 3 && busy.filter((b) => b.on === false).every((b) => b.tasks > 0), "the busy lever on and off three times, its tasks run on the viewer's thread");
 }
+// The synthetic view carries no reconstruction digests, so its frames are unchecked, in the product as here.
+for (const [k, codec, exact] of [[12, "htj2k", true], [13, "av1", "unchecked"]]) {
+  const b = of(k, "bench")[0];
+  check(verdicts[k]?.ok && of(k, "load").length === 0 && b?.codec === codec && b.decoders === 2 && b.frames.length === 20
+    && b.frames.every((f, i) => f.i === i && f.exact === exact && f.ms > 0) && new Set(b.frames.map((f) => f.decoder)).size === 2 && b.effectiveMs > 0,
+    `cell 1's bench, ${codec}: 20 frames from memory on 2 decoders, each checked and timed, the viewer never filling (${b ? `${b.effectiveMs.toFixed(2)} ms effective, ${[...new Set(b.frames.map((f) => f.route))]}` : "none"}${verdicts[k]?.ok ? "" : `; ${verdicts[k]?.why}`})`);
+}
+const c2 = of(14, "exactFill")[0];
+check(verdicts[14]?.ok && c2?.frames.length === 20 && c2.frames.every((f) => f.exact === true && f.decodeMs > 0) && c2.issuedAt >= filled[14]?.fillTo && c2.spanMs > 0,
+  `arm C2: after the view's fill, the whole exact series, every frame checked (${c2 ? `${c2.frames.length} frames in ${Math.round(c2.spanMs)} ms` : "none"})`);
+const spans = (filled[15]?.frames ?? []).map((f) => [f.decodedAt - f.decodeMs, f.decodedAt]).sort((a, b) => a[0] - b[0]);
+check(verdicts[15]?.ok && filled[15].decoders === 1 && filled[15].cores > 0 && spans.length === 20 && spans.every(([s], j) => !j || s >= spans[j - 1][1] - 0.01),
+  "decoders=1: the load records its count, and no two of its frames decoded at once");
+check(filled[4]?.decoders === null, "a load without the lever records no count");
 const adb = readFileSync(`${dir}/adb.log`, "utf8").trim().split("\n");
 check(adb.filter((l) => l === "start-server").length === 1 && adb.filter((l) => l.startsWith("logcat -d")).length === loads.length + 1,
   "one adb server; logcat read once before the press and after each load");

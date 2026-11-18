@@ -6,8 +6,8 @@ const epochMs = () => performance.timeOrigin + performance.now();
 const sendBeacon = (body) => navigator.sendBeacon(BEACON_PATH, new Blob([body], { type: "application/json" }));
 
 /** One frame as the overlay shows it, from the controller's ledger. */
-export const frameRow = ({ i, route, refusal, wireBytes, decodeMs }) =>
-  ({ i, route, ...(refusal && { refusal }), kb: wireBytes === undefined ? null : +(wireBytes / 1024).toFixed(1), decodeMs: decodeMs ?? null });
+export const frameRow = ({ i, route, refusal, wireBytes, decodeMs, decoded }) =>
+  ({ i, route, ...(refusal && { refusal }), kb: wireBytes === undefined ? null : +(wireBytes / 1024).toFixed(1), decodeMs: decodeMs ?? null, decodedAt: decoded ?? null });
 
 /** Records of the load `load`, queued and sent as one JSON list: none before the fill ends, then at its end and each `flush`. */
 export function recorder(load, { send = sendBeacon, now = epochMs } = {}) {

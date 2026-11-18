@@ -1,6 +1,7 @@
 /** The round's hook in the viewer, `?round=<host>&at=<k>`: one load recorded, then the host's next. lab/devices/README.md §The round */
 import { Cine, now } from "../../client/view/clock.js";
 import { beaconHooks } from "./beacon.js";
+import { bench, exactFill } from "./bench.js";
 import { TICK_MS, fillFailure, largestGap, losslessFailure, verdict } from "./round.mjs";
 
 const epochMs = () => performance.timeOrigin + performance.now();
@@ -8,7 +9,8 @@ const epochMs = () => performance.timeOrigin + performance.now();
 export function roundHooks(q) {
   const k = Number(q.get("at"));
   const fillS = Number(q.get("fillS") ?? 120);
-  const { recorder, finished } = beaconHooks(q, { step: k, cell: q.get("cell"), arm: q.get("arm"), counted: q.get("counted") !== "0" });
+  const decoders = q.has("decoders") ? Number(q.get("decoders")) : null;
+  const { recorder, finished } = beaconHooks(q, { step: k, cell: q.get("cell"), arm: q.get("arm"), counted: q.get("counted") !== "0", decoders, cores: navigator.hardwareConcurrency });
   holdScreen(recorder);
   const ticks = [performance.now()];
   const ticker = setInterval(() => ticks.push(performance.now()), TICK_MS);
@@ -22,8 +24,22 @@ export function roundHooks(q) {
     recorder.flush({ leaving: true });
     location.assign(new URL(`/next?after=${k}`, q.get("round")));
   };
-  const late = setTimeout(() => leave(`no fill in ${fillS} s`), fillS * 1000);
+  const late = setTimeout(() => leave(`no ${q.has("bench") ? "bench end" : "fill"} in ${fillS} s`), fillS * 1000);
   return {
+    // Cell 1 before the viewer dials, which it then never does: the load is the bench's alone.
+    ...(q.has("bench") && { started: async () => {
+      let failure;
+      try {
+        const [meta, transport] = await Promise.all([globalThis.viewerMetadata, globalThis.viewerTransport]);
+        const r = await bench({ meta, transport, count: Number(q.get("bench")), decoders });
+        recorder.record("bench", r);
+        failure = r.failure;
+      } catch (e) {
+        failure = `bench: ${e?.message ?? e}`;
+      }
+      leave(failure);
+      await new Promise(() => {});
+    } }),
     async finished(ledger, page) {
       clearTimeout(late);
       const afterS = Number(q.get("afterS") ?? 300);
@@ -35,6 +51,11 @@ export function roundHooks(q) {
         const quality = document.getElementById("quality");
         const lossless = document.getElementById("lossless");
         failure = fillFailure(ledger, (await globalThis.viewerMetadata).frameCount);
+        if (!failure && q.get("exactFill") === "1") {
+          const r = await exactFill(await globalThis.viewerMetadata, await globalThis.viewerTransport, decoders);
+          recorder.record("exactFill", r);
+          failure = r.failure;
+        }
         if (!failure && q.get("press") === "lossless") failure = await losslessFailure(quality, lossless);
         if (!failure && q.get("seq") === "view") failure = await viewSequence(q, recorder, { ...page, n: ledger.frames.length }, quality, lossless);
       } catch (e) {

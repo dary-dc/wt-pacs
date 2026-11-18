@@ -40,15 +40,21 @@ export async function losslessFailure(quality, lossless, { losslessMs = 30000, o
   return (await until(() => quality.className === "optimal", optimalMs)) ? null : `not Optimal quality ${optimalMs / 1000} s after the second press: ${shown()}`;
 }
 
-/** next-round.md §4's series and arms; the round's loads in order: the warm-ups, cell 2's rounds, cell 3's pairs. */
+/** next-round.md §4's series and arms; the round's loads in order: cell 1's repetitions, the warm-ups, cell 2's rounds, cell 3's pairs, cell 1's drift check. */
 export const SERIES = ["dbts_b1-q8-g8", "dbts_a1-q8-g8-cut"];
 export const ARMS = ["A", "B", "C1", "C2"];
+/** Cell 1's arms, each a codec's series and a decoder count, 50 frames held in memory. */
+export const BENCH = { frames: 50, series: { htj2k: "dbts_b1", view: "dbts_b1-q8-g8" }, decoders: [1, 2, 3, 4], drift: [1, 3] };
+const benchArm = (codec, decoders) => ({ cell: "1", arm: `${codec}-${decoders}`, view: "page", series: BENCH.series[codec], bench: BENCH.frames, decoders, counted: true });
+const benchArms = (counts) => Object.keys(BENCH.series).flatMap((codec) => counts.map((d) => benchArm(codec, d)));
 
-export async function roundOrder({ rounds = 16, pairs = 24 } = {}) {
+export async function roundOrder({ rounds = 16, pairs = 24, benchReps = 3 } = {}) {
   const { order } = await import("../order.mjs");
+  const cell1 = Array.from({ length: benchReps }, (_, r) => order(benchArms(BENCH.decoders), r).map((l) => ({ ...l, rep: r })));
+  const drift = benchArms(BENCH.drift).map((l) => ({ ...l, drift: true }));
   const warmUps = [["A", "page"], ["A", "page"], ["A", "worker"], ["A", "worker"]].map(([arm, view]) => ({ cell: "2", arm, view, series: SERIES[0], counted: false }));
-  const cell2 = Array.from({ length: rounds }, (_, r) => order(ARMS, r).map((arm) => ({ cell: "2", arm, view: "page", series: SERIES[r % 2], round: r, counted: true })));
+  const cell2 = Array.from({ length: rounds }, (_, r) => order(ARMS, r).map((arm) => ({ cell: "2", arm, view: "page", series: SERIES[r % 2], round: r, counted: true, ...(arm === "C2" && { exactFill: 1 }) })));
   const abba = (p) => (p % 2 ? ["worker", "page"] : ["page", "worker"]);
   const cell3 = Array.from({ length: pairs }, (_, p) => abba(p).map((view) => ({ cell: "3", arm: view, view, series: SERIES[0], pair: p, seq: "view", counted: true })));
-  return [...warmUps, ...cell2.flat(), ...cell3.flat()];
+  return [...cell1.flat(), ...warmUps, ...cell2.flat(), ...cell3.flat(), ...drift];
 }

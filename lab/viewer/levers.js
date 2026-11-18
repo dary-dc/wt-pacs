@@ -11,7 +11,8 @@ const WORKER_ONLY = ["writer", "waitAhead", "holdEveryOther", "pixels", "pageDia
 
 export function levers(q) {
   if (q.get("trace") && q.get("trace") !== "sawtooth") throw new Error(`refused: trace ${JSON.stringify(q.get("trace"))} — sawtooth`);
-  const opts = q.get("opts") ? JSON.parse(q.get("opts")) : {};
+  const asked = q.get("opts") ? JSON.parse(q.get("opts")) : {};
+  const opts = { ...asked, ...(q.has("decoders") && { decoders: decoderCount(q, asked) }) };
   if ("digests" in opts && !(Array.isArray(opts.digests) && opts.digests.length)) throw new Error("refused: opts.digests — a list of the frames' digests; the frame check cannot be turned off");
   const writer = q.get("writer") ?? undefined;
   const set = { ...opts, writer, pixels: opts.pixels === "transfer" };
@@ -22,6 +23,9 @@ export function levers(q) {
   if (writer === "decoders" && opts.pixels === "transfer") throw new Error("refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred");
   for (const k of ["settle", "after"]) if (q.has(k) && !q.get("post")) throw new Error(`refused: ?${k} without ?post — the rig's`);
   if (q.get("post") && (q.has("beacon") || q.has("round"))) throw new Error("refused: post with beacon or round — one harness reads the fill's end");
+  for (const k of ["bench", "exactFill"]) if (q.has(k) && !q.has("round")) throw new Error(`refused: ?${k} without ?round — a round's cell records it`);
+  if (q.has("bench") && !(Number.isInteger(Number(q.get("bench"))) && Number(q.get("bench")) > 0)) throw new Error(`refused: bench ${JSON.stringify(q.get("bench"))} — a frame count`);
+  if (q.has("bench") && !q.has("decoders")) throw new Error("refused: bench without decoders — cell 1's arm names its count");
   if (q.has("round") && !q.get("beacon")) throw new Error("refused: round without beacon — a round's loads name their controller");
   const settle = q.get("settle") ?? "fence";
   if (!["fence", "read"].includes(settle)) throw new Error(`refused: settle ${JSON.stringify(settle)} — fence or read`);
@@ -39,6 +43,14 @@ export function levers(q) {
     ...(q.get("trace") && { trace: { steps: sawtooth, everyMs: STEP_MS } }),
   };
   return { ...lab, hooks: pageHooks(q, lab) };
+}
+
+/** `?decoders=`, the fill's decoder count: next-round.md §4 cell 1. */
+function decoderCount(q, opts) {
+  const n = Number(q.get("decoders"));
+  if ("decoders" in opts) throw new Error("refused: decoders with opts.decoders — name the count once");
+  if (!Number.isInteger(n) || n < 1 || n > 8) throw new Error(`refused: decoders ${JSON.stringify(q.get("decoders"))} — a whole number 1 to 8`);
+  return n;
 }
 
 /**

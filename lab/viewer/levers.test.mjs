@@ -108,5 +108,31 @@ function theRigsSettle() {
 }
 theRigsSettle();
 
-console.log(failed ? `${failed} failed` : "levers: a fill's time and reads, steps on demand, the refusals, the settle: ok");
+/** `?decoders=` sets the fill's decoder count, 1 to 8 and named once; cell 1's bench and C2's fill run only inside a round, the bench with its count. */
+function theRoundsLevers() {
+  const refusal = (query) => {
+    try {
+      levers(new URLSearchParams(query));
+      return null;
+    } catch (e) {
+      return e.message;
+    }
+  };
+  check(levers(new URLSearchParams({ decoders: "2" })).opts.decoders === 2, "decoders=2 sets the fill's count");
+  check(levers(new URLSearchParams({ decoders: "4", opts: JSON.stringify({ span: 1 }) })).opts.span === 1, "the count beside other opts");
+  check(!("decoders" in levers(new URLSearchParams({ opts: "{}" })).opts), "no decoders, the downloader's default");
+  for (const [query, said] of [
+    [{ decoders: "0" }, 'refused: decoders "0" — a whole number 1 to 8'],
+    [{ decoders: "9" }, 'refused: decoders "9" — a whole number 1 to 8'],
+    [{ decoders: "1.5" }, 'refused: decoders "1.5" — a whole number 1 to 8'],
+    [{ decoders: "2", opts: JSON.stringify({ decoders: 3 }) }, "refused: decoders with opts.decoders — name the count once"],
+    [{ bench: "50", decoders: "1" }, "refused: ?bench without ?round — a round's cell records it"],
+    [{ exactFill: "1" }, "refused: ?exactFill without ?round — a round's cell records it"],
+    [{ bench: "50", round: "http://host/", beacon: "c" }, "refused: bench without decoders — cell 1's arm names its count"],
+    [{ bench: "x", decoders: "1", round: "http://host/", beacon: "c" }, 'refused: bench "x" — a frame count'],
+  ]) check(refusal(query) === said, `${JSON.stringify(query)}: ${refusal(query)}`);
+}
+theRoundsLevers();
+
+console.log(failed ? `${failed} failed` : "levers: a fill's time and reads, steps on demand, the refusals, the settle, the round's levers: ok");
 process.exit(failed ? 1 : 0);

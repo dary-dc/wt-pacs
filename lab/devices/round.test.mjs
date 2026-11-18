@@ -1,7 +1,7 @@
 /** node lab/devices/round.test.mjs — the round's rules: a load's failure, the timer gap, the verdict. */
 import assert from "node:assert/strict";
 import { balanced } from "../order.mjs";
-import { ARMS, SERIES, STOPPED_GAP_MS, TICK_MS, fillFailure, largestGap, roundOrder, verdict } from "./round.mjs";
+import { ARMS, BENCH, SERIES, STOPPED_GAP_MS, TICK_MS, fillFailure, largestGap, roundOrder, verdict } from "./round.mjs";
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -38,13 +38,28 @@ test("a failed load says why and is not void", () => {
 });
 
 /**
- * The round's order is next-round.md §4's: four warm-ups not counted, then cell 2's 16 rounds each a Williams row of
- * the four arms, the series alternating by round (8 each, 64 loads, every arm before and after every other equally), then
- * cell 3's 24 pairs in ABBA order (48 loads).
+ * The round's order is next-round.md §4's: cell 1's three repetitions each a Williams row of its eight arms (two codecs
+ * × 1–4 decoders, 50 frames each), four warm-ups not counted, then cell 2's 16 rounds each a Williams row of the four
+ * arms, the series alternating by round (8 each, 64 loads, every arm before and after every other equally), C2 alone
+ * filling the exact series after the view; cell 3's 24 pairs in ABBA order (48 loads); last, cell 1's 1- and
+ * 3-decoder arms again, the drift check.
  */
 test("the round's order is the protocol's", async () => {
-  const loads = await roundOrder();
-  assert.equal(loads.length, 4 + 64 + 48);
+  const all = await roundOrder();
+  assert.equal(all.length, 24 + 4 + 64 + 48 + 4);
+  const cell1 = all.slice(0, 24);
+  const arms1 = [...new Set(cell1.map((l) => l.arm))];
+  assert.equal(arms1.length, 8);
+  for (let r = 0; r < 3; r += 1) assert.deepEqual(cell1.filter((l) => l.rep === r).map((l) => l.arm).sort(), [...arms1].sort());
+  assert.ok(cell1.every((l) => l.cell === "1" && l.counted && l.bench === 50 && BENCH.decoders.includes(l.decoders) && l.series === BENCH.series[l.arm.split("-")[0]]));
+  assert.notDeepEqual(cell1.slice(0, 8).map((l) => l.arm), cell1.slice(8, 16).map((l) => l.arm));
+  const drift = all.slice(-4);
+  assert.deepEqual(drift.map((l) => l.arm).sort(), ["htj2k-1", "htj2k-3", "view-1", "view-3"]);
+  assert.ok(drift.every((l) => l.drift && l.cell === "1" && l.bench === 50));
+  assert.ok(all.filter((l) => l.exactFill).every((l) => l.arm === "C2" && l.exactFill === 1));
+  assert.equal(all.filter((l) => l.exactFill).length, 16);
+  assert.ok(all.every((l) => (l.cell === "1") === ("bench" in l)));
+  const loads = all.slice(24, -4);
   assert.ok(loads.slice(0, 4).every((l) => !l.counted));
   const cell2 = loads.filter((l) => l.cell === "2" && l.counted);
   assert.equal(cell2.length, 64);
