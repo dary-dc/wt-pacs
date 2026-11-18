@@ -77,7 +77,9 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | DEVICE-THEORY-REVIEW | 11-18 00:00 | DEVICE-THEORY done | findings in its PR body; amendment 17; closed by 11-21 16:00 |
 | TRANSPORT-BUILD | 11-18 00:00 | — | `claude/transport-arms` from `origin/claude/docs-client` → draft PR into `claude/docs-client`: `stacks.md` §5.6 of `claude/transport-design` `c74d4bea` |
 | TRANSPORT-BUILD-REVIEW | 11-18 00:00 | TRANSPORT-BUILD done | `claude/transport-arms` (`docs/reviews/transport-arms.md`); amendment 17 |
-| TRANSPORT-RUN | 11-18 00:00 | TRANSPORT-BUILD-REVIEW done with no blocker open | rows on `claude/transport-arms`; results in `stacks.md` §Results on `claude/transport-design`; in the cloud (amendment 24) |
+| TRANSPORT-BUILD-FIX | 11-18 10:00 | TRANSPORT-BUILD-REVIEW done | `claude/transport-arms` (PR 403): the five blockers of `docs/reviews/transport-arms.md` §Verdict; B5's amendment on `claude/transport-design` |
+| TRANSPORT-BUILD-FIX-REVIEW | 11-18 10:00 | TRANSPORT-BUILD-FIX done | `claude/transport-arms` (`docs/reviews/transport-arms.md` §Re-review) |
+| TRANSPORT-RUN | 11-18 00:00 | TRANSPORT-BUILD-FIX-REVIEW done with no blocker open | rows on `claude/transport-arms`; results in `stacks.md` §Results on `claude/transport-design`; in the cloud (amendment 24) |
 | TRANSPORT-VERDICT-REVIEW | 11-18 00:00 | TRANSPORT-RUN done, or 11-27 08:00 | `claude/transport-design` (`stacks.md` §Verdict review) |
 | AGENTS-DOCS | 11-18 00:00 | — | `claude/agents-docs` from `origin/claude/unified` → draft PR into `claude/unified` ("do not merge: review") |
 | AGENTS-DOCS-REVIEW | 11-18 00:00 | AGENTS-DOCS done | findings in its PR body; amendment 17 |
@@ -1063,6 +1065,23 @@ of §5.6's mutants fails its check. The pilot only as §5 allows (timeouts and p
 A session that wrote none of `stacks.md` §1-§5 or the build: each arm as §5.1 defines it; the A/A copy the same code;
 each metric's clock ending at the frame's last byte (§5.3); every mutant fails its check; the absence check green.
 Findings in `docs/reviews/transport-arms.md`; blockers start amendment 17.
+
+#### TRANSPORT-BUILD-FIX (appended by TRANSPORT-BUILD-REVIEW, 2026-11-18; amendment 17)
+
+A session that wrote none of the build or its review. Fix B1–B4 of `claude/transport-arms:docs/reviews/transport-arms.md`
+§Verdict, each with a test or a check that fails without its fix (mutated, the mutant named): the opening ask in every
+arm as the default build carries it (B1); a failed frame check stops the run whatever else voids the visit (B2); a
+fetch arm's crash recorded as `VOID crash` (B3); the H2 and WS arms' server sockets on Cubic by `TCP_CONGESTION` under
+a lab flag, the algorithm read back per visit (`ss -ti`) and printed (B4). B5: the build's two departures written into
+`claude/transport-design:docs/transport/evidence/stacks.md` §5 as an amendment, dated, before any counted row. The
+review's seven non-blocking items: fix those that are one line, list the rest in the PR body. Gate,
+`scripts/check_lab_absent.sh`, and one round of CLEAN and FF over the eight arms.
+
+#### TRANSPORT-BUILD-FIX-REVIEW
+
+A session that wrote neither the build, its review nor the fix: each blocker closed (revert its fix, see its check
+fail); nothing else changed; the absence check green. Findings in `docs/reviews/transport-arms.md` §Re-review; a
+blocker still open is the second round of amendment 17.
 
 #### TRANSPORT-RUN (cloud, amendment 24)
 
