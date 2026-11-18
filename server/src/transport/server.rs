@@ -58,6 +58,9 @@ pub struct ServeConfig {
     #[cfg(feature = "lab-levers")]
     #[command(flatten)]
     pub lab: LabLevers,
+    #[cfg(feature = "lab-get")]
+    #[command(flatten)]
+    pub lab_get: crate::transport::lab_get::LabGet,
 }
 
 /// `H3_NO_ERROR`, HTTP/3's code for a graceful close.
@@ -94,6 +97,8 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
         series_frames: store.frame_count(),
     });
 
+    #[cfg(feature = "lab-get")]
+    crate::transport::lab_get::spawn(&config.lab_get, &config.tuning, &identity, &config.cert_pem, &config.key_pem, Arc::clone(&store)).await?;
     banner::print(&config, &store, &bound, &cert_sha256);
     let sessions = Sessions::new(&config, store);
     if let Some((listener, tls)) = websocket {

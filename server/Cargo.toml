@@ -28,6 +28,8 @@ uring = ["dep:io-uring"]
 # RFC 8879 certificate compression. Off: it pulls brotli and zlib-rs into the tree and does
 # nothing until a peer offers the extension -- docs/ARCHITECTURE.md §What production adds.
 cert-compression = ["rustls/brotli", "rustls/zlib"]
+# Lab only: the frames by HTTP/3 and HTTP/2 GET, for the transport comparison. docs/transport/evidence/stacks.md §5.6
+lab-get = ["dep:h3", "dep:h3-quinn", "dep:h2", "dep:http"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -55,6 +57,10 @@ socket2 = "0.6"
 quinn-proto = { version = "0.11", default-features = false }
 cc-classify = { path = "../lab/cc-classify", optional = true }
 server-telemetry = { path = "../lab/server-telemetry", optional = true }
+h3 = { version = "0.0.8", optional = true }
+h3-quinn = { version = "0.0.10", optional = true }
+h2 = { version = "0.4", optional = true }
+http = { version = "1", optional = true }
 
 [dev-dependencies]
 # The keep-alive getters a test reads back.
