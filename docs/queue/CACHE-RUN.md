@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-18T18:16Z
-heartbeat: 2026-11-18T18:47Z
+heartbeat: 2026-11-18T19:09Z
 outputs: claude/cache-arms 5b86cbb9 (per-arm picks), 1390db63 (pilot-chromium.json frozen), rows under lab/cache-arms/rows/chromium/; claude/cache-plan 3806262b (§8.8 amendment)
 ## Resume
 Host: Chromium 153.0.8010.12 (Playwright's), 4 vCPU, 16 GiB. Worktrees /home/user/arms (claude/cache-arms), /home/user/plan
