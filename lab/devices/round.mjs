@@ -53,7 +53,7 @@ export async function roundOrder({ rounds = 16, pairs = 24, benchReps = 3 } = {}
   const cell1 = Array.from({ length: benchReps }, (_, r) => order(benchArms(BENCH.decoders), r).map((l) => ({ ...l, rep: r })));
   const drift = benchArms(BENCH.drift).map((l) => ({ ...l, drift: true }));
   const warmUps = [["A", "page"], ["A", "page"], ["A", "worker"], ["A", "worker"]].map(([arm, view]) => ({ cell: "2", arm, view, series: SERIES[0], counted: false }));
-  const cell2 = Array.from({ length: rounds }, (_, r) => order(ARMS, r).map((arm) => ({ cell: "2", arm, view: "page", series: SERIES[r % 2], round: r, counted: true, ...(arm === "C2" && { exactFill: 1 }) })));
+  const cell2 = Array.from({ length: rounds }, (_, r) => order(ARMS, r).map((arm) => ({ cell: "2", arm, view: "page", series: SERIES[r % 2], round: r, counted: true, ...(arm === "C1" && { press: "lossless" }), ...(arm === "C2" && { exactFill: 1 }) })));
   const abba = (p) => (p % 2 ? ["worker", "page"] : ["page", "worker"]);
   const cell3 = Array.from({ length: pairs }, (_, p) => abba(p).map((view) => ({ cell: "3", arm: view, view, series: SERIES[0], pair: p, seq: "view", counted: true })));
   return [...cell1.flat(), ...warmUps, ...cell2.flat(), ...cell3.flat(), ...drift];

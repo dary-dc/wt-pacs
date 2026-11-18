@@ -172,7 +172,7 @@ round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer
   fault?, decoders?, bench?, exactFill? }], rebootAfter? }`; `url` is the
   viewer with its `view` and `beacon=<controller>`. `roundOrder()` (`round.mjs`) gives next-round.md's order: cell
   1's three repetitions, each a Williams row of its eight arms (HTJ2K and the view × 1–4 decoders, 50 frames), four
-  warm-ups, cell 2's 16 Williams rounds over A, B, C1, C2 with the series alternating (C2 with `exactFill`), cell 3's
+  warm-ups, cell 2's 16 Williams rounds over A, B, C1, C2 with the series alternating (C1 with `press: "lossless"`, C2 with `exactFill`), cell 3's
   24 ABBA pairs, and last cell 1's 1- and 3-decoder arms again (`drift`); the phone session maps each to its URL and
   servers.
 * **Each load** (`round-page.js`, loaded only through the viewer's lab gate): the screen wake lock asked at load,

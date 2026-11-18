@@ -58,6 +58,7 @@ test("the round's order is the protocol's", async () => {
   assert.ok(drift.every((l) => l.drift && l.cell === "1" && l.bench === 50));
   assert.ok(all.filter((l) => l.exactFill).every((l) => l.arm === "C2" && l.exactFill === 1));
   assert.equal(all.filter((l) => l.exactFill).length, 16);
+  assert.ok(all.every((l) => (l.press === "lossless") === (l.arm === "C1")), "C1 presses Lossless, no other arm");
   assert.ok(all.every((l) => (l.cell === "1") === ("bench" in l)));
   const loads = all.slice(24, -4);
   assert.ok(loads.slice(0, 4).every((l) => !l.counted));
