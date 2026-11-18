@@ -290,7 +290,9 @@ volume.
 `t0`) and nothing else; `round.mjs` adds `press: "lossless"` to C1 loads only, which `round-page.js` already honours.
 
 **As committed:** `round_headless.sh` every claim holds (18 loads, 85 s); `levers.test.mjs` and `round.test.mjs` pass;
-`check_lab_absent.sh` and the comment budget green; `scripts/gate.sh --quick` running (its result below when done).
+`check_lab_absent.sh` and the comment budget green; `scripts/gate.sh --quick` GATE OK in 513 s, skipped by name: the decoders' rebuild and the absence checks
+(--quick; `check_lab_absent.sh` run on its own), the DICOM reader and DICOM to `.sbnd` (PYTHON unset), the native
+painter and window (no lavapipe, Xvfb), the viewer's cross-codec arm and Firefox, the web host's nginx check.
 
 **Each blocker, reverted or mutated, one edit at a time through `round_headless.sh`:**
 
