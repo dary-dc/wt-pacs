@@ -197,3 +197,81 @@ None. The re-review's blocker is closed: `readyS` bounds `wait_line`, a silent `
 
 No blocker open. PHONE-LEVERS' need (the runner's re-review with no blocker open) is met; the minors are the
 author's, none blocks it.
+
+## Levers
+
+*PHONE-LEVERS-REVIEW, 2026-11-18, by a session that wrote none of the runner, its reviews, its fixes or the levers.*
+Checked `def86ef4`, `3d6385fd`, `5d6a2f9b` against the brief: each lever off leaves the product's behaviour and bytes
+unchanged; C2 checks every exact frame; the bench times what `next-round.md` §4 cell 1 says it times; every mutation
+fails its test. Fixtures: one 4-core cloud host, headless Chromium (software WebCodecs), loopback, the synthetic
+64 × 48 20-frame pair, fake `adb`; no phone, no DBT volume.
+
+**As committed:** `levers.test.mjs`, `round.test.mjs`, `beacon.test.mjs` pass; `round_headless.sh` every claim holds
+(2 min 40 s); `check_lab_absent.sh` and the comment budget green; `scripts/gate.sh --quick` running (its result in the next commit).
+
+**Own mutants**, each one replacement run through `round_headless.sh` and reverted (8 valid; a ninth was malformed
+and is not counted):
+
+| mutant | result |
+| --- | --- |
+| the bench's frame time from the first hand-over (`decodeEnd − t0`), not `decodeEnd − decodeStart` | **survives** |
+| the bench ignoring a frame decoded not exact | **survives** |
+| C2 ignoring a frame not exact | **survives** |
+| C2 without the exact series' digests | killed (C2's frames `unchecked`) |
+| `head.js` without `decoders` | survives (minor 3) |
+| the bench's span from the first `decodeStart`, not the first hand-over | survives in effect: the run failed only on the 0 ms cell-3 flake (Re-review 2, minor 2), no bench claim |
+| the bench splitting a group across decoders | killed (dav1d −28 on frame 1) |
+| C2 never run after the fill | killed |
+
+### Blockers (author)
+
+1. **A frame not exact fails neither the bench nor C2 under any test.** Both mutants that drop the check's
+   consequence survive: the synthetic pair's digests always match, so the failure paths never run (the author lists
+   the bench's as untested; C2's is untested too). C2 *does* check every exact frame (the digest mutant is killed),
+   but a load with a wrong frame would be recorded as a good C2 load. Fix: a wrong-digest fixture in
+   `round_headless.sh` (the pair's exact metadata with one frame's digest changed, served as its own series), one
+   bench load (HTJ2K) and one C2 load against it, each failing by name (`frame k decoded not exact`,
+   `exactFill: frame k decoded false, not exact`); both mutants above killed.
+2. **The bench's time is pinned only by `> 0`.** Cell 1 times "from the chunk handed to the decoder to the decoded
+   samples ready (the time the product's decoder worker logs)", and the code does (`decoder.js`'s
+   `decodeStart`/`decodeEnd`, both `performance.timeOrigin + performance.now()`, so the worker's and the page's
+   clocks agree), but nothing fails if it does not: the hand-over and first-`decodeStart` mutants survive. Fix: the
+   record carries each frame's `start` and the bench's `t0`, and the headless claims each frame's `ms` equals its
+   `end − start`, a decoder's frames do not overlap, and `spanMs` equals the last `end − t0`; both mutants killed.
+
+### Minors
+
+3. **`?decoders` alone on a host without `lab/`.** No test pins `head.js`'s list to the levers' keys, so the mutant
+   dropping `decoders` survives: on the product host a page with only `?decoders` would load with the default count
+   instead of being refused. In a round it is never alone (`round`, `beacon`), so nothing of the round is at risk.
+4. **The view's groups bound cell 1's view sweep** (*derived*, not measured). 50 frames in groups of 8 are 7 groups
+   (six of 8, one of 2); a group goes whole to one decoder, in the bench as in the product's downloader. With equal
+   frame times, the span in frame-times is 50, 26, 18 and 16 at 1–4 decoders (even split: 50, 25, 16.7, 12.5), and
+   16 again at 5 (M12). So the view's 3 → 4 gain is at most 12.5 %, two points past cell 1's 10 % rule, and 4 → 5
+   is nil whatever the cores. PHONE-READ should report this bound beside the view's saturation point; HTJ2K
+   (groups of 1) is not affected.
+5. **The two codecs' times are not the same work.** HTJ2K's per-frame time includes its XXH3 check (as the product
+   logs it); the view's frames are `unchecked` (no reconstruction digests on this branch), so its time has none.
+   README says so; PHONE-READ should say it beside cell 1's codec comparison.
+6. **A throw inside the bench's handlers hangs it to `fillS`** (seen with the malformed mutant: `no bench end in
+   60 s`). The load still fails by name, at the cost of the fill timer (120 s by default).
+7. **C1's press is still not in `roundOrder()`**: cell 2's C1 loads carry no `press: "lossless"`, so mapped as they
+   stand they are A loads. The PR body leaves it to the phone session's mapping; PHONE-RUN-OWNER must carry it.
+8. Carried: Re-review 2's minor 2 (the 0 ms step flake) seen again here.
+
+### What holds
+
+* **Each lever off:** the only product change is `head.js`'s list of lab names; with none asked, `asked` is empty
+  and the page takes the same path, and without `?decoders` `levers()` returns the same `opts`. The headless loads
+  without levers fill as before, and a load without the count records `decoders: null`. Absence check green.
+* **C2:** a second downloader on the exact series after the view's fill (`issuedAt ≥ fillTo`; the mutant moving it
+  is killed), every index of the series awaited, each frame checked against the exact series' digests.
+* **The bench:** coded bytes held before timing (`decode: false`), then the product's `decoder.js` initialised as the
+  downloader initialises it, with the viewer's decoder configuration, whole groups (the mutant splitting them is
+  killed), two outstanding each, on N workers; `effectiveMs` is the span ÷ frames, as cell 1's rule reads it.
+
+### Verdict
+
+Two blockers, both test gaps on the levers' claims; the code reads right. By amendment 17: PHONE-LEVERS-FIX, then
+PHONE-LEVERS-FIX-REVIEW; PHONE-RUN-OWNER's need on this review is not met until the re-review closes them, or its
+11-20 08:00 fallback applies.
