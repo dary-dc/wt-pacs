@@ -1,7 +1,7 @@
-state: started
+state: done
 started: 2026-11-18T07:16Z
-heartbeat: 2026-11-18T08:09Z
-outputs: claude/transport-arms (from origin/claude/docs-client), draft PR into claude/docs-client (to open)
+heartbeat: 2026-11-18T08:18Z
+outputs: claude/transport-arms 88c91643, draft PR 403 into claude/docs-client
 ## Resume
 **Can this container run `link_impair.py --tun`? Yes, once `iproute2` is installed** (the image lacks `ip`; the relay
 died with `FileNotFoundError: [Errno 2] No such file or directory: 'ip'`). Fixed by `apt-get install -y iproute2
@@ -26,7 +26,19 @@ Coverage, 1 round each on the test series, every arm: CLEAN, FP, AD (PUB, LTE), 
 every visit, no VOID; LOSS as a pilot (4 arms, 2 frames): exact, HOL recorded, the relay's tally 1.03 % against 1 %.
 §5.6's mutants (0a4b5d4b, README §Checks): wrong-protocol VOID, drop-frame STOP, relay-no-loss PILOT REFUSES,
 fixed-order UNBALANCED, cpu-wrong-pid CPU ZERO; the unmutated control balanced.
-Running now: `scripts/gate.sh` (log /tmp, this container). Next: the draft PR into claude/docs-client, then done.
+Gate at 88c91643: green to the decoder rebuild, which needs a Docker daemon this container lacks; the three absence checks after it green by hand. PR 403 opened. Nothing left.
 Build: `cargo build --release -p series-server --features lab-get`; test: `cargo test -p series-server --features
 lab-get --lib -- lab_get a_get_answers`.
 ## Result
+TRANSPORT-BUILD done: stacks.md §5.6's three items on `claude/transport-arms` (draft PR 403 → claude/docs-client).
+* The cloud runs `link_impair.py --tun` once `iproute2` is installed (the image lacks `ip`); no cell weakened.
+* GET path: series-server `--features lab-get` (HTTP/3 + HTTP/2 on `--lab-get-port`); fetch carrier
+  `lab/transport-arms/fetch-session.ts` (frame/fill shapes, K = 6); driver `lab/transport-arms/run.mjs`.
+* Every arm (WT-WASM included) exact by XXH3 at CLEAN, FP, AD, AA, FF and a LOSS pilot, one round, on a synthetic
+  12-frame series (~6.5 MB frames); fetch arms spoke h3/h2 as asked.
+* §5.6's five mutants each fire; the GET path's Rust test kills two mutants.
+* Gate green up to the decoder rebuild (no Docker daemon here); absence checks green.
+* Two departures for TRANSPORT-BUILD-REVIEW: HTTP/3 on a second quinn endpoint with the same transport config (one
+  endpoint cannot tell a WT dial from a fetch, both ALPN h3); an ask's t0 is the page's call (the downloader keeps the
+  fill's ask stamp on a frame the fill owes).
+Owner decisions: none.
