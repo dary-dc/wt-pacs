@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17; Open 9 and its review 2026-11-18.
 
 ## Goal
 
@@ -107,6 +107,11 @@ small enough that every open item has an owner and a next step.
    AUDIT-MECHANICAL (2026-11-17, `2b0064cb`): the owner's name out of `handoff/` as well (the owner's yes), the last
    of audit item 2's three files; items 3 and 4 found done by UNIFIED-CLEAN. `handoff/`'s removal still waits.
    AUDIT-MECHANICAL-REVIEW (2026-11-17, PR 402's body): no blocker; one minor, a product use of *lossy stream*.
+9. **The agents' rules in one home** (row AGENTS-DOCS, 2026-11-18): `docs/agents/` on `claude/agents-docs`, with
+   `CLAUDE.md` §Agents one pointer line; draft PR into `claude/unified`, "do not merge: review". The queue files still
+   carry their own copies until the owner accepts; the PR body lists what each would point to. AGENTS-DOCS-REVIEW
+   (2026-11-18, PR 404's body): no blocker; six minors, and one call for the owner (the git rules leave the file every
+   session loads).
 
 ## Unification (the owner, 2026-11-09)
 
