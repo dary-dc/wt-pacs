@@ -41,7 +41,8 @@ PHONE-PROBE-RUN (local) and the MOBILE-DECODE rows run beside it; the latter may
 `claude/unified` "do not merge: phone run 2026-11-21": `claude/unified` + PR 378 + `claude/phone-round` by `--no-ff`
 merges, and `lab/devices/round_plan.mjs` (the round's 144-load plan, run whole in quick mode headless by
 `round_headless.sh --plan`). The evening: [`../phone-rows/SATURDAY.md`](../phone-rows/SATURDAY.md). Not run: cell 5,
-the report cells, M1–M22 (each named there). Its review: PHONE-RUN-REVIEW, by 11-21 18:00.
+the report cells, M1–M22 (each named there). PHONE-RUN-REVIEW (2026-11-19, PR 409's body): two
+blockers, an empty `--dial` taken (B1) and identifying lines in the raw rows' commit (B2); PHONE-RUN-FIX by 11-21 12:00.
 
 Rows and their briefs: `claude/work-ledger:docs/queue-client-2026-11-14.md` (§The device round's rows; amendments 5,
 7, 10, 11, 14–20 bind device work); status files `claude/work-ledger:docs/queue/<ROW>.md`.
