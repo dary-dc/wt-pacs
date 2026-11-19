@@ -43,7 +43,7 @@ def sigma_claims():
 
 def error_claims():
     """rms and max are the reconstruction's difference from the source in source units; a depth cut's codes count
-    as c · 2^(D−10); the ratio is the difference's noise-band RMS over the source's σ."""
+    as c · 2^(D−10); the ratio is the difference's noise-band RMS over the source's σ, never the reconstruction's."""
     rng = np.random.default_rng(3)
     source = np.rint(scenes()["smooth"] + rng.normal(0, 4, (H, W))).astype(np.int32)
     recon = source + rng.integers(-2, 3, source.shape)
@@ -59,6 +59,9 @@ def error_claims():
     cut = coding_error.coding_error(source, codes, shift=2)
     want = np.sqrt(np.mean(((codes << 2) - source).astype(float) ** 2))
     check(abs(cut["rms"] - want) < 1e-3, f"a cut's rms {cut['rms']} counts its codes as c · 4: {want:.4f}")
+    denoised = coding_error.coding_error(source, np.rint(scenes()["smooth"]).astype(np.int32))
+    check(0.9 < (denoised["noiseBandRatio"] or 0) < 1.1,
+          f"a reconstruction with the source's noise removed: ratio {denoised['noiseBandRatio']} near 1, σ the source's")
     flat = np.full((H, W), 100, np.int32)
     check(coding_error.coding_error(flat, flat + 1)["noiseBandRatio"] is None, "a frame with no noise has no ratio")
 
