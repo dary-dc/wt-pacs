@@ -401,11 +401,13 @@ cell reached this host's saturation. Nothing is claimed above 90 Mbit.
 | **CPU-C** (CLEAN's) | 64, 0 | 82 s of client CPU a GB | WS 0.695, H2-frame 0.770, H2-fill 0.723 (lower); H3-frame 1.665, H3-fill 1.628 (higher); WT-WASM 1.040 (higher) | WS, H2-* ×0.5–0.9 | holds; H3's ×1.6 was not predicted |
 | **BYTES** (CLEAN's) | 64, 0 | 1.037 of the frames' bytes (1.03–1.05) | every arm 1.000–1.002 of WT-TS | within ±3 % | holds |
 | **PUB** | 64, 0 | 10.03 s (~9.7 s) | every arm 0.999–1.003 | all tie | holds |
-| **ENT** | *the run's last cell, cut by the 12 h stop; filled below* | | | | |
-| **FP** | not run: the 12 h stop | | | | |
+| **ENT** (cut by the 12 h stop: 42 of 64 visits, rounds 0–5, balanced) | 42, 0 | 176 s (~9.6 s, **miss** ×18) | WS 0.842, H2-fill 0.847 (faster); H2-frame 0.858, H3-fill 0.970, H3-frame 0.987, WT-WASM 0.990 (tie) | H3 tie; H2-*, WS ×0.95–1.10 | H3 holds; **WS, H2-* miss** (faster than the band) |
+| **FP** | not run: the 12 h stop (its pilot only, not counted) | | | | |
 
 The host's CPU per cell (the busiest core over a visit, median / max): AA 0.43 / 0.81, AD 0.39 / 0.85, CR 0.22 / 0.47, FF
-0.52 / 0.91, LOSS 0.12 / 0.20, LTE 0.16 / 0.36, CLEAN 0.51 / 0.88, PUB 0.47 / 0.82. `VOID`s were the relay's guard
+0.52 / 0.91, LOSS 0.12 / 0.20, LTE 0.16 / 0.36, CLEAN 0.51 / 0.88, PUB 0.47 / 0.82, ENT 0.08 / 0.14. No cell printed `UNBALANCED`. The
+container restarted at ~00:50Z inside ENT's first visit; that visit is kept as `rows/ENT.partial-0051.jsonl`, in no
+bar, and ENT restarted whole at 00:51Z. `VOID`s were the relay's guard
 (p99 over 1 ms) but for two AD visits whose resource entries carried an empty `nextHopProtocol` beside `h3` (§5.7 item
 4); no cell voided over 25 %, so each is reported in its strict reading alone.
 
@@ -429,7 +431,8 @@ The host's CPU per cell (the busiest core over a visit, median / max): AA 0.43 /
 
 ### 6.3 · What the rows show that no prediction covered
 
-* **ENT's fills take 15–20× the prediction** (pilot 146–201 s a visit against ~9.6 s, every arm, every frame exact):
+* **ENT's fills take ~18× the prediction** (WT-TS 176 s against ~9.6 s, every arm, every frame exact), and the kernel's
+  TCP arms bear it better (×0.84–0.86):
   the relay's uniform 10 ms reorder at 90 Mbit (§5.0's departure) reorders far more than §3's p99 tail assumed. A
   property of this jitter model, not of a radio: the enterprise row is not decided here.
 * **The fill-shape fetch arms' ask did not jump.** In every AD visit of H3-fill and H2-fill the frames landed strictly
@@ -447,10 +450,10 @@ The host's CPU per cell (the busiest core over a visit, median / max): AA 0.43 /
 Each arm faster than WT-TS in some cell, scope: Chromium headless 157, one 4-core container, the TUN relay at ≤ 90
 Mbit, one series, assumed and scaled profiles.
 
-* **WS**: an ask during a fill (0.718 PUB, 0.448 LTE), an ask after a short gap (0.97–0.98), LOSS's fill (0.962) and
+* **WS**: ENT's fill (0.842), an ask during a fill (0.718 PUB, 0.448 LTE), an ask after a short gap (0.97–0.98), LOSS's fill (0.962) and
   its frame inter-arrival p99 (0.871); server CPU ×0.145, client CPU ×0.695. Slower after a 5 s silence (×1.39–1.64)
   and on CR (×1.088).
-* **H2-frame, H2-fill**: an ask after a short gap (0.97–0.99), LOSS (H2-frame 0.951); server CPU ×0.15, client CPU
+* **H2-frame, H2-fill**: an ask after a short gap (0.97–0.99), LOSS (H2-frame 0.951), ENT (H2-fill 0.847); server CPU ×0.15, client CPU
   ×0.72–0.77. Slower after a 5 s silence (×1.35–1.70) and during a fill (×1.9–2.0 frame shape).
 * **H3-frame**: CR's fill (0.630: one stream a frame escapes the 6 MiB stream credit at 0.8 s RTT). Slower on HOL
   (1.598) and during a fill (1.67–1.80).
