@@ -10,7 +10,10 @@ import { wrapCarrier, mutateRecord } from "./mutants.js";
 const q = new URLSearchParams(location.search);
 const mutant = q.get("mutant");
 const mutate = (r) => mutateRecord(r, mutant);
-const rig = (globalThis.rig = { state: "starting", safety: 0, frames: 0, error: null });
+const rig = (globalThis.rig = { state: "starting", safety: 0, frames: 0, error: null, faultAt: null });
+const now = () => performance.timeOrigin + performance.now();
+new BroadcastChannel("faultbench").onmessage = ({ data }) => { rig.faultAt ??= data.at; };
+rig.sinceFault = () => now() - rig.faultAt;
 
 try {
   if (!globalThis.crossOriginIsolated) throw new Error("not cross-origin isolated");

@@ -1,7 +1,7 @@
 // node lab/report-arms/run.test.mjs — the driver's rules (report-plan.md §7.2, §7.3): the wait runs before the
 // browser's close; a server without `telemetry` is refused; a cell is whole rounds in Williams order, every row with
 // its round and predecessor, `off'` its own unit loading as `off`, and its balance reported.
-import { drive, plan, balance, unit, serverBanner } from "./run.mjs";
+import { drive, plan, balance, unit, serverBanner, killAfterFault } from "./run.mjs";
 
 let failed = 0;
 const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
@@ -45,6 +45,18 @@ const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
   check(units.every((u) => b[u] === true), `balance: a whole period is balanced ${JSON.stringify(b)}`);
   const same = [0, 1, 2, 3].flatMap((round) => plan(units, 1).map((x) => ({ ...x, round })));
   check(Object.values(balance(same, units)).every((v) => v === false), "balance: one order repeated is not");
+}
+
+{
+  // D5 (§7.3): the kill falls the ending's delay after the decoder's fault, not after the driver learns of it.
+  const waits = [];
+  const since = [12, 50.4];
+  const t = await killAfterFault({ since: async () => since.shift(), pause: async (ms) => waits.push(ms) }, 50);
+  check(waits.length === 1 && waits[0] === 38, `kill: waits the delay less the time already past (${waits})`);
+  check(t.learned === 12 && t.atKill === 50.4 && t.late === false, `kill: the times read at the fault and at the kill ${JSON.stringify(t)}`);
+  const lateWaits = [];
+  const late = await killAfterFault({ since: async () => 70, pause: async (ms) => lateWaits.push(ms) }, 50);
+  check(lateWaits.every((ms) => ms === 0) && late.late === true, "kill: a fault learned past the delay kills at once, marked late");
 }
 
 if (failed) { console.error(`${failed} failed`); process.exit(1); }

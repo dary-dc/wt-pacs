@@ -93,11 +93,19 @@ async function server(d, out) {
   }
 }
 
-const waitFor = async (b, page, expr, ms) => {
+const waitFor = async (b, page, expr, ms, every = 20) => {
   const end = Date.now() + ms;
-  while (Date.now() < end) { if (await cdp.evaluate(b, page, expr).catch(() => false)) return true; await pause(20); }
+  while (Date.now() < end) { if (await cdp.evaluate(b, page, expr).catch(() => false)) return true; await pause(every); }
   return false;
 };
+
+/** D5's wait: the kill falls `ms` after the decoder's fault, on the browser's clock, however late the driver learns. */
+export async function killAfterFault({ since, pause }, ms) {
+  const learned = await since();
+  await pause(Math.max(0, ms - learned));
+  const atKill = await since();
+  return { learned, atKill, late: learned > ms };
+}
 
 /** Each ending of §7.3, from the fill's end + 6 s (D5: from the mismatch). */
 const ENDINGS = {
@@ -142,8 +150,9 @@ async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir,
     row.load = await cdp.evaluate(b, p, "new Promise((r) => { const t = setInterval(() => rig.load && (clearInterval(t), r(rig.load)), 10); })");
     const other = `http://localhost:${sink.port}/lab/report-arms/probe.html?id=away`;
     if (ending.startsWith("D5")) {
-      row.reached = await waitFor(b, p, "rig.safety > 0", 30000) ? "mismatch" : "no mismatch";
-      await pause(ending === "D5a" ? 50 : 500);
+      row.reached = await waitFor(b, p, "rig.faultAt !== null", 30000, 1) ? "mismatch" : "no mismatch";
+      row.kill = await killAfterFault({ since: () => cdp.evaluate(b, p, "rig.sinceFault()"), pause }, ending === "D5a" ? 50 : 500);
+      row.kill.safetyHanded = await cdp.evaluate(b, p, "rig.safety");
     } else {
       row.reached = ending === "D8" ? (await pause(6000), await cdp.evaluate(b, p, "rig.state"))
         : (await waitFor(b, p, "rig.state === 'filled'", 30000) ? "filled" : await cdp.evaluate(b, p, "rig.error ?? rig.state"));
