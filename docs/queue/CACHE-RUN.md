@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-18T18:16Z
-heartbeat: 2026-11-19T03:02Z
+heartbeat: 2026-11-19T04:16Z
 outputs: claude/cache-arms 5b86cbb9 (per-arm picks), 1390db63 (pilot-chromium.json frozen), rows lab/cache-arms/rows/chromium/ (all 23 Chromium counted cells whole by 2026-11-19T00:45Z, b8d5fe59; B's restart-cut try kept .partial-2344Z); claude/cache-plan 3806262b (§8.8 amendment)
 ## Resume
 Resumed 2026-11-18T22:17Z by a new session (stalled since 20:32Z): R-busy S3 next, as below. Chromium-1243 here prints 153.0.8010.12 (matches §8.8). R-busy S3 whole 22:37Z (51 rows, d6ebc18d). R-idle x4 and O x2 whole by 23:35Z (b2d31da1). All Chromium counted cells whole 00:45Z (b8d5fe59). Now the Chromium mutants: `bash lab/cache-arms/rows/mutants.sh chromium`
@@ -12,7 +12,8 @@ readerWroteNothing false. Now Firefox 159: tarball from ftp.mozilla.org releases
 unpacked at /home/user/ff-dl/firefox (redo after a restart); pilot: `FIREFOX_PATH=... xvfb-run -a bash
 lab/cache-arms/rows/pilot.sh firefox` (resumable), Firefox pilot frozen 02:00Z (4895e2bf;
 same picks as Chromium). Now counted.sh firefox under xvfb-run, cells in batches (scratch batchff.sh: L, W first).
-Firefox L S2, S1, S3 at 1x whole by 03:02Z (94b8f3c3); next L 4x, W, R-busy. Earlier: B's first try cut at 23:44Z by a container restart (kept .partial, counted in no bar); B, E, K, Q, T, P rerun in one job that starts no cell after 60 min
+Firefox whole by 04:15Z (bee177b9): L (all six), W (three), R-busy S2. Next R-busy S3, R-idle, O, B (batchff2.sh,
+which pushes this heartbeat after each cell), then E, K, Q, T, P, then mutants.sh firefox. Earlier: B's first try cut at 23:44Z by a container restart (kept .partial, counted in no bar); B, E, K, Q, T, P rerun in one job that starts no cell after 60 min
 (scratch batch.sh: counted.sh per cell, commit and push after each). Cells may also be run one a job:
 `bash lab/cache-arms/rows/counted.sh chromium <cell-name>` (its substring), so the 2 h limit never cuts a cell mid-way.
 Host: Chromium 153.0.8010.12 (Playwright's), 4 vCPU, 16 GiB. Six cache-arms tests pass.
