@@ -11,6 +11,7 @@ Host setup each session: `apt-get install -y iproute2`; nginx 1.31.8 from nginx.
 (`./configure --prefix=/tmp/claude-0/nginx && make && make install`, `NGINX_BIN`); `cargo build --release -p
 series-server --features telemetry -p pack-series -p report-receiver`; `(dockerd &)` for the WASM rebuild.
 Done also: `d3d47dd7` Firefox 160.0.1 by BiDi (`bidi.mjs`, `--engine firefox`, `FIREFOX_PATH`; Mozilla's linux64 tarball to /tmp/claude-0/ff).
-Next: README's What is built;
+Done also: `813fdb2d` README. Gate running: `client/decode/wasm/build/build.sh`, `ingest/tools.sh` (pip install meson==1.9.1), `NGINX_BIN=... FIREFOX_PATH=... scripts/gate.sh`.
+Next:
 the gate; PR 395's body.
 ## Result
