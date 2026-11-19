@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-19T12:47Z
-heartbeat: 2026-11-19T13:42Z
+heartbeat: 2026-11-19T13:51Z
 outputs: claude/report-arms (PR 395)
 ## Resume
 Done on `claude/report-arms`, each test first and mutated: `115a3529` D5's kill from the decoder's fault;
@@ -10,6 +10,7 @@ receiver sees it (wire bytes at the relay not separable); the D6 commit after it
 Host setup each session: `apt-get install -y iproute2`; nginx 1.31.8 from nginx.org's tarball
 (`./configure --prefix=/tmp/claude-0/nginx && make && make install`, `NGINX_BIN`); `cargo build --release -p
 series-server --features telemetry -p pack-series -p report-receiver`; `(dockerd &)` for the WASM rebuild.
-Next: Firefox (a BiDi driver beside cdp.mjs, §7.6's levers; tab kill by levers.mjs); README's What is built;
+Done also: `d3d47dd7` Firefox 160.0.1 by BiDi (`bidi.mjs`, `--engine firefox`, `FIREFOX_PATH`; Mozilla's linux64 tarball to /tmp/claude-0/ff).
+Next: README's What is built;
 the gate; PR 395's body.
 ## Result
