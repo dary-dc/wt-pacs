@@ -1,5 +1,5 @@
 state: done
-started: 
+started: 2026-11-19T11:16Z
 heartbeat: 2026-11-19T11:39Z
 outputs: claude/study-db-schema (ba79335aa), draft PR 407 into claude/unified
 ## Resume
