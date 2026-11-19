@@ -1,30 +1,15 @@
 //! The study DB: a table per level, a group's bytes and XXH3 keyed by its coded UID, and an audit
 //! table (docs/adr/pacs-receiver.md §4).
 
-use crate::package::{hex, Group, Header, Kind, Level};
+use crate::package::{Group, Header, Kind, Level};
+use ::study_db::hash_text;
+pub use ::study_db::FILE_NAME;
 use anyhow::{bail, ensure, Context, Result};
 use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::path::Path;
 use xxhash_rust::xxh3::xxh3_64;
-
-pub const FILE: &str = "study.db";
-
-/// `series` is the group's series: NULL for the exam group, its own UID for a series group.
-const SCHEMA: &str = "
-CREATE TABLE exam (uid TEXT PRIMARY KEY, series TEXT, xxh3 TEXT NOT NULL, bytes BLOB NOT NULL) STRICT;
-CREATE TABLE series (uid TEXT PRIMARY KEY, series TEXT, xxh3 TEXT NOT NULL, bytes BLOB NOT NULL) STRICT;
-CREATE TABLE instance (uid TEXT PRIMARY KEY, series TEXT, xxh3 TEXT NOT NULL, bytes BLOB NOT NULL) STRICT;
-CREATE TABLE private (uid TEXT PRIMARY KEY, series TEXT, xxh3 TEXT NOT NULL, bytes BLOB NOT NULL) STRICT;
-CREATE INDEX instance_series ON instance (series);
-CREATE INDEX private_series ON private (series);
-CREATE TABLE audit (
-  id INTEGER PRIMARY KEY, at INTEGER NOT NULL, package TEXT NOT NULL, kind TEXT NOT NULL,
-  unit TEXT NOT NULL, revision INTEGER NOT NULL, xxh3 TEXT NOT NULL, changes TEXT NOT NULL,
-  UNIQUE (unit, revision)
-) STRICT;
-";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Row {
@@ -72,9 +57,7 @@ pub enum Seen {
 }
 
 pub fn create(path: &Path) -> Result<()> {
-    let db = open(path)?;
-    db.execute_batch(SCHEMA).context("create the study DB")?;
-    Ok(())
+    ::study_db::create(&open(path)?).context("create the study DB")
 }
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -173,14 +156,14 @@ pub fn record(
     for row in &written {
         let old = prior
             .get(&(row.level.table(), row.uid.clone()))
-            .map(|o| hex(o.hash));
-        if old.as_deref() != Some(&hex(row.hash)) {
+            .map(|o| hash_text(o.hash));
+        if old.as_deref() != Some(&hash_text(row.hash)) {
             lines.push(format!(
                 "{} {} {} {}",
                 row.level.table(),
                 row.uid,
                 old.as_deref().unwrap_or("-"),
-                hex(row.hash)
+                hash_text(row.hash)
             ));
         }
     }
@@ -189,14 +172,14 @@ pub fn record(
             .iter()
             .any(|w| w.level == old.level && &w.uid == uid)
         {
-            lines.push(format!("{table} {uid} {} -", hex(old.hash)));
+            lines.push(format!("{table} {uid} {} -", hash_text(old.hash)));
             change.removed.push((old.level, uid.clone()));
         }
     }
     let kind = header.kind.name();
     tx.execute(
         "INSERT INTO audit (at, package, kind, unit, revision, xxh3, changes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![unix_now(), package, kind, header.unit, header.revision, hex(hash), lines.join("\n")],
+        params![unix_now(), package, kind, header.unit, header.revision, hash_text(hash), lines.join("\n")],
     )?;
     tx.commit().context("commit")?;
     change.prior = prior.into_values().collect();
@@ -240,9 +223,9 @@ pub fn verify(path: &Path, change: &Change) -> Result<()> {
             "{} {} reads back as {} with bytes hashing to {}, not {}",
             row.level.table(),
             row.uid,
-            hex(got.hash),
-            hex(xxh3_64(&got.bytes)),
-            hex(row.hash)
+            hash_text(got.hash),
+            hash_text(xxh3_64(&got.bytes)),
+            hash_text(row.hash)
         );
     }
     for (level, uid) in &change.removed {
@@ -339,7 +322,7 @@ fn upsert(tx: &Transaction, row: &Row) -> Result<()> {
             "INSERT OR REPLACE INTO {} (uid, series, xxh3, bytes) VALUES (?1, ?2, ?3, ?4)",
             row.level.table()
         ),
-        params![row.uid, row.series, hex(row.hash), row.bytes],
+        params![row.uid, row.series, hash_text(row.hash), row.bytes],
     )?;
     Ok(())
 }
@@ -359,14 +342,14 @@ mod tests {
     /// cached it, the verification has the whole row read from the device again.
     #[test]
     fn the_study_db_is_verified_from_the_device() {
-        let path = scratch("db-from-disk").join(FILE);
+        let path = scratch("db-from-disk").join(FILE_NAME);
         create(&path).unwrap();
         let bytes = vec![1u8; 256 * 1024];
         let hash = xxh3_64(&bytes);
         let db = open(&path).unwrap();
         db.execute(
             "INSERT INTO exam VALUES ('TO', NULL, ?1, ?2)",
-            params![hex(hash), bytes],
+            params![hash_text(hash), bytes],
         )
         .unwrap();
         let row = current(&db, Level::Exam, "TO").unwrap().unwrap();

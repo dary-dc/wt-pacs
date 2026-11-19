@@ -30,7 +30,7 @@ mod tests {
         let db = dir.join(study_db::FILE_NAME);
         let conn = rusqlite::Connection::open(&db).unwrap();
         study_db::create(&conn).unwrap();
-        study_db::put(&conn, "series", "1A", &frames.concat()).unwrap();
+        study_db::put(&conn, "series", "1A", Some("1A"), &frames.concat()).unwrap();
         drop(conn);
         let written = (1 << 18) * 4;
         for path in [&bundle, &db] {

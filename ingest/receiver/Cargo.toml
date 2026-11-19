@@ -7,6 +7,7 @@ description = "The PACS's receiver: checks, stages, places and records one PCS p
 [dependencies]
 anyhow = { workspace = true }
 from-disk = { path = "../../common/from-disk" }
+study-db = { path = "../../common/study-db" }
 rusqlite = { version = "0.41", features = ["bundled"] }
 serde_json = { workspace = true }
 series-bundle = { path = "../../common/series-bundle" }

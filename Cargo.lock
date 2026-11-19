@@ -2186,6 +2186,7 @@ dependencies = [
  "rusqlite",
  "serde_json",
  "series-bundle",
+ "study-db",
  "tar",
  "xxhash-rust",
  "zstd",
