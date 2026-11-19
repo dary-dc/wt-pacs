@@ -132,7 +132,9 @@ and check of one decoded frame, measured against its decode. *So far:* no cache 
 build waiting for review ([`frame-memory-ownership.md`](evidence/frame-memory-ownership.md)); per-engine limits in
 [`cache-in-opfs.md`](evidence/cache-in-opfs.md). The empirical choice between OPFS sync, OPFS async, IndexedDB
 and Cache Storage (`claude/cache-plan:docs/client/evidence/cache-plan.md`): four lab arms built and reviewed through a
-third fix round (the owner's yes, 2026-11-16), its run next (#394). The cache stays off.
+third fix round (the owner's yes, 2026-11-16), run 2026-11-18/19 and judged (§9, §10 there): no arm passes on either
+engine; OPFS sync and async pass every read, reopen and write-rate cell (async not Firefox's reopen at 512²), held back
+by a PSS bar at 512² the rig cannot resolve; one more interleaved run owed (§10.4). The cache stays off.
 
 **What the cache leaves on a device.** Bare pixels, protected only by the device's disk encryption; a default per
 device kind, or a policy the deployment sets? ([`what-the-cache-leaves-on-a-device.md`](evidence/what-the-cache-leaves-on-a-device.md)). The owner's.
