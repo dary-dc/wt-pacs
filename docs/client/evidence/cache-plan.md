@@ -717,7 +717,7 @@ of 2026-11-15); written before the pilot's picks are read and before any counted
    (S2), and IDB's value (Gecko only); a miss is the intent-to-painted time of R's misses (`misses[].ms`), p99 in
    R-busy at S2 for OPFS-SYNC's piece (its write cost within 10 % as §7.1 says), p50 in R-idle at S2 for OPFS-ASYNC's
    read; CACHESTORAGE's write plus read is `busyMsP50 + readMsP50` in R-idle at S2, streamed only where its three
-   rounds read back exact. The driver and the rule are `lab/cache-arms/rows/pilot.sh` and `pilot_pick.py`.
+   rounds read back exact. The driver and the rule are `claude/cache-arms:lab/cache-arms/rows/pilot.sh` and `pilot_pick.py`.
 7. **Each arm carries its own picks** (`lab/cache-arms/pilot-<engine>.json`): the rig applied one `--pilot` string to
    every arm, and OPFS-ASYNC and CACHESTORAGE both read `inflight`. A harness change after the build's review
    (`claude/cache-arms` `5b86cbb9`, test first, two mutants killed), named for CACHE-VERDICT-REVIEW; L's PSS slack and

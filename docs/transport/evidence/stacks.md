@@ -358,7 +358,7 @@ timeout and the prefixes of LTE and LOSS). Pilot rows: `claude/transport-arms` `
    pooled; a 1 % form is still judged per visit. Test first (`judge.test.mjs`), three mutants killed. It changes no
    counted row's verdict.
 6. **The 12 h stop counts from the first counted row**, and this container stops a session's jobs at 2 h, so the run
-   is one detached process (`lab/transport-arms/run.mjs` a cell at a time, in §5.4's order).
+   is one detached process (`claude/transport-arms:lab/transport-arms/run.mjs` a cell at a time, in §5.4's order).
 
 ## 6 · Results
 
@@ -439,7 +439,7 @@ bar, and ENT restarted whole at 00:51Z. `VOID`s were the relay's guard
   in order 0 … 49 and the asked frame 49 last, at the whole fill's time (round 3 of `ad-pub`: H3-fill frame 49 at
   10 031 ms from the dial, WT-TS at 2 690 ms, right after frame 11). §5.1 defines the arm as "an ask aborts it, GETs
   the frame, then GETs the rest"; the rows show no abort took effect, so the ×11 is the carrier's, not yet the arm's.
-  *A suspected build defect in `lab/transport-arms/fetch-session.ts`, unresolved by reading; for the verdict review.*
+  *A suspected build defect in `claude/transport-arms:lab/transport-arms/fetch-session.ts`, unresolved by reading; for the verdict review.*
 * **Server CPU over kernel TCP is ×0.15, not ×0.5–0.9**, and the H3 fetch arms cost the browser ×1.6 the CPU of WT
   on CLEAN's visits: for this host's cores only (§5.4).
 * **WT-WASM is slower than WT-TS on the first frame** (×1.02–1.11, all four RTTs), against "ties everywhere": its start,
