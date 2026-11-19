@@ -1,15 +1,10 @@
 state: started
 started: 2026-11-19T10:47Z
-heartbeat: 2026-11-19T11:05Z
-outputs: `claude/htj2k-a1` at `cf975330`
+heartbeat: 2026-11-19T11:22Z
+outputs: `claude/htj2k-a1` at `0943f3af`
 ## Resume
-Done: `cf975330` (D+T1, mutant `whole-neighbour`, README). Smoke tree set up: `/home/user/demo` (157b7109),
-`lab/.demo-series` -> `/home/user/demo-series` (Q 8 G 16 + exact, every sbnd and metadata sha256 equal to
-`rows/stage3-d-series.json`), strip series in `lab/.av1-work/htj2k-improve` (`stage3_check.py`: 56/56, 100/100,
-138/138 exact), LTE trace. Docker Hub answered 429 for the WASM build's base image; building from
-`mirror.gcr.io/library/debian@sha256:7c7b2c96…` (same digest; manifest check decides). Next: copy built WASM and
-`build_levels.sh` output into the demo tree, copy `lab/htj2k-tiles/improve` in, then
-`cd /home/user/demo && NODE_PATH=$(npm root -g) node lab/htj2k-tiles/improve/stage3/run.mjs --series lab/.demo-series
---bands lab/.av1-work/htj2k-improve --arms D+T1 --cells r5000,r20000 --rounds 1 --out /home/user/a1/smoke.jsonl`,
-then `--mutate whole-neighbour` once, the gate, the draft PR.
+Done: `cf975330` D+T1 + mutant; `0943f3af` smoke rows (`rows/a1-build-smoke.jsonl`, 16 visits, 15 exact, one refused
+by OPFS quota on `dbts_b1` r5000 4× after the clock) and the mutant's row (caught: exact 0/1). Smoke tree as before
+(`/home/user/demo`). Gate running (`PYTHON=.venv/bin/python scripts/gate.sh`, log `/home/user/a1/gate.log`) after
+installing wasm-pack 0.15.0 and the wasm32 target. Next: gate result, `docs/lines/codecs.md` Open 7, draft PR → unified.
 ## Result
