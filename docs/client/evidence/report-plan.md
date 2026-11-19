@@ -1011,3 +1011,329 @@ to source and check.
 container without a GPU; Chromium 153 (not the phone's 157), Firefox 159, WebKitGTK 2.52.6 under Xvfb (not Safari);
 one DBT volume's view; a forced mismatch, not a real decoder fault; a userspace relay on loopback, not a radio; no
 phone.
+
+### 7.8 · Amendment before any counted row (REPORT-RUN, 2026-11-16)
+
+Written by REPORT-RUN before its first row, at the rig `claude/report-arms` `bd1ac438` (re-review: no blocker open).
+The rig, as built and reviewed, cannot run all of §7.2–§7.6; nothing below changes a bar, a prediction or the rule,
+only what is run. Every gap is the build's (`lab/report-arms/README.md` §What is built), not the host's, so it is
+named here and left for a build row, never patched by the run.
+
+| §7 asks | run here | why |
+| --- | --- | --- |
+| Chromium, Firefox, WebKitGTK | **Chromium 153 only** | `run.mjs` drives Chromium by CDP alone; no BiDi or WebDriver driver is built, and neither engine's kill lever is checked |
+| cells D, L, C, Y, R | **D only** | L, C, Y and R are not built (no latency or page-thread reading, no relay tally, no load generator) |
+| D1–D9 | **D1, D2, D3, D4, D5a, D5b, D7, D8, D9**; D6 not run | the browser, sink and server inside `unshare -rn` behind `link_impair.py --tun` is not wired; the host has no iproute2 |
+| the relay, 10 ms each way, 50 Mbit, 200 packets | **loopback, no relay** | as D6. Delivery (D) is the only cell run; the races a 20 ms round trip would widen (SESSION's hide record against the session's end, §3.3) are narrower here, so a SESSION delivery here is an upper bound on the relay's |
+| `dbts_c1`'s view, the mismatch at frame 10 | **the contract's grey-16 frame ×32**, the mismatch at frame 10 (`fault=sample`) | the rig's own series; the demo volumes are not on the host. D's endings start from the fill's end, so a shorter fill moves nothing a D bar reads |
+| pilot (1), the hybrid's first send | **the fill's end**, the protocol's tie | the first exact paint is not a timing the rig offers (`timing.js`) |
+| pilot (2), JSON or gzip | **JSON for every arm** | gzip is not built (the review, §2) |
+| pilot (3) | 1 s, as written | — |
+| the receivers in D | BEACON and KEEPALIVE (and `off`'s safety beacon) to **RECEIVER behind nginx 1.31.8**; SESSION to the server | as §7.2 |
+| the mutants, once per engine and arm | once per arm on D1, before the counted rows: *never sent*, *safety sampled*, *a field outside the list*, *no `reportId`*, *ack before write* (RECEIVER's `--mutant`; the server's `WTPACS_SESSION_REPORT_MUTANT`) | as §7.4 |
+| host time, ~3.5 h for D an engine (§7.6) | **~3.2 h an ending, ~30 h for Chromium's nine** (`off` to `off′`: 9 units × 18 rounds = 162 loads an ending at ~70 s each, D9 ~130 s) | §7.6's figure is 9 × 18 × 9 = 1 458 loads at ~75 s ≈ 30 h, not 3.5 |
+
+**Order of the endings**, so a run cut short leaves the most bars decided: D1, D2, D7, D9 (bars on both reports),
+then D4, D5b, D8 (the safety bar), then D3, D5a (recorded, no bar). Each ending is one whole period, 18 rounds in
+Williams order, `--wait 60`, rows pushed as they land. An ending cut short is rerun whole; its partial rows are kept,
+marked, and counted in no bar.
+
+## Results (REPORT-RUN, Chromium 153, from 2026-11-16)
+
+Rows: `claude/report-arms:lab/report-arms/rows/` (`chromium-mutants.jsonl`, `chromium-<ending>.jsonl`, `cpu.log`
+the host's all-core busy share every 5 s). Run as §7.8 amends; each ending is filled in here as it completes.
+
+### The mutants (§7.4), once per arm on D1, before any counted row
+
+| mutant | expected | seen | caught |
+| --- | --- | --- | --- |
+| *never sent* | D1's fill record fails | no fill record in 7/7 carrier arms; the safety report still arrived in each | yes, 7/7 |
+| *safety sampled* (rate 0.1) | the safety bar fails | no safety report in 7/7 carrier arms; `off` delivered its one | yes, 7/7 carriers; `off` not (one load: the 1-in-10 draw, or the mutant not applied to `off`'s send; not told apart) |
+| *a field outside the list* | RECEIVER and the server drop and warn | RECEIVER's `outside` counted every record of the 4 HTTP arms (10 of 10); the server's every record of the 3 SESSION arms (6 of 6); none reached a file | yes |
+| *no `reportId`* | the read tool reports KEEPALIVE's duplicates | every record of the 7 arms read as `unkeyed` (1–3 a load); **no duplicate in KEEPALIVE's D1 loads to find**: the worker's copy was acknowledged, so the page sent none | partly: flagged, but D1 makes no second copy to dedup |
+| *ack before write* | appended < acknowledged | RECEIVER 0 appended of 11 acknowledged (5 HTTP units); the server 0 of 3, 5, 6 (`WTPACS_SESSION_REPORT_MUTANT`) | yes |
+
+No mutant left a cell VOID. Seen beside them, not a result: SESSION-H's D1 hide record missed in all 3
+loads whose carrier was not mutated (*field outside*, *no `reportId`*, *safety sampled* rows), as §7.3 predicts ("at risk").
+
+### D1 · navigated to another origin page (18 rounds, 162 loads, 2026-11-16 09:15–12:16 UTC)
+
+Williams-balanced for every unit. Host CPU at most 18 % (5 s samples): no round saturated. Every load reached its fill.
+
+| unit | fill record | hide delta | safety report | dup. | load bar | safety bar | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | — | 18/18, 18/18 | 0 | (none sent: not VOID) | pass | as predicted; A/A identical |
+| BEACON-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ as predicted |
+| BEACON-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ |
+| KEEPALIVE-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ |
+| KEEPALIVE-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ |
+| SESSION-1 | 18/18 | 18/18 | 18/18 | 0 | pass | pass | fill ✓; the last second's delta, "at risk", arrived every time |
+| SESSION-Y | 18/18 | **0/18** | 18/18 | 0 | pass | pass | fill ✓; the hide delta, "at risk", lost every time |
+| SESSION-H | **0/18** | — | 18/18 | 0 | **FAIL** | pass | "at risk": the hide record lost to the session's end in every load |
+
+"Hide delta" counts records with `seq` ≥ 1. Measured on loopback (§7.8): SESSION's losses here would be no smaller
+behind the relay's 20 ms round trip.
+
+### D2 · tab closed, another tab open (18 rounds, 162 loads, 2026-11-17 05:21–08:21 UTC)
+
+Run whole by a resumed session on a rebuilt host of the same make (4 vCPU, Chromium 153.0.8010.12, nginx 1.31.8); the
+first session's 99 rows (11 rounds, 2026-11-16) are kept as `chromium-D2.partial-0521.jsonl`, counted in no bar, and
+agree with every count below. Williams-balanced for every unit. Host CPU at most 14 % (5 s samples): no round
+saturated. Every load reached its fill; no row errored.
+
+| unit | fill record | hide delta | safety report | dup. | load bar | safety bar | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | — | 18/18, 18/18 | 0 | (none sent: not VOID) | pass | as predicted; A/A identical |
+| BEACON-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ |
+| BEACON-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ |
+| KEEPALIVE-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ |
+| KEEPALIVE-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ |
+| SESSION-1 | 18/18 | 18/18 | 18/18 | 0 | pass | pass | fill ✓; the last second's delta, "at risk", arrived every time |
+| SESSION-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | fill ✓; the hide delta, "at risk", arrived every time |
+| SESSION-H | 18/18 | — | 18/18 | 0 | pass | pass | "at risk": the hide record arrived every time |
+
+SESSION's hide records, lost in every D1 load (navigation), arrived in every D2 load (close). Why the two endings
+differ is not measured here; it is not claimed. Loopback, as D1 (§7.8).
+
+### D7 · bfcache: away, back, one more frame change, away (18 rounds, 162 loads, 2026-11-17 08:21–11:30 UTC)
+
+Williams-balanced for every unit. Host CPU at most 16 % (5 s samples): no round saturated. Every load reached its
+fill; no row errored.
+
+| unit | fill record | deltas seen | safety report | dup. | load bar | safety bar | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | — | 18/18, 18/18 | 0 | (none sent: not VOID) | pass | as predicted; A/A identical |
+| BEACON-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ |
+| BEACON-Y | 18/18 | `seq` 1 in 18/18; no `seq` 2 | 18/18 | 0 | pass | pass | fill ✓; "`seq` loses nothing" not shown (below) |
+| KEEPALIVE-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ |
+| KEEPALIVE-Y | 18/18 | `seq` 1 in 18/18; no `seq` 2 | 18/18 | 0 | pass | pass | as BEACON-Y |
+| SESSION-1 | 18/18 | `seq` 1 in 18/18; no `seq` 2 | 18/18 | 0 | pass | pass | Chromium keeps the session (the risk was WebKit's) |
+| SESSION-Y | 18/18 | **0/18** | 18/18 | 0 | pass | pass | as D1: the hide delta lost every time |
+| SESSION-H | **1/18** | — | 18/18 | 0 | **FAIL** | pass | as D1: the hide record lost in 17 of 18 |
+
+Every arm that delivered a delta delivered exactly `seq` 0 and 1, never a `seq` 2 from the second navigation. The
+rows cannot tell a lost second delta from no delta to send: whether the frame press after the restore changes what
+`load.delta()` returns is not recorded (`timing.js` sends a delta only when it is not empty). Not a bar; named for
+REPORT-VERDICT-REVIEW. Loopback, as D1 (§7.8).
+
+### D9 · hidden and left: minimized, frozen after 5 s, kept 60 s (18 rounds, 162 loads, 2026-11-17 11:30–17:12 UTC)
+
+Williams-balanced for every unit. Host CPU at most 19 % (5 s samples): no round saturated. Every load reached its
+fill; no row errored.
+
+| unit | fill record | hide delta | safety report | dup. | load bar | safety bar | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | — | 18/18, 18/18 | 0 | (none sent: not VOID) | pass | as predicted; A/A identical |
+| BEACON-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ |
+| BEACON-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ |
+| KEEPALIVE-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓ |
+| KEEPALIVE-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ |
+| SESSION-1 | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ (the session alive while hidden) |
+| SESSION-Y | 18/18 | 18/18 | 18/18 | 0 | pass | pass | ✓ |
+| SESSION-H | 18/18 | — | 18/18 | 0 | pass | pass | ✓: the hide record written before the freeze 5 s later, every time |
+
+**The four bar-carrying endings done** (D1, D2, D7, D9; §7.8's order): every HTTP arm passes both bars in all of
+them; SESSION-1 and SESSION-Y pass the load bar but SESSION-Y loses its hide delta whenever the page navigates (D1,
+D7); SESSION-H fails the load bar on D1 and D7 (0/18, 1/18). Every unit, `off` and `off′` included, delivered the safety
+report in all 72 of its loads over the four. Loopback, as D1 (§7.8).
+
+### D4 · hidden, then the browser killed 1 s later (18 rounds, 162 loads, 2026-11-17 17:12–20:15 UTC)
+
+Williams-balanced for every unit. Host CPU at most 15 % (5 s samples): no round saturated. Every load reached its
+fill; no row errored. The container restarted once during this ending (about 18:00); the run's processes survived it
+and no row was lost or repeated. D4 carries the safety bar; the load report is ranked, not barred (§7.3).
+
+| unit | fill record | hide delta | safety report | dup. | safety bar | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | — | 18/18, 18/18 | 0 | pass | as predicted; A/A identical |
+| BEACON-H | 18/18 | — | 18/18 | 0 | pass | ✓: the send preceded the kill |
+| BEACON-Y | 18/18 | 18/18 | 18/18 | 0 | pass | ✓ |
+| KEEPALIVE-H | 18/18 | — | 18/18 | 0 | pass | ✓ |
+| KEEPALIVE-Y | 18/18 | 18/18 | 18/18 | 0 | pass | ✓ |
+| SESSION-1 | 18/18 | 18/18 | 18/18 | 0 | pass | ✓ |
+| SESSION-Y | 18/18 | 18/18 | 18/18 | 0 | pass | ✓: the hide delta arrived every time |
+| SESSION-H | 18/18 | — | 18/18 | 0 | pass | ✓: the hide record arrived every time |
+
+Rank on D4 alone: every arm 18/18 fill records; the Y arms and SESSION-1 18/18 deltas. Nothing separates them here.
+Loopback, as D1 (§7.8).
+
+### D5b · renderer killed while visible, 500 ms after the mismatch is found (18 rounds, 162 loads, 2026-11-17 20:15–23:00 UTC)
+
+Williams-balanced for every unit. Host CPU at most 14 % (5 s samples): no round saturated. Every load reached its
+mismatch; no row errored. D5b carries the safety bar; the load report is ranked (§7.3). No frame was pressed in D5
+(the kill comes from the mismatch, `run.mjs`), so no arm had a delta to send.
+
+| unit | fill record | safety report | dup. | safety bar | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | 18/18, 18/18 | 0 | pass | as predicted; A/A identical |
+| BEACON-H | 0/18 | 18/18 | 0 | pass | ✓ "✗ load report": no hide before the kill |
+| BEACON-Y | 18/18 | 18/18 | 0 | pass | ✓ fill ✓ |
+| KEEPALIVE-H | 0/18 | 18/18 | 0 | pass | ✓ ✗ |
+| KEEPALIVE-Y | 18/18 | 18/18 | 0 | pass | ✓ fill ✓ |
+| SESSION-1 | 18/18 | 18/18 | 0 | pass | ✓ fill ✓ |
+| SESSION-Y | 18/18 | 18/18 | 0 | pass | ✓ fill ✓ |
+| SESSION-H | 0/18 | 18/18 | 0 | pass | ✓ ✗ |
+
+The fill record reached the sink in 18/18 for every at-once or hybrid arm, so the fill ended inside the 500 ms (the
+rig's 32-frame grey series, §7.8; a `dbts_c1` fill would not). Rank on D5b: the four Y/1 arms 18/18, the H arms 0/18.
+Loopback, as D1 (§7.8).
+
+### D8 · the session never opens (18 rounds, 162 loads, 2026-11-18 05:21–08:37 UTC)
+
+Run whole by a resumed session on a rebuilt host of the same make (4 vCPU, Chromium 153.0.8010.12, nginx 1.31.8); the
+previous session's 111 rows (12–13 rounds, 2026-11-18) are kept as `chromium-D8.partial-0521.jsonl`, counted in no
+bar, and agree with every count below. Williams-balanced for every unit. Host CPU at most 13 % (5 s samples): no round
+saturated. No row errored. As the rig builds D8 (`run.mjs`), no series server is started and the page dials a closed
+port; every load's state 6 s in was `error`, and the mismatch is the page's own (`forced=page`), so no fill record or
+delta exists to send in any arm. D8 carries the safety bar (§7.3).
+
+| unit | fill record | safety report | dup. | link line | safety bar | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | 18/18, 18/18 | 0 | 0/18 | pass | as predicted; A/A identical |
+| BEACON-H | 0/18 | 18/18 | 0 | 0/18 | pass | ✓ |
+| BEACON-Y | 0/18 | 18/18 | 0 | 0/18 | pass | ✓ |
+| KEEPALIVE-H | 0/18 | 18/18 | 0 | 0/18 | pass | ✓ |
+| KEEPALIVE-Y | 0/18 | 18/18 | 0 | 0/18 | pass | ✓ |
+| SESSION-1 | 0/18 | **0/18** | 0 | 0/18 | **FAIL** | ✓ "✗": expected to fail D8 |
+| SESSION-Y | 0/18 | **0/18** | 0 | 0/18 | **FAIL** | ✓ "✗" |
+| SESSION-H | 0/18 | **0/18** | 0 | 0/18 | **FAIL** | ✓ "✗" |
+
+Every HTTP arm reached RECEIVER with the safety report while the session could not open; the SESSION arms, whose only
+route is the session, delivered none, as §7.3 predicts. Loopback, as D1 (§7.8).
+
+### D3 · hidden, then the renderer killed 1 s later (18 rounds, 162 loads, 2026-11-18 08:37–11:39 UTC)
+
+Williams-balanced for every unit. Host CPU at most 14 % (5 s samples): no round saturated. Every load reached its
+fill; no row errored. D3 is recorded with no bar; the load report is ranked (§7.3).
+
+| unit | fill record | hide delta | safety report | dup. | against §7.3's prediction |
+| --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | — | 18/18, 18/18 | 0 | as predicted; A/A identical |
+| BEACON-H | 18/18 | — | 18/18 | 0 | ✓ (sent at hide, before the kill) |
+| BEACON-Y | 18/18 | 18/18 | 18/18 | 0 | ✓ |
+| KEEPALIVE-H | 18/18 | — | 18/18 | 0 | ✓ |
+| KEEPALIVE-Y | 18/18 | 18/18 | 18/18 | 0 | ✓ |
+| SESSION-1 | 18/18 | 18/18 | 18/18 | 0 | ✓ fill ✓; deltas ✓ |
+| SESSION-Y | 18/18 | 18/18 | 18/18 | 0 | fill ✓; the hide delta, "at risk", arrived every time |
+| SESSION-H | 18/18 | — | 18/18 | 0 | the hide record, "at risk", arrived every time |
+
+Rank on D3 alone: every arm 18/18 fill records; the Y arms and SESSION-1 18/18 deltas. Nothing separates them here.
+As in D4, a hide followed 1 s later by the end leaves SESSION's hide record time to be written, unlike D1 and D7's
+navigation. Loopback, as D1 (§7.8).
+
+### D5a · renderer killed while visible, 50 ms after the mismatch is found (18 rounds, 162 loads, 2026-11-18 11:39–14:23 UTC)
+
+Williams-balanced for every unit. Host CPU at most 12 % (5 s samples): no round saturated. Every load reached its
+mismatch; no row errored. D5a is recorded with no bar (§7.3); it decides the safety report's carrier (§7.5 rule 3). No
+frame was pressed (as D5b), so no arm had a delta to send.
+
+| unit | fill record | safety report | dup. | against §7.3's prediction |
+| --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | 18/18, 18/18 | 0 | A/A identical |
+| BEACON-H | 0/18 | 18/18 | 0 | load ✗ as predicted; safety, "at risk", arrived every time |
+| BEACON-Y | 18/18 | 18/18 | 0 | fill ✓; safety "at risk", arrived every time |
+| KEEPALIVE-H | 0/18 | 18/18 | 0 | load ✗ as predicted; safety, Chromium "**at risk**" (the worker's request), arrived every time |
+| KEEPALIVE-Y | 18/18 | 18/18 | 0 | fill ✓; safety as -H |
+| SESSION-1 | 18/18 | 18/18 | 0 | fill ✓; safety "at risk", arrived every time |
+| SESSION-Y | 18/18 | 18/18 | 0 | fill ✓; safety "at risk", arrived every time |
+| SESSION-H | 0/18 | 18/18 | 0 | load ✗; safety "at risk", arrived every time |
+
+Every arm, `off` included, delivered the safety report in all 18 loads with the renderer killed 50 ms after the
+mismatch, so on this host 50 ms does not separate the carriers for rule 3: a tie at 18/18. Loopback, and the rig's
+32-frame grey series (§7.8): the races §7.3 calls "at risk" would be wider behind the relay's 20 ms round trip and a
+`dbts_c1` fill, and are not measured here.
+
+### The run, all nine endings (Chromium 153, 2026-11-16 to 2026-11-18)
+
+1 458 counted loads (9 endings × 9 units × 18 rounds), every cell Williams-balanced, no row errored, the host never
+above 19 % CPU (no round saturated); partial rows (D2 99, D8 111) kept and counted in no bar. Against §7.3, per bar:
+* **Safety bar** (D1, D2, D4, D5b, D7, D8, D9): every HTTP arm, `off` and `off′` pass in every ending; the three SESSION
+  arms pass everywhere but D8 (0/18 each, as predicted). On D3 and D5a (no bar) every arm delivered 18/18.
+* **Load bar** (D1, D2, D7, D9): BEACON-H/Y, KEEPALIVE-H/Y, SESSION-1 pass; SESSION-Y passes the fill record but
+  loses its hide delta on navigation (D1, D7: 0/18); SESSION-H fails (D1 0/18, D7 1/18).
+* **Ranked** (D3, D4, D5a, D5b, D8 here; D6 not run): the Y arms and SESSION-1 deliver the fill record in every load
+  of D3, D4, D5a and D5b; the H arms lose it when the renderer dies before any hide (D5a, D5b: 0/18); none in D8.
+* **A/A**: `off` and `off′` identical in every ending (no load record, 18/18 safety). No mutant left a cell VOID.
+Fixtures and limits (§7.8): Chromium only, cell D only (L, C, Y, R not built), D6 not run, loopback with no relay, the
+rig's grey-16 32-frame series, one 4-vCPU container. The verdict by §7.5 is REPORT-VERDICT-REVIEW's.
+
+## Verdict review (REPORT-VERDICT-REVIEW, 2026-11-18)
+
+*By a session that wrote, advocated, built and ran none of this plan. Scope: Chromium 153 headless, cell D only,
+nine of the ten endings (D6 not run), loopback with no relay, the rig's grey-16 32-frame series, one 4-vCPU container
+(§7.8). Every statement below holds inside that scope and no wider.*
+
+**The rows recomputed.** Every count in §Results was recomputed from `claude/report-arms` `110695ca`
+`lab/report-arms/rows/chromium-<ending>.jsonl` (fill record, `seq` ≥ 1, `seq` 2, safety report, duplicates, errors,
+mutant fields, rounds per unit): all 81 unit × ending cells agree with §Results; every unit has 18 rounds and every
+`{"cell"}` line reports `balanced` true; no row carries an error or a mutant; `cpu.log`'s highest 5 s sample is 19 %.
+The partial files (D2 99 rows, D8 111) were not counted, as §7.8 says.
+
+**Finding: D5 does not time the kill from the mismatch** (*measured* in code, `run.mjs` and `page.js` at
+`110695ca`). §7.3 kills the renderer 50 ms (D5a) and 500 ms (D5b) "after the mismatch is found", the decoder's
+timestamp (cell L). `run.mjs` instead polls `rig.safety > 0` over CDP every ≥ 20 ms, then waits 50 or 500 ms;
+`page.js` raises `rig.safety` on the page's thread when it calls the carrier (BEACON, `off`) or, for KEEPALIVE and
+SESSION, only when the frame's `info.report` reaches the page, **after** the worker has already sent it. So every
+D5a kill fell at least 50 ms plus one poll after the send had been handed to the browser (page carriers) or after
+the worker's send had started and its frame had crossed to the page (KEEPALIVE, SESSION). D5a's 18/18 in every arm
+therefore shows that a send already handed off survives a renderer kill ≥ 50 ms later; it does not test the race §7.3
+calls "at risk" (the kill landing between the mismatch and the send leaving the renderer). D5b is affected the same
+way, and its safety bar still holds as measured, in that weaker sense.
+
+### The rule (§7.5), applied, Chromium only
+
+1. **Passers.** BEACON-H, BEACON-Y, KEEPALIVE-H and KEEPALIVE-Y meet every bar of every counted row run (safety in
+   D1, D2, D4, D5b, D7, D8, D9; load in D1, D2, D7, D9). SESSION-1 and SESSION-Y fail the safety bar on D8 (0/18
+   each); SESSION-H fails it on D8 (0/18) and the load bar on D1 (0/18) and D7 (1/18). **The pass is on cell D
+   only**: L, C and Y carry bars of their own and were not built (§7.8), so no arm has met "every bar of §7.3", and
+   this pass is **provisional** until they run. D6, which bars the safety report, is not run either.
+2. **Rank among passers** (D3–D6 fill-record share, summed over the rows run, D6 missing): BEACON-Y and KEEPALIVE-Y
+   72/72 (100 %), BEACON-H and KEEPALIVE-H 36/72 (50 %; 0/18 in D5a and D5b, where no hide comes before the kill).
+   The Y arms lead by 50 points, past the 5-point margin. **Between BEACON-Y and KEEPALIVE-Y: not decided.** Their
+   share ties; the next keys, L's busy p99 and Y's wire bytes, were not measured, so "all within" cannot be stated
+   and its tie-break (fewer hops on the page's thread) is not applied.
+3. **The safety report's carrier: not decided.** Every arm passing the safety bar delivered 18/18 in D5a, a tie, but
+   by the finding above D5a never placed the kill inside the race this rule exists to measure.
+4. **Receivers: not decided.** Cell R was not built. RECEIVER behind nginx 1.31.8 took every HTTP record of the run
+   (its counters: nothing refused, appended equal to acknowledged); NGINX as a receiver of record was not in a counted
+   row.
+5. Not reached: four arms pass.
+
+**Leaning** (not a verdict): the hybrid timing (Y) over at-hide (H) for the load report, by 50 points of fill-record
+share where the renderer dies before any hide; the carrier between BEACON and KEEPALIVE left to L, C and Y.
+
+### The loser's question (§4), for every arm that failed a bar
+
+The gap over each arm's floor is **not measured**: the floor probe runs only beside cells L and C (§7.2), not built.
+What remains is the change each arm's sources allow:
+* **SESSION-1, SESSION-Y, SESSION-H on D8** (safety bar, 0/18): the failure is the design's, not the build's. §3.3
+  names it ("A load whose session never opens sends nothing … No fix inside the carrier"). The change the sources
+  allow is outside the carrier: the safety report also sent over HTTP when no session is open, which makes the arm a
+  hybrid of SESSION and BEACON or KEEPALIVE rather than SESSION. Not run here; an amendment for one more interleaved
+  run, owed: D8 with that fallback, beside D1–D9.
+* **SESSION-Y's hide delta and SESSION-H on D1 and D7** (navigation; D2's close and D3/D4's hide-then-kill
+  delivered): §3.3 quotes the cause, "a record not acknowledged when the page goes is lost" (WebTransport-over-HTTP/3
+  §6, Chromium's `web_transport.cc` `Dispose`). Why navigation loses the record and close does not is not measured
+  (§Results D2). No change inside SESSION lets a record outlive the document; the H timing is the loser here, and
+  SESSION-1, the same carrier at once, passes the load bar.
+
+### The safety report: timing and the server's reaction (§5), against the run
+
+* **At once**: every arm sent it at once, and every HTTP arm, `off` and `off′` delivered it in all 972 of their
+  loads over the nine endings run, D8 included, where the session never opened (*measured*, scope above). No arm held
+  the safety report for the end, so at once against at the end was **not compared**; §5's recommendation stands on its
+  sources, and the run adds one measured reason: a safety report carried by the session alone is lost whenever the
+  session does not open (D8, 0/54 over the three SESSION arms).
+* **The server's reaction**: nothing in the run touches it. §5's proposal stands unchanged and unmeasured: record and
+  raise every safety report; the stored frame's re-check waits on a coded-bytes digest at ingest, a structural change.
+
+### Owed before a carrier is chosen (not run here)
+
+D5a and D5b with the kill timed from the decoder's mismatch timestamp, so the race is measured; cells L, C, Y and R
+built and run; D6 under `--tun`; Firefox and WebKitGTK (their kill levers unchecked, §7.6); the phone cells (§7.7).
+
+### Owner decisions
+
+None is forced by this run. Telemetry stays off (rate 0). For the owner: whether the next build round is the list
+above (or a subset: D5 retimed plus L, C, Y is what separates BEACON-Y from KEEPALIVE-Y and decides rule 3); whether a
+SESSION-with-HTTP-fallback arm is worth one run; NGINX against RECEIVER waits on cell R.

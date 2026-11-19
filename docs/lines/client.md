@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -83,6 +83,14 @@ exact frame bit for bit, and only checked claims on screen.
   session) and BEACON/KEEPALIVE-H the visible kill. Levers checked on the host: Chromium only by raw CDP (a Playwright
   page never hides or enters bfcache); Firefox 159 and WebKitGTK 2.52.6 hide and bfcache, their renderer kills not
   yet checked. Phone endings written as asks in the phone protocol.
+  The run (REPORT-RUN, 2026-11-16 to 11-18, Chromium 153 only, cell D only, loopback, D6 not run; report-plan.md
+  §Results): every HTTP arm passes the safety and load bars in every ending that carries them; SESSION fails D8's safety bar (as
+  predicted) and SESSION-H the load bar on navigation; every arm delivered the safety report in D5a. Owed:
+  REPORT-VERDICT-REVIEW.
+  The verdict review (2026-11-18, report-plan.md §Verdict review): rows recomputed, all agree; BEACON-H/Y and
+  KEEPALIVE-H/Y pass cell D (provisional: L, C, Y unbuilt), the Y timing leading by 50 points; BEACON-Y against
+  KEEPALIVE-Y, rule 3 and the receivers not decided. D5's kill is timed from the page's send, not the mismatch, so
+  D5a never tested its race. Owed: D5 retimed, cells L, C, Y, R, D6, Firefox and WebKitGTK.
 
 ## PRs
 

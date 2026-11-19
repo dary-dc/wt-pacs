@@ -183,8 +183,10 @@ sends nothing at rate 0 ([`what-a-load-report-sends.md`](evidence/what-a-load-re
 coded-bytes digest, to tell the bytes' fault from the decoder's
 ([`where-a-frame-can-be-corrupted.md`](evidence/where-a-frame-can-be-corrupted.md) Q1); a series without digests;
 whether a blocked frame has a reveal. How the load and safety reports leave the page is chosen empirically between `sendBeacon`,
-`fetch` with `keepalive` and the WebTransport session, and two receivers; its run in progress since 2026-11-16
-(`claude/report-plan:docs/client/evidence/report-plan.md`, #395).
+`fetch` with `keepalive` and the WebTransport session, and two receivers; run 2026-11-16 to 18 and judged
+(Chromium cell D only, provisional): BEACON and KEEPALIVE pass, the hybrid timing leading at-hide by 50 points; the
+carrier, the safety report's carrier and the receiver undecided ([`evidence/report-plan.md`](evidence/report-plan.md)
+§Verdict review; the rig #395). Telemetry stays off.
 
 **The optimal-quality frame checked as coded** (#368): every frame, the shown one and the rest at a rate, or not
 taken. *Decides:* its six review findings fixed, a phone row, then the owner
