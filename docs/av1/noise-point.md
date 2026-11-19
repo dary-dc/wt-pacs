@@ -325,6 +325,9 @@ The two studies estimated σ differently:
 
 §8 P2 times σ.
 
+*Added 2026-11-19:* where σ_min sits in the Rust ingest, the port's cost and the window it needs are theory and a
+pre-registered protocol in §[σ_min in the Rust ingest](#σ_min-in-the-rust-ingest-theory-and-protocol-2026-11-19).
+
 ## 8 · Protocol, pre-registered
 
 Run unchanged. On the study's host, if it is the same class: 4 cores, 15 GB, four cells in flight, one thread each.
@@ -657,3 +660,223 @@ No series is caught by all three of §5.5's tests, and each test misses one of t
 | Δ from the 8-bit table on a 12-bit (or 10-bit) stream | predictions move ≥ 2 rungs | `dbts_a3`, `a4`, `a5` 8 · 8 · 4 → 40; `dbts_b4` 12 → 32; `dbt10_d` 8 → 24 |
 | σ_min replaced by the median σ | `dbts_a2`'s in-sample cell overshoots | G 1, 12-bit: Q 8 against anchor 4 (also `dbts_b1` G 8 and 16, `dbts_c1` top-10 G 1, `dbts_c5` top-10 G 1) |
 | tile mask shifted one tile | P4's share changes | changes on 5 of 6 cells; not on `dbts_b1` G 16 (0 % both) |
+
+## σ_min in the Rust ingest (theory and protocol, 2026-11-19)
+
+Row NOISE-INGEST-PROTOCOL (codecs §Open 3). Theory and a protocol for NOISE-INGEST-MEASURE, a session that wrote none
+of it. Nothing was built, timed or encoded here; one check ran on synthetic frames (T3). The numbers are labelled
+**source**, **theory**, **derived** or **measured**.
+
+**Question.** Can the Rust ingest (`ingest/from-parser`) measure σ_min as §4 step 2 defines it, on every frame
+(P2's decision)? What does that cost beside the ingest, and where does it sit?
+
+**Fixtures and limits.** `dbts_a1`, `dbts_b1` and `dbts_c1`: DBT from EA1141, systems A and C 12-bit, B 10-bit. All
+three are whole and uncropped. One 4-core cloud host, one thread. The answer holds for these systems, not for other
+modalities: §4 has no x\* for them.
+
+### T1 · Where it sits (*theory*, read from `ingest/from-parser/src/main.rs` at `fa235641`)
+
+* **In `code(s, i)`.** That function reads frame i into a `Vec<i32>`. It hashes the samples, encodes them as HTJ2K
+  and decodes them back. σ reads the same buffer, so it adds no read. It runs on the `--jobs` workers like the rest.
+* **Carried and recorded.** `Coded` gains `sigma`. `ingest()` folds the frames into σ_min and its frame, and records
+  them in the exact series' metadata (§4 step 5).
+* **Known before AV1.** The exact series is written before `optimal_series` runs, so σ_min is known before any AV1
+  encode. §4 asks for that order: "The PCS runs it once per series, before it encodes the VL view".
+* **Q stays the flag's.** `--optimal-quality` keeps its Q until the owner decides ([`../lines/codecs.md`](../lines/codecs.md) §Open 0.2). The rule's
+  candidate Q is recorded beside it, not used.
+* **Stream units.** The ingest codes every unsigned source over 10 bits as its 10-bit cut (`optimal::form`). The cut
+  rounds half up and clamps, as the study's top-10 form does (`lab/av1/profiles/bytes.py`). So σ in stream units is
+  the source's σ ÷ 2^(b − 10), and the 10-bit table applies (§4 step 2, §5.6).
+* **Which bin computes it.** This holds wherever the view is encoded. If the PCS encodes the view, the PCS computes σ
+  there. If the PACS assembles HTJ2K codestreams it did not code (`docs/ingest/pcs-pacs-options.md`, layout B), it
+  must decode every frame first.
+
+**The window is not in phase 1's input.** §4 measures σ in-window, by the first header window.
+* For an enhanced multi-frame object, the window lives inside a functional group:
+
+  > "Frame VOI LUT Sequence (0028,9132) 1 Window Center and Width Values applied to the Frame. Only a single Item is
+  > permitted in this Sequence. >Window Center (0028,1050) … >VOI LUT Function (0028,1056) 3 … Defined Terms:
+  > LINEAR LINEAR_EXACT SIGMOID"
+  > — DICOM PS3.3 2026d, C.7.6.16.2.10, Table C.7.6.16-11,
+  > <https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.16.2.html>
+
+* `group::records` skips nested keys ("nested items (keys over 8 bytes) are skipped"). `mirror.py` writes only "the
+  attributes a frame needs to be read". So phase 1 has no window on any fixture.
+* The three series' first windows are SIGMOID on A and C and LINEAR on B (*source*: their rows'
+  `windows`). Under SIGMOID no sample reaches the end codes exactly: "in-window" is the code after rounding, strictly
+  inside 0 … 255, as `cell.display` builds it.
+* Below a LINEAR window, the standard maps every value to the lowest code:
+
+  > "Input values "below" the window are displayed as the minimum output value and input values "above" the window
+  > are displayed as the maximum output value."
+  > — DICOM PS3.3 2026d, C.11.2.1.2.1,
+  > <https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.2.html>
+
+So phase 1 has two choices: σ over all samples now, or σ in-window once phase 2's parser output carries the nested
+window. T4 predicts which one the rule tolerates, and M4 decides it.
+
+### T2 · The ingest's rule Q on the three (*derived* from the rows `lab/av1/metrics/rows/shard-*.jsonl` and §4's table)
+
+The ingest's default group is G 8, so x\* is 4.6359. Ladder Q:
+
+| series | Mpx a frame · frames | σ_min in-window (frame) | stream σ_min | rule Q at G 8 | the flag's default |
+| --- | --- | --- | --: | --: | --: |
+| `dbts_a1` | 2.038 · 56 | 10.485 (1) | 2.621 (cut ÷ 4) | 4 | 8 |
+| `dbts_b1` | 8.520 · 50 | 5.258 (30) | 5.258 | 8 | 8 |
+| `dbts_c1` | 2.453 · 69 | 12.041 (0) | 3.010 (cut ÷ 4) | 4 | 8 |
+
+`dbts_b1` sits under 1 % below Q 12's threshold (5.26 in §4's table; P2 read 5.308 on every fourth frame and moved to
+Q 12). A port that reads σ a fraction of a percent high changes its Q. That is why T3 asks for bit equality and not a
+tolerance.
+
+### T3 · A port that equals `quality.sigma` bit for bit (*theory*; *measured* on synthetic frames)
+
+`quality.sigma` on integer frames has three steps, and a port can match each one exactly:
+* **Integer filters.** It convolves the frame with an integer Laplacian and integer Sobel kernels in float64, then
+  crops one sample on every side. Every value is a small integer, held exactly. The crop removes the only samples the
+  border mode touches.
+* **A float threshold.** The edge cut is `np.quantile(grad[keep], 0.9)`, method `linear`:
+
+  > "( 1 - g ) * y [ j ] + g * y [ j + 1 ] where the index j and coefficient g are the integral and fractional
+  > components of q * (n-1)"
+  > — NumPy 2.4 `numpy.quantile`, <https://numpy.org/doc/2.4/reference/generated/numpy.quantile.html>
+
+  NumPy computes it with `_lerp`: `a + (b − a)·g`, or `b − (b − a)·(1 − g)` when g ≥ 0.5 (`numpy/lib/
+  _function_base_impl.py`, 2.4.6). On integer gradients, a port that sorts or counts, then repeats that float64
+  arithmetic in that order, keeps the same samples.
+* **An exact mean.** The mean of |Laplacian| over the kept samples is a sum of integers. On 12-bit data each term is
+  at most 16 · 4095. On `dbts_b1`'s 8.5 M samples the sum stays under 2^53, so float64 sums it exactly in any order.
+  An i64 sum divided by the count gives the same double. The last step, √(π/2) · mean ÷ 6 and the 1/12 rounding share,
+  matches when done in the same order.
+
+**Checked.** NumPy 2.4.6, SciPy 1.17.1, this file's port in NumPy integer arithmetic. 400 random integer frames
+(5–120 px a side, σ 0.2–40, half of them masked) gave σ equal to `quality.sigma`'s on all 400 (*measured*, synthetic).
+
+**Found on the way.** `quality.sigma` narrows its caller's mask in place, because `keep` is a view of `inside`. 199
+of the 200 masked frames came back changed. `cell.series_row` reuses that mask for the next frame's neighbour step,
+so the rows' `step` and `step_band` are taken over the in-window samples less their steepest tenth. σ is unaffected.
+The port takes the mask by shared reference and does not copy this side effect. Whether the step rows need a re-read
+is the codecs line's question.
+
+### T4 · All samples against in-window (*theory*)
+
+Outside the window, a DBT frame is mostly the region around the breast: air, or values the reconstruction set
+constant.
+* Where that region is flat, its Laplacian is 0 and its gradient is under the edge cut. It adds zeros to the mean,
+  so σ over all samples falls about with the breast's share of the frame.
+* Where it is noisy (air with quantum noise), it can pull σ either way.
+
+Every σ the study recorded is in-window, so no row predicts how far σ moves. **Prediction:** σ_min
+over all samples is ≤ in-window on all three, so the rule's Q is equal or lower: safe, and maybe costlier in bytes.
+
+### T5 · Cost (*theory*, against *measured* Python)
+
+**Python, measured.** P2 measured 0.049 · 0.087 · 0.049 CPU s/Mpx on `dbts_a1` · `b1` · `c1`: 100 · 740 · 119 ms a
+frame.
+
+**The port's work.**
+* Both kernels are separable: Laplacian = [1, −2, 1] ⊗ [1, −2, 1], Sobel = [1, 2, 1] ⊗ [−1, 0, 1]. Over three rows
+  in a ring, that is about 20 integer operations a sample.
+* Pass 1 builds a histogram of the gradient, in u32 bins up to 8 · 2^b. That is 32 768 bins on 12 bits.
+* Pass 2 sums |Laplacian| where gradient ≤ the threshold, in i64.
+* The extra memory is three rows and the histogram.
+
+**Prediction.** At 4–12 ns a sample on one core of this host class: **0.004–0.012 CPU s/Mpx**, 4–22× under Python.
+
+| series | a frame | the series |
+| --- | --- | --- |
+| `dbts_a1` | 8–24 ms | 0.5–1.4 s |
+| `dbts_b1` | 34–102 ms | 1.7–5.1 s |
+| `dbts_c1` | 10–29 ms | 0.7–2.0 s |
+
+**Against the ingest it joins.** The Rust ingest's rate is not measured (`docs/ingest/design.md`).
+* HTJ2K encodes at 174–335 Mbit/s of coded output a core (`ojph_compress`, process start included; *derived* there).
+* At the three volumes' lossless bytes (67.8 · 107.4 · 70.7 MB, [`snr-preview.md`](snr-preview.md)), that is 29–56
+  · 51–99 · 25–47 ms a frame.
+* With a decode-back assumed as costly as the encode (*theory*, unverified), the exact path is 58–111 · 103–198 ·
+  49–94 ms a frame.
+* σ is then **7–42 % · 17–99 % · 10–60 %** of it.
+
+That band is wide because only the denominator's ends are known; M3 measures it. Against the view's AV1 encode
+(936 ms a frame on 10-bit DBT at `good` 6, *derived* in `docs/ingest/design.md`), σ is at most 11 % on `dbts_b1`.
+
+### Protocol, pre-registered (NOISE-INGEST-MEASURE runs it unchanged)
+
+**Build.**
+* **The crate.** `noise-ingest`, new under `lab/`, a workspace member but not a default one. Its library `sigma.rs` holds
+  `sigma(samples: &[i32], w, h, inside: Option<&[bool]>) -> f64`, written as T3 and T5 describe: integer filters, a
+  histogram, `_lerp`'s float order, an i64 sum.
+* **The tool.** Its binary `sigma-bench` reads a series from `mirror.py`'s output, the files `from-parser` reads. It
+  takes an optional mask table (one byte for each stored value: 1 if in-window) and an optional `--cut` (σ on the
+  values `optimal::coded` would encode). It prints one JSON row a frame: σ, kept samples, CPU ns of the call.
+* **The CPU clock.** `CLOCK_THREAD_CPUTIME_ID`, via `libc`.
+* **The mask tables.** The crate's `mask.py` writes each series' table from `cell.display`'s first table, so
+  the mask is the study's mask exactly.
+* **The product is untouched.** The ingest's own wiring (T1) is built only after the owner's yes on the ingest page.
+* **The golden test.** A unit test pins σ for 12 synthetic frames (3 sizes; noise σ 0.3, 3 and 30; masked and not).
+  It runs inside `cargo test -p noise-ingest` and needs no fixture. Each mutant below must fail it.
+
+**Fixtures.** `lab/av1/fetch_data.sh` for the three sets, each checked against `frames_sha256` in
+`lab/av1/data.json`, then `ingest/from-parser/mirror.py` for each. If the cloud cannot fetch them, the row records the
+error and the exact commands, and sets `blocked` (amendment 24).
+
+**Arms.** One process alone on the host, one thread, five rounds. Each round runs the units in a Williams order
+(`noise_point.order`). Raw rows are pushed after each round.
+
+| arm | what | units |
+| --- | --- | --- |
+| M1 | `sigma-bench`, in-window | 3 series |
+| M2 | `sigma-bench`, in-window, `--cut` (`dbts_a1`, `dbts_c1`) | 2 series |
+| M3 | `from-parser SERIES OUT.sbnd --jobs 1`, process CPU s (`getrusage` of the child) | 3 series |
+| M4 | `sigma-bench`, all samples | 3 series |
+| M5 | `noise_point.timed_sigma(…, every=1)`, Python, as P2 ran it | 3 series |
+
+**Predictions and what decides.**
+
+| | prediction | decides |
+| --- | --- | --- |
+| P1 | M1 equals the rows' σ bit for bit on every frame (175 frames); σ_min's frame is T2's | anything but equality: stop, fix the port, read nothing else |
+| P2 | M1 costs 0.004–0.012 CPU s/Mpx (median of 5); M5 reproduces 0.049 · 0.087 · 0.049 within ±20 % | ≤ 0.02 on all three: σ goes into `code()` on every frame as T1 places it; above: reported with where the time goes, and the place stays |
+| P3 | M1 ÷ M3 per frame, medians: within T5's 7–42 · 17–99 · 10–60 % | reported, no threshold: the ingest page weighs it |
+| P4 | M4's σ_min ≤ M1's on all three; rule Q at G 8 (T2's form) equal or lower | equal on all three: phase 1 may record σ_min over all samples for systems A–C, labelled so; lower on any: σ_min waits for phase 2's window; higher on any: all-samples σ is refused |
+| P5 | M2's σ_min ÷ (M1's ÷ 4) in 0.97–1.03 | inside: either input serves; outside: σ on the source ÷ 4, as §4 writes it |
+
+**Mutations** (each must fail the golden test and P1):
+1. The quantile index (n − 1) · q read as n · q.
+2. The rounding share 1/12 left in.
+3. The mask ignored.
+4. `_lerp`'s branch for g ≥ 0.5 dropped. It must fail at least one golden frame. If it fails none, the row adds a
+   frame that it does fail.
+
+**Reported.**
+* Fixtures and limits as above.
+* The host's model and cores.
+* Every cell against its prediction, misses included.
+* The host does not saturate: one thread on 4 cores. Nothing is claimed for `--jobs` over 1.
+
+### Note to the PCS team (draft, not sent)
+
+> **Subject: a per-series noise figure before the view is encoded**
+>
+> The optimal-quality view may take its quantizer from each series' noise. For that, the encoder needs one number
+> per series, σ_min: the lowest per-frame noise estimate over the series' frames.
+>
+> **How to compute it.**
+> * Use Immerkær's Laplacian estimator.
+> * Leave out the steepest 10 % of samples (by Sobel gradient).
+> * Remove the integer-rounding share.
+> * Count only the samples inside the series' first window.
+>
+> `lab/av1/metrics/quality.py` `sigma` is the reference, and a Rust port equal to it bit for bit is to be measured.
+>
+> **The cost.** Measured in Python: 0.05–0.09 CPU s a megapixel, every frame. In Rust it is predicted at
+> 0.004–0.012. That is seconds a series against minutes of AV1 encoding.
+>
+> **What we need to know from you:**
+> 1. Will the parser's output carry the per-frame window? For enhanced multi-frame objects, it sits inside
+>    (5200,9229) or (5200,9230) → Frame VOI LUT Sequence (0028,9132). The ingest reads top-level keys today.
+> 2. Which side encodes the view, so that σ_min is computed there, on the source samples?
+> 3. Will Lossy Image Compression (0028,2110) and the received transfer syntax reach the ingest? A lossy source
+>    must not use this rule (§5.5).
+> 4. Are the sources only the DBT systems we calibrated (A, B, C)? The rule has no calibration for other modalities
+>    or systems yet.

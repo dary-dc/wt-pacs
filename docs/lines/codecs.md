@@ -4,7 +4,7 @@ Last verified 2026-11-10 (the AV1 harvest of that morning: eight result branches
 no new measurement); the audits' corrections of 2026-11-11 ([`../av1/corrections.md`](../av1/corrections.md)) and
 their protocols measured 2026-11-12 (`claude/audit-measure`) added since; HTJ2K at screen resolution
 (`claude/htj2k-tiles`: theory, its review and its improvement, stages 0–2 measured 2026-11-11, stage 3 since)
-carried into Open 7. Stage A1 of the unification (2026-11-15) added Open 11. Stage B (2026-11-15) carried the tip's items 5, 7 and 8 as 12, 13 and 14. Transport pointers added 2026-11-17 and 2026-11-19.
+carried into Open 7. Stage A1 of the unification (2026-11-15) added Open 11. Stage B (2026-11-15) carried the tip's items 5, 7 and 8 as 12, 13 and 14. Transport pointers added 2026-11-17 and 2026-11-19; Open 3 (σ_min at the Rust ingest, theory) added 2026-11-19.
 
 ## Goal
 
@@ -191,6 +191,12 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
    → #316; #288, #315, #318; now also #323, #325, #326, #332 (into `av1-quality-metrics` or `av1-noise-point`) and
    #329, #331, #334 (into `main`).
 3. Explore noise detection at ingest (σ_min, its estimator's timing on the three volumes), then hand it to the PCS team.
+   *2026-11-19 (row NOISE-INGEST-PROTOCOL, theory and protocol, nothing run):* σ_min sits in the Rust ingest's
+   `code()` on the samples it already reads. A port equal to `quality.sigma` bit for bit is predicted at 0.004–0.012
+   CPU s/Mpx. Phase 1 has no window, so all-samples σ is to be measured against in-window. The note to the PCS team
+   is drafted, not sent: [`../av1/noise-point.md`](../av1/noise-point.md) §σ_min in the Rust ingest.
+   NOISE-INGEST-MEASURE runs it. Found on the way: `quality.sigma` narrows its caller's mask, so the series rows'
+   `step` is taken without the steepest tenth.
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms, the OQ
    view's decode speed on a real slow device.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
