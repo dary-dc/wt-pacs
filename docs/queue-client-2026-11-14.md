@@ -73,6 +73,8 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | FIX-378-DIAL-REVIEW | 11-18 00:00 | — | `claude/lossless-under-loss` (PR 378): findings in PR 378's body §FIX-378-DIAL review; amendment 17; PHONE-RUN-OWNER waits on it |
 | PROGRAM-PLAN (Fable) | 11-18 00:00 | — | `claude/work-ledger:docs/queue-2026-11-14.md` rewritten as the two weeks' program (amendment 25) |
 | PROGRAM-PLAN-REVIEW | 11-18 00:00 | PROGRAM-PLAN done | findings in that file's §Program review; amendment 17 |
+| PROGRAM-PLAN-FIX | 11-19 03:00 | PROGRAM-PLAN-REVIEW done | `claude/work-ledger`: `docs/queue-2026-11-14.md` §Program review's B1–B4 and m1–m7, and B1's line in this file's §Procedure |
+| PROGRAM-PLAN-FIX-REVIEW | 11-19 03:00 | PROGRAM-PLAN-FIX done | findings in `docs/queue-2026-11-14.md` §Program review §Re-review |
 | DEVICE-THEORY (Fable) | 11-18 00:00 | — | `claude/device-theory` from `origin/claude/docs-client` → draft PR into `claude/docs-client` (`docs/decode/mobile/device-model.md`); its prediction pushed by 11-21 12:00 |
 | DEVICE-THEORY-REVIEW | 11-18 00:00 | DEVICE-THEORY done | findings in its PR body; amendment 17; closed by 11-21 16:00 |
 | TRANSPORT-BUILD | 11-18 00:00 | — | `claude/transport-arms` from `origin/claude/docs-client` → draft PR into `claude/docs-client`: `stacks.md` §5.6 of `claude/transport-design` `c74d4bea` |
@@ -1032,6 +1034,25 @@ A session that did not write it: every inventoried item mapped to rows or droppe
 inventory from the sources); every row executable by a cloud session as written (inputs exist, branches named, needs
 reachable); no session reviews its own; every question ends in a decision page; Fable used only as amendment 25 says;
 the pacing fits by 11-28. Findings in the file's §Program review; blockers start amendment 17.
+
+#### PROGRAM-PLAN-FIX (appended by PROGRAM-PLAN-REVIEW, 2026-11-19; amendment 17)
+
+A session that wrote neither the program nor its review. On `claude/work-ledger`, close
+`docs/queue-2026-11-14.md` §Program review's four blockers in place: (B1) one line in this file's §Procedure, rules:
+when none of this file's rows is due, the worker takes the first due row of `docs/queue-2026-11-14.md` by that
+file's procedure (at most four of its rows running), a Fable session that file's §Fable rows by their days; (B2)
+DOCS-SYNC never merges `claude/work-ledger`, a `claude/reviews-*` branch or a branch whose PR title says "do not
+merge"; (B3) HTJ2K-A1-BUILD and HTJ2K-A1-BUILD-REVIEW before HTJ2K-A1-RUN, the build adding arm D+T1 to
+`lab/htj2k-tiles/improve/stage3/` with its mutant, the run's latest kept; (B4) DECISION-PAGES-REVIEW needs every page
+row done, latest 11-27 22:00, and PROGRAM-CLOSE needs it and its fix rows done, latest 11-28 12:00. Then m1–m7, one
+line each, or why not. Nothing else in either file changes.
+
+#### PROGRAM-PLAN-FIX-REVIEW
+
+A session that wrote none of the program, the review or the fix: each blocker closed as §Program review states it,
+nothing else changed (`git diff` of both files), the pointer of B1 read by a worker's procedure without ambiguity.
+Findings in §Program review §Re-review; a blocker left open is amendment 17's second round, then `blocked` for the
+owner.
 
 #### DEVICE-THEORY (Fable; theory and sources, nothing run)
 
