@@ -73,7 +73,8 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    window), at 1 s they tie; WS answers an ask during a fill faster (×0.45–0.72); the fill-shape fetch arms' ask did
    not take effect (a suspected carrier defect). Verdict-reviewed 2026-11-19 (`stacks.md` §6.5): the defect confirmed,
    AD's two fill forms struck. Fixed 2026-11-19 (TRANSPORT-VERDICT-REVIEW-FIX): the fill shape's `connect()` returns
-   once the opening GET is issued (`fetch-session.test.ts` fails without it). Next, its review, then AD re-run.
+   once the opening GET is issued (`fetch-session.test.ts` fails without it). Reviewed 2026-11-19, no blocker
+   (`docs/reviews/transport-arms.md` §Fill-ask review). Next, the AD re-run.
 
 ## Decisions (the owner's)
 
