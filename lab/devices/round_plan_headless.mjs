@@ -12,7 +12,7 @@ const check = (ok, claim) => (console.log(`${ok ? "ok" : "FAIL"}: ${claim}`), ok
 const run = `${dir}/plan-run`;
 mkdirSync(`${run}/bin`, { recursive: true });
 const commit = execFileSync("git", ["-C", ROOT, "rev-parse", "HEAD"]).toString().trim();
-const plan = await roundPlan({ dir, run, views: ["synth-q8-g8", "synth-q8-g8"], quick: true, commit });
+const plan = await roundPlan({ dir, run, dial: "127.0.0.1", views: ["synth-q8-g8", "synth-q8-g8"], quick: true, commit });
 writeFileSync(`${run}/plan.json`, JSON.stringify(plan));
 writeFileSync(`${run}/bin/adb`, `#!/bin/sh\necho "$*" >> ${run}/adb.log\n`);
 chmodSync(`${run}/bin/adb`, 0o755);

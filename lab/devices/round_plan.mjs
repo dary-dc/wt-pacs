@@ -1,5 +1,5 @@
 // round.py's plan for next-round.md's cells 1–3: roundOrder()'s loads, each on its page and the servers behind it.
-//   node lab/devices/round_plan.mjs DIR RUN [--dial ADDR] [--views V1,V2] [--quick]
+//   node lab/devices/round_plan.mjs DIR RUN --dial ADDR [--views V1,V2] [--quick]
 // DIR as scripts/demo-series.sh wrote it; RUN gets plan.json, the transport files and the beacon. lab/devices/README.md §The round
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -15,7 +15,8 @@ export const PAGE_PORTS = PAGE.flat();
 const BUDGETS = { 1: 600, 2: 2100, 3: 3600 };
 const QUICK = { rounds: 2, pairs: 2, benchReps: 1, steps: 3, cineS: 2, gapS: 1 };
 
-export async function roundPlan({ dir, run, dial = "127.0.0.1", views = SERIES, quick = false, commit }) {
+export async function roundPlan({ dir, run, dial, views = SERIES, quick = false, commit }) {
+  if (!dial || dial.startsWith("-")) throw new Error(`--dial needs the laptop's address the phone dials, got ${JSON.stringify(dial)}`);
   const exactOf = (v) => JSON.parse(readFileSync(`${dir}/${v}.metadata.json`)).exactSeries;
   const pairs = views.map((v) => ({ view: v, exact: exactOf(v) }));
   const hash = JSON.parse(readFileSync(`${ROOT}/client/dev-transport.json`)).cert_sha256;
@@ -49,7 +50,7 @@ export async function roundPlan({ dir, run, dial = "127.0.0.1", views = SERIES, 
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [dir, run, ...rest] = process.argv.slice(2);
-  if (!dir || !run) throw new Error("usage: node lab/devices/round_plan.mjs DIR RUN [--dial ADDR] [--views V1,V2] [--quick]");
+  if (!dir || !run) throw new Error("usage: node lab/devices/round_plan.mjs DIR RUN --dial ADDR [--views V1,V2] [--quick]");
   const opt = (k) => (rest.includes(k) ? rest[rest.indexOf(k) + 1] : undefined);
   mkdirSync(run, { recursive: true });
   const commit = execFileSync("git", ["-C", ROOT, "rev-parse", "HEAD"]).toString().trim();

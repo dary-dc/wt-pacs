@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { balanced } from "../order.mjs";
 import { ARMS, BENCH, SERIES, STOPPED_GAP_MS, TICK_MS, fillFailure, largestGap, roundOrder, verdict } from "./round.mjs";
+import { roundPlan } from "./round_plan.mjs";
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -75,6 +76,13 @@ test("the round's order is the protocol's", async () => {
   assert.equal(cell3.length, 48);
   assert.deepEqual(cell3.slice(0, 4).map((l) => l.view), ["page", "worker", "worker", "page"]);
   assert.ok(cell3.every((l) => l.seq === "view"));
+});
+
+/** A plan with no address to dial is refused before anything is read: an unset LAPTOP_IP never reaches the phone. */
+test("the plan refuses a missing, empty or flag-shaped --dial", async () => {
+  for (const dial of [undefined, "", "--quick"]) {
+    await assert.rejects(roundPlan({ dir: "/nonexistent", run: "/nonexistent", dial, quick: true }), /--dial/, `dial ${JSON.stringify(dial)}`);
+  }
 });
 
 let failed = 0;
