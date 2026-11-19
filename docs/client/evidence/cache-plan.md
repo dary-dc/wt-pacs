@@ -724,3 +724,90 @@ of 2026-11-15); written before the pilot's picks are read and before any counted
    K's writes in flight follow each arm's own picks.
 8. **One job at a time, each under two hours**: the container stops a background job at its two-hour limit, so a cell
    (one engine × size × throttle) is one job, its rows kept whole or renamed `.partial` and counted in no bar.
+
+## 9 · Results (CACHE-RUN, 2026-11-18 to 11-19)
+
+*Measured*, by §8 as pre-registered and §8.8's amendment; a session that wrote none of §1–§8 or the builds. Rows, the
+driver and the bars' script are on `claude/cache-arms` (`e988f9c6`): `lab/cache-arms/rows/<engine>/`, `counted.sh`,
+`mutants.sh`, `results.py`; each engine's whole table is `rows/<engine>/results.md`. The verdict and the loser's
+question are CACHE-VERDICT-REVIEW's.
+
+**Fixtures and limits.** One 4-vCPU, 16 GiB cloud container, no GPU (SwiftShader paint), one run at a time; Chromium
+153.0.8010.12 (Playwright's) headless; Firefox 159.0 (Mozilla's release tarball, its SHA256SUMS checked) on Xvfb;
+synthetic 16-bit frames at S1 512², S2 2560 × 3328, S3 3328 × 4096; feeders, not decoders (a pass is an upper bound on
+a phone, §8.4); a warm page cache (O's *cold* is a new process, not the disk); O's F is M1's *measured* fill (§8.8 5),
+not run here. No phone, no Safari, no breast ultrasound cine. Two cells were cut by container restarts and rerun whole
+(Chromium R-busy S3, B; the cut rows are kept as `.partial`, counted in no bar).
+
+**Saturation (§8.4).** `none`'s median missed share in L: Chromium 0.0 % at S1–S3 1×, 0.2 % at S1 4×, 1.3 % at S2 4×,
+**6.5 % at S3 4×: saturated**, so S3 4× claims nothing (no arm cell runs there). Firefox 0.0–0.2 % at every point run.
+
+**A/A (§8.4).** Within its bounds in every cell but **Chromium W at S1: VOID** (median ratio 0.890), so that cell
+claims nothing for any arm.
+
+**Mutants (§8.4).** Chromium: all seven caught in all four arms. Firefox: caught, but *tab-writes* is not caught for
+OPFS-SYNC and IDB (tab 2's `readerWroteNothing` stays true), so **Firefox T is VOID for those two arms**; *evict-newest*
+did not run (E's lever, below).
+
+**Not run, named (§8.5 1).** Firefox **E and Q**: Gecko's quota lever (`dom.quotaManager.temporaryStorage.fixedLimit`)
+does not hold by the run's own check (16 MiB over the quota not refused), so neither runs (§8.6). **WebKitGTK** 2.52.6
+(Ubuntu 24.04's `libwebkit2gtk-4.1-0`, MiniBrowser over WebKitWebDriver; `webkit-probe.mjs`,
+`rows/webkitgtk/probe.jsonl`): cross-origin isolated, yet **no `SharedArrayBuffer`** on the page or in a worker, and no
+OPFS (`navigator.storage.getDirectory` a `TypeError`); IndexedDB and `caches` present. The slot input is shared
+memory, so every WebKitGTK cell is *not run: SharedArrayBuffer*.
+
+**Per cell, each arm: pass or fail by §8.3's bar** (*measured*; the A/A arm and `none` apart; medians):
+
+| cell | engine | OPFS-SYNC | OPFS-ASYNC | IDB | CACHESTORAGE |
+| --- | --- | --- | --- | --- | --- |
+| L S2 1× (12 rounds) | Chromium | fail: PSS 0/12 | **pass** | fail: PSS 0/12 | fail: PSS 7/12 |
+| | Firefox | pass | pass | pass | pass |
+| L S1 1× | Chromium | fail: PSS 1/6 | fail: PSS 0/6 | fail: PSS 0/6 | fail: PSS 0/6 |
+| | Firefox | fail: PSS 1/6 | fail: PSS 3/6 | fail: PSS 0/6 | fail: PSS 0/6 |
+| L S3 1× | Chromium | fail: PSS 2/6 | pass | fail: PSS 0/6 | pass |
+| | Firefox | pass | pass | pass | pass |
+| L S1 4× | Chromium | fail: PSS | fail: PSS | fail: PSS, delivered 0/6 | fail: PSS |
+| | Firefox | fail: PSS | fail: PSS | fail: PSS | fail: PSS |
+| W S1 / S2 / S3 (MB/s) | Chromium | VOID / 2 422 / 2 535 | VOID / 493 / 480 | VOID / 254 / 270 | VOID / 565 / 554 |
+| | Firefox | 871 / 1 844 / 1 635 | 448 / 704 / 813 | 136 / 234 / 238 | 201 / 331 / 319 |
+| R-idle S2 / S3 miss p50 (ms) | Chromium | 33 / 33 pass | 33 / 33 pass | 49 / 62 pass | 58 fail (5/10) / 83 pass |
+| | Firefox | 34 / 65 pass | 34 / 68 pass | 89 / 152 fail | 101 / 169 fail |
+| R-idle S1 1× and 4× | both | pass (16–17) | pass | pass | pass |
+| R-busy S2 / S3 miss p50 (ms) | Chromium | 33 / 34 pass | 33 / 50 pass | 50 fail (7/10) / 80 fail (5/10) | 74 / 105 fail (0/10) |
+| | Firefox | 34 / 67 pass | 34 / 68 pass | 151 / 222 fail | 115 / 179 fail |
+| B S2 | Chromium | fail: PSS 0/6 (R pass) | fail: PSS 3/6 (R pass) | fail: PSS (R pass) | fail: PSS (R pass) |
+| | Firefox | pass | pass | fail: PSS, R 0/6 | fail: R 0/6 |
+| O S3 warm / cold (ms) | Chromium | 648 / 653 pass | 749 / 743 pass | 1 462 / 1 332 pass | 2 128 / 2 069 fail (7/10, 9/10) |
+| | Firefox | 697 / 748 pass | 916 / 1 036 pass | 3 697 / 3 731 fail | 4 158 / 4 287 fail |
+| O S1 (256 frames) warm / cold (ms) | Chromium | 93 / 78 pass | 475 / 373 pass | 488 / 405 pass | 695 / 617 pass |
+| | Firefox | 142 / 315 pass | 1 173 / 1 314 fail | 707 / 924 fail (cold 1/10) | 870 / 1 080 fail |
+| E | Chromium | pass 4/4 | pass | pass | pass |
+| K | Chromium | pass 4/4 | pass | pass | pass |
+| | Firefox | pass | pass | pass | fail: 2/4 errored (`written` of null) |
+| Q | Chromium | fail 0/4: refused at open (§8.8 4) | pass | pass | pass |
+| T | Chromium | **fail 2/4: tab 2 read 3 frames not exact** | pass | pass | pass |
+| | Firefox | VOID (mutant) | pass | VOID (mutant) | fail: 4/4 a navigation timeout |
+| P (no bar) | Chromium | a store, 32/32 exact | the same | the same | the same |
+| | Firefox | no store (`SecurityError`) | no store | a store, exact | a store, exact |
+
+L's PSS growth, median MiB, `none` / OPFS-SYNC / OPFS-ASYNC / IDB / CACHESTORAGE: Chromium S1 25 / 125 / 128 / 1 262 /
+96, S2 25 / 123 / 94 / 1 248 / 118, S3 34 / 138 / 138 / 1 288 / 126; Firefox S1 165 / 236 / 227 / 500 / 707, S2
+178 / 111 / 53 / 182 / 1, S3 180 / 136 / 64 / 125 / 217. The bar's slack is the arm's writes in flight × frame + 64
+MiB, so at S1 (0.5 MB frames) it is ~64 MiB, and Firefox's `none` grows ~170 MiB on its own.
+
+**Against the predictions (§8.3), where they missed:** L's shown frame held as predicted (no arm fails a missed-share
+or delay bar at 1×); **PSS, which no prediction priced, fails every arm at S1 on both engines**, and Chromium's IDB
+grows ~1.25 GiB at every size. W: OPFS-SYNC highest as predicted (≥ 1.6 GB/s); OPFS-ASYNC's "Chromium S1 marginal"
+did not happen (287 MB/s, though that cell is VOID). R-idle: OPFS-SYNC ~33 ms at S2 against ~29 predicted; OPFS-ASYNC
+with the sync read ~33 / ~33 against ~30 / ~42; IDB and CACHESTORAGE "at risk at S3" passed on Chromium (62, 83 ms) and
+failed at S2 as well as S3 on Firefox. R-busy: CACHESTORAGE's "up to one put" was ~+16 / +22 ms on Chromium and failed.
+O: CACHESTORAGE and IDB on Firefox exceed R / n ≤ decode at S3 and S1. Q: OPFS-SYNC refused at open, as §8.8 4
+foresaw. **T on Chromium's OPFS-SYNC is unpredicted and the most serious row**: tab 2, reading by `getFile()` while tab 1
+writes through its handle, received 3 frames over 4 rounds whose bytes were wrong while its own re-check reported
+none damaged (`read.damaged` empty, the harness's SHA-256 `verify.notOk` 2, 0, 1, 0). P: as predicted (Firefox's OPFS
+has no store in a private window).
+
+**By §8.5.** No arm meets every bar in every counted, non-VOID, unsaturated cell on either engine (L at S1 fails all
+four on both), so rule 3 applies: the result goes to the owner as measured, each arm's failed cells above, its floors
+(`floor.writeMs`/`readMs` in every timing row) beside them for CACHE-VERDICT-REVIEW's loser's question. P is reported
+beside: Firefox's OPFS arms keep nothing in a private window; IDB and CACHESTORAGE do.
