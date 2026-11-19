@@ -90,6 +90,8 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | AGENTS-DOCS-REVIEW | 11-18 00:00 | AGENTS-DOCS done | findings in its PR body; amendment 17 |
 | PHONE-RUN-OWNER | 11-19 12:00 | PHONE-LEVERS-REVIEW and FIX-378-DIAL-REVIEW done with no blocker open, or 11-20 08:00 | `claude/phone-run` from `origin/claude/unified` → draft PR into `claude/unified` ("do not merge: phone run 2026-11-21"); `docs/phone-rows/SATURDAY.md`; done by 11-20 22:00 |
 | PHONE-RUN-REVIEW | 11-19 12:00 | PHONE-RUN-OWNER done | findings in `claude/phone-run`'s PR body; amendment 17; closed by 11-21 18:00 |
+| PHONE-RUN-FIX | 11-19 16:00 | PHONE-RUN-REVIEW done | `claude/phone-run` (PR 409): B1 and B2 of its body §PHONE-RUN-REVIEW; done by 11-21 12:00 |
+| PHONE-RUN-FIX-REVIEW | 11-19 16:00 | PHONE-RUN-FIX done | findings in PR 409's body §Re-review; closed by 11-21 18:00 |
 | PHONE-ROUND | — | — | **the owner's local device session, 2026-11-21 evening, by `SATURDAY.md`; no cloud worker takes it** |
 | PHONE-READ | 11-22 00:00 | `docs/queue/PHONE-ROUND.md` done | `claude/phone-run:docs/phone-rows/next-round-results.md` |
 | PHONE-READ-REVIEW | 11-22 00:00 | PHONE-READ done | findings in the results file's §Review; amendment 17 |
@@ -1216,6 +1218,23 @@ A session that wrote none of the protocol, the tools or the run branch: the comm
 `SATURDAY.md`'s commands run in the container against a fake `adb` where they can be, every step complete from any
 state. Findings in the PR body. Blockers start amendment 17 and close by 11-21 18:00; a blocker still open then
 skips its cell, named in `SATURDAY.md`, and the other cells run.
+
+#### PHONE-RUN-FIX (appended by PHONE-RUN-REVIEW, 2026-11-19; amendment 17)
+
+A session that wrote neither `claude/phone-run` nor its review. On `claude/phone-run`, the two blockers of PR 409's
+body §PHONE-RUN-REVIEW, each with a test or check that fails without its fix (mutated, the mutant named): (B1)
+`round_plan.mjs` refuses a missing or empty `--dial`, and every `SATURDAY.md` step that uses `LAPTOP_IP` sets it
+itself; (B2) nothing identifying reaches `docs/phone-rows/raw/`: `dumpsys wifi` kept as its band, frequency, RSSI
+and link speed only, logcat as its codec component lines only (the whole buffers stay on the laptop), and the
+commit step fails on a MAC-shaped string or an SSID left. The review's m1–m3 if each is one line, else listed. A change
+past `docs/` and `lab/` is a blocker, not a fix. `SATURDAY.md`'s run code updated if the code moves. Gate
+(`--quick` allowed, said so), `scripts/check_lab_absent.sh`, `round_headless.sh --plan`. By 11-21 12:00.
+
+#### PHONE-RUN-FIX-REVIEW
+
+A session that wrote none of the branch, the review or the fix: each blocker closed (revert its fix, see its check
+fail); nothing else changed; the fake-`adb` run of "Where rows go" leaves no SSID, BSSID or account line. Findings in
+PR 409's body §Re-review; a blocker still open is amendment 17's second round, then `blocked` for the owner.
 
 #### PHONE-ROUND (local; the owner's device session, 2026-11-21 evening)
 
