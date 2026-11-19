@@ -53,6 +53,7 @@ one digest that must agree across a volume's D visits. The pictures and S★'s c
 ([`run.mjs`](stage3/run.mjs)) runs from a tree of the demo commit `157b7109` with this directory copied in, one
 server and relay per series of a visit; [`summary.py`](stage3/summary.py) reads the rows against the rule. Mutants
 (`--mutate`): `bands-dropped`, `preview`, `truth`, `sample`, `whole-neighbour` (D+T1 asks the next slice), each must be caught ([`rows/stage3-mutants.jsonl`](rows/stage3-mutants.jsonl)).
+D+T1's build smoke, one round per A1 cell and not counted: [`rows/a1-build-smoke.jsonl`](rows/a1-build-smoke.jsonl).
 
 ```bash
 cd TREE   # 157b7109, lab/htj2k-tiles/improve copied in, lab/.demo-series -> the D series, lab/.av1-work/htj2k-improve -> the strip series
