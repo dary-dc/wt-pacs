@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-19 (the delivery protocol), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -111,8 +111,11 @@ exact frame bit for bit, and only checked claims on screen.
 * **The next phone round**: its amendment written by a session that will not run it ([`../devices.md`](../devices.md)
   §7), recording the decoder route and per-frame arrivals and varying the decoder count; it decides which view is the
   target and what bounds a fill.
-* **The delivery comparison**: recorded in [`../client/design.md`](../client/design.md) §Open with its theory; its
-  protocol is not written. The link profiles and each arm's regime, theory only, 2026-11-14:
+* **The delivery comparison**: recorded in [`../client/design.md`](../client/design.md) §Open with its theory; the
+  cloud protocol pre-registered 2026-11-19 ([`../client/evidence/delivery-comparison.md`](../client/evidence/delivery-comparison.md),
+  row DELIVERY-PROTOCOL): it tests the fill model, not the arms' order (arms A, A′, B, C1, C2; five relay forms; the
+  three volumes; predictions from the host's own bytes, decode and wire before any row). Owed: DELIVERY-BUILD, its
+  review, DELIVERY-RUN. The link profiles and each arm's regime, theory only, 2026-11-14:
   [`../transport/link-profiles.md`](../transport/link-profiles.md) — the view decode-bound above ~83 Mbit/s, HTJ2K
   wire-bound below ~470–660 if its unmeasured phone decode keeps the cloud's ratio; that decode is the first phone cell.
 * dav1d fetched only where WebCodecs refuses (a protocol with an A/A arm, not started); a wake before `l` asks (its

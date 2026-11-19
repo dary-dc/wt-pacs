@@ -122,7 +122,7 @@ so A and C1 win where the link binds and lose the margin where decode binds. *De
 floor, rest, the decoder route taken and bytes; phone CPU per process; server egress and CPU; rendering fixed, arms
 interleaved; the calibrated home Wi-Fi ([`which-links-a-phone-meets.md`](evidence/which-links-a-phone-meets.md)), then
 a sweep toward cellular and congested Wi-Fi with random loss, each profile labelled measured or assumed, then the
-phone where an arm's regime changes; one table per profile, in the repository. *So far:* none run; no protocol.
+phone where an arm's regime changes; one table per profile, in the repository. *So far:* none run; the cloud protocol, a test of this model on three volumes and five relay forms, pre-registered 2026-11-19 ([`delivery-comparison.md`](evidence/delivery-comparison.md)).
 The profiles and each arm's regime on them, from sources: [`../transport/link-profiles.md`](../transport/link-profiles.md)
 (2026-11-14).
 
