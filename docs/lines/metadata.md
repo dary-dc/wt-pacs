@@ -38,7 +38,7 @@ layout is our input contract. Depth over breadth; theory and a pre-registered me
    bridge; for a cleared `incoming/`, P3 vs E; layout A or B and who builds the `.sbnd`.
 2. The synchronization protocol: A + F or E + F; the second writer is the fork (#220's questions for the product
    owner); then implement in sender and receiver.
-3. Owner decisions waiting: hash column type (one schema, `xxh3 TEXT`, built on `claude/study-db-schema` with a
+3. Owner decisions waiting: hash column type (one schema, `xxh3 TEXT`, built on `claude/study-db-schema` (draft PR 407) with a
    test that `pacs-verify` reads what the receiver writes; `INTEGER` the alternative; 2026-11-19), reply file and words, carrier, study-DB layout, viewer metadata, DB
    engine, study index (engine and placement: open), serving defaults, verdict travel.
 4. Questions for the PCS team: is each exam's tree kept as the record while updates can come; does it show the current
