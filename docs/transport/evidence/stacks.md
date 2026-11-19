@@ -535,6 +535,50 @@ H2-* on CPU and lossy links) justify a GET path in the product, a second wire an
 [`../delivery-prior-art.md`](../delivery-prior-art.md) §8); and whether WS's ask-during-a-fill and loss results earn it a
 place beside WebTransport.
 
+### 6.6 · Cell AD re-run, the fill shape's ask fixed
+
+*Measured 2026-11-19 08:31Z to 10:24Z by TRANSPORT-AD-RERUN, a session that wrote none of §1–§5, the build or the fix.
+Cell AD whole as §5 pre-registers it: both forms, the eight arms, 16 rounds, the Williams order, §5.7's pilot medians
+and 600 s timeout kept, at `claude/transport-arms` `3c47ab63` (the fill shape's `connect()` fixed by `c2802b0c`, §6.5).
+Rows: `lab/transport-arms/rows/AD-rerun.jsonl` (`66e04fca`); the tables by `python3 lab/transport-arms/summary.py
+lab/transport-arms/rows AD-rerun`, the verdict column `lab/scripts/aa_rule.py --bar 0.05` against WT-TS′. All
+**measured**, on §6's fixtures and limits; the predictions are §5.3's (**theory**).*
+
+**The fix took effect.** In every one of the 64 fill-shape visits (H3-fill and H2-fill, both forms) the asked frame's
+last byte lands before the fill's remaining frames and frame 0's `boot` record carries `sessionOpen`; in the first run,
+neither in any of them. Every frame of the 256 visits exact (XXH3); every TCP-arm visit read `cubic`; no cell printed
+`UNBALANCED`. `VOID`: three visits, one by the relay's guard (`ad-pub`), two by an empty `nextHopProtocol` beside the
+right one (`ad-lte`, one H2-frame, one H3-frame; §5.7 item 4); neither form over 25 %, so the strict reading alone.
+The host's busiest core over a visit, median / max: `ad-pub` 0.49 / 0.82, `ad-lte` 0.15 / 0.44; not saturated.
+
+| arm | `ad-pub`: re-run (first run) | rounds better | aa_rule | `ad-lte`: re-run (first run) | rounds better | aa_rule | prediction | holds? |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| WT-TS, ms | 743 (734) | | reference | 5 287 (5 664) | | reference | pub ~0.8 s; lte ~1.4 s | pub holds; **lte miss** (both runs) |
+| WT-TS′ | 1.005 (1.003) | 6 of 15 | tie | 1.002 (0.978) | 7 of 16 | tie | tie | holds |
+| WT-WASM | 1.005 (0.997) | 4 of 15 | tie | 0.995 (1.002) | 10 of 16 | tie | tie | holds |
+| WS | 0.738 (0.718) | 14 of 15 | faster | 0.468 (0.448) | 15 of 16 | faster | ×0.7–1.2 | pub holds; **lte miss** (faster) |
+| H3-frame | 1.809 (1.803) | 0 of 15 | slower | 1.678 (1.667) | 1 of 15 | slower | ×1.0–2.0 | holds |
+| H3-fill | 0.548 (10.98, struck) | 15 of 15 | faster | 0.525 (2.835, struck) | 15 of 16 | faster | ×1.0–2.0 | **miss** (faster) |
+| H2-frame | 1.974 (1.994) | 0 of 15 | slower | 1.932 (1.881) | 2 of 15 | slower | ×1.0–2.0 | holds |
+| H2-fill | 0.682 (11.02, struck) | 15 of 15 | faster | 0.501 (2.644, struck) | 13 of 16 | faster | ×1.0–2.0 | **miss** (faster) |
+
+Ranges, `ad-pub`: H3-fill 0.535–0.566, H2-fill 0.657–0.702, WS 0.689–1.011; `ad-lte`: H3-fill 0.387–2.726, H2-fill
+0.347–2.418, WS 0.244–2.375, WT-TS′ 0.757–4.457 (the 0.1 % loss and its retransmissions spread every arm). The first
+run's arms other than the two fill shapes are reproduced within 0.06 of their ratios (the widest, H2-frame on `ad-lte`, 1.881 to 1.932); its A/A on `ad-lte`, then *not
+conclusive*, is a tie here.
+
+* **What changes.** The fill shape answers an ask during a fill in about half WT-TS's time on both forms, faster than
+  WS on PUB (0.548 and 0.682 against 0.738) and level with it on LTE (0.50–0.53 against 0.47). §5.3 predicted ×1.0–2.0:
+  a miss, and below the band. *Not explained by a measurement here:* the abort ends the range's response, so the asked
+  frame's GET meets a link with nothing ahead of it in the server's send queue, while WT-TS's ask shares its
+  connection with the fill still in flight; that reading is **theory**, not traced.
+* **What stands.** §6.1's other AD lines: WS faster, the frame shape slower (×1.7–2.0), WT-TS's LTE time a miss
+  against ~1.4 s.
+* **What reaches the owner (§5.5)**, added to §6.5's list: **H3-fill and H2-fill are faster than WT-TS for an ask
+  during a fill** (0.548 and 0.682 on PUB, 0.525 and 0.501 on LTE), scope as §6.5's: Chromium 157 headless, one
+  4-core container, the TUN relay at ≤ 90 Mbit, `dbts_b1` alone, assumed and scaled profiles, no radio. The run adopts
+  nothing: a GET path is a second wire, structural and the owner's (§5.5).
+
 ## Fixtures and limits
 
 One series' bytes (`dbts_b1`, 50 frames, HTJ2K); every profile as LINK-TARGETS left it (one measured, the rest from
