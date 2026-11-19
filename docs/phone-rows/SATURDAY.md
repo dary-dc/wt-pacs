@@ -3,7 +3,7 @@
 Written 2026-11-19 by PHONE-RUN-OWNER (`claude/work-ledger:docs/queue-client-2026-11-14.md`). The protocol:
 [`next-round.md`](next-round.md). The tools: [`../../lab/devices/README.md`](../../lab/devices/README.md) §The round.
 
-**The run commit** is the tip of `claude/phone-run` on the evening; its code is `d706d7e5` (the preflight prints it as
+**The run commit** is the tip of `claude/phone-run` on the evening; its code is `a8927df1` (the preflight prints it as
 `RUN_CODE`), and every later commit touches `docs/` only. `round_plan.mjs` writes the served tree's `HEAD` into the plan, and `round.py` refuses
 before load 1 if the tree is anywhere else (§1).
 
@@ -12,7 +12,7 @@ before load 1 if the tree is anywhere else (§1).
 already in `claude/unified`, so a hidden page's load counts (§1).
 
 **What does not run, and why**: cell 5 (the runner has no cache arms; CACHE-VERDICT-REVIEW: no store passes, the
-cache stays off), so no `adb reboot` and no P1; the report cells (the ending levers R1, R2, R4 are not built); the
+cache stays off), so no `adb reboot` and no P1; the report cells (`claude/report-arms` is not in the run commit); the
 decode-option asks M1–M22 (no units built); cell 2's `getStats()` and the configure's `hardwareAcceleration` (not
 recorded: inside workers). **Cell 3's guard is form (a)**, the 52 ms first-picture bound, an *assumption*; the
 worker's first-picture delay is reported beside it, and a verdict that turns on the guard alone is *provisional*.
@@ -50,7 +50,7 @@ if sudo firewall-cmd --state >/dev/null 2>&1; then
   sudo firewall-cmd --zone="$ZONE" --add-port=4433-4436/udp --timeout=12h
 fi
 for p in 8765 8766 8767 8768 8780 8443; do adb reverse tcp:$p tcp:$p; done                # pages over USB, the dial over Wi-Fi
-adb shell dumpsys wifi | grep -m3 -E 'mWifiInfo|Frequency|RSSI' > target/round-wifi-before.txt   # band, speed, RSSI (§2)
+adb shell dumpsys wifi | grep -m1 mWifiInfo > target/round-wifi-before.txt   # on the laptop; band, speed, RSSI committed (§2)
 ```
 
 Write in `target/round-notes.txt` the distance to the access point in metres and the walls between (§2).
@@ -69,6 +69,7 @@ PID=$(adb shell pidof com.android.chrome); adb shell cat /proc/$PID/stat > targe
 ## 2 · The dry run
 
 ```bash
+LAPTOP_IP=$(ip -4 route get 192.0.2.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p'); test -n "$LAPTOP_IP"   # set again in any shell
 node lab/devices/round_plan.mjs demo-series target/dry --dial "$LAPTOP_IP" --quick
 python3 lab/devices/round.py target/dry/plan.json target/dry/out --bind 127.0.0.1 --host http://127.0.0.1:8780
 ```
@@ -82,24 +83,26 @@ grep -h -o -E '(c2|OMX)\.[A-Za-z0-9._-]+' target/dry/out/adb/*.logcat.txt | sort
 cat target/dry/out/adb/*-after-*.stat | head -2                         # empty: CPU per process "not read"
 ```
 
-A failure here: its `why`, then **`git log origin/claude/phone-run`** for a fix pushed since; nothing else is changed
-on the evening. `round.py` puts `stay_on_while_plugged_in` back when it ends (and on Ctrl-C).
+A failure here: its `why`, then **`git log origin/claude/phone-run`** for a fix pushed since; after a pull, step 0's
+build lines again (the plan checks the tree's `HEAD`, not what is built); nothing else is changed on the evening. `round.py` puts `stay_on_while_plugged_in` back when it ends (and on Ctrl-C).
 
 ## 3 · The round
 
 ```bash
+LAPTOP_IP=$(ip -4 route get 192.0.2.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p'); test -n "$LAPTOP_IP"   # set again in any shell
 node lab/devices/round_plan.mjs demo-series target/round --dial "$LAPTOP_IP"
 python3 lab/devices/round.py target/round/plan.json target/round/out --bind 127.0.0.1 --host http://127.0.0.1:8780
 ```
 
 The phone: `http://127.0.0.1:8780/`, **Start**, once. Nothing until "round done" (~2 h 10 min). Then
-`adb shell dumpsys wifi | grep -m3 -E 'mWifiInfo|Frequency|RSSI' > target/round-wifi-after.txt`.
+`adb shell dumpsys wifi | grep -m1 mWifiInfo > target/round-wifi-after.txt`.
 
 If `round.py` itself stops mid-round, the loads not yet started run as a plan of their own (their beacon apart; the
-read adds `K` to their steps), and the phone presses **Start** again:
+read adds `K` to their steps), and the phone presses **Start** again. Commit nothing between the stop and the restart
+(a commit moves `HEAD`, and `round.py` refuses the rest plan); the rest plan's cell budgets start again from zero:
 
 ```bash
-K=$(python3 -c 'import json, sys; print(sum(json.loads(l)["event"] == "load ended" for l in open(sys.argv[1])))' target/round/out/round.jsonl)
+K=$(python3 -c 'import json, sys; print(1 + max([-1] + [e["load"] for e in map(json.loads, open(sys.argv[1])) if e["event"] in ("load ended", "load failed", "not started")]))' target/round/out/round.jsonl)
 python3 -c 'import json, sys; p = json.load(open(sys.argv[1])); b = p["blocks"][0]; b["loads"] = b["loads"][int(sys.argv[2]):]
 for s in b["servers"]: s["cmd"] = [a.replace("beacon.jsonl", "beacon-rest.jsonl") for a in s["cmd"]]
 json.dump(p, open(sys.argv[3], "w"))' target/round/plan.json "$K" target/round/plan-rest.json
@@ -119,12 +122,17 @@ adb logcat -d > target/probe/logcat.txt; kill %1
 
 ## Where rows go
 
-Strip the laptop's address and the phone's serial (`docs/devices.md` §4), then commit the raw files to
-`claude/phone-run` under docs/phone-rows/raw/2026-11-21/ (made on the evening) and push after each step;
+`lab/devices/raw_rows.py` copies only what a cell reads (`docs/devices.md` §4): from `dumpsys wifi` the band,
+frequency, RSSI and link speeds; from each `logcat` buffer and `media.player.txt` the codec components; the laptop's
+address and the phone's serial replaced by name. It refuses, copying nothing, if a MAC-shaped string or an SSID is
+left; the whole buffers stay in `target/`. Then commit to `claude/phone-run` under docs/phone-rows/raw/2026-11-21/
+(made on the evening) and push after each step (not between a stop and its restart, §3);
 `claude/work-ledger:docs/queue/PHONE-ROUND.md` holds the state:
 
 ```bash
-D=docs/phone-rows/raw/2026-11-21; mkdir -p $D && cp -r target/{dry,round,probe,probe-shell} target/round-*.txt $D/
-grep -rl -e "$LAPTOP_IP" -e "$(adb get-serialno)" $D | xargs -r sed -i -e "s/$LAPTOP_IP/LAPTOP/g" -e "s/$(adb get-serialno)/PHONE/g"
+LAPTOP_IP=$(ip -4 route get 192.0.2.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p'); test -n "$LAPTOP_IP"   # set again in any shell
+D=docs/phone-rows/raw/2026-11-21
+python3 lab/devices/raw_rows.py $D target/{dry,round,probe,probe-shell} target/round-*.txt \
+  --strip "$LAPTOP_IP=LAPTOP" --strip "$(adb get-serialno)=PHONE" &&
 git add $D && git commit -m "phone round 2026-11-21: raw rows" && git pull --rebase && git push origin claude/phone-run
 ```

@@ -42,7 +42,9 @@ PHONE-PROBE-RUN (local) and the MOBILE-DECODE rows run beside it; the latter may
 merges, and `lab/devices/round_plan.mjs` (the round's 144-load plan, run whole in quick mode headless by
 `round_headless.sh --plan`). The evening: [`../phone-rows/SATURDAY.md`](../phone-rows/SATURDAY.md). Not run: cell 5,
 the report cells, M1–M22 (each named there). PHONE-RUN-REVIEW (2026-11-19, PR 409's body): two
-blockers, an empty `--dial` taken (B1) and identifying lines in the raw rows' commit (B2); PHONE-RUN-FIX by 11-21 12:00.
+blockers, an empty `--dial` taken (B1) and identifying lines in the raw rows' commit (B2). PHONE-RUN-FIX (2026-11-19):
+`round_plan.mjs` refuses a missing or empty `--dial`, and `lab/devices/raw_rows.py` commits only what a cell reads,
+refusing a MAC or an SSID left; PHONE-RUN-FIX-REVIEW next, by 11-21 18:00.
 
 Rows and their briefs: `claude/work-ledger:docs/queue-client-2026-11-14.md` (§The device round's rows; amendments 5,
 7, 10, 11, 14–20 bind device work); status files `claude/work-ledger:docs/queue/<ROW>.md`.
