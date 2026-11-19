@@ -56,6 +56,8 @@ HTJ2K series; no residual, no server or wire change.
 
 The next phone round ([`client.md`](client.md) §Owed runs), its link calibrated and its theory first; #368 on a phone;
 the coding error converted to display levels at the current window, against the quality study's rows.
+The round is pre-registered in [`../phone-rows/next-round.md`](../phone-rows/next-round.md); its review's author
+findings fixed in place and re-reviewed 2026-11-15 (its §Re-review: every finding closed, no blocker; three minors).
 
 ## Waits for the owner
 
