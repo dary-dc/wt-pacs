@@ -29,7 +29,27 @@ exact frame bit for bit, and only checked claims on screen.
 * **The cache survey**, theory only, 2026-11-14
   ([`../client/evidence/cache-options.md`](../client/evidence/cache-options.md)): leaning OPFS as built; owed, a
   phone's cold read and check and sustained write of a 17 MB frame (its §5). The plan to choose the store empirically,
-  by the method now in `CLAUDE.md` §Measurement: #385.
+  by the method now in `CLAUDE.md` §Measurement: #385. Its rig, 2026-11-15 (`lab/cache-arms/`, `claude/cache-arms`):
+  the ring, the seam and the rules above it, the floor probe and the eleven cells, with `none` and a stand-in arm only,
+  smoked on Chromium 153; O's fresh fill not built, and Chromium's quota override not shown by `estimate()` (its
+  README). OPFS-SYNC's arm built 2026-11-15 (`arms/opfs-sync.js`, smoked on Chromium 153 and Firefox 159); under
+  Chromium's override its `truncate` at open is refused in Q, as the README foresaw. OPFS-ASYNC's arm built
+  2026-11-15 (`arms/opfs-async.js`, smoked on Chromium 153 only); its *written* means handed to the arm, a frame on
+  disk at its group's close (the README's *OPFS-ASYNC as built*). IDB's arm built 2026-11-15 (`arms/idb.js`, smoked
+  on Chromium 153 only); its Blobs grew the browser's memory past L's bar in smoke, an `ArrayBuffer` value much less
+  (the README's *IDB as built*). CACHESTORAGE's arm built 2026-11-15 (`arms/cachestorage.js`, smoked on Chromium 153
+  only); the late space after `caches.delete` it found was its own `Cache` handle, not the engine's (*corrected
+  2026-11-15*, the README's *CACHESTORAGE as built*). Reviewed 2026-11-15 ([`../reviews/cache-arms.md`](../reviews/cache-arms.md)):
+  not ready for CACHE-RUN, seven blockers (OPFS-SYNC's reads first never runs; OPFS-ASYNC's late refusal lost;
+  CACHESTORAGE's own handle holding the evicted space, so E's late space is its build's; four in the harness: L's +5 s
+  sample, K's `kept` bar, L's bars against `none`, the floor inside L's memory window). All seven fixed 2026-11-15,
+  each with a test failing first and mutated (the review's §Fixes); E's five sets hold on Chromium 153 in smoke.
+  Re-reviewed 2026-11-15 (§Re-review): the seven closed; one new blocker, L's bars drop an arm's errored rounds. The
+  second review with a blocker open (amendment 17): CACHE-RUN waits on the owner's word for a third fix round.
+  The owner's yes (amendment 23): N1 fixed 2026-11-17, an errored arm round counted as a round with no bar met, a round
+  whose `none` errored named unjudged (test failing first, five mutants killed; §Fixes, third round). Re-reviewed
+  2026-11-17 (§Re-review, third round): N1 closed, no new blocker; CACHE-RUN may start, reporting L's `unjudged`
+  rounds beside each verdict.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
