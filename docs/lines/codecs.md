@@ -1,6 +1,6 @@
 # Codecs and lab
 
-Last verified 2026-11-09 (AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09).
+Last verified 2026-11-09 (transport pointers added 2026-11-14, 2026-11-17 and 2026-11-19; AV1 state of 2026-11-07, the design decision and the noise-point result of 2026-11-09).
 
 ## Goal
 
@@ -40,7 +40,15 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
   resolution ladder and quality layers; lossless G > 1; a lossy top plus low stream; key parsing in place of
   WebCodecs' flush (tag `archive/av1-keyparse`); LCEVC.
 * **Server and transport:** `claude/line-server` (#254) holds 13 results (congestion and disk designs, PGO, tail
-  ping, GSO, and others); no default changed.
+  ping, GSO, and others); no default changed. The transport's design, decided and open, is
+  [`../transport/design.md`](../transport/design.md) (2026-11-14, an inventory; #391); the
+  transport session's first open item is HTJ2K alone over WebTransport against HTTP/2 `fetch`, WebSocket and HTTP/3
+  `fetch` on the link profiles; its theory and a prediction per profile are
+  [`../transport/evidence/stacks.md`](../transport/evidence/stacks.md) (2026-11-17, nothing run), with its pre-registered protocol in §5 (2026-11-17: eight arms, fourteen
+  cells through the TUN relay at ≤ 90 Mbit; a GET path and a fetch carrier to build first, in `lab/` only).
+  Run 2026-11-18/19 (§6) and verdict-reviewed 2026-11-19 (§6.5): §6 reproduced from the rows, CR's H2-fill a miss,
+  ENT unbalanced; the fill-shape fetch arms' opening ask blocks the session until the fill ends, so AD's H3-fill and
+  H2-fill readings are struck and owed a fix and a re-run.
 
 ## Open (ordered)
 
