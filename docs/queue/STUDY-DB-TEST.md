@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-19T11:16Z
-heartbeat: 2026-11-19T11:19Z
+heartbeat: 2026-11-19T11:20Z
 outputs: claude/study-db-schema (8c2e57f73 failing test, fix pushed)
 ## Resume
-Done: failing test (pacs-receiver `a_stored_study_passes_the_verify_tool`), fix (common/study-db holds the receiver's schema and hash form; both crates on it), mutants M1-M5 killed. Next: README/design doc corrected in place, gate, draft PR into claude/unified. Worktree: git worktree add <dir> claude/study-db-schema.
+Done (claude/study-db-schema): 8c2e57f73 failing test; the fix (common/study-db the receiver's schema, both crates on it; mutants M1-M5 killed); docs corrected in place (pacs-verify README, pacs-receive-design D1, docs/lines/metadata.md). Running: the gate (python venv, client/decode/wasm/build/build.sh, ingest/tools.sh, scripts/gate.sh). Next: draft PR into claude/unified via mcp__github__create_pull_request; PR number into docs/lines/metadata.md; state done.
 ## Result
