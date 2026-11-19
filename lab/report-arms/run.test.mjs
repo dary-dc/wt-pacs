@@ -1,7 +1,7 @@
 // node lab/report-arms/run.test.mjs — the driver's rules (report-plan.md §7.2, §7.3): the wait runs before the
 // browser's close; a server without `telemetry` is refused; a cell is whole rounds in Williams order, every row with
 // its round and predecessor, `off'` its own unit loading as `off`, and its balance reported.
-import { drive, plan, balance, unit, serverBanner, killAfterFault } from "./run.mjs";
+import { drive, plan, balance, unit, serverBanner, killAfterFault, relayNetns, secureOrigins } from "./run.mjs";
 
 let failed = 0;
 const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
@@ -57,6 +57,16 @@ const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
   const lateWaits = [];
   const late = await killAfterFault({ since: async () => 70, pause: async (ms) => lateWaits.push(ms) }, 50);
   check(lateWaits.every((ms) => ms === 0) && late.late === true, "kill: a fault learned past the delay kills at once, marked late");
+}
+{
+  // D6 (§7.2): under --tun the receivers live in the relay's server namespace, at an address Chromium must be told
+  // is secure, or the page is neither cross-origin isolated nor allowed WebTransport.
+  const ready = "READY udp=[] tcp=None ctrl=5556 delay_ms=10 jitter_ms=0 rate_kbit=50000 rate_up_kbit=50000 tun=10.77.0.1->10.77.0.2 server_netns=/proc/77/ns/net";
+  check(relayNetns(ready) === "/proc/77/ns/net", "tun: the server namespace from the relay's READY line");
+  check(relayNetns("READY udp=[5555]") === null, "tun: no namespace without --tun");
+  check(JSON.stringify(secureOrigins("10.77.0.2", [8000, 9000])) === JSON.stringify(["--unsafely-treat-insecure-origin-as-secure=http://10.77.0.2:8000,http://10.77.0.2:9000"]),
+    "tun: every receiver's origin declared secure");
+  check(secureOrigins("127.0.0.1", [8000]).length === 0, "loopback: no flag, it is secure already");
 }
 
 if (failed) { console.error(`${failed} failed`); process.exit(1); }

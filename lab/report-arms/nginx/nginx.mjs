@@ -9,7 +9,7 @@ const LINE = `'{"t":"$time_iso8601","s":"$status","n":"$content_length","r":"$re
 
 // `try_files … =204`, not `return 204`: `return` answers in the rewrite phase, before limit_req's (nginx.test.mjs).
 /** `receiver` is "nginx" (the arm NGINX) or a port: nginx in front of RECEIVER there. */
-export function conf({ dir, port, pages, receiver }) {
+export function conf({ dir, port, pages, receiver, host = "127.0.0.1", user = null }) {
   const report = receiver === "nginx" ? `
     client_body_early_read $report_early;
     location = /report/load {
@@ -32,7 +32,7 @@ export function conf({ dir, port, pages, receiver }) {
       access_log ${dir}/report-fallback.log report if=$loggable;
     }`;
   return `worker_processes 1;
-daemon off;
+daemon off;${user ? `\nuser ${user};` : ""}
 pid ${dir}/nginx.pid;
 error_log ${dir}/error.log;
 events {}
@@ -49,7 +49,7 @@ http {
   map $status $loggable { ~^[23] 0; default 1; }
   limit_req_zone $binary_remote_addr zone=report:1m rate=10r/s;
   server {
-    listen 127.0.0.1:${port};
+    listen ${host}:${port};
     client_max_body_size 16k;
     client_body_buffer_size 16k;
     client_body_in_single_buffer on;
@@ -60,18 +60,20 @@ http {
 `;
 }
 
-export async function startNginx({ dir, port, pages, receiver }) {
+export async function startNginx({ dir, port, pages, receiver, host = "127.0.0.1", prefix = [] }) {
   mkdirSync(join(dir, "tmp"), { recursive: true });
   chmodSync(dir, 0o777); // a variable log path is opened by the worker, which drops root's rights
   const file = join(dir, "nginx.conf");
-  writeFileSync(file, conf({ dir, port, pages, receiver }));
+  // Under `unshare -rn` only root is mapped, so the worker cannot drop to nobody.
+  writeFileSync(file, conf({ dir, port, pages, receiver, host, user: prefix.length ? "root root" : null }));
   // nginx reads NGINX from its environment as inherited sockets.
   const { NGINX: _, ...env } = process.env;
-  const nginx = spawn(process.env.NGINX_BIN ?? "nginx", ["-p", dir, "-c", file, "-e", join(dir, "error.log")],
+  const [cmd, ...pre] = [...prefix, process.env.NGINX_BIN ?? "nginx"];
+  const nginx = spawn(cmd, [...pre, "-p", dir, "-c", file, "-e", join(dir, "error.log")],
     { env: { ...env, TZ: "UTC" }, stdio: "ignore" });
   const exited = new Promise((ok) => nginx.on("exit", ok));
   for (let i = 0; i < 100; i++) {
-    if (await fetch(`http://127.0.0.1:${port}/`, { method: "HEAD" }).then(() => true, () => false)) {
+    if (await fetch(`http://${host}:${port}/`, { method: "HEAD" }).then(() => true, () => false)) {
       return { port, pid: nginx.pid, close: async () => { nginx.kill(); await exited; } };
     }
     await new Promise((r) => setTimeout(r, 50));

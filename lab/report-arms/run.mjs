@@ -2,8 +2,9 @@
 // the read tool (report-plan.md §7.2–§7.3). Smoke here: the contract's grey-16 frame as a 32-frame series, not
 // dbts_c1; D6 (the link drop under --tun) is not wired.
 // node lab/report-arms/run.mjs --units "off,beacon:H,beacon:Y,off'" --endings D1,D2 [--rounds 18] [--mutant M]
-//   [--sink-mutant ack-before-write] [--wait 60] [--receiver sink|nginx|receiver] --out rows.jsonl
-import { execFileSync, spawn } from "node:child_process";
+//   [--sink-mutant ack-before-write] [--wait 60] [--receiver sink|nginx|receiver] [--tun] --out rows.jsonl
+// --tun (D6 needs it): reruns inside `unshare -rn`, the receivers and server behind link_impair.py --tun.
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import { parseArgs } from "node:util";
@@ -13,6 +14,7 @@ import { readLines, byLoad } from "./read.mjs";
 import { latencies, quantile, floorTimes, bodies } from "./cells.js";
 import { order, balanced } from "../order.mjs";
 import * as cdp from "./cdp.mjs";
+import { blackout } from "./levers.mjs";
 
 const ROOT = new URL("../..", import.meta.url).pathname.replace(/\/$/, "");
 const WORK = join(ROOT, "lab/.report-work");
@@ -40,6 +42,34 @@ export function plan(units, rounds) {
 /** Per unit, whether its predecessors were balanced over the cell's rows (`lab/order.mjs`). */
 export const balance = (rows, units) => Object.fromEntries(units.map((u) =>
   [u, balanced(rows.map((r) => ({ unit: r.unit, prev: r.predecessor })), u, units)]));
+
+/** The relay's server namespace, from its READY line; null without --tun. */
+export const relayNetns = (line) => /server_netns=(\S+)/.exec(line)?.[1] ?? null;
+
+/** Chromium treats http on a non-loopback address as insecure: no isolation, no WebTransport, unless told. */
+export const secureOrigins = (host, ports) => (host === "127.0.0.1" ? []
+  : [`--unsafely-treat-insecure-origin-as-secure=${ports.map((p) => `http://${host}:${p}`).join(",")}`]);
+
+/** Where the receivers and server live: loopback, or the relay's server namespace at §7.2's link. */
+async function place(tun) {
+  if (!tun) return { host: "127.0.0.1", ns: [], control: null, close: () => {} };
+  execFileSync("ip", ["link", "set", "lo", "up"]);
+  const control = 5600 + Math.floor(Math.random() * 300);
+  const relay = spawn("python3", [join(ROOT, "lab/scripts/link_impair.py"), "--tun", "--delay-ms", "10", "--rate-kbit", "50000",
+    "--queue-pkts", "200", "--blackout-mode", "drop", "--control-port", String(control)], { stdio: ["ignore", "pipe", "inherit"] });
+  const netns = await new Promise((ok) => { let s = ""; relay.stdout.on("data", (b) => { s += b; if (/READY.*\n/.test(s)) ok(relayNetns(s)); }); });
+  return { host: "10.77.0.2", ns: ["nsenter", `--net=${netns}`], control, close: () => relay.kill() };
+}
+
+/** The sink in-process on loopback; under --tun a process of its own in the server namespace. */
+async function sinkAt(at, opts) {
+  if (!at.ns.length) { const s = await startSink(opts); return { ...s, read: async () => s.counters }; }
+  const [cmd, ...pre] = [...at.ns, process.execPath];
+  const p = spawn(cmd, [...pre, join(ROOT, "lab/report-arms/sink.mjs"), "--dir", opts.dir, "--port", "0", "--statics", opts.statics,
+    "--host", "0.0.0.0", ...(opts.mutant ? ["--mutant", opts.mutant] : [])], { stdio: ["ignore", "pipe", "inherit"] });
+  const port = await new Promise((ok) => p.stdout.on("data", (b) => /READY (\d+)/.test(b) && ok(Number(/READY (\d+)/.exec(b)[1]))));
+  return { port, read: () => fetch(`http://${at.host}:${port}/report/counters`).then((r) => r.json()), close: async () => p.kill() };
+}
 
 /** The server's banner; a build without `telemetry` has no link line nor SESSION's receiver, so it is refused. */
 export function serverBanner(text) {
@@ -76,19 +106,20 @@ function series() {
   return d;
 }
 
-async function server(d, out) {
+async function server(d, out, at) {
   const tls = join(WORK, "tls");
   mkdirSync(tls, { recursive: true });
   execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-keyout",
     `${tls}/key.pem`, "-out", `${tls}/cert.pem`, "-days", "2", "-nodes", "-subj", "/CN=localhost", "-addext",
-    "subjectAltName=DNS:localhost,IP:127.0.0.1"], { stdio: "ignore" });
+    `subjectAltName=DNS:localhost,IP:127.0.0.1,IP:${at.host}`], { stdio: "ignore" });
   const port = 4600 + Math.floor(Math.random() * 300);
-  const srv = spawn(bin("series-server"), ["--port", String(port), "--bind", "127.0.0.1",
+  const [cmd, ...pre] = [...at.ns, bin("series-server")];
+  const srv = spawn(cmd, [...pre, "--port", String(port), "--bind", at.host,
     "--series", `${d}/series.sbnd`, "--cert-pem", `${tls}/cert.pem`, "--key-pem", `${tls}/key.pem`],
     { env: { ...process.env, WTPACS_LINK_RECORD_PATH: join(out, "link.jsonl"), WTPACS_SESSION_REPORT_DIR: out }, stdio: ["ignore", "pipe", "ignore"] });
   const banner = await new Promise((ok) => { let s = ""; srv.stdout.on("data", (b) => { s += b; if (/telemetry=\S+\n/.test(s)) ok(s); }); });
   try {
-    return { srv, wt: `https://127.0.0.1:${port}/`, ...serverBanner(banner) };
+    return { srv, wt: `https://${at.host}:${port}/`, ...serverBanner(banner) };
   } catch (e) {
     srv.kill();
     throw e;
@@ -120,6 +151,8 @@ const ENDINGS = {
   D7: async (b, p, o) => { await cdp.navigate(b, p, o.other); await pause(1500); await cdp.back(b, p); await pause(1500);
                            await cdp.evaluate(b, p, "rig.press('frame')"); await cdp.navigate(b, p, o.other); },
   D8: (b, p, o) => cdp.navigate(b, p, o.other),
+  D6: async (b, p, o) => { await blackout(o.control, 30000); await pause(1000); await cdp.hide(b, p); await pause(1000);
+                           await cdp.navigate(b, p, o.other); },
   D9: async (b, p) => { await cdp.hide(b, p); await pause(5000); await cdp.freeze(b, p); await pause(55000); },
   L: async (b, p, o) => { o.row.faults = await laterFaults(b, p); },
   Lbusy: async (b, p, o) => { o.row.faults = await laterFaults(b, p); },
@@ -135,33 +168,35 @@ async function laterFaults(b, p) {
 
 /** The receiver the carriers post to, and the origin the page loads from: the sink itself, NGINX, or RECEIVER behind
  * nginx; nginx proxies the pages to the sink. */
-async function front(receiver, out, sink, sinkMutant) {
-  if (receiver === "sink") return { port: sink.port, counters: async () => sink.counters, close: async () => {} };
+async function front(receiver, out, sink, sinkMutant, at) {
+  if (receiver === "sink") return { port: sink.port, counters: sink.read, close: async () => {} };
   let rec = null;
   if (receiver === "receiver") {
-    rec = spawn(bin("report-receiver"), ["--port", "0", "--dir", out, "--fields", join(ROOT, "lab/report-arms/report-fields.json"),
+    const [cmd, ...pre] = [...at.ns, bin("report-receiver")];
+    rec = spawn(cmd, [...pre, "--port", "0", "--dir", out, "--fields", join(ROOT, "lab/report-arms/report-fields.json"),
       ...(sinkMutant ? ["--mutant", sinkMutant] : [])], { stdio: ["ignore", "pipe", "inherit"] });
     rec.port = await new Promise((ok) => rec.stdout.on("data", (b) => ok(Number(String(b).split(" ")[1]))));
   }
   const port = 18000 + Math.floor(Math.random() * 1000);
-  const n = await startNginx({ dir: out, port, pages: sink.port, receiver: rec ? rec.port : "nginx" });
-  const counters = rec ? () => fetch(`http://127.0.0.1:${port}/report/counters`).then((r) => r.json())
+  const n = await startNginx({ dir: out, port, pages: sink.port, receiver: rec ? rec.port : "nginx", host: at.host, prefix: at.ns });
+  const counters = rec ? () => fetch(`http://${at.host}:${port}/report/counters`).then((r) => r.json())
     : async () => nginxCounters(out);
   return { port, counters, close: async () => { rec?.kill(); await n.close(); } };
 }
 
-async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir, out, via }) {
+async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir, out, via, at }) {
   const { arm, timing } = unit(u);
   const row = { unit: u, arm, timing, ending, mutant: mutant ?? null, sinkMutant: sinkMutant ?? null, engine: "chromium" };
-  row.error = await drive(cdp.launch, async (b) => {
+  if (ending === "D6" && !at.control) throw new Error("D6 needs --tun");
+  row.error = await drive(() => cdp.launch({ args: secureOrigins(at.host, [via.port, sink.port]) }), async (b) => {
     await cdp.openPage(b, "about:blank");
     const q = new URLSearchParams({ arm, timing, dir: `/${relative(ROOT, dir)}`, fault: "sample", at: AT,
       wt: srv?.wt ?? "https://127.0.0.1:9/", hash: srv?.hash ?? "00", ...(mutant ? { mutant } : {}),
       ...(ending === "D8" ? { forced: "page" } : {}), ...(ending === "Lbusy" ? { busy: "1" } : {}),
       ...(ending.startsWith("L") ? { floor: "safety" } : ending === "C" ? { floor: "load" } : {}) });
-    const p = await cdp.openPage(b, `http://127.0.0.1:${via.port}/lab/report-arms/index.html?${q}`);
+    const p = await cdp.openPage(b, `http://${at.host}:${via.port}/lab/report-arms/index.html?${q}`);
     row.load = await cdp.evaluate(b, p, "new Promise((r) => { const t = setInterval(() => rig.load && (clearInterval(t), r(rig.load)), 10); })");
-    const other = `http://localhost:${sink.port}/lab/report-arms/probe.html?id=away`;
+    const other = `http://${at.ns.length ? at.host : "localhost"}:${sink.port}/lab/report-arms/probe.html?id=away`;
     if (ending.startsWith("D5")) {
       row.reached = await waitFor(b, p, "rig.faultAt !== null", 30000, 1) ? "mismatch" : "no mismatch";
       row.kill = await killAfterFault({ since: () => cdp.evaluate(b, p, "rig.sinceFault()"), pause }, ending === "D5a" ? 50 : 500);
@@ -170,11 +205,11 @@ async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir,
       row.reached = ending === "D8" ? (await pause(6000), await cdp.evaluate(b, p, "rig.state"))
         : (await waitFor(b, p, "rig.state === 'filled'", 30000) ? "filled" : await cdp.evaluate(b, p, "rig.error ?? rig.state"));
       for (const text of ["frame", "frame", "frame", "Lossless"]) await cdp.evaluate(b, p, `rig.press(${JSON.stringify(text)})`);
-      await pause(6000);
+      await pause(ending === "D6" ? 4000 : 6000);
     }
     if (!ending.startsWith("D5")) row.fillMs = await cdp.evaluate(b, p, "rig.fillMs ?? null");
     if (/^(L|C)/.test(ending)) row.floors = await cdp.evaluate(b, p, "rig.floors ?? null");
-    await ENDINGS[ending](b, p, { other, row });
+    await ENDINGS[ending](b, p, { other, row, control: at.control });
   }, wait * 1000);
   const files = readdirSync(out).filter((f) => /^(load|safety)-.*\.jsonl$/.test(f) || f === "report-fallback.log");
   const lines = ["load.jsonl", "safety.jsonl", "link.jsonl", "server-load.jsonl", "server-safety.jsonl"]
@@ -199,22 +234,26 @@ async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir,
 if (import.meta.url === `file://${process.argv[1]}`) {
   const { values: o } = parseArgs({ options: { units: { type: "string", default: "off,stub:Y" },
     endings: { type: "string", default: "D1" }, rounds: { type: "string", default: "1" }, mutant: { type: "string" },
-    "sink-mutant": { type: "string" }, receiver: { type: "string", default: "sink" }, wait: { type: "string", default: "60" }, out: { type: "string", default: "rows.jsonl" } } });
+    "sink-mutant": { type: "string" }, receiver: { type: "string", default: "sink" }, tun: { type: "boolean" }, wait: { type: "string", default: "60" }, out: { type: "string", default: "rows.jsonl" } } });
   if (o["sink-mutant"] && o.receiver === "nginx") throw new Error("--sink-mutant has no lever in NGINX");
+  if (o.tun && !process.env.REPORT_ARMS_NS) {
+    process.exit(spawnSync("unshare", ["-rn", "env", "REPORT_ARMS_NS=1", process.execPath, ...process.argv.slice(1)], { stdio: "inherit" }).status ?? 1);
+  }
+  const at = await place(o.tun);
   const units = o.units.split(",");
   const out = join(WORK, `sink-${Date.now()}`);
   mkdirSync(out, { recursive: true });
   const dir = series();
-  const sink = await startSink({ dir: out, port: 0, statics: ROOT, mutant: o["sink-mutant"] });
-  const via = { name: o.receiver, ...await front(o.receiver, out, sink, o["sink-mutant"]) };
+  const sink = await sinkAt(at, { dir: out, port: 0, statics: ROOT, mutant: o["sink-mutant"] });
+  const via = { name: o.receiver, ...await front(o.receiver, out, sink, o["sink-mutant"], at) };
   const servers = {};
   try {
     for (const ending of o.endings.split(",")) {
       const rows = plan(units, Number(o.rounds));
       for (const { round, unit: u, predecessor } of rows) {
-        const srv = ending === "D8" ? null : (servers.up ??= await server(dir, out));
+        const srv = ending === "D8" ? null : (servers.up ??= await server(dir, out, at));
         const row = { round, predecessor, ...await load({ unit: u, ending, mutant: o.mutant, sinkMutant: o["sink-mutant"],
-          wait: Number(o.wait), sink, srv, dir, out, via }) };
+          wait: Number(o.wait), sink, srv, dir, out, via, at }) };
         appendFileSync(o.out, JSON.stringify(row) + "\n");
         console.log(JSON.stringify(row));
       }
@@ -226,5 +265,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     servers.up?.srv.kill();
     await via.close();
     await sink.close();
+    at.close();
   }
 }
