@@ -1,11 +1,11 @@
 /**
- * Stage 3's driver: cells (set × link × impairment × throttle) in a Williams order each round, the five arms inside
+ * Stage 3's driver: cells (set × link × impairment × throttle) in a Williams order each round, the arms inside
  * each cell the same way; a visit is its own servers, relays and browser: the fill, the Lossless request, then the page
  * reopened in the same tab. Rows appended as they land. lab/htj2k-tiles/improve/README.md §Stage 3
  *
  *   NODE_PATH=$(npm root -g) node lab/htj2k-tiles/improve/stage3/run.mjs --series DIR --bands DIR --out rows.jsonl
  *     [--rounds 6] [--first-round 0] [--cells r5000,r20000,lte-good,wifi-home,r20000:l1] [--throttles 1,4]
- *     [--sets dbts_a1/phone,...] [--arms D,D′,D+T3,D+L★,S★] [--oq q8-g16] [--mutate sample|truth|preview|bands-dropped]
+ *     [--sets dbts_a1/phone,...] [--arms D,D′,D+T1,D+T3,D+L★,S★] [--oq q8-g16] [--mutate sample|truth|preview|bands-dropped|whole-neighbour]
  *   Run from the served tree (the demo commit plus lab/htj2k-tiles/improve; lab/.demo-series the series dir); its target/release has the servers.
  */
 import { spawn, execFileSync } from "node:child_process";
@@ -138,12 +138,14 @@ async function visit(set, arm, cell, throttle, round) {
   const servers = {};
   if (arm !== "S★") servers.oq = await serve(arm === "D′" ? inp.twin : inp.oq, cell, round);
   if (arm === "D" || arm === "D′") servers.exact = await serve(inp.exact, cell, round);
+  else if (arm === "D+T1") servers.whole = await serve(inp.exact, cell, round);
   else servers.bands = await serve(inp.bands, cell, round);
   debug("served", Object.keys(servers));
   const key = `${round}-${vol}-${viewport}-${arm}-${Date.now()}`;
   const cfg = { debug: Boolean(process.env.DEBUG), arm, key, N, fit, mid, mutate: MUTATE, frames: `/lab/.av1-work/htj2k-improve/${vol}-bands/frames.json`,
     ...(servers.oq && { oq: { url: servers.oq.url, hash: HASH, meta: `/lab/.demo-series/${inp.oqId}.metadata.json` } }),
     ...(servers.exact && { exact: { url: servers.exact.url, hash: HASH, digests: inp.exactDigests } }),
+    ...(servers.whole && { whole: { url: servers.whole.url, hash: HASH } }),
     ...(servers.bands && { bands: { url: servers.bands.url, hash: HASH } }) };
   const errors = [];
   const browser = await chromium.launchServer({ executablePath: `${T}/chrome.sh` });

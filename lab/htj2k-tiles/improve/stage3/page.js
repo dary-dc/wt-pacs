@@ -3,7 +3,7 @@
  * fit), a Lossless request on the middle slice once every slice is pictured, the pictures kept in the lab store; with
  * `reopen`, every slice from the store. Every picture is hashed after the clock. lab/htj2k-tiles/improve/README.md §Stage 3
  *
- *   ?cfg=<JSON: arm, key, N, fit, frames, oq, exact, bands, mutate, reopen, truth>&post=URL   (run.mjs writes it)
+ *   ?cfg=<JSON: arm, key, N, fit, frames, oq, exact, whole, bands, mutate, reopen, truth>&post=URL   (run.mjs writes it)
  */
 import { DownloaderClient } from "/client/transport/consumer.js";
 import { built } from "/client/decode/wasm-glue.js";
@@ -206,6 +206,8 @@ async function visit() {
     for (const e of list) bandsClient.requestExactFrame(e).then((fr) => S.landed(e, fr.bytes), (err) => failures.push({ e, reason: String(err.message ?? err) }));
   };
   log("bands client", Boolean(bandsClient));
+  // D+T1: the exact series' whole codestream as one entry, decoded on lab worker 0 like a strip. docs/htj2k-tiles.md §Verdict, A1
+  const wholeClient = C.whole && await DownloaderClient.connect(C.whole.url, C.whole.hash, { decode: false });
   const exactClient = C.exact && await DownloaderClient.connect(C.exact.url, C.exact.hash, {
     decoders: 1, decoder: await built("openjph"), digests: C.exact.digests });
   const oqInfo = { exact: 0, inexact: 0, unchecked: 0, paths: {} };
@@ -264,6 +266,11 @@ async function visit() {
       const px = new Uint8Array(fr.bytes.byteLength);
       px.set(fr.bytes);
       picture(f, 0, px);
+    } else if (wholeClient) {
+      counts.asks += 1;
+      const fr = await wholeClient.requestExactFrame(C.mutate === "whole-neighbour" ? f + 1 : f);
+      counts.bytes += fr.bytes.length;
+      picture(f, 0, await decode(0, [fr.bytes], 0));
     } else if (C.arm === "S★" && C.fit === 0) {
       onPicture(f, 0);
     } else {
@@ -298,6 +305,7 @@ async function visit() {
   oqClient?.close();
   bandsClient?.close();
   exactClient?.close();
+  wholeClient?.close();
   const sha = {};
   log("hashing");
   for (const [k, px] of pixels) sha[k] = await sha256(px);
