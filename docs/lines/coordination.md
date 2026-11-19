@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19.
 
 ## Goal
 
@@ -53,6 +53,10 @@ small enough that every open item has an owner and a next step.
   into `main`), merge commits, after FREEZE-E2E. `main` is an ancestor of the tip and `claude/core` is too, so neither
   word resolves anything and `main` ends with the demo commit's tree. The order, the checks before each word, what
   the two carry in full (76 branches, 63 open PRs) and what not (221, 176) with why: [`../reviews/merge-plan.md`](../reviews/merge-plan.md).
+* **Decision pages** (2026-11-19): every open question of the two weeks' program ends in a page the owner answers yes or
+  no, `docs/decisions/` on `claude/reviews-2026-11-28` (draft PR into `claude/unified`, "do not merge: decision
+  pages"); its [`README.md`](../decisions/README.md) holds the form and each page's state.
+
 ## Open (ordered)
 
 1. The owner decides the inventory's proposed actions (merge, keep, archive, delete, close).
