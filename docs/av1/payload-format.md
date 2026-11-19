@@ -377,8 +377,12 @@ tools already built): each `.sbnd` against its exact series'. The quality at eac
 | `dbts_b1`, 2560 × 3328, 10-bit | 50 | 107 410 134 B | 0.2186 | 0.2161 | 0.2159 | 0.0246 | 0.0156 | 0.0152 |
 | `dbts_c1`, 976 × 2513, 12-bit | 69 | 70 668 114 B | 0.0959 | 0.0948 | 0.0947 | 0.0071 | 0.0031 | 0.0029 |
 
-G 16 against G 1: at Q 8, 1.2 % fewer bytes on `dbts_b1` and `dbts_c1`, 0.2 % more on `dbts_a1`; at Q 24, 0.41–0.42
-of G 1's bytes on `dbts_a1` and `dbts_c1`, 0.62 on `dbts_b1`.
+G 16 against G 1 at equal Q (not equal quality, which this run did not measure): at Q 8, 1.2 % fewer bytes on
+`dbts_b1` and `dbts_c1`, 0.2 % more on `dbts_a1`; at Q 24, 0.41–0.42 of G 1's bytes on `dbts_a1` and `dbts_c1`, 0.62
+on `dbts_b1`. *Corrected 2026-11-14 (from `claude/av1-corrections:docs/av1/corrections.md` §6, `2e4efdfc`, the
+quality audit of 2026-11-11):* this read as a property of G. Q 8 is the rung below a 2.4–4.2× byte cliff, and it is
+not the noise rule's Q on these volumes except `dbts_c1` at G 1; at the rule's Q the view is 0.10–0.28 of HTJ2K's
+bytes, not this table's 0.07–0.22 ([`../client/evidence/optimal-quality-bytes.md`](../client/evidence/optimal-quality-bytes.md)).
 
 
 ### Depth cut
@@ -386,8 +390,10 @@ of G 1's bytes on `dbts_a1` and `dbts_c1`, 0.62 on `dbts_b1`.
 *OQ-DEPTHCUT, 2026-11-10. Built and tested on synthetic sets and in headless Chromium; the bytes below are measured,
 the quality is not.*
 
-No engine's WebCodecs returns 12-bit samples (`docs/av1/webcodecs-profiles.md` at `87640e5d` on `claude/av1-webcodecs-profiles`),
-so a D > 10 optimal-quality picture would decode only through dav1d-WASM. The **depth cut** is the form that WebCodecs
+No engine's WebCodecs is shown to return 12-bit samples (`docs/av1/webcodecs-profiles.md` at `87640e5d` on
+`claude/av1-webcodecs-profiles`; *corrected 2026-11-14:* this read "no engine's WebCodecs returns", stronger than
+those sources, which read engine code and one third-party report and run no phone, Edge or AV1-hardware Safari:
+[`../client/evidence/browser-av1-profile-support.md`](../client/evidence/browser-av1-profile-support.md)), so a D > 10 optimal-quality picture would decode only through dav1d-WASM. The **depth cut** is the form that WebCodecs
 decodes: the optimal-quality picture coded from each source sample v's 10-bit **code**
 
 ```
@@ -444,7 +450,7 @@ the table above both times, the Q 8 G 1 and G 16 cuts and both stored forms as b
 the 12-bit view's bytes (§Optimal quality's table, 2026-11-09; from the rounded fractions), more, not fewer.
 ### Source fingerprint
 
-*SOURCE-FINGERPRINT, 2026-11-11. Built and tested on synthetic sets; nothing timed.*
+*2026-11-11. Built and tested on synthetic sets; one run on the demo series, below; nothing timed but that run's wall time.*
 
 The pairing's same-source check (the owner, 2026-11-11: it stays, belongs in the ingest and uses XXH3). Every series
 the ingest writes, exact and optimal-quality alike, carries **`sourceFingerprint`**: the canonical XXH3-64, 16
@@ -472,5 +478,11 @@ two little-endian above, sign-extended), concatenated as text.
   SHA-256 of the frames' SHA-256 hex digests), checked at download. The lab's command no longer copies it into the
   series it writes, and no client reads it. `lab/av1/bytes/prior-gap/pocgap.py` writes its own `framesSha256` into
   the lab sets it makes; those never reach the pairing.
+* **On the demo series** (2026-11-11, `scripts/demo-series.sh` run again; one 4-core cloud host, 685 s with the
+  coders built): every exact bundle 43 B smaller (`framesSha256` out, `sourceFingerprint` in), each optimal-quality
+  bundle the same size; each set's eight or seven series carry one fingerprint, the three sets three; `checkPair`
+  accepts all 20 pairs and refuses each against the other two sets' exact series by source. A node script over the
+  metadata; no browser run on these series. Fixtures: the three DBT sets `dbts_a1`, `dbts_b1`, `dbts_c1` of one
+  dataset. Carried from `e5b20cba:docs/lines/optimal-quality.md` §State now.
 * **What it changes:** every bundle's metadata gains one key, so every series written before it fails the pairing
   check until written again (`scripts/demo-series.sh`).

@@ -1,7 +1,7 @@
 # Which clock cine runs on in the view worker
 
 The harness for the pre-registered protocol in
-[`../../docs/adr/frame-path.md`](../../docs/adr/frame-path.md) §A frame clock in the view worker: seven cine clocks,
+[`../../docs/client/evidence/frame-clock-in-a-worker.md`](../../docs/client/evidence/frame-clock-in-a-worker.md) §A frame clock in the view worker: seven cine clocks,
 each in the real view worker (`client/view/view-worker.js`) with its frames already held, on a quiet or a busy page.
 The protocol, its rule and every claim live in the ADR; this file says how to run it and how it scores.
 **Built and smoke-run, not run as a protocol: no number from here is a result.**

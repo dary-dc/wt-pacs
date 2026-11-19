@@ -131,7 +131,7 @@ the session's own fill (theory, (D)); each line gives its result and the protoco
 ## Client: downloader, decoders, checks, paint, memory
 
 Owner: [`ARCHITECTURE.md`](ARCHITECTURE.md), [`decode/README.md`](decode/README.md),
-[`adr/exactness-in-production.md`](adr/exactness-in-production.md), [`adr/frame-path.md`](adr/frame-path.md).
+[`adr/exactness-in-production.md`](adr/exactness-in-production.md), [`docs/client/design.md`](client/design.md).
 
 | lever | measured by | class | owning section |
 | --- | --- | --- | --- |
@@ -167,7 +167,7 @@ Owner: [`ARCHITECTURE.md`](ARCHITECTURE.md), [`decode/README.md`](decode/README.
 | Coalescing decoded frames across decoders | downloader-cost: 2 a message 0.385 → 0.212 ms at 4× | owner (cq §Open) | ARCHITECTURE.md §The hand-off |
 | A thread hop; the downloader worker | thread-hops, decode-tail: nothing to remove | held | ARCHITECTURE.md §What a thread hop costs |
 | Cancelling queued decodes out of band | — | never (conditional on a phone) | ARCHITECTURE.md §Open |
-| `readMin`, a 16 KB BYOB read | cq 94, 101: CPU −97 to −105 ms a fill, peak −37 MB, fill a tie; a cut-stream defect | owner (cq §Open); its liveness premise (< 44 kbit/s) weaker at row 162's rates | CLIENTS.md §Reading a frame whole |
+| `readMin`, a 16 KB BYOB read | cq 94, 101: CPU −97 to −105 ms a fill, peak −37 MB, fill a tie; a cut-stream defect, fixed on `claude/readmin-cut-stream` (`4019518a`, 2026-10-22) and not merged here (checked 2026-11-14) | owner (cq §Open); its liveness premise (< 44 kbit/s) weaker at row 162's rates | CLIENTS.md §Reading a frame whole |
 | WASM transport client against TS | both clients: fill 120 against 125 ms | held (TS the default) | CLIENTS.md §The implementations |
 | Receive CPU per client stack | row 135: Chromium 6.4–12.4 ms/MB | premise (link band: ~8–16 % of a desktop core at 103 Mbit/s) | native/quic.md §6 |
 | The browser's ask window depth | removed for pushed fills, its win never measured | never | [`adr/client-window-depth.md`](adr/client-window-depth.md) §Which depth ships — open |

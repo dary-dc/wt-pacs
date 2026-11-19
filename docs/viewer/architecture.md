@@ -165,7 +165,7 @@ fixed before any of it is written.
   exposes one object to the runner: the first exact image's time, the readback of a viewport, a scripted scroll, and
   memory.
 * **A.** Today's viewer, with two changes: a 1:1 mode (`view()` without `fit`), and a 2×2 layout of four canvases
-  held by one paint worker, as frame-path §3 proposes ([`../adr/frame-path.md`](../adr/frame-path.md)).
+  held by one paint worker, as [`../client/evidence/frame-store-owner.md`](../client/evidence/frame-store-owner.md) §3 proposes.
 * **B.** A page that uses the downloader and consumer as they are. It adds a `wtp:` image loader, a metadata
   provider, one stack viewport per view, and `displayArea` SCALE 1 for 1:1. It is bundled by one bundler, with the
   lockfile kept in the spike directory.

@@ -1,80 +1,83 @@
 # Client
 
-Last verified 2026-10-29 (the design state); branches and PRs 2026-11-09.
+Last verified 2026-11-15 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12;
+the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from `claude/work-ledger:docs/queue-client-2026-11-14.md`.
+The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
+questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
 ## Goal
 
-Improve the browser client (transport, decode, cache, paint, telemetry), which a future 2D viewer will sit on. Mobile
-on lossy wireless; bit-exact; fill and latency both count.
+The browser client a 2D viewer will sit on: fast fills and low on-demand latency on a phone over lossy wireless, every
+exact frame bit for bit, and only checked claims on screen.
 
-## State now
+## In flight
 
-* **On `main`:** one downloader worker owns the session; decoders (HTJ2K through OpenJPH-WASM, AV1 through WebCodecs
-  or dav1d-WASM) hand pixels to the page in `SharedArrayBuffer`s; the page holds the frame map and posts paints to a
-  WebGL paint worker; two product clients (TS and WASM transports). No cache.
-* **On `claude/core` (#250, draft, folded 2026-10-30):** the **view worker** as `?view=worker` beside today's
-  `?view=page`, which stays the default. The page sends intents (`show`, `setDisplay`, `play`/`pause`, `valueAt`)
-  and hears `shown`, `progress`, `failed`. One view worker holds the **controller** (what to want, in what order;
-  the cine clock), the **frame store** (memory → OPFS → downloader; the only module that talks to the downloader)
-  and the **paint module** (WebGL2, the VOI table, the display state). The OPFS cache (`store.js`) sits behind
-  `?writer=`, off by default.
-* **Rules of the design:** a frame has two owners, the downloader (owed) and the store (held), and changes owner at
-  the ack. A frame is painted before its cache write, and cache writes run off the view worker's thread. The want
-  stays ordered down to the wire. A frame is (series, index, version), and the generation steps only on a series
-  change. Credits bound unacked frames. Eviction happens only over the byte budget and only for written frames.
-* **Measured findings (cloud containers, indicative only):** WebKit's worker clock is a 15 ms timer; V8 counts a
-  shared buffer as 0 bytes, so a memory window bounds nothing; async OPFS on one packed file is ruled out.
-  Runs that need a quiet owner machine or a phone are owed, with their commands in each result.
-* Since 2026-10-30: #289 (a second fold, 15 sources), #299 (a frame decoded twice, fixed), #302 (a repaint before the
-  frame is held no longer stops painting), #303 (one-pass AV1 merge ported); none merged into `core`.
-* 2026-11-11, `claude/demo-view-worker`: `demo-check.mjs --view worker` passes all 20 demo series under both views
-  ([`docs/reviews/view-worker-check.md`](../reviews/view-worker-check.md)); correctness only, which view the demo
-  shows is the owner's.
-* 2026-11-12, `claude/names-1` (NAMES-1, for after the merge): NAMES-FIND's renames, one per commit. Glossary rows
-  for downloader, consumer, refusal, route, quality label, mark, overlay and status line; the optimal-quality
-  *picture*, never a *view*; `info.path` → `info.route` (status line `routes:`); `showLossy` → `showOptimal` (the
-  metadata key `lossy` stays); `depthCut`/`cut` → `cutShift`; `requestExactFrame` → `requestFrame`. Nothing decoded,
-  checked or painted changes; the gate and `demo-check.mjs` in both views are its evidence.
+* **The unified branch** `claude/unified-client` (the client, optimal-quality and native lines): the demo tip with the
+  cleaning and the renames merged; one `info.path` left in `lab/faultbench/index.html` (now `info.route`), a finding in
+  #382. Reaches `main` through #367 then #250, on the owner's word ([`coordination.md`](coordination.md)).
+* **The documentation round** of 2026-11-14 on `claude/docs-client` (#384, a draft into `claude/unified-client`): one home
+  for the client's design, evidence and work state, done for round 1 on 2026-11-15: structure, fold, page
+  ([`../client/design.html`](../client/design.html)), review and its fixes (#384 §Review, §Fix). Merging it is the
+  owner's word; waiting for the owner, the six contradictions in [`../client/design.md`](../client/design.md) §Open.
+  **The next round folds**, in the same structure, one `docs/<subject>/` each: codecs (`docs/av1/`, `docs/lines/codecs.md`
+  and its σ, decode-ratio and Q items the fold left), transport (`docs/transport/`, `docs/WIRE.md`, the link-conditions
+  line), the server and disk (`docs/adr/disk-access.md`, the read path), metadata; and the other client ADRs
+  (`docs/adr/exactness-in-production.md`, `claude/telemetry-client:docs/adr/telemetry-in-production.md`) into
+  `docs/client/evidence/`. Also left by this round: `docs/decode/README.md`'s per-engine statements (its lines
+  1828–1861, 2016, 2886) found by two writers; the glossary's *display level*, *reconstruction digest*, *transport
+  file*; `client/README.md`'s results not yet moved to evidence; the in-file arm labels (M1–M5, S1–S3) kept by the review.
+* **The cache survey**, theory only, 2026-11-14
+  ([`../client/evidence/cache-options.md`](../client/evidence/cache-options.md)): leaning OPFS as built; owed, a
+  phone's cold read and check and sustained write of a 17 MB frame (its §5). The plan to choose the store empirically,
+  by the method now in `CLAUDE.md` §Measurement: #385.
+* **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
+  draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
+  mid-group.
+* **The owner's decisions of 2026-11-14 to 16** (amendments 16–23 of the client queue): in
+  [`../client/design.md`](../client/design.md) §Decided, one row each, and the HTJ2K-only path with a reduced first
+  picture and the 220-level checked hardware view in §Open; the rows that carry them, PRs 378, 389, 392, 394–397, 400.
+* **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
+  cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
-* 2026-11-12, `claude/clean-2` (CLEAN-2, a draft for after the core merge): what CLEAN-FIND, DEFAULTS-FIND and
-  OPT-SIMPLIFY found that CLEAN-PRODUCT left: one starter for the demo pair (`scripts/demo-pair.sh`, which
-  `demo-check.mjs` runs too); the product build bundles the WebTransport session alone; `?trace=`, `?settle=` and
-  `?after=` behind `head.js`'s lab gate; the check's cine as `?check=cine`, so `?cine=` is the lab's alone; a lab
-  `?opts=` can no longer turn the frame check off. No lab lever removed: each is named by a check or a rig
-  (`client/viewer/run_check.sh`, `lab/av1/delivery/total-time/run.mjs`), so none is S7's candidate yet.
-* 2026-11-12, `claude/unified-client` (UNIFY-CLIENT, a proposal into `claude/core`): the line's unified branch,
-  from the demo tip `claude/demo-fixes-2` (`18d2d1ff`), with `claude/clean-product`'s review record, CLEAN-2 (#375) and
-  NAMES-1 (#374) merged `--no-ff`, NAMES-1 last; no conflicts. Left out with their reasons in its PR body: #376 and
-  #378 (await their review), #368–#370 and #377 (separate proposals), and the rest of LINES-READY §7.
-  UNIFY-REVIEW (2026-11-12): the merge record holds, CLEAN-2's code reaches the tip unchanged, no old name in it;
-  one NAMES-1 miss, `lab/faultbench/index.html` reading `info.path` (now `info.route`), left as a finding in #382.
+## PRs
 
-## Open (ordered)
+| PR | what | state |
+| --- | --- | --- |
+| #367, #250 | the demo tip into `claude/core`, then `claude/core` into `main` | open; the owner's word |
+| #382 | the unified branch's review record | open |
+| #370 | the client load report | draft; review owed |
+| #368 | the integrity and coding-error check on the label ([`optimal-quality.md`](optimal-quality.md)) | draft; the owner's |
+| #369 | a separate proposal, kept out of the unified branch | draft |
+| #298 | the asking patterns ([`../client/evidence/what-a-view-asks-for.md`](../client/evidence/what-a-view-asks-for.md); the ADR is on `claude/core-asking-plan` only) | proposed |
+| #285 | the cache's writer arms, run: no arm passes on either engine | open |
+| #289, #299, #302, #303 | a second fold; a frame decoded twice; a repaint before the frame is held; the one-pass AV1 merge | open, not in `core` |
 
-1. The reviewed path of `core` into `main` ([`coordination.md`](coordination.md) §Open 2), carrying the demo work
-   ([`optimal-quality.md`](optimal-quality.md)).
-2. The cache arm in the view worker, with credits and eviction; the cine clock picking the frame by elapsed time;
-   the remaining asking patterns (`docs/adr/frame-path.md` §Target; asking policy #298, proposed).
-3. Not scheduled (§Target's open table): misses fragmented into one-frame runs; several viewports on one WebGL2
-   context; AV1 groups and previews in the store; a read-back that throws; phones' decoder count.
-4. The owner's calls: a series without digests (store `unchecked`, or decode again); exactness after a mismatch
-   (block, mark or reveal); the cache's retention policy.
-5. The WebGL painter proved on a real GPU.
-6. From the PCS contract: `sf.jxl` needs a JPEG XL decoder unless the PACS transcodes; G > 1 for AV1 cine is asked
-   of the PCS team ([`codecs.md`](codecs.md)).
+## Owed runs
 
-## Decisions (the owner's)
+* **The next phone round**: its amendment written by a session that will not run it ([`../devices.md`](../devices.md)
+  §7), recording the decoder route and per-frame arrivals and varying the decoder count; it decides which view is the
+  target and what bounds a fill.
+* **The delivery comparison**: recorded in [`../client/design.md`](../client/design.md) §Open with its theory; its
+  protocol is not written.
+* dav1d fetched only where WebCodecs refuses (a protocol with an A/A arm, not started); a wake before `l` asks (its
+  phone row); the WebGL painter on a real GPU (the owner's machine); Firefox and WebKit.
+* Each of the view worker's open questions ([`../client/design.md`](../client/design.md) §Open) has its deciding run
+  in its evidence file; none is queued.
 
-* 2026-10-10: an OPFS cache for both web clients, no re-decoding. 2026-10-16: two product clients (TS and WASM).
-* 2026-10-23: client telemetry is for production too, sampled.
-* 2026-10-28: the view worker is the next target; frames never return to the main thread; VOI is part of paint
-  ("paint module"); paint first, then the cache write; the store never decides a paint; the store, not the
-  controller, asks the downloader.
-* 2026-10-29: the revision taking the red-team review's fixes (ordered want, versioned frames, credits, writes off
-  thread, one `failed {scope, reason}`, eviction only over budget).
+## Waits for the owner
+
+Any merge, close or removal (the frame clock's: `git revert 24b80bcd`, [`coordination.md`](coordination.md) §Open 7);
+which view is the target; the contradictions the fold left open ([`../client/design.md`](../client/design.md) §Open: the
+stride ADR against never skipping, the cache file's questions 3 and 4); the coded-bytes digest; turning the cache or telemetry on, and telemetry's rate, sink and retention; a series
+without digests; whether one re-ask of a lost ask is enough (#378); cell 3's guard form before the next phone round (#359);
+whether an 8-bit view at 1.14–1.86× the bytes is worth a checked hardware path (#389); the settings awaiting a default ([`../client/design.md`](../client/design.md) §Open); anything
+structural.
 
 ## Pointers
 
-`client/`, `client/README.md`, `docs/ARCHITECTURE.md`, `docs/CLIENTS.md`, `docs/WIRE.md`, `docs/decode/`;
-`docs/adr/frame-path.md` (§Target: the view worker, §The core, assembled on `claude/core`);
-`claude/core:client/view/`, `claude/core:lab/opfs-arms/`; PRs #250, #289, #299, #302, #303, #298.
+`client/README.md` (§Optimal quality, exact on request; §The viewer), `docs/CLIENTS.md`, `docs/WIRE.md`, `docs/decode/`,
+[`../adr/exactness-in-production.md`](../adr/exactness-in-production.md), `claude/telemetry-client:docs/adr/telemetry-in-production.md`;
+`docs/reviews/view-worker-check.md`, `docs/reviews/freeze-e2e.md`, `docs/reviews/experiments-off.md`;
+`claude/phone-rows:docs/phone-rows/README.md`, `claude/phone-rows:docs/reviews/phone-blind-read.md`,
+`claude/proposals:docs/lines/proposals.md`, `claude/lines-ready:docs/reviews/lines-ready.md`; the work ledger,
+`claude/work-ledger:docs/queue/`.

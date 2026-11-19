@@ -89,7 +89,7 @@ that unsupervised work starts from one clear state. For the sessions that take i
 5. Every line file in `docs/lines/` reflects the unified state; stale lines say so.
 
 *2026-11-11 (the owner):* this is done as part of the demo, limited to the demo path, before 2026-11-13; the rest
-after it ([`optimal-quality.md`](optimal-quality.md) §Decisions, 2026-11-11). Understanding comes with it: the
+after it (§Decisions, 2026-11-11). Understanding comes with it: the
 findings-only rows of the night of 11-11 (OPT-SIMPLIFY, CLEAN-FIND, NAMES-FIND, DEFAULTS-FIND, ESSENTIALS) feed
 steps 3 and 4.
 
@@ -112,6 +112,18 @@ steps 3 and 4.
 * 2026-11-09: nothing reaches `main` without review; the demo is built on `claude/core`.
 * 2026-11-11: wt-pacs stays self-contained: line state lives in `docs/lines/`, the private notes keep only rules such
   as forbidden topics and strings. The work queue's rows run in parallel while the usage window is free.
+* 2026-11-11 (carried from `e5b20cba:docs/lines/optimal-quality.md` §Decisions): the unification is done while building
+  the demo, limited to what the demo touches (one path into `main`, one name per concept, one implementation per job
+  on the demo path); the rest follows after 2026-11-13. "I cannot show to the team something that I don't know what
+  it's doing, or I cannot explain": understanding is a requirement of the demo, so the team can keep contributing and
+  steering; simplification, cleaning, names, defaults and an essentials-first explanation are investigated first,
+  findings only, and the owner decides what goes in and when. The reading pass starts from the essential points and
+  goes deeper only if time allows. Two separate sessions, simplification and design improvement once the stack is
+  unified, proposals only. The phone run's laptop takes no installs: the minimum is found from what is present, and
+  checks that need elevation are handed to the owner while the work goes on.
+* 2026-11-11 afternoon (the same source): the demo is given from `main`, the approaches chosen with the team being
+  the product's candidates; after the freeze the owner merges the demo tip into `claude/core`, then `claude/core`
+  into `main` (PR 250), as merge commits, never squashed: history is preserved.
 * 2026-11-11 evening: the demo is suspended; the product goes on, and the core design is closed with what it has.
   Before the owner's return (2026-11-13, about 21:00 UTC) agents build one unified proposal branch per line
   (`claude/unified-<line>`), each reviewed by another session; the owner reviews them, asks for minimal fixes and

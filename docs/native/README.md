@@ -86,7 +86,7 @@ Where a frame cache belongs, and whether the OS takes it back:
 | macOS | `~/Library/Caches` | unknown | |
 | iOS | Application Support + `isExcludedFromBackup` (set again on every save) | Caches can be purged when space is very low, never while the app runs | encrypted by default (Data Protection class C); class A (`complete`) locks the cache ~10 s after the device locks, which stops a background prefetch |
 | Android | `getFilesDir` | `getCacheDir` is deleted oldest-first under a moving quota and "designed to store a small amount" | file-based encryption on Android 10+ |
-| browser (today) | OPFS | best-effort unless persisted; ≈ 60 % of disk per origin (Chrome, Safari), 15 % in a web view; Safari deletes script-written storage after 7 days without interaction (30 operating days in the source's default, [`../adr/frame-path.md`](../adr/frame-path.md) §4) | not built ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Open) |
+| browser (today) | OPFS | best-effort unless persisted; ≈ 60 % of disk per origin (Chrome, Safari), 15 % in a web view; Safari deletes script-written storage after 7 days without interaction (30 operating days in the source's default, [`../client/evidence/cache-in-opfs.md`](../client/evidence/cache-in-opfs.md) §4) | not built ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Open) |
 
 **What a cache must do on any OS**, from the exactness ADR ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md)
 §8, *A client cache*): hold only frames whose check is `true`, never key by digest, and re-check on read. From the
@@ -100,8 +100,10 @@ its re-check like any other.
 
 **The other side.** AAPM Report 260 on handheld viewers recommends leaving no persistent data on the device. HIPAA's
 technical safeguards (45 CFR 164.312) make audit controls required and encryption at rest and automatic logoff
-"addressable"; a proposed revision (published 2025-01-06) was not read. GDPR Art. 32 asks for security appropriate to
-the risk. A page's storage is evictable by default; an app's cache stays until the app removes it.
+"addressable"; the proposed revision (90 FR 898, 2025-01-06) would require encryption at rest save documented
+exceptions and drop "addressable" (*corrected 2026-10-28,* `claude/cache-policy` 680c9b49: this said it was not read).
+GDPR Art. 32 asks for security appropriate to the risk. What each source asks of a cache, the options and a default per
+device kind: [`../client/evidence/what-the-cache-leaves-on-a-device.md`](../client/evidence/what-the-cache-leaves-on-a-device.md). A page's storage is evictable by default; an app's cache stays until the app removes it.
 
 ## 4. App shape
 
@@ -353,6 +355,8 @@ Also under §Blocked in [`../av1/queue.md`](../av1/queue.md).
    the same answer for page and app, but it sets what the app's store listing and device list must carry.
 5. **Distribution**: the public stores, or hospital channels (Apple Business Manager custom apps, managed Google Play
    private apps) and a desktop update channel per OS.
+6. **How it reaches `main`.** *Decided by the owner, 2026-11-11:* `client/native` rides the core design to `main`
+   ([`../client/design.md`](../client/design.md) §Decided).
 
 ## 8. The headless core on raw QUIC: the design
 
@@ -491,6 +495,8 @@ Estimated: step 1 ≈ 300 lines of client and CLI, ≈ 150 of tests.
 
 ### 8.5 What keeps the browser path unchanged, and what proves both clients get the same bytes
 
+*Run 2026-10-28:* a tie ([`../client/evidence/native-client-wire-parity.md`](../client/evidence/native-client-wire-parity.md)).
+
 * **Unchanged by construction:** the browser offers only `h3`, so TLS answers it as today (§8.1); its session
   opens through the same patched `accept(connecting)`; the transport configuration is the same object; the bytes on
   its streams are written by the same `write_frame` through the same quinn stream.
@@ -586,12 +592,12 @@ committed.
   (`962539af0373`); ACR–AAPM–SIIM Technical Standard for Electronic Practice, rev. 2022 (`c36cbd5e16df`); AAPM
   Report 260 (`7b0403c504c4`); eCFR 45 CFR 164.312 (`c70378b6f5e4`).
 
-**Not read**, so not cited: IEC 62304 beyond its abstract and IEC 82304-1 (paywalled or refused); the EU borderline
-manual on PACS; the HIPAA Security Rule revision's text; GitHub's release pages (403); MicroDicom's site (403).
+**Not read**, so not cited (*corrected 2026-10-28,* `claude/cache-policy`: the HIPAA Security Rule revision's text was listed here; it has been read, §3): IEC 62304 beyond its abstract and IEC 82304-1 (paywalled or refused); the EU borderline
+manual on PACS; GitHub's release pages (403); MicroDicom's site (403).
 
 ## The view-worker design, native (2026-10-29)
 
-*Theory only: read from the Target section of [`../adr/frame-path.md`](../adr/frame-path.md) as revised on
+*Theory only: read from the Target section of [`../client/evidence/view-worker-design.md`](../client/evidence/view-worker-design.md) as revised on
 `claude/view-worker-target-rev` (draft PR #235), its red team's review and the independent design after it, and from
 the native line's open PRs at their heads: #206 `claude/native-paint`, #209 `claude/native-cache`, #216
 `claude/native-window`, #218 `claude/native-fill`. M2's and M3's results quoted below are on #218's and #209's
@@ -832,7 +838,7 @@ frame on screen; prediction (b) on X11 is close to true by construction and is a
 
 ### Built (2026-10-29)
 
-*Built on `claude/native-view` from this section as reviewed; nothing timed, the comparison is NATIVERUN's.* The four
+*Built on `claude/native-view` from this section as reviewed; nothing timed, the comparison is the native design run's (§The comparison).* The four
 native branches are merged in (#206 painter, #209 cache, #216 window, #218 fill harness); `native-fill` keeps both
 #209's `--cache` and #218's `--in-turn --paint`. The window takes `--paint-thread`, the thread that holds the frames and paints them:
 
@@ -886,7 +892,7 @@ Two copies because AV1 merges into `out` first; HTJ2K makes one. With the two-fr
   decode, not measured.
 * **The cache's read-back** runs on a decoder (coded bytes need decoding); the downloader stats the file per miss.
 * **Not built:** the re-ask when a decoder thread dies (its record stays); the cine and its frame clock (the window
-  has none; *built 2026-10-30*, §Built for NATIVERUN); a phone, a display's vblank, macOS's off-UI-thread present.
+  has none; *built 2026-10-30*, §Built for the native design run); a phone, a display's vblank, macOS's off-UI-thread present.
 * **The check's Xvfb** runs `-noreset`: without it the display was gone after the `view` window's close.
 
 ### Independent review (2026-10-30)
@@ -902,20 +908,20 @@ Two copies because AV1 merges into `out` first; HTJ2K makes one. With the two-fr
   `client/paint/window.mjs` passes on every paint thread.
 * **Fixed.** The store's tie-break (above), with a test whose mutant fails.
 * **Corrected before data.** Metric 6's bound omitted the `N` unwritten frames; metric 1 named no budget.
-* **Not built, and NATIVERUN needs it.** The cine and its frame clock (metrics 4 and 5), the busy-UI loop and the
+* **Not built, and the native design run needs it.** The cine and its frame clock (metrics 4 and 5), the busy-UI loop and the
   steps injected off the UI thread (metric 4), a hop's send → receive stamp (metric 7), metric 6's drive through the
   series, and B's 1-pixel read behind a lab flag (`paint-worker.js` on `claude/view-worker` still reads on every
-  paint). Both rules turn on metrics 4 and 5, so NATIVERUN is not run: no verdict is possible from the rest.
-  (*Built 2026-10-30*, §Built for NATIVERUN, except B's flag, *corrected there*: it was already on `claude/core`.)
+  paint). Both rules turn on metrics 4 and 5, so the native design run is not run: no verdict is possible from the rest.
+  (*Built 2026-10-30*, §Built for the native design run, except B's flag, *corrected there*: it was already on `claude/core`.)
 * **Seen, not changed.** The view re-asks only on an intent, so a frame evicted from inside the want, or refused, is
   asked again at the next step, not at once; a cache write that fails still marks the frame written, so it is
   evictable and comes back from the wire.
 
-### Built for NATIVERUN (2026-10-30)
+### Built for the native design run (2026-10-30)
 
 *On `claude/core-native`, from the list above, in the shape the owner chose on 2026-10-29 (§7, decision 2): winit and
 M1's painter, no toolkit. Each is a lab setting of `native-window`, off by default, on every `--paint-thread`.
-NATIVERUN is not run and nothing here is timed.*
+The native design run is not run and nothing here is timed.*
 
 * **The cine** (`--cine-hz`): a timer on the thread that paints — the UI thread under `ui`, the view thread under
   `view`, the core thread under `core` — that shows the frame due by the time since the window opened, as
@@ -934,10 +940,10 @@ NATIVERUN is not run and nothing here is timed.*
   thread), `job`, `decoded`, `done`, `intent`, `shown`, `failed`, `step`. Always on, as the counters are: a lock and a
   push a message.
 * **B's 1-pixel read** was already behind a lab flag on `claude/core`: `settlePaint` in `client/view/view-worker.js`,
-  off by default, set by `lab/viewer/levers.js` ([`../adr/frame-path.md`](../adr/frame-path.md) §3). *Corrected
+  off by default, set by `lab/viewer/levers.js` ([`../client/evidence/frame-store-owner.md`](../client/evidence/frame-store-owner.md) §3). *Corrected
   (2026-10-30)*: the independent review read `paint-worker.js` alone, which the page view keeps reading on. Nothing
   built. *Since 2026-10-30* neither view's product paint reads; a lab's settle is the fence by default
-  ([`../adr/frame-path.md`](../adr/frame-path.md) §7, *The pixel read under a busy page*).
+  ([`../client/evidence/pixel-read-under-busy-page.md`](../client/evidence/pixel-read-under-busy-page.md)).
 
 **Proved.** `clock::tests` and `count::tests`: the cine shows the frame due and counts those passed over; a frame is
 on time only if its paint ends before the next is due; the busy loop blocks for its length and keeps its schedule;
@@ -962,7 +968,7 @@ frames was decoded twice: the likely path, not traced, is a want sent while a fr
 view, which lists it again once its `done` has cleared the downloader's record — §Built's "may be asked again",
 frequent under a want that changes 30 times a second.
 
-**What NATIVERUN still needs, none of it the window's:** the runner — the arms in a Williams square with A and A2, the
+**What the native design run still needs, none of it the window's:** the runner — the arms in a Williams square with A and A2, the
 relay cells, the 1-core pinning, the saturation guard from `/proc`, peak RSS (`VmHWM`), B's rig; a visit's end (the
 window runs until closed, so the runner sends Escape or ends it after its last step); the times metrics 1 and 5 read
 — dial to the last frame exact, and the inter-arrival p99 — which the window does not print (`Event::Frame`'s `at`
