@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-16 (the arms' re-review, the arms' fixes, the arms' review; KEEPALIVE's and SESSION's arms, the receivers), 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-19 (the missing cells), 2026-11-16 (the arms' re-review, the arms' fixes, the arms' review; KEEPALIVE's and SESSION's arms, the receivers), 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -79,6 +79,14 @@ exact frame bit for bit, and only checked claims on screen.
   REPORT-BUILD-FIX-REVIEW): B1–B5 closed, each test failing with its fix reverted; nothing outside the rig, `deploy/`
   and the gate changed; BEACON-H × D1, D2 delivered 4/4 live (1/4 with B1 reverted). Four minors, none blocking. Next:
   REPORT-RUN.
+* **The cells the verdict review found missing**, 2026-11-19 (REPORT-CELLS of `claude/work-ledger:docs/queue-2026-11-14.md`,
+  `lab/report-arms/README.md` §What is built): D5's kill timed from the decoder's fault (the finding), cells L, Lbusy,
+  C with the floor beside them (HTTP arms; SESSION's floor not wired), Y as the receiver sees it (wire bytes at the
+  relay not separable: no relay flow is the reports' alone), R for NGINX and RECEIVER (the server's row not built),
+  D6 under `link_impair.py --tun`, and Firefox 160.0.1 by BiDi. Smoke only, not counted: at 50 ms after the fault
+  every arm had already handed its safety report on, on this host. Firefox: no long-task observer (C's long-task bar
+  not judgeable there), no freeze (D9 hidden and kept), and the sink's `no-store` keeps D7 out of its bfcache.
+  Next: REPORT-CELLS-REVIEW, then REPORT-RUN-2.
 
 ## PRs
 
