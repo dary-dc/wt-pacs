@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-11 06:00 UTC (branch tips and the work queue read from `origin`).
+Last verified 2026-11-19 (OQ-INTEGRITY-FIXES; branch tips and the work queue read from `origin`).
 
 ## Goal
 
@@ -91,6 +91,13 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   Reviewed (OQ-INTEGRITY-REVIEW, [`../reviews/oq-integrity.md`](../reviews/oq-integrity.md)): each test fails
   without its change; open are a refused frame keeping the last frame's ✓, the mended frame and the page's wiring
   not held by the gate, and the inter-unit mutant caught by a decode failure rather than the digest.
+  Fixed (OQ-INTEGRITY-FIXES, 2026-11-19, PR 368 still a proposal, off by default): a frame refused as not as coded
+  is labelled **Optimal quality — not as coded** on its step, whether refused before the step or after
+  (`controller.test.mjs`); a decoder test with a WebCodecs stand-in that decodes wrong holds the mend (dav1d's
+  picture kept, as coded, its group from its own keyframe: the review's M1–M4 killed); `demo-check.mjs` reads the
+  label per state (✓ on a series with reconstruction digests, not as coded on a step to a frame whose digest is
+  wrong); `coding_error_test.py` holds σ to the source's (a denoised reconstruction reads 1.0041). Finding 5 (the
+  inter-unit mutant's row) and the first picture's +7.8 % are weighed in PR 368's body, not changed.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
