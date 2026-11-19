@@ -529,7 +529,7 @@ through a 5 s silence, the TCP arms do not (×1.35–1.70), and at 1 s they stil
 jitter model, unbalanced; FP not run.
 
 **Verdict:** no blocker in the run's arithmetic; three corrections above. One blocker for AD's two fill forms, the
-fill shape's opening ask: amendment 17's rows appended to `docs/queue-client-2026-11-14.md` (TRANSPORT-VERDICT-REVIEW-FIX,
+fill shape's opening ask: amendment 17's rows appended to `claude/work-ledger:docs/queue-client-2026-11-14.md` (TRANSPORT-VERDICT-REVIEW-FIX,
 its review, then TRANSPORT-AD-RERUN of cell AD whole, §6.6). **For the owner, last:** whether a fetch arm's wins (H3-frame on CR;
 H2-* on CPU and lossy links) justify a GET path in the product, a second wire and structural (§5.5,
 [`../delivery-prior-art.md`](../delivery-prior-art.md) §8); and whether WS's ask-during-a-fill and loss results earn it a
