@@ -72,7 +72,7 @@ export async function startNginx({ dir, port, pages, receiver }) {
   const exited = new Promise((ok) => nginx.on("exit", ok));
   for (let i = 0; i < 100; i++) {
     if (await fetch(`http://127.0.0.1:${port}/`, { method: "HEAD" }).then(() => true, () => false)) {
-      return { port, close: async () => { nginx.kill(); await exited; } };
+      return { port, pid: nginx.pid, close: async () => { nginx.kill(); await exited; } };
     }
     await new Promise((r) => setTimeout(r, 50));
   }
