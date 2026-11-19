@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The round in headless Chromium against the real viewer and servers on a synthetic 10-bit pair (64×48, 20 frames,
 # Q 8 G 8): round.py drives it, adb is a fake on PATH, no phone. Needs ingest/tools.sh's build and its Python.
+# --plan: round_plan.mjs's whole round in quick mode instead of the claims of round_headless.mjs.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -26,4 +27,4 @@ pack() {  # ID [ingest_coded.py's options]
 pack synth --codec htj2k
 pack synth-q8-g8 --lossy 8 8 --exact-series synth
 server/scripts/gen_dev_cert.sh --if-needed >/dev/null
-node lab/devices/round_headless.mjs "$T"
+if [[ ${1:-} == --plan ]]; then node lab/devices/round_plan_headless.mjs "$T"; else node lab/devices/round_headless.mjs "$T"; fi
