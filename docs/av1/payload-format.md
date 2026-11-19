@@ -498,7 +498,8 @@ lists into `lossy`. Without it nothing changes: the same bytes, the same metadat
   worker's `checked()` as an exact frame's: matched, `asCoded` and the label **Optimal quality ✓**; not matched,
   decoded once more on the other route (a frame inside a group: its group again on dav1d-WASM from its keyframe,
   after WebCodecs only, `av1.js` `decodeAgain`), and on a second mismatch refused by name, not painted
-  (`not as coded: …` on the status line). Under `?overlay=1` the overlay adds the check's outcome and the frame's
+  (`not as coded: …` on the status line, and the label **Optimal quality — not as coded** on its step, whether the
+  refusal came before the step or after it). Under `?overlay=1` the overlay adds the check's outcome and the frame's
   coding error, its RMS also in display levels at a LINEAR window, e · \|slope\| · 255 ÷ (W − 1).
 * **Tested:** `lossy_test.py` (each digest is the decoded picture's, each error the picture's against its source, the
   same bytes with and without, at 8 and 12 bits, G 1 and 8, a cut), `coding_error_test.py` (σ within 3 % of a known

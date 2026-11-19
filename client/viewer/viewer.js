@@ -117,6 +117,7 @@ if (where === "page") {
 const QUALITY = {
   optimal: "Optimal quality",
   asCoded: "Optimal quality ✓",
+  notAsCoded: "Optimal quality — not as coded",
   asking: "Optimal quality · fetching lossless…",
   lossless: "Lossless",
   failed: "Lossless check failed · optimal quality shown",

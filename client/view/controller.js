@@ -56,6 +56,8 @@ export class Controller {
   exactSource = null;
   #exact = null;
   #exactAsks = new Map();
+  /** Each frame refused as not as coded and not since taken, with its reason. */
+  #notAsCoded = new Map();
   #cut;
 
   /** `paint(frame, display, { read })` draws a held frame; `emit(type, event)` tells the page; `size` is the canvas's CSS size and DPR. */
@@ -79,13 +81,16 @@ export class Controller {
     }
     if (f.info.asCoded === false) {
       f.ack?.();
-      return this.refused(f.frameIndex, `not as coded: ${f.info.reason}`);
+      this.#notAsCoded.set(f.frameIndex, f.info.reason);
+      this.refused(f.frameIndex, `not as coded: ${f.info.reason}`);
+      return this.#labelNotAsCoded();
     }
     const info = this.#cut ? { ...f.info, cut: this.#cut } : f.info;
     this.store.put(f.frameIndex, { info, arrived: at(), write: f.write }, f.ack);
   }
 
   #arrived(i, { info }) {
+    this.#notAsCoded.delete(i);
     this.received += 1;
     const e = info.exact;
     this.seen[e === true ? "exact" : e === false ? "inexact" : info.asCoded ? "asCoded" : "unchecked"]++;
@@ -147,6 +152,7 @@ export class Controller {
     this.current = (i + n) % n;
     if (this.#exact?.i !== this.current) this.#exact = null;
     this.store.near = this.current;
+    this.#labelNotAsCoded();
     if (this.store.downloader) {
       this.store.want(this.want());
       return this.store.has(this.current) ? this.repaint() : this.store.arrival(this.current);
@@ -190,6 +196,12 @@ export class Controller {
     if (e?.frame === f && f.info.exact === true) return "lossless";
     if (e?.failed) return "failed";
     return e ? "asking" : f.info.asCoded ? "asCoded" : "optimal";
+  }
+
+  /** The current frame's label when it was refused as not as coded: nothing of it is painted, so no paint relabels it. */
+  #labelNotAsCoded() {
+    const i = this.current;
+    if (this.#notAsCoded.has(i)) this.#emit("shown", { i, quality: "notAsCoded", reason: this.#notAsCoded.get(i), about: {} });
   }
 
   /** The current frame from the exact series, painted in its place once checked; it stays until the reader leaves it. */

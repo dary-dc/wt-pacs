@@ -17,8 +17,9 @@ export function overlayText(about, quality, lossy) {
 }
 
 /** The overlay's word on optimal-quality frame `shown.i`'s reconstruction check and coding error, under `slope`, the rescale's; empty without the check. docs/av1/payload-format.md §Integrity */
-export function integrityText({ i, about, quality, window }, lossy, slope = 1) {
+export function integrityText({ i, about, quality, window, reason }, lossy, slope = 1) {
   if (!lossy?.reconstruction || quality === "lossless") return "";
+  if (quality === "notAsCoded") return `not as coded: ${reason}`;
   const check = about.asCoded ? `as coded${about.mismatchOn ? ` after ${about.mismatchOn} did not match` : ""}` : "unchecked";
   const e = lossy.codingError;
   if (!e) return check;

@@ -50,3 +50,11 @@ console.log("screen: ok");
   assert.equal(integrityText(at(0, { asCoded: true }), { ...lossy, reconstruction: checked.reconstruction }), "as coded");
   assert.deepEqual(markOf({ exact: "unchecked", quality: "asCoded" }), { className: "", text: "" });
 }
+
+/** A frame refused as not as coded: the overlay gives both routes' digests and no coding error, and no mark beside its label. */
+{
+  const checked = { ...lossy, reconstruction: { algorithm: "xxh3-64", frames: ["a"] }, codingError: { rms: [1.5], max: [9], noiseBandRatio: [0.42] } };
+  const refused = { i: 0, about: {}, quality: "notAsCoded", reason: "av1-webcodecs gave 1, not 2; av1-dav1d gave 3" };
+  assert.equal(integrityText(refused, checked), "not as coded: av1-webcodecs gave 1, not 2; av1-dav1d gave 3");
+  assert.deepEqual(markOf(refused), { className: "", text: "" });
+}

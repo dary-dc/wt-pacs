@@ -614,6 +614,32 @@ test("a frame not as coded is refused, not painted", async () => {
   assert.deepEqual(failed, { scope: "frame", i: 0, reason: "not as coded: av1-webcodecs gave 1, not 2" });
 });
 
+/** A step to a frame refused as not as coded, before or after the step, labels it so: the last frame's ✓ never stays on it. */
+test("a refused frame replaces the last frame's check mark with not as coded", async () => {
+  for (const refusedFirst of [true, false]) {
+    const r = rig({ lossy: { q: 8, g: 1, depth: 10 }, wants: [] });
+    const notAsCoded = { frameIndex: 1, info: { ...frame(1).info, exact: "unchecked", asCoded: false, reason: "av1-webcodecs gave 1, not 2" } };
+    r.c.take({ frameIndex: 0, info: { ...frame(0).info, exact: "unchecked", asCoded: true } });
+    await r.c.repaint();
+    if (refusedFirst) r.c.take(notAsCoded);
+    r.c.show(1);
+    if (!refusedFirst) r.c.take(notAsCoded);
+    const shown = r.events.filter(([t]) => t === "shown").at(-1)[1];
+    assert.deepEqual([shown.i, shown.quality, shown.reason], [1, "notAsCoded", "av1-webcodecs gave 1, not 2"], `refused ${refusedFirst ? "before" : "after"} the step`);
+  }
+});
+
+/** A refused frame taken as coded later, by a second ask, is never labelled not as coded again. */
+test("a refused frame taken later is labelled by its paint alone", async () => {
+  const r = rig({ lossy: { q: 8, g: 1, depth: 10 } });
+  r.c.take({ frameIndex: 0, info: { ...frame(0).info, exact: "unchecked", asCoded: false, reason: "mismatch" } });
+  r.c.take({ frameIndex: 0, info: { ...frame(0).info, exact: "unchecked", asCoded: true } });
+  const before = r.events.length;
+  await r.c.show(0);
+  const labels = r.events.slice(before).filter(([t]) => t === "shown").map(([, e]) => e.quality);
+  assert.deepEqual(new Set(labels), new Set(["asCoded"]));
+});
+
 for (const [name, fn] of tests) {
   try {
     await fn();
