@@ -4,7 +4,7 @@ Last verified 2026-11-10 (the AV1 harvest of that morning: eight result branches
 no new measurement); the audits' corrections of 2026-11-11 ([`../av1/corrections.md`](../av1/corrections.md)) and
 their protocols measured 2026-11-12 (`claude/audit-measure`) added since; HTJ2K at screen resolution
 (`claude/htj2k-tiles`: theory, its review and its improvement, stages 0–2 measured 2026-11-11, stage 3 since)
-carried into Open 7. Stage A1 of the unification (2026-11-15) added Open 11. Stage B (2026-11-15) carried the tip's items 5, 7 and 8 as 12, 13 and 14.
+carried into Open 7. Stage A1 of the unification (2026-11-15) added Open 11. Stage B (2026-11-15) carried the tip's items 5, 7 and 8 as 12, 13 and 14. Transport pointers added 2026-11-17 and 2026-11-19.
 
 ## Goal
 
@@ -57,7 +57,12 @@ ABUS exists among the fixtures ([`../FIXTURES.md`](../FIXTURES.md)); nothing bel
   ping, GSO, and others); no default changed. The transport's design, decided and open, is
   [`../transport/design.md`](../transport/design.md) (2026-11-14, an inventory; #391); the
   transport session's first open item is HTJ2K alone over WebTransport against HTTP/2 `fetch`, WebSocket and HTTP/3
-  `fetch` on the link profiles.
+  `fetch` on the link profiles; its theory and a prediction per profile are
+  [`../transport/evidence/stacks.md`](../transport/evidence/stacks.md) (2026-11-17, nothing run), with its pre-registered protocol in §5 (2026-11-17: eight arms, fourteen
+  cells through the TUN relay at ≤ 90 Mbit; a GET path and a fetch carrier to build first, in `lab/` only).
+  Run 2026-11-18/19 (§6) and verdict-reviewed 2026-11-19 (§6.5): §6 reproduced from the rows, CR's H2-fill a miss,
+  ENT unbalanced; the fill-shape fetch arms' opening ask blocks the session until the fill ends, so AD's H3-fill and
+  H2-fill readings are struck and owed a fix and a re-run.
 
 **Inputs, one line each** (state 2026-11-10; *measured* = encoded or timed, *derived* = arithmetic on committed rows,
 *theory* = sources and reasoning only):
