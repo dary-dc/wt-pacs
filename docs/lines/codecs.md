@@ -60,6 +60,24 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).
+7. The transport comparison's build (`claude/transport-design:docs/transport/evidence/stacks.md` §5.6): the GET path
+   (series-server `--features lab-get`), the fetch carrier and the driver are
+   [`../../lab/transport-arms/`](../../lab/transport-arms/README.md) (2026-11-18, every arm exact at CLEAN on a
+   synthetic series; nothing counted). Reviewed 2026-11-18 ([`../reviews/transport-arms.md`](../reviews/transport-arms.md)):
+   five blockers (no arm uses the opening ask; a failed check can be voided; a fetch arm's crash kills the driver;
+   the TCP arms on BBR, not Cubic; the departures not yet amended into §5). Fixed 2026-11-18 (TRANSPORT-BUILD-FIX:
+   each with a check that fails without it; §5.7 holds the departures). Re-reviewed 2026-11-18 (§Re-review): each
+   fix reverted fails its check, no blocker open. Run 2026-11-18/19 (TRANSPORT-RUN, `dbts_b1` HTJ2K, one container,
+   Chromium 157 headless, the TUN relay ≤ 90 Mbit; `stacks.md` §6): nine of ten cells, FP not reached by the 12 h stop;
+   every frame exact. Fills tie on clean links; after a 5 s silence the TCP arms are ×1.35–1.70 (WT and H3 keep their
+   window), at 1 s they tie; WS answers an ask during a fill faster (×0.45–0.72); the fill-shape fetch arms' ask did
+   not take effect (a suspected carrier defect). Verdict-reviewed 2026-11-19 (`stacks.md` §6.5): the defect confirmed,
+   AD's two fill forms struck. Fixed 2026-11-19 (TRANSPORT-VERDICT-REVIEW-FIX): the fill shape's `connect()` returns
+   once the opening GET is issued (`fetch-session.test.ts` fails without it). Reviewed 2026-11-19, no blocker
+   (`docs/reviews/transport-arms.md` §Fill-ask review). AD re-run 2026-11-19 (TRANSPORT-AD-RERUN, both forms, 16
+   rounds, `rows/AD-rerun.jsonl`; `stacks.md` §6.6): every fill-shape ask now jumps the fill; H3-fill and H2-fill
+   answer an ask during a fill faster than WT-TS (0.55 and 0.68 on PUB, 0.53 and 0.50 on LTE), a miss below §5.3's
+   ×1.0–2.0; the other arms as the first run. A GET path is the owner's call (§5.5).
 
 ## Decisions (the owner's)
 
