@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-18T18:16Z
-heartbeat: 2026-11-19T01:43Z
+heartbeat: 2026-11-19T01:47Z
 outputs: claude/cache-arms 5b86cbb9 (per-arm picks), 1390db63 (pilot-chromium.json frozen), rows lab/cache-arms/rows/chromium/ (all 23 Chromium counted cells whole by 2026-11-19T00:45Z, b8d5fe59; B's restart-cut try kept .partial-2344Z); claude/cache-plan 3806262b (§8.8 amendment)
 ## Resume
 Resumed 2026-11-18T22:17Z by a new session (stalled since 20:32Z): R-busy S3 next, as below. Chromium-1243 here prints 153.0.8010.12 (matches §8.8). R-busy S3 whole 22:37Z (51 rows, d6ebc18d). R-idle x4 and O x2 whole by 23:35Z (b2d31da1). All Chromium counted cells whole 00:45Z (b8d5fe59). Now the Chromium mutants: `bash lab/cache-arms/rows/mutants.sh chromium`
