@@ -67,7 +67,11 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    five blockers (no arm uses the opening ask; a failed check can be voided; a fetch arm's crash kills the driver;
    the TCP arms on BBR, not Cubic; the departures not yet amended into §5). Fixed 2026-11-18 (TRANSPORT-BUILD-FIX:
    each with a check that fails without it; §5.7 holds the departures). Re-reviewed 2026-11-18 (§Re-review): each
-   fix reverted fails its check, no blocker open; next, TRANSPORT-RUN.
+   fix reverted fails its check, no blocker open. Run 2026-11-18/19 (TRANSPORT-RUN, `dbts_b1` HTJ2K, one container,
+   Chromium 157 headless, the TUN relay ≤ 90 Mbit; `stacks.md` §6): nine of ten cells, FP not reached by the 12 h stop;
+   every frame exact. Fills tie on clean links; after a 5 s silence the TCP arms are ×1.35–1.70 (WT and H3 keep their
+   window), at 1 s they tie; WS answers an ask during a fill faster (×0.45–0.72); the fill-shape fetch arms' ask did
+   not take effect (a suspected carrier defect). Next, TRANSPORT-VERDICT-REVIEW.
 
 ## Decisions (the owner's)
 
