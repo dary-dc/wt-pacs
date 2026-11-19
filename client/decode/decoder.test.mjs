@@ -10,7 +10,7 @@ const GLUE = `var OpenJPHModule = () => ({ HTJ2KDecoder: class {
 } });`;
 // A 1×1 10-bit grey dav1d: every unit decodes to sample 7.
 const DAV1D = `var Dav1dModule = () => ({ HEAPU8: new Uint8Array(1 << 16), HEAPU16: Uint16Array.of(7), _malloc: () => 0, _free() {},
-  _av1_open: () => 0, _av1_flush() {}, _av1_decode: () => 0, _av1_top_layer: () => 0, _av1_layer: () => 0, _av1_layout: () => 0,
+  _av1_open: () => 0, _av1_flush() {}, _av1_decode: () => ((globalThis.dav1dDecodes = (globalThis.dav1dDecodes ?? 0) + 1), 0), _av1_top_layer: () => 0, _av1_layer: () => 0, _av1_layout: () => 0,
   _av1_bits: () => 10, _av1_plane: () => 0, _av1_stride: () => 1, _av1_width: () => 1, _av1_height: () => 1, _av1_matrix: () => 0 });`;
 // The frame check's hasher and the build manifest are the repository's own files.
 globalThis.fetch = async (url) => {
@@ -111,6 +111,47 @@ check((await frameUnder(undefined)).m.pixels instanceof SharedArrayBuffer, "a la
   check(f.asCoded === false && f.reason?.includes("decoded again on dav1d only"), `inside a group, its payloads were kept for the second decode (${f.reason})`);
   f = await run({ digests: [seven, wrong] }, [[0, true], [1, false]], 4);
   check(f.exact === false && f.reason?.includes("group was not kept"), `without a reconstruction digest no group is kept (${f.reason})`);
+}
+
+/**
+ * A frame WebCodecs decodes wrong is mended on dav1d: the picture kept is dav1d's, matched, `asCoded` true and the first
+ * route named; inside a group, dav1d decodes the group again from its own keyframe alone. docs/av1/payload-format.md §Integrity
+ */
+{
+  const { hasher } = await import("./xxh3.js");
+  const seven = (await hasher()).init().update(Uint8Array.of(7, 0)).digest("hex");
+  const bytes = new Uint8Array(readFileSync(new URL("../contract/av1/payloads/plain/g10.av1", import.meta.url)));
+  let wrongAt = new Set();
+  const webcodecs = {
+    init: async () => {},
+    probe: async () => true,
+    picture: async (_, unit) => ({ width: 1, height: 1, bits: 10, planes: [{ heap: Uint16Array.of(wrongAt.has(unit.index) ? 9 : 7), offset: 0, stride: 1 }] }),
+  };
+  const av1 = await import("./av1.js");
+  await av1.init({}, (path) => (path === "./av1-webcodecs.js" ? Promise.resolve(webcodecs) : import(path)));
+  globalThis.VideoDecoder = class {};
+  const run = async (frames, groupLength) => {
+    const sent = [];
+    const ready = next();
+    onmessage({ data: { kind: "init", toConsumer: { postMessage: (m) => sent.push(m) }, decoder: { codec: "av1", lossy: true, glue: "dav1d.js", wasm: "dav1d.wasm" }, groupLength, reconstruction: frames.map(() => seven) } });
+    await ready;
+    for (const [index, key] of frames) {
+      const done = next();
+      onmessage({ data: { kind: "decode", index, gen: 0, key, bytes: bytes.slice(), stamps: {} } });
+      await done;
+    }
+    return sent.at(-1);
+  };
+  const mended = (f, what) =>
+    check(f.asCoded === true && f.path === "av1-dav1d" && f.mismatchOn === "av1-webcodecs" && new Uint16Array(f.pixels)[0] === 7,
+      `${what}: dav1d's picture, as coded, WebCodecs named (${f.asCoded}; ${f.path}; ${f.mismatchOn}; ${new Uint16Array(f.pixels)[0]})`);
+  wrongAt = new Set([0]);
+  mended(await run([[0, true]], 1), "a keyframe WebCodecs decoded wrong");
+  wrongAt = new Set([5]);
+  globalThis.dav1dDecodes = 0;
+  mended(await run([[0, true], [1, false], [2, false], [3, false], [4, true], [5, false]], 4), "an inter frame WebCodecs decoded wrong");
+  check(globalThis.dav1dDecodes === 2, `its group decoded again from its own keyframe, 4 and 5 (${globalThis.dav1dDecodes} dav1d decodes)`);
+  delete globalThis.VideoDecoder;
 }
 
 console.log(failed ? `${failed} failed` : "decoder frame buffer: ok");
