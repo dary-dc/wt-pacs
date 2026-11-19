@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-19T08:16Z
-heartbeat: 2026-11-19T08:52Z
+heartbeat: 2026-11-19T09:02Z
 outputs: claude/transport-arms rows/AD-rerun.jsonl (174538ad, partial, pushed every 15 min); stacks.md §6.6 pending
 ## Resume
 Host built 08:2xZ (TRANSPORT-BUILD-FIX's setup line, ingest/tools.sh, series-server --features lab-get) at
