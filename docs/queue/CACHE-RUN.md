@@ -12,7 +12,10 @@ readerWroteNothing false. Now Firefox 159: tarball from ftp.mozilla.org releases
 unpacked at /home/user/ff-dl/firefox (redo after a restart); pilot: `FIREFOX_PATH=... xvfb-run -a bash
 lab/cache-arms/rows/pilot.sh firefox` (resumable), Firefox pilot frozen 02:00Z (4895e2bf;
 same picks as Chromium). Now counted.sh firefox under xvfb-run, cells in batches (scratch batchff.sh: L, W first).
-Firefox whole by 04:15Z (bee177b9): L (all six), W (three), R-busy S2. Then R-busy S3, R-idle S2/S1/S3 whole by 05:17Z (f20e26b6). Then R-idle S1 4x, O x2, B whole by 06:40Z (afe320fb). Next E, K, Q, T, P (batchff2.sh,
+Firefox whole by 04:15Z (bee177b9): L (all six), W (three), R-busy S2. Then R-busy S3, R-idle S2/S1/S3 whole by 05:17Z (f20e26b6). Then R-idle S1 4x, O x2, B whole by 06:40Z (afe320fb). Then E, K, Q, T, P by 06:59Z (5f5ea7ad): all 23 Firefox cells
+whole. Firefox E and Q: the quota lever does not hold (Gecko fixedLimit), so not run (§8.6), named; K CACHESTORAGE 2 errored
+rounds (null `written`); T CACHESTORAGE 4/4 rounds a navigation timeout; P OPFS arms SecurityError in the private window.
+Now `FIREFOX_PATH=... xvfb-run -a bash lab/cache-arms/rows/mutants.sh firefox`; then WebKitGTK; then §Results. (batchff2.sh,
 which pushes this heartbeat after each cell), then mutants.sh firefox. Earlier: B's first try cut at 23:44Z by a container restart (kept .partial, counted in no bar); B, E, K, Q, T, P rerun in one job that starts no cell after 60 min
 (scratch batch.sh: counted.sh per cell, commit and push after each). Cells may also be run one a job:
 `bash lab/cache-arms/rows/counted.sh chromium <cell-name>` (its substring), so the 2 h limit never cuts a cell mid-way.
