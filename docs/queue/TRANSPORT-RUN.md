@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-18T12:16Z
-heartbeat: 2026-11-19T00:44Z
+heartbeat: 2026-11-19T00:52Z
 outputs: claude/transport-arms (rows), claude/transport-design (stacks.md §Results)
 ## Resume
 Claimed 12:2xZ. Host: Chromium 157.0.8103.78 (playwright's), neither of §1's tags, so §5.2's four window constants
@@ -25,4 +25,5 @@ Pilot 13:35Z: AA, CR, FF, LOSS done (0 crashes; VOIDs: relay guard 5, one H2-fra
 21:58Z: CR counted complete (128 visits, 1 VOID). FF running. Found in AD's rows: H3-fill and H2-fill's ask had no effect (frames 0-49 strictly in order, frame 49 last at ~10 s): the fill shape's abort-and-reGET did not happen; a suspected carrier defect, for the verdict review.
 22:46Z: FF counted complete (256 visits, 26 VOID by the relay guard). LOSS running; then LTE CLEAN PUB ENT FP to the 12 h stop at 02:58Z (ENT will be cut, FP not reached at the pilot's rates).
 00:44Z: LOSS, LTE, CLEAN, PUB counted complete. ENT running until the 12 h stop (02:58Z); FP will not be reached.
+00:52Z: the container restarted at ~00:50Z and stopped the detached run inside ENT's first period (1 visit, kept as rows/ENT.partial-0051.jsonl, no bar). Resumed 00:51Z by $SCRATCH/counted2.sh: ENT then FP until the 12 h stop at 02:58Z.
 ## Result
