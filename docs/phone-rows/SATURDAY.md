@@ -3,8 +3,8 @@
 Written 2026-11-19 by PHONE-RUN-OWNER (`claude/work-ledger:docs/queue-client-2026-11-14.md`). The protocol:
 [`next-round.md`](next-round.md). The tools: [`../../lab/devices/README.md`](../../lab/devices/README.md) §The round.
 
-**The run commit** is the tip of `claude/phone-run` on the evening; its code is `RUN_CODE` below, and every later
-commit touches `docs/` only. `round_plan.mjs` writes the served tree's `HEAD` into the plan, and `round.py` refuses
+**The run commit** is the tip of `claude/phone-run` on the evening; its code is `d706d7e5` (the preflight prints it as
+`RUN_CODE`), and every later commit touches `docs/` only. `round_plan.mjs` writes the served tree's `HEAD` into the plan, and `round.py` refuses
 before load 1 if the tree is anywhere else (§1).
 
 **What it carries**: `claude/unified` + PR 378 (a lost exact ask asked again once; FIX-378-DIAL) + `claude/phone-round`
