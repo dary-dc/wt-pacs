@@ -120,8 +120,8 @@ adb logcat -d > target/probe/logcat.txt; kill %1
 ## Where rows go
 
 Strip the laptop's address and the phone's serial (`docs/devices.md` §4), then commit the raw files to
-`claude/phone-run` under `docs/phone-rows/raw/2026-11-21/` and push after each step; `docs/queue/PHONE-ROUND.md` on
-`claude/work-ledger` holds the state:
+`claude/phone-run` under docs/phone-rows/raw/2026-11-21/ (made on the evening) and push after each step;
+`claude/work-ledger:docs/queue/PHONE-ROUND.md` holds the state:
 
 ```bash
 D=docs/phone-rows/raw/2026-11-21; mkdir -p $D && cp -r target/{dry,round,probe,probe-shell} target/round-*.txt $D/
