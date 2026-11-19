@@ -44,7 +44,9 @@ merges, and `lab/devices/round_plan.mjs` (the round's 144-load plan, run whole i
 the report cells, M1–M22 (each named there). PHONE-RUN-REVIEW (2026-11-19, PR 409's body): two
 blockers, an empty `--dial` taken (B1) and identifying lines in the raw rows' commit (B2). PHONE-RUN-FIX (2026-11-19):
 `round_plan.mjs` refuses a missing or empty `--dial`, and `lab/devices/raw_rows.py` commits only what a cell reads,
-refusing a MAC or an SSID left; PHONE-RUN-FIX-REVIEW next, by 11-21 18:00.
+refusing a MAC or an SSID left. PHONE-RUN-FIX-REVIEW (2026-11-19, PR 409's body §Re-review): both blockers
+closed (each fix reverted, its test fails), nothing else changed, the fake-`adb` commit step leaves no SSID, BSSID
+or account line; no blocker open, two minors.
 
 Rows and their briefs: `claude/work-ledger:docs/queue-client-2026-11-14.md` (§The device round's rows; amendments 5,
 7, 10, 11, 14–20 bind device work); status files `claude/work-ledger:docs/queue/<ROW>.md`.
