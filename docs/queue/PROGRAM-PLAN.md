@@ -22,8 +22,7 @@ every inventory row with a page or a line of §Trimmed.
 * Held until MOBILE-DECODE-REJUDGE and the owner's word: GROUPS-SHARD2, NOISE-RATIO-RUN, the long byte cells;
   native and viewer rows (paused).
 * Found: no old row ever had a status file; LATER-PASS and PR-TIDY stalled since 2026-11-18T01:1xZ; DEVICE-THEORY
-  moves to 11-20 (this row was claimed a day late; its 11-21 12:00 deadline holds).
-* Read only; nothing run, no fixture. No line doc updated (the ledger only). `check_links.py` does not apply here.
+  moves to 11-20 (its 11-21 12:00 deadline holds). Read only: nothing run, no fixture, no line doc updated.
 * Owner: (1) amendment 26 read over 25: changes outside `docs/` reach `claude/unified` only as draft PRs; (2)
   DOCS-SYNC pushes `--no-ff` merges to `claude/unified`, which a worker told "never merge" will refuse; (3) this
   file needs an Opus worker (nothing scheduled here); (4) the six Fable days.
