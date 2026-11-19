@@ -1224,7 +1224,9 @@ owner's decisions owed (each explained, then the question), links. Nothing run.
 
 Each firing follows `docs/queue-2026-11-14.md` §The worker's procedure, §No work lost and §Standing rules, applied to
 **this file's rows only**, with these changes: step 3 counts this file's running rows (at most twelve); step 4
-ignores the 22:00–06:00 restriction; the queue closes 2026-11-28 23:59 (amendment 24). Status files are `docs/queue/<ROW>.md` on
+ignores the 22:00–06:00 restriction; when none of this file's rows is due, the worker takes the first due row of
+`docs/queue-2026-11-14.md` by that file's procedure (at most four of its rows running), a Fable session that file's
+§Fable rows by their days; the queue closes 2026-11-28 23:59 (amendment 24). Status files are `docs/queue/<ROW>.md` on
 `claude/work-ledger`. No merges; PRs are drafts into `claude/docs-client` as the table says, through
 `mcp__github__create_pull_request`. Sources quoted verbatim, theory and measured labelled, fixtures and limits in
 every result.

@@ -49,7 +49,8 @@ small enough that every open item has an owner and a next step.
    Next: stage B once the client review is done with no blocker open.
 9. **The two weeks' program** (`claude/work-ledger:docs/queue-2026-11-14.md`, PROGRAM-PLAN, 2026-11-19): its
    review (PROGRAM-PLAN-REVIEW, 2026-11-19, §Program review there) found four blockers, the first that no worker
-   takes its rows; PROGRAM-PLAN-FIX and its review are queued in `docs/queue-client-2026-11-14.md`.
+   takes its rows; PROGRAM-PLAN-FIX (2026-11-19) closed the four in place and its minors (§Program review, *Fixed*):
+   the client queue's worker now takes the program's rows when none of its own is due. PROGRAM-PLAN-FIX-REVIEW next.
 
 ## Unification (the owner, 2026-11-09)
 
