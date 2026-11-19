@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19.
 
 ## Goal
 
@@ -107,6 +107,9 @@ small enough that every open item has an owner and a next step.
    AUDIT-MECHANICAL (2026-11-17, `2b0064cb`): the owner's name out of `handoff/` as well (the owner's yes), the last
    of audit item 2's three files; items 3 and 4 found done by UNIFIED-CLEAN. `handoff/`'s removal still waits.
    AUDIT-MECHANICAL-REVIEW (2026-11-17, PR 402's body): no blocker; one minor, a product use of *lossy stream*.
+   DOCS-SYNC-1119 (2026-11-19, amendment 26): LATER-PASS's merges redone (PRs 384, 392, 359, 396; 397 has `lab/`
+   paths and stays a draft), then the reviewed docs-only branches `report-plan`, `transport-design` and `cache-plan`,
+   each `--no-ff` with its conflicts named in its message; `gate.sh --quick` OK, its skips named in the row's status file.
 
 ## Unification (the owner, 2026-11-09)
 
