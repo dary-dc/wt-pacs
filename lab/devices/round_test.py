@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlsplit
 
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "round.py"
+RAW = HERE / "raw_rows.py"
 FAKE_ADB = """#!/bin/sh
 echo "$*" >> "$ADB_LOG"
 case "$*" in
@@ -278,6 +279,76 @@ class RoundHost(unittest.TestCase):
         opened = {e["load"]: e["at"] for e in events if e["event"] == "load opened"}
         spans = [e["at"] - opened[e["load"]] for e in events if e["event"] == "load ended"]
         self.assertTrue(all(s < 300 for s in spans), spans)
+
+
+WIFI_INFO = (  # ClientModeImpl's dump of WifiInfo.toString(), AOSP Wifi 10246c5a; made-up values
+    "mWifiInfo SSID: \"HomeNet-42\", BSSID: 3c:84:6a:11:22:33, MAC: 02:00:00:00:00:00, IP: /192.168.1.23, "
+    "Security type: 2, Supplicant state: COMPLETED, Wi-Fi standard: 11ax, RSSI: -48, Link speed: 1201Mbps, "
+    "Tx Link speed: 1201Mbps, Max Supported Tx Link speed: 2401Mbps, Rx Link speed: 960Mbps, "
+    "Max Supported Rx Link speed: 2401Mbps, Frequency: 5180MHz, Net ID: 3, Metered hint: false, score: 60\n"
+)
+LOGCAT = (
+    "11-21 19:02:11.120  4021  4090 I CCodec  : allocated component c2.exynos.av1.decoder\n"
+    "11-21 19:02:11.300  1500  1600 I AccountManager: account someone@example.org signed in\n"
+    "11-21 19:02:12.000  4021  4090 D MediaCodec: [OMX.google.vp9.decoder] configured, SSID HomeNet-42\n"
+)
+
+
+class RawRows(unittest.TestCase):
+    """The commit step's copy (docs/devices.md §4): only what a cell reads, the laptop and the phone stripped, and a refusal if a MAC or an SSID is left."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.d = Path(self.tmp.name)
+        self.src = self.d / "target"
+        (self.src / "round" / "out" / "adb").mkdir(parents=True)
+        (self.src / "round-wifi-before.txt").write_text(WIFI_INFO)
+        (self.src / "round" / "out" / "adb" / "003-after.logcat.txt").write_text(LOGCAT)
+        (self.src / "round" / "t-4433.json").write_text('{"wt_url": "https://10.1.2.3:4433/"}')
+        (self.src / "round" / "out" / "round.jsonl").write_text('{"event": "adb", "args": ["-s", "R5CT10ABCDE"]}\n')
+        self.dest = self.d / "raw"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def publish(self, *extra):
+        return subprocess.run([sys.executable, str(RAW), str(self.dest), str(self.src / "round"), str(self.src / "round-wifi-before.txt"),
+                               "--strip", "10.1.2.3=LAPTOP", "--strip", "R5CT10ABCDE=PHONE", *extra], capture_output=True, text=True)
+
+    def test_wifi_keeps_band_frequency_rssi_and_link_speeds_only(self):
+        """The mWifiInfo line becomes its band, frequency, RSSI and link speeds; the SSID, BSSID, MAC and IP never leave."""
+        self.assertEqual(self.publish().returncode, 0)
+        kept = (self.dest / "round-wifi-before.txt").read_text()
+        self.assertEqual(kept, "band: 5 GHz, Wi-Fi standard: 11ax, RSSI: -48, Link speed: 1201Mbps, Tx Link speed: 1201Mbps, "
+                               "Rx Link speed: 960Mbps, Frequency: 5180MHz\n")
+
+    def test_logcat_keeps_codec_components_only(self):
+        """A logcat buffer becomes the codec components it names, one per line; every other line stays on the laptop."""
+        self.assertEqual(self.publish().returncode, 0)
+        self.assertEqual((self.dest / "round" / "out" / "adb" / "003-after.logcat.txt").read_text(),
+                         "c2.exynos.av1.decoder\nOMX.google.vp9.decoder\n")
+
+    def test_the_laptop_and_the_phone_are_stripped(self):
+        """The dial address and the serial are replaced by their names in every file copied."""
+        self.assertEqual(self.publish().returncode, 0)
+        self.assertIn("https://LAPTOP:4433/", (self.dest / "round" / "t-4433.json").read_text())
+        self.assertIn('"PHONE"', (self.dest / "round" / "out" / "round.jsonl").read_text())
+
+    def test_a_mac_or_an_ssid_left_refuses_the_copy(self):
+        """A MAC-shaped string or an SSID anywhere after the filters: exit 1 naming the file, and nothing left in DEST."""
+        for leak in ("ap 3c:84:6a:11:22:33 seen", "SSID: HomeNet-42"):
+            with self.subTest(leak=leak):
+                (self.src / "round" / "notes.txt").write_text(leak + "\n")
+                run = self.publish()
+                self.assertEqual(run.returncode, 1, run.stderr)
+                self.assertIn("notes.txt", run.stderr)
+                self.assertFalse(self.dest.exists())
+
+    def test_an_empty_strip_value_is_refused(self):
+        """An unset LAPTOP_IP gives "--strip =LAPTOP": refused before anything is copied."""
+        run = self.publish("--strip", "=LAPTOP")
+        self.assertEqual(run.returncode, 2, run.stderr)
+        self.assertFalse(self.dest.exists())
 
 
 if __name__ == "__main__":
