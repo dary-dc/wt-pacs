@@ -1,4 +1,4 @@
-/** A run's score and a cell's verdict, as pre-registered: docs/adr/frame-path.md §A frame clock in the view worker. */
+/** A run's score and a cell's verdict, as pre-registered: docs/client/evidence/frame-clock-in-a-worker.md. */
 
 import { LONG_TASK_MS } from "./busy.js";
 
@@ -31,7 +31,7 @@ function nextVsync(vsyncs, t) {
   return vsyncs[lo];
 }
 
-/** Frames not on their tick, the gap p99 and the draw p99: lab/frame-clock/README.md §Scoring. */
+/** Frames not on their tick, the gap p99 and the draw p99: docs/client/evidence/frame-clock-in-a-worker.md. */
 export function score({ draws, vsyncs = [], t0, period, ms }) {
   // Frames due before t0 + ms; the epsilon keeps 1000 / (1000 / 60) from rounding to 59.
   const due = Math.ceil(ms / period - 1e-9);
@@ -84,7 +84,7 @@ export function verdict(rows, { period, busy }) {
 /** Past the host's limit on the screen alone: `page-raf`'s draw p99 above a whole period in every screen round. */
 export const screenedOut = (refDrawP99s, period) => refDrawP99s.length >= SCREEN_ROUNDS && refDrawP99s.every((d) => d > period);
 
-/** The engine's clock from its cells' verdicts, `{ series, busy, ...verdict }`: lab/frame-clock/README.md §The rule. */
+/** The engine's clock from its cells' verdicts, `{ series, busy, ...verdict }`: docs/client/evidence/frame-clock-in-a-worker.md. */
 export function rule(cells) {
   const decide = cells.filter((c) => c.series === "s512" && !c.void && !c.saturated);
   if (!decide.some((c) => c.busy)) return { clock: null, why: "no busy-page 512² cell is neither VOID nor saturated" };
