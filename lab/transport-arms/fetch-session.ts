@@ -64,11 +64,11 @@ export class TransportSession extends FrameSession {
     void this.get(`/frames/${frame}`, abort).catch((e) => abort.signal.aborted || this.failWaiter(frame, String(e?.message ?? e)));
   }
 
-  /** A new fill replaces the old one, as `stream_frames` does on the server. */
+  /** A new fill replaces the old one, as `stream_frames` does on the server; it returns once its GET is issued. */
   private startFill(from: number, to: number) {
     if (this.shape === "fill") {
       this.endFill();
-      return this.issue(`/frames/${from}-${to}`, from);
+      return void this.issue(`/frames/${from}-${to}`, from);
     }
     for (const [frame, abort] of this.open) if (frame < from || frame > to) (abort.abort(), this.open.delete(frame));
     this.queue = [];
