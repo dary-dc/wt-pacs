@@ -26,6 +26,7 @@ phone ── https://PUBLIC_NAME:8443/?t=TOKEN ── the runner page, D0 → D1
 | `deploy.sh` | `up`, `fetch DIR`, `down` on the Oracle machine, from the local machine |
 | `make_bundles.sh` | each set as `SET.htj2k.sbnd` and `SET.av1.sbnd` through `lab/av1/tools/ingest_coded.py` |
 | `dry_run.mjs` | the page through a deployed kit in headless Chromium, quick mode: exits 0 when every visit is exact |
+| `round_plan.mjs` | the round's plan for `round.py`: `roundOrder()`'s loads on their pages, the four series' servers; `--quick` for the dry run |
 | `round.py`, `round.mjs`, `round-page.js`, `beacon.js` | the phone round of `claude/phone-protocol:docs/phone-rows/next-round.md` (below): one press, the laptop's plan behind `GET /next`, each load recorded by the viewer's lab gate |
 
 **Quick and full.** Quick is 3 rounds of D1 on `dbt10_ea1141` alone (the largest frames, all three decoders) and
@@ -202,6 +203,12 @@ round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer
   read); the commit as the page reads it (no such file in the served tree); cell 5's arms; the report cells' ending
   levers. `claude/phone-rows:lab/phone/` (the runner, its start page, its beacon) is superseded by this; its `rows.py`, `losses.py`
   and `read-path.sh` read the 11-11 run and stay on `claude/phone-rows`.
+
+**The plan** of the evening is `round_plan.mjs DIR RUN --dial LAPTOP_IP [--quick]` (DIR as `scripts/demo-series.sh`
+wrote it): cells 1–3, 144 loads, the views `dbts_b1-q8-g8` and `dbts_a1-q8-g8-cut` on UDP 4433 and 4435, their exact
+series on 4434 and 4436, each pair's page on 8765–8766 and each exact series' alone on 8767–8768 (arm B, cell 1's
+HTJ2K), all on loopback for `adb reverse`; `--quick` is one repetition of cell 1, two rounds of cell 2, two pairs of
+cell 3 (28 loads). `round_headless.sh --plan` runs the quick plan whole in headless Chromium on the synthetic pair.
 
 **Tested** in the container: `round.test.mjs`, `beacon.test.mjs` and `round_test.py` (a fake `adb` on PATH) in the
 gate, and `round_headless.sh`: headless Chromium against the real viewer, `series-server` and dev servers, on a

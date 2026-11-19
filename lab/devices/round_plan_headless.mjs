@@ -48,8 +48,9 @@ check(bench.every(([l, b]) => b?.decoders === l.decoders && b.codec === (l.arm.s
 const byArm = (arm) => loads.flatMap((l, k) => (l.cell === "2" && l.arm === arm && l.counted ? [of(k, "load")[0]] : []));
 check(byArm("B").every((r) => r && r.exactSeries === null && r.lossy === null), "arm B fills the exact series alone");
 check(["A", "C1", "C2"].every((a) => byArm(a).every((r) => r?.lossy)), "arms A, C1 and C2 fill the view");
-check(loads.every((l, k) => !l.exactFill || of(k, "exactFill")[0]?.frames.every((f) => f.exact === true)), "each C2 load fills the whole exact series, every frame exact");
-check(loads.every((l, k) => l.press !== "lossless" || of(k, "label").some((x) => x.quality === "lossless")), "each C1 press reaches the exact frame");
-check(loads.every((l, k) => !l.seq || (of(k, "frameChange")[0]?.steps.length === 2 * l.steps && of(k, "cine").length === 2)), "each cell 3 load runs its steps and cine, idle and busy");
+const arm = (a) => loads.flatMap((l, k) => (l.cell === "2" && l.arm === a ? [k] : []));
+check(arm("C2").every((k) => of(k, "exactFill")[0]?.frames.every((f) => f.exact === true)), "each C2 load fills the whole exact series, every frame exact");
+check(arm("C1").every((k) => of(k, "label").some((x) => x.quality === "lossless")), "each C1 press reaches the exact frame");
+check(loads.every((l, k) => l.cell !== "3" || (of(k, "frameChange")[0]?.steps.length === 6 && of(k, "cine").length === 2)), "each cell 3 load runs its steps and cine, idle and busy");
 console.log(failed ? `round plan headless: ${failed} FAILED` : "round plan headless: every claim holds");
 process.exit(failed ? 1 : 0);
