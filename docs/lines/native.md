@@ -50,6 +50,9 @@ only where it beats the browser on a measurement.
 
 ## Waits for the owner
 
+Whether and when to resume: paused 2026-11-15, the web's mobile options explored first (the owner;
+`claude/work-ledger:docs/queue-client-2026-11-14.md` amendments 18, 19; #396), and 10 bits on hardware the goal, for
+which the native planes rank first on phones (`claude/hw10-routes:docs/decode/hardware-10bit.md`, #392).
 Any merge, close or removal (the lab settings, the crate, #277, #278, #211); [`../native/README.md`](../native/README.md)
 §7's open decisions (the cache's policy, the intended use with a regulatory specialist, distribution); a toolkit or a
 transport choice; the crate's workspace membership.

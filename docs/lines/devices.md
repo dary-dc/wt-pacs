@@ -16,14 +16,15 @@ from the owner and no hands after, so every run is comparable and no valid load 
   coordination session for now; any session can take it over from this file.
 * **Protocols**: written by a cloud session that will not run them, then reviewed by another.
 * **Implementation and runs** on the owner's phone and laptop: a local session per task, briefed narrowly. The probe
-  and the one-press runner are the local session `phone-tests`'s, which stops when both are done.
+  and the one-press runner were given to the local session `phone-tests` (closed 2026-11-15): the probe is done (PR
+  393, reviewed); **the runner was never started** and goes to the next device session.
 
 ## In flight
 
 | item | where | state |
 | --- | --- | --- |
-| the hardware decode probe, inside the kit (`caps.js` gains the matrix: every AV1 form × hardware preference, each outcome recorded exactly, `copyTo` per format hashed, GPU paint precision on a 10-bit ramp) | `claude/hw-probe` (local session); its draft PR opened by the cloud review row | building; then run on the phone |
-| the one-press runner, grown from the kit's runner; the 11-11 run's pieces (`claude/phone-rows:lab/phone/`) carried by hand with their source commit cited | `claude/hw-probe` or its own branch (local session) | building |
+| the hardware decode probe, inside the kit (`caps.js` gains the matrix: every AV1 form × hardware preference, each outcome recorded exactly, `copyTo` per format hashed, GPU paint precision on a 10-bit ramp) | `claude/hw-probe`, PR 393 | built, green headless, reviewed; to run on the phone |
+| the one-press runner, grown from the kit's runner; the 11-11 run's pieces (`claude/phone-rows:lab/phone/`) carried by hand with their source commit cited | not started; its own branch | **owed**: the next device session builds it before the round |
 | the next round's protocol: decode per frame for HTJ2K and the optimal-quality view on the phone, the delivery arms A, B, C1, C2, the probe, the cache's cold read, the view comparison by frame-change and exact-frame latency | `claude/phone-protocol:docs/phone-rows/next-round.md` (PHONE-NEXT-PROTOCOL, then its review) | queued |
 | the hardware decode sources re-checked: every frame checked, `prefer-software`'s reason, 4:2:0 grey for hardware, `P010` to `I420P10` | PR 387 (`claude/hw-decode`), HW-DECODE-DEEP-REVIEW | running |
 | the depth cut to 8 bits, the fallback if no 10-bit hardware route exists | `claude/depth8` (DEPTH8-THEORY, then DEPTH8-MEASURE) | running |
@@ -43,10 +44,15 @@ device work); status files `claude/work-ledger:docs/queue/<ROW>.md`.
 
 * **`lab/phone/`**: merge `claude/phone-rows` into the runner's branch to keep its history, or carry its pieces by
   hand (the default until a word).
-* **10-bit hardware routes** (HW10-ROUTES, 2026-11-14, theory; [`../decode/hardware-10bit.md`](../decode/hardware-10bit.md),
-  PR on `claude/hw10-routes`): no browser route serves a checked 10-bit hardware frame, behind a flag or not; native
-  MediaCodec to `P010` ranks first for the phone. Reviewed 2026-11-15 (PR 392's body: 16 sources hold; on Ozone WebGL2's 8 bits is unproven, still converted and closed; ranking holds). Owed: the probe cells it asks of
-  `lab/devices/README.md`, and the owner's word on whether a native client is the 10-bit hardware route.
+* **A dedicated row for 10-bit hardware routes**, proposed, not queued: every route to a checked 10-bit hardware
+  frame, sourced and ranked, each with a probe cell (WebGPU multi-planar import with a GPU-side hash, the `copyTo`
+  re-layout, the native client's planes). *Corrected 2026-11-17:* queued by the owner 2026-11-14 (10 bits on hardware
+  the goal, 8 bits the fallback), done and reviewed 2026-11-15 (`claude/hw10-routes:docs/decode/hardware-10bit.md`,
+  #392): no shipped browser route serves it; its first ask, the phone codec's `P010`, is the probe run's.
+* **The one-press runner's third fix round**: the owner's yes, 2026-11-16; its blocker closed 2026-11-17 (#400), so the
+  client's levers (PHONE-LEVERS) come next, then the dry run.
+* **The 220-level checked hardware view** (studio range, 16 to 235) may be explored further (the owner, 2026-11-16):
+  its cells are asks in `claude/phone-protocol:docs/phone-rows/next-round.md`.
 * **The 11-11 run's reading**: the six-octet reading is of record (the owner, 2026-11-14); whether the two failures
   under `bbr` withdraw it.
 * **A cellular arm** only if a server the phone reaches over the Internet is in scope.

@@ -1,6 +1,8 @@
 # Client
 
-Last verified 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+`claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
+`claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -15,11 +17,16 @@ exact frame bit for bit, and only checked claims on screen.
   cleaning and the renames merged; one `info.path` left in `lab/faultbench/index.html` (now `info.route`), a finding in
   #382. Reaches `main` through #367 then #250, on the owner's word ([`coordination.md`](coordination.md)).
 * **The documentation round** of 2026-11-14 on `claude/docs-client` (#384, a draft into `claude/unified-client`): one home
-  for the client's design, evidence and work state. The off-branch inventory was folded 2026-11-14 (40 new evidence
-  files, the corrections in place, what was left in #384's body); the page
-  ([`../client/design.html`](../client/design.html)) 2026-11-14, with the link check reading `docs/` pages; reviewed
-  2026-11-15 (#384 §Review: 11 findings for the fix row, 2 for the owner; the gate stops at `devices.md`'s two
-  links); next the fixes.
+  for the client's design, evidence and work state, done for round 1 on 2026-11-15: structure, fold, page
+  ([`../client/design.html`](../client/design.html)), review and its fixes (#384 §Review, §Fix). Merging it is the
+  owner's word; waiting for the owner, the six contradictions in [`../client/design.md`](../client/design.md) §Open.
+  **The next round folds**, in the same structure, one `docs/<subject>/` each: codecs (`docs/av1/`, `docs/lines/codecs.md`
+  and its σ, decode-ratio and Q items the fold left), transport (`docs/transport/`, `docs/WIRE.md`, the link-conditions
+  line), the server and disk (`docs/adr/disk-access.md`, the read path), metadata; and the other client ADRs
+  (`docs/adr/exactness-in-production.md`, `claude/telemetry-client:docs/adr/telemetry-in-production.md`) into
+  `docs/client/evidence/`. Also left by this round: `docs/decode/README.md`'s per-engine statements (its lines
+  1828–1861, 2016, 2886) found by two writers; the glossary's *display level*, *reconstruction digest*, *transport
+  file*; `client/README.md`'s results not yet moved to evidence; the in-file arm labels (M1–M5, S1–S3) kept by the review.
 * **The cache survey**, theory only, 2026-11-14
   ([`../client/evidence/cache-options.md`](../client/evidence/cache-options.md)): leaning OPFS as built; owed, a
   phone's cold read and check and sustained write of a 17 MB frame (its §5). The plan to choose the store empirically,
@@ -46,6 +53,9 @@ exact frame bit for bit, and only checked claims on screen.
   green in Chromium 153 on software paths only (2026-11-14); draft PR #393, reviewed 2026-11-15 (its body §Review):
   every RGB copy and WebGL2 read there fits studio-range expansion even where the frame says `fullRange: true`, so
   the probe's RGB and paint "exact" counts measure the range, not precision. The phone run stays with `phone-tests`.
+* **The owner's decisions of 2026-11-14 to 16** (amendments 16–23 of the client queue): in
+  [`../client/design.md`](../client/design.md) §Decided, one row each, and the HTJ2K-only path with a reduced first
+  picture and the 220-level checked hardware view in §Open; the rows that carry them, PRs 378, 389, 392, 394–397, 400.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 * **The reports' options** (2026-11-14, theory and a plan,
@@ -107,7 +117,8 @@ exact frame bit for bit, and only checked claims on screen.
 Any merge, close or removal (the frame clock's: `git revert 24b80bcd`, [`coordination.md`](coordination.md) §Open 7);
 which view is the target; the contradictions the fold left open ([`../client/design.md`](../client/design.md) §Open: the
 stride ADR against never skipping, the cache file's questions 3 and 4); the coded-bytes digest; turning the cache or telemetry on, and telemetry's rate, sink and retention; a series
-without digests; the settings awaiting a default ([`../client/design.md`](../client/design.md) §Open); anything
+without digests; whether one re-ask of a lost ask is enough (#378); cell 3's guard form before the next phone round (#359);
+whether an 8-bit view at 1.14–1.86× the bytes is worth a checked hardware path (#389); the settings awaiting a default ([`../client/design.md`](../client/design.md) §Open); anything
 structural.
 
 ## Pointers
