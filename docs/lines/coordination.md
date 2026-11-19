@@ -47,6 +47,9 @@ small enough that every open item has an owner and a next step.
    two lab levers of `scroll-policies` (behind `lab-levers`), its downloader lab config, and `deploy-dry-run`'s page
    without a transport file. Its blind review (MERGE-A-REVIEW-SERVER, 2026-11-15, in PR 399's body): no blocker.
    Next: stage B once the client review is done with no blocker open.
+9. **The two weeks' program** (`claude/work-ledger:docs/queue-2026-11-14.md`, PROGRAM-PLAN, 2026-11-19): its
+   review (PROGRAM-PLAN-REVIEW, 2026-11-19, §Program review there) found four blockers, the first that no worker
+   takes its rows; PROGRAM-PLAN-FIX and its review are queued in `docs/queue-client-2026-11-14.md`.
 
 ## Unification (the owner, 2026-11-09)
 
