@@ -28,7 +28,7 @@ Pilot 13:35Z: AA, CR, FF, LOSS done (0 crashes; VOIDs: relay guard 5, one H2-fra
 00:52Z: the container restarted at ~00:50Z and stopped the detached run inside ENT's first period (1 visit, kept as rows/ENT.partial-0051.jsonl, no bar). Resumed 00:51Z by $SCRATCH/counted2.sh: ENT then FP until the 12 h stop at 02:58Z.
 ## Result
 TRANSPORT-RUN done: stacks.md §5 as pre-registered, 14:58Z to the 12 h stop 02:58Z; 9 of 10 cells (FP not reached); results in
-claude/transport-design stacks.md §6, each cell against its prediction. Every frame of 1 764 counted visits exact (XXH3).
+claude/transport-design stacks.md §6, each cell against its prediction. Every frame of 1 706 counted visits exact (XXH3).
 * Fills tie on clean links (CLEAN, PUB: every arm ×0.999–1.003); BYTES within ±0.2 % of WT (WT 1.037 of the frames' bytes).
 * AA: after 5 s idle the TCP arms are ×1.35–1.70, WT and H3 keep their window (the record's line); at 1 s they tie, since
   Linux's tcp_cwnd_restart halves once per RTO rather than resetting (sourced at v6.18).
