@@ -33,7 +33,8 @@ try {
   const timing = (arm.schedule ?? schedule)({ timing: q.get("arm") === "off" ? "off" : q.get("timing"), carrier, load: cost.load, mutate });
   const safety = (failure) => { rig.safety++; cost.timed(() => carrier.safety(JSON.stringify(mutate(safetyRecord(ctx, failure, env))))); };
   Object.assign(rig, { load: ctx.load, press: (text) => load.press({ at: Date.now(), text }),
-                       cost: () => ({ ms: cost.ms(), sends: cost.sends(), longTasks: rig.longTasks }) });
+                       cost: () => ({ ms: cost.ms(), sends: cost.sends(), longTasks: rig.longTasks,
+                                      longTasksObserved: PerformanceObserver.supportedEntryTypes.includes("longtask") }) });
   // D8 has no session, so no decode to fail: the failure is forced on the page at once.
   if (q.get("forced") === "page") {
     safety({ frame: Number(q.get("at")), route: "forced", check: "xxh3", expected: null, actual: null, secondDecode: false,

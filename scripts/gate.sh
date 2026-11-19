@@ -231,6 +231,7 @@ run 1 node lab/report-arms/session/session.test.mjs
 run 1 node lab/faultbench/fault.test.mjs
 run 1 node lab/report-arms/cells.test.mjs
 run 1 node lab/report-arms/receivers.test.mjs
+run 1 node lab/report-arms/bidi.test.mjs
 if "${NGINX_BIN:-nginx}" -v 2>&1 | grep -qE 'nginx/1\.(3[2-9]|31\.([5-9]|[1-9][0-9]))'; then
   run 1 node lab/report-arms/nginx/nginx.test.mjs
 else

@@ -3,7 +3,7 @@
 // dbts_c1; D6 (the link drop under --tun) is not wired.
 // node lab/report-arms/run.mjs --units "off,beacon:H,beacon:Y,off'" --endings D1,D2 [--rounds 18] [--mutant M]
 //   [--sink-mutant ack-before-write] [--wait 60] [--receiver sink|nginx|receiver] [--tun] --out rows.jsonl
-// --tun (D6 needs it): reruns inside `unshare -rn`, the receivers and server behind link_impair.py --tun.
+// --engine firefox: raw BiDi (bidi.mjs), FIREFOX_PATH. --tun (D6 needs it): reruns inside `unshare -rn`, the receivers and server behind link_impair.py --tun.
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -13,7 +13,8 @@ import { startNginx, nginxCounters } from "./nginx/nginx.mjs";
 import { readLines, byLoad } from "./read.mjs";
 import { latencies, quantile, floorTimes, bodies } from "./cells.js";
 import { order, balanced } from "../order.mjs";
-import * as cdp from "./cdp.mjs";
+import * as chromium from "./cdp.mjs";
+import * as firefox from "./bidi.mjs";
 import { blackout } from "./levers.mjs";
 
 const ROOT = new URL("../..", import.meta.url).pathname.replace(/\/$/, "");
@@ -21,6 +22,8 @@ const WORK = join(ROOT, "lab/.report-work");
 const FRAMES = 32;
 const AT = 10;
 const LATER_FAULTS = 20;
+/** The engine's driver: cdp.mjs or bidi.mjs, one set of calls. */
+let cdp = chromium;
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 const bin = (name) => join(process.env.CARGO_TARGET_DIR ?? join(ROOT, "target"), "release", name);
 
@@ -153,7 +156,7 @@ const ENDINGS = {
   D8: (b, p, o) => cdp.navigate(b, p, o.other),
   D6: async (b, p, o) => { await blackout(o.control, 30000); await pause(1000); await cdp.hide(b, p); await pause(1000);
                            await cdp.navigate(b, p, o.other); },
-  D9: async (b, p) => { await cdp.hide(b, p); await pause(5000); await cdp.freeze(b, p); await pause(55000); },
+  D9: async (b, p, o) => { await cdp.hide(b, p); await pause(5000); if (o.engine === "chromium") await cdp.freeze(b, p); await pause(55000); },
   L: async (b, p, o) => { o.row.faults = await laterFaults(b, p); },
   Lbusy: async (b, p, o) => { o.row.faults = await laterFaults(b, p); },
   C: async (b, p, o) => { await cdp.hide(b, p); await pause(500); o.row.cost = await cdp.evaluate(b, p, "rig.cost()");
@@ -184,11 +187,14 @@ async function front(receiver, out, sink, sinkMutant, at) {
   return { port, counters, close: async () => { rec?.kill(); await n.close(); } };
 }
 
-async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir, out, via, at }) {
+async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir, out, via, at, engine }) {
   const { arm, timing } = unit(u);
-  const row = { unit: u, arm, timing, ending, mutant: mutant ?? null, sinkMutant: sinkMutant ?? null, engine: "chromium" };
+  const row = { unit: u, arm, timing, ending, mutant: mutant ?? null, sinkMutant: sinkMutant ?? null, engine };
   if (ending === "D6" && !at.control) throw new Error("D6 needs --tun");
-  row.error = await drive(() => cdp.launch({ args: secureOrigins(at.host, [via.port, sink.port]) }), async (b) => {
+  const origins = [via.port, sink.port].map((port) => `http://${at.host}:${port}`);
+  const launch = engine === "firefox" ? () => cdp.launch({ secure: at.ns.length ? origins : [] })
+    : () => cdp.launch({ args: secureOrigins(at.host, [via.port, sink.port]) });
+  row.error = await drive(launch, async (b) => {
     await cdp.openPage(b, "about:blank");
     const q = new URLSearchParams({ arm, timing, dir: `/${relative(ROOT, dir)}`, fault: "sample", at: AT,
       wt: srv?.wt ?? "https://127.0.0.1:9/", hash: srv?.hash ?? "00", ...(mutant ? { mutant } : {}),
@@ -209,7 +215,7 @@ async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir,
     }
     if (!ending.startsWith("D5")) row.fillMs = await cdp.evaluate(b, p, "rig.fillMs ?? null");
     if (/^(L|C)/.test(ending)) row.floors = await cdp.evaluate(b, p, "rig.floors ?? null");
-    await ENDINGS[ending](b, p, { other, row, control: at.control });
+    await ENDINGS[ending](b, p, { other, row, control: at.control, engine });
   }, wait * 1000);
   const files = readdirSync(out).filter((f) => /^(load|safety)-.*\.jsonl$/.test(f) || f === "report-fallback.log");
   const lines = ["load.jsonl", "safety.jsonl", "link.jsonl", "server-load.jsonl", "server-safety.jsonl"]
@@ -234,11 +240,12 @@ async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir,
 if (import.meta.url === `file://${process.argv[1]}`) {
   const { values: o } = parseArgs({ options: { units: { type: "string", default: "off,stub:Y" },
     endings: { type: "string", default: "D1" }, rounds: { type: "string", default: "1" }, mutant: { type: "string" },
-    "sink-mutant": { type: "string" }, receiver: { type: "string", default: "sink" }, tun: { type: "boolean" }, wait: { type: "string", default: "60" }, out: { type: "string", default: "rows.jsonl" } } });
+    "sink-mutant": { type: "string" }, receiver: { type: "string", default: "sink" }, tun: { type: "boolean" }, engine: { type: "string", default: "chromium" }, wait: { type: "string", default: "60" }, out: { type: "string", default: "rows.jsonl" } } });
   if (o["sink-mutant"] && o.receiver === "nginx") throw new Error("--sink-mutant has no lever in NGINX");
   if (o.tun && !process.env.REPORT_ARMS_NS) {
     process.exit(spawnSync("unshare", ["-rn", "env", "REPORT_ARMS_NS=1", process.execPath, ...process.argv.slice(1)], { stdio: "inherit" }).status ?? 1);
   }
+  cdp = { chromium, firefox }[o.engine];
   const at = await place(o.tun);
   const units = o.units.split(",");
   const out = join(WORK, `sink-${Date.now()}`);
@@ -253,7 +260,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       for (const { round, unit: u, predecessor } of rows) {
         const srv = ending === "D8" ? null : (servers.up ??= await server(dir, out, at));
         const row = { round, predecessor, ...await load({ unit: u, ending, mutant: o.mutant, sinkMutant: o["sink-mutant"],
-          wait: Number(o.wait), sink, srv, dir, out, via, at }) };
+          wait: Number(o.wait), sink, srv, dir, out, via, at, engine: o.engine }) };
         appendFileSync(o.out, JSON.stringify(row) + "\n");
         console.log(JSON.stringify(row));
       }
