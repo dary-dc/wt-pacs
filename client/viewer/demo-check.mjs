@@ -47,8 +47,8 @@ const run = (cmd, args) => {
   return child;
 };
 
-/** README §Demo's three servers; `exactMeta`, the exact series' metadata file the static host serves. */
-async function serve(exactMeta) {
+/** README §Demo's three servers; `exactMeta` and `meta`, the two series' metadata files the static host serves. */
+async function serve(exactMeta, meta = path.join(dir, `${id}.metadata.json`)) {
   const cert = ["--cert-pem", "server/dev-cert/cert.pem", "--key-pem", "server/dev-cert/key.pem"];
   // Renewed before the servers load it: the static host would renew it after, and the page would pin a hash they lack.
   await new Promise((resolve, reject) => run("server/scripts/gen_dev_cert.sh", ["--if-needed"])
@@ -62,7 +62,7 @@ async function serve(exactMeta) {
   if (LINK) writeFileSync(`${T}/transport.json`, transport.replace(":4433", toLossy));
   writeFileSync(`${T}/exact-transport.json`, transport.replace(":4433", toExact));
   const link = LINK && run("python3", ["lab/scripts/link_impair.py", "--udp", "5433:4433", "--udp", "5434:4434", ...LINK.split(/\s+/)]);
-  const host = run("python3", ["server/dev-server.py", "--port", "8765", "--metadata", path.join(dir, `${id}.metadata.json`),
+  const host = run("python3", ["server/dev-server.py", "--port", "8765", "--metadata", meta,
     ...(LINK ? ["--transport", `${T}/transport.json`] : []), "--exact-metadata", exactMeta, "--exact-transport", `${T}/exact-transport.json`]);
   await Promise.all([started(lossy, /transport=/), started(exact, /transport=/), started(host, /port=8765/), link && started(link, /READY/)]);
 }
@@ -88,6 +88,25 @@ function watch() {
       }).observe(el, { childList: true, characterData: true, subtree: true, attributes: true });
     }
   });
+}
+
+/** Frame 2's reconstruction digest made wrong: a step to it from a matched frame 1 must say not as coded, never keep the ✓. */
+async function refusedPass(browser) {
+  const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+  await page.addInitScript(watch);
+  await page.goto(`http://127.0.0.1:8765/?overlay=1&view=${VIEW}&fill=0`);
+  const quality = () => page.evaluate(() => globalThis.__log.findLast((e) => e.id === "quality")?.text);
+  const until = async (want, ms) => {
+    for (const end = Date.now() + ms; Date.now() < end; await page.waitForTimeout(20)) if ((await quality()) === want) return true;
+    return false;
+  };
+  must(await until(OPTIMAL, 30000), `a wrong reconstruction digest: frame 1 labelled ${await quality()}, not ${OPTIMAL}`);
+  await page.keyboard.press("ArrowRight");
+  await until(NOT_AS_CODED, 30000);
+  const [label, status] = [await quality(), await page.evaluate(() => document.getElementById("status").textContent)];
+  await page.close();
+  check(label === NOT_AS_CODED, `a wrong reconstruction digest: frame 2 labelled ${label}, not ${NOT_AS_CODED}`);
+  check(/^frame 2 of/.test(status) && /frame 1: not as coded: /.test(status), `a wrong reconstruction digest: the status line names the refusal: ${status}`);
 }
 
 /** One reader's pass: open, scroll in order, Home, End (a jump), `l` and `l` again. */
@@ -150,7 +169,10 @@ async function pass(browser, query) {
   };
 }
 
-const LABELS = ["Optimal quality", "Optimal quality · fetching lossless…", "Lossless", "Optimal quality"];
+// A series with reconstruction digests labels each matched frame so: docs/av1/payload-format.md §Integrity
+const OPTIMAL = lossyMeta.lossy.reconstruction ? "Optimal quality ✓" : "Optimal quality";
+const LABELS = [OPTIMAL, "Optimal quality · fetching lossless…", "Lossless", OPTIMAL];
+const NOT_AS_CODED = "Optimal quality — not as coded";
 const FAILED = "Lossless check failed · optimal quality shown";
 const routeOf = (overlay) => overlay.match(/^(\S+)( after WebCodecs refused: (.*?))? · ([\d.]+) KB · decode ([\d.]+) ms/);
 
@@ -194,6 +216,14 @@ try {
   const RETRIED = [LABELS[0], LABELS[1], FAILED, LABELS[1], FAILED];
   check(JSON.stringify(r.labels) === JSON.stringify(RETRIED), `a wrong digest, \`l\` and its retry: the label ran ${JSON.stringify(r.labels)}, not ${JSON.stringify(RETRIED)}`);
   report.tampered = r.labels;
+  if (lossyMeta.lossy.reconstruction) {
+    stop();
+    const wrong = structuredClone(lossyMeta);
+    wrong.lossy.reconstruction.frames[1] = wrong.lossy.reconstruction.frames[1].replace(/^./, (c) => (c === "0" ? "1" : "0"));
+    writeFileSync(`${T}/wrong-reconstruction.json`, JSON.stringify(wrong));
+    await serve(exactMetaPath, `${T}/wrong-reconstruction.json`);
+    await refusedPass(browser);
+  }
 } catch (e) {
   failures.push(e.message);
 } finally {
