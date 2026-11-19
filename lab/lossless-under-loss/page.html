@@ -32,10 +32,10 @@ const fillDone = new Promise((done) => {
 const exact = await DownloaderClient.connect(q.get("exact"), q.get("hash"), { decode: false, decoders: 1 });
 // The digest check is not under test: a frame that arrives stands in for one that matched.
 controller.exactSource = {
-  requestExactFrame: (i) => {
+  requestFrame: (i) => {
     log("ask");
-    return exact.requestExactFrame(i).then(
-      (f) => (log("arrived", { bytes: f.bytes.length }), { ...f, info: { ...grey, exact: true, path: "htj2k" } }),
+    return exact.requestFrame(i).then(
+      (f) => (log("arrived", { bytes: f.bytes.length }), { ...f, info: { ...grey, exact: true, route: "htj2k" } }),
       // The re-ask off: a lost ask passed on as any other failure, which the controller never asks again.
       (e) => (log("rejected", { reason: e.message, name: e.name }), Promise.reject(q.get("retry") === "off" ? new Error(e.message) : e)),
     );
