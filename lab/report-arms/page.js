@@ -6,14 +6,19 @@ import { built } from "/client/decode/wasm-glue.js";
 import { Load, safetyRecord } from "./record.js";
 import { schedule } from "./timing.js";
 import { wrapCarrier, mutateRecord } from "./mutants.js";
+import { meter } from "./cells.js";
 
 const q = new URLSearchParams(location.search);
 const mutant = q.get("mutant");
 const mutate = (r) => mutateRecord(r, mutant);
-const rig = (globalThis.rig = { state: "starting", safety: 0, frames: 0, error: null, faultAt: null });
+const rig = (globalThis.rig = { state: "starting", safety: 0, frames: 0, error: null, faultAt: null, faults: [],
+  longTasks: [] });
 const now = () => performance.timeOrigin + performance.now();
-new BroadcastChannel("faultbench").onmessage = ({ data }) => { rig.faultAt ??= data.at; };
+new BroadcastChannel("faultbench").onmessage = ({ data }) => { rig.faultAt ??= data.at; rig.faults.push(data.at); };
 rig.sinceFault = () => now() - rig.faultAt;
+new PerformanceObserver((l) => rig.longTasks.push(...l.getEntries().map((e) => Math.round(e.duration)))).observe({ type: "longtask" });
+// Cell L's busy page: a 50 ms long task every 100 ms on this thread.
+if (q.get("busy")) setInterval(() => { const end = performance.now() + 50; while (performance.now() < end); }, 100);
 
 try {
   if (!globalThis.crossOriginIsolated) throw new Error("not cross-origin isolated");
@@ -22,11 +27,13 @@ try {
                 source: meta.sourceFingerprint ?? null, frameCount: meta.frameCount, codec: meta.codec ?? "htj2k" };
   const env = { engine: navigator.userAgent, hardwareConcurrency: navigator.hardwareConcurrency };
   const arm = await import(`./arms/${q.get("arm")}.js`);
-  const carrier = wrapCarrier(arm.default(ctx), mutant);
   const load = new Load(ctx);
-  const timing = (arm.schedule ?? schedule)({ timing: q.get("arm") === "off" ? "off" : q.get("timing"), carrier, load, mutate });
-  const safety = (failure) => { rig.safety++; carrier.safety(JSON.stringify(mutate(safetyRecord(ctx, failure, env)))); };
-  Object.assign(rig, { load: ctx.load, press: (text) => load.press({ at: Date.now(), text }) });
+  const cost = meter(load, wrapCarrier(arm.default(ctx), mutant));
+  const carrier = cost.carrier;
+  const timing = (arm.schedule ?? schedule)({ timing: q.get("arm") === "off" ? "off" : q.get("timing"), carrier, load: cost.load, mutate });
+  const safety = (failure) => { rig.safety++; cost.timed(() => carrier.safety(JSON.stringify(mutate(safetyRecord(ctx, failure, env))))); };
+  Object.assign(rig, { load: ctx.load, press: (text) => load.press({ at: Date.now(), text }),
+                       cost: () => ({ ms: cost.ms(), sends: cost.sends(), longTasks: rig.longTasks }) });
   // D8 has no session, so no decode to fail: the failure is forced on the page at once.
   if (q.get("forced") === "page") {
     safety({ frame: Number(q.get("at")), route: "forced", check: "xxh3", expected: null, actual: null, secondDecode: false,
@@ -48,6 +55,7 @@ try {
     if (rig.frames < n) return;
     const fillTo = performance.timeOrigin + performance.now();
     load.fill = { fillFrom, fillTo, fillMs: fillTo - fillFrom };
+    rig.fillMs = fillTo - fillFrom;
     rig.state = "filled";
     timing.fillEnded();
   };
@@ -79,6 +87,7 @@ try {
     },
   });
   rig.state = "filling";
+  rig.refault = () => c.fill([Number(q.get("at"))]);
   c.fill([...Array(n).keys()]);
 } catch (e) {
   rig.state = "error";

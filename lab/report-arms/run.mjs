@@ -10,6 +10,7 @@ import { parseArgs } from "node:util";
 import { startSink } from "./sink.mjs";
 import { startNginx, nginxCounters } from "./nginx/nginx.mjs";
 import { readLines, byLoad } from "./read.mjs";
+import { latencies, quantile } from "./cells.js";
 import { order, balanced } from "../order.mjs";
 import * as cdp from "./cdp.mjs";
 
@@ -17,6 +18,7 @@ const ROOT = new URL("../..", import.meta.url).pathname.replace(/\/$/, "");
 const WORK = join(ROOT, "lab/.report-work");
 const FRAMES = 32;
 const AT = 10;
+const LATER_FAULTS = 20;
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 const bin = (name) => join(process.env.CARGO_TARGET_DIR ?? join(ROOT, "target"), "release", name);
 
@@ -119,7 +121,17 @@ const ENDINGS = {
                            await cdp.evaluate(b, p, "rig.press('frame')"); await cdp.navigate(b, p, o.other); },
   D8: (b, p, o) => cdp.navigate(b, p, o.other),
   D9: async (b, p) => { await cdp.hide(b, p); await pause(5000); await cdp.freeze(b, p); await pause(55000); },
+  L: async (b, p, o) => { o.row.faults = await laterFaults(b, p); },
+  Lbusy: async (b, p, o) => { o.row.faults = await laterFaults(b, p); },
+  C: async (b, p, o) => { await cdp.hide(b, p); await pause(500); o.row.cost = await cdp.evaluate(b, p, "rig.cost()");
+                          await cdp.navigate(b, p, o.other); },
 };
+
+/** Cell L: the fill's own fault, then 20 more, 1 s apart, each a fresh ask of the faulted frame. */
+async function laterFaults(b, p) {
+  for (let k = 0; k < LATER_FAULTS; k++) { await cdp.evaluate(b, p, "rig.refault()"); await pause(1000); }
+  return cdp.evaluate(b, p, "rig.faults");
+}
 
 /** The receiver the carriers post to, and the origin the page loads from: the sink itself, NGINX, or RECEIVER behind
  * nginx; nginx proxies the pages to the sink. */
@@ -145,7 +157,7 @@ async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir,
     await cdp.openPage(b, "about:blank");
     const q = new URLSearchParams({ arm, timing, dir: `/${relative(ROOT, dir)}`, fault: "sample", at: AT,
       wt: srv?.wt ?? "https://127.0.0.1:9/", hash: srv?.hash ?? "00", ...(mutant ? { mutant } : {}),
-      ...(ending === "D8" ? { forced: "page" } : {}) });
+      ...(ending === "D8" ? { forced: "page" } : {}), ...(ending === "Lbusy" ? { busy: "1" } : {}) });
     const p = await cdp.openPage(b, `http://127.0.0.1:${via.port}/lab/report-arms/index.html?${q}`);
     row.load = await cdp.evaluate(b, p, "new Promise((r) => { const t = setInterval(() => rig.load && (clearInterval(t), r(rig.load)), 10); })");
     const other = `http://localhost:${sink.port}/lab/report-arms/probe.html?id=away`;
@@ -159,7 +171,8 @@ async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir,
       for (const text of ["frame", "frame", "frame", "Lossless"]) await cdp.evaluate(b, p, `rig.press(${JSON.stringify(text)})`);
       await pause(6000);
     }
-    await ENDINGS[ending](b, p, { other });
+    if (!ending.startsWith("D5")) row.fillMs = await cdp.evaluate(b, p, "rig.fillMs ?? null");
+    await ENDINGS[ending](b, p, { other, row });
   }, wait * 1000);
   const files = readdirSync(out).filter((f) => /^(load|safety)-.*\.jsonl$/.test(f) || f === "report-fallback.log");
   const lines = ["load.jsonl", "safety.jsonl", "link.jsonl", "server-load.jsonl", "server-safety.jsonl"]
@@ -169,6 +182,10 @@ async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir,
   Object.assign(row, { fill: !!e?.records.some((r) => r.seq === 0 && r.fillMs != null), seqs: e?.seqs ?? [],
     safety: e?.safety.length ?? 0, duplicates: e?.duplicates ?? 0, unkeyed: e?.unkeyed ?? 0, outside: e?.outside ?? [],
     link: !!e?.link, receiver: via.name, counters: structuredClone(await via.counters()) });
+  if (row.faults) {
+    const l = latencies(row.faults, lines, row.load);
+    row.latency = { fill: l[0], later: l.slice(1), p50: quantile(l.slice(1), 0.5), p99: quantile(l.slice(1), 0.99) };
+  }
   const server = join(out, "server-counters.json");
   if (existsSync(server)) row.serverCounters = JSON.parse(readFileSync(server, "utf8"));
   return row;
