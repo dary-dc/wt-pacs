@@ -803,8 +803,9 @@ with the sync read ~33 / ~33 against ~30 / ~42; IDB and CACHESTORAGE "at risk at
 failed at S2 as well as S3 on Firefox. R-busy: CACHESTORAGE's "up to one put" was ~+16 / +22 ms on Chromium and failed.
 O: CACHESTORAGE and IDB on Firefox exceed R / n ≤ decode at S3 and S1. Q: OPFS-SYNC refused at open, as §8.8 4
 foresaw. **T on Chromium's OPFS-SYNC is unpredicted and the most serious row**: tab 2, reading by `getFile()` while tab 1
-writes through its handle, received 3 frames over 4 rounds whose bytes were wrong while its own re-check reported
-none damaged (`read.damaged` empty, the harness's SHA-256 `verify.notOk` 2, 0, 1, 0). P: as predicted (Firefox's OPFS
+writes through its handle, ended with 3 frames over 4 rounds that the harness's SHA-256 found not exact
+(`verify.notOk` 2, 0, 1, 0) while the arm's own re-check reported none damaged (`read.damaged` empty); where the
+bytes went wrong is not traced here. P: as predicted (Firefox's OPFS
 has no store in a private window).
 
 **By §8.5.** No arm meets every bar in every counted, non-VOID, unsaturated cell on either engine (L at S1 fails all
