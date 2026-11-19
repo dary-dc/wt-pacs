@@ -6,4 +6,6 @@ TS="$HERE/../../client/transport/ts"
 bash "$TS/build.sh" >/dev/null
 "$TS/node_modules/.bin/esbuild" "$HERE/fetch-session.ts" --bundle --format=esm --platform=browser --target=es2022 \
   --outfile="$HERE/dist/fetch-session.js" --log-level=warning
-echo "wrote lab/transport-arms/dist/fetch-session.js"
+"$TS/node_modules/.bin/esbuild" "$HERE/fetch-session.test.ts" --bundle --format=esm --platform=node --target=es2022 \
+  --outfile="$HERE/dist/fetch-session.test.mjs" --log-level=warning
+echo "wrote lab/transport-arms/dist/fetch-session.js dist/fetch-session.test.mjs"
