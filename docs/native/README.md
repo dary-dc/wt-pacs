@@ -1,5 +1,58 @@
 # Native client — the plan
 
+**Paused 2026-11-15, the owner's** ("for now, we are pausing the native path. we will merge it, and in the future keep
+experimenting with it"). `client/native` rides the merges as an experimental crate, off the served path as today; no
+row builds or measures it until the owner resumes it.
+
+## Status
+
+**Built** (`client/native`, measured in containers on lavapipe, no GPU, no phone): a Rust core on raw QUIC (`wt-pacs/1`,
+§8) with native OpenJPH and dav1d, the per-frame check, a file cache and a winit window with M1's painter, on three
+paint threads (`ui`, `view`, `core`; §The view-worker design, native).
+
+**Measured** ([`../client/evidence/native-client-milestones.md`](../client/evidence/native-client-milestones.md),
+[`native-window-against-browser.md`](../client/evidence/native-window-against-browser.md)):
+
+* **M1, the painter**: exact, |Δ| = 0 in 54 cells against the browser suite's CPU reference; lavapipe only.
+* **M2, fill and ask**: on a clean link a native client buys nothing on desktop; ~4 % faster fill under 2 % loss at
+  20 Mbit; its clear gain is where client CPU binds (0.43–0.48 of the fill on loopback).
+* **M3, the file cache**: warm reopen 0.015× of a refetch, 100 of 100 kills clean; cold reopen and power loss not
+  measured.
+* **The window** against the browser: `view` keeps M2's reading; `core` fills 7 % slower at 20 Mbit (the receive shares
+  the paint's thread); first frame 161–206 ms earlier on every paint thread.
+
+**Designed, never run**: the native design run (§The comparison, pre-registered; its needs in §Built for the native
+design run, last paragraph). **Lab settings still in the product window**: `window.rs`'s `--cache-write-delay-ms`,
+`--stamp-painted`, `--cine-hz`, `--busy-ui-ms`, `--busy-every-ms`, `--steps`, `--step-every-ms`, `--steps-via` (off
+by default), and `count.rs`'s hop stamps, always on.
+
+**Found since, about native as the 10-bit hardware route** (`claude/hw10-routes:docs/decode/hardware-10bit.md`, PR
+392, theory and sources, nothing run on a device): no shipped browser route paints a hardware-decoded 10-bit frame at
+full precision *and* lets the frame check hash its samples, so "the 10-bit hardware view is native or nothing, today"
+(its §9). Ranked there: **(1) MediaCodec in ByteBuffer mode or an `ImageReader`, `P010`**, first for phones, the hash on
+the CPU from the luma plane; (2) Vulkan Video, a `P010` image hashed on the GPU with no read-back; (3) D3D12,
+VA-API, NVDEC, VideoToolbox, a copy then the hash. Every API takes 4:2:0 at 10 bits and 4:0:0 only where some
+drivers list it, so a native 10-bit view needs the stream as **4:2:0 with constant chroma at 10 bits** on every API but
+NVDEC (its §8, derived), a form not built (`--grey8` is 8-bit only).
+
+**How to resume**, in order:
+
+1. **The lab settings out of the product window** (cloud): an inventory of each setting above and its move (a lab
+   example or a `lab` feature), as a draft PR. Decides: the cleaning rule (no lab code in product modules) and the
+   owner's yes before any removal.
+2. **The phone's `P010` route** (ingest in the cloud, then the device): the 10-bit 4:2:0 constant-chroma form in the
+   ingest, then a probe on the phone that asks MediaCodec for AV1 Main 10 in ByteBuffer mode. Decides: whether rank 1
+   holds — the codec lists AV1 Main 10 and `COLOR_FormatYUVP010`, decodes the unit bit-exact against its digest, and
+   at what time against software.
+3. **M1 and M2 on a GPU desktop** (the owner's machine), with Vulkan Video's decode and the GPU hash. Decides: whether
+   the painter is exact on a real GPU (Vulkan's 8-bit rounding is a *should*), the first numbers that are not
+   software rendering, and rank 2's cost.
+
+The native design run follows these, by a session that wrote neither its runner nor its build. The owner's open
+decisions are §7.
+
+## The plan (2026-10-11)
+
 *Queue row 127, NATIVEPLAN, 2026-10-11. Theory only: read from sources, nothing built, nothing timed. The plan for
 the owner; every choice in it is the owner's (§7).*
 
@@ -9,6 +62,7 @@ because it is easier to start there; phones are the goal (the owner, 2026-10-10)
 
 ## Contents
 
+0. [Status](#status)
 1. [The plan in plain words](#1-the-plan-in-plain-words)
 2. [Paint](#2-paint)
 3. [The cache](#3-the-cache)
