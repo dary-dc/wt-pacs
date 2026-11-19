@@ -1,7 +1,7 @@
-state: started
+state: done
 started: 2026-11-18T12:16Z
-heartbeat: 2026-11-19T02:22Z
-outputs: claude/transport-arms (rows), claude/transport-design (stacks.md §Results)
+heartbeat: 2026-11-19T03:00Z
+outputs: claude/transport-arms rows 9fb9eff6..70a70950 (lab/transport-arms/rows/), 7ab31404 4cd38e48 (the pilot's pooled relay check), 57bb45e0 (summary.py), 0bb23cfe (lines/codecs.md §Open 7); claude/transport-design 0de5b554 (§5.7 the pilot's amendment), fec263c3 2783ee2d (§6 Results); PR 403
 ## Resume
 Claimed 12:2xZ. Host: Chromium 157.0.8103.78 (playwright's), neither of §1's tags, so §5.2's four window constants
 were re-read at 157.0.8103.78 (chromium.googlesource.com, ?format=TEXT): net/quic/quic_context.cc
@@ -27,3 +27,16 @@ Pilot 13:35Z: AA, CR, FF, LOSS done (0 crashes; VOIDs: relay guard 5, one H2-fra
 00:44Z: LOSS, LTE, CLEAN, PUB counted complete. ENT running until the 12 h stop (02:58Z); FP will not be reached.
 00:52Z: the container restarted at ~00:50Z and stopped the detached run inside ENT's first period (1 visit, kept as rows/ENT.partial-0051.jsonl, no bar). Resumed 00:51Z by $SCRATCH/counted2.sh: ENT then FP until the 12 h stop at 02:58Z.
 ## Result
+TRANSPORT-RUN done: stacks.md §5 as pre-registered, 14:58Z to the 12 h stop 02:58Z; 9 of 10 cells (FP not reached); results in
+claude/transport-design stacks.md §6, each cell against its prediction. Every frame of 1 764 counted visits exact (XXH3).
+* Fills tie on clean links (CLEAN, PUB: every arm ×0.999–1.003); BYTES within ±0.2 % of WT (WT 1.037 of the frames' bytes).
+* AA: after 5 s idle the TCP arms are ×1.35–1.70, WT and H3 keep their window (the record's line); at 1 s they tie, since
+  Linux's tcp_cwnd_restart halves once per RTO rather than resetting (sourced at v6.18).
+* §4's retraction met once: H2 and WS first frames land within 1 RTT of WT (×1.00–1.016); §3's "one RTT more" retracted.
+* WS faster for an ask during a fill (×0.718 PUB, ×0.448 LTE) and on ENT (×0.842); H3-frame faster on CR (×0.630).
+* Server CPU over kernel TCP ×0.15 of WT; H3 fetch ×1.6 client CPU. ENT's fills ~18× the prediction (176 s).
+* Suspected carrier defect: H3-fill/H2-fill's ask never took effect (frames strictly in order, ×11 on AD) — for the verdict review.
+* A pilot check fixed test-first (pooled 0.1 % relay check; 3 mutants killed), amended in §5.7 with the pilot's choices.
+Fixtures: dbts_b1 HTJ2K 50 frames, one 4-core container (busiest core ≤ 0.91), Chromium 157.0.8103.78 headless, TUN relay
+≤ 90 Mbit, scaled and assumed profiles, no radio. A container restart at ~00:50Z cost one ENT visit (kept, no bar).
+Owner decisions: none from the run (a GET path is structural and the owner's, after TRANSPORT-VERDICT-REVIEW).
