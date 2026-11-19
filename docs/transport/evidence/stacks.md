@@ -360,9 +360,110 @@ timeout and the prefixes of LTE and LOSS). Pilot rows: `claude/transport-arms` `
 6. **The 12 h stop counts from the first counted row**, and this container stops a session's jobs at 2 h, so the run
    is one detached process (`lab/transport-arms/run.mjs` a cell at a time, in §5.4's order).
 
+## 6 · Results
+
+*Measured 2026-11-18 14:58Z to 2026-11-19 02:58Z by TRANSPORT-RUN, a session that wrote none of §1–§5 or the build.
+Rows: `claude/transport-arms` `lab/transport-arms/rows/<CELL>.jsonl`; every table below is reproduced by
+`python3 lab/transport-arms/summary.py lab/transport-arms/rows <CELLS>`, whose verdict column is
+`lab/scripts/aa_rule.py --bar 0.05` against WT-TS′ (§5.5). Every visit's frames were checked by XXH3: none failed.
+Ratios are each arm's to WT-TS in the same round, median (range), rounds better of n; a prediction **holds** when the
+median lies in its band (ties ×0.95–1.05), else it is a **miss**. Every link is a relay's scaled model (§5.0), none a
+radio.*
+
+**Fixtures and limits.** One series, `dbts_b1` as HTJ2K (50 frames, 107 407 602 B, 2.15 MB a frame); one 4-core
+container (Intel Xeon @ 2.30 GHz), headless Chromium 157.0.8103.78, the userspace TUN relay at ≤ 90 Mbit; the kernel's
+default controller `bbr`, the TCP arms' server sockets on `cubic` (§5.7) and read back as `cubic` on every visit. **The
+host:** the busiest core's median per cell 0.12–0.52, its maximum 0.91 (FF); no visit was `VOID` by a busy core, so no
+cell reached this host's saturation. Nothing is claimed above 90 Mbit.
+
+### 6.1 · Each cell against its prediction
+
+| cell (form) | visits, `VOID` | WT-TS measured (predicted, D) | arms, median ratio (aa_rule) | prediction | holds? |
+| --- | --- | --- | --- | --- | --- |
+| **AA** pub 0.1 s | 128, 0 | 230 ms (~0.21 s) | WS 0.984, H2-frame 0.990, H2-fill 0.992 (faster); H3-frame 1.015, H3-fill 1.009 (slower); WT-WASM, WT-TS′ tie | at 0.1 s all tie | holds |
+| AA pub 1 s | 128, 1 | 230 ms | WS 0.982 (faster), H2-frame 0.990 (tie), H2-fill 0.989 (faster); H3-* 1.007–1.010 (slower) | record's line: H2-*, WS ×1.2–1.9; §3's: all tie | record's line **miss**; §3's holds |
+| AA pub 5 s | 128, 0 | 229 ms | WS 1.391, H2-frame 1.366, H2-fill 1.350 (slower); H3-frame 1.020 (slower), H3-fill 1.007 (tie) | record's: H2-*, WS ×1.2–1.9, H3 tie | record's line holds; §3's **miss** |
+| AA 38 ms 0.1 s | 128, 1 | 252 ms (~0.23 s) | WS 0.970, H2-frame 0.975, H2-fill 0.974 (faster); H3-frame 1.018 (slower) | all tie | holds |
+| AA 38 ms 1 s | 128, 1 | 251 ms | WS 1.010 (slower), H2-frame 1.000 (tie), H2-fill 0.975 (faster); H3-frame 1.019 (slower) | record's: H2-*, WS ×1.2–1.9 | record's line **miss**; §3's holds |
+| AA 38 ms 5 s | 128, 1 | 251 ms | WS 1.635, H2-frame 1.687, H2-fill 1.699 (slower); H3-frame 1.021 (slower), H3-fill 1.006 (tie) | record's: ×1.2–1.9, H3 tie | record's line holds; §3's **miss** |
+| **AD** pub | 128, 0 | 734 ms (~0.8 s) | WS 0.718 (faster); H3-frame 1.803, H2-frame 1.994 (slower); H3-fill 10.98, H2-fill 11.02 (slower) | H3-*, H2-* ×1.0–2.0; WS ×0.7–1.2 | WS, H3-frame, H2-frame hold; **H3-fill, H2-fill miss** (see 6.3) |
+| AD lte | 128, 2 | 5 664 ms (~1.4 s, **miss**) | WS 0.448 (faster); H3-frame 1.667, H2-frame 1.881, H3-fill 2.835, H2-fill 2.644 (slower); WT-TS′ 0.978 (not conclusive) | as AD pub | H3-frame, H2-frame hold; WS, H3-fill, H2-fill **miss** |
+| **CR** | 128, 1 | 35.0 s (~20 s, **miss**) | H3-frame 0.630 (faster); WS 1.088, H2-frame 1.091, H2-fill 1.052, H3-fill 1.001 (slower) | H3-frame ×0.6–1.0; H3-fill, H2-* tie; WS ×0.5–1.2 | H3-frame, H3-fill, WS, H2-fill hold; **H2-frame miss** |
+| **FF** 2 ms | 64, 10 | 214 ms (~0.2 s) | WT-WASM 1.112 (slower); the rest tie | all tie | **WT-WASM miss**; the rest hold |
+| FF 20 ms | 64, 6 | 323 ms (~0.31 s) | WS 1.013 (tie), H2-frame 1.016, H2-fill 1.014 (slower), H3-frame 1.012 (slower), H3-fill tie; WT-WASM 1.048 (slower) | H3 tie; H2-*, WS ×1.03–1.12 | H3 holds; **H2-*, WS miss** (below the band) |
+| FF 38 ms | 64, 3 | 467 ms (~0.46 s) | WS 1.008, H3-* 1.004–1.007 (tie); H2-* 1.015 (slower); WT-WASM 1.047 (slower) | as 20 ms | H3 holds; **H2-*, WS miss** |
+| FF 56 ms | 64, 7 | 626 ms (~0.62 s) | every fetch arm and WS 1.001–1.010 (tie); WT-WASM 1.021 (slower) | as 20 ms | H3 holds; **H2-*, WS miss** |
+| **LOSS** | 64, 0 | 24.4 s (~46 s, **miss**) | WS 0.962, H2-frame 0.951 (faster); the rest not conclusive, 1.010–1.043 | all tie | holds (every median ×0.95–1.05) |
+| **HOL** (LOSS's visits) | 64, 0 | 4.74 s (1.4 s, **miss**) | WS 0.871 (faster); H3-frame 1.598 (slower); H2-frame 1.196, H2-fill 0.926, H3-fill 0.973 (not conclusive) | H3-frame ×0.7–1.0; the rest tie | H3-fill holds; **H3-frame, WS, H2-frame, H2-fill miss** |
+| **LTE** | 64, 0 | 24.0 s (20–30 s) | every arm not conclusive: WS 0.859, H2-frame 0.963, H2-fill 0.980, H3-frame 1.069, H3-fill 1.020, WT-WASM 1.055 | all tie | H2-*, H3-fill hold; **WS, H3-frame, WT-WASM miss** (not conclusive) |
+| **CLEAN** | 64, 0 | 9.92 s (9.5 s + slow start) | every arm 1.000–1.002 (tie) | all tie | holds |
+| **CPU** (CLEAN's) | 64, 0 | 573 server ticks a GB | WS 0.145, H2-frame 0.162, H2-fill 0.145 (lower); H3-frame 1.112 (higher); H3-fill 1.075 (not conclusive) | WS, H2-* ×0.5–0.9; H3 tie | **WS, H2-* miss** (far lower); **H3-frame miss** |
+| **CPU-C** (CLEAN's) | 64, 0 | 82 s of client CPU a GB | WS 0.695, H2-frame 0.770, H2-fill 0.723 (lower); H3-frame 1.665, H3-fill 1.628 (higher); WT-WASM 1.040 (higher) | WS, H2-* ×0.5–0.9 | holds; H3's ×1.6 was not predicted |
+| **BYTES** (CLEAN's) | 64, 0 | 1.037 of the frames' bytes (1.03–1.05) | every arm 1.000–1.002 of WT-TS | within ±3 % | holds |
+| **PUB** | 64, 0 | 10.03 s (~9.7 s) | every arm 0.999–1.003 | all tie | holds |
+| **ENT** | *the run's last cell, cut by the 12 h stop; filled below* | | | | |
+| **FP** | not run: the 12 h stop | | | | |
+
+The host's CPU per cell (the busiest core over a visit, median / max): AA 0.43 / 0.81, AD 0.39 / 0.85, CR 0.22 / 0.47, FF
+0.52 / 0.91, LOSS 0.12 / 0.20, LTE 0.16 / 0.36, CLEAN 0.51 / 0.88, PUB 0.47 / 0.82. `VOID`s were the relay's guard
+(p99 over 1 ms) but for two AD visits whose resource entries carried an empty `nextHopProtocol` beside `h3` (§5.7 item
+4); no cell voided over 25 %, so each is reported in its strict reading alone.
+
+### 6.2 · §4's retraction lines and cell AA
+
+* **"A fill outside ×0.95–1.05 on a clean wire-bound link"**: not met. CLEAN and PUB: every arm 0.999–1.003.
+* **"A TCP arm's first frame within 1 RTT of WT's cold"**: **met.** At 20, 38 and 56 ms the H2 arms and WS land
+  1.000–1.016 of WT-TS (56 ms: WT-TS 626 ms, H2-frame 1.002), well inside one RTT, against §3's "one RTT more over
+  4–11". §3's first-frame table's H2-* and WS columns (×1.05–1.15 and ×1.03–1.12) are **retracted** on this rig.
+* **"An ask behind a fill over WS above ×1.2"**: not met. WS answered an ask during a fill faster than WT-TS (0.718 on
+  PUB, 0.448 on LTE).
+* **AA decides between its two lines by the gap.** At 0.1 s both lines hold (all tie). At 5 s the record's line holds
+  (§5.0: WT and H3 keep their window; the TCP arms ×1.35–1.70) and §3's "all tie" misses. At 1 s, past one RTO (the
+  servers' sockets read `rto:` 406–454 ms before the ask), the record's line misses: the TCP arms tie. The kernel's
+  restart does not return to the initial window after one RTO; it halves the window once per RTO elapsed, down to the
+  initial one, Linux `net/ipv4/tcp_output.c` at `v6.12` and `v6.18` (the host's kernel, 6.18.44), `tcp_cwnd_restart()`:
+  `while ((delta -= inet_csk(sk)->icsk_rto) > 0 && cwnd > restart_cwnd)` / `cwnd >>= 1;`. So a 1 s gap leaves ~¼ of a
+  ~1 600-segment window (read by `ss -tin`), above a 2.15 MB frame's ~1 485 segments' need for a round trip or two, and
+  5 s leaves the initial window. *Derived from the source and the read windows; the halving count per visit was not
+  traced.*
+
+### 6.3 · What the rows show that no prediction covered
+
+* **ENT's fills take 15–20× the prediction** (pilot 146–201 s a visit against ~9.6 s, every arm, every frame exact):
+  the relay's uniform 10 ms reorder at 90 Mbit (§5.0's departure) reorders far more than §3's p99 tail assumed. A
+  property of this jitter model, not of a radio: the enterprise row is not decided here.
+* **The fill-shape fetch arms' ask did not jump.** In every AD visit of H3-fill and H2-fill the frames landed strictly
+  in order 0 … 49 and the asked frame 49 last, at the whole fill's time (round 3 of `ad-pub`: H3-fill frame 49 at
+  10 031 ms from the dial, WT-TS at 2 690 ms, right after frame 11). §5.1 defines the arm as "an ask aborts it, GETs
+  the frame, then GETs the rest"; the rows show no abort took effect, so the ×11 is the carrier's, not yet the arm's.
+  *A suspected build defect in `lab/transport-arms/fetch-session.ts`, unresolved by reading; for the verdict review.*
+* **Server CPU over kernel TCP is ×0.15, not ×0.5–0.9**, and the H3 fetch arms cost the browser ×1.6 the CPU of WT
+  on CLEAN's visits: for this host's cores only (§5.4).
+* **WT-WASM is slower than WT-TS on the first frame** (×1.02–1.11, all four RTTs), against "ties everywhere": its start,
+  not the wire (it ties on every fill).
+
+### 6.4 · What reaches the owner (§5.5)
+
+Each arm faster than WT-TS in some cell, scope: Chromium headless 157, one 4-core container, the TUN relay at ≤ 90
+Mbit, one series, assumed and scaled profiles.
+
+* **WS**: an ask during a fill (0.718 PUB, 0.448 LTE), an ask after a short gap (0.97–0.98), LOSS's fill (0.962) and
+  its frame inter-arrival p99 (0.871); server CPU ×0.145, client CPU ×0.695. Slower after a 5 s silence (×1.39–1.64)
+  and on CR (×1.088).
+* **H2-frame, H2-fill**: an ask after a short gap (0.97–0.99), LOSS (H2-frame 0.951); server CPU ×0.15, client CPU
+  ×0.72–0.77. Slower after a 5 s silence (×1.35–1.70) and during a fill (×1.9–2.0 frame shape).
+* **H3-frame**: CR's fill (0.630: one stream a frame escapes the 6 MiB stream credit at 0.8 s RTT). Slower on HOL
+  (1.598) and during a fill (1.67–1.80).
+* **AA's verdict**: WT and H3 keep their window through a silence; the TCP arms lose it past a few RTOs (5 s), not
+  yet at one (1 s).
+
+The run adopts nothing: a GET path is a second wire, structural, and the owner's. Owed to the verdict review: §6.3's
+fill-shape ask, and whether AD's fill-shape readings stand.
+
 ## Fixtures and limits
 
 One series' bytes (`dbts_b1`, 50 frames, HTJ2K); every profile as LINK-TARGETS left it (one measured, the rest from
 sources and assumed); the four stacks read from their specifications, Chromium's `net/` at two tags and Linux's
 documented defaults, not from a trace. Not read: Firefox's and Safari's HTTP stacks, Android's `tcp_rmem` and
-`tcp_wmem`, the kernel's loss detection against RFC 9002, how Blink maps a worker's `fetch()` priority. No arm was run.
+`tcp_wmem`, the kernel's loss detection against RFC 9002, how Blink maps a worker's `fetch()` priority. No arm was run *(corrected 2026-11-19: §6 holds the run, with its own
+fixtures and limits)*.
