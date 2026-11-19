@@ -1,9 +1,11 @@
 state: started
 started: 2026-11-19T06:16Z
-heartbeat: 2026-11-19T06:16Z
+heartbeat: 2026-11-19T06:18Z
 outputs: `claude/transport-arms` (PR 403)
 ## Resume
-Claimed. Next: read stacks.md §6.5 on `claude/transport-design`, `lab/transport-arms/fetch-session.ts` on
-`claude/transport-arms`; failing test first (an ask during the opening fill reaches the carrier before the fill's
-last frame), then the fix (`connect()` returns once the GET is issued), mutant, gate, absence check, one ad-pub smoke.
+Done: on `claude/transport-arms`, d542d9a0 the failing test (`lab/transport-arms/fetch-session.test.ts`, bundled by
+`build.sh`, in `scripts/gate.sh`); c2802b0c2 the fix (`startFill` returns once its GET is issued); the mutant restoring the
+returned GET promise fails the test. Next: build `client/decode/wasm/build/build.sh`, `ingest/tools.sh`, then
+`scripts/gate.sh`; `scripts/check_lab_absent.sh`; one smoke round `node lab/transport-arms/run.mjs --cell AD --pilot`
+(ad-pub, eight arms, not counted; rows to a pilot file, gitignored).
 ## Result
