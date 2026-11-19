@@ -126,3 +126,37 @@ default build") and the comment budget, all green.
 ### Owner decisions
 
 None.
+
+## Fill-ask review
+
+TRANSPORT-VERDICT-REVIEW-FIX-REVIEW, 2026-11-19, by a session that wrote none of the build, the run, the verdict review
+or the fix. Reviewed: `claude/transport-arms` `d542d9a0..036e14b2` (the fix of `stacks.md` §6.5).
+
+**Fixtures and limits.** One 4-core cloud container, Node with the fake `fetch` of `fetch-session.test.ts` only: no
+browser, server or relay run here, nothing measured. The gate was not re-run (the fix's run at `036e14b2` reports it green).
+
+### Verdict
+
+**No blocker open.** TRANSPORT-AD-RERUN may start.
+
+| check | result |
+| --- | --- |
+| the test at `036e14b2` | passes, four of four |
+| `c2802b0c` reverted (the `await`ed GET restored) | `FAIL: connect returns while the opening fill's GET is still open`, exit 1 |
+| mutant: an ask under `fill` never sent | `FAIL: the ask's GET went out`, `FAIL: the asked frame lands`, exit 1 |
+| nothing else changed | `fetch-session.ts` (one line and its doc comment), the new test, `build.sh` bundling it, `scripts/gate.sh`'s two lines, `docs/lines/codecs.md` |
+| `scripts/check_lab_absent.sh` | "OK: no lab crate, source or module in the images or the default build" |
+| comment budget | ok |
+
+The change also stops later `stream_frames` from being awaited in the fill shape; nothing awaited them
+(`frame-session.ts` discards that promise), and `issue()` already swallowed every error, so no failure is lost.
+
+### Not blocking
+
+1. The test does not see the fill end: with `ask()`'s `endFill()` removed under `fill` it still passes (the fake's held
+   fill never lands either way). The run's rows would show it (frame and fill both delivered); a check that the fill's
+   GET was aborted closes it.
+
+### Owner decisions
+
+None.
