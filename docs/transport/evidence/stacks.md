@@ -463,6 +463,77 @@ Mbit, one series, assumed and scaled profiles.
 The run adopts nothing: a GET path is a second wire, structural, and the owner's. Owed to the verdict review: §6.3's
 fill-shape ask, and whether AD's fill-shape readings stand.
 
+### 6.5 · Verdict review
+
+*TRANSPORT-VERDICT-REVIEW, 2026-11-19, by a session that wrote none of §1–§5, the build or the run. Read from
+`claude/transport-arms` `70a70950` (`lab/transport-arms/rows/<CELL>.jsonl`, the nine counted cells); nothing re-run,
+no visit added. The metrics re-derived from each visit's own stamps (a fill's last byte and frame 0's last byte less
+`dial`, HOL's p99 of inter-arrivals, CPU, CPU-C and BYTES per GB), not from the rows' `v`; AD's and AA's `v` kept, as
+the rows do not carry the page's ask stamp (§5.7 item 2), and checked to fall after frame 8 or 4's last byte (AD) and
+at least the gap after the fill's (AA). The per-round tables were written afresh and judged by `lab/scripts/aa_rule.py
+--bar 0.05`, strict reading (a `VOID` visit dropped, its round dropped for that arm). All **measured**, on §6's
+fixtures and limits; the kernel lines **source**.*
+
+**Reproduced.** Every re-derived metric equals the row's `v` and `hol` (0 of 1 024 visits differ by over 0.01 ms);
+every visit's frames exact; every TCP-arm visit not `VOID` read `cubic`. Every WT-TS median, `VOID` count, median
+ratio, range, rounds-better count and `aa_rule` verdict that §6.1 quotes is reproduced to the printed digit.
+§6.2's kernel quote is at both tags as written (`net/ipv4/tcp_output.c`,
+<https://raw.githubusercontent.com/torvalds/linux/v6.12/net/ipv4/tcp_output.c> line 155 and `v6.18` line 157:
+`while ((delta -= inet_csk(sk)->icsk_rto) > 0 && cwnd > restart_cwnd)` / `cwnd >>= 1;`).
+
+**The A/A pair first.** WT-TS′ ties WT-TS in every form where the rule can resolve 5 % (AA's six, `ad-pub`, CR, FF's
+four, CLEAN, BYTES, CPU-C, PUB, ENT: medians 0.981–1.015, each `tie`). It is `not conclusive` in `ad-lte` (0.978,
+range 0.300–1.140, mdl 0.106), LOSS (1.031, mdl 0.092), HOL (0.977, mdl 0.267), LTE (1.005, mdl 0.161) and CPU
+(1.017, mdl 0.097): there no arm can be called a tie, only flagged faster or slower, and §6.1 says so for each.
+
+**Each verdict against §5.5's rule.** §6.1 stands but for these:
+
+1. **CR, H2-fill: a miss, not a hold.** Its median is 1.052 (1.051–1.053, 0 of 15 better); "H2-* tie" is ×0.95–1.05.
+   CR's line reads: H3-frame, H3-fill, WS hold; **H2-frame, H2-fill miss**.
+2. **ENT is not balanced.** 42 visits are rounds 0–4 whole and two visits of round 5: 36 of the Williams square's 56
+   ordered pairs, each once. §6.1's "balanced" is withdrawn; ENT's ratios rest on five paired rounds (each arm's n = 5,
+   the A/A's mdl 0.031) and are reported as **cut inside a period, unbalanced** (§5.4).
+3. **Misses §6.1 leaves unnamed** ("WT-WASM and WT-TS′ tie everywhere"; "H3 tie" for CPU): HOL's WT-WASM 0.943 and
+   CPU's H3-fill 1.075 lie outside ×0.95–1.05. **Slower flags §6.1 leaves out**, each inside the tie band: WT-WASM on
+   `aa-pub-1000ms` (1.002) and CR (1.000); CR's H3-fill (1.001); PUB's WT-WASM, WS, H2-frame and H2-fill (1.001–1.003).
+   None is faster, so §6.4 is unchanged by them.
+
+**§6.3's fill-shape ask: a build defect, found; AD's H3-fill and H2-fill readings do not stand.** By reading
+`claude/transport-arms` `70a70950`: every arm takes the opening ask (`page.js`, `opening: MUTATE !== "no-opening"`),
+so the downloader's `connect()` awaits `TransportSession.connect(…, { fill })` before it adopts a session
+(`client/transport/downloader.js` `adopt(await openSession(opening))`). In the fill shape,
+`70a70950:lab/transport-arms/fetch-session.ts` `connect()` does `await session.sendFod({ op: "stream_frames", … })`, and
+`startFill` returns `this.issue(…)`, the promise of the whole range's GET, which settles only once its body is read to
+the end. So the session is adopted only after the fill has landed, and the ask, behind `await live()`, reaches the
+carrier when frame 49 is already in hand: the abort and re-GET never run. The rows agree (**measured**): frame 0's
+`boot` record carries `sessionOpen` in every visit of every other arm (2–91 ms after the dial) and in none of the 16 +
+16 AD visits, nor the 8 CLEAN visits, of H3-fill and H2-fill. The frame shape is not affected (`startFill` returns
+nothing there), nor the WT and WS arms.
+
+* **What it voids.** AD's H3-fill and H2-fill, both forms (×10.98 and ×11.02 on `ad-pub`, ×2.84 and ×2.64 on
+  `ad-lte`): the time measured is the fill's, not an ask's. They are struck from §6.1's verdicts and §6.4, reported as
+  *not the arm §5.1 defines*; the fill shape's ask during a fill is **not decided** by this run.
+* **What it leaves.** Every other cell of the two fill arms stands: a fill's metric ends at its last byte, which the
+  late adoption does not move; FF's frame 0 rides the opening fill in both shapes; AA's ask goes after the fill and
+  the gap, when the session is adopted. *Derived from the code above; not tested by a run.*
+* **The fix is owed before AD's two arms are re-run:** `connect()` in the fill shape returns once the GET is issued,
+  not once it is read, with a test that an ask during the opening fill reaches `ask()` before the fill's last frame
+  (and a mutant restoring the `await`); then a build review, then AD's two forms re-run whole, as pre-registered.
+
+**What reaches the owner (§5.5), after this review.** §6.4 as written, less nothing: no fill-shape arm was faster in
+AD. Faster than WT-TS somewhere: WS (AD 0.718 and 0.448, ENT 0.842, LOSS 0.962, HOL 0.871, AA's short gaps 0.97–0.98,
+server CPU 0.145, client CPU 0.695); H2-frame (LOSS 0.951, AA's short gaps, CPU 0.162, CPU-C 0.770); H2-fill (ENT
+0.847, AA's short gaps, CPU 0.145, CPU-C 0.723); H3-frame (CR 0.630). AA's verdict stands: WT and H3 keep their window
+through a 5 s silence, the TCP arms do not (×1.35–1.70), and at 1 s they still tie. Scope: Chromium 157 headless, one
+4-core container, the TUN relay at ≤ 90 Mbit, `dbts_b1` alone, assumed and scaled profiles, no radio; ENT a uniform
+jitter model, unbalanced; FP not run.
+
+**Verdict:** no blocker in the run's arithmetic; three corrections above, one owed fix (the fill shape's opening
+ask) with AD's two fill forms to re-run after it. **For the owner, last:** whether a fetch arm's wins (H3-frame on CR;
+H2-* on CPU and lossy links) justify a GET path in the product, a second wire and structural (§5.5,
+[`../delivery-prior-art.md`](../delivery-prior-art.md) §8); whether WS's ask-during-a-fill and loss results earn it a
+place beside WebTransport; and whether to queue the fill-shape fix and AD's re-run (a lab change only).
+
 ## Fixtures and limits
 
 One series' bytes (`dbts_b1`, 50 frames, HTJ2K); every profile as LINK-TARGETS left it (one measured, the rest from
