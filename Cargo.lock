@@ -2182,6 +2182,7 @@ dependencies = [
  "anyhow",
  "from-disk",
  "libc",
+ "pacs-verify",
  "rusqlite",
  "serde_json",
  "series-bundle",

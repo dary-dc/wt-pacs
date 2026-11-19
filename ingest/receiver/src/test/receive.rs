@@ -51,6 +51,20 @@ fn a_series_package_is_placed_recorded_confirmed_and_deleted() {
     assert_eq!(Site::files(&site.incoming), [format!("status/{name}")]);
 }
 
+/// What the receiver stores passes the verify tool: the study DB it writes is the one `pacs-verify` reads.
+#[test]
+fn a_stored_study_passes_the_verify_tool() {
+    let site = Site::new("verified");
+    site.receive(&first());
+    let findings = pacs_verify::verify(&site.root);
+    let failed: Vec<_> = findings
+        .iter()
+        .filter(|f| f.result != pacs_verify::Outcome::Ok)
+        .collect();
+    assert!(failed.is_empty(), "{failed:?}");
+    assert!(findings.iter().any(|f| f.check == "groups"), "{findings:?}");
+}
+
 /// Only complete arrivals are taken: a carrier's `.partial` and the receiver's lock are not packages.
 #[test]
 fn a_partial_arrival_is_not_picked_up() {

@@ -16,3 +16,4 @@ zstd = "0.13"
 
 [dev-dependencies]
 libc = "0.2"
+pacs-verify = { path = "../../tools/pacs-verify" }
