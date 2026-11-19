@@ -71,7 +71,9 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    Chromium 157 headless, the TUN relay ≤ 90 Mbit; `stacks.md` §6): nine of ten cells, FP not reached by the 12 h stop;
    every frame exact. Fills tie on clean links; after a 5 s silence the TCP arms are ×1.35–1.70 (WT and H3 keep their
    window), at 1 s they tie; WS answers an ask during a fill faster (×0.45–0.72); the fill-shape fetch arms' ask did
-   not take effect (a suspected carrier defect). Next, TRANSPORT-VERDICT-REVIEW.
+   not take effect (a suspected carrier defect). Verdict-reviewed 2026-11-19 (`stacks.md` §6.5): the defect confirmed,
+   AD's two fill forms struck. Fixed 2026-11-19 (TRANSPORT-VERDICT-REVIEW-FIX): the fill shape's `connect()` returns
+   once the opening GET is issued (`fetch-session.test.ts` fails without it). Next, its review, then AD re-run.
 
 ## Decisions (the owner's)
 
