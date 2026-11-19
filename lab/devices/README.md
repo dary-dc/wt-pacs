@@ -26,7 +26,8 @@ phone ── https://PUBLIC_NAME:8443/?t=TOKEN ── the runner page, D0 → D1
 | `deploy.sh` | `up`, `fetch DIR`, `down` on the Oracle machine, from the local machine |
 | `make_bundles.sh` | each set as `SET.htj2k.sbnd` and `SET.av1.sbnd` through `lab/av1/tools/ingest_coded.py` |
 | `dry_run.mjs` | the page through a deployed kit in headless Chromium, quick mode: exits 0 when every visit is exact |
-| `round_plan.mjs` | the round's plan for `round.py`: `roundOrder()`'s loads on their pages, the four series' servers; `--quick` for the dry run |
+| `round_plan.mjs` | the round's plan for `round.py`: `roundOrder()`'s loads on their pages, the four series' servers; `--dial` required; `--quick` for the dry run |
+| `raw_rows.py` | the round's raw files for the public repository: only what a cell reads, the laptop and the phone stripped, refused if a MAC or an SSID is left (`docs/devices.md` §4) |
 | `round.py`, `round.mjs`, `round-page.js`, `beacon.js` | the phone round of `claude/phone-protocol:docs/phone-rows/next-round.md` (below): one press, the laptop's plan behind `GET /next`, each load recorded by the viewer's lab gate |
 
 **Quick and full.** Quick is 3 rounds of D1 on `dbt10_ea1141` alone (the largest frames, all three decoders) and
@@ -210,7 +211,7 @@ series on 4434 and 4436, each pair's page on 8765–8766 and each exact series' 
 HTJ2K), all on loopback for `adb reverse`; `--quick` is one repetition of cell 1, two rounds of cell 2, two pairs of
 cell 3 (28 loads). `round_headless.sh --plan` runs the quick plan whole in headless Chromium on the synthetic pair.
 
-**Tested** in the container: `round.test.mjs`, `beacon.test.mjs` and `round_test.py` (a fake `adb` on PATH) in the
+**Tested** in the container: `round.test.mjs`, `beacon.test.mjs` and `round_test.py` (a fake `adb` on PATH; `raw_rows.py`) in the
 gate, and `round_headless.sh`: headless Chromium against the real viewer, `series-server` and dev servers, on a
 synthetic 10-bit pair (64 × 48, 20 frames), eighteen loads — a run-commit mismatch stops before load 1, one press runs
 the plan, a load made to fail is recorded and the next taken, a throw and a hang after the fill each fail their load
