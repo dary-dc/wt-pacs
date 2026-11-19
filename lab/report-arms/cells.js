@@ -41,3 +41,17 @@ export function meter(load, carrier, clock = () => performance.now()) {
     sends: () => sends,
   };
 }
+
+/** The floor beside L and C (§7.2): per bare call, its first append less its call, joined by its own load id. */
+export function floorTimes(floors, lines) {
+  const first = new Map();
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const o = JSON.parse(line);
+    const r = typeof o.r === "string" ? JSON.parse(o.r) : o.r;
+    if (typeof o.t === "number" && r?.load && (!first.has(r.load) || o.t < first.get(r.load))) first.set(r.load, o.t);
+  }
+  const appends = floors.filter((f) => first.has(f.load)).map((f) => first.get(f.load) - f.at);
+  return { n: floors.length, delivered: appends.length, appendMs: appends.length ? quantile(appends, 0.5) : null,
+           callMs: floors.length ? quantile(floors.map((f) => f.callMs), 0.5) : null };
+}

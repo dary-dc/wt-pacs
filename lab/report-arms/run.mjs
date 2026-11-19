@@ -10,7 +10,7 @@ import { parseArgs } from "node:util";
 import { startSink } from "./sink.mjs";
 import { startNginx, nginxCounters } from "./nginx/nginx.mjs";
 import { readLines, byLoad } from "./read.mjs";
-import { latencies, quantile } from "./cells.js";
+import { latencies, quantile, floorTimes } from "./cells.js";
 import { order, balanced } from "../order.mjs";
 import * as cdp from "./cdp.mjs";
 
@@ -157,7 +157,8 @@ async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir,
     await cdp.openPage(b, "about:blank");
     const q = new URLSearchParams({ arm, timing, dir: `/${relative(ROOT, dir)}`, fault: "sample", at: AT,
       wt: srv?.wt ?? "https://127.0.0.1:9/", hash: srv?.hash ?? "00", ...(mutant ? { mutant } : {}),
-      ...(ending === "D8" ? { forced: "page" } : {}), ...(ending === "Lbusy" ? { busy: "1" } : {}) });
+      ...(ending === "D8" ? { forced: "page" } : {}), ...(ending === "Lbusy" ? { busy: "1" } : {}),
+      ...(ending.startsWith("L") ? { floor: "safety" } : ending === "C" ? { floor: "load" } : {}) });
     const p = await cdp.openPage(b, `http://127.0.0.1:${via.port}/lab/report-arms/index.html?${q}`);
     row.load = await cdp.evaluate(b, p, "new Promise((r) => { const t = setInterval(() => rig.load && (clearInterval(t), r(rig.load)), 10); })");
     const other = `http://localhost:${sink.port}/lab/report-arms/probe.html?id=away`;
@@ -172,6 +173,7 @@ async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir,
       await pause(6000);
     }
     if (!ending.startsWith("D5")) row.fillMs = await cdp.evaluate(b, p, "rig.fillMs ?? null");
+    if (/^(L|C)/.test(ending)) row.floors = await cdp.evaluate(b, p, "rig.floors ?? null");
     await ENDINGS[ending](b, p, { other, row });
   }, wait * 1000);
   const files = readdirSync(out).filter((f) => /^(load|safety)-.*\.jsonl$/.test(f) || f === "report-fallback.log");
@@ -182,6 +184,7 @@ async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir,
   Object.assign(row, { fill: !!e?.records.some((r) => r.seq === 0 && r.fillMs != null), seqs: e?.seqs ?? [],
     safety: e?.safety.length ?? 0, duplicates: e?.duplicates ?? 0, unkeyed: e?.unkeyed ?? 0, outside: e?.outside ?? [],
     link: !!e?.link, receiver: via.name, counters: structuredClone(await via.counters()) });
+  if (row.floors) row.floor = floorTimes(row.floors, lines);
   if (row.faults) {
     const l = latencies(row.faults, lines, row.load);
     row.latency = { fill: l[0], later: l.slice(1), p50: quantile(l.slice(1), 0.5), p99: quantile(l.slice(1), 0.99) };

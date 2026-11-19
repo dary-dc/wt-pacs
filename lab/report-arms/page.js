@@ -40,6 +40,20 @@ try {
              followed: "forced", at: performance.timeOrigin + performance.now() });
   }
 
+  // The floor beside L and C (§7.2): the arm's bare call, five times 200 ms apart, before the fill.
+  const floorOf = { off: "beacon", stub: "beacon", beacon: "beacon", keepalive: "keepalive" }[q.get("arm")];
+  if (q.get("floor") && floorOf) {
+    const { floor } = await import(`./${floorOf}/floor.js`);
+    const stand = new Load(ctx);
+    for (let i = 0; i < meta.frameCount; i++) stand.frame({ i, route: "htj2k", kb: 0 });
+    const body = () => JSON.stringify(q.get("floor") === "load" ? stand.record() : safetyRecord(ctx, { frame: 10,
+      route: "htj2k", check: "xxh3", expected: meta.digests.frames[10], actual: "0000000000000000", secondDecode: true,
+      followed: "rescued", at: now() }, env));
+    rig.floors = [];
+    for (let k = 0; k < 5; k++) { rig.floors.push(floor({ base: ctx.base, load: ctx.load, body: body() })); await new Promise((r) => setTimeout(r, 200)); }
+    for (const f of rig.floors) delete f.done;
+  }
+
   const n = meta.frameCount;
   const wt = new URL(q.get("wt"));
   wt.searchParams.set("load", ctx.load);
