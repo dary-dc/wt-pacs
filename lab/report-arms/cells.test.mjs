@@ -3,7 +3,8 @@
 // second copy ignored, a fault with no record lost. C: the page thread's time from a record's assembly to the
 // carrier's return, and in each page-side safety send, summed per load. The floor: each bare call's append time less
 // its call, joined by its own load id, and the page thread's time in the call; medians, the undelivered counted.
-import { latencies, quantile, meter, floorTimes } from "./cells.js";
+// Y: a load's records at the receiver, copies included, and their bytes as received.
+import { latencies, quantile, meter, floorTimes, bodies } from "./cells.js";
 
 let failed = 0;
 const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
@@ -60,6 +61,14 @@ const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
   check(f.appendMs === 1, `floor: the median over the delivered, the first copy each (${f.appendMs})`);
   check(f.callMs === 0.3, `floor: the median page-thread time in the call (${f.callMs})`);
   check(floorTimes([], lines).appendMs === null, "floor: none run, no time");
+}
+{
+  const recs = [{ kind: "load", load: "L", seq: 0 }, { kind: "load", load: "L", seq: 1, x: "abcdef" }, { kind: "safety", load: "L" },
+                { kind: "load", load: "M", seq: 0 }, { kind: "link", load: "L", rtt_us: 1 }];
+  const y = bodies(recs, "L");
+  const len = (o) => JSON.stringify(o).length;
+  check(y.records === 3 && y.bytes === len(recs[0]) + len(recs[1]) + len(recs[2]), `Y: the load's records and their bytes, no link line (${JSON.stringify(y)})`);
+  check(y.largest === len(recs[1]), "Y: the largest body, not the first");
 }
 
 if (failed) process.exit(1);

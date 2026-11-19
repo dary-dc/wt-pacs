@@ -55,3 +55,9 @@ export function floorTimes(floors, lines) {
   return { n: floors.length, delivered: appends.length, appendMs: appends.length ? quantile(appends, 0.5) : null,
            callMs: floors.length ? quantile(floors.map((f) => f.callMs), 0.5) : null };
 }
+
+/** Y, as far as the receiver sees it: a load's records, copies included, their bytes as one JSON line each. */
+export function bodies(records, load) {
+  const sizes = records.filter((r) => r.load === load && r.kind !== "link").map((r) => JSON.stringify(r).length);
+  return { records: sizes.length, bytes: sizes.reduce((a, b) => a + b, 0), largest: Math.max(0, ...sizes) };
+}

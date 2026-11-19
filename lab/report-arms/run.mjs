@@ -10,7 +10,7 @@ import { parseArgs } from "node:util";
 import { startSink } from "./sink.mjs";
 import { startNginx, nginxCounters } from "./nginx/nginx.mjs";
 import { readLines, byLoad } from "./read.mjs";
-import { latencies, quantile, floorTimes } from "./cells.js";
+import { latencies, quantile, floorTimes, bodies } from "./cells.js";
 import { order, balanced } from "../order.mjs";
 import * as cdp from "./cdp.mjs";
 
@@ -180,7 +180,9 @@ async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir,
   const lines = ["load.jsonl", "safety.jsonl", "link.jsonl", "server-load.jsonl", "server-safety.jsonl"]
     .filter((f) => existsSync(join(out, f))).concat(files)
     .flatMap((f) => readFileSync(join(out, f), "utf8").split("\n"));
-  const e = byLoad(readLines(lines).records).get(row.load);
+  const { records } = readLines(lines);
+  const e = byLoad(records).get(row.load);
+  row.y = bodies(records, row.load);
   Object.assign(row, { fill: !!e?.records.some((r) => r.seq === 0 && r.fillMs != null), seqs: e?.seqs ?? [],
     safety: e?.safety.length ?? 0, duplicates: e?.duplicates ?? 0, unkeyed: e?.unkeyed ?? 0, outside: e?.outside ?? [],
     link: !!e?.link, receiver: via.name, counters: structuredClone(await via.counters()) });
