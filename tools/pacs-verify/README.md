@@ -28,8 +28,12 @@ stored data and are skipped; given as the path itself, `incoming/` is checked. S
 
 **The study DB** is the schema in `common/study-db`, the one place the receiver and this tool share: a file named
 `study.db` in its study directory, a table per level (`exam`, `series`, `instance`, `private`), each row a metadata
-group's `bytes` and its `xxh3` keyed by `uid` (the design state's §4, proposed T1). No receiver exists yet; it writes
-through `study_db::create` and `study_db::put`.
+group's `bytes`, its `xxh3` as 16 lowercase hex digits and its `series`, keyed by `uid`, and an `audit` table
+([`docs/adr/pacs-receiver.md`](../../docs/adr/pacs-receiver.md) §4). *Corrected 2026-11-19:* this paragraph said "no
+receiver exists yet; it writes through `study_db::create` and `study_db::put`", while `ingest/receiver` existed with
+its own schema (`xxh3 TEXT`, against this crate's `xxh3 INTEGER`), so this tool failed every level of a study DB the
+receiver wrote. The receiver's schema is now this crate's, and `ingest/receiver` creates its DB through it; a receiver
+test runs this tool over a study it stored.
 
 ## What it does not check yet
 
