@@ -83,6 +83,9 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | TRANSPORT-BUILD-FIX-REVIEW | 11-18 10:00 | TRANSPORT-BUILD-FIX done | `claude/transport-arms` (`docs/reviews/transport-arms.md` §Re-review) |
 | TRANSPORT-RUN | 11-18 00:00 | TRANSPORT-BUILD-FIX-REVIEW done with no blocker open | rows on `claude/transport-arms`; results in `stacks.md` §Results on `claude/transport-design`; in the cloud (amendment 24) |
 | TRANSPORT-VERDICT-REVIEW | 11-18 00:00 | TRANSPORT-RUN done, or 11-27 08:00 | `claude/transport-design` (`stacks.md` §Verdict review) |
+| TRANSPORT-VERDICT-REVIEW-FIX | 11-19 06:00 | TRANSPORT-VERDICT-REVIEW done | `claude/transport-arms` (PR 403): the fill shape's opening ask, `stacks.md` §6.5 |
+| TRANSPORT-VERDICT-REVIEW-FIX-REVIEW | 11-19 06:00 | TRANSPORT-VERDICT-REVIEW-FIX done | `claude/transport-arms` (`docs/reviews/transport-arms.md` §Fill-ask review); amendment 17 |
+| TRANSPORT-AD-RERUN | 11-19 06:00 | TRANSPORT-VERDICT-REVIEW-FIX-REVIEW done with no blocker open; latest 11-23 20:00 | rows `rows/AD-rerun.jsonl` on `claude/transport-arms`; `stacks.md` §6.6 on `claude/transport-design`; in the cloud |
 | AGENTS-DOCS | 11-18 00:00 | — | `claude/agents-docs` from `origin/claude/unified` → draft PR into `claude/unified` ("do not merge: review") |
 | AGENTS-DOCS-REVIEW | 11-18 00:00 | AGENTS-DOCS done | findings in its PR body; amendment 17 |
 | PHONE-RUN-OWNER | 11-19 12:00 | PHONE-LEVERS-REVIEW and FIX-378-DIAL-REVIEW done with no blocker open, or 11-20 08:00 | `claude/phone-run` from `origin/claude/unified` → draft PR into `claude/unified` ("do not merge: phone run 2026-11-21"); `docs/phone-rows/SATURDAY.md`; done by 11-20 22:00 |
@@ -1138,6 +1141,27 @@ Chromium headless).
 A session that ran none of it: `aa_rule.py --bar 0.05` reproduced from the pushed rows, each verdict against §5.5's
 rule, the A/A pair's result first. Owner decisions last (a fetch arm's win changes the GET path, which is structural
 and the owner's).
+
+#### TRANSPORT-VERDICT-REVIEW-FIX (appended by TRANSPORT-VERDICT-REVIEW, 2026-11-19; amendment 17)
+
+A session that wrote none of the build, the run or the verdict review. `claude/transport-design`
+`docs/transport/evidence/stacks.md` §6.5: in the fill shape, `lab/transport-arms/fetch-session.ts` `connect()` awaits
+the opening fill's whole GET, so the downloader adopts the session only after the fill and an ask during it never
+reaches `ask()`. Fix: `connect()` returns once the GET is issued. A failing test first (an ask during the opening fill
+reaches the carrier before the fill's last frame), the mutant restoring the `await` killed; nothing else of the arms
+changed; the gate, `scripts/check_lab_absent.sh`, and one smoke round of `ad-pub` over the eight arms, not counted.
+
+#### TRANSPORT-VERDICT-REVIEW-FIX-REVIEW
+
+A session that wrote none of the build, the run, the verdict review or the fix: the test fails with the fix reverted;
+nothing else changed; the absence check green. Findings in `docs/reviews/transport-arms.md` §Fill-ask review.
+
+#### TRANSPORT-AD-RERUN (cloud, amendment 24)
+
+A session that wrote none of §1–§5, the build or the fix: cell AD, both forms, all eight arms, 16 rounds, Williams
+order, as §5 pre-registers it (the pilot's medians of §5.7 kept); raw rows to `rows/AD-rerun.jsonl` every 15 minutes, a
+job under 2 h. Results in `stacks.md` §6.6, each prediction beside its measurement, the first run's AD rows beside
+them; its fixtures and limits as §6's. TRANSPORT-PAGE reads §6.6 if pushed, else marks AD's fill shape not decided.
 
 #### AGENTS-DOCS (docs only; a proposal for the owner's review)
 
