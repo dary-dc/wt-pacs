@@ -76,6 +76,11 @@ cargo build --release -p series-server --features telemetry -p pack-series
 node lab/report-arms/run.mjs --units "off,beacon:H,beacon:Y,keepalive:H,keepalive:Y,session:1,session:Y,session:H,off'" \
   --endings D1,D2,D3,D4,D5a,D5b,D7,D8,D9 --rounds 18 --wait 60 --out rows.jsonl
 node lab/report-arms/run.mjs --units stub:Y --endings D1 --mutant never-sent     # field-outside, no-reportId, safety-sampled
+node lab/report-arms/run.mjs --units "off,beacon:H,…,off'" --endings L,Lbusy,C --rounds 18 --wait 60 --out rows.jsonl
+node lab/report-arms/run.mjs --tun --receiver receiver --units "…" --endings D6 --rounds 18 --wait 60 --out rows.jsonl
+FIREFOX_PATH=<firefox> node lab/report-arms/run.mjs --engine firefox --units "…" --endings D1,… --out rows.jsonl
+NGINX_BIN=<nginx ≥ 1.31.5> node lab/report-arms/receivers.mjs --bodies lab/report-arms/rows/r-bodies.jsonl --rounds 6 --out rows.jsonl
+node lab/report-arms/bidi.check.mjs                                             # the Firefox levers, once
 node lab/report-arms/run.mjs --units stub:Y --endings D1 --sink-mutant ack-before-write   # not with --receiver nginx
 node lab/report-arms/run.test.mjs                                               # the driver's rules
 node lab/report-arms/read.mjs lab/.report-work/sink-*/*.jsonl                  # one line per load
@@ -95,11 +100,16 @@ NGINX_BIN=<nginx ≥ 1.31.5> node lab/report-arms/nginx/nginx.test.mjs
 | --- | --- |
 | the sink, its counters, the stream binding | the HTTP binding in `sink.mjs`; the stream binding (one byte after the server's append) in `session_report.rs`, the same counters in `server-counters.json` |
 | D1–D5, D7, D9 on Chromium | built; their levers checked by `cdp.check.mjs` |
+| D5, killed 50 or 500 ms after the mismatch is found | timed from the decoder's fault (REPORT-CELLS): `fault.js` stamps the moment the flipped decode returns on the channel `faultbench`, the page keeps it (`rig.faultAt`), the driver polls it every 1 ms and kills on the browser's clock; each row's `kill` carries the time read at the fault (`learned`), at the kill (`atKill`), `late`, and the safety reports the page had handed on (`safetyHanded`). Until then the kill fell 50 or 500 ms after the page's send (REPORT-VERDICT-REVIEW's finding) |
 | D8, the session never opens | built as "no server started", with the failure forced on the page at load (`forced=page`), since no fill means no decode to fail |
-| D6, the link drop | the blackout lever only; running the browser, sink and server inside `unshare -rn` behind `link_impair.py --tun` is not wired (this host has no iproute2) |
-| Firefox's tab kill, WebKit's WebProcess and browser kill, both engines inside `--tun` | the process-tree kill is built and tested on a made-up tree; **not checked on either engine**: neither is on this host. REPORT-RUN checks them first, as §7.6 says |
-| the floor probe beside L and C | each carrier's own, beside its arm: `beacon/floor.js`, `keepalive/floor.js`, `session/floor.js` |
-| cells L (latency), C (page thread), Y (bytes at the relay), R (receivers' cost) | not built: the rows above carry D's readings only |
+| D6, the link drop | `run.mjs --tun` (REPORT-CELLS): reruns itself inside `unshare -rn`, the relay at §7.2's link (10 ms each way, 50 Mbit, 200 packets, `--blackout-mode drop`), the sink, the server, RECEIVER and nginx in its server namespace at 10.77.0.2, the browser in the client one with that origin declared secure; the blackout at the fill's end + 4 s for 30 s, hidden at + 5 s, navigated at + 6 s. Needs iproute2 (`apt-get install -y iproute2`) |
+| Firefox | `run.mjs --engine firefox` by raw BiDi (`bidi.mjs`, `FIREFOX_PATH`), every ending's lever checked by `bidi.check.mjs` on Firefox 160.0.1: hide a second tab, close with it open, back, a SIGKILL of the content processes, the browser killed; no freeze, so D9 is hidden and kept. **D7 through the sink is no bfcache test on Firefox**: the sink's `Cache-Control: no-store` keeps a page out of Firefox's bfcache (checked on a copy with and without it); the lever restores from bfcache on a cacheable page |
+| WebKit's WebProcess and browser kill, WebKitGTK inside `--tun` | the process-tree kill is built and tested on a made-up tree; WebKitGTK is not on this host, so not checked |
+| the floor probe beside L and C | before the fill, five bare calls 200 ms apart with the arm's bytes under fresh load ids (`floor` in the page's query; `floorTimes`): BEACON's for `off` and BEACON, KEEPALIVE's from the page. **SESSION's is not wired**: a bare session's first stream is taken as the control stream, so it needs the downloader's session; KEEPALIVE's from a worker is not wired |
+| cell L | endings `L` and `Lbusy` (a 50 ms long task every 100 ms on the page's thread): the fill's own fault, then 20 more 1 s apart (a fresh ask of the faulted frame); per fault, its first safety record's append time less its stamp, joined by the record's `at` (`latencies`); `p50`, `p99` of the 20. The sink's and RECEIVER's `t` are ms; NGINX's ISO second gives no latency |
+| cell C | ending `C`: the page thread's time from a record's assembly to the carrier's return and in each page-side safety send (`meter`), the long tasks observed and whether the engine observes them (Firefox does not), the fill time, read at a hide before navigating. The first exact paint is not a timing the rig offers |
+| cell Y | per row, the load's records at the receiver with copies, their bytes and the largest (`bodies`). **Wire bytes at the relay are not built**: the HTTP reports share the page's same-origin connections, and SESSION's ride the fill's QUIC connection, so no relay flow is the reports' alone |
+| cell R | `receivers.mjs`: recorded D1 bodies (`rows/r-bodies.jsonl`, one D1 smoke of BEACON-Y and KEEPALIVE-Y on the grey series: 1.7 KB fill records, not dbts_c1's 4.9–6.6 KB) at each rate for its seconds, load and safety bursts apart, to NGINX and to RECEIVER behind nginx, started fresh per burst, rotated over rounds; per process the burst's CPU seconds and VmHWM, per 1 000 reports, lines, refusals, the generator's cores (saturated at 3). **The server's row is not built** |
 | the dbts_c1 view | the contract's grey-16 frame as a 32-frame HTJ2K series: the demo volumes are not on this host |
 
 ## BEACON (`beacon/`, row REPORT-BUILD-BEACON)
@@ -245,6 +255,23 @@ same-origin; `--receiver sink` (the default) is the harness's own sink. Both fil
 | `nginx/nginx.test.mjs` | 18/18: default escaping; the body spliced in; no early read; `return`, not `try_files`; any method; safety rate-limited too; no rate limit; 1 MiB bodies; the fallback logs every answer; no fallback log; the address in the line; one file for both kinds; no day in the file; pages not proxied; too-large not read; rate refusals counted as appended; method refusals counted as appended; `byKind` wrong |
 | `receiver/src/lib.rs` tests | 25/25: no size cap; an array accepted; fields outside kept; outside not counted; no UID scrub; three components a UID; no length bound on a UID; leading zeros allowed; any first component; no string cap; nested strings not capped; safety capped too; no cap; the cap's bytes never added; duplicates not counted; one file for every kind; no day in the file; acknowledged when the write fails; the lever missing; a path refusal uncounted; any method; appended never counted; no receipt time; the wrong leap rule; `byKind` wrong |
 
+## The cells added by REPORT-CELLS
+
+| test | mutants killed |
+| --- | --- |
+| `run.test.mjs` `killAfterFault` | 3/3: the fixed delay after learning; never marked late; no reading at the kill |
+| `lab/faultbench/fault.test.mjs` | 2/2: no stamp; a stamp on every decode |
+| `cells.test.mjs` | 17/17: the earliest fault joined; the later copy kept; an ISO second read as a time; floor rank; a loss ignored; the carrier's safety call not timed; a timed send counted twice; assembly not counted; an empty delta opens a span; the floor's later copy; the undelivered timed; the first call's time; every call counted delivered; only safety floors joined; the link line counted; every load's records; the first body, not the largest |
+| `receivers.test.mjs` | 7/7: ticks off the rate; one second only; the children's ticks added; stime dropped; RSS now, not the peak; a cost with none sent; the rotation skips |
+| `run.test.mjs` `relayNetns`, `secureOrigins` | 3/4: the flag on loopback too; origins not comma-separated; https origins. A looser `netns=` match survives, equivalent: the READY line has one such token |
+| `bidi.test.mjs` | 4/4: arrays not read; object fields not read; undefined not null; NaN left a string |
+| `bidi.check.mjs` (Firefox 160.0.1, headless) | 2/3: back stays; crash kills the wrong process. Hide without `activate` survives, equivalent: a created tab is already in front |
+
+Smoke, one round each, not counted: D5a on `off`, BEACON-Y, KEEPALIVE-Y, SESSION-1 (killed 51.8–53.5 ms after the
+fault, learned 6–19 ms after it; every arm had handed its safety report on before the kill); L, Lbusy, C on the same
+four; D6 under `--tun` to the sink and to RECEIVER; R at 10, 100 and 1 000 a second for 2 s; Firefox D1 on the four
+and every other ending on BEACON-Y.
+
 ## Tests and their mutants
 
 Each test was written first and seen to fail, then each mutant below was applied and seen to fail it:
@@ -263,6 +290,6 @@ Each test was written first and seen to fail, then each mutant below was applied
 Two mutants of `timing.js` survived the first test (a guard against two sends per hide, and a reset at show): each
 guarded nothing a delta does not already, so both were removed. The smokes' rows are in the PR body.
 
-Fixtures and limits: a 4-vCPU cloud container without a GPU; headless Chromium 153 only (no Firefox, no WebKitGTK on
+Fixtures and limits: a 4-vCPU cloud container without a GPU; headless Chromium 153 and Firefox 160.0.1 (no WebKitGTK on
 this host); the contract's one HTJ2K frame repeated 32 times, not a demo volume; the fault bench's forced mismatch, not
 a real decoder fault; loopback with no relay.
