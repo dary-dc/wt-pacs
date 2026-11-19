@@ -74,7 +74,10 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
    not take effect (a suspected carrier defect). Verdict-reviewed 2026-11-19 (`stacks.md` §6.5): the defect confirmed,
    AD's two fill forms struck. Fixed 2026-11-19 (TRANSPORT-VERDICT-REVIEW-FIX): the fill shape's `connect()` returns
    once the opening GET is issued (`fetch-session.test.ts` fails without it). Reviewed 2026-11-19, no blocker
-   (`docs/reviews/transport-arms.md` §Fill-ask review). Next, the AD re-run.
+   (`docs/reviews/transport-arms.md` §Fill-ask review). AD re-run 2026-11-19 (TRANSPORT-AD-RERUN, both forms, 16
+   rounds, `rows/AD-rerun.jsonl`; `stacks.md` §6.6): every fill-shape ask now jumps the fill; H3-fill and H2-fill
+   answer an ask during a fill faster than WT-TS (0.55 and 0.68 on PUB, 0.53 and 0.50 on LTE), a miss below §5.3's
+   ×1.0–2.0; the other arms as the first run. A GET path is the owner's call (§5.5).
 
 ## Decisions (the owner's)
 
