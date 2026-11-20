@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-20T14:47Z
-heartbeat: 2026-11-20T14:52Z
+heartbeat: 2026-11-20T14:57Z
 outputs: `claude/demo-check-mutants` `5914a1b6` (the new check; no PR yet)
 
 ## Resume
@@ -19,7 +19,7 @@ Predictions, written before any run (`dbts_a1-q8-g8-cut`, G 8, 56 frames; old ch
   in group 1, asked at step 8 anyway, and at the jump in group 0, held) and is killed by the new (16 > 8 before
   step 8); B2 is killed by both (group 2 asked at steps 8-12: 32 received, not 24).
 * worker view: A killed by both (group 2 wanted at steps 8-12).
-Next: builds and the two series in background (`$SCRATCH/logs/build.sh`, `series.sh`; `$SCRATCH` is the session
+Done: builds; dbts_a1 and dbts_a1-q8-g8-cut coded; unmutated, the new check passes in both views. Running: `$SCRATCH/logs/mutants.sh` (log mutants.log). Was: builds and the two series in background (`$SCRATCH/logs/build.sh`, `series.sh`; `$SCRATCH` is the session
 scratchpad); then `NODE_PATH=... node client/viewer/demo-check.mjs demo-series dbts_a1-q8-g8-cut [--view worker]`
 on the unmutated code (old and new check), then each mutant, 3 runs each.
 
