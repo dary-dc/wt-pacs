@@ -43,6 +43,9 @@ One divergence: `rule()` cannot see rounds that never ran, so it does not mark a
 
 **What the rule then says.** Predicted tops pass, so the finding is not only a base stored beside the shipped payload. It is a change to the stored representation, which is structural and is proposed separately. Part 5's opening says the branch "merges only if the protocol below finds it interesting": on the three DBT volumes that condition is met, on every cell.
 The closest margin among the passing cells is t_X on `dbts_a1` at 50 Mbit/s 4×: 1.069× and 1.070× against 1.10.
+*Added 2026-11-11 (decode audit 1, 15):* 4× caps each thread, not the cores, and the ±0.3–0.4 % A/A that judges the 4×
+cells comes from an arm bound by the 50 Mbit/s link, while AV1 is bound by decode. A cell such as 1.069–1.070 against
+1.10 is not resolved by that A/A.
 
 **The 2 % loss cells.** At n = 10 the `p2-*` shapes give t_X 0.986–1.003× `k2` on `dbts_a1` and `dbts_c1` (1.004–1.012× on `dbts_b1`) and bytes 0.989–0.994×; every frame exact. A/A resolution: ±1.4 %, ±1.5 %, ±1.7 %. At 2 % loss every exact fill is bound by the loss, not the CPU ([`svc-results-r20000-loss2.md`](svc-results-r20000-loss2.md), *Where the host saturates*), so t_X there follows bytes, and the `p3-*` variants fail it where their bytes do (`p3-m10` on `dbts_b1`, 1.164–1.170×).
 
