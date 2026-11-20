@@ -86,7 +86,37 @@ from `archive.mozilla.org`, its `SHA256SUMS` checked, under `xvfb-run` where Web
 | 4 | `node client/paint/check.mjs` (SwiftShader); the same page opened in Firefox under Xvfb | 8 | the painter matches its CPU reference on Chromium; Firefox not built into the script: a run needs its driver, said so |
 | 5 | `node lab/cache-arms/run.mjs --cell R --engine firefox` and `--engine chromium` (`claude/cache-arms`) | 10 | as `cache-plan.md` §9 on 159 and 153; a newer Firefox may move T and the quota lever |
 | 6 | `node lab/report-arms/run.mjs` (`claude/report-arms`, PR 395) | 11 | Chromium only today (the driver writes `engine: "chromium"`); Firefox after REPORT-CELLS |
-| 7 | WebKitGTK 2.52.6: `lab/cache-arms/webkit-probe.mjs` and the engines probe, `node lab/av1/exact/engines/run.mjs --probe --engines webkit` | 5, 10 | as measured: no `SharedArrayBuffer`, no OPFS, no WebTransport (E5); says nothing about Safari |
+| 7 | WebKitGTK 2.52.6: `claude/cache-arms:lab/cache-arms/webkit-probe.mjs` and the engines probe, `node lab/av1/exact/engines/run.mjs --probe --engines webkit` | 5, 10 | as measured: no `SharedArrayBuffer`, no OPFS, no WebTransport (E5); says nothing about Safari |
+
+## Measured (ENGINE-SMOKE, 2026-11-20)
+
+*Measured* by a session that wrote none of the above, each cell against its prediction; raw logs and rows in
+[`engines-smoke/`](engines-smoke/), named `c<cell>-…`. Firefox 160.0.1 and 159.0.1 from `archive.mozilla.org`, each
+tarball checked against its release's `SHA256SUMS`; Chromium is Playwright's Chrome for Testing 153.0.8010.12;
+`wtcompat.py --fetch` added Chrome for Testing 158.0.8127.36, 159.0.8154.13, 160.0.8173.0 and Firefox 163.0a1;
+WebKitGTK 2.52.6 (`2.52.6-0ubuntu0.24.04.2`). Series: `dbts_a1` exact (HTJ2K) with `dbts_a1-q8-g16-cut` and
+`-q8-g1-cut`, made by `scripts/demo-series.sh`'s own `ingest` for that one set.
+
+| # | measured | against the prediction |
+| ---: | --- | --- |
+| 1 | `demo-check.mjs` passes, page and worker, with and without `--refuse-webcodecs` (G = 16); every frame `av1-webcodecs`, under the lever every frame `av1-dav1d` with the lab's refusal named | held |
+| 2 | **The command as written cannot run**: `check.mjs` hosts one series per server, so an optimal-quality series fails on its exact series' metadata (`/series/dbts_a1/metadata answered 404`), in Chromium too. Run instead: the page's own `?check=1` against `scripts/demo-pair.sh`, Firefox 160 under Xvfb (WebGL on llvmpipe) and Chromium beside it, G = 16 and G = 1, both views: 56/56 received, none inexact, every readback 0 off, every frame `av1-dav1d` in Firefox (`av1-webcodecs` in Chromium). The exact series alone through `check.mjs` in Firefox: 56/56 exact, both views. **`run_firefox.sh dispatch` fails 17 of 781** on 160.0.1 (twice) and 18 on 159.0.1, where Chromium passes 789/789. The failures: clauses that expect `VideoDecoder` to take every ≤ 10-bit payload (Firefox refuses the grey ones, row 1); the scalable clauses (no unit reached WebCodecs); and **the 8-bit G = 8 group clauses**: frames 1–7 of each group off their keyframe's decoder and inexact, asks failing `frame N was not decoded before it here` | the pair held; dispatch **missed** (predicted 3/3) |
+| 3 | `wtcompat.py`: Chromium 153, 158, 159, 160 and Firefox 160.0.1, 163.0a1 all dial, fetch a frame exact, and negotiate draft-02; every Chromium offers draft-02 alone; Firefox also offers `reset_stream_at` (`0x1d`). `getStats()` ([`engines-smoke/getstats-probe.html`](engines-smoke/getstats-probe.html)): absent on Chromium 153, 158, 159; present on 160.0.8173.0 (`smoothedRtt`, `minRtt`, `rttVariation`, `estimatedSendRate`, `datagrams`; no byte or packet counts); Firefox 160.0.1 and 163.0a1 resolve it with bytes, packets, loss and RTT | draft-02 held; "07 on Chromium" **missed**; `getStats()` decided: Chromium from 160 |
+| 4 | `client/paint/check.mjs` on SwiftShader: every 1:1 whole-pixel cell equals the reference; fractional cells reported (max \|Δ\| ≤ 2) | held; Firefox not wired, as predicted |
+| 5 | `cache-arms` R-idle at 512², one round, the four arms: every arm `exact`, `allWritten`, on Chromium 153 and Firefox 160 (Firefox's first run lost three arms to a dropped static host and the stubs to Marionette without Xvfb; the retry under Xvfb ran all four) | held; one round, no bar judged |
+| 6 | `report-arms` D1, one round, not counted, `claude/report-arms` `fb3f15e5`: `off`, BEACON-Y, KEEPALIVE-Y and SESSION-Y each deliver a fill record to the sink on Chromium 153 and Firefox 160 | Firefox now runs (REPORT-CELLS); its review's two blockers are open |
+| 7 | WebKitGTK: `webkit-probe.mjs`: cross-origin isolated, no `SharedArrayBuffer` on the page or in a worker, `getDirectory`, `createSyncAccessHandle` and `createWritable` a `TypeError`, IndexedDB and Cache Storage present. `run.mjs --caps`: `VideoDecoder` present, no AV1 configuration supported (`webkit` and `webkit+sab`). WebTransport not probed | held; nothing carried to Safari |
+
+`--caps` beside these: Firefox 160's `isConfigSupported` answers yes for `av01.0.04M.08`, `.10` and
+`av01.2.04M.12`, no for the High profile; Chromium 153 yes for all five asked.
+
+**So (derived):** the Firefox view holds through dav1d, as rows 1 and 2 say, because Firefox refuses the view's grey
+frames at configure. A series Firefox's `VideoDecoder` does take, in groups (the rig's 8-bit G = 8), fails its inter
+frames there, on 159 and 160; not traced here whether the engine's output or the client's routing of a group around
+it is the cause. Row 12 is now a version, not a source, question.
+
+**Limits.** One 4-vCPU container without a GPU; Firefox's WebGL is llvmpipe under Xvfb, Chromium's SwiftShader;
+software decode only; one round per cell, no timing claimed; 1 of the 19 DBT volumes (`dbts_a1`); no Safari, no phone.
 
 ## Only on a device
 

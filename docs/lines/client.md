@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -49,8 +49,12 @@ exact frame bit for bit, and only checked claims on screen.
 * **Which results hold in which engine** (ENGINE-MATRIX, 2026-11-19, sources only:
   [`../decode/engines.md`](../decode/engines.md)): every row measured or cloud-runnable in Chromium, all but the
   reports in Firefox (its WebCodecs route fails by design, dav1d serves), none measured in Safari, where the view's
-  WebCodecs route needs AV1 hardware, WebTransport macOS or iOS 26, and shared memory the embedder's choice. Next,
-  ENGINE-SMOKE (Firefox's cloud cells), ENGINE-REVIEW, ENGINES-PAGE.
+  WebCodecs route needs AV1 hardware, WebTransport macOS or iOS 26, and shared memory the embedder's choice.
+  ENGINE-SMOKE, 2026-11-20 (§Measured, *measured*, one container, Firefox 160.0.1 and 159.0.1): the demo pair holds in
+  Firefox through dav1d, both views; the dispatch rig fails 17 of 781 there, its 8-bit G = 8 groups inexact once
+  Firefox's `VideoDecoder` takes them (cause not traced); cell 2's command cannot serve a pair (run instead through
+  `demo-pair.sh`); every Chromium offers draft-02 alone; `getStats()` from Chromium 160. Next, ENGINE-REVIEW,
+  ENGINES-PAGE.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
