@@ -55,6 +55,8 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | preview | a lossy picture shown before its frame's exact one, and replaced by it |
 | lossy stream | the earlier name of an *optimal-quality series*' frames (below), which older docs still use; the studies use it for any lossy AV1 stream ([`../lab/av1/profiles`](../lab/av1/profiles/README.md)) |
 | noise ratio | a frame's coding error over its own noise, e_N ÷ σ, both in the noise band of the 3 × 3 Laplacian ÷ 6 ([`av1/noise-ratio.md`](av1/noise-ratio.md)) |
+| κ (error–noise) | the noise ratio's term: κ = 1 + 2 cov(e, n) ÷ e_N², so a coded band carries σ²(1 + κr²); +1 for independent error, below 0 where the encoder removes noise ([`av1/noise-ratio.md`](av1/noise-ratio.md) §2.3) |
+| κ_ℓ (band removed) | the frame groups' share of band ℓ's noise removed by coding: Σ B_ℓ(decoded − source)² ÷ Σ B_ℓ(r)², 0 where the band is reproduced, about 1 where its noise is gone ([`av1/groups.md`](av1/groups.md) §6, κ_b in its §2.2); not κ (error–noise), though `groups.md` writes it bare as κ = 0 and κ = 1 |
 | residual | source − the decoded lossy frame, per sample, one offset per series, coded losslessly; the lossy frame plus it is the exact frame |
 | quantizer | libaom's 0–63 scale (`--cq-level`, `--min-q`, `--max-q`), mapped by the encoder to AV1's `base_q_idx`; a rung of the owner's "qualities" |
 | quality profile | what a role receives by default: **exact** (every frame exact), **standard** (the optimal-quality series alone), **exact on request** (the optimal-quality series, and the asked frame exact); role-based profiles are still open ([`av1/README.md`](av1/README.md) §Open questions), and today every viewer sees optimal quality, exact on request |
