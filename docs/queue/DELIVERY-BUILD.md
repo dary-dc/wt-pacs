@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-20T12:16Z
-heartbeat: 2026-11-20T12:42Z
+heartbeat: 2026-11-20T12:47Z
 outputs: claude/delivery 34426f22 (merge of claude/phone-run), draft PR 406
 ## Resume
 Done: claude/delivery 34426f22 = --no-ff merge of origin/claude/phone-run (conflict docs/lines/client.md resolved: both kept).
@@ -17,7 +17,12 @@ series servers and Chromium (channel "chromium"; the headless shell ignores it) 
 Pushed 31a6ec8e: inputs.mjs (+test, 4 of 5 mutants), series.sh, k3.sh (worktree of transport-arms 9fad9d9b,
 built outside the namespace), README (the build's findings for the run's §11 amendment), tests in scripts/gate.sh.
 Running: series.sh into the scratchpad (the three volumes), k3.sh smoke on the synthetic pair.
-Next: driver mutants (flip-exact, decoders-3, fixed-order, relay-no-loss), smoke a round a cell, gate, line doc, PR body.
+Driver mutants run on the synthetic pair: flip-exact STOP exit 3; fixed-order UNBALANCED (unmutated: none);
+relay-no-loss PILOT REFUSES 0.000 % (unmutated LOSS pilot passes, pooled ~0.9 %; per direction ~1.8 % up, ~0.15 % down).
+series.sh coded the three volumes in ~2 min (scratchpad, not committed); k3.sh ran 8 interleaved visits on the synthetic.
+Running (background): one smoke round per cell on the three volumes, rows to claude/delivery lab/delivery/rows/smoke/.
+If this session ends: re-run `lab/delivery/series.sh S` then the loop in README §Run with --rounds 1 --idle-ms 2000.
+Next: decoders-3 mutant, gate (scripts/gate.sh), docs/lines/client.md, PR 406 body.
 Was next: lab/delivery/ (driver over the viewer's round levers through the TUN relay; prefix series; C1's 1 s gap;
 K1-K3 + predictor -> predictions.json; judge), tests failing first, mutants of protocol §10; smoke one round a cell.
 ## Result
