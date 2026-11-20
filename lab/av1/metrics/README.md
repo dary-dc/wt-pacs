@@ -2794,10 +2794,17 @@ synthetic checks do not depend on the series and read as shard 4's to the last d
 **Verdict.**
 
 * **Claim.** On the 19 DBT volumes here (EA1141 systems A, B, C, five each, and content 2's four), stored form, G 1
-  to 16: the lossy AV1 view keeps part of the frame's fine-band noise to Q 8 (B: 8–12, A: 4–8), at about a tenth of
+  to 16: the lossy AV1 view keeps part of the frame's fine-band noise to Q 8 (B: 8–12, A: 4–8) at the bar 1.00, at about a tenth of
   HTJ2K's bytes (A at G 1: a quarter); the scrolling test (error below the neighbour-slice step, 4 × 4 band) holds
   to Q 16 at 0.6–7 % of HTJ2K's; no rung keeps every displayed level within one grey level. Each is a rung picked by a metric, not a
-  reading of visual losslessness.
+  reading of visual losslessness. *Corrected 2026-11-11 (audit F1, F4):* the bar 1.00 sits inside the estimator's
+  3 % error. The first failing rung's worst frame is within 1.1 % of 1 on five volumes and within 3 % on five more, so
+  the anchor's rung (2–3× in bytes) is set by a difference the estimator cannot see. At the noise rule's bar of 1.03,
+  every 12-bit volume sits at Q 8 and the 10-bit ones move to Q 12–16 (audit F1's table). Both bars pass a coding that
+  deletes the fine-band noise outright, since that reads e_N = σ (audit F4), so neither is evidence of visual
+  losslessness. Re-read since (B, [`docs/av1/audit-protocols.md`](../../../docs/av1/audit-protocols.md) §B · measured,
+  2026-11-12): the anchor is unresolved on 15 of 19 volumes; quote it as [Q_lo, Q_hi] (`docs/lines/codecs.md` §Open
+  10).
 * **Proof chain.** Fixtures fetched and checked against their SHA-256 pins → every cell encoded at fixed Q
   (`--min-q = --max-q`, q-hist: every frame at Q on all 1 650 cells) → decoded by dav1d 1.5.4 → §4's per-frame
   metrics, each checked and mutated on every shard (§7) → `collect.py` and `systems.py` over all four shards' rows →
@@ -2881,7 +2888,12 @@ How to read it, and what it does not say:
 * **G 16 against G 1** moves no DBT anchor by more than one rung and cuts the bytes at the band anchor by 13–38 %
   (family medians: A 0.013 → 0.008, C 0.017 → 0.012; B 0.053 → 0.046); at the noise anchor the two are within 0.015
   of each other except where the anchor moves a rung: `dbts_b1` (Q 12 · 0.10 at G 1, Q 8 · 0.22 at G 16) and `dbts_a5`
-  (Q 4 · 0.28 at G 1, Q 8 · 0.09 at G 16).
+  (Q 4 · 0.28 at G 1, Q 8 · 0.09 at G 16). *Added 2026-11-11 (audit F2):* every figure in this bullet is an
+  equal-Q reading. G 16 ÷ G 1 at equal Q is 0.93–1.01 at Q 8, 0.77–0.94 at Q 12 and 0.58–0.85 at Q 16 over the 19 DBT
+  volumes; at the interpolated noise anchor it is 0.84–0.94 on `dbts_a1`, `a3`, `b1`, `b2`, `c1`. "G saves almost
+  nothing" holds only at Q 8, the rung below the 2.4–4.2× byte cliff, and only at lag 0. Re-read since (B-5, measured
+  2026-11-12, 16 DBT volumes, lag 0): at equal worst frame G 16 ÷ G 1 is 0.954–0.986 on 12-bit and 0.855–0.907 on
+  10-bit.
 * **Where the data shows no knee:** `usb_cine_rgb` and `us_liver` have no JOD (the visibility model runs on grey
   stored forms only), so no JOD knee; `usb_cine` and `mr9_ispy2` at G 1 have no noise anchor (their σ is below every
   rung's e_N: median σ 0.358 on `usb_cine`, shard 2's section). Every other curve has a knee.
