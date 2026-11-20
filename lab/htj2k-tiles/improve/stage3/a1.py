@@ -33,8 +33,10 @@ def main():
         parts = []
         for name, num, den in RATIOS:
             x, s = ratio(arms, num, den)
-            sv = f"s {s:.3f}" if paired else "no D/D′ pair"
-            parts.append(f"{name} ×{x:.3f} [{sv}]" if x is not None else f"{name} —")
+            if x is None:
+                parts.append(f"{name} —")
+            else:
+                parts.append(f"{name} ×{x:.3f} [{f's {s:.3f}' if paired else 'no D/D′ pair'}]")
         print(f"{key[0]} {key[1]} {key[2]}×  ({n}): " + "; ".join(parts))
     arms = by.get(("dbts_b1/phone", "r5000", 4), {})
     x, s = ratio(arms, RATIOS[0][1], RATIOS[0][2])
