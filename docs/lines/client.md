@@ -41,7 +41,7 @@ exact frame bit for bit, and only checked claims on screen.
   prediction for the 2026-11-21 round pre-registered (HTJ2K at 14–22 ms effective a `dbts_b1` frame with three
   decoders, half the protocol's carried ratio; arm B wire-bound). Reviewed 2026-11-20 (PR 414 body): two blockers;
   fixed the same day, before the 11-21 12:00 deadline: cell 2 derived (8–10 of 16 below 1, *no difference shown*
-  unless the link gives over ~760 Mbit/s), the premium view band 33–48 ms. Owed: the re-review, then the round's read.
+  unless the link gives over ~760 Mbit/s), the premium view band 33–48 ms. Re-reviewed 2026-11-20 (PR 414 body §Re-review): no blocker open. Owed: the round's read.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 
