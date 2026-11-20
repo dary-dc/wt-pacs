@@ -29,10 +29,12 @@ def main():
     for key in sorted(by):
         arms = by[key]
         n = " ".join(f"{a} n={len(arms.get(a, {}))}" for a in ("D", "D′", "D+T1", "D+T3"))
+        paired = any(k in arms.get("D′", {}) for k in arms.get("D", {}))
         parts = []
         for name, num, den in RATIOS:
             x, s = ratio(arms, num, den)
-            parts.append(f"{name} ×{x:.3f} [s {s:.3f}]" if x is not None else f"{name} —")
+            sv = f"s {s:.3f}" if paired else "no D/D′ pair"
+            parts.append(f"{name} ×{x:.3f} [{sv}]" if x is not None else f"{name} —")
         print(f"{key[0]} {key[1]} {key[2]}×  ({n}): " + "; ".join(parts))
     arms = by.get(("dbts_b1/phone", "r5000", 4), {})
     x, s = ratio(arms, RATIOS[0][1], RATIOS[0][2])
