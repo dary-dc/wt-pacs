@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-20T08:00Z
-heartbeat: 2026-11-20T08:00Z
+heartbeat: 2026-11-20T08:03Z
 outputs: `claude/htj2k-a1` (rows to land in `lab/htj2k-tiles/improve/rows/a1-*.jsonl`; PR 408)
 ## Resume
 Claimed. Setup done so far in this container: the three DBT volumes fetched, `ingest/tools.sh` on `claude/htj2k-a1`,
