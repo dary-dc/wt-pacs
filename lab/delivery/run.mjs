@@ -232,7 +232,5 @@ for (const [k, spec] of plan.entries()) {
 }
 if (!stopped && PILOT && !BENCH) stopped = relayLossRefusal(rows);
 roundHost.close();
-if (stopped) {
-  console.log(stopped);
-  process.exit(3);
-}
+if (stopped) console.log(stopped);
+process.exit(stopped ? 3 : 0);
