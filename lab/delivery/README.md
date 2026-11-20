@@ -27,7 +27,7 @@ lab/delivery/series.sh S                                           # K1's series
 node lab/delivery/run.mjs --bench --series S                       # K2: rows/K2.jsonl
 lab/delivery/k3.sh S lab/delivery/rows                             # K3: rows/K3-<CELL>.jsonl
 node lab/delivery/inputs.mjs S lab/delivery/rows/K2.jsonl lab/delivery/inputs.json --k3 CLEAN=lab/delivery/rows/K3-CLEAN.jsonl …
-node lab/delivery/predict.mjs lab/delivery/inputs.json lab/delivery/predictions.json   # commit and push before any counted row
+node lab/delivery/predict.mjs lab/delivery/inputs.json lab/delivery/predictions.json   # git add -f it, push before any counted row
 node lab/delivery/run.mjs --cell CLEAN --series S --predictions lab/delivery/predictions.json --pilot   # 2 rounds, not counted
 node lab/delivery/run.mjs --cell CLEAN --series S --predictions lab/delivery/predictions.json [--pilot-medians FILE]
 node lab/delivery/judge.mjs lab/delivery/predictions.json lab/delivery/rows/CLEAN.jsonl
