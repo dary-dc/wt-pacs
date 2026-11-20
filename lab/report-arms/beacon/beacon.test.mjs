@@ -1,6 +1,7 @@
 // node lab/report-arms/beacon/beacon.test.mjs — BEACON as report-plan.md §3.1 designs it: each record one sendBeacon,
 // sent inside the call; a refused whole load record sent once more without its frames; a refused safety report kept,
-// whole, and sent again on a 1 s timer and at the next hide, before any load record; the floor sends the same bytes.
+// whole, and sent again on a 1 s timer and at the next hide, before any load record; the floor sends the same bytes,
+// to their kind's path.
 import beacon from "./beacon.js";
 import { floor } from "./floor.js";
 
@@ -107,6 +108,13 @@ const fault = (n) => JSON.stringify({ kind: "safety", reportId: `s${n}`, frame: 
   check(r.load === f.load && r.load !== "11111111-2222-3333-4444-555555555555" && r.reportId !== "0123456789abcdef0123456789abcdef",
         "floor: its own load id and reportId, so the read tool keeps it apart");
   check(f.ok === true && typeof f.at === "number" && typeof f.callMs === "number", "floor: the answer, the call's time and its cost");
+}
+{
+  const calls = [];
+  const body = JSON.stringify({ kind: "safety", reportId: "0123456789abcdef0123456789abcdef",
+                                load: "11111111-2222-3333-4444-555555555555", frame: 10 });
+  floor({ base: "/report", load: "11111111-2222-3333-4444-555555555555", body, send: (u, b) => (calls.push([u, b]), true) });
+  check(calls[0]?.[0] === "/report/safety", `floor: a safety body to the arm's safety path (${calls[0]?.[0]})`);
 }
 
 if (failed) process.exit(1);

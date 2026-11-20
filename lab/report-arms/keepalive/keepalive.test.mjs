@@ -1,7 +1,8 @@
 // node lab/report-arms/keepalive/keepalive.test.mjs — KEEPALIVE as report-plan.md §3.2 designs it: every record one
 // keepalive POST inside the call; a send while visible retried once after 1 s, a hide send never; past OpenTelemetry's
 // budget the frames dropped, then keepalive off; the worker sends each failed check at once and tells the page on its
-// 204; the page sends every safety report not yet acknowledged at each hide; the floor sends the same bytes.
+// 204; the page sends every safety report not yet acknowledged at each hide; the floor sends the same bytes, to their
+// kind's path.
 import keepalive, { post } from "./keepalive.js";
 import { reporter, failed } from "./worker.js";
 import { floor } from "./floor.js";
@@ -188,12 +189,19 @@ check(failed(rescued) && failed({ kind: "frame", exact: false }) && !failed({ ki
       !failed({ ...rescued, preview: true }) && !failed({ kind: "done" }), "worker: a final frame whose check failed, nothing else");
 {
   const calls = [];
-  const body = JSON.stringify({ load: "11111111-1111-4111-8111-111111111111", reportId: "a".repeat(32), frames: [] });
+  const body = JSON.stringify({ kind: "load", load: "11111111-1111-4111-8111-111111111111", reportId: "a".repeat(32), frames: [] });
   const f = floor({ base: "/report", load: "11111111-1111-4111-8111-111111111111", body,
                     send: (url, b, keep) => (calls.push({ url, b, keep }), Promise.resolve(true)) });
   check(calls[0].b.length === body.length && calls[0].b.includes(f.load) && !calls[0].b.includes("a".repeat(32)) &&
         calls[0].keep === true && calls[0].url === "/report/load" && f.done instanceof Promise,
         "floor: the arm's bytes, keepalive, its own load id and reportId");
+}
+{
+  const calls = [];
+  const body = JSON.stringify({ kind: "safety", reportId: "a".repeat(32), load: "11111111-1111-4111-8111-111111111111", frame: 10 });
+  floor({ base: "/report", load: "11111111-1111-4111-8111-111111111111", body,
+          send: (url, b, keep) => (calls.push({ url, b, keep }), Promise.resolve(true)) });
+  check(calls[0]?.url === "/report/safety", `floor: a safety body to the arm's safety path (${calls[0]?.url})`);
 }
 
 if (failures) process.exit(1);
