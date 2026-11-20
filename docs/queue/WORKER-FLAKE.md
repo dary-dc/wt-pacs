@@ -1,7 +1,7 @@
 state: done
 started: 2026-11-20T15:17Z
 heartbeat: 2026-11-20T17:21Z
-outputs: claude/worker-flake a9e624a3, draft PR #419 into claude/unified
+outputs: claude/worker-flake 5ca31b35, draft PR #419 into claude/unified
 ## Resume
 Done. Next: a review row for #419 (none is queued; the standing rule asks one per build).
 ## Result
