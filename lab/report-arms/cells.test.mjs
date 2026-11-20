@@ -25,6 +25,8 @@ const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
   check(s[0] === 30, "latencies: a body kept as a string (NGINX's) read too");
   check(latencies([100], [JSON.stringify({ t: "2026-11-19T12:00:00+00:00", r: { kind: "safety", load: "L", reportId: "n", at: 101 } })], "L")[0] === null,
     "latencies: a time not in milliseconds gives no latency");
+  const copies = [1300, 1180].map((t) => JSON.stringify({ t, r: { kind: "safety", load: "L", reportId: "b", at: 1105 } }));
+  check(latencies([1100], copies, "L")[0] === 80, "latencies: the earliest copy, whichever file is read first");
 }
 {
   check(quantile([5, 1, 3, 2, 4], 0.5) === 3, "quantile: the median");

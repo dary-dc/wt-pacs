@@ -67,7 +67,7 @@ try {
   const worker = arm.downloader && `${arm.downloader}?${workerQuery}`;
   const fillFrom = performance.timeOrigin + performance.now();
   const done = () => {
-    if (rig.frames < n) return;
+    if (rig.frames < n || rig.state === "filled") return;
     const fillTo = performance.timeOrigin + performance.now();
     load.fill = { fillFrom, fillTo, fillMs: fillTo - fillFrom };
     rig.fillMs = fillTo - fillFrom;
