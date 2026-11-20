@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-20T12:16Z
-heartbeat: 2026-11-20T12:49Z
+heartbeat: 2026-11-20T13:20Z
 outputs: claude/delivery 34426f22 (merge of claude/phone-run), draft PR 406
 ## Resume
 Done: claude/delivery 34426f22 = --no-ff merge of origin/claude/phone-run (conflict docs/lines/client.md resolved: both kept).
@@ -25,7 +25,9 @@ If this session ends: re-run `lab/delivery/series.sh S` then the loop in README 
 Pushed f4b1f069 (README checks table, docs/lines/client.md). CLEAN smoke so far: B on its prediction (a1 6.30 s vs
 6.29, b1 9.97 vs 9.98); A far above §4.3's scale (b1 7.4 s vs 2.95); the relay's guard voids every decode-bound load
 (p99 2.5-8.9 ms with cores 2-3 saturated, 0.3-0.5 on wire-bound loads; no SMT; affinities checked).
-PR body drafted in the session scratchpad. Next: decoders-3 mutant, gate (scripts/gate.sh), docs/lines/client.md, PR 406 body.
+PR body drafted in the session scratchpad. Smoke CLEAN, PUB, LTE, LOSS done (rows/smoke/); CR's first smoke lost
+A/A'/B's records (the driver closed the browser before the page's last beacon crossed 0.8 s RTT): fixed (wait for
+the verdict record), CR re-running. Next: decoders-3 mutant, gate (scripts/gate.sh), docs/lines/client.md, PR 406 body.
 Was next: lab/delivery/ (driver over the viewer's round levers through the TUN relay; prefix series; C1's 1 s gap;
 K1-K3 + predictor -> predictions.json; judge), tests failing first, mutants of protocol §10; smoke one round a cell.
 ## Result
