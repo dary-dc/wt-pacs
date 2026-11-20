@@ -1,35 +1,21 @@
-state: started
+state: done
 started: 2026-11-20T12:16Z
-heartbeat: 2026-11-20T13:48Z
-outputs: claude/delivery 34426f22 (merge of claude/phone-run), draft PR 406
+heartbeat: 2026-11-20T13:54Z
+outputs: claude/delivery 32364cae (lab/delivery/, lab/devices beacon + pressAfter, scripts/gate.sh, docs/lines/client.md), draft PR 406 into claude/unified
 ## Resume
-Done: claude/delivery 34426f22 = --no-ff merge of origin/claude/phone-run (conflict docs/lines/client.md resolved: both kept).
-The container runs the relay's TUN plane: `apt-get install -y iproute2` (absent from the image), then
-`unshare -rn` + `lab/scripts/link_impair.py --tun --delay-ms 10 --self-timing`: READY, a UDP echo in the server netns
-at 10.77.0.2 read RTT 20.75 ms, self-timing p99 0.24 ms (2026-11-20 12:40Z).
-Pushed e8390ef7: lab/delivery/plan.mjs (cells, arms, order) and predict.mjs (§4.1 model, predictions.json,
-XXH3 by the product hasher), predict.test.mjs 25 claims, 10 mutants killed. Pushed 952b64ca: judge.mjs (§6-§8), judge.test.mjs 23 claims, 14 mutants killed.
-Pushed 8f43a8ead: lab/devices beacon lastByte + pressAfter (tests failed first); lab/delivery/prefix.py (4 mutants);
-run.mjs, the driver: one CLEAN round on the synthetic pair (synth, 64x48, 20 frames) ran all five arms ok.
-Findings for the run: the viewer's page must be a secure context, so the page server runs at 10.77.0.2 beside the
-series servers and Chromium (channel "chromium"; the headless shell ignores it) gets
---unsafely-treat-insecure-origin-as-secure for its two origins; navigator.hardwareConcurrency reads 2 under taskset.
-Pushed 31a6ec8e: inputs.mjs (+test, 4 of 5 mutants), series.sh, k3.sh (worktree of transport-arms 9fad9d9b,
-built outside the namespace), README (the build's findings for the run's §11 amendment), tests in scripts/gate.sh.
-Running: series.sh into the scratchpad (the three volumes), k3.sh smoke on the synthetic pair.
-Driver mutants run on the synthetic pair: flip-exact STOP exit 3; fixed-order UNBALANCED (unmutated: none);
-relay-no-loss PILOT REFUSES 0.000 % (unmutated LOSS pilot passes, pooled ~0.9 %; per direction ~1.8 % up, ~0.15 % down).
-series.sh coded the three volumes in ~2 min (scratchpad, not committed); k3.sh ran 8 interleaved visits on the synthetic.
-Running (background): one smoke round per cell on the three volumes, rows to claude/delivery lab/delivery/rows/smoke/.
-If this session ends: re-run `lab/delivery/series.sh S` then the loop in README §Run with --rounds 1 --idle-ms 2000.
-Pushed f4b1f069 (README checks table, docs/lines/client.md). CLEAN smoke so far: B on its prediction (a1 6.30 s vs
-6.29, b1 9.97 vs 9.98); A far above §4.3's scale (b1 7.4 s vs 2.95); the relay's guard voids every decode-bound load
-(p99 2.5-8.9 ms with cores 2-3 saturated, 0.3-0.5 on wire-bound loads; no SMT; affinities checked).
-PR body drafted in the session scratchpad. Smoke CLEAN, PUB, LTE, LOSS done (rows/smoke/); CR's first smoke lost
-A/A'/B's records (the driver closed the browser before the page's last beacon crossed 0.8 s RTT): fixed (wait for
-the verdict record), CR re-run 15/15 ok. Pushed ce4ad5f2 (smoke rows, decoders-3 mutant VOID by read-back).
-Running: scripts/gate.sh (needed wasm-pack: `cargo install wasm-pack`, then client/transport/wasm/build.sh).
-Pushed 32364cae (predictions.json ignored until the run force-adds it: the gate's link check). Then: PR 406 title/body (draft in scratchpad pr406.md), state done. Next: decoders-3 mutant, gate (scripts/gate.sh), docs/lines/client.md, PR 406 body.
-Was next: lab/delivery/ (driver over the viewer's round levers through the TUN relay; prefix series; C1's 1 s gap;
-K1-K3 + predictor -> predictions.json; judge), tests failing first, mutants of protocol §10; smoke one round a cell.
+Done. Next row on this question: DELIVERY-BUILD-REVIEW (a session that wrote none of this; not before 11-21 08:00).
+The run's series: `lab/delivery/series.sh S` (~2 min here, frames kept); needs `apt-get install -y iproute2`.
 ## Result
+claude/delivery = claude/unified + DELIVERY-PROTOCOL + --no-ff merge of claude/phone-run (PR 409's diff rides PR 406).
+lab/delivery/: plan, predictor (§4.1; checked against §4.3's table), inputs (K1-K3), driver (TUN relay, per load),
+judge (§6-§8, A/A input), series.sh, prefix.py, k3.sh (transport-arms 9fad9d9b's WT-TS in a worktree).
+lab/devices: each frame's lastByte in the beacon; pressAfter for C1's 1 s. Tests failed first.
+Tests 24+23+4+3 claims; mutants killed 10, 15, 4 of 5 (a sort the filesystem already gives), 4; the driver's §10
+mutants flip-exact (STOP), relay-no-loss (PILOT REFUSES), fixed-order (UNBALANCED), decoders-3 (VOID) each fired.
+Smoke, one uncounted round a cell on the three volumes: 72 of 75 loads ok; B within 0.5 % of §4.3 on CLEAN/PUB.
+For the run's §11 amendment (README): page server in the server netns + --unsafely-treat-insecure-origin-as-secure on
+full Chromium 153; hardwareConcurrency 2 under taskset; C1 asks frame 0; C2 dials at its issue.
+Open for the run: the relay's guard voided 8/15 CLEAN and 5/15 PUB smoke loads, all decode-bound (p99 2.5-8.9 ms).
+Gate green at 32364cae (skips: cross-codec/Firefox, native painter and window, nginx). check_links 0, budget ok.
+Fixtures: dbts_a1/b1/c1 Q 8 G 8, synthetic pair 64x48x20; one 4-core container, software decode, TUN relay <= 90 Mbit.
+Owner: whether CLEAN/PUB may run with the guard as written (decode-bound loads VOID) is the run's amendment or yours.
