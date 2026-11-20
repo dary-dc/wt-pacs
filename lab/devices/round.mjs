@@ -29,10 +29,11 @@ const until = (done, ms) => new Promise((resolve) => {
 });
 
 /** One exact frame asked and back to the view, as a reader presses: why not, or null. */
-export async function losslessFailure(quality, lossless, { losslessMs = 30000, optimalMs = 10000 } = {}) {
+export async function losslessFailure(quality, lossless, { losslessMs = 30000, optimalMs = 10000, pressAfterMs = 0 } = {}) {
   const shown = () => `${quality.className || "none"} (${quality.textContent})`;
   if (!(await until(() => quality.className === "optimal", 10000))) return `label ${shown()} after the fill, not optimal`;
   if (!(await until(() => !lossless.hidden, 10000))) return "no lossless button: the exact series did not connect";
+  await new Promise((r) => setTimeout(r, pressAfterMs));
   lossless.click();
   if (!(await until(() => ["lossless", "failed"].includes(quality.className), losslessMs))) return `no Lossless ${losslessMs / 1000} s after the press: ${shown()}`;
   if (quality.className !== "lossless") return `lossless pressed: ${shown()}`;

@@ -1,7 +1,7 @@
 /** node lab/devices/round.test.mjs — the round's rules: a load's failure, the timer gap, the verdict. */
 import assert from "node:assert/strict";
 import { balanced } from "../order.mjs";
-import { ARMS, BENCH, SERIES, STOPPED_GAP_MS, TICK_MS, fillFailure, largestGap, roundOrder, verdict } from "./round.mjs";
+import { ARMS, BENCH, SERIES, STOPPED_GAP_MS, TICK_MS, fillFailure, largestGap, losslessFailure, roundOrder, verdict } from "./round.mjs";
 import { roundPlan } from "./round_plan.mjs";
 
 const tests = [];
@@ -82,6 +82,18 @@ test("the round's order is the protocol's", async () => {
 test("the plan refuses a missing, empty or flag-shaped --dial", async () => {
   for (const dial of [undefined, "", "--quick"]) {
     await assert.rejects(roundPlan({ dir: "/nonexistent", run: "/nonexistent", dial, quick: true }), /--dial/, `dial ${JSON.stringify(dial)}`);
+  }
+});
+
+/** C1's press waits `pressAfterMs` past the label reading optimal (delivery-comparison.md §1: 1 s after its fill), and presses at once without it. */
+test("the lossless press waits pressAfterMs after the fill", async () => {
+  for (const pressAfterMs of [0, 300]) {
+    const quality = { className: "optimal", textContent: "" };
+    const t0 = Date.now();
+    const clicks = [];
+    const lossless = { hidden: false, click: () => { clicks.push(Date.now() - t0); quality.className = clicks.length === 1 ? "lossless" : "optimal"; } };
+    assert.equal(await losslessFailure(quality, lossless, { pressAfterMs }), null);
+    assert.ok(clicks[0] >= pressAfterMs && clicks[0] < pressAfterMs + 150, `pressAfterMs ${pressAfterMs}: pressed at ${clicks[0]} ms`);
   }
 });
 

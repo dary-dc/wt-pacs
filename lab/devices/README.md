@@ -189,7 +189,7 @@ round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer
   whatever follows the fill that throws, or has not ended `afterS` (300) after it, fails the load. `fault=throw|hang`
   injects either after the fill, for the headless test; `seq=view` refuses a series under `2 × steps + 1` frames.
 * **The round's levers** (`bench.js`; each refused outside a round but `decoders`, each refused where `lab/` is not
-  served): `decoders=N` (1–8) sets the fill's decoder count, recorded on every record of the load with
+  served): `pressAfter=<ms>` delays C1's press past the fill (the delivery comparison's 1 s); `decoders=N` (1–8) sets the fill's decoder count, recorded on every record of the load with
   `navigator.hardwareConcurrency` (`cores`), absent the downloader's default; `exactFill=1` is arm C2: once the
   view has filled, a second downloader fills the whole exact series (OpenJPH, the load's decoder count), every frame
   checked by its XXH3, its `exactFill` record each frame's arrival, check, route, KB and decode ms and the span

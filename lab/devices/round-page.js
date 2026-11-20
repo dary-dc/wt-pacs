@@ -56,7 +56,7 @@ export function roundHooks(q) {
           recorder.record("exactFill", r);
           failure = r.failure;
         }
-        if (!failure && q.get("press") === "lossless") failure = await losslessFailure(quality, lossless);
+        if (!failure && q.get("press") === "lossless") failure = await losslessFailure(quality, lossless, { pressAfterMs: Number(q.get("pressAfter") ?? 0) });
         if (!failure && q.get("seq") === "view") failure = await viewSequence(q, recorder, { ...page, n: ledger.frames.length }, quality, lossless);
       } catch (e) {
         failure = `after the fill: ${e?.message ?? e}`;
