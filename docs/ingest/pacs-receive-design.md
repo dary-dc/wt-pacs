@@ -827,7 +827,9 @@ Each: the evidence in one line · the default if nothing else is said.
 * **D1 · one study-DB schema.** #160 stores `xxh3 INTEGER`, #163 `xxh3 TEXT`; the verify tool fails on the receiver's DB.
   *Corrected 2026-10-26:* #160's schema lacks #163's `series` column and audit table, so the only real choice is the
   hash as hex `TEXT` or `INTEGER` · #160's common/study-db is the one schema, carrying #163's `series` column and audit
-  table, `xxh3 INTEGER`; #163 uses the crate.
+  table, `xxh3 INTEGER`; #163 uses the crate. *Corrected 2026-11-19:* built the other way on
+  `claude/study-db-schema`, as COMPLEXITY-AUDIT item 1 proposed: `common/study-db` holds the receiver's schema with
+  `xxh3 TEXT` (16 hex), both crates on it; `INTEGER` is the alternative in that PR's body. The owner's merge is D1's yes.
 * **D2 · one disk-read helper. Decided 2026-10-26:** #160's (flush, then drop the cache), "yes, rec seems safer"; used by
   steps 6b and 8, with a test at a call site. *Done 2026-10-27:* `common/from-disk` in #160 and #163, call sites tested
   in both (`33ffdaf`, `62c8ce5`).

@@ -47,13 +47,11 @@ fn groups(path: &Path, conn: &Connection, level: &str) -> Vec<Finding> {
             while let Some(row) = q.next()? {
                 rows += 1;
                 let uid: String = row.get(0)?;
-                let stored: i64 = row.get(2)?;
+                let stored: String = row.get(2)?;
                 let actual = study_db::group_hash(row.get_ref(1)?.as_blob()?);
                 if actual != stored {
-                    let details = format!(
-                        "{level} {uid}: stored XXH3 {:016x}, its bytes hash to {:016x}",
-                        stored as u64, actual as u64
-                    );
+                    let details =
+                        format!("{level} {uid}: stored XXH3 {stored}, its bytes hash to {actual}");
                     findings.push(Finding::fail(path, "groups", details));
                 }
             }

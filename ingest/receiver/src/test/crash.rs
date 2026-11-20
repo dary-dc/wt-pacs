@@ -43,7 +43,7 @@ struct Served {
 }
 
 fn served(site: &Site) -> Served {
-    if site.study().join(study_db::FILE).exists() {
+    if site.study().join(study_db::FILE_NAME).exists() {
         let check: String = site
             .db()
             .query_row("PRAGMA integrity_check", [], |r| r.get(0))
@@ -54,7 +54,7 @@ fn served(site: &Site) -> Served {
     extra.retain(|f| {
         let f = f.strip_prefix(&format!("{}/", c(STUDY))).unwrap_or(f);
         ![
-            study_db::FILE,
+            study_db::FILE_NAME,
             "study.db-wal",
             "study.db-shm",
             &format!("{}.sbnd", c(SERIES)),

@@ -51,6 +51,20 @@ fn a_series_package_is_placed_recorded_confirmed_and_deleted() {
     assert_eq!(Site::files(&site.incoming), [format!("status/{name}")]);
 }
 
+/// What the receiver stores passes the verify tool: the study DB it writes is the one `pacs-verify` reads.
+#[test]
+fn a_stored_study_passes_the_verify_tool() {
+    let site = Site::new("verified");
+    site.receive(&first());
+    let findings = pacs_verify::verify(&site.root);
+    let failed: Vec<_> = findings
+        .iter()
+        .filter(|f| f.result != pacs_verify::Outcome::Ok)
+        .collect();
+    assert!(failed.is_empty(), "{failed:?}");
+    assert!(findings.iter().any(|f| f.check == "groups"), "{findings:?}");
+}
+
 /// Only complete arrivals are taken: a carrier's `.partial` and the receiver's lock are not packages.
 #[test]
 fn a_partial_arrival_is_not_picked_up() {
@@ -457,7 +471,7 @@ fn the_read_back_of_the_study_db_is_from_the_device() {
 
 /// Flips one byte of a stored group's bytes in the study DB file, past SQLite's own checks.
 fn corrupt_row(site: &Site, needle: &[u8]) {
-    let path = site.study().join(study_db::FILE);
+    let path = site.study().join(study_db::FILE_NAME);
     site.db()
         .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))
         .unwrap();
@@ -548,7 +562,7 @@ fn a_study_db_failing_its_integrity_check_is_refused() {
                 .unwrap();
             let size: i64 = db.query_row("PRAGMA page_size", [], |r| r.get(0)).unwrap();
             drop(db);
-            let path = site.study().join(study_db::FILE);
+            let path = site.study().join(study_db::FILE_NAME);
             let mut bytes = fs::read(&path).unwrap();
             let index = &mut bytes[((page - 1) * size) as usize..(page * size) as usize];
             let at = index

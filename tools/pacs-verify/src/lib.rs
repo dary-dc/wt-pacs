@@ -136,9 +136,24 @@ mod tests {
             let conn = Connection::open(dir.join(study_db::FILE_NAME)).unwrap();
             study_db::create(&conn).unwrap();
             for level in study_db::LEVELS {
-                study_db::put(&conn, level, "1A", format!("{level} group").as_bytes()).unwrap();
+                let series = (level != "exam").then_some("1A");
+                study_db::put(
+                    &conn,
+                    level,
+                    "1A",
+                    series,
+                    format!("{level} group").as_bytes(),
+                )
+                .unwrap();
             }
-            study_db::put(&conn, "instance", "1A1", b"another instance group").unwrap();
+            study_db::put(
+                &conn,
+                "instance",
+                "1A1",
+                Some("1A"),
+                b"another instance group",
+            )
+            .unwrap();
             Study(dir)
         }
 
@@ -310,7 +325,7 @@ mod tests {
         let study = Study::new("hash");
         study
             .db()
-            .execute("UPDATE exam SET xxh3 = xxh3 + 1", [])
+            .execute("UPDATE exam SET xxh3 = '0000000000000000'", [])
             .unwrap();
         let (_, check, details) = study.failure();
         assert_eq!(check, "groups");
@@ -378,7 +393,7 @@ mod tests {
         writer
             .execute_batch("PRAGMA journal_mode = WAL; PRAGMA wal_autocheckpoint = 0")
             .unwrap();
-        study_db::put(&writer, "instance", "1A2", b"logged").unwrap();
+        study_db::put(&writer, "instance", "1A2", Some("1A"), b"logged").unwrap();
         assert!(study.path("study.db-wal").exists());
         let findings = verify(&study.0);
         assert!(

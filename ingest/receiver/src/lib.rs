@@ -248,7 +248,7 @@ impl Receiver {
             named.revision
         );
         let study_dir = self.root.join(&header.study);
-        let db_path = study_dir.join(study_db::FILE);
+        let db_path = study_dir.join(study_db::FILE_NAME);
         let existing = study_dir.exists();
         ensure!(
             existing || header.kind == Kind::Series,
@@ -378,7 +378,7 @@ impl Receiver {
         if !existing {
             let staged_study = work.join("study");
             fs::create_dir_all(&staged_study)?;
-            study_db::create(&staged_study.join(study_db::FILE))?;
+            study_db::create(&staged_study.join(study_db::FILE_NAME))?;
             disk::sync_dir(&staged_study)?;
             fs::rename(&staged_study, &study_dir).context("place the study")?;
             disk::sync_dir(&self.root)?;
