@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-20T08:00Z
-heartbeat: 2026-11-20T08:05Z
+heartbeat: 2026-11-20T08:19Z
 outputs: `claude/htj2k-a1` (rows to land in `lab/htj2k-tiles/improve/rows/a1-*.jsonl`; PR 408)
 ## Resume
 Shard 1 (rounds 0–2) running since 08:03Z, rows to `/home/user/rows/a1-run-1.jsonl`, copied into
