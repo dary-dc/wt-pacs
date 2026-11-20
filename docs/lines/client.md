@@ -123,6 +123,14 @@ exact frame bit for bit, and only checked claims on screen.
   wire-bound below ~470–660 if its unmeasured phone decode keeps the cloud's ratio; that decode is the first phone cell.
 * dav1d fetched only where WebCodecs refuses (a protocol with an A/A arm, not started); a wake before `l` asks (its
   phone row); the WebGL painter on a real GPU (the owner's machine); Firefox and WebKit.
+* **The two on-demand mutants REVIEW-E2E2 left alive** (DEMO-CHECK-MUTANTS, 2026-11-20, *measured*, `dbts_a1-q8-g8-cut`
+  only, one 4-core cloud container, headless Chromium on SwiftShader, loopback, 3 runs a cell): traced and closed.
+  `wantFrom` asking `c + 8` on demand is dead code under `--view page` (the page's controller asks only the current
+  frame, on a miss): equivalent there, killed under `--view worker` (32 frames, not 24). `show()` asking `want + 8` on
+  a miss lands in group 1 at the open and in group 0 at the jump, so the final count stays 24 and the old check
+  passes it; the new check (`5914a1b6`) fails it 3 of 3: before each on-demand step, the frames received may not
+  exceed the groups the steps have reached. The same check also fails the other two mutants wherever the old one did.
+  Not run: the other 19 series, `--link`, Firefox, a GPU, a phone.
 * Each of the view worker's open questions ([`../client/design.md`](../client/design.md) §Open) has its deciding run
   in its evidence file; none is queued.
 
