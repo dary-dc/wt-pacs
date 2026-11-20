@@ -44,7 +44,9 @@ trips on one shared ssh connection: **≈ 18 s on satellite**, 0.26 s on fiber (
 under a tenth of it on satellite, so bytes and round trips do not rank the patterns; recovery from a side that forgets
 does.
 
-**Ranking (inference): P3, P4, P1, P2**; the frame container built **at the PACS from HTJ2K codestreams** if the PCS
+**Ranking (inference): P3, P4, P1, P2** (*corrected 2026-11-20:* P3 over P4 rested on bytes and round trips, which
+the paragraph above says do not rank the patterns; by #223's pre-registered rule P4 (E) holds on satellite and rural
+ADSL turns on M-R2: §6.1); the frame container built **at the PACS from HTJ2K codestreams** if the PCS
 ships its document's `c/` layout, **at the PCS by our script** (rsync's delta against a hard-linked basis) if it ships
 raw frames, since that keeps "the PCS encodes". Every pattern needs the PACS's tombstones for withdrawn instances (#222)
 and the PCS's fix for its leftover group files (#176 Q-U1) before a reverted correction is right.
@@ -271,7 +273,7 @@ tree as the record, shows its current state (Q-U1) and syncs a consistent tree.
 
 | pair | the winner | the deciding factor |
 | --- | --- | --- |
-| P3 vs P4 | P3 | over rsync P4 pays rsync's own listing on top of #223's snapshot, and its frames' `need` arrives a round later; P3's list is the compressed item list. A tie if M-R2 and M-R3 show the listing compressed and `-z` keeping context; then P4 by simplicity, as #223 chose E |
+| P3 vs P4 | P3 (*corrected 2026-11-20:* P4, provisional on M-R2, §6.1) | over rsync P4 pays rsync's own listing on top of #223's snapshot, and its frames' `need` arrives a round later; P3's list is the compressed item list. A tie if M-R2 and M-R3 show the listing compressed and `-z` keeping context; then P4 by simplicity, as #223 chose E |
 | P3 vs P1 | P3 | recovery from a side that forgets: P1 resends every pixel after a lost sent list and misses what a restored PACS lacks; P3's extra 1.4 s is under a tenth of K |
 | P4 vs P1 | P4 | the same, at a few KB more per event |
 | P1 vs P2 | P1 | P2 adds a second copy of the metadata at the PACS that must move in step with the study DB, the silent drift F exists to catch, to replace state #177 already keeps; P2 would win if a second writer exists, its mirror being the PCS's last hash for free |
@@ -279,6 +281,40 @@ tree as the record, shows its current state (Q-U1) and syncs a consistent tree.
 | P4 vs P2 | P4 | the same; both pay the listing, P2 also the mirror |
 | (i) vs (ii) | the PCS's layout | `c/` HTJ2K → (i); raw → (ii), to keep "the PCS encodes" |
 | any vs + F | + F | no pattern sees a series nobody triggers again (#222) |
+
+### 6.1 · Reconciled with #223 and #233 (2026-11-20)
+
+Two records disagreed: this file ranked P3 first and favoured hash bridge (b) for it, while #223 chose E (P4 here) and
+`rsync-delivery.md` (#233) recommends (a). Each correction below keeps the text above it and says why.
+
+**P3 vs P4, by #223's rule.** #223 fixed its rule before measuring (`lab/metadata-store/README.md`, §Synchronization):
+"B is worth its extra machinery (the `need` reply, the sender's sent list) only if, on the satellite or the rural ADSL
+profile, at either end of its uplink, over TCP, E is slower than B by more than 1 s for some event of the median series
+(ct …), or by more than 5 s for some event of the largest (the synthetic 2 000). Otherwise E." P3's extra machinery (an
+answer command) stands where B's did, so the rule is applied to this file's own §2–§3 estimates, P4 − P3 for a late
+instance (*derived*; every input an *estimate*, K excluded since both pay it):
+
+| link (up) | ct | 2 000 instances | the rule says |
+| --- | --- | --- | --- |
+| satellite, 700 ms, 2 Mbit/s (this file) | 0.3 s | 1.8 s | E |
+| satellite, 700 ms, 1 Mbit/s (#223) | 0.6 s | 3.6 s | E |
+| rural ADSL, 60 ms, 0.5 Mbit/s (#223), rsync's listing raw | 1.2 s | 7.2 s | P3 |
+| the same, the listing at M-R2's predicted `-z` ≤ 0.6× | 0.9 s | 4.9 s (2 % under the bar) | E |
+
+The gap is P4's metadata call (snapshot plus listing) less P3's item list, at the link's rate; both pay ≈ 2 round trips
+for ct and ≈ 3 at 2 000 beyond K (back-solved from §3's satellite times), so round trips cancel. **So P4 (E), provisional
+on M-R2**: if rsync's file list does not compress to ≤ 0.6×, P3 wins on rural ADSL. This file's M-R3 premise is answered
+by source, not measured: rsync's `token.c` keeps one zstd context across a call's files and zlib resets per file
+(`rsync-delivery.md` §2.10), so P4's metadata call is #223's one stream only with `--zc=zstd`, which #233 already
+recommends for it. A second writer (#220) does not split the two: both need `pcs_xxh3` per row (§5); whether there is
+one, and hence A + F or E + F (#222), stays the owner's fork.
+
+**The hash bridge.** §5 and §8 favoured (b) for P3 on cost alone. (b) hashes at send time, so a file corrupted at rest
+at the PCS travels with a matching XXH3; only the BLAKE3 the PCS's parser wrote catches that (`rsync-delivery.md` §1,
+from rsync(1): the checksum "is generated as the file is transferred"). Corrected: **(a) for the check in every
+pattern** (`pcs-pacs-options.md` §1's recommendation, unchanged); under P4 it costs nothing more, the receiver hashing
+every group anyway; under P3 the answer compares BLAKE3 names, so the rows keep the PCS's name beside our XXH3 (§5's
+"(a) needs a BLAKE3 column"). (b) adds nothing (a) lacks.
 
 ## 7 · Pre-registered measurements (not run)
 
@@ -295,9 +331,11 @@ Interleave the variants; mutate every new test. Emulated links: the lab's fiber 
 
 **For the owner.**
 
-1. **P3, P4 or P1** for the rsync profile, and whether F (#222) runs under it.
+1. **P3, P4 or P1** for the rsync profile, and whether F (#222) runs under it (*corrected 2026-11-20:* P4 recommended,
+   provisional on M-R2, §6.1).
 2. **Where the container is built** (§4), tied to D14; (ii) moves the decided merge to our script at the PCS.
-3. **The hash bridge**: P3 favours (b), the item list carrying XXH3, compared with the rows directly.
+3. **The hash bridge**: P3 favours (b), the item list carrying XXH3, compared with the rows directly (*corrected
+   2026-11-20:* (b) misses rot at rest at the PCS; (a) in every pattern, §6.1).
 4. **A tombstone table** at the PACS: needed by P2, P3 and P4 now, by P1 after a lost sent list.
 5. **`pcs_xxh3` per row**, only if a second writer exists (#220).
 6. **K**: one ssh connection per unit, and a forced command that writes the marker and waits for the verdict.
