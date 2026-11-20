@@ -4,7 +4,7 @@
  * docs/client/evidence/delivery-comparison.md §2, §5, §6; lab/delivery/README.md
  *
  *   node lab/delivery/run.mjs --cell CLEAN --series DIR --predictions FILE [--rounds N] [--pilot] [--pilot-medians FILE]
- *     [--view VOLUME=ID …] [--out FILE] [--mutate fixed-order|relay-no-loss|no-decoders|flip-exact]
+ *     [--view VOLUME=ID …] [--out FILE] [--fill-s 300] [--after-s 300] [--mutate fixed-order|relay-no-loss|no-decoders|flip-exact]
  *   node lab/delivery/run.mjs --bench --series DIR [--view VOLUME=ID …] [--out FILE]     # K2
  */
 import fs from "node:fs";
@@ -43,7 +43,7 @@ const VIEWS = { dbts_a1: "dbts_a1-q8-g8-cut", dbts_b1: "dbts_b1-q8-g8", dbts_c1:
 const VOLS = arg("--volumes")?.split(",") ?? VOLUMES;
 const SERVER_IP = "10.77.0.2";
 const [VIEW_PORT, EXACT_PORT, PAIR_PAGE, EXACT_PAGE, ROUND_PORT, CTRL_PORT] = [4433, 4434, 8765, 8767, 8790, 5599];
-const FILL_S = 300;
+const [FILL_S, AFTER_S] = [Number(arg("--fill-s", 300)), Number(arg("--after-s", 300))];
 
 if (!BENCH && !CELLS[CELL]) throw new Error(`--cell ${CELL}: one of ${Object.keys(CELLS).join(" ")}, or --bench`);
 const form = BENCH ? { relay: UNIMPAIRED } : CELLS[CELL];
@@ -165,16 +165,19 @@ async function load(k, spec) {
       const s = dgram.createSocket("udp4");
       s.send("blackout 40", CTRL_PORT, "127.0.0.1", () => s.close());
     }, form.blackoutEveryMs);
-    const switches = ["--enable-quic", "--disable-background-networking", "--disable-background-timer-throttling", "--disable-renderer-backgrounding"];
-    browser = await chromium.launch({ headless: true, args: switches });
+    const switches = [`--unsafely-treat-insecure-origin-as-secure=http://${SERVER_IP}:${PAIR_PAGE},http://${SERVER_IP}:${EXACT_PAGE}`, "--enable-quic", "--disable-background-networking", "--disable-background-timer-throttling", "--disable-renderer-backgrounding"];
+    browser = await chromium.launch({ channel: "chromium", headless: true, args: switches });
     Object.assign(row, { browser: browser.version(), switches });
-    const params = new URLSearchParams({ overlay: "1", view: "page", beacon: "cubic-restart", round: `http://127.0.0.1:${ROUND_PORT}/`, at: String(k), cell: spec.cell ?? "K2", arm: spec.arm, fillS: String(FILL_S), ...spec.params });
+    const params = new URLSearchParams({ overlay: "1", view: "page", beacon: "cubic-restart", round: `http://127.0.0.1:${ROUND_PORT}/`, at: String(k), cell: spec.cell ?? "K2", arm: spec.arm, fillS: String(FILL_S), afterS: String(AFTER_S), ...spec.params });
     if (MUTATE === "no-decoders") params.delete("decoders");
     const tab = await browser.newPage();
+    row.console = [];
+    tab.on("console", (m) => m.type() !== "debug" && row.console.length < 50 && row.console.push(`${m.type()}: ${m.text()}`));
+    tab.on("pageerror", (e) => row.console.push(`pageerror: ${e.message}`));
     const done = new Promise((r) => { ended = (n) => n === k && r(); });
     const [cpu0, server0] = [cpuStat(), servers.slice(0, 2).map((s) => ticks(s.pid))];
     await tab.goto(`http://${SERVER_IP}:${spec.series === "exact" ? EXACT_PAGE : PAIR_PAGE}/?${params}`);
-    await Promise.race([done, sleep((FILL_S + 330) * 1000).then(() => { throw new Error(`load ${k}: no end in ${FILL_S + 330} s`); })]);
+    await Promise.race([done, sleep((FILL_S + AFTER_S + 30) * 1000).then(() => { throw new Error(`load ${k}: no end in ${FILL_S + AFTER_S + 30} s`); })]);
     const cpu1 = cpuStat();
     row.busy = cpu1.map((c, j) => (c.busy - cpu0[j].busy) / Math.max(1, c.total - cpu0[j].total));
     row.serverTicks = servers.slice(0, 2).map((s, j) => ticks(s.pid) - server0[j]);
