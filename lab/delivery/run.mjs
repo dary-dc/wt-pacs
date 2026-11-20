@@ -93,6 +93,7 @@ const transportFile = (port) => {
   return file;
 };
 const BEACON = `${T}/beacon.jsonl`;
+const beaconOf = (k) => (fs.existsSync(BEACON) ? fs.readFileSync(BEACON, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse) : []).filter((r) => r.step === k);
 
 /** Per core, busy and total jiffies. */
 const cpuStat = () => fs.readFileSync("/proc/stat", "utf8").split("\n").filter((l) => /^cpu\d/.test(l)).map((l) => {
@@ -182,7 +183,8 @@ async function load(k, spec) {
     row.busy = cpu1.map((c, j) => (c.busy - cpu0[j].busy) / Math.max(1, c.total - cpu0[j].total));
     row.serverTicks = servers.slice(0, 2).map((s, j) => ticks(s.pid) - server0[j]);
     if (blackouts) clearInterval(blackouts);
-    await sleep(500);
+    // The page's last beacon crosses the relay after the page has left: CR's round trip is 0.8 s.
+    for (const t0 = Date.now(); Date.now() - t0 < 30_000 && !beaconOf(k).some((r) => r.kind === "verdict");) await sleep(100);
   } catch (e) {
     Object.assign(row, { crash: true, error: String(e?.message ?? e) });
   } finally {
@@ -190,7 +192,7 @@ async function load(k, spec) {
     for (const s of servers) await stop(s);
     await stop(relay);
   }
-  const records = (fs.existsSync(BEACON) ? fs.readFileSync(BEACON, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse) : []).filter((r) => r.step === k);
+  const records = beaconOf(k);
   const one = (kind) => records.find((r) => r.kind === kind);
   Object.assign(row, { load: one("load"), exactFill: one("exactFill"), bench: one("bench"), verdict: one("verdict"), errors: records.filter((r) => r.kind === "error"),
     records: records.filter((r) => ["label", "lossless"].includes(r.kind)), relayTally: tally(fs.readFileSync(`${T}/relay.log`, "utf8")) });

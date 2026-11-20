@@ -74,7 +74,7 @@ Each run 2026-11-20, on the synthetic pair (the model's and the judge's in their
 | a frame flipped in one exact entry stops the run | `--mutate flip-exact`: the exact series' frame 0 digest flipped | `STOP: … C2: exactFill: frame 0 decoded false, not exact`, exit 3 |
 | the relay at 0 % where 1 % is asked: the pilot refuses | `--mutate relay-no-loss` on LOSS's pilot | `PILOT REFUSES: relay loss 0.000 %, asked 1 %`, exit 3; unmutated, it passes |
 | the order forced to a fixed cycle: `UNBALANCED` | `--mutate fixed-order`, two rounds | the judge prints `UNBALANCED`; unmutated, nothing |
-| the decoders lever wrong: `VOID` by the read-back | `--mutate decoders-3` | see the build's Result |
+| the decoders lever wrong: `VOID` by the read-back | `--mutate decoders-3`, CLEAN `dbts_a1` | `VOID 3 decoders read back, not 2` on A and A′; unmutated, not |
 | C1 painted without an exact frame: the load fails | the C1 page's own check (`losslessFailure`); with `flip-exact`, any load that checks frame 0 fails | as the first row |
 | C2 judged from A's and B's rows added: the judge refuses | `judge.test.mjs`: a C2 row with no `exactFill` record | `C2 … reads only its own`; a span from A + B is killed by a claim |
 | `predictions.json` changed after the first counted row: the judge refuses | `judge.test.mjs`: one prediction edited | `refused: … carries predictions …` |
@@ -82,5 +82,5 @@ Each run 2026-11-20, on the synthetic pair (the model's and the judge's in their
 ## Limits
 
 One 4-core container, headless Chromium (full build), software decode, the userspace TUN relay at ≤ 90 Mbit, no radio.
-The build was smoke-tested on the synthetic pair of `lab/devices/round_headless.sh` (64 × 48, 20 frames) and on the
+The build was smoke-tested (one round a cell, `rows/smoke/`; `CR-lost-records.jsonl` is CR's first, before the driver waited for a load's last beacon) on the synthetic pair of `lab/devices/round_headless.sh` (64 × 48, 20 frames) and on the
 three timed volumes only where its Result says so.
