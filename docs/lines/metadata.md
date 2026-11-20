@@ -1,6 +1,6 @@
 # PACS receive and metadata
 
-Last verified 2026-10-29 (the design state); branches and PRs 2026-11-09.
+Last verified 2026-10-29 (the design state); branches and PRs 2026-11-09; §Open 2's two conflicts reconciled 2026-11-20.
 
 ## Goal
 
@@ -23,11 +23,14 @@ layout is our input contract. Depth over breadth; theory and a pre-registered me
 * **The hash bridge, open:** under rsync the group files arrive BLAKE3-named, while our side checks XXH3. Options:
   (a) the PACS verifies the PCS's BLAKE3 names, our DB keeps XXH3 (recommended: only the parser's write-time hash
   catches corruption at rest); (b) our trigger lists XXH3 per file; (c) an XXH3-named copy before rsync. The PCS's raw
-  frame files carry no hash.
+  frame files carry no hash. *Reconciled 2026-11-20:* (a) in every pattern; #234's (b) was cost alone and misses rot
+  at rest ([`rsync-updates.md`](../ingest/rsync-updates.md) §6.1).
 * **Synchronization protocol:** #221 prior art, #222 shapes (A + F recommended), #220 a second writer, #223 measured
   B vs E (a one-group CT fix: E 35 KB, B 10–11 KB, a gap of one round trip; the pre-registered verdict is E).
-  Two conflicts remain: the hash bridge ((a) in #233, (b) in #234) and update pattern P3 (#234) vs E (#223).
-  Neither compared the kept mirror.
+  Two conflicts remained: the hash bridge ((a) in #233, (b) in #234) and update pattern P3 (#234) vs E (#223).
+  *Reconciled 2026-11-20* ([`rsync-updates.md`](../ingest/rsync-updates.md) §6.1): the bridge as above; #223's
+  pre-registered rule on #234's own estimates gives E (P4) on satellite and on rural ADSL if rsync's file list
+  compresses to ≤ 0.6× (M-R2, not run), else P3 there (*derived*). Neither compared the kept mirror.
 * **Layout:** the PCS's code and its design document agree at exam and series, disagree below; following the code
   now (A) is recommended, the design document's target is B. Not chosen.
 * The 2026-10-28 night items in the logs are leanings, not decisions.
@@ -37,7 +40,7 @@ layout is our input contract. Depth over breadth; theory and a pre-registered me
 1. Evaluate under rsync, in order: cleared `incoming/` or kept mirror (turns on the PCS team's answers); the hash
    bridge; for a cleared `incoming/`, P3 vs E; layout A or B and who builds the `.sbnd`.
 2. The synchronization protocol: A + F or E + F; the second writer is the fork (#220's questions for the product
-   owner); then implement in sender and receiver.
+   owner); then implement in sender and receiver. Under rsync, E (P4) provisional on M-R2; the bridge (a) (2026-11-20).
 3. Owner decisions waiting: hash column type, reply file and words, carrier, study-DB layout, viewer metadata, DB
    engine, study index (engine and placement: open), serving defaults, verdict travel.
 4. Questions for the PCS team: is each exam's tree kept as the record while updates can come; does it show the current
