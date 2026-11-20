@@ -172,3 +172,64 @@ The PR names five choices. To them:
   "what you see is right".
 
 Owner decisions are the PR's own; this review adds none.
+
+## Fixes review
+
+*Row OQ-INTEGRITY-FIXES-REVIEW, 2026-11-20, by a session that wrote none of OQ-INTEGRITY-FIXES (`1ffd60be9`,
+`97f95bd7a`, `eda808ca0`, `5c1902884`, `51fe60ab0`). What was checked: each fix's code reverted, or mutated, with its
+test kept; every path that sets the label; the diff from `dc989114e`. Fixed nothing.*
+
+*Host and limits: one 4-core cloud host without a GPU; `ingest/tools.sh`'s build (aomenc 3.15.1, dav1d 1.5.4); the
+committed page decoders (no docker here for `client/decode/wasm/build/build.sh`). The browser check ran on two
+series of one DBT volume, `dbts_a1` and `dbts_a1-q8-g8-cut` with `--integrity`, in headless Chromium on SwiftShader
+over loopback, under `?view=page` and `?view=worker`. No phone, no hardware AV1 decoder. The gate was not run.*
+
+### Verdict
+
+**No blocker.** Each fix's test fails without its change. The label claims *as coded* only where a digest matched.
+One minor regression, below.
+
+### Each test fails without its change
+
+| change reverted or mutated | test | result |
+| --- | --- | --- |
+| `client/view/controller.js` (fix 1) | `controller.test.mjs` | fails: refused before the step, 40/41 |
+| `client/viewer/screen.js` (fix 1) | `screen.test.mjs` | fails: `unchecked · error RMS …` for the refused frame |
+| `client/view/controller.js` (fix 1) | `demo-check.mjs`, page and worker | fails: frame 2 labelled **Optimal quality ✓** |
+| `viewer.js`: `notAsCoded`'s text set to `Optimal quality ✓` | `demo-check.mjs`, page and worker | fails |
+| `viewer.js`: `asCoded`'s text set to `Lossless` | `demo-check.mjs`, page and worker | fails: the label sequence |
+| `decoder.js` M1: the group not reset at a keyframe | `decoder.test.mjs` | fails |
+| `decoder.js` M2: `verdict(false)` on the second decode's match | `decoder.test.mjs` | fails (survives the old test) |
+| `decoder.js` M3: the first route's picture returned as coded | `decoder.test.mjs` | fails |
+| `decoder.js` M4: `mismatchOn` dropped | `decoder.test.mjs` | fails |
+| `coding_error.py`: `sigma(reconstruction)` | `coding_error_test.py` | fails: the denoised claim |
+
+Unchanged: `demo-check.mjs` passes on the branch, page and worker.
+
+### The label never claims a check that did not run
+
+`asCoded` is set in one place, `decoder.js` `verdict`. It is true only after a hash equals the frame's reconstruction
+digest, on the first route or the second. The controller's `asCoded` quality reads that field alone. The new
+`notAsCoded` state is emitted only from a refusal whose `asCoded` is `false`. It is cleared when the frame is later
+taken.
+
+### Nothing else changed
+
+The diff from `dc989114e` touches the eleven files the four fixes name. The CSS rule for `#quality.notAsCoded` and the
+`payload-format.md` line belong to fix 1; the line doc to the row. The comment budget passes, and so does
+`scripts/check_links.py`.
+
+### Finding
+
+**F1 (minor, a regression of fix 1).** A window drag on a refused frame throws. The new `shown` event for
+`notAsCoded` carries no `window`. Before fix 1, `shown.i` was the previous frame, so `pointerdown` returned early.
+Now `shown.i` is the current frame, `drag.voi` is `undefined`, and `pointermove` throws `Cannot read properties of
+undefined (reading 'width')` (`viewer.js`, the canvas's `pointermove`).
+
+Reproduced here under both views with a drag added to `refusedPass`. The probe was not committed. Nothing is painted
+wrong; the page logs an uncaught error, and a demo with a refused frame would show it.
+
+*Smallest fix:* `pointerdown` returns when `shown.window` is absent. A drag step in `refusedPass` that fails on a page
+error holds it.
+
+Not a blocker for I2-RUN, which reads the quality study's rows and not the page.
