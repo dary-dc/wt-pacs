@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# WORKER-FLAKE's loop: one demo-check cell run N times, a JSON row a run appended to OUT. docs/client/evidence/worker-flake.md
+# WORKER-FLAKE's loop: one demo-check cell run N times, a JSON row a run appended to OUT. docs/reviews/worker-flake.md
 #
 #   lab/worker-flake/loop.sh N OUT [demo-check.mjs's options, default: demo-series dbts_a1-q8-g16-cut --view worker]
 set -uo pipefail
