@@ -65,8 +65,19 @@ None of these is in the protocol's text; each changes how the rig runs, none wha
 
 ## Checks, and their mutants (§10)
 
-See `docs/reviews/delivery.md` once reviewed; the mutants each check was run against are listed in the build's Result
-(`claude/work-ledger:docs/queue/DELIVERY-BUILD.md`).
+Each run 2026-11-20, on the synthetic pair (the model's and the judge's in their tests, `predict.test.mjs`,
+`judge.test.mjs`, `inputs.test.mjs`, `prefix_test.py`, each also failing on the mutants its Result names in
+`claude/work-ledger:docs/queue/DELIVERY-BUILD.md`):
+
+| §10's check | mutant | what it gave |
+| --- | --- | --- |
+| a frame flipped in one exact entry stops the run | `--mutate flip-exact`: the exact series' frame 0 digest flipped | `STOP: … C2: exactFill: frame 0 decoded false, not exact`, exit 3 |
+| the relay at 0 % where 1 % is asked: the pilot refuses | `--mutate relay-no-loss` on LOSS's pilot | `PILOT REFUSES: relay loss 0.000 %, asked 1 %`, exit 3; unmutated, it passes |
+| the order forced to a fixed cycle: `UNBALANCED` | `--mutate fixed-order`, two rounds | the judge prints `UNBALANCED`; unmutated, nothing |
+| the decoders lever wrong: `VOID` by the read-back | `--mutate decoders-3` | see the build's Result |
+| C1 painted without an exact frame: the load fails | the C1 page's own check (`losslessFailure`); with `flip-exact`, any load that checks frame 0 fails | as the first row |
+| C2 judged from A's and B's rows added: the judge refuses | `judge.test.mjs`: a C2 row with no `exactFill` record | `C2 … reads only its own`; a span from A + B is killed by a claim |
+| `predictions.json` changed after the first counted row: the judge refuses | `judge.test.mjs`: one prediction edited | `refused: … carries predictions …` |
 
 ## Limits
 
