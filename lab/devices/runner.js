@@ -1,6 +1,7 @@
 // The device runner: D0–D2 driven from the phone, every row kept in IndexedDB and posted after every round.
 // lab/devices/README.md, docs/devices.md §3
 import { capabilities, roundLine } from "/lab/devices/caps.js";
+import { lines } from "/lab/devices/hwdecode.js";
 import { D1_ARMS, FULL, QUICK, line, reading, schedule } from "/lab/devices/plan.mjs";
 import { readBundle } from "/lab/devices/sbnd.js";
 import { visit } from "/lab/devices/visit.js";
@@ -13,7 +14,7 @@ let link = q.get("link");
 let mode = q.get("mode") ?? "quick";
 const readings = [];
 
-const say = (s) => ($("#status").textContent = s);
+const say = (s) => (($("#status").textContent = s), console.log(`status: ${s}`));
 const show = (s) => (readings.push(s), ($("#reading").textContent = readings.join("\n")));
 
 const db = await new Promise((resolve, reject) => {
@@ -79,11 +80,12 @@ const summary = (data) => data.error
 
 async function D0() {
   say("D0: reading what this browser offers…");
-  const caps = await capabilities(kit.arms);
+  const caps = await capabilities(kit.arms, say);
   await keep({ run: "D0", caps });
   show(`D0 ${caps.model ?? ""} ${caps.userAgent}`);
   show(`  WebTransport ${caps.webTransport}, isolated ${caps.crossOriginIsolated}, SIMD ${caps.wasmSimd}, nested workers ${caps.nestedModuleWorkers}, measureMemory ${caps.measureMemory}, clock ${caps.clockStepMs} ms`);
   show(`  WebCodecs ${JSON.stringify(caps.webCodecs)}`);
+  for (const l of lines(caps.hardwareDecode)) show(`  ${l}`);
   for (const [arm, d] of Object.entries(caps.dials ?? {})) show(`  dial ${arm}: ${d.ready ? `ready ${Math.round(d.ms)} ms` : d.error}${d.pinned ? " (hash)" : " (CA)"}`);
   await post();
 }

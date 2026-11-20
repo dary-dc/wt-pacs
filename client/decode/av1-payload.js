@@ -168,7 +168,7 @@ export function codecString(s) {
 export function layouts(payload, top) {
   if (payload.rct) return ["c10"];
   const seq = payload.depth === 8 && sequence(top);
-  // 8-bit grey coded 4:2:0 at full range is what Firefox returns exactly (lab/av1/exact/engine-readback).
+  // 8-bit grey coded 4:2:0 at full range is what Firefox returns exactly: docs/decode/README.md §Why, and what would make it exact.
   const own = !seq ? `g${payload.depth}` : seq.profile === 1 ? "c8" : seq.mono ? "g8" : "g8f";
   return payload.split ? [own, "g8"] : [own];
 }

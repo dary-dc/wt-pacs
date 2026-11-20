@@ -1,6 +1,7 @@
 // D0: what this browser offers the client, and whether each arm's port answers a dial. docs/devices.md §2 D0
 import { probe } from "/client/decode/av1-webcodecs.js";
 import { PROBES } from "/client/decode/av1-probe.js";
+import { hardwareDecode } from "/lab/devices/hwdecode.js";
 
 // The smallest module using a SIMD128 instruction (i32x4.splat): it validates only where SIMD does.
 const SIMD = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 17, 253, 98, 11]);
@@ -81,7 +82,7 @@ async function device() {
 }
 
 /** The capability line: recorded with every round, and D0's result. */
-export async function capabilities(arms) {
+export async function capabilities(arms, say) {
   return {
     ...(await device()),
     webTransport: typeof WebTransport === "function",
@@ -90,6 +91,7 @@ export async function capabilities(arms) {
     wasmSimd: WebAssembly.validate(SIMD),
     nestedModuleWorkers: await nestedWorkers(),
     webCodecs: await webcodecs(),
+    hardwareDecode: await hardwareDecode(say),
     measureMemory: typeof performance.measureUserAgentSpecificMemory === "function",
     clockStepMs: clockStep(),
     dials: arms && typeof WebTransport === "function" ? await dials(arms) : null,

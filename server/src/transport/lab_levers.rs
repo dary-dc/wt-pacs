@@ -3,12 +3,13 @@
 use crate::media::frame_store::FrameStore;
 use crate::transport::server::ServeConfig;
 use tracing::warn;
-use wtransport::endpoint::IncomingSession;
+use wtransport::endpoint::IncomingSessionFuture;
+use wtransport::quinn;
 
 #[derive(clap::Args, Clone, Debug, PartialEq)]
 pub struct LabLevers {
     /// Lab only: serve every frame as a miss, for measuring a series nobody has read. docs/adr/disk-access.md
-    #[arg(long, default_value_t = false)]
+    #[arg(long, default_value_t = false, conflicts_with = "root")]
     pub force_pool_reads: bool,
     /// Lab only: take each CONNECT and never answer it. docs/ARCHITECTURE.md §A dial that never settles
     #[arg(long, default_value_t = false)]
@@ -20,11 +21,38 @@ pub struct LabLevers {
     /// not whole GSO batches (docs/rig-limits.md §3).
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
     pub segmentation_offload: bool,
+    /// Lab only: before each frame, the send window is the congestion window plus two of the series' largest frames.
+    /// docs/transport/link-conditions.md §ASKAHEAD
+    #[arg(long, default_value_t = false, conflicts_with = "root")]
+    pub send_window_follows_cwnd: bool,
+    /// Lab only: answer a client's repeated Initial with the unacknowledged handshake flight,
+    /// once a connection. docs/transport/transport-conclusions.md §3, Answering a repeated Initial.
+    #[arg(long, default_value_t = false)]
+    pub reply_repeated_initial: bool,
+    /// Lab only: row 259's arm T1, one `WILLNEED` per tile name past the slots. docs/adr/disk-access.md §9
+    #[arg(long, default_value_t = false)]
+    pub advise_tile_names: bool,
+    /// Lab only: an ask during a fill is served next and the fill resumes behind it. docs/client/evidence/ask-during-a-fill.md
+    #[arg(long, default_value_t = false)]
+    pub fill_resumes_after_asks: bool,
+    /// Lab only: under `shared`, asks go on a second uni of this priority, the fill's being 0. docs/client/evidence/ask-during-a-fill.md
+    #[arg(long, value_name = "PRIORITY", allow_negative_numbers = true)]
+    pub ask_stream_priority: Option<i32>,
 }
 
 impl Default for LabLevers {
     fn default() -> Self {
-        Self { force_pool_reads: false, hold_sessions: false, stall_after_bytes: None, segmentation_offload: true }
+        Self {
+            force_pool_reads: false,
+            hold_sessions: false,
+            stall_after_bytes: None,
+            segmentation_offload: true,
+            send_window_follows_cwnd: false,
+            reply_repeated_initial: false,
+            advise_tile_names: false,
+            fill_resumes_after_asks: false,
+            ask_stream_priority: None,
+        }
     }
 }
 
@@ -49,12 +77,25 @@ pub(super) fn apply(mut config: ServeConfig) -> ServeConfig {
     if let Some(bytes) = lab.stall_after_bytes {
         warn!(bytes, "--stall-after-bytes: every session stalls; this is a lab flag, not a deployment one");
     }
+    if lab.reply_repeated_initial {
+        warn!("--reply-repeated-initial: a repeated Initial is answered; this is a lab flag, not a deployment one");
+    }
+    if lab.advise_tile_names {
+        warn!("--advise-tile-names: tile names past the slots are advised; this is a lab flag, not a deployment one");
+    }
+    if lab.fill_resumes_after_asks {
+        warn!("--fill-resumes-after-asks: an ask no longer ends a fill; a lab flag, not a deployment one");
+    }
+    if let Some(priority) = lab.ask_stream_priority {
+        warn!(priority, "--ask-stream-priority: asks on a stream of their own; a lab flag, not a deployment one");
+    }
     config.tuning.segmentation_offload = lab.segmentation_offload;
+    config.tuning.reply_repeated_initial |= lab.reply_repeated_initial;
     config
 }
 
-pub(super) async fn hold_session(incoming: IncomingSession) {
-    if let Ok(_unanswered) = incoming.await {
+pub(super) async fn hold_session(incoming: quinn::Incoming) {
+    if let Ok(_unanswered) = IncomingSessionFuture::with_quic_incoming(incoming).await {
         std::future::pending::<()>().await;
     }
 }

@@ -1,6 +1,8 @@
 # ADR: fit delivered resolution to the viewport for frames larger than it
 
-**Status:** accepted, **blocked on a dependency outside this repo** · **Date:** 2026-08-26 ·
+**Status:** accepted, **blocked on a dependency outside this repo**; tiles (§8) **delayed, not closed** (the owner,
+2026-10-24: not soon, of interest, some modalities will depend on them; 2026-10-13 had shelved them, one frame's ask
+×0.39–0.45 at 4× but not a fill's total) · **Date:** 2026-08-26 ·
 **Tags:** delivery, codec, client
 
 ---
@@ -328,6 +330,8 @@ calls on one worker cost ×0.97–1.24 (row 133). A grid would be a new version 
 * The file is layout 0: the same codestreams, byte-identical, asked by frame index as today.
 * The server is unchanged for both layouts: it serves entries by index and never reads the tile fields.
 * The client's tile path runs only on a layout-1 series. Today's path does not change.
+
+*Pre-registered 2026-11-09 (row HTJ2K-TILES): TILEGRID and BANDS as one protocol, widened to precincts in one codestream and to the optimal-quality design, in [`../htj2k-tiles.md`](../htj2k-tiles.md); not run.*
 
 **What the proposal still needs measured** (each in the container first, every picture against the encoder's input,
 interleaved, n ≥ 10):

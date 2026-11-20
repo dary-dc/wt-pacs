@@ -4,7 +4,7 @@
  * docs/ARCHITECTURE.md §The consumer
  */
 /** How long a closed client waits for the downloader's answer before ending it anyway. */
-const CLOSE_DEADLINE_MS = 1_000;
+export const CLOSE_DEADLINE_MS = 1_000;
 /** What `opts.decoder.codec` may name; absent is HTJ2K. docs/av1/adr-unit.md §1 */
 const CODECS = ["htj2k", "av1"];
 
@@ -26,18 +26,24 @@ export class DownloaderClient {
   #recycledAt = [];
   #triggers = new AbortController();
   #ending = null;
-  /** Per decoder path, frames delivered `exact` true, false and unchecked. docs/adr/exactness-in-production.md */
+  /** Per route, frames delivered `exact` true, false and unchecked. docs/adr/exactness-in-production.md */
   #exact = {};
   /** Frames delivered since last filled: a failure of one is a decoder lost before the ack, dropped. docs/ARCHITECTURE.md §The downloader */
   #delivered = new Set();
+  /** Set under the view worker: a fill frame is acked by its receiver, through `frame.ack`. docs/adr/frame-path.md §3, *Built* */
+  #heldAcks;
+  /** index → whether the decoder that kept the frame wrote it to the cache, once it answers: client/view/cache.js */
+  #writes = new Map();
 
   constructor(opts) {
     this.#onFrame = opts.onFrame ?? (() => {});
     // A scalable AV1 payload's lower layer, sent before its exact frame on the same port. docs/av1/adr-unit.md §6
     this.#onPreview = opts.onPreview ?? (() => {});
     this.#onError = opts.onError ?? (() => {});
-    // The worker's script is a seam: a page may boot it from a bundle or a blob. lab/page-open/README.md
-    this.#worker = new Worker(opts.worker ?? new URL("./downloader.js", import.meta.url), { type: "module" });
+    this.#heldAcks = Boolean(opts.heldAcks);
+    // The worker's script is a seam: a page may boot it from a bundle or a blob. docs/ARCHITECTURE.md §The session open
+    // Given a port, the downloader is a page's own, linked to the view worker: docs/adr/frame-path.md §3, *Built*.
+    this.#worker = opts.port ?? new Worker(opts.worker ?? new URL("./downloader.js", import.meta.url), { type: "module" });
     this.#worker.onmessage = (e) => this.#fromDownloader(e.data);
     // After `started` this rejects a settled promise, so a worker's later error changes nothing.
     this.#worker.onerror = (e) => this.#rejectReady(new Error(`the downloader did not start: ${e.message || "its script did not load"}`));
@@ -48,26 +54,13 @@ export class DownloaderClient {
     });
   }
 
-  /** Every option but the page's own four goes to the downloader, so each must survive structured clone. */
+  /** Every option but the page's own goes to the downloader, so must survive structured clone; `dialled`: the page started it (docs/adr/frame-path.md §3). */
   static async connect(url, certHash, opts = {}) {
-    // A frame handed to the wrong decoder can decode to something: refused before anything starts.
-    const codec = opts.decoder?.codec ?? "htj2k";
-    if (!CODECS.includes(codec)) throw new Error(`unknown codec "${codec}"`);
-    // A group is asked whole, so its last frame has to be known. docs/av1/adr-unit.md §3
-    const g = opts.groupLength ?? 1;
-    if (!Number.isInteger(g) || g < 1 || (g > 1 && !Number.isInteger(opts.frameCount))) {
-      throw new Error(`groupLength ${g} needs a whole number ≥ 1, and above 1 the series' frameCount`);
-    }
-    if (!globalThis.crossOriginIsolated && opts.decode !== false) {
-      throw new Error("the downloader writes pixels into a SharedArrayBuffer: serve the page cross-origin isolated");
-    }
-    const { onFrame, onPreview, onError, worker, ...config } = opts;
-    const c = new DownloaderClient({ onFrame, onPreview, onError, worker });
+    refuseUnstartable(opts);
+    const { onFrame, onPreview, onError, worker, port, heldAcks, dialled, ...config } = opts;
+    const c = new DownloaderClient({ onFrame, onPreview, onError, worker, port, heldAcks });
     try {
-      c.#worker.postMessage({ kind: "start", config });
-      // Only the dial needs the URL, so the worker graph is booted before it: `url` and `certHash`
-      // may be promises. docs/ARCHITECTURE.md
-      c.#worker.postMessage({ kind: "dial", url: await url, certHash: await certHash });
+      if (!dialled) await startAndDial(c.#worker, url, certHash, config);
       await c.#ready;
     } catch (e) {
       // No client comes back to close, so what it started ends here.
@@ -85,7 +78,7 @@ export class DownloaderClient {
     }
     if (m.kind === "pixel-port") {
       // `onmessage`, not `addEventListener`: only it starts the port and releases the frames queued on it.
-      m.port.onmessage = (e) => this.#deliver(e.data);
+      m.port.onmessage = ({ data }) => (data.kind === "written" ? this.#written(data) : this.#deliver(data, m.port));
       // The event names no frame: the downloader asks again whatever that decoder holds unacknowledged.
       m.port.onmessageerror = () => this.#worker.postMessage({ kind: "undelivered", decoder: m.decoder });
       return;
@@ -103,11 +96,11 @@ export class DownloaderClient {
     if (m.kind === "closed") return void this.#end(m.reason);
   }
 
-  #deliver(m) {
+  #deliver(m, port) {
     // A frame of a cancelled request under the index a new one is using: wrong pixels, right key.
     if (m.gen !== this.#gen) return;
     const w = this.#waiters.get(m.index);
-    const bytes = m.pixels instanceof SharedArrayBuffer ? new Uint8Array(m.pixels) : m.pixels;
+    const bytes = ArrayBuffer.isView(m.pixels) ? m.pixels : new Uint8Array(m.pixels);
     const frame = {
       frameIndex: m.index,
       generation: m.gen,
@@ -116,10 +109,13 @@ export class DownloaderClient {
       info: m,
     };
     if (m.preview) return void this.#onPreview(frame);
-    this.#worker.postMessage({ kind: "ack", index: m.index, gen: m.gen });
+    const ack = () => this.#worker.postMessage({ kind: "ack", index: m.index, gen: m.gen });
+    if (w || !this.#heldAcks) ack();
+    else frame.ack = ack;
+    if (m.writable) frame.write = () => new Promise((resolve) => (this.#writes.set(m.index, resolve), port.postMessage({ kind: "write", index: m.index })));
     this.#delivered.add(m.index);
-    if (m.path) {
-      const n = (this.#exact[m.path] ??= { true: 0, false: 0, unchecked: 0 });
+    if (m.route) {
+      const n = (this.#exact[m.route] ??= { true: 0, false: 0, unchecked: 0 });
       n[m.exact] += 1;
     }
     if (w) {
@@ -129,6 +125,11 @@ export class DownloaderClient {
     }
     // A fill frame nobody is waiting on: background priority, so a paint never waits behind it.
     this.#onFrame(frame);
+  }
+
+  #written({ index, ok }) {
+    this.#writes.get(index)?.(ok);
+    this.#writes.delete(index);
   }
 
   #failOne(index, reason) {
@@ -158,7 +159,7 @@ export class DownloaderClient {
     return new Promise((resolve, reject) => this.#waiters.set(index, { resolve, reject }));
   }
 
-  requestExactFrame(index) {
+  requestFrame(index) {
     const p = this.#waitFor(index);
     this.#worker.postMessage({ kind: "ask", index });
     return p;
@@ -167,6 +168,12 @@ export class DownloaderClient {
   fill(indices) {
     for (const i of indices) this.#delivered.delete(i);
     this.#worker.postMessage({ kind: "fill", indices });
+  }
+
+  /** The frames wanted, in order, replacing the last want; what is owed stays owed. docs/adr/frame-path.md §3, *Built* */
+  want(indices) {
+    for (const i of indices) this.#delivered.delete(i);
+    this.#worker.postMessage({ kind: "want", indices });
   }
 
   /** Resolves once the downloader has ended the stream and dropped this request's work. */
@@ -189,25 +196,52 @@ export class DownloaderClient {
     this.#ending ??= setTimeout(() => this.#end("closed by the consumer"), CLOSE_DEADLINE_MS);
   }
 
-  /** Nested workers end with the worker that started them, so this ends the decoders too. */
+  /** Nested workers end with the worker that started them, so this ends the decoders too; a port's worker is the page's to end. */
   #end(reason) {
     clearTimeout(this.#ending);
-    this.#worker.terminate();
+    (this.#worker.terminate ?? this.#worker.close).call(this.#worker);
     this.#failAll(reason);
     for (const done of this.#cancels.splice(0)) done();
   }
 
-  /** The triggers a worker cannot see; the downloader decides whether any of them means anything. */
-  #watchPage() {
-    if (typeof document === "undefined") return;
-    const signal = this.#triggers.signal;
-    const check = () => this.#worker.postMessage({ kind: "check" });
-    addEventListener("pageshow", check, { signal });
-    for (const ev of ["freeze", "resume"]) document.addEventListener(ev, check, { signal });
-    document.addEventListener(
-      "visibilitychange",
-      () => document.visibilityState === "visible" && check(),
-      { signal },
-    );
+  check() {
+    this.#worker.postMessage({ kind: "check" });
   }
+
+  #watchPage() {
+    watchPage(() => this.check(), this.#triggers.signal);
+  }
+}
+
+/** Throws what no downloader can start with, before anything starts. */
+export function refuseUnstartable(opts) {
+  // A frame handed to the wrong decoder can decode to something.
+  const codec = opts.decoder?.codec ?? "htj2k";
+  if (!CODECS.includes(codec)) throw new Error(`unknown codec "${codec}"`);
+  // A group is asked whole, so its last frame has to be known. docs/av1/adr-unit.md §3
+  const g = opts.groupLength ?? 1;
+  if (!Number.isInteger(g) || g < 1 || (g > 1 && !Number.isInteger(opts.frameCount))) {
+    throw new Error(`groupLength ${g} needs a whole number ≥ 1, and above 1 the series' frameCount`);
+  }
+  if (!globalThis.crossOriginIsolated && opts.decode !== false) {
+    throw new Error("the downloader writes pixels into a SharedArrayBuffer: serve the page cross-origin isolated");
+  }
+}
+
+/** Only the dial needs the URL, so the worker graph boots before it: `url` and `certHash` may be promises. docs/ARCHITECTURE.md */
+export async function startAndDial(downloader, url, certHash, config) {
+  downloader.postMessage({ kind: "start", config });
+  downloader.postMessage({ kind: "dial", url: await url, certHash: await certHash });
+}
+
+/** The triggers a worker cannot see; the downloader decides whether any of them means anything. */
+export function watchPage(check, signal) {
+  if (typeof document === "undefined") return;
+  addEventListener("pageshow", check, { signal });
+  for (const ev of ["freeze", "resume"]) document.addEventListener(ev, check, { signal });
+  document.addEventListener(
+    "visibilitychange",
+    () => document.visibilityState === "visible" && check(),
+    { signal },
+  );
 }

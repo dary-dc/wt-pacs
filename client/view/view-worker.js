@@ -1,0 +1,170 @@
+/**
+ * The view worker: the controller, the frame store and the paint module on one thread. The page sends intents and
+ * hears events; decoded frames arrive here from the decoders and never reach it. docs/adr/frame-path.md §3, *Built*
+ */
+import { DownloaderClient } from "../transport/consumer.js";
+import * as painter from "../paint/paint-worker.js";
+import { openCache } from "./cache.js";
+import { asPainted, Controller } from "./controller.js";
+
+/** ms: progress reaches the page at most this often, and at once when the last frame arrives. */
+const PROGRESS_MS = 100;
+const at = () => performance.timeOrigin + performance.now();
+/** Epoch ms of this worker's start, for the lab's ledger: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
+const boot = { viewEvaluated: at() };
+
+let controller = null;
+let downloader = null;
+let lastPainted = null;
+let progress = null;
+let latest = null;
+/** A lab's settle (client/paint/paint-worker.js) and the viewer check's module; none in the product. */
+let settle;
+let checks;
+let cine = null;
+/** Resolves once the paint module holds its WebGL2 context: at `start`, or under the lab's `glAfterDial` once the dial has gone. */
+const gl = Promise.withResolvers();
+/** Steps on each play and pause, so a play whose clock is still loading starts no cine once overtaken. */
+let cues = 0;
+
+function emit(type, event) {
+  if (type !== "progress") return void postMessage({ kind: "event", type, ...event });
+  latest = event;
+  if (event.have < event.total) return void (progress ??= setTimeout(flush, PROGRESS_MS));
+  clearTimeout(progress);
+  flush();
+}
+
+function flush() {
+  progress = null;
+  postMessage({ kind: "event", type: "progress", ...latest });
+}
+
+/** The store's frame objects are stable, so a frame painted again is the same object. */
+function paint(frame, display, { read = false } = {}) {
+  const same = frame === lastPainted;
+  lastPainted = frame;
+  const { width, height, dpr } = controller.size;
+  const draw = () => painter.paint({ frame: asPainted(frame.info), same, display, width: Math.round(width * dpr), height: Math.round(height * dpr), dpr, read, settle });
+  return gl.ready ? draw() : gl.promise.then(draw);
+}
+
+/** Under the viewer check, `lab.check` its module, every cache write on this thread is counted from the start. */
+function start({ canvas, meta, fillMode, size, lab = {} }) {
+  boot.viewStart = at();
+  controller = new Controller({ meta, fillMode, paint, emit, size });
+  settle = lab.settle;
+  checks = lab.check && import(lab.check);
+  checks?.then((m) => m.watchWrites());
+  if (lab.glAfterDial) gl.canvas = canvas;
+  else startPainter(canvas);
+}
+
+function startPainter(canvas) {
+  try {
+    emit("renderer", { renderer: painter.start(canvas, (why) => emit("failed", { scope: "worker", reason: `painter: ${why}` })) });
+  } catch (e) {
+    emit("renderer", { error: e.message });
+    emit("failed", { scope: "worker", reason: `painter: ${e.message}` });
+  }
+  boot.viewGl = at();
+  gl.ready = true;
+  gl.resolve();
+}
+
+/**
+ * The cache opens first, so the first want asks the downloader for what it lacks alone; that want rides the start in
+ * place of the fill. Under the lab's `pageDials` the page started and dialled the downloader already, `sent` riding its
+ * start, and the store sends its want once linked if it differs. The store acks each frame the consumer hands it.
+ * `writer`: client/view/cache.js
+ */
+async function connect({ port, url, certHash, opts: { writer, holdEveryOther, ...opts }, issuedAt, dialled = false, sent }) {
+  boot.viewConnect = at();
+  downloader = port;
+  controller.issuedAt = issuedAt;
+  controller.ascending = Boolean(opts.waitAhead);
+  const { store } = controller;
+  if (writer && opts.digests) store.cache = await openCache({ writer, key: url, digests: opts.digests, emit });
+  // Descending, so the held frames are asked alike whatever the downloader's `span`.
+  const held = holdEveryOther && controller.want().filter((i) => i % 2 === 0).reverse();
+  const want = store.want(held || controller.want());
+  const connecting = DownloaderClient.connect(url, certHash, {
+    ...opts,
+    fill: undefined,
+    want,
+    port,
+    heldAcks: true,
+    dialled,
+    cache: writer === "decoders" && store.cache ? { key: url } : undefined,
+    onFrame: (f) => controller.take(f),
+    onError: ({ frameIndex, reason }) => controller.refused(frameIndex, reason),
+  });
+  // A task later, so the dial has been posted: connect posts it after a microtask.
+  if (gl.canvas) setTimeout(() => startPainter(gl.canvas));
+  controller.client = await connecting;
+  store.link(controller.client, dialled ? sent : want);
+  if (held) fillAround(held);
+}
+
+/** An optimal-quality series' exact series, on a downloader of its own: no fill, each frame asked when the reader asks it. */
+async function connectExact({ port, url, certHash, opts }) {
+  controller.exactSource = await DownloaderClient.connect(url, certHash, { ...opts, port });
+}
+
+/** The lab's half-held store: once the held frames are here, the rest are wanted and the fill is timed from that want. docs/adr/frame-path.md §Experiment 1 */
+async function fillAround(held) {
+  await Promise.all(held.map((i) => controller.store.arrival(i)));
+  controller.issuedAt = performance.timeOrigin + performance.now();
+  controller.store.want(controller.want());
+}
+
+/** A lab's cine on a clock it names; the product's cine is the page's: lab/frame-clock. */
+async function play({ fps, t0, source }) {
+  const cue = pause();
+  const { Cine } = await import("./clock.js");
+  if (cue === cues) cine = new Cine({ fps, t0, source, show: (i) => controller.show(i) });
+}
+
+function pause() {
+  cine?.stop();
+  return ++cues;
+}
+
+const INTENTS = {
+  start,
+  play,
+  tick: ({ t, vsync }) => cine?.tick(t, vsync),
+  pause,
+  show: ({ i }) => controller.show(i),
+  exact: () => controller.showExact(),
+  optimal: () => controller.showOptimal(),
+  display: ({ display }) => controller.setDisplay(display),
+  size: ({ size }) => controller.resize(size),
+  trigger: () => [controller.client, controller.exactSource].forEach((c) => c?.check()),
+};
+
+const CALLS = {
+  connect,
+  connectExact,
+  repaint: () => controller.repaint(),
+  valueAt: ({ x, y }) => controller.valueAt(x, y),
+  ledger: async ({ flip }) => {
+    const l = await controller.ledger({ flip });
+    return { ...l, boot: { ...boot, ...l.boot } };
+  },
+  cine: () => cine?.log ?? [],
+  check: async ({ phase, args }) => (await checks)[phase]({ controller, port: downloader, ...args }),
+  close: () => (controller.exactSource?.close(), controller.client.close()),
+};
+
+// Set after the paint module's own handler, which its import installed.
+onmessage = async ({ data: m }) => {
+  if (m.id === undefined) {
+    return void (async () => INTENTS[m.kind](m))().catch((e) => emit("failed", { scope: "worker", reason: `${m.kind}: ${e?.message ?? e}` }));
+  }
+  try {
+    postMessage({ kind: "reply", id: m.id, value: await CALLS[m.kind](m) });
+  } catch (e) {
+    postMessage({ kind: "reply", id: m.id, error: String(e?.message ?? e) });
+  }
+};

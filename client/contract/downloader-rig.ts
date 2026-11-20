@@ -9,7 +9,7 @@ import { CERT, started, tally } from "./rig-util.ts";
 import { workerFake } from "./worker-fake.ts";
 
 type Downloader = {
-  requestExactFrame(index: number): Promise<{ frameIndex: number; bytes: Uint8Array; timing: { askMs: number; lastChunkMs: number } }>;
+  requestFrame(index: number): Promise<{ frameIndex: number; bytes: Uint8Array; timing: { askMs: number; lastChunkMs: number } }>;
   fill(indices: number[]): void;
   cancel(): void;
   stats(): { inFlight: number };
@@ -30,7 +30,7 @@ type Route = {
 /** The downloader pushes fill frames to the callback it was opened with; `route` points it at the clause's. */
 function adapt(c: Downloader, route: Route): ConformantSession {
   return {
-    requestExactFrame: (i) => c.requestExactFrame(i),
+    requestFrame: (i) => c.requestFrame(i),
     fillFrames(from, to, onFrame, onError) {
       route.onFrame = onFrame;
       route.onError = onError ?? (() => {});

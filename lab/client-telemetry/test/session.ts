@@ -33,7 +33,7 @@ async function telemetryKeepsTheReadersArguments() {
   try {
     StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 64_000, chunk: 1000 };
     const session = wrapSession(await TransportSession.connect("https://stub/", HASH, { readMin: 16_384 }));
-    const results = await Promise.all([0, 1, 2].map((i) => within(session.requestExactFrame(i), 2000)));
+    const results = await Promise.all([0, 1, 2].map((i) => within(session.requestFrame(i), 2000)));
     assert(results.every((r) => r !== null && intact(r)), "telemetry + readMin: every frame delivered bit-exact");
     const report = tap.finish();
     const closed = report.client_frames.filter((r) => r.closed_at === "delivered").length;

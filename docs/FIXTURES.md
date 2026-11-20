@@ -41,7 +41,7 @@ little-endian above, signed samples sign-extended to that width. The width is th
 `bitsStored`, an AV1 payload's `bits` ([`av1/payload-format.md`](av1/payload-format.md)), so a series stored in 16 bits whose values fit in 8
 hashes one byte a sample as AV1. The digest is taken from the encoder's input — the samples the `.sha256` was
 written from — never from a decoder's output. Metadata without `digests` is served as before; its frames
-arrive `unchecked` ([`../client/README.md`](../client/README.md) §A frame says whether it is exact).
+arrive `unchecked`, as an optimal-quality series' always do ([`../client/README.md`](../client/README.md) §A frame says whether it is exact).
 
 ## From DICOM
 
@@ -99,7 +99,12 @@ slowest's bytes:
   LINEAR when absent;
 * `min` and `max` of the stored samples;
 * `codec`, and for AV1 `representation` and `preset`;
-* `digests` (§Frame digests).
+* `digests` (§Frame digests);
+* `sourceFingerprint`, XXH3-64 over the source's frame digests, the same in every series of one source
+  ([`av1/payload-format.md`](av1/payload-format.md) §Source fingerprint);
+* for an optimal-quality series instead of `representation`, `preset` and `digests`: `lossy` `{q, g, depth}` and
+  `exactSeries`, the name of its exact series ([`av1/payload-format.md`](av1/payload-format.md) §Optimal quality).
+  `lab/av1/tools/ingest_coded.py --lossy Q G --exact-series ID` writes them; this ingest does not code one yet.
 
 An enhanced object's per-frame functional group (Frame VOI LUT, Pixel Value Transformation) wins over its shared
 group, which wins over the object's own attributes. An attribute that differs between frames moves to `perFrame`,
@@ -109,7 +114,7 @@ one value a frame, as `perFrame.window[i]`.
 known by its file name. Checked on the lab's sets in [`lab/av1/exact/from-dicom`](../lab/av1/exact/from-dicom/README.md).
 
 **Several series of one study — proposed, not built.** A server process serves one bundle today (`--series`). A
-study would be one bundle per series plus a study index, `study.json`: each series' bundle name, its `modality`,
+study would be one bundle per series plus a study manifest, `study.json` (not the study index, [`adr/study-index.md`](adr/study-index.md)): each series' bundle name, its `modality`,
 `frameCount` and display attributes, in the study's order. The server would take `--study DIR` and route by path,
 `/series/<name>/…`, one store per series. The session URL would name the series it opens. Its asks and fills stay
 per series, so the wire is unchanged, but what the server serves and how the page names a series both change. That
@@ -325,12 +330,13 @@ decoder does not survive: encode unsigned, then set each component's sign bit in
 
 The one exception to generated-only: whether AV1's inter coding pays depends on how much
 neighbouring frames share, which synthetic frames with independent noise cannot answer
-([`av1/README.md`](av1/README.md) §Content). Eighty-eight public series, fetched at run time — eighty-five from the
-NCI Imaging Data Commons public bucket (anonymous HTTPS; chosen with `idc-index` 0.12.5, IDC release v24),
-three of breast ultrasound from two Zenodo records — never committed:
+([`av1/README.md`](av1/README.md) §Content). Ninety-six public series, fetched at run time — ninety-three from the
+NCI Imaging Data Commons public bucket (anonymous HTTPS; chosen with `idc-index` 0.12.5, IDC release v24, and the five
+largest cine-like sets with `idc-index` 0.13.4, IDC v25, [`../lab/av1/profiles`](../lab/av1/profiles/README.md)
+§Larger cine fixtures), three of breast ultrasound from two Zenodo records — never committed:
 
 ```bash
-lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~12.1 GB fetched
+lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~15.1 GB fetched
 ```
 
 `lab/av1/data.json` pins every file's S3 key and SHA-256 and each set's frame digest;
@@ -341,8 +347,9 @@ concatenated in order. Stacks are ordered by position along the slice normal (un
 checked). A set may name a `crop` [y, x, h, w], kept from every frame. Every frame was checked once
 against the file's `PixelData` bytes read directly, not through the DICOM library's pixel decoder:
 all 387 identical (the missing-content search's nine sets, queue row DATA3: 565/565; the
-breast-family fetch's seven, queue row BREAST: 140/140), and no sample carries bits above
-`BitsStored`. The ultrasound sets are a pinned zip's pinned members decoded by FFmpeg 6.1.1 (`-threads 1`;
+breast-family fetch's seven, queue row BREAST: 140/140; the ultrasound data search's three cines: 74/74), and no sample carries bits above
+`BitsStored`. *The five sets added 2026-11-02 (`dbts_a_max`, `dbts_b_max`, `dbts_c_max`, `ustrus_1`, `ustrus_2`) are
+checked by their pins and the provenance rule alone, not against `PixelData` read directly.* The ultrasound sets are a pinned zip's pinned members decoded by FFmpeg 6.1.1 (`-threads 1`;
 RGB through its bit-exact `swscale` flags, which the digest pins: other flags change it): their frames are what
 that decoder makes of a lossy clip, checked against a second run with FFmpeg's default threads (128/128) and the
 stills against Pillow 11.3.0's PNG decoder (29/29). Dependencies: pydicom 3.0.1 and numpy 2.4.6, installed with `--require-hashes` from
@@ -393,6 +400,10 @@ stills against Pillow 11.3.0's PNG decoder (29/29). Dependencies: pydicom 3.0.1 
 | `dbts_c3` | DBT slices, 1 mm, whole and uncropped, system C | 70 × 1147×2585 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
 | `dbts_c4` | DBT slices, 1 mm, whole and uncropped, system C | 66 × 662×2227 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
 | `dbts_c5` | DBT slices, 1 mm, whole and uncropped, system C | 73 × 955×2100 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
+| `dbts_a_max` | DBT slices, 1 mm, L MLO, whole and uncropped, system A, its largest volume in IDC v25 | 84 × 1215×2761 | 12 of 16 bits, unsigned | 0..3674 | EA1141, CC BY 4.0 | sound |
+| `dbts_b_max` | DBT slices, 1 mm, L MLO, whole and uncropped, system B, its largest volume in IDC v25; a 3328×4096 frame needs AV1 level 6 ([`av1/series.md`](av1/series.md) note 3) | 53 × 3328×4096 | 10 of 16 bits, unsigned | 0..831 | EA1141, CC BY 4.0 | sound |
+| `dbts_c_max` | DBT slices, 1 mm, whole and uncropped, system C, its largest volume in IDC v25 | 82 × 1833×2971 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
+| `ustrus_1`, `ustrus_2` | 3-D transrectal prostate ultrasound, one rotational sweep each as stored, two patients: the nearest swept volume to ABUS, not breast | 280 × 452² each | 8-bit | 0..255 | Prostate-MRI-US-Biopsy, CC BY 4.0 | sound |
 | `ffdms_a1`…`ffdms_a5` | FFDM, for presentation, R CC, L CC, R MLO, L MLO, system A, five exams | 4 × 1914×2294 each | 12 of 16 bits, unsigned | 0..3334 … 0..4095 | EA1141, CC BY 4.0 | sound |
 | `ffdms_b1`…`ffdms_b5` | FFDM, for presentation, the four views, system B, five exams | 4 × 3328×4096 (b1, b4, b5), 4 × 2560×3328 (b2, b3) | 12 of 16 bits, unsigned | 0..4093 … 0..4095 | EA1141, CC BY 4.0 | sound |
 | `ffdms_c1`…`ffdms_c5` | FFDM, for presentation, the four views, system C, five exams | 4 × 1914×2294 (c1, c5), 4 × 2394×3062 (c2–c4) | 12 of 16 bits, unsigned | 0..3252 … 4..3451 | EA1141, CC BY 4.0 | sound |
@@ -407,6 +418,7 @@ stills against Pillow 11.3.0's PNG decoder (29/29). Dependencies: pydicom 3.0.1 
 | `usrgb_mel` | ultrasound stills, colour, natively stored uncompressed | 8 × 1400×1050 | 3 × 8-bit RGB | 0..255 | CMB-MEL, CC BY 4.0 | sound |
 | `usrgb_lca` | ultrasound stills, colour, natively stored uncompressed | 8 × 1400×1050 | 3 × 8-bit RGB | 0..255 | CMB-LCA, CC BY 4.0 | sound |
 | `usrgb_stad` | ultrasound stills, colour, natively stored uncompressed | 8 × 1552×970 | 3 × 8-bit RGB | 0..255 | CPTAC-STAD, CC BY 4.0 | sound |
+| `uscine_crc1`…`uscine_crc3` | ultrasound cine, B-mode liver (biopsy), grey, 32 frames/s, natively stored uncompressed; three clips of one series | 21, 25, 28 × 552×421 | 8-bit | 0..255 | CMB-CRC, CC BY 4.0 | sound |
 
 ### Provenance
 
@@ -453,14 +465,16 @@ to fail; on the real files, `us_liver` and `usb_still` marked `sound` are refuse
 | `ffdm_d` | explicit LE | 00 | `DERIVED\SECONDARY` | FOR PRESENTATION | — | sound |
 | `syn2d_c` | explicit LE | 00 | `DERIVED\SECONDARY\OTHER` | FOR PRESENTATION | — | sound |
 | `syn2d_d` | explicit LE | 00 | `DERIVED\PRIMARY\TOMOSYNTHESIS\GENERATED_2D` | — | — | sound |
-| `dbts_a1`…`dbts_a5`, `dbts_b1`…`dbts_b5`, `dbts_c1`…`dbts_c5` | explicit LE | 00 | system A `ORIGINAL\PRIMARY\TOMOSYNTHESIS\NONE`; B `DERIVED\PRIMARY\VOLUME\NONE` or `…\TOMOSYNTHESIS\NONE`; C `ORIGINAL\PRIMARY\VOLUME\NONE` | — | — | sound |
+| `dbts_a1`…`dbts_a5`, `dbts_b1`…`dbts_b5`, `dbts_c1`…`dbts_c5`, `dbts_a_max`, `dbts_b_max`, `dbts_c_max` | explicit LE | 00 | system A `ORIGINAL\PRIMARY\TOMOSYNTHESIS\NONE`; B `DERIVED\PRIMARY\VOLUME\NONE` or `…\TOMOSYNTHESIS\NONE`; C `ORIGINAL\PRIMARY\VOLUME\NONE` | — | — | sound |
 | `ffdms_*` | implicit or explicit LE | 00 | system A, B `DERIVED\PRIMARY`; C `ORIGINAL\PRIMARY\` | FOR PRESENTATION | — | sound |
 | `mgraw_*` | explicit LE | 00 | `ORIGINAL\PRIMARY` (MONOCHROME1) | FOR PROCESSING | — | sound |
 | `syn2ds_a*`, `syn2ds_b1`…`b3` | explicit LE | 00 | `DERIVED\PRIMARY\TOMOSYNTHESIS\GENERATED_2D` | — | — | sound |
 | `syn2ds_b4` | implicit LE | 00 | `DERIVED\PRIMARY` | FOR PRESENTATION | — | sound |
 | `usrgb_*` (six sets, 48 stills) | explicit LE | 00 | `DERIVED\PRIMARY\…` or `ORIGINAL\PRIMARY\…`, fourth value `0011` (2-D with colour flow) on 42, `0001` on 6 | — | — | sound |
+| `uscine_crc1`…`uscine_crc3` | explicit LE | 00 | `ORIGINAL\PRIMARY\\0001` | — | — | sound |
 | `usb_cine`, `usb_cine_rgb` | an AVI clip, MPEG-4 Part 2 | the coding is lossy | — | — | decoded by FFmpeg; luma kept, or converted to RGB | lossy-sourced |
 | `usb_still` | a PNG, cropped around the lesion by the dataset | not recorded | — | — | decoded by FFmpeg | unknown |
+| `ustrus_1`, `ustrus_2` | explicit LE | absent | `DERIVED\SECONDARY\ENDORECTAL\0040` | — | — | sound |
 
 `us_liver` is the one DICOM set flagged lossy: an RGB scan-converted capture, `DERIVED\SECONDARY`, coded
 lossily at 12.4:1 before it was archived uncompressed (method not recorded). `mg16_cbis` is a screen-film
@@ -664,7 +678,7 @@ Orthanc's demo, Slicer's sample data, D. Clunie's site, the OsiriX library, Rubo
 | BUVFM demo (Zenodo `20901197`, `usb_cine`'s source), CVA-Net's BUV | breast ultrasound clips, 871 and 188 | AVI; frames as images | lossy video or an export | 1.5 GB; — | `cc-by-4.0`; "available for only non-commercial use in research or educational purpose" | open | no: video (the nearest breast cine, as before) |
 | MIMIC-IV-ECHO (PhysioNet 1.0.1), cornerstone3D's US sample, fo-dicom `10200904.dcm` | echocardiography | DICOM | MIMIC not read (credentialed); cornerstone3D's flagged lossy 100:1 JPEG; fo-dicom's RLE-lossless, 79 frames | — | "PhysioNet Credentialed Health Data License 1.5.0"; MIT; MS-PL | credentialed; open; open | no: other anatomy |
 
-**IDC v25 and TCIA hold nothing new for the three types.** Every one of IDC's 39 XA series is single frames (re-read in
+**IDC v25 and TCIA hold nothing new for the three types.** Every one of IDC's 41 XA series (*corrected 2026-10-27*: 39 before; `idc-index-data` 25.0.0 lists 41) is single frames (re-read in
 v25); its multi-frame ultrasound beyond the prostate and brain volumes is cine flagged lossy — `cmb_crc`'s echo clips
 (Lossy `01`, 100:1, `ISO_10918_1`), `cmb_mel`'s 115-frame biopsy cine (`01`, ~26:1) and `b_mode_and_ceus_liver`
 (above); its breast ultrasound is CMB-BRCA's 40 stills. TCIA's catalogue adds five collections listing XA or US whose
@@ -683,6 +697,141 @@ nothing native and lossless at any host; the nearest stay the MPEG clips (`lossy
 published; TDSC-ABUS's NRRD is the one set, challenge use only; IDC's prostate TRUS volumes are the nearest swept
 volumes stored natively. Whether to ask the Hugging Face set's uploader for a licence is the owner's
 (av1/queue.md §Blocked).
+
+#### The frame-group data search (2026-10-27)
+
+The wider search above, re-run for its three types plus echocardiography, the nearest native ultrasound cine, against
+the bar of `av1/frame-groups.md` §5 (on #141). 2026-10-27 03:05–03:30 UTC, its method; headers read with pydicom 3.0.2
+from 256 KiB range reads. Only what is new since the wider search is listed.
+
+| dataset | content | frames, bits, photometric | transfer syntax, and how known | licence (verbatim) | sources | access | meets the bar? |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `MesserMMP/coronary-angiography-syntax`, Hugging Face, now revision `5406e65d` (2026-10-20) | as above; the new revision adds protocol and report PDFs, not opened | 33 and 60, 8 bits, `MONOCHROME2`, 15 and 10 frames/s | explicit and implicit LE, Lossy `00` (two headers, one a vendor); the Philips header carries no de-identification attributes, the Siemens one `PatientIdentityRemoved` `YES` | none: no card (README 404), no licence tag | one uploader | open | no: no licence |
+| CardioSYNTAX, Zenodo `14005818` (WACV 2025, arXiv:2407.19894) | coronary runs, 1 844 studies | NumPy `.npy` videos, named by their DICOM UIDs | an export | `cc-by-4.0` | one group | open | no: an export — but **60 of the 100 Philips Study Instance UIDs in the Hugging Face set's `test_data/philips_100.json` are in its `all.json`** (480 of their 906 series UIDs), so that set holds at least part of this one's source DICOM (inferred from the UIDs, not stated by either) |
+| ALN-Ultra, Zenodo `18483501` (2026-02-04) | breast ultrasound images and "3D videos" (axillary nodes), 257 patients | not stated | not stated: no file list shown | `cc-by-4.0` | not stated | restricted, on request | not known: the format is the question |
+| CAMEO, IEEE DataPort `10.21227/kvaz-eh57` | echo, one view a `.dcm` cine | not stated | not stated | not shown on the page | one hospital | subscription | no: one source, terms unknown |
+| EchoRisk (arXiv:2607.01039) | echo, five sites | — | not stated | none found for the data | five | "publicly available", no link found | not known |
+| figshare `21709394` | echo, one patient, Philips iE33 | 135, 8 bits, `YBR_FULL_422` | JPEG baseline `.4.50`, Lossy `01` (header) | "CC BY 4.0" | one | open | no: lossy |
+| EchoNet-Dynamic, -Pediatric, -LVH; CAMUS; TMED-2; Unity; EchoXFlow; CardiacUDA; EchoCP; HMC-QU | echo | — | AVI, NIfTI, PNG, Zarr, or not stated | non-commercial each ("… for personal, non-commercial research purposes only" for EchoNet; CC BY-NC, -NC-SA or -NC-ND for the rest; TMED-2's not read) | one to several | open or agreement | no: exports and non-commercial |
+| BUS-CoT (figshare `30838715`), BUS-UCLM (Mendeley) | breast ultrasound | stills | a zip; PNG converted from DICOM | "CC BY 4.0"; CC BY 4.0 | one each | open | no: stills |
+| MIQR-CC (figshare `31079236`), a Kaggle angiography set | ERCP fluoroscopy; coronary video | PNG; `.wmv` | exports | "CC BY 4.0"; "CC0: Public Domain" | — | open | no: exports. The Kaggle upload appears to carry patient identity and is not named here |
+| gdcmData `US-MONO2-8-8x-execho.dcm`, `US-PAL-8-10x-echo.dcm` | synthetic "Acme" echo loops | 8 and 10, 8 bits, `MONOCHROME2` and `PALETTE COLOR` | explicit LE and RLE (headers) | none stated for the data | one | open | no: test files |
+| `emelalkim/sampledata`, GitHub release `large_multiframe` | an ultrasound cine loop, 172 frames | not read | "uncompressed" (release text only) | none: no LICENSE | one | open | no: no licence, one loop |
+
+**Otherwise as the wider search found.** IDC v25 (`idc-index-data` 25.0.5): 41 XA, 12 RF and 2 249 US series. TCIA's
+US series hold no breast cine or ABUS, MIDRC no breast ultrasound; no scanner maker's sample DICOM is multi-frame;
+IHE's Gazelle samples need a Connectathon account; D. Clunie's `compressed/` now holds only deflate tests. No ABUS
+volume in DICOM anywhere.
+
+**The answer: no open dataset meets the bar for any of the three types.** Every native, lossless multi-frame source is
+unlicensed or a single test loop; the open echo DICOM is lossy JPEG; every multi-site echo set is non-commercial or an
+export. Three come close, each by a request only the owner can send (av1/queue.md §Blocked):
+
+1. **Angiography: the Hugging Face set and CardioSYNTAX.** In the dataset's Community tab and to CardioSYNTAX's
+   corresponding author, ask whether the DICOM is CardioSYNTAX's source, that the card state CC BY 4.0 or the authors
+   confirm in writing that the record's licence covers the DICOM, and which institutions it came from and whether the
+   Philips files were de-identified. Granted, it is still one source with two vendors.
+2. **Breast ultrasound cine: ALN-Ultra**, by the record's "Request access" form: are the videos native DICOM, and if so,
+   in their stored transfer syntax under the record's CC BY 4.0? One source.
+3. **Echo as a stand-in: EchoRisk and CAMEO.** Where and under which licence EchoRisk's data is released, and whether
+   as stored; CAMEO's licence in writing, and whether its `.dcm` files are the scanner's own, stored losslessly.
+
+ABUS has nothing close: only a site's native scanner DICOM under a written licence would do.
+
+Sources: the hosts' APIs and pages, read 2026-10-27; the two Hugging Face headers; CardioSYNTAX's `all.json` against
+`philips_100.json`.
+
+#### The ultrasound data search (2026-11-04)
+
+* **Asked:** ultrasound cine and swept volumes of any anatomy, and ABUS, beyond what the earlier searches list.
+* **Answer:** one sound cine source, and it is small: three native grey B-mode liver clips (21–28 frames) in IDC's CMB-CRC, pinned as `uscine_crc1`…`3`. There is nothing sound for breast cine or ABUS.
+* **Rests on:** 3 233 IDC headers (every US instance outside the prostate and brain volumes), TCIA's API, and the pages, APIs and headers cited below.
+* **Left:** that source is one patient on one scanner, under the two-source bar. MUST-ABUS and ALN-Ultra are unread past their pages.
+* **The owner decides or requests:** whether to send the requests in *The short list* (MUST-ABUS, ALN-Ultra, TDSC-ABUS), and whether a lossy multi-vendor set (ThrombUS+) is worth provisional numbers.
+
+**IDC v25 (`idc-index-data` 25.0.5, still the newest on PyPI), every US series, headers read from 256 KiB range reads
+with pydicom 3.0.2, 2026-11-04 from 21:40 UTC.** The index's 2 249 US series sit in twelve collections; the prostate
+TRUS volumes and ReMIND are as the wider search found. Every instance of the other ten was read (3 233 headers:
+`b_mode_and_ceus_liver`'s 1 859 and the nine smaller collections' 1 374):
+
+| collection | multi-frame instances | as stored | Lossy Image Compression | class |
+| --- | --: | --- | --- | --- |
+| `b_mode_and_ceus_liver` (listed before; now every header) | 917, GE LOGIQ E9, RGB or `YBR_FULL` | implicit or explicit LE | `01` on all 917 | lossy-sourced |
+| `cmb_crc` (listed before: the echo clips) | 56, Philips EPIQ 7C, RGB, 48–271 frames | explicit LE | `01`, `ISO_10918_1` | lossy-sourced |
+| `cmb_crc` | **3, GE LOGIQ S8, `MONOCHROME2`, 21, 25 and 28 frames of 552×421, 8 bits, `CineRate` 32** | explicit LE | **`00`**, `ImageType` `ORIGINAL\PRIMARY\\0001` | **sound** |
+| `cmb_mel` (listed before) | 18, GE LOGIQ E9, `MONOCHROME2`, 52–115 frames | explicit LE | `01`, ratio 25.6–30.8 | lossy-sourced |
+| `cptac_ucec` (*new here*) | 6, Siemens S2000, `YBR_FULL`, 91–302 frames of 1024×768, `ImageType` `DERIVED\PRIMARY\GYN\0001` | explicit LE | `01`, ratio 21–24, `ISO_10918_1` | lossy-sourced |
+| `cmb_brca`, `cmb_lca`, `cptac_aml`, `cptac_pda`, `cptac_stad`, `varepop_apollo` | none: stills | explicit LE | `00`, absent, or `01` (`cptac_pda`'s GE) | — |
+
+The three sound clips are one series (study `Biopsy_Liver`, series
+1.3.6.1.4.1.14519.5.2.1.1.23559092546432114112420871134697309480), acquired two seconds apart (`ContentTime` 200527, 200529, 200531), licence `CC BY 4.0` by IDC's
+`license_short_name`, `PatientIdentityRemoved` `YES`. Each clip's first three and last three frames are identical
+(checked): the clip as the scanner stored it, kept whole. Every frame matches the file's `PixelData` bytes read directly
+(74/74). Not breast and not ABUS; it is the first sound 8-bit grey cine here, the content rows GREY420, SPEED and FILL
+lacked (§*Every closed verdict against its data*).
+
+**The other hosts, 2026-11-04 21:40–22:40 UTC: their search APIs and pages; DICOM headers from 256 KiB range reads,
+inside zips through the central directory; no pixel data kept.** Zenodo, figshare, Mendeley Data, Hugging Face, Kaggle
+and OpenNeuro were searched by their APIs (cine, video, sequence, sweep and volume terms per anatomy, plus ABUS and
+ABVS). Only records the earlier searches do not list:
+
+| dataset | content, anatomy | frames, size, photometric | how stored, and how known | class | licence (verbatim) | access | sources, vendors | size |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **ThrombUS+ Dataset #1**, Zenodo `17659415` (training) and `17664207` (testing), v1.0, 2025-11-20 | "compression ultrasound video scannings of lower limbs collected during a multi-center cohort study in European Hospitals" — deep-vein compression cine, sites "CFV, GS, FV, PV" | 57–301 frames, 430×333 to 610×392 (also 606×918, 561×778), 8 bits, `YBR_FULL_422` (13 training headers) | multi-frame DICOM, Multi-frame True Colour SC; transfer syntax `1.2.840.10008.1.2.4.50` (JPEG baseline), Lossy Image Compression `01`, `ImageType` `DERIVED\SECONDARY\LOSSY\CROPPED\COMPRESSED` on all 13 (headers) | lossy-sourced | `cc-by-4.0` (API) | open | four countries' hospitals; Philips EPIQ 7G and 5G, Esaote, Canon, Mindray, GE LOGIQ S8 (headers) | 9 732 783 309 + 2 456 983 680 B, 2 341 + 578 `.dcm` |
+| **MUST-ABUS**, Hugging Face `Flying-fish/MUST-ABUS` (2026-10-17) | ABUS: "356 retained view-specific 3D ABUS volumes from 90 subjects" | "330 frames per volume, with each frame measuring 482 x 841 pixels" | not seen (files answer 401 without accepting the terms); the card names removed `ap_nifti_path` columns, so NIfTI is likely (*unverified*) | unknown | `license:cc-by-nc-sa-4.0` (card tag) | gated: log in to Hugging Face and accept the terms (automatic) | one site; "GE Healthcare Invenia ABUS system with a C15-6XW transducer" | 56.45 GB (card's file list) |
+| Zenodo `232032` (EMG and ultrasound, biceps) | M-mode screen captures; the cine only in Telemed `.tvd` files | single frames, 772×1396, RGB | implicit LE, Lossy absent, `ORIGINAL` (one header); `.tvd` a vendor format | sound, but stills | `cc-by-4.0` | open | one site, Telemed | 15.63 GB |
+| RVENet (`rvenet.github.io`) | apical four-chamber echo, 3 583 videos "in DICOM format" | not read | transfer syntax not stated (*unverified*) | unknown | "for personal, non-commercial research purposes only" | request form | one site | — |
+| Video sets: ERDES ocular POCUS (Zenodo `18644370`), intrapartum (`17655183`), SPLOA spleen (`13195053`), muscle (`14768397`, `15126622`, `17316246`, `14996875`, `6622259`), figshare `26889334` (heterogeneous, 6 190 MP4) and `32358771` (DELTA fetal echo), Mendeley `y6z64ntstg` (EchoNSTE-MI) and `s27zfxgbpj` (cervix), Kaggle SYSU-CEUS-FLL and liver sequences, Hugging Face `bcm-liuzlab/pocus-atlas-bench` | many anatomies | — | MP4, AVI, or JPEG frames (archive listings) | lossy-sourced | `cc-by-4.0` on Zenodo, figshare and Mendeley; Apache 2.0 and CC0 on Kaggle; `cc-by-nc-4.0` on the Hugging Face set | open | — | — |
+| Volume and array exports: ACOUSLIC-AI blind sweeps (Zenodo `12697994`, `.mha`), shoulder 3D (`20283247`, MHD), multi-view echo (`30999`, MHD), micro-ultrasound prostate (`10475293`, NIfTI), prostate (`16396`, NRRD), TUS-REC forearm sweeps (`7740734`, `15699959`), SegThy thyroid 3D (Hugging Face `MedOtter/SegThy`, NIfTI), 4D diaphragm (figshare `29290757`, Voluson `.vol`), TRUSTED kidney (figshare `27981050`) | obstetric sweeps, shoulder, heart, prostate, forearm, thyroid, diaphragm, kidney | — | exports (file listings) | unknown | `cc-by-nc-sa-4.0` (ACOUSLIC-AI, `16396`, `15699959`, diaphragm), `cc-by-4.0` (the rest); TRUSTED's figshare "CC BY" conflicts with the zip's `data_use_agreement.txt`: "may not distribute the dataset" | open | — | ACOUSLIC-AI 38 GB |
+
+Searched and empty: ABUS or ABVS anywhere but MUST-ABUS; OpenNeuro's "ultrasound" hits are focused-ultrasound MRI and
+EEG studies, and Zenodo's functional-ultrasound records are power-Doppler arrays, not a scanner's cine. Two Hugging Face
+and Kaggle uploads re-export ThrombUS+ as JPEG frames and MP4 under MIT: derivatives, not sources.
+
+**Challenges, institutional and curated hosts, 2026-11-04, the same method:** Stanford AIMI, PhysioNet, IEEE DataPort,
+grand-challenge's API (264 challenges) and the challenges it does not host, 4TU.ResearchData, Harvard Dataverse,
+TUM's dataset pages, the Cardiac Atlas Project. Synapse, KU Leuven RDR, Leeds, UCL RDR, DANS, OSF, Radboud and Dataverse NL
+were not searched this time.
+
+| dataset | content, anatomy | frames, size, photometric | how stored, and how known | class | licence (verbatim) | access | sources | size |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **Thyroid Ultrasound Cine-clip**, Stanford AIMI (`aimi.stanford.edu/datasets/thyroid-ultrasound-cine-clip`, files on Redivis, DOI 10.71718/7m5n-rh16) | "167 patients with biopsy-confirmed thyroid nodules (n=192) at the Stanford University Medical Center. The dataset consists of ultrasound cine-clip images, radiologist-annotated segmentations, …" | not stated on the page; papers say 17 412 frames of 1054×802 (*unverified*) | one file in Redivis's "Files" table, 36 418 794 716 B (its API); HDF5 by reputation (*unverified*) | unknown | the page's "Terms & Conditions" and "License" tabs are empty; AIMI's shared-datasets page: "available to the global research community at no charge for non-commercial research use, subject to the applicable data use terms" | Redivis account and the data use terms (read rows answer "Make sure that you have data access and approval") | one site | 36.4 GB |
+| ACOUSLIC-AI (Zenodo `12697994`, re-read) | obstetric blind sweeps, "three Public Health Units (PHUs) in Sierra Leone… MicrUs Pro-C60S, Telemed" | "840 frames of shape 744x562 pixels" | `.mha`, `ElementType = MET_UCHAR`, `CompressedData = False` (one header) | unknown | `cc-by-nc-sa-4.0` | open | three units, one device | 38 034 134 378 B |
+| SegThy, TUM (`cs.cit.tum.de/camp/publications/segthy-dataset/`) | thyroid 3D, freehand-tracked, Siemens Acuson NX-3, 28 volunteers (sub-dataset 1) | compounded volumes | 1 008 `.gz` and 64 `.nii` in `US_data.zip` (central directory) | unknown | "This dataset is licensed under a CC BY license. … The license permits commercial use as long as the authors are cited." | open | one site | 19 703 994 757 B |
+| CLUST 2015 (`caim.research.it.uu.se/clust/data.html`) | liver tracking, "64 2D+t sequences 22 4D sequences" | — | "(.png) or 3D images (.mha)" | unknown | "used solely for the purpose of participating in the open CLUST challenge" | login on request to the organisers | several scanners | — |
+| MITEA (Cardiac Atlas Project) | 3D echo, 134 subjects, end-diastole and end-systole only | — | not stated | unknown | "MITEA can be provided under a non-commercial license CC BY-NC-SA 4.0 for research purposes." | institutional request form | one site | — |
+| DehazingEcho2025 (grand-challenge) | echo, 115 patients | stills | not stated | unknown | "currently only available for challenge use" | signed agreement mailed to the organisers | — | — |
+| PhysioNet `mimic-iv-echo-ext-lvvol-a4c` 1.0.0 | "1,064 de-identified A4C DICOM video sequences", a MIMIC-IV-ECHO subset | — | DICOM, not read | not known | PhysioNet credentialed | credentialed | one site | — |
+| IEEE DataPort TEE (10.21227/aj3n-pf63) | transoesophageal echo, "68 patients… 60 to 500 frames" | — | `TEE_Data_Ready.zip`, contents *unverified* | not known | CC BY (page) | "Subscription Required" | one probe | 318.76 MB |
+| Stanford AIMI Open POCUS, Multimodal Prostate, EchoNet TEE-View-Classifier | lung POCUS ("frames were extracted and standardized to 512×512 pixels"), prostate TRUS, intra-operative TEE | — | exports or video (*unverified*) | unknown | non-commercial (AIMI) | Redivis | — | 5.26 GB, 19.1 GB, 162 MB |
+| Harvard Dataverse MLSC-BEDLUS-741 (10.7910/DVN/HFTV7D), BonUS | lung ultrasound annotations of "6,654 clips/DICOM series"; bone | annotations only | — | — | "Please contact us for the Data Use Agreement." | request | — | — |
+
+**Already listed, re-read for change:** ALN-Ultra's Zenodo record now types itself "Video/Audio" and says "The record is
+publicly accessible, but files are restricted. Log in to check if you have access."; its page shows "Total data volume
+593.8 GB" (downloads counted, not the record's size, *unverified*). The type suggests video files, which would make it
+lossy-sourced (*derived*, not read). TDSC-ABUS's Dataset page is unchanged: "Please send the signed document to
+tdscabus@gmail.com to receive the data access link", next to "The data is publicly available" and a Baidu link. One
+institutional upload of native, unflagged multi-frame thyroid DICOM was found whose headers appear to carry participant
+identity; it is left out of this section on purpose and named to the owner alone.
+
+**The short list, ranked** (sound first, then closeness to breast cine and ABUS, licence, size):
+
+1. **`uscine_crc1`…`3`** (IDC CMB-CRC) — sound, CC BY 4.0, 17 MB, in `data.json`. Grey liver B-mode, one patient, one
+   scanner: a single source, so it may enter a verdict's arithmetic but cannot meet the two-source bar alone.
+2. **MUST-ABUS** — the first ABUS volumes found besides TDSC-ABUS; unknown (likely NIfTI) and CC BY-NC-SA 4.0, so
+   unusable for a verdict under the commercial-use rule even if sound. To request: accept the Hugging Face terms,
+   then ask the curator on the dataset's Community tab whether the scanner's DICOM can be released under CC BY 4.0.
+3. **ALN-Ultra** — breast, videos by its record type. To request: log in to Zenodo and use the record's access request
+   (the button shows only when logged in, *unverified*); ask whether the videos exist as the scanner's DICOM, in their
+   stored transfer syntax, under the record's CC BY 4.0.
+4. **TDSC-ABUS** — ABUS NRRD, challenge use only. To request: sign the challenge agreement and send it to
+   tdscabus@gmail.com; then ask the organisers whether the Invenia DICOM can be released, and under what licence.
+5. **ThrombUS+** — the most sources (four countries, five vendors) and CC BY 4.0, but lossy-sourced: every header read
+   is JPEG baseline, Lossy `01`. Usable for provisional numbers only. 12.2 GB; not pinned.
+6. **The Stanford thyroid cine-clips** — a cine set of the right shape, but non-commercial and an export.
+
+**Nothing sound exists for breast cine or ABUS at any host searched.** The only sound cine found under a usable licence
+is `uscine_crc*`.
 
 #### Every closed verdict against its data
 
@@ -711,7 +860,7 @@ names a later row on sound target data that has already decided the same questio
 
 | row | decision fed | rests on | weakness | since | class |
 | --- | --- | --- | --- | --- | --- |
-| 6 SIZE, 10 CONTENT, 46 BREAST (DBT half) | AV1 frame groups | fluoroscopy, MR, `us_liver` (6); two DBT volumes (10); four at G = 8, 16 (46) | off-target or lossy; one encoder, alt-ref off, few G | 100 GOPMEASURE: 15 sound volumes, G = 1 by its pre-stated rule (best inter gain +1.51 %; decode 4.6–24.6× over the bound) | critical, settled for DBT |
+| 6 SIZE, 10 CONTENT, 46 BREAST (DBT half) | AV1 frame groups | fluoroscopy, MR, `us_liver` (6); two DBT volumes (10); four at G = 8, 16 (46) | off-target or lossy; one encoder, alt-ref off, few G | 100 GOPMEASURE: 15 sound volumes, G = 1 (best inter gain +1.51 % on 1 of 15; an ask at 4× 4.6–24.6× its break-even, [`av1/frame-groups.md`](av1/frame-groups.md) §1) | critical, settled for DBT |
 | 46 BREAST (cine half), 28 LLSIZE ("inter pays on the ultrasound") | AV1 frame groups, ultrasound | `usb_cine` (MPEG-4 clip), `us_liver` | lossy-sourced: the gain is the clip's coding | none | **critical, open** (below) |
 | 80 GREY420 | ultrasound handling: the ingest keeps 4:0:0, Firefox needs 4:2:0 | `usb_cine`, `usb_still` only | lossy-sourced and unknown; no sound 8-bit grey series | none | **critical, open** |
 | 9 SPEED, 11 FILL (WebCodecs on 8 bits) | codec choice for 8-bit grey | `us_liver` alone | lossy-sourced, off-target | none for 8-bit grey | **critical, open** |

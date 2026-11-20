@@ -1,0 +1,6 @@
+1x dav1d: jump ÷ ask median 0.991 [0.946–1.073] n 4
+1x webcodecs: jump ÷ ask median 1.025 [0.954–1.078] n 4
+1x A/A median 1.008 [0.887–1.054]
+4x dav1d: jump ÷ ask median 0.966 [0.943–0.981] n 4
+4x webcodecs: jump ÷ ask median 0.961 [0.825–1.232] n 4
+4x A/A median 0.991 [0.950–1.051]

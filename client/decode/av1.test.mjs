@@ -98,6 +98,178 @@ const { parsePayload } = await import("./av1-payload.js");
 }
 
 /**
+ * A signed 16-bit source of ≤ 8 bits after its offset comes back as its own numbers, read in the type the frame
+ * reports, at k = 0 and 1, under 8 bits too when its offset passes 128 (docs/av1/payload-format.md §Built,
+ * *Corrected 2026-10-30*); −128…127 is the control.
+ */
+{
+  const { begin, end, merge } = await import("./av1-frame.js");
+  for (const [lo, hi] of [[-10, 200], [0, 200], [-200, 0], [-200, -100], [-129, -100], [-128, 127]]) {
+    const offset = lo < 0 ? -lo : 0;
+    const bits = Math.max(1, (hi + offset).toString(2).length);
+    const n = hi - lo + 1;
+    for (const split of [0, 1]) {
+      const top = new Uint16Array(n);
+      const low = new Uint16Array(n);
+      for (let i = 0; i < n; i++) [top[i], low[i]] = [(lo + i + offset) >> split, (lo + i + offset) & ((1 << split) - 1)];
+      const pic = (heap, b) => ({ width: n, height: 1, bits: b, planes: [{ heap, offset: 0, stride: n }] });
+      const payload = { bits, depth: 8, split, signed: true, rct: false, offset };
+      const got = end(begin(pic(top, 8), payload), split ? pic(low, 8) : null);
+      const out = got.info.bitsPerSample > 8 ? new Int16Array(got.sab) : new Int8Array(got.sab);
+      let bad = got.range.min !== lo || got.range.max !== hi;
+      for (let i = 0; i < n && !bad; i++) bad = out[i] !== lo + i;
+      check(!bad, `signed range: ${lo}…${hi} at split ${split} is every value back`);
+      if (split) {
+        const one = merge(pic(top, 8), pic(low, 8), payload);
+        check(sha(one.sab) === sha(got.sab) && one.range.min === lo && one.range.max === hi, `signed range: ${lo}…${hi} merged in one pass is the two passes'`);
+      }
+    }
+  }
+}
+
+/**
+ * merge() is begin() and end() in one pass, byte for byte and range for range: every 8–16 bits, signed and
+ * unsigned with the signed offset, split 1–8, over tops past `bits − split` (the two passes' wrap) and padded rows.
+ */
+{
+  const { begin, end, merge } = await import("./av1-frame.js");
+  let wrong = 0;
+  let seed = 7;
+  const rnd = (n) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) >>> 8) % n;
+  const [w, h, pad, at] = [37, 5, 3, 2];
+  const pic = (bits, max) => {
+    const heap = bits > 8 ? new Uint16Array(at + (w + pad) * h) : new Uint8Array(at + (w + pad) * h);
+    for (let i = 0; i < heap.length; i++) heap[i] = rnd(max);
+    return { width: w, height: h, bits, planes: [{ heap, offset: at, stride: w + pad }] };
+  };
+  for (let bits = 8; bits <= 16; bits++) {
+    for (const signed of [false, true]) {
+      for (let split = 1; split <= 8; split++) {
+        const depth = [8, 10, 12].find((d) => bits - split <= d) ?? bits - split;
+        const payload = { bits, depth, split, signed, rct: false, offset: signed ? 2 ** (bits - 1) : 0 };
+        for (const [top, low] of [[pic(depth, 2 ** (bits - split)), pic(8, 2 ** split)], [pic(depth, 2 ** depth), pic(8, 256)]]) {
+          const two = end(begin(top, payload), low);
+          const one = merge(top, low, payload);
+          const same = sha(two.sab) === sha(one.sab) && two.range.min === one.range.min && two.range.max === one.range.max;
+          if (!same) wrong++;
+          check(same && JSON.stringify(two.info) === JSON.stringify(one.info), `merge in one pass: ${bits}-bit ${signed ? "signed" : "unsigned"} split ${split} is the two passes' bytes and range`);
+        }
+      }
+    }
+  }
+  check(wrong === 0, `merge in one pass: ${wrong} of 288 cells unlike the two passes`);
+  const payload = { bits: 12, depth: 10, split: 2, signed: false, rct: false, offset: 0 };
+  const said = (f) => { try { f(); return "merged"; } catch (e) { return e.message; } };
+  const low = (width, height, bits, n = 1) => ({ width, height, bits, planes: Array.from({ length: n }, () => ({ heap: new Uint8Array(width * height), offset: 0, stride: width })) });
+  const top = { ...low(w, h, 10), planes: [{ heap: new Uint16Array(w * h), offset: 0, stride: w }] };
+  for (const [what, t, l, want] of [
+    ["a low of another size", top, low(w, h + 1, 8), /a low picture of 37x6x1 under 37x5/],
+    ["a low of two planes", top, low(w, h, 8, 2), /a low picture of 37x5x2/],
+    ["a 10-bit low", top, low(w, h, 10), /low stream 10-bit, not 8/],
+    ["a top of another depth", { ...top, bits: 8 }, low(w, h, 8), /top stream 8-bit, header says 10/],
+  ]) {
+    const got = said(() => merge(t, l, payload));
+    check(want.test(got) && got === said(() => end(begin(t, payload), l)), `merge in one pass: ${what} is refused as the two passes refuse it (${got})`);
+  }
+}
+
+/** A WebCodecs split frame is read in one pass, through merge(), and every other payload in two, whatever a config's retired `onePass` says. */
+{
+  const reads = [];
+  const make = async (onePass) => {
+    const pics = {};
+    const pic = (bits, n, which) => (pics[`${which}${bits}x${n}`] ??= (() => {
+      let seed = bits * 31 + n + (which === "low" ? 1000 : 0);
+      const max = which === "low" ? 4 : 2 ** bits;
+      const planes = Array.from({ length: n }, () => {
+        const heap = bits > 8 ? new Uint16Array(6 * 4) : new Uint8Array(6 * 4);
+        for (let i = 0; i < heap.length; i++) heap[i] = (seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) % max;
+        // Each read logged by its picture: the two passes read every top sample before any low one.
+        const logged = new Proxy(heap, { get: (a, k) => (typeof k === "string" && /^\d+$/.test(k) && reads.push(which), a[k]) });
+        return { heap: logged, offset: 0, stride: 6 };
+      });
+      return { width: 5, height: 4, bits, planes };
+    })());
+    let current = null;
+    const stubs = {
+      "./av1-webcodecs.js": {
+        init: async () => {},
+        probe: async () => true,
+        picture: async (bytes, unit, which) => (which === "low" ? pic(8, 1, "low") : pic(current.depth, current.rct || current.colour ? 3 : 1, "top")),
+      },
+      "./av1-dav1d.js": { init: async () => {}, picture: () => { throw new Error("dav1d reached"); } },
+    };
+    const av1 = await import(`./av1.js?one-pass-${onePass}`);
+    await av1.init({ onePass }, async (path) => stubs[path]);
+    return async (rep, name) => {
+      const bytes = golden(rep, name);
+      current = { ...parsePayload(bytes), colour: name === "c8" };
+      reads.length = 0;
+      const r = await av1.decodeFrame(bytes, { key: true });
+      const interleaved = reads.slice(0, 4).join() === "top,low,top,low";
+      return `${interleaved ? "one pass" : "two passes"} ${r.route} ${sha(r.sab)} ${r.range.min} ${r.range.max} ${JSON.stringify(r.info)}`;
+    };
+  };
+  globalThis.VideoDecoder = class {};
+  const [before, after, unset] = [await make(false), await make(true), await make(undefined)];
+  for (const [rep, name, what] of [
+    ["optimized", "g10", "split, an 8-bit top"], ["optimized", "g12", "split, a 10-bit top"],
+    ["optimized", "s11", "split and signed"], ["optimized", "s13", "split, signed, offset 2048"],
+    ["optimized", "c8", "rct"], ["optimized", "g9", "unsplit"], ["plain", "g10", "unsplit, 10-bit"], ["plain", "c8", "plain colour"],
+  ]) {
+    const [a, b, c] = [await before(rep, name), await after(rep, name), await unset(rep, name)];
+    const split = parsePayload(golden(rep, name)).split > 0;
+    const passes = (r) => r.slice(0, r.indexOf(" av1-"));
+    check(b.includes(" av1-webcodecs ") && a === b && c === b, `one pass: ${what} (${rep} ${name}) is read alike under every config`);
+    check(passes(b) === (split ? "one pass" : "two passes"), `one pass: ${what} is read ${split ? "in one pass" : "in two"} (${passes(b)})`);
+  }
+  delete globalThis.VideoDecoder;
+}
+
+/** Only a `mono_chrome` stream's chroma goes unchecked, whatever a config's retired `onePass` says: a 4:2:0 stream with `mono_chrome` 0 and chroma is refused. */
+{
+  const { PROBES } = await import("./av1-probe.js");
+  const { sequence } = await import("./av1-payload.js");
+  const unit = (layout) => Uint8Array.from(atob(PROBES[layout].unit), (c) => c.charCodeAt(0));
+  check(sequence(unit("g8")).mono === 1 && sequence(unit("g8f")).mono === 0, "chroma: the g8 probe is mono_chrome, g8f is not");
+  const [w, h] = [4, 2];
+  let tint = 128;
+  globalThis.EncodedVideoChunk = class { constructor(c) { Object.assign(this, c); } };
+  globalThis.VideoDecoder = class {
+    constructor({ output }) { this.output = output; this.state = "unconfigured"; }
+    configure() { this.state = "configured"; }
+    async flush() {}
+    close() { this.state = "closed"; }
+    decode(chunk) {
+      const c = (w >> 1) * (h >> 1);
+      this.output({ format: "I420", timestamp: chunk.timestamp, visibleRect: { width: w, height: h }, close() {},
+        allocationSize: () => w * h + 2 * c,
+        copyTo: async (buf) => {
+          const px = new Uint8Array(buf);
+          for (let i = 0; i < w * h; i++) px[i] = i;
+          px.fill(128, w * h);
+          px[w * h + c] = tint;
+          return [{ offset: 0, stride: w }, { offset: w * h, stride: w >> 1 }, { offset: w * h + c, stride: w >> 1 }];
+        } });
+    }
+  };
+  let gen = 0;
+  for (const onePass of [false, true, undefined]) {
+    const wc = await import(`./av1-webcodecs.js?chroma-${onePass}`);
+    await wc.init({ onePass });
+    const read = (layout) => wc.picture(unit(layout), { key: true, gen: gen++, index: 0 }).then((p) => `grey ${p.planes[0].heap[w + 1]}`, (e) => e.message);
+    tint = 128;
+    for (const layout of ["g8", "g8f"]) check((await read(layout)) === "grey 5", `chroma: onePass ${onePass}, ${layout} with mid-grey chroma decodes`);
+    tint = 129;
+    check(/4:2:0 with chroma/.test(await read("g8f")), `chroma: onePass ${onePass}, mono_chrome 0 with a tinted chroma sample is refused`);
+    const mono = await read("g8");
+    check(mono === "grey 5", `chroma: onePass ${onePass}, mono_chrome 1 with a tinted chroma sample is not checked (${mono})`);
+  }
+  delete globalThis.VideoDecoder;
+  delete globalThis.EncodedVideoChunk;
+}
+
+/**
  * The codecs string is the one ffmpeg 6.1.1's trace_headers and ffprobe read from the same sequence header
  * (lab/av1/exact/codec-string): reduced still-picture headers as ingest writes them, and full ones with timing info, a
  * decoder model, frame ids, High tier and nine operating points, the first point's level taken.
@@ -183,15 +355,15 @@ const { parsePayload } = await import("./av1-payload.js");
   await take("an rct payload probes 4:4:4 10-bit", "optimized", "c8", 10, 3, "probe c10,webcodecs");
   await take("a plain colour payload is told from grey by its profile", "plain", "c8", 8, 3, "probe c8,webcodecs");
   await take("8-bit grey coded 4:2:0 probes its own layout", "grey420", "g8", 8, 1, "probe g8f,webcodecs");
-  // The second decode after a digest mismatch takes another path, or none: docs/adr/exactness-in-production.md §2
+  // The second decode after a digest mismatch takes another route, or none: docs/adr/exactness-in-production.md §2
   const again = async (what, name, d, avoid, want, outcome, unit = { key: true }) => {
     [depth, planes] = [d, 1];
     calls.length = 0;
-    const got = await av1.decodeFrame(golden("plain", name), unit, null, avoid).then((r) => r.path, (e) => String(e.message));
+    const got = await av1.decodeFrame(golden("plain", name), unit, null, avoid).then((r) => r.route, (e) => String(e.message));
     check(calls.join() === want && got.startsWith(outcome), `second decode: ${what} (${calls.join()}; ${got.slice(0, 40)})`);
   };
-  await again("a first decode names WebCodecs as its path", "g10", 10, undefined, "probe g10,webcodecs", "av1-webcodecs");
-  await again("a first decode names dav1d as its path", "g12", 12, undefined, "dav1d", "av1-dav1d");
+  await again("a first decode names WebCodecs as its route", "g10", 10, undefined, "probe g10,webcodecs", "av1-webcodecs");
+  await again("a first decode names dav1d as its route", "g12", 12, undefined, "dav1d", "av1-dav1d");
   await again("after WebCodecs, dav1d", "g10", 10, "av1-webcodecs", "dav1d", "av1-dav1d");
   await again("after dav1d, WebCodecs", "g10", 10, "av1-dav1d", "probe g10,webcodecs", "av1-webcodecs");
   await again("after dav1d over 10 bits, none", "g12", 12, "av1-dav1d", "", "no WebCodecs decoder");
@@ -201,16 +373,91 @@ const { parsePayload } = await import("./av1-payload.js");
   await again("inside a group, none", "g10", 10, "av1-webcodecs", "", "a frame inside a group", { key: false });
   const mixed = await import("./av1.js?mixed");
   await mixed.init({ mixed: true }, load);
-  const split = (avoid) => mixed.decodeFrame(golden("optimized", "g14"), { key: true }, null, avoid).then((r) => r.path, (e) => String(e.message));
+  const split = (avoid) => mixed.decodeFrame(golden("optimized", "g14"), { key: true }, null, avoid).then((r) => r.route, (e) => String(e.message));
   [depth, planes] = [12, 1];
   calls.length = 0;
-  let path = await split();
-  check(calls.join() === "probe g8,webcodecs,dav1d" && path === "av1-mixed", `second decode: a mixed decode names its path (${calls.join()}; ${path})`);
+  let route = await split();
+  check(calls.join() === "probe g8,webcodecs,dav1d" && route === "av1-mixed", `second decode: a mixed decode names its route (${calls.join()}; ${route})`);
   calls.length = 0;
-  path = await split("av1-mixed");
-  check(calls.join() === "dav1d,dav1d" && path === "av1-dav1d", `second decode: after a mixed decode, dav1d alone (${calls.join()}; ${path})`);
+  route = await split("av1-mixed");
+  check(calls.join() === "dav1d,dav1d" && route === "av1-dav1d", `second decode: after a mixed decode, dav1d alone (${calls.join()}; ${route})`);
   delete globalThis.VideoDecoder;
   await take("no VideoDecoder, no WebCodecs", "plain", "g10", 10, 1, "dav1d");
+}
+
+/**
+ * An optimal-quality series takes WebCodecs first at any depth, and dav1d only after WebCodecs refused it, the refusal
+ * named on the frame; over 10 bits, where no probe is made, the first refusal sends the worker's later frames to dav1d.
+ */
+{
+  const calls = [];
+  let [depth, wcFails, probeOk] = [12, false, true];
+  const pic = () => ({ width: 1, height: 1, bits: depth, planes: [{ heap: Uint16Array.of(7), offset: 0, stride: 1 }] });
+  const stubs = {
+    "./av1-webcodecs.js": {
+      init: async () => {},
+      probe: async (layout) => (calls.push(`probe ${layout}`), probeOk),
+      picture: async () => {
+        calls.push("webcodecs");
+        if (wcFails) throw new Error("undecodable: not a key frame");
+        return pic();
+      },
+    },
+    "./av1-dav1d.js": { init: async () => {}, picture: () => (calls.push("dav1d"), pic()) },
+  };
+  globalThis.VideoDecoder = class {};
+  const make = async (tag) => {
+    const av1 = await import(`./av1.js?optimal-${tag}`);
+    await av1.init({ optimal: true }, async (path) => stubs[path]);
+    return av1;
+  };
+  const take = async (av1, what, name, d, want, route, why) => {
+    depth = d;
+    calls.length = 0;
+    const f = await av1.decodeFrame(golden("plain", name)).catch((e) => ({ route: e.message }));
+    check(calls.join() === want && f.route === route && why.test(f.refusal ?? ""), `optimal: ${what} (${calls.join()}; ${f.route}; ${f.refusal})`);
+  };
+  const taken = await make("taken");
+  await take(taken, "a 12-bit frame WebCodecs decodes stays there, dav1d untouched", "g12", 12, "webcodecs", "av1-webcodecs", /^$/);
+  await take(taken, "a 10-bit frame takes WebCodecs after its probe", "g10", 10, "probe g10,webcodecs", "av1-webcodecs", /^$/);
+  wcFails = true;
+  const refused = await make("refused");
+  await take(refused, "a 12-bit frame WebCodecs refuses goes to dav1d, the refusal named", "g12", 12, "webcodecs,dav1d", "av1-dav1d", /not a key frame/);
+  await take(refused, "and the next 12-bit frame goes to dav1d alone, with that refusal", "g12", 12, "dav1d", "av1-dav1d", /not a key frame/);
+  await take(refused, "a 10-bit frame WebCodecs fails goes to dav1d, the failure named", "g10", 10, "probe g10,webcodecs,dav1d", "av1-dav1d", /not a key frame/);
+  wcFails = false;
+  await take(refused, "the next 10-bit frame WebCodecs decodes stays there: below 11 bits a failure is the frame's own", "g10", 10, "probe g10,webcodecs", "av1-webcodecs", /^$/);
+  await take(refused, "a 12-bit frame after the refusal stays on dav1d, though WebCodecs would now decode it", "g12", 12, "dav1d", "av1-dav1d", /not a key frame/);
+  depth = 10;
+  calls.length = 0;
+  const inGroup = await refused.decodeFrame(golden("plain", "g10"), { key: false, gen: 0, index: 1 });
+  check(calls.join() === "probe g10,webcodecs" && inGroup.route === "av1-webcodecs" && inGroup.refusal === undefined,
+    `optimal: a frame inside a group WebCodecs decodes never reaches dav1d (${calls.join()}; ${inGroup.route})`);
+  wcFails = true;
+  probeOk = false;
+  await take(refused, "a 10-bit frame whose probe failed goes to dav1d, the probe named", "g10", 10, "probe g10,dav1d", "av1-dav1d", /g10 probe failed/);
+  delete globalThis.VideoDecoder;
+  await take(await make("none"), "without VideoDecoder, dav1d, and that named", "g12", 12, "dav1d", "av1-dav1d", /no VideoDecoder/);
+}
+
+/** The lab's `refuseWebCodecs` sends a ≤ 10-bit optimal-quality frame WebCodecs would decode to dav1d, the lever named as the refusal; without it, WebCodecs. */
+{
+  const calls = [];
+  const pic = () => ({ width: 1, height: 1, bits: 10, planes: [{ heap: Uint16Array.of(7), offset: 0, stride: 1 }] });
+  const stubs = {
+    "./av1-webcodecs.js": { init: async () => {}, probe: async () => true, picture: async () => (calls.push("webcodecs"), pic()) },
+    "./av1-dav1d.js": { init: async () => {}, picture: () => (calls.push("dav1d"), pic()) },
+  };
+  globalThis.VideoDecoder = class {};
+  for (const refuseWebCodecs of [true, false]) {
+    const av1 = await import(`./av1.js?refuse-${refuseWebCodecs}`);
+    await av1.init({ optimal: true, refuseWebCodecs }, async (path) => stubs[path]);
+    calls.length = 0;
+    const f = await av1.decodeFrame(golden("plain", "g10"));
+    check(refuseWebCodecs ? calls.join() === "dav1d" && f.route === "av1-dav1d" && /refuseWebCodecs/.test(f.refusal) : calls.join() === "webcodecs" && f.route === "av1-webcodecs",
+      `refuseWebCodecs ${refuseWebCodecs}: ${calls.join()}; ${f.route}; ${f.refusal}`);
+  }
+  delete globalThis.VideoDecoder;
 }
 
 /** Init starts fetching every decoder the payload could need, so none waits for the first payload to land; a failure there costs no payload. */
@@ -416,6 +663,69 @@ else {
   r = plane(2);
   const tinted = await wc.picture(unit("g8f"), { key: true, gen: 3, index: 0 }).then(() => "decoded", (e) => e.message);
   check(/chroma/.test(tinted), `rgb: and refused where R, G and B differ (${tinted})`);
+  delete globalThis.VideoDecoder;
+  delete globalThis.EncodedVideoChunk;
+}
+
+/**
+ * Every frame is copied into a buffer of its own, whatever a config's retired `reuseCopyBuffer` says, and reads back its
+ * own samples through sizes and depths that change; a split frame's top and low never share one.
+ */
+{
+  const { PROBES } = await import("./av1-probe.js");
+  const unit = (layout) => Uint8Array.from(atob(PROBES[layout].unit), (c) => c.charCodeAt(0));
+  let shape = null;
+  const into = [];
+  globalThis.EncodedVideoChunk = class { constructor(c) { Object.assign(this, c); } };
+  globalThis.VideoDecoder = class {
+    constructor({ output }) { this.output = output; this.state = "unconfigured"; }
+    configure() { this.state = "configured"; }
+    async flush() {}
+    close() { this.state = "closed"; }
+    decode(chunk) {
+      const { w, h, bits, seed } = shape;
+      const bytes = bits > 8 ? 2 : 1;
+      const c = ((w + 1) >> 1) * ((h + 1) >> 1);
+      const size = (w * h + 2 * c) * bytes;
+      this.output({ format: bits > 8 ? "I420P10" : "I420", timestamp: chunk.timestamp, visibleRect: { width: w, height: h }, close() {},
+        allocationSize: () => size,
+        copyTo: async (buf) => {
+          // WebCodecs copyTo(): "If destination.byteLength is less than combinedLayout’s allocationSize, return a promise rejected with a TypeError."
+          if (buf.byteLength < size) throw new TypeError("destination too small");
+          into.push(buf);
+          const px = new (bits > 8 ? Uint16Array : Uint8Array)(buf, 0, size / bytes);
+          for (let i = 0; i < w * h; i++) px[i] = (seed + i * 7) % (1 << bits);
+          px.fill(1 << (bits - 1), w * h, w * h + 2 * c);
+          return [{ offset: 0, stride: w * bytes }, { offset: w * h * bytes, stride: ((w + 1) >> 1) * bytes }, { offset: (w * h + c) * bytes, stride: ((w + 1) >> 1) * bytes }];
+        } });
+    }
+  };
+  const samples = (p) => Array.from({ length: p.width * p.height }, (_, i) => p.planes[0].heap[p.planes[0].offset + Math.floor(i / p.width) * p.planes[0].stride + (i % p.width)]);
+  const want = ({ w, h, bits, seed }) => Array.from({ length: w * h }, (_, i) => (seed + i * 7) % (1 << bits));
+  const shapes = [{ w: 6, h: 4, bits: 8, seed: 1 }, { w: 9, h: 7, bits: 8, seed: 2 }, { w: 5, h: 3, bits: 8, seed: 3 }, { w: 4, h: 2, bits: 10, seed: 4 }, { w: 6, h: 4, bits: 10, seed: 5 }];
+  for (const reuse of [false, true]) {
+    const wc = await import(`./av1-webcodecs.js?reuse-${reuse}`);
+    await wc.init({ reuseCopyBuffer: reuse });
+    into.length = 0;
+    let gen = 0;
+    const reads = [];
+    for (const s of shapes) {
+      shape = s;
+      const layout = s.bits > 8 ? "g10" : "g8";
+      const p = await wc.picture(unit(layout), { key: true, gen: gen++, index: 0 }).then((pic) => pic, (e) => e);
+      reads.push(p instanceof Error ? p.message : JSON.stringify(samples(p)) === JSON.stringify(want(s)) && p.bits === s.bits);
+    }
+    check(reads.every((r) => r === true), `reuse ${reuse}: every frame reads back its own samples through a smaller, larger, odd-sized and 10-bit frame (${reads})`);
+    // Frame 1 is the largest (103 B, odd): the buffer grows there and is kept for every frame after it, 10-bit ones included.
+    const same = into.map((b, i) => i > 0 && b === into[i - 1]);
+    check(same.every((s) => !s), `reuse ${reuse}: the copy buffer is new every frame (${same})`);
+    into.length = 0;
+    shape = shapes[0];
+    await Promise.all([wc.picture(unit("g8"), { key: true, gen: gen++, index: 0 }), wc.picture(unit("g8"), { key: true, gen: gen++, index: 0 }, "low")]);
+    await Promise.all([wc.picture(unit("g8"), { key: true, gen: gen++, index: 0 }), wc.picture(unit("g8"), { key: true, gen: gen++, index: 0 }, "low")]);
+    const [t1, l1, t2, l2] = into;
+    check(t1 !== l1 && t2 !== l2 && t1 !== l2 && l1 !== t2, `reuse ${reuse}: a split frame's top and low are copied into buffers of their own`);
+  }
   delete globalThis.VideoDecoder;
   delete globalThis.EncodedVideoChunk;
 }

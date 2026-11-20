@@ -120,8 +120,8 @@ than HTJ2K), or e2 1.7–2.6× faster.
   (`jxl/src/frame/modular/decode/specialized_trees.rs:262–387`). e1's fixed gradient tree takes the gradient path in
   both decoders.
 * **A WASM SIMD128 backend**, `jxl_simd/src/wasm32/simd128.rs`, built with `+simd128,+relaxed-simd` in its own
-  config (`.cargo/config.toml`). It has no threads on `wasm32` (rayon is not supported there, `jxl/Cargo.toml:37`), as
-  OpenJPH has none.
+  config (`.cargo/config.toml`). *Corrected 2026-10-28:* not "no threads on `wasm32`" — `jxl/Cargo.toml:37` is
+  criterion's rayon, a dev-dependency; the decoder runs on a caller's `JxlParallelRunner` (`jxl/src/api/mod.rs:80`).
 * **An integer sample output**, `JxlDataFormat::U16 { bit_depth }` (`jxl/src/api/data_types.rs:107`). It reaches
   u16 through f32: modular i32 × 1/(2^b − 1), then × (2^b − 1) and rounded (`ConvertModularToF32Stage`,
   `ConvertF32ToU16Stage`, `jxl/src/render/stages/convert.rs:246`, `:787`). For b ≤ 16 that round trip is exact by

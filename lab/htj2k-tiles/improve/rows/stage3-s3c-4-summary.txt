@@ -1,0 +1,269 @@
+visits 1200, kept 972, void 208, failed 20
+R0: pictures exact in every kept visit: yes
+OQ pictures, one digest per volume across its D visits: {'dbts_a1': 1, 'dbts_c1': 1, 'dbts_b1': 1}
+J10/R6: reopens of S★ and D+L★ with 0 asks, 0 decodes, every slice the same: 397/402
+decode-bound cells (D's every-slice time at 4× over 1.05 × 1×): [('dbts_a1/phone', 'lte-good', 'clean'), ('dbts_a1/phone', 'r20000', 'clean'), ('dbts_a1/phone', 'wifi-home', 'clean'), ('dbts_b1/phone', 'lte-good', 'clean'), ('dbts_b1/phone', 'r20000', 'clean'), ('dbts_b1/phone', 'wifi-home', 'clean'), ('dbts_c1/phone', 'lte-good', 'clean'), ('dbts_c1/phone', 'r20000', 'clean'), ('dbts_c1/phone', 'wifi-home', 'clean'), ('dbts_c1/sideways', 'lte-good', 'clean'), ('dbts_c1/sideways', 'r20000', 'clean'), ('dbts_c1/sideways', 'wifi-home', 'clean')]
+
+per set and cell: each arm's first · every slice · Lossless (level) ms, medians of rounds; then the rule's ratios, median of rounds [s]
+dbts_a1/phone lte-good clean 1× [not link-bound]: D 398 · 2620 · 630 n=2 | D′ 401 · 2621 · 629 n=3 | D+T3 385 · 2587 · 581 n=5 | D+L★ 383 · 2595 · 590 n=1 | S★ 676 · 34427 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.919 (n=2) [s 0.013]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.015 (n=1) [s 0.078]
+    J8/R5 S★ first ÷ D: ×1.685 (n=2) [s 0.033]
+    J8/R5 S★ every slice ÷ D: ×13.139 (n=2) [s 0.017]
+dbts_a1/phone lte-good clean 4× [not link-bound]: D 535 · 4022 · 814 n=3 | D′ 590 · 4124 · 764 n=5 | D+T3 516 · 3990 · 622 n=4 | D+L★ 533 · 4080 · 635 n=3 | S★ 704 · 34456 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.778 (n=3) [s 0.112]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.036 (n=3) [s 0.263]
+    J8/R5 S★ first ÷ D: ×1.318 (n=3) [s 0.492]
+    J8/R5 S★ every slice ÷ D: ×8.568 (n=3) [s 0.073]
+dbts_a1/phone r20000 clean 1× [not link-bound]: D 331 · 2441 · 707 n=2 | D′ 338 · 2494 · 702 n=4 | D+T3 332 · 2508 · 664 n=6 | D+L★ 332 · 2504 · 666 n=6 | S★ 665 · 27872 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.938 (n=2) [s 0.007]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.001 (n=6) [s 0.071]
+    J8/R5 S★ first ÷ D: ×2.006 (n=2) [s 0.043]
+    J8/R5 S★ every slice ÷ D: ×11.417 (n=2) [s 0.021]
+dbts_a1/phone r20000 clean 4× [not link-bound]: D 468 · 3854 · 828 n=4 | D′ 487 · 3842 · 806 n=3 | D+T3 481 · 4002 · 688 n=3 | D+L★ 478 · 3896 · 689 n=6 | S★ 701 · 27891 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.825 (n=3) [s 0.051]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.009 (n=3) [s 0.227]
+    J8/R5 S★ first ÷ D: ×1.521 (n=4) [s 0.043]
+    J8/R5 S★ every slice ÷ D: ×7.250 (n=4) [s 0.070]
+dbts_a1/phone r20000 l1 1× [not link-bound]: D 338 · 11184 · 976 n=5 | D′ 348 · 9849 · 1136 n=6 | D+T3 350 · 10108 · 2141 n=6 | D+L★ 383 · 11167 · 1598 n=5 | S★ 1678 · 180371 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.820 (n=5) [s 0.530]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×0.928 (n=5) [s 0.879]
+    J8/R5 S★ first ÷ D: ×3.660 (n=5) [s 0.115]
+    J8/R5 S★ every slice ÷ D: ×15.339 (n=5) [s 0.375]
+dbts_a1/phone r20000 l1 4× [not link-bound]: D 508 · 10842 · 2442 n=5 | D′ 504 · 11037 · 1906 n=4 | D+T3 468 · 11330 · 1205 n=5 | D+L★ 470 · 12572 · 2260 n=4 | S★ 1572 · 180333 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.898 (n=4) [s 0.339]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.275 (n=3) [s 3.924]
+    J8/R5 S★ first ÷ D: ×2.800 (n=5) [s 0.123]
+    J8/R5 S★ every slice ÷ D: ×16.527 (n=5) [s 0.040]
+dbts_a1/phone r5000 clean 1× [link-bound]: D 390 · 7790 · 2183 n=4 | D′ 388 · 7786 · 2191 n=5 | D+T3 385 · 7787 · 2131 n=4 | D+L★ 387 · 7788 · 2135 n=5 | S★ 2148 · 110730 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.979 (n=4) [s 0.013]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.001 (n=3) [s 0.031]
+    J8/R5 S★ first ÷ D: ×5.566 (n=4) [s 0.020]
+    J8/R5 S★ every slice ÷ D: ×14.213 (n=4) [s 0.001]
+dbts_a1/phone r5000 clean 4× [link-bound]: D 539 · 7905 · 2303 n=5 | D′ 530 · 7900 · 2310 n=6 | D+T3 529 · 7930 · 2160 n=5 | D+L★ 504 · 7874 · 2151 n=5 | S★ 2277 · 110741 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.933 (n=5) [s 0.036]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.000 (n=5) [s 0.079]
+    J8/R5 S★ first ÷ D: ×4.022 (n=5) [s 0.164]
+    J8/R5 S★ every slice ÷ D: ×14.010 (n=5) [s 0.005]
+dbts_a1/phone wifi-home clean 1× [not link-bound]: D 274 · 3049 · 819 n=5 | D′ 276 · 3156 · 818 n=5 | D+T3 282 · 3173 · 776 n=5 | D+L★ 281 · 3202 · 778 n=6 | S★ 785 · 56100 · 0 n=5
+    J4/R3 D+T3 Lossless ÷ D: ×0.945 (n=4) [s 0.053]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.001 (n=5) [s 0.800]
+    J8/R5 S★ first ÷ D: ×2.814 (n=4) [s 0.115]
+    J8/R5 S★ every slice ÷ D: ×18.148 (n=4) [s 0.107]
+dbts_a1/phone wifi-home clean 4× [not link-bound]: D 423 · 4381 · 952 n=4 | D′ 414 · 4070 · 974 n=6 | D+T3 416 · 4015 · 813 n=5 | D+L★ 402 · 4015 · 804 n=5 | S★ 814 · 55694 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.851 (n=3) [s 0.054]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×0.991 (n=4) [s 0.213]
+    J8/R5 S★ first ÷ D: ×1.891 (n=4) [s 0.040]
+    J8/R5 S★ every slice ÷ D: ×12.569 (n=4) [s 0.268]
+dbts_b1/phone lte-good clean 1× [not link-bound]: D 674 · 8406 · 1074 n=4 | D′ 700 · 8367 · 1053 n=1 | D+T3 687 · 8246 · 972 n=4 | D+L★ 686 · 8354 · 980 (414) n=4 | S★ 414 · 9066 · 858 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.870 (n=4) [s 0.003]
+    J6 D+L★ level ÷ D Lossless: ×0.376 (n=4) [s 0.003]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.440 (n=4) [s 0.146]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.020 (n=4) [s 0.146]
+    J8/R5 S★ first ÷ D: ×0.612 (n=4) [s 0.046]
+    J8/R5 S★ every slice ÷ D: ×1.078 (n=4) [s 0.008]
+dbts_b1/phone lte-good clean 4× [not link-bound]: D 1043 · 14303 · 1847 n=3 | D′ 1067 · 14392 · 1704 n=5 | D+T3 1116 · 14699 · 1436 n=5 | D+L★ 1093 · 14425 · 1380 (588) n=3 | S★ 456 · 9100 · 1088 n=3
+    J4/R3 D+T3 Lossless ÷ D: ×0.819 (n=2) [s 0.112]
+    J6 D+L★ level ÷ D Lossless: ×0.346 (n=1) [s 0.112]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.397 (n=3) [s 0.526]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.012 (n=3) [s 0.526]
+    J8/R5 S★ first ÷ D: ×0.410 (n=2) [s 0.098]
+    J8/R5 S★ every slice ÷ D: ×0.590 (n=2) [s 0.025]
+dbts_b1/phone r20000 clean 1× [not link-bound]: D 639 · 9828 · 1157 n=5 | D′ 622 · 9836 · 1154 n=4 | D+T3 603 · 9834 · 1060 n=5 | D+L★ 623 · 9826 · 1069 (391) n=5 | S★ 381 · 11977 · 724 n=5
+    J4/R3 D+T3 Lossless ÷ D: ×0.918 (n=4) [s 0.027]
+    J6 D+L★ level ÷ D Lossless: ×0.338 (n=4) [s 0.027]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.369 (n=5) [s 0.115]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.006 (n=5) [s 0.115]
+    J8/R5 S★ first ÷ D: ×0.600 (n=4) [s 0.047]
+    J8/R5 S★ every slice ÷ D: ×1.218 (n=4) [s 0.011]
+dbts_b1/phone r20000 clean 4× [not link-bound]: D 1045 · 15858 · 1461 n=4 | D′ 1130 · 16160 · 1524 n=6 | D+T3 1045 · 15780 · 1175 n=5 | D+L★ 1034 · 16163 · 1174 (414) n=6 | S★ 418 · 11984 · 820 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.802 (n=4) [s 0.076]
+    J6 D+L★ level ÷ D Lossless: ×0.281 (n=4) [s 0.076]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.351 (n=5) [s 0.309]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×0.994 (n=5) [s 0.309]
+    J8/R5 S★ first ÷ D: ×0.391 (n=4) [s 0.130]
+    J8/R5 S★ every slice ÷ D: ×0.756 (n=4) [s 0.146]
+dbts_b1/phone r20000 l1 1× [not link-bound]: D 829 · 61438 · 4778 n=6 | D′ 668 · 60384 · 5941 n=5 | D+T3 819 · 61830 · 4199 n=5 | D+L★ 751 · 61098 · 4284 (816) n=6 | S★ 552 · 76026 · 4229 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.990 (n=5) [s 0.649]
+    J6 D+L★ level ÷ D Lossless: ×0.196 (n=6) [s 0.649]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.188 (n=5) [s 0.966]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.014 (n=5) [s 0.966]
+    J8/R5 S★ first ÷ D: ×0.756 (n=6) [s 0.627]
+    J8/R5 S★ every slice ÷ D: ×1.242 (n=6) [s 0.044]
+dbts_b1/phone r20000 l1 4× [not link-bound]: D 1363 · 60357 · 4376 n=6 | D′ 1558 · 61318 · 5200 n=6 | D+T3 1378 · 61623 · 4418 n=4 | D+L★ 1103 · 59751 · 4662 (492) n=5 | S★ 438 · 74368 · 3951 n=4
+    J4/R3 D+T3 Lossless ÷ D: ×0.943 (n=4) [s 0.497]
+    J6 D+L★ level ÷ D Lossless: ×0.122 (n=5) [s 0.497]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.174 (n=4) [s 0.883]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.067 (n=4) [s 0.883]
+    J8/R5 S★ first ÷ D: ×0.385 (n=4) [s 0.768]
+    J8/R5 S★ every slice ÷ D: ×1.224 (n=4) [s 0.095]
+dbts_b1/phone r5000 clean 1× [link-bound]: D 1122 · 38102 · 3765 n=6 | D′ 1131 · 38092 · 3765 n=5 | D+T3 1124 · 38088 · 3662 n=4 | D+L★ 1123 · 38093 · 3668 (1052) n=4 | S★ 1012 · 47170 · 2668 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.974 (n=4) [s 0.005]
+    J6 D+L★ level ÷ D Lossless: ×0.280 (n=4) [s 0.005]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.287 (n=4) [s 0.031]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.001 (n=4) [s 0.031]
+    J8/R5 S★ first ÷ D: ×0.905 (n=6) [s 0.081]
+    J8/R5 S★ every slice ÷ D: ×1.238 (n=6) [s 0.001]
+dbts_b1/phone r5000 clean 4× [link-bound]: D 1541 · 38462 · 4058 n=6 | D′ 1508 · 38480 · 4077 n=6 | D+T3 1550 · 38460 · 3762 n=6 | D+L★ 1510 · 38472 · 3790 (1069) n=6 | S★ 1025 · 47178 · 2748 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.924 (n=6) [s 0.016]
+    J6 D+L★ level ÷ D Lossless: ×0.262 (n=6) [s 0.016]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.284 (n=6) [s 0.119]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.008 (n=6) [s 0.119]
+    J8/R5 S★ first ÷ D: ×0.664 (n=6) [s 0.135]
+    J8/R5 S★ every slice ÷ D: ×1.227 (n=6) [s 0.003]
+dbts_b1/phone wifi-home clean 1× [not link-bound]: D 628 · 15972 · 705 n=4 | D′ 627 · 15870 · 738 n=5 | D+T3 616 · 16152 · 646 n=5 | D+L★ 621 · 17256 · 618 (284) n=6 | S★ 406 · 22917 · 1667 n=5
+    J4/R3 D+T3 Lossless ÷ D: ×0.861 (n=3) [s 0.054]
+    J6 D+L★ level ÷ D Lossless: ×0.372 (n=4) [s 0.054]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.415 (n=5) [s 2.967]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.011 (n=5) [s 2.967]
+    J8/R5 S★ first ÷ D: ×0.675 (n=4) [s 0.026]
+    J8/R5 S★ every slice ÷ D: ×1.377 (n=4) [s 0.049]
+dbts_b1/phone wifi-home clean 4× [not link-bound]: D 1092 · 20234 · 1016 n=6 | D′ 1081 · 20734 · 2269 n=5 | D+T3 1118 · 18902 · 736 n=6 | D+L★ 1144 · 19636 · 941 (343) n=4 | S★ 427 · 22910 · 1560 n=5
+    J4/R3 D+T3 Lossless ÷ D: ×0.713 (n=6) [s 1.349]
+    J6 D+L★ level ÷ D Lossless: ×0.337 (n=4) [s 1.349]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.422 (n=4) [s 2.317]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.004 (n=4) [s 2.317]
+    J8/R5 S★ first ÷ D: ×0.417 (n=5) [s 0.125]
+    J8/R5 S★ every slice ÷ D: ×1.060 (n=5) [s 0.410]
+dbts_c1/phone lte-good clean 1× [not link-bound]: D 417 · 3584 · 620 n=5 | D′ 408 · 3499 · 600 n=5 | D+T3 414 · 3545 · 567 n=3 | D+L★ 398 · 3579 · 554 n=3 | S★ 602 · 35682 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.953 (n=2) [s 0.047]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.000 (n=1) [s 0.097]
+    J8/R5 S★ first ÷ D: ×1.472 (n=5) [s 0.051]
+    J8/R5 S★ every slice ÷ D: ×9.958 (n=5) [s 0.038]
+dbts_c1/phone lte-good clean 4× [not link-bound]: D 575 · 5123 · 705 n=5 | D′ 524 · 4728 · 743 n=4 | D+T3 552 · 4831 · 589 n=3 | D+L★ 505 · 4583 · 624 n=1 | S★ 664 · 35897 · 0 n=5
+    J4/R3 D+T3 Lossless ÷ D: ×0.813 (n=2) [s 0.123]
+    J8/R5 S★ first ÷ D: ×1.137 (n=4) [s 0.524]
+    J8/R5 S★ every slice ÷ D: ×7.109 (n=4) [s 0.195]
+dbts_c1/phone r20000 clean 1× [not link-bound]: D 347 · 3112 · 621 n=5 | D′ 350 · 3141 · 628 n=6 | D+T3 344 · 3132 · 582 n=6 | D+L★ 347 · 3254 · 583 n=4 | S★ 598 · 29064 · 0 n=4
+    J4/R3 D+T3 Lossless ÷ D: ×0.931 (n=5) [s 0.032]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.000 (n=4) [s 0.103]
+    J8/R5 S★ first ÷ D: ×1.734 (n=4) [s 0.026]
+    J8/R5 S★ every slice ÷ D: ×9.358 (n=4) [s 0.044]
+dbts_c1/phone r20000 clean 4× [not link-bound]: D 486 · 5014 · 760 n=4 | D′ 461 · 5011 · 740 n=3 | D+T3 471 · 5138 · 606 n=6 | D+L★ 492 · 4933 · 608 n=5 | S★ 624 · 29091 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.795 (n=4) [s 0.030]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.010 (n=5) [s 0.359]
+    J8/R5 S★ first ÷ D: ×1.281 (n=4) [s 0.029]
+    J8/R5 S★ every slice ÷ D: ×5.801 (n=4) [s 0.008]
+dbts_c1/phone r20000 l1 1× [not link-bound]: D 361 · 15936 · 889 n=6 | D′ 341 · 14967 · 895 n=5 | D+T3 362 · 15704 · 1612 n=6 | D+L★ 374 · 14666 · 1428 n=6 | S★ 1676 · 188134 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.974 (n=6) [s 2.811]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×0.959 (n=6) [s 1.159]
+    J8/R5 S★ first ÷ D: ×5.001 (n=6) [s 0.533]
+    J8/R5 S★ every slice ÷ D: ×11.791 (n=6) [s 0.147]
+dbts_c1/phone r20000 l1 4× [not link-bound]: D 544 · 15204 · 1678 n=6 | D′ 488 · 15229 · 2256 n=5 | D+T3 526 · 15826 · 1500 n=6 | D+L★ 554 · 15790 · 872 n=2 | S★ 2104 · 188902 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.897 (n=6) [s 0.236]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×0.695 (n=2) [s 3.163]
+    J8/R5 S★ first ÷ D: ×3.773 (n=6) [s 0.099]
+    J8/R5 S★ every slice ÷ D: ×12.858 (n=6) [s 0.253]
+dbts_c1/phone r5000 clean 1× [link-bound]: D 408 · 10391 · 1853 n=5 | D′ 414 · 10381 · 1850 n=5 | D+T3 409 · 10382 · 1805 n=5 | D+L★ 406 · 10377 · 1808 n=5 | S★ 1876 · 115379 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.975 (n=4) [s 0.009]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.002 (n=4) [s 0.029]
+    J8/R5 S★ first ÷ D: ×4.593 (n=5) [s 0.032]
+    J8/R5 S★ every slice ÷ D: ×11.104 (n=5) [s 0.001]
+dbts_c1/phone r5000 clean 4× [link-bound]: D 546 · 10498 · 1983 n=6 | D′ 564 · 10494 · 1977 n=6 | D+T3 546 · 10502 · 1822 n=6 | D+L★ 550 · 10499 · 1824 n=6 | S★ 1898 · 115384 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.920 (n=6) [s 0.023]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.002 (n=6) [s 0.092]
+    J8/R5 S★ first ÷ D: ×3.482 (n=6) [s 0.087]
+    J8/R5 S★ every slice ÷ D: ×10.992 (n=6) [s 0.002]
+dbts_c1/phone wifi-home clean 1× [not link-bound]: D 307 · 3723 · 712 n=5 | D′ 289 · 3948 · 731 n=5 | D+T3 283 · 3821 · 672 n=5 | D+L★ 284 · 3898 · 672 n=5 | S★ 698 · 57435 · 0 n=5
+    J4/R3 D+T3 Lossless ÷ D: ×0.946 (n=4) [s 0.058]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.000 (n=5) [s 0.103]
+    J8/R5 S★ first ÷ D: ×2.320 (n=4) [s 0.085]
+    J8/R5 S★ every slice ÷ D: ×14.682 (n=4) [s 0.582]
+dbts_c1/phone wifi-home clean 4× [not link-bound]: D 451 · 5473 · 871 n=5 | D′ 460 · 5318 · 846 n=6 | D+T3 438 · 5284 · 700 n=6 | D+L★ 473 · 5413 · 698 n=6 | S★ 722 · 56784 · 0 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.774 (n=5) [s 0.152]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×0.988 (n=6) [s 0.857]
+    J8/R5 S★ first ÷ D: ×1.572 (n=5) [s 0.107]
+    J8/R5 S★ every slice ÷ D: ×10.145 (n=5) [s 0.161]
+dbts_c1/sideways lte-good clean 1× [not link-bound]: D 411 · 3502 · 608 n=3 | D′ 436 · 3586 · 620 n=2 | D+T3 407 · 3568 · 549 n=3 | D+L★ 407 · 3527 · 564 (320) n=3 | S★ 327 · 6318 · 296 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.875 (n=1) [s 0.008]
+    J6 D+L★ level ÷ D Lossless: ×0.530 (n=2) [s 0.008]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.561 (n=1) [s 0.133]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.027 (n=1) [s 0.133]
+    J8/R5 S★ first ÷ D: ×0.791 (n=3) [s 0.039]
+    J8/R5 S★ every slice ÷ D: ×1.804 (n=3) [s 0.007]
+dbts_c1/sideways lte-good clean 4× [not link-bound]: D 540 · 4913 · 712 n=4 | D+T3 521 · 4450 · 536 n=1 | D+L★ 577 · 5217 · 568 (327) n=5 | S★ 339 · 6302 · 336 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.806 (n=1)
+    J6 D+L★ level ÷ D Lossless: ×0.454 (n=3)
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.608 (n=1)
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.121 (n=1)
+    J8/R5 S★ first ÷ D: ×0.648 (n=4)
+    J8/R5 S★ every slice ÷ D: ×1.288 (n=4)
+dbts_c1/sideways r20000 clean 1× [not link-bound]: D 347 · 3197 · 627 n=5 | D′ 352 · 3195 · 639 n=6 | D+T3 338 · 3115 · 580 n=5 | D+L★ 335 · 3047 · 582 (262) n=4 | S★ 270 · 8104 · 366 n=5
+    J4/R3 D+T3 Lossless ÷ D: ×0.926 (n=5) [s 0.027]
+    J6 D+L★ level ÷ D Lossless: ×0.421 (n=4) [s 0.027]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.453 (n=4) [s 0.112]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.003 (n=4) [s 0.112]
+    J8/R5 S★ first ÷ D: ×0.773 (n=4) [s 0.052]
+    J8/R5 S★ every slice ÷ D: ×2.571 (n=4) [s 0.027]
+dbts_c1/sideways r20000 clean 4× [not link-bound]: D 488 · 4785 · 759 n=6 | D′ 476 · 4930 · 766 n=6 | D+T3 496 · 4975 · 610 n=2 | D+L★ 516 · 4784 · 606 (273) n=5 | S★ 277 · 8105 · 384 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.826 (n=2) [s 0.036]
+    J6 D+L★ level ÷ D Lossless: ×0.360 (n=5) [s 0.036]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.454 (n=2) [s 0.297]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×0.989 (n=2) [s 0.297]
+    J8/R5 S★ first ÷ D: ×0.568 (n=6) [s 0.219]
+    J8/R5 S★ every slice ÷ D: ×1.694 (n=6) [s 0.090]
+dbts_c1/sideways r20000 l1 1× [not link-bound]: D 393 · 14965 · 878 n=5 | D′ 338 · 14431 · 861 n=5 | D+T3 356 · 14767 · 1451 n=6 | D+L★ 338 · 14840 · 804 (308) n=4 | S★ 371 · 50599 · 2060 n=5
+    J4/R3 D+T3 Lossless ÷ D: ×1.350 (n=5) [s 0.164]
+    J6 D+L★ level ÷ D Lossless: ×0.386 (n=3) [s 0.164]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.386 (n=4) [s 3.174]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×0.996 (n=4) [s 3.174]
+    J8/R5 S★ first ÷ D: ×0.866 (n=4) [s 0.122]
+    J8/R5 S★ every slice ÷ D: ×3.595 (n=4) [s 0.149]
+dbts_c1/sideways r20000 l1 4× [not link-bound]: D 501 · 14837 · 872 n=5 | D′ 522 · 16252 · 1730 n=4 | D+T3 550 · 14855 · 878 n=5 | D+L★ 515 · 15061 · 667 (340) n=3 | S★ 390 · 51140 · 2046 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.978 (n=4) [s 0.252]
+    J6 D+L★ level ÷ D Lossless: ×0.390 (n=3) [s 0.252]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.415 (n=3) [s 0.641]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×0.865 (n=3) [s 0.641]
+    J8/R5 S★ first ÷ D: ×0.677 (n=5) [s 0.141]
+    J8/R5 S★ every slice ÷ D: ×3.473 (n=5) [s 0.273]
+dbts_c1/sideways r5000 clean 1× [link-bound]: D 406 · 10383 · 1848 n=5 | D′ 414 · 10385 · 1864 n=5 | D+T3 418 · 10392 · 1806 n=6 | D+L★ 408 · 10383 · 1806 (556) n=6 | S★ 577 · 31679 · 1302 n=5
+    J4/R3 D+T3 Lossless ÷ D: ×0.979 (n=5) [s 0.015]
+    J6 D+L★ level ÷ D Lossless: ×0.301 (n=5) [s 0.015]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.308 (n=6) [s 0.036]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×0.999 (n=6) [s 0.036]
+    J8/R5 S★ first ÷ D: ×1.395 (n=4) [s 0.047]
+    J8/R5 S★ every slice ÷ D: ×3.050 (n=4) [s 0.002]
+dbts_c1/sideways r5000 clean 4× [link-bound]: D 529 · 10488 · 1984 n=6 | D′ 564 · 10495 · 1963 n=6 | D+T3 536 · 10527 · 1826 n=5 | D+L★ 548 · 10500 · 1828 (562) n=5 | S★ 584 · 31681 · 1320 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.909 (n=5) [s 0.052]
+    J6 D+L★ level ÷ D Lossless: ×0.280 (n=5) [s 0.052]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.306 (n=5) [s 0.110]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×0.998 (n=5) [s 0.110]
+    J8/R5 S★ first ÷ D: ×1.100 (n=6) [s 0.111]
+    J8/R5 S★ every slice ÷ D: ×3.021 (n=6) [s 0.004]
+dbts_c1/sideways wifi-home clean 1× [not link-bound]: D 293 · 3843 · 728 n=5 | D′ 279 · 3754 · 713 n=5 | D+T3 284 · 3901 · 674 n=5 | D+L★ 280 · 3939 · 672 (250) n=3 | S★ 256 · 15243 · 491 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.927 (n=5) [s 0.032]
+    J6 D+L★ level ÷ D Lossless: ×0.342 (n=3) [s 0.032]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.374 (n=3) [s 1.029]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×0.994 (n=3) [s 1.029]
+    J8/R5 S★ first ÷ D: ×0.880 (n=5) [s 0.095]
+    J8/R5 S★ every slice ÷ D: ×3.399 (n=5) [s 0.393]
+dbts_c1/sideways wifi-home clean 4× [not link-bound]: D 430 · 5167 · 836 n=5 | D′ 446 · 5002 · 866 n=4 | D+T3 433 · 5278 · 687 n=5 | D+L★ 422 · 5221 · 706 (258) n=2 | S★ 278 · 15335 · 549 n=6
+    J4/R3 D+T3 Lossless ÷ D: ×0.802 (n=4) [s 0.045]
+    J6 D+L★ level ÷ D Lossless: ×0.244 (n=2) [s 0.045]
+    R4 D+L★ level ÷ D+T3 Lossless: ×0.376 (n=1) [s 1.077]
+    J7/R4 D+L★ Lossless ÷ D+T3: ×1.028 (n=1) [s 1.077]
+    J8/R5 S★ first ÷ D: ×0.646 (n=5) [s 0.207]
+    J8/R5 S★ every slice ÷ D: ×2.803 (n=5) [s 0.046]
+
+verdicts (cells link-bound unless said; ok with s / strict / of)
+R3 D+T3 ≤ ×0.92 of D, dbts_b1 4×: 1/0/1 [(('r5000', 'clean'), 0.924, 0.016)]; ≤ ×1.02 in every cell: 39/39/40
+    over ×1.02 with s: [(('r20000', 'l1'), 1.35, 0.164)]
+R4 dbts_b1 1×: level ≤ ×0.40 of D+T3 1/1/1 [(('r5000', 'clean'), 0.287, 0.005)]; Lossless ≤ ×1.08 1/1/1 [(('r5000', 'clean'), 1.001, 0.005)]
+R4 dbts_b1 4×: level ≤ ×0.40 of D+T3 1/1/1 [(('r5000', 'clean'), 0.284, 0.016)]; Lossless ≤ ×1.08 1/1/1 [(('r5000', 'clean'), 1.008, 0.016)]
+R5 dbts_a1/phone 1×, every cell: first ≤ ×1.5 0/0/5; every slice ≤ ×1.25 0/0/5
+R5 dbts_b1/phone 1×, every cell: first ≤ ×1.5 5/5/5; every slice ≤ ×1.25 4/4/5
+R5 dbts_c1/phone 1×, every cell: first ≤ ×1.5 1/1/5; every slice ≤ ×1.25 0/0/5
+R5 dbts_c1/sideways 1×, every cell: first ≤ ×1.5 5/5/5; every slice ≤ ×1.25 0/0/5
+R5 dbts_a1/phone 4×, every cell: first ≤ ×1.5 2/1/5; every slice ≤ ×1.25 0/0/5
+R5 dbts_b1/phone 4×, every cell: first ≤ ×1.5 5/5/5; every slice ≤ ×1.25 5/5/5
+R5 dbts_c1/phone 4×, every cell: first ≤ ×1.5 3/2/5; every slice ≤ ×1.25 0/0/5
+R5 dbts_c1/sideways 4×, every cell: first ≤ ×1.5 5/5/5; every slice ≤ ×1.25 0/0/5
+J11, r20000 l1 ÷ clean r20000 of each ratio:
+    dbts_a1/phone 1×: J4/R3 ×0.87, J7/R4 ×0.93, J8/R5 ×1.82, J8/R5 ×1.34
+    dbts_a1/phone 4×: J4/R3 ×1.09, J7/R4 ×1.26, J8/R5 ×1.84, J8/R5 ×2.28
+    dbts_b1/phone 1×: J4/R3 ×1.08, J6 ×0.58, R4 ×0.51, J7/R4 ×1.01, J8/R5 ×1.26, J8/R5 ×1.02
+    dbts_b1/phone 4×: J4/R3 ×1.18, J6 ×0.43, R4 ×0.49, J7/R4 ×1.07, J8/R5 ×0.99, J8/R5 ×1.62
+    dbts_c1/phone 1×: J4/R3 ×1.05, J7/R4 ×0.96, J8/R5 ×2.88, J8/R5 ×1.26
+    dbts_c1/phone 4×: J4/R3 ×1.13, J7/R4 ×0.69, J8/R5 ×2.94, J8/R5 ×2.22
+    dbts_c1/sideways 1×: J4/R3 ×1.46, J6 ×0.92, R4 ×0.85, J7/R4 ×0.99, J8/R5 ×1.12, J8/R5 ×1.40
+    dbts_c1/sideways 4×: J4/R3 ×1.18, J6 ×1.08, R4 ×0.92, J7/R4 ×0.87, J8/R5 ×1.19, J8/R5 ×2.05

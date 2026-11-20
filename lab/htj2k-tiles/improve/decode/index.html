@@ -1,0 +1,94 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>htj2k-tiles improve, stage 2</title>
+<script type="module">
+// Stage 2's asks per arm: ms from the ask's bytes in hand to its picture, every picture checked after the clock.
+// lab/htj2k-tiles/improve/README.md §Stage 2
+import { order } from "/lab/order.mjs";
+
+const ARMS = ["W", "S", "D+T3", "S★"];
+const pad = (i) => String(i).padStart(3, "0");
+let pool = [];
+
+async function sha256(parts, mutate) {
+  const n = parts.reduce((s, p) => s + p.byteLength, 0);
+  const all = new Uint8Array(n);
+  let at = 0;
+  for (const p of parts) { all.set(new Uint8Array(p), at); at += p.byteLength; }
+  if (mutate) all[n >> 1] ^= 1;
+  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", all)), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function asks(arm, level, f) {
+  const whole = (lv) => [{ file: "whole", end: lv ? f.whole_prefix[lv] : null, level: lv }];
+  const strips = (lv) => [0, 1, 2].map((k) => ({ file: `s${k}`, end: lv ? f.strips[k].prefix[lv] : null, level: lv }));
+  return {
+    W: [["lossless", whole(0), 1]],
+    S: [["first", whole(level), 1], ["lossless", whole(0), 1]],
+    "D+T3": [["lossless", strips(0), 3], ["lossless", strips(0), 1]],
+    "S★": [["first", strips(level), 3], ["lossless", strips(0), 3]],
+  }[arm].map(([ask, parts, workers]) => ({ ask, parts, workers, truth: f.truth[parts[0].level][parts.length > 1 ? "strips" : "whole"] }));
+}
+
+let next = 0;
+function onWorker(w, msg) {
+  return new Promise((resolve, reject) => {
+    const id = next++;
+    const done = ({ data }) => {
+      if (data.id !== id) return;
+      w.removeEventListener("message", done);
+      data.error ? reject(new Error(data.error)) : resolve(data.px);
+    };
+    w.addEventListener("message", done);
+    w.postMessage({ ...msg, id }, [msg.bytes]);
+  });
+}
+
+async function timed(a, files) {
+  const inputs = a.parts.map((p) => { const b = files[p.file]; return (p.end ? b.subarray(0, p.end + 0) : b); });
+  const copies = inputs.map((b, k) => {
+    const p = a.parts[k];
+    if (!p.end) return b.slice().buffer;
+    const c = new Uint8Array(p.end + 2);
+    c.set(b.subarray(0, p.end));
+    c.set([0xff, 0xd9], p.end);
+    return c.buffer;
+  });
+  const t0 = performance.now();
+  const px = await Promise.all(copies.map((bytes, k) => onWorker(pool[a.workers === 3 ? k : 0], { bytes, level: a.parts[k].level })));
+  return { ms: performance.now() - t0, px };
+}
+
+globalThis.run = async ({ root, sets, round, perSet, passes, mutate, levelBuild }) => {
+  try {
+    pool = [0, 1, 2].map(() => new Worker("./worker.js"));
+    await Promise.all(pool.map((w) => new Promise((r) => { w.onmessage = ({ data }) => data.ready && r(); w.postMessage({ load: true, levelBuild }); })));
+    for (const w of pool) w.onmessage = null;
+    const rows = [];
+    for (const [k, set] of order(sets, round).entries()) {
+      const [vol, viewport] = set.split("/");
+      const meta = await (await fetch(`/${root}/${vol}/frames.json`)).json();
+      const level = meta.fit[viewport];
+      for (let i = 0; i < Math.min(perSet, meta.frames.length); i++) {
+        const f = meta.frames[i];
+        const files = {};
+        for (const name of ["whole", "s0", "s1", "s2"]) files[name] = new Uint8Array(await (await fetch(`/${root}/${vol}/${pad(i)}.${name}.j2c`)).arrayBuffer());
+        for (let pass = 0; pass <= passes; pass++) {
+          for (const arm of order(ARMS, round + k + i + pass)) {
+            for (const a of asks(arm, level, f)) {
+              const { ms, px } = await timed(a, files);
+              const exact = (await sha256(px, mutate)) === a.truth;
+              rows.push({ set, vol, viewport, level, frame: i, pass, arm, ask: a.ask, workers: a.workers, ms, exact });
+            }
+          }
+        }
+      }
+    }
+    pool.forEach((w) => w.terminate());
+    return { rows };
+  } catch (err) {
+    return { error: String(err?.stack ?? err) };
+  }
+};
+globalThis.ready = true;
+</script>

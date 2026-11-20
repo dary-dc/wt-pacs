@@ -14,7 +14,7 @@ export type ConformantFrame = {
 
 export type ConformantSession = {
   /** `onHead` runs once the frame's envelope head is read, before its body; the downloader's rig takes none. */
-  requestExactFrame(frameIndex: number, onHead?: () => void): Promise<ConformantFrame>;
+  requestFrame(frameIndex: number, onHead?: () => void): Promise<ConformantFrame>;
   fillFrames(
     from: number,
     to: number,
@@ -69,6 +69,8 @@ export type SessionRig = Rig & {
   dial(certHash: string, options: ConnectOptions): Promise<ConformantSession>;
   /** The next dial's `ready` never settles. */
   hangNextDial(): void;
+  /** The next dial is accepted, then closed with the refusal `code` and `reason` of docs/WIRE.md §Refusing a series. */
+  refuseNextDial(code: number, reason: string): void;
   dialUrl(): string;
   /** The options the latest dial gave `new WebTransport`. */
   dialOptions(): { serverCertificateHashes?: unknown[] } | undefined;
@@ -101,7 +103,7 @@ const untilDials = (rig: Rig, n: number) => until(async () => (await rig.dialsSi
 /** Timestamps must be real values, not the zeros a missing clock hands back in a worker. */
 async function workerSafe(rig: Rig, check: Check) {
   const s = await rig.open();
-  const pending = s.requestExactFrame(3);
+  const pending = s.requestFrame(3);
   await settle();
   await rig.fake().pushFrame(3, enc.encode("frame-three"));
   const f = await within(pending);
@@ -129,7 +131,7 @@ async function cancellable(rig: Rig, check: Check) {
   check(ops.includes("end_stream"), `${rig.name}: end_stream was sent`);
   check(!(await t.didClose()), `${rig.name}: cancelling a fill does not close the session`);
 
-  const after = s.requestExactFrame(9);
+  const after = s.requestFrame(9);
   await settle();
   await t.pushFrame(9, enc.encode("after-cancel"));
   const f = await within(after);
@@ -156,8 +158,8 @@ async function endStreamIsAPromise(rig: Rig, check: Check) {
 async function transferable(rig: Rig, check: Check) {
   const s = await rig.open();
   const t = rig.fake();
-  const a = s.requestExactFrame(1);
-  const b = s.requestExactFrame(2);
+  const a = s.requestFrame(1);
+  const b = s.requestFrame(2);
   await settle();
   await t.pushOnOneStream([
     [1, enc.encode("frame-one")],
@@ -187,7 +189,7 @@ async function askAfterClose(rig: Rig, check: Check, s: ConformantSession, index
   if (rig.closure === "fail") {
     let rejected = false;
     try {
-      await s.requestExactFrame(index);
+      await s.requestFrame(index);
     } catch {
       rejected = true;
     }
@@ -197,7 +199,7 @@ async function askAfterClose(rig: Rig, check: Check, s: ConformantSession, index
     return;
   }
   const dials = await rig.dialsSinceOpen();
-  const p = s.requestExactFrame(index);
+  const p = s.requestFrame(index);
   const dialed = await untilDials(rig, dials + 1);
   check(dialed, `${rig.name}: an ask after a closure dials afresh (${what})`);
   if (!dialed) return;
@@ -229,7 +231,7 @@ async function noticesClose(rig: Rig, check: Check) {
   closedFirst.close();
 
   const closedDuring = await rig.open();
-  const inFlight = closedDuring.requestExactFrame(2);
+  const inFlight = closedDuring.requestFrame(2);
   await settle();
   const t1 = Date.now();
   if (await serverGone(rig, check, "closed with an ask in flight")) {
@@ -254,7 +256,7 @@ async function noticesClose(rig: Rig, check: Check) {
 
   // The timeout's own case: still alive, frame never arrives. It must NOT fail fast.
   const live = await rig.open();
-  const pending = live.requestExactFrame(3);
+  const pending = live.requestFrame(3);
   let early: unknown = null;
   pending.catch((e) => (early = e));
   await new Promise((r) => setTimeout(r, 300));
@@ -275,7 +277,7 @@ async function bothStreamModes(rig: Rig, check: Check) {
     const s = await rig.open();
     const t = rig.fake();
     const want = [0, 1, 2];
-    const pending = want.map((i) => s.requestExactFrame(i));
+    const pending = want.map((i) => s.requestFrame(i));
     await settle();
     const frames = want.map((i) => [i, enc.encode(`frame-${i}`)] as [number, Uint8Array]);
     if (mode === "shared") await t.pushOnOneStream(frames);
@@ -294,8 +296,8 @@ async function reportsStats(rig: Rig, check: Check) {
   const s = await rig.open();
   const t = rig.fake();
   check(s.stats().inFlight === 0, `${rig.name}: a fresh session has nothing in flight`);
-  const a = s.requestExactFrame(1);
-  const b = s.requestExactFrame(2);
+  const a = s.requestFrame(1);
+  const b = s.requestFrame(2);
   await settle();
   check(s.stats().inFlight === 2, `${rig.name}: stats counts both outstanding asks`);
   await t.pushFrame(1, enc.encode("one"));
@@ -313,7 +315,7 @@ async function oneDialServesLaterAsks(rig: Rig, check: Check) {
   const t = rig.fake();
   check((await rig.dialsSinceOpen()) === 1, `${rig.name}: connecting dials once`);
   await settle();
-  const f = s.requestExactFrame(7);
+  const f = s.requestFrame(7);
   await settle();
   await t.pushFrame(7, enc.encode("late-ask"));
   const late = await within(f);
@@ -355,7 +357,7 @@ async function pushedFill(rig: Rig, check: Check) {
   const got: ConformantFrame[] = [];
   s.fillFrames(0, 3, (f) => got.push(f));
   await settle();
-  const asked = s.requestExactFrame(2);
+  const asked = s.requestFrame(2);
   await settle();
   await t.pushFrame(2, enc.encode("frame-2"));
   const f = await within(asked);
@@ -435,7 +437,7 @@ async function aLaterFailureIsNotTheFillsOne(rig: Rig, check: Check) {
   await settle();
   await t.pushTruncatedFrame(3, enc.encode("frame-three-and-more"), 4);
   await until(() => named.length >= 1, 1000);
-  const asked = s.requestExactFrame(3).then(() => "delivered", (e) => String(e?.message ?? e));
+  const asked = s.requestFrame(3).then(() => "delivered", (e) => String(e?.message ?? e));
   await settle();
   if (!(await serverGone(rig, check, "after a lost fill frame"))) return s.close();
   const why = await within(asked, 2000);
@@ -449,7 +451,7 @@ async function redialsAfterClosure(rig: Rig, check: Check) {
   if (await serverGone(rig, check, "before a redial")) {
     await settle();
     if (rig.closure === "fail") {
-      await first.requestExactFrame(1).then(
+      await first.requestFrame(1).then(
         () => check(false, `${rig.name}: an ask on the closed session should fail`),
         () => check(true, `${rig.name}: the closed session fails its asks`),
       );
@@ -462,7 +464,7 @@ async function redialsAfterClosure(rig: Rig, check: Check) {
 
   const second = await rig.open();
   const t = rig.fake();
-  const f = second.requestExactFrame(5);
+  const f = second.requestFrame(5);
   await settle();
   await t.pushFrame(5, enc.encode("after-redial"));
   const again = await within(f);
@@ -475,8 +477,8 @@ async function aSlowFrameHoldsNoOther(rig: Rig, check: Check) {
   if (rig.oneStream) return rig.oneStream(`${rig.name}: a frame slow on its own stream holds no other`);
   const s = await rig.open();
   const order: number[] = [];
-  const slow = s.requestExactFrame(0).then((f) => order.push(f.frameIndex), () => {});
-  const fast = s.requestExactFrame(1).then((f) => order.push(f.frameIndex), () => {});
+  const slow = s.requestFrame(0).then((f) => order.push(f.frameIndex), () => {});
+  const fast = s.requestFrame(1).then((f) => order.push(f.frameIndex), () => {});
   await settle();
   await rig.fake().trickleFrame(0, enc.encode("slow".repeat(40)), 5, 100);
   await rig.fake().pushFrame(1, enc.encode("fast"));
@@ -493,12 +495,12 @@ async function aSlowFrameHoldsNoOther(rig: Rig, check: Check) {
 async function aFrameIsLateOnlyWhenTheSessionGoesQuiet(rig: Rig, check: Check) {
   // A session beside it that never sends: its ask is late at FRAME_TIMEOUT_MS, named so the downloader resumes it.
   const silent = await rig.open();
-  const late = silent.requestExactFrame(0).then(
+  const late = silent.requestFrame(0).then(
     () => "delivered",
     (e) => `${e?.name}: ${e?.message ?? e}`,
   );
   const s = await rig.open();
-  const asked = s.requestExactFrame(0).then(
+  const asked = s.requestFrame(0).then(
     (f) => text(f),
     (e) => `rejected: ${e?.message ?? e}`,
   );
@@ -519,7 +521,7 @@ async function onHeadRunsBeforeTheBody(rig: SessionRig, check: Check) {
   const s = await rig.open();
   let heads = 0;
   let headAt = 0;
-  const asked = s.requestExactFrame(0, () => {
+  const asked = s.requestFrame(0, () => {
     heads += 1;
     headAt = performance.now();
   });
@@ -538,10 +540,10 @@ async function onHeadRunsBeforeTheBody(rig: SessionRig, check: Check) {
 /** An `onHead` that throws fails its own ask with that error, and the stream it was read from keeps reading. */
 async function anOnHeadThatThrowsFailsItsAsk(rig: SessionRig, check: Check) {
   const s = await rig.open();
-  const thrower = s.requestExactFrame(0, () => {
+  const thrower = s.requestFrame(0, () => {
     throw new Error("boom");
   }).then(() => "delivered", (e) => String(e?.message ?? e));
-  const behind = s.requestExactFrame(1);
+  const behind = s.requestFrame(1);
   await settle();
   await rig.fake().pushOnOneStream([0, 1].map((i) => [i, enc.encode(`frame-${i}`)] as [number, Uint8Array]));
   const outcome = (await within(thrower)) ?? "still waiting";
@@ -554,7 +556,7 @@ async function anOnHeadThatThrowsFailsItsAsk(rig: SessionRig, check: Check) {
 /** Call order is wire order: a fill asked while an ask is unsettled reaches the control stream behind it. docs/WIRE.md §An ask during a fill */
 async function anAskIsOnTheWireBeforeItReturns(rig: SessionRig, check: Check) {
   const s = await rig.open();
-  s.requestExactFrame(7).catch(() => {});
+  s.requestFrame(7).catch(() => {});
   s.fillFrames(3, 6, () => {});
   await settle();
   const ops = (await rig.fake().controlMessages()).map((m) => m.op).join();
@@ -616,13 +618,31 @@ async function anEmptyHashDialsUnpinned(rig: SessionRig, check: Check) {
 async function mediaReadsCountsTheMediaReads(rig: SessionRig, check: Check) {
   const s = await rig.open();
   const before = s.stats().mediaReads;
-  const asked = s.requestExactFrame(0);
+  const asked = s.requestFrame(0);
   await settle();
   await rig.fake().trickleFrame(0, enc.encode("three-chunks".repeat(4)), 3, 20);
   await within(asked, 1000);
   const after = s.stats().mediaReads;
   check(before === 0 && after === 3, `${rig.name}: mediaReads counts a read per media chunk (${before} before, ${after} after 3)`);
   s.close();
+}
+
+/** **A refused series is named by its code and reason**, whichever carrier refused it and
+ *  whether the dial or the first ask is what fails: a page tells "not found" from "busy" by them. */
+async function aRefusedSeriesIsNamedByItsCode(rig: SessionRig, check: Check) {
+  for (const [code, reason] of [[2, "series not found"], [5, "server busy"]] as const) {
+    rig.refuseNextDial(code, reason);
+    let said = "";
+    try {
+      const s = await rig.open();
+      await s.requestFrame(0).catch((e) => void (said = String(e?.message ?? e)));
+      s.close();
+    } catch (e) {
+      // The WASM client rejects with a string, the TypeScript one with an Error.
+      said = String((e as Error)?.message ?? e);
+    }
+    check(said.includes(`(code ${code}): ${reason}`), `${rig.name}: a refusal with code ${code} is named by it (${said})`);
+  }
 }
 
 /** The surface a session's own `connect` and reader offer, which the downloader's rig cannot reach. */
@@ -635,6 +655,7 @@ export async function runSessionClauses(rig: SessionRig, check: Check): Promise<
     anOpeningFillRidesTheUrl,
     anEmptyHashDialsUnpinned,
     mediaReadsCountsTheMediaReads,
+    aRefusedSeriesIsNamedByItsCode,
   ]);
 }
 
