@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-20 (the cells review), 2026-11-19 (the missing cells), 2026-11-16 (the arms' re-review, the arms' fixes, the arms' review; KEEPALIVE's and SESSION's arms, the receivers), 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-20 (the cells' fixes, the cells review), 2026-11-19 (the missing cells), 2026-11-16 (the arms' re-review, the arms' fixes, the arms' review; KEEPALIVE's and SESSION's arms, the receivers), 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -87,8 +87,12 @@ exact frame bit for bit, and only checked claims on screen.
   every arm had already handed its safety report on, on this host. Firefox: no long-task observer (C's long-task bar
   not judgeable there), no freeze (D9 hidden and kept), and the sink's `no-store` keeps D7 out of its bfcache.
   Reviewed 2026-11-20 (`docs/reviews/report-arms.md` §Cells review): two blockers, cell R's NGINX load bursts refused by
-  its per-address limit from a one-address generator, and L's floor posting safety bytes to `/report/load`. Next:
-  REPORT-CELLS-FIX, its re-review, then REPORT-RUN-2.
+  its per-address limit from a one-address generator, and L's floor posting safety bytes to `/report/load`. Fixed
+  2026-11-20 (REPORT-CELLS-FIX, `lab/report-arms/README.md` §The cells' fixes): R sends from ⌈rate/5⌉ addresses in
+  127/8 and counts appended lines only (smoke: NGINX wrote all 2 000 at 1 000/s); each floor posts to its body's kind;
+  minors m1, m3, m4, m6, m7 fixed or named, m2 (D5's kill one CDP round trip after `atKill`) and m5 (the two clocks:
+  rule 2's 10 % lead on L undecidable below about 10 ms) left for REPORT-RUN-2's amendment. Next: its re-review, then
+  REPORT-RUN-2.
 
 ## PRs
 
