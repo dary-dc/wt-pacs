@@ -36,6 +36,9 @@ const file = (name) => {
 const lossyMeta = JSON.parse(readFileSync(file(`${id}.metadata.json`)));
 const exactId = lossyMeta.exactSeries;
 const exactMetaPath = file(`${exactId}.metadata.json`);
+/** On demand, 13 steps and a jump to the last frame: the frames of the whole groups they reach. */
+const ON_DEMAND = (({ lossy: { g }, frameCount: n }) =>
+  [...new Set([...Array(13).keys(), n - 1].map((i) => Math.floor(i / g)))].reduce((s, k) => s + Math.min(g, n - k * g), 0))(lossyMeta);
 
 const started = (child, re) => new Promise((resolve, reject) => {
   let out = "";
@@ -119,6 +122,10 @@ async function pass(browser, query) {
   must(await shown(n - 1, before), `${query}: the jump to frame ${n} painted`);
   check(await page.locator("#slice").inputValue() === String(n - 1), `${query}: the slider not at frame ${n} after the jump`);
   const jumpMs = Math.round((await log()).findLast((e) => e.id === "overlay").t - before);
+  // The view worker posts its count at most every 100 ms (PROGRESS_MS, client/view/view-worker.js): read once it has come.
+  const count = (l) => Number(l.findLast((e) => e.id === "status")?.text.match(/received (\d+)/)?.[1] ?? 0);
+  if (!filling) await until((l) => count(l) >= ON_DEMAND, 2000);
+  const atJump = count(await log());
   const pressed = await now();
   await page.keyboard.press("l");
   await until((l) => /^✓ Lossless/.test(l.findLast((e) => e.id === "quality")?.text), 30000);
@@ -138,7 +145,7 @@ async function pass(browser, query) {
     while (received.length < k) received.push(Math.round(e.t));
   }
   return {
-    query, errors, steps, jumpMs, losslessMs,
+    query, errors, steps, jumpMs, losslessMs, atJump,
     labels: l.filter((e) => e.id === "quality" && e.text).map((e) => e.text).filter((t, k, a) => t !== a[k - 1]),
     firstPictureMs: Math.round(overlays[0]?.t), receivedMs: received,
     frames: Object.values(Object.fromEntries(overlays.filter((e) => !e.text.startsWith("htj2k")).map((e) => [e.frame, e.text]))),
@@ -173,10 +180,7 @@ try {
     judge(r);
     check(JSON.stringify(r.labels) === JSON.stringify(LABELS), `${query}: the label ran ${JSON.stringify(r.labels)}, not ${JSON.stringify(LABELS)}`);
     if (query) {
-      const g = lossyMeta.lossy.g;
-      const groups = new Set([...Array(13).keys()].map((i) => Math.floor(i / g))).add(Math.floor((lossyMeta.frameCount - 1) / g));
-      const want = [...groups].reduce((s, k) => s + Math.min(g, lossyMeta.frameCount - k * g), 0);
-      check(r.status.includes(`received ${want},`), `${query}: on demand, 13 steps and a jump asked the whole groups, ${want} frames: ${r.status}`);
+      check(r.atJump === ON_DEMAND, `${query}: on demand, 13 steps and a jump asked the whole groups, ${ON_DEMAND} frames, not ${r.atJump}: ${r.status}`);
     }
     report.passes.push(r);
   }
