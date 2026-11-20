@@ -1,0 +1,249 @@
+[
+ {
+  "name": "chrome",
+  "engine": "chromium",
+  "version": "Google Chrome for Testing 153.0.8010.12",
+  "flags": [],
+  "frame_ok": true,
+  "error": null,
+  "connections": 1,
+  "readout": {
+   "quic_versions": [
+    "0x1"
+   ],
+   "cipher_suite": "0x1301",
+   "keys_found": true,
+   "client": {
+    "transport_parameters": {
+     "0x20": "80010000",
+     "0x3": "45c0",
+     "0x8": "4064",
+     "0x343b14d8153cfdf1": "",
+     "0x7": "80600000",
+     "0x9": "4067",
+     "0x5": "80600000",
+     "0xf": "",
+     "0x4": "80f00000",
+     "0x1": "800493e0",
+     "0x6": "80600000",
+     "0x11": "000000013a2a7aca00000001"
+    },
+    "settings": {
+     "0x1": 65536,
+     "0x6": 16384,
+     "0x7": 100,
+     "0x33": 1,
+     "0xffd277": 1,
+     "0x2b603742": 1,
+     "0x1a1189eeee": 720819977
+    },
+    "frame_types": [
+     "0x0",
+     "0x1",
+     "0x2",
+     "0x6",
+     "0x8",
+     "0xa",
+     "0xc",
+     "0xd"
+    ],
+    "undecrypted": 0
+   },
+   "server": {
+    "transport_parameters": {
+     "0x20": "8000ffff",
+     "0x2": "14b60f6eb55cc6f9ee1859fcc444cc1c",
+     "0x1c82d3912a3c3765": "80a8ff85640be8839fce82182b5b",
+     "0x6": "801312d0",
+     "0x3": "45c0",
+     "0x0": "2079f01d73fbf162",
+     "0x8": "4064",
+     "0x9": "4064",
+     "0x5": "801312d0",
+     "0x1": "80007530",
+     "0x2ab2": "",
+     "0xe": "05",
+     "0xff04de1b": "43e8",
+     "0x4": "ffffffffffffffff",
+     "0xf": "7304fa77a563889a",
+     "0x7": "801312d0"
+    },
+    "settings": {
+     "0x8": 1,
+     "0x2b603742": 1,
+     "0xc671706a": 1,
+     "0x33": 1,
+     "0x1": 0,
+     "0x7": 0
+    },
+    "frame_types": [
+     "0x0",
+     "0x1",
+     "0x18",
+     "0x1d",
+     "0x1e",
+     "0x2",
+     "0x6",
+     "0xa",
+     "0xe"
+    ],
+    "undecrypted": 0
+   }
+  },
+  "client": {
+   "drafts": [
+    "draft-02"
+   ],
+   "settings": [
+    "0x1",
+    "0x2b603742",
+    "0x33",
+    "0x6",
+    "0x7",
+    "0xffd277"
+   ],
+   "reset_stream_at": [],
+   "reset_stream_at_frames": false
+  },
+  "server": {
+   "drafts": [
+    "draft-02",
+    "draft-07"
+   ],
+   "settings": [
+    "0x1",
+    "0x2b603742",
+    "0x33",
+    "0x7",
+    "0x8",
+    "0xc671706a"
+   ],
+   "reset_stream_at": [],
+   "reset_stream_at_frames": false
+  },
+  "negotiated": "draft-02"
+ },
+ {
+  "name": "firefox",
+  "engine": "firefox",
+  "version": "Mozilla Firefox 160.0.1",
+  "flags": [],
+  "frame_ok": true,
+  "error": null,
+  "connections": 2,
+  "readout": {
+   "quic_versions": [
+    "0x1"
+   ],
+   "cipher_suite": "0x1301",
+   "keys_found": true,
+   "client": {
+    "transport_parameters": {
+     "0x1": "80007530",
+     "0x4": "81800000",
+     "0x5": "80c00000",
+     "0x6": "80100000",
+     "0x7": "80100000",
+     "0x8": "4064",
+     "0x9": "4064",
+     "0xb": "14",
+     "0xe": "08",
+     "0xf": "cc418c",
+     "0x11": "000000010aaa4aea6b3343cf00000001",
+     "0x1d": "",
+     "0xff02de1a": "43e8",
+     "0x20": "8000ffff"
+    },
+    "settings": {
+     "0x1": 65536,
+     "0x7": 20,
+     "0x2b603742": 1,
+     "0xffd277": 1,
+     "0x33": 1,
+     "0x8": 1
+    },
+    "frame_types": [
+     "0x0",
+     "0x18",
+     "0x2",
+     "0x6",
+     "0xa"
+    ],
+    "undecrypted": 1
+   },
+   "server": {
+    "transport_parameters": {
+     "0x23ee9baada06ac9a": "43",
+     "0xf": "7ab0132155e95084",
+     "0x8": "4064",
+     "0xe": "05",
+     "0x7": "801312d0",
+     "0x4": "ffffffffffffffff",
+     "0x9": "4064",
+     "0x3": "45c0",
+     "0x20": "8000ffff",
+     "0x1": "80007530",
+     "0xff04de1b": "43e8",
+     "0x0": "8ceadd6a2a514a6b",
+     "0x5": "801312d0",
+     "0x2": "d16c88c4cd257fc41f565868d5034132",
+     "0x6": "801312d0",
+     "0x2ab2": ""
+    },
+    "settings": {
+     "0x33": 1,
+     "0x1": 0,
+     "0x8": 1,
+     "0x7": 0,
+     "0x2b603742": 1,
+     "0xc671706a": 1
+    },
+    "frame_types": [
+     "0x0",
+     "0x1",
+     "0x18",
+     "0x19",
+     "0x1e",
+     "0x2",
+     "0x6",
+     "0xa"
+    ],
+    "undecrypted": 0
+   }
+  },
+  "client": {
+   "drafts": [
+    "draft-02"
+   ],
+   "settings": [
+    "0x1",
+    "0x2b603742",
+    "0x33",
+    "0x7",
+    "0x8",
+    "0xffd277"
+   ],
+   "reset_stream_at": [
+    "0x1d"
+   ],
+   "reset_stream_at_frames": false
+  },
+  "server": {
+   "drafts": [
+    "draft-02",
+    "draft-07"
+   ],
+   "settings": [
+    "0x1",
+    "0x2b603742",
+    "0x33",
+    "0x7",
+    "0x8",
+    "0xc671706a"
+   ],
+   "reset_stream_at": [],
+   "reset_stream_at_frames": false
+  },
+  "negotiated": "draft-02"
+ }
+]
