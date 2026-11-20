@@ -23,7 +23,7 @@ assumption, named so that a measurement can replace it. Fixtures and limits: §9
 * **If that holds, three things follow** (D, §5). Arm B on a fast link is bound by the wire, not the decode. The
   goodput above which the exact series alone fills faster than the view is ~380 Mbit/s on this phone and *lower* on a
   slower phone (86–420 Mbit/s), because the view's decode slows faster than HTJ2K's. And the cell-2 rule, pooled over
-  two series, is predicted *no difference shown*: B faster on `dbts_b1`, near a tie on `dbts_a1`.
+  two series, is predicted *no difference shown*: B faster on `dbts_b1`, mostly slower on `dbts_a1`.
 * **Where a class's range cannot be had from sources** it says so: a GPU's compute throughput (no vendor publishes
   one), an iPhone's cores (no entry read), the fast core of the round's own chip in the benchmark used (not found).
 * **More phones without owning them** (§7): two device clouds with prices read, and two routes that cost nothing.
@@ -69,21 +69,45 @@ for each line, and where.
 ### Cell 2 · the delivery arms (home Wi-Fi, three decoders)
 
 The wire is the series' bits over the link's goodput *G* (`link-profiles.md`: ≥ 600 Mbit/s measured, a lower bound).
-`dbts_b1` exact is 859.3 Mbit, `dbts_a1` exact 542.5 Mbit (D: 107 410 134 B and 67 815 186 B × 8, R).
+`dbts_b1` exact is 859.3 Mbit, `dbts_a1` exact 542.5 Mbit (D: 107 410 134 B and 67 815 186 B × 8, R). A fill is
+max(wire, decode floor) + the rest (the protocol's records); the rest is 0.22–0.35 s for every arm and series (A: the
+protocol's figure for A on `dbts_b1`, which also holds B's last frame decoded after it lands).
 
 | | `dbts_b1-q8-g8` | `dbts_a1-q8-g8-cut` |
 | --- | --- | --- |
-| A, fill | 2.4–3.3 s, decode-bound (R, 11-11) | 0.8–1.3 s, decode-bound (T: 56 frames at 0.24 of `dbts_b1`'s samples, more bits a sample) |
-| B, decode floor | 0.7–1.1 s (D: 50 × 14–22 ms) | 0.24–0.46 s (D: 56 × 12.7–24.4 ms ÷ 3) |
+| A, fill | 2.4–3.3 s, decode-bound (R, 11-11) | 0.79–1.21 s, decode-bound (D on A, below) |
+| B, decode floor | 0.71–1.10 s (D: 50 × 14.1–22.0 ms) | 0.27–0.43 s (D, below) |
 | B, wire at 600 Mbit/s | 1.43 s | 0.90 s |
 | B, regime | **wire-bound** (the protocol: decode ≈ wire) | **wire-bound** |
-| B, fill | 1.6–2.0 s | 1.1–1.4 s |
-| B ÷ A within a round | **0.55–0.80**, all 8 below 1 | **0.9–1.4**, on both sides of 1 |
+| B, fill | 1.65–1.78 s | 1.13–1.25 s |
+| B ÷ A within a round | **0.50–0.74**; 8 of 8 below 1 | **0.93–1.58**; 0–2 of 8 below 1 |
 
-* **The rule's outcome, pooled over 16 ratios: *no difference shown*** (fewer than 13 below 1), where the protocol
-  predicts *B faster*. Per series, deciding nothing: `dbts_b1` 8 of 8 below 1.
-* This depends on *G*. B's fill is 859.3 ÷ *G* (or 542.5 ÷ *G*) s plus the rest while the wire binds. Were the link
-  to give 900 Mbit/s or more, `dbts_a1`'s wire falls to 0.6 s and *B faster* passes. The read reports *G* beside it.
+```
+dbts_a1 work over dbts_b1's (R, decode-speed-of-the-optimal-quality-picture.md, 1×, one thread):
+  the view  1.24 × 19.8 = 24.6 ms ÷ 1.74 × 57.1 = 99.4 ms = 0.247       HTJ2K  19.8 ÷ 57.1 = 0.347
+A, dbts_b1's decode: (2.4 … 3.3) − (0.35 … 0.22) = 2.05 … 3.08 s = 41 … 62 ms effective a frame
+A, dbts_a1: 56 × (41 … 62) × 0.247 = 0.57 … 0.86 s, + rest 0.22 … 0.35  = 0.79 … 1.21 s   (A: the ratio carries)
+B, dbts_a1 floor: 56 × (14.1 … 22.0) × 0.347 = 0.27 … 0.43 s; wire 542.5 ÷ 600 = 0.90 s
+B fill:  dbts_b1 1.43 + 0.22 … 0.35 = 1.65 … 1.78 s     dbts_a1 0.90 + 0.22 … 0.35 = 1.13 … 1.25 s
+B ÷ A:   dbts_b1 1.65 ÷ 3.3 = 0.50 … 1.78 ÷ 2.4 = 0.74   dbts_a1 1.13 ÷ 1.21 = 0.93 … 1.25 ÷ 0.79 = 1.58
+count below 1, dbts_a1: B under A only where A's top meets B's bottom; both spread evenly
+  over their bands (A), P = 0.08² ÷ 2 ÷ (0.42 × 0.12) = 0.06 a round: 0.5 of 8 expected, 0–2 predicted
+```
+
+* **The rule's outcome, pooled over 16 ratios: *no difference shown***, where the protocol predicts *B faster*:
+  8 + 0–2 = **8–10 of 16 below 1**, under the 13 the sign test needs. The median ratio is the mean of the 8th and 9th
+  (`dbts_b1`'s largest, `dbts_a1`'s smallest): **0.72–1.16, ~0.84 with each series' extreme near its band's inner end** (D), so the median condition
+  (≤ 0.95) is likely met and decides nothing. *B slower* cannot pass (`dbts_b1`'s 8 are all below 1). Per series,
+  deciding nothing: `dbts_b1` 8 of 8 below 1, `dbts_a1` 0–2.
+* This depends on *G*. B's fill is 859.3 ÷ *G* (or 542.5 ÷ *G*) s plus the rest while the wire binds. *B faster*
+  needs 5 or more of `dbts_a1`'s 8 below 1, its wire under ~0.7 s against A's middle (1.0 s) less the rest: **G over
+  ~760–800 Mbit/s** (D: 542.5 ÷ (1.0 − 0.29)). `dbts_b1` stays 8 of 8 down to G ≈ 420 Mbit/s (859.3 ÷ (2.4 − 0.35), D). The 11-11 Cubic fills'
+  fastest 250 ms read 103–361 Mbit/s, but those fills were decode-bound and paced by the decoders' credits, so they
+  bound nothing (R, `transport-conclusions.md` §1). The read reports *G* beside it.
+* *Corrected 2026-11-20, before the 11-21 12:00 deadline (DEVICE-THEORY-FIX, B1 of PR 414's review):* the bands first
+  written here (A on `dbts_a1` 0.8–1.3 s, B's fills 1.6–2.0 and 1.1–1.4 s, B ÷ A 0.55–0.80 and 0.9–1.4, `dbts_a1`'s
+  floor from 12.7–24.4 ms) had no derivation and did not follow from each other; the outcome, *no difference shown*,
+  is unchanged.
 * C2 against A + B: *no difference shown*, as the protocol. C1's exact-frame latency: **80–130 ms** on `dbts_b1` (D:
   the ask's ~40 ms, R, plus one HTJ2K frame on an idle prime core, 37–59 ms, plus the paint).
 
