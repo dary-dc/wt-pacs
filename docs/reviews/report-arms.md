@@ -215,3 +215,99 @@ series was the contract's grey-16 frame ×32, not `dbts_c1`. Rows were BEACON-H 
 `--wait 30`: smoke, not results. Not run: `scripts/gate.sh`. Run instead were the rig's ten node tests,
 `cargo test -p server-telemetry -p report-receiver`, `deploy/workspace_test.sh` and `scripts/comment_budget.sh`.
 The fix row ran `--quick` at `7f56bc62`, and only docs changed after it.
+
+## Cells review (REPORT-CELLS-REVIEW, 2026-11-20)
+
+REPORT-CELLS-REVIEW of `claude/work-ledger:docs/queue-2026-11-14.md`, at `56d27bb7`: the eight commits
+`115a3529`..`56d27bb7` (REPORT-CELLS). Written by a session that built none of the rig, its arms or the cells. The
+questions are the standing rule's: does each new test fail without its change, does the change touch nothing else,
+and does each cell read what `claude/report-plan:docs/client/evidence/report-plan.md` §7.2–§7.4 pre-registers.
+
+**Fixtures and limits.** One 4-vCPU cloud container with no GPU. Headless Chromium 153 (Playwright's build) for one
+clock probe. No nginx, Firefox or `--tun` run here: their evidence is REPORT-CELLS' own smoke rows
+(`claude/work-ledger:docs/queue/REPORT-CELLS-smoke.jsonl`, one round each, not counted), read here and not rerun. The
+rig's series is still the contract's grey-16 frame ×32, not `dbts_c1`. `scripts/gate.sh` was not run (REPORT-CELLS ran
+it in full at `56d27bb7`, and this review changes only this file). Run instead were the five new or changed node
+tests, `scripts/comment_budget.sh` and the mutants below.
+
+### Verdict
+
+**Two blockers, both in readings that REPORT-RUN-2 cannot correct afterwards.** By amendment 17, REPORT-CELLS-FIX and
+REPORT-CELLS-FIX-REVIEW are appended to the queue, and REPORT-RUN-2 waits on the re-review.
+
+| # | where | blocker | fix |
+| --- | --- | --- | --- |
+| B1 | `lab/report-arms/receivers.mjs:55–68`, `:71–72`; `nginx/nginx.mjs:17` | Cell R's generator posts from one address, so NGINX's `/report/load` per-address limit (`limit_req zone=report burst=20`, 10 r/s, keyed on `$binary_remote_addr`) refuses most of every load burst over 10 a second. RECEIVER behind nginx has no such limit. REPORT-CELLS' own smoke (*measured*, 2 s bursts): NGINX load at 100/s gave `{"204": 40, "429": 160}`, and at 1 000/s `{"204": 40, "429": 1960}`. RECEIVER wrote all 200 and all 2 000. So `cpuPer1000` sets NGINX refusing against RECEIVER writing. §7.5 rule 4 ("RECEIVER's validation against NGINX's cost") would then compare a limiter with a writer, and NGINX meets R's bar at 100/s by refusing. Separately, `lines()` counts every access-log line, refused or not, as written: the same smoke shows `lines: 200` beside 160 refusals. | Generate from many source addresses, each under the limit. On this host a socket bound to any address in `127.0.0.0/8` reaches a `127.0.0.1` server and is seen as that address (*measured* here with `127.0.0.2`, `127.0.0.77`, `127.1.2.3`). At rate *r*, ⌈*r*/5⌉ addresses each sending under 5 r/s would do. Or keep one address, and report NGINX's load row as limited and judge it nowhere. Either way, `lines` should count appended lines only (status 2xx), as `nginxCounters` already does. A test first for each. |
+| B2 | `lab/report-arms/page.js:258–268`, with `beacon/floor.js:10`, `keepalive/floor.js:11` | Cell L's floor sends the arm's **safety** bytes (`floor: "safety"`) through the floors, which post to `${base}/load`. The arm's own safety reports go to `${base}/safety` (`beacon/beacon.js:10`). §7.2: "the raw call alone with the arm's bytes". At RECEIVER, which the delivery cells use, `/report/load` checks a safety record against the *load* field list. It drops and warns about every safety-only field (`frame`, `route`, `check`, `expected`, `actual`, …; `receiver/src/lib.rs:50–51`, `:193–196`), so `counters.outside` rises in rows with no mutant. It also skips the `sync_data` that only safety lines pay (`lib.rs:233–234`). On this host, a 1.5 KB append plus `fdatasync` costs 0.16 ms at p50 and 0.24 ms at p90 (*measured*, 200 writes, Python). That is about a tenth of the 1.1–1.8 ms L p50s in the smoke, and it lands entirely in "the gap". The beacon test pins the floor to `/report/load` ("floor: one beacon to the same path", `beacon.test.mjs:105`), which was right for C's load bytes and is wrong for L's. | The floor posts to its body's own kind (`/load` or `/safety`). A test per floor that a safety body goes to `/safety`. |
+
+### Each new test fails without its change
+
+| test | change reverted, or mutated here | result |
+| --- | --- | --- |
+| `lab/faultbench/fault.test.mjs` | `fault.js` at `115a3529~1` (no channel) | fails: "stamped as the faulted decode returns", "one fault heard" |
+| `run.test.mjs` | `run.mjs` at `115a3529~1`, and at `115a3529` (before `relayNetns`) | fails at import (the new exports are missing) |
+| `cells.test.mjs`, `receivers.test.mjs`, `bidi.test.mjs` | new modules. Mutated here instead: p99's rank `floor`; an empty assembly opening a span; the floor's median taken at p99; a third `/proc` field added to CPU; the ticks shifted by 1 ms; `undefined` not read as null | each killed |
+| `run.test.mjs` `killAfterFault` | the wait not clamped at 0 | killed |
+| `fault.test.mjs` | the stamp on `Date.now()` | killed |
+
+The mutants REPORT-CELLS lists in `lab/report-arms/README.md` §The cells added by REPORT-CELLS were not all repeated
+here. Four mutants of this review's survive:
+
+* `latencies`: `t < was.t` dropped, so the first line read is kept, not the earliest. The test feeds the copies in
+  time order. The rig concatenates several files per load (`run.mjs:491–494`), so order is not guaranteed. Minor m1.
+* `latencies`: `f <= r.at` changed to `f < r.at`. Equivalent: a record is stamped on the page after its fault returns
+  from the worker.
+* `killAfterFault`: `late: learned > ms` changed to `>=`. A boundary that cannot be distinguished at the rig's
+  resolution.
+* A first try against `receivers.js`, a file that does not exist, is void and not counted.
+
+### Each cell against §7
+
+* **D5** (`run.mjs:473–478`, `:489`): the kill is timed from the decoder's fault, as the verdict review asked. Two
+  minors:
+  * m2. `atKill` is read, then `rig.safety` is read in a second `evaluate`, and only then does `ENDINGS.D5a` crash
+    the page. The kill therefore falls one more CDP round trip after the recorded `atKill`, and a report handed on in
+    that window is missed by `safetyHanded`. The smoke's `atKill` was 51.8–53.5 ms; the kill was later by an unmeasured
+    round trip. The fix: read both in one `evaluate`, then crash.
+  * m3. `fault.js` stamps the moment the flipped decode *returns*, before the check hashes it. §7.3 says "after the
+    mismatch is found". On the grey frame the hash is short and the difference is negligible; on `dbts_c1` it is one
+    frame's XXH3. The stamp could be named as the decode's return in §7.8's style, or moved after the check.
+  * `late` compares only `learned`, so `atKill > ms` is never flagged (folded into m2).
+* **L** (`page.js:286`, `run.mjs:422–426`, `cells.js:70–84`): 20 faults 1 s apart after the fill, and the fill's own
+  fault, joined to the latest fault at or before each record's `at`. This matches §7.3. Minors:
+  * m4. Each `rig.refault()` re-enters `done()` (`page.js:69–75`): `rig.frames` has passed `n`, so `load.fill` and
+    `rig.fillMs` are rewritten at every later fault, and `load.frame` adds frame 10 again. `row.fillMs` is read before
+    the faults (`run.mjs:487`), so no L reading moves. The L rows' own load record carries a fill time about 20 s too
+    long and a frame list with duplicates. No bar reads it, but nobody should mistake it for one.
+  * m5, the clocks. The fault is stamped as `performance.timeOrigin + performance.now()` in the decoder worker, and
+    the append as the receiver's wall-clock `Date.now()` in whole milliseconds. In Chromium 153 here, across 10 fresh
+    launches with 50 reads each, `Date.now() − (timeOrigin + now())` on the page spanned −1.1 to +0.1 ms, and the
+    worker's stamp lay within ±0.9 ms of the page's `Date.now()` (*measured*). L's p50s in the smoke are 0.9–1.8 ms, so
+    the bars (250 ms, 1 s) are unaffected. §7.5 rule 2's 10 % lead on L's busy p99, however, cannot be decided below
+    about 10 ms. Say so in the run's amendment, or stamp both ends on one clock.
+* **The floor** (`page.js:257–269`): B2, above. KEEPALIVE's worker floor and SESSION's floor are named in the README
+  as not wired. With KEEPALIVE's safety sent from its worker (§7.2) but its floor sent from the page, its L gap mixes
+  two senders. The run's amendment should name that gap as not comparable.
+* **C** (`cells.js:94–108`, `page.js:244–250`): `meter` counts assembly to the carrier's return, and each page-side
+  safety send once. The first exact paint is named as not offered. Nothing found.
+* **Y** (`cells.js:125–128`): m6. `bodies` measures `JSON.stringify` of the record *as the receiver kept it*. That is
+  UTF-16 length after RECEIVER has dropped fields outside the list and capped its strings. It is not "their bytes as
+  received" (`README.md`, cell Y). For Y's 16 KiB bar, the body as sent is the one that counts. Name it as such, or
+  take NGINX's `$content_length` (`n`), which its log already carries. The relay's wire bytes are named as not
+  built.
+* **R** (`receivers.mjs`): B1. Beyond it, CPU is read in 10 ms ticks (`HZ = 100`). That is coarse for 2 s smoke
+  bursts and fine for §7.3's 60 s bursts. The server's row is named as not built.
+* **D6** (`run.mjs:337–346`, `:413–414`): the relay is at 10 ms one way in each direction ("--delay-ms is ONE WAY and
+  applies to each direction", `link_impair.py:21`), 50 Mbit, 200 packets, drop. The blackout is at fill end + 4 s,
+  hide at + 5 s and navigate at + 6 s, as §7.3 has it. m7. Firefox inside `--tun` (`bidi.mjs` `secure`, through
+  `dom.securecontext.allowlist`) was not smoked: the smoke's Firefox rows are D1–D5a, D7–D9, L and C, with no D6. The
+  README's old line "both engines inside `--tun`" now reads "WebKitGTK inside `--tun`", so this gap is no longer
+  named. Name it again.
+* **Firefox** (`bidi.mjs`, `bidi.check.mjs`): the levers are as §7.6 checked by hand. Its limits are named: no long
+  tasks, no freeze, D7 through the sink is not a bfcache test, and the crash takes every content process. Nit: the
+  default `FIREFOX` path (`bidi.mjs:9`) is this kind of container's scratch path. `FIREFOX_PATH` should be required.
+
+**Nothing else changed.** Outside `lab/report-arms/`, the diff touches `lab/faultbench/decode/fault.js` (the stamp and
+its channel; other users of the bench only gain an unread `BroadcastChannel`), `lab/faultbench/fault.test.mjs`,
+`scripts/gate.sh` (four test lines added) and `docs/lines/client.md`. Nothing under `server/` or `client/`.
+`scripts/comment_budget.sh`: ok.
