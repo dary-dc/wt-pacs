@@ -54,6 +54,7 @@ export function measured(row) {
 export function voidOf(row, { pilotMedian } = {}) {
   const why = [];
   if (row.crash) why.push(`crash: ${row.error}`);
+  if (row.verdict?.void) why.push(row.verdict.why);
   if (row.relayTally?.late) why.push("the relay's guard p99 over 1 ms");
   for (const [core, name] of [[0, "relay"], [1, "server"]]) {
     if (row.busy?.[core] > BUSY_VOID) why.push(`core ${core} (the ${name}) ${(100 * row.busy[core]).toFixed(0)} % busy`);
@@ -61,7 +62,7 @@ export function voidOf(row, { pilotMedian } = {}) {
   if (pilotMedian && row.load?.fillMs > PILOT_VOID * pilotMedian) why.push(`fill past ${PILOT_VOID}× the pilot's median`);
   const back = row.load?.frames ? decodersReadBack(row.load.frames) : 0;
   if (back > DECODERS) why.push(`${back} decoders read back, not ${DECODERS}`);
-  const stop = !row.crash && row.verdict && !row.verdict.ok ? `STOP: ${row.cell} round ${row.round} ${row.volume} ${row.arm}: ${row.verdict.why}` : null;
+  const stop = !row.crash && row.verdict && !row.verdict.ok && !row.verdict.void ? `STOP: ${row.cell} round ${row.round} ${row.volume} ${row.arm}: ${row.verdict.why}` : null;
   return { why, stop };
 }
 

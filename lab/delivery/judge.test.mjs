@@ -78,6 +78,8 @@ check(voidOf({ relayTally: { late: true } }).why.length === 1 && voidOf({ busy: 
 check(!voidOf({ busy: [0.5, 0.5, 1, 1] }).why.length, "VOID: the browser's cores busy is not a reason");
 check(voidOf({ load: { fillMs: 31 } }, { pilotMedian: 10 }).why.length === 1 && !voidOf({ load: { fillMs: 29 } }, { pilotMedian: 10 }).why.length, "VOID: a load past 3× its pilot median");
 check(/^STOP: /.test(voidOf({ cell: "LTE", verdict: { ok: false, why: "frame 3 decoded false, not exact" } }).stop ?? ""), "STOP: a failed load stops the run");
+const stalled = voidOf({ verdict: { ok: false, void: "stopped", why: "the runner's timers stopped 2400 ms" } });
+check(stalled.stop === null && stalled.why.length === 1, "VOID: the page's timers stopped voids the load, never stops the run");
 check(voidOf({ crash: true, error: "x", verdict: { ok: false } }).stop === null && voidOf({ crash: true, error: "x" }).why.length === 1, "VOID: a crash voids, never stops");
 
 /** Over 25 % VOID: strict and round-paired, both reported. */
