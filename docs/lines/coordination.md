@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20.
 
 ## Goal
 
@@ -111,6 +111,9 @@ small enough that every open item has an owner and a next step.
    AUDIT-MECHANICAL (2026-11-17, `2b0064cb`): the owner's name out of `handoff/` as well (the owner's yes), the last
    of audit item 2's three files; items 3 and 4 found done by UNIFIED-CLEAN. `handoff/`'s removal still waits.
    AUDIT-MECHANICAL-REVIEW (2026-11-17, PR 402's body): no blocker; one minor, a product use of *lossy stream*.
+   UNIFIED-LAB-LIST (2026-11-20, [`../decisions/lab-list.md`](../decisions/lab-list.md)): audit item 7's list, read
+   not run, at `4a2b4277f`: 19 `lab/` directories read by a gate step, 47 (26 391 code lines) by none; the removal
+   is the owner's yes, on the `unified-to-main` page.
 
 ## Unification (the owner, 2026-11-09)
 
