@@ -1,15 +1,15 @@
 state: started
 started: 2026-11-20T15:17Z
-heartbeat: 2026-11-20T16:31Z
-outputs: claude/worker-flake (loop 46307cf9; rows landing)
+heartbeat: 2026-11-20T16:55Z
+outputs: claude/worker-flake a75d1e56 (loop, 100 rows, the fix); PR not yet
 ## Resume
-Reproduced: run 83 of the loop (lab/worker-flake/rows.jsonl line 83, 16:27 UTC) failed "&fill=0: on demand, 13 steps and
-a jump asked the whole groups, 24 frames: ... received 23". Mechanism (code): on demand the want is [current]; the jump
-to frame 56 makes serveWant end group 0's run (`ended`, forgetEnded drops records still on the wire), so group 0's tail
-(frames 14-16) arrives only if it left the wire before the jump. The product drops it by design ("A late frame of an
-ended run ... is dropped", downloader.js); the check's exact count of 24 is the race. #418 (DEMO-CHECK-MUTANTS) keeps
-that exact count. Next: stop the loop at 100 runs; failing test = demo-check under `--link "--rate-kbit N"` so the
-tail is on the wire at the jump (expect received < 24, check fails, product right); fix = the count bounded (at least
-the frames painted plus the jump's whole group, at most the whole groups); mutate; gate --quick; draft PR into
-claude/unified naming the overlap with #418; docs/reviews/worker-flake.md; docs/lines/client.md.
+Loop: 100 runs, 1 failure (row 83: "received 23" against 24). Cause, corrected from the first reading: not a frame
+dropped. The view worker posts progress at most every 100 ms (PROGRESS_MS, client/view/view-worker.js), so in the
+worker view the status's "received" lags the frames held by up to 100 ms; the check read the final status at the
+pass's end, ~100 ms after the jump's paint. Probe (scratch, not committed): at the jump's paint the count read 20-23 in
+10 of 10 worker on-demand passes, 24 within 0-100 ms; 24 at once in 4 of 4 page passes. Fix a75d1e56: on demand the
+count is read once it reaches the expected value (bounded 2 s) after the jump. Running: mutants (scratch mut.sh ->
+lab/worker-flake/mutants.jsonl): fixed x5 worker x2 page; M1 the wait removed; M2 a 20 ms wait; P1 the worker's flush
+removed. Next: push mutants.jsonl, docs/reviews/worker-flake.md, docs/lines/client.md, gate --quick, draft PR into
+claude/unified naming the overlap with #418 (same lines).
 ## Result
