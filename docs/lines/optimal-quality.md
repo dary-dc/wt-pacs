@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-19 (OQ-INTEGRITY-FIXES; branch tips and the work queue read from `origin`).
+Last verified 2026-11-20 (OQ-INTEGRITY-FIXES-REVIEW; branch tips and the work queue read from `origin`).
 
 ## Goal
 
@@ -98,6 +98,8 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   label per state (✓ on a series with reconstruction digests, not as coded on a step to a frame whose digest is
   wrong); `coding_error_test.py` holds σ to the source's (a denoised reconstruction reads 1.0041). Finding 5 (the
   inter-unit mutant's row) and the first picture's +7.8 % are weighed in PR 368's body, not changed.
+  Reviewed 2026-11-20 ([`oq-integrity.md`](../reviews/oq-integrity.md) §Fixes review): no blocker, each fix's test
+  fails without it; one minor regression open, a window drag on a refused frame throws (F1). I2-RUN may start.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to
