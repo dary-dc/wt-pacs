@@ -1154,6 +1154,44 @@ built in PR 408 (`32929941`).*
   (base image from `mirror.gcr.io` at the pinned digest) and match its `manifest.sha256`; the Docker daemon is stopped
   before the run.
 
+**Run (2026-11-20 08:19 to 10:32 UTC; 288 visits).** Rows: [`rows/a1-run-1.jsonl`](../lab/htj2k-tiles/improve/rows/a1-run-1.jsonl)
+(rounds 0–2) and [`rows/a1-run-2.jsonl`](../lab/htj2k-tiles/improve/rows/a1-run-2.jsonl) (rounds 3–5); readings
+from [`stage3/a1.py`](../lab/htj2k-tiles/improve/stage3/a1.py) and `summary.py` over both. A first start at 08:03 was
+stopped after 3 visits and is not kept: the lab level binding was not built, so D+T3's page loaded no worker and
+received no bytes. The binding was then built by `decode/build_levels.sh` in the decoder image; its `levels.wasm`
+sha256 equals `rows/stage3-pins.json`'s. Headless Chromium 157.0.8103.78 (stage 3 ran 153), 4 cores, the same
+4× cgroup cap (*assumption* for a phone).
+
+* **Kept: 234.** 53 visits are void by the relay's p99 rule (D 15, D+T3 15, D′ 14, D+T1 9) and 2 failed, both
+  `dbts_b1` `r20000` 4× (D′, D+T1): a store write refused for quota, so not every slice was pictured.
+* **R0 holds** in every kept visit: every Lossless picture is exact. The OQ pictures' digest agrees across each
+  volume's D visits.
+* **Where the host saturates.** By stage 3's test (D's every-slice time at 4× over 1.05 × its 1×), all three
+  `r20000` cells are decode-bound. `r5000` is link-bound on every volume, as in stage 3. The `r20000` ratios below
+  are readings that decide nothing.
+* **The deciding cell, `dbts_b1` `r5000` 4×** (measured; median Lossless request to picture, ms): D 4 033 (n 6),
+  D′ 4 025 (5), D+T1 3 945 (5), D+T3 3 724 (5). D+T3 ÷ D reproduces stage 3: ×0.923 (stage 3 ×0.923). The three
+  bundles carry the same bytes (25 381 119; D+T3 25 376 720).
+
+| reading, by round-paired medians [s] | `dbts_b1` `r5000` 4× | the other `r5000` cells | `r20000` (decode-bound) |
+| --- | --- | --- | --- |
+| the strips' effect, D+T3 ÷ D+T1 | **×0.943** [0.014], n 4: 0.937–0.950 | 4×: `a1` ×0.958, `c1` ×0.936; 1×: ×0.980–0.986 | ×0.83–0.95 |
+| the path, D+T1 ÷ D | **×0.979** [0.014], n 5: 0.971–0.993 | ×0.989–1.005 | ×0.958–1.000 |
+| D+T3 ÷ D | ×0.923 [0.014], n 5 | 4×: ×0.930–0.954; 1×: ×0.977–0.984 | ×0.805–0.951 |
+
+**A1's three readings against the rule:**
+
+1. **The strips' effect is ×0.943, outside its prediction ×0.96–0.99.** The prediction missed: the strips do
+   more than stage 2's decode times allowed. Every paired round is at or under ×0.950.
+2. **Layout 1 stays proposed for D+T3.** ×0.943 ≤ ×0.95 × (1 + 0.014) = ×0.963, and strictly ≤ ×0.95 too.
+3. **No overhead on the product's exact path.** D+T1 ÷ D is ×0.979, over ×0.95, so there is no client-line finding.
+   The path difference is real but small: about a quarter of D+T3's gain on this cell (×0.979 × ×0.943 = ×0.923).
+
+So §Verdict's question has its answer on this host: most of D+T3's gain is the strips', and "R3's pass rests on a
+part that is not the strips" is corrected to: R3's pass rests mostly on the strips, about a quarter of it on the lab
+page's path. Both readings come from one link-bound cell of one volume, with 4 and 5 paired rounds. Nothing here is
+claimed for a phone: P1 decides whether a phone's fill is decode-bound, and P2 re-judges R3 there.
+
 ## Sources
 
 Read 2026-11-09; quotations are verbatim, with the PDF's symbols restored where text extraction lost them (≤).
