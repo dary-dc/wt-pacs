@@ -33,6 +33,10 @@ HTJ2K series; no residual, no server or wire change.
   10 bits is `same.py`'s own rule, not `ingest.py`'s.
 * **The two failures the phone found** ([`client.md`](client.md) §In flight); the first breaks this line's promise on a
   lossy link.
+* **A lost exact ask is asked again once, after 1 s** (#378, `claude/lossless-under-loss`): a refusal and a failed check
+  never; an ask whose own re-dial fails counts as lost (FIX-378-DIAL). Reviewed 2026-11-18, no blocker
+  ([`../reviews/lossless-under-loss.md`](../reviews/lossless-under-loss.md)); carried by the phone round's staging
+  branch `claude/phone-run` (2026-11-19), not by `claude/unified`. Owed: the owner's call on whether one re-ask is enough.
 * **Is Q 8 visually lossless at the readers' windows**: owned by [`codecs.md`](codecs.md); readers decide, no agent.
   What the AV1 harvest of 2026-11-10 changes in the demo's claims is in [`codecs.md`](codecs.md) §AV1 harvest: Q 8
   is a candidate (the noise rule picks it on two of the six timed cells); at the rule's Q the view is 0.10–0.28 of
