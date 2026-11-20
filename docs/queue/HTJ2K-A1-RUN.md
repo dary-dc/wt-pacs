@@ -3,7 +3,7 @@ started: 2026-11-20T08:00Z
 heartbeat: 2026-11-20T09:25Z
 outputs: `claude/htj2k-a1` (rows to land in `lab/htj2k-tiles/improve/rows/a1-*.jsonl`; PR 408)
 ## Resume
-Shard 1 (rounds 0–2) restarted 08:19Z (the 08:03Z start lacked the lab level binding: D+T3 got no bytes, 3 visits set aside in `/home/user/rows/a1-aborted.jsonl`), running, rows to `/home/user/rows/a1-run-1.jsonl`, copied into
+Shard 1 (rounds 0–2) done 09:25Z, 144 rows pushed; shard 2 (rounds 3–5, `a1-run-2.jsonl`) running since 09:25Z. Shard 1 had restarted 08:19Z (the 08:03Z start lacked the lab level binding: D+T3 got no bytes, 3 visits set aside in `/home/user/rows/a1-aborted.jsonl`), running, rows to `/home/user/rows/a1-run-1.jsonl`, copied into
 `claude/htj2k-a1:lab/htj2k-tiles/improve/rows/a1-run-1.jsonl` and pushed every 15 min by `/home/user/pusher.sh a1-run-1`.
 Pushed: `3ce57fa2` the readings of the registration (`docs/htj2k-tiles.md` §A1, measured), then `stage3/a1.py`.
 **To resume in a fresh container:** set up as HTJ2K-MEASURE's Resume (fetch_data, `ingest/tools.sh`, worktree
