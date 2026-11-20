@@ -231,6 +231,10 @@ run 1 python3 lab/devices/collector_test.py
 run 1 node lab/devices/beacon.test.mjs
 run 1 node lab/devices/round.test.mjs
 run 1 python3 lab/devices/round_test.py
+run 1 node lab/delivery/predict.test.mjs
+run 1 node lab/delivery/judge.test.mjs
+run 1 node lab/delivery/inputs.test.mjs
+run 1 python3 lab/delivery/prefix_test.py
 run 1 sh deploy/server_start_test.sh
 
 step "lab: the rigs' Firefox driver reads Marionette's framing; with FIREFOX_PATH, a worker starts 300 workers under it"

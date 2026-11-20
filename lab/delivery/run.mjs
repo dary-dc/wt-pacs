@@ -4,7 +4,7 @@
  * docs/client/evidence/delivery-comparison.md §2, §5, §6; lab/delivery/README.md
  *
  *   node lab/delivery/run.mjs --cell CLEAN --series DIR --predictions FILE [--rounds N] [--pilot] [--pilot-medians FILE]
- *     [--view VOLUME=ID …] [--out FILE] [--fill-s 300] [--after-s 300] [--mutate fixed-order|relay-no-loss|no-decoders|flip-exact]
+ *     [--view VOLUME=ID …] [--out FILE] [--fill-s 300] [--after-s 300] [--mutate fixed-order|relay-no-loss|decoders-3|flip-exact]
  *   node lab/delivery/run.mjs --bench --series DIR [--view VOLUME=ID …] [--out FILE]     # K2
  */
 import fs from "node:fs";
@@ -169,7 +169,7 @@ async function load(k, spec) {
     browser = await chromium.launch({ channel: "chromium", headless: true, args: switches });
     Object.assign(row, { browser: browser.version(), switches });
     const params = new URLSearchParams({ overlay: "1", view: "page", beacon: "cubic-restart", round: `http://127.0.0.1:${ROUND_PORT}/`, at: String(k), cell: spec.cell ?? "K2", arm: spec.arm, fillS: String(FILL_S), afterS: String(AFTER_S), ...spec.params });
-    if (MUTATE === "no-decoders") params.delete("decoders");
+    if (MUTATE === "decoders-3") params.set("decoders", "3");
     const tab = await browser.newPage();
     row.console = [];
     tab.on("console", (m) => m.type() !== "debug" && row.console.length < 50 && row.console.push(`${m.type()}: ${m.text()}`));
