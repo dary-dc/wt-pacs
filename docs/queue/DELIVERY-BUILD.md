@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-20T12:16Z
-heartbeat: 2026-11-20T12:39Z
+heartbeat: 2026-11-20T12:42Z
 outputs: claude/delivery 34426f22 (merge of claude/phone-run), draft PR 406
 ## Resume
 Done: claude/delivery 34426f22 = --no-ff merge of origin/claude/phone-run (conflict docs/lines/client.md resolved: both kept).
@@ -14,7 +14,10 @@ run.mjs, the driver: one CLEAN round on the synthetic pair (synth, 64x48, 20 fra
 Findings for the run: the viewer's page must be a secure context, so the page server runs at 10.77.0.2 beside the
 series servers and Chromium (channel "chromium"; the headless shell ignores it) gets
 --unsafely-treat-insecure-origin-as-secure for its two origins; navigator.hardwareConcurrency reads 2 under taskset.
-Next: inputs.mjs (K1 bytes, K2 bench, K3 via claude/transport-arms run.mjs WT-TS), README, the driver mutants, gate.
+Pushed 31a6ec8e: inputs.mjs (+test, 4 of 5 mutants), series.sh, k3.sh (worktree of transport-arms 9fad9d9b,
+built outside the namespace), README (the build's findings for the run's §11 amendment), tests in scripts/gate.sh.
+Running: series.sh into the scratchpad (the three volumes), k3.sh smoke on the synthetic pair.
+Next: driver mutants (flip-exact, decoders-3, fixed-order, relay-no-loss), smoke a round a cell, gate, line doc, PR body.
 Was next: lab/delivery/ (driver over the viewer's round levers through the TUN relay; prefix series; C1's 1 s gap;
 K1-K3 + predictor -> predictions.json; judge), tests failing first, mutants of protocol §10; smoke one round a cell.
 ## Result
