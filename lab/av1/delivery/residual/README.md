@@ -140,7 +140,9 @@ end of every group; dav1d-WASM and OpenJPH use one thread.
 **Pins.** libaom 3.15.1 and dav1d 1.5.4 as `tools.sh` pins them; dav1d 1.5.4 under emscripten
 3.1.74 (`simd.wasm`, 623 042 B); `@cornerstonejs/codec-openjph` 2.4.11 and OpenJPH 0.31.0 as
 row SPEED pins them; playwright 1.56.1's Chromium 141; Node 22; numpy 2.4.6
-(`lab/av1/requirements.txt`). Nothing built or generated is committed.
+(`lab/av1/requirements.txt`). Nothing built or generated is committed. *Added 2026-11-11 (decode audit 12):* these
+pins are the earlier §Decode time's. §Residual apart, measured ran Chrome for Testing 153.0.8010.12 and the product's
+OpenJPH build with a JavaScript pass in H (its §Host).
 
 ## Residual apart protocol, pre-registered (row RESIDAPART, 2026-11-02)
 
@@ -338,7 +340,11 @@ median [range], and the rounds RA was slower out of 60. RA − R is the add, *de
 | | CRF 8, s = 0 | 121 | 84.3 | 117 | 34.5 | — | 249 | 0.974 [0.721–1.128] | 21/60 | 3.8 % | the same |
 
 **The rule, as written.** At row 17's quality (bold), 1× and 4×, all six DBT cells read **the same** (medians
-0.973–1.004). The rule's reading for that case: *with the preview on screen, the exact frame by residual costs no more
+0.973–1.004). *Corrected 2026-11-11 (decode audit 4):* that ratio divides by an H that carries a JavaScript pass
+over every sample into a fresh array (`apart.js:117-125`), which costs what RA's add costs (H − R 6.2 · 24.9 ms,
+RA − R 5.40 · 24.6 ms on `dbts_a1`, `dbts_b1`, CRF 20, 1×). Against a bare HTJ2K frame the residual plus its add is
+about 1.3–1.6 frames (RA ÷ R 1.32 · 1.58, *derived*), not "the same". The 960/960 exactness checks stand. The
+residual is dropped; this stands only as a record. The rule's reading for that case: *with the preview on screen, the exact frame by residual costs no more
 decode than a whole HTJ2K frame, the preview costs the exact fill only its own decode, and the choice between them is
 bytes and the owner's ruling on a lossy first picture.* The run attaches two limits of its own:
 
