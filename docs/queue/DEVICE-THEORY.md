@@ -1,10 +1,9 @@
 state: started
 started: 2026-11-20T01:41Z
-heartbeat: 2026-11-20T01:41Z
-outputs: `claude/device-theory` (not pushed yet)
+heartbeat: 2026-11-20T01:52Z
+outputs: `claude/device-theory` `410b1d60` (`docs/decode/mobile/device-model.md`), line doc after it; PR to open
 ## Resume
-Claimed by a Fable session. Next: branch `claude/device-theory` from `origin/claude/docs-client`, read
-`docs/lines/client.md`, `docs/devices.md`, `claude/mobile-decode:docs/decode/mobile/`,
-`claude/phone-run:docs/phone-rows/` (next-round.md, SATURDAY.md), then write `docs/decode/mobile/device-model.md`:
-the round's prediction first (due 2026-11-21 12:00), the population model after.
+Pushed: the model and the round's prediction (`device-model.md` §2, pre-registered 2026-11-20), the line doc's
+entry. Next: the draft PR `claude/device-theory` → `claude/docs-client` through `mcp__github__create_pull_request`,
+then `state: done`. Nothing else owed; no command to rerun (docs only: `python3 scripts/check_links.py`).
 ## Result
