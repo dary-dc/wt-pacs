@@ -8,8 +8,14 @@ covers), so every number in it is labelled *derived from the rows*. §8 is the p
 
 **Claim.** Set the VL view's Q from one number per series, σ_min: the lowest noise of any of its frames, measured
 with the quality study's Immerkær estimator. The candidate Q is the **highest Q at which AV1's AC quantizer step, in
-sample units, is less than x\* · σ_min**, where x\* = **4.93 at G 1 and 4.64 at G 8 and 16**. The rule makes a
-*candidate* Q. It does not make that Q visually lossless: only a reader can say so (the study's §6 flicker test, not
+sample units, is less than x\* · σ_min**, where x\* = **4.7584 at G 1 and 4.6359 at G 8 and 16**, each with the
+estimator's error δ (0.1–5.5 % by volume) beside it. *Corrected 2026-11-11 (audit F5, F6) and re-read 2026-11-11 (B0,
+[`audit-protocols.md`](audit-protocols.md) §B0, measured, derived from the committed rows):* this read "4.93 at G 1
+and 4.64 at G 8 and 16", two in-sample minima of one frame each (`dbts_c1` top-10, Q 8; `dbts_b1`, Q 12) set to four
+decimals; a held-out `dbts_a3` frame already fails at x 4.802 (§Noise-point protocol, measured). The audit proposed
+one x\* = 4.8 ± 0.15 at every G. B0 recomputed x\* over all 19 volumes: 4.7584 at G 1, 4.6359 pooled and at G > 1,
+4.8024 for 12-bit streams; G 1 and G > 1 differ by 2.6 %, over δ on 13 of 19 volumes, so by B's rule both stay. No
+reading picks a ladder rung above either anchor. The rule makes a *candidate* Q. It does not make that Q visually lossless: only a reader can say so (the study's §6 flicker test, not
 run).
 
 **Proof chain.**
@@ -23,8 +29,9 @@ run).
    above 1 at x 4.93 (G 1) and 4.64 (G 16), and it is still at or below 1 on some frames up to x 6.69.
 4. *Derived from the rows* (§3). In sample, the rule never picks a Q above the measured anchor. It matches the anchor
    on 20 of 23 (series, form) cells at G 1 and on 17 of 23 at G 16, and picks one rung lower on the rest. With one
-   family left out at a time, it overshoots by one rung on 1 cell at each G. The worst frame there is e_N ÷ σ 1.005
-   and 1.000, inside the estimator's own 3 % error.
+   family left out at a time, it overshoots by one rung on 1 cell at each G, worst frame 1.005 and 1.000. The bar
+   the rule meets is **1.03**, the estimator's own error on integer frames of known σ (§8), not 1. *Corrected
+   2026-11-11 (audit F5):* this read "inside the estimator's own 3 % error" as if the bar were 1.
 
 **Valid for:** the DBT fixtures only. These are the 14 DBT series of the 20 the study covers: `dbts_a1`, `a2`, `b1`,
 `b2`, `b3`, `b5`, `c1` … `c5`, `dbt10_ea1141`, `dbt12_ea1141`, `dbt12_c`. Within them, σ_min ranges over 10.5–14.8
@@ -38,7 +45,9 @@ There is no breast ultrasound cine or ABUS among the fixtures.
 * breast ultrasound data, which needs its own x\*.
 
 **Owed:**
-* the held-out test (§8) on shard 3's five uncoded DBT series;
+* ~~the held-out test (§8)~~ done 2026-11-09 (§Noise-point protocol, measured): P1 and P3 hold on 10 of 10 cells of
+  five DBT series, worst frame 0.888–0.969 at the rule's Q. Its five series come from systems already in sample, so
+  it does not leave a scanner or a dataset out (audit F8). *Corrected 2026-11-11: this line still listed it as owed.*
 * a timing of the estimator on `dbts_a1`, `dbts_b1` and `dbts_c1`;
 * Q values between the ladder rungs;
 * a tile-level reading of how noise varies by region;

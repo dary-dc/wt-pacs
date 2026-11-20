@@ -82,8 +82,11 @@ What one unit costs, measured (`svc-results.md` §5 offline, `ee572f7`; one dav1
 `p3-m20`'s whole unit 229 · 388 · 221 ms at 1× and 1 021 · 1 685 · 936 ms at 4× on `dbts_a1` · `b1` · `c1`, against
 HTJ2K's 26 · 93 · 28 and 125 · 385 · 131 — **the 3.4–9.2× a frame** of the row this protocol was given. The residual
 apart (RESIDAPART, `lab/av1/delivery/residual/README.md` §Residual apart, measured, `6a2994f`, 60 rounds): the
-residual's decode plus the add, with the lossy frame on screen, **0.97–1.00× an HTJ2K frame** on the three volumes
-(24.9 · 72.8 · 26.3 ms at 1×), "the same" by its rule, 5 % not resolved.
+residual's decode plus the add, with the lossy frame on screen, 24.9 · 72.8 · 26.3 ms at 1×, read there as
+0.97–1.00× an HTJ2K frame. *Corrected 2026-11-11 (decode audit 4, 16):* that HTJ2K arm carried a JavaScript pass;
+aligned, the residual plus its add is 1.3–1.6 frames, in line with this file's own amended arm (1.37–1.40). Every
+"× HTJ2K" in this file divides by the `@cornerstonejs/codec-openjph` package, whose range pass the product no
+longer runs, so it understates HTJ2K's lead by up to 21–31 %. Ratios between AV1 carriers are unaffected.
 
 *Predicted* (*derived*, those rows times 4.5): **a layered ask decodes on average 1.0 · 1.7 · 1.0 s at 1× and 4.6 ·
 7.6 · 4.2 s at 4×, 23–41× an HTJ2K frame, and 5–9× at a keyframe, 40–73× at a group's end** — before the low bits'
@@ -153,7 +156,7 @@ HTJ2K (1.055–1.065× `k2`), or lossy + residual (≈ 1.06× `k2`, *derived*). 
 
 | | layered | separate |
 | --- | --- | --- |
-| decoders | dav1d-WASM with an operating point for the base and the middle (`two-layer/dav1d_wrap_op.c`, lab only); the exact unit on WebCodecs ≤ 10 bits or dav1d-WASM | WebCodecs ≤ 10 bits or dav1d-WASM for the lossy stream; OpenJPH-WASM for the residual or frame (the product's) |
+| decoders | dav1d-WASM with an operating point for the base and the middle (`two-layer/dav1d_wrap_op.c`, lab only); the exact unit on WebCodecs ≤ 10 bits or dav1d-WASM | WebCodecs ≤ 10 bits or dav1d-WASM for the lossy stream; OpenJPH-WASM for the residual or frame (the package, not the product's build) |
 | new code paths | unit cutting by `spatial_id`; group-prefix decode for an ask; the per-group ingest gate (§The scalable preview as a tool, 8, S1, not built) | the integer add and its offset (lab `shared.js` on the profiles branch); group-prefix decode for the lossy view's own jumps (G = 16) |
 | exactness hazards (part 8 there) | S1–S10; Firefox loses 43 of 50 split exact frames on the alone variants (S9, 11) | the lossy frame must be bit-identical to the encoder's for the residual to be exact: AV1 [C1] §7.2, "When film_grain_params_present is equal to 0, decoders shall produce output frames that are identical in all respects"; a hardware decoder's read-back is not measured (RESIDAPART §Unverified); the whole frame has no hazard |
 
@@ -471,7 +474,7 @@ on all three volumes at 1× and 4×, so it holds "on these three volumes":
 | --- | --- | --- |
 | C1 | ask 34.7 · 22.9 · 29.6× / 31.1 · 23.7 · 26.1× HTJ2K; position 0 11.9 · 6.3 · 10.3× / 10.6 · 6.3 · 9.0×; position 7 58.4 · 39.1 · 48.3× / 52.8 · 40.2 · 44.5× | **held**; position 7 ÷ 0 is 4.7–6.4, so the theory stands |
 | C2 | 3.49 · 4.46 · 3.47× a shipped frame | **held** |
-| C3 | residual + add 1.74 · 1.91 · 1.58× / 1.53 · 1.97 · 1.58×; whole (`htj2k-aa`) 1.04 · 1.00 · 1.03× / 1.06 · 1.01 · 1.02× | **refuted** for the residual (band 0.85–1.15); why is not measured here |
+| C3 | residual + add 1.74 · 1.91 · 1.58× (asks 4–8 alone give ~1.35× on `dbts_b1`; the third ask's 324.8 ms is a transient, *derived*, `results/carriers-rows.jsonl`; 'refuted' stands; added 2026-11-11, decode audit 17) / 1.53 · 1.97 · 1.58×; whole (`htj2k-aa`) 1.04 · 1.00 · 1.03× / 1.06 · 1.01 · 1.02× | **refuted** for the residual (band 0.85–1.15); why is not measured here |
 | C4 | `p3k1-m20` ask 11.4 · 6.1 · 10.4× / 9.8 · 6.4 · 8.9×; base + middle 1.96 · 1.49 · 1.93× `p3-m20`'s; stored 1.02 · 1.02 · 1.03× | **refuted** on base + middle for `a1` and `c1` (band 1.15–1.8); the rest held |
 | C5 | 0.45–0.67 at every (volume, m) | **held** |
 | C6 | dav1d 1.08 · 1.23 · 1.17 (`a1`, m 10 · 20 · 30), 0.95 · 1.36 · 1.08 (`b1`, m 10 read against Q 16), 1.05 · 1.24 · 1.05 (`c1`) at 1×, 0.96–1.33 at 4×; WebCodecs ÷ `mid-m20` 0.44 · 0.71 · 0.57 / 0.22 · 0.38 · 0.31 | **held** |

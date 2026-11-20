@@ -58,7 +58,11 @@ header. **Bytes ÷ HTJ2K**: the cell's bytes over the series' lossless HTJ2K con
 
 So the answer to "lower or higher Q" turns on what VL is to mean:
 
-* **Never higher.** Above Q 8 the error exceeds the noise.
+* **Not higher on the 12-bit volumes.** *Corrected 2026-11-11 (audit F11):* this read "Never higher. Above Q 8 the
+  error exceeds the noise", a statement about the ladder's rungs. The quality study's anchor is Q 12 on 3 of system
+  B's 5 volumes, and the noise rule's integer-Q arms hold at Q 9 (`dbts_a3`, `a4`), Q 13 (`dbts_b4`) and Q 12
+  (`dbt10_d`). The rung above Q 8 that still holds depends on the series and the bar
+  ([`noise-point.md`](noise-point.md) §Verdict, corrected).
 * **Q 8**, if VL means "the coding error stays within the frame's own noise".
 * **Q 1–2 (12-bit) or Q 4 (10-bit, TRUS)**, if VL means "the coding error stays under one display level in the
   windows readers use".
@@ -98,8 +102,10 @@ DBT preset. With X = 4 it fires on the 12-bit presets (35 of 36) and on no 10-bi
   invisible within the noise, or visible as a changed noise pattern when the two frames alternate. Neither is
   measured here.
 * A measured sweep. Its shares would replace the model's. The model is within 0.015 on 10-bit DBT but untested at
-  W below the presets, and it assumes the residual's RMS does not depend on the grey level. A narrow window at another
-  level sees other samples (*unverified*).
+  W below the presets, and it assumes the residual's RMS does not depend on the grey level. *Added 2026-11-11 (audit F11):*
+  the noise rule's tiles show that the noise does: tile σ rises with signal, r 0.58–0.90 on the three timed volumes
+  (noise point §P4). So the sweep's shares are a model's, and in a narrow window they may be wrong in either
+  direction. A narrow window at another level sees other samples (*unverified*).
 * Zoom or interpolation on screen, which average the error and the noise alike. Not modelled.
 * A noise measure over the full band: DBT's noise is correlated, and e (full band) exceeds σ (finest band) at Q 8.
 * A display whose window is not the product's (another VOI function, or a GSDF LUT applied after the window).
