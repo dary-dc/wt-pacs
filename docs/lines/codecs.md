@@ -4,7 +4,7 @@ Last verified 2026-11-10 (the AV1 harvest of that morning: eight result branches
 no new measurement); the audits' corrections of 2026-11-11 ([`../av1/corrections.md`](../av1/corrections.md)) and
 their protocols measured 2026-11-12 (`claude/audit-measure`) added since; HTJ2K at screen resolution
 (`claude/htj2k-tiles`: theory, its review and its improvement, stages 0–2 measured 2026-11-11, stage 3 since)
-carried into Open 7. Stage A1 of the unification (2026-11-15) added Open 11. Stage B (2026-11-15) carried the tip's items 5, 7 and 8 as 12, 13 and 14. Transport pointers added 2026-11-17 and 2026-11-19.
+carried into Open 7. Stage A1 of the unification (2026-11-15) added Open 11. Stage B (2026-11-15) carried the tip's items 5, 7 and 8 as 12, 13 and 14. Transport pointers added 2026-11-17 and 2026-11-19. The audits' corrections applied in place 2026-11-20 (Open 10).
 
 ## Goal
 
@@ -118,7 +118,10 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
   at Q 12–40 (audit F12). Banding (CAMBI) was not run (F10), and λ scales differently at 10 and 12 bits (F9). The cut's
   in-window cost at Q 8 is unmeasured; it stays justified by the decode route alone.
 
-**(2) Corrections owed in other documents** (not edited here; each is its owner branch's to make, in place):
+**(2) Corrections in other documents**, applied in place 2026-11-20 on `claude/unified` (row CORRECTIONS-APPLY,
+`claude/av1-corrections-apply`), every row below, the κ row as two names in `docs/glossary.md`. *Corrected
+2026-11-20:* this read "owed in other documents (not edited here; each is its owner branch's to make, in place)".
+The x\* row took B0's values (Open 10), not 4.8 ± 0.15:
 
 | result | doc (branch) | correction | from |
 | --- | --- | --- | --- |
@@ -216,7 +219,8 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
    the clock; the product's own HTJ2K path beside each study's unit on one Chromium. Until then, quote the view's decode
    at Q 8 only, with its stream, host and throttle.
 10. **The audits' corrections and protocols** (row AV1-CORRECT, 2026-11-11; measured since decisions 0.6 and 0.7
-   were written): each study branch applies its entry of [`../av1/corrections.md`](../av1/corrections.md) in place;
+   were written): every entry of [`../av1/corrections.md`](../av1/corrections.md) applied in place 2026-11-20
+   (CORRECTIONS-APPLY);
    [`../av1/audit-protocols.md`](../av1/audit-protocols.md) pre-registers A (noise kept, ν, QA F4), B (one bar at the
    estimator's resolution, integer Q, QA F1, F2) and C (decode on the product's HTJ2K unit, core-capped, decode audit
    1, 2, 13) for a session that did not write them.
