@@ -30,7 +30,7 @@ assumption, named so that a measurement can replace it. Fixtures and limits: §9
 
 ## 2. The prediction for the round's phone (pre-registered 2026-11-20)
 
-The phone as the repository already names it: a Galaxy S23 on Android 16 with Chrome 157
+The phone as `docs/devices.md` §4 names it: a Samsung on Android 16, here with Chrome 157
 (`claude/phone-run:docs/phone-rows/README.md`), its SoC "the brand-new Snapdragon® 8 Gen 2 Mobile Platform for Galaxy"
 (R, `claude/mobile-decode:docs/decode/mobile/av1-chips.md` S7). Qualcomm's brief for that platform (S1): "1 Prime
 core, up to 3.36 GHz", "4 Performance cores, up to 2.8 GHz", "3 Efficiency cores, up to 2.0 GHz"; "Storage: UFS 4.0";
@@ -57,10 +57,11 @@ for each line, and where.
 * **HTJ2K has no saturation point within four decoders** by the cell's rule: each added decoder shortens the
   effective time by more than 10 % (2 → 3 by 29–33 %, 3 → 4 by 22–25 %, D). M12, if ever run: gains to five decoders,
   under 10 % a decoder from the sixth (the efficiency cores).
-* **The view's fourth decoder gains 3–20 %** over three: its saturation point is 3 or none within four. Past four
+* **The view's fourth decoder gains 8–17 %** over three (D: the bands' matching ends, 42 → 35 and 48 → 44 ms; 13 %
+  at §3.2's 45 → 39): its saturation point is 3 or none within four. Past four
   nothing is gained (§3.2).
 * **The ratio the protocol carries does not hold**: the view's time a frame over HTJ2K's, three decoders each, is
-  **2.0–3.1** on the phone (D: 133 ÷ 66, 135 ÷ 43), against the cloud's 1.06–1.74 (R).
+  **2.0–3.1** on the phone (D: 133 ÷ 66, 135 ÷ 43), against the cloud's 1.24–1.74 at 1× (R; 1.06 is the 4×-throttle four-core value).
 * **Drift**: the end's 1- and 3-decoder arms within 15 % of the start's (T: loads of ~15 s with 15 s gaps, on a
   charger; the least certain line here).
 * **This model is refuted, and the protocol's ratio carry kept, if** HTJ2K's effective time at three decoders is
@@ -143,7 +144,8 @@ efficiency core 800–1100. No entry for the chip was found in S5. The brackets 
 whose fastest core is a mid-range one read 1989–2381; Arm's page says the performance core's design "delivers the
 same performance as Cortex-X1 (the first-generation Cortex-X class of CPU)" (S3); the entry chips' fast cores read
 988–1100, and Arm's efficiency core is "Up to 35% performance uplift on previous generation high-efficiency CPU
-(Cortex-A55)" (S3).
+(Cortex-A55)" (S3). S1 does not name the designs, and two of the four performance cores may not be the design S3
+quotes; the performance bracket, 2000–2400, is taken wide enough to cover either (A).
 
 ```
 prime        57.1 × 1926 ÷ 3000 = 36.7 ms … 57.1 × 2469 ÷ 2400 = 58.7 ms      (D on A)
@@ -164,8 +166,10 @@ one frame in flight (R, `claude/mobile-decode:docs/decode/mobile/av1-software.md
 decoders are 24 threads on 8 cores: they share the phone, and a decoder alone is faster than one of three.
 
 The cloud bounds what threads can give one frame (R, Protocol C, `dbts_b1` Q 8): the view over the HTJ2K unit is 1.58
-with one core and 1.06 with four at the same throttle, so four cores speed one frame up by 1.58 ÷ 1.06 = **1.5×** at
-most (D), and one core's whole work is 1.58 × 57.1 = 90 ms (D).
+with one core and 1.06 with four, both at the **4× throttle**, so four cores speed one frame up by 1.58 ÷ 1.06 =
+**1.5×** at most (D), and one core's whole work is 1.58 × 57.1 = 90 ms (D). Both are 4×-throttle figures applied at
+1×: at 1× the four-core view alone is 1.74 × 57.1 = 99 ms, more than that 90 ms; the fitted 1.9× below absorbs the
+difference.
 
 On the phone the same frame took 133–135 ms as one of three decoders (R). With five fast cores for three decoders
 each has under two, a speed-up of ~1.3 (T), so one phone core's whole work is ~135 × 1.3 = 175 ms: **1.9× the
@@ -214,8 +218,8 @@ which band is (A). Shipments are not the phones in use, and not the phones reade
 | fast cores (A) | 2 or 4 | 2 or 4 | 5 or more |
 | HTJ2K, a `dbts_b1` frame on a fast core (D) | 100–143 ms | 46–94 ms | 37–59 ms |
 | HTJ2K effective, three decoders (D) | 33–61 ms | 15–40 ms | 14–23 ms |
-| the view effective, three decoders (T) | 90–200 ms | 41–132 ms | 25–48 ms |
-| write rate a `dbts_b1` fill asks (D) | 85–190 MB/s | 129–415 MB/s | 355–680 MB/s |
+| the view effective, three decoders (T) | 90–200 ms | 41–132 ms | 33–48 ms |
+| write rate a `dbts_b1` fill asks (D) | 85–190 MB/s | 129–415 MB/s | 355–516 MB/s |
 | storage the platform promises (S2) | 5 MB/s write, 15 read | the same, or class V's | class V's 150 write, 250 read |
 | hardware AV1 at `dbts_b1`'s size | not promised (S2) | not promised | not promised; the vendor's |
 | WebGPU decode | unknown | unknown | unknown |
@@ -227,6 +231,10 @@ How each row is derived:
   fast one, A), 2.6 for a prime and two performance cores.
 * The view: the round's phone's 45 ms × (2200 ÷ *r*), doubled at the slow end where only two cores are fast (T: the
   third decoder's serial part lands on a slow core). The widest row, and the one cell 1 cannot test on other phones.
+  The premium band runs from the round's phone itself, cell 1's 42–48 ms (it is a premium phone), to 45 × 2200 ÷ 3000
+  = 33 ms, *r* capped at its prime core's 3000 (A: no premium rating above it was read). *Corrected 2026-11-20
+  (DEVICE-THEORY-FIX, B2):* it read 25–48 ms, whose 25 needs *r* ≈ 3960, an input never stated; the write rate
+  (355–680 MB/s) and the view's crossover (77–148 Mbit/s) inherited it.
 * The write rate: 17.04 MB ÷ the view's effective time.
 * **iPhones are not in the table**: no rating was read for their chips, and Safari's route differs (the view through
   dav1d-WASM where WebCodecs refuses 10 bits, R). A device session there starts from cell 1.
@@ -236,13 +244,14 @@ How each row is derived:
 * **The crossover goodput** (`link-profiles.md`: a frame's bits ÷ its effective decode). The exact series, 17.19 Mbit
   a `dbts_b1` frame: 280–520 Mbit/s on an entry phone, 430–1150 in the middle, 750–1230 at the top. Below it the wire
   binds, so an HTJ2K-only fill is wire-bound on nearly every link a phone has. The view, 3.71 Mbit a frame: 19–41,
-  28–90 and 77–148 Mbit/s.
+  28–90 and 77–112 Mbit/s.
 * **Where arm B overtakes arm A**: when 859.3 ÷ *G* is under 50 × the view's effective time. *G* over ~380 Mbit/s on
   the round's phone, 130–420 in the middle band, 86–191 on an entry phone. **The slower the phone, the lower the
   goodput at which the exact series alone is the faster fill**, so a single route for all phones is the wrong shape of
   answer if cell 1 holds this model (ROUTE-POLICY's question).
 * **The cache**: a phone at the platform's floor cannot take a fill's write rate at any class; a class-V phone at its
-  floor (150 MB/s) cannot either; a UFS 4.0 part can with ×4–8 to spare. The cold read under the decode's time is
+  floor (150 MB/s) takes only the slow end of the middle band's 129–415 MB/s and none of the premium band's 355–516;
+  a UFS 4.0 part can with ×5–8 to spare. The cold read under the decode's time is
   the same comparison against 15, 250 and 4,200 MB/s.
 * **Memory**: one `dbts_b1` series decoded is a tenth of a class-V phone's 8 GB and most of what a 3–4 GB phone has
   free (ASK-MODEL's bound).
