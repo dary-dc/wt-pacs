@@ -230,7 +230,7 @@ line only. To change series, Ctrl-C and start it again with another `ID`. **A re
 stopped: `NODE_PATH=$(npm root -g) node client/viewer/demo-check.mjs demo-series $ID` runs the same starter, opens the page in headless
 Chromium as below, and fails by name a frame not painted, a decode route other than WebCodecs (`--refuse-webcodecs`:
 the lab's lever refuses WebCodecs on a 10-bit series, so dav1d must take every frame with that refusal named, the
-fallback's check; `--route av1-dav1d` for a stored form), a console error, a label out of order, an on-demand jump that asked other than whole groups, or
+fallback's check; `--route av1-dav1d` for a stored form), a console error, a label out of order, an on-demand jump that asked other than whole groups, a frame arriving on demand from a group no step has reached yet, or
 *Lossless* shown for an exact frame whose digest was made wrong. `--view worker` runs the same passes with the frames held in the view worker (`?view=worker`);
 the default is `page`.
 
