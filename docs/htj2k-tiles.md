@@ -1131,6 +1131,29 @@ Both need Layout 1, a store-format change.
 **For the owner:** whether Layout 1 waits for A1, which decides whether D+T3's gain is the strips'. Whether an exact
 level picture may be shown before the frame (D+L★), and in what words. Whether P1–P3 join the next phone run.
 
+### A1, measured (row HTJ2K-A1-RUN, 2026-11-20)
+
+*By a session that wrote none of this document, D+T1's build or its review. Same host and rig as stage 3; D+T1 as
+built in PR 408 (`32929941`).*
+
+**Readings of the registration, written before any row:**
+
+* **The three volumes** are the sets `dbts_a1/phone`, `dbts_b1/phone`, `dbts_c1/phone`. `dbts_c1/sideways` is the
+  same volume in a second viewport and is not run.
+* **Arms** D, D′, D+T1, D+T3, in the driver's Williams order inside each cell; cells `r5000`, `r20000` (clean), 1× and
+  4×, in a Williams order each round; 6 rounds, as two shards of 3 (`rows/a1-run-1.jsonl` rounds 0–2,
+  `rows/a1-run-2.jsonl` rounds 3–5). 48 visits a round.
+* **The ratios** are `summary.py`'s method: the median over rounds of round-paired ratios of `losslessMs` (the
+  request to the Lossless picture), s the cell's p90 of |D′/D − 1| on `losslessMs`. `summary.py` lacks A1's ratios
+  (review m1), so they are computed by the same method in `stage3/a1.py`.
+* **Visits failed after the clock** (the storage quota refusal, review m2) are dropped and counted, as the rule's R0
+  drops them; the deciding cell's n is printed with its ratio.
+* The inputs: the D series (`157b7109`'s `demo-series.sh` at Q 8 G 16) and the strip series match
+  `rows/stage3-d-series.json` and `rows/stage3-series.json`; the strip check 56/56, 100/100, 138/138 exact. The LTE
+  trace is an empty placeholder: no `lte-good` cell runs. The WASM decoders were rebuilt from the demo commit's pins
+  (base image from `mirror.gcr.io` at the pinned digest) and match its `manifest.sha256`; the Docker daemon is stopped
+  before the run.
+
 ## Sources
 
 Read 2026-11-09; quotations are verbatim, with the PDF's symbols restored where text extraction lost them (≤).
