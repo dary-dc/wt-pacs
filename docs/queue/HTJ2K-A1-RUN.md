@@ -1,12 +1,20 @@
 state: started
 started: 2026-11-20T08:00Z
-heartbeat: 2026-11-20T08:03Z
+heartbeat: 2026-11-20T08:05Z
 outputs: `claude/htj2k-a1` (rows to land in `lab/htj2k-tiles/improve/rows/a1-*.jsonl`; PR 408)
 ## Resume
-Claimed. Setup done so far in this container: the three DBT volumes fetched, `ingest/tools.sh` on `claude/htj2k-a1`,
-the demo worktree `/home/user/demo` (157b7109) with its WASM decoders (`build.sh`, base image from `mirror.gcr.io`
-at the pinned digest; manifest matched) and `cargo build --release -p series-server -p pack-series`. Next: the D series
-(`demo-series.sh` at Q 8 G 16) and the strip series (`stage3_prep.py`), checked against `rows/stage3-d-series.json`
-and `rows/stage3-series.json`; then A1 as pre-registered (`docs/htj2k-tiles.md` §Verdict): arms D, D′, D+T1, D+T3;
-cells r5000, r20000; 1× and 4×; sets dbts_a1/phone, dbts_b1/phone, dbts_c1/phone; 6 rounds in two shards of 3.
+Shard 1 (rounds 0–2) running since 08:03Z, rows to `/home/user/rows/a1-run-1.jsonl`, copied into
+`claude/htj2k-a1:lab/htj2k-tiles/improve/rows/a1-run-1.jsonl` and pushed every 15 min by `/home/user/pusher.sh a1-run-1`.
+Pushed: `3ce57fa2` the readings of the registration (`docs/htj2k-tiles.md` §A1, measured), then `stage3/a1.py`.
+**To resume in a fresh container:** set up as HTJ2K-MEASURE's Resume (fetch_data, `ingest/tools.sh`, worktree
+157b7109 at `/home/user/demo` with this branch's `ingest/.build/{aom-3.15.1,dav1d,openjph,dav1d-src,openjph-src}` copied
+in, `lab/av1/.venv` linked, `demo-series.sh` at QS=(8) GS=(16), `stage3_prep.py`, WASM `build.sh` with the base image from
+`mirror.gcr.io`, `cargo build --release -p series-server -p pack-series`, `lab/htj2k-tiles/improve` copied in,
+`lab/.demo-series` and `lab/.av1-work/htj2k-improve` linked, an empty `lab/.traces/TMobile-LTE-short.down`), stop dockerd;
+keep only complete rounds (48 rows) of the pushed shard file, then from `/home/user/demo`:
+`NODE_PATH=$(npm root -g) node lab/htj2k-tiles/improve/stage3/run.mjs --series lab/.demo-series --bands
+lab/.av1-work/htj2k-improve --arms D,D′,D+T1,D+T3 --cells r5000,r20000 --sets dbts_a1/phone,dbts_b1/phone,dbts_c1/phone
+--rounds 3-K --first-round K --out ROWS` for the shard's missing rounds (shard 2: `--first-round 3 --rounds 3` into
+`a1-run-2.jsonl`). Then `python3 lab/htj2k-tiles/improve/stage3/a1.py rows/a1-run-*.jsonl`, the readings in
+`docs/htj2k-tiles.md` §A1, measured, `docs/lines/codecs.md` Open 7, PR 408's body, this Result.
 ## Result
