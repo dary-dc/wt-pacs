@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20.
 
 ## Goal
 
@@ -110,6 +110,8 @@ small enough that every open item has an owner and a next step.
    DOCS-SYNC-1119 (2026-11-19, amendment 26): LATER-PASS's merges redone (PRs 384, 392, 359, 396; 397 has `lab/`
    paths and stays a draft), then the reviewed docs-only branches `report-plan`, `transport-design` and `cache-plan`,
    each `--no-ff` with its conflicts named in its message; `gate.sh --quick` OK, its skips named in the row's status file.
+   DOCS-SYNC-1120 (2026-11-20): `device-theory` (PR 414, re-review with no blocker open), `--no-ff`, no conflict;
+   `transport-design`'s §6.6 not merged (a run with no review row yet), the owner's to judge.
 
 ## Unification (the owner, 2026-11-09)
 
