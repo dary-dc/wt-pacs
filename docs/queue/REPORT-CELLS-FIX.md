@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-20T16:16Z
-heartbeat: 2026-11-20T16:17Z
+heartbeat: 2026-11-20T16:21Z
 outputs: `claude/report-arms` (PR 395)
 ## Resume
-Done: B2 at `claude/report-arms` `e3914772` (floors post to the body's kind; tests first, 4 mutants killed). Next: B1 in `lab/report-arms/receivers.mjs` (generator from many 127/8 source addresses each under 5 r/s; `lines` counts 2xx appends only), a test first; then m1–m7; gate (`client/decode/wasm/build/build.sh`, `ingest/tools.sh`, `scripts/gate.sh`). Worktree: `git worktree add ../arms origin/claude/report-arms`.
+Done: B2 `e3914772`; B1 (next commit on `claude/report-arms`; smoke rows `docs/queue/REPORT-CELLS-FIX-smoke.jsonl`, 1 round, 2 s bursts, nginx 1.31.5 built from source with PCRE2). Next: m1–m7 (one-line ones fixed, the rest listed for the PR body); README and `docs/lines/client.md`; gate. nginx: build 1.31.5 from nginx.org with libpcre2-dev, `NGINX_BIN` its binary.
 ## Result
