@@ -1,7 +1,7 @@
 state: done
 started: 2026-11-20T02:16Z
 heartbeat: 2026-11-20T02:21Z
-outputs: findings in PR 414's body §DEVICE-THEORY-REVIEW (`claude/device-theory` at `65be4d3d`, unchanged); rows DEVICE-THEORY-FIX and DEVICE-THEORY-FIX-REVIEW appended
+outputs: findings in PR 414's body §DEVICE-THEORY-REVIEW; `claude/device-theory` `e20d1fea` (line doc only); rows DEVICE-THEORY-FIX and DEVICE-THEORY-FIX-REVIEW appended
 ## Resume
 Done. Next: DEVICE-THEORY-FIX (B1 before 2026-11-21 12:00), then DEVICE-THEORY-FIX-REVIEW; PHONE-READ now waits on it.
 ## Result
