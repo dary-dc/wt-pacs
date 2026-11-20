@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-20T12:16Z
-heartbeat: 2026-11-20T13:34Z
+heartbeat: 2026-11-20T13:48Z
 outputs: claude/delivery 34426f22 (merge of claude/phone-run), draft PR 406
 ## Resume
 Done: claude/delivery 34426f22 = --no-ff merge of origin/claude/phone-run (conflict docs/lines/client.md resolved: both kept).
@@ -29,7 +29,7 @@ PR body drafted in the session scratchpad. Smoke CLEAN, PUB, LTE, LOSS done (row
 A/A'/B's records (the driver closed the browser before the page's last beacon crossed 0.8 s RTT): fixed (wait for
 the verdict record), CR re-run 15/15 ok. Pushed ce4ad5f2 (smoke rows, decoders-3 mutant VOID by read-back).
 Running: scripts/gate.sh (needed wasm-pack: `cargo install wasm-pack`, then client/transport/wasm/build.sh).
-Then: PR 406 title/body (draft in scratchpad pr406.md), state done. Next: decoders-3 mutant, gate (scripts/gate.sh), docs/lines/client.md, PR 406 body.
+Pushed 32364cae (predictions.json ignored until the run force-adds it: the gate's link check). Then: PR 406 title/body (draft in scratchpad pr406.md), state done. Next: decoders-3 mutant, gate (scripts/gate.sh), docs/lines/client.md, PR 406 body.
 Was next: lab/delivery/ (driver over the viewer's round levers through the TUN relay; prefix series; C1's 1 s gap;
 K1-K3 + predictor -> predictions.json; judge), tests failing first, mutants of protocol §10; smoke one round a cell.
 ## Result
