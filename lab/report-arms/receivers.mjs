@@ -4,6 +4,7 @@
 // NGINX_BIN=<nginx ≥ 1.31.5> node lab/report-arms/receivers.mjs --bodies FILE [--rates 10,100,1000] [--seconds 60]
 //   [--rounds 6] --out rows.jsonl
 import { spawn } from "node:child_process";
+import { Agent, request } from "node:http";
 import { appendFileSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -26,6 +27,12 @@ export function cpuSeconds(stat, hz = HZ) {
 export const peakKb = (status) => Number(/VmHWM:\s+(\d+) kB/.exec(status)?.[1] ?? NaN);
 export const perThousand = (cpu, sent) => (sent ? (cpu * 1000) / sent : null);
 export const rotation = (xs, k) => xs.map((_, i) => xs[(i + k) % xs.length]);
+
+/** Source addresses for `rate` a second, each under 5 a second: NGINX limits 10 r/s per address (nginx.mjs). */
+export const sources = (rate) => Array.from({ length: Math.ceil(rate / 5) }, (_, i) => `127.1.${Math.floor(i / 250)}.${1 + (i % 250)}`);
+
+/** Lines of a log that were appended: NGINX logs its refusals too, with their status; RECEIVER logs appends only. */
+export const appended = (text) => text.split("\n").filter(Boolean).filter((l) => { const { s } = JSON.parse(l); return s === undefined || s.startsWith("2"); }).length;
 
 const read = (pid, f) => { try { return readFileSync(`/proc/${pid}/${f}`, "utf8"); } catch { return null; } };
 
@@ -50,9 +57,19 @@ async function receiver(target, dir, sink) {
     close: async () => { rec.kill(); await n.close(); } };
 }
 
-/** One burst: each body under a fresh reportId, at its tick; the answers by status. */
+function post(port, kind, body, agent) {
+  return new Promise((ok) => {
+    const req = request({ host: "127.0.0.1", port, path: `/report/${kind}`, method: "POST", agent,
+      headers: { "content-type": "application/json", "content-length": Buffer.byteLength(body) } }, (res) => { res.resume(); res.on("end", () => ok(res.statusCode)); });
+    req.on("error", () => ok("error"));
+    req.end(body);
+  });
+}
+
+/** One burst: each body under a fresh reportId, at its tick, from the sources in turn; the answers by status. */
 async function burst(port, kind, bodies, rate, seconds) {
   const statuses = {};
+  const agents = sources(rate).map((localAddress) => new Agent({ keepAlive: true, localAddress }));
   const start = performance.now();
   const cpu0 = process.cpuUsage();
   const sends = [];
@@ -60,16 +77,16 @@ async function burst(port, kind, bodies, rate, seconds) {
     const wait = start + at - performance.now();
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     const body = bodies[k % bodies.length].replace(/"reportId":"[0-9a-f]{32}"/, `"reportId":"${crypto.randomUUID().replaceAll("-", "")}"`);
-    sends.push(fetch(`http://127.0.0.1:${port}/report/${kind}`, { method: "POST", body, headers: { "content-type": "application/json" } })
-      .then((r) => r.status, () => "error").then((s) => { statuses[s] = (statuses[s] ?? 0) + 1; }));
+    sends.push(post(port, kind, body, agents[k % agents.length]).then((s) => { statuses[s] = (statuses[s] ?? 0) + 1; }));
   }
   await Promise.all(sends);
+  for (const a of agents) a.destroy();
   const used = process.cpuUsage(cpu0);
   return { sent: sends.length, ms: performance.now() - start, statuses, generatorCores: (used.user + used.system) / 1000 / (performance.now() - start) };
 }
 
 const lines = (dir, kind) => readdirSync(dir).filter((f) => f.startsWith(`${kind}-`) && f.endsWith(".jsonl"))
-  .reduce((n, f) => n + readFileSync(join(dir, f), "utf8").split("\n").filter(Boolean).length, 0);
+  .reduce((n, f) => n + appended(readFileSync(join(dir, f), "utf8")), 0);
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const { values: o } = parseArgs({ options: { bodies: { type: "string" }, rates: { type: "string", default: "10,100,1000" },
