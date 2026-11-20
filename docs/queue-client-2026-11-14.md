@@ -77,6 +77,8 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | PROGRAM-PLAN-FIX-REVIEW | 11-19 03:00 | PROGRAM-PLAN-FIX done | findings in `docs/queue-2026-11-14.md` §Program review §Re-review |
 | DEVICE-THEORY (Fable) | 11-18 00:00 | — | `claude/device-theory` from `origin/claude/docs-client` → draft PR into `claude/docs-client` (`docs/decode/mobile/device-model.md`); its prediction pushed by 11-21 12:00 |
 | DEVICE-THEORY-REVIEW | 11-18 00:00 | DEVICE-THEORY done | findings in its PR body; amendment 17; closed by 11-21 16:00 |
+| DEVICE-THEORY-FIX | 11-20 03:00 | DEVICE-THEORY-REVIEW done | `claude/device-theory` (PR 414): B1 (by 11-21 12:00, inside the pre-registration) and B2 of its body §DEVICE-THEORY-REVIEW |
+| DEVICE-THEORY-FIX-REVIEW | 11-20 03:00 | DEVICE-THEORY-FIX done | findings in PR 414's body §Re-review; closed by 11-21 16:00 |
 | TRANSPORT-BUILD | 11-18 00:00 | — | `claude/transport-arms` from `origin/claude/docs-client` → draft PR into `claude/docs-client`: `stacks.md` §5.6 of `claude/transport-design` `c74d4bea` |
 | TRANSPORT-BUILD-REVIEW | 11-18 00:00 | TRANSPORT-BUILD done | `claude/transport-arms` (`docs/reviews/transport-arms.md`); amendment 17 |
 | TRANSPORT-BUILD-FIX | 11-18 10:00 | TRANSPORT-BUILD-REVIEW done | `claude/transport-arms` (PR 403): the five blockers of `docs/reviews/transport-arms.md` §Verdict; B5's amendment on `claude/transport-design` |
@@ -93,7 +95,7 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | PHONE-RUN-FIX | 11-19 16:00 | PHONE-RUN-REVIEW done | `claude/phone-run` (PR 409): B1 and B2 of its body §PHONE-RUN-REVIEW; done by 11-21 12:00 |
 | PHONE-RUN-FIX-REVIEW | 11-19 16:00 | PHONE-RUN-FIX done | findings in PR 409's body §Re-review; closed by 11-21 18:00 |
 | PHONE-ROUND | — | — | **the owner's local device session, 2026-11-21 evening, by `SATURDAY.md`; no cloud worker takes it** |
-| PHONE-READ | 11-22 00:00 | `docs/queue/PHONE-ROUND.md` done | `claude/phone-run:docs/phone-rows/next-round-results.md` |
+| PHONE-READ | 11-22 00:00 | `docs/queue/PHONE-ROUND.md` done, and DEVICE-THEORY-FIX-REVIEW done | `claude/phone-run:docs/phone-rows/next-round-results.md` |
 | PHONE-READ-REVIEW | 11-22 00:00 | PHONE-READ done | findings in the results file's §Review; amendment 17 |
 | MOBILE-DECODE-REJUDGE | 11-22 00:00 | PHONE-READ-REVIEW done with no blocker open | `claude/mobile-decode` (`docs/decode/mobile/README.md` §6; PR 397) |
 | BRIEF-MON | 11-22 00:00 | not before 11-23 06:00 | `claude/reviews-2026-11-23:docs/reviews-2026-11-23.md`, one page by 18:00 UTC; nothing run |
@@ -1076,6 +1078,17 @@ for the owner; sign up for nothing.
 A session that did not write it: each source fetched and quoted exactly, the arithmetic recomputed, each class's
 range traceable to its inputs, the round's prediction pushed before 11-21 12:00 and not edited after. Findings in the
 PR body; amendment 17.
+
+#### DEVICE-THEORY-FIX (appended by DEVICE-THEORY-REVIEW, 2026-11-20; amendment 17)
+
+A session that wrote none of the review: PR 414 body §DEVICE-THEORY-REVIEW's B1 (cell 2's bands derived, the count below 1
+per series and the median predicted; or the pooled outcome labelled an assumption) pushed **before 2026-11-21 12:00**,
+so it stays inside the pre-registration; B2 (the premium view band derived) and m1-m6 in place. Links and budget green.
+
+#### DEVICE-THEORY-FIX-REVIEW
+
+A session that wrote none of the fix or the review: B1 and B2 closed, B1's commit before 11-21 12:00, the arithmetic
+recomputed; findings in PR 414's body §Re-review. Two rounds, then `blocked` for the owner.
 
 26. **The owner's words of 2026-11-18, 00:40 UTC.**
     * **The PR list is tidied.** "yes. U may delete once it's on main. No need my yes." The 237 carried and the 7
