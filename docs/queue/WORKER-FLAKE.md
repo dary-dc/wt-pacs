@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-20T15:17Z
-heartbeat: 2026-11-20T16:09Z
+heartbeat: 2026-11-20T16:29Z
 outputs: claude/worker-flake (loop 46307cf9; rows landing)
 ## Resume
 Record: CLEAN-PRODUCT's 39/40 (claim not captured); CLEAN-2, UNIFY-CLIENT, FREEZE-E2E 40/40 each: 1 failure in 160
