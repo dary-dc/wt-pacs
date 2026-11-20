@@ -311,3 +311,76 @@ here. Four mutants of this review's survive:
 its channel; other users of the bench only gain an unread `BroadcastChannel`), `lab/faultbench/fault.test.mjs`,
 `scripts/gate.sh` (four test lines added) and `docs/lines/client.md`. Nothing under `server/` or `client/`.
 `scripts/comment_budget.sh`: ok.
+
+## Cells re-review (REPORT-CELLS-FIX-REVIEW, 2026-11-20)
+
+REPORT-CELLS-FIX-REVIEW of `claude/work-ledger:docs/queue-2026-11-14.md`, at `cc585f7b`: the four commits
+`fb3f15e5..cc585f7b` (REPORT-CELLS-FIX: `e3914772` B2, `8ac91c4e` B1, `dd58e156` the minors, `cc585f7b` the line doc).
+Written by a session that built none of the cells, wrote neither the cells review nor the fix.
+
+**Fixtures and limits.** One 4-vCPU cloud container with no GPU; Node 22.23.5. No browser, nginx or RECEIVER run
+here: there is no nginx ≥ 1.31.5 on this host, so `nginx/nginx.test.mjs` fails to start (the gate skips it by name),
+and the fix's NGINX smoke (`claude/work-ledger:docs/queue/REPORT-CELLS-FIX-smoke.jsonl`, one round, not counted) is
+read, not rerun. The source-address wiring was checked instead against a plain `node:http` server on `127.0.0.1`.
+`scripts/gate.sh` was not run in full (REPORT-CELLS-FIX ran it at `cc585f7b`; this review changes only this file and
+the line doc). Run: the gate's `lab/report-arms/` and `lab/faultbench` node tests, `scripts/comment_budget.sh`,
+`scripts/check_links.py`, the reverts and mutants below.
+
+### Verdict
+
+**No blocker open.** B1 and B2 are closed; REPORT-RUN-2 may start when its not-before comes. Four minors (n1–n4),
+none of which moves a reading REPORT-RUN-2 cannot check from its own rows.
+
+### Each fix against its blocker
+
+* **B1, closed.** `sources(rate)` gives ⌈*rate*/5⌉ distinct addresses in `127.1.0.0/16`, and `burst` sends the *k*-th
+  report from address *k* mod *n*, so each address sends at most 5 a second against NGINX's `rate=10r/s burst=20
+  nodelay` keyed on `$binary_remote_addr` (`nginx/nginx.mjs:17`, `:50`). Checked here (*measured*): 2 000 posts through
+  `sources(1000)`'s 200 agents reached a `127.0.0.1` server from exactly those 200 peer addresses, 10 each, all `204`.
+  The fix's smoke (*measured*, nginx 1.31.5): NGINX wrote 2 000 of 2 000 at 1 000/s, no `429`. `lines()` now counts
+  through `appended`: NGINX's lines with a 2xx `s` (`"s":"$status"`, a string, `nginx.mjs:8`) and RECEIVER's lines,
+  which carry no `s` (`receiver/src/lib.rs:204`). nginx in front of RECEIVER logs only to `report-fallback.log`, which
+  `lines()` does not read, so nothing is counted twice. `appended` agrees with `nginxCounters`' own 2xx rule.
+* **B2, closed.** Both floors post to `${base}/${JSON.parse(body).kind}`, parsed before `at` is taken. The page's two
+  floor bodies are `Load.record()` (`kind: "load"`, `record.js:38`) and `safetyRecord` (`kind: "safety"`, `record.js:72`),
+  so L's floor now reaches `/report/safety` and C's `/report/load`. The KEEPALIVE test's old load body gained its
+  `kind`, as it must now.
+* **Minors.** m1 tested (below). m4: `done()` returns once `rig.state` is `"filled"` (set only there, `page.js:74`), so a
+  refault no longer rewrites `load.fill` or `rig.fillMs`. m3, m6, m7 named in the README as asked. m2, m5, m4's
+  duplicate frames and the `FIREFOX_PATH` nit are listed in PR 395's body for REPORT-RUN-2's amendment, as the brief
+  allows for what is more than one line.
+
+### Each new test fails without its change
+
+| change reverted, or mutated here | test | result |
+| --- | --- | --- |
+| both `floor.js` at `fb3f15e5` | `beacon.test.mjs`, `keepalive.test.mjs` | both fail |
+| `beacon/floor.js` alone, `keepalive/floor.js` alone | its own test | fails; the other passes |
+| `receivers.mjs` at `fb3f15e5` | `receivers.test.mjs` | fails at import (`sources`, `appended` missing) |
+| `t < was.t` dropped in `latencies` (m1) | `cells.test.mjs` | killed |
+| ⌈*rate*/10⌉ and ⌈*rate*/6⌉ addresses; `128.1.…` | `receivers.test.mjs` | each killed |
+| `appended`: every status counted; RECEIVER's lines dropped | `receivers.test.mjs` | each killed |
+| the floor's path fixed to `"safety"` (BEACON), to `"load"` (KEEPALIVE) | its own test | each killed |
+| `burst` sends every report from `agents[0]` | any | **survives** (n1) |
+| `lines()` back to counting every line | any | **survives** (n1) |
+| m4's guard dropped | any | **survives** (n2) |
+
+### Minors
+
+* **n1.** The two wirings of B1 are tested only through their helpers: `burst`'s choice of agent and `lines()`'s call
+  of `appended` survive every test. Either broken shows in the run's own rows (`statuses` would carry `429`s again), and
+  with no refusal the two line counts are equal, so neither can pass a counted row unseen. A test of `burst` against a
+  local server that records peer addresses (as this review's check did) would close it.
+* **n2.** m4's guard has no test, against the standing rule's "a failing test before each fix"; the brief asked a test
+  first of B1 and B2 only. Its smoke ran with and without the guard; no bar reads `load.fill` on L rows.
+* **n3.** The generator moved from `fetch` to `node:http` keep-alive agents, one per address: at 1 000/s that is about
+  200 client connections into nginx where there were few. Both receivers sit behind the same nginx front, so the
+  comparison stays fair, but R's per-1 000 cost now includes that connection count. Name it in REPORT-RUN-2's rows.
+* **n4.** The cells' smoke ran nginx 1.31.8, the fix's 1.31.5. Both are ≥ 1.31.5, which `client_body_early_read` needs;
+  REPORT-RUN-2 should name the one version it runs.
+
+**Nothing else changed.** The diff touches `lab/report-arms/` (README, both floors and their tests, `cells.test.mjs`,
+`page.js`, `receivers.mjs` and its test) and `docs/lines/client.md`. Nothing under `server/`, `client/` or
+`scripts/`. The gate's report-arms and faultbench node tests: green (`nginx.test.mjs` not run, no nginx here).
+`scripts/comment_budget.sh`: ok. `scripts/check_links.py`: the two pre-existing unresolved paths in
+`docs/lines/devices.md` (:57, :60) only.

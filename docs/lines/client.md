@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-20 (the cells' fixes, the cells review), 2026-11-19 (the missing cells), 2026-11-16 (the arms' re-review, the arms' fixes, the arms' review; KEEPALIVE's and SESSION's arms, the receivers), 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-20 (the cells' re-review, the cells' fixes, the cells review), 2026-11-19 (the missing cells), 2026-11-16 (the arms' re-review, the arms' fixes, the arms' review; KEEPALIVE's and SESSION's arms, the receivers), 2026-11-15 (the reports' rig, BEACON's arm) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -91,8 +91,9 @@ exact frame bit for bit, and only checked claims on screen.
   2026-11-20 (REPORT-CELLS-FIX, `lab/report-arms/README.md` §The cells' fixes): R sends from ⌈rate/5⌉ addresses in
   127/8 and counts appended lines only (smoke: NGINX wrote all 2 000 at 1 000/s); each floor posts to its body's kind;
   minors m1, m3, m4, m6, m7 fixed or named, m2 (D5's kill one CDP round trip after `atKill`) and m5 (the two clocks:
-  rule 2's 10 % lead on L undecidable below about 10 ms) left for REPORT-RUN-2's amendment. Next: its re-review, then
-  REPORT-RUN-2.
+  rule 2's 10 % lead on L undecidable below about 10 ms) left for REPORT-RUN-2's amendment. Re-reviewed 2026-11-20
+  (`docs/reviews/report-arms.md` §Cells re-review): no blocker open; minors n1–n4 (two untested wirings of B1, m4's
+  untested guard, R's ~200 client connections at 1 000/s, the nginx version) for REPORT-RUN-2's rows. Next: REPORT-RUN-2.
 
 ## PRs
 
