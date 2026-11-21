@@ -5,7 +5,7 @@ Queue row 212 (CCMEASURE) of [`docs/av1/queue.md`](../../docs/av1/queue.md): the
 run by a session given only it. The reading is there, under *Measured: CLASSIFY*.
 
 ```bash
-cargo build -p series-server -p pack-series -p window-harness --features series-server/lab-classify   # fq_neighbour_cells.sh builds offline, inside its namespace
+cargo build -p series-server -p pack-series --features series-server/lab-classify && (cd lab && cargo build -p window-harness)   # fq_neighbour_cells.sh builds offline, inside its namespace
 lab/av1/tools/tools.sh && client/decode/wasm/fetch_openjph.sh && client/transport/ts/build.sh
 lab/av1/fetch_data.sh dbt10_ea1141
 W=lab/.av1-work/ccmeasure/dbt10_ea1141

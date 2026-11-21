@@ -21,7 +21,8 @@ STEP_HIGH="${STEP_HIGH:-5}"
 
 mkdir -p "$(dirname "$OUT")"
 [[ -f "$CERT" ]] || "$ROOT/server/scripts/gen_dev_cert.sh"
-cargo build -p series-server -p window-harness --release >/dev/null
+cargo build -p series-server --release >/dev/null
+(cd "$ROOT/lab" && cargo build -p window-harness --release >/dev/null)
 
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"
 SERVER="$CARGO_TARGET_DIR/release/series-server"

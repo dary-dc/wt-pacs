@@ -42,10 +42,11 @@ git worktree add --detach "$WT" "$BASE"
 # its build, and HEAD's sources are touched so the base build just made does not count as HEAD's.
 BEFORE="$WT/read_campaign.before"
 AFTER="$WT/read_campaign.after"
-(cd "$WT" && cargo build -p disk-access-bench --bin read_campaign --release)
+# A base from before lab/Cargo.toml builds the bench from the root.
+(cd "$WT" && { [[ ! -f lab/Cargo.toml ]] || cd lab; } && cargo build -p disk-access-bench --bin read_campaign --release)
 cp "${CARGO_TARGET_DIR:-$WT/target}/release/read_campaign" "$BEFORE"
 [[ -z "${CARGO_TARGET_DIR:-}" ]] || git ls-files -z '*.rs' '*Cargo.toml' | xargs -0 touch
-cargo build -p disk-access-bench --bin read_campaign --release
+(cd lab && cargo build -p disk-access-bench --bin read_campaign --release)
 cp "${CARGO_TARGET_DIR:-$ROOT/target}/release/read_campaign" "$AFTER"
 [[ -x "$BEFORE" && -x "$AFTER" ]] || { echo "read_campaign missing after build" >&2; exit 1; }
 cmp -s "$BEFORE" "$AFTER" && { echo "both arms built the same binary" >&2; exit 1; }

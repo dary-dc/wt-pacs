@@ -53,7 +53,7 @@ echo "worktree $WT at $BASE" >&2
 git worktree add --detach "$WT" "$BASE"
 (cd "$WT" && cargo build -p series-server --bin series-server --release)
 cargo build -p series-server --bin series-server --release
-cargo build -p disk-access-bench --bin server_ab --bin evict --release
+(cd lab && cargo build -p disk-access-bench --bin server_ab --bin evict --release)
 
 BEFORE="$WT/target/release/series-server"
 AFTER="$ROOT/target/release/series-server"

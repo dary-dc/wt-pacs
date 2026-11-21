@@ -8,7 +8,7 @@ How many concurrent fills one server core carries before it, not the links, is t
 lab/av1/tools/tools.sh                       # aomenc 3.15.1, dav1d 1.5.4, the check's decoders
 PATH=$PWD/lab/av1/.venv/bin:$PATH FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160   # OpenJPH
 lab/av1/fetch_data.sh dbt10_ea1141
-cargo build --release -p series-server -p pack-series -p window-harness
+cargo build --release -p series-server -p pack-series && (cd lab && cargo build --release -p window-harness)
 W=lab/.av1-work/load P=lab/av1/.venv/bin/python
 $P lab/av1/tools/ingest_coded.py lab/.av1-build lab/av1/data/dbt10_ea1141 $W/htj2k --codec htj2k
 $P lab/av1/tools/ingest_coded.py lab/.av1-build lab/av1/data/dbt10_ea1141 $W/av1 --representation optimized --preset good:6

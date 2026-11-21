@@ -106,12 +106,12 @@ printf '  %-4s leaf %d B  intermediate -       shipped %d B\n' dev \
 
 echo
 echo "== builds"
-cargo build -q -p series-server -p pack-series -p window-harness
+cargo build -q -p series-server -p pack-series && (cd lab && cargo build -q -p window-harness)
 mkdir -p "$T/bin-off" "$T/bin-on"
 D="${CARGO_TARGET_DIR:-target}/debug"
 cp "$D/series-server" "$D/cold_open" "$D/pack-series" "$T/bin-off/"
-cargo build -q -p series-server -p window-harness \
-  --features series-server/cert-compression,window-harness/cert-compression
+cargo build -q -p series-server --features cert-compression
+(cd lab && cargo build -q -p window-harness --features cert-compression)
 cp "$D/series-server" "$D/cold_open" "$T/bin-on/"
 echo "  off $(stat -c%s "$T/bin-off/series-server") B   on $(stat -c%s "$T/bin-on/series-server") B  (debug)"
 

@@ -37,7 +37,7 @@ if [[ -z "${SERVER_DEFAULT:-}" || -z "${SERVER_TELEMETRY:-}" ]]; then
   echo "set SERVER_DEFAULT and SERVER_TELEMETRY to prebuilt series-server binaries" >&2
   exit 1
 fi
-cargo build --release -p window-harness >/dev/null
+(cd "$ROOT/lab" && cargo build --release -p window-harness >/dev/null)
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"
 CLK_TCK="$(getconf CLK_TCK)"
 

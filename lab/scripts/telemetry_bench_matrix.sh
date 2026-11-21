@@ -11,7 +11,7 @@ SCRATCH="${SCRATCH:-$ROOT/.local/telemetry-bench-scratch}"
 mkdir -p "$(dirname "$OUT")" "$SCRATCH"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 
-cargo build --release -p telemetry-bench >/dev/null
+(cd "$ROOT/lab" && cargo build --release -p telemetry-bench >/dev/null)
 BIN="$CARGO_TARGET_DIR/release/telemetry-bench"
 
 : > "$OUT"

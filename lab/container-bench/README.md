@@ -13,7 +13,7 @@ for s in mr9_ispy2 pt15_cptac ct_lidc dbt12_ea1141 ffdm_b; do      # pt15_cptac'
   $P lab/av1/tools/ingest_coded.py lab/.av1-build lab/av1/data/$s $W/coded/$s/htj2k --codec htj2k
   $P lab/av1/tools/ingest_coded.py lab/.av1-build lab/av1/data/$s $W/coded/$s/av1 --preset good:6
 done
-cargo build --release -p container-bench -p pack-series
+cargo build --release -p pack-series && (cd lab && cargo build --release -p container-bench)
 $P lab/container-bench/run.py pack $W <sets>       # every arm, both payloads
 $P lab/container-bench/run.py verify $W <sets>     # every frame through the fill reader, decoded, against the encoder's input
 $P lab/container-bench/run.py trip $W <sets>       # FFmpeg and pydicom against our files, ours against theirs
@@ -54,7 +54,7 @@ arms' rows, and `readahead_summary.py` still reads them. Root is needed as for r
 
 ```bash
 lab/av1/fetch_data.sh ct_lidc dbt12_ea1141 ffdm_d pt15_cptac   # then ingest each set's htj2k as above
-cargo build --release -p container-bench -p pack-series
+cargo build --release -p pack-series && (cd lab && cargo build --release -p container-bench)
 $P lab/container-bench/readahead.py mount $W     # loop ext4, ext4 data=journal, XFS, XFS -b size=65536
 $P lab/container-bench/readahead.py make $W
 $P lab/container-bench/readahead.py verify $W    # every frame of the fill decoded against ingest's digests
