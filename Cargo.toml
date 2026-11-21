@@ -15,13 +15,8 @@ members = [
     "ingest/receiver",
     "tools/check-fastpath",
     "tools/pacs-verify",
-    "lab/disk-access-bench",
-    "lab/container-bench",
-    "lab/window-harness",
-    "lab/telemetry-bench",
     "lab/cc-classify",
     "lab/server-telemetry",
-    "lab/metadata-store",
 ]
 # A bare `cargo build` or `cargo test`: from-parser links ingest/tools.sh's build, the WASM client is wasm-pack's.
 default-members = [
