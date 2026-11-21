@@ -1192,6 +1192,46 @@ part that is not the strips" is corrected to: R3's pass rests mostly on the stri
 page's path. Both readings come from one link-bound cell of one volume, with 4 and 5 paired rounds. Nothing here is
 claimed for a phone: P1 decides whether a phone's fill is decode-bound, and P2 re-judges R3 there.
 
+### A1 review (row HTJ2K-A1-REVIEW, 2026-11-21)
+
+*By a session that wrote none of this document, D+T1's build, its review or the run. Read on `claude/htj2k-a1` at
+`34131271`: both rows files, `stage3/a1.py` and `summary.py`'s `ratio`, recomputed by a separate script that imports
+neither.*
+
+**No blocker. A1's three readings stand as written.**
+
+* **Every ratio reproduces** (measured, recomputed): all 36 of the table's medians (three ratios × 12 cells), to the
+  third decimal, with their n and ranges. The deciding cell's pairs, D+T3 ÷ D+T1 by round: 0.9439, 0.9504, 0.9430,
+  0.9370 (rounds 0, 2, 3, 4), median ×0.943; s = 0.0142, from five D/D′ pairs; the bound ×0.95 × 1.0142 = ×0.963.
+  The arms' medians (D 4 033, D′ 4 025, D+T1 3 945, D+T3 3 724 ms) and bytes (25 381 119; D+T3 25 376 720) agree.
+* **The rule, as written.** The strips' effect ×0.943 ≤ ×0.963: Layout 1 stays proposed for D+T3. D+T1 ÷ D ≤ ×0.95
+  holds in no cell at all, not only the deciding one (lowest ×0.958, `dbts_b1` `r20000` 4×, decode-bound), so the
+  no-overhead reading does not turn on which cell the rule meant. The prediction ×0.96–0.99 is reported missed.
+* **The run as registered.** 288 visits: 4 arms × 12 cells × 6 rounds. The arms run in the four orders of a 4 × 4
+  Williams square, 18 times each, so every arm follows every other equally. The registration's readings
+  (`3ce57fa2`, 08:03) were pushed before the first rows (08:34). Between the reviewed build (`32929941`) and the
+  run's tip, only `stage3/a1.py` (new; two later edits change its printing, not its method), the rows and the docs
+  changed. VOID equals "a relay reported VOID" in every row. R0 holds in every kept visit, and each volume's OQ
+  digest is one value across its D, D′, D+T1 and D+T3 visits.
+* **Where the host saturates** reproduces: D's every-slice time at 4× over its 1× is ×1.008–1.012 at `r5000`
+  (link-bound) and ×1.38–1.56 at `r20000` (decode-bound).
+
+**Minor, corrected here, not in place above:**
+
+* m1. "Kept: 234. 53 … void … and 2 failed" counts 55, but 54 visits are dropped: the failed D′ visit
+  (`dbts_b1` `r20000` 4×, round 1) is also VOID.
+* m2. "Every paired round is at or under ×0.950": round 2 is ×0.9504. That is ×0.950 at three decimals, and inside
+  the rule's bound either way.
+* m3. The readings outside the deciding cell rest on fewer pairs than six. `dbts_c1` `r5000` 4× gives D+T3 ÷ D from
+  2 pairs and the strips from 3. `dbts_a1` `r20000` 4× gives D+T3 ÷ D from 1 pair. They decide nothing, as the run
+  says.
+
+**Fixtures and limits**, as the run's: three EA1141 DBT volumes, one dataset; the deciding reading is one cell of one
+volume, from 4 and 5 paired rounds; a 4-core cloud host with no GPU, headless Chromium 157, software WebCodecs, a
+userspace relay, a 4× cgroup cap for a phone (*assumption*). Nothing carries to a phone; P1 and P2 decide that.
+**Owner:** nothing new. §Verdict's questions stand (Layout 1, D+L★'s words, P1–P3 in a phone run), now with A1's
+answer: most of D+T3's gain is the strips'.
+
 ## Sources
 
 Read 2026-11-09; quotations are verbatim, with the PDF's symbols restored where text extraction lost them (≤).
