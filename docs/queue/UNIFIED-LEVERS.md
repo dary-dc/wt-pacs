@@ -1,8 +1,8 @@
 state: started
 
-heartbeat: 2026-11-21T11:23Z
+heartbeat: 2026-11-21T11:27Z
 outputs: claude/lab-levers-one-field 010eb2c94 (no PR yet)
 ## Resume
-Done: 010eb2c94 (the change); cargo test -p series-server green in the default build (153+7+1) and under lab-levers (160+7+1).
-Next: telemetry tests; mutate the levers' tests; the default build's served bytes against origin/claude/unified 4a2b4277f's build; scripts/gate.sh; draft PR into claude/unified; docs/lines/server.md.
+Done: 010eb2c94 (the change); series-server tests green default (153+7+1) and lab-levers (160+7+1); mutants M1-M4, M6 killed, M5 (advise_tile_names through Sessions) survives, no test before either; default build serves identical bytes to 4a2b4277f's (native-fill over us_cine_smoke and queue_large, every frame checked, twice each, interleaved), --help identical, binary +1504 B.
+Next: scripts/gate.sh (README cloud lines: client/decode/wasm/build/build.sh, ingest/tools.sh first); draft PR into claude/unified; docs/lines/server.md.
 ## Result
