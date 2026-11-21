@@ -37,6 +37,17 @@ PHONE-PROBE-RUN (local) and the MOBILE-DECODE rows run beside it; the latter may
 | the probe on the phone, the phone's AV1 codec list, whether `logcat` names the component and `adb` reads Chrome's `/proc` | local, PHONE-PROBE-RUN; the probe `claude/hw-probe:lab/devices/` (PR 393) | waits for the phone on the laptop |
 | the web's mobile decode options (amendments 19, 20), which may add cells to the round | `claude/mobile-decode`, MOBILE-DECODE-OPTIONS (claimed 2026-11-15), five MOBILE-OPT rows, the comparison and its review | running |
 
+**The 2026-11-21 round's run branch** (PHONE-RUN-OWNER, 2026-11-19): `claude/phone-run`, draft PR into
+`claude/unified` "do not merge: phone run 2026-11-21": `claude/unified` + PR 378 + `claude/phone-round` by `--no-ff`
+merges, and `lab/devices/round_plan.mjs` (the round's 144-load plan, run whole in quick mode headless by
+`round_headless.sh --plan`). The evening: [`../phone-rows/SATURDAY.md`](../phone-rows/SATURDAY.md). Not run: cell 5,
+the report cells, M1–M22 (each named there). PHONE-RUN-REVIEW (2026-11-19, PR 409's body): two
+blockers, an empty `--dial` taken (B1) and identifying lines in the raw rows' commit (B2). PHONE-RUN-FIX (2026-11-19):
+`round_plan.mjs` refuses a missing or empty `--dial`, and `lab/devices/raw_rows.py` commits only what a cell reads,
+refusing a MAC or an SSID left. PHONE-RUN-FIX-REVIEW (2026-11-19, PR 409's body §Re-review): both blockers
+closed (each fix reverted, its test fails), nothing else changed, the fake-`adb` commit step leaves no SSID, BSSID
+or account line; no blocker open, two minors.
+
 Rows and their briefs: `claude/work-ledger:docs/queue-client-2026-11-14.md` (§The device round's rows; amendments 5,
 7, 10, 11, 14–20 bind device work); status files `claude/work-ledger:docs/queue/<ROW>.md`.
 
