@@ -105,7 +105,8 @@ small enough that every open item has an owner and a next step.
    269 open PRs, 241 carried (237 to close, the 4 staging PRs with M8's swap), 5 owed a later pass (docs), 4 needing
    a fix first, 12 proposals waiting on M3, M5 or M6, 7 superseded; closing is the owner's.
    AUDIT-MECHANICAL (2026-11-17, `2b0064cb`): the owner's name out of `handoff/` as well (the owner's yes), the last
-   of audit item 2's three files; items 3 and 4 found done by UNIFIED-CLEAN. `handoff/`'s removal still waits.
+   of audit item 2's three files; items 3 and 4 found done by UNIFIED-CLEAN. `handoff/`'s removal still waits; proposed 2026-11-19 as `claude/remove-handoff` (UNIFIED-REMOVALS), a draft PR.
+   UNIFIED-REMOVALS-REVIEW (2026-11-21, PR 412's body): no blocker, no minor; nothing reads `handoff/`; gate `--quick` OK.
    AUDIT-MECHANICAL-REVIEW (2026-11-17, PR 402's body): no blocker; one minor, a product use of *lossy stream*.
    DOCS-SYNC-1119 (2026-11-19, amendment 26): LATER-PASS's merges redone (PRs 384, 392, 359, 396; 397 has `lab/`
    paths and stays a draft), then the reviewed docs-only branches `report-plan`, `transport-design` and `cache-plan`,

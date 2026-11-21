@@ -93,6 +93,8 @@ looks them up by those UIDs. Every option below assumes that step; it is shared,
   ([`contract.md`](contract.md) §The parser at `f36230b`).
 * **Whether SQLite is the store at all is open.** The parser's output comes first: [`contract.md`](contract.md)
   §The parser at `f36230b` records it. *Answered 2026-10-24* (below): SQLite as the container.
+* **nginx is not a proxy** in front of the WebTransport server, and is not made one for the metadata.
+* **The shape changes** (2026-10-20): updates are infrequent, and the attributes the client needs will change.
 * **Parked:** the catalog (deferred on 2026-10-11). How a study database is changed while it is read is no longer
   parked: updates are certain, so it returns with the storage shape (§2).
 

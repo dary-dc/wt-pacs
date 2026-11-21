@@ -617,7 +617,7 @@ report. The rest is not re-checked.
 | #158 display-metadata and metadata-updates ADRs | Proposed items (one study DB per study, one row per group, one writer, the receiver's steps) listed under "Decided by the owner" | owed |
 | #158 glossary | study DB defined as "one row per group" (T1, Proposed) | owed |
 | #158 `docs/ingest/link.md`; `target.md` | "the site" relabelled only by a note; the layout meeting "with the PCS team" (§8 says who) | owed |
-| #159 handoff/metadata-2026-10.md | the 10-19 decoder rule and the truth/page-view model as "Decided": needs a superseded note; names the owner by first name | owed |
+| #159 handoff/metadata-2026-10.md | the 10-19 decoder rule and the truth/page-view model as "Decided": needs a superseded note; names the owner by first name | done 2026-11-19: the hand-off removed, its two unrecorded decisions in `metadata-draft.md` §Decided, 2026-10-19 |
 | #163 ADR §0 | quarantine and durability called "Decided" (staging is, 10-26) | owed |
 | #167 ADR §5 | amendment 2 came after the first 10⁴/10⁵ rows; the re-run's 1.7× publish p50 | owed |
 | #165 `lab/study-index/README.md` (`16fec79`) | "The owner chose MySQL on 10-25": the owner did not (§14, D9) | owed |
