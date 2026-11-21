@@ -1,9 +1,9 @@
 state: started
 started: 2026-11-21T12:17Z
-heartbeat: 2026-11-21T12:21Z
-outputs: claude/delivery 6ad647cf (PR 406)
+heartbeat: 2026-11-21T12:23Z
+outputs: claude/delivery 4a904bb2 (PR 406)
 ## Resume
-Done: 6ad647cf on claude/delivery (B1, B2 with tests; m2, m4, m5, m6, m7). Tests: node lab/delivery/{predict,judge,inputs}.test.mjs.
-Next: mutants of each new test (scratch copies, restore after); README + delivery-comparison.md §11 lines; m1, m3 to the
-PR body; docs/lines/client.md; gate (client/decode/wasm/build/build.sh, ingest/tools.sh, scripts/gate.sh).
+Done: 6ad647cf (B1, B2, m2, m4–m7 with tests), 4a904bb2 (FNV-1a alone; README; docs/lines/client.md). 22 of 22
+mutants killed. Next: the gate (client/decode/wasm/build/build.sh; ingest/tools.sh; scripts/gate.sh), then PR 406's
+body (m1, m3, m4's 3× clause listed), then state done.
 ## Result
