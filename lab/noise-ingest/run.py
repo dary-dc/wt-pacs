@@ -33,7 +33,7 @@ def prepare(data, work):
         if not out.exists():
             subprocess.run([sys.executable, ROOT / "ingest/from-parser/mirror.py", data / name, out], check=True,
                            capture_output=True)
-        series[name] = next((out / "PbPb").glob("*/*"))
+        series[name] = next(p for p in (out / "PbPb").glob("*/*") if p.is_dir())
         subprocess.run([sys.executable, HERE / "mask.py", data / name, work / f"{name}.mask"], check=True)
         meta = display_windows(ROOT / "lab/av1/data.json", name, data)
         (work / f"{name}.display.json").write_text(json.dumps(meta))
