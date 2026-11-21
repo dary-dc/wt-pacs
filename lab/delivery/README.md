@@ -7,14 +7,14 @@ DELIVERY-RUN's.
 
 | file | what |
 | --- | --- |
-| `plan.mjs` | §1–§3: the five forms (relay arguments, prefixes, K3's two prefixes), the arms' levers (`decoders=2`; C1 `press=lossless&pressAfter=1000`; C2 `exactFill=1`), a cell's loads in §2's order (a Williams row of the arms a round, run for each volume, the volumes rotated by one a round) |
+| `plan.mjs` | §1–§3: the five forms (relay arguments, prefixes, K3's two prefixes), the arms' levers (`decoders=2`; C1 `press=lossless&pressAfter=1000`; C2 `exactFill=1`), a cell's loads in §2's order (a Williams row of the arms a round, run for each volume, the volumes rotated by one a round), each LTE load's first blackout |
 | `predict.mjs` | §4.1's model (wire, decode floor, fill, regime, C1's slow start from 12 000 B, C2's span) and `predictions.json` from `inputs.json`, with its XXH3-64 by the product's hasher |
 | `inputs.mjs` | §4.2: K1 (each frame's coded bytes), K2 (the bench's median per-frame decode), K3 (the line through two prefixes' medians) as `inputs.json` |
 | `run.mjs` | the driver: one cell's loads, or K2's bench loads (`--bench`), each a fresh relay, both series' servers and the page server in the relay's server namespace, a fresh browser; raw rows as they land, the page's beacon records in each row |
-| `judge.mjs` | §6–§8: each load's `VOID` reasons and the stop; per (cell, volume, arm, clock) the ratio's median, rounds in band, holds or misses and its side, regime misses, strict and round-paired past 25 % `VOID`; `UNBALANCED`; §7's input for `lab/scripts/aa_rule.py` |
+| `judge.mjs` | §6–§8: each load's `VOID` reasons and the stop; per (cell, volume, arm, clock) the ratio's median, rounds in band, holds, misses and its side, or `CANNOT HOLD` under 8 counted rounds; regime misses, strict and round-paired past 25 % `VOID`; `UNBALANCED`; §7's input for `lab/scripts/aa_rule.py` with A′ ÷ A's median beside it; the pilot's medians for `--pilot-medians` |
 | `series.sh` | the arms' series as `scripts/demo-series.sh` codes them (each set's HTJ2K and its Q 8 G 8 view), frames kept for K1, and the prefixes |
 | `prefix.py` | a series' first N frames as a series of its own (`<id>-p<N>`), the view's naming its exact series' prefix |
-| `k3.sh` | K3: `claude/transport-arms` `9fad9d9b`'s `run.mjs`, its WT-TS arm alone, on `dbts_b1` HTJ2K at each form's two prefixes, four visits each, interleaved, in a worktree at that commit |
+| `k3.sh` | K3: `claude/transport-arms` `9fad9d9b`'s `run.mjs`, its WT-TS arm alone, on `dbts_b1` HTJ2K at each form's two prefixes, four visits each, interleaved, in a worktree at that commit with `k3-blackout.patch` applied (LTE's first blackout at the phase `plan.mjs` draws for the visit) |
 
 ## Run
 
@@ -28,8 +28,9 @@ node lab/delivery/run.mjs --bench --series S                       # K2: rows/K2
 lab/delivery/k3.sh S lab/delivery/rows                             # K3: rows/K3-<CELL>.jsonl
 node lab/delivery/inputs.mjs S lab/delivery/rows/K2.jsonl lab/delivery/inputs.json --k3 CLEAN=lab/delivery/rows/K3-CLEAN.jsonl …
 node lab/delivery/predict.mjs lab/delivery/inputs.json lab/delivery/predictions.json   # git add -f it, push before any counted row
-node lab/delivery/run.mjs --cell CLEAN --series S --predictions lab/delivery/predictions.json --pilot   # 2 rounds, not counted
-node lab/delivery/run.mjs --cell CLEAN --series S --predictions lab/delivery/predictions.json [--pilot-medians FILE]
+node lab/delivery/run.mjs --cell CLEAN --series S --predictions lab/delivery/predictions.json --pilot   # 2 rounds, not counted; prints the VOID share by reason
+node lab/delivery/judge.mjs lab/delivery/predictions.json lab/delivery/rows/CLEAN-pilot.jsonl    # writes rows/CLEAN-pilot.pilot-medians.json
+node lab/delivery/run.mjs --cell CLEAN --series S --predictions lab/delivery/predictions.json --pilot-medians lab/delivery/rows/CLEAN-pilot.pilot-medians.json
 node lab/delivery/judge.mjs lab/delivery/predictions.json lab/delivery/rows/CLEAN.jsonl
 python3 lab/scripts/aa_rule.py lab/delivery/rows/CLEAN.aa.json --bar 0.05
 ```
@@ -62,6 +63,20 @@ None of these is in the protocol's text; each changes how the rig runs, none wha
   framing.
 * **The relay** is the tree's `lab/scripts/link_impair.py`, which differs from `9fad9d9b`'s only by the control
   port's `window` command, unused here.
+* **LTE's blackout phase** (DELIVERY-BUILD-FIX, B1 of [`../../docs/reviews/delivery.md`](../../docs/reviews/delivery.md)):
+  §3 says "a 40 ms blackout every 30 s" and no phase. A timer started with the servers put the first blackout ~30 s
+  into a load, after almost every clock had ended. Each load now draws its first blackout uniformly over the 30 s
+  (`plan.mjs` `blackoutPhaseMs`, seeded by cell, round, volume and arm), the period after it, so a fill meets
+  blackouts at the form's rate in expectation; each row carries `blackoutPhaseMs` and `blackoutsFromDialMs` (each
+  blackout sent, in ms from the dial; negative is before it). K3's visits draw theirs by the same rule (keyed
+  `K3/<visit>/<prefix>`), so *G* and the cell see the same form.
+* **A decoder count "other than 2"** (§6) is judged as *more than* 2: a wire-bound fill can read back 1 with two
+  decoders running. C2's exact fill is read back too (its frames' `at` as each decode's end).
+* **Under 8 counted rounds** a (cell, volume, arm, clock) cannot meet §8's 8 of 10 and is printed `CANNOT HOLD: n
+  counted`, never `MISSES`; the pilot prints each cell's `VOID` share by reason, so the guard's share (8 of 15 CLEAN
+  and 5 of 15 PUB loads in the smoke) is settled here before CLEAN's first counted row.
+* **The A/A input** feeds A′ as both the copy and the arm judged, so `aa_rule.py` can return only `tie` or `not
+  conclusive`; §7 uses the pair's spread alone. The judge prints A′ ÷ A's median beside it, which shows a biased A′.
 
 ## Checks, and their mutants (§10)
 

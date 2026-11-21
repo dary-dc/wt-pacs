@@ -23,13 +23,11 @@ export const PRESS_AFTER_MS = 1000;
 export const DECODERS = 2;
 export const ROUNDS = 10;
 
-/** A uniform draw in [0, 1) fixed by `key` (FNV-1a, then murmur3's finalizer). */
+/** A uniform draw in [0, 1) fixed by `key` (FNV-1a). */
 export function draw(key) {
   let h = 2166136261;
   for (const c of key) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
-  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
-  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
-  return ((h ^ (h >>> 16)) >>> 0) / 2 ** 32;
+  return (h >>> 0) / 2 ** 32;
 }
 
 /** ms from the servers' start to a load's first blackout, the form's period after that; undefined where the form has none. */

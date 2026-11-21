@@ -86,7 +86,7 @@ need the coded series and the full Chromium; their outputs are taken from the bu
 ## Verdict
 
 Two blockers (B1, B2), seven minors. Amendment 17: DELIVERY-BUILD-FIX and DELIVERY-BUILD-FIX-REVIEW appended to
-`docs/queue-2026-11-14.md` §Rows; DELIVERY-RUN waits on the re-review with no blocker open.
+`claude/work-ledger:docs/queue-2026-11-14.md` §Rows; DELIVERY-RUN waits on the re-review with no blocker open.
 
 Fixtures and limits: the smoke rows only (one uncounted round a cell, the three timed volumes `dbts_a1`, `dbts_b1`,
 `dbts_c1` at Q 8 G 8 and their HTJ2K series, one 4-core cloud container, full headless Chromium 153, software decode,
