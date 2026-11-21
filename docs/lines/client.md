@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-21 (the OpenJPH bump, #425), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -110,6 +110,7 @@ exact frame bit for bit, and only checked claims on screen.
 | #369 | a separate proposal, kept out of the unified branch | draft |
 | #298 | the asking patterns ([`../client/evidence/what-a-view-asks-for.md`](../client/evidence/what-a-view-asks-for.md); the ADR is on `claude/core-asking-plan` only) | proposed |
 | #285 | the cache's writer arms, run: no arm passes on either engine | open |
+| #425 | OpenJPH 0.31.0 → 0.33.0 in the client's decoder (upstream's CVE-2026-111151 fix), rebuilt from its pins, the same samples on 50 codestreams (2026-11-21); the ingest's encoder stays 0.31.0 | draft; the owner's merge |
 | #289, #299, #302, #303 | a second fold; a frame decoded twice; a repaint before the frame is held; the one-pass AV1 merge | open, not in `core` |
 
 ## Owed runs
