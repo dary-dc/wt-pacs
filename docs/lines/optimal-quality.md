@@ -1,6 +1,6 @@
 # Optimal quality
 
-Last verified 2026-11-20 (OQ-INTEGRITY-FIXES-REVIEW; branch tips and the work queue read from `origin`).
+Last verified 2026-11-21 (I2-RUN; branch tips and the work queue read from `origin`).
 
 ## Goal
 
@@ -100,6 +100,10 @@ fixes, `phone-pair` (README §The viewer on an Android phone, step 3b). Then #28
   inter-unit mutant's row) and the first picture's +7.8 % are weighed in PR 368's body, not changed.
   Reviewed 2026-11-20 ([`oq-integrity.md`](../reviews/oq-integrity.md) §Fixes review): no blocker, each fix's test
   fails without it; one minor regression open, a window drag on a refused frame throws (F1). I2-RUN may start.
+  I2's protocol run 2026-11-21 (I2-RUN, [`../av1/payload-format.md`](../av1/payload-format.md) §Integrity): on the
+  12 cells shared with the quality study, RMS and max \|Δ\| equal the study's on every frame; the noise-band ratio
+  reads +27 to +122 % over it, all of it the study's in-window mask; `--integrity` adds 48–60 % to `demo-series.sh`.
+  By its rule I2 is not adopted as written; the owner's call.
 * **Not yet run:** any phone run. The web image (`deploy/nginx`) does not serve the exact series' two paths.
 
 * **The night of 2026-11-11** (work queue `claude/work-ledger:docs/queue-2026-11-10.md`, rows run in parallel, up to

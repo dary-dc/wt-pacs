@@ -571,5 +571,45 @@ lists into `lossy`. Without it nothing changes: the same bytes, the same metadat
   in-window samples (§4.4), and a DBT frame's flat background outside the breast pulls σ down. I2's own protocol
   (its values against the study's rows) is what would decide the mask; it was not run here. Until then the ratio is
   not comparable with the study's.
+  *Corrected 2026-11-21 (I2-RUN, below):* the mask is the whole difference; the protocol settled it.
+* **I2's protocol, run** (2026-11-21, `lab/oq-integrity/i2_compare.py`, rows in `lab/oq-integrity/rows/i2*.jsonl`;
+  the protocol is `claude/unified:docs/lines/proposals.md` §I2). The ingest's `--integrity` against the quality
+  study's committed rows (`claude/unified:lab/av1/metrics/rows/shard-*.jsonl`), frame by frame, on the 12 cells they
+  share with the demo: `dbts_a1`, `dbts_c1` (12-bit stored form) and `dbts_b1` (10-bit), Q 8 and 24, G 1 and 16. The
+  study was not encoded again; the ingest coded each cell once, with the study's knobs (`lossy_args`).
+  * *Rule (1), the values* (measured). RMS e and max \|Δ\| equal the study's on every frame of every cell (RMS to the
+    ingest's four decimals, max exactly): the two reconstructions are the same. The noise-band ratio does **not**
+    hold: the ingest's median reads +27–30 % over the study's on `dbts_a1`, +69–71 % on `dbts_c1`, +121–122 % on
+    `dbts_b1` (worst frames +42, +101, +128 %), against a 1 % bar.
+
+    | set | ingest ratio, median | study ratio, median | in-window samples |
+    | --- | --- | --- | --- |
+    | `dbts_a1` | 1.26–1.33 | 0.99–1.03 | 62 % |
+    | `dbts_c1` | 1.65–1.85 | 0.97–1.08 | 42 % |
+    | `dbts_b1` | 1.73–2.30 | 0.79–1.04 | 31 % |
+
+  * *Why* (measured, the diagnosis in the same rows, each frame decoded again from the ingest's own payloads): the
+    study's `quality.py` run without its mask gives the ingest's ratio on every frame within 4 · 10⁻⁵ (the ingest's
+    rounding); with its mask it gives the study's row exactly. So the formulas agree and the in-window mask (samples
+    whose code under the series' first header window is strictly inside 0 … 255) is the whole difference; the fewer
+    samples in the window, the larger it is. The ingest's own formula with that mask lands within 0.6–1.3 % of the
+    study's (border handling differs: `interior` against `mode="reflect"`), so a masked ingest would sit at the 1 %
+    bar, not clearly under it.
+  * *The cut* (measured, `i2_synthetic.py`, `rows/i2-synthetic.jsonl`): a 512 × 512 12-bit ramp with Gaussian noise
+    of σ 1, 4 and 16, cut by `depth_cut` alone, so Δ ∈ {0, −1, +2, +1}: RMS √1.5, max 2, noise-band ratio √1.25 ÷ σ
+    (theory). Each holds, σ within 3 %.
+  * *Mutants* (`rows/i2-mutants.jsonl`, `rows/i2-synthetic.jsonl`): the error of frame i written at i + 1 fails every
+    frame's RMS and max on `dbts_a1` Q 24 G 16; e against the code c instead of c · 2^(D−10) fails every synthetic
+    cell. **σ without the rounding term survives** wherever σ is over about 2: it moves σ by about 1/(24σ²), 0.04 %
+    at the volumes' σ ≈ 10 and under the 3 % bar from σ ≈ 1.2 (theory); only the synthetic σ 1 cell catches it.
+  * *Rule (2), the cost* (measured, `rows/i2-cost/`): `scripts/demo-series.sh` with and without `INTEGRITY=1`, 21
+    ingests a run, interleaved off/on, on/off, off/on, 3 rounds on one 4-core cloud host: 461–462 s off, 683–740 s
+    on, **+48 to +60 %** (median 704 against 462 s), against a ≤ 10 % bar. Most of it is `dbts_b1`: +27 s on each of
+    its 25–50 s series. The checks alone on one core (`i2_cost.py`, `rows/i2-checks-cpu.jsonl`): 10.5, 85.7 and
+    14.5 CPU s a series, 0.09, 0.20 and 0.09 CPU s a megapixel; the protocol had assumed ≤ 0.27.
+  * *By its rule, I2 is not adopted as written*: the noise-band ratio is not the study's number, and the ingest's
+    time grows by half. RMS and max \|Δ\| hold. What would change it is the owner's (PR 368's owner decisions).
+  * *Limits:* three DBT volumes of one dataset; the stored form only for the values (the cut checked on a synthetic
+    set); one 4-core cloud host; the cost on `demo-series.sh` only, whose encodes run at `--cpu-used=6`.
 * **What it does not cover:** the paint (the window, the GPU), a hostile server (it serves the digests), and quality
   itself: a perfect reconstruction of a Q 63 stream passes the check; `codingError` is what states quality.
