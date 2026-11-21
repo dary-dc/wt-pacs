@@ -1,0 +1,9 @@
+{"set": "dbts_a1", "round": 0, "frames": 56, "cpu_s": 10.74, "mpx": 114.15}
+{"set": "dbts_b1", "round": 0, "frames": 50, "cpu_s": 70.48, "mpx": 425.98}
+{"set": "dbts_c1", "round": 0, "frames": 69, "cpu_s": 14.76, "mpx": 169.24}
+{"set": "dbts_a1", "round": 1, "frames": 56, "cpu_s": 8.76, "mpx": 114.15}
+{"set": "dbts_b1", "round": 1, "frames": 50, "cpu_s": 75.73, "mpx": 425.98}
+{"set": "dbts_c1", "round": 1, "frames": 69, "cpu_s": 17.13, "mpx": 169.24}
+{"set": "dbts_a1", "round": 2, "frames": 56, "cpu_s": 10.49, "mpx": 114.15}
+{"set": "dbts_b1", "round": 2, "frames": 50, "cpu_s": 85.71, "mpx": 425.98}
+{"set": "dbts_c1", "round": 2, "frames": 69, "cpu_s": 14.52, "mpx": 169.24}
