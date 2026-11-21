@@ -257,10 +257,12 @@ costs is this section.
 ### The build, as delivered
 
 **The product builds its own decoders** (queue row DECODERBUILD): [`client/decode/wasm/build`](../../client/decode/wasm/build/README.md)
-builds OpenJPH 0.31.0 through this wrapper and dav1d 1.5.4's `simd` arm in a Debian container pinned by digest,
+builds OpenJPH through this wrapper (0.33.0 since 2026-11-21; 0.31.0 for every measurement in this section) and
+dav1d 1.5.4's `simd` arm in a Debian container pinned by digest,
 with no network, every input checked by commit or sha256, every embedded path mapped. The page and the gate load
 only what [`manifest.sha256`](../../client/decode/wasm/build/manifest.sha256) pins. The OpenJPH build, `-O3
--msimd128 -fexceptions`, `INITIAL_MEMORY=4MB`, one thread, with the range in the pack:
+-msimd128 -fexceptions`, `INITIAL_MEMORY=4MB`, one thread, with the range in the pack (these two lines are the
+0.31.0 build's; the manifest holds today's):
 
 ```
 f6f5dce5a61e3db0d4b0e2e13357a73a21224fff9f77422195200300735315a4  openjph.js    55,158 B
@@ -1658,7 +1660,8 @@ binds in neither form.
     and the remaining code-blocks shall conform to Rec. ITU-T T.800 | ISO/IEC 15444-1" [H1, A.4]: Part 1 blocks
     with EBCOT's quality layers, whose decode measured 6–12× OpenJPH's ([`../codecs/jpeg2000.md`](../codecs/jpeg2000.md)
     §Decode speed).
-* **What OpenJPH implements** (0.31.0, the version the product builds; the same lines at 0.33.0 [H3]): **resolution
+* **What OpenJPH implements** (0.31.0, the version the product built when this was read; the same lines at 0.33.0 [H3], which it builds since
+  2026-11-21): **resolution
   progression, encode and decode; quality progression, neither.** The encoder writes any of "LRCP, RLCP, RPCL,
   PCRL, CPRL" and `-precincts` (`ojph_compress`), but one cleanup pass a block — `assert(num_passes == 1);` in
   `ojph_encode_codeblock32` — and "There is currently no implementation for rate-control-based encoding"
