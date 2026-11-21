@@ -1,6 +1,7 @@
 mod addition;
 mod crash;
 mod receive;
+mod signed;
 
 use crate::group::{coded, SERIES_UID, SOP_INSTANCE_UID, STUDY_UID};
 use crate::{study_db, Downstream, Outcome, Receiver};
