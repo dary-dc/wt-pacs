@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-21 (the engine review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-21 (the engine review and its fix), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -56,8 +56,10 @@ exact frame bit for bit, and only checked claims on screen.
   `demo-pair.sh`); every Chromium offers draft-02 alone; `getStats()` from Chromium 160. ENGINE-REVIEW, 2026-11-21
   (findings in PR 410's body): E1–E26 hold verbatim at their pins; the raw rows carry §Measured; the G = 8 failure is
   the WebCodecs route's alone (the rig's dav1d variant of the same clauses passes on 159 and 160); one blocker, the
-  matrix's rows 1, 6, 7, 11 and 12 left uncorrected where §Measured contradicts them (ENGINE-REVIEW-FIX). Next,
-  ENGINE-REVIEW-FIX, then ENGINES-PAGE.
+  matrix's rows 1, 6, 7, 11 and 12 left uncorrected where §Measured contradicts them. ENGINE-REVIEW-FIX, 2026-11-21:
+  those cells and the "So" corrected in place, dated, old text quoted; m1–m4 with them (BCD's Firefox `getStats` note
+  quoted and shown stale; 160.0.8173.0 named pre-release; WebKit WebTransport runtime-gated on 26, unconditional
+  from 27; `createWritable`'s two settings). Next, ENGINE-REVIEW-FIX-REVIEW, then ENGINES-PAGE.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
