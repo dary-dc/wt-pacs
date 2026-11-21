@@ -44,13 +44,16 @@ the same script; digests in [`rows/stage3-d-series.json`](rows/stage3-d-series.j
 product's `DownloaderClient`: the D arms fill the OQ series through the product's AV1 route (WebCodecs first), S★
 fills the strip series' bands at the fit with `decode: false`, and the strips decode on three lab workers (strip t on
 worker t; whole on the delivered build, a level on the lab binding). Once every slice is pictured, the Lossless
-request on the middle slice: D and D′ on a second client on the exact series, the others by the strips' entries.
+request on the middle slice: D and D′ on a second client on the exact series, D+T1 (A1's arm, `docs/htj2k-tiles.md`
+§Verdict) the exact series' whole codestream as one entry with `decode: false`, decoded on lab worker 0, the others by
+the strips' entries.
 Every picture is hashed after the clock against `frames.json`; OQ pictures have no truth, so a visit's are joined into
 one digest that must agree across a volume's D visits. The pictures and S★'s coded bands go to the lab store
 ([`store.js`](stage3/store.js), OPFS) after the clock, and the page is reopened in the same tab (J10). The driver
 ([`run.mjs`](stage3/run.mjs)) runs from a tree of the demo commit `157b7109` with this directory copied in, one
 server and relay per series of a visit; [`summary.py`](stage3/summary.py) reads the rows against the rule. Mutants
-(`--mutate`): `bands-dropped`, `preview`, `truth`, `sample`, each must be caught ([`rows/stage3-mutants.jsonl`](rows/stage3-mutants.jsonl)).
+(`--mutate`): `bands-dropped`, `preview`, `truth`, `sample`, `whole-neighbour` (D+T1 asks the next slice), each must be caught ([`rows/stage3-mutants.jsonl`](rows/stage3-mutants.jsonl)).
+D+T1's build smoke, one round per A1 cell and not counted: [`rows/a1-build-smoke.jsonl`](rows/a1-build-smoke.jsonl).
 
 ```bash
 cd TREE   # 157b7109, lab/htj2k-tiles/improve copied in, lab/.demo-series -> the D series, lab/.av1-work/htj2k-improve -> the strip series

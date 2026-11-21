@@ -1131,6 +1131,107 @@ Both need Layout 1, a store-format change.
 **For the owner:** whether Layout 1 waits for A1, which decides whether D+T3's gain is the strips'. Whether an exact
 level picture may be shown before the frame (D+L★), and in what words. Whether P1–P3 join the next phone run.
 
+### A1, measured (row HTJ2K-A1-RUN, 2026-11-20)
+
+*By a session that wrote none of this document, D+T1's build or its review. Same host and rig as stage 3; D+T1 as
+built in PR 408 (`32929941`).*
+
+**Readings of the registration, written before any row:**
+
+* **The three volumes** are the sets `dbts_a1/phone`, `dbts_b1/phone`, `dbts_c1/phone`. `dbts_c1/sideways` is the
+  same volume in a second viewport and is not run.
+* **Arms** D, D′, D+T1, D+T3, in the driver's Williams order inside each cell; cells `r5000`, `r20000` (clean), 1× and
+  4×, in a Williams order each round; 6 rounds, as two shards of 3 (`rows/a1-run-1.jsonl` rounds 0–2,
+  `rows/a1-run-2.jsonl` rounds 3–5). 48 visits a round.
+* **The ratios** are `summary.py`'s method: the median over rounds of round-paired ratios of `losslessMs` (the
+  request to the Lossless picture), s the cell's p90 of |D′/D − 1| on `losslessMs`. `summary.py` lacks A1's ratios
+  (review m1), so they are computed by the same method in `stage3/a1.py`.
+* **Visits failed after the clock** (the storage quota refusal, review m2) are dropped and counted, as the rule's R0
+  drops them; the deciding cell's n is printed with its ratio.
+* The inputs: the D series (`157b7109`'s `demo-series.sh` at Q 8 G 16) and the strip series match
+  `rows/stage3-d-series.json` and `rows/stage3-series.json`; the strip check 56/56, 100/100, 138/138 exact. The LTE
+  trace is an empty placeholder: no `lte-good` cell runs. The WASM decoders were rebuilt from the demo commit's pins
+  (base image from `mirror.gcr.io` at the pinned digest) and match its `manifest.sha256`; the Docker daemon is stopped
+  before the run.
+
+**Run (2026-11-20 08:19 to 10:32 UTC; 288 visits).** Rows: [`rows/a1-run-1.jsonl`](../lab/htj2k-tiles/improve/rows/a1-run-1.jsonl)
+(rounds 0–2) and [`rows/a1-run-2.jsonl`](../lab/htj2k-tiles/improve/rows/a1-run-2.jsonl) (rounds 3–5); readings
+from [`stage3/a1.py`](../lab/htj2k-tiles/improve/stage3/a1.py) and `summary.py` over both. A first start at 08:03 was
+stopped after 3 visits and is not kept: the lab level binding was not built, so D+T3's page loaded no worker and
+received no bytes. The binding was then built by `decode/build_levels.sh` in the decoder image; its `levels.wasm`
+sha256 equals `rows/stage3-pins.json`'s. Headless Chromium 157.0.8103.78 (stage 3 ran 153), 4 cores, the same
+4× cgroup cap (*assumption* for a phone).
+
+* **Kept: 234.** 53 visits are void by the relay's p99 rule (D 15, D+T3 15, D′ 14, D+T1 9) and 2 failed, both
+  `dbts_b1` `r20000` 4× (D′, D+T1): a store write refused for quota, so not every slice was pictured.
+* **R0 holds** in every kept visit: every Lossless picture is exact. The OQ pictures' digest agrees across each
+  volume's D visits.
+* **Where the host saturates.** By stage 3's test (D's every-slice time at 4× over 1.05 × its 1×), all three
+  `r20000` cells are decode-bound. `r5000` is link-bound on every volume, as in stage 3. The `r20000` ratios below
+  are readings that decide nothing.
+* **The deciding cell, `dbts_b1` `r5000` 4×** (measured; median Lossless request to picture, ms): D 4 033 (n 6),
+  D′ 4 025 (5), D+T1 3 945 (5), D+T3 3 724 (5). D+T3 ÷ D reproduces stage 3: ×0.923 (stage 3 ×0.923). The three
+  bundles carry the same bytes (25 381 119; D+T3 25 376 720).
+
+| reading, by round-paired medians [s] | `dbts_b1` `r5000` 4× | the other `r5000` cells | `r20000` (decode-bound) |
+| --- | --- | --- | --- |
+| the strips' effect, D+T3 ÷ D+T1 | **×0.943** [0.014], n 4: 0.937–0.950 | 4×: `a1` ×0.958, `c1` ×0.936; 1×: ×0.980–0.986 | ×0.83–0.95 |
+| the path, D+T1 ÷ D | **×0.979** [0.014], n 5: 0.971–0.993 | ×0.989–1.005 | ×0.958–1.000 |
+| D+T3 ÷ D | ×0.923 [0.014], n 5 | 4×: ×0.930–0.954; 1×: ×0.977–0.984 | ×0.805–0.951 |
+
+**A1's three readings against the rule:**
+
+1. **The strips' effect is ×0.943, outside its prediction ×0.96–0.99.** The prediction missed: the strips do
+   more than stage 2's decode times allowed. Every paired round is at or under ×0.950.
+2. **Layout 1 stays proposed for D+T3.** ×0.943 ≤ ×0.95 × (1 + 0.014) = ×0.963, and strictly ≤ ×0.95 too.
+3. **No overhead on the product's exact path.** D+T1 ÷ D is ×0.979, over ×0.95, so there is no client-line finding.
+   The path difference is real but small: about a quarter of D+T3's gain on this cell (×0.979 × ×0.943 = ×0.923).
+
+So §Verdict's question has its answer on this host: most of D+T3's gain is the strips', and "R3's pass rests on a
+part that is not the strips" is corrected to: R3's pass rests mostly on the strips, about a quarter of it on the lab
+page's path. Both readings come from one link-bound cell of one volume, with 4 and 5 paired rounds. Nothing here is
+claimed for a phone: P1 decides whether a phone's fill is decode-bound, and P2 re-judges R3 there.
+
+### A1 review (row HTJ2K-A1-REVIEW, 2026-11-21)
+
+*By a session that wrote none of this document, D+T1's build, its review or the run. Read on `claude/htj2k-a1` at
+`34131271`: both rows files, `stage3/a1.py` and `summary.py`'s `ratio`, recomputed by a separate script that imports
+neither.*
+
+**No blocker. A1's three readings stand as written.**
+
+* **Every ratio reproduces** (measured, recomputed): all 36 of the table's medians (three ratios × 12 cells), to the
+  third decimal, with their n and ranges. The deciding cell's pairs, D+T3 ÷ D+T1 by round: 0.9439, 0.9504, 0.9430,
+  0.9370 (rounds 0, 2, 3, 4), median ×0.943; s = 0.0142, from five D/D′ pairs; the bound ×0.95 × 1.0142 = ×0.963.
+  The arms' medians (D 4 033, D′ 4 025, D+T1 3 945, D+T3 3 724 ms) and bytes (25 381 119; D+T3 25 376 720) agree.
+* **The rule, as written.** The strips' effect ×0.943 ≤ ×0.963: Layout 1 stays proposed for D+T3. D+T1 ÷ D ≤ ×0.95
+  holds in no cell at all, not only the deciding one (lowest ×0.958, `dbts_b1` `r20000` 4×, decode-bound), so the
+  no-overhead reading does not turn on which cell the rule meant. The prediction ×0.96–0.99 is reported missed.
+* **The run as registered.** 288 visits: 4 arms × 12 cells × 6 rounds. The arms run in the four orders of a 4 × 4
+  Williams square, 18 times each, so every arm follows every other equally. The registration's readings
+  (`3ce57fa2`, 08:03) were pushed before the first rows (08:34). Between the reviewed build (`32929941`) and the
+  run's tip, only `stage3/a1.py` (new; two later edits change its printing, not its method), the rows and the docs
+  changed. VOID equals "a relay reported VOID" in every row. R0 holds in every kept visit, and each volume's OQ
+  digest is one value across its D, D′, D+T1 and D+T3 visits.
+* **Where the host saturates** reproduces: D's every-slice time at 4× over its 1× is ×1.008–1.012 at `r5000`
+  (link-bound) and ×1.38–1.56 at `r20000` (decode-bound).
+
+**Minor, corrected here, not in place above:**
+
+* m1. "Kept: 234. 53 … void … and 2 failed" counts 55, but 54 visits are dropped: the failed D′ visit
+  (`dbts_b1` `r20000` 4×, round 1) is also VOID.
+* m2. "Every paired round is at or under ×0.950": round 2 is ×0.9504. That is ×0.950 at three decimals, and inside
+  the rule's bound either way.
+* m3. The readings outside the deciding cell rest on fewer pairs than six. `dbts_c1` `r5000` 4× gives D+T3 ÷ D from
+  2 pairs and the strips from 3. `dbts_a1` `r20000` 4× gives D+T3 ÷ D from 1 pair. They decide nothing, as the run
+  says.
+
+**Fixtures and limits**, as the run's: three EA1141 DBT volumes, one dataset; the deciding reading is one cell of one
+volume, from 4 and 5 paired rounds; a 4-core cloud host with no GPU, headless Chromium 157, software WebCodecs, a
+userspace relay, a 4× cgroup cap for a phone (*assumption*). Nothing carries to a phone; P1 and P2 decide that.
+**Owner:** nothing new. §Verdict's questions stand (Layout 1, D+L★'s words, P1–P3 in a phone run), now with A1's
+answer: most of D+T3's gain is the strips'.
+
 ## Sources
 
 Read 2026-11-09; quotations are verbatim, with the PDF's symbols restored where text extraction lost them (≤).
