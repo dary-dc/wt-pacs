@@ -4,7 +4,7 @@ Last verified 2026-11-10 (the AV1 harvest of that morning: eight result branches
 no new measurement); the audits' corrections of 2026-11-11 ([`../av1/corrections.md`](../av1/corrections.md)) and
 their protocols measured 2026-11-12 (`claude/audit-measure`) added since; HTJ2K at screen resolution
 (`claude/htj2k-tiles`: theory, its review and its improvement, stages 0–2 measured 2026-11-11, stage 3 since)
-carried into Open 7. Stage A1 of the unification (2026-11-15) added Open 11. Stage B (2026-11-15) carried the tip's items 5, 7 and 8 as 12, 13 and 14. Transport pointers added 2026-11-17 and 2026-11-19.
+carried into Open 7. Stage A1 of the unification (2026-11-15) added Open 11. Stage B (2026-11-15) carried the tip's items 5, 7 and 8 as 12, 13 and 14. Transport pointers added 2026-11-17 and 2026-11-19. Open 15 (what the view may claim, theory) added 2026-11-21.
 
 ## Goal
 
@@ -253,6 +253,17 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
     only (4:2:0 grey, `NV12`). DEPTH8-MEASURE (2026-11-15, measured, §9, all 19 volumes): the 8-bit view meets the
     noise rule at Q 3–11 and costs 1.14–1.86 times today's bytes; 4:2:0 adds +0.01–0.12 %. The desktop GPU's `NV12`
     exactness and speed are open; whether an 8-bit view is acceptable is the owner's.
+
+15. **What the view may claim with no reader study** (row VL-CRITERION, 2026-11-21, theory and sources, nothing run or
+    re-read): [`../av1/vl-criterion.md`](../av1/vl-criterion.md). The noise rule's threshold sits on the plateau of
+    its own statistic (why the anchor is unresolved on 15 of 19 volumes) and past the step (about 2σ) up to which
+    "error within the noise" bounds a loss; in a quantizer model a faint finding keeps 0.86 of its detectability at a
+    step of 2σ and 0.20–0.35 at the rule's (*theory*, not measured on AV1). Options A–G there, each with what the
+    label may say and its bytes; the leaning is to claim nothing (the label states lossy and its ratio; the exact
+    frame arrives unasked on a dwell or a narrow window), or the task-bounded step (x ≤ 2, predicted 0.22–0.55 of
+    HTJ2K). Decisions 0.1–0.4 and 0.9 are mapped onto the options in its §4; 0.9 is yes under every one. Its §5
+    pre-registers nine re-reads of committed rows for VL-READS; its §6 lists what only an encode, a phone or a
+    reader can decide. Fixtures as above: 19 DBT volumes of one dataset.
 
 ## Decisions (the owner's)
 

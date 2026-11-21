@@ -29,7 +29,7 @@ those could have informed.
    difference); what was added is small; how much of the noise texture is left. Each has its own measurable. One
    ratio cannot carry all three, and "visually lossless" names none of them.
 3. **Two regimes have a guarantee that can be derived; the rule's Q is in neither** (*theory*, §3.2). With the step
-   under about 2σ a faint finding keeps at least 0.87 of its detectability in a quantizer model (0.96 under 1σ); at
+   under about 2σ a faint finding keeps at least 0.86 of its detectability in a quantizer model (0.96 under 1σ); at
    4.8σ it keeps 0.35, and 0.20–0.30 when the model is fitted to the measured noise kept. AV1 may do better than the
    model; nothing measured says so yet.
 4. **Readers are not the only route, and for the claim that matters they are not a route at all.** In the United
@@ -84,17 +84,18 @@ it removes half to seven tenths of it.
 | ν | 1.04 | 1.14 | 1.10 | 0.85 | 0.62 | 0.31 |
 
 Between x 4 and x 6, r moves by 0.065 and ν by 0.54. The rule places its threshold on r at 1, the value r approaches
-when all the noise is gone, so near the threshold a 2 % reading error (the median δ) spans about 0.6 of x in the
-model (0.02 ÷ (0.065 ÷ 2)), which is one to two integer Q (near Q 8 one integer Q moves Δ by 13–16 %, *measured*,
-`noise-point.md` §5.3). The measured bands are that wide or wider. **A threshold belongs where its statistic is
+when all the noise is gone, so near the threshold the band 1 ∓ δ at the median δ of 2 % spans about 1.2 of x in
+the model (0.04 ÷ (0.065 ÷ 2), the mean slope between x 4 and 6), a quarter of the step: about two integer Q (near
+Q 8 one integer Q moves Δ by 13–16 %, *measured*, `noise-point.md` §5.3). The measured bands are that wide or wider. **A threshold belongs where its statistic is
 steep**; ν is steep exactly where r is flat. R1 tests this on the rows.
 
 **Why the logic stops holding there** (*theory*). "Error within the noise" is a bound on harm only for error that is
 independent of the noise: then every linear observer's d′ falls by 1 ÷ √(1 + r²) at most (`noise-ratio.md` §2.2).
 That describes x ≤ 2, where κ ≈ +1. At x 4.8 the model's κ is −0.66: the error is anticorrelated with the noise
-because it is the noise. With the measured ranges, k = (1 + r² − ν²) ÷ 2 is 0.74–0.94 and r_q is 0.28–0.45 (*derived*
-from r 0.85–0.98 and ν 0.286–0.495 paired at their extremes; the pairing per frame is R2's): of the fine-band
-"error" at the rule's Q, 75–92 % of the power is removed noise. So at the rule's Q the ratio measures **how much was
+because it is the noise. With the measured ranges, k = (1 + r² − ν²) ÷ 2 is 0.77–0.94 and r_q is 0.28–0.44 (*derived*
+from the worst frame's r of 0.888–0.981 at the integer rule Q on five held-out volumes, `noise-point.md` §Measured,
+and the median frame's ν of 0.286–0.495, paired at their extremes; the pairing per frame is R2's): of the fine-band
+"error" at the rule's Q, 76–92 % of the power (k² ÷ r²) is removed noise. So at the rule's Q the ratio measures **how much was
 removed**, and the question that matters, what else went with it, is outside what r can see.
 
 **What went with it** (*theory*; the table is this file's, by numerical integration of the quantizer over a unit
@@ -114,10 +115,10 @@ with the noise unless the noise carries it over the threshold. Detectability kep
 Up to x 2 the table equals the independent-error bound (1 ÷ √(1 + r²) = 0.960, 0.867): the two regimes are one
 formula until the zero bin starts to swallow the noise. Past it, a finding spread thinly over coefficients loses
 most of its detectability; a finding concentrated in one large coefficient (a ≥ 4) loses none, and can gain. A
-finding of exact-frame d′ = a·√m spread over m coefficients therefore survives the rule's step when its d′ exceeds
-about (x ÷ 2)·√m: 2.5 for m = 1, 4.9 for m = 4, 9.9 for m = 16, 19.7 for m = 64 (*derived*). Against Rose's
+finding of exact-frame d′ = a·√m spread over m coefficients therefore reaches the zero bin's edge, where T is about a half, when its d′ is
+(x ÷ 2)·√m: at x 4.93, 2.5 for m = 1, 4.9 for m = 4, 9.9 for m = 16, 19.7 for m = 64 (*derived*). Against Rose's
 criterion (a detail is seen at an SNR of about 5; *unverified*, the primary text was not read), a detail the
-acquisition just shows survives only when at most four coefficients hold it. A mass does; a calcification one or two
+acquisition just shows clears that edge only when at most four coefficients hold it. A mass does; a calcification one or two
 samples wide inside a 4 × 4 or larger transform does not, in this model.
 
 **The model is not AV1.** AV1 chooses its transform's size and kind per block, predicts each block, and filters the
@@ -163,12 +164,12 @@ further: the structure test of §3.3 compares a frame's difference with that fra
 True of the ratio, false of the claim, for three reasons.
 
 1. **The window chooses the samples** (*measured*). σ rises with signal on all three timed volumes (r 0.58–0.90 by
-   tile); the step does not. At the rule's Q, tiles in the quietest third exceed 1.03 ten times as often as in the
+   tile); the step does not. At the rule's Q, tiles in the quietest third exceed 1.03 seven to ten times as often as in the
    brightest (2.1 against 0.2 % on `dbts_b1`, 1.4 against 0.2 % on `dbts_c1`; `noise-point.md` §P4). A narrow window
    set on the quiet band shows a worse ratio than the frame's number. R5 quantifies it.
 2. **Two mechanisms hide error, and each works at one end only** (*derived*). A window of width W shows 256 levels,
    so an error of RMS e moves a sample by one level with probability about 0.8·e·255 ÷ W when that is small
-   (√(2 ÷ π) times the error in levels; it reproduces the one row seen, 0.060 against 0.064). Wide windows hide error
+   (√(2 ÷ π) times the error in levels; on the one row seen, with e_N for e, 0.064 against a measured 0.060). Wide windows hide error
    by rounding; that needs W ≫ 200·e, which no header preset reaches at Q 8 (81–87 % of shown samples move,
    *measured*, `window-q.md`). Narrow windows magnify error and noise alike, so only masking by the noise is left,
    and it is left in the quietest band (point 1) under the most sensitive test.
@@ -247,9 +248,9 @@ Bytes are of HTJ2K's, G 1, stored form. "Q 8" figures are *measured* (`../lines/
 
 | | criterion | the label may then say | bytes | requests | state |
 | --- | --- | --- | --- | --- | --- |
-| A | none; the exact frame arrives unasked | *Optimal quality · lossy, about N : 1*, then *✓ Lossless* | the view at any Q (0.07–0.22 at Q 8), plus one exact frame per dwell, or the whole exact series behind the view (1.07–1.28× in all, *derived*, audit F7) | one ask per dwell, or none (C2) | buildable; the trigger is the owner's |
+| A | none; the exact frame arrives unasked | *Optimal quality · lossy, about N : 1*, then *✓ Lossless* | the view at any Q (0.07–0.22 at Q 8), plus one exact frame per dwell, or the whole exact series behind the view (1.07–1.22× in all at Q 8) | one ask per dwell, or none (C2) | buildable; the trigger is the owner's |
 | B | the noise rule, as today (r ≤ bar on the worst frame) | "the coding error is within the frame's noise in the finest band" (a measured fact, no more) | 0.10–0.28 (*derived*, audit F7) | on request | built; its threshold unresolved (§1.1) |
-| C | the error is added, and small: x ≤ 1, so r ≤ 0.29 | "the coding costs under 4 % of any finding's detectability (model), equal to 8 % of the dose" | 0.64–0.65 on 12-bit, Q 2 (*measured*); 10-bit *unknown*, R8 | on request | derivable now |
+| C | the error is added, and small: x ≤ 1, so r ≤ 0.29 | "the coding costs under 4 % of any finding's detectability (model), equal to 8 % of the dose" | under Q 1's 0.64–0.65 on 12-bit (*measured*, `window-q.md`); Q 2's and 10-bit's are R8's | on request | derivable now |
 | D | **task-bounded step**: x ≤ 2 at the quietest frame, so T ≥ 0.86 | "no finding loses more than 14 % of its detectability to the quantizer (model; not measured on AV1; no reader)" | 0.22–0.55 (*theory*, R8's prediction; 0.27–0.28 where measured, Q 4 on `dbts_a1`, `a2`) | on request | derivable now; AV1's own T unmeasured |
 | E | **only noise removed**: exact − decoded holds no structure | "differs from the exact frame only by noise" | whatever Q passes: *unknown* | on request | needs decoded samples (§6) |
 | F | **noise kept**: ν ≥ a floor (a half: Q_ν) | "keeps at least half of the noise texture" | 1.16–1.92× option B's (*measured*, A4) | on request | readable now; resolvable where B is not (R1) |
@@ -278,8 +279,9 @@ C and D use §1.1's table as the criterion: choose the step so that the quantize
 detectability, whatever its size, because under x ≈ 2 the table does not depend on a. D's 0.86 is the loss of a 26 %
 lower dose (T²); C's 0.96, of 8 % (*derived*). The margin `noise-ratio.md` §5.5 takes from the data (a series' own
 spread of σ, 0.01–0.07 on B, 0.1–0.2 on A and C) would put the bound at x ≈ 1 on B and x ≈ 2 on A and C. On 12-bit
-DBT x ≤ 2 is Q 4 where σ_min ≥ 11.5 (Δ 22.9), else Q 3; on 10-bit it is Q 4 to about Q 6 (Δ 6.88 at Q 4 against
-2·σ_min of 6.8–11.2) (*derived* from `noise-point.md` §2 and §4's tables).
+DBT x ≤ 2 is Q 4 where σ_min ≥ 11.5 (Δ 22.9), else a Q under 4; on 10-bit it is Q 4 or a Q just above or under it
+(Δ 6.88 at Q 4 against 2·σ_min of 6.8–11.2; the steps between Q 4 and Q 8 are in AC of §5, not read here)
+(*derived* from `noise-point.md` §2 and §4's tables).
 
 D is a bound on the model's quantizer, carried to AV1 on the assumption that below x ≈ 2 AV1's error is added and
 white, which the low-Q rows support (e_N within 10 % of Δ ÷ √12, *measured*, `noise-point.md` §2) and R3 tests. It
@@ -327,8 +329,8 @@ adapted.
 | R5 | §1.3: the window chooses the samples | T. Per cell, tiles by decile of mean signal; R = (RMS of tile e_N ÷ RMS of tile σ) in the lowest decile over the same over all tiles | the four cells a rung under x\* (`dbts_a1` G 1 and 16, `dbts_b1` G 16, `dbts_c1` G 16): 1.05 ≤ R ≤ 1.30; the two at x\* (`dbts_b1` G 1 Q 12, `dbts_c1` G 1 Q 8): 1.00 ≤ R ≤ 1.08, and the lowest decile's own ratio 1.00–1.10 (the plateau) | R < 1.05 on any of the four: the window does not matter to the ratio on that volume; outside the bands on the two |
 | R6 | §1.2: the form carries over dose on one system | B. Per volume, all (frame, Q) points; bins of x 0.25 wide between 3 and 6 holding ≥ 2 values of Q; the spread (max − min) of r, and of ν, within a bin | r: ≤ 0.03 in every bin on ≥ 17 of 19 volumes; ν: ≤ 0.06 on ≥ 15 | on fewer: within one volume the statistic is not a function of x alone |
 | R7 | §1.1's table as a description of AV1 | B and AC. Per cell with 3 ≤ x ≤ 5.5 (median frame): the zero bin t that gives the measured ν in the model (levels at multiples of x beyond ± t), then the model's r at that t | the model's r is within 0.05 of the measured r in ≥ 80 % of those cells | in < 60 %: the table's last row is not a description of AV1 |
-| R8 | options C and D's bytes | B, S and AC. Per volume, the highest Q read with x ≤ 2 at the quietest frame (and x ≤ 1): the sum of `units` over HTJ2K's bytes | x ≤ 2: 0.22–0.55 on all 19; x ≤ 1: 0.50–0.80 | any volume outside |
-| R9 | the label's fact, against the only numbers guidelines give | C. Per volume, `ratio` at Q 8 and at the rule's Q | at Q 8: over 25 : 1 on every 12-bit volume, under 15 : 1 on every 10-bit one | either fails on ≥ 2 volumes |
+| R8 | options C and D's bytes | B, S and AC. Per volume, the highest Q read with x ≤ 2 at the quietest frame (and x ≤ 1): the sum of `units` over HTJ2K's bytes | x ≤ 2: 0.22–0.55 on all 19; x ≤ 1: 0.45–0.80 | any volume outside |
+| R9 | the label's fact, against the only numbers guidelines give | C. Per volume, `ratio` at Q 8 and at the rule's Q | at Q 8: over 25 : 1 on every 12-bit volume, under 15 : 1 on every 10-bit one (low confidence: how `ratio` counts the source's bytes was not read) | either fails on ≥ 2 volumes |
 
 **What each outcome decides.** R1 holding makes F the resolvable form of "keep the noise" and retires the bar
 question (0.1). R2 holding fixes the wording of B's fact ("removes k of the fine-band noise and adds r_q"). R3 (a)
