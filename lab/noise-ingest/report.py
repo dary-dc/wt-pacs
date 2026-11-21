@@ -11,7 +11,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1] / "lab/av1/metrics"))
-from noise_point import rule  # noqa: E402
+import noise_point  # noqa: E402
 
 SETS = ["dbts_a1", "dbts_b1", "dbts_c1"]
 SOURCE_BITS = {"dbts_a1": 12, "dbts_b1": 10, "dbts_c1": 12}
@@ -32,10 +32,13 @@ def study_sigma():
 
 def stream_q(sigma_min, name):
     """The rule's Q at G 8 in the ingest's form: σ in stream units, the 10-bit table (§T2)."""
-    return rule(sigma_min / 2 ** (SOURCE_BITS[name] - 10), GROUP, 10)
+    return noise_point.rule(sigma_min / 2 ** (SOURCE_BITS[name] - 10), GROUP, 10)
 
 
 def main():
+    if not noise_point.SRC.exists():
+        noise_point.SRC = HERE.parents[1] / "ingest/.build/aom-3.15.1-src"  # the same pinned libaom, ingest/tools.sh
+    noise_point.AC, noise_point.QINDEX = noise_point.libaom_ac(), noise_point.qindex()
     rows = [json.loads(line) for f in sorted(glob.glob(sys.argv[1] + "/round-*.jsonl")) for line in open(f)]
     study = study_sigma()
     by = {}
