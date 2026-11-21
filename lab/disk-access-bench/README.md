@@ -11,7 +11,7 @@ evidence*:
 
 ```bash
 NAME=frames_250k_big BYTES=250000 FRAMES=2048 ./lab/scripts/gen_live_cell_fixture.sh
-cargo build -p disk-access-bench -p check-fastpath --release
+cargo build -p check-fastpath --release && (cd lab && cargo build -p disk-access-bench --release)
 lab/scripts/read_path_ab.sh <base-commit>   # FillReader / TileReader
 lab/scripts/server_ab.sh <base-commit>      # the product server
 target/release/ring_scale <series.sbnd> <count>
@@ -41,7 +41,7 @@ git apply lab/disk-access-bench/arms/fit-zeroed.patch
 cargo build --release -p series-server --features lab-frame-cache,lab-fit-zeroed && cp target/release/series-server W/bin/b1z
 git apply -R lab/disk-access-bench/arms/fit-zeroed.patch
 cargo build --release -p series-server --features lab-frame-cache && cp target/release/series-server W/bin/b1
-cargo build --release -p series-server -p disk-access-bench -p pack-series && cp target/release/series-server W/bin/b0
+cargo build --release -p series-server -p pack-series && (cd lab && cargo build --release -p disk-access-bench) && cp target/release/series-server W/bin/b0
 cp target/release/{server_ab,pack-series} W/bin/
 $P lab/disk-access-bench/frame_cache_ab.py make W           # the .sbnd of each set, and the synthetic 3 MB series
 $P lab/disk-access-bench/frame_cache_ab.py verify W         # W/data/SET is the fetched set, for the decode
@@ -63,7 +63,7 @@ lab/av1/fetch_data.sh ct_lidc dbt12_ea1141 ffdm_d          # then ingest each se
 git show <base>:server/src/media/read_path.rs > server/src/media/read_path.rs
 cargo build --release -p series-server && cp target/release/series-server W/bin/r0 && git checkout server/src/media/read_path.rs
 cargo build --release -p series-server && cp target/release/series-server W/bin/r1
-cargo build --release -p disk-access-bench -p pack-series && cp target/release/server_ab target/release/pack-series W/bin/
+cargo build --release -p pack-series && (cd lab && cargo build --release -p disk-access-bench) && cp target/release/server_ab target/release/pack-series W/bin/
 $P lab/disk-access-bench/idle_buffers_ab.py make W
 $P lab/disk-access-bench/idle_buffers_ab.py time W 16
 $P lab/disk-access-bench/idle_buffers_ab.py summary W/idle_buffers.jsonl
@@ -77,7 +77,8 @@ on its own fresh `writer_bench direct` copy, so cold without eviction: [`docs/ad
 and `--disjoint` keeps sessions off each other's frames.
 
 ```bash
-cargo build --release -p series-server -p disk-access-bench -p container-bench -p pack-series --features series-server/lab-levers
+cargo build --release -p series-server -p pack-series --features series-server/lab-levers
+(cd lab && cargo build --release -p disk-access-bench -p container-bench --features series-server/lab-levers)
 python3 lab/disk-access-bench/tile_advice_ab.py make W          # 16 KiB and 250 kB series of random frames
 python3 lab/disk-access-bench/tile_advice_ab.py calibrate W     # the smallest stride that misses ≥ 95 % today
 python3 lab/disk-access-bench/tile_advice_ab.py time W 12

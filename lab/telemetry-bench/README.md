@@ -8,8 +8,8 @@ grow. The reading is [`docs/adr/telemetry-server-pipeline.md`](../../docs/adr/te
 
 ```bash
 lab/scripts/telemetry_bench_matrix.sh [out.jsonl]    # the whole matrix, one JSON object a line
-cargo run --release -p telemetry-bench -- emit --seam own-batch --producers 16 [--sink count|json-file|binary-file]
-cargo run --release -p telemetry-bench -- report --shape streaming --rows 1000000 --out-dir /tmp/t [--offline-exact]
+cargo run --manifest-path lab/Cargo.toml --release -p telemetry-bench -- emit --seam own-batch --producers 16 [--sink count|json-file|binary-file]
+cargo run --manifest-path lab/Cargo.toml --release -p telemetry-bench -- report --shape streaming --rows 1000000 --out-dir /tmp/t [--offline-exact]
 ```
 
 The gate compiles it (`scripts/gate.sh`), so its variants stay buildable.

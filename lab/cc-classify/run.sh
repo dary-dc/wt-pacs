@@ -22,7 +22,8 @@ steal_quiet() {  # /proc/stat's steal ≤ 2 % over 10 s, waited for up to 5 min
 }
 # The controller is a lab feature, so each rig's server is built with it: the overflow's also with the loss trace it reads.
 release() {  # FEATURES DIR
-  cargo build -q --release -p series-server -p pack-series -p window-harness --features "$1"
+  cargo build -q --release -p series-server -p pack-series --features "$1"
+  (cd lab && cargo build -q --release -p window-harness)
   mkdir -p "$2" && cp "${CARGO_TARGET_DIR:-target}"/release/{series-server,pack-series,window-harness} "$2"
 }
 release "$LAB" "$OUT/bin"

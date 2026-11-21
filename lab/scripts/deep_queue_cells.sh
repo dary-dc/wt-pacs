@@ -32,7 +32,8 @@ trap cleanup EXIT
 trap "exit 143" TERM INT
 
 # Release: a debug server and client at 40 Mbit leave the relay late (VOID) half the time.
-nice -n 19 cargo build -q --release -p series-server --features series-server/telemetry -p pack-series -p window-harness
+nice -n 19 cargo build -q --release -p series-server --features series-server/telemetry -p pack-series
+(cd lab && nice -n 19 cargo build -q --release -p window-harness)
 BIN="${CARGO_TARGET_DIR:-target}/release"
 bash client/transport/ts/build.sh > /dev/null
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \

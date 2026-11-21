@@ -16,7 +16,7 @@ PROFDATA=$(ls "$(rustc --print sysroot)"/lib/rustlib/*/bin/llvm-profdata 2>/dev/
 [[ -f server/dev-cert/cert.pem ]] || bash server/scripts/gen_dev_cert.sh >/dev/null
 [[ -f lab/fixtures/frames_32k/frames_32k.sbnd ]] || FRAMES=80 bash lab/scripts/gen_tf_fixtures.sh >/dev/null
 [[ -f lab/fixtures/frames_tiny/frames_tiny.sbnd ]] || NAME=frames_tiny BYTES=100 FRAMES=80 bash lab/scripts/gen_live_cell_fixture.sh >/dev/null
-cargo build --release -p disk-access-bench --bin server_ab
+(cd lab && cargo build --release -p disk-access-bench --bin server_ab)
 
 RUSTFLAGS="-Cprofile-generate=$PROFILES" cargo build --release -p series-server --target-dir "$OUT/instrumented"
 

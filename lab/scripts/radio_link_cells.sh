@@ -70,7 +70,8 @@ case "$CELL" in
   *) echo "usage: $0 jitter|outage|two-blinks [rounds]"; exit 2 ;;
 esac
 
-cargo build -q -p series-server -p pack-series -p window-harness
+cargo build -q -p series-server -p pack-series
+(cd lab && cargo build -q -p window-harness)
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \

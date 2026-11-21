@@ -53,7 +53,7 @@ if [[ -z "${BIN_DIR:-}" ]]; then
   }
   build G0 "$G0_REF"; build G1 "$G0_REF" "$G1_PICK"; build G2 "$G0_REF" "$G2_PICK"
   git -C "$ROOT" worktree add -q --detach "$T/ab" "$AB_REF"
-  (cd "$T/ab" && cargo build -q --release -p disk-access-bench --bin server_ab --target-dir "$T/target")
+  (cd "$T/ab" && { [[ ! -f lab/Cargo.toml ]] || cd lab; } && cargo build -q --release -p disk-access-bench --bin server_ab --target-dir "$T/target")  # a ref before lab/Cargo.toml: from the root
   cp "$T/target/release/server_ab" "$BIN_DIR/"
   git -C "$ROOT" worktree remove --force "$T/ab"
   rm -rf "$T"

@@ -19,7 +19,7 @@ ceilings). The single-question bins, each with its usage at the top of its file:
 | `ask_during_fill` | an ask arriving during a fill, and what the fill pays | [`WIRE.md`](../../docs/WIRE.md) §An ask during a fill |
 
 ```bash
-cargo build --release -p window-harness [--features cert-compression]   # the feature pairs with series-server's
+(cd lab && cargo build --release -p window-harness [--features cert-compression])   # the feature pairs with series-server's
 target/release/window-harness --url https://127.0.0.1:4433/ --mode saturate --depth 4 --frame-count 87
 ```
 

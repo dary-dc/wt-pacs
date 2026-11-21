@@ -7,7 +7,7 @@ sorted key file searched by binary search with the values apart. Every store is 
 read must hand back the same page values before it is timed, and C must give back each group byte for byte.
 
 ```bash
-cargo run -p metadata-store --release -- --instances 4,200,2000 --rounds 200 > rows.jsonl
+cargo run --manifest-path lab/Cargo.toml -p metadata-store --release -- --instances 4,200,2000 --rounds 200 > rows.jsonl
 ```
 
 **The series.** One real instance group and its series group, from the parser's `doc/PACS/db/deck.db` at `f36230b`
@@ -35,7 +35,7 @@ rebuild alone, every received group's BLAKE3, a reader in a second process durin
 run), and size.
 
 ```bash
-cargo run -p metadata-store --release -- --mode pair --instances 4,200,2000 --rounds 300 --updates 60 > pair.jsonl
+cargo run --manifest-path lab/Cargo.toml -p metadata-store --release -- --mode pair --instances 4,200,2000 --rounds 300 --updates 60 > pair.jsonl
 ```
 
 **`--mode pair-followup`** measures the pair's two open items, pre-registered in the draft's §2: an update that patches
@@ -79,7 +79,7 @@ The host: whether the writer saturates its core is its CPU time against its late
 the revision arm's bytes over its latency against the 16 MB reference. Nothing is claimed past either.
 
 ```bash
-cargo run -p metadata-store --release -- --mode update-cost --instances 200,2000,10000 --updates 100 > update-cost.jsonl
+cargo run --manifest-path lab/Cargo.toml -p metadata-store --release -- --mode update-cost --instances 200,2000,10000 --updates 100 > update-cost.jsonl
 ```
 
 *Measured, 2026-10-24, two runs* (a range is the two runs' medians, both A/A arms included; p10–p90 of one run in
@@ -757,8 +757,8 @@ in one zstd value). It is a cargo feature, out of the gate's build.
 
 ```bash
 .venv/bin/python -I lab/metadata-store/study-db/package.py DATA BUILD/build/ESIPFfiled PKG   # the parser, then packages
-cargo test -p metadata-store --features study-db --release
-cargo run -p metadata-store --features study-db --release -- --mode study-db --packages PKG \
+cargo test --manifest-path lab/Cargo.toml -p metadata-store --features study-db --release
+cargo run --manifest-path lab/Cargo.toml -p metadata-store --features study-db --release -- --mode study-db --packages PKG \
   --builds 30 --rounds 200 --updates 60 > study-db.jsonl
 ```
 
@@ -967,8 +967,8 @@ again; only the metadata is, as one stream, on links where it gains (`docs/inges
 reports, and decides nothing.
 
 ```bash
-cargo test -p metadata-store --features study-db --release
-cargo run -p metadata-store --features study-db --release -- --mode ce-ratio --packages PKG --rounds 50 > ce-ratio.jsonl
+cargo test --manifest-path lab/Cargo.toml -p metadata-store --features study-db --release
+cargo run --manifest-path lab/Cargo.toml -p metadata-store --features study-db --release -- --mode ce-ratio --packages PKG --rounds 50 > ce-ratio.jsonl
 ```
 
 **The packages** are §The study DB's, rebuilt by `package.py` (SHA-256 below that section; pt as written differs, as

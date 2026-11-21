@@ -127,7 +127,8 @@ trap cleanup EXIT
 
 build() {
   echo "== build"
-  cargo build --release -p series-server -p disk-access-bench -p container-bench -p check-fastpath
+  cargo build --release -p series-server -p check-fastpath
+  (cd lab && cargo build --release -p disk-access-bench -p container-bench)
   [[ -f "$CERT" ]] && openssl x509 -in "$CERT" -noout -checkend 86400 >/dev/null || openssl req -x509 -newkey ec \
     -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$KEY" -out "$CERT" -days 10 -nodes -subj /CN=localhost \
     -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" 2>/dev/null

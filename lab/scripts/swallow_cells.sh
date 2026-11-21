@@ -22,7 +22,7 @@ trap cleanup EXIT
 # `timeout` sends TERM, and without this the servers outlive the script — one spun for hours.
 trap "exit 143" TERM INT
 
-cargo build -q --release -p window-harness
+(cd lab && cargo build -q --release -p window-harness)
 cargo build -q -p pack-series
 COLD="${CARGO_TARGET_DIR:-target}/release/cold_open"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \

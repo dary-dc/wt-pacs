@@ -77,6 +77,6 @@ ensure_harness_binary() {
   if [[ "${SKIP_BUILD:-0}" == "1" ]]; then
     [[ -x "$HARNESS" ]] || { echo "SKIP_BUILD=1 but missing $HARNESS" >&2; exit 1; }
   else
-    cargo build -p window-harness --release >/dev/null
+    (cd "$ROOT/lab" && cargo build -p window-harness --release >/dev/null)
   fi
 }

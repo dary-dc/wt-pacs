@@ -16,7 +16,7 @@ cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm 
 trap cleanup EXIT
 trap "exit 143" TERM INT
 
-cargo build -q --release -p window-harness --bin cold_open
+(cd lab && cargo build -q --release -p window-harness --bin cold_open)
 declare -A PORT
 for variant in on off; do
   srv=$((30000 + RANDOM % 5000)); in=$((35000 + RANDOM % 5000)); deaf=$((45000 + RANDOM % 5000))

@@ -7,6 +7,11 @@ cells `sudo` for netem or a TUN device. Each directory reproduces a claim a doc
 cites; the doc holds the number, the directory holds how to get it. Variants are interleaved with
 `order.mjs` (`scripts/order.py` for shell), which the gate tests.
 
+The Rust crates no product feature names (`disk-access-bench/`, `container-bench/`, `window-harness/`,
+`telemetry-bench/`, `metadata-store/`) are this directory's own workspace, `Cargo.toml` with its own lock: build them
+from here (`cd lab && cargo build -p window-harness`), and the binaries land in the root's `target/` as before. The two a
+server feature names stay in the root's.
+
 | where | what |
 | --- | --- |
 | `harness/` | the downloader's pages, served by the dev host at `/harness/`: `index.html` its self-check, `cell.html` a cell over any series, `cellcheck.sh` both headless — `README.md` §Quick start |

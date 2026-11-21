@@ -39,7 +39,7 @@ gain may shrink. **What would contradict it:** a ratio inside the A/A spread, or
 ## Result (2026-10-22, base `feeb162`)
 
 ```bash
-cargo build --release -p series-server -p disk-access-bench --bin series-server --bin server_ab && scripts/pgo_build.sh
+cargo build --release -p series-server && (cd lab && cargo build --release -p disk-access-bench --bin server_ab) && scripts/pgo_build.sh
 lab/pgo-relay/run.sh && lab/pgo-relay/summary.py lab/pgo-relay/rows/103000.tsv lab/pgo-relay/rows/18000.tsv
 ```
 

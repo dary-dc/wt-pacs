@@ -15,7 +15,7 @@ RUN_S="${RUN_S:-4}"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 [[ -n "${SERVER_TELEMETRY:-}" ]] || { echo "set SERVER_TELEMETRY" >&2; exit 1; }
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"
-[[ -x "$HARNESS" ]] || cargo build --release -p window-harness >/dev/null
+[[ -x "$HARNESS" ]] || (cd "$ROOT/lab" && cargo build --release -p window-harness >/dev/null)
 
 rm -rf "$WORK"; mkdir -p "$WORK"
 report="$WORK/telemetry-server.json"
