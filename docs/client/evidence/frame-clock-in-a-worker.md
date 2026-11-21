@@ -9,7 +9,7 @@ findings shape is [`../design.md`](../design.md).*
 
 ## A frame clock in the view worker (2026-10-28)
 
-*Theory and a pre-registered protocol; the harness built 2026-10-30 ([`../../lab/frame-clock/`](../../../lab/frame-clock/README.md)) and smoke-run, nothing timed as a result.* The owner's next client shape: the page holds no
+*Theory and a pre-registered protocol; the harness built 2026-10-30 (`lab/frame-clock/`) and smoke-run, nothing timed as a result; its arms, page, driver and README removed 2026-11-19 (`git revert 24b80bcd`), its score, busy page, phase and rows kept.* The owner's next client shape: the page holds no
 frame; one dedicated **view worker**, started by the page, holds the frame store, a controller and the WebGL2 paint on a
 transferred `OffscreenCanvas`. How its frames reach the screen without the page is §2's last bullet; this section asks
 only **which clock** the worker can run cine on. Sources are pinned as in §9, plus MDN's compat data and page, all in
@@ -167,7 +167,7 @@ runs are a later row.
 **Run, Chromium (2026-11-03): no verdict — this container saturates in every cell.** Chromium 153 on SwiftShader,
 headless, 4 cores; the paint settled by the fence; the eight 512² cells as amended above, interleaved by
 `lab/order.mjs`, 280 runs in `claude/core-clock:lab/frame-clock/rows/chromium.jsonl`
-(`node lab/frame-clock/run.mjs --summary` on it). Every busy run's shortest long task was ≥ 200 ms, so no run was void.
+(`node lab/frame-clock/run.mjs --summary` on it, the driver at `24b80bcd`, removed since). Every busy run's shortest long task was ≥ 200 ms, so no run was void.
 `page-raf`'s draw p99, median over rounds, against the guard's T/2:
 
 | cell | rounds | `page-raf` draw p99 | T/2 | A/A late, gap p99 | |

@@ -83,6 +83,11 @@ small enough that every open item has an owner and a next step.
 7. **Item 11, the frame clock** (the owner's yes): `dd2c3902` on `claude/clean-product` removes its arms, page and
    driver (a protocol built and smoke-run on 2026-10-30, never run, run by no line); `24b80bcd` restores them.
    On a yes, `git revert 24b80bcd`. `dd2c3902`'s message reads as a revert by mistake; it is the removal.
+   *Corrected 2026-11-19:* it was run after the restore, Chromium 2026-11-03, 280 runs, no verdict (the host
+   saturates; `docs/client/evidence/frame-clock-in-a-worker.md`). The revert is proposed as `claude/remove-frame-clock`
+   (UNIFIED-REMOVALS), a draft PR; it keeps the rows, the score, the busy page and the phase.
+   UNIFIED-REMOVALS-REVIEW (2026-11-21, PR 411's body): no blocker; gate OK on the merge with `claude/unified`; m1 the evidence
+   file's driver commit lacks the screen (`fa235641` reproduces the verdict), m2 the run predates both commits.
 
 8. **Stage B of the unification** (row MERGE-B, 2026-11-15): `claude/unified` holds `claude/merge-a-client` with
    `merge-a-codecs`, `merge-a-server`, `unified-pacs` and `line-hygiene` merged `--no-ff`, each message naming every
