@@ -86,6 +86,8 @@ small enough that every open item has an owner and a next step.
    *Corrected 2026-11-19:* it was run after the restore, Chromium 2026-11-03, 280 runs, no verdict (the host
    saturates; `docs/client/evidence/frame-clock-in-a-worker.md`). The revert is proposed as `claude/remove-frame-clock`
    (UNIFIED-REMOVALS), a draft PR; it keeps the rows, the score, the busy page and the phase.
+   UNIFIED-REMOVALS-REVIEW (2026-11-21, PR 411's body): no blocker; gate OK on the merge with `claude/unified`; m1 the evidence
+   file's driver commit lacks the screen (`fa235641` reproduces the verdict), m2 the run predates both commits.
 
 8. **Stage B of the unification** (row MERGE-B, 2026-11-15): `claude/unified` holds `claude/merge-a-client` with
    `merge-a-codecs`, `merge-a-server`, `unified-pacs` and `line-hygiene` merged `--no-ff`, each message naming every
