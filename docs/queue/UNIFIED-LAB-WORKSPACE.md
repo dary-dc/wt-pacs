@@ -1,12 +1,13 @@
 state: started
 started: 2026-11-21T11:46Z
-heartbeat: 2026-11-21T11:47Z
-outputs: claude/lab-workspace (not yet created)
+heartbeat: 2026-11-21T11:53Z
+outputs: claude/lab-workspace a1a1503bf (no PR yet)
 ## Resume
-Plan (from origin/claude/unified 4a2b4277f): lab/Cargo.toml a workspace of the five crates no product feature names
-(disk-access-bench, container-bench, window-harness, telemetry-bench, metadata-store), excluding cc-classify and
-server-telemetry (series-server's optional deps, stay root members); the root's [patch.crates-io], release profile and
-workspace.dependencies copied; lab/Cargo.lock pruned from the root's (no version moves); lab/.cargo/config.toml
-target-dir ../target so every script's target/release/<bin> path holds; lab scripts and READMEs build lab crates by
-`(cd lab && cargo ...)`; gate step split; Containerfile and both ignore files drop the five. Next: write it.
+Done on claude/lab-workspace: f14a4d372 (lab/Cargo.toml, its lock pruned from the root's, no version moved; root
+drops the five), ad763873a (Containerfile and both ignore files drop the five; gate step split), a1a1503bf (39 lab
+scripts and READMEs build the five from lab/). Lab tests: 39 passed in 25 suites, as at 4a2b4277f. The image's build
+stage, copied by its COPY lines, resolves --locked and checks series-server.
+Next: gate prerequisites (client/decode/wasm/build/build.sh, ingest/tools.sh), then `scripts/gate.sh`,
+`scripts/check_lab_absent.sh`; a mutant of the gate's lab step (a lab test broken must fail it); draft PR into
+claude/unified; docs/lines/coordination.md §Open 6 updated on the branch.
 ## Result
