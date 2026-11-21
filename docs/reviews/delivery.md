@@ -91,3 +91,54 @@ Two blockers (B1, B2), seven minors. Amendment 17: DELIVERY-BUILD-FIX and DELIVE
 Fixtures and limits: the smoke rows only (one uncounted round a cell, the three timed volumes `dbts_a1`, `dbts_b1`,
 `dbts_c1` at Q 8 G 8 and their HTJ2K series, one 4-core cloud container, full headless Chromium 153, software decode,
 the userspace TUN relay at ≤ 90 Mbit, no radio); nothing measured by this review.
+
+## Re-review
+
+DELIVERY-BUILD-FIX-REVIEW, 2026-11-21, of `ffbdccf3..4a904bb2` (`6ad647cf`, `4a904bb2`), by a session that wrote none
+of the protocol, the build, the review or the fix.
+
+**Method.** The three unit suites (`judge`, `predict`, `inputs`) at `4a904bb2`: all pass. Each fix reverted with its
+tests kept (the file at `ffbdccf3`): both suites fail. 19 mutants of `plan.mjs` and `judge.mjs`'s new code run
+against them. `k3-blackout.patch` applied to a worktree at `9fad9d9bf`: it applies, the runner parses, and k3.sh's
+reverse check makes it idempotent. The 150 LTE phases `cellLoads("LTE")` draws, read per arm and per (round, volume).
+`scripts/check_lab_absent.sh`, `scripts/comment_budget.sh` and `scripts/check_links.py` green. **Not run**: the gate
+(the fix's Result reports it green at `4a904bb2`, skips named in PR 406), the driver and `k3.sh` end to end (they need
+the coded series).
+
+**B1, closed.** Each LTE load's first blackout is at a phase in [0, 30 s) from the servers' start, seeded by
+(cell, round, volume, arm), the period after it; each row carries `blackoutPhaseMs` (spread from the plan) and
+`blackoutsFromDialMs` (epoch ms on both sides, as `fillFrom` is). Killed: the old phase (30 s), phase 0, unseeded,
+one phase a round, one a cell, half the period, the dial's sign, a dial-less row. K3's visits draw by the same rule
+(`K3/<visit>/<prefix>`), so K3 and the cell agree. Per arm the 30 phases average 13.8–15.2 s (uniform: 15.0).
+
+**B2, closed.** Under 8 counted rounds `holds()` sets `cannotHold` and `line()` prints `CANNOT HOLD: n counted,
+median <side>`, never `MISSES`; ten rounds above the band still miss. Killed: 7 rounds as the bar, `cannotHold`
+false, the old `line()`. The pilot prints each cell's `VOID` share by reason (killed: numbers kept, VOIDs not counted).
+
+**Nothing else changed**: the diff is `lab/delivery/` (the two fixes, m2, m4–m7, README, `k3.sh` and its patch), one
+line of this file's §Verdict (the ledger's branch named) and the client line doc. No product path.
+
+### Minors (none blocks DELIVERY-RUN)
+
+* r1. **The phases are drawn per (round, volume), not per load.** FNV-1a without a finalizer moves the high bits
+  little for a key's last character, so arms whose names differ only there draw nearly the same phase: C1 and C2
+  within 352 ms of each other in all 30 (round, volume) pairs (median 118 ms), A and B within 351 ms in the median
+  pair; A′ (a longer key) is independent of A (median gap 10.3 s). Each arm's rate holds in expectation, so no
+  cell's judgement is biased, but C1 and C2 (and A and B) meet their blackouts together, and README's "each load now
+  draws" is not what runs. Either say so in README (common phases across those arms), or restore a finalizer with a
+  test that C1's and C2's phases differ by more than 1 s in most pairs. The finalizer was dropped because it survived
+  every test: the test pinned uniformity, not independence.
+* r2. Three mutants survive: `ratios.length <= HOLD_ROUNDS` (an 8-counted cell that misses would print `CANNOT HOLD`;
+  no test at n = 8); `line()` without the side (B2's "with its median and side"); `voidShares` without its `Set`
+  (a load with two reasons of one kind counted twice). One check each.
+* r3. The driver's wiring (`spec.blackoutPhaseMs` into the timer, `blackoutsFromDialMs` into the row) has no test and
+  was not run here; the rows check themselves: the first `blackoutsFromDialMs` plus the dial's offset from the
+  servers' start is the row's `blackoutPhaseMs` (or one period more). DELIVERY-RUN reads that on its pilot rows.
+
+### Verdict
+
+Both blockers closed, no blocker open: DELIVERY-RUN's need on this re-review is met. Three minors for the run's
+session or a later fix.
+
+Fixtures and limits: unit tests on synthetic rows and the plan's 150 LTE draws; the smoke rows not re-run; one 4-core
+cloud container; nothing measured.
