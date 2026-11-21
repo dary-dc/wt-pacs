@@ -22,6 +22,7 @@ members = [
     "lab/cc-classify",
     "lab/server-telemetry",
     "lab/metadata-store",
+    "lab/noise-ingest",
 ]
 # A bare `cargo build` or `cargo test`: from-parser links ingest/tools.sh's build, the WASM client is wasm-pack's.
 default-members = [

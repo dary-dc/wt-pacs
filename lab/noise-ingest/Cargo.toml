@@ -1,0 +1,16 @@
+[package]
+name = "noise-ingest"
+version = "0.1.0"
+edition = "2021"
+description = "σ_min as the Rust ingest would measure it: docs/av1/noise-point.md §σ_min in the Rust ingest"
+
+[lib]
+path = "src/sigma.rs"
+
+[[bin]]
+name = "sigma-bench"
+path = "src/bin/sigma-bench.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+libc = "0.2"
