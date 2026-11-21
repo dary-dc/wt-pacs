@@ -1,0 +1,2 @@
+ok   chrome: Google Chrome for Testing 153.0.8010.12 — offers ['draft-02'] reset_stream_at [], server ['draft-02', 'draft-07'] reset_stream_at [], negotiated draft-02, frame exact
+ok   firefox: Mozilla Firefox 160.0.1 — offers ['draft-02'] reset_stream_at ['0x1d'], server ['draft-02', 'draft-07'] reset_stream_at [], negotiated draft-02, frame exact

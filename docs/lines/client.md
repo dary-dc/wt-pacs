@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-21 (the engine review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -46,6 +46,18 @@ exact frame bit for bit, and only checked claims on screen.
   `Blob` (no Snappy pass, no 17 MB SQLite row), one write transaction in flight with reads first, `estimate()` at open.
   Cache Storage's advocate (2026-11-14): a reused or streamed body, `estimate()` at open, Gecko's Snappy and CRC32C and
   WebKit's SHA-1 on every frame both ways; a slot freed once a writer holds its copy, proposed for all four. The protocol, pre-registered 2026-11-15 (§8): the shared proposals that enter (a second tab reads, a slot freed once copied, a miss served from what the writer holds, a bounded wait after eviction), eleven cells with bars and predictions, OPFS-SYNC′ the A/A arm, a floor probe beside every run, six mutants; WebKitGTK installable on the host, not yet run. Next, CACHE-BUILD-HARNESS. The run, 2026-11-18/19 (§9, *measured*, one 4-vCPU container, feeders not decoders): no arm passes on Chromium 153 or Firefox 159, every arm failing L's PSS bar at 512² on both; OPFS-SYNC and OPFS-ASYNC pass R, W and O where IDB and Cache Storage miss R and O on Firefox; Chromium's OPFS-SYNC second tab ended with 3 frames not exact over 4 rounds, unreported by its re-check; WebKitGTK 2.52.6 not run (no `SharedArrayBuffer`, no OPFS). The verdict review, 2026-11-19 (§10): §9 recomputes cell for cell (one correction: Firefox saturated at S2 and S3 4×); no passer on either engine, by rule 3. IDB's and Cache Storage's read losses are their APIs' (the floor at or over the bar); the PSS failures at 512² sit within the A/A pair's own PSS spread; Chromium IDB's ~1.2 GiB is theory, a `Blob` held per frame; T's three are failed re-reads or mismatches, which the rows cannot separate, not shown to be wrong frames painted. Owed: §10.4's run (PSS by process, IDB `value=buffer` on Chromium, T's record, OPFS-ASYNC one handle a group). The cache stays off.
+* **Which results hold in which engine** (ENGINE-MATRIX, 2026-11-19, sources only:
+  [`../decode/engines.md`](../decode/engines.md)): every row measured or cloud-runnable in Chromium, all but the
+  reports in Firefox (its WebCodecs route fails by design, dav1d serves), none measured in Safari, where the view's
+  WebCodecs route needs AV1 hardware, WebTransport macOS or iOS 26, and shared memory the embedder's choice.
+  ENGINE-SMOKE, 2026-11-20 (§Measured, *measured*, one container, Firefox 160.0.1 and 159.0.1): the demo pair holds in
+  Firefox through dav1d, both views; the dispatch rig fails 17 of 781 there, its 8-bit G = 8 groups inexact once
+  Firefox's `VideoDecoder` takes them (cause not traced); cell 2's command cannot serve a pair (run instead through
+  `demo-pair.sh`); every Chromium offers draft-02 alone; `getStats()` from Chromium 160. ENGINE-REVIEW, 2026-11-21
+  (findings in PR 410's body): E1–E26 hold verbatim at their pins; the raw rows carry §Measured; the G = 8 failure is
+  the WebCodecs route's alone (the rig's dav1d variant of the same clauses passes on 159 and 160); one blocker, the
+  matrix's rows 1, 6, 7, 11 and 12 left uncorrected where §Measured contradicts them (ENGINE-REVIEW-FIX). Next,
+  ENGINE-REVIEW-FIX, then ENGINES-PAGE.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.

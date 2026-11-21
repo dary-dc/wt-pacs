@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8"><script type="module">
+const t = await (await fetch("/wt/dev-transport.json")).json();
+const hex = t.cert_sha256; const bytes = new Uint8Array(hex.match(/../g).map((h) => parseInt(h, 16)));
+const out = { has: typeof WebTransport, proto: typeof WebTransport?.prototype?.getStats };
+try {
+  const wt = new WebTransport(t.wt_url, { serverCertificateHashes: [{ algorithm: "sha-256", value: bytes }] });
+  await wt.ready; out.ready = true;
+  if (out.proto === "function") { const s = await wt.getStats(); out.stats = Object.fromEntries(Object.entries(s).map(([k, v]) => [k, typeof v === "object" && v ? Object.keys(v) : v])); }
+  wt.close();
+} catch (e) { out.error = String(e); }
+console.log("getstats-result " + JSON.stringify(out));
+</script>
