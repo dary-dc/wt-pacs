@@ -1369,3 +1369,32 @@ built and run; D6 under `--tun`; Firefox and WebKitGTK (their kill levers unchec
 None is forced by this run. Telemetry stays off (rate 0). For the owner: whether the next build round is the list
 above (or a subset: D5 retimed plus L, C, Y is what separates BEACON-Y from KEEPALIVE-Y and decides rule 3); whether a
 SESSION-with-HTTP-fallback arm is worth one run; NGINX against RECEIVER waits on cell R.
+
+## Results 2 (REPORT-RUN-2, from 2026-11-21)
+
+Run as §7.9 amends, at the rig `claude/report-arms` `03fd26c3`. Rows: `claude/report-arms:lab/report-arms/rows/r2-<engine>-<cell>.jsonl`,
+`r2-cpu.log`. Each cell is filled in here as it completes. Every count below is *measured*.
+
+### D5a on Chromium, killed 50 ms after the decoder's fault (18 rounds, 162 loads, 2026-11-21 13:55–16:38 UTC)
+
+Williams-balanced for every unit; no row errored; host CPU at most 12 % (no round saturated). The kill fell 49.3–64.6
+ms after the fault on the browser's clock (`atKill`; 49.3 is the two clocks' rounding), never late; the driver learned
+of the fault 13.6–25.1 ms after it.
+
+| unit | fill record | a delta | safety report | duplicates | safety handed on before the kill |
+| --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | — | 18/18, 18/18 | 0 | 18/18, 18/18 |
+| BEACON-H | 0/18 | 0/18 | 18/18 | 0 | 18/18 |
+| BEACON-Y | 18/18 | 0/18 | 18/18 | 0 | 18/18 |
+| KEEPALIVE-H | 0/18 | 0/18 | 18/18 | 0 | 18/18 |
+| KEEPALIVE-Y | 18/18 | 0/18 | 18/18 | 0 | 18/18 |
+| SESSION-1 | 18/18 | 0/18 | 18/18 | 0 | 18/18 |
+| SESSION-Y | 18/18 | 0/18 | 18/18 | 0 | 18/18 |
+| SESSION-H | 0/18 | 0/18 | 18/18 | 0 | 18/18 |
+
+Against §7.3's predictions: the load report as predicted for every arm but SESSION-1 (fill ✓; "deltas up to the last
+second": none arrived, since the kill fell 50 ms after the fault, before any tick). The safety report: predicted *at
+risk* for every arm, **delivered 18/18 by every arm**. But in all 162 loads the page had handed its safety report to the
+carrier before the kill (`safetyHanded`), so on this host and series **the kill never landed inside the race** §7.3
+calls at risk, timed right as it now is: the race between the mismatch and the hand-off is shorter than 50 ms here.
+D5a separates no carrier (rule 3 stays a tie on Chromium). A/A: `off` and `off′` identical.
