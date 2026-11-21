@@ -1,6 +1,6 @@
 // node lab/delivery/judge.test.mjs — the judge of delivery-comparison.md §6–§8 on rows made to each case.
 import { cellLoads } from "./plan.mjs";
-import { aaCells, decodersReadBack, exactLatencyOf, holds, judge, measuredRegime, voidOf } from "./judge.mjs";
+import { aaCells, aaMedianRatio, blackoutsFromDial, decodersReadBack, exactLatencyOf, holds, judge, line, measuredRegime, pilotMedians, voidOf, voidShares } from "./judge.mjs";
 import { digestOf } from "./predict.mjs";
 
 let failed = 0;
@@ -93,6 +93,35 @@ check(r.unbalanced.length > 0, `order: a fixed cycle is UNBALANCED (${r.unbalanc
 /** §7: A as the reference, A′ the copy, one value a round. */
 const aa = aaCells(rowsOf().map((x) => ({ ...x, load: { fillMs: x.arm === "A'" ? 2 : 1 } })))["LTE/dbts_a1"];
 check(aa.ref.length === 10 && aa.ref.every((v) => v === 1) && aa.aa.every((v) => v === 2), "A/A: aa_rule.py's input, A against A′ a round");
+
+/** Under 8 counted rounds a cell cannot hold, and is printed so, never as a measured miss. */
+r = await judge(text, rowsOf({ edit: (l) => (l.round < 3 && l.arm === "A" ? { void: ["x"] } : {}) }));
+const seven = verdictOf(r, "A");
+check(seven.n === 7 && seven.cannotHold && /CANNOT HOLD: 7 counted/.test(line(seven)) && !/MISSES/.test(line(seven)), `under 8: A with 7 counted rounds on its prediction (${line(seven)})`);
+r = await judge(text, rowsOf({ ratio: (l) => (l.arm === "B" ? 1.5 : 1) }));
+check(/MISSES above/.test(line(verdictOf(r, "B"))) && !verdictOf(r, "B").cannotHold, "under 8: ten counted rounds above the band still MISS");
+
+/** The pilot's VOID share per cell, by reason with its numbers dropped. */
+const shares = voidShares([{ cell: "CLEAN", void: ["core 0 (the relay) 97 % busy"] }, { cell: "CLEAN", void: ["core 0 (the relay) 99 % busy", "crash: load 3: no end in 630 s"] }, { cell: "CLEAN" }, { cell: "PUB" }]);
+check(JSON.stringify(shares) === JSON.stringify({ CLEAN: { loads: 3, void: 2, reasons: { "core N (the relay) N % busy": 2, crash: 1 } }, PUB: { loads: 1, void: 0, reasons: {} } }), "pilot: VOID share per cell by reason");
+
+/** Each row's blackouts in ms from its dial. */
+check(JSON.stringify(blackoutsFromDial([1500, 31500], 1200)) === "[300,30300]" && blackoutsFromDial([1500], undefined) === null, "blackouts: times from the dial, none without a dial");
+
+/** C2's own downloader is read back too. */
+check(voidOf({ arm: "C2", load: { frames: decodeBound }, exactFill: { frames: three.load.frames.map((f) => ({ i: f.i, at: f.decodedAt, decodeMs: f.decodeMs })) } }).why.some((w) => /exact fill/.test(w)), "VOID: C2's exact fill with 3 decoders read back");
+
+/** --pilot-medians' file: the median fill per (cell, volume, arm) of the pilot's counted loads only. */
+const pr = (fillMs, extra = {}) => ({ pilot: true, cell: "LTE", volume: "dbts_a1", arm: "A", load: { fillMs }, ...extra });
+check(JSON.stringify(pilotMedians([pr(10), pr(30), pr(1000, { pilot: false }), pr(5, { void: ["x"] })])) === '{"LTE/dbts_a1/A":20}', "pilot medians: counted pilot loads only");
+
+/** A′ ÷ A's median a cell, printed beside the A/A rule (which, A′ being its copy and its arm, can only tie). */
+check(JSON.stringify(aaMedianRatio({ "LTE/dbts_a1": { ref: [1, 2, null], aa: [2, 4, 3] } })) === '{"LTE/dbts_a1":2}', "A/A: A′ ÷ A's median, rounds with both");
+
+/** B's measured regime counts units of one frame: 12 frames on two decoders floor at 6 frames, wire-bound at 140 ms. */
+const twelve = Array.from({ length: 12 }, (_, i) => ({ i, lastByte: 1000 + (140 * (i + 1)) / 12, decodeMs: 20, decodedAt: 2000 + i }));
+r = await judge(text, rowsOf({ edit: (l, row) => (l.arm === "B" ? { load: { ...row.load, frames: twelve } } : {}) }));
+check(verdictOf(r, "B").regimeMisses === 0, "regime: B judged in units of one frame (in groups of 8 it would read decode-bound)");
 
 console.log(failed ? `delivery judge: ${failed} FAILED` : "delivery judge: every claim holds");
 process.exit(failed ? 1 : 0);

@@ -62,15 +62,21 @@ export function voidOf(row, { pilotMedian } = {}) {
   if (pilotMedian && row.load?.fillMs > PILOT_VOID * pilotMedian) why.push(`fill past ${PILOT_VOID}× the pilot's median`);
   const back = row.load?.frames ? decodersReadBack(row.load.frames) : 0;
   if (back > DECODERS) why.push(`${back} decoders read back, not ${DECODERS}`);
+  const exactBack = row.exactFill?.frames ? decodersReadBack(row.exactFill.frames.map((f) => ({ decodedAt: f.at, decodeMs: f.decodeMs }))) : 0;
+  if (exactBack > DECODERS) why.push(`${exactBack} decoders read back on the exact fill, not ${DECODERS}`);
   const stop = !row.crash && row.verdict && !row.verdict.ok && !row.verdict.void ? `STOP: ${row.cell} round ${row.round} ${row.volume} ${row.arm}: ${row.verdict.why}` : null;
   return { why, stop };
 }
 
-/** §8: the model holds when the median ratio is in the band and at least 8 of the 10 rounds are. */
+/** §8: rounds in band the model needs, of 10 */
+export const HOLD_ROUNDS = 8;
+
+/** §8: the model holds when the median ratio is in the band and at least 8 of the 10 rounds are; under 8 counted it cannot. */
 export function holds(ratios, [lo, hi]) {
   const inBand = ratios.filter((r) => r >= lo && r <= hi).length;
   const m = ratios.length ? median(ratios) : NaN;
-  return { n: ratios.length, median: m, inBand, holds: m >= lo && m <= hi && inBand >= 8, side: m < lo ? "below" : m > hi ? "above" : "in" };
+  return { n: ratios.length, median: m, inBand, holds: m >= lo && m <= hi && inBand >= HOLD_ROUNDS, cannotHold: ratios.length < HOLD_ROUNDS,
+    side: m < lo ? "below" : m > hi ? "above" : "in" };
 }
 
 /** The judge over a cell's rows and the predictions file's text. Refuses a row whose digest is not the file's. */
@@ -106,6 +112,37 @@ export async function judge(text, rows, { group = { view: 8, exact: 1 } } = {}) 
   return { digest, verdicts, unbalanced, aa: aaCells(live) };
 }
 
+/** A′ ÷ A's median fill a cell, over the rounds with both. */
+export function aaMedianRatio(cells) {
+  return Object.fromEntries(Object.entries(cells).map(([key, { ref, aa }]) => {
+    const ratios = ref.flatMap((a, k) => (a != null && aa[k] != null ? [aa[k] / a] : []));
+    return [key, ratios.length ? median(ratios) : null];
+  }));
+}
+
+/** Each cell's loads, `VOID` loads and loads by reason, a reason's numbers dropped. */
+export function voidShares(rows) {
+  const out = {};
+  for (const r of rows) {
+    const c = (out[r.cell] ??= { loads: 0, void: 0, reasons: {} });
+    c.loads += 1;
+    if (!r.void?.length) continue;
+    c.void += 1;
+    for (const why of new Set(r.void.map((w) => (w.startsWith("crash") ? "crash" : w.replace(/(?<![A-Za-z])\d+(\.\d+)?/g, "N"))))) c.reasons[why] = (c.reasons[why] ?? 0) + 1;
+  }
+  return out;
+}
+
+/** `--pilot-medians`' file: each (cell, volume, arm)'s median fill over the pilot's loads not `VOID`. */
+export function pilotMedians(rows) {
+  const fills = {};
+  for (const r of rows) if (r.pilot && !r.void?.length && r.load?.fillMs != null) (fills[`${r.cell}/${r.volume}/${r.arm}`] ??= []).push(r.load.fillMs);
+  return Object.fromEntries(Object.entries(fills).map(([k, v]) => [k, median(v)]));
+}
+
+/** Epoch ms of each blackout sent, as ms from the load's dial; null without a dial. */
+export const blackoutsFromDial = (at, dial) => (dial == null ? null : at.map((t) => t - dial));
+
 /** §7's input for lab/scripts/aa_rule.py --bar 0.05: A as the reference, A′ as both its copy and the arm judged. */
 export function aaCells(rows) {
   const cells = {};
@@ -117,8 +154,8 @@ export function aaCells(rows) {
   return cells;
 }
 
-const line = (v) => `${v.cell} ${v.volume} ${v.arm.padEnd(2)} ${v.kind.padEnd(7)} predicted ${v.ms.toFixed(0)} ms, median ×${v.median.toFixed(3)} (${v.inBand}/${v.n} in ${v.band.join("–")}): ` +
-  `${v.holds ? "HOLDS" : `MISSES ${v.side}`}${v.regimeMiss ? `; REGIME MISS (${v.regimeMisses} rounds)` : ""}${v.void ? `; ${v.void} VOID` : ""}` +
+export const line = (v) => `${v.cell} ${v.volume} ${v.arm.padEnd(2)} ${v.kind.padEnd(7)} predicted ${v.ms.toFixed(0)} ms, median ×${v.median.toFixed(3)} (${v.inBand}/${v.n} in ${v.band.join("–")}): ` +
+  `${v.holds ? "HOLDS" : v.cannotHold ? `CANNOT HOLD: ${v.n} counted, median ${v.side}` : `MISSES ${v.side}`}${v.regimeMiss ? `; REGIME MISS (${v.regimeMisses} rounds)` : ""}${v.void ? `; ${v.void} VOID` : ""}` +
   `${v.roundPaired ? `; round-paired ×${v.roundPaired.median.toFixed(3)} ${v.roundPaired.holds ? "holds" : "misses"}` : ""}`;
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -129,5 +166,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (r.unbalanced.length) console.log(`UNBALANCED: ${r.unbalanced.join(" ")}`);
   const aaFile = rowFiles[0].replace(/\.jsonl$/, ".aa.json");
   writeFileSync(aaFile, JSON.stringify(r.aa, null, 1));
+  for (const [cell, ratio] of Object.entries(aaMedianRatio(r.aa))) console.log(`A/A ${cell}: A′ ÷ A median ×${ratio?.toFixed(3) ?? "—"}`);
   console.log(`predictions xxh3 ${r.digest}; A/A input ${aaFile}: lab/scripts/aa_rule.py ${aaFile} --bar 0.05`);
+  const medians = pilotMedians(rows);
+  if (Object.keys(medians).length) {
+    const file = rowFiles[0].replace(/\.jsonl$/, ".pilot-medians.json");
+    writeFileSync(file, JSON.stringify(medians, null, 1));
+    console.log(`pilot medians ${file}: run.mjs --pilot-medians ${file}`);
+  }
 }

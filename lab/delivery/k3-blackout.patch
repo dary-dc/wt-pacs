@@ -1,0 +1,32 @@
+diff --git a/lab/transport-arms/run.mjs b/lab/transport-arms/run.mjs
+index 48d110ff1..8fc83ac6a 100644
+--- a/lab/transport-arms/run.mjs
++++ b/lab/transport-arms/run.mjs
+@@ -196,10 +196,16 @@ async function visit(round, armName, form, prev, browserArgs) {
+     const banner = await until(`${T}/server.log`, "wt_url=");
+     const pid = MUTATE === "cpu-wrong-pid" ? Number(fs.readFileSync(`/proc/${relay.pid}/task/${relay.pid}/children`, "utf8").split(" ")[0]) : server.pid;
+     if (round === 0 && armName === NAMES[0]) Object.assign(row, { banner, kernel: { client: sysctls(null), server: sysctls(netns) }, relay: relayArgs });
+-    const blackouts = form.blackoutEveryMs && setInterval(() => {
++    // lab/delivery/k3.sh: the first blackout at BLACKOUT_PHASE_MS, as the delivery driver draws it.
++    const phaseMs = Number(process.env.BLACKOUT_PHASE_MS ?? form.blackoutEveryMs);
++    if (form.blackoutEveryMs) row.blackoutPhaseMs = phaseMs;
++    let blackouts;
++    const blackout = () => {
+       const s = dgram.createSocket("udp4");
+       s.send("blackout 40", CTRL_PORT, "127.0.0.1", () => s.close());
+-    }, form.blackoutEveryMs);
++      blackouts = setTimeout(blackout, form.blackoutEveryMs);
++    };
++    if (form.blackoutEveryMs) blackouts = setTimeout(blackout, phaseMs);
+     const proto = arm.proto === "h3" && MUTATE !== "wrong-protocol" ? [`--origin-to-force-quic-on=${SERVER_IP}:${GET_PORT}`] : [];
+     browser = await chromium.launch({ headless: true, args: [...browserArgs, ...proto] });
+     row.browser = browser.version();
+@@ -225,7 +231,7 @@ async function visit(round, armName, form, prev, browserArgs) {
+     const ss = sh(`nsenter --net=${netns} ss -tin state established '( sport = :${WT_PORT} or sport = :${GET_PORT} )' || true`);
+     row.tcpCongestion = [...new Set([...ss.matchAll(/^\s+([a-z0-9_]+) wscale/gm)].map((m) => m[1]))];
+     await page.evaluate(() => globalThis.end());
+-    if (blackouts) clearInterval(blackouts);
++    clearTimeout(blackouts);
+     const [cpu1, ticks1] = [cpuStat(), ticks(pid)];
+     const tree = client?.stop();
+     row.serverTicks = ticks1 - ticks0;

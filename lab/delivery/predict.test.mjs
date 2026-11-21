@@ -1,6 +1,6 @@
 // node lab/delivery/predict.test.mjs — the model of delivery-comparison.md §4.1 and its plan of cells (§1–§3).
 import { balanced } from "../order.mjs";
-import { ARMS, CELLS, VOLUMES, armParams, cellLoads } from "./plan.mjs";
+import { ARMS, CELLS, VOLUMES, armParams, blackoutPhaseMs, cellLoads } from "./plan.mjs";
 import { band, decodeFloor, digestOf, exactLatency, fill, predictions, regime, slowStart, unitsOf, wire } from "./predict.mjs";
 
 let failed = 0;
@@ -60,6 +60,31 @@ check(perVolume.every((rows) => ARMS.every((a) => balanced(rows, a, ARMS))), "pl
 check(!ARMS.every((a) => balanced(cellLoads("CLEAN", { fixedOrder: true }).filter((l) => l.volume === "dbts_a1").map((l) => ({ ...l, unit: l.arm })), a, ARMS)), "plan: a fixed order is not balanced");
 check(loads.slice(0, 15).map((l) => l.volume).join() !== loads.slice(15, 30).map((l) => l.volume).join(), "plan: the volumes rotate between rounds");
 check(JSON.stringify([armParams("C1"), armParams("C2"), armParams("B")]) === JSON.stringify([{ decoders: "2", press: "lossless", pressAfter: "1000" }, { decoders: "2", exactFill: "1" }, { decoders: "2" }]), "plan: two decoders every arm, C1 presses 1 s after, C2 fills the exact series");
+
+/** §3's table pinned: each form's delay one way, rate, queue and loss, its round trip, prefix and K3's prefixes. */
+const relayOf = (c) => CELLS[c].relay.join(" ");
+check(relayOf("CLEAN") === "--delay-ms 1 --rate-kbit 90000 --queue-pkts 300" && relayOf("PUB") === "--delay-ms 10 --rate-kbit 90000 --queue-pkts 2000"
+  && relayOf("CR") === "--delay-ms 400 --rate-kbit 90000 --queue-pkts 1875" && relayOf("LTE") === "--delay-ms 19 --rate-kbit 50000 --queue-pkts 3300 --loss 0.1",
+  "plan: CLEAN, PUB, CR and LTE's relay forms are §3's");
+const geArg = (k) => Number(CELLS.LOSS.relay[CELLS.LOSS.relay.indexOf(k) + 1]);
+check(relayOf("LOSS").startsWith("--delay-ms 20 --rate-kbit 20000 --queue-pkts 200 --loss-model ge") && near(geArg("--ge-p") / (geArg("--ge-p") + geArg("--ge-r")), 0.01, 1e-6) && near(100 / geArg("--ge-r"), 3.5, 1e-4),
+  "plan: LOSS is §3's Gilbert–Elliott at a mean 1 %, bursts of 3.5 packets");
+check(JSON.stringify(Object.values(CELLS).map((c) => [c.rttMs, c.prefix ?? null, c.lossPct ?? 0, c.blackoutEveryMs ?? 0, c.k3])) === JSON.stringify([[2, null, 0, 0, [8, 50]], [20, null, 0, 0, [8, 50]], [38, 16, 0.1, 30000, [4, 16]], [40, 8, 1, 0, [4, 8]], [800, null, 0, 0, [8, 50]]]),
+  "plan: round trips, prefixes, the pilot's loss, LTE's blackout every 30 s and K3's prefixes are §3's and §4.2's");
+
+/** LTE's blackout timer starts at a phase drawn per load, seeded and uniform over its period, so a fill meets blackouts at the form's rate. */
+const phases = cellLoads("LTE").map((l) => l.blackoutPhaseMs);
+check(phases.every((ms) => Number.isInteger(ms) && ms >= 0 && ms < 30000), "blackout: every LTE load's phase is in [0, 30 s)");
+check(JSON.stringify(cellLoads("LTE").map((l) => l.blackoutPhaseMs)) === JSON.stringify(phases), "blackout: the same plan draws the same phases (seeded)");
+const tenths = Array.from({ length: 10 }, (_, k) => phases.filter((ms) => Math.floor(ms / 3000) === k).length);
+check(tenths.every((n) => n >= 5 && n <= 30), `blackout: each 3 s tenth of the period holds 5–30 of the 150 phases (${tenths.join(" ")})`);
+check(cellLoads("CLEAN").every((l) => l.blackoutPhaseMs === undefined) && blackoutPhaseMs("LOSS", "K3/1/4") === undefined, "blackout: no phase on a form without blackouts");
+check(blackoutPhaseMs("LTE", "K3/1/4") !== blackoutPhaseMs("LTE", "K3/1/16") && blackoutPhaseMs("LTE", "K3/1/4") === blackoutPhaseMs("LTE", "K3/1/4"), "blackout: K3's visits draw by the same rule, one phase a key");
+
+/** C1's latency is predicted on the frame on screen, frame 0, whatever the others weigh. */
+const unequal = { ...vol, exact: { ...vol.exact, frames: [1e6, 3e6, ...a1.exact.slice(2)] } };
+const c1 = predictions({ volumes: { dbts_a1: unequal }, forms }).find((r) => r.cell === "CLEAN" && r.arm === "C1" && r.kind === "latency");
+check(near(c1.ms, exactLatency(1e6, clean, 19.8), 1e-9), "predictions: C1's latency is frame 0's");
 
 /** The predictions file's digest is the product's XXH3-64. */
 check((await digestOf("")) === "2d06800538d394c2", "digest: XXH3-64 of the empty string");

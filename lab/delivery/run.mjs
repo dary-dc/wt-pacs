@@ -16,7 +16,7 @@ import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { CELLS, UNIMPAIRED, VOLUMES, cellLoads } from "./plan.mjs";
 import { digestOf } from "./predict.mjs";
-import { voidOf } from "./judge.mjs";
+import { blackoutsFromDial, voidOf, voidShares } from "./judge.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const argv = process.argv.slice(2);
@@ -148,7 +148,8 @@ async function load(k, spec) {
     "--self-timing", "--control-port", String(CTRL_PORT)], `${T}/relay.log`);
   const row = { ...spec, pilot: PILOT, mutate: MUTATE || undefined, predictionsXxh3, step: k, at: new Date().toISOString() };
   const servers = [];
-  let browser;
+  const blackoutsAt = [];
+  let browser, blackouts;
   try {
     const netns = (await until(`${T}/relay.log`, "READY")).match(/server_netns=(\S+)/)[1];
     const ids = seriesIds(spec.volume);
@@ -162,10 +163,13 @@ async function load(k, spec) {
     for (const port of [VIEW_PORT, EXACT_PORT]) row[`banner${port}`] = await until(`${T}/server-${port}.log`, "transport=");
     for (const port of [PAIR_PAGE, EXACT_PAGE]) await until(`${T}/page-${port}.log`, "port=");
     if (k === 0) Object.assign(row, { relay: relayArgs, series: ids });
-    const blackouts = form.blackoutEveryMs && setInterval(() => {
+    const blackout = () => {
+      blackoutsAt.push(Date.now());
       const s = dgram.createSocket("udp4");
       s.send("blackout 40", CTRL_PORT, "127.0.0.1", () => s.close());
-    }, form.blackoutEveryMs);
+      blackouts = setTimeout(blackout, form.blackoutEveryMs);
+    };
+    if (form.blackoutEveryMs) blackouts = setTimeout(blackout, spec.blackoutPhaseMs);
     const switches = [`--unsafely-treat-insecure-origin-as-secure=http://${SERVER_IP}:${PAIR_PAGE},http://${SERVER_IP}:${EXACT_PAGE}`, "--enable-quic", "--disable-background-networking", "--disable-background-timer-throttling", "--disable-renderer-backgrounding"];
     browser = await chromium.launch({ channel: "chromium", headless: true, args: switches });
     Object.assign(row, { browser: browser.version(), switches });
@@ -182,12 +186,13 @@ async function load(k, spec) {
     const cpu1 = cpuStat();
     row.busy = cpu1.map((c, j) => (c.busy - cpu0[j].busy) / Math.max(1, c.total - cpu0[j].total));
     row.serverTicks = servers.slice(0, 2).map((s, j) => ticks(s.pid) - server0[j]);
-    if (blackouts) clearInterval(blackouts);
+    clearTimeout(blackouts);
     // The page's last beacon crosses the relay after the page has left: CR's round trip is 0.8 s.
     for (const t0 = Date.now(); Date.now() - t0 < 30_000 && !beaconOf(k).some((r) => r.kind === "verdict");) await sleep(100);
   } catch (e) {
     Object.assign(row, { crash: true, error: String(e?.message ?? e) });
   } finally {
+    clearTimeout(blackouts);
     await browser?.close().catch(() => {});
     for (const s of servers) await stop(s);
     await stop(relay);
@@ -196,6 +201,7 @@ async function load(k, spec) {
   const one = (kind) => records.find((r) => r.kind === kind);
   Object.assign(row, { load: one("load"), exactFill: one("exactFill"), bench: one("bench"), verdict: one("verdict"), errors: records.filter((r) => r.kind === "error"),
     records: records.filter((r) => ["label", "lossless"].includes(r.kind)), relayTally: tally(fs.readFileSync(`${T}/relay.log`, "utf8")) });
+  if (form.blackoutEveryMs) row.blackoutsFromDialMs = blackoutsFromDial(blackoutsAt, row.load?.fillFrom);
   if (!row.crash && !row.verdict) Object.assign(row, { crash: true, error: "no verdict record" });
   return row;
 }
@@ -232,6 +238,7 @@ for (const [k, spec] of plan.entries()) {
   if ((stopped = v.stop)) break;
   await sleep(IDLE_MS);
 }
+if (PILOT && !BENCH) for (const [cell, v] of Object.entries(voidShares(rows))) console.log(`${cell} pilot: ${v.void}/${v.loads} VOID; ${Object.entries(v.reasons).map(([why, n]) => `${n} ${why}`).join("; ") || "none"}`);
 if (!stopped && PILOT && !BENCH) stopped = relayLossRefusal(rows);
 roundHost.close();
 if (stopped) console.log(stopped);
