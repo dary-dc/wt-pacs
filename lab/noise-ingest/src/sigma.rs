@@ -82,3 +82,66 @@ fn rank(count: &[u64], k: u64) -> f64 {
     }
     unreachable!("rank {k} of {below}")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SIZES: [(usize, usize); 3] = [(16, 12), (64, 48), (203, 151)];
+    const NOISE: [f64; 3] = [0.3, 3.0, 30.0];
+
+    /// Frame `i` of `golden.py`: a step edge and a ramp under Irwin–Hall noise from SplitMix64, half of them masked.
+    fn frame(i: usize) -> (Vec<i32>, Vec<bool>, usize, usize) {
+        let (w, h) = SIZES[i % 3];
+        let (noise, masked) = (NOISE[i / 4], (i / 2) % 2 == 1);
+        let mut state = i as u64 + 1;
+        let (mut v, mut inside) = (Vec::new(), Vec::new());
+        for y in 0..h {
+            for x in 0..w {
+                let mut u = 0.0;
+                for _ in 0..12 {
+                    state = state.wrapping_add(0x9E3779B97F4A7C15);
+                    let mut z = state;
+                    z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
+                    z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
+                    u += ((z ^ (z >> 31)) >> 11) as f64;
+                }
+                let level = (2000 + if 2 * x >= w { 300 } else { 0 } + 3 * y) as f64;
+                v.push(((level + (u * 2f64.powi(-53) - 6.0) * noise + 0.5).floor() as i32).clamp(0, 4095));
+                inside.push(!masked || ((x + y) % 7 != 0 && 4 * x < 3 * w));
+            }
+        }
+        (v, inside, w, h)
+    }
+
+    /// σ equals `quality.sigma`'s on every golden frame, bit for bit (the bits `golden.py` prints).
+    #[test]
+    fn equals_quality_sigma_on_the_golden_frames() {
+        const PINNED: [u64; 12] = [
+            0x0000000000000000,
+            0x0000000000000000,
+            0x0000000000000000,
+            0x0000000000000000,
+            0x40070d73fbd7a226,
+            0x4007ff9982712062,
+            0x40094f979609bc5c,
+            0x40088af6c25e1364,
+            0x403e14ad9e9a0672,
+            0x40436821e8d44816,
+            0x403d13f03e50ac42,
+            0x403e2ef04d6e1967,
+        ];
+        for (i, &bits) in PINNED.iter().enumerate() {
+            let (v, inside, w, h) = frame(i);
+            let masked = (i / 2) % 2 == 1;
+            let got = sigma(&v, w, h, masked.then_some(&inside[..]));
+            assert_eq!(got.to_bits(), bits, "frame {i}: {got} against {}", f64::from_bits(bits));
+        }
+    }
+
+    /// A frame with no sample one step inside its border has no σ.
+    #[test]
+    fn a_frame_too_small_has_none() {
+        assert!(sigma(&[1, 2, 3, 4], 2, 2, None).is_nan());
+    }
+}
