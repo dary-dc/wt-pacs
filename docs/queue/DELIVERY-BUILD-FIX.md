@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-21T12:17Z
-heartbeat: 2026-11-21T12:23Z
+heartbeat: 2026-11-21T12:24Z
 outputs: claude/delivery 4a904bb2 (PR 406)
 ## Resume
 Done: 6ad647cf (B1, B2, m2, m4–m7 with tests), 4a904bb2 (FNV-1a alone; README; docs/lines/client.md). 22 of 22
