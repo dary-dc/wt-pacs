@@ -854,6 +854,63 @@ error and the exact commands, and sets `blocked` (amendment 24).
 * Every cell against its prediction, misses included.
 * The host does not saturate: one thread on 4 cores. Nothing is claimed for `--jobs` over 1.
 
+### Measured (NOISE-INGEST-MEASURE, 2026-11-21)
+
+Run as pre-registered above by a session that wrote none of it; no amendment. Every number here is **measured**
+unless labelled. Raw rows: [`lab/noise-ingest/rows/`](../../lab/noise-ingest/rows/) (`round-0` … `round-4.jsonl`,
+one row a unit), the tables by `lab/noise-ingest/report.py` (`rows/report.md`).
+
+**Fixtures and limits.** `dbts_a1`, `dbts_b1`, `dbts_c1` (EA1141; systems A and C 12-bit, B 10-bit), fetched by
+`lab/av1/fetch_data.sh` and checked against `frames_sha256`, mirrored by `mirror.py`. 19 DBT volumes in the dataset,
+these three timed; no other modality or system. One cloud host, Intel Xeon @ 2.10 GHz, 4 cores, no GPU; one process
+alone, one thread; five rounds of 14 units in a Williams order (`lab/scripts/order.py`; 14 units need 14 rounds to
+balance, so five are not balanced). The host does not saturate; nothing is claimed for `--jobs` over 1 or for
+another CPU.
+
+**Build.** `lab/noise-ingest` (workspace member, not default): `sigma.rs` as T3 with one change of form, not of
+result: one pass keeps, per gradient value, the count and the sum of |Laplacian|, so the threshold and the kept sum
+come from the two histograms with no second filter pass. `sigma-bench`, `mask.py` as written; `golden.py` makes the
+golden frames and prints `quality.sigma`'s bits, which the test pins. The product is untouched.
+
+**Mutants** (each applied alone, the golden test and P1 run, then reverted):
+
+| mutant | golden test | P1 (175 frames) |
+| --- | --- | --- |
+| 1 · index n · q | fails | **survives** (175 / 175 equal: on millions of samples the 0.9-rank shift lands on the same integer gradient) |
+| 2 · 1/12 left in | fails | fails (0 / 175) |
+| 3 · mask ignored | fails | fails (0 / 175) |
+| 4 · `_lerp`'s g ≥ 0.5 branch dropped | **survives** | **survives** |
+
+Mutant 4 is equivalent on integer gradients as far as searched, so no frame was added: the cut acts only through
+⌊threshold⌋ (the gradients are integers), and the two `_lerp` forms never gave different floors over every
+n < 20 000, a < 64, d < 200, nor over 8 · 10⁷ random (n < 10⁷, a < 70 000, d < 20 000), nor on 2 388 small
+generated frames. Not proven. The branch is kept because it is NumPy's order; deleting it would change no result
+measured here.
+
+| | prediction | measured | |
+| --- | --- | --- | --- |
+| P1 | M1 equals the rows' σ on all 175 frames; σ_min's frame is T2's | 875 / 875 equal bit for bit (175 frames × 5 rounds); σ_min 10.484796 (frame 1) · 5.257809 (30) · 12.041344 (0), T2's | **held** |
+| P2 | M1 0.004–0.012 CPU s/Mpx | 0.0033 · 0.0022 · 0.0025 (median of 5; rounds 0.0032–0.0040 · 0.0019–0.0023 · 0.0023–0.0041) | **missed, low**: faster than the band on all three |
+| P2 | M5 within ±20 % of 0.049 · 0.087 · 0.049 | 0.060 · 0.109 · 0.058 (×1.23 · 1.25 · 1.19); σ equal to the rows in every round | **missed** on `dbts_a1` and `dbts_b1`, held on `dbts_c1` |
+| P3 | M1 ÷ M3 per frame in 7–42 · 17–99 · 10–60 % | 20.0 · 11.9 · 14.6 % (M1 6.5 · 16.7 · 6.0 ms; M3 32.6 · 140.8 · 40.7 ms a frame) | held · **missed, low** · held |
+| P4 | M4's σ_min ≤ M1's on all three; rule Q equal or lower | 6.593 (frame 55) · 1.402 (36) · 4.519 (68), all lower; rule Q at G 8: 4 → 4 · 8 → 2 · 4 → 2 | **held** |
+| P5 | M2 ÷ (M1 ÷ 4) in 0.97–1.03 | 1.0001 · 1.0010 | **held** |
+
+σ was identical in every round for M1, M2 and M4.
+
+**What each decides, by the protocol's rule.**
+* P1: the port is exact; the rest is read.
+* P2: ≤ 0.02 CPU s/Mpx on all three, so σ goes into `code()` on every frame as T1 places it. The band's miss is
+  on the safe side. M5 ran 19–25 % slower than P2's Python on this host instance; the same code gave the same σ, so
+  the difference is the host's (*theory*, not tested).
+* P3: σ is 12–20 % of the exact path's CPU a frame, reported for the ingest page with no threshold. The exact path
+  itself (M3, read to `.sbnd` written, `--jobs 1`) measured 32.6 · 140.8 · 40.7 ms a frame, below T5's
+  58–111 · 103–198 · 49–94 on `dbts_a1` and `dbts_c1`, inside on `dbts_b1`: T5's decode-back assumption
+  over-counted on the 12-bit pair (*derived*, not separated by this run).
+* P4: lower on two of three, so **σ_min waits for phase 2's window**; all-samples σ is not refused (not higher on
+  any) but is not recorded either. On `dbts_b1` and `dbts_c1` it would move the rule's Q from 8 to 2 and from 4 to 2.
+* P5: inside, so σ on the source ÷ 4 and σ on the 10-bit cut serve alike for systems A and C.
+
 ### Note to the PCS team (draft, not sent)
 
 > **Subject: a per-series noise figure before the view is encoded**
@@ -867,10 +924,11 @@ error and the exact commands, and sets `blocked` (amendment 24).
 > * Remove the integer-rounding share.
 > * Count only the samples inside the series' first window.
 >
-> `lab/av1/metrics/quality.py` `sigma` is the reference, and a Rust port equal to it bit for bit is to be measured.
+> `lab/av1/metrics/quality.py` `sigma` is the reference; `lab/noise-ingest/src/sigma.rs` equals it bit for bit on
+> the three timed volumes (measured 2026-11-21).
 >
-> **The cost.** Measured in Python: 0.05–0.09 CPU s a megapixel, every frame. In Rust it is predicted at
-> 0.004–0.012. That is seconds a series against minutes of AV1 encoding.
+> **The cost.** Measured in Python: 0.05–0.09 CPU s a megapixel, every frame. In Rust, measured 2026-11-21 at
+> 0.002–0.003 on one cloud core (predicted 0.004–0.012). That is seconds a series against minutes of AV1 encoding.
 >
 > **What we need to know from you:**
 > 1. Will the parser's output carry the per-frame window? For enhanced multi-frame objects, it sits inside

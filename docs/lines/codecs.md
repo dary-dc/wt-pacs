@@ -4,7 +4,7 @@ Last verified 2026-11-10 (the AV1 harvest of that morning: eight result branches
 no new measurement); the audits' corrections of 2026-11-11 ([`../av1/corrections.md`](../av1/corrections.md)) and
 their protocols measured 2026-11-12 (`claude/audit-measure`) added since; HTJ2K at screen resolution
 (`claude/htj2k-tiles`: theory, its review and its improvement, stages 0–2 measured 2026-11-11, stage 3 since)
-carried into Open 7. Stage A1 of the unification (2026-11-15) added Open 11. Stage B (2026-11-15) carried the tip's items 5, 7 and 8 as 12, 13 and 14. Transport pointers added 2026-11-17 and 2026-11-19; Open 3 (σ_min at the Rust ingest, theory) added 2026-11-19.
+carried into Open 7. Stage A1 of the unification (2026-11-15) added Open 11. Stage B (2026-11-15) carried the tip's items 5, 7 and 8 as 12, 13 and 14. Transport pointers added 2026-11-17 and 2026-11-19; Open 3 (σ_min at the Rust ingest, theory) added 2026-11-19, measured 2026-11-21.
 
 ## Goal
 
@@ -197,6 +197,10 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
    is drafted, not sent: [`../av1/noise-point.md`](../av1/noise-point.md) §σ_min in the Rust ingest.
    NOISE-INGEST-MEASURE runs it. Found on the way: `quality.sigma` narrows its caller's mask, so the series rows'
    `step` is taken without the steepest tenth.
+   *2026-11-21 (row NOISE-INGEST-MEASURE, measured, one cloud core, the three timed volumes):* the port
+   (`lab/noise-ingest`) equals the rows' σ on 175 of 175 frames, at 0.002–0.003 CPU s/Mpx, 12–20 % of the exact
+   path's CPU a frame. σ over all samples is lower on two of three and would move the rule's Q 8 → 2 and 4 → 2, so
+   σ_min waits for phase 2's window. Results and misses: [`../av1/noise-point.md`](../av1/noise-point.md) §Measured.
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms, the OQ
    view's decode speed on a real slow device.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
