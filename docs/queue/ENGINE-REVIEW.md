@@ -1,12 +1,16 @@
-state: started
+state: done (one blocker open; amendment 17 rows ENGINE-REVIEW-FIX and -FIX-REVIEW appended)
 started: 2026-11-21T09:17Z
-heartbeat: 2026-11-21T09:20Z
-outputs: findings in PR 410's body (claude/engines)
+heartbeat: 2026-11-21T09:23Z
+outputs: findings in PR 410's body §ENGINE-REVIEW; claude/engines 709396ad (docs/lines/client.md)
 ## Resume
-Done: E1-E26 verbatim at their pins, all hold (one omission: BCD's Firefox getStats note); raw rows of cells 1-3
-match §Measured. Found: Firefox dispatch log lines 2-3, 7 say WebCodecs took none of the payloads, so the G = 8
-failure ran on dav1d, not Firefox's VideoDecoder as §Measured's "So" says. Now: building the decoders
-(client/decode/wasm/build/build.sh, docker) on a worktree of origin/claude/engines to run the dispatch rig in
-Chromium with WebCodecs refused, to tell engine from client. If that cannot finish, write findings without it.
-Next: findings into PR 410's body §ENGINE-REVIEW; amendment 17 rows if blockers.
+Done. Nothing left for this row.
 ## Result
+E1-E26 fetched at their pins (Chromium fb1f1ab4, WebKit 4c0a9cbe, Gecko d5236b13, BCD 70a51a12): all verbatim.
+engines-smoke/ raw rows carry every §Measured cell. The Firefox G = 8 failure is the WebCodecs route's alone: the
+rig's dav1d variant of the same clauses passes on 159 and 160; latent for any 4:2:0 8-bit form (GREY420), since a
+frame inside a group cannot fall back. B1: matrix rows 1, 6, 7, 11, 12 and its "So" left uncorrected where
+§Measured contradicts them (row 7's -07 was flag-only). m1 BCD's getStats note omitted; m2 Chromium 160 is a
+pre-release build; m3 WebKit WebTransport is runtime-gated on 26, unconditional from 27; m4 createWritable's gate.
+Appended ENGINE-REVIEW-FIX, -FIX-REVIEW; ENGINES-PAGE now waits on the re-review. Docs only: check_links 0
+unresolved; gate not run. Fixtures: ENGINE-SMOKE's (one container, no GPU, dbts_a1 only, no Safari, no phone).
+Owner: nothing asked; ENGINES-PAGE carries the 4:2:0-in-Firefox precondition.
