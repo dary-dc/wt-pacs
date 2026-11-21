@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-21T13:47Z
-heartbeat: 2026-11-21T17:36Z
+heartbeat: 2026-11-21T18:33Z
 outputs: rows on `claude/report-arms` (r2-*); `report-plan.md` §7.9 d0bbbb10, §Results 2 05c72032 on `claude/report-plan`
 ## Resume
 Done: claimed; host built (cargo release `series-server --features telemetry`, `pack-series`, `report-receiver`; nginx 1.31.8 from
