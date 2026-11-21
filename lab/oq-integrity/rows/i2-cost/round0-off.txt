@@ -1,0 +1,28 @@
+dbts_a1: 56 frames 1142x1785x1, 12-bit stored, range 0..3213
+dbts_b1: 50 frames 2560x3328x1, 10-bit stored, range 0..1023
+dbts_c1: 69 frames 976x2513x1, 12-bit stored, range 0..4095
+series                      bytes  of exact      s
+dbts_a1                  67815143    1.0000      1
+dbts_a1-q8-g1-cut         4657899    0.0687     20
+dbts_a1-q8-g8-cut         4642293    0.0685     14
+dbts_a1-q8-g16-cut        4643176    0.0685     15
+dbts_a1-q24-g1-cut         434909    0.0064     10
+dbts_a1-q24-g8-cut         212340    0.0031      7
+dbts_a1-q24-g16-cut         201674    0.0030      6
+dbts_a1-q8-g16-stored        5030215    0.0742     15
+dbts_b1                 107410091    1.0000      4
+dbts_b1-q8-g1            23479346    0.2186     50
+dbts_b1-q8-g8            23208296    0.2161     44
+dbts_b1-q8-g16           23193380    0.2159     45
+dbts_b1-q24-g1            2645000    0.0246     34
+dbts_b1-q24-g8            1675867    0.0156     24
+dbts_b1-q24-g16           1628174    0.0152     25
+dbts_c1                  70668071    1.0000      2
+dbts_c1-q8-g1-cut         6348708    0.0898     23
+dbts_c1-q8-g8-cut         6239698    0.0883     21
+dbts_c1-q8-g16-cut        6232806    0.0882     29
+dbts_c1-q24-g1-cut         571186    0.0081     13
+dbts_c1-q24-g8-cut         273810    0.0039     10
+dbts_c1-q24-g16-cut         260355    0.0037     11
+dbts_c1-q8-g16-stored        6691651    0.0947     30
+462 s in all on 4 cores, x86_64, Intel(R) Xeon(R) Processor @ 2.30GHz
