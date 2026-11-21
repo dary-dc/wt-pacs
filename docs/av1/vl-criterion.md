@@ -118,8 +118,14 @@ most of its detectability; a finding concentrated in one large coefficient (a �
 finding of exact-frame d′ = a·√m spread over m coefficients therefore reaches the zero bin's edge, where T is about a half, when its d′ is
 (x ÷ 2)·√m: at x 4.93, 2.5 for m = 1, 4.9 for m = 4, 9.9 for m = 16, 19.7 for m = 64 (*derived*). Against Rose's
 criterion (a detail is seen at an SNR of about 5; *unverified*, the primary text was not read), a detail the
-acquisition just shows clears that edge only when at most four coefficients hold it. A mass does; a calcification one or two
-samples wide inside a 4 × 4 or larger transform does not, in this model.
+acquisition just shows clears that edge only when at most four coefficients hold it. A mass does; a calcification two or three
+samples wide inside an 8 × 8 or larger transform does not, in this model. That is the size at the limit of DBT
+(*source*): "Threshold detectable calcification diameter was found for each imaging modality with standard dose: …
+narrow angle DBT (211 ± 11 µm) and wide angle DBT (257 ± 14 µm)" (Hadjipanteli 2017, abstract), on focal-plane pixels
+of 85–117 µm (NHSBSP Equipment Report 1407). And it is the direction readers and observer models found on 2D
+mammograms: "Detection of simulated masses was not affected by the compression method with the conditions used in
+this study, while the detection of microcalcifications was significantly reduced with a compression ratio of more
+than 15:1" (Suryanarayanan 2005, abstract; wavelet coding of FFDM, not AV1, not DBT).
 
 **The model is not AV1.** AV1 chooses its transform's size and kind per block, predicts each block, and filters the
 result; an encoder that codes a speck with a small or identity transform keeps it. Whether libaom does at speed 6 is
@@ -138,8 +144,10 @@ Separate the criterion's **form** from its **constants**.
   and T are ratios to σ, so they do not change with a detector's gain, an offset, the stored depth or a linear
   window. Under a change of dose on one system, σ changes and the rule moves Q with it; in units of σ the step, the
   zero bin and a finding's amplitude a all keep their relation only if the finding's contrast is fixed in stored
-  units while σ scales, which is the quantum-limited case (*source* for the physics is owed to §Sources' item N1;
-  until read, *unverified*). So over **dose, on one detector and one reconstruction**, the form carries by physics.
+  units while σ scales, which is the quantum-limited case. The noise model is sourced for DBT projections ("It considers both
+  signal-dependent quantum and signal-independent electronic noise", with pixel crosstalk making the noise
+  "frequency-dependent"; Borges 2017, abstract); that reconstructed slices in stored units keep a contrast fixed
+  while σ scales is this file's assumption, *unverified*. So over **dose, on one detector and one reconstruction**, the form carries by physics.
   R6 tests the nearest thing the rows hold: frames of one volume differ in σ by 1.17–1.33× on A and C (*measured*,
   `noise-point.md` §5.3).
 * **The constants do not carry beyond systems whose noise has the same spectrum** (*measured* and *source*). x\*, the
@@ -152,7 +160,9 @@ Separate the criterion's **form** from its **constants**.
 * **Where the form itself fails** (*theory*): a reconstruction that denoises (iterative or learned), a synthesized
   2D image, a lossy-sourced series, any series whose fine band holds structure and not noise. There σ is small or
   is not acquisition noise, and a noise-relative criterion has nothing to stand on (`noise-ratio.md` §4.4, §4.5).
-  What share of DBT in service is reconstructed that way was not found in a source: *unknown*.
+  What share of DBT in service is reconstructed that way was not found; of the five systems a national QC protocol
+  lists, two reconstruct iteratively and three by filtered back projection (*source*: NHSBSP Equipment Report 1407,
+  2015, its system table), so the case is not rare.
 
 **Population, stated:** the form, over dose and gain, for filtered-backprojection-like DBT whose fine band is noise;
 the constants, for systems A, B and C of this dataset only. A criterion that needs **no fitted constant** carries
@@ -197,7 +207,27 @@ its revision, and is repeated verbatim from that file; "re-read" says whether th
 | RANZCR, *Guideline for the Use of Image Compression in Diagnostic Imaging*, v2, 13 August 2020 | "the radiologist may make judicious use of appropriate levels of lossy image compression to speed the initial arrival of the images … the practice should make the original images available for subsequent download as required" | advisory |
 
 All from [`visually-lossless.md`](visually-lossless.md) §1 (read 2026-11-02) and [`vl-metrics.md`](vl-metrics.md) §1
-(read 2026-11-09). No guideline states a limit as a metric; where one gives a number it is a compression ratio tested
+(read 2026-11-09); the first three, the ESR's and RANZCR's were fetched again on 2026-11-21 and read the same
+(§Sources). Three things the second reading adds (*source*):
+
+* **The US bar is a reading of "original", not a sentence of the regulation.** "lossy" and "lossless" occur nowhere
+  in 21 CFR Part 900 (eCFR, version of 2026-01-01); § 900.12(c)(1) says "The mammographic examination presented for
+  interpretation must be in the original mammographic modality in which it was performed". The bar is FDA's
+  Response 100 above and its compliance guide ("Can facilities store or transfer digital mammographic images using
+  lossy compression …? No."; 26 August 2024, §I, question 3), and the display sentence is a labelling
+  recommendation of a guidance. FDA's stated ground is the absence of a consensus, not a finding of harm.
+* **A body that warns against the very inference the design made.** "though it is often assumed that if there is no
+  visual loss, then there can be no diagnostic loss; this has been less well investigated, and it is possible that
+  the means by which visually lossless thresholds are determined experimentally are insufficient to guarantee
+  diagnostic performance, particularly for difficult tasks that involve low-contrast detection, require high
+  frequency information to be preserved, require texture to be preserved or are vulnerable to compression artifact
+  being misinterpreted as false positive findings" (ESR 2011). Faint calcifications are that task.
+* **A regulator's own staff accept a model observer as evidence for breast imaging.** FDA's in silico trial of DBT
+  read its images with "a computational reader under a location-known-exactly detection paradigm based on a
+  channelized Hotelling observer using 5 Laguerre-Gauss channels" and concludes "in silico imaging trials represent
+  a viable source of regulatory evidence for imaging devices" (Badano et al. 2018); FDA's guidance on computational
+  modelling (17 November 2023) sets what such evidence must show to be credible and names no observer. That is
+  option G's kind of evidence. It is not an acceptance of lossy mammography. No guideline states a limit as a metric; where one gives a number it is a compression ratio tested
 on 2D JPEG and JPEG 2000 (CAR 15–25 : 1 for mammography; DRG 15 : 1; the RCR's 20 : 1 withdrawn in 2018). No source
 covers DBT or AV1.
 
@@ -222,8 +252,12 @@ covers DBT or AV1.
   quotes it), and even that is a proxy no reader confirmed.
 * **What the product is free to claim with no study at all:** facts. That irreversible compression was applied, the
   method, about what ratio, the measured coding error; and that the exact frame is one request away, or on its way.
-  The ACR text makes the first two an obligation of the display, and today's quality label (*Optimal quality*)
-  states neither. RANZCR describes exactly this product's shape and asks only that the originals be available.
+  The ACR text makes the first two an obligation of the display and adds "the name or type of compression scheme
+  used … should also be displayed"; IHE's Basic Image Review asks an Image Display for "whether or not lossy
+  compression has been applied … and if so, the value of Lossy Image Compression Ratio (0028,2112) and Lossy Image
+  Compression Method (0028,2114)" (RAD TF Vol. 2 Rev. 23.0 §4.16.4.2.2.6.8); DICOM lets the ratio be "a measured
+  value (e.g., computed by dividing the uncompressed pixel data size by the size of the compressed bit stream)"
+  (PS3.3 2026d §C.7.6.1.1.5.2). Today's quality label (*Optimal quality*) states none of the three. RANZCR describes exactly this product's shape and asks only that the originals be available.
 
 ## 2 · What a claim decomposes into
 
@@ -292,8 +326,14 @@ it waits for the owner.
 ### 3.3 Only noise removed (E)
 
 If exact − decoded is a sample of the frame's noise and nothing else, the view is the acquisition with less noise.
-The denoising literature tests exactly this on a method's removed part (*source* owed, §Sources N3; *unverified*
-until read). Three tests, none fitted to a dataset: the difference is uncorrelated with the decoded frame's edges;
+The denoising literature judges a method by exactly this (*source*): "we define the method noise as the image
+difference u − Dh u. … If a denoising method performs well, the method noise must look like a noise even with non
+noisy images and should contain as little structure as possible" (Buades, Coll and Morel 2005, §2); and a test of
+it exists that needs no noise level: "Imposing whiteness of the restoration residual by constraining the residual
+auto-correlation at non-zero lags to be small", with a statistic "completely independent of the noise level"
+(Pragliola et al. 2021, §2). The ESR asks for the same object: metrics "computed either on the uncompressed input
+or "difference" images produced by a pixel-wise subtraction of the compressed image from the original". A DBT
+slice's noise is not white, so the test here is against the noise's own spectrum, not against white. Three tests, none fitted to a dataset: the difference is uncorrelated with the decoded frame's edges;
 its spectrum has the shape of the noise's own (from the slice-to-slice second difference, `noise-ratio.md` §3.6);
 its tile variances follow the tile σ. Each fails on a blocky, low-pass or edge-bound difference, the cases r is
 blind to (`noise-ratio.md` §3.1). All three need the decoded samples: the rows keep three RMS values of the
@@ -367,8 +407,36 @@ Kim B et al., *Med Phys* 38(2):836–844, 2011, doi:10.1118/1.3538925 (abstract)
 35:5219–5232, 2008, doi:10.1118/1.2996014, as [`noise-ratio.md`](noise-ratio.md) §3.5 quotes it. libaom v3.15.1
 `av1/common/quant_common.c`, as [`noise-point.md`](noise-point.md) §2 quotes it.
 
-**Re-read by this row:** see §Sources, re-read, below.
+**Fetched again on 2026-11-21** (by a sub-agent of this row, from the primary text unless said; the review fetches
+them itself): 88 FR 15126 at 15150, Responses 98 and 100
+(<https://www.govinfo.gov/content/pkg/FR-2023-03-10/html/2023-04550.htm>); 21 CFR 900.12(c), eCFR version
+2026-01-01 (<https://www.ecfr.gov/api/versioner/v1/full/2026-01-01/title-21.xml?part=900>); FDA *Display Devices
+for Diagnostic Radiology*, issued 2022-09-28, §VIII, p. 9 (<https://www.fda.gov/media/95527/download>); FDA *MQSA
+and Regulation Amendments: Small Entity Compliance Guide*, 2024-08-26, §I questions 1 and 3
+(<https://www.fda.gov/media/181152/download>); the ACR–AAPM–SIIM technical standard, "Revised 2022 (Resolution 48)",
+"Amended 2023", §III.B (URL above); the ESR paper, full text (PMC3259360); RANZCR v2, §3.1; DICOM PS3.5 2026d §8.2.1
+(the same sentence as §8.2.4's) and PS3.3 2026d §C.7.6.1.1.5
+(<https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.html>); IHE RAD TF Vol. 2, Rev. 23.0,
+2025-08-08 (<https://www.ihe.net/uploadedFiles/Documents/Radiology/IHE_RAD_TF_Vol2.pdf>). Not fetched again:
+StrlSchV §127; the CAR standard and the RCR's 2008 guidance (not reachable, as before).
 
-**Owed, and marked *unverified* where used:** N1, a primary source that mammographic quantum noise is Poisson and
-that DBT slice noise is coloured by the reconstruction beyond Zhao and Zhao's sentence; N2, Rose's criterion in a
-primary text; N3, the denoising literature's test of a method's removed part (Buades, Coll and Morel 2005).
+**New to this file:**
+
+* Badano A et al., Evaluation of Digital Breast Tomosynthesis as Replacement of Full-Field Digital Mammography Using
+  an In Silico Imaging Trial, *JAMA Netw Open* 1(7):e185474, 2018 (PMC6324392, full text): abstract and Methods.
+* FDA, *Assessing the Credibility of Computational Modeling and Simulation in Medical Device Submissions*,
+  2023-11-17 (<https://www.fda.gov/media/154985/download>).
+* Suryanarayanan S et al., *Radiology* 236(1):31–36, 2005, PMID 15983071; Hadjipanteli A et al., *Phys Med Biol*
+  62(3):858–877, 2017, PMID 28072582; Borges LR et al., *IEEE Trans Med Imaging* 36(11):2331–2342, 2017, PMID
+  28641248: each from its PubMed abstract only.
+* NHS Breast Screening Programme, *Routine quality control tests for breast tomosynthesis (physicists)*, Equipment
+  Report 1407, December 2015, the system table
+  (<https://assets.publishing.service.gov.uk/media/5a80242bed915d74e622cb5e/Breast_screening_1407_Physics_Tomo_QC_Protocol_Final_291215.pdf>).
+* Buades A, Coll B, Morel JM, A non-local algorithm for image denoising, CVPR 2005, §2, Definition 1
+  (<https://stanford.edu/class/ee367/reading/NLM.pdf>).
+* Pragliola M, Calatroni L, Lanza A, Sgallari F, Residual whiteness principle for automatic parameter selection in
+  ℓ2-ℓ2 image super-resolution problems, arXiv:2104.01001, §2 (<https://arxiv.org/pdf/2104.01001>).
+
+**Still *unverified* where used:** Rose's criterion (no primary text read); that mammographic quantum noise is
+Poisson in those words (the abstracts read say "signal-dependent quantum noise"); any study of lossy compression on
+DBT (none found in PubMed under several queries, 2026-11-21, as on 2026-11-09).
