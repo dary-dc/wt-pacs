@@ -1,10 +1,13 @@
 state: started
 started: 2026-11-21T01:41Z
-heartbeat: 2026-11-21T01:41Z
-outputs: `claude/vl-criterion` (from `origin/claude/unified`), not pushed yet
+heartbeat: 2026-11-21T01:53Z
+outputs: `claude/vl-criterion` `48c980dd` (`docs/av1/vl-criterion.md`); no PR yet
 ## Resume
-Claimed. Next: read the brief's inputs on `origin/claude/unified` (`docs/av1/noise-ratio.md`, `vl-metrics.md`,
-`visually-lossless.md`, `noise-point.md`, `window-q.md`, `audit-quality.md`, `docs/lines/codecs.md` §Open 0 and 10,
-`docs/client/evidence/which-quality-is-visually-lossless.md`, `rules-for-showing-lossy-pictures.md`), then write
-`docs/av1/vl-criterion.md` on `claude/vl-criterion`. Nothing pushed on the output branch yet.
+Done: `48c980dd`, the whole file drafted (answer, four premises, the decomposition, options A–G, §Open 0 mapped,
+§Reads R1–R9 pre-registered, §6 for the next queue); `scripts/check_links.py` 0 unresolved.
+Next, in order: (1) recheck every derived number in §1.1 and §3 against its quoted input; (2) fold in re-read sources
+(N1–N3 and the regulatory quotes) under §Sources, re-read; (3) one line in `docs/lines/codecs.md` and
+`docs/av1/README.md`; (4) comment budget and links; (5) draft PR into `claude/unified` through
+`mcp__github__create_pull_request`; (6) this file to done. Worktree: branch `claude/vl-criterion` from
+`origin/claude/unified`. Nothing run on any fixture; no row re-read.
 ## Result
