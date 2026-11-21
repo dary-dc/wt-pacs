@@ -1,10 +1,10 @@
-//! Levers a deployment never pulls: all off, their flags and actions only under `lab-levers`. server/README.md §Lab only
+//! Levers a deployment never pulls, compiled only under `lab-levers`. server/README.md §Lab only
 
-#[cfg(feature = "lab-levers")]
-use {
-    crate::media::frame_store::FrameStore, crate::transport::server::ServeConfig, tracing::warn,
-    wtransport::endpoint::IncomingSessionFuture, wtransport::quinn,
-};
+use crate::media::frame_store::FrameStore;
+use crate::transport::server::{Series, ServeConfig, Sessions};
+use tracing::warn;
+use wtransport::endpoint::IncomingSessionFuture;
+use wtransport::quinn;
 
 #[derive(clap::Args, Clone, Debug, PartialEq)]
 pub struct LabLevers {
@@ -56,8 +56,22 @@ impl Default for LabLevers {
     }
 }
 
-#[cfg(feature = "lab-levers")]
 impl LabLevers {
+    /// The levers every session is served with; warns for `--send-window-follows-cwnd`, as `apply` for the rest.
+    pub(super) fn onto(&self, mut sessions: Sessions) -> Sessions {
+        if let (true, Series::One(store)) = (self.send_window_follows_cwnd, &sessions.series) {
+            let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
+            let bytes = 2 * u64::from(largest);
+            warn!(bytes, "--send-window-follows-cwnd: the send window is cwnd + this; a lab flag, not a deployment one");
+            sessions.cwnd_ahead = Some(bytes);
+        }
+        sessions.advise_tile_names = self.advise_tile_names;
+        sessions.stall = self.stall_after_bytes;
+        sessions.fill_resumes = self.fill_resumes_after_asks;
+        sessions.ask_stream = self.ask_stream_priority;
+        sessions
+    }
+
     pub(super) fn forcing_misses(&self, mut store: FrameStore) -> FrameStore {
         if self.force_pool_reads {
             store.force_pool_reads();
@@ -67,7 +81,6 @@ impl LabLevers {
 }
 
 /// Warns for each lever that is on, so a lab flag is never mistaken for a deployment.
-#[cfg(feature = "lab-levers")]
 pub(super) fn apply(mut config: ServeConfig) -> ServeConfig {
     let lab = &config.lab;
     if lab.force_pool_reads {
@@ -96,7 +109,6 @@ pub(super) fn apply(mut config: ServeConfig) -> ServeConfig {
     config
 }
 
-#[cfg(feature = "lab-levers")]
 pub(super) async fn hold_session(incoming: quinn::Incoming) {
     if let Ok(_unanswered) = IncomingSessionFuture::with_quic_incoming(incoming).await {
         std::future::pending::<()>().await;

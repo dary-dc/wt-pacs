@@ -1,4 +1,5 @@
 mod banner;
+#[cfg(feature = "lab-levers")]
 pub(crate) mod lab_levers;
 pub(crate) mod link;
 pub(crate) mod loss_bound;
