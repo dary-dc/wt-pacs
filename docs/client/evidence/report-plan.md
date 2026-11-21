@@ -1038,6 +1038,38 @@ then D4, D5b, D8 (the safety bar), then D3, D5a (recorded, no bar). Each ending 
 Williams order, `--wait 60`, rows pushed as they land. An ending cut short is rerun whole; its partial rows are kept,
 marked, and counted in no bar.
 
+### 7.9 · Amendment before any counted row (REPORT-RUN-2, 2026-11-21)
+
+Written by REPORT-RUN-2 before its first row, at the rig `claude/report-arms` `03fd26c3` (REPORT-CELLS-FIX-REVIEW: no
+blocker open). As §7.8, nothing below changes a bar, a prediction or the rule; it names what the rig as built and
+reviewed runs, and every gap is the build's (`lab/report-arms/README.md` §What is built), named, not patched.
+
+| §7 asks | run here | why |
+| --- | --- | --- |
+| D5a, D5b killed 50 and 500 ms after the mismatch is found | **rerun whole on Chromium, timed from the decoder's fault** (`killAfterFault`); REPORT-RUN's D5a and D5b rows kept, labelled *timed from the send*, and judged nowhere once these land | REPORT-VERDICT-REVIEW's finding. The stamp is the flipped decode's return, one frame's XXH3 before the check finds the mismatch (README); the kill falls one CDP round trip after `atKill` (PR 395, m2). Each row's `kill.safetyHanded` says whether the page had already handed its report on |
+| L, idle and busy | endings `L` and `Lbusy`, 18 rounds × 9 units; the fill's fault, then 20 more 1 s apart; p50 and p99 of the 20 per row; the floor (five bare calls before the fill) for `off`, BEACON and KEEPALIVE from the page | **SESSION's floor and KEEPALIVE's worker floor are not wired**: their gap is not measured. The fault's stamp is the worker's `timeOrigin + now()`, the append RECEIVER's whole-ms `Date.now()`: rule 2's 10 % lead on L's busy p99 is **not decidable below about 10 ms** (PR 395, m5). SESSION's mid-fill fault is the fill's own fault at frame 10 (`latency.fill`) |
+| C, cost on the page's thread | ending `C`, 18 rounds × 9 units; VOID by `off′`/`off` fill time | the first exact paint is not a timing the rig offers: the bar reads the fill time alone |
+| Y, bytes and requests a load, at the relay | **the records as RECEIVER kept them** (`row.y`: count with copies, bytes, the largest), read from C's rows (the page hidden, then navigated: D1's ending with a hide before it) and D5's | wire bytes at the relay are not built (no relay flow is the reports' alone); the 16 KiB bar reads the largest kept record; ranked by kept bytes, labelled so, never as wire bytes. No gzip arm (§7.8) |
+| R, three receivers | **NGINX and RECEIVER behind nginx**, 6 rounds, 10, 100 and 1 000 a second for 60 s, load and safety apart, from ⌈rate/5⌉ source addresses (so ~200 client connections at 1 000/s, in RECEIVER's cost: the re-review's n3) | the server's row is not built: rule 4 judges the two HTTP receivers; the server is judged nowhere. The bodies are `rows/r-bodies.jsonl` (1.7 KB fill records on the grey series, not `dbts_c1`'s 4.9–6.6 KB) |
+| D6 under `--tun` | Chromium, 18 rounds × 9 units, to RECEIVER, the relay at §7.2's link | built by REPORT-CELLS; iproute2 present here; a one-round smoke on this host (not counted) delivered BEACON-Y's fill record, delta and safety report |
+| Firefox | **Firefox 160.0.1** by raw BiDi: the mutants once per arm on D1, then D1, D2, D9, D4, D5b, D8, D5a, D3, D7, L, Lbusy, C, D6 | limits found by REPORT-CELLS, kept: no long-task observer (C's long-task bar judges nothing on Firefox); D7 through the `no-store` sink is **no bfcache test** (recorded, no bar on Firefox); D9 hidden and kept, no freeze; the renderer kill takes every content process. Firefox inside `--tun` is built, not smoked: D6 last |
+| WebKitGTK | **not run** | not on this host |
+| nginx | **1.31.8** from nginx.org's tarball, for every row, R included | one version (the re-review's n4) |
+
+**Order**, so a run cut short leaves the most decided: Chromium D5a, D5b (rule 3), L, Lbusy, C (C's bar; rule 2's
+next keys), R (rule 4), D6 (the safety bar), then Firefox as listed. Each cell one whole period, 18 rounds in Williams
+order, `--wait 60`, RECEIVER behind nginx for the HTTP arms, the server for SESSION. A cell cut short is rerun whole,
+its partial rows kept and counted in no bar. **Host time** (*derived* from REPORT-RUN's ~3.2 h an ending): ~3.5 h a cell,
+~21 h for Chromium, ~1.5 h for R, ~45 h for Firefox: past this row's latest (11-24 08:00), so Firefox's later cells
+may not land; REPORT-VERDICT-2 judges what is pushed.
+
+Rows: `claude/report-arms:lab/report-arms/rows/r2-<engine>-<cell>.jsonl`, `r2-R.jsonl`, `r2-firefox-mutants.jsonl`,
+`r2-cpu.log` (the host's all-core busy share every 5 s); the commands in `claude/work-ledger:docs/queue/REPORT-RUN-2-run.sh`.
+
+**Fixtures and limits.** A 4-vCPU cloud container without a GPU; headless Chromium 153.0.8010.12 and Firefox 160.0.1
+(not the phone's Chrome, not Safari); the contract's grey-16 frame ×32, not `dbts_c1`; the fault bench's forced
+mismatch, not a real decoder fault; loopback, or under `--tun` a userspace relay, not a radio; no phone.
+
 ## Results (REPORT-RUN, Chromium 153, from 2026-11-16)
 
 Rows: `claude/report-arms:lab/report-arms/rows/` (`chromium-mutants.jsonl`, `chromium-<ending>.jsonl`, `cpu.log`
