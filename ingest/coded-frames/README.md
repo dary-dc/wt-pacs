@@ -20,6 +20,7 @@ $P ingest/coded-frames/merge_test.py                                    # the sp
 $P lab/av1/tools/ingest_coded.py ingest/.build SET OUT --lossy 8 16 --exact-series NAME   # optimal quality, paired
 $P lab/av1/tools/ingest_coded.py ingest/.build SET OUT --lossy 8 16 --exact-series NAME --depth-cut   # its 10-bit depth cut, D > 10
 $P ingest/coded-frames/lossy_test.py ingest/.build                      # optimal quality's claims: the gate's step
+$P ingest/coded-frames/pair_contract_test.py ingest/.build              # the product ingest's half of the pair, its known gaps named: the gate's step
 scripts/demo-series.sh [OUT]                                            # three tomosynthesis series, exact and 18 optimal each, two 12-bit ones' cut at G 1 and 16
 ```
 
