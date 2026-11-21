@@ -1415,3 +1415,29 @@ The same reading as D5a and as REPORT-RUN's D5b (timed from the send): the **saf
 arms lose the fill record when the renderer dies before any hide. SESSION-1's predicted "deltas up to the last second"
 did not arrive: the series fills within 50 ms of the frame-10 fault (PR 395's limit), so no tick fell before the kill,
 and the presses come only after the fill.
+
+### L on Chromium, the safety report's latency, idle page (18 rounds, 162 loads, 2026-11-21 19:24–23:16 UTC)
+
+Williams-balanced for every unit; no row errored; host CPU at most 13 %. Per load the fill's own fault, then 20 more
+1 s apart; latency is the fault's stamp to its first safety record's append at RECEIVER (HTTP arms) or the server
+(SESSION). **VOID check**: BEACON-H's floor in even against odd rounds, median call-to-append 1.39 against 1.35 ms,
+ratio 1.03, inside 0.95–1.05: not VOID.
+
+| unit | faults read | p50, median of rows (max) | p99, median of rows (max) | rows within the bar | the fill's own fault, median | floor: delivered, call-to-append median |
+| --- | --- | --- | --- | --- | --- | --- |
+| `off` | 360 | 2.10 (2.34) ms | 3.29 (7.58) ms | 18/18 | 11.5 ms | 90/90, 1.44 ms |
+| `off′` | 360 | 2.12 (2.47) ms | 3.15 (6.62) ms | 18/18 | 10.3 ms | 90/90, 1.46 ms |
+| BEACON-H | 360 | 2.04 (2.46) ms | 3.12 (5.46) ms | 18/18 | 11.4 ms | 90/90, 1.37 ms |
+| BEACON-Y | 360 | 1.98 (2.33) ms | 3.33 (5.37) ms | 18/18 | 10.6 ms | 90/90, 1.49 ms |
+| KEEPALIVE-H | 360 | 1.54 (1.79) ms | 2.61 (155.07) ms | 18/18 | 7.8 ms | 90/90, 1.45 ms |
+| KEEPALIVE-Y | 360 | 1.61 (1.74) ms | 2.68 (3.51) ms | 18/18 | 6.6 ms | 90/90, 1.58 ms |
+| SESSION-1 | 360 | 1.15 (1.49) ms | 2.12 (3.40) ms | 18/18 | 8.5 ms | not wired |
+| SESSION-Y | 360 | 1.29 (1.53) ms | 2.24 (5.07) ms | 18/18 | 7.4 ms | not wired |
+| SESSION-H | 360 | 1.27 (1.50) ms | 2.18 (42.30) ms | 18/18 | 7.4 ms | not wired |
+
+**The bar (p50 ≤ 250 ms and p99 ≤ 1 s idle, in every round) holds for every arm**, by two orders of magnitude.
+Against §7.3's predictions: BEACON a few ms over its floor (here ~0.6 ms over 1.4 ms; loopback, no relay, so the
+predicted 20 ms round trip is absent); KEEPALIVE and SESSION, which send from the worker, ~0.4–0.9 ms under BEACON at p50.
+The single slow p99s (KEEPALIVE-H 155 ms, SESSION-H 42 ms) are one row each. Below about 10 ms the two clocks' rounding
+(§7.9; PR 395, m5) leaves rule 2's 10 % lead **undecidable** on idle L: every gap above is under 1.2 ms.
+SESSION's floor is not wired, so its gap over a floor is not measured.
