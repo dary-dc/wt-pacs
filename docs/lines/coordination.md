@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, Open 6 built 2026-11-21.
 
 ## Goal
 
@@ -80,6 +80,12 @@ small enough that every open item has an owner and a next step.
    the gate's `cargo test` steps for them run there; the two crates `series-server`'s lab features name stay
    members, or those features move behind a path the image does not copy. Decides: whether one lock file across
    product and lab is worth the copy. No deploy image carries a lab crate today (the absence check).
+   **Built 2026-11-21** (UNIFIED-LAB-WORKSPACE, `claude/lab-workspace`, a draft PR into `claude/unified`; the owner's
+   merge is the yes): `lab/Cargo.toml` holds the five crates no product feature names (`disk-access-bench`,
+   `container-bench`, `window-harness`, `telemetry-bench`, `metadata-store`; seven lab members on `claude/unified`
+   since this item was written, two of them `series-server`'s), with its own lock pruned from the root's (no version
+   moved) and the root's patches and release profile; `cc-classify` and `server-telemetry` stay root members, so the
+   image still copies those two. `lab/.cargo/config.toml` keeps the binaries in the root's `target/`.
 7. **Item 11, the frame clock** (the owner's yes): `dd2c3902` on `claude/clean-product` removes its arms, page and
    driver (a protocol built and smoke-run on 2026-10-30, never run, run by no line); `24b80bcd` restores them.
    On a yes, `git revert 24b80bcd`. `dd2c3902`'s message reads as a revert by mistake; it is the removal.
