@@ -44,7 +44,8 @@ layout is our input contract. Depth over breadth; theory and a pre-registered me
    state; can it sync a quiet or snapshotted tree; frame-file hashes; layout details.
 5. A signed 8-bit source off centre once wrapped in Int8 past the ingest gate and the client digest; fixed on
    `claude/av1-unified-mainbase` (`docs/av1/payload-format.md` P4), not yet on `claude/core`. Whether the receive
-   path needs its own check is open.
+   path needs its own check: no (2026-11-21, `claude/receiver-range`): it types no sample and merges the range as
+   signed integers, held by `ingest/receiver/src/test/signed.rs` (payload-format §5 case 1).
 6. One or two commits each on `pacs-design-state` (#168), `pacs-disk-layout-measure` (#167), `pcs-pacs-options`
    (#230), `rsync-options`, `rsync-updates` are not yet in `line-pacs`.
 7. The optimal-quality pair at ingest (INGEST-OQ, 2026-11-12, [`../reviews/ingest-oq.md`](../reviews/ingest-oq.md)

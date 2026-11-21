@@ -244,7 +244,7 @@ do break lossless: SVT-AV1 #2260 "Lossless is broken" (v3.0.2, closed;
 | --- | --- | --- | --- | --- |
 | G = 1 | every b 8–16, every k, both signs, synthetic, large and nine real series (row 43, `95b80dc`); every written frame by the gate | the same matrix in Node, Chromium, Firefox, WebKitGTK (row 43); nine series (row 37, `653f6d7`) | Chromium 141, every payload with streams ≤ 10 bits (row 43); Firefox refuses 4:0:0, WebKitGTK decodes no AV1: dav1d-WASM takes them; 12 bits refused | Chromium, Firefox, WebKitGTK (row 47, `f434b72`); off by default; the row-43 matrix not run through it |
 | G > 1 | 159/159 libaom cells, alt-ref off, 8- and 10-bit tops, k = 2 (row 100, `cbbdf06`); 12-bit tops, other k: not run; alt-ref on not lossless | **fails every split group** (row 100), not fixed | 8- and 10-bit G = 8 streams (row 30, `5e693b6`), row 100's timed frames 5 760/5 760; 12 bits refused | not run; separate instances avoid the flush (*derived*), the dav1d-WASM fallback may not |
-| every cell | P4's signed sources: the reader's merge in Node and the writer's digest only (§5, case 1); not through a codec or an engine | | | |
+| every cell | P4's signed sources: the reader's merge in Node, the writer's digest and the receiver's carriage (§5, case 1); not through a codec or an engine | | | |
 
 The per-frame check ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §2) covers a wrong
 decoder, engine, grain or flush: the frame is decoded again or shown as failed, never as exact — but only where the
@@ -257,6 +257,8 @@ numbers in the source's type, not as bytes.
 1. *P4:* signed 16-bit sources spanning −10…200, 0…200, −200…0 and −128…127 (the control), k = 0 and 1, through every
    path. Prediction: the first three wrong, the control exact. *Run* on the reader's merge (`client/decode/av1.test.mjs`)
    and the digest (`ingest/coded-frames/merge_test.py`), not through a decoder: as predicted, then all four exact.
+   *Run* 2026-11-21 through the receiver (`ingest/receiver/src/test/signed.rs`): it never types a sample, carries each
+   payload byte for byte and merges an addition's range as signed 64-bit integers; it needs no range check of its own.
 2. *P5:* a source with High Bit < Bits Stored − 1: the ingest must refuse it by name. *Run*: it was not; it is now
    (`ingest/from-dicom/from_dicom_test.py`).
 3. *Mixed:* row 43's synthetic and real matrix through `mixed` in the three engines.
