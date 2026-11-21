@@ -1398,3 +1398,20 @@ risk* for every arm, **delivered 18/18 by every arm**. But in all 162 loads the 
 carrier before the kill (`safetyHanded`), so on this host and series **the kill never landed inside the race** §7.3
 calls at risk, timed right as it now is: the race between the mismatch and the hand-off is shorter than 50 ms here.
 D5a separates no carrier (rule 3 stays a tie on Chromium). A/A: `off` and `off′` identical.
+
+### D5b on Chromium, killed 500 ms after the decoder's fault (18 rounds, 162 loads, 2026-11-21 16:38–19:23 UTC)
+
+Williams-balanced for every unit; no row errored; host CPU at most 11 %. The kill fell 499.8–510.9 ms after the fault
+(`atKill`), never late.
+
+| unit | fill record | a delta | safety report | duplicates | safety handed on before the kill |
+| --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | — | 18/18, 18/18 | 0 | 18/18, 18/18 |
+| BEACON-H, KEEPALIVE-H, SESSION-H | 0/18 each | 0/18 | 18/18 each | 0 | 18/18 |
+| BEACON-Y, KEEPALIVE-Y, SESSION-Y | 18/18 each | 0/18 | 18/18 each | 0 | 18/18 |
+| SESSION-1 | 18/18 | 0/18 | 18/18 | 0 | 18/18 |
+
+The same reading as D5a and as REPORT-RUN's D5b (timed from the send): the **safety bar holds for every arm**; the H
+arms lose the fill record when the renderer dies before any hide. SESSION-1's predicted "deltas up to the last second"
+did not arrive: the series fills within 50 ms of the frame-10 fault (PR 395's limit), so no tick fell before the kill,
+and the presses come only after the fill.
