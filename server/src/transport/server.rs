@@ -25,7 +25,8 @@ use wtransport::endpoint::IncomingSessionFuture;
 use wtransport::{quinn, Identity, VarInt};
 
 #[cfg(feature = "lab-levers")]
-use crate::transport::lab_levers::{self, LabLevers};
+use crate::transport::lab_levers;
+use crate::transport::lab_levers::LabLevers;
 #[cfg(feature = "telemetry")]
 use crate::record::tap::Tap;
 #[cfg(feature = "telemetry")]
@@ -60,8 +61,9 @@ pub struct ServeConfig {
     /// Also serve the same envelopes over a WebSocket, TCP on `--port`. docs/WIRE.md §The WebSocket mapping
     #[arg(long, default_value_t = false)]
     pub websocket: bool,
-    #[cfg(feature = "lab-levers")]
-    #[command(flatten)]
+    // Every lever off outside a `lab-levers` build.
+    #[cfg_attr(feature = "lab-levers", command(flatten))]
+    #[cfg_attr(not(feature = "lab-levers"), arg(skip))]
     pub lab: LabLevers,
 }
 
@@ -145,15 +147,10 @@ pub(super) enum Series {
 pub(super) struct Sessions {
     pub(super) series: Series,
     read_mode: ReadMode,
-    advise_tile_names: bool,
     mode: StreamMode,
     pub(super) opening_ask: bool,
-    stall: Option<u64>,
+    lab: LabLevers,
     cwnd_ahead: Option<u64>,
-    /// Lab only, `lab-levers`: `--fill-resumes-after-asks`.
-    fill_resumes: bool,
-    /// Lab only, `lab-levers`: `--ask-stream-priority`.
-    ask_stream: Option<i32>,
     #[cfg(feature = "telemetry")]
     taps: Arc<dyn Fn() -> Option<Tap> + Send + Sync>,
 }
@@ -161,7 +158,6 @@ pub(super) struct Sessions {
 impl Sessions {
     /// Warns for each lab lever that is on, so a lab flag is never mistaken for a deployment.
     fn new(config: &ServeConfig, series: Series) -> Self {
-        #[cfg(feature = "lab-levers")]
         let cwnd_ahead = match &series {
             Series::One(store) if config.lab.send_window_follows_cwnd => Some(store),
             _ => None,
@@ -170,8 +166,6 @@ impl Sessions {
             let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
             2 * u64::from(largest)
         });
-        #[cfg(not(feature = "lab-levers"))]
-        let cwnd_ahead = None;
         if let Some(bytes) = cwnd_ahead {
             warn!(bytes, "--send-window-follows-cwnd: the send window is cwnd + this; a lab flag, not a deployment one");
         }
@@ -183,32 +177,17 @@ impl Sessions {
         Sessions {
             series,
             read_mode,
-            #[cfg(feature = "lab-levers")]
-            advise_tile_names: config.lab.advise_tile_names,
-            #[cfg(not(feature = "lab-levers"))]
-            advise_tile_names: false,
             mode: config.mode,
             opening_ask: config.opening_ask,
-            #[cfg(feature = "lab-levers")]
-            stall: config.lab.stall_after_bytes,
-            #[cfg(not(feature = "lab-levers"))]
-            stall: None,
+            lab: config.lab.clone(),
             cwnd_ahead,
-            #[cfg(feature = "lab-levers")]
-            fill_resumes: config.lab.fill_resumes_after_asks,
-            #[cfg(not(feature = "lab-levers"))]
-            fill_resumes: false,
-            #[cfg(feature = "lab-levers")]
-            ask_stream: config.lab.ask_stream_priority,
-            #[cfg(not(feature = "lab-levers"))]
-            ask_stream: None,
             #[cfg(feature = "telemetry")]
             taps: Arc::new(Tap::for_session),
         }
     }
 
     pub(super) fn pipeline(&self, store: Arc<FrameStore>, link: Link) -> ProductPipeline {
-        ProductPipeline::new(store, link, self.read_mode, self.advise_tile_names)
+        ProductPipeline::new(store, link, self.read_mode, self.lab.advise_tile_names)
     }
 
     /// The store a session dialled at `url` (path and query) reads; under `--series` the path is not read.
@@ -242,11 +221,11 @@ impl Sessions {
         let reader = tokio::spawn(read(tx));
         #[cfg(feature = "telemetry")]
         let result = match (self.taps)() {
-            Some(tap) => drive(&mut RecordedPipeline::new(product, tap), &mut asks, self.fill_resumes).await,
-            None => drive(&mut product, &mut asks, self.fill_resumes).await,
+            Some(tap) => drive(&mut RecordedPipeline::new(product, tap), &mut asks, self.lab.fill_resumes_after_asks).await,
+            None => drive(&mut product, &mut asks, self.lab.fill_resumes_after_asks).await,
         };
         #[cfg(not(feature = "telemetry"))]
-        let result = drive(&mut product, &mut asks, self.fill_resumes).await;
+        let result = drive(&mut product, &mut asks, self.lab.fill_resumes_after_asks).await;
         reader.abort();
         let _ = reader.await;
         result
@@ -345,7 +324,7 @@ async fn handle_incoming(incoming: quinn::Incoming, sessions: Sessions) -> Resul
     tokio::spawn(crate::record::path::run(connection.quic_connection().clone()));
 
     let session = || QuicSession::WebTransport(connection.clone());
-    let link = |control| Link::quic(sessions.mode, session(), control, sessions.stall, sessions.cwnd_ahead, sessions.ask_stream);
+    let link = |control| Link::quic(sessions.mode, session(), control, sessions.lab.stall_after_bytes, sessions.cwnd_ahead, sessions.lab.ask_stream_priority);
     let result = async {
         match opening {
             Some(ask) => {
@@ -385,7 +364,7 @@ async fn serve_raw(connection: &quinn::Connection, sessions: &Sessions) -> Resul
     let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
     let session = QuicSession::Raw(connection.clone());
     let control = ControlStream::Open(QuicSend::Raw(send));
-    let link = Link::quic(sessions.mode, session, control, sessions.stall, sessions.cwnd_ahead, sessions.ask_stream).await?;
+    let link = Link::quic(sessions.mode, session, control, sessions.lab.stall_after_bytes, sessions.cwnd_ahead, sessions.lab.ask_stream_priority).await?;
     let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_continue() {} };
     sessions.serve(sessions.pipeline(store, link), None, read).await
 }
@@ -578,7 +557,6 @@ mod tests {
                 tuning: TransportTuning::default(),
                 opening_ask: false,
                 websocket: false,
-                #[cfg(feature = "lab-levers")]
                 lab: LabLevers::default(),
             }
         }
@@ -767,13 +745,10 @@ mod tests {
         Sessions {
             series: Series::One(Arc::new(FrameStore::open(series).expect("open store"))),
             read_mode: ReadMode::Auto,
-            advise_tile_names: false,
             mode: StreamMode::Shared,
             opening_ask: false,
-            stall: None,
+            lab: LabLevers::default(),
             cwnd_ahead: None,
-            fill_resumes: false,
-            ask_stream: None,
             #[cfg(feature = "telemetry")]
             taps: Arc::new(|| None),
         }
@@ -1538,13 +1513,10 @@ mod tests {
         let sessions = Sessions {
             series: Series::One(Arc::new(FrameStore::open(&fx.series).expect("open store"))),
             read_mode: ReadMode::Auto,
-            advise_tile_names: false,
             mode: StreamMode::Shared,
             opening_ask: true,
-            stall: None,
+            lab: LabLevers::default(),
             cwnd_ahead: None,
-            fill_resumes: false,
-            ask_stream: None,
             taps: Arc::new(move || Some(Tap::new(1, Some(tx.clone()), &Live::default()))),
         };
         let config = fx.config();
