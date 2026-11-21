@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-21T15:17Z
-heartbeat: 2026-11-21T15:51Z
+heartbeat: 2026-11-21T16:21Z
 outputs: claude/oq-integrity-build (rows)
 ## Resume
 Protocol: claude/unified:docs/lines/proposals.md §I2. The brief's "nothing encoded" read as: the quality side is
