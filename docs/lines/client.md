@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-21 (the engine review and its fix), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-21 (the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -59,7 +59,9 @@ exact frame bit for bit, and only checked claims on screen.
   matrix's rows 1, 6, 7, 11 and 12 left uncorrected where §Measured contradicts them. ENGINE-REVIEW-FIX, 2026-11-21:
   those cells and the "So" corrected in place, dated, old text quoted; m1–m4 with them (BCD's Firefox `getStats` note
   quoted and shown stale; 160.0.8173.0 named pre-release; WebKit WebTransport runtime-gated on 26, unconditional
-  from 27; `createWritable`'s two settings). Next, ENGINE-REVIEW-FIX-REVIEW, then ENGINES-PAGE.
+  from 27; `createWritable`'s two settings). ENGINE-REVIEW-FIX-REVIEW, 2026-11-21 (PR 410's body §Re-review): B1 closed, every
+  corrected cell matches the raw rows, the four sources re-fetched verbatim, nothing else changed; three nits, one
+  outside the fix (Chromium's cell-6 file holds two interleaved D1 runs, two loads of one failing to open). Next, ENGINES-PAGE.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
