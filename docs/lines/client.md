@@ -116,7 +116,10 @@ cache off; `cache-plan.md` §10.4 narrowed to items 1, 3 and 4, then the phone's
 measured, Safari unknown; no 4:2:0 view to Firefox's decoder until its G = 8 failure is traced; contradiction 6 by one
 Firefox 160 run; the Safari probe first). The reports' eleven lines:
 [`../decisions/reports.md`](../decisions/reports.md) §2 (REPORTS-PAGE, 2026-11-22: telemetry off; NGINX the receiver;
-Y and the safety report at once over HTTP, provisional; no carrier until C and Lbusy rerun; PR 370 not merged as is).
+Y and the safety report at once over HTTP, provisional; no carrier until C and Lbusy rerun; PR 370 not merged as is). The phone route's ten
+lines: [`../decisions/phone-decode-route.md`](../decisions/phone-decode-route.md) §2 (PHONE-ROUTE-PAGE, 2026-11-22: the view
+first on every phone, no table or probe; the fill reports *G* ÷ *d*_V's rule; the switch and the split tested in the
+cloud first; B1 no for now, M17 first; cell 1 on a middle-band phone by a device cloud).
 
 ## Pointers
 
