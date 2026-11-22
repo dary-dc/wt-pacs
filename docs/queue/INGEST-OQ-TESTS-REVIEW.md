@@ -1,8 +1,8 @@
 state: started
 started: 2026-11-22T13:16Z
-heartbeat: 2026-11-22T13:19Z
+heartbeat: 2026-11-22T13:22Z
 outputs: findings in PR 421's body (claude/ingest-oq-tests)
 ## Resume
-Read: PR 421's diff (claude/ingest-oq-tests 12d921a8b, contains origin/claude/unified), docs/reviews/ingest-oq.md §5–§7; F1's coded ids recomputed (1.2.999 → TON~x0, 1.2.3 → TOMG, as contract.md codes), SeriesName::parse read; comment budget ok; node client/viewer/pair.test.mjs prints both F1 gaps.
-Next: ingest/tools.sh (pip install meson==1.9.1; python3 -m venv .venv && .venv/bin/pip install --require-hashes -r ingest/requirements.txt), then .venv/bin/python ingest/coded-frames/pair_contract_test.py ingest/.build; a scratch fix (cut by default, signed >10 refused, a pair_metadata writer) to see each gap flip to "gap closed"; the review's mutants; scripts/gate.sh --quick; findings into PR 421's body §INGEST-OQ-TESTS-REVIEW.
+Done: tools built; pair_contract_test.py on 12d921a8b: 0 fail, 7 known gaps, every cell's checks counted (10–11 a coded cell). Unmarked copy: 7 claims fail on today's code. Own scratch fix (never committed): marks kept → every gap "gap closed"; unmarked → passes (after D 17 caught the fix admitting 17 bits). Mutants on the fix: 13 of 15 killed (Q 0, D 11 uncut, header depth, lossy.depth, rescale, fingerprint over cut codes, G ignored, signed flag, offset, signed>10 coded, >16 admitted, groups split mid-way, exact digests dropped); survivors: cut truncating (T1's, out of scope), fingerprint via digests(av1) (equivalent: digests hash source frames). F1: scratch regex, gap closed / passes unmarked; 5 grammar mutants killed.
+Next: scripts/gate.sh --quick with PYTHON=.venv/bin/python on claude/ingest-oq-tests; then PR 421 body §INGEST-OQ-TESTS-REVIEW (findings: m1 no reason check in known gaps, m2 F1 guards lack length/even rule, m3 Generated-by footer in PR body; no blocker so far).
 ## Result
