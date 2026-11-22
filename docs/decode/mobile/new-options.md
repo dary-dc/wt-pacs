@@ -158,7 +158,7 @@ Calibration is a convenience, not the safeguard: every frame is still checked ag
 
 | | today's software view (R) | this route (T) |
 | --- | --- | --- |
-| decode a frame, `dbts_b1` | 133–135 ms, one decoder, the phone | hardware; **unknown**; ≤ 64 frames/s by level 5.1's bound, if the decoder is there (§2.1) |
+| decode a frame, `dbts_b1` | 133–135 ms a frame per decoder, three decoders, the phone (2026-11-11; 110 ms on 2026-11-22) | hardware; **unknown**; ≤ 64 frames/s by level 5.1's bound, if the decoder is there (§2.1) |
 | bytes hashed a frame | 2 × 8 519 680 = 17 039 360 | 8 519 680 |
 | bytes read back a frame | the `copyTo` of 17 MB | 8.5 MB packed four samples a texel, or 8 bytes with the hash on the GPU |
 | precision | 10 bits | 7.78 bits (220 levels), §3.1 |

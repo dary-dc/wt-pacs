@@ -283,7 +283,7 @@ by the device manufacturer … not suitable for comparing different devices" (S8
 
 | column | this option |
 | --- | --- |
-| decode time on a phone | **unknown**; a level-5.0 floor of 31.1 ms a `dbts_b1` frame if the decoder exists and takes the size (D, §5); software 133–135 ms (R) |
+| decode time on a phone | **unknown** at the volume's size; a level-5.0 floor of 31.1 ms a `dbts_b1` frame if the decoder takes the size (D, §5). Measured 2026-11-22 (cell 4, 256 × 256): the decoder is there (`c2.qti.av1.decoder`, declared to 8192 × 8192); the 4:0:0 forms fail at flush; 8-bit full range decodes exact as `RGBA`; 10-bit comes back 8-bit. Software 42.1 ms effective at three decoders (M) |
 | bytes | today's view +0.01–0.12 % as 4:2:0 (R at 8 bits; T at 10). More to meet the noise rule on screen (§3.2), not computed |
 | precision on screen | **8 bits**: 4.01 source units a step (10-bit series), 16.05 (12-bit series); 2.0–7.4 display levels a step at the header windows |
 | checked | **no** (a display path); the coded bytes can be checked before the decode (§6.4) |

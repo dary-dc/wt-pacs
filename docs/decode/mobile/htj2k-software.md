@@ -156,7 +156,7 @@ frame is never decoded again (the OPFS cache, decided).
 
 | column | HTJ2K only, software |
 | --- | --- |
-| decode time on a phone | **unknown**; 78–127 ms a `dbts_b1` frame predicted (T, §3); cloud 6.7–9.7 ns a sample (R) |
+| decode time on a phone | **measured** 2026-11-22 (cell 1, `claude/phone-run:docs/phone-rows/next-round-results.md`): 40.4 ms a `dbts_b1` frame on one decoder, 58.9 ms per decoder at three, **18.9 ms effective** (25.8 in a fill, D), 15.5 at four, no saturation within four; predicted 78–127 ms (T, §3): **missed**, faster; cloud 6.7–9.7 ns a sample (R) |
 | bytes | the exact series: 4.6–14.6× the view at Q 8, 3.6–10× at the rule's Q (R, D) |
 | precision on screen | the stored depth, bit for bit (10 and 12 bits here; DICOM to 38) |
 | checked | yes: XXH3-64 over the samples, today's exact-frame digest |

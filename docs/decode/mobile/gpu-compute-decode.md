@@ -206,7 +206,7 @@ further: the view is already fast enough to bind on the decode only on the phone
 
 | column | this option |
 | --- | --- |
-| decode time on a phone | **unknown**; a bound: 5.3 ms a `dbts_b1` frame on S1's low-end 2017 card (D); breaks even with one software AV1 decoder if the phone's GPU is ≤ 25× slower (D) |
+| decode time on a phone | **unknown**; a bound: 5.3 ms a `dbts_b1` frame on S1's low-end 2017 card (D); breaks even with one software AV1 decoder if the phone's GPU is ≤ 25× slower (D); the bar it must now beat is HTJ2K in WASM, 40.4 ms on one decoder and 18.9 effective at three (M, 2026-11-22); an adapter (`adreno-7xx`), no decode |
 | bytes | the exact series: 4.63× the view on `dbts_b1` (R; 4.6–14× across the fixtures); none added at ingest |
 | precision on screen | full, the source's depth (10 or 12 bits here) |
 | checked | yes: the decoder's own samples, XXH3-64 on the GPU (not built) or after a read-back; exact on SwiftShader, every frame (R) |

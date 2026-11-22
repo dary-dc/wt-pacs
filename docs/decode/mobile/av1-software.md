@@ -173,7 +173,7 @@ frames a second is below it, so a cine started during the fill of this series wa
 
 | column | AV1 in software |
 | --- | --- |
-| decode time on a phone | **measured**: 133–135 ms a frame on `dbts_b1-q8-g8` (8.5 Mpx, 10 bits), three decoders, one phone; ~22 frames a second; dav1d-WASM unmeasured on a phone |
+| decode time on a phone | **measured** 2026-11-22 (cell 1, `claude/phone-run:docs/phone-rows/next-round-results.md`): 110 ms a `dbts_b1-q8-g8` frame per decoder at three decoders, **42.1 ms effective** (68.6 in a fill, D), 176 ms on one decoder, saturated at three (46.2 ms at four); 2026-11-11: 133–135 ms at three; dav1d-WASM unmeasured on a phone |
 | bytes | the view's: ~460 KB a frame on `dbts_b1-q8-g8` (R); HTJ2K is 4.6–14× the view's on these fixtures (the brief) |
 | precision on screen | the stored depth D ≤ 10, or the depth cut's 10-bit codes (rounding error ≤ 2^(D−11)) |
 | checked | yes by construction: the decoder's planes reach the page (`copyTo`, or dav1d-WASM's output), so XXH3-64 runs on them; whether every view frame is checked is #368's, the owner's |

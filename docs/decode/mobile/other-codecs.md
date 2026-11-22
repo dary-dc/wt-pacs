@@ -159,7 +159,7 @@ one software AV1 decoder on the phone (R, `new-options.md` §2.1).
 
 | column | HEVC Main (8-bit) | VP9 profile 0 | H.264 High (8-bit, 4:0:0) |
 | --- | --- | --- | --- |
-| decode on a phone | **unknown**; ≤ 62.8 /s at level 5.1 for `dbts_b1` (D, T) | **unknown**; ≤ 69.0 /s (D, T) | **unknown**; ≤ 29.5 /s (D, T) |
+| decode on a phone | **unknown**; ≤ 62.8 /s at level 5.1 for `dbts_b1` (D, T); 2026-11-22: `c2.qti.hevc.decoder` declared to 8192 × 8192, `dbts_b1` inside it (declared, not decoded) | **unknown**; ≤ 69.0 /s (D, T); 2026-11-22: `c2.qti.vp9.decoder` declared to 4096 × 4096, `dbts_b1` inside it (declared, not decoded) | **unknown**; ≤ 29.5 /s (D, T); not read |
 | decoder present | > 95 % of smartphones (R) | per device; HEVC or VP9 at UHD required under the display condition (S7) | everywhere at 1080p; High 4:0:0 and level 5.1 not required (S7) |
 | bytes | **unmeasured** on our data | **unmeasured** | **unmeasured**; no chroma bytes |
 | precision on screen | 8 bits: 220 levels if inverted (`new-options.md` §3.1), 256 through `NV12` | same | same |

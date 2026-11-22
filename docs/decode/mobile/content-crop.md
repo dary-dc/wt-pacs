@@ -232,7 +232,7 @@ The option is a factor on another option's row, not a row of its own. "×" is th
 
 | column | content crop |
 | --- | --- |
-| decode time on a phone | **unknown**; cloud factor 0.85 (AV1) and 0.76 (HTJ2K) on `dbts_b1`, 0.94 on `dbts_b3`, ≈ 1 on `dbts_b2` and the other 16 (M); `dbts_b1` software AV1 113–115 ms predicted (T) |
+| decode time on a phone | **unknown**; cloud factor 0.85 (AV1) and 0.76 (HTJ2K) on `dbts_b1`, 0.94 on `dbts_b3`, ≈ 1 on `dbts_b2` and the other 16 (M); `dbts_b1` software AV1 113–115 ms predicted (T); by the factors on 2026-11-22's whole frames, 35.8 ms (AV1) and 14.4 ms (HTJ2K) effective at three decoders (D on A; M22 not run) |
 | bytes | × 0.997–1.002 (M): unchanged |
 | precision on screen | unchanged: inside as the option it multiplies, outside the source exactly (D) |
 | checked | as the option it multiplies, its digest taken over the rectangle; the exact series untouched |

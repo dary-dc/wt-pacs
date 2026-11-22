@@ -230,7 +230,7 @@ Per `dbts_b1` frame, 2560 × 3328 = 8 519 680 samples, WebGL2:
 
 | per `dbts_b1` frame | today's software view (R) | this route |
 | --- | --- | --- |
-| decode | 133–135 ms, one decoder, the phone | hardware; unknown (§7) |
+| decode | 133–135 ms a frame per decoder, three decoders, the phone (2026-11-11; 110 ms on 2026-11-22) | hardware; unknown (§7) |
 | copied out of the decoder | `copyTo`, 2 × 8 519 680 = 17 039 360 B | GPU copy 34 078 720 B, GPU-side |
 | read back to the page | — (the copy is the read) | 8 519 680 B |
 | hashed | 17 039 360 B, ~5.2 ms at 3.3 GB/s | 8 519 680 B, ~2.6 ms |
@@ -488,7 +488,7 @@ streams discarded", R, `docs/client/design.md` §Decided) and is the owner's to 
 
 | column | this option |
 | --- | --- |
-| decode time on a phone | **unknown**; hardware, at most 31.1 ms a `dbts_b1` frame by level 5.0's floor if the decoder takes it (R, [`av1-hardware-unchecked.md`](av1-hardware-unchecked.md) §5), plus §5's upload, pass, read-back and ~2.6 ms of hash (R rate, desktop) |
+| decode time on a phone | **unknown** at the volume's size; hardware, at most 31.1 ms a `dbts_b1` frame by level 5.0's floor if the decoder takes it (R, [`av1-hardware-unchecked.md`](av1-hardware-unchecked.md) §5), plus §5's upload, pass, read-back and ~2.6 ms of hash (R rate, desktop). Measured 2026-11-22 (cell 4, 256 × 256 only): an 8-bit full-range unit came back exact as `RGBA`; nothing timed; M6–M7 not run |
 | bytes | **1.16–2.49× today's** view (0.97–1.47× the 256-level cut's), measured on 19 volumes (§9); more with the headroom §4 now asks |
 | precision on screen | **7.78 bits** (220 levels): 4.67 source units a step on 10-bit series, 18.70 on 12-bit |
 | checked | **yes**, every frame, the digest of the decoded 8-bit luma plane (§5, §6) |

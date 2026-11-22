@@ -349,7 +349,7 @@ build on one cloud host.
 
 | column | this option |
 | --- | --- |
-| decode time on a phone | **unknown**; predicted 93–154 ms a `dbts_b1` frame (T, §5.2), against AV1 software's measured 133–135 ms; in the cloud 1.12–1.21× the lossless frame and 0.41–0.50× dav1d-WASM's AV1 view (M) |
+| decode time on a phone | **unknown**; predicted 93–154 ms a `dbts_b1` frame (T, §5.2), a premise the round refuted: the lossless frame took 58.9 ms per decoder at three (M, 2026-11-22), so by the cloud's 1.12–1.21× a lossy frame is **66–71 ms per decoder, 21.2–22.9 ms effective**, about half the AV1 view's 42.1 (D on A: the cloud ratio carries; M17 tests it); in the cloud 0.41–0.50× dav1d-WASM's AV1 view (M) |
 | bytes | at the noise rule's 1.00 bar 0.85–1.47× the AV1 view's, median 1.05, with 1.05–1.17× its in-window error; at the view's Q 8 G 8 error 1.28–1.45×, median 1.36; 0.083–0.160 of the exact frame (M, D; 19 DBT volumes) |
 | precision on screen | the stored depth, 10 or 12 bits, as 16-bit samples to the paint, as the exact frame (S1; no depth cut) |
 | checked | yes, by a digest over the samples, **if the ingest computes it with the shipped WASM build**: identical across V8 hosts (M), across engines by the WebAssembly specification (S3, D); not across decoder builds (M, native ±1) |
