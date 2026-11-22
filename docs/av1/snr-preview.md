@@ -186,7 +186,7 @@ All per volume, at both VL rungs unless named; the collector's medians decide. "
 | S5 | Every slice at VL, decode: `snr` ÷ `two` 1.3–1.7 | outside |
 | S6 | Exact by residual against whole HTJ2K at the exact stage (`two` against `sep`): the residual's bytes fewer and its decode + add 0.75–1.1× an HTJ2K frame, so `two` **better** than `sep` | `sep` dominating at any stage |
 | S7 | `two` against `one`: **a trade** — `two` dominates at first picture and preview, `one` at VL (its VL is `two`'s minus the preview) | any other label |
-| S8 | `two` and `snr` against `svc` (Q 8): **a trade** — `svc` dominates at first picture, preview and exact bytes, the two-layer carriers at VL | any other label |
+| S8 | `two` and `snr` against `svc` (Q 8): **a trade** — `svc` dominates at first picture, preview and exact bytes, the two-layer carriers at VL (in bytes and time, not fidelity; *added 2026-11-22, decode audit 19*) | any other label |
 | S9 | `snr` against `two`: `two` **better** (`snr` dominated at VL, nowhere dominating) | `snr` dominating at any stage |
 
 ### 5 · The protocol
@@ -637,7 +637,8 @@ rule. **`two` against `one`, `dbts_b1` · G 8 · Q 8: a trade.** `two` dominates
 against 23.2 MB, log time ratio −0.240, interval −0.271 to −0.205) and jump preview. `one` dominates at VL and exact,
 both kinds (every slice VL: 23.2 against 24.9 MB, +0.580, interval +0.567 to +0.596). At the first picture `two` has
 fewer bytes (49.5 against 468 kB) but `one` is decided faster (+0.096, interval +0.023 to +0.186), so neither
-dominates there. **`snr` against `svc`, `dbts_b1` · G 16 · Q 8: worse.** `svc` dominates at the first picture
+dominates there. **`snr` against `svc`, `dbts_b1` · G 16 · Q 8: worse** (in bytes and time, not fidelity: `svc`'s
+quarter-size base is the lower-fidelity picture; *added 2026-11-22, decode audit 19*). `svc` dominates at the first picture
 (2.5 against 64.2 kB, +2.33), every slice preview, jump preview and every slice exact (101 against 115 MB, +0.355).
 At VL `snr` has fewer bytes, but `svc` is decided faster (every slice +0.079, interval +0.047 to +0.110; jump
 +0.107), so neither dominates there.
