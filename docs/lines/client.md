@@ -62,6 +62,12 @@ exact frame bit for bit, and only checked claims on screen.
   decoders, half the protocol's carried ratio; arm B wire-bound). Reviewed 2026-11-20 (PR 414 body): two blockers;
   fixed the same day, before the 11-21 12:00 deadline: cell 2 derived (8–10 of 16 below 1, *no difference shown*
   unless the link gives over ~760 Mbit/s), the premium view band 33–48 ms. Re-reviewed 2026-11-20 (PR 414 body §Re-review): no blocker open. Owed: the round's read.
+* **The frame's fault model**, theory only, 2026-11-22
+  ([`../client/evidence/integrity-model.md`](../client/evidence/integrity-model.md)): the frame check covers the
+  store to the decoder and nothing replaces it; uncovered with a green label are a damaged display parameter in the
+  metadata, a held frame damaged after its check and a stale texture; a withheld frame leaves the previous frame's
+  picture (read in code); three failures share *Lossless check failed*. Its review is owed, then the
+  `frame-integrity` decision page; six calls for the owner in its §9, eleven fault-bench cells in its §8.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 * **The reports' options** (2026-11-14, theory and a plan,
