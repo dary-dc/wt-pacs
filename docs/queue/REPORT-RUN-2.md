@@ -1,8 +1,9 @@
-state: started
+state: done (Chromium complete; Firefox counted cells not run, a rig defect)
 started: 2026-11-21T13:47Z
-heartbeat: 2026-11-22T20:34Z
-outputs: rows on `claude/report-arms` (r2-*); `report-plan.md` §7.9 d0bbbb10, §Results 2 05c72032 on `claude/report-plan`
+heartbeat: 2026-11-22T20:43Z
+outputs: `claude/report-arms` rows `lab/report-arms/rows/r2-*` (last 4ef4e12a); `claude/report-plan` §7.9 d0bbbb10, §Results 2 to 17599aed, `docs/lines/client.md` bc6bf057; no PR (PR 395 carries the rig)
 ## Resume
+Done 2026-11-22T20:43Z. Next: REPORT-VERDICT-2 (not before 11-23 08:00), by a session that ran none of it. Host notes for any later run, kept below.
 Resumed 2026-11-22T06:17Z by a new session (stalled: heartbeat 05:12Z; no rows pushed since 02:41Z, no C file on claude/report-arms). Rebuilding the host in a fresh container, then the run script from C.
 Done: claimed; host built (cargo release `series-server --features telemetry`, `pack-series`, `report-receiver`; nginx 1.31.8 from
 nginx.org's tarball; Firefox 160.0.1 from Mozilla's release tarball; iproute2 present); `cdp.check.mjs` (Chromium 153.0.8010.12)
@@ -17,4 +18,18 @@ zlib1g-dev); Firefox 160.0.1 linux-x86_64 tarball; then `W=... NGINX_BIN=... FIR
 docs/queue/REPORT-RUN-2-run.sh &` and the same for `REPORT-RUN-2-push.sh`. The script skips complete cells and keeps a partial one
 (renamed, counted in no bar). After a container restart the run survives but the push loop keeps a dead proxy port (rows unpushed 02:41–09:35Z on 11-22, then pushed at 6153881f): kill and restart REPORT-RUN-2-push.sh. After each cell: its results in `report-plan.md` §Results 2 (`claude/report-plan`).
 ## Result
-(pending)
+* Chromium 153, every new cell run, Williams-balanced, 18 rounds x 9 units, no counted row errored, host CPU <= 25 %: D5a, D5b
+  timed from the fault (every arm 18/18 safety; the report handed on before every kill: the race is < 50 ms here, rule 3 a tie);
+  D6 under --tun (18/18 safety; four predicted losses arrived: a 30 s blackout inside a 60 s browser life); L idle (bar met,
+  gaps < 1.2 ms, below the clocks' resolution); Lbusy VOID (A/A 1.095; as measured page carriers ~51 ms p99, worker ones 2-9 ms);
+  C (no long task added; the per-round fill bar met by no arm, nor by off' itself, 3/18); Y (largest record 1 657 B).
+* R (6 rounds, nginx 1.31.8): NGINX passes at 100/s (1.3-1.5 % of a core), RECEIVER behind nginx misses (5.3-6.3 %); a first
+  attempt kept, judged nowhere (the 700 scratch path kept nginx's worker from its log); the server's row not built.
+* Firefox 160.0.1: the mutants all caught; counted cells not run: bidi.mjs hangs the driver about once in 70-100 loads (no
+  per-load timeout, pending calls never rejected), 2-3 % of loads never fill, and each load leaks a ~108 MB profile (filled the
+  disk once). Three D1 partials kept, counted in no bar. For a build row; not patched.
+* Fixtures: a 4-vCPU cloud container, no GPU; headless Chromium 153.0.8010.12, Firefox 160.0.1; the grey-16 frame x32, not
+  dbts_c1; the fault bench's forced mismatch; loopback or a userspace relay, not a radio; no phone, no WebKitGTK.
+* Gate not run (rows and docs only); check_links.py adds no unresolved path (5 pre-existing on report-plan.md), comment budget ok.
+* Owner: nothing forced. For REPORT-VERDICT-2: C's per-round bar and Lbusy's ratio A/A may be unmeetable on this host as written;
+  a Firefox driver fix row before any Firefox verdict.
