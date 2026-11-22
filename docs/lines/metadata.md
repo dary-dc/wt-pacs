@@ -1,6 +1,7 @@
 # PACS receive and metadata
 
-Last verified 2026-10-29 (the design state); branches and PRs 2026-11-09.
+Last verified 2026-10-29 (the design state); branches and PRs 2026-11-09. The owner's calls of §Open 1–4 and 6, one
+page: [`../decisions/pacs-sync.md`](../decisions/pacs-sync.md) (2026-11-22).
 
 ## Goal
 
@@ -46,7 +47,8 @@ layout is our input contract. Depth over breadth; theory and a pre-registered me
    `claude/av1-unified-mainbase` (`docs/av1/payload-format.md` P4), not yet on `claude/core`. Whether the receive
    path needs its own check is open.
 6. One or two commits each on `pacs-design-state` (#168), `pacs-disk-layout-measure` (#167), `pcs-pacs-options`
-   (#230), `rsync-options`, `rsync-updates` are not yet in `line-pacs`.
+   (#230), `rsync-options`, `rsync-updates` are not yet in `line-pacs`. *Corrected 2026-11-22 (PACS-PAGE):* none is
+   left; `claude/unified` carries every commit of those branches and of `line-pacs` (`git rev-list`, 0 each).
 7. The optimal-quality pair at ingest (INGEST-OQ, 2026-11-12, [`../reviews/ingest-oq.md`](../reviews/ingest-oq.md)
    §6, design only): the client's `exactSeries` grammar refuses a PCS-coded id with `~`; the optimal-quality series'
    own id under the serving grammar; whether two bundles a DICOM series is allowed; a late instance writes both
