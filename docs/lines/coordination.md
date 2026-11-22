@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22.
 
 ## Goal
 
@@ -114,6 +114,10 @@ small enough that every open item has an owner and a next step.
    UNIFIED-LAB-LIST (2026-11-20, [`../decisions/lab-list.md`](../decisions/lab-list.md)): audit item 7's list, read
    not run, at `4a2b4277f`: 19 `lab/` directories read by a gate step, 47 (26 391 code lines) by none; the removal
    is the owner's yes, on the `unified-to-main` page.
+   FINAL-STATE (2026-11-22, [`../decisions/final-state.md`](../decisions/final-state.md)): sources and reasoning,
+   nothing run. The state `claude/unified` reaches before `main` is proposed as *bench-verified*, with its scope and
+   a line saying what it is not; seven conditions, each with its check, are UNIFIED-PAGE's checklist. A yes replaces
+   §Goal's "deployment-ready"; the owner's, after FINAL-STATE-REVIEW.
 
 ## Unification (the owner, 2026-11-09)
 
