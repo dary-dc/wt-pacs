@@ -5,13 +5,13 @@
 import { DownloaderClient } from "../transport/consumer.js";
 import * as painter from "../paint/paint-worker.js";
 import { openCache } from "./cache.js";
+import { now } from "./clock.js";
 import { asPainted, Controller } from "./controller.js";
 
 /** ms: progress reaches the page at most this often, and at once when the last frame arrives. */
 const PROGRESS_MS = 100;
-const at = () => performance.timeOrigin + performance.now();
 /** Epoch ms of this worker's start, for the lab's ledger: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
-const boot = { viewEvaluated: at() };
+const boot = { viewEvaluated: now() };
 
 let controller = null;
 let downloader = null;
@@ -51,7 +51,7 @@ function paint(frame, display, { read = false } = {}) {
 
 /** Under the viewer check, `lab.check` its module, every cache write on this thread is counted from the start. */
 function start({ canvas, meta, fillMode, size, lab = {} }) {
-  boot.viewStart = at();
+  boot.viewStart = now();
   controller = new Controller({ meta, fillMode, paint, emit, size });
   settle = lab.settle;
   checks = lab.check && import(lab.check);
@@ -67,7 +67,7 @@ function startPainter(canvas) {
     emit("renderer", { error: e.message });
     emit("failed", { scope: "worker", reason: `painter: ${e.message}` });
   }
-  boot.viewGl = at();
+  boot.viewGl = now();
   gl.ready = true;
   gl.resolve();
 }
@@ -79,7 +79,7 @@ function startPainter(canvas) {
  * `writer`: client/view/cache.js
  */
 async function connect({ port, url, certHash, opts: { writer, holdEveryOther, ...opts }, issuedAt, dialled = false, sent }) {
-  boot.viewConnect = at();
+  boot.viewConnect = now();
   downloader = port;
   controller.issuedAt = issuedAt;
   controller.ascending = Boolean(opts.waitAhead);
@@ -114,7 +114,7 @@ async function connectExact({ port, url, certHash, opts }) {
 /** The lab's half-held store: once the held frames are here, the rest are wanted and the fill is timed from that want. docs/adr/frame-path.md §Experiment 1 */
 async function fillAround(held) {
   await Promise.all(held.map((i) => controller.store.arrival(i)));
-  controller.issuedAt = performance.timeOrigin + performance.now();
+  controller.issuedAt = now();
   controller.store.want(controller.want());
 }
 

@@ -1,8 +1,8 @@
 /** The view's controller: the current frame, what it wants and in what order, and its paint. docs/adr/frame-path.md §3, *Built* */
+import { now } from "./clock.js";
 import { FrameStore } from "./store.js";
 import { CUT_DEPTH, cutShift } from "../decode/depth-cut.js";
 
-const at = () => performance.timeOrigin + performance.now();
 export const FIT = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false };
 
 export const asPainted = (info) => ({ pixels: info.pixels, width: info.width, height: info.height, bits: info.bits, components: info.components, signed: info.signed, cutShift: info.cutShift });
@@ -78,7 +78,7 @@ export class Controller {
       return this.refused(f.frameIndex, `a depth cut's frame decoded at ${f.info.bits} bits, not ${CUT_DEPTH}`);
     }
     const info = this.#cutShift ? { ...f.info, cutShift: this.#cutShift } : f.info;
-    this.store.put(f.frameIndex, { info, arrived: at(), write: f.write }, f.ack);
+    this.store.put(f.frameIndex, { info, arrived: now(), write: f.write }, f.ack);
   }
 
   #arrived(i, { info }) {
@@ -86,9 +86,9 @@ export class Controller {
     const e = info.exact;
     this.seen[e === true ? "exact" : e === false ? "inexact" : "unchecked"]++;
     if (info.route) this.seen.routes[info.route] = (this.seen.routes[info.route] ?? 0) + 1;
-    if (this.#fillMode && this.fillMs === null && this.received === this.#n) this.fillMs = at() - this.issuedAt;
+    if (this.#fillMode && this.fillMs === null && this.received === this.#n) this.fillMs = now() - this.issuedAt;
     if (i === this.current) this.repaint();
-    this.#emit("progress", { have: this.received, total: this.#n, seen: this.seen, fillMs: this.fillMs, at: at() });
+    this.#emit("progress", { have: this.received, total: this.#n, seen: this.seen, fillMs: this.fillMs, at: now() });
   }
 
   /** The frame's display: its own rescale and window where the metadata varies them, the user's window over both. */
@@ -123,7 +123,7 @@ export class Controller {
         try {
           const d = this.display(i, f.info);
           this.lastPaint = await this.paint(f, d);
-          const drawn = this.lastPaint?.drawn ?? at();
+          const drawn = this.lastPaint?.drawn ?? now();
           f.painted ??= drawn;
           this.paints += 1;
           if (this.firstShownMs === null && f.info.exact === true) this.firstShownMs = drawn - this.issuedAt;
@@ -197,7 +197,7 @@ export class Controller {
     if (!this.#exactAsks.has(i)) this.#exactAsks.set(i, this.exactSource.requestFrame(i).finally(() => this.#exactAsks.delete(i)));
     try {
       const { info } = await this.#exactAsks.get(i);
-      if (info.exact === true) e.frame = { info, arrived: at() };
+      if (info.exact === true) e.frame = { info, arrived: now() };
       else e.failed = info.exact === false ? `not exact: ${info.reason}` : "the exact series has no digest for this frame";
     } catch (err) {
       e.failed = err.message;
