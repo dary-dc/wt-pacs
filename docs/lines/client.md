@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-22 (the cache's decision page), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -108,7 +108,8 @@ Any merge, close or removal (the frame clock's: `git revert 24b80bcd`, [`coordin
 which view is the target; the contradictions the fold left open ([`../client/design.md`](../client/design.md) §Open: the
 stride ADR against never skipping, the cache file's questions 3 and 4); the coded-bytes digest; turning the cache or telemetry on, and telemetry's rate, sink and retention; a series
 without digests; the settings awaiting a default ([`../client/design.md`](../client/design.md) §Open); anything
-structural.
+structural. The cache's six lines: [`../decisions/cache.md`](../decisions/cache.md) §2 (CACHE-PAGE, 2026-11-22: the
+cache off; `cache-plan.md` §10.4 narrowed to items 1, 3 and 4, then the phone's P2 and P1).
 
 ## Pointers
 
