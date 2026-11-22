@@ -1441,3 +1441,30 @@ predicted 20 ms round trip is absent); KEEPALIVE and SESSION, which send from th
 The single slow p99s (KEEPALIVE-H 155 ms, SESSION-H 42 ms) are one row each. Below about 10 ms the two clocks' rounding
 (§7.9; PR 395, m5) leaves rule 2's 10 % lead **undecidable** on idle L: every gap above is under 1.2 ms.
 SESSION's floor is not wired, so its gap over a floor is not measured.
+
+### Lbusy on Chromium, a 50 ms long task every 100 ms on the page's thread (18 rounds, 162 loads, 2026-11-21 23:16 – 11-22 03:15 UTC) — **VOID**
+
+Williams-balanced for every unit; no row errored; every load read its 21 faults; host CPU at most 25 %. **VOID by
+§7.4**: BEACON-H's floor in even against odd rounds, median call-to-append 1.28 against 1.16 ms, ratio **1.095**,
+outside 0.95–1.05. The cell counts in no bar and no rank; the rows are kept and read below as measured, not judged.
+The A/A gap is 0.12 ms on a whole-ms receiver clock (§7.9; PR 395, m5), so this VOID rule, written as a ratio, is at
+the clock's resolution here: whether the rule should read an absolute floor on loopback is REPORT-VERDICT-2's question,
+not this run's.
+
+| unit | faults read | p50, median of rows (max) | p99, median of rows (max) | the fill's own fault, median | floor: delivered, call-to-append median |
+| --- | --- | --- | --- | --- | --- |
+| `off` | 360 | 2.07 (2.34) ms | 51.08 (52.57) ms | 6.4 ms | 90/90, 1.14 ms |
+| `off′` | 360 | 1.99 (2.23) ms | 51.39 (53.01) ms | 12.5 ms | 90/90, 1.14 ms |
+| BEACON-H | 360 | 1.96 (2.26) ms | 51.36 (52.76) ms | 9.0 ms | 90/90, 1.23 ms |
+| BEACON-Y | 360 | 1.98 (2.35) ms | 50.84 (52.44) ms | 10.4 ms | 90/90, 1.16 ms |
+| KEEPALIVE-H | 360 | 1.54 (1.85) ms | 2.46 (3.25) ms | 8.9 ms | 90/90, 1.39 ms |
+| KEEPALIVE-Y | 360 | 1.51 (1.77) ms | 2.46 (3.18) ms | 7.7 ms | 90/90, 1.27 ms |
+| SESSION-1 | 360 | 1.14 (1.34) ms | 2.31 (8.69) ms | 8.5 ms | not wired |
+| SESSION-Y | 360 | 1.17 (1.46) ms | 1.99 (3.91) ms | 9.1 ms | not wired |
+| SESSION-H | 360 | 1.23 (1.47) ms | 2.18 (4.06) ms | 8.4 ms | not wired |
+
+
+Read as measured, not judged: the page-thread carriers (`off`'s and BEACON's beacons, sent from the page) take the long
+task's ~50 ms at p99, as §7.3 predicts ("busy up to +50 ms"); KEEPALIVE and SESSION, which send from the worker, stay
+at 2–9 ms p99, unaffected by the busy page, as predicted. BEACON-Y against KEEPALIVE-Y on busy p99 is ~51 against ~2.5
+ms, a lead far past rule 2's 10 %, which would separate the two **if** the cell were not VOID.
