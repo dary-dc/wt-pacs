@@ -1,7 +1,7 @@
 state: done
 started: 2026-11-22T16:27Z
 heartbeat: 2026-11-22T16:30Z
-outputs: `claude/reviews-2026-11-28` at `ed065f3cc` (`docs/decisions/engines.md`; `docs/decisions/README.md` index line); draft PR of DECISIONS-OPEN
+outputs: `claude/reviews-2026-11-28` at `5cf82a8bf` (`docs/decisions/engines.md`; the README's index line; `docs/lines/client.md`); draft PR of DECISIONS-OPEN
 ## Resume
 Done. Nothing left for this row. The page's items 3 and 4 (trace Firefox's G = 8 failure; M5's amended bar on Firefox
 160) and item 5 (the Safari probe order) are rows for the next queue, PROGRAM-CLOSE's list.
