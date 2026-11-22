@@ -11,6 +11,15 @@ exact frame bit for bit, and only checked claims on screen.
 
 ## In flight
 
+* **2026-11-22, the decode options judged again with the phone round** (MOBILE-DECODE-REJUDGE,
+  [`../decode/mobile/README.md`](../decode/mobile/README.md) §6, §6.1): on one phone HTJ2K in WASM decodes a
+  `dbts_b1` frame in 18.9 ms effective at three decoders against the AV1 view's 42.1 (measured), so lossy HTJ2K,
+  scaled by the cloud's 1.12–1.21, would be a view at about the AV1 view's bytes decoding in half its time (derived
+  on an assumption): it moves from hold to the first ask, M17. WebGPU narrows to links above the exact series'
+  decode-bound point; hardware stays 8-bit on that phone and comes after M17. The AV1 rows the program held each
+  have their options and deciding measurement. Nothing decided; the route of record unchanged. Owed: the owner's
+  word on the held rows; PHONE-READ-CODE-CHECK may set loads apart.
+
 * **2026-11-22, choosing a route on a phone** (ROUTE-POLICY, theory,
   [`../decode/mobile/route-policy.md`](../decode/mobile/route-policy.md)): the exact series fills faster than the
   view above *an exact frame's bits ÷ the view's effective decode*, 53–191 Mbit/s on an entry phone to 220–521 at
