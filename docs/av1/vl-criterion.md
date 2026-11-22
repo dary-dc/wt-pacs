@@ -42,7 +42,7 @@ those could have informed.
    (delivery arm C2). Then the criterion no longer has to carry a diagnostic promise; it only picks the Q of an
    interim picture, and §3 prices each choice. If the owner wants the view to promise more than that, the only
    promise with a derivable bound is the **task-bounded step** (option D), at a predicted 0.22–0.55 of HTJ2K's bytes
-   against Q 8's 0.07–0.22.
+   against Q 8's 0.07–0.24 (0.07–0.22 on the three timed volumes).
 
 **What it would reopen** (program §Decided approaches): an exact frame fetched without a request extends "the exact
 HTJ2K frame on an explicit Lossless request"; a view no longer "meant to be visually lossless" changes the wording of
@@ -63,7 +63,8 @@ noise kept). d′ is detectability as `noise-ratio.md` §Terms defines it. For t
 * **k**, the share of the fine-band noise's amplitude the coding removed, and **r_q**, the added error over σ, in the
   model of `audit-protocols.md` §A: r² = k² + r_q², ν² = (1 − k)² + r_q², so k = (1 + r² − ν²) ÷ 2.
 * **Detectability kept, T.** For one transform coefficient holding a signal of a·σ in noise of σ, the d′ of a linear
-  observer on the quantized coefficient over its d′ on the unquantized one.
+  observer on the quantized coefficient over its d′ on the unquantized one; d′ here is (mean with signal − mean
+  without) ÷ √(the mean of the two classes' variances).
 * **Dwell.** A reader stopped on one frame; how long counts as stopped is not defined here.
 
 ## 1 · The four premises
@@ -92,9 +93,9 @@ steep**; ν is steep exactly where r is flat. R1 tests this on the rows.
 **Why the logic stops holding there** (*theory*). "Error within the noise" is a bound on harm only for error that is
 independent of the noise: then every linear observer's d′ falls by 1 ÷ √(1 + r²) at most (`noise-ratio.md` §2.2).
 That describes x ≤ 2, where κ ≈ +1. At x 4.8 the model's κ is −0.66: the error is anticorrelated with the noise
-because it is the noise. With the measured ranges, k = (1 + r² − ν²) ÷ 2 is 0.77–0.94 and r_q is 0.28–0.44 (*derived*
-from the worst frame's r of 0.888–0.981 at the integer rule Q on five held-out volumes, `noise-point.md` §Measured,
-and the median frame's ν of 0.286–0.495, paired at their extremes; the pairing per frame is R2's): of the fine-band
+because it is the noise. With the measured ranges, k = (1 + r² − ν²) ÷ 2 is 0.79–0.94 and r_q is 0.28–0.45 (*derived*
+per volume from the worst frame's r of 0.902–0.978 and the median frame's ν of 0.286–0.495 at the pooled rule's Q
+on the 19 volumes, `lab/av1/audit/rows/b-summary.json`; the pairing per frame is R2's): of the fine-band
 "error" at the rule's Q, 76–92 % of the power (k² ÷ r²) is removed noise. So at the rule's Q the ratio measures **how much was
 removed**, and the question that matters, what else went with it, is outside what r can see.
 
@@ -122,7 +123,7 @@ acquisition just shows clears that edge only when at most four coefficients hold
 samples wide inside an 8 × 8 or larger transform does not, in this model. That is the size at the limit of DBT
 (*source*): "Threshold detectable calcification diameter was found for each imaging modality with standard dose: …
 narrow angle DBT (211 ± 11 µm) and wide angle DBT (257 ± 14 µm)" (Hadjipanteli 2017, abstract), on focal-plane pixels
-of 85–117 µm (NHSBSP Equipment Report 1407). And it is the direction readers and observer models found on 2D
+of 85–150 µm, 85–117 on four of its five systems (NHSBSP Equipment Report 1407). And it is the direction readers and observer models found on 2D
 mammograms: "Detection of simulated masses was not affected by the compression method with the conditions used in
 this study, while the detection of microcalcifications was significantly reduced with a compression ratio of more
 than 15:1" (Suryanarayanan 2005, abstract; wavelet coding of FFDM, not AV1, not DBT).
@@ -200,11 +201,11 @@ its revision, and is repeated verbatim from that file; "re-read" says whether th
 | --- | --- | --- |
 | FDA, *Display Devices for Diagnostic Radiology*, 28 September 2022, §VIII | "Mammographic images with lossy compression must not be reviewed for primary image interpretations." | labelling of a device sold for mammography review, US |
 | FDA, MQSA final rule, 88 FR 15126, 10 March 2023, Response 100 | "images that have undergone lossy compression, which does not maintain all of the data related to the mammogram image files, would generally not be considered to be ''original'' mammograms for the purposes of § 900.12(c)(4)"; "we do not believe there is consensus on what loss of information is acceptable" | retention and transfer, US |
-| ACR–AAPM–SIIM, *Technical Standard for Electronic Practice of Medical Imaging*, revised 2022, §B | "Irreversible compression may be used to reduce transmission time or storage space only if the quality of the result is sufficient to reliably perform the clinical task."; "The U.S. Food and Drug Administration (FDA) requires that when an image is displayed it be labeled with a message stating if irreversible compression has been applied and with approximately what compression ratio (and/or quality factor)" | advisory |
+| ACR–AAPM–SIIM, *Technical Standard for Electronic Practice of Medical Imaging*, revised 2022, §III.B | "Irreversible compression may be used to reduce transmission time or storage space only if the quality of the result is sufficient to reliably perform the clinical task."; "The U.S. Food and Drug Administration (FDA) requires that when an image is displayed it be labeled with a message stating if irreversible compression has been applied and with approximately what compression ratio (and/or quality factor)" | advisory |
 | DICOM PS3.5 2026d §8.2.4 | "The context where the usage of lossy compression of medical images is clinically acceptable is beyond the scope of the DICOM Standard." | nothing |
 | Germany, StrlSchV §127 (as amended 23 October 2024) | "Daten können komprimiert werden, wenn sichergestellt ist, dass die diagnostische Aussagekraft erhalten bleibt." | storage of X-ray data, no number |
 | ESR position paper, *Insights Imaging* 2(2), 2011 | "irreversible compression may be used without producing perceptually visible differences ("visually lossless"), and/or without producing differences that affect diagnostic performance ("diagnostically lossless")"; "There is evidence that despite obvious visual degradation from irreversible compression, high performance equivalent to that on uncompressed images can be achieved" | advisory |
-| RANZCR, *Guideline for the Use of Image Compression in Diagnostic Imaging*, v2, 13 August 2020 | "the radiologist may make judicious use of appropriate levels of lossy image compression to speed the initial arrival of the images … the practice should make the original images available for subsequent download as required" | advisory |
+| RANZCR, *Guideline for the Use of Image Compression in Diagnostic Imaging*, v2, 13 August 2020, §3.5.1 *Bandwidth* | "In these cases, the radiologist may make judicious use of appropriate levels of lossy image compression to speed the initial arrival of the images, with the patient's interests foremost in their consideration. If this approach is required, the practice should make the original images available for subsequent download as required." ("these cases": bandwidth that hinders an uncompressed or lossless transfer) | advisory |
 
 All from [`visually-lossless.md`](visually-lossless.md) §1 (read 2026-11-02) and [`vl-metrics.md`](vl-metrics.md) §1
 (read 2026-11-09); the first three, the ESR's and RANZCR's were fetched again on 2026-11-21 and read the same
@@ -248,7 +249,7 @@ covers DBT or AV1.
   the two frames share one noise realization, so what alternates is the removed noise itself, 50–70 % of its
   amplitude). The visually lossless promise is then priced by the added-error regime, not by the rule: an RMS error
   under one display level at every preset takes Q 1–2 on 12-bit DBT (0.64–0.65 of HTJ2K's bytes) and Q 4 on 10-bit
-  (0.37–0.53) (*measured*, `window-q.md`, as [`which-quality-is-visually-lossless.md`](../client/evidence/which-quality-is-visually-lossless.md)
+  DBT and TRUS (0.37–0.53, the two together) (*measured*, `window-q.md`, as [`which-quality-is-visually-lossless.md`](../client/evidence/which-quality-is-visually-lossless.md)
   quotes it), and even that is a proxy no reader confirmed.
 * **What the product is free to claim with no study at all:** facts. That irreversible compression was applied, the
   method, about what ratio, the measured coding error; and that the exact frame is one request away, or on its way.
@@ -257,7 +258,7 @@ covers DBT or AV1.
   compression has been applied … and if so, the value of Lossy Image Compression Ratio (0028,2112) and Lossy Image
   Compression Method (0028,2114)" (RAD TF Vol. 2 Rev. 23.0 §4.16.4.2.2.6.8); DICOM lets the ratio be "a measured
   value (e.g., computed by dividing the uncompressed pixel data size by the size of the compressed bit stream)"
-  (PS3.3 2026d §C.7.6.1.1.5.2). Today's quality label (*Optimal quality*) states none of the three. RANZCR describes exactly this product's shape and asks only that the originals be available.
+  (PS3.3 2026d §C.7.6.1.1.5.2). Today's quality label (*Optimal quality*) states none of the three. RANZCR describes this product's shape for links whose bandwidth hinders a lossless transfer, and then asks that the originals be available.
 
 ## 2 · What a claim decomposes into
 
@@ -282,7 +283,7 @@ Bytes are of HTJ2K's, G 1, stored form. "Q 8" figures are *measured* (`../lines/
 
 | | criterion | the label may then say | bytes | requests | state |
 | --- | --- | --- | --- | --- | --- |
-| A | none; the exact frame arrives unasked | *Optimal quality · lossy, about N : 1*, then *✓ Lossless* | the view at any Q (0.07–0.22 at Q 8), plus one exact frame per dwell, or the whole exact series behind the view (1.07–1.22× in all at Q 8) | one ask per dwell, or none (C2) | buildable; the trigger is the owner's |
+| A | none; the exact frame arrives unasked | *Optimal quality · lossy, about N : 1*, then *✓ Lossless* | the view at any Q (0.07–0.24 at Q 8), plus one exact frame per dwell, or the whole exact series behind the view (1.07–1.24× in all at Q 8) | one ask per dwell, or none (C2) | buildable; the trigger is the owner's |
 | B | the noise rule, as today (r ≤ bar on the worst frame) | "the coding error is within the frame's noise in the finest band" (a measured fact, no more) | 0.10–0.28 (*derived*, audit F7) | on request | built; its threshold unresolved (§1.1) |
 | C | the error is added, and small: x ≤ 1, so r ≤ 0.29 | "the coding costs under 4 % of any finding's detectability (model), equal to 8 % of the dose" | under Q 1's 0.64–0.65 on 12-bit (*measured*, `window-q.md`); Q 2's and 10-bit's are R8's | on request | derivable now |
 | D | **task-bounded step**: x ≤ 2 at the quietest frame, so T ≥ 0.86 | "no finding loses more than 14 % of its detectability to the quantizer (model; not measured on AV1; no reader)" | 0.22–0.55 (*theory*, R8's prediction; 0.27–0.28 where measured, Q 4 on `dbts_a1`, `a2`) | on request | derivable now; AV1's own T unmeasured |
@@ -296,9 +297,9 @@ The view is what is on screen until the exact frame is; the promise is about **t
 either or both: a **dwell**, and a **narrow window** (the threshold table exists: at Q 8 a rule of two display levels
 fires on every DBT preset, of four on 35 of 36 12-bit presets, `which-quality-is-visually-lossless.md`). Or no
 trigger: delivery arm C2 sends the whole exact series behind the view, and the page `delivery-per-link` decides on
-which links that is affordable. Cost (*derived*): one exact frame is 4.5–14 view frames at Q 8 (1 ÷ 0.22 to
-1 ÷ 0.07); a reader who dwells on a fraction f of the slices fetches view × (1 + f ÷ 0.07…0.22) in all, so 1.45–2.4×
-the view at f = 0.1.
+which links that is affordable. Cost (*derived*): one exact frame is 4.2–14 view frames at Q 8 (1 ÷ 0.24 to
+1 ÷ 0.07, the 19 volumes); a reader who dwells on a fraction f of the slices fetches view × (1 + f ÷ 0.07…0.24) in
+all, so 1.4–2.4× the view at f = 0.1.
 
 What it frees: the view's Q is no longer set by a quality promise. It may stay at Q 8, move to D's step, or go
 coarser as a navigation picture (Q 12–16, 0.04–0.10 on 10-bit, *measured*, `../lines/codecs.md` §Open 0.1); the
@@ -352,7 +353,8 @@ difference a frame (e, e₄, e_N), enough for a necessary condition (R3, R4) and
 ## 5 · Reads (pre-registered; VL-READS runs them on the committed rows, encoding nothing)
 
 Rows, all on `claude/unified`: **B** = `lab/av1/audit/rows/b.jsonl` (`series`, `split` and `cell` rows; per frame
-`mse_in`, `err_band`, `err_noise_band`; per cell `sigma_out`, `units`, `q`, `g`); **S** =
+`mse_in`, `err_band`, `err_noise_band`, and `sigma_out`, the decoded frame's σ in sample units, so a frame's ν is
+`sigma_out` ÷ the series row's `sigma`, as `lab/av1/groups/anchor.py` `nu` takes it; per cell `units`, `q`, `g`); **S** =
 `lab/av1/metrics/rows/shard-{1,2,3,4}.jsonl` (the ladder Q 1, 2, 4, 8, 12, 16 …; `control` rows hold HTJ2K's bytes);
 **T** = `lab/av1/metrics/rows/noise-point/tiles.jsonl.gz` (six cells; per tile: frame, row, column, σ, e_N, mean
 signal); **C** = `lab/av1/metrics/rows/curves.tsv`; and **AC**, the step table, which no row holds:
@@ -369,12 +371,12 @@ series row's `sigma`). A read that cannot be computed as written is reported so,
 | R1 | §1.1: r's threshold is on a plateau, ν's is not (option F against B) | B. Per volume, δ from `b-summary.json`. Q_ν band: the integer Q at which the median frame's ν passes 0.5·(1 + δ) and 0.5·(1 − δ) | the ν band is one integer Q wide or less on ≥ 17 of 19 volumes (the r band: 4 of 19) | on < 15 |
 | R2 | §1.1: at the rule's Q the fine-band error is removed noise | B. Per volume at the rule's Q, per frame: r, ν, k = (1 + r² − ν²) ÷ 2, r_q = √(r² − k²); the median frame | k ≥ 0.70 and 0.20 ≤ r_q ≤ 0.55 on all 19 | any volume outside either |
 | R3 | options C, D (the error is white where x ≤ 2) and §2's second statement at the rule's Q | S and B. Per cell, the median frame's w_N = e_N ÷ e and w₄ = 4·e₄ ÷ e (both 1 for white error) | (a) in every cell whose quietest frame has x ≤ 2: 0.93 ≤ w_N ≤ 1.07 and 0.85 ≤ w₄ ≤ 1.10; (b) w_N falls with Q on every volume from x 2 up; (c) at the rule's Q, 0.65 ≤ w_N ≤ 0.95 on ≥ 15 of 19 | (a) any cell outside: D's premise fails there; (b) a rise over 0.02 between rungs; (c) on < 15: if above 0.95 the error is white and one band did suffice; if below 0.65 it is far from it |
-| R4 | option B off its band: is the error within the noise at the 4 × 4 scale | S and B. L = √2·e₄ ÷ `step_band` of the same frame pair, the median over frames; a lower bound on e₄ over the noise at that scale if neighbouring slices' noise is uncorrelated there (anatomy only raises `step_band`); also at ρ = 0.27, L·√0.73 | at the rule's Q, 0.15 ≤ L ≤ 0.75 on all 19: the read does not refute B, and cannot confirm it | L ≥ 1 on any volume: there the error exceeds the noise at that scale whatever the anatomy |
+| R4 | option B off its band: is the error within the noise at the 4 × 4 scale | S and B. L = √2·e₄ ÷ `step_band` of the frame, the smaller of its two neighbouring pairs' values (one at the ends), as `lab/av1/metrics/collect.py` `summary` takes it; the median over frames; a lower bound on e₄ over the noise at that scale if neighbouring slices' noise is uncorrelated there (anatomy only raises `step_band`); also at ρ = 0.27, L·√0.73 | at the rule's Q, 0.15 ≤ L ≤ 0.75 on all 19: the read does not refute B, and cannot confirm it | L ≥ 1 on any volume: there the error exceeds the noise at that scale whatever the anatomy |
 | R5 | §1.3: the window chooses the samples | T. Per cell, tiles by decile of mean signal; R = (RMS of tile e_N ÷ RMS of tile σ) in the lowest decile over the same over all tiles | the four cells a rung under x\* (`dbts_a1` G 1 and 16, `dbts_b1` G 16, `dbts_c1` G 16): 1.05 ≤ R ≤ 1.30; the two at x\* (`dbts_b1` G 1 Q 12, `dbts_c1` G 1 Q 8): 1.00 ≤ R ≤ 1.08, and the lowest decile's own ratio 1.00–1.10 (the plateau) | R < 1.05 on any of the four: the window does not matter to the ratio on that volume; outside the bands on the two |
 | R6 | §1.2: the form carries over dose on one system | B. Per volume, all (frame, Q) points; bins of x 0.25 wide between 3 and 6 holding ≥ 2 values of Q; the spread (max − min) of r, and of ν, within a bin | r: ≤ 0.03 in every bin on ≥ 17 of 19 volumes; ν: ≤ 0.06 on ≥ 15 | on fewer: within one volume the statistic is not a function of x alone |
 | R7 | §1.1's table as a description of AV1 | B and AC. Per cell with 3 ≤ x ≤ 5.5 (median frame): the zero bin t that gives the measured ν in the model (levels at multiples of x beyond ± t), then the model's r at that t | the model's r is within 0.05 of the measured r in ≥ 80 % of those cells | in < 60 %: the table's last row is not a description of AV1 |
 | R8 | options C and D's bytes | B, S and AC. Per volume, the highest Q read with x ≤ 2 at the quietest frame (and x ≤ 1): the sum of `units` over HTJ2K's bytes | x ≤ 2: 0.22–0.55 on all 19; x ≤ 1: 0.45–0.80 | any volume outside |
-| R9 | the label's fact, against the only numbers guidelines give | C. Per volume, `ratio` at Q 8 and at the rule's Q | at Q 8: over 25 : 1 on every 12-bit volume, under 15 : 1 on every 10-bit one (low confidence: how `ratio` counts the source's bytes was not read) | either fails on ≥ 2 volumes |
+| R9 | the label's fact, against the only numbers guidelines give | C, forms `12bit` and `10bit` (not `top10` or `window`). Per volume, `ratio` at Q 8 and at the rule's Q; where the rule's Q is not on C's ladder, `bits_stored`·frames·width·height·channels ÷ (8·Σ B's `units`), as `lab/av1/metrics/collect.py` `summary` computes `ratio` | at Q 8: over 25 : 1 on every 12-bit volume, under 15 : 1 on every 10-bit one (low confidence: how `ratio` counts the source's bytes was not read) | either fails on ≥ 2 volumes |
 
 **What each outcome decides.** R1 holding makes F the resolvable form of "keep the noise" and retires the bar
 question (0.1). R2 holding fixes the wording of B's fact ("removes k of the fine-band noise and adds r_q"). R3 (a)
@@ -403,7 +405,7 @@ Regulatory and guideline texts are quoted as [`visually-lossless.md`](visually-l
 [`vl-metrics.md`](vl-metrics.md) (read 2026-11-09) quote them, each with its URL and revision in those files'
 §Sources: FDA *Display Devices for Diagnostic Radiology*, 2022-09-28, §VIII (<https://www.fda.gov/media/95527>);
 88 FR 15126, 2023-03-10, Response 100 (govinfo.gov); ACR–AAPM–SIIM *Technical Standard for Electronic Practice of
-Medical Imaging*, rev. 2022, §B (<https://gravitas.acr.org/PPTS/DownloadPreviewDocument?DocId=136>); DICOM PS3.5
+Medical Imaging*, rev. 2022, §III.B (<https://gravitas.acr.org/PPTS/DownloadPreviewDocument?DocId=136>); DICOM PS3.5
 2026d §8.2.4 (<https://dicom.nema.org/medical/dicom/current/output/html/part05.html>); StrlSchV §127
 (gesetze-im-internet.de); ESR, doi:10.1007/s13244-011-0071-x (PMC3259360); RANZCR v2, 2020-08-13 (ranzcr.com);
 Erickson, Krupinski, Andriole, *J Digit Imaging* 23(5):639–643, 2010, doi:10.1007/s10278-009-9221-9 (PMC2950269);
@@ -418,9 +420,10 @@ them itself): 88 FR 15126 at 15150, Responses 98 and 100
 for Diagnostic Radiology*, issued 2022-09-28, §VIII, p. 9 (<https://www.fda.gov/media/95527/download>); FDA *MQSA
 and Regulation Amendments: Small Entity Compliance Guide*, 2024-08-26, §I questions 1 and 3
 (<https://www.fda.gov/media/181152/download>); the ACR–AAPM–SIIM technical standard, "Revised 2022 (Resolution 48)",
-"Amended 2023", §III.B (URL above); the ESR paper, full text (PMC3259360); RANZCR v2, §3.1; DICOM PS3.5 2026d §8.2.1
+"Amended 2023", §III.B (URL above); the ESR paper, full text (PMC3259360); RANZCR v2, §3.5.1 (fetched again 2026-11-22 by VL-CRITERION-FIX); DICOM PS3.5 2026d §8.2.1
 (the same sentence as §8.2.4's) and PS3.3 2026d §C.7.6.1.1.5
-(<https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.html>); IHE RAD TF Vol. 2, Rev. 23.0,
+(<https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.html>; `current` serves 2026e since,
+the same text); IHE RAD TF Vol. 2, Rev. 23.0,
 2025-08-08 (<https://www.ihe.net/uploadedFiles/Documents/Radiology/IHE_RAD_TF_Vol2.pdf>). Not fetched again:
 StrlSchV §127; the CAR standard and the RCR's 2008 guidance (not reachable, as before).
 
