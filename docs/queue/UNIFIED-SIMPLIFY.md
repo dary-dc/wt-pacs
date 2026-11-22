@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-22T09:47Z
-heartbeat: 2026-11-22T09:49Z
-outputs: `claude/simplify-unified` (not yet pushed)
+heartbeat: 2026-11-22T09:51Z
+outputs: `claude/simplify-unified` at 1dd8e78b (pushed; no PR yet)
 ## Resume
 Re-derived against `origin/claude/unified` 4a2b4277: P11 and S6 already landed (the default build refuses the lab
 flags, main.rs:133; `ts/build.sh --product` bundles session.js only). P3/S1 mostly landed (lab/viewer/hooks.js);
