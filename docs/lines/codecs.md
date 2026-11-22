@@ -81,9 +81,17 @@ The harvest's ten questions ([`../av1/README.md`](../av1/README.md) §The owner'
 zero-encode re-reads first; holding WebCodecs speed claims; the noise-ratio protocol first; "also for diagnosis"; the
 study branches' corrections. Also: the anchor quoted as [Q_lo, Q_hi] with ν beside, and "keep at least half" (Q_ν) as
 an option; a note to the PCS team on G for AV1 cine, and keeping or removing the client's G > 1 path; the held server
-defaults in `line-server`'s index (#254); the idea of 2026-11-09, undecided (optimal quality split into top and low
-bits, the low on request); whether an 8-bit view is acceptable; a GET path in the product (`stacks.md` §5.5); who
+defaults in `line-server`'s index (#254); whether an 8-bit view is acceptable; a GET path in the product (`stacks.md` §5.5); who
 uploads the coded sets; any merge, close or removal.
+
+*Corrected 2026-11-22:* this list also held "the idea of 2026-11-09, undecided (optimal quality split into top and
+low bits, the low on request)", whose target was "the optimal-quality image, not lossless"; the owner discarded it
+on 2026-11-09 ([`../av1/README.md`](../av1/README.md) §The owner's decisions), so nothing waits on it.
+
+*Dropped as superseded 2026-11-20* (recoverable from this file's history at `4a2b4277f`): Open 2, harvesting the AV1
+chain into `av1-unified-mainbase` (its PRs closed 2026-11-18, their branches in `claude/unified`); Open 11's
+"Next: stage B" and its pointer to `docs/av1/README.md` §Paths kept in history only (stage B ran 2026-11-15);
+§The unified branch's "every other PR of the line's chain waits for a review row" (those PRs closed 2026-11-18).
 
 ## Pointers
 
