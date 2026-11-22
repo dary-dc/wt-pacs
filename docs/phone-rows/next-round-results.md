@@ -190,3 +190,72 @@ them, and cell 3's lost loads ran but returned no measure.
    round is ROUTE-POLICY's input: the owner's yes is to the page that uses it, not here.
 3. **Cell 3 is open.** The view comparison needs a round whose end batch arrives (BEACON-LOSS) and a fresh renderer
    per load (amendment 28 item 8); the guard form (a), 52 ms, stays as chosen.
+
+## Review
+
+*PHONE-READ-REVIEW, 2026-11-22, by a session that wrote none of this file, `next-round.md`, the tools or the run
+branch. Every number above recomputed from the raw rows (`raw/2026-11-22/` at `618dd9cd`, `raw/2026-11-22-cell3/`
+at `85326fd3`) with short scripts over `beacon.jsonl`, `beacon-rest.jsonl`, `resources.jsonl`, `out/adb/`,
+`probe/rows/`, `probe-shell/`; the bands checked against `next-round.md` §4 and `device-model.md` §2 at `cf9f0b43`
+(committed 2026-11-20 03:19:46 UTC). Labels as above. Fixtures and limits: the round's, as §Fixtures and limits
+states; this review measured nothing.*
+
+**Verdict: two blockers (B1, B2); amendment 17's fix loop.**
+
+**Recomputed and matching** (*derived*): cell 1's 24 + 4 benches (per-decoder medians, effective times, the
+repetitions' medians 41.1, 25.5, 18.9, 15.5 and 181.0, 69.8, 42.1, 46.1 ms; steps −38.0, −25.7, −18.1 % and
+−61.5, −39.6, +9.5 %; the ratios 1.87 and 2.23; the drift); every cell-1 held/missed against both sources; cell 2's
+fills, ranges, floors (Σ `decodeMs` ÷ 3), rests, B's 52–114 ms frame medians, all 30 within-round ratios, the counts
+15 of 15 and 6 of 15, p = 2⁻¹⁴ and 0.607, the medians 0.513, 0.771, 0.705, 0.985, 1.033, 1.031, round 0's 0.382 and
+0.592; the goodput bounds 568 and 595 Mbit/s (859.3 and 542.5 Mbit; a valid lower bound, since `fillFrom` is the
+downloader's dial, `lab/devices/beacon.js:26` at `3dbe295a3`); C1's 16 latencies; 96 verdicts, 2 VOID by name;
+thermal 0 to load 28, 1 after; the renderer 1 070 → 7 580 MiB (RSS + swap) over loads 22–28; cell 4's forms,
+outcomes and the AV1 decoder's declared limits; 33 280 blocks.
+
+**B1 · M4's HEVC and VP9 limits are read from the wrong vendor file.** `probe-shell/codecs.xml` is several
+`media_codecs*.xml` files concatenated, without their names. The HEVC and VP9 limits quoted (4096 × 2176) come
+from the first (lines 1–314), which lists no AV1 decoder. The device's live list (`probe-shell/media.player.txt`,
+lines 70–75) names `c2.qti.av1.decoder`. The two files that list it (from lines 1325 and 1838) declare
+`c2.qti.hevc.decoder` 96 × 96 to 8192 × 8192 (block count 36–138 240) and `c2.qti.vp9.decoder` 96 × 96 to
+4096 × 4096 (36–36 864). `dbts_b1`'s 2560 × 3328 (33 280 blocks) fits inside both, in either orientation
+(*derived*; declared, not decoded). Which file the device loads is *inferred* from the live list, not read. So
+"`dbts_b1` exceeds them in both orientations" is unsupported. It stands in §M4 here and in
+`claude/mobile-decode:docs/decode/mobile/other-codecs.md` (`7b2e0013`), which MOBILE-DECODE-REJUDGE reads. Fix:
+correct both in place, name the section the figures come from, and add an ask for the next round's shell read to
+record each file's path.
+
+**B2 · C2 leaves out a gap the protocol assumed was zero.** The prediction says "C2's second fill starts at the
+first's end". On the phone, the exact series was asked 0.36–1.65 s after the view's fill ended (`issuedAt − fillTo`:
+1.20–1.65 s on `dbts_b1`, 0.36–0.59 s on `dbts_a1`; *measured*). The gap is the harness's: `round-page.js` awaits
+`finished(ledger)`, the fault hook and two metadata fetches before `exactFill` stamps `issuedAt`. Not traced
+further. The read compares the view's fill + the span (the protocol's record, "C2: the second fill's span") with
+A + B, and calls both predictions held. Measured end to end instead (`fillFrom` to the last exact frame),
+C2 ÷ (A + B) is above 1 in 14 of 15, median 1.236, p ≈ 0.001: *C2 slower* by the same rule (*derived*). Fix: state
+the gap and both readings. The held verdict belongs to the summed reading only, and the delivery page must not read
+"C2 ≈ A + B" as an end-to-end result of this harness.
+
+**Minor.**
+* m1 · The 10-bit hardware frames' off-by-one counts are 19 480–45 706 of 65 536 a channel (`g10f`: R and B 45 706,
+  G 19 480; `ramp10`: R and B 40 192, G 24 960), not "19–49 k". The same figure is in
+  `claude/mobile-decode:docs/decode/mobile/hw-inverted.md`.
+* m2 · Only WebGL2's `RGBA16F` target gave more than 256 values (`ramp10` 1024, `g10f` 1021; max difference 2.61).
+  Its `RGBA32F` target, painting the same hardware frames, gave 255 (max difference 4.53). So "more than 256 values
+  reached a WebGL2 shader" holds on one upload path, and the read should say both. Also missing: the 8-bit hardware
+  frame painted exact on both APIs (`g8f`, 65 536 of 65 536).
+* m3 · Chrome's CPU "at most 2.8 of the 8 cores" depends on which wall time is used. Over the span of the stat reads
+  the maximum is 2.73 (load 85). Over the load's opened → ended it is 3.32 (load 42). Name the wall time; no load
+  saturates on either.
+* m4 · Some DEVICE-THEORY lines are not named held or missed. The pooled median 0.72–1.16 was *missed* (0.705).
+  The HTJ2K gains 29–33 % and 22–25 % were *missed* (25.7 %, 18.1 %). B wire-bound is *not read* (no wire time).
+  `hardwareConcurrency` 8 was *held*.
+* m5 · The 15-ratio threshold (12) is not the pre-registered 13 of 16. Say that it was chosen after the data,
+  although at 15 of 15 no threshold matters.
+
+**Nits.** `logcat` has 302 lines naming `c2.qti.av1.decoder` (`grep -c`), not 292. `c2.qti.vp9.decoder` appears in
+loads 0, 81, 82, 84–87, 92 and 95 (not 83). RSSI −27 dBm was read before the dry run; before the round it was −29,
+after −22 (`round-wifi-*.txt`), and `round-notes.txt` mislabels it the same way. C1's medians are 216.5 and
+126.5 ms (even counts), rounded in opposite directions. PHONE-ROUND-3C ran two loads (0 and 1), neither with an end
+batch. "542.5 ÷ (1.20 − 0.29) ≈ 600" is 596; with B's measured rest on `dbts_a1` (0.34 s) it is 631.
+
+Unchanged by any finding: B faster than A (15 of 15), cell 1's numbers and the 18.9 ms LINK-TARGETS owes, cell 3
+not decided, the owner decisions as written.
