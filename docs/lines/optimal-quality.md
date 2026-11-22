@@ -26,7 +26,8 @@ HTJ2K series; no residual, no server or wire change.
   (`claude/ingest-oq-tests`, no fix): T2 and T3 against `ingest.py` in `ingest/coded-frames/pair_contract_test.py`,
   F1 in `client/viewer/pair.test.mjs`, each failing claim a named known gap the gate keeps green until it holds:
   `ingest.py` leaves the cut to its caller and codes signed 12-bit sources (the Rust ingest's `optimal::form` cuts and
-  refuses them), it writes no optimal-quality metadata, and `pairOf` admits neither `~` nor `<Study>/<Series>`.
+  refuses them), it writes no optimal-quality metadata, and `pairOf` admits neither `~` nor `<Study>/<Series>`. Reviewed 2026-11-22 (PR 421's body §INGEST-OQ-TESTS-REVIEW): no blocker; each
+  claim fails on today's code and flips to "gap closed" under a scratch fix; a known gap does not check why it fails (m1).
 * **The product ingest codes optimal quality: built, experimental** (#390): `ingest/from-parser --optimal-quality [Q]
   [--group G]`, off by default, byte-identical to `ingest.py`'s `lossy` on synthetic sets in the gate and on `dbts_a1`
   Q 8 G 8 cut ([`../av1/payload-format.md`](../av1/payload-format.md) §Optimal quality). Owed: the owner's S1/S2 for
