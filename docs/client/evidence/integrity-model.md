@@ -214,7 +214,7 @@ The premise assumes the full check is dear. It is measured, and it is not (all *
 | the view's fill with the reconstruction check | +3.7 % at 1×, +1.9 % at 4× (medians of 18 series) | [`optimal-quality-reconstruction-digest.md`](optimal-quality-reconstruction-digest.md) |
 | the view's first picture with it | +7.8 % at 1×, +3.5 % at 4× | the same |
 | a failed check's second decode | ×2.1–2.3 of a decode (HTJ2K), ×2.8–3.0 (WebCodecs, then dav1d) | ADR §9 |
-| writing the reconstruction digest and the coding error at the ingest | +48 to +60 % of the ingest's time, against a bar of 10 % | `docs/queue/I2-RUN.md` on `claude/work-ledger` |
+| writing the reconstruction digest and the coding error at the ingest | +48 to +60 % of the ingest's time, against a bar of 10 % | `claude/work-ledger:docs/queue/I2-RUN.md` |
 
 A sampled check would save at most those few per cent and loses exactly the case that matters: the single frame the
 reader is looking at. Inside a group a wrong frame also poisons every later one. And since faults cluster (§3),
