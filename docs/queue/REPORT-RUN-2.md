@@ -1,8 +1,9 @@
 state: started
 started: 2026-11-21T13:47Z
-heartbeat: 2026-11-22T05:12Z
+heartbeat: 2026-11-22T06:17Z
 outputs: rows on `claude/report-arms` (r2-*); `report-plan.md` §7.9 d0bbbb10, §Results 2 05c72032 on `claude/report-plan`
 ## Resume
+Resumed 2026-11-22T06:17Z by a new session (stalled: heartbeat 05:12Z; no rows pushed since 02:41Z, no C file on claude/report-arms). Rebuilding the host in a fresh container, then the run script from C.
 Done: claimed; host built (cargo release `series-server --features telemetry`, `pack-series`, `report-receiver`; nginx 1.31.8 from
 nginx.org's tarball; Firefox 160.0.1 from Mozilla's release tarball; iproute2 present); `cdp.check.mjs` (Chromium 153.0.8010.12)
 and `bidi.check.mjs` (Firefox 160.0.1) all levers ok; `run.test.mjs` ok; a one-round D6 `--tun` smoke (BEACON-Y, SESSION-1;
