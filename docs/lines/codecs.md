@@ -264,7 +264,8 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
     HTJ2K). Decisions 0.1–0.4 and 0.9 are mapped onto the options in its §4; 0.9 is yes under every one. Its §5
     pre-registers nine re-reads of committed rows for VL-READS; its §6 lists what only an encode, a phone or a
     reader can decide. Fixtures as above: 19 DBT volumes of one dataset. Reviewed 2026-11-22 (PR 420's body); fixed
-    the same day: §5 takes Δ from the AV1 specification's `Ac_Qlookup` (no row holds the steps), no prediction changed.
+    the same day: §5 takes Δ from the AV1 specification's `Ac_Qlookup` (no row holds the steps), no prediction changed;
+    re-reviewed the same day with no blocker open (PR 420's body §Re-review), so VL-READS may run.
 
 ## Decisions (the owner's)
 
