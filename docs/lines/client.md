@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-22 (the asking page; the cache's, the engines' and the client calls' decision pages; `readMin`'s cut-stream fix found lost from the tree by merge `dd681539`, [`../decisions/client-calls.md`](../decisions/client-calls.md) §3.2), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-22 (the asking and non-cine pages; the cache's, the engines' and the client calls' decision pages; `readMin`'s cut-stream fix found lost from the tree by merge `dd681539`, [`../decisions/client-calls.md`](../decisions/client-calls.md) §3.2), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -120,7 +120,9 @@ Y and the safety report at once over HTTP, provisional; no carrier until C and L
 lines: [`../decisions/phone-decode-route.md`](../decisions/phone-decode-route.md) §2 (PHONE-ROUTE-PAGE, 2026-11-22: the view
 first on every phone, no table or probe; the fill reports *G* ÷ *d*_V's rule; the switch and the split tested in the
 cloud first; B1 no for now, M17 first; cell 1 on a middle-band phone by a device cloud). What a view asks for: [`../decisions/asking.md`](../decisions/asking.md) §2 (ASK-PAGE, 2026-11-22: the rule as the
-design, its hold tested first; no slice skipped; `span` and `holdEveryOther` removed; PR 96 held).
+design, its hold tested first; no slice skipped; `span` and `holdEveryOther` removed; PR 96 held). Series that are not
+stacks: [`../decisions/non-cine-series.md`](../decisions/non-cine-series.md) §2 (NON-CINE-PAGE, 2026-11-22: the exact frame alone, no
+AV1 view; level 1 run first; stills a stack; the painter's texture refusal now; over 12 bits waits).
 
 ## Pointers
 
