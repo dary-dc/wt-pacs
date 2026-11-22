@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-21T13:47Z
-heartbeat: 2026-11-22T16:39Z
+heartbeat: 2026-11-22T17:34Z
 outputs: rows on `claude/report-arms` (r2-*); `report-plan.md` §7.9 d0bbbb10, §Results 2 05c72032 on `claude/report-plan`
 ## Resume
 Resumed 2026-11-22T06:17Z by a new session (stalled: heartbeat 05:12Z; no rows pushed since 02:41Z, no C file on claude/report-arms). Rebuilding the host in a fresh container, then the run script from C.
