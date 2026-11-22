@@ -314,8 +314,8 @@ detectability, whatever its size, because under x ≈ 2 the table does not depen
 lower dose (T²); C's 0.96, of 8 % (*derived*). The margin `noise-ratio.md` §5.5 takes from the data (a series' own
 spread of σ, 0.01–0.07 on B, 0.1–0.2 on A and C) would put the bound at x ≈ 1 on B and x ≈ 2 on A and C. On 12-bit
 DBT x ≤ 2 is Q 4 where σ_min ≥ 11.5 (Δ 22.9), else a Q under 4; on 10-bit it is Q 4 or a Q just above or under it
-(Δ 6.88 at Q 4 against 2·σ_min of 6.8–11.2; the steps between Q 4 and Q 8 are in AC of §5, not read here)
-(*derived* from `noise-point.md` §2 and §4's tables).
+(Δ 6.88 at Q 4 against 2·σ_min of 6.8–11.2; Δ at Q 5, 6, 7 is 8.88, 11.0, 13.1, from the specification's
+`Ac_Qlookup` as §5 names it) (*derived* from `noise-point.md` §2 and §4's tables).
 
 D is a bound on the model's quantizer, carried to AV1 on the assumption that below x ≈ 2 AV1's error is added and
 white, which the low-Q rows support (e_N within 10 % of Δ ÷ √12, *measured*, `noise-point.md` §2) and R3 tests. It
@@ -355,10 +355,14 @@ Rows, all on `claude/unified`: **B** = `lab/av1/audit/rows/b.jsonl` (`series`, `
 `mse_in`, `err_band`, `err_noise_band`; per cell `sigma_out`, `units`, `q`, `g`); **S** =
 `lab/av1/metrics/rows/shard-{1,2,3,4}.jsonl` (the ladder Q 1, 2, 4, 8, 12, 16 …; `control` rows hold HTJ2K's bytes);
 **T** = `lab/av1/metrics/rows/noise-point/tiles.jsonl.gz` (six cells; per tile: frame, row, column, σ, e_N, mean
-signal); **AC** = `lab/av1/metrics/rows/noise-point/ac-table.json`; **C** = `lab/av1/metrics/rows/curves.tsv`.
-G 1 unless said. "The rule's Q" is the integer pick under the pooled x\* in `lab/av1/audit/rows/b-summary.json`.
-x of a frame is Δ(Q, depth) ÷ its σ, Δ from AC ÷ 8. A read that cannot be computed as written is reported so, not
-adapted.
+signal); **C** = `lab/av1/metrics/rows/curves.tsv`; and **AC**, the step table, which no row holds:
+`Ac_Qlookup` of the AV1 specification §Dequantization functions (*source*: "The function ac_q( b ) is specified as
+Ac_Qlookup[ (BitDepth-8) >> 1 ][ Clip3( 0, 255, b ) ]", <https://aomediacodec.github.io/av1-spec/>, last modified
+2023-05-25), fetched and parsed as `lab/av1/metrics/noise_point.py` `spec_ac` does. Δ(Q, B) = ac_q(4Q) ÷ 8 at the
+stream's depth B, as `noise-point.md` §2 derives; `lab/av1/metrics/rows/noise-point/ac-table.json` records that
+libaom v3.15.1's three tables equal it and that qindex is 4Q, and holds no step. G 1 unless said. "The rule's Q" is
+the integer pick under the pooled x\* in `lab/av1/audit/rows/b-summary.json`. x of a frame is Δ(Q, B) ÷ its σ (the
+series row's `sigma`). A read that cannot be computed as written is reported so, not adapted.
 
 | | tests | computation | prediction | refuted if |
 | --- | --- | --- | --- | --- |
