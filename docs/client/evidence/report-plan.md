@@ -1565,3 +1565,16 @@ the navigation, so a keepalive request or a beacon queued in the browser process
 returns would arrive inside the wait. D6 as written therefore tests a blackout **shorter than the browser's life after
 the page**, not a link that never returns; which of the two a phone meets is the phone cells' (§7.7). SESSION-1's delta
 was sent by its 1 s tick before the blackout began (the presses come at the fill's end, the blackout 4 s later).
+
+### The mutants on Firefox 160.0.1 (§7.4), once per arm on D1, before any counted Firefox row (2026-11-22 13:09–13:52 UTC)
+
+| mutant | expected | seen | caught |
+| --- | --- | --- | --- |
+| *never sent* | D1's fill record fails | no fill record in 7/7 carrier arms; the safety report still arrived in each | yes, 7/7 |
+| *safety sampled* (rate 0.1) | the safety bar fails | no safety report in 6/7 carrier arms and in `off`; KEEPALIVE-H's arrived | yes, 6/7 and `off` (one load each: the 1-in-10 draw lets one through about 1 time in 10 per arm, as PR 395's smoke says) |
+| *a field outside the list* | RECEIVER and the server drop and warn | RECEIVER's `outside` counted every record of the 4 HTTP arms (10 of 10); the server's every record of the 3 SESSION arms (7 of 7); none reached a file | yes |
+| *no `reportId`* | the read tool reports duplicates | every record read as `unkeyed` (1–3 a load); no second copy to find in D1, as on Chromium | partly, as on Chromium |
+| *ack before write* | appended < acknowledged | RECEIVER 0 appended of 11 acknowledged (5 HTTP units); the server 0 of 3, 5, 6 | yes |
+
+No mutant leaves a Firefox cell VOID. Seen beside them: SESSION-H's D1 fill record missed in every load whose carrier was
+not mutated, as on Chromium (§Results, D1).
