@@ -15,7 +15,11 @@ and 4.64 at G 8 and 16", two in-sample minima of one frame each (`dbts_c1` top-1
 decimals; a held-out `dbts_a3` frame already fails at x 4.802 (§Noise-point protocol, measured). The audit proposed
 one x\* = 4.8 ± 0.15 at every G. B0 recomputed x\* over all 19 volumes: 4.7584 at G 1, 4.6359 pooled and at G > 1,
 4.8024 for 12-bit streams; G 1 and G > 1 differ by 2.6 %, over δ on 13 of 19 volumes, so by B's rule both stay. No
-reading picks a ladder rung above either anchor. The rule makes a *candidate* Q. It does not make that Q visually lossless: only a reader can say so (the study's §6 flicker test, not
+reading picks a ladder rung above either anchor. Every rule Q quoted below (§3, §8 and the measured sections) was
+picked at the noise point's x\* (4.9293 at G 1, 4.6359 at G > 1); [`audit-protocols.md`](audit-protocols.md) §B0 tabulates picks only under the pooled and
+per-depth x\*, so the picks under 4.7584 at G 1 are owed (`claude/audit-measure:lab/av1/audit/rows/b0.json`). Of F6's cost (G 16 at 2.2–3.0× G 1), §B0 3
+reads under the per-depth x\*: "F6's 3× G 16 cost on `dbts_c1` goes; `dbts_b1`'s G 16 cost does not, and its G 1
+cell now pays it too." The rule makes a *candidate* Q. It does not make that Q visually lossless: only a reader can say so (the study's §6 flicker test, not
 run).
 
 **Proof chain.**
@@ -48,6 +52,7 @@ There is no breast ultrasound cine or ABUS among the fixtures.
 * ~~the held-out test (§8)~~ done 2026-11-09 (§Noise-point protocol, measured): P1 and P3 hold on 10 of 10 cells of
   five DBT series, worst frame 0.888–0.969 at the rule's Q. Its five series come from systems already in sample, so
   it does not leave a scanner or a dataset out (audit F8). *Corrected 2026-11-11: this line still listed it as owed.*
+* the rule's Q at every cell under B0's x\* 4.7584 at G 1 (§Claim);
 * a timing of the estimator on `dbts_a1`, `dbts_b1` and `dbts_c1`;
 * Q values between the ladder rungs;
 * a tile-level reading of how noise varies by region;
