@@ -1,6 +1,9 @@
 # Native
 
-Last verified 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-15 against `claude/docs-client` `87e896ea`. **Work state: paused** (the owner, 2026-11-15:
+"for now, we are pausing the native path. we will merge it, and in the future keep experimenting with it"). No row
+builds or measures it; the crate rides the merges, off the served path. What was found and how to resume:
+[`../native/README.md`](../native/README.md) §Status.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The native design, its decisions and results:
 [`../native/README.md`](../native/README.md) (§6 the measurements and their results, §7 the decisions), [`../native/quic.md`](../native/quic.md);
 the browser client's design it mirrors: [`../client/design.md`](../client/design.md); the results folded 2026-11-14:
@@ -35,6 +38,8 @@ only where it beats the browser on a measurement.
 | #211 | step 1's lab check behind the relay (`claude/native-core-2`) | open; run 2026-10-28, a tie ([`../client/evidence/native-client-wire-parity.md`](../client/evidence/native-client-wire-parity.md)); whether a tie closes step 1 is the owner's |
 
 ## Owed runs
+
+All paused with the line; the order to resume them is [`../native/README.md`](../native/README.md) §Status.
 
 * **The view-worker design natively**, pre-registered in [`../native/README.md`](../native/README.md) §The comparison
   and never run: owed the runner (a Williams square with an A/A arm, the relay cells, 1-core pinning, the `/proc`
