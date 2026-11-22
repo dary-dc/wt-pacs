@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-21T13:47Z
-heartbeat: 2026-11-22T08:15Z
+heartbeat: 2026-11-22T08:32Z
 outputs: rows on `claude/report-arms` (r2-*); `report-plan.md` §7.9 d0bbbb10, §Results 2 05c72032 on `claude/report-plan`
 ## Resume
 Resumed 2026-11-22T06:17Z by a new session (stalled: heartbeat 05:12Z; no rows pushed since 02:41Z, no C file on claude/report-arms). Rebuilding the host in a fresh container, then the run script from C.
@@ -8,7 +8,7 @@ Done: claimed; host built (cargo release `series-server --features telemetry`, `
 nginx.org's tarball; Firefox 160.0.1 from Mozilla's release tarball; iproute2 present); `cdp.check.mjs` (Chromium 153.0.8010.12)
 and `bidi.check.mjs` (Firefox 160.0.1) all levers ok; `run.test.mjs` ok; a one-round D6 `--tun` smoke (BEACON-Y, SESSION-1;
 not counted; `docs/queue/REPORT-RUN-2-smoke.jsonl`). The amendment `report-plan.md` §7.9 on `claude/report-plan` `d0bbbb10`.
-Running since 13:55Z (D5a complete 16:38Z, D5b 19:23Z, L 23:16Z, Lbusy 03:15Z (VOID by its A/A, 1.095), C 06:16Z, §Results 2 on claude/report-plan. R's first attempt (06:18–07:16Z) kept as rows/r2-R.nginx-unwritable.jsonl: nginx's unprivileged worker could not traverse the 700 scratch path, so NGINX wrote no line (RECEIVER's rows fine; judged nowhere). R rerun whole from 07:17Z out of a second worktree RW=/home/user/ra2; then D6 --tun, then Firefox): `REPORT-RUN-2-run.sh` (Chromium D5a D5b L Lbusy C, R, D6 --tun, then Firefox mutants and cells), rows in
+Running since 13:55Z (D5a complete 16:38Z, D5b 19:23Z, L 23:16Z, Lbusy 03:15Z (VOID by its A/A, 1.095), C 06:16Z, §Results 2 on claude/report-plan. R's first attempt (06:18–07:16Z) kept as rows/r2-R.nginx-unwritable.jsonl: nginx's unprivileged worker could not traverse the 700 scratch path, so NGINX wrote no line (RECEIVER's rows fine; judged nowhere). R rerun whole from 07:17Z out of a second worktree RW=/home/user/ra2, complete 08:31Z; D6 --tun running, then Firefox): `REPORT-RUN-2-run.sh` (Chromium D5a D5b L Lbusy C, R, D6 --tun, then Firefox mutants and cells), rows in
 `claude/report-arms:lab/report-arms/rows/r2-*.jsonl`, pushed every 15 min by `REPORT-RUN-2-push.sh`. A cell is complete when its
 file holds its `{"cell"}` line (R: `{"done":"R"}`; Firefox mutants: `{"mutants":"done"}`).
 To resume (a fresh container): worktree W of `claude/report-arms`; `CARGO_TARGET_DIR=$W/target cargo build --release -p series-server
