@@ -52,7 +52,7 @@ measured, and every result names its fixtures.
 
 | PR | what | state |
 | --- | --- | --- |
-| #398 | stage A1: this line's 34 branches into `claude/unified-codecs` (five by `-s ours`, call M1); the gate green, the product the baseline but the two lines of a `stallMs` key; blind review in its body, no blocker | draft; in `claude/unified`; `av1-paint-depth` (#309) stays out (call M6) |
+| #398 | stage A1: this line's 34 branches into `claude/unified-codecs` (five by `-s ours`, call M1: [`../av1/README.md`](../av1/README.md) §Paths kept in history only); the gate green, the product the baseline but the two lines of a `stallMs` key; blind review in its body, no blocker | draft; in `claude/unified`; `av1-paint-depth` (#309) stays out (call M6) |
 | #340, #350 | the two reviewed line-doc PRs of `claude/unified-codecs` | draft |
 | #329, #331, #332, #334 | quality audit; encoder settings; noise ratio; decode audit | draft; their branches in `claude/unified` |
 | #391 | the transport's design, an inventory | draft |
@@ -90,7 +90,7 @@ on 2026-11-09 ([`../av1/README.md`](../av1/README.md) §The owner's decisions), 
 
 *Dropped as superseded 2026-11-20* (recoverable from this file's history at `4a2b4277f`): Open 2, harvesting the AV1
 chain into `av1-unified-mainbase` (its PRs closed 2026-11-18, their branches in `claude/unified`); Open 11's
-"Next: stage B" and its pointer to `docs/av1/README.md` §Paths kept in history only (stage B ran 2026-11-15);
+"Next: stage B" (stage B ran 2026-11-15; its pointer to §Paths kept in history only is in the #398 row);
 §The unified branch's "every other PR of the line's chain waits for a review row" (those PRs closed 2026-11-18).
 
 ## Pointers
