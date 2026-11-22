@@ -1,11 +1,20 @@
-state: started
+state: done
 started: 2026-11-22T19:47Z
-heartbeat: 2026-11-22T19:53Z
-outputs: (none yet; claude/ask-model, PR 430)
+heartbeat: 2026-11-22T19:58Z
+outputs: `claude/ask-model` `74fbaa2a1` (commits `39543254c`, `9b5039487`, `74fbaa2a1`: `docs/client/evidence/ask-model.md`, `docs/client/design.md` §Open, `docs/lines/client.md`); PR 430 body §ASK-MODEL-FIX; `docs/queue/ASK-MODEL-FIX/legs.py` and `legs-output.txt` on `claude/work-ledger`
 ## Resume
-Done: the review's toy rerun (reproduces its output); `docs/queue/ASK-MODEL-FIX/legs.py` and `legs-output.txt` (the
-same model, the client told the turn only by the input, a dwell at each turn, a closed form). Next: fetch S6's abstract
-(efetch db=pmc id=5658515), IHE TF-2 line numbers, S3; then rewrite §1 item 2, §4 hold, §5, §7 P1-P1c, §8, §9, the
-design.md pointer on `claude/ask-model` (worktree /home/user/ask); add the review line and this row's to docs/lines/client.md.
+Done. Nothing to continue. Next: ASK-MODEL-FIX-REVIEW (a session that wrote none of ASK-MODEL, its review or this
+fix), findings in PR 430's body §Re-review; ASK-PAGE waits on it. No row appended; nothing scheduled.
 ## Result
-(pending)
+Theory fix; nothing of the product built or run. Fixtures: none (§2's parameters, W = 15, v = 25 a second; derived).
+* The review's toy rerun: output reproduced exactly; checked and extended by `legs.py` (the turn seen only by the
+  input, a dwell at each turn, a closed form), not replaced.
+* B2: the behind split struck. Under no skip and rho < 1 every hold has ~W - 1 frames behind at a turn; the hold only
+  sets when the pipeline may fetch past them: leg with no wait (W - 1 - rho k0)/(1 - rho). Simulated wait a leg, rho
+  0.216, legs 40: behind first 3.40 s, three quarters 3.40, centred 3.77, struck split 4.14; a 3 s dwell before
+  each turn: behind first always 5.85, centred 4.55. The hold now: behind first while moving, centred while
+  dwelling (as built); no estimate in the rule. §1, §4, §5, §7 P1-P2, §8, §9, design.md pointer changed in place.
+* B1: P1 on legs of 20 and 40; legs of 12 a control (P1c). m1-m6 fixed (S6 abstract sha 8f699f74; S2 BIR line
+  6947; S3 dynamic, tail restored; rho table derived on theory, 0.83; exact gate h >= n - rho(n - 1); S4 observers).
+* check_links 0 unresolved; comment budget ok; the gate not run (docs only).
+Owner: nothing new; the asking page carries §9 after the re-review.
