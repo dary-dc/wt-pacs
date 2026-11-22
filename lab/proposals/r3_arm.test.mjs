@@ -20,7 +20,7 @@ Object.defineProperty(globalThis, "navigator", { value: { hardwareConcurrency: 4
 let ended = 0, answer;
 globalThis.fakeTransport = {
   connect: async () => ({
-    requestExactFrame: () => new Promise((r) => (answer = r)),
+    requestFrame: () => new Promise((r) => (answer = r)),
     stats: () => ({ closed: null, lastByteAt: performance.now() }),
     fillFrames() {},
     endStream: async () => void ended++,
