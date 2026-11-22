@@ -40,7 +40,8 @@ Fixtures for every result below: the seam's synthetic 24 slices of 128×96, 16-b
 SwiftShader in 4-core cloud containers without a GPU, CPU throttled 4× and 6× as a phone proxy. No viewer run on a
 phone, a GPU, Firefox or DPR 2 exists, and none on a DBT volume.
 
-1. **Resume, or stay paused.** The owner's word only. Everything below waits on it except item 6's reviews.
+1. **Resume, or stay paused.** The owner's word only. As yes or no, 2026-11-22, with items 2, 6 (M5) and 7:
+   [`../decisions/paused-lines.md`](../decisions/paused-lines.md). Everything below waits on it except item 6's reviews.
 2. **Carry B with our painter beside A, or not.** The seam (#297, #300) found that a Cornerstone3D viewport type of
    our own (`registerViewportType`, `useCustomRenderingPipeline`) lets the view worker paint inside Cornerstone3D:
    the 1:1 proof, zero copies and the paint off the page kept, its tools and annotations taken. Its costs are listed

@@ -42,7 +42,7 @@ Inputs that are not pages: [`lab-list.md`](lab-list.md), what reads each `lab/` 
 | `reports` | how the load and safety reports leave the page | *REPORT-RUN, REPORT-VERDICT-REVIEW*; REPORT-CELLS, -REVIEW, REPORT-RUN-2, REPORT-VERDICT-2; REPORTS-PAGE | 11-24 | not written |
 | `view-target` | the page view or the worker view | *PHONE-ROUND, PHONE-READ, PHONE-READ-REVIEW*; VIEW-PAGE | 11-24 | not written |
 | `phone-decode-route` | how a phone decodes a series, on which phones | *DEVICE-THEORY (Fable), PHONE-ROUND, PHONE-READ, MOBILE-DECODE-REJUDGE*; ROUTE-POLICY (Fable), -REVIEW; PHONE-ROUTE-PAGE | 11-25 | not written |
-| `paused-lines` | resume native or the viewer, and for what | PAUSED-LINES-PAGE | 11-25 | not written |
+| [`paused-lines`](paused-lines.md) | resume native or the viewer, and for what | PAUSED-LINES-PAGE | 11-25 | written 2026-11-22: both stay paused; native recorded as the 10-bit hardware route, resumed on a phone's codec list; one cleaning row for native's window before `main`; the viewer's branches stay out, B not carried, the slider kept |
 | `client-calls` | the client's smaller owed calls, one section each | DEMO-CHECK-MUTANTS, WORKER-FLAKE; CLIENT-CALLS-PAGE | 11-25 | not written |
 | `unified-to-main` | what `claude/unified` still needs before `main` | the unified track (the program's §Rows); UNIFIED-PAGE | 11-25 | not written |
 | `frame-integrity` | what the green mark proves, and what happens when a check fails | OQ-INTEGRITY-FIXES, -REVIEW, I2-RUN; INTEGRITY-MODEL (Fable), -REVIEW; INTEGRITY-PAGE | 11-26 | not written |

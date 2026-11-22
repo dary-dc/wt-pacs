@@ -50,6 +50,8 @@ only where it beats the browser on a measurement.
 
 ## Waits for the owner
 
+The calls as yes or no, 2026-11-22: [`../decisions/paused-lines.md`](../decisions/paused-lines.md) (stay paused; B3 recorded;
+one cleaning row before `main`).
 Any merge, close or removal (the lab settings, the crate, #277, #278, #211); [`../native/README.md`](../native/README.md)
 §7's open decisions (the cache's policy, the intended use with a regulatory specialist, distribution); a toolkit or a
 transport choice; the crate's workspace membership.
