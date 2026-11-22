@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-22 (the reports' second run), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-22 (the reports' second verdict; the reports' second run), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -63,7 +63,12 @@ exact frame bit for bit, and only checked claims on screen.
   (18/18 safety, four predicted losses delivered), L idle within the bar, Lbusy VOID by its A/A, C's per-round fill bar
   met by no arm nor by `off′`, R (NGINX passes at 100/s, RECEIVER behind nginx misses at 5.3–6.3 % of a core).
   Firefox: mutants caught; counted cells not run, the BiDi driver hangs about once in 70–100 loads and leaks a profile
-  a load (a build row's). Owed: REPORT-VERDICT-2.
+  a load (a build row's).
+  The second verdict (REPORT-VERDICT-2, 2026-11-22, report-plan.md §Verdict review 2): rows recomputed, all agree. As
+  written, no carrier passes: C's per-round fill bar fails every arm, and `off′` against `off` too (3/18), so the bar is
+  narrower than the host's spread (rule 5). Rule 3 a tie (the race never happened); receivers: NGINX (RECEIVER misses
+  R's bar). Read without C: Y over H by 40 points; BEACON-Y against KEEPALIVE-Y not separated (Lbusy VOID). Owed:
+  REPORTS-PAGE; reruns of C, Lbusy and D5a on a busy page with bars fixed before their rows.
 
 ## PRs
 
