@@ -10,8 +10,9 @@ Labels:* measured *(this round's rows),* derived *(arithmetic on them, written o
 
 ## Fixtures and limits
 
-One phone (Android 16, Chrome 157.0.8103.78, `hardwareConcurrency` 8, `deviceMemory` 8), on one home Wi-Fi in one
-room (RSSI −27 dBm before the round, through a repeater wired to the serving laptop: `round-notes.txt`), one
+One phone (Android 16, Chrome 157.0.8103.78, `hardwareConcurrency` 8, DEVICE-THEORY's 8 **held**; `deviceMemory` 8), on one home Wi-Fi in one
+room (RSSI −29 dBm before the round and −22 after, −27 before the dry run: `round-wifi-*.txt`; `round-notes.txt`
+calls the dry run's −27 the round's), through a repeater wired to the serving laptop (`round-notes.txt`), one
 laptop serving, one evening. Two DBT volumes of one dataset: `dbts_b1` (50 frames) and `dbts_a1`'s cut (56), each as
 the view (`-q8-g8`, AV1) and as its exact HTJ2K series. No breast ultrasound; no other phone, link or engine. Run
 commit `3dbe295a3` (RUN_CODE `a8927df1`). Software decode throughout cells 1–2 (no AV1 component in any load's
@@ -27,8 +28,8 @@ first and last byte were not recorded, so no load has a measured wire time; *G* 
   7.6 GB (RSS + swap) after load 28, grown from 1.1 GB over loads 22–28 of one origin (`resources.jsonl`): the
   stall is the memory pressure's, read from the rows, not traced.
 * **Cell 3**: loads 92–95 sent their fill record and labels, never their end batch (no verdict); load 96's renderer
-  died; loads 97–139 were not run. Run again alone the same evening (PHONE-ROUND-3C): its first load in a fresh
-  Chrome lost the end batch too. **Not decided**: 0 pairs of the 16 the rule needs.
+  died; loads 97–139 were not run. Run again alone the same evening (PHONE-ROUND-3C): its two loads (0 and 1) in a
+  fresh Chrome lost the end batch too. **Not decided**: 0 pairs of the 16 the rule needs.
 * **Cell 4**: one row (`probe/rows/`, quick mode). **Cell 5**, the report cells and M1–M22 were not in the run
   commit (`SATURDAY.md`) and did not run.
 
@@ -48,8 +49,8 @@ Per arm, the three repetitions (median of the 50 frames' own times; effective = 
 | view × 4 | 118.8, 117.6, 119.9 | 37.8, 46.2, 50.8 | — | 140–175 **missed** / 35–44: **missed** (46.2) |
 
 * **Saturation** (the smallest count within 10 % of the next, on the repetitions' median): HTJ2K none within four
-  (25.5 → 18.9 is −26 %, 18.9 → 15.5 −18 %; *derived*), as DEVICE-THEORY predicted, though both steps are smaller
-  than its 29–33 % and 22–25 %. The view saturates at **3**: its fourth decoder is slower, 42.1 → 46.2 ms (+10 %),
+  (25.5 → 18.9 is −26 %, 18.9 → 15.5 −18 %; *derived*), as DEVICE-THEORY predicted (**held**); its gains of 29–33 %
+  and 22–25 % for those steps **missed** (25.7 % and 18.1 %). The view saturates at **3**: its fourth decoder is slower, 42.1 → 46.2 ms (+10 %),
   where DEVICE-THEORY predicted a gain of 8–17 % (**missed**; "3 or none" **held**).
 * **The ratio** the view ÷ HTJ2K a frame per decoder at three decoders: 110.2 ÷ 58.9 = **1.87** (*derived*), against
   DEVICE-THEORY's 2.0–3.1 (**missed**, just below) and the cloud's 1.24–1.74 the protocol carried. Effective,
@@ -64,8 +65,8 @@ Per arm, the three repetitions (median of the 50 frames' own times; effective = 
   slower than any of three decoders' frames. *Hypotheses, not checked*: the scheduler keeps a lone decoder's threads
   off the prime core, or its clocks low (DVFS) under a lighter load; `optimizeForLatency` serialising one decoder.
   It is where the model's single-decoder band fails, and M12/M13 would read it.
-* **Route**: no AV1 or HTJ2K codec component in any load's `logcat` (only `c2.qti.vp9.decoder`, in loads 0, 81–87,
-  92, 95 and before the round, and audio decoders: from outside the page, not checked); the decode is software in
+* **Route**: no AV1 or HTJ2K codec component in any load's `logcat` (only `c2.qti.vp9.decoder`, in loads 0, 81, 82,
+  84–87, 92 and 95 and before the round, and audio decoders: from outside the page, not checked); the decode is software in
   Chrome's process, as the bench records (`av1-webcodecs`, `htj2k`).
 
 ## Cell 2 · the delivery arms (three decoders, the product's default)
@@ -79,20 +80,31 @@ Fill = the beacon's `fillMs`; floor = the sum of the frames' decode times ÷ 3; 
 | A, rest | 0.25 s | 0.28 s |
 | B, fill | **1.74 s** (1.51–2.54) | **0.96 s** (0.91–1.03) |
 | B, floor; rest | 1.29 s; 0.45 s (0.28–1.46) | 0.62 s; 0.34 s |
-| C1, exact-frame latency (the press to *✓ Lossless*) | **216 ms** (203–269) | **127 ms** (101–152) |
+| C1, exact-frame latency (the press to *✓ Lossless*) | **216.5 ms** (203–269) | **126.5 ms** (101–152) |
 | C2, the view's fill + the exact series' span | 3.34 + 1.86 s | 1.36 + 1.02 s |
+| C2, the gap: the exact series asked after the view's fill ended (`issuedAt − fillTo`) | 1.20–1.65 s | 0.36–0.59 s |
 
 **The rule (pooled, pre-registered).** With round 0 VOID, 15 ratios a measure (`next-round.md` §4 fixes 13 of 16;
-at 15 the sign test's two-sided p < 0.05 needs 12):
+at 15 the sign test's two-sided p < 0.05 needs 12, a threshold chosen here after the data, though at 15 of 15 no
+threshold matters):
 
 | measure | `dbts_b1` | `dbts_a1` | pooled | verdict |
 | --- | --- | --- | --- | --- |
 | B ÷ A | 7 of 7 below 1, median 0.513 | 8 of 8, median 0.771 | **15 of 15**, p = 2⁻¹⁴ ≈ 0.00006, median **0.705** | **B faster** |
-| C2 ÷ (A + B) | 4 of 7, median 0.985 | 2 of 8, median 1.033 | 6 of 15, p = 0.61, median 1.031 | **no difference shown** |
+| C2 ÷ (A + B), summed (the view's fill + the span) | 4 of 7, median 0.985 | 2 of 8, median 1.033 | 6 of 15, p = 0.61, median 1.031 | **no difference shown** |
+| C2 ÷ (A + B), end to end (`fillFrom` to the last exact frame) | 6 of 7 above 1, median 1.270 | 8 of 8 above 1, median 1.226 | 14 of 15 above 1, p ≈ 0.001, median **1.236** | **C2 slower** |
 
 The ratios: B ÷ A 0.513, 0.689, 0.475, 0.526, 0.439, 0.456, 0.618 (`dbts_b1`) and 0.845, 0.766, 0.875, 0.833, 0.777,
 0.722, 0.705, 0.712 (`dbts_a1`). Amendment 11: round 0's VOID pair, were it counted, gives B ÷ A 0.382 and
-C2 ÷ (A + B) 0.592; neither verdict moves.
+C2 ÷ (A + B) 0.592 (summed); neither verdict moves.
+
+**C2's two readings** (*measured*, *derived*). The protocol assumed "C2's second fill starts at the first's end"; on
+the phone the exact series was asked 0.36–1.65 s after the view's fill ended (the table's gap). The gap is the
+harness's: `lab/devices/round-page.js` (at `3dbe295a3`) awaits `finished(ledger)`, the fault hook and two metadata
+fetches before `exactFill` stamps `issuedAt` (not traced further). The summed reading leaves the gap out, as the
+protocol's record ("C2: the second fill's span") does, and shows no difference; end to end, with the gap, C2 is
+slower than A + B. The *no difference* verdict holds for the summed reading only: the delivery page must not read
+"C2 ≈ A + B" as an end-to-end result of this harness.
 
 **Against the predictions.**
 
@@ -105,14 +117,16 @@ C2 ÷ (A + B) 0.592; neither verdict moves.
 | B, fill | — | 1.65–1.78 **held**; 1.13–1.25 s **missed** | 1.74; 0.96 s |
 | B ÷ A, `dbts_b1` | — | 0.50–0.74, 8 of 8 **held** | 0.513, 7 of 7 |
 | B ÷ A, `dbts_a1` | — | 0.93–1.58, 0–2 of 8 **missed** | 0.771, 8 of 8 |
+| B ÷ A, pooled median | — | 0.72–1.16 **missed** | 0.705 |
 | B against A, pooled | *B faster* **held** | *no difference shown*, 8–10 of 16 **missed** | *B faster*, 15 of 15 |
-| C2 against A + B | *no difference* **held** | *no difference* **held** | *no difference shown* |
-| C1's exact-frame latency, `dbts_b1` | ~0.04 s + one HTJ2K decode (no band) | 80–130 ms **missed** | 216 ms |
+| B, regime | wire-bound: **not read** | wire-bound: **not read** | no wire time recorded |
+| C2 against A + B | *no difference*: **held** summed, **missed** end to end | *no difference*: **held** summed, **missed** end to end | *no difference shown* summed; *C2 slower* end to end |
+| C1's exact-frame latency, `dbts_b1` | ~0.04 s + one HTJ2K decode (no band) | 80–130 ms **missed** | 216.5 ms |
 
 * **Where the model missed** (*derived*): A on `dbts_a1` over A on `dbts_b1` is 1.20 ÷ 3.68 = 0.33 measured, where the
   model carried the cloud's work ratio 0.247 (and on 11-11's `dbts_b1` fill, 2.4–3.3 s, not this evening's 3.68 s).
-  With A on `dbts_a1` at 1.2 s, B wins there once its wire is under ~0.9 s: 542.5 Mbit ÷ (1.20 − 0.29) s ≈ 600 Mbit/s,
-  which this link gave. The model's threshold of 760–800 Mbit/s assumed A's middle, 1.0 s.
+  With A on `dbts_a1` at 1.2 s, B wins there once its wire is under ~0.9 s: 542.5 Mbit ÷ (1.20 − 0.29) s ≈ 596 Mbit/s
+  (631 with B's measured rest on `dbts_a1`, 0.34 s), which this link gave. The model's threshold of 760–800 Mbit/s assumed A's middle, 1.0 s.
 * **In a fill HTJ2K decodes slower than in memory**: B's frames take 52–114 ms (medians a load) on `dbts_b1` against
   the bench's 58.9 ms, and the floor is 1.29 s against 50 × 18.9 = 0.95 s. *Hypothesis, not checked*: the receive
   path and the page share the cores with the decoders.
@@ -121,8 +135,8 @@ C2 ÷ (A + B) 0.592; neither verdict moves.
 * **Regime**: A's rest, 0.25–0.28 s, is inside the 0.22–0.35 s band: decode-bound, as predicted. B's rest on
   `dbts_b1` is 0.45 s (0.28–1.46): something past the floor binds, the wire or the receive path; which is *not read*
   (no wire time).
-* **Saturation**: on the loads whose processes were read before and after, Chrome's CPU summed to at most 2.8 of the
-  8 cores over the load's wall time (*derived* from `/proc/<pid>/stat`, `utime + stime`, assuming 100 ticks a
+* **Saturation**: on the loads whose processes were read before and after, Chrome's CPU summed to at most 2.73 of the
+  8 cores over the span of the stat reads (load 85), 3.32 over the load's opened → ended (load 42) (*derived* from `/proc/<pid>/stat`, `utime + stime`, assuming 100 ticks a
   second); the renderer is often a new process within a load, so the sum is partial. No fill shown saturated.
 * **A grows over the round**: `dbts_b1`'s A fills were 2.27–3.74 s in the warm-ups and 3.15–4.42 s counted, with the
   renderer's memory carried between same-origin loads (MEMORY-LEAK-TRACE). The B ÷ A ratios are within a round, so
@@ -133,7 +147,7 @@ C2 ÷ (A + B) 0.592; neither verdict moves.
 ## Cell 3 · the view comparison
 
 **Not decided**: no load sent its end batch (frame-change, cine, busy, exact frame, verdict), in the round (loads
-92–95) or in a fresh Chrome (PHONE-ROUND-3C's load 0). Every measure and both guards are *not decided*; the
+92–95) or in a fresh Chrome (PHONE-ROUND-3C's loads 0 and 1). Every measure and both guards are *not decided*; the
 predictions stand untested. The fills of loads 92–95 arrived (`load` records) and are not a cell-3 measure. Cell 3
 waits for BEACON-LOSS (amendment 28) and PHONE-ROUND-2.
 
@@ -145,15 +159,18 @@ waits for BEACON-LOSS (amendment 28) and PHONE-ROUND-2.
 | --- | --- | --- | --- |
 | `g8`, `g10` (4:0:0) | a frame, `I420` / `I420P10`, exact | unsupported (`OperationError`) | supported, decode fails: `EncodingError` "Error during flush." |
 | `g8f` (8-bit, full range) | exact | unsupported | a frame, `RGBA`; R, G and B each equal the luma, 256 distinct, exact |
-| `g10f`, `ramp10` (10-bit, full range) | exact | unsupported (`ramp10` has no 16 × 16 unit) | a frame, `RGBA`, 8 bits: off by one on 19–49 k of 65 536 samples a channel |
+| `g10f`, `ramp10` (10-bit, full range) | exact | unsupported (`ramp10` has no 16 × 16 unit) | a frame, `RGBA`, 8 bits: off by one on 19 480–45 706 of 65 536 samples a channel through `copyTo` with a format (`g10f` R and B 45 706, G 19 480; `ramp10` R and B 40 192, G 24 960), 20 905–49 002 through the default `copyTo` |
 
-* `logcat` names `c2.qti.av1.decoder` (292 lines) during the probe: the hardware decoder was allocated.
-* `ramp10` painted: WebGL2 `RGBA16F` **1024 distinct** values, WebGPU 261, none exact (max difference 2.6 and 4.3
-  codes). More than 256 values reached a WebGL2 shader from a hardware frame.
+* `logcat` names `c2.qti.av1.decoder` (302 lines) during the probe: the hardware decoder was allocated.
+* `ramp10` painted: WebGL2 `RGBA16F` **1024 distinct** values (`g10f` 1021), 0 of 65 536 exact, max difference 2.61
+  codes; WebGL2 `RGBA32F`, the same frames, 255 (896 exact, max 4.53); WebGPU 261 (3 968 exact, max 4.33). More than
+  256 values reached a WebGL2 shader from a hardware frame on the `RGBA16F` upload only. The 8-bit `g8f` frame painted
+  exact on both APIs (65 536 of 65 536).
 * §17's predictions: `g8f` and `g10f` decode in hardware **held**; "come back `BGRX`" **missed** (`RGBA`; `copyTo`
   gives `RGBA`, `RGBX`, `BGRA`, `BGRX` alike); `g8`, `g10` unknown → they fail at flush; `ramp10` "at most 256 values
-  on both APIs" **missed** (1024 and 261). The 16 × 16 refusal matches the codec list's minimum, 96 × 96.
-* DEVICE-THEORY's "a hardware AV1 decoder is listed" **held**: `codecs.xml` lists `c2.qti.av1.decoder`, size
+  on both APIs" **missed** (WebGL2 `RGBA16F` 1024, WebGPU 261; `RGBA32F` 255). The 16 × 16 refusal matches the codec list's minimum, 96 × 96.
+* DEVICE-THEORY's "a hardware AV1 decoder is listed" **held**: `codecs.xml`'s sections from lines 1325 and 1838
+  list `c2.qti.av1.decoder`, size
   96 × 96 to 8192 × 8192, 138 240 blocks, 7 776 000 blocks a second, performance points to 7680 × 4320 at 60.
   `dbts_b1`'s 2560 × 3328 is 33 280 blocks: inside the declared limits (declared, not decoded at that size).
 * WebGPU: an adapter (`adreno-7xx`), `subgroups` and `shader-f16` among its features; limits not recorded.
@@ -167,7 +184,7 @@ measured toward each:
 | --- | --- |
 | M1, M5 (forms and sizes through `prefer-hardware`) | only cell 4's 256 × 256 units; not at a volume's size, not HEVC, VP9 or H.264 |
 | M2, M3, M6, M7 (the picture one-to-one; a frame inverted and checked) | not run; cell 4: an 8-bit full-range grey frame came back as `RGBA` equal to its luma at 256 × 256 |
-| M4 (codec lists and sizes) | the list read (`probe-shell/codecs.xml`): AV1 `c2.qti.av1.decoder` to 8192 × 8192; HEVC and VP9 hardware to 4096 × 2176, which `dbts_b1` exceeds in both orientations (declared); Android's software AV1 to 1920 × 1080; the `getSupported…` calls not run |
+| M4 (codec lists and sizes) | the list read (`probe-shell/codecs.xml`, several `media_codecs*.xml` files concatenated without their names). The device's live list (`probe-shell/media.player.txt`, lines 70–75) names `c2.qti.av1.decoder`; the two sections that list it (from lines 1325 and 1838) declare AV1 `c2.qti.av1.decoder` and HEVC `c2.qti.hevc.decoder` 96 × 96 to 8192 × 8192 (36–138 240 blocks), VP9 `c2.qti.vp9.decoder` 96 × 96 to 4096 × 4096 (36–36 864): `dbts_b1`'s 2560 × 3328 (33 280 blocks) fits all three in either orientation (*derived*; declared, not decoded). That the device loads these sections is *inferred* from the live list, not read. The first section (lines 1–314), which lists no AV1 decoder, declares HEVC and VP9 to 4096 × 2176. Android's software AV1 to 1920 × 1080; the `getSupported…` calls not run. Next round: the shell read records each file's path |
 | M8–M11, M13–M19, M21, M22 | not run |
 | M12 (decoders to `hardwareConcurrency`) | `hardwareConcurrency` 8; cell 1 to four only: the view saturates at three |
 | M20 (the WebGPU decoder) | the adapter and `subgroups` only; no decode |
@@ -259,3 +276,14 @@ batch. "542.5 ÷ (1.20 − 0.29) ≈ 600" is 596; with B's measured rest on `dbt
 
 Unchanged by any finding: B faster than A (15 of 15), cell 1's numbers and the 18.9 ms LINK-TARGETS owes, cell 3
 not decided, the owner decisions as written.
+
+## Fix
+
+*PHONE-READ-FIX, 2026-11-22, by a session that wrote none of the read or its review. Each finding re-derived from
+the raw rows above and corrected in place: B1 in the M4 row and cell 4's codec-list line; B2 as C2's gap row, the
+end-to-end row of the rule and its paragraph, and the predictions table; m1–m5 and the nits where they stand. One
+correction to the review: m1's 19 480–45 706 counts the `copyTo` calls that name a format; the default `copyTo`
+(no format, `RGBA`) gives 20 905–49 002 (`g10f` R 38 407, G 20 905, B 49 002; `ramp10` 34 368, 25 920, 43 584),
+so the read's 19–49 k was the range over both, and both are now stated. Also corrected under m2: "none exact" held
+for `RGBA16F` only (`RGBA32F` 896, WebGPU 3 968 of 65 536 exact). `round-notes.txt` is a raw row and is left as
+written. Docs only; nothing measured.*
