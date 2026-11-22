@@ -309,6 +309,11 @@ stored 4:0:0 (`claude/unified:docs/av1/payload-format.md`: "The ingest keeps 4:0
 All derived; none measured except where marked. `dbts_b1`, 50 frames, three decoders. A profile's *G* is what
 `link-profiles.md` §2 says "a session might see"; enterprise Wi-Fi has no number and no row.
 
+**Which column is which policy.** 4.1 is *the view*; 4.2 *the exact series*; 4.3 one of the two per class, the
+same for every series; 4.4 the lower of the two, its first picture later by the probe (a start and an exact frame's
+wire, below); 4.5 the lower of the two, plus up to one group at the view's rate where it switches; 4.6 *the split*;
+4.7 any of them, with a first paint at the hardware decoder's time (unmeasured) in place of the one-decoder row.
+
 **Fill** (s) = max(50 × *b* ÷ *G*, 50 × *d*) + rest, rest 0.22–0.45 s (M: 0.25–0.45), *d* from §3's table. The
 split's column is §4.6's formula, on assumption (A).
 

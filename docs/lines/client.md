@@ -11,6 +11,15 @@ exact frame bit for bit, and only checked claims on screen.
 
 ## In flight
 
+* **2026-11-22, choosing a route on a phone** (ROUTE-POLICY, theory,
+  [`../decode/mobile/route-policy.md`](../decode/mobile/route-policy.md)): the exact series fills faster than the
+  view above *an exact frame's bits ÷ the view's effective decode*, 53–191 Mbit/s on an entry phone to 220–521 at
+  the top (derived), and 251–408 against 590 Mbit/s for two series on the round's one phone; a class table has no
+  key a page can read and a probe is dominated by the fill's own first group; a split fill (each group asked in the
+  form that spends the idle resource) is predicted up to 32 % under the better pure route, on one untested
+  assumption. Leaning: the view first, the fill reporting the rule's two numbers; no default changed. Owed:
+  ROUTE-POLICY-REVIEW, then PHONE-ROUTE-PAGE; one phone arm (the two forms decoding together).
+
 * **2026-11-22, the phone round's numbers in the option files** (PHONE-READ): each phone section of
   `docs/decode/mobile/` carries one measured line; M1–M22 did not run as asked (not in the run commit); the read is
   `claude/phone-run:docs/phone-rows/next-round-results.md`. Owed: PHONE-READ-REVIEW, then MOBILE-DECODE-REJUDGE.
