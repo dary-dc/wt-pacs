@@ -69,7 +69,8 @@ exact frame bit for bit, and only checked claims on screen.
   leaves the previous frame's picture (read in code); three failures share *Lossless check failed*. Reviewed
   2026-11-22 (PR 429 body): one blocker, eleven minors. Fixed 2026-11-22: a refused frame is asked again by the next
   want after every failure, unbounded, on both refs (read in code; the store's half in a scratch run), a finding
-  against amendment 22 (§6, fault-bench cell 12). Re-review owed, then the `frame-integrity` decision page; six calls
+  against amendment 22 (§6, fault-bench cell 12). Re-reviewed 2026-11-22 (PR 429 body §Re-review): every finding closed,
+  no blocker, two nits; next the `frame-integrity` decision page; six calls
   for the owner in its §9, twelve fault-bench cells in its §8.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
@@ -116,7 +117,7 @@ exact frame bit for bit, and only checked claims on screen.
 | #401 | stage A of the merge queue: the client line's 62 branches into `claude/merge-a-client` (2026-11-15), the gate and `demo-check.mjs` green; reviewed 2026-11-15, no blocker (`direction`'s line-doc sections owed to the plan's §6 item 5) | draft |
 | #370 | the client load report | draft; review owed |
 | #368 | the integrity and coding-error check on the label ([`optimal-quality.md`](optimal-quality.md)) | draft; the owner's |
-| #429 | the frame's fault model, theory ([`../client/evidence/integrity-model.md`](../client/evidence/integrity-model.md)) | draft; reviewed, one blocker, fixed; re-review owed |
+| #429 | the frame's fault model, theory ([`../client/evidence/integrity-model.md`](../client/evidence/integrity-model.md)) | draft; reviewed, fixed, re-reviewed: no blocker open |
 | #369 | a separate proposal, kept out of the unified branch | draft |
 | #298 | the asking patterns ([`../client/evidence/what-a-view-asks-for.md`](../client/evidence/what-a-view-asks-for.md); the ADR is on `claude/core-asking-plan` only) | proposed |
 | #285 | the cache's writer arms, run: no arm passes on either engine | open |
