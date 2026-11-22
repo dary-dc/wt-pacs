@@ -18,10 +18,8 @@ ranges, its round not read. Not found: a published share of single-frame series;
 * One frame: first picture ≈ wire + decode, not max; the wire binds on every phone class below ~150 Mbit/s (derived).
 * Read in code, not run: the painter makes no test against `MAX_TEXTURE_SIZE`; over it nothing paints, nothing is
   said. 3328 x 4096 fits a 4096 limit exactly; a 50 µm frame (4728 x 5928) does not. GLES 3.0 promises 2048.
-* Read in `FIXTURES.md`, not run: the ingest refuses a real US series three ways (mixed sizes, a clip among stills,
-  a lossy source).
-* Five options with ranges; an AV1 view of a mammogram needs level 6, is software on any phone, wins only on slow links.
-* A cloud run outlined with predictions (§7): exact whole vs an exact level first vs the view, on `ffdm_d`.
+* Read in `FIXTURES.md`, not run: the ingest refuses a real US series (mixed sizes, a clip among stills, a lossy source).
+* Five options with ranges; a cloud run outlined with predictions (§7): exact whole, an exact level first, the view.
 Owner, last (§8): the exact frame alone for large single frames, no AV1 view; queue the level-first run or not; the
 three ingest refusals to the PCS team; the painter refuses an oversized frame by name; over 12 bits waits. Would
 reopen, only if taken: no low-resolution preview; AV1 only for cine-like; XXH3 for lossy-source stills; "12 bits or fewer are filled".
