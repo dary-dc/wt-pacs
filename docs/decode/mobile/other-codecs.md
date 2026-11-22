@@ -184,7 +184,7 @@ advantage over AV1 in hardware is that the decoder is far more likely to be ther
 
 ## 6. What a phone cell must measure (asks)
 
-**Measured, 2026-11-22** (`claude/phone-run:docs/phone-rows/next-round-results.md`): the list read (M4): `c2.qti.hevc.decoder` and `c2.qti.vp9.decoder` to 4096 × 2176, which `dbts_b1`'s 2560 × 3328 exceeds in both orientations (declared, not tried). M5's HEVC, VP9 and H.264 forms and M11 not run.
+**Measured, 2026-11-22** (`claude/phone-run:docs/phone-rows/next-round-results.md`): the list read (M4): in the `codecs.xml` sections that list `c2.qti.av1.decoder` (from lines 1325 and 1838 of `probe-shell/codecs.xml`, several vendor files concatenated without their names), `c2.qti.hevc.decoder` 96 × 96 to 8192 × 8192 and `c2.qti.vp9.decoder` 96 × 96 to 4096 × 4096, which `dbts_b1`'s 2560 × 3328 (33 280 blocks) fits in either orientation (declared, not tried). Which file the device loads is *inferred* from its live codec list, not read; the first section, which lists no AV1 decoder, declares both to 4096 × 2176. The next round's shell read records each file's path. M5's HEVC, VP9 and H.264 forms and M11 not run.
 
 For `claude/phone-protocol:docs/phone-rows/next-round.md`, one line each, beside [`new-options.md`](new-options.md)
 §7's asks 1–3 (which they extend from AV1 to these codecs):

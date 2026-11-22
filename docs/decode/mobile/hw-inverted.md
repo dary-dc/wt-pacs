@@ -484,7 +484,7 @@ streams discarded", R, `docs/client/design.md` §Decided) and is the owner's to 
 
 ## 12. The comparison's columns, and what a phone cell must measure
 
-**Measured, 2026-11-22** (`claude/phone-run:docs/phone-rows/next-round-results.md`, cell 4, 256 × 256 only): an 8-bit full-range grey unit decoded in hardware came back `RGBA` with R, G and B each equal to its luma (exact, 256 distinct); the 10-bit forms came back 8-bit `RGBA`, off by one on 19–49 k of 65 536 samples. Studio-range forms were not probed; M6–M8 and M10 not run.
+**Measured, 2026-11-22** (`claude/phone-run:docs/phone-rows/next-round-results.md`, cell 4, 256 × 256 only): an 8-bit full-range grey unit decoded in hardware came back `RGBA` with R, G and B each equal to its luma (exact, 256 distinct); the 10-bit forms came back 8-bit `RGBA`, off by one on 19 480–45 706 of 65 536 samples a channel through `copyTo` with a format, 20 905–49 002 through the default `copyTo`. Studio-range forms were not probed; M6–M8 and M10 not run.
 
 | column | this option |
 | --- | --- |
