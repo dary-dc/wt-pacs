@@ -1468,3 +1468,40 @@ Read as measured, not judged: the page-thread carriers (`off`'s and BEACON's bea
 task's ~50 ms at p99, as §7.3 predicts ("busy up to +50 ms"); KEEPALIVE and SESSION, which send from the worker, stay
 at 2–9 ms p99, unaffected by the busy page, as predicted. BEACON-Y against KEEPALIVE-Y on busy p99 is ~51 against ~2.5
 ms, a lead far past rule 2's 10 %, which would separate the two **if** the cell were not VOID.
+
+### C on Chromium, cost on the page's thread, with Y read from the same loads (18 rounds, 162 loads, 2026-11-22 03:15–06:16 UTC)
+
+Williams-balanced for every unit; no row errored; the long-task observer ran in every row; host CPU at most 18 %.
+Fill times across all rows 102.5–350.9 ms. **Not VOID**: `off′` against `off`, median fill time ratio 0.989, inside
+0.95–1.05. Each round's ratio is the unit's fill time over `off`'s in the same round.
+
+| unit | fill time, median | median ratio to `off` | rounds within 0.98–1.02 of `off` | page-thread ms a load, median (max) | long tasks the arm adds | fill record | records kept a load, median | kept bytes a load, median (largest record) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `off` | 123.5 ms | 1.000 | 18/18 | 0.61 (7.84) | 0 | 0/18 | 1 | 544 (545) B |
+| `off′` | 122.1 ms | 1.013 | 3/18 | 1.48 (7.20) | 0 | 0/18 | 1 | 543 (545) B |
+| BEACON-H | 127.9 ms | 1.052 | 0/18 | 1.34 (7.20) | 0 | 18/18 | 2 | 2198 (1657) B |
+| BEACON-Y | 121.6 ms | 0.976 | 1/18 | 1.73 (5.43) | 0 | 18/18 | 3 | 2647 (1511) B |
+| KEEPALIVE-H | 138.5 ms | 1.137 | 0/18 | 0.97 (1.15) | 0 | 18/18 | 2 | 2196 (1656) B |
+| KEEPALIVE-Y | 135.1 ms | 1.072 | 3/18 | 1.56 (6.12) | 0 | 18/18 | 3 | 2649 (1511) B |
+| SESSION-1 | 154.3 ms | 1.217 | 0/18 | 0.67 (3.16) | 0 | 18/18 | 3 | 2648 (1510) B |
+| SESSION-Y | 154.8 ms | 1.303 | 1/18 | 0.70 (3.23) | 0 | 18/18 | 3 | 2648 (1510) B |
+| SESSION-H | 153.5 ms | 1.256 | 0/18 | 0.44 (2.60) | 0 | 18/18 | 2 | 2198 (1657) B |
+
+
+**Against the bar, as written.** *No long task ≥ 50 ms the arm adds*: holds for every arm (none observed in any row).
+*Fill time within 0.98–1.02 of `off` in ≥ 15 of 18 rounds*: **met by no carrier arm** (0–3 of 18). But the A/A twin
+`off′`, the same code as `off`, is within it in only **3 of 18** rounds: on this host one load's fill time varies by
+more than ±2 % round to round, so the per-round form of this bar cannot be met even by `off` against itself, and a
+carrier's miss here is not separable from the host's spread. That the A/A passes VOID's median test (0.989) and fails
+the bar's per-round one is for REPORT-VERDICT-2 to weigh (§7.5 rule 1 counts every bar).
+
+**Read as measured, beyond the bar**: the median ratios split by **which decoder worker the arm loads**, not by
+carrier alone. BEACON (the fault bench's decoder as `off`) 0.98–1.05; KEEPALIVE (its wrapped decoder) 1.07–1.14;
+SESSION (its own downloader and wrapped decoder, `lab/report-arms/README.md` §SESSION) 1.22–1.30, ~30 ms a fill on a
+~120 ms fill. The page thread's own cost of a report is under 2 ms a load in every arm (median 0.44–1.73 ms; §7.3
+predicted "well under a millisecond" for the call alone; this counts assembly, serialization and every send).
+
+**Y** (records as RECEIVER or the server kept them, §7.9; not wire bytes): no record over 16 KiB (the largest 1 657 B,
+the grey series' fill record, not `dbts_c1`'s 4.9–6.6 KB), no load refused; the H arms keep 2 records a load (~2.2 KB),
+the Y arms and SESSION-1 3 (~2.65 KB). Ranked by kept bytes the H arms lead by ~17 %, past rule 2's 10 %, but rule 2
+ranks only passers; between BEACON-Y and KEEPALIVE-Y the kept bytes tie (2 647 against 2 649 B).
