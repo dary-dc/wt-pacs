@@ -48,6 +48,8 @@ exact frame bit for bit, and only checked claims on screen.
   the probe's RGB and paint "exact" counts measure the range, not precision. The phone run stays with `phone-tests`.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
+* **What the green mark proves** is on one decision page since 2026-11-22:
+  [`../decisions/frame-integrity.md`](../decisions/frame-integrity.md) (the label's states, a withheld frame, PR 368, the re-asks).
 * **The reports' options** (2026-11-14, theory and a plan,
   [`../client/evidence/report-plan.md`](../client/evidence/report-plan.md)): carriers BEACON, KEEPALIVE, SESSION and
   receivers NGINX, RECEIVER survive the screen; PR 370's build is one candidate. Chromium has no WebTransport
