@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-22 (series that are not stacks, theory only; its review and fix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-22 (series that are not stacks, theory only; its review, fix and re-review), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -66,7 +66,9 @@ exact frame bit for bit, and only checked claims on screen.
   picture of a 70 µm frame put at level 1 with a share measured on other series while `ffdm_d`'s measured level-2
   cells (7.0–7.5 %, decode ×0.08, first picture ×0.09–0.27) went unused; eleven minors. *Fixed 2026-11-22
   (NON-CINE-REVIEW-FIX):* level 1 (a phone's device pixels) labelled carried, level 2 measured beside it, §7 cut to
-  level 1 and V; the minors in place. Next: NON-CINE-REVIEW-FIX-REVIEW, then the `non-cine-series` page.
+  level 1 and V; the minors in place. *Re-reviewed 2026-11-22 (NON-CINE-REVIEW-FIX-REVIEW):* B1 and m1–m10
+  closed, no blocker open; four new minors (n1–n4 in PR 431's body: level 2 is a phone's left–right hanging, not a
+  laptop's; every handheld must decode AV1, in software if not hardware). Next: the `non-cine-series` page.
 * **The device model**, theory only, 2026-11-20 ([`../decode/mobile/device-model.md`](../decode/mobile/device-model.md)):
   a phone's decode, cache and decoder floors from its fast cores' speed and count, a range per price band, and the
   prediction for the 2026-11-21 round pre-registered (HTJ2K at 14–22 ms effective a `dbts_b1` frame with three
