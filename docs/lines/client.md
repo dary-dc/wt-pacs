@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-22 (the asking model), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-22 (the asking model and its fix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -64,10 +64,15 @@ exact frame bit for bit, and only checked claims on screen.
   unless the link gives over ~760 Mbit/s), the premium view band 33–48 ms. Re-reviewed 2026-11-20 (PR 414 body §Re-review): no blocker open. Owed: the round's read.
 * **What a view asks for, a model**, theory only, 2026-11-22 ([`../client/evidence/ask-model.md`](../client/evidence/ask-model.md),
   `claude/ask-model`): one key, a frame's need time, orders the want, the store's letting go and the transport's
-  commitment; with no slice skipped each side is asked nearest-first whatever the reader does; the window sits
-  behind a back-and-forth reader by the pipeline's rate over the reader's; `waitAhead` stays off for DBT (k is the
-  frames committed, not 8), `span` and `holdEveryOther` have no state to act on. Owed: its review, then the
-  `asking` page; a protocol row for its §7 only on the owner's yes.
+  commitment; with no slice skipped each side is asked nearest-first whatever the reader does; `waitAhead` stays
+  off for DBT (k is the frames committed, not 8), `span` and `holdEveryOther` have no state to act on. Reviewed
+  2026-11-22 (PR 430 body §ASK-MODEL-REVIEW): two blockers, P1's legs fit the window so its arms cannot differ, and
+  the window behind a back-and-forth reader not shown under the file's own model. Fixed 2026-11-22 (ASK-MODEL-FIX):
+  §5 redone as a simulation of the model (derived; `claude/work-ledger:docs/queue/ASK-MODEL-FIX/legs.py`): under
+  no skip a scroll's window at a turn is the leg just crossed whatever the split, so the behind split is struck;
+  the hold lets go behind first while the reader moves and stays centred while the reader dwells; P1 now has legs
+  longer than the window, P1b a dwell at each turn. Owed: the re-review, then the `asking` page; a protocol row for
+  its §7 only on the owner's yes.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 * **The reports' options** (2026-11-14, theory and a plan,

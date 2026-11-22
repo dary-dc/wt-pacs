@@ -250,7 +250,7 @@ once. The client learns of a turn when the input asks for the step back (§2's t
    source gives p.
 
 **Simulated** (derived: §2's model run as events, `claude/work-ledger:docs/queue/ASK-MODEL-FIX/legs.py` and
-`legs-output.txt`; it reproduces ASK-MODEL-REVIEW's toy, `docs/queue/ASK-MODEL-REVIEW/sawtooth.py`, exactly where
+`legs-output.txt`; it reproduces ASK-MODEL-REVIEW's toy, `claude/work-ledger:docs/queue/ASK-MODEL-REVIEW/sawtooth.py`, exactly where
 the two share a case, and adds the turn seen only by the input and a dwell at each turn). W = 15, v = 25 frames a
 second, no RTT, a lead of 0, a constant μ. Wait a leg after warm-up, seconds:
 
