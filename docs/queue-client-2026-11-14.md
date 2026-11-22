@@ -97,7 +97,9 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | PHONE-ROUND | — | — | **the owner's local device session, 2026-11-21 evening, by `SATURDAY.md`; no cloud worker takes it** |
 | PHONE-READ | 11-22 00:00 | `docs/queue/PHONE-ROUND.md` done, and DEVICE-THEORY-FIX-REVIEW done | `claude/phone-run:docs/phone-rows/next-round-results.md` |
 | PHONE-READ-REVIEW | 11-22 00:00 | PHONE-READ done | findings in the results file's §Review; amendment 17 |
-| MOBILE-DECODE-REJUDGE | 11-22 00:00 | PHONE-READ-REVIEW done with no blocker open | `claude/mobile-decode` (`docs/decode/mobile/README.md` §6; PR 397) |
+| PHONE-READ-FIX | 11-22 00:00 | PHONE-READ-REVIEW done | `claude/phone-run` and `claude/mobile-decode`: B1, B2 and m1–m5 of `next-round-results.md` §Review; amendment 17 |
+| PHONE-READ-FIX-REVIEW | 11-22 00:00 | PHONE-READ-FIX done | findings in `next-round-results.md` §Re-review; amendment 17 |
+| MOBILE-DECODE-REJUDGE | 11-22 00:00 | PHONE-READ-FIX-REVIEW done with no blocker open | `claude/mobile-decode` (`docs/decode/mobile/README.md` §6; PR 397) |
 | BRIEF-MON | 11-22 00:00 | not before 11-23 06:00 | `claude/reviews-2026-11-23:docs/reviews-2026-11-23.md`, one page by 18:00 UTC; nothing run |
 | DOCS-DECISIONS | 11-16 12:00 | — | `claude/docs-client`: amendments 16-23's owner decisions folded into `docs/client/design.md` §Decided/§Open, `docs/lines/client.md`, `devices.md`, `native.md` (one line each, dated, linked); the 2026-11-15/16 results linked from §Open; check_links green |
 | BRIEF-WED | 11-16 12:00 | not before 11-18 08:00 | `claude/reviews-2026-11-18:docs/reviews-2026-11-18.md`, one page by 10:00 UTC: what each row since 11-14 produced, the owner's decisions owed (list below), links; nothing run |
@@ -1263,6 +1265,20 @@ evening). Results in `docs/phone-rows/next-round-results.md`; owner decisions la
 #### PHONE-READ-REVIEW
 
 A session that did not write PHONE-READ: every number recomputed from the raw rows; findings in §Review; amendment 17.
+
+#### PHONE-READ-FIX (appended by PHONE-READ-REVIEW, 2026-11-22; amendment 17)
+
+A session that wrote none of PHONE-READ or its review: in `claude/phone-run:docs/phone-rows/next-round-results.md`,
+B1 (M4's HEVC and VP9 limits from the `codecs.xml` section that lists `c2.qti.av1.decoder`, the section named, the
+active file marked inferred; the same line in `claude/mobile-decode:docs/decode/mobile/other-codecs.md`, PR 397),
+B2 (C2's ask gap stated, both readings given, the verdict held for the summed one only), m1–m5 (m1 in
+`hw-inverted.md` too) and the nits, each corrected in place; nothing else changed. Docs only.
+
+#### PHONE-READ-FIX-REVIEW
+
+A session that wrote none of the read, the review or the fix: each blocker closed against the raw rows; nothing else
+changed. Findings in the results file's §Re-review; a blocker still open is amendment 17's second round, then
+`blocked` for the owner.
 
 #### MOBILE-DECODE-REJUDGE
 
