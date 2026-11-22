@@ -283,6 +283,8 @@ A stored DBT frame is the detector's matrix; the breast fills part of it. Two fi
 
 ## 7. Rows, asks, a leaning
 
+**Measured, 2026-11-22** (`claude/phone-run:docs/phone-rows/next-round-results.md`): M1–M3 not run; cell 4's 256 × 256 full-range 8-bit grey came back `RGBA` equal to its luma, the nearest the round came to M2.
+
 **Rows appended** to `claude/work-ledger:docs/queue-client-2026-11-14.md`, each a MOBILE-OPT row by amendment 20:
 
 | row | file | what it must settle |

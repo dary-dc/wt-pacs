@@ -11,6 +11,10 @@ exact frame bit for bit, and only checked claims on screen.
 
 ## In flight
 
+* **2026-11-22, the phone round's numbers in the option files** (PHONE-READ): each phone section of
+  `docs/decode/mobile/` carries one measured line; M1–M22 did not run as asked (not in the run commit); the read is
+  `claude/phone-run:docs/phone-rows/next-round-results.md`. Owed: PHONE-READ-REVIEW, then MOBILE-DECODE-REJUDGE.
+
 * **The unified branch** `claude/unified-client` (the client, optimal-quality and native lines): the demo tip with the
   cleaning and the renames merged; one `info.path` left in `lab/faultbench/index.html` (now `info.route`), a finding in
   #382. Reaches `main` through #367 then #250, on the owner's word ([`coordination.md`](coordination.md)).

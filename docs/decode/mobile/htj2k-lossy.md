@@ -362,6 +362,8 @@ decode at the screen's size (§6), which is its own and not AV1's.
 
 ## 10. What a phone cell must measure
 
+**Measured, 2026-11-22**: M17–M19 not run (not in the run commit; `claude/phone-run:docs/phone-rows/next-round-results.md`).
+
 One line each, for MOBILE-DECODE-COMPARE to carry as asks:
 
 1. The same 16 `dbts_b1` frames, lossless and lossy at Δ 16, through the client's OpenJPH-WASM on the phone, in one

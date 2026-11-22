@@ -292,6 +292,8 @@ by the device manufacturer … not suitable for comparing different devices" (S8
 
 ## 9. What a phone cell must measure
 
+**Measured, 2026-11-22** (one phone, one evening; `claude/phone-run:docs/phone-rows/next-round-results.md`): M4's list read: `c2.qti.av1.decoder`, 96 × 96 to 8192 × 8192, 7 776 000 blocks a second (declared; `dbts_b1`'s 33 280 blocks inside it); `getSupported…` not run. M5 at 256 × 256 only (cell 4): 4:0:0 fails at flush (`EncodingError`), full-range 4:2:0 comes back `RGBA`, 16 × 16 refused. M6–M9 not run.
+
 Asks for the next phone round (one line each in `claude/phone-protocol:docs/phone-rows/next-round.md`, by
 MOBILE-DECODE-COMPARE):
 

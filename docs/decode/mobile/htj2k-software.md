@@ -165,6 +165,8 @@ frame is never decoded again (the OPFS cache, decided).
 
 ## 8. What a phone cell must measure
 
+**Measured, 2026-11-22** (`claude/phone-run:docs/phone-rows/next-round-results.md`, cell 1, `dbts_b1` only): 40.4 ms a frame on one decoder; effective 25.5, 18.9 and 15.5 ms at two, three and four, no saturation within four. In a fill (arm B) 52–114 ms a frame. `dbts_a1` and `dbts_c1` in memory and M16 not run.
+
 1. **Hp on the phone** for `dbts_a1`, `dbts_b1`, `dbts_c1`, frames in memory, one to four decoders (the next round's
    cell 1, `claude/phone-protocol:docs/phone-rows/next-round.md`): it replaces §3's prediction and finds where the
    phone saturates.

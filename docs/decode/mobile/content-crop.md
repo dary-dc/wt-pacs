@@ -226,6 +226,8 @@ A miss is reported as a miss beside its prediction.
 
 ## 8. The comparison's columns
 
+**Measured, 2026-11-22**: M22 not run (`claude/phone-run:docs/phone-rows/next-round-results.md`).
+
 The option is a factor on another option's row, not a row of its own. "×" is the factor on these fixtures.
 
 | column | content crop |

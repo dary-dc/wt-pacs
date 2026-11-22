@@ -202,6 +202,8 @@ further: the view is already fast enough to bind on the decode only on the phone
 
 ## 9. The comparison's columns
 
+**Measured, 2026-11-22** (`claude/phone-run:docs/phone-rows/next-round-results.md`, cell 4): `requestAdapter()` gave an adapter (`adreno-7xx`) with `subgroups` and `shader-f16`; limits not recorded; no decode (M20's rest, M21 not run).
+
 | column | this option |
 | --- | --- |
 | decode time on a phone | **unknown**; a bound: 5.3 ms a `dbts_b1` frame on S1's low-end 2017 card (D); breaks even with one software AV1 decoder if the phone's GPU is ≤ 25× slower (D) |

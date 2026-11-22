@@ -183,6 +183,8 @@ frames a second is below it, so a cine started during the fill of this series wa
 
 ## 8. What a phone cell must measure
 
+**Measured, 2026-11-22** (`claude/phone-run:docs/phone-rows/next-round-results.md`, cell 1): the view's frame 176 ms on one decoder, 110 ms each on three, 118 ms on four; effective 42.1 ms at three, 46.2 at four: it saturates at three. `hardwareConcurrency` 8. M12 past four, M13, M14 and M15 not run.
+
 Each on `dbts_b1-q8-g8` unless named, interleaved with today's form, recording `navigator.hardwareConcurrency`:
 
 1. The decoder count, 1 to `hardwareConcurrency`: a frame's decode and the fill; where the phone saturates.
