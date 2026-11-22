@@ -239,7 +239,34 @@ counted row (the judge refuses: its XXH3 differs from the rows').
 
 ## 11 · Amendments
 
-None yet.
+Written 2026-11-22 by DELIVERY-RUN (a session that wrote neither this protocol nor its build), on its host, before any
+counted row. Host: one 4-core container (Intel Xeon @ 2.10 GHz, 15 GB), full Chromium 153.0.8010.12 for the cells,
+the headless shell 157.0.8103.78 for K3 (`claude/transport-arms` `9fad9d9b`'s runner). Rows:
+`claude/delivery:lab/delivery/rows/`.
+
+* **A1 · K2 is read with the relay's guard waived** (the host forces it). Every one of K2's 27 bench loads printed the
+  guard's `VOID` (self-timing p99 4.0–14.3 ms; **measured**), though the relay's core was 4–38 % busy; idle, the same
+  relay's own check (`lab/scripts/link_impair_check.sh`, "self-timing, 20 Mbit") held p99 0.23 ms, and K3's 40 visits
+  with no decode held 0.16–0.92 ms. The bench times decodes of frames already received, so the relay's lateness does
+  not enter *d*₁ or *h*₁. `rows/K2.guard-waived.jsonl` is `rows/K2.jsonl` with that one reason removed (each such row
+  marked `guardVoid: true`; no other reason was present); `inputs.json` is computed from it.
+* **A2 · LTE's and LOSS's start.** §4.2's line through K3's two prefix medians gives a negative start on both lossy
+  forms (**measured**: LTE *S* = −5 162 ms, *G* = 9.11 Mbit/s; LOSS *S* = −2 917 ms, *G* = 4.27 Mbit/s): the first
+  prefix goes several times faster than the second (LTE 4 frames, 8.47 MB, in a median 2.28 s, ~30 Mbit/s; 16 frames,
+  34.3 MB, in 24.95 s), so the wire is not linear in bytes there and every view fill predicts below zero. Those two
+  forms are predicted instead with §4.3's start, *S* = 3 RTT + 20 ms (134 and 140 ms), and *G* from the second prefix's
+  median alone: LTE 11.05, LOSS 4.73 Mbit/s (**derived**). The line's values stay in `inputs.json` as `k3Line`.
+  *Theory, stated before any row:* a fill much shorter than the second prefix's bytes (every A, C1's fill, C1's exact
+  frame) goes faster than that *G*, so those land **below** their band on LTE and LOSS; B and C2's span, at the second
+  prefix's bytes, land in it. CLEAN, PUB and CR keep the line as written (CR's *S* = 7 478 ms absorbs the slow start
+  at an 800 ms round trip, so CR's small fills too are expected below their band, theory).
+* **A3 · Inputs more than 25 % from §4.3's** (**measured**, K2 at `decoders=2`): the view's *d*₁ is 52.6, 207.1 and
+  57.4 ms a frame on `dbts_a1`, `dbts_b1`, `dbts_c1`, about 2.1× §4.3's one-decoder 1× figures (24.6, 99.4, 27.3):
+  §4.3 took a lone decoder's time, K2 a frame's time while the other decoder also runs on the browser's two cores
+  beside the page's own thread; the cause of the factor is not established. HTJ2K's *h*₁ (one decoder) is 14.7,
+  41.8 and 14.5 ms, 26–28 % under §4.3's 19.8, 57.1, 20.1 (another host and browser build). HTJ2K's *d*₁ (16.1, 46.2,
+  15.4) and every *G* but LTE's and LOSS's (A2) are within 25 %; CR's *S* is 3.1× §4.3's 2 420 ms (A2).
+* The predictions file, `lab/delivery/predictions.json`, XXH3 `e7d61c6d15ea6bdb`, is pushed with this amendment.
 
 ---
 
