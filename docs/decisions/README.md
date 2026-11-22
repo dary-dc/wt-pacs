@@ -33,7 +33,7 @@ Inputs that are not pages: [`lab-list.md`](lab-list.md), what reads each `lab/` 
 | page | the question, in a line | rows (client queue in italics) | page due | state |
 | --- | --- | --- | --- | --- |
 | [`cache`](cache.md) | which store holds decoded frames, and may it be turned on | *CACHE-RUN, CACHE-VERDICT-REVIEW*; CACHE-PAGE | 11-22 | written 2026-11-22: cache off; §10.4's run narrowed, then P2 and P1 |
-| `transport-stack` | WebTransport, or a fetch or WebSocket stack; the server's network defaults | *TRANSPORT-RUN, TRANSPORT-VERDICT-REVIEW*; TRANSPORT-PAGE | 11-22 (11-27 at the latest) | not written |
+| [`transport-stack`](transport-stack.md) | WebTransport, or a fetch or WebSocket stack; the server's network defaults | *TRANSPORT-RUN, TRANSPORT-VERDICT-REVIEW*; TRANSPORT-PAGE | 11-22 (11-27 at the latest) | written 2026-11-22: WebTransport the one wire, no GET path; one run of WT's own flags against the fetch arms' ask; `bbr` not withdrawn |
 | `exact-frame-layout` | strips or a level picture for the exact frame | HTJ2K-A1-BUILD, -BUILD-REVIEW, HTJ2K-A1-RUN, -REVIEW; EXACT-LAYOUT-PAGE | 11-23 | not written |
 | `engines` | which results hold in Firefox and Safari | ENGINE-MATRIX, ENGINE-SMOKE, ENGINE-REVIEW; ENGINES-PAGE | 11-23 | not written |
 | `pacs-sync` | the receive path's protocol, schema and layout | SYNC-RECONCILE, RECEIVER-RANGE, STUDY-DB-TEST, their reviews; PACS-PAGE | 11-23 | not written |

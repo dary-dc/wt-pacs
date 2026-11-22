@@ -190,6 +190,8 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
    view's decode speed on a real slow device.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).
+   Each answered for the owner in [`../decisions/transport-stack.md`](../decisions/transport-stack.md) §3 (TRANSPORT-PAGE,
+   2026-11-22), with host networking (13), the 32-packet window and `bbr`'s two failures.
 7. HTJ2K with resolution levels and tiles, a separate approach outside the demo (`claude/htj2k-tiles`, protocol
    landed). Against the demo's approach (2026-11-11, theory, [`../htj2k-tiles.md`](../htj2k-tiles.md)
    §Screen resolution): on an upright phone only `dbts_b1` of the three timed volumes has a level to gain, so serving
