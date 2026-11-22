@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-22T21:17Z
-heartbeat: 2026-11-22T21:17Z
-outputs: claude/non-cine (PR 431)
+heartbeat: 2026-11-22T21:22Z
+outputs: claude/non-cine dfca84b2b (PR 431)
 ## Resume
-Claimed. Next: fix B1 and m1-m11 of PR 431's body §NON-CINE-REVIEW in docs/client/evidence/non-cine-series.md on claude/non-cine, B1 first; docs/lines/client.md gets the review's line; check_links and the comment budget.
+Fixes pushed at claude/non-cine dfca84b2b (non-cine-series.md, design.md, lines/client.md; check_links 0 unresolved, comment budget ok). Next: PR 431 body §NON-CINE-REVIEW-FIX (what each finding became), then done.
 ## Result
