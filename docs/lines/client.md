@@ -113,6 +113,7 @@ exact frame bit for bit, and only checked claims on screen.
 | #401 | stage A of the merge queue: the client line's 62 branches into `claude/merge-a-client` (2026-11-15), the gate and `demo-check.mjs` green; reviewed 2026-11-15, no blocker (`direction`'s line-doc sections owed to the plan's §6 item 5) | draft |
 | #370 | the client load report | draft; review owed |
 | #368 | the integrity and coding-error check on the label ([`optimal-quality.md`](optimal-quality.md)) | draft; the owner's |
+| #429 | the frame's fault model, theory ([`../client/evidence/integrity-model.md`](../client/evidence/integrity-model.md)) | draft; its review owed |
 | #369 | a separate proposal, kept out of the unified branch | draft |
 | #298 | the asking patterns ([`../client/evidence/what-a-view-asks-for.md`](../client/evidence/what-a-view-asks-for.md); the ADR is on `claude/core-asking-plan` only) | proposed |
 | #285 | the cache's writer arms, run: no arm passes on either engine | open |
