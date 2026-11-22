@@ -60,6 +60,16 @@ breast ultrasound cine or ABUS exists among the fixtures ([`../FIXTURES.md`](../
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
 6. Held server defaults awaiting a yes or no, listed in `line-server`'s index (#254).
+7. **An 8-bit depth cut for hardware** (amendment 14 of `claude/work-ledger:docs/queue-client-2026-11-14.md`;
+   DEPTH8-THEORY, 2026-11-14, theory): [`../av1/depth-cut-8.md`](../av1/depth-cut-8.md). The cut alone stays
+   under the noise on all 19 DBT volumes. Coded, it is predicted to cost 0.82–2.44 times today's view's bytes,
+   depending on how its rounding and the coding error stack; it buys a checked hardware path on desktop Chromium
+   only (4:2:0 grey, `NV12`). DEPTH8-MEASURE (2026-11-15, measured, §9, all 19 volumes): the 8-bit view meets the
+   noise rule at Q 3–11 and costs 1.14–1.86 times today's bytes; 4:2:0 adds +0.01–0.12 %. The desktop GPU's `NV12`
+   exactness and speed are open; whether an 8-bit view is acceptable is the owner's.
+   DEPTH8-ROUNDING (2026-11-17, measured, §10): today's view rounded to 8 bits after the decode, as an unchecked
+   hardware path paints it, reads 1.001–1.080 of σ at today's Q, over the noise rule on every volume. To meet the
+   rule it needs 1–3 rungs lower Q, at 1.17–1.83 × today's bytes, about what the checkable 8-bit cut costs.
 
 ## Decisions (the owner's)
 
