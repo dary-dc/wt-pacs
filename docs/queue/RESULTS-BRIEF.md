@@ -18,6 +18,6 @@ Done. Nothing owed by this row.
   * the evidence files those name.
 * **Checks.** Every one of the 176 commits cited resolves. No private name and no deployment host appears.
 * **Limits.**
-  * Seven readers extracted the material and this session wrote from their extracts. Spot checks only beyond the
+  * Eight readers extracted the material and this session wrote from their extracts. Spot checks only beyond the
     commit check.
   * PHONE-ROUND and REPORT-RUN-2 were still running, so their late rows are not in the brief.
