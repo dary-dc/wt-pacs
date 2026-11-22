@@ -1,0 +1,10 @@
+{"kind": "host", "event": "adb", "at": 1795380030546.5046, "args": ["start-server"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380030628.376, "args": ["shell", "settings", "get", "global", "stay_on_while_plugged_in"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380030668.0652, "args": ["shell", "settings", "put", "global", "stay_on_while_plugged_in", "7"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380030740.7454, "args": ["shell", "settings", "get", "global", "stay_on_while_plugged_in"], "code": 0, "kept": null}
+{"kind": "host", "event": "stay-on", "at": 1795380030740.9814, "was": "0", "now": "7", "holds": true}
+{"kind": "host", "event": "adb", "at": 1795380031224.286, "args": ["logcat", "-d"], "code": 0, "kept": "before-round.logcat.txt"}
+{"kind": "host", "event": "load ended", "at": 1795380061201.702, "load": 1}
+{"kind": "host", "event": "host failed", "at": 1795380061201.8704, "error": "1"}
+{"kind": "host", "event": "adb", "at": 1795380083716.619, "args": ["shell", "settings", "put", "global", "stay_on_while_plugged_in", "0"], "code": 0, "kept": null}
+{"kind": "host", "event": "stay-on restored", "at": 1795380083716.7583, "to": "0"}

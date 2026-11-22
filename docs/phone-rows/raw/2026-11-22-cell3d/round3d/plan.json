@@ -1,0 +1,1587 @@
+{
+ "commit": "f5252051c929335c121621f92a656c8865f88d78",
+ "gapS": 15,
+ "fillS": 120,
+ "budgetsS": {
+  "1": 600,
+  "2": 2100,
+  "3": 3600
+ },
+ "blocks": [
+  {
+   "name": "wifi",
+   "servers": [
+    {
+     "cmd": [
+      "WORKTREE/target/release/series-server",
+      "--port",
+      "4433",
+      "--congestion",
+      "cubic-restart",
+      "--series",
+      "WORKTREE/demo-series/dbts_b1-q8-g8.sbnd",
+      "--cert-pem",
+      "WORKTREE/server/dev-cert/cert.pem",
+      "--key-pem",
+      "WORKTREE/server/dev-cert/key.pem"
+     ],
+     "readyLine": "transport="
+    },
+    {
+     "cmd": [
+      "WORKTREE/target/release/series-server",
+      "--port",
+      "4434",
+      "--congestion",
+      "cubic-restart",
+      "--series",
+      "WORKTREE/demo-series/dbts_b1.sbnd",
+      "--cert-pem",
+      "WORKTREE/server/dev-cert/cert.pem",
+      "--key-pem",
+      "WORKTREE/server/dev-cert/key.pem"
+     ],
+     "readyLine": "transport="
+    },
+    {
+     "cmd": [
+      "python3",
+      "WORKTREE/server/dev-server.py",
+      "--bind",
+      "127.0.0.1",
+      "--port",
+      "8765",
+      "--beacon",
+      "WORKTREE/target/round3d/beacon.jsonl",
+      "--metadata",
+      "WORKTREE/demo-series/dbts_b1-q8-g8.metadata.json",
+      "--transport",
+      "WORKTREE/target/round3d/t-4433.json",
+      "--exact-metadata",
+      "WORKTREE/demo-series/dbts_b1.metadata.json",
+      "--exact-transport",
+      "WORKTREE/target/round3d/t-4434.json"
+     ],
+     "ready": "http://127.0.0.1:8765/"
+    },
+    {
+     "cmd": [
+      "python3",
+      "WORKTREE/server/dev-server.py",
+      "--bind",
+      "127.0.0.1",
+      "--port",
+      "8767",
+      "--beacon",
+      "WORKTREE/target/round3d/beacon.jsonl",
+      "--metadata",
+      "WORKTREE/demo-series/dbts_b1.metadata.json",
+      "--transport",
+      "WORKTREE/target/round3d/t-4434.json"
+     ],
+     "ready": "http://127.0.0.1:8767/"
+    },
+    {
+     "cmd": [
+      "WORKTREE/target/release/series-server",
+      "--port",
+      "4435",
+      "--congestion",
+      "cubic-restart",
+      "--series",
+      "WORKTREE/demo-series/dbts_a1-q8-g8-cut.sbnd",
+      "--cert-pem",
+      "WORKTREE/server/dev-cert/cert.pem",
+      "--key-pem",
+      "WORKTREE/server/dev-cert/key.pem"
+     ],
+     "readyLine": "transport="
+    },
+    {
+     "cmd": [
+      "WORKTREE/target/release/series-server",
+      "--port",
+      "4436",
+      "--congestion",
+      "cubic-restart",
+      "--series",
+      "WORKTREE/demo-series/dbts_a1.sbnd",
+      "--cert-pem",
+      "WORKTREE/server/dev-cert/cert.pem",
+      "--key-pem",
+      "WORKTREE/server/dev-cert/key.pem"
+     ],
+     "readyLine": "transport="
+    },
+    {
+     "cmd": [
+      "python3",
+      "WORKTREE/server/dev-server.py",
+      "--bind",
+      "127.0.0.1",
+      "--port",
+      "8766",
+      "--beacon",
+      "WORKTREE/target/round3d/beacon.jsonl",
+      "--metadata",
+      "WORKTREE/demo-series/dbts_a1-q8-g8-cut.metadata.json",
+      "--transport",
+      "WORKTREE/target/round3d/t-4435.json",
+      "--exact-metadata",
+      "WORKTREE/demo-series/dbts_a1.metadata.json",
+      "--exact-transport",
+      "WORKTREE/target/round3d/t-4436.json"
+     ],
+     "ready": "http://127.0.0.1:8766/"
+    },
+    {
+     "cmd": [
+      "python3",
+      "WORKTREE/server/dev-server.py",
+      "--bind",
+      "127.0.0.1",
+      "--port",
+      "8768",
+      "--beacon",
+      "WORKTREE/target/round3d/beacon.jsonl",
+      "--metadata",
+      "WORKTREE/demo-series/dbts_a1.metadata.json",
+      "--transport",
+      "WORKTREE/target/round3d/t-4436.json"
+     ],
+     "ready": "http://127.0.0.1:8768/"
+    }
+   ],
+   "loads": [
+    {
+     "cell": "1",
+     "arm": "htj2k-1",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 1,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-2",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 2,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-4",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 4,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-3",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 3,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-3",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 3,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-4",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 4,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-2",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 2,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-1",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 1,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-2",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 2,
+     "counted": true,
+     "rep": 1,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-3",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 3,
+     "counted": true,
+     "rep": 1,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-1",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 1,
+     "counted": true,
+     "rep": 1,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-4",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 4,
+     "counted": true,
+     "rep": 1,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-4",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 4,
+     "counted": true,
+     "rep": 1,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-1",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 1,
+     "counted": true,
+     "rep": 1,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-3",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 3,
+     "counted": true,
+     "rep": 1,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-2",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 2,
+     "counted": true,
+     "rep": 1,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-3",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 3,
+     "counted": true,
+     "rep": 2,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-4",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 4,
+     "counted": true,
+     "rep": 2,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-2",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 2,
+     "counted": true,
+     "rep": 2,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-1",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 1,
+     "counted": true,
+     "rep": 2,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-1",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 1,
+     "counted": true,
+     "rep": 2,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-2",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 2,
+     "counted": true,
+     "rep": 2,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-4",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 4,
+     "counted": true,
+     "rep": 2,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-3",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 3,
+     "counted": true,
+     "rep": 2,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "counted": false,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "counted": false,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "counted": false,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "counted": false,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 0,
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 0,
+     "counted": true,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 0,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 0,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 1,
+     "counted": true,
+     "url": "http://127.0.0.1:8768/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 1,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 1,
+     "counted": true,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 1,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 2,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 2,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 2,
+     "counted": true,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 2,
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 3,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 3,
+     "counted": true,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 3,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 3,
+     "counted": true,
+     "url": "http://127.0.0.1:8768/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 4,
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 4,
+     "counted": true,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 4,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 4,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 5,
+     "counted": true,
+     "url": "http://127.0.0.1:8768/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 5,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 5,
+     "counted": true,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 5,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 6,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 6,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 6,
+     "counted": true,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 6,
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 7,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 7,
+     "counted": true,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 7,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 7,
+     "counted": true,
+     "url": "http://127.0.0.1:8768/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 8,
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 8,
+     "counted": true,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 8,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 8,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 9,
+     "counted": true,
+     "url": "http://127.0.0.1:8768/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 9,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 9,
+     "counted": true,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 9,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 10,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 10,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 10,
+     "counted": true,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 10,
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 11,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 11,
+     "counted": true,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 11,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 11,
+     "counted": true,
+     "url": "http://127.0.0.1:8768/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 12,
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 12,
+     "counted": true,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 12,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 12,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 13,
+     "counted": true,
+     "url": "http://127.0.0.1:8768/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 13,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 13,
+     "counted": true,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 13,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 14,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 14,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 14,
+     "counted": true,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 14,
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 15,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 15,
+     "counted": true,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 15,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 15,
+     "counted": true,
+     "url": "http://127.0.0.1:8768/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 0,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 0,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 1,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 1,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 2,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 2,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 3,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 3,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 4,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 4,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 5,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 5,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 6,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 6,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 7,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 7,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 8,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 8,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 9,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 9,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 10,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 10,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 11,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 11,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 12,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 12,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 13,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 13,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 14,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 14,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 15,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 15,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 16,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 16,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 17,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 17,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 18,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 18,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 19,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 19,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 20,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 20,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 21,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 21,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 22,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 22,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 23,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 23,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-1",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 1,
+     "counted": true,
+     "drift": true,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-3",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 3,
+     "counted": true,
+     "drift": true,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-1",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 1,
+     "counted": true,
+     "drift": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-3",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 3,
+     "counted": true,
+     "drift": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    }
+   ]
+  }
+ ]
+}

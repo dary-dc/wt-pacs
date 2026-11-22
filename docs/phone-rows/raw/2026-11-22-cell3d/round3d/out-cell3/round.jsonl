@@ -1,0 +1,284 @@
+{"kind": "host", "event": "adb", "at": 1795380351367.0872, "args": ["start-server"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380351448.2593, "args": ["shell", "settings", "get", "global", "stay_on_while_plugged_in"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380351510.4602, "args": ["shell", "settings", "put", "global", "stay_on_while_plugged_in", "7"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380351604.3586, "args": ["shell", "settings", "get", "global", "stay_on_while_plugged_in"], "code": 0, "kept": null}
+{"kind": "host", "event": "stay-on", "at": 1795380351604.452, "was": "7", "now": "7", "holds": true}
+{"kind": "host", "event": "adb", "at": 1795380351693.5984, "args": ["logcat", "-d"], "code": 0, "kept": "before-round.logcat.txt"}
+{"kind": "host", "event": "block", "at": 1795380377321.2727, "block": 0, "name": "wifi"}
+{"kind": "host", "event": "adb", "at": 1795380377396.7725, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380377443.4932, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "000-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380377483.2253, "args": ["shell", "cat", "/proc/9852/stat"], "code": 0, "kept": "000-before-9852.stat"}
+{"kind": "host", "event": "adb", "at": 1795380377522.9802, "args": ["shell", "cat", "/proc/9924/stat"], "code": 0, "kept": "000-before-9924.stat"}
+{"kind": "host", "event": "adb", "at": 1795380377563.4856, "args": ["shell", "cat", "/proc/11102/stat"], "code": 0, "kept": "000-before-11102.stat"}
+{"kind": "host", "event": "adb", "at": 1795380377592.114, "args": ["shell", "cat", "/proc/11171/stat"], "code": 0, "kept": "000-before-11171.stat"}
+{"kind": "host", "event": "adb", "at": 1795380377632.1855, "args": ["shell", "cat", "/proc/13608/stat"], "code": 0, "kept": "000-before-13608.stat"}
+{"kind": "host", "event": "adb", "at": 1795380377666.6074, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "000-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795380377666.7458, "load": 0}
+{"kind": "host", "event": "load ended", "at": 1795380410528.5525, "load": 0}
+{"kind": "host", "event": "adb", "at": 1795380410605.417, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380410626.2285, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "000-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380410641.6885, "args": ["shell", "cat", "/proc/9852/stat"], "code": 0, "kept": "000-after-9852.stat"}
+{"kind": "host", "event": "adb", "at": 1795380410679.7654, "args": ["shell", "cat", "/proc/9924/stat"], "code": 0, "kept": "000-after-9924.stat"}
+{"kind": "host", "event": "adb", "at": 1795380410721.5618, "args": ["shell", "cat", "/proc/11102/stat"], "code": 0, "kept": "000-after-11102.stat"}
+{"kind": "host", "event": "adb", "at": 1795380410759.1125, "args": ["shell", "cat", "/proc/11171/stat"], "code": 0, "kept": "000-after-11171.stat"}
+{"kind": "host", "event": "adb", "at": 1795380410790.6895, "args": ["shell", "cat", "/proc/13654/stat"], "code": 0, "kept": "000-after-13654.stat"}
+{"kind": "host", "event": "adb", "at": 1795380410814.673, "args": ["shell", "cat", "/proc/14067/stat"], "code": 0, "kept": "000-after-14067.stat"}
+{"kind": "host", "event": "adb", "at": 1795380410829.0076, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "000-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795380410951.2886, "args": ["logcat", "-d"], "code": 0, "kept": "000-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795380411080.0364, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380426154.7556, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380426216.4106, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "001-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380426264.9485, "args": ["shell", "cat", "/proc/14181/stat"], "code": 0, "kept": "001-before-14181.stat"}
+{"kind": "host", "event": "adb", "at": 1795380426329.824, "args": ["shell", "cat", "/proc/14235/stat"], "code": 0, "kept": "001-before-14235.stat"}
+{"kind": "host", "event": "adb", "at": 1795380426361.3323, "args": ["shell", "cat", "/proc/14261/stat"], "code": 0, "kept": "001-before-14261.stat"}
+{"kind": "host", "event": "adb", "at": 1795380426421.3213, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "001-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795380426421.3816, "load": 1}
+{"kind": "host", "event": "load ended", "at": 1795380459897.6243, "load": 1}
+{"kind": "host", "event": "adb", "at": 1795380459978.3386, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380460010.0986, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "001-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380460046.584, "args": ["shell", "cat", "/proc/14181/stat"], "code": 0, "kept": "001-after-14181.stat"}
+{"kind": "host", "event": "adb", "at": 1795380460097.1235, "args": ["shell", "cat", "/proc/14261/stat"], "code": 0, "kept": "001-after-14261.stat"}
+{"kind": "host", "event": "adb", "at": 1795380460133.9377, "args": ["shell", "cat", "/proc/14375/stat"], "code": 0, "kept": "001-after-14375.stat"}
+{"kind": "host", "event": "adb", "at": 1795380460173.97, "args": ["shell", "cat", "/proc/14812/stat"], "code": 0, "kept": "001-after-14812.stat"}
+{"kind": "host", "event": "adb", "at": 1795380460209.806, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "001-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795380460293.6357, "args": ["logcat", "-d"], "code": 0, "kept": "001-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795380460422.157, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380475497.3115, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380475529.9417, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "002-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380475585.6594, "args": ["shell", "cat", "/proc/14907/stat"], "code": 0, "kept": "002-before-14907.stat"}
+{"kind": "host", "event": "adb", "at": 1795380475623.6873, "args": ["shell", "cat", "/proc/14960/stat"], "code": 0, "kept": "002-before-14960.stat"}
+{"kind": "host", "event": "adb", "at": 1795380475654.0269, "args": ["shell", "cat", "/proc/14984/stat"], "code": 0, "kept": "002-before-14984.stat"}
+{"kind": "host", "event": "adb", "at": 1795380475703.2695, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "002-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795380475703.3933, "load": 2}
+{"kind": "host", "event": "load ended", "at": 1795380508571.3777, "load": 2}
+{"kind": "host", "event": "adb", "at": 1795380508660.7454, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380508677.9905, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "002-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380508724.3455, "args": ["shell", "cat", "/proc/14907/stat"], "code": 0, "kept": "002-after-14907.stat"}
+{"kind": "host", "event": "adb", "at": 1795380508777.7842, "args": ["shell", "cat", "/proc/14984/stat"], "code": 0, "kept": "002-after-14984.stat"}
+{"kind": "host", "event": "adb", "at": 1795380508813.0703, "args": ["shell", "cat", "/proc/15087/stat"], "code": 0, "kept": "002-after-15087.stat"}
+{"kind": "host", "event": "adb", "at": 1795380508851.281, "args": ["shell", "cat", "/proc/15520/stat"], "code": 0, "kept": "002-after-15520.stat"}
+{"kind": "host", "event": "adb", "at": 1795380508887.1174, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "002-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795380508949.8352, "args": ["logcat", "-d"], "code": 0, "kept": "002-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795380509076.7224, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380524153.891, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380524219.2966, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "003-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380524249.1477, "args": ["shell", "cat", "/proc/15616/stat"], "code": 0, "kept": "003-before-15616.stat"}
+{"kind": "host", "event": "adb", "at": 1795380524305.3738, "args": ["shell", "cat", "/proc/15669/stat"], "code": 0, "kept": "003-before-15669.stat"}
+{"kind": "host", "event": "adb", "at": 1795380524342.7073, "args": ["shell", "cat", "/proc/15690/stat"], "code": 0, "kept": "003-before-15690.stat"}
+{"kind": "host", "event": "adb", "at": 1795380524402.2065, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "003-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795380524402.3223, "load": 3}
+{"kind": "host", "event": "load ended", "at": 1795380558287.4834, "load": 3}
+{"kind": "host", "event": "adb", "at": 1795380558344.5862, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380558379.845, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "003-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380558397.6765, "args": ["shell", "cat", "/proc/15616/stat"], "code": 0, "kept": "003-after-15616.stat"}
+{"kind": "host", "event": "adb", "at": 1795380558440.194, "args": ["shell", "cat", "/proc/15690/stat"], "code": 0, "kept": "003-after-15690.stat"}
+{"kind": "host", "event": "adb", "at": 1795380558495.0725, "args": ["shell", "cat", "/proc/15793/stat"], "code": 0, "kept": "003-after-15793.stat"}
+{"kind": "host", "event": "adb", "at": 1795380558520.8403, "args": ["shell", "cat", "/proc/16204/stat"], "code": 0, "kept": "003-after-16204.stat"}
+{"kind": "host", "event": "adb", "at": 1795380558546.193, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "003-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795380558626.1892, "args": ["logcat", "-d"], "code": 0, "kept": "003-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795380558740.5317, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380573799.6067, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380573837.7488, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "004-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380573865.3005, "args": ["shell", "cat", "/proc/16297/stat"], "code": 0, "kept": "004-before-16297.stat"}
+{"kind": "host", "event": "adb", "at": 1795380573896.935, "args": ["shell", "cat", "/proc/16348/stat"], "code": 0, "kept": "004-before-16348.stat"}
+{"kind": "host", "event": "adb", "at": 1795380573951.6536, "args": ["shell", "cat", "/proc/16371/stat"], "code": 0, "kept": "004-before-16371.stat"}
+{"kind": "host", "event": "adb", "at": 1795380573990.514, "args": ["shell", "cat", "/proc/16459/stat"], "code": 1, "kept": "004-before-16459.stat"}
+{"kind": "host", "event": "adb", "at": 1795380574046.7688, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "004-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795380574046.8274, "load": 4}
+{"kind": "host", "event": "load ended", "at": 1795380606690.8132, "load": 4}
+{"kind": "host", "event": "adb", "at": 1795380606761.7156, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380606793.954, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "004-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380606826.2625, "args": ["shell", "cat", "/proc/16297/stat"], "code": 0, "kept": "004-after-16297.stat"}
+{"kind": "host", "event": "adb", "at": 1795380606879.7239, "args": ["shell", "cat", "/proc/16371/stat"], "code": 0, "kept": "004-after-16371.stat"}
+{"kind": "host", "event": "adb", "at": 1795380606905.4697, "args": ["shell", "cat", "/proc/16493/stat"], "code": 0, "kept": "004-after-16493.stat"}
+{"kind": "host", "event": "adb", "at": 1795380606929.0361, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "004-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795380606997.175, "args": ["logcat", "-d"], "code": 0, "kept": "004-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795380607113.1228, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380622187.3923, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380622231.5215, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "005-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380622281.3628, "args": ["shell", "cat", "/proc/16976/stat"], "code": 0, "kept": "005-before-16976.stat"}
+{"kind": "host", "event": "adb", "at": 1795380622331.6626, "args": ["shell", "cat", "/proc/17027/stat"], "code": 0, "kept": "005-before-17027.stat"}
+{"kind": "host", "event": "adb", "at": 1795380622388.0737, "args": ["shell", "cat", "/proc/17050/stat"], "code": 0, "kept": "005-before-17050.stat"}
+{"kind": "host", "event": "adb", "at": 1795380622424.6367, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "005-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795380622424.6843, "load": 5}
+{"kind": "host", "event": "load ended", "at": 1795380655747.0815, "load": 5}
+{"kind": "host", "event": "adb", "at": 1795380655819.7937, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380655849.777, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "005-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380655898.004, "args": ["shell", "cat", "/proc/16976/stat"], "code": 0, "kept": "005-after-16976.stat"}
+{"kind": "host", "event": "adb", "at": 1795380655939.4849, "args": ["shell", "cat", "/proc/17050/stat"], "code": 0, "kept": "005-after-17050.stat"}
+{"kind": "host", "event": "adb", "at": 1795380655971.4192, "args": ["shell", "cat", "/proc/17155/stat"], "code": 0, "kept": "005-after-17155.stat"}
+{"kind": "host", "event": "adb", "at": 1795380656023.415, "args": ["shell", "cat", "/proc/17573/stat"], "code": 0, "kept": "005-after-17573.stat"}
+{"kind": "host", "event": "adb", "at": 1795380656067.2388, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "005-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795380656138.1138, "args": ["logcat", "-d"], "code": 0, "kept": "005-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795380656275.8525, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380671353.1553, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380671379.2756, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "006-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380671450.725, "args": ["shell", "cat", "/proc/17671/stat"], "code": 0, "kept": "006-before-17671.stat"}
+{"kind": "host", "event": "adb", "at": 1795380671481.4666, "args": ["shell", "cat", "/proc/17723/stat"], "code": 0, "kept": "006-before-17723.stat"}
+{"kind": "host", "event": "adb", "at": 1795380671529.9246, "args": ["shell", "cat", "/proc/17747/stat"], "code": 0, "kept": "006-before-17747.stat"}
+{"kind": "host", "event": "adb", "at": 1795380671576.5203, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "006-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795380671576.6248, "load": 6}
+{"kind": "host", "event": "load ended", "at": 1795380704525.152, "load": 6}
+{"kind": "host", "event": "adb", "at": 1795380704584.6204, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380704606.3997, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "006-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380704646.4138, "args": ["shell", "cat", "/proc/17671/stat"], "code": 0, "kept": "006-after-17671.stat"}
+{"kind": "host", "event": "adb", "at": 1795380704691.1758, "args": ["shell", "cat", "/proc/17747/stat"], "code": 0, "kept": "006-after-17747.stat"}
+{"kind": "host", "event": "adb", "at": 1795380704731.1956, "args": ["shell", "cat", "/proc/17854/stat"], "code": 0, "kept": "006-after-17854.stat"}
+{"kind": "host", "event": "adb", "at": 1795380704754.9873, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "006-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795380704838.728, "args": ["logcat", "-d"], "code": 0, "kept": "006-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795380704963.7998, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380720041.627, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380720102.5774, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "007-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380720163.2249, "args": ["shell", "cat", "/proc/18402/stat"], "code": 0, "kept": "007-before-18402.stat"}
+{"kind": "host", "event": "adb", "at": 1795380720199.6885, "args": ["shell", "cat", "/proc/18456/stat"], "code": 0, "kept": "007-before-18456.stat"}
+{"kind": "host", "event": "adb", "at": 1795380720256.7742, "args": ["shell", "cat", "/proc/18479/stat"], "code": 0, "kept": "007-before-18479.stat"}
+{"kind": "host", "event": "adb", "at": 1795380720293.8025, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "007-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795380720293.9727, "load": 7}
+{"kind": "host", "event": "load ended", "at": 1795380752944.7688, "load": 7}
+{"kind": "host", "event": "adb", "at": 1795380753016.1274, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380753050.2517, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "007-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380753087.5498, "args": ["shell", "cat", "/proc/18402/stat"], "code": 0, "kept": "007-after-18402.stat"}
+{"kind": "host", "event": "adb", "at": 1795380753138.098, "args": ["shell", "cat", "/proc/18479/stat"], "code": 0, "kept": "007-after-18479.stat"}
+{"kind": "host", "event": "adb", "at": 1795380753179.5928, "args": ["shell", "cat", "/proc/18592/stat"], "code": 0, "kept": "007-after-18592.stat"}
+{"kind": "host", "event": "adb", "at": 1795380753210.2874, "args": ["shell", "cat", "/proc/18983/stat"], "code": 0, "kept": "007-after-18983.stat"}
+{"kind": "host", "event": "adb", "at": 1795380753245.9998, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "007-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795380753310.0789, "args": ["logcat", "-d"], "code": 0, "kept": "007-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795380753451.9087, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380768522.9465, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380768561.239, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "008-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380768619.9492, "args": ["shell", "cat", "/proc/19078/stat"], "code": 0, "kept": "008-before-19078.stat"}
+{"kind": "host", "event": "adb", "at": 1795380768650.1125, "args": ["shell", "cat", "/proc/19135/stat"], "code": 0, "kept": "008-before-19135.stat"}
+{"kind": "host", "event": "adb", "at": 1795380768704.3357, "args": ["shell", "cat", "/proc/19161/stat"], "code": 0, "kept": "008-before-19161.stat"}
+{"kind": "host", "event": "adb", "at": 1795380768742.4888, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "008-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795380768742.5647, "load": 8}
+{"kind": "host", "event": "load ended", "at": 1795380803020.3772, "load": 8}
+{"kind": "host", "event": "adb", "at": 1795380803099.1008, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380803141.6301, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "008-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380803192.9426, "args": ["shell", "cat", "/proc/19078/stat"], "code": 0, "kept": "008-after-19078.stat"}
+{"kind": "host", "event": "adb", "at": 1795380803225.655, "args": ["shell", "cat", "/proc/19161/stat"], "code": 0, "kept": "008-after-19161.stat"}
+{"kind": "host", "event": "adb", "at": 1795380803270.2341, "args": ["shell", "cat", "/proc/19262/stat"], "code": 0, "kept": "008-after-19262.stat"}
+{"kind": "host", "event": "adb", "at": 1795380803293.962, "args": ["shell", "cat", "/proc/19662/stat"], "code": 0, "kept": "008-after-19662.stat"}
+{"kind": "host", "event": "adb", "at": 1795380803317.2917, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "008-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795380803388.6965, "args": ["logcat", "-d"], "code": 0, "kept": "008-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795380803500.6611, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380818574.2102, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380818617.2935, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "009-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380818675.6711, "args": ["shell", "cat", "/proc/19759/stat"], "code": 0, "kept": "009-before-19759.stat"}
+{"kind": "host", "event": "adb", "at": 1795380818711.9817, "args": ["shell", "cat", "/proc/19808/stat"], "code": 0, "kept": "009-before-19808.stat"}
+{"kind": "host", "event": "adb", "at": 1795380818770.4138, "args": ["shell", "cat", "/proc/19833/stat"], "code": 0, "kept": "009-before-19833.stat"}
+{"kind": "host", "event": "adb", "at": 1795380818807.4043, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "009-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795380818807.473, "load": 9}
+{"kind": "host", "event": "load ended", "at": 1795380852996.6392, "load": 9}
+{"kind": "host", "event": "adb", "at": 1795380853074.945, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380853097.2576, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "009-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380853118.435, "args": ["shell", "cat", "/proc/19759/stat"], "code": 0, "kept": "009-after-19759.stat"}
+{"kind": "host", "event": "adb", "at": 1795380853160.188, "args": ["shell", "cat", "/proc/19833/stat"], "code": 0, "kept": "009-after-19833.stat"}
+{"kind": "host", "event": "adb", "at": 1795380853209.0686, "args": ["shell", "cat", "/proc/19943/stat"], "code": 0, "kept": "009-after-19943.stat"}
+{"kind": "host", "event": "adb", "at": 1795380853255.71, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "009-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795380853338.1533, "args": ["logcat", "-d"], "code": 0, "kept": "009-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795380853462.7402, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380868538.6497, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380868582.962, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "010-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380868644.8542, "args": ["shell", "cat", "/proc/20499/stat"], "code": 0, "kept": "010-before-20499.stat"}
+{"kind": "host", "event": "adb", "at": 1795380868688.9556, "args": ["shell", "cat", "/proc/20560/stat"], "code": 0, "kept": "010-before-20560.stat"}
+{"kind": "host", "event": "adb", "at": 1795380868727.8113, "args": ["shell", "cat", "/proc/20586/stat"], "code": 0, "kept": "010-before-20586.stat"}
+{"kind": "host", "event": "adb", "at": 1795380868775.2427, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "010-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795380868775.355, "load": 10}
+{"kind": "host", "event": "load ended", "at": 1795380903117.1782, "load": 10}
+{"kind": "host", "event": "adb", "at": 1795380903225.145, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380903260.5732, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "010-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380903318.7366, "args": ["shell", "cat", "/proc/20499/stat"], "code": 0, "kept": "010-after-20499.stat"}
+{"kind": "host", "event": "adb", "at": 1795380903340.6714, "args": ["shell", "cat", "/proc/20586/stat"], "code": 0, "kept": "010-after-20586.stat"}
+{"kind": "host", "event": "adb", "at": 1795380903375.3765, "args": ["shell", "cat", "/proc/20694/stat"], "code": 0, "kept": "010-after-20694.stat"}
+{"kind": "host", "event": "adb", "at": 1795380903403.723, "args": ["shell", "cat", "/proc/21151/stat"], "code": 0, "kept": "010-after-21151.stat"}
+{"kind": "host", "event": "adb", "at": 1795380903437.9622, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "010-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795380903503.6426, "args": ["logcat", "-d"], "code": 0, "kept": "010-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795380903642.4482, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380918725.268, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380918763.6943, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "011-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380918830.705, "args": ["shell", "cat", "/proc/21246/stat"], "code": 0, "kept": "011-before-21246.stat"}
+{"kind": "host", "event": "adb", "at": 1795380918870.1353, "args": ["shell", "cat", "/proc/21299/stat"], "code": 0, "kept": "011-before-21299.stat"}
+{"kind": "host", "event": "adb", "at": 1795380918934.1626, "args": ["shell", "cat", "/proc/21323/stat"], "code": 0, "kept": "011-before-21323.stat"}
+{"kind": "host", "event": "adb", "at": 1795380918971.2683, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "011-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795380918971.3923, "load": 11}
+{"kind": "host", "event": "load ended", "at": 1795380952236.3506, "load": 11}
+{"kind": "host", "event": "adb", "at": 1795380952308.2644, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380952345.3164, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "011-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380952388.6821, "args": ["shell", "cat", "/proc/21246/stat"], "code": 0, "kept": "011-after-21246.stat"}
+{"kind": "host", "event": "adb", "at": 1795380952425.0283, "args": ["shell", "cat", "/proc/21323/stat"], "code": 0, "kept": "011-after-21323.stat"}
+{"kind": "host", "event": "adb", "at": 1795380952475.8591, "args": ["shell", "cat", "/proc/21423/stat"], "code": 0, "kept": "011-after-21423.stat"}
+{"kind": "host", "event": "adb", "at": 1795380952509.0818, "args": ["shell", "cat", "/proc/21953/stat"], "code": 0, "kept": "011-after-21953.stat"}
+{"kind": "host", "event": "adb", "at": 1795380952531.9895, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "011-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795380952601.9126, "args": ["logcat", "-d"], "code": 0, "kept": "011-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795380952724.9001, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380967807.723, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795380967875.5256, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "012-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795380967923.4182, "args": ["shell", "cat", "/proc/22051/stat"], "code": 0, "kept": "012-before-22051.stat"}
+{"kind": "host", "event": "adb", "at": 1795380967961.544, "args": ["shell", "cat", "/proc/22102/stat"], "code": 0, "kept": "012-before-22102.stat"}
+{"kind": "host", "event": "adb", "at": 1795380968022.3005, "args": ["shell", "cat", "/proc/22124/stat"], "code": 0, "kept": "012-before-22124.stat"}
+{"kind": "host", "event": "adb", "at": 1795380968058.6316, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "012-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795380968058.6824, "load": 12}
+{"kind": "host", "event": "load ended", "at": 1795381002164.7637, "load": 12}
+{"kind": "host", "event": "adb", "at": 1795381002215.779, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795381002237.7979, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "012-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795381002283.6995, "args": ["shell", "cat", "/proc/22051/stat"], "code": 0, "kept": "012-after-22051.stat"}
+{"kind": "host", "event": "adb", "at": 1795381002320.7295, "args": ["shell", "cat", "/proc/22124/stat"], "code": 0, "kept": "012-after-22124.stat"}
+{"kind": "host", "event": "adb", "at": 1795381002345.5151, "args": ["shell", "cat", "/proc/22228/stat"], "code": 0, "kept": "012-after-22228.stat"}
+{"kind": "host", "event": "adb", "at": 1795381002364.3223, "args": ["shell", "cat", "/proc/22693/stat"], "code": 0, "kept": "012-after-22693.stat"}
+{"kind": "host", "event": "adb", "at": 1795381002387.1846, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "012-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795381002453.4778, "args": ["logcat", "-d"], "code": 0, "kept": "012-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795381002579.7112, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795381017665.3633, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795381017688.9424, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "013-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795381017719.1853, "args": ["shell", "cat", "/proc/22809/stat"], "code": 0, "kept": "013-before-22809.stat"}
+{"kind": "host", "event": "adb", "at": 1795381017760.941, "args": ["shell", "cat", "/proc/22885/stat"], "code": 0, "kept": "013-before-22885.stat"}
+{"kind": "host", "event": "adb", "at": 1795381017795.6177, "args": ["shell", "cat", "/proc/22931/stat"], "code": 0, "kept": "013-before-22931.stat"}
+{"kind": "host", "event": "adb", "at": 1795381017838.6392, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "013-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795381017838.762, "load": 13}
+{"kind": "host", "event": "load ended", "at": 1795381051642.469, "load": 13}
+{"kind": "host", "event": "adb", "at": 1795381051715.9883, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795381051739.1365, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "013-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795381051778.8333, "args": ["shell", "cat", "/proc/22809/stat"], "code": 0, "kept": "013-after-22809.stat"}
+{"kind": "host", "event": "adb", "at": 1795381051823.1924, "args": ["shell", "cat", "/proc/22931/stat"], "code": 0, "kept": "013-after-22931.stat"}
+{"kind": "host", "event": "adb", "at": 1795381051847.5867, "args": ["shell", "cat", "/proc/23089/stat"], "code": 0, "kept": "013-after-23089.stat"}
+{"kind": "host", "event": "adb", "at": 1795381051870.9883, "args": ["shell", "cat", "/proc/23526/stat"], "code": 0, "kept": "013-after-23526.stat"}
+{"kind": "host", "event": "adb", "at": 1795381051891.4336, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "013-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795381051986.845, "args": ["logcat", "-d"], "code": 0, "kept": "013-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795381052119.589, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795381067201.1382, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795381067239.5986, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "014-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795381067281.172, "args": ["shell", "cat", "/proc/23633/stat"], "code": 0, "kept": "014-before-23633.stat"}
+{"kind": "host", "event": "adb", "at": 1795381067317.4219, "args": ["shell", "cat", "/proc/23682/stat"], "code": 0, "kept": "014-before-23682.stat"}
+{"kind": "host", "event": "adb", "at": 1795381067371.057, "args": ["shell", "cat", "/proc/23705/stat"], "code": 0, "kept": "014-before-23705.stat"}
+{"kind": "host", "event": "adb", "at": 1795381067403.618, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "014-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795381067403.7703, "load": 14}
+{"kind": "host", "event": "load ended", "at": 1795381101796.4424, "load": 14}
+{"kind": "host", "event": "adb", "at": 1795381101878.8628, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795381101907.2524, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "014-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795381101948.8486, "args": ["shell", "cat", "/proc/23633/stat"], "code": 0, "kept": "014-after-23633.stat"}
+{"kind": "host", "event": "adb", "at": 1795381101971.9775, "args": ["shell", "cat", "/proc/23705/stat"], "code": 0, "kept": "014-after-23705.stat"}
+{"kind": "host", "event": "adb", "at": 1795381102015.1138, "args": ["shell", "cat", "/proc/23813/stat"], "code": 0, "kept": "014-after-23813.stat"}
+{"kind": "host", "event": "adb", "at": 1795381102053.0269, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "014-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795381102131.7705, "args": ["logcat", "-d"], "code": 0, "kept": "014-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795381102271.2803, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795381117352.9126, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795381117387.2185, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "015-before-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795381117448.9705, "args": ["shell", "cat", "/proc/24362/stat"], "code": 0, "kept": "015-before-24362.stat"}
+{"kind": "host", "event": "adb", "at": 1795381117514.207, "args": ["shell", "cat", "/proc/24420/stat"], "code": 0, "kept": "015-before-24420.stat"}
+{"kind": "host", "event": "adb", "at": 1795381117564.637, "args": ["shell", "cat", "/proc/24446/stat"], "code": 0, "kept": "015-before-24446.stat"}
+{"kind": "host", "event": "adb", "at": 1795381117624.7898, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "015-before-30938.stat"}
+{"kind": "host", "event": "load opened", "at": 1795381117624.862, "load": 15}
+{"kind": "host", "event": "load ended", "at": 1795381152108.3328, "load": 15}
+{"kind": "host", "event": "adb", "at": 1795381152169.6755, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795381152209.1692, "args": ["shell", "cat", "/proc/5898/stat"], "code": 0, "kept": "015-after-5898.stat"}
+{"kind": "host", "event": "adb", "at": 1795381152258.7659, "args": ["shell", "cat", "/proc/24362/stat"], "code": 0, "kept": "015-after-24362.stat"}
+{"kind": "host", "event": "adb", "at": 1795381152308.9492, "args": ["shell", "cat", "/proc/24446/stat"], "code": 0, "kept": "015-after-24446.stat"}
+{"kind": "host", "event": "adb", "at": 1795381152358.1902, "args": ["shell", "cat", "/proc/24557/stat"], "code": 0, "kept": "015-after-24557.stat"}
+{"kind": "host", "event": "adb", "at": 1795381152405.1123, "args": ["shell", "cat", "/proc/24968/stat"], "code": 0, "kept": "015-after-24968.stat"}
+{"kind": "host", "event": "adb", "at": 1795381152447.8357, "args": ["shell", "cat", "/proc/30938/stat"], "code": 0, "kept": "015-after-30938.stat"}
+{"kind": "host", "event": "adb", "at": 1795381152547.2998, "args": ["logcat", "-d"], "code": 0, "kept": "015-after.logcat.txt"}
+{"kind": "host", "event": "adb", "at": 1795381152683.2917, "args": ["logcat", "-c"], "code": 0, "kept": null}
+{"kind": "host", "event": "adb", "at": 1795381715765.2012, "args": ["shell", "ps", "-A", "-o", "PID,NAME"], "code": 1, "kept": null}
+{"kind": "host", "event": "load opened", "at": 1795381715765.3547, "load": 16}
+{"kind": "host", "event": "adb", "at": 1795382059172.3325, "args": ["shell", "settings", "put", "global", "stay_on_while_plugged_in", "7"], "code": 1, "kept": null}
+{"kind": "host", "event": "stay-on restored", "at": 1795382059172.4167, "to": "7"}

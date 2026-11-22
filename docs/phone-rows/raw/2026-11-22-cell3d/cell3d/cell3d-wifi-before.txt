@@ -1,0 +1,1 @@
+band: 5 GHz, Wi-Fi standard: 11ac, RSSI: -28, Link speed: 650Mbps, Tx Link speed: 650Mbps, Rx Link speed: 702Mbps, Frequency: 5280MHz
