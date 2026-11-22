@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-22 (the cache's and the engines' decision pages), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-22 (the cache's, the engines' and the client calls' decision pages; `readMin`'s cut-stream fix found lost from the tree by merge `dd681539`, [`../decisions/client-calls.md`](../decisions/client-calls.md) §3.2), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
