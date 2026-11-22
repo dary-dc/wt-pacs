@@ -114,7 +114,9 @@ structural. The cache's six lines: [`../decisions/cache.md`](../decisions/cache.
 cache off; `cache-plan.md` §10.4 narrowed to items 1, 3 and 4, then the phone's P2 and P1). The engines' six lines:
 [`../decisions/engines.md`](../decisions/engines.md) §2 (ENGINES-PAGE, 2026-11-22: Chromium and Firefox desktop
 measured, Safari unknown; no 4:2:0 view to Firefox's decoder until its G = 8 failure is traced; contradiction 6 by one
-Firefox 160 run; the Safari probe first).
+Firefox 160 run; the Safari probe first). The reports' eleven lines:
+[`../decisions/reports.md`](../decisions/reports.md) §2 (REPORTS-PAGE, 2026-11-22: telemetry off; NGINX the receiver;
+Y and the safety report at once over HTTP, provisional; no carrier until C and Lbusy rerun; PR 370 not merged as is).
 
 ## Pointers
 
