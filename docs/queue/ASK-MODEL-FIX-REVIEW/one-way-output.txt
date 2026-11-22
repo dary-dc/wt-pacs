@@ -1,0 +1,3 @@
+0.216 {'allahead': 87.11, 'ahead34': 87.11, 'centred': 87.48, 'rule': 88.41, 'scroll-ahead': 87.11}
+0.5 {'allahead': 24.0, 'ahead34': 24.0, 'centred': 24.16, 'rule': 24.24, 'scroll-ahead': 24.0}
+0.8 {'allahead': 6.0, 'ahead34': 6.0, 'centred': 6.1, 'rule': 6.1, 'scroll-ahead': 6.0}

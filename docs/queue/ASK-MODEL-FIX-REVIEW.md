@@ -1,9 +1,10 @@
 state: started
 started: 2026-11-22T20:17Z
-heartbeat: 2026-11-22T20:17Z
+heartbeat: 2026-11-22T20:21Z
 outputs: findings in PR 430's body §Re-review (pending)
 ## Resume
-Claimed. Next: read PR 430's body §ASK-MODEL-REVIEW, the fix commits 39543254c 9b5039487 74fbaa2a1 on claude/ask-model,
-check each of B1, B2, m1-m6 closed or argued; recheck §5 with docs/queue/ASK-MODEL-FIX/legs.py; write §Re-review.
+Checks done: legs.py and sawtooth.py rerun (outputs identical), §5's table and closed form recomputed, S2 S3 S6
+refetched, check_links 0 unresolved; P2 checked with one-way.py here. Verdict: no blocker; minors n1-n4. Next: write
+PR 430 body §Re-review, the line doc on claude/ask-model, then done.
 ## Result
 (pending)
