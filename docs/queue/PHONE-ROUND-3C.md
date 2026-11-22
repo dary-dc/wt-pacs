@@ -8,7 +8,9 @@ Done: stopped at the smoke. Cell 3 waits for BEACON-LOSS; nothing else is owed b
 * Smoke failed at its first load (plan step 0 = round load 92, page view): in a fresh Chrome (force-stop, then am
   start on /next, no Start press) the fill record, 2 labels and the wakeLock record arrived; the end batch did not
   (no verdict, frameChange, cine, busy, exactFrame). So the loss is not memory or a long-lived renderer: it is the
-  beacon. The gated relaunch skipped, as designed ("no verdict within 8 s"). Stopped during step 1 with Ctrl-C.
+  beacon. Correction (20:44Z): the phone had locked between runs, so this load may have run behind the lock screen
+  (it lasted 33 s, against ~50 s for the round's cell 3 loads); and Chrome served the lab scripts from its HTTP cache
+  (PHONE-ROUND-3D). Its own evidence is weak; the round's loads 92-95 (screen on) and 3D carry the conclusion. The gated relaunch skipped, as designed ("no verdict within 8 s"). Stopped during step 1 with Ctrl-C.
 * Why the dry run's cell 3 got through: its plan ran cell 3 at --quick's steps 3, cineS 2 (target/dry/plan.json loads
   20-23); the round runs the defaults, 20 steps, cine 10 s. The dry run's end batch (load 21) was ~24 KB: labels 57
   records 15.2 KB, cine 2 records 4.5 KB (20-21 draws each), busy 1.5 KB, lossless 1.0 KB, frameChange 0.8 KB (6

@@ -1,6 +1,6 @@
 State: started
 started: 2026-11-22T20:38Z
-heartbeat: 2026-11-22T20:38Z
+heartbeat: 2026-11-22T20:48Z
 outputs: (none yet; raw rows go to claude/phone-run:docs/phone-rows/raw/2026-11-22-cell3d/)
 ## Resume
 Cell 3 alone with the beacon fix, at the owner's ask. RUN_CODE moved for cell 3 only, by the lab-only commit
@@ -9,5 +9,6 @@ awaited (5 s timeout, then sendBeacon; a drain record names the path). The plan 
 target/round3d/plan.json equals tonight's target/round/plan.json in every load (all 144), gapS, fillS, afterS,
 budgetsS and servers (paths aside); only the commit differs. loads [92:140], a fresh Chrome per load gated on the
 verdict, smoke = the first 2 loads.
+Now: the smoke passed at 20:47Z (fourth start); 48 loads running, a fresh Chrome before each.
 ## Result
 (pending)
