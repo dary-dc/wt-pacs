@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-22T17:46Z
-heartbeat: 2026-11-22T17:47Z
+heartbeat: 2026-11-22T17:48Z
 outputs: (pending) findings in PR 429's body
 ## Resume
 Read `integrity-model.md` at `bf7fc4047` in full (402 lines). Now: two read-only checks in parallel, (a) the nine
