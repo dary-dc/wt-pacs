@@ -245,7 +245,8 @@ contract ([`../lines/codecs.md`](../lines/codecs.md)); the reviews' and proposal
 **What series that are not cine-like get.** Not stated yet. *So far (2026-11-22), theory and sources only*
 ([`non-cine-series.md`](evidence/non-cine-series.md)): three classes, not one. A large single frame at 12 bits or
 under (the synthesized 2D picture of each DBT view, a 2D mammogram) is half the pictures of a DBT exam: proposed, its
-exact frame alone, whole, and no AV1 view; an exact level picture first is the one arm worth a cloud run. Ultrasound
+exact frame alone, whole, and no AV1 view; an exact level picture first is measured at level 2 (`ffdm_d`), and level 1,
+the level a phone's device pixels need, is the one cell worth a cloud run. Ultrasound
 stills are a stack of exact frames once the ingest admits a real series (mixed sizes, a clip among stills, a lossy
 source: refused today). Over 12 bits waits with tiles (2026-10-10). Read in the code, not run: a frame larger than the
 device's largest texture paints nothing and says nothing. *Decides:* the `non-cine-series` page, then the owner.

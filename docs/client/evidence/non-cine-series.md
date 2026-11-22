@@ -24,7 +24,7 @@ Four things no earlier text here states:
 
 1. **A reader of a DBT study does not start on a stack.** The profile the product reads from requires a DBT display
    to meet every 2D mammography display requirement and to switch between the slices and the 2D pictures of the same
-   view (S1). By count, half of a DBT exam's pictures are single frames; by bytes they are under 3 % of it (§2, D on S9).
+   view (S1). By count, half of a DBT exam's pictures are single frames; by bytes they are under 5 % of it (§2, D on S9).
    "Start reading sooner" therefore depends on a class the product does not state.
 2. **For one frame the fill's law does not apply.** `fill ≈ max(wire, decode) + rest` describes a pipeline in steady
    state. One frame's bytes arrive, then it decodes: first picture ≈ wire **+** decode (T). On every phone class
@@ -37,8 +37,10 @@ Four things no earlier text here states:
    different sizes in one series, a clip among stills, and a lossy source. None is a delivery question (§5, S).
 
 **Recommended, for the `non-cine-series` page to put to the owner** (§8): large single frames get their exact frame
-alone, whole, as today, and never an AV1 view; an exact level picture first is the one measurement worth queueing;
-stills are served as a stack of exact frames once the ingest admits them; over 12 bits waits; the painter refuses
+alone, whole, as today, and never an AV1 view; an exact level picture first is measured at level 2 (the first picture
+at ×0.09–0.27 of the whole fill's, `ffdm_d`), and the one cell worth queueing is level 1, the level a phone's device
+pixels need, whose bytes on a 70 µm frame are so far carried from other series (§5, L; §7); stills are served as a
+stack of exact frames once the ingest admits them; over 12 bits waits; the painter refuses
 an oversized frame by name now.
 
 ## 2 · What breast DBT and ultrasound bring that is not a stack
@@ -57,14 +59,19 @@ rest:
 * **The conventional 2D mammogram**, one exposure an object ("shall consist of the result of a single X-Ray exposure",
   S3 A.26.1), in a combined exam and in most priors. In one health system's two weeks, 99.99 % of 13 484 breasts had
   3D views and 70.15 % also had 2D acquisitions (S8; one system, nine hospitals).
-* **Projection images**: an option of the profile, For Presentation only (S1). Ordered by angle, so a stack.
+* **Projection images**: two options of the profile, For Presentation and For Processing (S1 §4.8.4.1.2.7.2); only
+  the For Presentation one is in the display's toggle (S1 §4.16.4.2.2.1.3). Ordered by angle, so a stack.
 
 **How much of an archive (D on S; no source gives the share directly).** A four-view DBT exam is four stacks and
-four or eight single frames: half or two thirds of its pictures. By bytes, uncompressed and on the same system:
-a 2D picture of 13.6 MB (D), 16.2 MB (S9) and 20.2 MB (D) against a reconstructed volume of 1 900, 1 120 and 821 MB
-(S9; phantoms at 60 mm, one acquisition each), 0.7–2.5 % (D). Of the
+four or eight single frames: half or two thirds of its pictures. By bytes: a 2D picture of 13.6 MB and 20.2 MB
+(D, 2 B a pixel, decimal MB) and 16.2 MB (S9, as printed; S9 does not say uncompressed, and it is a different 70 µm
+system's 2D report, 2026, at the 18 × 24 cm field, where 2560 × 3328 × 2 B is 16.25 MiB) against a reconstructed
+volume of 1 900, 1 120 and 821 MB (S9; phantoms at 60 mm, one acquisition each): 0.7–2.4 % of the exam's bytes with
+one 2D picture a view, 1.4–4.7 % with a conventional and a generated one a view, which 70.15 % of breasts had (S8)
+(D). Of the
 27 933 accredited units in the United States on 2026-11-01, 13 668 are DBT units and 14 264 are 2D digital units
-(S4): at 51 % of units every picture made is a single frame (D; units, not exams, and a DBT unit also takes 2D).
+(S4; its 2D units include CR): at 51 % of units every picture made is a single frame (D; units, not exams, and a DBT
+unit also takes 2D).
 
 **A hand-held breast ultrasound exam** is stills first. A finding is recorded "in two orthogonal projections with
 and without calipers", with "One or more color or power Doppler images" recommended (S6): five or more stills a
@@ -80,7 +87,7 @@ that no page reads this file as covering them.
 ## 3 · The premises, questioned
 
 **"A series either has a consecutive dimension or it has none."** Two properties hide in "cine-like"
-([`../../av1/series.md`](../../av1/series.md) §12: "frames ordered along one axis", **A**, and what neighbours
+([`../../av1/series.md`](../../av1/series.md) §4c: "frames ordered along one axis", **A**, and what neighbours
 share, **P**). A third matters to the reader and is in neither: **the order the reader pages in**. Stills have that
 order (the acquisition's) and no shared content. For delivery, the order is what counts: a fill, an ask and a window
 need an index, not a correlation. And P is empty so far even on stacks: "G = 1 on every content type … AV1's case on
@@ -107,9 +114,9 @@ viewport and a region the size of the viewport are both no larger than a screen 
 between 1 and 4 the saving is one to four frames' bytes, once (§5, V).
 
 **"Exact" for a still.** Where the source object is lossy JPEG (photometric `YBR_FULL_422` "for JPEG lossy
-compressed Transfer Syntaxes", S3), the original is a coded stream, not samples. The ingest refuses it: "a lossy
+compressed Transfer Syntaxes", S3 C.8.5.6.1.2), the original is a coded stream, not samples. The ingest refuses it: "a lossy
 transfer syntax: its samples are not the original's" ([`../../FIXTURES.md`](../../FIXTURES.md) §Input). That is
-consistent, and it leaves such a still with no picture at all (§5, S3).
+consistent, and it leaves such a still with no picture at all (§5, C).
 
 ## 4 · What bounds one frame
 
@@ -131,25 +138,34 @@ sets here, 3 × 8 bits, 2.1–4.5 MB raw (D); their coded bytes are in no docume
 Goodput percentiles are [`../../transport/link-profiles.md`](../../transport/link-profiles.md)'s (open-data
 summaries, not our links). Decode: 91.9–102 ms the whole frame and 8.2 ms its level 2, one thread, on a 4-core cloud
 host (M, `ffdm_d`, headless Chromium 141, [`../../decode/README.md`](../../decode/README.md)); a level-1 picture is
-×0.27–0.31 of the whole decode on nine series (M, the same). Phone classes scale it by
+×0.27–0.31 of the whole decode on nine other series (M, the same; on `ffdm_d` a carry, D).
+
+**Which level.** The level is the most reduced one that still covers the viewport in device pixels (decided
+2026-10-11, the fitting ADR §8.2). On a phone of 1080 × 2400 device pixels a 3328 × 4096 frame fitted whole needs
+**level 1**; level 2 is what the measurement harness's 1 000-pixel rule picked, and what a laptop's two views side by
+side need (the same table). Measured on `ffdm_d` is level 2 only: 7.0–7.5 % of the frame's bytes, decode ×0.08
+(102 → 8.2 ms), and on the 5/20/50 Mbit links the first exact picture at ×0.09–0.27 of the whole fill's (M,
+[`../../decode/README.md`](../../decode/README.md) §A frame at the level the screen needs). Level 1's 25.8–29.0 % was
+measured on the nine level-1 series, not on this frame: below it is carried (D). Phone classes scale the decode by
 [`../../decode/mobile/device-model.md`](../../decode/mobile/device-model.md)'s ranges for an HTJ2K frame on one fast
 core (its 100–143, 46–94 and 37–59 ms against the cloud's 57.1): ×1.75–2.50 entry, ×0.81–1.65 middle, ×0.65–1.03
 premium (D on that model's T; the model's own prediction on a phone is not yet reviewed against the 2026-11-22
 round).
 
-| | LTE p10, 18 Mbit/s | LTE median, 103 | home Wi-Fi median, 218 |
+| | mobile p10, 18 Mbit/s | mobile median, 103 | home Wi-Fi median, 218 |
 | --- | --- | --- | --- |
 | wire, the exact frame (4.81 MB) | 2.14 s | 0.37 s | 0.18 s |
-| wire, its level 1 (25.8–29.0 %, M) | 0.55–0.62 s | 0.10–0.11 s | 0.05 s |
+| wire, its level 1 (25.8–29.0 %, D: carried) | 0.55–0.62 s | 0.10–0.11 s | 0.05 s |
+| wire, its level 2 (7.0–7.5 %, M) | 0.15–0.16 s | 0.03 s | 0.01 s |
 | wire, four views whole | 8.6 s | 1.5 s | 0.71 s |
 
 | decode, whole frame (D) | entry | middle | premium |
 | --- | --- | --- | --- |
 | 70 µm | 161–255 ms | 74–168 ms | 60–105 ms |
 | 50 µm (A: by pixels, ×2.06) | 0.33–0.53 s | 0.15–0.35 s | 0.12–0.22 s |
-| wire = decode at (70 µm) | 151–239 Mbit/s | 229–520 | 367–642 |
+| wire = decode at (70 µm) | 151–239 Mbit/s | 229–517 | 366–644 |
 
-So the wire binds on every class up to the LTE median, and on entry phones the two meet inside home Wi-Fi's range.
+So the wire binds on every class up to the mobile median, and on entry phones the two meet inside home Wi-Fi's range.
 
 ### 4.3 · The largest texture, and memory
 
@@ -178,8 +194,9 @@ So the wire binds on every class up to the LTE median, and on entry phones the t
 
 Level 5.x holds 8 912 896 samples and 4352 rows; level 6.x 35 651 584 and 8704 (S16). Only the 100 µm matrix fits
 level 5; 85, 70 and 50 µm need level 6, and the 50 µm frame also three tiles or more ("TileWidth * TileHeight is
-less than or equal to 4096 * 2304", S16; 28.03 ÷ 9.44, D). A phone's hardware decoder is promised to "Main 10, Level
-4.1" at most (S17, the performance class of Android 15), so on a phone the view of a mammogram is software decode,
+less than or equal to 4096 * 2304", S16; 28.03 ÷ 9.44, D). Android promises a hardware decoder of "Main 10, Level
+4.1" only on a device that claims the media performance class, and as a minimum (S17); other phones are promised no
+AV1 decoder at all. No promise reaches level 6, so on a phone the view of a mammogram is software decode,
 which here costs 1.24–1.74 of the exact frame's decode on DBT (M,
 [`decode-speed-of-the-optimal-quality-picture.md`](decode-speed-of-the-optimal-quality-picture.md)). Whether
 WebCodecs accepts level 6 at all is unconfirmed ([`../../av1/series.md`](../../av1/series.md)).
@@ -187,14 +204,15 @@ WebCodecs accepts level 6 at all is unconfirmed ([`../../av1/series.md`](../../a
 ## 5 · The options
 
 First picture of one 70 µm frame on a middle-class phone, wire + decode, without the round trip and the paint
-(D on §4.2; V's bytes are DBT's ratio of 0.10–0.28 carried to a mammogram, **A**: no mammogram's view was measured
+(D on §4.2; L at level 1, the phone's fit, its bytes carried (D), level 2's measured bytes beside it; V's bytes are
+DBT's ratio of 0.10–0.28 carried to a mammogram, **A**: no mammogram's view was measured
 against the noise rule).
 
-| | what the reader gets | LTE p10 | LTE median | Wi-Fi median | stored beside the exact series | decisions it touches |
+| | what the reader gets | mobile p10 | mobile median | Wi-Fi median | stored beside the exact series | decisions it touches |
 | --- | --- | --- | --- | --- | --- | --- |
 | **W** the exact frame alone, whole | the original, checked; *Lossless* always | 2.2–2.3 s | 0.45–0.54 s | 0.25–0.34 s | nothing | none: it is today's fill, and the 2026-10-10 rule ("series at 12 bits or less are filled") |
-| **L** an exact level picture, then the rest of the same codestream | the frame at the screen's size, exact at that size, replaced by the whole frame | 0.57–0.67 s, whole as W + one more decode | 0.12–0.16 s | 0.07–0.10 s | a digest a level; the level's offset | *no low-resolution preview*; the label's words ("Lossless at this size") |
-| **V** an AV1 view, the exact frame on request | a lossy picture until asked | 0.31–0.89 s | 0.13–0.40 s | 0.11–0.34 s | a second coded form, level 6 | *AV1 only for cine-like series*; FDA's rule on lossy review bites hardest here |
+| **L** an exact level picture, then the rest of the same codestream | the frame at the screen's size, exact at that size, replaced by the whole frame | level 1: 0.57–0.67 s (D, carried); level 2: 0.16–0.17 s (D on M); whole as W + one more decode | 0.12–0.16 s; 0.03–0.04 s | 0.07–0.10 s; 0.02–0.03 s | a digest a level; the level's offset | *no low-resolution preview*; the label's words ("Lossless at this size") |
+| **V** an AV1 view, the exact frame on request | a lossy picture until asked, at most 10 bits on a 12-bit frame (the depth cut, [`../design.md`](../design.md) §Decided) | 0.31–0.89 s | 0.13–0.40 s | 0.11–0.34 s | a second coded form, level 6 | *AV1 only for cine-like series*; FDA's rule on lossy review bites hardest here |
 | **R** fit plus regions (tiles, or precincts) | L's first picture, then actual pixels where the viewport is | as L, then a region | | | tiles or precincts in the codestream; a digest a region | tiles "delayed, not closed" (2026-10-24); the PCS's HTJ2K layout |
 | **H** the hanging as the unit: levels of every hung view first, then the rest of the one looked at | every view on screen before any is whole | four views at L's size, wire only: 2.2–2.5 s against 8.6 s | 0.39–0.43 s against 1.5 s | | as L | as L; an ask that names a level (the wire: structural, the owner's) |
 
@@ -207,11 +225,14 @@ against the noise rule).
   reader (T). Against it: the level picture is the codestream's low band, not a resampling of the frame, and on
   `dbts_b1` it fell short of the visually lossless proxy at display scale (M, 46.9 dB,
   `claude/mobile-decode:docs/decode/mobile/htj2k-preview.md`). On a single frame it is on screen for the time the
-  rest takes, 1.6 s at LTE p10 and 0.1 s on Wi-Fi (D), not for a scroll. No mammogram was in that proxy run.
-* **V** is ×0.5–1.6 of L's wait at LTE p10, ahead only at the low end of its bytes, and ×0.8–3.3 by the LTE median
+  rest takes, 71–74 % of the wire plus the whole decode: 1.6–1.8 s at mobile p10 and 0.20–0.30 s on Wi-Fi on the
+  middle class (D), not for a scroll. No mammogram was in that proxy run. At level 2 the first picture is measured
+  (×0.09–0.27 of the whole fill's, `ffdm_d`, above); level 1 on this frame is not.
+* **V** is ×0.5–1.6 of L's wait (level 1) at mobile p10, ahead only at the low end of its bytes, and ×0.8–3.3 by the
+  mobile median
   (D). It needs a second stored form at a level no phone's hardware is promised, and puts a lossy picture where a
   reader looks for the finest detail. Not recommended; kept as a reference arm, as
-  [`../../htj2k-tiles.md`](../../htj2k-tiles.md) §7 already has it.
+  [`../../htj2k-tiles.md`](../../htj2k-tiles.md) already has it (§Theory 7, and the protocol's **OQ** arm).
 * **R** is the 2026-10-10 rule extended down to 12 bits. It is the only option that never meets the texture bound
   (§3). New here, **precincts instead of tiles**: an RPCL codestream coded with precincts can yield a region's
   packets at each resolution with no tile boundary in the picture; whether the PCS's codestreams carry precincts
@@ -223,18 +244,18 @@ against the noise rule).
 **Stills (S).** They need no new delivery: a still is a small exact frame, an exam's stills are a stack in
 acquisition order, and a fill of exact frames is built. A colour still's exact HTJ2K decode is 16–32 ms on the cloud
 host (M, 960 × 720 to 1552 × 970, `lab/av1/bytes/colour-transform/README.md`), so a still is wire-bound on any
-phone class, and its wire is at most its raw size: 0.9–2.0 s at LTE p10 uncompressed (D), less by whatever the coder
+phone class, and its wire is at most its raw size: 0.9–2.0 s at mobile p10 uncompressed (D), less by whatever the coder
 gains (not recorded). What stands in the way is the ingest's contract, each refusal quoted from
 [`../../FIXTURES.md`](../../FIXTURES.md) §Refused:
 
 1. "files of another … Rows, Columns … or PhotometricInterpretation": an exam's stills may differ in size and mix
-   grey with colour; Rows and Columns are attributes of each image (S3 C.7.6.3), and no source read says a series
+   grey with colour; Rows and Columns are attributes of each image (S3 C.7.6.3.3), and no source read says a series
    keeps them equal. The options: one bundle per geometry (loses the order across them), or geometry per frame in
    the metadata (structural: the owner's and the PCS team's).
 2. "a multi-frame object in a folder": a clip stored among the stills of one series.
 3. "a lossy transfer syntax" and "a photometric interpretation other than MONOCHROME1, MONOCHROME2 or RGB": a
-   still stored as lossy JPEG. **S3, on no list:** send such a still's own coded bytes and check them as bytes,
-   since they are the original; the decoded samples then differ by decoder and cannot carry the frame check
+   still stored as lossy JPEG. **C (the coded bytes), on no list:** send such a still's own coded bytes and check
+   them as bytes, since they are the original; the decoded samples then differ by decoder and cannot carry the frame check
    (T; it would reopen *XXH3 the frame check* for that class, and is the coded-bytes digest of
    `claude/integrity-model:docs/client/evidence/integrity-model.md`, PR 429, used alone). Not proposed:
    whether lossy-source stills reach us at all is the PCS's contract.
@@ -251,20 +272,26 @@ been written for it (§3).
 
 ## 7 · A cloud run that could refute §5 (an outline for the next queue; nothing run)
 
-Fixtures: `ffdm_d` (four views, 3328 × 4096, 12 bits, one earlier detector) and the `syn2d_*` sets; no 50 µm frame
-and no breast still with its original geometry exist here. Arms W, L and, as reference, V (AV1, G 1, the rule's Q,
-level 6), interleaved, at 5, 20 and 50 Mbit/s through the relay, headless Chromium, 4-core host without a GPU.
+What is already measured is not run again: level 2 on `ffdm_d` (bytes, decode and the first picture on these links,
+§4.2). What is not: **level 1 on `ffdm_d`**, the level a phone's device pixels need (the run sets it; the harness's
+1 000-pixel rule would pick level 2), and V on a mammogram. Fixtures: `ffdm_d` (four views, 3328 × 4096, 12 bits, one
+earlier detector) and the `syn2d_*` sets; no 50 µm frame and no breast still with its original geometry exist here.
+Arms W (the reference for the ratio), L at level 1 and, as reference, V (AV1, G 1, the rule's Q, level 6, at most
+10 bits), interleaved, at 5, 20 and 50 Mbit/s through the relay, headless Chromium, 4-core host without a GPU.
 Predictions for one `ffdm_d` frame's first picture, wire + decode (D; cloud decode 92–102 ms whole, ×0.27–0.31 for
-level 1, V at ×1.24–1.74):
+level 1, V at ×1.24–1.74; level 1's bytes 25.8–29.0 % carried from the nine level-1 series, V's 0.10–0.28 from DBT).
+Each cell is without the relay's round trip (40 ms on the existing links), which adds the same to every arm:
 
 | | 5 Mbit/s | 20 | 50 |
 | --- | --- | --- | --- |
 | W | 7.8 s | 2.0 s | 0.86–0.87 s |
-| L | 2.0–2.3 s | 0.52–0.59 s | 0.22–0.26 s |
+| L, level 1 | 2.0–2.3 s | 0.52–0.59 s | 0.22–0.26 s |
 | V (bytes A) | 0.88–2.3 s | 0.31–0.72 s | 0.19–0.39 s |
 
-Refuted if L's first picture is not within ×0.25–0.33 of W's at 5 Mbit/s, or if V beats L at 50 Mbit/s by more
-than the run's noise floor. Also to record, each a yes or a no: does `VideoDecoder.isConfigSupported` accept the
+Refuted, for L: if level 1's smallest exact prefix on `ffdm_d` falls outside 25.8–29.0 %, or if its first picture,
+less the round trip, is not within ×0.26–0.29 of W's at 5 Mbit/s (D: the share plus the level's decode). For V, against
+its own band and not against L's: if its first picture, less the round trip, falls outside its measured bytes' wire
+plus ×1.24–1.74 of W's decode. Also to record, each a yes or a no: does `VideoDecoder.isConfigSupported` accept the
 level-6 configuration; does the page paint a frame of 4097 rows on the host's WebGL (prediction: it depends on the
 host's limit, and the client says nothing either way).
 
@@ -272,8 +299,9 @@ host's limit, and the client says nothing either way).
 
 1. **Large single frames at 12 bits or under: the exact frame alone, no AV1 view** (W; V not taken). A yes changes
    one sentence in `ARCHITECTURE.md` and `design.md` §Open; nothing is built.
-2. **An exact level picture first (L) on those frames:** queue §7's run, or leave the 2026-10-13 ruling as it is.
-   A yes to the run changes no product code.
+2. **An exact level picture first (L) on those frames:** at level 2 it is measured (the first picture at
+   ×0.09–0.27 of the whole fill's on `ffdm_d`); queue §7's run for level 1, the phone's level, or leave the 2026-10-13
+   ruling as it is. A yes to the run changes no product code.
 3. **Stills are a stack of exact frames**; the three ingest refusals of §5 go to the PCS team as questions (which
    of them the PCS's output can contain), beside `metadata.md` §Open's.
 4. **The painter refuses a frame over the device's texture limit by name** (one test, as the native painter has),
@@ -285,7 +313,7 @@ host's limit, and the client says nothing either way).
 * L and H: *no low-resolution preview (a preview is tiny or full size)*, unless the owner reads an exact level of
   the same codestream as the queue of 2026-11-10 did ("This is not a low-resolution preview (decided: none); it is
   one lossless codestream served at the screen's resolution, whose further levels complete it").
-* V: *AV1 only for cine-like series*. S3: *XXH3 the frame check, every frame checked*, for lossy-source stills only.
+* V: *AV1 only for cine-like series*. C: *XXH3 the frame check, every frame checked*, for lossy-source stills only.
 * R below 12 bits: the 2026-10-10 line "frames of 12 bits or fewer are filled".
 
 ## Where it holds, and its limits
@@ -323,29 +351,38 @@ Fetched 2026-11-22; sha256 of the file as fetched.
 * **S3** DICOM PS3.3 2026e, `https://dicom.nema.org/medical/dicom/current/output/chtml/part03/<section>.html`:
   `sect_A.26` `3e02a99e0ba0c986b97fba519b39fba785e934bec3c8edfe67c7e2b0c4bda448`; `sect_C.8.11.3` (DX Image
   Module: "Bits Stored … Enumerated Values: 6 7 8 9 10 11 12 13 14 15 16")
-  `1113677a8461fb1182bdab197803f00cf0d1146bce32bea7f5dd64ed3f433071`; `sect_A.6`
-  `01168b347eb94191895362aa6aa7e00ac7583de2b5c1fc6da0913ed833675d41` and `sect_A.7`
-  `c8975bd6d09a9e88ac79eadb27866b690c8b7e3861e6d8afbcbb2bed9eb63b75` (Tables A.6-1 and A.7-1: "Cine | C.7.6.5 | M",
-  "Multi-frame | C.7.6.6 | M" in the second only); `sect_C.8.5.6`
-  `9d745240a46fb084aa07c8c8622ddffa7f80a6334c622eafffc3c47decfb4223`; `sect_C.7.6.3` (Table C.7-11c: "Rows
-  (0028,0010) 1 Number of rows in the image.") `401608e320741a1229d888db89b7d5ebaa85386c786ffc9a21bae3a03d5dccd6`.
+  `1113677a8461fb1182bdab197803f00cf0d1146bce32bea7f5dd64ed3f433071`; `sect_A.6.4`
+  `c5812e1ec0493dd247a5e77e459e71882f73fef84a481f10d5ff0dfdbcce506d` and `sect_A.7.4`
+  `5d2d416d64224e9dbf0b344a62e61e9beb6922ed0debb249c8896d1bf825ed3b` (Tables A.6-1 and A.7-1: "Cine | C.7.6.5 | M",
+  "Multi-frame | C.7.6.6 | M" in the second only); `sect_C.8.5.6` (C.8.5.6.1.2)
+  `9d745240a46fb084aa07c8c8622ddffa7f80a6334c622eafffc3c47decfb4223`; `sect_C.7.6.3.3` (Table C.7-11c: "Rows
+  (0028,0010) 1 Number of rows in the image.") `04dc7e4f9d0d88811c4cfa5222fe26b4a228820ef3487cc0b36f3ce508852c34`.
+  Refetched 2026-11-22 by NON-CINE-REVIEW-FIX for the three corrected pins.
 * **S4** FDA, *MQSA National Statistics*, "Content current as of: 11/09/2026", "Certification statistics, as of
   November 1, 2026": "Total certified facilities / Total accredited units | 9,140 / 27,933"; "Certified facilities
   with 2D digital units / Accredited 2D digital units | 9,139 / 14,264"; "Certified facilities with DBT units /
-  Accredited DBT units | 8,702 / 13,668"; footnote 4: "Facilities with DBT also have FFDM".
+  Accredited DBT units | 8,702 / 13,668"; footnote 2: "Includes Full Field Digital Mammography and Computed
+  Radiography Units."; footnote 4: "Facilities with DBT also have FFDM so the DBT facilities count is included within
+  the digital facilities count".
   `https://www.fda.gov/radiation-emitting-products/mqsa-insights/mqsa-national-statistics` (redirects),
   `2d6b4edef21c657a530c00c3de2ebc9839339dd1fc035800c07f1dbea7729910`.
 * **S5** ACR, *Practice Parameter for the Performance of Digital Breast Tomosynthesis*, "Revised 2023 (Resolution
-  9)", §A, `https://gravitas.acr.org/PPTS/DownloadPreviewDocument?DocId=7`,
-  `b039c7e41c8b804814061da3ecdcaf4bd1edee9194203f1b29a87cd9480bea5a`.
+  9)", §IV.A ("derived from the DBT source projection images …") and §IV.F *Image Labeling* ("If SM is used …"),
+  `https://gravitas.acr.org/PPTS/DownloadPreviewDocument?DocId=7`.
 * **S6** ACR, *Practice Parameter for the Performance of a Diagnostic Breast Ultrasound Examination*, "Revised 2026
-  (Resolution 21)", §IV.B.1 and §IV.B.4, `https://gravitas.acr.org/PPTS/DownloadPreviewDocument?DocId=124`,
-  `969423a7352ded1bc3758e13ee27c59bed0bed139c19ab3c220311df6b43b7a7`.
+  (Resolution 21)", §IV.B.1 and §IV.B.4, `https://gravitas.acr.org/PPTS/DownloadPreviewDocument?DocId=124`.
 * **S7** ACR, *Practice Parameter for the Performance of Whole-Breast Ultrasound for Screening and Staging*,
-  "Revised 2024 (Resolution 10)", p. 5, `https://gravitas.acr.org/PPTS/DownloadPreviewDocument?DocId=61`,
-  `273b937de8b4a0c8e664a8c440ca05fde6ea2bb665f6a6455e9b564c186fe9bc`.
-* **S8** PubMed abstracts through `eutils.ncbi.nlm.nih.gov` efetch, one file,
-  `76922908bc9c96c0c171d8e28d5165be39b3a106fc2381c65fc61eb8e3917ad6`: PMID 40795810 (Br J Radiol 2025;98(1175):
+  "Revised 2024 (Resolution 10)", pp. 5–6, `https://gravitas.acr.org/PPTS/DownloadPreviewDocument?DocId=61`.
+* **S5–S7's pins.** The site generates each PDF per request, so the PDF's hash changes with every fetch (the hashes
+  first recorded here cannot be checked). Pinned instead, refetched twice 2026-11-22: the text of `pdftotext -layout`
+  (poppler 24.02.0), sha256 S5 `27b599d59149a5ed39434d0231486554f5a050fb5dbda452080c659f630ffa74`, S6
+  `bfa5373859ae8bf34bce70b63926d5e390053aea37c777879d31bf03c5b11ee6`, S7
+  `9f07de8a90d8c631766773c7a8162ddeff8143351051f5bb77be4616be5c12b1`; each identical over both fetches.
+* **S8** PubMed abstracts through `eutils.ncbi.nlm.nih.gov` efetch, one file:
+  `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=40795810,24694157&rettype=abstract&retmode=text`,
+  `58cba562b3b0c9c99ba3d265da3e5bc05d92b406013d04e8b2a22a631b25f4d4` (refetched twice 2026-11-22, identical; the
+  first fetch's query was not recorded and its hash, `76922908…`, is reproduced by no form tried): PMID 40795810
+  (Br J Radiol 2025;98(1175):
   1963-1969): "6849 screening exams on 13 484 breasts … that received 3D views (13 482/13 484, or 99.99%) and 2D
   acquisitions (9459/13 484, or 70.15%)"; PMID 24694157 (Med Phys 2014;41(4):042901): "An ABUS volume was comprised
   of 229-282 slices of two-dimensional (2D) images." Abstracts only.
