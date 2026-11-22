@@ -192,7 +192,7 @@ coded-digest mismatch (with item 5) widens amendment 22 by one case. Neither is 
 ## 8 · Rows and links
 
 INTEGRITY-MODEL (Fable), -REVIEW, -FIX, -FIX-REVIEW: PR 429, `claude/integrity-model`. OQ-INTEGRITY-FIXES and its
-review, I2-RUN: PR 368, `claude/oq-integrity-build` (`docs/reviews/oq-integrity.md`, `lab/oq-integrity/rows/`).
+review, I2-RUN: PR 368, `claude/oq-integrity-build:docs/reviews/oq-integrity.md` and `claude/oq-integrity-build:lab/oq-integrity/rows/`.
 PHONE-FIX-378, FIX-378-DIAL and their reviews: PR 378, `claude/lossless-under-loss`. HIDDEN-PAGE-DECODE: PRs 376,
 377. On `claude/unified`: `docs/adr/exactness-in-production.md`, `docs/client/evidence/where-a-frame-can-be-corrupted.md`,
 `optimal-quality-reconstruction-digest.md`, `lossless-after-a-failed-ask.md`, `hidden-page-decode.md`,
