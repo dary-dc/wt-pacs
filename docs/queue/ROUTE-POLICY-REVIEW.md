@@ -1,8 +1,9 @@
 state: started
 started: 2026-11-22T22:27Z
-heartbeat: 2026-11-22T22:27Z
+heartbeat: 2026-11-22T22:31Z
 outputs: findings in PR 397's body §ROUTE-POLICY-REVIEW (claude/mobile-decode)
 ## Resume
-Claimed. Reviewing claude/mobile-decode:docs/decode/mobile/route-policy.md at 6eb0ac322 (75d11fcd4 the file): each range traced to
-DEVICE-THEORY's inputs and recomputed; each policy's storage and wire cost against docs/av1/payload-format.md and docs/WIRE.md.
+Review done in the session (not yet pushed): every range of §3 and §5 recomputed (scratchpad split.py), S1-S3 fetched and
+their sha256 match, quotes verbatim, WIRE.md and payload-format.md read. No blocker; m1-m5, n1-n4. Next: write
+§ROUTE-POLICY-REVIEW into PR 397's body (mcp__github__update_pull_request), a line in claude/mobile-decode:docs/lines/client.md, done.
 ## Result
