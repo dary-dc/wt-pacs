@@ -129,7 +129,7 @@ fallback (§Decided approaches) is what Firefox's view already does.
 
 * ENGINE-MATRIX (2026-11-19), ENGINE-SMOKE (2026-11-20), ENGINE-REVIEW, ENGINE-REVIEW-FIX, ENGINE-REVIEW-FIX-REVIEW
   (2026-11-21): status files `claude/work-ledger:docs/queue/ENGINE-*.md`; PR 410 (`claude/engines`, draft into
-  `claude/unified`), `docs/decode/engines.md`, `docs/decode/engines-smoke/`.
+  `claude/unified`), `claude/engines:docs/decode/engines.md` and its `engines-smoke/` directory.
 * Contradiction 6: `claude/unified:docs/client/design.md` §Open;
   `claude/unified:docs/client/evidence/frame-memory-ownership.md` (*Firefox, run again*, rows at
   `claude/core-m5@91069eb3`; *M5 under the amended bar*, rows at `claude/core-m5b@2f8f63eb`).
