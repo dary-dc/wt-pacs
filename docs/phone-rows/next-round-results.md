@@ -287,3 +287,37 @@ correction to the review: m1's 19 480–45 706 counts the `copyTo` calls that na
 so the read's 19–49 k was the range over both, and both are now stated. Also corrected under m2: "none exact" held
 for `RGBA16F` only (`RGBA32F` 896, WebGPU 3 968 of 65 536 exact). `round-notes.txt` is a raw row and is left as
 written. Docs only; nothing measured.*
+
+## Re-review
+
+*PHONE-READ-FIX-REVIEW, 2026-11-22, by a session that wrote none of the read, the review or the fix. Each blocker
+re-derived from the raw rows (`raw/2026-11-22/` at `618dd9cd`) with short scripts; the fix's diff read in full
+(`8fe185c7..e6fff19b` here, `7b2e0013..78f0a307` on `claude/mobile-decode`). Fixtures and limits: the round's, as
+§Fixtures and limits states; this re-review measured nothing.*
+
+**Verdict: both blockers closed; no blocker open.** MOBILE-DECODE-REJUDGE may run.
+
+* **B1 closed.** `probe-shell/codecs.xml` holds 15 concatenated files (an `<?xml` header at lines 1, 315, …, 1325,
+  1838, …). The sections from 1325 and 1838 list `c2.qti.av1.decoder` (lines 1604, 2117) and declare
+  `c2.qti.hevc.decoder` `size` 96x96–8192x8192, `block-count` 36–138240 (1505, 2018) and `c2.qti.vp9.decoder`
+  96x96–4096x4096, 36–36864 (1557, 2070); the first section (1–314) declares both 4096x2176, 36–34816 (144, 193). The
+  two later sections that update these codecs (from 2313 and 2574, `update="true"`) carry only
+  `measured-frame-rate` limits, no `size`. `media.player.txt` lines 70–75 name `c2.qti.av1.decoder`. 2560 × 3328 is
+  160 × 208 = 33 280 blocks of 16 × 16, both sides ≤ 4096 (*derived*): the corrected line holds, here and in
+  `other-codecs.md`; the inference is labelled and the next round's path ask is in the M4 row.
+* **B2 closed.** Over the 15 counted rounds with A, B and C2 `ok` (round 0 of `dbts_b1` VOID): `issuedAt − fillTo`
+  355–590 ms (`dbts_a1`) and 1 201–1 651 ms (`dbts_b1`); end to end (`fillFrom` to the last exact frame's `at`, equal
+  to `issuedAt + spanMs`) over A + B, 8 of 8 and 6 of 7 above 1, medians 1.226 and 1.270, pooled 14 of 15, median
+  1.236, two-sided sign test p = 0.0010; summed, medians 1.033, 0.985, 1.031, p = 0.607 (*derived*). The gap's cause
+  as stated: `round-page.js` at `3dbe295a3` lines 49–55 await `finished(ledger)`, `fault()` and the metadata before
+  `exactFill`, whose `issuedAt` (`bench.js` line 106) follows two more fetches. The held verdict is now confined to
+  the summed reading, in the rule, its paragraph and the predictions table.
+* **The fix's correction to m1 holds**: per channel, `copyTo` with a format gives 45 706 / 19 480 / 45 706 (`g10f`)
+  and 40 192 / 24 960 / 40 192 (`ramp10`); without one 38 407 / 20 905 / 49 002 and 34 368 / 25 920 / 43 584. m2's
+  paints match the probe row (`ramp10` `RGBA16F` 1 024 distinct, 0 exact, 2.61; `RGBA32F` 255, 896, 4.53; WebGPU 261,
+  3 968, 4.33; `g8f` 65 536 exact on all three). m3–m5 and the nits are in place as the review worded them; m3's
+  2.73 and 3.32 were not recomputed here.
+* **Nothing else changed**: the diff touches only the findings' lines, §Fix and the line doc's entry.
+
+**Nit (not a blocker).** The summed C2 row counts ratios *below* 1 ("4 of 7", "2 of 8", "6 of 15") without saying
+so, beside the end-to-end row that counts *above* 1: read with the direction named, both are right.

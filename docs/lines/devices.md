@@ -29,7 +29,8 @@ Reviewed 2026-11-22 (PHONE-READ-REVIEW, the file's §Review): every number recom
 VP9 limits read from a vendor file without AV1 (the AV1-listing files declare 8192 × 8192 and 4096 × 4096), B2 C2's
 0.36–1.65 s ask gap (end to end, *C2 slower*). B faster and cell 1 unchanged.
 Fixed 2026-11-22 (PHONE-READ-FIX, the file's §Fix): B1, B2, m1–m5 and the nits corrected in place; C2 now read both
-ways (*no difference* summed, *C2 slower* end to end). Owed: PHONE-READ-FIX-REVIEW.
+ways (*no difference* summed, *C2 slower* end to end). Re-reviewed 2026-11-22 (PHONE-READ-FIX-REVIEW, the file's
+§Re-review): both blockers closed against the raw rows, no blocker open; MOBILE-DECODE-REJUDGE next.
 
 The next round's path, in order:
 
