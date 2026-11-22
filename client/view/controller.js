@@ -1,6 +1,6 @@
 /** The view's controller: the current frame, what it wants and in what order, and its paint. docs/adr/frame-path.md §3, *Built* */
 import { FrameStore } from "./store.js";
-import { CUT_DEPTH, cutShift } from "../viewer/pair.js";
+import { CUT_DEPTH, cutShift } from "../decode/depth-cut.js";
 
 const at = () => performance.timeOrigin + performance.now();
 export const FIT = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false };
