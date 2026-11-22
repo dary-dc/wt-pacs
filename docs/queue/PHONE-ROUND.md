@@ -1,14 +1,33 @@
-State: started
+State: done
 started: 2026-11-22T17:34Z
-heartbeat: 2026-11-22T19:42Z
-outputs: (none yet; raw rows go to claude/phone-run:docs/phone-rows/raw/2026-11-22/)
+heartbeat: 2026-11-22T20:12Z
+outputs: claude/phone-run 618dd9cd (docs/phone-rows/raw/2026-11-22/, 2110 files through raw_rows.py)
 ## Resume
-FULL round by SATURDAY.md, worktree wt-pacs-phone-962 on claude/phone-run 3dbe295a3, RUN_CODE a8927df1 (no pull
-until the raw rows are committed). Steps 0-1 done (before reads in target/round-*-before.txt, target/probe-shell/).
-Step 2 done: 24 of 28 ok, 4 VOID (timer stalls on painting loads; memory pressure, apps not closed). Now: adb dropped 18:28Z (MTP only), reconnecting; then apps force-stopped, sampler checked, step 3. Node runs in the container with wt-pacs-data mounted too (demo-series
-is a symlink there).
+Done. PHONE-READ reads claude/phone-run:docs/phone-rows/raw/2026-11-22/ (round/ = target/round, plan.json, beacon.jsonl,
+out/; the rest plan: plan-rest.json, beacon-rest.jsonl, out-rest/, resources-rest.jsonl, steps 0-3 = loads 140-143).
+Cell 3 and the memory bound are queued by the coordinator; cell 3 needs another evening.
 ## Result
-(the round's pending; what the dry run found)
+* The round (run commit 3dbe295a3, RUN_CODE a8927df1; started ~19:27Z, stopped 20:08Z): 96 verdicts in all.
+  Cell 1: 24 + 4 drift = 28, all ok. Cell 2: 68 (64 + 4 warm-ups), 66 ok, 2 VOID (loads 28 A 4.6 s, 29 B 2.0 s).
+  Cell 3: loads 92-95 sent their fill record only (no verdict, frameChange, cine, busy, exactFrame); load 96's
+  renderer died (fill record 20:05:01Z, then none; at 20:07:49Z no renderer left; last snapshot, after load 95:
+  swap 7075 MiB, the renderer 840 RSS + 4805 swap MiB). Loads 96-139 not run. Cell 4 (D0): one row, collector at
+  20:10Z, in probe/rows/.
+* Deviations, each the coordinator's call: (1) round.py stopped with Ctrl-C at K=96; the rest plan is SATURDAY.md
+  section 3's recipe but sliced at 140, not K (cell 3 skipped: no data came back from it); started with
+  am start -a VIEW -d http://127.0.0.1:8780/next com.android.chrome in place of the Start press (the button does
+  location.assign('/next')). (2) cell3-fresh-chrome.sh (option b; in session-tools/) was started during load 96
+  and never acted (relaunch.jsonl empty): no relaunch happened. (3) Facebook, Instagram, WhatsApp force-stopped
+  (am force-stop) before the round, the owner's choice. (4) Node ran with the data folder mounted too (demo-series
+  is a symlink outside the worktree). (5) One adb memory read during load 96, to find the dead page.
+* Cell 3's lost records: not the relaunch (above). Hypothesis, not checked: leave()'s recorder.flush calls
+  navigator.sendBeacon, whose false return is ignored (lab/devices/beacon.js:6); in the dry run the same records
+  (~24 KB a load) arrived. The dev server's own output is discarded by round.py, so a 400 cannot be seen.
+* Before/after: thermal 0 -> 1, battery 63 -> 83 % (USB charging), MemAvailable 3.1 -> 3.5 GB; round-*-before.txt
+  (the round), round-*-before-dry.txt (the dry run), round-*-after.txt, round-meminfo-*.txt. Wi-Fi 5 GHz, RSSI -29.
+* resources.jsonl: 97 snapshots (start + after each load), resources-rest.jsonl 5; each about 0.46 s of adb in the
+  15 s gap.
+
 * Dry run (target/dry, 28 loads, apps not closed): 28 verdicts, 24 ok, 4 VOID "the runner's timers stopped"
   (load 12 cell 2 A 6.9 s, 13 B 2.8 s, 15 C1 2.0 s, 23 cell 3 page 2.3 s). Every stall on a painting load; the
   bench loads (cell 1) all at the 250 ms tick.
