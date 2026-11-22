@@ -20,9 +20,10 @@ PR 368, `origin/claude/oq-integrity-build` `a59aa4310`. It decides nothing: the 
    read the source rightly, that the display parameters in the metadata are the ingest's, that the samples are still
    the same a minute later, that the texture on the GPU is that frame, or that the label on screen belongs to the
    picture under it.
-3. **Three faults pass every check today with a green label** (§3, rows 5, 11 and 12): a damaged display parameter
-   in `metadata.json` (slope, window, photometric interpretation, the depth cut's shift); a held frame damaged in memory
-   after its check; the painter drawing another frame's texture. None has a published rate. The first costs one hash
+3. **Four faults pass every check today with a green label** (§3, rows 5, 11, 12 and 14): a damaged display
+   parameter in `metadata.json` (slope, window, photometric interpretation, the depth cut's shift); a held frame
+   damaged in memory after its check; the painter drawing a stale or wrong texture; the held frame of index *j*
+   painted for index *i*. None has a published rate for a phone. The first costs one hash
    a series to close, and that is the one recommended.
 4. **One state shows the wrong slice, and is asked again.** A view frame withheld after two failed decodes
    relabels the view and paints nothing, so the canvas keeps the previous frame's picture under the new frame's index
@@ -81,15 +82,15 @@ GPU and comparing them with the CPU reference (`client/paint/reference.js`).
 | 5 | store | `metadata.json` changes at rest: a digest's digit | as row 4 | yes, falsely: a right frame is withheld (safe) | — | — | — |
 | 5 | store | `metadata.json` changes at rest: `rescale`, `window`, `photometric`, `bitsStored`, the depth cut | as row 4 | **no: right samples, wrong picture, green label** | no | no | no (the reference reads the same parameters) |
 | 6 | server | a transient flip while the bytes are read or framed | unknown (servers: **source**, "a few mercurial cores per several thousand machines", [`where-a-frame-can-be-corrupted.md`](where-a-frame-can-be-corrupted.md)) | yes; withheld, though a second copy would be right | yes; names the bytes, so a re-ask is known to be worth one try | says the store is clean | — |
-| 7 | wire | bytes change in flight | excluded: a changed packet fails its 16-byte tag and is sent again (**source**, RFC 9001 §5.3, §5.5, quoted in the same file) | — | — | — | — |
+| 7 | wire | bytes change in flight | excluded: a changed packet fails its 16-byte tag (**source**, RFC 9001 §5.3, §5.5) and its data is sent again (**source**, RFC 9000 §13.3), both quoted in the same file | — | — | — | — |
 | 8 | receive | a frame's bytes shifted, cut short or filed under another index, above the AEAD | unknown | yes: the digest is per index | yes | says the store is clean | — |
 | 9 | decode | the decoder, the engine or the processor returns wrong samples | unknown for browsers and phones; this repository met one (libaom 3.8.2, lossless inter frames, on some content) | **yes: the only check that can**; mended by the other route where one exists | no; a good coded digest with a bad sample digest names the decoder | says the store is clean | — |
 | 10 | decode | the decoder never returns, or fails, on damaged bytes | **measured** (the fault bench, [`../../adr/exactness-in-production.md`](../../adr/exactness-in-production.md) §8): a hang fails by name after two 10 s deadlines; OpenJPH decodes a truncated codestream without error | yes, late for a hang | yes, before the decoder sees the bytes, if hashed first | — | — |
-| 11 | hold | a sample flips in memory after the check | unknown for phones; **source**, consumer PCs: 1 in 1 700 crashed from a one-bit flip in kernel code pages, 1.5 % of memory, in 8 months (§10, EuroSys'11) | **no** | no | no | only inside the texels read |
+| 11 | hold | a sample flips in memory after the check | unknown for phones; **source**, consumer PCs: 1 in 1 700 machines with at least 30 days of total CPU time (1 in 2 700 at 5 days) crashed from a one-bit flip in kernel code pages, 1.5 % of memory, in 8 months (§10, EuroSys'11, Fig. 2) | **no** | no | no | only inside the texels read |
 | 12 | paint | the texture drawn is not this frame's (a skipped upload, a stale texture), or the upload or pass 1 is wrong on this GPU | unknown; **measured** only on SwiftShader: every 1:1 cell equals the reference to the code (`client/paint/README.md`) | **no** at run time; the gate's paint check on one software renderer | no | no | **yes, exactly**, for the texels read (§4.2) |
 | 13 | paint | pass 2 misplaces, flips or filters wrongly on this GPU | unknown; **source:** "The OpenGL ES specification is not pixel exact" (§10) | no at run time | no | no | within a tolerance only; exactly at 1:1 |
 | 14 | hold, paint | the held frame of index *j* is painted for index *i* | unknown; a defect of our code | **no**: both were checked, each for its own index | no | no | no |
-| 15 | label | the label or the mark on screen belongs to another frame or another state | **measured** once: PR 368's review found the previous frame's ✓ left on a refused frame, since fixed there | by tests only (`demo-check.mjs`, two states) | no | no | no |
+| 15 | label | the label or the mark on screen belongs to another frame or another state | **measured** once: PR 368's review found the previous frame's ✓ left on a refused frame, since fixed there | by tests only (`demo-check.mjs`: three label sequences, five label texts, on PR 368; two sequences, four texts, on `claude/unified`) | no | no | no |
 | 16 | screen | the compositor, the panel or its calibration alters the picture | unknown | no | no | no | no |
 | 17 | any | a hostile server sends a wrong frame with its matching digest | outside the model (`../../adr/exactness-in-production.md` §7, *What it does not cover*) | no | no | no | no |
 
@@ -99,9 +100,11 @@ Reading the table by column:
   what it was built for. A miss is one in 2⁶⁴ per damaged frame (**derived**, the same ADR §7).
 * **The coded-bytes digest** covers a subset of those rows (4, 6, 8, 10) and no row of its own.
 * **Nothing** covers rows 1, 2, the second row 5, 11, 12, 13, 14 and 16 at run time. Rows 1 and 16 are outside the
-  software (the value statement: "Its input is what the PCS delivers"). Row 2 belongs to the ingest's own tests: its
-  two digest mutants (big-endian, zero-extended) were of exactly this kind, and the check that caught them was a
-  digest written by an independent reader, in the lab only. The others are §4.2.
+  software (the value statement: "Its input is what the PCS delivers"). Row 2 has no run-time check: a misread of the source
+  gives samples and a digest that agree, so the client confirms them, and only the ingest's own tests against an
+  independent reader can catch it. The ingest's two digest mutants (big-endian, zero-extended) are not evidence for a
+  run-time check: they mutated the digest alone, and the product's own frame check caught them
+  (`../../adr/exactness-in-production.md` §Built). The others are §4.2.
 
 **Faults come in clusters, not one frame in a million.** Each published study says so: checksum mismatches "within
 the same disk are not independent events and they show high spatial and temporal locality" (FAST'08, abstract); "a
@@ -123,11 +126,11 @@ with right bytes, so the specifications first.
 are identical in all respects and have the same output order as those produced by the decoding process specified
 herein." (**source**, §7.2). The ingest codes without film grain, so for given bytes there is one right array of
 samples, whichever decoder runs, hardware included; the reconstruction digest is therefore well defined, and a
-mismatch on right bytes is a decoder that does not conform. Which decoder ran is not the page's to know: the
-`hardwareAcceleration` values "are hints. While User Agents SHOULD respect these values when possible, User Agents may
-ignore these values in some or all circumstances for any reason." (**source**, WebCodecs §7.9).
+mismatch on right bytes is a decoder that does not conform. Which decoder ran is not the page's to know:
+"prefer-hardware and prefer-software are hints. While User Agents SHOULD respect these values when possible, User
+Agents may ignore these values in some or all circumstances for any reason." (**source**, WebCodecs §7.9).
 
-**HTJ2K** fixes it by definition and not by a conformance clause. T.800 defines **lossless** as "the output of the
+**HTJ2K** fixes it by definition and not by a conformance clause. T.800 (06/2019, since superseded, §10) defines **lossless** as "the output of the
 decoding process is identical to the input to the encoding process", and **reversible** as a process "that does not
 suffer a systemic or quantization error and therefore, allows lossless signal recovery" (**source**, §3.61, §3.82);
 T.814 says the decoding algorithm "processes an HTJ2K codestream as specified in Rec. ITU-T T.800 | ISO/IEC 15444-1"
@@ -151,8 +154,9 @@ Both codecs therefore have exactly one right answer per frame, and the ingest kn
      behaviour on damaged input (row 10) leaves the model.
   4. *The report.* "Bytes" or "decoder", per failure, is what tells an operator to restore a bundle or to turn a
      route off on an engine.
-* **Its cost.** XXH3 runs at 5.8–6.8 GB/s in the product's build (**derived** from the **measured** 4.0–4.7 ms on a
-  27.3 MB frame, x86, the same ADR §10), and a coded frame is smaller than its samples, so hashing every frame's
+* **Its cost.** The whole check runs at 5.8–6.8 GB/s in the product's build (**derived** from the **measured**
+  4.0–4.7 ms on a 27.3 MB frame, x86, the same ADR §10); that time includes reading shared memory, about 1.8 ms of
+  8.1 before the SIMD build (ADR §10), so XXH3 alone is faster, and a coded frame is smaller than its samples, so hashing every frame's
   coded bytes costs less than the frame check's 4.0–4.7 ms on the largest frame. Hashed only after a mismatch it
   costs the common path nothing, the wire bytes being still in the worker (the same ADR §8), and gives 1, 2 and 4
   but not 3. At the ingest it is one more hash a frame and 16 hex digits in the metadata: a change to the store's
@@ -210,7 +214,7 @@ The premise assumes the full check is dear. It is measured, and it is not (all *
 | --- | --- | --- |
 | the frame check, a frame | 0.15 ms at 512², 2.8 ms at 1914×2572, 8 ms at 3328×4096; 4–12 % of an HTJ2K decode, 0.5–2 % of an AV1 one | ADR §9 |
 | the same after the SIMD build | 4.0–4.7 ms at 3328×4096 | ADR §10 |
-| an exact series' fill, wire-bound links, on ÷ off | ×0.94–1.02, every cell's range covering 1 | ADR §Built |
+| an exact series' fill, wire-bound links, on ÷ off | ×0.94–1.02 in the first run; up to ×1.088 in the five-link run (the mammogram at 4× on `wifi-home`), every cell's range covering 1 | ADR §Built |
 | the same, decode-bound | ×1.00–1.15 | ADR §3 |
 | the view's fill with the reconstruction check | +3.7 % at 1×, +1.9 % at 4× (medians of 18 series) | [`optimal-quality-reconstruction-digest.md`](optimal-quality-reconstruction-digest.md) |
 | the view's first picture with it | +7.8 % at 1×, +3.5 % at 4× | the same |
@@ -239,7 +243,7 @@ and whether anything is painted at all.
 | 1 | the view's frame *i*, no reconstruction digest | nothing beyond the wire's AEAD and a decode without error | *Optimal quality* | yes: it claims nothing |
 | 2 | the view's frame *i*, reconstruction digest matched | the painter was given the samples dav1d produced at the ingest | *Optimal quality ✓* (PR 368) | yes, of integrity; the same ✓ as *Lossless* invites reading it as fidelity |
 | 3 | the view's frame *i*, the exact frame asked | as 1 or 2 | *Optimal quality · fetching lossless…* | yes |
-| 4 | the exact frame *i*, frame digest matched | the painter was given the samples the ingest recorded as the source's | *✓ Lossless* | yes, with §4.2's limits: samples, not glass |
+| 4 | the exact frame *i*, frame digest matched | the painter was given the samples the ingest recorded as the source's | *✓ Lossless* on `claude/unified`; *Lossless*, no ✓, on PR 368 (`viewer.js:122`) | yes, with §4.2's limits: samples, not glass |
 | 5 | the view's frame *i*; the exact frame never came | as 1 or 2; of the exact frame, nothing | *Lossless check failed · optimal quality shown* | **no: no check ran** |
 | 6 | the view's frame *i*; the exact frame came and failed twice | the exact samples are not the recorded ones | the same words | yes |
 | 7 | the view's frame *i*; the exact series has no digest for *i* | nothing of the exact frame can be verified | the same words | **no: no check exists** |
@@ -249,14 +253,15 @@ and whether anything is painted at all.
 
 Row 8 is read in the controller on `claude/oq-integrity-build` (`#labelNotAsCoded`: "nothing of it is painted, so no
 paint relabels it"); it was not run here. Row 8 lasts only until the next want that names the frame asks it again
-(§6), and ends if a later copy passes. The same holds on `claude/unified` for any refused frame.
+(§6), and ends if a later copy passes. On `claude/unified` a refused frame is worse: `show()` emits nothing for it,
+so the canvas keeps the previous frame's picture **and** its label and mark (`controller.js:141–149`).
 
 **The smallest true set** has five states for a pair and needs three changes of wording and one of picture:
 
 1. *Optimal quality*: the view's frame, checked as coded whenever a reconstruction digest exists. If every view
    frame is checked (amendment 1 names the view's frames too), a ✓ on success carries no information: it is always
    there unless the frame is withheld. Dropping it removes row 2's ambiguity and leaves one ✓ on the page, on
-   *Lossless*. The owner's wording.
+   *Lossless*, where `claude/unified` has it and PR 368 does not. The owner's wording.
 2. *Optimal quality · fetching lossless…*
 3. *✓ Lossless*
 4. *Lossless unavailable · optimal quality shown* for rows 5 and 7 (the frame did not come, or cannot be verified),
@@ -284,11 +289,11 @@ frame withheld leaves the view shown (today). The view's frame withheld could br
 without being asked (**new, not built**): a few megabytes in place of a few hundred kilobytes, for that frame and, in
 a group, for the later frames of its group. Only a frame both series fail is left without a picture, and two
 independent failures on one index say the device or the store is not to be trusted with a reveal. For an exact-only
-series there is no second series; the sources lean to block without reveal (the same ADR §8, *Block or mark*: every
-open viewer read blocks). **Recommended: no reveal.** A withheld frame's pixels are the most dangerous thing the
+series there is no second series. The same ADR §8 (*Block or mark*) leans to *block*, every open viewer read
+blocking, and leaves the reveal open: "Whether a reveal exists is a product decision, not a technical one." **Recommended: no reveal.** A withheld frame's pixels are the most dangerous thing the
 client holds: wrong by an unknown amount, and plausible.
 
-**What a re-ask can and cannot repair** (amendment 22 stands: only a lost ask is asked again).
+**What a re-ask can and cannot repair** (amendment 22 stands: only a lost ask is asked again; "once" is PHONE-FIX-378's brief, client queue l. 952–953).
 
 | the fault | a second decode | a re-ask | the cause known to the client today? |
 | --- | --- | --- | --- |
@@ -404,7 +409,8 @@ Fetched 2026-11-22; each pinned by the first 12 hex digits of its sha256. Quoted
 * **AV1 Bitstream & Decoding Process Specification**, version 1.0.0 with Errata 1, last modified 2019-01-08, §7.2
   *General decoding process*: https://aomediacodec.github.io/av1-spec/av1-spec.pdf (`ec44e9fc42c4`).
 * **Rec. ITU-T T.800 (06/2019) | ISO/IEC 15444-1**, §3.61, §3.82, §7.1:
-  https://www.itu.int/rec/T-REC-T.800-201906-S (`9932e967462c`); no later edition was read.
+  https://www.itu.int/rec/T-REC-T.800-201906-S (`9932e967462c`). This edition is superseded by T.800 (07/2024), in
+  force (ITU page `T-REC-T.800-202407-I`); the 2024 text was not read (its PDF link returned HTML).
 * **Rec. ITU-T T.814 (06/2019) | ISO/IEC 15444-15:2019**, §6.2: https://www.itu.int/rec/T-REC-T.814-201906-I
   (`3480bb5f636d`).
 * **OpenGL ES 3.0.6** (November 1, 2019), Appendix A *Invariance*: the Khronos registry's
