@@ -85,6 +85,40 @@ test("a fill without both marks has no fill time", () => {
   }
 });
 
+/**
+ * The load's last batch is posted and awaited whole, whatever its size: a sendBeacon over Chrome's keepalive quota
+ * returns false and its records are lost (the 2026-11-22 round's cell 3). Only a failed post falls back to the beacon.
+ */
+test("drain awaits one post of the whole batch; a failed post falls back to the beacon", async () => {
+  const posted = [];
+  const sent = [];
+  let answer;
+  const post = (b, ms) => (posted.push({ records: JSON.parse(b), ms }), new Promise((ok) => (answer = ok)));
+  const r = recorder({ load: "L" }, { send: (b) => sent.push(JSON.parse(b)), post, now: () => 1 });
+  r.filled(ledger, meta);
+  for (let i = 0; i < 400; i += 1) r.record("label", { text: "x".repeat(200) });
+  r.record("verdict", { ok: true });
+  let done = false;
+  const drained = r.drain().then(() => (done = true));
+  await Promise.resolve();
+  assert.equal(done, false, "drain waits for the post's answer");
+  assert.equal(posted.length, 1);
+  assert.ok(posted[0].ms > 0 && posted[0].ms <= 10000, "the post has a timeout");
+  assert.deepEqual(posted[0].records.slice(-2).map((x) => [x.kind, x.path]), [["verdict", undefined], ["drain", "post"]]);
+  assert.equal(posted[0].records.length, 402);
+  assert.ok(JSON.stringify(posted[0].records).length > 64 * 1024);
+  answer(null);
+  await drained;
+  assert.equal(sent.length, 1, "only the fill's batch went by beacon");
+
+  const fallback = [];
+  const f = recorder({ load: "F" }, { send: (b) => fallback.push(JSON.parse(b)), post: async () => "TimeoutError", now: () => 1 });
+  f.filled(ledger, meta);
+  f.record("verdict", { ok: false });
+  await f.drain();
+  assert.deepEqual(fallback.at(-1).map((x) => [x.kind, x.path, x.why]), [["verdict", undefined, undefined], ["drain", "sendBeacon", "TimeoutError"]]);
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try {

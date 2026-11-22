@@ -15,13 +15,13 @@ export function roundHooks(q) {
   const ticks = [performance.now()];
   const ticker = setInterval(() => ticks.push(performance.now()), TICK_MS);
   let left = false;
-  const leave = (failure) => {
+  const leave = async (failure) => {
     if (left) return;
     left = true;
     clearInterval(ticker);
     ticks.push(performance.now());
     recorder.record("verdict", verdict(failure, largestGap(ticks)));
-    recorder.flush({ leaving: true });
+    await recorder.drain();
     location.assign(new URL(`/next?after=${k}`, q.get("round")));
   };
   const late = setTimeout(() => leave(`no ${q.has("bench") ? "bench end" : "fill"} in ${fillS} s`), fillS * 1000);

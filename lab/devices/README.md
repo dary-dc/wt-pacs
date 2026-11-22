@@ -181,7 +181,7 @@ round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer
 * **Each load** (`round-page.js`, loaded only through the viewer's lab gate): the screen wake lock asked at load,
   on each return to visible and after each release, every acquire, release and refusal recorded; a ticker every
   250 ms, whose largest gap over 2 s makes the load **VOID: stopped** (the load's own work included: stricter than
-  §3's bar, which counts gaps outside it); the fill's record (`beacon.js`); with
+  §3's bar, which counts gaps outside it); the fill's record (`beacon.js`), and the load's last batch POSTed and awaited before it leaves (5 s, else `sendBeacon`, which drops a batch over Chrome's keepalive quota; a `drain` record names the path); with
   `press=lossless` one exact frame and back; with `seq=view` cell 3's sequence: `steps` frame changes (20) as
   dispatched key presses due at a random 0–250 ms phase, timed from when each was due to its frame's paint, then
   `cineS` (10) of cine painted against due, then one exact frame, each first idle and then with the busy lever (100

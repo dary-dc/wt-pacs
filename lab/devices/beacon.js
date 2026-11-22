@@ -4,13 +4,17 @@ export const BEACON_PATH = "/lab/beacon";
 
 const epochMs = () => performance.timeOrigin + performance.now();
 const sendBeacon = (body) => navigator.sendBeacon(BEACON_PATH, new Blob([body], { type: "application/json" }));
+/** `null` once the server took the batch, else why not. */
+const postAwaited = (body, ms) => fetch(BEACON_PATH, { method: "POST", headers: { "content-type": "application/json" }, body, signal: AbortSignal.timeout(ms) })
+  .then((r) => (r.ok ? null : `HTTP ${r.status}`), (e) => e?.name ?? String(e));
+const DRAIN_MS = 5000;
 
 /** One frame as the overlay shows it, from the controller's ledger. */
 export const frameRow = ({ i, route, refusal, wireBytes, decodeMs, decoded }) =>
   ({ i, route, ...(refusal && { refusal }), kb: wireBytes === undefined ? null : +(wireBytes / 1024).toFixed(1), decodeMs: decodeMs ?? null, decodedAt: decoded ?? null });
 
 /** Records of the load `load`, queued and sent as one JSON list: none before the fill ends, then at its end and each `flush`. */
-export function recorder(load, { send = sendBeacon, now = epochMs } = {}) {
+export function recorder(load, { send = sendBeacon, post = postAwaited, now = epochMs } = {}) {
   const queued = [];
   let filled = false;
   const flush = ({ leaving = false } = {}) => {
@@ -21,6 +25,12 @@ export function recorder(load, { send = sendBeacon, now = epochMs } = {}) {
   return {
     record,
     flush,
+    /** The load's last batch, awaited before the page leaves: a sendBeacon over Chrome's keepalive quota is dropped. lab/devices/README.md §The round */
+    async drain() {
+      const records = queued.splice(0);
+      const why = await post(JSON.stringify([...records, { ...load, kind: "drain", at: now(), path: "post" }]), DRAIN_MS);
+      if (why !== null) send(JSON.stringify([...records, { ...load, kind: "drain", at: now(), path: "sendBeacon", why }]));
+    },
     /** The fill's end, from viewer.js's `lab.finished`: the fill as §7's Second amendment defines it, lab/devices/README.md §The round. */
     filled({ error, fillMs = null, issuedAt, boot, frames = [], errors = [] }, meta) {
       const fillFrom = boot?.dial ?? null;
