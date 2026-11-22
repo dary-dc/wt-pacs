@@ -108,7 +108,7 @@ async function connect({ port, url, certHash, opts: { writer, holdEveryOther, ..
 
 /** An optimal-quality series' exact series, on a downloader of its own: no fill, each frame asked when the reader asks it. */
 async function connectExact({ port, url, certHash, opts }) {
-  controller.exactSource = await DownloaderClient.connect(url, certHash, { ...opts, port });
+  controller.exactClient = await DownloaderClient.connect(url, certHash, { ...opts, port });
 }
 
 /** The lab's half-held store: once the held frames are here, the rest are wanted and the fill is timed from that want. docs/adr/frame-path.md §Experiment 1 */
@@ -140,7 +140,7 @@ const INTENTS = {
   optimal: () => controller.showOptimal(),
   display: ({ display }) => controller.setDisplay(display),
   size: ({ size }) => controller.resize(size),
-  trigger: () => [controller.client, controller.exactSource].forEach((c) => c?.check()),
+  trigger: () => [controller.client, controller.exactClient].forEach((c) => c?.check()),
 };
 
 const CALLS = {
@@ -154,7 +154,7 @@ const CALLS = {
   },
   cine: () => cine?.log ?? [],
   check: async ({ phase, args }) => (await checks)[phase]({ controller, port: downloader, ...args }),
-  close: () => (controller.exactSource?.close(), controller.client.close()),
+  close: () => (controller.exactClient?.close(), controller.client.close()),
 };
 
 // Set after the paint module's own handler, which its import installed.

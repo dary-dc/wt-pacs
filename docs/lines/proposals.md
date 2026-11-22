@@ -442,7 +442,7 @@ the relay's radio is a model; one host; the three DBT volumes of one dataset.
 
 **Red team (REDTEAM-PROPOSALS, 2026-11-11): corrected in place; open, and the phone protocol needs an
 amendment before it runs.** (1) *The measured arm is not the proposed mechanism.* The proposal sends `end_stream`.
-`p3_arm.sh` calls `controller.exactSource?.cancel()`, and the downloader's `cancel` (`client/transport/downloader.js`,
+`p3_arm.sh` calls `controller.exactClient?.cancel()`, and the downloader's `cancel` (`client/transport/downloader.js`,
 `m.kind === "cancel"`) also raises the generation, drops every record, ask and want, and posts `cancelled` to the
 consumer. On an idle session the two are the same on the wire, which is all the plumbing cell exercised. With an `l`
 already in flight (a second tap, or a tap during a slow `l`), `cancel` throws away that ask's bookkeeping. Whether
@@ -1362,7 +1362,7 @@ the relay's radio is a model; the phone row is one device on one carrier; the pi
 **Amendment 1 (MEASURE-2, 2026-11-11 19:07, written before any run).** *Arm:* `lab/proposals/r3_arm.sh TIP ROOT`
 copies the demo tip's client (`d46811c6`) beside it and makes three edits: the downloader answers `wake` with
 `session.endStream()` and nothing else; the consumer gains `wake()`, which posts it; the viewer's lossless button's
-`pointerdown` calls `controller.exactSource?.wake()`. *Lab test* `lab/proposals/r3_arm.test.mjs ROOT`: the viewer
+`pointerdown` calls `controller.exactClient?.wake()`. *Lab test* `lab/proposals/r3_arm.test.mjs ROOT`: the viewer
 wakes the exact session only, and a wake during an ask in flight ends the stream once while the ask's frame still
 reaches the page, uncancelled. Mutants killed (each fails the test): the wake doing the cancel's generation bump and
 clear; the wake ending nothing; the wake posted to the optimal-quality client. *Plumbing cell*

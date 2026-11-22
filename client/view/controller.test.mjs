@@ -358,7 +358,7 @@ const exactFrame = (i, exact = true) => ({ frameIndex: i, info: { ...frame(i).in
 function optimalRig(answer = (i) => Promise.resolve(exactFrame(i)), opts = {}) {
   const r = rig({ held: [0, 1, 2, 3], lossy: { q: 30, g: 1, depth: 10 }, ...opts });
   r.exactAsks = [];
-  r.c.exactSource = { requestFrame: (i) => (r.exactAsks.push(i), answer(i)) };
+  r.c.exactClient = { requestFrame: (i) => (r.exactAsks.push(i), answer(i)) };
   r.labels = () => r.events.filter(([t]) => t === "shown").map(([, e]) => e.quality);
   return r;
 }
@@ -542,7 +542,7 @@ test("an unchecked exact frame is labelled failed with its reason", async () => 
 /** `l` before the exact series is connected asks nothing and leaves the label at optimal quality. */
 test("lossless before the exact series is connected asks nothing", async () => {
   const r = optimalRig();
-  r.c.exactSource = null;
+  r.c.exactClient = null;
   await r.c.repaint();
   await r.c.showExact();
   await r.c.repaint();

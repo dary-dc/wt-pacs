@@ -187,7 +187,7 @@ async function connectExact() {
   };
   try {
     if (worker) await worker.connectExact(pair.transport.wt_url, pair.transport.cert_sha256, opts);
-    else controller.exactSource = await DownloaderClient.connect(pair.transport.wt_url, pair.transport.cert_sha256, opts);
+    else controller.exactClient = await DownloaderClient.connect(pair.transport.wt_url, pair.transport.cert_sha256, opts);
     losslessEl.hidden = false;
   } catch (e) {
     fail(`lossless: ${e.message}`);

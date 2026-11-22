@@ -6,10 +6,10 @@ const root = path.resolve(process.argv[2]);
 let failed = 0;
 const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
 
-/** The wake is the exact session's alone: the viewer posts it to `exactSource` once, never to the optimal-quality client. */
+/** The wake is the exact session's alone: the viewer posts it to `exactClient` once, never to the optimal-quality client. */
 const viewer = readFileSync(`${root}/client/viewer/viewer.js`, "utf8");
 const wakes = viewer.match(/[\w.?]+\.wake\(\)/g) ?? [];
-check(wakes.length === 1 && wakes[0] === "controller.exactSource?.wake()", `the viewer wakes ${JSON.stringify(wakes)}, not the exact session alone`);
+check(wakes.length === 1 && wakes[0] === "controller.exactClient?.wake()", `the viewer wakes ${JSON.stringify(wakes)}, not the exact session alone`);
 
 /** A wake while an `l` is in flight ends the stream once and keeps the ask: its frame still reaches the page, uncancelled. */
 globalThis.onmessage ??= null;
