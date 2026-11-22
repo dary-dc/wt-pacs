@@ -5,6 +5,13 @@
 `claude/mobile-decode` `f4021c40`. It does not re-derive their numbers. Every number below is quoted from its option file,
 which holds the arithmetic, the sources and the cells. Every choice stays the owner's.*
 
+*Judged again 2026-11-22 (row MOBILE-DECODE-REJUDGE, by a session that wrote none of this directory) with the phone
+round of that evening, read in `claude/phone-run:docs/phone-rows/next-round-results.md` at `1e9f1714` (re-reviewed, no blocker open). §2's phone column
+and §6 are corrected in place, each change marked; §6.1 adds the options for the AV1 rows the program held. One
+phone carries to others only through `claude/device-theory:docs/decode/mobile/device-model.md` §4 as the round
+left it (its HTJ2K bands held, its view bands missed at one and four decoders) and the thresholds of
+[`route-policy.md`](route-policy.md) §3. Nothing is decided here.*
+
 The question: **in a phone's browser, how can a series be shown fast enough, at full precision, with every frame
 checked, and at what cost in bytes?**
 
@@ -43,9 +50,13 @@ measured. Fixtures and limits: §8.
   ~405–665 Mbit/s, where its own predicted decode binds (`htj2k-software.md` §1, D).
 * **What the sources settle alone** is §3. **What only the phone settles** is §4: 19 asks, M4–M22, added one line each
   to `claude/phone-protocol:docs/phone-rows/next-round.md` §Decode-option cells beside M1–M3.
-* **A leaning, labelled as one** (§6): keep the AV1 software view as the route of record. Run the phone's cheap asks
-  in the next round. The decision then rests on three device numbers: HTJ2K's decode per frame (cell 1), the WebGPU
-  decoder's time (M20), and whether a hardware frame inverts and checks (M1–M3, M6–M7).
+* **A leaning, labelled as one** (§6): keep the AV1 software view as the route of record. Of the three device numbers
+  it waited on, the round gave one: HTJ2K in WASM decodes a `dbts_b1` frame in **18.9 ms effective at three
+  decoders, against the view's 42.1** (M, one phone). That moves lossy HTJ2K from *hold* to the first ask (M17),
+  narrows WebGPU to the links and phones where the exact series is decode-bound, and leaves hardware at 8 bits behind
+  both. *Judged again 2026-11-22: this read "Run the phone's cheap asks in the next round. The decision then rests on
+  three device numbers: HTJ2K's decode per frame (cell 1), the WebGPU decoder's time (M20), and whether a hardware
+  frame inverts and checks (M1–M3, M6–M7)."*
 
 ## 2. The table
 
@@ -53,21 +64,24 @@ One row per option file. "Today" is the product as shipped: the 10-bit AV1 view,
 
 | option (file) | decode on a phone | bytes, against today's view | precision on screen | checked | window/level and tools | ships today |
 | --- | --- | --- | --- | --- | --- | --- |
-| AV1 in software ([`av1-software.md`](av1-software.md)) | **measured** 133–135 ms a `dbts_b1-q8-g8` frame, three decoders, ~22 frames/s (R); dav1d-WASM unmeasured on a phone | 1× (~460 KB a `dbts_b1` frame) | the stored depth ≤ 10, or the depth cut's 10-bit codes | **yes**, the decoder's planes | all, on the samples | **yes**, every engine (WebCodecs, else dav1d-WASM) |
-| AV1 in hardware, unchecked ([`av1-hardware-unchecked.md`](av1-hardware-unchecked.md)) | **unknown**; level 5.0 bounds it at ≤ 31.1 ms a `dbts_b1` frame if the decoder takes the size (D) | +0.01–0.12 % as 4:2:0 (R at 8 bits); more to meet the noise rule on screen, not computed | **8 bits**: 2.0–7.4 display levels a step at the header windows, assuming a full-range conversion (on Android the range is the driver's, so a best case; at studio range the 220-level figures apply); above the noise rule's bar at today's Q (1.02–1.09, D) | **no** (the coded bytes can be checked before decode) | **yes**, all, at 8-bit input; values as intervals | the APIs do; the S23's decoder and the size are **unknown** |
-| A hardware frame inverted and checked ([`hw-inverted.md`](hw-inverted.md)) | **unknown**; the same level bound plus upload, pass, read-back and ~2.6 ms of hash (R rate, desktop) | **1.16–2.49×** at the noise rule's bar (M, 19 volumes); more with headroom | **7.78 bits** (220 levels), fewer with headroom: 4.67 source units a step (10-bit), 18.70 (12-bit) | **yes**, every frame, against the 8-bit luma digest | **yes**, a table over 220 inputs | the APIs do; one-to-one and the decoder are **device facts** |
-| Other codecs: HEVC, VP9, H.264 ([`other-codecs.md`](other-codecs.md)) | **unknown**; ≤ 62.8 /s (HEVC), ≤ 69.0 /s (VP9), ≤ 29.5 /s (H.264) a `dbts_b1` frame at level 5.1 (D, T) | **unmeasured** | 8 bits (220 if inverted, 256 through `NV12`) | yes at 8 bits, as the inverted frame (T) | as AV1 in hardware at 8 bits | decoders yes (HEVC in > 95 % of phones, R; its source unverified, PR 397 §Review item 6); a codec the ingest does not code |
-| HTJ2K in software ([`htj2k-software.md`](htj2k-software.md)) | **unknown**; 78–127 ms a `dbts_b1` frame predicted (T) | **4.6–14.6×** at Q 8, 3.6–10× at the rule's Q (R, D) | the stored depth, bit for bit | **yes**, today's exact-frame digest | all, on the samples | **yes**: the *Lossless* path, every engine with WASM SIMD |
-| Lossy HTJ2K ([`htj2k-lossy.md`](htj2k-lossy.md)) | **unknown**; 93–154 ms predicted (T); cloud 1.12–1.21× the lossless frame, 0.41–0.50× dav1d-WASM's view (M) | **0.85–1.47×, median 1.05** at the noise rule's bar, with 1.05–1.17× the in-window error, median 1.13 (M; the median interpolated, D) | the stored depth, no cut | yes, **if** the digest comes from the shipped WASM build (native differs by ±1, M) | all, on the samples | decoder yes; ingest form and client route not built |
-| HTJ2K in WebGPU compute ([`gpu-compute-decode.md`](gpu-compute-decode.md)) | **unknown**; bound 5.3 ms on a 2017 low-end card (D); breaks even with one software AV1 decoder if the phone's GPU is ≤ 25× slower | the exact series: 4.63× on `dbts_b1` (R) | full, the stored depth | **yes**, the reversible path only; exact on SwiftShader (R) | all, with a WebGPU painter (not built) | WebGPU: Chrome Android 12+ ARM/Qualcomm/Intel (121), Android 16+ Imagination (139), Safari iOS 26; not Firefox Android, not Xclipse; decoder a lab tool |
-| The content's rectangle ([`content-crop.md`](content-crop.md)), a **factor** on any row above | decode × 0.85 (AV1), × 0.76 (HTJ2K) on `dbts_b1`; 0.94 on `dbts_b3`; ≈ 1 on the other 17, 16 of which have no safe rectangle and are coded whole (M) | × 0.997–1.002 (M) | unchanged | as the row it multiplies | unchanged | no: an ingest change and the paint's placement |
+| AV1 in software ([`av1-software.md`](av1-software.md)) | **measured** 2026-11-22: 110 ms a `dbts_b1-q8-g8` frame per decoder at three, **42.1 ms effective**, saturated at three; 176 ms on one (M); 133–135 ms at three on 2026-11-11 (R); dav1d-WASM unmeasured on a phone | 1× (~460 KB a `dbts_b1` frame) | the stored depth ≤ 10, or the depth cut's 10-bit codes | **yes**, the decoder's planes | all, on the samples | **yes**, every engine (WebCodecs, else dav1d-WASM) |
+| AV1 in hardware, unchecked ([`av1-hardware-unchecked.md`](av1-hardware-unchecked.md)) | **unknown** at a volume's size; level 5.0 bounds it at ≤ 31.1 ms a `dbts_b1` frame if the decoder takes the size (D); the decoder is there, declared to 8192 × 8192; at 256 × 256 the 4:0:0 forms fail and 10 bits come back as 8 (M) | +0.01–0.12 % as 4:2:0 (R at 8 bits); more to meet the noise rule on screen, not computed | **8 bits**: 2.0–7.4 display levels a step at the header windows, assuming a full-range conversion (on Android the range is the driver's, so a best case; at studio range the 220-level figures apply); above the noise rule's bar at today's Q (1.02–1.09, D) | **no** (the coded bytes can be checked before decode) | **yes**, all, at 8-bit input; values as intervals | the APIs do; the S23's decoder and the size are **unknown** |
+| A hardware frame inverted and checked ([`hw-inverted.md`](hw-inverted.md)) | **unknown**; the same level bound plus upload, pass, read-back and ~2.6 ms of hash (R rate, desktop); an 8-bit full-range unit came back exact at 256 × 256 (M) | **1.16–2.49×** at the noise rule's bar (M, 19 volumes); more with headroom | **7.78 bits** (220 levels), fewer with headroom: 4.67 source units a step (10-bit), 18.70 (12-bit) | **yes**, every frame, against the 8-bit luma digest | **yes**, a table over 220 inputs | the APIs do; one-to-one and the decoder are **device facts** |
+| Other codecs: HEVC, VP9, H.264 ([`other-codecs.md`](other-codecs.md)) | **unknown**; ≤ 62.8 /s (HEVC), ≤ 69.0 /s (VP9), ≤ 29.5 /s (H.264) a `dbts_b1` frame at level 5.1 (D, T); HEVC and VP9 declared to sizes `dbts_b1` fits (M, declared) | **unmeasured** | 8 bits (220 if inverted, 256 through `NV12`) | yes at 8 bits, as the inverted frame (T) | as AV1 in hardware at 8 bits | decoders yes (HEVC in > 95 % of phones, R; its source unverified, PR 397 §Review item 6); a codec the ingest does not code |
+| HTJ2K in software ([`htj2k-software.md`](htj2k-software.md)) | **measured** 2026-11-22: 40.4 ms a `dbts_b1` frame on one decoder, 58.9 per decoder at three, **18.9 ms effective**, 15.5 at four (M); 78–127 ms predicted (T), missed | **4.6–14.6×** at Q 8, 3.6–10× at the rule's Q (R, D) | the stored depth, bit for bit | **yes**, today's exact-frame digest | all, on the samples | **yes**: the *Lossless* path, every engine with WASM SIMD |
+| Lossy HTJ2K ([`htj2k-lossy.md`](htj2k-lossy.md)) | **unknown**; 66–71 ms per decoder at three, **21.2–22.9 ms effective** (D on A: the lossless frame's 58.9 and 18.9 ms × the cloud's 1.12–1.21); 93–154 ms predicted before the round (T) | **0.85–1.47×, median 1.05** at the noise rule's bar, with 1.05–1.17× the in-window error, median 1.13 (M; the median interpolated, D) | the stored depth, no cut | yes, **if** the digest comes from the shipped WASM build (native differs by ±1, M) | all, on the samples | decoder yes; ingest form and client route not built |
+| HTJ2K in WebGPU compute ([`gpu-compute-decode.md`](gpu-compute-decode.md)) | **unknown**; bound 5.3 ms on a 2017 low-end card (D); must beat WASM's 40.4 ms on one decoder, 18.9 effective (M); an adapter, no decode (M) | the exact series: 4.63× on `dbts_b1` (R) | full, the stored depth | **yes**, the reversible path only; exact on SwiftShader (R) | all, with a WebGPU painter (not built) | WebGPU: Chrome Android 12+ ARM/Qualcomm/Intel (121), Android 16+ Imagination (139), Safari iOS 26; not Firefox Android, not Xclipse; decoder a lab tool |
+| The content's rectangle ([`content-crop.md`](content-crop.md)), a **factor** on any row above | decode × 0.85 (AV1), × 0.76 (HTJ2K) on `dbts_b1`, so 35.8 and 14.4 ms effective on the phone (D on A); 0.94 on `dbts_b3`; ≈ 1 on the other 17, 16 of which have no safe rectangle and are coded whole (M) | × 0.997–1.002 (M) | unchanged | as the row it multiplies | unchanged | no: an ingest change and the paint's placement |
 | Native, paused 2026-11-15 (`docs/native/`) | the reference point, not a browser option (amendments 18, 19) | | | | | |
 
 Reading the table against the question:
 
-* **Fast enough.** There is no phone number except AV1 in software. Every hardware row's time is a level's
-  conformance floor ("must be able to decode", S1), not a measurement, and holds only if the decoder accepts a
-  `dbts_b1` or `dbts_c1` frame. The platform does not promise that (§3, item 4).
+* **Fast enough.** Two rows have a phone number: AV1 in software and HTJ2K in software, and on the one phone the
+  exact frame decodes faster (18.9 against 42.1 ms effective at three decoders; 1.87× per decoder, D). Every
+  hardware row's time is a level's conformance floor ("must be able to decode", S1), not a measurement, and holds
+  only if the decoder accepts a `dbts_b1` or `dbts_c1` frame. The platform does not promise that (§3, item 4); the
+  round's phone declares it, untested at that size. *Judged again 2026-11-22: this read "There is no phone number
+  except AV1 in software."*
 * **Full precision.** The three HTJ2K rows give it on every series; AV1 in software up to 10 bits, the depth cut above
   (*corrected 2026-11-15, PR 397 §Review blocker 1: this read "The four non-hardware rows give it"*). The three hardware rows top out at 8 bits, and amendment 16
   makes 10 bits on hardware the goal, 8 bits the fallback.
@@ -167,21 +181,80 @@ against the noise rule, still owed.
 
 ## 6. A leaning, labelled as one
 
-* **The route of record stays AV1 in software.** It is the only row measured on a phone, and it is full precision up
-  to 10 bits (the depth cut above; *corrected 2026-11-15, PR 397 §Review blocker 1: this read "full precision"*),
-  checked and shipped on every engine. Its spare levers (M12–M15) cost a page, not a build.
-* **The first full-precision alternative to settle is HTJ2K on the phone**: cell 1 for WASM, M20 for WebGPU, whose
-  decoder already exists and is exact. Either wins only where its decode beats AV1's and the link carries 4.6× the
-  bytes (above ~382 Mbit/s against today's fill for WebGPU, if the GPU decodes in ≤ 45 ms; ~405–665 Mbit/s for
-  software HTJ2K). That is the home Wi-Fi fit but not a median mobile link. So an HTJ2K
-  route is the likelier exact-frame decoder before it is the fill's.
-* **Hardware is the only route that changes the decode by an order of magnitude**, and it costs precision. It is worth
-  weighing only if M1, M4–M7 pass, and then as the inverted, checked form at 1.16–2.49× bytes and under 7.78 bits, not
-  the unchecked one. The other codecs matter only where M4 shows HEVC or VP9 hardware and no AV1 hardware that takes
-  the size.
-* **Lossy HTJ2K and the content's rectangle: hold.** The cloud cells removed the bytes and decode they were proposed
-  for. What is left is lossy HTJ2K's full depth and screen-sized levels (§5), and the rectangle's halving on the
-  largest detector (`dbts_b1`). M17–M19 and M22 test them cheaply.
+*Judged again 2026-11-22 with the phone round (MOBILE-DECODE-REJUDGE). Each bullet's earlier wording is quoted where
+it changed. Device numbers are (M), one phone; every class's number is `device-model.md` §4's or
+[`route-policy.md`](route-policy.md) §3's, (D on A). b is a `dbts_b1` frame's bits (the view 3.71 Mbit, the exact
+frame 17.19), d its effective decode time at three decoders.*
+
+* **The route of record stays AV1 in software**, for a narrower reason: it is the one view that ships, checked on
+  every engine, full precision up to 10 bits (the depth cut above). On the phone it took 110 ms a frame per decoder
+  at three decoders, 42.1 ms effective, and saturated there: a fourth decoder made it 10 % slower (M), so M12's
+  lever is spent on this phone. One decoder alone took 176 ms a frame, slower than each of three; M13 is the ask
+  that would read it. *This read "It is the only row measured on a phone"; HTJ2K in software is measured too.*
+* **HTJ2K in software is no longer the alternative to settle: it is the faster decoder, and the link decides.** On the
+  phone, 18.9 ms effective against the view's 42.1 (×2.23; 1.87 per decoder, D). The model's HTJ2K bands held at
+  every decoder count, so it carries: *d*_E 33–83 against *d*_V 90–326 ms on an entry phone, 15–54 against 41–215 in
+  the middle, 14–31 against 33–78 at the top. The exact series fills faster than the view above
+  *G*\* = *b*_E ÷ *d*_V: 251–408 Mbit/s for `dbts_b1` and 590 for `dbts_a1` on that phone, 53–191 on an entry phone,
+  80–419 in the middle, 220–521 at the top. The round's link sat above it, and B filled faster than A in 15 of 15
+  rounds, median 0.705 (M). As the exact-frame decoder it measured 216.5 ms from press to *✓ Lossless*, above the
+  model's 80–130 ms, unexplained. Which route a session takes is `route-policy.md`'s and the delivery page's
+  question, not this file's. *This read "Either wins only where its decode beats AV1's and the link carries 4.6× the
+  bytes (… ~405–665 Mbit/s for software HTJ2K). That is the home Wi-Fi fit but not a median mobile link. So an HTJ2K
+  route is the likelier exact-frame decoder before it is the fill's." Its decode does beat AV1's. The threshold is
+  lower than the prediction, and on the round's link HTJ2K was the faster fill too.*
+* **Lossy HTJ2K moves from *hold* to the first ask (M17).** It was held because the cloud cells "removed the bytes
+  and decode they were proposed for". The bytes stand: at the noise rule's bar a median 1.05× the view's (0.85–1.47),
+  at the view's own error 1.36×. The decode does not stand. Its prediction (93–154 ms, "no faster, possibly slower"
+  than AV1) carried the cloud's AV1 ÷ HTJ2K ratio, and the round refuted that ratio. Scaled from the lossless frame's
+  58.9 ms by the cloud's lossy ÷ lossless 1.12–1.21, a lossy frame takes 66–71 ms per decoder, **21.2–22.9 ms
+  effective, 0.50–0.54 of the view's** (D on A: that the cloud ratio carries to the phone). If it holds, it is a view
+  at about the AV1 view's bytes, at the stored depth with no depth cut (so the 12-bit `dbts_a1` and `dbts_c1` too),
+  checked by the one-build digest, decoding in half the view's time.
+  It fills faster than the AV1 view above *b*_L ÷ *d*_V = 3.90 Mbit ÷ 42.1–68.6 ms = **57–93 Mbit/s** (median
+  bytes; 46–129 over the bytes' range). It fills faster than the exact series below
+  17.19 ÷ 21.2–22.9 ms = 751–811 Mbit/s (553–597 at the fill's ×1.36). Both are (D on A).
+  By class, *d*_L = *d*_E × 1.12–1.21 = 37–100 ms on an entry phone and 17–65 in the middle, both below the view's
+  band; 16–38 at the top, overlapping the view's 33–78 at its fast end. Its costs are unchanged: 1.05–1.17× the
+  in-window error at the bar (median 1.13), an ingest form and a client route not built (structural, the owner's),
+  and a check tied to one WASM build. **It decides:** M17, lossy against lossless on the phone in memory (does
+  1.12–1.21 hold?), then lossy as a fill arm beside A and B. Of everything in this directory, it is the one result
+  that questions whether AV1 stays the phone's view. *This read "Lossy HTJ2K and the content's rectangle: hold. The
+  cloud cells removed the bytes and decode they were proposed for."*
+* **The content's rectangle: hold**, unchanged. Only `dbts_b1` gains. By the cloud factors, 35.8 ms (AV1) and
+  14.4 ms (HTJ2K) effective on the phone (D on A). M22 tests it.
+* **WebGPU narrows to where the exact series is decode-bound.** Below *G*_B = *b*_E ÷ *d*_E the exact series waits on
+  the wire, not the decoder: 666–910 Mbit/s on the phone, 550–1228 at the top, 316–1146 in the middle and 207–521
+  on an entry phone (`route-policy.md` §3). Below that point a faster exact decoder shortens only the first picture
+  and the exact-frame latency (one decoder's 40.4 ms, M). The bar it must beat is now WASM's 18.9 ms effective, not
+  AV1's 42.1. **It decides:** M20, worth most on an entry or middle phone, where *G*_B is within reach of home Wi-Fi
+  and 5G. *This read "The first full-precision alternative to settle is HTJ2K on the phone: cell 1 for WASM, M20 for
+  WebGPU". Cell 1 is settled on one phone.*
+* **Hardware, at 8 bits only, now comes after lossy HTJ2K.** Cell 4 ran 256 × 256 units only (M). The phone's
+  AV1 decoder is there and declares 8192 × 8192. The 4:0:0 forms fail at flush. The 10-bit full-range forms come
+  back as 8-bit `RGBA`, off by one on 19 480–49 002 of 65 536 samples a channel. So amendment 16's goal, 10 bits on
+  hardware, is not reached on this phone through WebCodecs, at that size and in those forms. An 8-bit full-range unit
+  came back exact, so the inverted, checked route stays possible. Its gain is the view's decode wherever the view is
+  decode-bound: between *b*_V ÷ *d*_V and *G*\*, 54–88 to 251–408 Mbit/s on the phone. Lossy HTJ2K would cover the
+  same band at the stored depth. **It decides:** M5 (a form other than 4:0:0 at a volume's size), then M6–M7, weighed
+  only if M17 fails. *This read "It is worth weighing only if M1, M4–M7 pass". M4 passed, as declared limits.*
+* **The other codecs add nothing on the round's phone**: its AV1 decoder declares the size. They matter only on a
+  phone with HEVC or VP9 hardware and no AV1 hardware that takes the size, so a second phone's M4 decides them.
+
+### 6.1 The AV1 rows the program held: options, and what decides each
+
+`claude/work-ledger:docs/queue-2026-11-14.md` §Trimmed holds these rows until "the owner's word after
+MOBILE-DECODE-REJUDGE writes the options for the AV1 rows". Each spends hours of AV1 encoding, or assumes that AV1
+stays the phone's view. Releasing a row is the owner's call. Under every row, option (a) is to release it as written.
+
+| row | what it settles | the other options | the measurement that decides |
+| --- | --- | --- | --- |
+| G at equal quality, shard 2 (`GROUPS-SHARD2`, `claude/av1-groups`; ~4.3 h) | the view's group length for DBT; shard 1 recommended nothing (O G 8–32 saves 4.2–4.4 % but decodes ~20 % slower on WebCodecs, `docs/lines/codecs.md` §Open 1) | (b) hold until M17; (c) drop, today's G kept | M17, which decides whether the phone's view stays AV1. If it does: a cell-1 arm per G on the phone, since a 20 % slower decode costs fill time wherever the view is decode-bound (above 54–88 Mbit/s on that phone, D) |
+| The noise-ratio run (`NOISE-RATIO-RUN`; 19 volumes) | the noise rule's criterion for the AV1 view | (b) after VL-PAGE; (c) aimed at lossy HTJ2K's step instead, if M17 holds; (d) drop | VL-PAGE's answer on the criterion, then M17 |
+| The tiles' step (`TILES-STEP`, `av1-software.md` §8.6) | 2 × 2 tiles: 0.64–0.72× a frame's decode, 1.0001–1.0065× the bytes (cloud); not ready by its quality rule | (b) a tiled series built for the next round, timed on one decoder and on three; (c) hold behind M13; (d) drop if lossy HTJ2K replaces the view | M13 first: the view saturates at three decoders, so tiles' threads would shorten one decoder's 176 ms (the first picture) more than the fill (T); then the tiled series in cell 1 |
+| The other codecs' byte cell (`other-codecs.md` §5) | HEVC, VP9 and H.264 bytes at the noise rule's bar | (b) keep held | M4 on a second phone: the cell matters only where AV1 hardware does not take the size |
+| The strips' byte cell (`av1-chips.md` §4.3) | strips at level 4.1, for decoders below 5.x | (b) keep held | M5 at 2560 × 3328 on the round's phone (declared to 8192 × 8192). If that phone decodes the size, strips serve only phones that stop at 4.1, found by a second phone's M4 |
+| The decode audit's three checks (`docs/lines/codecs.md` §Open 9, `claude/av1-audit-decode`) | how the view's cloud decode may be quoted; no encoding | (b) keep held while every phone page quotes the phone's own number | whether a page quotes the view's cloud decode; DELIVERY-RUN's model does |
 
 ## 7. Sources
 
@@ -208,3 +281,12 @@ rectangle; no breast ultrasound cine. 4-core cloud hosts without a GPU, headless
 saturated for the option rows' cells, so no time is claimed from them. One Android 16 phone (Chrome 157), one home
 Wi-Fi link, one evening, three decoders, its core count not recorded: the only phone number (133–135 ms) comes from
 it. Nothing was run by this row. It compares documents.
+
+The rejudge of 2026-11-22 adds that phone's second evening (Chrome 157.0.8103.78, `hardwareConcurrency` 8, five fast
+cores; one home Wi-Fi at ≥ 568–595 Mbit/s of goodput, a lower bound; `dbts_b1` and `dbts_a1`'s cut only; software
+decode; the view at Q 8 G 8 only; cell 1 in memory, cell 2's fills with a renderer that kept earlier loads' memory).
+M1–M22 did not run as asked; cell 4 is 256 × 256 units only. PHONE-READ-CODE-CHECK (whether every load ran the run
+commit's client) was not done when this was written: a load it sets apart changes the numbers quoted here, and §6
+is then judged on what remains. Every other class's number is the device model's, derived. No iPhone, no second
+engine, no breast ultrasound: a clip's 8-bit, smaller frames change both codecs' work and the bytes ratio, so §6
+carries to US stacks by its form only, with no number. The rejudge measured nothing.
