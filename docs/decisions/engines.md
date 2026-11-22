@@ -1,0 +1,136 @@
+# Engines: which client results hold in Firefox and Safari
+
+Written 2026-11-22 by row ENGINES-PAGE (`claude/work-ledger:docs/queue-2026-11-14.md`), a session that ran none of
+the engines' rows, from pushed results only; nothing run. Inputs at: `claude/engines` `222817b1`
+(`docs/decode/engines.md`, its matrix, §Measured and §Only on a device; the raw rows in `docs/decode/engines-smoke/`;
+PR 410's body §ENGINE-REVIEW, §ENGINE-REVIEW-FIX, §Re-review), and on `origin/claude/unified` `4a2b4277`
+`docs/client/design.md` §Open (contradiction 6) and `docs/client/evidence/frame-memory-ownership.md` (*Firefox, run
+again*; *M5 under the amended bar*). "Row n" is a row of `engines.md`'s matrix; "cell n" a row of its §Measured.
+
+## 1 · The question
+
+The client was built and measured on Chromium. Which of the twelve results it stands on (the decode route, the
+exact frame, the check, shared memory, nested workers, the transport, paint in a worker, the view worker, the cache's
+stores, the reports' carriers, `getStats()`) also hold in Firefox and in Safari on macOS and iOS, and how each is
+known: the engine's own source, a cloud run, or only a device. Three calls are the owner's: what the client promises
+per engine, whether a coded form that Firefox's decoder mishandles may ever reach it, and contradiction 6 of
+`design.md` §Open (the ring's Firefox result ran on Firefox 155.0, not the 159.0 its bar was set on).
+
+## 2 · The recommendation, and the owner's yes or no
+
+**State the client as measured on Chromium and Firefox desktop (Firefox's view through dav1d), unknown on Safari;
+keep any 4:2:0 view form away from Firefox's `VideoDecoder` until its G = 8 failure is traced; close contradiction 6
+by one Firefox 160 run of the ring's amended bar; queue the Safari probe page first when a Mac or iPhone session
+exists.**
+
+| # | the owner's yes or no | recommended | a yes changes | a no leaves |
+| ---: | --- | --- | --- | --- |
+| 1 | The client's engine statement reads: Chromium and Firefox desktop measured for every row (Firefox's AV1 view decoded by dav1d, row 2), Safari macOS and iOS not measured, three Safari rows conditional on the device or OS (§4) | **yes** | one paragraph in `docs/client/design.md` §Decided and `README.md`, pointing at `engines.md` | `design.md` §Open's *Elsewhere* line ("Firefox and WebKit") stays open |
+| 2 | Until it is traced, no 4:2:0 view form (GREY420, `docs/av1/payload-format.md` §8-bit grey as 4:2:0) is decoded by Firefox's `VideoDecoder`: the client routes it to dav1d there | **yes** | one engine condition beside the per-layout probe (a build row, its test first) if GREY420 is ever adopted; today nothing, since GREY420 is built and not adopted | a 4:2:0 view on Firefox passes its probe and then fails frames 1–7 of every group of 8, and a frame inside a group cannot fall back (`av1.js` `decodeFrame`; PR 410 §ENGINE-REVIEW), so the failure reaches the reader as a failed check |
+| 3 | Queue one cloud row that traces the G = 8 failure (Firefox 159.0.1 and 160.0.1: the engine's output, or `av1-webcodecs.js` under it) | **yes** | one Opus row in the next queue; the cloud can run it (cell 2 ran there) | the cause stays open; item 2's condition stays indefinite |
+| 4 | Contradiction 6 closes by one cloud run of *M5 under the amended bar* on Firefox 160.0.1, the `ring` and `disk` arms with the A/A pair, 7 rounds; `ring` on Firefox stands as measured on 155.0 until then | **yes** | one run row, pre-registered by a session that will not run it; the contradiction closes on its result | the ring's Firefox verdict stays on 155.0, labelled so; §5 says why the margin is not expected to move (**theory**) |
+| 5 | The first Safari device session runs `engines.md` §Only on a device in its order: the engine probe page, then one WebTransport session and one frame with its SETTINGS captured, then `check.mjs`'s page by hand; on one Apple device with AV1 hardware and one without | **yes** | the order of the first Safari session, whenever a device session exists; the protocol is a row, the run is the owner's device's | Safari's rows stay unmeasured, every one |
+| 6 | Firefox for Android stays out of scope (no WebCodecs on release, E19) | **yes** | nothing | the same |
+
+**How it serves the value statement** (amendment 27 item 7): "in a web browser — on a phone … as well as on a
+workstation" names no engine. Items 1 and 5 make that claim checkable per engine; item 2 keeps "every frame the reader
+asks to see exactly is the original, bit for bit, and checked" from failing on one engine's decoder.
+
+## 3 · The options
+
+What holds where, from `engines.md`'s matrix as corrected 2026-11-21. **M** measured (version named), **S** the
+engine's source or document (E1–E26 there), **D** only a device. Every Firefox and Chromium cell is one 4-vCPU
+container, one round, no timing claimed.
+
+| result (row) | Chromium | Firefox desktop | Safari macOS / iOS |
+| --- | --- | --- | --- |
+| The view's AV1 by WebCodecs, exact (1) | **M** 141, 153: every frame `av1-webcodecs` (cell 1) | **M** refused at configure for the grey view, so every frame `av1-dav1d`, 56/56 exact on 160.0.1 (cell 2); **M** 8-bit G = 8 groups inexact on frames 1–7, WebCodecs route only, 159.0.1 and 160.0.1 | **S** AV1 Main only and only with an AV1 hardware decoder (E9–E11, E26); 10-bit `format` `null` by one report (E25); **D** |
+| dav1d after a refusal, exact (2) | **M** 408/408 | **M** 408/408 (157) | **S** WASM SIMD (E23); **D** |
+| The exact frame, HTJ2K (3) | **M** 240/240 | **M** 240/240; 56/56 on 160.0.1 | **S**; **D** |
+| XXH3 check (4) | **M** | **M** 157.0.1 | **S**; **D** |
+| `SharedArrayBuffer`, isolation (5) | **M** | **M** | **S** BCD 15.2; the embedder decides per global (E12); WebKitGTK **M** off; **D** |
+| Nested decoder workers (6) | **M** 789/789 dispatch | **M** 764/781 (160.0.1, twice), 763/781 (159.0.1): grey payloads refused, scalable clauses, the G = 8 groups | **S** BCD 16.4; **D** |
+| WebTransport, draft (7) | **M** draft-02 alone, 153–160; -07 only behind a flag | **M** draft-02, 160.0.1 and 163.0a1 | **S** macOS / iOS 26 where Network.framework's functions load, unconditionally from 27 (E5–E7); which 26.x (U); **D** |
+| Paint in a worker (8) | **M** 153 | **M** 155, under Xvfb | **S** BCD 17; **D** |
+| The view worker's results (9) | **M** 153 | **M** 155 | **D**, never run |
+| The cache's four stores (10) | **M** 153 | **M** 159; all four `exact` at R-idle 512² on 160 (cell 5) | **S** OPFS settings on for Cocoa (E13); WebKitGTK **M** no OPFS; **D** |
+| The reports' carriers (11) | **M** BEACON, KEEPALIVE, SESSION deliver at D1 in one of two interleaved runs; in the other SESSION and KEEPALIVE failed to open (Re-review n3) | **M** 160.0.1, D1, one round: three carriers deliver a fill record (`off` its safety record only, n1) | **S** BCD; SESSION needs row 7; **D** |
+| `getStats()` (12) | **M** absent on 153, 158, 159; present on 160.0.8173.0, a pre-release build, without byte counts; stable 160 not measured | **M** 160.0.1, 163.0a1: bytes, packets, loss, RTT (BCD's "throws a not-implemented error" is stale) | **S** BCD 26.4; **D** |
+
+Contradiction 6, **measured** (`frame-memory-ownership.md`), growth in MiB, median [range]:
+
+| Firefox | bar | `ring` | `disk` (the floor) | `ring` − floor | room under the bar, largest round | the fill bar |
+| --- | --- | --- | --- | --- | --- | --- |
+| 159.0, rerun, struck bar (2026-10-30) | `disk` + 320 = 862 | 828 [790–850] | 542 [528–584] | 286 (**derived**) | 12 | missed, 1.30 × `today` |
+| 155.0, amended bar (2026-11-02/03) | `disk` + 320 = 760 | 702 [673–710] | 440 [429–450] | 262 (**derived**) | 50 | met, 0.85 |
+
+## 4 · Where it holds
+
+**Fixtures and limits.** One 4-vCPU cloud container without a GPU; software decode only; Firefox 159.0.1 and
+160.0.1 from `archive.mozilla.org` (each checked against `SHA256SUMS`), 163.0a1 for the transport; Chrome for Testing
+153.0.8010.12 and, for the transport, 158, 159, 160.0.8173.0; Firefox's WebGL on llvmpipe under Xvfb, Chromium's on
+SwiftShader; one round per cell, no timing claimed; `dbts_a1` only, 1 of 19 DBT volumes of one dataset; no breast
+ultrasound cine; no Safari, no phone. Sources at `main` of 2026-11-19 (Chromium `fb1f1ab4`, WebKit `4c0a9cbe`, Gecko
+`d5236b13`), not at the releases run; BCD `70a51a12` is a secondary record. The ring's rows: the same host class, 80
+frames of one series, 7 rounds per arm, Firefox 155.0 (Playwright 1.63's) and 159.0.
+
+**The population.** Desktop Chromium and Firefox: carried only to the versions named; nothing past them. Chrome for
+Android: rows 1–3 and 8 are the phone round's (`next-round.md`), not this page's; its hardware route returns RGB
+(E24), so the page claims nothing for it. Safari: **no row is measured**, and three rows turn on the device or the
+OS, by WebKit's source (**source**, E5–E12): the view's WebCodecs route needs AV1 hardware (else dav1d, row 2), the
+transport needs OS 26 with Network.framework's functions or 27, and shared memory is the embedder's call per global.
+Nothing measured on WebKitGTK 2.52.6 is carried to Safari.
+
+**US and DBT stacks** (amendment 27 item 6). Every engine row turns on the coded form and the frame's size, not the
+modality, so a DBT result carries to an ultrasound clip of the same form (**theory**). One difference matters: an
+ultrasound clip in colour would be an 8-bit 4:2:0 form, which Firefox's `VideoDecoder` takes, and that is exactly the
+form whose groups failed (item 2; **derived**, not measured on any ultrasound frame). How an ultrasound clip's view is
+coded is not yet decided, so whether item 2 binds it is not yet known.
+
+**Predictions against the runs** (cells 1–7). Held: cells 1, 4, 5, 7, and cell 2's pair. Missed: cell 2's `dispatch`
+(predicted 3/3, measured 764/781), and cell 3's "-07 on Chromium", a mis-stated prediction (-07 was only ever measured
+behind a flag). Decided by the run: `getStats()` on Chromium.
+
+## 5 · The mechanism
+
+**Firefox's view.** Firefox refuses the grey 4:0:0 AV1 the view sends at configure, so the per-layout probe fails and
+every frame goes to dav1d, which is exact; the view holds by its fallback, not by WebCodecs. An 8-bit 4:2:0 form is
+accepted and probes fine, but in groups of 8 its inter frames come back wrong on the WebCodecs route only (every
+`dav1d:` variant of the same clauses is exact), and inside a group there is no per-frame fallback. Whether the engine
+or the client's WebCodecs module under it is at fault is not traced (item 3).
+
+**Safari.** WebKit turns AV1 in WebCodecs on only once a hardware decoder is found (E11), and builds WebTransport
+only against Network.framework from OS 26 (E6, E7). So Safari's two central rows are a property of the device, which
+no cloud host can stand for.
+
+**Contradiction 6.** The ring's memory is fixed by its design (slots carved once), so what an engine version moves is
+its floor, and the bar is the floor plus 320 MiB on each version. The ring sat 286 MiB over its floor on 159.0 and
+262 on 155.0 (**derived**), both under 320; so the memory bar is not expected to turn on the version (**theory**).
+What is not measured is the fill bar under its amendment on 159 or later: the amendment alone turned 155.0's reading
+from 1.23 to 0.85 × `today`, and 159.0 was read only by the struck bar (1.30). Item 4 measures it.
+
+## 6 · What would change the recommendation
+
+* **Item 2:** a trace (item 3) that puts the fault in `av1-webcodecs.js`: then a client fix, not an engine condition.
+  One cloud run shows it.
+* **Item 4:** `ring` missing the amended fill bar on Firefox 160: choice 2 of `frame-memory-ownership.md` returns to
+  the owner for Firefox. One cloud run shows it.
+* **Item 1, Safari:** the probe page on one device (item 5) showing `SharedArrayBuffer` absent on a cross-origin
+  isolated page: then the client does not run on Safari as built, whatever the other rows say.
+* **Row 12:** stable Chromium 160 without `getStats()`: the link from the client stays Firefox's only. A run on a stable
+  build shows it; the `reports` page reads this row.
+
+## 7 · What it would reopen
+
+Nothing. Item 2 constrains an option (GREY420) that is built and not adopted; WebCodecs first with dav1d as the
+fallback (§Decided approaches) is what Firefox's view already does.
+
+## 8 · Rows and links
+
+* ENGINE-MATRIX (2026-11-19), ENGINE-SMOKE (2026-11-20), ENGINE-REVIEW, ENGINE-REVIEW-FIX, ENGINE-REVIEW-FIX-REVIEW
+  (2026-11-21): status files `claude/work-ledger:docs/queue/ENGINE-*.md`; PR 410 (`claude/engines`, draft into
+  `claude/unified`), `docs/decode/engines.md`, `docs/decode/engines-smoke/`.
+* Contradiction 6: `claude/unified:docs/client/design.md` §Open;
+  `claude/unified:docs/client/evidence/frame-memory-ownership.md` (*Firefox, run again*, rows at
+  `claude/core-m5@91069eb3`; *M5 under the amended bar*, rows at `claude/core-m5b@2f8f63eb`).
+* Line doc: `docs/lines/client.md` (on `claude/engines`).
