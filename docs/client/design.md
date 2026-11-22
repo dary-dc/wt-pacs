@@ -202,7 +202,10 @@ by strips, or an exact level picture first, and in what words
 
 **What a view asks for.** Never designed (the owner, 2026-11-02). Proposed, theory only: one rule, a memory window
 from the current frame; several series under a client arbiter ([`what-a-view-asks-for.md`](evidence/what-a-view-asks-for.md),
-its §5 decides; [`how-viewers-and-readers-ask.md`](evidence/how-viewers-and-readers-ask.md)). Beside it, each the
+its §5 decides; [`how-viewers-and-readers-ask.md`](evidence/how-viewers-and-readers-ask.md)). *2026-11-22, theory:*
+a model of the reader gives one key, a frame's need time, for the want, the store and what the transport commits;
+it keeps the window behind a reader who goes back and forth and takes `waitAhead`'s k as the frames committed
+([`ask-model.md`](evidence/ask-model.md); its §7 lists what a cloud run could refute, its §9 the owner's calls). Beside it, each the
 owner's: an ask during a fill ([`ask-during-a-fill.md`](evidence/ask-during-a-fill.md)), a scroll ahead
 ([`what-a-scroll-ahead-asks.md`](evidence/what-a-scroll-ahead-asks.md)), an ask behind the decoders
 ([`ask-behind-a-decoder-queue.md`](evidence/ask-behind-a-decoder-queue.md)).
