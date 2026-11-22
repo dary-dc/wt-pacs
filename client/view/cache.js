@@ -30,9 +30,9 @@ export async function openCache({ writer, key, digests, emit }) {
   };
 }
 
-/** The packed file of client/viewer/store.js, in a worker of its own: writes and reads leave this thread. */
+/** The packed file of client/view/store-worker.js, in a worker of its own: writes and reads leave this thread. */
 async function storeWorker(key, digests) {
-  const worker = new Worker(new URL("../viewer/store.js", import.meta.url), { type: "module" });
+  const worker = new Worker(new URL("./store-worker.js", import.meta.url), { type: "module" });
   const replies = new Map();
   let id = 0;
   const call = (kind, m, transfer = []) => new Promise((resolve) => (replies.set(++id, resolve), worker.postMessage({ kind, id, ...m }, transfer)));

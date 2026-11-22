@@ -1,4 +1,4 @@
-// node client/viewer/store.test.mjs — the store worker against an OPFS held in memory, whose quota, free disk, crashes
+// node client/view/store-worker.test.mjs — the store worker against an OPFS held in memory, whose quota, free disk, crashes
 // and other tabs' handles are the test's levers. docs/adr/frame-path.md §3, *Built*, the cache
 import { register } from "node:module";
 
@@ -136,7 +136,7 @@ globalThis.postMessage = (m) => (replies.get(m.id)(m), replies.delete(m.id));
 
 /** A store worker in a new tab of the origin: `(kind, message)` → its reply. */
 async function tab() {
-  await import(`./store.js?tab=${++tabs}`);
+  await import(`./store-worker.js?tab=${++tabs}`);
   const handler = globalThis.onmessage;
   return (kind, m = {}) => new Promise((r) => {
     const id = ++ids;

@@ -502,7 +502,7 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   client's files when it names `"wasm"`, any other name refused by name ([`docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client). The module dials at once, with the whole series as the opening fill, while the
   painter starts in parallel.
 * **Frames.** Frames are kept in memory by index. There is no cache by default. *Corrected 2026-11-14:* this bullet
-  said each frame checked `true` is also written to OPFS by a store worker (`viewer/store.js`); no product module
+  said each frame checked `true` is also written to OPFS by a store worker (`view/store-worker.js`); no product module
   loads that worker (`viewer/viewer.js`: `writer = lab.writer`), so it is written only under the lab's `?writer=`
   (*Where the frames are*, below). With a writer, a reopened series fills only what is not there, a frame on disk is
   read back re-checked and asked again if it fails, and past 256 MiB the frames on disk farthest from the current one
@@ -516,7 +516,7 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   decoders post to it, and the page (`view/view.js`) sends intents and hears `shown`, `progress` and `failed`, never a
   frame ([`docs/client/evidence/frame-store-owner.md`](../docs/client/evidence/frame-store-owner.md) §3, *Built*). The status line names the view. Under
   `worker` the store looks in an OPFS cache before it asks (`view/cache.js`): when the lab's `?writer=` names who writes it — the
-  store worker (`viewer/store.js`), the decoders or the view worker — a series with digests is written there after each
+  store worker (`view/store-worker.js`), the decoders or the view worker — a series with digests is written there after each
   frame's paint, and read back checked on a later open. With no writer, the default, there is no cache, as on main
   ([`docs/client/evidence/speed-of-the-assembled-design.md`](../docs/client/evidence/speed-of-the-assembled-design.md) §The core, assembled).
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact. A
