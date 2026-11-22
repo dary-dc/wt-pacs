@@ -1537,3 +1537,31 @@ process ~3.1–4.1 %, its nginx ~2.0–2.3 %), every report written. At 1 000 a 
 its nginx ~37–44 %; one safety burst had 256 of 60 000 posts end in a client-side connection error, never answered and
 never written. Against §7.3's predictions: NGINX cheapest, as predicted; RECEIVER "about NGINX plus one local hop"
 is ~4× NGINX here, not about equal. **The server's row is not built** (§7.9): rule 4 has no server to judge.
+
+### D6 on Chromium, the link dropped before the hide, under `--tun` (18 rounds, 162 loads, 2026-11-22 08:31–13:09 UTC)
+
+The relay at §7.2's link (10 ms each way, 50 Mbit, 200 packets, `--blackout-mode drop`); a 30 s blackout from the fill's
+end + 4 s, hidden at + 5 s, navigated at + 6 s, then the 60 s wait; HTTP arms to RECEIVER behind nginx, SESSION to the
+server, all in the relay's server namespace. Williams-balanced for every unit; every load filled; no row errored; host
+CPU at most 23 %. nginx logged one `initgroups … Operation not permitted` line at its start inside the user namespace
+and served every request after it.
+
+| unit | fill record | a delta | safety report | duplicates | §7.3 predicted |
+| --- | --- | --- | --- | --- | --- |
+| `off`, `off′` | 0/18, 0/18 | — | 18/18, 18/18 | 0 | safety ✓ |
+| BEACON-H | **18/18** | 0/18 | 18/18 | 0 | ✗ ("a beacon failing on a dead link is not retried") |
+| BEACON-Y | 18/18 | 18/18 | 18/18 | 0 | fill ✓, deltas ✗ |
+| KEEPALIVE-H | **18/18** | 0/18 | 18/18 | 0 | ✗ |
+| KEEPALIVE-Y | 18/18 | 18/18 | 18/18 | 0 | fill ✓, deltas ✗ |
+| SESSION-1 | 18/18 | 18/18 | 18/18 | 0 | fill ✓, deltas held, lost at navigation |
+| SESSION-Y | 18/18 | 0/18 | 18/18 | 0 | fill ✓ |
+| SESSION-H | 0/18 | 0/18 | 18/18 | 0 | ✗ |
+
+**The safety bar holds for every arm** (the mismatch is during the fill, before the blackout). Against the predictions,
+**four misses, all in the carriers' favour**: BEACON-H's and KEEPALIVE-H's hide record, and BEACON-Y's and KEEPALIVE-Y's
+hide delta, sent into the blackout, arrived in every load; SESSION-1's delta, predicted lost at navigation, arrived too.
+Read as measured, not explained by this run: the relay's `drop` blackout lasts 30 s and the browser lives 60 s after
+the navigation, so a keepalive request or a beacon queued in the browser process and retransmitted by TCP once the link
+returns would arrive inside the wait. D6 as written therefore tests a blackout **shorter than the browser's life after
+the page**, not a link that never returns; which of the two a phone meets is the phone cells' (§7.7). SESSION-1's delta
+was sent by its 1 s tick before the blackout began (the presses come at the fill's end, the blackout 4 s later).
