@@ -14,14 +14,12 @@ what "bench" stands for). Not read: ISO 9000, ISO 16290, ISO/IEC/IEEE 24765, IEC
 * Premise questioned: "production ready" and "demo ready" are steps on one ladder, and so are alpha, beta, preview,
   release candidate and a TRL number. The state has three independent axes (scope, evidence, use), so any ladder
   word overclaims the third or undersells the first two (theory).
-* Sixteen terms judged by five tests from the owner's words; eleven quoted from official sources, five generated here.
-* Recommended: **bench-verified**, always with its scope, and one line beside it: "Not run in production and not
+* Sixteen terms judged by five tests from the owner's words (five generated here). Recommended: **bench-verified**, always with its scope, and one line beside it: "Not run in production and not
   validated in a clinic; not a medical device." "Verified" against "validated" is the quality vocabulary's own split
   (FDA, General Principles of Software Validation §3.1.2); "bench" names the fixtures' limit.
 * The definition: seven conditions, each with its check on the branch, and seven things named as outside it.
 * Read on `claude/unified`, for UNIFIED-PAGE: the tracked ultrasound fixture is placeholders, so "complete for
-  ultrasound stacks" is not yet shown; no single table of defaults was found.
-* "Research use only" is not recommended: the regulation defines it for in vitro diagnostic products.
+  ultrasound stacks" is not yet shown; no table of defaults found. "Research use only" not recommended (an IVD label).
 Owner, last: yes or no to *bench-verified* with the page's §5 (a yes: one glossary line, the README status line,
 `coordination.md` §Goal's "deployment-ready" replaced); if "verified" is refused for DICOM's Verification Service
 Class or a later regulatory path, *bench-measured* with §5 unchanged; the status line's second sentence either way.
