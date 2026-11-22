@@ -1619,3 +1619,113 @@ saturated (CPU at most 25 %). Every counted cell Williams-balanced, no counted r
 
 For REPORT-VERDICT-2 (§7.5 over both runs), not decided here: whether C's per-round fill bar and Lbusy's ratio-form
 A/A can be met on this host at all; the Firefox driver's two defects and its profile leak, for a build row.
+
+## Verdict review 2 (REPORT-VERDICT-2, 2026-11-22)
+
+*By a session that wrote, advocated, built, ran and reviewed none of this plan. §7.5 applied over both runs: REPORT-RUN's
+D1, D2, D3, D4, D7, D8, D9 and REPORT-RUN-2's D5a, D5b (timed from the fault; the first run's D5 rows judged nowhere, §7.9),
+D6, L, Lbusy, C with Y, R. Scope: Chromium 153.0.8010.12 headless only (Firefox has no counted cell, WebKitGTK none run),
+one 4-vCPU cloud container without a GPU, the contract's grey-16 frame ×32 (not `dbts_c1`), the fault bench's forced
+mismatch, loopback or a userspace relay under `--tun`, nginx 1.31.8, 1.7 KB recorded bodies in R; no phone. Nothing
+below holds wider.*
+
+**The rows recomputed.** Every count and median of §Results 2 was recomputed from `claude/report-arms` `4ef4e12a`
+`lab/report-arms/rows/r2-*.jsonl` (`claude/work-ledger:docs/queue/REPORT-VERDICT-2/recompute.py`, its `output.txt`): all
+agree, to the printed digit, for D5a, D5b, D6, L, Lbusy (the VOID ratios 1.026 and 1.095), C (fill ratios, rounds within
+the bar, long tasks, kept records and bytes) and R (sent, lines, refusals, core shares). Every cell's `balanced` is true,
+no row errored, no burst saturated; `r2-cpu.log`'s highest 5 s sample is 38 %, under §7.4's 90 %. The p50 and p99 of a
+row's 20 faults are nearest-rank, which reproduces the run's numbers.
+
+### The rule (§7.5), applied as written
+
+1. **No carrier arm passes.** C's bar, "fill time … median ratio to `off` within 0.98–1.02 … in ≥ 15 of 18 rounds", is met
+   by no carrier arm (0–3 of 18, *measured*), and C is not VOID (`off′`/`off` 0.989, inside 0.95–1.05). The other bars:
+   the safety bar holds for every HTTP arm in every ending that carries it (D1, D2, D4, D5b, D6, D7, D8, D9), and for the
+   SESSION arms everywhere but D8 (0/18 each); the load bar fails for SESSION-H (D1 0/18, D7 1/18); L idle and Y hold for
+   every arm. So rule 5 is reached: the result goes to the owner as measured, each arm's gap over its floor below.
+2. **Rank: not reached** (rule 2 ranks passers only).
+3. **The safety report's carrier: a tie, not decided.** Every arm delivered D5a's safety report 18/18, and in all 162 loads
+   the page had handed it on before the kill (`safetyHanded`, kill 49.3–64.6 ms after the fault): the race rule 3 exists
+   to measure (a kill between the mismatch and the hand-off) never happened on this host and series. It is shorter than
+   50 ms on an idle page here; it is not measured on a busy one (below).
+4. **Receivers: NGINX.** At 100 a second NGINX meets R's bar (1.31–1.45 % of one core, all 72 000 written, nothing
+   refused); RECEIVER behind the same nginx misses it (5.28–6.33 %, every report written). Rule 4's trade, which needs
+   both to pass, does not arise. RECEIVER's miss is 0.3–1.3 points over a 5 % bar, on 1.7 KB bodies, on one host.
+5. **No passer** (rule 1): the owner gets the table below.
+
+| arm | bars failed (row: count) | gap over its floor | C's fill time to `off`, median (IQR of rounds) |
+| --- | --- | --- | --- |
+| BEACON-H | C (0/18) | L idle p50 2.04 ms against its floor's 1.37 ms append: +0.7 ms | 1.052 (0.877–1.101) |
+| BEACON-Y | C (1/18) | +0.5 ms (1.98 against 1.49) | 0.976 (0.900–1.206) |
+| KEEPALIVE-H | C (0/18) | +0.1 ms (1.54 against 1.45, the page's floor; the worker's not wired) | 1.137 (1.062–1.244) |
+| KEEPALIVE-Y | C (3/18) | 0.0 ms (1.61 against 1.58, as -H) | 1.072 (1.001–1.187) |
+| SESSION-1 | C (0/18); D8 safety (0/18) | not measured (floor not wired) | 1.217 (1.152–1.351) |
+| SESSION-Y | C (1/18); D8 safety (0/18) | not measured | 1.303 (1.163–1.379) |
+| SESSION-H | C (0/18); D8 safety (0/18); D1, D7 load (0/18, 1/18) | not measured | 1.256 (1.211–1.312) |
+
+Every gap is under the receiver clock's whole millisecond (§7.9; PR 395, m5): a floor-gap below 1 ms is a tie, not a
+ranking.
+
+### What the C bar measured
+
+**The bar cannot be met on this host by `off` against itself.** `off′`, the same code as `off`, is within 0.98–1.02 of it
+in 3 of 18 rounds; its per-round ratio spans 0.964–1.104 (IQR), and `off`'s own fill time varies 7.3 % (coefficient of
+variation) over the 18 rounds (*measured*). A per-round ±2 % bar on a ~120 ms fill is narrower than the host's spread, so
+its failure says nothing about a carrier; the VOID test (a median, not per-round) did not catch it. The rule is applied
+as written above; changing it now would be an amendment after data, which §7 forbids. **For a rerun, before its rows**:
+the bar read as the median ratio over the cell's rounds within `off′`'s own band, or more rounds.
+
+**Read as measured, not a bar** (*derived*: a sign test over 18 paired rounds, not pre-registered): BEACON-H and BEACON-Y
+are not told from `off` (slower in 12 and 9 of 18 rounds, two-sided p 0.24 and 1.0); KEEPALIVE-H is slower in 16 of 18
+(p 0.001, +16.7 ms median), KEEPALIVE-Y in 14 of 18 (p 0.03, +9.2 ms), every SESSION arm in 17–18 of 18 (+26 to +38 ms on
+a ~120 ms fill). These arms load a different decoder worker than `off` (`claude/report-arms:lab/report-arms/README.md`: KEEPALIVE's
+`keepalive/decoder.js`, SESSION's wrapped downloader and decoder), so the cost is the arm as built, and which part of it
+the carrier would keep in the product is not measured: an arm with `off`'s decoder and KEEPALIVE's send would separate it.
+The page thread's own cost is under 2 ms a load in every arm (median 0.44–1.73 ms), and no arm added a long task.
+
+### If C judged nothing (a reading for the owner, not the verdict)
+
+Without C's bar, the passers would be BEACON-H, BEACON-Y, KEEPALIVE-H, KEEPALIVE-Y (SESSION's three fail D8 by design,
+§3.3). Rule 2 over D3, D4 (REPORT-RUN), D5a, D5b, D6 (REPORT-RUN-2): the Y arms 90/90 fill records, the H arms 54/90 (0/18
+in D5a and D5b, where no hide precedes the kill): **Y leads H by 40 points**, past the 5. **BEACON-Y against KEEPALIVE-Y
+stays undecided**: the share ties; L's busy p99, the next key, is VOID; kept bytes tie (2 647 against 2 649 B; §7.9 ranks by
+kept bytes, not wire bytes). Lbusy, read as measured, splits them twenty-fold (p99 50.84 against 2.46 ms: the page-thread
+carriers wait out the long task, the worker's send does not); its VOID is an A/A gap of 0.11 ms on a whole-ms clock,
+the ratio form of the rule failing at the clock's resolution, as the run said. C, read as measured, goes the other way
+(KEEPALIVE-Y +9 ms a fill, BEACON-Y not told from `off`). So the two keys that would decide point opposite ways, and
+neither is a counted result.
+
+### Rule 3 and the receivers: why not decided, and what would decide
+
+* **Rule 3** (the safety report's carrier). *Theory, with Lbusy as measured:* the race is the time from the mismatch to
+  the hand-off; on an idle page it is under 50 ms (D5a), and Lbusy shows a page-thread carrier's send waiting up to a 50 ms
+  long task, which a worker's send does not. So the race opens on a busy page, for page-thread carriers only, and KEEPALIVE's
+  from-the-worker send is the design that does not wait on the page (§5). Deciding it needs D5a **on a busy page** (Lbusy's
+  long task, the kill 0–50 ms after the fault), counted, with an absolute A/A for the receiver's clock written before its
+  rows (a sub-ms clock at the sink, or a floor in ms).
+* **Receivers.** Decided as rule 4 reads it: NGINX, the only receiver meeting R's bar. What RECEIVER buys (validation on
+  write: the field list, refusals, the `outside` count; §3.5) costs about four times NGINX's core at every rate; NGINX's
+  read tool flags the same fields at read (the field mutant, caught). Whether that validation is worth the miss is the
+  owner's (§3.5's trade); a rerun at the real 4.9–6.6 KB bodies would say whether the miss holds. The server's row is not
+  built; it matters only with SESSION, which fails D8.
+
+### §5 against both runs
+
+*At once*: every arm sent the safety report at once and every HTTP arm, `off` and `off′` delivered it in every load of
+both runs, D6's blackout and D8's dead session included; SESSION alone lost it, in D8 (0/54). *At the end* was never run,
+so not compared; §5's recommendation stands on its sources and this measured reason. D6 tested a 30 s blackout inside a
+60 s browser life after the page, and every arm survived it, four predicted losses included: it did not test a link that
+never returns, which is the phone cells' (§7.7). The server's reaction is untouched by either run.
+
+### Owed (none needs a product change; amendment 28 rule 2 lets them run)
+
+C with its bar as a median within the A/A's band and an arm with `off`'s decoder; Lbusy and D5a-on-a-busy-page with an
+absolute A/A on a sub-ms sink clock; SESSION's and the worker's floors; R at 4.9–6.6 KB bodies; Firefox once `bidi.mjs`
+rejects pending calls on close, times out a load and removes its profile; WebKitGTK; the phone cells (§7.7).
+
+### Owner decisions
+
+Telemetry stays off (rate 0); nothing here is forced. For REPORTS-PAGE: (1) the receiver, NGINX, as rule 4 reads the run,
+or RECEIVER's write-time validation at about four times the cost; (2) whether the owed reruns above run before a carrier
+is named, or the owner names one now on the reading (Y over H by 40 points; BEACON-Y or KEEPALIVE-Y not separated by any
+counted cell).
