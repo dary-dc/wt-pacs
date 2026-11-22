@@ -14,7 +14,8 @@ it and where it differs. The design it would change is [`../design.md`](../desig
 **One key, used three times.** For every frame of every series a view shows, the client keeps one number, its
 **need time**: how soon the display can require it, along the paths the reader's mode allows. The want lists the
 missing frames by need time, soonest first. The store, over its budget, lets go the held frame whose need time is
-latest *after subtracting the time the pipeline would take to bring it back*. The transport commits (writes where
+latest: while the reader moves, a frame behind needs a turn first, so the farthest behind goes before any frame
+ahead; while the reader dwells, the farthest either side. The transport commits (writes where
 no later ask can pass) no more than keeps the link busy. A fill, an ask, a cine run, a window and an arbiter over
 several series are this rule at different parameter values; none is a mechanism of its own (§4).
 
@@ -23,10 +24,15 @@ Four things follow that no earlier text here states:
 1. **With no slice skipped, the order inside each direction needs no model of the reader.** The display reaches
    frame c + 2 only through c + 1, so nearest-first on each side is never worse (§3.1). The whole ordering problem
    is one merge of two lists.
-2. **A reader who goes back and forth wants the memory window behind, not ahead.** The earlier proposal assumed
-   three quarters of the window ahead. For a sawtooth, which is what the DBT source describes, the longest leg with
-   no wait is (W − 1) ÷ (1 − ρ²) frames when what is behind is kept, against a quarter of (W − 1) ÷ (1 − ρ) with the
-   window three quarters ahead: ×2–4 shorter, 4 ÷ (1 + ρ) (§5; ρ is the pipeline's rate over the reader's).
+2. **With no slice skipped, where the window sits at a turn is not the store's choice.** When the pipeline is
+   slower than the reader (ρ < 1, the pipeline's rate over the reader's), the display is held at the pipeline's
+   rate once the held frames run out, so nothing builds up ahead: at a turn every hold has about W − 1 frames
+   behind, the leg just crossed. The hold decides only when the pipeline may fetch past them on the way back, and
+   which side a dwell fills. Letting go behind first while the reader moves, and centred while the reader dwells,
+   is the best or tied-best arm in every case of §5's simulation (derived, not measured). *Corrected 2026-11-22
+   (ASK-MODEL-FIX): this item first said the window belongs behind a back-and-forth reader, by ρ ahead to 1
+   behind; under the file's own model that split is the worst arm in every case without a dwell and the best in
+   none, and it is struck (§5).*
 3. **`waitAhead`'s k is not a constant.** It stands for "the frames already committed", C ÷ b: 38 frames of CT, 13
    of the DBT view, 2 of the exact DBT frame, under Chromium's 6 MiB (§6). The measured k = 8 was adopted on CT cells
    only; on DBT it had no vote.
@@ -43,11 +49,14 @@ Four things follow that no earlier text here states:
 * **Cine** at rate r: the path is known exactly (a loop, a sweep or a stop: the three IHE requires, S1). **Scroll**
   at rate v with a direction: the path is known one step ahead, and the reader may turn at any step. **Dwell**:
   v = 0, no direction. **A jump** sets p to any frame and then dwells.
-* Sources for the scroll: readers of DBT "scrolled through 3.8 image slices during a single fixation" and make
-  "sawtooth plots as the observer moves back and forth through the stack multiple times" (S6, as this repository
-  recorded it; not refetched); lung CT readers scrolled at "25-30 fps" at detection, against their own "subjective
-  estimate of 5 frames per second" (S4); adjacent looks on film "averaged 0.54 seconds" (S5). So v runs from about
-  2 to 30 frames a second, and a scroll is a sawtooth whose leg length no source gives **(unknown)**.
+* Sources for the scroll: eleven DBT readers' search "most closely aligns with a type of vigorous drilling
+  strategy" (S6's abstract, fetched); its body, as this repository recorded it and **not verified** here, has them
+  scroll "through 3.8 image slices during a single fixation" and make "sawtooth plots as the observer moves back
+  and forth through the stack multiple times". So the back-and-forth reader rests on "drilling". The three naïve
+  observers and three radiologists of a lung CT study scrolled at "25-30 fps" at detection, against their own
+  "subjective estimate of 5 frames per second" (S4); adjacent looks on film "averaged 0.54 seconds" (S5). So v
+  runs from about 2 to 30 frames a second, and a scroll is a sawtooth whose leg length, and whether a reader dwells
+  before a turn, no source gives **(unknown)**.
 
 **The pipeline** is one server with a head start.
 
@@ -159,17 +168,17 @@ needed is one owed measurement ([`how-viewers-and-readers-ask.md`](how-viewers-a
 path(mode)     cine: the loop or the sweep from s, exactly.   scroll, dwell, jump: s → p, then outward from p.
 need(i)        the path's distance to i ÷ the mode's rate (r for cine, v for a scroll; dwell: the distance alone).
 want           the frames not held, by need, soonest first; replaces the one before.
-               scroll: s → p first, then ahead of p to the lead's depth, then behind and ahead in turn.
-hold           over the budget, let go the frame with the largest need − bring-back.
-               cine: the frame just shown is the farthest on the path.  scroll: a frame ahead at distance δ counts
-               as δ ÷ ρ̂, a frame behind as δ.  dwell and after a jump: ρ̂ = 1, the window is centred.
+               scroll: s → p first, then ahead of p.  dwell and after a jump: behind and ahead in turn.
+hold           over the budget, let go the frame whose need is latest; refuse a fetch it would let go at once.
+               cine: the frame just shown is the farthest on the path.  scroll: every frame behind before any
+               ahead, the farthest first.  dwell and after a jump: the farthest either side (centred).
 commit         no more than keeps the link busy; never ask a frame committed to arrive sooner than the ask would.
 show           the next frame on the path once held and painted; none passed over (S1).
 ```
 
-ρ̂ is the one estimate: frames that arrived a second while the pipeline was busy, over the reader's steps a second
-while scrolling, both seen by the client in this session, capped at 1. It needs no table of devices or links, and
-by this repository's rule for estimators a constant ships instead if it does as well (§7, P1's control arm).
+The rule needs no estimate: the mode and the direction of the last step asked are what the client already knows.
+ρ decides how long the waits are, not which frame goes (§5). *Corrected 2026-11-22 (ASK-MODEL-FIX): the hold first
+weighed a frame ahead at δ ÷ ρ̂, with ρ̂ estimated in the session; §5 strikes that split, and ρ̂ with it.*
 
 **What each existing piece is, in the rule.**
 
@@ -187,12 +196,14 @@ by this repository's rule for estimators a constant ships instead if it does as 
 ### 4.1 Cine
 
 The path is exact, so need is exact, and the display steps only onto a held, painted frame. Starting at once is
-right when the misses will each arrive before their turn: frame j of the misses ahead at j ÷ μ against its place on
-the path ÷ r. With h frames held ahead of n this holds when **h ≥ n × (1 − ρ)** (D, ρ = μ ÷ r); otherwise the cine
-stalls at the hole however it is started. Then there are two honest behaviours, and the modality picks:
+right when each miss arrives before its turn. Number the path's next n places 0 to n − 1, place 0 the frame shown
+now, places 0 to h − 1 held: place j is needed at j ÷ r and its miss arrives at (j − h + 1) ÷ μ. This holds for
+every j when **h ≥ n − ρ(n − 1)**, about n(1 − ρ) (D, ρ = μ ÷ r); otherwise the cine stalls at the hole however
+it is started. Then there are two honest behaviours, and the modality picks:
 
-* **wait, then play at the clip's rate**: for ultrasound, where the rate is the acquisition's ("The default shall
-  be the frame rate specified in the DICOM attributes, if present", S2) and a slowed clip misstates motion;
+* **wait, then play at the clip's rate**: for ultrasound, where a slowed clip misstates motion. The rate rule read
+  here is the Basic Image Review profile's cine ("The default shall be the frame rate specified in the DICOM
+  attributes, if present", S2), a general viewer profile: no profile read here binds breast ultrasound;
 * **play every frame at μ and say the rate**: what S1's note describes for DBT.
 
 Every ultrasound clip fits memory (§3.3), so after one pass nothing is asked again; the gate matters once a clip.
@@ -213,32 +224,62 @@ The key does not stop at a series: need(series, i) orders one want across everyt
   the merged order only if each session's C is shallow: the same condition as §3.5. Carrying several series in one
   session is the clean form and a wire change (§6).
 
-## 5 · Where the window sits: behind, by how much
+## 5 · What the hold decides at a turn
 
-Let a scroll be a sawtooth of legs ℓ frames long at v, the window W, and ρ < 1 (at ρ = 1 the pipeline keeps up and
-only the lead's depth matters). At a turn, what is held behind becomes the buffer ahead. With a tail of β frames
-kept, the reader crosses them while the pipeline adds ρ a frame, so the leg with no wait is **β ÷ (1 − ρ)** (D).
-During it the frames fetched ahead reach ρβ beside the β kept, so β = (W − 1) ÷ (1 + ρ) is the most the budget
-allows, and the split is ρ ahead to 1 behind: the rule's δ ÷ ρ̂.
+*Rewritten 2026-11-22 (ASK-MODEL-FIX, after ASK-MODEL-REVIEW's B2). The first version derived a window kept
+behind by ρ ahead to 1 behind, with a leg of (W − 1) ÷ (1 − ρ²) frames and no wait, from a pipeline that keeps
+adding frames ahead while the reader crosses the tail. Under no skip that fetch is what the split's hold refuses,
+and the window it assumed at a turn never forms. The split and its table are struck; what follows is the same
+model run through.*
 
-| what is kept at a turn | longest leg with no wait (T) | W = 15, ρ = 0.22 | W = 15, ρ = 0.8 |
-| --- | --- | ---: | ---: |
-| all ahead (the ascending want alone) | the lead's depth | ~0 | ~0 |
-| three quarters ahead ([`what-a-view-asks-for.md`](what-a-view-asks-for.md) §4, assumed) | (W − 1) ÷ 4(1 − ρ) | 4.5 | 17.5 |
-| centred (the store as built, `client/view/store.js`) | (W − 1) ÷ 2(1 − ρ) | 9.0 | 35 |
-| by the rule, ρ ahead to 1 behind | (W − 1) ÷ (1 − ρ²) | 14.7 | 38.9 |
-| a leg of at most W − 1 frames, by the rule | any: the leg is held whole after one pass, nothing asked again | 14 | 14 |
+Let a scroll be a sawtooth of legs ℓ frames at v, the window W, one fetch at a time at μ, ρ = μ ÷ v < 1, a store
+that lets go only past its budget (`client/view/store.js:52`), and a hold that refuses a fetch it would let go at
+once. The client learns of a turn when the input asks for the step back (§2's target).
 
-A reader who never turns reverses the table: all ahead gives (W − 1) ÷ (1 − ρ) and the rule's split less. That
-reader is a cine, whose path the client knows, which is why the rule asks the mode and not a guess.
+1. **The window at a turn.** Once the held frames run out the display is held at μ, each frame fetched as it is
+   needed, so nothing is ahead at the tip under any hold: about W − 1 frames are behind, the leg just crossed,
+   less the frame in flight past the tip when the turn comes (T).
+2. **What the hold controls on the way back** is when the pipeline may fetch past that tail: each fetch must let
+   go a frame the reader has just crossed. If it may only after k₀ steps, the leg with no wait is
+   **n = (β − ρk₀) ÷ (1 − ρ)**, β ≈ W − 1 (D). Letting go behind first gives k₀ = 0 and n = (W − 1) ÷ (1 − ρ);
+   centred waits until the reader is halfway, k₀ = W ÷ 2; the struck split until k₀ = W ÷ (1 + ρ).
+3. **A dwell before the turn.** While the reader stands, the client cannot know the next direction. Filling
+   ahead spends the tail; centred keeps half of it. With p the chance a dwell ends in a turn and a fraction f of
+   the window kept behind, the next leg's free run is about [pf + (1 − p)(1 − f)] (W − 1) ÷ (1 − ρ): linear in f,
+   so the best split is all one side, set by p, and **centred is the best worst case when p is unknown** (T). No
+   source gives p.
 
-**What ρ is on a phone** for the `dbts_b1` view (3.71 Mbit a frame), at a reader's 25 frames a second (D, from
-[`../../decode/mobile/device-model.md`](../../decode/mobile/device-model.md) §4's effective decode and
-[`../../transport/link-profiles.md`](../../transport/link-profiles.md)'s goodputs):
+**Simulated** (derived: §2's model run as events, `claude/work-ledger:docs/queue/ASK-MODEL-FIX/legs.py` and
+`legs-output.txt`; it reproduces ASK-MODEL-REVIEW's toy, `docs/queue/ASK-MODEL-REVIEW/sawtooth.py`, exactly where
+the two share a case, and adds the turn seen only by the input and a dwell at each turn). W = 15, v = 25 frames a
+second, no RTT, a lead of 0, a constant μ. Wait a leg after warm-up, seconds:
+
+| case | behind first, moving or not | three quarters ahead | centred (as built) | the struck split | behind first moving, centred dwelling |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| ρ = 0.216, legs of 12 (≤ W − 1) | 0 | 0 | 0 | 0.03 | 0 |
+| ρ = 0.216, legs of 20 | 0.50 | 0.50 | 0.87 | 1.24 | 0.50 |
+| ρ = 0.216, legs of 40 | 3.40 | 3.40 | 3.77 | 4.14 | 3.40 |
+| ρ = 0.5, legs of 40 | 0.56 | 0.72 | 0.88 | 1.04 | 0.56 |
+| ρ = 0.8, legs of 40 | 0 | 0 | 0.05 | 0.10 | 0 |
+| ρ = 0.216, legs of 40, a 1 s dwell at each turn | 4.29 | 4.29 | 4.29 | 4.66 | 4.29 |
+| ρ = 0.216, legs of 40, a 3 s dwell at each turn | 5.85 | 5.29 | 4.55 | 4.75 | 4.55 |
+| ρ = 0.8, legs of 40, a 0.5 s dwell at each turn | 0.29 | 0.29 | 0.09 | 0.13 | 0.09 |
+
+The closed form of item 2 orders the no-dwell rows the same way and reads 0.2–0.4 s lower: it leaves out the frame
+in flight past the tip (one 1 ÷ μ, 0.19 s at ρ = 0.216) and the steps before the input shows the turn. A leg of at
+most W − 1 frames is held whole after one pass under every hold that lets go only past its budget (ASK-MODEL-REVIEW
+B1). Every dwell in the simulation ends in a turn (p = 1), the case most favourable to keeping frames behind; the
+struck split wins no row even there. The limits: no RTT, one frame at a time, legs of one length, no reader data.
+
+A reader who never turns is a cine, whose path the client knows: the hold lets go the frame just shown.
+
+**What ρ is on a phone** for the `dbts_b1` view (3.71 Mbit a frame), at a reader's 25 frames a second (derived on
+theory: [`../../decode/mobile/device-model.md`](../../decode/mobile/device-model.md) §4's effective decode, which that
+file labels (T), and [`../../transport/link-profiles.md`](../../transport/link-profiles.md)'s goodputs):
 
 | | μ, frames a second | ρ at 25 |
 | --- | ---: | ---: |
-| decode-bound, premium phone (33–48 ms) | 21–30 | 0.84–1 |
+| decode-bound, premium phone (33–48 ms) | 21–30 | 0.83–1 |
 | decode-bound, middle (41–132 ms) | 7.6–24 | 0.30–0.98 |
 | decode-bound, entry (90–200 ms) | 5–11 | 0.20–0.44 |
 | wire-bound, LTE one far stream (27–85 Mbit/s) | 7.3–23 | 0.29–0.92 |
@@ -277,13 +318,13 @@ cell's own.
 
 | | cell | prediction (T) | refuted when |
 | --- | --- | --- | --- |
-| P1 | `dbts_b1` view, W = 15, a sawtooth of 12 frames at 25 a second, ρ ≈ 0.22; arms: three quarters ahead, centred, the rule, the rule with ρ̂ fixed at 1 (the control) | wait a leg after the first pass: 1.09 s, 0.44 s, 0; bytes received after the first pass: 0 for the rule only | the rule's wait is over the A/A spread above 0, or the order of the three differs |
-| P1b | the same with legs of 20 | 2.25 s, 1.6 s, 0.77 s a leg | the rule is not the shortest |
-| P1c | the same at ρ ≥ 0.8 | every arm within the A/A spread | any arm differs: ρ does not carry the split |
-| P2 | a one-way cine over W < n, the same arms | the order reverses: all ahead shortest | the rule's hold wins a path that never turns |
+| P1 | `dbts_b1` view, W = 15, a sawtooth at 25 a second, ρ ≈ 0.22, no dwell, legs of 20 and of 40; arms, each letting go only past its budget: behind first, three quarters ahead, centred (as built), the struck split | wait a leg after the first pass (§5, simulated): legs of 20, 0.50, 0.50, 0.87, 1.24 s; legs of 40, 3.40, 3.40, 3.77, 4.14 s. The run adds an RTT and decode jitter, so the order and the gaps are predicted, not the values | centred or the struck split is the shortest, or behind first is not within the A/A spread of the shortest |
+| P1b | legs of 40, a dwell of 3 s at each turn, every dwell ending in a turn; arms: behind first always, centred, behind first moving and centred dwelling | 5.85, 4.55, 4.55 s: the last two within the A/A spread of each other, behind first always longer by about 1.3 s | behind first always is not the longest |
+| P1c | two controls: legs of 12 (≤ W − 1), and ρ ≥ 0.8 with legs of 40, no dwell | every arm within the A/A spread of the others (simulated: at most 0.03 and 0.10 s); legs of 12, no bytes received after the first pass in any arm | any arm differs: the hold acts where the model says it cannot |
+| P2 | a one-way cine over W < n, the arms of P1 | behind first the shortest, the struck split the longest | the struck split wins a path that never turns |
 | P3 | `waitAhead` k ∈ {1, 4, 8, 16, 32} on today's server: `ct_lidc`, `dbt10_ea1141`, the `dbts_b1` view | the forward wait falls until k ≈ C ÷ b (38, 11, 13) and is flat after | a minimum at one k across frame sizes, or the DBT cells again worse at k < 11 with C read at 6 MiB (then the model of C is wrong, and why is the finding) |
 | P4 | the same under the window that follows cwnd | k from 1 to 32 within the A/A spread | any k differs |
-| P5 | a cine at the clip's rate on `usb_cine` and `us_liver`, links with ρ < 1; started at once against gated at h ≥ n(1 − ρ̂) | gated: no stall after the first step; at once: stalls, all of them at the first hole | a gated cine stalls, or the ungated one does not |
+| P5 | a cine at the clip's rate on `usb_cine` and `us_liver`, links with ρ < 1; started at once against gated at h ≥ n − ρ(n − 1), ρ from the cell's μ̂ | gated: no stall after the first step; at once: stalls, all of them at the first hole | a gated cine stalls, or the ungated one does not |
 | P6 | two series, a client arbiter, each session's commitment shallow against deep | shallow: the focused series' forward wait within its single-series A/A; deep: later by about the other's C ÷ G | the two tie |
 | P7 | every visit of P1–P5 | the held frames of a series are one interval at every sample; a mutant hold that lets go the nearest fails it | a hole appears without a failed check |
 
@@ -296,14 +337,20 @@ Kept from [`what-a-view-asks-for.md`](what-a-view-asks-for.md): one rule and not
 the frame's size, not from the modality; the client arbiter before any wire change; its implementation steps 2
 (the page view sends a want), 3 (a frame memory that frees: without it a window bounds bytes, not memory) and 5.
 
-Differs: the window's place (behind by ρ̂, not three quarters ahead); `waitAhead` k = 8 as a default (not for DBT);
-M from `deviceMemory` (abandoned, S7); equal memory shares a viewport (by need); "link rate stays out" (it enters
-the hold as ρ̂, measured in the session, and never sets W); and the reader's target apart from the display's frame.
+Kept too: "link rate stays out": no estimate enters the hold (§4).
+
+Differs: the window's place (under no skip a scroll's window is the leg just crossed whatever the split, so the
+hold lets go behind first while the reader moves and is centred while the reader dwells, not three quarters
+ahead); `waitAhead` k = 8 as a default (not for DBT); M from `deviceMemory` (abandoned, S7); equal memory shares a
+viewport (by need); and the reader's target apart from the display's frame. *Corrected 2026-11-22 (ASK-MODEL-FIX):
+the first version differed here by a window behind by ρ̂ and took the link rate into the hold; both are struck.*
 
 ## 9 · For the owner, through the `asking` page
 
-1. **The rule of §4**, as the design of *what a view asks for*: yes or no. A yes queues a protocol row for §7 and,
-   after it, the two structural steps the earlier proposal already names (the page view's want; a freeing memory).
+1. **The rule of §4**, as the design of *what a view asks for*: yes or no. Its hold changes the store as built in
+   one case only: while the reader moves it lets go behind first; while the reader dwells it stays centred. A yes
+   queues a protocol row for §7 (P1 and P1b decide the hold) and, after it, the two structural steps the earlier
+   proposal already names (the page view's want; a freeing memory).
 2. **Contradiction 1**: no slice skipped for DBT and ultrasound stacks, in a scroll and in a cine; the stride ADR
    corrected in place as not holding where S1 binds. And the reading of a scroll bar's thumb: a scroll or a jump.
 3. **The three settings**: `waitAhead` stays off for the scope until P3; `span` and `holdEveryOther` removed.
@@ -329,8 +376,9 @@ Amendment 22 (only a lost ask is asked again) is untouched: the want re-lists a 
 a third of their visits; `dbts_b1` of one DBT dataset; one phone on one home link behind the decode ranges; no
 breast ultrasound cine, no reader, no radio.
 
-**To DBT stacks:** §3.1 and §3.4 hold by S1 itself. §5 holds if DBT readers go back and forth, which rests on one
-study recorded here and not refetched (S6), and its leg lengths are unknown. **To ultrasound clips:** they fit
+**To DBT stacks:** §3.1 and §3.4 hold by S1 itself. §5's turns rest on one study's abstract, "a type of vigorous
+drilling strategy" (S6); its leg lengths, and whether readers dwell before a turn (P1b), are unknown. §5's
+numbers are a simulation of the model, not a measurement. **To ultrasound clips:** they fit
 memory and are played, so the rule is the cine's (§4.1) and the hold never acts; that a breast ultrasound study is
 many short clips makes §4.2's order across series its main part, and no source for that order was found.
 **Not known:** M on any device; ρ on any phone but one; whether S1's rule is the right one for ultrasound scrubbing,
@@ -344,22 +392,33 @@ Fetched 2026-11-22; sha256 of the file as fetched.
   §4.16.4.2.2.1.3.9 *Scrolling through Multi-frame Tomosynthesis Images* (lines 6170–6197),
   `https://www.ihe.net/uploadedFiles/Documents/Radiology/IHE_RAD_TF_Vol2.pdf`,
   `23b6e028b038ac7cedd0af958057b9be07c342d4ea42866d463189ec982e35ad`.
-* **S2** The same, §4.16.4.2.2.6.9 *Cine* (line 6945).
-* **S3** Android 16 Compatibility Definition, "Last updated 2026-08-04 UTC", §2.2.7.3 ([7.6.1/H-2-1], in full: "MUST
-  have at least 8 GB of physical memory, with at least 6.64 GB available to the kernel") and §2.2.1 ([7.6.1/H-0-2]:
-  "MUST return "true" for ActivityManager.isLowRamDevice() when there is less than 1GB of memory available to the
-  kernel and userspace"), `https://source.android.com/docs/compatibility/16/android-16-cdd`,
-  `f38fc85202b24c98594dce16779333ba122589e5530e7f68176bec25c8cc1c13`.
+* **S2** The same, §4.16.4.2.2.6.9 *Cine* (line 6947), under §4.16.4.2.2.6 *Display of Images for Basic Image
+  Review*: the Basic Image Review profile, not a DBT or ultrasound requirement.
+* **S3** Android 16 Compatibility Definition, §2.2.7.3, the Media Performance Class requirements ([7.6.1/H-2-1], in
+  full: "MUST have at least 8 GB of physical memory, with at least 6.64 GB available to the kernel as reported by
+  android.app.ActivityManager.MemoryInfo.totalMem") and §2.2.1 ([7.6.1/H-0-2]: "MUST return "true" for
+  ActivityManager.isLowRamDevice() when there is less than 1GB of memory available to the kernel and userspace"),
+  `https://source.android.com/docs/compatibility/16/android-16-cdd`. The page is dynamic: its footer reads "Last
+  updated 2026-08-04 UTC" and its body "Last updated: December 2, 2025", and its sha differs on each fetch
+  (`f38fc852…` on 2026-11-22 by ASK-MODEL, `d4231f1e…` by its review, `0b74583c…` by ASK-MODEL-FIX); the quotes
+  were found verbatim each time.
 * **S4** Diaz et al., "Eye-tracking of nodule detection in lung CT volumetric data", Med Phys 2015;42(6):2925-32,
   the abstract, PubMed 26127046 (`eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=26127046`),
   `8282edb7c3d6c1aa64b01247be93e8a5d5ffaa884893d6321ccb126b69ddcfba`: "The scrolling speed of the naïve observers
-  and the radiologists at the moment the signal was detected was measured at 25-30 fps." Three radiologists; abstract only.
+  and the radiologists at the moment the signal was detected was measured at 25-30 fps."
+  Three naïve observers and three radiologists; abstract only.
 * **S5** Beard et al., "Eye movement during computed tomography interpretation", J Digit Imaging 1994;7(4):189-92,
   the abstract, PubMed 7858015, `3d96e53ba91a550ca0d74df5f533ba1a38a6013c23cf1a91a38bfba1a2ecdb65`: "Adjacent eye
   movements (+/- 1 image in sequence) averaged 0.54 seconds." Film, not a stack.
-* **S6** Aizenman et al., J Med Imaging 2017;4(4):045501 (PMC5658515): **not refetched** (the site answered an
-  automated-client check, its API an error); quoted as [`how-viewers-and-readers-ask.md`](how-viewers-and-readers-ask.md)
-  recorded it on 2026-10-28. A review fetches it or strikes §5's reliance on it.
+* **S6** Aizenman et al., "Comparing search patterns in digital breast tomosynthesis and full-field digital
+  mammography: an eye tracking study", J Med Imaging 2017;4(4):045501, doi 10.1117/1.JMI.4.4.045501, the abstract,
+  `eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=5658515` (the publisher withholds the body from
+  that form), `8f699f7408adbbcdc899e6d22962376af895e1b26ee6fc2476df72b4c7a6611c`, fetched 2026-11-22 by
+  ASK-MODEL-FIX: "Eleven radiologists examined eight DBT and FFDM cases"; "we found DBT viewers did not align with
+  previously identified “driller” or “scanner” strategies, although their search strategy most closely aligns with
+  a type of vigorous drilling strategy." The body's "3.8 image slices" and "sawtooth" are **not verified** (the
+  article page answered an automated-client check); quoted as
+  [`how-viewers-and-readers-ask.md`](how-viewers-and-readers-ask.md) recorded them on 2026-10-28.
 * **S7** W3C, *Device Memory API*, "W3C Discontinued Draft, 20 October 2026",
   `https://www.w3.org/TR/2026/DISC-device-memory-1-20261020/` (fetched as `https://www.w3.org/TR/device-memory/`),
   *Status of this document*, `9101a1a4c32a6e0d4261c8295521e870ecf2b90999661708d13c6f24235a46d3`.
