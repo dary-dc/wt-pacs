@@ -97,6 +97,49 @@ The client's checks stay on by default.
 | The study index's engine | MySQL proposed; "MySQL fits" (owner, 2026-10-25), its placement to evaluate | [`../adr/study-index.md`](../adr/study-index.md) §5 |
 | The PACS receiver and builder: one program beside the server, the inputs kept, revisions named by `CURRENT` | recommended 2026-10-21; superseded by the receiver ADR (`docs/adr/pacs-receiver.md`, #163) | [`design.md`](design.md) §12 |
 
+## 4a. The receive design's state, and the owner's decisions on it
+
+Moved verbatim from the PACS line's file ([`../lines/metadata.md`](../lines/metadata.md)) on 2026-11-20, as last
+verified there on 2026-10-29. Its branch, `claude/line-pacs`, is in `claude/unified` (checked 2026-11-20).
+
+* **Built, draft, carried by `claude/line-pacs` (#258, not for merge yet):** the sender at the PCS, the receiver,
+  `pacs-verify` and `claude/line-pacs:common/from-disk`, serve-by-UID, the carrier; metadata, SQLite and
+  study-index labs; ADRs. No resend-identity logic anywhere, on purpose.
+* **Delivery reopened 2026-10-28:** rsync is the proposed PCS → PACS delivery, so the design became generic:
+  [`pcs-pacs-options.md`](pcs-pacs-options.md) (#230) has eight parts with defaults per profile and four
+  profiles (rsync into a cleared `incoming/`; the package as built; tar over rsync as a bridge; a **kept mirror**,
+  `rsync -a --delete` into `mirror/<exam>/` outside the serving tree). Proposed; the structure awaits review.
+* **rsync, theory (#233, #234; quotes not re-verified):** rsync's whole-file checksum covers the wire, not a read-back
+  from disk, quick-check skips or corruption at rest at the PCS. Proposed order: read back the frame container in
+  `incoming/` → rename → one DB transaction → read rows back → "stored" → study index → clean `incoming/` last.
+* **The hash bridge, open:** under rsync the group files arrive BLAKE3-named, while our side checks XXH3. Options:
+  (a) the PACS verifies the PCS's BLAKE3 names, our DB keeps XXH3 (recommended: only the parser's write-time hash
+  catches corruption at rest); (b) our trigger lists XXH3 per file; (c) an XXH3-named copy before rsync. The PCS's raw
+  frame files carry no hash.
+* **Synchronization protocol:** #221 prior art, #222 shapes (A + F recommended), #220 a second writer, #223 measured
+  B vs E (a one-group CT fix: E 35 KB, B 10–11 KB, a gap of one round trip; the pre-registered verdict is E).
+  Two conflicts remain: the hash bridge ((a) in #233, (b) in #234) and update pattern P3 (#234) vs E (#223).
+  Neither compared the kept mirror.
+* **Layout:** the PCS's code and its design document agree at exam and series, disagree below; following the code
+  now (A) is recommended, the design document's target is B. Not chosen.
+* The 2026-10-28 night items in the logs are leanings, not decisions.
+
+The owner's decisions:
+
+* 2026-10-24: our scope starts at the PACS; the PCS encodes; the server stays on `.sbnd` (no MXF or MP4 reading);
+  file-name hashes in this repo are XXH3; display metadata is updated in place, no kept history.
+* 2026-10-25: final checks read from disk, not memory; extraction stages in `incoming/`, the serving tree changes only
+  by rename.
+* 2026-10-26: the PCS decides when a series is complete; replies and retries required; frames stay contiguous in
+  display order; metadata compression configurable per site, the receiver accepting both by zstd magic; one
+  disk-read helper; nothing unfinished is merged; QUIC chosen at build time.
+* 2026-10-26/27: late instances are merged by a full `.sbnd` rewrite with a rename; a tail rewrite only if merges
+  prove frequent.
+* 2026-10-28: XXH3 here and BLAKE3 at the PCS is by design; the layout contract follows the PCS's code and design
+  document; the trigger is the completeness signal; design generic, options per part.
+* 2026-10-29: the tar package is one profile of our own choosing, not an agreement with the PCS team; the kept
+  mirror added as an option, not decided; organize and evaluate from the research done, no new investigations.
+
 ## 5. Parser findings
 
 Read from the parser's public source for the ingest's input contract. Phase 1 does not act on them; they are for the
