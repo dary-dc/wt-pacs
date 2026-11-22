@@ -1,12 +1,11 @@
 state: started
 started: 2026-11-22T18:21Z
-heartbeat: 2026-11-22T18:28Z
-outputs: `claude/non-cine` (not pushed yet)
+heartbeat: 2026-11-22T18:36Z
+outputs: `claude/non-cine` `b3f095a2f` (`docs/client/evidence/non-cine-series.md`; `docs/client/design.md` §Open; `docs/lines/client.md`); PR not opened yet
 ## Resume
-Claimed; `claude/non-cine` created locally from `origin/claude/unified` `4a2b4277f`, nothing pushed to it yet. Read:
-the queue file, `docs/client/design.md` §Decided and §Open. In progress: the repository's inputs (FIXTURES, the
-device model, link profiles, the fitting ADR, `htj2k-tiles.md`) and the sources (GLES/WebGL/WebGPU texture limits,
-canvas limits in the engines' source, AV1 levels, DICOM PS3.3 MG/US IODs, IHE MAMMO/DBT display, MQSA statistics).
-Next: write `docs/client/evidence/non-cine-series.md`, push, open the draft PR into `claude/unified`.
+The file, `design.md` §Open and the line doc are pushed at `b3f095a2f` (links 0 unresolved, comment budget ok, the
+gate not run: docs only). Next: open the draft PR `claude/non-cine` into `claude/unified` through
+`mcp__github__create_pull_request` (question, the deciding measurement = the file's §7, line doc `docs/lines/client.md`),
+then set this file `done` with the Result.
 ## Result
 (none yet)
