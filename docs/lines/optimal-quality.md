@@ -59,6 +59,9 @@ the coding error converted to display levels at the current window, against the 
 
 ## Waits for the owner
 
+The ingest's calls are on one decision page since 2026-11-22: [`../decisions/ingest-optimal-quality.md`](../decisions/ingest-optimal-quality.md)
+(which ingest, the signed gap, Q and G, the id grammar, the decode-back guard, σ_min, G for cine). PR 321 is closed, carried.
+
 Taking #368 and its open choices (the unchecked label, block or paint, the mask); which ingest writes the pair, the
 signed gap, where Q and G come from, whether the PCS may code optimal quality; the phone run's reading (which stands,
 and whether `bbr`'s two failures withdraw it); any merge, close or removal.
