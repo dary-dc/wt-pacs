@@ -1578,3 +1578,44 @@ was sent by its 1 s tick before the blackout began (the presses come at the fill
 
 No mutant leaves a Firefox cell VOID. Seen beside them: SESSION-H's D1 fill record missed in every load whose carrier was
 not mutated, as on Chromium (§Results, D1).
+
+### Firefox's counted cells: **not run** (a rig defect, 2026-11-22 13:52–20:50 UTC)
+
+D1, the first Firefox cell, was started three times and finished none: it hung at load 70 (15:12), stopped when the disk
+filled at load 101 (18:32), and hung at load 69 (20:14). All three partials are kept
+(`rows/r2-firefox-D1.partial-11221636.jsonl`, `-11221855`, `-11222050`) and counted in no bar. **The cause is the
+rig's, named for a build row, not patched here** (§7.8's rule):
+
+* **A Firefox load can hang the driver for good.** `bidi.mjs`'s `send` keeps a pending promise per BiDi call and never
+  rejects it when the socket closes, and `run.mjs`'s Firefox path has no per-load timeout; killing the hung browser does
+  not free the driver (tried at 20:35). On this host it happened about once in 70–100 Firefox loads, so a 162-load
+  cell rarely finishes.
+* **A Firefox load fails to fill about 2–3 % of the time** (`reached: "starting"`: 7 of 240 partial loads), never seen on
+  Chromium in this run's 1 134 counted loads; such a load sends no safety report, since nothing was decoded.
+* **Each Firefox load leaves its ~108 MB profile in `/tmp`** (`bidi.mjs` never removes it): 210 profiles filled the disk.
+  The host's companion script now removes profiles no running Firefox holds (`claude/work-ledger:docs/queue/REPORT-RUN-2-push.sh`).
+
+Read as measured, not judged (240 partial D1 loads, 25–28 per unit, not Williams-balanced as a whole): every unit
+delivered the safety report in every load that filled; BEACON-Y, KEEPALIVE-Y and SESSION-1 delivered the fill record
+and a delta in every filled load; BEACON-H's fill record arrived in 24 of 28, KEEPALIVE-H's in 22 of 23 filled;
+SESSION-H's in 1 of 27 and SESSION-Y's delta in 5 of 27, as on Chromium.
+
+### The run, in sum (REPORT-RUN-2, Chromium 153 complete; Firefox's mutants only)
+
+Fixtures and limits (§7.9): a 4-vCPU cloud container without a GPU; headless Chromium 153.0.8010.12, Firefox 160.0.1
+for the mutants only; the contract's grey-16 frame ×32, not `dbts_c1`; the fault bench's forced mismatch; loopback, or
+under `--tun` a userspace relay at 10 ms each way, 50 Mbit; nginx 1.31.8; no phone, no WebKitGTK. The host never
+saturated (CPU at most 25 %). Every counted cell Williams-balanced, no counted row errored.
+
+* **D5a, D5b, timed from the fault**: every arm 18/18 safety; the page had handed its report on before every kill, so
+  the race §7.3 calls at risk is shorter than 50 ms here and rule 3 stays a tie.
+* **D6**: every arm 18/18 safety; four predicted losses arrived (a 30 s blackout inside a 60 s browser life).
+* **L idle**: every arm within the bar by two orders of magnitude; gaps under 1.2 ms, below the clocks' resolution.
+* **Lbusy: VOID** (A/A 1.095); as measured, page-thread carriers ~51 ms p99, worker carriers 2–9 ms.
+* **C**: no long task added by any arm; the per-round fill bar met by no carrier and by `off′` itself in 3 of 18 rounds.
+* **Y**: no record over 16 KiB; H arms ~2.2 KB kept a load, Y arms and SESSION-1 ~2.65 KB.
+* **R**: NGINX passes at 100/s (1.3–1.5 % of a core); RECEIVER behind nginx misses (5.3–6.3 %); the server's row not built.
+* **Firefox**: mutants all caught; counted cells not run (above).
+
+For REPORT-VERDICT-2 (§7.5 over both runs), not decided here: whether C's per-round fill bar and Lbusy's ratio-form
+A/A can be met on this host at all; the Firefox driver's two defects and its profile leak, for a build row.
