@@ -21,6 +21,12 @@ from the owner and no hands after, so every run is comparable and no valid load 
 
 ## In flight
 
+**2026-11-22, the round read** ([`../phone-rows/next-round-results.md`](../phone-rows/next-round-results.md), PHONE-READ):
+cell 1 HTJ2K 18.9 ms effective at three decoders (DEVICE-THEORY's bands held, the protocol's missed), the view
+saturating at three; cell 2 *B faster* than A, 15 of 15, median 0.705 (DEVICE-THEORY predicted a tie); cell 3 not
+decided (no end batch arrived; BEACON-LOSS); cell 4 the hardware AV1 decoder allocated, full range back as `RGBA`.
+Owed: PHONE-READ-REVIEW.
+
 The next round's path, in order:
 
 ```text
