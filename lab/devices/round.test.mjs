@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { balanced } from "../order.mjs";
 import { ARMS, BENCH, SERIES, STOPPED_GAP_MS, TICK_MS, fillFailure, largestGap, roundOrder, verdict } from "./round.mjs";
-import { roundPlan } from "./round_plan.mjs";
+import { countsOf, roundLoads, roundPlan } from "./round_plan.mjs";
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -82,6 +82,28 @@ test("the round's order is the protocol's", async () => {
 test("the plan refuses a missing, empty or flag-shaped --dial", async () => {
   for (const dial of [undefined, "", "--quick"]) {
     await assert.rejects(roundPlan({ dir: "/nonexistent", run: "/nonexistent", dial, quick: true }), /--dial/, `dial ${JSON.stringify(dial)}`);
+  }
+});
+
+/**
+ * --rounds, --pairs and --bench-reps reach roundOrder() through the plan's loads: each cell's count follows its flag
+ * (over --quick's too), an absent flag keeps the protocol's 144 loads, and a missing or non-positive value is refused.
+ */
+test("the plan's count flags reach the round's order", async () => {
+  const cells = (loads) => ({
+    rounds: new Set(loads.filter((l) => l.cell === "2" && l.counted).map((l) => l.round)).size,
+    pairs: new Set(loads.filter((l) => l.cell === "3").map((l) => l.pair)).size,
+    benchReps: new Set(loads.filter((l) => l.cell === "1" && !l.drift).map((l) => l.rep)).size,
+  });
+  const short = await roundLoads({ counts: countsOf(["--dial", "x", "--rounds", "8", "--pairs", "16", "--bench-reps", "1"]) });
+  assert.deepEqual(cells(short), { rounds: 8, pairs: 16, benchReps: 1 });
+  assert.equal(short.length, 8 + 4 + 32 + 32 + 4);
+  assert.ok(short.every((l) => l.url.startsWith("http://127.0.0.1:")));
+  assert.deepEqual(cells(await roundLoads({ counts: countsOf(["--pairs", "5"]) })), { rounds: 16, pairs: 5, benchReps: 3 });
+  assert.deepEqual(cells(await roundLoads({ quick: true, counts: countsOf(["--rounds", "3"]) })), { rounds: 3, pairs: 2, benchReps: 1 });
+  assert.equal((await roundLoads({ counts: countsOf([]) })).length, 144);
+  for (const bad of [["--rounds"], ["--pairs", "0"], ["--bench-reps", "-1"], ["--rounds", "2.5"], ["--pairs", "--quick"]]) {
+    assert.throws(() => countsOf(bad), /positive integer/, bad.join(" "));
   }
 });
 

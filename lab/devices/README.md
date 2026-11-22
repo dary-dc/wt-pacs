@@ -209,7 +209,8 @@ round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer
 wrote it): cells 1–3, 144 loads, the views `dbts_b1-q8-g8` and `dbts_a1-q8-g8-cut` on UDP 4433 and 4435, their exact
 series on 4434 and 4436, each pair's page on 8765–8766 and each exact series' alone on 8767–8768 (arm B, cell 1's
 HTJ2K), all on loopback for `adb reverse`; `--quick` is one repetition of cell 1, two rounds of cell 2, two pairs of
-cell 3 (28 loads). `round_headless.sh --plan` runs the quick plan whole in headless Chromium on the synthetic pair.
+cell 3 (28 loads). `--rounds N`, `--pairs N` and `--bench-reps N` set cell 2's rounds, cell 3's pairs and cell 1's
+repetitions (over `--quick`'s too; `round.test.mjs` checks they reach `roundOrder()`). `round_headless.sh --plan` runs the quick plan whole in headless Chromium on the synthetic pair.
 
 **Tested** in the container: `round.test.mjs`, `beacon.test.mjs` and `round_test.py` (a fake `adb` on PATH; `raw_rows.py`) in the
 gate, and `round_headless.sh`: headless Chromium against the real viewer, `series-server` and dev servers, on a
