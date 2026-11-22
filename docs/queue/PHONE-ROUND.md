@@ -1,6 +1,6 @@
 State: started
 started: 2026-11-22T17:34Z
-heartbeat: 2026-11-22T19:32Z
+heartbeat: 2026-11-22T19:42Z
 outputs: (none yet; raw rows go to claude/phone-run:docs/phone-rows/raw/2026-11-22/)
 ## Resume
 FULL round by SATURDAY.md, worktree wt-pacs-phone-962 on claude/phone-run 3dbe295a3, RUN_CODE a8927df1 (no pull
@@ -27,3 +27,15 @@ is a symlink there).
 * The full round runs clean (Facebook, Instagram, WhatsApp force-stopped, the owner's choice), with
   target/resources.sh: one adb snapshot per gap between loads (meminfo, PSI, vmstat swap/fault counters, thermal,
   each Chrome process's RSS/VmSwap, top 8 by RSS), nothing during a load, into target/round/resources.jsonl.
+* Round confound (found mid-round, loads 22-29): the memory a load starts with depends on the same-origin loads
+  before it. One renderer (SandboxedProcessService0:85) lived through loads 22-28, all on port 8765; RSS+VmSwap
+  after each: 1.0, 1.7, 3.4, 4.6, 6.1, 7.6 GB, phone swap 9.2 of 12 GB; loads 28 (A, 4.6 s) and 29 (B, 2.0 s)
+  VOID. At load 29 (8767) a new renderer (1.2 GB) and the old one freed (swap 1.9 GB). Evidence: target/round/
+  resources.jsonl (per load: each Chrome process's name, RSS, VmSwap), round.py's OUT/adb/NNN-*-PID.stat (the PIDs).
+  Cause not checked (the back/forward cache keeping the previous viewer document is a hypothesis).
+* Ports to arms (target/round/plan.json): 8765 the dbts_b1 view (cell 1 view-1..4; cell 2 A, C1, C2 on b1;
+  all 48 cell 3 loads); 8766 the dbts_a1 view (cell 2 A, C1, C2 on a1); 8767 b1's exact series (cell 1
+  htj2k-1..4, cell 2 B on b1); 8768 a1's exact (cell 2 B on a1). B never shares an origin with A, C1, C2, so it
+  biases arms, not only positions: B starts in a fresh renderer, A/C1/C2 inherit earlier same-origin loads. Cell 3
+  runs 48 loads back to back on 8765 with no reset. PHONE-READ: split VOIDs and timings by the count of preceding
+  same-origin loads in the same renderer.
