@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-22 (the cache's decision page), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-22 (the cache's and the engines' decision pages), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -109,7 +109,10 @@ which view is the target; the contradictions the fold left open ([`../client/des
 stride ADR against never skipping, the cache file's questions 3 and 4); the coded-bytes digest; turning the cache or telemetry on, and telemetry's rate, sink and retention; a series
 without digests; the settings awaiting a default ([`../client/design.md`](../client/design.md) §Open); anything
 structural. The cache's six lines: [`../decisions/cache.md`](../decisions/cache.md) §2 (CACHE-PAGE, 2026-11-22: the
-cache off; `cache-plan.md` §10.4 narrowed to items 1, 3 and 4, then the phone's P2 and P1).
+cache off; `cache-plan.md` §10.4 narrowed to items 1, 3 and 4, then the phone's P2 and P1). The engines' six lines:
+[`../decisions/engines.md`](../decisions/engines.md) §2 (ENGINES-PAGE, 2026-11-22: Chromium and Firefox desktop
+measured, Safari unknown; no 4:2:0 view to Firefox's decoder until its G = 8 failure is traced; contradiction 6 by one
+Firefox 160 run; the Safari probe first).
 
 ## Pointers
 
