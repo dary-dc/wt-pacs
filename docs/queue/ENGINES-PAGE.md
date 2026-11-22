@@ -1,7 +1,7 @@
 state: done
 started: 2026-11-22T16:27Z
 heartbeat: 2026-11-22T16:30Z
-outputs: `claude/reviews-2026-11-28` at `5cf82a8bf` (`docs/decisions/engines.md`; the README's index line; `docs/lines/client.md`); draft PR of DECISIONS-OPEN
+outputs: `claude/reviews-2026-11-28` at `4193fabd2` (`docs/decisions/engines.md`; the README's index line; `docs/lines/client.md`); draft PR of DECISIONS-OPEN
 ## Resume
 Done. Nothing left for this row. The page's items 3 and 4 (trace Firefox's G = 8 failure; M5's amended bar on Firefox
 160) and item 5 (the Safari probe order) are rows for the next queue, PROGRAM-CLOSE's list.
@@ -16,7 +16,7 @@ Done. Nothing left for this row. The page's items 3 and 4 (trace Firefox's G = 8
 * Contradiction 6: ring − floor 286 MiB on 159.0, 262 on 155.0 (derived), both under the 320 bar; the amended fill bar
   never read on 159+; one Firefox 160 run closes it.
 * The Chromium D1 report cell cited as one clean run of two (Re-review n3).
-* Docs only: `check_links.py` 5 unresolved, all pre-existing in other pages, none in this one; comment budget ok; gate not run.
+* Docs only: `check_links.py` 5 unresolved, all pre-existing in other pages, none in this one (two of its own fixed by naming `claude/engines`); comment budget ok; gate not run.
 * Fixtures and limits: one 4-vCPU container, no GPU, software decode, one round per cell, `dbts_a1` only (1 of 19 DBT
   volumes, one dataset), no ultrasound cine, no Safari, no phone; the ring's rows 80 frames of one series, 7 rounds.
 * Owner: six yes-or-no items in the page's §2 (recommended yes on all six).
